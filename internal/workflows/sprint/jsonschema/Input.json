@@ -1,7 +1,7 @@
 {"type":"object",
 "description":"Input starts a sprint.","properties":{
 "sprint":{"type":"integer","description":"The sprint to build: its number in ephemeral/research/api/SPRINTS.md, e.g. 2."},
-"repo":{"type":"string","description":"Absolute path of the repository. Each lap is committed to the branch checked out there, and the sprint ends by merging that branch."},
+"repo":{"type":"string","description":"Absolute path of the repository. Each validated task is committed to the branch checked out there, and the sprint ends by merging that branch."},
 "model":{"type":"string","description":"Codex model for the researcher, the planner, and the coders, e.g. \"gpt-5.6-luna\"."},
 "review_model":{"type":"string","description":"Claude Code model for the supervisors and the validator, e.g. \"haiku\"."},
 "tasks":{"type":"integer","description":"The most tasks to run in all. The sprint fails if the planner is not done by then."}

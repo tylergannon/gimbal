@@ -6,22 +6,22 @@ execution note; the checkboxes remain open until the work is demonstrated.
 
 ## What we're doing
 
-- [ ] Replace the task contract with a short name, outcome-focused description,
+- [x] Replace the task contract with a short name, outcome-focused description,
   definition of done, and command/query validation. Use `loop.Tasks`, retain
   the workflow-selected planner Session, and remove the lap counter. Carry
   the same structured assignment through planner output, yielded value, scoped
   data, backlog, and durable events. Godoc and compiling examples agree.
-- [ ] Give dispatch the goal, relevant scoped information, and recorded results
+- [x] Give dispatch the goal, relevant scoped information, and recorded results
   of the previous assignment. It selects the greatest concrete gain toward the
   overall Definition of Done, sized for one coherent worker session including
   evidence. It works from prioritized promises alone or adapts a supplied
   sprint plan. An unfinished earlier phase does not automatically block later
   work; outstanding defects remain visible.
-- [ ] Adapt the existing sprint workflow. It executes validation visibly in Go
+- [x] Adapt the existing sprint workflow. It executes validation visibly in Go
   and records the results for dispatch, replacing Loop's automatic command
   sweep. Failed validation informs the next assignment. Returning from a task
   does not declare success, and ending dispatch does not certify fulfillment.
-- [ ] Demonstrate the replacement through focused mechanical tests and a small
+- [x] Demonstrate the replacement through focused mechanical tests and a small
   live workflow, then have an independent validator assess the evidence.
 
 ## How we'll know we're done
@@ -53,3 +53,21 @@ finishing loop.
 
 This work does not build the CEO, a promise registry, badges, scheduling, a
 generic workflow framework, or a general scoped-context/event-system redesign.
+
+## Evidence
+
+The retained [live result](../../attest/issue125/result.txt) and
+[event stream](../../attest/issue125/run.jsonl) record Codex
+`gpt-5.6-luna` planning and work plus an independent Claude Haiku PASS. The
+no-plan run carries the parent constraint and failed check into adaptive
+follow-up, preserves a real probe exit 7 as failure, and later records exit 0.
+The plan run demonstrates task selection only: it chooses the higher-priority
+export ahead of a nonblocking earlier typo; it does not claim the export was
+implemented.
+
+Focused Loop tests cover the structured assignment, scoped feedback,
+historical event snapshot, malformed planner data, backlog repair, and task
+scope cleanup. The sprint consumer also has a regression test proving that a
+task with no command or query still receives an agent assessment against its
+Definition of Done before it can be committed. Mechanical, contract, and proof
+validators independently passed the result.

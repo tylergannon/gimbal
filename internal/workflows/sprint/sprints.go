@@ -29,7 +29,7 @@ import (
 type Input struct {
 	// The sprint to build: its number in ephemeral/research/api/SPRINTS.md, e.g. 2.
 	Sprint int `json:"sprint"`
-	// Absolute path of the repository. Each lap is committed to the branch checked out there, and the sprint ends by merging that branch.
+	// Absolute path of the repository. Each validated task is committed to the branch checked out there, and the sprint ends by merging that branch.
 	Repo string `json:"repo"`
 	// Codex model for the researcher, the planner, and the coders, e.g. "gpt-5.6-luna".
 	Model string `json:"model"`
@@ -154,17 +154,19 @@ func runTask(ctx context.Context, in Input, researcher, validator *gimble.Sessio
 			passed = false
 		}
 	}
-	if strings.TrimSpace(task.Validation.Query) != "" {
-		assessment, err := validator.Generate[review](ctx, taskValidationPrompt+"\n\n"+task.Validation.Query+"\n\n"+gimble.ScopeText(ctx))
-		if err != nil {
-			return err
-		}
-		if err := gimble.SetJSON(ctx, "task assessment", assessment); err != nil {
-			return err
-		}
-		if len(assessment.Objections) != 0 {
-			passed = false
-		}
+	assessmentPrompt := fmt.Sprintf(taskValidationPrompt, task.DefinitionOfDone)
+	if query := strings.TrimSpace(task.Validation.Query); query != "" {
+		assessmentPrompt += "\n\nAdditional validation question:\n" + query
+	}
+	assessment, err := validator.Generate[review](ctx, assessmentPrompt+"\n\n"+gimble.ScopeText(ctx))
+	if err != nil {
+		return err
+	}
+	if err := gimble.SetJSON(ctx, "task assessment", assessment); err != nil {
+		return err
+	}
+	if len(assessment.Objections) != 0 {
+		passed = false
 	}
 	for i, check := range checks {
 		code, output, err := command(ctx, in.Repo, check)
@@ -230,7 +232,11 @@ const codePrompt = `Complete the task in the scoped context, following AGENTS.md
 
 const superviseInstruction = "Don't let it build what its task does not ask for, over-engineer what it does build, or break a rule in AGENTS.md. Object to nothing else: code quality and style are not yours to judge."
 
-const taskValidationPrompt = `Assess the task against its definition of done using the recorded result and evidence. Object only when that evidence does not establish a working result at the repository's 90-95% readiness standard. A passing agent judgment cannot override a failed deterministic check.`
+const taskValidationPrompt = `Assess the task using the recorded result and evidence.
+
+Definition of done: %s
+
+Object only when that evidence does not establish a working result at the repository's 90-95%% readiness standard. A passing agent judgment cannot override a failed deterministic check.`
 
 const validatePrompt = `You are the validator of one sprint of this repository, Gimble. Its goal is below, and the agents that built it say it is done. Read docs/definition-of-done.md, then decide whether the sprint's validation legitimately demonstrates the goal: that the software actually works and what the goal asks for is implemented and has been seen working.
 

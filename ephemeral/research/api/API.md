@@ -252,7 +252,7 @@ Identity is in the ctx; data is in the run.
 iteration, so a `Set` inside a plain loop hits set-once on the second
 pass. Gimble's iterators make the range body the scope's function: a fresh
 scope every iteration, ended when the body returns. `Loop` does this per
-lap, and there is a trivial one for a fixed slice:
+task, and there is a trivial one for a fixed slice:
 
 ```go
 for ctx, prompt := range gimble.Each(ctx, "attempt", prompts) {
@@ -263,8 +263,8 @@ for ctx, prompt := range gimble.Each(ctx, "attempt", prompts) {
 `Each` is built with `Scope`, before `Loop`: it is the iterator with
 nothing to decide, and `Loop` is the least settled thing in this doc.
 
-A group made inside a lap is waited inside the lap. One that should
-outlive laps is made in the loop's scope, outside the range.
+A group made inside a task is waited inside the task. One that should
+outlive tasks is made in the loop's scope, outside the range.
 
 **Lints.** The rules above are checkable statically, in one analyzer over
 the ssa form, and the runtime errors stay as the backstop for what it
@@ -815,10 +815,10 @@ attachment. Any other overlap inside one scope key is a bug.
 Lifecycle events, ours:
 
 - run: started (name), ended (error or none), cancelled (by whom).
-- scope: began (name), ended (error or none). Groups, laps, and attempts
-  are scopes; a lap's begin carries its task.
-- loop, per lap: each command run with its exit code, and the planner's
-  decision.
+- scope: began (name), ended (error or none). Groups, tasks, and attempts
+  are scopes; a Loop task's begin carries its structured assignment.
+- loop: each planner decision, including the chosen structured Task when
+  dispatch continues.
 - set: key, value.
 - session: created (name, adapter, model, workdir, parent for a fork),
   closed.
@@ -940,9 +940,9 @@ func cancelRun(ctx context.Context, runID string) error
 - Hierarchy. Wanted: a CEO that hears from supervisors about groups of
   agents, deals only in summaries, steers the bottom-level work indirectly,
   and thinks about strategy and pace rather than tactics. Most of it is
-  already here: a top `Loop` whose planner is the CEO, whose laps run the
+  already here: a top `Loop` whose planner is the CEO, whose tasks run the
   leads' loops; the leads' backlog files are the summaries, and agents
   edit those files, so the CEO steers a lead by editing its file and the
-  iterator reads it next lap; pace comes from the run log, which an agent
+  iterator reads it before the next task; pace comes from the run log, which an agent
   told the path can read. What it needs beyond that is decided when the
   first one is written, after `Loop` exists.

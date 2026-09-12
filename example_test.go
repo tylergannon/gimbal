@@ -86,7 +86,7 @@ func (*exampleLoopAdapter) CreateSession(context.Context, string, string) (strin
 	return "example-planner", nil
 }
 
-func (a *exampleLoopAdapter) RunTurn(_ context.Context, _ string, prompt string, _ json.RawMessage, _ func(gimble.AgentEvent)) (json.RawMessage, error) {
+func (a *exampleLoopAdapter) RunTurn(_ context.Context, _ string, prompt string, _ json.RawMessage, _ func(gimble.AgentEvent) error) (json.RawMessage, error) {
 	a.turns++
 	if a.turns > 1 {
 		return json.RawMessage(`{"next":null}`), nil

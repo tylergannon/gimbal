@@ -129,7 +129,7 @@ func (l LifecycleRecord) MarshalJSON() ([]byte, error) {
 	wrapper := Wrapper{Alias: Alias(l)}
 	var err error
 
-	if wrapper.Event, err = __jsonMarshal__gimble__LifecycleEvent__7cd926f5b58327b3c7b2e5e87440f2ac33d1edd455327dfc34fe83a399361f7d(l.Event); err != nil {
+	if wrapper.Event, err = __jsonMarshal__gimble__LifecycleEvent__e47a7f731f8d84d79addb696db6e54b465685ea9a24dcb24337a6dde41550827(l.Event); err != nil {
 		return nil, fmt.Errorf("field event: %w", err)
 	}
 
@@ -151,7 +151,7 @@ func (l *LifecycleRecord) UnmarshalJSON(data []byte) (err error) {
 	__next := LifecycleRecord(wrapper.Alias)
 
 	var __decoded0 LifecycleEvent
-	if __decoded0, err = __jsonUnmarshal__gimble__LifecycleEvent__7cd926f5b58327b3c7b2e5e87440f2ac33d1edd455327dfc34fe83a399361f7d(wrapper.Event); err != nil {
+	if __decoded0, err = __jsonUnmarshal__gimble__LifecycleEvent__e47a7f731f8d84d79addb696db6e54b465685ea9a24dcb24337a6dde41550827(wrapper.Event); err != nil {
 		return err
 	}
 	__next.Event = __decoded0
@@ -160,7 +160,7 @@ func (l *LifecycleRecord) UnmarshalJSON(data []byte) (err error) {
 	return nil
 }
 
-func __jsonMarshal__gimble__LifecycleEvent__7cd926f5b58327b3c7b2e5e87440f2ac33d1edd455327dfc34fe83a399361f7d(value LifecycleEvent) (json.RawMessage, error) {
+func __jsonMarshal__gimble__LifecycleEvent__e47a7f731f8d84d79addb696db6e54b465685ea9a24dcb24337a6dde41550827(value LifecycleEvent) (json.RawMessage, error) {
 	if value == nil {
 		return nil, fmt.Errorf("cannot marshal nil registered interface LifecycleEvent")
 	}
@@ -175,9 +175,6 @@ func __jsonMarshal__gimble__LifecycleEvent__7cd926f5b58327b3c7b2e5e87440f2ac33d1
 		data, err = json.Marshal(&object)
 	case Interrupt:
 		discriminator = "interrupt"
-		data, err = json.Marshal(&object)
-	case LoopCommand:
-		discriminator = "loop_command"
 		data, err = json.Marshal(&object)
 	case PlannerDecision:
 		discriminator = "planner_decision"
@@ -230,7 +227,7 @@ func __jsonMarshal__gimble__LifecycleEvent__7cd926f5b58327b3c7b2e5e87440f2ac33d1
 	)
 }
 
-func __jsonUnmarshal__gimble__LifecycleEvent__7cd926f5b58327b3c7b2e5e87440f2ac33d1edd455327dfc34fe83a399361f7d(data []byte) (LifecycleEvent, error) {
+func __jsonUnmarshal__gimble__LifecycleEvent__e47a7f731f8d84d79addb696db6e54b465685ea9a24dcb24337a6dde41550827(data []byte) (LifecycleEvent, error) {
 	var (
 		temp          map[string]json.RawMessage
 		discriminator string
@@ -254,12 +251,6 @@ func __jsonUnmarshal__gimble__LifecycleEvent__7cd926f5b58327b3c7b2e5e87440f2ac33
 		return obj, nil
 	case "interrupt":
 		var obj Interrupt
-		if err = json.Unmarshal(data, &obj); err != nil {
-			return nil, err
-		}
-		return obj, nil
-	case "loop_command":
-		var obj LoopCommand
 		if err = json.Unmarshal(data, &obj); err != nil {
 			return nil, err
 		}

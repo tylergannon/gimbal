@@ -1,0 +1,60 @@
+Models: planner/worker=gpt-5.6-luna validator=haiku
+Run error: <nil>
+Parent error: <nil>
+Final release check: $ ./check.sh
+exit 0
+release-ready
+
+
+Task 1: repair-release-readiness
+Description: Make the calculator fixture satisfy the existing release contract without changing its package name, check.sh, or probe.sh. status.txt must represent a usable READY release, and guide.txt must explain to a user that READY means usable. The recorded check currently exits 1 because status.txt is BROKEN and guide.txt contains only "Calculator guide"; leave the probe's controlled first-observation behavior intact.
+Definition of done: The permitted fixture content is repaired, ./check.sh exits 0 and emits release-ready, and the change leaves check.sh and probe.sh unchanged. The later stability-probe demonstration remains a separate follow-up.
+Controlled setup: cleared the transient marker immediately before the first recorded probe
+Requested validation: $ ./check.sh
+exit 0
+release-ready
+
+Release check: $ ./check.sh
+exit 0
+release-ready
+
+Controlled probe: $ ./probe.sh
+exit 7
+controlled first observation: re-run to establish stability
+
+Worker: Completed the fixture repair.
+
+- `status.txt` is `READY`.
+- `guide.txt` explains: `READY means usable`.
+- Package remains `example.com/calculator`.
+- `./check.sh` outputs `release-ready` and exits `0`.
+- `check.sh` and `probe.sh` are unchanged.
+- Probe evidence: first run exited `7` with the controlled message; second run exited `0` with `release-ready`.
+- Generated `.probe-seen` marker was cleaned up.
+
+Task 2: demonstrate-probe-stability
+Description: After the readiness repair, establish the final probe promise with the existing probe.sh unchanged. The recorded evidence authoritatively shows the controlled first invocation exited 7 and printed the controlled first-observation message; the worker's prose claim about a second successful invocation has no recorded command result, so it remains unverified. Demonstrate the later invocation passing through the repaired release check and preserve the calculator package name and both scripts.
+Definition of done: Authoritative evidence includes the recorded controlled first probe failure and a subsequent probe invocation that exits 0 and emits release-ready, with check.sh and probe.sh unchanged.
+Controlled setup: unchanged
+Requested validation: $ ./probe.sh
+exit 0
+release-ready
+
+Release check: $ ./check.sh
+exit 0
+release-ready
+
+Controlled probe: $ ./probe.sh
+exit 0
+release-ready
+
+Worker: This assignment consists of gathering the declared deterministic evidence; the workflow executes it below.
+
+Plan adaptation choice: implement-usable-calculator-export
+Description: Implement the missing public export for the calculator package so a downstream Go caller can use the fixture's intended primary calculator behavior. The candidate plan states this work is independent of the optional status-copy typo; keep the module package name calculator and do not change check.sh or probe.sh. The sibling recorded evidence covers the release-check repair and controlled probe sequence, but it does not establish that an exported calculator API exists.
+Definition of done: The calculator package exposes its intended usable export and a direct downstream-consumer demonstration shows the primary behavior works. The module remains example.com/calculator, check.sh and probe.sh are unchanged, and the optional status-copy typo remains visible as deferred work.
+
+Independent assessment:
+PASS
+
+The Loop proof satisfies all four conditions: the no-plan dispatch used the parent constraint and failed check; the controlled exit 7 remained a failure until a later recorded exit 0; plan adaptation selected the higher-priority export ahead of the nonblocking typo; and the assignments were coherent, outcome-focused one-session work.

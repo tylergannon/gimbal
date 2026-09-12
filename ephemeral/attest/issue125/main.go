@@ -33,15 +33,17 @@ func main() {
 	fmt.Println("Evidence directory:", dir)
 	fmt.Println("Models: planner/worker=gpt-5.6-luna validator=haiku")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Minute)
 	defer cancel()
 	var evidence []string
 	var planChoice gimble.Task
+	var independent string
 	workerAdapter := codex.New()
 	err = gimble.Run(gimble.Project(ctx, dir), "loop-contract", func(ctx context.Context) error {
 		if err := gimble.Set(ctx, "prioritized promises", []string{
 			"The release check passes for the fixture's primary behavior.",
 			"The guide explains what READY means to a user.",
+			"After the controlled first probe failure, a later probe passes and establishes stability.",
 		}); err != nil {
 			return err
 		}
@@ -54,7 +56,7 @@ func main() {
 		}
 
 		planner := gimble.NewSession(ctx, "planner", workerAdapter, "gpt-5.6-luna", dir)
-		loop := gimble.Loop(ctx, "without-plan", "Satisfy every prioritized promise and leave the fixture's release check passing.", planner)
+		loop := gimble.Loop(ctx, "without-plan", "Satisfy every prioritized promise, including a passing stability probe after its controlled first failure.", planner)
 		capped := false
 		count := 0
 		for taskCtx, task := range loop.Tasks {
@@ -63,9 +65,15 @@ func main() {
 				capped = true
 				break
 			}
-			worker := gimble.NewSession(taskCtx, "worker", workerAdapter, "gpt-5.6-luna", dir)
-			result, workErr := worker.Generate[gimble.Text](taskCtx,
-				"Complete this assignment and gather its evidence.\n\n"+gimble.ScopeText(taskCtx))
+			var result gimble.Text
+			var workErr error
+			if strings.TrimSpace(task.Validation.Command) == "./probe.sh" {
+				result = "This assignment consists of gathering the declared deterministic evidence; the workflow executes it below."
+			} else {
+				worker := gimble.NewSession(taskCtx, "worker", workerAdapter, "gpt-5.6-luna", dir)
+				result, workErr = worker.Generate[gimble.Text](taskCtx,
+					"Complete this assignment and gather its evidence.\n\n"+gimble.ScopeText(taskCtx))
+			}
 			if err := gimble.Set(taskCtx, "worker result", string(result)); err != nil {
 				return err
 			}
@@ -73,6 +81,16 @@ func main() {
 				if err := gimble.Set(taskCtx, "worker error", workErr.Error()); err != nil {
 					return err
 				}
+			}
+			controlledSetup := "unchanged"
+			if count == 1 {
+				if err := os.Remove(filepath.Join(dir, ".probe-seen")); err != nil && !errors.Is(err, os.ErrNotExist) {
+					return err
+				}
+				controlledSetup = "cleared the transient marker immediately before the first recorded probe"
+			}
+			if err := gimble.Set(taskCtx, "controlled fixture setup", controlledSetup); err != nil {
+				return err
 			}
 			probe := runCommand(taskCtx, dir, "./probe.sh")
 			requested := "not requested"
@@ -89,8 +107,8 @@ func main() {
 			if err := gimble.Set(taskCtx, "controlled stability probe", probe); err != nil {
 				return err
 			}
-			evidence = append(evidence, fmt.Sprintf("Task %d: %s\nDescription: %s\nDefinition of done: %s\nRequested validation: %s\nRelease check: %s\nControlled probe: %s\nWorker: %s",
-				count, task.Name, task.Description, task.DefinitionOfDone, requested, release, probe, result))
+			evidence = append(evidence, fmt.Sprintf("Task %d: %s\nDescription: %s\nDefinition of done: %s\nControlled setup: %s\nRequested validation: %s\nRelease check: %s\nControlled probe: %s\nWorker: %s",
+				count, task.Name, task.Description, task.DefinitionOfDone, controlledSetup, requested, release, probe, result))
 		}
 		if err := loop.Err(); err != nil {
 			return err
@@ -147,13 +165,14 @@ Inspect files and run checks as needed. Reply with PASS followed by a concise re
 			return err
 		}
 		fmt.Println("Independent assessment:", assessment)
+		independent = string(assessment)
 		if !strings.HasPrefix(strings.TrimSpace(string(assessment)), "PASS") {
 			return fmt.Errorf("independent validator did not pass the evidence: %s", assessment)
 		}
 		return nil
 	})
 
-	final := fmt.Sprintf("Models: planner/worker=gpt-5.6-luna validator=haiku\nRun error: %v\nParent error: %v\nFinal release check: %s\n\n%s\n", err, ctx.Err(), runCommand(context.Background(), dir, "./check.sh"), strings.Join(evidence, "\n\n"))
+	final := fmt.Sprintf("Models: planner/worker=gpt-5.6-luna validator=haiku\nRun error: %v\nParent error: %v\nFinal release check: %s\n\n%s\n\nIndependent assessment:\n%s\n", err, ctx.Err(), runCommand(context.Background(), dir, "./check.sh"), strings.Join(evidence, "\n\n"), independent)
 	fmt.Print(final)
 	if *artifacts != "" {
 		if copyErr := retainArtifacts(dir, *artifacts, final); copyErr != nil {

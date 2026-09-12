@@ -34,10 +34,10 @@ type Task struct {
 	} `json:"validation" yaml:"validation"`
 }
 
-// plan is the planner's answer for one dispatch. An absent Next ends dispatch;
+// plan is the planner's answer for one dispatch. A null Next ends dispatch;
 // it does not attest that the enclosing goal has been fulfilled.
 type plan struct {
-	Next polytype.Optional[Task] `json:"next,omitzero"`
+	Next polytype.Nullable[Task] `json:"next"`
 }
 
 type loop struct {
@@ -106,7 +106,8 @@ func (l *loop) Tasks(yield func(context.Context, Task) bool) {
 			}
 			backlog, err := readBacklog(revised, l.goal)
 			if err != nil {
-				return fmt.Errorf("gimble: loop %q: planner left an invalid backlog: %w", l.name, err)
+				logf("%s: the planner left an invalid backlog, so it will be asked to repair it: %v", loopScope.key, err)
+				continue
 			}
 			if !p.Next.Present {
 				loopScope.run.event(loopScope.key, "", "", PlannerDecision{})
@@ -197,6 +198,8 @@ func planPrompt(name, file, workdir, backlogText string, bad error, scoped, prev
 	var b strings.Builder
 	fmt.Fprintf(&b, "You plan the loop %q in %s. Its revisable backlog is %s.\n\n", name, workdir, file)
 	b.WriteString("Choose the next assignment that offers the greatest concrete gain toward the goal, based on current evidence, priorities, and real dependencies. Size it for one worker to understand, complete, and demonstrate in one working session. A later task may offer more gain than repairing a nonblocking earlier defect; keep deferred defects visible.\n\n")
+	b.WriteString("Treat recorded deterministic results as authoritative: a prose claim or agent judgment cannot override a nonzero command exit.\n\n")
+	b.WriteString("Inspect the workspace only to plan. Change only the backlog; do not perform or validate an assignment yourself.\n\n")
 	b.WriteString("Describe the desired result and necessary non-obvious facts. Trust the worker to choose the approach. Do not supply procedural checklists, obvious advice, speculative code, or a numerical progress score.\n\n")
 	b.WriteString("The backlog has immutable `goal` and a `tasks` list using the result schema. Edit it as the work changes. The exact task you return must remain in that list until its result is available on the next call. Return `next: null` to end dispatch; that does not certify that the goal is fulfilled.\n\n")
 	if strings.TrimSpace(scoped) != "" {
@@ -209,6 +212,6 @@ func planPrompt(name, file, workdir, backlogText string, bad error, scoped, prev
 	if bad != nil {
 		fmt.Fprintf(&b, "The backlog is invalid, so no task can be dispatched yet: %v. Repair it before choosing work.\n\n", bad)
 	}
-	b.WriteString("Inspect the workspace as needed, revise the backlog, and return the next assignment exactly as it appears there, or null.")
+	b.WriteString("Revise the backlog and return the next assignment exactly as it appears there, or null.")
 	return b.String()
 }

@@ -467,13 +467,13 @@ func TestLoopCarriesStructuredTaskAndFeedback(t *testing.T) {
 			if err := writeTestBacklog(file, "ship", []Task{task}); err != nil {
 				return "", err
 			}
-			raw, err := json.Marshal(plan{Next: optionalTask(task)})
+			raw, err := json.Marshal(plan{Next: nullableTask(task)})
 			return string(raw), err
 		}
 		if err := writeTestBacklog(file, "ship", []Task{}); err != nil {
 			return "", err
 		}
-		return `{}`, nil
+		return `{"next":null}`, nil
 	}}
 	project := t.TempDir()
 	var tasks []Task
@@ -548,7 +548,7 @@ func TestLoopRejectsInconsistentPlannerData(t *testing.T) {
 				if err := writeTestBacklog(plannerBacklog(prompt), "ship", test.tasks); err != nil {
 					return "", err
 				}
-				raw, err := json.Marshal(plan{Next: optionalTask(test.next)})
+				raw, err := json.Marshal(plan{Next: nullableTask(test.next)})
 				return string(raw), err
 			}}
 			err := runTest(t, func(ctx context.Context) error {
@@ -566,23 +566,37 @@ func TestLoopRejectsInconsistentPlannerData(t *testing.T) {
 	}
 }
 
-func TestLoopRejectsInvalidBacklog(t *testing.T) {
+func TestLoopShowsThePlannerItsInvalidBacklog(t *testing.T) {
+	turns := 0
 	f := &fake{answer: func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(AgentEvent) error) (string, error) {
-		if err := os.WriteFile(plannerBacklog(prompt), []byte("---\ngoal: changed\ntasks: []\n---\n"), 0o644); err != nil {
+		turns++
+		if turns == 1 {
+			if err := os.WriteFile(plannerBacklog(prompt), []byte("---\ngoal: changed\ntasks: []\n---\n"), 0o644); err != nil {
+				return "", err
+			}
+			return `{"next":null}`, nil
+		}
+		if !strings.Contains(prompt, "goal was changed") {
+			return "", errors.New("planner was not shown why its backlog was invalid")
+		}
+		if err := writeTestBacklog(plannerBacklog(prompt), "ship", []Task{}); err != nil {
 			return "", err
 		}
-		return `{}`, nil
+		return `{"next":null}`, nil
 	}}
 	err := runTest(t, func(ctx context.Context) error {
 		planner := NewSession(ctx, "planner", f, "m", t.TempDir())
 		loop := Loop(ctx, "sprint", "ship", planner)
 		for range loop.Tasks {
-			t.Fatal("invalid backlog yielded a task")
+			t.Fatal("invalid backlog was yielded")
 		}
 		return loop.Err()
 	})
-	if err == nil || !strings.Contains(err.Error(), "goal was changed") {
-		t.Fatalf("error = %v, want immutable goal error", err)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if turns != 2 {
+		t.Fatalf("planner turns = %d, want repair turn", turns)
 	}
 }
 
@@ -592,7 +606,7 @@ func TestLoopEndsTaskScopeOnBreak(t *testing.T) {
 		if err := writeTestBacklog(plannerBacklog(prompt), "inspect", []Task{task}); err != nil {
 			return "", err
 		}
-		raw, err := json.Marshal(plan{Next: optionalTask(task)})
+		raw, err := json.Marshal(plan{Next: nullableTask(task)})
 		return string(raw), err
 	}}
 	var taskCtx context.Context

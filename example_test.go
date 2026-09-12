@@ -89,7 +89,7 @@ func (*exampleLoopAdapter) CreateSession(context.Context, string, string) (strin
 func (a *exampleLoopAdapter) RunTurn(_ context.Context, _ string, prompt string, _ json.RawMessage, _ func(gimble.AgentEvent)) (json.RawMessage, error) {
 	a.turns++
 	if a.turns > 1 {
-		return json.RawMessage(`{}`), nil
+		return json.RawMessage(`{"next":null}`), nil
 	}
 	marker := "Its revisable backlog is "
 	rest := prompt[strings.Index(prompt, marker)+len(marker):]

@@ -548,14 +548,17 @@ and a structured `tasks` list. It lives under the Loop scope in the run
 directory. On each dispatch, the planner receives the backlog, visible scoped
 context, and values recorded by the preceding task. It edits the backlog and
 returns the next Task exactly as recorded there, or returns no task to end
-dispatch. Loop rejects a changed goal, malformed task, or disagreement between
-the returned Task and the backlog rather than yielding ambiguous work.
+dispatch. Loop refuses to yield a malformed backlog and shows its error to the
+planner for repair. A malformed returned Task or disagreement between the Task
+and backlog ends the Loop rather than yielding ambiguous work.
 
 The planner is asked to choose the assignment with the greatest concrete gain
 toward the overall Definition of Done, sized for one worker to understand,
 complete, and demonstrate in one working session. A nonblocking defect in an
 earlier phase does not impose a phase gate; it remains in the backlog while the
-planner may choose later work with greater value.
+planner may choose later work with greater value. Workspace access is for
+planning; the planner changes only its backlog and leaves assignment work and
+validation to the workflow it dispatches.
 
 Each yielded context is a child `task` scope. Loop stores the structured Task
 there before calling the body. The workflow records the worker result and any

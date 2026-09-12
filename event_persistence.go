@@ -83,6 +83,10 @@ func optionalString(value string) polytype.Optional[string] {
 	return polytype.Optional[string]{Present: value != "", Value: value}
 }
 
+func optionalTask(task Task) polytype.Optional[Task] {
+	return polytype.Optional[Task]{Present: true, Value: task}
+}
+
 func (w *eventWriter) close() error { return w.file.Close() }
 
 func (r *run) recordFailure(operation string, err error) {

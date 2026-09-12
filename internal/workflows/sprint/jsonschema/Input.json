@@ -4,5 +4,5 @@
 "repo":{"type":"string","description":"Absolute path of the repository. Each lap is committed to the branch checked out there, and the sprint ends by merging that branch."},
 "model":{"type":"string","description":"Codex model for the researcher, the planner, and the coders, e.g. \"gpt-5.6-luna\"."},
 "review_model":{"type":"string","description":"Claude Code model for the supervisors and the validator, e.g. \"haiku\"."},
-"laps":{"type":"integer","description":"The most laps to run in all. The sprint fails if the planner is not done by then."}
-},"required":["sprint","repo","model","review_model","laps"],"additionalProperties":false}
+"tasks":{"type":"integer","description":"The most tasks to run in all. The sprint fails if the planner is not done by then."}
+},"required":["sprint","repo","model","review_model","tasks"],"additionalProperties":false}

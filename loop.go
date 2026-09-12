@@ -2,26 +2,42 @@ package gimble
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 
+	"github.com/tylergannon/polytype"
 	"go.yaml.in/yaml/v4"
 )
 
-// Task is one lap's work: the lap number, from 1, and the planner's text.
+// Task is one assignment selected by a Loop planner.
 type Task struct {
-	Lap  int
-	Text string
+	// Name is a short label for recognizing the work.
+	Name string `json:"name" yaml:"name"`
+	// Description states the desired result and any necessary, non-obvious
+	// information. It leaves the approach to the worker.
+	Description string `json:"description" yaml:"description"`
+	// DefinitionOfDone says how to recognize successful completion of this
+	// assignment. It does not declare that the enclosing goal is complete.
+	DefinitionOfDone string `json:"definition_of_done" yaml:"definition_of_done"`
+	// Validation describes evidence the workflow can gather. Either field may
+	// be empty; the workflow still assesses the task against DefinitionOfDone.
+	Validation struct {
+		// Command is a known executable check.
+		Command string `json:"command" yaml:"command,omitempty"`
+		// Query is a question for a validator agent.
+		Query string `json:"query" yaml:"query,omitempty"`
+	} `json:"validation" yaml:"validation"`
 }
 
-// plan is the planner's answer each lap.
+// plan is the planner's answer for one dispatch. An absent Next ends dispatch;
+// it does not attest that the enclosing goal has been fulfilled.
 type plan struct {
-	// The next task: one self-contained piece of work that moves the goal forward, written as complete instructions for an agent who has not seen the backlog. Leave it empty when the goal is met and nothing is left to do.
-	Next string `json:"next"`
+	Next polytype.Optional[Task] `json:"next,omitzero"`
 }
 
 type loop struct {
@@ -32,21 +48,23 @@ type loop struct {
 	err     error
 }
 
-// Loop iterates a backlog file, where the planner decides each lap what
-// comes next. The file is markdown with YAML frontmatter: the goal, as a
-// Definition of Done, and a list of steps, each with an optional command.
-// It lives in the run directory at the loop's scope path.
+// Loop opens planner-directed dispatch for goal. The planner is the Session
+// chosen and prepared by the workflow. Loop keeps a revisable backlog in its
+// run scope and uses values recorded by each task as feedback for the next
+// decision. Range over its Tasks method and check Err afterward.
 func Loop(ctx context.Context, name, goal string, planner *Session) *loop {
 	return &loop{ctx: ctx, name: name, goal: goal, planner: planner}
 }
 
-// Laps yields each lap's task with a ctx for the lap, a child scope of the
-// loop's that ends when the body returns. Each lap it reloads the file,
-// runs every step's command, and asks the planner what is next; when the
-// planner names nothing, it returns. A file whose frontmatter does not
-// parse runs no commands, and the planner is shown why so it can fix it.
-// It never edits the file after writing the goal into it.
-func (l *loop) Laps(yield func(context.Context, Task) bool) {
+// Tasks yields planner-selected assignments. Each ctx is a child scope that
+// contains the structured task and ends when the loop body returns. Values the
+// body records in that scope are shown to the planner before its next decision,
+// alongside the values currently visible from the loop's parent scopes.
+//
+// The planner may revise, reorder, and extend the backlog as work reveals what
+// matters. It ends dispatch by returning no task. That decision is distinct
+// from validation and from fulfillment of the enclosing goal.
+func (l *loop) Tasks(yield func(context.Context, Task) bool) {
 	parent, err := current(l.ctx)
 	if err != nil {
 		l.err = err
@@ -59,43 +77,69 @@ func (l *loop) Laps(yield func(context.Context, Task) bool) {
 			return fmt.Errorf("gimble: %w", err)
 		}
 		file := filepath.Join(dir, "backlog.md")
-		front, err := yaml.Marshal(backlog{Goal: l.goal, Steps: []step{}})
+		front, err := yaml.Marshal(backlog{Goal: l.goal, Tasks: []Task{}})
 		if err != nil {
 			return fmt.Errorf("gimble: %w", err)
 		}
 		if err := os.WriteFile(file, []byte("---\n"+string(front)+"---\n"), 0o644); err != nil {
 			return fmt.Errorf("gimble: %w", err)
 		}
-		for lap := 1; ; lap++ {
+
+		var previous string
+		for {
 			raw, err := os.ReadFile(file)
 			if err != nil {
 				return fmt.Errorf("gimble: %w", err)
 			}
-			commands, bad := readBacklog(raw)
+			_, bad := readBacklog(raw, l.goal)
 			if bad != nil {
 				logf("%s: the backlog does not parse, so the planner is asked to fix it: %v", loopScope.key, bad)
 			}
-			results, err := runCommands(ctx, loopScope.run, loopScope.key, l.planner.workdir, commands)
+			p, err := l.planner.Generate[plan](ctx, planPrompt(l.name, file, l.planner.workdir, string(raw), bad, ScopeText(ctx), previous))
 			if err != nil {
 				return err
 			}
-			p, err := l.planner.Generate[plan](ctx, planPrompt(l.name, file, l.planner.workdir, lap, string(raw), bad, results))
+
+			revised, err := os.ReadFile(file)
 			if err != nil {
-				return err
+				return fmt.Errorf("gimble: %w", err)
 			}
-			if strings.TrimSpace(p.Next) == "" {
+			backlog, err := readBacklog(revised, l.goal)
+			if err != nil {
+				return fmt.Errorf("gimble: loop %q: planner left an invalid backlog: %w", l.name, err)
+			}
+			if !p.Next.Present {
 				loopScope.run.event(loopScope.key, "", "", PlannerDecision{})
-				logf("%s: the planner named nothing after %d laps", loopScope.key, lap-1)
+				logf("%s: the planner ended dispatch", loopScope.key)
 				return nil
 			}
-			logf("%s: lap %d: %s", loopScope.key, lap, oneLine(p.Next))
-			loopScope.run.event(loopScope.key, "", "", PlannerDecision{Decision: p.Next})
+			if err := validateTask(p.Next.Value); err != nil {
+				return fmt.Errorf("gimble: loop %q: planner returned an invalid task: %w", l.name, err)
+			}
+			if !slices.Contains(backlog.Tasks, p.Next.Value) {
+				return fmt.Errorf("gimble: loop %q: planner returned task %q but did not preserve that assignment in the backlog", l.name, p.Next.Value.Name)
+			}
+
+			task := p.Next.Value
+			logf("%s: task: %s", loopScope.key, oneLine(task.Name))
+			loopScope.run.event(loopScope.key, "", "", PlannerDecision{Task: optionalTask(task)})
 			more := true
-			lapCtx := context.WithValue(ctx, taskKey{}, p.Next)
-			_ = loopScope.child("lap").do(lapCtx, func(ctx context.Context) error {
-				more = yield(ctx, Task{Lap: lap, Text: p.Next})
+			taskScope := loopScope.child("task")
+			taskCtx := context.WithValue(ctx, taskKey{}, task)
+			if err := taskScope.do(taskCtx, func(ctx context.Context) error {
+				raw, err := json.Marshal(task)
+				if err != nil {
+					return fmt.Errorf("gimble: encode task: %w", err)
+				}
+				if err := store(ctx, "task", raw); err != nil {
+					return err
+				}
+				more = yield(ctx, task)
+				previous = taskScope.localText()
 				return nil
-			})
+			}); err != nil {
+				return err
+			}
 			if !more {
 				return nil
 			}
@@ -103,97 +147,68 @@ func (l *loop) Laps(yield func(context.Context, Task) bool) {
 	})
 }
 
-// Err returns the error that ended the laps, if any: a file that cannot be
-// read or written, a command that would not start, or the planner's harness.
+// Err returns the error that ended dispatch, if any: persistence, malformed
+// planner data, cancellation, or the planner's harness. A failed task
+// validation recorded by the workflow is feedback, not a Loop error.
 func (l *loop) Err() error {
 	return l.err
 }
 
 type backlog struct {
-	Goal  string `yaml:"goal"`
-	Steps []step `yaml:"steps"`
+	Goal  string `json:"goal" yaml:"goal"`
+	Tasks []Task `json:"tasks" yaml:"tasks"`
 }
 
-type step struct {
-	Step    string `yaml:"step"`
-	Command string `yaml:"command,omitempty"`
-}
-
-// readBacklog returns the commands of the file's steps, or why its
-// frontmatter does not parse.
-func readBacklog(raw []byte) ([]string, error) {
+func readBacklog(raw []byte, goal string) (backlog, error) {
 	rest, ok := strings.CutPrefix(string(raw), "---\n")
 	front, _, closed := strings.Cut(rest, "\n---")
 	if !ok || !closed {
-		return nil, errors.New("the file does not start with YAML frontmatter between --- lines")
+		return backlog{}, errors.New("the file does not start with YAML frontmatter between --- lines")
 	}
 	var b backlog
 	if err := yaml.Unmarshal([]byte(front), &b); err != nil {
-		return nil, err
+		return backlog{}, err
 	}
-	var commands []string
-	for _, s := range b.Steps {
-		if strings.TrimSpace(s.Command) != "" {
-			commands = append(commands, s.Command)
+	if b.Goal != goal {
+		return backlog{}, errors.New("the goal was changed")
+	}
+	for i, task := range b.Tasks {
+		if err := validateTask(task); err != nil {
+			return backlog{}, fmt.Errorf("task %d: %w", i+1, err)
 		}
 	}
-	return commands, nil
+	return b, nil
 }
 
-type commandResult struct {
-	command string
-	code    int
-	output  string
-}
-
-// runCommands runs each command in dir. A non-zero exit is a result, not an
-// error; a command that cannot run is an error.
-func runCommands(ctx context.Context, r *run, scope, dir string, commands []string) ([]commandResult, error) {
-	var results []commandResult
-	for _, command := range commands {
-		cmd := exec.CommandContext(ctx, "sh", "-c", command)
-		cmd.Dir = dir
-		out, err := cmd.CombinedOutput()
-		code := 0
-		if err != nil {
-			var exit *exec.ExitError
-			if !errors.As(err, &exit) || ctx.Err() != nil {
-				return nil, fmt.Errorf("gimble: command %q: %w", command, err)
-			}
-			code = exit.ExitCode()
-		}
-		logf("$ %s: exit %d", command, code)
-		r.event(scope, "", "", LoopCommand{Command: command, ExitCode: code})
-		results = append(results, commandResult{command: command, code: code, output: tail(string(out), 3000)})
+func validateTask(task Task) error {
+	switch {
+	case strings.TrimSpace(task.Name) == "":
+		return errors.New("name is blank")
+	case strings.TrimSpace(task.Description) == "":
+		return errors.New("description is blank")
+	case strings.TrimSpace(task.DefinitionOfDone) == "":
+		return errors.New("definition of done is blank")
+	default:
+		return nil
 	}
-	return results, nil
 }
 
-func tail(text string, limit int) string {
-	if len(text) <= limit {
-		return text
-	}
-	return "[...]" + strings.ToValidUTF8(text[len(text)-limit:], "")
-}
-
-func planPrompt(name, file, workdir string, lap int, text string, bad error, results []commandResult) string {
+func planPrompt(name, file, workdir, backlogText string, bad error, scoped, previous string) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "You are the planner of the loop %q, working in %s. Its backlog is the file %s, markdown with YAML frontmatter:\n\n", name, workdir, file)
-	b.WriteString("- `goal` is the Definition of Done. Never change it.\n")
-	b.WriteString("- `steps` is the plan: a list of items, each with `step:` saying what, and optionally `command:`, a shell command that checks it. Before asking you each lap, the loop runs every step's command in " + workdir + " and shows you the exit code and the end of the output.\n")
-	b.WriteString("- Below the frontmatter, keep whatever notes help you plan.\n\n")
-	b.WriteString("The loop never edits the file; you do. Rewrite it however the work shows it should be: add, remove, reorder, and rewrite steps. Keep the frontmatter valid YAML.\n\n")
-	fmt.Fprintf(&b, "This is lap %d. The file now:\n\n%s\n\n", lap, text)
-	if bad != nil {
-		fmt.Fprintf(&b, "The frontmatter does not parse, so no command ran: %v\n\nFix the file first; quote any value that contains a colon.\n\n", bad)
-	} else if len(results) == 0 {
-		b.WriteString("No step has a command yet.\n\n")
-	} else {
-		b.WriteString("Command results:\n\n")
-		for _, r := range results {
-			fmt.Fprintf(&b, "$ %s\nexit %d\n%s\n\n", r.command, r.code, r.output)
-		}
+	fmt.Fprintf(&b, "You plan the loop %q in %s. Its revisable backlog is %s.\n\n", name, workdir, file)
+	b.WriteString("Choose the next assignment that offers the greatest concrete gain toward the goal, based on current evidence, priorities, and real dependencies. Size it for one worker to understand, complete, and demonstrate in one working session. A later task may offer more gain than repairing a nonblocking earlier defect; keep deferred defects visible.\n\n")
+	b.WriteString("Describe the desired result and necessary non-obvious facts. Trust the worker to choose the approach. Do not supply procedural checklists, obvious advice, speculative code, or a numerical progress score.\n\n")
+	b.WriteString("The backlog has immutable `goal` and a `tasks` list using the result schema. Edit it as the work changes. The exact task you return must remain in that list until its result is available on the next call. Return `next: null` to end dispatch; that does not certify that the goal is fulfilled.\n\n")
+	if strings.TrimSpace(scoped) != "" {
+		b.WriteString("Scoped context:\n\n" + scoped + "\n\n")
 	}
-	b.WriteString("Read the file and the workspace, update the file, then answer with the next task, or with an empty `next` when the goal is met and nothing is left to do.")
+	if strings.TrimSpace(previous) != "" {
+		b.WriteString("Previous task record:\n\n" + previous + "\n\n")
+	}
+	b.WriteString("Backlog now:\n\n" + backlogText + "\n\n")
+	if bad != nil {
+		fmt.Fprintf(&b, "The backlog is invalid, so no task can be dispatched yet: %v. Repair it before choosing work.\n\n", bad)
+	}
+	b.WriteString("Inspect the workspace as needed, revise the backlog, and return the next assignment exactly as it appears there, or null.")
 	return b.String()
 }

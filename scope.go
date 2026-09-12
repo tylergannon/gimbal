@@ -72,8 +72,8 @@ func (s *scope) adopt(session *Session) {
 func (s *scope) do(ctx context.Context, body func(context.Context) error) error {
 	ctx, cancel := context.WithCancel(context.WithValue(ctx, scopeKey{}, s))
 	e := ScopeBegan{Name: path.Base(s.key)}
-	if task, _ := ctx.Value(taskKey{}).(string); task != "" {
-		e.Task = task
+	if task, ok := ctx.Value(taskKey{}).(Task); ok {
+		e.Task = optionalTask(task)
 	}
 	s.run.event(s.key, "", "", e)
 	defer s.end(cancel)
@@ -167,6 +167,19 @@ func ScopeText(ctx context.Context) string {
 		s.mu.Unlock()
 	}
 	slices.Reverse(sections)
+	return strings.Join(sections, "\n\n")
+}
+
+// localText renders only the values written in this scope. Loop uses it to
+// carry a completed task's record forward without promoting those values into
+// the parent scope.
+func (s *scope) localText() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	sections := make([]string, 0, len(s.keys))
+	for _, key := range s.keys {
+		sections = append(sections, "## "+key+"\n\n"+render(s.values[key]))
+	}
 	return strings.Join(sections, "\n\n")
 }
 

@@ -19,7 +19,7 @@ func main() {
 	flag.IntVar(&in.Sprint, "sprint", 0, "the sprint of SPRINTS.md to build")
 	flag.StringVar(&in.Model, "model", "gpt-5.6-luna", "Codex model for the researcher, the planner, and the coders")
 	flag.StringVar(&in.ReviewModel, "review-model", "haiku", "Claude Code model for the supervisors and the validator")
-	flag.IntVar(&in.Laps, "laps", 10, "the most laps to run in all")
+	flag.IntVar(&in.Tasks, "tasks", 10, "the most tasks to run in all")
 	port := flag.Int("port", 8080, "loopback TCP port for the web application")
 	uds := flag.String("uds", "", "Unix-domain socket for the web application instead of TCP")
 	noWeb := flag.Bool("no-web", false, "run without the web application")

@@ -1,9 +1,9 @@
 # Promises, dispatch, and completion
 
-Design direction from the discussion of [issue #125](https://github.com/tylergannon/gimble/issues/125),
-2026-09-11. This records the direction Tyler endorsed and the questions still
-open. It is not a shipped API contract or an implementation plan. Godoc and
-compiling examples continue to define the current public API.
+Design and implementation record from the discussion of
+[issue #125](https://github.com/tylergannon/gimble/issues/125), 2026-09-11.
+This records the reasoning behind the shipped contract. Godoc and compiling
+examples define the public API.
 
 The short [execution note](LOOP-WORK.md) records what will change and the
 evidence needed to finish #125.
@@ -71,10 +71,10 @@ The current recommendation is a small structured assignment:
 | Definition of done | How to recognize that this assignment succeeded. |
 | Validation | A command, an agent question, or both, where useful. |
 
-These are conceptual fields; their exact Go types are not settled. In
-particular, this does not adopt a list of promises as every task's definition
-of done. A task may have several acceptance conditions without becoming a
-Promise Loop.
+The public `Task` carries these four fields. `Validation` contains `Command`
+and `Query` strings. This does not adopt a list of promises as every task's
+definition of done. A task may have several acceptance conditions without
+becoming a Promise Loop.
 
 For example, an investigation can be defined as:
 
@@ -227,10 +227,9 @@ their orchestration machinery:
 This is proposed planner language. Its usefulness must be judged from actual
 assignments and results, not established by a prompt snapshot alone.
 
-## Proposed Loop contract
+## Loop contract
 
-The following makes the discussion concrete for #125. It is the recommended
-contract for review, not a description of implemented behavior.
+The following is the contract implemented for #125.
 
 ### Public shape
 
@@ -317,10 +316,10 @@ also retain the dispatch decision and the recorded feedback that informed
 the next decision. Later backlog edits must not rewrite the historical task
 that was actually dispatched.
 
-Whether the implementation validates an agent-edited backlog or persists a
-structured planner revision is an implementation choice to resolve before
-coding. Either way, an inconsistent or malformed assignment must not be
-silently yielded. No compatibility form for `Task{Lap, Text}` is proposed.
+The planner edits the backlog, then returns its selected Task. Loop validates
+the revised backlog and yields only when that exact structured Task appears in
+it. An inconsistent or malformed assignment is an error. No compatibility
+form for `Task{Lap, Text}` is provided.
 
 ### Evidence for the replacement
 

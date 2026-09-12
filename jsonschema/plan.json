@@ -1,4 +1,14 @@
 {"type":"object",
-"description":"plan is the planner's answer each lap.","properties":{
-"next":{"type":"string","description":"The next task: one self-contained piece of work that moves the goal forward, written as complete instructions for an agent who has not seen the backlog. Leave it empty when the goal is met and nothing is left to do."}
-},"required":["next"],"additionalProperties":false}
+"description":"plan is the planner's answer for one dispatch. An absent Next ends dispatch; it does not attest that the enclosing goal has been fulfilled.","properties":{
+"next":{"type":"object",
+"description":"Task is one assignment selected by a Loop planner.","properties":{
+"name":{"type":"string","description":"Name is a short label for recognizing the work."},
+"description":{"type":"string","description":"Description states the desired result and any necessary, non-obvious information. It leaves the approach to the worker."},
+"definition_of_done":{"type":"string","description":"DefinitionOfDone says how to recognize successful completion of this assignment. It does not declare that the enclosing goal is complete."},
+"validation":{"type":"object",
+"description":"Validation describes evidence the workflow can gather. Either field may be empty; the workflow still assesses the task against DefinitionOfDone.","properties":{
+"command":{"type":"string","description":"Command is a known executable check."},
+"query":{"type":"string","description":"Query is a question for a validator agent."}
+},"required":["command","query"],"additionalProperties":false}
+},"required":["name","description","definition_of_done","validation"],"additionalProperties":false}
+},"additionalProperties":false}

@@ -15,7 +15,6 @@ func TestPublishedEventTypesAreUsableOutsideGimble(t *testing.T) {
 		gimble.RunCancelled{},
 		gimble.ScopeBegan{},
 		gimble.ScopeEnded{},
-		gimble.LoopCommand{},
 		gimble.PlannerDecision{},
 		gimble.ValueSet{},
 		gimble.SessionCreated{},

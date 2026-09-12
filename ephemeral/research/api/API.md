@@ -142,7 +142,7 @@ err := gimble.Scope(ctx, "sprint", func(ctx context.Context) error {
 	gimble.SetJSON(ctx, "research", research)            // polytype-generated types
 	lang, ok := gimble.Get[string](ctx, "language")      // nearest scope up the chain
 	r, ok := gimble.GetJSON[Research](ctx, "research")   // validated, then decoded
-	prompt := task.Text + "\n\n" + gimble.ScopeText(ctx) // the chain, rendered for a prompt
+	prompt := task.Description + "\n\n" + gimble.ScopeText(ctx) // the chain, rendered for a prompt
 	// ...
 	return nil // the scope ends here: its sessions are closed, then its ctx is cancelled
 })
@@ -508,18 +508,14 @@ When the candidates return different types, use one channel per type and a
 
 ## Loop
 
-The later [Promises, dispatch, and completion](LOOP.md) discussion for issue
-#125 revises the task-design direction and records unresolved contract
-questions. The account below preserves the earlier design, including its
-provisional `Task` and lap terminology.
-
-Gimble provides two orchestration shapes, `Loop` and supervisors. `Loop`
-iterates a task file, where a planner agent decides each lap what comes
-next, and yields each lap with a context of its own.
+The [Promises, dispatch, and completion](LOOP.md) record explains the design.
+`Loop` is adaptive dispatch: a planner chooses the next useful assignment from
+the goal, current evidence, priorities, and dependencies. The workflow chooses
+and prepares the planner Session.
 
 ```go
 loop := gimble.Loop(ctx, "sprint", goal, planner)
-for ctx, task := range loop.Laps {
+for ctx, task := range loop.Tasks {
 	implement(ctx, coder, task)
 }
 if err := loop.Err(); err != nil {
@@ -527,71 +523,68 @@ if err := loop.Err(); err != nil {
 }
 ```
 
-The file is markdown with YAML frontmatter: the goal as a prose Definition
-of Done, and a list of steps. It lives in the run directory at the loop's
-scope path, so the durable state and the graph are one tree. The goal is a
-Go string, and the loop writes it into the file when it starts. A rerun is
-a new run: the planner reads the workdir and starts a fresh backlog from
-the goal, so what a crash costs is one planning lap and the planner's
-notes, not the work. Resuming those notes from an earlier run is an
-aspiration, not something the design bends around.
+The yielded value is the assignment, rather than iterator bookkeeping:
 
-Each lap the iterator:
+```go
+type Task struct {
+	Name             string
+	Description      string
+	DefinitionOfDone string
+	Validation       struct {
+		Command string
+		Query   string
+	}
+}
+```
 
-1. Reloads the file.
-2. Runs every step's `command:` and collects the exit codes. This is the one
-   mechanical part: commands are cheap and deterministic, and it means the
-   planner judges from facts. It cannot claim the tests pass unless `go test`
-   exited 0.
-3. Asks the planner, with the file, the workspace, and the command results:
-   what is next? The planner may rewrite the backlog however it sees fit.
-4. Yields the task the planner named, with a context for the lap: a child
-   scope of the loop's, cancelled when the body returns. Or returns, if
-   the planner named none.
+`Description` states the desired result and necessary non-obvious facts. It
+does not prescribe the worker's approach. `DefinitionOfDone` describes success
+for this assignment, which may be an evidence-supported investigation rather
+than fulfillment of the whole goal. Validation is a request for evidence, not
+the result itself; either field may be empty.
 
-Why a planner and not a mechanical walk: an agentic backlog goes stale in
-proportion to the steps already taken. The agent may finish early, a step may
-need repeating, the next few steps may need rewriting, or the sequence may be
-"think up the next thing to do." A mechanical iterator (first open item, mark
-done, sweep at the end) has to special-case each of those; a planner that
-rewrites the backlog every lap handles all of them by construction. The
-legacy loop (`ephemeral/legacy/program/loop.go`) was the mechanical version,
-with an evaluator bolted on that reopened item 0 as a stand-in when the goal
-failed. That hidden decision is what made it feel like magic.
+The backlog is markdown with YAML frontmatter containing the immutable `goal`
+and a structured `tasks` list. It lives under the Loop scope in the run
+directory. On each dispatch, the planner receives the backlog, visible scoped
+context, and values recorded by the preceding task. It edits the backlog and
+returns the next Task exactly as recorded there, or returns no task to end
+dispatch. Loop rejects a changed goal, malformed task, or disagreement between
+the returned Task and the backlog rather than yielding ambiguous work.
 
-What this means for the reader: `Loop` does one sentence of work. Each lap
-the planner reads the file and the workspace, updates the file, and says
-what is next or that we are done. The goal is in the workflow, the planner
-is a session the workflow chose and primed, and the file is on disk, so
-the decision is delegated in plain sight, not hidden in code.
+The planner is asked to choose the assignment with the greatest concrete gain
+toward the overall Definition of Done, sized for one worker to understand,
+complete, and demonstrate in one working session. A nonblocking defect in an
+earlier phase does not impose a phase gate; it remains in the backlog while the
+planner may choose later work with greater value.
+
+Each yielded context is a child `task` scope. Loop stores the structured Task
+there before calling the body. The workflow records the worker result and any
+validation evidence with `Set` or `SetJSON`; Loop explicitly projects those
+local values into the next planner prompt without promoting them into the
+parent scope. The task and planner decision are also structured in the durable
+run events, so later backlog edits do not rewrite what was dispatched.
 
 Details:
 
-- When the planner names nothing, the iterator returns and `range` falls
-  through. That is all `iter.Seq2` needs: the function exits. How the
-  planner's JSON says "nothing" is the planner type's business and never
-  reaches the body. The yielded `Task` is the lap number and the planner's
-  text, nothing more yet; there is no `Done` field, because the body never
-  sees a lap where nothing is next. The command results are the planner's
-  input, not the body's: the body's agent can run the commands itself.
-- The lap is a scope. When the body returns, the lap's sessions are closed
-  and its ctx is cancelled; a group the body made was waited before that,
-  by the lint. The page does not cancel laps, or any scope; it interrupts
-  a session's turn or cancels the whole run. A body that treats an
-  interrupted turn as a fact and continues gives the planner an
-  interrupted lap to plan from; one that returns the error ends the loop.
-- `Err` is checked after the range, the way `bufio.Scanner` does it,
-  because the yielded pair is the context and the task. `Loop` fails only
-  for real reasons: its file, a command that will not start, the planner's
-  harness dying. A command that exits non-zero is a fact for the planner,
-  not an error.
-- The iterator never marks anything. There is no engine-owned `done` field,
-  no `MarkDone`/`UnmarkDone`, no YAML rewriting. Agents and humans edit the
-  file; the iterator only reads it and runs its commands.
-- Lap limits and giving up belong to the body (`if task.Lap > maxLaps`), not
-  to `Loop`.
-- Cost is one planner call per lap plus the commands. The legacy loop
-  re-judged every inference item every lap, which was O(n²) judge calls.
+- Loop does not execute `Validation.Command`, select a validator for
+  `Validation.Query`, or infer success from the body returning. The workflow
+  performs validation visibly in ordinary Go and records the actual result.
+  A deterministic check is binary; agent judgment uses the repository's
+  90-95% release standard.
+- When the planner returns no assignment, `range` falls through. This means
+  dispatch ended; it does not attest that the enclosing promises are fulfilled.
+- When a task body returns, its sessions are closed and its ctx is cancelled;
+  a group the body made was waited before that, by the lint. The page does not
+  cancel tasks, or any scope; it interrupts a session's turn or cancels the
+  whole run. A body that treats an interrupted turn as a fact and records it
+  gives the planner evidence to plan from; ordinary Go control flow can instead
+  end the workflow.
+- `Err` is checked after the range, the way `bufio.Scanner` does it, because
+  the yielded pair is the context and Task. Loop errors report persistence,
+  malformed planner data, cancellation, or planner harness failures. Failed
+  task validation is recorded feedback, not a Loop error.
+- Limits, retry policy, validation execution, and overall completion remain
+  visible in the enclosing workflow.
 
 ## Supervisors
 
@@ -617,7 +610,7 @@ func WithInterval(every time.Duration) AgentOption
 coder := gimble.NewSession(ctx, "coder", adapter, model, workdir)
 taste := gimble.NewSession(ctx, "taste", adapter, cheap, workdir)
 
-res, err := coder.Generate[Result](ctx, task.Text,
+res, err := coder.Generate[Result](ctx, task.Description+"\n\n"+gimble.ScopeText(ctx),
 	gimble.WithSupervisor(taste, "don't let it over-engineer", gimble.WithInterval(time.Minute)),
 )
 ```

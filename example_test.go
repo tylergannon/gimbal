@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/tylergannon/gimble"
 )
@@ -77,4 +78,60 @@ func ExampleGroup() {
 	fmt.Println(err)
 
 	// Output: <nil>
+}
+
+type exampleLoopAdapter struct{ turns int }
+
+func (*exampleLoopAdapter) CreateSession(context.Context, string, string) (string, error) {
+	return "example-planner", nil
+}
+
+func (a *exampleLoopAdapter) RunTurn(_ context.Context, _ string, prompt string, _ json.RawMessage, _ func(gimble.AgentEvent)) (json.RawMessage, error) {
+	a.turns++
+	if a.turns > 1 {
+		return json.RawMessage(`{}`), nil
+	}
+	marker := "Its revisable backlog is "
+	rest := prompt[strings.Index(prompt, marker)+len(marker):]
+	file := strings.TrimSuffix(strings.Fields(rest)[0], ".")
+	backlog := `---
+goal: demonstrate adaptive dispatch
+tasks:
+  - name: Show the task
+    description: Make the structured assignment visible to the workflow.
+    definition_of_done: The workflow receives and records the assignment.
+    validation: {}
+---
+`
+	if err := os.WriteFile(file, []byte(backlog), 0o644); err != nil {
+		return nil, err
+	}
+	return json.RawMessage(`{"next":{"name":"Show the task","description":"Make the structured assignment visible to the workflow.","definition_of_done":"The workflow receives and records the assignment.","validation":{"command":"","query":""}}}`), nil
+}
+
+func (*exampleLoopAdapter) Steer(context.Context, string, string) error { return nil }
+func (*exampleLoopAdapter) Fork(context.Context, string) (string, error) {
+	return "example-planner-fork", nil
+}
+
+func ExampleLoop() {
+	ctx, closeProject := exampleContext()
+	defer closeProject()
+
+	err := gimble.Run(ctx, "dispatch", func(ctx context.Context) error {
+		planner := gimble.NewSession(ctx, "planner", &exampleLoopAdapter{}, "example", ".")
+		loop := gimble.Loop(ctx, "work", "demonstrate adaptive dispatch", planner)
+		for ctx, task := range loop.Tasks {
+			fmt.Println(task.Name)
+			if err := gimble.Set(ctx, "result", "assignment recorded"); err != nil {
+				return err
+			}
+		}
+		return loop.Err()
+	})
+	fmt.Println(err)
+
+	// Output:
+	// Show the task
+	// <nil>
 }

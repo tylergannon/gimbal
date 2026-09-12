@@ -85,8 +85,6 @@ func lifecycleKind(event LifecycleEvent) string {
 		return "scope_began"
 	case ScopeEnded:
 		return "scope_ended"
-	case LoopCommand:
-		return "loop_command"
 	case PlannerDecision:
 		return "planner_decision"
 	case ValueSet:
@@ -458,77 +456,183 @@ func TestSuperviseCancelsAndJoinsLook(t *testing.T) {
 	}
 }
 
-func TestLoop(t *testing.T) {
+func TestLoopCarriesStructuredTaskAndFeedback(t *testing.T) {
+	task := Task{Name: "Repair build", Description: "Restore the package after the observed compiler failure.", DefinitionOfDone: "The package builds and the failed check passes."}
+	task.Validation.Command = "go test ./..."
 	var prompts []string
 	f := &fake{answer: func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(AgentEvent) error) (string, error) {
 		prompts = append(prompts, prompt)
-		file := strings.Fields(prompt[strings.Index(prompt, "Its backlog is the file ")+len("Its backlog is the file "):])[0]
-		file = strings.TrimSuffix(file, ",")
+		file := plannerBacklog(prompt)
 		if len(prompts) == 1 {
-			front := "---\ngoal: ship\nsteps:\n  - step: it builds\n    command: echo checked; exit 3\n---\nnotes\n"
-			if err := os.WriteFile(file, []byte(front), 0o644); err != nil {
+			if err := writeTestBacklog(file, "ship", []Task{task}); err != nil {
 				return "", err
 			}
-			return `{"next": "write the code"}`, nil
+			raw, err := json.Marshal(plan{Next: optionalTask(task)})
+			return string(raw), err
 		}
-		return `{"next": ""}`, nil
+		if err := writeTestBacklog(file, "ship", []Task{}); err != nil {
+			return "", err
+		}
+		return `{}`, nil
 	}}
+	project := t.TempDir()
 	var tasks []Task
-	var lapKeys []string
-	err := runTest(t, func(ctx context.Context) error {
+	var taskKeys []string
+	var parentText string
+	err := Run(Project(t.Context(), project), "test", func(ctx context.Context) error {
+		if err := Set(ctx, "constraint", "keep the public API small"); err != nil {
+			return err
+		}
 		planner := NewSession(ctx, "planner", f, "m", t.TempDir())
 		loop := Loop(ctx, "sprint", "ship", planner)
-		for ctx, task := range loop.Laps {
+		for ctx, task := range loop.Tasks {
 			tasks = append(tasks, task)
 			s, _ := current(ctx)
-			lapKeys = append(lapKeys, s.key)
+			taskKeys = append(taskKeys, s.key)
+			if err := Set(ctx, "validation result", "exit 1: package does not compile"); err != nil {
+				return err
+			}
 		}
+		parentText = ScopeText(ctx)
 		return loop.Err()
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(tasks) != 1 || tasks[0] != (Task{Lap: 1, Text: "write the code"}) || lapKeys[0] != "sprint.1/lap.1" {
-		t.Fatalf("tasks %v in %v", tasks, lapKeys)
+	if len(tasks) != 1 || tasks[0] != task || taskKeys[0] != "sprint.1/task.1" {
+		t.Fatalf("tasks %v in %v", tasks, taskKeys)
 	}
-	if !strings.Contains(prompts[0], "goal: ship") || !strings.Contains(prompts[1], "$ echo checked; exit 3\nexit 3\nchecked") {
+	if !strings.Contains(prompts[0], "keep the public API small") || !strings.Contains(prompts[1], "Previous task record") || !strings.Contains(prompts[1], "exit 1: package does not compile") {
 		t.Errorf("planner prompts:\n%s\n---\n%s", prompts[0], prompts[1])
+	}
+	if strings.Contains(parentText, task.Name) || strings.Contains(parentText, "package does not compile") {
+		t.Fatalf("task values were promoted to the parent:\n%s", parentText)
+	}
+
+	runs, err := filepath.Glob(filepath.Join(project, "runs", "*", "run.jsonl"))
+	if err != nil || len(runs) != 1 {
+		t.Fatalf("run logs = %v, %v", runs, err)
+	}
+	records := readRecords[LifecycleRecord](t, runs[0])
+	var decided, began Task
+	for _, record := range records {
+		switch event := record.Event.(type) {
+		case PlannerDecision:
+			if event.Task.Present {
+				decided = event.Task.Value
+			}
+		case ScopeBegan:
+			if event.Task.Present {
+				began = event.Task.Value
+			}
+		}
+	}
+	if decided != task || began != task {
+		t.Fatalf("durable task changed: decision=%+v scope=%+v", decided, began)
 	}
 }
 
-func TestLoopShowsThePlannerABadBacklog(t *testing.T) {
-	var prompts []string
+func TestLoopRejectsInconsistentPlannerData(t *testing.T) {
+	task := Task{Name: "Build", Description: "Make it build.", DefinitionOfDone: "It builds."}
+	for _, test := range []struct {
+		name   string
+		next   Task
+		tasks  []Task
+		needle string
+	}{
+		{name: "blank description", next: Task{Name: "Build", DefinitionOfDone: "It builds."}, tasks: []Task{task}, needle: "description is blank"},
+		{name: "not in backlog", next: task, tasks: []Task{}, needle: "did not preserve that assignment"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			f := &fake{answer: func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(AgentEvent) error) (string, error) {
+				if err := writeTestBacklog(plannerBacklog(prompt), "ship", test.tasks); err != nil {
+					return "", err
+				}
+				raw, err := json.Marshal(plan{Next: optionalTask(test.next)})
+				return string(raw), err
+			}}
+			err := runTest(t, func(ctx context.Context) error {
+				planner := NewSession(ctx, "planner", f, "m", t.TempDir())
+				loop := Loop(ctx, "sprint", "ship", planner)
+				for range loop.Tasks {
+					t.Fatal("invalid task was yielded")
+				}
+				return loop.Err()
+			})
+			if err == nil || !strings.Contains(err.Error(), test.needle) {
+				t.Fatalf("error = %v, want %q", err, test.needle)
+			}
+		})
+	}
+}
+
+func TestLoopRejectsInvalidBacklog(t *testing.T) {
 	f := &fake{answer: func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(AgentEvent) error) (string, error) {
-		prompts = append(prompts, prompt)
-		file := strings.Fields(prompt[strings.Index(prompt, "Its backlog is the file ")+len("Its backlog is the file "):])[0]
-		file = strings.TrimSuffix(file, ",")
-		front := "---\ngoal: ship\nsteps:\n  - step: build: the code\n    command: echo checked\n---\n"
-		if len(prompts) == 2 {
-			front = "---\ngoal: ship\nsteps:\n  - step: \"build: the code\"\n    command: echo checked\n---\n"
-		}
-		if err := os.WriteFile(file, []byte(front), 0o644); err != nil {
+		if err := os.WriteFile(plannerBacklog(prompt), []byte("---\ngoal: changed\ntasks: []\n---\n"), 0o644); err != nil {
 			return "", err
 		}
-		if len(prompts) == 3 {
-			return `{"next": ""}`, nil
-		}
-		return `{"next": "write the code"}`, nil
+		return `{}`, nil
 	}}
-	laps := 0
 	err := runTest(t, func(ctx context.Context) error {
 		planner := NewSession(ctx, "planner", f, "m", t.TempDir())
 		loop := Loop(ctx, "sprint", "ship", planner)
-		for range loop.Laps {
-			laps++
+		for range loop.Tasks {
+			t.Fatal("invalid backlog yielded a task")
 		}
 		return loop.Err()
 	})
+	if err == nil || !strings.Contains(err.Error(), "goal was changed") {
+		t.Fatalf("error = %v, want immutable goal error", err)
+	}
+}
+
+func TestLoopEndsTaskScopeOnBreak(t *testing.T) {
+	task := Task{Name: "Inspect", Description: "Establish the current behavior.", DefinitionOfDone: "The behavior is recorded."}
+	f := &fake{answer: func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(AgentEvent) error) (string, error) {
+		if err := writeTestBacklog(plannerBacklog(prompt), "inspect", []Task{task}); err != nil {
+			return "", err
+		}
+		raw, err := json.Marshal(plan{Next: optionalTask(task)})
+		return string(raw), err
+	}}
+	var taskCtx context.Context
+	var worker *Session
+	err := runTest(t, func(ctx context.Context) error {
+		planner := NewSession(ctx, "planner", f, "m", t.TempDir())
+		loop := Loop(ctx, "work", "inspect", planner)
+		for ctx := range loop.Tasks {
+			taskCtx = ctx
+			worker = NewSession(ctx, "worker", f, "m", t.TempDir())
+			break
+		}
+		if err := loop.Err(); err != nil {
+			return err
+		}
+		if !errors.Is(taskCtx.Err(), context.Canceled) {
+			t.Fatalf("task context error = %v, want canceled", taskCtx.Err())
+		}
+		if _, err := worker.Generate[Text](ctx, "too late"); err == nil || !strings.Contains(err.Error(), "scope ended") {
+			t.Fatalf("task-owned session remained usable: %v", err)
+		}
+		return nil
+	})
 	if err != nil {
-		t.Fatalf("a bad backlog ended the loop: %v", err)
+		t.Fatal(err)
 	}
-	if laps != 2 || !strings.Contains(prompts[1], "does not parse") || strings.Contains(prompts[1], "$ echo checked") || !strings.Contains(prompts[2], "$ echo checked\nexit 0") {
-		t.Errorf("%d laps; planner prompts:\n%s\n---\n%s", laps, prompts[1], prompts[2])
+}
+
+func plannerBacklog(prompt string) string {
+	marker := "Its revisable backlog is "
+	rest := prompt[strings.Index(prompt, marker)+len(marker):]
+	return strings.TrimSuffix(strings.Fields(rest)[0], ".")
+}
+
+func writeTestBacklog(file, goal string, tasks []Task) error {
+	front, err := json.Marshal(backlog{Goal: goal, Tasks: tasks})
+	if err != nil {
+		return err
 	}
+	return os.WriteFile(file, append(append([]byte("---\n"), front...), []byte("\n---\n")...), 0o644)
 }
 
 func TestAttestEventFixture(t *testing.T) {

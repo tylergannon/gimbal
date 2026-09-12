@@ -17,16 +17,20 @@
 "source":{"type":"string"}
 },"required":["kind","target","source"],"additionalProperties":false},
 {"type":"object",
-"description":"LoopCommand records one command run by a loop.","properties":{
-"kind":{"type":"string","const":"loop_command"},
-"command":{"type":"string"},
-"exit_code":{"type":"integer"}
-},"required":["kind","command","exit_code"],"additionalProperties":false},
-{"type":"object",
-"description":"PlannerDecision records the task selected for a loop's next lap.","properties":{
+"description":"PlannerDecision records the task selected for the next dispatch. An absent Task records that the planner ended dispatch.","properties":{
 "kind":{"type":"string","const":"planner_decision"},
-"decision":{"type":"string"}
-},"required":["kind","decision"],"additionalProperties":false},
+"task":{"type":"object",
+"description":"Task is one assignment selected by a Loop planner.","properties":{
+"name":{"type":"string","description":"Name is a short label for recognizing the work."},
+"description":{"type":"string","description":"Description states the desired result and any necessary, non-obvious information. It leaves the approach to the worker."},
+"definition_of_done":{"type":"string","description":"DefinitionOfDone says how to recognize successful completion of this assignment. It does not declare that the enclosing goal is complete."},
+"validation":{"type":"object",
+"description":"Validation describes evidence the workflow can gather. Either field may be empty; the workflow still assesses the task against DefinitionOfDone.","properties":{
+"command":{"type":"string","description":"Command is a known executable check."},
+"query":{"type":"string","description":"Query is a question for a validator agent."}
+},"required":["command","query"],"additionalProperties":false}
+},"required":["name","description","definition_of_done","validation"],"additionalProperties":false}
+},"required":["kind"],"additionalProperties":false},
 {"type":"object",
 "description":"RunCancelled records a workflow run stopped by context cancellation.","properties":{
 "kind":{"type":"string","const":"run_cancelled"},
@@ -49,8 +53,18 @@
 "description":"ScopeBegan records entry into one scope instance.","properties":{
 "kind":{"type":"string","const":"scope_began"},
 "name":{"type":"string"},
-"task":{"type":"string"}
-},"required":["kind","name","task"],"additionalProperties":false},
+"task":{"type":"object",
+"description":"Task is one assignment selected by a Loop planner.","properties":{
+"name":{"type":"string","description":"Name is a short label for recognizing the work."},
+"description":{"type":"string","description":"Description states the desired result and any necessary, non-obvious information. It leaves the approach to the worker."},
+"definition_of_done":{"type":"string","description":"DefinitionOfDone says how to recognize successful completion of this assignment. It does not declare that the enclosing goal is complete."},
+"validation":{"type":"object",
+"description":"Validation describes evidence the workflow can gather. Either field may be empty; the workflow still assesses the task against DefinitionOfDone.","properties":{
+"command":{"type":"string","description":"Command is a known executable check."},
+"query":{"type":"string","description":"Query is a question for a validator agent."}
+},"required":["command","query"],"additionalProperties":false}
+},"required":["name","description","definition_of_done","validation"],"additionalProperties":false}
+},"required":["kind","name"],"additionalProperties":false},
 {"type":"object",
 "description":"ScopeEnded records exit from one scope instance.","properties":{
 "kind":{"type":"string","const":"scope_ended"},

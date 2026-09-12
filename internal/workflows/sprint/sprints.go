@@ -1,8 +1,8 @@
 // Package sprint is the sprint workflow. It builds one sprint of
 // ephemeral/research/api/SPRINTS.md in the repository it runs in, gated as
 // docs/definition-of-done.md says. A researcher reads the code once; a
-// planner forked from it keeps the backlog; each lap a coder forked from it
-// does the planner's task under a supervisor, and the lap is committed when
+// planner forked from it keeps the backlog; each task a coder forked from it
+// does the planner's work under a supervisor, and the task is committed when
 // the checks pass. When the planner is done, a validator checks that the
 // sprint is demonstrated, and its objections are another loop. Then the
 // planner files what is left as issues and merges the sprint.
@@ -10,6 +10,7 @@ package sprint
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -34,8 +35,8 @@ type Input struct {
 	Model string `json:"model"`
 	// Claude Code model for the supervisors and the validator, e.g. "haiku".
 	ReviewModel string `json:"review_model"`
-	// The most laps to run in all. The sprint fails if the planner is not done by then.
-	Laps int `json:"laps"`
+	// The most tasks to run in all. The sprint fails if the planner is not done by then.
+	Tasks int `json:"tasks"`
 }
 
 // review is the validator's assessment of whether the sprint was demonstrated.
@@ -74,22 +75,22 @@ func Sprint(ctx context.Context, in Input) error {
 
 	// Build until the planner is done, then validate. The validator's
 	// objections are the goal of another loop, for three rounds at most.
-	laps := 0
+	tasks := 0
 	for round := 1; ; round++ {
 		loop := gimble.Loop(ctx, "sprint", goal, planner)
-		for ctx, task := range loop.Laps {
-			if laps++; laps > in.Laps {
+		for ctx, task := range loop.Tasks {
+			if tasks++; tasks > in.Tasks {
 				break
 			}
-			if err := lap(ctx, in, researcher, cl, laps, task.Text); err != nil {
+			if err := runTask(ctx, in, researcher, validator, cl, task); err != nil {
 				return err
 			}
 		}
 		if err := loop.Err(); err != nil {
 			return err
 		}
-		if laps > in.Laps {
-			return fmt.Errorf("sprint: the planner was not done after %d laps", in.Laps)
+		if tasks > in.Tasks {
+			return fmt.Errorf("sprint: the planner was not done after %d tasks", in.Tasks)
 		}
 		review, err := validator.Generate[review](ctx, fmt.Sprintf(validatePrompt, in.Sprint)+"\n\n"+goal)
 		if err != nil {
@@ -116,65 +117,124 @@ func Sprint(ctx context.Context, in Input) error {
 	return nil
 }
 
-// lap does one task: a coder forked from the researcher, supervised, then
-// a commit if the checks pass.
-func lap(ctx context.Context, in Input, researcher *gimble.Session, cl gimble.HarnessAdapter, n int, task string) error {
-	if err := gimble.Set(ctx, "task", task); err != nil {
-		return err
-	}
+// runTask does one assignment, records the evidence requested by the planner,
+// and commits only when that evidence and the workflow's repository checks pass.
+func runTask(ctx context.Context, in Input, researcher, validator *gimble.Session, cl gimble.HarnessAdapter, task gimble.Task) error {
 	coder, err := researcher.Fork(ctx, "coder")
 	if err != nil {
 		return err
 	}
 	supervisor := gimble.NewSession(ctx, "supervisor", cl, in.ReviewModel, in.Repo)
-	_, err = coder.Generate[gimble.Text](ctx, codePrompt+"\n\n"+gimble.ScopeText(ctx),
+	result, workErr := coder.Generate[gimble.Text](ctx, codePrompt+"\n\n"+gimble.ScopeText(ctx),
 		gimble.WithSupervisor(supervisor, superviseInstruction),
 	)
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
-	if err != nil {
-		// A failed turn is a fact for the planner, not the end of the
-		// sprint: its work stays in the tree for the next lap to see.
-		log.Printf("sprint: lap %d: %v", n, err)
+	if err := gimble.Set(ctx, "worker result", string(result)); err != nil {
+		return err
+	}
+	passed := workErr == nil
+	if workErr != nil {
+		if err := gimble.Set(ctx, "worker error", workErr.Error()); err != nil {
+			return err
+		}
+		log.Printf("sprint: task %q: %v", task.Name, workErr)
 	}
 
-	// Work that fails the checks stays uncommitted; the planner sees the
-	// failure in its command results next lap.
-	for _, check := range checks {
-		cmd := exec.CommandContext(ctx, "sh", "-c", check)
-		cmd.Dir = in.Repo
-		if out, err := cmd.CombinedOutput(); err != nil {
-			log.Printf("sprint: lap %d: %s failed, so the lap stays uncommitted:\n%s", n, check, out)
-			return nil
+	if strings.TrimSpace(task.Validation.Command) != "" {
+		code, output, err := command(ctx, in.Repo, task.Validation.Command)
+		if err != nil {
+			return err
 		}
+		if err := gimble.Set(ctx, "task command", commandText(task.Validation.Command, code, output)); err != nil {
+			return err
+		}
+		if code != 0 {
+			passed = false
+		}
+	}
+	if strings.TrimSpace(task.Validation.Query) != "" {
+		assessment, err := validator.Generate[review](ctx, taskValidationPrompt+"\n\n"+task.Validation.Query+"\n\n"+gimble.ScopeText(ctx))
+		if err != nil {
+			return err
+		}
+		if err := gimble.SetJSON(ctx, "task assessment", assessment); err != nil {
+			return err
+		}
+		if len(assessment.Objections) != 0 {
+			passed = false
+		}
+	}
+	for i, check := range checks {
+		code, output, err := command(ctx, in.Repo, check)
+		if err != nil {
+			return err
+		}
+		if err := gimble.Set(ctx, fmt.Sprintf("repository check %d", i+1), commandText(check, code, output)); err != nil {
+			return err
+		}
+		if code != 0 {
+			passed = false
+		}
+	}
+	if !passed {
+		log.Printf("sprint: task %q did not validate, so its work stays uncommitted", task.Name)
+		return nil
 	}
 	if _, err := git(ctx, in.Repo, "add", "-A"); err != nil {
 		return err
 	}
 	if status, _ := git(ctx, in.Repo, "status", "--porcelain"); status == "" {
-		log.Printf("sprint: lap %d: nothing to commit", n)
+		log.Printf("sprint: task %q: nothing to commit", task.Name)
 		return nil
 	}
-	message := fmt.Sprintf("Sprint %d, lap %d: %s\n\n%s", in.Sprint, n, firstLine(task), task)
+	message := fmt.Sprintf("Sprint %d: %s\n\n%s", in.Sprint, task.Name, task.Description)
 	if _, err := git(ctx, in.Repo, "commit", "-m", message); err != nil {
 		return err
 	}
-	log.Printf("sprint: lap %d: committed", n)
+	log.Printf("sprint: task %q: committed", task.Name)
 	return nil
+}
+
+func command(ctx context.Context, dir, text string) (int, string, error) {
+	cmd := exec.CommandContext(ctx, "sh", "-c", text)
+	cmd.Dir = dir
+	out, err := cmd.CombinedOutput()
+	if ctx.Err() != nil {
+		return 0, "", ctx.Err()
+	}
+	if err == nil {
+		return 0, string(out), nil
+	}
+	var exit *exec.ExitError
+	if errors.As(err, &exit) {
+		return exit.ExitCode(), string(out), nil
+	}
+	return 0, "", fmt.Errorf("sprint: command %q: %w", text, err)
+}
+
+func commandText(command string, code int, output string) string {
+	const limit = 3000
+	if len(output) > limit {
+		output = "[...]" + strings.ToValidUTF8(output[len(output)-limit:], "")
+	}
+	return fmt.Sprintf("$ %s\nexit %d\n%s", command, code, output)
 }
 
 const done = "Definition of done (docs/definition-of-done.md): the software actually works, and what this section asks for is 90-95%% built and committed in %s, with `go vet ./...` and `go test ./...` exiting 0 there and each part seen working in a test or a command. Gate on these requirements only, never on code quality. When this is true the goal is met, even with quirks left: they are filed as issues after the loop, not fixed in it. Give the two checks steps of their own, with those commands."
 
 const researchPrompt = `You are about to lead the build of one sprint on this repository, Gimble, a Go library. Read AGENTS.md, docs/definition-of-done.md, ephemeral/research/api/API.md, ephemeral/research/api/SPRINTS.md, and the code the sprint below touches, until you know where everything it needs is. Change no files. Answer with a short summary of what exists and what the sprint needs.`
 
-const codePrompt = `Do the task below in this repository, following AGENTS.md and ephemeral/research/api/API.md, and build only what it asks. Make "go vet ./..." and "go test ./..." pass. Do not commit: the workflow commits the lap when those pass. Answer with a short summary of what you changed.`
+const codePrompt = `Complete the task in the scoped context, following AGENTS.md and ephemeral/research/api/API.md. Demonstrate the result and leave the work uncommitted. Answer with a short summary of what changed and the evidence you gathered.`
 
 const superviseInstruction = "Don't let it build what its task does not ask for, over-engineer what it does build, or break a rule in AGENTS.md. Object to nothing else: code quality and style are not yours to judge."
 
+const taskValidationPrompt = `Assess the task against its definition of done using the recorded result and evidence. Object only when that evidence does not establish a working result at the repository's 90-95% readiness standard. A passing agent judgment cannot override a failed deterministic check.`
+
 const validatePrompt = `You are the validator of one sprint of this repository, Gimble. Its goal is below, and the agents that built it say it is done. Read docs/definition-of-done.md, then decide whether the sprint's validation legitimately demonstrates the goal: that the software actually works and what the goal asks for is implemented and has been seen working.
 
-- Find what demonstrates each part of the goal: the tests and the commands. Check that each really exercises what it claims to, and that none was weakened, skipped, or faked to pass. The sprint's commits are titled "Sprint %d, lap ..."; git log -p shows what they changed.
+- Find what demonstrates each part of the goal: the tests and the commands. Check that each really exercises what it claims to, and that none was weakened, skipped, or faked to pass. The sprint's commits are titled "Sprint %d: ..."; git log -p shows what they changed.
 - Run the checks yourself, and run the software by hand where that shows more.
 - Change no files and commit nothing.
 
@@ -203,12 +263,4 @@ func git(ctx context.Context, dir string, args ...string) (string, error) {
 		return "", fmt.Errorf("git %s: %w: %s", strings.Join(args, " "), err, out)
 	}
 	return strings.TrimSpace(string(out)), nil
-}
-
-func firstLine(text string) string {
-	line, _, _ := strings.Cut(strings.TrimSpace(text), "\n")
-	if len(line) > 72 {
-		line = strings.ToValidUTF8(line[:72], "") + "..."
-	}
-	return line
 }

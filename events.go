@@ -55,8 +55,8 @@ func (RunCancelled) lifecycleEvent() {}
 
 // ScopeBegan records entry into one scope instance.
 type ScopeBegan struct {
-	Name string `json:"name"`
-	Task string `json:"task"`
+	Name string                  `json:"name"`
+	Task polytype.Optional[Task] `json:"task,omitzero"`
 }
 
 func (ScopeBegan) lifecycleEvent() {}
@@ -68,17 +68,10 @@ type ScopeEnded struct {
 
 func (ScopeEnded) lifecycleEvent() {}
 
-// LoopCommand records one command run by a loop.
-type LoopCommand struct {
-	Command  string `json:"command"`
-	ExitCode int    `json:"exit_code"`
-}
-
-func (LoopCommand) lifecycleEvent() {}
-
-// PlannerDecision records the task selected for a loop's next lap.
+// PlannerDecision records the task selected for the next dispatch. An absent
+// Task records that the planner ended dispatch.
 type PlannerDecision struct {
-	Decision string `json:"decision"`
+	Task polytype.Optional[Task] `json:"task,omitzero"`
 }
 
 func (PlannerDecision) lifecycleEvent() {}

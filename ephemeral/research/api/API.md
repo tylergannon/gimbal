@@ -508,6 +508,11 @@ When the candidates return different types, use one channel per type and a
 
 ## Loop
 
+The later [Promises, dispatch, and completion](LOOP.md) discussion for issue
+#125 revises the task-design direction and records unresolved contract
+questions. The account below preserves the earlier design, including its
+provisional `Task` and lap terminology.
+
 Gimble provides two orchestration shapes, `Loop` and supervisors. `Loop`
 iterates a task file, where a planner agent decides each lap what comes
 next, and yields each lap with a context of its own.

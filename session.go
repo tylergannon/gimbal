@@ -72,6 +72,10 @@ func (s *Session) Generate[T Output](ctx context.Context, prompt string, opts ..
 	return generate[T](ctx, s, prompt, nil, fmt.Sprintf("%T", out))
 }
 
+// errInvalidResult marks a turn whose harness succeeded but whose result did
+// not validate or decode. Callers that can re-ask the model check for it.
+var errInvalidResult = errors.New("invalid result")
+
 func generate[T Output](ctx context.Context, s *Session, prompt string, onEvent func(AgentEvent) error, outputType string) (T, error) {
 	var out T
 	raw, err := s.turn(ctx, prompt, out.Schema(), onEvent, outputType, out.ValidateJSON)
@@ -79,7 +83,7 @@ func generate[T Output](ctx context.Context, s *Session, prompt string, onEvent 
 		return out, err
 	}
 	if err := json.Unmarshal(raw, &out); err != nil {
-		return out, fmt.Errorf("gimble: %s: decode the result: %w", s.id, err)
+		return out, fmt.Errorf("gimble: %s: decode the result: %w: %w", s.id, errInvalidResult, err)
 	}
 	return out, nil
 }
@@ -214,7 +218,7 @@ func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessag
 			if scope != nil {
 				scope.run.event(scope.key, s.id, turnID, TurnEnded{Result: JSONText(result.Output), Error: err.Error(), Usage: report, Duration: time.Since(start)})
 			}
-			return nil, fmt.Errorf("gimble: %s: the result does not validate: %w", s.id, err)
+			return nil, fmt.Errorf("gimble: %s: the result does not validate: %w: %w", s.id, errInvalidResult, err)
 		}
 	}
 	if scope != nil {

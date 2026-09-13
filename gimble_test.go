@@ -241,12 +241,16 @@ func TestScopeData(t *testing.T) {
 }
 
 func TestGenerate(t *testing.T) {
+	reasked := false
 	f := &fake{answer: func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(AgentEvent) error) (string, error) {
 		switch {
 		case len(schema) == 0:
 			return "hello", nil
 		case prompt == "bad":
 			return `{"objections": "not a list"}`, nil
+		case strings.Contains(prompt, "previous answer was invalid") && strings.Contains(prompt, "objections"):
+			reasked = true
+			return `{"objections": ["one"]}`, nil
 		default:
 			return `{"objections": ["one"]}`, nil
 		}
@@ -262,8 +266,8 @@ func TestGenerate(t *testing.T) {
 		if err != nil || len(gotReview.Objections) != 1 {
 			t.Errorf("Generate[review] = %v, %v", gotReview, err)
 		}
-		if _, err := s.Generate[review](ctx, "bad"); err == nil {
-			t.Error("a result that does not validate was accepted")
+		if got, err := s.Generate[review](ctx, "bad"); err != nil || len(got.Objections) != 1 || !reasked {
+			t.Errorf("Generate did not recover by re-asking after an invalid result: %v, %v, reasked=%v", got, err, reasked)
 		}
 		if s.id != "coder.1" || NewSession(ctx, "coder", f, "m", "/w").id != "coder.2" {
 			t.Errorf("session ids: %q", s.id)
@@ -567,52 +571,107 @@ func TestLoopCarriesStructuredTaskAndFeedback(t *testing.T) {
 	}
 }
 
-func TestLoopRejectsInconsistentPlannerData(t *testing.T) {
+func TestLoopReasksAfterInvalidPlan(t *testing.T) {
 	task := Task{Name: "Build", Description: "Make it build.", DefinitionOfDone: "It builds."}
+	good, err := json.Marshal(plan{Tasks: []Task{task}, Next: polytype.Nullable[int]{Present: true, Value: 0}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	blank, _ := json.Marshal(plan{Tasks: []Task{{Name: "Build", DefinitionOfDone: "It builds."}}, Next: polytype.Nullable[int]{Present: true, Value: 0}})
+	outOfRange, _ := json.Marshal(plan{Tasks: []Task{task}, Next: polytype.Nullable[int]{Present: true, Value: 3}})
+	duplicate, _ := json.Marshal(plan{Tasks: []Task{task, task}, Next: polytype.Nullable[int]{Present: true, Value: 0}})
 	for _, test := range []struct {
 		name   string
-		plan   plan
+		bad    string
 		needle string
 	}{
-		{
-			name:   "blank description",
-			plan:   plan{Tasks: []Task{{Name: "Build", DefinitionOfDone: "It builds."}}, Next: polytype.Nullable[int]{Present: true, Value: 0}},
-			needle: "description is blank",
-		},
-		{
-			name:   "next out of range",
-			plan:   plan{Tasks: []Task{task}, Next: polytype.Nullable[int]{Present: true, Value: 3}},
-			needle: "out of range",
-		},
-		{
-			name:   "duplicate names",
-			plan:   plan{Tasks: []Task{task, task}, Next: polytype.Nullable[int]{Present: true, Value: 0}},
-			needle: "duplicate task name",
-		},
+		{name: "blank description", bad: string(blank), needle: "description is blank"},
+		{name: "next out of range", bad: string(outOfRange), needle: "out of range"},
+		{name: "duplicate names", bad: string(duplicate), needle: "duplicate task name"},
+		{name: "wrong shape", bad: `{"tasks":"none","next":"first"}`, needle: "does not validate"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			calls := 0
+			var prompts []string
 			f := &fake{answer: func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(AgentEvent) error) (string, error) {
-				calls++
-				raw, err := json.Marshal(test.plan)
-				return string(raw), err
+				prompts = append(prompts, prompt)
+				switch len(prompts) {
+				case 1, 2:
+					return test.bad, nil
+				case 3:
+					return string(good), nil
+				default:
+					return `{"tasks":[],"next":null}`, nil
+				}
 			}}
+			var tasks []Task
 			err := runTest(t, func(ctx context.Context) error {
 				planner := NewSession(ctx, "planner", f, "m", t.TempDir())
 				loop := Loop(ctx, "sprint", "ship", planner)
-				for range loop.Tasks {
-					t.Fatal("invalid task was yielded")
+				for _, task := range loop.Tasks {
+					tasks = append(tasks, task)
 				}
 				return loop.Err()
 			})
-			if err == nil || !strings.Contains(err.Error(), test.needle) {
-				t.Fatalf("error = %v, want %q", err, test.needle)
+			if err != nil {
+				t.Fatal(err)
 			}
-			if calls != 1 {
-				t.Fatalf("planner calls = %d, want 1", calls)
+			if len(tasks) != 1 || tasks[0] != task {
+				t.Fatalf("tasks = %v, want the corrected plan's task", tasks)
+			}
+			if len(prompts) != 4 {
+				t.Fatalf("planner calls = %d, want 2 re-asks, the dispatch, and the stop", len(prompts))
+			}
+			for _, i := range []int{1, 2} {
+				if !strings.Contains(prompts[i], "previous answer was invalid") || !strings.Contains(prompts[i], test.needle) {
+					t.Errorf("re-ask %d did not show the planner its problem:\n%s", i, prompts[i])
+				}
+			}
+			if strings.Contains(prompts[3], "previous answer was invalid") {
+				t.Errorf("the problem was carried past the corrected answer:\n%s", prompts[3])
 			}
 		})
 	}
+
+	t.Run("gives up", func(t *testing.T) {
+		calls := 0
+		f := &fake{answer: func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(AgentEvent) error) (string, error) {
+			calls++
+			return string(duplicate), nil
+		}}
+		err := runTest(t, func(ctx context.Context) error {
+			planner := NewSession(ctx, "planner", f, "m", t.TempDir())
+			loop := Loop(ctx, "sprint", "ship", planner)
+			for range loop.Tasks {
+				t.Fatal("invalid task was yielded")
+			}
+			return loop.Err()
+		})
+		if err == nil || !strings.Contains(err.Error(), "no valid result after 3 attempts") || !strings.Contains(err.Error(), "duplicate task name") {
+			t.Fatalf("error = %v", err)
+		}
+		if calls != generateAttempts {
+			t.Fatalf("planner calls = %d, want %d", calls, generateAttempts)
+		}
+	})
+
+	t.Run("harness error is not retried", func(t *testing.T) {
+		calls := 0
+		f := &fake{answer: func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(AgentEvent) error) (string, error) {
+			calls++
+			return "", errors.New("harness fell over")
+		}}
+		err := runTest(t, func(ctx context.Context) error {
+			planner := NewSession(ctx, "planner", f, "m", t.TempDir())
+			loop := Loop(ctx, "sprint", "ship", planner)
+			for range loop.Tasks {
+				t.Fatal("task was yielded")
+			}
+			return loop.Err()
+		})
+		if err == nil || !strings.Contains(err.Error(), "harness fell over") || calls != 1 {
+			t.Fatalf("error = %v after %d calls", err, calls)
+		}
+	})
 }
 
 func TestLoopEndsTaskScopeOnBreak(t *testing.T) {
@@ -995,7 +1054,7 @@ func TestCancelledRunStaysCancelled(t *testing.T) {
 
 // TestTurnRecordsValidationFailure is issue 144 item 1: a result the typed
 // output rejects is the turn's own outcome, not a clean turn beside a failing
-// scope.
+// scope. Each re-ask is its own recorded turn.
 func TestTurnRecordsValidationFailure(t *testing.T) {
 	f := &fake{answer: func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(AgentEvent) error) (string, error) {
 		return `{"objections": "not a list"}`, nil
@@ -1020,10 +1079,12 @@ func TestTurnRecordsValidationFailure(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if len(ended) != 1 {
-		t.Fatalf("recorded %d turn_ended records, want 1", len(ended))
+	if len(ended) != generateAttempts {
+		t.Fatalf("recorded %d turn_ended records, want one per attempt (%d)", len(ended), generateAttempts)
 	}
-	if !strings.Contains(ended[0].Error, "objections") || ended[0].Result == "" {
-		t.Fatalf("turn_ended = %+v, want the validation failure and the result it rejected", ended[0])
+	for _, turn := range ended {
+		if !strings.Contains(turn.Error, "objections") || turn.Result == "" {
+			t.Fatalf("turn_ended = %+v, want the validation failure and the result it rejected", turn)
+		}
 	}
 }

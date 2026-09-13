@@ -39,6 +39,22 @@ type plan struct {
 	Next  polytype.Nullable[int] `json:"next"`
 }
 
+// answer is the planner's plan with its content checks attached to the
+// schema check, so one Generate re-ask covers an inconsistent plan as well
+// as a wrong-shaped one.
+type answer struct{ plan }
+
+func (a answer) ValidateJSON(raw []byte) error {
+	if err := a.plan.ValidateJSON(raw); err != nil {
+		return err
+	}
+	var p plan
+	if err := json.Unmarshal(raw, &p); err != nil {
+		return err
+	}
+	return validatePlan(p)
+}
+
 type loop struct {
 	ctx     context.Context
 	name    string
@@ -84,13 +100,11 @@ func (l *loop) Tasks(yield func(context.Context, Task) bool) {
 			if err != nil {
 				return fmt.Errorf("gimble: %w", err)
 			}
-			p, err := l.planner.Generate[plan](ctx, planPrompt(l.name, l.planner.workdir, string(backlogText), ScopeText(ctx), previous))
+			a, err := l.planner.Generate[answer](ctx, planPrompt(l.name, l.planner.workdir, string(backlogText), ScopeText(ctx), previous))
 			if err != nil {
 				return err
 			}
-			if err := validatePlan(p); err != nil {
-				return fmt.Errorf("gimble: loop %q: %w", l.name, err)
-			}
+			p := a.plan
 			tasks = p.Tasks
 			if tasks == nil {
 				tasks = []Task{}
@@ -154,9 +168,8 @@ func backlogJSON(goal string, tasks []Task) ([]byte, error) {
 	}{Goal: goal, Tasks: tasks}, "", "  ")
 }
 
-// validatePlan checks a planner's structured answer: every task must be
-// well-formed, no two tasks may share a name, and a present Next must index
-// into Tasks.
+// validatePlan checks a plan's content: every task must be well-formed, no
+// two tasks may share a name, and a present Next must index into Tasks.
 func validatePlan(p plan) error {
 	seen := make(map[string]bool, len(p.Tasks))
 	for i, task := range p.Tasks {

@@ -76,10 +76,10 @@ func (a *adapter) add(s *session) (string, error) {
 }
 
 // RunTurn runs one turn and blocks until it ends.
-func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema json.RawMessage, onEvent func(gimble.AgentEvent) error) (json.RawMessage, error) {
+func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema json.RawMessage, onEvent func(gimble.AgentEvent) error) (gimble.TurnResult, error) {
 	s, err := a.session(sessionID)
 	if err != nil {
-		return nil, err
+		return gimble.TurnResult{}, err
 	}
 	s.mu.Lock()
 	fresh, parent := s.fresh, s.parent
@@ -134,12 +134,12 @@ func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema 
 	defer stop()
 	client, err := claudeagent.NewClient(options...)
 	if err != nil {
-		return nil, fmt.Errorf("claude: %w", err)
+		return gimble.TurnResult{}, fmt.Errorf("claude: %w", err)
 	}
 	defer func() { _ = client.Close() }()
 	stream, err := client.Stream(processCtx)
 	if err != nil {
-		return nil, fmt.Errorf("claude: %w", err)
+		return gimble.TurnResult{}, fmt.Errorf("claude: %w", err)
 	}
 	defer func() { _ = stream.Close() }()
 
@@ -147,23 +147,26 @@ func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema 
 	s.setActive(active)
 	defer s.setActive(nil)
 	if err := stream.Send(processCtx, prompt); err != nil {
-		return nil, fmt.Errorf("claude: %w", err)
+		return gimble.TurnResult{}, fmt.Errorf("claude: %w", err)
 	}
 
 	result, err := waitTurn(ctx, stream, nativeErrors, sessionID, s)
 	if ctx.Err() != nil {
-		return nil, ctx.Err()
+		return gimble.TurnResult{}, ctx.Err()
 	}
 	if err != nil {
-		return nil, err
+		return gimble.TurnResult{}, err
 	}
+	usage := project.turnUsage()
 	if len(schema) == 0 {
-		return json.Marshal(result.Result)
+		out, err := json.Marshal(result.Result)
+		return gimble.TurnResult{Output: out, Usage: usage}, err
 	}
 	if result.StructuredOutput == nil {
-		return nil, errors.New("claude: the turn ended without structured output")
+		return gimble.TurnResult{}, errors.New("claude: the turn ended without structured output")
 	}
-	return json.Marshal(result.StructuredOutput)
+	out, err := json.Marshal(result.StructuredOutput)
+	return gimble.TurnResult{Output: out, Usage: usage}, err
 }
 
 // Steer sends message into the session's running turn, if there is one.
@@ -198,6 +201,16 @@ func (a *adapter) Interrupt(ctx context.Context, sessionID string) error {
 	}
 	_, err = active.stream.InterruptWithReceipt(ctx)
 	return err
+}
+
+// Close forgets sessionID. Claude Code's own process is already gone by
+// the time Close runs: RunTurn's process is scoped to one turn, not the
+// session. Idempotent: an unknown id returns nil.
+func (a *adapter) Close(ctx context.Context, sessionID string) error {
+	a.mu.Lock()
+	delete(a.sessions, sessionID)
+	a.mu.Unlock()
+	return nil
 }
 
 func (a *adapter) session(id string) (*session, error) {

@@ -32,7 +32,7 @@ func (a *noisyWorker) CreateSession(ctx context.Context, model, workdir string) 
 	return a.inner.CreateSession(ctx, model, workdir)
 }
 
-func (a *noisyWorker) RunTurn(ctx context.Context, sessionID, prompt string, schema json.RawMessage, emit func(gimble.AgentEvent) error) (json.RawMessage, error) {
+func (a *noisyWorker) RunTurn(ctx context.Context, sessionID, prompt string, schema json.RawMessage, emit func(gimble.AgentEvent) error) (gimble.TurnResult, error) {
 	return a.inner.RunTurn(ctx, sessionID, prompt, schema, func(event gimble.AgentEvent) error {
 		if err := emit(event); err != nil {
 			return err
@@ -84,6 +84,10 @@ func (a *noisyWorker) Fork(ctx context.Context, sessionID string) (string, error
 	return a.inner.Fork(ctx, sessionID)
 }
 
+func (a *noisyWorker) Close(ctx context.Context, sessionID string) error {
+	return a.inner.Close(ctx, sessionID)
+}
+
 type measuredReviewer struct {
 	inner     gimble.HarnessAdapter
 	maxPrompt atomic.Int64
@@ -95,7 +99,7 @@ func (a *measuredReviewer) CreateSession(ctx context.Context, model, workdir str
 	return a.inner.CreateSession(ctx, model, workdir)
 }
 
-func (a *measuredReviewer) RunTurn(ctx context.Context, sessionID, prompt string, schema json.RawMessage, emit func(gimble.AgentEvent) error) (json.RawMessage, error) {
+func (a *measuredReviewer) RunTurn(ctx context.Context, sessionID, prompt string, schema json.RawMessage, emit func(gimble.AgentEvent) error) (gimble.TurnResult, error) {
 	for old := a.maxPrompt.Load(); int64(len(prompt)) > old && !a.maxPrompt.CompareAndSwap(old, int64(len(prompt))); old = a.maxPrompt.Load() {
 	}
 	if strings.Contains(prompt, "[gap] Supervisor activity items") {
@@ -113,6 +117,10 @@ func (a *measuredReviewer) Steer(ctx context.Context, sessionID, message string)
 
 func (a *measuredReviewer) Fork(ctx context.Context, sessionID string) (string, error) {
 	return a.inner.Fork(ctx, sessionID)
+}
+
+func (a *measuredReviewer) Close(ctx context.Context, sessionID string) error {
+	return a.inner.Close(ctx, sessionID)
 }
 
 func main() {

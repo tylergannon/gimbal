@@ -1,0 +1,18 @@
+$ bun test src/lib/sessionstate/index.test.ts src/lib/observation/index.test.ts
+bun test v1.3.14 (0d9b296a)
+
+src/lib/sessionstate/index.test.ts:
+(pass) session event projection > stream restores at every event cut [2.41ms]
+(pass) session event projection > native-backend restores at every event cut [2.73ms]
+(pass) session event projection > overlapping-reasoning restores at every event cut [0.91ms]
+
+src/lib/observation/index.test.ts:
+(pass) replacement snapshot resets machines and stale connection callbacks cannot mutate them [0.21ms]
+(pass) lifecycle only controls workflow terminal status and relationships [0.07ms]
+(pass) message revision survives a following lifecycle frame [0.04ms]
+(pass) accounting distinguishes unavailable from measured zero [0.04ms]
+(pass) provenance keys the latest native sidecar by normalized message ID [0.02ms]
+
+ 8 pass
+ 0 fail
+Ran 8 tests across 2 files. [25.00ms]

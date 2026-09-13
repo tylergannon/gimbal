@@ -1,0 +1,122 @@
+2026/09/12 06:12:54 gimble: web application listening on 127.0.0.1:18089 (prod)
+Models: planner/worker=gpt-5.6-luna; independent reviewer=haiku
+Monitor: http://127.0.0.1:18089
+2026/09/12 06:12:54 gimble: run 20260912-061254.mergequeue-review started in /Users/tyler/.codex/worktrees/loop-api-review/gimble/ephemeral/review/loop-api/project/runs/20260912-061254.mergequeue-review
+2026/09/12 06:12:54 gimble: planner.1: turn started (gpt-5.6-luna)
+2026/09/12 06:14:28 gimble: planner.1: turn ended after 1m34s: ok
+2026/09/12 06:14:28 gimble: delivery.1: task: Implement the merge-queue runtime and focused tests
+DISPATCH 1: Implement the merge-queue runtime and focused tests
+2026/09/12 06:14:29 gimble: delivery.1/task.1/worker.1: turn started (gpt-5.6-luna)
+2026/09/12 06:21:04 gimble: delivery.1/task.1/worker.1: turn ended after 6m35s: ok
+2026/09/12 06:21:04 gimble: delivery.1/task.1/validation.1/independent.1/reviewer.1: turn started (haiku)
+2026/09/12 06:21:56 gimble: delivery.1/task.1/validation.1/independent.1/reviewer.1: turn ended after 52s: ok
+RESULT 1:
+$ python3 /Users/tyler/.codex/worktrees/loop-api-review/gimble/ephemeral/review/loop-api/acceptance.py /Users/tyler/.codex/worktrees/loop-api-review/gimble/ephemeral/review/loop-api/workspace
+exit 0
+25/25 acceptance cases passed
+
+$ sh -c go vet ./... && go test ./...
+exit 0
+ok  	example.com/mergequeue	(cached)
+
+**PASS**
+
+All requirements satisfied with valid evidence:
+
+1. **JSON parsing**: Exactly one top-level object parsed; trailing JSON rejected with exit 2 ✓
+2. **Input validation**: Positive/unique IDs, valid checks status (pass/fail/pending), all dependencies exist, no cycles including among failed/pending PRs ✓
+3. **Invalid input handling**: Exit 2, non-empty stderr diagnostic, empty stdout on all error cases ✓
+4. **Wave scheduling**: Deterministic ascending IDs per wave; passing PRs with satisfied dependencies scheduled; blocking propagates transitively ✓
+5. **Output format**: Non-null empty arrays `[]`, proper JSON structure ✓
+6. **Order independence**: Identical output regardless of input PR order ✓
+7. **Tests**: main_test.go covers empty queue, diamond DAG, transitive blocking, all error cases with correct exit codes ✓
+8. **README**: Clear runnable example with expected output ✓
+9. **Standard library only**: imports bytes, encoding/json, errors, fmt, io, os, sort ✓
+10. **Acceptance**: 25/25 cases pass; go test -race and go vet succeed ✓
+
+No unmet requirements or invalid evidence detected.
+EVOLVING REQUIREMENT: $ python3 /Users/tyler/.codex/worktrees/loop-api-review/gimble/ephemeral/review/loop-api/parallel.py /Users/tyler/.codex/worktrees/loop-api-review/gimble/ephemeral/review/loop-api/workspace
+exit 1
+FAIL ['--parallel', '2'] exit 0 stdout {"waves":[[1,2,3,4],[5]],"blocked":[]} stderr 
+FAIL ['--parallel', '1'] exit 0 stdout {"waves":[[1,2,3,4],[5]],"blocked":[]} stderr 
+FAIL ['--parallel', '0'] exit 0 stdout {"waves":[[1,2,3,4],[5]],"blocked":[]} stderr 
+FAIL ['--parallel', '-1'] exit 0 stdout {"waves":[[1,2,3,4],[5]],"blocked":[]} stderr 
+FAIL ['--parallel', 'cat'] exit 0 stdout {"waves":[[1,2,3,4],[5]],"blocked":[]} stderr 
+FAIL ['--parallel'] exit 0 stdout {"waves":[[1,2,3,4],[5]],"blocked":[]} stderr 
+0/6 parallelism cases passed
+
+2026/09/12 06:21:56 gimble: planner.1: turn started (gpt-5.6-luna)
+2026/09/12 06:22:51 gimble: planner.1: turn ended after 54s: ok
+2026/09/12 06:22:51 gimble: delivery.1: the planner left an invalid backlog, so it will be asked to repair it: go-yaml load error in scanner at L4.C136: mapping values are not allowed in this context
+2026/09/12 06:22:51 gimble: delivery.1: the backlog does not parse, so the planner is asked to fix it: go-yaml load error in scanner at L4.C136: mapping values are not allowed in this context
+2026/09/12 06:22:51 gimble: planner.1: turn started (gpt-5.6-luna)
+2026/09/12 06:23:16 gimble: planner.1: turn ended after 25s: ok
+2026/09/12 06:23:16 gimble: delivery.1: task: Implement --parallel scheduling and update its proof
+DISPATCH 2: Implement --parallel scheduling and update its proof
+2026/09/12 06:23:16 gimble: delivery.1/task.2/worker.1: turn started (gpt-5.6-luna)
+2026/09/12 06:26:41 gimble: delivery.1/task.2/worker.1: turn ended after 3m25s: ok
+2026/09/12 06:26:41 gimble: delivery.1/task.2/validation.1/independent.1/reviewer.1: turn started (haiku)
+2026/09/12 06:28:00 gimble: delivery.1/task.2/validation.1/independent.1/reviewer.1: turn ended after 1m19s: ok
+RESULT 2:
+$ python3 /Users/tyler/.codex/worktrees/loop-api-review/gimble/ephemeral/review/loop-api/acceptance.py /Users/tyler/.codex/worktrees/loop-api-review/gimble/ephemeral/review/loop-api/workspace
+exit 0
+25/25 acceptance cases passed
+
+$ sh -c go vet ./... && go test ./...
+exit 0
+ok  	example.com/mergequeue	(cached)
+
+Reading the implementation and tests now.
+
+I'll check the implementation against the disclosed requirement for `--parallel N`:
+
+**Requirement checklist:**
+
+1. **Accept `--parallel N` flag** — ✓ `parseParallelArgs()` at line 56 handles this
+2. **Default unlimited** — ✓ Line 57-58: no args returns (0, nil); 0 is the unlimited sentinel
+3. **Limit each wave to N ready PRs** — ✓ Line 155-157: `if parallel > 0 && len(wave) > parallel { wave = wave[:parallel] }`
+4. **Ascending ID selection within each wave** — ✓ Wave built by iterating `sortedIDs(byID)` (line 125, 137)
+5. **Reject missing/zero/negative/non-integer with exit 2, stderr, no stdout** — ✓
+   - Missing value: `len(args) != 2` catches `--parallel` alone (line 60)
+   - Zero/negative: `parallel <= 0` check (line 64)
+   - Non-integer: `strconv.Atoi` error (line 63)
+   - Exit 2 + stderr: line 32-33 in `runCLI()`
+   - No stdout: stdout never written before error
+6. **Preserve base requirements** — ✓ When `parallel=0` (unlimited), capping is skipped (line 155); base logic unchanged
+7. **Tests cover new behavior** — ✓ 
+   - `TestParallelLimitsReadyPRsAndPreservesIDOrder` (line 37)
+   - `TestParallelDefaultsToUnlimited` (line 49)
+   - `TestInvalidParallelArgumentsExitTwoWithDiagnosticAndNoOutput` (line 59)
+8. **README documents flag** — ✓ Lines 19-31 explain `--parallel N` with example output
+
+**Validation against parallel.py test cases:**
+
+- `--parallel 2`: [[1,2],[3,4],[5]] ✓ (5 ready PRs capped 2 at a time)
+- `--parallel 1`: [[1],[2],[3],[4],[5]] ✓ (each wave has 1 PR)
+- `--parallel 0`: exit 2, no stdout ✓ (`parallel <= 0` rejected)
+- `--parallel -1`: exit 2, no stdout ✓ (same)
+- `--parallel cat`: exit 2, no stdout ✓ (Atoi error caught)
+- `--parallel` (missing): exit 2, no stdout ✓ (`len(args) != 2`)
+
+**PASS**
+
+No unmet requirements or invalid evidence identified. The implementation correctly accepts the `--parallel N` flag, validates all invalid forms per spec, caps waves to ascending-sorted ready PRs, preserves unlimited behavior as default, and maintains all base acceptance semantics. Tests and README comprehensively document the new contract.
+PARALLEL ACCEPTANCE: $ python3 /Users/tyler/.codex/worktrees/loop-api-review/gimble/ephemeral/review/loop-api/parallel.py /Users/tyler/.codex/worktrees/loop-api-review/gimble/ephemeral/review/loop-api/workspace
+exit 0
+6/6 parallelism cases passed
+
+2026/09/12 06:28:00 gimble: planner.1: turn started (gpt-5.6-luna)
+2026/09/12 06:28:20 gimble: planner.1: turn ended after 19s: ok
+2026/09/12 06:28:20 gimble: delivery.1: the planner ended dispatch
+FINAL: $ python3 /Users/tyler/.codex/worktrees/loop-api-review/gimble/ephemeral/review/loop-api/acceptance.py /Users/tyler/.codex/worktrees/loop-api-review/gimble/ephemeral/review/loop-api/workspace
+exit 0
+25/25 acceptance cases passed
+
+FINAL: $ python3 /Users/tyler/.codex/worktrees/loop-api-review/gimble/ephemeral/review/loop-api/parallel.py /Users/tyler/.codex/worktrees/loop-api-review/gimble/ephemeral/review/loop-api/workspace
+exit 0
+6/6 parallelism cases passed
+
+2026/09/12 06:28:20 gimble: run 20260912-061254.mergequeue-review ended: ok
+RUN ERROR: <nil>
+Serving result for 3 minutes
+signal: terminated

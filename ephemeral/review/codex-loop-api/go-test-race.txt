@@ -1,0 +1,30 @@
+ok  	github.com/tylergannon/gimble	1.986s
+ok  	github.com/tylergannon/gimble/agy	6.015s
+ok  	github.com/tylergannon/gimble/claude	2.831s
+ok  	github.com/tylergannon/gimble/cmd	1.985s
+?   	github.com/tylergannon/gimble/cmd/sprint	[no test files]
+ok  	github.com/tylergannon/gimble/codex	3.071s
+?   	github.com/tylergannon/gimble/ephemeral/attest/issue125	[no test files]
+?   	github.com/tylergannon/gimble/ephemeral/attest/issue126	[no test files]
+?   	github.com/tylergannon/gimble/ephemeral/attest/issue129	[no test files]
+?   	github.com/tylergannon/gimble/ephemeral/research/issue-130/proof	[no test files]
+ok  	github.com/tylergannon/gimble/internal/modelalias	1.680s
+ok  	github.com/tylergannon/gimble/internal/observation	3.356s
+ok  	github.com/tylergannon/gimble/internal/runlog	3.169s
+ok  	github.com/tylergannon/gimble/internal/sessionstate	2.540s
+?   	github.com/tylergannon/gimble/internal/skgo	[no test files]
+?   	github.com/tylergannon/gimble/internal/skgo/links/onzggl3sn52xizlt	[no test files]
+?   	github.com/tylergannon/gimble/internal/skgo/links/onzggl3sn52xizltf5zhk3ttf5nxe5lojfcf2	[no test files]
+ok  	github.com/tylergannon/gimble/internal/workflows/sprint	2.429s
+--- FAIL: TestRunPageIsRenderedFromTheRunsObservation (0.00s)
+    observation_ssr_test.go:26: skgo: reading skgo.manifest.json from the build: open skgo.manifest.json: file does not exist
+--- FAIL: TestRuntimeServesWebApplicationOverUDSAndCleansUp (0.00s)
+    runtime_test.go:38: gimble: assemble web application: skgo: reading skgo.manifest.json from the build: open skgo.manifest.json: file does not exist
+--- FAIL: TestRuntimeUsesSelectedArbitraryPortAndShutsDown (0.00s)
+    runtime_test.go:67: gimble: assemble web application: skgo: reading skgo.manifest.json from the build: open skgo.manifest.json: file does not exist
+2026/09/12 06:10:10 gimble: run 20260912-061010.headless started in /var/folders/lt/09rsy64x65s_0fp2b8zq3n7m0000gn/T/TestRuntimeRunsWithoutWeb1476290471/001/runs/20260912-061010.headless
+2026/09/12 06:10:10 gimble: run 20260912-061010.headless ended: ok
+FAIL
+FAIL	github.com/tylergannon/gimble/web	0.887s
+?   	github.com/tylergannon/gimble/web/src	[no test files]
+FAIL

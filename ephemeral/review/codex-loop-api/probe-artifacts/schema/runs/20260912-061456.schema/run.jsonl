@@ -1,0 +1,9 @@
+{"seq":1,"time":"2026-09-12T12:14:56.320023Z","scope":"","event":{"kind":"run_started","name":"schema"}}
+{"seq":2,"time":"2026-09-12T12:14:56.320036Z","scope":"","event":{"kind":"scope_began","name":"."}}
+{"seq":3,"time":"2026-09-12T12:14:56.320042Z","scope":"","session":"worker.1","event":{"adapter":"*main.fake","kind":"session_created","model":"fake","name":"worker","parent":"","workdir":"."}}
+{"seq":4,"time":"2026-09-12T12:14:56.32005Z","scope":"","session":"worker.1","turn":"worker.1/turn.1","event":{"kind":"turn_started","output_type":"main.result","prompt":"return result"}}
+{"seq":5,"time":"2026-09-12T12:14:56.320196Z","scope":"","session":"worker.1","turn":"worker.1/turn.1","event":{"duration":146083,"error":"","interrupted":false,"kind":"turn_ended","result":"{}","tokens":[]}}
+{"seq":6,"time":"2026-09-12T12:14:56.320204Z","scope":"","event":{"error":"gimble: worker.1: the result does not validate: intentional schema rejection","kind":"scope_ended"}}
+{"seq":7,"time":"2026-09-12T12:14:56.32021Z","scope":"","session":"worker.1","event":{"kind":"session_closed"}}
+{"seq":8,"time":"2026-09-12T12:14:56.320215Z","scope":"","event":{"error":"gimble: worker.1: the result does not validate: intentional schema rejection","kind":"run_ended","name":"schema"}}
+{"seq":9,"time":"2026-09-12T12:14:56.320332Z","scope":"","event":{"kind":"complete","recording_error":""}}

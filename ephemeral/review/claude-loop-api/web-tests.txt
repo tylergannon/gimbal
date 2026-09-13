@@ -1,0 +1,7 @@
+$ bun test src/lib/sessionstate/index.test.ts src/lib/observation/index.test.ts
+bun test v1.3.14 (0d9b296a)
+
+ 8 pass
+ 0 fail
+Ran 8 tests across 2 files. [26.00ms]
+web test exit 0

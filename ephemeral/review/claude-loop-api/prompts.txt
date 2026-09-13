@@ -1,0 +1,19 @@
+[  3] <root> :: value_set 'specification' (1396 bytes)
+[  4] <root> :: value_set 'constraints' (154 bytes)
+[  5] <root> :: value_set 'role' (33 bytes)
+[  6] <root> :: value_set 'initial acceptance' (3142 bytes)
+[  9] delivery.1 :: planner.1 :: 6493 bytes :: sections=['specification', 'constraints', 'role', 'initial acceptance'] :: role=['You plan; you do not implement.']
+[ 11] delivery.1 :: planner_decision :: Implement semverbump end-to-end
+[ 13] delivery.1/task.1 :: value_set 'task' (1238 bytes)
+[ 14] delivery.1/task.1 :: value_set 'role' (67 bytes)
+[ 16] delivery.1/task.1 :: delivery.1/task.1/worker.1 :: 6054 bytes :: sections=['specification', 'constraints', 'initial acceptance', 'task', 'role'] :: role=['You implement the assignment in the workspace and demonstrate it.']
+[ 18] delivery.1/task.1 :: value_set 'worker result' (801 bytes)
+[ 21] delivery.1/task.1/validation.1/review.1 :: value_set 'role' (48 bytes)
+[ 24] delivery.1/task.1/validation.1/review.1 :: delivery.1/task.1/validation.1/review.1/reviewer.1 :: 7003 bytes :: sections=['specification', 'constraints', 'initial acceptance', 'task', 'worker result', 'role'] :: role=['You are a read-only validator. Change nothing.']
+[ 30] delivery.1/task.1 :: value_set 'acceptance' (266 bytes)
+[ 31] delivery.1/task.1 :: value_set 'independent review' (1654 bytes)
+[ 34] delivery.1 :: planner.1 :: 11892 bytes :: sections=['specification', 'constraints', 'role', 'initial acceptance', 'task', 'role', 'worker result', 'acceptance', 'independent review'] :: role=['You plan; you do not implement.', 'You implement the assignment in the workspace and demonstrate it.']
+[ 36] delivery.1 :: planner_decision :: END DISPATCH
+[ 38] <root> :: value_set 'final acceptance' (266 bytes)
+[ 41] run_ended: {'error': '', 'kind': 'run_ended', 'name': 'semverbump'}
+[ 42] complete: {'kind': 'complete', 'recording_error': ''}

@@ -1,0 +1,2 @@
+{"seq":1,"time":"2026-09-12T17:23:49.5261Z","scope":"","event":{"kind":"run_started","name":"semverbump"}}
+{"seq":2,"time":"2026-09-12T17:31:48.389164Z","scope":"","event":{"error":"","kind":"run_ended","name":"semverbump"}}

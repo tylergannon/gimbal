@@ -1,0 +1,2 @@
+{"seq":1,"time":"2026-09-12T12:15:53.505019Z","scope":"","event":{"kind":"run_started","name":"fork-leak"}}
+{"seq":2,"time":"2026-09-12T12:15:53.794829Z","scope":"","event":{"error":"","kind":"run_ended","name":"fork-leak"}}

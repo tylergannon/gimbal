@@ -1,0 +1,6 @@
+P1 block-scalar trailing newline: yielded=0 planner_calls=1 err=gimble: loop "work": planner returned task "Build" but did not preserve that assignment in the backlog
+P2 perpetual invalid backlog: yielded=0 planner_calls=7 err=gimble: planner.1: probe: stopping the planner after 6 malformed answers
+P3 one trailing space in backlog: yielded=0 planner_calls=1 err=gimble: loop "work": planner returned task "Build" but did not preserve that assignment in the backlog
+P4 nested value reaches planner: direct=true nested=false err=<nil>
+P5 forged heading in a value: headings_named_role=2
+P6 body returned error: run_err=worker exploded task_scope_ended.error="" loop_scope_ended.error=""

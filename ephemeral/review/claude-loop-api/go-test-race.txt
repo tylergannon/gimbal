@@ -1,0 +1,22 @@
+ok  	github.com/tylergannon/gimble	2.733s
+ok  	github.com/tylergannon/gimble/agy	5.256s
+ok  	github.com/tylergannon/gimble/claude	1.686s
+ok  	github.com/tylergannon/gimble/cmd	2.161s
+?   	github.com/tylergannon/gimble/cmd/sprint	[no test files]
+ok  	github.com/tylergannon/gimble/codex	3.264s
+?   	github.com/tylergannon/gimble/ephemeral/attest/issue125	[no test files]
+?   	github.com/tylergannon/gimble/ephemeral/attest/issue126	[no test files]
+?   	github.com/tylergannon/gimble/ephemeral/attest/issue129	[no test files]
+?   	github.com/tylergannon/gimble/ephemeral/research/issue-130/proof	[no test files]
+?   	github.com/tylergannon/gimble/ephemeral/review/claude-loop-api/probes	[no test files]
+ok  	github.com/tylergannon/gimble/internal/modelalias	2.958s
+ok  	github.com/tylergannon/gimble/internal/observation	1.892s
+ok  	github.com/tylergannon/gimble/internal/runlog	2.862s
+ok  	github.com/tylergannon/gimble/internal/sessionstate	2.557s
+?   	github.com/tylergannon/gimble/internal/skgo	[no test files]
+?   	github.com/tylergannon/gimble/internal/skgo/links/onzggl3sn52xizlt	[no test files]
+?   	github.com/tylergannon/gimble/internal/skgo/links/onzggl3sn52xizltf5zhk3ttf5nxe5lojfcf2	[no test files]
+ok  	github.com/tylergannon/gimble/internal/workflows/sprint	2.796s
+ok  	github.com/tylergannon/gimble/web	2.078s
+?   	github.com/tylergannon/gimble/web/src	[no test files]
+test exit 0

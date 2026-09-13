@@ -1,0 +1,1 @@
+New requirement disclosed after the first successful base acceptance: add --parallel N to limit each wave to at most N ready PRs, choosing lowest IDs first. The default is unlimited. Reject missing, zero, negative, or non-integer N with exit 2 and no stdout. Document the flag.

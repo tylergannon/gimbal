@@ -44,8 +44,9 @@ ids; #163 daemon descriptor limit; #112 vet in a fresh clone.
 - Recommend closing as done or superseded: #108 (Close in #160), #20
   (daemon attach in #160), #13 (usage half in #156; quota half has no
   consumer), #11 (internal/modelalias exists).
-- Tractor-era, before the 2026-09-10 restart, not Gimble: #10 #12 #28 #39
-  #43 #48 #51 #52 #56 #58 #59 #65 #67 #69 #78 #88. Close, or label legacy.
+- Tractor-era, closed 2026-09-13 as not planned: #10 #11 #12 #13 #20 #28
+  #39 #43 #48 #51 #52 #56 #58 #59 #65 #67 #69 #78 #88 #97. Ideas worth
+  carrying are under "Kept from the Tractor-era issues" below.
 
 ## Proposed new issues, for discussion
 
@@ -96,3 +97,48 @@ quota windows.
   until raised.
 - Tool attribution on the page (#135) is wrong in a way that will confuse a
   person deciding whether to steer.
+
+## Kept from the Tractor-era issues
+
+Read on closing them. None is a milestone item; each is a fact or a rule
+that a Gimble workflow author will meet again.
+
+- **An agent can repair what it is judged against (#67).** A coder told to
+  make a check pass fixed the check's launcher along with the bug, and the
+  next lap validated the repair. For the sprint workflow's validator (#168):
+  the validation command and the thing it starts are read once at the top
+  of the task and are not the coder's to edit.
+- **Validation is legitimate only when the validator saw the software run
+  (#65).** The validator has no stake in completion, does not read the
+  coder's prose as evidence, and cannot pass on a claim. Already the
+  spirit of docs/definition-of-done.md; the concrete rule "the judge's
+  input differs in kind from the actor's output" is the sharp version.
+- **A finding is a claim to investigate, not an order (#52, #97).** The
+  reviewer supplies evidence; the implementer decides whether it shows a
+  defect against what was asked; a supported rejection is terminal. #97's
+  audit names the failure mode: "reviewer disagreement automatically causes
+  more work." #168's "the validator's findings never become the goal" is
+  the same rule; the workflow-writing skill should state it once.
+- **Supervisor sessions grow for the whole run (#59).** Each look adds to
+  one session that is never compacted. #129 bounded what a look is sent,
+  but a long run will still need a rotation or handoff policy for the
+  supervisor's own session. Watch for it in the loop practice runs.
+- **Skills leak into every Claude turn undeclared (#56).** The Claude CLI
+  loads ~/.claude/skills and the workdir's .claude/skills by default, so a
+  Gimble worker's behavior depends on the operator's machine. Claude has
+  `--plugin-dir-no-mcp` and Codex has a per-turn skill input; a workflow
+  that wants a reproducible run needs a way to say which skills a session
+  gets. Relevant once the Gimble skill exists.
+- **Agents write to the wrong directory when the prompt names a bare
+  filename (#28).** Two models, two runs, same escape: the artifact landed
+  in the repo root instead of the worktree. A worktree-per-candidate
+  workflow should put the absolute workdir in the prompt and check for
+  writes outside it.
+- **Codex reports quota windows (#13).** The app-server sends rate-limit
+  notifications with the five-hour and weekly windows and their reset
+  times. That is the only real lead on "how much of my subscription did
+  this use"; Claude Code has no equivalent. Not for beta; a place on the
+  page for it if the adapter ever passes it through.
+- **Agent-authored ceremony (#69, #88).** Every gate must name the defect
+  it catches or it goes. Already the house rule; recorded because both
+  issues were written by agents about ceremony agents had added.

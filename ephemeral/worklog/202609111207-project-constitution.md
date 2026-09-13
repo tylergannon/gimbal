@@ -1,0 +1,3 @@
+decision: The constitution is a durable product-level promise document; API.md owns exact public behavior, SPRINTS.md owns delivery status, and definition-of-done.md owns acceptance.
+correction: Tyler's requested direction and the preserved concurrency sketches use ordinary errgroup parallelism; current API.md and group.go instead introduce gimble.Group and propose banning errgroup in workflows -> API cleanup must resolve this contradiction without weakening the product promise.
+finding: Methodology and prompting sources are split across repo-local skills, the historical workflow-designer rules, workflows-as-programs and direction docs, preserved programmatic-workflow notes, and the live sprint prompts in sprint/sprints.go.

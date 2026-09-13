@@ -1,0 +1,147 @@
+{
+  "head": "2a52971730d7e193b38e882e5b26b9885bd3edce",
+  "run": "20260912-061254.mergequeue-review",
+  "models": {
+    "planner.1": "gpt-5.6-luna",
+    "delivery.1/task.1/worker.1": "gpt-5.6-luna",
+    "delivery.1/task.1/validation.1/independent.1/reviewer.1": "haiku",
+    "delivery.1/task.2/worker.1": "gpt-5.6-luna",
+    "delivery.1/task.2/validation.1/independent.1/reviewer.1": "haiku"
+  },
+  "tasks": [
+    {
+      "name": "Implement the merge-queue runtime and focused tests",
+      "description": "Build the ordinary Go CLI that parses exactly one JSON queue from stdin, validates the complete input graph, rejects every specified invalid condition with exit 2, useful stderr, and no stdout, and emits deterministic dependency waves plus transitively blocked IDs for valid input. Add focused tests for validation, cycle detection including nonpassing cycles, stable ordering, empty queues, and blocking propagation. The external acceptance program builds the repository root as a binary named mergequeue, so the executable behavior and exit status are the contract; the existing main.go only prints an incomplete empty result and there are no source tests to preserve.",
+      "definition_of_done": "The repository contains a standard-library-only implementation and focused tests that demonstrate the required valid scheduling and invalid-input behavior, including strict rejection of trailing JSON and cycles that contain failed or pending PRs. Valid output uses non-null empty arrays, ascending IDs, and is independent of input order; invalid runs produce no stdout and exit 2 with a nonempty diagnostic. The implementation is ready for the separate acceptance/examples task without changing SPEC.md or the external acceptance program.",
+      "validation": {
+        "command": "go test ./...",
+        "query": "Does the implementation's executable behavior satisfy the full SPEC.md contract, especially exact single-value JSON parsing, exit-2/no-stdout failures, cycle validation before scheduling, deterministic wave ordering, and transitive blocking?"
+      }
+    },
+    {
+      "name": "Implement --parallel scheduling and update its proof",
+      "description": "Use the already passing merge-queue implementation as the base and add the newly disclosed `--parallel N` CLI contract: default unlimited, positive integer cap, lowest ready IDs first within each wave, and exit 2 with nonempty stderr and no stdout for missing, zero, negative, or non-integer values. Update focused tests and README so the new behavior is directly demonstrated; preserve all existing validation and scheduling semantics.",
+      "definition_of_done": "The CLI accepts a positive integer `--parallel N`, limits each emitted wave to at most N ready passing PRs while preserving dependency-wave semantics and ascending selection, leaves the default behavior unlimited, and rejects every invalid flag form with exit 2, useful stderr, and no stdout. Tests and README cover the new contract without regressing the previously recorded 25/25 base acceptance.",
+      "validation": {
+        "command": "python3 /Users/tyler/.codex/worktrees/loop-api-review/gimble/ephemeral/review/loop-api/parallel.py /Users/tyler/.codex/worktrees/loop-api-review/gimble/ephemeral/review/loop-api/workspace",
+        "query": "Does independent validation show correct capped waves for positive limits and the required exit-2/no-stdout behavior for missing, zero, negative, and non-integer values, while the base acceptance remains passing?"
+      }
+    },
+    null
+  ],
+  "turns": [
+    {
+      "turn": "planner.1/turn.1",
+      "promptBytes": 5995,
+      "role": "Plan work; edit only the runtime backlog.",
+      "hasPreviousRecord": false,
+      "hasNewRequirement": false
+    },
+    {
+      "turn": "delivery.1/task.1/worker.1/turn.1",
+      "promptBytes": 5913,
+      "role": "Implement the selected task and demonstrate it; leave changes uncommitted.",
+      "hasPreviousRecord": false,
+      "hasNewRequirement": false
+    },
+    {
+      "turn": "delivery.1/task.1/validation.1/independent.1/reviewer.1/turn.1",
+      "promptBytes": 6709,
+      "role": "Read-only independent validator; assess the requested behavior, tests and README. Do not edit, commit, or access GitHub.",
+      "hasPreviousRecord": false,
+      "hasNewRequirement": false
+    },
+    {
+      "turn": "planner.1/turn.2",
+      "promptBytes": 13523,
+      "role": "Plan work; edit only the runtime backlog.",
+      "hasPreviousRecord": true,
+      "hasNewRequirement": true
+    },
+    {
+      "turn": "planner.1/turn.3",
+      "promptBytes": 12437,
+      "role": "Plan work; edit only the runtime backlog.",
+      "hasPreviousRecord": true,
+      "hasNewRequirement": true
+    },
+    {
+      "turn": "delivery.1/task.2/worker.1/turn.1",
+      "promptBytes": 5685,
+      "role": "Implement the selected task and demonstrate it; leave changes uncommitted.",
+      "hasPreviousRecord": false,
+      "hasNewRequirement": false
+    },
+    {
+      "turn": "delivery.1/task.2/validation.1/independent.1/reviewer.1/turn.1",
+      "promptBytes": 6712,
+      "role": "Read-only independent validator; assess the requested behavior, tests and README. Do not edit, commit, or access GitHub.",
+      "hasPreviousRecord": false,
+      "hasNewRequirement": false
+    },
+    {
+      "turn": "planner.1/turn.4",
+      "promptBytes": 12495,
+      "role": "Plan work; edit only the runtime backlog.",
+      "hasPreviousRecord": true,
+      "hasNewRequirement": false
+    }
+  ],
+  "evidence": [
+    {
+      "scope": "delivery.1/task.1",
+      "key": "acceptance evidence",
+      "value": "$ python3 /Users/tyler/.codex/worktrees/loop-api-review/gimble/ephemeral/review/loop-api/acceptance.py /Users/tyler/.codex/worktrees/loop-api-review/gimble/ephemeral/review/loop-api/workspace\nexit 0\n25/25 acceptance cases passed\n"
+    },
+    {
+      "scope": "delivery.1/task.1",
+      "key": "repository checks",
+      "value": "$ sh -c go vet ./... && go test ./...\nexit 0\nok  \texample.com/mergequeue\t(cached)\n"
+    },
+    {
+      "scope": "delivery.1/task.1",
+      "key": "independent assessment",
+      "value": "**PASS**\n\nAll requirements satisfied with valid evidence:\n\n1. **JSON parsing**: Exactly one top-level object parsed; trailing JSON rejected with exit 2 \u2713\n2. **Input validation**: Positive/unique IDs, valid checks status (pass/fail/pending), all dependencies exist, no cycles including among failed/pending PRs \u2713\n3. **Invalid input handling**: Exit 2, non-empty stderr diagnostic, empty stdout on all error cases \u2713\n4. **Wave scheduling**: Deterministic ascending IDs per wave; passing PRs with satisfied dependencies scheduled; blocking propagates transitively \u2713\n5. **Output format**: Non-null empty arrays `[]`, proper JSON structure \u2713\n6. **Order independence**: Identical output regardless of input PR order \u2713\n7. **Tests**: main_test.go covers empty queue, diamond DAG, transitive blocking, all error cases with correct exit codes \u2713\n8. **README**: Clear runnable example with expected output \u2713\n9. **Standard library only**: imports bytes, encoding/json, errors, fmt, io, os, sort \u2713\n10. **Acceptance**: 25/25 cases pass; go test -race and go vet succeed \u2713\n\nNo unmet requirements or invalid evidence detected."
+    },
+    {
+      "scope": "delivery.1/task.1",
+      "key": "new requirement evidence",
+      "value": "$ python3 /Users/tyler/.codex/worktrees/loop-api-review/gimble/ephemeral/review/loop-api/parallel.py /Users/tyler/.codex/worktrees/loop-api-review/gimble/ephemeral/review/loop-api/workspace\nexit 1\nFAIL ['--parallel', '2'] exit 0 stdout {\"waves\":[[1,2,3,4],[5]],\"blocked\":[]} stderr \nFAIL ['--parallel', '1'] exit 0 stdout {\"waves\":[[1,2,3,4],[5]],\"blocked\":[]} stderr \nFAIL ['--parallel', '0'] exit 0 stdout {\"waves\":[[1,2,3,4],[5]],\"blocked\":[]} stderr \nFAIL ['--parallel', '-1'] exit 0 stdout {\"waves\":[[1,2,3,4],[5]],\"blocked\":[]} stderr \nFAIL ['--parallel', 'cat'] exit 0 stdout {\"waves\":[[1,2,3,4],[5]],\"blocked\":[]} stderr \nFAIL ['--parallel'] exit 0 stdout {\"waves\":[[1,2,3,4],[5]],\"blocked\":[]} stderr \n0/6 parallelism cases passed\n"
+    },
+    {
+      "scope": "delivery.1/task.2",
+      "key": "acceptance evidence",
+      "value": "$ python3 /Users/tyler/.codex/worktrees/loop-api-review/gimble/ephemeral/review/loop-api/acceptance.py /Users/tyler/.codex/worktrees/loop-api-review/gimble/ephemeral/review/loop-api/workspace\nexit 0\n25/25 acceptance cases passed\n"
+    },
+    {
+      "scope": "delivery.1/task.2",
+      "key": "repository checks",
+      "value": "$ sh -c go vet ./... && go test ./...\nexit 0\nok  \texample.com/mergequeue\t(cached)\n"
+    },
+    {
+      "scope": "delivery.1/task.2",
+      "key": "independent assessment",
+      "value": "Reading the implementation and tests now.\n\nI'll check the implementation against the disclosed requirement for `--parallel N`:\n\n**Requirement checklist:**\n\n1. **Accept `--parallel N` flag** \u2014 \u2713 `parseParallelArgs()` at line 56 handles this\n2. **Default unlimited** \u2014 \u2713 Line 57-58: no args returns (0, nil); 0 is the unlimited sentinel\n3. **Limit each wave to N ready PRs** \u2014 \u2713 Line 155-157: `if parallel > 0 && len(wave) > parallel { wave = wave[:parallel] }`\n4. **Ascending ID selection within each wave** \u2014 \u2713 Wave built by iterating `sortedIDs(byID)` (line 125, 137)\n5. **Reject missing/zero/negative/non-integer with exit 2, stderr, no stdout** \u2014 \u2713\n   - Missing value: `len(args) != 2` catches `--parallel` alone (line 60)\n   - Zero/negative: `parallel <= 0` check (line 64)\n   - Non-integer: `strconv.Atoi` error (line 63)\n   - Exit 2 + stderr: line 32-33 in `runCLI()`\n   - No stdout: stdout never written before error\n6. **Preserve base requirements** \u2014 \u2713 When `parallel=0` (unlimited), capping is skipped (line 155); base logic unchanged\n7. **Tests cover new behavior** \u2014 \u2713 \n   - `TestParallelLimitsReadyPRsAndPreservesIDOrder` (line 37)\n   - `TestParallelDefaultsToUnlimited` (line 49)\n   - `TestInvalidParallelArgumentsExitTwoWithDiagnosticAndNoOutput` (line 59)\n8. **README documents flag** \u2014 \u2713 Lines 19-31 explain `--parallel N` with example output\n\n**Validation against parallel.py test cases:**\n\n- `--parallel 2`: [[1,2],[3,4],[5]] \u2713 (5 ready PRs capped 2 at a time)\n- `--parallel 1`: [[1],[2],[3],[4],[5]] \u2713 (each wave has 1 PR)\n- `--parallel 0`: exit 2, no stdout \u2713 (`parallel <= 0` rejected)\n- `--parallel -1`: exit 2, no stdout \u2713 (same)\n- `--parallel cat`: exit 2, no stdout \u2713 (Atoi error caught)\n- `--parallel` (missing): exit 2, no stdout \u2713 (`len(args) != 2`)\n\n**PASS**\n\nNo unmet requirements or invalid evidence identified. The implementation correctly accepts the `--parallel N` flag, validates all invalid forms per spec, caps waves to ascending-sorted ready PRs, preserves unlimited behavior as default, and maintains all base acceptance semantics. Tests and README comprehensively document the new contract."
+    },
+    {
+      "scope": "delivery.1/task.2",
+      "key": "new requirement evidence",
+      "value": "$ python3 /Users/tyler/.codex/worktrees/loop-api-review/gimble/ephemeral/review/loop-api/parallel.py /Users/tyler/.codex/worktrees/loop-api-review/gimble/ephemeral/review/loop-api/workspace\nexit 0\n6/6 parallelism cases passed\n"
+    },
+    {
+      "scope": "",
+      "key": "acceptance.py",
+      "value": "$ python3 /Users/tyler/.codex/worktrees/loop-api-review/gimble/ephemeral/review/loop-api/acceptance.py /Users/tyler/.codex/worktrees/loop-api-review/gimble/ephemeral/review/loop-api/workspace\nexit 0\n25/25 acceptance cases passed\n"
+    },
+    {
+      "scope": "",
+      "key": "parallel.py",
+      "value": "$ python3 /Users/tyler/.codex/worktrees/loop-api-review/gimble/ephemeral/review/loop-api/parallel.py /Users/tyler/.codex/worktrees/loop-api-review/gimble/ephemeral/review/loop-api/workspace\nexit 0\n6/6 parallelism cases passed\n"
+    }
+  ],
+  "terminal": {
+    "error": "",
+    "kind": "run_ended",
+    "name": "mergequeue-review"
+  }
+}

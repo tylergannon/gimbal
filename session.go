@@ -139,7 +139,14 @@ func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessag
 			var data struct {
 				Tokens json.RawMessage `json:"tokens"`
 			}
-			if json.Unmarshal(stamped.Data, &data) == nil && len(data.Tokens) > 0 {
+			var ref struct {
+				Accounting struct {
+					TokensAvailable *bool `json:"tokensAvailable"`
+				} `json:"accounting"`
+			}
+			_ = json.Unmarshal(stamped.NativeRef, &ref)
+			available := ref.Accounting.TokensAvailable == nil || *ref.Accounting.TokensAvailable
+			if available && json.Unmarshal(stamped.Data, &data) == nil && len(data.Tokens) > 0 {
 				tokens = append(tokens, JSONText(data.Tokens))
 			}
 		}

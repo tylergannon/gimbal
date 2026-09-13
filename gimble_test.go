@@ -256,6 +256,43 @@ func TestGenerate(t *testing.T) {
 	}
 }
 
+func TestGenerateOmitsUnavailableTokenAccounting(t *testing.T) {
+	project := t.TempDir()
+	f := &fake{answer: func(_ context.Context, session, _ string, _ json.RawMessage, emit func(AgentEvent) error) (string, error) {
+		message := "response-1"
+		ref := json.RawMessage(`{"provider":"fixture","sessionID":"` + session + `","messageID":"` + message + `"}`)
+		if err := emit(AgentEvent{
+			Type:      "session.step.started",
+			Data:      json.RawMessage(`{"sessionID":"` + session + `","assistantMessageID":"` + message + `","agent":"fixture","model":{"providerID":"fixture","id":"test"}}`),
+			NativeRef: ref,
+		}); err != nil {
+			return "", err
+		}
+		return "done", emit(AgentEvent{
+			Type:      "session.step.ended",
+			Data:      json.RawMessage(`{"sessionID":"` + session + `","assistantMessageID":"` + message + `","finish":"unknown","cost":0,"tokens":{"input":0,"output":0,"reasoning":0,"cache":{"read":0,"write":0}}}`),
+			NativeRef: json.RawMessage(`{"provider":"fixture","sessionID":"` + session + `","messageID":"` + message + `","accounting":{"tokensAvailable":false,"costAvailable":false}}`),
+		})
+	}}
+	err := Run(Project(t.Context(), project), "unavailable-accounting", func(ctx context.Context) error {
+		_, err := NewSession(ctx, "worker", f, "test", t.TempDir()).Generate[Text](ctx, "work")
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	runs, err := filepath.Glob(filepath.Join(project, "runs", "*", "run.jsonl"))
+	if err != nil || len(runs) != 1 {
+		t.Fatalf("run logs = %v, %v", runs, err)
+	}
+	for _, record := range readRecords[LifecycleRecord](t, runs[0]) {
+		if ended, ok := record.Event.(TurnEnded); ok && len(ended.Tokens) != 0 {
+			t.Fatalf("unavailable token accounting was recorded as measured: %s", ended.Tokens)
+		}
+	}
+}
+
 func TestGroupFirstErrorCancelsTheRest(t *testing.T) {
 	boom := errors.New("boom")
 	f := &fake{answer: func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(AgentEvent) error) (string, error) {

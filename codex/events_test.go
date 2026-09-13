@@ -101,6 +101,26 @@ func TestProjectorCompletesTwoResponsesWithoutTokenUsage(t *testing.T) {
 	}
 }
 
+func TestProjectorMarksTurnBoundaryWhenResumedTurnHasNoRawResponse(t *testing.T) {
+	var events []gimble.AgentEvent
+	p := newProjector("thread", "turn", "model", func(event gimble.AgentEvent) error {
+		events = append(events, event)
+		return nil
+	})
+	mustProject(t, p.itemStarted(json.RawMessage(`{"item":{"id":"message","type":"agentMessage"}}`)))
+	_, _, err := p.itemCompleted(json.RawMessage(`{"item":{"id":"message","type":"agentMessage","text":"done"}}`))
+	mustProject(t, err)
+	mustProject(t, p.turnCompleted(json.RawMessage(`{"turn":{"status":"completed"}}`)))
+
+	if slices.Contains(types(events), "session.step.streamed") {
+		t.Fatal("turn boundary was presented as an observed raw response boundary")
+	}
+	ended := firstType(t, events, "session.step.ended")
+	if !jsonContains(ended.NativeRef, `"boundarySource":"turn/completed"`) || !jsonContains(ended.NativeRef, `"tokensAvailable":false`) {
+		t.Fatalf("fallback boundary is not explicit: %s", ended.NativeRef)
+	}
+}
+
 func TestNormalizeUsageDistinguishesKnownZeroFromNullableMissing(t *testing.T) {
 	known := normalizeUsage(map[string]any{"inputTokens": float64(0), "cachedInputTokens": float64(0), "cacheWriteInputTokens": float64(0), "outputTokens": float64(0), "reasoningOutputTokens": float64(0)}, true)
 	if !known.available {

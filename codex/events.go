@@ -20,22 +20,23 @@ type projector struct {
 	turnID    string
 	model     string
 
-	response      int
-	messageID     string
-	responseID    string
-	stepOpen      bool
-	streamed      bool
-	compacting    bool
-	partOrdinal   int
-	textOpen      bool
-	textOrdinal   int
-	text          strings.Builder
-	reasoningOpen bool
-	reasoningOrd  int
-	reasoning     strings.Builder
-	tools         map[string]*toolState
-	pendingTools  int
-	usage         normalizedUsage
+	response       int
+	messageID      string
+	responseID     string
+	stepOpen       bool
+	streamed       bool
+	compacting     bool
+	partOrdinal    int
+	textOpen       bool
+	textOrdinal    int
+	text           strings.Builder
+	reasoningOpen  bool
+	reasoningOrd   int
+	reasoning      strings.Builder
+	tools          map[string]*toolState
+	pendingTools   int
+	usage          normalizedUsage
+	boundarySource string
 }
 
 type toolState struct {
@@ -363,7 +364,10 @@ func (p *projector) turnCompleted(params json.RawMessage) error {
 	defer p.mu.Unlock()
 	if p.stepOpen {
 		if !p.streamed {
-			return errors.New("codex: turn completed before rawResponse/completed")
+			// Resumed app-server connections do not currently emit the opted-in
+			// raw response boundary. Preserve the usable turn and mark the coarser
+			// authoritative boundary instead of claiming an exact response split.
+			p.boundarySource = "turn/completed"
 		}
 		if p.pendingTools != 0 {
 			return fmt.Errorf("codex: turn completed with %d unsettled tools", p.pendingTools)
@@ -382,6 +386,9 @@ func (p *projector) endStep(params json.RawMessage) error {
 	}
 	ref := p.nativeRef(params)
 	accounting := map[string]any{"tokensAvailable": p.usage.available, "costAvailable": false, "costSource": "unavailable"}
+	if p.boundarySource != "" {
+		accounting["boundarySource"] = p.boundarySource
+	}
 	if len(p.usage.fieldAvailability) > 0 {
 		accounting["fieldAvailability"] = p.usage.fieldAvailability
 	}
@@ -400,7 +407,7 @@ func (p *projector) endStep(params json.RawMessage) error {
 		return err
 	}
 	p.stepOpen, p.streamed = false, false
-	p.messageID, p.responseID = "", ""
+	p.messageID, p.responseID, p.boundarySource = "", "", ""
 	p.tools = make(map[string]*toolState)
 	return nil
 }

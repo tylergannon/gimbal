@@ -72,7 +72,7 @@ func main() {
 			} else {
 				worker := gimble.NewSession(taskCtx, "worker", workerAdapter, "gpt-5.6-luna", dir)
 				result, workErr = worker.Generate[gimble.Text](taskCtx,
-					"Complete this assignment and gather its evidence.\n\n"+gimble.ScopeText(taskCtx))
+					"Complete this assignment. The workflow will gather validation after your turn.\n\n"+gimble.ScopeText(taskCtx))
 			}
 			if err := gimble.Set(taskCtx, "worker result", string(result)); err != nil {
 				return err
@@ -93,6 +93,11 @@ func main() {
 				return err
 			}
 			probe := runCommand(taskCtx, dir, "./probe.sh")
+			if strings.Contains(probe, "exit 7") {
+				if err := gimble.Set(taskCtx, "authoritative promise status", "UNMET: the workflow-recorded stability probe exited 7, and no later workflow-recorded probe result exists yet."); err != nil {
+					return err
+				}
+			}
 			requested := "not requested"
 			if strings.TrimSpace(task.Validation.Command) != "" {
 				requested = runCommand(taskCtx, dir, task.Validation.Command)
@@ -166,7 +171,7 @@ Inspect files and run checks as needed. Reply with PASS followed by a concise re
 		}
 		fmt.Println("Independent assessment:", assessment)
 		independent = string(assessment)
-		if !strings.HasPrefix(strings.TrimSpace(string(assessment)), "PASS") {
+		if !assessmentPassed(string(assessment)) {
 			return fmt.Errorf("independent validator did not pass the evidence: %s", assessment)
 		}
 		return nil
@@ -182,6 +187,16 @@ Inspect files and run checks as needed. Reply with PASS followed by a concise re
 	if err != nil || ctx.Err() != nil || !strings.Contains(runCommand(context.Background(), dir, "./check.sh"), "exit 0") {
 		os.Exit(1)
 	}
+}
+
+func assessmentPassed(text string) bool {
+	for _, line := range strings.Split(text, "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "PASS") || strings.HasPrefix(line, "**PASS**") {
+			return true
+		}
+	}
+	return false
 }
 
 func makeFixture(dir string) error {

@@ -241,12 +241,16 @@ func TestScopeData(t *testing.T) {
 }
 
 func TestGenerate(t *testing.T) {
+	reasked := false
 	f := &fake{answer: func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(AgentEvent) error) (string, error) {
 		switch {
 		case len(schema) == 0:
 			return "hello", nil
 		case prompt == "bad":
 			return `{"objections": "not a list"}`, nil
+		case strings.Contains(prompt, "previous answer was invalid") && strings.Contains(prompt, "objections"):
+			reasked = true
+			return `{"objections": ["one"]}`, nil
 		default:
 			return `{"objections": ["one"]}`, nil
 		}
@@ -262,8 +266,8 @@ func TestGenerate(t *testing.T) {
 		if err != nil || len(gotReview.Objections) != 1 {
 			t.Errorf("Generate[review] = %v, %v", gotReview, err)
 		}
-		if _, err := s.Generate[review](ctx, "bad"); err == nil {
-			t.Error("a result that does not validate was accepted")
+		if got, err := s.Generate[review](ctx, "bad"); err != nil || len(got.Objections) != 1 || !reasked {
+			t.Errorf("Generate did not recover by re-asking after an invalid result: %v, %v, reasked=%v", got, err, reasked)
 		}
 		if s.id != "coder.1" || NewSession(ctx, "coder", f, "m", "/w").id != "coder.2" {
 			t.Errorf("session ids: %q", s.id)
@@ -642,11 +646,11 @@ func TestLoopReasksAfterInvalidPlan(t *testing.T) {
 			}
 			return loop.Err()
 		})
-		if err == nil || !strings.Contains(err.Error(), "no valid plan after 3 attempts") || !strings.Contains(err.Error(), "duplicate task name") {
+		if err == nil || !strings.Contains(err.Error(), "no valid result after 3 attempts") || !strings.Contains(err.Error(), "duplicate task name") {
 			t.Fatalf("error = %v", err)
 		}
-		if calls != planAttempts {
-			t.Fatalf("planner calls = %d, want %d", calls, planAttempts)
+		if calls != generateAttempts {
+			t.Fatalf("planner calls = %d, want %d", calls, generateAttempts)
 		}
 	})
 
@@ -1050,7 +1054,7 @@ func TestCancelledRunStaysCancelled(t *testing.T) {
 
 // TestTurnRecordsValidationFailure is issue 144 item 1: a result the typed
 // output rejects is the turn's own outcome, not a clean turn beside a failing
-// scope.
+// scope. Each re-ask is its own recorded turn.
 func TestTurnRecordsValidationFailure(t *testing.T) {
 	f := &fake{answer: func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(AgentEvent) error) (string, error) {
 		return `{"objections": "not a list"}`, nil
@@ -1075,10 +1079,12 @@ func TestTurnRecordsValidationFailure(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if len(ended) != 1 {
-		t.Fatalf("recorded %d turn_ended records, want 1", len(ended))
+	if len(ended) != generateAttempts {
+		t.Fatalf("recorded %d turn_ended records, want one per attempt (%d)", len(ended), generateAttempts)
 	}
-	if !strings.Contains(ended[0].Error, "objections") || ended[0].Result == "" {
-		t.Fatalf("turn_ended = %+v, want the validation failure and the result it rejected", ended[0])
+	for _, turn := range ended {
+		if !strings.Contains(turn.Error, "objections") || turn.Result == "" {
+			t.Fatalf("turn_ended = %+v, want the validation failure and the result it rejected", turn)
+		}
 	}
 }

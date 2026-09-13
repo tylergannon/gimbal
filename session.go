@@ -61,9 +61,10 @@ func (Text) ValidateJSON(raw []byte) error {
 }
 
 // Generate runs one turn and blocks until it ends. T's schema is sent with
-// the prompt, and the result is validated once, here, and decoded into T.
-// A failed validation is an error. For Text no schema is sent and the
-// result is the final message. The options attach supervisors.
+// the prompt, and the result is validated here and decoded into T. A result
+// that does not validate is shown back to the model with the reason, a
+// bounded number of times, before it is an error. For Text no schema is
+// sent and the result is the final message. The options attach supervisors.
 func (s *Session) Generate[T Output](ctx context.Context, prompt string, opts ...AgentOption) (T, error) {
 	if o := apply(opts); len(o.supervisors) > 0 {
 		return supervise[T](ctx, s, prompt, o.supervisors)
@@ -73,19 +74,38 @@ func (s *Session) Generate[T Output](ctx context.Context, prompt string, opts ..
 }
 
 // errInvalidResult marks a turn whose harness succeeded but whose result did
-// not validate or decode. Callers that can re-ask the model check for it.
+// not validate or decode. generate re-asks the model on it and returns every
+// other error as it is.
 var errInvalidResult = errors.New("invalid result")
+
+// generateAttempts bounds how many times one Generate asks the model for a
+// result. A result that fails validation or decoding is shown back to the
+// model with the reason; only the last failure is returned.
+const generateAttempts = 3
 
 func generate[T Output](ctx context.Context, s *Session, prompt string, onEvent func(AgentEvent) error, outputType string) (T, error) {
 	var out T
-	raw, err := s.turn(ctx, prompt, out.Schema(), onEvent, outputType, out.ValidateJSON)
-	if err != nil {
-		return out, err
+	var problem error
+	for attempt := 1; ; attempt++ {
+		ask := prompt
+		if problem != nil {
+			ask = fmt.Sprintf("Your previous answer was invalid and was discarded: %v. Answer again, correctly.", problem)
+		}
+		raw, err := s.turn(ctx, ask, out.Schema(), onEvent, outputType, out.ValidateJSON)
+		if err == nil {
+			if err = json.Unmarshal(raw, &out); err == nil {
+				return out, nil
+			}
+			err = fmt.Errorf("gimble: %s: decode the result: %w: %w", s.id, errInvalidResult, err)
+		} else if !errors.Is(err, errInvalidResult) {
+			return out, err
+		}
+		if attempt == generateAttempts {
+			return out, fmt.Errorf("gimble: %s: no valid result after %d attempts: %w", s.id, attempt, err)
+		}
+		logf("%s: the result is invalid, so the model is asked again (%d of %d): %v", s.id, attempt, generateAttempts, err)
+		problem = err
 	}
-	if err := json.Unmarshal(raw, &out); err != nil {
-		return out, fmt.Errorf("gimble: %s: decode the result: %w: %w", s.id, errInvalidResult, err)
-	}
-	return out, nil
 }
 
 // turn runs one agent turn and records its outcome. validate, if any, is the

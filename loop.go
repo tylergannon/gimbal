@@ -39,6 +39,22 @@ type plan struct {
 	Next  polytype.Nullable[int] `json:"next"`
 }
 
+// answer is the planner's plan with its content checks attached to the
+// schema check, so one Generate re-ask covers an inconsistent plan as well
+// as a wrong-shaped one.
+type answer struct{ plan }
+
+func (a answer) ValidateJSON(raw []byte) error {
+	if err := a.plan.ValidateJSON(raw); err != nil {
+		return err
+	}
+	var p plan
+	if err := json.Unmarshal(raw, &p); err != nil {
+		return err
+	}
+	return validatePlan(p)
+}
+
 type loop struct {
 	ctx     context.Context
 	name    string
@@ -84,10 +100,11 @@ func (l *loop) Tasks(yield func(context.Context, Task) bool) {
 			if err != nil {
 				return fmt.Errorf("gimble: %w", err)
 			}
-			p, err := l.plan(ctx, loopScope.key, string(backlogText), previous)
+			a, err := l.planner.Generate[answer](ctx, planPrompt(l.name, l.planner.workdir, string(backlogText), ScopeText(ctx), previous))
 			if err != nil {
 				return err
 			}
+			p := a.plan
 			tasks = p.Tasks
 			if tasks == nil {
 				tasks = []Task{}
@@ -134,34 +151,6 @@ func (l *loop) Tasks(yield func(context.Context, Task) bool) {
 	})
 }
 
-// planAttempts bounds how many times one dispatch asks the planner for a
-// plan. A wrong-shaped or inconsistent answer is shown back to the planner
-// with the reason; only the last failure ends the Loop.
-const planAttempts = 3
-
-// plan asks the planner for its next plan, re-asking with the reason when an
-// answer fails schema validation or validatePlan. Harness, transport, and
-// cancellation errors are returned as they are.
-func (l *loop) plan(ctx context.Context, key, backlogText, previous string) (plan, error) {
-	var problem error
-	for attempt := 1; ; attempt++ {
-		p, err := l.planner.Generate[plan](ctx, planPrompt(l.name, l.planner.workdir, backlogText, ScopeText(ctx), previous, problem))
-		if err == nil {
-			err = validatePlan(p)
-			if err == nil {
-				return p, nil
-			}
-		} else if !errors.Is(err, errInvalidResult) {
-			return plan{}, err
-		}
-		if attempt == planAttempts {
-			return plan{}, fmt.Errorf("gimble: loop %q: no valid plan after %d attempts: %w", l.name, attempt, err)
-		}
-		logf("%s: the planner's answer is invalid, so it is asked again (%d of %d): %v", key, attempt, planAttempts, err)
-		problem = err
-	}
-}
-
 // Err returns the error that ended dispatch, if any: persistence, malformed
 // planner data, cancellation, or the planner's harness. A failed task
 // validation recorded by the workflow is feedback, not a Loop error.
@@ -179,9 +168,8 @@ func backlogJSON(goal string, tasks []Task) ([]byte, error) {
 	}{Goal: goal, Tasks: tasks}, "", "  ")
 }
 
-// validatePlan checks a planner's structured answer: every task must be
-// well-formed, no two tasks may share a name, and a present Next must index
-// into Tasks.
+// validatePlan checks a plan's content: every task must be well-formed, no
+// two tasks may share a name, and a present Next must index into Tasks.
 func validatePlan(p plan) error {
 	seen := make(map[string]bool, len(p.Tasks))
 	for i, task := range p.Tasks {
@@ -213,7 +201,7 @@ func validateTask(task Task) error {
 	}
 }
 
-func planPrompt(name, workdir, backlogText, scoped, previous string, problem error) string {
+func planPrompt(name, workdir, backlogText, scoped, previous string) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "You plan the loop %q in %s. Its backlog is shown below.\n\n", name, workdir)
 	b.WriteString("Choose the next assignment that offers the greatest concrete gain toward the goal, based on current evidence, priorities, and real dependencies. Size it for one worker to understand, complete, and demonstrate in one working session. A later task may offer more gain than repairing a nonblocking earlier defect; keep deferred defects visible.\n\n")
@@ -227,9 +215,6 @@ func planPrompt(name, workdir, backlogText, scoped, previous string, problem err
 		b.WriteString("Previous task record:\n\n" + previous + "\n\n")
 	}
 	b.WriteString("Backlog now:\n\n" + backlogText + "\n\n")
-	if problem != nil {
-		fmt.Fprintf(&b, "Your previous answer was invalid and was discarded: %v. Answer again, correctly.\n\n", problem)
-	}
 	b.WriteString("Return the full revised task list in `tasks` and the index of the chosen task in `next`, or `next: null` to end dispatch; that does not certify that the goal is fulfilled.")
 	return b.String()
 }

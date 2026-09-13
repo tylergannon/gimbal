@@ -1,0 +1,2 @@
+{"seq":1,"time":"2026-09-12T12:14:56.314837Z","scope":"","event":{"kind":"run_started","name":"nested"}}
+{"seq":2,"time":"2026-09-12T12:14:56.317142Z","scope":"","event":{"error":"","kind":"run_ended","name":"nested"}}

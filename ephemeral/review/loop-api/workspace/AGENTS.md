@@ -1,0 +1,1 @@
+This is an isolated review fixture. Work only here. Do not commit, push, contact external services, or change the external acceptance.py. Use the Go standard library. Build what the assignment asks. A planner may edit its runtime backlog outside this directory.

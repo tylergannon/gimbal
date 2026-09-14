@@ -42,6 +42,7 @@ type projector struct {
 type toolState struct {
 	name   string
 	output strings.Builder
+	nested []map[string]any
 	done   bool
 }
 
@@ -306,11 +307,19 @@ func (p *projector) itemCompleted(params json.RawMessage) (string, bool, error) 
 		p.pendingTools--
 		output := toolOutput(item)
 		if failed, message := toolFailure(item); failed {
-			if err := p.event("session.tool.failed", map[string]any{"assistantMessageID": p.messageID, "id": item.id, "error": map[string]any{"type": item.kind, "message": message}, "executed": true}, ref); err != nil {
+			data := map[string]any{"assistantMessageID": p.messageID, "id": item.id, "error": map[string]any{"type": item.kind, "message": message}, "executed": true}
+			if len(state.nested) > 0 {
+				data["content"] = []any{map[string]any{"type": "transcript", "events": state.nested}}
+			}
+			if err := p.event("session.tool.failed", data, ref); err != nil {
 				return "", false, err
 			}
 		} else {
-			if err := p.event("session.tool.success", map[string]any{"assistantMessageID": p.messageID, "id": item.id, "content": []any{map[string]any{"type": "text", "text": outputText(output)}}, "executed": true}, ref); err != nil {
+			content := []any{map[string]any{"type": "text", "text": outputText(output)}}
+			if len(state.nested) > 0 {
+				content = append(content, map[string]any{"type": "transcript", "events": state.nested})
+			}
+			if err := p.event("session.tool.success", map[string]any{"assistantMessageID": p.messageID, "id": item.id, "content": content, "executed": true}, ref); err != nil {
 				return "", false, err
 			}
 		}
@@ -321,6 +330,43 @@ func (p *projector) itemCompleted(params json.RawMessage) (string, bool, error) 
 		}
 	}
 	return "", false, nil
+}
+
+// nestedEvent attaches one normalized event from a native child thread to the
+// collab tool that spawned it. The child projector is separate, so its steps,
+// text, tools, and usage can never mutate the parent's projector state.
+func (p *projector) nestedEvent(parentTool string, event gimble.AgentEvent) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	state := p.tools[parentTool]
+	if state == nil || state.done {
+		return fmt.Errorf("codex: nested transcript for inactive parent tool %s", parentTool)
+	}
+	entry := map[string]any{"type": event.Type, "data": json.RawMessage(event.Data)}
+	if len(event.NativeRef) > 0 {
+		entry["nativeRef"] = json.RawMessage(event.NativeRef)
+	}
+	state.nested = append(state.nested, entry)
+	return p.event("session.tool.progress", map[string]any{
+		"assistantMessageID": p.messageID,
+		"id":                 parentTool,
+		"metadata":           map[string]any{"transcript": state.nested},
+	}, map[string]any{"provider": "codex", "sessionID": p.sessionID, "turnID": p.turnID, "itemID": parentTool})
+}
+
+func codexChildThreads(params json.RawMessage) (string, []string) {
+	item, ok := decodeItem(params)
+	if !ok || item.kind != "collabAgentToolCall" {
+		return "", nil
+	}
+	raw, _ := item.value["receiverThreadIds"].([]any)
+	children := make([]string, 0, len(raw))
+	for _, value := range raw {
+		if id, _ := value.(string); id != "" {
+			children = append(children, id)
+		}
+	}
+	return item.id, children
 }
 
 func (p *projector) rawResponseItemCompleted(params json.RawMessage) error {
@@ -427,6 +473,72 @@ func (p *projector) turnCompleted(params json.RawMessage) error {
 	return nil
 }
 
+// harnessError projects the app-server's native error notification. A
+// retryable notification keeps the current step open because the app-server,
+// not Gimble, owns the retry. A terminal notification closes that step as a
+// failure before RunTurn returns the same native error to Generate.
+func (p *projector) harnessError(params json.RawMessage) (bool, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	var value struct {
+		Error     map[string]any `json:"error"`
+		WillRetry bool           `json:"willRetry"`
+	}
+	if err := json.Unmarshal(params, &value); err != nil {
+		return false, fmt.Errorf("codex: decode error notification: %w", err)
+	}
+	ref := p.nativeRef(params)
+	ref["notification"] = "error"
+	if err := p.ensureStep("", ref); err != nil {
+		return value.WillRetry, err
+	}
+	errorValue := objectValue(value.Error)
+	if value.WillRetry {
+		return true, p.event("session.retry.scheduled", map[string]any{
+			"assistantMessageID": p.messageID,
+			"error":              errorValue,
+		}, ref)
+	}
+	err := p.event("session.step.failed", map[string]any{
+		"assistantMessageID": p.messageID,
+		"finish":             "error",
+		"error":              errorValue,
+	}, ref)
+	p.resetStep()
+	return false, err
+}
+
+func (p *projector) approvalRequested(method string, params json.RawMessage) (string, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	var value map[string]any
+	if err := json.Unmarshal(params, &value); err != nil {
+		return "", fmt.Errorf("codex: decode %s: %w", method, err)
+	}
+	id := stringField(value, "approvalId", "itemId")
+	if id == "" {
+		id = fmt.Sprintf("%s/request.%d", p.turnID, p.response+1)
+	}
+	ref := p.nativeRef(params)
+	ref["request"] = method
+	return id, p.event("permission.asked", map[string]any{
+		"id":         id,
+		"permission": method,
+		"metadata":   value,
+	}, ref)
+}
+
+func (p *projector) approvalReplied(id, decision, method string, params json.RawMessage) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	ref := p.nativeRef(params)
+	ref["request"] = method
+	return p.event("permission.replied", map[string]any{
+		"requestID": id,
+		"reply":     decision,
+	}, ref)
+}
+
 func (p *projector) endStep(params json.RawMessage) error {
 	if !p.stepOpen {
 		return nil
@@ -445,11 +557,17 @@ func (p *projector) endStep(params json.RawMessage) error {
 	if err != nil {
 		return err
 	}
+	p.resetStep()
+	return nil
+}
+
+func (p *projector) resetStep() {
 	p.stepOpen, p.streamed = false, false
+	p.textOpen, p.reasoningOpen = false, false
 	p.messageID, p.responseID = "", ""
 	p.tools = make(map[string]*toolState)
 	p.responseCalls = make(map[string]bool)
-	return nil
+	p.pendingTools = 0
 }
 
 type nativeItem struct {

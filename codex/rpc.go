@@ -182,6 +182,14 @@ func (c *connection) registerThread(threadID string) chan rpcMessage {
 	return ch
 }
 
+// routeThread sends a native child thread through its parent's active turn
+// channel. Child threads are owned by Codex's collab tool, not Gimble sessions.
+func (c *connection) routeThread(threadID string, ch chan rpcMessage) {
+	c.threadsMu.Lock()
+	c.threads[threadID] = ch
+	c.threadsMu.Unlock()
+}
+
 // unregisterThread stops routing threadID's notifications and server
 // requests to this connection. It is the counterpart to registerThread,
 // called from Close; it does not itself tell the daemon anything, that is

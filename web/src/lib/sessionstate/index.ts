@@ -97,7 +97,7 @@ export class SessionProjection {
 			case 'session.compaction.ended': this.compactionEnded(event); break
 			case 'session.compaction.failed': this.compactionFailed(event); break
 			case 'permission.asked': { const list = this.state.permission[sid] ??= []; if (!list.some(x => x.id === d.id)) list.push(clone(d)); break }
-			case 'permission.replied': { const list=this.state.permission[sid];if(list?.some(x=>x.id===d.requestID))this.state.permission[sid]=list.filter(x=>x.id!==d.requestID);break }
+			case 'permission.replied': { const request=this.state.permission[sid]?.find(x=>x.id===d.requestID);if(request){request.reply=d.reply;request.repliedAt=event.created}break }
 			case 'form.replied': case 'form.cancelled': this.removeForm(sid, d.id, event.location); break
 			case 'form.created': {
 				if (!event.location) break

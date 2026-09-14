@@ -314,8 +314,11 @@ func (p *Projection) Apply(event *Obj) {
 		}
 
 	case "permission.replied":
-		if list, ok := p.state.Permission[sessionID]; ok && indexOfID(list, str(d.Get("requestID"))) >= 0 {
-			p.state.Permission[sessionID] = filterOutID(list, str(d.Get("requestID")))
+		if list, ok := p.state.Permission[sessionID]; ok {
+			if index := indexOfID(list, str(d.Get("requestID"))); index >= 0 {
+				list[index].Set("reply", cloneValue(d.Get("reply")))
+				list[index].Set("repliedAt", created)
+			}
 		}
 
 	case "form.replied", "form.cancelled":

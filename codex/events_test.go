@@ -273,6 +273,109 @@ func TestProjectorRejectsSecondOpenTextAndPropagatesCallbackError(t *testing.T) 
 	}
 }
 
+func TestProjectorRecordsNativeRetryAndTerminalError(t *testing.T) {
+	var events []gimble.AgentEvent
+	p := newProjector("thread", "turn", "model", func(event gimble.AgentEvent) error {
+		events = append(events, event)
+		return nil
+	})
+	retrying, err := p.harnessError(json.RawMessage(`{"threadId":"thread","turnId":"turn","error":{"message":"stream disconnected","codexErrorInfo":"responseStreamDisconnected"},"willRetry":true}`))
+	mustProject(t, err)
+	if !retrying {
+		t.Fatal("willRetry notification reported terminal")
+	}
+	if got := types(events); !slices.Equal(got, []string{"session.step.started", "session.retry.scheduled"}) {
+		t.Fatalf("retry event types = %v", got)
+	}
+	var retry map[string]any
+	retryEvent := firstType(t, events, "session.retry.scheduled")
+	decodeData(t, retryEvent, &retry)
+	if _, exists := retry["attempt"]; exists {
+		t.Fatalf("retry invented an attempt: %#v", retry)
+	}
+	if !jsonContains(retryEvent.NativeRef, `"notification":"error"`) {
+		t.Fatalf("retry lost native provenance: %s", retryEvent.NativeRef)
+	}
+
+	retrying, err = p.harnessError(json.RawMessage(`{"threadId":"thread","turnId":"turn","error":{"message":"upstream failed","additionalDetails":"request exhausted"},"willRetry":false}`))
+	mustProject(t, err)
+	if retrying {
+		t.Fatal("terminal notification reported retrying")
+	}
+	if got := types(events); got[len(got)-1] != "session.step.failed" {
+		t.Fatalf("terminal event types = %v", got)
+	}
+	var failed map[string]any
+	decodeData(t, firstType(t, events, "session.step.failed"), &failed)
+	if failed["assistantMessageID"] != retry["assistantMessageID"] {
+		t.Fatalf("terminal error changed step identity: retry=%#v failed=%#v", retry, failed)
+	}
+}
+
+func TestProjectorRecordsApprovalRequestAndFixedDecision(t *testing.T) {
+	var events []gimble.AgentEvent
+	p := newProjector("thread", "turn", "model", func(event gimble.AgentEvent) error {
+		events = append(events, event)
+		return nil
+	})
+	params := json.RawMessage(`{"threadId":"thread","turnId":"turn","itemId":"call","command":"rm one","reason":"outside sandbox","startedAtMs":1}`)
+	id, err := p.approvalRequested("item/commandExecution/requestApproval", params)
+	mustProject(t, err)
+	if id != "call" {
+		t.Fatalf("approval id = %q, want call", id)
+	}
+	mustProject(t, p.approvalReplied(id, "denied", "item/commandExecution/requestApproval", params))
+	if got := types(events); !slices.Equal(got, []string{"permission.asked", "permission.replied"}) {
+		t.Fatalf("approval event types = %v", got)
+	}
+	var asked, replied map[string]any
+	decodeData(t, events[0], &asked)
+	decodeData(t, events[1], &replied)
+	if asked["permission"] != "item/commandExecution/requestApproval" || replied["reply"] != "denied" {
+		t.Fatalf("approval projection = asked %#v replied %#v", asked, replied)
+	}
+}
+
+func TestProjectorKeepsNativeChildTranscriptInsideCollabTool(t *testing.T) {
+	var events []gimble.AgentEvent
+	parent := newProjector("parent", "parent-turn", "model", func(event gimble.AgentEvent) error {
+		events = append(events, event)
+		return nil
+	})
+	started := json.RawMessage(`{"threadId":"parent","turnId":"parent-turn","item":{"id":"spawn","type":"collabAgentToolCall","tool":"spawn_agent","receiverThreadIds":["child"],"senderThreadId":"parent","agentsStates":{},"status":"inProgress"}}`)
+	mustProject(t, parent.itemStarted(started))
+	tool, children := codexChildThreads(started)
+	if tool != "spawn" || !slices.Equal(children, []string{"child"}) {
+		t.Fatalf("child routing = tool %q children %v", tool, children)
+	}
+	child := newProjector("child", "child-turn", "model", func(event gimble.AgentEvent) error {
+		return parent.nestedEvent(tool, event)
+	})
+	mustProject(t, child.itemStarted(json.RawMessage(`{"threadId":"child","turnId":"child-turn","item":{"id":"child-message","type":"agentMessage"}}`)))
+	mustProject(t, child.textDelta(json.RawMessage(`{"threadId":"child","turnId":"child-turn","itemId":"child-message","delta":"child answer"}`)))
+	_, _, err := child.itemCompleted(json.RawMessage(`{"threadId":"child","turnId":"child-turn","item":{"id":"child-message","type":"agentMessage","text":"child answer"}}`))
+	mustProject(t, err)
+	_, _, err = parent.itemCompleted(json.RawMessage(`{"threadId":"parent","turnId":"parent-turn","item":{"id":"spawn","type":"collabAgentToolCall","tool":"spawn_agent","receiverThreadIds":["child"],"senderThreadId":"parent","agentsStates":{"child":{"status":"completed"}},"status":"completed"}}`))
+	mustProject(t, err)
+
+	if got := countType(events, "session.step.started"); got != 1 {
+		t.Fatalf("child opened a top-level parent step: types=%v", types(events))
+	}
+	if got := countType(events, "session.text.delta"); got != 0 {
+		t.Fatalf("child text entered parent text: types=%v", types(events))
+	}
+	var success map[string]any
+	decodeData(t, firstType(t, events, "session.tool.success"), &success)
+	content := success["content"].([]any)
+	if len(content) != 2 || content[1].(map[string]any)["type"] != "transcript" {
+		t.Fatalf("collab tool content = %#v", content)
+	}
+	transcript := content[1].(map[string]any)["events"].([]any)
+	if len(transcript) != 4 {
+		t.Fatalf("nested event count = %d, want 4", len(transcript))
+	}
+}
+
 func types(events []gimble.AgentEvent) []string {
 	var out []string
 	for _, event := range events {

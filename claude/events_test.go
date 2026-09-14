@@ -167,6 +167,92 @@ func TestRawProjectorDistinguishesToolErrorAndGuardsSingleOpen(t *testing.T) {
 	}
 }
 
+func TestRawProjectorKeepsNestedTranscriptInsideParentTool(t *testing.T) {
+	var events []gimble.AgentEvent
+	p := newProjector("session", "model", func(event gimble.AgentEvent) error {
+		events = append(events, event)
+		return nil
+	})
+	for _, fixture := range []string{
+		`{"type":"stream_event","event":{"type":"message_start","message":{"id":"parent-message","model":"model","usage":{}}}}`,
+		`{"type":"stream_event","event":{"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"task-call","name":"Task","input":{}}}}`,
+		`{"type":"stream_event","event":{"type":"content_block_stop","index":0}}`,
+		`{"type":"stream_event","parent_tool_use_id":"task-call","event":{"type":"message_start","message":{"id":"child-message","model":"model","usage":{"input_tokens":9}}}}`,
+		`{"type":"stream_event","parent_tool_use_id":"task-call","event":{"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}}`,
+		`{"type":"stream_event","parent_tool_use_id":"task-call","event":{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"child answer"}}}`,
+		`{"type":"assistant","parent_tool_use_id":"task-call","message":{"id":"child-message","content":[{"type":"text","text":"child answer"}]}}`,
+		`{"type":"stream_event","event":{"type":"message_delta","delta":{"stop_reason":"tool_use"}}}`,
+		`{"type":"stream_event","event":{"type":"message_stop"}}`,
+		`{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"task-call","content":"agent done","is_error":false}]}}`,
+	} {
+		mustRaw(t, p.raw(json.RawMessage(fixture)))
+	}
+	if got := countClaudeType(events, "session.step.started"); got != 1 {
+		t.Fatalf("nested child opened a top-level step: types=%v", claudeTypes(events))
+	}
+	if got := countClaudeType(events, "session.text.delta"); got != 0 {
+		t.Fatalf("nested child text entered parent text: types=%v", claudeTypes(events))
+	}
+	var success map[string]any
+	claudeData(t, firstClaudeType(t, events, "session.tool.success"), &success)
+	content := success["content"].([]any)
+	if len(content) != 2 || content[1].(map[string]any)["type"] != "transcript" {
+		t.Fatalf("nested transcript content = %#v", content)
+	}
+	transcript := content[1].(map[string]any)["events"].([]any)
+	if len(transcript) != 4 {
+		t.Fatalf("nested transcript event count = %d, want 4", len(transcript))
+	}
+}
+
+func TestRawProjectorRecordsRetryFailureAndPermissionDecision(t *testing.T) {
+	var events []gimble.AgentEvent
+	p := newProjector("session", "model", func(event gimble.AgentEvent) error {
+		events = append(events, event)
+		return nil
+	})
+	mustRaw(t, p.raw(json.RawMessage(`{"type":"stream_event","event":{"type":"message_start","message":{"id":"message","model":"model","usage":{}}}}`)))
+	mustRaw(t, p.raw(json.RawMessage(`{"type":"system","subtype":"api_retry","attempt":2,"max_retries":5,"retry_delay_ms":400,"error_status":529,"error":"server_error","uuid":"retry","session_id":"session"}`)))
+	mustRaw(t, p.raw(json.RawMessage(`{"type":"assistant","uuid":"failed","session_id":"session","message":{"id":"message","content":[]},"error":"rate_limit"}`)))
+	mustRaw(t, p.permissionRequest("Bash", json.RawMessage(`{"command":"true"}`), "tool", "child"))
+
+	if got := claudeTypes(events); !slices.Equal(got, []string{"session.step.started", "session.retry.scheduled", "session.step.failed", "permission.asked", "permission.replied"}) {
+		t.Fatalf("native event types = %v", got)
+	}
+	var retry, failed, asked, replied map[string]any
+	claudeData(t, events[1], &retry)
+	claudeData(t, events[2], &failed)
+	claudeData(t, events[3], &asked)
+	claudeData(t, events[4], &replied)
+	if retry["attempt"] != float64(2) || retry["delayMS"] != float64(400) {
+		t.Fatalf("retry = %#v", retry)
+	}
+	if failed["assistantMessageID"] != "message" || asked["id"] != "tool" || replied["reply"] != "allowed" {
+		t.Fatalf("failure/permission = failed %#v asked %#v replied %#v", failed, asked, replied)
+	}
+}
+
+func firstClaudeType(t *testing.T, events []gimble.AgentEvent, eventType string) gimble.AgentEvent {
+	t.Helper()
+	for _, event := range events {
+		if event.Type == eventType {
+			return event
+		}
+	}
+	t.Fatalf("event %s not found", eventType)
+	return gimble.AgentEvent{}
+}
+
+func countClaudeType(events []gimble.AgentEvent, eventType string) int {
+	count := 0
+	for _, event := range events {
+		if event.Type == eventType {
+			count++
+		}
+	}
+	return count
+}
+
 func claudeTypes(events []gimble.AgentEvent) []string {
 	var result []string
 	for _, event := range events {

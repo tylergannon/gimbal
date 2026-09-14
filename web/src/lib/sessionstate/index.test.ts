@@ -55,4 +55,11 @@ describe('session event projection', () => {
 		projection.apply({ id: 'evt_1', created: 1, type: 'session.usage.updated', data: { sessionID: 'ses_absent', cost: 1, tokens: { input: 1, output: 1, reasoning: 0, cache: { read: 0, write: 0 } } } })
 		assert.deepEqual(projection.snapshot().state.info, {})
 	})
+
+	test('answered permissions remain visible as transcript history', () => {
+		const projection = new SessionProjection({ info: {}, family: {}, active: {}, message: {}, pending: {}, permission: {}, form: {} })
+		projection.apply({ id: 'asked', created: 1, type: 'permission.asked', data: { sessionID: 'ses', id: 'approval', permission: 'command', metadata: { command: 'false' } } })
+		projection.apply({ id: 'replied', created: 2, type: 'permission.replied', data: { sessionID: 'ses', requestID: 'approval', reply: 'denied' } })
+		assert.deepEqual(projection.snapshot().state.permission.ses, [{ sessionID: 'ses', id: 'approval', permission: 'command', metadata: { command: 'false' }, reply: 'denied', repliedAt: 2 }])
+	})
 })

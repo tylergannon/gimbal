@@ -4,6 +4,11 @@
 
 	let { message, pending, revision }: { message: JSONObject; pending?: JSONObject; revision: number } = $props();
 	const text = (value: unknown) => typeof value === 'string' ? value : JSON.stringify(value, null, 2);
+	const eventText = (event: JSONObject) => {
+		const native = event.event ?? event;
+		const delta = native.delta ?? native.event?.delta;
+		return delta?.text ?? delta?.thinking ?? native.message?.content?.map((part: JSONObject) => part.text).filter(Boolean).join('\n') ?? text(native);
+	};
 	const row: JSONObject = $derived.by(() => {
 		revision;
 		return {
@@ -33,11 +38,24 @@
 					<header><strong>{part.name}</strong><span>{part.state?.status ?? 'pending'}</span></header>
 					{#if part.state?.input !== undefined}<pre>{text(part.state.input)}</pre>{/if}
 					{#if part.state?.status === 'running' && part.state?.metadata !== undefined}<pre class="progress">{text(part.state.metadata)}</pre>{/if}
-					{#if part.state?.content !== undefined}<pre>{text(part.state.content)}</pre>{/if}
+					{#if part.state?.content !== undefined}
+						{#each part.state.content as content}
+							{#if content.type === 'transcript'}
+								<details class="nested" open>
+									<summary>Subagent transcript · {content.events?.length ?? 0} events</summary>
+									{#each content.events ?? [] as event}
+										<pre>{eventText(event)}</pre>
+									{/each}
+								</details>
+							{:else}<pre>{text(content)}</pre>{/if}
+						{/each}
+					{/if}
 					{#if part.state?.error !== undefined}<p class="error">{text(part.state.error)}</p>{/if}
 				</section>
 			{/if}
 		{/each}
+		{#if row.retry}<p class="warning">Retry scheduled{row.retry.attempt ? ` · attempt ${row.retry.attempt}` : ''}: {text(row.retry.error)}</p>{/if}
+		{#if row.error}<p class="error">{text(row.error)}</p>{/if}
 		<footer>{usageText(usageOf(row))}</footer>
 	{:else if row.text !== undefined}
 		<p class="prose">{row.text}</p>
@@ -59,7 +77,9 @@
 	details { margin-top: .65rem; }
 	.tool { margin-top: .65rem; border-radius: .45rem; background: #f3f5f8; padding: .7rem; }
 	.progress { color: #174d9b; }
+	.nested { margin-top: .6rem; padding-left: .6rem; border-left: 2px solid #9aa8c5; }
 	pre { overflow-x: auto; white-space: pre-wrap; font: .82rem/1.45 ui-monospace, monospace; }
 	footer { margin-top: .65rem; color: #697386; font-size: .75rem; }
 	.error { color: #a22525; }
+	.warning { color: #8a5a00; }
 </style>

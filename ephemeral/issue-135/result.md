@@ -56,10 +56,12 @@ Local live artifacts:
 
 The second Codex `Generate` in this live run reused the adapter's existing
 shared-daemon connection. It proves that later turns retain raw events, but it
-does not exercise `thread/resume`. The adapter invokes `thread/resume` only when
-its connection dies and it redials; no shared daemon or production process was
-stopped to manufacture that condition. Exact raw response events after that
-redial remain unproven here.
+does not exercise `thread/resume`. Native socket-redial behavior remains
+unproven by this browser run. Upstream source shows the raw-event flag remains
+sticky while the thread stays loaded, so a socket-only redial should retain it.
+After a daemon restart or thread unload, `thread/resume` rebuilds the thread
+without a supported raw-event opt-in; exact raw response events are unavailable
+in that case.
 
 The forked Codex turn completed and rendered both markers, but emitted no
 `rawResponse/completed`; consequently it has no `session.step.streamed` event

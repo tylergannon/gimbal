@@ -36,15 +36,25 @@ try {
   })
   await page.goto(`${origin}/runs/${encodeURIComponent(runID)}`)
   await page.locator('.status.completed, .status.failed, .status.cancelled').waitFor({ timeout: 120000 })
-  await page.locator('article.assistant').filter({ hasText: 'GIMBLE_LIVE_TOOL_MARKER' }).waitFor({ timeout: 5000 })
-  await page.locator('article.assistant').filter({ hasText: 'GIMBLE_LIVE_FINAL_MARKER' }).waitFor({ timeout: 5000 })
+  const markers = mode === 'issue135'
+    ? ['CODEX_FIRST_TOOL_MARKER', 'CODEX_FIRST_FINAL_MARKER', 'CODEX_SECOND_TOOL_MARKER', 'CODEX_SECOND_FINAL_MARKER', 'CODEX_FORKED_TOOL_MARKER', 'CODEX_FORKED_FINAL_MARKER', 'CLAUDE_HAIKU_TOOL_MARKER', 'CLAUDE_HAIKU_FINAL_MARKER']
+    : ['GIMBLE_LIVE_TOOL_MARKER', 'GIMBLE_LIVE_FINAL_MARKER']
+  for (const marker of markers) await page.locator('article.assistant').filter({ hasText: marker }).waitFor({ timeout: 5000 })
   const body = await page.locator('body').innerText()
   const assistantText = (await page.locator('article.assistant').allInnerTexts()).join('\n')
+  const articles = await page.locator('article.assistant').evaluateAll(nodes => nodes.map(node => ({ id: node.getAttribute('data-message-id'), text: node.textContent })))
   const frames = await page.evaluate(() => window.observedFrames)
   const snapshot = await (await page.request.get(`${origin}/api/runs/${encodeURIComponent(runID)}`)).json()
-  await writeFile(join(project, 'browser.json'), JSON.stringify({ body, frames, snapshot }, null, 2))
+  await writeFile(join(project, 'browser.json'), JSON.stringify({ body, articles, frames, snapshot }, null, 2))
   await page.screenshot({ path: join(project, 'final.png'), fullPage: true })
-  if (snapshot.run.status !== 'completed' || !assistantText.includes('GIMBLE_LIVE_TOOL_MARKER') || !assistantText.includes('GIMBLE_LIVE_FINAL_MARKER')) throw new Error(`Live observation failed: ${snapshot.run.status}\n${body}`)
+  if (snapshot.run.status !== 'completed' || markers.some(marker => !assistantText.includes(marker))) throw new Error(`Live observation failed: ${snapshot.run.status}\n${body}`)
+  if (mode === 'issue135') {
+    for (const marker of ['CODEX_FIRST_TOOL_MARKER', 'CODEX_SECOND_TOOL_MARKER', 'CODEX_FORKED_TOOL_MARKER']) {
+      const row = articles.find(article => article.text?.includes(marker))
+      const tokens = row?.text?.match(/(\d+) in · (\d+) out · (\d+) reasoning · (\d+) cache read · (\d+) cache write/)
+      if (!tokens || tokens.slice(1).map(Number).reduce((sum, value) => sum + value, 0) === 0) throw new Error(`Codex tool is not attributed to its token-bearing response: ${marker}\n${row?.text}`)
+    }
+  }
   console.log(JSON.stringify({ project, runID, status: snapshot.run.status, frames: frames.length }))
 } finally {
   await writeFile(join(project, 'stdout.log'), stdout)

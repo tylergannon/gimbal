@@ -349,9 +349,6 @@ func (p *projector) rawResponseCompleted(params json.RawMessage) error {
 	if err := p.event("session.step.streamed", map[string]any{"assistantMessageID": p.messageID}, p.nativeRef(params)); err != nil {
 		return err
 	}
-	if p.pendingTools == 0 {
-		return p.endStep(params)
-	}
 	return nil
 }
 

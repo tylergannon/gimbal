@@ -22,8 +22,9 @@ func TestProjectorBindsRawResponseAndNormalizesTokens(t *testing.T) {
 	_, _, err := p.itemCompleted(json.RawMessage(`{"item":{"id":"msg-item","type":"agentMessage","text":"hello"}}`))
 	mustProject(t, err)
 	mustProject(t, p.rawResponseCompleted(json.RawMessage(`{"responseId":"resp_123","usage":{"inputTokens":100,"cachedInputTokens":25,"cacheWriteInputTokens":5,"outputTokens":30,"reasoningOutputTokens":10}}`)))
+	mustProject(t, p.turnCompleted(json.RawMessage(`{"turn":{"status":"completed"}}`)))
 	if !slices.Contains(types(events), "session.step.ended") {
-		t.Fatal("settled rawResponse/completed did not end the tool-free step")
+		t.Fatal("completed turn did not end the tool-free step")
 	}
 
 	want := []string{"session.step.started", "session.text.started", "session.text.delta", "session.text.ended", "session.step.streamed", "session.step.ended"}
@@ -77,6 +78,34 @@ func TestProjectorWaitsForToolAndDistinguishesFailure(t *testing.T) {
 	}
 }
 
+func TestProjectorAttributesToolDeliveredAfterRawResponse(t *testing.T) {
+	var events []gimble.AgentEvent
+	p := newProjector("thread", "turn", "model", func(event gimble.AgentEvent) error {
+		events = append(events, event)
+		return nil
+	})
+	mustProject(t, p.itemStarted(json.RawMessage(`{"item":{"id":"reasoning","type":"reasoning"}}`)))
+	_, _, err := p.itemCompleted(json.RawMessage(`{"item":{"id":"reasoning","type":"reasoning","summary":["calling the tool"]}}`))
+	mustProject(t, err)
+	mustProject(t, p.rawResponseCompleted(json.RawMessage(`{"responseId":"resp_tool"}`)))
+	mustProject(t, p.itemStarted(json.RawMessage(`{"item":{"id":"call","type":"commandExecution","command":"printf proof","cwd":"/w"}}`)))
+	_, _, err = p.itemCompleted(json.RawMessage(`{"item":{"id":"call","type":"commandExecution","status":"completed","aggregatedOutput":"proof"}}`))
+	mustProject(t, err)
+
+	if got := countType(events, "session.step.started"); got != 1 {
+		t.Fatalf("step.started count = %d, want delayed tool in the response's existing step; types=%v", got, types(events))
+	}
+	var started, tool map[string]any
+	decodeData(t, firstType(t, events, "session.step.started"), &started)
+	decodeData(t, firstType(t, events, "session.tool.called"), &tool)
+	if tool["assistantMessageID"] != started["assistantMessageID"] {
+		t.Fatalf("tool message = %v, response message = %v", tool["assistantMessageID"], started["assistantMessageID"])
+	}
+	if got := types(events); got[len(got)-2] != "session.tool.success" || got[len(got)-1] != "session.step.ended" {
+		t.Fatalf("terminal event types = %v", got)
+	}
+}
+
 func TestProjectorCompletesTwoResponsesWithoutTokenUsage(t *testing.T) {
 	var events []gimble.AgentEvent
 	p := newProjector("thread", "turn", "model", func(event gimble.AgentEvent) error { events = append(events, event); return nil })
@@ -87,6 +116,7 @@ func TestProjectorCompletesTwoResponsesWithoutTokenUsage(t *testing.T) {
 		mustProject(t, err)
 		mustProject(t, p.rawResponseCompleted(json.RawMessage(fmt.Sprintf(`{"responseId":%q}`, response))))
 	}
+	mustProject(t, p.turnCompleted(json.RawMessage(`{"turn":{"status":"completed"}}`)))
 	if got := countType(events, "session.step.ended"); got != 2 {
 		t.Fatalf("step.ended count = %d, want 2; types=%v", got, types(events))
 	}

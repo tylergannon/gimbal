@@ -22,6 +22,17 @@ const emptyState = (): ProjectionState => ({
 const clone = <T>(value: T): T => structuredClone(value)
 const eventMessageID = (id: string) => id.replace(/^evt_/, 'msg_')
 
+const toolProgressMetadata = (state: JSONObject, value: JSONObject): JSONObject => {
+	if (value?.mode !== 'append') return clone(value)
+	let existing = state.metadata?.transcript
+	if (!Array.isArray(existing)) existing = clone(state.content?.find((part: JSONObject) => part.type === 'transcript')?.events ?? [])
+	const metadata = clone(value)
+	delete metadata.mode
+	if (Array.isArray(value.transcript)) existing.push(...clone(value.transcript))
+	metadata.transcript = existing
+	return metadata
+}
+
 export class SessionProjection {
 	private state: ProjectionState
 	private messageIndex = new Map<string, Map<string, JSONObject>>()
@@ -80,7 +91,7 @@ export class SessionProjection {
 			case 'session.tool.input.delta': this.editTool(sid, d.assistantMessageID, d.id, t => { if (t.state.status === 'streaming') t.state.input += d.delta }); break
 			case 'session.tool.input.ended': this.editTool(sid, d.assistantMessageID, d.id, t => { if (t.state.status === 'streaming') t.state.input = d.text }); break
 			case 'session.tool.called': this.toolCalled(event); break
-			case 'session.tool.progress': this.editTool(sid, d.assistantMessageID, d.id, t => { if (t.state.status === 'running') t.state.metadata = clone(d.metadata) }); break
+			case 'session.tool.progress': this.editTool(sid, d.assistantMessageID, d.id, t => { if (['running', 'completed', 'error'].includes(t.state.status)) t.state.metadata = toolProgressMetadata(t.state, d.metadata) }); break
 			case 'session.tool.success': this.toolSuccess(event); break
 			case 'session.tool.failed': this.toolFailed(event); break
 			case 'session.reasoning.started': this.editAssistant(sid, d.assistantMessageID, a => { const part=this.withDefined({ type: 'reasoning', text: '', state: clone(d.state), time: { created: event.created } });a.content.push(part);const key=this.partKey(sid,d.assistantMessageID),open=this.openReasoning.get(key)??[];open.push(part);this.openReasoning.set(key,open) }); break
@@ -97,7 +108,7 @@ export class SessionProjection {
 			case 'session.compaction.ended': this.compactionEnded(event); break
 			case 'session.compaction.failed': this.compactionFailed(event); break
 			case 'permission.asked': { const list = this.state.permission[sid] ??= []; if (!list.some(x => x.id === d.id)) list.push(clone(d)); break }
-			case 'permission.replied': { const list=this.state.permission[sid];if(list?.some(x=>x.id===d.requestID))this.state.permission[sid]=list.filter(x=>x.id!==d.requestID);break }
+			case 'permission.replied': { const request=this.state.permission[sid]?.find(x=>x.id===d.requestID);if(request){request.reply=d.reply;request.repliedAt=event.created}break }
 			case 'form.replied': case 'form.cancelled': this.removeForm(sid, d.id, event.location); break
 			case 'form.created': {
 				if (!event.location) break
@@ -141,8 +152,8 @@ export class SessionProjection {
 	private stepEnded(event: JSONObject) { const d=event.data;this.editAssistant(d.sessionID,d.assistantMessageID,a=>{a.time.completed=event.created;a.finish=d.finish;a.rawFinish=d.rawFinish;a.providerState=clone(d.providerState);a.cost=d.cost;a.tokens=clone(d.tokens);if(d.snapshot)a.snapshot={...(a.snapshot??{}),end:d.snapshot};this.withDefined(a)}) }
 	private stepFailed(event: JSONObject) { const d=event.data;this.editAssistant(d.sessionID,d.assistantMessageID,a=>{a.time.completed=event.created;a.finish=d.finish??'error';a.rawFinish=d.rawFinish;a.providerState=clone(d.providerState);a.error=clone(d.error);delete a.retry;if(d.cost!==undefined&&d.tokens!==undefined){a.cost=d.cost;a.tokens=clone(d.tokens)}this.withDefined(a)}) }
 	private toolCalled(event: JSONObject) { const d=event.data;this.editTool(d.sessionID,d.assistantMessageID,d.id,t=>{t.time.ran=event.created;t.executed=d.executed;t.providerState=clone(d.state);t.state={status:'running',input:clone(d.input),metadata:{}};this.withDefined(t)}) }
-	private toolSuccess(event: JSONObject) { const d=event.data;this.editTool(d.sessionID,d.assistantMessageID,d.id,t=>{if(t.state.status!=='running')return;t.state=this.withDefined({status:'completed',input:clone(t.state.input),metadata:clone(d.metadata),content:clone(d.content)});t.executed=d.executed||t.executed===true;t.providerResultState=clone(d.resultState);t.time.completed=event.created;this.withDefined(t)}) }
-	private toolFailed(event: JSONObject) { const d=event.data;this.editTool(d.sessionID,d.assistantMessageID,d.id,t=>{if(t.state.status!=='streaming'&&t.state.status!=='running')return;t.state=this.withDefined({status:'error',error:clone(d.error),input:typeof t.state.input==='string'?{}:clone(t.state.input),metadata:clone(d.metadata),content:clone(d.content)});t.executed=d.executed||t.executed===true;t.providerResultState=clone(d.resultState);t.time.completed=event.created;this.withDefined(t)}) }
+	private toolSuccess(event: JSONObject) { const d=event.data;this.editTool(d.sessionID,d.assistantMessageID,d.id,t=>{if(t.state.status!=='running')return;const metadata=d.metadata===undefined?t.state.metadata:d.metadata;t.state=this.withDefined({status:'completed',input:clone(t.state.input),metadata:clone(metadata),content:clone(d.content)});t.executed=d.executed||t.executed===true;t.providerResultState=clone(d.resultState);t.time.completed=event.created;this.withDefined(t)}) }
+	private toolFailed(event: JSONObject) { const d=event.data;this.editTool(d.sessionID,d.assistantMessageID,d.id,t=>{if(t.state.status!=='streaming'&&t.state.status!=='running')return;const metadata=d.metadata===undefined?t.state.metadata:d.metadata;t.state=this.withDefined({status:'error',error:clone(d.error),input:typeof t.state.input==='string'?{}:clone(t.state.input),metadata:clone(metadata),content:clone(d.content)});t.executed=d.executed||t.executed===true;t.providerResultState=clone(d.resultState);t.time.completed=event.created;this.withDefined(t)}) }
 	private reasoningEnded(event: JSONObject) { const d=event.data;this.editReasoning(d.sessionID,d.assistantMessageID,r=>{r.text=d.text;r.time={created:r.time?.created??event.created,completed:event.created};if(d.state!==undefined)r.state=clone(d.state)}) }
 	private executionEnded(event: JSONObject) { const d=event.data;this.state.active[d.sessionID]='idle';const a=this.last(d.sessionID,x=>x.type==='assistant'&&!x.time.completed);if(a)delete a.retry }
 	private revertCommitted(sid:string,to:string){if(this.state.info[sid])delete this.state.info[sid].revert;this.state.pending[sid]=(this.state.pending[sid]??[]).filter(x=>x.id<to);const at=(this.state.message[sid]??[]).findIndex(x=>x.id>=to);if(at>=0){this.state.message[sid].splice(at);this.rebuildIndexes(sid)}}

@@ -409,13 +409,42 @@ func input(text string) []map[string]any {
 // the turn completes and returns the agent's final message.
 func readTurn(ctx context.Context, conn *connection, ch chan rpcMessage, threadID, turnID string, emit *projector) (string, error) {
 	var final string
+	childParents := make(map[string]string)
+	childProjectors := make(map[string]*projector)
+	defer func() {
+		for child := range childParents {
+			conn.unregisterThread(child)
+		}
+	}()
 	for {
 		message, err := conn.next(ctx, ch)
 		if err != nil {
 			return "", err
 		}
+		messageThread := messageThreadID(message.Params)
+		if parentTool, child := childParents[messageThread]; child && messageThread != threadID {
+			childTurn := messageTurnID(message.Params)
+			key := messageThread + "\x00" + childTurn
+			project := childProjectors[key]
+			if project == nil {
+				project = newProjector(messageThread, childTurn, emit.model, func(event gimble.AgentEvent) error {
+					return emit.nestedEvent(parentTool, event)
+				})
+				childProjectors[key] = project
+			}
+			if len(message.ID) > 0 && message.Method != "" {
+				if err := refuse(conn, message, project); err != nil {
+					return "", err
+				}
+				continue
+			}
+			if err := projectChildNotification(message, project); err != nil {
+				return "", err
+			}
+			continue
+		}
 		if len(message.ID) > 0 && message.Method != "" {
-			return "", refuse(conn, message)
+			return "", refuse(conn, message, emit)
 		}
 		if !matches(message.Params, threadID, turnID) {
 			continue
@@ -425,6 +454,7 @@ func readTurn(ctx context.Context, conn *connection, ch chan rpcMessage, threadI
 			if err := emit.itemStarted(message.Params); err != nil {
 				return "", err
 			}
+			registerCodexChildren(conn, ch, message.Params, childParents)
 		case "item/agentMessage/delta":
 			if err := emit.textDelta(message.Params); err != nil {
 				return "", err
@@ -438,6 +468,7 @@ func readTurn(ctx context.Context, conn *connection, ch chan rpcMessage, threadI
 				return "", err
 			}
 		case "item/completed":
+			registerCodexChildren(conn, ch, message.Params, childParents)
 			text, ok, err := emit.itemCompleted(message.Params)
 			if err != nil {
 				return "", err
@@ -479,26 +510,97 @@ func readTurn(ctx context.Context, conn *connection, ch chan rpcMessage, threadI
 				return "", fmt.Errorf("codex: the turn ended with status %q", status)
 			}
 		case "error":
-			return "", errorNotification(message.Params)
+			willRetry, projectErr := emit.harnessError(message.Params)
+			if projectErr != nil {
+				return "", projectErr
+			}
+			if !willRetry {
+				return "", errorNotification(message.Params)
+			}
 		}
+	}
+}
+
+func registerCodexChildren(conn *connection, ch chan rpcMessage, params json.RawMessage, parents map[string]string) {
+	parent, children := codexChildThreads(params)
+	for _, child := range children {
+		if _, owned := parents[child]; owned {
+			continue
+		}
+		parents[child] = parent
+		conn.routeThread(child, ch)
+	}
+}
+
+func messageTurnID(raw json.RawMessage) string {
+	var envelope struct {
+		TurnID string `json:"turnId"`
+		Turn   struct {
+			ID string `json:"id"`
+		} `json:"turn"`
+	}
+	_ = json.Unmarshal(raw, &envelope)
+	if envelope.TurnID != "" {
+		return envelope.TurnID
+	}
+	return envelope.Turn.ID
+}
+
+func projectChildNotification(message rpcMessage, emit *projector) error {
+	switch message.Method {
+	case "item/started":
+		return emit.itemStarted(message.Params)
+	case "item/agentMessage/delta":
+		return emit.textDelta(message.Params)
+	case "item/reasoning/summaryTextDelta":
+		return emit.reasoningDelta(message.Params)
+	case "item/commandExecution/outputDelta":
+		return emit.toolOutputDelta(message.Params)
+	case "item/completed":
+		_, _, err := emit.itemCompleted(message.Params)
+		return err
+	case "rawResponseItem/completed":
+		return emit.rawResponseItemCompleted(message.Params)
+	case "rawResponse/completed":
+		return emit.rawResponseCompleted(message.Params)
+	case "thread/tokenUsage/updated":
+		return emit.tokenUsageUpdated(message.Params)
+	case "turn/completed":
+		return emit.turnCompleted(message.Params)
+	case "error":
+		_, err := emit.harnessError(message.Params)
+		return err
+	default:
+		return nil
 	}
 }
 
 // refuse declines an interactive request; Gimble turns run with approvals
 // off and never answer prompts.
-func refuse(conn *connection, message rpcMessage) error {
+func refuse(conn *connection, message rpcMessage, emit *projector) error {
 	result := map[string]any{"decision": "decline"}
+	decision := "declined"
 	switch message.Method {
 	case "execCommandApproval", "applyPatchApproval":
 		result["decision"] = "denied"
+		decision = "denied"
 	case "item/tool/requestUserInput":
 		result = map[string]any{"answers": map[string]any{}}
+		decision = "unanswered"
 	case "mcpServer/elicitation/request":
 		result = map[string]any{"action": "decline"}
 	case "item/permissions/requestApproval":
 		result = map[string]any{"permissions": map[string]any{}, "scope": "turn"}
+		decision = "denied"
 	}
+	id, projectErr := emit.approvalRequested(message.Method, message.Params)
 	if err := conn.respond(message, result); err != nil {
+		return err
+	}
+	if projectErr != nil {
+		return projectErr
+	}
+	if err := emit.approvalReplied(id, decision, message.Method, message.Params); err != nil {
 		return err
 	}
 	return fmt.Errorf("codex: unexpected interactive request %q", message.Method)

@@ -28,8 +28,11 @@ type projector struct {
 	textOpen      bool
 	reasoningOpen bool
 	pendingTools  map[string]bool
+	toolMessages  map[string]string
+	nested        map[string][]map[string]any
 	usage         claudeUsage
 	report        map[string]gimble.Usage
+	failureSeen   bool
 }
 
 type blockState struct {
@@ -45,7 +48,10 @@ type claudeUsage struct {
 }
 
 func newProjector(sessionID, model string, emit func(gimble.AgentEvent) error) *projector {
-	return &projector{emit: emit, sessionID: sessionID, model: model, blocks: make(map[int]*blockState), pendingTools: make(map[string]bool)}
+	return &projector{
+		emit: emit, sessionID: sessionID, model: model,
+		blocks: make(map[int]*blockState), pendingTools: make(map[string]bool), toolMessages: make(map[string]string), nested: make(map[string][]map[string]any),
+	}
 }
 
 func (p *projector) event(eventType string, data map[string]any, native any) error {
@@ -65,12 +71,15 @@ func (p *projector) event(eventType string, data map[string]any, native any) err
 }
 
 func (p *projector) raw(raw json.RawMessage) error {
-	p.mu.Lock()
-	defer p.mu.Unlock()
 	var envelope map[string]any
 	if err := json.Unmarshal(raw, &envelope); err != nil {
 		return fmt.Errorf("claude: decode raw message: %w", err)
 	}
+	if parent := stringValue(envelope["parent_tool_use_id"]); parent != "" && p.ownsNestedParent(parent) {
+		return p.nestedEvent(parent, envelope)
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	switch envelope["type"] {
 	case "stream_event":
 		event, _ := envelope["event"].(map[string]any)
@@ -86,8 +95,77 @@ func (p *projector) raw(raw json.RawMessage) error {
 		return p.toolProgress(envelope)
 	case "result":
 		return p.result(envelope)
+	case "system":
+		return p.system(envelope)
 	}
 	return nil
+}
+
+func (p *projector) ownsNestedParent(parent string) bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.toolMessages[parent] != ""
+}
+
+// nestedEvent retains Claude Code's lossless child message under the Task tool
+// that owns it. It deliberately does not feed the child's step, text, or usage
+// through the parent projector.
+func (p *projector) nestedEvent(parent string, envelope map[string]any) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	messageID := p.toolMessages[parent]
+	if messageID == "" {
+		return fmt.Errorf("claude: nested transcript for unknown parent tool_use_id %s", parent)
+	}
+	p.nested[parent] = append(p.nested[parent], envelope)
+	ref := p.nativeRef(envelope, parent)
+	ref["messageID"] = messageID
+	return p.event("session.tool.progress", map[string]any{
+		"assistantMessageID": messageID,
+		"id":                 parent,
+		"metadata":           map[string]any{"mode": "append", "transcript": []any{envelope}},
+	}, ref)
+}
+
+func (p *projector) system(envelope map[string]any) error {
+	switch stringValue(envelope["subtype"]) {
+	case "api_retry":
+		errorValue := map[string]any{"type": envelope["error"], "message": "Claude API request failed and will be retried"}
+		if envelope["error_status"] != nil {
+			errorValue["status"] = envelope["error_status"]
+		}
+		if p.stepOpen {
+			return p.event("session.retry.scheduled", map[string]any{
+				"assistantMessageID": p.messageID,
+				"attempt":            envelope["attempt"],
+				"delayMS":            envelope["retry_delay_ms"],
+				"error":              errorValue,
+			}, p.nativeRef(envelope, ""))
+		}
+		return p.event("session.synthetic", map[string]any{
+			"text":        "Claude API request failed and will be retried",
+			"description": "Harness retry",
+			"metadata":    envelope,
+		}, p.nativeRef(envelope, ""))
+	case "permission_denied":
+		id := stringValue(envelope["tool_use_id"])
+		if id == "" {
+			id = stringValue(envelope["uuid"])
+		}
+		if err := p.permissionAsked(id, stringValue(envelope["tool_name"]), envelope, p.nativeRef(envelope, id)); err != nil {
+			return err
+		}
+		return p.permissionReplied(id, "denied", p.nativeRef(envelope, id))
+	}
+	return nil
+}
+
+func (p *projector) permissionAsked(id, permission string, metadata map[string]any, ref map[string]any) error {
+	return p.event("permission.asked", map[string]any{"id": id, "permission": permission, "metadata": metadata}, ref)
+}
+
+func (p *projector) permissionReplied(id, reply string, ref map[string]any) error {
+	return p.event("permission.replied", map[string]any{"requestID": id, "reply": reply}, ref)
 }
 
 func (p *projector) stream(event, envelope map[string]any) error {
@@ -184,6 +262,7 @@ func (p *projector) blockStart(event map[string]any, ref map[string]any) error {
 		if p.pendingTools[state.id] {
 			return fmt.Errorf("claude: tool_use_id %s opened twice", state.id)
 		}
+		p.toolMessages[state.id] = p.messageID
 		ref["itemID"] = state.id
 		if input, ok := block["input"]; ok {
 			raw, _ := json.Marshal(input)
@@ -284,6 +363,9 @@ func (p *projector) materializedAssistant(envelope map[string]any) error {
 	if p.stepOpen && nestedID != p.messageID {
 		return fmt.Errorf("claude: materialized message.id %s does not match stream %s", nestedID, p.messageID)
 	}
+	if code := stringValue(envelope["error"]); code != "" {
+		return p.harnessFailure(map[string]any{"type": code, "message": "Claude assistant error: " + code}, envelope)
+	}
 	return nil
 }
 
@@ -308,12 +390,16 @@ func (p *projector) toolResults(envelope map[string]any) error {
 		ref := p.nativeRef(envelope, id)
 		isError, _ := block["is_error"].(bool)
 		text := contentText(block["content"])
+		content := []any{map[string]any{"type": "text", "text": text}}
+		if transcript := p.nested[id]; len(transcript) > 0 {
+			content = append(content, map[string]any{"type": "transcript", "events": transcript})
+		}
 		if isError {
-			if err := p.event("session.tool.failed", map[string]any{"assistantMessageID": p.messageID, "id": id, "error": map[string]any{"type": "tool_result", "message": text}, "executed": true}, ref); err != nil {
+			if err := p.event("session.tool.failed", map[string]any{"assistantMessageID": p.messageID, "id": id, "error": map[string]any{"type": "tool_result", "message": text}, "content": content, "executed": true}, ref); err != nil {
 				return err
 			}
 		} else {
-			if err := p.event("session.tool.success", map[string]any{"assistantMessageID": p.messageID, "id": id, "content": []any{map[string]any{"type": "text", "text": text}}, "executed": true}, ref); err != nil {
+			if err := p.event("session.tool.success", map[string]any{"assistantMessageID": p.messageID, "id": id, "content": content, "executed": true}, ref); err != nil {
 				return err
 			}
 		}
@@ -361,6 +447,32 @@ func (p *projector) endStep(ref map[string]any) error {
 	return nil
 }
 
+func (p *projector) harnessFailure(errorValue map[string]any, envelope map[string]any) error {
+	if p.failureSeen {
+		return nil
+	}
+	p.failureSeen = true
+	ref := p.nativeRef(envelope, "")
+	if !p.stepOpen {
+		return p.event("session.synthetic", map[string]any{
+			"text":        errorValue["message"],
+			"description": "Harness error",
+			"metadata":    errorValue,
+		}, ref)
+	}
+	err := p.event("session.step.failed", map[string]any{
+		"assistantMessageID": p.messageID,
+		"finish":             "error",
+		"error":              errorValue,
+	}, ref)
+	p.stepOpen, p.streamed = false, false
+	p.textOpen, p.reasoningOpen = false, false
+	p.messageID = ""
+	p.blocks = make(map[int]*blockState)
+	p.pendingTools = make(map[string]bool)
+	return err
+}
+
 func (p *projector) nativeRef(envelope map[string]any, itemID string) map[string]any {
 	ref := map[string]any{"provider": "claude", "sessionID": p.sessionID}
 	if p.messageID != "" {
@@ -394,14 +506,22 @@ func (p *projector) result(envelope map[string]any) error {
 	}
 	if len(report) == 0 {
 		usage, cost := object(envelope["usage"]), numberValue(envelope["total_cost_usd"])
-		if usage == nil && envelope["total_cost_usd"] == nil {
-			return nil
+		if usage != nil || envelope["total_cost_usd"] != nil {
+			var u claudeUsage
+			u.merge(usage)
+			report[p.model] = gimble.Usage{Cost: cost, Tokens: u.tokens()}
 		}
-		var u claudeUsage
-		u.merge(usage)
-		report[p.model] = gimble.Usage{Cost: cost, Tokens: u.tokens()}
 	}
-	p.report = report
+	if len(report) > 0 {
+		p.report = report
+	}
+	if failed, _ := envelope["is_error"].(bool); failed || (stringValue(envelope["subtype"]) != "" && stringValue(envelope["subtype"]) != "success") {
+		message := contentText(envelope["errors"])
+		if message == "null" || message == "[]" || message == "" {
+			message = "Claude turn failed: " + stringValue(envelope["subtype"])
+		}
+		return p.harnessFailure(map[string]any{"type": stringValue(envelope["subtype"]), "message": message}, envelope)
+	}
 	return nil
 }
 

@@ -55,4 +55,29 @@ describe('session event projection', () => {
 		projection.apply({ id: 'evt_1', created: 1, type: 'session.usage.updated', data: { sessionID: 'ses_absent', cost: 1, tokens: { input: 1, output: 1, reasoning: 0, cache: { read: 0, write: 0 } } } })
 		assert.deepEqual(projection.snapshot().state.info, {})
 	})
+
+	test('answered permissions remain visible as transcript history', () => {
+		const projection = new SessionProjection({ info: {}, family: {}, active: {}, message: {}, pending: {}, permission: {}, form: {} })
+		projection.apply({ id: 'asked', created: 1, type: 'permission.asked', data: { sessionID: 'ses', id: 'approval', permission: 'command', metadata: { command: 'false' } } })
+		projection.apply({ id: 'replied', created: 2, type: 'permission.replied', data: { sessionID: 'ses', requestID: 'approval', reply: 'denied' } })
+		assert.deepEqual(projection.snapshot().state.permission.ses, [{ sessionID: 'ses', id: 'approval', permission: 'command', metadata: { command: 'false' }, reply: 'denied', repliedAt: 2 }])
+	})
+
+	test('late child progress remains attached to its completed parent tool', () => {
+		const projection = new SessionProjection({ info: {}, family: {}, active: {}, message: {}, pending: {}, permission: {}, form: {} })
+		for (const event of [
+			{ id: 'step', created: 1, type: 'session.step.started', data: { sessionID: 'ses', assistantMessageID: 'message', agent: 'codex', model: { providerID: 'openai', id: 'model' } } },
+			{ id: 'input-started', created: 2, type: 'session.tool.input.started', data: { sessionID: 'ses', assistantMessageID: 'message', id: 'tool', name: 'collabAgentToolCall' } },
+			{ id: 'input-ended', created: 3, type: 'session.tool.input.ended', data: { sessionID: 'ses', assistantMessageID: 'message', id: 'tool', text: '{}' } },
+			{ id: 'called', created: 4, type: 'session.tool.called', data: { sessionID: 'ses', assistantMessageID: 'message', id: 'tool', input: {}, executed: true } },
+			{ id: 'progress-one', created: 5, type: 'session.tool.progress', data: { sessionID: 'ses', assistantMessageID: 'message', id: 'tool', metadata: { mode: 'append', transcript: [{ type: 'session.text.delta', data: { delta: 'one' } }] } } },
+			{ id: 'success', created: 6, type: 'session.tool.success', data: { sessionID: 'ses', assistantMessageID: 'message', id: 'tool', content: [{ type: 'text', text: 'launched' }, { type: 'transcript', events: [{ type: 'session.text.delta', data: { delta: 'one' } }] }], executed: true } },
+			{ id: 'progress-two', created: 7, type: 'session.tool.progress', data: { sessionID: 'ses', assistantMessageID: 'message', id: 'tool', metadata: { mode: 'append', transcript: [{ type: 'session.text.delta', data: { delta: 'two' } }] } } }
+		]) projection.apply(event)
+
+		assert.deepEqual(projection.snapshot().state.message.ses[0].content[0].state.metadata, { transcript: [
+			{ type: 'session.text.delta', data: { delta: 'one' } },
+			{ type: 'session.text.delta', data: { delta: 'two' } }
+		] })
+	})
 })

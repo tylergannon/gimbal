@@ -66,6 +66,31 @@ func appendContent(assistant *Obj, part *Obj) {
 	assistant.Set("content", append(arrOf(assistant.Get("content")), part))
 }
 
+func toolProgressMetadata(state *Obj, value any) any {
+	incoming := objOf(value)
+	if incoming == nil || str(incoming.Get("mode")) != "append" {
+		return cloneValue(value)
+	}
+	existing := arrOf(objOf(state.Get("metadata")).Get("transcript"))
+	if existing == nil {
+		for _, partValue := range arrOf(state.Get("content")) {
+			part := objOf(partValue)
+			if str(part.Get("type")) == "transcript" {
+				existing = arrOf(cloneValue(part.Get("events")))
+				break
+			}
+		}
+	}
+	transcript := existing
+	for _, entry := range arrOf(incoming.Get("transcript")) {
+		transcript = append(transcript, cloneValue(entry))
+	}
+	metadata := incoming.Clone()
+	metadata.Delete("mode")
+	metadata.Set("transcript", transcript)
+	return metadata
+}
+
 // Apply reduces one native event. Unknown event types, and the schema entries
 // the selected upstream revision has no handler for, change nothing.
 func (p *Projection) Apply(event *Obj) {
@@ -237,8 +262,9 @@ func (p *Projection) Apply(event *Obj) {
 	case "session.tool.progress":
 		p.editTool(sessionID, assistantID, str(d.Get("id")), func(t *Obj) {
 			state := objOf(t.Get("state"))
-			if str(state.Get("status")) == "running" {
-				state.Set("metadata", cloneValue(d.Get("metadata")))
+			switch str(state.Get("status")) {
+			case "running", "completed", "error":
+				state.Set("metadata", toolProgressMetadata(state, d.Get("metadata")))
 			}
 		})
 
@@ -314,8 +340,11 @@ func (p *Projection) Apply(event *Obj) {
 		}
 
 	case "permission.replied":
-		if list, ok := p.state.Permission[sessionID]; ok && indexOfID(list, str(d.Get("requestID"))) >= 0 {
-			p.state.Permission[sessionID] = filterOutID(list, str(d.Get("requestID")))
+		if list, ok := p.state.Permission[sessionID]; ok {
+			if index := indexOfID(list, str(d.Get("requestID"))); index >= 0 {
+				list[index].Set("reply", cloneValue(d.Get("reply")))
+				list[index].Set("repliedAt", created)
+			}
 		}
 
 	case "form.replied", "form.cancelled":
@@ -608,10 +637,14 @@ func (p *Projection) toolSuccess(event *Obj) {
 		if str(state.Get("status")) != "running" {
 			return
 		}
+		metadata := d.Get("metadata")
+		if isUndefined(metadata) {
+			metadata = state.Get("metadata")
+		}
 		t.Set("state", obj(
 			"status", "completed",
 			"input", cloneValue(state.Get("input")),
-			"metadata", cloneValue(d.Get("metadata")),
+			"metadata", cloneValue(metadata),
 			"content", cloneValue(d.Get("content")),
 		))
 		t.Set("executed", executedAfterResult(d, t))
@@ -632,11 +665,15 @@ func (p *Projection) toolFailed(event *Obj) {
 		if _, ok := state.Get("input").(string); ok {
 			input = NewObj()
 		}
+		metadata := d.Get("metadata")
+		if isUndefined(metadata) {
+			metadata = state.Get("metadata")
+		}
 		t.Set("state", obj(
 			"status", "error",
 			"error", cloneValue(d.Get("error")),
 			"input", input,
-			"metadata", cloneValue(d.Get("metadata")),
+			"metadata", cloneValue(metadata),
 			"content", cloneValue(d.Get("content")),
 		))
 		t.Set("executed", executedAfterResult(d, t))

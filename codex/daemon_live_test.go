@@ -1,12 +1,14 @@
 package codex
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -34,13 +36,17 @@ func TestRunTurnAfterRedialResumesThread(t *testing.T) {
 	if os.Getenv("GIMBLE_LIVE") != "1" {
 		t.Skip("set GIMBLE_LIVE=1 to run against the live codex app-server daemon")
 	}
-
 	ad, ok := New().(*adapter)
 	if !ok {
 		t.Fatalf("codex.New() did not return *adapter")
 	}
 
-	dir := t.TempDir()
+	dir := os.Getenv("GIMBLE_LIVE_PROJECT")
+	if dir == "" {
+		dir = t.TempDir()
+	} else if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	ctx = gimble.Project(ctx, dir)
@@ -80,7 +86,7 @@ func TestRunTurnAfterRedialResumesThread(t *testing.T) {
 		conn.ws.CloseNow()
 		<-conn.readDone // wait for the reader to notice, so the next call redials deterministically
 
-		third, err := session.Generate[gimble.Text](ctx, "Reply with exactly one word: three.")
+		third, err := session.Generate[gimble.Text](ctx, "Use exactly one shell tool to run `printf CODEX_RECONNECT_TOOL_MARKER`, then answer exactly CODEX_RECONNECT_FINAL_MARKER.")
 		if err != nil {
 			return err
 		}
@@ -94,6 +100,101 @@ func TestRunTurnAfterRedialResumesThread(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatal(err)
+	}
+	assertReconnectTranscript(t, dir)
+}
+
+// assertReconnectTranscript checks the retained run record used by the browser
+// proof. The turn after the socket-only reconnect must still carry the daemon's
+// exact raw response IDs, with the tool and final answer in distinct
+// token-bearing response rows.
+func assertReconnectTranscript(t *testing.T, project string) {
+	t.Helper()
+	paths, err := filepath.Glob(filepath.Join(project, "runs", "*", "sessions", "live.1.jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(paths) != 1 {
+		t.Fatalf("live transcript paths = %v, want one", paths)
+	}
+	file, err := os.Open(paths[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+
+	type eventData struct {
+		AssistantMessageID string        `json:"assistantMessageID"`
+		Text               string        `json:"text"`
+		Content            []interface{} `json:"content"`
+		Tokens             gimble.Tokens `json:"tokens"`
+	}
+	type nativeRef struct {
+		ResponseID string `json:"responseID"`
+	}
+	rows := make(map[string]struct {
+		responseID string
+		tokens     gimble.Tokens
+	})
+	var toolMessageID, finalMessageID string
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		var record gimble.AgentRecord
+		if err := json.Unmarshal(scanner.Bytes(), &record); err != nil {
+			t.Fatal(err)
+		}
+		if !strings.HasSuffix(record.Turn, "/turn.3") {
+			continue
+		}
+		var data eventData
+		if err := json.Unmarshal(record.Event.Data, &data); err != nil {
+			t.Fatal(err)
+		}
+		switch record.Event.Type {
+		case "session.step.streamed":
+			var ref nativeRef
+			if err := json.Unmarshal(record.NativeRef, &ref); err != nil {
+				t.Fatal(err)
+			}
+			if ref.ResponseID == "" {
+				t.Fatal("reconnected turn streamed a step without a native response ID")
+			}
+			row := rows[data.AssistantMessageID]
+			row.responseID = ref.ResponseID
+			rows[data.AssistantMessageID] = row
+		case "session.step.ended":
+			row := rows[data.AssistantMessageID]
+			row.tokens = data.Tokens
+			rows[data.AssistantMessageID] = row
+		case "session.tool.success":
+			encoded, _ := json.Marshal(data.Content)
+			if strings.Contains(string(encoded), "CODEX_RECONNECT_TOOL_MARKER") {
+				toolMessageID = data.AssistantMessageID
+			}
+		case "session.text.ended":
+			if data.Text == "CODEX_RECONNECT_FINAL_MARKER" {
+				finalMessageID = data.AssistantMessageID
+			}
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if toolMessageID == "" || finalMessageID == "" {
+		t.Fatalf("reconnected turn markers: tool row %q, final row %q", toolMessageID, finalMessageID)
+	}
+	if toolMessageID == finalMessageID {
+		t.Fatalf("reconnected tool and final answer share response row %q", toolMessageID)
+	}
+	for label, messageID := range map[string]string{"tool": toolMessageID, "final": finalMessageID} {
+		row := rows[messageID]
+		if row.responseID == "" {
+			t.Errorf("reconnected %s row %q has no native response ID", label, messageID)
+		}
+		if row.tokens.Input+row.tokens.Output+row.tokens.Reasoning+row.tokens.Cache.Read+row.tokens.Cache.Write == 0 {
+			t.Errorf("reconnected %s row %q has no model-call tokens", label, messageID)
+		}
+		t.Logf("reconnected %s row %s: response %s, tokens %+v", label, messageID, row.responseID, row.tokens)
 	}
 }
 

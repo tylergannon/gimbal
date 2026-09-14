@@ -90,7 +90,7 @@ func main() {
 			switch turn {
 			case 1:
 				time.Sleep(6 * time.Second)
-				act("steer "+sessionID, runtime.Steer(ctx, id, sessionID, steerText))
+				act("steer "+sessionID, steered(runtime.Steer(ctx, id, sessionID, steerText)))
 			case 2:
 				time.Sleep(4 * time.Second)
 				act("kill turn "+turnTwo, runtime.KillTurn(id, turnTwo, by, "the operator killed this turn by id"))
@@ -99,7 +99,7 @@ func main() {
 				act("kill scope "+scopeKey, runtime.KillScope(id, scopeKey, by, "the operator killed this scope by key"))
 			}
 		}
-		act("steer after the run", expectError(runtime.Steer(ctx, id, sessionID, "too late")))
+		act("steer after the run", expectError(dropLanded(runtime.Steer(ctx, id, sessionID, "too late"))))
 		operator <- errors.Join(errs...)
 	}()
 
@@ -196,6 +196,16 @@ func waitRunID(ctx context.Context, logs string) string {
 	}
 	return ""
 }
+
+// steered turns a Steer result into an error when the message did not land.
+func steered(landed bool, err error) error {
+	if err == nil && !landed {
+		return errors.New("the steer was dropped")
+	}
+	return err
+}
+
+func dropLanded(_ bool, err error) error { return err }
 
 func expectError(err error) error {
 	if err == nil {

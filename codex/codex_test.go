@@ -90,3 +90,26 @@ func TestCloseNeverStartsAStoppedDaemon(t *testing.T) {
 		t.Fatalf("Close started the daemon; fake codex saw:\n%s", recorded)
 	}
 }
+
+// TestSteerWithNoTurnRunningIsDropped: a steer on a thread with no turn
+// running has nothing to land in. The adapter reports it dropped, false and
+// no error, without a call to the daemon: there is no active turn to route
+// it to, so no connection is needed. A steer on an unknown session is the
+// error it always was. The other dropped path, turn/steer failing because
+// the turn ended while the steer was on its way, needs a live daemon; the
+// Session-level outcome of an adapter reporting that is covered with the
+// fake adapter in the root package.
+func TestSteerWithNoTurnRunningIsDropped(t *testing.T) {
+	ad := New().(*adapter)
+	ad.sessions["thread-1"] = &session{}
+	landed, err := ad.Steer(context.Background(), "thread-1", "change course")
+	if err != nil {
+		t.Fatalf("Steer = %v, want nil: a dropped steer is not an error", err)
+	}
+	if landed {
+		t.Fatal("Steer landed with no turn running")
+	}
+	if _, err := ad.Steer(context.Background(), "unknown-thread", "change course"); err == nil {
+		t.Fatal("Steer on an unknown session = nil, want an error")
+	}
+}

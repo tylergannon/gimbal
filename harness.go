@@ -22,9 +22,12 @@ type HarnessAdapter interface {
 	// the native turn and returns ctx.Err().
 	RunTurn(ctx context.Context, sessionID, prompt string, schema json.RawMessage, onEvent func(AgentEvent) error) (TurnResult, error)
 
-	// Steer sends a message into the session's running turn. With no turn
-	// running it does nothing and returns nil.
-	Steer(ctx context.Context, sessionID, message string) error
+	// Steer sends a message into the session's running turn and reports
+	// whether it landed there. landed is false, with a nil error, when no
+	// turn was running to receive it, including when the turn ended while
+	// the steer was on its way. The error is for a harness that could not
+	// be reached.
+	Steer(ctx context.Context, sessionID, message string) (landed bool, err error)
 
 	// Fork returns a new native session with the conversation so far.
 	Fork(ctx context.Context, sessionID string) (string, error)

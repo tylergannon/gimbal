@@ -422,23 +422,26 @@ func (s *Session) usable() error {
 
 // Steer injects a message into the turn that is running on this session.
 // It is called from another goroutine while Generate blocks. The message
-// lands at the worker's next model call. If no turn is running the message
-// is dropped, and Steer returns nil either way. The error is for a harness
+// lands at the worker's next model call, and landed reports that it did.
+// A steer with no turn to receive it is dropped, not failed: landed is
+// false and the error is nil, whether no turn was running here or the
+// turn ended inside the harness while the steer was on its way. The Steer
+// lifecycle record carries the same outcome. The error is for a harness
 // that could not be reached.
-func (s *Session) Steer(ctx context.Context, message string) error {
+func (s *Session) Steer(ctx context.Context, message string) (landed bool, err error) {
 	s.mu.Lock()
 	native, running, turn, emit := s.native, s.running, s.turnID, s.activeEmit
 	s.mu.Unlock()
-	if !running || native == "" {
-		logf("%s: steer dropped: %s", s.id, oneLine(message))
-		if scope, err := current(ctx); err == nil {
-			scope.run.event(scope.key, s.id, turn, Steer{Target: s.id, Source: steerSource(ctx), Message: message})
+	scope, _ := current(ctx)
+	record := func(landed bool) {
+		if scope != nil {
+			scope.run.event(scope.key, s.id, turn, Steer{Target: s.id, Source: steerSource(ctx), Message: message, Landed: landed})
 		}
-		return nil
 	}
-	logf("%s: steer: %s", s.id, oneLine(message))
-	if scope, err := current(ctx); err == nil {
-		scope.run.event(scope.key, s.id, turn, Steer{Target: s.id, Source: steerSource(ctx), Message: message, Landed: true})
+	if !running || native == "" {
+		logf("%s: steer dropped, no turn is running: %s", s.id, oneLine(message))
+		record(false)
+		return false, nil
 	}
 	inboxKey := turn + fmt.Sprintf("/steer.%d", time.Now().UnixNano())
 	if emit != nil {
@@ -446,19 +449,29 @@ func (s *Session) Steer(ctx context.Context, message string) error {
 			"sessionID": native, "inboxID": inboxKey,
 			"item": map[string]any{"type": "user", "payload": map[string]any{"text": message}, "delivery": "steer"},
 		}, map[string]any{"provider": "gimble", "sessionID": native, "turnID": turn, "messageID": inboxKey})); err != nil {
-			return err
+			return false, err
 		}
 	}
-	err := s.adapter.Steer(ctx, native, message)
+	landed, err = s.adapter.Steer(ctx, native, message)
+	switch {
+	case err != nil:
+		landed = false
+		logf("%s: steer failed: %v: %s", s.id, err, oneLine(message))
+	case landed:
+		logf("%s: steer landed: %s", s.id, oneLine(message))
+	default:
+		logf("%s: steer dropped, the turn ended first: %s", s.id, oneLine(message))
+	}
+	record(landed)
 	if emit != nil {
 		eventType := "session.inbox.delivered"
-		if err != nil {
+		if !landed {
 			eventType = "session.inbox.cancelled"
 		}
 		emitErr := emit(nativeEvent(eventType, map[string]any{"sessionID": native, "inboxID": inboxKey}, map[string]any{"provider": "gimble", "sessionID": native, "turnID": turn, "messageID": inboxKey}))
-		return errors.Join(err, emitErr)
+		err = errors.Join(err, emitErr)
 	}
-	return err
+	return landed, err
 }
 
 type steerSourceKey struct{}

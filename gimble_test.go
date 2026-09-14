@@ -30,6 +30,10 @@ type fake struct {
 	// example, that it is not already cancelled).
 	onClose func(ctx context.Context, session string)
 	report  map[string]Usage // the harness's own turn report, when this fake states one
+	// dropSteers, when set, makes every Steer report that no turn received
+	// it, as an adapter does when the turn ended while the steer was on its
+	// way.
+	dropSteers bool
 
 	mu      sync.Mutex
 	made    int
@@ -68,13 +72,14 @@ func (f *fake) RunTurn(ctx context.Context, session, prompt string, schema json.
 	return result, err
 }
 
-func (f *fake) Steer(ctx context.Context, session, message string) error {
+func (f *fake) Steer(ctx context.Context, session, message string) (bool, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	if emit := f.running[session]; emit != nil {
-		f.steers = append(f.steers, message)
+	if f.dropSteers || f.running[session] == nil {
+		return false, nil
 	}
-	return nil
+	f.steers = append(f.steers, message)
+	return true, nil
 }
 
 func (f *fake) Fork(ctx context.Context, session string) (string, error) {
@@ -779,7 +784,11 @@ func TestAttestEventFixture(t *testing.T) {
 			turns.Go("steer", func(ctx context.Context) error {
 				select {
 				case <-looking:
-					return worker.Steer(withSteerSource(ctx, reviewer.id), "continue")
+					landed, err := worker.Steer(withSteerSource(ctx, reviewer.id), "continue")
+					if err == nil && !landed {
+						return errors.New("the steer during the worker turn did not land")
+					}
+					return err
 				case <-ctx.Done():
 					return ctx.Err()
 				}
@@ -787,8 +796,10 @@ func TestAttestEventFixture(t *testing.T) {
 			if err := turns.Wait(); err != nil {
 				return err
 			}
-			if err := worker.Steer(ctx, "too late"); err != nil {
+			if landed, err := worker.Steer(ctx, "too late"); err != nil {
 				return err
+			} else if landed {
+				return errors.New("a steer with no turn running landed")
 			}
 			if _, err := fork.Generate[Text](ctx, "plan"); err != nil {
 				return err

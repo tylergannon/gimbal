@@ -73,7 +73,7 @@ func noiseEvent(sessionID, eventType string, data map[string]any) gimble.AgentEv
 	return gimble.AgentEvent{Type: eventType, Data: raw, NativeRef: ref}
 }
 
-func (a *noisyWorker) Steer(ctx context.Context, sessionID, message string) error {
+func (a *noisyWorker) Steer(ctx context.Context, sessionID, message string) (bool, error) {
 	if strings.Contains(message, "inside the runtime") {
 		a.steer.Store(true)
 	}
@@ -111,7 +111,7 @@ func (a *measuredReviewer) RunTurn(ctx context.Context, sessionID, prompt string
 	return a.inner.RunTurn(ctx, sessionID, prompt, schema, emit)
 }
 
-func (a *measuredReviewer) Steer(ctx context.Context, sessionID, message string) error {
+func (a *measuredReviewer) Steer(ctx context.Context, sessionID, message string) (bool, error) {
 	return a.inner.Steer(ctx, sessionID, message)
 }
 

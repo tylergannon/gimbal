@@ -81,7 +81,7 @@ func native(kind string, data map[string]any, messageID string) gimble.AgentEven
 	ref, _ := json.Marshal(map[string]any{"provider": "proof", "messageID": messageID, "accounting": map[string]any{"costAvailable": true, "tokensAvailable": true, "costSource": "provider"}})
 	return gimble.AgentEvent{Type: kind, Data: raw, NativeRef: ref}
 }
-func (*deterministicAdapter) Steer(context.Context, string, string) error { return nil }
+func (*deterministicAdapter) Steer(context.Context, string, string) (bool, error) { return false, nil }
 func (*deterministicAdapter) Fork(_ context.Context, id string) (string, error) {
 	return id + "-fork", nil
 }

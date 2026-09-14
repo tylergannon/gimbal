@@ -32,9 +32,9 @@ func (f *fake) RunTurn(_ context.Context, _ string, prompt string, schema json.R
 	}
 	return gimble.TurnResult{Output: json.RawMessage(out)}, nil
 }
-func (f *fake) Steer(context.Context, string, string) error  { return nil }
-func (f *fake) Fork(context.Context, string) (string, error) { return "native-fork", nil }
-func (f *fake) Close(context.Context, string) error          { return nil }
+func (f *fake) Steer(context.Context, string, string) (bool, error) { return false, nil }
+func (f *fake) Fork(context.Context, string) (string, error)        { return "native-fork", nil }
+func (f *fake) Close(context.Context, string) error                 { return nil }
 
 func backlogPath(prompt string) string {
 	marker := "Its revisable backlog is "

@@ -1,0 +1,11 @@
+2026/09/13 18:55:04 gimble: web application listening on 127.0.0.1:8113 (prod)
+Model: claude=claude-haiku-4-5-20251001
+2026/09/13 18:55:04 gimble: run 01M2EPJ4QQ9KX6ARF6MSYWKJFK.issue-113 started in /Users/tyler/src/gimble/.claude/worktrees/agent-a6bf771774bab8dff/ephemeral/attest/issue-113/logs/runs/01M2EPJ4QQ9KX6ARF6MSYWKJFK.issue-113
+2026/09/13 18:55:04 gimble: worker.1: turn started (claude-haiku-4-5-20251001)
+Run: 01M2EPJ4QQ9KX6ARF6MSYWKJFK.issue-113
+Page: http://127.0.0.1:8113/runs/01M2EPJ4QQ9KX6ARF6MSYWKJFK.issue-113
+2026/09/13 18:55:05 gimble: worker.1: turn ended after 1s: claude: assistant error: authentication_failed
+2026/09/13 18:55:05 gimble: run 01M2EPJ4QQ9KX6ARF6MSYWKJFK.issue-113 ended: gimble: worker.1: claude: assistant error: authentication_failed
+Run finished in 1.384s: err=gimble: worker.1: claude: assistant error: authentication_failed
+Workspace after the run:
+exit status 1

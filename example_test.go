@@ -20,7 +20,7 @@ func (a *exampleAdapter) RunTurn(_ context.Context, _ string, prompt string, sch
 	return gimble.TurnResult{Output: out}, err
 }
 
-func (*exampleAdapter) Steer(context.Context, string, string) error { return nil }
+func (*exampleAdapter) Steer(context.Context, string, string) (bool, error) { return false, nil }
 func (*exampleAdapter) Fork(context.Context, string) (string, error) {
 	return "example-fork", nil
 }
@@ -95,7 +95,7 @@ func (a *exampleLoopAdapter) RunTurn(_ context.Context, _ string, _ string, _ js
 	return gimble.TurnResult{Output: json.RawMessage(`{"tasks":[{"name":"Show the task","description":"Make the structured assignment visible to the workflow.","definition_of_done":"The workflow receives and records the assignment.","validation":{"command":"","query":""}}],"next":0}`)}, nil
 }
 
-func (*exampleLoopAdapter) Steer(context.Context, string, string) error { return nil }
+func (*exampleLoopAdapter) Steer(context.Context, string, string) (bool, error) { return false, nil }
 func (*exampleLoopAdapter) Fork(context.Context, string) (string, error) {
 	return "example-planner-fork", nil
 }

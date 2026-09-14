@@ -13,8 +13,8 @@ import "context"
 // ended id is an error.
 type Controller interface {
 	// Steer sends message into the session's running turn as the person
-	// watching the run.
-	Steer(ctx context.Context, sessionID, message string) error
+	// watching the run, and reports whether it landed there.
+	Steer(ctx context.Context, sessionID, message string) (landed bool, err error)
 	// CancelScope ends the scope's ctx with cause.
 	CancelScope(key string, cause error) error
 	// CancelTurn ends only that turn's ctx with cause.

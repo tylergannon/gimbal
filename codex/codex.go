@@ -300,15 +300,19 @@ func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema 
 	return gimble.TurnResult{Output: json.RawMessage(strings.TrimSpace(text))}, nil
 }
 
-// Steer sends message into the thread's running turn, if there is one.
-func (a *adapter) Steer(ctx context.Context, sessionID, message string) error {
+// Steer sends message into the thread's running turn and reports whether
+// it landed. With no turn running, or when turn/steer fails because the
+// turn ended while the steer was on its way, the message is dropped: false
+// and no error. A turn/steer failure on a turn that is still running is the
+// error it is.
+func (a *adapter) Steer(ctx context.Context, sessionID, message string) (bool, error) {
 	s, err := a.session(sessionID)
 	if err != nil {
-		return err
+		return false, err
 	}
 	active := s.getActive()
 	if active == nil {
-		return nil
+		return false, nil
 	}
 	ctx, cancel := context.WithTimeout(ctx, controlTimeout)
 	defer cancel()
@@ -319,11 +323,11 @@ func (a *adapter) Steer(ctx context.Context, sessionID, message string) error {
 	})
 	if err != nil {
 		if s.getActive() != active {
-			return nil // the turn ended first: the message is dropped
+			return false, nil // the turn ended first: the message is dropped
 		}
-		return err
+		return false, err
 	}
-	return nil
+	return true, nil
 }
 
 // Close forgets sessionID locally and archives its thread in the daemon.

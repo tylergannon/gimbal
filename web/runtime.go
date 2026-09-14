@@ -238,11 +238,12 @@ func (r *Runtime) inProgress(runID string) (live.Controller, error) {
 
 // Steer sends message into the turn running on session sessionID of the run
 // runID, as the person watching the page: the run log records it with
-// Source "person". An unknown or finished run or session is an error.
-func (r *Runtime) Steer(ctx context.Context, runID, sessionID, message string) error {
+// Source "person", and landed reports whether a turn received it. An
+// unknown or finished run or session is an error.
+func (r *Runtime) Steer(ctx context.Context, runID, sessionID, message string) (landed bool, err error) {
 	run, err := r.inProgress(runID)
 	if err != nil {
-		return err
+		return false, err
 	}
 	return run.Steer(ctx, sessionID, message)
 }

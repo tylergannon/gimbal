@@ -73,7 +73,7 @@ func (d *dryRun) RunTurn(_ context.Context, sessionID, prompt string, schema jso
 	return gimble.TurnResult{Output: answer}, nil
 }
 
-func (d *dryRun) Steer(context.Context, string, string) error { return nil }
+func (d *dryRun) Steer(context.Context, string, string) (bool, error) { return false, nil }
 
 func (d *dryRun) Fork(_ context.Context, sessionID string) (string, error) {
 	d.mu.Lock()

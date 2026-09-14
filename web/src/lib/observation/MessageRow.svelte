@@ -9,6 +9,11 @@
 		const delta = native.delta ?? native.event?.delta;
 		return delta?.text ?? delta?.thinking ?? native.message?.content?.map((part: JSONObject) => part.text).filter(Boolean).join('\n') ?? text(native);
 	};
+	const transcriptOf = (part: JSONObject) => {
+		const content = part.state?.content?.find((entry: JSONObject) => entry.type === 'transcript');
+		const events = content?.events ?? part.state?.metadata?.transcript;
+		return Array.isArray(events) ? events : undefined;
+	};
 	const row: JSONObject = $derived.by(() => {
 		revision;
 		return {
@@ -34,21 +39,21 @@
 					<p class="prose reasoning">{part.text}</p>
 				</details>
 			{:else if part.type === 'tool'}
+				{@const transcript = transcriptOf(part)}
 				<section class="tool">
 					<header><strong>{part.name}</strong><span>{part.state?.status ?? 'pending'}</span></header>
 					{#if part.state?.input !== undefined}<pre>{text(part.state.input)}</pre>{/if}
-					{#if part.state?.status === 'running' && part.state?.metadata !== undefined}<pre class="progress">{text(part.state.metadata)}</pre>{/if}
+					{#if part.state?.status === 'running' && part.state?.metadata !== undefined && transcript === undefined}<pre class="progress">{text(part.state.metadata)}</pre>{/if}
 					{#if part.state?.content !== undefined}
 						{#each part.state.content as content}
-							{#if content.type === 'transcript'}
-								<details class="nested" open>
-									<summary>Subagent transcript · {content.events?.length ?? 0} events</summary>
-									{#each content.events ?? [] as event}
-										<pre>{eventText(event)}</pre>
-									{/each}
-								</details>
-							{:else}<pre>{text(content)}</pre>{/if}
+							{#if content.type !== 'transcript'}<pre>{text(content)}</pre>{/if}
 						{/each}
+					{/if}
+					{#if transcript !== undefined}
+						<details class="nested" open>
+							<summary>Subagent transcript · {transcript.length} events</summary>
+							{#each transcript as event}<pre>{eventText(event)}</pre>{/each}
+						</details>
 					{/if}
 					{#if part.state?.error !== undefined}<p class="error">{text(part.state.error)}</p>{/if}
 				</section>

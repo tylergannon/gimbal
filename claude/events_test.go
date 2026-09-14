@@ -205,6 +205,39 @@ func TestRawProjectorKeepsNestedTranscriptInsideParentTool(t *testing.T) {
 	}
 }
 
+func TestRawProjectorAcceptsNestedTranscriptAfterAsyncToolCompletes(t *testing.T) {
+	var events []gimble.AgentEvent
+	p := newProjector("session", "model", func(event gimble.AgentEvent) error {
+		events = append(events, event)
+		return nil
+	})
+	for _, fixture := range []string{
+		`{"type":"stream_event","event":{"type":"message_start","message":{"id":"parent-message","model":"model","usage":{}}}}`,
+		`{"type":"stream_event","event":{"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"task-call","name":"Agent","input":{}}}}`,
+		`{"type":"stream_event","event":{"type":"content_block_stop","index":0}}`,
+		`{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"task-call","content":"launched","is_error":false}]}}`,
+		`{"type":"stream_event","event":{"type":"message_delta","delta":{"stop_reason":"tool_use"}}}`,
+		`{"type":"stream_event","event":{"type":"message_stop"}}`,
+		`{"type":"stream_event","event":{"type":"message_start","message":{"id":"next-message","model":"model","usage":{}}}}`,
+		`{"type":"assistant","parent_tool_use_id":"task-call","message":{"id":"child-message","content":[{"type":"text","text":"late child"}]}}`,
+	} {
+		mustRaw(t, p.raw(json.RawMessage(fixture)))
+	}
+
+	var progress map[string]any
+	claudeData(t, firstClaudeType(t, events, "session.tool.progress"), &progress)
+	if progress["assistantMessageID"] != "parent-message" {
+		t.Fatalf("late child attached to message %#v, want parent-message", progress["assistantMessageID"])
+	}
+	var native map[string]any
+	if err := json.Unmarshal(firstClaudeType(t, events, "session.tool.progress").NativeRef, &native); err != nil {
+		t.Fatal(err)
+	}
+	if native["messageID"] != "parent-message" {
+		t.Fatalf("late child NativeRef messageID = %#v, want parent-message", native["messageID"])
+	}
+}
+
 func TestRawProjectorRecordsRetryFailureAndPermissionDecision(t *testing.T) {
 	var events []gimble.AgentEvent
 	p := newProjector("session", "model", func(event gimble.AgentEvent) error {

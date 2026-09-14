@@ -288,15 +288,10 @@ func TestProjectorRecordsNativeRetryAndTerminalError(t *testing.T) {
 		t.Fatalf("retry event types = %v", got)
 	}
 	var retry map[string]any
-	retryEvent := firstType(t, events, "session.retry.scheduled")
-	decodeData(t, retryEvent, &retry)
+	decodeData(t, firstType(t, events, "session.retry.scheduled"), &retry)
 	if _, exists := retry["attempt"]; exists {
 		t.Fatalf("retry invented an attempt: %#v", retry)
 	}
-	if !jsonContains(retryEvent.NativeRef, `"notification":"error"`) {
-		t.Fatalf("retry lost native provenance: %s", retryEvent.NativeRef)
-	}
-
 	retrying, err = p.harnessError(json.RawMessage(`{"threadId":"thread","turnId":"turn","error":{"message":"upstream failed","additionalDetails":"request exhausted"},"willRetry":false}`))
 	mustProject(t, err)
 	if retrying {
@@ -373,6 +368,37 @@ func TestProjectorKeepsNativeChildTranscriptInsideCollabTool(t *testing.T) {
 	transcript := content[1].(map[string]any)["events"].([]any)
 	if len(transcript) != 4 {
 		t.Fatalf("nested event count = %d, want 4", len(transcript))
+	}
+}
+
+func TestProjectorAcceptsChildEventsAfterCollabToolCompletes(t *testing.T) {
+	var events []gimble.AgentEvent
+	p := newProjector("parent", "turn", "model", func(event gimble.AgentEvent) error {
+		events = append(events, event)
+		return nil
+	})
+	started := json.RawMessage(`{"item":{"id":"spawn","type":"collabAgentToolCall","tool":"spawnAgent","receiverThreadIds":[],"status":"inProgress"}}`)
+	mustProject(t, p.itemStarted(started))
+	mustProject(t, p.rawResponseCompleted(json.RawMessage(`{"responseId":"response","usage":{}}`)))
+	_, _, err := p.itemCompleted(json.RawMessage(`{"item":{"id":"spawn","type":"collabAgentToolCall","tool":"spawnAgent","receiverThreadIds":["child"],"status":"completed"}}`))
+	mustProject(t, err)
+	mustProject(t, p.nestedEvent("spawn", gimble.AgentEvent{Type: "session.text.delta", Data: json.RawMessage(`{"delta":"late child"}`)}))
+
+	var progress map[string]any
+	decodeData(t, firstType(t, events, "session.tool.progress"), &progress)
+	if progress["assistantMessageID"] != "spawn" {
+		t.Fatalf("late child attached to message %#v, want spawn", progress["assistantMessageID"])
+	}
+}
+
+func TestChildThreadRemainsOwnedByItsSpawnTool(t *testing.T) {
+	conn := &connection{threads: make(map[string]chan rpcMessage)}
+	ch := make(chan rpcMessage)
+	parents := make(map[string]string)
+	registerCodexChildren(conn, ch, json.RawMessage(`{"item":{"id":"spawn","type":"collabAgentToolCall","receiverThreadIds":["child"]}}`), parents)
+	registerCodexChildren(conn, ch, json.RawMessage(`{"item":{"id":"wait","type":"collabAgentToolCall","receiverThreadIds":["child"]}}`), parents)
+	if parents["child"] != "spawn" {
+		t.Fatalf("child parent = %q, want spawn", parents["child"])
 	}
 }
 

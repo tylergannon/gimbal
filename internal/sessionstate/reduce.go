@@ -237,7 +237,8 @@ func (p *Projection) Apply(event *Obj) {
 	case "session.tool.progress":
 		p.editTool(sessionID, assistantID, str(d.Get("id")), func(t *Obj) {
 			state := objOf(t.Get("state"))
-			if str(state.Get("status")) == "running" {
+			switch str(state.Get("status")) {
+			case "running", "completed", "error":
 				state.Set("metadata", cloneValue(d.Get("metadata")))
 			}
 		})
@@ -611,10 +612,14 @@ func (p *Projection) toolSuccess(event *Obj) {
 		if str(state.Get("status")) != "running" {
 			return
 		}
+		metadata := d.Get("metadata")
+		if isUndefined(metadata) {
+			metadata = state.Get("metadata")
+		}
 		t.Set("state", obj(
 			"status", "completed",
 			"input", cloneValue(state.Get("input")),
-			"metadata", cloneValue(d.Get("metadata")),
+			"metadata", cloneValue(metadata),
 			"content", cloneValue(d.Get("content")),
 		))
 		t.Set("executed", executedAfterResult(d, t))
@@ -635,11 +640,15 @@ func (p *Projection) toolFailed(event *Obj) {
 		if _, ok := state.Get("input").(string); ok {
 			input = NewObj()
 		}
+		metadata := d.Get("metadata")
+		if isUndefined(metadata) {
+			metadata = state.Get("metadata")
+		}
 		t.Set("state", obj(
 			"status", "error",
 			"error", cloneValue(d.Get("error")),
 			"input", input,
-			"metadata", cloneValue(d.Get("metadata")),
+			"metadata", cloneValue(metadata),
 			"content", cloneValue(d.Get("content")),
 		))
 		t.Set("executed", executedAfterResult(d, t))

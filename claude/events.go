@@ -28,6 +28,7 @@ type projector struct {
 	textOpen      bool
 	reasoningOpen bool
 	pendingTools  map[string]bool
+	toolMessages  map[string]string
 	nested        map[string][]map[string]any
 	usage         claudeUsage
 	report        map[string]gimble.Usage
@@ -49,7 +50,7 @@ type claudeUsage struct {
 func newProjector(sessionID, model string, emit func(gimble.AgentEvent) error) *projector {
 	return &projector{
 		emit: emit, sessionID: sessionID, model: model,
-		blocks: make(map[int]*blockState), pendingTools: make(map[string]bool), nested: make(map[string][]map[string]any),
+		blocks: make(map[int]*blockState), pendingTools: make(map[string]bool), toolMessages: make(map[string]string), nested: make(map[string][]map[string]any),
 	}
 }
 
@@ -115,15 +116,18 @@ func isNestedClaudeMessage(envelope map[string]any) bool {
 func (p *projector) nestedEvent(parent string, envelope map[string]any) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if !p.pendingTools[parent] {
+	messageID := p.toolMessages[parent]
+	if messageID == "" {
 		return fmt.Errorf("claude: nested transcript for unknown parent tool_use_id %s", parent)
 	}
 	p.nested[parent] = append(p.nested[parent], envelope)
+	ref := p.nativeRef(envelope, parent)
+	ref["messageID"] = messageID
 	return p.event("session.tool.progress", map[string]any{
-		"assistantMessageID": p.messageID,
+		"assistantMessageID": messageID,
 		"id":                 parent,
 		"metadata":           map[string]any{"transcript": p.nested[parent]},
-	}, p.nativeRef(envelope, parent))
+	}, ref)
 }
 
 func (p *projector) system(envelope map[string]any) error {
@@ -174,7 +178,10 @@ func (p *projector) permissionRequest(toolName string, input json.RawMessage, to
 	if agentID != "" {
 		metadata["agentID"] = agentID
 	}
-	ref := map[string]any{"provider": "claude", "sessionID": p.sessionID, "request": "can_use_tool"}
+	ref := map[string]any{"provider": "claude", "sessionID": p.sessionID}
+	if toolUseID != "" {
+		ref["itemID"] = toolUseID
+	}
 	if err := p.permissionAsked(id, toolName, metadata, ref); err != nil {
 		return err
 	}
@@ -209,7 +216,6 @@ func (p *projector) stream(event, envelope map[string]any) error {
 		p.stopReason = ""
 		p.blocks = make(map[int]*blockState)
 		p.pendingTools = make(map[string]bool)
-		p.nested = make(map[string][]map[string]any)
 		p.usage = claudeUsage{}
 		p.usage.merge(object(message["usage"]))
 		ref["messageID"] = p.messageID
@@ -284,6 +290,7 @@ func (p *projector) blockStart(event map[string]any, ref map[string]any) error {
 		if p.pendingTools[state.id] {
 			return fmt.Errorf("claude: tool_use_id %s opened twice", state.id)
 		}
+		p.toolMessages[state.id] = p.messageID
 		ref["itemID"] = state.id
 		if input, ok := block["input"]; ok {
 			raw, _ := json.Marshal(input)

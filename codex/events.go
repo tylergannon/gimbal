@@ -34,6 +34,7 @@ type projector struct {
 	reasoningOrd  int
 	reasoning     strings.Builder
 	tools         map[string]*toolState
+	nestedTools   map[string]*nestedToolState
 	responseCalls map[string]bool
 	pendingTools  int
 	usage         normalizedUsage
@@ -42,8 +43,12 @@ type projector struct {
 type toolState struct {
 	name   string
 	output strings.Builder
-	nested []map[string]any
 	done   bool
+}
+
+type nestedToolState struct {
+	messageID string
+	events    []map[string]any
 }
 
 type normalizedUsage struct {
@@ -53,7 +58,7 @@ type normalizedUsage struct {
 func newProjector(sessionID, turnID, model string, emit func(gimble.AgentEvent) error) *projector {
 	return &projector{
 		emit: emit, sessionID: sessionID, turnID: turnID, model: model,
-		tools: make(map[string]*toolState), responseCalls: make(map[string]bool),
+		tools: make(map[string]*toolState), nestedTools: make(map[string]*nestedToolState), responseCalls: make(map[string]bool),
 	}
 }
 
@@ -172,6 +177,9 @@ func (p *projector) startTool(item nativeItem, params json.RawMessage) error {
 	}
 	state := &toolState{name: toolName(item)}
 	p.tools[item.id] = state
+	if item.kind == "collabAgentToolCall" {
+		p.nestedTools[item.id] = &nestedToolState{messageID: p.messageID}
+	}
 	p.pendingTools++
 	ref := p.nativeRef(params)
 	if err := p.event("session.tool.input.started", map[string]any{"assistantMessageID": p.messageID, "id": item.id, "name": state.name}, ref); err != nil {
@@ -306,18 +314,19 @@ func (p *projector) itemCompleted(params json.RawMessage) (string, bool, error) 
 		state.done = true
 		p.pendingTools--
 		output := toolOutput(item)
+		nested := p.nestedTools[item.id]
 		if failed, message := toolFailure(item); failed {
 			data := map[string]any{"assistantMessageID": p.messageID, "id": item.id, "error": map[string]any{"type": item.kind, "message": message}, "executed": true}
-			if len(state.nested) > 0 {
-				data["content"] = []any{map[string]any{"type": "transcript", "events": state.nested}}
+			if nested != nil && len(nested.events) > 0 {
+				data["content"] = []any{map[string]any{"type": "transcript", "events": nested.events}}
 			}
 			if err := p.event("session.tool.failed", data, ref); err != nil {
 				return "", false, err
 			}
 		} else {
 			content := []any{map[string]any{"type": "text", "text": outputText(output)}}
-			if len(state.nested) > 0 {
-				content = append(content, map[string]any{"type": "transcript", "events": state.nested})
+			if nested != nil && len(nested.events) > 0 {
+				content = append(content, map[string]any{"type": "transcript", "events": nested.events})
 			}
 			if err := p.event("session.tool.success", map[string]any{"assistantMessageID": p.messageID, "id": item.id, "content": content, "executed": true}, ref); err != nil {
 				return "", false, err
@@ -338,19 +347,19 @@ func (p *projector) itemCompleted(params json.RawMessage) (string, bool, error) 
 func (p *projector) nestedEvent(parentTool string, event gimble.AgentEvent) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	state := p.tools[parentTool]
-	if state == nil || state.done {
-		return fmt.Errorf("codex: nested transcript for inactive parent tool %s", parentTool)
+	state := p.nestedTools[parentTool]
+	if state == nil {
+		return fmt.Errorf("codex: nested transcript for unknown parent tool %s", parentTool)
 	}
 	entry := map[string]any{"type": event.Type, "data": json.RawMessage(event.Data)}
 	if len(event.NativeRef) > 0 {
 		entry["nativeRef"] = json.RawMessage(event.NativeRef)
 	}
-	state.nested = append(state.nested, entry)
+	state.events = append(state.events, entry)
 	return p.event("session.tool.progress", map[string]any{
-		"assistantMessageID": p.messageID,
+		"assistantMessageID": state.messageID,
 		"id":                 parentTool,
-		"metadata":           map[string]any{"transcript": state.nested},
+		"metadata":           map[string]any{"transcript": state.events},
 	}, map[string]any{"provider": "codex", "sessionID": p.sessionID, "turnID": p.turnID, "itemID": parentTool})
 }
 
@@ -488,7 +497,6 @@ func (p *projector) harnessError(params json.RawMessage) (bool, error) {
 		return false, fmt.Errorf("codex: decode error notification: %w", err)
 	}
 	ref := p.nativeRef(params)
-	ref["notification"] = "error"
 	if err := p.ensureStep("", ref); err != nil {
 		return value.WillRetry, err
 	}
@@ -520,7 +528,6 @@ func (p *projector) approvalRequested(method string, params json.RawMessage) (st
 		id = fmt.Sprintf("%s/request.%d", p.turnID, p.response+1)
 	}
 	ref := p.nativeRef(params)
-	ref["request"] = method
 	return id, p.event("permission.asked", map[string]any{
 		"id":         id,
 		"permission": method,
@@ -532,7 +539,6 @@ func (p *projector) approvalReplied(id, decision, method string, params json.Raw
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	ref := p.nativeRef(params)
-	ref["request"] = method
 	return p.event("permission.replied", map[string]any{
 		"requestID": id,
 		"reply":     decision,

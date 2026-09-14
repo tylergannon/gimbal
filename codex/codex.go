@@ -524,6 +524,9 @@ func readTurn(ctx context.Context, conn *connection, ch chan rpcMessage, threadI
 func registerCodexChildren(conn *connection, ch chan rpcMessage, params json.RawMessage, parents map[string]string) {
 	parent, children := codexChildThreads(params)
 	for _, child := range children {
+		if _, owned := parents[child]; owned {
+			continue
+		}
 		parents[child] = parent
 		conn.routeThread(child, ch)
 	}

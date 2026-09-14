@@ -58,3 +58,15 @@ rewritten rather than added, so the facts stay the files'. A directory
 missing any of the six is rebuilt from the logs and the six are written.
 (Coordinator's revision, mid-build; the plan's § Replay describes the
 rebuild path only.)
+
+friction: the Svelte MCP tools are not in this session's tool list, and a
+ToolSearch for them finds nothing, so `svelte-autofixer` could not be run.
+`pnpm run check` (svelte-check, 353 files) reports 0 errors and 0 warnings on
+the changed components instead.
+
+decision: `MessageRow.svelte` is unchanged. `usageOf` already returns the flat
+`Usage`, and `usageText` reads it, so the call site needed nothing.
+
+decision: an absent roll-up renders through `usageOf(undefined)` rather than a
+new exported zero constant. A scope or session Go has not summed yet reads as
+five zeros and a cost of 0, which is what it spent.

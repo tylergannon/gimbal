@@ -1,40 +1,88 @@
 import { SessionProjection, type JSONObject, type JSONValue, type ProjectionState, type Snapshot } from '../sessionstate/index.js'
-/** The cost and the five token counts as a native usage event carries them. */
-export type Usage = { cost: number; tokens: Tokens }
-export type Tokens = { input: number; output: number; reasoning: number; cache: Cache }
-export type Cache = { read: number; write: number }
+
+/** The five token counts every harness reports, flat. A count the provider
+ * did not report is 0: zero is a number, and nothing here says whether it was
+ * measured or absent. */
+export type Tokens = { input: number; cache_read: number; cache_write: number; output: number; reasoning: number }
+/** Tokens and the cost the harness stated, 0 when it stated none. */
+export type Usage = Tokens & { stated_cost: number }
 
 export type RunStatus = 'running' | 'completed' | 'failed' | 'cancelled'
-export type RunSession = { name: string; adapter: string; model: string; scope: string; parent?: string }
-export type InvocationSnapshot = { scope: string; session: string; turn: string; snapshot: Snapshot; provenance: Record<string, unknown> }
-/** One scope instance's workflow state. An ended scope with no error is 'ended', never 'succeeded'. */
-export type ScopeInfo = { name: string; status: 'running' | 'ended'; error?: string; task?: JSONValue; values?: Record<string, JSONValue>; decisions?: JSONValue[] }
-export type RunSnapshot = {
-	run: { id: string; name: string; status: RunStatus; error?: string; sessions: Record<string, RunSession>; usage?: Record<string, Usage> }
-	scopes: Record<string, ScopeInfo>
-	invocations: Record<string, InvocationSnapshot>
+/** The rows of the run store, as Go writes them. Times are Unix ms. */
+export type RunRow = { id: string; name: string; status: RunStatus; error: string; started: number; ended: number }
+/** One planner decision: the record's sequence and the event's own words. */
+export type Decision = { seq: number; body: JSONValue }
+/** One scope instance. `key` is the slash path, so the parent is the path
+ * above it. An ended scope with no error is 'ended', never 'succeeded'. */
+export type ScopeRow = {
+	run: string; key: string; name: string; status: 'running' | 'ended'; error: string
+	task?: JSONValue; began: number; ended: number
+	values: Record<string, JSONValue>; decisions: Decision[]
 }
-export type LifecycleRecord = { seq: number; time: string; scope: string; session?: string; turn?: string; event: { kind: string; [key: string]: unknown } }
+/** One agent conversation. `scope` is where it was created, which is not
+ * where its turns necessarily ran. */
+export type SessionRow = { run: string; id: string; name: string; adapter: string; model: string; scope: string; parent: string; created: number }
+/** One agent turn. `scope` is where the turn ran, which is what its tokens
+ * are charged to. */
+export type TurnRow = {
+	run: string; id: string; session: string; scope: string; prompt: string; output_type: string
+	result: string; error: string; interrupted: boolean; started: number; ended: number; duration: number
+}
+/** One step that reached a model: the drill below a turn. It is a fact and is
+ * never summed. */
+export type ModelCallRow = Tokens & { run: string; turn: string; message: string; model: string; started: number; ended: number }
+/** One roll-up: across every model, and per model. */
+export type Total = { all: Usage; by_model: Record<string, Usage> }
+/** Every scope's and every session's roll-up, computed in Go. The browser
+ * never sums anything. */
+export type Totals = { scopes: Record<string, Total>; sessions: Record<string, Total> }
+/** One turn's transcript: the session projection and its native provenance. */
+export type Transcript = { snapshot: Snapshot; provenance: Record<string, unknown> }
+
+export type RunSnapshot = {
+	run: RunRow
+	scopes: Record<string, ScopeRow>
+	sessions: Record<string, SessionRow>
+	turns: Record<string, TurnRow>
+	turn_usage: Record<string, Record<string, Usage>>
+	model_calls: Record<string, ModelCallRow[]>
+	totals: Totals
+	transcripts: Record<string, Transcript>
+}
+
+/** One changed row. The table name is the snapshot's own key, so a frame
+ * names one thing: for turn_usage the row is the turn's whole model map, and
+ * for model_calls the turn's whole call list. */
+export type RowFrame =
+	| { table: 'run'; key: string; row: RunRow }
+	| { table: 'scopes'; key: string; row: ScopeRow }
+	| { table: 'sessions'; key: string; row: SessionRow }
+	| { table: 'turns'; key: string; row: TurnRow }
+	| { table: 'turn_usage'; key: string; row: Record<string, Usage> }
+	| { table: 'model_calls'; key: string; row: ModelCallRow[] }
+
 export type ObservationFrame =
 	| { type: 'snapshot'; data: RunSnapshot }
+	| { type: 'row'; data: RowFrame }
+	| { type: 'totals'; data: Totals }
 	| { type: 'event'; data: { scope: string; session: string; turn: string; event: JSONObject; nativeRef?: JSONValue } }
-	| { type: 'lifecycle'; data: LifecycleRecord }
-export type Invocation = Omit<InvocationSnapshot, 'snapshot'> & { projection: SessionProjection }
 
-/** The native event that carries a session's running total. */
-const usageUpdated = 'session.usage.updated'
+/** One turn's live transcript. */
+export type Transcribed = { projection: SessionProjection; provenance: Record<string, unknown> }
 
 const emptySnapshot = (): Snapshot => ({ state: { info: {}, family: {}, active: {}, message: {}, pending: {}, permission: {}, form: {} } })
 const clone = <T>(value: T): T => structuredClone(value)
-const scopeAt = (scopes: Record<string, ScopeInfo>, key: string): ScopeInfo => (scopes[key] ??= { name: key, status: 'running' })
-/** A lifecycle record carries a stored value as its JSON source text. */
-const parseValue = (text: unknown): JSONValue => { try { return JSON.parse(String(text)) as JSONValue } catch { return String(text) } }
 
 /** Live run state. Revision invalidates renderers without cloning transcript data per frame. */
 export class RunObservation {
-	run: RunSnapshot['run']
-	scopes: Record<string, ScopeInfo> = {}
-	readonly invocations = new Map<string, Invocation>()
+	run: RunRow
+	scopes: Record<string, ScopeRow> = {}
+	sessions: Record<string, SessionRow> = {}
+	turns: Record<string, TurnRow> = {}
+	turnUsage: Record<string, Record<string, Usage>> = {}
+	modelCalls: Record<string, ModelCallRow[]> = {}
+	totals: Totals = { scopes: {}, sessions: {} }
+	readonly transcripts = new Map<string, Transcribed>()
 	revision = 0
 	private messageRevisions = new Map<string, number>()
 	private snapshotRevision = 0
@@ -49,11 +97,15 @@ export class RunObservation {
 		if (generation !== undefined && !this.isCurrentConnection(generation)) return false
 		this.run = clone(snapshot.run)
 		this.scopes = clone(snapshot.scopes ?? {})
+		this.sessions = clone(snapshot.sessions ?? {})
+		this.turns = clone(snapshot.turns ?? {})
+		this.turnUsage = clone(snapshot.turn_usage ?? {})
+		this.modelCalls = clone(snapshot.model_calls ?? {})
+		this.totals = clone(snapshot.totals ?? { scopes: {}, sessions: {} })
 		this.messageRevisions.clear()
 		this.snapshotRevision = this.revision + 1
-		this.invocations.clear()
-		for (const [turn, value] of Object.entries(snapshot.invocations)) this.invocations.set(turn, {
-			scope: value.scope, session: value.session, turn: value.turn,
+		this.transcripts.clear()
+		for (const [turn, value] of Object.entries(snapshot.transcripts ?? {})) this.transcripts.set(turn, {
 			projection: SessionProjection.restore(value.snapshot), provenance: clone(value.provenance)
 		})
 		this.revision++
@@ -64,70 +116,49 @@ export class RunObservation {
 		if (!this.isCurrentConnection(generation)) return false
 		switch (frame.type) {
 			case 'snapshot': return this.replace(frame.data, generation)
+			case 'row': this.setRow(frame.data); break
+			case 'totals': this.totals = clone(frame.data); break
 			case 'event': {
 				const value = frame.data
 				const messageID = canonicalMessageID(value.event)
 				if (messageID) this.messageRevisions.set(`${value.turn}\0${messageID}`, this.revision + 1)
-				let invocation = this.invocations.get(value.turn)
-				if (!invocation) {
-					invocation = { scope: value.scope, session: value.session, turn: value.turn, projection: SessionProjection.restore(emptySnapshot()), provenance: {} }
-					this.invocations.set(value.turn, invocation)
+				let transcript = this.transcripts.get(value.turn)
+				if (!transcript) {
+					transcript = { projection: SessionProjection.restore(emptySnapshot()), provenance: {} }
+					this.transcripts.set(value.turn, transcript)
 				}
-				invocation.projection.apply(value.event)
-				// The session's running total lives on the run, keyed by placement
-				// session, exactly as the Go store folds it: set semantics, the
-				// latest event is the total so far.
-				if (value.event.type === usageUpdated) (this.run.usage ??= {})[value.session] = usageOf(value.event.data)
-				foldProvenance(invocation.provenance, value.event, value.nativeRef)
+				transcript.projection.apply(value.event)
+				foldProvenance(transcript.provenance, value.event, value.nativeRef)
 				break
 			}
-			case 'lifecycle': foldLifecycle(this.run, this.scopes, frame.data); break
 		}
 		this.revision++
 		return true
 	}
 
-	state(turn: string): Readonly<ProjectionState> | undefined { return this.invocations.get(turn)?.projection.viewState() }
+	/** One changed row replaces what was there. The run is one row and has no
+	 * key; every other table is keyed by the row's own id. */
+	private setRow(frame: RowFrame) {
+		switch (frame.table) {
+			case 'run': this.run = clone(frame.row); break
+			case 'scopes': this.scopes[frame.key] = clone(frame.row); break
+			case 'sessions': this.sessions[frame.key] = clone(frame.row); break
+			case 'turns': this.turns[frame.key] = clone(frame.row); break
+			case 'turn_usage': this.turnUsage[frame.key] = clone(frame.row); break
+			case 'model_calls': this.modelCalls[frame.key] = clone(frame.row); break
+		}
+	}
+
+	state(turn: string): Readonly<ProjectionState> | undefined { return this.transcripts.get(turn)?.projection.viewState() }
 	messageRevision(turn: string, message: string): number { return this.messageRevisions.get(`${turn}\0${message}`) ?? this.snapshotRevision }
 	snapshot(): RunSnapshot {
-		return { run: clone(this.run), scopes: clone(this.scopes), invocations: Object.fromEntries([...this.invocations].map(([turn, value]) => [turn, {
-			scope: value.scope, session: value.session, turn: value.turn,
-			snapshot: value.projection.snapshot(), provenance: clone(value.provenance)
-		}])) }
-	}
-}
-
-export function foldLifecycle(run: RunSnapshot['run'], scopes: Record<string, ScopeInfo>, record: LifecycleRecord) {
-	const event = record.event
-	switch (event.kind) {
-		case 'run_started': run.name = String(event.name); run.status = 'running'; delete run.error; break
-		// A cancelled run stays cancelled, as the Go store decides it.
-		case 'run_ended': if (run.status === 'running') { run.status = event.error ? 'failed' : 'completed'; if (event.error) run.error = String(event.error); else delete run.error }; break
-		case 'run_cancelled': run.status = 'cancelled'; if (event.error) run.error = String(event.error); else delete run.error; break
-		case 'session_created':
-			if (record.session) run.sessions[record.session] = { name: String(event.name), adapter: String(event.adapter), model: String(event.model), scope: record.scope, ...(event.parent ? { parent: String(event.parent) } : {}) }
-			break
-		case 'scope_began': {
-			const scope = scopeAt(scopes, record.scope)
-			scope.name = String(event.name); scope.status = 'running'
-			if (event.task !== undefined) scope.task = event.task as JSONValue
-			break
-		}
-		case 'scope_ended': {
-			const scope = scopeAt(scopes, record.scope)
-			scope.status = 'ended'
-			if (event.error) scope.error = String(event.error); else delete scope.error
-			break
-		}
-		case 'value_set': {
-			const scope = scopeAt(scopes, record.scope)
-			;(scope.values ??= {})[String(event.key)] = parseValue(event.value)
-			break
-		}
-		case 'planner_decision': {
-			const scope = scopeAt(scopes, record.scope)
-			;(scope.decisions ??= []).push((event.task !== undefined ? { task: event.task } : {}) as JSONValue)
-			break
+		return {
+			run: clone(this.run), scopes: clone(this.scopes), sessions: clone(this.sessions),
+			turns: clone(this.turns), turn_usage: clone(this.turnUsage), model_calls: clone(this.modelCalls),
+			totals: clone(this.totals),
+			transcripts: Object.fromEntries([...this.transcripts].map(([turn, value]) => [turn, {
+				snapshot: value.projection.snapshot(), provenance: clone(value.provenance)
+			}]))
 		}
 	}
 }
@@ -148,26 +179,25 @@ export function foldProvenance(target: Record<string, unknown>, event: JSONObjec
 	if (messageID) target[messageID] = clone(nativeRef)
 }
 
-/** The five token counts and the cost of one message or session, zero-filled.
- * A count a harness did not report is 0: zero is a number, and nothing here
- * says whether it was measured. */
+/** One message's own usage, flat and zero-filled. A message carries the
+ * counts nested, the way the native event does; a roll-up is already flat and
+ * comes from Go. */
 export function usageOf(value: JSONObject | undefined): Usage {
 	const tokens = (value?.tokens ?? {}) as JSONObject
 	const cache = (tokens.cache ?? {}) as JSONObject
 	return {
-		cost: numberOf(value?.cost),
-		tokens: {
-			input: numberOf(tokens.input),
-			output: numberOf(tokens.output),
-			reasoning: numberOf(tokens.reasoning),
-			cache: { read: numberOf(cache.read), write: numberOf(cache.write) }
-		}
+		input: numberOf(tokens.input),
+		cache_read: numberOf(cache.read),
+		cache_write: numberOf(cache.write),
+		output: numberOf(tokens.output),
+		reasoning: numberOf(tokens.reasoning),
+		stated_cost: numberOf(value?.cost)
 	}
 }
 
 /** One line of usage, for a message, a session total or a scope. */
 export const usageText = (usage: Usage): string =>
-	`${usage.tokens.input} in · ${usage.tokens.output} out · ${usage.tokens.reasoning} reasoning · ` +
-	`${usage.tokens.cache.read} cache read · ${usage.tokens.cache.write} cache write · $${usage.cost}`
+	`${usage.input} in · ${usage.output} out · ${usage.reasoning} reasoning · ` +
+	`${usage.cache_read} cache read · ${usage.cache_write} cache write · $${usage.stated_cost}`
 
 const numberOf = (value: unknown): number => (typeof value === 'number' && Number.isFinite(value) ? value : 0)

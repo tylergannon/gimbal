@@ -19,6 +19,10 @@ import (
 
 const controlTimeout = 5 * time.Second
 
+// autoCompactWindow sets Claude Code's auto-compact window so long turns
+// don't get cut off mid-task.
+const autoCompactWindow = "256k"
+
 // adapter runs Claude Code sessions.
 type adapter struct {
 	mu       sync.Mutex
@@ -93,6 +97,7 @@ func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema 
 		claudeagent.WithIncludePartialMessages(true),
 		claudeagent.WithPermissionMode(claudeagent.PermissionModeBypassAll),
 		claudeagent.WithAllowDangerouslySkipPermissions(true),
+		claudeagent.WithEnv(map[string]string{"CLAUDE_CODE_AUTO_COMPACT_WINDOW": autoCompactWindow}),
 		claudeagent.WithRawMessageObserver(func(raw json.RawMessage) error {
 			err := project.raw(raw)
 			if err != nil {

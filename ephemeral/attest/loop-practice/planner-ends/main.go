@@ -160,17 +160,12 @@ func listing(dir string) string {
 	return strings.Join(lines, "\n")
 }
 
-// waitRunID is the id of the one run under logs, once its run.jsonl exists.
-// The run directory appears before the log's first record, and runlog.Read
-// fails at once on a directory with no run.jsonl, so waiting for the
-// directory alone is a race.
+// waitRunID is the id of the one run under logs, once its directory exists.
 func waitRunID(ctx context.Context, logs string) string {
 	for ctx.Err() == nil {
 		entries, err := os.ReadDir(filepath.Join(logs, "runs"))
 		if err == nil && len(entries) == 1 {
-			if _, err := os.Stat(filepath.Join(logs, "runs", entries[0].Name(), "run.jsonl")); err == nil {
-				return entries[0].Name()
-			}
+			return entries[0].Name()
 		}
 		time.Sleep(50 * time.Millisecond)
 	}

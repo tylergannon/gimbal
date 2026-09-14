@@ -36,9 +36,18 @@ requirement. No backwards compatibility, no deprecation paths, no shims:
 delete what is replaced. Unit tests for what you are building are fine;
 the proof of a workflow is a live run and what it showed.
 
+## Information lands locally
+
+The local filesystem is the store and cache for everything crucial to a
+task: it is where an agent finds things. A workflow that needs a GitHub
+issue writes its text to a file first and names the file, with its
+absolute path, in the prompt. No prompt points an agent at a remote
+source, and prompts are plain English: "Read and implement the issue in
+/path/to/168.md."
+
 ## Working here
 
-- Commit only when Tyler asks.
+- Commit, and push, whenever something interesting has happened.
 - Attestation runs use the cheapest models: Codex `gpt-5.6-luna`, Claude
   Haiku, Gemini flash. Say which model a run used.
 - Ports from `ephemeral/legacy/` are rewritten against the new contract by

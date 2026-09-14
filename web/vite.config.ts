@@ -1,6 +1,7 @@
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite-plus';
 import skgo from '@skgo/sveltekit-adapter';
+import tailwindcss from '@tailwindcss/vite';
 
 // The app's origin is fixed here, at build time, and the Go server checks it on
 // every non-GET remote-function call. The two halves must agree, so both read
@@ -10,6 +11,7 @@ import skgo from '@skgo/sveltekit-adapter';
 // another answers every command with 403.
 export default defineConfig({
 	plugins: [
+		tailwindcss(),
 		sveltekit({
 			adapter: skgo(),
 			paths: { origin: process.env.ORIGIN ?? 'http://127.0.0.1:8080' },

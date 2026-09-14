@@ -1,12 +1,20 @@
 {
 	"extends": "$app/tsconfig",
 	"compilerOptions": {
-		"strict": true
+		"strict": true,
+		"paths": {
+			"#lib/*": [
+				"./src/lib/*"
+			]
+		}
 	},
 	"include": [
 		"src/**/*",
 		"vite.config.ts",
 		".svelte-kit/types/**/*"
 	],
-	"exclude": ["build", "node_modules"]
+	"exclude": [
+		"build",
+		"node_modules"
+	]
 }

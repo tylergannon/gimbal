@@ -16,6 +16,8 @@ it. Everything else is ordinary Go written in the workflow.
 - `ephemeral/research/api/SPRINTS.md`: what is being built, in what order,
   and how each sprint is proven.
 - `docs/definition-of-done.md`: how work is gated, validated, and merged.
+- `docs/web-app.md`: the web app's UI decisions, features, and user stories
+  by name. The shadcn-svelte primitives are in `web/src/lib/components/ui/`.
 
 ## No wrappers
 

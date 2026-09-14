@@ -1,5 +1,52 @@
 # Issue 135 live result
 
+## Remaining coverage: socket-only reconnect
+
+The 2026-09-14 follow-up used installed codex-cli 0.153.4 and generated its
+experimental app-server protocol again. `experimentalRawEvents` remains present
+only in `/tmp/gimble-135-schema.sADuHV/v2/ThreadStartParams.ts:76`; generated
+`ThreadResumeParams.ts` and `ThreadForkParams.ts` contain no such field. There is
+therefore no supported adapter request that can enable exact raw events for a
+fork or for resume after daemon restart/thread unload. No history reconstruction,
+synthetic response ID, or token-notification completion inference was added.
+
+The supported loaded-thread path is now covered by
+`TestRunTurnAfterRedialResumesThread`. It closes only the adapter's active
+WebSocket, waits for that reader to fail, then runs another turn. The adapter
+redials the still-running shared daemon and calls `thread/resume` for the loaded
+thread. The retained raw-event setting stays active on that thread.
+
+The live Codex `gpt-5.6-luna` run
+`01M2GWN0CEMBENT427Q6XVQZDJ.daemon-live` demonstrated:
+
+- reconnect tool response `resp_03555303ced615b6016aa86505390887d1914354fae79a1aed`
+  in assistant row `msg_bGl2ZS4x_00000000000000000026`, with 541 input,
+  68 output, 43 reasoning, and 20,224 cache-read tokens;
+- reconnect final response `resp_03555303ced615b6016aa86508ad0487d181675785ebf494e3`
+  in distinct assistant row `msg_bGl2ZS4x_00000000000000000036`, with 682
+  input, 11 output, and 20,224 cache-read tokens;
+- the production handler rendered `CODEX_RECONNECT_TOOL_MARKER` and
+  `CODEX_RECONNECT_FINAL_MARKER` in those distinct token-bearing rows.
+
+Browser screenshot:
+https://pub-49d826f028c94744bb6d55c4a63b56ed.r2.dev/proof/2026/09/14/aee82b17-41a5-4c02-af78-07972f3b38c7-reconnect.png
+
+Browser snapshot and rendered assistant rows:
+https://pub-49d826f028c94744bb6d55c4a63b56ed.r2.dev/proof/2026/09/14/76d1e379-3d32-417a-9dc7-8d49522ca6d6-browser.json
+
+Local retained evidence:
+
+- Project: `/tmp/gimble-live-issue135-reconnect-final.qssQZy`
+- Session events:
+  `runs/01M2GWN0CEMBENT427Q6XVQZDJ.daemon-live/sessions/live.1.jsonl`
+- Production browser:
+  `http://127.0.0.1:64094/runs/01M2GWN0CEMBENT427Q6XVQZDJ.daemon-live`
+- Server PID: `85575`; stop with `kill 85575` after review.
+
+Exact native fork events and resume events after daemon restart or thread unload
+remain unmet on codex-cli 0.153.4. Issue #135 must remain open for that protocol
+capability.
+
 Implementation and live proof use codex-cli 0.153.4, Codex
 `gpt-5.6-luna`, and Claude `claude-haiku-4-5-20251001`.
 

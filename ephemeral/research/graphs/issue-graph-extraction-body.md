@@ -34,7 +34,9 @@ Runtime events supply actual intervals, outcomes, loop counts, supervisor looks,
 
 ## Boundaries and related work
 
-This is separate from **#162**, the bounded Set/SetJSON linter, which remains in Beta. It is also separate from **#173**, the observed scope/time/token/cost view. Neither requires complete graph extraction to ship. The viewer can begin with observed runtime structure and gain a Program view when a compatible manifest exists.
+This is a **Beta deliverable**: useful source-derived program shape is part of the intended Beta UI. Coordinate the generated manifest with **#173**, the observed scope/time/token/cost view, so the viewer can show program structure alongside run observations. An observed-only view is a useful intermediate delivery, not a replacement for the Beta program-shape goal. **#162**, the bounded Set/SetJSON linter, remains a separate Beta task.
+
+The Beta bar is the bounded first delivery above: useful graph output for the builtin sprint and a caller-module example, with explicit partial coverage. Exhaustive Go analysis, general helper expansion, and exact correlation of every runtime event are deferred; they must not hold up this useful graph.
 
 Do not ban dynamic Set keys, add high-level workflow wrappers, use reflection/runtime.Caller, or attempt exhaustive ownership proofs, arbitrary Go evaluation, whole-program pointer analysis, general recursive helper expansion, or critical-path analysis. Caller/callee links are optional inspection aids, not required default edges. This issue does not include building the UI or exact runtime instrumentation.
 
@@ -46,3 +48,4 @@ The research is cached as flat files in `ephemeral/research/graphs`, including a
 - [UI-informed semantic requirements](https://github.com/tylergannon/gimble/blob/ecfa2d8/ephemeral/research/graphs/ui-graph-extraction-notes.md)
 - [Design brief and drill-down states](https://github.com/tylergannon/gimble/blob/ecfa2d8/ephemeral/research/graphs/ui-design-brief.md)
 - [Research index](https://github.com/tylergannon/gimble/blob/ecfa2d8/ephemeral/research/graphs/INDEX.md)
+

@@ -78,7 +78,7 @@ For supervision, distinguish attached/no look yet; look executing; look complete
 2. Expose observed timing as a simple expandable timeline using the same selection. Give recorded command scopes/results and supervisor events appropriate representations as those records support them.
 3. Add compatible generated program manifests when extraction is available. Then show possible branches, repeated templates, and declared-but-not-observed sites. Clearly distinguish unknown coverage from a path known not to have executed.
 
-These are independently useful increments. The bounded linter belongs in Beta (#162); full extraction, arbitrary helper expansion, exact dynamic-instance correlation, and elaborate graph layout must not become its dependencies. Dynamic Set keys remain legal while we learn from workflow authors. No drag-to-author workflow editor is proposed.
+These are independently useful increments within the Beta direction. The bounded source extractor (#201) and a useful program-shape view belong in Beta alongside the bounded linter (#162). An observed-only view is an intermediate delivery, not the final Beta shape goal. Exhaustive extraction, arbitrary helper expansion, exact dynamic-instance correlation, and elaborate graph layout can follow. Dynamic Set keys remain legal while we learn from workflow authors. No drag-to-author workflow editor is proposed.
 
 ## Design exercises to bring back
 

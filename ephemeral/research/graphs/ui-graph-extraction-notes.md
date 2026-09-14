@@ -61,4 +61,4 @@ Use small source fixtures with expected semantic assertions for extraction, and 
 
 Start with typed AST/control-flow information and recognizable workflow constructs; only add deeper analysis when an existing workflow needs it. Caller/callee relations are optional navigation, not required default edges. Do not require exhaustive call graphs, alias/lifetime proofs, arbitrary Go evaluation, data lineage, or critical-path analysis. Do not make constant Set keys mandatory.
 
-The bounded linter remains in Beta (#162). The UI can first ship an observed-run map with linked details/timing; richer Program views arrive with extraction coverage. The necessary early commitment is to keep graph semantics and observed identities distinguishable so these increments fit together.
+The bounded linter (#162) and bounded source extractor (#201) both belong in Beta. The UI can first deliver an observed-run map with linked details/timing, but Beta should also include useful source-derived program shape. Exhaustive analysis and exact correlation of every runtime event are deferred. Keep graph semantics and observed identities distinguishable so these increments fit together.

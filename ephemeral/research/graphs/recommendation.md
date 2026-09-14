@@ -8,7 +8,7 @@ Research against the repository revision in `repo-snapshot.txt` and GitHub issue
 
 ## Existing tasks
 
-The complete coverage assessment and draft task sequence are in [milestone-assessment.md](milestone-assessment.md). #162 is the existing Set analyzer task, outside Beta. #173 supplies the runtime scope/turn timeline, #120 proves supervision, and web F13/design notes anticipate extraction without a dedicated issue. Commands are missing from the current workflow observation contract.
+The complete coverage assessment and draft task sequence are in [milestone-assessment.md](milestone-assessment.md). Updated after user steering: #162 is the bounded Set analyzer and #201 is the bounded source graph extractor; both belong in Beta. #173 supplies the runtime scope/turn timeline and #120 proves supervision. Commands are missing from the current workflow observation contract. Useful program shape belongs in Beta; exhaustive analysis and exact runtime correlation do not gate the first delivery.
 
 ## Shape of the data
 

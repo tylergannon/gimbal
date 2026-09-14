@@ -139,6 +139,12 @@ func TestFinishedRunIsReadFromItsTables(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// The other fact the session logs also carry: emptied in the file, it
+	// stays empty, because reading the logs again adds none of it back.
+	calls := filepath.Join(dir, "model_calls.json")
+	if err := os.WriteFile(calls, []byte("[]"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	store, err := open(nil, "issue-149", dir)
 	if err != nil {
@@ -166,14 +172,21 @@ func TestFinishedRunIsReadFromItsTables(t *testing.T) {
 			t.Errorf("turn %s has no transcript", id)
 		}
 	}
-	// The steps those logs carry did not account themselves a second time:
-	// the calls the file holds are rewritten, not added.
-	calls := 0
+	// The steps those logs carry accounted for nothing: the emptied table is
+	// what the run holds, and the file was not rewritten either.
+	held := 0
 	for _, perTurn := range snapshot.ModelCalls {
-		calls += len(perTurn)
+		held += len(perTurn)
 	}
-	if calls != 6 {
-		t.Fatalf("model calls = %d after reading the logs again, want 6", calls)
+	if held != 0 {
+		t.Fatalf("model calls = %d, want the file's none", held)
+	}
+	raw, err = os.ReadFile(calls)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(raw) != "[]" {
+		t.Fatalf("model_calls.json = %s, want the empty array it was left as", raw)
 	}
 }
 

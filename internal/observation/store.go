@@ -61,9 +61,13 @@ type Store struct {
 	calls       map[string]openCall
 	subs        map[*Subscription]struct{}
 	closed      bool
-	// noWrite suppresses the per-fold file writes. A replay sets it: its
-	// input is the log, and it writes the tables once at the end.
+	// noWrite suppresses the per-fold file writes. Opening a run sets it: the
+	// files are its input, and a rebuild writes them once at the end.
 	noWrite bool
+	// fromTables says the facts came from the six files. A finished run's
+	// tables are its accounting, so the session logs read afterwards are only
+	// transcripts: a step in them accounts for nothing.
+	fromTables bool
 
 	maxFrames int
 	maxBytes  int
@@ -451,6 +455,11 @@ type step struct {
 // only when it reached the model, which is when its data carries both cost
 // and tokens. That is session.go's own rule.
 func (s *Store) foldStepLocked(at Placement, event *sessionstate.Obj, envelope json.RawMessage) []change {
+	// A store filled from the tables takes no fact from a log. The files are
+	// the run's accounting and the log is read for its transcripts.
+	if s.fromTables {
+		return nil
+	}
 	kind, _ := event.Get("type").(string)
 	ended := kind == "session.step.ended"
 	if !ended && kind != "session.step.started" && kind != "session.step.failed" {

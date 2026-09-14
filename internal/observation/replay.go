@@ -113,6 +113,7 @@ func (s *Store) loadTables(dir string) error {
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.fromTables = true
 	if len(run) > 0 {
 		s.run = run[0]
 	}

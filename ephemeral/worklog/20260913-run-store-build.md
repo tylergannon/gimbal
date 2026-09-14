@@ -70,3 +70,18 @@ decision: `MessageRow.svelte` is unchanged. `usageOf` already returns the flat
 decision: an absent roll-up renders through `usageOf(undefined)` rather than a
 new exported zero constant. A scope or session Go has not summed yet reads as
 five zeros and a cost of 0, which is what it spent.
+
+decision: a store filled from the tables accounts for nothing from a log
+(review finding 1). `loadTables` sets `fromTables`, and `foldStepLocked`
+returns immediately when it is set, so the session logs read after a load
+build transcripts and provenance only. The ended-turn guard protected
+turn_usage but not model_calls: an ended step in the log replaced or appended
+a row the table was the authority for. The rebuild path keeps the full fold.
+`TestFinishedRunIsReadFromItsTables` now empties model_calls.json and asserts
+the snapshot holds none, which fails without the guard.
+
+fact: the two probe programs were stale in two ways, not one (review finding
+2). Their fake adapters lacked `Close`, and their `RunTurn` still returned
+`json.RawMessage` rather than `gimble.TurnResult`, so adding `Close` alone
+left `go vet ./...` red. Both signatures are now current and nothing else in
+those files changed.

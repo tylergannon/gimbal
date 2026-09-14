@@ -1,0 +1,22 @@
+{
+  "skill": "df-semantic-index",
+  "project_dir": "/Users/tyler/.codex/worktrees/7b5c/gimble",
+  "roles": {
+    "main": {
+      "model": "inherit",
+      "cli": null,
+      "model_args": [],
+      "sources": {
+        "model": "skill default"
+      }
+    },
+    "reader": {
+      "model": "inherit",
+      "cli": null,
+      "model_args": [],
+      "sources": {
+        "model": "skill default"
+      }
+    }
+  }
+}

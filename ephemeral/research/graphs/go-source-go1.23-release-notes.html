@@ -1,0 +1,1159 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="auto">
+<head>
+
+<link rel="preconnect" href="https://www.googletagmanager.com">
+<script >(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+  new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+  j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+  'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+  })(window,document,'script','dataLayer','GTM-W8MVQXG');</script>
+  
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#00add8">
+<link rel="canonical" href="https://go.dev/doc/go1.23">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Material+Icons">
+<link rel="stylesheet" href="/css/styles.css">
+<link rel="icon" href="/images/favicon-gopher.png" sizes="any">
+<link rel="apple-touch-icon" href="/images/favicon-gopher-plain.png"/>
+<link rel="icon" href="/images/favicon-gopher.svg" type="image/svg+xml">
+<link rel="me" href="https://hachyderm.io/@golang">
+
+  
+  <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+  new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+  j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+  'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+  })(window,document,'script','dataLayer','GTM-W8MVQXG');</script>
+  
+<script src="/js/site.js"></script>
+<meta name="og:url" content="https://go.dev/doc/go1.23">
+<meta name="og:title" content="Go 1.23 Release Notes - The Go Programming Language">
+<title>Go 1.23 Release Notes - The Go Programming Language</title>
+
+<meta name="og:image" content="https://go.dev/doc/gopher/gopher5logo.jpg">
+<meta name="twitter:image" content="https://go.dev/doc/gopher/gopherbelly300.jpg">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:site" content="@golang">
+</head>
+<body class="Site">
+  
+<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-W8MVQXG"
+  height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+  
+
+
+<header class="Site-header js-siteHeader">
+  <div class="Header Header--dark">
+    <nav class="Header-nav">
+      <a href="/">
+        <img
+          class="js-headerLogo Header-logo"
+          src="/images/go-logo-white.svg"
+          alt="Go">
+      </a>
+      <div class="skip-navigation-wrapper">
+        <a class="skip-to-content-link" aria-label="Skip to main content" href="#main-content"> Skip to Main Content </a>
+      </div>
+      <div class="Header-rightContent">
+        <ul class="Header-menu">
+          <li class="Header-menuItem ">
+            <a href="#"  class="js-desktop-menu-hover" aria-label=Why&#32;Go aria-describedby="dropdown-description">
+              Why Go <i class="material-icons" aria-hidden="true">arrow_drop_down</i>
+            </a>
+            <div class="screen-reader-only" id="dropdown-description" hidden>
+              Press Enter to activate/deactivate dropdown
+            </div>
+              <ul class="Header-submenu js-desktop-submenu-hover" aria-label="submenu">
+                  <li class="Header-submenuItem">
+                    <div>
+                        <a href="/solutions/case-studies">
+                          Case Studies
+                          
+                        </a>
+                    </div>
+                    <p>Common problems companies solve with Go</p>
+                  </li>
+                  <li class="Header-submenuItem">
+                    <div>
+                        <a href="/solutions/use-cases">
+                          Use Cases
+                          
+                        </a>
+                    </div>
+                    <p>Stories about how and why companies use Go</p>
+                  </li>
+                  <li class="Header-submenuItem">
+                    <div>
+                        <a href="/security/">
+                          Security
+                          
+                        </a>
+                    </div>
+                    <p>How Go can help keep you secure by default</p>
+                  </li>
+              </ul>
+          </li>
+          <li class="Header-menuItem ">
+            <a href="/learn/"  aria-label=Learn aria-describedby="dropdown-description">
+              Learn 
+            </a>
+            <div class="screen-reader-only" id="dropdown-description" hidden>
+              Press Enter to activate/deactivate dropdown
+            </div>
+          </li>
+          <li class="Header-menuItem  Header-menuItem--active">
+            <a href="#"  class="js-desktop-menu-hover" aria-label=Docs aria-describedby="dropdown-description">
+              Docs <i class="material-icons" aria-hidden="true">arrow_drop_down</i>
+            </a>
+            <div class="screen-reader-only" id="dropdown-description" hidden>
+              Press Enter to activate/deactivate dropdown
+            </div>
+              <ul class="Header-submenu js-desktop-submenu-hover" aria-label="submenu">
+                  <li class="Header-submenuItem">
+                    <div>
+                        <a href="/ref/spec">
+                          Go Spec
+                          
+                        </a>
+                    </div>
+                    <p>The official Go language specification</p>
+                  </li>
+                  <li class="Header-submenuItem">
+                    <div>
+                        <a href="/doc">
+                          Go User Manual
+                          
+                        </a>
+                    </div>
+                    <p>A complete introduction to building software with Go</p>
+                  </li>
+                  <li class="Header-submenuItem">
+                    <div>
+                        <a href="https://pkg.go.dev/std">
+                          Standard library
+                          
+                        </a>
+                    </div>
+                    <p>Reference documentation for Go&#39;s standard library</p>
+                  </li>
+                  <li class="Header-submenuItem">
+                    <div>
+                        <a href="/doc/devel/release">
+                          Release Notes
+                          
+                        </a>
+                    </div>
+                    <p>Learn what&#39;s new in each Go release</p>
+                  </li>
+                  <li class="Header-submenuItem">
+                    <div>
+                        <a href="/doc/effective_go">
+                          Effective Go
+                          
+                        </a>
+                    </div>
+                    <p>Tips for writing clear, performant, and idiomatic Go code</p>
+                  </li>
+              </ul>
+          </li>
+          <li class="Header-menuItem ">
+            <a href="https://pkg.go.dev"  aria-label=Packages aria-describedby="dropdown-description">
+              Packages 
+            </a>
+            <div class="screen-reader-only" id="dropdown-description" hidden>
+              Press Enter to activate/deactivate dropdown
+            </div>
+          </li>
+          <li class="Header-menuItem ">
+            <a href="#"  class="js-desktop-menu-hover" aria-label=Community aria-describedby="dropdown-description">
+              Community <i class="material-icons" aria-hidden="true">arrow_drop_down</i>
+            </a>
+            <div class="screen-reader-only" id="dropdown-description" hidden>
+              Press Enter to activate/deactivate dropdown
+            </div>
+              <ul class="Header-submenu js-desktop-submenu-hover" aria-label="submenu">
+                  <li class="Header-submenuItem">
+                    <div>
+                        <a href="/talks/">
+                          Recorded Talks
+                          
+                        </a>
+                    </div>
+                    <p>Videos from prior events</p>
+                  </li>
+                  <li class="Header-submenuItem">
+                    <div>
+                        <a href="https://www.meetup.com/pro/go">
+                          Meetups
+                           <i class="material-icons">open_in_new</i>
+                        </a>
+                    </div>
+                    <p>Meet other local Go developers</p>
+                  </li>
+                  <li class="Header-submenuItem">
+                    <div>
+                        <a href="/wiki/Conferences">
+                          Conferences
+                           <i class="material-icons">open_in_new</i>
+                        </a>
+                    </div>
+                    <p>Learn and network with Go developers from around the world</p>
+                  </li>
+                  <li class="Header-submenuItem">
+                    <div>
+                        <a href="/blog">
+                          Go blog
+                          
+                        </a>
+                    </div>
+                    <p>The Go project&#39;s official blog.</p>
+                  </li>
+                  <li class="Header-submenuItem">
+                    <div>
+                        <a href="/help">
+                          Go project
+                          
+                        </a>
+                    </div>
+                    <p>Get help and stay informed from Go</p>
+                  </li>
+                  <li class="Header-submenuItem">
+                    <div>
+                        Get connected
+                    </div>
+                    <p></p>
+                      <div class="Header-socialIcons">
+                        
+                        <a class="Header-socialIcon" aria-label="Get connected with google-groups (Opens in new window)" href="https://groups.google.com/g/golang-nuts"><img src="/images/logos/social/google-groups.svg" /></a>
+                        <a class="Header-socialIcon" aria-label="Get connected with github (Opens in new window)" href="https://github.com/golang"><img src="/images/logos/social/github.svg" /></a>
+                        <a class="Header-socialIcon" aria-label="Get connected with bluesky (Opens in new window)" href="https://bsky.app/profile/golang.org"><img src="/images/logos/social/bluesky.svg" /></a>
+                        <a class="Header-socialIcon" aria-label="Get connected with mastodon (Opens in new window)" href="https://hachyderm.io/@golang"><img src="/images/logos/social/mastodon.svg" /></a>
+                        <a class="Header-socialIcon" aria-label="Get connected with twitter (Opens in new window)" href="https://twitter.com/golang"><img src="/images/logos/social/twitter.svg" /></a>
+                        <a class="Header-socialIcon" aria-label="Get connected with reddit (Opens in new window)" href="https://www.reddit.com/r/golang/"><img src="/images/logos/social/reddit.svg" /></a>
+                        <a class="Header-socialIcon" aria-label="Get connected with slack (Opens in new window)" href="https://invite.slack.golangbridge.org/"><img src="/images/logos/social/slack.svg" /></a>
+                        <a class="Header-socialIcon" aria-label="Get connected with stack-overflow (Opens in new window)" href="https://stackoverflow.com/tags/go"><img src="/images/logos/social/stack-overflow.svg" /></a>
+                      </div>
+                  </li>
+              </ul>
+          </li>
+        </ul>
+        <button class="Header-navOpen js-headerMenuButton Header-navOpen--white" aria-label="Open navigation.">
+        </button>
+      </div>
+    </nav>
+    
+  </div>
+</header>
+<aside class="NavigationDrawer js-header">
+  <nav class="NavigationDrawer-nav">
+    <div class="NavigationDrawer-header">
+      <a href="/">
+        <img class="NavigationDrawer-logo" src="/images/go-logo-blue.svg" alt="Go.">
+      </a>
+    </div>
+    <ul class="NavigationDrawer-list">
+        
+          <li class="NavigationDrawer-listItem js-mobile-subnav-trigger  NavigationDrawer-hasSubnav">
+            <a href="#"><span>Why Go</span> <i class="material-icons">navigate_next</i></a>
+
+            <div class="NavigationDrawer NavigationDrawer-submenuItem">
+              <nav class="NavigationDrawer-nav">
+                <div class="NavigationDrawer-header">
+                  <a href="#"><i class="material-icons">navigate_before</i>Why Go</a>
+                </div>
+                <ul class="NavigationDrawer-list">
+                    <li class="NavigationDrawer-listItem">
+                        <a href="/solutions/case-studies">
+                          Case Studies
+                          
+                        </a>
+                      
+                    </li>
+                    <li class="NavigationDrawer-listItem">
+                        <a href="/solutions/use-cases">
+                          Use Cases
+                          
+                        </a>
+                      
+                    </li>
+                    <li class="NavigationDrawer-listItem">
+                        <a href="/security/">
+                          Security
+                          
+                        </a>
+                      
+                    </li>
+                </ul>
+              </div>
+            </div>
+          </li>
+
+        
+        
+          <li class="NavigationDrawer-listItem ">
+            <a href="/learn/">Learn</a>
+          </li>
+        
+        
+          <li class="NavigationDrawer-listItem js-mobile-subnav-trigger  NavigationDrawer-listItem--active NavigationDrawer-hasSubnav">
+            <a href="#"><span>Docs</span> <i class="material-icons">navigate_next</i></a>
+
+            <div class="NavigationDrawer NavigationDrawer-submenuItem">
+              <nav class="NavigationDrawer-nav">
+                <div class="NavigationDrawer-header">
+                  <a href="#"><i class="material-icons">navigate_before</i>Docs</a>
+                </div>
+                <ul class="NavigationDrawer-list">
+                    <li class="NavigationDrawer-listItem">
+                        <a href="/ref/spec">
+                          Go Spec
+                          
+                        </a>
+                      
+                    </li>
+                    <li class="NavigationDrawer-listItem">
+                        <a href="/doc">
+                          Go User Manual
+                          
+                        </a>
+                      
+                    </li>
+                    <li class="NavigationDrawer-listItem">
+                        <a href="https://pkg.go.dev/std">
+                          Standard library
+                          
+                        </a>
+                      
+                    </li>
+                    <li class="NavigationDrawer-listItem">
+                        <a href="/doc/devel/release">
+                          Release Notes
+                          
+                        </a>
+                      
+                    </li>
+                    <li class="NavigationDrawer-listItem">
+                        <a href="/doc/effective_go">
+                          Effective Go
+                          
+                        </a>
+                      
+                    </li>
+                </ul>
+              </div>
+            </div>
+          </li>
+
+        
+        
+          <li class="NavigationDrawer-listItem ">
+            <a href="https://pkg.go.dev">Packages</a>
+          </li>
+        
+        
+          <li class="NavigationDrawer-listItem js-mobile-subnav-trigger  NavigationDrawer-hasSubnav">
+            <a href="#"><span>Community</span> <i class="material-icons">navigate_next</i></a>
+
+            <div class="NavigationDrawer NavigationDrawer-submenuItem">
+              <nav class="NavigationDrawer-nav">
+                <div class="NavigationDrawer-header">
+                  <a href="#"><i class="material-icons">navigate_before</i>Community</a>
+                </div>
+                <ul class="NavigationDrawer-list">
+                    <li class="NavigationDrawer-listItem">
+                        <a href="/talks/">
+                          Recorded Talks
+                          
+                        </a>
+                      
+                    </li>
+                    <li class="NavigationDrawer-listItem">
+                        <a href="https://www.meetup.com/pro/go">
+                          Meetups
+                           <i class="material-icons">open_in_new</i>
+                        </a>
+                      
+                    </li>
+                    <li class="NavigationDrawer-listItem">
+                        <a href="/wiki/Conferences">
+                          Conferences
+                           <i class="material-icons">open_in_new</i>
+                        </a>
+                      
+                    </li>
+                    <li class="NavigationDrawer-listItem">
+                        <a href="/blog">
+                          Go blog
+                          
+                        </a>
+                      
+                    </li>
+                    <li class="NavigationDrawer-listItem">
+                        <a href="/help">
+                          Go project
+                          
+                        </a>
+                      
+                    </li>
+                    <li class="NavigationDrawer-listItem">
+                        <div>Get connected</div>
+                        <div class="Header-socialIcons">
+                          
+                            <a class="Header-socialIcon" href="https://groups.google.com/g/golang-nuts"><img src="/images/logos/social/google-groups.svg" /></a>
+                            <a class="Header-socialIcon" href="https://github.com/golang"><img src="/images/logos/social/github.svg" /></a>
+                            <a class="Header-socialIcon" href="https://bsky.app/profile/golang.org"><img src="/images/logos/social/bluesky.svg" /></a>
+                            <a class="Header-socialIcon" href="https://hachyderm.io/@golang"><img src="/images/logos/social/mastodon.svg" /></a>
+                            <a class="Header-socialIcon" href="https://twitter.com/golang"><img src="/images/logos/social/twitter.svg" /></a>
+                            <a class="Header-socialIcon" href="https://www.reddit.com/r/golang/"><img src="/images/logos/social/reddit.svg" /></a>
+                            <a class="Header-socialIcon" href="https://invite.slack.golangbridge.org/"><img src="/images/logos/social/slack.svg" /></a>
+                            <a class="Header-socialIcon" href="https://stackoverflow.com/tags/go"><img src="/images/logos/social/stack-overflow.svg" /></a>
+                        </div>
+                    </li>
+                </ul>
+              </div>
+            </div>
+          </li>
+
+        
+    </ul>
+  </nav>
+</aside>
+<div class="NavigationDrawer-scrim js-scrim" role="presentation"></div>
+<main class="SiteContent SiteContent--default" id="main-content">
+  
+
+
+<article class="Doc Article">
+
+
+
+
+
+<h1>Go 1.23 Release Notes</h1>
+
+
+
+
+
+
+<div id="nav" class="TOC"></div>
+
+
+
+<div class='markdown'>
+<!--
+NOTE: In this document and others in this directory, the convention is to
+set fixed-width phrases with non-fixed-width spaces, as in
+`hello` `world`.
+-->
+<style>
+  main ul li { margin: 0.5em 0; }
+</style>
+<h2 id="introduction">Introduction to Go 1.23</h2>
+<p>The latest Go release, version 1.23, arrives six months after <a href="/doc/go1.22">Go 1.22</a>.
+Most of its changes are in the implementation of the toolchain, runtime, and libraries.
+As always, the release maintains the Go 1 <a href="/doc/go1compat">promise of compatibility</a>.
+We expect almost all Go programs to continue to compile and run as before.</p>
+<h2 id="language">Changes to the language</h2>
+<!-- go.dev/issue/61405, CL 557835, CL 584596 -->
+<p>The &ldquo;range&rdquo; clause in a &ldquo;for-range&rdquo; loop now accepts iterator functions of the following types</p>
+<pre><code>func(func() bool)
+func(func(K) bool)
+func(func(K, V) bool)
+</code></pre>
+<p>as range expressions.
+Calls of the iterator argument function produce the iteration values for the &ldquo;for-range&rdquo; loop.
+For details see the <a href="/pkg/iter"><code>iter</code></a> package documentation, the
+<a href="/ref/spec#For_range">language spec</a>, and the <a href="/blog/range-functions">Range over Function
+Types blog post</a>.
+For motivation see the 2022 <a href="/issue/56413">&ldquo;range-over-func&rdquo; discussion</a>.</p>
+<!-- go.dev/issue/46477, CL 566856, CL 586955, CL 586956 -->
+<p>Go 1.23 includes preview support for <a href="/issue/46477">generic type aliases</a>.
+Building the toolchain with <code>GOEXPERIMENT=aliastypeparams</code> enables this feature within a package.
+(Using generic alias types across package boundaries is not yet supported.)</p>
+<h2 id="tools">Tools</h2>
+<h3 id="telemetry">Telemetry</h3>
+<!-- go.dev/issue/58894, go.dev/issue/67111 -->
+<p>Starting in Go 1.23, the Go toolchain can collect usage and breakage
+statistics that help the Go team understand how the Go toolchain is
+used and how well it is working. We refer to these statistics as
+<a href="/doc/telemetry">Go telemetry</a>.</p>
+<p>Go telemetry is an <em>opt-in system</em>, controlled by the
+<a href="/cmd/go/#hdr-Manage_telemetry_data_and_settings"><code>go</code> <code>telemetry</code> command</a>.
+By default, the toolchain programs
+collect statistics in counter files that can be inspected locally
+but are otherwise unused (<code>go</code> <code>telemetry</code> <code>local</code>).</p>
+<p>To help us keep Go working well and understand Go usage,
+please consider opting in to Go telemetry by running
+<code>go</code> <code>telemetry</code> <code>on</code>.
+In that mode,
+anonymous counter reports are uploaded to
+<a href="https://telemetry.go.dev" rel="noreferrer" target="_blank">telemetry.go.dev</a> weekly,
+where they are aggregated into graphs and also made
+available for download by any Go contributors or users
+wanting to analyze the data.
+See “<a href="/doc/telemetry">Go Telemetry</a>” for more details
+about the Go Telemetry system.</p>
+<h3 id="go-command">Go command</h3>
+<p>Setting the <code>GOROOT_FINAL</code> environment variable no longer has an effect
+(<a href="/issue/62047">#62047</a>).
+Distributions that install the <code>go</code> command to a location other than
+<code>$GOROOT/bin/go</code> should install a symlink instead of relocating
+or copying the <code>go</code> binary.</p>
+<!-- go.dev/issue/34208, CL 563137, CL 586095 -->
+<p>The new <code>go</code> <code>env</code> <code>-changed</code> flag causes the command to print only
+those settings whose effective value differs from the default value
+that would be obtained in an empty environment with no prior uses of the <code>-w</code> flag.</p>
+<!-- go.dev/issue/27005, CL 585401 -->
+<p>The new <code>go</code> <code>mod</code> <code>tidy</code> <code>-diff</code> flag causes the command not to modify
+the files but instead print the necessary changes as a unified diff.
+It exits with a non-zero code if updates are needed.</p>
+<!-- go.dev/issue/52792, CL 562775 -->
+<p>The <code>go</code> <code>list</code> <code>-m</code> <code>-json</code> command now includes new <code>Sum</code> and <code>GoModSum</code> fields.
+This is similar to the existing behavior of the <code>go</code> <code>mod</code> <code>download</code> <code>-json</code> command.</p>
+<!-- go.dev/issue/65573 ("cmd/go: separate default GODEBUGs from go language version") -->
+<p>The new <code>godebug</code> directive in <code>go.mod</code> and <code>go.work</code> declares a
+<a href="/doc/godebug">GODEBUG setting</a> to apply for the work module or workspace in use.</p>
+<h3 id="vet">Vet</h3>
+<!-- go.dev/issue/46136 -->
+<p>The <code>go vet</code> subcommand now includes the
+<a href="https://pkg.go.dev/golang.org/x/tools/go/analysis/passes/stdversion" rel="noreferrer" target="_blank">stdversion</a>
+analyzer, which flags references to symbols that are too new for the version
+of Go in effect in the referring file. (The effective version is determined
+by the <code>go</code> directive in the file&rsquo;s enclosing <code>go.mod</code> file, and
+by any <a href="/cmd/go#hdr-Build_constraints"><code>//go:build</code> constraints</a>
+in the file.)</p>
+<p>For example, it will report a diagnostic for a reference to the
+<code>reflect.TypeFor</code> function (introduced in go1.22) from a file in a
+module whose go.mod file specifies <code>go 1.21</code>.</p>
+<h3 id="cgo">Cgo</h3>
+<!-- go.dev/issue/66456 -->
+<p><a href="/pkg/cmd/cgo"><code>cmd/cgo</code></a> supports the new <code>-ldflags</code> flag for passing flags to the C linker.
+The <code>go</code> command uses it automatically, avoiding &ldquo;argument list too long&rdquo;
+errors with a very large <code>CGO_LDFLAGS</code>.</p>
+<h3 id="trace">Trace</h3>
+<!-- go.dev/issue/65316 -->
+<p>The <code>trace</code> tool now better tolerates partially broken traces by attempting to
+recover what trace data it can. This functionality is particularly helpful when
+viewing a trace that was collected during a program crash, since the trace data
+leading up to the crash will now <a href="/issue/65319">be recoverable</a> under most
+circumstances.</p>
+<h2 id="runtime">Runtime</h2>
+<p>The traceback printed by the runtime after an unhandled panic or other
+fatal error now indents the second and subsequent lines of the error
+message (for example, the argument to panic) by a single tab, so that
+it can be unambiguously distinguished from the stack trace of the
+first goroutine. See <a href="/issue/64590">#64590</a> for discussion.</p>
+<h2 id="compiler">Compiler</h2>
+<p>The build time overhead to building with <a href="/doc/pgo">Profile Guided Optimization</a> has been reduced significantly.
+Previously, large builds could see 100%+ build time increase from enabling PGO.
+In Go 1.23, overhead should be in the single digit percentages.</p>
+<!-- https://go.dev/issue/62737 , https://golang.org/cl/576681,  https://golang.org/cl/577615 -->
+<p>The compiler in Go 1.23 can now overlap the stack frame slots of local variables
+accessed in disjoint regions of a function, which reduces stack usage
+for Go applications.</p>
+<!-- https://go.dev/cl/577935 -->
+<p>For 386 and amd64, the compiler will use information from PGO to align certain
+hot blocks in loops.  This improves performance an additional 1-1.5% at
+a cost of an additional 0.1% text and binary size.  This is currently only implemented
+on 386 and amd64 because it has not shown an improvement on other platforms.
+Hot block alignment can be disabled with <code>-gcflags=[&lt;packages&gt;=]-d=alignhot=0</code>.</p>
+<h2 id="linker">Linker</h2>
+<!-- go.dev/issue/67401, CL 585556, CL 587220, and many more -->
+<p>The linker now disallows using a <code>//go:linkname</code> directive to refer to
+internal symbols in the standard library (including the runtime) that
+are not marked with <code>//go:linkname</code> on their definitions.
+Similarly, the linker disallows references to such symbols from assembly
+code.
+For backward compatibility, existing usages of <code>//go:linkname</code> found in
+a large open-source code corpus remain supported.
+Any new references to standard library internal symbols will be disallowed.</p>
+<p>A linker command line flag <code>-checklinkname=0</code> can be used to disable
+this check, for debugging and experimenting purposes.</p>
+<!-- CL 473495 -->
+<p>When building a dynamically linked ELF binary (including PIE binary), the
+new <code>-bindnow</code> flag enables immediate function binding.</p>
+<h2 id="library">Standard library</h2>
+<h3 id="timer-changes">Timer changes</h3>
+<p>Go 1.23 makes two significant changes to the implementation of
+<a href="/pkg/time#Timer"><code>time.Timer</code></a> and <a href="/pkg/time#Ticker"><code>time.Ticker</code></a>.</p>
+<!-- go.dev/issue/61542 -->
+<p>First, <code>Timer</code>s and <code>Ticker</code>s that are no longer referred to by the program
+become eligible for garbage collection immediately, even if their
+<code>Stop</code> methods have not been called.
+Earlier versions of Go did not collect unstopped <code>Timer</code>s until after
+they had fired and never collected unstopped <code>Ticker</code>s.</p>
+<!-- go.dev/issue/37196 -->
+<p>Second, the timer channel associated with a <code>Timer</code> or <code>Ticker</code> is
+now unbuffered, with capacity 0.
+The main effect of this change is that Go now guarantees
+that for any call to a <code>Reset</code> or <code>Stop</code> method, no stale values
+prepared before that call will be sent or received after the call.
+Earlier versions of Go used channels with a one-element buffer,
+making it difficult to use <code>Reset</code> and <code>Stop</code> correctly.
+A visible effect of this change is that <code>len</code> and <code>cap</code> of timer channels
+now returns 0 instead of 1, which may affect programs that
+poll the length to decide whether a receive on the timer channel
+will succeed.
+Such code should use a non-blocking receive instead.</p>
+<p>These new behaviors are only enabled when the main Go program
+is in a module with a <code>go.mod</code> <code>go</code> line using Go 1.23.0 or later.
+When Go 1.23 builds older programs, the old behaviors remain in effect.
+The new <a href="/doc/godebug">GODEBUG setting</a> <a href="/pkg/time/#NewTimer"><code>asynctimerchan=1</code></a>
+can be used to revert back to asynchronous channel behaviors
+even when a program names Go 1.23.0 or later in its <code>go.mod</code> file.</p>
+<h3 id="new-unique-package">New unique package</h3>
+<p>The new <a href="/pkg/unique"><code>unique</code></a> package provides facilities for
+canonicalizing values (like &ldquo;interning&rdquo; or &ldquo;hash-consing&rdquo;).</p>
+<p>Any value of comparable type may be canonicalized with the new
+<code>Make[T]</code> function, which produces a reference to a canonical copy of
+the value in the form of a <code>Handle[T]</code>.
+Two <code>Handle[T]</code> are equal if and only if the values used to produce the
+handles are equal, allowing programs to deduplicate values and reduce
+their memory footprint.
+Comparing two <code>Handle[T]</code> values is efficient, reducing down to a simple
+pointer comparison.</p>
+<h3 id="iterators">Iterators</h3>
+<p>The new <a href="/pkg/iter"><code>iter</code></a> package provides the basic definitions for working with
+user-defined iterators.</p>
+<p>The <a href="/pkg/slices"><code>slices</code></a> package adds several functions that work with iterators:</p>
+<ul>
+<li><a href="/pkg/slices#All">All</a> returns an iterator over slice indexes and values.</li>
+<li><a href="/pkg/slices#Values">Values</a> returns an iterator over slice elements.</li>
+<li><a href="/pkg/slices#Backward">Backward</a> returns an iterator that loops over
+a slice backward.</li>
+<li><a href="/pkg/slices#Collect">Collect</a> collects values from an iterator into
+a new slice.</li>
+<li><a href="/pkg/slices#AppendSeq">AppendSeq</a> appends values from an iterator to
+an existing slice.</li>
+<li><a href="/pkg/slices#Sorted">Sorted</a> collects values from an iterator into a
+new slice, and then sorts the slice.</li>
+<li><a href="/pkg/slices#SortedFunc">SortedFunc</a> is like <code>Sorted</code> but with a
+comparison function.</li>
+<li><a href="/pkg/slices#SortedStableFunc">SortedStableFunc</a> is like <code>SortFunc</code>
+but uses a stable sort algorithm.</li>
+<li><a href="/pkg/slices#Chunk">Chunk</a> returns an iterator over consecutive
+sub-slices of up to n elements of a slice.</li>
+</ul>
+<p>The <a href="/pkg/maps"><code>maps</code></a> package adds several functions that work with iterators:</p>
+<ul>
+<li><a href="/pkg/maps#All">All</a> returns an iterator over key-value pairs from a map.</li>
+<li><a href="/pkg/maps#Keys">Keys</a> returns an iterator over keys in a map.</li>
+<li><a href="/pkg/maps#Values">Values</a> returns an iterator over values in a map.</li>
+<li><a href="/pkg/maps#Insert">Insert</a> adds the key-value pairs from an iterator to an existing map.</li>
+<li><a href="/pkg/maps#Collect">Collect</a> collects key-value pairs from an iterator into a new map and returns it.</li>
+</ul>
+<h3 id="new-structs-package">New structs package</h3>
+<p>The new <a href="/pkg/structs"><code>structs</code></a> package provides
+types for struct fields that modify properties of
+the containing struct type such as memory layout.</p>
+<p>In this release, the only such type is
+<a href="/pkg/structs#HostLayout"><code>HostLayout</code></a>
+which indicates that a structure with a field of that
+type has a layout that conforms to host platform
+expectations.  HostLayout should be used in types that
+are passed to, returned from, or accessed
+via a pointer passed to/from host APIs.
+Without this marker, struct layout order is not
+guaranteed by the language spec, though as of Go 1.23
+the host and language layouts happen to match.</p>
+<h3 id="minor_library_changes">Minor changes to the library</h3>
+<h4 id="archivetarpkgarchivetar"><a href="/pkg/archive/tar/"><code>archive/tar</code></a></h4>
+<p>If the argument to <a href="/pkg/archive/tar#FileInfoHeader"><code>FileInfoHeader</code></a> implements the new <a href="/pkg/archive/tar#FileInfoNames"><code>FileInfoNames</code></a>
+interface, then the interface methods will be used to set the Uname/Gname
+of the file header. This allows applications to override the system-dependent
+Uname/Gname lookup.</p>
+<h4 id="cryptotlspkgcryptotls"><a href="/pkg/crypto/tls/"><code>crypto/tls</code></a></h4>
+<p>The TLS client now supports the Encrypted Client Hello <a href="https://www.ietf.org/archive/id/draft-ietf-tls-esni-18.html" rel="noreferrer" target="_blank">draft specification</a>.
+This feature can be enabled by setting the <a href="/pkg/crypto/tls#Config.EncryptedClientHelloConfigList"><code>Config.EncryptedClientHelloConfigList</code></a>
+field to an encoded ECHConfigList for the host that is being connected to.</p>
+<p>The <a href="/pkg/crypto/tls#QUICConn"><code>QUICConn</code></a> type used by QUIC implementations includes new events
+reporting on the state of session resumption, and provides a way for
+the QUIC layer to add data to session tickets and session cache entries.</p>
+<p>3DES cipher suites were removed from the default list used when
+<a href="/pkg/crypto/tls#Config.CipherSuites"><code>Config.CipherSuites</code></a> is nil. The default can be reverted by adding <code>tls3des=1</code> to
+the GODEBUG environment variable.</p>
+<p>The experimental post-quantum key exchange mechanism X25519Kyber768Draft00
+is now enabled by default when <a href="/pkg/crypto/tls#Config.CurvePreferences"><code>Config.CurvePreferences</code></a> is nil.
+The default can be reverted by adding <code>tlskyber=0</code> to the GODEBUG environment variable.
+This can be useful when dealing with buggy TLS servers that do not handle large records correctly,
+causing a timeout during the handshake (see <a href="https://tldr.fail/" rel="noreferrer" target="_blank">TLS post-quantum TL;DR fail</a>).</p>
+<p>Go 1.23 changed the behavior of <a href="/pkg/crypto/tls#X509KeyPair"><code>X509KeyPair</code></a> and <a href="/pkg/crypto/tls#LoadX509KeyPair"><code>LoadX509KeyPair</code></a>
+to populate the <a href="/pkg/crypto/tls#Certificate.Leaf"><code>Certificate.Leaf</code></a> field of the returned <a href="/pkg/crypto/tls#Certificate"><code>Certificate</code></a>.
+The new <code>x509keypairleaf</code> <a href="/doc/godebug">GODEBUG setting</a> is added for this behavior.</p>
+<h4 id="cryptox509pkgcryptox509"><a href="/pkg/crypto/x509/"><code>crypto/x509</code></a></h4>
+<p><a href="/pkg/crypto/x509#CreateCertificateRequest"><code>CreateCertificateRequest</code></a> now correctly supports RSA-PSS signature algorithms.</p>
+<p><a href="/pkg/crypto/x509#CreateCertificateRequest"><code>CreateCertificateRequest</code></a> and <a href="/pkg/crypto/x509#CreateRevocationList"><code>CreateRevocationList</code></a> now verify the generated signature using the signer’s public key. If the signature is invalid, an error is returned. This has been the behavior of <a href="/pkg/crypto/x509#CreateCertificate"><code>CreateCertificate</code></a> since Go 1.16.</p>
+<p>The <a href="/pkg/crypto/x509#InsecureAlgorithmError"><code>x509sha1</code> GODEBUG setting</a> will
+be removed in the next Go major release (Go 1.24). This will mean that <code>crypto/x509</code>
+will no longer support verifying signatures on certificates that use SHA-1 based
+signature algorithms.</p>
+<p>The new <a href="/pkg/crypto/x509#ParseOID"><code>ParseOID</code></a> function parses a dot-encoded ASN.1 Object Identifier string.
+The <a href="/pkg/crypto/x509#OID"><code>OID</code></a> type now implements the <a href="/pkg/encoding#BinaryMarshaler"><code>encoding.BinaryMarshaler</code></a>,
+<a href="/pkg/encoding#BinaryUnmarshaler"><code>encoding.BinaryUnmarshaler</code></a>, <a href="/pkg/encoding#TextMarshaler"><code>encoding.TextMarshaler</code></a>, <a href="/pkg/encoding#TextUnmarshaler"><code>encoding.TextUnmarshaler</code></a> interfaces.</p>
+<h4 id="databasesqlpkgdatabasesql"><a href="/pkg/database/sql/"><code>database/sql</code></a></h4>
+<p>Errors returned by <a href="/pkg/driver#Valuer"><code>driver.Valuer</code></a> implementations are now wrapped for
+improved error handling during operations like <a href="/pkg/database/sql#DB.Query"><code>DB.Query</code></a>, <a href="/pkg/database/sql#DB.Exec"><code>DB.Exec</code></a>,
+and <a href="/pkg/database/sql#DB.QueryRow"><code>DB.QueryRow</code></a>.</p>
+<h4 id="debugelfpkgdebugelf"><a href="/pkg/debug/elf/"><code>debug/elf</code></a></h4>
+<p>The <code>debug/elf</code> package now defines <a href="/pkg/debug/elf#PT_OPENBSD_NOBTCFI"><code>PT_OPENBSD_NOBTCFI</code></a>. This <a href="/pkg/debug/elf#ProgType"><code>ProgType</code></a> is
+used to disable Branch Tracking Control Flow Integrity (BTCFI) enforcement
+on OpenBSD binaries.</p>
+<p>Now defines the symbol type constants <a href="/pkg/debug/elf#STT_RELC"><code>STT_RELC</code></a>, <a href="/pkg/debug/elf#STT_SRELC"><code>STT_SRELC</code></a>, and
+<a href="/pkg/debug/elf#STT_GNU_IFUNC"><code>STT_GNU_IFUNC</code></a>.</p>
+<h4 id="encodingbinarypkgencodingbinary"><a href="/pkg/encoding/binary/"><code>encoding/binary</code></a></h4>
+<p>The new <a href="/pkg/encoding/binary#Encode"><code>Encode</code></a> and <a href="/pkg/encoding/binary#Decode"><code>Decode</code></a> functions are byte slice equivalents
+to <a href="/pkg/encoding/binary#Read"><code>Read</code></a> and <a href="/pkg/encoding/binary#Write"><code>Write</code></a>.
+<a href="/pkg/encoding/binary#Append"><code>Append</code></a> allows marshaling multiple data into the same byte slice.</p>
+<h4 id="goastpkggoast"><a href="/pkg/go/ast/"><code>go/ast</code></a></h4>
+<p>The new <a href="/pkg/go/ast#Preorder"><code>Preorder</code></a> function returns a convenient iterator over all the
+nodes of a syntax tree.</p>
+<h4 id="gotypespkggotypes"><a href="/pkg/go/types/"><code>go/types</code></a></h4>
+<!-- see ../../../../2-language.md -->
+<p>The <a href="/pkg/go/types#Func"><code>Func</code></a> type, which represents a function or method symbol, now
+has a <a href="/pkg/go/types#Func.Signature"><code>Func.Signature</code></a> method that returns the function&rsquo;s type, which
+is always a <code>Signature</code>.</p>
+<p>The <a href="/pkg/go/types#Alias"><code>Alias</code></a> type now has an <a href="/pkg/go/types#Rhs"><code>Rhs</code></a> method that returns the type on the
+right-hand side of its declaration: given <code>type A = B</code>, the <code>Rhs</code> of A
+is B. (<a href="/issue/66559">#66559</a>)</p>
+<p>The methods <a href="/pkg/go/types#Alias.Origin"><code>Alias.Origin</code></a>, <a href="/pkg/go/types#Alias.SetTypeParams"><code>Alias.SetTypeParams</code></a>, <a href="/pkg/go/types#Alias.TypeParams"><code>Alias.TypeParams</code></a>,
+and <a href="/pkg/go/types#Alias.TypeArgs"><code>Alias.TypeArgs</code></a> have been added. They are needed for generic alias types.</p>
+<!-- CL 577715, CL 579076 -->
+<p>By default, go/types now produces <a href="/pkg/go/types#Alias"><code>Alias</code></a> type nodes for type aliases.
+This behavior can be controlled by the <code>GODEBUG</code> <code>gotypesalias</code> flag.
+Its default has changed from 0 in Go 1.22 to 1 in Go 1.23.</p>
+<h4 id="mathrandv2pkgmathrandv2"><a href="/pkg/math/rand/v2/"><code>math/rand/v2</code></a></h4>
+<p>The <a href="/pkg/math/rand/v2#Uint"><code>Uint</code></a> function and <a href="/pkg/math/rand/v2#Rand.Uint"><code>Rand.Uint</code></a> method have been added.
+They were inadvertently left out of Go 1.22.</p>
+<p>The new <a href="/pkg/math/rand/v2#ChaCha8.Read"><code>ChaCha8.Read</code></a> method implements the <a href="/pkg/io#Reader"><code>io.Reader</code></a> interface.</p>
+<h4 id="netpkgnet"><a href="/pkg/net/"><code>net</code></a></h4>
+<p>The new type <a href="/pkg/net#KeepAliveConfig"><code>KeepAliveConfig</code></a> permits fine-tuning the keep-alive
+options for TCP connections, via a new <a href="/pkg/net#TCPConn.SetKeepAliveConfig"><code>TCPConn.SetKeepAliveConfig</code></a>
+method and new KeepAliveConfig fields for <a href="/pkg/net#Dialer"><code>Dialer</code></a> and <a href="/pkg/net#ListenConfig"><code>ListenConfig</code></a>.</p>
+<p>The <a href="/pkg/net#DNSError"><code>DNSError</code></a> type now wraps errors caused by timeouts or cancellation.
+For example, <code>errors.Is(someDNSErr, context.DeadlineExceedeed)</code>
+will now report whether a DNS error was caused by a timeout.</p>
+<p>The new <code>GODEBUG</code> setting <code>netedns0=0</code> disables sending EDNS0
+additional headers on DNS requests, as they reportedly break the DNS
+server on some modems.</p>
+<h4 id="nethttppkgnethttp"><a href="/pkg/net/http/"><code>net/http</code></a></h4>
+<p><a href="/pkg/net/http#Cookie"><code>Cookie</code></a> now preserves double quotes surrounding a cookie value.
+The new <a href="/pkg/net/http#Cookie.Quoted"><code>Cookie.Quoted</code></a> field indicates whether the <a href="/pkg/net/http#Cookie.Value"><code>Cookie.Value</code></a>
+was originally quoted.</p>
+<p>The new <a href="/pkg/net/http#Request.CookiesNamed"><code>Request.CookiesNamed</code></a> method retrieves all cookies that match the given name.</p>
+<p>The new <a href="/pkg/net/http#Cookie.Partitioned"><code>Cookie.Partitioned</code></a> field identifies cookies with the Partitioned attribute.</p>
+<p>The patterns used by <a href="/pkg/net/http#ServeMux"><code>ServeMux</code></a> now allow one or more spaces or tabs after the method name.
+Previously, only a single space was permitted.</p>
+<p>The new <a href="/pkg/net/http#ParseCookie"><code>ParseCookie</code></a> function parses a Cookie header value and
+returns all the cookies which were set in it. Since the same cookie
+name can appear multiple times the returned Values can contain
+more than one value for a given key.</p>
+<p>The new <a href="/pkg/net/http#ParseSetCookie"><code>ParseSetCookie</code></a> function parses a Set-Cookie header value and
+returns a cookie. It returns an error on syntax error.</p>
+<p><a href="/pkg/net/http#ServeContent"><code>ServeContent</code></a>, <a href="/pkg/net/http#ServeFile"><code>ServeFile</code></a>, and <a href="/pkg/net/http#ServeFileFS"><code>ServeFileFS</code></a> now remove
+the <code>Cache-Control</code>, <code>Content-Encoding</code>, <code>Etag</code>, and <code>Last-Modified</code>
+headers when serving an error. These headers usually apply to the
+non-error content, but not to the text of errors.</p>
+<p>Middleware which wraps a <a href="/pkg/net/http#ResponseWriter"><code>ResponseWriter</code></a> and applies on-the-fly
+encoding, such as <code>Content-Encoding: gzip</code>, will not function after
+this change.  The previous behavior of <a href="/pkg/net/http#ServeContent"><code>ServeContent</code></a>, <a href="/pkg/net/http#ServeFile"><code>ServeFile</code></a>,
+and <a href="/pkg/net/http#ServeFileFS"><code>ServeFileFS</code></a> may be restored by setting
+<code>GODEBUG=httpservecontentkeepheaders=1</code>.</p>
+<p>Note that middleware which changes the size of the served content
+(such as by compressing it) already does not function properly when
+<a href="/pkg/net/http#ServeContent"><code>ServeContent</code></a> handles a Range request. On-the-fly compression
+should use the <code>Transfer-Encoding</code> header instead of <code>Content-Encoding</code>.</p>
+<p>For inbound requests, the new <a href="/pkg/net/http#Request.Pattern"><code>Request.Pattern</code></a> field contains the <a href="/pkg/net/http#ServeMux"><code>ServeMux</code></a>
+pattern (if any) that matched the request. This field is not set when
+<code>GODEBUG=httpmuxgo121=1</code> is set.</p>
+<h4 id="nethttphttptestpkgnethttphttptest"><a href="/pkg/net/http/httptest/"><code>net/http/httptest</code></a></h4>
+<p>The new <a href="/pkg/net/http/httptest#NewRequestWithContext"><code>NewRequestWithContext</code></a> method creates an incoming request with
+a <a href="/pkg/context#Context"><code>context.Context</code></a>.</p>
+<h4 id="netnetippkgnetnetip"><a href="/pkg/net/netip/"><code>net/netip</code></a></h4>
+<p>In Go 1.22 and earlier, using
+<a href="/pkg/reflect#DeepEqual"><code>reflect.DeepEqual</code></a> to compare an
+<a href="/pkg/net/netip#Addr"><code>Addr</code></a> holding an IPv4 address to one holding
+the IPv4-mapped IPv6 form of that address incorrectly returned true,
+even though the <code>Addr</code> values were different when comparing with <code>==</code> or
+<a href="/pkg/net/netip#Addr.Compare"><code>Addr.Compare</code></a>.
+This bug is now fixed and all three approaches now report the same
+result.</p>
+<h4 id="ospkgos"><a href="/pkg/os/"><code>os</code></a></h4>
+<p>The <a href="/pkg/os#Stat"><code>Stat</code></a> function now sets the <a href="/pkg/os#ModeSocket"><code>ModeSocket</code></a> bit for
+files that are Unix sockets on Windows. These files are identified
+by having a reparse tag set to <code>IO_REPARSE_TAG_AF_UNIX</code>.</p>
+<p>On Windows, the mode bits reported by <a href="/pkg/os#Lstat"><code>Lstat</code></a> and <a href="/pkg/os#Stat"><code>Stat</code></a> for
+reparse points changed. Mount points no longer have <a href="/pkg/os#ModeSymlink"><code>ModeSymlink</code></a> set,
+and reparse points that are not symlinks, Unix sockets, or dedup files
+now always have <a href="/pkg/os#ModeIrregular"><code>ModeIrregular</code></a> set.
+This behavior is controlled by the <code>winsymlink</code> setting.
+For Go 1.23, it defaults to <code>winsymlink=1</code>.
+Previous versions default to <code>winsymlink=0</code>.</p>
+<p>The <a href="/pkg/os#CopyFS"><code>CopyFS</code></a> function copies an <a href="/pkg/io/fs#FS"><code>io/fs.FS</code></a> into the local filesystem.</p>
+<p>On Windows, <a href="/pkg/os#Readlink"><code>Readlink</code></a> no longer tries to normalize volumes
+to drive letters, which was not always even possible.
+This behavior is controlled by the <code>winreadlinkvolume</code> setting.
+For Go 1.23, it defaults to <code>winreadlinkvolume=1</code>.
+Previous versions default to <code>winreadlinkvolume=0</code>.</p>
+<!-- go.dev/issue/62654, CL 570036, CL 570681 -->
+<p>On Linux with pidfd support (generally Linux v5.4+),
+<a href="/pkg/os#Process"><code>Process</code></a>-related functions and methods use pidfd (rather
+than PID) internally, eliminating potential mistargeting when a PID is reused
+by the OS. Pidfd support is fully transparent to a user, except for additional
+process file descriptors that a process may have.</p>
+<h4 id="pathfilepathpkgpathfilepath"><a href="/pkg/path/filepath/"><code>path/filepath</code></a></h4>
+<p>The new <a href="/pkg/path/filepath#Localize"><code>Localize</code></a> function safely converts a slash-separated
+path into an operating system path.</p>
+<p>On Windows, <a href="/pkg/path/filepath#EvalSymlinks"><code>EvalSymlinks</code></a> no longer evaluates mount points,
+which was a source of many inconsistencies and bugs.
+This behavior is controlled by the <code>winsymlink</code> setting.
+For Go 1.23, it defaults to <code>winsymlink=1</code>.
+Previous versions default to <code>winsymlink=0</code>.</p>
+<p>On Windows, <a href="/pkg/path/filepath#EvalSymlinks"><code>EvalSymlinks</code></a> no longer tries to normalize
+volumes to drive letters, which was not always even possible.
+This behavior is controlled by the <code>winreadlinkvolume</code> setting.
+For Go 1.23, it defaults to <code>winreadlinkvolume=1</code>.
+Previous versions default to <code>winreadlinkvolume=0</code>.</p>
+<h4 id="reflectpkgreflect"><a href="/pkg/reflect/"><code>reflect</code></a></h4>
+<p>The new methods synonymous with the methods of the same name
+in <a href="/pkg/reflect#Value"><code>Value</code></a> are added to <a href="/pkg/reflect#Type"><code>Type</code></a>:</p>
+<ol>
+<li><a href="/pkg/reflect#Type.OverflowComplex"><code>Type.OverflowComplex</code></a></li>
+<li><a href="/pkg/reflect#Type.OverflowFloat"><code>Type.OverflowFloat</code></a></li>
+<li><a href="/pkg/reflect#Type.OverflowInt"><code>Type.OverflowInt</code></a></li>
+<li><a href="/pkg/reflect#Type.OverflowUint"><code>Type.OverflowUint</code></a></li>
+</ol>
+<p>The new <a href="/pkg/reflect#SliceAt"><code>SliceAt</code></a> function is analogous to <a href="/pkg/reflect#NewAt"><code>NewAt</code></a>, but for slices.</p>
+<p>The <a href="/pkg/reflect#Value.Pointer"><code>Value.Pointer</code></a> and <a href="/pkg/reflect#Value.UnsafePointer"><code>Value.UnsafePointer</code></a> methods now support values of kind <a href="/pkg/reflect#String"><code>String</code></a>.</p>
+<p>The new methods <a href="/pkg/reflect#Value.Seq"><code>Value.Seq</code></a> and <a href="/pkg/reflect#Value.Seq2"><code>Value.Seq2</code></a> return sequences that iterate over the value
+as though it were used in a for/range loop.
+The new methods <a href="/pkg/reflect#Type.CanSeq"><code>Type.CanSeq</code></a> and <a href="/pkg/reflect#Type.CanSeq2"><code>Type.CanSeq2</code></a> report whether calling
+<a href="/pkg/reflect#Value.Seq"><code>Value.Seq</code></a> and <a href="/pkg/reflect#Value.Seq2"><code>Value.Seq2</code></a>, respectively, will succeed without panicking.</p>
+<h4 id="runtimedebugpkgruntimedebug"><a href="/pkg/runtime/debug/"><code>runtime/debug</code></a></h4>
+<p>The <a href="/pkg/runtime/debug#SetCrashOutput"><code>SetCrashOutput</code></a> function allows the user to specify an alternate
+file to which the runtime should write its fatal crash report.
+It may be used to construct an automated reporting mechanism for all
+unexpected crashes, not just those in goroutines that explicitly use
+<code>recover</code>.</p>
+<!-- pacify TestCheckAPIFragments -->
+<h4 id="runtimepprofpkgruntimepprof"><a href="/pkg/runtime/pprof/"><code>runtime/pprof</code></a></h4>
+<p>The maximum stack depth for <code>alloc</code>, <code>mutex</code>, <code>block</code>, <code>threadcreate</code> and <code>goroutine</code>
+profiles has been raised from 32 to 128 frames.</p>
+<h4 id="runtimetracepkgruntimetrace"><a href="/pkg/runtime/trace/"><code>runtime/trace</code></a></h4>
+<!-- go.dev/issue/65319 -->
+<p>The runtime now explicitly flushes trace data when a program crashes due to an
+uncaught panic. This means that more complete trace data will be available in a
+trace if the program crashes while tracing is active.</p>
+<h4 id="slicespkgslices"><a href="/pkg/slices/"><code>slices</code></a></h4>
+<!-- see ../../3-iter.md -->
+<!-- see ../../3-iter.md -->
+<p>The <a href="/pkg/slices#Repeat"><code>Repeat</code></a> function returns a new slice that repeats the
+provided slice the given number of times.</p>
+<h4 id="syncpkgsync"><a href="/pkg/sync/"><code>sync</code></a></h4>
+<p>The <a href="/pkg/sync#Map.Clear"><code>Map.Clear</code></a> method deletes all the entries, resulting in
+an empty <a href="/pkg/sync#Map"><code>Map</code></a>. It is analogous to <code>clear</code>.</p>
+<h4 id="syncatomicpkgsyncatomic"><a href="/pkg/sync/atomic/"><code>sync/atomic</code></a></h4>
+<!-- Issue #61395 -->
+<p>The new <a href="/pkg/sync/atomic#And"><code>And</code></a> and <a href="/pkg/sync/atomic#Or"><code>Or</code></a> operators apply a bitwise <code>AND</code> or <code>OR</code> to
+the given input, returning the old value.</p>
+<h4 id="syscallpkgsyscall"><a href="/pkg/syscall/"><code>syscall</code></a></h4>
+<p>The syscall package now defines <a href="/pkg/syscall#WSAENOPROTOOPT"><code>WSAENOPROTOOPT</code></a> on Windows.</p>
+<p>The <a href="/pkg/syscall#GetsockoptInt"><code>GetsockoptInt</code></a> function is now supported on Windows.</p>
+<h4 id="testingfstestpkgtestingfstest"><a href="/pkg/testing/fstest/"><code>testing/fstest</code></a></h4>
+<p><a href="/pkg/testing/fstest#TestFS"><code>TestFS</code></a> now returns a structured error that can be unwrapped
+(via method <code>Unwrap() []error</code>). This allows inspecting errors
+using <a href="/pkg/errors#Is"><code>errors.Is</code></a> or <a href="/pkg/errors#As"><code>errors.As</code></a>.</p>
+<h4 id="texttemplatepkgtexttemplate"><a href="/pkg/text/template/"><code>text/template</code></a></h4>
+<p>Templates now support the new &ldquo;else with&rdquo; action, which reduces template complexity in some use cases.</p>
+<h4 id="timepkgtime"><a href="/pkg/time/"><code>time</code></a></h4>
+<p><a href="/pkg/time#Parse"><code>Parse</code></a> and <a href="/pkg/time#ParseInLocation"><code>ParseInLocation</code></a> now return an error if the time zone
+offset is out of range.</p>
+<p>On Windows, <a href="/pkg/time#Timer"><code>Timer</code></a>, <a href="/pkg/time#Ticker"><code>Ticker</code></a>, and functions that put the goroutine to sleep,
+such as <a href="/pkg/time#Sleep"><code>Sleep</code></a>, got their time resolution improved to 0.5ms instead of 15.6ms.</p>
+<h4 id="unicodeutf16pkgunicodeutf16"><a href="/pkg/unicode/utf16/"><code>unicode/utf16</code></a></h4>
+<p>The <a href="/pkg/unicode/utf16#RuneLen"><code>RuneLen</code></a> function returns the number of 16-bit words in
+the UTF-16 encoding of the rune. It returns -1 if the rune
+is not a valid value to encode in UTF-16.</p>
+<h2 id="ports">Ports</h2>
+<h3 id="darwin">Darwin</h3>
+<!-- go.dev/issue/64207 -->
+<p>As <a href="go1.22#darwin">announced</a> in the Go 1.22 release notes,
+Go 1.23 requires macOS 11 Big Sur or later;
+support for previous versions has been discontinued.</p>
+<h3 id="linux">Linux</h3>
+<!-- go.dev/issue/67001 -->
+<p>Go 1.23 is the last release that requires Linux kernel version 2.6.32 or later. Go 1.24 will require Linux kernel version 3.2 or later.</p>
+<h3 id="openbsd">OpenBSD</h3>
+<!-- go.dev/issue/55999, CL 518629, CL 518630 -->
+<p>Go 1.23 adds experimental support for OpenBSD on 64-bit RISC-V (<code>GOOS=openbsd</code>, <code>GOARCH=riscv64</code>).</p>
+<h3 id="arm64">ARM64</h3>
+<!-- go.dev/issue/60905, CL 559555 -->
+<p>Go 1.23 introduces a new <code>GOARM64</code> environment variable, which specifies the minimum target version of the ARM64 architecture at compile time. Allowed values are <code>v8.{0-9}</code> and <code>v9.{0-5}</code>. This may be followed by an option specifying extensions implemented by target hardware. Valid options are <code>,lse</code> and <code>,crypto</code>.</p>
+<p>The <code>GOARM64</code> environment variable defaults to <code>v8.0</code>.</p>
+<h3 id="riscv">RISC-V</h3>
+<!-- go.dev/issue/61476, CL 541135 -->
+<p>Go 1.23 introduces a new <code>GORISCV64</code> environment variable, which selects the <a href="https://github.com/riscv/riscv-profiles/blob/main/src/profiles.adoc" rel="noreferrer" target="_blank">RISC-V user-mode application profile</a> for which to compile. Allowed values are <code>rva20u64</code> and <code>rva22u64</code>.</p>
+<p>The <code>GORISCV64</code> environment variable defaults to <code>rva20u64</code>.</p>
+<h3 id="wasm">Wasm</h3>
+<!-- go.dev/issue/63718 -->
+<p>The <code>go_wasip1_wasm_exec</code> script in <code>GOROOT/misc/wasm</code> has dropped support
+for versions of <code>wasmtime</code> &lt; 14.0.0.</p>
+<!-- These items need to be completed and moved to an appropriate location in the release notes. -->
+<!-- These items need to be reviewed, and mentioned in the Go 1.23 release notes if applicable.
+
+None right now; more may come up later on.
+-->
+<!-- Maybe should be documented? Maybe shouldn't? Someone familiar with the change needs to determine.
+
+CL 359594 ("x/website/_content/ref/mod: document dotless module paths") - resolved go.dev/issue/32819 ("cmd/go: document that module names without dots are reserved") and also mentioned accepted proposal go.dev/issue/37641
+CL 555075 ("x/tools/go/ssa: support range-over-func") - x/tools CL implements range-over-func support in x/tools/go/ssa for accepted proposal https://go.dev/issue/66601; this particular proposal and change doesn't seem to need a dedicated mention in Go 1.23 release notes but someone more familiar should take another look
+-->
+<!-- Items that don't need to be mentioned in Go 1.23 release notes but are picked up by relnote todo.
+
+CL 458895 - an x/playground fix that mentioned an accepted cmd/go proposal go.dev/issue/40728 in Go 1.16 milestone...
+CL 582097 - an x/build CL working on relnote itself; it doesn't need a release note
+CL 561935 - crypto CL that used purego tag and mentioned accepted-but-not-implemented proposal https://go.dev/issue/23172 to document purego tag; doesn't need a release note
+CL 568340 - fixed a spurious race in time.Ticker.Reset (added via accepted proposal https://go.dev/issue/33184), doesn't seem to need a release note
+CL 562619 - x/website CL documented minimum bootstrap version on go.dev, mentioning accepted proposals go.dev/issue/54265 and go.dev/issue/44505; doesn't need a release note
+CL 557055 - x/tools CL implemented accepted proposal https://go.dev/issue/46941 for x/tools/go/ssa
+CL 564275 - an x/tools CL that updates test data in preparation for accepted proposal https://go.dev/issue/51473; said proposal isn't implemented for Go 1.23 and so it doesn't need a release note
+CL 572535 - used "unix" build tag in more places, mentioned accepted proposal https://go.dev/issue/51572; doesn't need a release note
+CL 555255 - an x/tools CL implements accepted proposal https://go.dev/issue/53367 for x/tools/go/cfg
+CL 585216 - an x/build CL mentions accepted proposal https://go.dev/issue/56001 because it fixed a bug causing downloads not to be produced for that new-to-Go-1.22 port; this isn't relevant to Go 1.23 release notes
+CL 481062 - added examples for accepted proposal https://go.dev/issue/56102; doesn't need a release note
+CL 497195 - an x/net CL adds one of 4 fields for accepted proposal https://go.dev/issue/57893 in x/net/http2; seemingly not related to net/http and so doesn't need a Go 1.23 release note
+CL 463097, CL 568198 - x/net CLs that implemented accepted proposal https://go.dev/issue/57953 for x/net/websocket; no need for rel note
+many x/net CLs - work on accepted proposal https://go.dev/issue/58547 to add a QUIC implementation to x/net/quic
+CL 514775 - implements a performance optimization for accepted proposal https://go.dev/issue/59488
+CL 484995 - x/sys CL implements accepted proposal https://go.dev/issue/59537 to add x/sys/unix API
+CL 555597 - optimizes TypeFor (added in accepted proposal https://go.dev/issue/60088) for non-interface types; doesn't seem to need a release note
+a few x/tools CLs deprecated and deleted the experimental golang.org/x/tools/cmd/getgo tool per accepted proposal https://go.dev/issue/60951; an unreleased change and not something that's in scope of Go 1.23 release notes
+many x/vuln CLs to implement accepted proposal https://go.dev/issue/61347 ("x/vuln: convert govulncheck output to sarif format") in govulncheck
+CL 516355 - x/crypto CL that implemented accepted proposal https://go.dev/issue/61447 for x/crypto/ssh; doesn't need a Go 1.23 release note
+CL 559799 - a Go 1.22 release note edit CL mentioned a Go 1.22 accepted proposal https://go.dev/issue/62039, a little after Go 1.23 development began
+CL 581555 - an x/tools CL mentioned accepted proposal https://go.dev/issue/62292 for x/tools/go/aalysis; doesn't need a Go 1.23 release note
+CL 578355 - mentioned accepted proposal https://go.dev/issue/63131 to add GOARCH=wasm32, but that proposal hasn't been implemented in Go 1.23 so it doesn't need a release note
+CL 543335 - x/exp CL that backported a change to behavior in slices package (accepted proposal https://go.dev/issue/63393) to x/exp/slices; doesn't need a Go 1.23 release note
+CL 556820 - x/tools CL implemented accepted proposal https://go.dev/issue/64548 for x/tools/go/analysis
+CL 557056 - x/tools CL implemented accepted proposal https://go.dev/issue/64608 for x/tools/go/packages
+CL 558695 - x/crypto CL worked on accepted proposal https://go.dev/issue/64962 for x/crypto/ssh
+CL 572016 - x/tools CL implemented accepted proposal https://go.dev/issue/65754 for x/tools/go/cfg
+a few x/tools CLs tagged and deleted the golang.org/x/tools/cmd/guru command per accepted proposal https://go.dev/issue/65880; an unreleased change and not something that's in scope of Go 1.23 release notes
+CL 580076 - seemingly internal cmd/go change to propagate module information for accepted proposal https://go.dev/issue/66315; doesn't seem to warrant a release note
+CL 529816 - the 'tests' vet check was initially added to the 'go test' suite per accepted proposal https://go.dev/issue/44251, but the change was rolled back in CL 571695, with no roll forward as of 2024-05-23; nothing to document in Go 1.23 release notes for it at this time
+CL 564035 - changed encoding/xml, but the change was too disrptive and rolled back in CL 570175, reopening tracking issue go.dev/issue/65691; nothing to document in Go 1.23 release notes
+CL 587855 - a demonstration of benefit of accepted proposal https://go.dev/issue/60529; actual change isn't happening in Go 1.23 so doesn't need a release note
+CL 526875 - x/crypto CL implemented accepted proposal https://go.dev/issue/62518 for x/crypto/ssh
+-->
+</div>
+
+
+
+
+
+
+
+</article>
+
+
+
+</main>
+<footer class="Site-footer">
+  <div class="Footer">
+    <div class="Container">
+      <div class="Footer-links">
+          <div class="Footer-linkColumn">
+            <a href="/solutions/" class="Footer-link Footer-link--primary" aria-describedby="footer-description">
+              Why Go
+            </a>
+              <a href="/solutions/use-cases" class="Footer-link" aria-describedby="footer-description">
+                Use Cases
+              </a>
+              <a href="/solutions/case-studies" class="Footer-link" aria-describedby="footer-description">
+                Case Studies
+              </a>
+          </div>
+          <div class="Footer-linkColumn">
+            <a href="/learn/" class="Footer-link Footer-link--primary" aria-describedby="footer-description">
+              Get Started
+            </a>
+              <a href="/play" class="Footer-link" aria-describedby="footer-description">
+                Playground
+              </a>
+              <a href="/tour/" class="Footer-link" aria-describedby="footer-description">
+                Tour
+              </a>
+              <a href="https://stackoverflow.com/questions/tagged/go?tab=Newest" class="Footer-link" aria-describedby="footer-description">
+                Stack Overflow
+              </a>
+              <a href="/help/" class="Footer-link" aria-describedby="footer-description">
+                Help
+              </a>
+          </div>
+          <div class="Footer-linkColumn">
+            <a href="https://pkg.go.dev" class="Footer-link Footer-link--primary" aria-describedby="footer-description">
+              Packages
+            </a>
+              <a href="/pkg/" class="Footer-link" aria-describedby="footer-description">
+                Standard Library
+              </a>
+              <a href="https://pkg.go.dev/about" class="Footer-link" aria-describedby="footer-description">
+                About Go Packages
+              </a>
+              <a href="https://pkg.go.dev/api" class="Footer-link" aria-describedby="footer-description">
+                pkg.go.dev API
+              </a>
+          </div>
+          <div class="Footer-linkColumn">
+            <a href="/project" class="Footer-link Footer-link--primary" aria-describedby="footer-description">
+              About
+            </a>
+              <a href="/dl/" class="Footer-link" aria-describedby="footer-description">
+                Download
+              </a>
+              <a href="/blog/" class="Footer-link" aria-describedby="footer-description">
+                Blog
+              </a>
+              <a href="https://github.com/golang/go/issues" class="Footer-link" aria-describedby="footer-description">
+                Issue Tracker
+              </a>
+              <a href="/doc/devel/release" class="Footer-link" aria-describedby="footer-description">
+                Release Notes
+              </a>
+              <a href="/brand" class="Footer-link" aria-describedby="footer-description">
+                Brand Guidelines
+              </a>
+              <a href="/conduct" class="Footer-link" aria-describedby="footer-description">
+                Code of Conduct
+              </a>
+          </div>
+          <div class="Footer-linkColumn">
+            <a href="/wiki/#the-go-community" class="Footer-link Footer-link--primary" aria-describedby="footer-description">
+              Connect
+            </a>
+              <a href="https://bsky.app/profile/golang.org" class="Footer-link" aria-describedby="footer-description">
+                Bluesky
+              </a>
+              <a href="https://hachyderm.io/@golang" class="Footer-link" aria-describedby="footer-description">
+                Mastodon
+              </a>
+              <a href="https://www.twitter.com/golang" class="Footer-link" aria-describedby="footer-description">
+                Twitter
+              </a>
+              <a href="https://github.com/golang" class="Footer-link" aria-describedby="footer-description">
+                GitHub
+              </a>
+              <a href="https://invite.slack.golangbridge.org/" class="Footer-link" aria-describedby="footer-description">
+                Slack
+              </a>
+              <a href="https://reddit.com/r/golang" class="Footer-link" aria-describedby="footer-description">
+                r/golang
+              </a>
+              <a href="https://www.meetup.com/pro/go" class="Footer-link" aria-describedby="footer-description">
+                Meetup
+              </a>
+              <a href="https://golangweekly.com/" class="Footer-link" aria-describedby="footer-description">
+                Golang Weekly
+              </a>
+          </div>
+      </div>
+    </div>
+  </div>
+  <div class="screen-reader-only" id="footer-description" hidden>
+          Opens in new window.
+  </div>
+  <div class="Footer">
+    <div class="Container Container--fullBleed">
+      <div class="Footer-bottom">
+        <img class="Footer-gopher" src="/images/gophers/pilot-bust.svg" alt="The Go Gopher">
+        <ul class="Footer-listRow">
+          <li class="Footer-listItem">
+            <a href="/copyright" aria-describedby="footer-description">Copyright</a>
+          </li>
+          <li class="Footer-listItem">
+            <a href="/tos" aria-describedby="footer-description">Terms of Service</a>
+          </li>
+          <li class="Footer-listItem">
+            <a href="http://www.google.com/intl/en/policies/privacy/" aria-describedby="footer-description"
+              target="_blank"
+              rel="noopener">
+              Privacy Policy
+            </a>
+            </li>
+          <li class="Footer-listItem">
+            <a
+              href="/s/website-issue" aria-describedby="footer-description"
+              target="_blank"
+              rel="noopener"
+              >
+              Report an Issue
+            </a>
+          </li>
+          <li class="Footer-listItem go-Footer-listItem">
+            <button class="go-Button go-Button--text go-Footer-toggleTheme js-toggleTheme" aria-label="Toggle theme">
+              <img
+                data-value="auto"
+                class="go-Icon go-Icon--inverted"
+                height="24"
+                width="24"
+                src="/images/icons/brightness_6_gm_grey_24dp.svg"
+                alt="System theme">
+              <img
+                data-value="dark"
+                class="go-Icon go-Icon--inverted"
+                height="24"
+                width="24"
+                src="/images/icons/brightness_2_gm_grey_24dp.svg"
+                alt="Dark theme">
+              <img
+                data-value="light"
+                class="go-Icon go-Icon--inverted"
+                height="24"
+                width="24"
+                src="/images/icons/light_mode_gm_grey_24dp.svg"
+                alt="Light theme">
+            </button>
+          </li>
+        </ul>
+        <a class="Footer-googleLogo" target="_blank" href="https://google.com" rel="noopener">
+          <img class="Footer-googleLogoImg" src="/images/google-white.png" alt="Google logo">
+        </a>
+      </div>
+    </div>
+  </div>
+  <script src="/js/jquery.js"></script>
+  <script src="/js/carousels.js"></script>
+  <script src="/js/searchBox.js"></script>
+  <script src="/js/misc.js"></script>
+  <script src="/js/hats.js"></script>
+  <script src="/js/playground.js"></script>
+  <script src="/js/godocs.js"></script>
+  <script async src="/js/copypaste.js"></script>
+</footer>
+<section class="Cookie-notice js-cookieNotice">
+  <div>go.dev uses cookies from Google to deliver and enhance the quality of its services and to
+  analyze traffic. <a target=_blank href="https://policies.google.com/technologies/cookies">Learn more.</a></div>
+  <div><button class="go-Button">Okay</button></div>
+</section>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

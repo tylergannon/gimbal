@@ -1,0 +1,8 @@
+{"query":"What is Beta coverage and what should happen next?","route":"index-milestones.md","citations":["milestone-assessment.md:1-18","milestone-assessment.md:31-34","delivery-slices.md:5-21"],"verified":true}
+{"query":"What exactly should issue 162 check?","route":"index-rules.md","citations":["milestone-assessment.md:20-29","rules-issue-162-audit.md:3-148"],"verified":true}
+{"query":"How are scope identity and Set writes represented?","route":"index-rules.md","citations":["rules-index-leaf.md:5-10","rules-source-excerpts.md:25-86"],"verified":true}
+{"query":"What does the runtime graph currently observe?","route":"index-runtime.md","citations":["runtime-index-leaf.md:7-34"],"verified":true}
+{"query":"What is the command observation gap?","route":"index-runtime.md","citations":["runtime-index-leaf.md:39-42","recommendation.md:89-97","delivery-slices.md:17-21"],"verified":true}
+{"query":"Can Go tooling find typed Gimble calls and SSA?","route":"index-go.md","citations":["go-report.md:42-111","go-feasibility-probe-output.txt:1-12"],"verified":true}
+{"query":"What can static analysis not prove about scope lifetime?","route":"index-go.md","citations":["go-report.md:135-206"],"verified":true}
+{"query":"Is the workflow graph already implemented?","route":"index-milestones.md","citations":["recommendation.md:1-11","milestone-assessment.md:31-34"],"verified":true}

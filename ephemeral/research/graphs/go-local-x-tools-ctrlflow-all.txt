@@ -1,0 +1,46 @@
+package ctrlflow // import "golang.org/x/tools/go/analysis/passes/ctrlflow"
+
+Package ctrlflow is an analysis that provides a syntactic control-flow graph
+(CFG) for the body of a function. It records whether a function cannot return.
+By itself, it does not report any diagnostics.
+
+VARIABLES
+
+var Analyzer = &analysis.Analyzer{
+	Name:       "ctrlflow",
+	Doc:        "build a control-flow graph",
+	URL:        "https://pkg.go.dev/golang.org/x/tools/go/analysis/passes/ctrlflow",
+	Run:        run,
+	ResultType: reflect.TypeFor[*CFGs](),
+	FactTypes:  []analysis.Fact{new(noReturn)},
+	Requires:   []*analysis.Analyzer{inspect.Analyzer},
+}
+
+TYPES
+
+type CFGs struct {
+	// Has unexported fields.
+}
+    A CFGs holds the control-flow graphs for all the functions of the current
+    package.
+
+func (c *CFGs) FuncDecl(decl *ast.FuncDecl) *cfg.CFG
+    FuncDecl returns the control-flow graph for a named function. It returns nil
+    if decl.Body==nil.
+
+func (c *CFGs) FuncLit(lit *ast.FuncLit) *cfg.CFG
+    FuncLit returns the control-flow graph for a literal function.
+
+func (c *CFGs) NoReturn(fn *types.Func) bool
+    NoReturn reports whether the specified control-flow graph cannot return
+    normally.
+
+    It is defined for at least all function symbols that appear as the static
+    callee of a CallExpr in the current package, even if the callee was imported
+    from a dependency.
+
+    The result may incorporate interprocedural information based on induction
+    of the "no return" property over the static call graph within the package.
+    For example, if f simply calls g and g always calls os.Exit, then both f and
+    g may be deemed never to return.
+

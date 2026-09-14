@@ -1,0 +1,171 @@
+    20	// Output is what polytype generates, and what Generate and SetJSON require.
+    21	type Output interface {
+    22		Schema() json.RawMessage
+    23		ValidateJSON([]byte) error
+    24	}
+    25	
+    26	type scopeKey struct{}
+    27	type taskKey struct{}
+    28	
+    29	// scope is one instance of a named span of the workflow. Nothing is in the
+    30	// ctx but a pointer to it.
+    31	type scope struct {
+    32		run    *run
+    33		parent *scope
+    34		key    string                  // names with ordinals from the root, as in lap.3/bakeoff.1/attempt.2; "" for the root
+    35		cancel context.CancelCauseFunc // ends the scope's ctx; run.cancelScope reaches it by key
+    36	
+    37		mu       sync.Mutex
+    38		ordinals map[string]int // the last ordinal given to each child scope and session name
+    39		keys     []string       // in the order they were set
+    40		values   map[string][]byte
+    41		sessions []*Session
+    42		ended    bool
+    43	}
+    44	
+    45	func current(ctx context.Context) (*scope, error) {
+    46		if s, _ := ctx.Value(scopeKey{}).(*scope); s != nil {
+    47			return s, nil
+    48		}
+    49		return nil, errors.New("gimble: no scope in the ctx; it must come from gimble.Run")
+    50	}
+    51	
+    52	// next names the next child of s called name. The caller holds s.mu.
+    53	func (s *scope) next(name string) string {
+    54		if s.ordinals == nil {
+    55			s.ordinals = make(map[string]int)
+    56		}
+    57		s.ordinals[name]++
+    58		return path.Join(s.key, fmt.Sprintf("%s.%d", name, s.ordinals[name]))
+    59	}
+    60	
+    61	func (s *scope) child(name string) *scope {
+    62		s.mu.Lock()
+    63		defer s.mu.Unlock()
+    64		return &scope{run: s.run, parent: s, key: s.next(name)}
+    65	}
+    66	
+    67	// adopt makes session belong to s, which closes it when s ends.
+    68	func (s *scope) adopt(session *Session) {
+    69		s.mu.Lock()
+    70		defer s.mu.Unlock()
+    71		session.id = s.next(session.name)
+    72		session.closed = s.ended
+    73		s.sessions = append(s.sessions, session)
+    74	}
+    75	
+    76	// do runs body as the scope: it begins when body is called and ends when
+    77	// body returns.
+    78	func (s *scope) do(ctx context.Context, body func(context.Context) error) error {
+    79		ctx, s.cancel = context.WithCancelCause(context.WithValue(ctx, scopeKey{}, s))
+    80		s.run.addScope(s)
+    81		e := ScopeBegan{Name: path.Base(s.key)}
+    82		if task, ok := ctx.Value(taskKey{}).(Task); ok {
+    83			e.Task = optionalTask(task)
+    84		}
+    85		s.run.event(s.key, "", "", e)
+    86		defer s.end()
+    87		err := body(ctx)
+    88		s.run.event(s.key, "", "", ScopeEnded{Error: errString(err)})
+    89		return err
+    90	}
+    91	
+    92	// end closes the scope's sessions, then cancels its ctx. Each session is
+    93	// marked closed before its adapter is asked to release it, so no Generate
+    94	// can enter while cleanup runs. A session with no native id had nothing
+    95	// allocated by its adapter and gets no Close call, only its SessionClosed
+    96	// event. Close runs on a timeout ctx independent of the run's own, so a
+    97	// cancelled run still releases every native session. A Close failure never
+    98	// changes the scope's own result (recorded on SessionClosed and folded into
+    99	// this run's aggregate close error instead); Run joins that aggregate into
+   100	// its returned error once the root scope has ended. The scope leaves the
+   101	// run's table first, so a kill by key cannot reach a scope that is ending.
+   102	func (s *scope) end() {
+   103		s.run.removeScope(s)
+   104		s.mu.Lock()
+   105		s.ended = true
+   106		sessions := s.sessions
+   107		s.mu.Unlock()
+   108		for _, session := range sessions {
+   109			session.mu.Lock()
+   110			session.closed = true
+   111			native := session.native
+   112			session.mu.Unlock()
+   113			var closeErr error
+   114			if native != "" {
+   115				closeCtx, cancel := context.WithTimeout(context.Background(), closeTimeout)
+   116				closeErr = session.adapter.Close(closeCtx, native)
+   117				cancel()
+   118				if closeErr != nil {
+   119					s.run.recordCloseFailure(session.id, closeErr)
+   120				}
+   121			}
+   122			s.run.event(s.key, session.id, "", SessionClosed{Error: errString(closeErr)})
+   123		}
+   124		s.cancel(nil)
+   125	}
+   126	
+   127	// Scope runs body in a child scope named name, and returns its error. The
+   128	// scope ends when body returns: each session it created is closed through
+   129	// its adapter's Close, then its ctx is cancelled. A Close failure is
+   130	// recorded, not returned here: it never enters this function's error and
+   131	// instead surfaces from the run's own aggregate cleanup error.
+   132	func Scope(ctx context.Context, name string, body func(ctx context.Context) error) error {
+   133		parent, err := current(ctx)
+   134		if err != nil {
+   135			return err
+   136		}
+   137		return parent.child(name).do(ctx, body)
+   138	}
+   139	
+   140	// Set stores a scalar in the ctx's scope. A key is set once per scope
+   141	// instance; revision is shadowing, in a child scope. Misuse is a
+   142	// programming error and panics with a message naming the key and the
+   143	// scope: a key already set in this scope, a scope that has ended, or a
+   144	// ctx with no scope. The run records the panic before it escapes.
+   145	func Set[V ~string | ~int | ~bool | ~[]string](ctx context.Context, key string, value V) {
+   146		store(ctx, key, encode(key, value))
+   147	}
+   148	
+   149	// SetJSON stores a polytype-generated value in the ctx's scope, once per
+   150	// key like Set, and panics on misuse like Set.
+   151	func SetJSON[V Output](ctx context.Context, key string, value V) {
+   152		store(ctx, key, encode(key, value))
+   153	}
+   154	
+   155	func encode(key string, value any) []byte {
+   156		raw, err := json.Marshal(value)
+   157		if err != nil {
+   158			panic(fmt.Sprintf("gimble: set %q: %v", key, err))
+   159		}
+   160		return raw
+   161	}
+   162	
+   163	func store(ctx context.Context, key string, raw []byte) {
+   164		s, _ := ctx.Value(scopeKey{}).(*scope)
+   165		if s == nil {
+   166			panic(fmt.Sprintf("gimble: set %q: no scope in the ctx; it must come from gimble.Run", key))
+   167		}
+   168		s.mu.Lock()
+   169		defer s.mu.Unlock()
+   170		if s.ended {
+   171			panic(fmt.Sprintf("gimble: set %q in scope %q after it ended", key, s.key))
+   172		}
+   173		if _, ok := s.values[key]; ok {
+   174			panic(fmt.Sprintf("gimble: %q is already set in scope %q", key, s.key))
+   175		}
+   176		if s.values == nil {
+   177			s.values = make(map[string][]byte)
+   178		}
+   179		s.values[key] = raw
+   180		s.keys = append(s.keys, key)
+   181		s.run.event(s.key, "", "", ValueSet{Key: key, Value: JSONText(raw)})
+   182	}
+   183	
+   184	// ScopeText renders every value visible from the ctx's scope for a prompt:
+   185	// outermost scope first, and for each key the value of the nearest scope
+   186	// that set it.
+   187	func ScopeText(ctx context.Context) string {
+   188		shown := make(map[string]bool)
+   189		var sections []string // innermost first, reversed below
+   190		for s, _ := ctx.Value(scopeKey{}).(*scope); s != nil; s = s.parent {

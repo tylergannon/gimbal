@@ -1,0 +1,111 @@
+   100				if err != nil {
+   101					return fmt.Errorf("gimble: %w", err)
+   102				}
+   103				a, err := l.planner.Generate[answer](ctx, planPrompt(l.name, l.planner.workdir, string(backlogText), ScopeText(ctx), previous))
+   104				if err != nil {
+   105					return err
+   106				}
+   107				p := a.plan
+   108				tasks = p.Tasks
+   109				if tasks == nil {
+   110					tasks = []Task{}
+   111				}
+   112	
+   113				revisedText, err := backlogJSON(l.goal, tasks)
+   114				if err != nil {
+   115					return fmt.Errorf("gimble: %w", err)
+   116				}
+   117				if err := os.WriteFile(file, []byte("---\n"+string(revisedText)+"\n---\n"), 0o644); err != nil {
+   118					return fmt.Errorf("gimble: %w", err)
+   119				}
+   120	
+   121				if !p.Next.Present {
+   122					loopScope.run.event(loopScope.key, "", "", PlannerDecision{})
+   123					logf("%s: the planner ended dispatch", loopScope.key)
+   124					return nil
+   125				}
+   126	
+   127				task := tasks[p.Next.Value]
+   128				logf("%s: task: %s", loopScope.key, oneLine(task.Name))
+   129				loopScope.run.event(loopScope.key, "", "", PlannerDecision{Task: optionalTask(task)})
+   130				more := true
+   131				taskScope := loopScope.child("task")
+   132				taskCtx := context.WithValue(ctx, taskKey{}, task)
+   133				if err := taskScope.do(taskCtx, func(ctx context.Context) error {
+   134					raw, err := json.Marshal(task)
+   135					if err != nil {
+   136						return fmt.Errorf("gimble: encode task: %w", err)
+   137					}
+   138					store(ctx, "task", raw)
+   139					more = yield(ctx, task)
+   140					previous = taskScope.localText()
+   141					// A task killed by an operator is the task scope's own
+   142					// outcome, so ScopeEnded records it.
+   143					var killed Killed
+   144					if errors.As(context.Cause(ctx), &killed) {
+   145						return killed
+   146					}
+   147					return nil
+   148				}); err != nil {
+   149					// A kill of the task alone is a failed task, not a broken
+   150					// loop: the planner sees the reason on the next lap. A kill
+   151					// of the loop itself reaches here too, as the inherited
+   152					// cause; that one ends dispatch, like any other error.
+   153					var killed Killed
+   154					if ctx.Err() != nil || !errors.As(err, &killed) {
+   155						return err
+   156					}
+   157					logf("%s: task killed: %v", loopScope.key, killed)
+   158					previous += "\n\n## task failed\n\n" + killed.Error()
+   159				}
+   160				if !more {
+   161					return nil
+   162				}
+   163			}
+   164		})
+   165	}
+   166	
+   167	// Err returns the error that ended dispatch, if any: persistence, malformed
+   168	// planner data, cancellation, or the planner's harness. A failed task
+   169	// validation recorded by the workflow is feedback, not a Loop error.
+   170	func (l *loop) Err() error {
+   171		return l.err
+   172	}
+   173	
+   174	// backlogJSON renders goal and tasks as the JSON object written to
+   175	// backlog.md (inside its frontmatter) and shown to the planner in its
+   176	// prompt, so both channels always agree.
+   177	func backlogJSON(goal string, tasks []Task) ([]byte, error) {
+   178		return json.MarshalIndent(struct {
+   179			Goal  string `json:"goal"`
+   180			Tasks []Task `json:"tasks"`
+   181		}{Goal: goal, Tasks: tasks}, "", "  ")
+   182	}
+   183	
+   184	// validatePlan checks a plan's content: every task must be well-formed, no
+   185	// two tasks may share a name, and a present Next must index into Tasks.
+   186	func validatePlan(p plan) error {
+   187		seen := make(map[string]bool, len(p.Tasks))
+   188		for i, task := range p.Tasks {
+   189			if err := validateTask(task); err != nil {
+   190				return fmt.Errorf("task %d: %w", i+1, err)
+   191			}
+   192			name := strings.TrimSpace(task.Name)
+   193			if seen[name] {
+   194				return fmt.Errorf("task %d: duplicate task name %q", i+1, task.Name)
+   195			}
+   196			seen[name] = true
+   197		}
+   198		if p.Next.Present && (p.Next.Value < 0 || p.Next.Value >= len(p.Tasks)) {
+   199			return fmt.Errorf("next %d is out of range for %d tasks", p.Next.Value, len(p.Tasks))
+   200		}
+   201		return nil
+   202	}
+   203	
+   204	func validateTask(task Task) error {
+   205		switch {
+   206		case strings.TrimSpace(task.Name) == "":
+   207			return errors.New("name is blank")
+   208		case strings.TrimSpace(task.Description) == "":
+   209			return errors.New("description is blank")
+   210		case strings.TrimSpace(task.DefinitionOfDone) == "":

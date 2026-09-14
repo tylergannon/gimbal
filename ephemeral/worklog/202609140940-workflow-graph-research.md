@@ -1,0 +1,7 @@
+correction: User wants a small built-in workflow library as well as the public workflow API. Static analysis must support caller modules, not only internal/workflows/sprint.
+doc_bug: API.md anticipates static graph extraction and six broad lints, but SPRINTS defers them and issue #162 is outside Beta. Search issue bodies and linked issue numbers as well as the word lint; #162 is titled Static check.
+decision: Research only, with evidence in ephemeral/research/graphs. Product code and GitHub issue state are outside this turn's changes.
+doc_bug: Historical memory objected to Set panics, but later issue #159 explicitly reverses that decision and current code implements it. Current code and later user decisions take precedence.
+friction: A research subagent ran broad tests and just build despite no product change. They added no tracked product changes, but research assignments should explicitly exclude broad build/test gates; the small package/SSA feasibility probe was the relevant evidence here.
+decision: Fresh git ls-remote confirmed the researched revision 24347fbd1b8b9cf8357f0bb50243c44ccfa5fb75 still matched origin/main before committing research.
+correction: Tyler explicitly prefers incomplete linting to restricting workflow authors and asks to avoid genuinely hard analysis while forming the theory. Dynamic Set keys remain supported now; a separate agent assesses whether constants are a good convention. Rewrote the immediate path as small deliveries without constant-key migration, complete ownership proof, or exact source-site lighting gates.

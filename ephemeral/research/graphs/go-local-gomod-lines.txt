@@ -1,0 +1,48 @@
+     1	module github.com/tylergannon/gimble
+     2	
+     3	go 1.27.1
+     4	
+     5	// web/ is a Go package (it embeds the build), so without this every ./... walk
+     6	// descends into web/node_modules looking for Go packages.
+     7	ignore ./web/node_modules
+     8	
+     9	// Downloaded reference source and the pinned oracle are separate workspaces.
+    10	ignore ./ephemeral/inspiration
+    11	
+    12	ignore ./third_party/opencode/oracle/upstream
+    13	
+    14	require (
+    15		github.com/coder/websocket v1.8.13
+    16		github.com/oklog/ulid/v2 v2.1.2
+    17		github.com/roasbeef/claude-agent-sdk-go v1.1.1-0.20260713164230-efdbecd88a98
+    18		github.com/santhosh-tekuri/jsonschema/v6 v6.0.2
+    19		github.com/tylergannon/polytype v1.0.0-rc.12.0.20260911210434-38f05b1ba899
+    20		github.com/tylergannon/skgo v0.4.0
+    21		golang.org/x/sync v0.23.0
+    22	)
+    23	
+    24	replace github.com/roasbeef/claude-agent-sdk-go => github.com/tylergannon/claude-agent-sdk-go v1.1.1-0.20260912021749-9a4ffeca77cc
+    25	
+    26	require (
+    27		github.com/dave/dst v0.27.4 // indirect
+    28		github.com/dlclark/regexp2/v2 v2.8.0 // indirect
+    29		github.com/dop251/goja v0.0.0-20260911104922-fabc3b8078ad // indirect
+    30		github.com/dop251/goja_nodejs v0.0.0-20260212111938-1f56ff5bcf14 // indirect
+    31		github.com/go-sourcemap/sourcemap v2.1.4+incompatible // indirect
+    32		github.com/google/pprof v0.0.0-20260906184651-6331bc6350fe // indirect
+    33		github.com/kr/text v0.2.0 // indirect
+    34		github.com/tylergannon/structtag v0.1.0 // indirect
+    35		golang.org/x/mod v0.41.0 // indirect
+    36		golang.org/x/net v0.59.0 // indirect
+    37		golang.org/x/text v0.42.0 // indirect
+    38		golang.org/x/tools v0.50.0 // indirect
+    39		gopkg.in/yaml.v3 v3.0.1 // indirect
+    40	)
+    41	
+    42	tool (
+    43		github.com/tylergannon/polytype/polytype
+    44		// skgo generates the bindings, and projects the Go types that cross to
+    45		// TypeScript through polytype's library. It runs through `go tool`, so it is
+    46		// built from the module cache and does not have to be a writable checkout.
+    47		github.com/tylergannon/skgo/cmd/skgo
+    48	)

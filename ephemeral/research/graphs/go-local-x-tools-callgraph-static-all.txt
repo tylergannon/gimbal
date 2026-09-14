@@ -1,0 +1,17 @@
+package static // import "golang.org/x/tools/go/callgraph/static"
+
+Package static computes the call graph of a Go program containing only static
+call edges.
+
+FUNCTIONS
+
+func CallGraph(prog *ssa.Program) *callgraph.Graph
+    CallGraph computes the static call graph of the specified program.
+
+    The resulting graph includes: - all package-level functions; - all methods
+    of package-level non-parameterized non-interface types; - pointer wrappers
+    (*C).F for source-level methods C.F; - and all functions reachable from them
+    following only static calls.
+
+    It does not consider exportedness, nor treat main packages specially.
+

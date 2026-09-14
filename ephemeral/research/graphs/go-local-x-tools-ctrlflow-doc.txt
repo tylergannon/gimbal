@@ -1,0 +1,8 @@
+package ctrlflow // import "golang.org/x/tools/go/analysis/passes/ctrlflow"
+
+Package ctrlflow is an analysis that provides a syntactic control-flow graph
+(CFG) for the body of a function. It records whether a function cannot return.
+By itself, it does not report any diagnostics.
+
+var Analyzer = &analysis.Analyzer{ ... }
+type CFGs struct{ ... }

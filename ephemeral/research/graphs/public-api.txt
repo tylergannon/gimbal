@@ -1,0 +1,446 @@
+package gimble // import "github.com/tylergannon/gimble"
+
+Package gimble runs agent workflows written as ordinary Go, independently of any
+particular agent host or coding-agent environment. A workflow can use Codex,
+Claude Code, another harness, or an adapter supplied by its author.
+
+Project places the project directory in a context. Run uses that context to
+establish the root scope and durable record for one workflow run.
+
+Workflows use normal Go control flow. Scope names a bounded segment of work;
+Group provides an observable form of errgroup-style concurrency; Loop yields
+planner-selected tasks. Gimble supplies these runtime primitives, not named
+tactics: retries, critique rounds, bake-offs, and delivery methods remain
+visible in the workflow that needs them.
+
+NewSession creates a conversation owned by the current scope. Generate runs a
+blocking turn and returns either Text or a schema-bearing Output. Set, SetJSON,
+and ScopeText let the workflow explicitly choose which scoped data it places in
+a prompt; Generate does not inject context implicitly.
+
+Every operation follows context.Context. Returning from a scope closes its
+sessions, Group.Wait joins its children, and cancelling a run interrupts its
+agent work. See the package examples for complete, compiling uses of runs and
+groups.
+
+FUNCTIONS
+
+func Project(ctx context.Context, dir string) context.Context
+    Project puts the project's directory in the root ctx. Runs are made under
+    its runs directory.
+
+func Run(ctx context.Context, name string, body func(ctx context.Context) error) error
+    Run starts one run of a workflow and blocks until the body returns.
+    The run's ctx derives from the caller's, so main can put a deadline on it.
+    The run is the root scope: when the body returns, each session it created is
+    actually released through its adapter's Close, then its ctx is cancelled.
+    The body must join its concurrent work before returning. Run then finishes
+    every log it owns and returns the body's error joined with a *CloseError
+    aggregating every session's Close failure (nil when there were none)
+    and with the first recording failure, if any; cancellation alone is not
+    completion.
+
+func Scope(ctx context.Context, name string, body func(ctx context.Context) error) error
+    Scope runs body in a child scope named name, and returns its error.
+    The scope ends when body returns: each session it created is closed through
+    its adapter's Close, then its ctx is cancelled. A Close failure is recorded,
+    not returned here: it never enters this function's error and instead
+    surfaces from the run's own aggregate cleanup error.
+
+func ScopeText(ctx context.Context) string
+    ScopeText renders every value visible from the ctx's scope for a prompt:
+    outermost scope first, and for each key the value of the nearest scope that
+    set it.
+
+func Set[V ~string | ~int | ~bool | ~[]string](ctx context.Context, key string, value V)
+    Set stores a scalar in the ctx's scope. A key is set once per scope
+    instance; revision is shadowing, in a child scope. Misuse is a programming
+    error and panics with a message naming the key and the scope: a key already
+    set in this scope, a scope that has ended, or a ctx with no scope. The run
+    records the panic before it escapes.
+
+func SetJSON[V Output](ctx context.Context, key string, value V)
+    SetJSON stores a polytype-generated value in the ctx's scope, once per key
+    like Set, and panics on misuse like Set.
+
+func Group(ctx context.Context, name string) *group
+    Group opens an errgroup-shaped concurrent scope named name. Call its Go
+    method for each child, then return its Wait method's result:
+
+        group := gimble.Group(ctx, "candidates")
+        group.Go("candidate", first)
+        group.Go("candidate", second)
+        return group.Wait()
+
+    Each child receives its own named scope. The first error cancels the group,
+    interrupting the other children's turns; Wait joins every child, ends the
+    group scope, and returns that first error. A child killed by an operator
+    (its error's cause is a Killed) is gone, not an abort: its siblings run on,
+    and Wait still returns its error. The caller must Wait on every exit path.
+    To stop children early, cancel their parent context before waiting;
+    cancellation alone does not join them.
+
+func Loop(ctx context.Context, name, goal string, planner *Session) *loop
+    Loop opens planner-directed dispatch for goal. The planner is the Session
+    chosen and prepared by the workflow. Loop keeps a revisable backlog in its
+    run scope and uses values recorded by each task as feedback for the next
+    decision. Range over its Tasks method and check Err afterward.
+
+
+TYPES
+
+type AgentEvent struct {
+	Type      string          `json:"type"`
+	ID        string          `json:"id,omitempty"`
+	Created   int64           `json:"created,omitempty"`
+	Data      json.RawMessage `json:"data"`
+	Metadata  json.RawMessage `json:"metadata,omitempty"`
+	NativeRef json.RawMessage `json:"-"`
+}
+    AgentEvent is one OpenCode session event. Adapters supply Type, Data,
+    Metadata, and NativeRef. Gimble assigns event identity and timestamps before
+    it records or observes the event.
+
+type AgentOption func(*options)
+    AgentOption is an argument to Generate. The same options are a supervisor's
+    own where WithSupervisor attaches it, so a supervisor can have an interval
+    and supervisors of its own.
+
+func WithInterval(every time.Duration) AgentOption
+    WithInterval is how often a supervisor looks, given among its options to
+    WithSupervisor. The default is three minutes.
+
+func WithSupervisor(session *Session, instruction string, opts ...AgentOption) AgentOption
+    WithSupervisor attaches a supervisor to a turn: a session of its own and an
+    instruction saying what to watch for. While the turn runs, the supervisor
+    looks at what the worker did since its last look, and each objection it
+    raises is steered into the turn. When the worker finishes, Generate cancels
+    and joins its supervisors before returning the worker's result and error.
+    opts are the supervisor's: WithInterval for how often it looks, and
+    WithSupervisor for supervisors of its looks.
+
+type AgentRecord struct {
+	Seq       uint64          `json:"seq"`
+	Time      time.Time       `json:"time"`
+	Scope     string          `json:"scope"`
+	Session   string          `json:"session"`
+	Turn      string          `json:"turn"`
+	Event     AgentEvent      `json:"event"`
+	NativeRef json.RawMessage `json:"native_ref,omitempty"`
+}
+    AgentRecord places one harness event in a session transcript.
+
+type CloseError struct {
+	// Has unexported fields.
+}
+    CloseError aggregates every HarnessAdapter.Close failure a run's sessions
+    produced as their scopes ended, one entry per failing session. Run joins
+    it into its returned error; it never enters a scope's own error, since
+    cleanup happens after the scope's body has already established its result.
+    Unwrap lets errors.Is and errors.As see through to the individual failures.
+
+func (e *CloseError) Error() string
+
+func (e *CloseError) Unwrap() []error
+
+type Complete struct {
+	RecordingError string `json:"recording_error"`
+}
+    Complete marks the durable end of a run log. RecordingError reports an
+    earlier failure in another log owned by the run; an absent Complete means
+    the run log itself did not finish durably.
+
+type HarnessAdapter interface {
+	// CreateSession reserves one adapter session and returns its id. A harness
+	// may start its native process or conversation lazily in RunTurn.
+	CreateSession(ctx context.Context, model, workdir string) (string, error)
+
+	// RunTurn runs one turn and blocks until it ends. It passes every event
+	// to onEvent as it arrives and returns the turn's output and the
+	// harness's own report of what the turn spent. Cancelling ctx interrupts
+	// the native turn and returns ctx.Err().
+	RunTurn(ctx context.Context, sessionID, prompt string, schema json.RawMessage, onEvent func(AgentEvent) error) (TurnResult, error)
+
+	// Steer sends a message into the session's running turn and reports
+	// whether it landed there. landed is false, with a nil error, when no
+	// turn was running to receive it, including when the turn ended while
+	// the steer was on its way. The error is for a harness that could not
+	// be reached.
+	Steer(ctx context.Context, sessionID, message string) (landed bool, err error)
+
+	// Fork returns a new native session with the conversation so far.
+	Fork(ctx context.Context, sessionID string) (string, error)
+
+	// Close releases whatever the adapter holds for the session. Idempotent.
+	// Called by the runtime when the owning scope ends.
+	Close(ctx context.Context, sessionID string) error
+}
+    HarnessAdapter is the agent-specific code for one coding-agent harness (for
+    example, Codex or Claude Code). It is untyped: a raw JSON Schema goes in,
+    raw JSON comes out; Generate validates and decodes. Whatever an adapter
+    allocates for a session (a process, a subscription, a map entry) is released
+    by Close, which the runtime calls for real when the scope that owns the
+    session ends.
+
+type JSONText string
+    JSONText is JSON source text carried opaquely by an event. Complete events
+    contain one encoded value; delta events may contain only the next fragment.
+    Text preserves provider-specific payloads while the event remains a closed
+    Polytype shape.
+
+type Killed struct {
+	Target string `json:"target"`
+	By     string `json:"by"`
+	Reason string `json:"reason"`
+}
+    Killed is the cause of a ctx that an operator cancelled on purpose, and
+    the lifecycle record of that kill. Target is the scope key or turn id that
+    was killed; By is who did it, "" when unknown. context.Cause(ctx) returns
+    it in every scope and turn under the target, so workflow code that cares
+    checks errors.As(context.Cause(ctx), &killed); code that does not care sees
+    ctx.Err() as before.
+
+func (k Killed) Error() string
+
+type LifecycleEvent interface {
+	// Has unexported methods.
+}
+    LifecycleEvent is one typed change to a run's lifecycle. The interface is
+    sealed: Gimble produces the concrete variants defined here.
+
+type LifecycleRecord struct {
+	Seq     uint64                    `json:"seq"`
+	Time    time.Time                 `json:"time"`
+	Scope   string                    `json:"scope"`
+	Session polytype.Optional[string] `json:"session,omitzero"`
+	Turn    polytype.Optional[string] `json:"turn,omitzero"`
+	Event   LifecycleEvent            `json:"event"`
+}
+    LifecycleRecord places one lifecycle event in a run or project log. Seq is
+    a gap-free ordinal in run.jsonl, which has exactly one writer for the run's
+    lifetime. project.jsonl is written by every concurrently active run's own
+    writer, so Seq is always 0 there; order those records by Time instead.
+
+func (l LifecycleRecord) MarshalJSON() ([]byte, error)
+    MarshalJSON is a generated custom json.Marshaler implementation for
+    LifecycleRecord.
+
+func (LifecycleRecord) Schema() json.RawMessage
+
+func (l *LifecycleRecord) UnmarshalJSON(data []byte) (err error)
+    UnmarshalJSON is a generated custom json.Unmarshaler implementation for
+    LifecycleRecord.
+
+func (LifecycleRecord) ValidateJSON(data []byte) error
+    ValidateJSON validates the given JSON bytes against the schema for
+    LifecycleRecord.
+
+type ModelUsage struct {
+	Model  string  `json:"model"`
+	Cost   float64 `json:"cost"`
+	Tokens Tokens  `json:"tokens"`
+}
+    ModelUsage is what one model spent, under its name. The run log carries a
+    turn's usage as one entry per model: the type grammar the log's schema is
+    generated from has no map shape.
+
+type Output interface {
+	Schema() json.RawMessage
+	ValidateJSON([]byte) error
+}
+    Output is what polytype generates, and what Generate and SetJSON require.
+
+type PlannerDecision struct {
+	Task polytype.Optional[Task] `json:"task,omitzero"`
+}
+    PlannerDecision records the task selected for the next dispatch. An absent
+    Task records that the planner ended dispatch.
+
+type RunCancelled struct {
+	Name   string `json:"name"`
+	Source string `json:"source"`
+	Error  string `json:"error"`
+}
+    RunCancelled records a workflow run stopped by context cancellation.
+
+type RunEnded struct {
+	Name  string `json:"name"`
+	Error string `json:"error"`
+}
+    RunEnded records the result of a workflow run.
+
+type RunStarted struct {
+	Name string `json:"name"`
+}
+    RunStarted records the beginning of a workflow run.
+
+type ScopeBegan struct {
+	Name string                  `json:"name"`
+	Task polytype.Optional[Task] `json:"task,omitzero"`
+}
+    ScopeBegan records entry into one scope instance.
+
+type ScopeEnded struct {
+	Error string `json:"error"`
+}
+    ScopeEnded records exit from one scope instance.
+
+type Session struct {
+	// Has unexported fields.
+}
+    Session is one agent conversation on one harness, in one workdir. It belongs
+    to the scope that created it and is closed when that scope ends.
+
+func NewSession(ctx context.Context, name string, adapter HarnessAdapter, model, workdir string) *Session
+    NewSession creates a session in the scope the ctx is in, named for the
+    graph. It cannot fail: the agent process starts on the first turn, and the
+    adapter carries the harness-specific config. A session created outside Run
+    cannot generate turns or be forked.
+
+func (s *Session) Fork(ctx context.Context, name string) (*Session, error)
+    Fork returns a new session, named for the graph, in the same workdir, with
+    the same conversation so far. The two sessions are independent after that.
+
+func (s *Session) Generate[T Output](ctx context.Context, prompt string, opts ...AgentOption) (T, error)
+    Generate runs one turn and blocks until it ends. T's schema is sent
+    with the prompt, and the result is validated here and decoded into T.
+    A result that does not validate is shown back to the model with the reason,
+    a bounded number of times, before it is an error. For Text no schema is sent
+    and the result is the final message. The options attach supervisors.
+
+func (s *Session) Steer(ctx context.Context, message string) (landed bool, err error)
+    Steer injects a message into the turn that is running on this session.
+    It is called from another goroutine while Generate blocks. The message lands
+    at the worker's next model call, and landed reports that it did. A steer
+    with no turn to receive it is dropped, not failed: landed is false and the
+    error is nil, whether no turn was running here or the turn ended inside the
+    harness while the steer was on its way. The Steer lifecycle record carries
+    the same outcome. The error is for a harness that could not be reached.
+
+type SessionClosed struct {
+	Error string `json:"error"`
+}
+    SessionClosed records that a scope closed one of its sessions. Error is set
+    when the session had a native id and the adapter's Close failed; a session
+    that never allocated a native id is always closed cleanly.
+
+type SessionCreated struct {
+	Name    string `json:"name"`
+	Adapter string `json:"adapter"`
+	Model   string `json:"model"`
+	Workdir string `json:"workdir"`
+	Parent  string `json:"parent"`
+}
+    SessionCreated records a new agent session or fork.
+
+type Steer struct {
+	Target  string `json:"target"`
+	Source  string `json:"source"`
+	Message string `json:"message"`
+	Landed  bool   `json:"landed"`
+}
+    Steer records a message sent to a running session or dropped after it ended.
+
+type SuperviseAttached struct {
+	Reviewer    string        `json:"reviewer"`
+	Worker      string        `json:"worker"`
+	Instruction string        `json:"instruction"`
+	Interval    time.Duration `json:"interval"`
+}
+    SuperviseAttached records a reviewer attached to a worker turn.
+
+type Task struct {
+	// Name is a short label for recognizing the work.
+	Name string `json:"name"`
+	// Description states the desired result and any necessary, non-obvious
+	// information. It leaves the approach to the worker.
+	Description string `json:"description"`
+	// DefinitionOfDone says how to recognize successful completion of this
+	// assignment. It does not declare that the enclosing goal is complete.
+	DefinitionOfDone string `json:"definition_of_done"`
+	// Validation describes evidence the workflow can gather. Either field may
+	// be empty; the workflow still assesses the task against DefinitionOfDone.
+	Validation struct {
+		// Command is a known executable check.
+		Command string `json:"command"`
+		// Query is a question for a validator agent.
+		Query string `json:"query"`
+	} `json:"validation"`
+}
+    Task is one assignment selected by a Loop planner.
+
+type Text string
+    Text is the output of a prose turn: no schema is sent, and the result is the
+    agent's final message.
+
+func (Text) Schema() json.RawMessage
+    Schema is empty: a prose turn sends no schema.
+
+func (Text) ValidateJSON(raw []byte) error
+    ValidateJSON accepts the final message, a JSON string.
+
+type Tokens struct {
+	// Input is the uncached prompt: the provider's input tokens less the
+	// cache read (and less the cache write where the provider folds it in).
+	Input float64 `json:"input"`
+	// Output is the visible output: the provider's output tokens less the
+	// reasoning tokens.
+	Output float64 `json:"output"`
+	// Reasoning is the reasoning or thinking tokens.
+	Reasoning float64 `json:"reasoning"`
+	// Cache is the prompt tokens the cache served and the prompt tokens
+	// written into it.
+	Cache struct {
+		// Read is the prompt tokens served from cache.
+		Read float64 `json:"read"`
+		// Write is the prompt tokens written to cache.
+		Write float64 `json:"write"`
+	} `json:"cache"`
+}
+    Tokens is what one model read and wrote, in the five fields every adapter
+    reports. A field the provider does not report is zero: zero is a number,
+    and no field is ever omitted.
+
+type TurnEnded struct {
+	Result      JSONText      `json:"result"`
+	Error       string        `json:"error"`
+	Usage       []ModelUsage  `json:"usage"`
+	Duration    time.Duration `json:"duration"`
+	Interrupted bool          `json:"interrupted"`
+}
+    TurnEnded records the result and accounting for one agent turn. Usage is
+    what the turn spent, per model: the harness's own turn report when it stated
+    one, and otherwise the turn's step events summed under the session's model.
+
+type TurnResult struct {
+	// Output is the structured result when a schema was sent, and the final
+	// message encoded as a JSON string when none was. Generate validates and
+	// decodes it.
+	Output json.RawMessage
+
+	// Usage is the harness's own report for the turn, keyed by model name.
+	// It is nil when the harness states no turn report; the session then
+	// accounts for the turn from its step events alone.
+	Usage map[string]Usage
+}
+    TurnResult is what one turn produced.
+
+type TurnStarted struct {
+	Prompt     string `json:"prompt"`
+	OutputType string `json:"output_type"`
+}
+    TurnStarted records the beginning of one agent turn.
+
+type Usage struct {
+	Cost   float64 `json:"cost"`
+	Tokens Tokens  `json:"tokens"`
+}
+    Usage is what one model spent: its tokens and the cost in US dollars the
+    harness stated, which is zero when the harness stated none.
+
+type ValueSet struct {
+	Key   string   `json:"key"`
+	Value JSONText `json:"value"`
+}
+    ValueSet records one value written into a scope.
+

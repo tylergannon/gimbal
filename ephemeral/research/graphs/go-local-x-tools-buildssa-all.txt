@@ -1,0 +1,29 @@
+package buildssa // import "golang.org/x/tools/go/analysis/passes/buildssa"
+
+Package buildssa defines an Analyzer that constructs the SSA representation
+of an error-free package and returns the set of all functions within it.
+It does not report any diagnostics itself but may be used as an input to other
+analyzers.
+
+VARIABLES
+
+var Analyzer = &analysis.Analyzer{
+	Name:       "buildssa",
+	Doc:        "build SSA-form IR for later passes",
+	URL:        "https://pkg.go.dev/golang.org/x/tools/go/analysis/passes/buildssa",
+	Run:        run,
+	Requires:   []*analysis.Analyzer{ctrlflow.Analyzer},
+	ResultType: reflect.TypeFor[*SSA](),
+
+	FactTypes: nil,
+}
+
+TYPES
+
+type SSA struct {
+	Pkg      *ssa.Package
+	SrcFuncs []*ssa.Function
+}
+    SSA provides SSA-form intermediate representation for all the source
+    functions in the current package.
+

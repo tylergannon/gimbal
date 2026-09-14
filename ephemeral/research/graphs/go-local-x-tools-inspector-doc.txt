@@ -1,0 +1,28 @@
+package inspector // import "golang.org/x/tools/go/ast/inspector"
+
+Package inspector provides helper functions for traversal over the syntax trees
+of a package, including node filtering by type, and materialization of the
+traversal stack.
+
+During construction, the inspector does a complete traversal and builds a list
+of push/pop events and their node type. Subsequent method calls that request a
+traversal scan this list, rather than walk the AST, and perform type filtering
+using efficient bit sets. This representation is sometimes called a "balanced
+parenthesis tree."
+
+Experiments suggest the inspector's traversals are about 2.5x faster than
+ast.Inspect, but it may take around 5 traversals for this benefit to amortize
+the inspector's construction cost. If efficiency is the primary concern,
+do not use Inspector for one-off traversals.
+
+The Cursor type provides a more flexible API for efficient navigation of syntax
+trees in all four "cardinal directions". For example, traversals may be nested,
+so you can find each node of type A and then search within it for nodes of type
+B. Or you can traverse from a node to its immediate neighbors: its parent,
+its previous and next sibling, or its first and last child. We recommend using
+methods of Cursor in preference to Inspector where possible.
+
+func All[N interface{ ... }, S any](in *Inspector) iter.Seq[N]
+type Cursor struct{ ... }
+type Inspector struct{ ... }
+    func New(files []*ast.File) *Inspector

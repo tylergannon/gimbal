@@ -1,0 +1,2475 @@
+
+
+<!DOCTYPE html>
+<html lang="en" data-layout="responsive" data-local="">
+  <head>
+    
+    <script>
+      window.addEventListener('error', window.__err=function f(e){f.p=f.p||[];f.p.push(e)});
+    </script>
+    <script>
+      (function() {
+        const theme = document.cookie.match(/prefers-color-scheme=(light|dark|auto)/)?.[1]
+        if (theme) {
+          document.querySelector('html').setAttribute('data-theme', theme);
+        }
+      }())
+    </script>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="Description" content="Package packages loads Go packages for inspection and analysis.">
+    
+    <meta class="js-gtmID" data-gtmid="GTM-W8MVQXG">
+    <link rel="shortcut icon" href="/static/shared/icon/favicon.ico">
+    
+  
+    <link rel="canonical" href="https://pkg.go.dev/golang.org/x/tools/go/packages">
+  
+
+    <link href="/static/frontend/frontend.min.css?version=prod-frontend-00248-88r" rel="stylesheet">
+    
+    <link rel="search" type="application/opensearchdescription+xml" href="/opensearch.xml" title="Go Packages">
+    
+    
+  <title>packages package - golang.org/x/tools/go/packages - Go Packages</title>
+
+    
+  <link href="/static/frontend/unit/unit.min.css?version=prod-frontend-00248-88r" rel="stylesheet">
+  
+  <link href="/static/frontend/unit/main/main.min.css?version=prod-frontend-00248-88r" rel="stylesheet">
+
+
+  </head>
+  <body>
+    
+    <script>
+      function loadScript(src, mod = true) {
+        let s = document.createElement('script');
+        s.src = src;
+        if (mod) {
+          s.type = 'module';
+          s.async = true;
+          s.defer = true
+        }
+        document.head.appendChild(s);
+      }
+      loadScript("/third_party/dialog-polyfill/dialog-polyfill.js", false)
+      loadScript("/static/frontend/frontend.js");
+    </script>
+    
+  <header class="go-Header go-Header--full js-siteHeader">
+    <div class="go-Header-inner go-Header-inner--dark">
+      <nav class="go-Header-nav">
+        <a href="https://go.dev/" class="js-headerLogo" data-gtmc="nav link"
+            data-test-id="go-header-logo-link" role="heading" aria-level="1">
+          <img class="go-Header-logo" src="/static/shared/logo/go-white.svg" alt="Go">
+        </a>
+         <div class="skip-navigation-wrapper">
+            <a class="skip-to-content-link" aria-label="Skip to main content" href="#main-content"> Skip to Main Content </a>
+          </div>
+        <div class="go-Header-rightContent">
+          
+<div class="go-SearchForm js-searchForm">
+  <form
+    class="go-InputGroup go-ShortcutKey go-SearchForm-form"
+    action="/search"
+    data-shortcut="/"
+    data-shortcut-alt="search"
+    data-gtmc="search form"
+    aria-label="Search for a package"
+    role="search"
+  >
+    <input name="q" class="go-Input js-searchFocus" aria-label="Search for a package" type="search"
+        autocapitalize="off" autocomplete="off" autocorrect="off" spellcheck="false"
+        placeholder="Search packages or symbols"
+        value="" />
+    <input name="m" value="" hidden>
+    <button class="go-Button go-Button--inverted" aria-label="Submit search">
+      <img
+        class="go-Icon"
+        height="24"
+        width="24"
+        src="/static/shared/icon/search_gm_grey_24dp.svg"
+        alt=""
+      />
+    </button>
+  </form>
+  <button class="go-SearchForm-expandSearch js-expandSearch" data-gtmc="nav button"
+      aria-label="Open search" data-test-id="expand-search">
+    <img class="go-Icon go-Icon--inverted" height="24" width="24"
+        src="/static/shared/icon/search_gm_grey_24dp.svg" alt="">
+
+  </button>
+</div>
+
+          <ul class="go-Header-menu">
+            <li class="go-Header-menuItem">
+              <a class="js-desktop-menu-hover" href="#" data-gtmc="nav link">
+                Why Go
+                <img class="go-Icon" height="24" width="24" src="/static/shared/icon/arrow_drop_down_gm_grey_24dp.svg" alt="submenu dropdown icon">
+              </a>
+              <ul class="go-Header-submenu go-Header-submenu--why js-desktop-submenu-hover" aria-label="submenu">
+                  <li class="go-Header-submenuItem">
+                    <div>
+                      <a href="https://go.dev/solutions/case-studies">
+                        <span>Case Studies</span>
+                      </a>
+                    </div>
+                    <p>Common problems companies solve with Go</p>
+                  </li>
+                  <li class="go-Header-submenuItem">
+                    <div>
+                      <a href="https://go.dev/solutions/use-cases">
+                        <span>Use Cases</span>
+                      </a>
+                    </div>
+                    <p>Stories about how and why companies use Go</p>
+                  </li>
+                  <li class="go-Header-submenuItem">
+                    <div>
+                      <a href="https://go.dev/security/">
+                        <span>Security</span>
+                      </a>
+                    </div>
+                    <p>How Go can help keep you secure by default</p>
+                  </li>
+              </ul>
+            </li>
+            <li class="go-Header-menuItem">
+              <a href="https://go.dev/learn/" data-gtmc="nav link">Learn</a>
+            </li>
+            <li class="go-Header-menuItem">
+              <a class="js-desktop-menu-hover" href="#" data-gtmc="nav link">
+                Docs
+                <img class="go-Icon" height="24" width="24" src="/static/shared/icon/arrow_drop_down_gm_grey_24dp.svg" alt="submenu dropdown icon">
+              </a>
+              <ul class="go-Header-submenu go-Header-submenu--docs js-desktop-submenu-hover" aria-label="submenu">
+                <li class="go-Header-submenuItem">
+                  <div>
+                    <a href="https://go.dev/doc/effective_go">
+                      <span>Effective Go</span>
+                    </a>
+                  </div>
+                  <p>Tips for writing clear, performant, and idiomatic Go code</p>
+                </li>
+                <li class="go-Header-submenuItem">
+                  <div>
+                    <a href="https://go.dev/doc/">
+                      <span>Go User Manual</span>
+                    </a>
+                  </div>
+                  <p>A complete introduction to building software with Go</p>
+                </li>
+                <li class="go-Header-submenuItem">
+                  <div>
+                    <a href="https://pkg.go.dev/std">
+                      <span>Standard library</span>
+                    </a>
+                  </div>
+                  <p>Reference documentation for Go's standard library</p>
+                </li>
+                <li class="go-Header-submenuItem">
+                  <div>
+                    <a href="https://go.dev/doc/devel/release">
+                      <span>Release Notes</span>
+                    </a>
+                  </div>
+                  <p>Learn what's new in each Go release</p>
+                </li>
+                <li class="go-Header-submenuItem">
+                  <div>
+                    <a href="/api">
+                      <span>API</span>
+                    </a>
+                  </div>
+                  <p>Reference documentation for the pkg.go.dev API</p>
+                </li>
+              </ul>
+            </li>
+            <li class="go-Header-menuItem go-Header-menuItem--active">
+              <a href="/" data-gtmc="nav link">Packages</a>
+            </li>
+            <li class="go-Header-menuItem">
+              <a class="js-desktop-menu-hover" href="#" data-gtmc="nav link">
+                Community
+                <img class="go-Icon" height="24" width="24" src="/static/shared/icon/arrow_drop_down_gm_grey_24dp.svg" alt="submenu dropdown icon">
+              </a>
+              <ul class="go-Header-submenu go-Header-submenu--community js-desktop-submenu-hover" aria-label="submenu">
+                <li class="go-Header-submenuItem">
+                  <div>
+                    <a href="https://go.dev/talks/">
+                      <span>Recorded Talks</span>
+                    </a>
+                  </div>
+                  <p>Videos from prior events</p>
+                </li>
+                <li class="go-Header-submenuItem">
+                  <div>
+                    <a href="https://www.meetup.com/pro/go">
+                      <span>Meetups</span>
+                      <i class="material-icons">
+                        <img class="go-Icon" height="24" width="24"
+                            src="/static/shared/icon/launch_gm_grey_24dp.svg" alt="">
+                      </i>
+                    </a>
+                  </div>
+                  <p>Meet other local Go developers</p>
+                </li>
+                <li class="go-Header-submenuItem">
+                  <div>
+                    <a href="https://github.com/golang/go/wiki/Conferences">
+                      <span>Conferences</span>
+                      <i class="material-icons">
+                        <img class="go-Icon" height="24" width="24"
+                            src="/static/shared/icon/launch_gm_grey_24dp.svg" alt="">
+                      </i>
+                    </a>
+                  </div>
+                  <p>Learn and network with Go developers from around the world</p>
+                </li>
+                <li class="go-Header-submenuItem">
+                  <div>
+                    <a href="https://go.dev/blog">
+                      <span>Go blog</span>
+                    </a>
+                  </div>
+                  <p>The Go project's official blog.</p>
+                </li>
+                <li class="go-Header-submenuItem">
+                  <div>
+                    <a href="https://go.dev/help">
+                      <span>Go project</span>
+                    </a>
+                  </div>
+                  <p>Get help and stay informed from Go</p>
+                </li>
+                <li class="go-Header-submenuItem">
+                  <div>
+                    Get connected
+                  </div>
+                  <p></p>
+                  <div class="go-Header-socialIcons">
+                      <a
+                        class="go-Header-socialIcon"
+                        aria-label="Get connected with google-groups (Opens in new window)"
+                        title="Get connected with google-groups (Opens in new window)"
+                        href="https://groups.google.com/g/golang-nuts">
+                        <img src="/static/shared/logo/social/google-groups.svg" />
+                      </a>
+                      <a
+                        class="go-Header-socialIcon"
+                        aria-label="Get connected with github (Opens in new window)"
+                        title="Get connected with github (Opens in new window)"
+                        href="https://github.com/golang">
+                        <img src="/static/shared/logo/social/github.svg" />
+                      </a>
+                      <a
+                        class="go-Header-socialIcon"
+                        aria-label="Get connected with twitter (Opens in new window)"
+                        title="Get connected with twitter (Opens in new window)"
+                        href="https://twitter.com/golang">
+                        <img src="/static/shared/logo/social/twitter.svg" />
+                      </a>
+                      <a
+                        class="go-Header-socialIcon"
+                        aria-label="Get connected with reddit (Opens in new window)"
+                        title="Get connected with reddit (Opens in new window)"
+                        href="https://www.reddit.com/r/golang/">
+                        <img src="/static/shared/logo/social/reddit.svg" />
+                      </a>
+                      <a
+                        class="go-Header-socialIcon"
+                        aria-label="Get connected with slack (Opens in new window)"
+                        title="Get connected with slack (Opens in new window)"
+                        href="https://invite.slack.golangbridge.org/">
+                        <img src="/static/shared/logo/social/slack.svg" />
+                      </a>
+                      <a
+                        class="go-Header-socialIcon"
+                        aria-label="Get connected with stack-overflow (Opens in new window)"
+                        title=""
+                        href="https://stackoverflow.com/collectives/go">
+                        <img src="/static/shared/logo/social/stack-overflow.svg" />
+                      </a>
+                  </div>
+                </li>
+              </ul>
+            </li>
+          </ul>
+          <button class="go-Header-navOpen js-headerMenuButton go-Header-navOpen--white" data-gtmc="nav button" aria-label="Open navigation">
+          </button>
+        </div>
+      </nav>
+    </div>
+  </header>
+  <aside class="go-NavigationDrawer js-header">
+    <nav class="go-NavigationDrawer-nav">
+      <div class="go-NavigationDrawer-header">
+        <a href="https://go.dev/">
+          <img class="go-NavigationDrawer-logo" src="/static/shared/logo/go-blue.svg" alt="Go.">
+        </a>
+      </div>
+      <ul class="go-NavigationDrawer-list">
+          <li class="go-NavigationDrawer-listItem js-mobile-subnav-trigger go-NavigationDrawer-hasSubnav">
+            <a href="#">
+              <span>Why Go</span>
+              <i class="material-icons">
+                <img class="go-Icon" height="24" width="24"
+                  src="/static/shared/icon/navigate_next_gm_grey_24dp.svg" alt="">
+              </i>
+            </a>
+
+            <div class="go-NavigationDrawer go-NavigationDrawer-submenuItem">
+              <div class="go-NavigationDrawer-nav">
+                <div class="go-NavigationDrawer-header">
+                  <a href="#">
+                    <i class="material-icons">
+                      <img class="go-Icon" height="24" width="24"
+                        src="/static/shared/icon/navigate_before_gm_grey_24dp.svg" alt="">
+                      </i>
+                      Why Go
+                  </a>
+                </div>
+                <ul class="go-NavigationDrawer-list">
+                  <li class="go-NavigationDrawer-listItem">
+                    <a href="https://go.dev/solutions/case-studies">
+                      Case Studies
+                    </a>
+                  </li>
+                  <li class="go-NavigationDrawer-listItem">
+                    <a href="https://go.dev/solutions/use-cases">
+                      Use Cases
+                    </a>
+                  </li>
+                  <li class="go-NavigationDrawer-listItem">
+                    <a href="https://go.dev/security/">
+                      Security
+                    </a>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </li>
+          <li class="go-NavigationDrawer-listItem">
+            <a href="https://go.dev/learn/">Learn</a>
+          </li>
+          <li class="go-NavigationDrawer-listItem js-mobile-subnav-trigger go-NavigationDrawer-hasSubnav">
+            <a href="#">
+              <span>Docs</span>
+              <i class="material-icons">
+                <img class="go-Icon" height="24" width="24"
+                  src="/static/shared/icon/navigate_next_gm_grey_24dp.svg" alt="">
+              </i>
+            </a>
+
+            <div class="go-NavigationDrawer go-NavigationDrawer-submenuItem">
+              <div class="go-NavigationDrawer-nav">
+                <div class="go-NavigationDrawer-header">
+                  <a href="#"><i class="material-icons">
+                    <img class="go-Icon" height="24" width="24"
+                      src="/static/shared/icon/navigate_before_gm_grey_24dp.svg" alt="">
+                    </i>
+                    Docs
+                  </a>
+                </div>
+                <ul class="go-NavigationDrawer-list">
+                  <li class="go-NavigationDrawer-listItem">
+                    <a href="https://go.dev/doc/effective_go">
+                      Effective Go
+                    </a>
+                  </li>
+                  <li class="go-NavigationDrawer-listItem">
+                    <a href="https://go.dev/doc/">
+                      Go User Manual
+                    </a>
+                  </li>
+                  <li class="go-NavigationDrawer-listItem">
+                    <a href="https://pkg.go.dev/std">
+                      Standard library
+                    </a>
+                  </li>
+                  <li class="go-NavigationDrawer-listItem">
+                    <a href="https://go.dev/doc/devel/release">
+                      Release Notes
+                    </a>
+                  </li>
+                  <li class="go-NavigationDrawer-listItem">
+                    <a href="/api">
+                      API
+                    </a>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </li>
+          <li class="go-NavigationDrawer-listItem go-NavigationDrawer-listItem--active">
+            <a href="/">Packages</a>
+          </li>
+          <li class="go-NavigationDrawer-listItem js-mobile-subnav-trigger go-NavigationDrawer-hasSubnav">
+            <a href="#">
+              <span>Community</span>
+              <i class="material-icons">
+                <img class="go-Icon" height="24" width="24"
+                  src="/static/shared/icon/navigate_next_gm_grey_24dp.svg" alt="">
+              </i>
+            </a>
+            <div class="go-NavigationDrawer go-NavigationDrawer-submenuItem">
+              <div class="go-NavigationDrawer-nav">
+                <div class="go-NavigationDrawer-header">
+                  <a href="#">
+                    <i class="material-icons">
+                      <img class="go-Icon" height="24" width="24"
+                        src="/static/shared/icon/navigate_before_gm_grey_24dp.svg" alt="">
+                    </i>
+                    Community
+                  </a>
+                </div>
+                <ul class="go-NavigationDrawer-list">
+                  <li class="go-NavigationDrawer-listItem">
+                    <a href="https://go.dev/talks/">
+                      Recorded Talks
+                    </a>
+                  </li>
+                  <li class="go-NavigationDrawer-listItem">
+                    <a href="https://www.meetup.com/pro/go">
+                      Meetups
+                      <i class="material-icons">
+                      <img class="go-Icon" height="24" width="24"
+                          src="/static/shared/icon/launch_gm_grey_24dp.svg" alt="">
+                      </i>
+                    </a>
+                  </li>
+                  <li class="go-NavigationDrawer-listItem">
+                    <a href="https://github.com/golang/go/wiki/Conferences">
+                      Conferences
+                      <i class="material-icons">
+                        <img class="go-Icon" height="24" width="24" src="/static/shared/icon/launch_gm_grey_24dp.svg" alt="">
+                      </i>
+                    </a>
+                  </li>
+                  <li class="go-NavigationDrawer-listItem">
+                    <a href="https://go.dev/blog">
+                      Go blog
+                    </a>
+                  </li>
+                  <li class="go-NavigationDrawer-listItem">
+                    <a href="https://go.dev/help">
+                      Go project
+                    </a>
+                  </li>
+                  <li class="go-NavigationDrawer-listItem">
+                    <div>Get connected</div>
+                    <div class="go-Header-socialIcons">
+                        <a class="go-Header-socialIcon" href="https://groups.google.com/g/golang-nuts"><img src="/static/shared/logo/social/google-groups.svg" /></a>
+                        <a class="go-Header-socialIcon" href="https://github.com/golang"><img src="/static/shared/logo/social/github.svg" /></a>
+                        <a class="go-Header-socialIcon" href="https://twitter.com/golang"><img src="/static/shared/logo/social/twitter.svg" /></a>
+                        <a class="go-Header-socialIcon" href="https://www.reddit.com/r/golang/"><img src="/static/shared/logo/social/reddit.svg" /></a>
+                        <a class="go-Header-socialIcon" href="https://invite.slack.golangbridge.org/"><img src="/static/shared/logo/social/slack.svg" /></a>
+                        <a class="go-Header-socialIcon" href="https://stackoverflow.com/collectives/go"><img src="/static/shared/logo/social/stack-overflow.svg" /></a>
+                    </div>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </li>
+      </ul>
+    </nav>
+  </aside>
+  <div class="go-NavigationDrawer-scrim js-scrim" role="presentation"></div>
+
+    
+  <main class="go-Main" id="main-content">
+    <div class="go-Main-banner" role="alert"></div>
+    <header class="go-Main-header js-mainHeader">
+  
+  
+  <nav class="go-Main-headerBreadcrumb go-Breadcrumb" aria-label="Breadcrumb" data-test-id="UnitHeader-breadcrumb">
+    <ol>
+      
+        
+          <li data-test-id="UnitHeader-breadcrumbItem">
+            <a href="/" data-gtmc="breadcrumb link">Discover Packages</a>
+          </li>
+        
+          <li data-test-id="UnitHeader-breadcrumbItem">
+            <a href="/golang.org/x/tools@v0.50.0" data-gtmc="breadcrumb link">golang.org/x/tools</a>
+          </li>
+        
+          <li data-test-id="UnitHeader-breadcrumbItem">
+            <a href="/golang.org/x/tools/go@v0.50.0" data-gtmc="breadcrumb link">go</a>
+          </li>
+        
+        <li>
+          <a href="/golang.org/x/tools@v0.50.0/go/packages" data-gtmc="breadcrumb link" aria-current="location"
+              data-test-id="UnitHeader-breadcrumbCurrent">
+            packages
+          </a>
+          
+            <button
+              class="go-Button go-Button--inline go-Clipboard js-clipboard"
+              title="Copy path to clipboard.&#10;&#10;golang.org/x/tools/go/packages"
+              aria-label="Copy Path to Clipboard"
+              data-to-copy="golang.org/x/tools/go/packages"
+              data-gtmc="breadcrumbs button"
+            >
+              <img
+                class="go-Icon go-Icon--accented"
+                height="24"
+                width="24"
+                src="/static/shared/icon/content_copy_gm_grey_24dp.svg"
+                alt=""
+              >
+            </button>
+          
+        
+      </li>
+    </ol>
+  </nav>
+
+  <div class="go-Main-headerContent">
+    
+  <div class="go-Main-headerTitle js-stickyHeader">
+    <a class="go-Main-headerLogo" href="https://go.dev/" aria-hidden="true" tabindex="-1" data-gtmc="header link" aria-label="Link to Go Homepage">
+      <img height="78" width="207" src="/static/shared/logo/go-blue.svg" alt="Go">
+    </a>
+    <h1 class="UnitHeader-titleHeading" data-test-id="UnitHeader-title">packages</h1>
+    
+      <span class="go-Chip go-Chip--inverted">package</span>
+    
+    
+      
+        <button
+          class="go-Button go-Button--inline go-Clipboard js-clipboard"
+          title="Copy path to clipboard.&#10;&#10;golang.org/x/tools/go/packages"
+          aria-label="Copy Path to Clipboard"
+          data-to-copy="golang.org/x/tools/go/packages"
+          data-gtmc="title button"
+          tabindex="-1"
+        >
+          <img
+            class="go-Icon go-Icon--accented"
+            height="24"
+            width="24"
+            src="/static/shared/icon/content_copy_gm_grey_24dp.svg"
+            alt=""
+          />
+        </button>
+      
+    
+  </div>
+
+    
+      
+  <div class="go-Main-headerDetails">
+    
+      
+  <span class="go-Main-headerDetailItem" data-test-id="UnitHeader-version">
+    <a href="?tab=versions" aria-label="Version: v0.50.0" 
+    data-gtmc="header link" aria-describedby="version-description">
+      <span class="go-textSubtle" aria-hidden="true">Version: </span>
+        v0.50.0
+    </a>
+    <div class="screen-reader-only" id="version-description" hidden>
+      Opens a new window with list of versions in this module.
+    </div>
+    
+    <span class="DetailsHeader-badge--latest" data-test-id="UnitHeader-minorVersionBanner">
+      <span class="go-Chip DetailsHeader-span--latest">Latest</span>
+      <span class="go-Chip DetailsHeader-span--notAtLatest">
+        Latest
+        
+  <details class="go-Tooltip js-tooltip" data-gtmc="tooltip">
+    <summary>
+      <img class="go-Icon go-Icon--inverted" height="24" width="24" src="/static/shared/icon/alert_gm_grey_24dp.svg" alt="Warning">
+    </summary>
+    <p>This package is not in the latest version of its module.</p>
+  </details>
+
+      </span>
+      <a href="/golang.org/x/tools/go/packages" aria-label="Go to Latest Version" data-gtmc="header link">
+        <span class="go-Chip go-Chip--alert DetailsHeader-span--goToLatest">Go to latest</span>
+      </a>
+    </span>
+  </span>
+
+      
+  <span class="go-Main-headerDetailItem" data-test-id="UnitHeader-commitTime">
+    Published: Sep  8, 2026
+  </span>
+
+      
+  <span class="go-Main-headerDetailItem" data-test-id="UnitHeader-licenses">
+    License: <a href="/golang.org/x/tools@v0.50.0/go/packages?tab=licenses" data-test-id="UnitHeader-license" 
+        data-gtmc="header link" aria-describedby="license-description">BSD-3-Clause</a>
+      
+    
+  </span>
+  <div class="screen-reader-only" id="license-description" hidden>
+    Opens a new window with license information.
+  </div>
+
+      
+        
+  <span class="go-Main-headerDetailItem" data-test-id="UnitHeader-imports">
+    <a href="/golang.org/x/tools@v0.50.0/go/packages?tab=imports" aria-label="Imports: 32"
+        data-gtmc="header link" aria-describedby="imports-description">
+      <span class="go-textSubtle">Imports: </span>32
+    </a>
+  </span>
+  <div class="screen-reader-only" id="imports-description" hidden>
+    Opens a new window with list of imports.
+  </div>
+
+        
+  <span class="go-Main-headerDetailItem" data-test-id="UnitHeader-importedby">
+    <a href="/golang.org/x/tools@v0.50.0/go/packages?tab=importedby" aria-label="Imported By: 5,255"
+        data-gtmc="header link" aria-describedby="importedby-description">
+       <span class="go-textSubtle">Imported by: </span>5,255
+    </a>
+  </span>
+  <div class="screen-reader-only" id="importedby-description" hidden>
+    Opens a new window with list of known importers.
+  </div>
+
+      
+    
+  </div>
+  
+  <div class="UnitHeader-overflowContainer">
+    <svg class="UnitHeader-overflowImage" xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 0 24 24" width="24">
+      <path d="M0 0h24v24H0z" fill="none"/>
+      <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
+    </svg>
+    <select class="UnitHeader-overflowSelect js-selectNav" tabindex="-1">
+      <option value="/">Main</option>
+      <option value="/golang.org/x/tools@v0.50.0/go/packages?tab=versions">
+        Versions
+      </option>
+      <option value="/golang.org/x/tools@v0.50.0/go/packages?tab=licenses">
+        Licenses
+      </option>
+      
+        <option value="/golang.org/x/tools@v0.50.0/go/packages?tab=imports">
+          Imports
+        </option>
+        <option value="/golang.org/x/tools@v0.50.0/go/packages?tab=importedby">
+          Imported By
+        </option>
+      
+    </select>
+  </div>
+
+
+    
+  </div>
+
+</header>
+    
+      <aside class="go-Main-aside  js-mainAside">
+  
+  <div class="UnitMeta">
+    <h2 class="go-textLabel">Details</h2>
+    
+  <ul class="UnitMeta-details">
+    <li>
+      <details class="go-Tooltip js-tooltip" data-gtmc="tooltip">
+        <summary class="go-textSubtle">
+          
+  <img class="go-Icon go-Icon--accented"
+    tabindex="0"
+    role="button"src="/static/shared/icon/check_circle_gm_grey_24dp.svg" alt="checked" aria-label="Valid file, toggle tooltip"height="24" width="24">
+
+          Valid <a href="https://cs.opensource.google/go/x/tools/+/v0.50.0:/go.mod" target="_blank" rel="noopener">go.mod</a> file
+          <img class="go-Icon" role="button" tabindex="0" src="/static/shared/icon/help_gm_grey_24dp.svg" alt="" aria-label="Toggle go.mod validity tooltip" height="24" width="24">
+        </summary>
+        <p aria-live="polite" role="tooltip">
+          The Go module system was introduced in Go 1.11 and is the official dependency management
+          solution for Go.
+        </p>
+      </details>
+    </li>
+    <li>
+      <details class="go-Tooltip js-tooltip" data-gtmc="tooltip">
+        <summary class="go-textSubtle">
+          
+  <img class="go-Icon go-Icon--accented"
+    tabindex="0"
+    role="button"src="/static/shared/icon/check_circle_gm_grey_24dp.svg" alt="checked" aria-label="Valid file, toggle tooltip"height="24" width="24">
+
+          Redistributable license
+          <img class="go-Icon" role="button" tabindex="0" src="/static/shared/icon/help_gm_grey_24dp.svg" alt="" aria-label="Toggle redistributable help tooltip" height="24" width="24">
+        </summary>
+        <p aria-live="polite" role="tooltip">
+          Redistributable licenses place minimal restrictions on how software can be used,
+          modified, and redistributed.
+        </p>
+      </details>
+    </li>
+    <li>
+      <details class="go-Tooltip js-tooltip" data-gtmc="tooltip">
+        <summary class="go-textSubtle">
+          
+  <img class="go-Icon go-Icon--accented"
+    tabindex="0"
+    role="button"src="/static/shared/icon/check_circle_gm_grey_24dp.svg" alt="checked" aria-label="Valid file, toggle tooltip"height="24" width="24">
+
+          Tagged version
+          <img class="go-Icon" role="button" tabindex="0" src="/static/shared/icon/help_gm_grey_24dp.svg" alt="" aria-label="Toggle tagged version tooltip" height="24" width="24">
+        </summary>
+        <p aria-live="polite" role="tooltip">Modules with tagged versions give importers more predictable builds.</p>
+      </details>
+    </li>
+    <li>
+      <details class="go-Tooltip js-tooltip" data-gtmc="tooltip">
+        <summary class="go-textSubtle">
+          
+  <img class="go-Icon"
+    tabindex="0"
+    role="button"src="/static/shared/icon/cancel_gm_grey_24dp.svg" alt="unchecked" aria-label="Missing or invalid file, toggle tooltip"height="24" width="24">
+
+          Stable version
+          <img class="go-Icon" role="button" tabindex="0" aria-label="Toggle stable version tooltip" src="/static/shared/icon/help_gm_grey_24dp.svg" alt="" height="24" width="24">
+        </summary>
+        <p aria-live="polite" role="tooltip">When a project reaches major version v1 it is considered stable.</p>
+      </details>
+    </li>
+    <li class="UnitMeta-detailsLearn">
+      <a href="/about#best-practices" data-gtmc="meta link">Learn more about best practices</a>
+    </li>
+  </ul>
+
+    <h2 class="go-textLabel">Repository</h2>
+    <div class="UnitMeta-repo">
+      
+        <a href="https://cs.opensource.google/go/x/tools" title="https://cs.opensource.google/go/x/tools" target="_blank" rel="noopener">
+          cs.opensource.google/go/x/tools
+        </a>
+      
+    </div>
+    
+      <h2 class="go-textLabel" data-test-id="links-heading">Links</h2>
+      <ul class="UnitMeta-links">
+        
+          <li>
+            <a href="https://go.dev/security/policy"
+                title="Report security issues in the Go standard library and sub-repositories">
+              <img class="go-Icon" height="24" width="24" src="/static/shared/icon/security_grey_24dp.svg" alt="">
+              Report a Vulnerability
+            </a>
+          </li>
+        
+        
+          <li>
+            <a href="https://deps.dev/go/golang.org%2Fx%2Ftools/v0.50.0" title="View this module on Open Source Insights"
+              target="_blank" rel="noopener" data-test-id="meta-link-depsdev">
+              <img class="link-Icon" src="/static/shared/icon/depsdev-logo.svg"
+                alt="Open Source Insights Logo" />
+              Open Source Insights
+            </a>
+          </li>
+        
+        
+          <li>
+            <a href="/codewiki?module=golang.org%2Fx%2Ftools&amp;package=golang.org%2Fx%2Ftools%2Fgo%2Fpackages&amp;url=https%3A%2F%2Fcodewiki.google%2Fgithub.com%2Fgolang%2Ftools%3Futm_source%3Dfirst_party_link%26utm_medium%3Dgo_pkg_web%26utm_campaign%3Dgithub.com%2Fgolang%2Ftools" title="View this repo on Code Wiki"
+              target="_blank" rel="noopener" data-test-id="meta-link-codewiki">
+              <img class="link-Icon" src="/static/shared/icon/codewiki-logo.svg"
+                alt="Code Wiki Logo" />
+              Code Wiki
+            </a>
+          </li>
+        
+        
+  
+
+        
+  
+
+        
+  
+
+      </ul>
+    
+  </div>
+
+</aside>
+    
+    <nav class="go-Main-nav go-Main-nav--sticky js-mainNav" aria-label="Outline">
+  <div class="go-Main-navDesktop">
+    
+  <div class="UnitOutline-jumpTo">
+    <button class="UnitOutline-jumpToInput go-ShortcutKey js-jumpToInput"
+        aria-controls="jump-to-modal"
+        aria-label="Open Jump to Identifier"
+        data-shortcut="f"
+        data-shortcut-alt="find"
+        data-test-id="jump-to-button" data-gtmc="outline button">
+      Jump to ...
+    </button>
+  </div>
+  <ul class="go-Tree js-tree" role="tree" aria-label="Outline">
+    
+    
+      <li>
+        <a href="#section-documentation" data-gtmc="outline link">
+          Documentation
+        </a>
+        
+<ul>
+  
+    <li>
+      <a href="#pkg-overview" data-gtmc="doc outline link">Overview</a>
+    </li>
+  <li class="DocNav-overview">
+      <a href="#pkg-index" data-gtmc="doc outline link">
+        Index
+      </a>
+    </li>
+      <li>
+        <a href="#pkg-examples" data-gtmc="doc outline link">
+          Examples
+        </a>
+        <ul>
+            <li>
+              <a href="#example-package" title="Package" data-gtmc="doc outline link">
+                Package
+              </a>
+            </li>
+        </ul>
+      </li>
+    <li class="DocNav-constants">
+      <a href="#pkg-constants" data-gtmc="doc outline link">
+        Constants
+      </a>
+    </li>
+    <li class="DocNav-variables">
+      <a href="#pkg-variables" data-gtmc="doc outline link">
+        Variables
+      </a>
+    </li>
+    <li class="DocNav-functions">
+      <a href="#pkg-functions" data-gtmc="doc outline link">
+        Functions
+      </a>
+      
+        <ul>
+          
+            <li>
+              <a href="#Postorder" title="Postorder(pkgs)" data-gtmc="doc outline link">
+                Postorder(pkgs)
+              </a>
+            </li>
+          
+            <li>
+              <a href="#PrintErrors" title="PrintErrors(pkgs)" data-gtmc="doc outline link">
+                PrintErrors(pkgs)
+              </a>
+            </li>
+          
+            <li>
+              <a href="#Visit" title="Visit(pkgs, pre, post)" data-gtmc="doc outline link">
+                Visit(pkgs, pre, post)
+              </a>
+            </li>
+          
+        </ul>
+      
+    </li>
+    <li class="DocNav-types">
+      <a href="#pkg-types" data-gtmc="doc outline link">
+        Types
+      </a>
+      <ul>
+        
+          
+          <li>
+            <a href="#Config" title="type Config" data-gtmc="doc outline link">
+              type Config
+            </a>
+             
+          </li>
+        
+          
+          <li>
+            <a href="#DriverRequest" title="type DriverRequest" data-gtmc="doc outline link">
+              type DriverRequest
+            </a>
+             
+          </li>
+        
+          
+          <li>
+            <a href="#DriverResponse" title="type DriverResponse" data-gtmc="doc outline link">
+              type DriverResponse
+            </a>
+             
+          </li>
+        
+          
+          <li>
+            <a href="#Error" title="type Error" data-gtmc="doc outline link">
+              type Error
+            </a>
+            
+              <ul>
+                
+                
+                  <li>
+                    <a href="#Error.Error" title="(err) Error()"
+                        data-gtmc="doc outline link">
+                      (err) Error()
+                    </a>
+                  </li>
+                
+              </ul>
+             
+          </li>
+        
+          
+          <li>
+            <a href="#ErrorKind" title="type ErrorKind" data-gtmc="doc outline link">
+              type ErrorKind
+            </a>
+             
+          </li>
+        
+          
+          <li>
+            <a href="#LoadMode" title="type LoadMode" data-gtmc="doc outline link">
+              type LoadMode
+            </a>
+            
+              <ul>
+                
+                
+                  <li>
+                    <a href="#LoadMode.String" title="(mode) String()"
+                        data-gtmc="doc outline link">
+                      (mode) String()
+                    </a>
+                  </li>
+                
+              </ul>
+             
+          </li>
+        
+          
+          <li>
+            <a href="#Module" title="type Module" data-gtmc="doc outline link">
+              type Module
+            </a>
+             
+          </li>
+        
+          
+          <li>
+            <a href="#ModuleError" title="type ModuleError" data-gtmc="doc outline link">
+              type ModuleError
+            </a>
+             
+          </li>
+        
+          
+          <li>
+            <a href="#Package" title="type Package" data-gtmc="doc outline link">
+              type Package
+            </a>
+            
+              <ul>
+                
+                  <li>
+                    <a href="#Load" title="Load(cfg, patterns)"
+                        data-gtmc="doc outline link">
+                      Load(cfg, patterns)
+                    </a>
+                  </li>
+                
+                
+                  <li>
+                    <a href="#Package.MarshalJSON" title="(p) MarshalJSON()"
+                        data-gtmc="doc outline link">
+                      (p) MarshalJSON()
+                    </a>
+                  </li>
+                
+                  <li>
+                    <a href="#Package.String" title="(p) String()"
+                        data-gtmc="doc outline link">
+                      (p) String()
+                    </a>
+                  </li>
+                
+                  <li>
+                    <a href="#Package.UnmarshalJSON" title="(p) UnmarshalJSON(b)"
+                        data-gtmc="doc outline link">
+                      (p) UnmarshalJSON(b)
+                    </a>
+                  </li>
+                
+              </ul>
+             
+          </li>
+         
+      </ul>
+    </li>
+  
+  
+</ul>
+
+      </li>
+    
+    
+      <li>
+        <a href="#section-sourcefiles" data-gtmc="outline link">
+          Source Files
+        </a>
+      </li>
+    
+    
+      <li>
+        <a href="#section-directories" data-gtmc="outline link">
+          Directories
+        </a>
+      </li>
+    
+  </ul>
+
+  </div>
+  <div class="go-Main-navMobile js-mainNavMobile">
+    <label class="go-Label">
+      <select class="go-Select">
+        
+          <option selected disabled>Documentation</option>
+        
+      </select>
+    </label>
+  </div>
+</nav>
+    <article class="go-Main-article js-mainContent">
+  <div class="UnitDetails" data-test-id="UnitDetails" style="display: block;">
+    <div class="UnitDetails-content js-unitDetailsContent" data-test-id="UnitDetails-content">
+      
+      
+        
+          
+  <div class="UnitDoc">
+    <h2 class="UnitDoc-title" id="section-documentation">
+      <img class="go-Icon" height="24" width="24" src="/static/shared/icon/code_gm_grey_24dp.svg" alt="">
+      Documentation
+      <a class="UnitDoc-idLink" href="#section-documentation" title="Go to Documentation" aria-label="Go to Documentation">¶</a>
+    </h2>
+    
+  
+    
+  
+
+    <div class="Documentation js-documentation">
+      
+        
+
+<div class="Documentation-content js-docContent"> <section class="Documentation-overview">
+    <h3 tabindex="-1" id="pkg-overview" class="Documentation-overviewHeader">Overview <a href="#pkg-overview" title="Go to Overview" aria-label="Go to Overview">¶</a></h3>
+
+<div role="navigation" aria-label="Table of Contents">
+  <ul class="Documentation-toc">
+      <li class="Documentation-tocItem"><a href="#hdr-The_driver_protocol">The driver protocol</a></li>
+  </ul>
+</div>
+<p>Package packages loads Go packages for inspection and analysis.
+</p><p>The <a href="#Load">Load</a> function takes as input a list of patterns and returns a
+list of <a href="#Package">Package</a> values describing individual packages matched by those
+patterns.
+A <a href="#Config">Config</a> specifies configuration options, the most important of which is
+the <a href="#LoadMode">LoadMode</a>, which controls the amount of detail in the loaded packages.
+</p><p>Load passes most patterns directly to the underlying build tool.
+The default build tool is the go command.
+Its supported patterns are described at
+<a href="https://pkg.go.dev/cmd/go#hdr-Package_lists_and_patterns">https://pkg.go.dev/cmd/go#hdr-Package_lists_and_patterns</a>.
+Other build systems may be supported by providing a &#34;driver&#34;;
+see [The driver protocol].
+</p><p>All patterns with the prefix &#34;query=&#34;, where query is a
+non-empty string of letters from [a-z], are reserved and may be
+interpreted as query operators.
+</p><p>Two query operators are currently supported: &#34;file&#34; and &#34;pattern&#34;.
+</p><p>The query &#34;file=path/to/file.go&#34; matches the package or packages enclosing
+the Go source file path/to/file.go.  For example &#34;file=~/go/src/fmt/print.go&#34;
+might return the packages &#34;fmt&#34; and &#34;fmt [fmt.test]&#34;.
+</p><p>The query &#34;pattern=string&#34; causes &#34;string&#34; to be passed directly to
+the underlying build tool. In most cases this is unnecessary,
+but an application can use Load(&#34;pattern=&#34; + x) as an escaping mechanism
+to ensure that x is not interpreted as a query operator if it contains &#39;=&#39;.
+</p><p>All other query operators are reserved for future use and currently
+cause Load to report an error.
+</p><p>The Package struct provides basic information about the package, including
+</p><ul class="Documentation-bulletList">
+  <li>ID, a unique identifier for the package in the returned set;</li>
+  <li>GoFiles, the names of the package&#39;s Go source files;</li>
+  <li>Imports, a map from source import strings to the Packages they name;</li>
+  <li>Types, the type information for the package&#39;s exported symbols;</li>
+  <li>Syntax, the parsed syntax trees for the package&#39;s source code; and</li>
+  <li>TypesInfo, the result of a complete type-check of the package syntax trees.</li>
+</ul><p>(See the documentation for type Package for the complete list of fields
+and more detailed descriptions.)
+</p><p>For example,
+</p><pre>Load(nil, &#34;bytes&#34;, &#34;unicode...&#34;)
+</pre><p>returns four Package structs describing the standard library packages
+bytes, unicode, unicode/utf16, and unicode/utf8. Note that one pattern
+can match multiple packages and that a package might be matched by
+multiple patterns: in general it is not possible to determine which
+packages correspond to which patterns.
+</p><p>Note that the list returned by Load contains only the packages matched
+by the patterns. Their dependencies can be found by walking the import
+graph using the Imports fields.
+</p><p>The Load function can be configured by passing a pointer to a Config as
+the first argument. A nil Config is equivalent to the zero Config, which
+causes Load to run in <a href="#LoadFiles">LoadFiles</a> mode, collecting minimal information.
+See the documentation for type Config for details.
+</p><p>As noted earlier, the Config.Mode controls the amount of detail
+reported about the loaded packages. See the documentation for type LoadMode
+for details.
+</p><p>Most tools should pass their command-line arguments (after any flags)
+uninterpreted to Load, so that it can interpret them
+according to the conventions of the underlying build system.
+</p><p>See the Example function for typical usage.
+See also <a href="/golang.org/x/tools@v0.50.0/go/packages/internal/linecount">golang.org/x/tools/go/packages/internal/linecount</a>
+for an example application.
+</p><h4 id="hdr-The_driver_protocol">The driver protocol <a class="Documentation-idLink" href="#hdr-The_driver_protocol" title="Go to The driver protocol" aria-label="Go to The driver protocol">¶</a></h4><p>Load may be used to load Go packages even in Go projects that use
+alternative build systems, by installing an appropriate &#34;driver&#34;
+program for the build system and specifying its location in the
+GOPACKAGESDRIVER environment variable.
+For example,
+<a href="https://github.com/bazelbuild/rules_go/wiki/Editor-and-tool-integration">https://github.com/bazelbuild/rules_go/wiki/Editor-and-tool-integration</a>
+explains how to use the driver for Bazel.
+</p><p>The driver program is responsible for interpreting patterns in its
+preferred notation and reporting information about the packages that
+those patterns identify. Drivers must also support the special &#34;file=&#34;
+and &#34;pattern=&#34; patterns described above.
+</p><p>The patterns are provided as positional command-line arguments. A
+JSON-encoded <a href="#DriverRequest">DriverRequest</a> message providing additional information
+is written to the driver&#39;s standard input. The driver must write a
+JSON-encoded <a href="#DriverResponse">DriverResponse</a> message to its standard output. (This
+message differs from the JSON schema produced by &#39;go list&#39;.)
+</p><p>The value of the PWD environment variable seen by the driver process
+is the preferred name of its working directory. (The working directory
+may have other aliases due to symbolic links; see the comment on the
+Dir field of <a href="/os/exec#Cmd">exec.Cmd</a> for related information.)
+When the driver process emits in its response the name of a file
+that is a descendant of this directory, it must use an absolute path
+that has the value of PWD as a prefix, to ensure that the returned
+filenames satisfy the original query.
+</p>
+<details tabindex="-1" id="example-package" class="Documentation-exampleDetails js-exampleContainer">
+<summary class="Documentation-exampleDetailsHeader">Example <a href="#example-package" title="Go to Example" aria-label="Go to Example">¶</a></summary>
+<div class="Documentation-exampleDetailsBody">
+<p>Example demonstrates how to load the packages specified on the
+command line from source syntax.
+</p>
+
+<pre class="Documentation-exampleCode">
+package main
+
+import (
+	&#34;flag&#34;
+	&#34;fmt&#34;
+	&#34;os&#34;
+
+	&#34;golang.org/x/tools/go/packages&#34;
+)
+
+func main() {
+	flag.Parse()
+
+	// Many tools pass their command-line arguments (after any flags)
+	// uninterpreted to packages.Load so that it can interpret them
+	// according to the conventions of the underlying build system.
+	cfg := &amp;packages.Config{Mode: packages.NeedFiles | packages.NeedSyntax}
+	pkgs, err := packages.Load(cfg, flag.Args()...)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, &#34;load: %v\n&#34;, err)
+		os.Exit(1)
+	}
+	if packages.PrintErrors(pkgs) &gt; 0 {
+		os.Exit(1)
+	}
+
+	// Print the names of the source files
+	// for each package listed on the command line.
+	for _, pkg := range pkgs {
+		fmt.Println(pkg.ID, pkg.GoFiles)
+	}
+}
+</pre>
+
+<pre class="Documentation-exampleOutputContainer js-exampleOutputContainer" hidden><span class="Documentation-exampleOutputLabel">Output:</span>
+<span class="Documentation-exampleOutput"></span></pre>
+</div>
+<div class="Documentation-exampleButtonsContainer">
+        <p class="Documentation-exampleError" role="alert" aria-atomic="true"></p>
+        <button class="Documentation-exampleShareButton" aria-label="Share Code">Share</button>
+        <button class="Documentation-exampleFormatButton" aria-label="Format Code">Format</button>
+        <button class="Documentation-exampleRunButton" aria-label="Run Code">Run</button>
+      </div></details>
+
+</section><section class="Documentation-index">
+    <h3 id="pkg-index" class="Documentation-indexHeader">Index <a href="#pkg-index" title="Go to Index" aria-label="Go to Index">¶</a></h3>
+
+<ul class="Documentation-indexList">
+<li class="Documentation-indexConstants"><a href="#pkg-constants">Constants</a></li>
+<li class="Documentation-indexFunction">
+        <a href="#Postorder">func Postorder(pkgs []*Package) iter.Seq[*Package]</a></li>
+<li class="Documentation-indexFunction">
+        <a href="#PrintErrors">func PrintErrors(pkgs []*Package) int</a></li>
+<li class="Documentation-indexFunction">
+        <a href="#Visit">func Visit(pkgs []*Package, pre func(*Package) bool, post func(*Package))</a></li>
+<li class="Documentation-indexType">
+          <a href="#Config">type Config</a></li>
+<li class="Documentation-indexType">
+          <a href="#DriverRequest">type DriverRequest</a></li>
+<li class="Documentation-indexType">
+          <a href="#DriverResponse">type DriverResponse</a></li>
+<li class="Documentation-indexType">
+          <a href="#Error">type Error</a></li>
+<li><ul class="Documentation-indexTypeMethods">
+<li>
+            <a href="#Error.Error">func (err Error) Error() string</a></li>
+</ul></li>
+<li class="Documentation-indexType">
+          <a href="#ErrorKind">type ErrorKind</a></li>
+<li class="Documentation-indexType">
+          <a href="#LoadMode">type LoadMode</a></li>
+<li><ul class="Documentation-indexTypeMethods">
+<li>
+            <a href="#LoadMode.String">func (mode LoadMode) String() string</a></li>
+</ul></li>
+<li class="Documentation-indexType">
+          <a href="#Module">type Module</a></li>
+<li class="Documentation-indexType">
+          <a href="#ModuleError">type ModuleError</a></li>
+<li class="Documentation-indexType">
+          <a href="#Package">type Package</a></li>
+<li><ul class="Documentation-indexTypeFunctions">
+<li>
+            <a href="#Load">func Load(cfg *Config, patterns ...string) ([]*Package, error)</a></li>
+</ul></li>
+<li><ul class="Documentation-indexTypeMethods">
+<li>
+            <a href="#Package.MarshalJSON">func (p *Package) MarshalJSON() ([]byte, error)</a></li>
+<li>
+            <a href="#Package.String">func (p *Package) String() string</a></li>
+<li>
+            <a href="#Package.UnmarshalJSON">func (p *Package) UnmarshalJSON(b []byte) error</a></li>
+</ul></li>
+</ul>
+</section><section class="Documentation-examples">
+    <h3 tabindex="-1" id="pkg-examples" class="Documentation-examplesHeader">Examples <a class="Documentation-idLink" href="#pkg-examples" title="Go to Examples" aria-label="Go to Examples">¶</a></h3>
+<ul class="Documentation-examplesList">
+<li><a href="#example-package" class="js-exampleHref">Package</a></li>
+</ul>
+</section><h3 tabindex="-1" id="pkg-constants" class="Documentation-constantsHeader">Constants <a href="#pkg-constants" title="Go to Constants" aria-label="Go to Constants">¶</a></h3>
+
+  <section class="Documentation-constants">
+    <div class="Documentation-declaration">
+      <span class="Documentation-declarationLink"><a class="Documentation-source" href="https://cs.opensource.google/go/x/tools/+/v0.50.0:go/packages/packages.go;l=127">View Source</a></span>
+      <pre>const (
+<span id="LoadFiles" data-kind="constant">	<span class="comment">// LoadFiles loads the name and file names for the initial packages.</span>
+</span>	LoadFiles = <a href="#NeedName">NeedName</a> | <a href="#NeedFiles">NeedFiles</a> | <a href="#NeedCompiledGoFiles">NeedCompiledGoFiles</a>
+
+<span id="LoadImports" data-kind="constant">	<span class="comment">// LoadImports loads the name, file names, and import mapping for the initial packages.</span>
+</span>	LoadImports = <a href="#LoadFiles">LoadFiles</a> | <a href="#NeedImports">NeedImports</a>
+
+<span id="LoadTypes" data-kind="constant">	<span class="comment">// LoadTypes loads exported type information for the initial packages.</span>
+</span>	LoadTypes = <a href="#LoadImports">LoadImports</a> | <a href="#NeedTypes">NeedTypes</a> | <a href="#NeedTypesSizes">NeedTypesSizes</a>
+
+<span id="LoadSyntax" data-kind="constant">	<span class="comment">// LoadSyntax loads typed syntax for the initial packages.</span>
+</span>	LoadSyntax = <a href="#LoadTypes">LoadTypes</a> | <a href="#NeedSyntax">NeedSyntax</a> | <a href="#NeedTypesInfo">NeedTypesInfo</a>
+
+<span id="LoadAllSyntax" data-kind="constant">	<span class="comment">// LoadAllSyntax loads typed syntax for the initial packages and all dependencies.</span>
+</span>	LoadAllSyntax = <a href="#LoadSyntax">LoadSyntax</a> | <a href="#NeedDeps">NeedDeps</a>
+
+<span id="NeedExportsFile" data-kind="constant">	<span class="comment">// Deprecated: NeedExportsFile is a historical misspelling of NeedExportFile.</span>
+</span>	<span class="comment">//</span>
+	<span class="comment">//go:fix inline</span>
+	NeedExportsFile = <a href="#NeedExportFile">NeedExportFile</a>
+)</pre>
+    </div>
+  
+</section>
+
+  <h3 tabindex="-1" id="pkg-variables" class="Documentation-variablesHeader">Variables <a href="#pkg-variables" title="Go to Variables" aria-label="Go to Variables">¶</a></h3>
+
+  <section class="Documentation-variables"><p class="Documentation-empty">This section is empty.</p></section>
+
+  <h3 tabindex="-1" id="pkg-functions" class="Documentation-functionsHeader">Functions <a href="#pkg-functions" title="Go to Functions" aria-label="Go to Functions">¶</a></h3>
+
+  <section class="Documentation-functions"><div class="Documentation-function">
+	  
+  
+  
+    <h4 tabindex="-1" id="Postorder" data-kind="function" class="Documentation-functionHeader">
+      <span>func <a class="Documentation-source" href="https://cs.opensource.google/go/x/tools/+/v0.50.0:go/packages/visit.go;l=84">Postorder</a> <a class="Documentation-idLink" href="#Postorder" title="Go to Postorder" aria-label="Go to Postorder">¶</a></span>
+  <span class="Documentation-sinceVersion">
+    
+      <span class="Documentation-sinceVersionLabel">added in</span>
+      <span class="Documentation-sinceVersionVersion">v0.37.0</span>
+    
+  </span>
+</h4>
+
+    
+    <div class="Documentation-declaration">
+      <pre>func Postorder(pkgs []*<a href="#Package">Package</a>) <a href="/iter">iter</a>.<a href="/iter#Seq">Seq</a>[*<a href="#Package">Package</a>]</pre>
+    </div>
+  <p>Postorder returns an iterator over the packages in
+the import graph whose roots are pkg.
+Packages are enumerated in dependencies-first order.
+</p>
+
+  
+
+        </div><div class="Documentation-function">
+	  
+  
+  
+    <h4 tabindex="-1" id="PrintErrors" data-kind="function" class="Documentation-functionHeader">
+      <span>func <a class="Documentation-source" href="https://cs.opensource.google/go/x/tools/+/v0.50.0:go/packages/visit.go;l=61">PrintErrors</a> <a class="Documentation-idLink" href="#PrintErrors" title="Go to PrintErrors" aria-label="Go to PrintErrors">¶</a></span>
+  <span class="Documentation-sinceVersion">
+    
+  </span>
+</h4>
+
+    
+    <div class="Documentation-declaration">
+      <pre>func PrintErrors(pkgs []*<a href="#Package">Package</a>) <a href="/builtin#int">int</a></pre>
+    </div>
+  <p>PrintErrors prints to os.Stderr the accumulated errors of all
+packages in the import graph rooted at pkgs, dependencies first.
+PrintErrors returns the number of errors printed.
+</p>
+
+  
+
+        </div><div class="Documentation-function">
+	  
+  
+  
+    <h4 tabindex="-1" id="Visit" data-kind="function" class="Documentation-functionHeader">
+      <span>func <a class="Documentation-source" href="https://cs.opensource.google/go/x/tools/+/v0.50.0:go/packages/visit.go;l=35">Visit</a> <a class="Documentation-idLink" href="#Visit" title="Go to Visit" aria-label="Go to Visit">¶</a></span>
+  <span class="Documentation-sinceVersion">
+    
+  </span>
+</h4>
+
+    
+    <div class="Documentation-declaration">
+      <pre>func Visit(pkgs []*<a href="#Package">Package</a>, pre func(*<a href="#Package">Package</a>) <a href="/builtin#bool">bool</a>, post func(*<a href="#Package">Package</a>))</pre>
+    </div>
+  <p>Visit visits all the packages in the import graph whose roots are
+pkgs, calling the optional pre function the first time each package
+is encountered (preorder), and the optional post function after a
+package&#39;s dependencies have been visited (postorder).
+The boolean result of pre(pkg) determines whether
+the imports of package pkg are visited.
+</p><p>Example:
+</p><pre>pkgs, err := Load(...)
+if err != nil { ... }
+Visit(pkgs, nil, func(pkg *Package) {
+	log.Println(pkg)
+})
+</pre><p>In most cases, it is more convenient to use <a href="#Postorder">Postorder</a>:
+</p><pre>for pkg := range Postorder(pkgs) {
+	log.Println(pkg)
+}
+</pre>
+
+  
+
+        </div></section>
+
+  <h3 tabindex="-1" id="pkg-types" class="Documentation-typesHeader">Types <a href="#pkg-types" title="Go to Types" aria-label="Go to Types">¶</a></h3>
+
+  <section class="Documentation-types"><div class="Documentation-type">
+      
+  
+  
+    <h4 tabindex="-1" id="Config" data-kind="type" class="Documentation-typeHeader">
+      <span>type <a class="Documentation-source" href="https://cs.opensource.google/go/x/tools/+/v0.50.0:go/packages/packages.go;l=153">Config</a> <a class="Documentation-idLink" href="#Config" title="Go to Config" aria-label="Go to Config">¶</a></span>
+  <span class="Documentation-sinceVersion">
+    
+  </span>
+</h4>
+
+    
+    <div class="Documentation-declaration">
+      <pre>type Config struct {
+<span id="Config.Mode" data-kind="field">	<span class="comment">// Mode controls the level of information returned for each package.</span>
+</span>	Mode <a href="#LoadMode">LoadMode</a>
+
+<span id="Config.Context" data-kind="field">	<span class="comment">// Context specifies the context for the load operation.</span>
+</span>	<span class="comment">// Cancelling the context may cause [Load] to abort and</span>
+	<span class="comment">// return an error.</span>
+	Context <a href="/context">context</a>.<a href="/context#Context">Context</a>
+
+<span id="Config.Logf" data-kind="field">	<span class="comment">// Logf is the logger for the config.</span>
+</span>	<span class="comment">// If the user provides a logger, debug logging is enabled.</span>
+	<span class="comment">// If the GOPACKAGESDEBUG environment variable is set to true,</span>
+	<span class="comment">// but the logger is nil, default to log.Printf.</span>
+	Logf func(format <a href="/builtin#string">string</a>, args ...<a href="/builtin#any">any</a>)
+
+<span id="Config.Dir" data-kind="field">	<span class="comment">// Dir is the directory in which to run the build system&#39;s query tool</span>
+</span>	<span class="comment">// that provides information about the packages.</span>
+	<span class="comment">// If Dir is empty, the tool is run in the current directory.</span>
+	Dir <a href="/builtin#string">string</a>
+
+<span id="Config.Env" data-kind="field">	<span class="comment">// Env is the environment to use when invoking the build system&#39;s query tool.</span>
+</span>	<span class="comment">// If Env is nil, the current environment is used.</span>
+	<span class="comment">// As in os/exec&#39;s Cmd, only the last value in the slice for</span>
+	<span class="comment">// each environment key is used. To specify the setting of only</span>
+	<span class="comment">// a few variables, append to the current environment, as in:</span>
+	<span class="comment">//</span>
+	<span class="comment">//	opt.Env = append(os.Environ(), &#34;GOOS=plan9&#34;, &#34;GOARCH=386&#34;)</span>
+	<span class="comment">//</span>
+	Env []<a href="/builtin#string">string</a>
+
+<span id="Config.BuildFlags" data-kind="field">	<span class="comment">// BuildFlags is a list of command-line flags to be passed through to</span>
+</span>	<span class="comment">// the build system&#39;s query tool.</span>
+	BuildFlags []<a href="/builtin#string">string</a>
+
+<span id="Config.Fset" data-kind="field">	<span class="comment">// Fset provides source position information for syntax trees and types.</span>
+</span>	<span class="comment">// If Fset is nil, Load will use a new fileset, but preserve Fset&#39;s value.</span>
+	Fset *<a href="/go/token">token</a>.<a href="/go/token#FileSet">FileSet</a>
+
+<span id="Config.ParseFile" data-kind="field">	<span class="comment">// ParseFile is called to read and parse each file</span>
+</span>	<span class="comment">// when preparing a package&#39;s type-checked syntax tree.</span>
+	<span class="comment">// It must be safe to call ParseFile simultaneously from multiple goroutines.</span>
+	<span class="comment">// If ParseFile is nil, the loader will uses parser.ParseFile.</span>
+	<span class="comment">//</span>
+	<span class="comment">// ParseFile should parse the source from src and use filename only for</span>
+	<span class="comment">// recording position information.</span>
+	<span class="comment">//</span>
+	<span class="comment">// An application may supply a custom implementation of ParseFile</span>
+	<span class="comment">// to change the effective file contents or the behavior of the parser,</span>
+	<span class="comment">// or to modify the syntax tree. For example, selectively eliminating</span>
+	<span class="comment">// unwanted function bodies can significantly accelerate type checking.</span>
+	ParseFile func(fset *<a href="/go/token">token</a>.<a href="/go/token#FileSet">FileSet</a>, filename <a href="/builtin#string">string</a>, src []<a href="/builtin#byte">byte</a>) (*<a href="/go/ast">ast</a>.<a href="/go/ast#File">File</a>, <a href="/builtin#error">error</a>)
+
+<span id="Config.Tests" data-kind="field">	<span class="comment">// If Tests is set, the loader includes not just the packages</span>
+</span>	<span class="comment">// matching a particular pattern but also any related test packages,</span>
+	<span class="comment">// including test-only variants of the package and the test executable.</span>
+	<span class="comment">//</span>
+	<span class="comment">// For example, when using the go command, loading &#34;fmt&#34; with Tests=true</span>
+	<span class="comment">// returns four packages, with IDs &#34;fmt&#34; (the standard package),</span>
+	<span class="comment">// &#34;fmt [fmt.test]&#34; (the package as compiled for the test),</span>
+	<span class="comment">// &#34;fmt_test&#34; (the test functions from source files in package fmt_test),</span>
+	<span class="comment">// and &#34;fmt.test&#34; (the test binary).</span>
+	<span class="comment">//</span>
+	<span class="comment">// In build systems with explicit names for tests,</span>
+	<span class="comment">// setting Tests may have no effect.</span>
+	Tests <a href="/builtin#bool">bool</a>
+
+<span id="Config.Overlay" data-kind="field">	<span class="comment">// Overlay is a mapping from absolute file paths to file contents.</span>
+</span>	<span class="comment">//</span>
+	<span class="comment">// For each map entry, [Load] uses the alternative file</span>
+	<span class="comment">// contents provided by the overlay mapping instead of reading</span>
+	<span class="comment">// from the file system. This mechanism can be used to enable</span>
+	<span class="comment">// editor-integrated tools to correctly analyze the contents</span>
+	<span class="comment">// of modified but unsaved buffers, for example.</span>
+	<span class="comment">//</span>
+	<span class="comment">// The overlay mapping is passed to the build system&#39;s driver</span>
+	<span class="comment">// (see &#34;The driver protocol&#34;) so that it too can report</span>
+	<span class="comment">// consistent package metadata about unsaved files. However,</span>
+	<span class="comment">// drivers may vary in their level of support for overlays.</span>
+	Overlay map[<a href="/builtin#string">string</a>][]<a href="/builtin#byte">byte</a>
+}</pre>
+    </div>
+  <p>A Config specifies details about how packages should be loaded.
+The zero value is a valid configuration.
+</p><p>Calls to <a href="#Load">Load</a> do not modify this struct.
+</p>
+
+  
+
+    </div><div class="Documentation-type">
+      
+  
+  
+    <h4 tabindex="-1" id="DriverRequest" data-kind="type" class="Documentation-typeHeader">
+      <span>type <a class="Documentation-source" href="https://cs.opensource.google/go/x/tools/+/v0.50.0:go/packages/external.go;l=26">DriverRequest</a> <a class="Documentation-idLink" href="#DriverRequest" title="Go to DriverRequest" aria-label="Go to DriverRequest">¶</a></span>
+  <span class="Documentation-sinceVersion">
+    
+      <span class="Documentation-sinceVersionLabel">added in</span>
+      <span class="Documentation-sinceVersionVersion">v0.18.0</span>
+    
+  </span>
+</h4>
+
+    
+    <div class="Documentation-declaration">
+      <pre>type DriverRequest struct {
+<span id="DriverRequest.Mode" data-kind="field">	Mode <a href="#LoadMode">LoadMode</a> `json:&#34;mode&#34;`
+</span>
+<span id="DriverRequest.Env" data-kind="field">	<span class="comment">// Env specifies the environment the underlying build system should be run in.</span>
+</span>	Env []<a href="/builtin#string">string</a> `json:&#34;env&#34;`
+
+<span id="DriverRequest.BuildFlags" data-kind="field">	<span class="comment">// BuildFlags are flags that should be passed to the underlying build system.</span>
+</span>	BuildFlags []<a href="/builtin#string">string</a> `json:&#34;build_flags&#34;`
+
+<span id="DriverRequest.Tests" data-kind="field">	<span class="comment">// Tests specifies whether the patterns should also return test packages.</span>
+</span>	Tests <a href="/builtin#bool">bool</a> `json:&#34;tests&#34;`
+
+<span id="DriverRequest.Overlay" data-kind="field">	<span class="comment">// Overlay maps file paths (relative to the driver&#39;s working directory)</span>
+</span>	<span class="comment">// to the contents of overlay files (see Config.Overlay).</span>
+	Overlay map[<a href="/builtin#string">string</a>][]<a href="/builtin#byte">byte</a> `json:&#34;overlay&#34;`
+}</pre>
+    </div>
+  <p>DriverRequest defines the schema of a request for package metadata
+from an external driver program. The JSON-encoded DriverRequest
+message is provided to the driver program&#39;s standard input. The
+query patterns are provided as command-line arguments.
+</p><p>See the package documentation for an overview.
+</p>
+
+  
+
+    </div><div class="Documentation-type">
+      
+  
+  
+    <h4 tabindex="-1" id="DriverResponse" data-kind="type" class="Documentation-typeHeader">
+      <span>type <a class="Documentation-source" href="https://cs.opensource.google/go/x/tools/+/v0.50.0:go/packages/external.go;l=49">DriverResponse</a> <a class="Documentation-idLink" href="#DriverResponse" title="Go to DriverResponse" aria-label="Go to DriverResponse">¶</a></span>
+  <span class="Documentation-sinceVersion">
+    
+      <span class="Documentation-sinceVersionLabel">added in</span>
+      <span class="Documentation-sinceVersionVersion">v0.18.0</span>
+    
+  </span>
+</h4>
+
+    
+    <div class="Documentation-declaration">
+      <pre>type DriverResponse struct {
+<span id="DriverResponse.NotHandled" data-kind="field">	<span class="comment">// NotHandled is returned if the request can&#39;t be handled by the current</span>
+</span>	<span class="comment">// driver. If an external driver returns a response with NotHandled, the</span>
+	<span class="comment">// rest of the DriverResponse is ignored, and go/packages will fallback</span>
+	<span class="comment">// to the next driver. If go/packages is extended in the future to support</span>
+	<span class="comment">// lists of multiple drivers, go/packages will fall back to the next driver.</span>
+	NotHandled <a href="/builtin#bool">bool</a>
+
+	<span class="comment">// Compiler and Arch are the arguments pass of types.SizesFor</span>
+	<span class="comment">// to get a types.Sizes to use when type checking.</span>
+<span id="DriverResponse.Compiler" data-kind="field">	Compiler <a href="/builtin#string">string</a>
+</span><span id="DriverResponse.Arch" data-kind="field">	Arch     <a href="/builtin#string">string</a>
+</span>
+<span id="DriverResponse.Roots" data-kind="field">	<span class="comment">// Roots is the set of package IDs that make up the root packages.</span>
+</span>	<span class="comment">// We have to encode this separately because when we encode a single package</span>
+	<span class="comment">// we cannot know if it is one of the roots as that requires knowledge of the</span>
+	<span class="comment">// graph it is part of.</span>
+	Roots []<a href="/builtin#string">string</a> `json:&#34;,omitempty&#34;`
+
+<span id="DriverResponse.Packages" data-kind="field">	<span class="comment">// Packages is the full set of packages in the graph.</span>
+</span>	<span class="comment">// The packages are not connected into a graph.</span>
+	<span class="comment">// The Imports if populated will be stubs that only have their ID set.</span>
+	<span class="comment">// Imports will be connected and then type and syntax information added in a</span>
+	<span class="comment">// later pass (see refine).</span>
+	Packages []*<a href="#Package">Package</a>
+
+<span id="DriverResponse.GoVersion" data-kind="field">	<span class="comment">// GoVersion is the minor version number used by the driver</span>
+</span>	<span class="comment">// (e.g. the go command on the PATH) when selecting .go files.</span>
+	<span class="comment">// Zero means unknown.</span>
+	GoVersion <a href="/builtin#int">int</a>
+}</pre>
+    </div>
+  <p>DriverResponse defines the schema of a response from an external
+driver program, providing the results of a query for package
+metadata. The driver program must write a JSON-encoded
+DriverResponse message to its standard output.
+</p><p>See the package documentation for an overview.
+</p>
+
+  
+
+    </div><div class="Documentation-type">
+      
+  
+  
+    <h4 tabindex="-1" id="Error" data-kind="type" class="Documentation-typeHeader">
+      <span>type <a class="Documentation-source" href="https://cs.opensource.google/go/x/tools/+/v0.50.0:go/packages/packages.go;l=580">Error</a> <a class="Documentation-idLink" href="#Error" title="Go to Error" aria-label="Go to Error">¶</a></span>
+  <span class="Documentation-sinceVersion">
+    
+  </span>
+</h4>
+
+    
+    <div class="Documentation-declaration">
+      <pre>type Error struct {
+<span id="Error.Pos" data-kind="field">	Pos  <a href="/builtin#string">string</a> <span class="comment">// &#34;file:line:col&#34; or &#34;file:line&#34; or &#34;&#34; or &#34;-&#34;</span>
+</span><span id="Error.Msg" data-kind="field">	Msg  <a href="/builtin#string">string</a>
+</span><span id="Error.Kind" data-kind="field">	Kind <a href="#ErrorKind">ErrorKind</a>
+</span>}</pre>
+    </div>
+  <p>An Error describes a problem with a package&#39;s metadata, syntax, or types.
+</p>
+<div class="Documentation-typeMethod">
+    
+  
+  
+    <h4 tabindex="-1" id="Error.Error" data-kind="method" class="Documentation-typeMethodHeader">
+      <span>func (Error) <a class="Documentation-source" href="https://cs.opensource.google/go/x/tools/+/v0.50.0:go/packages/packages.go;l=598">Error</a> <a class="Documentation-idLink" href="#Error.Error" title="Go to Error.Error" aria-label="Go to Error.Error">¶</a></span>
+  <span class="Documentation-sinceVersion">
+    
+  </span>
+</h4>
+
+    
+    <div class="Documentation-declaration">
+      <pre>func (err <a href="#Error">Error</a>) Error() <a href="/builtin#string">string</a></pre>
+    </div>
+  
+
+  
+
+  </div>
+  
+
+    </div><div class="Documentation-type">
+      
+  
+  
+    <h4 tabindex="-1" id="ErrorKind" data-kind="type" class="Documentation-typeHeader">
+      <span>type <a class="Documentation-source" href="https://cs.opensource.google/go/x/tools/+/v0.50.0:go/packages/packages.go;l=589">ErrorKind</a> <a class="Documentation-idLink" href="#ErrorKind" title="Go to ErrorKind" aria-label="Go to ErrorKind">¶</a></span>
+  <span class="Documentation-sinceVersion">
+    
+  </span>
+</h4>
+
+    
+    <div class="Documentation-declaration">
+      <pre>type ErrorKind <a href="/builtin#int">int</a></pre>
+    </div>
+  <p>ErrorKind describes the source of the error, allowing the user to
+differentiate between errors generated by the driver, the parser, or the
+type-checker.
+</p>
+<div class="Documentation-typeConstant">
+    <div class="Documentation-declaration">
+      <pre>const (
+<span id="UnknownError" data-kind="constant">	UnknownError <a href="#ErrorKind">ErrorKind</a> = <a href="/builtin#iota">iota</a>
+</span><span id="ListError" data-kind="constant">	ListError
+</span><span id="ParseError" data-kind="constant">	ParseError
+</span><span id="TypeError" data-kind="constant">	TypeError
+</span>)</pre>
+    </div>
+  
+</div>
+  
+
+    </div><div class="Documentation-type">
+      
+  
+  
+    <h4 tabindex="-1" id="LoadMode" data-kind="type" class="Documentation-typeHeader">
+      <span>type <a class="Documentation-source" href="https://cs.opensource.google/go/x/tools/+/v0.50.0:go/packages/packages.go;l=66">LoadMode</a> <a class="Documentation-idLink" href="#LoadMode" title="Go to LoadMode" aria-label="Go to LoadMode">¶</a></span>
+  <span class="Documentation-sinceVersion">
+    
+  </span>
+</h4>
+
+    
+    <div class="Documentation-declaration">
+      <pre>type LoadMode <a href="/builtin#int">int</a></pre>
+    </div>
+  <p>A LoadMode controls the amount of detail to return when loading.
+The bits below can be combined to specify which fields should be
+filled in the result packages.
+</p><p>The zero value is a special case, equivalent to combining
+the NeedName, NeedFiles, and NeedCompiledGoFiles bits.
+</p><p>ID and Errors (if present) will always be filled.
+<a href="#Load">Load</a> may return more information than requested.
+</p><p>The Mode flag is a union of several bits named NeedName,
+NeedFiles, and so on, each of which determines whether
+a given field of Package (Name, Files, etc) should be
+populated.
+</p><p>For convenience, we provide named constants for the most
+common combinations of Need flags:
+</p><pre>[LoadFiles]     lists of files in each package
+[LoadImports]   ... plus imports
+[LoadTypes]     ... plus type information
+[LoadSyntax]    ... plus type-annotated syntax
+[LoadAllSyntax] ... for all dependencies
+</pre><p>Unfortunately there are a number of open bugs related to
+interactions among the LoadMode bits:
+</p><ul class="Documentation-bulletList">
+  <li><a href="https://go.dev/issue/56633">https://go.dev/issue/56633</a></li>
+  <li><a href="https://go.dev/issue/56677">https://go.dev/issue/56677</a></li>
+  <li><a href="https://go.dev/issue/58726">https://go.dev/issue/58726</a></li>
+  <li><a href="https://go.dev/issue/63517">https://go.dev/issue/63517</a></li>
+</ul>
+<div class="Documentation-typeConstant">
+    <div class="Documentation-declaration">
+      <pre>const (
+<span id="NeedName" data-kind="constant">	<span class="comment">// NeedName adds Name and PkgPath.</span>
+</span>	NeedName <a href="#LoadMode">LoadMode</a> = 1 &lt;&lt; <a href="/builtin#iota">iota</a>
+
+<span id="NeedFiles" data-kind="constant">	<span class="comment">// NeedFiles adds Dir, GoFiles, OtherFiles, and IgnoredFiles</span>
+</span>	NeedFiles
+
+<span id="NeedCompiledGoFiles" data-kind="constant">	<span class="comment">// NeedCompiledGoFiles adds CompiledGoFiles.</span>
+</span>	NeedCompiledGoFiles
+
+<span id="NeedImports" data-kind="constant">	<span class="comment">// NeedImports adds Imports. If NeedDeps is not set, the Imports field will contain</span>
+</span>	<span class="comment">// &#34;placeholder&#34; Packages with only the ID set.</span>
+	NeedImports
+
+<span id="NeedDeps" data-kind="constant">	<span class="comment">// NeedDeps adds the fields requested by the LoadMode in the packages in Imports.</span>
+</span>	NeedDeps
+
+<span id="NeedExportFile" data-kind="constant">	<span class="comment">// NeedExportFile adds ExportFile.</span>
+</span>	NeedExportFile
+
+<span id="NeedTypes" data-kind="constant">	<span class="comment">// NeedTypes adds Types, Fset, and IllTyped.</span>
+</span>	NeedTypes
+
+<span id="NeedSyntax" data-kind="constant">	<span class="comment">// NeedSyntax adds Syntax and Fset.</span>
+</span>	NeedSyntax
+
+<span id="NeedTypesInfo" data-kind="constant">	<span class="comment">// NeedTypesInfo adds TypesInfo and Fset.</span>
+</span>	NeedTypesInfo
+
+<span id="NeedTypesSizes" data-kind="constant">	<span class="comment">// NeedTypesSizes adds TypesSizes.</span>
+</span>	NeedTypesSizes
+
+<span id="NeedForTest" data-kind="constant">	<span class="comment">// NeedForTest adds ForTest.</span>
+</span>	<span class="comment">//</span>
+	<span class="comment">// Tests must also be set on the context for this field to be populated.</span>
+	NeedForTest
+
+<span id="NeedModule" data-kind="constant">	<span class="comment">// NeedModule adds Module.</span>
+</span>	NeedModule
+
+<span id="NeedEmbedFiles" data-kind="constant">	<span class="comment">// NeedEmbedFiles adds EmbedFiles.</span>
+</span>	NeedEmbedFiles
+
+<span id="NeedEmbedPatterns" data-kind="constant">	<span class="comment">// NeedEmbedPatterns adds EmbedPatterns.</span>
+</span>	NeedEmbedPatterns
+
+<span id="NeedTarget" data-kind="constant">	<span class="comment">// NeedTarget adds Target.</span>
+</span>	NeedTarget
+)</pre>
+    </div>
+  
+</div><div class="Documentation-typeMethod">
+    
+  
+  
+    <h4 tabindex="-1" id="LoadMode.String" data-kind="method" class="Documentation-typeMethodHeader">
+      <span>func (LoadMode) <a class="Documentation-source" href="https://cs.opensource.google/go/x/tools/+/v0.50.0:go/packages/loadmode_string.go;l=33">String</a> <a class="Documentation-idLink" href="#LoadMode.String" title="Go to LoadMode.String" aria-label="Go to LoadMode.String">¶</a></span>
+  <span class="Documentation-sinceVersion">
+    
+  </span>
+</h4>
+
+    
+    <div class="Documentation-declaration">
+      <pre>func (mode <a href="#LoadMode">LoadMode</a>) String() <a href="/builtin#string">string</a></pre>
+    </div>
+  
+
+  
+
+  </div>
+  
+
+    </div><div class="Documentation-type">
+      
+  
+  
+    <h4 tabindex="-1" id="Module" data-kind="type" class="Documentation-typeHeader">
+      <span>type <a class="Documentation-source" href="https://cs.opensource.google/go/x/tools/+/v0.50.0:go/packages/packages.go;l=553">Module</a> <a class="Documentation-idLink" href="#Module" title="Go to Module" aria-label="Go to Module">¶</a></span>
+  <span class="Documentation-sinceVersion">
+    
+  </span>
+</h4>
+
+    
+    <div class="Documentation-declaration">
+      <pre>type Module struct {
+<span id="Module.Path" data-kind="field">	Path      <a href="/builtin#string">string</a>       <span class="comment">// module path</span>
+</span><span id="Module.Version" data-kind="field">	Version   <a href="/builtin#string">string</a>       <span class="comment">// module version</span>
+</span><span id="Module.Replace" data-kind="field">	Replace   *<a href="#Module">Module</a>      <span class="comment">// replaced by this module</span>
+</span><span id="Module.Time" data-kind="field">	Time      *<a href="/time">time</a>.<a href="/time#Time">Time</a>   <span class="comment">// time version was created</span>
+</span><span id="Module.Main" data-kind="field">	Main      <a href="/builtin#bool">bool</a>         <span class="comment">// is this the main module?</span>
+</span><span id="Module.Indirect" data-kind="field">	Indirect  <a href="/builtin#bool">bool</a>         <span class="comment">// is this module only an indirect dependency of main module?</span>
+</span><span id="Module.Dir" data-kind="field">	Dir       <a href="/builtin#string">string</a>       <span class="comment">// directory holding files for this module, if any</span>
+</span><span id="Module.GoMod" data-kind="field">	GoMod     <a href="/builtin#string">string</a>       <span class="comment">// path to go.mod file used when loading this module, if any</span>
+</span><span id="Module.GoVersion" data-kind="field">	GoVersion <a href="/builtin#string">string</a>       <span class="comment">// go version used in module</span>
+</span><span id="Module.Error" data-kind="field">	Error     *<a href="#ModuleError">ModuleError</a> <span class="comment">// error loading module</span>
+</span>}</pre>
+    </div>
+  <p>Module provides module information for a package.
+</p><p>It also defines part of the JSON schema of <a href="#DriverResponse">DriverResponse</a>.
+See the package documentation for an overview.
+</p>
+
+  
+
+    </div><div class="Documentation-type">
+      
+  
+  
+    <h4 tabindex="-1" id="ModuleError" data-kind="type" class="Documentation-typeHeader">
+      <span>type <a class="Documentation-source" href="https://cs.opensource.google/go/x/tools/+/v0.50.0:go/packages/packages.go;l=567">ModuleError</a> <a class="Documentation-idLink" href="#ModuleError" title="Go to ModuleError" aria-label="Go to ModuleError">¶</a></span>
+  <span class="Documentation-sinceVersion">
+    
+  </span>
+</h4>
+
+    
+    <div class="Documentation-declaration">
+      <pre>type ModuleError struct {
+<span id="ModuleError.Err" data-kind="field">	Err <a href="/builtin#string">string</a> <span class="comment">// the error itself</span>
+</span>}</pre>
+    </div>
+  <p>ModuleError holds errors loading a module.
+</p>
+
+  
+
+    </div><div class="Documentation-type">
+      
+  
+  
+    <h4 tabindex="-1" id="Package" data-kind="type" class="Documentation-typeHeader">
+      <span>type <a class="Documentation-source" href="https://cs.opensource.google/go/x/tools/+/v0.50.0:go/packages/packages.go;l=425">Package</a> <a class="Documentation-idLink" href="#Package" title="Go to Package" aria-label="Go to Package">¶</a></span>
+  <span class="Documentation-sinceVersion">
+    
+  </span>
+</h4>
+
+    
+    <div class="Documentation-declaration">
+      <pre>type Package struct {
+<span id="Package.ID" data-kind="field">	<span class="comment">// ID is a unique identifier for a package,</span>
+</span>	<span class="comment">// in a syntax provided by the underlying build system.</span>
+	<span class="comment">//</span>
+	<span class="comment">// Because the syntax varies based on the build system,</span>
+	<span class="comment">// clients should treat IDs as opaque and not attempt to</span>
+	<span class="comment">// interpret them.</span>
+	ID <a href="/builtin#string">string</a>
+
+<span id="Package.Name" data-kind="field">	<span class="comment">// Name is the package name as it appears in the package source code.</span>
+</span>	Name <a href="/builtin#string">string</a>
+
+<span id="Package.PkgPath" data-kind="field">	<span class="comment">// PkgPath is the package path as used by the go/types package.</span>
+</span>	PkgPath <a href="/builtin#string">string</a>
+
+<span id="Package.Dir" data-kind="field">	<span class="comment">// Dir is the directory associated with the package, if it exists.</span>
+</span>	<span class="comment">//</span>
+	<span class="comment">// For packages listed by the go command, this is the directory containing</span>
+	<span class="comment">// the package files.</span>
+	Dir <a href="/builtin#string">string</a>
+
+<span id="Package.Errors" data-kind="field">	<span class="comment">// Errors contains any errors encountered querying the metadata</span>
+</span>	<span class="comment">// of the package, or while parsing or type-checking its files.</span>
+	Errors []<a href="#Error">Error</a>
+
+<span id="Package.TypeErrors" data-kind="field">	<span class="comment">// TypeErrors contains the subset of errors produced during type checking.</span>
+</span>	TypeErrors []<a href="/go/types">types</a>.<a href="/go/types#Error">Error</a>
+
+<span id="Package.GoFiles" data-kind="field">	<span class="comment">// GoFiles lists the absolute file paths of the package&#39;s Go source files.</span>
+</span>	<span class="comment">// It may include files that should not be compiled, for example because</span>
+	<span class="comment">// they contain non-matching build tags, are documentary pseudo-files such as</span>
+	<span class="comment">// unsafe/unsafe.go or builtin/builtin.go, or are subject to cgo preprocessing.</span>
+	GoFiles []<a href="/builtin#string">string</a>
+
+<span id="Package.CompiledGoFiles" data-kind="field">	<span class="comment">// CompiledGoFiles lists the absolute file paths of the package&#39;s source</span>
+</span>	<span class="comment">// files that are suitable for type checking.</span>
+	<span class="comment">// This may differ from GoFiles if files are processed before compilation.</span>
+	CompiledGoFiles []<a href="/builtin#string">string</a>
+
+<span id="Package.OtherFiles" data-kind="field">	<span class="comment">// OtherFiles lists the absolute file paths of the package&#39;s non-Go source files,</span>
+</span>	<span class="comment">// including assembly, C, C++, Fortran, Objective-C, SWIG, and so on.</span>
+	OtherFiles []<a href="/builtin#string">string</a>
+
+<span id="Package.EmbedFiles" data-kind="field">	<span class="comment">// EmbedFiles lists the absolute file paths of the package&#39;s files</span>
+</span>	<span class="comment">// embedded with go:embed.</span>
+	EmbedFiles []<a href="/builtin#string">string</a>
+
+<span id="Package.EmbedPatterns" data-kind="field">	<span class="comment">// EmbedPatterns lists the absolute file patterns of the package&#39;s</span>
+</span>	<span class="comment">// files embedded with go:embed.</span>
+	EmbedPatterns []<a href="/builtin#string">string</a>
+
+<span id="Package.IgnoredFiles" data-kind="field">	<span class="comment">// IgnoredFiles lists source files that are not part of the package</span>
+</span>	<span class="comment">// using the current build configuration but that might be part of</span>
+	<span class="comment">// the package using other build configurations.</span>
+	IgnoredFiles []<a href="/builtin#string">string</a>
+
+<span id="Package.ExportFile" data-kind="field">	<span class="comment">// ExportFile is the absolute path to a file containing type</span>
+</span>	<span class="comment">// information for the package as provided by the build system.</span>
+	ExportFile <a href="/builtin#string">string</a>
+
+<span id="Package.Target" data-kind="field">	<span class="comment">// Target is the absolute install path of the .a file, for libraries,</span>
+</span>	<span class="comment">// and of the executable file, for binaries.</span>
+	Target <a href="/builtin#string">string</a>
+
+<span id="Package.Imports" data-kind="field">	<span class="comment">// Imports maps import paths appearing in the package&#39;s Go source files</span>
+</span>	<span class="comment">// to corresponding loaded Packages.</span>
+	Imports map[<a href="/builtin#string">string</a>]*<a href="#Package">Package</a>
+
+<span id="Package.Module" data-kind="field">	<span class="comment">// Module is the module information for the package if it exists.</span>
+</span>	<span class="comment">//</span>
+	<span class="comment">// Note: it may be missing for std and cmd; see Go issue #65816.</span>
+	Module *<a href="#Module">Module</a>
+
+<span id="Package.Types" data-kind="field">	<span class="comment">// Types provides type information for the package.</span>
+</span>	<span class="comment">// The NeedTypes LoadMode bit sets this field for packages matching the</span>
+	<span class="comment">// patterns; type information for dependencies may be missing or incomplete,</span>
+	<span class="comment">// unless NeedDeps and NeedImports are also set.</span>
+	<span class="comment">//</span>
+	<span class="comment">// Each call to [Load] returns a consistent set of type</span>
+	<span class="comment">// symbols, as defined by the comment at [types.Identical].</span>
+	<span class="comment">// Avoid mixing type information from two or more calls to [Load].</span>
+	Types *<a href="/go/types">types</a>.<a href="/go/types#Package">Package</a> `json:&#34;-&#34;`
+
+<span id="Package.Fset" data-kind="field">	<span class="comment">// Fset provides position information for Types, TypesInfo, and Syntax.</span>
+</span>	<span class="comment">// It is set only when Types is set.</span>
+	Fset *<a href="/go/token">token</a>.<a href="/go/token#FileSet">FileSet</a> `json:&#34;-&#34;`
+
+<span id="Package.IllTyped" data-kind="field">	<span class="comment">// IllTyped indicates whether the package or any dependency contains errors.</span>
+</span>	<span class="comment">// It is set only when Types is set.</span>
+	IllTyped <a href="/builtin#bool">bool</a> `json:&#34;-&#34;`
+
+<span id="Package.Syntax" data-kind="field">	<span class="comment">// Syntax is the package&#39;s syntax trees, for the files listed in CompiledGoFiles.</span>
+</span>	<span class="comment">//</span>
+	<span class="comment">// The NeedSyntax LoadMode bit populates this field for packages matching the patterns.</span>
+	<span class="comment">// If NeedDeps and NeedImports are also set, this field will also be populated</span>
+	<span class="comment">// for dependencies.</span>
+	<span class="comment">//</span>
+	<span class="comment">// Syntax is kept in the same order as CompiledGoFiles, with the caveat that nils are</span>
+	<span class="comment">// removed.  If parsing returned nil, Syntax may be shorter than CompiledGoFiles.</span>
+	Syntax []*<a href="/go/ast">ast</a>.<a href="/go/ast#File">File</a> `json:&#34;-&#34;`
+
+<span id="Package.TypesInfo" data-kind="field">	<span class="comment">// TypesInfo provides type information about the package&#39;s syntax trees.</span>
+</span>	<span class="comment">// It is set only when Syntax is set.</span>
+	TypesInfo *<a href="/go/types">types</a>.<a href="/go/types#Info">Info</a> `json:&#34;-&#34;`
+
+<span id="Package.TypesSizes" data-kind="field">	<span class="comment">// TypesSizes provides the effective size function for types in TypesInfo.</span>
+</span>	TypesSizes <a href="/go/types">types</a>.<a href="/go/types#Sizes">Sizes</a> `json:&#34;-&#34;`
+
+<span id="Package.ForTest" data-kind="field">	<span class="comment">// ForTest is the package under test, if any.</span>
+</span>	ForTest <a href="/builtin#string">string</a>
+	<span class="comment">// contains filtered or unexported fields</span>
+}</pre>
+    </div>
+  <p>A Package describes a loaded Go package.
+</p><p>It also defines part of the JSON schema of <a href="#DriverResponse">DriverResponse</a>.
+See the package documentation for an overview.
+</p>
+<div class="Documentation-typeFunc">
+    
+  
+  
+    <h4 tabindex="-1" id="Load" data-kind="function" class="Documentation-typeFuncHeader">
+      <span>func <a class="Documentation-source" href="https://cs.opensource.google/go/x/tools/+/v0.50.0:go/packages/packages.go;l=261">Load</a> <a class="Documentation-idLink" href="#Load" title="Go to Load" aria-label="Go to Load">¶</a></span>
+  <span class="Documentation-sinceVersion">
+    
+  </span>
+</h4>
+
+    
+    <div class="Documentation-declaration">
+      <pre>func Load(cfg *<a href="#Config">Config</a>, patterns ...<a href="/builtin#string">string</a>) ([]*<a href="#Package">Package</a>, <a href="/builtin#error">error</a>)</pre>
+    </div>
+  <p>Load loads and returns the Go packages named by the given patterns.
+</p><p>The cfg parameter specifies loading options; nil behaves the same as an empty <a href="#Config">Config</a>.
+</p><p>The <a href="#Config.Mode">Config.Mode</a> field is a set of bits that determine what kinds
+of information should be computed and returned. Modes that require
+more information tend to be slower. See <a href="#LoadMode">LoadMode</a> for details
+and important caveats. Its zero value is equivalent to
+<a href="#NeedName">NeedName</a> | <a href="#NeedFiles">NeedFiles</a> | <a href="#NeedCompiledGoFiles">NeedCompiledGoFiles</a>.
+</p><p>Each call to Load returns a new set of <a href="#Package">Package</a> instances.
+The Packages and their Imports form a directed acyclic graph.
+</p><p>If the <a href="#NeedTypes">NeedTypes</a> mode flag was set, each call to Load uses a new
+<a href="/go/types#Importer">types.Importer</a>, so <a href="/go/types#Object">types.Object</a> and <a href="/go/types#Type">types.Type</a> values from
+different calls to Load must not be mixed as they will have
+inconsistent notions of type identity.
+</p><p>If any of the patterns was invalid as defined by the
+underlying build system, Load returns an error.
+It may return an empty list of packages without an error,
+for instance for an empty expansion of a valid wildcard.
+Errors associated with a particular package are recorded in the
+corresponding Package&#39;s Errors list, and do not cause Load to
+return an error. Clients may need to handle such errors before
+proceeding with further analysis. The <a href="#PrintErrors">PrintErrors</a> function is
+provided for convenient display of all errors.
+</p>
+
+  
+
+  </div><div class="Documentation-typeMethod">
+    
+  
+  
+    <h4 tabindex="-1" id="Package.MarshalJSON" data-kind="method" class="Documentation-typeMethodHeader">
+      <span>func (*Package) <a class="Documentation-source" href="https://cs.opensource.google/go/x/tools/+/v0.50.0:go/packages/packages.go;l=635">MarshalJSON</a> <a class="Documentation-idLink" href="#Package.MarshalJSON" title="Go to Package.MarshalJSON" aria-label="Go to Package.MarshalJSON">¶</a></span>
+  <span class="Documentation-sinceVersion">
+    
+  </span>
+</h4>
+
+    
+    <div class="Documentation-declaration">
+      <pre>func (p *<a href="#Package">Package</a>) MarshalJSON() ([]<a href="/builtin#byte">byte</a>, <a href="/builtin#error">error</a>)</pre>
+    </div>
+  <p>MarshalJSON returns the Package in its JSON form.
+For the most part, the structure fields are written out unmodified, and
+the type and syntax fields are skipped.
+The imports are written out as just a map of path to package id.
+The errors are written using a custom type that tries to preserve the
+structure of error types we know about.
+</p><p>This method exists to enable support for additional build systems.  It is
+not intended for use by clients of the API and we may change the format.
+</p>
+
+  
+
+  </div><div class="Documentation-typeMethod">
+    
+  
+  
+    <h4 tabindex="-1" id="Package.String" data-kind="method" class="Documentation-typeMethodHeader">
+      <span>func (*Package) <a class="Documentation-source" href="https://cs.opensource.google/go/x/tools/+/v0.50.0:go/packages/packages.go;l=687">String</a> <a class="Documentation-idLink" href="#Package.String" title="Go to Package.String" aria-label="Go to Package.String">¶</a></span>
+  <span class="Documentation-sinceVersion">
+    
+  </span>
+</h4>
+
+    
+    <div class="Documentation-declaration">
+      <pre>func (p *<a href="#Package">Package</a>) String() <a href="/builtin#string">string</a></pre>
+    </div>
+  
+
+  
+
+  </div><div class="Documentation-typeMethod">
+    
+  
+  
+    <h4 tabindex="-1" id="Package.UnmarshalJSON" data-kind="method" class="Documentation-typeMethodHeader">
+      <span>func (*Package) <a class="Documentation-source" href="https://cs.opensource.google/go/x/tools/+/v0.50.0:go/packages/packages.go;l=660">UnmarshalJSON</a> <a class="Documentation-idLink" href="#Package.UnmarshalJSON" title="Go to Package.UnmarshalJSON" aria-label="Go to Package.UnmarshalJSON">¶</a></span>
+  <span class="Documentation-sinceVersion">
+    
+  </span>
+</h4>
+
+    
+    <div class="Documentation-declaration">
+      <pre>func (p *<a href="#Package">Package</a>) UnmarshalJSON(b []<a href="/builtin#byte">byte</a>) <a href="/builtin#error">error</a></pre>
+    </div>
+  <p>UnmarshalJSON reads in a Package from its JSON format.
+See MarshalJSON for details about the format accepted.
+</p>
+
+  
+
+  </div>
+  
+
+    </div></section></div> 
+
+
+
+
+
+
+
+      
+    </div>
+  </div>
+
+        
+      
+      
+        
+  <div class="UnitFiles js-unitFiles">
+    <h2 class="UnitFiles-title" id="section-sourcefiles">
+      <img class="go-Icon" height="24" width="24" src="/static/shared/icon/insert_drive_file_gm_grey_24dp.svg" alt="">
+      Source Files
+      <a class="UnitFiles-idLink" href="#section-sourcefiles" title="Go to Source Files" aria-label="Go to Source Files">¶</a>
+    </h2><div class="UnitFiles-titleLink">
+      <a href="https://cs.opensource.google/go/x/tools/+/v0.50.0:go/packages" target="_blank" rel="noopener">View all Source files</a>
+    </div><div>
+      <ul class="UnitFiles-fileList"><li><a href="https://cs.opensource.google/go/x/tools/+/v0.50.0:go/packages/doc.go" target="_blank" rel="noopener" title="doc.go">doc.go</a></li><li><a href="https://cs.opensource.google/go/x/tools/+/v0.50.0:go/packages/external.go" target="_blank" rel="noopener" title="external.go">external.go</a></li><li><a href="https://cs.opensource.google/go/x/tools/+/v0.50.0:go/packages/golist.go" target="_blank" rel="noopener" title="golist.go">golist.go</a></li><li><a href="https://cs.opensource.google/go/x/tools/+/v0.50.0:go/packages/golist_overlay.go" target="_blank" rel="noopener" title="golist_overlay.go">golist_overlay.go</a></li><li><a href="https://cs.opensource.google/go/x/tools/+/v0.50.0:go/packages/loadmode_string.go" target="_blank" rel="noopener" title="loadmode_string.go">loadmode_string.go</a></li><li><a href="https://cs.opensource.google/go/x/tools/+/v0.50.0:go/packages/packages.go" target="_blank" rel="noopener" title="packages.go">packages.go</a></li><li><a href="https://cs.opensource.google/go/x/tools/+/v0.50.0:go/packages/visit.go" target="_blank" rel="noopener" title="visit.go">visit.go</a></li></ul>
+    </div>
+  </div>
+
+      
+      
+        
+  <div class="UnitDirectories js-unitDirectories">
+    <h2 class="UnitDirectories-title" id="section-directories">
+      <img class="go-Icon" height="24" width="24" src="/static/shared/icon/folder_gm_grey_24dp.svg" alt="">
+      Directories
+      <a class="UnitDirectories-idLink" href="#section-directories" title="Go to Directories" aria-label="Go to Directories">¶</a>
+    </h2>
+    <div class="UnitDirectories-toggles">
+      <div class="UnitDirectories-toggleButtons">
+        <button class="js-showInternalDirectories" data-test-id="internal-directories-toggle"
+            data-gtmc="directories button" aria-label="Show Internal Directories">
+          Show internal
+        </button>
+        <button class="js-expandAllDirectories" data-test-id="directories-toggle"
+            data-gtmc="directories button" aria-label="Expand All Directories">
+          Expand all
+        </button>
+      </div>
+    </div>
+    <table class="UnitDirectories-table UnitDirectories-table--tree js-expandableTable"
+          data-test-id="UnitDirectories-table">
+      <tr class="UnitDirectories-tableHeader UnitDirectories-tableHeader--tree">
+        <th>Path</th>
+        <th class="UnitDirectories-desktopSynopsis">Synopsis</th>
+      </tr>
+      
+          
+  
+  <tr
+      class="">
+    <td data-id="gopackages" data-aria-owns="">
+      <div class="UnitDirectories-pathCell">
+        <div><a href="/golang.org/x/tools@v0.50.0/go/packages/gopackages">gopackages</a>
+            
+          </div>
+          <div class="UnitDirectories-mobileSynopsis">The gopackages command is a diagnostic tool that demonstrates how to use golang.org/x/tools/go/packages to load, parse, type-check, and print one or more Go packages.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">The gopackages command is a diagnostic tool that demonstrates how to use golang.org/x/tools/go/packages to load, parse, type-check, and print one or more Go packages.</td></tr></tr>
+
+      
+          
+  
+  <tr data-aria-controls="internal-linecount internal-nodecount "
+      class="UnitDirectories-internal">
+    <td data-id="internal" data-aria-owns="internal-linecount internal-nodecount ">
+      <div class="UnitDirectories-pathCell">
+        <div><button type="button" class="go-Button go-Button--inline UnitDirectories-toggleButton UnitDirectories-internal"
+                aria-expanded="false"
+                aria-label="2 more from"
+                data-aria-controls="internal-linecount internal-nodecount "
+                data-aria-labelledby="internal-button internal"
+                data-id="internal-button">
+              <img class="go-Icon" height="24" width="24" src="/static/shared/icon/arrow_right_gm_grey_24dp.svg"
+                  alt="">
+            </button><span>internal</span>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis"></td></tr><tr data-id="internal-linecount" class="UnitDirectories-internal">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/packages/internal/linecount">linecount</a>
+            
+            <span class="go-Chip go-Chip--inverted">command</span>
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">The linecount command shows the number of lines of code in a set of Go packages plus their dependencies.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">The linecount command shows the number of lines of code in a set of Go packages plus their dependencies.</td><tr data-id="internal-nodecount" class="UnitDirectories-internal">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/packages/internal/nodecount">nodecount</a>
+            
+            <span class="go-Chip go-Chip--inverted">command</span>
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">The nodecount program illustrates the use of packages.Load to print the frequency of occurrence of each type of syntax node among the selected packages.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">The nodecount program illustrates the use of packages.Load to print the frequency of occurrence of each type of syntax node among the selected packages.</td></tr>
+
+      
+          
+  
+  <tr
+      class="">
+    <td data-id="packagestest" data-aria-owns="">
+      <div class="UnitDirectories-pathCell">
+        <div><a href="/golang.org/x/tools/go/packages/packagestest">packagestest</a>
+            <span class="go-Chip go-Chip--inverted">module</span>
+          </div>
+          <div class="UnitDirectories-mobileSynopsis"></div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis"></td></tr></tr>
+
+      
+    </table>
+  </div>
+
+      
+    </div>
+  </div>
+  <div id="showInternal-description" hidden> Click to show internal directories. </div>
+  <div id="hideInternal-description" hidden> Click to hide internal directories. </div>
+</article>
+    <footer class="go-Main-footer"></footer>
+  </main>
+
+    
+  <footer class="go-Footer">
+    
+    <div class="go-Footer-links">
+      <div class="go-Footer-linkColumn">
+        <a href="https://go.dev/solutions" class="go-Footer-link go-Footer-link--primary"
+            data-gtmc="footer link">
+          Why Go
+        </a>
+        <a href="https://go.dev/solutions/use-cases" class="go-Footer-link"
+            data-gtmc="footer link">
+          Use Cases
+        </a>
+        <a href="https://go.dev/solutions/case-studies" class="go-Footer-link"
+            data-gtmc="footer link">
+          Case Studies
+        </a>
+      </div>
+      <div class="go-Footer-linkColumn">
+        <a href="https://learn.go.dev/" class="go-Footer-link go-Footer-link--primary"
+            data-gtmc="footer link">
+          Get Started
+        </a>
+        <a href="https://play.golang.org" class="go-Footer-link" data-gtmc="footer link">
+          Playground
+        </a>
+        <a href="https://tour.golang.org" class="go-Footer-link" data-gtmc="footer link">
+          Tour
+        </a>
+        <a href="https://stackoverflow.com/questions/tagged/go?tab=Newest" class="go-Footer-link"
+            data-gtmc="footer link">
+          Stack Overflow
+        </a>
+        <a href="https://go.dev/help" class="go-Footer-link"
+            data-gtmc="footer link">
+          Help
+        </a>
+      </div>
+      <div class="go-Footer-linkColumn">
+        <a href="https://pkg.go.dev" class="go-Footer-link go-Footer-link--primary"
+            data-gtmc="footer link">
+          Packages
+        </a>
+        <a href="/std" class="go-Footer-link" data-gtmc="footer link">
+          Standard Library
+        </a>
+        <a href="/golang.org/x" class="go-Footer-link" data-gtmc="footer link">
+          Sub-repositories
+        </a>
+        <a href="https://pkg.go.dev/about" class="go-Footer-link" data-gtmc="footer link">
+          About Go Packages
+        </a>
+         <a href="/api" class="go-Footer-link" data-gtmc="footer link">
+          pkg.go.dev API
+        </a>
+      </div>
+      <div class="go-Footer-linkColumn">
+        <a href="https://go.dev/project" class="go-Footer-link go-Footer-link--primary"
+            data-gtmc="footer link">
+          About
+        </a>
+        <a href="https://go.dev/dl/" class="go-Footer-link" data-gtmc="footer link">Download</a>
+        <a href="https://go.dev/blog" class="go-Footer-link" data-gtmc="footer link">Blog</a>
+        <a href="https://github.com/golang/go/issues" class="go-Footer-link" data-gtmc="footer link">
+          Issue Tracker
+        </a>
+        <a href="https://go.dev/doc/devel/release.html" class="go-Footer-link"
+            data-gtmc="footer link">
+          Release Notes
+        </a>
+        <a href="https://go.dev/brand" class="go-Footer-link" data-gtmc="footer link">
+          Brand Guidelines
+        </a>
+        <a href="https://go.dev/conduct" class="go-Footer-link" data-gtmc="footer link">
+          Code of Conduct
+        </a>
+      </div>
+      <div class="go-Footer-linkColumn">
+        <a href="https://www.twitter.com/golang" class="go-Footer-link go-Footer-link--primary"
+            data-gtmc="footer link">
+          Connect
+        </a>
+        <a href="https://www.twitter.com/golang" class="go-Footer-link" data-gtmc="footer link">
+          Twitter
+        </a>
+        <a href="https://github.com/golang" class="go-Footer-link" data-gtmc="footer link">GitHub</a>
+        <a href="https://invite.slack.golangbridge.org/" class="go-Footer-link"
+            data-gtmc="footer link">
+          Slack
+        </a>
+        <a href="https://reddit.com/r/golang" class="go-Footer-link" data-gtmc="footer link">
+          r/golang
+        </a>
+        <a href="https://www.meetup.com/pro/go" class="go-Footer-link" data-gtmc="footer link">
+          Meetup
+        </a>
+        <a href="https://golangweekly.com/" class="go-Footer-link" data-gtmc="footer link">
+          Golang Weekly
+        </a>
+      </div>
+    </div>
+    <div class="go-Footer-bottom">
+      <img class="go-Footer-gopher"  width="1431" height="901"
+          src="/static/shared/gopher/pilot-bust-1431x901.svg" alt="Gopher in flight goggles">
+      <ul class="go-Footer-listRow">
+        <li class="go-Footer-listItem">
+          <a href="https://go.dev/copyright" data-gtmc="footer link">Copyright</a>
+        </li>
+        <li class="go-Footer-listItem">
+          <a href="https://go.dev/tos" data-gtmc="footer link">Terms of Service</a>
+        </li>
+        <li class="go-Footer-listItem">
+          <a href="http://www.google.com/intl/en/policies/privacy/" data-gtmc="footer link"
+              target="_blank" rel="noopener">
+            Privacy Policy
+          </a>
+        </li>
+        <li class="go-Footer-listItem">
+          <a href="https://go.dev/s/pkgsite-feedback" target="_blank" rel="noopener"
+              data-gtmc="footer link">
+            Report an Issue
+          </a>
+        </li>
+        <li class="go-Footer-listItem">
+          <button class="go-Button go-Button--text go-Footer-toggleTheme js-toggleTheme" aria-label="Theme Toggle">
+            <img data-value="auto" class="go-Icon go-Icon--inverted" height="24" width="24" src="/static/shared/icon/brightness_6_gm_grey_24dp.svg" alt="System theme">
+            <img data-value="dark" class="go-Icon go-Icon--inverted" height="24" width="24" src="/static/shared/icon/brightness_2_gm_grey_24dp.svg" alt="Dark theme">
+            <img data-value="light" class="go-Icon go-Icon--inverted" height="24" width="24" src="/static/shared/icon/light_mode_gm_grey_24dp.svg" alt="Light theme">
+            <p> Theme Toggle </p>
+          </button>
+        </li>
+        <li class="go-Footer-listItem">
+          <button class="go-Button go-Button--text go-Footer-keyboard js-openShortcuts" aria-label="Shorcuts Modal">
+            <img class="go-Icon go-Icon--inverted" height="24" width="24" src="/static/shared/icon/keyboard_grey_24dp.svg" alt="">
+            <p> Shortcuts Modal </p>
+          </button>
+        </li>
+      </ul>
+      <a class="go-Footer-googleLogo" href="https://google.com" target="_blank"rel="noopener"
+          data-gtmc="footer link">
+        <img class="go-Footer-googleLogoImg" height="24" width="72"
+            src="/static/shared/logo/google-white.svg" alt="Google logo">
+      </a>
+    </div>
+  </footer>
+
+    
+  <dialog id="jump-to-modal" class="JumpDialog go-Modal go-Modal--md js-modal">
+    <form method="dialog" data-gmtc="jump to form" aria-label="Jump to Identifier">
+      <div class="Dialog-title go-Modal-header">
+        <h2>Jump to</h2>
+        <button
+          class="go-Button go-Button--inline"
+          type="button"
+          data-modal-close
+          data-gtmc="modal button"
+          aria-label="Close"
+        >
+          <img
+            class="go-Icon"
+            height="24"
+            width="24"
+            src="/static/shared/icon/close_gm_grey_24dp.svg"
+            alt=""
+          />
+        </button>
+      </div>
+      <div class="JumpDialog-filter">
+        <input class="JumpDialog-input go-Input" autocomplete="off" type="text">
+      </div>
+      <div class="JumpDialog-body go-Modal-body">
+        <div class="JumpDialog-list"></div>
+      </div>
+      <div class="go-Modal-actions">
+        <button class="go-Button" data-test-id="close-dialog">Close</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog class="ShortcutsDialog go-Modal go-Modal--sm js-modal">
+    <form method="dialog">
+      <div class="go-Modal-header">
+        <h2>Keyboard shortcuts</h2>
+        <button
+          class="go-Button go-Button--inline"
+          type="button"
+          data-modal-close
+          data-gtmc="modal button"
+          aria-label="Close"
+        >
+          <img
+            class="go-Icon"
+            height="24"
+            width="24"
+            src="/static/shared/icon/close_gm_grey_24dp.svg"
+            alt=""
+          />
+        </button>
+      </div>
+      <div class="go-Modal-body">
+        <table>
+          <tbody>
+            <tr><td class="ShortcutsDialog-key">
+              <strong>?</strong></td><td> : This menu</td>
+            </tr>
+            <tr><td class="ShortcutsDialog-key">
+              <strong>/</strong></td><td> : Search site</td>
+            </tr>
+            <tr><td class="ShortcutsDialog-key">
+              <strong>f</strong> or <strong>F</strong></td><td> : Jump to</td>
+            </tr>
+            <tr>
+              <td class="ShortcutsDialog-key"><strong>y</strong> or <strong>Y</strong></td>
+              <td> : Canonical URL</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="go-Modal-actions">
+        <button class="go-Button" data-test-id="close-dialog">Close</button>
+      </div>
+    </form>
+  </dialog>
+
+    
+      <section class="Cookie-notice js-cookieNotice">
+        <div>go.dev uses cookies from Google to deliver and enhance the quality of its services and to
+        analyze traffic. <a target=_blank href="https://policies.google.com/technologies/cookies">Learn more.</a></div>
+        <div><button class="go-Button">Okay</button></div>
+      </section>
+    
+    
+      <script>
+        // this will throw if the querySelector can’t find the element
+        const gtmId = document.querySelector('.js-gtmID').dataset.gtmid;
+        if (!gtmId) {
+          throw new Error('Google Tag Manager ID not found');
+        }
+        loadScript(`https://www.googletagmanager.com/gtm.js?id=${gtmId}`);
+      </script>
+      <noscript>
+        <iframe src="https://www.googletagmanager.com/ns.html?id=GTM-W8MVQXG"
+                height="0" width="0" style="display:none;visibility:hidden">
+        </iframe>
+      </noscript>
+    
+    
+  
+  <div class="js-canonicalURLPath" data-canonical-url-path="/golang.org/x/tools@v0.50.0/go/packages" hidden></div>
+  <div class="js-playgroundVars" data-modulepath="golang.org/x/tools" data-version="v0.50.0" hidden></div>
+  <script>
+    loadScript('/static/frontend/unit/main/main.js')
+  </script>
+
+  <script>
+    loadScript('/static/frontend/unit/unit.js')
+  </script>
+
+  </body>
+</html>

@@ -1,0 +1,92 @@
+     1	package gimble
+     2	
+     3	import (
+     4		"context"
+     5		"encoding/base64"
+     6		"encoding/json"
+     7		"errors"
+     8		"fmt"
+     9		"strings"
+    10		"sync"
+    11		"time"
+    12	)
+    13	
+    14	// Session is one agent conversation on one harness, in one workdir. It
+    15	// belongs to the scope that created it and is closed when that scope ends.
+    16	type Session struct {
+    17		adapter HarnessAdapter
+    18		name    string
+    19		model   string
+    20		workdir string
+    21		id      string // the creating scope's key, then name.ordinal, as in lap.3/coder.1
+    22	
+    23		mu      sync.Mutex
+    24		native  string // the harness's session id, made on the first turn
+    25		turns   int
+    26		turnID  string
+    27		running bool
+    28		closed  bool
+    29	
+    30		usage            Usage // the session's running total across its turns
+    31		canonicalSession string
+    32		eventSeq         uint64
+    33		messageIDs       map[string]string
+    34		activeEmit       func(AgentEvent) error
+    35	}
+    36	
+    37	// NewSession creates a session in the scope the ctx is in, named for the
+    38	// graph. It cannot fail: the agent process starts on the first turn, and
+    39	// the adapter carries the harness-specific config. A session created outside
+    40	// Run cannot generate turns or be forked.
+    41	func NewSession(ctx context.Context, name string, adapter HarnessAdapter, model, workdir string) *Session {
+    42		s := &Session{adapter: adapter, name: name, model: model, workdir: workdir}
+    43		if scope, err := current(ctx); err == nil {
+    44			scope.adopt(s)
+    45			scope.run.event(scope.key, s.id, "", SessionCreated{Name: name, Adapter: fmt.Sprintf("%T", adapter), Model: model, Workdir: workdir})
+    46		}
+    47		return s
+    48	}
+    49	
+    50	// Text is the output of a prose turn: no schema is sent, and the result is
+    51	// the agent's final message.
+    52	type Text string
+    53	
+    54	// Schema is empty: a prose turn sends no schema.
+    55	func (Text) Schema() json.RawMessage { return nil }
+    56	
+    57	// ValidateJSON accepts the final message, a JSON string.
+    58	func (Text) ValidateJSON(raw []byte) error {
+    59		var text string
+    60		return json.Unmarshal(raw, &text)
+    61	}
+    62	
+    63	// Generate runs one turn and blocks until it ends. T's schema is sent with
+    64	// the prompt, and the result is validated here and decoded into T. A result
+    65	// that does not validate is shown back to the model with the reason, a
+    66	// bounded number of times, before it is an error. For Text no schema is
+    67	// sent and the result is the final message. The options attach supervisors.
+    68	func (s *Session) Generate[T Output](ctx context.Context, prompt string, opts ...AgentOption) (T, error) {
+    69		if o := apply(opts); len(o.supervisors) > 0 {
+    70			return supervise[T](ctx, s, prompt, o.supervisors)
+    71		}
+    72		var out T
+    73		return generate[T](ctx, s, prompt, nil, fmt.Sprintf("%T", out))
+    74	}
+    75	
+    76	// errInvalidResult marks a turn whose harness succeeded but whose result did
+    77	// not validate or decode. generate re-asks the model on it and returns every
+    78	// other error as it is.
+    79	var errInvalidResult = errors.New("invalid result")
+    80	
+    81	// generateAttempts bounds how many times one Generate asks the model for a
+    82	// result. A result that fails validation or decoding is shown back to the
+    83	// model with the reason; only the last failure is returned.
+    84	const generateAttempts = 3
+    85	
+    86	func generate[T Output](ctx context.Context, s *Session, prompt string, onEvent func(AgentEvent) error, outputType string) (T, error) {
+    87		var out T
+    88		var problem error
+    89		for attempt := 1; ; attempt++ {
+    90			ask := prompt
+    91			if problem != nil {
+    92				ask = fmt.Sprintf("Your previous answer was invalid and was discarded: %v. Answer again, correctly.", problem)

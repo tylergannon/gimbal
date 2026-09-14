@@ -1,0 +1,2084 @@
+package types // import "go/types"
+
+Package types declares the data types and implements the algorithms for
+type-checking of Go packages. Use Config.Check to invoke the type checker for a
+package. Alternatively, create a new type checker with NewChecker and invoke it
+incrementally by calling Checker.Files.
+
+Type-checking consists of several interdependent phases:
+
+Name resolution maps each identifier (ast.Ident) in the program to the symbol
+(Object) it denotes. Use the Defs and Uses fields of Info or the Info.ObjectOf
+method to find the symbol for an identifier, and use the Implicits field of Info
+to find the symbol for certain other kinds of syntax node.
+
+Constant folding computes the exact constant value (constant.Value) of every
+expression (ast.Expr) that is a compile-time constant. Use the Types field of
+Info to find the results of constant folding for an expression.
+
+Type deduction computes the type (Type) of every expression (ast.Expr) and
+checks for compliance with the language specification. Use the Types field of
+Info for the results of type deduction.
+
+Applications that need to type-check one or more complete packages of Go source
+code may find it more convenient not to invoke the type checker directly but
+instead to use the Load function in package golang.org/x/tools/go/packages.
+
+For a tutorial, see https://go.dev/s/types-tutorial.
+
+VARIABLES
+
+var Typ = []*Basic{
+	Invalid: {Invalid, 0, "invalid type"},
+
+	Bool:          {Bool, IsBoolean, "bool"},
+	Int:           {Int, IsInteger, "int"},
+	Int8:          {Int8, IsInteger, "int8"},
+	Int16:         {Int16, IsInteger, "int16"},
+	Int32:         {Int32, IsInteger, "int32"},
+	Int64:         {Int64, IsInteger, "int64"},
+	Uint:          {Uint, IsInteger | IsUnsigned, "uint"},
+	Uint8:         {Uint8, IsInteger | IsUnsigned, "uint8"},
+	Uint16:        {Uint16, IsInteger | IsUnsigned, "uint16"},
+	Uint32:        {Uint32, IsInteger | IsUnsigned, "uint32"},
+	Uint64:        {Uint64, IsInteger | IsUnsigned, "uint64"},
+	Uintptr:       {Uintptr, IsInteger | IsUnsigned, "uintptr"},
+	Float32:       {Float32, IsFloat, "float32"},
+	Float64:       {Float64, IsFloat, "float64"},
+	Complex64:     {Complex64, IsComplex, "complex64"},
+	Complex128:    {Complex128, IsComplex, "complex128"},
+	String:        {String, IsString, "string"},
+	UnsafePointer: {UnsafePointer, 0, "Pointer"},
+
+	UntypedBool:    {UntypedBool, IsBoolean | IsUntyped, "untyped bool"},
+	UntypedInt:     {UntypedInt, IsInteger | IsUntyped, "untyped int"},
+	UntypedRune:    {UntypedRune, IsInteger | IsUntyped, "untyped rune"},
+	UntypedFloat:   {UntypedFloat, IsFloat | IsUntyped, "untyped float"},
+	UntypedComplex: {UntypedComplex, IsComplex | IsUntyped, "untyped complex"},
+	UntypedString:  {UntypedString, IsString | IsUntyped, "untyped string"},
+	UntypedNil:     {UntypedNil, IsUntyped, "untyped nil"},
+}
+    Typ contains the predeclared *Basic types indexed by their corresponding
+    BasicKind.
+
+    The *Basic type for Typ[Byte] will have the name "uint8". Use
+    Universe.Lookup("byte").Type() to obtain the specific alias basic type named
+    "byte" (and analogous for "rune").
+
+
+FUNCTIONS
+
+func AssertableTo(V *Interface, T Type) bool
+    AssertableTo reports whether a value of type V can be asserted to have type
+    T.
+
+    The behavior of AssertableTo is unspecified in three cases:
+      - if T is Typ[Invalid]
+      - if V is a generalized interface; i.e., an interface that may only be
+        used as a type constraint in Go code
+      - if T is an uninstantiated generic type
+
+func AssignableTo(V, T Type) bool
+    AssignableTo reports whether a value of type V is assignable to a variable
+    of type T.
+
+    The behavior of AssignableTo is unspecified if V or T is Typ[Invalid] or an
+    uninstantiated generic type.
+
+func CheckExpr(fset *token.FileSet, pkg *Package, pos token.Pos, expr ast.Expr, info *Info) (err error)
+    CheckExpr type checks the expression expr as if it had appeared at position
+    pos of package pkg. Type information about the expression is recorded in
+    info. The expression may be an identifier denoting an uninstantiated generic
+    function or type.
+
+    If pkg == nil, the Universe scope is used and the provided position pos
+    is ignored. If pkg != nil, and pos is invalid, the package scope is used.
+    Otherwise, pos must belong to the package.
+
+    An error is returned if pos is not within the package or if the node cannot
+    be type-checked.
+
+    Note: Eval and CheckExpr should not be used instead of running Check to
+    compute types and values, but in addition to Check, as these functions
+    ignore the context in which an expression is used (e.g., an assignment).
+    Thus, top-level untyped constants will return an untyped type rather than
+    the respective context-specific type.
+
+func Comparable(T Type) bool
+    Comparable reports whether values of type T are comparable.
+
+func ConvertibleTo(V, T Type) bool
+    ConvertibleTo reports whether a value of type V is convertible to a value of
+    type T.
+
+    The behavior of ConvertibleTo is unspecified if V or T is Typ[Invalid] or an
+    uninstantiated generic type.
+
+func DefPredeclaredTestFuncs()
+    DefPredeclaredTestFuncs defines the assert and trace built-ins. These
+    built-ins are intended for debugging and testing of this package only.
+
+func ExprString(x ast.Expr) string
+    ExprString returns the (possibly shortened) string representation for x.
+    Shortened representations are suitable for user interfaces but may not
+    necessarily follow Go syntax.
+
+func Id(pkg *Package, name string) string
+    Id returns name if it is exported, otherwise it returns the name qualified
+    with the package path.
+
+func Identical(x, y Type) bool
+    Identical reports whether x and y are identical types. Receivers of
+    Signature types are ignored.
+
+    Predicates such as Identical, Implements, and Satisfies assume that both
+    operands belong to a consistent collection of symbols (Object values). For
+    example, two Named types can be identical only if their Named.Obj methods
+    return the same TypeName symbol. A collection of symbols is consistent if,
+    for each logical package whose path is P, the creation of those symbols
+    involved at most one call to NewPackage(P, ...). To ensure consistency,
+    use a single Importer for all loaded packages and their dependencies.
+    For more information, see https://github.com/golang/go/issues/57497.
+
+func IdenticalIgnoreTags(x, y Type) bool
+    IdenticalIgnoreTags reports whether x and y are identical types if tags are
+    ignored. Receivers of Signature types are ignored.
+
+func Implements(V Type, T *Interface) bool
+    Implements reports whether type V implements interface T.
+
+    The behavior of Implements is unspecified if V is Typ[Invalid] or an
+    uninstantiated generic type.
+
+func IsInterface(t Type) bool
+    IsInterface reports whether t is an interface type.
+
+func ObjectString(obj Object, qf Qualifier) string
+    ObjectString returns the string form of obj. The Qualifier controls the
+    printing of package-level objects, and may be nil.
+
+func Satisfies(V Type, T *Interface) bool
+    Satisfies reports whether type V satisfies the constraint T.
+
+    The behavior of Satisfies is unspecified if V is Typ[Invalid] or an
+    uninstantiated generic type.
+
+func SelectionString(s *Selection, qf Qualifier) string
+    SelectionString returns the string form of s. The Qualifier controls the
+    printing of package-level objects, and may be nil.
+
+    Examples:
+
+        "field (T) f int"
+        "method (T) f(X) Y"
+        "method expr (T) f(X) Y"
+
+func TypeString(typ Type, qf Qualifier) string
+    TypeString returns the string representation of typ. The Qualifier controls
+    the printing of package-level objects, and may be nil.
+
+func WriteExpr(buf *bytes.Buffer, x ast.Expr)
+    WriteExpr writes the (possibly shortened) string representation for x to
+    buf. Shortened representations are suitable for user interfaces but may not
+    necessarily follow Go syntax.
+
+func WriteSignature(buf *bytes.Buffer, sig *Signature, qf Qualifier)
+    WriteSignature writes the representation of the signature sig to buf,
+    without a leading "func" keyword. The Qualifier controls the printing of
+    package-level objects, and may be nil.
+
+func WriteType(buf *bytes.Buffer, typ Type, qf Qualifier)
+    WriteType writes the string representation of typ to buf. The Qualifier
+    controls the printing of package-level objects, and may be nil.
+
+
+TYPES
+
+type Alias struct {
+	// Has unexported fields.
+}
+    An Alias represents an alias type.
+
+    Alias types are created by alias declarations such as:
+
+        type A = int
+
+    The type on the right-hand side of the declaration can be accessed using
+    Alias.Rhs. This type may itself be an alias. Call Unalias to obtain the
+    first non-alias type in a chain of alias type declarations.
+
+    Like a defined (Named) type, an alias type has a name. Use the Alias.Obj
+    method to access its TypeName object.
+
+func NewAlias(obj *TypeName, rhs Type) *Alias
+    NewAlias creates a new Alias type with the given type name and rhs. If rhs
+    is nil, the alias is incomplete.
+
+func (a *Alias) Obj() *TypeName
+    Obj returns the type name for the declaration defining the alias type a.
+    For instantiated types, this is same as the type name of the origin type.
+
+func (a *Alias) Origin() *Alias
+    Origin returns the generic Alias type of which a is an instance. If a is not
+    an instance of a generic alias, Origin returns a.
+
+func (a *Alias) Rhs() Type
+    Rhs returns the type R on the right-hand side of an alias declaration "type
+    A = R", which may be another alias.
+
+func (a *Alias) SetTypeParams(tparams []*TypeParam)
+    SetTypeParams sets the type parameters of the alias type a. The alias a must
+    not have type arguments.
+
+func (a *Alias) String() string
+
+func (a *Alias) TypeArgs() *TypeList
+    TypeArgs returns the type arguments used to instantiate the Alias type.
+    If a is not an instance of a generic alias, the result is nil.
+
+func (a *Alias) TypeParams() *TypeParamList
+    TypeParams returns the type parameters of the alias type a, or nil.
+    A generic Alias and its instances have the same type parameters.
+
+func (a *Alias) Underlying() Type
+    Underlying returns the underlying type of the alias type a, which is the
+    underlying type of the aliased type. Underlying types are never Named,
+    TypeParam, or Alias types.
+
+[underlying type]: https://go.dev/ref/spec#Underlying_types.
+
+type ArgumentError struct {
+	Index int
+	Err   error
+}
+    An ArgumentError holds an error associated with an argument index.
+
+func (e *ArgumentError) Error() string
+
+func (e *ArgumentError) Unwrap() error
+
+type Array struct {
+	// Has unexported fields.
+}
+    An Array represents an array type.
+
+func NewArray(elem Type, len int64) *Array
+    NewArray returns a new array type for the given element type and length.
+    A negative length indicates an unknown length.
+
+func (a *Array) Elem() Type
+    Elem returns element type of array a.
+
+func (a *Array) Len() int64
+    Len returns the length of array a. A negative result indicates an unknown
+    length.
+
+func (a *Array) String() string
+
+func (a *Array) Underlying() Type
+
+type Basic struct {
+	// Has unexported fields.
+}
+    A Basic represents a basic type.
+
+func (b *Basic) Info() BasicInfo
+    Info returns information about properties of basic type b.
+
+func (b *Basic) Kind() BasicKind
+    Kind returns the kind of basic type b.
+
+func (b *Basic) Name() string
+    Name returns the name of basic type b.
+
+func (b *Basic) String() string
+
+func (b *Basic) Underlying() Type
+
+type BasicInfo int
+    BasicInfo is a set of flags describing properties of a basic type.
+
+const (
+	IsBoolean BasicInfo = 1 << iota
+	IsInteger
+	IsUnsigned
+	IsFloat
+	IsComplex
+	IsString
+	IsUntyped
+
+	IsOrdered   = IsInteger | IsFloat | IsString
+	IsNumeric   = IsInteger | IsFloat | IsComplex
+	IsConstType = IsBoolean | IsNumeric | IsString
+)
+    Properties of basic types.
+
+type BasicKind int
+    BasicKind describes the kind of basic type.
+
+const (
+	Invalid BasicKind = iota // type is invalid
+
+	// predeclared types
+	Bool
+	Int
+	Int8
+	Int16
+	Int32
+	Int64
+	Uint
+	Uint8
+	Uint16
+	Uint32
+	Uint64
+	Uintptr
+	Float32
+	Float64
+	Complex64
+	Complex128
+	String
+	UnsafePointer
+
+	// types for untyped values
+	UntypedBool
+	UntypedInt
+	UntypedRune
+	UntypedFloat
+	UntypedComplex
+	UntypedString
+	UntypedNil
+
+	// aliases
+	Byte = Uint8
+	Rune = Int32
+)
+type Builtin struct {
+	// Has unexported fields.
+}
+    A Builtin represents a built-in function. Builtins don't have a valid type.
+
+func (obj *Builtin) Exported() bool
+    Exported reports whether the object is exported (starts with a capital
+    letter). It doesn't take into account whether the object is in a local
+    (function) scope or not.
+
+func (obj *Builtin) Id() string
+    Id is a wrapper for Id(obj.Pkg(), obj.Name()).
+
+func (obj *Builtin) Name() string
+    Name returns the object's (package-local, unqualified) name.
+
+func (obj *Builtin) Parent() *Scope
+    Parent returns the scope in which the object is declared. The result is nil
+    for methods and struct fields.
+
+func (obj *Builtin) Pkg() *Package
+    Pkg returns the package to which the object belongs. The result is nil for
+    labels and objects in the Universe scope.
+
+func (obj *Builtin) Pos() token.Pos
+    Pos returns the declaration position of the object's identifier.
+
+func (obj *Builtin) String() string
+
+func (obj *Builtin) Type() Type
+    Type returns the object's type.
+
+type Chan struct {
+	// Has unexported fields.
+}
+    A Chan represents a channel type.
+
+func NewChan(dir ChanDir, elem Type) *Chan
+    NewChan returns a new channel type for the given direction and element type.
+
+func (c *Chan) Dir() ChanDir
+    Dir returns the direction of channel c.
+
+func (c *Chan) Elem() Type
+    Elem returns the element type of channel c.
+
+func (c *Chan) String() string
+
+func (c *Chan) Underlying() Type
+
+type ChanDir int
+    A ChanDir value indicates a channel direction.
+
+const (
+	SendRecv ChanDir = iota
+	SendOnly
+	RecvOnly
+)
+    The direction of a channel is indicated by one of these constants.
+
+type Checker struct {
+	*Info
+
+	// Has unexported fields.
+}
+    A Checker maintains the state of the type checker. It must be created with
+    NewChecker.
+
+func NewChecker(conf *Config, fset *token.FileSet, pkg *Package, info *Info) *Checker
+    NewChecker returns a new Checker instance for a given package. Package files
+    may be added incrementally via checker.Files.
+
+func (check *Checker) Files(files []*ast.File) (err error)
+    Files checks the provided files as part of the checker's package.
+
+type Config struct {
+	// Context is the context used for resolving global identifiers. If nil, the
+	// type checker will initialize this field with a newly created context.
+	Context *Context
+
+	// GoVersion describes the accepted Go language version. The string must
+	// start with a prefix of the form "go%d.%d" (e.g. "go1.20", "go1.21rc1", or
+	// "go1.21.0") or it must be empty; an empty string disables Go language
+	// version checks. If the format is invalid, invoking the type checker will
+	// result in an error.
+	GoVersion string
+
+	// If IgnoreFuncBodies is set, function bodies are not
+	// type-checked.
+	IgnoreFuncBodies bool
+
+	// If FakeImportC is set, `import "C"` (for packages requiring Cgo)
+	// declares an empty "C" package and errors are omitted for qualified
+	// identifiers referring to package C (which won't find an object).
+	// This feature is intended for the standard library cmd/api tool.
+	//
+	// Caution: Effects may be unpredictable due to follow-on errors.
+	//          Do not use casually!
+	FakeImportC bool
+
+	// If Error != nil, it is called with each error found
+	// during type checking; err has dynamic type Error.
+	// Secondary errors (for instance, to enumerate all types
+	// involved in an invalid recursive type declaration) have
+	// error strings that start with a '\t' character.
+	// If Error == nil, type-checking stops with the first
+	// error found.
+	Error func(err error)
+
+	// An importer is used to import packages referred to from
+	// import declarations.
+	// If the installed importer implements ImporterFrom, the type
+	// checker calls ImportFrom instead of Import.
+	// The type checker reports an error if an importer is needed
+	// but none was installed.
+	Importer Importer
+
+	// If Sizes != nil, it provides the sizing functions for package unsafe.
+	// Otherwise SizesFor("gc", "amd64") is used instead.
+	Sizes Sizes
+
+	// If DisableUnusedImportCheck is set, packages are not checked
+	// for unused imports.
+	DisableUnusedImportCheck bool
+
+	// Has unexported fields.
+}
+    A Config specifies the configuration for type checking. The zero value for
+    Config is a ready-to-use default configuration.
+
+func (conf *Config) Check(path string, fset *token.FileSet, files []*ast.File, info *Info) (*Package, error)
+    Check type-checks a package and returns the resulting package object and the
+    first error if any. Additionally, if info != nil, Check populates each of
+    the non-nil maps in the Info struct.
+
+    The package is marked as complete if no errors occurred, otherwise it is
+    incomplete. See Config.Error for controlling behavior in the presence of
+    errors.
+
+    The package is specified by a list of *ast.Files and corresponding file set,
+    and the package path the package is identified with. The clean path must not
+    be empty or dot (".").
+
+type Const struct {
+	// Has unexported fields.
+}
+    A Const represents a declared constant.
+
+func NewConst(pos token.Pos, pkg *Package, name string, typ Type, val constant.Value) *Const
+    NewConst returns a new constant with value val. The remaining arguments set
+    the attributes found with all Objects.
+
+func (obj *Const) Exported() bool
+    Exported reports whether the object is exported (starts with a capital
+    letter). It doesn't take into account whether the object is in a local
+    (function) scope or not.
+
+func (obj *Const) Id() string
+    Id is a wrapper for Id(obj.Pkg(), obj.Name()).
+
+func (obj *Const) Name() string
+    Name returns the object's (package-local, unqualified) name.
+
+func (obj *Const) Parent() *Scope
+    Parent returns the scope in which the object is declared. The result is nil
+    for methods and struct fields.
+
+func (obj *Const) Pkg() *Package
+    Pkg returns the package to which the object belongs. The result is nil for
+    labels and objects in the Universe scope.
+
+func (obj *Const) Pos() token.Pos
+    Pos returns the declaration position of the object's identifier.
+
+func (obj *Const) String() string
+
+func (obj *Const) Type() Type
+    Type returns the object's type.
+
+func (obj *Const) Val() constant.Value
+    Val returns the constant's value.
+
+type Context struct {
+	// Has unexported fields.
+}
+    A Context is an opaque type checking context. It may be used to share
+    identical type instances across type-checked packages or calls to
+    Instantiate. Contexts are safe for concurrent use.
+
+    The use of a shared context does not guarantee that identical instances are
+    deduplicated in all cases.
+
+func NewContext() *Context
+    NewContext creates a new Context.
+
+type Error struct {
+	Fset *token.FileSet // file set for interpretation of Pos
+	Pos  token.Pos      // error position
+	Msg  string         // error message
+	Soft bool           // if set, error is "soft"
+
+	// Has unexported fields.
+}
+    An Error describes a type-checking error; it implements the error interface.
+    A "soft" error is an error that still permits a valid interpretation of a
+    package (such as "unused variable"); "hard" errors may lead to unpredictable
+    behavior if ignored.
+
+func (err Error) Error() string
+    Error returns an error string formatted as follows: filename:line:column:
+    message
+
+type Func struct {
+	// Has unexported fields.
+}
+    A Func represents a declared function, concrete method, or abstract
+    (interface) method. Its Type() is always a *Signature. An abstract method
+    may belong to many interfaces due to embedding.
+
+func MissingMethod(V Type, T *Interface, static bool) (method *Func, wrongType bool)
+    MissingMethod returns (nil, false) if V implements T, otherwise it returns a
+    missing method required by T and whether it is missing or just has the wrong
+    type: either a pointer receiver or wrong signature.
+
+    For non-interface types V, or if static is set, V implements T if all
+    methods of T are present in V. Otherwise (V is an interface and static is
+    not set), MissingMethod only checks that methods of T which are also present
+    in V have matching types (e.g., for a type assertion x.(T) where x is of
+    interface type V).
+
+func NewFunc(pos token.Pos, pkg *Package, name string, sig *Signature) *Func
+    NewFunc returns a new function with the given signature, representing the
+    function's type.
+
+func (obj *Func) Exported() bool
+    Exported reports whether the object is exported (starts with a capital
+    letter). It doesn't take into account whether the object is in a local
+    (function) scope or not.
+
+func (obj *Func) FullName() string
+    FullName returns the package- or receiver-type-qualified name of function or
+    method obj.
+
+func (obj *Func) Id() string
+    Id is a wrapper for Id(obj.Pkg(), obj.Name()).
+
+func (obj *Func) Name() string
+    Name returns the object's (package-local, unqualified) name.
+
+func (obj *Func) Origin() *Func
+    Origin returns the canonical Func for its receiver, i.e. the Func object
+    recorded in Info.Defs.
+
+    For synthetic functions created during instantiation (such as methods on an
+    instantiated Named type or interface methods that depend on type arguments),
+    this will be the corresponding Func on the generic (uninstantiated) type.
+    For all other Funcs Origin returns the receiver.
+
+func (obj *Func) Parent() *Scope
+    Parent returns the scope in which the object is declared. The result is nil
+    for methods and struct fields.
+
+func (obj *Func) Pkg() *Package
+    Pkg returns the package to which the function belongs.
+
+    The result is nil for methods of types in the Universe scope, like method
+    Error of the error built-in interface type.
+
+func (obj *Func) Pos() token.Pos
+    Pos returns the declaration position of the object's identifier.
+
+func (obj *Func) Scope() *Scope
+    Scope returns the scope of the function's body block. The result is nil
+    for imported or instantiated functions and methods (but there is also no
+    mechanism to get to an instantiated function).
+
+func (obj *Func) Signature() *Signature
+    Signature returns the signature (type) of the function or method.
+
+func (obj *Func) String() string
+
+func (obj *Func) Type() Type
+    Type returns the object's type.
+
+type Hasher struct{}
+    Hasher defines a hash function and equivalence relation for [Types] that is
+    consistent with Identical. Hashers are stateless.
+
+func (Hasher) Equal(x, y Type) bool
+
+func (Hasher) Hash(h *maphash.Hash, t Type)
+
+type HasherIgnoreTags struct{}
+    HasherIgnoreTags is a variant of Hasher that is consistent with
+    IdenticalIgnoreTags.
+
+func (HasherIgnoreTags) Equal(x, y Type) bool
+
+func (HasherIgnoreTags) Hash(h *maphash.Hash, t Type)
+
+type ImportMode int
+    ImportMode is reserved for future use.
+
+type Importer interface {
+	// Import returns the imported package for the given import path.
+	// The semantics is like for ImporterFrom.ImportFrom except that
+	// dir and mode are ignored (since they are not present).
+	Import(path string) (*Package, error)
+}
+    An Importer resolves import paths to Packages.
+
+    CAUTION: This interface does not support the import of locally vendored
+    packages. See https://golang.org/s/go15vendor. If possible, external
+    implementations should implement ImporterFrom.
+
+type ImporterFrom interface {
+	// Importer is present for backward-compatibility. Calling
+	// Import(path) is the same as calling ImportFrom(path, "", 0);
+	// i.e., locally vendored packages may not be found.
+	// The types package does not call Import if an ImporterFrom
+	// is present.
+	Importer
+
+	// ImportFrom returns the imported package for the given import
+	// path when imported by a package file located in dir.
+	// If the import failed, besides returning an error, ImportFrom
+	// is encouraged to cache and return a package anyway, if one
+	// was created. This will reduce package inconsistencies and
+	// follow-on type checker errors due to the missing package.
+	// The mode value must be 0; it is reserved for future use.
+	// Two calls to ImportFrom with the same path and dir must
+	// return the same package.
+	ImportFrom(path, dir string, mode ImportMode) (*Package, error)
+}
+    An ImporterFrom resolves import paths to packages; it supports vendoring per
+    https://golang.org/s/go15vendor. Use go/importer to obtain an ImporterFrom
+    implementation.
+
+type Info struct {
+	// Types maps expressions to their types, and for constant
+	// expressions, also their values. Invalid expressions are
+	// omitted.
+	//
+	// For (possibly parenthesized) identifiers denoting built-in
+	// functions, the recorded signatures are call-site specific:
+	// if the call result is not a constant, the recorded type is
+	// an argument-specific signature. Otherwise, the recorded type
+	// is invalid.
+	//
+	// The Types map does not record the type of every identifier,
+	// only those that appear where an arbitrary expression is
+	// permitted. For instance:
+	// - an identifier f in a selector expression x.f is found
+	//   only in the Selections map;
+	// - an identifier z in a variable declaration 'var z int'
+	//   is found only in the Defs map;
+	// - an identifier p denoting a package in a qualified
+	//   identifier p.X is found only in the Uses map.
+	//
+	// Similarly, no type is recorded for the (synthetic) FuncType
+	// node in a FuncDecl.Type field, since there is no corresponding
+	// syntactic function type expression in the source in this case
+	// Instead, the function type is found in the Defs map entry for
+	// the corresponding function declaration.
+	Types map[ast.Expr]TypeAndValue
+
+	// Instances maps identifiers denoting generic types or functions to their
+	// type arguments and instantiated type.
+	//
+	// For example, Instances will map the identifier for 'T' in the type
+	// instantiation T[int, string] to the type arguments [int, string] and
+	// resulting instantiated *Named type. Given a generic function
+	// func F[A any](A), Instances will map the identifier for 'F' in the call
+	// expression F(int(1)) to the inferred type arguments [int], and resulting
+	// instantiated *Signature.
+	//
+	// Invariant: Instantiating Uses[id].Type() with Instances[id].TypeArgs
+	// results in an equivalent of Instances[id].Type.
+	Instances map[*ast.Ident]Instance
+
+	// Defs maps identifiers to the objects they define (including
+	// package names, dots "." of dot-imports, and blank "_" identifiers).
+	// For identifiers that do not denote objects (e.g., the package name
+	// in package clauses, or symbolic variables t in t := x.(type) of
+	// type switch headers), the corresponding objects are nil.
+	//
+	// For an embedded field, Defs returns the field *Var it defines.
+	//
+	// In ill-typed code, such as a duplicate declaration of the
+	// same name, Defs may lack an entry for a declaring identifier.
+	//
+	// Invariant: Defs[id] == nil || Defs[id].Pos() == id.Pos()
+	Defs map[*ast.Ident]Object
+
+	// Uses maps identifiers to the objects they denote.
+	//
+	// For an embedded field, Uses returns the *TypeName it denotes.
+	//
+	// Invariant: Uses[id].Pos() != id.Pos()
+	Uses map[*ast.Ident]Object
+
+	// Implicits maps nodes to their implicitly declared objects, if any.
+	// The following node and object types may appear:
+	//
+	//     node               declared object
+	//
+	//     *ast.ImportSpec    *PkgName for imports without renames
+	//     *ast.CaseClause    type-specific *Var for each type switch case clause (incl. default)
+	//     *ast.Field         anonymous parameter *Var (incl. unnamed results)
+	//
+	Implicits map[ast.Node]Object
+
+	// Selections maps selector expressions (excluding qualified identifiers)
+	// to their corresponding selections.
+	Selections map[*ast.SelectorExpr]*Selection
+
+	// Scopes maps ast.Nodes to the scopes they define. Package scopes are not
+	// associated with a specific node but with all files belonging to a package.
+	// Thus, the package scope can be found in the type-checked Package object.
+	// Scopes nest, with the Universe scope being the outermost scope, enclosing
+	// the package scope, which contains (one or more) files scopes, which enclose
+	// function scopes which in turn enclose statement and function literal scopes.
+	// Note that even though package-level functions are declared in the package
+	// scope, the function scopes are embedded in the file scope of the file
+	// containing the function declaration.
+	//
+	// The Scope of a function contains the declarations of any
+	// type parameters, parameters, and named results, plus any
+	// local declarations in the body block.
+	// It is coextensive with the complete extent of the
+	// function's syntax ([*ast.FuncDecl] or [*ast.FuncLit]).
+	// The Scopes mapping does not contain an entry for the
+	// function body ([*ast.BlockStmt]); the function's scope is
+	// associated with the [*ast.FuncType].
+	//
+	// The following node types may appear in Scopes:
+	//
+	//     *ast.File
+	//     *ast.FuncType
+	//     *ast.TypeSpec
+	//     *ast.BlockStmt
+	//     *ast.IfStmt
+	//     *ast.SwitchStmt
+	//     *ast.TypeSwitchStmt
+	//     *ast.CaseClause
+	//     *ast.CommClause
+	//     *ast.ForStmt
+	//     *ast.RangeStmt
+	//
+	Scopes map[ast.Node]*Scope
+
+	// InitOrder is the list of package-level initializers in the order in which
+	// they must be executed. Initializers referring to variables related by an
+	// initialization dependency appear in topological order, the others appear
+	// in source order. Variables without an initialization expression do not
+	// appear in this list.
+	InitOrder []*Initializer
+
+	// FileVersions maps a file to its Go version string.
+	// If the file doesn't specify a version, the reported
+	// string is Config.GoVersion.
+	// Version strings begin with “go”, like “go1.21”, and
+	// are suitable for use with the [go/version] package.
+	FileVersions map[*ast.File]string
+}
+    Info holds result type information for a type-checked package. Only the
+    information for which a map is provided is collected. If the package has
+    type errors, the collected information may be incomplete.
+
+func (info *Info) ObjectOf(id *ast.Ident) Object
+    ObjectOf returns the object denoted by the specified id, or nil if not
+    found.
+
+    If id is an embedded struct field, Info.ObjectOf returns the field (*Var) it
+    defines, not the type (*TypeName) it uses.
+
+    Precondition: the Uses and Defs maps are populated.
+
+func (info *Info) PkgNameOf(imp *ast.ImportSpec) *PkgName
+    PkgNameOf returns the local package name defined by the import, or nil if
+    not found.
+
+    For dot-imports, the package name is ".".
+
+    Precondition: the Defs and Implicts maps are populated.
+
+func (info *Info) TypeOf(e ast.Expr) Type
+    TypeOf returns the type of expression e, or nil if not found. Precondition:
+    the Types, Uses and Defs maps are populated.
+
+type Initializer struct {
+	Lhs []*Var // var Lhs = Rhs
+	Rhs ast.Expr
+}
+    An Initializer describes a package-level variable, or a list of variables
+    in case of a multi-valued initialization expression, and the corresponding
+    initialization expression.
+
+func (init *Initializer) String() string
+
+type Instance struct {
+	TypeArgs *TypeList
+	Type     Type
+}
+    Instance reports the type arguments and instantiated type for type and
+    function instantiations. For type instantiations, Type will be of dynamic
+    type *Named. For function instantiations, Type will be of dynamic type
+    *Signature.
+
+func (inst Instance) String() string
+
+type Interface struct {
+	// Has unexported fields.
+}
+    An Interface represents an interface type.
+
+func NewInterface(methods []*Func, embeddeds []*Named) *Interface
+    NewInterface returns a new interface for the given methods and embedded
+    types. NewInterface takes ownership of the provided methods and may modify
+    their types by setting missing receivers.
+
+    Deprecated: Use NewInterfaceType instead which allows arbitrary embedded
+    types.
+
+func NewInterfaceType(methods []*Func, embeddeds []Type) *Interface
+    NewInterfaceType returns a new interface for the given methods and embedded
+    types. NewInterfaceType takes ownership of the provided methods and may
+    modify their types by setting missing receivers.
+
+    To avoid race conditions, the interface's type set should be computed before
+    concurrent use of the interface, by explicitly calling Complete.
+
+func (t *Interface) Complete() *Interface
+    Complete computes the interface's type set. It must be called by users of
+    NewInterfaceType and NewInterface after the interface's embedded types are
+    fully defined and before using the interface type in any way other than
+    to form other types. The interface must not contain duplicate methods or a
+    panic occurs. Complete returns the receiver.
+
+    Interface types that have been completed are safe for concurrent use.
+
+func (t *Interface) Embedded(i int) *Named
+    Embedded returns the i'th embedded defined (*Named) type of interface t for
+    0 <= i < t.NumEmbeddeds(). The result is nil if the i'th embedded type is
+    not a defined type.
+
+    Deprecated: Use Interface.EmbeddedType which is not restricted to defined
+    (*Named) types.
+
+func (t *Interface) EmbeddedType(i int) Type
+    EmbeddedType returns the i'th embedded type of interface t for 0 <= i <
+    t.NumEmbeddeds().
+
+func (t *Interface) EmbeddedTypes() iter.Seq[Type]
+    EmbeddedTypes returns a go1.23 iterator over the types embedded within an
+    interface.
+
+    Example: for e := range t.EmbeddedTypes() { ... }
+
+func (t *Interface) Empty() bool
+    Empty reports whether t is the empty interface.
+
+func (t *Interface) ExplicitMethod(i int) *Func
+    ExplicitMethod returns the i'th explicitly declared method of interface t
+    for 0 <= i < t.NumExplicitMethods(). The methods are ordered by their unique
+    Id.
+
+func (t *Interface) ExplicitMethods() iter.Seq[*Func]
+    ExplicitMethods returns a go1.23 iterator over the explicit methods of an
+    interface, ordered by Id.
+
+    Example: for m := range t.ExplicitMethods() { ... }
+
+func (t *Interface) IsComparable() bool
+    IsComparable reports whether each type in interface t's type set is
+    comparable.
+
+func (t *Interface) IsImplicit() bool
+    IsImplicit reports whether the interface t is a wrapper for a type set
+    literal.
+
+func (t *Interface) IsMethodSet() bool
+    IsMethodSet reports whether the interface t is fully described by its method
+    set.
+
+func (t *Interface) MarkImplicit()
+    MarkImplicit marks the interface t as implicit, meaning this interface
+    corresponds to a constraint literal such as ~T or A|B without explicit
+    interface embedding. MarkImplicit should be called before any concurrent use
+    of implicit interfaces.
+
+func (t *Interface) Method(i int) *Func
+    Method returns the i'th method of interface t for 0 <= i < t.NumMethods().
+    The methods are ordered by their unique Id.
+
+func (t *Interface) Methods() iter.Seq[*Func]
+    Methods returns a go1.23 iterator over all the methods of an interface,
+    ordered by Id.
+
+    Example: for m := range t.Methods() { ... }
+
+func (t *Interface) NumEmbeddeds() int
+    NumEmbeddeds returns the number of embedded types in interface t.
+
+func (t *Interface) NumExplicitMethods() int
+    NumExplicitMethods returns the number of explicitly declared methods of
+    interface t.
+
+func (t *Interface) NumMethods() int
+    NumMethods returns the total number of methods of interface t.
+
+func (t *Interface) String() string
+
+func (t *Interface) Underlying() Type
+
+type Label struct {
+	// Has unexported fields.
+}
+    A Label represents a declared label. Labels don't have a type.
+
+func NewLabel(pos token.Pos, pkg *Package, name string) *Label
+    NewLabel returns a new label.
+
+func (obj *Label) Exported() bool
+    Exported reports whether the object is exported (starts with a capital
+    letter). It doesn't take into account whether the object is in a local
+    (function) scope or not.
+
+func (obj *Label) Id() string
+    Id is a wrapper for Id(obj.Pkg(), obj.Name()).
+
+func (obj *Label) Name() string
+    Name returns the object's (package-local, unqualified) name.
+
+func (obj *Label) Parent() *Scope
+    Parent returns the scope in which the object is declared. The result is nil
+    for methods and struct fields.
+
+func (obj *Label) Pkg() *Package
+    Pkg returns the package to which the object belongs. The result is nil for
+    labels and objects in the Universe scope.
+
+func (obj *Label) Pos() token.Pos
+    Pos returns the declaration position of the object's identifier.
+
+func (obj *Label) String() string
+
+func (obj *Label) Type() Type
+    Type returns the object's type.
+
+type Map struct {
+	// Has unexported fields.
+}
+    A Map represents a map type.
+
+func NewMap(key, elem Type) *Map
+    NewMap returns a new map for the given key and element types.
+
+func (m *Map) Elem() Type
+    Elem returns the element type of map m.
+
+func (m *Map) Key() Type
+    Key returns the key type of map m.
+
+func (t *Map) String() string
+
+func (t *Map) Underlying() Type
+
+type MethodSet struct {
+	// Has unexported fields.
+}
+    A MethodSet is an ordered set of concrete or abstract (interface) methods;
+    a method is a MethodVal selection, and they are ordered by ascending
+    m.Obj().Id(). The zero value for a MethodSet is a ready-to-use empty method
+    set.
+
+func NewMethodSet(T Type) *MethodSet
+    NewMethodSet returns the method set for the given type T. It always returns
+    a non-nil method set, even if it is empty.
+
+func (s *MethodSet) At(i int) *Selection
+    At returns the i'th method in s for 0 <= i < s.Len().
+
+func (s *MethodSet) Len() int
+    Len returns the number of methods in s.
+
+func (s *MethodSet) Lookup(pkg *Package, name string) *Selection
+    Lookup returns the method with matching package and name, or nil if not
+    found.
+
+func (s *MethodSet) Methods() iter.Seq[*Selection]
+    Methods returns a go1.23 iterator over the methods of a method set.
+
+    Example: for method := range s.Methods() { ... }
+
+func (s *MethodSet) String() string
+
+type Named struct {
+	// Has unexported fields.
+}
+    A Named represents a named (defined) type.
+
+    A declaration such as:
+
+        type S struct { ... }
+
+    creates a defined type whose underlying type is a struct, and binds this
+    type to the object S, a TypeName. Use Named.Underlying to access the
+    underlying type. Use Named.Obj to obtain the object S.
+
+    Before type aliases (Go 1.9), the spec called defined types "named types".
+
+func NewNamed(obj *TypeName, underlying Type, methods []*Func) *Named
+    NewNamed returns a new named type for the given type name, underlying type,
+    and associated methods. If the given type name obj doesn't have a type yet,
+    its type is set to the returned named type. The underlying type must not be
+    a *Named.
+
+func (t *Named) AddMethod(m *Func)
+    AddMethod adds method m unless it is already in the method list. The method
+    must be in the same package as t, and t must not have type arguments.
+
+func (t *Named) Method(i int) *Func
+    Method returns the i'th method of named type t for 0 <= i < t.NumMethods().
+
+    For an ordinary or instantiated type t, the receiver base type of this
+    method is the named type t. The returned Func's Signature will not have
+    receiver type parameters.
+
+    For an uninstantiated generic type t, each method receiver is instantiated
+    with its receiver type parameters. The returned Func's Signature will have
+    the receiver type parameters used to instantiate the receiver.
+
+    Methods are numbered deterministically: given the same list of source
+    files presented to the type checker, or the same sequence of NewMethod
+    and AddMethod calls, the mapping from method index to corresponding method
+    remains the same. But the specific ordering is not specified and must not be
+    relied on as it may change in the future.
+
+func (t *Named) Methods() iter.Seq[*Func]
+    Methods returns a go1.23 iterator over the declared methods of a named type.
+
+    Example: for m := range t.Methods() { ... }
+
+func (t *Named) NumMethods() int
+    NumMethods returns the number of explicit methods defined for t.
+
+func (t *Named) Obj() *TypeName
+    Obj returns the type name for the declaration defining the named type t.
+    For instantiated types, this is same as the type name of the origin type.
+
+func (t *Named) Origin() *Named
+    Origin returns the generic type from which the named type t is instantiated.
+    If t is not an instantiated type, the result is t.
+
+func (t *Named) SetTypeParams(tparams []*TypeParam)
+    SetTypeParams sets the type parameters of the named type t. t must not have
+    type arguments.
+
+func (t *Named) SetUnderlying(u Type)
+    SetUnderlying sets the underlying type and marks t as complete. t must not
+    have type arguments.
+
+func (t *Named) String() string
+
+func (t *Named) TypeArgs() *TypeList
+    TypeArgs returns the type arguments used to instantiate the named type t.
+
+func (t *Named) TypeParams() *TypeParamList
+    TypeParams returns the type parameters of the named type t, or nil.
+    The result is non-nil for an (originally) generic type even if it is
+    instantiated.
+
+func (n *Named) Underlying() Type
+    Underlying returns the underlying type of the named type t, resolving all
+    forwarding declarations. Underlying types are never Named, TypeParam,
+    or Alias types.
+
+[underlying type]: https://go.dev/ref/spec#Underlying_types.
+
+type Nil struct {
+	// Has unexported fields.
+}
+    Nil represents the predeclared value nil.
+
+func (obj *Nil) Exported() bool
+    Exported reports whether the object is exported (starts with a capital
+    letter). It doesn't take into account whether the object is in a local
+    (function) scope or not.
+
+func (obj *Nil) Id() string
+    Id is a wrapper for Id(obj.Pkg(), obj.Name()).
+
+func (obj *Nil) Name() string
+    Name returns the object's (package-local, unqualified) name.
+
+func (obj *Nil) Parent() *Scope
+    Parent returns the scope in which the object is declared. The result is nil
+    for methods and struct fields.
+
+func (obj *Nil) Pkg() *Package
+    Pkg returns the package to which the object belongs. The result is nil for
+    labels and objects in the Universe scope.
+
+func (obj *Nil) Pos() token.Pos
+    Pos returns the declaration position of the object's identifier.
+
+func (obj *Nil) String() string
+
+func (obj *Nil) Type() Type
+    Type returns the object's type.
+
+type Object interface {
+	Parent() *Scope // scope in which this object is declared; nil for methods and struct fields
+	Pos() token.Pos // position of object identifier in declaration
+	Pkg() *Package  // package to which this object belongs; nil for labels and objects in the Universe scope
+	Name() string   // package local object name
+	Type() Type     // object type
+	Exported() bool // reports whether the name starts with a capital letter
+	Id() string     // object name if exported, qualified name if not exported (see func Id)
+
+	// String returns a human-readable string of the object.
+	// Use [ObjectString] to control how package names are formatted in the string.
+	String() string
+
+	// Has unexported methods.
+}
+    An Object is a named language entity. An Object may be a constant (Const),
+    type name (TypeName), variable or struct field (Var), function or method
+    (Func), imported package (PkgName), label (Label), built-in function
+    (Builtin), or the predeclared identifier 'nil' (Nil).
+
+    The environment, which is structured as a tree of Scopes, maps each name to
+    the unique Object that it denotes.
+
+func LookupFieldOrMethod(T Type, addressable bool, pkg *Package, name string) (obj Object, index []int, indirect bool)
+    LookupFieldOrMethod looks up a field or method with given package and
+    name in T and returns the corresponding *Var or *Func, an index sequence,
+    and a bool indicating if there were any pointer indirections on the path to
+    the field or method. If addressable is set, T is the type of an addressable
+    variable (only matters for method lookups). T must not be nil.
+
+    The last index entry is the field or method index in the (possibly embedded)
+    type where the entry was found, either:
+
+     1. the list of declared methods of a named type; or
+     2. the list of all methods (method set) of an interface type; or
+     3. the list of fields of a struct type.
+
+    The earlier index entries are the indices of the embedded struct fields
+    traversed to get to the found entry, starting at depth 0.
+
+    If no entry is found, a nil object is returned. In this case, the returned
+    index and indirect values have the following meaning:
+
+      - If index != nil, the index sequence points to an ambiguous entry (the
+        same name appeared more than once at the same embedding level).
+
+      - If indirect is set, a method with a pointer receiver type was found but
+        there was no pointer on the path from the actual receiver type to the
+        method's formal receiver base type, nor was the receiver addressable.
+
+    See also LookupSelection, which returns the result as a Selection.
+
+type Package struct {
+	// Has unexported fields.
+}
+    A Package describes a Go package.
+
+var Unsafe *Package
+    The Unsafe package is the package returned by an importer for the import
+    path "unsafe".
+
+func NewPackage(path, name string) *Package
+    NewPackage returns a new Package for the given package path and name.
+    The package is not complete and contains no explicit imports.
+
+func (pkg *Package) Complete() bool
+    A package is complete if its scope contains (at least) all exported objects;
+    otherwise it is incomplete.
+
+func (pkg *Package) GoVersion() string
+    GoVersion returns the minimum Go version required by this package. If the
+    minimum version is unknown, GoVersion returns the empty string. Individual
+    source files may specify a different minimum Go version, as reported in the
+    go/ast.File.GoVersion field.
+
+func (pkg *Package) Imports() []*Package
+    Imports returns the list of packages directly imported by pkg; the list is
+    in source order.
+
+    If pkg was loaded from export data, Imports includes packages that provide
+    package-level objects referenced by pkg. This may be more or less than the
+    set of packages directly imported by pkg's source code.
+
+    If pkg uses cgo and the FakeImportC configuration option was enabled,
+    the imports list may contain a fake "C" package.
+
+func (pkg *Package) MarkComplete()
+    MarkComplete marks a package as complete.
+
+func (pkg *Package) Name() string
+    Name returns the package name.
+
+func (pkg *Package) Path() string
+    Path returns the package path.
+
+func (pkg *Package) Scope() *Scope
+    Scope returns the (complete or incomplete) package scope holding the objects
+    declared at package level (TypeNames, Consts, Vars, and Funcs). For a nil
+    pkg receiver, Scope returns the Universe scope.
+
+func (pkg *Package) SetImports(list []*Package)
+    SetImports sets the list of explicitly imported packages to list. It is the
+    caller's responsibility to make sure list elements are unique.
+
+func (pkg *Package) SetName(name string)
+    SetName sets the package name.
+
+func (pkg *Package) String() string
+
+type PkgName struct {
+	// Has unexported fields.
+}
+    A PkgName represents an imported Go package. PkgNames don't have a type.
+
+func NewPkgName(pos token.Pos, pkg *Package, name string, imported *Package) *PkgName
+    NewPkgName returns a new PkgName object representing an imported package.
+    The remaining arguments set the attributes found with all Objects.
+
+func (obj *PkgName) Exported() bool
+    Exported reports whether the object is exported (starts with a capital
+    letter). It doesn't take into account whether the object is in a local
+    (function) scope or not.
+
+func (obj *PkgName) Id() string
+    Id is a wrapper for Id(obj.Pkg(), obj.Name()).
+
+func (obj *PkgName) Imported() *Package
+    Imported returns the package that was imported. It is distinct from Pkg(),
+    which is the package containing the import statement.
+
+func (obj *PkgName) Name() string
+    Name returns the object's (package-local, unqualified) name.
+
+func (obj *PkgName) Parent() *Scope
+    Parent returns the scope in which the object is declared. The result is nil
+    for methods and struct fields.
+
+func (obj *PkgName) Pkg() *Package
+    Pkg returns the package to which the object belongs. The result is nil for
+    labels and objects in the Universe scope.
+
+func (obj *PkgName) Pos() token.Pos
+    Pos returns the declaration position of the object's identifier.
+
+func (obj *PkgName) String() string
+
+func (obj *PkgName) Type() Type
+    Type returns the object's type.
+
+type Pointer struct {
+	// Has unexported fields.
+}
+    A Pointer represents a pointer type.
+
+func NewPointer(elem Type) *Pointer
+    NewPointer returns a new pointer type for the given element (base) type.
+
+func (p *Pointer) Elem() Type
+    Elem returns the element type for the given pointer p.
+
+func (p *Pointer) String() string
+
+func (p *Pointer) Underlying() Type
+
+type Qualifier func(*Package) string
+    A Qualifier controls how named package-level objects are printed in calls to
+    TypeString, ObjectString, and SelectionString.
+
+    These three formatting routines call the Qualifier for each package-level
+    object O, and if the Qualifier returns a non-empty string p, the object is
+    printed in the form p.O. If it returns an empty string, only the object name
+    O is printed.
+
+    Using a nil Qualifier is equivalent to using (*Package).Path: the object is
+    qualified by the import path, e.g., "encoding/json.Marshal".
+
+func RelativeTo(pkg *Package) Qualifier
+    RelativeTo returns a Qualifier that fully qualifies members of all packages
+    other than pkg.
+
+type Scope struct {
+	// Has unexported fields.
+}
+    A Scope maintains a set of objects and links to its containing (parent) and
+    contained (children) scopes. Objects may be inserted and looked up by name.
+    The zero value for Scope is a ready-to-use empty scope.
+
+var Universe *Scope
+    The Universe scope contains all predeclared objects of Go. It is the
+    outermost scope of any chain of nested scopes.
+
+func NewScope(parent *Scope, pos, end token.Pos, comment string) *Scope
+    NewScope returns a new, empty scope contained in the given parent scope,
+    if any. The comment is for debugging only.
+
+func (s *Scope) Child(i int) *Scope
+    Child returns the i'th child scope for 0 <= i < NumChildren().
+
+func (s *Scope) Children() iter.Seq[*Scope]
+    Children returns a go1.23 iterator over the child scopes nested within scope
+    s.
+
+    Example: for child := range scope.Children() { ... }
+
+func (s *Scope) Contains(pos token.Pos) bool
+    Contains reports whether pos is within the scope's extent. The result is
+    guaranteed to be valid only if the type-checked AST has complete position
+    information.
+
+func (s *Scope) End() token.Pos
+
+func (s *Scope) Innermost(pos token.Pos) *Scope
+    Innermost returns the innermost (child) scope containing pos. If pos is not
+    within any scope, the result is nil. The result is also nil for the Universe
+    scope. The result is guaranteed to be valid only if the type-checked AST has
+    complete position information.
+
+func (s *Scope) Insert(obj Object) Object
+    Insert attempts to insert an object obj into scope s. If s already contains
+    an alternative object alt with the same name, Insert leaves s unchanged and
+    returns alt. Otherwise it inserts obj, sets the object's parent scope if not
+    already set, and returns nil.
+
+func (s *Scope) Len() int
+    Len returns the number of scope elements.
+
+func (s *Scope) Lookup(name string) Object
+    Lookup returns the object in scope s with the given name if such an object
+    exists; otherwise the result is nil.
+
+func (s *Scope) LookupParent(name string, pos token.Pos) (*Scope, Object)
+    LookupParent follows the parent chain of scopes starting with s until it
+    finds a scope where Lookup(name) returns a non-nil object, and then returns
+    that scope and object. If a valid position pos is provided, only objects
+    that were declared at or before pos are considered. If no such scope and
+    object exists, the result is (nil, nil). The results are guaranteed to be
+    valid only if the type-checked AST has complete position information.
+
+    Note that obj.Parent() may be different from the returned scope if the
+    object was inserted into the scope and already had a parent at that time
+    (see Insert). This can only happen for dot-imported objects whose parent is
+    the scope of the package that exported them.
+
+func (s *Scope) Names() []string
+    Names returns the scope's element names in sorted order.
+
+func (s *Scope) NumChildren() int
+    NumChildren returns the number of scopes nested in s.
+
+func (s *Scope) Parent() *Scope
+    Parent returns the scope's containing (parent) scope.
+
+func (s *Scope) Pos() token.Pos
+    Pos and End describe the scope's source code extent [pos, end). The results
+    are guaranteed to be valid only if the type-checked AST has complete
+    position information. The extent is undefined for Universe and package
+    scopes.
+
+func (s *Scope) String() string
+    String returns a string representation of the scope, for debugging.
+
+func (s *Scope) WriteTo(w io.Writer, n int, recurse bool)
+    WriteTo writes a string representation of the scope to w, with the scope
+    elements sorted by name. The level of indentation is controlled by n >= 0,
+    with n == 0 for no indentation. If recurse is set, it also writes nested
+    (children) scopes.
+
+type Selection struct {
+	// Has unexported fields.
+}
+    A Selection describes a selector expression x.f. For the declarations:
+
+        type T struct{ x int; E }
+        type E struct{}
+        func (e E) m() {}
+        var p *T
+
+    the following relations exist:
+
+        Selector    Kind          Recv    Obj    Type       Index     Indirect
+
+        p.x         FieldVal      T       x      int        {0}       true
+        p.m         MethodVal     *T      m      func()     {1, 0}    true
+        T.m         MethodExpr    T       m      func(T)    {1, 0}    false
+
+func LookupSelection(T Type, addressable bool, pkg *Package, name string) (Selection, bool)
+    LookupSelection selects the field or method whose ID is Id(pkg, name),
+    on a value of type T. If addressable is set, T is the type of an addressable
+    variable (this matters only for method lookups). T must not be nil.
+
+    If the selection is valid:
+
+      - Selection.Obj returns the field (Var) or method (Func);
+      - Selection.Indirect reports whether there were any pointer indirections
+        on the path to the field or method.
+      - Selection.Index returns the index sequence, defined below.
+
+    The last index entry is the field or method index in the (possibly embedded)
+    type where the entry was found, either:
+
+     1. the list of declared methods of a named type; or
+     2. the list of all methods (method set) of an interface type; or
+     3. the list of fields of a struct type.
+
+    The earlier index entries are the indices of the embedded struct fields
+    traversed to get to the found entry, starting at depth 0.
+
+    See also LookupFieldOrMethod, which returns the components separately.
+
+func (s *Selection) Index() []int
+    Index describes the path from x to f in x.f. The last index entry is the
+    field or method index of the type declaring f; either:
+
+     1. the list of declared methods of a named type; or
+     2. the list of methods of an interface type; or
+     3. the list of fields of a struct type.
+
+    The earlier index entries are the indices of the embedded fields implicitly
+    traversed to get from (the type of) x to f, starting at embedding depth 0.
+
+func (s *Selection) Indirect() bool
+    Indirect reports whether any pointer indirection was required to get from x
+    to f in x.f.
+
+    Beware: Indirect spuriously returns true (Go issue #8353) for a MethodVal
+    selection in which the receiver argument and parameter both have type *T so
+    there is no indirection. Unfortunately, a fix is too risky.
+
+func (s *Selection) Kind() SelectionKind
+    Kind returns the selection kind.
+
+func (s *Selection) Obj() Object
+    Obj returns the object denoted by x.f; a *Var for a field selection,
+    and a *Func in all other cases.
+
+func (s *Selection) Recv() Type
+    Recv returns the type of x in x.f.
+
+func (s *Selection) String() string
+
+func (s *Selection) Type() Type
+    Type returns the type of x.f, which may be different from the type of f.
+    See Selection for more information.
+
+type SelectionKind int
+    SelectionKind describes the kind of a selector expression x.f (excluding
+    qualified identifiers).
+
+    If x is a struct or *struct, a selector expression x.f may denote a sequence
+    of selection operations x.a.b.c.f. The SelectionKind describes the kind of
+    the final (explicit) operation; all the previous (implicit) operations are
+    always field selections. Each element of Indices specifies an implicit field
+    (a, b, c) by its index in the struct type of the field selection operand.
+
+    For a FieldVal operation, the final selection refers to the field specified
+    by Selection.Obj.
+
+    For a MethodVal operation, the final selection refers to a method. If the
+    "pointerness" of the method's declared receiver does not match that of the
+    effective receiver after implicit field selection, then an & or * operation
+    is implicitly applied to the receiver variable or value. So, x.f denotes
+    (&x.a.b.c).f when f requires a pointer receiver but x.a.b.c is a non-pointer
+    variable; and it denotes (*x.a.b.c).f when f requires a non-pointer receiver
+    but x.a.b.c is a pointer value.
+
+    All pointer indirections, whether due to implicit or explicit field
+    selections or * operations inserted for "pointerness", panic if applied to a
+    nil pointer, so a method call x.f() may panic even before the function call.
+
+    By contrast, a MethodExpr operation T.f is essentially equivalent to a
+    function literal of the form:
+
+        func(x T, args) (results) { return x.f(args) }
+
+    Consequently, any implicit field selections and * operations inserted for
+    "pointerness" are not evaluated until the function is called, so a T.f or
+    (*T).f expression never panics.
+
+const (
+	FieldVal   SelectionKind = iota // x.f is a struct field selector
+	MethodVal                       // x.f is a method selector
+	MethodExpr                      // x.f is a method expression
+)
+type Signature struct {
+	// Has unexported fields.
+}
+    A Signature represents a (non-builtin) function or method type. The receiver
+    is ignored when comparing signatures for identity.
+
+func NewSignature(recv *Var, params, results *Tuple, variadic bool) *Signature
+    NewSignature returns a new function type for the given receiver, parameters,
+    and results, either of which may be nil. If variadic is set, the function is
+    variadic, it must have at least one parameter, and the last parameter must
+    be of unnamed slice type.
+
+    Deprecated: Use NewSignatureType instead which allows for type parameters.
+
+func NewSignatureType(recv *Var, recvTypeParams, typeParams []*TypeParam, params, results *Tuple, variadic bool) *Signature
+    NewSignatureType creates a new function type for the given receiver,
+    receiver type parameters, type parameters, parameters, and results.
+
+    If variadic is set, params must hold at least one parameter and the last
+    parameter must be an unnamed slice or a type parameter whose type set has an
+    unnamed slice as common underlying type.
+
+    As a special case, to support append([]byte, str...), for variadic
+    signatures the last parameter may also be a string type, or a type parameter
+    containing a mix of byte slices and string types in its type set. It may
+    even be a named []byte slice type resulting from instantiation of such a
+    type parameter.
+
+    If recvTypeParams is non-empty, recv must be non-nil.
+
+func (s *Signature) Params() *Tuple
+    Params returns the parameters of signature s, or nil. See NewSignatureType
+    for details of variadic functions.
+
+func (s *Signature) Recv() *Var
+    Recv returns the receiver of signature s (if a method), or nil if a
+    function. It is ignored when comparing signatures for identity.
+
+    For an abstract method, Recv returns the enclosing interface either as a
+    *Named or an *Interface. Due to embedding, an interface may contain methods
+    whose receiver type is a different interface.
+
+func (s *Signature) RecvTypeParams() *TypeParamList
+    RecvTypeParams returns the receiver type parameters of signature s, or nil.
+
+func (s *Signature) Results() *Tuple
+    Results returns the results of signature s, or nil.
+
+func (s *Signature) String() string
+
+func (s *Signature) TypeParams() *TypeParamList
+    TypeParams returns the type parameters of signature s, or nil.
+
+func (s *Signature) Underlying() Type
+
+func (s *Signature) Variadic() bool
+    Variadic reports whether the signature s is variadic.
+
+type Sizes interface {
+	// Alignof returns the alignment of a variable of type T.
+	// Alignof must implement the alignment guarantees required by the spec.
+	// The result must be >= 1.
+	Alignof(T Type) int64
+
+	// Offsetsof returns the offsets of the given struct fields, in bytes.
+	// Offsetsof must implement the offset guarantees required by the spec.
+	// A negative entry in the result indicates that the struct is too large.
+	Offsetsof(fields []*Var) []int64
+
+	// Sizeof returns the size of a variable of type T.
+	// Sizeof must implement the size guarantees required by the spec.
+	// A negative result indicates that T is too large.
+	Sizeof(T Type) int64
+}
+    Sizes defines the sizing functions for package unsafe.
+
+func SizesFor(compiler, arch string) Sizes
+    SizesFor returns the Sizes used by a compiler for an architecture.
+    The result is nil if a compiler/architecture pair is not known.
+
+    Supported architectures for compiler "gc": "386", "amd64", "amd64p32",
+    "arm", "arm64", "loong64", "mips", "mipsle", "mips64", "mips64le", "ppc64",
+    "ppc64le", "riscv64", "s390x", "sparc64", "wasm".
+
+type Slice struct {
+	// Has unexported fields.
+}
+    A Slice represents a slice type.
+
+func NewSlice(elem Type) *Slice
+    NewSlice returns a new slice type for the given element type.
+
+func (s *Slice) Elem() Type
+    Elem returns the element type of slice s.
+
+func (s *Slice) String() string
+
+func (s *Slice) Underlying() Type
+
+type StdSizes struct {
+	WordSize int64 // word size in bytes - must be >= 4 (32bits)
+	MaxAlign int64 // maximum alignment in bytes - must be >= 1
+}
+    StdSizes is a convenience type for creating commonly used Sizes. It makes
+    the following simplifying assumptions:
+
+      - The size of explicitly sized basic types (int16, etc.) is the specified
+        size.
+      - The size of strings and interfaces is 2*WordSize.
+      - The size of slices is 3*WordSize.
+      - The size of an array of n elements corresponds to the size of a struct
+        of n consecutive fields of the array's element type.
+      - The size of a struct is the offset of the last field plus that field's
+        size. As with all element types, if the struct is used in an array its
+        size must first be aligned to a multiple of the struct's alignment.
+      - All other types have size WordSize.
+      - Arrays and structs are aligned per spec definition; all other types are
+        naturally aligned with a maximum alignment MaxAlign.
+
+    *StdSizes implements Sizes.
+
+func (s *StdSizes) Alignof(T Type) (result int64)
+
+func (s *StdSizes) Offsetsof(fields []*Var) []int64
+
+func (s *StdSizes) Sizeof(T Type) int64
+
+type Struct struct {
+	// Has unexported fields.
+}
+    A Struct represents a struct type.
+
+func NewStruct(fields []*Var, tags []string) *Struct
+    NewStruct returns a new struct with the given fields and corresponding
+    field tags. If a field with index i has a tag, tags[i] must be that tag,
+    but len(tags) may be only as long as required to hold the tag with the
+    largest index i. Consequently, if no field has a tag, tags may be nil.
+
+func (s *Struct) Field(i int) *Var
+    Field returns the i'th field for 0 <= i < NumFields().
+
+func (s *Struct) Fields() iter.Seq[*Var]
+    Fields returns a go1.23 iterator over the fields of a struct type.
+
+    Example: for field := range s.Fields() { ... }
+
+func (s *Struct) NumFields() int
+    NumFields returns the number of fields in the struct (including blank and
+    embedded fields).
+
+func (t *Struct) String() string
+
+func (s *Struct) Tag(i int) string
+    Tag returns the i'th field tag for 0 <= i < NumFields().
+
+func (t *Struct) Underlying() Type
+
+type Term term
+    A Term represents a term in a Union.
+
+func NewTerm(tilde bool, typ Type) *Term
+    NewTerm returns a new union term.
+
+func (t *Term) String() string
+
+func (t *Term) Tilde() bool
+
+func (t *Term) Type() Type
+
+type Tuple struct {
+	// Has unexported fields.
+}
+    A Tuple represents an ordered list of variables; a nil *Tuple is a valid
+    (empty) tuple. Tuples are used as components of signatures and to represent
+    the type of multiple assignments; they are not first class types of Go.
+
+func NewTuple(x ...*Var) *Tuple
+    NewTuple returns a new tuple for the given variables.
+
+func (t *Tuple) At(i int) *Var
+    At returns the i'th variable of tuple t.
+
+func (t *Tuple) Len() int
+    Len returns the number variables of tuple t.
+
+func (t *Tuple) String() string
+
+func (t *Tuple) Underlying() Type
+
+func (t *Tuple) Variables() iter.Seq[*Var]
+    Variables returns a go1.23 iterator over the variables of a tuple type.
+
+    Example: for v := range tuple.Variables() { ... }
+
+type Type interface {
+	// Underlying returns the underlying type of a type.
+	// Underlying types are never Named, TypeParam, or Alias types.
+	//
+	// See https://go.dev/ref/spec#Underlying_types.
+	Underlying() Type
+
+	// String returns a string representation of a type.
+	String() string
+}
+    A Type represents a type of Go. All types implement the Type interface.
+
+func Default(t Type) Type
+    Default returns the default "typed" type for an "untyped" type; it returns
+    the incoming type for all other types. The default type for untyped nil is
+    untyped nil.
+
+func Instantiate(ctxt *Context, orig Type, targs []Type, validate bool) (Type, error)
+    Instantiate instantiates the type orig with the given type arguments targs.
+    orig must be a generic *Alias, *Named, or *Signature type. If there is no
+    error, the resulting Type is an instantiated type of the same kind (*Alias,
+    *Named or *Signature, respectively).
+
+    Methods attached to a *Named type are also instantiated, and associated
+    with a new *Func that has the same position as the original method, but nil
+    function scope.
+
+    If ctxt is non-nil, it may be used to de-duplicate the instance against
+    previous instances with the same identity. As a special case, generic
+    *Signature origin types are only considered identical if they are pointer
+    equivalent, so that instantiating distinct (but possibly identical)
+    signatures will yield different instances. The use of a shared context does
+    not guarantee that identical instances are deduplicated in all cases.
+
+    If validate is set, Instantiate verifies that the type orig is in
+    fact generic, that the number of type arguments and parameters match,
+    and that the type arguments satisfy their respective type constraints.
+    If verification fails, the resulting error may wrap an *ArgumentError
+    indicating which type argument did not satisfy its type parameter
+    constraint, and why.
+
+    If validate is not set, Instantiate does not check if orig is generic,
+    verify the type argument count, or check whether the type arguments satisfy
+    their constraints. Instantiate is guaranteed to not return an error,
+    but may panic. Specifically, for *Signature types, Instantiate will panic
+    immediately if the type argument count is incorrect; for *Named types,
+    a panic may occur later inside the *Named API.
+
+func Unalias(t Type) Type
+    Unalias returns t if it is not an alias type; otherwise it follows t's
+    alias chain until it reaches a non-alias type which is then returned.
+    Consequently, the result is never an alias type. Returns nil if the alias is
+    incomplete.
+
+type TypeAndValue struct {
+	Type  Type
+	Value constant.Value
+	// Has unexported fields.
+}
+    TypeAndValue reports the type and value (for constants) of the corresponding
+    expression.
+
+func Eval(fset *token.FileSet, pkg *Package, pos token.Pos, expr string) (_ TypeAndValue, err error)
+    Eval returns the type and, if constant, the value for the expression expr,
+    evaluated at position pos of package pkg, which must have been derived from
+    type-checking an AST with complete position information relative to the
+    provided file set.
+
+    The meaning of the parameters fset, pkg, and pos is the same as in
+    CheckExpr. An error is returned if expr cannot be parsed successfully,
+    or the resulting expr AST cannot be type-checked.
+
+func (tv TypeAndValue) Addressable() bool
+    Addressable reports whether the corresponding expression is addressable
+    (https://golang.org/ref/spec#Address_operators).
+
+func (tv TypeAndValue) Assignable() bool
+    Assignable reports whether the corresponding expression is assignable to
+    (provided a value of the right type).
+
+func (tv TypeAndValue) HasOk() bool
+    HasOk reports whether the corresponding expression may be used on the rhs of
+    a comma-ok assignment.
+
+func (tv TypeAndValue) IsBuiltin() bool
+    IsBuiltin reports whether the corresponding expression denotes a (possibly
+    parenthesized) built-in function.
+
+func (tv TypeAndValue) IsNil() bool
+    IsNil reports whether the corresponding expression denotes the predeclared
+    value nil.
+
+func (tv TypeAndValue) IsType() bool
+    IsType reports whether the corresponding expression specifies a type.
+
+func (tv TypeAndValue) IsValue() bool
+    IsValue reports whether the corresponding expression is a value. Builtins
+    are not considered values. Constant values have a non- nil Value.
+
+func (tv TypeAndValue) IsVoid() bool
+    IsVoid reports whether the corresponding expression is a function call
+    without results.
+
+type TypeList struct {
+	// Has unexported fields.
+}
+    TypeList holds a list of types.
+
+func (l *TypeList) At(i int) Type
+    At returns the i'th type in the list.
+
+func (l *TypeList) Len() int
+    Len returns the number of types in the list. It is safe to call on a nil
+    receiver.
+
+func (l *TypeList) String() string
+
+func (l *TypeList) Types() iter.Seq[Type]
+    Types returns a go1.23 iterator over the elements of a list of types.
+
+    Example: for t := range l.Types() { ... }
+
+type TypeName struct {
+	// Has unexported fields.
+}
+    A TypeName is an Object that represents a type with a name: a defined
+    type (Named), an alias type (Alias), a type parameter (TypeParam), or a
+    predeclared type such as int or error.
+
+func NewTypeName(pos token.Pos, pkg *Package, name string, typ Type) *TypeName
+    NewTypeName returns a new type name denoting the given typ. The remaining
+    arguments set the attributes found with all Objects.
+
+    The typ argument may be a defined (Named) type or an alias type. It may also
+    be nil such that the returned TypeName can be used as argument for NewNamed,
+    which will set the TypeName's type as a side- effect.
+
+func (obj *TypeName) Exported() bool
+    Exported reports whether the object is exported (starts with a capital
+    letter). It doesn't take into account whether the object is in a local
+    (function) scope or not.
+
+func (obj *TypeName) Id() string
+    Id is a wrapper for Id(obj.Pkg(), obj.Name()).
+
+func (obj *TypeName) IsAlias() bool
+    IsAlias reports whether obj is an alias name for a type.
+
+func (obj *TypeName) Name() string
+    Name returns the object's (package-local, unqualified) name.
+
+func (obj *TypeName) Parent() *Scope
+    Parent returns the scope in which the object is declared. The result is nil
+    for methods and struct fields.
+
+func (obj *TypeName) Pkg() *Package
+    Pkg returns the package to which the object belongs. The result is nil for
+    labels and objects in the Universe scope.
+
+func (obj *TypeName) Pos() token.Pos
+    Pos returns the declaration position of the object's identifier.
+
+func (obj *TypeName) String() string
+
+func (obj *TypeName) Type() Type
+    Type returns the object's type.
+
+type TypeParam struct {
+	// Has unexported fields.
+}
+    A TypeParam represents the type of a type parameter in a generic
+    declaration.
+
+    A TypeParam has a name; use the TypeParam.Obj method to access its TypeName
+    object.
+
+func NewTypeParam(obj *TypeName, constraint Type) *TypeParam
+    NewTypeParam returns a new TypeParam. Type parameters may be set on a Named
+    type by calling SetTypeParams. Setting a type parameter on more than one
+    type will result in a panic.
+
+    The constraint argument can be nil, and set later via SetConstraint.
+    If the constraint is non-nil, it must be fully defined.
+
+func (t *TypeParam) Constraint() Type
+    Constraint returns the type constraint specified for t.
+
+func (t *TypeParam) Index() int
+    Index returns the index of the type param within its param list, or -1 if
+    the type parameter has not yet been bound to a type.
+
+func (t *TypeParam) Obj() *TypeName
+    Obj returns the type name for the type parameter t.
+
+func (t *TypeParam) SetConstraint(bound Type)
+    SetConstraint sets the type constraint for t.
+
+    It must be called by users of NewTypeParam after the bound's underlying is
+    fully defined, and before using the type parameter in any way other than
+    to form other types. Once SetConstraint returns the receiver, t is safe for
+    concurrent use.
+
+func (t *TypeParam) String() string
+
+func (t *TypeParam) Underlying() Type
+    Underlying returns the underlying type of the type parameter t, which is the
+    underlying type of its constraint. This type is always an interface.
+
+[underlying type]: https://go.dev/ref/spec#Underlying_types.
+
+type TypeParamList struct {
+	// Has unexported fields.
+}
+    TypeParamList holds a list of type parameters.
+
+func (l *TypeParamList) At(i int) *TypeParam
+    At returns the i'th type parameter in the list.
+
+func (l *TypeParamList) Len() int
+    Len returns the number of type parameters in the list. It is safe to call on
+    a nil receiver.
+
+func (l *TypeParamList) String() string
+
+func (l *TypeParamList) TypeParams() iter.Seq[*TypeParam]
+    TypeParams returns a go1.23 iterator over a list of type parameters.
+
+    Example: for tparam := range l.TypeParams() { ... }
+
+type Union struct {
+	// Has unexported fields.
+}
+    A Union represents a union of terms embedded in an interface.
+
+func NewUnion(terms []*Term) *Union
+    NewUnion returns a new Union type with the given terms. It is an error to
+    create an empty union; they are syntactically not possible.
+
+func (u *Union) Len() int
+
+func (u *Union) String() string
+
+func (u *Union) Term(i int) *Term
+
+func (u *Union) Terms() iter.Seq[*Term]
+    Terms returns a go1.23 iterator over the terms of a union.
+
+    Example: for term := range union.Terms() { ... }
+
+func (u *Union) Underlying() Type
+
+type Var struct {
+	// Has unexported fields.
+}
+    A Var represents a declared variable (including function parameters and
+    results, and struct fields).
+
+func NewField(pos token.Pos, pkg *Package, name string, typ Type, embedded bool) *Var
+    NewField returns a new variable representing a struct field. For embedded
+    fields, the name is the unqualified type name under which the field is
+    accessible.
+
+func NewParam(pos token.Pos, pkg *Package, name string, typ Type) *Var
+    NewParam returns a new variable representing a function parameter.
+
+    The caller must subsequently call Var.SetKind if the desired Var is not of
+    kind ParamVar: for example, RecvVar or ResultVar.
+
+func NewVar(pos token.Pos, pkg *Package, name string, typ Type) *Var
+    NewVar returns a new variable. The arguments set the attributes found with
+    all Objects.
+
+    The caller must subsequently call Var.SetKind if the desired Var is not of
+    kind PackageVar.
+
+func (obj *Var) Anonymous() bool
+    Anonymous reports whether the variable is an embedded field. Same as
+    Embedded; only present for backward-compatibility.
+
+func (obj *Var) Embedded() bool
+    Embedded reports whether the variable is an embedded field.
+
+func (obj *Var) Exported() bool
+    Exported reports whether the object is exported (starts with a capital
+    letter). It doesn't take into account whether the object is in a local
+    (function) scope or not.
+
+func (obj *Var) Id() string
+    Id is a wrapper for Id(obj.Pkg(), obj.Name()).
+
+func (obj *Var) IsField() bool
+    IsField reports whether the variable is a struct field.
+
+func (v *Var) Kind() VarKind
+    Kind reports what kind of variable v is.
+
+func (obj *Var) Name() string
+    Name returns the object's (package-local, unqualified) name.
+
+func (obj *Var) Origin() *Var
+    Origin returns the canonical Var for its receiver, i.e. the Var object
+    recorded in Info.Defs.
+
+    For synthetic Vars created during instantiation (such as struct fields
+    or function parameters that depend on type arguments), this will be the
+    corresponding Var on the generic (uninstantiated) type. For all other Vars
+    Origin returns the receiver.
+
+func (obj *Var) Parent() *Scope
+    Parent returns the scope in which the object is declared. The result is nil
+    for methods and struct fields.
+
+func (obj *Var) Pkg() *Package
+    Pkg returns the package to which the object belongs. The result is nil for
+    labels and objects in the Universe scope.
+
+func (obj *Var) Pos() token.Pos
+    Pos returns the declaration position of the object's identifier.
+
+func (v *Var) SetKind(kind VarKind)
+    SetKind sets the kind of the variable. It should be used only immediately
+    after NewVar or NewParam.
+
+func (obj *Var) String() string
+
+func (obj *Var) Type() Type
+    Type returns the object's type.
+
+type VarKind uint8
+    A VarKind discriminates the various kinds of variables.
+
+const (
+	PackageVar VarKind // a package-level variable
+	LocalVar           // a local variable
+	RecvVar            // a method receiver variable
+	ParamVar           // a function parameter variable
+	ResultVar          // a function result variable
+	FieldVar           // a struct field
+)
+func (kind VarKind) String() string
+

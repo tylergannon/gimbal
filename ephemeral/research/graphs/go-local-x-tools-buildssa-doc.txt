@@ -1,0 +1,9 @@
+package buildssa // import "golang.org/x/tools/go/analysis/passes/buildssa"
+
+Package buildssa defines an Analyzer that constructs the SSA representation
+of an error-free package and returns the set of all functions within it.
+It does not report any diagnostics itself but may be used as an input to other
+analyzers.
+
+var Analyzer = &analysis.Analyzer{ ... }
+type SSA struct{ ... }

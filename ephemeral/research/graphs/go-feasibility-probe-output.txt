@@ -1,0 +1,12 @@
+go=go1.27.1
+loaded=github.com/tylergannon/gimble,github.com/tylergannon/gimble/internal/workflows/sprint
+generate=func[T github.com/tylergannon/gimble.Output](ctx context.Context, prompt string, opts ...github.com/tylergannon/gimble.AgentOption) (T, error) typeparams=1
+exec-call=/Users/tyler/.codex/worktrees/7b5c/gimble/internal/workflows/sprint/sprints.go:159 CommandContext
+exec-call=/Users/tyler/.codex/worktrees/7b5c/gimble/internal/workflows/sprint/sprints.go:161 Output
+exec-call=/Users/tyler/.codex/worktrees/7b5c/gimble/internal/workflows/sprint/sprints.go:289 CommandContext
+exec-call=/Users/tyler/.codex/worktrees/7b5c/gimble/internal/workflows/sprint/sprints.go:291 CombinedOutput
+exec-call=/Users/tyler/.codex/worktrees/7b5c/gimble/internal/workflows/sprint/sprints.go:348 CommandContext
+exec-call=/Users/tyler/.codex/worktrees/7b5c/gimble/internal/workflows/sprint/sprints.go:350 CombinedOutput
+scope-callback=/Users/tyler/.codex/worktrees/7b5c/gimble/internal/workflows/sprint/sprints.go:96 callee=Scope params=ctx:Context
+scope-callback=/Users/tyler/.codex/worktrees/7b5c/gimble/internal/workflows/sprint/sprints.go:101 callee=range.Tasks params=ctx:Context,task:Task
+ssa-package=github.com/tylergannon/gimble/internal/workflows/sprint functions-with-bodies=18 blocks=169

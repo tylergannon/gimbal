@@ -1,0 +1,3338 @@
+
+
+<!DOCTYPE html>
+<html lang="en" data-layout="responsive" data-local="">
+  <head>
+    
+    <script>
+      window.addEventListener('error', window.__err=function f(e){f.p=f.p||[];f.p.push(e)});
+    </script>
+    <script>
+      (function() {
+        const theme = document.cookie.match(/prefers-color-scheme=(light|dark|auto)/)?.[1]
+        if (theme) {
+          document.querySelector('html').setAttribute('data-theme', theme);
+        }
+      }())
+    </script>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="Description" content="Package analysis defines the interface between a modular static analysis and an analysis driver program.">
+    
+    <meta class="js-gtmID" data-gtmid="GTM-W8MVQXG">
+    <link rel="shortcut icon" href="/static/shared/icon/favicon.ico">
+    
+  
+    <link rel="canonical" href="https://pkg.go.dev/golang.org/x/tools/go/analysis">
+  
+
+    <link href="/static/frontend/frontend.min.css?version=prod-frontend-00248-88r" rel="stylesheet">
+    
+    <link rel="search" type="application/opensearchdescription+xml" href="/opensearch.xml" title="Go Packages">
+    
+    
+  <title>analysis package - golang.org/x/tools/go/analysis - Go Packages</title>
+
+    
+  <link href="/static/frontend/unit/unit.min.css?version=prod-frontend-00248-88r" rel="stylesheet">
+  
+  <link href="/static/frontend/unit/main/main.min.css?version=prod-frontend-00248-88r" rel="stylesheet">
+
+
+  </head>
+  <body>
+    
+    <script>
+      function loadScript(src, mod = true) {
+        let s = document.createElement('script');
+        s.src = src;
+        if (mod) {
+          s.type = 'module';
+          s.async = true;
+          s.defer = true
+        }
+        document.head.appendChild(s);
+      }
+      loadScript("/third_party/dialog-polyfill/dialog-polyfill.js", false)
+      loadScript("/static/frontend/frontend.js");
+    </script>
+    
+  <header class="go-Header go-Header--full js-siteHeader">
+    <div class="go-Header-inner go-Header-inner--dark">
+      <nav class="go-Header-nav">
+        <a href="https://go.dev/" class="js-headerLogo" data-gtmc="nav link"
+            data-test-id="go-header-logo-link" role="heading" aria-level="1">
+          <img class="go-Header-logo" src="/static/shared/logo/go-white.svg" alt="Go">
+        </a>
+         <div class="skip-navigation-wrapper">
+            <a class="skip-to-content-link" aria-label="Skip to main content" href="#main-content"> Skip to Main Content </a>
+          </div>
+        <div class="go-Header-rightContent">
+          
+<div class="go-SearchForm js-searchForm">
+  <form
+    class="go-InputGroup go-ShortcutKey go-SearchForm-form"
+    action="/search"
+    data-shortcut="/"
+    data-shortcut-alt="search"
+    data-gtmc="search form"
+    aria-label="Search for a package"
+    role="search"
+  >
+    <input name="q" class="go-Input js-searchFocus" aria-label="Search for a package" type="search"
+        autocapitalize="off" autocomplete="off" autocorrect="off" spellcheck="false"
+        placeholder="Search packages or symbols"
+        value="" />
+    <input name="m" value="" hidden>
+    <button class="go-Button go-Button--inverted" aria-label="Submit search">
+      <img
+        class="go-Icon"
+        height="24"
+        width="24"
+        src="/static/shared/icon/search_gm_grey_24dp.svg"
+        alt=""
+      />
+    </button>
+  </form>
+  <button class="go-SearchForm-expandSearch js-expandSearch" data-gtmc="nav button"
+      aria-label="Open search" data-test-id="expand-search">
+    <img class="go-Icon go-Icon--inverted" height="24" width="24"
+        src="/static/shared/icon/search_gm_grey_24dp.svg" alt="">
+
+  </button>
+</div>
+
+          <ul class="go-Header-menu">
+            <li class="go-Header-menuItem">
+              <a class="js-desktop-menu-hover" href="#" data-gtmc="nav link">
+                Why Go
+                <img class="go-Icon" height="24" width="24" src="/static/shared/icon/arrow_drop_down_gm_grey_24dp.svg" alt="submenu dropdown icon">
+              </a>
+              <ul class="go-Header-submenu go-Header-submenu--why js-desktop-submenu-hover" aria-label="submenu">
+                  <li class="go-Header-submenuItem">
+                    <div>
+                      <a href="https://go.dev/solutions/case-studies">
+                        <span>Case Studies</span>
+                      </a>
+                    </div>
+                    <p>Common problems companies solve with Go</p>
+                  </li>
+                  <li class="go-Header-submenuItem">
+                    <div>
+                      <a href="https://go.dev/solutions/use-cases">
+                        <span>Use Cases</span>
+                      </a>
+                    </div>
+                    <p>Stories about how and why companies use Go</p>
+                  </li>
+                  <li class="go-Header-submenuItem">
+                    <div>
+                      <a href="https://go.dev/security/">
+                        <span>Security</span>
+                      </a>
+                    </div>
+                    <p>How Go can help keep you secure by default</p>
+                  </li>
+              </ul>
+            </li>
+            <li class="go-Header-menuItem">
+              <a href="https://go.dev/learn/" data-gtmc="nav link">Learn</a>
+            </li>
+            <li class="go-Header-menuItem">
+              <a class="js-desktop-menu-hover" href="#" data-gtmc="nav link">
+                Docs
+                <img class="go-Icon" height="24" width="24" src="/static/shared/icon/arrow_drop_down_gm_grey_24dp.svg" alt="submenu dropdown icon">
+              </a>
+              <ul class="go-Header-submenu go-Header-submenu--docs js-desktop-submenu-hover" aria-label="submenu">
+                <li class="go-Header-submenuItem">
+                  <div>
+                    <a href="https://go.dev/doc/effective_go">
+                      <span>Effective Go</span>
+                    </a>
+                  </div>
+                  <p>Tips for writing clear, performant, and idiomatic Go code</p>
+                </li>
+                <li class="go-Header-submenuItem">
+                  <div>
+                    <a href="https://go.dev/doc/">
+                      <span>Go User Manual</span>
+                    </a>
+                  </div>
+                  <p>A complete introduction to building software with Go</p>
+                </li>
+                <li class="go-Header-submenuItem">
+                  <div>
+                    <a href="https://pkg.go.dev/std">
+                      <span>Standard library</span>
+                    </a>
+                  </div>
+                  <p>Reference documentation for Go's standard library</p>
+                </li>
+                <li class="go-Header-submenuItem">
+                  <div>
+                    <a href="https://go.dev/doc/devel/release">
+                      <span>Release Notes</span>
+                    </a>
+                  </div>
+                  <p>Learn what's new in each Go release</p>
+                </li>
+                <li class="go-Header-submenuItem">
+                  <div>
+                    <a href="/api">
+                      <span>API</span>
+                    </a>
+                  </div>
+                  <p>Reference documentation for the pkg.go.dev API</p>
+                </li>
+              </ul>
+            </li>
+            <li class="go-Header-menuItem go-Header-menuItem--active">
+              <a href="/" data-gtmc="nav link">Packages</a>
+            </li>
+            <li class="go-Header-menuItem">
+              <a class="js-desktop-menu-hover" href="#" data-gtmc="nav link">
+                Community
+                <img class="go-Icon" height="24" width="24" src="/static/shared/icon/arrow_drop_down_gm_grey_24dp.svg" alt="submenu dropdown icon">
+              </a>
+              <ul class="go-Header-submenu go-Header-submenu--community js-desktop-submenu-hover" aria-label="submenu">
+                <li class="go-Header-submenuItem">
+                  <div>
+                    <a href="https://go.dev/talks/">
+                      <span>Recorded Talks</span>
+                    </a>
+                  </div>
+                  <p>Videos from prior events</p>
+                </li>
+                <li class="go-Header-submenuItem">
+                  <div>
+                    <a href="https://www.meetup.com/pro/go">
+                      <span>Meetups</span>
+                      <i class="material-icons">
+                        <img class="go-Icon" height="24" width="24"
+                            src="/static/shared/icon/launch_gm_grey_24dp.svg" alt="">
+                      </i>
+                    </a>
+                  </div>
+                  <p>Meet other local Go developers</p>
+                </li>
+                <li class="go-Header-submenuItem">
+                  <div>
+                    <a href="https://github.com/golang/go/wiki/Conferences">
+                      <span>Conferences</span>
+                      <i class="material-icons">
+                        <img class="go-Icon" height="24" width="24"
+                            src="/static/shared/icon/launch_gm_grey_24dp.svg" alt="">
+                      </i>
+                    </a>
+                  </div>
+                  <p>Learn and network with Go developers from around the world</p>
+                </li>
+                <li class="go-Header-submenuItem">
+                  <div>
+                    <a href="https://go.dev/blog">
+                      <span>Go blog</span>
+                    </a>
+                  </div>
+                  <p>The Go project's official blog.</p>
+                </li>
+                <li class="go-Header-submenuItem">
+                  <div>
+                    <a href="https://go.dev/help">
+                      <span>Go project</span>
+                    </a>
+                  </div>
+                  <p>Get help and stay informed from Go</p>
+                </li>
+                <li class="go-Header-submenuItem">
+                  <div>
+                    Get connected
+                  </div>
+                  <p></p>
+                  <div class="go-Header-socialIcons">
+                      <a
+                        class="go-Header-socialIcon"
+                        aria-label="Get connected with google-groups (Opens in new window)"
+                        title="Get connected with google-groups (Opens in new window)"
+                        href="https://groups.google.com/g/golang-nuts">
+                        <img src="/static/shared/logo/social/google-groups.svg" />
+                      </a>
+                      <a
+                        class="go-Header-socialIcon"
+                        aria-label="Get connected with github (Opens in new window)"
+                        title="Get connected with github (Opens in new window)"
+                        href="https://github.com/golang">
+                        <img src="/static/shared/logo/social/github.svg" />
+                      </a>
+                      <a
+                        class="go-Header-socialIcon"
+                        aria-label="Get connected with twitter (Opens in new window)"
+                        title="Get connected with twitter (Opens in new window)"
+                        href="https://twitter.com/golang">
+                        <img src="/static/shared/logo/social/twitter.svg" />
+                      </a>
+                      <a
+                        class="go-Header-socialIcon"
+                        aria-label="Get connected with reddit (Opens in new window)"
+                        title="Get connected with reddit (Opens in new window)"
+                        href="https://www.reddit.com/r/golang/">
+                        <img src="/static/shared/logo/social/reddit.svg" />
+                      </a>
+                      <a
+                        class="go-Header-socialIcon"
+                        aria-label="Get connected with slack (Opens in new window)"
+                        title="Get connected with slack (Opens in new window)"
+                        href="https://invite.slack.golangbridge.org/">
+                        <img src="/static/shared/logo/social/slack.svg" />
+                      </a>
+                      <a
+                        class="go-Header-socialIcon"
+                        aria-label="Get connected with stack-overflow (Opens in new window)"
+                        title=""
+                        href="https://stackoverflow.com/collectives/go">
+                        <img src="/static/shared/logo/social/stack-overflow.svg" />
+                      </a>
+                  </div>
+                </li>
+              </ul>
+            </li>
+          </ul>
+          <button class="go-Header-navOpen js-headerMenuButton go-Header-navOpen--white" data-gtmc="nav button" aria-label="Open navigation">
+          </button>
+        </div>
+      </nav>
+    </div>
+  </header>
+  <aside class="go-NavigationDrawer js-header">
+    <nav class="go-NavigationDrawer-nav">
+      <div class="go-NavigationDrawer-header">
+        <a href="https://go.dev/">
+          <img class="go-NavigationDrawer-logo" src="/static/shared/logo/go-blue.svg" alt="Go.">
+        </a>
+      </div>
+      <ul class="go-NavigationDrawer-list">
+          <li class="go-NavigationDrawer-listItem js-mobile-subnav-trigger go-NavigationDrawer-hasSubnav">
+            <a href="#">
+              <span>Why Go</span>
+              <i class="material-icons">
+                <img class="go-Icon" height="24" width="24"
+                  src="/static/shared/icon/navigate_next_gm_grey_24dp.svg" alt="">
+              </i>
+            </a>
+
+            <div class="go-NavigationDrawer go-NavigationDrawer-submenuItem">
+              <div class="go-NavigationDrawer-nav">
+                <div class="go-NavigationDrawer-header">
+                  <a href="#">
+                    <i class="material-icons">
+                      <img class="go-Icon" height="24" width="24"
+                        src="/static/shared/icon/navigate_before_gm_grey_24dp.svg" alt="">
+                      </i>
+                      Why Go
+                  </a>
+                </div>
+                <ul class="go-NavigationDrawer-list">
+                  <li class="go-NavigationDrawer-listItem">
+                    <a href="https://go.dev/solutions/case-studies">
+                      Case Studies
+                    </a>
+                  </li>
+                  <li class="go-NavigationDrawer-listItem">
+                    <a href="https://go.dev/solutions/use-cases">
+                      Use Cases
+                    </a>
+                  </li>
+                  <li class="go-NavigationDrawer-listItem">
+                    <a href="https://go.dev/security/">
+                      Security
+                    </a>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </li>
+          <li class="go-NavigationDrawer-listItem">
+            <a href="https://go.dev/learn/">Learn</a>
+          </li>
+          <li class="go-NavigationDrawer-listItem js-mobile-subnav-trigger go-NavigationDrawer-hasSubnav">
+            <a href="#">
+              <span>Docs</span>
+              <i class="material-icons">
+                <img class="go-Icon" height="24" width="24"
+                  src="/static/shared/icon/navigate_next_gm_grey_24dp.svg" alt="">
+              </i>
+            </a>
+
+            <div class="go-NavigationDrawer go-NavigationDrawer-submenuItem">
+              <div class="go-NavigationDrawer-nav">
+                <div class="go-NavigationDrawer-header">
+                  <a href="#"><i class="material-icons">
+                    <img class="go-Icon" height="24" width="24"
+                      src="/static/shared/icon/navigate_before_gm_grey_24dp.svg" alt="">
+                    </i>
+                    Docs
+                  </a>
+                </div>
+                <ul class="go-NavigationDrawer-list">
+                  <li class="go-NavigationDrawer-listItem">
+                    <a href="https://go.dev/doc/effective_go">
+                      Effective Go
+                    </a>
+                  </li>
+                  <li class="go-NavigationDrawer-listItem">
+                    <a href="https://go.dev/doc/">
+                      Go User Manual
+                    </a>
+                  </li>
+                  <li class="go-NavigationDrawer-listItem">
+                    <a href="https://pkg.go.dev/std">
+                      Standard library
+                    </a>
+                  </li>
+                  <li class="go-NavigationDrawer-listItem">
+                    <a href="https://go.dev/doc/devel/release">
+                      Release Notes
+                    </a>
+                  </li>
+                  <li class="go-NavigationDrawer-listItem">
+                    <a href="/api">
+                      API
+                    </a>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </li>
+          <li class="go-NavigationDrawer-listItem go-NavigationDrawer-listItem--active">
+            <a href="/">Packages</a>
+          </li>
+          <li class="go-NavigationDrawer-listItem js-mobile-subnav-trigger go-NavigationDrawer-hasSubnav">
+            <a href="#">
+              <span>Community</span>
+              <i class="material-icons">
+                <img class="go-Icon" height="24" width="24"
+                  src="/static/shared/icon/navigate_next_gm_grey_24dp.svg" alt="">
+              </i>
+            </a>
+            <div class="go-NavigationDrawer go-NavigationDrawer-submenuItem">
+              <div class="go-NavigationDrawer-nav">
+                <div class="go-NavigationDrawer-header">
+                  <a href="#">
+                    <i class="material-icons">
+                      <img class="go-Icon" height="24" width="24"
+                        src="/static/shared/icon/navigate_before_gm_grey_24dp.svg" alt="">
+                    </i>
+                    Community
+                  </a>
+                </div>
+                <ul class="go-NavigationDrawer-list">
+                  <li class="go-NavigationDrawer-listItem">
+                    <a href="https://go.dev/talks/">
+                      Recorded Talks
+                    </a>
+                  </li>
+                  <li class="go-NavigationDrawer-listItem">
+                    <a href="https://www.meetup.com/pro/go">
+                      Meetups
+                      <i class="material-icons">
+                      <img class="go-Icon" height="24" width="24"
+                          src="/static/shared/icon/launch_gm_grey_24dp.svg" alt="">
+                      </i>
+                    </a>
+                  </li>
+                  <li class="go-NavigationDrawer-listItem">
+                    <a href="https://github.com/golang/go/wiki/Conferences">
+                      Conferences
+                      <i class="material-icons">
+                        <img class="go-Icon" height="24" width="24" src="/static/shared/icon/launch_gm_grey_24dp.svg" alt="">
+                      </i>
+                    </a>
+                  </li>
+                  <li class="go-NavigationDrawer-listItem">
+                    <a href="https://go.dev/blog">
+                      Go blog
+                    </a>
+                  </li>
+                  <li class="go-NavigationDrawer-listItem">
+                    <a href="https://go.dev/help">
+                      Go project
+                    </a>
+                  </li>
+                  <li class="go-NavigationDrawer-listItem">
+                    <div>Get connected</div>
+                    <div class="go-Header-socialIcons">
+                        <a class="go-Header-socialIcon" href="https://groups.google.com/g/golang-nuts"><img src="/static/shared/logo/social/google-groups.svg" /></a>
+                        <a class="go-Header-socialIcon" href="https://github.com/golang"><img src="/static/shared/logo/social/github.svg" /></a>
+                        <a class="go-Header-socialIcon" href="https://twitter.com/golang"><img src="/static/shared/logo/social/twitter.svg" /></a>
+                        <a class="go-Header-socialIcon" href="https://www.reddit.com/r/golang/"><img src="/static/shared/logo/social/reddit.svg" /></a>
+                        <a class="go-Header-socialIcon" href="https://invite.slack.golangbridge.org/"><img src="/static/shared/logo/social/slack.svg" /></a>
+                        <a class="go-Header-socialIcon" href="https://stackoverflow.com/collectives/go"><img src="/static/shared/logo/social/stack-overflow.svg" /></a>
+                    </div>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </li>
+      </ul>
+    </nav>
+  </aside>
+  <div class="go-NavigationDrawer-scrim js-scrim" role="presentation"></div>
+
+    
+  <main class="go-Main" id="main-content">
+    <div class="go-Main-banner" role="alert"></div>
+    <header class="go-Main-header js-mainHeader">
+  
+  
+  <nav class="go-Main-headerBreadcrumb go-Breadcrumb" aria-label="Breadcrumb" data-test-id="UnitHeader-breadcrumb">
+    <ol>
+      
+        
+          <li data-test-id="UnitHeader-breadcrumbItem">
+            <a href="/" data-gtmc="breadcrumb link">Discover Packages</a>
+          </li>
+        
+          <li data-test-id="UnitHeader-breadcrumbItem">
+            <a href="/golang.org/x/tools" data-gtmc="breadcrumb link">golang.org/x/tools</a>
+          </li>
+        
+          <li data-test-id="UnitHeader-breadcrumbItem">
+            <a href="/golang.org/x/tools/go" data-gtmc="breadcrumb link">go</a>
+          </li>
+        
+        <li>
+          <a href="/golang.org/x/tools@v0.50.0/go/analysis" data-gtmc="breadcrumb link" aria-current="location"
+              data-test-id="UnitHeader-breadcrumbCurrent">
+            analysis
+          </a>
+          
+            <button
+              class="go-Button go-Button--inline go-Clipboard js-clipboard"
+              title="Copy path to clipboard.&#10;&#10;golang.org/x/tools/go/analysis"
+              aria-label="Copy Path to Clipboard"
+              data-to-copy="golang.org/x/tools/go/analysis"
+              data-gtmc="breadcrumbs button"
+            >
+              <img
+                class="go-Icon go-Icon--accented"
+                height="24"
+                width="24"
+                src="/static/shared/icon/content_copy_gm_grey_24dp.svg"
+                alt=""
+              >
+            </button>
+          
+        
+      </li>
+    </ol>
+  </nav>
+
+  <div class="go-Main-headerContent">
+    
+  <div class="go-Main-headerTitle js-stickyHeader">
+    <a class="go-Main-headerLogo" href="https://go.dev/" aria-hidden="true" tabindex="-1" data-gtmc="header link" aria-label="Link to Go Homepage">
+      <img height="78" width="207" src="/static/shared/logo/go-blue.svg" alt="Go">
+    </a>
+    <h1 class="UnitHeader-titleHeading" data-test-id="UnitHeader-title">analysis</h1>
+    
+      <span class="go-Chip go-Chip--inverted">package</span>
+    
+    
+      
+        <button
+          class="go-Button go-Button--inline go-Clipboard js-clipboard"
+          title="Copy path to clipboard.&#10;&#10;golang.org/x/tools/go/analysis"
+          aria-label="Copy Path to Clipboard"
+          data-to-copy="golang.org/x/tools/go/analysis"
+          data-gtmc="title button"
+          tabindex="-1"
+        >
+          <img
+            class="go-Icon go-Icon--accented"
+            height="24"
+            width="24"
+            src="/static/shared/icon/content_copy_gm_grey_24dp.svg"
+            alt=""
+          />
+        </button>
+      
+    
+  </div>
+
+    
+      
+  <div class="go-Main-headerDetails">
+    
+      
+  <span class="go-Main-headerDetailItem" data-test-id="UnitHeader-version">
+    <a href="?tab=versions" aria-label="Version: v0.50.0" 
+    data-gtmc="header link" aria-describedby="version-description">
+      <span class="go-textSubtle" aria-hidden="true">Version: </span>
+        v0.50.0
+    </a>
+    <div class="screen-reader-only" id="version-description" hidden>
+      Opens a new window with list of versions in this module.
+    </div>
+    
+    <span class="DetailsHeader-badge--latest" data-test-id="UnitHeader-minorVersionBanner">
+      <span class="go-Chip DetailsHeader-span--latest">Latest</span>
+      <span class="go-Chip DetailsHeader-span--notAtLatest">
+        Latest
+        
+  <details class="go-Tooltip js-tooltip" data-gtmc="tooltip">
+    <summary>
+      <img class="go-Icon go-Icon--inverted" height="24" width="24" src="/static/shared/icon/alert_gm_grey_24dp.svg" alt="Warning">
+    </summary>
+    <p>This package is not in the latest version of its module.</p>
+  </details>
+
+      </span>
+      <a href="/golang.org/x/tools/go/analysis" aria-label="Go to Latest Version" data-gtmc="header link">
+        <span class="go-Chip go-Chip--alert DetailsHeader-span--goToLatest">Go to latest</span>
+      </a>
+    </span>
+  </span>
+
+      
+  <span class="go-Main-headerDetailItem" data-test-id="UnitHeader-commitTime">
+    Published: Sep  8, 2026
+  </span>
+
+      
+  <span class="go-Main-headerDetailItem" data-test-id="UnitHeader-licenses">
+    License: <a href="/golang.org/x/tools/go/analysis?tab=licenses" data-test-id="UnitHeader-license" 
+        data-gtmc="header link" aria-describedby="license-description">BSD-3-Clause</a>
+      
+    
+  </span>
+  <div class="screen-reader-only" id="license-description" hidden>
+    Opens a new window with license information.
+  </div>
+
+      
+        
+  <span class="go-Main-headerDetailItem" data-test-id="UnitHeader-imports">
+    <a href="/golang.org/x/tools/go/analysis?tab=imports" aria-label="Imports: 9"
+        data-gtmc="header link" aria-describedby="imports-description">
+      <span class="go-textSubtle">Imports: </span>9
+    </a>
+  </span>
+  <div class="screen-reader-only" id="imports-description" hidden>
+    Opens a new window with list of imports.
+  </div>
+
+        
+  <span class="go-Main-headerDetailItem" data-test-id="UnitHeader-importedby">
+    <a href="/golang.org/x/tools/go/analysis?tab=importedby" aria-label="Imported By: 6,564"
+        data-gtmc="header link" aria-describedby="importedby-description">
+       <span class="go-textSubtle">Imported by: </span>6,564
+    </a>
+  </span>
+  <div class="screen-reader-only" id="importedby-description" hidden>
+    Opens a new window with list of known importers.
+  </div>
+
+      
+    
+  </div>
+  
+  <div class="UnitHeader-overflowContainer">
+    <svg class="UnitHeader-overflowImage" xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 0 24 24" width="24">
+      <path d="M0 0h24v24H0z" fill="none"/>
+      <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
+    </svg>
+    <select class="UnitHeader-overflowSelect js-selectNav" tabindex="-1">
+      <option value="/">Main</option>
+      <option value="/golang.org/x/tools/go/analysis?tab=versions">
+        Versions
+      </option>
+      <option value="/golang.org/x/tools/go/analysis?tab=licenses">
+        Licenses
+      </option>
+      
+        <option value="/golang.org/x/tools/go/analysis?tab=imports">
+          Imports
+        </option>
+        <option value="/golang.org/x/tools/go/analysis?tab=importedby">
+          Imported By
+        </option>
+      
+    </select>
+  </div>
+
+
+    
+  </div>
+
+</header>
+    
+      <aside class="go-Main-aside  js-mainAside">
+  
+  <div class="UnitMeta">
+    <h2 class="go-textLabel">Details</h2>
+    
+  <ul class="UnitMeta-details">
+    <li>
+      <details class="go-Tooltip js-tooltip" data-gtmc="tooltip">
+        <summary class="go-textSubtle">
+          
+  <img class="go-Icon go-Icon--accented"
+    tabindex="0"
+    role="button"src="/static/shared/icon/check_circle_gm_grey_24dp.svg" alt="checked" aria-label="Valid file, toggle tooltip"height="24" width="24">
+
+          Valid <a href="https://cs.opensource.google/go/x/tools/+/v0.50.0:/go.mod" target="_blank" rel="noopener">go.mod</a> file
+          <img class="go-Icon" role="button" tabindex="0" src="/static/shared/icon/help_gm_grey_24dp.svg" alt="" aria-label="Toggle go.mod validity tooltip" height="24" width="24">
+        </summary>
+        <p aria-live="polite" role="tooltip">
+          The Go module system was introduced in Go 1.11 and is the official dependency management
+          solution for Go.
+        </p>
+      </details>
+    </li>
+    <li>
+      <details class="go-Tooltip js-tooltip" data-gtmc="tooltip">
+        <summary class="go-textSubtle">
+          
+  <img class="go-Icon go-Icon--accented"
+    tabindex="0"
+    role="button"src="/static/shared/icon/check_circle_gm_grey_24dp.svg" alt="checked" aria-label="Valid file, toggle tooltip"height="24" width="24">
+
+          Redistributable license
+          <img class="go-Icon" role="button" tabindex="0" src="/static/shared/icon/help_gm_grey_24dp.svg" alt="" aria-label="Toggle redistributable help tooltip" height="24" width="24">
+        </summary>
+        <p aria-live="polite" role="tooltip">
+          Redistributable licenses place minimal restrictions on how software can be used,
+          modified, and redistributed.
+        </p>
+      </details>
+    </li>
+    <li>
+      <details class="go-Tooltip js-tooltip" data-gtmc="tooltip">
+        <summary class="go-textSubtle">
+          
+  <img class="go-Icon go-Icon--accented"
+    tabindex="0"
+    role="button"src="/static/shared/icon/check_circle_gm_grey_24dp.svg" alt="checked" aria-label="Valid file, toggle tooltip"height="24" width="24">
+
+          Tagged version
+          <img class="go-Icon" role="button" tabindex="0" src="/static/shared/icon/help_gm_grey_24dp.svg" alt="" aria-label="Toggle tagged version tooltip" height="24" width="24">
+        </summary>
+        <p aria-live="polite" role="tooltip">Modules with tagged versions give importers more predictable builds.</p>
+      </details>
+    </li>
+    <li>
+      <details class="go-Tooltip js-tooltip" data-gtmc="tooltip">
+        <summary class="go-textSubtle">
+          
+  <img class="go-Icon"
+    tabindex="0"
+    role="button"src="/static/shared/icon/cancel_gm_grey_24dp.svg" alt="unchecked" aria-label="Missing or invalid file, toggle tooltip"height="24" width="24">
+
+          Stable version
+          <img class="go-Icon" role="button" tabindex="0" aria-label="Toggle stable version tooltip" src="/static/shared/icon/help_gm_grey_24dp.svg" alt="" height="24" width="24">
+        </summary>
+        <p aria-live="polite" role="tooltip">When a project reaches major version v1 it is considered stable.</p>
+      </details>
+    </li>
+    <li class="UnitMeta-detailsLearn">
+      <a href="/about#best-practices" data-gtmc="meta link">Learn more about best practices</a>
+    </li>
+  </ul>
+
+    <h2 class="go-textLabel">Repository</h2>
+    <div class="UnitMeta-repo">
+      
+        <a href="https://cs.opensource.google/go/x/tools" title="https://cs.opensource.google/go/x/tools" target="_blank" rel="noopener">
+          cs.opensource.google/go/x/tools
+        </a>
+      
+    </div>
+    
+      <h2 class="go-textLabel" data-test-id="links-heading">Links</h2>
+      <ul class="UnitMeta-links">
+        
+          <li>
+            <a href="https://go.dev/security/policy"
+                title="Report security issues in the Go standard library and sub-repositories">
+              <img class="go-Icon" height="24" width="24" src="/static/shared/icon/security_grey_24dp.svg" alt="">
+              Report a Vulnerability
+            </a>
+          </li>
+        
+        
+          <li>
+            <a href="https://deps.dev/go/golang.org%2Fx%2Ftools/v0.50.0" title="View this module on Open Source Insights"
+              target="_blank" rel="noopener" data-test-id="meta-link-depsdev">
+              <img class="link-Icon" src="/static/shared/icon/depsdev-logo.svg"
+                alt="Open Source Insights Logo" />
+              Open Source Insights
+            </a>
+          </li>
+        
+        
+          <li>
+            <a href="/codewiki?module=golang.org%2Fx%2Ftools&amp;package=golang.org%2Fx%2Ftools%2Fgo%2Fanalysis&amp;url=https%3A%2F%2Fcodewiki.google%2Fgithub.com%2Fgolang%2Ftools%3Futm_source%3Dfirst_party_link%26utm_medium%3Dgo_pkg_web%26utm_campaign%3Dgithub.com%2Fgolang%2Ftools" title="View this repo on Code Wiki"
+              target="_blank" rel="noopener" data-test-id="meta-link-codewiki">
+              <img class="link-Icon" src="/static/shared/icon/codewiki-logo.svg"
+                alt="Code Wiki Logo" />
+              Code Wiki
+            </a>
+          </li>
+        
+        
+  
+
+        
+  
+
+        
+  
+
+      </ul>
+    
+  </div>
+
+</aside>
+    
+    <nav class="go-Main-nav go-Main-nav--sticky js-mainNav" aria-label="Outline">
+  <div class="go-Main-navDesktop">
+    
+  <div class="UnitOutline-jumpTo">
+    <button class="UnitOutline-jumpToInput go-ShortcutKey js-jumpToInput"
+        aria-controls="jump-to-modal"
+        aria-label="Open Jump to Identifier"
+        data-shortcut="f"
+        data-shortcut-alt="find"
+        data-test-id="jump-to-button" data-gtmc="outline button">
+      Jump to ...
+    </button>
+  </div>
+  <ul class="go-Tree js-tree" role="tree" aria-label="Outline">
+    
+    
+      <li>
+        <a href="#section-documentation" data-gtmc="outline link">
+          Documentation
+        </a>
+        
+<ul>
+  
+    <li>
+      <a href="#pkg-overview" data-gtmc="doc outline link">Overview</a>
+    </li>
+  <li class="DocNav-overview">
+      <a href="#pkg-index" data-gtmc="doc outline link">
+        Index
+      </a>
+    </li>
+    <li class="DocNav-constants">
+      <a href="#pkg-constants" data-gtmc="doc outline link">
+        Constants
+      </a>
+    </li>
+    <li class="DocNav-variables">
+      <a href="#pkg-variables" data-gtmc="doc outline link">
+        Variables
+      </a>
+    </li>
+    <li class="DocNav-functions">
+      <a href="#pkg-functions" data-gtmc="doc outline link">
+        Functions
+      </a>
+      
+        <ul>
+          
+            <li>
+              <a href="#Validate" title="Validate(analyzers)" data-gtmc="doc outline link">
+                Validate(analyzers)
+              </a>
+            </li>
+          
+        </ul>
+      
+    </li>
+    <li class="DocNav-types">
+      <a href="#pkg-types" data-gtmc="doc outline link">
+        Types
+      </a>
+      <ul>
+        
+          
+          <li>
+            <a href="#Analyzer" title="type Analyzer" data-gtmc="doc outline link">
+              type Analyzer
+            </a>
+            
+              <ul>
+                
+                
+                  <li>
+                    <a href="#Analyzer.String" title="(a) String()"
+                        data-gtmc="doc outline link">
+                      (a) String()
+                    </a>
+                  </li>
+                
+              </ul>
+             
+          </li>
+        
+          
+          <li>
+            <a href="#CycleInRequiresGraphError" title="type CycleInRequiresGraphError" data-gtmc="doc outline link">
+              type CycleInRequiresGraphError
+            </a>
+            
+              <ul>
+                
+                
+                  <li>
+                    <a href="#CycleInRequiresGraphError.Error" title="(e) Error()"
+                        data-gtmc="doc outline link">
+                      (e) Error()
+                    </a>
+                  </li>
+                
+              </ul>
+             
+          </li>
+        
+          
+          <li>
+            <a href="#Diagnostic" title="type Diagnostic" data-gtmc="doc outline link">
+              type Diagnostic
+            </a>
+             
+          </li>
+        
+          
+          <li>
+            <a href="#Fact" title="type Fact" data-gtmc="doc outline link">
+              type Fact
+            </a>
+             
+          </li>
+        
+          
+          <li>
+            <a href="#Module" title="type Module" data-gtmc="doc outline link">
+              type Module
+            </a>
+             
+          </li>
+        
+          
+          <li>
+            <a href="#ModuleError" title="type ModuleError" data-gtmc="doc outline link">
+              type ModuleError
+            </a>
+             
+          </li>
+        
+          
+          <li>
+            <a href="#ObjectFact" title="type ObjectFact" data-gtmc="doc outline link">
+              type ObjectFact
+            </a>
+             
+          </li>
+        
+          
+          <li>
+            <a href="#PackageFact" title="type PackageFact" data-gtmc="doc outline link">
+              type PackageFact
+            </a>
+             
+          </li>
+        
+          
+          <li>
+            <a href="#Pass" title="type Pass" data-gtmc="doc outline link">
+              type Pass
+            </a>
+            
+              <ul>
+                
+                
+                  <li>
+                    <a href="#Pass.ReportRangef" title="(pass) ReportRangef(rng, format, args)"
+                        data-gtmc="doc outline link">
+                      (pass) ReportRangef(rng, format, args)
+                    </a>
+                  </li>
+                
+                  <li>
+                    <a href="#Pass.Reportf" title="(pass) Reportf(pos, format, args)"
+                        data-gtmc="doc outline link">
+                      (pass) Reportf(pos, format, args)
+                    </a>
+                  </li>
+                
+                  <li>
+                    <a href="#Pass.String" title="(pass) String()"
+                        data-gtmc="doc outline link">
+                      (pass) String()
+                    </a>
+                  </li>
+                
+              </ul>
+             
+          </li>
+        
+          
+          <li>
+            <a href="#Range" title="type Range" data-gtmc="doc outline link">
+              type Range
+            </a>
+             
+          </li>
+        
+          
+          <li>
+            <a href="#RelatedInformation" title="type RelatedInformation" data-gtmc="doc outline link">
+              type RelatedInformation
+            </a>
+             
+          </li>
+        
+          
+          <li>
+            <a href="#SuggestedFix" title="type SuggestedFix" data-gtmc="doc outline link">
+              type SuggestedFix
+            </a>
+             
+          </li>
+        
+          
+          <li>
+            <a href="#TextEdit" title="type TextEdit" data-gtmc="doc outline link">
+              type TextEdit
+            </a>
+             
+          </li>
+         
+      </ul>
+    </li>
+  
+  
+</ul>
+
+      </li>
+    
+    
+      <li>
+        <a href="#section-sourcefiles" data-gtmc="outline link">
+          Source Files
+        </a>
+      </li>
+    
+    
+      <li>
+        <a href="#section-directories" data-gtmc="outline link">
+          Directories
+        </a>
+      </li>
+    
+  </ul>
+
+  </div>
+  <div class="go-Main-navMobile js-mainNavMobile">
+    <label class="go-Label">
+      <select class="go-Select">
+        
+          <option selected disabled>Documentation</option>
+        
+      </select>
+    </label>
+  </div>
+</nav>
+    <article class="go-Main-article js-mainContent">
+  <div class="UnitDetails" data-test-id="UnitDetails" style="display: block;">
+    <div class="UnitDetails-content js-unitDetailsContent" data-test-id="UnitDetails-content">
+      
+      
+        
+          
+  <div class="UnitDoc">
+    <h2 class="UnitDoc-title" id="section-documentation">
+      <img class="go-Icon" height="24" width="24" src="/static/shared/icon/code_gm_grey_24dp.svg" alt="">
+      Documentation
+      <a class="UnitDoc-idLink" href="#section-documentation" title="Go to Documentation" aria-label="Go to Documentation">¶</a>
+    </h2>
+    
+  
+    
+  
+
+    <div class="Documentation js-documentation">
+      
+        
+
+<div class="Documentation-content js-docContent"> <section class="Documentation-overview">
+    <h3 tabindex="-1" id="pkg-overview" class="Documentation-overviewHeader">Overview <a href="#pkg-overview" title="Go to Overview" aria-label="Go to Overview">¶</a></h3>
+
+<div role="navigation" aria-label="Table of Contents">
+  <ul class="Documentation-toc Documentation-toc-columns">
+      <li class="Documentation-tocItem"><a href="#hdr-Background">Background</a></li>
+      <li class="Documentation-tocItem"><a href="#hdr-Analyzer">Analyzer</a></li>
+      <li class="Documentation-tocItem"><a href="#hdr-Pass">Pass</a></li>
+      <li class="Documentation-tocItem"><a href="#hdr-Modular_analysis_with_Facts">Modular analysis with Facts</a></li>
+      <li class="Documentation-tocItem"><a href="#hdr-Testing_an_Analyzer">Testing an Analyzer</a></li>
+      <li class="Documentation-tocItem"><a href="#hdr-Standalone_commands">Standalone commands</a></li>
+  </ul>
+</div>
+<p>Package analysis defines the interface between a modular static
+analysis and an analysis driver program.
+</p><h4 id="hdr-Background">Background <a class="Documentation-idLink" href="#hdr-Background" title="Go to Background" aria-label="Go to Background">¶</a></h4><p>A static analysis is a function that inspects a package of Go code and
+reports a set of diagnostics (typically mistakes in the code), and
+perhaps produces other results as well, such as suggested refactorings
+or other facts. An analysis that reports mistakes is informally called a
+&#34;checker&#34;. For example, the printf checker reports mistakes in
+fmt.Printf format strings.
+</p><p>A &#34;modular&#34; analysis is one that inspects one package at a time but can
+save information from a lower-level package and use it when inspecting a
+higher-level package, analogous to separate compilation in a toolchain.
+The printf checker is modular: when it discovers that a function such as
+log.Fatalf delegates to fmt.Printf, it records this fact, and checks
+calls to that function too, including calls made from another package.
+</p><p>By implementing a common interface, checkers from a variety of sources
+can be easily selected, incorporated, and reused in a wide range of
+driver programs including command-line tools (such as vet), text editors and
+IDEs, build and test systems (such as go build, Bazel, or Buck), test
+frameworks, code review tools, code-base indexers (such as SourceGraph),
+documentation viewers (such as godoc), batch pipelines for large code
+bases, and so on.
+</p><h4 id="hdr-Analyzer">Analyzer <a class="Documentation-idLink" href="#hdr-Analyzer" title="Go to Analyzer" aria-label="Go to Analyzer">¶</a></h4><p>The primary type in the API is <a href="#Analyzer">Analyzer</a>. An Analyzer statically
+describes an analysis function: its name, documentation, flags,
+relationship to other analyzers, and of course, its logic.
+</p><p>To define an analysis, a user declares a (logically constant) variable
+of type Analyzer. Here is a typical example from one of the analyzers in
+the go/analysis/passes/ subdirectory:
+</p><pre>package unusedresult
+
+var Analyzer = &amp;analysis.Analyzer{
+	Name: &#34;unusedresult&#34;,
+	Doc:  &#34;check for unused results of calls to some functions&#34;,
+	Run:  run,
+	...
+}
+
+func run(pass *analysis.Pass) (interface{}, error) {
+	...
+}
+</pre><p>An analysis driver is a program such as vet that runs a set of
+analyses and prints the diagnostics that they report.
+The driver program must import the list of Analyzers it needs.
+Typically each Analyzer resides in a separate package.
+To add a new Analyzer to an existing driver, add another item to the list:
+</p><pre>import ( &#34;unusedresult&#34;; &#34;nilness&#34;; &#34;printf&#34; )
+
+var analyses = []*analysis.Analyzer{
+	unusedresult.Analyzer,
+	nilness.Analyzer,
+	printf.Analyzer,
+}
+</pre><p>A driver may use the name, flags, and documentation to provide on-line
+help that describes the analyses it performs.
+The doc comment contains a brief one-line summary,
+optionally followed by paragraphs of explanation.
+</p><p>The <a href="#Analyzer">Analyzer</a> type has more fields besides those shown above:
+</p><pre>type Analyzer struct {
+	Name             string
+	Doc              string
+	Flags            flag.FlagSet
+	Run              func(*Pass) (interface{}, error)
+	RunDespiteErrors bool
+	ResultType       reflect.Type
+	Requires         []*Analyzer
+	FactTypes        []Fact
+}
+</pre><p>The Flags field declares a set of named (global) flag variables that
+control analysis behavior. Unlike vet, analysis flags are not declared
+directly in the command line FlagSet; it is up to the driver to set the
+flag variables. A driver for a single analysis, a, might expose its flag
+f directly on the command line as -f, whereas a driver for multiple
+analyses might prefix the flag name by the analysis name (-a.f) to avoid
+ambiguity. An IDE might expose the flags through a graphical interface,
+and a batch pipeline might configure them from a config file.
+See the &#34;findcall&#34; analyzer for an example of flags in action.
+</p><p>The RunDespiteErrors flag indicates whether the analysis is equipped to
+handle ill-typed code. If not, the driver will skip the analysis if
+there were parse or type errors.
+The optional ResultType field specifies the type of the result value
+computed by this analysis and made available to other analyses.
+The Requires field specifies a list of analyses upon which
+this one depends and whose results it may access, and it constrains the
+order in which a driver may run analyses.
+The FactTypes field is discussed in the section on Modularity.
+The analysis package provides a Validate function to perform basic
+sanity checks on an Analyzer, such as that its Requires graph is
+acyclic, its fact and result types are unique, and so on.
+</p><p>Finally, the Run field contains a function to be called by the driver to
+execute the analysis on a single package. The driver passes it an
+instance of the Pass type.
+</p><h4 id="hdr-Pass">Pass <a class="Documentation-idLink" href="#hdr-Pass" title="Go to Pass" aria-label="Go to Pass">¶</a></h4><p>A <a href="#Pass">Pass</a> describes a single unit of work: the application of a particular
+Analyzer to a particular package of Go code.
+The Pass provides information to the Analyzer&#39;s Run function about the
+package being analyzed, and provides operations to the Run function for
+reporting diagnostics and other information back to the driver.
+</p><pre>type Pass struct {
+	Fset         *token.FileSet
+	Files        []*ast.File
+	OtherFiles   []string
+	IgnoredFiles []string
+	Pkg          *types.Package
+	TypesInfo    *types.Info
+	ResultOf     map[*Analyzer]interface{}
+	Report       func(Diagnostic)
+	...
+}
+</pre><p>The Fset, Files, Pkg, and TypesInfo fields provide the syntax trees,
+type information, and source positions for a single package of Go code.
+</p><p>The OtherFiles field provides the names of non-Go
+files such as assembly that are part of this package.
+Similarly, the IgnoredFiles field provides the names of Go and non-Go
+source files that are not part of this package with the current build
+configuration but may be part of other build configurations.
+The contents of these files may be read using Pass.ReadFile;
+see the &#34;asmdecl&#34; or &#34;buildtags&#34; analyzers for examples of loading
+non-Go files and reporting diagnostics against them.
+</p><p>The ResultOf field provides the results computed by the analyzers
+required by this one, as expressed in its Analyzer.Requires field. The
+driver runs the required analyzers first and makes their results
+available in this map. Each Analyzer must return a value of the type
+described in its Analyzer.ResultType field.
+For example, the &#34;ctrlflow&#34; analyzer returns a *ctrlflow.CFGs, which
+provides a control-flow graph for each function in the package (see
+golang.org/x/tools/go/cfg); the &#34;inspect&#34; analyzer returns a value that
+enables other Analyzers to traverse the syntax trees of the package more
+efficiently; and the &#34;buildssa&#34; analyzer constructs an SSA-form
+intermediate representation.
+Each of these Analyzers extends the capabilities of later Analyzers
+without adding a dependency to the core API, so an analysis tool pays
+only for the extensions it needs.
+</p><p>The Report function emits a diagnostic, a message associated with a
+source position. For most analyses, diagnostics are their primary
+result.
+For convenience, Pass provides a helper method, Reportf, to report a new
+diagnostic by formatting a string.
+Diagnostic is defined as:
+</p><pre>type Diagnostic struct {
+	Pos      token.Pos
+	Category string // optional
+	Message  string
+}
+</pre><p>The optional Category field is a short identifier that classifies the
+kind of message when an analysis produces several kinds of diagnostic.
+</p><p>The <a href="#Diagnostic">Diagnostic</a> struct does not have a field to indicate its severity
+because opinions about the relative importance of Analyzers and their
+diagnostics vary widely among users. The design of this framework does
+not hold each Analyzer responsible for identifying the severity of its
+diagnostics. Instead, we expect that drivers will allow the user to
+customize the filtering and prioritization of diagnostics based on the
+producing Analyzer and optional Category, according to the user&#39;s
+preferences.
+</p><p>Most Analyzers inspect typed Go syntax trees, but a few, such as asmdecl
+and buildtag, inspect the raw text of Go source files or even non-Go
+files such as assembly. To report a diagnostic against a line of a
+raw text file, use the following sequence:
+</p><pre>content, err := pass.ReadFile(filename)
+if err != nil { ... }
+tf := fset.AddFile(filename, -1, len(content))
+tf.SetLinesForContent(content)
+...
+pass.Reportf(tf.LineStart(line), &#34;oops&#34;)
+</pre><h4 id="hdr-Modular_analysis_with_Facts">Modular analysis with Facts <a class="Documentation-idLink" href="#hdr-Modular_analysis_with_Facts" title="Go to Modular analysis with Facts" aria-label="Go to Modular analysis with Facts">¶</a></h4><p>To improve efficiency and scalability, large programs are routinely
+built using separate compilation: units of the program are compiled
+separately, and recompiled only when one of their dependencies changes;
+independent modules may be compiled in parallel. The same technique may
+be applied to static analyses, for the same benefits. Such analyses are
+described as &#34;modular&#34;.
+</p><p>A compiler’s type checker is an example of a modular static analysis.
+Many other checkers we would like to apply to Go programs can be
+understood as alternative or non-standard type systems. For example,
+vet&#39;s printf checker infers whether a function has the &#34;printf wrapper&#34;
+type, and it applies stricter checks to calls of such functions. In
+addition, it records which functions are printf wrappers for use by
+later analysis passes to identify other printf wrappers by induction.
+A result such as “f is a printf wrapper” that is not interesting by
+itself but serves as a stepping stone to an interesting result (such as
+a diagnostic) is called a <a href="#Fact">Fact</a>.
+</p><p>The analysis API allows an analysis to define new types of facts, to
+associate facts of these types with objects (named entities) declared
+within the current package, or with the package as a whole, and to query
+for an existing fact of a given type associated with an object or
+package.
+</p><p>An Analyzer that uses facts must declare their types:
+</p><pre>var Analyzer = &amp;analysis.Analyzer{
+	Name:      &#34;printf&#34;,
+	FactTypes: []analysis.Fact{new(isWrapper)},
+	...
+}
+
+type isWrapper struct{} // =&gt; *types.Func f “is a printf wrapper”
+</pre><p>The driver program ensures that facts for a pass’s dependencies are
+generated before analyzing the package and is responsible for propagating
+facts from one package to another, possibly across address spaces.
+Consequently, Facts must be serializable. The API requires that drivers
+use the gob encoding, an efficient, robust, self-describing binary
+protocol. A fact type may implement the GobEncoder/GobDecoder interfaces
+if the default encoding is unsuitable. Facts should be stateless.
+Because serialized facts may appear within build outputs, the gob encoding
+of a fact must be deterministic, to avoid spurious cache misses in
+build systems that use content-addressable caches.
+The driver makes a single call to the gob encoder for all facts
+exported by a given analysis pass, so that the topology of
+shared data structures referenced by multiple facts is preserved.
+</p><p>The Pass type has functions to import and export facts,
+associated either with an object or with a package:
+</p><pre>type Pass struct {
+	...
+	ExportObjectFact func(types.Object, Fact)
+	ImportObjectFact func(types.Object, Fact) bool
+
+	ExportPackageFact func(fact Fact)
+	ImportPackageFact func(*types.Package, Fact) bool
+}
+</pre><p>An Analyzer may only export facts associated with the current package or
+its objects, though it may import facts from any package or object that
+is an import dependency of the current package.
+</p><p>Conceptually, ExportObjectFact(obj, fact) inserts fact into a hidden map keyed by
+the pair (obj, TypeOf(fact)), and the ImportObjectFact function
+retrieves the entry from this map and copies its value into the variable
+pointed to by fact. This scheme assumes that the concrete type of fact
+is a pointer; this assumption is checked by the Validate function.
+See the &#34;printf&#34; analyzer for an example of object facts in action.
+</p><p>Some driver implementations (such as those based on Bazel and Blaze) do
+not currently apply analyzers to packages of the standard library.
+Therefore, for best results, analyzer authors should not rely on
+analysis facts being available for standard packages.
+For example, although the printf checker is capable of deducing during
+analysis of the log package that log.Printf is a printf wrapper,
+this fact is built in to the analyzer so that it correctly checks
+calls to log.Printf even when run in a driver that does not apply
+it to standard packages. We would like to remove this limitation in future.
+</p><h4 id="hdr-Testing_an_Analyzer">Testing an Analyzer <a class="Documentation-idLink" href="#hdr-Testing_an_Analyzer" title="Go to Testing an Analyzer" aria-label="Go to Testing an Analyzer">¶</a></h4><p>The analysistest subpackage provides utilities for testing an Analyzer.
+In a few lines of code, it is possible to run an analyzer on a package
+of testdata files and check that it reported all the expected
+diagnostics and facts (and no more). Expectations are expressed using
+&#34;// want ...&#34; comments in the input code.
+</p><h4 id="hdr-Standalone_commands">Standalone commands <a class="Documentation-idLink" href="#hdr-Standalone_commands" title="Go to Standalone commands" aria-label="Go to Standalone commands">¶</a></h4><p>Analyzers are provided in the form of packages that a driver program is
+expected to import. The vet command imports a set of several analyzers,
+but users may wish to define their own analysis commands that perform
+additional checks. To simplify the task of creating an analysis command,
+either for a single analyzer or for a whole suite, we provide the
+singlechecker and multichecker subpackages.
+</p><p>The singlechecker package provides the main function for a command that
+runs one analyzer. By convention, each analyzer such as
+go/analysis/passes/findcall should be accompanied by a singlechecker-based
+command such as go/analysis/passes/findcall/cmd/findcall, defined in its
+entirety as:
+</p><pre>package main
+
+import (
+	&#34;golang.org/x/tools/go/analysis/passes/findcall&#34;
+	&#34;golang.org/x/tools/go/analysis/singlechecker&#34;
+)
+
+func main() { singlechecker.Main(findcall.Analyzer) }
+</pre><p>A tool that provides multiple analyzers can use multichecker in a
+similar way, giving it the list of Analyzers.
+</p>
+</section><section class="Documentation-index">
+    <h3 id="pkg-index" class="Documentation-indexHeader">Index <a href="#pkg-index" title="Go to Index" aria-label="Go to Index">¶</a></h3>
+
+<ul class="Documentation-indexList">
+<li class="Documentation-indexFunction">
+        <a href="#Validate">func Validate(analyzers []*Analyzer) error</a></li>
+<li class="Documentation-indexType">
+          <a href="#Analyzer">type Analyzer</a></li>
+<li><ul class="Documentation-indexTypeMethods">
+<li>
+            <a href="#Analyzer.String">func (a *Analyzer) String() string</a></li>
+</ul></li>
+<li class="Documentation-indexType">
+          <a href="#CycleInRequiresGraphError">type CycleInRequiresGraphError</a></li>
+<li><ul class="Documentation-indexTypeMethods">
+<li>
+            <a href="#CycleInRequiresGraphError.Error">func (e *CycleInRequiresGraphError) Error() string</a></li>
+</ul></li>
+<li class="Documentation-indexType">
+          <a href="#Diagnostic">type Diagnostic</a></li>
+<li class="Documentation-indexType">
+          <a href="#Fact">type Fact</a></li>
+<li class="Documentation-indexType">
+          <a href="#Module">type Module</a></li>
+<li class="Documentation-indexType">
+          <a href="#ModuleError">type ModuleError</a></li>
+<li class="Documentation-indexType">
+          <a href="#ObjectFact">type ObjectFact</a></li>
+<li class="Documentation-indexType">
+          <a href="#PackageFact">type PackageFact</a></li>
+<li class="Documentation-indexType">
+          <a href="#Pass">type Pass</a></li>
+<li><ul class="Documentation-indexTypeMethods">
+<li>
+            <a href="#Pass.ReportRangef">func (pass *Pass) ReportRangef(rng Range, format string, args ...any)</a></li>
+<li>
+            <a href="#Pass.Reportf">func (pass *Pass) Reportf(pos token.Pos, format string, args ...any)</a></li>
+<li>
+            <a href="#Pass.String">func (pass *Pass) String() string</a></li>
+</ul></li>
+<li class="Documentation-indexType">
+          <a href="#Range">type Range</a></li>
+<li class="Documentation-indexType">
+          <a href="#RelatedInformation">type RelatedInformation</a></li>
+<li class="Documentation-indexType">
+          <a href="#SuggestedFix">type SuggestedFix</a></li>
+<li class="Documentation-indexType">
+          <a href="#TextEdit">type TextEdit</a></li>
+</ul>
+</section><h3 tabindex="-1" id="pkg-constants" class="Documentation-constantsHeader">Constants <a href="#pkg-constants" title="Go to Constants" aria-label="Go to Constants">¶</a></h3>
+
+  <section class="Documentation-constants"><p class="Documentation-empty">This section is empty.</p></section>
+
+  <h3 tabindex="-1" id="pkg-variables" class="Documentation-variablesHeader">Variables <a href="#pkg-variables" title="Go to Variables" aria-label="Go to Variables">¶</a></h3>
+
+  <section class="Documentation-variables"><p class="Documentation-empty">This section is empty.</p></section>
+
+  <h3 tabindex="-1" id="pkg-functions" class="Documentation-functionsHeader">Functions <a href="#pkg-functions" title="Go to Functions" aria-label="Go to Functions">¶</a></h3>
+
+  <section class="Documentation-functions"><div class="Documentation-function">
+	  
+  
+  
+    <h4 tabindex="-1" id="Validate" data-kind="function" class="Documentation-functionHeader">
+      <span>func <a class="Documentation-source" href="https://cs.opensource.google/go/x/tools/+/v0.50.0:go/analysis/validate.go;l=24">Validate</a> <a class="Documentation-idLink" href="#Validate" title="Go to Validate" aria-label="Go to Validate">¶</a></span>
+  <span class="Documentation-sinceVersion">
+    
+  </span>
+</h4>
+
+    
+    <div class="Documentation-declaration">
+      <pre>func Validate(analyzers []*<a href="#Analyzer">Analyzer</a>) <a href="/builtin#error">error</a></pre>
+    </div>
+  <p>Validate reports an error if any of the analyzers are misconfigured.
+Checks include:
+that the name is a valid identifier;
+that the Doc is not empty;
+that the Run is non-nil;
+that the Requires graph is acyclic;
+that analyzer fact types are unique;
+that each fact type is a pointer.
+</p><p>Analyzer names need not be unique, though this may be confusing.
+</p>
+
+  
+
+        </div></section>
+
+  <h3 tabindex="-1" id="pkg-types" class="Documentation-typesHeader">Types <a href="#pkg-types" title="Go to Types" aria-label="Go to Types">¶</a></h3>
+
+  <section class="Documentation-types"><div class="Documentation-type">
+      
+  
+  
+    <h4 tabindex="-1" id="Analyzer" data-kind="type" class="Documentation-typeHeader">
+      <span>type <a class="Documentation-source" href="https://cs.opensource.google/go/x/tools/+/v0.50.0:go/analysis/analysis.go;l=18">Analyzer</a> <a class="Documentation-idLink" href="#Analyzer" title="Go to Analyzer" aria-label="Go to Analyzer">¶</a></span>
+  <span class="Documentation-sinceVersion">
+    
+  </span>
+</h4>
+
+    
+    <div class="Documentation-declaration">
+      <pre>type Analyzer struct {
+<span id="Analyzer.Name" data-kind="field">	<span class="comment">// The Name of the analyzer must be a valid Go identifier</span>
+</span>	<span class="comment">// as it may appear in command-line flags, URLs, and so on.</span>
+	Name <a href="/builtin#string">string</a>
+
+<span id="Analyzer.Doc" data-kind="field">	<span class="comment">// Doc is the documentation for the analyzer.</span>
+</span>	<span class="comment">// The part before the first &#34;\n\n&#34; is the title</span>
+	<span class="comment">// (no capital or period, max ~60 letters).</span>
+	Doc <a href="/builtin#string">string</a>
+
+<span id="Analyzer.URL" data-kind="field">	<span class="comment">// URL holds an optional link to a web page with additional</span>
+</span>	<span class="comment">// documentation for this analyzer.</span>
+	URL <a href="/builtin#string">string</a>
+
+<span id="Analyzer.Flags" data-kind="field">	<span class="comment">// Flags defines any flags accepted by the analyzer.</span>
+</span>	<span class="comment">// The manner in which these flags are exposed to the user</span>
+	<span class="comment">// depends on the driver which runs the analyzer.</span>
+	Flags <a href="/flag">flag</a>.<a href="/flag#FlagSet">FlagSet</a>
+
+<span id="Analyzer.Run" data-kind="field">	<span class="comment">// Run applies the analyzer to a package.</span>
+</span>	<span class="comment">// It returns an error if the analyzer failed.</span>
+	<span class="comment">//</span>
+	<span class="comment">// On success, the Run function may return a result</span>
+	<span class="comment">// computed by the Analyzer; its type must match ResultType.</span>
+	<span class="comment">// The driver makes this result available as an input to</span>
+	<span class="comment">// another Analyzer that depends directly on this one (see</span>
+	<span class="comment">// Requires) when it analyzes the same package.</span>
+	<span class="comment">//</span>
+	<span class="comment">// To pass analysis results between packages (and thus</span>
+	<span class="comment">// potentially between address spaces), use Facts, which are</span>
+	<span class="comment">// serializable.</span>
+	Run func(*<a href="#Pass">Pass</a>) (<a href="/builtin#any">any</a>, <a href="/builtin#error">error</a>)
+
+<span id="Analyzer.RunDespiteErrors" data-kind="field">	<span class="comment">// RunDespiteErrors allows the driver to invoke</span>
+</span>	<span class="comment">// the Run method of this analyzer even on a</span>
+	<span class="comment">// package that contains parse or type errors.</span>
+	<span class="comment">// The [Pass.TypeErrors] field may consequently be non-empty.</span>
+	RunDespiteErrors <a href="/builtin#bool">bool</a>
+
+<span id="Analyzer.Requires" data-kind="field">	<span class="comment">// Requires is a set of analyzers that must run successfully</span>
+</span>	<span class="comment">// before this one on a given package. This analyzer may inspect</span>
+	<span class="comment">// the outputs produced by each analyzer in Requires.</span>
+	<span class="comment">// The graph over analyzers implied by Requires edges must be acyclic.</span>
+	<span class="comment">//</span>
+	<span class="comment">// Requires establishes a &#34;horizontal&#34; dependency between</span>
+	<span class="comment">// analysis passes (different analyzers, same package).</span>
+	Requires []*<a href="#Analyzer">Analyzer</a>
+
+<span id="Analyzer.ResultType" data-kind="field">	<span class="comment">// ResultType is the type of the optional result of the Run function.</span>
+</span>	ResultType <a href="/reflect">reflect</a>.<a href="/reflect#Type">Type</a>
+
+<span id="Analyzer.FactTypes" data-kind="field">	<span class="comment">// FactTypes indicates that this analyzer imports and exports</span>
+</span>	<span class="comment">// Facts of the specified concrete types.</span>
+	<span class="comment">// An analyzer that uses facts may assume that its import</span>
+	<span class="comment">// dependencies have been similarly analyzed before it runs.</span>
+	<span class="comment">// Facts must be pointers.</span>
+	<span class="comment">//</span>
+	<span class="comment">// FactTypes establishes a &#34;vertical&#34; dependency between</span>
+	<span class="comment">// analysis passes (same analyzer, different packages).</span>
+	FactTypes []<a href="#Fact">Fact</a>
+}</pre>
+    </div>
+  <p>An Analyzer describes an analysis function and its options.
+</p>
+<div class="Documentation-typeMethod">
+    
+  
+  
+    <h4 tabindex="-1" id="Analyzer.String" data-kind="method" class="Documentation-typeMethodHeader">
+      <span>func (*Analyzer) <a class="Documentation-source" href="https://cs.opensource.google/go/x/tools/+/v0.50.0:go/analysis/analysis.go;l=80">String</a> <a class="Documentation-idLink" href="#Analyzer.String" title="Go to Analyzer.String" aria-label="Go to Analyzer.String">¶</a></span>
+  <span class="Documentation-sinceVersion">
+    
+  </span>
+</h4>
+
+    
+    <div class="Documentation-declaration">
+      <pre>func (a *<a href="#Analyzer">Analyzer</a>) String() <a href="/builtin#string">string</a></pre>
+    </div>
+  
+
+  
+
+  </div>
+  
+
+    </div><div class="Documentation-type">
+      
+  
+  
+    <h4 tabindex="-1" id="CycleInRequiresGraphError" data-kind="type" class="Documentation-typeHeader">
+      <span>type <a class="Documentation-source" href="https://cs.opensource.google/go/x/tools/+/v0.50.0:go/analysis/validate.go;l=125">CycleInRequiresGraphError</a> <a class="Documentation-idLink" href="#CycleInRequiresGraphError" title="Go to CycleInRequiresGraphError" aria-label="Go to CycleInRequiresGraphError">¶</a></span>
+  <span class="Documentation-sinceVersion">
+    
+  </span>
+</h4>
+
+    
+    <div class="Documentation-declaration">
+      <pre>type CycleInRequiresGraphError struct {
+<span id="CycleInRequiresGraphError.AnalyzerNames" data-kind="field">	AnalyzerNames map[<a href="/builtin#string">string</a>]<a href="/builtin#bool">bool</a>
+</span>}</pre>
+    </div>
+  
+<div class="Documentation-typeMethod">
+    
+  
+  
+    <h4 tabindex="-1" id="CycleInRequiresGraphError.Error" data-kind="method" class="Documentation-typeMethodHeader">
+      <span>func (*CycleInRequiresGraphError) <a class="Documentation-source" href="https://cs.opensource.google/go/x/tools/+/v0.50.0:go/analysis/validate.go;l=129">Error</a> <a class="Documentation-idLink" href="#CycleInRequiresGraphError.Error" title="Go to CycleInRequiresGraphError.Error" aria-label="Go to CycleInRequiresGraphError.Error">¶</a></span>
+  <span class="Documentation-sinceVersion">
+    
+  </span>
+</h4>
+
+    
+    <div class="Documentation-declaration">
+      <pre>func (e *<a href="#CycleInRequiresGraphError">CycleInRequiresGraphError</a>) Error() <a href="/builtin#string">string</a></pre>
+    </div>
+  
+
+  
+
+  </div>
+  
+
+    </div><div class="Documentation-type">
+      
+  
+  
+    <h4 tabindex="-1" id="Diagnostic" data-kind="type" class="Documentation-typeHeader">
+      <span>type <a class="Documentation-source" href="https://cs.opensource.google/go/x/tools/+/v0.50.0:go/analysis/diagnostic.go;l=18">Diagnostic</a> <a class="Documentation-idLink" href="#Diagnostic" title="Go to Diagnostic" aria-label="Go to Diagnostic">¶</a></span>
+  <span class="Documentation-sinceVersion">
+    
+  </span>
+</h4>
+
+    
+    <div class="Documentation-declaration">
+      <pre>type Diagnostic struct {
+<span id="Diagnostic.Pos" data-kind="field">	Pos      <a href="/go/token">token</a>.<a href="/go/token#Pos">Pos</a>
+</span><span id="Diagnostic.End" data-kind="field">	End      <a href="/go/token">token</a>.<a href="/go/token#Pos">Pos</a> <span class="comment">// optional</span>
+</span><span id="Diagnostic.Category" data-kind="field">	Category <a href="/builtin#string">string</a>    <span class="comment">// optional</span>
+</span><span id="Diagnostic.Message" data-kind="field">	Message  <a href="/builtin#string">string</a>
+</span>
+<span id="Diagnostic.URL" data-kind="field">	<span class="comment">// URL is the optional location of a web page that provides</span>
+</span>	<span class="comment">// additional documentation for this diagnostic.</span>
+	<span class="comment">//</span>
+	<span class="comment">// If URL is empty but a Category is specified, then the</span>
+	<span class="comment">// Analysis driver should treat the URL as &#34;#&#34;+Category.</span>
+	<span class="comment">//</span>
+	<span class="comment">// The URL may be relative. If so, the base URL is that of the</span>
+	<span class="comment">// Analyzer that produced the diagnostic;</span>
+	<span class="comment">// see <a href="https://pkg.go.dev/net/url#URL.ResolveReference">https://pkg.go.dev/net/url#URL.ResolveReference</a>.</span>
+	URL <a href="/builtin#string">string</a>
+
+<span id="Diagnostic.SuggestedFixes" data-kind="field">	<span class="comment">// SuggestedFixes is an optional list of fixes to address the</span>
+</span>	<span class="comment">// problem described by the diagnostic. Each one represents an</span>
+	<span class="comment">// alternative strategy, and should have a distinct and</span>
+	<span class="comment">// descriptive message; at most one may be applied.</span>
+	<span class="comment">//</span>
+	<span class="comment">// Fixes for different diagnostics should be treated as</span>
+	<span class="comment">// independent changes to the same baseline file state,</span>
+	<span class="comment">// analogous to a set of git commits all with the same parent.</span>
+	<span class="comment">// Combining fixes requires resolving any conflicts that</span>
+	<span class="comment">// arise, analogous to a git merge.</span>
+	<span class="comment">// Any conflicts that remain may be dealt with, depending on</span>
+	<span class="comment">// the tool, by discarding fixes, consulting the user, or</span>
+	<span class="comment">// aborting the operation.</span>
+	SuggestedFixes []<a href="#SuggestedFix">SuggestedFix</a>
+
+<span id="Diagnostic.Related" data-kind="field">	<span class="comment">// Related contains optional secondary positions and messages</span>
+</span>	<span class="comment">// related to the primary diagnostic.</span>
+	Related []<a href="#RelatedInformation">RelatedInformation</a>
+}</pre>
+    </div>
+  <p>A Diagnostic is a message associated with a source location or range.
+</p><p>An Analyzer may return a variety of diagnostics; the optional Category,
+which should be a constant, may be used to classify them.
+It is primarily intended to make it easy to look up documentation.
+</p><p>All Pos values are interpreted relative to Pass.Fset. If End is
+provided, the diagnostic is specified to apply to the range between
+Pos and End.
+</p>
+
+  
+
+    </div><div class="Documentation-type">
+      
+  
+  
+    <h4 tabindex="-1" id="Fact" data-kind="type" class="Documentation-typeHeader">
+      <span>type <a class="Documentation-source" href="https://cs.opensource.google/go/x/tools/+/v0.50.0:go/analysis/analysis.go;l=248">Fact</a> <a class="Documentation-idLink" href="#Fact" title="Go to Fact" aria-label="Go to Fact">¶</a></span>
+  <span class="Documentation-sinceVersion">
+    
+  </span>
+</h4>
+
+    
+    <div class="Documentation-declaration">
+      <pre>type Fact interface {
+<span id="Fact.AFact" data-kind="method">	AFact() <span class="comment">// dummy method to avoid type errors</span>
+</span>}</pre>
+    </div>
+  <p>A Fact is an intermediate fact produced during analysis.
+</p><p>Each fact is associated with a named declaration (a types.Object) or
+with a package as a whole. A single object or package may have
+multiple associated facts, but only one of any particular fact type.
+</p><p>A Fact represents a predicate such as &#34;never returns&#34;, but does not
+represent the subject of the predicate such as &#34;function F&#34; or &#34;package P&#34;.
+</p><p>Facts may be produced in one analysis pass and consumed by another
+analysis pass even if these are in different address spaces.
+If package P imports Q, all facts about Q produced during
+analysis of that package will be available during later analysis of P.
+Facts are analogous to type export data in a build system:
+just as export data enables separate compilation of several passes,
+facts enable &#34;separate analysis&#34;.
+</p><p>Each pass (a, p) starts with the set of facts produced by the
+same analyzer a applied to the packages directly imported by p.
+The analysis may add facts to the set, and they may be exported in turn.
+An analysis&#39;s Run function may retrieve facts by calling
+Pass.Import{Object,Package}Fact and update them using
+Pass.Export{Object,Package}Fact.
+</p><p>A fact is logically private to its Analysis. To pass values
+between different analyzers, use the results mechanism;
+see Analyzer.Requires, Analyzer.ResultType, and Pass.ResultOf.
+</p><p>A Fact type must be a pointer.
+Facts are encoded and decoded using encoding/gob.
+A Fact may implement the GobEncoder/GobDecoder interfaces
+to customize its encoding. Fact encoding should not fail.
+</p><p>A Fact should not be modified once exported.
+</p>
+
+  
+
+    </div><div class="Documentation-type">
+      
+  
+  
+    <h4 tabindex="-1" id="Module" data-kind="type" class="Documentation-typeHeader">
+      <span>type <a class="Documentation-source" href="https://cs.opensource.google/go/x/tools/+/v0.50.0:go/analysis/analysis.go;l=253">Module</a> <a class="Documentation-idLink" href="#Module" title="Go to Module" aria-label="Go to Module">¶</a></span>
+  <span class="Documentation-sinceVersion">
+    
+      <span class="Documentation-sinceVersionLabel">added in</span>
+      <span class="Documentation-sinceVersionVersion">v0.24.0</span>
+    
+  </span>
+</h4>
+
+    
+    <div class="Documentation-declaration">
+      <pre>type Module struct {
+<span id="Module.Path" data-kind="field">	Path      <a href="/builtin#string">string</a>       <span class="comment">// module path</span>
+</span><span id="Module.Version" data-kind="field">	Version   <a href="/builtin#string">string</a>       <span class="comment">// module version (&#34;&#34; if unknown, such as for workspace modules)</span>
+</span><span id="Module.Replace" data-kind="field">	Replace   *<a href="#Module">Module</a>      <span class="comment">// replaced by this module</span>
+</span><span id="Module.Time" data-kind="field">	Time      *<a href="/time">time</a>.<a href="/time#Time">Time</a>   <span class="comment">// time version was created</span>
+</span><span id="Module.Main" data-kind="field">	Main      <a href="/builtin#bool">bool</a>         <span class="comment">// is this the main module?</span>
+</span><span id="Module.Indirect" data-kind="field">	Indirect  <a href="/builtin#bool">bool</a>         <span class="comment">// is this module only an indirect dependency of main module?</span>
+</span><span id="Module.Dir" data-kind="field">	Dir       <a href="/builtin#string">string</a>       <span class="comment">// directory holding files for this module, if any</span>
+</span><span id="Module.GoMod" data-kind="field">	GoMod     <a href="/builtin#string">string</a>       <span class="comment">// path to go.mod file used when loading this module, if any</span>
+</span><span id="Module.GoVersion" data-kind="field">	GoVersion <a href="/builtin#string">string</a>       <span class="comment">// go version used in module (e.g. &#34;go1.22.0&#34;)</span>
+</span><span id="Module.Error" data-kind="field">	Error     *<a href="#ModuleError">ModuleError</a> <span class="comment">// error loading module</span>
+</span>}</pre>
+    </div>
+  <p>A Module describes the module to which a package belongs.
+</p>
+
+  
+
+    </div><div class="Documentation-type">
+      
+  
+  
+    <h4 tabindex="-1" id="ModuleError" data-kind="type" class="Documentation-typeHeader">
+      <span>type <a class="Documentation-source" href="https://cs.opensource.google/go/x/tools/+/v0.50.0:go/analysis/analysis.go;l=267">ModuleError</a> <a class="Documentation-idLink" href="#ModuleError" title="Go to ModuleError" aria-label="Go to ModuleError">¶</a></span>
+  <span class="Documentation-sinceVersion">
+    
+      <span class="Documentation-sinceVersionLabel">added in</span>
+      <span class="Documentation-sinceVersionVersion">v0.43.0</span>
+    
+  </span>
+</h4>
+
+    
+    <div class="Documentation-declaration">
+      <pre>type ModuleError struct {
+<span id="ModuleError.Err" data-kind="field">	Err <a href="/builtin#string">string</a> <span class="comment">// the error itself</span>
+</span>}</pre>
+    </div>
+  <p>ModuleError holds errors loading a module.
+</p>
+
+  
+
+    </div><div class="Documentation-type">
+      
+  
+  
+    <h4 tabindex="-1" id="ObjectFact" data-kind="type" class="Documentation-typeHeader">
+      <span>type <a class="Documentation-source" href="https://cs.opensource.google/go/x/tools/+/v0.50.0:go/analysis/analysis.go;l=183">ObjectFact</a> <a class="Documentation-idLink" href="#ObjectFact" title="Go to ObjectFact" aria-label="Go to ObjectFact">¶</a></span>
+  <span class="Documentation-sinceVersion">
+    
+  </span>
+</h4>
+
+    
+    <div class="Documentation-declaration">
+      <pre>type ObjectFact struct {
+<span id="ObjectFact.Object" data-kind="field">	Object <a href="/go/types">types</a>.<a href="/go/types#Object">Object</a>
+</span><span id="ObjectFact.Fact" data-kind="field">	Fact   <a href="#Fact">Fact</a>
+</span>}</pre>
+    </div>
+  <p>ObjectFact is an object together with an associated fact.
+</p>
+
+  
+
+    </div><div class="Documentation-type">
+      
+  
+  
+    <h4 tabindex="-1" id="PackageFact" data-kind="type" class="Documentation-typeHeader">
+      <span>type <a class="Documentation-source" href="https://cs.opensource.google/go/x/tools/+/v0.50.0:go/analysis/analysis.go;l=177">PackageFact</a> <a class="Documentation-idLink" href="#PackageFact" title="Go to PackageFact" aria-label="Go to PackageFact">¶</a></span>
+  <span class="Documentation-sinceVersion">
+    
+  </span>
+</h4>
+
+    
+    <div class="Documentation-declaration">
+      <pre>type PackageFact struct {
+<span id="PackageFact.Package" data-kind="field">	Package *<a href="/go/types">types</a>.<a href="/go/types#Package">Package</a>
+</span><span id="PackageFact.Fact" data-kind="field">	Fact    <a href="#Fact">Fact</a>
+</span>}</pre>
+    </div>
+  <p>PackageFact is a package together with an associated fact.
+</p>
+
+  
+
+    </div><div class="Documentation-type">
+      
+  
+  
+    <h4 tabindex="-1" id="Pass" data-kind="type" class="Documentation-typeHeader">
+      <span>type <a class="Documentation-source" href="https://cs.opensource.google/go/x/tools/+/v0.50.0:go/analysis/analysis.go;l=91">Pass</a> <a class="Documentation-idLink" href="#Pass" title="Go to Pass" aria-label="Go to Pass">¶</a></span>
+  <span class="Documentation-sinceVersion">
+    
+  </span>
+</h4>
+
+    
+    <div class="Documentation-declaration">
+      <pre>type Pass struct {
+<span id="Pass.Analyzer" data-kind="field">	Analyzer *<a href="#Analyzer">Analyzer</a> <span class="comment">// the identity of the current analyzer</span>
+</span>
+	<span class="comment">// syntax and type information</span>
+<span id="Pass.Fset" data-kind="field">	Fset         *<a href="/go/token">token</a>.<a href="/go/token#FileSet">FileSet</a> <span class="comment">// file position information; Run may add new files</span>
+</span><span id="Pass.Files" data-kind="field">	Files        []*<a href="/go/ast">ast</a>.<a href="/go/ast#File">File</a>    <span class="comment">// the abstract syntax tree of each file</span>
+</span><span id="Pass.OtherFiles" data-kind="field">	OtherFiles   []<a href="/builtin#string">string</a>       <span class="comment">// names of non-Go files of this package</span>
+</span><span id="Pass.IgnoredFiles" data-kind="field">	IgnoredFiles []<a href="/builtin#string">string</a>       <span class="comment">// names of ignored source files in this package</span>
+</span><span id="Pass.Pkg" data-kind="field">	Pkg          *<a href="/go/types">types</a>.<a href="/go/types#Package">Package</a> <span class="comment">// type information about the package</span>
+</span><span id="Pass.TypesInfo" data-kind="field">	TypesInfo    *<a href="/go/types">types</a>.<a href="/go/types#Info">Info</a>    <span class="comment">// type information about the syntax trees</span>
+</span><span id="Pass.TypesSizes" data-kind="field">	TypesSizes   <a href="/go/types">types</a>.<a href="/go/types#Sizes">Sizes</a>    <span class="comment">// function for computing sizes of types</span>
+</span><span id="Pass.TypeErrors" data-kind="field">	TypeErrors   []<a href="/go/types">types</a>.<a href="/go/types#Error">Error</a>  <span class="comment">// type errors (only if Analyzer.RunDespiteErrors)</span>
+</span>
+<span id="Pass.Module" data-kind="field">	Module *<a href="#Module">Module</a> <span class="comment">// the package&#39;s enclosing module (possibly nil in some drivers)</span>
+</span>
+<span id="Pass.Report" data-kind="field">	<span class="comment">// Report reports a Diagnostic, a finding about a specific location</span>
+</span>	<span class="comment">// in the analyzed source code such as a potential mistake.</span>
+	<span class="comment">// It may be called by the Run function.</span>
+	Report func(<a href="#Diagnostic">Diagnostic</a>)
+
+<span id="Pass.ResultOf" data-kind="field">	<span class="comment">// ResultOf provides the inputs to this analysis pass, which are</span>
+</span>	<span class="comment">// the corresponding results of its prerequisite analyzers.</span>
+	<span class="comment">// The map keys are the elements of Analysis.Required,</span>
+	<span class="comment">// and the type of each corresponding value is the required</span>
+	<span class="comment">// analysis&#39;s ResultType.</span>
+	ResultOf map[*<a href="#Analyzer">Analyzer</a>]<a href="/builtin#any">any</a>
+
+<span id="Pass.ReadFile" data-kind="field">	<span class="comment">// ReadFile returns the contents of the named file.</span>
+</span>	<span class="comment">//</span>
+	<span class="comment">// The only valid file names are the elements of OtherFiles</span>
+	<span class="comment">// and IgnoredFiles, and names returned by</span>
+	<span class="comment">// Fset.File(f.FileStart).Name() for each f in Files.</span>
+	<span class="comment">//</span>
+	<span class="comment">// Analyzers must use this function (if provided) instead of</span>
+	<span class="comment">// accessing the file system directly. This allows a driver to</span>
+	<span class="comment">// provide a virtualized file tree (including, for example,</span>
+	<span class="comment">// unsaved editor buffers) and to track dependencies precisely</span>
+	<span class="comment">// to avoid unnecessary recomputation.</span>
+	ReadFile func(filename <a href="/builtin#string">string</a>) ([]<a href="/builtin#byte">byte</a>, <a href="/builtin#error">error</a>)
+
+<span id="Pass.ImportObjectFact" data-kind="field">	<span class="comment">// ImportObjectFact retrieves a fact associated with obj.</span>
+</span>	<span class="comment">// Given a value ptr of type *T, where *T satisfies Fact,</span>
+	<span class="comment">// ImportObjectFact copies the value to *ptr.</span>
+	<span class="comment">//</span>
+	<span class="comment">// ImportObjectFact panics if called after the pass is complete.</span>
+	<span class="comment">// ImportObjectFact is not concurrency-safe.</span>
+	ImportObjectFact func(obj <a href="/go/types">types</a>.<a href="/go/types#Object">Object</a>, fact <a href="#Fact">Fact</a>) <a href="/builtin#bool">bool</a>
+
+<span id="Pass.ImportPackageFact" data-kind="field">	<span class="comment">// ImportPackageFact retrieves a fact associated with package pkg,</span>
+</span>	<span class="comment">// which must be this package or one of its dependencies.</span>
+	<span class="comment">// See comments for ImportObjectFact.</span>
+	ImportPackageFact func(pkg *<a href="/go/types">types</a>.<a href="/go/types#Package">Package</a>, fact <a href="#Fact">Fact</a>) <a href="/builtin#bool">bool</a>
+
+<span id="Pass.ExportObjectFact" data-kind="field">	<span class="comment">// ExportObjectFact associates a fact of type *T with the obj,</span>
+</span>	<span class="comment">// replacing any previous fact of that type.</span>
+	<span class="comment">//</span>
+	<span class="comment">// ExportObjectFact panics if it is called after the pass is</span>
+	<span class="comment">// complete, or if obj does not belong to the package being analyzed.</span>
+	<span class="comment">// ExportObjectFact is not concurrency-safe.</span>
+	ExportObjectFact func(obj <a href="/go/types">types</a>.<a href="/go/types#Object">Object</a>, fact <a href="#Fact">Fact</a>)
+
+<span id="Pass.ExportPackageFact" data-kind="field">	<span class="comment">// ExportPackageFact associates a fact with the current package.</span>
+</span>	<span class="comment">// See comments for ExportObjectFact.</span>
+	ExportPackageFact func(fact <a href="#Fact">Fact</a>)
+
+<span id="Pass.AllPackageFacts" data-kind="field">	<span class="comment">// AllPackageFacts returns a new slice containing all package</span>
+</span>	<span class="comment">// facts of the analysis&#39;s FactTypes in unspecified order.</span>
+	<span class="comment">// See comments for AllObjectFacts.</span>
+	AllPackageFacts func() []<a href="#PackageFact">PackageFact</a>
+
+<span id="Pass.AllObjectFacts" data-kind="field">	<span class="comment">// AllObjectFacts returns a new slice containing all object</span>
+</span>	<span class="comment">// facts of the analysis&#39;s FactTypes in unspecified order.</span>
+	<span class="comment">//</span>
+	<span class="comment">// The result includes all facts exported by packages</span>
+	<span class="comment">// whose symbols are referenced by the current package</span>
+	<span class="comment">// (by qualified identifiers or field/method selections).</span>
+	<span class="comment">// And it includes all facts exported from the current</span>
+	<span class="comment">// package by the current analysis pass.</span>
+	AllObjectFacts func() []<a href="#ObjectFact">ObjectFact</a>
+}</pre>
+    </div>
+  <p>A Pass provides information to the Run function that
+applies a specific analyzer to a single Go package.
+</p><p>It forms the interface between the analysis logic and the driver
+program, and has both input and an output components.
+</p><p>As in a compiler, one pass may depend on the result computed by another.
+</p><p>The Run function should not call any of the Pass functions concurrently.
+</p>
+<div class="Documentation-typeMethod">
+    
+  
+  
+    <h4 tabindex="-1" id="Pass.ReportRangef" data-kind="method" class="Documentation-typeMethodHeader">
+      <span>func (*Pass) <a class="Documentation-source" href="https://cs.opensource.google/go/x/tools/+/v0.50.0:go/analysis/analysis.go;l=205">ReportRangef</a> <a class="Documentation-idLink" href="#Pass.ReportRangef" title="Go to Pass.ReportRangef" aria-label="Go to Pass.ReportRangef">¶</a></span>
+  <span class="Documentation-sinceVersion">
+    
+  </span>
+</h4>
+
+    
+    <div class="Documentation-declaration">
+      <pre>func (pass *<a href="#Pass">Pass</a>) ReportRangef(rng <a href="#Range">Range</a>, format <a href="/builtin#string">string</a>, args ...<a href="/builtin#any">any</a>)</pre>
+    </div>
+  <p>ReportRangef is a helper function that reports a Diagnostic using the
+range provided. ast.Node values can be passed in as the range because
+they satisfy the Range interface.
+</p>
+
+  
+
+  </div><div class="Documentation-typeMethod">
+    
+  
+  
+    <h4 tabindex="-1" id="Pass.Reportf" data-kind="method" class="Documentation-typeMethodHeader">
+      <span>func (*Pass) <a class="Documentation-source" href="https://cs.opensource.google/go/x/tools/+/v0.50.0:go/analysis/analysis.go;l=190">Reportf</a> <a class="Documentation-idLink" href="#Pass.Reportf" title="Go to Pass.Reportf" aria-label="Go to Pass.Reportf">¶</a></span>
+  <span class="Documentation-sinceVersion">
+    
+  </span>
+</h4>
+
+    
+    <div class="Documentation-declaration">
+      <pre>func (pass *<a href="#Pass">Pass</a>) Reportf(pos <a href="/go/token">token</a>.<a href="/go/token#Pos">Pos</a>, format <a href="/builtin#string">string</a>, args ...<a href="/builtin#any">any</a>)</pre>
+    </div>
+  <p>Reportf is a helper function that reports a Diagnostic using the
+specified position and formatted error message.
+</p>
+
+  
+
+  </div><div class="Documentation-typeMethod">
+    
+  
+  
+    <h4 tabindex="-1" id="Pass.String" data-kind="method" class="Documentation-typeMethodHeader">
+      <span>func (*Pass) <a class="Documentation-source" href="https://cs.opensource.google/go/x/tools/+/v0.50.0:go/analysis/analysis.go;l=210">String</a> <a class="Documentation-idLink" href="#Pass.String" title="Go to Pass.String" aria-label="Go to Pass.String">¶</a></span>
+  <span class="Documentation-sinceVersion">
+    
+  </span>
+</h4>
+
+    
+    <div class="Documentation-declaration">
+      <pre>func (pass *<a href="#Pass">Pass</a>) String() <a href="/builtin#string">string</a></pre>
+    </div>
+  
+
+  
+
+  </div>
+  
+
+    </div><div class="Documentation-type">
+      
+  
+  
+    <h4 tabindex="-1" id="Range" data-kind="type" class="Documentation-typeHeader">
+      <span>type <a class="Documentation-source" href="https://cs.opensource.google/go/x/tools/+/v0.50.0:go/analysis/analysis.go;l=197">Range</a> <a class="Documentation-idLink" href="#Range" title="Go to Range" aria-label="Go to Range">¶</a></span>
+  <span class="Documentation-sinceVersion">
+    
+  </span>
+</h4>
+
+    
+    <div class="Documentation-declaration">
+      <pre>type Range interface {
+<span id="Range.Pos" data-kind="method">	Pos() <a href="/go/token">token</a>.<a href="/go/token#Pos">Pos</a> <span class="comment">// position of first character belonging to the node</span>
+</span><span id="Range.End" data-kind="method">	End() <a href="/go/token">token</a>.<a href="/go/token#Pos">Pos</a> <span class="comment">// position of first character immediately after the node</span>
+</span>}</pre>
+    </div>
+  <p>The Range interface provides a range. It&#39;s equivalent to and satisfied by
+ast.Node.
+</p>
+
+  
+
+    </div><div class="Documentation-type">
+      
+  
+  
+    <h4 tabindex="-1" id="RelatedInformation" data-kind="type" class="Documentation-typeHeader">
+      <span>type <a class="Documentation-source" href="https://cs.opensource.google/go/x/tools/+/v0.50.0:go/analysis/diagnostic.go;l=59">RelatedInformation</a> <a class="Documentation-idLink" href="#RelatedInformation" title="Go to RelatedInformation" aria-label="Go to RelatedInformation">¶</a></span>
+  <span class="Documentation-sinceVersion">
+    
+  </span>
+</h4>
+
+    
+    <div class="Documentation-declaration">
+      <pre>type RelatedInformation struct {
+<span id="RelatedInformation.Pos" data-kind="field">	Pos     <a href="/go/token">token</a>.<a href="/go/token#Pos">Pos</a>
+</span><span id="RelatedInformation.End" data-kind="field">	End     <a href="/go/token">token</a>.<a href="/go/token#Pos">Pos</a> <span class="comment">// optional</span>
+</span><span id="RelatedInformation.Message" data-kind="field">	Message <a href="/builtin#string">string</a>
+</span>}</pre>
+    </div>
+  <p>RelatedInformation contains information related to a diagnostic.
+For example, a diagnostic that flags duplicated declarations of a
+variable may include one RelatedInformation per existing
+declaration.
+</p>
+
+  
+
+    </div><div class="Documentation-type">
+      
+  
+  
+    <h4 tabindex="-1" id="SuggestedFix" data-kind="type" class="Documentation-typeHeader">
+      <span>type <a class="Documentation-source" href="https://cs.opensource.google/go/x/tools/+/v0.50.0:go/analysis/diagnostic.go;l=72">SuggestedFix</a> <a class="Documentation-idLink" href="#SuggestedFix" title="Go to SuggestedFix" aria-label="Go to SuggestedFix">¶</a></span>
+  <span class="Documentation-sinceVersion">
+    
+  </span>
+</h4>
+
+    
+    <div class="Documentation-declaration">
+      <pre>type SuggestedFix struct {
+	<span class="comment">// A verb phrase describing the fix, to be shown to</span>
+	<span class="comment">// a user trying to decide whether to accept it.</span>
+	<span class="comment">//</span>
+	<span class="comment">// Example: &#34;Remove the surplus argument&#34;</span>
+<span id="SuggestedFix.Message" data-kind="field">	Message   <a href="/builtin#string">string</a>
+</span><span id="SuggestedFix.TextEdits" data-kind="field">	TextEdits []<a href="#TextEdit">TextEdit</a>
+</span>}</pre>
+    </div>
+  <p>A SuggestedFix is a code change associated with a Diagnostic that a
+user can choose to apply to their code. Usually the SuggestedFix is
+meant to fix the issue flagged by the diagnostic.
+</p><p>The TextEdits must not overlap, nor contain edits for other
+packages. Edits need not be totally ordered, but the order
+determines how insertions at the same point will be applied.
+</p>
+
+  
+
+    </div><div class="Documentation-type">
+      
+  
+  
+    <h4 tabindex="-1" id="TextEdit" data-kind="type" class="Documentation-typeHeader">
+      <span>type <a class="Documentation-source" href="https://cs.opensource.google/go/x/tools/+/v0.50.0:go/analysis/diagnostic.go;l=83">TextEdit</a> <a class="Documentation-idLink" href="#TextEdit" title="Go to TextEdit" aria-label="Go to TextEdit">¶</a></span>
+  <span class="Documentation-sinceVersion">
+    
+  </span>
+</h4>
+
+    
+    <div class="Documentation-declaration">
+      <pre>type TextEdit struct {
+	<span class="comment">// For a pure insertion, End can either be set to Pos or token.NoPos.</span>
+<span id="TextEdit.Pos" data-kind="field">	Pos     <a href="/go/token">token</a>.<a href="/go/token#Pos">Pos</a>
+</span><span id="TextEdit.End" data-kind="field">	End     <a href="/go/token">token</a>.<a href="/go/token#Pos">Pos</a>
+</span><span id="TextEdit.NewText" data-kind="field">	NewText []<a href="/builtin#byte">byte</a>
+</span>}</pre>
+    </div>
+  <p>A TextEdit represents the replacement of the code between Pos and End with the new text.
+Each TextEdit should apply to a single file. End should not be earlier in the file than Pos.
+</p>
+
+  
+
+    </div></section></div> 
+
+
+
+
+
+
+
+      
+    </div>
+  </div>
+
+        
+      
+      
+        
+  <div class="UnitFiles js-unitFiles">
+    <h2 class="UnitFiles-title" id="section-sourcefiles">
+      <img class="go-Icon" height="24" width="24" src="/static/shared/icon/insert_drive_file_gm_grey_24dp.svg" alt="">
+      Source Files
+      <a class="UnitFiles-idLink" href="#section-sourcefiles" title="Go to Source Files" aria-label="Go to Source Files">¶</a>
+    </h2><div class="UnitFiles-titleLink">
+      <a href="https://cs.opensource.google/go/x/tools/+/v0.50.0:go/analysis" target="_blank" rel="noopener">View all Source files</a>
+    </div><div>
+      <ul class="UnitFiles-fileList"><li><a href="https://cs.opensource.google/go/x/tools/+/v0.50.0:go/analysis/analysis.go" target="_blank" rel="noopener" title="analysis.go">analysis.go</a></li><li><a href="https://cs.opensource.google/go/x/tools/+/v0.50.0:go/analysis/diagnostic.go" target="_blank" rel="noopener" title="diagnostic.go">diagnostic.go</a></li><li><a href="https://cs.opensource.google/go/x/tools/+/v0.50.0:go/analysis/doc.go" target="_blank" rel="noopener" title="doc.go">doc.go</a></li><li><a href="https://cs.opensource.google/go/x/tools/+/v0.50.0:go/analysis/validate.go" target="_blank" rel="noopener" title="validate.go">validate.go</a></li></ul>
+    </div>
+  </div>
+
+      
+      
+        
+  <div class="UnitDirectories js-unitDirectories">
+    <h2 class="UnitDirectories-title" id="section-directories">
+      <img class="go-Icon" height="24" width="24" src="/static/shared/icon/folder_gm_grey_24dp.svg" alt="">
+      Directories
+      <a class="UnitDirectories-idLink" href="#section-directories" title="Go to Directories" aria-label="Go to Directories">¶</a>
+    </h2>
+    <div class="UnitDirectories-toggles">
+      <div class="UnitDirectories-toggleButtons">
+        <button class="js-showInternalDirectories" data-test-id="internal-directories-toggle"
+            data-gtmc="directories button" aria-label="Show Internal Directories">
+          Show internal
+        </button>
+        <button class="js-expandAllDirectories" data-test-id="directories-toggle"
+            data-gtmc="directories button" aria-label="Expand All Directories">
+          Expand all
+        </button>
+      </div>
+    </div>
+    <table class="UnitDirectories-table UnitDirectories-table--tree js-expandableTable"
+          data-test-id="UnitDirectories-table">
+      <tr class="UnitDirectories-tableHeader UnitDirectories-tableHeader--tree">
+        <th>Path</th>
+        <th class="UnitDirectories-desktopSynopsis">Synopsis</th>
+      </tr>
+      
+          
+  
+  <tr
+      class="">
+    <td data-id="analysistest" data-aria-owns="">
+      <div class="UnitDirectories-pathCell">
+        <div><a href="/golang.org/x/tools@v0.50.0/go/analysis/analysistest">analysistest</a>
+            
+          </div>
+          <div class="UnitDirectories-mobileSynopsis">Package analysistest provides utilities for testing analyzers.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">Package analysistest provides utilities for testing analyzers.</td></tr></tr>
+
+      
+          
+  
+  <tr
+      class="">
+    <td data-id="checker" data-aria-owns="">
+      <div class="UnitDirectories-pathCell">
+        <div><a href="/golang.org/x/tools@v0.50.0/go/analysis/checker">checker</a>
+            
+          </div>
+          <div class="UnitDirectories-mobileSynopsis">Package checker provides an analysis driver based on the golang.org/x/tools/go/packages representation of a set of packages and all their dependencies, as produced by packages.Load.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">Package checker provides an analysis driver based on the golang.org/x/tools/go/packages representation of a set of packages and all their dependencies, as produced by packages.Load.</td></tr></tr>
+
+      
+          
+  
+  <tr data-aria-controls="internal-analysisflags internal-checker "
+      class="UnitDirectories-internal">
+    <td data-id="internal" data-aria-owns="internal-analysisflags internal-checker ">
+      <div class="UnitDirectories-pathCell">
+        <div><button type="button" class="go-Button go-Button--inline UnitDirectories-toggleButton UnitDirectories-internal"
+                aria-expanded="false"
+                aria-label="2 more from"
+                data-aria-controls="internal-analysisflags internal-checker "
+                data-aria-labelledby="internal-button internal"
+                data-id="internal-button">
+              <img class="go-Icon" height="24" width="24" src="/static/shared/icon/arrow_right_gm_grey_24dp.svg"
+                  alt="">
+            </button><a href="/golang.org/x/tools@v0.50.0/go/analysis/internal">internal</a>
+            
+          </div>
+          <div class="UnitDirectories-mobileSynopsis"></div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis"></td></tr><tr data-id="internal-analysisflags" class="UnitDirectories-internal">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/internal/analysisflags">analysisflags</a>
+            
+            
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">Package analysisflags defines helpers for processing flags (-help, -json, -fix, -diff, etc) common to unitchecker and {single,multi}checker.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">Package analysisflags defines helpers for processing flags (-help, -json, -fix, -diff, etc) common to unitchecker and {single,multi}checker.</td><tr data-id="internal-checker" class="UnitDirectories-internal">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/internal/checker">checker</a>
+            
+            
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">Package internal/checker defines various implementation helpers for the singlechecker and multichecker packages, which provide the complete main function for an analysis driver executable based on go/packages.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">Package internal/checker defines various implementation helpers for the singlechecker and multichecker packages, which provide the complete main function for an analysis driver executable based on go/packages.</td></tr>
+
+      
+          
+  
+  <tr
+      class="">
+    <td data-id="multichecker" data-aria-owns="">
+      <div class="UnitDirectories-pathCell">
+        <div><a href="/golang.org/x/tools@v0.50.0/go/analysis/multichecker">multichecker</a>
+            
+          </div>
+          <div class="UnitDirectories-mobileSynopsis">Package multichecker defines the main function for an analysis driver with several analyzers.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">Package multichecker defines the main function for an analysis driver with several analyzers.</td></tr></tr>
+
+      
+          
+  
+  <tr data-aria-controls="passes-appends passes-asmdecl passes-assign passes-atomic passes-atomicalign passes-bools passes-buildssa passes-buildtag passes-cgocall passes-composite passes-copylock passes-ctrlflow passes-deepequalerrors passes-defers passes-defers/cmd/defers passes-directive passes-errorsas passes-fieldalignment passes-fieldalignment/cmd/fieldalignment passes-findcall passes-findcall/cmd/findcall passes-framepointer passes-gofix passes-hostport passes-httpmux passes-httpmux/cmd/httpmux passes-httpresponse passes-ifaceassert passes-ifaceassert/cmd/ifaceassert passes-inline passes-inline/cmd/inline passes-inspect passes-internal/gofixdirective passes-loopclosure passes-lostcancel passes-lostcancel/cmd/lostcancel passes-modernize passes-modernize/cmd/modernize passes-nilfunc passes-nilness passes-nilness/cmd/nilness passes-pkgfact passes-printf passes-reflectvaluecompare passes-reflectvaluecompare/cmd/reflectvaluecompare passes-scannererr passes-shadow passes-shadow/cmd/shadow passes-shift passes-sigchanyzer passes-slog passes-sortslice passes-sqlrowserr passes-stdmethods passes-stdversion passes-stringintconv passes-stringintconv/cmd/stringintconv passes-structtag passes-testinggoroutine passes-tests passes-timeformat passes-unmarshal passes-unmarshal/cmd/unmarshal passes-unreachable passes-unsafeptr passes-unusedresult passes-unusedresult/cmd/unusedresult passes-unusedwrite passes-usesgenerics passes-waitgroup "
+      class="">
+    <td data-id="passes" data-aria-owns="passes-appends passes-asmdecl passes-assign passes-atomic passes-atomicalign passes-bools passes-buildssa passes-buildtag passes-cgocall passes-composite passes-copylock passes-ctrlflow passes-deepequalerrors passes-defers passes-defers/cmd/defers passes-directive passes-errorsas passes-fieldalignment passes-fieldalignment/cmd/fieldalignment passes-findcall passes-findcall/cmd/findcall passes-framepointer passes-gofix passes-hostport passes-httpmux passes-httpmux/cmd/httpmux passes-httpresponse passes-ifaceassert passes-ifaceassert/cmd/ifaceassert passes-inline passes-inline/cmd/inline passes-inspect passes-internal/gofixdirective passes-loopclosure passes-lostcancel passes-lostcancel/cmd/lostcancel passes-modernize passes-modernize/cmd/modernize passes-nilfunc passes-nilness passes-nilness/cmd/nilness passes-pkgfact passes-printf passes-reflectvaluecompare passes-reflectvaluecompare/cmd/reflectvaluecompare passes-scannererr passes-shadow passes-shadow/cmd/shadow passes-shift passes-sigchanyzer passes-slog passes-sortslice passes-sqlrowserr passes-stdmethods passes-stdversion passes-stringintconv passes-stringintconv/cmd/stringintconv passes-structtag passes-testinggoroutine passes-tests passes-timeformat passes-unmarshal passes-unmarshal/cmd/unmarshal passes-unreachable passes-unsafeptr passes-unusedresult passes-unusedresult/cmd/unusedresult passes-unusedwrite passes-usesgenerics passes-waitgroup ">
+      <div class="UnitDirectories-pathCell">
+        <div><button type="button" class="go-Button go-Button--inline UnitDirectories-toggleButton"
+                aria-expanded="false"
+                aria-label="70 more from"
+                data-aria-controls="passes-appends passes-asmdecl passes-assign passes-atomic passes-atomicalign passes-bools passes-buildssa passes-buildtag passes-cgocall passes-composite passes-copylock passes-ctrlflow passes-deepequalerrors passes-defers passes-defers/cmd/defers passes-directive passes-errorsas passes-fieldalignment passes-fieldalignment/cmd/fieldalignment passes-findcall passes-findcall/cmd/findcall passes-framepointer passes-gofix passes-hostport passes-httpmux passes-httpmux/cmd/httpmux passes-httpresponse passes-ifaceassert passes-ifaceassert/cmd/ifaceassert passes-inline passes-inline/cmd/inline passes-inspect passes-internal/gofixdirective passes-loopclosure passes-lostcancel passes-lostcancel/cmd/lostcancel passes-modernize passes-modernize/cmd/modernize passes-nilfunc passes-nilness passes-nilness/cmd/nilness passes-pkgfact passes-printf passes-reflectvaluecompare passes-reflectvaluecompare/cmd/reflectvaluecompare passes-scannererr passes-shadow passes-shadow/cmd/shadow passes-shift passes-sigchanyzer passes-slog passes-sortslice passes-sqlrowserr passes-stdmethods passes-stdversion passes-stringintconv passes-stringintconv/cmd/stringintconv passes-structtag passes-testinggoroutine passes-tests passes-timeformat passes-unmarshal passes-unmarshal/cmd/unmarshal passes-unreachable passes-unsafeptr passes-unusedresult passes-unusedresult/cmd/unusedresult passes-unusedwrite passes-usesgenerics passes-waitgroup "
+                data-aria-labelledby="passes-button passes"
+                data-id="passes-button">
+              <img class="go-Icon" height="24" width="24" src="/static/shared/icon/arrow_right_gm_grey_24dp.svg"
+                  alt="">
+            </button><span>passes</span>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis"></td></tr><tr data-id="passes-appends" class="">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/passes/appends">appends</a>
+            
+            
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">Package appends defines an Analyzer that detects if there is only one variable in append.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">Package appends defines an Analyzer that detects if there is only one variable in append.</td><tr data-id="passes-asmdecl" class="">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/passes/asmdecl">asmdecl</a>
+            
+            
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">Package asmdecl defines an Analyzer that reports mismatches between assembly files and Go declarations.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">Package asmdecl defines an Analyzer that reports mismatches between assembly files and Go declarations.</td><tr data-id="passes-assign" class="">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/passes/assign">assign</a>
+            
+            
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">Package assign defines an Analyzer that detects useless assignments.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">Package assign defines an Analyzer that detects useless assignments.</td><tr data-id="passes-atomic" class="">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/passes/atomic">atomic</a>
+            
+            
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">Package atomic defines an Analyzer that checks for common mistakes using the sync/atomic package.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">Package atomic defines an Analyzer that checks for common mistakes using the sync/atomic package.</td><tr data-id="passes-atomicalign" class="">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/passes/atomicalign">atomicalign</a>
+            
+            
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">Package atomicalign defines an Analyzer that checks for non-64-bit-aligned arguments to sync/atomic functions.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">Package atomicalign defines an Analyzer that checks for non-64-bit-aligned arguments to sync/atomic functions.</td><tr data-id="passes-bools" class="">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/passes/bools">bools</a>
+            
+            
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">Package bools defines an Analyzer that detects common mistakes involving boolean operators.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">Package bools defines an Analyzer that detects common mistakes involving boolean operators.</td><tr data-id="passes-buildssa" class="">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/passes/buildssa">buildssa</a>
+            
+            
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">Package buildssa defines an Analyzer that constructs the SSA representation of an error-free package and returns the set of all functions within it.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">Package buildssa defines an Analyzer that constructs the SSA representation of an error-free package and returns the set of all functions within it.</td><tr data-id="passes-buildtag" class="">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/passes/buildtag">buildtag</a>
+            
+            
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">Package buildtag defines an Analyzer that checks build tags.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">Package buildtag defines an Analyzer that checks build tags.</td><tr data-id="passes-cgocall" class="">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/passes/cgocall">cgocall</a>
+            
+            
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">Package cgocall defines an Analyzer that detects some violations of the cgo pointer passing rules.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">Package cgocall defines an Analyzer that detects some violations of the cgo pointer passing rules.</td><tr data-id="passes-composite" class="">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/passes/composite">composite</a>
+            
+            
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">Package composite defines an Analyzer that checks for unkeyed composite literals.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">Package composite defines an Analyzer that checks for unkeyed composite literals.</td><tr data-id="passes-copylock" class="">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/passes/copylock">copylock</a>
+            
+            
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">Package copylock defines an Analyzer that checks for locks erroneously passed by value.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">Package copylock defines an Analyzer that checks for locks erroneously passed by value.</td><tr data-id="passes-ctrlflow" class="">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/passes/ctrlflow">ctrlflow</a>
+            
+            
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">Package ctrlflow is an analysis that provides a syntactic control-flow graph (CFG) for the body of a function.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">Package ctrlflow is an analysis that provides a syntactic control-flow graph (CFG) for the body of a function.</td><tr data-id="passes-deepequalerrors" class="">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/passes/deepequalerrors">deepequalerrors</a>
+            
+            
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">Package deepequalerrors defines an Analyzer that checks for the use of reflect.DeepEqual with error values.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">Package deepequalerrors defines an Analyzer that checks for the use of reflect.DeepEqual with error values.</td><tr data-id="passes-defers" class="">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/passes/defers">defers</a>
+            
+            
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">Package defers defines an Analyzer that checks for common mistakes in defer statements.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">Package defers defines an Analyzer that checks for common mistakes in defer statements.</td><tr data-id="passes-defers/cmd/defers" class="">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/passes/defers/cmd/defers">defers/cmd/defers</a>
+            
+            <span class="go-Chip go-Chip--inverted">command</span>
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">The defers command runs the defers analyzer.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">The defers command runs the defers analyzer.</td><tr data-id="passes-directive" class="">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/passes/directive">directive</a>
+            
+            
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">Package directive defines an Analyzer that checks known Go toolchain directives.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">Package directive defines an Analyzer that checks known Go toolchain directives.</td><tr data-id="passes-errorsas" class="">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/passes/errorsas">errorsas</a>
+            
+            
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">Package errorsas defines an Analyzer that checks that the second argument to errors.As is a pointer to a type implementing error.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">Package errorsas defines an Analyzer that checks that the second argument to errors.As is a pointer to a type implementing error.</td><tr data-id="passes-fieldalignment" class="">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/passes/fieldalignment">fieldalignment</a>
+            
+            
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">Package fieldalignment defines an Analyzer that detects structs that would use less memory if their fields were sorted.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">Package fieldalignment defines an Analyzer that detects structs that would use less memory if their fields were sorted.</td><tr data-id="passes-fieldalignment/cmd/fieldalignment" class="">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/passes/fieldalignment/cmd/fieldalignment">fieldalignment/cmd/fieldalignment</a>
+            
+            <span class="go-Chip go-Chip--inverted">command</span>
+          </span>
+          <div class="UnitDirectories-mobileSynopsis"></div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis"></td><tr data-id="passes-findcall" class="">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/passes/findcall">findcall</a>
+            
+            
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">Package findcall defines an Analyzer that serves as a trivial example and test of the Analysis API.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">Package findcall defines an Analyzer that serves as a trivial example and test of the Analysis API.</td><tr data-id="passes-findcall/cmd/findcall" class="">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/passes/findcall/cmd/findcall">findcall/cmd/findcall</a>
+            
+            <span class="go-Chip go-Chip--inverted">command</span>
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">The findcall command runs the findcall analyzer.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">The findcall command runs the findcall analyzer.</td><tr data-id="passes-framepointer" class="">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/passes/framepointer">framepointer</a>
+            
+            
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">Package framepointer defines an Analyzer that reports assembly code that clobbers the frame pointer before saving it.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">Package framepointer defines an Analyzer that reports assembly code that clobbers the frame pointer before saving it.</td><tr data-id="passes-gofix" class="">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/passes/gofix">gofix</a>
+            
+            
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">Package gofix defines an Analyzer that checks &#34;//go:fix inline&#34; directives.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">Package gofix defines an Analyzer that checks &#34;//go:fix inline&#34; directives.</td><tr data-id="passes-hostport" class="">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/passes/hostport">hostport</a>
+            
+            
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">Package hostport defines an analyzer for calls to net.Dial with addresses of the form &#34;%s:%d&#34; or &#34;%s:%s&#34;, which work only with IPv4.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">Package hostport defines an analyzer for calls to net.Dial with addresses of the form &#34;%s:%d&#34; or &#34;%s:%s&#34;, which work only with IPv4.</td><tr data-id="passes-httpmux" class="">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/passes/httpmux">httpmux</a>
+            
+            
+          </span>
+          <div class="UnitDirectories-mobileSynopsis"></div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis"></td><tr data-id="passes-httpmux/cmd/httpmux" class="">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/passes/httpmux/cmd/httpmux">httpmux/cmd/httpmux</a>
+            
+            <span class="go-Chip go-Chip--inverted">command</span>
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">The httpmux command runs the httpmux analyzer.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">The httpmux command runs the httpmux analyzer.</td><tr data-id="passes-httpresponse" class="">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/passes/httpresponse">httpresponse</a>
+            
+            
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">Package httpresponse defines an Analyzer that checks for mistakes using HTTP responses.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">Package httpresponse defines an Analyzer that checks for mistakes using HTTP responses.</td><tr data-id="passes-ifaceassert" class="">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/passes/ifaceassert">ifaceassert</a>
+            
+            
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">Package ifaceassert defines an Analyzer that flags impossible interface-interface type assertions.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">Package ifaceassert defines an Analyzer that flags impossible interface-interface type assertions.</td><tr data-id="passes-ifaceassert/cmd/ifaceassert" class="">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/passes/ifaceassert/cmd/ifaceassert">ifaceassert/cmd/ifaceassert</a>
+            
+            <span class="go-Chip go-Chip--inverted">command</span>
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">The ifaceassert command runs the ifaceassert analyzer.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">The ifaceassert command runs the ifaceassert analyzer.</td><tr data-id="passes-inline" class="">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/passes/inline">inline</a>
+            
+            
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">Package inline defines an analyzer that inlines calls to functions and uses of constants marked with a &#34;//go:fix inline&#34; directive.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">Package inline defines an analyzer that inlines calls to functions and uses of constants marked with a &#34;//go:fix inline&#34; directive.</td><tr data-id="passes-inline/cmd/inline" class="">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/passes/inline/cmd/inline">inline/cmd/inline</a>
+            
+            <span class="go-Chip go-Chip--inverted">command</span>
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">The inline command applies the inliner to the specified packages of Go source code.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">The inline command applies the inliner to the specified packages of Go source code.</td><tr data-id="passes-inspect" class="">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/passes/inspect">inspect</a>
+            
+            
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">Package inspect defines an Analyzer that provides an AST inspector (golang.org/x/tools/go/ast/inspector.Inspector) for the syntax trees of a package.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">Package inspect defines an Analyzer that provides an AST inspector (golang.org/x/tools/go/ast/inspector.Inspector) for the syntax trees of a package.</td><tr data-id="passes-internal/gofixdirective" class="UnitDirectories-internal">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/passes/internal/gofixdirective">internal/gofixdirective</a>
+            
+            
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">Package gofixdirective searches for and validates go:fix directives.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">Package gofixdirective searches for and validates go:fix directives.</td><tr data-id="passes-loopclosure" class="">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/passes/loopclosure">loopclosure</a>
+            
+            
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">Package loopclosure defines an Analyzer that checks for references to enclosing loop variables from within nested functions.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">Package loopclosure defines an Analyzer that checks for references to enclosing loop variables from within nested functions.</td><tr data-id="passes-lostcancel" class="">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/passes/lostcancel">lostcancel</a>
+            
+            
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">Package lostcancel defines an Analyzer that checks for failure to call a context cancellation function.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">Package lostcancel defines an Analyzer that checks for failure to call a context cancellation function.</td><tr data-id="passes-lostcancel/cmd/lostcancel" class="">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/passes/lostcancel/cmd/lostcancel">lostcancel/cmd/lostcancel</a>
+            
+            <span class="go-Chip go-Chip--inverted">command</span>
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">The lostcancel command applies the golang.org/x/tools/go/analysis/passes/lostcancel analysis to the specified packages of Go source code.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">The lostcancel command applies the golang.org/x/tools/go/analysis/passes/lostcancel analysis to the specified packages of Go source code.</td><tr data-id="passes-modernize" class="">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/passes/modernize">modernize</a>
+            
+            
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">Package modernize provides a suite of analyzers that suggest simplifications to Go code, using modern language and library features.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">Package modernize provides a suite of analyzers that suggest simplifications to Go code, using modern language and library features.</td><tr data-id="passes-modernize/cmd/modernize" class="">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/passes/modernize/cmd/modernize">modernize/cmd/modernize</a>
+            
+            <span class="go-Chip go-Chip--inverted">command</span>
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">The modernize command suggests (or, with -fix, applies) fixes that clarify Go code by using more modern features.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">The modernize command suggests (or, with -fix, applies) fixes that clarify Go code by using more modern features.</td><tr data-id="passes-nilfunc" class="">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/passes/nilfunc">nilfunc</a>
+            
+            
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">Package nilfunc defines an Analyzer that checks for useless comparisons against nil.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">Package nilfunc defines an Analyzer that checks for useless comparisons against nil.</td><tr data-id="passes-nilness" class="">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/passes/nilness">nilness</a>
+            
+            
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">Package nilness inspects the control-flow graph of an SSA function and reports errors such as nil pointer dereferences and degenerate nil pointer comparisons.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">Package nilness inspects the control-flow graph of an SSA function and reports errors such as nil pointer dereferences and degenerate nil pointer comparisons.</td><tr data-id="passes-nilness/cmd/nilness" class="">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/passes/nilness/cmd/nilness">nilness/cmd/nilness</a>
+            
+            <span class="go-Chip go-Chip--inverted">command</span>
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">The nilness command applies the golang.org/x/tools/go/analysis/passes/nilness analysis to the specified packages of Go source code.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">The nilness command applies the golang.org/x/tools/go/analysis/passes/nilness analysis to the specified packages of Go source code.</td><tr data-id="passes-pkgfact" class="">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/passes/pkgfact">pkgfact</a>
+            
+            
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">The pkgfact package is a demonstration and test of the package fact mechanism.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">The pkgfact package is a demonstration and test of the package fact mechanism.</td><tr data-id="passes-printf" class="">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/passes/printf">printf</a>
+            
+            
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">Package printf defines an Analyzer that checks consistency of Printf format strings and arguments.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">Package printf defines an Analyzer that checks consistency of Printf format strings and arguments.</td><tr data-id="passes-reflectvaluecompare" class="">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/passes/reflectvaluecompare">reflectvaluecompare</a>
+            
+            
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">Package reflectvaluecompare defines an Analyzer that checks for accidentally using == or reflect.DeepEqual to compare reflect.Value values.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">Package reflectvaluecompare defines an Analyzer that checks for accidentally using == or reflect.DeepEqual to compare reflect.Value values.</td><tr data-id="passes-reflectvaluecompare/cmd/reflectvaluecompare" class="">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/passes/reflectvaluecompare/cmd/reflectvaluecompare">reflectvaluecompare/cmd/reflectvaluecompare</a>
+            
+            <span class="go-Chip go-Chip--inverted">command</span>
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">The reflectvaluecompare command applies the reflectvaluecompare checker to the specified packages of Go source code.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">The reflectvaluecompare command applies the reflectvaluecompare checker to the specified packages of Go source code.</td><tr data-id="passes-scannererr" class="">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/passes/scannererr">scannererr</a>
+            
+            
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">Package scannererr defines an analyzer for uses of bufio.Scanner in which the user has forgotten to check Scanner.Err.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">Package scannererr defines an analyzer for uses of bufio.Scanner in which the user has forgotten to check Scanner.Err.</td><tr data-id="passes-shadow" class="">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/passes/shadow">shadow</a>
+            
+            
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">Package shadow defines an Analyzer that checks for shadowed variables.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">Package shadow defines an Analyzer that checks for shadowed variables.</td><tr data-id="passes-shadow/cmd/shadow" class="">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/passes/shadow/cmd/shadow">shadow/cmd/shadow</a>
+            
+            <span class="go-Chip go-Chip--inverted">command</span>
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">The shadow command runs the shadow analyzer.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">The shadow command runs the shadow analyzer.</td><tr data-id="passes-shift" class="">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/passes/shift">shift</a>
+            
+            
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">Package shift defines an Analyzer that checks for shifts that exceed the width of an integer.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">Package shift defines an Analyzer that checks for shifts that exceed the width of an integer.</td><tr data-id="passes-sigchanyzer" class="">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/passes/sigchanyzer">sigchanyzer</a>
+            
+            
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">Package sigchanyzer defines an Analyzer that detects misuse of unbuffered signal as argument to signal.Notify.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">Package sigchanyzer defines an Analyzer that detects misuse of unbuffered signal as argument to signal.Notify.</td><tr data-id="passes-slog" class="">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/passes/slog">slog</a>
+            
+            
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">Package slog defines an Analyzer that checks for mismatched key-value pairs in log/slog calls.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">Package slog defines an Analyzer that checks for mismatched key-value pairs in log/slog calls.</td><tr data-id="passes-sortslice" class="">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/passes/sortslice">sortslice</a>
+            
+            
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">Package sortslice defines an Analyzer that checks for calls to sort.Slice that do not use a slice type as first argument.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">Package sortslice defines an Analyzer that checks for calls to sort.Slice that do not use a slice type as first argument.</td><tr data-id="passes-sqlrowserr" class="">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/passes/sqlrowserr">sqlrowserr</a>
+            
+            
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">Package sqlrowserr defines an analyzer for uses of sql.Rows in which the user has forgotten to check Rows.Err.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">Package sqlrowserr defines an analyzer for uses of sql.Rows in which the user has forgotten to check Rows.Err.</td><tr data-id="passes-stdmethods" class="">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/passes/stdmethods">stdmethods</a>
+            
+            
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">Package stdmethods defines an Analyzer that checks for misspellings in the signatures of methods similar to well-known interfaces.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">Package stdmethods defines an Analyzer that checks for misspellings in the signatures of methods similar to well-known interfaces.</td><tr data-id="passes-stdversion" class="">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/passes/stdversion">stdversion</a>
+            
+            
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">Package stdversion reports uses of standard library symbols that are &#34;too new&#34; for the Go version in force in the referring file.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">Package stdversion reports uses of standard library symbols that are &#34;too new&#34; for the Go version in force in the referring file.</td><tr data-id="passes-stringintconv" class="">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/passes/stringintconv">stringintconv</a>
+            
+            
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">Package stringintconv defines an Analyzer that flags type conversions from integers to strings.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">Package stringintconv defines an Analyzer that flags type conversions from integers to strings.</td><tr data-id="passes-stringintconv/cmd/stringintconv" class="">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/passes/stringintconv/cmd/stringintconv">stringintconv/cmd/stringintconv</a>
+            
+            <span class="go-Chip go-Chip--inverted">command</span>
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">The stringintconv command runs the stringintconv analyzer.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">The stringintconv command runs the stringintconv analyzer.</td><tr data-id="passes-structtag" class="">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/passes/structtag">structtag</a>
+            
+            
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">Package structtag defines an Analyzer that checks struct field tags are well formed.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">Package structtag defines an Analyzer that checks struct field tags are well formed.</td><tr data-id="passes-testinggoroutine" class="">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/passes/testinggoroutine">testinggoroutine</a>
+            
+            
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">Package testinggoroutine defines an Analyzerfor detecting calls to Fatal from a test goroutine.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">Package testinggoroutine defines an Analyzerfor detecting calls to Fatal from a test goroutine.</td><tr data-id="passes-tests" class="">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/passes/tests">tests</a>
+            
+            
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">Package tests defines an Analyzer that checks for common mistaken usages of tests and examples.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">Package tests defines an Analyzer that checks for common mistaken usages of tests and examples.</td><tr data-id="passes-timeformat" class="">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/passes/timeformat">timeformat</a>
+            
+            
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">Package timeformat defines an Analyzer that checks for the use of time.Format or time.Parse calls with a bad format.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">Package timeformat defines an Analyzer that checks for the use of time.Format or time.Parse calls with a bad format.</td><tr data-id="passes-unmarshal" class="">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/passes/unmarshal">unmarshal</a>
+            
+            
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">The unmarshal package defines an Analyzer that checks for passing non-pointer or non-interface types to unmarshal and decode functions.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">The unmarshal package defines an Analyzer that checks for passing non-pointer or non-interface types to unmarshal and decode functions.</td><tr data-id="passes-unmarshal/cmd/unmarshal" class="">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/passes/unmarshal/cmd/unmarshal">unmarshal/cmd/unmarshal</a>
+            
+            <span class="go-Chip go-Chip--inverted">command</span>
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">The unmarshal command runs the unmarshal analyzer.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">The unmarshal command runs the unmarshal analyzer.</td><tr data-id="passes-unreachable" class="">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/passes/unreachable">unreachable</a>
+            
+            
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">Package unreachable defines an Analyzer that checks for unreachable code.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">Package unreachable defines an Analyzer that checks for unreachable code.</td><tr data-id="passes-unsafeptr" class="">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/passes/unsafeptr">unsafeptr</a>
+            
+            
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">Package unsafeptr defines an Analyzer that checks for invalid conversions of uintptr to unsafe.Pointer.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">Package unsafeptr defines an Analyzer that checks for invalid conversions of uintptr to unsafe.Pointer.</td><tr data-id="passes-unusedresult" class="">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/passes/unusedresult">unusedresult</a>
+            
+            
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">Package unusedresult defines an analyzer that checks for unused results of calls to certain pure functions.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">Package unusedresult defines an analyzer that checks for unused results of calls to certain pure functions.</td><tr data-id="passes-unusedresult/cmd/unusedresult" class="">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/passes/unusedresult/cmd/unusedresult">unusedresult/cmd/unusedresult</a>
+            
+            <span class="go-Chip go-Chip--inverted">command</span>
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">The unusedresult command applies the golang.org/x/tools/go/analysis/passes/unusedresult analysis to the specified packages of Go source code.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">The unusedresult command applies the golang.org/x/tools/go/analysis/passes/unusedresult analysis to the specified packages of Go source code.</td><tr data-id="passes-unusedwrite" class="">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/passes/unusedwrite">unusedwrite</a>
+            
+            
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">Package unusedwrite checks for unused writes to the elements of a struct or array object.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">Package unusedwrite checks for unused writes to the elements of a struct or array object.</td><tr data-id="passes-usesgenerics" class="">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/passes/usesgenerics">usesgenerics</a>
+            
+            
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">Package usesgenerics defines an Analyzer that checks for usage of generic features added in Go 1.18.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">Package usesgenerics defines an Analyzer that checks for usage of generic features added in Go 1.18.</td><tr data-id="passes-waitgroup" class="">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/passes/waitgroup">waitgroup</a>
+            
+            
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">Package waitgroup defines an Analyzer that detects simple misuses of sync.WaitGroup.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">Package waitgroup defines an Analyzer that detects simple misuses of sync.WaitGroup.</td></tr>
+
+      
+          
+  
+  <tr
+      class="">
+    <td data-id="singlechecker" data-aria-owns="">
+      <div class="UnitDirectories-pathCell">
+        <div><a href="/golang.org/x/tools@v0.50.0/go/analysis/singlechecker">singlechecker</a>
+            
+          </div>
+          <div class="UnitDirectories-mobileSynopsis">Package singlechecker defines the main function for an analysis driver with only a single analysis.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">Package singlechecker defines the main function for an analysis driver with only a single analysis.</td></tr></tr>
+
+      
+          
+  
+  <tr data-aria-controls="suite-fix suite-vet "
+      class="">
+    <td data-id="suite" data-aria-owns="suite-fix suite-vet ">
+      <div class="UnitDirectories-pathCell">
+        <div><button type="button" class="go-Button go-Button--inline UnitDirectories-toggleButton"
+                aria-expanded="false"
+                aria-label="2 more from"
+                data-aria-controls="suite-fix suite-vet "
+                data-aria-labelledby="suite-button suite"
+                data-id="suite-button">
+              <img class="go-Icon" height="24" width="24" src="/static/shared/icon/arrow_right_gm_grey_24dp.svg"
+                  alt="">
+            </button><span>suite</span>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis"></td></tr><tr data-id="suite-fix" class="">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/suite/fix">fix</a>
+            
+            
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">The fix package defines the suite of analyzers used by cmd/fix, the default analysis tool run by &#34;go fix&#34;.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">The fix package defines the suite of analyzers used by cmd/fix, the default analysis tool run by &#34;go fix&#34;.</td><tr data-id="suite-vet" class="">
+      <td>
+        <div class="UnitDirectories-subdirectory">
+          <span>
+            <a href="/golang.org/x/tools@v0.50.0/go/analysis/suite/vet">vet</a>
+            
+            
+          </span>
+          <div class="UnitDirectories-mobileSynopsis">The vet package defines the suite of analyzers used by cmd/vet, the default analysis tool run by &#34;go vet&#34;.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">The vet package defines the suite of analyzers used by cmd/vet, the default analysis tool run by &#34;go vet&#34;.</td></tr>
+
+      
+          
+  
+  <tr
+      class="">
+    <td data-id="unitchecker" data-aria-owns="">
+      <div class="UnitDirectories-pathCell">
+        <div><a href="/golang.org/x/tools@v0.50.0/go/analysis/unitchecker">unitchecker</a>
+            
+          </div>
+          <div class="UnitDirectories-mobileSynopsis">The unitchecker package defines the main function for an analysis driver that analyzes a single compilation unit during a build.</div>
+        </div>
+      </td>
+      <td class="UnitDirectories-desktopSynopsis">The unitchecker package defines the main function for an analysis driver that analyzes a single compilation unit during a build.</td></tr></tr>
+
+      
+    </table>
+  </div>
+
+      
+    </div>
+  </div>
+  <div id="showInternal-description" hidden> Click to show internal directories. </div>
+  <div id="hideInternal-description" hidden> Click to hide internal directories. </div>
+</article>
+    <footer class="go-Main-footer"></footer>
+  </main>
+
+    
+  <footer class="go-Footer">
+    
+    <div class="go-Footer-links">
+      <div class="go-Footer-linkColumn">
+        <a href="https://go.dev/solutions" class="go-Footer-link go-Footer-link--primary"
+            data-gtmc="footer link">
+          Why Go
+        </a>
+        <a href="https://go.dev/solutions/use-cases" class="go-Footer-link"
+            data-gtmc="footer link">
+          Use Cases
+        </a>
+        <a href="https://go.dev/solutions/case-studies" class="go-Footer-link"
+            data-gtmc="footer link">
+          Case Studies
+        </a>
+      </div>
+      <div class="go-Footer-linkColumn">
+        <a href="https://learn.go.dev/" class="go-Footer-link go-Footer-link--primary"
+            data-gtmc="footer link">
+          Get Started
+        </a>
+        <a href="https://play.golang.org" class="go-Footer-link" data-gtmc="footer link">
+          Playground
+        </a>
+        <a href="https://tour.golang.org" class="go-Footer-link" data-gtmc="footer link">
+          Tour
+        </a>
+        <a href="https://stackoverflow.com/questions/tagged/go?tab=Newest" class="go-Footer-link"
+            data-gtmc="footer link">
+          Stack Overflow
+        </a>
+        <a href="https://go.dev/help" class="go-Footer-link"
+            data-gtmc="footer link">
+          Help
+        </a>
+      </div>
+      <div class="go-Footer-linkColumn">
+        <a href="https://pkg.go.dev" class="go-Footer-link go-Footer-link--primary"
+            data-gtmc="footer link">
+          Packages
+        </a>
+        <a href="/std" class="go-Footer-link" data-gtmc="footer link">
+          Standard Library
+        </a>
+        <a href="/golang.org/x" class="go-Footer-link" data-gtmc="footer link">
+          Sub-repositories
+        </a>
+        <a href="https://pkg.go.dev/about" class="go-Footer-link" data-gtmc="footer link">
+          About Go Packages
+        </a>
+         <a href="/api" class="go-Footer-link" data-gtmc="footer link">
+          pkg.go.dev API
+        </a>
+      </div>
+      <div class="go-Footer-linkColumn">
+        <a href="https://go.dev/project" class="go-Footer-link go-Footer-link--primary"
+            data-gtmc="footer link">
+          About
+        </a>
+        <a href="https://go.dev/dl/" class="go-Footer-link" data-gtmc="footer link">Download</a>
+        <a href="https://go.dev/blog" class="go-Footer-link" data-gtmc="footer link">Blog</a>
+        <a href="https://github.com/golang/go/issues" class="go-Footer-link" data-gtmc="footer link">
+          Issue Tracker
+        </a>
+        <a href="https://go.dev/doc/devel/release.html" class="go-Footer-link"
+            data-gtmc="footer link">
+          Release Notes
+        </a>
+        <a href="https://go.dev/brand" class="go-Footer-link" data-gtmc="footer link">
+          Brand Guidelines
+        </a>
+        <a href="https://go.dev/conduct" class="go-Footer-link" data-gtmc="footer link">
+          Code of Conduct
+        </a>
+      </div>
+      <div class="go-Footer-linkColumn">
+        <a href="https://www.twitter.com/golang" class="go-Footer-link go-Footer-link--primary"
+            data-gtmc="footer link">
+          Connect
+        </a>
+        <a href="https://www.twitter.com/golang" class="go-Footer-link" data-gtmc="footer link">
+          Twitter
+        </a>
+        <a href="https://github.com/golang" class="go-Footer-link" data-gtmc="footer link">GitHub</a>
+        <a href="https://invite.slack.golangbridge.org/" class="go-Footer-link"
+            data-gtmc="footer link">
+          Slack
+        </a>
+        <a href="https://reddit.com/r/golang" class="go-Footer-link" data-gtmc="footer link">
+          r/golang
+        </a>
+        <a href="https://www.meetup.com/pro/go" class="go-Footer-link" data-gtmc="footer link">
+          Meetup
+        </a>
+        <a href="https://golangweekly.com/" class="go-Footer-link" data-gtmc="footer link">
+          Golang Weekly
+        </a>
+      </div>
+    </div>
+    <div class="go-Footer-bottom">
+      <img class="go-Footer-gopher"  width="1431" height="901"
+          src="/static/shared/gopher/pilot-bust-1431x901.svg" alt="Gopher in flight goggles">
+      <ul class="go-Footer-listRow">
+        <li class="go-Footer-listItem">
+          <a href="https://go.dev/copyright" data-gtmc="footer link">Copyright</a>
+        </li>
+        <li class="go-Footer-listItem">
+          <a href="https://go.dev/tos" data-gtmc="footer link">Terms of Service</a>
+        </li>
+        <li class="go-Footer-listItem">
+          <a href="http://www.google.com/intl/en/policies/privacy/" data-gtmc="footer link"
+              target="_blank" rel="noopener">
+            Privacy Policy
+          </a>
+        </li>
+        <li class="go-Footer-listItem">
+          <a href="https://go.dev/s/pkgsite-feedback" target="_blank" rel="noopener"
+              data-gtmc="footer link">
+            Report an Issue
+          </a>
+        </li>
+        <li class="go-Footer-listItem">
+          <button class="go-Button go-Button--text go-Footer-toggleTheme js-toggleTheme" aria-label="Theme Toggle">
+            <img data-value="auto" class="go-Icon go-Icon--inverted" height="24" width="24" src="/static/shared/icon/brightness_6_gm_grey_24dp.svg" alt="System theme">
+            <img data-value="dark" class="go-Icon go-Icon--inverted" height="24" width="24" src="/static/shared/icon/brightness_2_gm_grey_24dp.svg" alt="Dark theme">
+            <img data-value="light" class="go-Icon go-Icon--inverted" height="24" width="24" src="/static/shared/icon/light_mode_gm_grey_24dp.svg" alt="Light theme">
+            <p> Theme Toggle </p>
+          </button>
+        </li>
+        <li class="go-Footer-listItem">
+          <button class="go-Button go-Button--text go-Footer-keyboard js-openShortcuts" aria-label="Shorcuts Modal">
+            <img class="go-Icon go-Icon--inverted" height="24" width="24" src="/static/shared/icon/keyboard_grey_24dp.svg" alt="">
+            <p> Shortcuts Modal </p>
+          </button>
+        </li>
+      </ul>
+      <a class="go-Footer-googleLogo" href="https://google.com" target="_blank"rel="noopener"
+          data-gtmc="footer link">
+        <img class="go-Footer-googleLogoImg" height="24" width="72"
+            src="/static/shared/logo/google-white.svg" alt="Google logo">
+      </a>
+    </div>
+  </footer>
+
+    
+  <dialog id="jump-to-modal" class="JumpDialog go-Modal go-Modal--md js-modal">
+    <form method="dialog" data-gmtc="jump to form" aria-label="Jump to Identifier">
+      <div class="Dialog-title go-Modal-header">
+        <h2>Jump to</h2>
+        <button
+          class="go-Button go-Button--inline"
+          type="button"
+          data-modal-close
+          data-gtmc="modal button"
+          aria-label="Close"
+        >
+          <img
+            class="go-Icon"
+            height="24"
+            width="24"
+            src="/static/shared/icon/close_gm_grey_24dp.svg"
+            alt=""
+          />
+        </button>
+      </div>
+      <div class="JumpDialog-filter">
+        <input class="JumpDialog-input go-Input" autocomplete="off" type="text">
+      </div>
+      <div class="JumpDialog-body go-Modal-body">
+        <div class="JumpDialog-list"></div>
+      </div>
+      <div class="go-Modal-actions">
+        <button class="go-Button" data-test-id="close-dialog">Close</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog class="ShortcutsDialog go-Modal go-Modal--sm js-modal">
+    <form method="dialog">
+      <div class="go-Modal-header">
+        <h2>Keyboard shortcuts</h2>
+        <button
+          class="go-Button go-Button--inline"
+          type="button"
+          data-modal-close
+          data-gtmc="modal button"
+          aria-label="Close"
+        >
+          <img
+            class="go-Icon"
+            height="24"
+            width="24"
+            src="/static/shared/icon/close_gm_grey_24dp.svg"
+            alt=""
+          />
+        </button>
+      </div>
+      <div class="go-Modal-body">
+        <table>
+          <tbody>
+            <tr><td class="ShortcutsDialog-key">
+              <strong>?</strong></td><td> : This menu</td>
+            </tr>
+            <tr><td class="ShortcutsDialog-key">
+              <strong>/</strong></td><td> : Search site</td>
+            </tr>
+            <tr><td class="ShortcutsDialog-key">
+              <strong>f</strong> or <strong>F</strong></td><td> : Jump to</td>
+            </tr>
+            <tr>
+              <td class="ShortcutsDialog-key"><strong>y</strong> or <strong>Y</strong></td>
+              <td> : Canonical URL</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="go-Modal-actions">
+        <button class="go-Button" data-test-id="close-dialog">Close</button>
+      </div>
+    </form>
+  </dialog>
+
+    
+      <section class="Cookie-notice js-cookieNotice">
+        <div>go.dev uses cookies from Google to deliver and enhance the quality of its services and to
+        analyze traffic. <a target=_blank href="https://policies.google.com/technologies/cookies">Learn more.</a></div>
+        <div><button class="go-Button">Okay</button></div>
+      </section>
+    
+    
+      <script>
+        // this will throw if the querySelector can’t find the element
+        const gtmId = document.querySelector('.js-gtmID').dataset.gtmid;
+        if (!gtmId) {
+          throw new Error('Google Tag Manager ID not found');
+        }
+        loadScript(`https://www.googletagmanager.com/gtm.js?id=${gtmId}`);
+      </script>
+      <noscript>
+        <iframe src="https://www.googletagmanager.com/ns.html?id=GTM-W8MVQXG"
+                height="0" width="0" style="display:none;visibility:hidden">
+        </iframe>
+      </noscript>
+    
+    
+  
+  <div class="js-canonicalURLPath" data-canonical-url-path="/golang.org/x/tools@v0.50.0/go/analysis" hidden></div>
+  <div class="js-playgroundVars" data-modulepath="golang.org/x/tools" data-version="v0.50.0" hidden></div>
+  <script>
+    loadScript('/static/frontend/unit/main/main.js')
+  </script>
+
+  <script>
+    loadScript('/static/frontend/unit/unit.js')
+  </script>
+
+  </body>
+</html>

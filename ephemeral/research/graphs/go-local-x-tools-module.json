@@ -1,0 +1,11 @@
+{
+	"Path": "golang.org/x/tools",
+	"Version": "v0.50.0",
+	"Time": "2026-09-08T19:59:56Z",
+	"Indirect": true,
+	"Dir": "/Users/tyler/go/pkg/mod/golang.org/x/tools@v0.50.0",
+	"GoMod": "/Users/tyler/go/pkg/mod/cache/download/golang.org/x/tools/@v/v0.50.0.mod",
+	"GoVersion": "1.26.0",
+	"Sum": "h1:c2ifzfcuY7L90lZ2aKd8S4K2NpASF08SZx9ZuJkHmSU=",
+	"GoModSum": "h1:7ulVMw3831Mwi5EZD6RomGyffr4VFjuNYXf2BbCEAV0="
+}

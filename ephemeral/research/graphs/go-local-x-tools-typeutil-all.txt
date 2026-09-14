@@ -1,0 +1,131 @@
+package typeutil // import "golang.org/x/tools/go/types/typeutil"
+
+Package typeutil defines various utilities for types, such as Map, a hash table
+that maps types.Type to any value.
+
+FUNCTIONS
+
+func Callee(info *types.Info, call *ast.CallExpr) types.Object
+    Callee returns the named target of a function call, if any: a function,
+    method, builtin, or variable. It returns nil for a T(x) conversion.
+
+    Functions and methods may potentially have type parameters.
+
+    Note: for calls of instantiated functions and methods, Callee returns the
+    corresponding generic function or method on the generic type.
+
+func Dependencies(pkgs ...*types.Package) []*types.Package
+    Dependencies returns all dependencies of the specified packages.
+
+    Dependent packages appear in topological order: if package P imports package
+    Q, Q appears earlier than P in the result. The algorithm follows import
+    statements in the order they appear in the source code, so the result is a
+    total order.
+
+func IntuitiveMethodSet(T types.Type, msets *MethodSetCache) []*types.Selection
+    IntuitiveMethodSet returns the intuitive method set of a type T, which is
+    the set of methods you can call on an addressable value of that type.
+
+    The result always contains MethodSet(T), and is exactly MethodSet(T) for
+    interface types and for pointer-to-concrete types. For all other concrete
+    types T, the result additionally contains each method belonging to *T if
+    there is no identically named method on T itself.
+
+    This corresponds to user intuition about method sets; this function is
+    intended only for user interfaces.
+
+    The order of the result is as for types.MethodSet(T).
+
+func StaticCallee(info *types.Info, call *ast.CallExpr) *types.Func
+    StaticCallee returns the target (function or method) of a static function
+    call, if any. It returns nil for calls to builtins.
+
+    Note: for calls of instantiated functions and methods, StaticCallee returns
+    the corresponding generic function or method on the generic type.
+
+
+TYPES
+
+type Hasher struct{}
+    A Hasher provides a Hasher.Hash method to map a type to its hash value.
+    Hashers are stateless, and all are equivalent.
+
+func MakeHasher() Hasher
+    MakeHasher returns Hasher{}. Hashers are stateless; all are equivalent.
+
+func (h Hasher) Hash(t types.Type) uint32
+    Hash computes a hash value for the given type t such that Identical(t,
+    t') => Hash(t) == Hash(t').
+
+type Map struct {
+	// Has unexported fields.
+}
+    Map is a hash-table-based mapping from types (types.Type) to arbitrary
+    values. The concrete types that implement the Type interface are pointers.
+    Since they are not canonicalized, == cannot be used to check for
+    equivalence, and thus we cannot simply use a Go map.
+
+    Just as with map[K]V, a nil *Map is a valid empty map.
+
+    Read-only map operations (Map.At, Map.Len, and so on) may safely be called
+    concurrently.
+
+    TODO(adonovan): deprecate in favor of https://go.dev/issues/69420 and 69559,
+    if the latter proposals for a generic hash-map type and a types.Hash
+    function are accepted.
+
+func (m *Map) At(key types.Type) any
+    At returns the map entry for the given key. The result is nil if the entry
+    is not present.
+
+func (m *Map) Delete(key types.Type) bool
+    Delete removes the entry with the given key, if any. It returns true if the
+    entry was found.
+
+func (m *Map) Iterate(f func(key types.Type, value any))
+    Iterate calls function f on each entry in the map in unspecified order.
+
+    If f should mutate the map, Iterate provides the same guarantees as Go maps:
+    if f deletes a map entry that Iterate has not yet reached, f will not
+    be invoked for it, but if f inserts a map entry that Iterate has not yet
+    reached, whether or not f will be invoked for it is unspecified.
+
+func (m *Map) Keys() []types.Type
+    Keys returns a new slice containing the set of map keys. The order is
+    unspecified.
+
+func (m *Map) KeysString() string
+    KeysString returns a string representation of the map's key set. Order is
+    unspecified.
+
+func (m *Map) Len() int
+    Len returns the number of map entries.
+
+func (m *Map) Set(key types.Type, value any) (prev any)
+    Set sets the map entry for key to val, and returns the previous entry,
+    if any.
+
+func (m *Map) SetHasher(Hasher)
+    SetHasher has no effect.
+
+    It is a relic of an optimization that is no longer profitable. Do not use
+    Hasher, MakeHasher, or [SetHasher] in new code.
+
+func (m *Map) String() string
+    String returns a string representation of the map's entries. Values are
+    printed using fmt.Sprintf("%v", v). Order is unspecified.
+
+type MethodSetCache struct {
+	// Has unexported fields.
+}
+    A MethodSetCache records the method set of each type T for which
+    MethodSet(T) is called so that repeat queries are fast. The zero value is a
+    ready-to-use cache instance.
+
+func (cache *MethodSetCache) MethodSet(T types.Type) *types.MethodSet
+    MethodSet returns the method set of type T. It is thread-safe.
+
+    If cache is nil, this function is equivalent to types.NewMethodSet(T).
+    Utility functions can thus expose an optional *MethodSetCache parameter to
+    clients that care about performance.
+

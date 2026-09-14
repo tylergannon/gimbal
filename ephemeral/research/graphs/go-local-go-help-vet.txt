@@ -1,0 +1,38 @@
+usage: go vet [build flags] [-vettool prog] [vet flags] [packages]
+
+Vet runs the Go vet tool (cmd/vet) on the named packages
+and reports diagnostics.
+
+It supports these flags:
+
+  -c int
+	display offending line with this many lines of context (default -1)
+  -json
+	emit JSON output
+  -fix
+	instead of printing each diagnostic, apply its first fix (if any)
+  -diff
+	instead of applying each fix, print the patch as a unified diff;
+	exit with a non-zero status if the diff is not empty
+
+The -vettool=prog flag selects a different analysis tool with
+alternative or additional checks. For example, the 'shadow' analyzer
+can be built and run using these commands:
+
+  go install golang.org/x/tools/go/analysis/passes/shadow/cmd/shadow@latest
+  go vet -vettool=$(which shadow)
+
+Alternative vet tools should be built atop golang.org/x/tools/go/analysis/unitchecker,
+which handles the interaction with go vet.
+
+The default vet tool is 'go tool vet' or cmd/vet.
+For help on its checkers and their flags, run 'go tool vet help'.
+For details of a specific checker such as 'printf', see 'go tool vet help printf'.
+
+For more about specifying packages, see 'go help packages'.
+
+The build flags supported by go vet are those that control package resolution
+and execution, such as -C, -n, -x, -v, -tags, and -toolexec.
+For more about these flags, see 'go help build'.
+
+See also: go fmt, go fix.

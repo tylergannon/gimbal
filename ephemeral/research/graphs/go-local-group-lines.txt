@@ -1,0 +1,98 @@
+     1	package gimble
+     2	
+     3	import (
+     4		"context"
+     5		"errors"
+     6		"fmt"
+     7		"runtime/debug"
+     8		"sync"
+     9	)
+    10	
+    11	type group struct {
+    12		scope *scope
+    13		ctx   context.Context
+    14		wg    sync.WaitGroup
+    15		once  sync.Once
+    16		err   error
+    17	}
+    18	
+    19	// Group opens an errgroup-shaped concurrent scope named name. Call its Go
+    20	// method for each child, then return its Wait method's result:
+    21	//
+    22	//	group := gimble.Group(ctx, "candidates")
+    23	//	group.Go("candidate", first)
+    24	//	group.Go("candidate", second)
+    25	//	return group.Wait()
+    26	//
+    27	// Each child receives its own named scope. The first error cancels the group,
+    28	// interrupting the other children's turns; Wait joins every child, ends the
+    29	// group scope, and returns that first error. A child killed by an operator
+    30	// (its error's cause is a Killed) is gone, not an abort: its siblings run
+    31	// on, and Wait still returns its error.
+    32	// The caller must Wait on every exit path. To stop children early, cancel
+    33	// their parent context before waiting; cancellation alone does not join them.
+    34	func Group(ctx context.Context, name string) *group {
+    35		parent, err := current(ctx)
+    36		if err != nil {
+    37			return &group{err: err}
+    38		}
+    39		g := &group{scope: parent.child(name)}
+    40		g.ctx, g.scope.cancel = context.WithCancelCause(context.WithValue(ctx, scopeKey{}, g.scope))
+    41		g.scope.run.addScope(g.scope)
+    42		g.scope.run.event(g.scope.key, "", "", ScopeBegan{Name: name})
+    43		return g
+    44	}
+    45	
+    46	// panicError is a child's panic, recovered by Go so that the group ends
+    47	// like any other failed group and Run can record the run before the panic
+    48	// continues. Its text carries the panic value and the child's stack.
+    49	type panicError struct {
+    50		value any
+    51		stack []byte
+    52	}
+    53	
+    54	func (e *panicError) Error() string {
+    55		return fmt.Sprintf("gimble: panic: %v\n\n%s", e.value, e.stack)
+    56	}
+    57	
+    58	// Go runs fn in a goroutine, in a child scope of the group named name. A
+    59	// panic in fn is the child's error: it cancels the group's other children,
+    60	// Wait returns it, and a Run that gets it back from its body records the
+    61	// run's end and then panics with it.
+    62	func (g *group) Go(name string, fn func(ctx context.Context) error) {
+    63		if g.scope == nil {
+    64			return
+    65		}
+    66		child := g.scope.child(name)
+    67		g.wg.Go(func() {
+    68			err := child.do(g.ctx, func(ctx context.Context) (err error) {
+    69				defer func() {
+    70					if v := recover(); v != nil {
+    71						err = &panicError{value: v, stack: debug.Stack()}
+    72					}
+    73				}()
+    74				return fn(ctx)
+    75			})
+    76			if err == nil {
+    77				return
+    78			}
+    79			g.once.Do(func() { g.err = err })
+    80			var killed Killed
+    81			if !errors.As(err, &killed) {
+    82				g.scope.cancel(nil)
+    83			}
+    84		})
+    85	}
+    86	
+    87	// Wait joins the group's goroutines, ends its scope, and returns the first
+    88	// error one of them returned. Call Wait once, after submitting all children.
+    89	// Child results may be read after Wait returns.
+    90	func (g *group) Wait() error {
+    91		if g.scope == nil {
+    92			return g.err
+    93		}
+    94		g.wg.Wait()
+    95		g.scope.run.event(g.scope.key, "", "", ScopeEnded{Error: errString(g.err)})
+    96		g.scope.end()
+    97		return g.err
+    98	}

@@ -1,0 +1,26 @@
+package cha // import "golang.org/x/tools/go/callgraph/cha"
+
+Package cha computes the call graph of a Go program using the Class Hierarchy
+Analysis (CHA) algorithm.
+
+CHA was first described in "Optimization of Object-Oriented Programs Using
+Static Class Hierarchy Analysis", Jeffrey Dean, David Grove, and Craig Chambers,
+ECOOP'95.
+
+CHA is related to RTA (see go/callgraph/rta); the difference is that CHA
+conservatively computes the entire "implements" relation between interfaces and
+concrete types ahead of time, whereas RTA uses dynamic programming to construct
+it on the fly as it encounters new functions reachable from main. CHA may thus
+include spurious call edges for types that haven't been instantiated yet,
+or types that are never instantiated.
+
+Since CHA conservatively assumes that all functions are address-taken and all
+concrete types are put into interfaces, it is sound to run on partial programs,
+such as libraries without a main or test function.
+
+FUNCTIONS
+
+func CallGraph(prog *ssa.Program) *callgraph.Graph
+    CallGraph computes the call graph of the specified program using the Class
+    Hierarchy Analysis algorithm.
+

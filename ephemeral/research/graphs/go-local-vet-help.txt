@@ -1,0 +1,120 @@
+vet is a tool for static analysis of Go programs.
+
+vet examines Go source code and reports diagnostics for
+suspicious constructs or opportunities for improvement.
+Diagnostics may include suggested fixes.
+
+An example of a suspicious construct is a Printf call whose arguments
+do not align with the format string. Analyzers may use heuristics that
+do not guarantee all reports are genuine problems, but can find
+mistakes not caught by the compiler.
+
+An example of an opportunity for improvement is a loop over
+strings.Split(doc, "\n"), which may be replaced by a loop over the
+strings.SplitSeq iterator, avoiding an array allocation.
+Diagnostics in such cases may report non-problems,
+but should carry fixes that may be safely applied.
+
+For analyzers of the first kind, use "go vet -vettool=PROGRAM"
+to run the tool and report diagnostics.
+
+For analyzers of the second kind, use "go fix -fixtool=PROGRAM"
+to run the tool and apply the fixes it suggests.
+
+Registered analyzers:
+
+    appends      check for missing values after append
+    asmdecl      report mismatches between assembly files and Go declarations
+    assign       check for useless assignments
+    atomic       check for common mistakes using the sync/atomic package
+    bools        check for common mistakes involving boolean operators
+    buildtag     check //go:build and // +build directives
+    cgocall      detect some violations of the cgo pointer passing rules
+    composites   check for unkeyed composite literals
+    copylocks    check for locks erroneously passed by value
+    defers       report common mistakes in defer statements
+    directive    check Go toolchain directives such as //go:debug
+    errorsas     report passing non-pointer or non-error values to errors.As
+    framepointer report assembly that clobbers the frame pointer before saving it
+    hostport     check format of addresses passed to net.Dial
+    httpresponse check for mistakes using HTTP responses
+    ifaceassert  detect impossible interface-to-interface type assertions
+    loopclosure  check references to loop variables from within nested functions
+    lostcancel   check cancel func returned by context.WithCancel is called
+    nilfunc      check for useless comparisons between functions and nil
+    printf       check consistency of Printf format strings and arguments
+    shift        check for shifts that equal or exceed the width of the integer
+    sigchanyzer  check for unbuffered channel of os.Signal
+    slog         check for invalid structured logging calls
+    stdmethods   check signature of methods of well-known interfaces
+    stdversion   report uses of too-new standard library symbols
+    stringintconv check for string(int) conversions
+    structtag    check that struct field tags conform to reflect.StructTag.Get
+    testinggoroutine report calls to (*testing.T).Fatal from goroutines started by a test
+    tests        check for common mistaken usages of tests and examples
+    timeformat   check for calls of (time.Time).Format or time.Parse with 2006-02-01
+    unmarshal    report passing non-pointer or non-interface values to unmarshal
+    unreachable  check for unreachable code
+    unsafeptr    check for invalid conversions of uintptr to unsafe.Pointer
+    unusedresult check for unused results of calls to some functions
+    waitgroup    check for misuses of sync.WaitGroup
+
+By default all analyzers are run.
+To select specific analyzers, use the -NAME flag for each one,
+ or -NAME=false to run all analyzers not explicitly disabled.
+
+Core flags:
+
+  -V	print version and exit
+  -all
+    	no effect (deprecated)
+  -appends
+    	enable "appends" analysis
+  -asmdecl
+    	enable "asmdecl" analysis
+  -assign
+    	enable "assign" analysis
+  -atomic
+    	enable "atomic" analysis
+  -bool
+    	deprecated alias for -bools
+  -bools
+    	enable "bools" analysis
+  -buildtag
+    	enable "buildtag" analysis
+  -buildtags
+    	deprecated alias for -buildtag
+  -c int
+    	display offending line with this many lines of context (default -1)
+  -cgocall
+    	enable "cgocall" analysis
+  -composites
+    	enable "composites" analysis
+  -compositewhitelist
+    	deprecated alias for -composites.whitelist (default true)
+  -copylocks
+    	enable "copylocks" analysis
+  -defers
+    	enable "defers" analysis
+  -diff
+    	with -fix, don't update the files, but print a unified diff
+  -directive
+    	enable "directive" analysis
+  -errorsas
+    	enable "errorsas" analysis
+  -fix
+    	apply all suggested fixes
+  -flags
+    	print analyzer flags in JSON
+  -framepointer
+    	enable "framepointer" analysis
+  -hostport
+    	enable "hostport" analysis
+  -httpresponse
+    	enable "httpresponse" analysis
+  -ifaceassert
+    	enable "ifaceassert" analysis
+  -json
+    	emit JSON output
+  -loopclosure
+    	enable "loopclosure" analysis

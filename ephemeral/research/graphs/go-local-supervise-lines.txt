@@ -1,0 +1,145 @@
+     1	package gimble
+     2	
+     3	import (
+     4		"context"
+     5		"crypto/sha256"
+     6		"encoding/json"
+     7		"fmt"
+     8		"path/filepath"
+     9		"strings"
+    10		"sync"
+    11		"time"
+    12	)
+    13	
+    14	//go:generate go tool polytype --validate
+    15	
+    16	// AgentOption is an argument to Generate. The same options are a
+    17	// supervisor's own where WithSupervisor attaches it, so a supervisor can
+    18	// have an interval and supervisors of its own.
+    19	type AgentOption func(*options)
+    20	
+    21	type options struct {
+    22		supervisors []supervisor
+    23		every       time.Duration
+    24	}
+    25	
+    26	type supervisor struct {
+    27		session     *Session
+    28		instruction string
+    29		opts        []AgentOption
+    30	}
+    31	
+    32	// WithSupervisor attaches a supervisor to a turn: a session of its own and
+    33	// an instruction saying what to watch for. While the turn runs, the
+    34	// supervisor looks at what the worker did since its last look, and each
+    35	// objection it raises is steered into the turn. When the worker finishes,
+    36	// Generate cancels and joins its supervisors before returning the worker's
+    37	// result and error. opts are the supervisor's: WithInterval for how often it
+    38	// looks, and WithSupervisor for supervisors of its looks.
+    39	func WithSupervisor(session *Session, instruction string, opts ...AgentOption) AgentOption {
+    40		return func(o *options) {
+    41			o.supervisors = append(o.supervisors, supervisor{session: session, instruction: instruction, opts: opts})
+    42		}
+    43	}
+    44	
+    45	// WithInterval is how often a supervisor looks, given among its options to
+    46	// WithSupervisor. The default is three minutes.
+    47	func WithInterval(every time.Duration) AgentOption {
+    48		return func(o *options) { o.every = every }
+    49	}
+    50	
+    51	func apply(opts []AgentOption) options {
+    52		o := options{every: 3 * time.Minute}
+    53		for _, opt := range opts {
+    54			opt(&o)
+    55		}
+    56		return o
+    57	}
+    58	
+    59	// review is a supervisor's answer to one look at the work.
+    60	type review struct {
+    61		// Each objection is one thing the agent under review must change or stop doing, written as an instruction to that agent. Leave the list empty when you have no objection.
+    62		Objections []string `json:"objections"`
+    63	}
+    64	
+    65	const (
+    66		supervisorRetentionBytes   = 256 << 10
+    67		supervisorLookBytes        = 64 << 10
+    68		supervisorEventTextBytes   = 2000
+    69		supervisorInstructionBytes = 8 << 10
+    70		supervisorTaskBytes        = 16 << 10
+    71		supervisorPathBytes        = 2 << 10
+    72		supervisorGapReserveBytes  = 3 << 10
+    73	)
+    74	
+    75	// supervise is Generate with supervisors attached.
+    76	func supervise[T Output](ctx context.Context, s *Session, prompt string, supervisors []supervisor) (T, error) {
+    77		t := newTranscript(len(supervisors), supervisorRetentionBytes)
+    78		history := filepath.Join(runDir(ctx), "sessions", s.id+".jsonl")
+    79		for _, sup := range supervisors {
+    80			s.mu.Lock()
+    81			turn := fmt.Sprintf("%s/turn.%d", s.id, s.turns+1)
+    82			s.mu.Unlock()
+    83			if scope, err := current(ctx); err == nil {
+    84				o := apply(sup.opts)
+    85				scope.run.event(scope.key, s.id, turn, SuperviseAttached{Reviewer: sup.session.id, Worker: turn, Instruction: sup.instruction, Interval: o.every})
+    86			}
+    87		}
+    88	
+    89		// Each supervisor, on its own clock: look at what is new, steer on
+    90		// objection, stop when the turn ends. A look is a turn with the
+    91		// supervisor's own options, so it can be supervised in turn.
+    92		lookCtx, cancel := context.WithCancel(ctx)
+    93		var wg sync.WaitGroup
+    94		defer func() {
+    95			cancel()
+    96			wg.Wait()
+    97		}()
+    98		for reader, sup := range supervisors {
+    99			wg.Go(func() {
+   100				tick := time.NewTicker(apply(sup.opts).every)
+   101				defer tick.Stop()
+   102				first := true
+   103				for {
+   104					select {
+   105					case <-lookCtx.Done():
+   106						return
+   107					case <-tick.C:
+   108					}
+   109					look := t.look(reader, sup, prompt, first, history)
+   110					if look == "" {
+   111						continue
+   112					}
+   113					first = false
+   114					review, err := sup.session.Generate[review](withSteerSource(lookCtx, sup.session.id), look, sup.opts...)
+   115					if err != nil {
+   116						if lookCtx.Err() != nil {
+   117							return
+   118						}
+   119						logf("%s: a look at %s failed: %v", sup.session.id, s.id, err)
+   120						continue
+   121					}
+   122					if len(review.Objections) > 0 {
+   123						_, _ = s.Steer(withSteerSource(lookCtx, sup.session.id), "Your supervisor objects:\n\n- "+strings.Join(review.Objections, "\n- "))
+   124					}
+   125				}
+   126			})
+   127		}
+   128		var out T
+   129		return generate[T](ctx, s, prompt, t.append, fmt.Sprintf("%T", out))
+   130	}
+   131	
+   132	// lookIntro carries the fixed instructions, plus bounded copies of the
+   133	// supervisor's instruction and the worker's task on the first look.
+   134	func lookIntro(sup supervisor, prompt string, first bool) string {
+   135		var b strings.Builder
+   136		if first {
+   137			fmt.Fprintf(&b, "You are supervising another agent in %s while it works. What you watch for:\n\n%s\n\n",
+   138				clipText(sup.session.workdir, supervisorPathBytes), clipText(sup.instruction, supervisorInstructionBytes))
+   139			fmt.Fprintf(&b, "The agent was asked:\n\n%s\n\n", clipText(prompt, supervisorTaskBytes))
+   140			b.WriteString("Every few minutes you are shown what it did since your last look; tool output is shortened, so read the files yourself when you need more, and change none. Object only when what it does goes against what you watch for; each objection is sent to the agent at once, as an instruction. When you have no objection, answer with an empty list.\n\n")
+   141		}
+   142		return b.String()
+   143	}
+   144	
+   145	// clipText returns an owned string no larger than limit. Owning the clipped

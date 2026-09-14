@@ -123,7 +123,7 @@ func (p *projector) nestedEvent(parent string, envelope map[string]any) error {
 	return p.event("session.tool.progress", map[string]any{
 		"assistantMessageID": messageID,
 		"id":                 parent,
-		"metadata":           map[string]any{"transcript": p.nested[parent]},
+		"metadata":           map[string]any{"mode": "append", "transcript": []any{envelope}},
 	}, ref)
 }
 
@@ -158,31 +158,6 @@ func (p *projector) system(envelope map[string]any) error {
 		return p.permissionReplied(id, "denied", p.nativeRef(envelope, id))
 	}
 	return nil
-}
-
-func (p *projector) permissionRequest(toolName string, input json.RawMessage, toolUseID, agentID string) error {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	var arguments any
-	if len(input) > 0 {
-		_ = json.Unmarshal(input, &arguments)
-	}
-	id := toolUseID
-	if id == "" {
-		id = fmt.Sprintf("permission.%d", len(p.pendingTools)+1)
-	}
-	metadata := map[string]any{"input": arguments}
-	if agentID != "" {
-		metadata["agentID"] = agentID
-	}
-	ref := map[string]any{"provider": "claude", "sessionID": p.sessionID}
-	if toolUseID != "" {
-		ref["itemID"] = toolUseID
-	}
-	if err := p.permissionAsked(id, toolName, metadata, ref); err != nil {
-		return err
-	}
-	return p.permissionReplied(id, "allowed", ref)
 }
 
 func (p *projector) permissionAsked(id, permission string, metadata map[string]any, ref map[string]any) error {

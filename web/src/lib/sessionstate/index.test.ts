@@ -70,10 +70,14 @@ describe('session event projection', () => {
 			{ id: 'input-started', created: 2, type: 'session.tool.input.started', data: { sessionID: 'ses', assistantMessageID: 'message', id: 'tool', name: 'collabAgentToolCall' } },
 			{ id: 'input-ended', created: 3, type: 'session.tool.input.ended', data: { sessionID: 'ses', assistantMessageID: 'message', id: 'tool', text: '{}' } },
 			{ id: 'called', created: 4, type: 'session.tool.called', data: { sessionID: 'ses', assistantMessageID: 'message', id: 'tool', input: {}, executed: true } },
-			{ id: 'success', created: 5, type: 'session.tool.success', data: { sessionID: 'ses', assistantMessageID: 'message', id: 'tool', content: [{ type: 'text', text: 'launched' }], executed: true } },
-			{ id: 'progress', created: 6, type: 'session.tool.progress', data: { sessionID: 'ses', assistantMessageID: 'message', id: 'tool', metadata: { transcript: [{ type: 'session.text.delta' }] } } }
+			{ id: 'progress-one', created: 5, type: 'session.tool.progress', data: { sessionID: 'ses', assistantMessageID: 'message', id: 'tool', metadata: { mode: 'append', transcript: [{ type: 'session.text.delta', data: { delta: 'one' } }] } } },
+			{ id: 'success', created: 6, type: 'session.tool.success', data: { sessionID: 'ses', assistantMessageID: 'message', id: 'tool', content: [{ type: 'text', text: 'launched' }, { type: 'transcript', events: [{ type: 'session.text.delta', data: { delta: 'one' } }] }], executed: true } },
+			{ id: 'progress-two', created: 7, type: 'session.tool.progress', data: { sessionID: 'ses', assistantMessageID: 'message', id: 'tool', metadata: { mode: 'append', transcript: [{ type: 'session.text.delta', data: { delta: 'two' } }] } } }
 		]) projection.apply(event)
 
-		assert.deepEqual(projection.snapshot().state.message.ses[0].content[0].state.metadata, { transcript: [{ type: 'session.text.delta' }] })
+		assert.deepEqual(projection.snapshot().state.message.ses[0].content[0].state.metadata, { transcript: [
+			{ type: 'session.text.delta', data: { delta: 'one' } },
+			{ type: 'session.text.delta', data: { delta: 'two' } }
+		] })
 	})
 })

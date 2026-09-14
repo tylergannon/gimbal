@@ -22,6 +22,17 @@ const emptyState = (): ProjectionState => ({
 const clone = <T>(value: T): T => structuredClone(value)
 const eventMessageID = (id: string) => id.replace(/^evt_/, 'msg_')
 
+const toolProgressMetadata = (state: JSONObject, value: JSONObject): JSONObject => {
+	if (value?.mode !== 'append') return clone(value)
+	let existing = state.metadata?.transcript
+	if (!Array.isArray(existing)) existing = clone(state.content?.find((part: JSONObject) => part.type === 'transcript')?.events ?? [])
+	const metadata = clone(value)
+	delete metadata.mode
+	if (Array.isArray(value.transcript)) existing.push(...clone(value.transcript))
+	metadata.transcript = existing
+	return metadata
+}
+
 export class SessionProjection {
 	private state: ProjectionState
 	private messageIndex = new Map<string, Map<string, JSONObject>>()
@@ -80,7 +91,7 @@ export class SessionProjection {
 			case 'session.tool.input.delta': this.editTool(sid, d.assistantMessageID, d.id, t => { if (t.state.status === 'streaming') t.state.input += d.delta }); break
 			case 'session.tool.input.ended': this.editTool(sid, d.assistantMessageID, d.id, t => { if (t.state.status === 'streaming') t.state.input = d.text }); break
 			case 'session.tool.called': this.toolCalled(event); break
-			case 'session.tool.progress': this.editTool(sid, d.assistantMessageID, d.id, t => { if (['running', 'completed', 'error'].includes(t.state.status)) t.state.metadata = clone(d.metadata) }); break
+			case 'session.tool.progress': this.editTool(sid, d.assistantMessageID, d.id, t => { if (['running', 'completed', 'error'].includes(t.state.status)) t.state.metadata = toolProgressMetadata(t.state, d.metadata) }); break
 			case 'session.tool.success': this.toolSuccess(event); break
 			case 'session.tool.failed': this.toolFailed(event); break
 			case 'session.reasoning.started': this.editAssistant(sid, d.assistantMessageID, a => { const part=this.withDefined({ type: 'reasoning', text: '', state: clone(d.state), time: { created: event.created } });a.content.push(part);const key=this.partKey(sid,d.assistantMessageID),open=this.openReasoning.get(key)??[];open.push(part);this.openReasoning.set(key,open) }); break

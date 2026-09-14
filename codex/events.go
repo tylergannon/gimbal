@@ -359,7 +359,7 @@ func (p *projector) nestedEvent(parentTool string, event gimble.AgentEvent) erro
 	return p.event("session.tool.progress", map[string]any{
 		"assistantMessageID": state.messageID,
 		"id":                 parentTool,
-		"metadata":           map[string]any{"transcript": state.events},
+		"metadata":           map[string]any{"mode": "append", "transcript": []any{entry}},
 	}, map[string]any{"provider": "codex", "sessionID": p.sessionID, "turnID": p.turnID, "itemID": parentTool})
 }
 

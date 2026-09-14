@@ -108,17 +108,6 @@ func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema 
 			}
 			return err
 		}),
-		claudeagent.WithCanUseTool(func(_ context.Context, req claudeagent.ToolPermissionRequest) claudeagent.PermissionResult {
-			if err := project.permissionRequest(req.ToolName, req.Arguments, req.Context.ToolUseID, req.Context.AgentID); err != nil {
-				select {
-				case nativeErrors <- err:
-				default:
-				}
-			}
-			// The adapter already runs in bypassPermissions mode. Observing the
-			// callback preserves that fixed noninteractive allow decision.
-			return claudeagent.PermissionAllow{}
-		}),
 		claudeagent.WithStderr(func(data string) {
 			if err := fatalStderr(data); err != nil {
 				select {

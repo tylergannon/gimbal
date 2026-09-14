@@ -66,6 +66,31 @@ func appendContent(assistant *Obj, part *Obj) {
 	assistant.Set("content", append(arrOf(assistant.Get("content")), part))
 }
 
+func toolProgressMetadata(state *Obj, value any) any {
+	incoming := objOf(value)
+	if incoming == nil || str(incoming.Get("mode")) != "append" {
+		return cloneValue(value)
+	}
+	existing := arrOf(objOf(state.Get("metadata")).Get("transcript"))
+	if existing == nil {
+		for _, partValue := range arrOf(state.Get("content")) {
+			part := objOf(partValue)
+			if str(part.Get("type")) == "transcript" {
+				existing = arrOf(cloneValue(part.Get("events")))
+				break
+			}
+		}
+	}
+	transcript := existing
+	for _, entry := range arrOf(incoming.Get("transcript")) {
+		transcript = append(transcript, cloneValue(entry))
+	}
+	metadata := incoming.Clone()
+	metadata.Delete("mode")
+	metadata.Set("transcript", transcript)
+	return metadata
+}
+
 // Apply reduces one native event. Unknown event types, and the schema entries
 // the selected upstream revision has no handler for, change nothing.
 func (p *Projection) Apply(event *Obj) {
@@ -239,7 +264,7 @@ func (p *Projection) Apply(event *Obj) {
 			state := objOf(t.Get("state"))
 			switch str(state.Get("status")) {
 			case "running", "completed", "error":
-				state.Set("metadata", cloneValue(d.Get("metadata")))
+				state.Set("metadata", toolProgressMetadata(state, d.Get("metadata")))
 			}
 		})
 

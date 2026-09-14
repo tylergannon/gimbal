@@ -239,6 +239,43 @@ func TestRawProjectorAcceptsNestedTranscriptAfterAsyncToolCompletes(t *testing.T
 	}
 }
 
+func TestNestedProgressEmitsOneEntryPerEvent(t *testing.T) {
+	var events []gimble.AgentEvent
+	p := newProjector("session", "model", func(event gimble.AgentEvent) error {
+		events = append(events, event)
+		return nil
+	})
+	mustRaw(t, p.raw(json.RawMessage(`{"type":"stream_event","event":{"type":"message_start","message":{"id":"parent-message","model":"model","usage":{}}}}`)))
+	mustRaw(t, p.raw(json.RawMessage(`{"type":"stream_event","event":{"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"task-call","name":"Task","input":{}}}}`)))
+	events = nil
+	for i := range 1000 {
+		mustRaw(t, p.nestedEvent("task-call", map[string]any{"type": "assistant", "sequence": i, "message": map[string]any{"content": "child"}}))
+	}
+	if len(events) != 1000 {
+		t.Fatalf("nested progress event count = %d, want 1000", len(events))
+	}
+
+	total := 0
+	for _, event := range events {
+		total += len(event.Data) + len(event.NativeRef)
+		var data struct {
+			Metadata struct {
+				Mode       string `json:"mode"`
+				Transcript []any  `json:"transcript"`
+			} `json:"metadata"`
+		}
+		if err := json.Unmarshal(event.Data, &data); err != nil {
+			t.Fatal(err)
+		}
+		if data.Metadata.Mode != "append" || len(data.Metadata.Transcript) != 1 {
+			t.Fatalf("nested progress metadata = %#v, want one append entry", data.Metadata)
+		}
+	}
+	if total > 2<<20 {
+		t.Fatalf("1000 nested progress events emitted %d bytes, want linear payload under 2 MiB", total)
+	}
+}
+
 func TestRawProjectorRecordsRetryFailureAndPermissionDecision(t *testing.T) {
 	var events []gimble.AgentEvent
 	p := newProjector("session", "model", func(event gimble.AgentEvent) error {
@@ -248,7 +285,7 @@ func TestRawProjectorRecordsRetryFailureAndPermissionDecision(t *testing.T) {
 	mustRaw(t, p.raw(json.RawMessage(`{"type":"stream_event","event":{"type":"message_start","message":{"id":"message","model":"model","usage":{}}}}`)))
 	mustRaw(t, p.raw(json.RawMessage(`{"type":"system","subtype":"api_retry","attempt":2,"max_retries":5,"retry_delay_ms":400,"error_status":529,"error":"server_error","uuid":"retry","session_id":"session"}`)))
 	mustRaw(t, p.raw(json.RawMessage(`{"type":"assistant","uuid":"failed","session_id":"session","message":{"id":"message","content":[]},"error":"rate_limit"}`)))
-	mustRaw(t, p.permissionRequest("Bash", json.RawMessage(`{"command":"true"}`), "tool", "child"))
+	mustRaw(t, p.raw(json.RawMessage(`{"type":"system","subtype":"permission_denied","tool_use_id":"tool","tool_name":"Bash","uuid":"permission","session_id":"session"}`)))
 
 	if got := claudeTypes(events); !slices.Equal(got, []string{"session.step.started", "session.retry.scheduled", "session.step.failed", "permission.asked", "permission.replied"}) {
 		t.Fatalf("native event types = %v", got)
@@ -261,7 +298,7 @@ func TestRawProjectorRecordsRetryFailureAndPermissionDecision(t *testing.T) {
 	if retry["attempt"] != float64(2) || retry["delayMS"] != float64(400) {
 		t.Fatalf("retry = %#v", retry)
 	}
-	if failed["assistantMessageID"] != "message" || asked["id"] != "tool" || replied["reply"] != "allowed" {
+	if failed["assistantMessageID"] != "message" || asked["id"] != "tool" || replied["reply"] != "denied" {
 		t.Fatalf("failure/permission = failed %#v asked %#v replied %#v", failed, asked, replied)
 	}
 }

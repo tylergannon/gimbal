@@ -391,6 +391,42 @@ func TestProjectorAcceptsChildEventsAfterCollabToolCompletes(t *testing.T) {
 	}
 }
 
+func TestNestedProgressEmitsOneEntryPerEvent(t *testing.T) {
+	var events []gimble.AgentEvent
+	p := newProjector("parent", "turn", "model", func(event gimble.AgentEvent) error {
+		events = append(events, event)
+		return nil
+	})
+	mustProject(t, p.itemStarted(json.RawMessage(`{"item":{"id":"spawn","type":"collabAgentToolCall","tool":"spawnAgent","receiverThreadIds":[],"status":"inProgress"}}`)))
+	events = nil
+	for i := range 1000 {
+		mustProject(t, p.nestedEvent("spawn", gimble.AgentEvent{Type: "session.text.delta", Data: json.RawMessage(fmt.Sprintf(`{"sequence":%d,"delta":"child"}`, i))}))
+	}
+	if len(events) != 1000 {
+		t.Fatalf("nested progress event count = %d, want 1000", len(events))
+	}
+
+	total := 0
+	for _, event := range events {
+		total += len(event.Data) + len(event.NativeRef)
+		var data struct {
+			Metadata struct {
+				Mode       string `json:"mode"`
+				Transcript []any  `json:"transcript"`
+			} `json:"metadata"`
+		}
+		if err := json.Unmarshal(event.Data, &data); err != nil {
+			t.Fatal(err)
+		}
+		if data.Metadata.Mode != "append" || len(data.Metadata.Transcript) != 1 {
+			t.Fatalf("nested progress metadata = %#v, want one append entry", data.Metadata)
+		}
+	}
+	if total > 2<<20 {
+		t.Fatalf("1000 nested progress events emitted %d bytes, want linear payload under 2 MiB", total)
+	}
+}
+
 func TestChildThreadRemainsOwnedByItsSpawnTool(t *testing.T) {
 	conn := &connection{threads: make(map[string]chan rpcMessage)}
 	ch := make(chan rpcMessage)

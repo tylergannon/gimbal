@@ -39,8 +39,8 @@ ids on the page, in the log, and in a kill.
 | `NewSession(ctx, name, adapter, model, workdir)` | One conversation on one harness in one dir. Cannot fail; the process starts on the first turn. | Adapters: `codex.New()`, `claude.New()`, `agy.New()`. |
 | `s.Generate[T](ctx, prompt, opts...)` | One blocking turn. `T` is `gimble.Text` for prose, or a polytype `Output` type whose schema is sent with the prompt. | Nothing is injected: put `ScopeText(ctx)` in the prompt yourself. A wrong-shaped answer is re-asked a bounded number of times. |
 | `s.Fork(ctx, name)` | A new session with the conversation so far, in the same dir. | Read the code once, fork the readers. |
-| `s.Steer(ctx, message)` | From another goroutine while `Generate` blocks: lands at the worker's next model call, dropped if no turn runs. | The log's `steer` record says whether it landed. |
-| `Set(ctx, key, v)`, `SetJSON(ctx, key, v)`, `ScopeText(ctx)` | Record a scalar or a polytype value in the ctx's scope; render every value visible from it, outermost first. | One `Set` per key per scope instance; shadow it in a child scope. |
+| `s.Steer(ctx, message) (landed, err)` | From another goroutine while `Generate` blocks: lands at the worker's next model call. | Dropped when no turn runs: `landed` false, `err` nil. The log's `steer` record says the same. |
+| `Set(ctx, key, v)`, `SetJSON(ctx, key, v)`, `ScopeText(ctx)` | Record a scalar or a polytype value in the ctx's scope; render every value visible from it, outermost first. | `Set` returns nothing and panics on misuse: a key set twice in one scope instance, or a scope that has ended. Revise by shadowing in a child scope. |
 | `WithSupervisor(session, instruction, opts...)`, `WithInterval(d)` | Options to `Generate`: a supervisor looks at what the worker did since its last look, every 3 minutes or `WithInterval`, and steers each objection in. | It never gates the result. Its own options are `opts`, so a supervisor can have a supervisor. |
 | `Killed{Target, By, Reason}` | The cause an operator's kill puts on a scope's or a turn's ctx. | `errors.As(err, &killed)` on a `Generate` error, or `context.Cause(ctx)`. See below. |
 
@@ -52,15 +52,25 @@ text: write it as an instruction.
 
 ## Kills
 
-An operator kills a scope or a turn by id with a cause. Inside the workflow
-it arrives as `context.Cause(ctx)`, a `gimble.Killed`, on every ctx under the
-target; `errors.As(err, &killed)` on the `Generate` error tells a kill from
-an ordinary failure. A killed turn ends only that turn, and the same session
-runs another. A killed scope closes its sessions; its `Group` siblings run
-on; a `Loop` records the task failed with the reason and the planner sees it
-on the next lap. The by-id functions are unexported in the root package;
-the web runtime exports them once #176 lands. Write the workflow to handle
-the cause, not to send it.
+An operator holds ids from the page, not pointers, and reaches a live run
+through the web runtime:
+
+```go
+landed, err := runtime.Steer(ctx, runID, "work.1/task.2/coder.1", "look at the tests first")
+err = runtime.KillTurn(runID, "work.1/task.2/coder.1/turn.3", "tyler", "editing the wrong file")
+err = runtime.KillScope(runID, "work.1/task.2", "tyler", "off the rails")
+```
+
+A steer from the page is recorded with `source: "person"`; a supervisor's
+with its session id. A kill puts a `gimble.Killed{Target, By, Reason}` cause
+on every ctx under the target: `errors.As(err, &killed)` on the `Generate`
+error tells a kill from an ordinary failure, and `context.Cause(ctx)` shows
+it anywhere below. A killed turn ends only that turn: the session, its
+scope, and the loop keep running, and the body decides whether to re-ask.
+A killed scope closes its sessions; its `Group` siblings run on; a `Loop`
+records the task failed with the reason and the planner sees it on the next
+lap. An unknown or finished id is an error. Write the workflow to handle the
+cause; the sending is the operator's.
 
 ## The shapes
 
@@ -76,7 +86,7 @@ Each is a compiling `Example` in the root package (`example_test.go`,
 | Loop with a planner | `Example_loopWithPlanner` | Planner forked from the researcher; a coder per task; `Set` the result for the planner. |
 | Worktree per candidate | `Example_worktreePerCandidate` | `git worktree add` per candidate, absolute path in the prompt, `git status` in the repo afterwards. |
 | Validation command | `Example_validationCommand` | The check is chosen before the coder starts; exit code is the verdict; output goes back to the coder. |
-| Killed scope, loop recovers | `Example_killedScope` | The task's `Generate` returns the `Killed`; the body moves on; the planner is told. |
+| Killed by an operator, loop recovers | `Example_killedTurn` | `runtime.KillTurn` by id mid-turn; the task's `Generate` returns the `Killed`; the body re-asks the same session and the loop goes on. |
 
 ## Run and watch
 
@@ -95,7 +105,8 @@ cancels the ctx, which interrupts every turn. `web.WithNoWeb()` runs without
 the page. `go run ./cmd/sprint -dry-run -issue <file>` shows the sprint
 workflow's prompts and schemas without calling a model; a new workflow that
 wants that writes a fake `HarnessAdapter` the way `internal/workflows/sprint/dryrun.go`
-does.
+does. `just vet` and `just test` are the repository's checks; `just attest`
+runs the live attestation on the cheap tier.
 
 ## Read the record
 

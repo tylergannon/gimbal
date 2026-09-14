@@ -4,13 +4,11 @@ package codex
 
 import "syscall"
 
-// darwinOpenMax is the practical ceiling macOS enforces (via
-// kern.maxfilesperproc) even when RLIMIT_NOFILE's hard limit reports as
-// RLIM_INFINITY. Asking Setrlimit for the reported hard limit fails with
-// EINVAL in that case; this is the fallback raiseFileDescriptorLimit tries
-// next, chosen to comfortably clear the fan-out this adapter drives (see
-// the codex package doc) without guessing at a value the kernel will also
-// reject.
+// darwinOpenMax caps the soft limit this adapter asks for. On macOS the
+// hard limit reports as RLIM_INFINITY while the kernel enforces
+// kern.maxfilesperproc underneath it, so the cap keeps the request at a
+// value that clears the fan-out this adapter drives (see the codex package
+// doc) without handing the process a literal-infinity soft limit.
 const darwinOpenMax = 65536
 
 // raiseFileDescriptorLimit raises this process's soft RLIMIT_NOFILE, in

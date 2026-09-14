@@ -1,8 +1,10 @@
 {"type":"object",
 "description":"Input starts a sprint.","properties":{
-"sprint":{"type":"integer","description":"The sprint to build: its number in ephemeral/research/api/SPRINTS.md, e.g. 2."},
+"sprint":{"type":"integer","description":"The sprint to build: its number in ephemeral/research/api/SPRINTS.md, e.g. 2. Zero when an issue is built instead."},
+"issue":{"type":"string","description":"The issue to build instead of a sprint: a GitHub issue number, or the path of a file holding the issue's text. Empty when a sprint is built."},
 "repo":{"type":"string","description":"Absolute path of the repository. Each validated task is committed to the branch checked out there, and the sprint ends by merging that branch."},
 "model":{"type":"string","description":"Codex model for the researcher, the planner, and the coders, e.g. \"gpt-5.6-luna\"."},
 "review_model":{"type":"string","description":"Claude Code model for the supervisors and the validator, e.g. \"haiku\"."},
-"tasks":{"type":"integer","description":"The most tasks to run in all. The sprint fails if the planner is not done by then."}
-},"required":["sprint","repo","model","review_model","tasks"],"additionalProperties":false}
+"tasks":{"type":"integer","description":"The most tasks to run in all. The sprint fails if the planner is not done by then."},
+"dry_run":{"type":"boolean","description":"Call no model and run no command: print each prompt with the schema it would send, answered with an example value, so every prompt can be read before a real run. A viewer, never proof."}
+},"required":["sprint","issue","repo","model","review_model","tasks","dry_run"],"additionalProperties":false}

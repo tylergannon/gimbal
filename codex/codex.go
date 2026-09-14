@@ -445,6 +445,10 @@ func readTurn(ctx context.Context, conn *connection, ch chan rpcMessage, threadI
 			if ok {
 				final = text
 			}
+		case "rawResponseItem/completed":
+			if err := emit.rawResponseItemCompleted(message.Params); err != nil {
+				return "", err
+			}
 		case "rawResponse/completed":
 			if err := emit.rawResponseCompleted(message.Params); err != nil {
 				return "", err

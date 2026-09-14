@@ -135,9 +135,7 @@ func (l *loop) Tasks(yield func(context.Context, Task) bool) {
 				if err != nil {
 					return fmt.Errorf("gimble: encode task: %w", err)
 				}
-				if err := store(ctx, "task", raw); err != nil {
-					return err
-				}
+				store(ctx, "task", raw)
 				more = yield(ctx, task)
 				previous = taskScope.localText()
 				// A task killed by an operator is the task scope's own

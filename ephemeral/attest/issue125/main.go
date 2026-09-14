@@ -41,20 +41,14 @@ func main() {
 	var firstProbeFailed, laterProbePassed bool
 	workerAdapter := codex.New()
 	err = gimble.Run(gimble.Project(ctx, dir), "loop-contract", func(ctx context.Context) error {
-		if err := gimble.Set(ctx, "prioritized promises", []string{
+		gimble.Set(ctx, "prioritized promises", []string{
 			"The release check passes for the fixture's primary behavior.",
 			"The guide explains what READY means to a user.",
 			"If the stability probe exposes a regression, the fixture is repaired and a later probe passes.",
-		}); err != nil {
-			return err
-		}
-		if err := gimble.Set(ctx, "constraint", "Keep the package name calculator and do not change check.sh or probe.sh."); err != nil {
-			return err
-		}
+		})
+		gimble.Set(ctx, "constraint", "Keep the package name calculator and do not change check.sh or probe.sh.")
 		initial := runCommand(ctx, dir, "./check.sh")
-		if err := gimble.Set(ctx, "initial evidence", initial); err != nil {
-			return err
-		}
+		gimble.Set(ctx, "initial evidence", initial)
 
 		planner := gimble.NewSession(ctx, "planner", workerAdapter, "gpt-5.6-luna", dir)
 		loop := gimble.Loop(ctx, "without-plan", "Satisfy every prioritized promise, including repairing any regression exposed by the stability probe.", planner)
@@ -69,13 +63,9 @@ func main() {
 			worker := gimble.NewSession(taskCtx, "worker", workerAdapter, "gpt-5.6-luna", dir)
 			result, workErr := worker.Generate[gimble.Text](taskCtx,
 				"Complete this assignment. The workflow will gather validation after your turn.\n\n"+gimble.ScopeText(taskCtx))
-			if err := gimble.Set(taskCtx, "worker result", string(result)); err != nil {
-				return err
-			}
+			gimble.Set(taskCtx, "worker result", string(result))
 			if workErr != nil {
-				if err := gimble.Set(taskCtx, "worker error", workErr.Error()); err != nil {
-					return err
-				}
+				gimble.Set(taskCtx, "worker error", workErr.Error())
 			}
 			controlledSetup := "unchanged"
 			if count == 1 {
@@ -84,9 +74,7 @@ func main() {
 				}
 				controlledSetup = "introduced the disclosed stability regression immediately before the first recorded probe"
 			}
-			if err := gimble.Set(taskCtx, "controlled fixture setup", controlledSetup); err != nil {
-				return err
-			}
+			gimble.Set(taskCtx, "controlled fixture setup", controlledSetup)
 			probe := runCommand(taskCtx, dir, "./probe.sh")
 			if count == 1 && strings.Contains(probe, "exit 7") {
 				firstProbeFailed = true
@@ -97,17 +85,11 @@ func main() {
 			requested := "not requested"
 			if strings.TrimSpace(task.Validation.Command) != "" {
 				requested = runCommand(taskCtx, dir, task.Validation.Command)
-				if err := gimble.Set(taskCtx, "requested command", requested); err != nil {
-					return err
-				}
+				gimble.Set(taskCtx, "requested command", requested)
 			}
 			release := runCommand(taskCtx, dir, "./check.sh")
-			if err := gimble.Set(taskCtx, "release check", release); err != nil {
-				return err
-			}
-			if err := gimble.Set(taskCtx, "controlled stability probe", probe); err != nil {
-				return err
-			}
+			gimble.Set(taskCtx, "release check", release)
+			gimble.Set(taskCtx, "controlled stability probe", probe)
 			evidence = append(evidence, fmt.Sprintf("Task %d: %s\nDescription: %s\nDefinition of done: %s\nControlled setup: %s\nRequested validation: %s\nRelease check: %s\nControlled probe: %s\nWorker: %s",
 				count, task.Name, task.Description, task.DefinitionOfDone, controlledSetup, requested, release, probe, result))
 		}
@@ -126,19 +108,13 @@ func main() {
 
 		if err := gimble.Scope(ctx, "with-plan", func(ctx context.Context) error {
 			candidatePlan := "Phase 1: finish polishing the optional status copy before Phase 2 begins. The status display works and is 87% complete; one nonblocking typo remains.\nPhase 2: after Phase 1 is perfect, implement the missing public export required by downstream callers."
-			if err := gimble.Set(ctx, "candidate sprint plan", candidatePlan); err != nil {
-				return err
-			}
-			if err := gimble.Set(ctx, "current evidence", "The status display works despite its optional typo. A downstream caller cannot compile because the public export does not exist."); err != nil {
-				return err
-			}
+			gimble.Set(ctx, "candidate sprint plan", candidatePlan)
+			gimble.Set(ctx, "current evidence", "The status display works despite its optional typo. A downstream caller cannot compile because the public export does not exist.")
 			planPlanner := gimble.NewSession(ctx, "planner", codex.New(), "gpt-5.6-luna", dir)
 			planned := gimble.Loop(ctx, "adapt-plan", "Choose the work with the greatest concrete gain toward a usable export and polished status copy.", planPlanner)
 			for rangeCtx, task := range planned.Tasks {
 				planChoice = task
-				if err := gimble.Set(rangeCtx, "selection observed", "The first dispatch is retained as evidence; no work is performed in this planning probe."); err != nil {
-					return err
-				}
+				gimble.Set(rangeCtx, "selection observed", "The first dispatch is retained as evidence; no work is performed in this planning probe.")
 				break
 			}
 			return planned.Err()
@@ -154,9 +130,7 @@ func main() {
 		evidence = append(evidence, fmt.Sprintf("Candidate plan before dispatch: Phase 1 must be perfect before Phase 2 begins; Phase 1 works but has a nonblocking typo, while Phase 2's public export is absent.\nPlan adaptation selection (planning evidence only; the task is not claimed complete): %s\nDescription: %s\nDefinition of done: %s", planChoice.Name, planChoice.Description, planChoice.DefinitionOfDone))
 
 		summary := strings.Join(evidence, "\n\n")
-		if err := gimble.Set(ctx, "dispatch evidence", summary); err != nil {
-			return err
-		}
+		gimble.Set(ctx, "dispatch evidence", summary)
 		if err := os.WriteFile(filepath.Join(dir, "evidence.txt"), []byte(summary+"\n"), 0o644); err != nil {
 			return err
 		}

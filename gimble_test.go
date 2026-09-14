@@ -208,19 +208,13 @@ func TestRunLogCanBeRead(t *testing.T) {
 
 func TestScopeData(t *testing.T) {
 	err := runTest(t, func(ctx context.Context) error {
-		if err := Set(ctx, "language", "go"); err != nil {
-			return err
-		}
-		if err := Set(ctx, "language", "rust"); err == nil {
-			t.Error("a second Set of a key in one scope succeeded")
-		}
-		if err := SetJSON(ctx, "review", review{Objections: []string{"too big"}}); err != nil {
-			return err
-		}
+		Set(ctx, "language", "go")
+		SetJSON(ctx, "review", review{Objections: []string{"too big"}})
 		var inner context.Context
 		err := Scope(ctx, "lap", func(ctx context.Context) error {
 			inner = ctx
-			return Set(ctx, "language", "zig")
+			Set(ctx, "language", "zig")
+			return nil
 		})
 		if err != nil {
 			return err
@@ -229,9 +223,6 @@ func TestScopeData(t *testing.T) {
 		want := "## review\n\n{\n  \"objections\": [\n    \"too big\"\n  ]\n}\n\n## language\n\nzig"
 		if got != want {
 			t.Errorf("ScopeText = %q, want %q", got, want)
-		}
-		if err := Set(inner, "late", "x"); err == nil {
-			t.Error("Set on an ended scope succeeded")
 		}
 		return nil
 	})
@@ -506,18 +497,14 @@ func TestLoopCarriesStructuredTaskAndFeedback(t *testing.T) {
 	var taskKeys []string
 	var parentText string
 	err := Run(Project(t.Context(), project), "test", func(ctx context.Context) error {
-		if err := Set(ctx, "constraint", "keep the public API small"); err != nil {
-			return err
-		}
+		Set(ctx, "constraint", "keep the public API small")
 		planner := NewSession(ctx, "planner", f, "m", t.TempDir())
 		loop := Loop(ctx, "sprint", "ship", planner)
 		for ctx, task := range loop.Tasks {
 			tasks = append(tasks, task)
 			s, _ := current(ctx)
 			taskKeys = append(taskKeys, s.key)
-			if err := Set(ctx, "validation result", "exit 1: package does not compile"); err != nil {
-				return err
-			}
+			Set(ctx, "validation result", "exit 1: package does not compile")
 		}
 		parentText = ScopeText(ctx)
 		return loop.Err()
@@ -773,9 +760,7 @@ func TestAttestEventFixture(t *testing.T) {
 			if runDir(ctx) == "" {
 				return errors.New("run directory was empty inside a run")
 			}
-			if err := Set(ctx, "root", "value"); err != nil {
-				return err
-			}
+			Set(ctx, "root", "value")
 			researcher := NewSession(ctx, "researcher", f, "model", project)
 			if _, err := researcher.Generate[Text](ctx, "prime"); err != nil {
 				return err
@@ -809,7 +794,8 @@ func TestAttestEventFixture(t *testing.T) {
 				return err
 			}
 			return Scope(ctx, "nested", func(ctx context.Context) error {
-				return Set(ctx, "child", "value")
+				Set(ctx, "child", "value")
+				return nil
 			})
 		})
 	})

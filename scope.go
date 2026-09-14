@@ -138,37 +138,40 @@ func Scope(ctx context.Context, name string, body func(ctx context.Context) erro
 }
 
 // Set stores a scalar in the ctx's scope. A key is set once per scope
-// instance; revision is shadowing, in a child scope.
-func Set[V ~string | ~int | ~float64 | ~bool | ~[]string](ctx context.Context, key string, value V) error {
-	raw, err := json.Marshal(value)
-	if err != nil {
-		return fmt.Errorf("gimble: set %q: %w", key, err)
-	}
-	return store(ctx, key, raw)
+// instance; revision is shadowing, in a child scope. Misuse is a
+// programming error and panics with a message naming the key and the
+// scope: a key already set in this scope, a scope that has ended, or a
+// ctx with no scope. The run records the panic before it escapes.
+func Set[V ~string | ~int | ~bool | ~[]string](ctx context.Context, key string, value V) {
+	store(ctx, key, encode(key, value))
 }
 
 // SetJSON stores a polytype-generated value in the ctx's scope, once per
-// key like Set.
-func SetJSON[V Output](ctx context.Context, key string, value V) error {
-	raw, err := json.Marshal(value)
-	if err != nil {
-		return fmt.Errorf("gimble: set %q: %w", key, err)
-	}
-	return store(ctx, key, raw)
+// key like Set, and panics on misuse like Set.
+func SetJSON[V Output](ctx context.Context, key string, value V) {
+	store(ctx, key, encode(key, value))
 }
 
-func store(ctx context.Context, key string, raw []byte) error {
-	s, err := current(ctx)
+func encode(key string, value any) []byte {
+	raw, err := json.Marshal(value)
 	if err != nil {
-		return err
+		panic(fmt.Sprintf("gimble: set %q: %v", key, err))
+	}
+	return raw
+}
+
+func store(ctx context.Context, key string, raw []byte) {
+	s, _ := ctx.Value(scopeKey{}).(*scope)
+	if s == nil {
+		panic(fmt.Sprintf("gimble: set %q: no scope in the ctx; it must come from gimble.Run", key))
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.ended {
-		return fmt.Errorf("gimble: set %q in scope %q after it ended", key, s.key)
+		panic(fmt.Sprintf("gimble: set %q in scope %q after it ended", key, s.key))
 	}
 	if _, ok := s.values[key]; ok {
-		return fmt.Errorf("gimble: %q is already set in scope %q", key, s.key)
+		panic(fmt.Sprintf("gimble: %q is already set in scope %q", key, s.key))
 	}
 	if s.values == nil {
 		s.values = make(map[string][]byte)
@@ -176,7 +179,6 @@ func store(ctx context.Context, key string, raw []byte) error {
 	s.values[key] = raw
 	s.keys = append(s.keys, key)
 	s.run.event(s.key, "", "", ValueSet{Key: key, Value: JSONText(raw)})
-	return nil
 }
 
 // ScopeText renders every value visible from the ctx's scope for a prompt:

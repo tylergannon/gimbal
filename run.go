@@ -141,12 +141,42 @@ func Run(ctx context.Context, name string, body func(ctx context.Context) error)
 	r.projectEvent(RunStarted{Name: name})
 	r.event("", "", "", RunStarted{Name: name})
 	logf("run %s started in %s", id, dir)
-	err = (&scope{run: r}).do(ctx, body)
+	err = r.root(ctx, name, body)
+	// A panic that a Group child recovered comes back as the body's error
+	// and is raised again here, after the same terminal records a panic in
+	// the body itself gets: misuse anywhere means one thing, a complete
+	// run.jsonl and a dead process.
+	var escaped *panicError
+	if errors.As(err, &escaped) {
+		r.finish(name, err)
+		panic(escaped)
+	}
 	if ctx.Err() != nil {
 		cancelled := RunCancelled{Name: name, Source: steerSource(ctx), Error: ctx.Err().Error()}
 		r.event("", "", "", cancelled)
 		r.projectEvent(cancelled)
 	}
+	return r.finish(name, err)
+}
+
+// root runs body as the run's root scope. A panic in the body, which is
+// what Set and its kin do on misuse, is recorded before it escapes: the
+// run's terminal records are written, then the panic continues with its
+// original value.
+func (r *run) root(ctx context.Context, name string, body func(ctx context.Context) error) error {
+	defer func() {
+		if v := recover(); v != nil {
+			r.finish(name, fmt.Errorf("gimble: panic: %v", v))
+			panic(v)
+		}
+	}()
+	return (&scope{run: r}).do(ctx, body)
+}
+
+// finish writes the run's terminal records and closes what it holds:
+// RunEnded with the verdict, then Complete with any recording failure.
+// It returns the verdict joined with the recording failure.
+func (r *run) finish(name string, err error) error {
 	// The root scope's deferred end already ran inside do, closing every
 	// session before body returned control here, so the aggregate close
 	// error is complete by now: RunEnded, the observation status, and
@@ -163,9 +193,9 @@ func Run(ctx context.Context, name string, body func(ctx context.Context) error)
 		r.recordFailure("close project log", r.project.close())
 	}
 	r.event("", "", "", Complete{RecordingError: errString(r.recordingError())})
-	r.recordFailure("close run log", w.close())
+	r.recordFailure("close run log", r.writer.close())
 	err = errors.Join(err, r.recordingError())
-	logf("run %s ended: %v", id, orNone(err))
+	logf("run %s ended: %v", filepath.Base(r.dir), orNone(err))
 	return err
 }
 

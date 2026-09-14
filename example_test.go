@@ -43,9 +43,7 @@ func Example() {
 	defer closeProject()
 
 	err := gimble.Run(ctx, "example", func(ctx context.Context) error {
-		if err := gimble.Set(ctx, "goal", "demonstrate the public API"); err != nil {
-			return err
-		}
+		gimble.Set(ctx, "goal", "demonstrate the public API")
 		worker := gimble.NewSession(ctx, "worker", &exampleAdapter{}, "example", ".")
 		answer, err := worker.Generate[gimble.Text](ctx,
 			"Complete the goal.\n\n"+gimble.ScopeText(ctx))
@@ -69,10 +67,12 @@ func ExampleGroup() {
 	err := gimble.Run(ctx, "parallel", func(ctx context.Context) error {
 		group := gimble.Group(ctx, "drafts")
 		group.Go("draft", func(ctx context.Context) error {
-			return gimble.Set(ctx, "approach", "first")
+			gimble.Set(ctx, "approach", "first")
+			return nil
 		})
 		group.Go("draft", func(ctx context.Context) error {
-			return gimble.Set(ctx, "approach", "second")
+			gimble.Set(ctx, "approach", "second")
+			return nil
 		})
 		return group.Wait()
 	})
@@ -110,9 +110,7 @@ func ExampleLoop() {
 		loop := gimble.Loop(ctx, "work", "demonstrate adaptive dispatch", planner)
 		for ctx, task := range loop.Tasks {
 			fmt.Println(task.Name)
-			if err := gimble.Set(ctx, "result", "assignment recorded"); err != nil {
-				return err
-			}
+			gimble.Set(ctx, "result", "assignment recorded")
 		}
 		return loop.Err()
 	})

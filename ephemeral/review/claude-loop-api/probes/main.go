@@ -1,5 +1,14 @@
 // Probes against the public API with a fake adapter. Each probe prints one
 // line of evidence. Nothing here changes production code.
+//
+// This file is a frozen record of the probes run for the PR 140 Loop
+// review (see ../REVIEW.md): kept as evidence of what ran against the
+// HarnessAdapter contract at that time, not maintained against later
+// interface changes (issue 112 found it no longer compiles after Close and
+// TurnResult landed). The build tag keeps it out of `go build ./...` and
+// `go vet ./...` without altering the record.
+//go:build ignore
+
 package main
 
 import (

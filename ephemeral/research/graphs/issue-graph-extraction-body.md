@@ -49,3 +49,7 @@ The research is cached as flat files in `ephemeral/research/graphs`, including a
 - [Design brief and drill-down states](https://github.com/tylergannon/gimble/blob/ecfa2d8/ephemeral/research/graphs/ui-design-brief.md)
 - [Research index](https://github.com/tylergannon/gimble/blob/ecfa2d8/ephemeral/research/graphs/INDEX.md)
 
+
+## Workflow authoring stance
+
+Beta linter #162 hard-fails on detected dynamic workflow-function dispatch, such as `workers[task.Kind](ctx)` or a simple alias of that lookup. Authors should express alternatives as direct worker calls in ordinary `if`/`switch` branches. This makes possible control flow visible without predicting runtime branch choices. Direct helpers and recognized Gimble callbacks remain valid. Dynamic Set keys, command arguments, and model/provider configuration are unaffected. The workflow still compiles and runs without the linter; this is an opinionated authoring rule, not a new runtime restriction. Incomplete lint detection is acceptable; do not add general pointer analysis to enforce it exhaustively.

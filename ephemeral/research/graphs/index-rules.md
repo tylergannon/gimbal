@@ -10,5 +10,7 @@ Use this route for scope/context provenance, Set/SetJSON, ownership, graph ident
 - Proposed typed hierarchy/relations and unresolved source mapping: `recommendation.md:15-30,83-97`.
 - Supported analyzer approach and diagnostic fixture needs: `rules-index-leaf.md:31-38`; proposal `recommendation.md:69-81`.
 - Set-key authoring study: `keys-recommendation.md:3-15`; observed cases and tradeoffs: `keys-evidence.md:13-38`. Stable outer keys are recommended, while dynamic keys remain legal and are disclosed as unresolved precision loss.
+- Accepted dynamic-worker hard lint and bounded detection: `dynamic-worker-lint-rule.md`; live task snapshot `issue-162-current.json` and readable `issue-162-update-body.md`.
+- Static comprehensibility as a Beta simplicity proxy, additional rule candidates and exclusions: `lint-authoring-principles.md`. Only dynamic-worker dispatch is newly accepted; the other additions remain proposals for review.
 
 Do not route a claim of complete lifetime proof here: the audit and Go report bound what static checks can establish, and dynamic/indirect cases remain visible as incomplete coverage.

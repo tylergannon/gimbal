@@ -558,21 +558,23 @@ func stringField(value map[string]any, keys ...string) string {
 
 // normalizeUsage maps Codex's counters onto the five fields every adapter
 // reports. The names are camelCase, the only spelling the app-server emits.
-// cachedInputTokens is a subset of inputTokens and reasoningOutputTokens a
-// subset of outputTokens, so each is subtracted; whether cacheWriteInputTokens
-// is also inside inputTokens is unverified, so it is not. A counter the
+// cachedInputTokens and cacheWriteInputTokens are both members of the
+// Responses API's input_tokens_details, so both are subsets of inputTokens
+// (codex-rs/codex-api/src/sse/responses.rs, tag rust-v0.153.4, whose fixture
+// has cached 40 + cache write 60 = input 100); reasoningOutputTokens is a
+// subset of outputTokens. Each is subtracted, as OpenCode does. A counter the
 // notification omits is zero.
 func normalizeUsage(value map[string]any) normalizedUsage {
 	get := func(key string) float64 {
 		number, _ := value[key].(float64)
 		return number
 	}
-	cached, reasoning := get("cachedInputTokens"), get("reasoningOutputTokens")
+	cached, cacheWrite, reasoning := get("cachedInputTokens"), get("cacheWriteInputTokens"), get("reasoningOutputTokens")
 	return normalizedUsage{
-		input:      max(0, get("inputTokens")-cached),
+		input:      max(0, get("inputTokens")-cached-cacheWrite),
 		output:     max(0, get("outputTokens")-reasoning),
 		reasoning:  reasoning,
 		cacheRead:  cached,
-		cacheWrite: get("cacheWriteInputTokens"),
+		cacheWrite: cacheWrite,
 	}
 }

@@ -1,0 +1,33 @@
+2026/09/13 18:28:48 gimble: web application listening on 127.0.0.1:8098 (prod)
+Models: shared=gpt-5.6-luna writer=gpt-5.6-luna writer(gemini)=gemini-3.8-flash-low
+Run: 20260913-182848.run-store-proof
+Page: http://127.0.0.1:8098/runs/20260913-182848.run-store-proof
+2026/09/13 18:28:48 gimble: run 20260913-182848.run-store-proof started in /Users/tyler/src/gimble/.claude/worktrees/token-usage-coverall-12e8d5/ephemeral/attest/run-store/.gimble/runs/20260913-182848.run-store-proof
+2026/09/13 18:28:49 gimble: shared.1: turn started (gpt-5.6-luna)
+2026/09/13 18:28:53 gimble: shared.1: turn ended after 4s: ok
+[shared turn 1] A token budget is the maximum number of text tokens an AI model may process or generate for a given request.
+2026/09/13 18:28:53 gimble: shared.1: turn started (gpt-5.6-luna)
+2026/09/13 18:28:55 gimble: shared.1: turn ended after 2s: ok
+[shared turn 2] A useful budget measurement is the percentage of the allocated budget remaining.
+Pausing 1m30s before compare; open the page now.
+2026/09/13 18:30:25 gimble: compare.1/attempt.2/writer.1: turn started (gemini-3.8-flash-low)
+2026/09/13 18:30:26 gimble: compare.1/attempt.1/writer.1: turn started (gpt-5.6-luna)
+2026/09/13 18:30:31 gimble: compare.1/attempt.2/writer.1: turn ended after 6s: ok
+[attempt.2 turn 1] **Token caching** (often implemented via KV caching or prompt caching) stores intermediate model computations so repetitive text doesn't need to be reprocessed from scratch.
+
+When an LLM processes text, it calculates key-value (KV) representations for every token to evaluate attention. In multi-turn conversations, repeated system prompts, or large document queries, the beginning prefix of the prompt often stays identical across calls. 
+
+Instead of recomputing attention states for these identical prefixes on every request, the system saves the KV activations in memory. When a new query arrives with a matching prefix, the model retrieves the cached states and processes only the newly added tokens.
+
+This yields two significant benefits:
+1. **Lower Latency:** Time-to-first-token (TTFT) drops dramatically because the prefill phase skips already-digested context.
+2. **Reduced Cost:** Providers can charge significantly less for cached prompt tokens, making long-context workflows and persistent system instructions much more economical.
+
+2026/09/13 18:30:32 gimble: compare.1/attempt.1/writer.1: turn ended after 7s: ok
+[attempt.1 turn 1] Token caching stores previously processed text representations so repeated requests can reuse them instead of recomputing the same work. In language-model systems, a prompt’s stable prefix may be cached, reducing latency and sometimes lowering input-processing costs. For example, instructions or conversation history that remain unchanged can be reused while only new text is processed. Caches typically have expiration limits, size limits, and rules about which content qualifies. They may be exact-match and sensitive to even small changes. Caching improves efficiency, but developers should consider privacy, invalidation, stale data, and whether cached content could expose information across users or sessions.
+2026/09/13 18:30:32 gimble: compare.1/attempt.1/writer.1: turn started (gpt-5.6-luna)
+2026/09/13 18:30:36 gimble: compare.1/attempt.1/writer.1: turn ended after 4s: ok
+[attempt.1 turn 2] A customer-support chatbot receives thousands of requests using the same 2,000-token policy manual and product catalog, followed by a short customer question. Without caching, the system repeatedly processes the entire manual and catalog for every request. With token caching, the unchanged policy and catalog prefix is processed once, then reused across requests. The model only needs to process each new question and conversation-specific details. This can make responses faster and reduce input-processing costs, especially during busy periods. The benefit is greatest when prompts share a large, stable prefix and the cached information changes infrequently.
+2026/09/13 18:30:36 gimble: run 20260913-182848.run-store-proof ended: ok
+Run finished in 1m47.753s: err=<nil>
+Holding the server for 8m0s; press Enter to stop early.

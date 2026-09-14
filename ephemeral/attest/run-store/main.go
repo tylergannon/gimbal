@@ -36,6 +36,7 @@ func main() {
 	port := flag.Int("port", 8098, "loopback TCP port for the web application")
 	hold := flag.Duration("hold", 15*time.Minute, "how long to hold the server open after the run")
 	second := flag.String("second", "claude", "harness for the first compare attempt: claude or codex")
+	pause := flag.Duration("pause", 0, "wait this long between the placement case and the compare group, to open the page in a browser")
 	flag.Parse()
 
 	base, err := filepath.Abs("ephemeral/attest/run-store")
@@ -82,6 +83,14 @@ func main() {
 			return nil
 		}); err != nil {
 			return err
+		}
+		if *pause > 0 {
+			fmt.Printf("Pausing %s before compare; open the page now.\n", *pause)
+			select {
+			case <-time.After(*pause):
+			case <-ctx.Done():
+				return ctx.Err()
+			}
 		}
 		// A Group of two concurrent attempts.
 		group := gimble.Group(ctx, "compare")

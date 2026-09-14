@@ -124,3 +124,27 @@ runs were served again by the binary (`serve-02.txt`): the proof run's
 header is still 38999 / 499 / 85 / 62464 / 0 / $0 with five transcripts,
 and the issue-149 run's is still 45236 / 343 / 220 / 96549 / 8269 /
 $0.0249421 with six.
+
+## Run 2 at `0b40d76`: one open page, no reload
+
+Round 2 of the review asked for the page to be observed rising on one
+connection. The Chrome extension was offline, so a headless Chromium
+(playwright, `browser-log.json`, `browser-after.png`) opened
+`/runs/20260913-182848.run-store-proof` once, during the program's 90 s
+pause between the placement case and `compare`, and read the page's text
+every second until the run ended (`run-02.txt`, 1m47s, no error). Every
+change on that one page:
+
+| t (s) | Header in / out / reasoning / cache read | Cards |
+| --- | --- | --- |
+| 0.0 | 12153 / 43 / 0 / 31232 | `shared.1` idle 12153 / 43 / 0 / 31232 |
+| 53.3 | same | two `writer.1` cards appear, running, 0 across |
+| 57.3 | 27011 / 245 / 0 / 31232 | `attempt.2/writer.1` running 14858 / 202 / 0 / 0 (step usage before the report) |
+| 59.3 | same | `attempt.2/writer.1` idle |
+| 60.3 | 38692 / 374 / 25 / 41216 | `attempt.1/writer.1` 11681 / 129 / 25 / 9984 |
+| 63.3 | 39288 / 494 / 37 / 62464 | `attempt.1/writer.1` idle 12277 / 249 / 37 / 31232 |
+
+`jq-run-02-root.txt` over the run's `turns.json` and `turn_usage.json`:
+gpt-5.6-luna 24430 / 292 / 37 / 62464 and gemini-3.8-flash-low 14858 /
+202 / 0 / 0, summing to the final header. `turns.json` again places
+`shared.1/turn.2` under `research.1`.

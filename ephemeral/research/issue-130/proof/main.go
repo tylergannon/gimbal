@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -117,9 +118,16 @@ func main() {
 	if err != nil {
 		fatal(err)
 	}
-	runDone := make(chan error, 1)
-	go func() {
-		runDone <- runtime.Run(ctx, "observation-proof", func(ctx context.Context) error {
+	// The run cancels this child only when it has returned. waitRun then stops
+	// waiting for readiness if startup failed before it could create a log.
+	// This does not cancel the run itself.
+	waitCtx, stopWaiting := context.WithCancel(ctx)
+	defer stopWaiting()
+	var runErr error
+	var runWG sync.WaitGroup
+	runWG.Go(func() {
+		defer stopWaiting()
+		runErr = runtime.Run(ctx, "observation-proof", func(ctx context.Context) error {
 			switch *mode {
 			case "deterministic":
 				adapter := &deterministicAdapter{project: *project}
@@ -144,14 +152,19 @@ func main() {
 				return fmt.Errorf("unknown mode %q", *mode)
 			}
 		})
-	}()
-	runID, err := waitRun(ctx, *project)
+	})
+	runID, err := waitRun(waitCtx, *project)
 	if err != nil {
+		runWG.Wait()
+		if runErr != nil {
+			fatal(runErr)
+		}
 		fatal(err)
 	}
 	fmt.Printf("PROOF_READY=http://127.0.0.1:%d|%s\n", *port, runID)
-	if err := <-runDone; err != nil && *mode != "interrupt" {
-		fatal(err)
+	runWG.Wait()
+	if runErr != nil && *mode != "interrupt" {
+		fatal(runErr)
 	}
 	fmt.Println("PROOF_COMPLETE")
 	_ = waitFile(ctx, filepath.Join(*project, "stop"))

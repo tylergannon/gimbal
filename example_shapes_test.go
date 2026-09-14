@@ -440,12 +440,13 @@ func Example_killedTurn() {
 		return `{"tasks":[],"next":null}`, nil
 	}}
 
-	killed := make(chan error, 1)
+	var killErr error
+	var operator sync.WaitGroup
 	err = runtime.Run(ctx, "recover", func(ctx context.Context) error {
-		go func() { // the operator, holding only ids from the page
+		operator.Go(func() { // the operator, holding only ids from the page
 			<-coding
-			killed <- runtime.KillTurn(runID(project), "work.1/task.1/coder.1/turn.1", "tyler", "editing the wrong file")
-		}()
+			killErr = runtime.KillTurn(runID(project), "work.1/task.1/coder.1/turn.1", "tyler", "editing the wrong file")
+		})
 		planner := gimble.NewSession(ctx, "planner", codex, "gpt-5.6-luna", repo)
 		loop := gimble.Loop(ctx, "work", "The config loader in "+repo+" reads its file once per process.", planner)
 		for ctx, task := range loop.Tasks {
@@ -464,7 +465,8 @@ func Example_killedTurn() {
 		}
 		return loop.Err()
 	})
-	fmt.Println("kill:", <-killed)
+	operator.Wait()
+	fmt.Println("kill:", killErr)
 	fmt.Println(err)
 
 	// Output:

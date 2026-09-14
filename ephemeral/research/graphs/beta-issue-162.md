@@ -1,6 +1,6 @@
 # #162: Workflow lint: constant context keys, Set misuse, and explicit worker dispatch
 
-Captured 2026-09-14 from https://github.com/tylergannon/gimble/issues/162. Read beta-implementation-handoff.md for final session decisions and coordination notes.
+Captured 2026-09-14 from https://github.com/tylergannon/gimble/issues/162. Read beta-implementation-handoff.md and beta-bug-triage.md for final session decisions and coordination notes.
 
 Companion to #159 (infallible `Set`). Once misuse of `Set`/`SetJSON` panics, a live sprint that misuses it dies twenty minutes in, after spending model time. Every deterministic misuse can be reported by a `go/analysis` pass at edit time and in CI. The original five Set misuse checks are runtime errors at `2a52971`, so this does not depend on #142 or #159 and can be built in parallel.
 

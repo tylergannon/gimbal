@@ -1,6 +1,6 @@
 # #135: Complete native event adapter coverage for resumed turns and tool attribution
 
-Captured 2026-09-14 from https://github.com/tylergannon/gimble/issues/135. Read beta-implementation-handoff.md for final session decisions and coordination notes.
+Captured 2026-09-14 from https://github.com/tylergannon/gimble/issues/135. Read beta-implementation-handoff.md and beta-bug-triage.md for final session decisions and coordination notes.
 
 The initial native session observation UI is demonstrated for a live first Codex turn and deterministic streaming/reconnect fixtures. Remaining adapter work from #130:
 

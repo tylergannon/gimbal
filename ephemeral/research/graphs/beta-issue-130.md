@@ -1,6 +1,6 @@
 # #130: Serve reduced session snapshots for SSR, then stream incremental events
 
-Captured 2026-09-14 from https://github.com/tylergannon/gimble/issues/130. Read beta-implementation-handoff.md for final session decisions and coordination notes.
+Captured 2026-09-14 from https://github.com/tylergannon/gimble/issues/130. Read beta-implementation-handoff.md and beta-bug-triage.md for final session decisions and coordination notes.
 
 ## Problem and direction
 

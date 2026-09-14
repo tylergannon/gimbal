@@ -1,6 +1,6 @@
 # #201: Extract workflow graphs from Go source for program and run visualization
 
-Captured 2026-09-14 from https://github.com/tylergannon/gimble/issues/201. Read beta-implementation-handoff.md for final session decisions and coordination notes.
+Captured 2026-09-14 from https://github.com/tylergannon/gimble/issues/201. Read beta-implementation-handoff.md and beta-bug-triage.md for final session decisions and coordination notes.
 
 Workflow authors and the run viewer need a machine-readable description of a workflow's shape: scopes, operations, possible control flow, and supervision. The runtime tree alone describes what was observed; it cannot show unexecuted alternatives or the complete program structure.
 

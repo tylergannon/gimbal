@@ -5,6 +5,7 @@ This is a flat routing index over `/Users/tyler/.codex/worktrees/7b5c/gimble/eph
 Routes:
 
 - [beta-implementation-handoff.md](beta-implementation-handoff.md): current session decisions, fresh Beta inventory, delivery sequence, parallel ownership, and integration responsibilities. Start here for implementation.
+- [beta-bug-triage.md](beta-bug-triage.md): full open-backlog audit, ten additional Beta assignments, parallel ownership for small fixes, and explicit reasons for remaining deferrals.
 - [index-milestones.md](index-milestones.md): Beta coverage, issue/task sequence, and #162 scope.
 - [index-rules.md](index-rules.md): scope identity, static graph rules, and lint boundaries.
 - [index-runtime.md](index-runtime.md): runtime graph rows, lifecycle edges, UI and command-observation limits.

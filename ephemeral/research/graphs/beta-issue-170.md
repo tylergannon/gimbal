@@ -1,6 +1,6 @@
 # #170: Finish the Gimble constitution
 
-Captured 2026-09-14 from https://github.com/tylergannon/gimble/issues/170. Read beta-implementation-handoff.md for final session decisions and coordination notes.
+Captured 2026-09-14 from https://github.com/tylergannon/gimble/issues/170. Read beta-implementation-handoff.md and beta-bug-triage.md for final session decisions and coordination notes.
 
 A 207-line draft of the product promises, written by a Codex session on 2026-09-11 and never committed until today, is on branch `codex/constitution`:
 

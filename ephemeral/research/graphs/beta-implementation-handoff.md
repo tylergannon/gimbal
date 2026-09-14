@@ -1,6 +1,6 @@
 # Beta implementation handoff and sequence
 
-Prepared 2026-09-14 from a fresh GitHub issue listing and this session's final decisions. This is the current handoff; it supersedes earlier permissive lint/extraction recommendations in the research cache. It is a delivery sequence, not a request to implement every research suggestion.
+Prepared 2026-09-14 from GitHub issue listings and this session's final decisions. Updated after the full open-backlog audit: see beta-bug-triage.md for ten small bug/cleanup/coverage issues added to Beta and their parallel owners. This handoff supersedes earlier permissive lint/extraction recommendations. It is a delivery sequence, not a request to implement every research suggestion.
 
 ## Decisions implementers must receive
 
@@ -16,7 +16,7 @@ Read these before the historical reports: [constant-key rule](constant-context-k
 
 ## Current milestone inventory
 
-The fresh issue listing contains 11 open issues: #110, #117, #120, #126, #130, #135, #162, #170, #172, #173, #201. The milestone REST counter returned 10 open during this capture; use the enumerated issue records rather than that inconsistent counter. No open PRs were returned. These are backlog states, not a claim that every open issue has no implementation yet.
+The first listing contained 11 open issues: #110, #117, #120, #126, #130, #135, #162, #170, #172, #173, #201. The subsequent full-backlog audit added #116, #154, #174, #192, #193, #194, #195, #196, #197, and #199, for 21 open Beta issues. The original REST counter briefly disagreed with the enumerated list; use refreshed issue records. No open PRs were returned during the initial handoff. These are backlog states, not a claim that every issue has no implementation yet.
 
 Local snapshots: `beta-handoff-milestone.json`, `beta-handoff-issues.json`, `beta-handoff-open-prs.json`, and one `beta-issue-N.md` per open issue. Copy the relevant issue files and this handoff into an implementer's worktree and give absolute local paths. The research branch is `codex/workflow-graph-research`; it must be available to implementers instead of assuming these files already exist on main.
 
@@ -40,6 +40,8 @@ Closed prerequisites already in Beta include #169 (finished-run log serving), #1
 | Product promises | #170 align the existing constitution with Group, current API, and final authoring/UI decisions | Can be drafted alongside implementation | Reconcile with demonstrated behavior at the end; existing issue still reserves final location for Tyler |
 
 With a smaller team, combine the adapter and supervision lanes. Keep one owner over #130/#173 because they change the same observation and frontend state machinery. Likewise keep #117/#135 coordinated, and #162/#201 coordinated. More agents should not mean several unrelated edits to the same reducers or analyzer plumbing.
+
+Add the small fixes to these same lanes: UI gets #193/#197/#199; adapters and usage coordinate #195; lifecycle/supervision gets #192/#194/#196 and the current regression coverage from #116. #154's proof-log preservation and #174's docs-site move can run independently. Finish isolated small repairs while the larger work proceeds. See beta-bug-triage.md for effort caveats and the reasons six other open items remain outside Beta.
 
 ## Integration sequence
 

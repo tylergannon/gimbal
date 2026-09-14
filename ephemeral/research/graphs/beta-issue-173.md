@@ -1,6 +1,6 @@
 # #173: Token usage, time, and cost by scope: one tree of the run from the log, live and finished
 
-Captured 2026-09-14 from https://github.com/tylergannon/gimble/issues/173. Read beta-implementation-handoff.md for final session decisions and coordination notes.
+Captured 2026-09-14 from https://github.com/tylergannon/gimble/issues/173. Read beta-implementation-handoff.md and beta-bug-triage.md for final session decisions and coordination notes.
 
 Replaces #157, #155, #151, #147, and #13 (all closed into this). #169 is edit zero. #172 supplies the price table. PR #158 delivers edit 1 (#151). #152 stays open: no harness reports a per-call cost, and the proxy below is not one.
 

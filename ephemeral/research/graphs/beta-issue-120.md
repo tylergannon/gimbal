@@ -1,6 +1,6 @@
 # #120: Validate supervision in a live run
 
-Captured 2026-09-14 from https://github.com/tylergannon/gimble/issues/120. Read beta-implementation-handoff.md for final session decisions and coordination notes.
+Captured 2026-09-14 from https://github.com/tylergannon/gimble/issues/120. Read beta-implementation-handoff.md and beta-bug-triage.md for final session decisions and coordination notes.
 
 Supervision has not been validated in a live run. In both Sprint 2 runs (`20260911-000839.sprint` on `gpt-5.6-luna` and `haiku`, and `20260911-003721.sprint` on `gpt-5.6-luna` and `sonnet`), no supervisor looked at anything and no steer happened:
 

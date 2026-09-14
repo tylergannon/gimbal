@@ -1,6 +1,6 @@
 # #117: Neither harness adapter emits delta, harness-error, approval-request, or nested-transcript events
 
-Captured 2026-09-14 from https://github.com/tylergannon/gimble/issues/117. Read beta-implementation-handoff.md for final session decisions and coordination notes.
+Captured 2026-09-14 from https://github.com/tylergannon/gimble/issues/117. Read beta-implementation-handoff.md and beta-bug-triage.md for final session decisions and coordination notes.
 
 Sprint 2's event taxonomy (`SPRINTS.md`, `API.md` Observability) lists, on the agent side: user, assistant, thinking, tool call, tool result, a delta naming what it extends, usage, a harness error or retry, an approval request, and a nested transcript for a subagent inside a tool call.
 

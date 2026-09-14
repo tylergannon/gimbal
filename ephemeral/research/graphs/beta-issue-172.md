@@ -1,6 +1,6 @@
 # #172: Embed OpenCode's model prices: filter models.dev, go:embed, daily refresh that tags a patch when the data changes
 
-Captured 2026-09-14 from https://github.com/tylergannon/gimble/issues/172. Read beta-implementation-handoff.md for final session decisions and coordination notes.
+Captured 2026-09-14 from https://github.com/tylergannon/gimble/issues/172. Read beta-implementation-handoff.md and beta-bug-triage.md for final session decisions and coordination notes.
 
 ## Problem
 

@@ -4,10 +4,25 @@
   "updated": "2026-09-14",
   "source_root": "/Users/tyler/.codex/worktrees/7b5c/gimble/ephemeral/research/graphs",
   "layout": "flat",
-  "routes": ["index-milestones.md", "index-rules.md", "index-runtime.md", "index-go.md", "index-ui.md"],
-  "leaves_reused": ["milestone-index-leaf.md", "rules-index-leaf.md", "runtime-index-leaf.md", "go-index-leaf.md"],
-  "focused_studies": ["keys-recommendation.md", "keys-evidence.md", "delivery-slices.md"],
-  "source_files": 265,
+  "routes": [
+    "index-milestones.md",
+    "index-rules.md",
+    "index-runtime.md",
+    "index-go.md",
+    "index-ui.md"
+  ],
+  "leaves_reused": [
+    "milestone-index-leaf.md",
+    "rules-index-leaf.md",
+    "runtime-index-leaf.md",
+    "go-index-leaf.md"
+  ],
+  "focused_studies": [
+    "keys-recommendation.md",
+    "keys-evidence.md",
+    "delivery-slices.md"
+  ],
+  "source_files": 289,
   "index_files": 9,
   "coverage": "focused routes cover milestone/tasks, scope rules/#162, runtime graph/run/command identity, Go capabilities/probe, and UI inspiration/implementation boundaries; raw issue inventory and workflow UI artifacts are intentionally routed to focused evidence",
   "known_debt": [

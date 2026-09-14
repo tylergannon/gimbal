@@ -142,11 +142,12 @@ func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema 
 }
 
 // Steer interrupts the active print process. RunTurn resumes the same native
-// conversation with the message before it returns.
-func (a *adapter) Steer(ctx context.Context, sessionID, message string) error {
+// conversation with the message before it returns, so the message lands
+// whenever a turn is active; with none it is dropped: false and no error.
+func (a *adapter) Steer(ctx context.Context, sessionID, message string) (bool, error) {
 	s, err := a.session(sessionID)
 	if err != nil {
-		return err
+		return false, err
 	}
 	s.mu.Lock()
 	active := s.active
@@ -155,10 +156,11 @@ func (a *adapter) Steer(ctx context.Context, sessionID, message string) error {
 		active.steered.Store(true)
 	}
 	s.mu.Unlock()
-	if active != nil {
-		interruptProcess(active)
+	if active == nil {
+		return false, nil
 	}
-	return nil
+	interruptProcess(active)
+	return true, nil
 }
 
 // Fork reports the native limitation instead of aliasing two Gimble sessions

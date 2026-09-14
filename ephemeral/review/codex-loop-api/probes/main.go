@@ -23,8 +23,8 @@ func (f *fake) RunTurn(_ context.Context, _ string, prompt string, _ json.RawMes
 	out, err := f.answer(f.calls, prompt)
 	return gimble.TurnResult{Output: out}, err
 }
-func (f *fake) Steer(context.Context, string, string) error {
-	return errors.New("steer delivery failed")
+func (f *fake) Steer(context.Context, string, string) (bool, error) {
+	return false, errors.New("steer delivery failed")
 }
 func (f *fake) Fork(context.Context, string) (string, error) { return "fork", nil }
 func (f *fake) Close(context.Context, string) error          { return nil }

@@ -79,7 +79,7 @@ func TestAdapterSteerInterruptsAndResumesInsideTurn(t *testing.T) {
 		close(done)
 	}()
 	waitInvocations(t, record, 1)
-	if err := adapter.Steer(t.Context(), sessionID, "STEER"); err != nil {
+	if landed, err := adapter.Steer(t.Context(), sessionID, "STEER"); err != nil || !landed {
 		t.Fatal(err)
 	}
 	select {

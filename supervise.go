@@ -120,7 +120,7 @@ func supervise[T Output](ctx context.Context, s *Session, prompt string, supervi
 					continue
 				}
 				if len(review.Objections) > 0 {
-					_ = s.Steer(withSteerSource(lookCtx, sup.session.id), "Your supervisor objects:\n\n- "+strings.Join(review.Objections, "\n- "))
+					_, _ = s.Steer(withSteerSource(lookCtx, sup.session.id), "Your supervisor objects:\n\n- "+strings.Join(review.Objections, "\n- "))
 				}
 			}
 		})

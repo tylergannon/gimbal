@@ -31,7 +31,7 @@ func (*issue131Adapter) RunTurn(_ context.Context, _ string, prompt string, _ js
 	return TurnResult{Output: out}, err
 }
 
-func (*issue131Adapter) Steer(context.Context, string, string) error { return nil }
+func (*issue131Adapter) Steer(context.Context, string, string) (bool, error) { return false, nil }
 
 func (*issue131Adapter) Fork(_ context.Context, session string) (string, error) {
 	return session + "-fork", nil

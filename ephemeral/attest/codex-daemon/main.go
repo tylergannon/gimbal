@@ -66,7 +66,7 @@ func (a *recordingAdapter) RunTurn(ctx context.Context, sessionID, prompt string
 	return a.inner.RunTurn(ctx, sessionID, prompt, schema, onEvent)
 }
 
-func (a *recordingAdapter) Steer(ctx context.Context, sessionID, message string) error {
+func (a *recordingAdapter) Steer(ctx context.Context, sessionID, message string) (bool, error) {
 	return a.inner.Steer(ctx, sessionID, message)
 }
 

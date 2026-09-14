@@ -174,25 +174,28 @@ func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema 
 	return gimble.TurnResult{Output: out, Usage: usage}, err
 }
 
-// Steer sends message into the session's running turn, if there is one.
-func (a *adapter) Steer(ctx context.Context, sessionID, message string) error {
+// Steer sends message on the running turn's live SDK stream and reports
+// whether it landed. With no stream live, or when the send fails because
+// the turn ended while the steer was on its way, the message is dropped:
+// false and no error.
+func (a *adapter) Steer(ctx context.Context, sessionID, message string) (bool, error) {
 	s, err := a.session(sessionID)
 	if err != nil {
-		return err
+		return false, err
 	}
 	active := s.getActive()
 	if active == nil {
-		return nil
+		return false, nil
 	}
 	ctx, cancel := context.WithTimeout(ctx, controlTimeout)
 	defer cancel()
 	if err := active.stream.Send(ctx, message); err != nil {
 		if s.getActive() != active {
-			return nil // the turn ended first: the message is dropped
+			return false, nil // the turn ended first: the message is dropped
 		}
-		return fmt.Errorf("claude: %w", err)
+		return false, fmt.Errorf("claude: %w", err)
 	}
-	return nil
+	return true, nil
 }
 
 // Close forgets sessionID. Claude Code's own process is already gone by

@@ -1,0 +1,2 @@
+{"seq":0,"time":"2026-09-14T01:13:06.578738Z","scope":"","event":{"kind":"run_started","name":"validation-command"}}
+{"seq":0,"time":"2026-09-14T01:14:02.10352Z","scope":"","event":{"error":"","kind":"run_ended","name":"validation-command"}}

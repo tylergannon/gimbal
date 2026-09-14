@@ -1,0 +1,39 @@
+2026/09/14 08:57:38 gimble: web application listening on 127.0.0.1:8098 (prod)
+Models: shared=gpt-5.6-luna writer=claude-haiku-4-5-20251001 writer(gemini)=gemini-3.8-flash-low
+Run: 01M2G6RY7MZXT8YWQS104NKFH6.run-store-proof
+Page: http://127.0.0.1:8098/runs/01M2G6RY7MZXT8YWQS104NKFH6.run-store-proof
+2026/09/14 08:57:38 gimble: run 01M2G6RY7MZXT8YWQS104NKFH6.run-store-proof started in /Users/tyler/src/gimble/.claude/worktrees/token-usage-coverall-12e8d5/ephemeral/attest/run-store/.gimble/runs/01M2G6RY7MZXT8YWQS104NKFH6.run-store-proof
+2026/09/14 08:57:38 gimble: shared.1: turn started (gpt-5.6-luna)
+2026/09/14 08:57:43 gimble: shared.1: turn ended after 4s: ok
+[shared turn 1] A token budget is the maximum number of text units an AI model may process or generate for a given interaction.
+2026/09/14 08:57:43 gimble: shared.1: turn started (gpt-5.6-luna)
+2026/09/14 08:57:44 gimble: shared.1: turn ended after 1s: ok
+[shared turn 2] A useful budget measurement is the number of tokens remaining before the model reaches its context limit.
+Pausing 1m0s before compare; open the page now.
+2026/09/14 08:58:44 gimble: compare.1/attempt.1/writer.1: turn started (claude-haiku-4-5-20251001)
+2026/09/14 08:58:44 gimble: compare.1/attempt.2/writer.1: turn started (gemini-3.8-flash-low)
+2026/09/14 08:58:51 gimble: compare.1/attempt.1/writer.1: turn ended after 6s: ok
+[attempt.1 turn 1] Token caching is an Anthropic API feature that stores frequently-used context (like system prompts or long documents) so subsequent requests reuse it instead of reprocessing. You prepend context with `cache_control: {"type": "ephemeral"}`, and Claude caches the first 1,024 tokens onward. Cached tokens cost 90% less than standard tokens, and reuse is automatic—any matching context in later requests activates the cache.
+
+It's especially useful for:
+- Multi-turn conversations with long system prompts
+- Batch processing with shared context
+- RAG systems querying the same knowledge base repeatedly
+
+Cache TTL is 5 minutes by default, extendable to 1 hour. You pay a one-time cache write cost, then reduced read costs on hits.
+2026/09/14 08:58:51 gimble: compare.1/attempt.1/writer.1: turn started (claude-haiku-4-5-20251001)
+2026/09/14 08:58:56 gimble: compare.1/attempt.1/writer.1: turn ended after 6s: ok
+[attempt.1 turn 2] **Batch document analysis:** Imagine processing 100 customer support tickets using a 50KB company knowledge base as context. Without caching, all 100 requests reprocess those 50KB—expensive and slow. With caching, the first request pays full price, but the remaining 99 requests reuse the cached context at 90% discount. If each document is 500 tokens, you'd pay ~52,000 tokens total instead of 102,000 tokens. Cost savings are 49%, plus faster response times since cached context loads instantly. For repetitive workflows like this—customer support, document classification, code review—caching compounds the benefit across hundreds or thousands of requests.
+2026/09/14 08:58:56 gimble: compare.1/attempt.2/writer.1: turn ended after 12s: ok
+[attempt.2 turn 1] **Token caching** (or prompt caching) is an optimization technique that stores the intermediate representations—specifically the Key-Value (KV) attention states—of previously processed input tokens so they can be reused across multiple requests.
+
+In large language models, computing attention over a long prompt is computationally expensive. When consecutive requests share identical static prefixes—such as system prompts, extensive documentation, codebases, or ongoing chat history—the inference engine skips reprocessing those tokens. Instead, it retrieves their precomputed activations directly from memory.
+
+This provides three primary advantages:
+1. **Reduced Latency:** Time-to-first-token (TTFT) drops dramatically because the model starts generating output immediately after the cached prefix.
+2. **Lower Cost:** Most API providers offer significant discounts (often 50–90%) for cached input tokens compared to newly processed ones.
+3. **Higher Throughput:** Serving hardware saves compute cycles, allowing higher concurrency and sustained context efficiency.
+
+2026/09/14 08:58:57 gimble: run 01M2G6RY7MZXT8YWQS104NKFH6.run-store-proof ended: ok
+Run finished in 1m18.592s: err=<nil>
+Holding the server for 6m0s; press Enter to stop early.

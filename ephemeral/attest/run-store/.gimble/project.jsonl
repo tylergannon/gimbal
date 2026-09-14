@@ -2,3 +2,5 @@
 {"seq":2,"time":"2026-09-14T00:16:59.847845Z","scope":"","event":{"error":"","kind":"run_ended","name":"run-store-proof"}}
 {"seq":1,"time":"2026-09-14T00:28:48.811435Z","scope":"","event":{"kind":"run_started","name":"run-store-proof"}}
 {"seq":2,"time":"2026-09-14T00:30:36.599165Z","scope":"","event":{"error":"","kind":"run_ended","name":"run-store-proof"}}
+{"seq":0,"time":"2026-09-14T14:57:38.550681Z","scope":"","event":{"kind":"run_started","name":"run-store-proof"}}
+{"seq":0,"time":"2026-09-14T14:58:57.140203Z","scope":"","event":{"error":"","kind":"run_ended","name":"run-store-proof"}}

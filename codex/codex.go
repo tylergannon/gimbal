@@ -7,6 +7,15 @@
 // archived thread is unloaded, and its MCP child processes and file
 // descriptors are released from the shared daemon. An archived thread
 // cannot be used again through the adapter; see callThread for why.
+//
+// When this adapter is the one to start the daemon (connect, on a stopped
+// daemon), it raises its own soft RLIMIT_NOFILE to the hard limit first, so
+// the daemon inherits room for a wide Group instead of the 256 a default
+// macOS shell hands new processes; see raiseFileDescriptorLimit. That lever
+// only reaches a daemon Gimble starts. A daemon Codex Desktop's SSH
+// bootstrap starts inherits the login shell's limit instead, and Gimble has
+// no hook into that path: the operator's fix is a `ulimit -n 65536` in
+// `~/.zshenv`, which takes effect the next time that daemon starts.
 package codex
 
 import (

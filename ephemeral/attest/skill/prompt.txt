@@ -1,0 +1,5 @@
+Read /Users/tyler/src/gimble/.claude/worktrees/agent-a01420498d9e799c6/.agents/skills/gimble-workflows/SKILL.md first, then whatever in this repository it points you at.
+
+Write a Gimble workflow: a bake-off of two Codex sessions judged by a Claude session. It works on this repository. Write it as package main in /Users/tyler/src/gimble/.claude/worktrees/agent-a01420498d9e799c6/ephemeral/attest/skill/bakeoff/main.go, using the real adapters and the cheap models the skill names, with the web runtime so the run can be watched.
+
+Write the file once and stop. Do not run go build, go vet, go test, gofmt, or anything else that compiles or runs Go: the point is whether your first draft compiles. Reading files and running go doc is fine. Answer with the path of the file you wrote.

@@ -1,0 +1,2 @@
+{"seq":0,"time":"2026-09-14T00:55:04.184647Z","scope":"","event":{"kind":"run_started","name":"issue-113"}}
+{"seq":0,"time":"2026-09-14T00:55:05.567642Z","scope":"","event":{"error":"gimble: worker.1: claude: assistant error: authentication_failed","kind":"run_ended","name":"issue-113"}}

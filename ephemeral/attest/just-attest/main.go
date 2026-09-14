@@ -118,23 +118,28 @@ func main() {
 			fmt.Printf("--- text turn ---\n%s\n", text)
 
 			// A steer that lands: sent while this session's turn is running.
-			steerLandedErr := make(chan error, 1)
+			type steerResult struct {
+				landed bool
+				err    error
+			}
+			steerLandedErr := make(chan steerResult, 1)
 			go func() {
 				time.Sleep(2 * time.Second)
-				steerLandedErr <- worker.Steer(ctx, "Also use the word lighthouse somewhere in your final reply.")
+				landed, err := worker.Steer(ctx, "Also use the word lighthouse somewhere in your final reply.")
+				steerLandedErr <- steerResult{landed, err}
 			}()
 			steered, err := worker.Generate[gimble.Text](ctx,
 				"Run the shell command `sleep 6`. Then reply with one short sentence about the weather. No other tools.")
-			landErr := <-steerLandedErr
+			land := <-steerLandedErr
 			if err != nil {
 				return fmt.Errorf("steered turn: %w", err)
 			}
-			fmt.Printf("--- steer (landed) ---\nsteer error=%v mentions lighthouse=%t reply=%q\n",
-				landErr, strings.Contains(strings.ToLower(string(steered)), "lighthouse"), steered)
+			fmt.Printf("--- steer (landed) ---\nlanded=%t steer error=%v mentions lighthouse=%t reply=%q\n",
+				land.landed, land.err, strings.Contains(strings.ToLower(string(steered)), "lighthouse"), steered)
 
 			// A steer that drops: sent with no turn running on this session.
-			dropErr := worker.Steer(ctx, "too late: the turn already ended")
-			fmt.Printf("--- steer (dropped) ---\nsteer error=%v\n", dropErr)
+			dropLanded, dropErr := worker.Steer(ctx, "too late: the turn already ended")
+			fmt.Printf("--- steer (dropped) ---\nlanded=%t steer error=%v\n", dropLanded, dropErr)
 
 			// An interrupt: a ctx cancel of one turn, not Session.Interrupt
 			// (issue 106's amendment; Session.Interrupt is deleted by #165).

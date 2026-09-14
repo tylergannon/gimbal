@@ -1,7 +1,8 @@
 import { SessionProjection, type JSONObject, type JSONValue, type ProjectionState, type Snapshot } from '../sessionstate/index.js'
-import type { Usage } from '../skgo/observation/types.js'
-
-export type { Usage }
+/** The cost and the five token counts as a native usage event carries them. */
+export type Usage = { cost: number; tokens: Tokens }
+export type Tokens = { input: number; output: number; reasoning: number; cache: Cache }
+export type Cache = { read: number; write: number }
 
 export type RunStatus = 'running' | 'completed' | 'failed' | 'cancelled'
 export type RunSession = { name: string; adapter: string; model: string; scope: string; parent?: string }

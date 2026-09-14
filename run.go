@@ -124,9 +124,11 @@ func Run(ctx context.Context, name string, body func(ctx context.Context) error)
 	r := &run{dir: dir, writer: w, sessions: make(map[string]*eventWriter)}
 	// The run owns its observation store. With the web runtime in ctx it is
 	// registered there and the page can read it; without one the run still
-	// owns a private store and writes a final snapshot, so observation does
-	// not depend on who started the run.
-	r.store = observation.Open(observation.FromContext(ctx), id, name, dir)
+	// owns a private store and writes the same table files, so observation
+	// does not depend on who started the run.
+	store, storeErr := observation.Open(observation.FromContext(ctx), id, name, dir)
+	r.store = store
+	r.recordFailure("open observation", storeErr)
 	pw, pwErr := newEventWriter(filepath.Join(project, "project.jsonl"))
 	if pwErr != nil {
 		r.recordFailure("open project log", pwErr)
@@ -149,10 +151,9 @@ func Run(ctx context.Context, name string, body func(ctx context.Context) error)
 	err = errors.Join(err, r.closeError())
 	r.event("", "", "", RunEnded{Name: name, Error: errString(err)})
 	r.projectEvent(RunEnded{Name: name, Error: errString(err)})
-	// The observation is finalized while every log this run owns is still
-	// open, so a failed final checkpoint is part of the run's own recording
-	// verdict below rather than a failure with nowhere left to be reported.
-	// After this the run is served from its checkpoint, not a live store.
+	// The store's tables are already on disk: closing it ends the page's
+	// subscriptions and nothing else. After this the run is no longer live,
+	// and it is served from the store the registry kept.
 	r.recordFailure("close observation", r.store.Close())
 	r.closeSessions()
 	if r.project != nil {
@@ -184,49 +185,19 @@ func orNone(err error) any {
 	return err
 }
 
-// observeLifecycle folds one lifecycle record into the run's observation and
-// publishes it to the page. record is the exact LifecycleRecord JSON the run
-// log wrote, republished unchanged: the page and the log show one record,
-// not two with different times and sequences.
+// observeLifecycle folds one lifecycle record into the run's store and
+// publishes what changed to the page. record is the exact LifecycleRecord
+// JSON the run log wrote, so the store reduces the same bytes live that a
+// replay of the log reduces later.
 //
-// Only a lifecycle record decides a run's status: a native part, step or
-// execution event never means the workflow finished.
-func (r *run) observeLifecycle(scope, session, turn string, event LifecycleEvent, record json.RawMessage) {
+// The store decides what each kind means; this is only the handover. A record
+// the store cannot fold, or a table file it cannot write, is a recording
+// failure and enters the run's own verdict.
+func (r *run) observeLifecycle(_, _, _ string, _ LifecycleEvent, record json.RawMessage) {
 	if r == nil || r.store == nil {
 		return
 	}
-	entry := observation.Lifecycle{
-		Placement: observation.Placement{Scope: scope, Session: session, Turn: turn},
-		Record:    record,
-	}
-	switch e := event.(type) {
-	case RunStarted:
-		entry.Status, entry.Name = observation.StatusRunning, e.Name
-	case RunEnded:
-		entry.Status, entry.Error = observation.StatusCompleted, e.Error
-		if e.Error != "" {
-			entry.Status = observation.StatusFailed
-		}
-	case RunCancelled:
-		entry.Status, entry.Error = observation.StatusCancelled, e.Error
-	case SessionCreated:
-		entry.Session = &observation.SessionInfo{
-			Name: e.Name, Adapter: e.Adapter, Model: e.Model, Scope: scope, Parent: e.Parent,
-		}
-	case ScopeBegan:
-		entry.Scope = &observation.ScopeChange{Name: e.Name, Status: observation.StatusRunning}
-		if e.Task.Present {
-			entry.Scope.Task = mustJSON(e.Task.Value)
-		}
-	case ScopeEnded:
-		// An ended scope with no error is ended, not succeeded.
-		entry.Scope = &observation.ScopeChange{Status: observation.StatusEnded, Error: e.Error}
-	case ValueSet:
-		entry.Value = &observation.ValueChange{Key: e.Key, Value: json.RawMessage(e.Value)}
-	case PlannerDecision:
-		entry.Decision = mustJSON(e)
-	}
-	r.store.Lifecycle(entry)
+	r.recordFailure("observe lifecycle", r.store.Lifecycle(record))
 }
 
 // observeAgent applies one stamped native event to its invocation's

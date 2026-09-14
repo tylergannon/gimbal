@@ -1031,24 +1031,97 @@ func readRecords[T any](t *testing.T, file string) []T {
 }
 
 // TestCancelledRunStaysCancelled replays the shared fixture through the
-// runtime's own fold. The browser reducer reads the same file.
+// store's own fold. Cancellation is the terminal fact, and the run_ended
+// behind it is not a second outcome.
 func TestCancelledRunStaysCancelled(t *testing.T) {
 	raw, err := os.ReadFile(filepath.Join("internal", "observation", "testdata", "cancelled-run.jsonl"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	store := observation.Open(nil, "run-1", "cancelled", t.TempDir())
+	store, err := observation.Open(nil, "run-1", "cancelled", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer func() { _ = store.Close() }()
-	r := &run{store: store}
 	for _, line := range bytes.Split(bytes.TrimSpace(raw), []byte("\n")) {
-		var record LifecycleRecord
-		if err := json.Unmarshal(line, &record); err != nil {
-			t.Fatalf("decode %s: %v", line, err)
+		if err := store.Lifecycle(append(json.RawMessage(nil), line...)); err != nil {
+			t.Fatalf("fold %s: %v", line, err)
 		}
-		r.observeLifecycle(record.Scope, record.Session.Value, record.Turn.Value, record.Event, append(json.RawMessage(nil), line...))
 	}
 	if got := store.Snapshot().Run; got.Status != observation.StatusCancelled {
 		t.Fatalf("status = %q (error %q), want cancelled", got.Status, got.Error)
+	}
+}
+
+// TestRunWritesTheSixTables is the run store on disk: a finished run's
+// directory holds the six tables beside its logs, there is no
+// observation.json any more, and every turn the log started is a row with
+// the scope it ran in.
+func TestRunWritesTheSixTables(t *testing.T) {
+	f := &fake{answer: func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(AgentEvent) error) (string, error) {
+		emit(fakeAgentEvent("session.text.ended", session, "message-1", map[string]any{"ordinal": 0, "text": "working"}))
+		return "done", nil
+	}}
+	var dir string
+	if err := Run(Project(t.Context(), t.TempDir()), "tables", func(ctx context.Context) error {
+		dir = runDir(ctx)
+		// A session created at the root and used inside a group: the turn
+		// belongs to the scope it ran in, not the one it was made in.
+		s := NewSession(ctx, "coder", f, "test-model", "/w")
+		if _, err := s.Generate[Text](ctx, "prime"); err != nil {
+			return err
+		}
+		group := Group(ctx, "lap")
+		group.Go("task", func(ctx context.Context) error {
+			_, err := s.Generate[Text](ctx, "build")
+			return err
+		})
+		return group.Wait()
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, table := range []string{"run", "scopes", "sessions", "turns", "turn_usage", "model_calls"} {
+		if _, err := os.Stat(filepath.Join(dir, table+".json")); err != nil {
+			t.Errorf("%s.json: %v", table, err)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(dir, "observation.json")); !os.IsNotExist(err) {
+		t.Errorf("observation.json still exists: %v", err)
+	}
+
+	started := map[string]string{}
+	for _, record := range readRecords[LifecycleRecord](t, filepath.Join(dir, "run.jsonl")) {
+		if _, ok := record.Event.(TurnStarted); ok {
+			started[record.Turn.Value] = record.Scope
+		}
+	}
+	if len(started) != 2 {
+		t.Fatalf("the log started %d turns, want 2", len(started))
+	}
+	raw, err := os.ReadFile(filepath.Join(dir, "turns.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var rows []struct {
+		ID    string `json:"id"`
+		Scope string `json:"scope"`
+	}
+	if err := json.Unmarshal(raw, &rows); err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != len(started) {
+		t.Fatalf("turns.json = %+v, want a row per started turn %v", rows, started)
+	}
+	for _, row := range rows {
+		scope, ok := started[row.ID]
+		if !ok {
+			t.Errorf("turns.json has %q, which the log never started", row.ID)
+			continue
+		}
+		if row.Scope != scope {
+			t.Errorf("turn %q ran in scope %q, and its row says %q", row.ID, scope, row.Scope)
+		}
 	}
 }
 

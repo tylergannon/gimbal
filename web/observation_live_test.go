@@ -3,7 +3,6 @@ package web
 import (
 	"bufio"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"io/fs"
 	"net"
@@ -18,54 +17,17 @@ import (
 	"github.com/tylergannon/gimble/internal/observation"
 )
 
-// usagePayload is the argument kit puts in a live query's URL: devalue's flat
-// form, base64url-encoded. Writing it here is what proves the Go function
-// answers the call the browser actually makes.
-func usagePayload(runID, scope string) string {
-	flat, err := json.Marshal([]any{map[string]int{"runID": 1, "scope": 2}, runID, scope})
-	if err != nil {
-		panic(err)
-	}
-	return base64.RawURLEncoding.EncodeToString(flat)
+// frame is one SSE frame: its event name and its data line.
+type frame struct {
+	name string
+	data string
 }
 
-// remoteID is the `<hash>/<name>` the generator published a function under.
-func remoteID(t *testing.T, name string) string {
-	t.Helper()
-	raw, err := os.ReadFile("skgo.remotes.json")
-	if err != nil {
-		t.Fatal(err)
-	}
-	var manifest struct {
-		Remotes []string `json:"remotes"`
-	}
-	if err := json.Unmarshal(raw, &manifest); err != nil {
-		t.Fatal(err)
-	}
-	for _, id := range manifest.Remotes {
-		if strings.HasSuffix(id, "/"+name) {
-			return id
-		}
-	}
-	t.Fatalf("skgo.remotes.json publishes no remote function named %s: %v", name, manifest.Remotes)
-	return ""
-}
-
-func usageEvent(cost float64, input int) json.RawMessage {
-	raw, _ := json.Marshal(map[string]any{
-		"id": "u", "type": "session.usage.updated", "created": 13,
-		"data": map[string]any{"sessionID": "ses_writer", "cost": cost,
-			"tokens": map[string]any{"input": input, "output": 1, "reasoning": 0,
-				"cache": map[string]any{"read": 0, "write": 0}}},
-	})
-	return raw
-}
-
-// TestScopeUsageStreamsAScopesTokens is definition-of-done item 4 at the
-// boundary the browser uses: the `query.live` is answered by Go over SSE, it
-// opens with what the run has spent so far, it yields again when a session
-// reports a new running total, and it ends when the run does.
-func TestScopeUsageStreamsAScopesTokens(t *testing.T) {
+// TestRunEventsStreamTheStore is definition-of-done item 5 at the boundary
+// the browser uses: the run's event stream opens with a complete snapshot,
+// a step that reached a model pushes the recomputed roll-ups, and the stream
+// ends when the run does, without the browser polling for any of it.
+func TestRunEventsStreamTheStore(t *testing.T) {
 	dist, err := fs.Sub(Build, "build")
 	if err != nil {
 		t.Fatal(err)
@@ -88,20 +50,22 @@ func TestScopeUsageStreamsAScopesTokens(t *testing.T) {
 	if err := os.MkdirAll(runDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	store := observation.Open(registry, "run-1", "demo", runDir)
-	store.Lifecycle(observation.Lifecycle{
-		Placement: observation.Placement{Scope: "lap.1", Session: "writer"},
-		Session:   &observation.SessionInfo{Name: "writer", Adapter: "fixture", Model: "test-model", Scope: "lap.1"},
-		Record:    json.RawMessage(`{"event":{"kind":"SessionCreated","name":"writer"}}`),
-	})
-	at := observation.Placement{Scope: "lap.1", Session: "writer", Turn: "turn-1"}
-	if err := store.Event(at, usageEvent(0.125, 4321), nil); err != nil {
+	store, err := observation.Open(registry, "run-1", "demo", runDir)
+	if err != nil {
 		t.Fatal(err)
 	}
+	for _, record := range []json.RawMessage{
+		json.RawMessage(`{"seq":1,"time":"2026-09-13T00:00:00Z","scope":"","event":{"kind":"scope_began","name":"."}}`),
+		json.RawMessage(`{"seq":2,"time":"2026-09-13T00:00:00Z","scope":"lap.1","event":{"kind":"scope_began","name":"lap.1"}}`),
+		json.RawMessage(`{"seq":3,"time":"2026-09-13T00:00:01Z","scope":"lap.1","session":"writer","event":{"kind":"session_created","name":"writer","adapter":"fixture","model":"test-model","workdir":"/w"}}`),
+		json.RawMessage(`{"seq":4,"time":"2026-09-13T00:00:02Z","scope":"lap.1","session":"writer","turn":"turn-1","event":{"kind":"turn_started","prompt":"write","output_type":"gimble.Text"}}`),
+	} {
+		if err := store.Lifecycle(record); err != nil {
+			t.Fatalf("fold %s: %v", record, err)
+		}
+	}
 
-	// The id is the one skgo generated for this function, read from the
-	// manifest it wrote: the browser addresses exactly this URL.
-	request, err := http.NewRequest(http.MethodGet, server.URL+"/_app/remote/"+remoteID(t, "scopeUsage")+"?payload="+usagePayload("run-1", ""), nil)
+	request, err := http.NewRequest(http.MethodGet, server.URL+"/api/runs/run-1/events", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -111,56 +75,91 @@ func TestScopeUsageStreamsAScopesTokens(t *testing.T) {
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
-		t.Fatalf("GET the live query: status %d", response.StatusCode)
+		t.Fatalf("GET the event stream: status %d", response.StatusCode)
 	}
 
-	frames := make(chan string, 8)
+	frames := make(chan frame, 32)
 	go func() {
 		defer close(frames)
 		scanner := bufio.NewScanner(response.Body)
+		scanner.Buffer(make([]byte, 0, 64<<10), 8<<20)
+		name := ""
 		for scanner.Scan() {
-			if line := scanner.Text(); strings.HasPrefix(line, "data: ") {
-				frames <- strings.TrimPrefix(line, "data: ")
+			line := scanner.Text()
+			switch {
+			case strings.HasPrefix(line, "event: "):
+				name = strings.TrimPrefix(line, "event: ")
+			case strings.HasPrefix(line, "data: "):
+				frames <- frame{name: name, data: strings.TrimPrefix(line, "data: ")}
 			}
 		}
 	}()
-	next := func(what string) string {
+	next := func(what string) frame {
 		select {
-		case frame, ok := <-frames:
+		case got, ok := <-frames:
 			if !ok {
 				t.Fatalf("the stream ended before %s", what)
 			}
-			return frame
+			return got
 		case <-time.After(5 * time.Second):
 			t.Fatalf("no frame for %s", what)
-			return ""
+			return frame{}
 		}
 	}
 
-	// The scope opens with what it has spent so far.
-	if frame := next("the opening value"); !strings.Contains(frame, "4321") {
-		t.Fatalf("the opening frame does not carry the run's tokens: %s", frame)
+	// Every connection opens with a complete snapshot, so a browser that
+	// joined late has the turn that is already going.
+	opening := next("the opening snapshot")
+	if opening.name != observation.FrameSnapshot {
+		t.Fatalf("the stream opened with a %q frame", opening.name)
 	}
-	// A new running total is a new value. The event is the session's total,
-	// so the scope's total is that number and not the sum of the two events.
-	if err := store.Event(at, usageEvent(0.25, 8642), nil); err != nil {
+	var snapshot observation.RunSnapshot
+	if err := json.Unmarshal([]byte(opening.data), &snapshot); err != nil {
+		t.Fatalf("decode the opening snapshot: %v", err)
+	}
+	if snapshot.Run.ID != "run-1" || snapshot.Turns["turn-1"].Prompt != "write" {
+		t.Fatalf("the opening snapshot is not this run's: %+v", snapshot)
+	}
+
+	at := observation.Placement{Scope: "lap.1", Session: "writer", Turn: "turn-1"}
+	step := json.RawMessage(`{"id":"evt1","type":"session.step.ended","created":13,` +
+		`"data":{"sessionID":"ses_writer","assistantMessageID":"msg_writer","finish":"stop","cost":0.125,` +
+		`"tokens":{"input":4321,"output":1,"reasoning":0,"cache":{"read":0,"write":0}}}}`)
+	if err := store.Event(at, step, nil); err != nil {
 		t.Fatal(err)
 	}
-	frame := next("the updated value")
-	if !strings.Contains(frame, "8642") || strings.Contains(frame, "12963") {
-		t.Fatalf("the updated frame is not the session's running total: %s", frame)
+
+	// The roll-ups arrive as their own frame, already summed in Go.
+	var totals observation.Totals
+	for {
+		got := next("the totals frame")
+		if got.name != observation.FrameTotals {
+			continue
+		}
+		if err := json.Unmarshal([]byte(got.data), &totals); err != nil {
+			t.Fatalf("decode the totals frame: %v", err)
+		}
+		break
+	}
+	if got := totals.Scopes["lap.1"].All.Input; got != 4321 {
+		t.Fatalf("the totals frame says lap.1 spent %v input, want 4321", got)
+	}
+	if got := totals.Scopes[""].ByModel["test-model"].StatedCost; got != 0.125 {
+		t.Fatalf("the root's per-model stated cost = %v, want 0.125", got)
 	}
 
 	// And the stream ends with the run, without the browser polling for it.
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
 	}
-	select {
-	case _, ok := <-frames:
-		if ok {
-			t.Fatal("the finished run yielded another value")
+	for {
+		select {
+		case _, open := <-frames:
+			if !open {
+				return
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatal("the stream did not end when the run did")
 		}
-	case <-time.After(5 * time.Second):
-		t.Fatal("the stream did not end when the run did")
 	}
 }

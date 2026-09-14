@@ -24,14 +24,14 @@ func field(value any, key string) string {
 //
 // A sidecar that names no message -- a session-level one, for instance --
 // is not folded and is not an error.
-func (s *Store) foldProvenanceLocked(inv *invocation, ref any, nativeRef json.RawMessage) {
+func (s *Store) foldProvenanceLocked(script *transcript, ref any, nativeRef json.RawMessage) {
 	key := field(ref, "normalizedMessageID")
 	if key == "" {
 		return
 	}
 	copied := make(json.RawMessage, len(nativeRef))
 	copy(copied, nativeRef)
-	inv.provenance[key] = copied
+	script.provenance[key] = copied
 }
 
 // decodeRef decodes the placement sidecar. An unparseable sidecar is a

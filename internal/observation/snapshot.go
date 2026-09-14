@@ -24,64 +24,32 @@ const (
 
 // Placement is where a native event happened in the workflow. It lives
 // outside the native envelope, so native IDs stay unchanged inside it and
-// two concurrent invocations never share a projection.
+// two concurrent turns never share a projection.
 type Placement struct {
 	Scope   string `json:"scope"`
 	Session string `json:"session"`
 	Turn    string `json:"turn"`
 }
 
-// SessionInfo is one agent conversation's runtime metadata, taken from the
-// run's own lifecycle records.
-type SessionInfo struct {
-	Name    string `json:"name"`
-	Adapter string `json:"adapter"`
-	Model   string `json:"model"`
-	Scope   string `json:"scope"`
-	Parent  string `json:"parent,omitempty"`
-}
-
-// RunInfo is the run, its sessions, and each session's usage so far.
-type RunInfo struct {
-	ID       string                 `json:"id"`
-	Name     string                 `json:"name"`
-	Status   string                 `json:"status"`
-	Error    string                 `json:"error,omitempty"`
-	Sessions map[string]SessionInfo `json:"sessions"`
-	// Usage is each session's latest running total, keyed the same way
-	// Sessions is. It rides in the snapshot so a finished run answers for
-	// its usage from its checkpoint, exactly as a live one does.
-	Usage map[string]Usage `json:"usage"`
-}
-
-// Invocation is one turn's placement, its complete session projection
-// snapshot, and the current native provenance of each of its messages.
-type Invocation struct {
-	Scope      string                     `json:"scope"`
-	Session    string                     `json:"session"`
-	Turn       string                     `json:"turn"`
+// Transcript is one turn's complete session projection snapshot and the
+// current native provenance of each of its messages. It is not a table: the
+// message text it projects stays in the session log.
+type Transcript struct {
 	Snapshot   sessionstate.Snapshot      `json:"snapshot"`
 	Provenance map[string]json.RawMessage `json:"provenance"`
 }
 
-// ScopeInfo is one scope instance's workflow state: how it ended, the task
-// it was dispatched with, the values it recorded, and the planner decisions
-// taken in it. The parent is the key's path, so it is not repeated here.
-type ScopeInfo struct {
-	Name      string                     `json:"name"`
-	Status    string                     `json:"status"`
-	Error     string                     `json:"error,omitempty"`
-	Task      json.RawMessage            `json:"task,omitempty"`
-	Values    map[string]json.RawMessage `json:"values,omitempty"`
-	Decisions []json.RawMessage          `json:"decisions,omitempty"`
-}
-
-// RunSnapshot is the complete public observation of one run: everything a
-// consumer needs to render it and to continue reducing its events. It is
-// the body of GET /api/runs/:runID, the first SSE frame, and the SSR load's
-// `snapshot` property.
+// RunSnapshot is the complete public observation of one run: the tables, the
+// roll-ups computed from them, and one transcript per turn. It is the body of
+// GET /api/runs/:runID, the first SSE frame, and the SSR load's `snapshot`
+// property.
 type RunSnapshot struct {
-	Run         RunInfo               `json:"run"`
-	Scopes      map[string]ScopeInfo  `json:"scopes"`
-	Invocations map[string]Invocation `json:"invocations"`
+	Run         RunRow                      `json:"run"`
+	Scopes      map[string]ScopeRow         `json:"scopes"`
+	Sessions    map[string]SessionRow       `json:"sessions"`
+	Turns       map[string]TurnRow          `json:"turns"`
+	TurnUsage   map[string]map[string]Usage `json:"turn_usage"`
+	ModelCalls  map[string][]ModelCallRow   `json:"model_calls"`
+	Totals      Totals                      `json:"totals"`
+	Transcripts map[string]Transcript       `json:"transcripts"`
 }

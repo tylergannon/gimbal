@@ -38,7 +38,7 @@ type Subscription struct {
 
 // Frames is the ordered suffix. When the run finishes normally the channel
 // is closed after the last frame it accepted, so a reader that drains it
-// sees the terminal lifecycle without reconnecting. Done ends a subscription
+// sees the run's terminal row without reconnecting. Done ends a subscription
 // that must stop now instead.
 func (sub *Subscription) Frames() <-chan Frame { return sub.frames }
 
@@ -157,10 +157,10 @@ func (s *Store) publishLocked(frame Frame) {
 
 // finishSubscribersLocked tells every subscription that the run is over.
 //
-// A run that ends normally has already published its terminal lifecycle
-// frames, and they may still be queued. Ending the subscription here would
-// let a reader return before sending them and make the browser reconnect to
-// learn the run finished, so the queue is handed over instead: no further
+// A run that ends normally has already published the run row that says so,
+// and it may still be queued. Ending the subscription here would let a
+// reader return before sending it and make the browser reconnect to learn
+// the run finished, so the queue is handed over instead: no further
 // frame is accepted, the channel closes after the last one, and the reader
 // drains it. Overflow and an abandoned reader still stop immediately -- an
 // overflowed suffix is deliberately reset, not delivered.

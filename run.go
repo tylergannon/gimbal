@@ -9,10 +9,12 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 
 	"github.com/oklog/ulid/v2"
+	"github.com/tylergannon/gimble/internal/live"
 	"github.com/tylergannon/gimble/internal/observation"
 )
 
@@ -141,7 +143,18 @@ func Run(ctx context.Context, name string, body func(ctx context.Context) error)
 	r.projectEvent(RunStarted{Name: name})
 	r.event("", "", "", RunStarted{Name: name})
 	logf("run %s started in %s", id, dir)
-	err = r.root(ctx, name, body)
+	// With the web runtime in ctx the run is reachable by id for as long as
+	// its body runs: an operator with only ids can steer a session or kill
+	// a scope or a turn through it. It leaves the runtime's table as soon
+	// as the body returns or panics, before the logs close.
+	release := func() {}
+	if hook := live.FromContext(ctx); hook != nil {
+		release = hook(id, r)
+	}
+	err = func() error {
+		defer release()
+		return r.root(ctx, name, body)
+	}()
 	// A panic that a Group child recovered comes back as the body's error
 	// and is raised again here, after the same terminal records a panic in
 	// the body itself gets: misuse anywhere means one thing, a complete
@@ -228,11 +241,39 @@ func (r *run) removeTurn(id string) {
 	delete(r.turns, id)
 }
 
-// cancelScope cancels the live scope key with cause, which every scope and
+// The run is the live.Controller the web runtime holds while the body
+// runs. Its methods are exported so the interface can name them; run itself
+// stays unexported, so nothing here is part of the package's API.
+
+// Steer sends message into the running turn of the session id, as the
+// person watching the run: the Steer record carries Source "person", which
+// tells an operator's steer from a supervisor's. The session is found
+// through its scope, so a session whose scope has ended is unknown.
+func (r *run) Steer(ctx context.Context, sessionID, message string) error {
+	key := path.Dir(sessionID) // ids are <scope key>/<session name.N>
+	if key == "." {
+		key = "" // a session of the root scope
+	}
+	r.mu.Lock()
+	s := r.scopes[key]
+	r.mu.Unlock()
+	if s == nil {
+		return fmt.Errorf("gimble: no live session %q", sessionID)
+	}
+	s.mu.Lock()
+	i := slices.IndexFunc(s.sessions, func(session *Session) bool { return session.id == sessionID })
+	s.mu.Unlock()
+	if i < 0 {
+		return fmt.Errorf("gimble: no live session %q", sessionID)
+	}
+	return s.sessions[i].Steer(withSteerSource(context.WithValue(ctx, scopeKey{}, s), "person"), message)
+}
+
+// CancelScope cancels the live scope key with cause, which every scope and
 // turn under it then reports through context.Cause. The kill is recorded
 // as a Killed lifecycle event on the scope before its ctx ends. An unknown
 // or already ended key is an error.
-func (r *run) cancelScope(key string, cause error) error {
+func (r *run) CancelScope(key string, cause error) error {
 	r.mu.Lock()
 	s := r.scopes[key]
 	r.mu.Unlock()
@@ -244,10 +285,10 @@ func (r *run) cancelScope(key string, cause error) error {
 	return nil
 }
 
-// cancelTurn cancels the running turn id with cause. Only that turn ends:
+// CancelTurn cancels the running turn id with cause. Only that turn ends:
 // its Generate returns an error whose cause is Killed, and its scope and
 // session keep running. An unknown or already ended id is an error.
-func (r *run) cancelTurn(id string, cause error) error {
+func (r *run) CancelTurn(id string, cause error) error {
 	r.mu.Lock()
 	cancel := r.turns[id]
 	r.mu.Unlock()

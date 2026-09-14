@@ -66,7 +66,7 @@ func TestKillScopeClosesEverySessionAndReportsTheCause(t *testing.T) {
 		r, _ := current(ctx)
 		go func() {
 			runningTurns(t, f, 2)
-			killErr <- r.run.cancelScope("lap.1", kill)
+			killErr <- r.run.CancelScope("lap.1", kill)
 		}()
 		scopeErr = Scope(ctx, "lap", func(ctx context.Context) error {
 			one := NewSession(ctx, "one", f, "m", "/w")
@@ -84,7 +84,7 @@ func TestKillScopeClosesEverySessionAndReportsTheCause(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := <-killErr; err != nil {
-		t.Fatalf("cancelScope = %v", err)
+		t.Fatalf("CancelScope = %v", err)
 	}
 	for name, err := range map[string]error{"Scope": scopeErr, "turn one": turnOne, "turn two": turnTwo, "context.Cause": seen} {
 		var killed Killed
@@ -124,11 +124,11 @@ func TestKillTurnEndsOnlyThatTurn(t *testing.T) {
 	err := Run(Project(t.Context(), project), "test", func(ctx context.Context) error {
 		return Scope(ctx, "lap", func(ctx context.Context) error {
 			r, _ := current(ctx)
-			unknownErr = r.run.cancelTurn("lap.1/coder.1/turn.9", kill)
+			unknownErr = r.run.CancelTurn("lap.1/coder.1/turn.9", kill)
 			s := NewSession(ctx, "coder", f, "m", "/w")
 			go func() {
 				runningTurns(t, f, 1)
-				killErr <- r.run.cancelTurn("lap.1/coder.1/turn.1", kill)
+				killErr <- r.run.CancelTurn("lap.1/coder.1/turn.1", kill)
 			}()
 			_, err := s.Generate[Text](ctx, "wait")
 			var killed Killed
@@ -149,10 +149,10 @@ func TestKillTurnEndsOnlyThatTurn(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := <-killErr; err != nil {
-		t.Fatalf("cancelTurn = %v", err)
+		t.Fatalf("CancelTurn = %v", err)
 	}
 	if unknownErr == nil {
-		t.Fatal("cancelTurn of an unknown turn id returned nil")
+		t.Fatal("CancelTurn of an unknown turn id returned nil")
 	}
 	var ended []TurnEnded
 	var recorded []LifecycleRecord
@@ -199,13 +199,13 @@ func TestGroupKilledChildLeavesItsSiblingsRunning(t *testing.T) {
 			})
 		}
 		runningTurns(t, f, 3)
-		killErr = r.run.cancelScope("bakeoff.1/attempt.1", kill)
+		killErr = r.run.CancelScope("bakeoff.1/attempt.1", kill)
 		runningTurns(t, f, 2) // the killed turn left; the other two are still inside RunTurn
 		close(release)
 		return g.Wait()
 	})
 	if killErr != nil {
-		t.Fatalf("cancelScope = %v", killErr)
+		t.Fatalf("CancelScope = %v", killErr)
 	}
 	var killed Killed
 	if !errors.As(err, &killed) || killed != kill {
@@ -262,7 +262,7 @@ func TestLoopKilledTaskIsAFailedTaskNotABrokenLoop(t *testing.T) {
 				prompt = "wait"
 				go func() {
 					runningTurns(t, f, 1)
-					killErr <- r.run.cancelScope("sprint.1/task.1", kill)
+					killErr <- r.run.CancelScope("sprint.1/task.1", kill)
 				}()
 			}
 			_, err := worker.Generate[Text](ctx, prompt)
@@ -274,7 +274,7 @@ func TestLoopKilledTaskIsAFailedTaskNotABrokenLoop(t *testing.T) {
 		t.Fatalf("Loop ended with %v, want a second lap after the kill", err)
 	}
 	if err := <-killErr; err != nil {
-		t.Fatalf("cancelScope = %v", err)
+		t.Fatalf("CancelScope = %v", err)
 	}
 	var killed Killed
 	if len(laps) != 2 || !errors.As(laps[0], &killed) || laps[1] != nil {

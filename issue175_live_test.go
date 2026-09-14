@@ -13,15 +13,17 @@ import (
 	"github.com/tylergannon/gimble"
 	"github.com/tylergannon/gimble/codex"
 	"github.com/tylergannon/gimble/internal/runlog"
+	"github.com/tylergannon/gimble/web"
 )
 
 // TestLiveKillTurnByID is the live check for #175 on the cheap tier: one
 // real Codex session (gpt-5.6-luna, the machine's shared app-server daemon)
-// starts a long first turn in a scope; a second goroutine kills that turn
-// by id with a Killed cause a few seconds in. The turn ends with the cause,
-// the scope keeps running, and the same session completes a second turn.
-// The run log is written under ephemeral/attest/cancel-by-id/logs and is
-// committed as the record. It only runs when explicitly requested:
+// starts a long first turn in a scope; a second goroutine, holding only the
+// run id and the turn id, kills that turn through the web runtime a few
+// seconds in. The turn ends with the Killed cause, the scope keeps running,
+// and the same session completes a second turn. The run log is written
+// under ephemeral/attest/cancel-by-id/logs and is committed as the record.
+// It only runs when explicitly requested:
 //
 //	GIMBLE_LIVE=1 go test . -run TestLiveKillTurnByID -v
 func TestLiveKillTurnByID(t *testing.T) {
@@ -39,19 +41,22 @@ func TestLiveKillTurnByID(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
+	runtime, err := web.NewRuntime(ctx, logs, web.WithNoWeb())
+	if err != nil {
+		t.Fatal(err)
+	}
 	const turnID = "lap.1/worker.1/turn.1"
 	kill := gimble.Killed{Target: turnID, By: "attest", Reason: "the operator killed this turn by id"}
 	killed := make(chan error, 1)
 	var first, second error
-	var dir string
+	dir := filepath.Join(logs, "runs")
 	start := time.Now()
-	err = gimble.Run(gimble.Project(ctx, logs), "cancel-by-id", func(ctx context.Context) error {
-		dir = filepath.Join(logs, "runs")
+	err = runtime.Run(ctx, "cancel-by-id", func(ctx context.Context) error {
 		return gimble.Scope(ctx, "lap", func(ctx context.Context) error {
 			session := gimble.NewSession(ctx, "worker", codex.New(), "gpt-5.6-luna", workspace)
 			go func() {
 				time.Sleep(4 * time.Second)
-				killed <- gimble.CancelTurn(ctx, turnID, kill)
+				killed <- runtime.KillTurn(liveRunID(t, dir), turnID, kill.By, kill.Reason)
 			}()
 			_, first = session.Generate[gimble.Text](ctx, "Count from 1 to 400, one number per line, in your final answer. Do not use any tools and do not summarize; write out every number.")
 			t.Logf("turn 1 ended after %s: %v", time.Since(start).Round(time.Millisecond), first)
@@ -81,12 +86,8 @@ func TestLiveKillTurnByID(t *testing.T) {
 		t.Fatal(second)
 	}
 
-	runs, err := os.ReadDir(dir)
-	if err != nil || len(runs) != 1 {
-		t.Fatalf("runs = %v, %v", runs, err)
-	}
-	runDir := filepath.Join(dir, runs[0].Name())
-	t.Logf("run: %s", runs[0].Name())
+	runDir := filepath.Join(dir, liveRunID(t, dir))
+	t.Logf("run: %s", filepath.Base(runDir))
 	var killedRecords []gimble.LifecycleRecord
 	var ended []gimble.TurnEnded
 	if err := runlog.Read[gimble.LifecycleRecord](ctx, runDir, func(record gimble.LifecycleRecord) error {
@@ -106,4 +107,15 @@ func TestLiveKillTurnByID(t *testing.T) {
 	if len(ended) != 2 || !ended[0].Interrupted || !strings.Contains(ended[0].Error, kill.Reason) || ended[1].Interrupted || ended[1].Error != "" {
 		t.Fatalf("TurnEnded records = %+v, want the first interrupted with the reason and the second clean", ended)
 	}
+}
+
+// liveRunID is the id of the one run under the project's runs directory,
+// read the way an operator would: from the directory Run made for it.
+func liveRunID(t *testing.T, runs string) string {
+	t.Helper()
+	entries, err := os.ReadDir(runs)
+	if err != nil || len(entries) != 1 {
+		t.Fatalf("runs = %v, %v", entries, err)
+	}
+	return entries[0].Name()
 }

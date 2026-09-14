@@ -37,7 +37,7 @@ try {
   await page.goto(`${origin}/runs/${encodeURIComponent(runID)}`)
   await page.locator('.status.completed, .status.failed, .status.cancelled').waitFor({ timeout: 120000 })
   const markers = mode === 'issue135'
-    ? ['CODEX_FIRST_TOOL_MARKER', 'CODEX_FIRST_FINAL_MARKER', 'CODEX_SECOND_TOOL_MARKER', 'CODEX_SECOND_FINAL_MARKER', 'CODEX_FORKED_TOOL_MARKER', 'CODEX_FORKED_FINAL_MARKER', 'CLAUDE_HAIKU_TOOL_MARKER', 'CLAUDE_HAIKU_FINAL_MARKER']
+    ? ['CODEX_FIRST_TOOL_MARKER', 'CODEX_FIRST_FINAL_MARKER', 'CODEX_SECOND_TOOL_MARKER', 'CODEX_SECOND_FINAL_MARKER', 'CODEX_SERIAL_FIRST_MARKER', 'CODEX_SERIAL_SECOND_MARKER', 'CODEX_SERIAL_FINAL_MARKER', 'CODEX_FORKED_TOOL_MARKER', 'CODEX_FORKED_FINAL_MARKER', 'CLAUDE_HAIKU_TOOL_MARKER', 'CLAUDE_HAIKU_FINAL_MARKER']
     : ['GIMBLE_LIVE_TOOL_MARKER', 'GIMBLE_LIVE_FINAL_MARKER']
   for (const marker of markers) await page.locator('article.assistant').filter({ hasText: marker }).waitFor({ timeout: 5000 })
   const body = await page.locator('body').innerText()
@@ -49,11 +49,18 @@ try {
   await page.screenshot({ path: join(project, 'final.png'), fullPage: true })
   if (snapshot.run.status !== 'completed' || markers.some(marker => !assistantText.includes(marker))) throw new Error(`Live observation failed: ${snapshot.run.status}\n${body}`)
   if (mode === 'issue135') {
-    for (const marker of ['CODEX_FIRST_TOOL_MARKER', 'CODEX_SECOND_TOOL_MARKER', 'CODEX_FORKED_TOOL_MARKER']) {
+    for (const marker of ['CODEX_FIRST_TOOL_MARKER', 'CODEX_SECOND_TOOL_MARKER', 'CODEX_SERIAL_FIRST_MARKER', 'CODEX_FORKED_TOOL_MARKER']) {
       const row = articles.find(article => article.text?.includes(marker))
       const tokens = row?.text?.match(/(\d+) in · (\d+) out · (\d+) reasoning · (\d+) cache read · (\d+) cache write/)
-      if (!tokens || tokens.slice(1).map(Number).reduce((sum, value) => sum + value, 0) === 0) throw new Error(`Codex tool is not attributed to its token-bearing response: ${marker}\n${row?.text}`)
+      if (!tokens || tokens.slice(1).map(Number).reduce((sum, value) => sum + value, 0) === 0) throw new Error(`Codex marker row has no model-call tokens: ${marker}\n${row?.text}`)
     }
+    for (const [toolMarker, finalMarker] of [['CODEX_FIRST_TOOL_MARKER', 'CODEX_FIRST_FINAL_MARKER'], ['CODEX_SECOND_TOOL_MARKER', 'CODEX_SECOND_FINAL_MARKER'], ['CODEX_SERIAL_FIRST_MARKER', 'CODEX_SERIAL_FINAL_MARKER']]) {
+      const toolRow = articles.find(article => article.text?.includes(toolMarker))
+      const finalRow = articles.find(article => article.text?.includes(finalMarker))
+      if (!toolRow?.id || !finalRow?.id || toolRow.id === finalRow.id) throw new Error(`Codex tool and follow-up response did not render in distinct native response rows: ${toolMarker}`)
+    }
+    const serialRows = articles.filter(article => article.text?.includes('CODEX_SERIAL_FIRST_MARKER') || article.text?.includes('CODEX_SERIAL_SECOND_MARKER'))
+    if (serialRows.length !== 1 || !serialRows[0].text?.includes('CODEX_SERIAL_FIRST_MARKER') || !serialRows[0].text?.includes('CODEX_SERIAL_SECOND_MARKER')) throw new Error(`Serial tools did not render in one native response row: ${JSON.stringify(serialRows)}`)
   }
   console.log(JSON.stringify({ project, runID, status: snapshot.run.status, frames: frames.length }))
 } finally {

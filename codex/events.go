@@ -34,6 +34,7 @@ type projector struct {
 	reasoningOrd  int
 	reasoning     strings.Builder
 	tools         map[string]*toolState
+	responseCalls map[string]bool
 	pendingTools  int
 	usage         normalizedUsage
 }
@@ -49,7 +50,10 @@ type normalizedUsage struct {
 }
 
 func newProjector(sessionID, turnID, model string, emit func(gimble.AgentEvent) error) *projector {
-	return &projector{emit: emit, sessionID: sessionID, turnID: turnID, model: model, tools: make(map[string]*toolState)}
+	return &projector{
+		emit: emit, sessionID: sessionID, turnID: turnID, model: model,
+		tools: make(map[string]*toolState), responseCalls: make(map[string]bool),
+	}
 }
 
 func (p *projector) event(eventType string, data map[string]any, native any) error {
@@ -122,7 +126,7 @@ func (p *projector) itemStarted(params json.RawMessage) error {
 		p.compacting = true
 		return nil
 	}
-	if p.streamed && p.pendingTools == 0 && !isTool(item.kind) {
+	if p.streamed && (!isTool(item.kind) || p.responseCallsSettled()) {
 		if err := p.endStep(nil); err != nil {
 			return err
 		}
@@ -310,13 +314,36 @@ func (p *projector) itemCompleted(params json.RawMessage) (string, bool, error) 
 				return "", false, err
 			}
 		}
-		if p.streamed && p.pendingTools == 0 {
+		if p.streamed && p.pendingTools == 0 && p.responseCallsSettled() {
 			if err := p.endStep(params); err != nil {
 				return "", false, err
 			}
 		}
 	}
 	return "", false, nil
+}
+
+func (p *projector) rawResponseItemCompleted(params json.RawMessage) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.compacting {
+		return nil
+	}
+	id, output := rawResponseToolIdentity(params)
+	if id == "" {
+		return nil
+	}
+	if output {
+		if _, ok := p.responseCalls[id]; ok {
+			p.responseCalls[id] = true
+		}
+	} else {
+		p.responseCalls[id] = false
+	}
+	if p.streamed && p.pendingTools == 0 && p.responseCallsSettled() {
+		return p.endStep(params)
+	}
+	return nil
 }
 
 func (p *projector) rawResponseCompleted(params json.RawMessage) error {
@@ -349,7 +376,19 @@ func (p *projector) rawResponseCompleted(params json.RawMessage) error {
 	if err := p.event("session.step.streamed", map[string]any{"assistantMessageID": p.messageID}, p.nativeRef(params)); err != nil {
 		return err
 	}
+	if p.pendingTools == 0 && p.responseCallsSettled() {
+		return p.endStep(params)
+	}
 	return nil
+}
+
+func (p *projector) responseCallsSettled() bool {
+	for _, settled := range p.responseCalls {
+		if !settled {
+			return false
+		}
+	}
+	return true
 }
 
 // tokenUsageUpdated fills the open step from the turn's most recent model
@@ -409,6 +448,7 @@ func (p *projector) endStep(params json.RawMessage) error {
 	p.stepOpen, p.streamed = false, false
 	p.messageID, p.responseID = "", ""
 	p.tools = make(map[string]*toolState)
+	p.responseCalls = make(map[string]bool)
 	return nil
 }
 
@@ -428,6 +468,22 @@ func decodeItem(params json.RawMessage) (nativeItem, bool) {
 	id, _ := envelope.Item["id"].(string)
 	kind, _ := envelope.Item["type"].(string)
 	return nativeItem{id: id, kind: kind, value: envelope.Item}, id != "" && kind != ""
+}
+
+func rawResponseToolIdentity(params json.RawMessage) (string, bool) {
+	var envelope struct {
+		Item map[string]any `json:"item"`
+	}
+	if json.Unmarshal(params, &envelope) != nil || envelope.Item == nil {
+		return "", false
+	}
+	switch stringField(envelope.Item, "type") {
+	case "local_shell_call", "function_call", "tool_search_call", "custom_tool_call":
+		return stringField(envelope.Item, "call_id", "callId", "id"), false
+	case "function_call_output", "tool_search_output", "custom_tool_call_output":
+		return stringField(envelope.Item, "call_id", "callId"), true
+	}
+	return "", false
 }
 
 func deltaText(params json.RawMessage) string {

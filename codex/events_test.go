@@ -87,10 +87,12 @@ func TestProjectorAttributesToolDeliveredAfterRawResponse(t *testing.T) {
 	mustProject(t, p.itemStarted(json.RawMessage(`{"item":{"id":"reasoning","type":"reasoning"}}`)))
 	_, _, err := p.itemCompleted(json.RawMessage(`{"item":{"id":"reasoning","type":"reasoning","summary":["calling the tool"]}}`))
 	mustProject(t, err)
+	mustProject(t, p.rawResponseItemCompleted(json.RawMessage(`{"item":{"type":"function_call","call_id":"call"}}`)))
 	mustProject(t, p.rawResponseCompleted(json.RawMessage(`{"responseId":"resp_tool"}`)))
 	mustProject(t, p.itemStarted(json.RawMessage(`{"item":{"id":"call","type":"commandExecution","command":"printf proof","cwd":"/w"}}`)))
 	_, _, err = p.itemCompleted(json.RawMessage(`{"item":{"id":"call","type":"commandExecution","status":"completed","aggregatedOutput":"proof"}}`))
 	mustProject(t, err)
+	mustProject(t, p.rawResponseItemCompleted(json.RawMessage(`{"item":{"type":"function_call_output","call_id":"call","output":"proof"}}`)))
 
 	if got := countType(events, "session.step.started"); got != 1 {
 		t.Fatalf("step.started count = %d, want delayed tool in the response's existing step; types=%v", got, types(events))
@@ -103,6 +105,89 @@ func TestProjectorAttributesToolDeliveredAfterRawResponse(t *testing.T) {
 	}
 	if got := types(events); got[len(got)-2] != "session.tool.success" || got[len(got)-1] != "session.step.ended" {
 		t.Fatalf("terminal event types = %v", got)
+	}
+}
+
+func TestProjectorAttributesSerialToolsFromRawResponseItems(t *testing.T) {
+	var events []gimble.AgentEvent
+	p := newProjector("thread", "turn", "model", func(event gimble.AgentEvent) error {
+		events = append(events, event)
+		return nil
+	})
+	mustProject(t, p.itemStarted(json.RawMessage(`{"item":{"id":"reasoning","type":"reasoning"}}`)))
+	_, _, err := p.itemCompleted(json.RawMessage(`{"item":{"id":"reasoning","type":"reasoning","summary":["two calls"]}}`))
+	mustProject(t, err)
+	mustProject(t, p.rawResponseItemCompleted(json.RawMessage(`{"item":{"type":"local_shell_call","call_id":"call-a"}}`)))
+	mustProject(t, p.rawResponseItemCompleted(json.RawMessage(`{"item":{"type":"function_call","call_id":"call-b"}}`)))
+	mustProject(t, p.rawResponseCompleted(json.RawMessage(`{"responseId":"resp_tools"}`)))
+	mustProject(t, p.itemStarted(json.RawMessage(`{"item":{"id":"call-a","type":"commandExecution","command":"printf a","cwd":"/w"}}`)))
+	_, _, err = p.itemCompleted(json.RawMessage(`{"item":{"id":"call-a","type":"commandExecution","status":"completed","aggregatedOutput":"a"}}`))
+	mustProject(t, err)
+	mustProject(t, p.rawResponseItemCompleted(json.RawMessage(`{"item":{"type":"function_call_output","call_id":"call-a","output":"a"}}`)))
+	if got := countType(events, "session.step.ended"); got != 0 {
+		t.Fatalf("first serial tool ended response with another owned tool pending; types=%v", types(events))
+	}
+	mustProject(t, p.itemStarted(json.RawMessage(`{"item":{"id":"call-b","type":"fileChange","changes":[]}}`)))
+	_, _, err = p.itemCompleted(json.RawMessage(`{"item":{"id":"call-b","type":"fileChange","status":"completed","changes":[]}}`))
+	mustProject(t, err)
+	mustProject(t, p.rawResponseItemCompleted(json.RawMessage(`{"item":{"type":"function_call_output","call_id":"call-b","output":"done"}}`)))
+
+	var toolMessages []string
+	for _, event := range events {
+		if event.Type != "session.tool.called" {
+			continue
+		}
+		var data map[string]any
+		decodeData(t, event, &data)
+		toolMessages = append(toolMessages, data["assistantMessageID"].(string))
+	}
+	if len(toolMessages) != 2 || toolMessages[0] != toolMessages[1] {
+		t.Fatalf("serial tool messages = %v, want one raw response step", toolMessages)
+	}
+	if got := countType(events, "session.step.started"); got != 1 {
+		t.Fatalf("step.started count = %d, want 1; types=%v", got, types(events))
+	}
+	if got := countType(events, "session.step.ended"); got != 1 {
+		t.Fatalf("step.ended count = %d, want 1; types=%v", got, types(events))
+	}
+}
+
+func TestProjectorSeparatesToolFirstNextResponse(t *testing.T) {
+	var events []gimble.AgentEvent
+	p := newProjector("thread", "turn", "model", func(event gimble.AgentEvent) error {
+		events = append(events, event)
+		return nil
+	})
+	mustProject(t, p.rawResponseItemCompleted(json.RawMessage(`{"item":{"type":"function_call","call_id":"call-a"}}`)))
+	mustProject(t, p.itemStarted(json.RawMessage(`{"item":{"id":"call-a","type":"commandExecution","command":"printf a","cwd":"/w"}}`)))
+	_, _, err := p.itemCompleted(json.RawMessage(`{"item":{"id":"call-a","type":"commandExecution","status":"completed","aggregatedOutput":"a"}}`))
+	mustProject(t, err)
+	mustProject(t, p.rawResponseCompleted(json.RawMessage(`{"responseId":"resp_one"}`)))
+	mustProject(t, p.rawResponseItemCompleted(json.RawMessage(`{"item":{"type":"function_call_output","call_id":"call-a","output":"a"}}`)))
+	mustProject(t, p.rawResponseItemCompleted(json.RawMessage(`{"item":{"type":"function_call","call_id":"call-b"}}`)))
+	mustProject(t, p.itemStarted(json.RawMessage(`{"item":{"id":"call-b","type":"commandExecution","command":"printf b","cwd":"/w"}}`)))
+	_, _, err = p.itemCompleted(json.RawMessage(`{"item":{"id":"call-b","type":"commandExecution","status":"completed","aggregatedOutput":"b"}}`))
+	mustProject(t, err)
+	mustProject(t, p.rawResponseCompleted(json.RawMessage(`{"responseId":"resp_two"}`)))
+	mustProject(t, p.rawResponseItemCompleted(json.RawMessage(`{"item":{"type":"function_call_output","call_id":"call-b","output":"b"}}`)))
+
+	var toolMessages []string
+	for _, event := range events {
+		if event.Type != "session.tool.called" {
+			continue
+		}
+		var data map[string]any
+		decodeData(t, event, &data)
+		toolMessages = append(toolMessages, data["assistantMessageID"].(string))
+	}
+	if len(toolMessages) != 2 || toolMessages[0] == toolMessages[1] {
+		t.Fatalf("tool-first response messages = %v, want distinct raw response steps", toolMessages)
+	}
+	if got := countType(events, "session.step.started"); got != 2 {
+		t.Fatalf("step.started count = %d, want 2; types=%v", got, types(events))
+	}
+	if got := countType(events, "session.step.ended"); got != 2 {
+		t.Fatalf("step.ended count = %d, want 2; types=%v", got, types(events))
 	}
 }
 

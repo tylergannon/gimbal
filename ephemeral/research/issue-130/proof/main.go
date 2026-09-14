@@ -179,6 +179,9 @@ func issue135(ctx context.Context, project string) error {
 	if err := markerTurn(ctx, codexSession, "CODEX_SECOND"); err != nil {
 		return err
 	}
+	if err := serialToolTurn(ctx, codexSession); err != nil {
+		return err
+	}
 	fork, err := codexSession.Fork(ctx, "forked")
 	if err != nil {
 		return err
@@ -192,6 +195,12 @@ func issue135(ctx context.Context, project string) error {
 
 func markerTurn(ctx context.Context, session *gimble.Session, marker string) error {
 	prompt := fmt.Sprintf("Use exactly one shell tool to run `printf %s_TOOL_MARKER`, then answer exactly %s_FINAL_MARKER.", marker, marker)
+	_, err := session.Generate[gimble.Text](ctx, prompt)
+	return err
+}
+
+func serialToolTurn(ctx context.Context, session *gimble.Session) error {
+	prompt := "In one assistant tool-call batch, issue exactly two tool calls without waiting between them: first use the shell tool to run `printf CODEX_SERIAL_FIRST_MARKER`; second use apply_patch to create serial-marker.txt containing exactly CODEX_SERIAL_SECOND_MARKER. After both tools finish, answer exactly CODEX_SERIAL_FINAL_MARKER."
 	_, err := session.Generate[gimble.Text](ctx, prompt)
 	return err
 }

@@ -5,37 +5,50 @@ Implementation and live proof use codex-cli 0.153.4, Codex
 
 ## Demonstrated
 
-- `codex/events.go` leaves a raw-completed response open for delayed tool
-  activity. `codex/events_test.go` fixes the event order as a regression case.
-- The production `web.NewRuntime` handler rendered the Codex first and second
-  turns, a Codex forked turn, and Claude Haiku. All four tool markers and all
-  four final markers appeared in assistant rows.
+- `codex/codex.go` consumes `rawResponseItem/completed`, and `codex/events.go`
+  uses each native tool call and its matching output as the response ownership
+  boundary. This keeps delayed and serial tools together until their native
+  call outputs settle, then closes the step before the next response begins.
+- `codex/events_test.go` covers a delayed tool, tools that settle serially, and
+  a following response whose first high-level item is another tool.
+- The production `web.NewRuntime` handler rendered three Codex turns, a Codex
+  forked turn, and Claude Haiku. The third Codex turn issued a file change and
+  command execution from one raw model call; both appeared in one assistant
+  row and the following final answer appeared in a distinct response row.
 - Codex first-turn `session.step.streamed` seq 7 has response
-  `resp_0df32033b8f4ee9b016aa8522db87087d1a934f39b304af194`; its delayed tool
+  `resp_05e477b55b7c99d0016aa8553e226087d1bb2242f9da30ede0`; its delayed tool
   success seq 11 has the same normalized assistant message and response ID.
 - Codex second turn on the same shared-daemon connection
   `session.step.streamed` seq 33 has response
-  `resp_0df32033b8f4ee9b016aa85234707087d18adfaa4d4c23deb9`; its delayed tool
+  `resp_05e477b55b7c99d0016aa85542e0bc87d1bfa775a7d97c96d6`; its delayed tool
   success seq 37 has the same normalized assistant message and response ID.
+- The serial-tool response's file change success seq 62 and command success
+  seq 66 share normalized assistant message
+  `msg_Y29kZXguMQ_00000000000000000056`. Its native completion seq 67 binds
+  response `resp_05e477b55b7c99d0016aa85546e1f087d1a0e0400521260add`, and the matching
+  raw call output ends that step at seq 68. The final answer uses message
+  `msg_Y29kZXguMQ_00000000000000000070` and response
+  `resp_05e477b55b7c99d0016aa8554e347c87d19d7ad1c6adda8370`.
 - The browser rendered those tool calls in their token-bearing response rows:
-  first `10782 in / 92 out / 45 reasoning / 9984 cache read`, second turn
-  `750 in / 92 out / 11 reasoning / 20224 cache read`.
+  first `10784 in / 93 out / 40 reasoning / 9984 cache read`, second turn
+  `748 in / 93 out / 11 reasoning / 20224 cache read`, and serial tools
+  `962 in / 192 out / 69 reasoning / 20224 cache read`.
 - Claude Haiku's tool marker and final marker rendered through the same
-  production handler; run lifecycle seq 11 records the exact model.
+  production handler; run lifecycle seq 13 records the exact model.
 
 Browser screenshot:
-https://pub-49d826f028c94744bb6d55c4a63b56ed.r2.dev/proof/2026/09/14/af8b900e-6831-4aeb-9465-4aabaaee347a-final.png
+https://pub-49d826f028c94744bb6d55c4a63b56ed.r2.dev/proof/2026/09/14/7c35f185-9828-4d4b-80e7-b0b8bfff182b-final.png
 
 Browser snapshot, assistant rows, and captured SSE frames:
-https://pub-49d826f028c94744bb6d55c4a63b56ed.r2.dev/proof/2026/09/14/6ec0195b-85c1-44b2-8c84-462060db668a-browser.json
+https://pub-49d826f028c94744bb6d55c4a63b56ed.r2.dev/proof/2026/09/14/b3dee6f8-4846-4bc7-be28-b2d76a3299ad-browser.json
 
 Local live artifacts:
 
-- Project: `/var/folders/lt/09rsy64x65s_0fp2b8zq3n7m0000gn/T/gimble-live-issue135-kcFYIn`
-- Run: `01M2GR1Y2MZBYFVFX7SAY3P6GK.observation-proof`
-- First and second-turn events: `runs/01M2GR1Y2MZBYFVFX7SAY3P6GK.observation-proof/sessions/codex.1.jsonl`
-- Forked events: `runs/01M2GR1Y2MZBYFVFX7SAY3P6GK.observation-proof/sessions/forked.1.jsonl`
-- Claude events: `runs/01M2GR1Y2MZBYFVFX7SAY3P6GK.observation-proof/sessions/claude.1.jsonl`
+- Project: `/var/folders/lt/09rsy64x65s_0fp2b8zq3n7m0000gn/T/gimble-live-issue135-ZO0lAh`
+- Run: `01M2GRSTD1JBM874VCZJJB4MVG.observation-proof`
+- Codex events: `runs/01M2GRSTD1JBM874VCZJJB4MVG.observation-proof/sessions/codex.1.jsonl`
+- Forked events: `runs/01M2GRSTD1JBM874VCZJJB4MVG.observation-proof/sessions/forked.1.jsonl`
+- Claude events: `runs/01M2GRSTD1JBM874VCZJJB4MVG.observation-proof/sessions/claude.1.jsonl`
 - Browser capture: `browser.json`
 - Screenshot: `final.png`
 

@@ -35,12 +35,22 @@ func newEventWriter(name string) (*eventWriter, error) {
 	}
 	return &eventWriter{file: f}, nil
 }
-func (w *eventWriter) writeLifecycle(scope, session, turn string, event LifecycleEvent) (json.RawMessage, error) {
+// writeLifecycle appends one lifecycle record. withSeq is false for
+// project.jsonl: each Run opens its own writer against that shared file, so
+// a per-writer counter would overlap with every other run's; Seq is left 0
+// there and readers order project.jsonl by Time instead. run.jsonl has
+// exactly one writer for the run's lifetime, so its Seq stays a true,
+// gap-free ordinal.
+func (w *eventWriter) writeLifecycle(scope, session, turn string, event LifecycleEvent, withSeq bool) (json.RawMessage, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	w.seq++
+	var seq uint64
+	if withSeq {
+		w.seq++
+		seq = w.seq
+	}
 	record := LifecycleRecord{
-		Seq:     w.seq,
+		Seq:     seq,
 		Time:    time.Now().UTC(),
 		Scope:   scope,
 		Session: optionalString(session),
@@ -111,7 +121,7 @@ func (r *run) recordingError() error {
 
 func (r *run) event(scope, session, turn string, event LifecycleEvent) {
 	if r != nil && r.writer != nil {
-		record, err := r.writer.writeLifecycle(scope, session, turn, event)
+		record, err := r.writer.writeLifecycle(scope, session, turn, event, true)
 		r.recordFailure("write run log", err)
 		if err == nil {
 			r.observeLifecycle(scope, session, turn, event, record)
@@ -121,7 +131,7 @@ func (r *run) event(scope, session, turn string, event LifecycleEvent) {
 
 func (r *run) projectEvent(event LifecycleEvent) {
 	if r != nil && r.project != nil {
-		_, err := r.project.writeLifecycle("", "", "", event)
+		_, err := r.project.writeLifecycle("", "", "", event, false)
 		r.recordFailure("write project log", err)
 	}
 }

@@ -1,5 +1,5 @@
 {"type":"object",
-"description":"LifecycleRecord places one lifecycle event in a run or project log.","properties":{
+"description":"LifecycleRecord places one lifecycle event in a run or project log. Seq is a gap-free ordinal in run.jsonl, which has exactly one writer for the run's lifetime. project.jsonl is written by every concurrently active run's own writer, so Seq is always 0 there; order those records by Time instead.","properties":{
 "seq":{"type":"integer"},
 "time":{"type":"string","description":"RFC3339 formatted date-time string (e.g., \"2006-01-02T15:04:05Z07:00\")"},
 "scope":{"type":"string"},

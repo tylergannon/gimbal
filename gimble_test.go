@@ -192,10 +192,10 @@ func TestRunLogCanBeRead(t *testing.T) {
 			return nil
 		})
 	})
-	if _, err := w.writeLifecycle("", "", "", RunStarted{}); err != nil {
+	if _, err := w.writeLifecycle("", "", "", RunStarted{}, true); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := w.writeLifecycle("", "", "", Complete{}); err != nil {
+	if _, err := w.writeLifecycle("", "", "", Complete{}, true); err != nil {
 		t.Fatal(err)
 	}
 	if err := readers.Wait(); err != nil {

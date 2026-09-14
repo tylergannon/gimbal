@@ -108,7 +108,7 @@ func serveEvents(w http.ResponseWriter, r *http.Request) {
 		case frame, open := <-sub.Frames():
 			if !open {
 				// The run finished normally and its queue has been handed
-				// over in full, terminal lifecycle included.
+				// over in full, the run's terminal row included.
 				return
 			}
 			sub.Took(frame)

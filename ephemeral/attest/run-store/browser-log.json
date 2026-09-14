@@ -1,0 +1,68 @@
+[
+ {
+  "t": "0.0",
+  "status": "",
+  "header": "Run usage · 12153 in · 43 out · 0 reasoning · 31232 cache read · 0 cache write · $0",
+  "cards": [
+   "ses_c2hhcmVkLjE Idle 12153 in · 43 out · 0 reasoning · 31232 cache read · 0 cache write · $0",
+   "ses_c2hhcmVkLjE Idle 12153 in · 43 out · 0 reasoning · 31232 cache read · 0 cache write · $0"
+  ]
+ },
+ {
+  "t": "53.3",
+  "status": "",
+  "header": "Run usage · 12153 in · 43 out · 0 reasoning · 31232 cache read · 0 cache write · $0",
+  "cards": [
+   "ses_c2hhcmVkLjE Idle 12153 in · 43 out · 0 reasoning · 31232 cache read · 0 cache write · $0",
+   "ses_c2hhcmVkLjE Idle 12153 in · 43 out · 0 reasoning · 31232 cache read · 0 cache write · $0",
+   "ses_Y29tcGFyZS4xL2F0dGVtcHQuMi93cml0ZXIuMQ Running 0 in · 0 out · 0 reasoning · 0 cache read · 0 cache write · $0",
+   "ses_Y29tcGFyZS4xL2F0dGVtcHQuMS93cml0ZXIuMQ Running 0 in · 0 out · 0 reasoning · 0 cache read · 0 cache write · $0"
+  ]
+ },
+ {
+  "t": "57.3",
+  "status": "",
+  "header": "Run usage · 27011 in · 245 out · 0 reasoning · 31232 cache read · 0 cache write · $0",
+  "cards": [
+   "ses_c2hhcmVkLjE Idle 12153 in · 43 out · 0 reasoning · 31232 cache read · 0 cache write · $0",
+   "ses_c2hhcmVkLjE Idle 12153 in · 43 out · 0 reasoning · 31232 cache read · 0 cache write · $0",
+   "ses_Y29tcGFyZS4xL2F0dGVtcHQuMi93cml0ZXIuMQ Running 14858 in · 202 out · 0 reasoning · 0 cache read · 0 cache write · $0",
+   "ses_Y29tcGFyZS4xL2F0dGVtcHQuMS93cml0ZXIuMQ Running 0 in · 0 out · 0 reasoning · 0 cache read · 0 cache write · $0"
+  ]
+ },
+ {
+  "t": "59.3",
+  "status": "",
+  "header": "Run usage · 27011 in · 245 out · 0 reasoning · 31232 cache read · 0 cache write · $0",
+  "cards": [
+   "ses_c2hhcmVkLjE Idle 12153 in · 43 out · 0 reasoning · 31232 cache read · 0 cache write · $0",
+   "ses_c2hhcmVkLjE Idle 12153 in · 43 out · 0 reasoning · 31232 cache read · 0 cache write · $0",
+   "ses_Y29tcGFyZS4xL2F0dGVtcHQuMi93cml0ZXIuMQ Idle 14858 in · 202 out · 0 reasoning · 0 cache read · 0 cache write · $0",
+   "ses_Y29tcGFyZS4xL2F0dGVtcHQuMS93cml0ZXIuMQ Running 0 in · 0 out · 0 reasoning · 0 cache read · 0 cache write · $0"
+  ]
+ },
+ {
+  "t": "60.3",
+  "status": "",
+  "header": "Run usage · 38692 in · 374 out · 25 reasoning · 41216 cache read · 0 cache write · $0",
+  "cards": [
+   "ses_c2hhcmVkLjE Idle 12153 in · 43 out · 0 reasoning · 31232 cache read · 0 cache write · $0",
+   "ses_c2hhcmVkLjE Idle 12153 in · 43 out · 0 reasoning · 31232 cache read · 0 cache write · $0",
+   "ses_Y29tcGFyZS4xL2F0dGVtcHQuMi93cml0ZXIuMQ Idle 14858 in · 202 out · 0 reasoning · 0 cache read · 0 cache write · $0",
+   "ses_Y29tcGFyZS4xL2F0dGVtcHQuMS93cml0ZXIuMQ Idle 11681 in · 129 out · 25 reasoning · 9984 cache read · 0 cache write · $0",
+   "ses_Y29tcGFyZS4xL2F0dGVtcHQuMS93cml0ZXIuMQ Running 11681 in · 129 out · 25 reasoning · 9984 cache read · 0 cache write · $0"
+  ]
+ },
+ {
+  "t": "63.3",
+  "status": "",
+  "header": "Run usage · 39288 in · 494 out · 37 reasoning · 62464 cache read · 0 cache write · $0",
+  "cards": [
+   "ses_c2hhcmVkLjE Idle 12153 in · 43 out · 0 reasoning · 31232 cache read · 0 cache write · $0",
+   "ses_c2hhcmVkLjE Idle 12153 in · 43 out · 0 reasoning · 31232 cache read · 0 cache write · $0",
+   "ses_Y29tcGFyZS4xL2F0dGVtcHQuMi93cml0ZXIuMQ Idle 14858 in · 202 out · 0 reasoning · 0 cache read · 0 cache write · $0",
+   "ses_Y29tcGFyZS4xL2F0dGVtcHQuMS93cml0ZXIuMQ Idle 12277 in · 249 out · 37 reasoning · 31232 cache read · 0 cache write · $0",
+   "ses_Y29tcGFyZS4xL2F0dGVtcHQuMS93cml0ZXIuMQ Idle 12277 in · 249 out · 37 reasoning · 31232 cache read · 0 cache write · $0"
+  ]
+ }
+]

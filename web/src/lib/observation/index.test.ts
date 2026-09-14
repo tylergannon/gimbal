@@ -1,15 +1,24 @@
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
 import test from 'node:test'
-import { RunObservation, foldProvenance, usageOf, usageText, type LifecycleRecord, type RunSnapshot } from './index.ts'
+import { RunObservation, foldProvenance, usageOf, usageText, type RunSnapshot, type Usage } from './index.ts'
 import type { Snapshot } from '../sessionstate/index.ts'
 
 const projection = (): Snapshot => ({
 	state: { info: { ses: { id: 'ses', title: 'start' } }, family: { ses: ['ses'] }, active: {}, message: { ses: [] }, pending: {}, permission: {}, form: {} }
 })
+const usage = (input: number, cost = 0): Usage => ({ input, cache_read: 0, cache_write: 0, output: 0, reasoning: 0, stated_cost: cost })
 const snapshot = (title = 'start'): RunSnapshot => {
 	const value = projection(); value.state.info.ses.title = title
-	return { run: { id: 'run', name: 'Run', status: 'running', sessions: { ses: { name: 'agent', adapter: 'codex', model: 'm', scope: 'lap' } } }, scopes: { 'loop.1': { name: 'loop.1', status: 'running' } }, invocations: { turn: { scope: 'lap', session: 'ses', turn: 'turn', snapshot: value, provenance: {} } } }
+	return {
+		run: { id: 'run', name: 'Run', status: 'running', error: '', started: 1, ended: 0 },
+		scopes: { 'loop.1': { run: 'run', key: 'loop.1', name: 'loop.1', status: 'running', error: '', began: 1, ended: 0, values: {}, decisions: [] } },
+		sessions: { ses: { run: 'run', id: 'ses', name: 'agent', adapter: 'codex', model: 'm', scope: 'lap', parent: '', created: 1 } },
+		turns: { turn: { run: 'run', id: 'turn', session: 'ses', scope: 'lap', prompt: 'go', output_type: 'gimble.Text', result: '', error: '', interrupted: false, started: 2, ended: 0, duration: 0 } },
+		turn_usage: {},
+		model_calls: {},
+		totals: { scopes: {}, sessions: {} },
+		transcripts: { turn: { snapshot: value, provenance: {} } }
+	}
 }
 
 test('replacement snapshot resets machines and stale connection callbacks cannot mutate them', () => {
@@ -23,41 +32,70 @@ test('replacement snapshot resets machines and stale connection callbacks cannot
 	assert.deepEqual(observation.state('turn')?.info.ses.permissions, ['read'])
 })
 
-test('lifecycle only controls workflow terminal status and relationships', () => {
+test('a replacement snapshot replaces every table, not only the transcripts', () => {
 	const observation = new RunObservation(snapshot())
 	const connection = observation.beginConnection()
-	observation.apply({ type: 'lifecycle', data: { seq: 1, time: '2026-01-01T00:00:00Z', scope: 'lap.2', session: 'reviewer', event: { kind: 'session_created', name: 'reviewer', adapter: 'claude', model: 'opus', workdir: '/tmp', parent: 'ses' } } }, connection)
-	observation.apply({ type: 'event', data: { scope: 'lap', session: 'ses', turn: 'turn', event: { id: 'ended', created: 3, type: 'session.step.ended', data: { sessionID: 'ses', assistantMessageID: 'none', finish: 'stop' } } } }, connection)
-	assert.equal(observation.run.status, 'running')
-	assert.equal(observation.run.sessions.reviewer.parent, 'ses')
-	observation.apply({ type: 'lifecycle', data: { seq: 2, time: '2026-01-01T00:00:01Z', scope: '', event: { kind: 'run_ended', name: 'Run', error: '' } } }, connection)
+	observation.apply({ type: 'row', data: { table: 'turn_usage', key: 'turn', row: { m: usage(5) } } }, connection)
+	const replacement = snapshot()
+	replacement.run.status = 'completed'
+	observation.apply({ type: 'snapshot', data: replacement }, connection)
 	assert.equal(observation.run.status, 'completed')
+	assert.deepEqual(observation.turnUsage, {})
 })
 
-test('message revision survives a following lifecycle frame', () => {
+test('a row frame is one row of one table, replacing what was there', () => {
+	const observation = new RunObservation(snapshot())
+	const connection = observation.beginConnection()
+	observation.apply({ type: 'row', data: { table: 'scopes', key: 'loop.1/task.2', row: { run: 'run', key: 'loop.1/task.2', name: 'task.2', status: 'ended', error: '', task: { name: 'write a.txt' }, began: 3, ended: 4, values: { result: 'done' }, decisions: [] } } }, connection)
+	assert.equal(observation.scopes['loop.1/task.2'].status, 'ended')
+	assert.deepEqual(observation.scopes['loop.1/task.2'].values, { result: 'done' })
+
+	observation.apply({ type: 'row', data: { table: 'turns', key: 'turn.2', row: { run: 'run', id: 'turn.2', session: 'ses', scope: 'loop.1/task.2', prompt: 'build', output_type: 'gimble.Text', result: '', error: '', interrupted: false, started: 5, ended: 0, duration: 0 } } }, connection)
+	// The turn is charged to the scope it ran in, not the one its session was
+	// created in.
+	assert.equal(observation.turns['turn.2'].scope, 'loop.1/task.2')
+	assert.equal(observation.sessions.ses.scope, 'lap')
+
+	observation.apply({ type: 'row', data: { table: 'turn_usage', key: 'turn.2', row: { m: usage(12, 0.5) } } }, connection)
+	assert.deepEqual(observation.turnUsage['turn.2'], { m: usage(12, 0.5) })
+	// The row is the turn's whole model map, so a later frame replaces it.
+	observation.apply({ type: 'row', data: { table: 'turn_usage', key: 'turn.2', row: { other: usage(1) } } }, connection)
+	assert.deepEqual(observation.turnUsage['turn.2'], { other: usage(1) })
+
+	observation.apply({ type: 'row', data: { table: 'run', key: '', row: { id: 'run', name: 'Run', status: 'cancelled', error: 'context canceled', started: 1, ended: 9 } } }, connection)
+	assert.equal(observation.run.status, 'cancelled')
+	assert.equal(observation.run.error, 'context canceled')
+})
+
+test('a totals frame is the roll-ups, and the page never sums anything itself', () => {
+	const observation = new RunObservation(snapshot())
+	const connection = observation.beginConnection()
+	observation.apply({ type: 'totals', data: { scopes: { '': { all: usage(30), by_model: { m: usage(30) } }, lap: { all: usage(30), by_model: { m: usage(30) } } }, sessions: { ses: { all: usage(30), by_model: { m: usage(30) } } } } }, connection)
+	assert.deepEqual(observation.totals.scopes[''].all, usage(30))
+	assert.deepEqual(observation.totals.sessions.ses.by_model.m, usage(30))
+	// A second frame is the whole roll-up again.
+	observation.apply({ type: 'totals', data: { scopes: { '': { all: usage(40), by_model: {} } }, sessions: {} } }, connection)
+	assert.deepEqual(observation.totals.scopes[''].all, usage(40))
+	assert.equal(observation.totals.sessions.ses, undefined)
+})
+
+test('message revision survives a following row frame', () => {
 	const observation = new RunObservation(snapshot())
 	const connection = observation.beginConnection()
 	observation.apply({ type: 'event', data: { scope: 'lap', session: 'ses', turn: 'turn', event: { id: 'delta', created: 3, type: 'session.text.delta', data: { sessionID: 'ses', assistantMessageID: 'message', delta: 'done' } } } }, connection)
 	const changed = observation.messageRevision('turn', 'message')
-	observation.apply({ type: 'lifecycle', data: { seq: 2, time: '2026-01-01T00:00:01Z', scope: '', event: { kind: 'run_ended', name: 'Run', error: '' } } }, connection)
+	observation.apply({ type: 'row', data: { table: 'turn_usage', key: 'turn', row: { m: usage(2) } } }, connection)
 	assert.equal(observation.messageRevision('turn', 'message'), changed)
 })
 
-test('usage is five zero-filled token counts and a cost, whatever the harness reported', () => {
-	assert.deepEqual(usageOf(undefined), { cost: 0, tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } } })
+test('usage is five zero-filled token counts and a stated cost, whatever the harness reported', () => {
+	assert.deepEqual(usageOf(undefined), { input: 0, cache_read: 0, cache_write: 0, output: 0, reasoning: 0, stated_cost: 0 })
+	// A message carries the counts nested; the page holds them flat.
 	assert.deepEqual(usageOf({ cost: 0.25, tokens: { input: 10, output: 2, reasoning: 3, cache: { read: 4, write: 5 } } }),
-		{ cost: 0.25, tokens: { input: 10, output: 2, reasoning: 3, cache: { read: 4, write: 5 } } })
+		{ input: 10, cache_read: 4, cache_write: 5, output: 2, reasoning: 3, stated_cost: 0.25 })
 	// A field the harness never reported reads as the number zero, with no
 	// wording about availability anywhere in the line.
 	assert.equal(usageText(usageOf({ tokens: { input: 7 } })), '7 in · 0 out · 0 reasoning · 0 cache read · 0 cache write · $0')
-})
-
-test('a session total is the running total the reducer folded into session info', () => {
-	const observation = new RunObservation(snapshot())
-	const connection = observation.beginConnection()
-	const usage = { cost: 0.5, tokens: { input: 12, output: 3, reasoning: 1, cache: { read: 6, write: 7 } } }
-	observation.apply({ type: 'event', data: { scope: 'lap', session: 'ses', turn: 'turn', event: { id: 'usage', created: 4, type: 'session.usage.updated', data: { sessionID: 'ses', ...usage } } } }, connection)
-	assert.deepEqual(usageOf(observation.state('turn')?.info.ses), usage)
 })
 
 test('provenance keys the latest native sidecar by normalized message ID', () => {
@@ -67,40 +105,14 @@ test('provenance keys the latest native sidecar by normalized message ID', () =>
 	assert.equal((provenance.msg_canonical as { messageID: string }).messageID, 'provider-id')
 })
 
-test('a usage.updated frame is the session running total on the run, replaced by the next one', () => {
+test('the snapshot it hands back is every table and every transcript', () => {
 	const observation = new RunObservation(snapshot())
 	const connection = observation.beginConnection()
-	const first = { cost: 0.5, tokens: { input: 12, output: 3, reasoning: 1, cache: { read: 6, write: 7 } } }
-	const second = { cost: 1.25, tokens: { input: 30, output: 9, reasoning: 2, cache: { read: 8, write: 0 } } }
-	observation.apply({ type: 'event', data: { scope: 'lap', session: 'ses', turn: 'turn', event: { id: 'usage-1', created: 4, type: 'session.usage.updated', data: { sessionID: 'ses_native', ...first } } } }, connection)
-	assert.deepEqual(observation.run.usage?.ses, first)
-	observation.apply({ type: 'event', data: { scope: 'lap', session: 'ses', turn: 'turn', event: { id: 'usage-2', created: 5, type: 'session.usage.updated', data: { sessionID: 'ses_native', ...second } } } }, connection)
-	assert.deepEqual(observation.run.usage?.ses, second)
-})
-
-test('a cancelled run stays cancelled, as the Go store decides it', () => {
-	const observation = new RunObservation(snapshot())
-	const connection = observation.beginConnection()
-	const fixture = new URL('../../../../internal/observation/testdata/cancelled-run.jsonl', import.meta.url)
-	for (const line of readFileSync(fixture, 'utf8').trim().split('\n')) {
-		observation.apply({ type: 'lifecycle', data: JSON.parse(line) as LifecycleRecord }, connection)
-	}
-	assert.equal(observation.run.status, 'cancelled')
-	assert.equal(observation.run.error, 'context canceled')
-})
-
-test('the snapshot carries the scope tree and workflow lifecycle folds into it', () => {
-	const observation = new RunObservation(snapshot())
-	const connection = observation.beginConnection()
-	const frame = (seq: number, scope: string, event: Record<string, unknown>) =>
-		observation.apply({ type: 'lifecycle', data: { seq, time: '2026-01-01T00:00:00Z', scope, event } as LifecycleRecord }, connection)
-	frame(1, 'loop.1', { kind: 'planner_decision', task: { name: 'write a.txt' } })
-	frame(2, 'loop.1/task.2', { kind: 'scope_began', name: 'task.2', task: { name: 'write a.txt' } })
-	frame(3, 'loop.1/task.2', { kind: 'value_set', key: 'worker result', value: '"done"' })
-	frame(4, 'loop.1/task.2', { kind: 'scope_ended', error: '' })
-	frame(5, 'loop.1', { kind: 'planner_decision' })
-	// An ended scope with no error is ended, never succeeded.
-	assert.deepEqual(observation.scopes['loop.1/task.2'], { name: 'task.2', status: 'ended', task: { name: 'write a.txt' }, values: { 'worker result': 'done' } })
-	assert.deepEqual(observation.scopes['loop.1'].decisions, [{ task: { name: 'write a.txt' } }, {}])
-	assert.deepEqual(observation.snapshot().scopes, observation.scopes)
+	observation.apply({ type: 'row', data: { table: 'turn_usage', key: 'turn', row: { m: usage(3) } } }, connection)
+	const out = observation.snapshot()
+	assert.deepEqual(out.turn_usage, { turn: { m: usage(3) } })
+	assert.deepEqual(out.scopes, observation.scopes)
+	assert.deepEqual(out.sessions, observation.sessions)
+	assert.deepEqual(out.turns, observation.turns)
+	assert.equal(out.transcripts.turn.snapshot.state.info.ses.title, 'start')
 })

@@ -20,19 +20,21 @@ type fake struct {
 }
 
 func (f *fake) CreateSession(context.Context, string, string) (string, error) { return "native", nil }
-func (f *fake) RunTurn(_ context.Context, _ string, prompt string, schema json.RawMessage, _ func(gimble.AgentEvent) error) (json.RawMessage, error) {
+func (f *fake) RunTurn(_ context.Context, _ string, prompt string, schema json.RawMessage, _ func(gimble.AgentEvent) error) (gimble.TurnResult, error) {
 	f.calls++
 	out, err := f.answer(prompt, schema)
 	if err != nil {
-		return nil, err
+		return gimble.TurnResult{}, err
 	}
 	if len(schema) == 0 {
-		return json.Marshal(out)
+		raw, err := json.Marshal(out)
+		return gimble.TurnResult{Output: raw}, err
 	}
-	return json.RawMessage(out), nil
+	return gimble.TurnResult{Output: json.RawMessage(out)}, nil
 }
-func (f *fake) Steer(context.Context, string, string) error    { return nil }
+func (f *fake) Steer(context.Context, string, string) error  { return nil }
 func (f *fake) Fork(context.Context, string) (string, error) { return "native-fork", nil }
+func (f *fake) Close(context.Context, string) error          { return nil }
 
 func backlogPath(prompt string) string {
 	marker := "Its revisable backlog is "

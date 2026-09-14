@@ -14,12 +14,12 @@
 			return { sessionID, messages, pending, unmatchedPending: [...pending.values()].filter((input) => !messages.some((message) => message.id === input.id)) };
 		});
 	});
-	// The session's running total is the run's, keyed by the turn's placement
-	// session -- the same map the Go store folds `session.usage.updated` into.
-	// An absent entry zero-fills through usageOf.
+	// The session's total is the roll-up Go pushed for the session this turn
+	// belongs to. A session with nothing recorded yet zero-fills.
 	const total = $derived.by(() => {
 		revision;
-		return usageOf(observation.run.usage?.[observation.invocations.get(turn)?.session ?? '']);
+		const session = observation.turns[turn]?.session ?? '';
+		return observation.totals.sessions[session]?.all ?? usageOf(undefined);
 	});
 </script>
 

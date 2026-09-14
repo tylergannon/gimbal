@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -31,12 +32,22 @@ func TestRunPageIsRenderedFromTheRunsObservation(t *testing.T) {
 
 	project := t.TempDir()
 	registry := observation.NewRegistry(project)
-	store := observation.Open(registry, "run-1", "demo", filepath.Join(project, "runs", "run-1"))
-	store.Lifecycle(observation.Lifecycle{
-		Placement: observation.Placement{Session: "writer"},
-		Session:   &observation.SessionInfo{Name: "writer", Adapter: "fixture", Model: "test-model"},
-		Record:    json.RawMessage(`{"event":{"kind":"SessionCreated","name":"writer"}}`),
-	})
+	runDir := filepath.Join(project, "runs", "run-1")
+	if err := os.MkdirAll(runDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	store, err := observation.Open(registry, "run-1", "demo", runDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, record := range []json.RawMessage{
+		json.RawMessage(`{"seq":1,"time":"2026-09-13T00:00:00Z","scope":"","session":"writer","event":{"kind":"session_created","name":"writer","adapter":"fixture","model":"test-model","workdir":"/w"}}`),
+		json.RawMessage(`{"seq":2,"time":"2026-09-13T00:00:01Z","scope":"","session":"writer","turn":"turn-1","event":{"kind":"turn_started","prompt":"write","output_type":"gimble.Text"}}`),
+	} {
+		if err := store.Lifecycle(record); err != nil {
+			t.Fatalf("fold %s: %v", record, err)
+		}
+	}
 	at := observation.Placement{Session: "writer", Turn: "turn-1"}
 	for _, event := range []json.RawMessage{
 		json.RawMessage(`{"id":"evt1","type":"session.step.started","created":10,"data":{"sessionID":"ses_writer","assistantMessageID":"msg_writer","agent":"fixture","model":{"providerID":"fixture","id":"test-model"}}}`),

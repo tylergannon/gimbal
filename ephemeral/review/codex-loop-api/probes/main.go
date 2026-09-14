@@ -18,14 +18,16 @@ type fake struct {
 }
 
 func (f *fake) CreateSession(context.Context, string, string) (string, error) { return "fake", nil }
-func (f *fake) RunTurn(_ context.Context, _ string, prompt string, _ json.RawMessage, _ func(gimble.AgentEvent) error) (json.RawMessage, error) {
+func (f *fake) RunTurn(_ context.Context, _ string, prompt string, _ json.RawMessage, _ func(gimble.AgentEvent) error) (gimble.TurnResult, error) {
 	f.calls++
-	return f.answer(f.calls, prompt)
+	out, err := f.answer(f.calls, prompt)
+	return gimble.TurnResult{Output: out}, err
 }
 func (f *fake) Steer(context.Context, string, string) error {
 	return errors.New("steer delivery failed")
 }
 func (f *fake) Fork(context.Context, string) (string, error) { return "fork", nil }
+func (f *fake) Close(context.Context, string) error          { return nil }
 func backlog(p string) string {
 	_, s, _ := strings.Cut(p, "Its revisable backlog is ")
 	s, _, _ = strings.Cut(s, ".\n")

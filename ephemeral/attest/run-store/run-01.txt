@@ -1,0 +1,28 @@
+2026/09/13 18:16:39 gimble: web application listening on 127.0.0.1:8098 (prod)
+Models: shared=gpt-5.6-luna writer=gpt-5.6-luna writer(gemini)=gemini-3.8-flash-low
+2026/09/13 18:16:39 gimble: run 20260913-181639.run-store-proof started in /Users/tyler/src/gimble/.claude/worktrees/token-usage-coverall-12e8d5/ephemeral/attest/run-store/.gimble/runs/20260913-181639.run-store-proof
+Run: 20260913-181639.run-store-proof
+Page: http://127.0.0.1:8098/runs/20260913-181639.run-store-proof
+2026/09/13 18:16:40 gimble: shared.1: turn started (gpt-5.6-luna)
+2026/09/13 18:16:45 gimble: shared.1: turn ended after 5s: ok
+[shared turn 1] A token budget is the maximum number of text units an AI model may process or generate for a given request.
+2026/09/13 18:16:45 gimble: shared.1: turn started (gpt-5.6-luna)
+2026/09/13 18:16:49 gimble: shared.1: turn ended after 4s: ok
+[shared turn 2] A useful budget measurement is the percentage of the allocated budget consumed.
+2026/09/13 18:16:49 gimble: compare.1/attempt.2/writer.1: turn started (gemini-3.8-flash-low)
+2026/09/13 18:16:49 gimble: compare.1/attempt.1/writer.1: turn started (gpt-5.6-luna)
+2026/09/13 18:16:54 gimble: compare.1/attempt.2/writer.1: turn ended after 6s: ok
+[attempt.2 turn 1] **Token caching** (often implemented as prompt or KV caching) is an optimization technique in Large Language Models that stores precomputed internal representations—specifically key-value (KV) attention states—for reused prompt segments. 
+
+Normally, an LLM recomputes attention across the entire context window for every request, which is computationally expensive and slow for long, repetitive prompts (such as system instructions, few-shot examples, large codebases, or chat history). With token caching, the model saves the computed states of static prefix tokens in memory after the initial pass. On subsequent requests sharing that exact prefix, the system bypasses recomputing those tokens and reads them directly from the cache.
+
+This significantly cuts **time-to-first-token (TTFT)** latency, reduces GPU compute overhead, and drastically lowers API serving costs (often by 50–90% on cached inputs), making multi-turn chats, long-document queries, and agentic workflows much faster and cheaper.
+
+2026/09/13 18:16:55 gimble: compare.1/attempt.1/writer.1: turn ended after 5s: ok
+[attempt.1 turn 1] Token caching stores previously computed tokens so repeated requests can reuse them instead of processing the same context again. In AI systems, this often means caching a prompt’s unchanged prefix—such as system instructions or conversation history—while generating only the new portion. Caching can reduce latency, computation, and cost, especially for long prompts used repeatedly. Cached data may expire, be evicted when storage is full, or become invalid when the underlying content or model changes. It is most effective when requests share substantial, stable input. Sensitive cached content should also be protected, since it may contain private instructions or user data.
+2026/09/13 18:16:55 gimble: compare.1/attempt.1/writer.1: turn started (gpt-5.6-luna)
+2026/09/13 18:16:59 gimble: compare.1/attempt.1/writer.1: turn ended after 4s: ok
+[attempt.1 turn 2] A customer-support assistant receives thousands of requests each day using the same 5,000-token policy manual, safety rules, and company procedures. Without caching, the system repeatedly processes that entire shared prefix for every conversation. With token caching, the provider stores the processed representation of the unchanged instructions. Each new request only adds the customer’s question and relevant conversation, reducing processing time and input cost. The benefit grows as the shared prefix gets longer and is reused more frequently. If the company updates its policy manual, however, the cached version must expire or be invalidated so the assistant follows the latest rules.
+2026/09/13 18:16:59 gimble: run 20260913-181639.run-store-proof ended: ok
+Run finished in 20.013s: err=<nil>
+Holding the server for 12m0s; press Enter to stop early.

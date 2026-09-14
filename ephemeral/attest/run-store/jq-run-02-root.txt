@@ -1,0 +1,2 @@
+{"model":"gemini-3.8-flash-low","input":14858,"cache_read":0,"output":202,"reasoning":0}
+{"model":"gpt-5.6-luna","input":24430,"cache_read":62464,"output":292,"reasoning":37}

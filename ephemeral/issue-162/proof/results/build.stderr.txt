@@ -1,0 +1,18 @@
+go mod tidy
+cd web && pnpm install
+go generate ./...
+skgo: copied internal/skgo/links/onzggl3sn52xizlt/skgo_remotes_gen.go from web/src/routes/skgo_remotes_gen.go
+skgo: copied internal/skgo/links/onzggl3sn52xizltf5zhk3ttf5nxe5lojfcf2/skgo_remotes_gen.go from web/src/routes/runs/[runID]/skgo_remotes_gen.go
+skgo: wrote /Users/tyler/.codex/worktrees/2f67/gimble/web/src/routes/skgo_remotes_gen.go
+skgo: wrote /Users/tyler/.codex/worktrees/2f67/gimble/web/src/routes/runs/[runID]/skgo_remotes_gen.go
+skgo: copied internal/skgo/links/onzggl3sn52xizlt/skgo_remotes_gen.go from web/src/routes/skgo_remotes_gen.go
+skgo: copied internal/skgo/links/onzggl3sn52xizltf5zhk3ttf5nxe5lojfcf2/skgo_remotes_gen.go from web/src/routes/runs/[runID]/skgo_remotes_gen.go
+cd web && pnpm exec vp build
+[1m[2mnote:[0m[0m You are running [94m`vp build`[39m as a Vite+ built-in command. If you meant to run the build npm script, use [94m`vpr build`[39m instead.
+(node:55911) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:55911) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:55911) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+go build -o bin/gimble ./cmd

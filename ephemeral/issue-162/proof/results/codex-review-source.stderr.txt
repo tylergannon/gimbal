@@ -1,0 +1,1 @@
+/Users/tyler/.codex/worktrees/2f67/gimble/ephemeral/review/codex-loop-api/main.go:138:20: [GIMBLE102-SIMPLE-WORKFLOWS/CONSTANT-CONTEXT-KEY]: Context keys must be compile-time constants so a workflow's recorded fields are explicit in its source. Use a named constant or string literal; keep changing data in the value.

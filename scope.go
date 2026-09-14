@@ -31,7 +31,7 @@ type taskKey struct{}
 type scope struct {
 	run    *run
 	parent *scope
-	key    string // names with ordinals from the root, as in lap.3/bakeoff.1/attempt.2; "" for the root
+	key    string                  // names with ordinals from the root, as in lap.3/bakeoff.1/attempt.2; "" for the root
 	cancel context.CancelCauseFunc // ends the scope's ctx; run.cancelScope reaches it by key
 
 	mu       sync.Mutex

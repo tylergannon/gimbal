@@ -200,7 +200,7 @@ func markerTurn(ctx context.Context, session *gimble.Session, marker string) err
 }
 
 func serialToolTurn(ctx context.Context, session *gimble.Session) error {
-	prompt := "In one assistant tool-call batch, issue exactly two tool calls without waiting between them: first use the shell tool to run `printf CODEX_SERIAL_FIRST_MARKER`; second use apply_patch to create serial-marker.txt containing exactly CODEX_SERIAL_SECOND_MARKER. After both tools finish, answer exactly CODEX_SERIAL_FINAL_MARKER."
+	prompt := "In one assistant tool-call batch, issue exactly two tool calls without waiting between them: first use the shell tool to run `sleep 0.4; printf CODEX_SERIAL_FIRST_MARKER`; second use apply_patch to create serial-marker.txt containing exactly CODEX_SERIAL_SECOND_MARKER. After both tools finish, answer exactly CODEX_SERIAL_FINAL_MARKER."
 	_, err := session.Generate[gimble.Text](ctx, prompt)
 	return err
 }

@@ -16,39 +16,40 @@ Implementation and live proof use codex-cli 0.153.4, Codex
   command execution from one raw model call; both appeared in one assistant
   row and the following final answer appeared in a distinct response row.
 - Codex first-turn `session.step.streamed` seq 7 has response
-  `resp_05e477b55b7c99d0016aa8553e226087d1bb2242f9da30ede0`; its delayed tool
+  `resp_0cbb5186d6d48d53016aa856ec680887d19e7a3e842f4672d7`; its delayed tool
   success seq 11 has the same normalized assistant message and response ID.
 - Codex second turn on the same shared-daemon connection
-  `session.step.streamed` seq 33 has response
-  `resp_05e477b55b7c99d0016aa85542e0bc87d1bfa775a7d97c96d6`; its delayed tool
-  success seq 37 has the same normalized assistant message and response ID.
-- The serial-tool response's file change success seq 62 and command success
-  seq 66 share normalized assistant message
-  `msg_Y29kZXguMQ_00000000000000000056`. Its native completion seq 67 binds
-  response `resp_05e477b55b7c99d0016aa85546e1f087d1a0e0400521260add`, and the matching
-  raw call output ends that step at seq 68. The final answer uses message
-  `msg_Y29kZXguMQ_00000000000000000070` and response
-  `resp_05e477b55b7c99d0016aa8554e347c87d19d7ad1c6adda8370`.
+  has tool success seq 36 and `session.step.streamed` seq 37 under the same
+  normalized assistant message; seq 37 binds response
+  `resp_0cbb5186d6d48d53016aa856f0cb9087d187d37e1bea53f16a`.
+- The serial response completes natively at seq 59 before its first tool starts
+  at seq 60 and finishes at seq 64; the second tool then starts at seq 65 and
+  finishes at seq 68. Both tools share normalized assistant message
+  `msg_Y29kZXguMQ_00000000000000000056`. The completion at seq 59 binds
+  response `resp_0cbb5186d6d48d53016aa856f525cc87d1bd10890370847ea0`, and the matching
+  raw call output ends that step at seq 69. The final answer uses message
+  `msg_Y29kZXguMQ_00000000000000000071` and response
+  `resp_0cbb5186d6d48d53016aa856fb4a2487d19d60bb3c45536f9e`.
 - The browser rendered those tool calls in their token-bearing response rows:
-  first `10784 in / 93 out / 40 reasoning / 9984 cache read`, second turn
-  `748 in / 93 out / 11 reasoning / 20224 cache read`, and serial tools
-  `962 in / 192 out / 69 reasoning / 20224 cache read`.
+  first `10784 in / 93 out / 29 reasoning / 9984 cache read`, second turn
+  `737 in / 93 out / 11 reasoning / 20224 cache read`, and serial tools
+  `957 in / 184 out / 78 reasoning / 20224 cache read`.
 - Claude Haiku's tool marker and final marker rendered through the same
   production handler; run lifecycle seq 13 records the exact model.
 
 Browser screenshot:
-https://pub-49d826f028c94744bb6d55c4a63b56ed.r2.dev/proof/2026/09/14/7c35f185-9828-4d4b-80e7-b0b8bfff182b-final.png
+https://pub-49d826f028c94744bb6d55c4a63b56ed.r2.dev/proof/2026/09/14/f61a994f-a62c-4947-a419-a9fe1939181f-final.png
 
 Browser snapshot, assistant rows, and captured SSE frames:
-https://pub-49d826f028c94744bb6d55c4a63b56ed.r2.dev/proof/2026/09/14/b3dee6f8-4846-4bc7-be28-b2d76a3299ad-browser.json
+https://pub-49d826f028c94744bb6d55c4a63b56ed.r2.dev/proof/2026/09/14/72b88a90-fd59-44e4-9fcc-689fa1ded6d9-browser.json
 
 Local live artifacts:
 
-- Project: `/var/folders/lt/09rsy64x65s_0fp2b8zq3n7m0000gn/T/gimble-live-issue135-ZO0lAh`
-- Run: `01M2GRSTD1JBM874VCZJJB4MVG.observation-proof`
-- Codex events: `runs/01M2GRSTD1JBM874VCZJJB4MVG.observation-proof/sessions/codex.1.jsonl`
-- Forked events: `runs/01M2GRSTD1JBM874VCZJJB4MVG.observation-proof/sessions/forked.1.jsonl`
-- Claude events: `runs/01M2GRSTD1JBM874VCZJJB4MVG.observation-proof/sessions/claude.1.jsonl`
+- Project: `/var/folders/lt/09rsy64x65s_0fp2b8zq3n7m0000gn/T/gimble-live-issue135-eBe8f6`
+- Run: `01M2GS70JDCA56S184QY4KW9R2.observation-proof`
+- Codex events: `runs/01M2GS70JDCA56S184QY4KW9R2.observation-proof/sessions/codex.1.jsonl`
+- Forked events: `runs/01M2GS70JDCA56S184QY4KW9R2.observation-proof/sessions/forked.1.jsonl`
+- Claude events: `runs/01M2GS70JDCA56S184QY4KW9R2.observation-proof/sessions/claude.1.jsonl`
 - Browser capture: `browser.json`
 - Screenshot: `final.png`
 

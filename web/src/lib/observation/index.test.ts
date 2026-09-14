@@ -10,6 +10,7 @@ const usage = (input: number, cost = 0): Usage => ({ input, cache_read: 0, cache
 const snapshot = (title = 'start'): RunSnapshot => {
 	const value = projection(); value.state.info.ses.title = title
 	return {
+		stream: 'stream-1', position: 0,
 		run: { id: 'run', name: 'Run', status: 'running', error: '', started: 1, ended: 0 },
 		scopes: { 'loop.1': { run: 'run', key: 'loop.1', name: 'loop.1', status: 'running', error: '', began: 1, ended: 0, values: {}, decisions: [] } },
 		sessions: { ses: { run: 'run', id: 'ses', name: 'agent', adapter: 'codex', model: 'm', scope: 'lap', parent: '', created: 1 } },
@@ -115,4 +116,18 @@ test('the snapshot it hands back is every table and every transcript', () => {
 	assert.deepEqual(out.sessions, observation.sessions)
 	assert.deepEqual(out.turns, observation.turns)
 	assert.equal(out.transcripts.turn.snapshot.state.info.ses.title, 'start')
+})
+
+test('a delta advances the cursor only after its complete frame group applies', () => {
+	const observation = new RunObservation(snapshot())
+	const connection = observation.beginConnection()
+	assert.equal(observation.applyDelta({ stream: 'stream-1', position: 1, frames: [
+		{ type: 'event', data: { scope: 'lap', session: 'ses', turn: 'turn', event: { id: 'delta', created: 3, type: 'session.permissions.updated', data: { sessionID: 'ses', permissions: ['read'] } } } },
+		{ type: 'row', data: { table: 'turn_usage', key: 'turn', row: { m: usage(2) } } }
+	] }, connection), true)
+	assert.equal(observation.position, 1)
+	assert.deepEqual(observation.state('turn')?.info.ses.permissions, ['read'])
+	assert.deepEqual(observation.turnUsage.turn, { m: usage(2) })
+	assert.equal(observation.applyDelta({ stream: 'stream-1', position: 1, frames: [] }, connection), false)
+	assert.equal(observation.applyDelta({ stream: 'stale', position: 2, frames: [] }, connection), false)
 })

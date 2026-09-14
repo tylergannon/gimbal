@@ -339,10 +339,9 @@ func TestOpenWritesSixEmptyTables(t *testing.T) {
 	}
 }
 
-// TestClosedRunHoldsSixFilesAndNoCheckpoint is definition-of-done item 1: the
-// six tables are the run's record, they were written while it was live, and
-// observation.json is gone.
-func TestClosedRunHoldsSixFilesAndNoCheckpoint(t *testing.T) {
+// TestClosedRunHoldsSixFilesAndFinalSnapshot verifies clean completion saves
+// the final reduced state at its exact stream position.
+func TestClosedRunHoldsSixFilesAndFinalSnapshot(t *testing.T) {
 	dir := t.TempDir()
 	store, err := Open(nil, "run-1", "fixture", dir)
 	if err != nil {
@@ -362,8 +361,16 @@ func TestClosedRunHoldsSixFilesAndNoCheckpoint(t *testing.T) {
 	if err := store.Close(); err != nil {
 		t.Fatalf("close: %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(dir, "observation.json")); !os.IsNotExist(err) {
-		t.Fatalf("observation.json still exists: %v", err)
+	var saved durableSnapshot
+	raw, err := os.ReadFile(filepath.Join(dir, snapshotFile))
+	if err != nil {
+		t.Fatalf("read durable snapshot: %v", err)
+	}
+	if err := json.Unmarshal(raw, &saved); err != nil {
+		t.Fatalf("decode durable snapshot: %v", err)
+	}
+	if saved.Snapshot.Position != store.Snapshot().Position || saved.Offset == 0 {
+		t.Fatalf("saved cursor = %d/%d, live = %d", saved.Snapshot.Position, saved.Offset, store.Snapshot().Position)
 	}
 	var rows []TurnUsageRow
 	if err := json.Unmarshal(before, &rows); err != nil {

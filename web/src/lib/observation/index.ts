@@ -40,6 +40,8 @@ export type Totals = { scopes: Record<string, Total>; sessions: Record<string, T
 export type Transcript = { snapshot: Snapshot; provenance: Record<string, unknown> }
 
 export type RunSnapshot = {
+	stream: string
+	position: number
 	run: RunRow
 	scopes: Record<string, ScopeRow>
 	sessions: Record<string, SessionRow>
@@ -67,6 +69,8 @@ export type ObservationFrame =
 	| { type: 'totals'; data: Totals }
 	| { type: 'event'; data: { scope: string; session: string; turn: string; event: JSONObject; nativeRef?: JSONValue } }
 
+export type ObservationDelta = { stream: string; position: number; frames: ObservationFrame[] }
+
 /** One turn's live transcript. */
 export type Transcribed = { projection: SessionProjection; provenance: Record<string, unknown> }
 
@@ -87,8 +91,10 @@ export class RunObservation {
 	private messageRevisions = new Map<string, number>()
 	private snapshotRevision = 0
 	private connectionGeneration = 0
+	stream: string
+	position: number
 
-	constructor(snapshot: RunSnapshot) { this.run = clone(snapshot.run); this.replace(snapshot) }
+	constructor(snapshot: RunSnapshot) { this.run = clone(snapshot.run); this.stream = snapshot.stream; this.position = snapshot.position; this.replace(snapshot) }
 	beginConnection(): number { return ++this.connectionGeneration }
 	endConnection(generation: number) { if (generation === this.connectionGeneration) this.connectionGeneration++ }
 	isCurrentConnection(generation: number) { return generation === this.connectionGeneration }
@@ -96,6 +102,8 @@ export class RunObservation {
 	replace(snapshot: RunSnapshot, generation?: number): boolean {
 		if (generation !== undefined && !this.isCurrentConnection(generation)) return false
 		this.run = clone(snapshot.run)
+		this.stream = snapshot.stream
+		this.position = snapshot.position
 		this.scopes = clone(snapshot.scopes ?? {})
 		this.sessions = clone(snapshot.sessions ?? {})
 		this.turns = clone(snapshot.turns ?? {})
@@ -109,6 +117,13 @@ export class RunObservation {
 			projection: SessionProjection.restore(value.snapshot), provenance: clone(value.provenance)
 		})
 		this.revision++
+		return true
+	}
+
+	applyDelta(delta: ObservationDelta, generation: number): boolean {
+		if (!this.isCurrentConnection(generation) || delta.stream !== this.stream || delta.position !== this.position + 1) return false
+		for (const frame of delta.frames) this.apply(frame, generation)
+		this.position = delta.position
 		return true
 	}
 
@@ -153,6 +168,7 @@ export class RunObservation {
 	messageRevision(turn: string, message: string): number { return this.messageRevisions.get(`${turn}\0${message}`) ?? this.snapshotRevision }
 	snapshot(): RunSnapshot {
 		return {
+			stream: this.stream, position: this.position,
 			run: clone(this.run), scopes: clone(this.scopes), sessions: clone(this.sessions),
 			turns: clone(this.turns), turn_usage: clone(this.turnUsage), model_calls: clone(this.modelCalls),
 			totals: clone(this.totals),

@@ -44,6 +44,8 @@ type Transcript struct {
 // GET /api/runs/:runID, the first SSE frame, and the SSR load's `snapshot`
 // property.
 type RunSnapshot struct {
+	Stream      string                      `json:"stream"`
+	Position    uint64                      `json:"position"`
 	Run         RunRow                      `json:"run"`
 	Scopes      map[string]ScopeRow         `json:"scopes"`
 	Sessions    map[string]SessionRow       `json:"sessions"`

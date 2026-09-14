@@ -32,18 +32,18 @@ preserving provider references on emitted records. Unmapped provider traffic is
 ignored. There is no separate native-audit log or unused durable aggregate
 sequence/version field.
 
-A live run owns its reduced observation. A project-local lookup connects live
-runs to the page and HTTP routes. Finished runs leave that lookup after writing
-one final snapshot outside the reduction lock. No periodic full-run checkpoint
-writes occur on the event path, and no completed-run memory cache is retained.
+A live run owns its reduced observation. Each accepted input becomes one
+durable delta before publication. The store saves an atomic reduced snapshot
+every 64 positions and on clean completion, together with the exact covered
+delta-journal byte offset.
 
 ## Browser delivery
 
-SSR and the JSON route read current reduced state. Every SSE connection starts
-with a complete snapshot replacing client state, then event/lifecycle updates.
-Capture the snapshot and register the subscriber under the same lock. Subscriber
-overflow closes the stream; reconnect starts fresh. No cursor recovery or
-per-connection raw-log replay.
+SSR and the JSON route read current reduced state and its cursor. An SSE
+connection resumes after that cursor while its bounded suffix is retained;
+otherwise it starts with a complete replacement snapshot. Capture the suffix
+and register the subscriber under the same lock. Overflow closes only that
+stream; reconnect explicitly resumes or replaces state.
 
 Use skgo's existing transport hook for SSR. Streamed content updates the affected
 message instead of copying all transcript content. Runtime profiling machinery

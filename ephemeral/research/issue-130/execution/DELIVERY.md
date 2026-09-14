@@ -10,10 +10,10 @@ original stress/edge-case gate.
   compared after every retained fixture prefix against recorded output from the
   untouched upstream JavaScript. Full OpenCode HTTP-cache/read orchestration is
   deliberately omitted; earlier full-conformance claims no longer apply.
-- Snapshot-first SSE: complete replacement state, then event/lifecycle updates.
-  The registry holds live runs for request lookup. Finished runs are read from
-  one final snapshot, written outside the event path; no periodic checkpoints,
-  completed-run memory cache, read/settle frames, or server self-fetches.
+- Cursor-aware SSE: SSR carries the exact reduced-state position, reconnects
+  resume a retained transaction suffix, and unavailable cursors receive a
+  replacement snapshot. Reduced snapshots are saved every 64 positions and on
+  completion with their covered durable-journal byte offset.
 - Claude and Codex translate their supported native events. Unmapped provider
   traffic is ignored; there is no separate native audit log.
 - No runtime validation of our emitted events or embedded OpenCode JSON schema.

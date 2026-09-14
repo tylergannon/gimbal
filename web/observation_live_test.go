@@ -129,17 +129,29 @@ func TestRunEventsStreamTheStore(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// The roll-ups arrive as their own frame, already summed in Go.
+	// The roll-ups arrive inside one transaction-granular delta, already
+	// summed in Go. The cursor covers the event, row, and totals together.
 	var totals observation.Totals
 	for {
 		got := next("the totals frame")
-		if got.name != observation.FrameTotals {
+		if got.name != "delta" {
 			continue
 		}
-		if err := json.Unmarshal([]byte(got.data), &totals); err != nil {
-			t.Fatalf("decode the totals frame: %v", err)
+		var delta observation.Delta
+		if err := json.Unmarshal([]byte(got.data), &delta); err != nil {
+			t.Fatalf("decode delta: %v", err)
 		}
-		break
+		if delta.Stream != snapshot.Stream || delta.Position != snapshot.Position+1 {
+			t.Fatalf("delta cursor = %s/%d, snapshot = %s/%d", delta.Stream, delta.Position, snapshot.Stream, snapshot.Position)
+		}
+		for _, one := range delta.Frames {
+			if one.Name == observation.FrameTotals && json.Unmarshal(one.Data, &totals) != nil {
+				t.Fatal("decode totals")
+			}
+		}
+		if totals.Scopes != nil {
+			break
+		}
 	}
 	if got := totals.Scopes["lap.1"].All.Input; got != 4321 {
 		t.Fatalf("the totals frame says lap.1 spent %v input, want 4321", got)

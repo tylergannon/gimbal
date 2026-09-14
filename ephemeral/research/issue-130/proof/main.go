@@ -102,7 +102,7 @@ func waitFile(ctx context.Context, path string) error {
 }
 
 func main() {
-	mode := flag.String("mode", "deterministic", "deterministic, codex, claude, issue135, or interrupt")
+	mode := flag.String("mode", "deterministic", "deterministic, codex, claude, issue135, interrupt, or serve")
 	project := flag.String("project", "", "isolated proof project directory")
 	port := flag.Int("port", 18081, "loopback port")
 	flag.Parse()
@@ -117,6 +117,15 @@ func main() {
 	runtime, err := web.NewRuntime(ctx, *project, web.WithPort(*port))
 	if err != nil {
 		fatal(err)
+	}
+	if *mode == "serve" {
+		runID, err := waitRun(ctx, *project)
+		if err != nil {
+			fatal(err)
+		}
+		fmt.Printf("PROOF_READY=http://127.0.0.1:%d|%s\n", *port, runID)
+		_ = waitFile(ctx, filepath.Join(*project, "stop"))
+		return
 	}
 	// The run cancels this child only when it has returned. waitRun then stops
 	// waiting for readiness if startup failed before it could create a log.

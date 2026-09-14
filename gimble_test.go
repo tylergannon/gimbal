@@ -361,7 +361,7 @@ func TestSupervise(t *testing.T) {
 		looks++
 		toolResults += strings.Count(prompt, "[tool result]")
 		f.mu.Unlock()
-		if strings.Contains(prompt, "no plugin systems") && strings.Contains(prompt, "built a plugin system") {
+		if strings.Contains(prompt, "built a plugin system") {
 			return `{"objections": ["remove the plugin system"]}`, nil
 		}
 		return `{"objections": []}`, nil
@@ -1051,9 +1051,9 @@ func TestCancelledRunStaysCancelled(t *testing.T) {
 }
 
 // TestRunWritesTheSixTables is the run store on disk: a finished run's
-// directory holds the six tables beside its logs, there is no
-// observation.json any more, and every turn the log started is a row with
-// the scope it ran in.
+// directory holds the six tables, durable reduced snapshot and ordered delta
+// journal beside its logs, and every turn the log started is a row with the
+// scope it ran in.
 func TestRunWritesTheSixTables(t *testing.T) {
 	f := &fake{answer: func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(AgentEvent) error) (string, error) {
 		emit(fakeAgentEvent("session.text.ended", session, "message-1", map[string]any{"ordinal": 0, "text": "working"}))
@@ -1083,8 +1083,10 @@ func TestRunWritesTheSixTables(t *testing.T) {
 			t.Errorf("%s.json: %v", table, err)
 		}
 	}
-	if _, err := os.Stat(filepath.Join(dir, "observation.json")); !os.IsNotExist(err) {
-		t.Errorf("observation.json still exists: %v", err)
+	for _, durable := range []string{"observation.json", "observation-deltas.jsonl"} {
+		if _, err := os.Stat(filepath.Join(dir, durable)); err != nil {
+			t.Errorf("%s: %v", durable, err)
+		}
 	}
 
 	started := map[string]string{}

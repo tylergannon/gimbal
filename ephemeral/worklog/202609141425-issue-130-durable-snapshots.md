@@ -1,0 +1,6 @@
+correction: Tyler requires durable reduced state specifically to make join and rejoin fast after restart; old no-cursor and final-snapshot-only issue-130 decisions are superseded by ephemeral/plans/issue-130-durable-snapshots.md.
+decision: One accepted lifecycle record or agent event is one observation transaction. Its event, row, and totals frames share one position and cross SSE as one delta, so reconnect cannot acknowledge a partial reduction.
+decision: observation.json records the complete reduced state, stream identity, exact position, open model calls, and covered byte offset in observation-deltas.jsonl. Recovery seeks to that offset and folds only complete suffix lines.
+friction: Running npm directly violated web/package.json devEngines because the repository declares pnpm 11.25.0 -> use pnpm through the just recipes or pnpm --dir web.
+friction: TestSupervise assumed the standing supervisor instruction repeats in every follow-up prompt, but follow-ups contain only new activity -> make the fake respond to the violating tool result already present in its own session context.
+decision: Production browser proof exposed that the reducer mutated message content correctly while Svelte left the keyed MessageRow stale; SessionTimeline now names the transaction revision directly in the child prop dependency.

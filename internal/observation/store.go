@@ -1,6 +1,7 @@
 package observation
 
 import (
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"maps"
@@ -14,8 +15,17 @@ import (
 // Frame is one SSE frame: the event name and its data. The store produces
 // them in the order it reduced them, and every subscriber sees that order.
 type Frame struct {
-	Name string
-	Data json.RawMessage
+	Name string          `json:"type"`
+	Data json.RawMessage `json:"data"`
+}
+
+// Delta is one indivisible public-observation change. Position advances once
+// for the whole set of frames, so reconnecting can never skip part of a
+// lifecycle record or agent event.
+type Delta struct {
+	Stream   string  `json:"stream"`
+	Position uint64  `json:"position"`
+	Frames   []Frame `json:"frames"`
 }
 
 // Frame names. A connection receives one snapshot, then an ordered suffix of
@@ -60,7 +70,13 @@ type Store struct {
 	transcripts map[string]*transcript
 	calls       map[string]openCall
 	subs        map[*Subscription]struct{}
+	joins       map[*JoinSubscription]struct{}
 	closed      bool
+	stream      string
+	position    uint64
+	recent      []Delta
+	journalEnd  int64
+	sinceSave   int
 	// noWrite suppresses the per-fold file writes. Opening a run sets it: the
 	// files are its input, and a rebuild writes them once at the end.
 	noWrite bool
@@ -88,9 +104,19 @@ func newStore(registry *Registry, id, name, dir string) *Store {
 		transcripts: map[string]*transcript{},
 		calls:       map[string]openCall{},
 		subs:        map[*Subscription]struct{}{},
+		joins:       map[*JoinSubscription]struct{}{},
+		stream:      newStreamID(),
 		maxFrames:   defaultMaxFrames,
 		maxBytes:    defaultMaxBytes,
 	}
+}
+
+func newStreamID() string {
+	var raw [16]byte
+	if _, err := rand.Read(raw[:]); err != nil {
+		panic(err)
+	}
+	return fmt.Sprintf("%x", raw[:])
 }
 
 // Open returns the store for one run and registers it, if there is a
@@ -134,7 +160,8 @@ func (s *Store) Close() error {
 	}
 	s.closed = true
 	s.finishSubscribersLocked()
-	return nil
+	s.finishJoinSubscribersLocked()
+	return s.saveSnapshotLocked()
 }
 
 // record is one lifecycle record, decoded flat: every field any kind carries,
@@ -288,8 +315,8 @@ type change struct {
 
 // commitLocked writes every table a fold changed, publishes one row frame per
 // changed row, and republishes the roll-ups when a turn's usage moved.
-func (s *Store) commitLocked(changed []change) error {
-	if len(changed) == 0 {
+func (s *Store) commitLocked(changed []change, extra ...Frame) error {
+	if len(changed) == 0 && len(extra) == 0 {
 		return nil
 	}
 	changedTables := make([]string, 0, len(changed))
@@ -300,19 +327,33 @@ func (s *Store) commitLocked(changed []change) error {
 		}
 		usage = usage || one.table == tableTurnUsage
 	}
-	if err := s.writeTablesLocked(changedTables); err != nil {
-		return err
-	}
-	if len(s.subs) == 0 {
-		return nil
-	}
+	frames := append([]Frame(nil), extra...)
 	for _, one := range changed {
-		s.publishLocked(Frame{Name: FrameRow, Data: mustMarshal(rowFrame{
+		frames = append(frames, Frame{Name: FrameRow, Data: mustMarshal(rowFrame{
 			Table: one.table, Key: one.key, Row: s.rowLocked(one.table, one.key),
 		})})
 	}
 	if usage {
-		s.publishLocked(Frame{Name: FrameTotals, Data: mustMarshal(s.totalsLocked())})
+		frames = append(frames, Frame{Name: FrameTotals, Data: mustMarshal(s.totalsLocked())})
+	}
+	delta := Delta{Stream: s.stream, Position: s.position + 1, Frames: frames}
+	if err := s.appendDeltaLocked(delta); err != nil {
+		return err
+	}
+	if err := s.writeTablesLocked(changedTables); err != nil {
+		return err
+	}
+	s.position = delta.Position
+	s.retainLocked(delta)
+	for _, frame := range frames {
+		s.publishLocked(frame)
+	}
+	s.publishDeltaLocked(delta)
+	s.sinceSave++
+	if s.sinceSave >= snapshotEvery {
+		if err := s.saveSnapshotLocked(); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -411,13 +452,10 @@ func (s *Store) Event(at Placement, envelope, nativeRef json.RawMessage) error {
 	s.foldProvenanceLocked(script, ref, nativeRef)
 	changed = append(changed, s.foldStepLocked(at, event, envelope)...)
 
-	if len(s.subs) > 0 {
-		s.publishLocked(Frame{Name: FrameEvent, Data: mustMarshal(eventFrame{
-			Scope: at.Scope, Session: at.Session, Turn: at.Turn,
-			Event: envelope, NativeRef: nativeRef,
-		})})
-	}
-	return s.commitLocked(changed)
+	return s.commitLocked(changed, Frame{Name: FrameEvent, Data: mustMarshal(eventFrame{
+		Scope: at.Scope, Session: at.Session, Turn: at.Turn,
+		Event: envelope, NativeRef: nativeRef,
+	})})
 }
 
 // turnSeenLocked makes the turn's row if no turn_started record made it, and
@@ -594,6 +632,8 @@ func (s *Store) Snapshot() RunSnapshot {
 
 func (s *Store) snapshotLocked() RunSnapshot {
 	out := RunSnapshot{
+		Stream:      s.stream,
+		Position:    s.position,
 		Run:         s.run,
 		Scopes:      make(map[string]ScopeRow, len(s.scopes)),
 		Sessions:    make(map[string]SessionRow, len(s.sessions)),

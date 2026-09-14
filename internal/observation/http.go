@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"time"
 )
 
@@ -56,18 +57,21 @@ func serveEvents(w http.ResponseWriter, r *http.Request) {
 
 	// An unknown run is a 404 before anything is streamed, so a browser sees
 	// an ordinary failed request rather than an empty event stream.
-	var snapshot RunSnapshot
-	var sub *Subscription
+	var snapshot *RunSnapshot
+	var suffix []Delta
+	var sub *JoinSubscription
 	if live {
+		position, _ := strconv.ParseUint(r.URL.Query().Get("position"), 10, 64)
 		var err error
-		snapshot, sub, err = store.Subscribe()
+		snapshot, suffix, sub, err = store.Join(r.URL.Query().Get("stream"), position)
 		if err != nil {
 			live = false
 		}
 	}
 	if !live {
 		var err error
-		if snapshot, err = registry.Snapshot(runID); err != nil {
+		value, err := registry.Snapshot(runID)
+		if err != nil {
 			status := http.StatusInternalServerError
 			if errors.Is(err, ErrNoRun) {
 				status = http.StatusNotFound
@@ -75,6 +79,7 @@ func serveEvents(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), status)
 			return
 		}
+		snapshot = &value
 	}
 	if sub != nil {
 		defer sub.Close()
@@ -87,10 +92,15 @@ func serveEvents(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 
 	control := http.NewResponseController(w)
-	// Every connection starts with a complete replacement snapshot. There is
-	// no cursor, no Last-Event-ID and no per-connection history replay.
-	if err := writeFrame(w, control, Frame{Name: FrameSnapshot, Data: mustMarshal(snapshot)}); err != nil {
-		return
+	if snapshot != nil {
+		if err := writeFrame(w, control, Frame{Name: FrameSnapshot, Data: mustMarshal(snapshot)}); err != nil {
+			return
+		}
+	}
+	for _, delta := range suffix {
+		if err := writeDelta(w, control, delta); err != nil {
+			return
+		}
 	}
 	if sub == nil {
 		// A finished run has a complete snapshot and no suffix.
@@ -105,18 +115,28 @@ func serveEvents(w http.ResponseWriter, r *http.Request) {
 			// reset rather than delivered: the browser reconnects to a fresh
 			// complete snapshot.
 			return
-		case frame, open := <-sub.Frames():
+		case delta, open := <-sub.Deltas():
 			if !open {
 				// The run finished normally and its queue has been handed
 				// over in full, the run's terminal row included.
 				return
 			}
-			sub.Took(frame)
-			if err := writeFrame(w, control, frame); err != nil {
+			sub.Took(delta)
+			if err := writeDelta(w, control, delta); err != nil {
 				return
 			}
 		}
 	}
+}
+
+func writeDelta(w io.Writer, control *http.ResponseController, delta Delta) error {
+	if err := control.SetWriteDeadline(time.Now().Add(writeTimeout)); err != nil && !errors.Is(err, http.ErrNotSupported) {
+		return err
+	}
+	if _, err := fmt.Fprintf(w, "id: %s:%d\nevent: delta\ndata: %s\n\n", delta.Stream, delta.Position, mustMarshal(delta)); err != nil {
+		return err
+	}
+	return control.Flush()
 }
 
 func writeFrame(w io.Writer, control *http.ResponseController, frame Frame) error {

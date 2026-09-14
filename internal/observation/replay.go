@@ -22,6 +22,7 @@ const maxLogLine = 8 << 20
 // An unfinished log is served as far as it goes, with the run's status as the
 // last record left it. Nothing is followed and no agent process is resumed.
 func open(registry *Registry, id, dir string) (*Store, error) {
+	if s, ok, err := loadDurable(registry, id, dir); ok || err != nil { return s, err }
 	s := newStore(registry, id, "", dir)
 	// Nothing on this path writes a table until it is asked to: loading
 	// writes nothing at all, and a rebuild writes all six at the end.
@@ -78,6 +79,7 @@ func open(registry *Registry, id, dir string) (*Store, error) {
 		}
 	}
 	s.closed = true
+	if err := s.saveSnapshotLocked(); err != nil { return nil, err }
 	return s, nil
 }
 

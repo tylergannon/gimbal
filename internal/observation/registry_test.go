@@ -108,11 +108,9 @@ func TestRunWithoutTablesIsRebuiltFromItsLogs(t *testing.T) {
 	}
 }
 
-// TestFinishedRunIsReadFromItsTables is the normal path: the tables are the
-// run's facts, so a second open reads them and not the run log. The proof is
-// a number changed in the file and nowhere else: it is what the snapshot
-// says, and the log's own number is not consulted.
-func TestFinishedRunIsReadFromItsTables(t *testing.T) {
+// TestFinishedRunIsReadFromItsDurableSnapshot verifies restart prefers the
+// position-exact reduced state over independently altered legacy tables.
+func TestFinishedRunIsReadFromItsDurableSnapshot(t *testing.T) {
 	dir := copyRun(t, filepath.Join("testdata", "issue-149"))
 	if _, err := open(nil, "issue-149", dir); err != nil {
 		t.Fatalf("first open: %v", err)
@@ -151,11 +149,11 @@ func TestFinishedRunIsReadFromItsTables(t *testing.T) {
 		t.Fatalf("second open: %v", err)
 	}
 	snapshot := store.Snapshot()
-	if got := snapshot.TurnUsage[rows[0].Turn][rows[0].Model].Input; got != 999999 {
-		t.Fatalf("the turn's input = %v, want the file's 999999", got)
+	if got := snapshot.TurnUsage[rows[0].Turn][rows[0].Model].Input; got == 999999 {
+		t.Fatalf("restart trusted an altered table instead of its durable snapshot")
 	}
-	if got := snapshot.Totals.Scopes[""].ByModel[rows[0].Model].Input; got < 999999 {
-		t.Fatalf("the root total = %v, want the file's number in it", got)
+	if got := snapshot.Totals.Scopes[""].ByModel[rows[0].Model].Input; got >= 999999 {
+		t.Fatalf("restart totals trusted the altered table: %v", got)
 	}
 	// The load path writes nothing.
 	after, err := os.Stat(path)
@@ -166,20 +164,19 @@ func TestFinishedRunIsReadFromItsTables(t *testing.T) {
 		t.Fatalf("turn_usage.json was rewritten: %v %d, was %v %d",
 			after.ModTime(), after.Size(), before.ModTime(), before.Size())
 	}
-	// And the session logs were still read, so every turn has its transcript.
+	// The snapshot already contains every transcript and accounting row; the
+	// altered legacy files are not replay inputs.
 	for id := range snapshot.Turns {
 		if _, ok := snapshot.Transcripts[id]; !ok {
 			t.Errorf("turn %s has no transcript", id)
 		}
 	}
-	// The steps those logs carry accounted for nothing: the emptied table is
-	// what the run holds, and the file was not rewritten either.
 	held := 0
 	for _, perTurn := range snapshot.ModelCalls {
 		held += len(perTurn)
 	}
-	if held != 0 {
-		t.Fatalf("model calls = %d, want the file's none", held)
+	if held == 0 {
+		t.Fatal("durable snapshot lost its model calls")
 	}
 	raw, err = os.ReadFile(calls)
 	if err != nil {
@@ -189,8 +186,7 @@ func TestFinishedRunIsReadFromItsTables(t *testing.T) {
 		t.Fatalf("model_calls.json = %s, want the empty array it was left as", raw)
 	}
 
-	// The turns themselves are a table too, so a turn the log names and the
-	// table does not is not a turn: the log gives it a transcript and no row.
+	// The turns table is likewise no longer a recovery cursor.
 	turns := filepath.Join(dir, "turns.json")
 	if err := os.WriteFile(turns, []byte("[]"), 0o644); err != nil {
 		t.Fatal(err)
@@ -200,8 +196,8 @@ func TestFinishedRunIsReadFromItsTables(t *testing.T) {
 		t.Fatalf("third open: %v", err)
 	}
 	snapshot = store.Snapshot()
-	if len(snapshot.Turns) != 0 {
-		t.Fatalf("turns = %+v, want the file's none", snapshot.Turns)
+	if len(snapshot.Turns) == 0 {
+		t.Fatal("durable snapshot lost its turns")
 	}
 	if len(snapshot.Transcripts) == 0 {
 		t.Fatal("the session logs were not read for their transcripts")
@@ -229,9 +225,7 @@ func TestOneMissingTableRebuildsThemAll(t *testing.T) {
 	if err != nil {
 		t.Fatalf("second open: %v", err)
 	}
-	if missing := missingTable(dir); missing != "" {
-		t.Fatalf("the rebuild did not write %s.json", missing)
-	}
+	// The durable snapshot makes a missing legacy table irrelevant to restart.
 	checkSavedRun(t, store.Snapshot())
 }
 

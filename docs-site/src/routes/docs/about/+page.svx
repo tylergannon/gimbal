@@ -1,0 +1,44 @@
+<script lang="ts">
+  import DocsPage from "#lib/components/DocsPage.svelte";
+
+  const headings = [
+    { id: "why", text: "Why it exists" },
+    { id: "terms", text: "Four terms" },
+    { id: "attractor", text: "Not an Attractor implementation" },
+    { id: "status", text: "Current boundary" },
+  ];
+</script>
+
+<DocsPage
+  title="About Gimble"
+  description="A small Go runtime for programs that ask agents to do work."
+  eyebrow="About"
+  {headings}
+>
+
+Gimble is a small Go runtime for programs that ask agents to do work. It makes the workflow visible in the code and keeps a record of each run.
+
+<h2 id="why">Why it exists</h2>
+
+Agent workflows still need ordinary program structure: a lifetime for each piece of work, clear ownership of sessions and goroutines, cancellation that reaches the agent, and a way to see what happened afterward. Gimble supplies those basics without taking over the rest of the program.
+
+<h2 id="terms">Four terms</h2>
+
+<dl>
+  <dt>Run</dt><dd>One execution of a workflow and its record on disk.</dd>
+  <dt>Scope</dt><dd>A named piece of a run. It ends when its function returns.</dd>
+  <dt>Session</dt><dd>One agent conversation in one working directory.</dd>
+  <dt>Group</dt><dd>A named set of concurrent child scopes. <code>Wait</code> joins them.</dd>
+</dl>
+
+<h2 id="attractor">Not an Attractor implementation</h2>
+
+Gimble is a reaction to the work around Attractor, not an implementation of it. It does not adopt Attractor as its architecture, product plan, or vocabulary. The useful lesson kept here is simple: keep the workflow in code a person can read, and make the agent work observable.
+
+<h2 id="status">Current boundary</h2>
+
+The current product is the Go library and its run logs. This website is its short guide. A browser view for inspecting live and past runs is planned work, not something this page claims to provide today.
+
+For the complete programming contract, use `go doc -all github.com/tylergannon/gimble`.
+
+</DocsPage>

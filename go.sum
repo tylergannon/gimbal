@@ -42,10 +42,10 @@ github.com/stretchr/testify v1.11.1 h1:7s2iGBzp5EwR7/aIZr8ao5+dra3wiQyKjjFuvgVKu
 github.com/stretchr/testify v1.11.1/go.mod h1:wZwfW3scLgRK+23gO65QZefKpKQRnfz6sD981Nm4B6U=
 github.com/tylergannon/claude-agent-sdk-go v1.1.1-0.20260912021749-9a4ffeca77cc h1:h4IUZGgOPwIHHXfC6rqREMSvAgDo3Wqe+ilBT1mfL38=
 github.com/tylergannon/claude-agent-sdk-go v1.1.1-0.20260912021749-9a4ffeca77cc/go.mod h1:2xaYqcd5d5zyiQZKUWuPn5Ahczy6LsIT4aVU5SWX3ms=
-github.com/tylergannon/polytype v1.0.0-rc.12.0.20260911210434-38f05b1ba899 h1:LQHta3n+HIRcZWt0aujqGTPMDU9ezPn70wkdiAfpX6w=
-github.com/tylergannon/polytype v1.0.0-rc.12.0.20260911210434-38f05b1ba899/go.mod h1:HjvaoQ55ionY6k/kb3WFIicPpO15zBBZwxX3n/+Yksg=
-github.com/tylergannon/skgo v0.4.0 h1:EcGOoJUIBH6WAS48oh3ukE7Ru4/iIM5D0aH0VqyMmto=
-github.com/tylergannon/skgo v0.4.0/go.mod h1:iAo4GDcwJ+MOVdz9Q5thb73mYEB0kLhrQNYHCVElX+I=
+github.com/tylergannon/polytype v1.0.0 h1:s+73q6E0MOsuCK/rY2R+g85nuOI5yi58kFOHF1k1Pbc=
+github.com/tylergannon/polytype v1.0.0/go.mod h1:HjvaoQ55ionY6k/kb3WFIicPpO15zBBZwxX3n/+Yksg=
+github.com/tylergannon/skgo v0.4.1 h1:YSoG2rsWskN9uPbiBHjhaQsOVxUeKXXC3uTxUEqxJRE=
+github.com/tylergannon/skgo v0.4.1/go.mod h1:ICBQu/IuEFvpTHRQUmrnP398uI/O74vvDR4eSKZ+Tfc=
 github.com/tylergannon/structtag v0.1.0 h1:Vn4ZEemGUtAfw9ddEtHQILKnIWqSWCSpciFTNPh1gcY=
 github.com/tylergannon/structtag v0.1.0/go.mod h1:Rjgg4hJfebaKNeyqoLh4n+zKhfVBdMyc7nBHIlQsVw0=
 golang.org/x/mod v0.41.0 h1:qJmnOUb4YB+FsEuM3HcWucdZASCPGhsX6uljO6pog0c=

@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"embed"
 	"encoding/json"
+	jsonv2 "encoding/json/v2"
 	"errors"
 	"fmt"
 
@@ -21,6 +22,10 @@ var errNoDiscriminator = errors.New("no discriminator property 'type' found")
 
 func __gen_jsonschema_panic(fname string, err error) {
 	panic(fmt.Sprintf("error reading %s from embedded FS: %s", fname, err.Error()))
+}
+
+func __polytype_marshal(value any) ([]byte, error) {
+	return jsonv2.Marshal(value, json.DefaultOptionsV1(), jsonv2.FormatNilSliceAsNull(false))
 }
 
 // Compiled JSON schemas for validation, initialized once at startup.
@@ -133,7 +138,7 @@ func (l LifecycleRecord) MarshalJSON() ([]byte, error) {
 		return nil, fmt.Errorf("field event: %w", err)
 	}
 
-	return json.Marshal(&wrapper)
+	return __polytype_marshal(&wrapper)
 }
 
 // UnmarshalJSON is a generated custom json.Unmarshaler implementation for
@@ -172,49 +177,49 @@ func __jsonMarshal__gimble__LifecycleEvent__864b67f2a13084872b38f24bb747690de263
 	switch object := value.(type) {
 	case Complete:
 		discriminator = "complete"
-		data, err = json.Marshal(&object)
+		data, err = __polytype_marshal(&object)
 	case Killed:
 		discriminator = "killed"
-		data, err = json.Marshal(&object)
+		data, err = __polytype_marshal(&object)
 	case PlannerDecision:
 		discriminator = "planner_decision"
-		data, err = json.Marshal(&object)
+		data, err = __polytype_marshal(&object)
 	case RunCancelled:
 		discriminator = "run_cancelled"
-		data, err = json.Marshal(&object)
+		data, err = __polytype_marshal(&object)
 	case RunEnded:
 		discriminator = "run_ended"
-		data, err = json.Marshal(&object)
+		data, err = __polytype_marshal(&object)
 	case RunStarted:
 		discriminator = "run_started"
-		data, err = json.Marshal(&object)
+		data, err = __polytype_marshal(&object)
 	case ScopeBegan:
 		discriminator = "scope_began"
-		data, err = json.Marshal(&object)
+		data, err = __polytype_marshal(&object)
 	case ScopeEnded:
 		discriminator = "scope_ended"
-		data, err = json.Marshal(&object)
+		data, err = __polytype_marshal(&object)
 	case SessionClosed:
 		discriminator = "session_closed"
-		data, err = json.Marshal(&object)
+		data, err = __polytype_marshal(&object)
 	case SessionCreated:
 		discriminator = "session_created"
-		data, err = json.Marshal(&object)
+		data, err = __polytype_marshal(&object)
 	case Steer:
 		discriminator = "steer"
-		data, err = json.Marshal(&object)
+		data, err = __polytype_marshal(&object)
 	case SuperviseAttached:
 		discriminator = "supervise_attached"
-		data, err = json.Marshal(&object)
+		data, err = __polytype_marshal(&object)
 	case TurnEnded:
 		discriminator = "turn_ended"
-		data, err = json.Marshal(&object)
+		data, err = __polytype_marshal(&object)
 	case TurnStarted:
 		discriminator = "turn_started"
-		data, err = json.Marshal(&object)
+		data, err = __polytype_marshal(&object)
 	case ValueSet:
 		discriminator = "value_set"
-		data, err = json.Marshal(&object)
+		data, err = __polytype_marshal(&object)
 	default:
 		return nil, fmt.Errorf("unregistered dynamic implementation %T for LifecycleEvent", value)
 	}
@@ -355,13 +360,13 @@ func __jsonschema__marshalUnionObject(data []byte, discriminatorProp, discrimina
 			return nil, fmt.Errorf("discriminator property %q is %q, want registered value %q", discriminatorProp, current, discriminatorValue)
 		}
 	} else {
-		encoded, err := json.Marshal(discriminatorValue)
+		encoded, err := __polytype_marshal(discriminatorValue)
 		if err != nil {
 			return nil, err
 		}
 		object[discriminatorProp] = encoded
 	}
-	return json.Marshal(object)
+	return __polytype_marshal(object)
 }
 
 func __jsonschema__decodeDiscriminator(discriminator json.RawMessage) (string, error) {

@@ -1,0 +1,24 @@
+Issue 168 attest, 2026-09-13.
+
+Dry run (dry-run.txt): `go run ./cmd/sprint -dry-run -issue <abs path>/issue.md`
+against this branch. No model and no command ran. Nine turns are printed
+with their prompt, schema, and a marked example answer: the researcher,
+the planner, the coder, the task assessment, the planner again (ending
+dispatch), the sprint validator, the planner informed of the validator's
+example finding under "## what the validator did not see working" with
+the goal unchanged, the validator again, and the merge.
+
+Live run 20260913-184509.sprint (live.log, run.jsonl): the sprint binary
+built from this branch, run in a throwaway copy of the tree with its own
+git init, on the issue text in issue.md (a local file; no GitHub issue
+was filed). Cheap tier: Codex gpt-5.6-luna for the researcher, planner,
+and coder; Claude claude-haiku-4-5-20251001 for the validator.
+
+What it showed: the researcher read the issue from the absolute path in
+its prompt; the planner dispatched "Implement hello command"; the coder
+wrote cmd/hello/main.go with greeting() and a passing test, exactly what
+issue.md asks, in 56s. The run then ended at the validator's first turn:
+the Claude CLI on this machine was logged out ("OAuth session expired and
+could not be refreshed"; `claude auth status` reports loggedIn false), so
+the Claude adapter returned authentication_failed. The validator's report
+was therefore not seen live; its prompt is in dry-run.txt turn 6.

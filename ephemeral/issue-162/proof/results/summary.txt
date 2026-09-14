@@ -1,0 +1,7 @@
+PASS: injected duplicate reported before tests
+PASS: failing dispatch ran deterministically and lint rejected direct and aliased map calls
+PASS: explicit switch, helper, Group callback, and single-target alias linted cleanly
+PASS: every accepted rule had a CLI failure and a clean counterpart
+PASS: sprint and codex review retained required negative findings; root and claude review were clean
+PASS: standalone, vet protocol, and ordinary CLI routes returned their exact expected codes
+PASS: full tests and stock vet passed; combined just vet failed at required lint findings

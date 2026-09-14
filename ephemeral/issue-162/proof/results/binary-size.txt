@@ -1,0 +1,5 @@
+toolchain: go version go1.27.1 darwin/arm64
+command: go build -o OUTPUT ./cmd
+baseline: d5b507c 26863650 bytes
+changed: 218799b 32403826 bytes
+increase: 5540176 bytes (20.62%)

@@ -1,0 +1,12 @@
+{
+  "argv": [
+    "/tmp/gimble-issue162-first",
+    "lint",
+    "./ephemeral/issue-162/validation/testdata/setchecks"
+  ],
+  "exit": 3,
+  "stdout": "",
+  "stderr": "/Users/tyler/.codex/worktrees/2f67/gimble/ephemeral/issue-162/validation/testdata/setchecks/checks.go:24:14: [GIMBLE104-SET-MISUSE/WRONG-CONTEXT]: Set must use the context parameter of this child scope.\n",
+  "expected_duplicate_diagnostics": 3,
+  "actual_duplicate_diagnostics": 0
+}

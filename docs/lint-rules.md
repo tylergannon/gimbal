@@ -1,0 +1,1 @@
+../internal/gimblelint/rules.md

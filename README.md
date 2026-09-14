@@ -37,6 +37,25 @@ just dev-web
 just dev-go
 ```
 
+## Lint workflows
+
+The distributed `gimble` binary also checks deterministic workflow authoring
+mistakes:
+
+```sh
+./bin/gimble lint ./...
+go vet -vettool="$(pwd)/bin/gimble" ./...
+```
+
+The second command is the direct Go vet-tool protocol path. A custom vet tool
+replaces Go's ordinary analyzers for that invocation, so `just vet` first runs
+ordinary `go vet ./...`, builds the same `bin/gimble`, and then runs
+`bin/gimble lint ./...`.
+
+Read the [lint rule reference](internal/gimblelint/rules.md) for the accepted
+rules, diagnostics, rewrites, and analysis limits. The same text is printed by
+`gimble lint -help` and is available at [docs/lint-rules.md](docs/lint-rules.md).
+
 The runtime derives the public origin from the TCP listener, including when
 port 0 selects an available port.
 

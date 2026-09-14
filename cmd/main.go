@@ -3,17 +3,26 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"os"
 	"os/signal"
+	"strings"
 
+	"github.com/tylergannon/gimble/internal/gimblelint"
 	"github.com/tylergannon/gimble/web"
+	"golang.org/x/tools/go/analysis/singlechecker"
 )
 
 func main() {
+	if analysisArgs, ok := routeAnalysis(os.Args[1:]); ok {
+		os.Args = append([]string{os.Args[0]}, analysisArgs...)
+		singlechecker.Main(gimblelint.Analyzer)
+		return
+	}
 	if err := run(os.Args[1:], os.Stdout, os.Stderr, os.Getenv); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return
@@ -21,6 +30,49 @@ func main() {
 		_, _ = fmt.Fprintln(os.Stderr, "gimble:", err)
 		os.Exit(1)
 	}
+}
+
+// routeAnalysis recognizes the standalone lint command and the three calls in
+// the go vet tool protocol before the ordinary Gimble CLI parses its flags.
+func routeAnalysis(args []string) ([]string, bool) {
+	if len(args) > 0 && args[0] == "lint" {
+		return args[1:], true
+	}
+	if len(args) == 1 && (args[0] == "-flags" || args[0] == "-V=full") {
+		return args, true
+	}
+	if isOrdinaryCLI(args) {
+		return nil, false
+	}
+	if len(args) > 0 && strings.HasSuffix(args[len(args)-1], ".cfg") && isVetConfig(args[len(args)-1]) {
+		return args, true
+	}
+	return nil, false
+}
+
+func isOrdinaryCLI(args []string) bool {
+	if len(args) > 0 && args[0] == "run-prompt" {
+		return true
+	}
+	for _, arg := range args {
+		switch arg {
+		case "-h", "--help", "-port", "--port", "-uds", "--uds", "-no-web", "--no-web":
+			return true
+		}
+	}
+	return false
+}
+
+func isVetConfig(path string) bool {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return false
+	}
+	var config struct {
+		ImportPath string
+		GoFiles    []string
+	}
+	return json.Unmarshal(data, &config) == nil && config.ImportPath != "" && config.GoFiles != nil
 }
 
 func run(args []string, stdout, stderr io.Writer, getenv func(string) string) error {

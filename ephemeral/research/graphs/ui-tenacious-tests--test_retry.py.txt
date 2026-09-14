@@ -1,0 +1,445 @@
+# Source path in pinned archive: tests/test_retry.py
+# Archive member: diffusioninc-Tenacious-d3a4d7ff9f5445a42a7516eda845f8c58a531a45/tests/test_retry.py
+
+"""Verification harness for bounded feedback-retry (item 1 / scratch/retry.md).
+
+Stdlib only. Creates its own temp dirs. Does not need the auth bank, real
+agent binaries, or network. Drives the real `execute_step` /
+`execute_workflow` / `_run_step_visit` / `render_retry_prompt` with a
+scripted fake "agent" runner.
+
+Run from the project root:
+
+    .venv/bin/python tests/test_retry.py
+
+Prints `PASS <scenario>` per scenario, then `ALL PASS (<n> scenarios)`.
+Exits 0 if all pass; 1 with `FAIL <scenario>: <detail>` on first failure.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import shutil
+import sys
+import tempfile
+import traceback
+from contextlib import contextmanager
+from pathlib import Path
+
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, _PROJECT_ROOT)
+
+import tenacious.orchestrator as o  # noqa: E402
+
+
+# ----- helpers ---------------------------------------------------------------
+
+class Patcher:
+    def __init__(self):
+        self._saved = []
+
+    def set(self, obj, attr, value):
+        self._saved.append((obj, attr, getattr(obj, attr)))
+        setattr(obj, attr, value)
+
+    def undo(self):
+        for obj, attr, value in reversed(self._saved):
+            setattr(obj, attr, value)
+        self._saved.clear()
+
+
+@contextmanager
+def temp_run(goal="GOALTEXT-MARKER"):
+    d = tempfile.mkdtemp(prefix="tnc-retry-")
+    try:
+        root = Path(d) / "run"
+        proj = Path(d) / "proj"
+        (root / "assets").mkdir(parents=True)
+        (root / "profiles").mkdir(parents=True)
+        proj.mkdir(parents=True)
+        wf = o.Workflow(goal=goal, start_step="s", steps={})
+        run = o.Run(slug="retryrun", root=root, workflow=wf,
+                    project_dir=proj, accounts={})
+        yield run, Path(d)
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
+
+
+def mkstep(slug="s", next_steps=("code_review",), questions=False,
+           context="empty", prompt="do {goal} now"):
+    return o.Step(slug=slug, agent="fake", prompt=prompt,
+                  next_steps=list(next_steps), questions=questions,
+                  context=context)
+
+
+# Actions: callable(step_dir) -> exit_code (perform side effects first).
+def a_none():
+    return lambda sd: 0                       # clean exit, no outcome
+
+
+def a_killed():
+    return lambda sd: -9                      # signal-killed, no outcome
+
+
+def a_write(value):
+    def _f(sd):
+        (sd / "outcome.txt").write_text(value)
+        return 0
+    return _f
+
+
+def a_question(qtext=None):
+    def _f(sd):
+        (sd / "outcome.txt").write_text("question")
+        if qtext is not None:
+            (sd / "question.txt").write_text(qtext)
+        return 0
+    return _f
+
+
+def scripted_runner(actions):
+    """actions[i] applied to the (i+1)-th runner call; the last action
+    repeats once exhausted (so 'always fails' needs a single element)."""
+    state = {"i": 0}
+
+    def runner(step, run, visit, step_dir, prompt, should_continue):
+        idx = min(state["i"], len(actions) - 1)
+        state["i"] += 1
+        rc = actions[idx](step_dir)
+        return {"exit": rc, "stdout": f"v{visit}",
+                "stderr": "STDERR_TAIL_MARKER"}
+    return runner
+
+
+def _visit_dirs(run, slug):
+    base = run.root / slug
+    try:
+        return sorted(e.name for e in os.scandir(base)
+                      if e.is_dir() and e.name.isdigit())
+    except OSError:
+        return []
+
+
+def _log(run):
+    return (run.root / "run.log").read_text()
+
+
+# ----- scenarios -------------------------------------------------------------
+
+def s_writes_nothing_retried_continue():
+    p = Patcher()
+    try:
+        p.set(o, "AGENT_RUNNERS",
+              {"fake": scripted_runner([a_none(), a_write("code_review")])})
+        with temp_run() as (run, _d):
+            step = mkstep()
+            out = o.execute_step(step, run, o.AnswerSource(None))
+            assert out == "code_review", out
+            assert _visit_dirs(run, "s") == ["001", "002"], _visit_dirs(
+                run, "s")
+            assert "retry 1/2: no_outcome" in _log(run), _log(run)
+    finally:
+        p.undo()
+
+
+def s_killed_retried_fresh():
+    p = Patcher()
+    try:
+        # Direct: a signal-killed visit with no outcome -> killed True.
+        p.set(o, "AGENT_RUNNERS", {"fake": scripted_runner([a_killed()])})
+        with temp_run() as (run, _d):
+            try:
+                o._run_step_visit(mkstep(), run, 1, "p", False)
+            except o.StepVisitError as e:
+                assert e.killed is True, "negative exit must set killed"
+            else:
+                raise AssertionError("expected StepVisitError")
+        p.undo()
+        # Integration: killed -> fresh retry (continued=false), succeeds.
+        p.set(o, "AGENT_RUNNERS",
+              {"fake": scripted_runner([a_killed(),
+                                        a_write("code_review")])})
+        with temp_run() as (run, _d):
+            out = o.execute_step(mkstep(), run, o.AnswerSource(None))
+            assert out == "code_review", out
+            assert "retry 1/2: no_outcome" in _log(run), _log(run)
+            meta2 = json.loads(
+                (run.root / "s" / "002" / "meta.json").read_text())
+            assert meta2["continued"] is False, (
+                f"fresh retry must not continue: {meta2}")
+    finally:
+        p.undo()
+
+
+def s_garbage_outcome_retried_continue():
+    p = Patcher()
+    try:
+        p.set(o, "AGENT_RUNNERS",
+              {"fake": scripted_runner([a_write("not_a_real_slug"),
+                                        a_write("code_review")])})
+        with temp_run() as (run, _d):
+            out = o.execute_step(mkstep(), run, o.AnswerSource(None))
+            assert out == "code_review", out
+            assert "retry 1/2: invalid_outcome" in _log(run), _log(run)
+    finally:
+        p.undo()
+
+
+def s_question_disabled_retried_continue():
+    p = Patcher()
+    try:
+        p.set(o, "AGENT_RUNNERS",
+              {"fake": scripted_runner([a_question(),
+                                        a_write("code_review")])})
+        with temp_run() as (run, _d):
+            step = mkstep(questions=False)
+            out = o.execute_step(step, run, o.AnswerSource(None))
+            assert out == "code_review", out
+            assert "retry 1/2: question_but_questions_disabled" in _log(
+                run), _log(run)
+    finally:
+        p.undo()
+
+
+def s_question_missing_or_empty_retried_continue():
+    for label, first in (("missing", a_question(None)),
+                         ("whitespace", a_question("   \n\t \n"))):
+        p = Patcher()
+        d = tempfile.mkdtemp(prefix="tnc-retry-q-")
+        try:
+            answers_file = Path(d) / "answers.txt"
+            answers_file.write_text("UNUSED-ANSWER\n")
+            ans = o.AnswerSource(answers_file)
+            p.set(o, "AGENT_RUNNERS",
+                  {"fake": scripted_runner([first,
+                                            a_write("code_review")])})
+            with temp_run() as (run, _d):
+                step = mkstep(questions=True)
+                out = o.execute_step(step, run, ans)
+                assert out == "code_review", (label, out)
+                assert "retry 1/2: empty_or_missing_question" in _log(
+                    run), (label, _log(run))
+                assert ans.queue == ["UNUSED-ANSWER"], (
+                    f"{label}: an --answers line was consumed for an "
+                    f"invalid question: {ans.queue}")
+        finally:
+            p.undo()
+            shutil.rmtree(d, ignore_errors=True)
+
+
+def s_succeeds_on_retry_2():
+    p = Patcher()
+    try:
+        p.set(o, "AGENT_RUNNERS",
+              {"fake": scripted_runner([a_none(), a_none(),
+                                        a_write("code_review")])})
+        with temp_run() as (run, _d):
+            out = o.execute_step(mkstep(), run, o.AnswerSource(None))
+            assert out == "code_review", out
+            assert _visit_dirs(run, "s") == ["001", "002", "003"], (
+                _visit_dirs(run, "s"))
+            log = _log(run)
+            assert "retry 1/2: no_outcome" in log, log
+            assert "retry 2/2: no_outcome" in log, log
+    finally:
+        p.undo()
+
+
+def s_never_succeeds_budget_exhaustion():
+    p = Patcher()
+    try:
+        p.set(o, "AGENT_RUNNERS", {"fake": scripted_runner([a_none()])})
+        with temp_run() as (run, _d):
+            try:
+                o.execute_step(mkstep(), run, o.AnswerSource(None))
+            except RuntimeError as e:
+                msg = str(e)
+                assert "no valid outcome.txt" in msg, msg
+                assert msg.endswith("(after 2 retries)"), msg
+            else:
+                raise AssertionError("expected RuntimeError after budget")
+            assert _visit_dirs(run, "s") == ["001", "002", "003"], (
+                f"want exactly 1+2 visit dirs: {_visit_dirs(run, 's')}")
+    finally:
+        p.undo()
+
+
+def s_retries_count_against_global_budget():
+    p = Patcher()
+    try:
+        p.set(o, "GLOBAL_STEP_BUDGET", 1)
+        p.set(o, "AGENT_RUNNERS", {"fake": scripted_runner([a_none()])})
+        with temp_run() as (run, _d):
+            try:
+                o.execute_step(mkstep(), run, o.AnswerSource(None))
+            except RuntimeError as e:
+                assert str(e) == "max step budget exceeded", repr(str(e))
+            else:
+                raise AssertionError("expected global-budget RuntimeError")
+            # Raised before OUTCOME_RETRY_BUDGET (3 visits) was exhausted.
+            assert _visit_dirs(run, "s") == ["001", "002"], (
+                f"global budget did not pre-empt the retry budget: "
+                f"{_visit_dirs(run, 's')}")
+    finally:
+        p.undo()
+
+
+def _two_step_wf(d: Path) -> Path:
+    wf = {"goal": "g", "project_dir": str(d / "proj"),
+          "start_step": "a",
+          "steps": {"a": {"agent": "fake", "prompt": "pa",
+                          "next_steps": ["b"]},
+                    "b": {"agent": "fake", "prompt": "pb",
+                          "next_steps": ["end"]}}}
+    path = d / "wf.json"
+    path.write_text(json.dumps(wf))
+    return path
+
+
+@contextmanager
+def _home_env(d: Path):
+    prev = os.environ.get("TENACIOUS_HOME")
+    os.environ["TENACIOUS_HOME"] = str(d / "home")
+    (d / "home").mkdir(parents=True, exist_ok=True)
+    try:
+        yield
+    finally:
+        if prev is None:
+            os.environ.pop("TENACIOUS_HOME", None)
+        else:
+            os.environ["TENACIOUS_HOME"] = prev
+
+
+def s_integration_fail_once_then_succeed():
+    p = Patcher()
+    d = Path(tempfile.mkdtemp(prefix="tnc-retry-int-"))
+    try:
+        state = {"a": 0}
+
+        def runner(step, run, visit, step_dir, prompt, should_continue):
+            if step.slug == "a":
+                state["a"] += 1
+                if state["a"] == 1:
+                    return {"exit": 0, "stdout": "", "stderr": "x"}  # fail
+                (step_dir / "outcome.txt").write_text("b\n")
+            else:
+                (step_dir / "outcome.txt").write_text("end\n")
+            return {"exit": 0, "stdout": "", "stderr": ""}
+
+        p.set(o, "_magnetize_accounts", lambda slug, wf, **_kw: {})
+        p.set(o, "AGENT_RUNNERS", {"fake": runner})
+        with _home_env(d):
+            run = o.execute_workflow(_two_step_wf(d))
+        log = (run.root / "run.log").read_text()
+        assert "workflow complete (end)" in log, log
+        assert run.visit_counts.get("a") == 2, run.visit_counts
+        assert run.visit_counts.get("b") == 1, run.visit_counts
+        assert "retry 1/2: no_outcome" in log, log
+    finally:
+        p.undo()
+        shutil.rmtree(d, ignore_errors=True)
+
+
+def s_integration_always_fails_aborts():
+    p = Patcher()
+    d = Path(tempfile.mkdtemp(prefix="tnc-retry-int2-"))
+    try:
+        def runner(step, run, visit, step_dir, prompt, should_continue):
+            if step.slug == "a":
+                return {"exit": 0, "stdout": "", "stderr": "x"}  # always
+            (step_dir / "outcome.txt").write_text("end\n")
+            return {"exit": 0, "stdout": "", "stderr": ""}
+
+        p.set(o, "_magnetize_accounts", lambda slug, wf, **_kw: {})
+        p.set(o, "AGENT_RUNNERS", {"fake": runner})
+        with _home_env(d):
+            try:
+                o.execute_workflow(_two_step_wf(d))
+            except RuntimeError as e:
+                assert "(after 2 retries)" in str(e), str(e)
+            else:
+                raise AssertionError("workflow did not abort after budget")
+        # The run dir still exists; inspect its log for the retry trail.
+        runs = list((d / "home" / "runs").iterdir())
+        assert len(runs) == 1, runs
+        log = (runs[0] / "run.log").read_text()
+        assert "retry 1/2: no_outcome" in log, log
+        assert "retry 2/2: no_outcome" in log, log
+    finally:
+        p.undo()
+        shutil.rmtree(d, ignore_errors=True)
+
+
+def s_render_retry_prompt_self_contained():
+    with temp_run(goal="GOALTEXT-MARKER") as (run, _d):
+        step = mkstep(next_steps=("code_review", "plan"),
+                      prompt="please {goal} thoroughly")
+        sd = run.step_dir("s", 2)
+        sd.mkdir(parents=True, exist_ok=True)
+        oc = str(sd / "outcome.txt")
+
+        cont = o.render_retry_prompt(step, run, sd, "invalid_outcome",
+                                     "not_a_real_slug", "continue", True)
+        assert "GOALTEXT-MARKER" in cont, "step body/goal missing"
+        assert "--- ORCHESTRATOR CONTRACT ---" in cont, "contract missing"
+        assert oc in cont, "outcome path missing from contract"
+        assert "code_review, plan" in cont, "valid slugs missing"
+        assert "'not_a_real_slug'" in cont, "exact rejected value missing"
+        assert "Do NOT redo the work" in cont, "continue instr missing"
+        assert "You may still have context" in cont, "context clause missing"
+
+        deg = o.render_retry_prompt(step, run, sd, "invalid_outcome",
+                                    "not_a_real_slug", "continue", False)
+        assert "fresh process with no memory" in deg, "degraded instr"
+        assert "inspect what already exists" in deg, "degraded instr"
+        assert "Do NOT redo the work" not in deg, (
+            "degraded must NOT carry continue-only instruction")
+        assert "You may still have context" not in deg, (
+            "degraded must NOT carry the context clause")
+
+        fr = o.render_retry_prompt(step, run, sd, "no_outcome", None,
+                                   "fresh", False)
+        assert "interrupted and may have left" in fr, "fresh instr missing"
+        assert "You may still have context" not in fr, (
+            "fresh must NOT carry the context clause")
+        assert "None" in fr, "prior_value repr missing for fresh"
+
+
+SCENARIOS = [
+    ("writes_nothing_retried_continue", s_writes_nothing_retried_continue),
+    ("killed_retried_fresh", s_killed_retried_fresh),
+    ("garbage_outcome_retried_continue",
+     s_garbage_outcome_retried_continue),
+    ("question_disabled_retried_continue",
+     s_question_disabled_retried_continue),
+    ("question_missing_or_empty_retried_continue",
+     s_question_missing_or_empty_retried_continue),
+    ("succeeds_on_retry_2", s_succeeds_on_retry_2),
+    ("never_succeeds_budget_exhaustion", s_never_succeeds_budget_exhaustion),
+    ("retries_count_against_global_budget",
+     s_retries_count_against_global_budget),
+    ("integration_fail_once_then_succeed",
+     s_integration_fail_once_then_succeed),
+    ("integration_always_fails_aborts", s_integration_always_fails_aborts),
+    ("render_retry_prompt_self_contained",
+     s_render_retry_prompt_self_contained),
+]
+
+
+def main() -> int:
+    for name, fn in SCENARIOS:
+        try:
+            fn()
+        except Exception as e:  # noqa: BLE001
+            print(f"FAIL {name}: {e}")
+            traceback.print_exc()
+            return 1
+        print(f"PASS {name}")
+    print(f"ALL PASS ({len(SCENARIOS)} scenarios)")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

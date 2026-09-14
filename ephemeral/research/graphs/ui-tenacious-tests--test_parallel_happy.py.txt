@@ -1,0 +1,218 @@
+# Source path in pinned archive: tests/test_parallel_happy.py
+# Archive member: diffusioninc-Tenacious-d3a4d7ff9f5445a42a7516eda845f8c58a531a45/tests/test_parallel_happy.py
+
+"""Parallel substep — live happy-path end-to-end (real `claude`).
+
+Gated on TENACIOUS_LIVE_PARALLEL=1 so `tests/run_all.py` stays
+non-burning by default. Drives `tests/fixtures/parallel-hello.json`
+against the real claude CLI and asserts the nested visit/asset layout,
+the parent's success outcome.txt, the load-time and runtime FYI lines
+in run.log, and the auth-bank three-concurrent-leases sample.
+
+Run from the project root:
+
+    TENACIOUS_LIVE_PARALLEL=1 python3 tests/test_parallel_happy.py
+"""
+
+from __future__ import annotations
+
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+import threading
+import time
+import traceback
+from pathlib import Path
+
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, _PROJECT_ROOT)
+
+
+_LIVE_ENV = "TENACIOUS_LIVE_PARALLEL"
+
+
+def _latest_run(home: Path) -> Path:
+    runs = sorted((home / "runs").iterdir())
+    assert runs, f"no run dirs under {home/'runs'}"
+    return runs[-1]
+
+
+def happy_path_end_to_end() -> None:
+    # Honor a caller-supplied TENACIOUS_HOME so the reviewer can inspect
+    # the produced run directory after the test exits (V5.1, V6.x, V7.x).
+    # When the caller does not supply one we create a temp dir and leave
+    # it on disk; the path is printed at the end of the run.
+    caller_home = os.environ.get("TENACIOUS_HOME")
+    if caller_home:
+        home = Path(caller_home)
+        home.mkdir(parents=True, exist_ok=True)
+        cleanup_home = False
+    else:
+        home = Path(tempfile.mkdtemp(prefix="tnc-pl-happy-"))
+        cleanup_home = False  # preserve for post-hoc shell inspection
+    bank_src = Path.home() / ".tenacious" / "auth-bank"
+    bank_dst = home / "auth-bank"
+    if bank_dst.is_dir():
+        pass  # caller-provided home already populated; reuse as-is
+    elif bank_src.is_dir():
+        shutil.copytree(bank_src, bank_dst)
+    else:
+        raise AssertionError(
+            f"auth bank not found at {bank_src}; cannot run live test")
+
+    env = os.environ.copy()
+    env["TENACIOUS_HOME"] = str(home)
+    env["NO_COLOR"] = "1"
+    env["PYTHONPATH"] = (
+        f"{_PROJECT_ROOT}{os.pathsep}{env.get('PYTHONPATH','')}"
+    )
+    wf = Path(_PROJECT_ROOT) / "tests" / "fixtures" / "parallel-hello.json"
+    proc = subprocess.Popen(
+        [sys.executable, "-m", "tenacious", str(wf)],
+        cwd=_PROJECT_ROOT, env=env,
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+    )
+
+    # Background sampler: poll auth-bank lock files for concurrent leases.
+    max_concurrent = [0]
+    sampler_stop = threading.Event()
+
+    def sampler() -> None:
+        anthropic = home / "auth-bank" / "anthropic"
+        while not sampler_stop.is_set():
+            try:
+                accts = [p for p in anthropic.iterdir() if p.is_dir()]
+            except OSError:
+                accts = []
+            for acct in accts:
+                try:
+                    locks = list(acct.glob("*.lock"))
+                except OSError:
+                    locks = []
+                held = 0
+                for lp in locks:
+                    try:
+                        import fcntl
+                        fd = open(lp, "a+")
+                    except OSError:
+                        continue
+                    try:
+                        try:
+                            fcntl.flock(
+                                fd.fileno(),
+                                fcntl.LOCK_EX | fcntl.LOCK_NB)
+                            fcntl.flock(fd.fileno(), fcntl.LOCK_UN)
+                        except BlockingIOError:
+                            held += 1
+                    finally:
+                        fd.close()
+                if held > max_concurrent[0]:
+                    max_concurrent[0] = held
+            time.sleep(0.2)
+
+    t = threading.Thread(target=sampler, daemon=True)
+    t.start()
+    try:
+        out, err = proc.communicate(timeout=900)
+    finally:
+        sampler_stop.set()
+        t.join(timeout=2.0)
+
+    assert proc.returncode == 0, (
+        f"orchestrator exited rc={proc.returncode}\n"
+        f"stdout:\n{out}\nstderr:\n{err}"
+    )
+
+    run = _latest_run(home)
+
+    # V6.1 — nested visit dirs.
+    for sub in ("a", "b", "c"):
+        sd = run / "fan" / "001" / sub / "001"
+        for fn in ("prompt.txt", "stdout.txt", "stderr.txt",
+                   "meta.json", "outcome.txt"):
+            assert (sd / fn).is_file(), f"missing {sd/fn}"
+
+    # V6.2 — parent meta.json + outcome.txt.
+    parent_meta = (run / "fan" / "001" / "meta.json").read_text()
+    assert '"parallel": true' in parent_meta, parent_meta
+    assert '"substeps": [\n    "a",\n    "b",\n    "c"\n  ]' in parent_meta \
+        or '"substeps":["a","b","c"]' in parent_meta, parent_meta
+    assert '"failed_substep": null' in parent_meta, parent_meta
+    parent_outcome = (run / "fan" / "001" / "outcome.txt").read_text()
+    assert parent_outcome.strip() == "join", (
+        f"parent outcome != 'join': {parent_outcome!r}")
+
+    # V6.3 — substep outcome.txt contains the sentinel.
+    for sub in ("a", "b", "c"):
+        oc = (run / "fan" / "001" / sub / "001"
+              / "outcome.txt").read_text().strip()
+        assert oc == "__substep_done__", f"{sub}: {oc!r}"
+
+    # V7.1, V7.2 — nested asset layout + contents.
+    for sub in ("a", "b", "c"):
+        ap = run / "assets" / "fan" / sub / "hello.txt"
+        assert ap.is_file(), f"missing {ap}"
+        body = ap.read_text().strip()
+        assert body == f"hello from {sub}", (sub, body)
+
+    # V7.3 — join prompt references the three nested assets.
+    join_prompt = (run / "join" / "001" / "prompt.txt").read_text()
+    for sub in ("a", "b", "c"):
+        assert f"--- ASSET: fan/{sub}/hello.txt ---" in join_prompt, (
+            sub, join_prompt[:500])
+
+    # V7.4 — top-level assets dir is not polluted (allow only fan/,
+    # joined.txt, and the workflow-optional TLDR.md).
+    extras = []
+    for child in (run / "assets").iterdir():
+        if child.name in ("fan", "joined.txt", "TLDR.md"):
+            continue
+        extras.append(child.name)
+    assert extras == [], f"unexpected top-level asset entries: {extras}"
+
+    # FYI lines in run.log.
+    log = (run / "run.log").read_text()
+    n_runtime = log.count("FYI: launching parallel composite fan")
+    assert n_runtime == 1, f"expected 1 runtime FYI, got {n_runtime}"
+
+    # Load-time FYI lands on stdout (run.log is only written after
+    # `create_run`, and `_emit_parallel_load_warnings` is called before
+    # `create_run`); check the orchestrator's captured stdout for exactly
+    # one occurrence.
+    n_load = out.count("FYI: workflow declares 1 parallel composite step(s)")
+    assert n_load == 1, (
+        f"expected 1 load-time FYI on stdout, got {n_load}\n{out}")
+
+    # Auth-bank concurrency sample — the round requires three concurrent
+    # checkouts when all three substeps are mid-flight (V8.1).
+    assert max_concurrent[0] >= 3, (
+        f"expected 3 concurrent auth-bank leases, "
+        f"saw max={max_concurrent[0]}"
+    )
+
+    if cleanup_home:
+        shutil.rmtree(home, ignore_errors=True)
+    else:
+        print(f"HOME {home}")
+        print(f"RUN {run}")
+
+
+def main() -> int:
+    if os.environ.get(_LIVE_ENV) != "1":
+        print(f"SKIP happy_path_end_to_end ({_LIVE_ENV} not set)")
+        return 0
+    try:
+        happy_path_end_to_end()
+    except Exception as e:  # noqa: BLE001
+        print(f"FAIL happy_path_end_to_end: {e}")
+        traceback.print_exc()
+        return 1
+    print("PASS happy_path_end_to_end")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,0 +1,111 @@
+# Source path in pinned archive: next.md
+# Archive member: diffusioninc-Tenacious-d3a4d7ff9f5445a42a7516eda845f8c58a531a45/next.md
+
+# Tenacious Backlog
+
+
+
+## Unsorted
+
+- Worktree/worktree dir support
+- Fix whatever is blocking commits from happening
+- API Key support for OpenAI/Anthropic
+- YAML for workflow definitions
+- Test auth'd mcp servers in codex and claude - slack?
+- /goal? /btw?
+- GitHub Actions and Blacksmith support
+- Docker support
+- Cloud container support
+- Paired Mac mini support
+
+---
+
+## Orchestrator & Run Lifecycle
+
+**Outcome-based advancement (INCIDENT 2026-05-17 follow-up):** During the self-improvement run 20260517163146-568, Claude wrote code-notes and outcome.txt successfully but its process never exited — child processes it spawned for pty testing kept running. The orchestrator waited on the process, got SIGTERM'd, and treated it as a failure. Options:
+- A. Timeout: if a step runs beyond a configurable wall-clock limit after writing outcome.txt, kill it and advance anyway.
+- B. Outcome-based advancement: once outcome.txt is present, treat the step as complete immediately; kill the process after a grace period.
+- C. Non-zero exit tolerance: if outcome.txt was written, treat any signal-kill exit as success.
+- D. Orphan cleanup: track child PIDs and kill them when outcome.txt is written.
+- E. Unattended-mode prompt guidance: remind agents never to launch processes waiting for terminal input; use scripted stdin, --non-interactive flags, or expect scripts instead of live ttys.
+Options B or C combined with D seem most robust.
+
+**Step process limits:** Add defaults and overrides for maximum CLI coding agent invocations per step, and a separate option for whether that count resets when the user answers a question.
+
+**Skip-steps param:** Allow skipping the requirements step (and possibly others) when the goal is complete enough that scoping is not needed.
+
+**Reload workflow without breaking run:** Ability to update the workflow JSON while a run is in progress without causing it to lose state.
+
+**Invoke requirements in parallel:** Consider whether requirements could be run as multiple parallel agents. Maybe this is just another run.
+
+**Cost budget:** Optional cap on total spend per run.
+
+---
+
+## Agent & Workflow Behavior
+
+**Iterative coding workflow variant:** A sibling of 6step.yaml that instructs the coding agent to build incrementally — smaller commits, frequent checkpoints, explicit awareness that the code step will be revisited. For projects too large to land in a single round.
+
+**Sprint/plan file checkboxes:** A way to have sprint or plan files (markdown with checkboxes) that a designated step can edit — checking off items as they are completed. Persistent, human-readable progress tracker that survives across rounds.
+
+**Steering files:** A mechanism to inject mid-run emphasis or guidance into later steps without restarting (e.g., "add bot test coverage for dying from enemy contact"). Related to /btw support below.
+
+**/btw support:** A way to pass an aside or addendum to the current run — supplemental context that gets folded into the next step's prompt without requiring a restart.
+
+**Credentials:** Anthropic credentials probably should not be "checked out" like other accounts — unless that pattern is useful for abuse detection.
+
+**NOTE:** The `continue` context was left set for the requirements step. It should be empty. Verify this does not interfere with the questions/answers system.
+
+---
+
+## Observability & Telemetry
+
+**More telemetry while a step is running:** Better visibility into what an agent is doing mid-step — not just after it completes.
+
+---
+
+## Validation & Quality
+
+**Validation not ingrained enough in the 6-step workflow:** Two gaps: (1) The planning step does not give enough attention to validation — plans should explicitly describe how the work will be tested and what "done" looks like before any code is written. (2) The code review / testing step is not holding the line — it is passing work with obvious, reproducible bugs. Known examples: the TUI session viewer had no visible UI change when navigating up/down on the first screen; the Q&A text input repeated the first line every time the user typed past the end of it. Both should have been caught by code review before the round was accepted.
+
+---
+
+## Git & Workspace
+
+**Worktrees as default:** Consider making git worktrees in a separate directory the default for all Tenacious coding runs. Reasons: prevents modifying code currently loaded by live sessions; gives a clean diff before touching the live tree; easy to abandon a bad round. Open questions: (1) Auto-create and teardown, or manual? (2) Merge strategy when a round is accepted? (3) Who triggers the merge? (4) What happens to the worktree on failure? (5) Deterministic worktree path or configurable?
+
+**Run directory restructure:** Runs are currently flat in ~/.tenacious/runs/. Organize or index them by project directory so all runs for a given project are easy to find. Viewer and orchestrator should work with the new layout.
+
+---
+
+## Assets
+
+**Automatic asset snapshots:** Should the orchestrator automatically snapshot all assets at the end of every step, not just the ones agents explicitly write?
+
+---
+
+## Misc / Notes
+
+**NOTE:** Claude.md / AGENTS.md in the platformer directory is incorrect and needs to be fixed.
+
+**Build scratch/retry.md** (details TBD).
+
+---
+
+## Done
+
+- **Colored orchestrator terminal output:** TTY-only, NO_COLOR-respecting ANSI styling. Step-boundary banner (bold cyan), `[Question from agent]` header (bold yellow), `===== SESSION HEALTH UPDATE =====` wrappers (bold magenta); per-line categorical coloring for timestamps (dim), `[health_monitor]` (magenta), `[<stepname>]` prefixes (cyan), `claude cmd:` / `codex cmd:` (blue), `exited 0` (green), `exited <nonzero>` (red). `NO_COLOR` wins over `TENACIOUS_COLOR=1`. See `docs/ui/terminal-colors.md`.
+- **MCP support per step, per CLI agent (pluck work):** Step JSON can now carry an `mcp_servers` map. The orchestrator materializes it into the per-step profile dir (`mcp-servers.json` for claude with `--mcp-config <path> --strict-mcp-config`; `config.toml` for codex via `$CODEX_HOME` auto-discovery). Stdio transport only this round. See `docs/mcp/*.md` for the design, the chosen off-the-shelf server, and the how-to.
+- Session viewer: read-only TUI at `python -m tenacious.viewer` with `--list`, `--info`, `--step`, `--sessions`, `--session --dump`, `--selftest`. Shipped in run 20260517213206-884 round 1.
+- Multi-line answer editor in the orchestrator: Esc+Enter to submit, Ctrl-D, bracketed paste, cursor nav. Shipped in same round.
+- Auth bank population.
+- Session health monitor: configurable periodic background process reading agent session files, producing status summaries, suspended during Q&A pauses. (Stdout duplication bug remains open above.)
+- Bug: Text during asking a question is cut off instead of wrapping.  This is happening to the lines in the question.
+- Bug: My answer is getting spammed by these kind of messages while I am trying to type
+  [2026-05-18T16:38:08]   claude cmd: ...anthropic/default/cc1.txt ... (prompt len=2809B, continue=False)
+  [2026-05-18T16:37:55]   [health_monitor] valid outcome.txt detected while agent still running
+- **Health monitor stdout duplication (BUG):** The health check output is being printed twice to stdout, and the report paths are printed four times each. Example from run 20260518121845-624, tick 4. Needs investigation.
+- **Health monitor: skip first tick and queue output during Q&A:** Monitor should not emit output on tick 1 (nothing meaningful yet) and should hold output while the run is blocked waiting on a user question.
+- **Session resume:** When a run is interrupted (killed, crashed, or manually stopped mid-step), provide a way to restart it from where it left off — picking up at the step that was in progress rather than starting over from scratch. This should handle both clean stops (outcome.txt was written) and messy ones (mid-step crash, no outcome).
+- **Outcome-after-asset ordering rule:** `_contract_block` now tells every step that `outcome.txt` MUST be the LAST file written (assets and, on the question path, `question.txt` fully persisted first), so a mid-step asset-write failure cannot leave the run advancing into a stale-asset state. Test: `tests/test_outcome_last.py`.
+- **Runs-list enrichment in the regular TUI:** S_RUNS now renders a 6-row block per run (header + project / TLDR / path / git / plan). ACTIVE first, then newest-first. Auto-refreshes every 10s. Run-detail/step/transcript screens, `--list`, `--info`, `--visits`, `--sessions`, `--session --dump`, `--selftest`, and `--live` are byte-stable.

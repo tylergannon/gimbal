@@ -1,0 +1,13 @@
+# Tenacious UI research index leaf
+
+- Source: `diffusioninc/Tenacious`, pinned commit `d3a4d7ff9f5445a42a7516eda845f8c58a531a45`.
+- Archive: [`ui-tenacious-source.tar.gz`](ui-tenacious-source.tar.gz), SHA-256 `cd5986b9d560056f89229eee31413c731fb65fbe3deaf3ca0a8f3d6b4db7bad0`.
+- Provenance: [`ui-tenacious-metadata.json`](ui-tenacious-metadata.json), [`ui-tenacious-commit.json`](ui-tenacious-commit.json), [`ui-tenacious-archive-members.txt`](ui-tenacious-archive-members.txt).
+- Main report: [`ui-tenacious-report.md`](ui-tenacious-report.md).
+- Extracted implementation: `ui-tenacious-tenacious--viewer--tui.py.txt`, `ui-tenacious-tenacious--viewer--model.py.txt`, `ui-tenacious-tenacious--viewer--runs_enrich.py.txt`, `ui-tenacious-tenacious--viewer--transcripts.py.txt`, `ui-tenacious-tenacious--viewer--render.py.txt`, `ui-tenacious-tenacious--viewer--__main__.py.txt`, `ui-tenacious-tenacious--orchestrator.py.txt`.
+- Extracted docs/workflows: `ui-tenacious-README.md.txt`, `ui-tenacious-USER_MANUAL--01-overview.md.txt`, `ui-tenacious-USER_MANUAL--03-running-workflows.md.txt`, `ui-tenacious-USER_MANUAL--06-viewer-tui.md.txt`, `ui-tenacious-USER_MANUAL--07-viewer-cli.md.txt`, `ui-tenacious-USER_MANUAL--08-run-directory.md.txt`, `ui-tenacious-workflows--6step.yaml.txt`, `ui-tenacious-workflows--iterative.yaml.txt`.
+- Extracted evidence tests: `ui-tenacious-tests--test_tui_nav.py.txt`, `ui-tenacious-tests--test_tui_first_paint.py.txt`, `ui-tenacious-tests--test_runs_highlight.py.txt`, `ui-tenacious-tests--test_run_summary.py.txt`, `ui-tenacious-tests--test_viewer_runs_enrichment.py.txt`, `ui-tenacious-tests--test_viewer_retained_surfaces.py.txt`, `ui-tenacious-tests--test_parallel_fail_fast.py.txt`, `ui-tenacious-tests--test_parallel_happy.py.txt`, `ui-tenacious-tests--test_resume.py.txt`, `ui-tenacious-tests--test_retry.py.txt`.
+- Finding: implemented four-level read-only curses/file-browser drill-down, text adjacency/reachability, visit path summaries, and defensive transcript rendering; no node-edge graph, timeline layout, zoom, mouse, typed edge overlay, static template view, or screenshot asset.
+- Gimble transfer: explicit typed drill targets; immutable declaration joined to observed instances; compact width-aware run cards; normalized transcript renderer; persisted parallel failure truth.
+- Limits: nested parallel composite sessions are stored under `profiles/<parent>/<substep>` but viewer discovery is only `profiles/<step>`; sessions are step-level rather than per-visit; test files were inspected but not run.
+- Local report citations: [`ui-tenacious-report.md`](ui-tenacious-report.md), especially lines 3-29 (implementation), 31-43 (transfer), and 45-56 (limits and provenance).

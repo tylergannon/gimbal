@@ -1,0 +1,100 @@
+# Source path in pinned archive: docs/ui/terminal-colors.md
+# Archive member: diffusioninc-Tenacious-d3a4d7ff9f5445a42a7516eda845f8c58a531a45/docs/ui/terminal-colors.md
+
+# Terminal colors in the Tenacious orchestrator
+
+The `python -m tenacious` CLI applies lightweight ANSI styling to its
+stdout (and to the `[Question from agent]` block on stderr) so the dense
+per-line log is scannable at a glance. Styling is **strictly cosmetic**
+— it never changes any file artifact on disk and never changes the
+shape, ordering, or count of lines written.
+
+## What gets styled
+
+Banner sections — one bold, colored line each:
+
+| Section                                            | Color         |
+| -------------------------------------------------- | ------------- |
+| `step <slug> visit <N> (...)` step boundary        | bold **cyan** |
+| `[Question from agent]` question header            | bold **yellow** |
+| `===== SESSION HEALTH UPDATE (tick N) =====`       | bold **magenta** |
+| `===== END SESSION HEALTH UPDATE =====`            | bold **magenta** |
+
+Per-line categorical coloring applied to every emitted log line:
+
+| Substring                                         | Color   |
+| ------------------------------------------------- | ------- |
+| Leading `[YYYY-MM-DDTHH:MM:SS]` timestamp         | dim     |
+| `[health_monitor]` prefix                         | magenta |
+| `[<known-step-slug>]` prefix (e.g. `[code]`)      | cyan    |
+| `claude cmd:` / `codex cmd:`                      | blue    |
+| `exited 0`                                        | green   |
+| `exited <non-zero>` (positive or negative)        | red     |
+
+The interactive question's help footer (`Enter inserts a newline.`,
+`Submit: press Esc then Enter.  (Ctrl-D also submits.)`, etc.) is
+**dimmed**. The question body itself is left untouched.
+
+## When color is applied — the single precedence rule
+
+Color is decided on **every** call (the helper is pure and never
+caches). One rule, used everywhere:
+
+```
+color_enabled(stream) is True  iff
+  NO_COLOR is unset/empty        # NO_COLOR always wins
+  AND  ( TENACIOUS_COLOR == "1"   # force-enable
+         OR ( TENACIOUS_COLOR != "0"
+              AND stream is a TTY ) )    # default: TTY-only
+```
+
+In words:
+
+- `NO_COLOR=<any non-empty value>` → color **off**, full stop. This is
+  the [no-color.org](https://no-color.org) convention and it takes
+  precedence over everything else.
+- Otherwise, `TENACIOUS_COLOR=1` → color **on**, regardless of TTY.
+- Otherwise, `TENACIOUS_COLOR=0` → color **off**.
+- Otherwise → color **on iff** the destination stream is a TTY.
+
+The interactive answer editor (`/dev/tty`) and the stderr question-block
+fallback each apply the same rule against their own stream's TTY status,
+so piping stdout while keeping stderr on a TTY still colors the question
+block correctly (and vice versa).
+
+## Piped or redirected output
+
+When you pipe or redirect the orchestrator's stdout (`python -m
+tenacious ... > run.log.txt`), the destination is not a TTY, so by
+default **zero** ANSI escape sequences are emitted. The file is plain
+text and round-trips through `cat`, `less -R`, `grep`, etc. without any
+escape-code noise.
+
+If you explicitly want ANSI in a redirected file (e.g. for replay with
+`less -R`), set `TENACIOUS_COLOR=1`.
+
+## File artifacts are unchanged
+
+The on-disk `run.log`, per-step `stdout.txt` / `stderr.txt` /
+`meta.json` / `outcome.txt`, all asset Markdown, and all JSONL
+transcripts are written **without** ANSI sequences, regardless of
+`TENACIOUS_COLOR` / `NO_COLOR` / TTY status. Color is added only to the
+process's stdout/stderr streams at the print boundary.
+
+## Limitations
+
+Round 2 deliberately ships with a minimal palette so the styling
+renders identically across the widest range of terminals:
+
+- 8 standard ANSI foreground colors (red / green / yellow / blue /
+  magenta / cyan) plus **bold** and **dim**.
+- No 256-color or truecolor styling.
+- No theme or per-user customization config — the color choices are
+  hard-coded in `tenacious/term_color.py`.
+- No styling for the read-only TUI viewer (`python -m
+  tenacious.viewer`); round 2 touches orchestrator stdout/stderr only.
+
+If you want a different palette, edit the constants in
+`tenacious/term_color.py`; the test suite (`python3
+tests/test_term_color.py`) pins the wrapping semantics, not the exact
+SGR codes, so most palette tweaks are a one-line change.

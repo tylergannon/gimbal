@@ -1,0 +1,417 @@
+# Source path in pinned archive: tenacious/viewer/tui.py
+# Archive member: diffusioninc-Tenacious-d3a4d7ff9f5445a42a7516eda845f8c58a531a45/tenacious/viewer/tui.py
+
+"""Full-screen, read-only curses TUI.
+
+`curses` is imported lazily inside `run_tui` (never at module import time)
+so the non-interactive verification paths work with no terminal. The TUI
+never writes to or controls runs in any way.
+"""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+from . import model
+from .render import render_turns
+from .transcripts import parse_session
+
+
+# Screen identifiers
+S_RUNS = "runs"
+S_RUN = "run"
+S_STEP = "step"
+S_TRANSCRIPT = "transcript"
+
+_FOOTER = ("↑/↓ k/j move · Enter/→ open · Esc/← back · "
+           "PgUp/PgDn Space/b page · g/G home/end · r reload · q quit")
+
+
+def _fallback(msg: str) -> int:
+    """Print a short human-readable message and exit cleanly (code 0).
+
+    Used whenever the terminal cannot drive the full-screen TUI. The
+    requirements mandate a clear message and clean exit here, never a
+    traceback.
+    """
+    sys.stderr.write(
+        f"viewer: {msg} The full-screen TUI is unavailable on this "
+        "terminal. Use a non-interactive surface instead, e.g. "
+        "`python -m tenacious.viewer --list`.\n")
+    return 0
+
+
+def run_tui(home: Path) -> int:
+    try:
+        import curses
+    except Exception as exc:  # curses missing/broken on this build
+        return _fallback(f"curses could not be imported ({exc!r}).")
+
+    def _main(stdscr):
+        app = _App(stdscr, curses, home)
+        app.loop()
+
+    try:
+        curses.wrapper(_main)
+    except _CleanExit:
+        return 0
+    except KeyboardInterrupt:
+        return 0
+    except curses.error as exc:
+        # initscr()/curs_set()/wrapper startup can fail on terminals
+        # that lack required capabilities (e.g. TERM=dumb, no TERM).
+        return _fallback(f"curses error ({exc}).")
+    return 0
+
+
+class _CleanExit(Exception):
+    pass
+
+
+class _App:
+    def __init__(self, stdscr, curses, home: Path):
+        self.scr = stdscr
+        self.curses = curses
+        self.home = home
+        # Cursor hiding and keypad mode are cosmetic/convenience; some
+        # terminals (e.g. TERM=dumb) lack the capability and raise
+        # curses.error, and headless test stubs may not provide these
+        # attributes at all. Degrade gracefully under any failure rather
+        # than crash before the loop even starts.
+        try:
+            curses.curs_set(0)
+        except Exception:
+            pass
+        try:
+            stdscr.keypad(True)
+        except Exception:
+            pass
+
+        # Navigation stack of (screen, context dict, selection, scroll).
+        # Each frame carries its own per-screen cache; `_dirty` controls
+        # whether the next _load_lines call re-reads disk. Without this,
+        # every arrow keystroke re-walked the runs tree (and re-parsed
+        # whole session transcripts on the transcript screen).
+        self.stack: list[dict] = []
+        self.stack.append({
+            "screen": S_RUNS, "sel": 0, "scroll": 0, "ctx": {},
+            "_dirty": True,
+        })
+
+    # -- data loading per screen --------------------------------------------
+
+    def _load_lines(self, frame: dict) -> tuple[list[str], list[dict]]:
+        """Return (display_lines, selectable_targets).
+
+        selectable_targets is a list parallel to selectable rows; each item
+        is a dict describing what drilling into that row opens.
+        """
+        screen = frame["screen"]
+        # `ctx` is only required by the drill-down screens; the runs-list
+        # screen has no context. Tolerate a missing key so callers (and
+        # the inline Change 2a clamp probe) can construct a minimal frame.
+        ctx = frame.get("ctx", {})
+        dirty = frame.get("_dirty", True)
+
+        if screen == S_RUNS:
+            from . import runs_enrich  # lazy: no curses dep, but skip on cold launch
+            if dirty or "_enriched" not in frame:
+                frame["_enriched"] = runs_enrich.collect_run_enrichment(self.home)
+                frame["_dirty"] = False
+            enriched = frame["_enriched"]
+            if not enriched:
+                lines = [f"(no runs found under {model.runs_dir(self.home)})"]
+                frame["_sel_row_offset"] = None
+                frame["_sel_row_stride"] = 1
+                frame.pop("_sel_block_starts", None)
+                frame.pop("_sel_block_lengths", None)
+                frame["sel"] = 0
+                return lines, []
+            try:
+                _, width = self.scr.getmaxyx()
+            except Exception:
+                width = 80
+            # Clamp sel into the new range BEFORE rendering / drilling so a
+            # refresh that shrinks or reorders the list never leaves sel out
+            # of range.
+            if frame["sel"] < 0:
+                frame["sel"] = 0
+            if frame["sel"] >= len(enriched):
+                frame["sel"] = len(enriched) - 1
+            # The renderer is pure string work over the cached `enriched`
+            # payload — cheap enough to re-run on every keystroke so the
+            # highlight follows `sel` without rebuilding the data.
+            lines, block_lengths = runs_enrich.render_runs_list_lines(
+                enriched, frame["sel"], width)
+            targets = [{"run": r.run_info} for r in enriched]
+            # Prefix-sum block starts so _draw can highlight the
+            # variable-height block at frame["sel"] without recomputing.
+            starts: list[int] = []
+            running = 0
+            for n in block_lengths:
+                starts.append(running)
+                running += n
+            frame["_sel_row_offset"] = 0   # legacy; kept for clamp probe
+            frame["_sel_row_stride"] = 1   # legacy; ignored when block keys set
+            frame["_sel_block_starts"] = starts
+            frame["_sel_block_lengths"] = block_lengths
+            return lines, targets
+
+        if screen == S_RUN:
+            from . import runs_enrich  # shared ts helpers
+            r = ctx["run"]
+            if dirty or "_ws" not in frame:
+                frame["_ws"] = model.workflow_steps(r.path)
+                frame["_accounts"] = model.read_accounts(r.path)
+                frame["_log_tail"] = model.run_log_tail(r.path, 40)
+                frame["_dirty"] = False
+            ws = frame["_ws"]
+            accounts = frame["_accounts"]
+            log_tail = frame["_log_tail"]
+            started_fmt = runs_enrich._fmt_ts(
+                runs_enrich._resolve_started_at_ts(r.path, r.slug))
+            activity_fmt = runs_enrich._fmt_ts(r.last_activity_ts)
+            lines = [
+                f"RUN {r.slug}",
+                f"started:  {started_fmt}",
+                f"activity: {activity_fmt}",
+                f"project:  {r.project_dir}",
+                f"accounts: {accounts}",
+                "",
+                f"GOAL: {r.goal_full}",
+                "",
+            ]
+            if ws.from_disk:
+                lines.append("note: workflow.json unreadable; steps from "
+                             "disk, order unavailable")
+            else:
+                lines.append("Workflow steps (order reached from start; "
+                             "graph may branch/cycle):")
+            lines.append("")
+            targets = []
+            sel_start = len(lines)
+            for s in ws.steps:
+                if s.reachable is None:
+                    rflag = ""
+                elif s.reachable:
+                    rflag = ""
+                else:
+                    rflag = " (unreachable)"
+                ns = ", ".join(s.next_steps) if s.next_steps else "-"
+                lines.append(
+                    f"  [{s.order_index}] {s.slug}  visits={s.visit_count}"
+                    f"{rflag}  → {ns}")
+                targets.append({"run": r, "step": s.slug})
+            lines.append("")
+            lines.append("--- run.log (tail) ---")
+            lines.extend(log_tail)
+            frame["_sel_row_offset"] = sel_start
+            return lines, targets
+
+        if screen == S_STEP:
+            r = ctx["run"]
+            step = ctx["step"]
+            if dirty or "_visits" not in frame:
+                frame["_visits"] = model.list_visits(r.path, step)
+                frame["_sessions"] = model.list_sessions(r.path, step)
+                frame["_dirty"] = False
+            visits = frame["_visits"]
+            sessions = frame["_sessions"]
+            lines = [f"STEP {step}   (run {r.slug})", ""]
+            lines.append("== Visits ==")
+            if not visits:
+                lines.append(f"  (no visits recorded for step '{step}')")
+            else:
+                for v in visits:
+                    lines.append(
+                        f"  #{v.number_str}  q={'y' if v.has_question else 'n'}"
+                        f"  outcome={v.outcome}  mtime={v.mtime}")
+            lines.append("")
+            lines.append("== Sessions (step-level artifacts, not per-visit) ==")
+            targets = []
+            if not sessions:
+                lines.append(f"  (no sessions found for step '{step}')")
+                frame["_sel_row_offset"] = None
+                return lines, targets
+            sel_start = len(lines)
+            for s in sessions:
+                lines.append(
+                    f"  {s.kind}  {s.mtime}  {s.size}B  {s.lines}L  "
+                    f"{s.path}")
+                targets.append({"run": r, "step": step, "session": s})
+            frame["_sel_row_offset"] = sel_start
+            return lines, targets
+
+        if screen == S_TRANSCRIPT:
+            if dirty or "_rendered_lines" not in frame:
+                s = ctx["session"]
+                turns = parse_session(s.path, s.kind)
+                rendered = render_turns(turns) or ["(empty transcript)"]
+                frame["_turns"] = turns
+                frame["_rendered_lines"] = rendered
+                frame["_dirty"] = False
+            return frame["_rendered_lines"], []
+
+        return ["(unknown screen)"], []
+
+    # -- rendering ----------------------------------------------------------
+
+    def _draw(self, frame, lines, targets):
+        scr = self.scr
+        scr.erase()
+        h, w = scr.getmaxyx()
+        if h < 3 or w < 20:
+            try:
+                scr.addstr(0, 0, "Terminal too small")
+            except self.curses.error:
+                pass
+            scr.refresh()
+            return
+        title = f" Tenacious viewer — {frame['screen']} "
+        try:
+            scr.addnstr(0, 0, title.ljust(w), w, self.curses.A_REVERSE)
+        except self.curses.error:
+            pass
+
+        body_h = h - 2
+        has_sel = bool(targets)
+        sel_off = frame.get("_sel_row_offset")
+        stride = frame.get("_sel_row_stride", 1)
+        block_starts = frame.get("_sel_block_starts")
+        block_lengths = frame.get("_sel_block_lengths")
+
+        sel_first = sel_last_excl = None  # exclusive end
+        if (has_sel and block_starts is not None
+                and block_lengths is not None):
+            sel = frame["sel"]
+            if 0 <= sel < len(block_starts):
+                sel_first = block_starts[sel]
+                sel_last_excl = sel_first + block_lengths[sel]
+        elif has_sel and sel_off is not None:
+            sel_first = sel_off + frame["sel"] * stride
+            sel_last_excl = sel_first + stride
+
+        if sel_first is not None and sel_last_excl is not None:
+            if sel_first < frame["scroll"]:
+                frame["scroll"] = sel_first
+            elif sel_last_excl - 1 >= frame["scroll"] + body_h:
+                frame["scroll"] = sel_last_excl - body_h
+
+        frame["scroll"] = max(0, min(frame["scroll"],
+                                     max(0, len(lines) - body_h)))
+
+        for i in range(body_h):
+            idx = frame["scroll"] + i
+            if idx >= len(lines):
+                break
+            text = lines[idx]
+            attr = 0
+            if (sel_first is not None and sel_last_excl is not None
+                    and sel_first <= idx < sel_last_excl):
+                attr = self.curses.A_REVERSE
+            try:
+                scr.addnstr(1 + i, 0, text.ljust(w)[:w], w, attr)
+            except self.curses.error:
+                pass
+
+        try:
+            scr.addnstr(h - 1, 0, _FOOTER.ljust(w), w,
+                        self.curses.A_REVERSE)
+        except self.curses.error:
+            pass
+        scr.refresh()
+
+    # -- main loop ----------------------------------------------------------
+
+    def loop(self):
+        curses = self.curses
+        while True:
+            frame = self.stack[-1]
+            lines, targets = self._load_lines(frame)
+            self._draw(frame, lines, targets)
+            # Only the runs-list screen auto-refreshes; every other screen
+            # keeps the historical blocking-getch behaviour so users
+            # reading a long transcript are not interrupted.
+            try:
+                self.scr.timeout(10000 if frame["screen"] == S_RUNS else -1)
+            except Exception:
+                pass
+            ch = self.scr.getch()
+            if ch == -1:
+                # auto-refresh tick: only the runs-list screen uses the
+                # timeout, so flag its cache stale for the next iteration.
+                if frame["screen"] == S_RUNS:
+                    frame["_dirty"] = True
+                continue
+
+            if ch in (ord("q"), ord("Q")):
+                raise _CleanExit
+            if ch in (curses.KEY_RESIZE,):
+                continue
+
+            h, _ = self.scr.getmaxyx()
+            body_h = max(1, h - 2)
+
+            if ch in (curses.KEY_DOWN, ord("j")):
+                if targets and len(targets) > 1:
+                    frame["sel"] = (frame["sel"] + 1) % len(targets)
+                else:
+                    frame["scroll"] += 1
+            elif ch in (curses.KEY_UP, ord("k")):
+                if targets and len(targets) > 1:
+                    frame["sel"] = (frame["sel"] - 1) % len(targets)
+                else:
+                    frame["scroll"] = max(0, frame["scroll"] - 1)
+            elif ch in (curses.KEY_NPAGE, ord(" ")):
+                frame["scroll"] += body_h
+            elif ch in (curses.KEY_PPAGE, ord("b")):
+                frame["scroll"] = max(0, frame["scroll"] - body_h)
+            elif ch in (ord("g"), curses.KEY_HOME):
+                frame["scroll"] = 0
+                frame["sel"] = 0
+            elif ch in (ord("G"), curses.KEY_END):
+                frame["scroll"] = max(0, len(lines) - body_h)
+                if targets:
+                    frame["sel"] = len(targets) - 1
+            elif ch in (ord("r"), ord("R")):
+                # Force a reload of whichever screen the user is on.
+                frame["_dirty"] = True
+            elif ch in (curses.KEY_ENTER, 10, 13, curses.KEY_RIGHT,
+                        ord("l")):
+                self._drill(frame, targets)
+            elif ch in (27, curses.KEY_LEFT, ord("h"),
+                        curses.KEY_BACKSPACE, 127, 8):
+                if len(self.stack) > 1:
+                    self.stack.pop()
+                    # Returning to a parent screen after drilling in is
+                    # the one place where data may have changed while
+                    # the user was away — force a fresh read.
+                    self.stack[-1]["_dirty"] = True
+                else:
+                    raise _CleanExit
+
+    def _drill(self, frame, targets):
+        if not targets:
+            return
+        tgt = targets[frame["sel"]]
+        screen = frame["screen"]
+        if screen == S_RUNS:
+            self.stack.append({
+                "screen": S_RUN, "sel": 0, "scroll": 0,
+                "ctx": {"run": tgt["run"]},
+                "_dirty": True,
+            })
+        elif screen == S_RUN:
+            self.stack.append({
+                "screen": S_STEP, "sel": 0, "scroll": 0,
+                "ctx": {"run": tgt["run"], "step": tgt["step"]},
+                "_dirty": True,
+            })
+        elif screen == S_STEP:
+            self.stack.append({
+                "screen": S_TRANSCRIPT, "sel": 0, "scroll": 0,
+                "ctx": {"run": tgt["run"], "step": tgt["step"],
+                        "session": tgt["session"]},
+                "_dirty": True,
+            })

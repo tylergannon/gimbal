@@ -1,0 +1,635 @@
+# Source path in pinned archive: tests/test_viewer_runs_enrichment.py
+# Archive member: diffusioninc-Tenacious-d3a4d7ff9f5445a42a7516eda845f8c58a531a45/tests/test_viewer_runs_enrichment.py
+
+"""Stdlib-only tests for tenacious/viewer/runs_enrich.py.
+
+Drives the real `collect_run_enrichment` + `render_runs_list_lines`
+against on-disk fixtures. Subprocess work that touches `git` uses real
+local git repos in temp directories; the timeout/failure path is
+exercised by monkeypatching `runs_enrich._run_git`.
+
+Run from the project root:
+
+    .venv/bin/python tests/test_viewer_runs_enrichment.py
+
+Prints `PASS <scenario>` per scenario, then
+`ALL PASS (<n> scenarios)`. Exit 0 if all pass; 1 with `FAIL ...` on
+the first failure.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+import time
+import traceback
+from pathlib import Path
+
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, _PROJECT_ROOT)
+
+from tenacious.viewer import runs_enrich  # noqa: E402
+
+
+# ----- helpers ---------------------------------------------------------------
+
+def _fresh_caches():
+    runs_enrich._GIT_CACHE.clear()
+    runs_enrich._PLAN_CACHE.clear()
+    runs_enrich._PATH_CACHE.clear()
+    runs_enrich._GIT_REPO_CACHE.clear()
+    runs_enrich._HEAD_SHA_CACHE.clear()
+
+
+def _mkhome() -> Path:
+    d = Path(tempfile.mkdtemp(prefix="tnc-enrich-"))
+    (d / "runs").mkdir(parents=True)
+    return d
+
+
+def _mkrun(home: Path, slug: str, *,
+           project_dir: str | None = "/nope") -> Path:
+    rd = home / "runs" / slug
+    (rd / "assets").mkdir(parents=True)
+    (rd / "goal.txt").write_text("g\n")
+    if project_dir is not None:
+        (rd / "project_dir.txt").write_text(project_dir + "\n")
+    return rd
+
+
+def _sidecar(rd: Path, status: str, *, pid: int | None = None,
+             started_at: float | None = None,
+             ended_at: float | None = None) -> None:
+    (rd / "run-state.json").write_text(json.dumps({
+        "pid": os.getpid() if pid is None else pid,
+        "status": status,
+        "workflow_source": None,
+        "started_at": started_at,
+        "ended_at": ended_at,
+    }))
+
+
+def _visit(rd: Path, step: str, visit: int, *,
+           duration_s: float | None = None) -> Path:
+    vdir = rd / step / f"{visit:03d}"
+    vdir.mkdir(parents=True, exist_ok=True)
+    if duration_s is not None:
+        (vdir / "meta.json").write_text(
+            json.dumps({"step": step, "visit": visit, "duration_s": duration_s}))
+    return vdir
+
+
+def _runlog(rd: Path, *, complete: bool) -> None:
+    txt = "[x] run created\n"
+    if complete:
+        txt += "[x] workflow complete (end)\n"
+    (rd / "run.log").write_text(txt)
+
+
+def _render(home: Path, now: float | None = None, width: int = 200) -> list[str]:
+    en = runs_enrich.collect_run_enrichment(home, now=now)
+    lines, _ = runs_enrich.render_runs_list_lines(en, 0, width, now=now)
+    return lines
+
+
+def _dead_pid() -> int:
+    """A PID that's almost certainly not in use right now."""
+    # The kernel won't assign 2^31-1 to a normal process.
+    for cand in (2**31 - 2, 2**31 - 3, 2**30, 2**29):
+        try:
+            os.kill(cand, 0)
+        except ProcessLookupError:
+            return cand
+        except (PermissionError, OSError):
+            continue
+    return 1  # last resort; init is almost always alive — caller's problem
+    # NOTE: real callers below use a freshly-created+reaped subprocess instead.
+
+
+def _reaped_pid() -> int:
+    """Spawn + immediately reap a tiny child, return its now-dead PID."""
+    proc = subprocess.Popen([sys.executable, "-c", "pass"])
+    proc.wait()
+    return proc.pid
+
+
+# ----- scenarios -------------------------------------------------------------
+
+def s_block_shape():
+    _fresh_caches()
+    home = _mkhome()
+    _mkrun(home, "20260101000000-001")
+    lines = _render(home)
+    assert len(lines) == 8, lines
+    assert lines[0].startswith("20260101000000-001"), lines[0]
+    assert lines[1].startswith("  project:"), lines[1]
+    assert lines[2].startswith("  TLDR:"), lines[2]
+    assert lines[3].startswith("  path:"), lines[3]
+    assert lines[4].startswith("  git:"), lines[4]
+    assert lines[5].startswith("  plan:"), lines[5]
+    assert lines[6].startswith("  cost:"), lines[6]
+    assert lines[7].startswith("  auth:"), lines[7]
+    shutil.rmtree(home, ignore_errors=True)
+
+
+_TS_RE = r"\d{4}/\d\d/\d\d  \d\d:\d\d:\d\d"
+_HEADER_RE = re.compile(
+    r"^\S+ · (ACTIVE|complete|ended " + _TS_RE + ") · "
+    r"started " + _TS_RE + r" · "
+    r"act " + _TS_RE + r" \([^)]+\)$")
+
+
+def s_header_format_active():
+    _fresh_caches()
+    home = _mkhome()
+    rd = _mkrun(home, "20260101000000-002")
+    _sidecar(rd, "active", pid=os.getpid(),
+             started_at=time.time() - 60)
+    lines = _render(home)
+    h = lines[0]
+    assert _HEADER_RE.match(h), repr(h)
+    assert " · ACTIVE · " in h, h
+    shutil.rmtree(home, ignore_errors=True)
+
+
+def s_header_format_complete():
+    _fresh_caches()
+    home = _mkhome()
+    rd = _mkrun(home, "20260101000000-003")
+    _runlog(rd, complete=True)
+    lines = _render(home)
+    h = lines[0]
+    assert _HEADER_RE.match(h), repr(h)
+    assert " · complete · " in h, h
+    shutil.rmtree(home, ignore_errors=True)
+
+
+def s_header_format_active_wins_over_complete():
+    _fresh_caches()
+    home = _mkhome()
+    rd = _mkrun(home, "20260101000000-004")
+    _sidecar(rd, "active", pid=os.getpid(),
+             started_at=time.time() - 60)
+    _runlog(rd, complete=True)  # marker present, but sidecar still active
+    lines = _render(home)
+    assert " · ACTIVE · " in lines[0], lines[0]
+    assert " · complete · " not in lines[0], lines[0]
+    shutil.rmtree(home, ignore_errors=True)
+
+
+def s_header_format_ended():
+    _fresh_caches()
+    home = _mkhome()
+    rd = _mkrun(home, "20260101000000-005")
+    now = time.time()
+    _sidecar(rd, "ended", pid=os.getpid(),
+             started_at=now - 7200, ended_at=now - 3600)
+    lines = _render(home, now=now)
+    h = lines[0]
+    assert " · ended " in h, h
+    from datetime import datetime
+    fmt = datetime.fromtimestamp(now - 3600).strftime("%Y/%m/%d  %H:%M:%S")
+    assert fmt in h, (fmt, h)
+    shutil.rmtree(home, ignore_errors=True)
+
+
+def s_active_pid_dead_is_ended():
+    _fresh_caches()
+    home = _mkhome()
+    rd = _mkrun(home, "20260101000000-006")
+    dead = _reaped_pid()
+    _sidecar(rd, "active", pid=dead,
+             started_at=time.time() - 60)
+    lines = _render(home)
+    h = lines[0]
+    assert " · ended " in h, h
+    shutil.rmtree(home, ignore_errors=True)
+
+
+def s_legacy_no_sidecar_is_ended():
+    _fresh_caches()
+    home = _mkhome()
+    _mkrun(home, "20260101000000-007")
+    lines = _render(home)
+    h = lines[0]
+    assert " · ended " in h, h
+    shutil.rmtree(home, ignore_errors=True)
+
+
+def s_sort_by_recency():
+    _fresh_caches()
+    home = _mkhome()
+    # Three runs; explicitly pin mtimes so the OLDEST-activity one is
+    # ACTIVE and the NEWEST-activity one is ENDED. The recency sort
+    # must put the newest (ended) one first regardless of ACTIVE state.
+    rda = _mkrun(home, "20260101000000-A")
+    _sidecar(rda, "active", pid=os.getpid(), started_at=1.0)
+    rdb = _mkrun(home, "20260101000000-B")  # legacy ended
+    rdc = _mkrun(home, "20260101000000-C")
+    _sidecar(rdc, "ended", pid=1, started_at=1.0, ended_at=2.0)
+    base = time.time()
+    # A oldest, B middle, C newest.
+    for slug, off in (("20260101000000-A", 300.0),
+                      ("20260101000000-B", 200.0),
+                      ("20260101000000-C", 100.0)):
+        rd = home / "runs" / slug
+        mt = base - off
+        for p in [rd, *rd.rglob("*")]:
+            os.utime(p, (mt, mt))
+    en = runs_enrich.collect_run_enrichment(home)
+    order = [(e.slug, e.active) for e in en]
+    assert order == [
+        ("20260101000000-C", False),
+        ("20260101000000-B", False),
+        ("20260101000000-A", True),
+    ], order
+    shutil.rmtree(home, ignore_errors=True)
+
+
+def s_project_row_home_abbrev():
+    _fresh_caches()
+    home = _mkhome()
+    proj = str(Path.home() / "dev" / "foo")
+    _mkrun(home, "20260101000000-PA", project_dir=proj)
+    lines = _render(home)
+    assert lines[1] == "  project: ~/dev/foo", repr(lines[1])
+    shutil.rmtree(home, ignore_errors=True)
+
+
+def s_project_row_unknown_fallback():
+    _fresh_caches()
+    home = _mkhome()
+    # No project_dir.txt at all => "(unknown)".
+    _mkrun(home, "20260101000000-PB", project_dir=None)
+    lines = _render(home)
+    assert lines[1] == "  project: (unknown)", repr(lines[1])
+    shutil.rmtree(home, ignore_errors=True)
+
+
+def s_path_row_segments_and_totals():
+    _fresh_caches()
+    home = _mkhome()
+    rd = _mkrun(home, "20260101000000-PV")
+    _visit(rd, "requirements", 1, duration_s=45)
+    _visit(rd, "requirements", 2, duration_s=145)
+    _visit(rd, "plan", 1)  # running (no meta.json duration)
+    lines = _render(home, width=200)
+    expected = ("  path:    requirements#1(45s) → "
+                "requirements#2(2m 25s) → "
+                "plan#1(running)   visits=3   wall=3m 10s")
+    assert lines[3] == expected, repr(lines[3])
+    shutil.rmtree(home, ignore_errors=True)
+
+
+def s_path_row_starting():
+    _fresh_caches()
+    home = _mkhome()
+    _mkrun(home, "20260101000000-PS")
+    lines = _render(home)
+    assert lines[3] == "  path:    (starting)", repr(lines[3])
+    shutil.rmtree(home, ignore_errors=True)
+
+
+def s_path_wrap_long_chain():
+    _fresh_caches()
+    home = _mkhome()
+    rd = _mkrun(home, "20260101000000-LONG")
+    for i in range(1, 31):
+        _visit(rd, "requirements", i, duration_s=5)
+    lines = _render(home, width=80)
+    # Block layout: header (line 0), project (1), TLDR (2),
+    # then one-or-more path lines, then git, then plan.
+    path_start = 3
+    path_end = path_start
+    while path_end < len(lines) and not lines[path_end].startswith("  git:"):
+        path_end += 1
+    path_lines = lines[path_start:path_end]
+    assert len(path_lines) >= 2, path_lines  # must wrap at width=80
+    assert path_lines[0].startswith("  path:    "), path_lines[0]
+    for cont in path_lines[1:]:
+        assert cont.startswith("           "), repr(cont)  # 11-space indent
+        assert not cont.startswith("  path:"), cont
+    blob = "".join(path_lines)
+    # Full visit history present, no ellipsis.
+    assert "…" not in blob, blob
+    for i in (1, 15, 30):
+        assert f"requirements#{i}(5s)" in blob, (i, blob)
+    # Trailer present, totals correct.
+    assert "visits=30" in blob and "wall=2m 30s" in blob, blob
+    shutil.rmtree(home, ignore_errors=True)
+
+
+def s_git_na_no_project():
+    _fresh_caches()
+    home = _mkhome()
+    rd = _mkrun(home, "20260101000000-GN",
+                project_dir="/this/path/does/not/exist/anywhere")
+    _sidecar(rd, "ended", pid=1, started_at=time.time() - 3600,
+             ended_at=time.time())
+    lines = _render(home)
+    assert lines[4] == "  git:     n/a", repr(lines[4])
+    shutil.rmtree(home, ignore_errors=True)
+
+
+def s_git_na_not_a_repo():
+    _fresh_caches()
+    home = _mkhome()
+    proj = tempfile.mkdtemp(prefix="tnc-norepo-")
+    try:
+        rd = _mkrun(home, "20260101000000-NR", project_dir=proj)
+        _sidecar(rd, "ended", pid=1, started_at=time.time() - 3600,
+                 ended_at=time.time())
+        lines = _render(home)
+        assert lines[4] == "  git:     n/a", repr(lines[4])
+    finally:
+        shutil.rmtree(home, ignore_errors=True)
+        shutil.rmtree(proj, ignore_errors=True)
+
+
+def _init_repo(path: str) -> None:
+    """Initialize a git repo with an isolated config (no global hooks)."""
+    subprocess.check_call(["git", "init", "-q", path])
+    subprocess.check_call(
+        ["git", "-C", path, "config", "user.email", "t@t"])
+    subprocess.check_call(
+        ["git", "-C", path, "config", "user.name", "t"])
+    subprocess.check_call(
+        ["git", "-C", path, "config", "commit.gpgsign", "false"])
+
+
+def _commit(path: str, msg: str) -> int:
+    subprocess.check_call(
+        ["git", "-C", path, "commit", "--allow-empty", "-q", "-m", msg])
+    out = subprocess.check_output(
+        ["git", "-C", path, "log", "-1", "--format=%ct"], text=True).strip()
+    return int(out)
+
+
+def s_git_counts_after_start():
+    _fresh_caches()
+    home = _mkhome()
+    proj = tempfile.mkdtemp(prefix="tnc-repo-")
+    try:
+        _init_repo(proj)
+        ct = _commit(proj, "c1")
+        started = ct - 60  # started_at 60s before the commit
+        rd = _mkrun(home, "20260101000000-GC", project_dir=proj)
+        _sidecar(rd, "ended", pid=1, started_at=started, ended_at=ct + 1)
+        lines = _render(home)
+        row = lines[4]
+        assert re.match(
+            r"^  git:     1 commits since start; last \d+\w+$", row), \
+            repr(row)
+        assert "(pre-run)" not in row, row
+    finally:
+        shutil.rmtree(home, ignore_errors=True)
+        shutil.rmtree(proj, ignore_errors=True)
+
+
+def s_git_pre_run_tag():
+    _fresh_caches()
+    home = _mkhome()
+    proj = tempfile.mkdtemp(prefix="tnc-repo-")
+    try:
+        _init_repo(proj)
+        ct = _commit(proj, "c1")
+        started = ct + 60  # commit BEFORE started_at
+        rd = _mkrun(home, "20260101000000-GP", project_dir=proj)
+        _sidecar(rd, "ended", pid=1, started_at=started, ended_at=started + 1)
+        lines = _render(home)
+        row = lines[4]
+        assert row.endswith(" (pre-run)"), repr(row)
+    finally:
+        shutil.rmtree(home, ignore_errors=True)
+        shutil.rmtree(proj, ignore_errors=True)
+
+
+def s_git_timeout_safe():
+    _fresh_caches()
+    home = _mkhome()
+    proj = tempfile.mkdtemp(prefix="tnc-repo-")
+    real = runs_enrich._run_git
+    try:
+        _init_repo(proj)
+        _commit(proj, "c1")
+        rd = _mkrun(home, "20260101000000-GT", project_dir=proj)
+        _sidecar(rd, "ended", pid=1, started_at=time.time() - 3600,
+                 ended_at=time.time())
+
+        def boom(args, timeout_s=2.0):
+            return None
+        runs_enrich._run_git = boom
+        lines = _render(home)
+        assert lines[4] == "  git:     n/a", repr(lines[4])
+    finally:
+        runs_enrich._run_git = real
+        shutil.rmtree(home, ignore_errors=True)
+        shutil.rmtree(proj, ignore_errors=True)
+
+
+def s_plan_counts_basic():
+    _fresh_caches()
+    home = _mkhome()
+    rd = _mkrun(home, "20260101000000-PC")
+    plan = rd / "assets" / "plan-current.md"
+    body = (
+        "# Plan\n"
+        "- [x] one\n"
+        "- [X] two\n"
+        "- [x] three\n"
+        "- [x] four\n"
+        "- [x] five\n"
+        "- [x] six\n"
+        "- [x] seven\n"
+        "- [ ] eight\n"
+        "- [ ] nine\n"
+        "- [ ] ten\n"
+        "- [ ] eleven\n"
+        "- [ ] twelve\n"
+    )
+    plan.write_text(body)
+    lines = _render(home)
+    row = lines[5]
+    assert re.match(
+        r"^  plan:    7/12 checked; last toggled \d+\w+$", row), \
+        repr(row)
+    shutil.rmtree(home, ignore_errors=True)
+
+
+def s_plan_no_toggles_yet():
+    _fresh_caches()
+    home = _mkhome()
+    rd = _mkrun(home, "20260101000000-PN")
+    plan = rd / "assets" / "plan-current.md"
+    body = "- [ ] one\n- [ ] two\n- [ ] three\n- [ ] four\n- [ ] five\n"
+    plan.write_text(body)
+    lines = _render(home)
+    assert lines[5].endswith("last toggled —"), repr(lines[5])
+    assert "0/5" in lines[5], repr(lines[5])
+    shutil.rmtree(home, ignore_errors=True)
+
+
+def s_plan_na_missing_file():
+    _fresh_caches()
+    home = _mkhome()
+    _mkrun(home, "20260101000000-PM")
+    lines = _render(home)
+    assert lines[5] == "  plan:    n/a", repr(lines[5])
+    shutil.rmtree(home, ignore_errors=True)
+
+
+def s_plan_na_narrative_file():
+    _fresh_caches()
+    home = _mkhome()
+    rd = _mkrun(home, "20260101000000-PNR")
+    (rd / "assets" / "plan-current.md").write_text(
+        "Narrative plan, no checkboxes at all.\n")
+    lines = _render(home)
+    assert lines[5] == "  plan:    n/a", repr(lines[5])
+    shutil.rmtree(home, ignore_errors=True)
+
+
+def s_render_zero_runs():
+    _fresh_caches()
+    home = _mkhome()
+    lines = _render(home)
+    assert lines == [], lines
+    shutil.rmtree(home, ignore_errors=True)
+
+
+def s_cache_hits_avoid_git():
+    _fresh_caches()
+    home = _mkhome()
+    proj = tempfile.mkdtemp(prefix="tnc-repo-")
+    real = runs_enrich._run_git
+    calls = []
+
+    def counting(args, timeout_s=2.0):
+        calls.append(tuple(args))
+        return real(args, timeout_s)
+    try:
+        _init_repo(proj)
+        _commit(proj, "c1")
+        rd = _mkrun(home, "20260101000000-CG", project_dir=proj)
+        _sidecar(rd, "ended", pid=1, started_at=time.time() - 3600,
+                 ended_at=time.time())
+
+        runs_enrich._run_git = counting
+        runs_enrich.collect_run_enrichment(home)
+        first = len(calls)
+        # rev-list --count and log -1 --format=%ct must each be called once
+        # on the first tick (in addition to rev-parse --git-dir + rev-parse HEAD).
+        rev_list_calls_1 = sum(1 for a in calls if "rev-list" in a)
+        log_calls_1 = sum(1 for a in calls if "log" in a and "-1" in a)
+        assert rev_list_calls_1 == 1, calls
+        assert log_calls_1 == 1, calls
+
+        # Second tick: no state change. rev-list and log should NOT be
+        # called again. rev-parse HEAD may be called once (per-tick memo).
+        runs_enrich.collect_run_enrichment(home)
+        rev_list_calls_2 = sum(1 for a in calls if "rev-list" in a)
+        log_calls_2 = sum(1 for a in calls if "log" in a and "-1" in a)
+        assert rev_list_calls_2 == rev_list_calls_1, (
+            "rev-list called twice across ticks with no HEAD change",
+            calls)
+        assert log_calls_2 == log_calls_1, (
+            "log -1 called twice across ticks with no HEAD change",
+            calls)
+
+        # Now move HEAD: cache must invalidate cleanly.
+        _commit(proj, "c2")
+        en = runs_enrich.collect_run_enrichment(home)
+        assert en[0].git.commits_since_start == 2, en[0].git
+    finally:
+        runs_enrich._run_git = real
+        shutil.rmtree(home, ignore_errors=True)
+        shutil.rmtree(proj, ignore_errors=True)
+
+
+def s_path_cache_invalidates_on_new_visit():
+    _fresh_caches()
+    home = _mkhome()
+    rd = _mkrun(home, "20260101000000-PCI")
+    _visit(rd, "requirements", 1, duration_s=5)
+    _visit(rd, "requirements", 2, duration_s=5)
+    en1 = runs_enrich.collect_run_enrichment(home)
+    assert en1[0].visits_total == 2, en1[0].visits_total
+    # Add a third visit and bump the step dir's mtime so the cache
+    # invalidator triggers even on coarse-resolution filesystems.
+    time.sleep(0.05)
+    _visit(rd, "requirements", 3, duration_s=5)
+    os.utime(rd / "requirements", None)
+    en2 = runs_enrich.collect_run_enrichment(home)
+    assert en2[0].visits_total == 3, en2[0].visits_total
+    shutil.rmtree(home, ignore_errors=True)
+
+
+def s_status_refresh_not_cached():
+    _fresh_caches()
+    home = _mkhome()
+    rd = _mkrun(home, "20260101000000-SR")
+    _sidecar(rd, "active", pid=os.getpid(),
+             started_at=time.time() - 60)
+    en = runs_enrich.collect_run_enrichment(home)
+    assert en[0].status_text == "ACTIVE", en[0].status_text
+    # Flip the sidecar to ended.
+    _sidecar(rd, "ended", pid=os.getpid(),
+             started_at=time.time() - 60, ended_at=time.time())
+    en = runs_enrich.collect_run_enrichment(home)
+    assert en[0].status_text.startswith("ended "), en[0].status_text
+    shutil.rmtree(home, ignore_errors=True)
+
+
+SCENARIOS = [
+    ("block_shape", s_block_shape),
+    ("header_format_active", s_header_format_active),
+    ("header_format_complete", s_header_format_complete),
+    ("header_format_active_wins_over_complete",
+     s_header_format_active_wins_over_complete),
+    ("header_format_ended", s_header_format_ended),
+    ("active_pid_dead_is_ended", s_active_pid_dead_is_ended),
+    ("legacy_no_sidecar_is_ended", s_legacy_no_sidecar_is_ended),
+    ("sort_by_recency", s_sort_by_recency),
+    ("project_row_home_abbrev", s_project_row_home_abbrev),
+    ("project_row_unknown_fallback", s_project_row_unknown_fallback),
+    ("path_row_segments_and_totals", s_path_row_segments_and_totals),
+    ("path_row_starting", s_path_row_starting),
+    ("path_wrap_long_chain", s_path_wrap_long_chain),
+    ("git_na_no_project", s_git_na_no_project),
+    ("git_na_not_a_repo", s_git_na_not_a_repo),
+    ("git_counts_after_start", s_git_counts_after_start),
+    ("git_pre_run_tag", s_git_pre_run_tag),
+    ("git_timeout_safe", s_git_timeout_safe),
+    ("plan_counts_basic", s_plan_counts_basic),
+    ("plan_no_toggles_yet", s_plan_no_toggles_yet),
+    ("plan_na_missing_file", s_plan_na_missing_file),
+    ("plan_na_narrative_file", s_plan_na_narrative_file),
+    ("render_zero_runs", s_render_zero_runs),
+    ("cache_hits_avoid_git", s_cache_hits_avoid_git),
+    ("path_cache_invalidates_on_new_visit",
+     s_path_cache_invalidates_on_new_visit),
+    ("status_refresh_not_cached", s_status_refresh_not_cached),
+]
+
+
+def main() -> int:
+    for name, fn in SCENARIOS:
+        try:
+            fn()
+        except Exception as e:  # noqa: BLE001
+            print(f"FAIL {name}: {e}")
+            traceback.print_exc()
+            return 1
+        print(f"PASS {name}")
+    print(f"ALL PASS ({len(SCENARIOS)} scenarios)")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

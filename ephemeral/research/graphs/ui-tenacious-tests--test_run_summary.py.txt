@@ -1,0 +1,199 @@
+# Source path in pinned archive: tests/test_run_summary.py
+# Archive member: diffusioninc-Tenacious-d3a4d7ff9f5445a42a7516eda845f8c58a531a45/tests/test_run_summary.py
+
+"""Unit tests for the run-list summary fallback chain (model layer).
+
+Stdlib only. Builds self-contained temp run dirs and asserts
+`model._run_info(run_dir).summary` (and `model.list_runs`) for every
+branch of the strict fallback chain:
+
+  TLDR.md (non-empty) -> requirements-current.md
+                       -> highest requirements-NNNN.md -> "".
+
+Run from the project root:
+
+    .venv/bin/python tests/test_run_summary.py
+
+Prints `PASS <scenario>` per scenario, then `ALL PASS (<n>)`. Exits 0 if
+all pass; 1 with `FAIL <scenario>: <detail>` on first failure.
+"""
+
+from __future__ import annotations
+
+import os
+import shutil
+import sys
+import tempfile
+import traceback
+from pathlib import Path
+
+# Make `tenacious` importable when run as `python tests/test_run_summary.py`.
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, _PROJECT_ROOT)
+
+from tenacious.viewer import model  # noqa: E402
+
+
+# ----- helpers ---------------------------------------------------------------
+
+class RunBuilder:
+    """A temp TENACIOUS_HOME with one run dir under runs/<slug>/."""
+
+    def __init__(self, slug: str = "20260518103511-001"):
+        self.home = Path(tempfile.mkdtemp(prefix="tnc-summary-"))
+        self.slug = slug
+        self.run_dir = self.home / "runs" / slug
+        self.assets = self.run_dir / "assets"
+        self.run_dir.mkdir(parents=True)
+
+    def goal(self, text: str) -> "RunBuilder":
+        (self.run_dir / "goal.txt").write_text(text)
+        return self
+
+    def asset(self, name: str, text: str) -> "RunBuilder":
+        self.assets.mkdir(parents=True, exist_ok=True)
+        (self.assets / name).write_text(text)
+        return self
+
+    def info(self) -> model.RunInfo:
+        return model._run_info(self.run_dir)
+
+    def cleanup(self) -> None:
+        shutil.rmtree(self.home, ignore_errors=True)
+
+
+def _check(name, fn):
+    rb = RunBuilder()
+    try:
+        fn(rb)
+    finally:
+        rb.cleanup()
+
+
+# ----- scenarios -------------------------------------------------------------
+
+def s_tldr_wins_over_requirements(rb: RunBuilder):
+    rb.goal("the goal text")
+    rb.asset("TLDR.md", "This session builds the viewer.")
+    rb.asset("requirements-current.md", "# Requirements\n\nlots of text here")
+    assert rb.info().summary == "This session builds the viewer.", \
+        rb.info().summary
+
+
+def s_whitespace_tldr_falls_through(rb: RunBuilder):
+    rb.asset("TLDR.md", "   \n\t  \n")
+    rb.asset("requirements-current.md", "Requirements body wins now")
+    assert rb.info().summary == "Requirements body wins now", \
+        rb.info().summary
+
+
+def s_requirements_current_used(rb: RunBuilder):
+    body = "# Requirements - Round 1\n\nDo the thing.\nAnd the other thing."
+    rb.asset("requirements-current.md", body)
+    expected = " ".join(body.split())
+    assert rb.info().summary == expected, rb.info().summary
+
+
+def s_newest_numbered_requirements(rb: RunBuilder):
+    rb.asset("requirements-0001.md", "OLD round one content")
+    rb.asset("requirements-0002.md", "NEW round two content")
+    # A non-4-digit name must be excluded by _newest_requirements.
+    rb.asset("requirements-99.md", "should be ignored")
+    s = rb.info().summary
+    assert s == "NEW round two content", s
+    # Direct helper assertions on the digit/length filter.
+    newest = model._newest_requirements(rb.assets)
+    assert newest is not None and newest.name == "requirements-0002.md", newest
+
+
+def s_no_assets_dir_blank(rb: RunBuilder):
+    # No assets/ dir at all.
+    assert not rb.assets.exists()
+    assert rb.info().summary == "", repr(rb.info().summary)
+
+
+def s_empty_assets_blank(rb: RunBuilder):
+    rb.assets.mkdir(parents=True)
+    assert rb.info().summary == "", repr(rb.info().summary)
+
+
+def s_blank_requirements_blank(rb: RunBuilder):
+    rb.asset("requirements-current.md", "   \n\n\t")
+    assert rb.info().summary == "", repr(rb.info().summary)
+
+
+def s_normalization(rb: RunBuilder):
+    rb.asset("TLDR.md", "  leading\tand\n\n  internal   runs\nof   ws  ")
+    assert rb.info().summary == "leading and internal runs of ws", \
+        repr(rb.info().summary)
+
+
+def s_truncation_boundary(rb: RunBuilder):
+    assert model._SUMMARY_TRUNC == 200, model._SUMMARY_TRUNC
+
+    exactly = "a" * 200
+    rb.asset("TLDR.md", exactly)
+    s200 = rb.info().summary
+    assert s200 == exactly and len(s200) == 200 and "…" not in s200, \
+        (len(s200), "…" in s200)
+
+    rb2 = RunBuilder(slug="20260518103511-002")
+    try:
+        over = "b" * 201
+        rb2.asset("TLDR.md", over)
+        s201 = rb2.info().summary
+        assert s201 == "b" * 200 + "…", repr(s201[-5:])
+        assert len(s201) == 201, len(s201)  # 200 chars + single ellipsis
+    finally:
+        rb2.cleanup()
+
+
+def s_runinfo_shape_and_goal_unchanged(rb: RunBuilder):
+    rb.goal("Iterative goal line\nsecond line")
+    rb.asset("TLDR.md", "summary cell value")
+    info = rb.info()
+    assert hasattr(info, "summary"), "RunInfo missing .summary"
+    assert info.summary == "summary cell value", info.summary
+    # goal / goal_full still derived from goal.txt, unaffected by summary.
+    assert info.goal_full == "Iterative goal line\nsecond line", info.goal_full
+    assert info.goal == "Iterative goal line second line", info.goal
+
+
+def s_list_runs_populates_summary(rb: RunBuilder):
+    rb.asset("TLDR.md", "list_runs summary works")
+    runs = model.list_runs(rb.home)
+    assert len(runs) == 1, len(runs)
+    assert runs[0].summary == "list_runs summary works", runs[0].summary
+
+
+SCENARIOS = [
+    ("tldr_wins_over_requirements", s_tldr_wins_over_requirements),
+    ("whitespace_tldr_falls_through", s_whitespace_tldr_falls_through),
+    ("requirements_current_used", s_requirements_current_used),
+    ("newest_numbered_requirements", s_newest_numbered_requirements),
+    ("no_assets_dir_blank", s_no_assets_dir_blank),
+    ("empty_assets_blank", s_empty_assets_blank),
+    ("blank_requirements_blank", s_blank_requirements_blank),
+    ("normalization", s_normalization),
+    ("truncation_boundary", s_truncation_boundary),
+    ("runinfo_shape_and_goal_unchanged", s_runinfo_shape_and_goal_unchanged),
+    ("list_runs_populates_summary", s_list_runs_populates_summary),
+]
+
+
+def main() -> int:
+    for name, fn in SCENARIOS:
+        try:
+            _check(name, fn)
+        except Exception as e:  # noqa: BLE001
+            print(f"FAIL {name}: {e}")
+            traceback.print_exc()
+            return 1
+        print(f"PASS {name}")
+    print(f"ALL PASS ({len(SCENARIOS)})")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

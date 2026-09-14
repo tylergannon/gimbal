@@ -1,0 +1,255 @@
+# Source path in pinned archive: workflows/6step-goal-only.yaml
+# Archive member: diffusioninc-Tenacious-d3a4d7ff9f5445a42a7516eda845f8c58a531a45/workflows/6step-goal-only.yaml
+
+goal: ''
+project_dir: /Users/johntokash/dev/Tenacious
+start_step: plan
+steps:
+  plan:
+    agent: claude
+    model: claude-opus-4-7
+    context: empty
+    asset_slugs: []
+    next_steps:
+    - plan_eval
+    assets:
+    - plan
+    prompt: "Goal: {goal}\n\nYou are the PLANNING step. In this variant of the workflow\
+      \ there is NO separate requirements step and NO requirements asset; the goal\
+      \ above IS this round's requirements. Plan strictly to that goal.\n\nThe deliverable\
+      \ is built in the PROJECT directory: {project_dir}. Produce a concrete, step-by-step\
+      \ implementation plan that delivers exactly what the goal asks for and nothing\
+      \ else. It must include: the files to create or modify (as paths under {project_dir}),\
+      \ the exact CLI contract (how it is invoked and the exact expected stdout/stderr/exit\
+      \ behavior), and how the implementation will be verified by actually running\
+      \ it.\n\nDetermine the current round number N = the highest NNNN among files\
+      \ named plan-NNNN.md in {assets_dir}, plus 1 if no plan-NNNN.md exists yet for\
+      \ the current round. Write the SAME plan Markdown, identical content, to BOTH\
+      \ (N zero-padded to 4 digits):\n  {assets_dir}/plan-NNNN.md   (the permanent\
+      \ per-round record)\n  {assets_dir}/plan-current.md (the stable handle later\
+      \ steps read)\n\nAdditionally, write/refresh {assets_dir}/TLDR.md containing\
+      \ a single short human-readable paragraph (at most 200 characters recommended)\
+      \ that, in plain language, describes what this overall session is for (the session\
+      \ goal). This file is consumed by the run viewer's run-list summary; it is the\
+      \ only extra output beyond the plan documents.\n\nPER-CHANGE VALIDATION CONTRACT\
+      \ (permanent, applies to EVERY plan including this one): for each individual\
+      \ change the plan proposes (each file/behavior change), the plan MUST enumerate\
+      \ concrete per-change validation steps - the exact command(s) to run and the\
+      \ exact expected observable result that proves that specific change works. Group\
+      \ them so it is unambiguous which change each validation step verifies. The\
+      \ downstream code review/test step is responsible for executing every one of\
+      \ these per-change validation steps and reporting each result, so they must\
+      \ be concrete and runnable as written.\n\nThen write the literal text 'plan_eval'\
+      \ to {outcome_path}. Do not write the implementation in this step."
+  plan_eval:
+    agent: codex
+    model: gpt-5.4
+    context: empty
+    asset_slugs:
+    - plan-current.md
+    next_steps:
+    - plan_update
+    assets:
+    - plan-feedback
+    prompt: "Goal: {goal}\n\nYou are the PLAN EVALUATION step. In this variant of\
+      \ the workflow there is NO separate requirements step and NO requirements asset;\
+      \ the goal above IS this round's requirements. One asset is attached below:\
+      \ plan-current.md (a proposed implementation plan).\n\nCritically evaluate whether\
+      \ the plan correctly and completely satisfies the goal above, respects any boundaries\
+      \ the goal calls out, and is technically sound. Call out gaps, ambiguities,\
+      \ risks, over-engineering, and any missing verification that would let the implementation\
+      \ fail the goal. Be specific and actionable; prioritize what actually matters\
+      \ for meeting this round's goal.\n\nDetermine the current round number N = the\
+      \ highest NNNN among files named plan-NNNN.md in {assets_dir}. Write the SAME\
+      \ evaluation Markdown, identical content, to BOTH (N zero-padded to 4 digits):\n\
+      \  {assets_dir}/plan-feedback-NNNN.md   (the permanent per-round record)\n \
+      \ {assets_dir}/plan-feedback-current.md (the stable handle later steps read)\n\
+      \nThen write the literal text 'plan_update' to {outcome_path}. Do not modify\
+      \ the plan and do not write code in this step."
+  plan_update:
+    agent: claude
+    model: claude-opus-4-7
+    context: empty
+    asset_slugs:
+    - plan-current.md
+    - plan-feedback-current.md
+    next_steps:
+    - code
+    assets:
+    - plan-revised
+    prompt: "Goal: {goal}\n\nYou are the PLAN UPDATE step. In this variant of the\
+      \ workflow there is NO separate requirements step and NO requirements asset;\
+      \ the goal above IS this round's requirements. Two assets are attached: plan-current.md\
+      \ (the current plan) and plan-feedback-current.md (an independent reviewer's\
+      \ evaluation).\n\nWeigh the feedback against the goal. Incorporate every point\
+      \ you judge important for correctly and minimally meeting the goal above. You\
+      \ may reject points that are out of scope or gold-plating - if you reject anything,\
+      \ add a short '## Rejected feedback' note explaining what and why.\n\nDetermine\
+      \ the current round number N = the highest NNNN among files named plan-NNNN.md\
+      \ in {assets_dir}. Write the revised plan (N zero-padded to 4 digits) to BOTH:\n\
+      \  {assets_dir}/plan-revised-NNNN.md  (permanent record; this keeps the pre-feedback\
+      \ plan-NNNN.md intact separately)\n  {assets_dir}/plan-current.md       (overwrite;\
+      \ this is the plan the coder will use)\n\nThen write the literal text 'code'\
+      \ to {outcome_path}. Do not write the implementation in this step."
+  code:
+    agent: claude
+    model: claude-opus-4-7
+    context: empty
+    asset_slugs:
+    - plan-current.md
+    - code-feedback-current.md
+    next_steps:
+    - code_review
+    assets:
+    - code-notes
+    prompt: "Goal: {goal}\n\nYou are the CODING step. In this variant of the workflow\
+      \ there is NO separate requirements step and NO requirements asset; the goal\
+      \ above IS this round's requirements. Attached assets: plan-current.md. code-feedback-current.md\
+      \ is also attached; if it is present and is NOT just the single line '(no outstanding\
+      \ feedback)', you MUST address every point in it.\n\nImplement exactly the in-scope\
+      \ work for this round in the PROJECT directory: {project_dir}. All code and\
+      \ deliverable files MUST be created under {project_dir} (this is also your working\
+      \ directory) - never write code into the assets dir.\n\nWORKTREE: If plan-current.md\
+      \ requires development in a dedicated git worktree (a separate directory on\
+      \ a dedicated branch), then THAT worktree is the effective project directory\
+      \ for this round: create it if it is missing (per the path/branch the plan names,\
+      \ e.g. `git -C {project_dir} worktree add -b <branch> <worktree-dir> main`),\
+      \ and create, modify, and run ALL code there instead of directly in {project_dir}.\
+      \ Commit on the dedicated branch. Treating the mandated worktree as the project\
+      \ directory fully satisfies the in-scope location constraint.\n\nThen ACTUALLY\
+      \ RUN the program from the effective project directory (the mandated worktree\
+      \ if any, else {project_dir}) to verify it: execute the commands the goal specifies\
+      \ and confirm the real output matches. Keep fixing and re-running until it genuinely\
+      \ works. Do not assume or fabricate output - run it for real.\n\nFULL TEST SUITE\
+      \ (MANDATORY): Before you write the outcome, you MUST run the project's ENTIRE\
+      \ test suite from the effective project directory and confirm it passes cleanly.\
+      \ Discover the test runner from the project (e.g. pytest, npm test, go test\
+      \ ./..., cargo test) - do not skip, deselect, mark xfail, comment out, or otherwise\
+      \ narrow the suite. If any test fails, fix the cause (preferring fixes to the\
+      \ implementation over fixes to the test) and re-run until the full suite is\
+      \ green. You are FORBIDDEN from deleting, skipping, or weakening any existing\
+      \ test unless the current round's plan-current.md explicitly calls for that\
+      \ specific change. Capture the exact command(s) you ran and their summary output\
+      \ in your code-notes file.\n\nDetermine the current round number N = the highest\
+      \ NNNN among files named plan-NNNN.md in {assets_dir}. Write a short note (what\
+      \ you changed and the exact commands you ran with their real observed output),\
+      \ identical content, to BOTH (N zero-padded to 4 digits):\n  {assets_dir}/code-notes-NNNN.md\n\
+      \  {assets_dir}/code-notes-current.md\n\nThen write the literal text 'code_review'\
+      \ to {outcome_path}.\n\nUNATTENDED EXECUTION: This step runs fully unattended\
+      \ with no human present and no interactive terminal. You must never block on\
+      \ terminal input. Never launch a process that waits for terminal input without\
+      \ supplying that input via scripted stdin (printf, heredoc, expect, etc.). Always\
+      \ pass non-interactive flags (--no-input, --non-interactive, -y, and the like)\
+      \ when a command supports them. Never open /dev/tty directly without a pty-safe\
+      \ fallback, and do not rely on interactive terminal features. Ensure every child\
+      \ process you start is explicitly waited on or killed before this step writes\
+      \ its outcome and exits."
+  code_review:
+    agent: codex
+    model: gpt-5.4
+    context: empty
+    asset_slugs:
+    - plan-current.md
+    next_steps:
+    - code
+    - end
+    assets:
+    - status-update
+    - code-feedback
+    prompt: "Goal: {goal}\n\nYou are the CODE REVIEW + TEST step. In this variant\
+      \ of the workflow there is NO separate requirements step and NO requirements\
+      \ asset; the goal above IS this round's requirements. Attached: plan-current.md.\
+      \ The implementation is in the PROJECT directory: {project_dir}.\n\nWORKTREE:\
+      \ If plan-current.md specifies a dedicated git worktree (a separate directory\
+      \ on a dedicated branch) as this round's development location, the implementation\
+      \ lives THERE. In that case `cd` into that worktree and run/verify the program\
+      \ from it using that worktree's interpreter, instead of {project_dir}. Do NOT\
+      \ fail the round merely because the same code also exists in {project_dir} (a\
+      \ prior remediation may have landed it there) or because `git diff` between\
+      \ the branch and the live tree is empty - judge pass/fail strictly on the program's\
+      \ real observed behavior in the mandated worktree.\n\nDo both of these:\n  1.\
+      \ RUN the program yourself from the effective project directory (the mandated\
+      \ worktree if any, else {project_dir}): execute the commands the goal specifies,\
+      \ including any edge cases the goal calls out, and verify the actual observed\
+      \ output is correct.\n  2. Code-review the implementation for correctness, clarity,\
+      \ and adherence to THIS round's goal.\n\nPER-CHANGE VALIDATION CONTRACT (permanent):\
+      \ plan-current.md enumerates concrete per-change validation steps for every\
+      \ change it proposed. You MUST execute every one of those per-change validation\
+      \ steps exactly as written and report each result (pass/fail with the real observed\
+      \ output). Any per-change validation step that fails, or that the plan omitted\
+      \ for a change it made, is a CRITICAL failure and must send the round back to\
+      \ the coder.\n\nFULL TEST SUITE (MANDATORY): Independently RUN the project's\
+      \ ENTIRE test suite yourself from the effective project directory (do not just\
+      \ trust the coder's notes). Discover the test runner from the project (e.g.\
+      \ pytest, npm test, go test ./..., cargo test). Any failure, error, or unexpected\
+      \ skip is a CRITICAL failure and must send the round back to the coder. Report\
+      \ the exact command(s) you ran and the summary result.\n\nTEST INTEGRITY GUARDRAIL\
+      \ (MANDATORY): Inspect the diff for the round to confirm the coder has not removed,\
+      \ skipped, deselected, marked xfail/xskip, commented out, or otherwise weakened\
+      \ any existing test, AND has not loosened assertions in a way that hides real\
+      \ failures. Use `git diff` (or `git log -p` for the round's commits) against\
+      \ the round's starting commit, and look specifically at test files and at any\
+      \ pytest/jest/etc. configuration that controls test selection. The ONLY acceptable\
+      \ cause for test removal/weakening is an EXPLICIT instruction in the current\
+      \ round's plan-current.md naming that specific change; anything else is sabotage\
+      \ and is a CRITICAL failure that must send the round back to the coder with\
+      \ clear instructions to restore the affected tests. Report what you inspected\
+      \ and your verdict.\n\nDESTRUCTIVE-REVERT GUARDRAIL: When recommending that\
+      \ the coder revert a project file, NEVER instruct `git checkout HEAD -- <path>`\
+      \ or `git reset --hard` on a file whose pre-step working-tree content differs\
+      \ from HEAD without explicitly calling out that the working tree had uncommitted\
+      \ changes and that those changes would be destroyed by the checkout. Prefer\
+      \ to frame revert recommendations as \"restore the file to its pre-step content\"\
+      \ rather than \"checkout HEAD\". To establish the pre-step baseline, look at\
+      \ the coding agent's first `Read` of the file in its session jsonl transcript\
+      \ (under {run_root}/profiles/code/projects/*/*.jsonl) rather than `git diff\
+      \ HEAD`, because HEAD may not match what was in the working tree when the coder\
+      \ began. The sentinel phrase for this rule is \"DESTRUCTIVE-REVERT GUARDRAIL\"\
+      .\n\nDetermine the current round number N = the highest NNNN among files named\
+      \ plan-NNNN.md in {assets_dir} (N zero-padded to 4 digits). Then decide, based\
+      \ strictly on the program's real observed behavior:\n  - If something is CRITICALLY\
+      \ wrong (does not meet the goal, crashes, or produces wrong output): write specific,\
+      \ actionable code-review and testing feedback, identical content, to BOTH {assets_dir}/code-feedback-NNNN.md\
+      \ and {assets_dir}/code-feedback-current.md, and write the literal text 'code'\
+      \ to {outcome_path} to send it back to the coder.\n  - If it correctly meets\
+      \ THIS round's goal: write a status update describing exactly what was completed\
+      \ and verified this round, identical content, to BOTH {assets_dir}/status-update-NNNN.md\
+      \ and {assets_dir}/status-update-current.md; AND overwrite {assets_dir}/code-feedback-current.md\
+      \ with the single line: (no outstanding feedback) . Then write the literal text\
+      \ 'end' to {outcome_path} to finish the run.\n\nBase the decision strictly on\
+      \ actually running the program, not on reading it alone."
+  health_monitor:
+    agent: claude
+    model: claude-opus-4-7
+    context: empty
+    asset_slugs: []
+    next_steps:
+    - monitor_done
+    questions: false
+    prompt: "You are the SESSION HEALTH MONITOR for run {run_slug}. Goal of this run:\
+      \ {goal}\n\nYou run OUT-OF-BAND on a timer, separate from the normal step flow,\
+      \ and you are STRICTLY REPORT-ONLY: you must never pause, abort, retry, or intervene\
+      \ in the run; you must never modify run state, never edit project code, and\
+      \ never touch other steps outcome.txt files.\n\nInspect the health of this run:\n\
+      \  1. The orchestrator log at {run_root}/run.log .\n  2. Telemetry and visit\
+      \ metadata: every {run_root}/<step>/<NNN>/meta.json (durations, exit codes,\
+      \ continued flags) plus the outcome.txt, question.txt and answer.txt files under\
+      \ those visit dirs. Flag slow, looping or failing steps and any lack of forward\
+      \ progress.\n  3. The run assets in {assets_dir} .\n  4. The underlying coding-agent\
+      \ CLI session transcripts: Claude sessions at {run_root}/profiles/<step>/projects/*/*.jsonl\
+      \ and Codex sessions at {run_root}/profiles/<step>/sessions/*/*/*/rollout-*.jsonl\
+      \ . Read them looking for distress or bad behavior: an agent stuck or confused\
+      \ by its instructions, infrastructure problems, looping, repeated errors, or\
+      \ no forward progress.\n\nWrite a detailed DEEP-DIVE analysis to {assets_dir}/health-deepdive-current.md\
+      \ (per-step status, transcript red flags, concrete evidence).\n\nWrite a short\
+      \ QUICK-UPDATE for the user to {assets_dir}/health-quick-current.md . The quick-update\
+      \ MUST contain the absolute filesystem paths to BOTH {assets_dir}/health-deepdive-current.md\
+      \ AND {assets_dir}/health-quick-current.md .\n\nOverwrite both of these -current.md\
+      \ files fresh on every tick; the orchestrator snapshots them into timestamped\
+      \ per-tick history automatically.\n\nWhen finished, write the literal text monitor_done\
+      \ to {outcome_path} and stop. You are report-only: never pause, abort, retry\
+      \ or otherwise intervene in the run; your only effect is producing these two\
+      \ assets."
+health_monitor:
+  step: health_monitor
+  interval_seconds: 600

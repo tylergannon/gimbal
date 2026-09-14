@@ -1,0 +1,677 @@
+# Source path in pinned archive: tests/test_resume.py
+# Archive member: diffusioninc-Tenacious-d3a4d7ff9f5445a42a7516eda845f8c58a531a45/tests/test_resume.py
+
+"""Feature 5 (Round 2): `--resume <run-id>` resumes an interrupted run.
+
+Stdlib only. Hermetic: every fixture is built under a temp
+$TENACIOUS_HOME. Drives the real `resume_workflow` / `_drive_run` /
+`execute_step` with a scripted fake "agent" runner that records
+`(step.slug, visit, should_continue)`.
+
+Run from the project root:
+
+    .venv/bin/python tests/test_resume.py
+
+Prints `PASS <scenario>` per scenario then `ALL PASS (<n> scenarios)`;
+exits 0 if all pass, 1 with `FAIL <scenario>: <detail>` otherwise. The
+optional `resume_real_run_shape_sanity` scenario may print
+`SKIP ...` (real run dir absent) and still counts as a pass.
+
+The scenario `resume_concrete_run_20260518125038_476_shape` reproduces
+the exact on-disk shape of run 20260518125038-476 (the concrete failure
+the requirement names: claude exited -9 at `code` visit 1 after ~2h, no
+run-state.json sidecar).
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+import time
+import traceback
+from contextlib import contextmanager
+from pathlib import Path
+
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, _PROJECT_ROOT)
+
+import tenacious.orchestrator as o  # noqa: E402
+
+# Fast monitor teardown (interval is kept huge so it never actually ticks).
+o.HEALTH_MONITOR_POLL_SLICE_SECONDS = 0.02
+
+
+class Patcher:
+    def __init__(self):
+        self._saved = []
+
+    def set(self, obj, attr, value):
+        self._saved.append((obj, attr, getattr(obj, attr)))
+        setattr(obj, attr, value)
+
+    def undo(self):
+        for obj, attr, value in reversed(self._saved):
+            setattr(obj, attr, value)
+        self._saved.clear()
+
+
+@contextmanager
+def home_env():
+    d = Path(tempfile.mkdtemp(prefix="tnc-resume-"))
+    prev = os.environ.get("TENACIOUS_HOME")
+    os.environ["TENACIOUS_HOME"] = str(d)
+    (d / "proj").mkdir(parents=True, exist_ok=True)
+    try:
+        yield d
+    finally:
+        if prev is None:
+            os.environ.pop("TENACIOUS_HOME", None)
+        else:
+            os.environ["TENACIOUS_HOME"] = prev
+        shutil.rmtree(d, ignore_errors=True)
+
+
+def linear_wf(home: Path, steps, *, questions=(), health=False) -> dict:
+    sd: dict = {}
+    for i, s in enumerate(steps):
+        nxt = steps[i + 1] if i + 1 < len(steps) else "end"
+        entry = {"agent": "fake", "prompt": "p", "next_steps": [nxt]}
+        if s in questions:
+            entry["questions"] = True
+        sd[s] = entry
+    wf = {"goal": "g", "project_dir": str(home / "proj"),
+          "start_step": steps[0], "steps": sd}
+    if health:
+        sd["health_monitor"] = {
+            "agent": "fake", "prompt": "hm {assets_dir} {outcome_path}",
+            "next_steps": ["monitor_done"], "context": "empty",
+            "questions": False}
+        wf["health_monitor"] = {"step": "health_monitor",
+                                "interval_seconds": 1e9}
+    return wf
+
+
+def build_run(home: Path, run_id: str, *, workflow: dict, seeded: dict,
+              sidecar: dict | None = None,
+              meta: dict | None = None) -> Path:
+    """seeded: {step: [(visit:int, outcome:str|None), ...]}."""
+    root = home / "runs" / run_id
+    (root / "assets").mkdir(parents=True)
+    (root / "profiles").mkdir(parents=True)
+    (root / "workflow.json").write_text(json.dumps(workflow))
+    (root / "goal.txt").write_text(workflow.get("goal", "g") + "\n")
+    (root / "project_dir.txt").write_text(str(home / "proj") + "\n")
+    (root / "accounts.json").write_text(json.dumps({}))
+    for step, visits in seeded.items():
+        for vnum, outcome in visits:
+            vd = root / step / f"{vnum:03d}"
+            vd.mkdir(parents=True)
+            if outcome is not None:
+                (vd / "outcome.txt").write_text(outcome + "\n")
+            if meta is not None and step == "code" and vnum == 1:
+                (vd / "meta.json").write_text(json.dumps(meta))
+    if sidecar is not None:
+        (root / "run-state.json").write_text(json.dumps(sidecar))
+    return root
+
+
+def recording_runner(calls: list):
+    def runner(step, run, visit, step_dir, prompt, should_continue):
+        calls.append((step.slug, visit, should_continue))
+        if step.slug == "health_monitor":
+            ad = run.assets_dir
+            (ad / "health-deepdive-current.md").write_text("d")
+            (ad / "health-quick-current.md").write_text("q")
+            (step_dir / "outcome.txt").write_text("monitor_done\n")
+            return {"exit": 0, "stdout": "", "stderr": ""}
+        nxt = step.next_steps[0] if step.next_steps else "end"
+        (step_dir / "outcome.txt").write_text(nxt + "\n")
+        return {"exit": 0, "stdout": "", "stderr": ""}
+    return runner
+
+
+def _visit_dirs(root: Path, step: str):
+    base = root / step
+    try:
+        return sorted(e.name for e in os.scandir(base)
+                      if e.is_dir() and e.name.isdigit())
+    except OSError:
+        return []
+
+
+def _called(calls, slug):
+    return [c for c in calls if c[0] == slug]
+
+
+# ----- scenarios -------------------------------------------------------------
+
+def s_resume_reruns_failed_step_fresh():
+    p = Patcher()
+    try:
+        calls: list = []
+        p.set(o, "_magnetize_accounts", lambda slug, wf, **_kw: {})
+        p.set(o, "AGENT_RUNNERS", {"fake": recording_runner(calls)})
+        with home_env() as home:
+            wf = linear_wf(home, ["a", "b", "c"])
+            root = build_run(home, "r1", workflow=wf, seeded={
+                "a": [(1, "b")], "b": [(1, "c")], "c": [(1, None)]})
+            run = o.resume_workflow("r1")
+            assert _called(calls, "a") == [] and _called(calls, "b") == [], (
+                f"completed steps were re-run: {calls}")
+            assert ("c", 2, False) in calls, (
+                f"c not re-dispatched fresh as visit 2: {calls}")
+            assert "002" in _visit_dirs(root, "c"), _visit_dirs(root, "c")
+            assert "workflow complete (end)" in (
+                root / "run.log").read_text()
+            assert run.visit_counts == {"a": 1, "b": 1, "c": 2}, (
+                run.visit_counts)
+    finally:
+        p.undo()
+
+
+def s_resume_question_then_continuation_counts_as_complete():
+    p = Patcher()
+    try:
+        calls: list = []
+        p.set(o, "_magnetize_accounts", lambda slug, wf, **_kw: {})
+        p.set(o, "AGENT_RUNNERS", {"fake": recording_runner(calls)})
+        with home_env() as home:
+            wf = linear_wf(home, ["a", "b"], questions={"a"})
+            root = build_run(home, "rq", workflow=wf, seeded={
+                "a": [(1, "question"), (2, "b")], "b": [(1, None)]})
+            run = o.resume_workflow("rq")
+            assert _called(calls, "a") == [], (
+                f"question step a (completed via continuation) re-run: "
+                f"{calls}")
+            assert ("b", 2, False) in calls, (
+                f"b not re-dispatched fresh: {calls}")
+            assert "workflow complete (end)" in (
+                root / "run.log").read_text()
+            assert run.visit_counts == {"a": 2, "b": 2}, run.visit_counts
+    finally:
+        p.undo()
+
+
+def _concrete_workflow(home: Path) -> dict:
+    return linear_wf(
+        home,
+        ["requirements", "plan", "plan_eval", "plan_update", "code",
+         "code_review"],
+        questions={"requirements"}, health=True)
+
+
+def s_resume_concrete_run_20260518125038_476_shape():
+    """Reproduces the exact on-disk shape of run 20260518125038-476."""
+    p = Patcher()
+    try:
+        calls: list = []
+        p.set(o, "_magnetize_accounts", lambda slug, wf, **_kw: {})
+        p.set(o, "AGENT_RUNNERS", {"fake": recording_runner(calls)})
+        with home_env() as home:
+            wf = _concrete_workflow(home)
+            root = build_run(
+                home, "20260518125038-476", workflow=wf,
+                seeded={
+                    "requirements": [(1, "question"), (2, "plan")],
+                    "plan": [(1, "plan_eval")],
+                    "plan_eval": [(1, "plan_update")],
+                    "plan_update": [(1, "code")],
+                    "code": [(1, None)],
+                },
+                meta={"step": "code", "visit": 1, "exit": -9,
+                      "duration_s": 7335.11, "continued": False})
+            assert not (root / "run-state.json").exists(), (
+                "fixture must mirror the real run: no sidecar")
+            run = o.resume_workflow("20260518125038-476")
+            for s in ("requirements", "plan", "plan_eval", "plan_update"):
+                assert _called(calls, s) == [], (
+                    f"completed step {s} was re-run: {calls}")
+            assert ("code", 2, False) in calls, (
+                f"code not re-dispatched as a fresh new visit 2: {calls}")
+            assert "002" in _visit_dirs(root, "code"), _visit_dirs(
+                root, "code")
+            assert run.visit_counts["requirements"] == 2, run.visit_counts
+            for s in ("plan", "plan_eval", "plan_update"):
+                assert run.visit_counts[s] == 1, (s, run.visit_counts)
+            assert run.visit_counts["code"] == 2, run.visit_counts
+            log = (root / "run.log").read_text()
+            assert "workflow complete (end)" in log, log
+            assert "[health_monitor] started" in log, (
+                "frozen workflow.json health_monitor not honoured on resume")
+            # No pre-existing health_monitor visit dirs in this fixture, so
+            # _highest_existing_visit() returns 0 and first_tick is 1.
+            assert "first_tick=1" in log, log
+            st = json.loads((root / "run-state.json").read_text())
+            assert st["status"] == "ended", st
+            assert st.get("started_at") is not None, st
+    finally:
+        p.undo()
+
+
+def s_resume_real_run_shape_sanity():
+    """Read-only: if the real run dir is present, assert the fixture in
+    the scenario above still matches its on-disk visit/outcome shape so
+    the fixture cannot silently drift. SKIPs cleanly if absent.
+
+    A run-state.json sidecar may legitimately exist now (any resume of
+    this run writes one), so we no longer assert its absence; we only
+    sanity-check the visit/outcome shape.
+    """
+    real = Path.home() / ".tenacious" / "runs" / "20260518125038-476"
+    if not real.is_dir():
+        print("SKIP resume_real_run_shape_sanity (run dir absent)")
+        return
+    expected = {
+        "requirements": [("001", "question"), ("002", "plan")],
+        "plan": [("001", "plan_eval")],
+        "plan_eval": [("001", "plan_update")],
+        "plan_update": [("001", "code")],
+        "code": [("001", None)],
+    }
+    for step, visits in expected.items():
+        for vname, oc in visits:
+            vd = real / step / vname
+            assert vd.is_dir(), f"real run missing {step}/{vname}"
+            ocp = vd / "outcome.txt"
+            if oc is None:
+                assert not ocp.is_file(), (
+                    f"real {step}/{vname} unexpectedly has an outcome")
+            else:
+                assert ocp.is_file() and ocp.read_text().strip() == oc, (
+                    f"real {step}/{vname} outcome drifted from fixture")
+
+
+def s_resume_refuses_when_live():
+    p = Patcher()
+    proc = subprocess.Popen(
+        [sys.executable, "-c", "import time; time.sleep(30)"])
+    try:
+        calls: list = []
+        p.set(o, "_magnetize_accounts", lambda slug, wf, **_kw: {})
+        p.set(o, "AGENT_RUNNERS", {"fake": recording_runner(calls)})
+        assert proc.pid != os.getpid()
+        with home_env() as home:
+            wf = linear_wf(home, ["a", "b", "c"])
+            root = build_run(
+                home, "rlive", workflow=wf,
+                seeded={"a": [(1, "b")], "b": [(1, None)]},
+                sidecar={"status": "active", "pid": proc.pid})
+            try:
+                o.resume_workflow("rlive")
+            except RuntimeError as e:
+                msg = str(e)
+                assert "appears to be live" in msg and \
+                    "refusing to resume" in msg, msg
+            else:
+                raise AssertionError(
+                    "resume_workflow did not refuse a live run")
+            assert calls == [], f"a live run was driven anyway: {calls}"
+            assert _visit_dirs(root, "b") == ["001"], (
+                f"a new visit dir was created for a refused resume: "
+                f"{_visit_dirs(root, 'b')}")
+            assert not (root / "c").exists(), "refused resume advanced"
+    finally:
+        p.undo()
+        proc.kill()
+        proc.wait()
+
+
+def s_resume_missing_sidecar_is_allowed():
+    p = Patcher()
+    try:
+        calls: list = []
+        p.set(o, "_magnetize_accounts", lambda slug, wf, **_kw: {})
+        p.set(o, "AGENT_RUNNERS", {"fake": recording_runner(calls)})
+        with home_env() as home:
+            wf = linear_wf(home, ["a", "b", "c"])
+            root = build_run(home, "rnos", workflow=wf, seeded={
+                "a": [(1, "b")], "b": [(1, None)]})
+            assert not (root / "run-state.json").exists()
+            run = o.resume_workflow("rnos")
+            assert ("b", 2, False) in calls, calls
+            assert "workflow complete (end)" in (
+                root / "run.log").read_text()
+            assert run.visit_counts == {"a": 1, "b": 2, "c": 1}, (
+                run.visit_counts)
+    finally:
+        p.undo()
+
+
+def s_resume_unknown_run_id():
+    with home_env():
+        try:
+            o.resume_workflow("nope-000")
+        except FileNotFoundError as e:
+            assert "not found" in str(e), str(e)
+        else:
+            raise AssertionError("unknown run id did not raise")
+
+
+def s_resume_already_complete():
+    p = Patcher()
+    try:
+        calls: list = []
+        p.set(o, "_magnetize_accounts", lambda slug, wf, **_kw: {})
+        p.set(o, "AGENT_RUNNERS", {"fake": recording_runner(calls)})
+        with home_env() as home:
+            wf = linear_wf(home, ["a", "b", "c"])
+            root = build_run(home, "rdone", workflow=wf, seeded={
+                "a": [(1, "b")], "b": [(1, "c")], "c": [(1, "end")]})
+            try:
+                o.resume_workflow("rdone")
+            except o._RunAlreadyComplete as e:
+                assert e.run.slug == "rdone", e.run.slug
+            else:
+                raise AssertionError(
+                    "a fully-complete run did not raise _RunAlreadyComplete")
+            assert calls == [], f"agent invoked for a complete run: {calls}"
+            assert _visit_dirs(root, "c") == ["001"], (
+                f"a new visit dir was created: {_visit_dirs(root, 'c')}")
+    finally:
+        p.undo()
+
+
+def s_cli_workflow_or_resume_required():
+    import io
+    import contextlib
+    # Empty argv is still an argparse error: neither a workflow path nor
+    # --resume was provided.
+    buf = io.StringIO()
+    try:
+        with contextlib.redirect_stderr(buf):
+            o.main([])
+    except SystemExit as e:
+        assert e.code == 2, e.code
+    else:
+        raise AssertionError("empty argv did not raise SystemExit(2)")
+
+    # Workflow path + --resume together must NOT be an argparse error.
+    # It is fine for `resume_workflow` to raise FileNotFoundError /
+    # RuntimeError for an unknown run id; what matters is that argparse
+    # did not reject the combination.
+    buf = io.StringIO()
+    try:
+        with contextlib.redirect_stderr(buf):
+            with home_env():
+                o.main(["wf.json", "--resume", "nope-000"])
+    except SystemExit as e:
+        assert e.code != 2, (
+            f"workflow+--resume rejected by argparse: exit {e.code}\n"
+            f"stderr: {buf.getvalue()}")
+    except (FileNotFoundError, RuntimeError):
+        # Expected: argparse accepted, resume_workflow then failed on
+        # the unknown run id. That's the success path.
+        pass
+
+
+def s_resume_skips_stale_health_monitor_outcome():
+    """Regression: a resumed run's first health_monitor tick lands in a
+    fresh per-step visit dir, so the pre-existing stale outcome.txt
+    from the pre-interruption run does not short-circuit _supervise().
+
+    Exercises the REAL _supervise() against a real subprocess that
+    writes a fresh outcome.txt and a fresh health-quick-current.md at
+    the end of its run — exactly the behaviour a real agent has.
+    """
+    p = Patcher()
+    try:
+        p.set(o, "_magnetize_accounts", lambda slug, wf, **_kw: {})
+        # Speed up _supervise polling and grace so the test is quick
+        # even in the (pre-fix) bug case where it would otherwise hang
+        # ~30s on the grace timer.
+        p.set(o, "OUTCOME_POLL_INTERVAL_SECONDS", 0.05)
+        p.set(o, "OUTCOME_GRACE_SECONDS", 1.0)
+
+        def supervised_runner(step, run, visit, step_dir, prompt,
+                              should_continue):
+            outcome_path = step_dir / "outcome.txt"
+            script = (
+                "import sys, pathlib, time;"
+                "step_dir = pathlib.Path(sys.argv[1]);"
+                "assets = pathlib.Path(sys.argv[2]);"
+                "time.sleep(0.05);"
+                "(assets / 'health-quick-current.md').write_text("
+                "  'FRESH_FROM_RESUMED_TICK');"
+                "(step_dir / 'outcome.txt').write_text("
+                "  'monitor_done\\n')"
+            )
+            cmd = [sys.executable, "-c", script,
+                   str(step_dir), str(run.assets_dir)]
+            return o._supervise(cmd, env=os.environ.copy(),
+                                cwd=str(step_dir),
+                                outcome_path=outcome_path, run=run,
+                                label="health_monitor")
+
+        p.set(o, "AGENT_RUNNERS", {"fake": supervised_runner})
+
+        with home_env() as home:
+            wf = linear_wf(home, ["code"], health=True)
+            root = build_run(home, "rstale", workflow=wf,
+                             seeded={"code": [(1, None)]})
+            # Pre-seed 8 stale per-step visit dirs (mirrors the real
+            # bug where each had outcome.txt = "monitor_done").
+            for i in range(1, 9):
+                vd = root / "health_monitor" / f"{i:03d}"
+                vd.mkdir(parents=True, exist_ok=True)
+                (vd / "outcome.txt").write_text("monitor_done\n")
+            # Pre-seed a stale health-quick-current.md.
+            (root / "assets" / "health-quick-current.md").write_text(
+                "STALE_FROM_PRE_RESUME")
+
+            # Construct a Run that points at the fixture (no main loop
+            # so the test stays deterministic). Drive ONE _do_tick().
+            wfobj = o.Workflow.load(root / "workflow.json")
+            run = o.Run(slug="rstale", root=root, workflow=wfobj,
+                        project_dir=home / "proj")
+            hm_step = wfobj.steps[wfobj.health_monitor_step]
+            hm = o.HealthMonitor(run, hm_step, interval_seconds=1e9)
+            hm.start()  # initialises _tick from disk
+            try:
+                hm._do_tick()
+            finally:
+                hm.stop()
+
+            # 1) New tick landed in a fresh dir at /009, not /001.
+            new_vd = root / "health_monitor" / "009"
+            assert new_vd.is_dir(), _visit_dirs(root, "health_monitor")
+            new_outcome = new_vd / "outcome.txt"
+            assert new_outcome.is_file(), new_outcome
+            assert new_outcome.read_text().strip() == "monitor_done", (
+                new_outcome.read_text())
+
+            # 2) Stale 001..008 outcomes byte-identical to pre-test.
+            for i in range(1, 9):
+                p_oc = root / "health_monitor" / f"{i:03d}" / "outcome.txt"
+                assert p_oc.read_text() == "monitor_done\n", (
+                    f"stale {p_oc} was clobbered: "
+                    f"{p_oc.read_text()!r}")
+
+            # 3) Log lines from the bug are NOT present.
+            log = (root / "run.log").read_text()
+            assert (
+                "valid outcome.txt detected while agent still running"
+                not in log
+            ), log
+            assert "grace expired; killing agent process group" not in log, log
+
+            # 4) health-quick-current.md was overwritten with the fresh
+            # body, not the stale one.
+            quick = (root / "assets"
+                     / "health-quick-current.md").read_text()
+            assert quick == "FRESH_FROM_RESUMED_TICK", quick
+            assert "STALE_FROM_PRE_RESUME" not in quick, quick
+    finally:
+        p.undo()
+
+
+def _composite_wf(home: Path) -> dict:
+    """Workflow with a composite parent `fan` (3 substeps a,b,c) -> `join`."""
+    return {
+        "goal": "g",
+        "project_dir": str(home / "proj"),
+        "start_step": "fan",
+        "steps": {
+            "fan": {
+                "parallel": True,
+                "next_steps": ["join"],
+                "substeps": {
+                    "a": {"agent": "fake", "prompt": "p"},
+                    "b": {"agent": "fake", "prompt": "p"},
+                    "c": {"agent": "fake", "prompt": "p"},
+                },
+            },
+            "join": {
+                "agent": "fake", "prompt": "p", "next_steps": ["end"],
+            },
+        },
+    }
+
+
+def s_resume_composite_succeeded_reaches_end() -> None:
+    """A composite whose parent visit dir has a successful outcome.txt is
+    treated as completed by the resume walker — the entire run is
+    classified as already complete without any agent invocation."""
+    p = Patcher()
+    try:
+        calls: list = []
+        p.set(o, "_magnetize_accounts", lambda slug, wf, **_kw: {})
+        p.set(o, "AGENT_RUNNERS", {"fake": recording_runner(calls)})
+        with home_env() as home:
+            wf = _composite_wf(home)
+            root = home / "runs" / "rcomp_ok"
+            (root / "assets").mkdir(parents=True)
+            (root / "profiles").mkdir(parents=True)
+            (root / "workflow.json").write_text(json.dumps(wf))
+            (root / "goal.txt").write_text("g\n")
+            (root / "project_dir.txt").write_text(str(home / "proj") + "\n")
+            (root / "accounts.json").write_text("{}")
+            # Substeps all succeeded.
+            for sub in ("a", "b", "c"):
+                sd = root / "fan" / "001" / sub / "001"
+                sd.mkdir(parents=True)
+                (sd / "outcome.txt").write_text(
+                    o.SUBSTEP_DONE_SENTINEL + "\n")
+            # Parent succeeded — outcome.txt points at the declared
+            # successor `join`.
+            (root / "fan" / "001" / "outcome.txt").write_text("join\n")
+            # Successor `join` finished with outcome `end`.
+            jd = root / "join" / "001"
+            jd.mkdir(parents=True)
+            (jd / "outcome.txt").write_text("end\n")
+            try:
+                o.resume_workflow("rcomp_ok")
+            except o._RunAlreadyComplete as e:
+                assert e.run.slug == "rcomp_ok", e.run.slug
+            else:
+                raise AssertionError(
+                    "succeeded composite + join + end did not classify "
+                    "as already complete")
+            assert calls == [], (
+                f"resume of a fully-complete composite run invoked agent: "
+                f"{calls}")
+    finally:
+        p.undo()
+
+
+def s_resume_composite_incomplete_reruns_fresh() -> None:
+    """A composite with no parent outcome.txt (one substep wrote NOPE
+    instead of the sentinel) is classified as incomplete; resume sets
+    the composite as the resume point and a fresh new visit runs."""
+    p = Patcher()
+    try:
+        calls: list = []
+
+        def composite_runner(step, run, visit, step_dir, prompt,
+                             should_continue,
+                             composite_parent=None, cancel_event=None):
+            calls.append((step.slug, visit, should_continue,
+                          composite_parent))
+            if step.slug in ("a", "b", "c"):
+                (step_dir / "outcome.txt").write_text(
+                    o.SUBSTEP_DONE_SENTINEL)
+            else:
+                nxt = step.next_steps[0] if step.next_steps else "end"
+                (step_dir / "outcome.txt").write_text(nxt)
+            return {"exit": 0, "stdout": "", "stderr": ""}
+
+        p.set(o, "_magnetize_accounts", lambda slug, wf, **_kw: {})
+        p.set(o, "AGENT_RUNNERS", {"fake": composite_runner})
+        with home_env() as home:
+            wf = _composite_wf(home)
+            root = home / "runs" / "rcomp_bad"
+            (root / "assets").mkdir(parents=True)
+            (root / "profiles").mkdir(parents=True)
+            (root / "workflow.json").write_text(json.dumps(wf))
+            (root / "goal.txt").write_text("g\n")
+            (root / "project_dir.txt").write_text(str(home / "proj") + "\n")
+            (root / "accounts.json").write_text("{}")
+            # a, b succeeded; c wrote NOPE; no parent outcome.txt.
+            for sub in ("a", "b"):
+                sd = root / "fan" / "001" / sub / "001"
+                sd.mkdir(parents=True)
+                (sd / "outcome.txt").write_text(
+                    o.SUBSTEP_DONE_SENTINEL + "\n")
+            cd = root / "fan" / "001" / "c" / "001"
+            cd.mkdir(parents=True)
+            (cd / "outcome.txt").write_text("NOPE\n")
+
+            run = o.resume_workflow("rcomp_bad")
+            # Composite re-ran fresh on visit 2 (substeps under
+            # fan/002/<slug>/001).
+            assert (root / "fan" / "002").is_dir(), (
+                f"fresh visit 2 not created: "
+                f"{_visit_dirs(root, 'fan')}"
+            )
+            for sub in ("a", "b", "c"):
+                sd = root / "fan" / "002" / sub / "001"
+                assert (sd / "outcome.txt").is_file(), sd
+            # Successor join ran; workflow reached end.
+            assert ("join", 1, False, None) in calls, calls
+            log = (root / "run.log").read_text()
+            assert "workflow complete (end)" in log, log
+    finally:
+        p.undo()
+
+
+SCENARIOS = [
+    ("resume_reruns_failed_step_fresh", s_resume_reruns_failed_step_fresh),
+    ("resume_question_then_continuation_counts_as_complete",
+     s_resume_question_then_continuation_counts_as_complete),
+    ("resume_concrete_run_20260518125038_476_shape",
+     s_resume_concrete_run_20260518125038_476_shape),
+    ("resume_real_run_shape_sanity", s_resume_real_run_shape_sanity),
+    ("resume_refuses_when_live", s_resume_refuses_when_live),
+    ("resume_missing_sidecar_is_allowed",
+     s_resume_missing_sidecar_is_allowed),
+    ("resume_unknown_run_id", s_resume_unknown_run_id),
+    ("resume_already_complete", s_resume_already_complete),
+    ("cli_workflow_or_resume_required", s_cli_workflow_or_resume_required),
+    ("resume_skips_stale_health_monitor_outcome",
+     s_resume_skips_stale_health_monitor_outcome),
+    ("resume_composite_succeeded_reaches_end",
+     s_resume_composite_succeeded_reaches_end),
+    ("resume_composite_incomplete_reruns_fresh",
+     s_resume_composite_incomplete_reruns_fresh),
+]
+
+
+def main() -> int:
+    for name, fn in SCENARIOS:
+        try:
+            fn()
+        except Exception as e:  # noqa: BLE001
+            print(f"FAIL {name}: {e}")
+            traceback.print_exc()
+            return 1
+        print(f"PASS {name}")
+    print(f"ALL PASS ({len(SCENARIOS)} scenarios)")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

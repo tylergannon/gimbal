@@ -1,0 +1,23 @@
+# Source path in pinned archive: workflows/hello-claude.json
+# Archive member: diffusioninc-Tenacious-d3a4d7ff9f5445a42a7516eda845f8c58a531a45/workflows/hello-claude.json
+
+{
+  "goal": "demonstrate the orchestrator with a two-step claude workflow",
+  "start_step": "write",
+  "steps": {
+    "write": {
+      "agent": "claude",
+      "prompt": "Goal: {goal}\n\nTask: write a short, friendly one-paragraph greeting (2-4 sentences) about the goal above to the file:\n  {assets_dir}/greeting.txt\nThen write the literal text 'review' (without quotes) to:\n  {outcome_path}\nDo not ask any questions; just do the work.",
+      "asset_slugs": [],
+      "next_steps": ["review"],
+      "context": "empty"
+    },
+    "review": {
+      "agent": "claude",
+      "prompt": "Goal: {goal}\n\nA prior step wrote a greeting (attached below as the 'greeting' asset). Briefly review it (2-3 sentences of feedback) and write your feedback to:\n  {assets_dir}/review.txt\nThen write the literal text 'end' (without quotes) to:\n  {outcome_path}\nDo not ask any questions.",
+      "asset_slugs": ["greeting.txt"],
+      "next_steps": ["end"],
+      "context": "empty"
+    }
+  }
+}

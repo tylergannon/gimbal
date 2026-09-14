@@ -1,0 +1,1022 @@
+# Source path in pinned archive: tenacious/viewer/runs_enrich.py
+# Archive member: diffusioninc-Tenacious-d3a4d7ff9f5445a42a7516eda845f8c58a531a45/tenacious/viewer/runs_enrich.py
+
+"""Per-run enrichment data + pure-function rendering for the regular TUI.
+
+This module powers the runs-list screen `S_RUNS` in `tui.py`. It is
+deliberately curses-free: importing it must not import curses, so the
+non-interactive verification paths and CI hosts without TERM keep
+working.
+
+Public entry points:
+
+- `collect_run_enrichment(home, now=None)` -> list[RunEnrichment]
+  Walks every run dir under `home/runs`, classifies status (ACTIVE /
+  complete / ended), collects path visits, git stats, and plan-current
+  checkbox stats. Sort order: most-recent-activity first (single key;
+  ACTIVE and ended runs interleave). Runs with no last_activity_ts
+  sort to the bottom.
+
+- `render_runs_list_lines(enriched, sel_index, width, now=None)`
+  Pure renderer: returns `(lines, block_lengths)` where block_lengths
+  is a list of int (rows per run; usually 6, more when the `path:`
+  row wraps). `sel_index` is currently unused by the renderer (the
+  highlight is applied by `tui._draw`), but is part of the documented
+  signature so future styling can act on it.
+
+Caching: only the genuinely expensive sub-results are cached.
+`status_text`, `last_activity`, and the slug-based `started_at_*`
+fields are recomputed every tick — never staled by the cache.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import re
+import subprocess
+import time
+from dataclasses import dataclass, field
+from datetime import datetime
+from pathlib import Path
+
+from . import model
+
+
+# ---------------------------------------------------------------------------
+# Run-lifecycle / liveness helpers (absorbed from the removed live.py)
+# ---------------------------------------------------------------------------
+
+@dataclass
+class StepVisitInfo:
+    step: str
+    visit: int
+    started_at: float          # visit-dir st_mtime (start proxy)
+    duration_s: float | None   # meta.json duration_s, else None (running)
+
+
+def _read_run_state(run_dir: Path) -> dict | None:
+    raw = model._read_text(run_dir / "run-state.json")
+    if raw is None:
+        return None
+    try:
+        data = json.loads(raw)
+    except (json.JSONDecodeError, ValueError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def _pid_alive(pid: object) -> bool:
+    """True iff `pid` names a live process. signal 0 sends nothing."""
+    try:
+        os.kill(pid, 0)  # type: ignore[arg-type]
+        return True
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except (OSError, TypeError, ValueError):
+        return False
+
+
+def _is_complete(run_dir: Path) -> bool:
+    """Successful-completion marker present in run.log."""
+    log = model._read_text(run_dir / "run.log")
+    return log is not None and "workflow complete (end)" in log
+
+
+def _health_monitor_slug(run_dir: Path) -> str | None:
+    """workflow.json's health_monitor.step (the out-of-band monitor node,
+    excluded from the workflow path), or None."""
+    raw = model._read_text(run_dir / "workflow.json")
+    if raw is None:
+        return None
+    try:
+        data = json.loads(raw)
+    except (json.JSONDecodeError, ValueError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    hm = data.get("health_monitor")
+    if isinstance(hm, dict):
+        step = hm.get("step")
+        if isinstance(step, str) and step:
+            return step
+    return None
+
+
+def _abbrev_home(path_str: str) -> str:
+    try:
+        home = str(Path.home())
+    except (OSError, RuntimeError):
+        return path_str
+    if home and path_str.startswith(home):
+        return "~" + path_str[len(home):]
+    return path_str
+
+
+def _visit_dirs(step_dir: Path) -> list[tuple[int, Path]]:
+    out: list[tuple[int, Path]] = []
+    try:
+        entries = list(os.scandir(step_dir))
+    except OSError:
+        return out
+    for e in entries:
+        if e.is_dir() and e.name.isdigit():
+            out.append((int(e.name), Path(e.path)))
+    return out
+
+
+def _collect_step_set(run_dir: Path, hm_slug: str | None) -> list[str]:
+    steps: list[str] = []
+    try:
+        entries = list(os.scandir(run_dir))
+    except OSError:
+        return steps
+    for e in entries:
+        if not e.is_dir():
+            continue
+        name = e.name
+        if name in _NON_STEP_DIRS or name == hm_slug:
+            continue
+        if _visit_dirs(Path(e.path)):
+            steps.append(name)
+    return steps
+
+
+_AGENT_TO_PROVIDER = {"claude": "anthropic", "codex": "openai"}
+
+
+def _build_path_visits(
+    run_dir: Path, steps: list[str],
+) -> tuple[list[StepVisitInfo], float | None, set[str]]:
+    """Walk every (step, visit) dir once and pull out:
+
+    - the visit list (start time, duration) for the path display,
+    - the summed `cost_usd` across visits that recorded a numeric value
+      (None when no visit recorded one), and
+    - the set of providers that actually invoked an agent this run
+      (derived from each meta.json's `agent` field via _AGENT_TO_PROVIDER).
+
+    Sharing one meta.json walk between three callers keeps the runs
+    list a single-pass operation per tick.
+    """
+    visits: list[StepVisitInfo] = []
+    cost_sum: float | None = None
+    invoked: set[str] = set()
+    for step in steps:
+        for vnum, vdir in _visit_dirs(run_dir / step):
+            try:
+                started = vdir.stat().st_mtime
+            except OSError:
+                started = 0.0
+            dur: float | None = None
+            meta_raw = model._read_text(vdir / "meta.json")
+            if meta_raw is not None:
+                try:
+                    meta_obj = json.loads(meta_raw)
+                except (json.JSONDecodeError, ValueError):
+                    meta_obj = None
+                if isinstance(meta_obj, dict):
+                    d = meta_obj.get("duration_s")
+                    if isinstance(d, (int, float)) and not isinstance(d, bool):
+                        dur = float(d)
+                    c = meta_obj.get("cost_usd")
+                    if isinstance(c, (int, float)) and not isinstance(c, bool):
+                        cost_sum = (cost_sum or 0.0) + float(c)
+                    agent = meta_obj.get("agent")
+                    prov = _AGENT_TO_PROVIDER.get(agent)
+                    if prov is not None:
+                        invoked.add(prov)
+            visits.append(StepVisitInfo(step=step, visit=vnum,
+                                        started_at=started,
+                                        duration_s=dur))
+    visits.sort(key=lambda v: v.started_at)
+    return visits, cost_sum, invoked
+
+
+def _invoked_providers(run_dir: Path) -> set[str]:
+    """Standalone helper used by tests/callers that only want the
+    runtime-evidence set without rebuilding the full path-visit list.
+    """
+    hm_slug = _health_monitor_slug(run_dir)
+    invoked: set[str] = set()
+    try:
+        entries = list(os.scandir(run_dir))
+    except OSError:
+        return invoked
+    for e in entries:
+        if not e.is_dir():
+            continue
+        name = e.name
+        if name in _NON_STEP_DIRS or name == hm_slug:
+            continue
+        for _vnum, vdir in _visit_dirs(Path(e.path)):
+            meta_raw = model._read_text(vdir / "meta.json")
+            if meta_raw is None:
+                continue
+            try:
+                meta_obj = json.loads(meta_raw)
+            except (json.JSONDecodeError, ValueError):
+                continue
+            if isinstance(meta_obj, dict):
+                prov = _AGENT_TO_PROVIDER.get(meta_obj.get("agent"))
+                if prov is not None:
+                    invoked.add(prov)
+    return invoked
+
+
+_API_KEY_MODE_RE = re.compile(
+    r"\[API-KEY MODE:\s*([a-zA-Z0-9_-]+)")
+_HOME_MODE_RE = re.compile(
+    r"\[HOME MODE:\s*([a-zA-Z0-9_-]+)")
+
+
+def _classify_provider_modes(run_dir: Path,
+                             invoked: set[str],
+                             ) -> dict[str, dict[str, str | None]]:
+    """Per-provider auth-mode classification for the runs-list row.
+
+    Returns `{provider: {"mode": ..., "account": ...}}`. A provider is
+    `"auth"` when it appears in `accounts.json` with a non-empty name
+    AND was actually invoked this run (the account name is the value
+    from `accounts.json`); `"home"` when a `[HOME MODE: <provider>]`
+    banner appears in `run.log` AND it was invoked; `"api"` when a
+    `[API-KEY MODE: <provider>]` banner appears in `run.log` AND it was
+    invoked (account is None, api-key mode has no account); otherwise
+    `"-"` (account is None).
+    Providers that were never invoked always render `"-"` regardless
+    of accounts/banner content, so a workflow declaration the run
+    never reached cannot misrepresent what actually happened.
+    """
+    accounts: dict[str, str] = {}
+    raw = model._read_text(run_dir / "accounts.json")
+    if raw is not None:
+        try:
+            parsed = json.loads(raw)
+        except (json.JSONDecodeError, ValueError):
+            parsed = None
+        if isinstance(parsed, dict):
+            for k, v in parsed.items():
+                if isinstance(k, str) and isinstance(v, str) and v:
+                    accounts[k] = v
+
+    api_banners: set[str] = set()
+    home_banners: set[str] = set()
+    log_raw = model._read_text(run_dir / "run.log")
+    if log_raw is not None:
+        for line in log_raw.splitlines():
+            m = _API_KEY_MODE_RE.search(line)
+            if m is not None:
+                tok = m.group(1).lower()
+                if tok == "anthropic":
+                    api_banners.add("anthropic")
+                elif tok == "codex":
+                    api_banners.add("openai")
+                else:
+                    api_banners.add(tok)
+            hm = _HOME_MODE_RE.search(line)
+            if hm is not None:
+                tok = hm.group(1).lower()
+                if tok in ("anthropic", "claude"):
+                    home_banners.add("anthropic")
+                elif tok in ("openai", "codex"):
+                    home_banners.add("openai")
+                else:
+                    home_banners.add(tok)
+
+    out: dict[str, dict[str, str | None]] = {}
+    for prov in ("anthropic", "openai"):
+        if prov not in invoked:
+            out[prov] = {"mode": "-", "account": None}
+            continue
+        if prov in accounts:
+            out[prov] = {"mode": "auth", "account": accounts[prov]}
+        elif prov in home_banners:
+            out[prov] = {"mode": "home", "account": None}
+        elif prov in api_banners:
+            out[prov] = {"mode": "api", "account": None}
+        else:
+            out[prov] = {"mode": "-", "account": None}
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Dataclasses
+# ---------------------------------------------------------------------------
+
+@dataclass
+class GitInfo:
+    reachable: bool
+    commits_since_start: int | None
+    last_commit_ts: float | None
+    pre_run: bool
+
+
+@dataclass
+class PlanInfo:
+    total: int | None
+    checked: int | None
+    mtime: float | None
+
+
+@dataclass
+class RunEnrichment:
+    slug: str
+    run_info: model.RunInfo
+    active: bool
+    status_text: str
+    started_at_ts: float | None
+    started_hhmm: str
+    last_activity_ts: float | None
+    last_activity_hhmm: str
+    project_dir_abbrev: str
+    tldr: str
+    path_visits: list[StepVisitInfo] = field(default_factory=list)
+    visits_total: int = 0
+    wall_seconds: float = 0.0
+    git: GitInfo = field(default_factory=lambda: GitInfo(False, None, None, False))
+    plan: PlanInfo = field(default_factory=lambda: PlanInfo(None, None, None))
+    # Summed per-visit cost (USD). None when no visit recorded a numeric
+    # cost_usd. The viewer renders an em-dash for this case.
+    cost_usd_total: float | None = None
+    # Per-provider auth-mode classification: keys are provider names
+    # (currently "anthropic", "openai") and values are
+    # `{"mode": "auth"|"api"|"-", "account": <name>|None}`. Account is
+    # the value from `accounts.json` when mode is "auth", otherwise
+    # None. Gated on a real meta.json sighting per provider so a
+    # never-invoked provider never shows the wrong mode.
+    provider_auth_mode: dict[str, dict[str, str | None]] = field(
+        default_factory=dict)
+
+
+# ---------------------------------------------------------------------------
+# Module-level caches (only expensive sub-results)
+# ---------------------------------------------------------------------------
+
+# (project_dir, head_sha) -> GitInfo
+_GIT_CACHE: "dict[tuple[str, str | None], GitInfo]" = {}
+
+# (plan_path_str, plan_mtime) -> PlanInfo
+_PLAN_CACHE: "dict[tuple[str, float], PlanInfo]" = {}
+
+# slug -> (step_tree_mtime, path_visits, visits_total, wall_seconds,
+#          cost_usd_total, invoked_providers)
+_PATH_CACHE: ("dict[str, tuple[float, list[StepVisitInfo], int, float, "
+              "float | None, set[str]]]") = {}
+
+# project_dir -> True/False (invariant for the process lifetime; whether
+# `git rev-parse --git-dir` succeeded inside this dir). A "not a repo"
+# answer is just as safe to cache as a "is a repo" answer — the user
+# would have to invoke `git init` mid-session AND change the project
+# dir's value in run-state for it to flip, and the viewer is restarted
+# in practice for that anyway.
+_GIT_REPO_CACHE: "dict[str, bool]" = {}
+
+# project_dir -> (head_state_key, head_sha_or_None). The state key is a
+# cheap filesystem-state tuple of `.git/HEAD` (+ `.git/logs/HEAD` when
+# present); it changes whenever HEAD moves, so a commit between ticks
+# invalidates the cached sha automatically. This avoids spawning
+# `git rev-parse HEAD` on every redraw while still letting the
+# (project_dir, head_sha) `_GIT_CACHE` invalidate as soon as the head
+# actually moves.
+_HEAD_SHA_CACHE: "dict[str, tuple[tuple, str | None]]" = {}
+
+
+# ---------------------------------------------------------------------------
+# Defensive subprocess seam (monkeypatchable by tests)
+# ---------------------------------------------------------------------------
+
+def _run_git(args: list[str], timeout_s: float = 2.0) -> str | None:
+    """Returns stdout text on success, None on any failure.
+
+    The single seam through which every `git` invocation in this module
+    flows. Tests monkeypatch this to inject failures, timeouts, or
+    canned output.
+    """
+    try:
+        cp = subprocess.run(args, capture_output=True, text=True,
+                            timeout=timeout_s)
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+        return None
+    if cp.returncode != 0:
+        return None
+    return cp.stdout
+
+
+# ---------------------------------------------------------------------------
+# Status classification
+# ---------------------------------------------------------------------------
+
+_NON_STEP_DIRS = {"assets", "profiles"}
+
+# Fallback extractor: pulls "started_at": <number> out of a sidecar that
+# json.loads rejects (e.g. truncated by a buggy in-place sed). The viewer
+# is read-only so we'd rather degrade to a best-effort numeric than
+# render `git: n/a` for a sidecar that still contains the value verbatim.
+_STARTED_AT_RE = re.compile(
+    r'"started_at"\s*:\s*(-?\d+(?:\.\d+)?)')
+
+
+def _scrape_started_at(run_dir: Path) -> float | None:
+    raw = model._read_text(run_dir / "run-state.json")
+    if raw is None:
+        return None
+    m = _STARTED_AT_RE.search(raw)
+    if m is None:
+        return None
+    try:
+        return float(m.group(1))
+    except ValueError:
+        return None
+
+
+def _classify(run_dir: Path,
+              last_activity_ts: float | None = None,
+              ) -> "tuple[str, float | None, float | None, bool]":
+    """Returns (status_text, started_at_ts, ended_at_ts, active_bool).
+
+    Precedence (per requirements §3 + plan F6):
+      1. sidecar status=="active" + live pid  -> "ACTIVE"
+      2. run.log contains "workflow complete (end)" -> "complete"
+      3. else "ended <iso>"
+
+    `last_activity_ts`, when provided, is reused as the fallback for the
+    ended branch instead of a fresh `_newest_mtime` walk. Callers that
+    already computed it (e.g. via `model.list_runs`) avoid a duplicate
+    full-tree walk per run per tick. When omitted, the historical
+    `model._newest_mtime` fallback is retained for backwards
+    compatibility with ad-hoc test callers.
+    """
+    st = _read_run_state(run_dir)
+    started_at_ts: float | None = None
+    if isinstance(st, dict):
+        sa = st.get("started_at")
+        if isinstance(sa, (int, float)) and not isinstance(sa, bool):
+            started_at_ts = float(sa)
+    # Sidecar present but JSON-broken (e.g. mid-sed): try to scrape
+    # started_at out of the raw bytes so the run-rooted git stats can
+    # still render. Status precedence below treats a non-dict sidecar
+    # the same as legacy/no-sidecar, which is correct.
+    if started_at_ts is None:
+        started_at_ts = _scrape_started_at(run_dir)
+
+    if isinstance(st, dict) and st.get("status") == "active" \
+            and _pid_alive(st.get("pid")):
+        return ("ACTIVE", started_at_ts, None, True)
+
+    if _is_complete(run_dir):
+        return ("complete", started_at_ts, None, False)
+
+    ended_at_ts: float | None = None
+    if isinstance(st, dict):
+        ea = st.get("ended_at")
+        if isinstance(ea, (int, float)) and not isinstance(ea, bool):
+            ended_at_ts = float(ea)
+    if ended_at_ts is None:
+        ended_at_ts = (last_activity_ts
+                       if last_activity_ts is not None
+                       else model._newest_mtime(run_dir))
+    return (f"ended {_fmt_ts(ended_at_ts)}",
+            started_at_ts, ended_at_ts, False)
+
+
+# ---------------------------------------------------------------------------
+# Path visits + cache
+# ---------------------------------------------------------------------------
+
+def _step_tree_mtime(run_dir: Path, hm_slug: str | None) -> float:
+    """Newest mtime across step dirs (excluding hm + non-step dirs).
+
+    Used as the cheap cache-validity key for `_PATH_CACHE`. Returns 0.0
+    when no step dirs are present.
+    """
+    newest = 0.0
+    try:
+        entries = list(os.scandir(run_dir))
+    except OSError:
+        return 0.0
+    for e in entries:
+        if not e.is_dir():
+            continue
+        name = e.name
+        if name in _NON_STEP_DIRS or name == hm_slug:
+            continue
+        try:
+            mt = e.stat(follow_symlinks=False).st_mtime
+        except OSError:
+            continue
+        if mt > newest:
+            newest = mt
+    return newest
+
+
+def _collect_path_visits(
+    run_dir: Path, slug: str,
+) -> "tuple[list[StepVisitInfo], int, float, float | None, set[str]]":
+    hm_slug = _health_monitor_slug(run_dir)
+    tree_mtime = _step_tree_mtime(run_dir, hm_slug)
+
+    cached = _PATH_CACHE.get(slug)
+    if cached is not None and cached[0] == tree_mtime:
+        return (cached[1], cached[2], cached[3], cached[4], cached[5])
+
+    steps = _collect_step_set(run_dir, hm_slug)
+    visits, cost_sum, invoked = _build_path_visits(run_dir, steps)
+    visits_total = len(visits)
+    wall = sum((v.duration_s or 0.0) for v in visits)
+    _PATH_CACHE[slug] = (tree_mtime, visits, visits_total, wall,
+                         cost_sum, invoked)
+    return (visits, visits_total, wall, cost_sum, invoked)
+
+
+# ---------------------------------------------------------------------------
+# Git enrichment
+# ---------------------------------------------------------------------------
+
+_GIT_UNREACHABLE = GitInfo(reachable=False, commits_since_start=None,
+                           last_commit_ts=None, pre_run=False)
+
+
+def _head_state_key(project_dir: str) -> tuple | None:
+    """Cheap filesystem-state proxy for HEAD invalidation.
+
+    Returns None when there's no `.git/HEAD` we can stat (callers then
+    treat the cache as a miss). The reflog (`.git/logs/HEAD`) is the
+    primary signal — git appends to it on every commit + HEAD move —
+    with `.git/HEAD` itself as a secondary key so a branch switch on a
+    repo without reflogs still invalidates.
+    """
+    gd = Path(project_dir) / ".git"
+    keys: list = []
+    try:
+        s = (gd / "HEAD").stat()
+    except OSError:
+        return None
+    keys.append((s.st_mtime, s.st_size))
+    try:
+        s = (gd / "logs" / "HEAD").stat()
+        keys.append((s.st_mtime, s.st_size))
+    except OSError:
+        pass
+    return tuple(keys)
+
+
+def _git_info(project_dir: str | None,
+              started_at_ts: float | None,
+              head_sha_by_proj: "dict[str, str | None]",
+              timeout_s: float = 2.0) -> GitInfo:
+    if not project_dir:
+        return _GIT_UNREACHABLE
+    p = Path(project_dir)
+    if not p.exists():
+        return _GIT_UNREACHABLE
+    if started_at_ts is None:
+        return _GIT_UNREACHABLE
+
+    # rev-parse --git-dir: gate for "is this actually a git working tree?"
+    # Result is cached for the process lifetime: a directory does not
+    # flip between "is a repo" / "is not a repo" without an explicit
+    # `git init` (in which case the user restarts the viewer).
+    is_repo = _GIT_REPO_CACHE.get(project_dir)
+    if is_repo is None:
+        git_dir_out = _run_git(
+            ["git", "-C", project_dir, "rev-parse", "--git-dir"],
+            timeout_s=timeout_s)
+        is_repo = git_dir_out is not None
+        _GIT_REPO_CACHE[project_dir] = is_repo
+    if not is_repo:
+        return _GIT_UNREACHABLE
+
+    # HEAD sha. Cached process-wide, invalidated by `.git/HEAD` +
+    # `.git/logs/HEAD` filesystem state so a commit between ticks is
+    # picked up immediately. The per-tick `head_sha_by_proj` memo is
+    # still honored so multiple runs against the same project share one
+    # rev-parse within a single tick.
+    if project_dir in head_sha_by_proj:
+        head_sha = head_sha_by_proj[project_dir]
+    else:
+        state = _head_state_key(project_dir)
+        cached = _HEAD_SHA_CACHE.get(project_dir)
+        if (cached is not None and state is not None
+                and cached[0] == state):
+            head_sha = cached[1]
+        else:
+            out = _run_git(["git", "-C", project_dir, "rev-parse", "HEAD"],
+                           timeout_s=timeout_s)
+            head_sha = out.strip() if out is not None else None
+            if state is not None:
+                _HEAD_SHA_CACHE[project_dir] = (state, head_sha)
+        head_sha_by_proj[project_dir] = head_sha
+
+    cache_key = (project_dir, head_sha)
+    cached = _GIT_CACHE.get(cache_key)
+    if cached is not None:
+        # The pre_run flag depends on started_at_ts (run-local), so
+        # rederive it rather than reusing the cached value.
+        pre = (cached.last_commit_ts is not None
+               and cached.last_commit_ts < started_at_ts)
+        return GitInfo(reachable=True,
+                       commits_since_start=cached.commits_since_start,
+                       last_commit_ts=cached.last_commit_ts,
+                       pre_run=pre)
+
+    commits: int | None = None
+    cs_out = _run_git(
+        ["git", "-C", project_dir, "rev-list", "--count",
+         f"--since=@{int(started_at_ts)}", "HEAD"],
+        timeout_s=timeout_s)
+    if cs_out is not None:
+        try:
+            commits = int(cs_out.strip())
+        except ValueError:
+            commits = None
+
+    last_ct: float | None = None
+    ct_out = _run_git(["git", "-C", project_dir, "log", "-1", "--format=%ct"],
+                      timeout_s=timeout_s)
+    if ct_out is not None:
+        ct_s = ct_out.strip()
+        if ct_s:
+            try:
+                last_ct = float(ct_s)
+            except ValueError:
+                last_ct = None
+
+    pre = (last_ct is not None and last_ct < started_at_ts)
+    info = GitInfo(reachable=True, commits_since_start=commits,
+                   last_commit_ts=last_ct, pre_run=pre)
+    _GIT_CACHE[cache_key] = info
+    return info
+
+
+# ---------------------------------------------------------------------------
+# Plan enrichment
+# ---------------------------------------------------------------------------
+
+_PLAN_TOTAL_RE = re.compile(r"^\s*-\s*\[[ xX]\]")
+_PLAN_CHECKED_RE = re.compile(r"^\s*-\s*\[[xX]\]")
+
+
+def _plan_info(plan_path: Path) -> PlanInfo:
+    try:
+        is_file = plan_path.is_file()
+    except OSError:
+        is_file = False
+    if not is_file:
+        return PlanInfo(None, None, None)
+
+    try:
+        mtime = plan_path.stat().st_mtime
+    except OSError:
+        mtime = None
+
+    cache_key = (str(plan_path), mtime) if mtime is not None else None
+    if cache_key is not None:
+        cached = _PLAN_CACHE.get(cache_key)
+        if cached is not None:
+            return cached
+
+    text = model._read_text(plan_path)
+    if text is None:
+        return PlanInfo(None, None, mtime)
+    total = 0
+    checked = 0
+    for line in text.splitlines():
+        if _PLAN_TOTAL_RE.match(line):
+            total += 1
+            if _PLAN_CHECKED_RE.match(line):
+                checked += 1
+    info = PlanInfo(total=total, checked=checked, mtime=mtime)
+    if cache_key is not None:
+        _PLAN_CACHE[cache_key] = info
+    return info
+
+
+# ---------------------------------------------------------------------------
+# Collection
+# ---------------------------------------------------------------------------
+
+def collect_run_enrichment(home: Path,
+                            now: float | None = None) -> list[RunEnrichment]:
+    if now is None:
+        now = time.time()
+
+    head_sha_by_proj: dict[str, str | None] = {}
+    out: list[RunEnrichment] = []
+    for r in model.list_runs(home):
+        run_dir = r.path
+        last_act = r.last_activity_ts
+        status_text, started_at_ts, _ended_at_ts, active = _classify(
+            run_dir, last_activity_ts=last_act)
+
+        visits, visits_total, wall, cost_sum, invoked = _collect_path_visits(
+            run_dir, r.slug)
+        modes = _classify_provider_modes(run_dir, invoked)
+
+        # project_dir: raw text; render layer handles ~ collapsing.
+        raw_proj = (model._read_text(run_dir / "project_dir.txt") or "").strip()
+        if raw_proj:
+            project_abbrev = _abbrev_home(raw_proj)
+            git_proj_arg: str | None = raw_proj
+        else:
+            project_abbrev = "(unknown)"
+            git_proj_arg = None
+
+        git = _git_info(git_proj_arg, started_at_ts, head_sha_by_proj)
+        plan = _plan_info(run_dir / "assets" / "plan-current.md")
+
+        out.append(RunEnrichment(
+            slug=r.slug,
+            run_info=r,
+            active=active,
+            status_text=status_text,
+            started_at_ts=started_at_ts,
+            started_hhmm=_hhmm_from_slug(r.slug),
+            last_activity_ts=last_act,
+            last_activity_hhmm=_hhmm(last_act),
+            project_dir_abbrev=project_abbrev,
+            tldr=r.summary,
+            path_visits=visits,
+            visits_total=visits_total,
+            wall_seconds=wall,
+            git=git,
+            plan=plan,
+            cost_usd_total=cost_sum,
+            provider_auth_mode=modes,
+        ))
+
+    # Single key: most-recent-activity descending. Runs with no
+    # last_activity_ts sort to the bottom. ACTIVE / ended interleave.
+    # Stable sort preserves the slug-newest-first order from list_runs
+    # on ties.
+    def _recency_key(e: RunEnrichment) -> float:
+        ts = e.last_activity_ts
+        return -ts if ts is not None else float("inf")
+    out.sort(key=_recency_key)
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Rendering
+# ---------------------------------------------------------------------------
+
+def _iso(ts: float) -> str:
+    try:
+        return datetime.fromtimestamp(ts).isoformat(timespec="seconds")
+    except (OSError, OverflowError, ValueError):
+        return "?"
+
+
+def _fmt_ts(ts: float | None) -> str:
+    """Unified TUI timestamp: YYYY/MM/DD  HH:MM:SS (two spaces)."""
+    if ts is None:
+        return "?"
+    try:
+        return datetime.fromtimestamp(ts).strftime("%Y/%m/%d  %H:%M:%S")
+    except (OSError, OverflowError, ValueError):
+        return "?"
+
+
+def _ts_from_slug(slug: str) -> float | None:
+    """Parse the YYYYMMDDHHMMSS prefix of a run slug to a unix ts.
+
+    Used as a last-resort fallback when neither `run-state.json`
+    nor the scraped sidecar yielded a `started_at`.
+    """
+    digits = slug.split("-", 1)[0]
+    if len(digits) < 14 or not digits[:14].isdigit():
+        return None
+    try:
+        return datetime.strptime(digits[:14], "%Y%m%d%H%M%S").timestamp()
+    except (ValueError, OverflowError):
+        return None
+
+
+def _resolve_started_at_ts(run_dir: Path,
+                           slug: str) -> float | None:
+    """Best-effort start time. SHARED between runs-list header and
+    run-detail screen so the two surfaces never disagree.
+
+    Precedence (highest-trust first):
+      1. `run-state.json.started_at` (numeric).
+      2. Best-effort `_scrape_started_at` (regex over the raw
+         sidecar bytes — wins when JSON is broken mid-write).
+      3. Slug prefix `_ts_from_slug(slug)`.
+
+    Returns None only when all three fail.
+    """
+    st = _read_run_state(run_dir)
+    if isinstance(st, dict):
+        sa = st.get("started_at")
+        if isinstance(sa, (int, float)) and not isinstance(sa, bool):
+            return float(sa)
+    sa2 = _scrape_started_at(run_dir)
+    if sa2 is not None:
+        return sa2
+    return _ts_from_slug(slug)
+
+
+def _hhmm(ts: float | None) -> str:
+    if ts is None:
+        return "?"
+    try:
+        return datetime.fromtimestamp(ts).strftime("%H:%M")
+    except (OSError, OverflowError, ValueError):
+        return "?"
+
+
+def _hhmm_from_slug(slug: str) -> str:
+    digits = slug.split("-", 1)[0]
+    if len(digits) < 14 or not digits[:14].isdigit():
+        return "?"
+    return digits[8:10] + ":" + digits[10:12]
+
+
+def _ago_short(delta_s: float) -> str:
+    """Short, human-readable "ago" delta. Seconds-resolution under 1m,
+    minute-resolution under 1h, hours+minutes under 1d, days above."""
+    delta_s = max(0.0, delta_s)
+    if delta_s < 60.0:
+        return f"{int(delta_s)}s"
+    if delta_s < 3600.0:
+        return f"{int(delta_s // 60)}m"
+    if delta_s < 86400.0:
+        h = int(delta_s // 3600)
+        m = int((delta_s % 3600) // 60)
+        return f"{h}h" if m == 0 else f"{h}h {m}m"
+    return f"{int(delta_s // 86400)}d"
+
+
+def _short_dur(seconds: float) -> str:
+    """Short fixed-duration formatter that retains seconds at minute scale.
+
+    Examples: 45 -> "45s"; 145 -> "2m 25s"; 150 -> "2m 30s"; 3725 ->
+    "1h 2m"; 3600 -> "1h".
+    """
+    seconds = max(0.0, seconds)
+    if seconds < 60.0:
+        return f"{int(seconds)}s"
+    if seconds < 3600.0:
+        m = int(seconds // 60)
+        sec = int(seconds % 60)
+        return f"{m}m" if sec == 0 else f"{m}m {sec}s"
+    h = int(seconds // 3600)
+    m = int((seconds % 3600) // 60)
+    return f"{h}h" if m == 0 else f"{h}h {m}m"
+
+
+def _wrap_path_lines(visits: list[StepVisitInfo],
+                     visits_total: int, wall_seconds: float,
+                     width: int) -> list[str]:
+    """Render the visit chain across one or more indented lines.
+
+    Continuation lines are aligned under the chain start (column 11,
+    i.e. immediately after `  path:    `). The trailer
+    (`visits=N   wall=…`) is appended to the last line that fits it,
+    or wrapped to its own continuation line. The full visit history
+    is preserved without `…`.
+
+    `width` is clamped via `max(1, width - len(prefix))` so any input
+    (zero, negative, narrower than the prefix) still produces a
+    finite, exception-free list — each segment then renders on its
+    own continuation line and the trailer takes its own line.
+    """
+    prefix = "  path:    "
+    indent = " " * len(prefix)
+    if not visits:
+        return [prefix + "(starting)"]
+
+    segs: list[str] = []
+    for v in visits:
+        dur = "running" if v.duration_s is None else _short_dur(
+            float(v.duration_s))
+        segs.append(f"{v.step}#{v.visit}({dur})")
+    trailer = f"   visits={visits_total}   wall={_short_dur(wall_seconds)}"
+
+    avail = max(1, width - len(prefix))
+    sep = " → "
+
+    lines: list[str] = []
+    current = segs[0]
+    for seg in segs[1:]:
+        piece = sep + seg
+        if len(current) + len(piece) <= avail:
+            current += piece
+        else:
+            lines.append(current)
+            # Continuation: start with `→ <seg>` (drop the leading
+            # space from sep so the arrow lines up at column 11).
+            current = sep.lstrip() + seg
+
+    if len(current) + len(trailer) <= avail:
+        current += trailer
+        lines.append(current)
+    else:
+        lines.append(current)
+        lines.append(trailer.lstrip())
+
+    return [(prefix if i == 0 else indent) + ln
+            for i, ln in enumerate(lines)]
+
+
+def _format_git_row(git: GitInfo, now: float) -> str:
+    prefix = "  git:     "
+    if (not git.reachable) or git.commits_since_start is None:
+        return prefix + "n/a"
+    n = git.commits_since_start
+    if git.last_commit_ts is None:
+        return prefix + f"{n} commits since start; last —"
+    ago = _ago_short(now - git.last_commit_ts)
+    tag = " (pre-run)" if git.pre_run else ""
+    return prefix + f"{n} commits since start; last {ago}{tag}"
+
+
+def _format_plan_row(plan: PlanInfo, now: float) -> str:
+    prefix = "  plan:    "
+    if plan.total is None or plan.total == 0:
+        return prefix + "n/a"
+    checked = plan.checked or 0
+    if checked == 0 or plan.mtime is None:
+        return prefix + f"{checked}/{plan.total} checked; last toggled —"
+    ago = _ago_short(now - plan.mtime)
+    return prefix + f"{checked}/{plan.total} checked; last toggled {ago}"
+
+
+def _format_cost_row(cost: float | None) -> str:
+    """Per-run summed cost in USD, two decimals; em-dash when unknown
+    or zero (no per-visit cost recorded). The leading prefix matches
+    the other runs-list rows so columns line up visually."""
+    prefix = "  cost:    "
+    if cost is None or cost == 0.0:
+        return prefix + "—"
+    return prefix + f"${cost:.2f}"
+
+
+def _format_auth_row(mode_map: dict[str, dict[str, str | None]]) -> str:
+    """Per-run provider auth-mode summary.
+
+    Renders `<account>/<mode>` when the provider used a named auth
+    account (i.e. `mode == "auth"` and `account` is non-None) — e.g.
+    `anthropic: default/auth` — and `<mode>` alone otherwise — e.g.
+    `openai: api` or `anthropic: -`. Providers that the run never
+    actually invoked render as `-` (gated on runtime evidence by the
+    classifier, not on the workflow's declaration).
+    """
+    prefix = "  auth:    "
+
+    def _cell(entry: object) -> str:
+        if not isinstance(entry, dict):
+            return "-"
+        mode = entry.get("mode") or "-"
+        account = entry.get("account")
+        if account:
+            return f"{account}/{mode}"
+        return str(mode)
+
+    anth = _cell(mode_map.get("anthropic"))
+    openai = _cell(mode_map.get("openai"))
+    return f"{prefix}anthropic: {anth}    openai: {openai}"
+
+
+def _format_header(e: RunEnrichment, now: float) -> str:
+    started_ts = e.started_at_ts
+    if started_ts is None:
+        started_ts = _ts_from_slug(e.slug)
+    started_fmt = _fmt_ts(started_ts)
+    if e.last_activity_ts is not None:
+        ago = _ago_short(now - e.last_activity_ts)
+        act = f"act {_fmt_ts(e.last_activity_ts)} ({ago})"
+    else:
+        act = f"act {_fmt_ts(None)} (?)"
+    return (f"{e.slug} · {e.status_text} · started {started_fmt} · "
+            f"{act}")
+
+
+def render_runs_list_lines(enriched: list[RunEnrichment],
+                            sel_index: int,
+                            width: int,
+                            now: float | None = None,
+                            ) -> tuple[list[str], list[int]]:
+    if not enriched:
+        return [], []
+    if now is None:
+        now = time.time()
+
+    lines: list[str] = []
+    block_lengths: list[int] = []
+    for e in enriched:
+        block: list[str] = []
+        block.append(_format_header(e, now).rstrip())
+        block.append(f"  project: {e.project_dir_abbrev}".rstrip())
+        block.append(f"  TLDR:    {e.tldr or '(none)'}".rstrip())
+        for ln in _wrap_path_lines(e.path_visits, e.visits_total,
+                                   e.wall_seconds, width):
+            block.append(ln.rstrip())
+        block.append(_format_git_row(e.git, now).rstrip())
+        block.append(_format_plan_row(e.plan, now).rstrip())
+        block.append(_format_cost_row(e.cost_usd_total).rstrip())
+        block.append(_format_auth_row(e.provider_auth_mode).rstrip())
+        lines.extend(block)
+        block_lengths.append(len(block))
+    return lines, block_lengths

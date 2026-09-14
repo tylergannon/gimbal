@@ -1,0 +1,121 @@
+# Source path in pinned archive: USER_MANUAL/08-run-directory.md
+# Archive member: diffusioninc-Tenacious-d3a4d7ff9f5445a42a7516eda845f8c58a531a45/USER_MANUAL/08-run-directory.md
+
+# 8. The run directory
+
+[← The viewer command line](07-viewer-cli.md) · [Table of contents](TOC.md) · [Next: MCP servers per step →](09-mcp-servers.md)
+
+The viewer is convenient, but it only *reads* files. Every one of those
+files is plain text you can open with anything. When the viewer can't show
+you something (the exact prompt sent for visit 002, an agent's raw
+stderr), go here.
+
+## Location
+
+```
+$TENACIOUS_HOME/runs/<run-slug>/        # default $TENACIOUS_HOME = ~/.tenacious
+```
+
+The slug is `YYYYMMDDHHMMSS-NNN` — sortable, so the newest run sorts last
+alphabetically and is shown first by the viewer.
+
+## Layout
+
+```
+<run-slug>/
+  workflow.json          # the exact workflow this run used (frozen copy)
+  goal.txt               # the resolved goal (after any --goal override)
+  project_dir.txt        # the resolved project directory
+  run-state.json         # lifecycle sidecar: pid, status, source, times
+  accounts.json          # which auth-bank account was picked per provider
+                         #   (a provider in API-key mode is absent here)
+  agent_homes.json       # present only for --claude-code-home/--codex-home
+  run.log                # the orchestrator's own log (the viewer tails this)
+
+  assets/                # shared files passed between steps
+    requirements-current.md
+    plan-current.md
+    ...                  # for the 6-step workflow, see chapter 4's table
+
+  profiles/<step>/       # per-step agent profile & session storage
+    auth.json            #   Codex: leased credential copy
+                         #     (absent in codex API-key mode)
+    thread_id.txt        #   Codex: saved thread id (resumes the session)
+    session-index.jsonl  #   external transcripts for user-home runs
+    CLAUDE_CONFIG_DIR/   #   Claude: persistent session dir
+                         #     (no token file is written in anthropic
+                         #      API-key mode; the env-var key is passed
+                         #      directly to the child claude process)
+    projects/…/*.jsonl   #   Claude session transcript(s)  ← viewer Level 4
+    sessions/Y/M/D/rollout-*.jsonl   # Codex transcript(s) ← viewer Level 4
+
+  <step-slug>/           # one directory per step
+    001/                 # one directory per visit
+      prompt.txt         #   exact rendered prompt sent to the agent
+      outcome.txt        #   the next-step slug the agent wrote
+      stdout.txt         #   agent stdout
+      stderr.txt         #   agent stderr
+      meta.json          #   duration, exit code, agent, model, etc.
+      question.txt       #   (only if this visit asked a question)
+      answer.txt         #   (only if you/--answers answered it)
+    002/
+      ...
+```
+
+`accounts.json` only lists providers whose auth bank was actually leased
+during the run: when you launched with a `--costly-use-*-api-key` flag
+and the env var was present (chapter 3), that provider's key is **absent
+from `accounts.json`** because no slot was ever picked. The same goes for
+the per-step `auth.json` / `CLAUDE_CONFIG_DIR` token files above — they
+exist only for providers actually leased from the bank.
+
+When a run uses user-home mode, `agent_homes.json` records the resolved
+home paths, for example `{"claude": "/Users/you/.claude"}`. The actual
+Claude/Codex transcripts then live under that external home. Tenacious
+adds each external transcript path to
+`profiles/<step>/session-index.jsonl`, which is how the viewer and health
+monitor find sessions that are not physically under the run directory.
+
+`run-state.json` is a small lifecycle sidecar used by the viewer. It
+records the orchestrator pid, whether the run is active or ended, the
+workflow source path, and start/end timestamps. It is best-effort
+metadata; `run.log` and the visit directories remain the durable record.
+
+## Mapping the viewer to disk
+
+| Viewer screen | On disk |
+|---|---|
+| Level 1, runs list | the `runs/` directory listing |
+| Level 2, run detail | `goal.txt`, `accounts.json`, `workflow.json`, `run-state.json`, `run.log` |
+| Level 3, visits | `<step>/NNN/question.txt`, `outcome.txt`, `meta.json` |
+| Level 3, sessions | `profiles/<step>/…/*.jsonl` |
+| Level 4, transcript | the same `*.jsonl`, or an external path from `session-index.jsonl`, parsed and rendered |
+
+## Things you can only get from disk
+
+The viewer intentionally doesn't surface these — read the files directly:
+
+- **The exact prompt for a specific visit** — `<step>/NNN/prompt.txt`.
+  Useful to see exactly what variables expanded to.
+- **An agent's raw stdout/stderr** — `<step>/NNN/stdout.txt` /
+  `stderr.txt`. Where you look when a step "did nothing."
+- **A visit's question and the answer given** — `question.txt` /
+  `answer.txt` side by side.
+- **Timing / exit code** — `meta.json`.
+- **Per-visit cost** — `meta.json` may include `cost_usd` when the agent
+  reported token cost in stdout.
+- **What an asset looked like at the end** — `assets/<name>`. For the
+  6-step workflow, the per-round `…-NNNN.md` files are the permanent
+  record (chapter 4).
+
+## A note on git hygiene (for this repo)
+
+This repository's `CLAUDE.md` requires every file under it to be either
+committed or listed in `.gitignore` — no stray untracked files, and never
+wildcard `git add`. Run directories live under `~/.tenacious`, *outside*
+the repo, so they don't fall under that rule. But this `USER_MANUAL/`
+folder does: commit it (each file by explicit path) or add it to
+`.gitignore`.
+
+[← The viewer command line](07-viewer-cli.md) · [Table of contents](TOC.md) · [Next: MCP servers per step →](09-mcp-servers.md)
+</content>

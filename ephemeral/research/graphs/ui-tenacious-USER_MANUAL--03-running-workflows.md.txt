@@ -1,0 +1,240 @@
+# Source path in pinned archive: USER_MANUAL/03-running-workflows.md
+# Archive member: diffusioninc-Tenacious-d3a4d7ff9f5445a42a7516eda845f8c58a531a45/USER_MANUAL/03-running-workflows.md
+
+# 3. Running workflows
+
+[← Getting started](02-getting-started.md) · [Table of contents](TOC.md) · [Next: The 6-step workflow →](04-six-step-workflow.md)
+
+## The command
+
+```sh
+python -m tenacious <workflow.yaml> [OPTIONS]
+```
+
+| Argument / flag | Meaning |
+|---|---|
+| `workflow` (required) | Path to the workflow file. Use `.yaml`/`.yml` for new workflows; `.json` is accepted only as a legacy format. |
+| `--goal TEXT` | Override the `goal` field inside the workflow file. |
+| `--answers PATH` | A file with one canned answer per line. Used to answer agent questions **without a human** (unattended runs). |
+| `--project-dir PATH` | The directory agents run in and write code to. Defaults to the run directory itself. |
+| `--costly-use-anthropic-api-key` | Bypass the anthropic auth-bank lease and bill anthropic per token: pass `ANTHROPIC_API_KEY` from the orchestrator env to `claude`, and strip `CLAUDE_CODE_OAUTH_TOKEN` from the child env. Errors before creating a run if `ANTHROPIC_API_KEY` is missing. See "Cost-bearing API-key mode" below. |
+| `--costly-use-codex-api-key` | Bypass the openai/codex auth-bank lease and bill codex per token: pass `CODEX_API_KEY` (preferred) or `OPENAI_API_KEY` from the orchestrator env to `codex`, exporting it as **both** `CODEX_API_KEY` *and* `OPENAI_API_KEY` in the child. Errors before creating a run if neither env var is set. See "Cost-bearing API-key mode" below. |
+| `--claude-code-home DIR` | Bypass the anthropic auth-bank lease and run `claude` with `CLAUDE_CONFIG_DIR=DIR`. Cannot be combined with `--costly-use-anthropic-api-key`. See "User-home auth/session mode" below. |
+| `--codex-home DIR` | Bypass the openai/codex auth-bank lease and run `codex` with `CODEX_HOME=DIR`. Cannot be combined with `--costly-use-codex-api-key`. See "User-home auth/session mode" below. |
+| `--max-visits N` | Override the run-wide cap on step entries plus retry visits. The chosen cap is frozen into the run's `workflow.json` and reused on resume unless you pass a new value. |
+
+On success it prints `Run directory: <path>` and exits 0.
+
+Workflow files should be YAML. Legacy JSON files load with the same schema
+for compatibility, but examples and new workflows should use YAML. YAML
+loading requires PyYAML, which is listed in `requirements.txt`.
+
+### Attended vs. unattended
+
+- **Attended** (no `--answers`): when an agent asks a question, the run
+  pauses and the multi-line editor opens in your terminal (chapter 5).
+- **Unattended** (`--answers answers.txt`): each question consumes the
+  next line of that file instead of waiting for you. Good for CI or
+  scripted reruns.
+
+### `--project-dir` — read this
+
+For any workflow that produces *code* (like the 6-step workflow), point
+`--project-dir` at the codebase you want changed:
+
+```sh
+python -m tenacious workflows/6step.yaml --project-dir /Users/you/dev/myproject
+```
+
+Without it, agents write into the run directory, not your project.
+
+### Cost-bearing API-key mode
+
+By default (no flag), each step leases credentials from
+`~/.tenacious/auth-bank/`, so the agent runs against whichever
+OAuth/subscription account that slot represents — your billing is
+whatever that account already has. The two `--costly-use-*-api-key`
+flags let you skip the bank for a provider and bill that provider's
+metered API account directly. They are called **costly** because each
+child invocation is billed per token against the API key you supply.
+Use them when you specifically want metered API billing instead of the
+bank's account-pool billing.
+
+The flags are independent: you can set one, the other, both, or
+neither. They are accepted by both a normal launch and `--resume RUN_ID`
+(and only take effect for steps that run after the resume).
+
+**`--costly-use-anthropic-api-key`.** Reads `ANTHROPIC_API_KEY` from
+the orchestrator's env and exports it to the child `claude` process. To
+make sure the metered API is billed (and not the OAuth subscription),
+`CLAUDE_CODE_OAUTH_TOKEN` is **actively stripped** from the child env.
+The orchestrator **skips the auth bank** entirely for anthropic: no
+slot leased, no `accounts.json` entry written for anthropic, no
+`auth.json` / `CLAUDE_CONFIG_DIR` token file materialized in the
+step's profile directory for that provider, and the run can launch
+successfully with an empty or absent `auth-bank/anthropic/` tree.
+
+**`--costly-use-codex-api-key`.** Reads `CODEX_API_KEY` first; if that
+is not set, falls back to `OPENAI_API_KEY`. Whichever key it picks is
+exported into the child `codex` process as both `CODEX_API_KEY` and
+`OPENAI_API_KEY` (the same value is set into both child env vars, so
+whichever name `codex` happens to read, the key is there). The
+orchestrator **skips the auth bank** entirely for codex too: no
+`auth.json` is written into the step's
+profile (no writeback round-trip either, so any existing bank slot
+stays byte-for-byte unchanged), no `accounts.json` entry is written
+for codex, and the run can launch successfully with an empty or absent
+`auth-bank/openai/` tree.
+
+**Missing env var is an error.** If you set a
+`--costly-use-*-api-key` flag but the relevant env var is missing,
+Tenacious exits before creating or resuming a run. Remove the API-key
+flag to use the auth bank instead.
+
+- `--costly-use-anthropic-api-key` requires `ANTHROPIC_API_KEY`.
+- `--costly-use-codex-api-key` requires `CODEX_API_KEY` or
+  `OPENAI_API_KEY`.
+
+When API-key mode is fully active, the exact strings you can grep for
+in `run.log` are:
+
+- `[API-KEY MODE: anthropic — billed per token]`
+- `[API-KEY MODE: codex — billed per token]`
+
+### User-home auth/session mode
+
+The `--claude-code-home DIR` and `--codex-home DIR` flags select a third
+provider mode: use the normal CLI home directory you name. Tenacious
+creates the directory if needed, exports it to the child as
+`CLAUDE_CONFIG_DIR` or `CODEX_HOME`, and does not lease from the auth bank
+for that provider. The child process reads and writes its own auth state,
+settings, and session logs in that directory.
+
+Tenacious still keeps orchestration metadata in the run directory. For
+each step it records thread/session ids and appends external transcript
+paths to `profiles/<step>/session-index.jsonl`, so
+`python -m tenacious.viewer --sessions` and the health-monitor step can
+find logs that live outside the run directory.
+
+These flags are also accepted by `--resume RUN_ID`; if a run was created
+with a user-home flag, the resolved home path is persisted in
+`agent_homes.json` and reused on resume unless you pass a new flag value.
+For Codex MCP servers, Tenacious passes per-invocation config overrides
+instead of overwriting `DIR/config.toml`.
+
+For each provider, use exactly one auth mode: omit provider-specific
+flags for the auth bank, pass the provider's API-key flag for metered
+billing, or pass the provider's user-home flag for CLI-home auth. You
+can mix modes across providers, such as auth bank for Claude and API-key
+mode for Codex.
+
+### Run budget: `--max-visits`
+
+Every run has a shared visit budget so a broken workflow cannot retry
+forever. The budget counts each normal step entry and each retry visit.
+The default is 100; `--max-visits N` overrides it for the run. When the
+budget is exhausted, Tenacious raises `max step budget exceeded` instead
+of launching another agent.
+
+The chosen cap is persisted into the frozen run `workflow.json`, so
+`--resume RUN_ID` uses the same cap. Passing `--max-visits` on resume
+overrides the persisted value for the resumed portion.
+
+## The workflow format
+
+YAML is the primary workflow format:
+
+```yaml
+goal: What this whole workflow is for.
+project_dir: /optional/default/project/dir
+base_prompt: Optional rules appended to every step prompt.
+start_step: first_step_slug
+steps:
+  first_step_slug:
+    agent: claude
+    model: claude-opus-4-8
+    questions: true
+    context: continue
+    asset_slugs:
+    - some-shared-file.md
+    next_steps:
+    - second_step_slug
+    prompt: "Goal: {goal}\n\nDo the thing. Write 'second_step_slug' to {outcome_path}."
+```
+
+Legacy JSON workflow files still load with the same schema, but JSON is
+kept for compatibility with older workflows rather than as the preferred
+authoring format.
+
+### Top-level fields
+
+| Field | Meaning |
+|---|---|
+| `goal` | The overall objective; available to every prompt as `{goal}`. Overridable with `--goal`. |
+| `project_dir` | Default working dir for agents. Overridable with `--project-dir`. |
+| `base_prompt` | Optional shared text appended to every step's prompt through the orchestrator contract block. Use it for workflow-wide rules. |
+| `start_step` | Slug of the step the run begins at. |
+| `steps` | Map of step slug → step definition. |
+| `max_visits` | Optional positive integer persisted in the run's frozen workflow. Equivalent to setting the run budget in the workflow file; the CLI flag overrides it. |
+
+### Per-step fields
+
+| Field | Meaning |
+|---|---|
+| `agent` | `"claude"` or `"codex"`. |
+| `model` | Optional model id (e.g. `claude-opus-4-8`, `claude-fable-5`, `gpt-5.5`). |
+| `prompt` | The prompt template. Supports the variables below. |
+| `asset_slugs` | Shared files (from `assets/`) to attach to this step. |
+| `assets` | Optional list of asset base names this step snapshots. If a step declares `assets: ["plan"]`, Tenacious ensures `plan-NNNN.md` exists beside `plan-current.md` after a successful outcome. |
+| `next_steps` | The slugs this step is *allowed* to advance to. Use `"end"` to finish the run. The orchestrator validates the agent's `outcome.txt` against this list. |
+| `context` | `"empty"` = fresh agent session. `"continue"` = resume the prior session for this step (used so a question-asking step remembers earlier turns). |
+| `questions` | `true` lets this step ask you questions (write `question.txt`); `false`/omitted means it must not. |
+| `mcp_servers` | Optional map of stdio or HTTP MCP servers to expose to this step (see chapter 9). |
+
+Parallel composite steps are also supported. A composite parent declares
+`parallel: true`, exactly one `next_steps` entry, and a non-empty
+`substeps` map. The parent has no `agent` or `prompt`; each substep has
+its own agent, prompt, assets, and MCP config. Substeps run concurrently
+and share the run's project directory.
+
+### Prompt template variables
+
+These are substituted into `prompt` before the agent sees it:
+
+| Variable | Expands to |
+|---|---|
+| `{goal}` | The run's goal. |
+| `{run_slug}` | The run's unique id. |
+| `{project_dir}` | Where the agent should create/modify code. |
+| `{assets_dir}` | The shared `assets/` directory. |
+| `{step_dir}` | This visit's directory (where to write `question.txt`). |
+| `{outcome_path}` | The file the agent must write the next step name into. |
+| `{run_root}` | The root directory for this run under `$TENACIOUS_HOME/runs/`. |
+
+## The contract every step's prompt must honor
+
+A step ends correctly only if the agent **writes the next step's slug to
+`{outcome_path}`**, and that slug is in the step's `next_steps`. To ask a
+question instead, the prompt should instruct the agent to write the
+question to `{step_dir}/question.txt` and the literal word `question` to
+`{outcome_path}`, then stop.
+
+If you write your own workflow, copy this discipline from the examples in
+`workflows/` and from `workflows/6step.yaml` (chapter 4) — getting the
+outcome/question contract right is the whole game.
+
+## Example workflows in the repo
+
+| File | What it shows |
+|---|---|
+| `workflows/hello-claude.json` | Legacy JSON minimal two-step Claude workflow. |
+| `workflows/hello-claude-fable5.yaml` | One-step Claude Fable 5 YAML smoke test that writes and runs `hello.py`. |
+| `workflows/hello-codex.json` | Legacy JSON minimal two-step Codex workflow. |
+| `workflows/question-claude.json` | Legacy JSON step that asks you a question. |
+| `workflows/question-codex.json` | Legacy JSON Codex question workflow. |
+| `workflows/6step.yaml` | The full iterative dev loop (chapter 4). |
+| `workflows/6step-goal-only.yaml` | Same loop, but the CLI `--goal` is the requirements input; no requirements interview step. |
+| `workflows/iterative.yaml` | Checkbox-driven iterative loop. |
+
+[← Getting started](02-getting-started.md) · [Table of contents](TOC.md) · [Next: The 6-step workflow →](04-six-step-workflow.md)
+</content>

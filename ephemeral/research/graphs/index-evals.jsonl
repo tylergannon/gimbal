@@ -6,3 +6,7 @@
 {"query":"Can Go tooling find typed Gimble calls and SSA?","route":"index-go.md","citations":["go-report.md:42-111","go-feasibility-probe-output.txt:1-12"],"verified":true}
 {"query":"What can static analysis not prove about scope lifetime?","route":"index-go.md","citations":["go-report.md:135-206"],"verified":true}
 {"query":"Is the workflow graph already implemented?","route":"index-milestones.md","citations":["recommendation.md:1-11","milestone-assessment.md:31-34"],"verified":true}
+{"query":"How should overview and focused UI detail work?","route":"index-ui.md","citations":["ui-timelines-report.md:11-32","ui-timelines-index-leaf.md:21-32"],"verified":true}
+{"query":"How should program and run projections differ?","route":"index-ui.md","citations":["ui-timelines-report.md:34-61","ui-workflows-report.md:7-27"],"verified":true}
+{"query":"What does Tenacious actually implement?","route":"index-ui.md","citations":["ui-tenacious-report.md:3-29","ui-tenacious-report.md:31-56"],"verified":true}
+{"query":"What can the first Beta UI show if extraction is incomplete?","route":"index-ui.md","citations":["ui-timelines-report.md:119-147","ui-workflows-report.md:53-64","milestone-assessment.md:3-18","delivery-slices.md:17-21"],"verified":true}

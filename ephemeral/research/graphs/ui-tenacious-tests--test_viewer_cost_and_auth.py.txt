@@ -1,0 +1,405 @@
+# Source path in pinned archive: tests/test_viewer_cost_and_auth.py
+# Archive member: diffusioninc-Tenacious-d3a4d7ff9f5445a42a7516eda845f8c58a531a45/tests/test_viewer_cost_and_auth.py
+
+"""Viewer enrichment: per-run summed cost + per-provider auth mode.
+
+Covers
+  - `_extract_cost_usd` against synthetic and fixture stdout blobs;
+  - `_format_cost_row` formatting (dollar, em-dash for zero/None);
+  - `cost_usd_total` aggregation across multiple visits;
+  - `_invoked_providers` runtime-evidence walk;
+  - `_classify_provider_modes` (auth/api/-) gated on actual invocation;
+  - `_format_auth_row` formatting;
+  - end-to-end render block contains the cost and auth rows.
+
+Stdlib-only. Run from the project root:
+
+    .venv/bin/python tests/test_viewer_cost_and_auth.py
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import sys
+import tempfile
+from pathlib import Path
+
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, _PROJECT_ROOT)
+
+import tenacious.orchestrator as o  # noqa: E402
+from tenacious.viewer import runs_enrich as re_mod  # noqa: E402
+
+
+FAILS: list[str] = []
+PASSES = 0
+
+
+def _ok(name: str) -> None:
+    global PASSES
+    PASSES += 1
+    print(f"PASS {name}")
+
+
+def _fail(name: str, detail: str) -> None:
+    FAILS.append(f"{name}: {detail}")
+    print(f"FAIL {name}: {detail}")
+
+
+def s_extract_cost_claude_synthetic() -> None:
+    name = "extract_cost_claude_synthetic"
+    blob = json.dumps({"type": "result", "subtype": "success",
+                       "result": "ok", "total_cost_usd": 0.0123})
+    got = o._extract_cost_usd("claude", blob, "")
+    if got != 0.0123:
+        _fail(name, f"got {got!r}")
+        return
+    if o._extract_cost_usd("claude", "", "") is not None:
+        _fail(name, "empty input should yield None")
+        return
+    _ok(name)
+
+
+def s_extract_cost_codex_synthetic_none() -> None:
+    name = "extract_cost_codex_synthetic_none"
+    if o._extract_cost_usd("codex", "{}\n", "") is not None:
+        _fail(name, "codex with no usage should be None")
+        return
+    if o._extract_cost_usd("unknown", "x", "y") is not None:
+        _fail(name, "unknown agent should be None")
+        return
+    _ok(name)
+
+
+def s_extract_cost_fixture() -> None:
+    name = "extract_cost_fixture"
+    claude_blob = (Path(_PROJECT_ROOT)
+                   / "tests/fixtures/cost_claude_sample.json").read_text()
+    val = o._extract_cost_usd("claude", claude_blob, "")
+    if not (isinstance(val, float) and val > 0):
+        _fail(name, f"claude val: {val!r}")
+        return
+    codex_blob = (Path(_PROJECT_ROOT)
+                  / "tests/fixtures/cost_codex_sample.jsonl").read_text()
+    val2 = o._extract_cost_usd("codex", codex_blob, "")
+    if not (val2 is None or isinstance(val2, float)):
+        _fail(name, f"codex val: {val2!r}")
+        return
+    _ok(name)
+
+
+def s_extract_cost_codex_with_dollar() -> None:
+    name = "extract_cost_codex_with_dollar"
+    # If a future codex build emits a dollar field on thread.completed,
+    # the extractor should surface it.
+    stream = ('{"type":"thread.started","thread_id":"t1"}\n'
+              '{"type":"thread.completed",'
+              '"usage":{"input_tokens":10,"output_tokens":5,'
+              '"total_cost_usd":0.0099}}\n')
+    val = o._extract_cost_usd("codex", stream, "")
+    if val != 0.0099:
+        _fail(name, f"got {val!r}")
+        return
+    _ok(name)
+
+
+def s_format_cost_row() -> None:
+    name = "format_cost_row"
+    if re_mod._format_cost_row(0.42) != "  cost:    $0.42":
+        _fail(name, "non-zero formatting"); return
+    if re_mod._format_cost_row(0.0) != "  cost:    —":
+        _fail(name, "zero -> em-dash"); return
+    if re_mod._format_cost_row(None) != "  cost:    —":
+        _fail(name, "None -> em-dash"); return
+    _ok(name)
+
+
+def _seed_run(d: Path, *, accounts=None, run_log="",
+              visits=()) -> Path:
+    rd = d / "runs" / "r"
+    (rd / "assets").mkdir(parents=True)
+    (rd / "goal.txt").write_text("g")
+    (rd / "project_dir.txt").write_text("/tmp/x")
+    if accounts is not None:
+        (rd / "accounts.json").write_text(json.dumps(accounts))
+    if run_log:
+        (rd / "run.log").write_text(run_log)
+    for (step, visit, agent, cost) in visits:
+        vd = rd / step / f"{visit:03d}"
+        vd.mkdir(parents=True)
+        m = {"step": step, "visit": visit, "duration_s": 1.0,
+             "agent": agent}
+        if cost is not None:
+            m["cost_usd"] = cost
+        (vd / "meta.json").write_text(json.dumps(m))
+    return d
+
+
+def s_cost_aggregation_across_visits() -> None:
+    name = "cost_aggregation_across_visits"
+    re_mod._PATH_CACHE.clear()
+    d = Path(tempfile.mkdtemp(prefix="vc-"))
+    _seed_run(d, visits=[
+        ("a", 1, "claude", 0.10),
+        ("a", 2, "claude", 0.20),
+        ("b", 1, "codex", 0.12),
+    ])
+    en = re_mod.collect_run_enrichment(d)
+    if len(en) != 1:
+        _fail(name, f"runs: {en}")
+        return
+    total = round(en[0].cost_usd_total or 0.0, 2)
+    if total != 0.42:
+        _fail(name, f"sum: {total}")
+        return
+    _ok(name)
+
+
+def s_no_cost_renders_none() -> None:
+    name = "no_cost_renders_none"
+    re_mod._PATH_CACHE.clear()
+    d = Path(tempfile.mkdtemp(prefix="vc-"))
+    _seed_run(d, visits=[("a", 1, "claude", None)])
+    en = re_mod.collect_run_enrichment(d)
+    if en[0].cost_usd_total not in (None, 0.0):
+        _fail(name, f"unexpected: {en[0].cost_usd_total}")
+        return
+    _ok(name)
+
+
+def s_invoked_providers_helper() -> None:
+    name = "invoked_providers_helper"
+    d = Path(tempfile.mkdtemp(prefix="vc-"))
+    vd = d / "plan" / "001"; vd.mkdir(parents=True)
+    (vd / "meta.json").write_text(json.dumps(
+        {"step": "plan", "visit": 1, "agent": "claude"}))
+    vd2 = d / "code" / "001"; vd2.mkdir(parents=True)
+    (vd2 / "meta.json").write_text(json.dumps(
+        {"step": "code", "visit": 1, "agent": "codex"}))
+    got = re_mod._invoked_providers(d)
+    if got != {"anthropic", "openai"}:
+        _fail(name, f"{got}")
+        return
+    _ok(name)
+
+
+def s_classify_auth_from_accounts() -> None:
+    name = "classify_auth_from_accounts"
+    d = Path(tempfile.mkdtemp(prefix="vc-"))
+    (d / "accounts.json").write_text(json.dumps(
+        {"anthropic": "default", "openai": "default"}))
+    (d / "run.log").write_text("\n")
+    got = re_mod._classify_provider_modes(d, {"anthropic"})
+    anth = got.get("anthropic") or {}
+    if anth.get("mode") != "auth":
+        _fail(name, f"{got}")
+        return
+    if anth.get("account") != "default":
+        _fail(name, f"account name missing: {got}")
+        return
+    openai = got.get("openai") or {}
+    if openai.get("mode") != "-":
+        _fail(name, f"openai uninvoked must be '-': {got}")
+        return
+    if openai.get("account") is not None:
+        _fail(name, f"uninvoked openai account must be None: {got}")
+        return
+    _ok(name)
+
+
+def s_classify_api_from_banner() -> None:
+    name = "classify_api_from_banner"
+    d = Path(tempfile.mkdtemp(prefix="vc-"))
+    (d / "accounts.json").write_text(json.dumps({}))
+    (d / "run.log").write_text(
+        "[t] [API-KEY MODE: anthropic — billed per token]\n")
+    got = re_mod._classify_provider_modes(d, {"anthropic"})
+    anth = got.get("anthropic") or {}
+    if anth.get("mode") != "api":
+        _fail(name, f"{got}")
+        return
+    if anth.get("account") is not None:
+        _fail(name, f"api mode must have no account: {got}")
+        return
+    _ok(name)
+
+
+def s_classify_codex_banner_to_openai() -> None:
+    name = "classify_codex_banner_to_openai"
+    d = Path(tempfile.mkdtemp(prefix="vc-"))
+    (d / "accounts.json").write_text(json.dumps({}))
+    (d / "run.log").write_text(
+        "[t] [API-KEY MODE: codex — billed per token]\n")
+    got = re_mod._classify_provider_modes(d, {"openai"})
+    op = got.get("openai") or {}
+    if op.get("mode") != "api":
+        _fail(name, f"{got}")
+        return
+    _ok(name)
+
+
+def s_classify_home_from_banner() -> None:
+    name = "classify_home_from_banner"
+    d = Path(tempfile.mkdtemp(prefix="vc-"))
+    (d / "accounts.json").write_text(json.dumps({}))
+    (d / "run.log").write_text(
+        "[t] [HOME MODE: anthropic — CLAUDE_CONFIG_DIR]\n"
+        "[t] [HOME MODE: openai — CODEX_HOME]\n")
+    got = re_mod._classify_provider_modes(d, {"anthropic", "openai"})
+    if got.get("anthropic", {}).get("mode") != "home":
+        _fail(name, f"{got}")
+        return
+    if got.get("openai", {}).get("mode") != "home":
+        _fail(name, f"{got}")
+        return
+    row = re_mod._format_auth_row(got)
+    if row != "  auth:    anthropic: home    openai: home":
+        _fail(name, f"row: {row!r}")
+        return
+    _ok(name)
+
+
+def s_classify_never_invoked_dash() -> None:
+    name = "classify_never_invoked_dash"
+    d = Path(tempfile.mkdtemp(prefix="vc-"))
+    (d / "accounts.json").write_text(json.dumps({"anthropic": "default"}))
+    (d / "run.log").write_text(
+        "[t] [API-KEY MODE: anthropic — billed per token]\n")
+    got = re_mod._classify_provider_modes(d, set())
+    anth = got.get("anthropic") or {}
+    if anth.get("mode") != "-":
+        _fail(name, f"never-invoked must be '-': {got}")
+        return
+    if anth.get("account") is not None:
+        _fail(name, f"never-invoked account must be None: {got}")
+        return
+    row = re_mod._format_auth_row(got)
+    if row != "  auth:    anthropic: -    openai: -":
+        _fail(name, f"row: {row!r}")
+        return
+    _ok(name)
+
+
+def s_format_auth_row_with_account() -> None:
+    """Auth mode with a known account renders `<account>/<mode>`."""
+    name = "format_auth_row_with_account"
+    modes = {
+        "anthropic": {"mode": "auth", "account": "default"},
+        "openai": {"mode": "-", "account": None},
+    }
+    row = re_mod._format_auth_row(modes)
+    if row != "  auth:    anthropic: default/auth    openai: -":
+        _fail(name, f"row: {row!r}")
+        return
+    _ok(name)
+
+
+def s_format_auth_row_api_no_slash() -> None:
+    """API mode renders mode-only — no slash, no account name."""
+    name = "format_auth_row_api_no_slash"
+    modes = {
+        "anthropic": {"mode": "api", "account": None},
+        "openai": {"mode": "api", "account": None},
+    }
+    row = re_mod._format_auth_row(modes)
+    if row != "  auth:    anthropic: api    openai: api":
+        _fail(name, f"row: {row!r}")
+        return
+    # Belt-and-braces: there must be no slash anywhere in the row.
+    if "/" in row:
+        _fail(name, f"api row must not contain '/': {row!r}")
+        return
+    _ok(name)
+
+
+def s_format_auth_row_named_account() -> None:
+    """A non-`default` account name is surfaced verbatim."""
+    name = "format_auth_row_named_account"
+    modes = {
+        "anthropic": {"mode": "-", "account": None},
+        "openai": {"mode": "auth", "account": "work"},
+    }
+    row = re_mod._format_auth_row(modes)
+    if row != "  auth:    anthropic: -    openai: work/auth":
+        _fail(name, f"row: {row!r}")
+        return
+    _ok(name)
+
+
+def s_render_block_has_cost_and_auth() -> None:
+    name = "render_block_has_cost_and_auth"
+    re_mod._PATH_CACHE.clear()
+    d = Path(tempfile.mkdtemp(prefix="vc-"))
+    _seed_run(d, accounts={"anthropic": "default"},
+              run_log="[t] hello\n",
+              visits=[("plan", 1, "claude", 0.05)])
+    en = re_mod.collect_run_enrichment(d)
+    lines, _bl = re_mod.render_runs_list_lines(en, 0, 120)
+    text = "\n".join(lines)
+    for token in ("  cost:", "  auth:", "anthropic: default/auth",
+                  "openai: -"):
+        if token not in text:
+            _fail(name, f"missing {token!r}: {text}")
+            return
+    _ok(name)
+
+
+def s_render_block_uninvoked_dash() -> None:
+    """End-to-end: a provider declared in accounts.json but never
+    invoked still renders as `-` (no slash, no account name)."""
+    name = "render_block_uninvoked_dash"
+    re_mod._PATH_CACHE.clear()
+    d = Path(tempfile.mkdtemp(prefix="vc-"))
+    _seed_run(d, accounts={"anthropic": "default", "openai": "default"},
+              run_log="[t] hello\n",
+              visits=[("plan", 1, "claude", 0.05)])
+    en = re_mod.collect_run_enrichment(d)
+    lines, _bl = re_mod.render_runs_list_lines(en, 0, 120)
+    text = "\n".join(lines)
+    if "anthropic: default/auth" not in text:
+        _fail(name, f"anthropic should be default/auth: {text}")
+        return
+    if "openai: -" not in text:
+        _fail(name, f"openai uninvoked must be '-': {text}")
+        return
+    # The auth row itself must not contain `openai: default/...` even
+    # though accounts.json declared an openai account.
+    auth_line = next(ln for ln in lines if ln.startswith("  auth:"))
+    if "openai: default" in auth_line:
+        _fail(name, f"never-invoked openai must not show account: {auth_line!r}")
+        return
+    _ok(name)
+
+
+def main() -> int:
+    s_extract_cost_claude_synthetic()
+    s_extract_cost_codex_synthetic_none()
+    s_extract_cost_fixture()
+    s_extract_cost_codex_with_dollar()
+    s_format_cost_row()
+    s_cost_aggregation_across_visits()
+    s_no_cost_renders_none()
+    s_invoked_providers_helper()
+    s_classify_auth_from_accounts()
+    s_classify_api_from_banner()
+    s_classify_codex_banner_to_openai()
+    s_classify_home_from_banner()
+    s_classify_never_invoked_dash()
+    s_format_auth_row_with_account()
+    s_format_auth_row_api_no_slash()
+    s_format_auth_row_named_account()
+    s_render_block_has_cost_and_auth()
+    s_render_block_uninvoked_dash()
+    if FAILS:
+        print(f"\nFAILED ({len(FAILS)}):")
+        for f in FAILS:
+            print(f"  {f}")
+        return 1
+    print(f"\nALL PASS ({PASSES})")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

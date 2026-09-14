@@ -1,0 +1,147 @@
+# Source path in pinned archive: tests/test_parallel_fail_fast.py
+# Archive member: diffusioninc-Tenacious-d3a4d7ff9f5445a42a7516eda845f8c58a531a45/tests/test_parallel_fail_fast.py
+
+"""Parallel substep — live fail-fast against real `claude`.
+
+Gated on TENACIOUS_LIVE_PARALLEL=1. Drives `parallel-fail-fast.json`
+and asserts (a) the composite fails fast (`fail_now` writes `NOPE`),
+(b) siblings are terminated promptly, (c) the successor `after` does
+NOT run, (d) no parent outcome.txt was written.
+
+Run from the project root:
+
+    TENACIOUS_LIVE_PARALLEL=1 python3 tests/test_parallel_fail_fast.py
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+import time
+import traceback
+from pathlib import Path
+
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, _PROJECT_ROOT)
+
+
+_LIVE_ENV = "TENACIOUS_LIVE_PARALLEL"
+
+
+def _latest_run(home: Path) -> Path:
+    runs = sorted((home / "runs").iterdir())
+    assert runs, f"no run dirs under {home/'runs'}"
+    return runs[-1]
+
+
+def fail_fast_kills_siblings() -> None:
+    # Honor a caller-supplied TENACIOUS_HOME so the reviewer can inspect
+    # the produced run directory after the test exits.
+    caller_home = os.environ.get("TENACIOUS_HOME")
+    if caller_home:
+        home = Path(caller_home)
+        home.mkdir(parents=True, exist_ok=True)
+        cleanup_home = False
+    else:
+        home = Path(tempfile.mkdtemp(prefix="tnc-pl-ff-"))
+        cleanup_home = False  # preserve for post-hoc shell inspection
+    bank_src = Path.home() / ".tenacious" / "auth-bank"
+    bank_dst = home / "auth-bank"
+    if bank_dst.is_dir():
+        pass  # caller-provided home already populated; reuse as-is
+    elif bank_src.is_dir():
+        shutil.copytree(bank_src, bank_dst)
+    else:
+        raise AssertionError(
+            f"auth bank not found at {bank_src}; cannot run live test")
+
+    env = os.environ.copy()
+    env["TENACIOUS_HOME"] = str(home)
+    env["NO_COLOR"] = "1"
+    env["PYTHONPATH"] = (
+        f"{_PROJECT_ROOT}{os.pathsep}{env.get('PYTHONPATH','')}"
+    )
+    wf = (Path(_PROJECT_ROOT) / "tests" / "fixtures"
+          / "parallel-fail-fast.json")
+    t0 = time.time()
+    proc = subprocess.run(
+        [sys.executable, "-m", "tenacious", str(wf)],
+        cwd=_PROJECT_ROOT, env=env,
+        capture_output=True, text=True, timeout=300,
+    )
+    wall = time.time() - t0
+
+    assert proc.returncode != 0, (
+        f"orchestrator should have failed but exited 0:\n"
+        f"stdout:\n{proc.stdout}\nstderr:\n{proc.stderr}"
+    )
+    combined = proc.stdout + proc.stderr
+    assert "fail_now" in combined, (
+        f"failure message did not name fail_now: {combined!r}")
+
+    run = _latest_run(home)
+    # No parent outcome.txt on failure.
+    parent_oc = run / "research-multi" / "001" / "outcome.txt"
+    assert not parent_oc.exists(), (
+        f"parent outcome.txt unexpectedly written: {parent_oc}")
+
+    # Successor `after` did NOT run.
+    after_oc = run / "after" / "001" / "outcome.txt"
+    assert not after_oc.exists(), (
+        f"successor after step ran despite composite failure")
+
+    # V9.1: surviving siblings' meta.json must record their real exit
+    # state (cancelled=true OR a signal-class exit), AND their on-disk
+    # outcome.txt must NOT report the success sentinel. Claude (especially
+    # haiku) may race to write the sentinel before SIGTERM lands; the
+    # orchestrator is responsible for scrubbing it so the disk record
+    # cannot lie about a cancelled sibling having succeeded.
+    for sib in ("slow_ok_1", "slow_ok_2"):
+        sib_dir = run / "research-multi" / "001" / sib / "001"
+        md = sib_dir / "meta.json"
+        assert md.is_file(), f"missing {md}"
+        meta = json.loads(md.read_text())
+        cancelled = bool(meta.get("cancelled"))
+        ex = meta.get("exit")
+        assert cancelled or (isinstance(ex, int) and ex < 0), (
+            f"{sib} was not terminated (cancelled={cancelled}, exit={ex})")
+        oc = sib_dir / "outcome.txt"
+        if oc.exists():
+            assert oc.read_text().strip() != "__substep_done__", (
+                f"{sib} was cancelled but its outcome.txt still reports "
+                f"the success sentinel; orchestrator failed to scrub it")
+
+    # Wall time bound (V9.1): the fixture sleeps for ~30s; if fail-fast
+    # works, the orchestrator must stay well under 60s.
+    assert wall < 60.0, (
+        f"orchestrator wall time {wall:.1f}s exceeds 60s bound "
+        f"(siblings not killed promptly)")
+
+    if cleanup_home:
+        shutil.rmtree(home, ignore_errors=True)
+    else:
+        print(f"HOME {home}")
+        print(f"RUN {run}")
+
+
+def main() -> int:
+    if os.environ.get(_LIVE_ENV) != "1":
+        print(f"SKIP fail_fast_kills_siblings ({_LIVE_ENV} not set)")
+        return 0
+    try:
+        fail_fast_kills_siblings()
+    except Exception as e:  # noqa: BLE001
+        print(f"FAIL fail_fast_kills_siblings: {e}")
+        traceback.print_exc()
+        return 1
+    print("PASS fail_fast_kills_siblings")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

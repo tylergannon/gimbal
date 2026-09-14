@@ -1,0 +1,218 @@
+# Source path in pinned archive: tenacious/viewer/__main__.py
+# Archive member: diffusioninc-Tenacious-d3a4d7ff9f5445a42a7516eda845f8c58a531a45/tenacious/viewer/__main__.py
+
+"""CLI entrypoint: `python -m tenacious.viewer`.
+
+Dispatches between the interactive curses TUI and a set of
+non-interactive verification surfaces. `curses` is **never** imported on
+any non-interactive path — it is imported lazily inside
+`tenacious.viewer.tui.run_tui`, reached only when the TUI is launched.
+
+Exit codes:
+  0  success / clean quit
+  1  explicitly-named run/step/session not found, or internal error
+  2  argparse usage error
+"""
+
+from __future__ import annotations
+
+import argparse
+import sys
+from pathlib import Path
+
+from . import model
+from .render import render_turns
+from .transcripts import parse_session
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    ap = argparse.ArgumentParser(
+        prog="python -m tenacious.viewer",
+        description="Read-only Tenacious run/session inspector.")
+    ap.add_argument("--home", type=Path, default=None,
+                    help="Tenacious home (default: $TENACIOUS_HOME or "
+                         "~/.tenacious)")
+    ap.add_argument("--list", action="store_true",
+                    help="list discovered runs (newest-first) and exit")
+    ap.add_argument("--run", metavar="SLUG", default=None,
+                    help="select a run by slug")
+    ap.add_argument("--info", action="store_true",
+                    help="with --run: print run-detail block")
+    ap.add_argument("--step", metavar="STEP", default=None,
+                    help="with --run: select a step")
+    ap.add_argument("--visits", action="store_true",
+                    help="with --run --step: list the step's visits")
+    ap.add_argument("--sessions", action="store_true",
+                    help="with --run --step: list the step's session files")
+    ap.add_argument("--session", metavar="PATH", default=None,
+                    help="with --run --step: select a session "
+                         "(abs path or basename)")
+    ap.add_argument("--dump", action="store_true",
+                    help="with --session: print the rendered transcript")
+    ap.add_argument("--selftest", action="store_true",
+                    help="parse+render every discovered session defensively")
+    return ap
+
+
+def _err(msg: str) -> int:
+    sys.stderr.write(msg if msg.endswith("\n") else msg + "\n")
+    return 1
+
+
+def main(argv: list[str] | None = None) -> int:
+    argv = sys.argv[1:] if argv is None else argv
+    ap = _build_parser()
+    args = ap.parse_args(argv)  # argparse exits 2 on usage error
+
+    home = args.home if args.home is not None else model.default_home()
+    rdir = model.runs_dir(home)
+
+    # ---- --selftest --------------------------------------------------------
+    if args.selftest:
+        return _selftest(home)
+
+    # ---- --list ------------------------------------------------------------
+    if args.list:
+        return _list(home)
+
+    # ---- --run ... ---------------------------------------------------------
+    if args.run is not None:
+        run = model.find_run(home, args.run)
+        if run is None:
+            return _err(f"error: run '{args.run}' not found under {rdir}")
+
+        if args.step is not None:
+            if not model.step_exists(run.path, args.step):
+                return _err(
+                    f"error: step '{args.step}' not found in run "
+                    f"'{args.run}'")
+
+            if args.session is not None and args.dump:
+                sess = model.resolve_session(run.path, args.step,
+                                             args.session)
+                if sess is None:
+                    return _err(
+                        f"error: session '{args.session}' not found in "
+                        f"step '{args.step}' of run '{args.run}'")
+                turns = parse_session(sess.path, sess.kind)
+                for ln in render_turns(turns):
+                    print(ln)
+                return 0
+
+            if args.sessions:
+                return _sessions(run, args.step)
+
+            if args.visits:
+                return _visits(run, args.step)
+
+            return _err(
+                "error: with --run and --step, specify one of --visits, "
+                "--sessions, or --session PATH --dump")
+
+        if args.info:
+            return _info(run)
+
+        return _err("error: with --run, specify --info (or add --step ...)")
+
+    # ---- no surface flag ---------------------------------------------------
+    if sys.stdout.isatty():
+        from .tui import run_tui  # lazy: curses only imported here
+        return run_tui(home)
+    # Accidental unattended bare invocation: behave as --list, never hang,
+    # never open curses.
+    return _list(home)
+
+
+# ---------------------------------------------------------------------------
+# Surfaces
+# ---------------------------------------------------------------------------
+
+def _list(home: Path) -> int:
+    runs = model.list_runs(home)
+    if not runs:
+        print(f"No runs found under {model.runs_dir(home)}")
+        return 0
+    for r in runs:
+        print(f"{r.slug}\t{r.started_at}\t{r.last_activity}\t"
+              f"{r.project_dir}\t{r.goal}")
+    return 0
+
+
+def _info(run: model.RunInfo) -> int:
+    print(f"run: {run.slug}")
+    print(f"started: {run.started_at}")
+    print(f"last_activity: {run.last_activity}")
+    print(f"project_dir: {run.project_dir}")
+    print(f"accounts: {model.read_accounts(run.path)}")
+    print("goal:")
+    print(run.goal_full)
+    print()
+    ws = model.workflow_steps(run.path)
+    if ws.from_disk:
+        print("note: workflow.json unreadable; steps listed from disk, "
+              "order unavailable")
+    print("steps:")
+    for s in ws.steps:
+        if s.reachable is None:
+            r = "?"
+        else:
+            r = "y" if s.reachable else "n"
+        ns = ",".join(s.next_steps)
+        print(f"{s.order_index}\t{s.slug}\tvisits={s.visit_count}\t"
+              f"reachable={r}\tnext_steps={ns}")
+    print()
+    print("--- run.log (tail) ---")
+    for ln in model.run_log_tail(run.path, 40):
+        print(ln)
+    return 0
+
+
+def _visits(run: model.RunInfo, step: str) -> int:
+    visits = model.list_visits(run.path, step)
+    if not visits:
+        print(f"(no visits recorded for step '{step}')")
+        return 0
+    for v in visits:
+        q = "y" if v.has_question else "n"
+        print(f"#{v.number_str}\tquestion={q}\toutcome={v.outcome}\t"
+              f"mtime={v.mtime}")
+    return 0
+
+
+def _sessions(run: model.RunInfo, step: str) -> int:
+    sessions = model.list_sessions(run.path, step)
+    if not sessions:
+        print(f"(no sessions found for step '{step}')")
+        return 0
+    for i, s in enumerate(sessions):
+        print(f"{i}\t{s.kind}\t{s.mtime}\t{s.size}\t{s.lines}\t{s.path}")
+    return 0
+
+
+def _selftest(home: Path) -> int:
+    runs = model.list_runs(home)
+    n_sessions = 0
+    n_ok = 0
+    n_err = 0
+    for r in runs:
+        ws = model.workflow_steps(r.path)
+        step_slugs = [s.slug for s in ws.steps]
+        # also include any on-disk step dirs not in workflow
+        for s in step_slugs:
+            for sess in model.list_sessions(r.path, s):
+                n_sessions += 1
+                try:
+                    turns = parse_session(sess.path, sess.kind)
+                    render_turns(turns)
+                    n_ok += 1
+                except Exception as e:  # contract violation
+                    n_err += 1
+                    sys.stderr.write(
+                        f"selftest: ERROR parsing {sess.path}: {e!r}\n")
+    print(f"selftest: {len(runs)} runs, {n_sessions} sessions, "
+          f"{n_ok} parsed OK, {n_err} errors")
+    return 0 if n_err == 0 else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

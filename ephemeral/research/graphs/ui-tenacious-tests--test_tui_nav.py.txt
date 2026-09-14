@@ -1,0 +1,260 @@
+# Source path in pinned archive: tests/test_tui_nav.py
+# Archive member: diffusioninc-Tenacious-d3a4d7ff9f5445a42a7516eda845f8c58a531a45/tests/test_tui_nav.py
+
+"""Bug 3 (Round 2): up/down navigation always produces visible feedback.
+
+Headless: a stub `curses` (with the KEY_* constants `loop()` consults)
+and a stub `stdscr` that records every `addnstr` and snapshots one body
+frame per `refresh()`. `getch()` returns a scripted key list then raises
+`tui._CleanExit` to end `loop()`. The real `_App.loop()` is driven
+end-to-end against the real `tenacious/viewer/tui.py` + `model.py`.
+
+Proves:
+
+  * UP at the first row (sel==0) on the first screen (S_RUNS) WRAPS to
+    the last run — a visible highlight move (pre-fix: silent no-op);
+  * DOWN at the last row wraps to the first (pre-fix: silent no-op);
+  * every consecutive up/down moves the highlight, including across the
+    wrap boundary;
+  * the >=1-target scroll fallback still reveals off-screen content;
+  * the documented degenerate boundary (one item, nothing off-screen)
+    is a deliberate, exception-free no-op.
+
+Run from the project root:
+
+    .venv/bin/python tests/test_tui_nav.py
+
+Prints `PASS <scenario>` per scenario then `ALL PASS (<n>)`; exit 0 if
+all pass, 1 with `FAIL ...` on the first failure.
+"""
+
+from __future__ import annotations
+
+import os
+import shutil
+import sys
+import tempfile
+import traceback
+from pathlib import Path
+
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, _PROJECT_ROOT)
+
+from tenacious.viewer import tui  # noqa: E402
+
+H, W = 12, 100  # body rows are y in [1, H-2]
+
+
+class Rec:
+    __slots__ = ("y", "x", "text", "w", "attr")
+
+    def __init__(self, y, x, text, w, attr):
+        self.y, self.x, self.text, self.w, self.attr = y, x, text, w, attr
+
+
+class FakeCurses:
+    error = type("error", (Exception,), {})
+    A_REVERSE = 1 << 18
+    KEY_RESIZE = 0o632
+    KEY_DOWN = 0o402
+    KEY_UP = 0o403
+    KEY_LEFT = 0o404
+    KEY_RIGHT = 0o405
+    KEY_HOME = 0o406
+    KEY_END = 0o550
+    KEY_NPAGE = 0o522
+    KEY_PPAGE = 0o523
+    KEY_ENTER = 0o527
+    KEY_BACKSPACE = 0o407
+
+    @staticmethod
+    def curs_set(_n):
+        return None
+
+
+class FakeScr:
+    def __init__(self, keys):
+        self.calls: list[Rec] = []
+        self.frames: list[tuple] = []
+        self._keys = list(keys)
+
+    def keypad(self, _flag):
+        return None
+
+    def getmaxyx(self):
+        return (H, W)
+
+    def erase(self):
+        self.calls = []
+
+    def refresh(self):
+        body = tuple(
+            (c.y, c.text, c.attr) for c in self.calls if 1 <= c.y <= H - 2)
+        self.frames.append(body)
+
+    def addstr(self, *a):
+        return None
+
+    def addnstr(self, y, x, text, w, attr=0):
+        self.calls.append(Rec(y, x, text, w, attr))
+
+    def getch(self):
+        if not self._keys:
+            raise tui._CleanExit
+        return self._keys.pop(0)
+
+
+def _rev_text(frame: tuple) -> str | None:
+    """Text of the *header* row of the contiguous A_REVERSE block.
+
+    S_RUNS highlights a 6-row block per run; every other screen still
+    highlights at most one row. In either case the lowest-y reverse row
+    is the right identity for the currently-selected item.
+    """
+    rev = sorted(
+        ((y, t) for (y, t, a) in frame if a == FakeCurses.A_REVERSE),
+        key=lambda yt: yt[0],
+    )
+    return rev[0][1] if rev else None
+
+
+def make_home(slugs, *, workflow=None, run_log=None) -> Path:
+    home = Path(tempfile.mkdtemp(prefix="tnc-nav-"))
+    for slug in slugs:
+        rd = home / "runs" / slug
+        rd.mkdir(parents=True)
+        (rd / "goal.txt").write_text(f"goal for {slug}")
+        (rd / "project_dir.txt").write_text(f"/proj/{slug}")
+        if workflow is not None:
+            (rd / "workflow.json").write_text(workflow)
+        if run_log is not None:
+            (rd / "run.log").write_text(run_log)
+    return home
+
+
+def run_loop(home: Path, keys):
+    scr = FakeScr(keys)
+    app = tui._App(scr, FakeCurses, home)
+    try:
+        app.loop()
+    except tui._CleanExit:
+        pass
+    return scr.frames
+
+
+# Newest-first reverse sort => -003, -002, -001.
+THREE = ["20260518090000-001", "20260518090000-002", "20260518090000-003"]
+
+
+def s_up_at_top_wraps_visibly():
+    """Pre-fix: UP at sel==0 is a silent no-op (FAIL). Post-fix: wraps to
+    the last run — the highlight visibly moves."""
+    home = make_home(THREE)
+    try:
+        frames = run_loop(home, [FakeCurses.KEY_UP])
+        assert len(frames) >= 2, frames
+        before, after = _rev_text(frames[0]), _rev_text(frames[1])
+        assert before is not None and after is not None, (before, after)
+        assert after != before, (
+            f"UP at first row produced no visible highlight change "
+            f"(before={before!r} after={after!r})")
+    finally:
+        shutil.rmtree(home, ignore_errors=True)
+
+
+def s_down_at_bottom_wraps_visibly():
+    """Pre-fix: DOWN at the last row is a silent no-op (FAIL). Post-fix:
+    wraps to row 0 — the highlight visibly moves on that final press."""
+    home = make_home(THREE)
+    try:
+        # 3 runs: DOWN x3 -> sel 0,1,2 then wrap to 0 on the 3rd press.
+        frames = run_loop(home, [FakeCurses.KEY_DOWN] * 3)
+        assert len(frames) >= 4, frames
+        assert _rev_text(frames[3]) != _rev_text(frames[2]), (
+            f"DOWN at the last row produced no visible change "
+            f"(prev={_rev_text(frames[2])!r} "
+            f"final={_rev_text(frames[3])!r})")
+    finally:
+        shutil.rmtree(home, ignore_errors=True)
+
+
+def s_every_updown_moves_highlight():
+    home = make_home(THREE)
+    try:
+        keys = [FakeCurses.KEY_DOWN, FakeCurses.KEY_DOWN,
+                FakeCurses.KEY_UP, FakeCurses.KEY_UP, FakeCurses.KEY_UP]
+        frames = run_loop(home, keys)
+        assert len(frames) == len(keys) + 1, (len(frames), len(keys))
+        texts = [_rev_text(f) for f in frames]
+        for i in range(1, len(texts)):
+            assert texts[i] is not None and texts[i - 1] is not None, texts
+            assert texts[i] != texts[i - 1], (
+                f"frame {i} highlight did not move from frame {i-1}: "
+                f"{texts}")
+    finally:
+        shutil.rmtree(home, ignore_errors=True)
+
+
+def s_single_target_scrolls_when_offscreen():
+    """One selectable step + a long run.log: up/down has no second target
+    to move the highlight to, so the scroll fallback must still reveal
+    off-screen content (a visible body change)."""
+    wf = ('{"goal":"g","start_step":"only","steps":'
+          '{"only":{"agent":"fake","prompt":"p","next_steps":["end"]}}}')
+    log = "\n".join(f"LOGLINE-{i:03d}" for i in range(80))
+    home = make_home(["20260518090000-001"], workflow=wf, run_log=log)
+    try:
+        # ENTER drills S_RUNS->S_RUN; DOWN then scrolls (1 step target).
+        frames = run_loop(home, [FakeCurses.KEY_ENTER, FakeCurses.KEY_DOWN])
+        assert len(frames) >= 3, frames
+        # frames[1] = S_RUN before DOWN; frames[2] = after DOWN scroll.
+        assert frames[2] != frames[1], (
+            "single-target DOWN did not change the rendered body "
+            "(scroll fallback failed to reveal off-screen content)")
+    finally:
+        shutil.rmtree(home, ignore_errors=True)
+
+
+def s_single_line_single_target_is_documented_noop():
+    """S_RUNS with exactly one run and nothing off-screen: up/down has
+    nowhere to move and nothing to reveal. Documented degenerate boundary
+    — must not raise and must leave the frame unchanged."""
+    home = make_home(["20260518090000-001"])
+    try:
+        frames = run_loop(home, [FakeCurses.KEY_DOWN, FakeCurses.KEY_UP])
+        assert len(frames) == 3, frames
+        assert frames[0] == frames[1] == frames[2], (
+            f"degenerate single-line nav was not a clean no-op: {frames}")
+        assert _rev_text(frames[0]) is not None, (
+            "the lone run row should still be highlighted")
+    finally:
+        shutil.rmtree(home, ignore_errors=True)
+
+
+SCENARIOS = [
+    ("up_at_top_wraps_visibly", s_up_at_top_wraps_visibly),
+    ("down_at_bottom_wraps_visibly", s_down_at_bottom_wraps_visibly),
+    ("every_updown_moves_highlight", s_every_updown_moves_highlight),
+    ("single_target_scrolls_when_offscreen",
+     s_single_target_scrolls_when_offscreen),
+    ("single_line_single_target_is_documented_noop",
+     s_single_line_single_target_is_documented_noop),
+]
+
+
+def main() -> int:
+    for name, fn in SCENARIOS:
+        try:
+            fn()
+        except Exception as e:  # noqa: BLE001
+            print(f"FAIL {name}: {e}")
+            traceback.print_exc()
+            return 1
+        print(f"PASS {name}")
+    print(f"ALL PASS ({len(SCENARIOS)})")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

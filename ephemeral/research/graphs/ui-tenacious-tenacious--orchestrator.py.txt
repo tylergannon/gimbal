@@ -1,0 +1,3715 @@
+# Source path in pinned archive: tenacious/orchestrator.py
+# Archive member: diffusioninc-Tenacious-d3a4d7ff9f5445a42a7516eda845f8c58a531a45/tenacious/orchestrator.py
+
+"""Run a workflow end-to-end.
+
+A workflow is a JSON document with:
+    {
+      "goal": "...",
+      "project_dir": "optional path for code/deliverables; defaults to run dir",
+      "start_step": "slug",
+      "steps": {
+        "slug": {
+          "agent": "codex" | "claude",
+          "model": "optional model id/alias",
+          "prompt": "template with {goal} {run_slug} {assets_dir} {outcome_path} {step_dir} {project_dir}",
+          "asset_slugs": ["names of assets to append to the prompt"],
+          "next_steps": ["valid next-step slugs, plus optionally 'end'"],
+          "context": "empty" | "continue",
+          "questions": false
+        }
+      }
+    }
+
+Reserved next-step slug `end` terminates the workflow.
+
+`project_dir` (top-level, optional; overridable with --project-dir) is where
+the agents run (their cwd) and where code/deliverables should be written. It
+defaults to the run dir, which keeps runs fully isolated. Orchestration
+artifacts (assets, logs, profiles, per-visit dirs) always live under the run
+dir regardless of project_dir.
+
+Run layout on disk:
+
+    $TENACIOUS_HOME/runs/<run-slug>/
+        workflow.json                       # frozen copy of the input workflow
+        goal.txt                            # frozen goal
+        project_dir.txt                     # resolved project dir for this run
+        run.log                             # orchestrator log
+        assets/<asset-slug>                 # shared key/value assets
+        profiles/<step-slug>/...            # per-(run, step) CLI profile dir
+        <step-slug>/<visit-number>/
+            outcome.txt                     # next step slug, written by the agent
+            prompt.txt                      # rendered prompt sent to the CLI
+            stdout.txt
+            stderr.txt
+            meta.json
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import os
+import random
+import re
+import shutil
+import signal
+import subprocess
+import sys
+import tempfile
+import textwrap
+import threading
+import time
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
+
+
+from . import authbank
+from . import term_color as _tc
+
+
+# Optional raw-tty support for the interactive answer editor (Part B). On a
+# platform lacking these (e.g. Windows) raw mode is simply disabled and the
+# editor degrades to read-until-EOF. An import failure here must never break
+# importing this module or the unattended (--answers) path.
+try:
+    import select as _select
+    import termios as _termios
+    import tty as _tty
+    _RAW_TTY_AVAILABLE = True
+except ImportError:  # pragma: no cover - platform without termios/tty
+    _select = None  # type: ignore[assignment]
+    _termios = None  # type: ignore[assignment]
+    _tty = None  # type: ignore[assignment]
+    _RAW_TTY_AVAILABLE = False
+
+
+# ----- Agent supervision constants (hardcoded — no env var, no JSON) ---------
+#
+# These are deliberately plain module constants. They are NOT read from any
+# environment variable and NOT part of the workflow JSON schema. The
+# verification harness may rebind them in-process to keep tests fast; a
+# dedicated scenario asserts the shipped defaults are exactly 30.0 / 2.0.
+OUTCOME_POLL_INTERVAL_SECONDS = 2.0          # how often we poll for outcome.txt
+OUTCOME_GRACE_SECONDS = 600.0                 # grace for clean exit after outcome seen
+PROCESS_GROUP_KILL_ESCALATION_SECONDS = 5.0  # SIGTERM -> SIGKILL window
+PROCESS_GROUP_POLL_INTERVAL_SECONDS = 0.2    # how often we re-check the group is gone
+
+
+# ----- Session health monitor constants (hardcoded — no env var) -------------
+#
+# The default tick interval is a plain module constant: NOT read from any
+# environment variable. The per-workflow interval lives only in the workflow
+# JSON (`health_monitor.interval_seconds`); this constant is the fallback
+# when that key is absent. The verification harness may rebind these
+# in-process for speed; a dedicated subprocess scenario asserts the shipped
+# default is exactly 600.0.
+HEALTH_MONITOR_DEFAULT_INTERVAL_SECONDS = 600.0  # 10 minutes
+HEALTH_MONITOR_POLL_SLICE_SECONDS = 5.0          # loop wake granularity
+
+
+# ----- Outcome-retry / global step budget constants (hardcoded — no env) -----
+#
+# Plain module constants, NOT env-read and NOT part of the workflow JSON
+# schema (the only per-step override is the optional `outcome_retries`
+# field). The verification harness may rebind them in-process for speed; a
+# dedicated scenario asserts the shipped defaults are exactly 2 / 100.
+OUTCOME_RETRY_BUDGET = 2     # default per-step bad/missing/invalid retries
+GLOBAL_STEP_BUDGET = 100     # shared cap on total step entries + retry visits
+
+
+def tenacious_home() -> Path:
+    return Path(os.environ.get("TENACIOUS_HOME") or (Path.home() / ".tenacious"))
+
+
+def make_run_slug() -> str:
+    ts = datetime.now().strftime("%Y%m%d%H%M%S")
+    return f"{ts}-{random.randint(0, 999):03d}"
+
+
+_MCP_SERVER_NAME_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+_MCP_SERVER_ALLOWED_KEYS = frozenset({
+    "command", "args", "env",                 # stdio
+    "url", "headers", "bearer_token_env_var", # http
+})
+
+
+def _validate_mcp_servers(slug: str, raw: Any) -> dict[str, dict[str, Any]]:
+    """Validate a step's mcp_servers field. Returns the normalized dict.
+
+    Two transport types are supported:
+    - stdio: {command (required str), args (optional list[str]),
+              env (optional dict[str,str])}
+    - http:  {url (required str), headers (optional dict[str,str]),
+              bearer_token_env_var (optional str — env var name resolved at
+              step execution time and injected as Authorization: Bearer)}
+    command and url are mutually exclusive; exactly one must be present.
+    Explicit null is rejected. cwd and other unknown keys are rejected.
+    """
+    if raw is None:
+        raise ValueError(
+            f"step {slug}: mcp_servers must be an object, got null")
+    if not isinstance(raw, dict):
+        raise ValueError(
+            f"step {slug}: mcp_servers must be an object, got "
+            f"{type(raw).__name__}")
+    normalized: dict[str, dict[str, Any]] = {}
+    for name, server in raw.items():
+        if not isinstance(name, str) or not _MCP_SERVER_NAME_RE.match(name):
+            raise ValueError(
+                f"step {slug}: mcp_servers name {name!r} must match "
+                f"^[A-Za-z0-9_-]{{1,64}}$")
+        if not isinstance(server, dict):
+            raise ValueError(
+                f"step {slug}: mcp_servers.{name} must be an object")
+        unknown = set(server.keys()) - _MCP_SERVER_ALLOWED_KEYS
+        if unknown:
+            raise ValueError(
+                f"step {slug}: unknown mcp_servers field(s) for {name}: "
+                f"{sorted(unknown)}")
+        has_command = "command" in server
+        has_url = "url" in server
+        if has_command and has_url:
+            raise ValueError(
+                f"step {slug}: mcp_servers.{name} cannot have both "
+                f"'command' (stdio) and 'url' (http)")
+        if not has_command and not has_url:
+            raise ValueError(
+                f"step {slug}: mcp_servers.{name} must have either "
+                f"'command' (stdio) or 'url' (http)")
+        entry: dict[str, Any]
+        if has_command:
+            command = server["command"]
+            if not isinstance(command, str) or command == "":
+                raise ValueError(
+                    f"step {slug}: mcp_servers.{name}.command must be a "
+                    f"non-empty string")
+            args = server.get("args", [])
+            if not isinstance(args, list) or not all(
+                    isinstance(a, str) for a in args):
+                raise ValueError(
+                    f"step {slug}: mcp_servers.{name}.args must be a list of "
+                    f"strings")
+            env = server.get("env", {})
+            if not isinstance(env, dict) or not all(
+                    isinstance(k, str) and isinstance(v, str)
+                    for k, v in env.items()):
+                raise ValueError(
+                    f"step {slug}: mcp_servers.{name}.env must be a "
+                    f"string->string object")
+            entry = {"command": command}
+            if args:
+                entry["args"] = list(args)
+            if env:
+                entry["env"] = dict(env)
+        else:
+            url = server["url"]
+            if not isinstance(url, str) or url == "":
+                raise ValueError(
+                    f"step {slug}: mcp_servers.{name}.url must be a "
+                    f"non-empty string")
+            headers = server.get("headers", {})
+            if not isinstance(headers, dict) or not all(
+                    isinstance(k, str) and isinstance(v, str)
+                    for k, v in headers.items()):
+                raise ValueError(
+                    f"step {slug}: mcp_servers.{name}.headers must be a "
+                    f"string->string object")
+            btev = server.get("bearer_token_env_var")
+            if btev is not None and (not isinstance(btev, str) or btev == ""):
+                raise ValueError(
+                    f"step {slug}: mcp_servers.{name}.bearer_token_env_var "
+                    f"must be a non-empty string")
+            entry = {"url": url}
+            if headers:
+                entry["headers"] = dict(headers)
+            if btev:
+                entry["bearer_token_env_var"] = btev
+        normalized[name] = entry
+    return normalized
+
+
+# Private sentinel a substep must write into its outcome.txt on success.
+# The substep is constructed as a regular Step whose next_steps is fixed
+# to [SUBSTEP_DONE_SENTINEL]; the contract block surfaces the sentinel to
+# the substep prompt the same way it surfaces real next-step slugs.
+SUBSTEP_DONE_SENTINEL = "__substep_done__"
+
+
+# Exact-allowlist of substep config keys (sorted for deterministic error msgs).
+_SUBSTEP_ALLOWED_KEYS = (
+    "agent", "asset_slugs", "assets", "context", "mcp_servers", "model", "prompt",
+)
+
+
+# Pattern an `assets` entry must NOT match: bare slugs only — never with a
+# `-NNNN` or `-current` suffix and never a path component.
+_ASSETS_FORBIDDEN_SUFFIX_RE = re.compile(r"(?:-current|-\d+)$")
+
+
+def _validate_assets_list(slug: str, value: Any) -> list[str]:
+    """Validate the per-step `assets` declaration (Shape D snapshot bases).
+
+    Returns the normalized list. Rejects non-list, non-string elements,
+    elements containing path separators or starting with '.', and
+    elements with a `-current` or `-NNNN` suffix. Empty list is fine.
+    """
+    if not isinstance(value, list):
+        raise ValueError(
+            f"step {slug}: 'assets' must be a list of base slug strings")
+    out: list[str] = []
+    for el in value:
+        if not isinstance(el, str) or not el:
+            raise ValueError(
+                f"step {slug}: 'assets' entries must be non-empty strings")
+        if "/" in el or "\\" in el or el.startswith("."):
+            raise ValueError(
+                f"step {slug}: 'assets' entry {el!r} must not contain "
+                f"path separators or start with '.'")
+        if _ASSETS_FORBIDDEN_SUFFIX_RE.search(el):
+            raise ValueError(
+                f"step {slug}: 'assets' entry {el!r} must be a bare base "
+                f"slug (no '-current' or '-NNNN' suffix)")
+        out.append(el)
+    return out
+
+# Exact-allowlist of parent composite keys; everything else is rejected with
+# a clear "composites have no agent/prompt of their own" message.
+_COMPOSITE_PARENT_ALLOWED_KEYS = frozenset({"parallel", "next_steps", "substeps"})
+
+
+def _validate_substep(parent_slug: str, sub_slug: str,
+                      d: dict[str, Any]) -> "Step":
+    """Validate substep schema (exact allowlist + required fields) and
+    construct the substep Step. The substep's next_steps is fixed to
+    [SUBSTEP_DONE_SENTINEL] - the orchestrator advances the composite on
+    successful substep completion regardless of what the substep claims as
+    "next"; the sentinel is what the substep MUST write to outcome.txt.
+    """
+    if not isinstance(d, dict):
+        raise ValueError(
+            f"step {parent_slug}.{sub_slug}: substep config must be an object")
+    keys = set(d.keys())
+    # Forbidden-with-helpful-message keys first so the error names the field.
+    if "next_steps" in keys:
+        raise ValueError(
+            f"step {parent_slug}.{sub_slug}: substep must not declare "
+            f"'next_steps'")
+    if "parallel" in keys:
+        raise ValueError(
+            f"step {parent_slug}.{sub_slug}: substep must not declare "
+            f"'parallel'")
+    if "substeps" in keys:
+        raise ValueError(
+            f"step {parent_slug}.{sub_slug}: substep must not declare "
+            f"'substeps' (no nested parallel composites)")
+    if "questions" in keys and bool(d.get("questions")):
+        raise ValueError(
+            f"step {parent_slug}.{sub_slug}: substep must not declare "
+            f"'questions: true' (substeps cannot interact with the user "
+            f"this round)")
+    unknown = sorted(keys - set(_SUBSTEP_ALLOWED_KEYS))
+    if unknown:
+        # Report just the first unknown key (deterministic, single name).
+        raise ValueError(
+            f"step {parent_slug}.{sub_slug}: substep declares unknown field "
+            f"{unknown[0]!r}; allowed fields are "
+            f"{', '.join(_SUBSTEP_ALLOWED_KEYS)}")
+    agent = d.get("agent")
+    prompt = d.get("prompt")
+    if not isinstance(agent, str) or not agent or \
+            not isinstance(prompt, str) or not prompt:
+        raise ValueError(
+            f"step {parent_slug}.{sub_slug}: substep must declare 'agent' "
+            f"and 'prompt'")
+    if "mcp_servers" in d:
+        mcp = _validate_mcp_servers(f"{parent_slug}.{sub_slug}",
+                                    d["mcp_servers"])
+    else:
+        mcp = {}
+    assets = (_validate_assets_list(f"{parent_slug}.{sub_slug}", d["assets"])
+              if "assets" in d else [])
+    return Step(
+        slug=sub_slug,
+        agent=agent,
+        prompt=prompt,
+        next_steps=[SUBSTEP_DONE_SENTINEL],
+        asset_slugs=list(d.get("asset_slugs", [])),
+        context=d.get("context", "empty"),
+        questions=False,
+        model=d.get("model"),
+        outcome_retries=0,  # substeps never retry within a composite
+        mcp_servers=mcp,
+        assets=assets,
+    )
+
+
+@dataclass
+class Step:
+    slug: str
+    agent: str | None
+    prompt: str | None
+    next_steps: list[str]
+    asset_slugs: list[str] = field(default_factory=list)
+    context: str = "empty"      # "empty" | "continue"
+    questions: bool = False
+    model: str | None = None
+    # Optional per-step override of OUTCOME_RETRY_BUDGET. None -> use the
+    # module constant at runtime.
+    outcome_retries: int | None = None
+    # Optional per-step MCP server declarations. Keys are server names; each
+    # value is {command, optional args, optional env}. Empty dict means no
+    # MCP servers are materialized for this step. Use field(default_factory)
+    # rather than a mutable literal so two freshly-constructed steps never
+    # share the same dict.
+    mcp_servers: dict[str, dict[str, Any]] = field(default_factory=dict)
+    # Parallel composite parent: True iff this step's JSON had
+    # `"parallel": true`. Composites own no agent/prompt of their own; their
+    # substeps live in `substeps` and execute concurrently sharing the
+    # parent's project_dir. Schema is validated at workflow-load.
+    parallel: bool = False
+    substeps: dict[str, "Step"] = field(default_factory=dict)
+    # Shape D — per-step asset-base list. Each entry is a bare base slug
+    # (e.g. "requirements"); after a step's outcome is accepted the
+    # orchestrator runs _snapshot_step_assets to ensure
+    # <base>-NNNN.md exists alongside <base>-current.md in the run's
+    # assets dir. Empty list (the default) disables snapshotting.
+    assets: list[str] = field(default_factory=list)
+
+    @property
+    def is_composite(self) -> bool:
+        return self.parallel
+
+    @classmethod
+    def from_dict(cls, slug: str, d: dict[str, Any]) -> "Step":
+        # Parallel composite branch: validated entirely here so no executable
+        # step assumption (`agent`/`prompt`) is ever populated on a composite.
+        if d.get("parallel") is True:
+            extra = sorted(set(d.keys()) - _COMPOSITE_PARENT_ALLOWED_KEYS)
+            for k in extra:
+                if k == "agent":
+                    raise ValueError(
+                        f"step {slug}: a parallel composite step must not "
+                        f"declare its own 'agent' field")
+                if k == "prompt":
+                    raise ValueError(
+                        f"step {slug}: a parallel composite step must not "
+                        f"declare its own 'prompt' field")
+                raise ValueError(
+                    f"step {slug}: a parallel composite step must not "
+                    f"declare {k!r} (composites have no agent/prompt of "
+                    f"their own)")
+            ns = d.get("next_steps", [])
+            if not isinstance(ns, list) or len(ns) != 1:
+                got = len(ns) if isinstance(ns, list) else 0
+                raise ValueError(
+                    f"step {slug}: a parallel composite step must declare "
+                    f"exactly one next_steps entry, got {got}")
+            subs_raw = d.get("substeps")
+            if not isinstance(subs_raw, dict) or len(subs_raw) == 0:
+                raise ValueError(
+                    f"step {slug}: a parallel composite step must declare a "
+                    f"non-empty substeps map")
+            substeps: dict[str, Step] = {}
+            for sub_slug, sub_d in subs_raw.items():
+                substeps[sub_slug] = _validate_substep(slug, sub_slug, sub_d)
+            return cls(
+                slug=slug,
+                agent=None,
+                prompt=None,
+                next_steps=list(ns),
+                parallel=True,
+                substeps=substeps,
+            )
+        retries = d.get("outcome_retries")
+        if retries is not None and (
+                isinstance(retries, bool)
+                or not isinstance(retries, int)
+                or retries < 0):
+            raise ValueError(
+                f"step {slug}: outcome_retries must be a non-negative integer")
+        if "mcp_servers" in d:
+            mcp = _validate_mcp_servers(slug, d["mcp_servers"])
+        else:
+            mcp = {}
+        assets = (_validate_assets_list(slug, d["assets"])
+                  if "assets" in d else [])
+        return cls(
+            slug=slug,
+            agent=d["agent"],
+            prompt=d["prompt"],
+            next_steps=list(d.get("next_steps", [])),
+            asset_slugs=list(d.get("asset_slugs", [])),
+            context=d.get("context", "empty"),
+            questions=bool(d.get("questions", False)),
+            model=d.get("model"),
+            outcome_retries=retries,
+            mcp_servers=mcp,
+            assets=assets,
+        )
+
+
+_YAML_SUFFIXES = (".yaml", ".yml")
+
+
+def _load_workflow_document(path: Path) -> dict:
+    """Load a workflow file as a dict, dispatching on extension.
+
+    .json -> stdlib json. .yaml / .yml -> PyYAML safe_load. PyYAML is
+    only imported when a YAML file is actually loaded, so JSON users
+    incur no dependency. The top-level document must be a mapping.
+    """
+    text = path.read_text()
+    if path.suffix.lower() in _YAML_SUFFIXES:
+        try:
+            import yaml  # type: ignore
+        except ImportError as e:
+            raise RuntimeError(
+                f"workflow {path.name} is YAML but PyYAML is not installed; "
+                f"`pip install PyYAML` (also listed in requirements.txt)"
+            ) from e
+        data = yaml.safe_load(text)
+    else:
+        data = json.loads(text)
+    if not isinstance(data, dict):
+        raise ValueError(
+            f"workflow {path.name} must be a top-level mapping/object, "
+            f"got {type(data).__name__}")
+    return data
+
+
+@dataclass
+class Workflow:
+    goal: str
+    start_step: str
+    steps: dict[str, Step]
+    project_dir: str | None = None  # configured path; resolved per-run
+    # Optional shared text appended to every step's prompt via the
+    # orchestrator contract block. Use this for workflow-wide rules (e.g.
+    # commit / git hygiene) that must reach every step regardless of cwd.
+    base_prompt: str = ""
+    # Out-of-band session health monitor (optional). When the top-level
+    # `health_monitor` key is absent, `health_monitor_step` is None and the
+    # orchestrator behaves byte-for-byte as before (no monitor thread).
+    health_monitor_step: str | None = None
+    health_monitor_interval_seconds: float = HEALTH_MONITOR_DEFAULT_INTERVAL_SECONDS
+
+    # Optional persisted shared step-budget cap. None means "use default
+    # GLOBAL_STEP_BUDGET". Frozen into workflow.json so a resumed run
+    # inherits the original --max-visits choice.
+    max_visits: int | None = None
+
+    @classmethod
+    def load(cls, path: Path, goal_override: str | None = None,
+             project_dir_override: str | None = None) -> "Workflow":
+        data = _load_workflow_document(path)
+        steps = {slug: Step.from_dict(slug, sd) for slug, sd in data["steps"].items()}
+        cls._validate_assets_decls(steps)
+        hm_step, hm_interval = cls._parse_health_monitor(data, steps)
+        bp = data.get("base_prompt", "")
+        if not isinstance(bp, str):
+            raise ValueError("base_prompt must be a string if present")
+        if goal_override is not None:
+            goal = goal_override
+        else:
+            goal = data.get("goal", "")
+        if not isinstance(goal, str) or not goal.strip():
+            raise ValueError(
+                "workflow goal is empty: pass a non-empty --goal on "
+                "the CLI or set a non-empty 'goal:' field in the "
+                "workflow file")
+        mv = data.get("max_visits")
+        if mv is not None:
+            if isinstance(mv, bool) or not isinstance(mv, int) or mv <= 0:
+                raise ValueError(
+                    "max_visits in workflow.json must be a positive integer")
+        return cls(
+            goal=goal,
+            start_step=data["start_step"],
+            steps=steps,
+            project_dir=project_dir_override or data.get("project_dir"),
+            base_prompt=bp,
+            health_monitor_step=hm_step,
+            health_monitor_interval_seconds=hm_interval,
+            max_visits=mv,
+        )
+
+    @staticmethod
+    def _validate_assets_decls(steps: dict[str, "Step"]) -> None:
+        """Composite-parent sanity check (Shape D): a composite parent
+        cannot declare assets; only its substeps may. Per-element rules
+        for the assets list are enforced in Step.from_dict.
+        """
+        for slug, step in steps.items():
+            if step.is_composite and step.assets:
+                raise ValueError(
+                    f"step {slug}: a parallel composite parent must not "
+                    f"declare 'assets'; declare assets on each substep "
+                    f"instead")
+
+    @staticmethod
+    def _parse_health_monitor(data: dict[str, Any],
+                              steps: dict[str, Step]) -> tuple[str | None, float]:
+        """Parse + fail-fast validate the optional top-level health_monitor.
+
+        Absent key -> (None, default) i.e. monitor disabled. Present but
+        malformed -> ValueError naming the offending field (raised at load,
+        before any run dir is created); a durable feature must not silently
+        self-disable on a bad config.
+        """
+        if "health_monitor" not in data:
+            return None, HEALTH_MONITOR_DEFAULT_INTERVAL_SECONDS
+        hm = data["health_monitor"]
+        if not isinstance(hm, dict):
+            raise ValueError(
+                "health_monitor must be a JSON object with a 'step' field")
+        step = hm.get("step")
+        if not isinstance(step, str) or not step.strip():
+            raise ValueError(
+                "health_monitor.step must be a non-empty string naming a step")
+        if step not in steps:
+            raise ValueError(
+                f"health_monitor.step {step!r} is not a key in steps")
+        interval = HEALTH_MONITOR_DEFAULT_INTERVAL_SECONDS
+        if "interval_seconds" in hm:
+            iv = hm["interval_seconds"]
+            if isinstance(iv, bool) or not isinstance(iv, (int, float)) \
+                    or iv <= 0:
+                raise ValueError(
+                    "health_monitor.interval_seconds must be a positive number")
+            interval = float(iv)
+        return step, interval
+
+
+# ----- Run state -------------------------------------------------------------
+
+@dataclass
+class Run:
+    slug: str
+    root: Path
+    workflow: Workflow
+    project_dir: Path  # agent cwd / where code is written (may equal root)
+    accounts: dict[str, str] = field(default_factory=dict)  # provider -> account
+    visit_counts: dict[str, int] = field(default_factory=dict)
+    # Shared budget across all step entries + retry visits (item 1.3).
+    # Lazily initialized to GLOBAL_STEP_BUDGET on first consume_step_budget().
+    steps_remaining: int | None = None
+    # Set by resume_workflow to the single re-dispatched interrupted step.
+    # execute_step consumes it once to force that step's first visit fresh
+    # regardless of its declared context. None for every normal run.
+    resume_fresh_step: str | None = field(default=None, repr=False)
+    # Guards log()/log_monitor() so the main thread and the health-monitor
+    # thread cannot interleave a half-written line on stdout / in run.log.
+    _log_lock: threading.Lock = field(default_factory=threading.Lock,
+                                      repr=False)
+    # Terminal-output suspension for the health monitor while the run is
+    # blocked collecting an interactive answer (item 3). File writes are
+    # never suspended; only the stdout/stderr copy is buffered and replayed.
+    _term_suspended: bool = field(default=False, repr=False)
+    _term_buffer: list[str] = field(default_factory=list, repr=False)
+    # Per-invocation "costly" api-key overrides. The booleans record
+    # whether the CLI flag was given; the resolved keys hold the value
+    # (or None) read once from the orchestrator's own env at startup so
+    # downstream code paths never re-read os.environ.
+    use_anthropic_api_key: bool = False
+    use_codex_api_key: bool = False
+    api_key_anthropic: str | None = None
+    api_key_codex: str | None = None
+    # Explicit user-home auth/session mode. When set, the child CLI uses this
+    # directory as its real CODEX_HOME / CLAUDE_CONFIG_DIR. The run-local
+    # profile dir remains Tenacious metadata only (thread ids, MCP files,
+    # external session indexes) so we do not mutate user config files.
+    codex_home: Path | None = None
+    claude_code_home: Path | None = None
+    # Per-invocation override of the shared step-budget cap. None means
+    # "use module-level GLOBAL_STEP_BUDGET". Threaded in from the CLI
+    # `--max-visits N` flag and persisted onto Workflow.max_visits so a
+    # resumed run inherits the chosen cap.
+    max_visits_override: int | None = None
+
+    def __post_init__(self) -> None:
+        # Cache the set of known step slugs once at run creation; consulted
+        # on every log line so categorical `[<stepname>]` coloring only
+        # fires for slugs that actually exist in this run's workflow.
+        self._step_slugs: set[str] = set(self.workflow.steps)
+
+    @property
+    def assets_dir(self) -> Path:
+        return self.root / "assets"
+
+    @property
+    def log_path(self) -> Path:
+        return self.root / "run.log"
+
+    def step_dir(self, step_slug: str, visit: int) -> Path:
+        return self.root / step_slug / f"{visit:03d}"
+
+    def profile_dir(self, step_slug: str,
+                    composite_parent: str | None = None) -> Path:
+        if composite_parent is not None:
+            return (self.root / "profiles" / composite_parent / step_slug)
+        return self.root / "profiles" / step_slug
+
+    def composite_substep_dir(self, parent_slug: str, parent_visit: int,
+                              substep_slug: str,
+                              substep_visit: int = 1) -> Path:
+        return (self.root / parent_slug / f"{parent_visit:03d}"
+                / substep_slug / f"{substep_visit:03d}")
+
+    def composite_substep_assets_dir(self, parent_slug: str,
+                                     substep_slug: str) -> Path:
+        return self.assets_dir / parent_slug / substep_slug
+
+    def composite_substep_profile_dir(self, parent_slug: str,
+                                      substep_slug: str) -> Path:
+        return self.profile_dir(substep_slug, composite_parent=parent_slug)
+
+    def agent_home(self, agent: str, state_dir: Path) -> Path:
+        if agent == "codex" and self.codex_home is not None:
+            return self.codex_home
+        if agent == "claude" and self.claude_code_home is not None:
+            return self.claude_code_home
+        return state_dir
+
+    def log(self, msg: str) -> None:
+        """Unified log sink: real-time run.log file write, suspendable term.
+
+        The run.log FILE copy is ALWAYS written (history is never lost even
+        while the terminal is suspended for an interactive answer pause).
+        The stdout copy is buffered while `_term_suspended` and replayed in
+        emission order by resume_terminal(). `_log_lock` serializes the main
+        thread and the health-monitor thread so neither a half-written
+        stdout line nor an out-of-order run.log append can occur.
+        """
+        line = f"[{datetime.now().isoformat(timespec='seconds')}] {msg}"
+        with self._log_lock:
+            with self.log_path.open("a") as f:
+                f.write(line + "\n")
+            # File copy stays byte-identical; only the stdout copy is colored.
+            # We color BEFORE buffering so resume_terminal()'s replay output
+            # matches the inline-emission output exactly.
+            colored = _tc.colorize_log_line(
+                line, known_steps=self._step_slugs)
+            if self._term_suspended:
+                self._term_buffer.append(colored)
+            else:
+                print(colored, flush=True)
+
+    def log_monitor(self, msg: str) -> None:
+        """Health-monitor entry point. Identical to log(): both the main
+        loop and the monitor now share one suspendable sink (item 1.A).
+        Kept as a named method because existing call sites/tests use it."""
+        self.log(msg)
+
+    def suspend_terminal(self) -> None:
+        with self._log_lock:
+            self._term_suspended = True
+
+    def resume_terminal(self) -> None:
+        with self._log_lock:
+            self._term_suspended = False
+            for text in self._term_buffer:
+                print(text, flush=True)
+            self._term_buffer = []
+
+    def consume_step_budget(self) -> None:
+        """Decrement the shared step budget; raise when exhausted.
+
+        Counts both main-loop step entries and retry visits against one
+        shared cap so a permanently-failing step cannot loop forever or
+        drain auth-bank slots (item 1.3 global-budget coupling). The
+        per-run override (set via the CLI `--max-visits N` flag) takes
+        precedence over the module-level GLOBAL_STEP_BUDGET default.
+        """
+        if self.steps_remaining is None:
+            self.steps_remaining = (
+                self.max_visits_override
+                if self.max_visits_override is not None
+                else GLOBAL_STEP_BUDGET)
+        self.steps_remaining -= 1
+        if self.steps_remaining < 0:
+            raise RuntimeError("max step budget exceeded")
+
+
+def _file_fingerprint(p: Path) -> str | None:
+    """Content hash of `p`, or None if it does not exist / cannot be read.
+
+    Used to decide whether a health-monitor tick actually (re)produced an
+    asset this tick — robust to coarse mtime granularity.
+    """
+    try:
+        return hashlib.sha256(p.read_bytes()).hexdigest()
+    except OSError:
+        return None
+
+
+def _magnetize_accounts(
+    slug: str,
+    workflow: Workflow,
+    bank_skip: frozenset[str] = frozenset(),
+) -> dict[str, str]:
+    """Pick one account per provider needed by this workflow.
+
+    Providers in `bank_skip` (typically those running in costly-api-key
+    mode) are not magnetized at all: no `pick_account` call, no entry
+    in the returned dict. Providers with an empty auth bank are
+    skipped silently here; the failure is deferred to the first
+    agent-spawn (`run_codex` / `run_claude`) so `create_run` can serve
+    as a freeze / dry-run smoke path without a pre-populated bank.
+    """
+    providers_needed = set()
+
+    def _collect(s: Step) -> None:
+        if s.is_composite:
+            for sub in s.substeps.values():
+                _collect(sub)
+            return
+        if s.agent == "codex":
+            providers_needed.add("openai")
+        elif s.agent == "claude":
+            providers_needed.add("anthropic")
+
+    for step in workflow.steps.values():
+        _collect(step)
+    out: dict[str, str] = {}
+    for p in providers_needed:
+        if p in bank_skip:
+            continue
+        try:
+            out[p] = authbank.pick_account(p, slug)
+        except RuntimeError:
+            # Defer the empty-bank error until the agent is actually
+            # spawned; `run_codex` / `run_claude` re-raise with context.
+            pass
+    return out
+
+
+def create_run(
+    workflow: Workflow,
+    *,
+    bank_skip: frozenset[str] = frozenset(),
+    codex_home: Path | None = None,
+    claude_code_home: Path | None = None,
+) -> Run:
+    home = tenacious_home()
+    slug = make_run_slug()
+    root = home / "runs" / slug
+    (root / "assets").mkdir(parents=True, exist_ok=True)
+    (root / "profiles").mkdir(parents=True, exist_ok=True)
+    if workflow.project_dir:
+        project_dir = Path(workflow.project_dir).expanduser().resolve()
+        project_dir.mkdir(parents=True, exist_ok=True)
+    else:
+        project_dir = root
+    accounts = _magnetize_accounts(slug, workflow, bank_skip=bank_skip)
+    run = Run(slug=slug, root=root, workflow=workflow, project_dir=project_dir,
+              accounts=accounts, codex_home=codex_home,
+              claude_code_home=claude_code_home)
+    (root / "accounts.json").write_text(json.dumps(accounts, indent=2))
+    if codex_home is not None or claude_code_home is not None:
+        homes: dict[str, str] = {}
+        if codex_home is not None:
+            homes["codex"] = str(codex_home)
+        if claude_code_home is not None:
+            homes["claude"] = str(claude_code_home)
+        (root / "agent_homes.json").write_text(json.dumps(homes, indent=2))
+    (root / "goal.txt").write_text(workflow.goal + "\n")
+    (root / "project_dir.txt").write_text(str(project_dir) + "\n")
+    def _freeze_step(s: Step) -> dict[str, Any]:
+        if s.is_composite:
+            return {
+                "parallel": True,
+                "next_steps": s.next_steps,
+                "substeps": {
+                    sub_slug: _freeze_substep(sub)
+                    for sub_slug, sub in s.substeps.items()
+                },
+            }
+        out: dict[str, Any] = {
+            "agent": s.agent,
+            "model": s.model,
+            "prompt": s.prompt,
+            "asset_slugs": s.asset_slugs,
+            "next_steps": s.next_steps,
+            "context": s.context,
+            "questions": s.questions,
+            "outcome_retries": s.outcome_retries,
+            "mcp_servers": s.mcp_servers,
+        }
+        if s.assets:
+            out["assets"] = list(s.assets)
+        return out
+
+    def _freeze_substep(s: Step) -> dict[str, Any]:
+        out: dict[str, Any] = {
+            "agent": s.agent,
+            "prompt": s.prompt,
+            "asset_slugs": s.asset_slugs,
+            "context": s.context,
+        }
+        if s.model is not None:
+            out["model"] = s.model
+        if s.mcp_servers:
+            out["mcp_servers"] = s.mcp_servers
+        if s.assets:
+            out["assets"] = list(s.assets)
+        return out
+
+    frozen: dict[str, Any] = {
+        "goal": workflow.goal,
+        "project_dir": str(project_dir),
+        "base_prompt": workflow.base_prompt,
+        "start_step": workflow.start_step,
+        "steps": {
+            slug: _freeze_step(s) for slug, s in workflow.steps.items()
+        },
+    }
+    if workflow.health_monitor_step:
+        frozen["health_monitor"] = {
+            "step": workflow.health_monitor_step,
+            "interval_seconds": workflow.health_monitor_interval_seconds,
+        }
+    if workflow.max_visits is not None:
+        frozen["max_visits"] = workflow.max_visits
+    (root / "workflow.json").write_text(json.dumps(frozen, indent=2))
+    run.log(f"run created at {root}")
+    run.log(f"project dir: {project_dir}")
+    return run
+
+
+def _write_run_state(run: "Run", status: str, *,
+                     workflow_source: str | None = None,
+                     started_at: float | None = None,
+                     ended_at: float | None = None) -> None:
+    """Persist a durable run-lifecycle sidecar for the live viewer.
+
+    Atomic (tmp-file + os.replace) so a reader never sees a half-written
+    file. Best-effort: a sidecar write failing must never abort a run, so
+    every error is swallowed. Emits no run.log line (keeps run.log content
+    byte-stable for existing substring assertions). Not a workflow-schema
+    or health-monitor change — a single item-4 run-dir artifact.
+    """
+    try:
+        state = {
+            "pid": os.getpid(),
+            "status": status,
+            "workflow_source": workflow_source,
+            "started_at": started_at,
+            "ended_at": ended_at,
+        }
+        path = run.root / "run-state.json"
+        tmp = run.root / ".run-state.json.tmp"
+        tmp.write_text(json.dumps(state, indent=2))
+        os.replace(tmp, path)
+    except OSError:
+        pass
+
+
+# ----- Prompt rendering ------------------------------------------------------
+
+def _contract_block(step: Step, run: Run, step_dir: Path,
+                    assets_dir: Path | None = None) -> str:
+    outcome_path = step_dir / "outcome.txt"
+    valid = ", ".join(step.next_steps) or "(none)"
+    eff_assets_dir = assets_dir if assets_dir is not None else run.assets_dir
+    extras = ""
+    if step.questions:
+        extras = (
+            "If you need information from the user before you can finish, write your "
+            "question to:\n"
+            f"  {step_dir / 'question.txt'}\n"
+            f"and write the literal text 'question' to {outcome_path}.\n"
+            "The orchestrator will surface your question to the user and re-invoke "
+            "you with the answer.\n"
+        )
+    base = run.workflow.base_prompt.strip()
+    base_block = (
+        f"\n\n--- WORKFLOW BASE PROMPT ---\n{base}\n"
+        if base else ""
+    )
+    write_order = (
+        "\nWRITE ORDER (REQUIRED): outcome.txt MUST be the LAST file you write "
+        "for this step. First, every asset file the step is responsible for "
+        "(whichever asset filenames your step prompt names — e.g. "
+        "requirements-NNNN.md + requirements-current.md, plan-NNNN.md + "
+        "plan-current.md, plan-feedback-NNNN.md + plan-feedback-current.md, "
+        "plan-revised-NNNN.md, plan-final-NNNN.md, code-notes-NNNN.md + "
+        "code-notes-current.md, code-feedback-NNNN.md + code-feedback-current.md, "
+        "status-update-NNNN.md + status-update-current.md, "
+        "health-deepdive-current.md, health-quick-current.md, TLDR.md, etc.) "
+        "must be fully written and closed on disk; only then write "
+        f"{outcome_path}. If this step is question-enabled and you decide to "
+        f"ask one instead of finishing, finish writing "
+        f"{step_dir / 'question.txt'} first and only then write the literal "
+        f"text 'question' to {outcome_path}. If any asset write fails mid-step "
+        "(for example an Edit-tool 'File has not been read yet' error), "
+        "do NOT write outcome.txt — fix the asset write (e.g. read the file "
+        "before editing it) and only signal completion once every asset is "
+        "fully written.\n"
+    )
+    return (
+        "\n\n--- ORCHESTRATOR CONTRACT ---\n"
+        f"When you are done with this step, write the slug of the next step to:\n"
+        f"  {outcome_path}\n"
+        f"Valid next-step slugs: {valid}\n"
+        "Write only the slug on a single line, with no extra commentary.\n"
+        "Your working directory for project and code/deliverable files is:\n"
+        f"  {run.project_dir}\n"
+        "If you produce any assets, write each one as a file at:\n"
+        f"  {eff_assets_dir}/<asset-slug>\n"
+        + extras
+        + base_block
+        + write_order
+    )
+
+
+def render_prompt(step: Step, run: Run, step_dir: Path,
+                  assets_dir: Path | None = None) -> str:
+    outcome_path = step_dir / "outcome.txt"
+    eff_assets_dir = assets_dir if assets_dir is not None else run.assets_dir
+    body = step.prompt.format(
+        goal=run.workflow.goal,
+        run_slug=run.slug,
+        run_root=str(run.root),
+        assets_dir=str(eff_assets_dir),
+        outcome_path=str(outcome_path),
+        step_dir=str(step_dir),
+        project_dir=str(run.project_dir),
+    )
+    contract = _contract_block(step, run, step_dir, assets_dir=eff_assets_dir)
+    asset_sections = []
+    for slug in step.asset_slugs:
+        # Inputs are always read from the run-wide assets dir; nested
+        # substep asset references work because the slug carries the
+        # nested directory (e.g. "fan/a/hello.txt").
+        path = run.assets_dir / slug
+        if path.exists():
+            asset_sections.append(
+                f"\n\n--- ASSET: {slug} ---\n{path.read_text()}\n--- END ASSET ---\n"
+            )
+        else:
+            asset_sections.append(f"\n\n--- ASSET: {slug} --- (missing)\n")
+    return body + contract + "".join(asset_sections)
+
+
+def render_continuation_prompt(step: Step, run: Run, step_dir: Path,
+                               question: str, answer: str) -> str:
+    contract = _contract_block(step, run, step_dir)
+    return (
+        f"The user has answered your previous question.\n\n"
+        f"Your question was:\n{question}\n\n"
+        f"User's answer:\n{answer}\n\n"
+        f"Continue the step. Use the new outcome path below for this visit."
+        + contract
+    )
+
+
+def render_retry_prompt(step: Step, run: Run, step_dir: Path, reason: str,
+                        prior_value: str | None, mode: str,
+                        resumable: bool) -> str:
+    """Self-contained feedback prompt for a bounded outcome retry.
+
+    Restates the goal (via the step body), the normal outcome contract
+    (via `_contract_block`), what went wrong + the exact rejected value,
+    and an instruction chosen from the *effective* mode (so a "continue"
+    that silently degrades to fresh — no resumable handle — never receives
+    continue-only instructions). The "you may still have context" clause
+    appears only when continue was requested AND a resumable handle exists.
+    """
+    outcome_path = step_dir / "outcome.txt"
+    body = step.prompt.format(
+        goal=run.workflow.goal,
+        run_slug=run.slug,
+        run_root=str(run.root),
+        assets_dir=str(run.assets_dir),
+        outcome_path=str(outcome_path),
+        step_dir=str(step_dir),
+        project_dir=str(run.project_dir),
+    )
+    contract = _contract_block(step, run, step_dir)
+    diagnosis = ("A previous attempt at this step did not satisfy the "
+                 f"orchestrator contract. Problem: {reason}. "
+                 f"The exact rejected value was: {prior_value!r}.")
+
+    if mode == "continue" and resumable:
+        eff = "continue"
+    elif mode == "continue":          # requested continue, NOT resumable
+        eff = "degraded"
+    else:
+        eff = "fresh"
+
+    if eff == "continue":
+        instr = ("Do NOT redo the work — it was very likely already "
+                 "completed. Only write exactly one valid next-step slug to "
+                 "the outcome path below (one slug, single line, no extra "
+                 "text). If and only if questions are enabled and you truly "
+                 "need user input, use the question protocol instead.")
+    elif eff == "degraded":
+        instr = ("This is a fresh process with no memory of the prior "
+                 "attempt. First inspect what already exists; do NOT redo "
+                 "any work that is clearly already complete; complete "
+                 "anything missing or incomplete; then write exactly one "
+                 "valid next-step slug to the outcome path below (one slug, "
+                 "single line, no extra text).")
+    else:  # fresh
+        instr = ("A prior attempt was interrupted and may have left "
+                 "partial work. Verify what already exists, complete it if "
+                 "needed, then write the outcome.")
+
+    remember = (" You may still have context from your previous attempt."
+                if eff == "continue" else "")
+    asset_sections = []
+    for slug in step.asset_slugs:
+        path = run.assets_dir / slug
+        if path.exists():
+            asset_sections.append(
+                f"\n\n--- ASSET: {slug} ---\n{path.read_text()}\n"
+                f"--- END ASSET ---\n"
+            )
+        else:
+            asset_sections.append(f"\n\n--- ASSET: {slug} --- (missing)\n")
+    return (body + contract + "\n\n--- RETRY FEEDBACK ---\n"
+            + diagnosis + "\n" + instr + remember + "\n"
+            + "".join(asset_sections))
+
+
+def _has_resumable_handle(step: Step, run: Run) -> bool:
+    """True iff a "continue"-mode retry can actually resume prior context.
+
+    codex: a non-empty thread_id.txt in the step profile. claude: at least
+    one resumable session JSONL in the step profile. Unknown agent: False.
+    """
+    profile = run.profile_dir(step.slug)
+    if step.agent == "codex":
+        tid = profile / "thread_id.txt"
+        try:
+            return tid.exists() and tid.read_text().strip() != ""
+        except OSError:
+            return False
+    if step.agent == "claude":
+        sid = profile / "claude_session_id.txt"
+        try:
+            if sid.exists() and sid.read_text().strip() != "":
+                return True
+        except OSError:
+            return False
+        try:
+            return any(profile.glob("projects/*/*.jsonl"))
+        except OSError:
+            return False
+    return False
+
+
+# ----- Agent invocations -----------------------------------------------------
+
+def _codex_thread_id_from_stdout(stdout: str) -> str | None:
+    for line in stdout.splitlines():
+        try:
+            obj = json.loads(line)
+        except Exception:
+            continue
+        if obj.get("type") == "thread.started":
+            tid = obj.get("thread_id")
+            if isinstance(tid, str):
+                return tid
+    return None
+
+
+def _valid_outcome(path: Path) -> bool:
+    """A valid outcome.txt exists and has non-empty stripped contents."""
+    try:
+        return path.exists() and path.read_text().strip() != ""
+    except OSError:
+        return False  # mid-write / transient race -> not yet valid
+
+
+def _group_alive(pgid: int) -> bool:
+    """True if any member of the process group still exists."""
+    try:
+        os.killpg(pgid, 0)
+        return True
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True  # exists but not signalable by us
+
+
+def _kill_process_group(proc: subprocess.Popen, pgid: int | None) -> None:
+    """Kill the agent's whole process group so orphan children do not linger.
+
+    Escalation is keyed on the *group* disappearing, not on the direct child
+    returning from wait(): a descendant that survives SIGTERM keeps the group
+    alive and forces a group-wide SIGKILL.
+    """
+    if pgid is None:
+        # Could not establish a group; best-effort reap the direct child only.
+        try:
+            proc.wait(timeout=PROCESS_GROUP_KILL_ESCALATION_SECONDS)
+        except subprocess.TimeoutExpired:
+            try:
+                proc.kill()
+            except ProcessLookupError:
+                pass
+            try:
+                proc.wait(timeout=PROCESS_GROUP_KILL_ESCALATION_SECONDS)
+            except subprocess.TimeoutExpired:
+                pass
+        return
+
+    # 1. Polite stop to the whole group.
+    try:
+        os.killpg(pgid, signal.SIGTERM)
+    except ProcessLookupError:
+        pass
+
+    # 2. Wait for the GROUP (not just the leader) to disappear. proc.poll()
+    #    each iteration reaps our own direct child so a zombie leader does not
+    #    falsely keep the group "alive".
+    deadline = time.time() + PROCESS_GROUP_KILL_ESCALATION_SECONDS
+    while time.time() < deadline:
+        proc.poll()
+        if not _group_alive(pgid):
+            break
+        time.sleep(PROCESS_GROUP_POLL_INTERVAL_SECONDS)
+
+    # 3. If the group is still alive at the deadline, force-kill the group.
+    if _group_alive(pgid):
+        try:
+            os.killpg(pgid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        kdeadline = time.time() + PROCESS_GROUP_KILL_ESCALATION_SECONDS
+        while time.time() < kdeadline:
+            proc.poll()
+            if not _group_alive(pgid):
+                break
+            time.sleep(PROCESS_GROUP_POLL_INTERVAL_SECONDS)
+
+    # 4. Reap the direct child so it does not linger as a zombie.
+    try:
+        proc.wait(timeout=PROCESS_GROUP_KILL_ESCALATION_SECONDS)
+    except subprocess.TimeoutExpired:
+        pass
+
+
+def _supervise(cmd: list[str], env: dict[str, str], cwd: str,
+               outcome_path: Path, run: "Run", label: str,
+               cancel_event: "threading.Event | None" = None) -> dict:
+    """Run an agent process under concurrent outcome-detection supervision.
+
+    Replaces a blocking subprocess.run: starts the agent in its own session,
+    polls for a valid outcome.txt while it runs, grants a hardcoded 10 minute grace
+    for a clean exit once an outcome appears, then kills the whole process
+    group regardless. Returns {"exit", "stdout", "stderr"}.
+
+    If `cancel_event` is provided and becomes set during the poll, the
+    agent's process group is killed immediately and the returned dict
+    includes ``"cancelled": True`` so the caller can distinguish a
+    sibling-failure cancellation from the originating failure.
+    """
+    step_dir = outcome_path.parent
+    outf = tempfile.NamedTemporaryFile(
+        delete=False, dir=str(step_dir), prefix=".out-", suffix=".tmp")
+    errf = tempfile.NamedTemporaryFile(
+        delete=False, dir=str(step_dir), prefix=".err-", suffix=".tmp")
+    try:
+        proc = subprocess.Popen(
+            cmd, stdout=outf, stderr=errf, stdin=subprocess.DEVNULL,
+            env=env, cwd=cwd, start_new_session=True,
+        )
+        try:
+            pgid = os.getpgid(proc.pid)
+        except (ProcessLookupError, OSError):
+            pgid = None
+
+        # Concurrent outcome detection.
+        outcome_seen = False
+        cancelled = False
+        while True:
+            if cancel_event is not None and cancel_event.is_set():
+                cancelled = True
+                run.log(f"  [{label}] cancelled by sibling failure; "
+                        f"killing agent process group")
+                break
+            if proc.poll() is not None:  # exited on its own
+                break
+            if _valid_outcome(outcome_path):
+                outcome_seen = True
+                run.log(f"  [{label}] valid outcome.txt detected while "
+                        f"agent still running")
+                break
+            time.sleep(OUTCOME_POLL_INTERVAL_SECONDS)
+
+        # Grace period for a clean exit after an outcome was seen.
+        if outcome_seen and not cancelled:
+            deadline = time.time() + OUTCOME_GRACE_SECONDS
+            while time.time() < deadline:
+                if cancel_event is not None and cancel_event.is_set():
+                    cancelled = True
+                    break
+                if proc.poll() is not None:
+                    break
+                time.sleep(min(OUTCOME_POLL_INTERVAL_SECONDS, 1.0))
+            if proc.poll() is None and not cancelled:
+                run.log(f"  [{label}] grace expired; killing agent "
+                        f"process group")
+
+        # Always reap the whole group on completion (item 3).
+        _kill_process_group(proc, pgid)
+
+        outf.flush()
+        errf.flush()
+        outf.seek(0)
+        errf.seek(0)
+        stdout = outf.read().decode("utf-8", errors="replace")
+        stderr = errf.read().decode("utf-8", errors="replace")
+        result = {"exit": proc.returncode, "stdout": stdout, "stderr": stderr}
+        if cancelled:
+            result["cancelled"] = True
+            if not stderr:
+                result["stderr"] = "cancelled by sibling failure"
+        return result
+    finally:
+        outf.close()
+        errf.close()
+        for tmp in (outf.name, errf.name):
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+
+
+def _format_toml_string(s: str) -> str:
+    """Emit a TOML basic-string literal of `s` with correct escaping.
+
+    TOML basic strings escape the same set of characters that JSON does for
+    a double-quoted string, so json.dumps() is sufficient. Used because
+    stdlib `tomllib` is read-only.
+    """
+    return json.dumps(s)
+
+
+def _format_codex_toml(servers: dict[str, dict[str, Any]]) -> str:
+    """Render an mcp_servers-only TOML document for codex's config.toml.
+
+    stdio servers: command, optional args (array), optional env (inline table).
+    http servers: url, optional bearer_token_env_var, optional http_headers.
+    Keys inside each block appear in deterministic order.
+    """
+    blocks: list[str] = []
+    for name in sorted(servers):
+        entry = servers[name]
+        lines = [f"[mcp_servers.{name}]"]
+        if "command" in entry:
+            lines.append(f"command = {_format_toml_string(entry['command'])}")
+            args = entry.get("args")
+            if args:
+                joined = ", ".join(_format_toml_string(a) for a in args)
+                lines.append(f"args = [{joined}]")
+            env = entry.get("env")
+            if env:
+                inline = ", ".join(
+                    f"{k} = {_format_toml_string(v)}"
+                    for k, v in sorted(env.items())
+                )
+                lines.append(f"env = {{ {inline} }}")
+        else:
+            lines.append(f"url = {_format_toml_string(entry['url'])}")
+            btev = entry.get("bearer_token_env_var")
+            if btev:
+                lines.append(
+                    f"bearer_token_env_var = {_format_toml_string(btev)}")
+            headers = entry.get("headers")
+            if headers:
+                inline = ", ".join(
+                    f"{_format_toml_string(k)} = {_format_toml_string(v)}"
+                    for k, v in sorted(headers.items())
+                )
+                lines.append(f"http_headers = {{ {inline} }}")
+        blocks.append("\n".join(lines))
+    return "\n\n".join(blocks) + ("\n" if blocks else "")
+
+
+def _codex_mcp_config_args(servers: dict[str, dict[str, Any]]) -> list[str]:
+    """Render Codex MCP config as per-invocation ``-c`` overrides.
+
+    This is used when Tenacious points CODEX_HOME at a user-supplied home:
+    writing ``config.toml`` there would overwrite user configuration. The
+    generated arguments are equivalent to the legacy config.toml content but
+    affect only this one ``codex exec`` invocation.
+    """
+    args: list[str] = []
+    for name in sorted(servers):
+        entry = servers[name]
+
+        def add(key: str, value: str) -> None:
+            args.extend(["-c", f"mcp_servers.{name}.{key}={value}"])
+
+        if "command" in entry:
+            add("command", _format_toml_string(entry["command"]))
+            raw_args = entry.get("args")
+            if raw_args:
+                joined = ", ".join(_format_toml_string(a) for a in raw_args)
+                add("args", f"[{joined}]")
+            env = entry.get("env")
+            if env:
+                inline = ", ".join(
+                    f"{k} = {_format_toml_string(v)}"
+                    for k, v in sorted(env.items())
+                )
+                add("env", f"{{ {inline} }}")
+        else:
+            add("url", _format_toml_string(entry["url"]))
+            btev = entry.get("bearer_token_env_var")
+            if btev:
+                add("bearer_token_env_var", _format_toml_string(btev))
+            headers = entry.get("headers")
+            if headers:
+                inline = ", ".join(
+                    f"{_format_toml_string(k)} = {_format_toml_string(v)}"
+                    for k, v in sorted(headers.items())
+                )
+                add("http_headers", f"{{ {inline} }}")
+    return args
+
+
+def _format_claude_mcp_json(servers: dict[str, dict[str, Any]]) -> str:
+    """Render a claude `--mcp-config` JSON document for the given servers.
+
+    stdio entries include explicit `type: "stdio"`. http entries use
+    `type: "http"` with `url` and merged headers (bearer_token_env_var is
+    resolved from the environment and injected as Authorization: Bearer).
+    Empty args/env/headers are omitted so the file stays minimal.
+    """
+    payload: dict[str, dict[str, Any]] = {}
+    for name in sorted(servers):
+        entry = servers[name]
+        if "command" in entry:
+            out: dict[str, Any] = {
+                "type": "stdio",
+                "command": entry["command"],
+            }
+            args = entry.get("args")
+            if args:
+                out["args"] = list(args)
+            env = entry.get("env")
+            if env:
+                out["env"] = dict(env)
+        else:
+            out = {"type": "http", "url": entry["url"]}
+            merged: dict[str, str] = dict(entry.get("headers", {}))
+            btev = entry.get("bearer_token_env_var")
+            if btev:
+                token = os.environ.get(btev, "")
+                if token:
+                    merged["Authorization"] = f"Bearer {token}"
+            if merged:
+                out["headers"] = merged
+        payload[name] = out
+    return json.dumps({"mcpServers": payload}, indent=2) + "\n"
+
+
+def _materialize_mcp_config(step: Step, profile_dir: Path) -> Path | None:
+    """Write per-agent MCP config into `profile_dir`.
+
+    claude -> writes `<profile_dir>/mcp-servers.json` and returns its
+    absolute path; caller appends `--mcp-config <path> --strict-mcp-config`.
+    codex  -> writes `<profile_dir>/config.toml` (which codex auto-loads via
+    $CODEX_HOME) and returns None.
+    Empty `step.mcp_servers` -> writes nothing, returns None. Idempotent:
+    overwrites unconditionally so repeated visits produce identical content.
+    """
+    if not step.mcp_servers:
+        return None
+    profile_dir.mkdir(parents=True, exist_ok=True)
+    if step.agent == "claude":
+        out = profile_dir / "mcp-servers.json"
+        out.write_text(_format_claude_mcp_json(step.mcp_servers))
+        return out.resolve()
+    if step.agent == "codex":
+        out = profile_dir / "config.toml"
+        out.write_text(_format_codex_toml(step.mcp_servers))
+        return None
+    return None
+
+
+def _mcp_log_summary(step: Step) -> str:
+    if not step.mcp_servers:
+        return "mcp_servers: none"
+    stdio = sorted(n for n, e in step.mcp_servers.items() if "command" in e)
+    http = sorted(n for n, e in step.mcp_servers.items() if "url" in e)
+    parts: list[str] = []
+    if stdio:
+        parts.append(f"{len(stdio)} stdio ({', '.join(stdio)})")
+    if http:
+        parts.append(f"{len(http)} http ({', '.join(http)})")
+    return f"mcp_servers: {', '.join(parts)}"
+
+
+def _session_glob(home: Path, agent: str) -> str:
+    if agent == "claude":
+        return "projects/*/*.jsonl"
+    if agent == "codex":
+        return "sessions/*/*/*/rollout-*.jsonl"
+    return ""
+
+
+def _snapshot_agent_sessions(home: Path, agent: str) -> dict[str, tuple[int, int]]:
+    pattern = _session_glob(home, agent)
+    if not pattern:
+        return {}
+    out: dict[str, tuple[int, int]] = {}
+    try:
+        paths = list(home.glob(pattern))
+    except OSError:
+        return out
+    for p in paths:
+        try:
+            st = p.stat()
+        except OSError:
+            continue
+        out[str(p)] = (st.st_mtime_ns, st.st_size)
+    return out
+
+
+def _find_changed_sessions(home: Path, agent: str,
+                           before: dict[str, tuple[int, int]],
+                           session_id: str | None = None) -> list[Path]:
+    pattern = _session_glob(home, agent)
+    if not pattern:
+        return []
+    found: list[Path] = []
+    seen: set[str] = set()
+    try:
+        paths = list(home.glob(pattern))
+    except OSError:
+        paths = []
+    for p in paths:
+        sp = str(p)
+        try:
+            st = p.stat()
+        except OSError:
+            continue
+        sig = (st.st_mtime_ns, st.st_size)
+        changed = before.get(sp) != sig
+        matches_session = (
+            bool(session_id)
+            and (p.stem == session_id or session_id in p.name)
+        )
+        if changed or matches_session:
+            found.append(p)
+            seen.add(sp)
+    if session_id and agent == "claude":
+        try:
+            for p in home.glob(f"projects/*/{session_id}.jsonl"):
+                sp = str(p)
+                if sp not in seen:
+                    found.append(p)
+                    seen.add(sp)
+        except OSError:
+            pass
+    found.sort(key=lambda p: p.stat().st_mtime_ns if p.exists() else 0)
+    return found
+
+
+def _record_external_sessions(state_dir: Path, agent: str, visit: int,
+                              paths: list[Path]) -> None:
+    if not paths:
+        return
+    index = state_dir / "session-index.jsonl"
+    with index.open("a") as f:
+        for p in paths:
+            try:
+                st = p.stat()
+                mtime_ns = st.st_mtime_ns
+                size = st.st_size
+            except OSError:
+                mtime_ns = None
+                size = None
+            f.write(json.dumps({
+                "kind": agent,
+                "path": str(p),
+                "visit": visit,
+                "mtime_ns": mtime_ns,
+                "size": size,
+            }) + "\n")
+
+
+def _claude_session_id_from_output(stdout: str, stderr: str) -> str | None:
+    for raw in (stdout, stderr):
+        text = (raw or "").strip()
+        if not text:
+            continue
+        candidates = [text]
+        candidates.extend(line.strip() for line in text.splitlines()
+                          if line.strip().startswith("{"))
+        for candidate in reversed(candidates):
+            try:
+                obj = json.loads(candidate)
+            except (ValueError, TypeError):
+                continue
+            if isinstance(obj, dict):
+                sid = obj.get("session_id")
+                if isinstance(sid, str) and sid:
+                    return sid
+    return None
+
+
+def _run_codex_bank(run: "Run", cmd: list, env: dict, account: str,
+                    auth_target: Path, step_dir: Path,
+                    should_continue: bool, prior_tid: "str | None",
+                    prompt_len: int, cancel_event: "threading.Event | None",
+                    label: str) -> dict:
+    """Codex bank path with auth-refresh eviction + slot failover.
+
+    (a) Try each bank slot in the magnetized account in order; if a slot
+        hits an auth-refresh 401, skip its writeback, evict it, and fail
+        over to the NEXT slot.
+    (b) When all bank slots are exhausted, return a synthesized failure
+        result with a clear, actionable error. The bank path NEVER falls
+        back to the user's off-bank ($CODEX_HOME/auth.json) login — if the
+        bank is selected, only bank slots are ever used.
+    """
+    outcome_path = step_dir / "outcome.txt"
+    tried: set[str] = set()
+    result = None
+
+    def _supervise_attempt():
+        # A single run_codex now spans multiple attempts against the same
+        # outcome.txt; clear any stale outcome before each one so the
+        # orchestrator's "outcome.txt is fresh" assumption holds.
+        outcome_path.unlink(missing_ok=True)
+        return _supervise(cmd, env=env, cwd=str(run.project_dir),
+                          outcome_path=outcome_path, run=run, label=label,
+                          cancel_event=cancel_event)
+
+    # ---- Tier (a): bank slots, in order, with eviction ----
+    while True:
+        try:
+            with authbank.lease("openai", account, exclude=tried) as slot:
+                shutil.copy(slot, auth_target)
+                os.chmod(auth_target, 0o600)
+                run.log(f"  codex cmd: ...openai/{account}/{slot.name} ... "
+                        f"(prompt {prompt_len}B, continue={should_continue}, "
+                        f"prior_tid={prior_tid})")
+                result = _supervise_attempt()
+                if authbank.is_auth_refresh_failure(result["exit"], result["stderr"]):
+                    marker = authbank.auth_refresh_marker(result["stderr"])
+                    tried.add(slot.name)  # exclude even if evict fails
+                    try:
+                        dest = authbank.evict(slot)
+                        run.log(f"  [AUTH-EVICT] openai/{account}/{slot.name} "
+                                f"dead refresh token ({marker}); quarantined -> "
+                                f"{dest.name}; failing over to next slot")
+                    except OSError as e:
+                        run.log(f"  [AUTH-EVICT] openai/{account}/{slot.name} "
+                                f"dead refresh token ({marker}); quarantine "
+                                f"FAILED ({e}); slot excluded for this run, "
+                                f"failing over")
+                    result = None
+                    continue
+                # success OR non-auth failure → today's behavior
+                if authbank.writeback("openai") and auth_target.exists():
+                    shutil.copy(auth_target, slot)
+                break
+        except authbank.AllSlotsExhausted:
+            run.log(f"  [AUTH-EXHAUSTED] openai/{account}: all bank slots "
+                    f"evicted/exhausted")
+            result = None
+            break
+        # NOTE: TimeoutError (busy bank) is intentionally NOT caught here —
+        # a busy bank must surface as a timeout, not an exhaustion error.
+
+    # ---- Tier (b): exhaustion ----
+    if result is None or authbank.is_auth_refresh_failure(result["exit"], result["stderr"]):
+        msg = (f"openai/{account}: every bank slot evicted or exhausted. "
+               f"Re-login needed — see POPULATING_THE_AUTH_BANK.md")
+        run.log(f"  [AUTH-EXHAUSTED] {msg}")
+        if result is None:
+            result = {"exit": 1, "stdout": "", "stderr": msg}
+    return result
+
+
+def run_codex(step: Step, run: Run, visit: int, step_dir: Path, prompt: str,
+              should_continue: bool, *,
+              composite_parent: str | None = None,
+              cancel_event: "threading.Event | None" = None) -> dict:
+    state_dir = run.profile_dir(step.slug, composite_parent=composite_parent)
+    state_dir.mkdir(parents=True, exist_ok=True)
+    codex_home = run.agent_home("codex", state_dir)
+    codex_home.mkdir(parents=True, exist_ok=True)
+    auth_target = codex_home / "auth.json"
+
+    api_key_mode = bool(run.use_codex_api_key and run.api_key_codex)
+    home_mode = run.codex_home is not None
+
+    env = os.environ.copy()
+    env["CODEX_HOME"] = str(codex_home)
+    if home_mode:
+        env.pop("CODEX_API_KEY", None)
+        env.pop("OPENAI_API_KEY", None)
+
+    codex_mcp_args: list[str] = []
+    if home_mode:
+        codex_mcp_args = _codex_mcp_config_args(step.mcp_servers)
+    else:
+        _materialize_mcp_config(step, state_dir)
+    run.log(f"  {_mcp_log_summary(step)}")
+
+    cmd = [
+        "codex", "exec", "--json",
+        *codex_mcp_args,
+        "--skip-git-repo-check",
+        "--dangerously-bypass-approvals-and-sandbox",
+        "--cd", str(run.project_dir),
+    ]
+    if step.model:
+        cmd += ["--model", step.model]
+
+    thread_state_path = state_dir / "thread_id.txt"
+    prior_tid = thread_state_path.read_text().strip() if thread_state_path.exists() else None
+    if should_continue and prior_tid:
+        cmd += ["resume", prior_tid, prompt]
+    else:
+        cmd += [prompt]
+
+    session_before = _snapshot_agent_sessions(codex_home, "codex")
+
+    if home_mode:
+        run.log(f"  codex cmd: CODEX_HOME ... "
+                f"(prompt {len(prompt)}B, continue={should_continue}, "
+                f"prior_tid={prior_tid})")
+        result = _supervise(cmd, env=env, cwd=str(run.project_dir),
+                            outcome_path=step_dir / "outcome.txt",
+                            run=run, label=step.slug,
+                            cancel_event=cancel_event)
+    elif api_key_mode:
+        env["CODEX_API_KEY"] = run.api_key_codex
+        env["OPENAI_API_KEY"] = run.api_key_codex
+        run.log(f"  codex cmd: CODEX_API_KEY ... "
+                f"(prompt {len(prompt)}B, continue={should_continue}, "
+                f"prior_tid={prior_tid})")
+        result = _supervise(cmd, env=env, cwd=str(run.project_dir),
+                            outcome_path=step_dir / "outcome.txt",
+                            run=run, label=step.slug,
+                            cancel_event=cancel_event)
+    else:
+        if run.use_codex_api_key:
+            raise RuntimeError(
+                "codex API-key mode selected without CODEX_API_KEY or "
+                "OPENAI_API_KEY")
+        account = run.accounts.get("openai")
+        if account is None:
+            account = authbank.pick_account("openai", run.slug)
+            run.accounts["openai"] = account
+        result = _run_codex_bank(
+            run, cmd, env, account, auth_target, step_dir,
+            should_continue, prior_tid, len(prompt), cancel_event, step.slug)
+
+    tid = _codex_thread_id_from_stdout(result["stdout"])
+    if tid and not prior_tid:
+        thread_state_path.write_text(tid)
+    changed = _find_changed_sessions(codex_home, "codex", session_before,
+                                     session_id=tid or prior_tid)
+    if home_mode:
+        _record_external_sessions(state_dir, "codex", visit, changed)
+    out = {"exit": result["exit"], "stdout": result["stdout"],
+           "stderr": result["stderr"], "thread_id": tid or prior_tid}
+    if result.get("cancelled"):
+        out["cancelled"] = True
+    return out
+
+
+def run_claude(step: Step, run: Run, visit: int, step_dir: Path, prompt: str,
+               should_continue: bool, *,
+               composite_parent: str | None = None,
+               cancel_event: "threading.Event | None" = None) -> dict:
+    state_dir = run.profile_dir(step.slug, composite_parent=composite_parent)
+    state_dir.mkdir(parents=True, exist_ok=True)
+    claude_home = run.agent_home("claude", state_dir)
+    claude_home.mkdir(parents=True, exist_ok=True)
+
+    api_key_mode = bool(run.use_anthropic_api_key and run.api_key_anthropic)
+    home_mode = run.claude_code_home is not None
+
+    env = os.environ.copy()
+    env["CLAUDE_CONFIG_DIR"] = str(claude_home)
+    env.pop("ANTHROPIC_API_KEY", None)
+    env.pop("CLAUDE_CODE_OAUTH_TOKEN", None)
+
+    mcp_path = _materialize_mcp_config(step, state_dir)
+    run.log(f"  {_mcp_log_summary(step)}")
+
+    cmd = [
+        "claude", "-p", prompt,
+        "--output-format", "json",
+        "--permission-mode", "bypassPermissions",
+        "--add-dir", str(run.root),
+        "--add-dir", str(run.project_dir),
+    ]
+    if mcp_path is not None:
+        # Replacement-only: step-declared MCP is the only MCP claude sees.
+        cmd += ["--mcp-config", str(mcp_path), "--strict-mcp-config"]
+    if step.model:
+        cmd += ["--model", step.model]
+    session_state_path = state_dir / "claude_session_id.txt"
+    prior_sid = (session_state_path.read_text().strip()
+                 if session_state_path.exists() else None)
+    if home_mode and should_continue and prior_sid:
+        cmd += ["--resume", prior_sid]
+    elif should_continue:
+        cmd.append("--continue")
+
+    session_before = _snapshot_agent_sessions(claude_home, "claude")
+
+    if home_mode:
+        run.log(f"  claude cmd: CLAUDE_CONFIG_DIR ... "
+                f"(prompt len={len(prompt)}B, continue={should_continue}, "
+                f"prior_sid={prior_sid})")
+        result = _supervise(cmd, env=env, cwd=str(run.project_dir),
+                            outcome_path=step_dir / "outcome.txt",
+                            run=run, label=step.slug,
+                            cancel_event=cancel_event)
+    elif api_key_mode:
+        env["ANTHROPIC_API_KEY"] = run.api_key_anthropic
+        run.log(f"  claude cmd: ANTHROPIC_API_KEY ... "
+                f"(prompt len={len(prompt)}B, continue={should_continue})")
+        result = _supervise(cmd, env=env, cwd=str(run.project_dir),
+                            outcome_path=step_dir / "outcome.txt",
+                            run=run, label=step.slug,
+                            cancel_event=cancel_event)
+    else:
+        if run.use_anthropic_api_key:
+            raise RuntimeError(
+                "anthropic API-key mode selected without ANTHROPIC_API_KEY")
+        account = run.accounts.get("anthropic")
+        if account is None:
+            account = authbank.pick_account("anthropic", run.slug)
+            run.accounts["anthropic"] = account
+        with authbank.lease("anthropic", account) as slot:
+            env["CLAUDE_CODE_OAUTH_TOKEN"] = slot.read_text().strip()
+            run.log(f"  claude cmd: ...anthropic/{account}/{slot.name} ... "
+                    f"(prompt len={len(prompt)}B, continue={should_continue})")
+            result = _supervise(cmd, env=env, cwd=str(run.project_dir),
+                                outcome_path=step_dir / "outcome.txt",
+                                run=run, label=step.slug,
+                                cancel_event=cancel_event)
+
+    sid = _claude_session_id_from_output(
+        result.get("stdout", "") or "", result.get("stderr", "") or "")
+    if sid:
+        session_state_path.write_text(sid)
+    changed = _find_changed_sessions(claude_home, "claude", session_before,
+                                     session_id=sid or prior_sid)
+    if home_mode:
+        _record_external_sessions(state_dir, "claude", visit, changed)
+    out = {"exit": result["exit"], "stdout": result["stdout"],
+           "stderr": result["stderr"]}
+    if result.get("cancelled"):
+        out["cancelled"] = True
+    return out
+
+
+AGENT_RUNNERS = {"codex": run_codex, "claude": run_claude}
+
+
+# ----- Out-of-band session health monitor (Part A) ---------------------------
+#
+# A step-like agent (its own prompt/profile, uses the auth bank exactly like
+# every other agent step) that the orchestrator invokes OUT OF BAND on a
+# background timer — never as a node reachable from any step's next_steps.
+# It is strictly report-only: it produces two assets (a deep-dive and a
+# quick-update) and surfaces the quick-update to the user; it never pauses,
+# aborts, retries, or otherwise intervenes in the run.
+#
+# Pause semantics: while the run is paused waiting on a user question the
+# monitor launches ZERO agents (it never ticks during a pause); it still
+# suspends the terminal so any in-flight tick's output is buffered (item
+# 1.A). While the run is progressing it runs every `interval_seconds`
+# (default 600).
+
+class HealthMonitor:
+    """Background timer that periodically invokes the health-monitor agent."""
+
+    _HISTORY_BASES = ("health-deepdive", "health-quick")
+
+    def __init__(self, run: "Run", step: Step, interval_seconds: float):
+        self.run = run
+        self.step = step
+        self.interval = float(interval_seconds)
+        self._lock = threading.Lock()
+        self._stop = threading.Event()
+        self._thread: threading.Thread | None = None
+        self._pause_episode: int | None = None
+        self._episode_seq = 0
+        self._tick = 0
+        self._next_due = 0.0  # monotonic deadline for the next progressing tick
+
+    # -- lifecycle ----------------------------------------------------------
+
+    def start(self) -> None:
+        # First progressing tick is due one full interval from now — never
+        # at run start, so the monitor observes real activity, not an empty
+        # just-started run.
+        # Resume safety: skip any pre-existing per-step visit dirs so a
+        # resumed run's first tick lands in a fresh dir and _supervise
+        # cannot short-circuit on a stale outcome.txt left behind by the
+        # pre-interruption run.
+        self._tick = self._highest_existing_visit()
+        self._next_due = time.monotonic() + self.interval
+        self._thread = threading.Thread(
+            target=self._loop, name="health-monitor", daemon=True)
+        self._thread.start()
+        self.run.log_monitor(
+            f"  [health_monitor] started (interval={self.interval:g}s, "
+            f"step={self.step.slug}, first_tick={self._tick + 1})")
+
+    def _highest_existing_visit(self) -> int:
+        base = self.run.root / self.step.slug
+        try:
+            return max((int(e.name) for e in os.scandir(base)
+                        if e.is_dir() and e.name.isdigit()), default=0)
+        except OSError:
+            return 0
+
+    def stop(self) -> None:
+        self._stop.set()
+        t = self._thread
+        if t is not None:
+            t.join(timeout=max(2.0, HEALTH_MONITOR_POLL_SLICE_SECONDS + 1.0))
+
+    # -- pause-episode tracking (called from the main thread) ---------------
+
+    def begin_pause(self) -> int:
+        """Open a new pending-question episode; returns its unique id.
+
+        While the episode is open the monitor launches ZERO agents (it
+        never ticks during a pause). It still suspends the terminal so any
+        already in-flight tick's output is buffered and replayed after the
+        user submits (item 1.A). The run.log file copy is still written in
+        real time.
+        """
+        with self._lock:
+            self._episode_seq += 1
+            self._pause_episode = self._episode_seq
+            ep = self._pause_episode
+        self.run.suspend_terminal()
+        return ep
+
+    def end_pause(self) -> None:
+        """Close the current pending-question episode (question answered).
+
+        Resumes the monitor's terminal output, replaying anything buffered
+        during the pause in its original emission order (item 3).
+        """
+        with self._lock:
+            self._pause_episode = None
+        self.run.resume_terminal()
+
+    # -- timer loop ---------------------------------------------------------
+
+    def _loop(self) -> None:
+        while not self._stop.is_set():
+            if self._stop.wait(HEALTH_MONITOR_POLL_SLICE_SECONDS):
+                return
+            should = False
+            with self._lock:
+                # Zero ticks while a question is pending (item 1.B): never
+                # launch a monitor agent during a pause. Progressing: every
+                # `interval` seconds.
+                if (self._pause_episode is None
+                        and time.monotonic() >= self._next_due):
+                    should = True
+                    self._next_due = time.monotonic() + self.interval
+            if should:
+                self._run_tick()
+
+    # -- one tick (report-only; never raises) -------------------------------
+
+    def _run_tick(self) -> None:
+        try:
+            self._do_tick()
+        except Exception as e:  # noqa: BLE001 - a failed tick must not crash
+            try:
+                self.run.log_monitor(f"  [health_monitor] tick error: {e!r}")
+            except Exception:
+                pass
+
+    def _do_tick(self) -> None:
+        with self._lock:
+            self._tick += 1
+            tick = self._tick
+        run = self.run
+        step = self.step
+        step_dir = run.step_dir(step.slug, tick)
+        step_dir.mkdir(parents=True, exist_ok=True)
+        assets_dir = run.assets_dir
+
+        before = {
+            base: _file_fingerprint(assets_dir / f"{base}-current.md")
+            for base in self._HISTORY_BASES
+        }
+
+        prompt = render_prompt(step, run, step_dir)
+        (step_dir / "prompt.txt").write_text(prompt)
+        runner = AGENT_RUNNERS.get(step.agent)
+        if runner is None:
+            raise RuntimeError(f"unknown agent: {step.agent}")
+
+        run.log_monitor(f"  [health_monitor] tick {tick} "
+                        f"(agent={step.agent})")
+        t0 = time.time()
+        result = runner(step, run, tick, step_dir, prompt,
+                        should_continue=False)
+        dur = time.time() - t0
+        (step_dir / "stdout.txt").write_text(result.get("stdout", ""))
+        (step_dir / "stderr.txt").write_text(result.get("stderr", ""))
+        outcome_path = step_dir / "outcome.txt"
+        outcome_val = (outcome_path.read_text().strip()
+                       if _valid_outcome(outcome_path) else None)
+        tick_cost = _extract_cost_usd(
+            step.agent, result.get("stdout", "") or "",
+            result.get("stderr", "") or "")
+        (step_dir / "meta.json").write_text(json.dumps({
+            "step": step.slug,
+            "visit": tick,
+            "agent": step.agent,
+            "duration_s": round(dur, 2),
+            "exit": result.get("exit"),
+            "continued": False,
+            "thread_id": result.get("thread_id"),
+            "outcome": outcome_val,  # recorded for observability; never routed
+            "cost_usd": tick_cost,
+        }, indent=2))
+        run.log_monitor(f"  [health_monitor] tick {tick} exited "
+                        f"{result.get('exit')} in {dur:.1f}s")
+
+        # Per-tick timestamped history: snapshot only a base that was
+        # actually (re)produced this tick (created or content changed). A
+        # tick that did not regenerate a base archives nothing for it, so
+        # history never records content a tick did not produce.
+        ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        for base in self._HISTORY_BASES:
+            cur = assets_dir / f"{base}-current.md"
+            after = _file_fingerprint(cur)
+            if after is not None and after != before[base]:
+                snap = assets_dir / f"{base}-{ts}-t{tick:03d}.md"
+                shutil.copy(cur, snap)
+
+        self._surface_quick_update(tick)
+
+    def _surface_quick_update(self, tick: int) -> None:
+        """Surface the quick-update to the user via stdout (once per tick).
+
+        The quick-update body already carries both absolute asset paths
+        once via its mandatory `## Report paths` section (per the
+        health_monitor prompt), so the banner does not re-emit them.
+        """
+        assets_dir = self.run.assets_dir
+        quick = assets_dir / "health-quick-current.md"
+        if not quick.exists():
+            return
+        try:
+            body = quick.read_text().rstrip("\n")
+        except OSError:
+            return
+        ts = datetime.now().isoformat(timespec="seconds")
+        # Run.log_monitor() already prefixes the first line of every
+        # message with one [timestamp]. Embedding another [{ts}] on the
+        # SESSION HEALTH UPDATE header would double it (e.g. "[t] [t]
+        # ===== SESSION ..."), so the header carries no [ts]. The END
+        # line is mid-message (log_monitor only prefixes the first line),
+        # so it keeps its own [ts] to give the block a closing timestamp.
+        banner = (
+            f"===== SESSION HEALTH UPDATE (tick {tick}) =====\n"
+            f"{body}\n"
+            f"[{ts}] ===== END SESSION HEALTH UPDATE ====="
+        )
+        # One suspendable, single-locked sink: real-time run.log file write
+        # plus a single stdout copy. Buffered+replayed in emission order
+        # while the run is collecting an interactive answer (item 3).
+        self.run.log_monitor(banner)
+
+
+# ----- Interactive answer editor (Part B) ------------------------------------
+#
+# A raw-mode, multi-line line editor for the orchestrator's interactive
+# question prompt. Supports multi-line input, multi-line bracketed paste,
+# char cursor movement (Left/Right) and word cursor movement
+# (Option/Alt+Left/Right). Documented submit gesture: press Esc then Enter
+# (Ctrl-D also submits); Enter inserts a newline. This is used ONLY by
+# AnswerSource.next_answer's interactive branch; the --answers queue and the
+# question/outcome/answer file protocol are unchanged. Unattended steps pass
+# --answers so this editor is not normally reached there; the EOF fallback
+# below is defense-in-depth so non-tty contexts never hang or crash.
+
+# First-byte-after-Esc disambiguation window. Escape *sequences* (arrows,
+# Alt-combos, bracketed paste) arrive as one burst so select() is ready
+# immediately regardless of this value; only a deliberate lone Esc or the
+# human "Esc then Enter" submit waits here, so it is generous.
+_ESC_TIMEOUT = 0.5
+_ESC_BURST_TIMEOUT = 0.05
+
+_WORD_CSI_PARAMS = {"1;2", "1;3", "1;4", "1;5", "1;6", "1;7", "1;8", "1;9"}
+
+
+class _EditorUnavailable(Exception):
+    """Raised when raw-mode editing cannot be set up (caller falls back)."""
+
+
+class _RawLineEditor:
+    """Multi-line raw-mode editor over a single tty file descriptor."""
+
+    def __init__(self, fd_in: int, fd_out: int, question: str):
+        self.fi = fd_in
+        self.fo = fd_out
+        self.question = question
+        self.buf = ""
+        self.pos = 0
+        self._prev_crow = 0
+        self._old = None
+        self._inbuf = bytearray()
+
+    # -- low-level byte IO --------------------------------------------------
+
+    def _read1(self):
+        """Blocking read of one byte; returns int or None on EOF."""
+        if self._inbuf:
+            return self._inbuf.pop(0)
+        try:
+            d = os.read(self.fi, 1)
+        except OSError:
+            return None
+        if not d:
+            return None
+        return d[0]
+
+    def _next_byte(self, timeout: float):
+        """Read one byte if available within timeout; else None."""
+        if self._inbuf:
+            return self._inbuf.pop(0)
+        try:
+            r, _, _ = _select.select([self.fi], [], [], timeout)
+        except (OSError, ValueError):
+            return None
+        if not r:
+            return None
+        try:
+            d = os.read(self.fi, 1)
+        except OSError:
+            return None
+        if not d:
+            return None
+        return d[0]
+
+    def _write(self, s: str) -> None:
+        try:
+            os.write(self.fo, s.encode("utf-8", errors="replace"))
+        except OSError:
+            pass
+
+    # -- buffer ops (pure; never raise, never go out of bounds) -------------
+
+    def _insert(self, s: str) -> None:
+        self.buf = self.buf[:self.pos] + s + self.buf[self.pos:]
+        self.pos += len(s)
+
+    def _backspace(self) -> None:
+        if self.pos > 0:
+            self.buf = self.buf[:self.pos - 1] + self.buf[self.pos:]
+            self.pos -= 1
+
+    def _delete_forward(self) -> None:
+        if self.pos < len(self.buf):
+            self.buf = self.buf[:self.pos] + self.buf[self.pos + 1:]
+
+    def _left(self) -> None:
+        self.pos = max(0, self.pos - 1)
+
+    def _right(self) -> None:
+        self.pos = min(len(self.buf), self.pos + 1)
+
+    def _word_left(self) -> None:
+        i = self.pos
+        while i > 0 and self.buf[i - 1].isspace():
+            i -= 1
+        while i > 0 and not self.buf[i - 1].isspace():
+            i -= 1
+        self.pos = i
+
+    def _word_right(self) -> None:
+        n = len(self.buf)
+        i = self.pos
+        while i < n and self.buf[i].isspace():
+            i += 1
+        while i < n and not self.buf[i].isspace():
+            i += 1
+        self.pos = i
+
+    def _line_start(self) -> None:
+        nl = self.buf.rfind("\n", 0, self.pos)
+        self.pos = nl + 1 if nl >= 0 else 0
+
+    def _line_end(self) -> None:
+        nl = self.buf.find("\n", self.pos)
+        self.pos = nl if nl >= 0 else len(self.buf)
+
+    def _up(self) -> None:
+        before = self.buf[:self.pos]
+        nl = before.rfind("\n")
+        if nl < 0:
+            return
+        col = len(before) - (nl + 1)
+        prev_start = self.buf.rfind("\n", 0, nl) + 1
+        prev_len = nl - prev_start
+        self.pos = prev_start + min(col, prev_len)
+
+    def _down(self) -> None:
+        nl = self.buf.find("\n", self.pos)
+        if nl < 0:
+            return
+        before = self.buf[:self.pos]
+        p = before.rfind("\n")
+        col = len(before) - (p + 1)
+        next_start = nl + 1
+        next_nl = self.buf.find("\n", next_start)
+        next_len = (next_nl if next_nl >= 0 else len(self.buf)) - next_start
+        self.pos = next_start + min(col, next_len)
+
+    # -- escape / input parsing --------------------------------------------
+
+    def _read_csi(self):
+        """Consume a CSI body after ESC '['. Returns (params, final)."""
+        params = bytearray()
+        while True:
+            c = self._read1()
+            if c is None:
+                return "", ""
+            if 0x40 <= c <= 0x7E:  # final byte
+                return params.decode("ascii", "replace"), chr(c)
+            params.append(c)
+
+    def _capture_paste(self) -> None:
+        """Read a bracketed-paste body up to ESC[201~ and insert verbatim.
+
+        Embedded newlines are kept; a CR/LF inside a paste never submits.
+        """
+        end = b"\x1b[201~"
+        data = bytearray()
+        while True:
+            c = self._read1()
+            if c is None:
+                break
+            data.append(c)
+            if data.endswith(end):
+                del data[-len(end):]
+                break
+        text = data.decode("utf-8", errors="replace")
+        text = text.replace("\r\n", "\n").replace("\r", "\n")
+        self._insert(text)
+
+    def _apply_csi(self, params: str, final: str, force_word: bool) -> None:
+        word = force_word or params in _WORD_CSI_PARAMS
+        if final == "D":
+            self._word_left() if word else self._left()
+        elif final == "C":
+            self._word_right() if word else self._right()
+        elif final == "A":
+            self._up()
+        elif final == "B":
+            self._down()
+        elif final == "H":
+            self._line_start()
+        elif final == "F":
+            self._line_end()
+        elif final == "~" and params == "3":
+            self._delete_forward()
+        # any other sequence: consumed and ignored
+
+    def _handle_escape(self) -> bool:
+        """Dispatch an ESC-led sequence. Returns True iff this is submit."""
+        nb = self._next_byte(_ESC_TIMEOUT)
+        if nb is None:
+            return False  # lone Esc -> no-op
+        if nb in (10, 13):
+            return True  # Esc then Enter -> submit (documented gesture)
+        if nb == 27:  # ESC ESC ... (some Alt encodings)
+            nb2 = self._next_byte(_ESC_BURST_TIMEOUT)
+            if nb2 is None:
+                return False
+            if nb2 in (10, 13):
+                return True
+            if nb2 == ord("["):
+                params, final = self._read_csi()
+                self._apply_csi(params, final, force_word=True)
+            return False
+        if nb == ord("["):
+            params, final = self._read_csi()
+            if params == "200" and final == "~":
+                self._capture_paste()
+            else:
+                self._apply_csi(params, final, force_word=False)
+            return False
+        if nb == ord("O"):  # SS3 (application cursor mode)
+            x = self._read1()
+            if x == ord("D"):
+                self._left()
+            elif x == ord("C"):
+                self._right()
+            elif x == ord("A"):
+                self._up()
+            elif x == ord("B"):
+                self._down()
+            return False
+        if nb == ord("b"):
+            self._word_left()
+            return False
+        if nb == ord("f"):
+            self._word_right()
+            return False
+        # Unrecognized escape: consumed and ignored (never injected raw).
+        return False
+
+    def _read_utf8(self, first: int) -> str:
+        if first < 0x80:
+            return chr(first)
+        if 0xC0 <= first < 0xE0:
+            n = 1
+        elif 0xE0 <= first < 0xF0:
+            n = 2
+        elif 0xF0 <= first < 0xF8:
+            n = 3
+        else:
+            return "�"
+        bs = bytearray([first])
+        for _ in range(n):
+            c = self._read1()
+            if c is None:
+                break
+            bs.append(c)
+        return bs.decode("utf-8", errors="replace")
+
+    # -- rendering ----------------------------------------------------------
+
+    def _wrap_block(self, text: str, width: int) -> str:
+        """Word-wrap a multi-line block to `width`, preserving the agent's
+        explicit newlines / blank lines / paragraph structure.
+
+        Each logical line (split on '\\n') is wrapped independently. A
+        blank or whitespace-only logical line is preserved as exactly one
+        empty row so paragraph breaks survive. For any logical line that
+        already fits the width, textwrap returns it verbatim — internal
+        runs of spaces and leading indentation are kept (we do NOT
+        collapse spacing); only `\\t`/`\\r`/etc. are mapped to a single
+        space by `replace_whitespace=True`. When a logical line is too
+        long it is wrapped: `drop_whitespace=True` trims whitespace at
+        each break and continuation rows start at column 0, and
+        `break_long_words=True` hard-splits a single token longer than
+        the width (a long path/URL) so no content/word is ever lost
+        (nothing is ever truncated at the right edge). Pure: no IO,
+        never raises. A trailing '\\n' in `text` is preserved as a
+        trailing empty row (so the joined result keeps the same number
+        of line breaks as the input structure). Returns rows joined by
+        '\\n' (caller converts to CRLF).
+        """
+        W = max(1, width)
+        rows: list[str] = []
+        for logical in text.split("\n"):
+            if logical.strip() == "":
+                rows.append("")
+                continue
+            wrapped = textwrap.wrap(
+                logical, width=W,
+                break_long_words=True, break_on_hyphens=False)
+            rows.extend(wrapped if wrapped else [""])
+        return "\n".join(rows)
+
+    def _banner(self) -> str:
+        # Build the banner as an ordered list of (role, logical-line)
+        # tuples so we can track role through the wrap step and color
+        # EACH physical row produced by a header / footer logical line
+        # — even at narrow terminal widths where one logical line wraps
+        # to multiple rows. The question body in between is left
+        # uncolored. Color is gated on the editor's own tty fd.
+        logical: list[tuple[str, str]] = [
+            ("body",   ""),  # leading blank, matches original "\n" prefix
+            ("header", "[Question from agent]"),
+            ("body",   self.question),
+            ("body",   ""),
+            ("footer", "Enter inserts a newline."),
+            ("footer", ("Submit: press Esc then Enter.  "
+                        "(Ctrl-D also submits.)")),
+            ("footer", ("Ctrl-C cancels.  Left/Right = char; "
+                        "Option/Alt+Left/Right = word.")),
+            ("footer", ("(On some terminals Alt+Enter also submits; "
+                        "use Esc then Enter if unsure.)")),
+            ("footer", "--- type your answer below ---"),
+            ("body",   ""),  # trailing blank, matches original "\n" suffix
+        ]
+        W = self._term_width()
+        enabled = _tc.color_enabled(self.fo)
+        rows: list[str] = []
+        for role, text in logical:
+            wrapped = self._wrap_block(text, W)
+            for phys in wrapped.split("\n"):
+                if role == "header":
+                    rows.append(
+                        _tc.banner(phys, "question", enabled=enabled))
+                elif role == "footer":
+                    rows.append(_tc.dim(phys, enabled=enabled))
+                else:
+                    rows.append(phys)
+        return "\r\n".join(rows)
+
+    def _term_width(self) -> int:
+        """Current terminal width in columns; always >= 1."""
+        try:
+            return max(1, os.get_terminal_size(self.fo).columns)
+        except (OSError, ValueError):
+            return max(1, shutil.get_terminal_size((80, 24)).columns)
+
+    def _layout(self, width: int) -> tuple[str, int, int, int]:
+        """Pure, deterministic physical-row layout (no IO).
+
+        Returns (render_str, total_rows, cur_row, cur_col) for the current
+        buffer/cursor at the given terminal `width`. `render_str` joins
+        physical rows with CRLF. A logical line whose length is a positive
+        exact multiple of W gets an explicit empty continuation row so a
+        cursor sitting at column W is unambiguously column 0 of the next
+        physical row (this also keeps the on-screen layout exact with
+        terminal autowrap disabled).
+        """
+        W = max(1, width)
+        flat: list[str] = []
+        for line in self.buf.split("\n"):
+            if len(line) == 0:
+                flat.append("")
+                continue
+            flat.extend(line[i:i + W] for i in range(0, len(line), W))
+            if len(line) % W == 0:
+                flat.append("")
+        render_str = "\r\n".join(flat)
+        total_rows = len(flat)
+
+        segs = self.buf[:self.pos].split("\n")
+        cur_row = 0
+        for seg in segs[:-1]:
+            cur_row += len(seg) // W + 1
+        c = len(segs[-1])
+        cur_row += c // W
+        cur_col = c % W
+        return render_str, total_rows, cur_row, cur_col
+
+    def _redraw(self) -> None:
+        W = self._term_width()
+        render_str, total, crow, ccol = self._layout(W)
+        # Re-assert autowrap-OFF every redraw: run() emits \x1b[?7l once,
+        # but if DECAWM is reset mid-session the explicit-wrap math breaks
+        # and the first physical row duplicates per keystroke past the
+        # wrap point. Idempotent and terminal-safe.
+        # NOTE: the ESC in `parts` below is a literal 0x1b byte, not a
+        # backslash-x1b escape. The permanent C4 source contract
+        # inspects this list literal for chr(27); keep the raw byte
+        # (functionally identical to the escape form).
+        parts = ["[?7l", "\r"]
+        # Back to the render origin: the previous redraw left the cursor on
+        # physical row `self._prev_crow` (relative to the origin), so move up
+        # exactly that many rows. This is physical-row-accurate even when the
+        # cursor is not on the last rendered row.
+        if self._prev_crow > 0:
+            parts.append(f"\x1b[{self._prev_crow}A")
+        parts.append("\x1b[J")  # clear the whole previously rendered region
+        parts.append(render_str)
+        # After the write the cursor is on the bottom physical row (total-1).
+        parts.append("\r")
+        up = (total - 1) - crow
+        if up > 0:
+            parts.append(f"\x1b[{up}A")
+        if ccol > 0:
+            parts.append(f"\x1b[{ccol}C")
+        self._prev_crow = crow
+        self._write("".join(parts))
+
+    # -- main loop ----------------------------------------------------------
+
+    def _loop(self) -> None:
+        while True:
+            o = self._read1()
+            if o is None:  # EOF -> submit whatever we have
+                return
+            if o == 3:  # Ctrl-C
+                raise KeyboardInterrupt
+            if o == 4:  # Ctrl-D -> submit
+                return
+            if o in (10, 13):  # Enter -> newline (NOT submit)
+                self._insert("\n")
+                self._redraw()
+                continue
+            if o in (8, 127):  # Backspace
+                self._backspace()
+                self._redraw()
+                continue
+            if o == 27:  # ESC-led
+                if self._handle_escape():
+                    return
+                self._redraw()
+                continue
+            if o == 9:  # Tab
+                self._insert("\t")
+                self._redraw()
+                continue
+            if o < 32:  # other control bytes: ignore
+                continue
+            ch = self._read_utf8(o)
+            if ch:
+                self._insert(ch)
+                self._redraw()
+
+    def run(self) -> str:
+        if not _RAW_TTY_AVAILABLE:
+            raise _EditorUnavailable
+        try:
+            self._old = _termios.tcgetattr(self.fi)
+        except (_termios.error, OSError, ValueError) as e:
+            raise _EditorUnavailable from e
+        try:
+            _tty.setraw(self.fi)
+            self._write("\x1b[?2004h")  # enable bracketed paste
+            self._write("\x1b[?7l")     # autowrap OFF: we wrap explicitly
+            self._write(self._banner())
+            self._prev_crow = 0
+            self._redraw()
+            self._loop()
+            return self.buf.rstrip("\n")  # only trailing newlines stripped
+        finally:
+            # autowrap ON + disable bracketed paste, then newline.
+            self._write("\x1b[?7h\x1b[?2004l\r\n")
+            try:
+                _termios.tcsetattr(self.fi, _termios.TCSADRAIN, self._old)
+            except Exception:
+                pass
+
+
+def _format_question_block_for_stderr(question: str,
+                                      *, enabled: bool | None = None) -> str:
+    """Build the stderr-fallback question block with optional coloring.
+
+    Same role semantics as the raw-mode editor banner: `[Question from
+    agent]` header is bold yellow, the explanatory help footer is dim,
+    the question body is untouched. Unlike the raw-mode banner we do
+    not per-width wrap (this code path has no known terminal width and
+    the original implementation did not wrap either). All pattern logic
+    lives in `term_color`; this helper only assembles the text shape.
+    """
+    if enabled is None:
+        enabled = _tc.color_enabled(sys.stderr)
+    header = _tc.banner("[Question from agent]", "question",
+                        enabled=enabled)
+    footer = _tc.dim(
+        "(no interactive terminal; reading answer from stdin until EOF — "
+        "multi-line input and paste supported)",
+        enabled=enabled)
+    return f"\n{header}\n{question}\n\n{footer}\nAnswer: "
+
+
+def _read_multiline_answer(question: str) -> str:
+    """Interactive multi-line answer entry with an EOF-read fallback.
+
+    Tries the raw-mode editor on /dev/tty. If /dev/tty cannot be opened,
+    termios/tty are unavailable, or raw mode cannot be set, falls back to
+    reading multi-line input from stdin until EOF (preserves multi-line and
+    paste; loses live cursor editing). Never hangs or crashes in non-tty
+    contexts.
+    """
+    if _RAW_TTY_AVAILABLE:
+        fd = None
+        try:
+            fd = os.open("/dev/tty", os.O_RDWR | os.O_NOCTTY)
+        except OSError:
+            fd = None
+        if fd is not None:
+            try:
+                return _RawLineEditor(fd, fd, question).run()
+            except _EditorUnavailable:
+                pass
+            finally:
+                try:
+                    os.close(fd)
+                except OSError:
+                    pass
+    sys.stderr.write(_format_question_block_for_stderr(question))
+    sys.stderr.flush()
+    data = sys.stdin.read()
+    return data.rstrip("\n")
+
+
+# ----- Step execution --------------------------------------------------------
+
+class AnswerSource:
+    """Provides answers when a step's agent asks a question.
+
+    Pre-canned answers come from a file (one per line). If exhausted (or no
+    file given), falls back to interactive input from /dev/tty so it works
+    even when the orchestrator's stdin is piped.
+    """
+
+    def __init__(self, answers_path: Path | None):
+        self.queue: list[str] = []
+        if answers_path is not None:
+            text = answers_path.read_text()
+            self.queue = [line for line in text.splitlines() if line.strip()]
+
+    def next_answer(self, question: str) -> str:
+        if self.queue:
+            return self.queue.pop(0)
+        return _read_multiline_answer(question)
+
+
+_USAGE_LIMIT_RESET_RE = re.compile(
+    r"try again at (\d{1,2}:\d{2}(?:\s*(?:AM|PM))?)", re.IGNORECASE)
+
+
+def _scan_codex_stream(text: str) -> tuple[bool, str | None]:
+    """Return (matched, reset_or_None) for a single codex stream.
+
+    Scans JSON-per-line: an `error` or `turn.failed`-typed object whose
+    message (case-insensitive) contains `usage limit`. Reset-time parsed
+    from the message via _USAGE_LIMIT_RESET_RE.
+    """
+    for line in text.splitlines():
+        line = line.strip()
+        if not line.startswith("{"):
+            continue
+        try:
+            obj = json.loads(line)
+        except (ValueError, json.JSONDecodeError):
+            continue
+        t = obj.get("type")
+        msg = ""
+        if t == "error":
+            msg = obj.get("message", "") or ""
+        elif t == "turn.failed":
+            err = obj.get("error") or {}
+            msg = err.get("message", "") or ""
+        else:
+            continue
+        if "usage limit" in msg.lower():
+            m = _USAGE_LIMIT_RESET_RE.search(msg)
+            return True, (m.group(1) if m else None)
+    return False, None
+
+
+def _extract_cost_usd(agent: str, stdout: str,
+                      stderr: str) -> float | None:
+    """Best-effort per-visit cost in USD parsed from agent stdout.
+
+    claude (--output-format json): the final stdout object carries
+    `total_cost_usd` as a number; we surface that value verbatim.
+
+    codex (JSON-per-line stream): look for an object with
+    `type == "thread.completed"` carrying `usage.total_cost_usd`. Older
+    codex builds do not emit a dollar value; in that case (or for
+    unknown agents) we return None — the viewer's cost column then
+    renders an em-dash for the visit rather than guessing.
+    """
+    if agent == "claude":
+        for raw in (stdout, stderr):
+            text = raw or ""
+            text = text.strip()
+            if not text:
+                continue
+            # The full JSON blob may be the whole stdout, or the final
+            # line of a JSON-per-line stream. Try both.
+            for candidate in (text, text.splitlines()[-1] if text else ""):
+                if not candidate:
+                    continue
+                try:
+                    obj = json.loads(candidate)
+                except (ValueError, TypeError):
+                    continue
+                if isinstance(obj, dict):
+                    val = obj.get("total_cost_usd")
+                    if isinstance(val, (int, float)) and not isinstance(val, bool):
+                        return float(val)
+        return None
+    if agent == "codex":
+        for raw in (stdout, stderr):
+            for line in (raw or "").splitlines():
+                line = line.strip()
+                if not line or not line.startswith("{"):
+                    continue
+                try:
+                    obj = json.loads(line)
+                except (ValueError, TypeError):
+                    continue
+                if not isinstance(obj, dict):
+                    continue
+                if obj.get("type") != "thread.completed":
+                    continue
+                usage = obj.get("usage")
+                if isinstance(usage, dict):
+                    val = usage.get("total_cost_usd")
+                    if isinstance(val, (int, float)) and not isinstance(val, bool):
+                        return float(val)
+                top = obj.get("total_cost_usd")
+                if isinstance(top, (int, float)) and not isinstance(top, bool):
+                    return float(top)
+        return None
+    return None
+
+
+def _detect_usage_limit(agent: str, stdout: str,
+                        stderr: str) -> tuple[bool, str | None]:
+    """Return (matched, reset_time_or_None).
+
+    Scans BOTH `stdout` and `stderr` (stdout first, then stderr — the
+    captured streams are passed in separately so each is parsed under
+    its own JSON-per-line discipline rather than concatenated).
+
+    codex: see _scan_codex_stream.
+
+    Any other agent (including `claude` this round): (False, None). Claude
+    support is a documented follow-up; we do not have a verified
+    rate-limit capture to validate the JSON shape against yet.
+    """
+    if agent == "codex":
+        matched, reset = _scan_codex_stream(stdout)
+        if matched:
+            return matched, reset
+        return _scan_codex_stream(stderr)
+    return False, None
+
+
+def _format_usage_limit_tag(agent: str, reset: str | None) -> str:
+    """`usage_limited (codex, reset~12:19 AM)` or `usage_limited (codex)`."""
+    if reset:
+        return f"usage_limited ({agent}, reset~{reset})"
+    return f"usage_limited ({agent})"
+
+
+class StepVisitError(RuntimeError):
+    """A step visit produced no valid outcome.txt.
+
+    Subclasses RuntimeError so the final fail-fast contract is unchanged:
+    callers that `except RuntimeError` and the budget-exhaustion re-raise
+    still see a RuntimeError whose message is the byte-for-byte original
+    wording (still containing `no valid outcome.txt` + the stderr marker).
+    `killed` is True only when the agent was terminated by a signal
+    (negative exit) and produced no outcome — the hang/idle-kill class.
+    """
+
+    def __init__(self, *, reason: str, message: str, killed: bool,
+                 prior_value: str | None, stderr_tail: str,
+                 usage_limited: bool = False,
+                 usage_limit_tag: str | None = None):
+        super().__init__(message)
+        self.reason = reason
+        self.message = message
+        self.killed = killed
+        self.prior_value = prior_value
+        self.stderr_tail = stderr_tail
+        self.usage_limited = usage_limited
+        self.usage_limit_tag = usage_limit_tag
+
+
+_SNAPSHOT_NNNN_RE = re.compile(r"^(?P<base>.+)-(?P<n>\d{4})\.md$")
+_SNAPSHOT_STATE_DIRNAME = ".snapshot-state"
+
+
+def _snapshot_step_assets(assets_dir: Path,
+                          bases: list[str]) -> dict[str, str]:
+    """Shape D backfill: per base, ensure <base>-NNNN.md exists.
+
+    Per-base algorithm, with a persistent sentinel that distinguishes
+    "prompt just wrote <base>-NNNN.md itself" (dual-write — no-op)
+    from "previous snapshot wrote <base>-NNNN.md and current has
+    changed since" (single-write multi-round — advance to next N).
+
+    Sentinel: `<assets_dir>/.snapshot-state/<base>.json` holding
+    `{"n": <int>}`. Defaults to 0 when absent (fresh state).
+
+    For each base:
+      1. If `<base>-current.md` does not exist → 'none' (step did not
+         produce this asset this round). Sentinel untouched.
+      2. last_n = sentinel value (0 if absent / unreadable).
+      3. max_n = highest NNNN among existing `<base>-NNNN.md` (0 if
+         none).
+      4. If max_n > last_n: a NNNN file exists that this helper did
+         NOT create. Treat as dual-write — record max_n in sentinel
+         and return 'exists' (no new file written).
+      5. Else: advance to n = max_n + 1, copy current → target,
+         record n in sentinel, return 'copied'. If target already
+         exists (sparse-history edge case where the prompt skipped a
+         slot but the gap-after slot is occupied), record in sentinel
+         and return 'exists' without writing.
+
+    Backwards-compat: round 3 prompts dual-write `<base>-NNNN.md` AND
+    `<base>-current.md`. The first time the helper runs (fresh
+    sentinel), it sees max_n > 0, marks 'exists', and never advances.
+    Multi-round dual-write progresses naturally: each round the
+    prompt writes the next NNNN, helper detects max_n > last_n,
+    bumps the sentinel, and stays 'exists'.
+
+    Forward path (single-write prompts, future rounds): first call
+    sees no NNNN, copies current → 0001, sentinel=1. Next call sees
+    max_n=1 == last_n=1, advances to 0002. Each round advances by
+    one as long as current.md is the only fresh thing on disk.
+
+    The helper never overwrites an existing NNNN file: branch
+    "exists" short-circuits before any write; the copy branch's
+    target was just shown not to exist.
+
+    Returns a {base: "exists"|"copied"|"none"} log map.
+    """
+    state_dir = assets_dir / _SNAPSHOT_STATE_DIRNAME
+    log: dict[str, str] = {}
+    for base in bases:
+        current = assets_dir / f"{base}-current.md"
+        if not current.exists():
+            log[base] = "none"
+            continue
+
+        sentinel = state_dir / f"{base}.json"
+        last_n = 0
+        try:
+            raw = sentinel.read_text()
+        except (OSError, FileNotFoundError):
+            raw = None
+        if raw is not None:
+            try:
+                parsed = json.loads(raw)
+                if isinstance(parsed, dict):
+                    val = parsed.get("n", 0)
+                    if isinstance(val, int) and not isinstance(val, bool):
+                        last_n = max(0, val)
+            except (ValueError, TypeError):
+                last_n = 0
+
+        try:
+            entries = list(assets_dir.iterdir())
+        except FileNotFoundError:
+            entries = []
+        max_n = 0
+        for ent in entries:
+            if not ent.is_file():
+                continue
+            m = _SNAPSHOT_NNNN_RE.match(ent.name)
+            if m and m.group("base") == base:
+                try:
+                    n_val = int(m.group("n"))
+                except ValueError:
+                    continue
+                if n_val > max_n:
+                    max_n = n_val
+
+        if max_n > last_n:
+            _write_snapshot_sentinel(state_dir, sentinel, max_n)
+            log[base] = "exists"
+            continue
+
+        n = max_n + 1
+        target = assets_dir / f"{base}-{n:04d}.md"
+        if target.exists():
+            _write_snapshot_sentinel(state_dir, sentinel, n)
+            log[base] = "exists"
+            continue
+        shutil.copyfile(current, target)
+        _write_snapshot_sentinel(state_dir, sentinel, n)
+        log[base] = "copied"
+    return log
+
+
+def _write_snapshot_sentinel(state_dir: Path, sentinel: Path, n: int) -> None:
+    try:
+        state_dir.mkdir(parents=True, exist_ok=True)
+        sentinel.write_text(json.dumps({"n": int(n)}))
+    except OSError:
+        pass
+
+
+def _classify_outcome(step: Step, run: Run, outcome: str,
+                      step_dir: Path) -> tuple[str, str] | None:
+    """Return None if (step, outcome) is acceptable, else (reason, mode).
+
+    mode is "continue" (botched protocol — work likely already done) or
+    "fresh". A legitimate non-empty question returns None so the existing
+    question continuation loop handles it.
+    """
+    valid_outcomes = set(step.next_steps)
+    if step.questions:
+        valid_outcomes.add("question")
+    if outcome == "question":
+        if not step.questions:
+            return ("question_but_questions_disabled", "continue")
+        q_path = step_dir / "question.txt"
+        try:
+            qtext = q_path.read_text() if q_path.exists() else ""
+        except OSError:
+            qtext = ""
+        if qtext.strip() == "":
+            return ("empty_or_missing_question", "continue")
+        return None  # legitimate question -> question continuation loop
+    if outcome not in valid_outcomes:
+        return ("invalid_outcome", "continue")
+    return None
+
+
+def _run_step_visit(step: Step, run: Run, visit: int, prompt: str,
+                    should_continue: bool) -> tuple[str, Path]:
+    """Execute one CLI invocation for a step visit. Returns (outcome, step_dir)."""
+    step_dir = run.step_dir(step.slug, visit)
+    step_dir.mkdir(parents=True, exist_ok=True)
+    (step_dir / "prompt.txt").write_text(prompt)
+
+    runner = AGENT_RUNNERS.get(step.agent)
+    if runner is None:
+        raise RuntimeError(f"unknown agent: {step.agent}")
+
+    t0 = time.time()
+    result = runner(step, run, visit, step_dir, prompt, should_continue)
+    dur = time.time() - t0
+
+    (step_dir / "stdout.txt").write_text(result.get("stdout", ""))
+    (step_dir / "stderr.txt").write_text(result.get("stderr", ""))
+    cost_usd = _extract_cost_usd(
+        step.agent, result.get("stdout", "") or "",
+        result.get("stderr", "") or "")
+    meta = {
+        "step": step.slug,
+        "visit": visit,
+        "agent": step.agent,
+        "duration_s": round(dur, 2),
+        "exit": result.get("exit"),
+        "continued": should_continue,
+        "thread_id": result.get("thread_id"),
+        "cost_usd": cost_usd,
+    }
+    (step_dir / "meta.json").write_text(json.dumps(meta, indent=2))
+    run.log(f"  exited {result.get('exit')} in {dur:.1f}s")
+
+    # A valid outcome.txt is authoritative: the step succeeds regardless of
+    # the process exit code (143/137/-15/-9/any non-zero) — item 2. A step is
+    # a failure only when no valid outcome.txt was produced.
+    outcome_path = step_dir / "outcome.txt"
+    if _valid_outcome(outcome_path):
+        return outcome_path.read_text().strip(), step_dir
+
+    exit_code = result.get("exit")
+    # Negative exit == terminated by signal: _kill_process_group had to
+    # signal a process that never exited and produced no outcome (the
+    # hang/idle-kill class -> fresh retry). A clean non-signal exit with no
+    # outcome is a botched protocol -> continue retry.
+    killed = isinstance(exit_code, int) and exit_code < 0
+    stdout_full = result.get("stdout", "") or ""
+    stderr_full = result.get("stderr", "") or ""
+    stderr_tail = stderr_full[-2000:]
+    matched, reset = _detect_usage_limit(step.agent, stdout_full, stderr_full)
+    usage_tag = (_format_usage_limit_tag(step.agent, reset)
+                 if matched else None)
+    raise StepVisitError(
+        reason="no_outcome",
+        message=(
+            f"step {step.slug} visit {visit} produced no valid outcome.txt "
+            f"at {outcome_path} (agent {step.agent} exit "
+            f"{result.get('exit')})\n"
+            f"--- stderr tail ---\n{stderr_tail}"
+        ),
+        killed=killed,
+        prior_value=None,
+        stderr_tail=stderr_tail,
+        usage_limited=matched,
+        usage_limit_tag=usage_tag,
+    )
+
+
+def _invalid_outcome_message(step: Step, outcome: str, reason: str,
+                             step_dir: Path,
+                             valid_outcomes: set[str]) -> str:
+    """The pre-existing fail-fast wording for a non-exception failure
+    class, preserved byte-for-byte so the original message still
+    propagates on budget exhaustion."""
+    if reason == "question_but_questions_disabled":
+        return (f"step {step.slug} returned 'question' but questions are "
+                f"not enabled")
+    if reason == "empty_or_missing_question":
+        return (f"step {step.slug} returned 'question' but no question.txt "
+                f"at {step_dir / 'question.txt'}")
+    return (f"step {step.slug} returned invalid outcome {outcome!r}; "
+            f"valid: {sorted(valid_outcomes)}")
+
+
+def execute_step(step: Step, run: Run, answers: AnswerSource,
+                  monitor: "HealthMonitor | None" = None) -> str:
+    valid_outcomes = set(step.next_steps)
+    if step.questions:
+        valid_outcomes.add("question")
+
+    budget = (step.outcome_retries if step.outcome_retries is not None
+              else OUTCOME_RETRY_BUDGET)
+    attempts_left = budget
+    # None on the first attempt; else (reason, mode, prior_value).
+    retry_ctx: tuple[str, str, str | None] | None = None
+
+    while True:
+        run.visit_counts[step.slug] = run.visit_counts.get(step.slug, 0) + 1
+        visit = run.visit_counts[step.slug]
+        step_dir_path = run.step_dir(step.slug, visit)
+
+        if retry_ctx is None:
+            run.log(f"step {step.slug} visit {visit} "
+                    f"(agent={step.agent}, context={step.context})")
+            prompt = render_prompt(step, run, step_dir_path)
+            should_continue = step.context == "continue" and visit > 1
+            # One-shot: the resumed run's single re-dispatched interrupted
+            # step is always re-run fresh (no salvage of the dead session),
+            # regardless of its declared context. No-op for normal runs.
+            if run.resume_fresh_step == step.slug:
+                should_continue = False
+                run.resume_fresh_step = None
+        else:
+            r_reason, r_mode, r_prior = retry_ctx
+            resumable = (r_mode == "continue"
+                         and _has_resumable_handle(step, run))
+            should_continue = resumable
+            run.log(f"step {step.slug} visit {visit} "
+                    f"(retry; agent={step.agent}, mode={r_mode}, "
+                    f"resumable={resumable})")
+            prompt = render_retry_prompt(step, run, step_dir_path, r_reason,
+                                         r_prior, r_mode, resumable)
+
+        # (reason, mode, original_message, prior_value) once a failure is
+        # detected, else None.
+        failure: tuple[str, str, str, str | None] | None = None
+        usage_tag: str | None = None
+        try:
+            outcome, step_dir = _run_step_visit(step, run, visit, prompt,
+                                                should_continue)
+            run.log(f"  outcome: {outcome!r}")
+
+            # Legitimate question continuation loop (unchanged behavior):
+            # only entered for a non-empty question.txt with questions
+            # enabled. The invalid question cases fall through to the
+            # retry path below.
+            while (outcome == "question"
+                   and _classify_outcome(step, run, outcome,
+                                         step_dir) is None):
+                q_path = step_dir / "question.txt"
+                question = q_path.read_text().strip()
+                run.log(f"  agent asked: {question[:200]!r}")
+                # While we block on the user the health monitor launches
+                # zero agents while paused; its (and any in-flight tick's)
+                # terminal output is buffered (item 1.A) and replayed after
+                # the user submits.
+                if monitor is not None:
+                    monitor.begin_pause()
+                try:
+                    answer = answers.next_answer(question)
+                finally:
+                    if monitor is not None:
+                        monitor.end_pause()
+                (step_dir / "answer.txt").write_text(answer + "\n")
+                run.log(f"  answer: {answer[:200]!r}")
+
+                run.visit_counts[step.slug] += 1
+                visit = run.visit_counts[step.slug]
+                next_step_dir = run.step_dir(step.slug, visit)
+                next_step_dir.mkdir(parents=True, exist_ok=True)
+                prompt = render_continuation_prompt(step, run,
+                                                    next_step_dir,
+                                                    question, answer)
+                run.log(f"step {step.slug} visit {visit} "
+                        f"(continuation after question)")
+                outcome, step_dir = _run_step_visit(
+                    step, run, visit, prompt, should_continue=True)
+                run.log(f"  outcome: {outcome!r}")
+
+            cls = _classify_outcome(step, run, outcome, step_dir)
+            if cls is None:
+                if step.assets:
+                    snap_log = _snapshot_step_assets(
+                        run.assets_dir, step.assets)
+                    run.log(f"  assets: {step.slug} -> {snap_log}")
+                return outcome
+            f_reason, f_mode = cls
+            failure = (
+                f_reason, f_mode,
+                _invalid_outcome_message(step, outcome, f_reason, step_dir,
+                                         valid_outcomes),
+                outcome,
+            )
+        except StepVisitError as sve:
+            failure = (
+                sve.reason,
+                "fresh" if sve.killed else "continue",
+                sve.message,
+                sve.prior_value,
+            )
+            usage_tag = sve.usage_limit_tag
+
+        f_reason, f_mode, original_message, prior_value = failure
+        if attempts_left == 0:
+            suffix = f" (after {budget} retries)"
+            if usage_tag:
+                raise RuntimeError(
+                    f"{usage_tag}: {original_message}{suffix}")
+            raise RuntimeError(f"{original_message}{suffix}")
+        attempts_left -= 1
+        run.consume_step_budget()
+        log_tag = usage_tag if usage_tag else f_reason
+        run.log(f"  retry {budget - attempts_left}/{budget}: {log_tag}")
+        retry_ctx = (f_reason, f_mode, prior_value)
+
+
+class _RunAlreadyComplete(Exception):
+    """Resume target already reached `end`; nothing to re-run.
+
+    Carries the constructed Run so the CLI can report its directory.
+    """
+
+    def __init__(self, run: "Run"):
+        super().__init__(run.slug)
+        self.run = run
+
+
+# ----- Parallel composite execution -----------------------------------------
+
+def _emit_parallel_load_warnings(workflow: Workflow, stream=None) -> None:
+    """Print one red `FYI:` line at workflow load summarizing parallel
+    composites. No-op when the workflow declares zero composites. Substep
+    slugs are sorted alphabetically for deterministic output. Coloring
+    honors the single env-precedence rule in `term_color.color_enabled`.
+    """
+    if stream is None:
+        stream = sys.stdout
+    composites = sorted(
+        ((slug, step) for slug, step in workflow.steps.items()
+         if step.is_composite),
+        key=lambda x: x[0])
+    if not composites:
+        return
+    parts = []
+    max_subs = 0
+    for slug, step in composites:
+        sub_slugs = sorted(step.substeps)
+        max_subs = max(max_subs, len(sub_slugs))
+        parts.append(f"{slug} (substeps: {', '.join(sub_slugs)})")
+    line = (f"FYI: workflow declares {len(composites)} parallel composite "
+            f"step(s): {', '.join(parts)}. Each invocation will draw "
+            f"{max_subs}x from the auth bank.")
+    enabled = _tc.color_enabled(stream)
+    stream.write(_tc.banner(line, "warn", enabled=enabled) + "\n")
+    try:
+        stream.flush()
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def _emit_runtime_parallel_warning(run: "Run", parent_slug: str,
+                                   parent_step: Step) -> None:
+    """Print one red `FYI:` line at composite initiation via run.log so it
+    lands in run.log (plain text) and on stdout (colored via the existing
+    `colorize_log_line` path, which recognizes the prefix as warn-role).
+    """
+    sub_slugs = sorted(parent_step.substeps)
+    n = len(sub_slugs)
+    line = (f"FYI: launching parallel composite {parent_slug} with {n} "
+            f"substep(s) ({', '.join(sub_slugs)}) sharing "
+            f"project_dir={run.project_dir}. This visit will draw "
+            f"{n}x from the auth bank.")
+    run.log(line)
+
+
+def execute_composite(parent_step: Step, parent_slug: str, run: Run,
+                      monitor: "HealthMonitor | None" = None) -> str:
+    """Fan out a parallel composite step. Returns the successor slug.
+
+    Schema invariant: `parent_step.is_composite` and `parent_step.substeps`
+    is non-empty (enforced at workflow load). Substeps share the parent's
+    `project_dir`; each runs in its own thread on its own auth-bank
+    credential; failure is fail-fast + kill siblings.
+    """
+    run.visit_counts[parent_slug] = run.visit_counts.get(parent_slug, 0) + 1
+    parent_visit = run.visit_counts[parent_slug]
+    parent_visit_dir = run.step_dir(parent_slug, parent_visit)
+    parent_visit_dir.mkdir(parents=True, exist_ok=True)
+
+    _emit_runtime_parallel_warning(run, parent_slug, parent_step)
+
+    sub_slugs = sorted(parent_step.substeps)
+    cancel_event = threading.Event()
+    results: dict[str, dict] = {}
+    results_lock = threading.Lock()
+    t_start = time.time()
+
+    def _run_one(sub_slug: str) -> None:
+        sub = parent_step.substeps[sub_slug]
+        sub_dir = run.composite_substep_dir(
+            parent_slug, parent_visit, sub_slug, 1)
+        sub_dir.mkdir(parents=True, exist_ok=True)
+        sub_assets_dir = run.composite_substep_assets_dir(
+            parent_slug, sub_slug)
+        sub_assets_dir.mkdir(parents=True, exist_ok=True)
+        sub_profile_dir = run.composite_substep_profile_dir(
+            parent_slug, sub_slug)
+        sub_profile_dir.mkdir(parents=True, exist_ok=True)
+
+        prompt = render_prompt(sub, run, sub_dir, assets_dir=sub_assets_dir)
+        (sub_dir / "prompt.txt").write_text(prompt)
+        runner = AGENT_RUNNERS.get(sub.agent)
+        if runner is None:
+            res = {"exit": -1, "stdout": "",
+                   "stderr": f"unknown agent: {sub.agent}"}
+        else:
+            t0 = time.time()
+            try:
+                res = runner(sub, run, 1, sub_dir, prompt, False,
+                             composite_parent=parent_slug,
+                             cancel_event=cancel_event)
+            except TypeError:
+                # A patched runner without the new kwargs still works -
+                # composite_parent/cancel_event are optional in real runners.
+                res = runner(sub, run, 1, sub_dir, prompt, False)
+            except Exception as e:  # noqa: BLE001
+                res = {"exit": -1, "stdout": "",
+                       "stderr": f"runner exception: {e!r}"}
+            res["_duration"] = time.time() - t0
+        (sub_dir / "stdout.txt").write_text(res.get("stdout", ""))
+        (sub_dir / "stderr.txt").write_text(res.get("stderr", ""))
+        outcome_path = sub_dir / "outcome.txt"
+        outcome_val = (outcome_path.read_text().strip()
+                       if _valid_outcome(outcome_path) else None)
+        sub_cost = _extract_cost_usd(
+            sub.agent, res.get("stdout", "") or "",
+            res.get("stderr", "") or "")
+        meta = {
+            "step": sub_slug,
+            "parent": parent_slug,
+            "visit": 1,
+            "agent": sub.agent,
+            "duration_s": round(res.get("_duration", 0.0), 2),
+            "exit": res.get("exit"),
+            "continued": False,
+            "thread_id": res.get("thread_id"),
+            "outcome": outcome_val,
+            "cancelled": bool(res.get("cancelled")),
+            "cost_usd": sub_cost,
+        }
+        (sub_dir / "meta.json").write_text(json.dumps(meta, indent=2))
+        # Shape D snapshot for the substep on routable success only. We
+        # check the success condition here (no exception path is reachable
+        # in this thread after the meta.json write) so a substep that
+        # produced the done-sentinel snapshots to its own assets dir.
+        if (sub.assets and outcome_val == SUBSTEP_DONE_SENTINEL
+                and not res.get("cancelled")):
+            try:
+                snap_log = _snapshot_step_assets(sub_assets_dir, sub.assets)
+                run.log(f"  assets: {parent_slug}.{sub_slug} -> {snap_log}")
+            except OSError:
+                pass
+        with results_lock:
+            results[sub_slug] = {
+                "result": res, "outcome": outcome_val,
+                "exit": res.get("exit"),
+                "cancelled": bool(res.get("cancelled")),
+            }
+
+    threads: list[tuple[str, threading.Thread]] = []
+    for sub_slug in sub_slugs:
+        t = threading.Thread(
+            target=_run_one, args=(sub_slug,),
+            name=f"{parent_slug}.{sub_slug}", daemon=True)
+        t.start()
+        threads.append((sub_slug, t))
+
+    failed_substep: str | None = None
+    failure_reason: str | None = None
+
+    def _classify(sub_slug: str) -> str | None:
+        r = results.get(sub_slug)
+        if r is None:
+            return "thread terminated without recording a result"
+        if r["cancelled"]:
+            return None
+        exit_code = r["exit"]
+        outcome_val = r["outcome"]
+        if isinstance(exit_code, int) and exit_code != 0:
+            return f"non-zero exit {exit_code}"
+        if outcome_val is None:
+            return "missing outcome.txt after grace"
+        if outcome_val != SUBSTEP_DONE_SENTINEL:
+            return (f"outcome.txt contents {outcome_val!r} != "
+                    f"sentinel {SUBSTEP_DONE_SENTINEL!r}")
+        return None
+
+    pending = list(threads)
+    while pending:
+        next_pending = []
+        for sub_slug, t in pending:
+            t.join(timeout=0.1)
+            if t.is_alive():
+                next_pending.append((sub_slug, t))
+                continue
+            if failed_substep is None:
+                reason = _classify(sub_slug)
+                if reason is not None:
+                    failed_substep = sub_slug
+                    failure_reason = reason
+                    cancel_event.set()
+        pending = next_pending
+
+    # Fail-fast disk-state invariant (V9.1): a cancelled sibling must
+    # never look successful on disk. If a sibling race-wrote
+    # `__substep_done__` to outcome.txt before SIGTERM landed, scrub
+    # that file and update its meta.json so the on-disk record reflects
+    # the real terminated-by-cancel state, not an accidental success.
+    if failed_substep is not None:
+        for sub_slug in sub_slugs:
+            r = results.get(sub_slug)
+            if r is None or not r["cancelled"]:
+                continue
+            if r["outcome"] != SUBSTEP_DONE_SENTINEL:
+                continue
+            sub_dir = run.composite_substep_dir(
+                parent_slug, parent_visit, sub_slug, 1)
+            oc_path = sub_dir / "outcome.txt"
+            try:
+                oc_path.unlink()
+            except FileNotFoundError:
+                pass
+            r["outcome"] = None
+            md_path = sub_dir / "meta.json"
+            try:
+                md = json.loads(md_path.read_text())
+                md["outcome"] = None
+                md_path.write_text(json.dumps(md, indent=2))
+            except (OSError, ValueError):
+                pass
+            run.log(f"  [{parent_slug}.{sub_slug}] scrubbed sentinel "
+                    f"outcome.txt from cancelled sibling")
+
+    duration_s = time.time() - t_start
+    parent_meta = {
+        "step": parent_slug,
+        "visit": parent_visit,
+        "parallel": True,
+        "substeps": sub_slugs,
+        "duration_s": round(duration_s, 2),
+        "failed_substep": failed_substep,
+    }
+    (parent_visit_dir / "meta.json").write_text(
+        json.dumps(parent_meta, indent=2))
+
+    if failed_substep is not None:
+        msg = (f"composite {parent_slug} visit {parent_visit} failed: "
+               f"{failed_substep} {failure_reason}")
+        run.log(msg)
+        raise RuntimeError(msg)
+
+    successor = parent_step.next_steps[0]
+    (parent_visit_dir / "outcome.txt").write_text(successor + "\n")
+    run.log(f"composite {parent_slug} visit {parent_visit} succeeded; "
+            f"advancing to {successor}")
+    return successor
+
+
+def _drive_run(run: Run, workflow: Workflow, answers: "AnswerSource", *,
+               start_step: str, workflow_source: str,
+               started_at: float) -> Run:
+    """Drive a built Run from `start_step` to completion.
+
+    Identical lifecycle for a fresh run (start_step == workflow.start_step)
+    and a resumed run (start_step == the re-dispatched interrupted step):
+    run-state active->ended, optional health monitor, the budgeted step
+    loop, and the finally that always marks the run ended.
+    """
+    _write_run_state(run, "active", workflow_source=workflow_source,
+                     started_at=started_at)
+
+    if run.use_anthropic_api_key:
+        run.log("[API-KEY MODE: anthropic — billed per token]")
+    if run.use_codex_api_key:
+        run.log("[API-KEY MODE: codex — billed per token]")
+    if run.claude_code_home is not None:
+        run.log("[HOME MODE: anthropic — CLAUDE_CONFIG_DIR]")
+    if run.codex_home is not None:
+        run.log("[HOME MODE: openai — CODEX_HOME]")
+
+    monitor: HealthMonitor | None = None
+    if workflow.health_monitor_step:
+        # Load-time validation guarantees this is a real step.
+        monitor = HealthMonitor(
+            run, workflow.steps[workflow.health_monitor_step],
+            workflow.health_monitor_interval_seconds)
+        monitor.start()
+
+    try:
+        current = start_step
+        while current != "end":
+            # Shared budget: counts both step entries and retry visits so
+            # a stuck step cannot loop forever (item 1.3).
+            run.consume_step_budget()
+            if current not in workflow.steps:
+                raise RuntimeError(f"unknown step: {current}")
+            step = workflow.steps[current]
+            if step.is_composite:
+                current = execute_composite(step, current, run, monitor)
+            else:
+                current = execute_step(step, run, answers, monitor)
+        run.log("workflow complete (end)")
+    finally:
+        if monitor is not None:
+            monitor.stop()
+        # Marks both successful completion and abort as ended (finally runs
+        # whether the loop returned or execute_step raised).
+        _write_run_state(run, "ended", workflow_source=workflow_source,
+                         started_at=started_at, ended_at=time.time())
+    return run
+
+
+def execute_workflow(workflow_path: Path, goal: str | None = None,
+                     answers_path: Path | None = None,
+                     project_dir: str | None = None,
+                     *,
+                     costly_use_anthropic_api_key: bool = False,
+                     costly_use_codex_api_key: bool = False,
+                     claude_code_home: Path | None = None,
+                     codex_home: Path | None = None,
+                     max_visits: int | None = None) -> Run:
+    workflow = Workflow.load(workflow_path, goal_override=goal,
+                             project_dir_override=project_dir)
+    if max_visits is not None:
+        workflow.max_visits = max_visits
+    _emit_parallel_load_warnings(workflow, sys.stdout)
+
+    api_key_anthropic = (
+        os.environ.get("ANTHROPIC_API_KEY") or None
+    ) if costly_use_anthropic_api_key else None
+    api_key_codex = (
+        os.environ.get("CODEX_API_KEY") or os.environ.get("OPENAI_API_KEY") or None
+    ) if costly_use_codex_api_key else None
+    if costly_use_anthropic_api_key and api_key_anthropic is None:
+        raise RuntimeError(
+            "--costly-use-anthropic-api-key requires ANTHROPIC_API_KEY; "
+            "remove the flag to use the auth bank")
+    if costly_use_codex_api_key and api_key_codex is None:
+        raise RuntimeError(
+            "--costly-use-codex-api-key requires CODEX_API_KEY or "
+            "OPENAI_API_KEY; remove the flag to use the auth bank")
+    bank_skip = frozenset(
+        p for p, key in (
+            ("anthropic", costly_use_anthropic_api_key),
+            ("openai", costly_use_codex_api_key),
+            ("anthropic", claude_code_home),
+            ("openai", codex_home),
+        ) if key
+    )
+
+    run = create_run(workflow, bank_skip=bank_skip,
+                     codex_home=codex_home,
+                     claude_code_home=claude_code_home)
+    run.use_anthropic_api_key = costly_use_anthropic_api_key
+    run.use_codex_api_key = costly_use_codex_api_key
+    run.api_key_anthropic = api_key_anthropic
+    run.api_key_codex = api_key_codex
+    run.max_visits_override = workflow.max_visits
+
+    answers = AnswerSource(answers_path)
+
+    try:
+        wf_src = str(Path(workflow_path).expanduser().resolve())
+    except Exception:  # noqa: BLE001 - any resolution failure -> raw path
+        wf_src = str(workflow_path)
+    started = time.time()
+    return _drive_run(run, workflow, answers,
+                      start_step=workflow.start_step,
+                      workflow_source=wf_src, started_at=started)
+
+
+def resume_workflow(run_id: str, *,
+                    answers_path: Path | None = None,
+                    costly_use_anthropic_api_key: bool = False,
+                    costly_use_codex_api_key: bool = False,
+                    claude_code_home: Path | None = None,
+                    codex_home: Path | None = None,
+                    max_visits: int | None = None) -> Run:
+    """Resume an errored/interrupted run in place.
+
+    Reuses the run's on-disk workflow.json/state/assets; treats steps that
+    completed with a valid outcome as done; re-dispatches the first
+    incomplete step as a FRESH new visit; refuses if the run still appears
+    live; then drives it to completion exactly like a normal run. Raises
+    FileNotFoundError (unknown id), RuntimeError (liveness refusal), or
+    _RunAlreadyComplete (replay reached `end`).
+    """
+    home = tenacious_home()
+    root = home / "runs" / run_id
+    if not root.is_dir():
+        raise FileNotFoundError(
+            f"run '{run_id}' not found under {home / 'runs'}")
+
+    # Liveness refusal: only an explicitly-active sidecar with a live,
+    # different pid blocks. Missing / unreadable / non-active sidecar, or
+    # a dead pid, is safe to resume (the concrete target predates the
+    # sidecar entirely).
+    state_path = root / "run-state.json"
+    if state_path.is_file():
+        try:
+            st = json.loads(state_path.read_text())
+        except (OSError, ValueError):
+            st = None
+        if isinstance(st, dict) and st.get("status") == "active":
+            pid = st.get("pid")
+            if (isinstance(pid, int) and not isinstance(pid, bool)
+                    and pid != os.getpid()):
+                alive = True
+                try:
+                    os.kill(pid, 0)
+                except ProcessLookupError:
+                    alive = False
+                except PermissionError:
+                    alive = True
+                except OSError:
+                    alive = False
+                if alive:
+                    raise RuntimeError(
+                        f"run '{run_id}' appears to be live (pid {pid}); "
+                        f"refusing to resume")
+
+    workflow = Workflow.load(root / "workflow.json")
+    # CLI --max-visits passed on resume overrides whatever the frozen
+    # workflow.json carries; rewrite the frozen doc so the new cap
+    # persists across any subsequent resume.
+    if max_visits is not None and max_visits != workflow.max_visits:
+        workflow.max_visits = max_visits
+        try:
+            frozen = json.loads((root / "workflow.json").read_text())
+            frozen["max_visits"] = max_visits
+            (root / "workflow.json").write_text(
+                json.dumps(frozen, indent=2))
+        except (OSError, ValueError):
+            pass
+    _emit_parallel_load_warnings(workflow, sys.stdout)
+    project_dir = Path(
+        (root / "project_dir.txt").read_text().strip()).expanduser()
+    accounts_path = root / "accounts.json"
+    accounts = (json.loads(accounts_path.read_text())
+                if accounts_path.is_file() else {})
+    homes_path = root / "agent_homes.json"
+    homes = (json.loads(homes_path.read_text())
+             if homes_path.is_file() else {})
+    if not isinstance(homes, dict):
+        homes = {}
+    if codex_home is None and isinstance(homes.get("codex"), str):
+        codex_home = Path(homes["codex"])
+    if claude_code_home is None and isinstance(homes.get("claude"), str):
+        claude_code_home = Path(homes["claude"])
+    run = Run(slug=run_id, root=root, workflow=workflow,
+              project_dir=project_dir, accounts=accounts,
+              codex_home=codex_home, claude_code_home=claude_code_home)
+
+    api_key_anthropic = (
+        os.environ.get("ANTHROPIC_API_KEY") or None
+    ) if costly_use_anthropic_api_key else None
+    api_key_codex = (
+        os.environ.get("CODEX_API_KEY") or os.environ.get("OPENAI_API_KEY") or None
+    ) if costly_use_codex_api_key else None
+    if costly_use_anthropic_api_key and api_key_anthropic is None:
+        raise RuntimeError(
+            "--costly-use-anthropic-api-key requires ANTHROPIC_API_KEY; "
+            "remove the flag to use the auth bank")
+    if costly_use_codex_api_key and api_key_codex is None:
+        raise RuntimeError(
+            "--costly-use-codex-api-key requires CODEX_API_KEY or "
+            "OPENAI_API_KEY; remove the flag to use the auth bank")
+    run.use_anthropic_api_key = costly_use_anthropic_api_key
+    run.use_codex_api_key = costly_use_codex_api_key
+    run.api_key_anthropic = api_key_anthropic
+    run.api_key_codex = api_key_codex
+    run.max_visits_override = workflow.max_visits
+    if codex_home is not None or claude_code_home is not None:
+        persisted: dict[str, str] = {}
+        if codex_home is not None:
+            persisted["codex"] = str(codex_home)
+        if claude_code_home is not None:
+            persisted["claude"] = str(claude_code_home)
+        try:
+            homes_path.write_text(json.dumps(persisted, indent=2))
+        except OSError:
+            pass
+
+    # Resume-point replay: read only outcome.txt (no agent calls). Skip
+    # every step whose highest visit routed to a valid next step; resume
+    # at the first step that did not.
+    seen: set[str] = set()
+    current = workflow.start_step
+    while True:
+        if current == "end":
+            raise _RunAlreadyComplete(run)
+        if current in seen or current not in workflow.steps:
+            break  # defensive: cycle / unknown -> resume here
+        seen.add(current)
+        step_root = root / current
+        try:
+            visits = sorted(
+                int(e.name) for e in os.scandir(step_root)
+                if e.is_dir() and e.name.isdigit())
+        except OSError:
+            visits = []
+        if not visits:
+            run.visit_counts[current] = 0  # never started -> resume here
+            break
+        vmax = max(visits)
+        vdir = step_root / f"{vmax:03d}"
+        oc_path = vdir / "outcome.txt"
+        oc = oc_path.read_text().strip() if oc_path.is_file() else ""
+        valid_next = set(workflow.steps[current].next_steps) | {"end"}
+        if oc in valid_next:
+            run.visit_counts[current] = vmax       # completed -> advance
+            current = oc
+            continue                               # ("end" -> loop raises)
+        run.visit_counts[current] = vmax           # incomplete -> resume
+        break
+
+    run.resume_fresh_step = current
+    answers = AnswerSource(answers_path)
+    wf_src = str((root / "workflow.json").resolve())
+    started = time.time()
+    return _drive_run(run, workflow, answers, start_step=current,
+                      workflow_source=wf_src, started_at=started)
+
+
+def _resolve_agent_home(raw: str | None) -> Path | None:
+    if raw is None:
+        return None
+    path = Path(raw).expanduser().resolve()
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def main(argv: list[str] | None = None) -> int:
+    import argparse
+    argv = sys.argv[1:] if argv is None else argv
+    try:
+        ap = argparse.ArgumentParser(prog="tenacious")
+        ap.add_argument("workflow", type=Path, nargs="?", default=None)
+        ap.add_argument("--goal", default=None)
+        ap.add_argument("--answers", type=Path, default=None,
+                        help="file with one canned answer per line for question outcomes")
+        ap.add_argument("--project-dir", default=None,
+                        help="dir where agents run and write code (default: run dir)")
+        ap.add_argument("--resume", metavar="RUN_ID", default=None,
+                        help="resume an errored/interrupted run in place by id")
+        ap.add_argument(
+            "--costly-use-anthropic-api-key",
+            action="store_true", default=False,
+            help="bypass anthropic auth-bank lease and send ANTHROPIC_API_KEY "
+                 "from the orchestrator env; CLAUDE_CODE_OAUTH_TOKEN is "
+                 "stripped from the child env so the metered API is billed, "
+                 "not the OAuth plan",
+        )
+        ap.add_argument(
+            "--costly-use-codex-api-key",
+            action="store_true", default=False,
+            help="bypass openai/codex auth-bank lease and send CODEX_API_KEY "
+                 "(preferred) or OPENAI_API_KEY from the orchestrator env to "
+                 "the child codex process; both child env vars are set to the "
+                 "selected key",
+        )
+        ap.add_argument(
+            "--claude-code-home", default=None, metavar="DIR",
+            help="bypass the anthropic auth bank and run claude with "
+                 "CLAUDE_CONFIG_DIR set to DIR; sessions and auth state are "
+                 "written by Claude Code under that directory",
+        )
+        ap.add_argument(
+            "--codex-home", default=None, metavar="DIR",
+            help="bypass the openai/codex auth bank and run codex with "
+                 "CODEX_HOME set to DIR; sessions and auth state are written "
+                 "by Codex under that directory",
+        )
+        ap.add_argument(
+            "--max-visits", type=int, default=None, metavar="N",
+            help=("override the run-wide cap on total step entries + retry "
+                  "visits (default %d). Counts every step entry and every "
+                  "retry visit against one shared budget; raises 'max step "
+                  "budget exceeded' on exhaustion. The chosen cap is "
+                  "persisted into workflow.json so a resumed run inherits "
+                  "it; passing --max-visits on resume overrides the "
+                  "persisted value." % GLOBAL_STEP_BUDGET),
+        )
+        args = ap.parse_args(argv)
+        if args.max_visits is not None and args.max_visits <= 0:
+            ap.error("--max-visits must be a positive integer")
+        if args.claude_code_home and args.costly_use_anthropic_api_key:
+            ap.error("--claude-code-home cannot be combined with "
+                     "--costly-use-anthropic-api-key")
+        if args.codex_home and args.costly_use_codex_api_key:
+            ap.error("--codex-home cannot be combined with "
+                     "--costly-use-codex-api-key")
+        if (args.costly_use_anthropic_api_key
+                and not os.environ.get("ANTHROPIC_API_KEY")):
+            ap.error("--costly-use-anthropic-api-key requires "
+                     "ANTHROPIC_API_KEY; remove the flag to use the "
+                     "auth bank")
+        if (args.costly_use_codex_api_key
+                and not (os.environ.get("CODEX_API_KEY")
+                         or os.environ.get("OPENAI_API_KEY"))):
+            ap.error("--costly-use-codex-api-key requires CODEX_API_KEY "
+                     "or OPENAI_API_KEY; remove the flag to use the "
+                     "auth bank")
+        claude_code_home = _resolve_agent_home(args.claude_code_home)
+        codex_home = _resolve_agent_home(args.codex_home)
+
+        if args.workflow is None and args.resume is None:
+            ap.error("provide a workflow path, or --resume RUN_ID (or both: "
+                     "workflow path is informational when resuming)")
+
+        if args.resume:
+            try:
+                run = resume_workflow(
+                    args.resume, answers_path=args.answers,
+                    costly_use_anthropic_api_key=args.costly_use_anthropic_api_key,
+                    costly_use_codex_api_key=args.costly_use_codex_api_key,
+                    claude_code_home=claude_code_home,
+                    codex_home=codex_home,
+                    max_visits=args.max_visits,
+                )
+            except _RunAlreadyComplete as e:
+                print(f"run '{args.resume}' already complete (reached end); "
+                      f"nothing to resume")
+                print(f"\nRun directory: {e.run.root}")
+                return 0
+            except FileNotFoundError as e:
+                sys.stderr.write(f"error: {e}\n")
+                return 1
+            except RuntimeError as e:  # liveness refusal / drive abort
+                sys.stderr.write(f"error: {e}\n")
+                return 1
+            print(f"\nRun directory: {run.root}")
+            return 0
+
+        run = execute_workflow(
+            args.workflow, goal=args.goal,
+            answers_path=args.answers,
+            project_dir=args.project_dir,
+            costly_use_anthropic_api_key=args.costly_use_anthropic_api_key,
+            costly_use_codex_api_key=args.costly_use_codex_api_key,
+            claude_code_home=claude_code_home,
+            codex_home=codex_home,
+            max_visits=args.max_visits,
+        )
+        print(f"\nRun directory: {run.root}")
+        return 0
+    except KeyboardInterrupt:
+        try:
+            sys.stderr.write("Interrupted.\n")
+        except Exception:
+            pass
+        return 130
+
+
+if __name__ == "__main__":
+    sys.exit(main())

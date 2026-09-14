@@ -1,0 +1,4 @@
+# Source path in pinned archive: requirements.txt
+# Archive member: diffusioninc-Tenacious-d3a4d7ff9f5445a42a7516eda845f8c58a531a45/requirements.txt
+
+PyYAML>=6.0

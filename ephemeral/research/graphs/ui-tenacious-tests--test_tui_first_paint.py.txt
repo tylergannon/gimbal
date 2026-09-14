@@ -1,0 +1,169 @@
+# Source path in pinned archive: tests/test_tui_first_paint.py
+# Archive member: diffusioninc-Tenacious-d3a4d7ff9f5445a42a7516eda845f8c58a531a45/tests/test_tui_first_paint.py
+
+"""Real-TUI first-paint latency under a pty.
+
+Cold-launches `python -m tenacious.viewer` against a fixture of 30 fake
+runs, measures wall-clock time from spawn to the first non-empty output
+chunk (the proxy for the curses TUI's first `refresh()` flush), then
+sends `q` and asserts a clean exit.
+
+Regression guard: a slip-up that reintroduces double `list_runs` walks
+or per-tick `git rev-parse` subprocesses pushes first-paint above the
+target. We use a soft 1.5 s ceiling (well above typical observed time;
+intended to catch order-of-magnitude regressions, not noise).
+
+Run from the project root:
+
+    .venv/bin/python tests/test_tui_first_paint.py
+
+Prints `time-to-first-output = N.NNN s`, then `PASS first_paint` and
+`ALL PASS (1 scenario)`; exit 0. On failure: `FAIL ...` and exit 1.
+"""
+
+from __future__ import annotations
+
+import os
+import pty
+import select
+import shutil
+import struct
+import subprocess
+import sys
+import tempfile
+import termios
+import time
+import traceback
+from pathlib import Path
+
+REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+_TARGET_SECONDS = 1.5
+_KILL_TIMEOUT = 20.0
+
+
+def _set_winsize(fd: int, rows: int, cols: int) -> None:
+    try:
+        import fcntl
+        fcntl.ioctl(fd, termios.TIOCSWINSZ,
+                    struct.pack("HHHH", rows, cols, 0, 0))
+    except Exception:
+        pass
+
+
+def _make_fixture(n: int) -> Path:
+    home = Path(tempfile.mkdtemp(prefix="tnc-fp-"))
+    (home / "runs").mkdir()
+    for i in range(n):
+        rd = home / "runs" / f"2026010100000{i:02d}-001"
+        rd.mkdir()
+        (rd / "goal.txt").write_text("g")
+        (rd / "project_dir.txt").write_text("/tmp")
+        (rd / "assets").mkdir()
+        (rd / "a").mkdir()
+        (rd / "a" / "001").mkdir()
+    return home
+
+
+def s_first_paint():
+    home = _make_fixture(30)
+    try:
+        master, slave = pty.openpty()
+        _set_winsize(slave, 40, 120)
+        env = dict(os.environ)
+        env["TERM"] = "xterm-256color"
+        env["PYTHONPATH"] = REPO + os.pathsep + env.get("PYTHONPATH", "")
+        spawn_t = time.monotonic()
+        proc = subprocess.Popen(
+            [sys.executable, "-m", "tenacious.viewer", "--home", str(home)],
+            cwd=REPO, env=env,
+            stdin=slave, stdout=slave, stderr=slave, close_fds=True)
+        os.close(slave)
+
+        first_t: float | None = None
+        out = bytearray()
+        deadline = spawn_t + _KILL_TIMEOUT
+        # Phase 1: wait for first byte of output (≈ first refresh()).
+        while first_t is None and time.monotonic() < deadline:
+            r, _, _ = select.select([master], [], [], 0.05)
+            if r:
+                try:
+                    chunk = os.read(master, 4096)
+                except OSError:
+                    break
+                if chunk:
+                    first_t = time.monotonic()
+                    out += chunk
+                    break
+            if proc.poll() is not None:
+                break
+
+        if first_t is None:
+            proc.kill()
+            proc.wait(timeout=5)
+            try:
+                os.close(master)
+            except OSError:
+                pass
+            raise AssertionError(
+                "viewer produced no output before deadline; output so far:\n"
+                + bytes(out).decode(errors="replace"))
+
+        first_paint_s = first_t - spawn_t
+        print(f"time-to-first-output = {first_paint_s:.3f} s "
+              f"(target < {_TARGET_SECONDS}s)")
+
+        # Phase 2: feed `q` and drain.
+        try:
+            os.write(master, b"q")
+        except OSError:
+            pass
+        end = time.monotonic() + 5.0
+        while time.monotonic() < end:
+            if proc.poll() is not None:
+                break
+            r, _, _ = select.select([master], [], [], 0.1)
+            if r:
+                try:
+                    chunk = os.read(master, 4096)
+                except OSError:
+                    break
+                if not chunk:
+                    break
+                out += chunk
+        if proc.poll() is None:
+            proc.kill()
+        rc = proc.wait(timeout=5)
+        try:
+            os.close(master)
+        except OSError:
+            pass
+
+        text = bytes(out).decode(errors="replace")
+        assert "Traceback (most recent call last)" not in text, text
+        assert rc == 0, (rc, text)
+        assert first_paint_s < _TARGET_SECONDS, (
+            f"first paint {first_paint_s:.3f}s exceeded "
+            f"{_TARGET_SECONDS}s target")
+    finally:
+        shutil.rmtree(home, ignore_errors=True)
+
+
+SCENARIOS = [("first_paint", s_first_paint)]
+
+
+def main() -> int:
+    for name, fn in SCENARIOS:
+        try:
+            fn()
+        except Exception as e:  # noqa: BLE001
+            print(f"FAIL {name}: {e}")
+            traceback.print_exc()
+            return 1
+        print(f"PASS {name}")
+    print(f"ALL PASS ({len(SCENARIOS)} scenario)")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,0 +1,652 @@
+# Source path in pinned archive: tenacious/viewer/model.py
+# Archive member: diffusioninc-Tenacious-d3a4d7ff9f5445a42a7516eda845f8c58a531a45/tenacious/viewer/model.py
+
+"""Discovery model: runs, workflow steps, visits, and session files.
+
+All filesystem access is defensive. A missing or unreadable artifact
+degrades to a placeholder string rather than raising. The only hard
+errors are raised by the CLI layer when an *explicitly requested*
+run/step/session does not exist.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+from dataclasses import dataclass, field
+from datetime import datetime
+from pathlib import Path
+
+
+# Bounded-walk cap so last-activity scanning never blows up on a run dir
+# with huge profile/session trees.
+_MAX_WALK_ENTRIES = 40000
+
+_GOAL_TRUNC = 120
+_OUTCOME_TRUNC = 200
+_SUMMARY_TRUNC = 200
+
+
+def default_home() -> Path:
+    """Tenacious home, consistent with orchestrator.tenacious_home()."""
+    return Path(os.environ.get("TENACIOUS_HOME") or (Path.home() / ".tenacious"))
+
+
+def runs_dir(home: Path) -> Path:
+    return home / "runs"
+
+
+def _read_text(path: Path) -> str | None:
+    try:
+        return path.read_text(errors="replace")
+    except OSError:
+        return None
+
+
+def _summary_cell(text: str) -> str:
+    """Normalize text for the run-list summary cell.
+
+    Strip, collapse every run of internal whitespace (including newlines)
+    to a single space, then truncate to _SUMMARY_TRUNC chars, reusing the
+    existing '…' ellipsis style.
+    """
+    s = " ".join(text.split())
+    if len(s) > _SUMMARY_TRUNC:
+        s = s[:_SUMMARY_TRUNC] + "…"
+    return s
+
+
+def _newest_requirements(assets: Path) -> Path | None:
+    """Highest-numbered requirements-NNNN.md (exactly 4 digits) in assets."""
+    best_n = -1
+    best: Path | None = None
+    try:
+        entries = list(os.scandir(assets))
+    except OSError:
+        return None
+    for e in entries:
+        name = e.name
+        if (len(name) == len("requirements-0000.md")
+                and name.startswith("requirements-")
+                and name.endswith(".md")
+                and name[13:17].isdigit()):
+            n = int(name[13:17])
+            if n > best_n:
+                best_n = n
+                best = Path(e.path)
+    return best
+
+
+def _resolve_summary(assets: Path) -> str:
+    """Run-list summary via the strict fallback chain.
+
+    1. assets/TLDR.md if it exists and is non-empty after stripping.
+    2. else assets/requirements-current.md; if that file is absent, the
+       highest-numbered assets/requirements-NNNN.md.
+    3. else "".
+    All non-empty results pass through _summary_cell (collapse + truncate).
+    """
+    tldr = _read_text(assets / "TLDR.md")
+    if tldr is not None and tldr.strip():
+        return _summary_cell(tldr)
+
+    req = _read_text(assets / "requirements-current.md")
+    if req is None:
+        newest = _newest_requirements(assets)
+        if newest is not None:
+            req = _read_text(newest)
+    if req is not None and req.strip():
+        return _summary_cell(req)
+
+    return ""
+
+
+def _iso(ts: float) -> str:
+    try:
+        return datetime.fromtimestamp(ts).isoformat(timespec="seconds")
+    except (OSError, OverflowError, ValueError):
+        return "?"
+
+
+def _started_at_from_slug(slug: str) -> str:
+    # Run slugs are YYYYMMDDHHMMSS-NNN.
+    digits = slug.split("-", 1)[0]
+    if len(digits) < 14 or not digits[:14].isdigit():
+        return "?"
+    try:
+        return datetime.strptime(digits[:14], "%Y%m%d%H%M%S").isoformat(
+            timespec="seconds")
+    except ValueError:
+        return "?"
+
+
+def _newest_mtime(root: Path) -> float | None:
+    """Newest mtime anywhere under root, via a bounded os.scandir walk.
+
+    Skips on OSError; bounded by _MAX_WALK_ENTRIES so a giant profile tree
+    cannot make discovery hang.
+    """
+    newest: float | None = None
+    seen = 0
+    stack = [root]
+    while stack:
+        d = stack.pop()
+        try:
+            entries = list(os.scandir(d))
+        except OSError:
+            continue
+        for e in entries:
+            seen += 1
+            if seen > _MAX_WALK_ENTRIES:
+                return newest
+            try:
+                st = e.stat(follow_symlinks=False)
+            except OSError:
+                continue
+            if newest is None or st.st_mtime > newest:
+                newest = st.st_mtime
+            if e.is_dir(follow_symlinks=False):
+                stack.append(Path(e.path))
+    return newest
+
+
+# ---------------------------------------------------------------------------
+# Runs
+# ---------------------------------------------------------------------------
+
+@dataclass
+class RunInfo:
+    slug: str
+    path: Path
+    started_at: str
+    goal: str          # truncated for list display
+    goal_full: str
+    project_dir: str
+    last_activity: str
+    summary: str        # TLDR-based run-list cell (model-resolved)
+    last_activity_ts: float | None = None
+
+
+# Persistent cache so `list_runs` can skip the bounded walk on runs that
+# are demonstrably frozen (no live agent pid) and whose own dir mtime is
+# unchanged since the last walk. Cache file lives next to `runs/` inside
+# `home`. Stored as a JSON map: slug -> {dir_mtime, newest, frozen}.
+_LISTING_CACHE_NAME = ".viewer-mtime-cache.json"
+
+
+def _run_is_frozen(run_dir: Path) -> bool:
+    """True iff this run has no live agent process.
+
+    Frozen means: no `run-state.json`, or it parses to a payload whose
+    `pid` field names a process the kernel says is gone. A permission
+    error from `os.kill(pid, 0)` means the pid is still alive (owned by
+    another user), so the run is NOT frozen.
+    """
+    raw = _read_text(run_dir / "run-state.json")
+    if raw is None:
+        return True
+    try:
+        data = json.loads(raw)
+    except (json.JSONDecodeError, ValueError):
+        return True
+    if not isinstance(data, dict):
+        return True
+    pid = data.get("pid")
+    if not isinstance(pid, int):
+        return True
+    try:
+        os.kill(pid, 0)
+        return False
+    except ProcessLookupError:
+        return True
+    except PermissionError:
+        return False
+    except (OSError, TypeError, ValueError):
+        return True
+
+
+def _parallel_newest_mtimes(run_dirs: list[Path]) -> list[float | None]:
+    """Run `_newest_mtime` over the given run dirs in parallel.
+
+    The work is kernel-side scandir/lstat I/O. With many runs (cold
+    cache on a long-lived home), a process pool wins on macOS because
+    each worker's Python interpreter drives its own stat syscalls
+    without GIL contention. Falls back to threads when the cohort is
+    small (where process-spawn overhead would dominate), when the
+    spawned workers cannot re-import their entry point (e.g. Python
+    invoked from stdin / heredoc), or if the process pool fails to
+    start for any other reason.
+    """
+    import sys as _sys
+    n = len(run_dirs)
+    if n == 0:
+        return []
+    if n == 1:
+        return [_newest_mtime(run_dirs[0])]
+    # Skip ProcessPool when argv[0] is the stdin sentinel '-': the spawn
+    # method tries to re-run the entry script in each worker and bails
+    # out as FileNotFoundError on '<stdin>'.
+    spawn_safe = bool(_sys.argv) and _sys.argv[0] != "-"
+    if n >= 4 and spawn_safe:
+        try:
+            from concurrent.futures import ProcessPoolExecutor
+            with ProcessPoolExecutor(max_workers=min(4, n)) as ex:
+                return list(ex.map(_newest_mtime, run_dirs))
+        except (OSError, RuntimeError, ImportError):
+            pass  # fall through to threads
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=min(3, n)) as ex:
+        return list(ex.map(_newest_mtime, run_dirs))
+
+
+def _load_listing_cache(home: Path) -> dict:
+    raw = _read_text(home / _LISTING_CACHE_NAME)
+    if raw is None:
+        return {}
+    try:
+        data = json.loads(raw)
+    except (json.JSONDecodeError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _save_listing_cache(home: Path, cache: dict) -> None:
+    """Atomic write; silent on failure (read-only home, etc.)."""
+    path = home / _LISTING_CACHE_NAME
+    tmp = path.with_suffix(".tmp")
+    try:
+        tmp.write_text(json.dumps(cache))
+        tmp.replace(path)
+    except OSError:
+        try:
+            tmp.unlink()
+        except OSError:
+            pass
+
+
+def list_runs(home: Path) -> list[RunInfo]:
+    """All runs under home, newest-first.
+
+    Run slugs are YYYYMMDDHHMMSS-NNN, so a reverse string sort is
+    newest-first.
+
+    Performance: for each run, the expensive `_newest_mtime` walk is
+    skipped when the on-disk cache (`<home>/.viewer-mtime-cache.json`)
+    already recorded a result for this slug, the run dir's own mtime
+    has not changed since, AND the run is currently frozen (no live
+    agent pid). Active runs always walk fresh. Walks that ARE needed
+    run on a small thread pool — the work is kernel-side scandir/stat
+    I/O, which benefits from a couple of in-flight syscalls.
+    """
+    rdir = runs_dir(home)
+    try:
+        entries = [e for e in os.scandir(rdir) if e.is_dir()]
+    except OSError:
+        return []
+    sorted_entries = sorted(entries, key=lambda x: x.name, reverse=True)
+    run_dirs = [Path(e.path) for e in sorted_entries]
+
+    cache = _load_listing_cache(home)
+    mtimes: dict[str, float | None] = {}
+    dir_mtimes: dict[str, float] = {}
+    frozen_now: dict[str, bool] = {}
+    to_walk: list[Path] = []
+
+    for run_dir in run_dirs:
+        slug = run_dir.name
+        try:
+            dir_mtime = os.stat(run_dir).st_mtime
+        except OSError:
+            mtimes[slug] = None
+            continue
+        dir_mtimes[slug] = dir_mtime
+        frozen = _run_is_frozen(run_dir)
+        frozen_now[slug] = frozen
+        entry = cache.get(slug)
+        if (frozen
+                and isinstance(entry, dict)
+                and entry.get("dir_mtime") == dir_mtime
+                and entry.get("frozen") is True):
+            mtimes[slug] = entry.get("newest")
+        else:
+            to_walk.append(run_dir)
+
+    if to_walk:
+        walked = _parallel_newest_mtimes(to_walk)
+        for run_dir, nm in zip(to_walk, walked):
+            slug = run_dir.name
+            mtimes[slug] = nm
+            cache[slug] = {
+                "dir_mtime": dir_mtimes[slug],
+                "newest": nm,
+                "frozen": frozen_now[slug],
+            }
+
+    current = {d.name for d in run_dirs}
+    for slug in list(cache.keys()):
+        if slug not in current:
+            del cache[slug]
+    _save_listing_cache(home, cache)
+
+    return [_run_info_from_mtime(d, mtimes.get(d.name)) for d in run_dirs]
+
+
+def _run_info(run_dir: Path) -> RunInfo:
+    return _run_info_from_mtime(run_dir, _newest_mtime(run_dir))
+
+
+def _run_info_from_mtime(run_dir: Path, nm: float | None) -> RunInfo:
+    slug = run_dir.name
+    goal_full = (_read_text(run_dir / "goal.txt") or "?").strip()
+    goal = goal_full.replace("\n", " ")
+    if len(goal) > _GOAL_TRUNC:
+        goal = goal[:_GOAL_TRUNC] + "…"
+    project_dir = (_read_text(run_dir / "project_dir.txt") or "?").strip()
+    summary = _resolve_summary(run_dir / "assets")
+    return RunInfo(
+        slug=slug,
+        path=run_dir,
+        started_at=_started_at_from_slug(slug),
+        goal=goal or "?",
+        goal_full=goal_full or "?",
+        project_dir=project_dir or "?",
+        last_activity=_iso(nm) if nm is not None else "?",
+        summary=summary,
+        last_activity_ts=nm,
+    )
+
+
+def find_run(home: Path, slug: str) -> RunInfo | None:
+    run_dir = runs_dir(home) / slug
+    if not run_dir.is_dir():
+        return None
+    return _run_info(run_dir)
+
+
+def read_accounts(run_dir: Path) -> str:
+    raw = _read_text(run_dir / "accounts.json")
+    if raw is None:
+        return "(accounts.json missing)"
+    try:
+        data = json.loads(raw)
+        return ", ".join(f"{k}={v}" for k, v in data.items()) or "(empty)"
+    except (json.JSONDecodeError, AttributeError):
+        return raw.strip()[:500]
+
+
+def run_log_tail(run_dir: Path, n: int = 40) -> list[str]:
+    raw = _read_text(run_dir / "run.log")
+    if raw is None:
+        return ["(run.log missing)"]
+    lines = raw.splitlines()
+    return lines[-n:] if lines else ["(run.log empty)"]
+
+
+# ---------------------------------------------------------------------------
+# Workflow steps (reachability order; zero-visit steps included)
+# ---------------------------------------------------------------------------
+
+@dataclass
+class StepInfo:
+    slug: str
+    order_index: int
+    reachable: bool | None      # None == unknown (on-disk fallback)
+    next_steps: list[str]
+    visit_count: int
+
+
+@dataclass
+class WorkflowSteps:
+    steps: list[StepInfo]
+    from_disk: bool             # True when workflow.json was unreadable
+
+
+def _visit_count(run_dir: Path, step_slug: str) -> int:
+    step_dir = run_dir / step_slug
+    try:
+        return sum(
+            1 for e in os.scandir(step_dir)
+            if e.is_dir() and e.name.isdigit()
+        )
+    except OSError:
+        return 0
+
+
+def workflow_steps(run_dir: Path) -> WorkflowSteps:
+    raw = _read_text(run_dir / "workflow.json")
+    data = None
+    if raw is not None:
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError:
+            data = None
+
+    if not isinstance(data, dict) or not isinstance(data.get("steps"), dict):
+        return WorkflowSteps(steps=_disk_steps(run_dir), from_disk=True)
+
+    steps_decl: dict = data["steps"]
+    start = data.get("start_step")
+
+    # BFS reachability traversal from start_step (the workflow is a graph
+    # with branches and cycles, not a line).
+    order: list[str] = []
+    seen: set[str] = set()
+    queue: list[str] = [start] if isinstance(start, str) else []
+    while queue:
+        s = queue.pop(0)
+        if s == "end" or s in seen or s not in steps_decl:
+            continue
+        seen.add(s)
+        order.append(s)
+        nxt = steps_decl.get(s)
+        nxt_list = nxt.get("next_steps", []) if isinstance(nxt, dict) else []
+        if isinstance(nxt_list, list):
+            for n in nxt_list:
+                if n != "end" and n not in seen:
+                    queue.append(n)
+
+    reachable_set = set(order)
+    # Declared-but-unreachable steps, in file-declaration order.
+    for s in steps_decl:
+        if s not in seen:
+            order.append(s)
+
+    infos: list[StepInfo] = []
+    for i, s in enumerate(order):
+        sd = steps_decl.get(s)
+        ns = sd.get("next_steps", []) if isinstance(sd, dict) else []
+        if not isinstance(ns, list):
+            ns = []
+        infos.append(StepInfo(
+            slug=s,
+            order_index=i,
+            reachable=(s in reachable_set),
+            next_steps=[str(x) for x in ns],
+            visit_count=_visit_count(run_dir, s),
+        ))
+    return WorkflowSteps(steps=infos, from_disk=False)
+
+
+def _disk_steps(run_dir: Path) -> list[StepInfo]:
+    """Fallback: step dirs discovered on disk (workflow.json unreadable)."""
+    found: list[tuple[str, int]] = []
+    try:
+        entries = list(os.scandir(run_dir))
+    except OSError:
+        return []
+    for e in entries:
+        if not e.is_dir() or e.name in ("assets", "profiles"):
+            continue
+        vc = _visit_count(run_dir, e.name)
+        if vc > 0:
+            found.append((e.name, vc))
+    found.sort(key=lambda t: t[0])
+    return [
+        StepInfo(slug=name, order_index=i, reachable=None,
+                 next_steps=[], visit_count=vc)
+        for i, (name, vc) in enumerate(found)
+    ]
+
+
+def step_exists(run_dir: Path, step_slug: str) -> bool:
+    ws = workflow_steps(run_dir)
+    if any(s.slug == step_slug for s in ws.steps):
+        return True
+    # Also accept an on-disk step dir even if not declared.
+    return (run_dir / step_slug).is_dir()
+
+
+# ---------------------------------------------------------------------------
+# Visits of a step
+# ---------------------------------------------------------------------------
+
+@dataclass
+class VisitInfo:
+    number: int
+    number_str: str
+    has_question: bool
+    has_outcome: bool
+    outcome: str
+    mtime: str
+
+
+def list_visits(run_dir: Path, step_slug: str) -> list[VisitInfo]:
+    step_dir = run_dir / step_slug
+    try:
+        names = [
+            e.name for e in os.scandir(step_dir)
+            if e.is_dir() and e.name.isdigit()
+        ]
+    except OSError:
+        return []
+    out: list[VisitInfo] = []
+    for name in sorted(names, key=lambda n: int(n)):
+        vdir = step_dir / name
+        outcome_path = vdir / "outcome.txt"
+        has_outcome = outcome_path.exists()
+        outcome_txt = "-"
+        if has_outcome:
+            t = _read_text(outcome_path)
+            if t is not None:
+                outcome_txt = t.strip() or "-"
+                if len(outcome_txt) > _OUTCOME_TRUNC:
+                    outcome_txt = outcome_txt[:_OUTCOME_TRUNC] + "…"
+        nm = _newest_mtime(vdir)
+        out.append(VisitInfo(
+            number=int(name),
+            number_str=name,
+            has_question=(vdir / "question.txt").exists(),
+            has_outcome=has_outcome,
+            outcome=outcome_txt,
+            mtime=_iso(nm) if nm is not None else "?",
+        ))
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Session files of a step (step-level artifacts, NOT per-visit)
+# ---------------------------------------------------------------------------
+
+@dataclass
+class SessionInfo:
+    path: Path
+    kind: str          # "claude" | "codex"
+    mtime: str
+    size: int
+    lines: int
+
+
+def _count_lines(path: Path) -> int:
+    try:
+        n = 0
+        with path.open("rb") as f:
+            for _ in f:
+                n += 1
+        return n
+    except OSError:
+        return 0
+
+
+def list_sessions(run_dir: Path, step_slug: str) -> list[SessionInfo]:
+    """All session files for a step, newest-mtime-first.
+
+    Legacy runs store agent homes directly under profiles/<step>. User-home
+    runs keep sessions in external CODEX_HOME / CLAUDE_CONFIG_DIR locations
+    and append those paths to profiles/<step>/session-index.jsonl.
+    """
+    profile = run_dir / "profiles" / step_slug
+    found: list[SessionInfo] = []
+    seen: set[Path] = set()
+
+    def add(path: Path, kind: str) -> None:
+        try:
+            key = path.resolve()
+        except OSError:
+            key = path
+        if key in seen:
+            return
+        seen.add(key)
+        found.append(_session_info(path, kind))
+
+    # Claude: profiles/<step>/projects/<sanitized>/<sessionId>.jsonl
+    for p in sorted(profile.glob("projects/*/*.jsonl")):
+        add(p, "claude")
+    # Codex: profiles/<step>/sessions/YYYY/MM/DD/rollout-<ts>-<uuid>.jsonl
+    for p in sorted(profile.glob("sessions/*/*/*/rollout-*.jsonl")):
+        add(p, "codex")
+
+    index = profile / "session-index.jsonl"
+    raw = _read_text(index)
+    if raw is not None:
+        for line in raw.splitlines():
+            try:
+                obj = json.loads(line)
+            except (json.JSONDecodeError, ValueError):
+                continue
+            if not isinstance(obj, dict):
+                continue
+            path = obj.get("path")
+            kind = obj.get("kind")
+            if (isinstance(path, str)
+                    and isinstance(kind, str)
+                    and kind in ("claude", "codex")):
+                add(Path(path), kind)
+
+    found.sort(key=lambda s: s.mtime, reverse=True)
+    return found
+
+
+def _session_info(path: Path, kind: str) -> SessionInfo:
+    try:
+        st = path.stat()
+        size = st.st_size
+        mtime = _iso(st.st_mtime)
+    except OSError:
+        size = 0
+        mtime = "?"
+    return SessionInfo(
+        path=path,
+        kind=kind,
+        mtime=mtime,
+        size=size,
+        lines=_count_lines(path),
+    )
+
+
+def resolve_session(run_dir: Path, step_slug: str,
+                     spec: str) -> SessionInfo | None:
+    """Resolve a session by absolute path or by basename within the step."""
+    sessions = list_sessions(run_dir, step_slug)
+    p = Path(spec)
+    if p.is_absolute():
+        for s in sessions:
+            if s.path == p or str(s.path) == spec:
+                return s
+        if p.is_file():
+            kind = "codex" if p.name.startswith("rollout-") else "claude"
+            return _session_info(p, kind)
+        return None
+    for s in sessions:
+        if s.path.name == spec:
+            return s
+    return None

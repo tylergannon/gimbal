@@ -1,0 +1,179 @@
+# Source path in pinned archive: tests/test_goal_handling.py
+# Archive member: diffusioninc-Tenacious-d3a4d7ff9f5445a42a7516eda845f8c58a531a45/tests/test_goal_handling.py
+
+"""Goal handling — `--goal` CLI override + fail-fast on empty goal.
+
+Covers Workflow.load semantics:
+  - explicit non-None override (incl. empty/whitespace) is used as-is;
+  - None override falls back to the workflow file's `goal` field;
+  - empty/whitespace overrides AND empty file goal fail fast at load.
+
+Also exercises the orchestrator CLI's exit code when invoked on a
+workflow with an empty goal (no `--goal` passed).
+
+Stdlib-only single-file. Run from the project root:
+
+    .venv/bin/python tests/test_goal_handling.py
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, _PROJECT_ROOT)
+
+import tenacious.orchestrator as o  # noqa: E402
+
+
+FAILS: list[str] = []
+PASSES = 0
+
+
+def _ok(name: str) -> None:
+    global PASSES
+    PASSES += 1
+    print(f"PASS {name}")
+
+
+def _fail(name: str, detail: str) -> None:
+    FAILS.append(f"{name}: {detail}")
+    print(f"FAIL {name}: {detail}")
+
+
+def s_cli_override_non_empty() -> None:
+    name = "cli_override_non_empty"
+    wf = o.Workflow.load(
+        Path(_PROJECT_ROOT) / "workflows" / "hello-claude.json",
+        goal_override="CLI-OVERRIDE-GOAL")
+    if wf.goal != "CLI-OVERRIDE-GOAL":
+        _fail(name, f"goal={wf.goal!r}")
+        return
+    _ok(name)
+
+
+def s_fallback_to_file_goal() -> None:
+    name = "fallback_to_file_goal"
+    wf = o.Workflow.load(
+        Path(_PROJECT_ROOT) / "workflows" / "hello-claude.json")
+    if not wf.goal:
+        _fail(name, f"goal empty after fallback: {wf.goal!r}")
+        return
+    _ok(name)
+
+
+def s_fail_fast_when_both_empty() -> None:
+    name = "fail_fast_when_both_empty"
+    d = Path(tempfile.mkdtemp(prefix="gh-"))
+    p = d / "wf.json"
+    p.write_text(json.dumps({
+        "goal": "",
+        "start_step": "a",
+        "steps": {"a": {"agent": "claude", "prompt": "p",
+                        "next_steps": ["end"]}},
+    }))
+    try:
+        o.Workflow.load(p)
+        _fail(name, "expected ValueError, got none")
+        return
+    except ValueError as e:
+        if "workflow goal is empty" not in str(e):
+            _fail(name, f"bad msg: {e}")
+            return
+    _ok(name)
+
+
+def s_fail_fast_when_file_goal_whitespace() -> None:
+    name = "fail_fast_when_file_goal_whitespace"
+    d = Path(tempfile.mkdtemp(prefix="gh-"))
+    p = d / "wf.json"
+    p.write_text(json.dumps({
+        "goal": "   \n",
+        "start_step": "a",
+        "steps": {"a": {"agent": "claude", "prompt": "p",
+                        "next_steps": ["end"]}},
+    }))
+    try:
+        o.Workflow.load(p)
+        _fail(name, "expected ValueError, got none")
+        return
+    except ValueError as e:
+        if "workflow goal is empty" not in str(e):
+            _fail(name, f"bad msg: {e}")
+            return
+    _ok(name)
+
+
+def s_explicit_empty_override_fails_fast() -> None:
+    name = "explicit_empty_override_fails_fast"
+    try:
+        o.Workflow.load(
+            Path(_PROJECT_ROOT) / "workflows" / "hello-claude.json",
+            goal_override="")
+        _fail(name, "expected ValueError, got none")
+        return
+    except ValueError as e:
+        if "workflow goal is empty" not in str(e):
+            _fail(name, f"bad msg: {e}")
+            return
+    _ok(name)
+
+
+def s_whitespace_override_fails_fast() -> None:
+    name = "whitespace_override_fails_fast"
+    try:
+        o.Workflow.load(
+            Path(_PROJECT_ROOT) / "workflows" / "hello-claude.json",
+            goal_override="   ")
+        _fail(name, "expected ValueError, got none")
+        return
+    except ValueError as e:
+        if "workflow goal is empty" not in str(e):
+            _fail(name, f"bad msg: {e}")
+            return
+    _ok(name)
+
+
+def s_cli_exit_1_on_empty() -> None:
+    name = "cli_exit_1_on_empty"
+    proc = subprocess.run(
+        [sys.executable, "-m", "tenacious",
+         str(Path(_PROJECT_ROOT) / "workflows" / "6step-goal-only.yaml")],
+        cwd=_PROJECT_ROOT,
+        capture_output=True, text=True, timeout=30,
+        env={**os.environ, "PYTHONPATH": _PROJECT_ROOT})
+    if proc.returncode != 1:
+        _fail(name, f"exit={proc.returncode}, stderr={proc.stderr[:200]!r}")
+        return
+    if "workflow goal is empty" not in proc.stderr:
+        _fail(name, f"stderr missing token: {proc.stderr[:300]!r}")
+        return
+    _ok(name)
+
+
+def main() -> int:
+    s_cli_override_non_empty()
+    s_fallback_to_file_goal()
+    s_fail_fast_when_both_empty()
+    s_fail_fast_when_file_goal_whitespace()
+    s_explicit_empty_override_fails_fast()
+    s_whitespace_override_fails_fast()
+    s_cli_exit_1_on_empty()
+
+    if FAILS:
+        print(f"\nFAILED ({len(FAILS)}):")
+        for f in FAILS:
+            print(f"  {f}")
+        return 1
+    print(f"\nALL PASS ({PASSES})")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

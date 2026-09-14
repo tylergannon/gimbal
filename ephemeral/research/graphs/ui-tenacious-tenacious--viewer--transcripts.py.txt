@@ -1,0 +1,381 @@
+# Source path in pinned archive: tenacious/viewer/transcripts.py
+# Archive member: diffusioninc-Tenacious-d3a4d7ff9f5445a42a7516eda845f8c58a531a45/tenacious/viewer/transcripts.py
+
+"""Parsers for Claude JSONL transcripts and Codex rollout JSONL.
+
+Both parsers produce an ordered ``list[Turn]``. The contract is absolute:
+*any* file on disk parses to *some* ordered list of turns without raising,
+even under future schema drift. Defensiveness is applied not only at the
+line/record-type level but at the individual content-block / payload-item
+level — an unknown or malformed block degrades to a compact ``raw``/
+``event`` turn for that block only and never aborts the record or crashes
+the viewer.
+"""
+
+from __future__ import annotations
+
+import json
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
+
+# Truncation constants (chars).
+_TOOL_IO_MAX = 4000
+_JSON_MAX = 2000
+_RAW_MAX = 2000
+
+_TRUNC_SUFFIX = "… (truncated)"
+
+# kind ∈ {text, reasoning, tool_call, tool_result, event, raw}
+
+
+@dataclass
+class Turn:
+    role: str          # user | assistant | system | tool | meta | ""
+    kind: str
+    text: str
+    meta: dict = field(default_factory=dict)
+
+
+def _trunc(s: str, limit: int) -> str:
+    if s is None:
+        return ""
+    if not isinstance(s, str):
+        try:
+            s = str(s)
+        except Exception:
+            return "(unrenderable)"
+    if len(s) > limit:
+        return s[:limit] + _TRUNC_SUFFIX
+    return s
+
+
+def _compact_json(obj: Any, limit: int = _JSON_MAX) -> str:
+    try:
+        s = json.dumps(obj, ensure_ascii=False, separators=(",", ":"))
+    except (TypeError, ValueError):
+        s = repr(obj)
+    return _trunc(s, limit)
+
+
+def _stringify_content(content: Any) -> str:
+    """Best-effort flatten of a string/list/dict content blob to text."""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts: list[str] = []
+        for item in content:
+            if isinstance(item, str):
+                parts.append(item)
+            elif isinstance(item, dict):
+                t = item.get("text")
+                if isinstance(t, str):
+                    parts.append(t)
+                else:
+                    parts.append(_compact_json(item))
+            else:
+                parts.append(str(item))
+        return "\n".join(parts)
+    if isinstance(content, dict):
+        t = content.get("text")
+        if isinstance(t, str):
+            return t
+        return _compact_json(content)
+    return "" if content is None else str(content)
+
+
+# ---------------------------------------------------------------------------
+# Claude JSONL
+# ---------------------------------------------------------------------------
+
+_CLAUDE_SKIP_TYPES = {
+    "queue-operation", "ai-title", "last-prompt", "attachment",
+    "file-history-snapshot",
+}
+
+
+def parse_claude(path: Path) -> list[Turn]:
+    turns: list[Turn] = []
+    try:
+        fh = path.open("r", errors="replace")
+    except OSError as e:
+        return [Turn("meta", "event", f"(could not open session file: {e})")]
+    with fh:
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                obj = json.loads(line)
+            except (json.JSONDecodeError, ValueError):
+                turns.append(Turn("", "raw", _trunc(line, _RAW_MAX)))
+                continue
+            try:
+                _claude_obj(obj, turns)
+            except Exception as e:  # never let one record kill the parse
+                turns.append(Turn(
+                    "", "raw",
+                    _trunc(f"(unparseable record: {e}) {line}", _RAW_MAX)))
+    return turns
+
+
+def _claude_obj(obj: Any, turns: list[Turn]) -> None:
+    if not isinstance(obj, dict):
+        turns.append(Turn("", "raw", _trunc(_compact_json(obj), _RAW_MAX)))
+        return
+    typ = obj.get("type")
+
+    if typ == "summary":
+        summ = obj.get("summary")
+        turns.append(Turn("meta", "event",
+                           f"[summary] {_stringify_content(summ)}"))
+        return
+    if typ in _CLAUDE_SKIP_TYPES:
+        return  # bookkeeping; intentionally not rendered
+    if typ not in ("user", "assistant", "system"):
+        # Unknown line type: summarize, never raw-dump the whole thing.
+        turns.append(Turn("meta", "event", f"[{typ}] (skipped)"))
+        return
+
+    role = typ
+    msg = obj.get("message")
+    if not isinstance(msg, dict):
+        # Some shapes put content at top level; degrade gracefully.
+        if isinstance(msg, str):
+            turns.append(Turn(role, "text", msg))
+        return
+    content = msg.get("content")
+
+    if isinstance(content, str):
+        if content.strip():
+            turns.append(Turn(role, "text", content))
+        return
+    if not isinstance(content, list):
+        if content is not None:
+            turns.append(Turn(role, "raw",
+                              _trunc(_compact_json(content), _RAW_MAX)))
+        return
+
+    for block in content:
+        try:
+            _claude_block(role, block, turns)
+        except Exception:
+            turns.append(Turn(role, "raw",
+                              _trunc(_compact_json(block), _RAW_MAX)))
+
+
+def _claude_block(role: str, block: Any, turns: list[Turn]) -> None:
+    if isinstance(block, str):
+        if block.strip():
+            turns.append(Turn(role, "text", block))
+        return
+    if not isinstance(block, dict):
+        turns.append(Turn(role, "raw", _trunc(str(block), _RAW_MAX)))
+        return
+
+    bt = block.get("type")
+    if bt == "text":
+        txt = block.get("text")
+        if isinstance(txt, str) and txt.strip():
+            turns.append(Turn(role, "text", txt))
+    elif bt == "thinking":
+        txt = block.get("thinking")
+        if isinstance(txt, str) and txt.strip():
+            turns.append(Turn(role, "reasoning", txt))
+        else:
+            turns.append(Turn(role, "reasoning", "(thinking; no text)"))
+    elif bt == "redacted_thinking":
+        turns.append(Turn(role, "reasoning", "(redacted thinking)"))
+    elif bt == "tool_use":
+        name = block.get("name", "?")
+        inp = block.get("input")
+        turns.append(Turn(
+            role, "tool_call",
+            _trunc(_compact_json(inp), _TOOL_IO_MAX),
+            meta={"name": str(name)}))
+    elif bt == "tool_result":
+        out = _stringify_content(block.get("content"))
+        is_err = bool(block.get("is_error"))
+        turns.append(Turn(
+            "tool", "tool_result",
+            _trunc(out, _TOOL_IO_MAX),
+            meta={"is_error": is_err}))
+    else:
+        # Unknown block shape: compact summary for this block only.
+        turns.append(Turn(role, "raw",
+                          _trunc(_compact_json(block), _RAW_MAX)))
+
+
+# ---------------------------------------------------------------------------
+# Codex rollout JSONL
+# ---------------------------------------------------------------------------
+
+def parse_codex(path: Path) -> list[Turn]:
+    turns: list[Turn] = []
+    try:
+        fh = path.open("r", errors="replace")
+    except OSError as e:
+        return [Turn("meta", "event", f"(could not open session file: {e})")]
+    with fh:
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                obj = json.loads(line)
+            except (json.JSONDecodeError, ValueError):
+                turns.append(Turn("", "raw", _trunc(line, _RAW_MAX)))
+                continue
+            try:
+                _codex_obj(obj, turns)
+            except Exception as e:
+                turns.append(Turn(
+                    "", "raw",
+                    _trunc(f"(unparseable record: {e}) {line}", _RAW_MAX)))
+    return turns
+
+
+def _codex_obj(obj: Any, turns: list[Turn]) -> None:
+    if not isinstance(obj, dict):
+        turns.append(Turn("", "raw", _trunc(_compact_json(obj), _RAW_MAX)))
+        return
+    typ = obj.get("type")
+    payload = obj.get("payload")
+
+    if typ == "session_meta":
+        pl = payload if isinstance(payload, dict) else {}
+        sid = pl.get("id", "?")
+        cwd = pl.get("cwd", "?")
+        model = pl.get("model_provider", "")
+        turns.append(Turn(
+            "meta", "event",
+            f"[session] id={sid} cwd={cwd} provider={model}"))
+        return
+
+    if typ == "turn_context":
+        pl = payload if isinstance(payload, dict) else {}
+        turns.append(Turn(
+            "meta", "event",
+            f"[turn_context] model={pl.get('model', '?')} "
+            f"cwd={pl.get('cwd', '?')}"))
+        return
+
+    if typ == "response_item":
+        _codex_response_item(payload, turns)
+        return
+
+    if typ == "event_msg":
+        _codex_event_msg(payload, turns)
+        return
+
+    # Unknown top-level type: summarize, do not raw-dump everything.
+    turns.append(Turn("meta", "event", f"[{typ}] (skipped)"))
+
+
+def _codex_response_item(payload: Any, turns: list[Turn]) -> None:
+    if not isinstance(payload, dict):
+        turns.append(Turn("", "raw", _trunc(_compact_json(payload), _RAW_MAX)))
+        return
+    pt = payload.get("type")
+
+    if pt == "message":
+        role = payload.get("role", "?")
+        content = payload.get("content")
+        text = ""
+        if isinstance(content, list):
+            parts: list[str] = []
+            for c in content:
+                if isinstance(c, dict):
+                    v = c.get("text")
+                    if not isinstance(v, str):
+                        v = (c.get("input_text") or c.get("output_text"))
+                    if isinstance(v, str):
+                        parts.append(v)
+                    else:
+                        parts.append(_compact_json(c))
+                elif isinstance(c, str):
+                    parts.append(c)
+            text = "\n".join(parts)
+        else:
+            text = _stringify_content(content)
+        if text.strip():
+            turns.append(Turn(str(role), "text", text))
+    elif pt == "reasoning":
+        summ = payload.get("summary")
+        cont = payload.get("content")
+        body = ""
+        if isinstance(summ, list) and summ:
+            body = _stringify_content(summ)
+        elif cont:
+            body = _stringify_content(cont)
+        elif payload.get("encrypted_content"):
+            body = "(encrypted reasoning)"
+        else:
+            body = "(reasoning; no visible content)"
+        turns.append(Turn("assistant", "reasoning", body))
+    elif pt in ("function_call", "local_shell_call", "custom_tool_call"):
+        name = (payload.get("name")
+                or payload.get("tool_name") or pt)
+        args = payload.get("arguments")
+        if args is None:
+            args = payload.get("input")
+        if isinstance(args, str):
+            arg_s = args
+        else:
+            arg_s = _compact_json(args)
+        turns.append(Turn(
+            "assistant", "tool_call",
+            _trunc(arg_s, _TOOL_IO_MAX),
+            meta={"name": str(name)}))
+    elif pt in ("function_call_output", "local_shell_call_output",
+                "custom_tool_call_output") or (
+                    isinstance(pt, str) and pt.endswith("_output")):
+        out = payload.get("output")
+        turns.append(Turn(
+            "tool", "tool_result",
+            _trunc(_stringify_content(out), _TOOL_IO_MAX)))
+    else:
+        turns.append(Turn("", "raw",
+                          _trunc(_compact_json(payload), _RAW_MAX)))
+
+
+def _codex_event_msg(payload: Any, turns: list[Turn]) -> None:
+    if not isinstance(payload, dict):
+        turns.append(Turn("meta", "event",
+                           _trunc(_compact_json(payload), _RAW_MAX)))
+        return
+    pt = payload.get("type")
+    if pt == "user_message":
+        msg = payload.get("message")
+        if isinstance(msg, str) and msg.strip():
+            turns.append(Turn("user", "text", msg))
+    elif pt == "agent_message":
+        msg = payload.get("message")
+        if isinstance(msg, str) and msg.strip():
+            turns.append(Turn("assistant", "text", msg))
+    elif pt == "task_complete":
+        last = payload.get("last_agent_message")
+        if isinstance(last, str) and last.strip():
+            turns.append(Turn("meta", "event",
+                              f"[task_complete] {_trunc(last, _RAW_MAX)}"))
+        else:
+            turns.append(Turn("meta", "event", "[task_complete]"))
+    elif pt in ("task_started", "token_count"):
+        turns.append(Turn("meta", "event", f"[{pt}]"))
+    else:
+        turns.append(Turn("meta", "event", f"[event:{pt}]"))
+
+
+# ---------------------------------------------------------------------------
+# Dispatch
+# ---------------------------------------------------------------------------
+
+def parse_session(path: Path, kind: str) -> list[Turn]:
+    if kind == "codex":
+        return parse_codex(path)
+    if kind == "claude":
+        return parse_claude(path)
+    # Unknown kind: sniff by filename, default to Claude shape.
+    if path.name.startswith("rollout-"):
+        return parse_codex(path)
+    return parse_claude(path)

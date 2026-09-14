@@ -1,0 +1,445 @@
+# Source path in pinned archive: tests/test_runs_highlight.py
+# Archive member: diffusioninc-Tenacious-d3a4d7ff9f5445a42a7516eda845f8c58a531a45/tests/test_runs_highlight.py
+
+"""Headless test of the run-list (S_RUNS) highlight + summary wiring.
+
+No pty/curses dependency: a minimal stub `curses` module and a stub
+`stdscr` record every `addnstr(y, x, text, w, attr)` call. `_App` is
+driven directly (`_load_lines` / `_draw`); `loop()`/`getch` are never
+called.
+
+Proves, against the real `tenacious/viewer/tui.py` + `model.py`:
+
+  * the `S_RUNS` branch now sets `frame["_sel_row_offset"] = 0` and
+    `frame["_sel_row_stride"] = 6` so the per-block A_REVERSE
+    highlight + keep-visible scroll apply across the full 6-row block;
+  * the TLDR-derived summary is rendered on the `TLDR:` row of each
+    block (not on the header), and a blank summary becomes `(none)`;
+  * the empty-run-list case sets the offset to `None`, highlights
+    nothing, and does not raise;
+  * deterministic scope-boundary: `--list` still emits `r.goal`, not
+    the TLDR-derived summary.
+
+Run from the project root:
+
+    .venv/bin/python tests/test_runs_highlight.py
+
+Prints `PASS <scenario>` per scenario, then `ALL PASS (<n>)`. Exit 0
+if all pass; 1 with `FAIL ...` on the first failure.
+"""
+
+from __future__ import annotations
+
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+import traceback
+from pathlib import Path
+
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, _PROJECT_ROOT)
+
+from tenacious.viewer import model  # noqa: E402
+from tenacious.viewer import tui  # noqa: E402
+
+H, W = 10, 120  # body rows are y in [1, H-2]; title y==0, footer y==H-1
+
+
+# ----- stubs -----------------------------------------------------------------
+
+class Rec:
+    __slots__ = ("y", "x", "text", "w", "attr")
+
+    def __init__(self, y, x, text, w, attr):
+        self.y, self.x, self.text, self.w, self.attr = y, x, text, w, attr
+
+
+class FakeCurses:
+    error = type("error", (Exception,), {})
+    A_REVERSE = 1 << 18
+    KEY_RESIZE = 0o632
+
+    @staticmethod
+    def curs_set(_n):
+        return None
+
+
+class FakeScr:
+    def __init__(self):
+        self.calls: list[Rec] = []
+
+    def keypad(self, _flag):
+        return None
+
+    def getmaxyx(self):
+        return (H, W)
+
+    def erase(self):
+        return None
+
+    def refresh(self):
+        return None
+
+    def addstr(self, *a):
+        return None
+
+    def addnstr(self, y, x, text, w, attr=0):
+        self.calls.append(Rec(y, x, text, w, attr))
+
+
+def body_calls(scr: FakeScr) -> list[Rec]:
+    """addnstr calls for body rows only (title y==0 / footer y==H-1 out)."""
+    return [c for c in scr.calls if 1 <= c.y <= H - 2]
+
+
+# ----- fixture ---------------------------------------------------------------
+
+def make_home(specs) -> Path:
+    """specs: list of (slug, goal, summary_source).
+
+    summary_source None -> no assets dir at all (summary resolves to "");
+    otherwise written to assets/TLDR.md.
+    """
+    home = Path(tempfile.mkdtemp(prefix="tnc-hl-"))
+    for slug, goal, tldr in specs:
+        rd = home / "runs" / slug
+        rd.mkdir(parents=True)
+        (rd / "goal.txt").write_text(goal)
+        (rd / "project_dir.txt").write_text(f"/proj/{slug}")
+        if tldr is not None:
+            (rd / "assets").mkdir()
+            (rd / "assets" / "TLDR.md").write_text(tldr)
+    return home
+
+
+def new_app(home: Path):
+    scr = FakeScr()
+    app = tui._App(scr, FakeCurses, home)
+    return app, scr
+
+
+HEADER_RE = re.compile(
+    r"^20260518103511-\d{3} · "
+    r"(ACTIVE|complete|ended \d{4}/\d\d/\d\d  \d\d:\d\d:\d\d) · "
+    r"started \d{4}/\d\d/\d\d  \d\d:\d\d:\d\d · "
+    r"act \d{4}/\d\d/\d\d  \d\d:\d\d:\d\d \([^)]+\)$")
+
+
+# ----- scenarios -------------------------------------------------------------
+
+def s_wiring_offset_and_summary():
+    home = make_home([
+        ("20260518103511-003", "GOAL_THREE", "SUMMARY_THREE"),
+        ("20260518103511-002", "GOAL_TWO", "SUMMARY_TWO"),
+        ("20260518103511-001", "GOAL_ONE", None),
+    ])
+    try:
+        # Pin mtimes so the recency sort matches slug order
+        # (-003 newest activity, -001 oldest).
+        import time as _t
+        base = _t.time()
+        for offset, slug in enumerate(
+                ["20260518103511-003", "20260518103511-002",
+                 "20260518103511-001"]):
+            rd = home / "runs" / slug
+            mt = base - offset
+            for p in [rd, *rd.rglob("*")]:
+                os.utime(p, (mt, mt))
+
+        app, _scr = new_app(home)
+        frame = app.stack[-1]
+        lines, targets = app._load_lines(frame)
+
+        assert frame["_sel_row_offset"] == 0, frame.get("_sel_row_offset")
+        assert frame.get("_sel_block_starts") == [0, 8, 16], \
+            frame.get("_sel_block_starts")
+        assert frame.get("_sel_block_lengths") == [8, 8, 8], \
+            frame.get("_sel_block_lengths")
+        assert len(targets) == 3, len(targets)
+        assert len(lines) == 24, len(lines)
+        for i, t in enumerate(targets):
+            assert lines[i * 8].startswith(t["run"].slug + " "), (
+                i, lines[i * 8])
+        assert "SUMMARY_THREE" in lines[2] and \
+               "SUMMARY_THREE" not in lines[0], (lines[0], lines[2])
+        assert "SUMMARY_TWO" in lines[10] and \
+               "SUMMARY_TWO" not in lines[8], (lines[8], lines[10])
+        for ln in lines:
+            assert "GOAL_THREE" not in ln, ln
+            assert "GOAL_TWO" not in ln, ln
+            assert "GOAL_ONE" not in ln, ln
+    finally:
+        shutil.rmtree(home, ignore_errors=True)
+
+
+def s_highlight_at_sel_zero():
+    home = make_home([
+        ("20260518103511-003", "G3", "S3"),
+        ("20260518103511-002", "G2", "S2"),
+        ("20260518103511-001", "G1", "S1"),
+    ])
+    try:
+        import time as _t
+        base = _t.time()
+        for offset, slug in enumerate(
+                ["20260518103511-003", "20260518103511-002",
+                 "20260518103511-001"]):
+            rd = home / "runs" / slug
+            mt = base - offset
+            for p in [rd, *rd.rglob("*")]:
+                os.utime(p, (mt, mt))
+
+        app, scr = new_app(home)
+        frame = app.stack[-1]
+        frame["sel"] = 0
+        lines, targets = app._load_lines(frame)
+        app._draw(frame, lines, targets)
+
+        bc = body_calls(scr)
+        rev = [c for c in bc if c.attr == FakeCurses.A_REVERSE]
+        # Block is 8 rows (header + project + TLDR + path + git + plan
+        # + cost + auth), all reverse-attributed.
+        assert len(rev) == 8, [(c.y, c.attr) for c in bc]
+        ys = sorted(c.y for c in rev)
+        assert ys == list(range(ys[0], ys[0] + 8)), ys
+        # First row (header) is the slug.
+        rev_sorted = sorted(rev, key=lambda c: c.y)
+        assert rev_sorted[0].text.startswith("20260518103511-003"), \
+            rev_sorted[0].text
+        # Sanity: title + footer have A_REVERSE; that is why body_calls
+        # excludes y==0 and y==H-1.
+        title = [c for c in scr.calls if c.y == 0]
+        footer = [c for c in scr.calls if c.y == H - 1]
+        assert title and title[0].attr == FakeCurses.A_REVERSE, "title attr"
+        assert footer and footer[0].attr == FakeCurses.A_REVERSE, \
+            "footer attr"
+    finally:
+        shutil.rmtree(home, ignore_errors=True)
+
+
+def s_highlight_moves_with_selection():
+    home = make_home([
+        ("20260518103511-003", "G3", "S3"),
+        ("20260518103511-002", "G2", "S2"),
+        ("20260518103511-001", "G1", "S1"),
+    ])
+    try:
+        import time as _t
+        base = _t.time()
+        for offset, slug in enumerate(
+                ["20260518103511-003", "20260518103511-002",
+                 "20260518103511-001"]):
+            rd = home / "runs" / slug
+            mt = base - offset
+            for p in [rd, *rd.rglob("*")]:
+                os.utime(p, (mt, mt))
+
+        app, scr = new_app(home)
+        frame = app.stack[-1]
+        frame["sel"] = 2
+        lines, targets = app._load_lines(frame)
+        app._draw(frame, lines, targets)
+
+        bc = body_calls(scr)
+        rev = [c for c in bc if c.attr == FakeCurses.A_REVERSE]
+        # Eight reverse rows (the third block — with cost+auth rows).
+        assert len(rev) == 8, [(c.y, c.attr) for c in bc]
+        rev_sorted = sorted(rev, key=lambda c: c.y)
+        # sel 2 => display block 2 => slug -001 (third newest).
+        assert rev_sorted[0].text.startswith("20260518103511-001"), \
+            rev_sorted[0].text
+        # Keep-visible: the full block fits inside the body window.
+        sel_first = frame["_sel_block_starts"][frame["sel"]]
+        sel_last = sel_first + frame["_sel_block_lengths"][frame["sel"]] - 1
+        body_h = H - 2
+        assert frame["scroll"] <= sel_first, (frame["scroll"], sel_first)
+        assert sel_last < frame["scroll"] + body_h, (
+            frame["scroll"], sel_last, body_h)
+    finally:
+        shutil.rmtree(home, ignore_errors=True)
+
+
+def s_empty_summary_no_dangling_separator():
+    home = make_home([
+        ("20260518103511-003", "G3", "HAS_SUMMARY"),  # sibling w/ summary
+        ("20260518103511-001", "G1", None),            # blank summary
+    ])
+    try:
+        import time as _t
+        base = _t.time()
+        for offset, slug in enumerate(
+                ["20260518103511-003", "20260518103511-001"]):
+            rd = home / "runs" / slug
+            mt = base - offset
+            for p in [rd, *rd.rglob("*")]:
+                os.utime(p, (mt, mt))
+
+        app, _scr = new_app(home)
+        frame = app.stack[-1]
+        lines, targets = app._load_lines(frame)
+
+        # Header rows match the new format regex.
+        assert HEADER_RE.match(lines[0]), repr(lines[0])
+        assert HEADER_RE.match(lines[8]), repr(lines[8])
+
+        # Index 1 == slug -001, blank summary => "(none)" on TLDR row.
+        r_blank = targets[1]["run"]
+        assert r_blank.slug == "20260518103511-001", r_blank.slug
+        assert r_blank.summary == "", repr(r_blank.summary)
+        assert lines[8 + 2] == "  TLDR:    (none)", repr(lines[8 + 2])
+        # Sibling with a real summary: TLDR row contains the sentinel.
+        assert lines[0 + 2] == "  TLDR:    HAS_SUMMARY", repr(lines[0 + 2])
+    finally:
+        shutil.rmtree(home, ignore_errors=True)
+
+
+def s_empty_home():
+    home = Path(tempfile.mkdtemp(prefix="tnc-hl-empty-"))
+    try:
+        app, scr = new_app(home)
+        frame = app.stack[-1]
+        lines, targets = app._load_lines(frame)
+
+        assert frame["_sel_row_offset"] is None, frame.get("_sel_row_offset")
+        assert targets == [], targets
+        assert len(lines) == 1 and lines[0].startswith("(no runs found"), \
+            lines
+        # Must not raise and must highlight nothing in the body.
+        app._draw(frame, lines, targets)
+        rev = [c for c in body_calls(scr)
+               if c.attr == FakeCurses.A_REVERSE]
+        assert rev == [], [(c.y, c.text[:30]) for c in rev]
+    finally:
+        shutil.rmtree(home, ignore_errors=True)
+
+
+def s_run_screen_timestamp_format():
+    """S_RUN renders started/activity in YYYY/MM/DD HH:MM:SS and
+    uses the SAME `_resolve_started_at_ts` chain as the runs-list
+    header (so the two never disagree)."""
+    import json
+    from datetime import datetime
+    home = Path(tempfile.mkdtemp(prefix="tnc-hl-srun-"))
+    try:
+        slug = "20260523150721-953"
+        rd = home / "runs" / slug
+        rd.mkdir(parents=True)
+        (rd / "goal.txt").write_text("the goal text")
+        (rd / "project_dir.txt").write_text("/tmp/x")
+        # Sidecar started_at DIFFERS from slug start so we can verify
+        # the run-detail `started:` follows the sidecar (not the slug).
+        slug_ts = datetime(2026, 5, 23, 15, 7, 21).timestamp()
+        sidecar_started = slug_ts - 3600.0   # one hour before slug clock
+        (rd / "run-state.json").write_text(json.dumps({
+            "pid": 1, "status": "ended",
+            "started_at": sidecar_started,
+            "ended_at": sidecar_started + 60.0,
+        }))
+        # Activity mtime: pin all paths to a deterministic ts.
+        activity_ts = datetime(2026, 5, 24, 1, 23, 45).timestamp()
+        for p in [rd, *rd.rglob("*")]:
+            os.utime(p, (activity_ts, activity_ts))
+
+        r = model.find_run(home, slug)
+        assert r is not None, slug
+        app, _scr = new_app(home)
+        app.stack.append({
+            "screen": tui.S_RUN, "sel": 0, "scroll": 0,
+            "ctx": {"run": r}, "_dirty": True,
+        })
+        frame = app.stack[-1]
+        lines, _ = app._load_lines(frame)
+
+        ts_re = re.compile(r"^started:  \d{4}/\d\d/\d\d  \d\d:\d\d:\d\d$")
+        ac_re = re.compile(r"^activity: \d{4}/\d\d/\d\d  \d\d:\d\d:\d\d$")
+        assert ts_re.match(lines[1]), repr(lines[1])
+        assert ac_re.match(lines[2]), repr(lines[2])
+
+        # started: must reflect the SIDECAR value (1h before slug),
+        # not the slug. This is the key F1 invariant.
+        sidecar_fmt = datetime.fromtimestamp(sidecar_started).strftime(
+            "%Y/%m/%d  %H:%M:%S")
+        slug_fmt = datetime.fromtimestamp(slug_ts).strftime(
+            "%Y/%m/%d  %H:%M:%S")
+        assert sidecar_fmt in lines[1], (sidecar_fmt, lines[1])
+        assert slug_fmt not in lines[1], (slug_fmt, lines[1])
+
+        # activity: must reflect the pinned mtime.
+        act_fmt = datetime.fromtimestamp(activity_ts).strftime(
+            "%Y/%m/%d  %H:%M:%S")
+        assert act_fmt in lines[2], (act_fmt, lines[2])
+
+        # Other rows of the run-detail block unchanged in shape.
+        assert lines[0] == f"RUN {slug}", lines[0]
+        assert lines[3] == "project:  /tmp/x", lines[3]
+        assert lines[4].startswith("accounts: "), lines[4]
+        assert any("GOAL: the goal text" in ln for ln in lines[5:9]), \
+            lines[5:9]
+    finally:
+        shutil.rmtree(home, ignore_errors=True)
+
+
+def s_cli_list_scope_boundary():
+    """Deterministic proof --list still emits r.goal, not r.summary."""
+    home = Path(tempfile.mkdtemp(prefix="tnc-hl-cli-"))
+    try:
+        slug = "20260518103511-001"
+        rd = home / "runs" / slug
+        (rd / "assets").mkdir(parents=True)
+        (rd / "goal.txt").write_text("GOAL_SENTINEL_DO_NOT_SUMMARIZE")
+        (rd / "project_dir.txt").write_text("/proj/x")
+        (rd / "assets" / "TLDR.md").write_text("TLDR_SENTINEL_RUNLIST_ONLY")
+
+        env = dict(os.environ)
+        env["TENACIOUS_HOME"] = str(home)
+
+        r = subprocess.run(
+            [sys.executable, "-m", "tenacious.viewer", "--list"],
+            cwd=_PROJECT_ROOT, env=env, capture_output=True, text=True)
+        assert r.returncode == 0, (r.returncode, r.stderr)
+        rows = [ln for ln in r.stdout.splitlines() if ln.strip()]
+        assert len(rows) == 1, rows
+        last_field = rows[0].split("\t")[-1]
+        assert last_field == "GOAL_SENTINEL_DO_NOT_SUMMARIZE", last_field
+        assert "TLDR_SENTINEL_RUNLIST_ONLY" not in r.stdout, r.stdout
+
+        r2 = subprocess.run(
+            [sys.executable, "-m", "tenacious.viewer", "--selftest"],
+            cwd=_PROJECT_ROOT, env=env, capture_output=True, text=True)
+        assert r2.returncode == 0, (r2.returncode, r2.stderr)
+        assert r2.stdout.startswith("selftest:"), r2.stdout
+    finally:
+        shutil.rmtree(home, ignore_errors=True)
+
+
+SCENARIOS = [
+    ("wiring_offset_and_summary", s_wiring_offset_and_summary),
+    ("highlight_at_sel_zero", s_highlight_at_sel_zero),
+    ("highlight_moves_with_selection", s_highlight_moves_with_selection),
+    ("empty_summary_no_dangling_separator",
+     s_empty_summary_no_dangling_separator),
+    ("empty_home", s_empty_home),
+    ("run_screen_timestamp_format", s_run_screen_timestamp_format),
+    ("cli_list_scope_boundary", s_cli_list_scope_boundary),
+]
+
+
+def main() -> int:
+    for name, fn in SCENARIOS:
+        try:
+            fn()
+        except Exception as e:  # noqa: BLE001
+            print(f"FAIL {name}: {e}")
+            traceback.print_exc()
+            return 1
+        print(f"PASS {name}")
+    print(f"ALL PASS ({len(SCENARIOS)})")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

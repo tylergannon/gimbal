@@ -1,0 +1,89 @@
+# Source path in pinned archive: USER_MANUAL/07-viewer-cli.md
+# Archive member: diffusioninc-Tenacious-d3a4d7ff9f5445a42a7516eda845f8c58a531a45/USER_MANUAL/07-viewer-cli.md
+
+# 7. The viewer command line
+
+[← The session viewer](06-viewer-tui.md) · [Table of contents](TOC.md) · [Next: The run directory →](08-run-directory.md)
+
+The same `python -m tenacious.viewer` command has non-interactive
+surfaces. These never open curses and never hang — use them for scripts,
+piping, grepping, and CI. They're also handy when you know exactly what
+you want and don't need to click through the TUI.
+
+## Flags
+
+| Invocation | What it prints |
+|---|---|
+| `--list` | Every run, newest first, tab-separated: slug, started, last activity, project dir, goal. |
+| `--run SLUG --info` | The run-detail block: metadata, full goal, the workflow steps with reachability, and the last 40 lines of `run.log`. |
+| `--run SLUG --step STEP --visits` | One line per visit: number, whether it asked a question, its outcome, mtime. |
+| `--run SLUG --step STEP --sessions` | One line per session file: index, kind, mtime, size, line count, path. |
+| `--run SLUG --step STEP --session PATH --dump` | The fully rendered transcript (same text the TUI's Level 4 shows). `PATH` may be an absolute path or just the basename. |
+| `--selftest` | Parses and renders *every* discovered session defensively; prints a summary and exits non-zero if any failed to parse. |
+| `--home PATH` | Use a non-default Tenacious home (else `$TENACIOUS_HOME` or `~/.tenacious`). Combine with any of the above. |
+
+These mirror the TUI's four levels: `--list` is Level 1, `--info` is
+Level 2, `--visits`/`--sessions` is Level 3, `--dump` is Level 4. The
+plain `--list` output intentionally stays compact and tabular; the richer
+status, path, git, plan, cost, and auth rows are in the interactive TUI.
+
+## Exit codes
+
+| Code | Meaning |
+|---|---|
+| `0` | Success / clean quit. |
+| `1` | A named run, step, or session was not found, or an internal error. |
+| `2` | Bad command-line usage (argparse). |
+
+## Recipes
+
+List runs, newest first:
+
+```sh
+python -m tenacious.viewer --list
+```
+
+Find the most recent run's slug:
+
+```sh
+python -m tenacious.viewer --list | head -1 | cut -f1
+```
+
+Inspect a specific run:
+
+```sh
+python -m tenacious.viewer --run 20260518092345-001 --info
+```
+
+See how many times the `code` step ran and what each visit decided:
+
+```sh
+python -m tenacious.viewer --run 20260518092345-001 --step code --visits
+```
+
+List that step's transcripts, then dump one:
+
+```sh
+python -m tenacious.viewer --run 20260518092345-001 --step code --sessions
+python -m tenacious.viewer --run 20260518092345-001 --step code \
+    --session abc.jsonl --dump | less
+```
+
+For runs launched with `--claude-code-home` or `--codex-home`, session
+paths can point outside the run directory. The CLI reads
+`profiles/<step>/session-index.jsonl` automatically, so the same
+`--sessions` and `--dump` commands work.
+
+Sanity-check that every transcript on disk still parses (good in CI):
+
+```sh
+python -m tenacious.viewer --selftest
+echo $?    # 0 = all good, 1 = some session failed to parse
+```
+
+Note: bare `python -m tenacious.viewer` with stdout redirected (a pipe, a
+file, CI) automatically behaves like `--list` rather than opening the TUI,
+so you can't accidentally hang a pipeline.
+
+[← The session viewer](06-viewer-tui.md) · [Table of contents](TOC.md) · [Next: The run directory →](08-run-directory.md)
+</content>

@@ -8,6 +8,7 @@ Routes:
 - [index-rules.md](index-rules.md): scope identity, static graph rules, and lint boundaries.
 - [index-runtime.md](index-runtime.md): runtime graph rows, lifecycle edges, UI and command-observation limits.
 - [index-go.md](index-go.md): Go analysis/SSA capabilities and the local feasibility probe.
+- [index-ui.md](index-ui.md): UI inspiration for overview/focus, program/run projections, timelines, loops, supervision, commands, and Tenacious boundaries.
 
 Latest authority for immediate scope is `delivery-slices.md` and the opening direction in `milestone-assessment.md`; historical mandatory-constant rules remain evidence, not a release gate. The bounded Set-key study is `keys-recommendation.md` with evidence in `keys-evidence.md`; it recommends stable outer keys while keeping dynamic keys legal. Use `all-issues.json` only to locate a focused issue; it includes unrelated pre-restart issues and PRs. Do not infer that a design record, route, or probe means the graph generator, analyzer, or visualization is implemented. Current source/runtime evidence, historical API design, and proposed work are labeled in each route.
 

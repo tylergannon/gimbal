@@ -1,0 +1,48 @@
+# Source path in pinned archive: tenacious/viewer/render.py
+# Archive member: diffusioninc-Tenacious-d3a4d7ff9f5445a42a7516eda845f8c58a531a45/tenacious/viewer/render.py
+
+"""Normalized turns -> ordered, human-readable plain-text lines.
+
+Shared by the TUI transcript pane and the non-interactive ``--dump``
+surface so both render identically.
+"""
+
+from __future__ import annotations
+
+from .transcripts import Turn
+
+_INDENT = "    "
+
+
+def _block(header: str, body: str) -> list[str]:
+    lines = [header]
+    for ln in body.splitlines() or [""]:
+        lines.append(_INDENT + ln)
+    return lines
+
+
+def render_turns(turns: list[Turn]) -> list[str]:
+    out: list[str] = []
+    for t in turns:
+        if t.kind == "text":
+            label = (t.role or "").upper() or "TEXT"
+            out.extend(_block(f"{label}:", t.text))
+        elif t.kind == "reasoning":
+            out.extend(_block("[reasoning]", t.text))
+        elif t.kind == "tool_call":
+            name = t.meta.get("name", "?")
+            out.extend(_block(f"[tool ▸ {name}]", t.text))
+        elif t.kind == "tool_result":
+            tag = "[tool result]"
+            if t.meta.get("is_error"):
+                tag = "[tool result: ERROR]"
+            out.extend(_block(tag, t.text))
+        elif t.kind == "event":
+            out.append(t.text if t.text.startswith("[")
+                       else f"[event] {t.text}")
+        else:  # raw / unknown
+            out.extend(_block("[raw]", t.text))
+        out.append("")  # blank separator between turns
+    if out and out[-1] == "":
+        out.pop()
+    return out

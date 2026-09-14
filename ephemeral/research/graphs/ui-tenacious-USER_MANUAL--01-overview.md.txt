@@ -1,0 +1,106 @@
+# Source path in pinned archive: USER_MANUAL/01-overview.md
+# Archive member: diffusioninc-Tenacious-d3a4d7ff9f5445a42a7516eda845f8c58a531a45/USER_MANUAL/01-overview.md
+
+# 1. Overview & core concepts
+
+[← Table of contents](TOC.md) · [Next: Getting started →](02-getting-started.md)
+
+## What Tenacious is
+
+Tenacious is an **orchestrator for AI coding agents**. You hand it a YAML
+workflow file describing a sequence of steps. Each step is one invocation
+of either **Claude Code** or **Codex**, with its own prompt. Tenacious
+runs the steps in order, decides which step comes next based on what each
+agent wrote, hands files from one step to the next, and stops to ask
+*you* a question whenever an agent needs input. Legacy JSON workflow files
+still load, but YAML is the documented format for new work.
+
+Everything an agent does is captured to disk, so a finished (or stuck) run
+can be inspected after the fact.
+
+## The vocabulary
+
+These six terms appear everywhere in this manual and in the viewer. Learn
+them once here.
+
+### Workflow
+
+A YAML document. It declares a set of **steps** and which step starts.
+Each step says: which agent to use, what prompt to send, which shared
+files (assets) to attach, whether the agent is allowed to ask you
+questions, and which steps are allowed to come next. JSON is legacy
+compatibility only.
+
+A workflow is a *graph*, not a straight line: a step can branch or loop
+back. (The 6-step workflow in chapter 4 loops `code → code_review → code`
+until the review passes.)
+
+### Run
+
+One execution of a workflow. Every run gets a unique, time-sortable slug
+like `20260518092345-001` and its own directory under
+`~/.tenacious/runs/`. Everything that happens — prompts, agent output,
+shared files, logs — lives in that one directory. Nothing is hidden
+elsewhere.
+
+### Step
+
+One node in the workflow graph; one agent with one job (e.g.
+`requirements`, `plan`, `code`). A step finishes by writing the name of
+the next step into an `outcome.txt` file. The orchestrator reads that file
+to decide where to go next.
+
+### Visit
+
+One *attempt* of a step. A step is visited more than once when it asks a
+question (it runs once to ask, again after you answer) or when a later
+step sends it feedback (the 6-step `code` step gets re-visited every time
+review rejects it). Visits are numbered `001`, `002`, … inside the step's
+directory.
+
+### Asset
+
+A shared file in the run's `assets/` directory. Steps read and write
+assets to pass work down the line — the 6-step workflow passes a
+`requirements-current.md`, then a `plan-current.md`, then code feedback,
+all as assets. A step only sees the assets its workflow entry lists.
+
+### Session (transcript)
+
+The raw conversation log the underlying CLI writes — Claude Code's
+`.jsonl` session file or Codex's `rollout-*.jsonl`. This is the
+turn-by-turn record of what the agent actually thought, said, and which
+tools it called. The viewer parses these into a readable transcript.
+Sessions are stored per-step, not per-visit.
+
+## How a step actually runs
+
+For each step the orchestrator:
+
+1. **Selects credentials** — borrows from the auth bank, uses an explicit
+   CLI home, or passes a metered API key, depending on the launch flags
+   (chapters 2 and 3).
+2. **Renders the prompt** — substitutes variables like `{goal}`,
+   `{project_dir}`, `{assets_dir}`, `{outcome_path}` into the step's
+   prompt template.
+3. **Attaches assets** — makes the listed shared files available to the
+   agent.
+4. **Invokes the agent** (Claude Code or Codex) in the project directory.
+5. **Reads `outcome.txt`** — the next step's name. If the agent instead
+   wrote a `question.txt`, the run pauses and asks you (chapter 5).
+6. **Advances** to the named next step, and repeats — until a step's
+   outcome is `end`.
+
+## The two tools you run
+
+| You want to… | Command |
+|---|---|
+| Run a workflow | `python -m tenacious <workflow.yaml>` |
+| Inspect runs | `python -m tenacious.viewer` |
+
+The orchestrator *does* things; the viewer is **strictly read-only** and
+can never change a run. Chapters 3–5 cover the orchestrator; chapters 6–8
+cover the viewer.
+
+[← Table of contents](TOC.md) · [Next: Getting started →](02-getting-started.md)
+</content>

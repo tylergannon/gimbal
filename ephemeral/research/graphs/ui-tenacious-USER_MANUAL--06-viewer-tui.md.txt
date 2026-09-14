@@ -1,0 +1,315 @@
+# Source path in pinned archive: USER_MANUAL/06-viewer-tui.md
+# Archive member: diffusioninc-Tenacious-d3a4d7ff9f5445a42a7516eda845f8c58a531a45/USER_MANUAL/06-viewer-tui.md
+
+# 6. The session viewer (TUI)
+
+[← Answering questions](05-answering-questions.md) · [Table of contents](TOC.md) · [Next: The viewer command line →](07-viewer-cli.md)
+
+> **If the viewer confuses you, this chapter is for you.** It explains the
+> mental model first, then walks one path end to end, then documents every
+> screen and key.
+
+## The mental model: it's a file browser, four levels deep
+
+The viewer does exactly one thing: it lets you **drill down** through the
+files a run left on disk, and **back out** again. There are no windows, no
+panes, no mouse. One screen at a time, full terminal. You are always at
+one of exactly four levels, and you move between them like folders:
+
+```
+LEVEL 1  All runs                 "which run do I want to look at?"
+   │  press Enter on a run
+   ▼
+LEVEL 2  One run's detail         "what steps did this run go through?"
+   │  press Enter on a step
+   ▼
+LEVEL 3  One step's detail        "what visits & transcripts does it have?"
+   │  press Enter on a session
+   ▼
+LEVEL 4  One transcript           "what did the agent actually say/do?"
+```
+
+Enter (or →) goes **deeper**. Esc (or ←) goes **back up**. Pressing back
+at Level 1 quits. That is the entire navigation model. Everything below is
+just detail.
+
+Two things that trip people up, stated up front:
+
+- **It is strictly read-only.** Nothing you press changes a run. You
+  cannot answer a question or stop a run from here. (Answering questions
+  is chapter 5, in the *orchestrator's* terminal, not this one.)
+- **Not every line is selectable.** Headers, the goal text, log tails —
+  those are just text. Only the *list rows* (a run, a step, a session)
+  are landing spots for the highlight. Up/Down jumps between selectable
+  rows and skips the prose; that's why the highlight sometimes "leaps."
+
+## Launching it
+
+```sh
+python -m tenacious.viewer
+```
+
+That's it — no arguments. It opens the interactive UI when your stdout is
+a real terminal. To point it at a non-default home:
+
+```sh
+python -m tenacious.viewer --home /path/to/tenacious/home
+```
+
+(If stdout is *not* a terminal — piped, redirected — it prints a plain run
+list instead of opening the UI, so it never hangs a script. That and other
+non-interactive uses are chapter 7.)
+
+If your terminal can't do curses at all, it prints one clean line and
+exits — no traceback.
+
+## The screen, anatomically
+
+Every screen has the same three parts:
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│ Tenacious viewer — <SCREEN NAME>                               │  ← title (reverse video)
+├──────────────────────────────────────────────────────────────┤
+│ ...content for this level...                                   │
+│ > the currently selected row is shown in reverse video <       │  ← body
+│ ...                                                            │
+├──────────────────────────────────────────────────────────────┤
+│ ↑/↓ k/j move · Enter/→ open · Esc/← back · ... · q quit        │  ← footer (the cheat sheet)
+└──────────────────────────────────────────────────────────────┘
+```
+
+The footer always shows the keys. If you remember nothing else: **the
+footer is the manual**.
+
+## A worked walkthrough
+
+You ran the 6-step workflow and want to see what the `code` step's Claude
+agent actually did. Step by step:
+
+1. `python -m tenacious.viewer` → you land on **Level 1, the runs list**.
+   Newest run is at the top.
+
+2. The top run is highlighted. Press **Enter**. You're now at **Level 2,
+   that run's detail**: its goal, accounts, and a list of workflow steps
+   like `[4] code  visits=3  → code_review`.
+
+3. Press **↓** until the highlight is on the `code` line. (It skips over
+   the goal text and headers — only step lines highlight.) Press
+   **Enter**. Now you're at **Level 3, the `code` step's detail**.
+
+4. You see two sections: **Visits** (`#001 q=n outcome=code_review …`)
+   and **Sessions**. The visit lines are *information only*. The
+   **session** lines are what you drill into. Press **↓** to the session
+   line (e.g. `claude  …  profiles/code/projects/…/abc.jsonl`) and press
+   **Enter**.
+
+5. **Level 4, the transcript.** Now you see the conversation:
+   `USER:` / `ASSISTANT:` / `[reasoning]` / `[tool ▸ Edit]` /
+   `[tool result]`. Scroll with ↑/↓, PgDn/Space.
+
+6. Done? Press **Esc** four times to walk back out (transcript → step →
+   run → runs), or press **Esc** at the runs list to quit. Or just press
+   **q** to quit from anywhere.
+
+That round trip *is* the viewer.
+
+## The four screens in detail
+
+### Level 1 — Runs list
+
+Every run found under `~/.tenacious/runs/`, sorted by most-recent
+activity first (active and ended runs interleave; the run touched
+most recently is at the top). Each run is shown as a **multi-line
+block**:
+
+```
+20260523150721-953 · ACTIVE · started 2026/05/23  15:07:21 · act 2026/05/23  16:24:08 (23m)
+  project: ~/dev/Tenacious
+  TLDR:    Strip the broken `--live` mode and make the viewer snappy.
+  path:    requirements#1(1m 12s) → plan#1(8m 9s) → code#1(14m 55s) → code_review#1(4m 52s)
+           → requirements#2(45s) → plan#2(6m 10s) → code#2(12m)   visits=10   wall=1h 17m
+  git:     0 commits since start; last 1h 47m (pre-run)
+  plan:    7/12 checked; last toggled 2h ago
+  cost:    $0.36
+  auth:    anthropic: default/auth    openai: -
+```
+
+When the `path:` row's step chain doesn't fit on one line, it wraps
+onto indented continuation lines (aligned under the chain start) so
+the full visit history is always visible.
+
+Reading the header line:
+- **ACTIVE** / **complete** / **ended** — the run's current status.
+- **started** — when the run began.
+- **act** — last file-write activity (and how long ago). The run with the
+  most recent `act` time is the one still going.
+
+Reading the detail rows:
+- **project** — the working directory the run is coding in.
+- **TLDR** — one-line summary of what the run is trying to accomplish
+  (synthesised by the requirements agent, or `(none)` if not yet set).
+- **path** — the sequence of steps taken so far, each with how long it ran,
+  plus total visit count and wall-clock duration.
+- **git** — commits the run has landed since it started, and when the last
+  commit happened.
+- **plan** — checklist progress if the run uses a plan file; `n/a` otherwise.
+- **cost** — summed `cost_usd` values parsed from visit metadata, or `—`
+  when no agent reported cost.
+- **auth** — provider mode actually used by invoked agents. `default/auth`
+  means auth-bank account `default`; `api` means a costly API-key flag;
+  `home` means `--claude-code-home` or `--codex-home`; `-` means that
+  provider was not invoked.
+
+The list **auto-refreshes every 10 seconds** — you don't need to press `r`
+to see a live run advance. `r` forces an immediate reload if you don't want
+to wait.
+
+- The **header line** of each block is the selectable row. **Enter** opens
+  that run.
+- **`r`** reloads the list from disk immediately. Only does anything on
+  *this* screen.
+
+### Level 2 — Run detail
+
+Header block, then the goal, then the workflow steps, then the tail of
+`run.log`:
+
+```
+RUN <slug>
+started:  ...
+activity: ...
+project:  ...
+accounts: ...
+
+GOAL: <full goal text>
+
+Workflow steps (order reached from start; graph may branch/cycle):
+
+  [0] requirements  visits=2  → plan
+  [1] plan          visits=1  → plan_eval
+  ...
+  [5] code_review   visits=3  → code,requirements
+
+--- run.log (tail) ---
+<last 40 lines of the orchestrator log>
+```
+
+Reading a step line:
+
+- `[0]` — the order it was first reached from the start step.
+- `visits=2` — how many times that step ran (chapter 1: questions and
+  feedback cause re-visits).
+- `→ plan` — the steps it's allowed to advance to.
+- ` (unreachable)` — the step is declared in the workflow but was never
+  reached from the start (a dead branch, or a cycle that didn't fire).
+
+**Only the step lines are selectable.** The header, goal, and log tail are
+just there to read. **Enter** on a step opens it.
+
+### Level 3 — Step detail
+
+```
+STEP code   (run <slug>)
+
+== Visits ==
+  #001  q=n  outcome=code_review  mtime=2026-05-18T09:25:00
+  #002  q=n  outcome=code_review  mtime=2026-05-18T09:40:11
+
+== Sessions (step-level artifacts, not per-visit) ==
+  claude  2026-05-18T09:25:32  45230B  123L  profiles/code/projects/…/abc.jsonl
+```
+
+- **Visits** are read-only facts about each attempt:
+  - `q=y` / `q=n` — did this visit ask a question (`question.txt`)?
+  - `outcome=…` — what it wrote as the next step (truncated).
+  - `mtime` — when it last changed.
+  - You **cannot** drill into a visit. To read a visit's raw files
+    (`prompt.txt`, `stdout.txt`, …) open the run directory yourself
+    (chapter 8).
+
+- **Sessions** are the transcript files, and **these are the only
+  selectable rows here**. Note the heading: sessions are recorded
+  *per step, not per visit* — if a step ran several times you may see one
+  combined session, and you can't tell from here which visit produced
+  which line. Each row shows kind (`claude`/`codex`), mtime, byte size,
+  line count, and path. **Enter** opens the transcript.
+
+If a step has no sessions you'll see `(no sessions found for step '…')` —
+there's nothing to drill into; press Esc to go back.
+
+### Level 4 — Transcript
+
+The parsed conversation. There's nothing to select here — it's a
+scrollable document. Labels you'll see:
+
+| Label | Meaning |
+|---|---|
+| `USER:` | The prompt / your answer to the agent. |
+| `ASSISTANT:` | The agent's reply text. |
+| `[reasoning]` | A thinking / reasoning block. |
+| `[tool ▸ name]` | The agent called tool `name` (e.g. `Edit`, `Bash`). |
+| `[tool result]` | What that tool returned. |
+| `[tool result: ERROR]` | The tool call failed. |
+| `[event]` | A metadata event from the session log. |
+| `[raw]` | A line the parser couldn't classify (shown anyway, never dropped). |
+
+The parser is deliberately unbreakable: a malformed or
+future-format line degrades to `[raw]` or `[event]` rather than crashing
+the viewer.
+
+## Every key
+
+The footer says:
+
+```
+↑/↓ k/j move · Enter/→ open · Esc/← back · PgUp/PgDn Space/b page · g/G home/end · r reload · q quit
+```
+
+Full table:
+
+| Keys | Action |
+|---|---|
+| `↑` / `k` | Move selection up — or scroll up one line if the screen has no selectable rows (e.g. a transcript). |
+| `↓` / `j` | Move selection down — or scroll down one line. |
+| `PgDn` / `Space` | Page down. |
+| `PgUp` / `b` | Page up. |
+| `g` / `Home` | Jump to the top. |
+| `G` / `End` | Jump to the bottom. |
+| `Enter` / `→` / `l` | **Open** the selected row (go one level deeper). |
+| `Esc` / `←` / `h` / `Backspace` | **Back** one level. At Level 1 this **quits**. |
+| `r` / `R` | Reload the runs list from disk. **Only on Level 1.** |
+| `q` / `Q` | Quit immediately, from any screen. |
+
+Note the dual behavior of ↑/↓: on a screen with list rows it moves the
+**highlight**; on a screen that's pure text (a transcript, a long run
+detail) it **scrolls**. Same key, sensible thing.
+
+## Why the viewer sometimes looks "stuck" or empty
+
+- **Highlight jumps over text.** Expected — only list rows are selectable
+  (see the mental-model section).
+- **`(no runs found …)`** — the home dir has no `runs/`, or you pointed
+  `--home` somewhere wrong. Check `TENACIOUS_HOME`.
+- **A step shows no sessions.** That step's agent didn't leave a
+  transcript (or hasn't yet). Nothing to open; go back.
+- **`r` does nothing.** You're not on Level 1. Reload only refreshes the
+  runs list; deeper screens already re-read disk on every redraw, so they
+  update live without `r`.
+- **Numbers/timestamps show `?`.** A file was missing or unparseable; the
+  viewer substitutes a placeholder instead of failing.
+- **"Terminal too small."** Make the window bigger; it needs at least a
+  few rows/columns.
+
+## Watching a run live
+
+The runs list auto-refreshes every 10 seconds, so you can leave Level 1
+open and watch the `act` time and `path` row update as the run progresses.
+
+To watch the transcript fill in: drill into the active run (highest `act`
+time), into the running step, into its session. The deeper screens re-read
+disk on every redraw — press any movement key to force one. New turns appear
+as the agent writes them.
+
+[← Answering questions](05-answering-questions.md) · [Table of contents](TOC.md) · [Next: The viewer command line →](07-viewer-cli.md)
+</content>

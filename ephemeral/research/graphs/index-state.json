@@ -4,16 +4,17 @@
   "updated": "2026-09-14",
   "source_root": "/Users/tyler/.codex/worktrees/7b5c/gimble/ephemeral/research/graphs",
   "layout": "flat",
-  "routes": ["index-milestones.md", "index-rules.md", "index-runtime.md", "index-go.md"],
+  "routes": ["index-milestones.md", "index-rules.md", "index-runtime.md", "index-go.md", "index-ui.md"],
   "leaves_reused": ["milestone-index-leaf.md", "rules-index-leaf.md", "runtime-index-leaf.md", "go-index-leaf.md"],
   "focused_studies": ["keys-recommendation.md", "keys-evidence.md", "delivery-slices.md"],
-  "source_files": 156,
-  "index_files": 8,
-  "coverage": "focused routes cover milestone/tasks, scope rules/#162, runtime graph/run/command identity, and Go capabilities/probe; raw issue inventory is intentionally routed to focused issues",
+  "source_files": 243,
+  "index_files": 9,
+  "coverage": "focused routes cover milestone/tasks, scope rules/#162, runtime graph/run/command identity, Go capabilities/probe, and UI inspiration/implementation boundaries; raw issue inventory and workflow UI artifacts are intentionally routed to focused evidence",
   "known_debt": [
     "Source corpus is a dated snapshot, not a live issue mirror.",
     "go-report.md establishes feasibility only; recommendation and milestone files are policy/proposal documents that may change with user steering.",
     "No source-family leaf was generated for every raw issue or downloaded artifact; routes point to focused evidence.",
-    "Citation checking is manual and limited to the eight queries in index-evals.jsonl."
+    "Citation checking is manual and now covers twelve queries in index-evals.jsonl.",
+    "UI prior-art is evidence and design input; no UI implementation or screenshot archive member is indexed as product proof."
   ]
 }

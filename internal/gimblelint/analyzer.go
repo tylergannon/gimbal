@@ -2,6 +2,7 @@
 package gimblelint
 
 import (
+	_ "embed"
 	"go/ast"
 	"go/constant"
 	"go/token"
@@ -27,12 +28,18 @@ const (
 
 const gimblePath = "github.com/tylergannon/gimble"
 
+// rules is the canonical user-facing description of the analyzer. Embedding
+// it makes `gimble lint -help` describe the exact rules carried by the binary.
+//
+//go:embed rules.md
+var rules string
+
 // Analyzer checks the accepted Gimble workflow lint rules. Its worker-dispatch
 // analysis intentionally follows only source-visible functions in the current
 // package; it is not whole-program pointer analysis.
 var Analyzer = &analysis.Analyzer{
 	Name:     "gimblelint",
-	Doc:      "check deterministic Gimble workflow authoring mistakes",
+	Doc:      rules,
 	Requires: []*analysis.Analyzer{inspect.Analyzer, buildssa.Analyzer},
 	Run:      run,
 }

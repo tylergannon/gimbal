@@ -52,19 +52,9 @@ replaces Go's ordinary analyzers for that invocation, so `just vet` first runs
 ordinary `go vet ./...`, builds the same `bin/gimble`, and then runs
 `bin/gimble lint ./...`.
 
-Lint checks constant `Set` and `SetJSON` keys, duplicate writes in one scope,
-outer contexts reused by loops, wrong child contexts, raw goroutine writes,
-the reserved Loop task key, Background/TODO contexts, and dynamic worker
-selection. Dynamic worker detection covers direct collection calls, simple
-local aliases, function parameters, and directly reached package-local helpers,
-including helpers that do not themselves receive a context. The first pass
-recognizes worker callables by a `context.Context` parameter; it does not claim
-whole-program proof that every indirect call is absent.
-
-Dynamic worker selection reports
-`GIMBLE101-SIMPLE-WORKFLOWS/NO-DYNAMIC-WORKERS`; nonconstant context keys report
-`GIMBLE102-SIMPLE-WORKFLOWS/CONSTANT-CONTEXT-KEY`. These stable identifiers can
-be matched in editor and CI output.
+Read the [lint rule reference](internal/gimblelint/rules.md) for the accepted
+rules, diagnostics, rewrites, and analysis limits. The same text is printed by
+`gimble lint -help` and is available at [docs/lint-rules.md](docs/lint-rules.md).
 
 The runtime derives the public origin from the TCP listener, including when
 port 0 selects an available port.

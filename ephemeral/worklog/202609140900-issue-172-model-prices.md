@@ -1,0 +1,1 @@
+decision: Issue #172 keeps model pricing as a generated, private observation lookup. `just prices` is the sole networked/mutating path so normal builds remain offline and release inputs stay explicit.

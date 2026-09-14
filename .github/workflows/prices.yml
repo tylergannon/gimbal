@@ -1,0 +1,72 @@
+name: Refresh model prices
+
+on:
+  schedule:
+    - cron: "17 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: model-prices-main
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.27.1"
+      - uses: taiki-e/install-action@just
+      - name: Refresh generated prices
+        run: just prices
+      - name: Commit the next patch release
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git fetch origin main --tags
+          if [[ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ]]; then
+            echo "main moved while prices were generated; refusing to publish a stale result" >&2
+            exit 1
+          fi
+
+          changed="$(git diff --name-only)"
+          if [[ -z "$changed" ]]; then
+            echo "model prices are already current"
+            exit 0
+          fi
+          if [[ "$changed" != "internal/observation/model_prices_gen.go" ]]; then
+            echo "generator changed files outside its generated target:" >&2
+            printf '%s\n' "$changed" >&2
+            exit 1
+          fi
+
+          baseline=""
+          for tag in $(git tag --merged HEAD --list 'v*' --sort=-v:refname); do
+            if [[ "$tag" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+              baseline="$tag"
+              break
+            fi
+          done
+          if [[ -z "$baseline" ]]; then
+            echo "no valid vX.Y.Z tag reachable from main; establish the initial release tag before enabling price refreshes" >&2
+            exit 1
+          fi
+
+          version="${baseline#v}"
+          IFS=. read -r major minor patch <<< "$version"
+          next="v${major}.${minor}.$((10#$patch + 1))"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- internal/observation/model_prices_gen.go
+          git commit -m "chore: refresh model prices"
+          git tag "$next"
+          git push --atomic origin HEAD:main "$next"

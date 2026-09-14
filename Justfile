@@ -28,3 +28,6 @@ test:
 
 attest:
     go run ./ephemeral/attest/just-attest
+
+prices:
+    go run ./internal/observation/modelpricesgen

@@ -115,9 +115,10 @@ func TestRuntimeReachesALiveRunByID(t *testing.T) {
 		scope   = "lap.1"
 	)
 	var first, second, scopeErr error
-	done := make(chan error, 1)
-	go func() {
-		done <- runtime.Run(ctx, "registry", func(ctx context.Context) error {
+	var runErr error
+	var runWG sync.WaitGroup
+	runWG.Go(func() {
+		runErr = runtime.Run(ctx, "registry", func(ctx context.Context) error {
 			scopeErr = gimble.Scope(ctx, "lap", func(ctx context.Context) error {
 				coder := gimble.NewSession(ctx, "coder", b, "m", "/w")
 				_, first = coder.Generate[gimble.Text](ctx, "wait")
@@ -126,7 +127,7 @@ func TestRuntimeReachesALiveRunByID(t *testing.T) {
 			})
 			return nil
 		})
-	}()
+	})
 
 	startedTurns(t, b, 1)
 	id := runID(t, project)
@@ -152,8 +153,9 @@ func TestRuntimeReachesALiveRunByID(t *testing.T) {
 	if err := runtime.KillScope(id, scope, "tyler", "off the rails"); err != nil {
 		t.Fatalf("KillScope = %v", err)
 	}
-	if err := <-done; err != nil {
-		t.Fatalf("Run = %v", err)
+	runWG.Wait()
+	if runErr != nil {
+		t.Fatalf("Run = %v", runErr)
 	}
 	if _, err := runtime.Steer(ctx, id, session, "too late"); err == nil {
 		t.Error("Steer of a finished run returned nil")

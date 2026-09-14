@@ -19,6 +19,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -75,8 +76,9 @@ func main() {
 	// run directory, and acts by id a few seconds into each turn the
 	// workflow announces on turnStarted.
 	turnStarted := make(chan int)
-	operator := make(chan error, 1)
-	go func() {
+	var operatorErr error
+	var operatorWG sync.WaitGroup
+	operatorWG.Go(func() {
 		id := waitRunID(ctx, logs)
 		fmt.Printf("Run: %s\nPage: http://127.0.0.1:%d/runs/%s\n", id, *port, id)
 		var errs []error
@@ -100,8 +102,8 @@ func main() {
 			}
 		}
 		act("steer after the run", expectError(dropLanded(runtime.Steer(ctx, id, sessionID, "too late"))))
-		operator <- errors.Join(errs...)
-	}()
+		operatorErr = errors.Join(errs...)
+	})
 
 	start := time.Now()
 	var texts [4]string
@@ -120,7 +122,7 @@ func main() {
 	})
 	close(turnStarted)
 	fmt.Printf("Run finished in %s: err=%v\n", time.Since(start).Round(time.Millisecond), orOK(runErr))
-	operatorErr := <-operator
+	operatorWG.Wait()
 
 	id := waitRunID(ctx, logs)
 	var steers []gimble.LifecycleRecord

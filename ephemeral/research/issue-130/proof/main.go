@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -117,9 +118,10 @@ func main() {
 	if err != nil {
 		fatal(err)
 	}
-	runDone := make(chan error, 1)
-	go func() {
-		runDone <- runtime.Run(ctx, "observation-proof", func(ctx context.Context) error {
+	var runErr error
+	var runWG sync.WaitGroup
+	runWG.Go(func() {
+		runErr = runtime.Run(ctx, "observation-proof", func(ctx context.Context) error {
 			switch *mode {
 			case "deterministic":
 				adapter := &deterministicAdapter{project: *project}
@@ -142,14 +144,15 @@ func main() {
 				return fmt.Errorf("unknown mode %q", *mode)
 			}
 		})
-	}()
+	})
 	runID, err := waitRun(ctx, *project)
 	if err != nil {
 		fatal(err)
 	}
 	fmt.Printf("PROOF_READY=http://127.0.0.1:%d|%s\n", *port, runID)
-	if err := <-runDone; err != nil && *mode != "interrupt" {
-		fatal(err)
+	runWG.Wait()
+	if runErr != nil && *mode != "interrupt" {
+		fatal(runErr)
 	}
 	fmt.Println("PROOF_COMPLETE")
 	_ = waitFile(ctx, filepath.Join(*project, "stop"))

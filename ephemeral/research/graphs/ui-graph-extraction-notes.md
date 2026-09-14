@@ -1,6 +1,6 @@
 # Graph extraction — UI-informed issue addition
 
-Prepared 2026-09-14 for the graph-extraction issue. The live issue inventory did not identify a dedicated extraction issue; #162 is the bounded linter and #173 is the runtime usage view. The user has been asked for the intended target. This is a ready-to-apply addition, not a claim that an issue was updated.
+Prepared 2026-09-14. Incorporated into [#201: Extract workflow graphs from Go source for program and run visualization](https://github.com/tylergannon/gimble/issues/201). This is a separate deliverable from #162, the bounded Beta linter, and #173, the runtime usage view. The first delivery is deliberately bounded; full UI implementation and exact runtime correlation are separate work.
 
 ## Outcome
 

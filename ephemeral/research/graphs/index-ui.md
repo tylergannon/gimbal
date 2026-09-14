@@ -12,6 +12,7 @@ Use this route for overview/focus, program versus run, timeline hierarchy, loops
 - Workflow graph UI patterns (Airflow, Dagster, Argo, n8n): `ui-workflows-report.md:7-27,29-46`; compact leaf routing `ui-workflows-index-leaf.md:9-27`.
 - Parent design direction and extraction vocabulary: `ui-design-brief.md:5-21,62-80`; `ui-graph-extraction-notes.md:9-34`.
 - Interactive study checks and explicit limits: `ui-study-validation.md:3-16`.
+- Graph-extraction task: GitHub #201; `issue-graph-extraction-body.md` and captured `issue-201.json`. Separate from Beta linter #162 and runtime usage view #173.
 - Beta fallback using runtime-only scope/turn evidence: `ui-timelines-report.md:119-147`; current milestone authority `milestone-assessment.md:3-18` and concrete slices `delivery-slices.md:17-21`.
 
 Transfer the interaction patterns (stable selection, reversible collapse, compact run cards, defensive transcript detail) while retaining Gimble's typed relations and evidence-backed runtime states. Do not infer implementation from prior art or parent design notes: these are inspiration and proposals, not shipped UI behavior.

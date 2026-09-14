@@ -10,8 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"time"
 
+	"github.com/oklog/ulid/v2"
 	"github.com/tylergannon/gimble/internal/observation"
 )
 
@@ -109,7 +109,7 @@ func Run(ctx context.Context, name string, body func(ctx context.Context) error)
 	if err != nil {
 		return fmt.Errorf("gimble: %w", err)
 	}
-	id := time.Now().Format("20060102-150405") + "." + name
+	id := ulid.Make().String() + "." + name
 	dir := filepath.Join(project, "runs", id)
 	if err := os.MkdirAll(filepath.Dir(dir), 0o755); err != nil {
 		return fmt.Errorf("gimble: %w", err)

@@ -163,7 +163,11 @@ type Complete struct {
 
 func (Complete) lifecycleEvent() {}
 
-// LifecycleRecord places one lifecycle event in a run or project log.
+// LifecycleRecord places one lifecycle event in a run or project log. Seq is
+// a gap-free ordinal in run.jsonl, which has exactly one writer for the
+// run's lifetime. project.jsonl is written by every concurrently active
+// run's own writer, so Seq is always 0 there; order those records by Time
+// instead.
 type LifecycleRecord struct {
 	Seq     uint64                    `json:"seq"`
 	Time    time.Time                 `json:"time"`

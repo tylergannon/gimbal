@@ -63,6 +63,15 @@ func main() {
 			}
 			return nil
 		})
+		group.Go("claude-child-tool", func(ctx context.Context) error {
+			session := gimble.NewSession(ctx, "claude", claude.New(), "claude-haiku-4-5-20251001", repo)
+			out, err := session.Generate[gimble.Text](ctx, "Use the Agent tool exactly once with run_in_background true and a general-purpose subagent. Ask the child to use Bash to run `printf CLAUDE_CHILD_TOOL_NATIVE_117`, then reply with exactly CLAUDE_CHILD_TOOL_DONE_117. Immediately after spawning it, use Bash to run `sleep 5` so all child tool and completion events arrive while this turn is open. Then reply with exactly CLAUDE_CHILD_TOOL_PARENT_117.")
+			gimble.Set(ctx, "result", string(out))
+			if err != nil {
+				gimble.Set(ctx, "error", err.Error())
+			}
+			return nil
+		})
 		group.Go("codex-error", func(ctx context.Context) error {
 			session := gimble.NewSession(ctx, "codex", codex.New(), "not-a-real-model-issue117", repo)
 			_, err := session.Generate[gimble.Text](ctx, "Reply with exactly CODEX_UNEXPECTED_SUCCESS_117.")

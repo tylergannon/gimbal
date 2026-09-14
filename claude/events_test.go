@@ -180,6 +180,7 @@ func TestRawProjectorKeepsNestedTranscriptInsideParentTool(t *testing.T) {
 		`{"type":"stream_event","parent_tool_use_id":"task-call","event":{"type":"message_start","message":{"id":"child-message","model":"model","usage":{"input_tokens":9}}}}`,
 		`{"type":"stream_event","parent_tool_use_id":"task-call","event":{"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}}`,
 		`{"type":"stream_event","parent_tool_use_id":"task-call","event":{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"child answer"}}}`,
+		`{"type":"user","parent_tool_use_id":"task-call","message":{"content":[{"type":"tool_result","tool_use_id":"child-tool","content":"child tool output"}]}}`,
 		`{"type":"assistant","parent_tool_use_id":"task-call","message":{"id":"child-message","content":[{"type":"text","text":"child answer"}]}}`,
 		`{"type":"stream_event","event":{"type":"message_delta","delta":{"stop_reason":"tool_use"}}}`,
 		`{"type":"stream_event","event":{"type":"message_stop"}}`,
@@ -200,8 +201,8 @@ func TestRawProjectorKeepsNestedTranscriptInsideParentTool(t *testing.T) {
 		t.Fatalf("nested transcript content = %#v", content)
 	}
 	transcript := content[1].(map[string]any)["events"].([]any)
-	if len(transcript) != 4 {
-		t.Fatalf("nested transcript event count = %d, want 4", len(transcript))
+	if len(transcript) != 5 {
+		t.Fatalf("nested transcript event count = %d, want 5", len(transcript))
 	}
 }
 

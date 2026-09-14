@@ -75,7 +75,7 @@ func (p *projector) raw(raw json.RawMessage) error {
 	if err := json.Unmarshal(raw, &envelope); err != nil {
 		return fmt.Errorf("claude: decode raw message: %w", err)
 	}
-	if parent := stringValue(envelope["parent_tool_use_id"]); parent != "" && isNestedClaudeMessage(envelope) {
+	if parent := stringValue(envelope["parent_tool_use_id"]); parent != "" && p.ownsNestedParent(parent) {
 		return p.nestedEvent(parent, envelope)
 	}
 	p.mu.Lock()
@@ -101,13 +101,10 @@ func (p *projector) raw(raw json.RawMessage) error {
 	return nil
 }
 
-func isNestedClaudeMessage(envelope map[string]any) bool {
-	switch stringValue(envelope["type"]) {
-	case "assistant", "stream_event":
-		return true
-	default:
-		return false
-	}
+func (p *projector) ownsNestedParent(parent string) bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.toolMessages[parent] != ""
 }
 
 // nestedEvent retains Claude Code's lossless child message under the Task tool

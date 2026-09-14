@@ -11,7 +11,7 @@
 	};
 	const transcriptOf = (part: JSONObject) => {
 		const content = part.state?.content?.find((entry: JSONObject) => entry.type === 'transcript');
-		const events = content?.events ?? part.state?.metadata?.transcript;
+		const events = part.state?.metadata?.transcript ?? content?.events;
 		return Array.isArray(events) ? events : undefined;
 	};
 	const row: JSONObject = $derived.by(() => {

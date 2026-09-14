@@ -19,9 +19,10 @@ import (
 // context error. A nil return means the log is complete, not that the run
 // succeeded. The caller owns observation separately from execution: cancelling
 // this context stops reading, not the run. Do not join Read inside the run's
-// body: the final record is written only after that body returns.
+// body: the final record is written only after that body returns. When dir
+// exists before run.jsonl does, Read waits for the file while ctx lives.
 func Read[T any](ctx context.Context, dir string, yield func(T) error) error {
-	f, err := os.Open(filepath.Join(dir, "run.jsonl"))
+	f, err := openRunLog(ctx, dir)
 	if err != nil {
 		return err
 	}
@@ -65,6 +66,28 @@ func Read[T any](ctx context.Context, dir string, yield func(T) error) error {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
+		case <-time.After(10 * time.Millisecond):
+		}
+	}
+}
+
+func openRunLog(ctx context.Context, dir string) (*os.File, error) {
+	file := filepath.Join(dir, "run.jsonl")
+	for {
+		f, err := os.Open(file)
+		if err == nil {
+			return f, nil
+		}
+		if !os.IsNotExist(err) {
+			return nil, err
+		}
+		info, statErr := os.Stat(dir)
+		if statErr != nil || !info.IsDir() {
+			return nil, err
+		}
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
 		case <-time.After(10 * time.Millisecond):
 		}
 	}

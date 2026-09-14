@@ -82,6 +82,10 @@ func connect(ctx context.Context, startDaemon bool) (*connection, error) {
 		if !startDaemon {
 			return nil, errDaemonNotRunning
 		}
+		// Raise this process's own descriptor limit so the daemon we are
+		// about to start inherits it, not the login shell's default; see
+		// raiseFileDescriptorLimit's doc.
+		raiseFileDescriptorLimit()
 		if _, err := runCodex(ctx, "app-server", "daemon", "start"); err != nil {
 			return nil, fmt.Errorf("codex: start app-server daemon: %w", err)
 		}

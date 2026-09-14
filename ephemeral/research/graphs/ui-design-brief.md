@@ -1,6 +1,6 @@
 # Gimble workflow and run viewer — design brief
 
-2026-09-14. Recommendation for the design agent, informed by three independent gpt-5.6-luna research passes. This proposes a UI direction, not a new workflow API or a requirement to finish whole-program analysis for Beta.
+2026-09-14. Current authoring policy: Beta workflows must have statically recoverable possible shape and constant Set/SetJSON keys. Diagnostic partial graphs may aid development but do not count as a lint-clean workflow. Earlier permissive references below are superseded by constant-context-key-rule.md and #162/#201; the visual design does not require predicting runtime data.
 
 ## The central design decision
 

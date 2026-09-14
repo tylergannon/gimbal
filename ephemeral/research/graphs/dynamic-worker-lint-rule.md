@@ -36,7 +36,7 @@ The runtime choice remains dynamic, but the possible workflow calls and their br
 
 ## Scope and delivery
 
-The policy concerns dispatch to workflow functions: selecting callable work from a map/slice, choosing among function values, or invoking an opaque worker callback. It does not ban maps, runtime task data, model/provider configuration, dynamic command arguments, or dynamic Set keys. It does not ban Go interfaces generally; ordinary adapter methods are not workflow-function dispatch merely because their implementation is selected at runtime.
+The policy concerns dispatch to workflow functions: selecting callable work from a map/slice, choosing among function values, or invoking an opaque worker callback. It does not ban maps, runtime task data, model/provider configuration, dynamic command arguments, or dynamic values stored under constant context keys. It does not ban Go interfaces generally; ordinary adapter methods are not workflow-function dispatch merely because their implementation is selected at runtime.
 
 The first analyzer must catch direct collection lookup invocation and lookup followed by a simple local assignment/alias in a workflow body or recognized helper. Report the invocation with the lookup's location when useful. Document further supported forms; hard failure applies to every detected violation, while detection coverage may remain incomplete. Do not turn this into a whole-program pointer-analysis project or claim a clean lint result proves all indirect dispatch absent.
 
@@ -47,7 +47,7 @@ Use the actual workflow entrypoints/callbacks and their directly reachable helpe
 - Both failing examples compile under Go and run with a deterministic fake worker when the analyzer is not invoked; invoking the linter returns nonzero and prints the diagnostic identifier.
 - The equivalent explicit switch passes lint, and extraction can show its alternatives without predicting task.Kind.
 - Direct helpers, supported scope/group callbacks, and a known single-target function alias pass.
-- Dynamic Set keys and runtime model/command configuration remain permitted.
+- Runtime model/command configuration and dynamic context values remain permitted; context keys must follow CONSTANT-CONTEXT-KEY.
 - An unrelated map lookup or conventional callback in non-workflow/library code is not diagnosed as worker dispatch.
 
 This belongs to Beta linter #162 and simplifies the supported authoring model for Beta graph extractor #201. The extractor may still describe unsupported source partially; extraction is not a substitute for running the linter, and the runtime must not start enforcing this authoring restriction.

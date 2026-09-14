@@ -1,6 +1,6 @@
 # Milestone coverage, checked 2026-09-14
 
-Latest user direction: both the bounded linter (#162) and bounded source graph extractor (#201) belong in Beta. Useful program shape is part of the Beta UI; exhaustive analysis is deferred. Tolerate incomplete linting, keep dynamic keys supported, and avoid hard analysis now. The design record's mandatory constant-key language is historical evidence; it is not the current shipping gate. The inventory below preserves the original research snapshot, before those milestone updates. See `delivery-slices.md` for the deliberately smaller immediate path and `keys-recommendation.md` for the separate authoring study.
+Latest user direction: #162 and #201 belong in Beta; lint-clean workflows must have completely recoverable possible shape and constant Set/SetJSON keys. The existing sprint must fail the new constant-key check. Earlier inventories and permissive analysis recommendations below are historical snapshots, superseded by constant-context-key-rule.md and the current issue bodies.
 
 Milestone 1 is Beta: 9 open and 20 closed issues in the saved API response. Its stated bar is Gimble building Gimble, with usable observation and steering. `milestone-1.json` and `milestone-1-issues.json` preserve the snapshot; `all-issues.json` preserves the repository-wide issue/PR inventory used to find work outside the milestone. Per-issue Markdown and milestone comment JSON files hold the readable evidence.
 

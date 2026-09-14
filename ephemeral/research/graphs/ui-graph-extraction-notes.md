@@ -1,6 +1,6 @@
 # Graph extraction — UI-informed issue addition
 
-Prepared 2026-09-14. Incorporated into [#201: Extract workflow graphs from Go source for program and run visualization](https://github.com/tylergannon/gimble/issues/201). This is a separate deliverable from #162, the bounded Beta linter, and #173, the runtime usage view. The first delivery is deliberately bounded; full UI implementation and exact runtime correlation are separate work.
+Prepared 2026-09-14. Incorporated into Beta issue #201. Current policy supersedes the earlier incomplete-shape/dynamic-key allowances below: accepted workflows must have completely recoverable possible structure; nonconstant Set/SetJSON keys hard-fail #162. Partial output is diagnostic only. See constant-context-key-rule.md and the captured current issue bodies.
 
 ## Outcome
 

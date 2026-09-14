@@ -1,6 +1,6 @@
 # Recommendation: Set keys
 
-## Decision now
+**Current decision supersedes the earlier advisory recommendation below:** Set/SetJSON keys must be compile-time constants and nonconstant keys hard-fail lint. The builtin sprint is the required negative case. See constant-context-key-rule.md and #162. The following study preserves the earlier reasoning; its recommendation to allow dynamic keys is no longer the shipping policy.
 
 Recommend constant outer keys as the normal authoring style, but do not make
 every dynamic `Set`/`SetJSON` key a build-blocking error in the first analyzer.

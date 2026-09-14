@@ -1,6 +1,6 @@
 # Small deliveries toward the graph and linter
 
-These are concrete local task drafts, not implementation claims or GitHub edits. They incorporate Tyler's latest priority: imperfect analysis is acceptable; restricting workflow authors or taking on hard analysis now is not.
+Current decision supersedes earlier permissive text below: #162 must hard-fail nonconstant Set/SetJSON keys, including the existing builtin sprint, and accepted Beta workflows must have completely recoverable static shape. See constant-context-key-rule.md and the current #162/#201 bodies. These are task drafts, not implementation claims.
 
 ## First: ship the useful part of #162
 

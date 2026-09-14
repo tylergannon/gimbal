@@ -1,6 +1,6 @@
 Workflow authors and the run viewer need a machine-readable description of a workflow's shape: scopes, operations, possible control flow, and supervision. The runtime tree alone describes what was observed; it cannot show unexecuted alternatives or the complete program structure.
 
-Generate an inspectable JSON graph from ordinary Go workflow source through `go generate`. Start with the builtin sprint and one small workflow in a caller module. A useful partial graph is acceptable: preserve dynamic expressions and mark unresolved sites rather than restricting valid workflows or silently omitting them.
+Generate an inspectable JSON graph from ordinary Go workflow source through `go generate`. Start with the builtin sprint and one small workflow in a caller module. For Beta, a lint-clean workflow must have completely recoverable possible workflow structure. Diagnostic partial output is useful, but unresolved workflow operations or structural relationships do not count as successful coverage. Runtime data expressions may remain dynamic without obscuring structure.
 
 ## First delivery
 
@@ -10,7 +10,7 @@ Generate an inspectable JSON graph from ordinary Go workflow source through `go 
 - Keep session ownership separate from a turn's execution scope: an ancestor-owned session may be used in a child scope.
 - Represent supervision as its own relation to the watched turn, including a supervisor whose look turn is itself supervised. Attachment does not imply a look actually occurred.
 - Include source anchors, static site identities, and source/build version information. Keep these separate from runtime scope/session/turn instance IDs.
-- Follow the statically resolved local helpers needed by the builtin example. Preserve unresolved targets, dynamic keys, and dynamic arguments with an expression/source label and a reason for incomplete coverage.
+- Follow the statically resolved local helpers needed by the builtin example. Preserve unresolved targets as diagnostic evidence that prevents a clean structural-analysis result. Dynamic command arguments remain expression labels; nonconstant Set/SetJSON keys are hard authoring errors under #162.
 
 The graph describes semantics, not coordinates, colors, or viewport state. It must retain enough containment and cross-boundary endpoint information for the viewer to collapse a scope and restore it without losing its external connections. JSON is enough for the first delivery; a second Go-literal encoder is not required.
 
@@ -29,7 +29,7 @@ Runtime events supply actual intervals, outcomes, loop counts, supervisor looks,
 - A command followed by an agent validator produces distinct operation kinds. A command only constructed in source is not claimed as an observed process.
 - Same-named sites in different scopes remain distinguishable, and repeated execution does not duplicate the source template.
 - Fixtures preserve ancestor session ownership versus child execution scope, and both targets in nested supervision.
-- Dynamic keys and an unsupported indirect call yield useful partial output with explicit unresolved coverage.
+- Nonconstant Set/SetJSON keys and unsupported workflow dispatch produce diagnostics and fail the lint gate. Partial output remains inspectable but is not accepted as a complete workflow shape. Dynamic command arguments and runtime branch choices remain valid.
 - Inspect the builtin manifest against its source. Tests assert semantic relationships rather than incidental layout or node coordinates.
 
 ## Boundaries and related work
@@ -38,7 +38,7 @@ This is a **Beta deliverable**: useful source-derived program shape is part of t
 
 The Beta bar is the bounded first delivery above: useful graph output for the builtin sprint and a caller-module example, with explicit partial coverage. Exhaustive Go analysis, general helper expansion, and exact correlation of every runtime event are deferred; they must not hold up this useful graph.
 
-Do not ban dynamic Set keys, add high-level workflow wrappers, use reflection/runtime.Caller, or attempt exhaustive ownership proofs, arbitrary Go evaluation, whole-program pointer analysis, general recursive helper expansion, or critical-path analysis. Caller/callee links are optional inspection aids, not required default edges. This issue does not include building the UI or exact runtime instrumentation.
+Do not add high-level workflow wrappers, use reflection/runtime.Caller, or attempt exhaustive ownership proofs, arbitrary Go evaluation, whole-program pointer analysis, general recursive helper expansion, or critical-path analysis. Caller/callee links are optional inspection aids, not required default edges. This issue does not include building the UI or exact runtime instrumentation.
 
 ## Research and design input
 
@@ -52,4 +52,9 @@ The research is cached as flat files in `ephemeral/research/graphs`, including a
 
 ## Workflow authoring stance
 
-Beta linter #162 hard-fails on detected dynamic workflow-function dispatch, such as `workers[task.Kind](ctx)` or a simple alias of that lookup. Authors should express alternatives as direct worker calls in ordinary `if`/`switch` branches. This makes possible control flow visible without predicting runtime branch choices. Direct helpers and recognized Gimble callbacks remain valid. Dynamic Set keys, command arguments, and model/provider configuration are unaffected. The workflow still compiles and runs without the linter; this is an opinionated authoring rule, not a new runtime restriction. Incomplete lint detection is acceptable; do not add general pointer analysis to enforce it exhaustively.
+Beta linter #162 hard-fails on detected dynamic workflow-function dispatch, such as `workers[task.Kind](ctx)` or a simple alias of that lookup. Authors should express alternatives as direct worker calls in ordinary `if`/`switch` branches. This makes possible control flow visible without predicting runtime branch choices. Direct helpers and recognized Gimble callbacks remain valid. Set/SetJSON keys must also be compile-time constants. Dynamic command arguments, context values, and model/provider configuration remain permitted. The workflow still compiles and runs without the linter; this is an opinionated authoring rule, not a new runtime restriction. Incomplete lint detection is acceptable; do not add general pointer analysis to enforce it exhaustively.
+
+
+## Constant-key acceptance alignment
+
+The existing builtin sprint is deliberately a negative linter case: `gimble.Set(ctx, fmt.Sprintf("repository check %d", i+1), ...)` must fail #162's constant-key rule. Its two fixed repository checks can later be written explicitly with constant result keys. Do not weaken the rule or exempt the builtin to make this case pass. Runtime behavior remains unchanged; this is the opinionated authoring gate.

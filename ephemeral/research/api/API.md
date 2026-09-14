@@ -218,8 +218,8 @@ Identity is in the ctx; data is in the run.
   chain the same way, innermost wins, and the workflow puts it in the
   prompt itself. `Generate` injects nothing.
 - Two `Set` functions, because a Go constraint cannot mix a type set with
-  an interface that has methods. `Set` takes `~string | ~int | ~float64 |
-  ~bool | ~[]string`, tilde so a named string type works, and derives
+  an interface that has methods. `Set` takes `~string | ~int | ~bool |
+  ~[]string`, tilde so a named string type works, and derives
   their schema. `SetJSON` takes polytype-generated types, the same `Output` that
   `Generate` decodes into, so a value carries its schema and the field
   descriptions an agent reads. An arbitrary struct or a map does not
@@ -234,8 +234,9 @@ Identity is in the ctx; data is in the run.
   }
   ```
 
-- Set-once per key per scope instance. The second `Set` of a key errors,
-  naming the scope. That turns two goroutines racing on a key into a bug
+- Set-once per key per scope instance. Neither `Set` returns anything; the
+  second `Set` of a key is a programming error and panics, naming the key
+  and the scope. That turns two goroutines racing on a key into a bug
   report, and it means a value cannot change under a turn that is reading
   it. Revision is shadowing: enter a child scope and set the key there.
   In-place replacement waits for a workflow that needs it.
@@ -243,10 +244,15 @@ Identity is in the ctx; data is in the run.
   afterwards changes nothing, and agents, the page, and the files all see
   the same bytes.
 - Keys and scope names are compile-time constants, like node names.
-- `Set` on an ended scope, or on a ctx with no scope, is an error. The
-  first can only happen through a ctx stored somewhere it should not be;
-  the second is a chain severed by `context.Background()`. Both should be
-  loud. `Get` on an ended scope is fine; the values are the record.
+- `Set` on an ended scope, or on a ctx with no scope, panics the same way.
+  The first can only happen through a ctx stored somewhere it should not
+  be; the second is a chain severed by `context.Background()`. The run
+  records a panic before it escapes: `Run` writes `RunEnded` with the
+  panic and `Complete`, then panics again with the original value; a
+  `Group` child's panic cancels its siblings and comes back from `Wait` as
+  an error carrying the panic and its stack, which `Run` raises the same
+  way. Misuse anywhere means one thing: a complete `run.jsonl` and a dead
+  process. `Get` on an ended scope is fine; the values are the record.
 
 **Iterators own scopes.** A plain `for` body cannot end a scope per
 iteration, so a `Set` inside a plain loop hits set-once on the second

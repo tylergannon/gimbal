@@ -66,9 +66,7 @@ func Sprint(ctx context.Context, in Input) error {
 // run is the workflow on the given harnesses: cx for the researcher, the
 // planner, and the coders; cl for the supervisors and the validator.
 func run(ctx context.Context, in Input, cx, cl gimble.HarnessAdapter) error {
-	if err := gimble.SetJSON(ctx, "input", in); err != nil {
-		return err
-	}
+	gimble.SetJSON(ctx, "input", in)
 	text, err := goalText(ctx, in)
 	if err != nil {
 		return err
@@ -97,9 +95,7 @@ func run(ctx context.Context, in Input, cx, cl gimble.HarnessAdapter) error {
 	for round := 1; ; round++ {
 		err := gimble.Scope(ctx, "round", func(ctx context.Context) error {
 			if len(findings) > 0 {
-				if err := gimble.Set(ctx, "what the validator did not see working", "- "+strings.Join(findings, "\n- ")); err != nil {
-					return err
-				}
+				gimble.Set(ctx, "what the validator did not see working", "- "+strings.Join(findings, "\n- "))
 			}
 			loop := gimble.Loop(ctx, "sprint", goal, planner)
 			for ctx, task := range loop.Tasks {
@@ -224,14 +220,10 @@ func runTask(ctx context.Context, in Input, researcher, validator *gimble.Sessio
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
-	if err := gimble.Set(ctx, "worker result", string(result)); err != nil {
-		return err
-	}
+	gimble.Set(ctx, "worker result", string(result))
 	passed := workErr == nil
 	if workErr != nil {
-		if err := gimble.Set(ctx, "worker error", workErr.Error()); err != nil {
-			return err
-		}
+		gimble.Set(ctx, "worker error", workErr.Error())
 		log.Printf("sprint: task %q: %v", task.Name, workErr)
 	}
 
@@ -240,9 +232,7 @@ func runTask(ctx context.Context, in Input, researcher, validator *gimble.Sessio
 		if err != nil {
 			return err
 		}
-		if err := gimble.Set(ctx, "task command", commandText(task.Validation.Command, code, output)); err != nil {
-			return err
-		}
+		gimble.Set(ctx, "task command", commandText(task.Validation.Command, code, output))
 		if code != 0 {
 			passed = false
 		}
@@ -255,9 +245,7 @@ func runTask(ctx context.Context, in Input, researcher, validator *gimble.Sessio
 	if err != nil {
 		return err
 	}
-	if err := gimble.SetJSON(ctx, "task assessment", assessment); err != nil {
-		return err
-	}
+	gimble.SetJSON(ctx, "task assessment", assessment)
 	if len(assessment.NotSeenWorking) != 0 {
 		passed = false
 	}
@@ -266,9 +254,7 @@ func runTask(ctx context.Context, in Input, researcher, validator *gimble.Sessio
 		if err != nil {
 			return err
 		}
-		if err := gimble.Set(ctx, fmt.Sprintf("repository check %d", i+1), commandText(check, code, output)); err != nil {
-			return err
-		}
+		gimble.Set(ctx, fmt.Sprintf("repository check %d", i+1), commandText(check, code, output))
 		if code != 0 {
 			passed = false
 		}

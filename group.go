@@ -3,6 +3,8 @@ package gimble
 import (
 	"context"
 	"errors"
+	"fmt"
+	"runtime/debug"
 	"sync"
 )
 
@@ -41,14 +43,36 @@ func Group(ctx context.Context, name string) *group {
 	return g
 }
 
-// Go runs fn in a goroutine, in a child scope of the group named name.
+// panicError is a child's panic, recovered by Go so that the group ends
+// like any other failed group and Run can record the run before the panic
+// continues. Its text carries the panic value and the child's stack.
+type panicError struct {
+	value any
+	stack []byte
+}
+
+func (e *panicError) Error() string {
+	return fmt.Sprintf("gimble: panic: %v\n\n%s", e.value, e.stack)
+}
+
+// Go runs fn in a goroutine, in a child scope of the group named name. A
+// panic in fn is the child's error: it cancels the group's other children,
+// Wait returns it, and a Run that gets it back from its body records the
+// run's end and then panics with it.
 func (g *group) Go(name string, fn func(ctx context.Context) error) {
 	if g.scope == nil {
 		return
 	}
 	child := g.scope.child(name)
 	g.wg.Go(func() {
-		err := child.do(g.ctx, fn)
+		err := child.do(g.ctx, func(ctx context.Context) (err error) {
+			defer func() {
+				if v := recover(); v != nil {
+					err = &panicError{value: v, stack: debug.Stack()}
+				}
+			}()
+			return fn(ctx)
+		})
 		if err == nil {
 			return
 		}

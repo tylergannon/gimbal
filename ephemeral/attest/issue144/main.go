@@ -40,9 +40,7 @@ func main() {
 	}
 	adapter := codex.New()
 	err = runtime.Run(ctx, "issue144", func(ctx context.Context) error {
-		if err := gimble.Set(ctx, "constraint", "Only create files inside the working directory. Each task creates exactly one file."); err != nil {
-			return err
-		}
+		gimble.Set(ctx, "constraint", "Only create files inside the working directory. Each task creates exactly one file.")
 		planner := gimble.NewSession(ctx, "planner", adapter, *model, dir)
 		loop := gimble.Loop(ctx, "files", "The working directory contains a.txt, b.txt and c.txt, each holding its own file name. One file per task; end dispatch once all three exist.", planner)
 		count := 0
@@ -54,9 +52,7 @@ func main() {
 			}
 			worker := gimble.NewSession(taskCtx, "worker", adapter, *model, dir)
 			result, workErr := worker.Generate[gimble.Text](taskCtx, "Complete this assignment.\n\n"+gimble.ScopeText(taskCtx))
-			if err := gimble.Set(taskCtx, "worker result", string(result)); err != nil {
-				return err
-			}
+			gimble.Set(taskCtx, "worker result", string(result))
 			if workErr != nil {
 				return workErr
 			}
@@ -65,9 +61,7 @@ func main() {
 			for _, e := range entries {
 				names = append(names, e.Name())
 			}
-			if err := gimble.Set(taskCtx, "files", names); err != nil {
-				return err
-			}
+			gimble.Set(taskCtx, "files", names)
 		}
 		return loop.Err()
 	})

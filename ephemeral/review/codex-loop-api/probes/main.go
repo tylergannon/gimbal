@@ -66,10 +66,8 @@ func main() {
 	run(base, "nested", func(ctx context.Context) error {
 		l := gimble.Loop(ctx, "loop", "goal", gimble.NewSession(ctx, "planner", f, "fake", "."))
 		for taskCtx := range l.Tasks {
-			if err := gimble.Set(taskCtx, "result", "DIRECT_SENTINEL"); err != nil {
-				return err
-			}
-			if err := gimble.Scope(taskCtx, "validator", func(c context.Context) error { return gimble.Set(c, "failed evidence", "NESTED_FAILURE_SENTINEL") }); err != nil {
+			gimble.Set(taskCtx, "result", "DIRECT_SENTINEL")
+			if err := gimble.Scope(taskCtx, "validator", func(c context.Context) error { gimble.Set(c, "failed evidence", "NESTED_FAILURE_SENTINEL"); return nil }); err != nil {
 				return err
 			}
 		}

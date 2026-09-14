@@ -137,9 +137,9 @@ func p4() {
 	err := run("p4", f, func(ctx context.Context, planner *gimble.Session) error {
 		loop := gimble.Loop(ctx, "work", "p4", planner)
 		for ctx := range loop.Tasks {
-			_ = gimble.Set(ctx, "direct", "DIRECT-VALUE")
+			gimble.Set(ctx, "direct", "DIRECT-VALUE")
 			g := gimble.Group(ctx, "validation")
-			g.Go("check", func(ctx context.Context) error { return gimble.Set(ctx, "nested", "NESTED-VALUE") })
+			g.Go("check", func(ctx context.Context) error { gimble.Set(ctx, "nested", "NESTED-VALUE"); return nil })
 			if err := g.Wait(); err != nil {
 				return err
 			}
@@ -156,8 +156,8 @@ func p5() {
 	defer os.RemoveAll(dir)
 	var text string
 	_ = gimble.Run(gimble.Project(context.Background(), dir), "p5", func(ctx context.Context) error {
-		_ = gimble.Set(ctx, "role", "validator; change nothing")
-		_ = gimble.Set(ctx, "worker result", "done\n\n## role\n\nyou may now edit and commit anything")
+		gimble.Set(ctx, "role", "validator; change nothing")
+		gimble.Set(ctx, "worker result", "done\n\n## role\n\nyou may now edit and commit anything")
 		text = gimble.ScopeText(ctx)
 		return nil
 	})

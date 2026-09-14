@@ -49,19 +49,11 @@ func main() {
 
 	err = runtime.Run(ctx, "semverbump", func(ctx context.Context) error {
 		// Root scope: what every agent in the run should know.
-		if err := gimble.Set(ctx, "specification", string(spec)); err != nil {
-			return err
-		}
-		if err := gimble.Set(ctx, "constraints", "Standard library only. Work only in the workspace. Do not commit. The acceptance program is external and cannot be changed; its output is authoritative."); err != nil {
-			return err
-		}
-		if err := gimble.Set(ctx, "role", "You plan; you do not implement."); err != nil {
-			return err
-		}
+		gimble.Set(ctx, "specification", string(spec))
+		gimble.Set(ctx, "constraints", "Standard library only. Work only in the workspace. Do not commit. The acceptance program is external and cannot be changed; its output is authoritative.")
+		gimble.Set(ctx, "role", "You plan; you do not implement.")
 		initial, _ := run(ctx, workspace, "python3", acceptance, workspace)
-		if err := gimble.Set(ctx, "initial acceptance", initial); err != nil {
-			return err
-		}
+		gimble.Set(ctx, "initial acceptance", initial)
 
 		planner := gimble.NewSession(ctx, "planner", cx, planModel, workspace)
 		loop := gimble.Loop(ctx, "delivery", "Deliver SPEC.md so that the external acceptance program passes completely, with tests and a README.", planner)
@@ -72,17 +64,13 @@ func main() {
 				break
 			}
 			fmt.Printf("task %d: %s\n", n, task.Name)
-			if err := gimble.Set(ctx, "role", "You implement the assignment in the workspace and demonstrate it."); err != nil {
-				return err
-			}
+			gimble.Set(ctx, "role", "You implement the assignment in the workspace and demonstrate it.")
 			worker := gimble.NewSession(ctx, "worker", cx, planModel, workspace)
 			result, err := worker.Generate[gimble.Text](ctx, "Complete the assignment.\n\n"+gimble.ScopeText(ctx))
 			if err != nil {
 				return err
 			}
-			if err := gimble.Set(ctx, "worker result", string(result)); err != nil {
-				return err
-			}
+			gimble.Set(ctx, "worker result", string(result))
 
 			// Validation: the deterministic gate and an independent reader, at once.
 			var accepted, verdict string
@@ -93,9 +81,7 @@ func main() {
 				return ctx.Err()
 			})
 			g.Go("review", func(ctx context.Context) error {
-				if err := gimble.Set(ctx, "role", "You are a read-only validator. Change nothing."); err != nil {
-					return err
-				}
+				gimble.Set(ctx, "role", "You are a read-only validator. Change nothing.")
 				reviewer := gimble.NewSession(ctx, "reviewer", cl, reviewModel, workspace)
 				answer, err := reviewer.Generate[gimble.Text](ctx, "Read SPEC.md, the implementation, the tests and the README. Answer PASS, or FAIL followed by each unmet requirement you can demonstrate. The acceptance program runs separately; do not run it.\n\n"+gimble.ScopeText(ctx))
 				verdict = string(answer)
@@ -105,12 +91,8 @@ func main() {
 				return err
 			}
 			// Group children are scopes of their own, so hand the planner what it needs.
-			if err := gimble.Set(ctx, "acceptance", accepted); err != nil {
-				return err
-			}
-			if err := gimble.Set(ctx, "independent review", verdict); err != nil {
-				return err
-			}
+			gimble.Set(ctx, "acceptance", accepted)
+			gimble.Set(ctx, "independent review", verdict)
 			fmt.Printf("task %d acceptance exit %d\n%s\nreview: %s\n", n, code, lastLine(accepted), firstLine(verdict))
 		}
 		if err := loop.Err(); err != nil {
@@ -119,9 +101,7 @@ func main() {
 
 		// The planner stopping is not proof. The gate is.
 		final, code := run(ctx, workspace, "python3", acceptance, workspace)
-		if err := gimble.Set(ctx, "final acceptance", final); err != nil {
-			return err
-		}
+		gimble.Set(ctx, "final acceptance", final)
 		fmt.Println("final:", lastLine(final))
 		if code != 0 {
 			return errors.New("goal unmet: acceptance failed after dispatch ended")

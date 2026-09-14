@@ -95,9 +95,7 @@ func main() {
 	runErr := runtime.Run(ctx, "just-attest", func(ctx context.Context) error {
 		return gimble.Scope(ctx, "demo", func(ctx context.Context) error {
 			// A scope with data.
-			if err := gimble.Set(ctx, "goal", "touch every gimble primitive once, live, on the cheap tier"); err != nil {
-				return err
-			}
+			gimble.Set(ctx, "goal", "touch every gimble primitive once, live, on the cheap tier")
 			fmt.Println("--- scope data ---")
 			fmt.Println(gimble.ScopeText(ctx))
 
@@ -189,9 +187,7 @@ func main() {
 					return fmt.Errorf("loop lap %d: %w", laps, err)
 				}
 				fmt.Printf("lap %d reply: %q\n", laps, reply)
-				if err := gimble.Set(taskCtx, "result", string(reply)); err != nil {
-					return err
-				}
+				gimble.Set(taskCtx, "result", string(reply))
 				if laps >= 4 {
 					break // safety valve: never trust a live planner unboundedly
 				}

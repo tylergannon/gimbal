@@ -1,0 +1,109 @@
+package gimble_test
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/tylergannon/gimble"
+	"github.com/tylergannon/gimble/codex"
+	"github.com/tylergannon/gimble/internal/runlog"
+)
+
+// TestLiveKillTurnByID is the live check for #175 on the cheap tier: one
+// real Codex session (gpt-5.6-luna, the machine's shared app-server daemon)
+// starts a long first turn in a scope; a second goroutine kills that turn
+// by id with a Killed cause a few seconds in. The turn ends with the cause,
+// the scope keeps running, and the same session completes a second turn.
+// The run log is written under ephemeral/attest/cancel-by-id/logs and is
+// committed as the record. It only runs when explicitly requested:
+//
+//	GIMBLE_LIVE=1 go test . -run TestLiveKillTurnByID -v
+func TestLiveKillTurnByID(t *testing.T) {
+	if os.Getenv("GIMBLE_LIVE") != "1" {
+		t.Skip("set GIMBLE_LIVE=1 to run against the live codex app-server daemon")
+	}
+	logs, err := filepath.Abs(filepath.Join("ephemeral", "attest", "cancel-by-id", "logs"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.RemoveAll(logs); err != nil {
+		t.Fatal(err)
+	}
+	workspace := t.TempDir()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	defer cancel()
+	const turnID = "lap.1/worker.1/turn.1"
+	kill := gimble.Killed{Target: turnID, By: "attest", Reason: "the operator killed this turn by id"}
+	killed := make(chan error, 1)
+	var first, second error
+	var dir string
+	start := time.Now()
+	err = gimble.Run(gimble.Project(ctx, logs), "cancel-by-id", func(ctx context.Context) error {
+		dir = filepath.Join(logs, "runs")
+		return gimble.Scope(ctx, "lap", func(ctx context.Context) error {
+			session := gimble.NewSession(ctx, "worker", codex.New(), "gpt-5.6-luna", workspace)
+			go func() {
+				time.Sleep(4 * time.Second)
+				killed <- gimble.CancelTurn(ctx, turnID, kill)
+			}()
+			_, first = session.Generate[gimble.Text](ctx, "Count from 1 to 400, one number per line, in your final answer. Do not use any tools and do not summarize; write out every number.")
+			t.Logf("turn 1 ended after %s: %v", time.Since(start).Round(time.Millisecond), first)
+			if err := <-killed; err != nil {
+				return fmt.Errorf("kill %s: %w", turnID, err)
+			}
+			var cause gimble.Killed
+			if !errors.As(first, &cause) || cause != kill {
+				return fmt.Errorf("turn 1 ended with %v, want the Killed cause %v", first, kill)
+			}
+			if ctx.Err() != nil {
+				return fmt.Errorf("the scope's ctx ended with the turn: %w", ctx.Err())
+			}
+			text, err := session.Generate[gimble.Text](ctx, "Answer in one sentence: what is a context in Go? Use no tools.")
+			second = err
+			t.Logf("turn 2 after %s: %s", time.Since(start).Round(time.Millisecond), text)
+			if err == nil && strings.TrimSpace(string(text)) == "" {
+				return errors.New("turn 2 returned no text")
+			}
+			return err
+		})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second != nil {
+		t.Fatal(second)
+	}
+
+	runs, err := os.ReadDir(dir)
+	if err != nil || len(runs) != 1 {
+		t.Fatalf("runs = %v, %v", runs, err)
+	}
+	runDir := filepath.Join(dir, runs[0].Name())
+	t.Logf("run: %s", runs[0].Name())
+	var killedRecords []gimble.LifecycleRecord
+	var ended []gimble.TurnEnded
+	if err := runlog.Read[gimble.LifecycleRecord](ctx, runDir, func(record gimble.LifecycleRecord) error {
+		switch event := record.Event.(type) {
+		case gimble.Killed:
+			killedRecords = append(killedRecords, record)
+		case gimble.TurnEnded:
+			ended = append(ended, event)
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if len(killedRecords) != 1 || killedRecords[0].Turn.Value != turnID || killedRecords[0].Event != kill {
+		t.Fatalf("Killed records = %+v, want one placed on %s", killedRecords, turnID)
+	}
+	if len(ended) != 2 || !ended[0].Interrupted || !strings.Contains(ended[0].Error, kill.Reason) || ended[1].Interrupted || ended[1].Error != "" {
+		t.Fatalf("TurnEnded records = %+v, want the first interrupted with the reason and the second clean", ended)
+	}
+}

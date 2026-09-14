@@ -1,0 +1,14 @@
+{"seq":1,"time":"2026-09-14T00:42:17.621071Z","scope":"","event":{"kind":"run_started","name":"cancel-by-id"}}
+{"seq":2,"time":"2026-09-14T00:42:17.621124Z","scope":"","event":{"kind":"scope_began","name":"."}}
+{"seq":3,"time":"2026-09-14T00:42:17.621154Z","scope":"lap.1","event":{"kind":"scope_began","name":"lap.1"}}
+{"seq":4,"time":"2026-09-14T00:42:17.621171Z","scope":"lap.1","session":"lap.1/worker.1","event":{"adapter":"*codex.adapter","kind":"session_created","model":"gpt-5.6-luna","name":"worker","parent":"","workdir":"/var/folders/lt/09rsy64x65s_0fp2b8zq3n7m0000gn/T/TestLiveKillTurnByID1401532659/001"}}
+{"seq":5,"time":"2026-09-14T00:42:17.85561Z","scope":"lap.1","session":"lap.1/worker.1","turn":"lap.1/worker.1/turn.1","event":{"kind":"turn_started","output_type":"gimble.Text","prompt":"Count from 1 to 400, one number per line, in your final answer. Do not use any tools and do not summarize; write out every number."}}
+{"seq":6,"time":"2026-09-14T00:42:21.624508Z","scope":"lap.1","session":"lap.1/worker.1","turn":"lap.1/worker.1/turn.1","event":{"by":"attest","kind":"killed","reason":"the operator killed this turn by id","target":"lap.1/worker.1/turn.1"}}
+{"seq":7,"time":"2026-09-14T00:42:21.637226Z","scope":"lap.1","session":"lap.1/worker.1","turn":"lap.1/worker.1/turn.1","event":{"duration":3781582834,"error":"gimble: lap.1/worker.1/turn.1 was killed by attest: the operator killed this turn by id","interrupted":true,"kind":"turn_ended","result":"","usage":[{"model":"gpt-5.6-luna","cost":0,"tokens":{"input":0,"output":0,"reasoning":0,"cache":{"read":0,"write":0}}}]}}
+{"seq":8,"time":"2026-09-14T00:42:21.637328Z","scope":"lap.1","session":"lap.1/worker.1","turn":"lap.1/worker.1/turn.2","event":{"kind":"turn_started","output_type":"gimble.Text","prompt":"Answer in one sentence: what is a context in Go? Use no tools."}}
+{"seq":9,"time":"2026-09-14T00:42:24.150934Z","scope":"lap.1","session":"lap.1/worker.1","turn":"lap.1/worker.1/turn.2","event":{"duration":2513583292,"error":"","interrupted":false,"kind":"turn_ended","result":"\"A context in Go carries deadlines, cancellation signals, and request-scoped values across API boundaries and goroutines.\"","usage":[{"model":"gpt-5.6-luna","cost":0,"tokens":{"input":248,"output":28,"reasoning":12,"cache":{"read":20224,"write":0}}}]}}
+{"seq":10,"time":"2026-09-14T00:42:24.150987Z","scope":"lap.1","event":{"error":"","kind":"scope_ended"}}
+{"seq":11,"time":"2026-09-14T00:42:24.427369Z","scope":"lap.1","session":"lap.1/worker.1","event":{"error":"","kind":"session_closed"}}
+{"seq":12,"time":"2026-09-14T00:42:24.427428Z","scope":"","event":{"error":"","kind":"scope_ended"}}
+{"seq":13,"time":"2026-09-14T00:42:24.427439Z","scope":"","event":{"error":"","kind":"run_ended","name":"cancel-by-id"}}
+{"seq":14,"time":"2026-09-14T00:42:24.427778Z","scope":"","event":{"kind":"complete","recording_error":""}}

@@ -140,9 +140,24 @@ func (l *loop) Tasks(yield func(context.Context, Task) bool) {
 				}
 				more = yield(ctx, task)
 				previous = taskScope.localText()
+				// A task killed by an operator is the task scope's own
+				// outcome, so ScopeEnded records it.
+				var killed Killed
+				if errors.As(context.Cause(ctx), &killed) {
+					return killed
+				}
 				return nil
 			}); err != nil {
-				return err
+				// A kill of the task alone is a failed task, not a broken
+				// loop: the planner sees the reason on the next lap. A kill
+				// of the loop itself reaches here too, as the inherited
+				// cause; that one ends dispatch, like any other error.
+				var killed Killed
+				if ctx.Err() != nil || !errors.As(err, &killed) {
+					return err
+				}
+				logf("%s: task killed: %v", loopScope.key, killed)
+				previous += "\n\n## task failed\n\n" + killed.Error()
 			}
 			if !more {
 				return nil

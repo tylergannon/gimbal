@@ -23,7 +23,7 @@ func TestPublishedEventTypesAreUsableOutsideGimble(t *testing.T) {
 		gimble.TurnEnded{Usage: []gimble.ModelUsage{}},
 		gimble.SuperviseAttached{},
 		gimble.Steer{},
-		gimble.Interrupt{},
+		gimble.Killed{},
 		gimble.Complete{},
 	}
 	agent := gimble.AgentEvent{Type: "session.execution.started", ID: "evt_1", Created: 1, Data: json.RawMessage(`{"sessionID":"ses_1"}`)}

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -38,6 +39,8 @@ type run struct {
 	store     *observation.Store
 	mu        sync.Mutex
 	sessions  map[string]*eventWriter
+	scopes    map[string]*scope                  // live scopes by key, for cancelScope
+	turns     map[string]context.CancelCauseFunc // running turns by id, for cancelTurn
 	errMu     sync.Mutex
 	recordErr error
 	closeMu   sync.Mutex
@@ -121,7 +124,7 @@ func Run(ctx context.Context, name string, body func(ctx context.Context) error)
 	if err != nil {
 		return fmt.Errorf("gimble: %w", err)
 	}
-	r := &run{dir: dir, writer: w, sessions: make(map[string]*eventWriter)}
+	r := &run{dir: dir, writer: w, sessions: make(map[string]*eventWriter), scopes: make(map[string]*scope), turns: make(map[string]context.CancelCauseFunc)}
 	// The run owns its observation store. With the web runtime in ctx it is
 	// registered there and the page can read it; without one the run still
 	// owns a private store and writes the same table files, so observation
@@ -164,6 +167,81 @@ func Run(ctx context.Context, name string, body func(ctx context.Context) error)
 	err = errors.Join(err, r.recordingError())
 	logf("run %s ended: %v", id, orNone(err))
 	return err
+}
+
+// addScope and removeScope keep the run's table of live scopes: a scope is
+// reachable by key from the moment its ctx exists until end starts closing
+// its sessions.
+func (r *run) addScope(s *scope) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.scopes[s.key] = s
+}
+
+func (r *run) removeScope(s *scope) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.scopes, s.key)
+}
+
+// addTurn and removeTurn keep the run's table of running turns, keyed by
+// turn id, around RunTurn.
+func (r *run) addTurn(id string, cancel context.CancelCauseFunc) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.turns[id] = cancel
+}
+
+func (r *run) removeTurn(id string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.turns, id)
+}
+
+// cancelScope cancels the live scope key with cause, which every scope and
+// turn under it then reports through context.Cause. The kill is recorded
+// as a Killed lifecycle event on the scope before its ctx ends. An unknown
+// or already ended key is an error.
+func (r *run) cancelScope(key string, cause error) error {
+	r.mu.Lock()
+	s := r.scopes[key]
+	r.mu.Unlock()
+	if s == nil {
+		return fmt.Errorf("gimble: no live scope %q", key)
+	}
+	r.event(key, "", "", killedEvent(key, cause))
+	s.cancel(cause)
+	return nil
+}
+
+// cancelTurn cancels the running turn id with cause. Only that turn ends:
+// its Generate returns an error whose cause is Killed, and its scope and
+// session keep running. An unknown or already ended id is an error.
+func (r *run) cancelTurn(id string, cause error) error {
+	r.mu.Lock()
+	cancel := r.turns[id]
+	r.mu.Unlock()
+	if cancel == nil {
+		return fmt.Errorf("gimble: no running turn %q", id)
+	}
+	session := path.Dir(id) // ids are <scope key>/<session name.N>/turn.N
+	scope := path.Dir(session)
+	if scope == "." {
+		scope = "" // a session of the root scope
+	}
+	r.event(scope, session, id, killedEvent(id, cause))
+	cancel(cause)
+	return nil
+}
+
+// killedEvent is the record of a kill: the cause itself when it is a
+// Killed, and otherwise the target with the cause's text as the reason.
+func killedEvent(target string, cause error) Killed {
+	var killed Killed
+	if errors.As(cause, &killed) {
+		return killed
+	}
+	return Killed{Target: target, Reason: errString(cause)}
 }
 
 func errString(err error) string {

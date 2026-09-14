@@ -11,11 +11,12 @@
 "recording_error":{"type":"string"}
 },"required":["kind","recording_error"],"additionalProperties":false},
 {"type":"object",
-"description":"Interrupt records a request to stop a running session.","properties":{
-"kind":{"type":"string","const":"interrupt"},
+"description":"Killed is the cause of a ctx that an operator cancelled on purpose, and the lifecycle record of that kill. Target is the scope key or turn id that was killed; By is who did it, \"\" when unknown. context.Cause(ctx) returns it in every scope and turn under the target, so workflow code that cares checks errors.As(context.Cause(ctx), \u0026killed); code that does not care sees ctx.Err() as before.","properties":{
+"kind":{"type":"string","const":"killed"},
 "target":{"type":"string"},
-"source":{"type":"string"}
-},"required":["kind","target","source"],"additionalProperties":false},
+"by":{"type":"string"},
+"reason":{"type":"string"}
+},"required":["kind","target","by","reason"],"additionalProperties":false},
 {"type":"object",
 "description":"PlannerDecision records the task selected for the next dispatch. An absent Task records that the planner ended dispatch.","properties":{
 "kind":{"type":"string","const":"planner_decision"},

@@ -195,19 +195,6 @@ func (a *adapter) Steer(ctx context.Context, sessionID, message string) error {
 	return nil
 }
 
-func (a *adapter) Interrupt(ctx context.Context, sessionID string) error {
-	s, err := a.session(sessionID)
-	if err != nil {
-		return err
-	}
-	active := s.getActive()
-	if active == nil {
-		return nil
-	}
-	_, err = active.stream.InterruptWithReceipt(ctx)
-	return err
-}
-
 // Close forgets sessionID. Claude Code's own process is already gone by
 // the time Close runs: RunTurn's process is scoped to one turn, not the
 // session. Idempotent: an unknown id returns nil.

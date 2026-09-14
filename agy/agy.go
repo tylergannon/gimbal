@@ -161,22 +161,6 @@ func (a *adapter) Steer(ctx context.Context, sessionID, message string) error {
 	return nil
 }
 
-// Interrupt stops the active agy process. It is the optional interrupt method
-// discovered by gimble.Session.
-func (a *adapter) Interrupt(ctx context.Context, sessionID string) error {
-	s, err := a.session(sessionID)
-	if err != nil {
-		return err
-	}
-	s.mu.Lock()
-	active := s.active
-	s.mu.Unlock()
-	if active != nil {
-		interruptProcess(active)
-	}
-	return nil
-}
-
 // Fork reports the native limitation instead of aliasing two Gimble sessions
 // to one mutable Antigravity conversation. agy does not expose /fork in print
 // mode or provide another headless fork transport.

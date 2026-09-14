@@ -186,9 +186,30 @@ func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessag
 	if err := wrapped(nativeEvent("session.execution.started", map[string]any{"sessionID": native}, map[string]any{"provider": "gimble", "sessionID": native, "turnID": turnID})); err != nil {
 		return nil, fmt.Errorf("gimble: %s: start execution: %w", s.id, err)
 	}
-	result, err := s.adapter.RunTurn(ctx, native, prompt, schema, wrapped)
-	if ctx.Err() != nil {
-		err = ctx.Err()
+	// The turn has its own ctx, reachable by turn id through the run's table
+	// while RunTurn runs, so an operator can end this one turn and leave the
+	// scope running. Cancelling it is the interrupt: the adapter stops the
+	// native turn and returns. The cause is read after the turn leaves the
+	// table: nil while the turn's ctx is live, Killed for a kill by id, and
+	// the parent's own cause (Canceled, DeadlineExceeded, or an inherited
+	// Killed) when the scope or run ended around it.
+	turnCtx, cancelTurn := context.WithCancelCause(ctx)
+	if scope != nil {
+		scope.run.addTurn(turnID, cancelTurn)
+	}
+	result, err := s.adapter.RunTurn(turnCtx, native, prompt, schema, wrapped)
+	if scope != nil {
+		scope.run.removeTurn(turnID)
+	}
+	stopped := context.Cause(turnCtx)
+	if stopped != nil && stopped != turnCtx.Err() {
+		// Keep errors.Is(err, context.Canceled) true for callers that only
+		// ask whether the turn was cancelled, and errors.As for the cause.
+		stopped = fmt.Errorf("%w: %w", turnCtx.Err(), stopped)
+	}
+	cancelTurn(nil)
+	if stopped != nil {
+		err = stopped
 	} else if len(result.Usage) > 0 {
 		// The steps already accounted for the turn's tokens. The harness's
 		// own report adds only the cost it stated, so nothing is counted
@@ -208,15 +229,16 @@ func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessag
 		report = modelUsage(result.Usage)
 	}
 	logf("%s: turn ended after %s: %v", s.id, time.Since(start).Round(time.Second), orNone(err))
-	if ctx.Err() != nil {
+	if stopped != nil {
 		reason := "shutdown"
-		if steerSource(ctx) != "" {
+		var killed Killed
+		if steerSource(ctx) != "" || errors.As(stopped, &killed) {
 			reason = "user"
 		}
 		terminalErr := wrapped(nativeEvent("session.execution.interrupted", map[string]any{"sessionID": native, "reason": reason}, map[string]any{"provider": "gimble", "sessionID": native, "turnID": turnID}))
-		err = errors.Join(ctx.Err(), terminalErr)
+		err = errors.Join(stopped, terminalErr)
 		if scope != nil {
-			scope.run.event(scope.key, s.id, turnID, TurnEnded{Error: ctx.Err().Error(), Usage: report, Duration: time.Since(start), Interrupted: true})
+			scope.run.event(scope.key, s.id, turnID, TurnEnded{Error: stopped.Error(), Usage: report, Duration: time.Since(start), Interrupted: true})
 		}
 		return nil, err
 	}
@@ -437,25 +459,6 @@ func (s *Session) Steer(ctx context.Context, message string) error {
 		return errors.Join(err, emitErr)
 	}
 	return err
-}
-
-func (s *Session) Interrupt(ctx context.Context) error {
-	s.mu.Lock()
-	native, running, turn := s.native, s.running, s.turnID
-	s.mu.Unlock()
-	if !running || native == "" {
-		return nil
-	}
-	if scope, err := current(ctx); err == nil {
-		scope.run.event(scope.key, s.id, turn, Interrupt{Target: s.id, Source: steerSource(ctx)})
-	}
-	interruptor, ok := s.adapter.(interface {
-		Interrupt(context.Context, string) error
-	})
-	if !ok {
-		return fmt.Errorf("gimble: %s: adapter does not support interrupt", s.id)
-	}
-	return interruptor.Interrupt(ctx, native)
 }
 
 type steerSourceKey struct{}

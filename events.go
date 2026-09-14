@@ -146,13 +146,30 @@ type Steer struct {
 
 func (Steer) lifecycleEvent() {}
 
-// Interrupt records a request to stop a running session.
-type Interrupt struct {
+// Killed is the cause of a ctx that an operator cancelled on purpose, and
+// the lifecycle record of that kill. Target is the scope key or turn id
+// that was killed; By is who did it, "" when unknown. context.Cause(ctx)
+// returns it in every scope and turn under the target, so workflow code
+// that cares checks errors.As(context.Cause(ctx), &killed); code that does
+// not care sees ctx.Err() as before.
+type Killed struct {
 	Target string `json:"target"`
-	Source string `json:"source"`
+	By     string `json:"by"`
+	Reason string `json:"reason"`
 }
 
-func (Interrupt) lifecycleEvent() {}
+func (Killed) lifecycleEvent() {}
+
+func (k Killed) Error() string {
+	s := "gimble: " + k.Target + " was killed"
+	if k.By != "" {
+		s += " by " + k.By
+	}
+	if k.Reason != "" {
+		s += ": " + k.Reason
+	}
+	return s
+}
 
 // Complete marks the durable end of a run log. RecordingError reports an
 // earlier failure in another log owned by the run; an absent Complete means

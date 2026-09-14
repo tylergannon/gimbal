@@ -47,3 +47,11 @@ decision: Merged origin/main (ad6f2f6) into the sprint branch before the build s
   stated-cost columns are covered by the issue-149 rebuild instead.
 - Launched the sol adversarial review (`gpt-5.6-sol`, high) at ~18:14; it
   writes `ephemeral/reviews/202609131715-run-store-round-01.md`.
+- Round 1 review (`ephemeral/reviews/202609131715-run-store-round-01.md`):
+  two findings, both accepted. (1) On the load path `Event` still replaced
+  `model_calls` rows from the session log; fixed with `fromTables` so the
+  fold does no accounting over loaded facts, test extended. (2) `./...`
+  gates failed on the two pre-existing probe fakes; their `Close` and
+  `RunTurn` signatures brought current, nothing else. Commit `f27804a`,
+  repository-wide gates green with no exclusions. Round 2 launched on the
+  same reviewer session.

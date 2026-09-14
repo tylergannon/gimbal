@@ -116,3 +116,11 @@ These equal the Phase 1 registry test's literals and sum to the header.
 `page-issue-149.{html,txt}`, `midrun-turns.txt`, `midrun-turn_usage.txt`,
 `jq-per-scope.txt`, `jq-issue-149-root.txt`, `turn-ended-records.txt`,
 `mtimes-before-reserve.txt`, and `.gimble/` (the two run directories).
+
+## Addendum at `f27804a`
+
+After the round-1 fix (a loaded run takes no facts from its logs), both
+runs were served again by the binary (`serve-02.txt`): the proof run's
+header is still 38999 / 499 / 85 / 62464 / 0 / $0 with five transcripts,
+and the issue-149 run's is still 45236 / 343 / 220 / 96549 / 8269 /
+$0.0249421 with six.

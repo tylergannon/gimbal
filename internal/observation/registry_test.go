@@ -188,6 +188,31 @@ func TestFinishedRunIsReadFromItsTables(t *testing.T) {
 	if string(raw) != "[]" {
 		t.Fatalf("model_calls.json = %s, want the empty array it was left as", raw)
 	}
+
+	// The turns themselves are a table too, so a turn the log names and the
+	// table does not is not a turn: the log gives it a transcript and no row.
+	turns := filepath.Join(dir, "turns.json")
+	if err := os.WriteFile(turns, []byte("[]"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	store, err = open(nil, "issue-149", dir)
+	if err != nil {
+		t.Fatalf("third open: %v", err)
+	}
+	snapshot = store.Snapshot()
+	if len(snapshot.Turns) != 0 {
+		t.Fatalf("turns = %+v, want the file's none", snapshot.Turns)
+	}
+	if len(snapshot.Transcripts) == 0 {
+		t.Fatal("the session logs were not read for their transcripts")
+	}
+	raw, err = os.ReadFile(turns)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(raw) != "[]" {
+		t.Fatalf("turns.json = %s, want the empty array it was left as", raw)
+	}
 }
 
 // TestOneMissingTableRebuildsThemAll is what a half-written directory does: a

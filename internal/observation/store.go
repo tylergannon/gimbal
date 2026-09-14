@@ -422,7 +422,13 @@ func (s *Store) Event(at Placement, envelope, nativeRef json.RawMessage) error {
 
 // turnSeenLocked makes the turn's row if no turn_started record made it, and
 // says so, since that is a row the page has not been told about.
+//
+// A store filled from the tables makes none: turns.json is the authority
+// there, and a turn it does not hold gets its transcript and nothing else.
 func (s *Store) turnSeenLocked(at Placement) []change {
+	if s.fromTables {
+		return nil
+	}
 	if _, ok := s.turns[at.Turn]; ok {
 		return nil
 	}

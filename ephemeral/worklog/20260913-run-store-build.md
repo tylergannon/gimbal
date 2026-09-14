@@ -85,3 +85,11 @@ fact: the two probe programs were stale in two ways, not one (review finding
 `json.RawMessage` rather than `gimble.TurnResult`, so adding `Close` alone
 left `go vet ./...` red. Both signatures are now current and nothing else in
 those files changed.
+
+decision: a `fromTables` store also creates no turn row (round 2 finding).
+`turnSeenLocked` returns immediately when the facts came from the files, so a
+turn a session log names and `turns.json` does not gets its transcript
+projection and nothing else. The transcripts map is not one of the six
+tables, so the transcript is still built. The regression test now empties
+`turns.json` for a third open and asserts the snapshot has no turns, still
+has transcripts, and left the file alone; it fails without the guard.

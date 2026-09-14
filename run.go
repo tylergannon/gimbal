@@ -249,7 +249,7 @@ func (r *run) removeTurn(id string) {
 // person watching the run: the Steer record carries Source "person", which
 // tells an operator's steer from a supervisor's. The session is found
 // through its scope, so a session whose scope has ended is unknown.
-func (r *run) Steer(ctx context.Context, sessionID, message string) error {
+func (r *run) Steer(ctx context.Context, sessionID, message string) (bool, error) {
 	key := path.Dir(sessionID) // ids are <scope key>/<session name.N>
 	if key == "." {
 		key = "" // a session of the root scope
@@ -258,13 +258,13 @@ func (r *run) Steer(ctx context.Context, sessionID, message string) error {
 	s := r.scopes[key]
 	r.mu.Unlock()
 	if s == nil {
-		return fmt.Errorf("gimble: no live session %q", sessionID)
+		return false, fmt.Errorf("gimble: no live session %q", sessionID)
 	}
 	s.mu.Lock()
 	i := slices.IndexFunc(s.sessions, func(session *Session) bool { return session.id == sessionID })
 	s.mu.Unlock()
 	if i < 0 {
-		return fmt.Errorf("gimble: no live session %q", sessionID)
+		return false, fmt.Errorf("gimble: no live session %q", sessionID)
 	}
 	return s.sessions[i].Steer(withSteerSource(context.WithValue(ctx, scopeKey{}, s), "person"), message)
 }

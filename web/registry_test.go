@@ -51,13 +51,14 @@ func (b *blocking) RunTurn(ctx context.Context, session, prompt string, schema j
 	return gimble.TurnResult{Output: out}, err
 }
 
-func (b *blocking) Steer(ctx context.Context, session, message string) error {
+func (b *blocking) Steer(ctx context.Context, session, message string) (bool, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if b.running > 0 {
 		b.steers = append(b.steers, message)
+		return true, nil
 	}
-	return nil
+	return false, nil
 }
 
 func (b *blocking) Fork(ctx context.Context, session string) (string, error) {
@@ -129,13 +130,13 @@ func TestRuntimeReachesALiveRunByID(t *testing.T) {
 
 	startedTurns(t, b, 1)
 	id := runID(t, project)
-	if err := runtime.Steer(ctx, id, session, "look at the tests"); err != nil {
-		t.Fatalf("Steer = %v", err)
+	if landed, err := runtime.Steer(ctx, id, session, "look at the tests"); err != nil || !landed {
+		t.Fatalf("Steer = %v, %v; want landed", landed, err)
 	}
-	if err := runtime.Steer(ctx, id, "lap.1/nobody.1", "hello"); err == nil {
+	if _, err := runtime.Steer(ctx, id, "lap.1/nobody.1", "hello"); err == nil {
 		t.Error("Steer of an unknown session returned nil")
 	}
-	if err := runtime.Steer(ctx, "nope", session, "hello"); err == nil {
+	if _, err := runtime.Steer(ctx, "nope", session, "hello"); err == nil {
 		t.Error("Steer of an unknown run returned nil")
 	}
 	if err := runtime.KillTurn(id, "lap.1/coder.1/turn.9", "tyler", "wrong file"); err == nil {
@@ -154,7 +155,7 @@ func TestRuntimeReachesALiveRunByID(t *testing.T) {
 	if err := <-done; err != nil {
 		t.Fatalf("Run = %v", err)
 	}
-	if err := runtime.Steer(ctx, id, session, "too late"); err == nil {
+	if _, err := runtime.Steer(ctx, id, session, "too late"); err == nil {
 		t.Error("Steer of a finished run returned nil")
 	}
 

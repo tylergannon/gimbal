@@ -1,0 +1,11 @@
+# Finish issue 117
+
+Read /Users/tyler/.codex/worktrees/8e2d/gimble/ephemeral/issue-117/issue.json and repository instructions. Worktree is /Users/tyler/.codex/worktrees/8e2d/gimble, branch codex/issue-117-native-events.
+
+Implement the remaining native observation events in the Codex and Claude adapters: harness errors/retries, approval requests, and nested subagent transcripts. The issue's old event names and claim that deltas are absent are stale: retain the current normalized session event vocabulary and existing text/reasoning/tool deltas. Inspect actual SDK/native protocol capabilities and the existing Go/web projection before deciding the smallest integration. Returning Generate errors alone is not transcript visibility.
+
+Preserve existing noninteractive approval policy. Observe actual requests and their existing decisions without adding an interactive approval product or weakening permissions. Nested child activity must remain attached to its parent tool and must not corrupt the parent's step, text, or usage. Surface native retries where available without inventing retry behavior. No new exported names, wrappers, unrelated refactors, or new validation framework.
+
+Use focused unit tests during development, but validate through real cheap harness runs (Codex gpt-5.6-luna, Claude Haiku) and the production browser for native situations. Inspect retained events and rendered errors/requests/child content. Reuse the existing proof setup and explain any genuinely unavailable provider callback; do not silently drop an acceptance criterion or label fixtures as live proof. Run just build, just vet, just test for the finished change.
+
+You own implementation in codex/, claude/, minimal necessary existing projection/UI changes, focused tests, and local issue-117 result/worklog artifacts. You are not alone in the repository; accommodate others' edits and never revert them. Commit/push meaningful progress. Open a PR with exact scope and validation, report head and evidence to parent, and leave merge to parent after Claude Opus review. User authorizes completion and merge, with no code-improvement loops and no nontrivial proof machinery. Do not work on the deferred issue-135 fork/restart capability.

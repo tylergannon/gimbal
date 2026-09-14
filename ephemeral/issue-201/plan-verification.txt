@@ -1,0 +1,10 @@
+Plan-only compiler check; not implementation or extraction proof.
+
+go version go1.27.1 darwin/arm64
+Graph definitions + generic registration/run call compile: exit 0
+?   	command-line-arguments	[no test files]
+Wrong input type rejected: exit 1
+FAIL	command-line-arguments [build failed]
+FAIL
+# command-line-arguments
+<temporary-probe>/graph.go:229:39: cannot use "wrong input" (untyped string constant) as callerInput value in argument to new(runtimeProbe).Run

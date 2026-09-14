@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -78,7 +79,7 @@ func (a *deterministicAdapter) RunTurn(ctx context.Context, sessionID, _ string,
 
 func native(kind string, data map[string]any, messageID string) gimble.AgentEvent {
 	raw, _ := json.Marshal(data)
-	ref, _ := json.Marshal(map[string]any{"provider": "proof", "messageID": messageID, "accounting": map[string]any{"costAvailable": true, "tokensAvailable": true, "costSource": "provider"}})
+	ref, _ := json.Marshal(map[string]any{"provider": "proof", "messageID": messageID})
 	return gimble.AgentEvent{Type: kind, Data: raw, NativeRef: ref}
 }
 func (*deterministicAdapter) Steer(context.Context, string, string) (bool, error) { return false, nil }
@@ -101,7 +102,7 @@ func waitFile(ctx context.Context, path string) error {
 }
 
 func main() {
-	mode := flag.String("mode", "deterministic", "deterministic, codex, claude, or interrupt")
+	mode := flag.String("mode", "deterministic", "deterministic, codex, claude, issue135, or interrupt")
 	project := flag.String("project", "", "isolated proof project directory")
 	port := flag.Int("port", 18081, "loopback port")
 	flag.Parse()
@@ -117,9 +118,16 @@ func main() {
 	if err != nil {
 		fatal(err)
 	}
-	runDone := make(chan error, 1)
-	go func() {
-		runDone <- runtime.Run(ctx, "observation-proof", func(ctx context.Context) error {
+	// The run cancels this child only when it has returned. waitRun then stops
+	// waiting for readiness if startup failed before it could create a log.
+	// This does not cancel the run itself.
+	waitCtx, stopWaiting := context.WithCancel(ctx)
+	defer stopWaiting()
+	var runErr error
+	var runWG sync.WaitGroup
+	runWG.Go(func() {
+		defer stopWaiting()
+		runErr = runtime.Run(ctx, "observation-proof", func(ctx context.Context) error {
 			switch *mode {
 			case "deterministic":
 				adapter := &deterministicAdapter{project: *project}
@@ -136,20 +144,27 @@ func main() {
 				return live(ctx, codex.New(), "gpt-5.6-luna", *project, false)
 			case "claude":
 				return live(ctx, claude.New(), "haiku", *project, false)
+			case "issue135":
+				return issue135(ctx, *project)
 			case "interrupt":
 				return live(ctx, codex.New(), "gpt-5.6-luna", *project, true)
 			default:
 				return fmt.Errorf("unknown mode %q", *mode)
 			}
 		})
-	}()
-	runID, err := waitRun(ctx, *project)
+	})
+	runID, err := waitRun(waitCtx, *project)
 	if err != nil {
+		runWG.Wait()
+		if runErr != nil {
+			fatal(runErr)
+		}
 		fatal(err)
 	}
 	fmt.Printf("PROOF_READY=http://127.0.0.1:%d|%s\n", *port, runID)
-	if err := <-runDone; err != nil && *mode != "interrupt" {
-		fatal(err)
+	runWG.Wait()
+	if runErr != nil && *mode != "interrupt" {
+		fatal(runErr)
 	}
 	fmt.Println("PROOF_COMPLETE")
 	_ = waitFile(ctx, filepath.Join(*project, "stop"))
@@ -165,6 +180,41 @@ func live(ctx context.Context, adapter gimble.HarnessAdapter, model, project str
 		go func() { time.Sleep(2 * time.Second); cancel() }()
 	}
 	_, err := session.Generate[gimble.Text](ctx, "Use exactly one shell tool to run `printf GIMBLE_LIVE_TOOL_MARKER`, then answer exactly GIMBLE_LIVE_FINAL_MARKER.")
+	return err
+}
+
+func issue135(ctx context.Context, project string) error {
+	workdir := filepath.Join(project, "work")
+	codexSession := gimble.NewSession(ctx, "codex", codex.New(), "gpt-5.6-luna", workdir)
+	if err := markerTurn(ctx, codexSession, "CODEX_FIRST"); err != nil {
+		return err
+	}
+	if err := markerTurn(ctx, codexSession, "CODEX_SECOND"); err != nil {
+		return err
+	}
+	if err := serialToolTurn(ctx, codexSession); err != nil {
+		return err
+	}
+	fork, err := codexSession.Fork(ctx, "forked")
+	if err != nil {
+		return err
+	}
+	if err := markerTurn(ctx, fork, "CODEX_FORKED"); err != nil {
+		return err
+	}
+	claudeSession := gimble.NewSession(ctx, "claude", claude.New(), "claude-haiku-4-5-20251001", workdir)
+	return markerTurn(ctx, claudeSession, "CLAUDE_HAIKU")
+}
+
+func markerTurn(ctx context.Context, session *gimble.Session, marker string) error {
+	prompt := fmt.Sprintf("Use exactly one shell tool to run `printf %s_TOOL_MARKER`, then answer exactly %s_FINAL_MARKER.", marker, marker)
+	_, err := session.Generate[gimble.Text](ctx, prompt)
+	return err
+}
+
+func serialToolTurn(ctx context.Context, session *gimble.Session) error {
+	prompt := "In one assistant tool-call batch, issue exactly two tool calls without waiting between them: first use the shell tool to run `sleep 0.4; printf CODEX_SERIAL_FIRST_MARKER`; second use apply_patch to create serial-marker.txt containing exactly CODEX_SERIAL_SECOND_MARKER. After both tools finish, answer exactly CODEX_SERIAL_FINAL_MARKER."
+	_, err := session.Generate[gimble.Text](ctx, prompt)
 	return err
 }
 

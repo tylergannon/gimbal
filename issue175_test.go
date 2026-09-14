@@ -61,13 +61,14 @@ func TestKillScopeClosesEverySessionAndReportsTheCause(t *testing.T) {
 	project := t.TempDir()
 	kill := Killed{Target: "lap.1", By: "tyler", Reason: "off the rails"}
 	var scopeErr, turnOne, turnTwo, seen error
-	killErr := make(chan error, 1)
+	var killErr error
+	var killWG sync.WaitGroup
 	err := Run(Project(t.Context(), project), "test", func(ctx context.Context) error {
 		r, _ := current(ctx)
-		go func() {
+		killWG.Go(func() {
 			runningTurns(t, f, 2)
-			killErr <- r.run.CancelScope("lap.1", kill)
-		}()
+			killErr = r.run.CancelScope("lap.1", kill)
+		})
 		scopeErr = Scope(ctx, "lap", func(ctx context.Context) error {
 			one := NewSession(ctx, "one", f, "m", "/w")
 			two := NewSession(ctx, "two", f, "m", "/w")
@@ -83,8 +84,9 @@ func TestKillScopeClosesEverySessionAndReportsTheCause(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := <-killErr; err != nil {
-		t.Fatalf("CancelScope = %v", err)
+	killWG.Wait()
+	if killErr != nil {
+		t.Fatalf("CancelScope = %v", killErr)
 	}
 	for name, err := range map[string]error{"Scope": scopeErr, "turn one": turnOne, "turn two": turnTwo, "context.Cause": seen} {
 		var killed Killed
@@ -120,16 +122,17 @@ func TestKillTurnEndsOnlyThatTurn(t *testing.T) {
 	project := t.TempDir()
 	kill := Killed{Target: "lap.1/coder.1/turn.1", By: "tyler", Reason: "wrong file"}
 	var unknownErr error
-	killErr := make(chan error, 1)
+	var killErr error
+	var killWG sync.WaitGroup
 	err := Run(Project(t.Context(), project), "test", func(ctx context.Context) error {
 		return Scope(ctx, "lap", func(ctx context.Context) error {
 			r, _ := current(ctx)
 			unknownErr = r.run.CancelTurn("lap.1/coder.1/turn.9", kill)
 			s := NewSession(ctx, "coder", f, "m", "/w")
-			go func() {
+			killWG.Go(func() {
 				runningTurns(t, f, 1)
-				killErr <- r.run.CancelTurn("lap.1/coder.1/turn.1", kill)
-			}()
+				killErr = r.run.CancelTurn("lap.1/coder.1/turn.1", kill)
+			})
 			_, err := s.Generate[Text](ctx, "wait")
 			var killed Killed
 			if !errors.As(err, &killed) || killed != kill {
@@ -148,8 +151,9 @@ func TestKillTurnEndsOnlyThatTurn(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := <-killErr; err != nil {
-		t.Fatalf("CancelTurn = %v", err)
+	killWG.Wait()
+	if killErr != nil {
+		t.Fatalf("CancelTurn = %v", killErr)
 	}
 	if unknownErr == nil {
 		t.Fatal("CancelTurn of an unknown turn id returned nil")
@@ -249,7 +253,8 @@ func TestLoopKilledTaskIsAFailedTaskNotABrokenLoop(t *testing.T) {
 	}}
 	project := t.TempDir()
 	kill := Killed{Target: "sprint.1/task.1", By: "tyler", Reason: "wrong package"}
-	killErr := make(chan error, 1)
+	var killErr error
+	var killWG sync.WaitGroup
 	var laps []error
 	err := Run(Project(t.Context(), project), "test", func(ctx context.Context) error {
 		r, _ := current(ctx)
@@ -260,10 +265,10 @@ func TestLoopKilledTaskIsAFailedTaskNotABrokenLoop(t *testing.T) {
 			prompt := "work"
 			if len(laps) == 0 {
 				prompt = "wait"
-				go func() {
+				killWG.Go(func() {
 					runningTurns(t, f, 1)
-					killErr <- r.run.CancelScope("sprint.1/task.1", kill)
-				}()
+					killErr = r.run.CancelScope("sprint.1/task.1", kill)
+				})
 			}
 			_, err := worker.Generate[Text](ctx, prompt)
 			laps = append(laps, err)
@@ -273,8 +278,9 @@ func TestLoopKilledTaskIsAFailedTaskNotABrokenLoop(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Loop ended with %v, want a second lap after the kill", err)
 	}
-	if err := <-killErr; err != nil {
-		t.Fatalf("CancelScope = %v", err)
+	killWG.Wait()
+	if killErr != nil {
+		t.Fatalf("CancelScope = %v", killErr)
 	}
 	var killed Killed
 	if len(laps) != 2 || !errors.As(laps[0], &killed) || laps[1] != nil {

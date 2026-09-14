@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -47,21 +48,23 @@ func TestLiveKillTurnByID(t *testing.T) {
 	}
 	const turnID = "lap.1/worker.1/turn.1"
 	kill := gimble.Killed{Target: turnID, By: "attest", Reason: "the operator killed this turn by id"}
-	killed := make(chan error, 1)
+	var killErr error
+	var killWG sync.WaitGroup
 	var first, second error
 	dir := filepath.Join(logs, "runs")
 	start := time.Now()
 	err = runtime.Run(ctx, "cancel-by-id", func(ctx context.Context) error {
 		return gimble.Scope(ctx, "lap", func(ctx context.Context) error {
 			session := gimble.NewSession(ctx, "worker", codex.New(), "gpt-5.6-luna", workspace)
-			go func() {
+			killWG.Go(func() {
 				time.Sleep(4 * time.Second)
-				killed <- runtime.KillTurn(liveRunID(t, dir), turnID, kill.By, kill.Reason)
-			}()
+				killErr = runtime.KillTurn(liveRunID(t, dir), turnID, kill.By, kill.Reason)
+			})
 			_, first = session.Generate[gimble.Text](ctx, "Count from 1 to 400, one number per line, in your final answer. Do not use any tools and do not summarize; write out every number.")
 			t.Logf("turn 1 ended after %s: %v", time.Since(start).Round(time.Millisecond), first)
-			if err := <-killed; err != nil {
-				return fmt.Errorf("kill %s: %w", turnID, err)
+			killWG.Wait()
+			if killErr != nil {
+				return fmt.Errorf("kill %s: %w", turnID, killErr)
 			}
 			var cause gimble.Killed
 			if !errors.As(first, &cause) || cause != kill {

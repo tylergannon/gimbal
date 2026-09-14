@@ -90,7 +90,7 @@ test('production runtime streams, resets, reconnects and renders native content'
 		await expect(page.getByText(/FINAL_TEXT_proof-native-/)).toHaveCount(2)
 		await expect(page.getByText(/FINAL_REASONING_proof-native-/)).toHaveCount(2)
 		await expect(page.getByText(/FINAL_TOOL_proof-native-/)).toHaveCount(2)
-		await expect(page.locator('.status')).toHaveText('completed')
+		await expect(page.locator('.run-header .status')).toHaveText('completed')
 		const snapshotResponse = await page.request.get(`${url}/api/runs/${encodeURIComponent(runID)}`)
 		const snapshotBody = await snapshotResponse.body()
 		const measurements = {

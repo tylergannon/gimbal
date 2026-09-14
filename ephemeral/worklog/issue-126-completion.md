@@ -1,0 +1,5 @@
+decision: The user authorized writing the half-page plan and delegating implementation to Sol or Terra. Terra was selected for the focused Go concurrency and lifecycle work.
+decision: Remove one-off error transport channels where existing joining constructs suffice; do not promise removal of readiness or event channels without evidence.
+decision: The remaining completion gaps were external orchestration call sites: buffered channels returned Runtime.Run, KillTurn, or CancelScope results after a goroutine. Replace those with a result variable protected by a completed sync.WaitGroup; retain channels that signal readiness or carry events.
+decision: Live proof uses a readiness channel only to establish that an external runlog reader has started; its result remains separate from Run's result, and the reader is outside the body that produces Complete.
+correction: Sol reproduced an early Runtime.Run failure in the issue-130 observation proof where a caller-owned project had runs as a regular file. Its readiness wait must be cancelled by Run's return and joined before selecting the authoritative run error.

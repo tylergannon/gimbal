@@ -118,9 +118,15 @@ func main() {
 	if err != nil {
 		fatal(err)
 	}
+	// The run cancels this child only when it has returned. waitRun then stops
+	// waiting for readiness if startup failed before it could create a log.
+	// This does not cancel the run itself.
+	waitCtx, stopWaiting := context.WithCancel(ctx)
+	defer stopWaiting()
 	var runErr error
 	var runWG sync.WaitGroup
 	runWG.Go(func() {
+		defer stopWaiting()
 		runErr = runtime.Run(ctx, "observation-proof", func(ctx context.Context) error {
 			switch *mode {
 			case "deterministic":
@@ -145,8 +151,12 @@ func main() {
 			}
 		})
 	})
-	runID, err := waitRun(ctx, *project)
+	runID, err := waitRun(waitCtx, *project)
 	if err != nil {
+		runWG.Wait()
+		if runErr != nil {
+			fatal(runErr)
+		}
 		fatal(err)
 	}
 	fmt.Printf("PROOF_READY=http://127.0.0.1:%d|%s\n", *port, runID)

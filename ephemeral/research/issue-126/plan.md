@@ -47,6 +47,11 @@ outside the body, because returning from that body produces the record.
 Readiness gates and log/event transport remain channels where they carry a
 signal rather than smuggling a goroutine's result.
 
+When an external observer waits for a run directory, it uses a child context
+cancelled only after `Run` returns. If readiness never appears, the owner joins
+first and reports `Run`'s error before the observer's cancellation; a failed
+startup cannot strand the observer or hide the execution verdict.
+
 ## Evidence
 
 `TestIssue126CompletionContract` joins each started run and demonstrates a

@@ -19,6 +19,7 @@ require (
 	github.com/tylergannon/polytype v1.0.0-rc.12.0.20260911210434-38f05b1ba899
 	github.com/tylergannon/skgo v0.4.0
 	golang.org/x/sync v0.23.0
+	golang.org/x/tools v0.50.0
 )
 
 replace github.com/roasbeef/claude-agent-sdk-go => github.com/tylergannon/claude-agent-sdk-go v1.1.1-0.20260912021749-9a4ffeca77cc
@@ -35,7 +36,6 @@ require (
 	golang.org/x/mod v0.41.0 // indirect
 	golang.org/x/net v0.59.0 // indirect
 	golang.org/x/text v0.42.0 // indirect
-	golang.org/x/tools v0.50.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 

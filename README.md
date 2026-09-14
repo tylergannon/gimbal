@@ -37,6 +37,30 @@ just dev-web
 just dev-go
 ```
 
+## Lint workflows
+
+The distributed `gimble` binary also checks deterministic workflow authoring
+mistakes:
+
+```sh
+./bin/gimble lint ./...
+go vet -vettool="$(pwd)/bin/gimble" ./...
+```
+
+The second command is the direct Go vet-tool protocol path. A custom vet tool
+replaces Go's ordinary analyzers for that invocation, so `just vet` first runs
+ordinary `go vet ./...`, builds the same `bin/gimble`, and then runs
+`bin/gimble lint ./...`.
+
+Lint checks constant `Set` and `SetJSON` keys, duplicate writes in one scope,
+outer contexts reused by loops, wrong child contexts, raw goroutine writes,
+the reserved Loop task key, Background/TODO contexts, and dynamic worker
+selection. Dynamic worker detection covers direct collection calls, simple
+local aliases, function parameters, and directly reached package-local helpers,
+including helpers that do not themselves receive a context. The first pass
+recognizes worker callables by a `context.Context` parameter; it does not claim
+whole-program proof that every indirect call is absent.
+
 The runtime derives the public origin from the TCP listener, including when
 port 0 selects an available port.
 

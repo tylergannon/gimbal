@@ -148,3 +148,31 @@ change on that one page:
 gpt-5.6-luna 24430 / 292 / 37 / 62464 and gemini-3.8-flash-low 14858 /
 202 / 0 / 0, summing to the final header. `turns.json` again places
 `shared.1/turn.2` under `research.1`.
+
+## Run 3 on main (`6ccda99`, 2026-09-14): the Claude leg
+
+After the CLI was logged in, the program ran with its default flag
+(`-second claude`): `shared` on gpt-5.6-luna, `compare.1/attempt.1` on
+claude-haiku-4-5-20251001, `attempt.2` on gemini-3.8-flash-low. Run
+`01M2G6RY7MZXT8YWQS104NKFH6.run-store-proof`, 1m19s, no error
+(`run-03.txt`). Headless Chromium on one open page (`browser-log.json`,
+`browser-after.png`):
+
+| t (s) | Header in / out / reasoning / cache read / cache write / $ |
+| --- | --- | 
+| 0.0 | 12825 / 48 / 0 / 31232 / 0 / 0 |
+| 60.3 | 12835 / 230 / 118 / 62193 / 8490 / 0 (Haiku step usage, before its report) |
+| 61.3 | same, $0.0215861 (Haiku turn 1 reported) |
+| 65.3 | 27839 / 428 / 118 / 62193 / 8490 / $0.0215861 (Gemini step) |
+| 66.3 | 27849 / 581 / 229 / 101644 / 8850 / $0.0275812 (final) |
+
+`jq-run-03-root.txt` per model: Haiku 20 / 70412 / 8850 / 335 / 229 /
+$0.0275812; Gemini 15004 / 0 / 0 / 198 / 0 / 0; luna 12825 / 31232 / 0 /
+48 / 0 / 0. They sum to the final header. The two Haiku `turn_ended`
+records (`turn-ended-run-03-haiku.txt`, seq 17 and 19) carry cache write
+8490 + 360 and cost 0.0215861 + 0.0059951, matching the Haiku row. The
+Claude columns the earlier runs could not exercise (cache write, stated
+cost) are now covered live. The proof's only gap is closed.
+
+Quirk filed, not fixed: the page prints the cost with float noise
+(`$0.021586099999999997`), issue #199.

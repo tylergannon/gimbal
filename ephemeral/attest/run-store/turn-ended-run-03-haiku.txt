@@ -1,0 +1,2 @@
+{"seq":17,"turn":"compare.1/attempt.1/writer.1/turn.1","usage":[{"model":"claude-haiku-4-5-20251001","cost":0.021586099999999997,"tokens":{"input":10,"output":182,"reasoning":118,"cache":{"read":30961,"write":8490}}}]}
+{"seq":19,"turn":"compare.1/attempt.1/writer.1/turn.2","usage":[{"model":"claude-haiku-4-5-20251001","cost":0.0059951,"tokens":{"input":10,"output":153,"reasoning":111,"cache":{"read":39451,"write":360}}}]}

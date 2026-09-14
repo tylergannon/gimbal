@@ -55,3 +55,15 @@ decision: Merged origin/main (ad6f2f6) into the sprint branch before the build s
   `RunTurn` signatures brought current, nothing else. Commit `f27804a`,
   repository-wide gates green with no exclusions. Round 2 launched on the
   same reviewer session.
+- Round 2 (`202609131830-run-store-round-02.md`): two findings, both DoD-bound
+  and accepted. (1) `turnSeenLocked` still made turn rows from the session
+  log on a loaded store; fixed in `0b40d76`, regression extended. (2) The
+  proof's "rose without a reload" was two curl fetches; reran the proof with
+  headless Chromium on one open page (`7793796`, result.md § Run 2). The
+  Chrome extension was offline; playwright from another checkout was used.
+- Round 3 (`202609131845-run-store-round-03.md`): no findings. Merged
+  origin/main (`cfe4baf`), gates green, PR #181 opened and squash-merged.
+- Per Tyler: reviewer turns are now capped (9 min this round) and the
+  builder was not resumed after its last commit; nothing runs open-ended.
+- Left for later: #169/#173 rewrites per the store decision; Claude leg of
+  the proof needs a CLI login; Gemini share doc capture.

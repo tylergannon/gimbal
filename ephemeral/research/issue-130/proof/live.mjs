@@ -30,7 +30,7 @@ try {
     window.EventSource = class extends Native {
       constructor(...args) {
         super(...args)
-        for (const type of ['snapshot', 'event', 'lifecycle']) this.addEventListener(type, event => window.observedFrames.push({ type, data: JSON.parse(event.data) }))
+        for (const type of ['snapshot', 'delta']) this.addEventListener(type, event => window.observedFrames.push({ type, data: JSON.parse(event.data) }))
       }
     }
   })

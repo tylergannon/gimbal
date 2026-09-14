@@ -56,6 +56,12 @@ func (a *deterministicAdapter) RunTurn(ctx context.Context, sessionID, _ string,
 			return gimble.TurnResult{}, err
 		}
 	}
+	n, _ := strconv.Atoi(os.Getenv("PROOF_DELTAS"))
+	for i := 0; i < n; i++ {
+		if err := emit(native("session.text.delta", map[string]any{"sessionID": sessionID, "assistantMessageID": messageID, "ordinal": 0, "delta": "x"}, messageID)); err != nil {
+			return gimble.TurnResult{}, err
+		}
+	}
 	if err := waitFile(ctx, filepath.Join(a.project, "finish")); err != nil {
 		return gimble.TurnResult{}, err
 	}

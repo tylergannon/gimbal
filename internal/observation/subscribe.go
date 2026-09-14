@@ -20,6 +20,139 @@ var ErrOverflow = errors.New("observation: subscriber backlog overflowed its bou
 // ErrClosed is why a subscription ended because its run did.
 var ErrClosed = errors.New("observation: run ended")
 
+// JoinSubscription is the transaction-granular stream used by the page.
+type JoinSubscription struct {
+	store  *Store
+	deltas chan Delta
+	done   chan struct{}
+	mu     sync.Mutex
+	closed bool
+	bytes  int
+	err    error
+}
+
+func (sub *JoinSubscription) Deltas() <-chan Delta  { return sub.deltas }
+func (sub *JoinSubscription) Done() <-chan struct{} { return sub.done }
+func (sub *JoinSubscription) Err() error            { sub.mu.Lock(); defer sub.mu.Unlock(); return sub.err }
+func (sub *JoinSubscription) Took(delta Delta) {
+	sub.mu.Lock()
+	sub.bytes -= deltaBytes(delta)
+	sub.mu.Unlock()
+}
+func (sub *JoinSubscription) Close() {
+	sub.store.mu.Lock()
+	defer sub.store.mu.Unlock()
+	sub.mu.Lock()
+	defer sub.mu.Unlock()
+	if sub.closed {
+		return
+	}
+	sub.closed = true
+	delete(sub.store.joins, sub)
+	close(sub.done)
+}
+
+// Join resumes strictly after position when it belongs to this run stream and
+// the bounded suffix is still retained. Otherwise it returns a replacement
+// snapshot. Capture and registration share the reduction lock with producers.
+func (s *Store) Join(stream string, position uint64) (*RunSnapshot, []Delta, *JoinSubscription, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		snap := s.snapshotLocked()
+		return &snap, nil, nil, ErrClosed
+	}
+	var snapshot *RunSnapshot
+	var suffix []Delta
+	available := stream == s.stream && position <= s.position
+	if available && position < s.position {
+		first := s.position + 1
+		if len(s.recent) > 0 {
+			first = s.recent[0].Position
+		}
+		available = position+1 >= first
+	}
+	if available {
+		for _, delta := range s.recent {
+			if delta.Position > position {
+				suffix = append(suffix, delta)
+			}
+		}
+	} else {
+		value := s.snapshotLocked()
+		snapshot = &value
+	}
+	sub := &JoinSubscription{store: s, deltas: make(chan Delta, s.maxFrames), done: make(chan struct{})}
+	s.joins[sub] = struct{}{}
+	return snapshot, suffix, sub, nil
+}
+
+func (s *Store) retainLocked(delta Delta) {
+	s.recent = append(s.recent, delta)
+	bytes := 0
+	for _, one := range s.recent {
+		for _, frame := range one.Frames {
+			bytes += len(frame.Data)
+		}
+	}
+	for len(s.recent) > s.maxFrames || bytes > s.maxBytes {
+		for _, frame := range s.recent[0].Frames {
+			bytes -= len(frame.Data)
+		}
+		s.recent = s.recent[1:]
+	}
+}
+
+func (s *Store) publishDeltaLocked(delta Delta) {
+	for sub := range s.joins {
+		sub.mu.Lock()
+		if sub.closed {
+			sub.mu.Unlock()
+			delete(s.joins, sub)
+			continue
+		}
+		size := deltaBytes(delta)
+		if sub.bytes+size > s.maxBytes {
+			sub.err, sub.closed = ErrOverflow, true
+			close(sub.done)
+			sub.mu.Unlock()
+			delete(s.joins, sub)
+			continue
+		}
+		select {
+		case sub.deltas <- delta:
+			sub.bytes += size
+			sub.mu.Unlock()
+		default:
+			sub.err = ErrOverflow
+			sub.closed = true
+			close(sub.done)
+			sub.mu.Unlock()
+			delete(s.joins, sub)
+		}
+	}
+}
+
+func (s *Store) finishJoinSubscribersLocked() {
+	for sub := range s.joins {
+		delete(s.joins, sub)
+		sub.mu.Lock()
+		if !sub.closed {
+			sub.closed = true
+			close(sub.deltas)
+		}
+		sub.mu.Unlock()
+	}
+}
+
+func deltaBytes(delta Delta) int {
+	total := 0
+	for _, frame := range delta.Frames {
+		total += len(frame.Data)
+	}
+	return total
+}
+
 // Subscription is one connection's ordered suffix. The producer never waits
 // on it: a subscriber that cannot keep up is closed, and the next connection
 // starts from a fresh complete snapshot. Nothing is silently dropped while

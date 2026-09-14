@@ -208,9 +208,10 @@ buffer arbitrarily, rewrite identity, or change event semantics unnoticed.
 
 ### Observation and persistence
 
-Every SSE connection sends a complete replacement snapshot first and then
-incremental native events with Gimble placement. Native durable metadata may
-remain, but no client cursor, Last-Event-ID or replay recovery is used.
+The SSR snapshot carries a stream identity and exact transaction position.
+Each SSE delta groups every frame caused by one accepted input and advances the
+position once. Reconnect resumes a retained suffix or explicitly sends a
+replacement snapshot when the cursor is stale or unavailable.
 
 Register the subscriber and capture a detached snapshot under the same
 ordering boundary used for reduction. Events accepted after the cut queue

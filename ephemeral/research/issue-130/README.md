@@ -7,8 +7,11 @@ That revision has a direct native V2 UI, exercised with schema-validated
 streaming fixtures. The Go and TypeScript ports are compared with its actual
 JavaScript implementation after every fixture prefix.
 
-Every SSE connection begins with complete current state replacing the client
-state, then incremental events. There is no cursor recovery.
+The durable reduced snapshot carries a stream identity and exact transaction
+position. SSR hands that cursor to the browser; reconnects resume from the
+bounded retained suffix when available and otherwise replace state from the
+latest snapshot. A server restart restores the snapshot and seeks directly to
+its delta-journal offset before reducing only the suffix.
 
 - [Contract](contract.md): API and transport decisions.
 - [Port contract](port-contract.md): upstream semantics and oracle.

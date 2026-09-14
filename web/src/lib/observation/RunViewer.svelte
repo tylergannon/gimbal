@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { RunObservation, usageOf, usageText, type Decision, type ObservationFrame, type RunSnapshot } from './index.js';
+	import { RunObservation, usageOf, usageText, type Decision, type ObservationDelta, type RunSnapshot } from './index.js';
 	import SessionTimeline from './SessionTimeline.svelte';
 
 	let { snapshot }: { snapshot: RunSnapshot } = $props();
@@ -31,23 +31,37 @@
 
 	$effect(() => {
 		const generation = observation.beginConnection();
-		const stream = new EventSource(`/api/runs/${encodeURIComponent(observation.run.id)}/events`);
-		const names: ObservationFrame['type'][] = ['snapshot', 'row', 'totals', 'event'];
-		const listeners = names.map((type) => {
-			const listener = (message: MessageEvent<string>) => {
+		let stream: EventSource | undefined;
+		let retry: ReturnType<typeof setTimeout> | undefined;
+		const listener = (message: MessageEvent<string>) => {
+			if (!observation.isCurrentConnection(generation)) return;
+			const delta = JSON.parse(message.data) as ObservationDelta;
+			const accepted = observation.applyDelta(delta, generation);
+			if (accepted) revision = observation.revision;
+		};
+		const snapshotListener = (message: MessageEvent<string>) => {
+			if (observation.replace(JSON.parse(message.data) as RunSnapshot, generation)) revision = observation.revision;
+		};
+		const connect = () => {
+			if (!observation.isCurrentConnection(generation)) return;
+			const query = new URLSearchParams({ stream: observation.stream, position: String(observation.position) });
+			stream = new EventSource(`/api/runs/${encodeURIComponent(observation.run.id)}/events?${query}`);
+			stream.addEventListener('delta', listener as EventListener);
+			stream.addEventListener('snapshot', snapshotListener as EventListener);
+			stream.onopen = () => { if (observation.isCurrentConnection(generation)) connectionState = 'live'; };
+			stream.onerror = () => {
 				if (!observation.isCurrentConnection(generation)) return;
-				const frame = { type, data: JSON.parse(message.data) } as ObservationFrame;
-				if (observation.apply(frame, generation)) revision = observation.revision;
+				connectionState = 'disconnected';
+				stream?.close();
+				if (observation.run.status !== 'running') return;
+				retry = setTimeout(connect, 250);
 			};
-			stream.addEventListener(type, listener as EventListener);
-			return [type, listener] as const;
-		});
-		stream.onopen = () => { if (observation.isCurrentConnection(generation)) connectionState = 'live'; };
-		stream.onerror = () => { if (observation.isCurrentConnection(generation)) connectionState = 'disconnected'; };
+		};
+		connect();
 		return () => {
 			observation.endConnection(generation);
-			for (const [type, listener] of listeners) stream.removeEventListener(type, listener as EventListener);
-			stream.close();
+			if (retry !== undefined) clearTimeout(retry);
+			stream?.close();
 		};
 	});
 </script>

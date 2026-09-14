@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { createServer } from 'node:net'
-import { mkdtemp, readdir, readFile, writeFile } from 'node:fs/promises'
+import { mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 
@@ -70,7 +70,7 @@ test('production runtime streams, resets, reconnects and renders native content'
 					const at = buffered.indexOf('\n\n'); if (at < 0) break
 					const frame = buffered.slice(0, at); buffered = buffered.slice(at + 2)
 					const data = frame.split('\n').find(line => line.startsWith('data: '))?.slice(6)
-					if (data && String(JSON.parse(data).event?.type ?? '').endsWith('.delta')) deltaBytes.push(Buffer.byteLength(data))
+					if (data && frame.includes('event: delta')) deltaBytes.push(Buffer.byteLength(data))
 				}
 			}
 		})().catch(() => {})
@@ -93,11 +93,25 @@ test('production runtime streams, resets, reconnects and renders native content'
 		await expect(page.locator('.run-header .status')).toHaveText('completed')
 		const snapshotResponse = await page.request.get(`${url}/api/runs/${encodeURIComponent(runID)}`)
 		const snapshotBody = await snapshotResponse.body()
+		const durable = JSON.parse(await readFile(join(project, 'runs', runID, 'observation.json'), 'utf8'))
+		const journalBytes = (await stat(join(project, 'runs', runID, 'observation-deltas.jsonl'))).size
+		const restartStarted = performance.now()
+		await writeFile(join(project, 'stop'), '')
+		await new Promise<void>((resolve, reject) => child.once('exit', code => code === 0 ? resolve() : reject(new Error(`proof exited ${code}: ${stderr}`))))
+		await rm(join(project, 'stop'))
+		const restarted = spawn('go', ['run', './ephemeral/research/issue-130/proof', '-mode=serve', `-project=${project}`, `-port=${port}`], { cwd: repo, stdio: ['ignore', 'pipe', 'pipe'] })
+		let restartErr = ''; restarted.stderr.on('data', chunk => restartErr += chunk.toString())
+		await line(restarted, 'PROOF_READY=', () => restartErr)
+		await page.reload()
+		await expect(page.getByText(/FINAL_TEXT_proof-native-/)).toHaveCount(2)
+		const restartJoinMs = performance.now() - restartStarted
 		const measurements = {
 			rawHistoryBytes: await jsonlBytes(join(project, 'runs', runID)),
 			reducedStateBytes: snapshotBody.byteLength,
+			recoverySuffixBytes: journalBytes - durable.delta_offset,
 			ssrBytes,
 			ssrNavigationMs,
+			restartJoinMs,
 			deltaBytes,
 			partialDeltaBatchUpdateMs: partialUpdateMs
 		}
@@ -107,7 +121,7 @@ test('production runtime streams, resets, reconnects and renders native content'
 		await page.screenshot({ path: join(project, 'final.png'), fullPage: true })
 		await context.close()
 		await writeFile(join(project, 'stop'), '')
-		await new Promise<void>((resolve, reject) => child.once('exit', code => code === 0 ? resolve() : reject(new Error(`proof exited ${code}: ${stderr}`))))
+		await new Promise<void>((resolve, reject) => restarted.once('exit', code => code === 0 ? resolve() : reject(new Error(`restart proof exited ${code}: ${restartErr}`))))
 	} finally {
 		if (child.exitCode === null) child.kill('SIGTERM')
 	}

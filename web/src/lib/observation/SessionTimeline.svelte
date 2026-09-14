@@ -29,7 +29,7 @@
 			<header class="session-header"><code>{session.sessionID}</code><span>{state.active[session.sessionID] ?? 'idle'}</span></header>
 			<p class="session-total">{usageText(total)}</p>
 			{#each session.messages as message (message.id)}
-				<MessageRow {message} pending={session.pending.get(message.id)} revision={observation.messageRevision(turn, message.id)} />
+				<MessageRow {message} pending={session.pending.get(message.id)} revision={revision + observation.messageRevision(turn, message.id)} />
 			{/each}
 		{#each session.unmatchedPending as input (input.id)}
 			<article data-message-id={input.id}>

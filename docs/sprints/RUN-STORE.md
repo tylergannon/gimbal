@@ -27,9 +27,11 @@ code needs them. This sprint is what #169 becomes; #173 (the tree) and
   - Files: six arrays, initialized empty at `Open`, rewritten under the
     store lock once per accepted record, nothing on text deltas; a write
     error reaches `recordFailure`.
-  - Opening a finished run replays `run.jsonl` then each session log
-    through the same fold, writes the six files if any is missing, and is
-    cached in the registry. `checkpoint.go` and `loadCheckpoint` go.
+  - Opening a finished run loads the six files into the maps; the
+    session logs are read only for transcripts; the logs are replayed
+    through the fold, and the six files written, only when one of the
+    six is missing. The opened store is cached in the registry.
+    `checkpoint.go` and `loadCheckpoint` go.
   - Frames: `snapshot`, `row`, `totals`, `event`. The browser folds
     nothing but native transcript events; `foldLifecycle` and the usage
     fold are deleted; the `scopeUsage` remote query is deleted.
@@ -39,7 +41,7 @@ code needs them. This sprint is what #169 becomes; #173 (the tree) and
     the page, and the saved issue-149 run opened from a copy of its logs.
 - L2: § Architecture (rows, fold, sum rule, files, opening, frames and
   page); § Implementation Plan (three phases); § Definition of Done;
-  § Open Questions (the one interview answer taken on Tyler's behalf).
+  § Open Questions.
 
 ## Overview
 
@@ -51,7 +53,8 @@ creating scope, which is the wrong key (#157).
 
 After this sprint the store is the seven tables the intent names, as Go
 maps behind `Store.mu`, and six files beside the logs. `Store.Lifecycle`
-and `Store.Event` fold the live run and replay a finished one. Per-scope
+and `Store.Event` fold the live run and rebuild a finished one whose
+files are missing; a finished run with its files is loaded. Per-scope
 and per-session totals are computed in Go from `turn_usage` and published
 whenever it changes. The page renders the same header, scope list, session
 cards, and transcripts it renders today, from `turns`, `sessions`,
@@ -63,10 +66,12 @@ cards, and transcripts it renders today, from `turns`, `sessions`,
    answer "tokens per model for scope X" in one `jq` call. No server.
 2. **The page today, from the store.** Live: header with the run's total,
    scope list, session cards with session totals, transcripts, updating
-   from frames. Finished: the same, from the logs replayed once.
+   from frames. Finished: the same, from the six files loaded once.
 3. **A run finished before this sprint.** The saved issue-149 directory
-   has logs and an old `observation.json`. Opening a copy of it replays
-   the logs, writes the six files, and renders; the old file is ignored.
+   has logs, no table files, and an old `observation.json`. Opening a
+   copy of it takes the rebuild path: the logs are replayed, the six
+   files written, and the page renders; the old file is ignored. Opening
+   the copy again loads the files and replays nothing.
 4. **#173 reads the maps.** Scope times, turn rows with prompt, output
    type, result, error, interrupted, times, duration, per-model usage per
    turn, model calls, per-scope totals: all in `RunSnapshot` after this
@@ -289,34 +294,46 @@ set. A write error is returned from `Lifecycle` or `Event` and reaches
 
 ### Opening a finished run
 
-`internal/observation/replay.go`:
+The six files are the data model. Gimble reads them; the log is the
+transcript store and the rebuild source. `internal/observation/replay.go`:
 
 ```go
-// open replays a run directory's logs through a fresh store. It is how
-// every finished run is read. The six files are written only if any is
-// missing: the log is the input, the files are the store's output.
+// open reads a finished run directory into a fresh store. The six table
+// files are loaded into the maps; the session logs are read for the
+// transcript projections only. The lifecycle log is replayed through the
+// fold, and the six files written, only when one of the six is missing.
 func open(registry *Registry, id, dir string) (*Store, error)
 ```
 
-It makes a store with writes suppressed, reads `run.jsonl` line by line
-(`bufio.Scanner`, one `json.Unmarshal` per line, no following: an
-unfinished log is served as far as it goes with `run.status` as the last
-record left it) and calls `Lifecycle` on each line. Then, for every id in
-`sessions` in created order, it reads `sessions/<id>.jsonl` (ids carry
-their scope path, so the file nests as `sessions/agy.1/agy.1.jsonl` or
-`sessions/lap.1/task.2/coder.1.jsonl`; a session that never wrote a log
-has no file, which is not an error), decodes each line's `scope`,
-`session`, `turn`, `event`, and `native_ref`, and calls `Event`. A
-missing `run.jsonl` is `ErrNoRun`; a line that does not decode is an error
-naming the file and line. Then, if any of the six files is missing, it
-writes all six. The store is marked closed. `internal/runlog` is not used
-and not changed.
+It makes a store with writes suppressed. If all six files exist, each is
+decoded (one `json.Unmarshal` per file) into the row slices and indexed
+into `run`, `scopes`, `sessions`, `turns`, `turnUsage`, `modelCalls`;
+`Lifecycle` is not called and `run.jsonl` is not read. Totals come from
+the loaded `turn_usage` rows as they do live. Otherwise (a run recorded
+before this sprint, or a directory with a file missing) it reads
+`run.jsonl` line by line (`bufio.Scanner`, one `json.Unmarshal` per line,
+no following: an unfinished log is served as far as it goes with
+`run.status` as the last record left it), calls `Lifecycle` on each line,
+and after the session logs are read writes all six files. A missing
+`run.jsonl` on the rebuild path is `ErrNoRun`.
+
+On both paths, for every id in `sessions` in created order, it reads
+`sessions/<id>.jsonl` (ids carry their scope path, so the file nests as
+`sessions/agy.1/agy.1.jsonl` or `sessions/lap.1/task.2/coder.1.jsonl`; a
+session that never wrote a log has no file, which is not an error),
+decodes each line's `scope`, `session`, `turn`, `event`, and
+`native_ref`, and calls `Event`. Over loaded facts `Event` adds
+transcripts and nothing else: the ended-turn guard leaves `turn_usage`
+untouched, and a model call is replaced in place by message, so the row
+is the one already loaded. A line that does not decode is an error naming
+the file and line. The store is marked closed. `internal/runlog` is not
+used and not changed.
 
 `Registry` keeps one map. `finish` no longer deletes a store when its run
 ends; `Live(id)` returns a store only while it is open; `Snapshot(id)`
 returns the snapshot of any store in the map, open or closed, else calls
-`open` under the registry lock (so two requests replay once) and keeps the
-result. A run that finished in this process is never replayed. Nothing is
+`open` under the registry lock (so two requests open once) and keeps the
+result. A run that finished in this process is never reopened. Nothing is
 evicted; a project has tens of runs.
 
 ### Frames and the page
@@ -457,10 +474,14 @@ files (deleted), `skgo_remotes_gen.go`, `web/skgo.remotes.json`,
    `gemini-3.8-flash-low` 30006 / 0 / 0 / 101 / 0 (input, cache read,
    cache write, output, reasoning; summed by hand from the six
    `turn_ended` records), and writes the six files into the copy; opening
-   the copy again writes nothing (mtimes unchanged); the registry serves a
-   run that finished in-process without replaying (same store pointer)
-   and a directory it never saw by replaying once for two `Snapshot`
-   calls. `gimble_test.go`: `TestCancelledRunStaysCancelled` feeds the
+   the copy again writes nothing (mtimes unchanged) and reads the files,
+   not the log: with one number altered in the copy's `turn_usage.json`,
+   a fresh registry's snapshot shows the altered number, the file is
+   untouched, and the transcripts still render; with the copy's
+   `turn_usage.json` deleted, opening rebuilds all six from the logs; the
+   registry serves a run that finished in-process without reopening (same
+   store pointer) and a directory it never saw by opening once for two
+   `Snapshot` calls. `gimble_test.go`: `TestCancelledRunStaysCancelled` feeds the
    fixture lines to `store.Lifecycle`; after a fake-adapter run the six
    files exist, no `observation.json`, and every `turn_started` in
    `run.jsonl` is a row in `turns.json` with its scope.
@@ -564,7 +585,7 @@ concurrent attempts in `compare`.)
 | `internal/observation/usage.go` | flat usage, `contains`, `totalsLocked`; session-total fold and `ScopeUsage` deleted |
 | `internal/observation/files.go` | new: table names, ordering, `writeAtomic`, empty files at `Open` |
 | `internal/observation/replay.go` | new: `open` |
-| `internal/observation/registry.go` | stores kept after close; `Snapshot` live, finished, or replayed once |
+| `internal/observation/registry.go` | stores kept after close; `Snapshot` live, finished, or opened once |
 | `internal/observation/checkpoint.go` | deleted |
 | `internal/observation/doc.go`, `identity.go`, `subscribe.go` | wording; frame names; `transcript` |
 | `internal/observation/store_test.go`, `registry_test.go` | as in Phase 1; `usage_test.go` folded in |
@@ -650,7 +671,8 @@ machinery. Unit tests gate a phase; the proof is the live run.
   issue if ever needed.
 - **Two requests opening the same run.** Serialized under the registry
   lock; `os.CreateTemp` names never collide anyway.
-- **An unfinished log in a run directory.** Replay serves what is there
+- **An unfinished run directory from a crashed process.** The six files
+  hold what was written up to the crash, so the load path serves them
   with the run still `running`. Another process's live run is not
   followed; out of scope.
 - **Stale generated files.** The three deleted by hand are listed; `just
@@ -673,15 +695,15 @@ machinery. Unit tests gate a phase; the proof is the live run.
 
 ## Open Questions
 
-1. **Gimble does not read its own table files.** Decision 3 says a
-   finished run "loads the files into the same maps"; open question 1
-   offered replay with no loader, and all three critiques found replay to
-   be less code because the session logs must be read on every open for
-   transcripts anyway. This plan replays and treats the files as the
-   store's output. Taken on Tyler's behalf while he was away. If he wants
-   Gimble to read the files, the change is bounded: a loader of six arrays
-   into the maps, and `Event` already guarded so replaying the session logs
-   over loaded facts adds transcripts and nothing else.
+1. **Resolved: Gimble reads its own table files.** The plan as first
+   filed replayed the whole log on every open and wrote the files only as
+   output, an answer taken on Tyler's behalf. Tyler rejected it: the
+   tables are the data model, and a store Gimble never reads is not one;
+   replaying also re-derives old runs' numbers through whatever the fold
+   is today. The three lanes had conflated reading the session logs for
+   transcripts (which stays) with re-deriving facts from the lifecycle
+   log (which does not). Opening now loads the six files; replay is the
+   rebuild path for a directory with a file missing.
 2. **`invocations` renamed to `transcripts`.** The turn row carries the
    placement, so the old `Invocation` is a projection plus provenance.
    Cheap to reverse.

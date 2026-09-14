@@ -31,7 +31,7 @@ live in `internal/observation`.
 
 | Point | Claude | Codex | Gemini | Taken | Why |
 | --- | --- | --- | --- | --- | --- |
-| Opening a finished run | Replay the log on open | Load the six files, hydrate transcripts from session logs, rebuild only when files are missing | Replay the log on open | Replay on open | Session logs must be read on every open for transcripts (decision 5), so the loader saves nothing and adds a second way to fill the maps. Two of three critiques (Claude, Gemini) say so; the Codex critique accepts replay as allowed. See interview answer 1. |
+| Opening a finished run | Replay the log on open | Load the six files, hydrate transcripts from session logs, rebuild only when files are missing | Replay the log on open | Codex (reversed by Tyler) | First taken as replay on open (see interview answer 1). Tyler rejected that: the tables are the data model and Gimble must read them; replay re-derives old runs' numbers through the current fold. Session logs are still read on every open, for transcripts only. |
 | Replay ordering | `run.jsonl` first, then session logs, with a guard: step usage is ignored on a turn that has ended | Group native records per turn and feed them between `turn_started` and `turn_ended` | `run.jsonl` then session logs, no guard (double counts) | Claude's guard | One condition replaces an interleaver. Live order already puts every step before its report (`session.go`), so the guard changes nothing live. |
 | Write cadence | Dirty set plus an in-flight-absorbing flusher | Synchronous under the store lock, once per accepted record, nothing on deltas | Synchronous outside the lock | Codex | The lock is the ordering; outside it two `Group` producers can rename out of order. The flusher is more code and its pseudocode clears dirty bits before the write succeeds (Codex critique). Files are small; the hold is sub-millisecond. |
 | Frames | `snapshot`, `row`, `totals`, `event` | `snapshot`, `state` (whole fact maps), `event` | `snapshot`, `lifecycle`, `totals`, `event` | Claude's `row` and `totals` | The browser fold is deleted either way; `row` is the smaller payload on the hot path (the Claude critique sized `state` at every prompt and result per step end against the 4MB subscriber bound). Table names in the frame equal the snapshot's keys (Codex critique). |
@@ -76,13 +76,14 @@ Taken from the critiques, all within scope:
 ## Interview answers taken on Tyler's behalf
 
 1. **Decision 3 says "loads the files into the same maps"; open question 1
-   offered replay with no loader.** Answered: replay on open, files written
-   as output. The files remain the designed store that agents and `jq`
-   read, and Gimble's own maps are that same data; but Gimble does not read
-   its own table files in this sprint. If Tyler wants it to, the change is
-   bounded: a loader for six arrays into the maps, with `Event` already
-   guarded so replaying the session logs over loaded facts adds transcripts
-   and nothing else. Recorded as an open question in the final document.
+   offered replay with no loader.** Answered on Tyler's behalf: replay on
+   open, files written as output. **Reversed by Tyler on 2026-09-13**: the
+   answer abdicated the data model; Gimble reads the six files, reads the
+   session logs for transcripts only, and replays the lifecycle log only
+   to rebuild a directory with a file missing. The lanes had conflated the
+   transcript read (needed) with re-deriving facts (not). The final
+   document's § Opening a finished run and open question 1 carry the
+   corrected decision.
 2. **Where the proof program lives.** `ephemeral/attest/run-store/`, set
    up like `ephemeral/attest/issue-149/`; a program to run the workflow is
    the proof run, not proof machinery.

@@ -10,3 +10,24 @@ decision: Tyler rejected "the log is the only source" and asked for a designed s
 friction: The Claude CLI's OAuth session is expired and cannot be refreshed here; the Claude planning lanes ran as Agent-tool subagents (model fable) instead of `claude -p`. Say so in the plan.
 fact: Verified for the merge: `session.go` writes every step event through `run.sessionEvent` before it emits `turn_ended`, so a turn's native history always precedes its report in log order; session ids are scope-prefixed (`agy.1/agy.1`) so `sessions/<id>.jsonl` nests one directory per scope level and `newEventWriter` MkdirAlls it; all three adapters put the resolved model in `session.step.started` as `data.model.id`; `Registry.finish` deletes the store and `Snapshot` falls to `loadCheckpoint`; `internal/skgo/config.go` carries the `go generate` line that rewrites the skgo bindings; `web/src/lib/observation/index.ts` folds `lifecycle` and `session.usage.updated` in the browser today.
 fact: The drafts disagree on three things only: open a finished run by replaying the log (Claude, Gemini) or by loading the files and hydrating transcripts from the session logs (Codex); frames `row`+`totals` (Claude), `state` (Codex), or keep `lifecycle` and add `totals` (Gemini); write under the lock (Codex), outside it (Gemini), or through an in-flight-absorbing flusher (Claude). Everything else agrees with the intent.
+decision: Run store plan filed at `docs/sprints/RUN-STORE.md` (merge notes beside the drafts). One interview answer taken on Tyler's behalf: a finished run is opened by replaying its logs through the store and the six files are the store's output; Gimble does not read its own table files this sprint. Flagged as open question 1 in the plan.
+fact: Pre-existing breakage on main after #143: `ephemeral/review/{codex,claude}-loop-api/probes/main.go` fake adapters lack `Close`, so `go build ./...` and `go test ./...` fail there. Out of this sprint's scope; the gates run over `go list ./... | grep -v /ephemeral/`. Tyler's call whether to delete the probes.
+friction: The proof run's Claude leg needs the Claude CLI logged in, and it is not (OAuth session expired). Phases 1 and 2 proceed; the proof waits for a login or runs on Codex and Antigravity only with the gap stated.
+decision: Merged origin/main (ad6f2f6) into the sprint branch before the build so the builder works on current code.
+
+## 2026-09-13 — decision: opening a finished run loads the tables
+
+- decision: Tyler rejected the filed plan's "replay the whole log on open".
+  The six files are the data model and Gimble reads them; the session logs
+  are read for transcripts only; the lifecycle log is replayed, and the six
+  files written, only when one of the six is missing (a run recorded before
+  this sprint, or a damaged directory). Replay-on-open re-derives old runs'
+  numbers through whatever the fold is today and makes the tables
+  write-only for Gimble. The three planning lanes conflated reading the
+  session logs (needed on every open) with re-deriving facts (not).
+- Amended `docs/sprints/RUN-STORE.md` (L1, use cases, § Opening a finished
+  run, DoD open-path tests, risks, open question 1) and the merge notes.
+- Builder was held before it wired the registry to replay, then redirected:
+  load path first, rebuild path when `missingTable(dir) != ""`, session logs
+  through `Event` on both paths, two registry tests (altered number in
+  `turn_usage.json` is served; deleted file triggers rebuild).

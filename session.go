@@ -202,6 +202,11 @@ func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessag
 		scope.run.removeTurn(turnID)
 	}
 	stopped := context.Cause(turnCtx)
+	if stopped != nil && stopped != turnCtx.Err() {
+		// Keep errors.Is(err, context.Canceled) true for callers that only
+		// ask whether the turn was cancelled, and errors.As for the cause.
+		stopped = fmt.Errorf("%w: %w", turnCtx.Err(), stopped)
+	}
 	cancelTurn(nil)
 	if stopped != nil {
 		err = stopped

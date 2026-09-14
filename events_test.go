@@ -99,7 +99,7 @@ func TestLifecycleEventUnionRoundTripsEveryVariant(t *testing.T) {
 		{"turn_ended", TurnEnded{Result: JSONText(`"done"`), Usage: []ModelUsage{{Model: "m", Cost: 0.5, Tokens: Tokens{Input: 1}}}, Duration: time.Second}},
 		{"supervise_attached", SuperviseAttached{Reviewer: "reviewer.1", Worker: "worker.1/turn.1", Instruction: "watch", Interval: time.Minute}},
 		{"steer", Steer{Target: "worker.1", Source: "reviewer.1", Message: "fix it", Landed: true}},
-		{"interrupt", Interrupt{Target: "worker.1", Source: "operator"}},
+		{"killed", Killed{Target: "worker.1/turn.1", By: "operator", Reason: "off the rails"}},
 		{"complete", Complete{}},
 	}
 

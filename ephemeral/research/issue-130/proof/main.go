@@ -158,7 +158,11 @@ func main() {
 func live(ctx context.Context, adapter gimble.HarnessAdapter, model, project string, interrupt bool) error {
 	session := gimble.NewSession(ctx, "live", adapter, model, filepath.Join(project, "work"))
 	if interrupt {
-		go func() { time.Sleep(2 * time.Second); _ = session.Interrupt(ctx) }()
+		// Cancelling the turn's ctx is the interrupt.
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithCancel(ctx)
+		defer cancel()
+		go func() { time.Sleep(2 * time.Second); cancel() }()
 	}
 	_, err := session.Generate[gimble.Text](ctx, "Use exactly one shell tool to run `printf GIMBLE_LIVE_TOOL_MARKER`, then answer exactly GIMBLE_LIVE_FINAL_MARKER.")
 	return err

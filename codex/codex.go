@@ -326,19 +326,6 @@ func (a *adapter) Steer(ctx context.Context, sessionID, message string) error {
 	return nil
 }
 
-func (a *adapter) Interrupt(ctx context.Context, sessionID string) error {
-	s, err := a.session(sessionID)
-	if err != nil {
-		return err
-	}
-	active := s.getActive()
-	if active == nil {
-		return nil
-	}
-	interrupt(active.conn, sessionID, active.turnID)
-	return nil
-}
-
 // Close forgets sessionID locally and archives its thread in the daemon.
 // Archiving unloads the thread, releasing the MCP children and descriptors
 // it held in the shared daemon; unsubscribing would leave all of that

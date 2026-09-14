@@ -129,8 +129,8 @@ func lifecycleKind(event LifecycleEvent) string {
 		return "supervise_attached"
 	case Steer:
 		return "steer"
-	case Interrupt:
-		return "interrupt"
+	case Killed:
+		return "killed"
 	case Complete:
 		return "complete"
 	default:

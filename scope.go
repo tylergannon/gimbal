@@ -32,6 +32,7 @@ type scope struct {
 	run    *run
 	parent *scope
 	key    string // names with ordinals from the root, as in lap.3/bakeoff.1/attempt.2; "" for the root
+	cancel context.CancelCauseFunc // ends the scope's ctx; run.cancelScope reaches it by key
 
 	mu       sync.Mutex
 	ordinals map[string]int // the last ordinal given to each child scope and session name
@@ -75,13 +76,14 @@ func (s *scope) adopt(session *Session) {
 // do runs body as the scope: it begins when body is called and ends when
 // body returns.
 func (s *scope) do(ctx context.Context, body func(context.Context) error) error {
-	ctx, cancel := context.WithCancel(context.WithValue(ctx, scopeKey{}, s))
+	ctx, s.cancel = context.WithCancelCause(context.WithValue(ctx, scopeKey{}, s))
+	s.run.addScope(s)
 	e := ScopeBegan{Name: path.Base(s.key)}
 	if task, ok := ctx.Value(taskKey{}).(Task); ok {
 		e.Task = optionalTask(task)
 	}
 	s.run.event(s.key, "", "", e)
-	defer s.end(cancel)
+	defer s.end()
 	err := body(ctx)
 	s.run.event(s.key, "", "", ScopeEnded{Error: errString(err)})
 	return err
@@ -95,8 +97,10 @@ func (s *scope) do(ctx context.Context, body func(context.Context) error) error 
 // cancelled run still releases every native session. A Close failure never
 // changes the scope's own result (recorded on SessionClosed and folded into
 // this run's aggregate close error instead); Run joins that aggregate into
-// its returned error once the root scope has ended.
-func (s *scope) end(cancel context.CancelFunc) {
+// its returned error once the root scope has ended. The scope leaves the
+// run's table first, so a kill by key cannot reach a scope that is ending.
+func (s *scope) end() {
+	s.run.removeScope(s)
 	s.mu.Lock()
 	s.ended = true
 	sessions := s.sessions
@@ -117,7 +121,7 @@ func (s *scope) end(cancel context.CancelFunc) {
 		}
 		s.run.event(s.key, session.id, "", SessionClosed{Error: errString(closeErr)})
 	}
-	cancel()
+	s.cancel(nil)
 }
 
 // Scope runs body in a child scope named name, and returns its error. The

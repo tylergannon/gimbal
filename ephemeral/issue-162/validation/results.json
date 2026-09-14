@@ -1,0 +1,211 @@
+[
+  {
+    "name": "map dispatch runs without lint",
+    "argv": [
+      "go",
+      "run",
+      "./ephemeral/issue-162/validation/testdata/dispatch"
+    ],
+    "exit": 0,
+    "stdout": "worker ran\nworker ran\n",
+    "stderr": "2026/09/14 14:13:04 gimble: run 01M2GRTGTD183W1QFJR98WRCRZ.dispatch started in /var/folders/lt/09rsy64x65s_0fp2b8zq3n7m0000gn/T/gimble-162-independent-2120944965/runs/01M2GRTGTD183W1QFJR98WRCRZ.dispatch\n2026/09/14 14:13:04 gimble: run 01M2GRTGTD183W1QFJR98WRCRZ.dispatch ended: ok\n",
+    "passed": true
+  },
+  {
+    "name": "explicit dispatch runs without lint",
+    "argv": [
+      "go",
+      "run",
+      "./ephemeral/issue-162/validation/testdata/explicit"
+    ],
+    "exit": 0,
+    "stdout": "worker ran\nworker ran\n",
+    "stderr": "2026/09/14 14:13:04 gimble: run 01M2GRTGXRGZK7Y5QWQKRH4MAV.explicit started in /var/folders/lt/09rsy64x65s_0fp2b8zq3n7m0000gn/T/gimble-162-independent-2374651411/runs/01M2GRTGXRGZK7Y5QWQKRH4MAV.explicit\n2026/09/14 14:13:04 gimble: run 01M2GRTGXRGZK7Y5QWQKRH4MAV.explicit ended: ok\n",
+    "passed": true
+  },
+  {
+    "name": "standalone rejects direct lookup and helper alias",
+    "argv": [
+      "/Users/tyler/.codex/worktrees/2f67/gimble/bin/gimble",
+      "lint",
+      "./ephemeral/issue-162/validation/testdata/dispatch"
+    ],
+    "exit": 3,
+    "stdout": "",
+    "stderr": "/Users/tyler/.codex/worktrees/2f67/gimble/ephemeral/issue-162/validation/testdata/dispatch/main.go:20:9: [GIMBLE101-SIMPLE-WORKFLOWS/NO-DYNAMIC-WORKERS]: Workflow control flow must be visible in the source. Call worker functions directly in an if or switch instead of selecting a function dynamically.\n/Users/tyler/.codex/worktrees/2f67/gimble/ephemeral/issue-162/validation/testdata/dispatch/main.go:32:11: [GIMBLE101-SIMPLE-WORKFLOWS/NO-DYNAMIC-WORKERS]: Workflow control flow must be visible in the source. Call worker functions directly in an if or switch instead of selecting a function dynamically.\n",
+    "passed": true
+  },
+  {
+    "name": "standalone accepts switch, helpers, group callbacks, and known alias",
+    "argv": [
+      "/Users/tyler/.codex/worktrees/2f67/gimble/bin/gimble",
+      "lint",
+      "./ephemeral/issue-162/validation/testdata/explicit"
+    ],
+    "exit": 0,
+    "stdout": "",
+    "stderr": "",
+    "passed": true
+  },
+  {
+    "name": "vet protocol rejects direct lookup and helper alias",
+    "argv": [
+      "go",
+      "vet",
+      "-vettool=/Users/tyler/.codex/worktrees/2f67/gimble/bin/gimble",
+      "./ephemeral/issue-162/validation/testdata/dispatch"
+    ],
+    "exit": 1,
+    "stdout": "",
+    "stderr": "ephemeral/issue-162/validation/testdata/dispatch/main.go:20:9: [GIMBLE101-SIMPLE-WORKFLOWS/NO-DYNAMIC-WORKERS]: Workflow control flow must be visible in the source. Call worker functions directly in an if or switch instead of selecting a function dynamically.\nephemeral/issue-162/validation/testdata/dispatch/main.go:32:11: [GIMBLE101-SIMPLE-WORKFLOWS/NO-DYNAMIC-WORKERS]: Workflow control flow must be visible in the source. Call worker functions directly in an if or switch instead of selecting a function dynamically.\n",
+    "passed": true
+  },
+  {
+    "name": "vet protocol accepts explicit dispatch",
+    "argv": [
+      "go",
+      "vet",
+      "-vettool=/Users/tyler/.codex/worktrees/2f67/gimble/bin/gimble",
+      "./ephemeral/issue-162/validation/testdata/explicit"
+    ],
+    "exit": 0,
+    "stdout": "",
+    "stderr": "",
+    "passed": true
+  },
+  {
+    "name": "normal CLI help still works",
+    "argv": [
+      "/Users/tyler/.codex/worktrees/2f67/gimble/bin/gimble",
+      "-h"
+    ],
+    "exit": 0,
+    "stdout": "",
+    "stderr": "Usage of gimble:\n  -no-web\n    \trun without the web application\n  -port int\n    \tloopback TCP port for the web application (default 8080)\n  -uds string\n    \tUnix-domain socket for the web application instead of TCP\n",
+    "passed": true
+  },
+  {
+    "name": "named workflow callback runs without lint",
+    "argv": [
+      "go",
+      "run",
+      "./ephemeral/issue-162/validation/testdata/named"
+    ],
+    "exit": 0,
+    "stdout": "",
+    "stderr": "2026/09/14 14:13:06 gimble: run 01M2GRTJ6AEQGG9HM3YDEQGC4V.named started in /var/folders/lt/09rsy64x65s_0fp2b8zq3n7m0000gn/T/gimble-162-named-1099004209/runs/01M2GRTJ6AEQGG9HM3YDEQGC4V.named\n2026/09/14 14:13:06 gimble: run 01M2GRTJ6AEQGG9HM3YDEQGC4V.named ended: ok\n",
+    "passed": true
+  },
+  {
+    "name": "named workflow callback is analyzed",
+    "argv": [
+      "/Users/tyler/.codex/worktrees/2f67/gimble/bin/gimble",
+      "lint",
+      "./ephemeral/issue-162/validation/testdata/named"
+    ],
+    "exit": 3,
+    "stdout": "",
+    "stderr": "/Users/tyler/.codex/worktrees/2f67/gimble/ephemeral/issue-162/validation/testdata/named/main.go:14:9: [GIMBLE101-SIMPLE-WORKFLOWS/NO-DYNAMIC-WORKERS]: Workflow control flow must be visible in the source. Call worker functions directly in an if or switch instead of selecting a function dynamically.\n",
+    "passed": true
+  },
+  {
+    "name": "prompt ending in cfg retains normal CLI routing",
+    "argv": [
+      "/Users/tyler/.codex/worktrees/2f67/gimble/bin/gimble",
+      "run-prompt",
+      "-h",
+      "settings.cfg"
+    ],
+    "exit": 0,
+    "stdout": "",
+    "stderr": "Usage of gimble run-prompt:\n  -effort string\n    \treasoning effort: low, medium, high, xhigh, or max\n  -logs string\n    \tnew project log directory; default is a temporary directory\n  -model string\n    \tmodel name or alias; omitted inside Codex or Claude selects the opposite provider\n  -model-version string\n    \texact model-family version\n  -output-schema string\n    \texact JSON Schema for structured output; omit for plain text\n  -timeout duration\n    \tturn timeout (default 20m0s)\n  -workdir string\n    \tagent workspace (default \".\")\n",
+    "passed": true
+  },
+  {
+    "name": "socket ending in cfg retains normal CLI routing",
+    "argv": [
+      "/Users/tyler/.codex/worktrees/2f67/gimble/bin/gimble",
+      "-h",
+      "-uds",
+      "/tmp/gimble-162.cfg"
+    ],
+    "exit": 0,
+    "stdout": "",
+    "stderr": "Usage of gimble:\n  -no-web\n    \trun without the web application\n  -port int\n    \tloopback TCP port for the web application (default 8080)\n  -uds string\n    \tUnix-domain socket for the web application instead of TCP\n",
+    "passed": true
+  },
+  {
+    "name": "generic writes and captured outer loop contexts detect duplicates",
+    "argv": [
+      "/Users/tyler/.codex/worktrees/2f67/gimble/bin/gimble",
+      "lint",
+      "./ephemeral/issue-162/validation/testdata/setchecks"
+    ],
+    "exit": 3,
+    "stdout": "",
+    "stderr": "/Users/tyler/.codex/worktrees/2f67/gimble/ephemeral/issue-162/validation/testdata/setchecks/checks.go:24:14: [GIMBLE104-SET-MISUSE/WRONG-CONTEXT]: Set must use the context parameter of this child scope.\n/Users/tyler/.codex/worktrees/2f67/gimble/ephemeral/issue-162/validation/testdata/setchecks/checks.go:11:16: [GIMBLE103-SET-MISUSE/DUPLICATE-KEY]: This scope can set the same context key more than once. Use one write per key in each scope.\n/Users/tyler/.codex/worktrees/2f67/gimble/ephemeral/issue-162/validation/testdata/setchecks/checks.go:16:13: [GIMBLE103-SET-MISUSE/DUPLICATE-KEY]: This scope can set the same context key more than once. Use one write per key in each scope.\n/Users/tyler/.codex/worktrees/2f67/gimble/ephemeral/issue-162/validation/testdata/setchecks/checks.go:24:13: [GIMBLE103-SET-MISUSE/DUPLICATE-KEY]: This scope can set the same context key more than once. Use one write per key in each scope.\n",
+    "passed": true
+  },
+  {
+    "name": "mutually exclusive writes and fresh task contexts pass",
+    "argv": [
+      "/Users/tyler/.codex/worktrees/2f67/gimble/bin/gimble",
+      "lint",
+      "./ephemeral/issue-162/validation/testdata/fresh"
+    ],
+    "exit": 0,
+    "stdout": "",
+    "stderr": "",
+    "passed": true
+  },
+  {
+    "name": "helper without context parameter runs without lint",
+    "argv": [
+      "go",
+      "run",
+      "./ephemeral/issue-162/validation/testdata/helper"
+    ],
+    "exit": 0,
+    "stdout": "",
+    "stderr": "2026/09/14 14:13:07 gimble: run 01M2GRTKS434F1G41305WM3Y52.helper started in /var/folders/lt/09rsy64x65s_0fp2b8zq3n7m0000gn/T/gimble-162-helper-3419626337/runs/01M2GRTKS434F1G41305WM3Y52.helper\n2026/09/14 14:13:07 gimble: run 01M2GRTKS434F1G41305WM3Y52.helper ended: ok\n",
+    "passed": true
+  },
+  {
+    "name": "direct helper reachability does not depend on its parameter types",
+    "argv": [
+      "/Users/tyler/.codex/worktrees/2f67/gimble/bin/gimble",
+      "lint",
+      "./ephemeral/issue-162/validation/testdata/helper"
+    ],
+    "exit": 3,
+    "stdout": "",
+    "stderr": "/Users/tyler/.codex/worktrees/2f67/gimble/ephemeral/issue-162/validation/testdata/helper/main.go:14:9: [GIMBLE101-SIMPLE-WORKFLOWS/NO-DYNAMIC-WORKERS]: Workflow control flow must be visible in the source. Call worker functions directly in an if or switch instead of selecting a function dynamically.\n",
+    "passed": true
+  },
+  {
+    "name": "run-prompt wins even when argument names a vet config",
+    "argv": [
+      "/Users/tyler/.codex/worktrees/2f67/gimble/bin/gimble",
+      "run-prompt",
+      "-h",
+      "/var/folders/lt/09rsy64x65s_0fp2b8zq3n7m0000gn/T/gimble-162-routing-2bcv9brz/vet.cfg"
+    ],
+    "exit": 0,
+    "stdout": "",
+    "stderr": "Usage of gimble run-prompt:\n  -effort string\n    \treasoning effort: low, medium, high, xhigh, or max\n  -logs string\n    \tnew project log directory; default is a temporary directory\n  -model string\n    \tmodel name or alias; omitted inside Codex or Claude selects the opposite provider\n  -model-version string\n    \texact model-family version\n  -output-schema string\n    \texact JSON Schema for structured output; omit for plain text\n  -timeout duration\n    \tturn timeout (default 20m0s)\n  -workdir string\n    \tagent workspace (default \".\")\n",
+    "passed": true
+  },
+  {
+    "name": "server help wins even when socket argument names a vet config",
+    "argv": [
+      "/Users/tyler/.codex/worktrees/2f67/gimble/bin/gimble",
+      "-h",
+      "-uds",
+      "/var/folders/lt/09rsy64x65s_0fp2b8zq3n7m0000gn/T/gimble-162-routing-2bcv9brz/vet.cfg"
+    ],
+    "exit": 0,
+    "stdout": "",
+    "stderr": "Usage of gimble:\n  -no-web\n    \trun without the web application\n  -port int\n    \tloopback TCP port for the web application (default 8080)\n  -uds string\n    \tUnix-domain socket for the web application instead of TCP\n",
+    "passed": true
+  }
+]

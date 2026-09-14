@@ -1,0 +1,62 @@
+<script lang="ts">
+  import DocsPage from "#lib/components/DocsPage.svelte";
+
+  const headings = [
+    { id: "what-it-does", text: "What it does" },
+    { id: "what-you-write", text: "What you write" },
+    { id: "start", text: "Start here" },
+    { id: "limits", text: "What it does not do" },
+  ];
+</script>
+
+<DocsPage
+  title="Guide"
+  description="How to write and run agent workflows as ordinary Go code."
+  eyebrow="Gimble guide"
+  {headings}
+>
+
+<h2 id="what-it-does">What it does</h2>
+
+- Starts a named run and writes a durable JSONL record for it.
+- Creates agent sessions through a harness adapter such as Codex or Claude Code.
+- Runs turns, lets another goroutine steer or interrupt a running turn, and records the result.
+- Gives normal Go concurrency a visible shape with named scopes and groups.
+
+<h2 id="what-you-write">What you write</h2>
+
+The workflow is regular Go: functions, loops, conditionals, errors, and the tools you already use. Gimble does not hide a critique round, retry policy, or delivery process behind a special workflow function. Put that logic directly in the program that needs it.
+
+```go
+ctx = gimble.Project(ctx, ".")
+
+err := gimble.Run(ctx, "repair", func(ctx context.Context) error {
+	worker := gimble.NewSession(ctx, "worker", adapter, model, workdir)
+	answer, err := worker.Generate[gimble.Text](ctx, "Fix the failing test.")
+	if err != nil {
+		return err
+	}
+	fmt.Println(answer)
+	return nil
+})
+```
+
+`adapter` is the harness-specific implementation. The workflow stays the same whether it talks to Codex, Claude Code, or an adapter you provide.
+
+<h2 id="start">Start here</h2>
+
+1. Install the library in a Go project.
+2. Create a project context and a `Run`.
+3. Create a named session, then call `Generate` with the prompt you want.
+4. Use `Scope` and `Group` when the work has a bounded step or concurrent branches.
+
+```sh
+go get github.com/tylergannon/gimble
+go doc -all github.com/tylergannon/gimble
+```
+
+<h2 id="limits">What it does not do</h2>
+
+Gimble does not choose your process for you. It is not a hosted agent product, a new programming language, or a library of named management tactics. It is a small runtime for the parts that are hard to get right repeatedly: agent sessions, cancellation, bounded concurrency, and a record of the run.
+
+</DocsPage>

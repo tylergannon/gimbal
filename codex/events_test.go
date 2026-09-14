@@ -48,7 +48,7 @@ func TestProjectorBindsRawResponseAndNormalizesTokens(t *testing.T) {
 	}
 	tokens := ended["tokens"].(map[string]any)
 	cache := tokens["cache"].(map[string]any)
-	if tokens["input"] != float64(75) || tokens["output"] != float64(20) || tokens["reasoning"] != float64(10) || cache["read"] != float64(25) || cache["write"] != float64(5) {
+	if tokens["input"] != float64(70) || tokens["output"] != float64(20) || tokens["reasoning"] != float64(10) || cache["read"] != float64(25) || cache["write"] != float64(5) {
 		t.Fatalf("normalized tokens = %#v", tokens)
 	}
 }

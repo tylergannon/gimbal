@@ -1,0 +1,2 @@
+{"seq":1,"time":"2026-09-14T00:16:39.836337Z","scope":"","event":{"kind":"run_started","name":"run-store-proof"}}
+{"seq":2,"time":"2026-09-14T00:16:59.847845Z","scope":"","event":{"error":"","kind":"run_ended","name":"run-store-proof"}}

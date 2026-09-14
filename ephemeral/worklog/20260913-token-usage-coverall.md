@@ -31,3 +31,19 @@ decision: Merged origin/main (ad6f2f6) into the sprint branch before the build s
   load path first, rebuild path when `missingTable(dir) != ""`, session logs
   through `Event` on both paths, two registry tests (altered number in
   `turn_usage.json` is served; deleted file triggers rebuild).
+
+## 2026-09-13 — Phase 3 proof run
+
+- Builder finished Phases 1 and 2 (`c66bea5`, `bbffd66`); I reran every
+  gate myself: build, vet, all Go packages, web tests, `just build`. No file
+  outside the plan's footprint.
+- Proof at `ephemeral/attest/run-store/` (`result.md`). Every number on the
+  page equals the jq sum over `turns.json`+`turn_usage.json` and the
+  `turn_ended` records, live and after the run; the binary reopens the run
+  from its tables with mtimes unchanged; the issue-149 logs rebuild to the
+  registry test's literals.
+- gap: the Claude leg ran on Codex (`-second codex`) because the Claude CLI
+  is logged out and I may not enter credentials. Haiku's cache-write and
+  stated-cost columns are covered by the issue-149 rebuild instead.
+- Launched the sol adversarial review (`gpt-5.6-sol`, high) at ~18:14; it
+  writes `ephemeral/reviews/202609131715-run-store-round-01.md`.

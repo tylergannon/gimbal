@@ -18,3 +18,13 @@ e2e run="run":
     cd e2e && pnpm install
     cd e2e && pnpm exec playwright install chromium
     cd e2e && BASE_URL="{{base_url}}" SKGO_E2E_RUN={{run}} pnpm test
+
+vet:
+    go vet ./...
+
+test:
+    go test -count=1 ./...
+    cd web && pnpm test
+
+attest:
+    go run ./ephemeral/attest/just-attest

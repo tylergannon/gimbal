@@ -57,6 +57,22 @@ simplifying workflow source over generalizing the analyzer. A partial graph is
 diagnostic evidence, not an accepted alternative to this aesthetic. This
 clarification governs interpretation of the extraction boundary below.
 
+### Updated evaluation of tradeoff (1): static structural recovery
+
+I endorse this authoring rule and would keep it even without the issue's
+constraint. My earlier evaluation gave arbitrary dynamic dispatch too much
+weight as an idiomatic Go capability Gimble should accommodate. That was the
+wrong frame for the intended workflow aesthetic.
+
+Explicit, statically mappable structure is part of what makes a Gimble workflow
+well written. Rejecting dynamic worker dispatch is a useful authoring diagnostic,
+like rejecting dynamic Set keys, rather than a deficiency to solve with deeper
+analysis. Unknown loop counts, task contents, branch outcomes, and runtime data
+remain valid within the visible structure. Design the extractor for these simple
+workflow forms, keep lint detection bounded, and diagnose hidden structure rather
+than letting it drive the architecture. No relaxation of requirement (1) is
+recommended.
+
 ## 1. The concrete graph type
 
 Put these declarations in package

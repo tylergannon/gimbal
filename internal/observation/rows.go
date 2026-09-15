@@ -101,6 +101,32 @@ type TurnUsageRow struct {
 	Usage
 }
 
+// CommandRow is one command a workflow ran with RunCommand. Scope is where it
+// ran. A command that ran has its exit code and no error; one that could not
+// start has exit code -1 and the error, and one its ctx cancelled has both and
+// Interrupted as well. Stdout and Stderr are the output the record keeps, the
+// tail of a longer stream, and StdoutFile or StderrFile then names the file
+// beside the run log that holds all of it.
+type CommandRow struct {
+	Run         string   `json:"run"`
+	ID          string   `json:"id"`
+	Scope       string   `json:"scope"`
+	Name        string   `json:"name"`
+	Command     string   `json:"command"`
+	Args        []string `json:"args"`
+	Workdir     string   `json:"workdir"`
+	ExitCode    int      `json:"exit_code"`
+	Stdout      string   `json:"stdout"`
+	Stderr      string   `json:"stderr"`
+	StdoutFile  string   `json:"stdout_file"`
+	StderrFile  string   `json:"stderr_file"`
+	Error       string   `json:"error"`
+	Interrupted bool     `json:"interrupted"`
+	Started     int64    `json:"started"`
+	Ended       int64    `json:"ended"`
+	Duration    int64    `json:"duration"`
+}
+
 // ModelCallRow is one step that reached a model: the drill below a turn.
 // It is a fact and is never summed; Message is the normalized assistant
 // message id the step named.

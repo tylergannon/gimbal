@@ -141,6 +141,10 @@ func (s *Store) restoreLocked(snapshot RunSnapshot) {
 	for k, v := range snapshot.ModelCalls {
 		s.modelCalls[k] = append([]ModelCallRow(nil), v...)
 	}
+	for k, v := range snapshot.Commands {
+		row := v
+		s.commands[k] = &row
+	}
 	for turn, value := range snapshot.Transcripts {
 		s.transcripts[turn] = &transcript{projection: sessionstate.New(value.Snapshot.State), provenance: cloneProvenance(value.Provenance)}
 	}
@@ -209,6 +213,11 @@ func (s *Store) restoreRowLocked(frame rowFrame) {
 		var v []ModelCallRow
 		if json.Unmarshal(raw, &v) == nil {
 			s.modelCalls[frame.Key] = v
+		}
+	case tableCommands:
+		var v CommandRow
+		if json.Unmarshal(raw, &v) == nil {
+			s.commands[frame.Key] = &v
 		}
 	}
 }

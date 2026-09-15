@@ -1,6 +1,6 @@
 ---
 name: gimble-workflows
-description: Write, run, and read a Gimble workflow: an agent workflow as ordinary Go on the root package gimble (Run, Scope, Group, Loop, sessions, Generate, supervisors, kills). Use whenever asked to write or change a workflow, a bake-off, a critique round, a loop, a supervisor, or to run one and read its record.
+description: Write, run, and read a Gimble workflow: an agent workflow as ordinary Go on the root package gimble (Run, Scope, Group, Loop, sessions, Generate, RunCommand, supervisors, kills). Use whenever asked to write or change a workflow, a bake-off, a critique round, a loop, a supervisor, or to run one and read its record.
 ---
 
 # Gimble workflows
@@ -9,8 +9,8 @@ A workflow is ordinary Go. The API is the root package `gimble`; read
 `go doc -all .` before writing, and never invent a name that is not there.
 There are no tactics in the API: a bake-off, a critique round, a retry, a
 worktree, a merge is written inline in the workflow that needs it, with
-`Group`, `Generate`, and git through `os/exec`. Never propose a new exported
-name; propose the program.
+`Group`, `Generate`, and git through `RunCommand`. Never propose a new
+exported name; propose the program.
 
 ## What a run is
 
@@ -24,8 +24,9 @@ in the tree is a child of its parent's, so cancelling the run's ctx is how
 it is stopped from outside; there is no stop method.
 
 Ids are names with ordinals from the root: scope `work.1/task.2`, session
-`work.1/task.2/coder.1`, turn `work.1/task.2/coder.1/turn.3`. These are the
-ids on the page, in the log, and in a kill.
+`work.1/task.2/coder.1`, turn `work.1/task.2/coder.1/turn.3`, command
+`work.1/task.2/check.1`. These are the ids on the page, in the log, and in
+a kill.
 
 ## Primitives
 
@@ -40,6 +41,7 @@ ids on the page, in the log, and in a kill.
 | `s.Generate[T](ctx, prompt, opts...)` | One blocking turn. `T` is `gimble.Text` for prose, or a polytype `Output` type whose schema is sent with the prompt. | Nothing is injected: put `ScopeText(ctx)` in the prompt yourself. A wrong-shaped answer is re-asked a bounded number of times. |
 | `s.Fork(ctx, name)` | A new session with the conversation so far, in the same dir. | Read the code once, fork the readers. |
 | `s.Steer(ctx, message) (landed, err)` | From another goroutine while `Generate` blocks: lands at the worker's next model call. | Dropped when no turn runs: `landed` false, `err` nil. The log's `steer` record says the same. |
+| `RunCommand(ctx, name, workdir, command, args...)` | Runs one command and blocks until it exits: `(exitCode, stdout, stderr, err)`. | A nonzero exit is not an error; `err` is a command that could not start or was cancelled, exit code -1. Every command a workflow runs goes through it, never `os/exec`: it is recorded in the scope. |
 | `Set(ctx, key, v)`, `SetJSON(ctx, key, v)`, `ScopeText(ctx)` | Record a scalar or a polytype value in the ctx's scope; render every value visible from it, outermost first. | `Set` returns nothing and panics on misuse: a key set twice in one scope instance, or a scope that has ended. Revise by shadowing in a child scope. |
 | `WithSupervisor(session, instruction, opts...)`, `WithInterval(d)` | Options to `Generate`: a supervisor looks at what the worker did since its last look, every 3 minutes or `WithInterval`, and steers each objection in. | It never gates the result. Its own options are `opts`, so a supervisor can have a supervisor. |
 | `Killed{Target, By, Reason}` | The cause an operator's kill puts on a scope's or a turn's ctx. | `errors.As(err, &killed)` on a `Generate` error, or `context.Cause(ctx)`. See below. |
@@ -116,7 +118,9 @@ Under `<project>/runs/<id>/`:
   `session`, `turn`, and `event.kind` in `run_started`, `scope_began`,
   `scope_ended`, `session_created`, `session_closed`, `turn_started`
   (the prompt and `output_type`), `turn_ended` (result, error, usage per
-  model, duration, `interrupted`), `value_set`, `steer`, `supervise_attached`,
+  model, duration, `interrupted`), `command_started` (the command's `id`,
+  what ran, the workdir), `command_ended` (`exit_code`, `stdout`, `stderr`,
+  error, `interrupted`), `value_set`, `steer`, `supervise_attached`,
   `planner_decision`, `killed`, `run_cancelled`, `run_ended`, and last
   `complete`; no `complete` means the run did not finish durably.
 - `sessions/<scope>/<session>.jsonl`: the harness's own events for that
@@ -124,13 +128,18 @@ Under `<project>/runs/<id>/`:
 - `scopes/<loop key>/backlog.md`: a `Loop`'s backlog as the planner last
   revised it.
 - `run.json`, `scopes.json`, `sessions.json`, `turns.json`, `turn_usage.json`,
-  `model_calls.json`: the six tables the page reads, kept current as the run goes.
+  `model_calls.json`, `commands.json`: the seven tables the page reads, kept
+  current as the run goes.
+- `commands/<command id>.stdout` and `.stderr`: a command's whole stream when
+  it is longer than the 64 KiB its record keeps; the record holds the tail
+  and names the file.
 - `../../project.jsonl`: every run's lifecycle records in one file, ordered
   by `time`, not `seq`.
 
 Every prompt sent: `jq -r 'select(.event.kind=="turn_started") | .turn, .event.prompt' run.jsonl`.
 What each turn cost: `jq -c 'select(.event.kind=="turn_ended") | {turn, usage: .event.usage, ns: .event.duration}' run.jsonl`.
 Who killed what: `jq -c 'select(.event.kind=="killed")' run.jsonl`.
+How each command ended: `jq -c 'select(.event.kind=="command_ended") | {id: .event.id, exit: .event.exit_code, error: .event.error}' run.jsonl`.
 
 ## Rules a workflow author meets
 

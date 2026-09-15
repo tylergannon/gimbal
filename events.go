@@ -126,6 +126,39 @@ type TurnEnded struct {
 
 func (TurnEnded) lifecycleEvent() {}
 
+// CommandStarted records a command RunCommand is starting in the record's
+// scope. ID is the scope's key and Name with an ordinal, as in
+// lap.3/check.2; Workdir is absolute.
+type CommandStarted struct {
+	ID      string   `json:"id"`
+	Name    string   `json:"name"`
+	Command string   `json:"command"`
+	Args    []string `json:"args"`
+	Workdir string   `json:"workdir"`
+}
+
+func (CommandStarted) lifecycleEvent() {}
+
+// CommandEnded records how the command ID ended. A command that ran has its
+// exit code and no error. One that could not start has exit code -1 and the
+// error, and one its ctx cancelled has both and Interrupted as well. Stdout
+// and Stderr are its output; past the size a record keeps, they are the
+// tail, and StdoutFile or StderrFile names the file in the run's directory
+// that holds all of it.
+type CommandEnded struct {
+	ID          string        `json:"id"`
+	ExitCode    int           `json:"exit_code"`
+	Stdout      string        `json:"stdout"`
+	Stderr      string        `json:"stderr"`
+	StdoutFile  string        `json:"stdout_file"`
+	StderrFile  string        `json:"stderr_file"`
+	Error       string        `json:"error"`
+	Interrupted bool          `json:"interrupted"`
+	Duration    time.Duration `json:"duration"`
+}
+
+func (CommandEnded) lifecycleEvent() {}
+
 // SuperviseAttached records a reviewer attached to a worker turn.
 type SuperviseAttached struct {
 	Reviewer    string        `json:"reviewer"`

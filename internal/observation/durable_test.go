@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -59,6 +60,36 @@ func TestRestartRestoresSnapshotAndOnlyItsDeltaSuffix(t *testing.T) {
 	}
 	if offset <= 0 || offset >= info.Size() {
 		t.Fatalf("snapshot offset %d does not divide %d-byte journal", offset, info.Size())
+	}
+}
+
+// TestRestartRestoresACommandFromItsDeltaSuffix: a command that started
+// before the snapshot and ended after it comes back ended, from the delta.
+func TestRestartRestoresACommandFromItsDeltaSuffix(t *testing.T) {
+	dir := t.TempDir()
+	store, err := Open(nil, "run-1", "fixture", dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fold(t, store, json.RawMessage(`{"seq":1,"time":"2026-09-13T00:00:00Z","scope":"lap.1","event":{"kind":"command_started","id":"lap.1/check.1","name":"check","command":"go","args":["test","./..."],"workdir":"/w"}}`))
+	store.mu.Lock()
+	if err := store.saveSnapshotLocked(); err != nil {
+		store.mu.Unlock()
+		t.Fatal(err)
+	}
+	store.mu.Unlock()
+	fold(t, store, json.RawMessage(`{"seq":2,"time":"2026-09-13T00:00:02Z","scope":"lap.1","event":{"kind":"command_ended","id":"lap.1/check.1","exit_code":1,"stdout":"FAIL","stderr":"","stdout_file":"","stderr_file":"","error":"","interrupted":false,"duration":2000000000}}`))
+	want := CommandRow{Run: "run-1", ID: "lap.1/check.1", Scope: "lap.1", Name: "check", Command: "go", Args: []string{"test", "./..."},
+		Workdir: "/w", ExitCode: 1, Stdout: "FAIL", Started: 1789257600000, Ended: 1789257602000, Duration: 2000}
+
+	restored, ok, err := loadDurable(nil, "run-1", dir)
+	if err != nil || !ok {
+		t.Fatalf("restore: ok=%v err=%v", ok, err)
+	}
+	for _, snapshot := range []RunSnapshot{store.Snapshot(), restored.Snapshot()} {
+		if got := snapshot.Commands["lap.1/check.1"]; !reflect.DeepEqual(got, want) {
+			t.Fatalf("command = %+v, want %+v", got, want)
+		}
 	}
 }
 

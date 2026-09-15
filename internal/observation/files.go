@@ -10,7 +10,7 @@ import (
 	"slices"
 )
 
-// The six tables. A name is both the file's stem beside the run log and the
+// The seven tables. A name is both the file's stem beside the run log and the
 // key the snapshot holds that table under, so a `row` frame names one thing.
 const (
 	tableRun        = "run"
@@ -19,10 +19,11 @@ const (
 	tableTurns      = "turns"
 	tableTurnUsage  = "turn_usage"
 	tableModelCalls = "model_calls"
+	tableCommands   = "commands"
 )
 
-// tables is every table, in the order the six files are written.
-var tables = []string{tableRun, tableScopes, tableSessions, tableTurns, tableTurnUsage, tableModelCalls}
+// tables is every table, in the order the seven files are written.
+var tables = []string{tableRun, tableScopes, tableSessions, tableTurns, tableTurnUsage, tableModelCalls, tableCommands}
 
 // tableRowsLocked is one table as its file holds it: a JSON array in a fixed
 // order, so the same state always writes the same bytes.
@@ -72,6 +73,15 @@ func (s *Store) tableRowsLocked(table string) any {
 			out = append(out, s.modelCalls[turn]...)
 		}
 		return out
+	case tableCommands:
+		out := make([]CommandRow, 0, len(s.commands))
+		for _, row := range s.commands {
+			out = append(out, *row)
+		}
+		slices.SortFunc(out, func(a, b CommandRow) int {
+			return cmp.Or(cmp.Compare(a.Started, b.Started), cmp.Compare(a.ID, b.ID))
+		})
+		return out
 	}
 	panic(fmt.Errorf("observation: no table named %s", table))
 }
@@ -98,11 +108,11 @@ func (s *Store) writeTablesLocked(changed []string) error {
 	return nil
 }
 
-// writeAllTablesLocked rewrites all six, which is what Open does for an empty
+// writeAllTablesLocked rewrites all seven, which is what Open does for an empty
 // run and what a replay does for a directory missing any of them.
 func (s *Store) writeAllTablesLocked() error { return s.writeTablesLocked(tables) }
 
-// missingTable reports the first of the six files a directory does not hold.
+// missingTable reports the first of the seven files a directory does not hold.
 func missingTable(dir string) string {
 	for _, table := range tables {
 		if _, err := os.Stat(filepath.Join(dir, table+".json")); err != nil {

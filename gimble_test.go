@@ -131,6 +131,10 @@ func lifecycleKind(event LifecycleEvent) string {
 		return "turn_started"
 	case TurnEnded:
 		return "turn_ended"
+	case CommandStarted:
+		return "command_started"
+	case CommandEnded:
+		return "command_ended"
 	case SuperviseAttached:
 		return "supervise_attached"
 	case Steer:
@@ -1049,11 +1053,11 @@ func TestCancelledRunStaysCancelled(t *testing.T) {
 	}
 }
 
-// TestRunWritesTheSixTables is the run store on disk: a finished run's
-// directory holds the six tables, durable reduced snapshot and ordered delta
+// TestRunWritesTheTables is the run store on disk: a finished run's
+// directory holds the seven tables, durable reduced snapshot and ordered delta
 // journal beside its logs, and every turn the log started is a row with the
 // scope it ran in.
-func TestRunWritesTheSixTables(t *testing.T) {
+func TestRunWritesTheTables(t *testing.T) {
 	f := &fake{answer: func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(AgentEvent) error) (string, error) {
 		_ = emit(fakeAgentEvent("session.text.ended", session, "message-1", map[string]any{"ordinal": 0, "text": "working"}))
 		return "done", nil
@@ -1077,7 +1081,7 @@ func TestRunWritesTheSixTables(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	for _, table := range []string{"run", "scopes", "sessions", "turns", "turn_usage", "model_calls"} {
+	for _, table := range []string{"run", "scopes", "sessions", "turns", "turn_usage", "model_calls", "commands"} {
 		if _, err := os.Stat(filepath.Join(dir, table+".json")); err != nil {
 			t.Errorf("%s.json: %v", table, err)
 		}

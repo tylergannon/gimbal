@@ -83,7 +83,7 @@ func checkSavedRun(t *testing.T, snapshot RunSnapshot) {
 }
 
 // TestRunWithoutTablesIsRebuiltFromItsLogs is the rebuild path: a directory
-// that has only logs is read record by record and its six tables are written
+// that has only logs is read record by record and its seven tables are written
 // beside them.
 func TestRunWithoutTablesIsRebuiltFromItsLogs(t *testing.T) {
 	dir := copyRun(t, filepath.Join("testdata", "issue-149"))

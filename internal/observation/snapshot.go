@@ -52,6 +52,7 @@ type RunSnapshot struct {
 	Turns       map[string]TurnRow          `json:"turns"`
 	TurnUsage   map[string]map[string]Usage `json:"turn_usage"`
 	ModelCalls  map[string][]ModelCallRow   `json:"model_calls"`
+	Commands    map[string]CommandRow       `json:"commands"`
 	Totals      Totals                      `json:"totals"`
 	Transcripts map[string]Transcript       `json:"transcripts"`
 }

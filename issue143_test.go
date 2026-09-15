@@ -50,8 +50,7 @@ func TestCloseFailureNeverEntersScopeErrorButRunAggregatesEvery(t *testing.T) {
 		t.Fatalf("Scope's own error = %v, want nil: a body that returned nil must not be turned into a failure by cleanup", scopeErr)
 	}
 
-	var closeErr *CloseError
-	if !errors.As(err, &closeErr) {
+	if _, ok := errors.AsType[*CloseError](err); !ok {
 		t.Fatalf("Run error = %v, want it to match *CloseError with errors.As", err)
 	}
 	if !errors.Is(err, boomOne) || !errors.Is(err, boomTwo) {
@@ -176,8 +175,7 @@ func TestCloseFailureDoesNotAffectRecordingError(t *testing.T) {
 		_, err := NewSession(ctx, "one", f, "m", "/w").Generate[Text](ctx, "hi")
 		return err
 	})
-	var closeErr *CloseError
-	if !errors.As(err, &closeErr) {
+	if _, ok := errors.AsType[*CloseError](err); !ok {
 		t.Fatalf("Run error = %v, want *CloseError", err)
 	}
 

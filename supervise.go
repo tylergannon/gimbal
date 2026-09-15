@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -408,8 +409,8 @@ func (t *transcript) since(reader, maxBytes int) transcriptBatch {
 	cursor := t.readers[reader]
 	first := len(t.entries)
 	used := 0
-	for i := len(t.entries) - 1; i >= 0; i-- {
-		entry := t.entries[i]
+	for i, entry := range slices.Backward(t.entries) {
+
 		if entry.last < cursor {
 			break
 		}
@@ -444,10 +445,7 @@ func (t *transcript) since(reader, maxBytes int) transcriptBatch {
 func (t *transcript) look(reader int, sup supervisor, prompt string, first bool, history string) string {
 	intro := lookIntro(sup, prompt, first)
 	const heading = "What the agent did since your last look:\n\n"
-	eventBudget := supervisorLookBytes - len(intro) - len(heading) - supervisorGapReserveBytes
-	if eventBudget < 0 {
-		eventBudget = 0
-	}
+	eventBudget := max(supervisorLookBytes-len(intro)-len(heading)-supervisorGapReserveBytes, 0)
 	batch := t.since(reader, eventBudget)
 	if len(batch.lines) == 0 && batch.missingThrough == 0 {
 		return ""

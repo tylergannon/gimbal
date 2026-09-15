@@ -117,8 +117,7 @@ func run(ctx context.Context, dir string, args ...string) (string, int) {
 	cmd.Dir = dir
 	out, err := cmd.CombinedOutput()
 	code := 0
-	var exit *exec.ExitError
-	if errors.As(err, &exit) {
+	if exit, ok := errors.AsType[*exec.ExitError](err); ok {
 		code = exit.ExitCode()
 	} else if err != nil {
 		code = -1

@@ -1,8 +1,0 @@
-2026/09/12 06:15:53 gimble: run 20260912-061553.fork-leak started in /Users/tyler/.codex/worktrees/loop-api-review/gimble/ephemeral/review/loop-api/fork-probe/project/runs/20260912-061553.fork-leak
-2026/09/12 06:15:53 gimble: researcher.1: turn started (fake)
-2026/09/12 06:15:53 gimble: researcher.1: turn ended after 0s: ok
-2026/09/12 06:15:53 gimble: candidate.1/unused.1: forked from researcher.1
-2026/09/12 06:15:53 gimble: run 20260912-061553.fork-leak ended: ok
-Run returned: <nil>
-mock app-server PID 60253 alive after Run and scope close: false
-mock app-server PID 60254 alive after Run and scope close: true

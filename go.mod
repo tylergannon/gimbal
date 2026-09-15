@@ -35,6 +35,8 @@ require (
 	github.com/tylergannon/structtag v0.1.0 // indirect
 	golang.org/x/mod v0.41.0 // indirect
 	golang.org/x/net v0.59.0 // indirect
+	golang.org/x/sys v0.48.0 // indirect
+	golang.org/x/telemetry v0.0.0-20260908163034-4bcc4b2ee518 // indirect
 	golang.org/x/text v0.42.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
@@ -45,4 +47,6 @@ tool (
 	// TypeScript through polytype's library. It runs through `go tool`, so it is
 	// built from the module cache and does not have to be a writable checkout.
 	github.com/tylergannon/skgo/cmd/skgo
+	golang.org/x/tools/cmd/goimports
+	golang.org/x/tools/go/analysis/passes/modernize/cmd/modernize
 )

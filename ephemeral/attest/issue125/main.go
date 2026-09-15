@@ -167,7 +167,7 @@ Inspect files and run checks as needed. Reply with PASS followed by a concise re
 }
 
 func assessmentPassed(text string) bool {
-	for _, line := range strings.Split(text, "\n") {
+	for line := range strings.SplitSeq(text, "\n") {
 		line = strings.TrimSpace(line)
 		if strings.HasPrefix(line, "PASS") || strings.HasPrefix(line, "**PASS**") {
 			return true
@@ -215,8 +215,7 @@ func runCommand(ctx context.Context, dir, command string) string {
 	out, err := cmd.CombinedOutput()
 	code := 0
 	if err != nil {
-		var exit *exec.ExitError
-		if errors.As(err, &exit) {
+		if exit, ok := errors.AsType[*exec.ExitError](err); ok {
 			code = exit.ExitCode()
 		} else {
 			return fmt.Sprintf("$ %s\nerror: %v\n%s", command, err, tail(string(out)))
@@ -248,13 +247,13 @@ func retainArtifacts(project, artifacts, summary string) error {
 	if err != nil {
 		return err
 	}
-	defer in.Close()
+	defer func() { _ = in.Close() }()
 	out, err := os.Create(filepath.Join(artifacts, "run.jsonl"))
 	if err != nil {
 		return err
 	}
 	if _, err := io.Copy(out, in); err != nil {
-		out.Close()
+		_ = out.Close()
 		return err
 	}
 	return out.Close()

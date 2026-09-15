@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -149,9 +150,7 @@ func agentKind(event AgentEvent) string {
 
 func fakeAgentEvent(eventType, session, message string, fields map[string]any) AgentEvent {
 	data := map[string]any{"sessionID": session, "assistantMessageID": message}
-	for key, value := range fields {
-		data[key] = value
-	}
+	maps.Copy(data, fields)
 	return nativeEvent(eventType, data, map[string]any{"provider": "fake"})
 }
 
@@ -186,7 +185,7 @@ func TestRunLogCanBeRead(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer w.close()
+	defer func() { _ = w.close() }()
 	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 	var readers errgroup.Group
 	defer func() { cancel(); _ = readers.Wait() }()
@@ -344,8 +343,8 @@ func TestSupervise(t *testing.T) {
 	f.answer = func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(AgentEvent) error) (string, error) {
 		if session == "native-1" { // the worker, which runs until the supervisor's steer lands
 			workerTurns++
-			emit(fakeAgentEvent("session.tool.called", session, "message-1", map[string]any{"id": "1", "input": map[string]any{"command": "make plugins"}, "executed": true}))
-			emit(fakeAgentEvent("session.tool.success", session, "message-1", map[string]any{"id": "1", "content": []any{map[string]any{"type": "text", "text": "built a plugin system"}}, "executed": true}))
+			_ = emit(fakeAgentEvent("session.tool.called", session, "message-1", map[string]any{"id": "1", "input": map[string]any{"command": "make plugins"}, "executed": true}))
+			_ = emit(fakeAgentEvent("session.tool.success", session, "message-1", map[string]any{"id": "1", "content": []any{map[string]any{"type": "text", "text": "built a plugin system"}}, "executed": true}))
 			for range 200 {
 				f.mu.Lock()
 				n := len(f.steers)
@@ -404,11 +403,11 @@ func TestSuperviseASupervisor(t *testing.T) {
 	f.answer = func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(AgentEvent) error) (string, error) {
 		switch {
 		case session == "native-1": // the worker, until its supervisor objects
-			emit(fakeAgentEvent("session.tool.success", session, "message-1", map[string]any{"id": "1", "content": []any{map[string]any{"type": "text", "text": "built a plugin system"}}, "executed": true}))
+			_ = emit(fakeAgentEvent("session.tool.success", session, "message-1", map[string]any{"id": "1", "content": []any{map[string]any{"type": "text", "text": "built a plugin system"}}, "executed": true}))
 			steered("remove the plugin system")
 			return "done", nil
 		case session == "native-2" && strings.Contains(prompt, "no plugin systems"): // the supervisor's first look, until its own supervisor objects
-			emit(fakeAgentEvent("session.text.ended", session, "message-1", map[string]any{"ordinal": 0, "text": "I object to the variable names"}))
+			_ = emit(fakeAgentEvent("session.text.ended", session, "message-1", map[string]any{"ordinal": 0, "text": "I object to the variable names"}))
 			if !steered("object only to plugin systems") {
 				return `{"objections": []}`, nil
 			}
@@ -735,15 +734,15 @@ func TestAttestEventFixture(t *testing.T) {
 	looking := make(chan struct{})
 	f := &fake{}
 	f.answer = func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(AgentEvent) error) (string, error) {
-		emit(fakeAgentEvent("session.text.ended", session, "message-1", map[string]any{"ordinal": 0, "text": "working"}))
+		_ = emit(fakeAgentEvent("session.text.ended", session, "message-1", map[string]any{"ordinal": 0, "text": "working"}))
 		if len(schema) != 0 {
 			close(looking)
 			<-ctx.Done() // keep the look active until the worker finishes
 			return "", ctx.Err()
 		}
 		if prompt == "build" {
-			emit(fakeAgentEvent("session.tool.called", session, "message-1", map[string]any{"id": "call-1", "input": map[string]any{"command": "test"}, "executed": true}))
-			emit(fakeAgentEvent("session.tool.success", session, "message-1", map[string]any{"id": "call-1", "content": []any{map[string]any{"type": "text", "text": "ok"}}, "executed": true}))
+			_ = emit(fakeAgentEvent("session.tool.called", session, "message-1", map[string]any{"id": "call-1", "input": map[string]any{"command": "test"}, "executed": true}))
+			_ = emit(fakeAgentEvent("session.tool.success", session, "message-1", map[string]any{"id": "call-1", "content": []any{map[string]any{"type": "text", "text": "ok"}}, "executed": true}))
 			for {
 				f.mu.Lock()
 				steered := len(f.steers) > 0
@@ -1009,7 +1008,7 @@ func readRecords[T any](t *testing.T, file string) []T {
 		t.Fatal(err)
 	}
 	var records []T
-	for _, line := range strings.Split(strings.TrimSpace(string(raw)), "\n") {
+	for line := range strings.SplitSeq(strings.TrimSpace(string(raw)), "\n") {
 		if line == "" {
 			continue
 		}
@@ -1040,7 +1039,7 @@ func TestCancelledRunStaysCancelled(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = store.Close() }()
-	for _, line := range bytes.Split(bytes.TrimSpace(raw), []byte("\n")) {
+	for line := range bytes.SplitSeq(bytes.TrimSpace(raw), []byte("\n")) {
 		if err := store.Lifecycle(append(json.RawMessage(nil), line...)); err != nil {
 			t.Fatalf("fold %s: %v", line, err)
 		}
@@ -1056,7 +1055,7 @@ func TestCancelledRunStaysCancelled(t *testing.T) {
 // scope it ran in.
 func TestRunWritesTheSixTables(t *testing.T) {
 	f := &fake{answer: func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(AgentEvent) error) (string, error) {
-		emit(fakeAgentEvent("session.text.ended", session, "message-1", map[string]any{"ordinal": 0, "text": "working"}))
+		_ = emit(fakeAgentEvent("session.text.ended", session, "message-1", map[string]any{"ordinal": 0, "text": "working"}))
 		return "done", nil
 	}}
 	var dir string

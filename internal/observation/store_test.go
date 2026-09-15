@@ -181,7 +181,7 @@ func TestOverflowIsolatesOneSubscriber(t *testing.T) {
 	}()
 
 	const events = 64
-	for i := 0; i < events; i++ {
+	for i := range events {
 		if err := store.Event(Placement{Session: "s1", Turn: "t1"}, created("evt", "ses_a"), nil); err != nil {
 			t.Fatalf("event %d: %v", i, err)
 		}
@@ -376,9 +376,8 @@ func TestClosedRunHoldsSixFilesAndFinalSnapshot(t *testing.T) {
 	if err := json.Unmarshal(before, &rows); err != nil {
 		t.Fatalf("decode turn_usage.json: %v", err)
 	}
-	want := []TurnUsageRow{{Run: "run-1", Turn: "t1", Model: "m", Usage: Usage{
-		Tokens: Tokens{Input: 10, CacheRead: 3, CacheWrite: 4, Output: 2, Reasoning: 1}, StatedCost: 0.5,
-	}}}
+	want := []TurnUsageRow{{Run: "run-1", Turn: "t1", Model: "m",
+		Input: 10, CacheRead: 3, CacheWrite: 4, Output: 2, Reasoning: 1, StatedCost: 0.5}}
 	if len(rows) != 1 || rows[0] != want[0] {
 		t.Fatalf("turn_usage.json = %+v, want %+v", rows, want)
 	}
@@ -436,7 +435,7 @@ func TestTurnIsChargedToTheScopeItRanIn(t *testing.T) {
 	if got := snapshot.Turns["shared.1/turn.1"].Scope; got != "lap.1/task.2" {
 		t.Fatalf("the turn ran in %q, want lap.1/task.2", got)
 	}
-	both := Usage{Tokens: Tokens{Input: 110, CacheRead: 1, CacheWrite: 2, Output: 8, Reasoning: 4}, StatedCost: 1}
+	both := Usage{Input: 110, CacheRead: 1, CacheWrite: 2, Output: 8, Reasoning: 4, StatedCost: 1}
 	for _, scope := range []string{"", "lap.1", "lap.1/task.2"} {
 		if got := snapshot.Totals.Scopes[scope].All; got != both {
 			t.Fatalf("scope %q total = %+v, want %+v", scope, got, both)
@@ -540,7 +539,7 @@ func TestStepPairIsOneModelCall(t *testing.T) {
 	}
 	calls := store.Snapshot().ModelCalls["t1"]
 	want := ModelCallRow{Run: "run-1", Turn: "t1", Message: "msg-1", Model: "step-model",
-		Tokens: Tokens{Input: 5, Output: 1}, Started: 10, Ended: 99}
+		Input: 5, Output: 1, Started: 10, Ended: 99}
 	if len(calls) != 1 || calls[0] != want {
 		t.Fatalf("model calls = %+v, want %+v", calls, want)
 	}
@@ -621,19 +620,15 @@ func TestConcurrentProducersAndSubscribers(t *testing.T) {
 
 	var wg sync.WaitGroup
 	for turn := range 4 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			at := Placement{Session: "s1", Turn: string(rune('a' + turn))}
 			for range 50 {
 				_ = store.Event(at, created("evt", "ses_a"), nil)
 			}
-		}()
+		})
 	}
 	for range 4 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			_, sub, err := store.Subscribe()
 			if err != nil {
 				return
@@ -651,7 +646,7 @@ func TestConcurrentProducersAndSubscribers(t *testing.T) {
 				}
 			}
 			_ = store.Snapshot()
-		}()
+		})
 	}
 	wg.Wait()
 	if err := store.Close(); err != nil {
@@ -704,7 +699,7 @@ func TestFoldingAStepTwiceAccountsItOnce(t *testing.T) {
 	if calls := snapshot.ModelCalls["t1"]; len(calls) != 1 {
 		t.Fatalf("model calls = %+v, want one", calls)
 	}
-	want := Usage{Tokens: Tokens{Input: 7}, StatedCost: 0.5}
+	want := Usage{Input: 7, StatedCost: 0.5}
 	if got := snapshot.TurnUsage["t1"]["m"]; got != want {
 		t.Fatalf("turn usage = %+v, want %+v", got, want)
 	}

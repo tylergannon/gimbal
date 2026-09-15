@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"strings"
 	"sync"
 	"time"
@@ -113,9 +114,7 @@ func (a *adapter) connection(ctx context.Context, startDaemon bool) (*connection
 func (a *adapter) resumeThreads(ctx context.Context, conn *connection) error {
 	a.mu.Lock()
 	sessions := make(map[string]*session, len(a.sessions))
-	for id, s := range a.sessions {
-		sessions[id] = s
-	}
+	maps.Copy(sessions, a.sessions)
 	a.mu.Unlock()
 	for id, s := range sessions {
 		result, err := callThread(ctx, conn, "thread/resume", map[string]any{

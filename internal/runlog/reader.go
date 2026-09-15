@@ -26,7 +26,7 @@ func Read[T any](ctx context.Context, dir string, yield func(T) error) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	r := bufio.NewReader(f)
 	var pending []byte

@@ -181,7 +181,7 @@ func daemonPID() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("pgrep: %w", err)
 	}
-	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+	for line := range strings.SplitSeq(strings.TrimSpace(string(out)), "\n") {
 		fields := strings.SplitN(strings.TrimSpace(line), " ", 2)
 		if len(fields) == 2 && strings.HasPrefix(fields[1], "codex ") {
 			return fields[0], nil
@@ -233,7 +233,7 @@ func loadedThreadIDs(ctx context.Context) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("dial %s: %w", version.SocketPath, err)
 	}
-	defer ws.CloseNow()
+	defer func() { _ = ws.CloseNow() }()
 	ws.SetReadLimit(64 << 20)
 
 	id := 0

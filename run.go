@@ -159,9 +159,8 @@ func Run(ctx context.Context, name string, body func(ctx context.Context) error)
 	// and is raised again here, after the same terminal records a panic in
 	// the body itself gets: misuse anywhere means one thing, a complete
 	// run.jsonl and a dead process.
-	var escaped *panicError
-	if errors.As(err, &escaped) {
-		r.finish(name, err)
+	if escaped, ok := errors.AsType[*panicError](err); ok {
+		_ = r.finish(name, err)
 		panic(escaped)
 	}
 	if ctx.Err() != nil {
@@ -179,7 +178,7 @@ func Run(ctx context.Context, name string, body func(ctx context.Context) error)
 func (r *run) root(ctx context.Context, name string, body func(ctx context.Context) error) error {
 	defer func() {
 		if v := recover(); v != nil {
-			r.finish(name, fmt.Errorf("gimble: panic: %v", v))
+			_ = r.finish(name, fmt.Errorf("gimble: panic: %v", v))
 			panic(v)
 		}
 	}()
@@ -308,8 +307,7 @@ func (r *run) CancelTurn(id string, cause error) error {
 // killedEvent is the record of a kill: the cause itself when it is a
 // Killed, and otherwise the target with the cause's text as the reason.
 func killedEvent(target string, cause error) Killed {
-	var killed Killed
-	if errors.As(cause, &killed) {
+	if killed, ok := errors.AsType[Killed](cause); ok {
 		return killed
 	}
 	return Killed{Target: target, Reason: errString(cause)}

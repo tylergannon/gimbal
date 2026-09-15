@@ -294,11 +294,9 @@ func (s *Store) Lifecycle(raw json.RawMessage) error {
 		for _, model := range rec.Event.Usage {
 			report[model.Model] = report[model.Model].add(Usage{
 				StatedCost: model.Cost,
-				Tokens: Tokens{
-					Input: model.Tokens.Input, CacheRead: model.Tokens.Cache.Read,
-					CacheWrite: model.Tokens.Cache.Write, Output: model.Tokens.Output,
-					Reasoning: model.Tokens.Reasoning,
-				},
+				Input:      model.Tokens.Input, CacheRead: model.Tokens.Cache.Read,
+				CacheWrite: model.Tokens.Cache.Write, Output: model.Tokens.Output,
+				Reasoning: model.Tokens.Reasoning,
 			})
 		}
 		s.turnUsage[rec.Turn] = report

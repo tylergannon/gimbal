@@ -66,7 +66,7 @@ func decodeState(t *testing.T, state *Obj) ProjectionState {
 
 func splitLines(text string) []string {
 	var lines []string
-	for _, line := range strings.Split(text, "\n") {
+	for line := range strings.SplitSeq(text, "\n") {
 		if strings.TrimSpace(line) != "" {
 			lines = append(lines, line)
 		}

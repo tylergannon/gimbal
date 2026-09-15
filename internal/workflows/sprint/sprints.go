@@ -52,7 +52,13 @@ type review struct {
 	NotSeenWorking []string `json:"not_seen_working"`
 }
 
-var checks = []string{"go vet ./...", "go test ./..."}
+var repositoryChecks = struct {
+	vet  string
+	test string
+}{
+	vet:  "go vet ./...",
+	test: "go test ./...",
+}
 
 // Sprint builds sprint in.Sprint, or issue in.Issue.
 func Sprint(ctx context.Context, in Input) error {
@@ -198,7 +204,7 @@ func validationSection(repo string) (string, error) {
 // is proven from outside, which nothing inside the sprint can show.
 func withoutProof(text string) string {
 	var kept []string
-	for _, paragraph := range strings.Split(text, "\n\n") {
+	for paragraph := range strings.SplitSeq(text, "\n\n") {
 		if !strings.HasPrefix(paragraph, "Proof:") {
 			kept = append(kept, paragraph)
 		}
@@ -249,12 +255,22 @@ func runTask(ctx context.Context, in Input, researcher, validator *gimble.Sessio
 	if len(assessment.NotSeenWorking) != 0 {
 		passed = false
 	}
-	for i, check := range checks {
-		code, output, err := command(ctx, in, check)
+	if repositoryChecks.vet != "" {
+		code, output, err := command(ctx, in, repositoryChecks.vet)
 		if err != nil {
 			return err
 		}
-		gimble.Set(ctx, fmt.Sprintf("repository check %d", i+1), commandText(check, code, output))
+		gimble.Set(ctx, "repository vet check", commandText(repositoryChecks.vet, code, output))
+		if code != 0 {
+			passed = false
+		}
+	}
+	if repositoryChecks.test != "" {
+		code, output, err := command(ctx, in, repositoryChecks.test)
+		if err != nil {
+			return err
+		}
+		gimble.Set(ctx, "repository test check", commandText(repositoryChecks.test, code, output))
 		if code != 0 {
 			passed = false
 		}
@@ -295,8 +311,7 @@ func command(ctx context.Context, in Input, text string) (int, string, error) {
 	if err == nil {
 		return 0, string(out), nil
 	}
-	var exit *exec.ExitError
-	if errors.As(err, &exit) {
+	if exit, ok := errors.AsType[*exec.ExitError](err); ok {
 		return exit.ExitCode(), string(out), nil
 	}
 	return 0, "", fmt.Errorf("sprint: command %q: %w", text, err)

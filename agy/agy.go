@@ -205,7 +205,7 @@ func (a *adapter) run(ctx context.Context, s *session, request runRequest) (nati
 		if message == "" {
 			return result, err
 		}
-		if err != nil && !(active != nil && active.steered.Load() && errors.Is(err, errInterrupted)) {
+		if err != nil && (active == nil || !active.steered.Load() || !errors.Is(err, errInterrupted)) {
 			return nativeResult{}, err
 		}
 		request.prompt = message

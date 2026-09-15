@@ -57,7 +57,7 @@ func main() {
 	}
 	go announce(ctx, project, *port)
 
-	var writerAdapter gimble.HarnessAdapter = claude.New()
+	var writerAdapter = claude.New()
 	writerModel := "claude-haiku-4-5-20251001"
 	if *second == "codex" {
 		writerAdapter, writerModel = codex.New(), "gpt-5.6-luna"

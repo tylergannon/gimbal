@@ -3,7 +3,11 @@
 
 package sessionstate
 
-import "strings"
+import (
+	"maps"
+	"slices"
+	"strings"
+)
 
 // ProjectionState is the session slice of the upstream client store, using
 // the upstream keys. Every value is native JSON: this port reduces native
@@ -79,9 +83,7 @@ func (s ProjectionState) Clone() ProjectionState {
 		copy(copied, value)
 		out.Family[key] = copied
 	}
-	for key, value := range s.Active {
-		out.Active[key] = value
-	}
+	maps.Copy(out.Active, s.Active)
 	for _, pair := range []struct {
 		from map[string][]*Obj
 		to   map[string][]*Obj
@@ -282,10 +284,8 @@ func (p *Projection) reopenAssistant(sessionID, id string) {
 	if !ok {
 		return
 	}
-	for _, open := range index.openAssistants {
-		if open == at {
-			return
-		}
+	if slices.Contains(index.openAssistants, at) {
+		return
 	}
 	index.openAssistants = append(index.openAssistants, at)
 	for i := len(index.openAssistants) - 1; i > 0 && index.openAssistants[i-1] > index.openAssistants[i]; i-- {

@@ -68,7 +68,7 @@ func (d *dryRun) RunTurn(_ context.Context, sessionID, prompt string, schema jso
 		answer = bytes.TrimSpace(b.Bytes())
 		shown = string(schema)
 	}
-	fmt.Fprintf(d.w, "=== turn %d: %s (%s) ===\n\n--- prompt ---\n%s\n\n--- schema ---\n%s\n\n--- example answer (no model was called) ---\n%s\n\n",
+	_, _ = fmt.Fprintf(d.w, "=== turn %d: %s (%s) ===\n\n--- prompt ---\n%s\n\n--- schema ---\n%s\n\n--- example answer (no model was called) ---\n%s\n\n",
 		d.turns, sessionID, d.models[sessionID], prompt, shown, answer)
 	return gimble.TurnResult{Output: answer}, nil
 }

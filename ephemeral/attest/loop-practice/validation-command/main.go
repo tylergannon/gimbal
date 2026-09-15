@@ -173,8 +173,7 @@ func command(ctx context.Context, dir, text string) (int, string, error) {
 	if err == nil {
 		return 0, output, nil
 	}
-	var exit *exec.ExitError
-	if errors.As(err, &exit) {
+	if exit, ok := errors.AsType[*exec.ExitError](err); ok {
 		return exit.ExitCode(), output, nil
 	}
 	return 0, "", fmt.Errorf("validation command %q: %w", text, err)
@@ -217,7 +216,7 @@ func save(url, file string) {
 		fmt.Printf("[page] GET %s: %v\n", url, err)
 		return
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	body, _ := io.ReadAll(resp.Body)
 	if err := os.WriteFile(file, body, 0o644); err != nil {
 		fmt.Printf("[page] write %s: %v\n", file, err)

@@ -125,16 +125,16 @@ func writeAtomic(path string, value any) error {
 	}
 	name := temp.Name()
 	if _, err := temp.Write(raw); err != nil {
-		temp.Close()
-		os.Remove(name)
+		_ = temp.Close()
+		_ = os.Remove(name)
 		return err
 	}
 	if err := temp.Close(); err != nil {
-		os.Remove(name)
+		_ = os.Remove(name)
 		return err
 	}
 	if err := os.Rename(name, path); err != nil {
-		os.Remove(name)
+		_ = os.Remove(name)
 		return err
 	}
 	return nil

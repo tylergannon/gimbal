@@ -142,7 +142,6 @@ func main() {
 				adapter := &deterministicAdapter{project: *project}
 				group := gimble.Group(ctx, "concurrent")
 				for _, name := range []string{"alpha", "beta"} {
-					name := name
 					group.Go(name, func(ctx context.Context) error {
 						_, err := gimble.NewSession(ctx, name, adapter, "deterministic", filepath.Join(*project, "work")).Generate[gimble.Text](ctx, "deterministic observation proof")
 						return err

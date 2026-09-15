@@ -172,6 +172,33 @@ func TestRunCommandKeepsLongOutputInAFile(t *testing.T) {
 	}
 }
 
+// TestRunCommandThatExitedKeepsItsExit: a command that exits on its own
+// keeps its exit status, though its ctx ends while a process it left behind
+// still holds its output open. An exec.Cmd that is only constructed is no
+// record at all.
+func TestRunCommandThatExitedKeepsItsExit(t *testing.T) {
+	var dir, stdout string
+	var code int
+	var err error
+	if runErr := runTest(t, func(ctx context.Context) error {
+		dir = runDir(ctx)
+		_ = exec.CommandContext(ctx, "true")
+		exited, cancel := context.WithCancel(ctx)
+		defer cancel()
+		time.AfterFunc(300*time.Millisecond, cancel)
+		code, stdout, _, err = RunCommand(exited, "exited", "", "sh", "-c", "sleep 1 & printf done; exit 7")
+		return nil
+	}); runErr != nil {
+		t.Fatal(runErr)
+	}
+	if code != 7 || stdout != "done" || err != nil {
+		t.Fatalf("RunCommand = %d, %q, %v; want 7, \"done\", and no error", code, stdout, err)
+	}
+	if rows := commandRows(t, dir); len(rows) != 1 || rows[0].ExitCode != 7 || rows[0].Interrupted || rows[0].Error != "" {
+		t.Fatalf("commands.json = %+v, want the one command, which exited 7", rows)
+	}
+}
+
 // TestRunCommandNeedsARun: outside a run there is no scope to record in.
 func TestRunCommandNeedsARun(t *testing.T) {
 	code, _, _, err := RunCommand(t.Context(), "say", "", "true")

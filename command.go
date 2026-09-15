@@ -3,12 +3,14 @@ package gimble
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
@@ -50,6 +52,14 @@ func RunCommand(ctx context.Context, name, workdir, command string, args ...stri
 	cmd := exec.CommandContext(ctx, command, args...)
 	cmd.Dir = workdir
 	cmd.WaitDelay = commandWaitDelay
+	// The ctx interrupted the command only if exec had to kill it for the
+	// ctx: a command that exited first keeps its own exit status.
+	var killed atomic.Bool
+	cmd.Cancel = func() error {
+		err := cmd.Process.Kill()
+		killed.Store(err == nil)
+		return err
+	}
 	var out, errOut bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &out, &errOut
 	runErr := cmd.Run()
@@ -57,10 +67,10 @@ func RunCommand(ctx context.Context, name, workdir, command string, args ...stri
 
 	ended := CommandEnded{ID: id, ExitCode: -1}
 	switch {
-	case runErr == nil:
-	case ctx.Err() != nil:
-		// Keep errors.Is(err, context.Canceled) true, and errors.As for a
-		// Killed cause, as a turn's error does.
+	case killed.Load() || cmd.ProcessState == nil && errors.Is(runErr, ctx.Err()):
+		// Its ctx ended it, or had ended before it could start. Keep
+		// errors.Is(err, context.Canceled) true, and errors.As for a Killed
+		// cause, as a turn's error does.
 		cause := context.Cause(ctx)
 		if cause != ctx.Err() {
 			cause = fmt.Errorf("%w: %w", ctx.Err(), cause)
@@ -69,8 +79,7 @@ func RunCommand(ctx context.Context, name, workdir, command string, args ...stri
 		ended.Interrupted = true
 	case cmd.ProcessState == nil:
 		err = fmt.Errorf("gimble: %s: %w", id, runErr)
-	}
-	if err == nil {
+	default:
 		ended.ExitCode = cmd.ProcessState.ExitCode()
 	}
 	ended.Error, ended.Duration = errString(err), time.Since(start)

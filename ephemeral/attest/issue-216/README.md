@@ -55,3 +55,5 @@ same process after it `completed`, and from a new process started with
 
 A command only constructed produces no record: RunCommand is the only way
 a workflow runs a command, and the record is written by that call.
+`TestRunCommandThatExitedKeepsItsExit` constructs an `exec.Cmd` in its run
+and finds only the one row its RunCommand wrote.

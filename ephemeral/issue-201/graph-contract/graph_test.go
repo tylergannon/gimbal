@@ -7,242 +7,293 @@ import (
 	"testing"
 )
 
-func site(id string, line int) Site {
-	return Site{ID: id, Source: Source{File: "internal/workflows/sprint/sprints.go", Line: line, Column: 2}}
-}
+// This test is the contract's proof. It builds the graph of
+// internal/workflows/sprint/sprints.go by hand, checks that reading it back
+// gives the same value, and checks that what a reader sees in it is the
+// sprint: a researcher, rounds, planner-chosen tasks with a supervised coder,
+// checks, a commit, a validator, and a merge.
 
-func expr(text string) Expression { return Expression{Text: text} }
+const sprintFile = "internal/workflows/sprint/sprints.go"
 
-// sprintShape is the illustrative Sprint from graph-model.md with every
-// Operation variant, three levels of nesting, an ancestor-owned supervisor
-// reused inside a repeated task, and a nested supervisor watching the first
-// supervisor's looks.
-func sprintShape() Graph {
-	return Graph{
-		Name:      "sprint",
-		Package:   "github.com/tylergannon/gimble/internal/workflows/sprint",
-		Entry:     "Sprint",
-		Input:     "Input",
-		Source:    Source{File: "internal/workflows/sprint/sprints.go", Line: 40, Column: 1},
-		Generator: "v0.0.0-handoff",
-		Sessions: []Session{
-			{Site: site("session.researcher", 50), Name: "researcher", Role: "researcher"},
-			{Site: site("session.reviewer", 52), Name: "reviewer", Role: "reviewer"},
-			{Site: site("session.lead", 53), Name: "lead", Role: "lead"},
-			{Site: site("session.coder", 120), Name: "coder", OwnerScope: "loop.tasks", Role: "coder"},
+func at(line int) Source { return Source{File: sprintFile, Line: line} }
+
+// The prompt constants, as sprints.go declares them. A prompt is one of the
+// three things the graph is for, so the graph carries the composed text with
+// its constants filled in and every run-time part left as a {{ hole }}.
+const (
+	researchPrompt = `You are about to lead the build of the goal below on this repository, Gimble, a Go library. Read AGENTS.md, docs/definition-of-done.md, ephemeral/research/api/API.md, ephemeral/research/api/SPRINTS.md, and the code the goal touches, until you know where everything it needs is. Change no files. Answer with a short summary of what exists and what the goal needs.`
+
+	codePrompt = `Complete the task in the scoped context, following AGENTS.md and ephemeral/research/api/API.md. Demonstrate the result and leave the work uncommitted. Answer with a short summary of what changed and the evidence you gathered.`
+
+	superviseInstruction = "Don't let it build what its task does not ask for, over-engineer what it does build, or break a rule in AGENTS.md. Object to nothing else: code quality and style are not yours to judge."
+
+	taskValidationPrompt = `Assess the task using the recorded result and evidence.
+
+Definition of done: {{ task.DefinitionOfDone }}
+
+List what that evidence does not show working at the repository's 90-95% readiness standard, and nothing else; an empty list passes the task. A passing agent judgment cannot override a failed deterministic check.`
+
+	validatePrompt = `Check this repository as the Validation section below says, changing no files and committing nothing, and report what you did not see working of the goal below.`
+
+	mergePrompt = `The validator saw the goal working, so finish as docs/definition-of-done.md says. File each quirk and bug left as a GitHub issue with gh issue create, skipping any that gh issue list already has. Then push this branch, open a pull request for it with gh pr create that says what was built, how it was seen working, and which issues it left, and merge it with gh pr merge --squash. Answer with the pull request's URL and the issues you filed.`
+)
+
+// sprintGraph is sprints.go as this contract describes it.
+//
+// Two judgments are written into it and are called out in the report:
+//
+//   - Sprint, the entry function, is not a branch in the body. Its if/else
+//     picks the harnesses and calls the same run either way, and a harness is
+//     a parameter of a run. The graph anchors at Sprint and its body is run's.
+//   - The plain Go `for round` and `for _, check := range checks` loops are
+//     not nodes. The runtime numbers repeats already: the second round is
+//     round.2. A graph node for "this happens more than once" would say
+//     nothing the run does not say better.
+var sprintGraph = Graph{
+	Name:   "sprint",
+	Source: at(58),
+	Body: []Operation{
+		Set{Source: at(69), Key: "input"},
+		Session{Source: at(80), Name: "researcher"},
+		AgentCall{
+			Source:  at(81),
+			Session: "researcher",
+			Prompt:  researchPrompt + "\n\n{{ goal }}",
+			Output:  "gimble.Text",
 		},
-		Body: Sequence{
-			Site: site("body", 40),
+		Session{Source: at(84), Name: "planner", From: "researcher"},
+		Session{Source: at(88), Name: "validator"},
+		Scope{
+			Source: at(96),
+			Name:   "round",
 			Body: []Operation{
-				SetJSON{Site: site("set.input", 55), Key: "input", Value: expr("in"), Type: "Input"},
-				AgentCall{Site: site("call.research", 60), Session: "session.researcher", Prompt: expr("researchPrompt(in)"), Output: "gimble.Text"},
-				Loop{
-					Site:      site("loop.rounds", 70),
-					Condition: expr("round < in.Rounds"),
-					Body: []Operation{
-						Scope{
-							Site: site("scope.round", 72),
-							Name: "round",
-							Body: []Operation{
-								Loop{
-									Site:    site("loop.tasks", 80),
-									Name:    "tasks",
-									Planner: "session.researcher",
-									Goal:    expr("goalText(in)"),
-									Body: []Operation{
-										AgentCall{Site: site("call.coder", 121), Session: "session.coder", Prompt: expr("task.Prompt"), Output: "gimble.Text"},
-										Set{Site: site("set.worker", 130), Key: "worker result", Value: expr("string(result)")},
-										Condition{
-											Site: site("cond.validation", 140),
-											Branches: []Branch{
-												{Site: site("cond.validation.if", 140), Case: expr("task.Validation != \"\""), Body: []Operation{
-													Command{Site: site("cmd.validation", 141), Arguments: []Expression{expr("ctx"), expr("\"validation\""), expr("task.Validation")}},
-												}},
-												{Site: site("cond.validation.else", 145), Body: []Operation{
-													Exit{Site: site("exit.continue", 146), Statement: Continue},
-												}},
-											},
-										},
-										AgentCall{Site: site("call.validator", 150), Session: "session.researcher", Prompt: expr("validatePrompt(task)"), Output: "review"},
-										SetJSON{Site: site("set.assessment", 155), Key: "assessment", Value: expr("assessment"), Type: "review"},
-									},
-									Supervision: []Supervision{{
-										Target: "call.coder",
-										Supervisors: []Supervisor{
-											{Site: site("sup.taste", 121), Session: "session.reviewer", Instruction: expr("tasteInstruction"), Interval: expr("time.Minute"),
-												Supervisors: []Supervisor{
-													{Site: site("sup.lead", 121), Session: "session.lead", Instruction: expr("leadInstruction"), Interval: expr("5 * time.Minute")},
-												}},
-											{Site: site("sup.scope", 122), Session: "session.reviewer", Instruction: expr("scopeInstruction"), Interval: expr("time.Minute")},
-										},
-									}},
-								},
-							},
+				Condition{
+					Source: at(97),
+					Branches: []Branch{{
+						Source: at(97),
+						Case:   "len(findings) > 0",
+						Body: []Operation{
+							Set{Source: at(98), Key: "what the validator did not see working"},
 						},
-					},
+					}},
 				},
-				Group{
-					Site: site("group.checks", 200),
-					Name: "checks",
-					Children: []GroupChild{
-						{Site: site("group.checks.vet", 201), Name: "vet", Body: []Operation{
-							Command{Site: site("cmd.vet", 202), Arguments: []Expression{expr("ctx"), expr("\"go\""), expr("\"vet\""), expr("\"./...\"")}},
-							Set{Site: site("set.check1", 203), Key: "repository check 1", Value: expr("vetResult")},
-						}},
-						{Site: site("group.checks.test", 205), Name: "test", Body: []Operation{
-							Command{Site: site("cmd.test", 206), Arguments: []Expression{expr("ctx"), expr("\"go\""), expr("\"test\""), expr("\"./...\"")}},
-							Set{Site: site("set.check2", 207), Key: "repository check 2", Value: expr("testResult")},
-						}},
-					},
+				Loop{
+					Source:  at(100),
+					Name:    "sprint",
+					Planner: "planner",
+					Goal:    "{{ goal }}",
+					Body:    taskBody,
 				},
-				Sequence{Site: site("helper.summary", 220), Body: []Operation{
-					AgentCall{Site: site("call.summary", 300), Session: "session.researcher", Prompt: expr("summaryPrompt()"), Output: "gimble.Text"},
-					Exit{Site: site("exit.return", 301), Statement: Return},
-				}},
 			},
 		},
-		Supervision: []Supervision{{
-			Target:      "call.research",
-			Supervisors: []Supervisor{{Site: site("sup.research", 60), Session: "session.reviewer", Instruction: expr("researchInstruction"), Interval: expr("time.Minute")}},
-		}},
-	}
+		AgentCall{
+			Source:  at(117),
+			Session: "validator",
+			Prompt:  validatePrompt + "\n\n## Goal\n\n{{ withoutProof(text) }}\n\n{{ validation }}",
+			Output:  "review",
+		},
+		AgentCall{
+			Source:  at(133),
+			Session: "planner",
+			Prompt:  mergePrompt,
+			Output:  "gimble.Text",
+		},
+	},
+	Diagnostics: []Diagnostic{{
+		Source:  at(257),
+		Message: `Set key is built at run time from fmt.Sprintf("repository check %d", i+1); the graph records the shape of the key, not the keys`,
+	}},
 }
 
-func TestRoundTrip(t *testing.T) {
-	want := sprintShape()
-	data, err := json.Marshal(want)
+// taskBody is runTask, inlined at the Loop that dispatches it. runTask is
+// reached through an if-init statement at line 105, which is where a walker
+// that only looks at statement shapes loses it.
+var taskBody = []Operation{
+	Session{Source: at(212), Name: "coder", From: "researcher"},
+	Session{Source: at(216), Name: "supervisor"},
+	AgentCall{
+		Source:  at(217),
+		Session: "coder",
+		Prompt:  codePrompt + "\n\n{{ scope }}",
+		Output:  "gimble.Text",
+		Supervisors: []Supervisor{{
+			Source:      at(218),
+			Session:     "supervisor",
+			Instruction: superviseInstruction,
+		}},
+	},
+	Set{Source: at(223), Key: "worker result"},
+	Condition{
+		Source: at(225),
+		Branches: []Branch{{
+			Source: at(225),
+			Case:   "workErr != nil",
+			Body:   []Operation{Set{Source: at(226), Key: "worker error"}},
+		}},
+	},
+	Condition{
+		Source: at(230),
+		Branches: []Branch{{
+			Source: at(230),
+			Case:   `strings.TrimSpace(task.Validation.Command) != ""`,
+			Body: []Operation{
+				Command{Source: at(231), Text: "{{ task.Validation.Command }}"},
+				Set{Source: at(235), Key: "task command"},
+			},
+		}},
+	},
+	AgentCall{
+		Source:  at(244),
+		Session: "validator",
+		Prompt:  taskValidationPrompt + "\n\n{{ additional validation question }}\n\n{{ scope }}",
+		Output:  "review",
+	},
+	Set{Source: at(248), Key: "task assessment"},
+	Command{Source: at(253), Text: "{{ check }}"},
+	Set{Source: at(257), Key: "repository check {{ i+1 }}"},
+	Command{Source: at(266), Text: "git add -A"},
+	Command{Source: at(269), Text: "git status --porcelain"},
+	Command{Source: at(277), Text: "git commit -m {{ message }}"},
+}
+
+// decoded is sprintGraph after one encode/decode cycle. The encoder writes a
+// nil list as [], so a decoded graph has an empty Supervisors where the
+// fixture left it nil. That is the only difference, and the tests below work
+// from the decoded graph so they prove what a viewer would actually read.
+func decoded(t *testing.T) (Graph, []byte) {
+	t.Helper()
+	data, err := json.Marshal(sprintGraph)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("marshal: %v", err)
 	}
-	var got Graph
-	if err := json.Unmarshal(data, &got); err != nil {
-		t.Fatalf("decode: %v\n%s", err, data)
+	var g Graph
+	if err := json.Unmarshal(data, &g); err != nil {
+		t.Fatalf("unmarshal: %v", err)
 	}
-	// Nil and empty slices both encode as [] and decode as empty, so the
-	// proof of the round trip is that the decoded graph encodes to the same
-	// bytes and decodes to the same value again.
-	again, err := json.Marshal(got)
+	return g, data
+}
+
+// TestSprintGraphRoundTrip proves encoding is canonical and lossless: the
+// decoded graph re-encodes to the same bytes, and decoding those bytes again
+// gives the same value.
+func TestSprintGraphRoundTrip(t *testing.T) {
+	first, data := decoded(t)
+	again, err := json.Marshal(first)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("remarshal: %v", err)
 	}
 	if string(again) != string(data) {
-		t.Fatalf("second encoding differs\n%s\n%s", data, again)
+		t.Errorf("re-encoding changed the bytes\n got: %s\nwant: %s", again, data)
 	}
-	var twice Graph
-	if err := json.Unmarshal(again, &twice); err != nil {
-		t.Fatal(err)
+	var second Graph
+	if err := json.Unmarshal(again, &second); err != nil {
+		t.Fatalf("second unmarshal: %v", err)
 	}
-	if !reflect.DeepEqual(got, twice) {
-		t.Fatalf("second decoding differs\n got: %#v\nwant: %#v", twice, got)
-	}
-	if len(data) < 4000 {
-		t.Fatalf("fixture too small to exercise nesting: %d bytes", len(data))
+	if !reflect.DeepEqual(first, second) {
+		t.Errorf("decoding is not stable\n got: %+v\nwant: %+v", second, first)
 	}
 }
 
-func TestEveryVariantHasAKind(t *testing.T) {
-	all := []Operation{AgentCall{}, Command{}, Set{}, SetJSON{}, Exit{}, Sequence{}, Condition{}, Loop{}, Scope{}, Group{}}
-	seen := map[string]bool{}
-	for _, op := range all {
-		kind, err := kindOf(op)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if seen[kind] {
-			t.Fatalf("duplicate kind %q", kind)
-		}
-		seen[kind] = true
-		target, err := newOperation(kind)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if reflect.TypeOf(deref(target)) != reflect.TypeOf(op) {
-			t.Fatalf("kind %q decodes to %T, want %T", kind, deref(target), op)
-		}
-	}
-	if !seen["set_json"] {
-		t.Fatalf("SetJSON must snake to set_json as polytype.Snake does: %v", seen)
+// TestNilBodyIsRejected proves a body is never silently dropped: the encoder
+// refuses a nil ordered body rather than writing null.
+func TestNilBodyIsRejected(t *testing.T) {
+	_, err := json.Marshal(Graph{Name: "empty", Source: at(1)})
+	if err == nil {
+		t.Fatal("encoded a graph with a nil body without an error")
 	}
 }
 
-func TestWireShape(t *testing.T) {
-	data, err := json.Marshal(sprintShape())
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, want := range []string{
-		`{"kind":"set_json","id":"set.input"`,
-		`{"kind":"agent_call","id":"call.research"`,
-		`{"kind":"loop","id":"loop.rounds"`,
-		`{"kind":"scope","id":"scope.round"`,
-		`{"kind":"condition","id":"cond.validation"`,
-		`{"kind":"command","id":"cmd.validation"`,
-		`{"kind":"exit","id":"exit.continue"`,
-		`{"kind":"group","id":"group.checks"`,
-		`{"kind":"sequence","id":"helper.summary"`,
-		`"statement":"continue"`,
-		`"target":"call.coder"`,
+// TestOperationsAreTagged proves the wire shape: every operation is an object
+// whose "kind" is the snake_case type name.
+func TestOperationsAreTagged(t *testing.T) {
+	_, data := decoded(t)
+	for _, kind := range []string{
+		`"kind":"set"`, `"kind":"session"`, `"kind":"agent_call"`,
+		`"kind":"scope"`, `"kind":"loop"`, `"kind":"condition"`, `"kind":"command"`,
 	} {
-		if !strings.Contains(string(data), want) {
-			t.Errorf("wire JSON lacks %s\n%s", want, data)
-		}
-	}
-	// Nil slices encode as [], as polytype's generated encoder does.
-	empty, err := json.Marshal(Graph{Body: Sequence{Body: []Operation{Group{}}}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, want := range []string{`"sessions":[]`, `"diagnostics":[]`, `"supervision":[]`, `"children":[]`} {
-		if !strings.Contains(string(empty), want) {
-			t.Errorf("empty graph lacks %s\n%s", want, empty)
-		}
-	}
-	if strings.Contains(string(empty), "null") {
-		t.Errorf("empty graph contains null\n%s", empty)
-	}
-}
-
-func TestDecodeRejects(t *testing.T) {
-	cases := map[string]string{
-		"unknown kind":   `{"body":{"id":"b","source":{"file":"","line":0,"column":0},"body":[{"kind":"launch","id":"x"}]}}`,
-		"missing kind":   `{"body":{"id":"b","source":{"file":"","line":0,"column":0},"body":[{"id":"x"}]}}`,
-		"foreign field":  `{"body":{"id":"b","source":{"file":"","line":0,"column":0},"body":[{"kind":"set","id":"x","source":{"file":"","line":0,"column":0},"key":"k","value":{"text":"","constant":false},"prompt":{"text":"","constant":false}}]}}`,
-		"nested foreign": `{"body":{"id":"b","source":{"file":"","line":0,"column":0},"body":[{"kind":"scope","id":"s","source":{"file":"","line":0,"column":0},"name":"n","body":[{"kind":"exit","id":"e","source":{"file":"","line":0,"column":0},"statement":"return","name":"no"}],"supervision":[]}]}}`,
-		"unknown root":   `{"digest":"abc"}`,
-	}
-	for name, input := range cases {
-		var g Graph
-		if err := json.Unmarshal([]byte(input), &g); err == nil {
-			t.Errorf("%s: decoded without error", name)
-		} else {
-			t.Logf("%s: %v", name, err)
+		if !strings.Contains(string(data), kind) {
+			t.Errorf("no operation encoded with %s", kind)
 		}
 	}
 }
 
-func TestSupervisorNesting(t *testing.T) {
+// TestUnknownKindIsRejected proves an operation object is decoded strictly,
+// so a graph written by a newer extractor fails loudly instead of silently
+// losing a step.
+func TestUnknownKindIsRejected(t *testing.T) {
 	var g Graph
-	data, _ := json.Marshal(sprintShape())
-	if err := json.Unmarshal(data, &g); err != nil {
-		t.Fatal(err)
+	err := json.Unmarshal([]byte(`{"name":"x","source":{"file":"a.go","line":1},"body":[{"kind":"teleport"}],"diagnostics":[]}`), &g)
+	if err == nil {
+		t.Fatal("decoded an unknown operation kind without an error")
 	}
-	rounds := g.Body.Body[2].(Loop)
-	round := rounds.Body[0].(Scope)
-	tasks := round.Body[0].(Loop)
-	if len(tasks.Supervision) != 1 || tasks.Supervision[0].Target != "call.coder" {
-		t.Fatalf("task supervision lost: %#v", tasks.Supervision)
+	if !strings.Contains(err.Error(), "teleport") {
+		t.Errorf("error does not name the unknown kind: %v", err)
 	}
-	if g.Sessions[1].Role != "reviewer" || g.Sessions[1].OwnerScope != "" {
-		t.Fatalf("reviewer role or root ownership lost: %#v", g.Sessions[1])
+}
+
+// TestGraphIsTheSprint is the readable check: what a viewer would show.
+func TestGraphIsTheSprint(t *testing.T) {
+	sessions := map[string]string{}
+	calls := map[string]string{}
+	var commands []string
+	var supervised []string
+
+	var walk func([]Operation)
+	walk = func(body []Operation) {
+		for _, op := range body {
+			switch op := op.(type) {
+			case Session:
+				sessions[op.Name] = op.From
+			case AgentCall:
+				calls[op.Session] = op.Prompt
+				for _, s := range op.Supervisors {
+					supervised = append(supervised, op.Session+" watched by "+s.Session)
+				}
+			case Command:
+				commands = append(commands, op.Text)
+			case Scope:
+				walk(op.Body)
+			case Loop:
+				walk(op.Body)
+			case Condition:
+				for _, b := range op.Branches {
+					walk(b.Body)
+				}
+			case Group:
+				for _, c := range op.Children {
+					walk(c.Body)
+				}
+			}
+		}
 	}
-	if g.Sessions[3].Role != "coder" || g.Sessions[3].OwnerScope != tasks.ID {
-		t.Fatalf("coder role or task ownership lost: %#v", g.Sessions[3])
+	g, _ := decoded(t)
+	walk(g.Body)
+
+	for name, from := range map[string]string{
+		"researcher": "", "planner": "researcher", "validator": "",
+		"coder": "researcher", "supervisor": "",
+	} {
+		got, ok := sessions[name]
+		if !ok {
+			t.Errorf("no session named %q", name)
+			continue
+		}
+		if got != from {
+			t.Errorf("session %q forks %q, want %q", name, got, from)
+		}
 	}
-	taste := tasks.Supervision[0].Supervisors[0]
-	if taste.Session != "session.reviewer" || len(taste.Supervisors) != 1 || taste.Supervisors[0].Session != "session.lead" {
-		t.Fatalf("nested supervisor lost: %#v", taste)
+	for _, name := range []string{"researcher", "coder", "validator", "planner"} {
+		if calls[name] == "" {
+			t.Errorf("session %q never speaks", name)
+		}
 	}
-	if g.Supervision[0].Supervisors[0].Session != taste.Session {
-		t.Fatal("ancestor-owned reviewer should be the same session at both attachments")
+	if len(supervised) != 1 || supervised[0] != "coder watched by supervisor" {
+		t.Errorf("supervision is %v, want the coder watched by the supervisor", supervised)
+	}
+	if len(commands) != 5 {
+		t.Errorf("got %d commands %v, want the task command, the checks, and the three git steps", len(commands), commands)
+	}
+	if !strings.Contains(calls["planner"], "gh pr merge") {
+		t.Error("the planner does not merge")
 	}
 }

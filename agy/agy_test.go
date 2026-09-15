@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -137,6 +139,29 @@ func TestAdapterPropagatesObserverFailure(t *testing.T) {
 	}
 }
 
+func TestAdapterTreatsResultAsTerminalWhenProcessStaysAlive(t *testing.T) {
+	adapter, _ := testAdapter(t)
+	sessionID, err := adapter.CreateSession(t.Context(), "gemini-test-low", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan struct{})
+	var result gimble.TurnResult
+	var runErr error
+	go func() {
+		result, runErr = adapter.RunTurn(context.Background(), sessionID, "RESULT_THEN_WAIT", nil, func(gimble.AgentEvent) error { return nil })
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("terminal result did not release the native process")
+	}
+	if runErr != nil || string(result.Output) != `"OK"` {
+		t.Fatalf("result=%s error=%v", result.Output, runErr)
+	}
+}
+
 func testAdapter(t *testing.T) (*adapter, string) {
 	t.Helper()
 	record := filepath.Join(t.TempDir(), "invocations.jsonl")
@@ -153,6 +178,12 @@ func TestAgyHelperProcess(t *testing.T) {
 		args = args[1:]
 	}
 	args = args[1:]
+	if len(args) == 1 && args[0] == "HOLD_STDOUT" {
+		interrupt := make(chan os.Signal, 1)
+		signal.Notify(interrupt, os.Interrupt)
+		<-interrupt
+		os.Exit(0)
+	}
 	file, _ := os.OpenFile(os.Getenv("AGY_HELPER_RECORD"), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
 	_ = json.NewEncoder(file).Encode(args)
 	_ = file.Close()
@@ -194,7 +225,23 @@ func TestAgyHelperProcess(t *testing.T) {
 	if structured != nil {
 		result["structured_output"] = structured
 	}
+	if prompt == "RESULT_WITH_DESCENDANT" {
+		child := exec.Command(os.Args[0], "-test.run=TestAgyHelperProcess", "--", "HOLD_STDOUT")
+		child.Env = os.Environ()
+		child.Stdout = os.Stdout
+		child.Stderr = os.Stderr
+		if err := child.Start(); err != nil {
+			os.Exit(2)
+		}
+		_ = os.WriteFile(os.Getenv("AGY_HELPER_RECORD")+".child", []byte(strconv.Itoa(child.Process.Pid)), 0o644)
+	}
 	writeEnvelope(map[string]any{"event": "result", "result": result})
+	if prompt == "RESULT_THEN_WAIT" {
+		interrupt := make(chan os.Signal, 1)
+		signal.Notify(interrupt, os.Interrupt)
+		<-interrupt
+		os.Exit(130)
+	}
 	os.Exit(0)
 }
 

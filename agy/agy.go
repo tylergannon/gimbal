@@ -53,7 +53,8 @@ type session struct {
 
 type activeTurn struct {
 	command     *exec.Cmd
-	done        chan struct{}
+	stdout      io.ReadCloser
+	closeStdout sync.Once
 	interrupted atomic.Bool
 	steered     atomic.Bool
 }
@@ -254,6 +255,7 @@ func (a *adapter) runOnce(ctx context.Context, s *session, request runRequest) (
 	args = append(args, "--print-timeout", backstop.String())
 
 	command := exec.Command(a.config.binary, args...)
+	configureProcess(command)
 	command.Dir = request.workdir
 	if a.config.env != nil {
 		command.Env = a.config.env
@@ -269,7 +271,7 @@ func (a *adapter) runOnce(ctx context.Context, s *session, request runRequest) (
 	if err := command.Start(); err != nil {
 		return nativeResult{}, nil, fmt.Errorf("agy: start: %w", err)
 	}
-	active := &activeTurn{command: command, done: make(chan struct{})}
+	active := &activeTurn{command: command, stdout: stdout}
 	if s != nil {
 		s.mu.Lock()
 		s.active = active
@@ -285,10 +287,13 @@ func (a *adapter) runOnce(ctx context.Context, s *session, request runRequest) (
 
 	stream := make(chan streamItem)
 	go scanStream(stdout, stream)
+	waited := make(chan error, 1)
+	go func() { waited <- command.Wait() }()
 
 	var result *nativeResult
 	var initID string
 	var protocolErr, processErr error
+	var terminal bool
 	ctxDone := ctx.Done()
 	for stream != nil {
 		select {
@@ -298,6 +303,9 @@ func (a *adapter) runOnce(ctx context.Context, s *session, request runRequest) (
 				continue
 			}
 			if item.err != nil {
+				if terminal || active.interrupted.Load() {
+					continue
+				}
 				if protocolErr == nil {
 					protocolErr = item.err
 					interruptProcess(active)
@@ -330,20 +338,53 @@ func (a *adapter) runOnce(ctx context.Context, s *session, request runRequest) (
 					interruptProcess(active)
 				}
 			}
+			if envelope.Event == "result" && envelope.Result != nil && protocolErr == nil {
+				// result is the terminal protocol envelope. Do not make turn
+				// completion depend on the native process or one of its children
+				// eventually closing stdout.
+				terminal = true
+				stopProcess(active, false)
+			}
 		case <-ctxDone:
 			ctxDone = nil
 			interruptProcess(active)
 		}
 	}
-	waited := make(chan error, 1)
-	go func() { waited <- command.Wait() }()
-	select {
-	case processErr = <-waited:
-	case <-ctx.Done():
-		interruptProcess(active)
-		processErr = <-waited
+	var stopTimer <-chan time.Time
+	var timer *time.Timer
+	if terminal || active.interrupted.Load() {
+		timer = time.NewTimer(controlTimeout)
+		stopTimer = timer.C
 	}
-	close(active.done)
+	defer func() {
+		if timer != nil {
+			timer.Stop()
+		}
+	}()
+	waitCtx := ctx.Done()
+	for waited != nil {
+		select {
+		case processErr = <-waited:
+			waited = nil
+		case <-waitCtx:
+			waitCtx = nil
+			interruptProcess(active)
+			if timer == nil {
+				timer = time.NewTimer(controlTimeout)
+				stopTimer = timer.C
+			}
+		case <-stopTimer:
+			stopTimer = nil
+			killProcess(active.command.Process)
+			active.closeOutput()
+		}
+	}
+	if terminal || active.interrupted.Load() {
+		// The direct command may have exited while a descendant still owns
+		// inherited descriptors. The command has its own process group, so
+		// make the terminal boundary release the entire native turn.
+		killProcess(active.command.Process)
+	}
 	if ctx.Err() != nil {
 		return nativeResult{}, active, ctx.Err()
 	}
@@ -363,7 +404,7 @@ func (a *adapter) runOnce(ctx context.Context, s *session, request runRequest) (
 		}
 		return nativeResult{}, active, errors.New(message)
 	}
-	if processErr != nil {
+	if processErr != nil && !terminal {
 		return nativeResult{}, active, fmt.Errorf("agy: process: %w: %s", processErr, strings.TrimSpace(stderr.String()))
 	}
 	if result.status != "SUCCESS" {
@@ -419,14 +460,25 @@ func interruptProcess(active *activeTurn) {
 		return
 	}
 	active.interrupted.Store(true)
-	_ = active.command.Process.Signal(os.Interrupt)
-	go func() {
-		select {
-		case <-active.done:
-		case <-time.After(controlTimeout):
-			_ = active.command.Process.Kill()
-		}
-	}()
+	stopProcess(active, true)
+}
+
+func stopProcess(active *activeTurn, interrupted bool) {
+	if active == nil || active.command == nil || active.command.Process == nil {
+		return
+	}
+	if interrupted {
+		active.interrupted.Store(true)
+	}
+	_ = signalProcess(active.command.Process, os.Interrupt)
+	active.closeOutput()
+}
+
+func (active *activeTurn) closeOutput() {
+	if active == nil || active.stdout == nil {
+		return
+	}
+	active.closeStdout.Do(func() { _ = active.stdout.Close() })
 }
 
 func existingDir(path string) (string, error) {

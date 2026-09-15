@@ -27,3 +27,7 @@ Refreshed the interactive Beta chart from `beta-gantt-status.json`: #162, #172, 
 ### Next five Beta starts
 
 Live refresh additionally closes #135, #117, #192, and #174. #201 remains in flight per Tyler. Recommended #173 (viewer/integration), #195 (adapter usage), #110 (failed supervisor looks, verify existing behavior first), #194 (loop backlog history), and #154 (isolated proof-log fix) for parallel starts, and marked them in flight on the chart at Tyler's request. These marks represent selected starts, not observed agent execution. The chart now retains 8 closed issues, 6 in-flight issues, and 7 other open issues. #193/#199 stay with the UI owner to avoid competing edits during #173. Browser verification confirmed labels and closed prerequisite display.
+
+### Correction: prioritize functionality; record graph before viewer
+
+Tyler rejected #173 as a next start: graph shape must be recorded first. The previous bug-heavy batch did not match the current priority. Filed Beta #215 for per-run graph persistence/observation, updated #173's body with the explicit #201 → #215 → #173 order, and withdrew all unconfirmed selected-start marks. Functional alternatives are recorded in `functionality-next.md`; they are proposals, not launched work. Do not pad an agent batch with cleanup simply to reach five tasks.

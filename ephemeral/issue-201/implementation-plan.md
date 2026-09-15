@@ -85,6 +85,14 @@ registration prerequisite, generic launch-by-name dispatcher, or schema-driven
 generic form. This replaces the earlier WithWorkflow/registration proposal;
 section 4 describes the updated delivery.
 
+### Decision (3): Operation is a sealed union
+
+Use a sealed Operation interface with concrete struct variants, projected by
+polytype. Each variant declares the sealing method directly. Remove the separate
+OperationKind and nullable Agent/Command/Value payload fields. The declarations
+below implement this decision; Go uses a type switch and generated TypeScript
+uses polytype's discriminator.
+
 ## 1. The concrete graph type
 
 Put these declarations in package
@@ -193,61 +201,107 @@ type Session struct {
 	Workdir    Expression `json:"workdir"`
 }
 
-type OperationKind string
-
-const (
-	RegionEntry      OperationKind = "region_entry"
-	RegionExit       OperationKind = "region_exit"
-	SessionCreate    OperationKind = "session_create"
-	SessionFork      OperationKind = "session_fork"
-	AgentCall        OperationKind = "agent_call"
-	PlannerCall      OperationKind = "planner_call"
-	SupervisorLook   OperationKind = "supervisor_look"
-	CommandConstruct OperationKind = "command_construct"
-	CommandExecute   OperationKind = "command_execute"
-	CommandWait      OperationKind = "command_wait"
-	ValueWrite       OperationKind = "value_write"
-	Branch           OperationKind = "branch"
-	Merge            OperationKind = "merge"
-	Repeat           OperationKind = "repeat"
-	ParallelLaunch   OperationKind = "parallel_launch"
-	ParallelJoin     OperationKind = "parallel_join"
-	Unresolved       OperationKind = "unresolved"
-)
-
-type Operation struct {
-	ID         string         `json:"id"`
-	Scope      string         `json:"scope"` // Execution region, not session owner.
-	Kind       OperationKind  `json:"kind"`
-	Source     Source         `json:"source"`
-	Order      int            `json:"order"` // Source/display order only.
-	Label      string         `json:"label"`
-	Expression Expression     `json:"expression"` // E.g. branch/repeat condition.
-	Agent      *Agent         `json:"agent"`
-	Command    *Command       `json:"command"`
-	Value      *Value         `json:"value"`
+// Operation is a sealed union. Its variants declare operation directly.
+type Operation interface {
+	operation()
 }
 
-type Agent struct {
+// Site is shared metadata, embedded in each variant. It is not a variant.
+type Site struct {
+	ID     string `json:"id"`
+	Scope  string `json:"scope"` // Execution region, not session owner.
+	Source Source `json:"source"`
+	Order  int    `json:"order"` // Source/display order only.
+	Label  string `json:"label"`
+}
+
+type RegionEntry struct{ Site }
+type RegionExit struct{ Site }
+type SessionCreate struct{ Site }
+type SessionFork struct{ Site }
+type Merge struct{ Site }
+type ParallelLaunch struct{ Site }
+type ParallelJoin struct{ Site }
+type Unresolved struct{ Site }
+
+type AgentCall struct {
+	Site
+	Session    string     `json:"session"`
+	Prompt     Expression `json:"prompt"`
+	OutputType string     `json:"output_type"`
+}
+
+type PlannerCall struct {
+	Site
 	Session    string     `json:"session"` // Session ID used by this turn.
 	Prompt     Expression `json:"prompt"`
 	OutputType string     `json:"output_type"`
 }
 
-type Command struct {
+type SupervisorLook struct {
+	Site
+	Session    string     `json:"session"`
+	Prompt     Expression `json:"prompt"`
+	OutputType string     `json:"output_type"`
+}
+
+type CommandConstruct struct {
+	Site
+	Method     string       `json:"method"` // Command or CommandContext.
+	Executable Expression   `json:"executable"`
+	Args       []Expression `json:"args"`
+	Dir        Expression   `json:"dir"`
+}
+
+type CommandExecute struct {
+	Site
 	Method       string       `json:"method"`
-	Construction string       `json:"construction"` // Construct op ID; self on construct.
-	Start        string       `json:"start"`        // Start op ID for explicit Wait.
+	Construction string       `json:"construction"` // CommandConstruct ID.
 	Executable   Expression   `json:"executable"`
 	Args         []Expression `json:"args"`
 	Dir          Expression   `json:"dir"`
 }
 
-type Value struct {
+type CommandWait struct {
+	Site
+	Construction string `json:"construction"` // CommandConstruct ID.
+	Start        string `json:"start"`        // CommandExecute ID whose Method is Start.
+}
+
+type ValueWrite struct {
+	Site
 	Key        Expression `json:"key"`
 	Expression Expression `json:"expression"`
 	JSON       bool       `json:"json"` // SetJSON versus Set.
 }
+
+type Branch struct {
+	Site
+	Condition Expression `json:"condition"`
+}
+
+type Repeat struct {
+	Site
+	Condition Expression `json:"condition"`
+}
+
+func (RegionEntry) operation()      {}
+func (RegionExit) operation()       {}
+func (SessionCreate) operation()    {}
+func (SessionFork) operation()      {}
+func (AgentCall) operation()        {}
+func (PlannerCall) operation()      {}
+func (SupervisorLook) operation()   {}
+func (CommandConstruct) operation() {}
+func (CommandExecute) operation()   {}
+func (CommandWait) operation()      {}
+func (ValueWrite) operation()       {}
+func (Branch) operation()           {}
+func (Merge) operation()            {}
+func (Repeat) operation()           {}
+func (ParallelLaunch) operation()   {}
+func (ParallelJoin) operation()     {}
+func (Unresolved) operation()       {}
 
 type Port string
 
@@ -299,6 +353,49 @@ type Diagnostic struct {
 }
 ```
 
+### Polytype projection of Operation
+
+Keep `Graph.Operations` as the direct `[]Operation` field shown above. Add this
+in `workflow/schema.go`, following the root package's existing lifecycle union:
+
+```go
+//go:build jsonschema
+
+package workflow
+
+import (
+	"encoding/json"
+
+	"github.com/tylergannon/polytype"
+)
+
+func (Graph) Schema() json.RawMessage     { panic("generated") }
+func (Graph) ValidateJSON([]byte) error   { panic("generated") }
+
+var (
+	_ = polytype.Declare(Graph.Schema)
+	_ = polytype.SealedUnion[Operation]("kind", polytype.Snake)
+)
+```
+
+Use the existing polytype generation convention (`//go:generate go tool polytype
+--validate` on one line in graph.go). It infers union members from the concrete
+types and their direct value-receiver methods; do not maintain a second member
+list. It supplies `kind: "agent_call"`, `kind: "command_execute"`, etc. on the
+wire. No Go Kind field or handwritten discriminator codec is needed. Site's
+embedded fields are common metadata; Site does not implement operation().
+
+Marshal/unmarshal the owning Graph using its generated JSON codecs. Generate
+TypeScript and devalue through polytype/skgo from the same declaration. Keep
+the union field a direct slice and use concrete value variants in literals.
+Verify generated schema, JSON, TypeScript, and devalue agree on the variants;
+the invalid cases include unknown discriminators and fields from another variant.
+These are type-projection checks, separate from graph reference validation.
+The full proposed Graph was checked with pinned polytype v1.0.0: all 17 variants
+round-trip through generated JSON and devalue codecs, invalid variants are rejected,
+and a second generation is unchanged. Details and limits are recorded in
+`/Users/tyler/.codex/worktrees/a256/gimble/ephemeral/issue-201/operation-union-verification.md`.
+
 ### Invariants and interpretation
 
 **Identity.** `Graph.ID` is derived from the qualified entrypoint and constant
@@ -327,16 +424,16 @@ same lexical `SiteID`. This avoids sharing one helper return among unrelated
 continuations. Neither ID is a runtime scope/session/turn ID.
 
 **Containment and use.** `Region.Parent` forms one tree. `Session.Owner` is the
-creation scope; `Operation.Scope` is the execution scope. `Operation.Agent.Session`
-is the uses-session relation. For creation/fork operations, `Session.CreatedBy`
-is the reverse reference; their Agent/Command/Value payloads are nil. An ordinary
+creation scope; each variant's `Site.Scope` is the execution scope. The Session
+field of AgentCall, PlannerCall, or SupervisorLook is the uses-session relation.
+For creation/fork operations, `Session.CreatedBy` is the reverse reference. An ordinary
 helper inherits the caller's scope binding. Derived contexts preserve that binding
 until an actual Gimble scope boundary changes it.
 
-**Payloads.** AgentCall/PlannerCall/SupervisorLook have only an Agent payload;
-command kinds have only Command; ValueWrite has only Value. Other kinds have no
-payload. A small internal graph validator checks this and reference integrity;
-the graph is not a bag of arbitrary properties. For a partial graph, leave an
+**Variants.** The concrete Operation type determines its fields; there are no
+nullable payload combinations or separate kind/payload consistency checks. A
+small internal graph validator checks reference integrity, including whether a
+referenced operation has the required type. For a partial graph, leave an
 unresolved relation empty and attach a diagnostic instead of inventing an endpoint.
 All known references must still resolve.
 
@@ -362,8 +459,9 @@ planner selects task → task entry; task completion → next planner call; no t
 or a range break → loop exit. `Loop(...)` constructs the iterator; the loop region
 and planner work start when Tasks is consumed, as the runtime actually does.
 
-**Commands.** Method is exactly Command/CommandContext for construction;
-Run/Output/CombinedOutput/Start for execution; Wait for an explicit join. Execution
+**Commands.** CommandConstruct.Method is Command/CommandContext;
+CommandExecute.Method is Run/Output/CombinedOutput/Start. CommandWait represents
+the explicit Wait without a redundant Method field. Execution
 and Wait refer to the same construction site. Start.After means the Start call
 returned, not that the process exited. Its explicit Wait joins that started process.
 Run/Output/CombinedOutput are blocking executions. Keep executable/args/Dir as
@@ -372,7 +470,7 @@ A construction with no execution remains a construction. No process outcome,
 duration, stdout/stderr, or harness-internal shell command is inferred here.
 
 **Supervision.** For supervisor S watching worker W, create one implicit look L:
-`Supervision{Session: S, Target: W, Look: L}` and `L.Agent.Session = S`.
+`Supervision{Session: S, Target: W, Look: L}` and the SupervisorLook L has `Session: S`.
 For supervisor H watching S's looks, the second attachment is
 `Supervision{Session: H, Target: L, Look: HL}`. Look operations use the watched
 operation's execution scope, even if their sessions belong to an ancestor.
@@ -650,6 +748,7 @@ README explains the explicit workflow list, generation, and authored-page contra
 | Run association survives restart | Live and finished matching runs resolve to the compiled graph; restart with a changed digest leaves the old run observable but unmatched. References survive durable snapshot, table, and supported replay paths. |
 | Cancellation is independent | Two active runs share one runtime; cancel A and B remains active; another run can start after A ends. Runtime cancellation stops all active runs. An already-cancelled synchronous caller does not start workflow work. |
 | Go remains the single graph model | Inspect the compiled graph through a real skgo query and generated TypeScript/devalue boundary, comparing representative containment, flow endpoints, command payloads, and nested attachments. No hand-maintained JSON/TS graph model. |
+| Operations remain a sealed union across projections | Every concrete Operation variant round-trips through Graph's generated JSON and devalue codecs with its kind and fields intact. Generated TS discriminates on kind; unknown kinds and fields belonging to another variant are rejected at the decoding boundary. |
 
 Use source fixtures for static claims and an isolated executable caller module for
 runtime claims. A harmless real command and a cheap native agent turn can demonstrate

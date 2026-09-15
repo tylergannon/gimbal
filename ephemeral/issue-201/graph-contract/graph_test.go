@@ -26,10 +26,10 @@ func sprintShape() Graph {
 		Source:    Source{File: "internal/workflows/sprint/sprints.go", Line: 40, Column: 1},
 		Generator: "v0.0.0-handoff",
 		Sessions: []Session{
-			{Site: site("session.researcher", 50), Name: "researcher", Adapter: expr("codex"), Model: expr("model"), Workdir: expr("dir")},
-			{Site: site("session.reviewer", 52), Name: "reviewer", Adapter: expr("claude"), Model: expr("model"), Workdir: expr("dir")},
-			{Site: site("session.lead", 53), Name: "lead", Origin: "session.reviewer"},
-			{Site: site("session.coder", 120), Name: "coder", Scope: "loop.tasks", Adapter: expr("codex"), Model: expr("model"), Workdir: expr("dir")},
+			{Site: site("session.researcher", 50), Name: "researcher", Role: "researcher"},
+			{Site: site("session.reviewer", 52), Name: "reviewer", Role: "reviewer"},
+			{Site: site("session.lead", 53), Name: "lead", Role: "lead"},
+			{Site: site("session.coder", 120), Name: "coder", OwnerScope: "loop.tasks", Role: "coder"},
 		},
 		Body: Sequence{
 			Site: site("body", 40),
@@ -231,6 +231,12 @@ func TestSupervisorNesting(t *testing.T) {
 	tasks := round.Body[0].(Loop)
 	if len(tasks.Supervision) != 1 || tasks.Supervision[0].Target != "call.coder" {
 		t.Fatalf("task supervision lost: %#v", tasks.Supervision)
+	}
+	if g.Sessions[1].Role != "reviewer" || g.Sessions[1].OwnerScope != "" {
+		t.Fatalf("reviewer role or root ownership lost: %#v", g.Sessions[1])
+	}
+	if g.Sessions[3].Role != "coder" || g.Sessions[3].OwnerScope != tasks.ID {
+		t.Fatalf("coder role or task ownership lost: %#v", g.Sessions[3])
 	}
 	taste := tasks.Supervision[0].Supervisors[0]
 	if taste.Session != "session.reviewer" || len(taste.Supervisors) != 1 || taste.Supervisors[0].Session != "session.lead" {

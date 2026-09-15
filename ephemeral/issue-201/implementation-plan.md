@@ -1,5 +1,10 @@
 # Issue 201: typed workflow graph — implementation handoff for Sol
 
+**Paused draft:** read the latest section of `review-user-decisions.md` first.
+Session ownership should follow containment in its scope; the Go draft's flat
+session table and OwnerScope field are rejected. Settle author-facing session/call
+parameterization with Tyler before revising or implementing the graph.
+
 ## Outcome and authority
 
 Implement a source extractor that generates a Go `workflow.Graph` literal and
@@ -19,14 +24,15 @@ See [Codex's reaction](./codex-reaction.md).
 
 **Design status:** the accepted nested model is recorded in
 [graph-model.md](/Users/tyler/.codex/worktrees/a256/gimble/ephemeral/issue-201/graph-model.md).
-It supersedes the former flat Graph declaration. The type contract is settled
-and written as compilable Go in [graph-contract/](/Users/tyler/.codex/worktrees/a256/gimble/ephemeral/issue-201/graph-contract/):
+It supersedes the former flat Graph declaration. The type contract is a draft
+written as compilable Go in [graph-contract/](/Users/tyler/.codex/worktrees/a256/gimble/ephemeral/issue-201/graph-contract/):
 `graph.go` holds every declaration, `codec.go` the interim handwritten JSON
 codec, `declare.go` the polytype declaration, `graph_test.go` the round-trip
-proof, and `polytype-attempt.txt` the pinned generator's rejection. Sol moves
-those files to `workflow/` without changing their shape. The approved command
-API still needs its name and signature before the extractor can recognize its
-calls; that is the one open contract, and it is Tyler's to name.
+proof, and `polytype-attempt.txt` the pinned generator's rejection. Session now uses a logical Role and explicit OwnerScope; constructor configuration
+and fork origin have been removed. The shared template/observed-run representation
+still needs revision before Sol implements this contract. Do not freeze the current
+static-only Site and expression fields. The approved command API also needs its name
+and signature before the extractor can recognize its calls.
 
 Read the locally cached issue and its owner comment:
 `/Users/tyler/.codex/worktrees/a256/gimble/ephemeral/issue-201/issue-and-comments.md`.
@@ -509,9 +515,9 @@ README explains the explicit workflow list, generation, and authored-page contra
 | --- | --- |
 | Typed consumer works end to end | A separate Go module with its own unrelated Input generates from scratch, compiles, runs through Runtime without registration, and reads its saved graph. A wrong Input type is rejected by the compiler. |
 | Web entrypoints are concrete | An explicit list of two workflows with different Inputs generates distinct typed remote callers and decoders. An authored Svelte page links to and starts its specific workflow, receives its run ID, and navigates away while the run continues. Invalid payloads fail before work starts. No generic form or runtime workflow selector is involved. |
-| The builtin graph reflects source | Inspect generated Sprint output against `Sprint`, `run`, `goalText`, `runTask`, `command`, and `git`: research/fork, outer rounds, inner planner/task repeat, coder/supervisor, task command, ancestor validator, both fixed checks, conditional commit, final validation/merge. Dry-run alternatives remain visible. |
+| The builtin graph reflects source | Inspect generated Sprint output against `Sprint`, `run`, `goalText`, `runTask`, `command`, and `git`: research, outer rounds, inner planner/task repeat, coder/supervisor, task command, ancestor validator, both fixed checks, conditional commit, final validation/merge. Dry-run alternatives remain visible. |
 | Scoped agent work is legible | Fixtures show agent calls in their scopes and source order, alternative branches, repeated bodies, and grouped concurrent work. Sibling list order does not imply sequential completion. A full program map, unrelated caller work, and a launch/join timeline are not acceptance requirements. |
-| Sessions, calls, and scopes are distinct | Two AgentCalls reference one conversation. An ancestor-owned session retains its owner when called in a child execution scope. A fork retains its origin and creation scope. Conditions and ordinary Go loops do not manufacture Gimble scopes. |
+| Sessions, calls, and scopes are distinct | Two AgentCalls reference one conversation. An ancestor-owned session retains its owner when called in a child execution scope. Role selection is static; adapter, model, and reasoning effort resolve at runtime. Fork provenance is excluded. Conditions and ordinary Go loops do not manufacture Gimble scopes. |
 | Context evolution follows source | Set and SetJSON stay in order within each branch/body, retaining constant keys and value expressions. Actual scopes determine ownership; stored values are not assumed to have appeared in a prompt. |
 | Supervision is hierarchical and local | An attachment targets a worker call; its unordered supervisors may themselves have supervisors watching their looks. An ancestor-owned reviewer appears beside a deeper child call while referencing its original session. Sequential tasks can reuse that conversation; task-local creation gives fresh conversations. A short live turn can finish with zero looks. No synthetic look nodes or sequential approval gates are required. |
 | Commands use the approved boundary | Workflow commands use the opinionated Gimble function and their calls are captured in scope and source order. Direct os/exec use in workflow code produces an actionable lint diagnostic. A harmless command demonstrates capture through the function. No arbitrary exec.Cmd lifecycle analysis is required. |

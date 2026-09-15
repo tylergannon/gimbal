@@ -84,8 +84,21 @@ recursive types.
 
 AgentCall is a call, not a session. For example, two Generate calls using
 researcher are two steps referencing one conversation. Session declarations retain
-identity, name, owning scope, model/adapter/workdir, source, and fork origin.
-Creating/forking a session does not require a separate visible operation node.
+identity, name, logical role, owning scope, and source. OwnerScope means conversation
+lifetime ownership; call placement follows the body containing the call. Adapter,
+model, and reasoning effort are resolved from the role at runtime. Do not extract
+constructor configuration expressions or fork provenance into the graph.
+
+The current Go draft is still source-centric. The intended abstraction should serve
+both possible workflow structure and observed run structure using the same scoped
+bodies, calls, and supervision vocabulary. A template call may have many observed
+occurrences; a template session may have many actual conversations when its owning
+task repeats. Distinguish occurrence identity from its template reference, and have
+actual calls refer to actual conversations. Preserve the saved template so unobserved
+alternatives remain available. Concrete role resolution (including reasoning effort)
+belongs to run information. This does not require a Go execution model. The shared
+representation is a design direction, not a capability of the present static-only
+Site definition. Do not treat this draft as a frozen contract.
 
 ### Approved command execution
 

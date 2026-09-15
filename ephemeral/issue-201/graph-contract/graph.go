@@ -18,7 +18,7 @@ type Graph struct {
 	Source Source `json:"source"`
 	// Generator is the generator's module version, for example "v0.3.0".
 	Generator string `json:"generator"`
-	// Sessions declares every agent session the workflow creates or forks.
+	// Sessions describes the named conversations used by the workflow.
 	Sessions []Session `json:"sessions"`
 	// Body is the entry function's ordered body.
 	Body Sequence `json:"body"`
@@ -55,23 +55,19 @@ type Expression struct {
 	Constant bool   `json:"constant"`
 }
 
-// Session declares one agent conversation. Ownership follows the scope that
-// created it, which decides the conversation's lifetime; a session owned by
-// an ancestor scope may be used or watched from a deeper scope.
+// Session describes a named conversation using a logical role. The run resolves
+// that role to an adapter, model, and reasoning effort; those are not build-time
+// properties of this description. Fork provenance is outside this model.
 type Session struct {
 	Site
-	// Name is the constant name passed to NewSession or Fork.
 	Name string `json:"name"`
-	// Scope is the static ID of the owning Scope, Loop, or Group child. Empty
-	// means the run's root scope.
-	Scope string `json:"scope"`
-	// Origin is the static ID of the session this one was forked from, or
-	// empty for a session created with NewSession.
-	Origin string `json:"origin"`
-	// Adapter, Model, and Workdir are the NewSession arguments as written.
-	Adapter Expression `json:"adapter"`
-	Model   Expression `json:"model"`
-	Workdir Expression `json:"workdir"`
+	// Role identifies the configured role, such as "coder" or "reviewer".
+	Role string `json:"role"`
+	// OwnerScope identifies the scope that owns the conversation's lifetime.
+	// It does not place calls or supervision attachments: their containing bodies
+	// do that. An empty value means the run root. In this draft it references
+	// a static scope site; runtime instance identity is not yet represented.
+	OwnerScope string `json:"owner_scope"`
 }
 
 // Operation is the sealed union of everything an ordered body can contain.
@@ -87,8 +83,10 @@ type Subgraph interface {
 	subgraph()
 }
 
-// AgentCall is one Generate call on a session. Two calls on the same session
-// are two operations referencing one conversation.
+// AgentCall describes one use of a conversation, inheriting its logical role.
+// Two calls on the same session are two steps referencing one conversation.
+// This draft still carries source-only Prompt and Output metadata; it is not yet
+// the shared template/observed-instance representation.
 type AgentCall struct {
 	Site
 	// Session is the static ID of the Session declaration.

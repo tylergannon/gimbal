@@ -18,3 +18,28 @@ The latest instruction is to build gimble and use gimble run-prompt with Claude 
 Tyler asks Fable to resolve both review findings, with Codex reacting to its changes afterward. The graph contract must be actual Go source files that compile, not a graph definition in Markdown. The handoff should link to those Go files and explain the decisions.
 
 Tyler selected natural recursive Go types with a handwritten Graph JSON codec for now, and requested a polytype feature issue for recursive type support. Do not flatten the model into reference tables to accommodate the current generator. The actual contract must compile as Go source.
+
+## Session and observed-shape correction (2026-09-15)
+
+- Remove fork origin; leave forking out of graph modeling for now.
+- Sessions/calls use logical roles. Adapter, model, and reasoning effort must not
+  be baked into the generated workflow. The previous constructor-expression fields
+  misunderstood this requirement.
+- Tyler challenged the ambiguous Scope string. The draft now calls it OwnerScope:
+  conversation lifetime ownership, independent of where a call executes.
+- Tyler asks whether one abstraction can represent the build-time possible shape
+  and the runtime/historical actual shape. Yes: reuse the scoped body/call/supervision
+  vocabulary, with observed occurrences distinguished from their source templates.
+  The existing static-only Site contract does not yet accomplish this; it remains
+  a draft, not an approved implementation specification.
+
+## Latest pause and handoff
+
+Tyler rejected the OwnerScope rename as missing the point: a scope should contain
+the sessions it owns, making a scope field on Session redundant. The top-level
+Graph.Sessions table was Codex's choice, not a requirement. The Go draft still
+contains that rejected arrangement; do not implement it as settled design.
+
+Pause graph design until the author-facing parameterization of sessions and agent
+calls is settled. Tyler is handing this discussion to Claude for a fresh perspective.
+Continue collaborative design, not production implementation.

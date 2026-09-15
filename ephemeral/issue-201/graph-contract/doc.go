@@ -1,4 +1,4 @@
-// Package workflow is the settled type contract for issue 201's workflow graph.
+// Package workflow is the draft type contract for issue 201's workflow graph.
 //
 // This directory is the handoff copy of the future production package
 // github.com/tylergannon/gimble/workflow. It compiles on its own inside the

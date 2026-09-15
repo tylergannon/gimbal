@@ -2,7 +2,10 @@ package claude
 
 import (
 	"context"
+	"strings"
 	"testing"
+
+	claudeagent "github.com/roasbeef/claude-agent-sdk-go"
 )
 
 // TestCloseIsIdempotent covers acceptance item 4: closing a Claude session
@@ -20,6 +23,17 @@ func TestCloseIsIdempotent(t *testing.T) {
 	}
 	if err := ad.Close(context.Background(), id); err != nil {
 		t.Fatalf("second Close = %v, want nil", err)
+	}
+}
+
+func TestAssistantErrorPreservesProviderRequestID(t *testing.T) {
+	message := claudeagent.AssistantMessage{
+		Error:     claudeagent.AssistantMessageErrorInvalidRequest,
+		RequestID: "req_217",
+	}
+	err := assistantError(message)
+	if err == nil || !strings.Contains(err.Error(), "invalid_request") || !strings.Contains(err.Error(), "req_217") {
+		t.Fatalf("assistantError = %v, want code and request ID", err)
 	}
 }
 

@@ -111,8 +111,13 @@ func runPrompt(args []string, stdout, stderr io.Writer, getenv func(string) stri
 		runPromptSchemaMu.Lock()
 		defer runPromptSchemaMu.Unlock()
 	}
-	if err := run(); err != nil {
-		return err
+	runErr := run()
+	logsErr := writeRunPromptLogs(stderr, projectDir)
+	if runErr != nil {
+		return runErr
+	}
+	if logsErr != nil {
+		return logsErr
 	}
 	if options.outputSchema == "" {
 		if !bytes.HasSuffix(output, []byte("\n")) {
@@ -124,6 +129,10 @@ func runPrompt(args []string, stdout, stderr io.Writer, getenv func(string) stri
 	if _, err := stdout.Write(output); err != nil {
 		return err
 	}
+	return nil
+}
+
+func writeRunPromptLogs(stderr io.Writer, projectDir string) error {
 	runDir, err := soleRunDir(projectDir)
 	if err != nil {
 		return err

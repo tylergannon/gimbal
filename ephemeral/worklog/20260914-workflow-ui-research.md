@@ -23,3 +23,7 @@
 ### Gantt status refresh
 
 Refreshed the interactive Beta chart from `beta-gantt-status.json`: #162, #172, #130, and #126 are closed; Tyler reports #201 and #135 in flight. Kept closed inputs visible and removed the proposed #117-before-#135 start ordering, which was not a confirmed dependency. Browser inspection confirmed status labels and dependency selection. The chart remains in the conversation visualization directory.
+
+### Next five Beta starts
+
+Live refresh additionally closes #135, #117, #192, and #174. #201 remains in flight per Tyler. Recommended #173 (viewer/integration), #195 (adapter usage), #110 (failed supervisor looks, verify existing behavior first), #194 (loop backlog history), and #154 (isolated proof-log fix) for parallel starts, and marked them in flight on the chart at Tyler's request. These marks represent selected starts, not observed agent execution. The chart now retains 8 closed issues, 6 in-flight issues, and 7 other open issues. #193/#199 stay with the UI owner to avoid competing edits during #173. Browser verification confirmed labels and closed prerequisite display.

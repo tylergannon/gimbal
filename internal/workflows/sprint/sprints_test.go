@@ -185,6 +185,151 @@ func TestWithoutProofDropsTheProofParagraph(t *testing.T) {
 	}
 }
 
+func TestNormalizeInputDefaultsToLocalAndLeavesGenericReposWithoutChecks(t *testing.T) {
+	repo := t.TempDir()
+	in := Input{Repo: repo, Goal: "ship the requested behavior"}
+	if err := normalizeInput(&in); err != nil {
+		t.Fatal(err)
+	}
+	if in.Finish != "local" || in.Tasks != 10 {
+		t.Fatalf("defaults = finish %q tasks %d, want local and 10", in.Finish, in.Tasks)
+	}
+	if got := checksFor(in); len(got) != 0 {
+		t.Fatalf("generic repository checks = %#v, want none", got)
+	}
+}
+
+func TestExplicitChecksAreAuthoritative(t *testing.T) {
+	repo := t.TempDir()
+	in := Input{Repo: repo, Goal: "ship", Checks: []string{"./acceptance.sh", "go test ./selected"}}
+	if got := checksFor(in); strings.Join(got, "\x00") != "./acceptance.sh\x00go test ./selected" {
+		t.Fatalf("checks = %#v", got)
+	}
+}
+
+func TestPlanOnlyGoalAndRelativeInputsUseRepositoryRoot(t *testing.T) {
+	repo := t.TempDir()
+	if err := os.WriteFile(filepath.Join(repo, "PLAN.md"), []byte("plan"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(repo, "context.md"), []byte("context"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	in := Input{Repo: repo, Plan: "PLAN.md", ContextFiles: []string{"context.md"}}
+	if err := normalizeInput(&in); err != nil {
+		t.Fatal(err)
+	}
+	if in.Plan != filepath.Join(repo, "PLAN.md") || in.ContextFiles[0] != filepath.Join(repo, "context.md") {
+		t.Fatalf("normalized paths = %q, %q", in.Plan, in.ContextFiles[0])
+	}
+	goal, err := goalText(t.Context(), in)
+	if err != nil || !strings.Contains(goal, in.Plan) {
+		t.Fatalf("plan-only goal = %q, err=%v", goal, err)
+	}
+}
+
+func TestNormalizeInputPreservesAbsolutePlanAndContextPaths(t *testing.T) {
+	repo := t.TempDir()
+	plan := filepath.Join(repo, "PLAN.md")
+	contextFile := filepath.Join(repo, "context.md")
+	if err := os.WriteFile(plan, []byte("plan"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(contextFile, []byte("context"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	in := Input{Repo: repo, Goal: "ship", Plan: plan, ContextFiles: []string{contextFile}}
+	if err := normalizeInput(&in); err != nil {
+		t.Fatal(err)
+	}
+	if in.Plan != plan || in.ContextFiles[0] != contextFile {
+		t.Fatalf("absolute paths changed: plan=%q context=%q", in.Plan, in.ContextFiles[0])
+	}
+}
+
+func TestFinalChecksCanRunMultipleCommands(t *testing.T) {
+	repo := t.TempDir()
+	in := Input{Repo: repo, Goal: "ship", Checks: []string{"true", "true"}}
+	if err := normalizeInput(&in); err != nil {
+		t.Fatal(err)
+	}
+	err := gimble.Run(gimble.Project(t.Context(), t.TempDir()), "checks", func(ctx context.Context) error {
+		return finalChecks(ctx, in)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPassingTaskCommandIsNotRetainedAsFinalInvariant(t *testing.T) {
+	repo := t.TempDir()
+	in := Input{Repo: repo, Goal: "ship"}
+	if err := normalizeInput(&in); err != nil {
+		t.Fatal(err)
+	}
+	// A task-local command that passed is deliberately absent from the final
+	// command list; only failed task commands are supplied as extra arguments.
+	err := gimble.Run(gimble.Project(t.Context(), t.TempDir()), "checks", func(ctx context.Context) error {
+		return finalChecks(ctx, in)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestFinalChecksRejectsFailedTaskCommand(t *testing.T) {
+	repo := t.TempDir()
+	in := Input{Repo: repo, Goal: "ship"}
+	if err := normalizeInput(&in); err != nil {
+		t.Fatal(err)
+	}
+	err := gimble.Run(gimble.Project(t.Context(), t.TempDir()), "checks", func(ctx context.Context) error {
+		return finalChecks(ctx, in, "false")
+	})
+	if err == nil || !strings.Contains(err.Error(), "final check") {
+		t.Fatalf("finalChecks error = %v", err)
+	}
+}
+
+func TestFinishPreflightRejectsDirtyOrUnignoredRepositories(t *testing.T) {
+	repo := t.TempDir()
+	runGit(t, repo, "init", "-q")
+	runGit(t, repo, "config", "user.email", "test@example.com")
+	runGit(t, repo, "config", "user.name", "Test")
+	if err := os.WriteFile(filepath.Join(repo, "tracked"), []byte("one\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runGit(t, repo, "add", "tracked")
+	runGit(t, repo, "commit", "-qm", "initial")
+	if err := os.WriteFile(filepath.Join(repo, "tracked"), []byte("dirty\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := finishPreflight(repo); err == nil || !strings.Contains(err.Error(), "dirty") {
+		t.Fatalf("dirty preflight error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(repo, ".gitignore"), []byte(".gimble/\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := finishPreflight(repo); err == nil || !strings.Contains(err.Error(), "dirty") {
+		t.Fatalf("uncommitted ignore-file error = %v", err)
+	}
+}
+
+func TestFinishPreflightAcceptsCleanIgnoredRuntime(t *testing.T) {
+	repo := t.TempDir()
+	runGit(t, repo, "init", "-q")
+	runGit(t, repo, "config", "user.email", "test@example.com")
+	runGit(t, repo, "config", "user.name", "Test")
+	if err := os.WriteFile(filepath.Join(repo, ".gitignore"), []byte(".gimble/\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runGit(t, repo, "add", ".gitignore")
+	runGit(t, repo, "commit", "-qm", "initial")
+	if err := finishPreflight(repo); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func runGit(t *testing.T, dir string, args ...string) string {
 	t.Helper()
 	cmd := exec.Command("git", args...)

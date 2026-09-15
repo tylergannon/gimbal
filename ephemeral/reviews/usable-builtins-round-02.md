@@ -1,0 +1,15 @@
+# Adversarial review: usable Gimble builtins, round 02
+
+Outcome: **material findings remain**.
+
+## Target and evidence
+
+Reviewed the current `codex/usable-builtins` implementation against `ephemeral/research/builtins/issue-usable-builtins.md`, `AGENTS.md`, root Godoc (`go doc -all .`), `ephemeral/research/api/API.md` and `SPRINTS.md`, `docs/definition-of-done.md`, and `docs/web-app.md`. Inspected the full committed change and the uncommitted/new CLI, intake, lfg, planning, Sprint, generated schemas, tests, documentation, and native run artifacts. Ran `go test ./...`, `go vet ./...`, the race tests for changed packages, workflow lint, `git diff --check`, and the plan fixture's `python3 check.py`; these passed. Did not start paid model runs.
+
+The native `lfg` and guided `work` records show supervised completed turns. The real plan record contains three Codex/Claude/Gemini drafts, three cross-critiques, synthesis, and a saved `plan.md`. The Sprint run using that plan ended `ok`, has a `RunEnded` and `Complete`, and produced `slug.py`; `python3 check.py` reports `SPRINT_SLUG_OK: 12 cases`. The initial Sprint attempt failed on duplicated absolute paths (`ephemeral/attest/builtins/sprint-output.txt`), but the path normalization was fixed and regression-tested before the successful run. Other issues raised during this review—retaining every passing task command as a permanent final check, staging unrelated edits and `.gimble` during PR/merge finish, unjoined question-reader goroutines, and generated-plan precedence—were corrected in the current implementation and are excluded from the finding below. Optional CLI checks were adjudicated as a deliberate input choice, with the no-check limitation stated in README.
+
+## Finding
+
+1. **Issue — planning silently drops caller-specified verification commands.** `cmd/workflows.go:60` accepts repeatable `-check` for `plan` and guided `work`, but `makePlan` at `cmd/workflows.go:332-337` constructs `planning.Input` without `in.Checks`. The planning input has no Checks field (`internal/workflows/planning/planning.go:22-33`), and `promptBrief` at `:133-145` supplies only goal, acceptance, constraints, repository, and context files. Reproduce with `gimble plan -goal "build X" -check "./fixed-acceptance.sh"`: the request artifact includes the exact command, while none of the draft/critique/synthesis prompts receives it; the saved plan can prescribe a different check. This violates the original request's verification handoff and makes the standalone plan less reliable for later Sprint execution. Guided `work` does pass `-check` directly to Sprint when it executes immediately, but that does not repair the saved plan or direct `plan` route. Carry the check list into planning's scoped brief and require the plan to preserve the caller's fixed commands.
+
+No other material findings survived the current fixes. The existing tests exercise normalization, false checks, cancellation, and handoffs, but none asserts that `-check` survives planning.

@@ -2,9 +2,7 @@
 /gimble
 web/editor/node_modules
 web/editor/.svelte-kit
-.gimble/run/
-.gimble/runs/
-.gimble/issues/
+.gimble/
 
 # skgo app
 /bin/

@@ -59,6 +59,54 @@ rules, diagnostics, rewrites, and analysis limits. The same text is printed by
 The runtime derives the public origin from the TCP listener, including when
 port 0 selects an available port.
 
+## Builtin workflows
+
+Start with a goal, a claim, or a local design. `work` inspects the request,
+asks only material questions, recommends a workflow, and lets you choose:
+
+```sh
+./bin/gimble work -repo /path/to/project -goal "Make the export usable offline"
+```
+
+Choose directly when you already know the shape:
+
+```sh
+# One supervised worker session for a small change.
+./bin/gimble lfg -repo /path/to/project -goal "Fix the empty export" -check "npm test"
+
+# Independent Codex, Claude, and Gemini drafts, cross-critiques, and a local plan.
+./bin/gimble plan -repo /path/to/project -file design.md -goal "Implement this design"
+
+# Execute a plan with a planner, supervised coders, and independent validation.
+./bin/gimble sprint -repo /path/to/project -plan /absolute/path/to/plan.md -check "npm test"
+```
+
+Use `-acceptance`, `-constraints`, repeatable `-file` context paths, and
+repeatable `-check` commands to describe the request. Relative file paths
+resolve from `-repo`. Checks run in that repository; their failures cannot be
+overridden by an agent's verdict. General repositories do not inherit
+Gimble's Go checks. Checks are optional: without `-check`, `lfg` reports
+successful worker completion, not an independent acceptance verdict.
+
+The defaults are Codex `gpt-5.6-luna`, Claude `haiku`, and, for planning,
+Gemini `gemini-3.8-flash-low`. Select them with `-model`, `-review-model`,
+and `-planning-model`. Their native CLIs must be installed and authenticated.
+Supervisors look every 30 seconds by default; `-supervisor-interval` changes
+that interval. Short turns may finish before a supervisor looks.
+
+Changes stay local and uncommitted by default. Sprint's explicit
+`-finish pr` or `-finish merge` selects publication, which requires a clean
+Git worktree with `.gimble/` ignored. Planning alone never implements the
+plan. Guided `work` offers execution after planning; `-yes`
+accepts its recommendation and proceeds without questions. `-dry-run`
+previews without model calls or execution commands; it is not evidence that
+the workflow works.
+
+Each invocation prints its unique request/artifact directory under
+`.gimble/requests`; run records live under `.gimble/runs`. Previews use
+`.gimble/previews`. The web server uses a free port while work runs; use
+`-no-web` for terminal-only operation. Ctrl-C cancels agent work.
+
 ## Where things are
 
 | | |

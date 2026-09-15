@@ -15,9 +15,9 @@ Tools like `rg`, `find`, `grep`, and `wc` operate on it directly.
 **Token cache scope**: `docs/` is the definition of done and the static
 site. `ephemeral/` is the design record (`research/api/API.md`,
 `SPRINTS.md`, the three vendor research reports), the legacy codebase the
-restart drew on (`legacy/`, inspiration only, not the API), attestation
-runs with their logs (`attest/`), worklogs and reviews. About 180 files
-and 5 MB, roughly 1.3M tokens, most of it `legacy/` and `research/`.
+restart drew on (`legacy/`, inspiration only, not the API), worklogs and
+reviews. It holds notes, never run output or code outside `legacy/`. Most
+of it is `legacy/` and `research/`.
 
 ## Semantic Index
 

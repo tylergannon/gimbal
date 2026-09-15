@@ -1,9 +1,7 @@
 # Sprint: The run store
 
 Unnumbered, by Tyler's instruction. Planned 2026-09-13 with the DF
-sprint-plan skill (three drafts, three critiques, merge notes under
-`docs/sprints/drafts/RUN-STORE-*.md`; intent in `RUN-STORE-INTENT.md`).
-The intent's six decisions are fixed and are restated here only where the
+sprint-plan skill. The intent's six decisions are fixed and are restated here only where the
 code needs them. This sprint is what #169 becomes; #173 (the tree) and
 #172 (prices) read what it builds and are not built here.
 
@@ -505,44 +503,11 @@ Files: `web/src/lib/observation/index.ts`, `index.test.ts`,
 
 ### Phase 3: Proof
 
-Files: `ephemeral/attest/run-store/main.go`, `result.md`, screenshots if
-a browser tool is available.
-
-The program is set up as `ephemeral/attest/issue-149/main.go` is:
-`web.NewRuntime` on a loopback port, the project directory at
-`ephemeral/attest/run-store/.gimble`, scratch workdirs, signal
-cancellation, the server held open after the run, the run URL printed.
-Cheap tier only. The body, inline:
-
-```go
-runtime.Run(ctx, "run-store-proof", func(ctx context.Context) error {
-	// created at the root, used in a child scope: the placement case
-	shared := gimble.NewSession(ctx, "shared", codex.New(), "gpt-5.6-luna", a)
-	if _, err := shared.Generate[gimble.Text](ctx, "Define a token budget in one sentence, without tools."); err != nil { return err }
-	if err := gimble.Scope(ctx, "research", func(ctx context.Context) error {
-		_, err := shared.Generate[gimble.Text](ctx, "Name one useful budget measurement, without tools.")
-		return err
-	}); err != nil { return err }
-	// a Group of two; the preamble makes Claude's cache columns nonzero
-	g := gimble.Group(ctx, "compare")
-	g.Go("attempt", func(ctx context.Context) error {
-		s := gimble.NewSession(ctx, "writer", claude.New(), "claude-haiku-4-5-20251001", b)
-		if _, err := s.Generate[gimble.Text](ctx, preamble+"Explain this in 100 words without tools."); err != nil { return err }
-		_, err := s.Generate[gimble.Text](ctx, preamble+"Give one example in 100 words without tools.")
-		return err
-	})
-	g.Go("attempt", func(ctx context.Context) error {
-		s := gimble.NewSession(ctx, "writer", agy.New(), "gemini-3.8-flash-low", c)
-		_, err := s.Generate[gimble.Text](ctx, "Explain token caching in 150 words without tools.")
-		return err
-	})
-	return g.Wait()
-})
-```
-
-(Adjust the calls to the API as it is on the branch; the shape is what
-matters: one session made at the root and used inside `research`, two
-concurrent attempts in `compare`.)
+Proof is running the real thing and saying what you saw, in the PR
+description. No proof program, nothing under `ephemeral/`, nothing from
+the run committed. What the live run must exercise, on the cheap tier:
+one session made at the root and used inside `research`, and two
+concurrent attempts in `compare`.
 
 1. Run it with the page open. While `compare.1` is going, record the
    header total and a session card total, then record them again after
@@ -563,17 +528,16 @@ concurrent attempts in `compare`.)
 
    For `""` the filter is every turn. Compare the root to the page's
    header line and each session's rows to its card. `research.1` must
-   hold `shared.1/turn.2` and not `turn.1`. Write every number and the
-   `turn_ended` line it matches into `result.md`.
-3. Stop the program. Serve the same project directory again with the
+   hold `shared.1/turn.2` and not `turn.1`.
+3. Stop the run. Serve the same project directory again with the
    binary, open `/runs/<id>`: the same header, scopes, cards, and
-   transcripts. Record the numbers again.
-4. Copy the saved issue-149 run's `run.jsonl` and `sessions/` (not its
-   `observation.json`) to `.gimble/runs/20260912-205306.issue-149/`, open
-   it: it renders, the six files appear beside the logs, and the header
-   equals the sums in the Phase 1 registry test.
-5. `result.md`: configured and resolved model ids, run id, port, the
-   numbers from 1 to 4 beside what the page showed.
+   transcripts, with the same numbers.
+4. Copy `internal/observation/testdata/issue-149/`'s `run.jsonl` and
+   `sessions/` to `.gimble/runs/20260912-205306.issue-149/`, open it: it
+   renders, the six files appear beside the logs, and the header equals
+   the sums in the Phase 1 registry test.
+5. The PR description says the configured and resolved model ids, the run
+   id, and the numbers from 1 to 4 beside what the page showed.
 
 ## Files Summary
 
@@ -601,7 +565,6 @@ concurrent attempts in `compare`.)
 | `web/src/lib/observation/SessionTimeline.svelte` | session total from `totals` |
 | `web/src/lib/observation/MessageRow.svelte` | flat `usageOf` |
 | `web/src/routes/runs/[runID]/+page.svelte` | renders `RunViewer` only |
-| `ephemeral/attest/run-store/` | proof program and result |
 
 Not changed: `events.go`, `event_persistence.go`, `session.go`,
 `scope.go`, `usage.go` (root), `jsonschema/`, the adapters,

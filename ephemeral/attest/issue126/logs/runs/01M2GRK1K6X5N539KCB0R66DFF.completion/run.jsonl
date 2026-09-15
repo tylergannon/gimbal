@@ -1,9 +1,0 @@
-{"seq":1,"time":"2026-09-14T20:08:59.752486Z","scope":"","event":{"kind":"run_started","name":"completion"}}
-{"seq":2,"time":"2026-09-14T20:08:59.752719Z","scope":"","event":{"kind":"scope_began","name":"."}}
-{"seq":3,"time":"2026-09-14T20:08:59.752895Z","scope":"","session":"worker.1","event":{"adapter":"*codex.adapter","kind":"session_created","model":"gpt-5.6-luna","name":"worker","parent":"","workdir":"/var/folders/lt/09rsy64x65s_0fp2b8zq3n7m0000gn/T/gimble-issue126-1701904723"}}
-{"seq":4,"time":"2026-09-14T20:08:59.933618Z","scope":"","session":"worker.1","turn":"worker.1/turn.1","event":{"kind":"turn_started","output_type":"gimble.Text","prompt":"Reply with exactly ISSUE_126_LIVE and do nothing else."}}
-{"seq":5,"time":"2026-09-14T20:09:04.073905Z","scope":"","session":"worker.1","turn":"worker.1/turn.1","event":{"duration":4140320292,"error":"","interrupted":false,"kind":"turn_ended","result":"\"ISSUE_126_LIVE\"","usage":[{"model":"gpt-5.6-luna","cost":0,"tokens":{"input":10767,"output":12,"reasoning":10,"cache":{"read":9984,"write":0}}}]}}
-{"seq":6,"time":"2026-09-14T20:09:04.075465Z","scope":"","event":{"error":"","kind":"scope_ended"}}
-{"seq":7,"time":"2026-09-14T20:09:04.360693Z","scope":"","session":"worker.1","event":{"error":"","kind":"session_closed"}}
-{"seq":8,"time":"2026-09-14T20:09:04.360732Z","scope":"","event":{"error":"","kind":"run_ended","name":"completion"}}
-{"seq":9,"time":"2026-09-14T20:09:04.361037Z","scope":"","event":{"kind":"complete","recording_error":""}}

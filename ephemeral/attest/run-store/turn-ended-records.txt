@@ -1,5 +1,0 @@
-{"seq":5,"scope":"","turn":"shared.1/turn.1","usage":[{"model":"gpt-5.6-luna","cost":0,"tokens":{"input":11614,"output":28,"reasoning":16,"cache":{"read":9984,"write":0}}}]}
-{"seq":8,"scope":"research.1","turn":"shared.1/turn.2","usage":[{"model":"gpt-5.6-luna","cost":0,"tokens":{"input":413,"output":17,"reasoning":0,"cache":{"read":21248,"write":0}}}]}
-{"seq":17,"scope":"compare.1/attempt.2","turn":"compare.1/attempt.2/writer.1/turn.1","usage":[{"model":"gemini-3.8-flash-low","cost":0,"tokens":{"input":14848,"output":201,"reasoning":38,"cache":{"read":0,"write":0}}}]}
-{"seq":20,"scope":"compare.1/attempt.1","turn":"compare.1/attempt.1/writer.1/turn.1","usage":[{"model":"gpt-5.6-luna","cost":0,"tokens":{"input":11609,"output":127,"reasoning":18,"cache":{"read":9984,"write":0}}}]}
-{"seq":22,"scope":"compare.1/attempt.1","turn":"compare.1/attempt.1/writer.1/turn.2","usage":[{"model":"gpt-5.6-luna","cost":0,"tokens":{"input":515,"output":126,"reasoning":13,"cache":{"read":21248,"write":0}}}]}

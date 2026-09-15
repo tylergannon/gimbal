@@ -1,9 +1,0 @@
-go vet ./...
-go build -o bin/gimble ./cmd
-./bin/gimble lint ./...
-/Users/tyler/.codex/worktrees/2f67/gimble/internal/workflows/sprint/sprints.go:257:19: [GIMBLE102-SIMPLE-WORKFLOWS/CONSTANT-CONTEXT-KEY]: Context keys must be compile-time constants so a workflow's recorded fields are explicit in its source. Use a named constant or string literal; keep changing data in the value.
-/Users/tyler/.codex/worktrees/2f67/gimble/ephemeral/attest/loop-practice/group-in-task/main.go:163:21: [GIMBLE102-SIMPLE-WORKFLOWS/CONSTANT-CONTEXT-KEY]: Context keys must be compile-time constants so a workflow's recorded fields are explicit in its source. Use a named constant or string literal; keep changing data in the value.
-/Users/tyler/.codex/worktrees/2f67/gimble/ephemeral/review/codex-loop-api/main.go:138:20: [GIMBLE102-SIMPLE-WORKFLOWS/CONSTANT-CONTEXT-KEY]: Context keys must be compile-time constants so a workflow's recorded fields are explicit in its source. Use a named constant or string literal; keep changing data in the value.
-/Users/tyler/.codex/worktrees/2f67/gimble/issue159_test.go:89:8: [GIMBLE103-SET-MISUSE/DUPLICATE-KEY]: This scope can set the same context key more than once. Use one write per key in each scope.
-/Users/tyler/.codex/worktrees/2f67/gimble/issue159_test.go:116:8: [GIMBLE103-SET-MISUSE/DUPLICATE-KEY]: This scope can set the same context key more than once. Use one write per key in each scope.
-error: recipe `vet` failed on line 25 with exit code 3

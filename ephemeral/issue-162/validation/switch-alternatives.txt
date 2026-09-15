@@ -1,4 +1,0 @@
-switch kind
-"implement" -> implement(ctx)
-"review" -> review(ctx)
-default -> fmt.Errorf("unsupported task kind %q", kind)

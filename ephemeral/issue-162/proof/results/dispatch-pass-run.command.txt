@@ -1,2 +1,0 @@
-cwd: /Users/tyler/.codex/worktrees/2f67/gimble
-command: go run ./ephemeral/issue-162/proof/testdata/dispatch_pass

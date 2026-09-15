@@ -539,7 +539,7 @@ func decodeThreadEntry(entry json.RawMessage) (string, bool) {
 // listening on its control socket. `pgrep -fl 'app-server --listen unix'`
 // also matches the shell wrapper that launched it (its command line embeds
 // the same text), so this keeps only the pid whose command actually starts
-// with `codex `, the same check ephemeral/attest/codex-daemon's proof uses.
+// with `codex `.
 func managedDaemonPID() (string, error) {
 	out, err := exec.Command("pgrep", "-fl", "app-server --listen unix").Output()
 	if err != nil {

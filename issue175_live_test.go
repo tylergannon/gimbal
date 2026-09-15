@@ -22,22 +22,15 @@ import (
 // starts a long first turn in a scope; a second goroutine, holding only the
 // run id and the turn id, kills that turn through the web runtime a few
 // seconds in. The turn ends with the Killed cause, the scope keeps running,
-// and the same session completes a second turn. The run log is written
-// under ephemeral/attest/cancel-by-id/logs and is committed as the record.
-// It only runs when explicitly requested:
+// and the same session completes a second turn. It only runs when
+// explicitly requested:
 //
 //	GIMBLE_LIVE=1 go test . -run TestLiveKillTurnByID -v
 func TestLiveKillTurnByID(t *testing.T) {
 	if os.Getenv("GIMBLE_LIVE") != "1" {
 		t.Skip("set GIMBLE_LIVE=1 to run against the live codex app-server daemon")
 	}
-	logs, err := filepath.Abs(filepath.Join("ephemeral", "attest", "cancel-by-id", "logs"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.RemoveAll(logs); err != nil {
-		t.Fatal(err)
-	}
+	logs := t.TempDir()
 	workspace := t.TempDir()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)

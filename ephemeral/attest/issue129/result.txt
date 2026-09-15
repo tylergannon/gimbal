@@ -1,5 +1,0 @@
-Proved commit: e4349dabab4d4b3f8cb975fe508b251c0fc5e247
-Models: worker=gpt-5.6-luna reviewer=haiku
-Observed: retained_limit_bytes=262144 max_prompt_bytes=61016 gap=true target=true useful_steer=true run_error=<nil> parent_error=<nil>
-Worker result: The implementation should preserve the boundary that supervisor buffer controls remain encapsulated within the runtime.
-Raw worker transcript: 1,799,233 bytes, retained locally only because the reproducible noise fixture makes it unsuitable for repository history.

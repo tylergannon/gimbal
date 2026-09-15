@@ -1,1 +1,0 @@
-[main.go](/Users/tyler/src/gimble/.claude/worktrees/agent-a01420498d9e799c6/ephemeral/attest/skill/bakeoff/main.go)

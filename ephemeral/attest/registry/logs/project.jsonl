@@ -1,2 +1,0 @@
-{"seq":0,"time":"2026-09-14T00:55:44.929132Z","scope":"","event":{"kind":"run_started","name":"registry"}}
-{"seq":0,"time":"2026-09-14T00:56:09.869084Z","scope":"","event":{"error":"","kind":"run_ended","name":"registry"}}

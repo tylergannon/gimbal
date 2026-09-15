@@ -35,9 +35,11 @@ follows as a result.
 - A resumed turn (new process, `thread/resume`) emits no `rawResponse/completed`
   at all because `experimentalRawEvents` is not passed on resume. So on a
   resumed turn `thread/tokenUsage/updated.last` is the only usage source.
-- Adapter rule: per-step usage from `rawResponse/completed` as today; pass
-  `experimentalRawEvents: true` on `thread/resume` too so resumed turns get
-  it. Handle `thread/tokenUsage/updated`: use `last` as the step usage when
+- Adapter rule: per-step usage from `rawResponse/completed` as today.
+  Passing `experimentalRawEvents: true` on `thread/resume` does not help:
+  on codex-cli 0.153.4 only `thread/start` takes it; `thread/fork` and
+  `thread/resume` ignore it (#135). Handle `thread/tokenUsage/updated`:
+  use `last` as the step usage when
   the step has none yet. Codex states no cost; the turn report is nil.
 
 ## Antigravity (gemini-3.8-flash-low, agy 1.2.1)

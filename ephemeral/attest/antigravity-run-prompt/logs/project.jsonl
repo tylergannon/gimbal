@@ -1,2 +1,0 @@
-{"seq":1,"time":"2026-09-12T03:49:14.065751Z","scope":"","event":{"kind":"run_started","name":"run-prompt"}}
-{"seq":2,"time":"2026-09-12T03:49:19.836614Z","scope":"","event":{"error":"","kind":"run_ended","name":"run-prompt"}}

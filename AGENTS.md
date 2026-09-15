@@ -33,8 +33,21 @@ Propose "write program X that does Y", never "add function Z".
 
 Implement only what was asked. A reviewer's objection is not a
 requirement. No backwards compatibility, no deprecation paths, no shims:
-delete what is replaced. Unit tests for what you are building are fine;
-the proof of a workflow is a live run and what it showed.
+delete what is replaced. Unit tests for what you are building are fine,
+and they live beside the code they test.
+
+## Proof is what you saw
+
+Proof is running the real thing yourself and saying what you saw, in the
+chat or the PR description. There are no proof programs. Nothing written
+to perform or record a run is committed: no `ephemeral/attest/`, no
+`result.md`, no screenshots, no run logs, no text dumps of a run. A check
+that should be repeatable is a test in the package it checks. An issue's
+"Proof" section is satisfied by that report.
+
+Apart from the frozen old code in `ephemeral/legacy/`, `ephemeral/` holds
+notes, never code: nothing there is built, vetted, or maintained. The
+commit hook refuses new code and run output under it.
 
 ## Information lands locally
 
@@ -48,8 +61,9 @@ source, and prompts are plain English: "Read and implement the issue in
 ## Working here
 
 - Commit, and push, whenever something interesting has happened.
-- Attestation runs use the cheapest models: Codex `gpt-5.6-luna`, Claude
-  Haiku, Gemini flash. Say which model a run used.
+- Live runs you start to see something work use the cheapest models:
+  Codex `gpt-5.6-luna`, Claude Haiku, Gemini flash. Say which model a run
+  used.
 - Ports from `ephemeral/legacy/` are rewritten against the new contract by
   hand, never spliced by script.
 - No reflection and no `runtime.Caller` to recover a call site. Every node

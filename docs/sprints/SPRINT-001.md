@@ -28,9 +28,9 @@ first draft's adapter phases are done; this is what remains.
     fixture holds them to the same answer.
   - Proof: fake-adapter tests for the fold and the sums; one live run on
     the cheap tier with a session created in a parent and used in a child
-    scope, a concurrent group, and a scope two deep; a reconcile script
-    against the run log; live and finished screenshots; a restart on a
-    directory holding only `observation.json`.
+    scope, a concurrent group, and a scope two deep, seen live and
+    finished; a restart on a directory holding only `observation.json`.
+    What was seen is said in the PR description; nothing is committed.
 - L2:
   - Architecture § "Placement" is the correction; § "The snapshot shape"
     the fold; § "Sums" the one definition; § "The page" the layout.
@@ -185,8 +185,8 @@ implementations exist because main already has one:
   on that turn's frames and reset by `replace`, caches turn usage so a text
   delta recomputes one turn.
 
-A shared fixture, a real `run.jsonl` plus session logs from the proof run
-under `internal/observation/testdata/`, is replayed by a Go test and a TS
+A shared fixture, the real run already under
+`internal/observation/testdata/issue-149/`, is replayed by a Go test and a TS
 test that assert the same per-scope numbers. Drift fails a test.
 
 ### The page
@@ -272,8 +272,8 @@ Files: `internal/observation/snapshot.go`, `store.go`, `usage.go`,
 
 Files: `web/src/lib/observation/index.ts`, `usage.ts` (new),
 `index.test.ts`, `usage.test.ts` (new; add to the explicit `test` list in
-`web/package.json`); `internal/observation/testdata/<proof run>/` (from
-Phase 4, replayed by both sides).
+`web/package.json`); `internal/observation/testdata/issue-149/`, replayed
+by both sides.
 
 1. Types, fold cases, step usage into turns, `replace`, per-turn revision.
 2. `usage.ts`: `contains`, `rollup` with the turn cache, `total` across
@@ -298,63 +298,21 @@ Files: `web/src/lib/observation/RunViewer.svelte`, `UsageView.svelte`
 
 ### Phase 4: Proof
 
-Files: `ephemeral/attest/usage-by-scope/main.go`, `result.md`,
-screenshots; `web/scripts/reconcile-usage.ts`;
-`internal/observation/testdata/<proof run>/`.
+Proof is running the real thing and saying what you saw, in the PR
+description. No proof program, no reconcile script, nothing under
+`ephemeral/`, nothing from the run committed. What the live run must
+exercise, on the cheap tier: a session made at the root and used inside
+`research`, two concurrent `attempt`s in `bakeoff`, and a scope two deep
+(`review/verdict`).
 
-The workflow, inline per `AGENTS.md`, extends the issue-149 program's
-shape with the three things it lacked:
-
-```go
-runtime.Run(ctx, "usage-proof", func(ctx context.Context) error {
-	// created at the root, used in a child scope: the placement case
-	planner := gimble.NewSession(ctx, "planner", codex.New(), "gpt-5.6-luna", workdirA)
-	if _, err := planner.Generate[gimble.Text](ctx, "In one line, what is a token budget?"); err != nil { return err }
-	if err := gimble.Scope(ctx, "research", func(ctx context.Context) error {
-		if _, err := planner.Generate[gimble.Text](ctx, "Name one thing to research about token budgets."); err != nil { return err }
-		s := gimble.NewSession(ctx, "researcher", claude.New(), "claude-haiku-4-5-20251001", workdirB)
-		if _, err := s.Generate[gimble.Text](ctx, preamble+"Summarize this in one line."); err != nil { return err }
-		_, err := s.Generate[gimble.Text](ctx, preamble+"Name its three most important identifiers.")
-		return err
-	}); err != nil { return err }
-	// concurrent siblings
-	g := gimble.Group(ctx, "bakeoff")
-	for i, dir := range []string{workdirC, workdirD} {
-		g.Go("attempt", func(ctx context.Context) error {
-			s := gimble.NewSession(ctx, "candidate", codex.New(), "gpt-5.6-luna", dir)
-			_, err := s.Generate[gimble.Text](ctx, fmt.Sprintf("Write haiku %d about token budgets.", i+1))
-			return err
-		})
-	}
-	if err := g.Wait(); err != nil { return err }
-	// two deep
-	return gimble.Scope(ctx, "review", func(ctx context.Context) error {
-		return gimble.Scope(ctx, "verdict", func(ctx context.Context) error {
-			s := gimble.NewSession(ctx, "judge", agy.New(), "gemini-3.8-flash-low", workdirE)
-			_, err := s.Generate[gimble.Text](ctx, "Pick the better of these two haiku: ...")
-			return err
-		})
-	})
-})
-```
-
-1. Run it with the page on. Capture the tree live with the two `attempt`
-   bars overlapping and cells rising; after it ends, reload and capture
+1. Run it with the page on. Watch the tree live with the two `attempt`
+   bars overlapping and cells rising; after it ends, reload and look at
    the finished view. The planner's second turn must appear under
    `research.1`, not the root.
-2. `bun web/scripts/reconcile-usage.ts <run dir>` reads `observation.json`,
-   `run.jsonl`, and `sessions/*.jsonl` and exits non-zero unless every
-   turn's usage equals its `turn_ended` record, every scope equals its
-   direct turns plus its children, the root equals the Go `scopeUsage`
-   answer for `""`, and per-model sums equal the step events grouped by
-   the session's model or the harness's report. Paste the output into
-   `result.md`.
-3. Copy only `observation.json` into a fresh project directory, start the
+2. Copy only `observation.json` into a fresh project directory, start the
    server on it, open the run: same tree, same numbers.
-4. Copy the run's logs into `internal/observation/testdata/` as the shared
-   fixture for Phases 1 and 2.
-5. `result.md`: models and resolved ids, run id, every number the
-   screenshots show beside the script's output.
+3. The PR description says the models and resolved ids, the run id, and
+   the numbers the page showed.
 
 Checks, in order: `just build`, `go test -count=1 ./...`, `go vet ./...`,
 `cd web && pnpm test`, `cd web && pnpm run check`.
@@ -368,7 +326,6 @@ Checks, in order: `just build`, `go test -count=1 ./...`, `go vet ./...`,
 | `internal/observation/usage.go`, `usage_test.go` | `ScopeUsage` over turns by placement; segment-safe `inScope` |
 | `internal/observation/checkpoint.go` | default `Turns` |
 | `internal/observation/store_test.go` | placement, report replacement, times, late subscriber |
-| `internal/observation/testdata/<proof run>/` | shared fixture |
 | `event_persistence.go` | `writeLifecycle` returns the record time |
 | `run.go` | `observeLifecycle` fills turn entries and times |
 | `gimble_test.go` | checkpoint agrees with `run.jsonl` |
@@ -378,8 +335,6 @@ Checks, in order: `just build`, `go test -count=1 ./...`, `go vet ./...`,
 | `web/src/lib/observation/RunViewer.svelte` | tree replaces the scope and invocation lists |
 | `web/src/lib/observation/UsageView.svelte`, `UsageRow.svelte` | new |
 | `web/package.json` | test list includes `usage.test.ts` |
-| `web/scripts/reconcile-usage.ts` | new: proof script |
-| `ephemeral/attest/usage-by-scope/` | workflow, result, screenshots |
 
 Not changed: adapters, `events.go`, `jsonschema/`, `usage.go` (root),
 `session.go`, `internal/sessionstate/`, `web/src/lib/sessionstate/`,
@@ -389,19 +344,18 @@ Not changed: adapters, `events.go`, `jsonschema/`, `usage.go` (root),
 
 Gated on the intent's success criteria per `docs/definition-of-done.md`.
 
-1. **Placement.** On the proof run's page, the planner's second turn sits
+1. **Placement.** On the live run's page, the planner's second turn sits
    under `research.1` and its usage counts there, not at the root; the
-   Go `scopeUsage` for `research.1` agrees. Seen in the screenshot and in
-   the reconcile output.
+   Go `scopeUsage` for `research.1` agrees. Seen on the page.
 2. **Totals at every level.** Root and every scope row show six cells and
    a by-model table; children plus direct turns equal the parent at every
-   node. Reconcile script (b) and the three-level unit test.
+   node. The three-level unit test, and by hand on the live run.
 3. **Drill.** Expanding `bakeoff.1` shows two `attempt` rows, then a turn
    with its prompt, then its model-call rows; expanding a task scope
-   shows its task. Seen by eye on the proof run.
+   shows its task. Seen by eye on the live run.
 4. **Timeline.** The two `attempt` bars overlap; `research.1` and
-   `review.1` do not; the root spans the run; open bars marked open in the
-   live screenshot.
+   `review.1` do not; the root spans the run; open bars marked open while
+   the run is live.
 5. **Checkpoint alone.** A server on a directory holding only
    `observation.json` renders the same tree and numbers.
 6. **One definition.** The shared fixture gives the same per-scope numbers
@@ -421,7 +375,7 @@ merged.
 - **Two sum implementations drift.** The shared fixture is a real run and
   both tests replay it.
 - **Rollup cost per frame.** Per-turn revision cache; measured on the
-  proof run.
+  live run.
 - **Reconnect double counting.** The rollup is derived from current turns
   and dropped whole on a replacement snapshot; tested.
 - **Root named ".", `attempt.1` containing `attempt.10`.** Named in the

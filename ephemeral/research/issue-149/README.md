@@ -71,7 +71,8 @@ field, never add a flag saying whether it was reported.
    "unavailable" or "partial" wording.
 5. Proof: one live run per harness on the cheap tier (Claude Haiku, Codex
    `gpt-5.6-luna`, Gemini flash). The page shows tokens for all three and
-   dollars for Claude. Saved as an attest run under `ephemeral/attest/issue-149/`
+   dollars for Claude. The PR description names the models, the commit, and
+   what was seen; nothing from the run is committed.
    with a README naming the models, the commit, and what was seen. A validator
    agent other than the developer confirms it.
 

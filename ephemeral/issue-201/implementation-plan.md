@@ -8,6 +8,12 @@ list of workflows; associate each run with the exact graph revision. Workflow bo
 remain ordinary Go. This document is a proposed implementation design, not an
 implementation or a claim that extraction already works.
 
+**Design status:** the accepted nested model is recorded in
+[graph-model.md](/Users/tyler/.codex/worktrees/a256/gimble/ephemeral/issue-201/graph-model.md).
+It supersedes the former flat Graph declaration. The final production struct
+awaits the recursive encoding and Group representation decisions described there;
+this handoff is not yet a settled type contract for Sol to implement verbatim.
+
 Read the locally cached issue and its owner comment:
 `/Users/tyler/.codex/worktrees/a256/gimble/ephemeral/issue-201/issue-and-comments.md`.
 The owner comment dated **2026-09-14 23:10:57 UTC**, with Tyler's subsequent
@@ -26,8 +32,9 @@ clarifications in this handoff, supersedes conflicting text:
 The source baseline inspected for this plan is `0802bcf` on Go **1.27.1**.
 This toolchain supports generic methods on concrete types; the existing
 `Session.Generate[T]` already uses them. Keep the requested `Runtime.Run[T]`.
-The declarations below and this generic call shape were compiler-checked locally;
-passing the wrong input type failed compilation as intended. Results are in
+The earlier graph declarations and this generic call shape were compiler-checked
+locally; passing the wrong input type failed compilation as intended. That probe
+does not validate the newly selected nested graph model. Historical results are in
 `/Users/tyler/.codex/worktrees/a256/gimble/ephemeral/issue-201/plan-verification.txt`.
 
 One correction to the comment's proof wording is necessary: the actual sprint
@@ -85,410 +92,66 @@ registration prerequisite, generic launch-by-name dispatcher, or schema-driven
 generic form. This replaces the earlier WithWorkflow/registration proposal;
 section 4 describes the updated delivery.
 
-### Decision (3): Operation is a sealed union
+### Updated decision (3): sealed operations in a nested graph
 
-Use a sealed Operation interface with concrete struct variants, projected by
-polytype. Each variant declares the sealing method directly. Remove the separate
-OperationKind and nullable Agent/Command/Value payload fields. The declarations
-below implement this decision; Go uses a type switch and generated TypeScript
-uses polytype's discriminator.
+Operation remains a sealed interface projected by polytype. Its alternatives
+represent AgentCall, Command, Set, SetJSON, Subgraph, and relevant Exit steps.
+Concrete subgraphs are Sequence, Condition, Loop, Scope, and Group. Each concrete
+subgraph can directly implement both sealing markers. Body order supplies
+sequence; conditions supply alternatives, loops repetition, and groups concurrency.
+Supervision is a separate unordered hierarchy attached beside the watched call.
+This replaces the earlier flat 17-variant operation/edge design.
 
-## 1. The concrete graph type
+## 1. Graph model and remaining type decisions
 
-Put these declarations in package
-`github.com/tylergannon/gimble/workflow`, in `workflow/graph.go`.
-This is the proposed data contract. It separates containment, resource ownership,
-control flow, and supervision; none is inferred from the ordering of a slice.
-Supporting types below are part of the definition, not placeholders.
+Read the accepted semantic contract in
+[graph-model.md](/Users/tyler/.codex/worktrees/a256/gimble/ephemeral/issue-201/graph-model.md).
+It defines the operation vocabulary, subgraphs, session declarations, context
+writes, supervision hierarchy, scope ownership, and default visualization placement.
+Graph is conceptually the root subgraph with workflow identity and source/build
+metadata. It describes the selected structure connecting calls, commands, and
+context writes, rather than every Go statement or a general control-flow graph.
 
-```go
-package workflow
+Two details must be settled before writing the exact production declarations in
+`github.com/tylergannon/gimble/workflow`:
 
-// Graph describes possible source structure, never an observed execution.
-type Graph struct {
-	ID               string        `json:"id"`
-	Name             string        `json:"name"`
-	SchemaVersion    int           `json:"schema_version"`
-	GeneratorVersion string        `json:"generator_version"`
-	Entrypoint       string        `json:"entrypoint"`
-	Module           Module        `json:"module"`
-	Build            Build         `json:"build"`
-	SourceDigest     string        `json:"source_digest"`
-	Root             string        `json:"root"`
-	Regions          []Region      `json:"regions"`
-	Sessions         []Session     `json:"sessions"`
-	Operations       []Operation   `json:"operations"`
-	Flow             []Flow        `json:"flow"`
-	Supervision      []Supervision `json:"supervision"`
-	Complete         bool          `json:"complete"`
-	Diagnostics      []Diagnostic  `json:"diagnostics"`
-}
+1. **Recursive encoding.** Both nested bodies and nested supervisors are recursive.
+   Pinned polytype v1.0.0 rejects recursive definitions. Choose recursive support
+   in polytype or child references in the canonical Go model. Neither choice
+   changes the agreed conceptual structure. Do not introduce a second handwritten
+   JSON/TypeScript model. No polytype implementation change is part of this
+   documentation update.
+2. **Group fields.** Preserve actual launch and Wait positions, including caller
+   work between them, without inventing sequential dependencies between children.
+   Settle the concrete shape against such an example, not just a parallel list.
 
-type Module struct {
-	Path    string `json:"path"`
-	Version string `json:"version"` // Empty for an unversioned local module.
-}
+The old Graph struct has been removed from this handoff so it cannot be mistaken
+for the accepted implementation target. Its earlier compile and 17-variant codec
+probes remain historical evidence only. Once the two details are settled, include
+all production declarations here and verify their actual polytype/skgo projections.
 
-// Build records the effective extraction configuration, not the host's paths.
-type Build struct {
-	GoVersion  string    `json:"go_version"`
-	GOOS       string    `json:"goos"`
-	GOARCH     string    `json:"goarch"`
-	Tags       []string  `json:"tags"`
-	Settings   []Setting `json:"settings"`
-}
+### Identity and completeness
 
-type Setting struct {
-	Key   string `json:"key"`
-	Value string `json:"value"`
-}
+Keep source identity distinct from runtime instances. One static template describes
+a repeated site; repeated tasks and supervisor ticks do not duplicate that template.
+Same-named sites remain distinct. Bounded helper expansions retain both the lexical
+source site and their calling context, so two helper callers do not accidentally
+share continuations. IDs must be deterministic across regeneration and checkout
+relocation; they are not a promise of identity across arbitrary source edits.
 
-// Source locates a lexical site and its bounded static helper expansion.
-type Source struct {
-	SiteID   string   `json:"site_id"`
-	File     string   `json:"file"`     // Slash-separated, module-relative.
-	Function string   `json:"function"` // Qualified declaring function.
-	Start    Position `json:"start"`
-	End      Position `json:"end"`      // Exclusive.
-	CallPath []string `json:"call_path"` // Outer-to-inner helper call SiteIDs.
-}
+Retain workflow identity and a revision digest for durable run association. The
+previous proposal fingerprints deterministic extraction inputs, excludes generated
+outputs and volatile checkout details, and does not use Git HEAD alone. The
+source-digest versus graph-digest tradeoff remains to be discussed; do not treat
+its exact field layout or hashing recipe as newly settled by this model change.
 
-type Position struct {
-	Line   int `json:"line"`   // One-based.
-	Column int `json:"column"` // One-based byte column.
-}
-
-// Expression preserves source text; Value is a Go constant's exact spelling.
-// Constant=false means dynamic data, not incomplete structural recovery.
-type Expression struct {
-	Text     string `json:"text"`
-	Constant bool   `json:"constant"`
-	Value    string `json:"value"`
-}
-
-type RegionKind string
-
-const (
-	RootRegion  RegionKind = "root"
-	ScopeRegion RegionKind = "scope"
-	GroupRegion RegionKind = "group"
-	LoopRegion  RegionKind = "loop"
-	TaskRegion  RegionKind = "task"
-)
-
-// Regions are actual Gimble scope templates. Plain helpers/for loops do not
-// acquire scope ownership simply because the extractor visits their bodies.
-type Region struct {
-	ID     string     `json:"id"`
-	Parent string     `json:"parent"` // Empty only on Graph.Root.
-	Kind   RegionKind `json:"kind"`
-	Name   string     `json:"name"`
-	Source Source     `json:"source"`
-	Order  int        `json:"order"`  // Source/display order only.
-	Entry  string     `json:"entry"`  // RegionEntry operation ID.
-	Exit   string     `json:"exit"`   // RegionExit operation ID.
-}
-
-// Session is a resource owned by a region, not a node in the control flow.
-type Session struct {
-	ID         string     `json:"id"`
-	Name       string     `json:"name"`
-	Owner      string     `json:"owner"`       // Region ID.
-	CreatedBy  string     `json:"created_by"`  // SessionCreate/SessionFork op ID.
-	ForkedFrom string     `json:"forked_from"` // Session ID, empty for creation.
-	Adapter    Expression `json:"adapter"`
-	Model      Expression `json:"model"`
-	Workdir    Expression `json:"workdir"`
-}
-
-// Operation is a sealed union. Its variants declare operation directly.
-type Operation interface {
-	operation()
-}
-
-// Site is shared metadata, embedded in each variant. It is not a variant.
-type Site struct {
-	ID     string `json:"id"`
-	Scope  string `json:"scope"` // Execution region, not session owner.
-	Source Source `json:"source"`
-	Order  int    `json:"order"` // Source/display order only.
-	Label  string `json:"label"`
-}
-
-type RegionEntry struct{ Site }
-type RegionExit struct{ Site }
-type SessionCreate struct{ Site }
-type SessionFork struct{ Site }
-type Merge struct{ Site }
-type ParallelLaunch struct{ Site }
-type ParallelJoin struct{ Site }
-type Unresolved struct{ Site }
-
-type AgentCall struct {
-	Site
-	Session    string     `json:"session"`
-	Prompt     Expression `json:"prompt"`
-	OutputType string     `json:"output_type"`
-}
-
-type PlannerCall struct {
-	Site
-	Session    string     `json:"session"` // Session ID used by this turn.
-	Prompt     Expression `json:"prompt"`
-	OutputType string     `json:"output_type"`
-}
-
-type SupervisorLook struct {
-	Site
-	Session    string     `json:"session"`
-	Prompt     Expression `json:"prompt"`
-	OutputType string     `json:"output_type"`
-}
-
-type CommandConstruct struct {
-	Site
-	Method     string       `json:"method"` // Command or CommandContext.
-	Executable Expression   `json:"executable"`
-	Args       []Expression `json:"args"`
-	Dir        Expression   `json:"dir"`
-}
-
-type CommandExecute struct {
-	Site
-	Method       string       `json:"method"`
-	Construction string       `json:"construction"` // CommandConstruct ID.
-	Executable   Expression   `json:"executable"`
-	Args         []Expression `json:"args"`
-	Dir          Expression   `json:"dir"`
-}
-
-type CommandWait struct {
-	Site
-	Construction string `json:"construction"` // CommandConstruct ID.
-	Start        string `json:"start"`        // CommandExecute ID whose Method is Start.
-}
-
-type ValueWrite struct {
-	Site
-	Key        Expression `json:"key"`
-	Expression Expression `json:"expression"`
-	JSON       bool       `json:"json"` // SetJSON versus Set.
-}
-
-type Branch struct {
-	Site
-	Condition Expression `json:"condition"`
-}
-
-type Repeat struct {
-	Site
-	Condition Expression `json:"condition"`
-}
-
-func (RegionEntry) operation()      {}
-func (RegionExit) operation()       {}
-func (SessionCreate) operation()    {}
-func (SessionFork) operation()      {}
-func (AgentCall) operation()        {}
-func (PlannerCall) operation()      {}
-func (SupervisorLook) operation()   {}
-func (CommandConstruct) operation() {}
-func (CommandExecute) operation()   {}
-func (CommandWait) operation()      {}
-func (ValueWrite) operation()       {}
-func (Branch) operation()           {}
-func (Merge) operation()            {}
-func (Repeat) operation()           {}
-func (ParallelLaunch) operation()   {}
-func (ParallelJoin) operation()     {}
-func (Unresolved) operation()       {}
-
-type Port string
-
-const (
-	Before Port = "before"
-	After  Port = "after"
-)
-
-type Endpoint struct {
-	Operation string `json:"operation"`
-	Port      Port   `json:"port"`
-}
-
-type FlowKind string
-
-const (
-	SequenceFlow FlowKind = "sequence"
-	BranchFlow   FlowKind = "branch"
-	LaunchFlow   FlowKind = "launch"
-	JoinFlow     FlowKind = "join"
-	RepeatFlow   FlowKind = "repeat"
-	ExitFlow     FlowKind = "exit"
-)
-
-type Flow struct {
-	Kind      FlowKind   `json:"kind"`
-	From      Endpoint   `json:"from"`
-	To        Endpoint   `json:"to"`
-	Condition Expression `json:"condition"` // Empty for an unconditional relation.
-}
-
-// An attachment describes a possible periodic look, not an approval dependency.
-type Supervision struct {
-	ID          string     `json:"id"`
-	Source      Source     `json:"source"`  // WithSupervisor attachment site.
-	Session     string     `json:"session"` // Supervisor session ID.
-	Target      string     `json:"target"`  // Watched agent/planner/look op ID.
-	Look        string     `json:"look"`    // Implicit SupervisorLook op ID.
-	Instruction Expression `json:"instruction"`
-	Interval    Expression `json:"interval"` // Duration expression; constant value in ns.
-}
-
-// All diagnostics in this first delivery are gate failures.
-type Diagnostic struct {
-	Code    string `json:"code"`
-	Message string `json:"message"`
-	Source  Source `json:"source"`
-	Subject string `json:"subject"` // Related graph ID; empty for graph-level errors.
-}
-```
-
-### Polytype projection of Operation
-
-Keep `Graph.Operations` as the direct `[]Operation` field shown above. Add this
-in `workflow/schema.go`, following the root package's existing lifecycle union:
-
-```go
-//go:build jsonschema
-
-package workflow
-
-import (
-	"encoding/json"
-
-	"github.com/tylergannon/polytype"
-)
-
-func (Graph) Schema() json.RawMessage     { panic("generated") }
-func (Graph) ValidateJSON([]byte) error   { panic("generated") }
-
-var (
-	_ = polytype.Declare(Graph.Schema)
-	_ = polytype.SealedUnion[Operation]("kind", polytype.Snake)
-)
-```
-
-Use the existing polytype generation convention (`//go:generate go tool polytype
---validate` on one line in graph.go). It infers union members from the concrete
-types and their direct value-receiver methods; do not maintain a second member
-list. It supplies `kind: "agent_call"`, `kind: "command_execute"`, etc. on the
-wire. No Go Kind field or handwritten discriminator codec is needed. Site's
-embedded fields are common metadata; Site does not implement operation().
-
-Marshal/unmarshal the owning Graph using its generated JSON codecs. Generate
-TypeScript and devalue through polytype/skgo from the same declaration. Keep
-the union field a direct slice and use concrete value variants in literals.
-Verify generated schema, JSON, TypeScript, and devalue agree on the variants;
-the invalid cases include unknown discriminators and fields from another variant.
-These are type-projection checks, separate from graph reference validation.
-The full proposed Graph was checked with pinned polytype v1.0.0: all 17 variants
-round-trip through generated JSON and devalue codecs, invalid variants are rejected,
-and a second generation is unchanged. Details and limits are recorded in
-`/Users/tyler/.codex/worktrees/a256/gimble/ephemeral/issue-201/operation-union-verification.md`.
-
-### Invariants and interpretation
-
-**Identity.** `Graph.ID` is derived from the qualified entrypoint and constant
-workflow name; it is independent of the source revision. `SourceDigest` is a
-SHA-256 over deterministic, sorted extraction inputs: selected package source
-files and embed inputs, module/build selection, dependency versions/replacements,
-and generator/schema version. Hash local replacement source when its workflow
-code is followed. Exclude generated graph outputs and volatile timestamps or
-absolute checkout paths. Build.Settings contains effective build-selection values
-such as CGO_ENABLED and relevant GOFLAGS, not timestamps or Git dirty status.
-Do not use Git HEAD alone: uncommitted source matters.
-This fingerprints the extraction inputs, not arbitrary files an agent may read
-later. Run-to-graph compatibility uses both ID and digest.
-
-`Source.SiteID` identifies a lexical site using module-relative file, qualified
-function, and AST position within that function. Line/column are navigation,
-not identity. Graph element IDs add the static helper `CallPath`, relevant scope
-binding, and a role suffix for synthetic entry/exit/planner/look nodes. IDs must
-be deterministic across regeneration and checkout relocation; do not promise
-identity across arbitrary source edits. Same names at distinct sites stay distinct.
-
-One template is emitted per static site and call context, never per observed
-iteration, task, re-ask, or supervisor tick. If two distinct callsites invoke the
-same helper, their expansions can have different graph IDs while retaining the
-same lexical `SiteID`. This avoids sharing one helper return among unrelated
-continuations. Neither ID is a runtime scope/session/turn ID.
-
-**Containment and use.** `Region.Parent` forms one tree. `Session.Owner` is the
-creation scope; each variant's `Site.Scope` is the execution scope. The Session
-field of AgentCall, PlannerCall, or SupervisorLook is the uses-session relation.
-For creation/fork operations, `Session.CreatedBy` is the reverse reference. An ordinary
-helper inherits the caller's scope binding. Derived contexts preserve that binding
-until an actual Gimble scope boundary changes it.
-
-**Variants.** The concrete Operation type determines its fields; there are no
-nullable payload combinations or separate kind/payload consistency checks. A
-small internal graph validator checks reference integrity, including whether a
-referenced operation has the required type. For a partial graph, leave an
-unresolved relation empty and attach a diagnostic instead of inventing an endpoint.
-All known references must still resolve.
-
-**Control flow.** Before/After refer to the invocation boundary of an operation,
-not recorded timestamps. A sequence A.After → B.Before means B follows A if that
-path is reached. Branch edges carry source predicates/case labels; outgoing
-alternatives are OR choices, never all prerequisites. A Merge rejoins alternatives.
-Keep normal/error returns and early exits when they alter the reachable workflow
-structure. Ordinary statements can be elided only while preserving those paths.
-
-`Group.Go` is a ParallelLaunch operation. Its After launches the child region's
-Entry.Before and also permits the next parent-side operation. Child completion
-does **not** precede the next launch. `Group.Wait` is a ParallelJoin: ordinary flow
-reaches its Before; JoinFlow edges from launched child Exit.After constrain its
-After. It waits for all children actually launched on that path, not every
-possible alternative. Group siblings have display order but no invented serial
-completion edge. Region entry/exit alone do not imply synchronous containment.
-
-Plain `for`/`range` control uses Repeat/Branch operations and RepeatFlow/ExitFlow
-edges in its existing scope. It does not fabricate a new runtime scope. A
-`Loop.Tasks` range has a LoopRegion, an implicit PlannerCall, and one TaskRegion:
-planner selects task → task entry; task completion → next planner call; no task
-or a range break → loop exit. `Loop(...)` constructs the iterator; the loop region
-and planner work start when Tasks is consumed, as the runtime actually does.
-
-**Commands.** CommandConstruct.Method is Command/CommandContext;
-CommandExecute.Method is Run/Output/CombinedOutput/Start. CommandWait represents
-the explicit Wait without a redundant Method field. Execution
-and Wait refer to the same construction site. Start.After means the Start call
-returned, not that the process exited. Its explicit Wait joins that started process.
-Run/Output/CombinedOutput are blocking executions. Keep executable/args/Dir as
-expressions, following simple local assignments and helper argument bindings.
-A construction with no execution remains a construction. No process outcome,
-duration, stdout/stderr, or harness-internal shell command is inferred here.
-
-**Supervision.** For supervisor S watching worker W, create one implicit look L:
-`Supervision{Session: S, Target: W, Look: L}` and the SupervisorLook L has `Session: S`.
-For supervisor H watching S's looks, the second attachment is
-`Supervision{Session: H, Target: L, Look: HL}`. Look operations use the watched
-operation's execution scope, even if their sessions belong to an ancestor.
-They have their own source identities rooted at the attachment, not made-up
-Generate source lines. The default interval is the existing three-minute
-runtime default. These relations do not add sequence/join edges between looks
-and workers. An attachment can produce zero looks, and looks need not steer.
-
-**Collapse.** Every endpoint retains its original operation ID and port. The
-viewer can walk its operation's region ancestors to find the collapsed boundary;
-it need not replace endpoints or persist layout-specific proxy nodes.
-
-**Completeness.** Complete means every possible workflow structural relation in
-the selected, supported source is recovered. Unknown targets/context/session/
-command bindings that affect structure make Complete false and add diagnostics.
-A nonconstant Set key can leave structure fully recovered but still adds the
-existing hard authoring diagnostic. Success requires Complete and no diagnostics.
-Neither a passing bounded #162 lint nor absence of runtime events proves coverage.
+Completeness applies to the selected relevant workflow structure. Omitting an
+ordinary calculation is valid; losing a branch or early return that changes which
+agent calls can run is not. Unresolved relevant calls, session/context bindings,
+or supervision produce anchored diagnostics and partial output with a failing
+gate. Dynamic data is valid; dynamic structural dispatch and dynamic Set keys
+remain authoring violations. Validate known references without inventing targets
+for unresolved relationships.
 
 ## 2. Typed workflow and generated object
 
@@ -709,8 +372,10 @@ shared runtime start implementation underneath the concrete generated bindings.
 
 ## 5. Delivery sequence
 
-1. Land the graph type/invariants and generated typed workflow contract. Prove
-   minimal generation from a separate module before growing extraction coverage.
+1. Settle the recursive encoding and concrete Group fields against the accepted
+   nested model; write and verify the complete Graph declarations. Then land the
+   graph invariants and generated typed workflow contract. Prove minimal generation
+   from a separate module before growing extraction coverage.
 2. Extract the actual sprint helper chain and structural fixtures. Replace only
    its fixed check loop with explicit `go vet ./...` and `go test ./...` calls and
    Set keys `"repository check 1"` / `"repository check 2"`. Preserve order,
@@ -739,16 +404,17 @@ README explains the explicit workflow list, generation, and authored-page contra
 | Typed consumer works end to end | A separate Go module with its own unrelated Input generates from scratch, compiles, runs through Runtime without registration, and resolves its recorded graph. A wrong Input type is rejected by the compiler. |
 | Web entrypoints are concrete | An explicit list of two workflows with different Inputs generates distinct typed remote callers and decoders. An authored Svelte page links to and starts its specific workflow, receives its run ID, and navigates away while the run continues. Invalid payloads fail before work starts. No generic form or runtime workflow selector is involved. |
 | The builtin graph reflects source | Inspect generated Sprint output against `Sprint`, `run`, `goalText`, `runTask`, `command`, and `git`: research/fork, outer rounds, inner planner/task repeat, coder/supervisor, task command, ancestor validator, both fixed checks, conditional commit, final validation/merge. Dry-run alternatives remain visible. |
-| Flow is semantic | Fixtures demonstrate sequence, mutually exclusive branches, two launched group children and their join, repeat/exit including break/return, and continuation after join. There is no child-completion edge that serializes its sibling. |
-| Resources and scopes are distinct | An ancestor session used in a child keeps its Owner while the child call has that child's Scope. A fork points to its origin and its own creation scope. |
-| Both supervision targets survive | Worker W, look L, and higher look HL have attachments S→W/L and H→L/HL. A short live turn with an attachment and no look remains valid. |
-| Commands retain meaning | Construct-only, blocking Run/Output/CombinedOutput, and Start→Wait examples produce distinct kinds and correct construction links; a command followed by a validator has a real sequence. Dynamic args remain expressions. |
-| Identity and boundaries survive reuse | Same-named sites remain distinct, repeated tasks have one static template, two helper callers keep distinct continuations, and cross-scope edges retain their exact endpoints under a containment-based collapse/restore exercise. |
+| Nested execution preserves meaning | Fixtures show ordered bodies, alternative condition branches, loop repetition, and relevant return/break/continue targets. A Group preserves two launches, caller work before Wait, and continuation after Wait without serializing siblings. Ordinary calculations need no operation nodes. |
+| Sessions, calls, and scopes are distinct | Two AgentCalls reference one conversation. An ancestor-owned session retains its owner when called in a child execution scope. A fork retains its origin and creation scope. Conditions and ordinary Go loops do not manufacture Gimble scopes. |
+| Context evolution follows source | Set and SetJSON stay in order within each branch/body, retaining constant keys and value expressions. Actual scopes determine ownership; stored values are not assumed to have appeared in a prompt. |
+| Supervision is hierarchical and local | An attachment targets a worker call; its unordered supervisors may themselves have supervisors watching their looks. An ancestor-owned reviewer appears beside a deeper child call while referencing its original session. Sequential tasks can reuse that conversation; task-local creation gives fresh conversations. A short live turn can finish with zero looks. No synthetic look nodes or sequential approval gates are required. |
+| Commands retain meaning | Construction metadata never implies execution. Blocking Run/Output/CombinedOutput and Start followed by later Wait preserve their semantics, including intervening work and process identity. A command followed by a validator remains ordered. Dynamic arguments remain expressions. |
+| Identity survives reuse and placement | Same-named sites remain distinct, repeated tasks have one static template, and two helper callers keep distinct continuations. Local appearances of an ancestor-owned supervisor retain one session identity and do not duplicate recorded turns or usage. Ownership remains inspectable. |
 | Failure is inspectable and fails closed | Dynamic Set keys, map-dispatched workers/simple aliases, and unresolved structural targets produce anchored diagnostics and nonzero gates. A valid dynamic branch/data fixture passes. Failed regeneration cannot leave a stale clean graph presented as current. |
 | Run association survives restart | Live and finished matching runs resolve to the compiled graph; restart with a changed digest leaves the old run observable but unmatched. References survive durable snapshot, table, and supported replay paths. |
 | Cancellation is independent | Two active runs share one runtime; cancel A and B remains active; another run can start after A ends. Runtime cancellation stops all active runs. An already-cancelled synchronous caller does not start workflow work. |
-| Go remains the single graph model | Inspect the compiled graph through a real skgo query and generated TypeScript/devalue boundary, comparing representative containment, flow endpoints, command payloads, and nested attachments. No hand-maintained JSON/TS graph model. |
-| Operations remain a sealed union across projections | Every concrete Operation variant round-trips through Graph's generated JSON and devalue codecs with its kind and fields intact. Generated TS discriminates on kind; unknown kinds and fields belonging to another variant are rejected at the decoding boundary. |
+| Go remains the single graph model | Inspect the compiled graph through a real skgo query and generated TypeScript/devalue boundary, comparing nested bodies or their encoded child references, command semantics, session ownership, and hierarchical attachments. No hand-maintained JSON/TS graph model. |
+| Operations remain a sealed union across projections | Every concrete Operation/Subgraph variant and multiple levels of supervision round-trip through the chosen Graph encoding and generated JSON/devalue codecs. Generated TS discriminates on kind; unknown kinds and fields belonging to another variant are rejected at the decoding boundary. The old nonrecursive 17-variant probe does not satisfy this claim. |
 
 Use source fixtures for static claims and an isolated executable caller module for
 runtime claims. A harmless real command and a cheap native agent turn can demonstrate

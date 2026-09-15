@@ -1,6 +1,10 @@
-# Operation sealed-union projection check
+# Historical operation sealed-union projection check
 
-The full proposed Graph and schema declarations were extracted from
+**Superseded model:** this verifies the flat 17-variant Graph from commit
+`77be2b7`, not the accepted nested model in `graph-model.md`. It provides no
+proof of recursive body or supervisor encoding. Retained as historical evidence.
+
+The then-proposed Graph and schema declarations were extracted from
 implementation-plan.md into a temporary caller module. No production graph
 extractor or web binding implementation was added.
 

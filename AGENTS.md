@@ -25,6 +25,26 @@ and other runtime values may vary while the possible operations and their
 structural relationships remain explicit. This aesthetic guides bounded
 lint rules; it does not require exhaustive analysis of arbitrary Go.
 
+## Workflow graph
+
+Describe the structure connecting agent calls, commands, and context writes with
+nested ordered bodies: sequences, conditions, loops, scopes, and groups. Preserve
+relevant early exits and real launch/wait positions. The graph is not a complete
+model of arbitrary Go control flow or dataflow. Operation is a sealed union;
+reserve Group for Gimble's parallel execution primitive.
+
+Supervision is a separate unordered hierarchy attached beside the watched call.
+Nested supervisors watch their immediate supervisor's look turns. A supervisor
+session can belong to an ancestor scope while its attachment and execution are
+local to a deeper call. Session ownership determines conversation lifetime;
+visual placement follows the attachment. Repeated appearances reference the same
+session and do not clone conversations or duplicate turns/usage. Creating a
+session in each task instead gives each task a fresh conversation. Shared sessions
+still accept one active turn at a time.
+
+The accepted model and outstanding encoding choices are recorded in
+`ephemeral/issue-201/graph-model.md`.
+
 ## Workflow web pages
 
 Select available workflows and their Go Input types explicitly at build

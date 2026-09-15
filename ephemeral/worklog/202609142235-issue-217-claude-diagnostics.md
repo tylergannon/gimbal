@@ -1,0 +1,4 @@
+decision: Issue #217's captured invalid_request is not a demonstrated Gimble request-shaping defect: the saved provider event has only the enum and no provider explanation. Preserve the available request identifier and durable run location while retaining a provider failure as a failed command.
+friction: `just test` in a fresh worktree requires the web build's generated skgo.manifest.json; `just build` restores that required embedded artifact before the declared test gate can run.
+friction: the pre-commit static-analysis gate rejected the clean baseline because a child-turn approval path checked an error that `refuse` always returns. Returning that required terminal error directly preserves behavior and unblocks the gate.
+correction: AgentEvent NativeRef is a closed shape; requestID belongs in the normalized failure payload and returned error, not its provider sidecar. The live invalid-model probe exposed this before merge.

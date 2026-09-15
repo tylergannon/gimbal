@@ -16,7 +16,6 @@ import (
 	"io"
 	"log"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -162,9 +161,10 @@ func goalText(ctx context.Context, in Input) (string, error) {
 	}
 	file := in.Issue
 	if number, err := strconv.Atoi(in.Issue); err == nil {
-		cmd := exec.CommandContext(ctx, "gh", "issue", "view", strconv.Itoa(number), "--json", "title,body", "-t", `# {{.title}}{{"\n\n"}}{{.body}}{{"\n"}}`)
-		cmd.Dir = in.Repo
-		out, err := cmd.Output()
+		code, out, stderr, err := gimble.RunCommand(ctx, "issue", in.Repo, "gh", "issue", "view", strconv.Itoa(number), "--json", "title,body", "-t", `# {{.title}}{{"\n\n"}}{{.body}}{{"\n"}}`)
+		if err == nil && code != 0 {
+			err = fmt.Errorf("exit %d: %s", code, strings.TrimSpace(stderr))
+		}
 		if err != nil {
 			return "", fmt.Errorf("sprint: gh issue view %d: %w", number, err)
 		}
@@ -172,7 +172,7 @@ func goalText(ctx context.Context, in Input) (string, error) {
 		if err := os.MkdirAll(filepath.Dir(file), 0o755); err != nil {
 			return "", err
 		}
-		if err := os.WriteFile(file, out, 0o644); err != nil {
+		if err := os.WriteFile(file, []byte(out), 0o644); err != nil {
 			return "", err
 		}
 	}
@@ -297,24 +297,17 @@ func runTask(ctx context.Context, in Input, researcher, validator *gimble.Sessio
 	return nil
 }
 
-// command runs text with sh in the repository. A dry run runs nothing.
+// command runs text with sh in the repository and returns its exit code and
+// its output. A dry run runs nothing.
 func command(ctx context.Context, in Input, text string) (int, string, error) {
 	if in.DryRun {
 		return 0, "(dry run: not run)\n", nil
 	}
-	cmd := exec.CommandContext(ctx, "sh", "-c", text)
-	cmd.Dir = in.Repo
-	out, err := cmd.CombinedOutput()
-	if ctx.Err() != nil {
-		return 0, "", ctx.Err()
+	code, stdout, stderr, err := gimble.RunCommand(ctx, "check", in.Repo, "sh", "-c", text)
+	if err != nil {
+		return 0, "", fmt.Errorf("sprint: command %q: %w", text, err)
 	}
-	if err == nil {
-		return 0, string(out), nil
-	}
-	if exit, ok := errors.AsType[*exec.ExitError](err); ok {
-		return exit.ExitCode(), string(out), nil
-	}
-	return 0, "", fmt.Errorf("sprint: command %q: %w", text, err)
+	return code, stdout + stderr, nil
 }
 
 func commandText(command string, code int, output string) string {
@@ -360,13 +353,14 @@ func git(ctx context.Context, in Input, args ...string) (string, error) {
 	if in.DryRun {
 		return "", nil
 	}
-	cmd := exec.CommandContext(ctx, "git", args...)
-	cmd.Dir = in.Repo
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return "", fmt.Errorf("git %s: %w: %s", strings.Join(args, " "), err, out)
+	code, stdout, stderr, err := gimble.RunCommand(ctx, "git", in.Repo, "git", args...)
+	if err == nil && code != 0 {
+		err = fmt.Errorf("exit %d: %s", code, strings.TrimSpace(stdout+stderr))
 	}
-	return strings.TrimSpace(string(out)), nil
+	if err != nil {
+		return "", fmt.Errorf("git %s: %w", strings.Join(args, " "), err)
+	}
+	return strings.TrimSpace(stdout), nil
 }
 
 // newDryRun is the harness of a dry run: it writes each turn to w.

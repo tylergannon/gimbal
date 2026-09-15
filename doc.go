@@ -16,6 +16,10 @@
 // SetJSON, and ScopeText let the workflow explicitly choose which scoped data
 // it places in a prompt; Generate does not inject context implicitly.
 //
+// RunCommand runs a command in the current scope and blocks until it exits,
+// returning its exit code, stdout, and stderr. The run records each command
+// beside the scope's turns.
+//
 // Every operation follows context.Context. Returning from a scope closes its
 // sessions, Group.Wait joins its children, and cancelling a run interrupts its
 // agent work. See the package examples for complete, compiling uses of runs

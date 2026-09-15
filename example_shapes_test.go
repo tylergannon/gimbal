@@ -13,7 +13,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sync"
 	"time"
@@ -316,7 +315,9 @@ func Example_loopWithPlanner() {
 // tree. The prompt names the worktree by absolute path, and the workflow
 // checks that nothing landed in the repository itself before it reads the
 // result: an agent told a bare filename writes to the repository root.
-// It is not run here because it needs git.
+// The worktree is removed on a ctx without cancel, so it goes even when
+// the group has cancelled the candidate. It is not run here because it
+// needs git.
 func Example_worktreePerCandidate() {
 	ctx, closeProject := exampleContext()
 	defer closeProject()
@@ -332,18 +333,24 @@ func Example_worktreePerCandidate() {
 					return err
 				}
 				defer func() { _ = os.RemoveAll(dir) }()
-				if out, err := exec.CommandContext(ctx, "git", "-C", repo, "worktree", "add", "--detach", dir).CombinedOutput(); err != nil {
-					return fmt.Errorf("git worktree add: %w: %s", err, out)
+				if code, _, stderr, err := gimble.RunCommand(ctx, "add-worktree", repo, "git", "worktree", "add", "--detach", dir); err != nil {
+					return err
+				} else if code != 0 {
+					return fmt.Errorf("git worktree add exited %d: %s", code, stderr)
 				}
-				defer func() { _ = exec.Command("git", "-C", repo, "worktree", "remove", "--force", dir).Run() }()
+				defer func() {
+					_, _, _, _ = gimble.RunCommand(context.WithoutCancel(ctx), "remove-worktree", repo, "git", "worktree", "remove", "--force", dir)
+				}()
 
 				coder := gimble.NewSession(ctx, "coder", codex, "gpt-5.6-luna", dir)
 				result, err := coder.Generate[gimble.Text](ctx, "In "+dir+", make the config loader read its file once per process, with a test that shows it. Write nowhere outside "+dir+". Leave the work uncommitted. Answer with what changed.")
 				if err != nil {
 					return err
 				}
-				if out, err := exec.CommandContext(ctx, "git", "-C", repo, "status", "--porcelain").CombinedOutput(); err != nil || len(out) != 0 {
-					return fmt.Errorf("candidate %d wrote outside its worktree: %s%v", i+1, out, err)
+				if code, status, _, err := gimble.RunCommand(ctx, "status", repo, "git", "status", "--porcelain"); err != nil {
+					return err
+				} else if code != 0 || status != "" {
+					return fmt.Errorf("candidate %d wrote outside its worktree (git status exited %d):\n%s", i+1, code, status)
 				}
 				gimble.Set(ctx, "result", string(result))
 				return nil
@@ -373,18 +380,15 @@ func Example_validationCommand() {
 			if _, err := coder.Generate[gimble.Text](ctx, prompt); err != nil {
 				return err
 			}
-			cmd := exec.CommandContext(ctx, "sh", "-c", check)
-			cmd.Dir = repo
-			out, err := cmd.CombinedOutput()
-			if err == nil {
+			code, stdout, stderr, err := gimble.RunCommand(ctx, "check", repo, "sh", "-c", check)
+			if err != nil {
+				return err
+			}
+			if code == 0 {
 				gimble.Set(ctx, "validated by", check)
 				return nil
 			}
-			var exit *exec.ExitError
-			if !errors.As(err, &exit) {
-				return err
-			}
-			prompt = fmt.Sprintf("`%s` in %s exited %d:\n\n%s\nMake it pass. The check itself stays as it is.", check, repo, exit.ExitCode(), out)
+			prompt = fmt.Sprintf("`%s` in %s exited %d:\n\n%s%s\nMake it pass. The check itself stays as it is.", check, repo, code, stdout, stderr)
 		}
 		return fmt.Errorf("%s still fails after three tries", check)
 	})

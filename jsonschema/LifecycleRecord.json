@@ -6,6 +6,28 @@
 "session":{"type":"string"},
 "turn":{"type":"string"},
 "event":{"anyOf":[{"type":"object",
+"description":"CommandEnded records how the command ID ended. A command that ran has its exit code and no error. One that could not start has exit code -1 and the error, and one its ctx cancelled has both and Interrupted as well. Stdout and Stderr are its output; past the size a record keeps, they are the tail, and StdoutFile or StderrFile names the file in the run's directory that holds all of it.","properties":{
+"kind":{"type":"string","const":"command_ended"},
+"id":{"type":"string"},
+"exit_code":{"type":"integer"},
+"stdout":{"type":"string"},
+"stderr":{"type":"string"},
+"stdout_file":{"type":"string"},
+"stderr_file":{"type":"string"},
+"error":{"type":"string"},
+"interrupted":{"type":"boolean"},
+"duration":{"type":"integer","description":"A Duration represents the elapsed time between two instants as an int64 nanosecond count. The representation limits the largest representable duration to approximately 290 years."}
+},"required":["kind","id","exit_code","stdout","stderr","stdout_file","stderr_file","error","interrupted","duration"],"additionalProperties":false},
+{"type":"object",
+"description":"CommandStarted records a command RunCommand is starting in the record's scope. ID is the scope's key and Name with an ordinal, as in lap.3/check.2; Workdir is absolute.","properties":{
+"kind":{"type":"string","const":"command_started"},
+"id":{"type":"string"},
+"name":{"type":"string"},
+"command":{"type":"string"},
+"args":{"type":"array","items":{"type":"string"}},
+"workdir":{"type":"string"}
+},"required":["kind","id","name","command","args","workdir"],"additionalProperties":false},
+{"type":"object",
 "description":"Complete marks the durable end of a run log. RecordingError reports an earlier failure in another log owned by the run; an absent Complete means the run log itself did not finish durably.","properties":{
 "kind":{"type":"string","const":"complete"},
 "recording_error":{"type":"string"}

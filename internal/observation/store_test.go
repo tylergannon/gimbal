@@ -316,10 +316,10 @@ func TestFinishedRunStaysReadable(t *testing.T) {
 	}
 }
 
-// TestOpenWritesSixEmptyTables is the files half of the store: a run has its
-// six arrays from the start, so a run with no steps still has a
+// TestOpenWritesEmptyTables is the files half of the store: a run has its
+// seven arrays from the start, so a run with no steps still has a
 // model_calls.json and nothing has to guess whether a file will appear.
-func TestOpenWritesSixEmptyTables(t *testing.T) {
+func TestOpenWritesEmptyTables(t *testing.T) {
 	dir := t.TempDir()
 	if _, err := Open(nil, "run-1", "fixture", dir); err != nil {
 		t.Fatalf("open: %v", err)
@@ -339,9 +339,9 @@ func TestOpenWritesSixEmptyTables(t *testing.T) {
 	}
 }
 
-// TestClosedRunHoldsSixFilesAndFinalSnapshot verifies clean completion saves
+// TestClosedRunHoldsTablesAndFinalSnapshot verifies clean completion saves
 // the final reduced state at its exact stream position.
-func TestClosedRunHoldsSixFilesAndFinalSnapshot(t *testing.T) {
+func TestClosedRunHoldsTablesAndFinalSnapshot(t *testing.T) {
 	dir := t.TempDir()
 	store, err := Open(nil, "run-1", "fixture", dir)
 	if err != nil {

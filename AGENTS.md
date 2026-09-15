@@ -26,7 +26,7 @@ THE MEANING OF THE CODE. There is NO SUCH THING as a `workflows.BakeOff`
 function." A workflow reads like a page of pseudocode. A tactic (a
 bake-off, a critique round, a worktree, a merge, a retry) is written inline
 in the workflow that needs it, with `Group`, `Generate`, and git through
-`os/exec`. A new exported name exists only when Tyler asks for it by name.
+`RunCommand`. A new exported name exists only when Tyler asks for it by name.
 Propose "write program X that does Y", never "add function Z".
 
 ## Build what was asked

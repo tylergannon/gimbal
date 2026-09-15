@@ -15,7 +15,7 @@ import (
 const maxLogLine = 8 << 20
 
 // open reads one run directory into a fresh store. A finished run's facts are
-// its six tables, so the normal path loads them and reads the session logs
+// its seven tables, so the normal path loads them and reads the session logs
 // only for the transcript projections. A directory missing any table is
 // rebuilt from its logs instead, and the tables are written as it goes.
 //
@@ -27,7 +27,7 @@ func open(registry *Registry, id, dir string) (*Store, error) {
 	}
 	s := newStore(registry, id, "", dir)
 	// Nothing on this path writes a table until it is asked to: loading
-	// writes nothing at all, and a rebuild writes all six at the end.
+	// writes nothing at all, and a rebuild writes all seven at the end.
 	s.noWrite = true
 
 	rebuild := missingTable(dir) != ""
@@ -87,7 +87,7 @@ func open(registry *Registry, id, dir string) (*Store, error) {
 	return s, nil
 }
 
-// loadTables fills the maps from the six files. This is what reading a
+// loadTables fills the maps from the seven files. This is what reading a
 // finished run means: the tables are the facts and the roll-ups are computed
 // from them, so the run log is only the transcript store and the source a
 // rebuild reads.
@@ -116,6 +116,10 @@ func (s *Store) loadTables(dir string) error {
 	if err != nil {
 		return err
 	}
+	commands, err := loadTable[CommandRow](dir, tableCommands)
+	if err != nil {
+		return err
+	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -134,6 +138,9 @@ func (s *Store) loadTables(dir string) error {
 	}
 	for _, row := range turns {
 		s.turns[row.ID] = &row
+	}
+	for _, row := range commands {
+		s.commands[row.ID] = &row
 	}
 	// The two tables that are per-turn collections fold back into the maps
 	// the store holds them in.

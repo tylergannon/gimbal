@@ -51,7 +51,7 @@ type openCall struct {
 	started int64
 }
 
-// Store is one run's observation: the six tables as Go maps, one transcript
+// Store is one run's observation: the seven tables as Go maps, one transcript
 // per turn, and the subscribers the page streams from. Every mutation and
 // every detachment goes through mu, so a snapshot and the suffix behind it
 // come from one cut.
@@ -67,6 +67,7 @@ type Store struct {
 	turns       map[string]*TurnRow
 	turnUsage   map[string]map[string]Usage
 	modelCalls  map[string][]ModelCallRow
+	commands    map[string]*CommandRow
 	transcripts map[string]*transcript
 	calls       map[string]openCall
 	subs        map[*Subscription]struct{}
@@ -80,7 +81,7 @@ type Store struct {
 	// noWrite suppresses the per-fold file writes. Opening a run sets it: the
 	// files are its input, and a rebuild writes them once at the end.
 	noWrite bool
-	// fromTables says the facts came from the six files. A finished run's
+	// fromTables says the facts came from the seven files. A finished run's
 	// tables are its accounting, so the session logs read afterwards are only
 	// transcripts: a step in them accounts for nothing.
 	fromTables bool
@@ -101,6 +102,7 @@ func newStore(registry *Registry, id, name, dir string) *Store {
 		turns:       map[string]*TurnRow{},
 		turnUsage:   map[string]map[string]Usage{},
 		modelCalls:  map[string][]ModelCallRow{},
+		commands:    map[string]*CommandRow{},
 		transcripts: map[string]*transcript{},
 		calls:       map[string]openCall{},
 		subs:        map[*Subscription]struct{}{},
@@ -121,9 +123,9 @@ func newStreamID() string {
 
 // Open returns the store for one run and registers it, if there is a
 // registry. A run started without the web runtime still gets a store: it owns
-// it privately and writes the same six files.
+// it privately and writes the same seven files.
 //
-// The six files are written empty straight away, so a run with no steps still
+// The seven files are written empty straight away, so a run with no steps still
 // has a model_calls.json. The error is that write's, and the run records it as
 // a recording failure: the store itself is usable either way.
 func Open(registry *Registry, id, name, dir string) (*Store, error) {
@@ -188,6 +190,15 @@ type record struct {
 		Result      string          `json:"result"`
 		Interrupted bool            `json:"interrupted"`
 		Duration    int64           `json:"duration"`
+		ID          string          `json:"id"`
+		Command     string          `json:"command"`
+		Args        []string        `json:"args"`
+		Workdir     string          `json:"workdir"`
+		ExitCode    int             `json:"exit_code"`
+		Stdout      string          `json:"stdout"`
+		Stderr      string          `json:"stderr"`
+		StdoutFile  string          `json:"stdout_file"`
+		StderrFile  string          `json:"stderr_file"`
 		Usage       []struct {
 			Model  string  `json:"model"`
 			Cost   float64 `json:"cost"`
@@ -301,6 +312,18 @@ func (s *Store) Lifecycle(raw json.RawMessage) error {
 		}
 		s.turnUsage[rec.Turn] = report
 		changed = append(changed, change{tableTurns, rec.Turn}, change{tableTurnUsage, rec.Turn})
+	case "command_started":
+		command := s.commandLocked(rec.Scope, rec.Event.ID)
+		command.Name, command.Command, command.Args = rec.Event.Name, rec.Event.Command, rec.Event.Args
+		command.Workdir, command.Started = rec.Event.Workdir, at
+		changed = append(changed, change{tableCommands, rec.Event.ID})
+	case "command_ended":
+		command := s.commandLocked(rec.Scope, rec.Event.ID)
+		command.ExitCode, command.Error, command.Interrupted = rec.Event.ExitCode, rec.Event.Error, rec.Event.Interrupted
+		command.Stdout, command.StdoutFile = rec.Event.Stdout, rec.Event.StdoutFile
+		command.Stderr, command.StderrFile = rec.Event.Stderr, rec.Event.StderrFile
+		command.Ended, command.Duration = at, rec.Event.Duration/int64(time.Millisecond)
+		changed = append(changed, change{tableCommands, rec.Event.ID})
 	}
 	return s.commitLocked(changed)
 }
@@ -379,6 +402,8 @@ func (s *Store) rowLocked(table, key string) any {
 		return s.turnUsage[key]
 	case tableModelCalls:
 		return s.modelCalls[key]
+	case tableCommands:
+		return *s.commands[key]
 	}
 	panic(fmt.Errorf("observation: no table named %s", table))
 }
@@ -390,6 +415,16 @@ func (s *Store) scopeLocked(key string) *ScopeRow {
 	}
 	row := &ScopeRow{Run: s.run.ID, Key: key, Name: key, Status: StatusRunning, Values: map[string]json.RawMessage{}}
 	s.scopes[key] = row
+	return row
+}
+
+// commandLocked is one command's row, created on first sight.
+func (s *Store) commandLocked(scope, id string) *CommandRow {
+	if row, ok := s.commands[id]; ok {
+		return row
+	}
+	row := &CommandRow{Run: s.run.ID, ID: id, Scope: scope}
+	s.commands[id] = row
 	return row
 }
 
@@ -638,6 +673,7 @@ func (s *Store) snapshotLocked() RunSnapshot {
 		Turns:       make(map[string]TurnRow, len(s.turns)),
 		TurnUsage:   make(map[string]map[string]Usage, len(s.turnUsage)),
 		ModelCalls:  make(map[string][]ModelCallRow, len(s.modelCalls)),
+		Commands:    make(map[string]CommandRow, len(s.commands)),
 		Totals:      s.totalsLocked(),
 		Transcripts: make(map[string]Transcript, len(s.transcripts)),
 	}
@@ -655,6 +691,11 @@ func (s *Store) snapshotLocked() RunSnapshot {
 	}
 	for turn, calls := range s.modelCalls {
 		out.ModelCalls[turn] = slices.Clone(calls)
+	}
+	for id, row := range s.commands {
+		command := *row
+		command.Args = slices.Clone(row.Args)
+		out.Commands[id] = command
 	}
 	for turn, script := range s.transcripts {
 		out.Transcripts[turn] = Transcript{

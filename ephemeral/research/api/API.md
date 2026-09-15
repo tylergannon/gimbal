@@ -922,6 +922,35 @@ func cancelRun(ctx context.Context, runID string) error
   The event schema is still answered by what the page needs to draw, which
   is why the page's second pass may grow `Event`.
 
+## Commands
+
+`RunCommand(ctx, name, workdir, command, args...) (exitCode int, stdout,
+stderr string, err error)` runs one command and blocks until it exits.
+Tyler, 2026-09-15: "The whole point is to have a SIMPLE API for running
+commands, that should make it a single API call for running commands ... a
+blocking function that returns the exit code, stdout and stderr as scalars.
+That way we can locate `RunCommand` in static analysis etc."
+
+- One call is both the construction and the execution, so a static pass
+  finds every command a workflow runs by the name `RunCommand`, and the run
+  holds a record of each one that ran. Workflow code runs its commands
+  through it; harness internals keep `os/exec`.
+- `name` is a constant at the call site, as for sessions and scopes. The
+  id is the scope's key and the name with an ordinal (`lap.3/check.2`), so
+  a retried command is two records, and a command in each of two group
+  children is in two scopes.
+- A nonzero exit is the command's answer, not an error: the workflow reads
+  the exit code. `err` says the command did not run to an exit: it could
+  not start, or its ctx cancelled it, and the exit code is then -1.
+- The record is `command_started` (id, name, command, args, absolute
+  workdir) and `command_ended` (exit code, stdout, stderr, error,
+  `interrupted`, duration) in the run log, folded into the `commands`
+  table. A stream longer than 64 KiB is written whole to
+  `commands/<id>.stdout` or `.stderr` beside the log; the record keeps its
+  tail and the file's name. The environment is not recorded.
+- No stdin, no environment, no streaming: `sh -c` is a command like any
+  other.
+
 ## Still open
 
 - `Compact`. Open-minded. What is wanted is not the harness's in-place

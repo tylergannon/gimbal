@@ -35,6 +35,28 @@ the sprint as written; prove parallelism and nested supervision in dedicated
 fixtures and the caller example. Do not add those behaviors to the sprint merely
 to satisfy that sentence.
 
+### Governing workflow aesthetic — Tyler's clarification
+
+Gimble deliberately favors workflows whose possible structure is explicit and
+statically mappable from ordinary Go source. **As a rule of thumb, lint against
+anything that prevents that mapping and advise the author to make it explicit.**
+Dynamic task dispatch is an authoring violation, just like dynamic Set/SetJSON
+keys. It is not a use case the extractor should grow increasingly sophisticated
+machinery to accommodate. Direct helper calls and ordinary if/switch branches
+express the intended aesthetic.
+
+The exceptions are primitive runtime variability: the number of loop iterations,
+the contents of `[]Task`, the branch taken, and data such as prompts and command
+arguments. The extractor maps the loop/task template and possible branches;
+execution supplies their instances and values. These exceptions do not permit
+runtime data to hide which workflow functions may execute or how they relate.
+
+This is an intentional authoring rule, not an unfortunate limitation to relax.
+Keep its enforcement bounded and explain unsupported constructs clearly. Prefer
+simplifying workflow source over generalizing the analyzer. A partial graph is
+diagnostic evidence, not an accepted alternative to this aesthetic. This
+clarification governs interpretation of the extraction boundary below.
+
 ## 1. The concrete graph type
 
 Put these declarations in package

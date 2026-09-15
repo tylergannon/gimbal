@@ -9,3 +9,5 @@ doc_bug: The owner's proof list attributes parallel children and nested supervis
 friction: Research linked from issue 201 is on the graph-research branch and absent from this worktree. Cache the issue including comments and the three relevant files from pinned commit ecfa2d8 beside the handoff so implementation does not lose the superseding comment or require remote prompt sources.
 
 decision: The proposed graph keeps scope containment, session ownership, control endpoints, and supervision separately typed. Static helper expansion IDs retain lexical source identity and call context; repeated runtime tasks never duplicate source templates.
+
+correction: Tyler explicitly intends a statically mappable workflow aesthetic: as a rule of thumb, lint against anything that obscures possible source structure, including dynamic task dispatch, just as with dynamic Set keys. Unknown iteration counts and []Task contents are primitive runtime exceptions. Prefer explicit workflow source over more elaborate analysis; treating arbitrary dynamic dispatch as a capability to accommodate misstates the intended product. Recorded in AGENTS.md and the implementation handoff.

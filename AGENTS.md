@@ -9,6 +9,22 @@ web page that shows every run live. It restarted from an empty tree on
 As simple as possible. Add a name only when a workflow that exists needs
 it. Everything else is ordinary Go written in the workflow.
 
+## Workflow aesthetic
+
+A workflow's possible structure should be explicit and statically mappable
+from its Go source. As a rule of thumb, lint against constructs that hide
+that structure and advise the author to make it explicit. Dynamic worker
+dispatch is an authoring violation, like a dynamic `Set`/`SetJSON` key;
+write direct calls in ordinary `if`/`switch` branches. Prefer clear workflow
+source over increasingly elaborate analysis to accommodate hidden structure.
+
+Primitive runtime variability is expected: the extractor cannot know how
+many times a loop will run or the contents of its `[]Task`. It maps the
+loop and task-body template. Branch choices, prompts, command arguments,
+and other runtime values may vary while the possible operations and their
+structural relationships remain explicit. This aesthetic guides bounded
+lint rules; it does not require exhaustive analysis of arbitrary Go.
+
 ## Read first
 
 - `go doc -all .`: the current public API and its behavioral contract.

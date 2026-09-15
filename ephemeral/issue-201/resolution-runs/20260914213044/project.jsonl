@@ -1,0 +1,2 @@
+{"seq":0,"time":"2026-09-15T03:30:44.764853Z","scope":"","event":{"kind":"run_started","name":"run-prompt"}}
+{"seq":0,"time":"2026-09-15T03:38:02.270237Z","scope":"","event":{"error":"gimble: run-prompt.1: claude: assistant error: invalid_request","kind":"run_ended","name":"run-prompt"}}

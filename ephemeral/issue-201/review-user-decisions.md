@@ -12,3 +12,9 @@ These are requirements from the conversation with Tyler, recorded for the indepe
 - Tyler resolved graph revision identity by asking "Why not just record the shape as JSON when the run begins?" and then requesting it be written down. Save the supplied generated Graph with the run; the viewer reads that snapshot. This replaces source fingerprint/revision matching and historical lookup against compiled graphs. The canonical Go model is serialized through polytype.
 
 The latest instruction is to build gimble and use gimble run-prompt with Claude Fable 5.1 to review the handoff against the issue definition.
+
+## Follow-up after the review
+
+Tyler asks Fable to resolve both review findings, with Codex reacting to its changes afterward. The graph contract must be actual Go source files that compile, not a graph definition in Markdown. The handoff should link to those Go files and explain the decisions.
+
+Tyler selected natural recursive Go types with a handwritten Graph JSON codec for now, and requested a polytype feature issue for recursive type support. Do not flatten the model into reference tables to accommodate the current generator. The actual contract must compile as Go source.

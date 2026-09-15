@@ -8,12 +8,25 @@ list of workflows; save the generated graph as JSON when each run begins. Workfl
 remain ordinary Go. This document is a proposed implementation design, not an
 implementation or a claim that extraction already works.
 
+**Integration status:** the recursive Go contract exists and compiles. Polytype
+serialization support is being implemented independently in
+[issue 127](https://github.com/tylergannon/polytype/issues/127); recursive JSON
+Schema may remain unsupported. Wait for that merge before integrating generated
+codecs. The handwritten JSON codec is an interim checked artifact, not a reason
+to add an untyped web transport. Fable's proposed exclusion of caller-module web
+applications below is not accepted; the binding design must retain that use case.
+See [Codex's reaction](./codex-reaction.md).
+
 **Design status:** the accepted nested model is recorded in
 [graph-model.md](/Users/tyler/.codex/worktrees/a256/gimble/ephemeral/issue-201/graph-model.md).
-It supersedes the former flat Graph declaration. The final production struct
-awaits the recursive encoding decision described there; the approved command API
-also needs its concrete contract before implementation.
-This handoff is not yet a settled type contract for Sol to implement verbatim.
+It supersedes the former flat Graph declaration. The type contract is settled
+and written as compilable Go in [graph-contract/](/Users/tyler/.codex/worktrees/a256/gimble/ephemeral/issue-201/graph-contract/):
+`graph.go` holds every declaration, `codec.go` the interim handwritten JSON
+codec, `declare.go` the polytype declaration, `graph_test.go` the round-trip
+proof, and `polytype-attempt.txt` the pinned generator's rejection. Sol moves
+those files to `workflow/` without changing their shape. The approved command
+API still needs its name and signature before the extractor can recognize its
+calls; that is the one open contract, and it is Tyler's to name.
 
 Read the locally cached issue and its owner comment:
 `/Users/tyler/.codex/worktrees/a256/gimble/ephemeral/issue-201/issue-and-comments.md`.
@@ -130,22 +143,42 @@ Graph is conceptually the root subgraph with workflow identity and source/build
 metadata. It describes the selected structure connecting calls, commands, and
 context writes, rather than every Go statement or a general control-flow graph.
 
-The recursive encoding must be settled before writing the exact production
-declarations in `github.com/tylergannon/gimble/workflow`. Both nested bodies and
-nested supervisors are recursive; pinned polytype v1.0.0 rejects recursive
-definitions. Choose recursive support in polytype or child references in the
-canonical Go model. Neither choice changes the agreed conceptual structure.
-Do not introduce a second handwritten JSON/TypeScript model.
+The production declarations for `github.com/tylergannon/gimble/workflow` are
+the files in [graph-contract/](/Users/tyler/.codex/worktrees/a256/gimble/ephemeral/issue-201/graph-contract/). Tyler settled the encoding
+on 2026-09-14: keep the natural recursive Go model (`[]Operation` bodies inside
+subgraphs, `Supervisor` inside `Supervisor`) and handwrite its JSON codec until
+polytype accepts recursive types. Codex is filing that polytype feature request.
+Nothing is flattened into reference tables, and there is no second Go model:
+`codec.go` emits exactly the wire shape polytype generates for
+`SealedUnion[Operation]("kind", polytype.Snake)`, so replacing it with generated
+code later changes no bytes. `declare.go` already holds that declaration under
+the `jsonschema` build tag, which also excludes `codec.go`, so generated owner
+codecs can never collide with the handwritten ones.
+
+Proven now by `go test ./ephemeral/issue-201/graph-contract/`:
+
+- both build variants compile (`go build .` and `go build -tags jsonschema .`);
+- a graph with every Operation variant, three nesting levels, an ancestor-owned
+  supervisor reused inside a repeated task, and a nested supervisor round-trips
+  through JSON byte-for-byte and decodes to the same value twice;
+- unknown kinds, missing kinds, fields belonging to another variant at any
+  depth, and unknown root fields are rejected on decode;
+- nil slices encode as `[]`, matching polytype's generated encoder.
+
+Not proven, and dependency work: pinned polytype v1.0.0 rejects the package
+(`polytype-attempt.txt` records "cyclic dependency found" at `Supervisor`), so
+no JSON Schema, `ValidateJSON`, TypeScript declaration, or devalue codec exists
+for `workflow.Graph`. The handwritten codec produces the JSON; it does not
+teach polytype or skgo the type. Until the polytype request lands, a skgo query
+returning `workflow.Graph` cannot be generated; section 3 gives the interim.
 
 The Group launch/Wait modeling requirement is withdrawn. Scoped agent work in
 the right order is the target; a whole-program map or scheduling timeline is not.
 Command calls will use the approved execution primitive described below, whose
 public name, signature, and result contract still need to be defined.
 
-The old Graph struct has been removed from this handoff so it cannot be mistaken
-for the accepted implementation target. Its earlier compile and 17-variant codec
-probes remain historical evidence only. Once the encoding is settled, include
-all production declarations here and verify their actual polytype/skgo projections.
+The old flat Graph struct and its 17-variant codec probe are historical
+evidence only; `graph-contract/graph.go` is the implementation target.
 
 ### Identity and completeness
 
@@ -182,9 +215,12 @@ type Workflow[T any] interface {
 ```
 
 For `Sprint(context.Context, Input) error`, generate `workflow_gen.go` in the
-sprint package with an exported zero-state type `SprintWorkflow`, an exported value
+sprint package with the exported value the owner comment asked for,
 `var Workflow SprintWorkflow`, a compile-time `gimble.Workflow[Input]`
-assertion, and these methods:
+assertion, and these methods on the zero-state type `SprintWorkflow`. That type
+is exported only because `gimble generate-bindings -workflow-type` (section 3)
+selects workflows by type name from another package; it carries no state and
+has no other purpose.
 
 - `Name() string`: returns the selected constant name.
 - `Graph() workflow.Graph`: returns the generated literal, with fresh backing
@@ -195,12 +231,19 @@ No context, runtime, input, or closure lives in that generated value. It neither
 starts a run nor registers itself. `workflow` imports no runtime/web packages;
 `gimble` can import `workflow`; `web` imports both without a cycle.
 
-Expose a generator at `cmd/gimblegraph`. Proposed caller directive, executed in
-the workflow package, using the dependency version selected in the caller's module:
+Graph generation is a subcommand of the one `gimble` binary, a sibling of
+`generate-bindings` (section 3) beside the existing `run-prompt` and `lint`
+subcommands in `cmd/main.go`; there is no second generator binary. Proposed
+directive, executed in the workflow package with the gimble version the
+caller's module selects:
 
 ```go
-//go:generate go run github.com/tylergannon/gimble/cmd/gimblegraph -name sprint -entry Sprint -output workflow_gen.go
+//go:generate go run github.com/tylergannon/gimble/cmd generate-graph -name sprint -entry Sprint -out workflow_gen.go
 ```
+
+`generate-graph` is a proposed name for Tyler to confirm. `isOrdinaryCLI` in
+`cmd/main.go` must recognize both new subcommands ahead of the vet-protocol
+check, as it does `run-prompt`.
 
 The flags explicitly select one package-local entry function and constant name.
 Infer Input from its signature; require exactly `(context.Context, T) error`.
@@ -298,7 +341,7 @@ Add the requested `gimble generate-bindings` command. The author's directive
 selects concrete workflow types, for example:
 
 ```go
-//go:generate gimble generate-bindings -workflow-type MyType,MyOtherType -pkg ./workflows -out web/src/routes/new/generated_[type].remote.go
+//go:generate go run github.com/tylergannon/gimble/cmd generate-bindings -workflow-type MyType,MyOtherType -pkg ./workflows -out web/src/routes/new/generated_[type].remote.go
 ```
 
 The optional `-pkg` selects the source package, defaulting to the current package.
@@ -306,7 +349,8 @@ The optional `-pkg` selects the source package, defaulting to the current packag
 Use skgo's `*.remote.go` convention for emitted remote declarations, including
 the default filename, so the existing generator discovers them. Authors choose
 page paths and links explicitly. Workflow selection is resolved at build time.
-The exported SprintWorkflow type generated in section 2 is one such selection.
+`-workflow-type SprintWorkflow` selects the type section 2 generates; selection
+by type name is the reason that type is exported.
 
 For each selected type, infer its concrete Input from Run's signature and emit
 a separate typed start function. For example, a sprint binding has this shape:
@@ -321,12 +365,34 @@ use the existing skgo pipeline to generate the TypeScript caller, strict input
 decoder, and response encoder. No function dispatches by a submitted workflow
 name or converts every Input into a common request type.
 
-Keep the generated route package independent of `web`: web already imports the
-generated skgo application, so importing web from a route would create a cycle.
-Provide the shared typed start bridge through the root package, available to
-caller modules, with the owning runtime reached through its request context.
-The runtime supplies that bridge's execution machinery. Concrete Input values
-remain typed throughout; the bridge does not require workflow registration.
+Keep the generated route package independent of `web`: `web/server.go` imports
+the generated skgo application, which imports the route packages, so a route
+importing `web` is a cycle. Route Go already reaches runtime-owned state through
+the request context: `web/runtime.go` puts the observation registry into the
+runtime context with `observation.WithRegistry`, the HTTP server's `BaseContext`
+returns that context, and `web/src/routes/runs/[runID]/page.server.go` reads it
+back with `observation.FromContext(request.Context())`. Run starting uses that
+same mechanism through `internal/live`, the package that already carries the
+run/runtime handshake (`live.Hook`, `live.WithHook`, `live.FromContext`):
+
+```go
+// Start creates one run in the runtime's lifetime, saves graph, and returns
+// the run id once the run exists; body runs on in the background.
+type Start func(name string, graph workflow.Graph, body func(context.Context) error) (id string, err error)
+
+func WithStart(ctx context.Context, start Start) context.Context
+func StartFrom(ctx context.Context) Start
+```
+
+`web.NewRuntime` puts its Start into the runtime context beside the registry.
+The generated `startSprint` takes it from the request context and hands it the
+constant name, `sprint.Workflow.Graph()`, and a closure calling
+`sprint.Workflow.Run(ctx, in)`. The runtime's Start derives the run context from
+its own lifetime, writes `graph.json`, registers the run, starts the body, and
+returns the ID. There is no root-package export and no new public name. Route
+packages in this module may import `internal/live`; a caller module's own web
+application is outside this plan, and its entry is `Runtime.Run[T]` above.
+Concrete Input values remain typed throughout and nothing is registered.
 
 The workflow-specific page imports that concrete caller and generated Input
 type. Its fields, defaults, help text, validation presentation, layout, and
@@ -379,9 +445,16 @@ must preserve it. No digest fields or graph copies in every lifecycle event or
 table are required for this association.
 
 Add the smallest typed skgo queries needed to inspect the current generated
-shape and a run's saved shape. Return workflow.Graph through the existing generated
-boundary. Verify the actual serialized query result. No second handwritten graph
-DTO, graph canvas implementation, or generic input dispatcher is part of this work.
+shape and a run's saved shape. The target is to return `workflow.Graph` through
+the existing generated boundary, but skgo generates that boundary with
+polytype, which rejects the recursive type today (section 1). Until the
+polytype request lands, carry the graph the way `page.server.go` already
+carries the run snapshot: the saved `graph.json` text in a transported string
+field like `hooks.RunSnapshot`, parsed untyped on the page. That is an interim
+transport of the canonical JSON, not a second graph model; delete it when
+polytype generates the typed query. Verify the actual serialized query result.
+No second handwritten graph DTO, graph canvas implementation, or generic input
+dispatcher is part of this work.
 
 ### Context lifetime
 
@@ -401,10 +474,12 @@ shared runtime start implementation underneath the concrete generated bindings.
 
 ## 5. Delivery sequence
 
-1. Settle the recursive encoding and approved command API contract against the
-   accepted model; write and verify the complete Graph declarations. Then land the
-   graph invariants and generated typed workflow contract. Prove minimal generation
-   from a separate module before growing extraction coverage.
+1. Move `graph-contract/` to `workflow/` as written; the encoding is settled and
+   the declarations and codec are verified there. Land the graph invariants and
+   the generated typed workflow contract. The approved command API's name and
+   signature are the one remaining contract; Tyler names it before the extractor
+   recognizes Command sites. Prove minimal generation from a separate module
+   before growing extraction coverage.
 2. Extract the actual sprint helper chain and structural fixtures. Replace only
    its fixed check loop with explicit `go vet ./...` and `go test ./...` calls and
    Set keys `"repository check 1"` / `"repository check 2"`. Preserve order,
@@ -419,9 +494,10 @@ shared runtime start implementation underneath the concrete generated bindings.
 4. Demonstrate the claims below, then complete normal build/lint/Go/web and
    generation-drift checks. Report failures as failures, not as narrative success.
 
-Likely implementation locations: new `workflow/graph.go`, root `workflow.go`,
-`cmd/gimblegraph/`, a small internal extraction package, and the
-`generate-bindings` subcommand in `cmd/`; existing
+Likely implementation locations: new `workflow/` (moved from graph-contract),
+root `workflow.go`, a small internal extraction package, the `generate-graph`
+and `generate-bindings` subcommands in `cmd/`, and the Start helper in
+`internal/live`; existing
 `internal/gimblelint/`, `internal/workflows/sprint/`, `cmd/sprint/main.go`,
 `web/runtime.go`, `run.go`, `internal/observation/`, and typed query
 declarations in `web/src/routes/`. Generated files are produced by their tools.
@@ -443,8 +519,8 @@ README explains the explicit workflow list, generation, and authored-page contra
 | Failure is inspectable and fails closed | Dynamic Set keys, map-dispatched workers/simple aliases, and unresolved structural targets produce anchored diagnostics and nonzero gates. A valid dynamic branch/data fixture passes. Failed regeneration cannot leave a stale clean graph presented as current. |
 | Each run retains its shape | Start a run, change/rebuild the workflow, and restart the application: the old run still displays its original graph.json and a new run saves the new shape. A graph write failure prevents workflow execution. Table rebuilding preserves the saved graph; a run without a graph is never assigned today's shape. |
 | Cancellation is independent | Two active runs share one runtime; cancel A and B remains active; another run can start after A ends. Runtime cancellation stops all active runs. An already-cancelled synchronous caller does not start workflow work. |
-| Go remains the single graph model | Inspect a run's saved graph through a real skgo query and generated TypeScript/devalue boundary, comparing nested bodies or their encoded child references, command semantics, session ownership, and hierarchical attachments. No hand-maintained JSON/TS graph model. |
-| Operations remain a sealed union across projections | Every concrete Operation/Subgraph variant and multiple levels of supervision round-trip through the chosen Graph encoding and generated JSON/devalue codecs. Generated TS discriminates on kind; unknown kinds and fields belonging to another variant are rejected at the decoding boundary. The old nonrecursive 17-variant probe does not satisfy this claim. |
+| Go remains the single graph model | Inspect a run's saved graph through a real skgo query and generated TypeScript/devalue boundary, comparing nested bodies, command semantics, session ownership, and hierarchical attachments. No hand-maintained JSON/TS graph model. Gated on polytype recursive-type support: until then the interim string transport in section 3 applies and this row is not claimable. |
+| Operations remain a sealed union across projections | Every concrete Operation/Subgraph variant and multiple levels of supervision round-trip through the handwritten JSON codec (proven today by `graph-contract/graph_test.go`), and through generated JSON/devalue codecs and TypeScript once polytype accepts recursive types. Unknown kinds and fields belonging to another variant are rejected at the decoding boundary (proven today). The old nonrecursive 17-variant probe does not satisfy this claim. |
 
 Use source fixtures for static claims and an isolated executable caller module for
 runtime claims. A harmless real command and a cheap native agent turn can demonstrate

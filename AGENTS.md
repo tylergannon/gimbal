@@ -43,8 +43,10 @@ session and do not clone conversations or duplicate turns/usage. Creating a
 session in each task instead gives each task a fresh conversation. Shared sessions
 still accept one active turn at a time.
 
-The accepted model and outstanding encoding choices are recorded in
-`ephemeral/issue-201/graph-model.md`.
+The accepted model is recorded in `ephemeral/issue-201/graph-model.md`; its
+compilable Go contract is in `ephemeral/issue-201/graph-contract/graph.go`.
+Recursive Go is the selected representation. Polytype issue 127 owns generated
+recursive serialization support; wait for its merge before integrating it.
 
 Save the generated workflow.Graph as JSON with each run when it begins. The
 viewer reads that saved shape, including after the workflow changes. Go remains

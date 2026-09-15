@@ -1,0 +1,17 @@
+{
+  "model": "claude-fable-5-1",
+  "binary": "/Users/tyler/.codex/worktrees/a256/gimble/bin/gimble",
+  "logs": "/Users/tyler/.codex/worktrees/a256/gimble/ephemeral/issue-201/resolution-runs/20260914213044",
+  "prompt_file": "/Users/tyler/.codex/worktrees/a256/gimble/ephemeral/issue-201/fable-resolution-prompt-20260914213044.txt",
+  "report": "/Users/tyler/.codex/worktrees/a256/gimble/ephemeral/issue-201/fable-resolution-20260914213044.md",
+  "baseline": "e1edfab",
+  "native_session": "8c757efc-819a-4bd3-a4c5-77bbb997fc6c",
+  "run_prompt_exit_code": 1,
+  "run_prompt_error": "claude: assistant error: invalid_request",
+  "native_resume_exit_code": 0,
+  "native_resume_model": "claude-fable-5-1",
+  "native_resume_prompt": "ephemeral/issue-201/fable-resolution-resume-prompt.txt",
+  "native_resume_output": "ephemeral/issue-201/fable-resolution-native.jsonl",
+  "bug": "https://github.com/tylergannon/gimble/issues/217",
+  "polytype_dependency": "https://github.com/tylergannon/polytype/issues/127"
+}

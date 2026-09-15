@@ -3,7 +3,9 @@
 This records Tyler's latest direction for issue 201. It supersedes the earlier
 flat operation/edge model in the implementation handoff and its 17-variant probe.
 These are the semantic decisions to preserve across implementation and further
-design work. Production types and recursive encoding are not implemented yet.
+design work. The types are written as compilable Go in
+[graph-contract/](/Users/tyler/.codex/worktrees/a256/gimble/ephemeral/issue-201/graph-contract/) (see "Encoding decision" below);
+placing them in the production `workflow/` package is Sol's implementation step.
 
 ## What the graph describes
 
@@ -73,7 +75,10 @@ Operation and Subgraph should use sealed interfaces with concrete struct
 variants. Concrete subgraph variants can implement both markers directly, so
 they can occur in ordered bodies. An interface itself is not a concrete union
 member. Keep polytype's inferred union membership; do not maintain an independent
-Kind plus nullable payload scheme or a second handwritten JSON model.
+Kind plus nullable payload scheme or a second handwritten JSON model. The interim
+handwritten codec in `graph-contract/codec.go` is not a second model: it writes
+the wire shape polytype will generate and is deleted when polytype accepts
+recursive types.
 
 ## Agent sessions and commands
 
@@ -143,21 +148,13 @@ a sequential prerequisite or an approval gate for the validation command.
 An attachment can exist without any look occurring; a look need not produce a
 steer, and a steer may land or be dropped.
 
-The agreed semantic shape is:
+The concrete supervision declarations are in
+[graph-contract/graph.go](/Users/tyler/.codex/worktrees/a256/gimble/ephemeral/issue-201/graph-contract/graph.go).
+The contract lives in Go source; this document explains its meaning.
 
-```go
-type Supervision struct {
-	Target      string       // Watched call's static ID.
-	Supervisors []Supervisor // Unordered.
-}
-
-type Supervisor struct {
-	Session     string
-	Instruction Expression
-	Interval    Expression
-	Supervisors []Supervisor // Watch this supervisor's look turns.
-}
-```
+A `Supervision` list hangs off whichever construct owns the watched call's
+execution scope: `Graph` for the run root, `Scope`, `Loop` (the task scope
+`Tasks` establishes), or a `GroupChild`. It never sits inside the ordered body.
 
 Nesting supplies the target for higher supervisors. Do not manufacture separate
 look-operation nodes merely to connect nested attachments. Actual look turns and
@@ -251,31 +248,47 @@ This removes the proposed source fingerprints, graph revision matching, and
 historical lookup against compiled graphs. Current graphs may still be inspected
 before starting a run, but they are not substitutes for an older run's snapshot.
 
-## Encoding decision still open
+## Encoding decision
 
 The natural model is recursive in two places:
 
 1. Subgraph → ordered body → Subgraph.
 2. Supervisor → Supervisors → Supervisor.
 
-Pinned polytype v1.0.0 rejects recursive type definitions. Its support for sealed
-unions does not itself make either recursive structure serializable. Two possible
-implementation paths remain:
+Tyler settled the encoding on 2026-09-14: keep the natural recursive Go model
+and handwrite its JSON codec for now. Codex is filing a polytype feature request
+for recursive types. The model is not reshaped into reference tables.
 
-- Add recursive-type support to polytype.
-- Represent child relationships by static references in the serialized Go model.
+The contract is the package in [graph-contract/](/Users/tyler/.codex/worktrees/a256/gimble/ephemeral/issue-201/graph-contract/):
 
-Keep the conceptual model nested either way. References would encode child
-membership/order and supervisor parentage; they do not require restoring the old
-general control-flow graph. Go remains the canonical type, with projection through
-polytype/skgo rather than a separately designed JSON/TypeScript contract.
+- `graph.go`: `Graph`, `Source`, `Site`, `Expression`, `Session`, the sealed
+  `Operation` and `Subgraph` interfaces, the variants `AgentCall`, `Command`,
+  `Set`, `SetJSON`, `Exit` (with `ExitKind`), `Sequence`, `Condition` and
+  `Branch`, `Loop`, `Scope`, `Group` and `GroupChild`, plus `Supervision`,
+  `Supervisor`, and `Diagnostic`.
+- `codec.go` (`//go:build !jsonschema`): owner codecs for every struct holding a
+  `[]Operation`, mirroring the owner codecs polytype generates for
+  `LifecycleRecord` in the root package. Each operation is one object whose
+  `"kind"` is the snake_case type name (`agent_call`, `set_json`, ...). Nil
+  slices encode as `[]`; unknown or foreign properties are rejected on decode.
+- `declare.go` (`//go:build jsonschema`): `polytype.Declare(Graph.Schema)` and
+  `polytype.SealedUnion[Operation]("kind", polytype.Snake)`, the declaration
+  that replaces the handwritten codec once polytype accepts recursion.
+- `graph_test.go`: round trip of a graph containing every variant, three levels
+  of nesting, an ancestor-owned supervisor reused across a repeated task, and a
+  nested supervisor; rejection of unknown kinds and foreign fields.
+- `polytype-attempt.txt`: pinned polytype v1.0.0 run against the package,
+  failing with "cyclic dependency found" at `Supervisor`.
 
-The encoding choice has not been made. This codification does not authorize a
-polytype implementation change or settle the final Graph field layout. Finalize
-that choice and the command API contract before handing Sol an exact
-production struct to implement. Do not silently ship the superseded flat struct
-as a workaround. The earlier 17-variant projection probe proves only that earlier
-nonrecursive model's codecs; it is not proof for this model.
+What this settles: the Go field layout, the JSON wire shape, and the JSON codec.
+What it does not settle: the TypeScript and devalue boundary. A handwritten JSON
+codec does not teach polytype the type, so no JSON Schema, `ValidateJSON`,
+TypeScript declaration, or devalue codec exists for `workflow.Graph` until the
+polytype request lands. Until then a run's saved `graph.json` crosses to the
+page as text, the way the run snapshot already does, and is parsed untyped;
+that is an interim transport of the canonical JSON, not a second model. Go
+remains the canonical type. The earlier 17-variant projection probe proves only
+that earlier nonrecursive model's codecs; it is not proof for this model.
 
 ## Acceptance consequences
 
@@ -290,5 +303,7 @@ nonrecursive model's codecs; it is not proof for this model.
   a locally created reviewer gets a new session in each task instead.
 - A worker finishing before the supervisor's first look remains a valid run.
 - Show attachment-local placement without duplicating observed turns or usage.
-- Prove the chosen recursive/reference representation through actual generated
-  JSON and devalue codecs and TypeScript projection before claiming it works.
+- The recursive representation's JSON codec is proven by
+  `graph-contract/graph_test.go`. Generated devalue codecs and TypeScript
+  projection are gated on polytype recursive-type support; do not claim them
+  until polytype generates them.

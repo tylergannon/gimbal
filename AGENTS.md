@@ -46,6 +46,11 @@ still accept one active turn at a time.
 The accepted model and outstanding encoding choices are recorded in
 `ephemeral/issue-201/graph-model.md`.
 
+Save the generated workflow.Graph as JSON with each run when it begins. The
+viewer reads that saved shape, including after the workflow changes. Go remains
+canonical; polytype supplies serialization. Run visualization needs no source
+fingerprint, graph revision matching, or historical lookup against compiled graphs.
+
 ## Workflow commands
 
 The intended command API is one approved, opinionated Gimble execution function

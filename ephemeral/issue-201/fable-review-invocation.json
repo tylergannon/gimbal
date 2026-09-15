@@ -1,0 +1,18 @@
+{
+  "model": "claude-fable-5-1",
+  "review": "/Users/tyler/.codex/worktrees/a256/gimble/ephemeral/reviews/20260914211117-issue-201-fable-5-1-round-01.md",
+  "logs": "/Users/tyler/.codex/worktrees/a256/gimble/ephemeral/issue-201/review-runs/20260914211117",
+  "prompt_file": "/Users/tyler/.codex/worktrees/a256/gimble/ephemeral/issue-201/fable-review-prompt.txt",
+  "binary": "/Users/tyler/.codex/worktrees/a256/gimble/bin/gimble",
+  "build_command": "go build -o bin/gimble ./cmd",
+  "build_exit_code": 0,
+  "run_prompt_exit_code": 1,
+  "run_id": "01M2HGR9MV1E7YHGX9E0X7NGNQ.run-prompt",
+  "session_id": "a4c7091c-e94c-437f-9740-e598de944ce0",
+  "gimble_session": "run-prompt.1",
+  "outcome": "material findings remain",
+  "review_sha256": "76526cd190c7d3cfdfe8ec896c3b99cf844976c5992754984e2783215fe84d76",
+  "duration_ns": 651246705792,
+  "error": "claude: assistant error: invalid_request",
+  "review_written_before_error": true
+}

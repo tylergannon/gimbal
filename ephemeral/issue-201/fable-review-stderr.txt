@@ -1,0 +1,5 @@
+2026/09/14 21:11:17 gimble: run 01M2HGR9MV1E7YHGX9E0X7NGNQ.run-prompt started in /Users/tyler/.codex/worktrees/a256/gimble/ephemeral/issue-201/review-runs/20260914211117/runs/01M2HGR9MV1E7YHGX9E0X7NGNQ.run-prompt
+2026/09/14 21:11:17 gimble: run-prompt.1: turn started (claude-fable-5-1)
+2026/09/14 21:22:08 gimble: run-prompt.1: turn ended after 10m51s: claude: assistant error: invalid_request
+2026/09/14 21:22:08 gimble: run 01M2HGR9MV1E7YHGX9E0X7NGNQ.run-prompt ended: gimble: run-prompt.1: claude: assistant error: invalid_request
+gimble: gimble: run-prompt.1: claude: assistant error: invalid_request

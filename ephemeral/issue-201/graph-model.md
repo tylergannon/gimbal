@@ -239,6 +239,18 @@ This illustrates the model; it is not a complete extraction of the current
 sprint. Supervision is attached to the calls as described above, separately
 from their ordered bodies.
 
+## The run owns its saved shape
+
+When a run begins, save the supplied generated Graph as JSON alongside the run's
+records. The viewer reads that saved shape for the life of the run and after
+restart. Changes to today's workflow do not change an older run's description.
+
+Go workflow.Graph remains the canonical model; polytype supplies the JSON
+serialization. Generated Go is the build artifact; graph.json is the run artifact.
+This removes the proposed source fingerprints, graph revision matching, and
+historical lookup against compiled graphs. Current graphs may still be inspected
+before starting a run, but they are not substitutes for an older run's snapshot.
+
 ## Encoding decision still open
 
 The natural model is recursive in two places:

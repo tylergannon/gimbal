@@ -3,8 +3,8 @@
 Written 2026-09-13 on branch `claude/token-usage-coverall-12e8d5`, which was
 cut from `claude/token-usage-by-scope-50a907` at `3659f25`. Main has since
 moved to `ad6f2f6` (#160, #161, #166, #167); none of those touch the
-observation store, the adapters' usage paths, or the page, so the drafts'
-file citations still hold, though some line numbers have shifted.
+observation store, the adapters' usage paths, or the page. The drafts were
+deleted on 2026-09-15; they are in git history.
 
 ## 1. Branch `claude/token-usage-by-scope-50a907`
 
@@ -28,9 +28,8 @@ Svelte, or TypeScript changed.** The three named drafts:
   fields decoded from `Lifecycle.Record` inside the observation package,
   an axis driven by `run.updated` (max frame timestamp), a root bar that
   spans `run_started` to `run_ended`, a `Result` field on the turn, a
-  recursive snippet instead of new components, and a proof program with a
-  200-word preamble to force cache use and a real Loop dispatch. No open
-  decisions.
+  recursive snippet instead of new components, and a proof program (since
+  rejected: there are none). No open decisions.
 - `docs/sprints/drafts/SPRINT-001-ASTRA-REVIEW.md` (106 lines): adversarial
   review of `SPRINT-001.md` plus amendments. Five findings (three P1, two
   P2), all against the earlier plan, all addressed by both coverall drafts.
@@ -48,7 +47,7 @@ design, two of which the comment's named merge already settles:
 | Live axis end | `Date.now()` inside `$derived` on revision | `run.updated`, the max timestamp of every accepted frame including text deltas | comment: Astra's |
 | Root bar | root scope `began`/`ended` | `run_started`/`run_ended` (cleanup included) | comment: Astra's |
 | `Result` on the turn | absent | present | comment: Astra's |
-| Proof program | five scopes, discards results, Loop dispatch | same topology, results fed to the judge, preamble to force cache, `dispatched` guard | comment: Astra's |
+| Proof program | five scopes, discards results, Loop dispatch | same topology, results fed to the judge, preamble to force cache, `dispatched` guard | neither: there are no proof programs (Tyler, 2026-09-15) |
 
 Not settled by the comment (decided in the coverall as written, stated there):
 

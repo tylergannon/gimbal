@@ -1,6 +1,0 @@
-$ go build ./ephemeral/attest/skill/bakeoff/ && go vet ./ephemeral/attest/skill/bakeoff/
-exit 0
-
-$ gofmt -l ephemeral/attest/skill/bakeoff/main.go
-(no output)
-gofmt exit 0

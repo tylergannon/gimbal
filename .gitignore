@@ -34,7 +34,6 @@ docs-site/dist/
 !/ephemeral/research/issue-130/execution/
 /ephemeral/research/issue-130/execution/*
 !/ephemeral/research/issue-130/execution/DELIVERY.md
-!/ephemeral/research/issue-130/proof/
 /ephemeral/research/issue-149/*
 !/ephemeral/research/issue-149/README.md
 !/ephemeral/research/issue-149/FINDINGS.md

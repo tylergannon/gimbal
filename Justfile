@@ -28,8 +28,5 @@ test:
     go test -count=1 ./...
     cd web && pnpm test
 
-attest:
-    go run ./ephemeral/attest/just-attest
-
 prices:
     go run ./internal/observation/modelpricesgen

@@ -297,13 +297,11 @@ through their generators.
 | codex/ and claude/ | Raw identity preservation and native normalization |
 | web/runtime.go, web/server.go, web/src/routes/ | Existing production composition, snapshot/SSE observation and minimal read-only page |
 | internal/runlog/reader.go | Keep history/recovery role; remove per-available-record delay where it affects recovery |
-| internal/sessionstate/testdata/ and proof scripts | Sanitized captured fixtures, explicit synthetic fixtures, prefix/restoration runner, assertion controls |
-| e2e/ and a small example/proof program | Actual consumer driver, deterministic races, live workflows and measurements |
+| internal/sessionstate/testdata/ | Sanitized captured fixtures, explicit synthetic fixtures |
 | Generated schemas/bindings | Regenerated only when source definitions change |
 
-The proof program writes its workflow inline using existing Gimble
-primitives. It is a consumer of production packages, not an alternative
-implementation of the reducer/store/endpoint.
+There is no proof program: the live run is watched and reported, never
+committed.
 
 ## Definition of Done
 

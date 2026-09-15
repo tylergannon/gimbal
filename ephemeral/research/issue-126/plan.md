@@ -60,8 +60,7 @@ that exits early without cancelling the run, and a cancelled run that returns
 only after its join. The focused kill/cancel and runtime registry tests retain
 the same checks with explicit joins.
 
-The live record under `ephemeral/attest/issue126/logs/` is run
-`01M2GRK1K6X5N539KCB0R66DFF.completion`: Codex `gpt-5.6-luna` returned
+The live run `01M2GRK1K6X5N539KCB0R66DFF.completion` showed: Codex `gpt-5.6-luna` returned
 `ISSUE_126_LIVE`; its log has a clean `turn_ended`, `run_ended`, and final
 `complete`, while the external reader reached that record before the joined
 `Run` returned nil.

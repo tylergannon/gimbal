@@ -18,7 +18,7 @@ Godoc is the API contract. `API.md` preserves the decisions and reasons. The
 reports beside it are done with.
 
 Rules: as simple as possible, no name that `API.md` does not have, tactics
-inline in the workflow. Attestation runs on the cheap tier (`gpt-5.6-luna`,
+inline in the workflow. Live runs to see something work use the cheap tier (`gpt-5.6-luna`,
 Haiku, flash); real build runs on whatever Tyler picks. Legacy code is
 rewritten against the new contract, not spliced.
 
@@ -77,17 +77,13 @@ Ship: `go get github.com/tylergannon/gimble` and write any workflow in
   another loop. Then the
   planner files what is left as issues and merges the branch with `gh`. No
   bake-off: it multiplies every assignment's cost, and a sprint does not need it.
-- `Justfile` gains `vet`, `test`, `attest`. Tests: every primitive over a
-  fake adapter. `just attest`: one workflow on `gpt-5.6-luna` and Haiku
-  that touches every primitive once (a scope with data, a schema turn, a
-  text turn, a steer that lands and one that drops, an interrupt, a fork,
-  a group of two, a supervised turn with an objection, a loop of two tasks)
-  and prints what it saw.
+- `Justfile` gains `vet` and `test`. Tests: every primitive over a fake
+  adapter.
 
 Proof: Sprint 2 is built by `cmd/sprint`.
 
 Built 2026-09-10 as far as the sprint workflow needs: not yet
-`Session.Interrupt`, `Each`, `Get`, `GetJSON`, or `just attest`, because
+`Session.Interrupt`, `Each`, `Get`, or `GetJSON`, because
 the sprint workflow calls none of them.
 
 `API.md`: Sessions and turns, Context, Scope, Concurrency, Loop,

@@ -1,2 +1,0 @@
-cwd: /Users/tyler/.codex/worktrees/2f67/gimble
-command: /var/folders/lt/09rsy64x65s_0fp2b8zq3n7m0000gn/T/tmp.Ud1GDBHxUn/gimble lint ./ephemeral/issue-162/proof/testdata/rules_good

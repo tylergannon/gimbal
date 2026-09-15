@@ -107,8 +107,7 @@ cancels the ctx, which interrupts every turn. `web.WithNoWeb()` runs without
 the page. `go run ./cmd/sprint -dry-run -issue <file>` shows the sprint
 workflow's prompts and schemas without calling a model; a new workflow that
 wants that writes a fake `HarnessAdapter` the way `internal/workflows/sprint/dryrun.go`
-does. `just vet` and `just test` are the repository's checks; `just attest`
-runs the live attestation on the cheap tier.
+does. `just vet` and `just test` are the repository's checks.
 
 ## Read the record
 
@@ -165,10 +164,18 @@ How each command ended: `jq -c 'select(.event.kind=="command_ended") | {id: .eve
 - Prompts are plain English: what to read, what to do, what to leave
   uncommitted, what to answer with. No boilerplate about being an agent. A
   validator's prompt is one line plus the context it needs.
-- Cheap models for attestation: Codex `gpt-5.6-luna`, Claude
-  `claude-haiku-4-5-20251001`, Gemini `gemini-3.8-flash-low`. Say which
-  model a run used. Proof of a workflow is a live run and its record under
-  `ephemeral/attest/<issue>/`, never a unit test alone.
+- A harness adds its own context: Codex reads the user's global
+  instructions, and a Codex session in a workflow once wrote a worklog
+  nobody asked for. The prompt is not everything the agent sees.
+- Size a supervisor's `WithInterval` to the worker's step. Eight seconds
+  against three-second worker steps gave 29 supervisor turns for 3 worker
+  turns and three quarters of the run's input tokens.
+- Cheap models for any live run you start to see something work: Codex
+  `gpt-5.6-luna`, Claude `claude-haiku-4-5-20251001`, Gemini
+  `gemini-3.8-flash-low`. Say which model a run used.
+- Proof is running the real thing and saying what you saw, in the chat or
+  the PR description. Write no proof program and commit nothing a run
+  produced: no `ephemeral/attest/`, no `result.md`, no logs, no dumps.
 - Never scan from `/` or `$HOME`, in a prompt or in the workflow: name the
   directory.
 - Nothing under `docs/`, `internal/observation/`, `web/src/`, or a generated

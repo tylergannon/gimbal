@@ -149,8 +149,7 @@ var errThreadArchived = errors.New("codex: the thread is archived and cannot be 
 // unarchive on the caller's behalf: on codex-cli 0.153.4, thread/unarchive
 // (and `codex unarchive`) leaves a ghost thread loaded in the daemon, with
 // no rollout and status "active", that nothing can archive or delete until
-// the daemon restarts (observed 2026-09-13, recorded in
-// ephemeral/attest/codex-daemon/proof.txt). So the state is read first
+// the daemon restarts (observed 2026-09-13, #164). So the state is read first
 // (thread/read, which is read-only) and an archived thread is a clear error
 // with no fork, resume, or unarchive call after that read.
 func callThread(ctx context.Context, conn *connection, method string, params map[string]any) (json.RawMessage, error) {
@@ -202,6 +201,12 @@ func (a *adapter) CreateSession(ctx context.Context, model, workdir string) (str
 }
 
 // Fork starts a new thread with the conversation of sessionID so far.
+//
+// On codex-cli 0.153.4 only thread/start takes experimentalRawEvents;
+// thread/fork and thread/resume silently ignore it (#135). A forked thread,
+// or one resumed after the daemon restarts or unloads it, emits no
+// rawResponse/completed, so its usage comes only from
+// thread/tokenUsage/updated.
 func (a *adapter) Fork(ctx context.Context, sessionID string) (string, error) {
 	parent, err := a.session(sessionID)
 	if err != nil {

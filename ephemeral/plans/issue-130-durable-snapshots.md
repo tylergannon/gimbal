@@ -56,7 +56,8 @@ confirmation is needed. Preserve complete state; do not silently window history.
   avoids full-history recovery and a delta does not transmit full state.
 - Use the production handler and browser to show snapshot-first entry, live
   updates, reconnect, and restart. Use Codex gpt-5.6-luna and Claude Haiku for
-  live attestation and name the exact models. Keep measurements in proof code.
+  live runs and name the exact models. Say what was seen in the PR; no proof
+  code, nothing from a run committed.
 - Run checks appropriate to the changed Go, TypeScript, and SSR paths; record
   concrete evidence and limitations. Update conflicting ephemeral contract
   material. Do not edit docs/ without express permission. Commit and push
@@ -68,7 +69,6 @@ Implementation owner: Sol. Work in this existing isolated worktree on branch
 `codex/issue-130-durable-snapshots`. Relevant code: internal/observation/,
 internal/sessionstate/, internal/runlog/, runtime event ingestion, the SSR load
 in web/src/routes/runs/[runID]/page.server.go, and web/src/lib/observation/.
-Existing repeatable browser proof is under ephemeral/research/issue-130/proof/.
 Read the current repository instructions and public contract before changing
 code. This plan authorizes implementation and validation, not a new application
 state model or unrelated features. Escalate only a concrete unresolved product

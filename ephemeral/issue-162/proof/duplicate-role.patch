@@ -1,6 +1,0 @@
-diff --git a/internal/workflows/sprint/sprints.go b/internal/workflows/sprint/sprints.go
---- a/internal/workflows/sprint/sprints.go
-+++ b/internal/workflows/sprint/sprints.go
-@@ -69,0 +70,2 @@ func run(ctx context.Context, in Input, cx, cl gimble.HarnessAdapter) error {
-+	gimble.Set(ctx, "role", "first")
-+	gimble.Set(ctx, "role", "second")

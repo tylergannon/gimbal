@@ -56,8 +56,8 @@ generic workflow framework, or a general scoped-context/event-system redesign.
 
 ## Evidence
 
-The retained [live result](../../attest/issue125/result.txt) and
-[event stream](../../attest/issue125/run.jsonl) record Codex
+The live run (its record was deleted 2026-09-15; run output is never kept)
+showed Codex
 `gpt-5.6-luna` planning and work plus an independent Claude Haiku PASS. The
 no-plan run carries the parent constraint and failed check into adaptive
 follow-up, preserves a real probe exit 7 as failure, and later records exit 0.

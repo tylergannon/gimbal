@@ -25,8 +25,8 @@ func modelPriceFor(model string) (modelPrice, bool) {
 		}
 	}
 	for _, suffix := range []string{"-low", "-medium", "-high"} {
-		if strings.HasSuffix(model, suffix) {
-			model = strings.TrimSuffix(model, suffix)
+		if before, ok := strings.CutSuffix(model, suffix); ok {
+			model = before
 			break
 		}
 	}

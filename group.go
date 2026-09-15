@@ -77,8 +77,7 @@ func (g *group) Go(name string, fn func(ctx context.Context) error) {
 			return
 		}
 		g.once.Do(func() { g.err = err })
-		var killed Killed
-		if !errors.As(err, &killed) {
+		if _, ok := errors.AsType[Killed](err); !ok {
 			g.scope.cancel(nil)
 		}
 	})

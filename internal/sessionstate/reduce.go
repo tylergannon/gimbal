@@ -661,7 +661,7 @@ func (p *Projection) toolFailed(event *Obj) {
 		if status != "streaming" && status != "running" {
 			return
 		}
-		var input any = cloneValue(state.Get("input"))
+		var input = cloneValue(state.Get("input"))
 		if _, ok := state.Get("input").(string); ok {
 			input = NewObj()
 		}

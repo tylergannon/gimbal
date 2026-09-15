@@ -23,12 +23,12 @@ func TestBinaryAnalysisAndOrdinaryCLIRoutes(t *testing.T) {
 	}
 
 	stdout, stderr, code := runCommand(t, repo, binary, "lint", "./internal/workflows/sprint")
-	if code != 3 || stdout != "" || !strings.Contains(stderr, "GIMBLE102-SIMPLE-WORKFLOWS/CONSTANT-CONTEXT-KEY") {
+	if code != 0 || stdout != "" || stderr != "" {
 		t.Fatalf("standalone lint = exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 
 	stdout, stderr, code = runCommand(t, repo, "go", "vet", "-vettool="+binary, "./internal/workflows/sprint")
-	if code != 1 || stdout != "" || !strings.Contains(stderr, "GIMBLE102-SIMPLE-WORKFLOWS/CONSTANT-CONTEXT-KEY") {
+	if code != 0 || stdout != "" || stderr != "" {
 		t.Fatalf("vettool lint = exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 

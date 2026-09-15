@@ -331,11 +331,11 @@ func Example_worktreePerCandidate() {
 				if err != nil {
 					return err
 				}
-				defer os.RemoveAll(dir)
+				defer func() { _ = os.RemoveAll(dir) }()
 				if out, err := exec.CommandContext(ctx, "git", "-C", repo, "worktree", "add", "--detach", dir).CombinedOutput(); err != nil {
 					return fmt.Errorf("git worktree add: %w: %s", err, out)
 				}
-				defer exec.Command("git", "-C", repo, "worktree", "remove", "--force", dir).Run()
+				defer func() { _ = exec.Command("git", "-C", repo, "worktree", "remove", "--force", dir).Run() }()
 
 				coder := gimble.NewSession(ctx, "coder", codex, "gpt-5.6-luna", dir)
 				result, err := coder.Generate[gimble.Text](ctx, "In "+dir+", make the config loader read its file once per process, with a test that shows it. Write nowhere outside "+dir+". Leave the work uncommitted. Answer with what changed.")
@@ -415,7 +415,7 @@ func Example_killedTurn() {
 	if err != nil {
 		panic(err)
 	}
-	defer os.RemoveAll(project)
+	defer func() { _ = os.RemoveAll(project) }()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	runtime, err := web.NewRuntime(ctx, project, web.WithNoWeb())
@@ -452,8 +452,7 @@ func Example_killedTurn() {
 		for ctx, task := range loop.Tasks {
 			coder := gimble.NewSession(ctx, "coder", codex, "gpt-5.6-luna", repo)
 			result, err := coder.Generate[gimble.Text](ctx, "Do the task in the scoped context below. Leave the work uncommitted. Answer with what changed.\n\n"+gimble.ScopeText(ctx))
-			var kill gimble.Killed
-			if errors.As(err, &kill) {
+			if kill, ok := errors.AsType[gimble.Killed](err); ok {
 				fmt.Printf("%s: turn killed by %s: %s\n", task.Name, kill.By, kill.Reason)
 				result, err = coder.Generate[gimble.Text](ctx, "Your last turn was stopped by "+kill.By+": "+kill.Reason+". Undo what was wrong, then finish the task. Answer with what changed.")
 			}

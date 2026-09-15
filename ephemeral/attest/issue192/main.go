@@ -34,7 +34,7 @@ func proveStartupGap(ctx context.Context) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer os.RemoveAll(dir)
+	defer func() { _ = os.RemoveAll(dir) }()
 
 	attached := make(chan struct{})
 	done := make(chan error, 1)
@@ -72,7 +72,7 @@ func proveRuntimeWatch(ctx context.Context) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer os.RemoveAll(project)
+	defer func() { _ = os.RemoveAll(project) }()
 
 	release := make(chan struct{})
 	var releaseOnce sync.Once

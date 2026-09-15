@@ -179,7 +179,7 @@ func save(url, file string) {
 		fmt.Printf("[page] GET %s: %v\n", url, err)
 		return
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	body, _ := io.ReadAll(resp.Body)
 	if err := os.WriteFile(file, body, 0o644); err != nil {
 		fmt.Printf("[page] write %s: %v\n", file, err)

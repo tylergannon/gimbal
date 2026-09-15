@@ -354,8 +354,8 @@ func isWorkerFunction(t types.Type) bool {
 	if !ok {
 		return false
 	}
-	for i := 0; i < signature.Params().Len(); i++ {
-		named, ok := signature.Params().At(i).Type().(*types.Named)
+	for v := range signature.Params().Variables() {
+		named, ok := v.Type().(*types.Named)
 		if ok && named.Obj().Pkg() != nil && named.Obj().Pkg().Path() == "context" && named.Obj().Name() == "Context" {
 			return true
 		}
@@ -438,7 +438,7 @@ func reportDuplicates(pass *analysis.Pass, result *buildssa.SSA) {
 		}
 
 		for laterIndex, later := range calls {
-			for earlierIndex := 0; earlierIndex < laterIndex; earlierIndex++ {
+			for earlierIndex := range laterIndex {
 				earlier := calls[earlierIndex]
 				if earlier.key != later.key || earlier.ctx != later.ctx {
 					continue

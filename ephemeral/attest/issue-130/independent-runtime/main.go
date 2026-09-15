@@ -57,7 +57,7 @@ func (a *deterministicAdapter) RunTurn(ctx context.Context, sessionID, _ string,
 		}
 	}
 	n, _ := strconv.Atoi(os.Getenv("PROOF_DELTAS"))
-	for i := 0; i < n; i++ {
+	for range n {
 		if err := emit(native("session.text.delta", map[string]any{"sessionID": sessionID, "assistantMessageID": messageID, "ordinal": 0, "delta": "x"}, messageID)); err != nil {
 			return gimble.TurnResult{}, err
 		}
@@ -148,7 +148,6 @@ func main() {
 				adapter := &deterministicAdapter{project: *project}
 				group := gimble.Group(ctx, "concurrent")
 				for _, name := range []string{"alpha", "beta"} {
-					name := name
 					group.Go(name, func(ctx context.Context) error {
 						_, err := gimble.NewSession(ctx, name, adapter, "deterministic", filepath.Join(*project, "work")).Generate[gimble.Text](ctx, "deterministic observation proof")
 						return err

@@ -140,8 +140,7 @@ func (l *loop) Tasks(yield func(context.Context, Task) bool) {
 				previous = taskScope.localText()
 				// A task killed by an operator is the task scope's own
 				// outcome, so ScopeEnded records it.
-				var killed Killed
-				if errors.As(context.Cause(ctx), &killed) {
+				if killed, ok := errors.AsType[Killed](context.Cause(ctx)); ok {
 					return killed
 				}
 				return nil

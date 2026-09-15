@@ -44,9 +44,9 @@ func TestRunTaskAssessesDefinitionOfDoneWithoutValidationRecipe(t *testing.T) {
 	runGit(t, repo, "add", "before")
 	runGit(t, repo, "commit", "-qm", "before")
 
-	oldChecks := checks
-	checks = nil
-	t.Cleanup(func() { checks = oldChecks })
+	oldChecks := repositoryChecks
+	repositoryChecks = struct{ vet, test string }{}
+	t.Cleanup(func() { repositoryChecks = oldChecks })
 
 	adapter := &taskAdapter{}
 	err := gimble.Run(gimble.Project(t.Context(), t.TempDir()), "test", func(ctx context.Context) error {

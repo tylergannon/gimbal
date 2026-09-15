@@ -134,7 +134,7 @@ func connect(ctx context.Context, startDaemon bool) (*connection, error) {
 		err = c.send(map[string]any{"method": "initialized", "params": map[string]any{}})
 	}
 	if err != nil {
-		ws.CloseNow()
+		_ = ws.CloseNow()
 		return nil, err
 	}
 	return c, nil

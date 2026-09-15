@@ -64,7 +64,7 @@ func TestRootIngressStampsAndMapsIdentityMonotonically(t *testing.T) {
 	if a["sessionID"] != b["sessionID"] || a["agent"] != "coder" || !strings.HasPrefix(fmt.Sprint(a["sessionID"]), "ses_") {
 		t.Fatalf("root mapping = %#v then %#v", a, b)
 	}
-	if a["assistantMessageID"] != b["assistantMessageID"] || !(fmt.Sprint(a["assistantMessageID"]) < fmt.Sprint(c["assistantMessageID"])) {
+	if a["assistantMessageID"] != b["assistantMessageID"] || (fmt.Sprint(a["assistantMessageID"]) >= fmt.Sprint(c["assistantMessageID"])) {
 		t.Fatalf("message mappings are not stable and monotonic: %v %v %v", a["assistantMessageID"], b["assistantMessageID"], c["assistantMessageID"])
 	}
 	if a["assistantMessageID"] != messageIDFromEvent(first.ID) || c["assistantMessageID"] != messageIDFromEvent(third.ID) {

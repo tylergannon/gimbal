@@ -1,2 +1,0 @@
-{"seq":1,"time":"2026-09-12T12:14:56.320507Z","scope":"","event":{"kind":"run_started","name":"body-error"}}
-{"seq":2,"time":"2026-09-12T12:14:56.321033Z","scope":"","event":{"error":"worker failed in range body","kind":"run_ended","name":"body-error"}}

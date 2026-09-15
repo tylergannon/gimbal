@@ -270,7 +270,7 @@ func waitTurn(ctx context.Context, stream *claudeagent.Stream, nativeErrors <-ch
 			if envelope.SessionID != "" && envelope.SessionID != sessionID {
 				return claudeagent.ResultMessage{}, fmt.Errorf("claude: got session %s, want %s", envelope.SessionID, sessionID)
 			}
-			if envelope.SessionID != "" && !(envelope.Type == "system" && envelope.Subtype == "init") {
+			if envelope.SessionID != "" && (envelope.Type != "system" || envelope.Subtype != "init") {
 				s.mu.Lock()
 				s.fresh, s.parent = false, "" // the native conversation exists now
 				s.mu.Unlock()

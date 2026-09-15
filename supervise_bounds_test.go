@@ -13,7 +13,7 @@ func TestTranscriptBoundsRetentionWithFastAndSlowReaders(t *testing.T) {
 	var peakAfterSaturation int
 	var entriesAfterSaturation int
 	for i := range 10_000 {
-		transcript.append(supervisorTestEvent("session.tool.success", map[string]any{
+		_ = transcript.append(supervisorTestEvent("session.tool.success", map[string]any{
 			"id": fmt.Sprintf("call-%05d", i), "content": strings.Repeat("x", 80),
 		}))
 		if i%10 == 0 {
@@ -67,10 +67,10 @@ func TestTranscriptBoundsRetentionWithFastAndSlowReaders(t *testing.T) {
 
 func TestTranscriptCoalescesUnreadDeltasAndPreservesIdentity(t *testing.T) {
 	transcript := newTranscript(1, 64<<10)
-	transcript.append(supervisorTestEvent("session.text.delta", map[string]any{"assistantMessageID": "message-1", "delta": "hel"}))
-	transcript.append(supervisorTestEvent("session.text.delta", map[string]any{"assistantMessageID": "message-1", "delta": "lo"}))
-	transcript.append(supervisorTestEvent("session.tool.input.delta", map[string]any{"id": "call-1", "delta": `{"command":"go`}))
-	transcript.append(supervisorTestEvent("session.tool.input.delta", map[string]any{"id": "call-1", "delta": ` test"}`}))
+	_ = transcript.append(supervisorTestEvent("session.text.delta", map[string]any{"assistantMessageID": "message-1", "delta": "hel"}))
+	_ = transcript.append(supervisorTestEvent("session.text.delta", map[string]any{"assistantMessageID": "message-1", "delta": "lo"}))
+	_ = transcript.append(supervisorTestEvent("session.tool.input.delta", map[string]any{"id": "call-1", "delta": `{"command":"go`}))
+	_ = transcript.append(supervisorTestEvent("session.tool.input.delta", map[string]any{"id": "call-1", "delta": ` test"}`}))
 
 	batch := transcript.since(0, 64<<10)
 	if len(batch.lines) != 2 {
@@ -88,15 +88,15 @@ func TestTranscriptCoalescesUnreadDeltasAndPreservesIdentity(t *testing.T) {
 
 	// Once a reader has consumed a fragment, later fragments are a new entry;
 	// the next look must not repeat the already consumed text.
-	transcript.append(supervisorTestEvent("session.text.delta", map[string]any{"assistantMessageID": "message-1", "delta": "!"}))
+	_ = transcript.append(supervisorTestEvent("session.text.delta", map[string]any{"assistantMessageID": "message-1", "delta": "!"}))
 	next := strings.Join(transcript.since(0, 64<<10).lines, "")
 	if !strings.Contains(next, "message_id=message-1 !") || strings.Contains(next, "hello") {
 		t.Fatalf("next incremental view = %q", next)
 	}
 
 	shared := strings.Repeat("x", 500)
-	transcript.append(supervisorTestEvent("session.text.delta", map[string]any{"assistantMessageID": shared + "a", "delta": "first"}))
-	transcript.append(supervisorTestEvent("session.text.delta", map[string]any{"assistantMessageID": shared + "b", "delta": "second"}))
+	_ = transcript.append(supervisorTestEvent("session.text.delta", map[string]any{"assistantMessageID": shared + "a", "delta": "first"}))
+	_ = transcript.append(supervisorTestEvent("session.text.delta", map[string]any{"assistantMessageID": shared + "b", "delta": "second"}))
 	distinct := transcript.since(0, 64<<10).lines
 	if len(distinct) != 2 || distinct[0] == distinct[1] {
 		t.Fatalf("long distinct message identities were merged: %q", distinct)
@@ -106,7 +106,7 @@ func TestTranscriptCoalescesUnreadDeltasAndPreservesIdentity(t *testing.T) {
 func TestSupervisorLookHasIndependentByteBoundAndExplicitGap(t *testing.T) {
 	transcript := newTranscript(1, 1<<20)
 	for i := range 200 {
-		transcript.append(supervisorTestEvent("session.tool.success", map[string]any{
+		_ = transcript.append(supervisorTestEvent("session.tool.success", map[string]any{
 			"id": fmt.Sprintf("call-%03d", i), "content": strings.Repeat("result", 500),
 		}))
 	}
@@ -134,7 +134,7 @@ func TestSupervisorLookHasIndependentByteBoundAndExplicitGap(t *testing.T) {
 func TestTranscriptOwnsAndBoundsOversizedEventText(t *testing.T) {
 	transcript := newTranscript(1, 4<<10)
 	const size = 1 << 20
-	transcript.append(supervisorTestEvent("session.text.ended", map[string]any{"assistantMessageID": "large", "text": strings.Repeat("z", size)}))
+	_ = transcript.append(supervisorTestEvent("session.text.ended", map[string]any{"assistantMessageID": "large", "text": strings.Repeat("z", size)}))
 
 	transcript.mu.Lock()
 	if len(transcript.entries) != 1 {

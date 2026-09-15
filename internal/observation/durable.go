@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
 
@@ -89,7 +90,7 @@ func loadDurable(registry *Registry, id, dir string) (*Store, bool, error) {
 	if err != nil {
 		return nil, false, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	if _, err := f.Seek(saved.Offset, io.SeekStart); err != nil {
 		return nil, false, err
 	}
@@ -134,9 +135,7 @@ func (s *Store) restoreLocked(snapshot RunSnapshot) {
 	}
 	for k, v := range snapshot.TurnUsage {
 		copied := make(map[string]Usage, len(v))
-		for m, u := range v {
-			copied[m] = u
-		}
+		maps.Copy(copied, v)
 		s.turnUsage[k] = copied
 	}
 	for k, v := range snapshot.ModelCalls {

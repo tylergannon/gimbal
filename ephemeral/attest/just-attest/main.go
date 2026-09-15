@@ -277,7 +277,7 @@ func scanSteerEvents(logs string) (landed, dropped, objectionLanded int) {
 	if err != nil {
 		return
 	}
-	for _, line := range strings.Split(string(raw), "\n") {
+	for line := range strings.SplitSeq(string(raw), "\n") {
 		if strings.TrimSpace(line) == "" {
 			continue
 		}

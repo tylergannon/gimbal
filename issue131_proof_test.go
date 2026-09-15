@@ -56,7 +56,7 @@ func issue131Run(t *testing.T, project, name string, body func(context.Context, 
 func TestIssue131RunClosesOwnedSessionLogs(t *testing.T) {
 	adapter := &issue131Adapter{}
 	r, err := issue131Run(t, t.TempDir(), "session-close", func(ctx context.Context, _ *run) error {
-		for i := 0; i < 4; i++ {
+		for i := range 4 {
 			s := NewSession(ctx, "worker", adapter, "fake", t.TempDir())
 			if _, err := s.Generate[Text](ctx, fmt.Sprintf("turn-%d", i)); err != nil {
 				return err

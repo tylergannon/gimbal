@@ -83,7 +83,7 @@ func TestRunTurnAfterRedialResumesThread(t *testing.T) {
 		// Kill that connection, the same way a network blip or the
 		// daemon-side idle timeout would. The next call must redial and,
 		// per the fix, resume this thread before running a turn on it.
-		conn.ws.CloseNow()
+		_ = conn.ws.CloseNow()
 		<-conn.readDone // wait for the reader to notice, so the next call redials deterministically
 
 		third, err := session.Generate[gimble.Text](ctx, "Use exactly one shell tool to run `printf CODEX_RECONNECT_TOOL_MARKER`, then answer exactly CODEX_RECONNECT_FINAL_MARKER.")
@@ -121,12 +121,12 @@ func assertReconnectTranscript(t *testing.T, project string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	type eventData struct {
 		AssistantMessageID string        `json:"assistantMessageID"`
 		Text               string        `json:"text"`
-		Content            []interface{} `json:"content"`
+		Content            []any         `json:"content"`
 		Tokens             gimble.Tokens `json:"tokens"`
 	}
 	type nativeRef struct {
@@ -356,7 +356,7 @@ func TestCloseArchivesThroughARedialedConnection(t *testing.T) {
 			return err
 		}
 		dead = ad.current()
-		dead.ws.CloseNow()
+		_ = dead.ws.CloseNow()
 		<-dead.readDone
 		return nil // the scope ends here; Close runs on a dead socket
 	})
@@ -430,7 +430,7 @@ func TestForkOfAnArchivedParentFailsWithoutAGhost(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer probe.ws.CloseNow()
+	defer func() { _ = probe.ws.CloseNow() }()
 	loadedBefore := loadedSet(t, probe)
 
 	var parent string
@@ -545,7 +545,7 @@ func managedDaemonPID() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("pgrep: %w", err)
 	}
-	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+	for line := range strings.SplitSeq(strings.TrimSpace(string(out)), "\n") {
 		fields := strings.SplitN(strings.TrimSpace(line), " ", 2)
 		if len(fields) == 2 && strings.HasPrefix(fields[1], "codex ") {
 			return fields[0], nil

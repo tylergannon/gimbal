@@ -230,14 +230,6 @@ func (sub *Subscription) end(cause error) {
 	close(sub.done)
 }
 
-// ended reports whether the subscription has stopped for good -- it does not
-// count a normal finish, whose frames are still being handed over.
-func (sub *Subscription) ended() bool {
-	sub.mu.Lock()
-	defer sub.mu.Unlock()
-	return sub.closed
-}
-
 // offer queues one frame. The store holds its reduction lock, so this is the
 // only writer: a full queue or an exceeded byte bound closes the
 // subscription instead of blocking the run.

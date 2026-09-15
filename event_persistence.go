@@ -3,6 +3,7 @@ package gimble
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"sync"
@@ -35,6 +36,7 @@ func newEventWriter(name string) (*eventWriter, error) {
 	}
 	return &eventWriter{file: f}, nil
 }
+
 // writeLifecycle appends one lifecycle record. withSeq is false for
 // project.jsonl: each Run opens its own writer against that shared file, so
 // a per-writer counter would overlap with every other run's; Seq is left 0
@@ -174,9 +176,7 @@ func (r *run) sessionEvent(scope, session, turn string, event AgentEvent) error 
 func (r *run) closeSessions() {
 	r.mu.Lock()
 	writers := make(map[string]*eventWriter, len(r.sessions))
-	for session, writer := range r.sessions {
-		writers[session] = writer
-	}
+	maps.Copy(writers, r.sessions)
 	r.mu.Unlock()
 	for session, writer := range writers {
 		r.recordFailure("close session log "+session, writer.close())

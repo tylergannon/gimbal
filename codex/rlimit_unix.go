@@ -38,10 +38,7 @@ func raiseFileDescriptorLimit() {
 	if err := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &limit); err != nil {
 		return
 	}
-	target := limit.Max
-	if target > darwinOpenMax {
-		target = darwinOpenMax
-	}
+	target := min(limit.Max, darwinOpenMax)
 	if target <= limit.Cur {
 		return // already at least the target; nothing to raise
 	}

@@ -204,7 +204,7 @@ func readInvocations(t *testing.T, path string) [][]string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 	var out [][]string
 	decoder := json.NewDecoder(file)
 	for decoder.More() {

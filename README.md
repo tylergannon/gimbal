@@ -74,12 +74,37 @@ Choose directly when you already know the shape:
 # One supervised worker session for a small change.
 ./bin/gimble lfg -repo /path/to/project -goal "Fix the empty export" -check "npm test"
 
-# Independent Codex, Claude, and Gemini drafts, cross-critiques, and a local plan.
+# Sprint Plan: orientation, independent drafts, cross-critiques, interview, and synthesis.
 ./bin/gimble plan -repo /path/to/project -file design.md -goal "Implement this design"
 
 # Execute a plan with a planner, supervised coders, and independent validation.
 ./bin/gimble sprint -repo /path/to/project -plan /absolute/path/to/plan.md -check "npm test"
+
+# Build a readable semantic index over a local source cache.
+./bin/gimble index -repo /path/to/project -from /path/to/cache -to /path/to/index
 ```
+
+Sprint Plan first reads relevant repository and recent planning context, follows
+configured semantic-index routes to cited sources, and saves that orientation
+in a shared `intent.md`. Three agents draft and cross-critique independently.
+The synthesis shows their differences, asks up to four useful questions when
+needed, and saves the actual decisions in `merge-notes.md` beside `plan.md`.
+
+The index workflow reads local text sources and builds topic routes and cited
+leaves. Its default `-mode auto` builds a new index or refreshes changed sources;
+`-mode build` rebuilds, `-mode update` requires an existing index, and `-mode
+audit` checks freshness and index integrity without model calls or index edits.
+Sources and index output must be separate directories. Unsupported sources are
+reported as coverage debt; the first version reads UTF-8 text files up to
+256 KiB each. It does not sync remote caches.
+
+After a successful index build, the planning project receives
+`.gimble/semantic-index.json`. Sprint Plan discovers that pointer automatically,
+or reads an existing `docs/SEMANTIC-INDEX.md`. Use `-semantic-index
+/path/to/index/README.md` and `-token-cache /path/to/cache` for explicit inputs.
+When the planning project is inside the source cache, index building prints
+these flags instead of writing configuration into the cache. Index run records
+are saved alongside the index in a separate directory printed by the command.
 
 Use `-acceptance`, `-constraints`, repeatable `-file` context paths, and
 repeatable `-check` commands to describe the request. Relative file paths

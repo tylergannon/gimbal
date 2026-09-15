@@ -36,6 +36,7 @@ func (s *stringFlags) Set(value string) error {
 // builtinRequest is CLI input, not an executable workflow graph.
 type builtinRequest struct {
 	Repo, Goal, Plan, Acceptance, Constraints string
+	SemanticIndex, TokenCache                 string
 	ContextFiles, Checks                      stringFlags
 	Model, ReviewModel, PlanningModel         string
 	Tasks, SupervisorIntervalSeconds          int
@@ -54,6 +55,8 @@ func runBuiltin(name string, args []string, stdin io.Reader, stdout, stderr io.W
 	flags.StringVar(&in.Repo, "repo", ".", "repository to work in")
 	flags.StringVar(&in.Goal, "goal", "", "goal, claim, or description of the work")
 	flags.StringVar(&in.Plan, "plan", "", "local plan or design file (relative to -repo)")
+	flags.StringVar(&in.SemanticIndex, "semantic-index", "", "semantic index entrypoint for Sprint Plan (relative to -repo)")
+	flags.StringVar(&in.TokenCache, "token-cache", "", "local source cache for Sprint Plan (relative to -repo)")
 	flags.Var(&in.ContextFiles, "file", "local context file (repeatable, relative to -repo)")
 	flags.StringVar(&in.Acceptance, "acceptance", "", "what must be true when the work is done")
 	flags.StringVar(&in.Constraints, "constraints", "", "constraints and things to leave alone")
@@ -238,6 +241,26 @@ func normalizeBuiltin(in *builtinRequest) error {
 		return fmt.Errorf("repository is not a directory: %s", repo)
 	}
 	in.Repo = repo
+	if in.SemanticIndex != "" {
+		if !filepath.IsAbs(in.SemanticIndex) {
+			in.SemanticIndex = filepath.Join(repo, in.SemanticIndex)
+		}
+		if err := readableInputFile(in.SemanticIndex); err != nil {
+			return err
+		}
+	}
+	if in.TokenCache != "" {
+		if !filepath.IsAbs(in.TokenCache) {
+			in.TokenCache = filepath.Join(repo, in.TokenCache)
+		}
+		info, err := os.Stat(in.TokenCache)
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() {
+			return errors.New("token-cache must be a directory")
+		}
+	}
 	for i, file := range in.ContextFiles {
 		if !filepath.IsAbs(file) {
 			file = filepath.Join(repo, file)
@@ -334,7 +357,7 @@ func makePlan(ctx context.Context, in builtinRequest, artifacts string, reader *
 	if in.Plan != "" {
 		files = append(files, in.Plan)
 	}
-	plan, err := planning.Plan(ctx, planning.Input{Repo: in.Repo, Goal: in.Goal, Acceptance: in.Acceptance, Constraints: in.Constraints, ContextFiles: files, Checks: in.Checks, Model: in.Model, ReviewModel: in.ReviewModel, PlanningModel: in.PlanningModel, OutputDir: artifacts, DryRun: in.DryRun}, reader, out)
+	plan, err := planning.Plan(ctx, planning.Input{Repo: in.Repo, SemanticIndex: in.SemanticIndex, TokenCache: in.TokenCache, Goal: in.Goal, Acceptance: in.Acceptance, Constraints: in.Constraints, ContextFiles: files, Checks: in.Checks, Model: in.Model, ReviewModel: in.ReviewModel, PlanningModel: in.PlanningModel, OutputDir: artifacts, DryRun: in.DryRun}, reader, out)
 	if err == nil {
 		_, _ = fmt.Fprintln(out, "Plan:", plan)
 	}

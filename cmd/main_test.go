@@ -34,6 +34,7 @@ func TestRouteAnalysis(t *testing.T) {
 		{name: "guided work wins over vet config", args: []string{"work", "-plan", vetConfig}},
 		{name: "lfg wins over vet config", args: []string{"lfg", "-file", vetConfig}},
 		{name: "planning wins over vet config", args: []string{"plan", "-file", vetConfig}},
+		{name: "index wins over vet config", args: []string{"index", "-from", vetConfig}},
 		{name: "sprint wins over vet config", args: []string{"sprint", "-plan", vetConfig}},
 		{name: "server help with cfg socket", args: []string{"-h", "-uds", ordinaryConfig}},
 		{name: "server wins over real vet config", args: []string{"-h", "-uds", vetConfig}},

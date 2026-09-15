@@ -53,7 +53,7 @@ func routeAnalysis(args []string) ([]string, bool) {
 func isOrdinaryCLI(args []string) bool {
 	if len(args) > 0 {
 		switch args[0] {
-		case "run-prompt", "work", "lfg", "plan", "sprint":
+		case "run-prompt", "work", "lfg", "plan", "sprint", "index":
 			return true
 		}
 	}
@@ -81,6 +81,8 @@ func isVetConfig(path string) bool {
 func run(args []string, stdout, stderr io.Writer, getenv func(string) string) error {
 	if len(args) > 0 {
 		switch args[0] {
+		case "index":
+			return runIndex(args[1:], stdout, stderr)
 		case "work", "lfg", "plan", "sprint":
 			return runBuiltin(args[0], args[1:], os.Stdin, stdout, stderr)
 		}
@@ -95,8 +97,8 @@ func runServer(args []string, stderr io.Writer) error {
 	flags := flag.NewFlagSet("gimble", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	flags.Usage = func() {
-		_, _ = fmt.Fprintln(stderr, "Usage: gimble work|lfg|plan|sprint [options] [goal]")
-		_, _ = fmt.Fprintln(stderr, "  work: guided choice; lfg: supervised quick task; plan: draft and critique; sprint: execute and validate")
+		_, _ = fmt.Fprintln(stderr, "Usage: gimble work|lfg|plan|sprint|index [options] [goal]")
+		_, _ = fmt.Fprintln(stderr, "  work: guided choice; lfg: supervised quick task; plan: Sprint Plan; sprint: execute and validate; index: build a semantic index")
 		_, _ = fmt.Fprintln(stderr, "  Run gimble <command> -h for inputs. Without a command, serve recorded runs.")
 		_, _ = fmt.Fprintln(stderr, "Usage of gimble:")
 		flags.PrintDefaults()

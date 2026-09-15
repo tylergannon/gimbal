@@ -140,6 +140,49 @@ func TestProjectorRejectsUnsettledNonFinishStepAtResult(t *testing.T) {
 	}
 }
 
+func TestProjectorSettlesNativeToolErrorBeforeLaterSuccess(t *testing.T) {
+	var events []gimble.AgentEvent
+	p := newProjector("adapter-session", "model", func(event gimble.AgentEvent) error {
+		events = append(events, event)
+		return nil
+	})
+	p.setConversation("native-conversation")
+	mustProject(t, p.envelope(envelope{StepUpdate: &stepUpdate{
+		ConversationID: "native-conversation", StepIndex: 12, StepType: "tool", State: "ACTIVE",
+		ToolInfo: &toolInfo{Name: "view_file", Parameters: map[string]any{"AbsolutePath": "/missing/leaf.md"}},
+	}}))
+	mustProject(t, p.envelope(envelope{StepUpdate: &stepUpdate{
+		ConversationID: "native-conversation", StepIndex: 12, StepType: "tool", State: "ERROR",
+		ToolInfo: &toolInfo{Name: "view_file", Parameters: map[string]any{"AbsolutePath": "/missing/leaf.md"}, Error: map[string]any{"type": "TOOL_ERROR", "message": "failed to read file: no such file or directory"}},
+	}}))
+	mustProject(t, p.envelope(envelope{StepUpdate: &stepUpdate{
+		ConversationID: "native-conversation", StepIndex: 14, StepType: "tool", State: "DONE",
+		ToolInfo: &toolInfo{Name: "view_file", Parameters: map[string]any{"AbsolutePath": "/routes.md"}, Output: "routes"},
+	}}))
+	mustProject(t, p.envelope(envelope{Result: &result{Status: "SUCCESS", Response: "draft completed"}}))
+	types := eventTypes(events)
+	failed := slices.Index(types, "session.tool.failed")
+	if failed < 0 || failed+2 >= len(types) || types[failed+1] != "session.step.streamed" || types[failed+2] != "session.step.ended" || slices.Index(types, "session.tool.success") <= failed {
+		t.Fatalf("ERROR tool was not failed and closed before later success: %v", types)
+	}
+	var data map[string]any
+	if err := json.Unmarshal(events[failed].Data, &data); err != nil {
+		t.Fatal(err)
+	}
+	failure := data["error"].(map[string]any)
+	if failure["type"] != "tool" || !strings.Contains(failure["message"].(string), "failed to read file") {
+		t.Fatalf("failure did not retain native error: %#v", data)
+	}
+}
+
+func TestProjectorRejectsToolErrorWithoutNativeDetail(t *testing.T) {
+	p := newProjector("adapter-session", "model", nil)
+	err := p.envelope(envelope{StepUpdate: &stepUpdate{StepIndex: 2, StepType: "tool", State: "ERROR", ToolInfo: &toolInfo{Name: "view_file"}}})
+	if err == nil || !strings.Contains(err.Error(), "omitted tool_info.error") {
+		t.Fatalf("missing native error accepted: %v", err)
+	}
+}
+
 func TestScanStreamRejectsMalformedNDJSON(t *testing.T) {
 	output := make(chan streamItem)
 	go scanStream(strings.NewReader("not-json\n"), output)

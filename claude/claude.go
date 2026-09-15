@@ -307,14 +307,18 @@ func decodeEnvelope(message claudeagent.Message) envelope {
 
 func assistantError(message claudeagent.Message) error {
 	var code claudeagent.AssistantMessageError
+	var requestID string
 	switch assistant := message.(type) {
 	case claudeagent.AssistantMessage:
-		code = assistant.Error
+		code, requestID = assistant.Error, assistant.RequestID
 	case *claudeagent.AssistantMessage:
-		code = assistant.Error
+		code, requestID = assistant.Error, assistant.RequestID
 	}
 	if code == "" {
 		return nil
+	}
+	if requestID != "" {
+		return fmt.Errorf("claude: assistant error: %s (request ID: %s)", code, requestID)
 	}
 	return errors.New("claude: assistant error: " + string(code))
 }

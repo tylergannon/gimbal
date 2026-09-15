@@ -432,10 +432,7 @@ func readTurn(ctx context.Context, conn *connection, ch chan rpcMessage, threadI
 				childProjectors[key] = project
 			}
 			if len(message.ID) > 0 && message.Method != "" {
-				if err := refuse(conn, message, project); err != nil {
-					return "", err
-				}
-				continue
+				return "", refuse(conn, message, project)
 			}
 			if err := projectChildNotification(message, project); err != nil {
 				return "", err

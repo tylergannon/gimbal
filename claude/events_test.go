@@ -284,7 +284,7 @@ func TestRawProjectorRecordsRetryFailureAndPermissionDecision(t *testing.T) {
 	})
 	mustRaw(t, p.raw(json.RawMessage(`{"type":"stream_event","event":{"type":"message_start","message":{"id":"message","model":"model","usage":{}}}}`)))
 	mustRaw(t, p.raw(json.RawMessage(`{"type":"system","subtype":"api_retry","attempt":2,"max_retries":5,"retry_delay_ms":400,"error_status":529,"error":"server_error","uuid":"retry","session_id":"session"}`)))
-	mustRaw(t, p.raw(json.RawMessage(`{"type":"assistant","uuid":"failed","session_id":"session","message":{"id":"message","content":[]},"error":"rate_limit"}`)))
+	mustRaw(t, p.raw(json.RawMessage(`{"type":"assistant","uuid":"failed","session_id":"session","request_id":"req_217","message":{"id":"message","content":[]},"error":"rate_limit"}`)))
 	mustRaw(t, p.raw(json.RawMessage(`{"type":"system","subtype":"permission_denied","tool_use_id":"tool","tool_name":"Bash","uuid":"permission","session_id":"session"}`)))
 
 	if got := claudeTypes(events); !slices.Equal(got, []string{"session.step.started", "session.retry.scheduled", "session.step.failed", "permission.asked", "permission.replied"}) {
@@ -300,6 +300,10 @@ func TestRawProjectorRecordsRetryFailureAndPermissionDecision(t *testing.T) {
 	}
 	if failed["assistantMessageID"] != "message" || asked["id"] != "tool" || replied["reply"] != "denied" {
 		t.Fatalf("failure/permission = failed %#v asked %#v replied %#v", failed, asked, replied)
+	}
+	errorValue := failed["error"].(map[string]any)
+	if errorValue["requestID"] != "req_217" {
+		t.Fatalf("failure did not retain provider request ID: %#v", errorValue)
 	}
 }
 

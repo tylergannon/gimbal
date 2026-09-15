@@ -364,7 +364,11 @@ func (p *projector) materializedAssistant(envelope map[string]any) error {
 		return fmt.Errorf("claude: materialized message.id %s does not match stream %s", nestedID, p.messageID)
 	}
 	if code := stringValue(envelope["error"]); code != "" {
-		return p.harnessFailure(map[string]any{"type": code, "message": "Claude assistant error: " + code}, envelope)
+		errorValue := map[string]any{"type": code, "message": "Claude assistant error: " + code}
+		if requestID := stringValue(envelope["request_id"]); requestID != "" {
+			errorValue["requestID"] = requestID
+		}
+		return p.harnessFailure(errorValue, envelope)
 	}
 	return nil
 }

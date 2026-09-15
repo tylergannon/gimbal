@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -86,5 +88,20 @@ func TestPromptProjectDirRejectsNonemptyDirectory(t *testing.T) {
 	}
 	if _, err := promptProjectDir(dir); err == nil || !strings.Contains(err.Error(), "not empty") {
 		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestWriteRunPromptLogsNamesTheCompletedRun(t *testing.T) {
+	project := t.TempDir()
+	runDir := filepath.Join(project, "runs", "run-217")
+	if err := os.MkdirAll(runDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	var stderr bytes.Buffer
+	if err := writeRunPromptLogs(&stderr, project); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := stderr.String(), "Logs: "+runDir+"\n"; got != want {
+		t.Fatalf("stderr = %q, want %q", got, want)
 	}
 }

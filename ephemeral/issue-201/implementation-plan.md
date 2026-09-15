@@ -11,8 +11,9 @@ implementation or a claim that extraction already works.
 **Design status:** the accepted nested model is recorded in
 [graph-model.md](/Users/tyler/.codex/worktrees/a256/gimble/ephemeral/issue-201/graph-model.md).
 It supersedes the former flat Graph declaration. The final production struct
-awaits the recursive encoding and Group representation decisions described there;
-this handoff is not yet a settled type contract for Sol to implement verbatim.
+awaits the recursive encoding decision described there; the approved command API
+also needs its concrete contract before implementation.
+This handoff is not yet a settled type contract for Sol to implement verbatim.
 
 Read the locally cached issue and its owner comment:
 `/Users/tyler/.codex/worktrees/a256/gimble/ephemeral/issue-201/issue-and-comments.md`.
@@ -102,6 +103,15 @@ sequence; conditions supply alternatives, loops repetition, and groups concurren
 Supervision is a separate unordered hierarchy attached beside the watched call.
 This replaces the earlier flat 17-variant operation/edge design.
 
+### Updated evaluation of (4): describe agent work, not the program
+
+The remaining temptation to reconstruct Group launches, waits, and intervening
+caller work was still excessive. Scoped groups of agent calls in the right order
+are sufficient. Keep the nested description useful to a person following agent
+work. Recognizable command calls belong at an approved execution boundary, with
+direct os/exec use in workflow code linted against. There is no need to retain
+universal ports or build a comprehensive program model to justify removing them.
+
 ## 1. Graph model and remaining type decisions
 
 Read the accepted semantic contract in
@@ -112,22 +122,21 @@ Graph is conceptually the root subgraph with workflow identity and source/build
 metadata. It describes the selected structure connecting calls, commands, and
 context writes, rather than every Go statement or a general control-flow graph.
 
-Two details must be settled before writing the exact production declarations in
-`github.com/tylergannon/gimble/workflow`:
+The recursive encoding must be settled before writing the exact production
+declarations in `github.com/tylergannon/gimble/workflow`. Both nested bodies and
+nested supervisors are recursive; pinned polytype v1.0.0 rejects recursive
+definitions. Choose recursive support in polytype or child references in the
+canonical Go model. Neither choice changes the agreed conceptual structure.
+Do not introduce a second handwritten JSON/TypeScript model.
 
-1. **Recursive encoding.** Both nested bodies and nested supervisors are recursive.
-   Pinned polytype v1.0.0 rejects recursive definitions. Choose recursive support
-   in polytype or child references in the canonical Go model. Neither choice
-   changes the agreed conceptual structure. Do not introduce a second handwritten
-   JSON/TypeScript model. No polytype implementation change is part of this
-   documentation update.
-2. **Group fields.** Preserve actual launch and Wait positions, including caller
-   work between them, without inventing sequential dependencies between children.
-   Settle the concrete shape against such an example, not just a parallel list.
+The Group launch/Wait modeling requirement is withdrawn. Scoped agent work in
+the right order is the target; a whole-program map or scheduling timeline is not.
+Command calls will use the approved execution primitive described below, whose
+public name, signature, and result contract still need to be defined.
 
 The old Graph struct has been removed from this handoff so it cannot be mistaken
 for the accepted implementation target. Its earlier compile and 17-variant codec
-probes remain historical evidence only. Once the two details are settled, include
+probes remain historical evidence only. Once the encoding is settled, include
 all production declarations here and verify their actual polytype/skgo projections.
 
 ### Identity and completeness
@@ -135,9 +144,8 @@ all production declarations here and verify their actual polytype/skgo projectio
 Keep source identity distinct from runtime instances. One static template describes
 a repeated site; repeated tasks and supervisor ticks do not duplicate that template.
 Same-named sites remain distinct. Bounded helper expansions retain both the lexical
-source site and their calling context, so two helper callers do not accidentally
-share continuations. IDs must be deterministic across regeneration and checkout
-relocation; they are not a promise of identity across arbitrary source edits.
+source site and their calling context, so two helper callers remain distinct.
+IDs must be deterministic across regeneration and checkout relocation; they are not a promise of identity across arbitrary source edits.
 
 Retain workflow identity and a revision digest for durable run association. The
 previous proposal fingerprints deterministic extraction inputs, excludes generated
@@ -204,8 +212,9 @@ result after a failed extraction. This is one Go emitter, not a second JSON mode
 
 ## 3. Extraction boundary
 
-Use typed package loading, resolved function/method symbols, AST source anchors,
-and CFG/SSA facts where needed. Reuse the already pinned x/tools and the existing
+Use typed package loading, resolved function/method symbols, and AST source
+anchors to recover scoped, ordered agent work. Do not build a whole-program
+control-flow or dataflow model. Reuse the already pinned x/tools and the existing
 `internal/gimblelint` authoring rules. Share only the small symbol/binding facts
 actually needed by both; do not rewrite #162 as a general analysis framework.
 
@@ -214,7 +223,7 @@ The required reachable helper chain is:
 `Sprint → run → goalText / runTask → command / git`.
 
 Follow direct, source-visible helpers in the selected workflow package with
-context, session, command, and callback parameter bindings, including lexical
+context, session, and callback parameter bindings, including lexical
 captures and simple aliases. Treat known Gimble callbacks and implicit planner/
 supervisor behavior as API semantics; do not descend into harness implementations
 or Gimble runtime internals. Ordinary formatting, file reads, adapter construction,
@@ -238,6 +247,20 @@ and caller-fixture checks into the lint/build gate. It exits nonzero for either
 diagnostics or drift. Normal generation remains the way to write partial output.
 Regeneration/drift checks must ensure edited source cannot silently
 ship with a stale graph; `go build` alone does not run generators.
+
+### Command authoring boundary
+
+Provide one approved, opinionated Gimble command execution function. Lint against
+direct os/exec use in workflow authoring code and direct authors to that function.
+Recognize and capture its call sites in their scope and order. Migrate the
+selected workflows' command sites to it; do not teach the extractor to reconstruct
+exec.Cmd construction, mutation, Start/Wait, or subprocess lifecycles. The
+implementation of this primitive and harness internals may still use os/exec.
+
+Settle the function's name, signature, and result contract before implementing it.
+Command results are secondary detail; this decision does not demand a process
+trace or extensive result UI. The primitive must remain a direct command operation,
+not grow into wrappers for workflow tactics.
 
 ## 4. Build-time application bindings and run association
 
@@ -372,8 +395,8 @@ shared runtime start implementation underneath the concrete generated bindings.
 
 ## 5. Delivery sequence
 
-1. Settle the recursive encoding and concrete Group fields against the accepted
-   nested model; write and verify the complete Graph declarations. Then land the
+1. Settle the recursive encoding and approved command API contract against the
+   accepted model; write and verify the complete Graph declarations. Then land the
    graph invariants and generated typed workflow contract. Prove minimal generation
    from a separate module before growing extraction coverage.
 2. Extract the actual sprint helper chain and structural fixtures. Replace only
@@ -382,6 +405,7 @@ shared runtime start implementation underneath the concrete generated bindings.
    early-return behavior, pass/fail logic, per-check publication, and direct task
    values visible to the planner. Remove the now-unused mutable `checks` list;
    adapt its existing test instead of retaining a test-only production bypass.
+   Route workflow commands through the approved primitive and enforce its lint rule.
 3. Generate the explicit workflow/Input bindings, migrate web Run and callers,
    persist graph references, and expose typed start/inspection functions. Demonstrate
    one authored workflow-specific Svelte page. Coordinate changed run fields with
@@ -404,12 +428,12 @@ README explains the explicit workflow list, generation, and authored-page contra
 | Typed consumer works end to end | A separate Go module with its own unrelated Input generates from scratch, compiles, runs through Runtime without registration, and resolves its recorded graph. A wrong Input type is rejected by the compiler. |
 | Web entrypoints are concrete | An explicit list of two workflows with different Inputs generates distinct typed remote callers and decoders. An authored Svelte page links to and starts its specific workflow, receives its run ID, and navigates away while the run continues. Invalid payloads fail before work starts. No generic form or runtime workflow selector is involved. |
 | The builtin graph reflects source | Inspect generated Sprint output against `Sprint`, `run`, `goalText`, `runTask`, `command`, and `git`: research/fork, outer rounds, inner planner/task repeat, coder/supervisor, task command, ancestor validator, both fixed checks, conditional commit, final validation/merge. Dry-run alternatives remain visible. |
-| Nested execution preserves meaning | Fixtures show ordered bodies, alternative condition branches, loop repetition, and relevant return/break/continue targets. A Group preserves two launches, caller work before Wait, and continuation after Wait without serializing siblings. Ordinary calculations need no operation nodes. |
+| Scoped agent work is legible | Fixtures show agent calls in their scopes and source order, alternative branches, repeated bodies, and grouped concurrent work. Sibling list order does not imply sequential completion. A full program map, unrelated caller work, and a launch/join timeline are not acceptance requirements. |
 | Sessions, calls, and scopes are distinct | Two AgentCalls reference one conversation. An ancestor-owned session retains its owner when called in a child execution scope. A fork retains its origin and creation scope. Conditions and ordinary Go loops do not manufacture Gimble scopes. |
 | Context evolution follows source | Set and SetJSON stay in order within each branch/body, retaining constant keys and value expressions. Actual scopes determine ownership; stored values are not assumed to have appeared in a prompt. |
 | Supervision is hierarchical and local | An attachment targets a worker call; its unordered supervisors may themselves have supervisors watching their looks. An ancestor-owned reviewer appears beside a deeper child call while referencing its original session. Sequential tasks can reuse that conversation; task-local creation gives fresh conversations. A short live turn can finish with zero looks. No synthetic look nodes or sequential approval gates are required. |
-| Commands retain meaning | Construction metadata never implies execution. Blocking Run/Output/CombinedOutput and Start followed by later Wait preserve their semantics, including intervening work and process identity. A command followed by a validator remains ordered. Dynamic arguments remain expressions. |
-| Identity survives reuse and placement | Same-named sites remain distinct, repeated tasks have one static template, and two helper callers keep distinct continuations. Local appearances of an ancestor-owned supervisor retain one session identity and do not duplicate recorded turns or usage. Ownership remains inspectable. |
+| Commands use the approved boundary | Workflow commands use the opinionated Gimble function and their calls are captured in scope and source order. Direct os/exec use in workflow code produces an actionable lint diagnostic. A harmless command demonstrates capture through the function. No arbitrary exec.Cmd lifecycle analysis is required. |
+| Identity survives reuse and placement | Same-named sites remain distinct, repeated tasks have one static template, and two helper callers retain distinct call sites. Local appearances of an ancestor-owned supervisor retain one session identity and do not duplicate recorded turns or usage. Ownership remains inspectable. |
 | Failure is inspectable and fails closed | Dynamic Set keys, map-dispatched workers/simple aliases, and unresolved structural targets produce anchored diagnostics and nonzero gates. A valid dynamic branch/data fixture passes. Failed regeneration cannot leave a stale clean graph presented as current. |
 | Run association survives restart | Live and finished matching runs resolve to the compiled graph; restart with a changed digest leaves the old run observable but unmatched. References survive durable snapshot, table, and supported replay paths. |
 | Cancellation is independent | Two active runs share one runtime; cancel A and B remains active; another run can start after A ends. Runtime cancellation stops all active runs. An already-cancelled synchronous caller does not start workflow work. |

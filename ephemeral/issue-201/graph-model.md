@@ -10,7 +10,10 @@ design work. Production types and recursive encoding are not implemented yet.
 A Graph is the root description of a workflow. Conceptually, it is a root
 subgraph plus workflow identity and source/build information. Use nested ordered
 bodies to describe the structure connecting agent calls, command execution, and
-context writes. Go executes the workflow; the graph describes it.
+context writes. The useful view is scoped groups of agent calls in the right
+order. Go executes the workflow; this description helps a person follow the
+agent work. It is not a map of the program. Additional program detail needs a
+concrete use for the viewer, not merely an argument that it could be extracted.
 
 Do not try to reproduce the entire Go program or construct a general control-flow
 graph. Ordinary calculations can be omitted or retained as expressions attached
@@ -34,7 +37,7 @@ contain. Keep these meanings rather than the previous low-level variant list:
 | Element | Meaning |
 | --- | --- |
 | AgentCall | One call using an agent session; multiple calls may use the same conversation. |
-| Command | A command execution site, including the distinction between starting and waiting. |
+| Command | A call to the approved Gimble command execution function. |
 | Set | A context write using Gimble’s supported primitive value types, at its source position. |
 | SetJSON | A structured context write at its source position. |
 | Subgraph | One of the enclosing constructs below. |
@@ -48,27 +51,23 @@ Subgraph has these concrete forms:
 | Condition | Alternative branches, each with a condition/case and an ordered body. |
 | Loop | A repeated body with its loop condition or planner information. |
 | Scope | A named body establishing a Gimble context/lifetime boundary. |
-| Group | Concurrent child bodies, preserving their actual launches and join. |
+| Group | Grouped concurrent agent work, with order retained within each child body. |
 
 Each branch and each group child has an ordered body. The order of alternative
 branches is not a sequence of executions. The order of group children is not a
 dependency between their completions. Reserve the name Group for Gimble's actual
 parallel execution primitive, not for an unordered collection of supervisors.
 
-Sequence relationships follow from body order. A condition continues at the next
-enclosing step unless its chosen branch exits. A loop repeats its body; runtime
-supplies the iteration count and task contents. A Group preserves the actual
-Group.Go launch and Group.Wait positions, including caller-side work between
-them. A simplistic parallel child list must not silently discard that work or
-serialize siblings. The precise Group fields remain to be settled with that
-example when writing the concrete recursive representation.
+Sequence relationships follow from body order. Conditions describe alternatives;
+loops describe repeated bodies. Runtime supplies branch choices, iteration counts,
+and task contents. Group membership describes concurrent work without implying
+that siblings complete sequentially. Preserve the order of relevant calls within
+their bodies; do not reconstruct a launch/join timeline or unrelated caller work.
 
-There is no default list of synthetic RegionEntry, RegionExit, Merge,
-ParallelLaunch, ParallelJoin, PlannerCall, or SupervisorLook operations. Express
-the enclosing construct's semantics directly. Preserve necessary launch/wait
-positions and targets without turning every boundary into a universal node/port
-scheme. The previous general Flow/Endpoint/Before/After representation is
-superseded by this direction.
+The earlier requirement to preserve every Group.Go/Group.Wait position and
+os/exec Start/Wait relationship was still modeling too much of the program. It
+is withdrawn. The graph does not need universal ports, synthetic entry/exit/merge
+nodes, a separate look-operation vocabulary, or a general control-flow edge map.
 
 Operation and Subgraph should use sealed interfaces with concrete struct
 variants. Concrete subgraph variants can implement both markers directly, so
@@ -83,12 +82,25 @@ researcher are two steps referencing one conversation. Session declarations reta
 identity, name, owning scope, model/adapter/workdir, source, and fork origin.
 Creating/forking a session does not require a separate visible operation node.
 
-Command describes execution. Keep command construction and argument expressions
-as inspectable metadata, including evidence of a constructed-but-never-executed
-command where relevant. Never turn construction into claimed execution. A Start
-and a later explicit Wait must remain distinguishable when work occurs between
-them. Static extraction provides no observed process duration, exit result, or
-stdout/stderr; the run provides only what was actually recorded.
+### Approved command execution
+
+Provide one opinionated Gimble command execution function so workflow command
+calls can always be recognized and captured at that boundary. Lint against
+direct os/exec use in workflow authoring code and advise use of that function.
+This authoring rule does not prohibit the command implementation or harness
+internals from using os/exec.
+
+A Command element represents a call to this function in its scope and source
+order. The extractor recognizes that call; it does not analyze exec.Cmd
+construction, mutations, aliases, Start/Wait lifecycles, or arbitrary subprocess
+code. Command results are secondary detail, not a reason to expand the graph into
+a process trace. Their exact capture and presentation are not settled here.
+
+The function's public name, signature, and result contract remain to be designed.
+This records the requested API direction and lint rule; it does not implement
+that function or claim existing direct os/exec calls already comply. Migrate
+workflow command sites as part of adopting the approved API. Keep this primitive
+small and direct; it does not authorize high-level workflow tactic wrappers.
 
 ## Context evolution
 
@@ -248,15 +260,17 @@ polytype/skgo rather than a separately designed JSON/TypeScript contract.
 
 The encoding choice has not been made. This codification does not authorize a
 polytype implementation change or settle the final Graph field layout. Finalize
-that choice and the concrete Group representation before handing Sol an exact
+that choice and the command API contract before handing Sol an exact
 production struct to implement. Do not silently ship the superseded flat struct
 as a workaround. The earlier 17-variant projection probe proves only that earlier
 nonrecursive model's codecs; it is not proof for this model.
 
 ## Acceptance consequences
 
-- Inspect nested sequence, condition, loop, scope, and group examples, including
-  early exits and work between a parallel launch and its join.
+- Inspect scoped, ordered agent work in sequence, condition, loop, scope, and
+  group examples. Do not require a full program map or launch/join timeline.
+- Capture calls to the approved command function in source order and reject direct
+  os/exec use in workflow code with an actionable lint diagnostic.
 - Preserve Set/SetJSON positions and actual scope ownership across branches.
 - Inspect an ancestor-owned supervisor beside a deeper child call, with a nested
   supervisor targeting the first supervisor's looks.

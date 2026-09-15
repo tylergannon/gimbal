@@ -28,10 +28,11 @@ lint rules; it does not require exhaustive analysis of arbitrary Go.
 ## Workflow graph
 
 Describe the structure connecting agent calls, commands, and context writes with
-nested ordered bodies: sequences, conditions, loops, scopes, and groups. Preserve
-relevant early exits and real launch/wait positions. The graph is not a complete
-model of arbitrary Go control flow or dataflow. Operation is a sealed union;
-reserve Group for Gimble's parallel execution primitive.
+nested ordered bodies: sequences, conditions, loops, scopes, and groups. Scoped
+agent calls in the right order are the target. Avoid modeling the program: a
+full control-flow/dataflow map or launch/wait timeline adds unnecessary detail.
+Operation is a sealed union; reserve Group for Gimble's parallel execution
+primitive.
 
 Supervision is a separate unordered hierarchy attached beside the watched call.
 Nested supervisors watch their immediate supervisor's look turns. A supervisor
@@ -44,6 +45,15 @@ still accept one active turn at a time.
 
 The accepted model and outstanding encoding choices are recorded in
 `ephemeral/issue-201/graph-model.md`.
+
+## Workflow commands
+
+The intended command API is one approved, opinionated Gimble execution function
+whose calls can be recognized and captured directly. Lint against direct os/exec
+use in workflow code and advise use of that function. Its implementation and
+harness internals may use os/exec. Do not reconstruct arbitrary subprocess
+lifecycles in the graph; command results are secondary detail. The API name and
+signature remain to be settled in the issue 201 plan.
 
 ## Workflow web pages
 
@@ -69,8 +79,10 @@ Tyler: "WE ARE NOT DOING HIGH LEVEL WRAPPERS OF FUNCTIONALITY THAT OBSCURES
 THE MEANING OF THE CODE. There is NO SUCH THING as a `workflows.BakeOff`
 function." A workflow reads like a page of pseudocode. A tactic (a
 bake-off, a critique round, a worktree, a merge, a retry) is written inline
-in the workflow that needs it, with `Group`, `Generate`, and git through
-`os/exec`. A new exported name exists only when Tyler asks for it by name.
+in the workflow that needs it, with `Group`, `Generate`, and direct command
+operations through the approved command API once introduced. Existing workflow
+`os/exec` sites must migrate to it. A new exported name exists only when Tyler
+asks for it by name; the requested command primitive’s name is still pending.
 Propose "write program X that does Y", never "add function Z".
 
 ## Build what was asked

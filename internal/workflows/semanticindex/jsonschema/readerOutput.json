@@ -1,0 +1,14 @@
+{"type":"object",
+"properties":{
+"summary":{"type":"string"},
+"themes":{"type":"array","items":{"type":"string"}},
+"citations":{"type":"array","items":{"type":"object",
+"properties":{
+"path":{"type":"string"},
+"start_line":{"type":"integer"},
+"end_line":{"type":"integer"},
+"note":{"type":"string"}
+},"required":["path","start_line","end_line","note"],"additionalProperties":false}},
+"gotchas":{"type":"array","items":{"type":"string"}},
+"recipes":{"type":"array","items":{"type":"string"}}
+},"required":["summary","themes","citations","gotchas","recipes"],"additionalProperties":false}

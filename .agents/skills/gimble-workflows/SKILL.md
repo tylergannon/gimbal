@@ -35,6 +35,21 @@ and Gemini Flash; use `-model`, `-review-model`, and `-planning-model` to
 select installed, authenticated native harness models. Use these workflows
 as readable Go examples in `internal/workflows/` when writing another.
 
+`gimble plan` is Sprint Plan: repository orientation and semantic prior art,
+shared intent, three drafts and cross-critiques, an informed interview, and
+actual merge decisions plus the final plan. Planning discovers
+`.gimble/semantic-index.json` or `docs/SEMANTIC-INDEX.md`; explicit
+`-semantic-index /index/README.md -token-cache /cache` overrides those pointers.
+
+`gimble index -from /cache -to /index -repo /project` builds a filesystem
+semantic index with topic routes and cited leaves, and links it to planning.
+Source and output must not overlap. `-mode auto` builds or refreshes changed
+sources; `build` forces rebuilding, `update` requires prior state, and `audit`
+checks freshness without models or index writes. The current reader supports
+UTF-8 text files up to 256 KiB each; skipped sources appear as explicit debt.
+Use actual query walks to assess retrieval; structural metrics alone do not
+establish that an agent found the right evidence.
+
 ## What a run is
 
 `gimble.Run(ctx, name, body)` runs `body` once and blocks until it returns.

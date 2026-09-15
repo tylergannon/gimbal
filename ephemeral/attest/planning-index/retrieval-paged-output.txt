@@ -1,0 +1,29 @@
+Request and planning artifacts: /Users/tyler/.codex/worktrees/7b5c/gimble-planning-index/ephemeral/attest/planning-index/project/.gimble/requests/lfg-1548763171
+2026/09/15 08:48:41 gimble: run 01M2JRN8KZ9BB63Z1H2MNYZ0F5.lfg started in /Users/tyler/.codex/worktrees/7b5c/gimble-planning-index/ephemeral/attest/planning-index/project/.gimble/runs/01M2JRN8KZ9BB63Z1H2MNYZ0F5.lfg
+2026/09/15 08:48:41 gimble: worker.1: turn started (gpt-5.6-luna)
+2026/09/15 08:49:11 gimble: supervisor.1: turn started (haiku)
+2026/09/15 08:49:33 gimble: supervisor.1: turn ended after 22s: ok
+2026/09/15 08:49:33 gimble: worker.1: steer landed: Your supervisor objects: - Use the supplied context file [1] (index/README.md) as your routing entrypoint, not a search through the project directory. The user ...
+2026/09/15 08:49:41 gimble: supervisor.1: turn started (haiku)
+2026/09/15 08:49:55 gimble: supervisor.1: turn ended after 14s: ok
+2026/09/15 08:50:02 gimble: worker.1: turn ended after 1m21s: ok
+Retry delay is:
+
+`7 * min(max(attempt, 0), 4)` seconds.
+
+It increases by 7 seconds per zero-based attempt, clamped to 0–28 seconds.
+
+| Attempt | Delay |
+|---:|---:|
+| -1 | 0 seconds |
+| 0 | 0 seconds |
+| 1 | 7 seconds |
+| 4 | 28 seconds |
+| 10 | 28 seconds |
+
+Routing followed: [index entrypoint](</Users/tyler/.codex/worktrees/7b5c/gimble-planning-index/ephemeral/attest/planning-index/index/README.md:5>) → [routes](</Users/tyler/.codex/worktrees/7b5c/gimble-planning-index/ephemeral/attest/planning-index/index/routes.md:7>) → [retry-policy route](</Users/tyler/.codex/worktrees/7b5c/gimble-planning-index/ephemeral/attest/planning-index/index/routes/page-0003.md:7>) → [leaf](</Users/tyler/.codex/worktrees/7b5c/gimble-planning-index/ephemeral/attest/planning-index/index/sources/627e497d46be482b.md:11>) → [source line 3](</Users/tyler/.codex/worktrees/7b5c/gimble-planning-index/ephemeral/attest/planning-index/cache/engineering/retry-policy.md:3>).
+
+No files were modified.
+
+
+2026/09/15 08:50:02 gimble: run 01M2JRN8KZ9BB63Z1H2MNYZ0F5.lfg ended: ok

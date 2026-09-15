@@ -1,0 +1,7 @@
+Index run records: /Users/tyler/.codex/worktrees/7b5c/gimble-planning-index/ephemeral/attest/planning-index/.gimble-index-197080391
+semantic index audit: /Users/tyler/.codex/worktrees/7b5c/gimble-planning-index/ephemeral/attest/planning-index/index/README.md
+indexed=12 current=11 citations=11 stale=1 deleted=1 added=0 source_debt=0 debt_changed=false
+structural routes and leaves checked; retrieval usefulness requires a native query benchmark
+2026/09/15 08:47:51 gimble: run 01M2JRKQSFAQEQM5K7MMCC8D1G.semantic index started in /Users/tyler/.codex/worktrees/7b5c/gimble-planning-index/ephemeral/attest/planning-index/.gimble-index-197080391/runs/01M2JRKQSFAQEQM5K7MMCC8D1G.semantic index
+2026/09/15 08:47:51 gimble: run 01M2JRKQSFAQEQM5K7MMCC8D1G.semantic index ended: semanticindex: audit found stale coverage; run update
+gimble: semanticindex: audit found stale coverage; run update

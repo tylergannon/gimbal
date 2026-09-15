@@ -156,7 +156,7 @@ func (p *projector) project(update *stepUpdate) error {
 		return err
 	}
 
-	if update.State != "DONE" {
+	if update.State != "DONE" && (update.StepType != "tool" || update.State != "ERROR") {
 		return nil
 	}
 	if step.kind == "agent_response" && step.textOpen {
@@ -170,8 +170,8 @@ func (p *projector) project(update *stepUpdate) error {
 
 func (p *projector) projectTool(step *projectedStep, update *stepUpdate) error {
 	if update.ToolInfo == nil {
-		if update.State == "DONE" {
-			return errors.New("agy: completed tool step omitted tool_info")
+		if update.State == "DONE" || update.State == "ERROR" {
+			return errors.New("agy: terminal tool step omitted tool_info")
 		}
 		return nil
 	}
@@ -200,8 +200,11 @@ func (p *projector) projectTool(step *projectedStep, update *stepUpdate) error {
 			return err
 		}
 	}
-	if update.State != "DONE" {
+	if update.State != "DONE" && update.State != "ERROR" {
 		return nil
+	}
+	if update.State == "ERROR" && info.Error == nil {
+		return fmt.Errorf("agy: ERROR tool step %d omitted tool_info.error", update.StepIndex)
 	}
 	if info.Error != nil {
 		return p.event("session.tool.failed", map[string]any{
@@ -218,7 +221,8 @@ func (p *projector) projectTool(step *projectedStep, update *stepUpdate) error {
 // agy reports its schema-returning finish tool as ACTIVE, then puts the
 // structured value directly in the result envelope without a DONE update.
 // Settle only that documented terminal tool; any other open step is a broken
-// stream rather than inferred success.
+// stream rather than inferred success. Native tool failures emit ERROR and are
+// settled by projectTool before the result arrives.
 func (p *projector) finishResult(result *result) error {
 	indexes := make([]int, 0, len(p.steps))
 	for index := range p.steps {

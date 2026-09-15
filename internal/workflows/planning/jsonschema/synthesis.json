@@ -1,5 +1,7 @@
 {"type":"object",
 "properties":{
-"question":{"type":"string"},
-"plan":{"type":"string"}
+"question":{"type":"string","description":"One essential clarification, or empty when a plan can be written from the supplied information."},
+"plan":{"type":"string","description":"Complete Markdown plan preserving the user's goal, acceptance criteria, constraints, and concrete validation."},
+"overview":{"type":"string"},
+"decisions":{"type":"string"}
 },"required":["question","plan"],"additionalProperties":false}

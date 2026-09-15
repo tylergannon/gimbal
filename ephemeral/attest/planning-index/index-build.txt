@@ -1,0 +1,30 @@
+Index run records: /Users/tyler/.codex/worktrees/7b5c/gimble-planning-index/ephemeral/attest/planning-index/.gimble-index-4045737733
+2026/09/15 08:32:08 gimble: run 01M2JQPYX8C7KVNGH4SRYFKNGM.semantic index started in /Users/tyler/.codex/worktrees/7b5c/gimble-planning-index/ephemeral/attest/planning-index/.gimble-index-4045737733/runs/01M2JQPYX8C7KVNGH4SRYFKNGM.semantic index
+2026/09/15 08:32:08 gimble: readers.1/reader.2/source.1/reader.1: turn started (gpt-5.6-luna)
+2026/09/15 08:32:08 gimble: readers.1/reader.3/source.1/reader.1: turn started (gpt-5.6-luna)
+2026/09/15 08:32:08 gimble: readers.1/reader.1/source.1/reader.1: turn started (gpt-5.6-luna)
+2026/09/15 08:32:30 gimble: readers.1/reader.3/source.1/reader.1: turn ended after 22s: ok
+2026/09/15 08:32:47 gimble: readers.1/reader.1/source.1/reader.1: turn ended after 38s: ok
+2026/09/15 08:32:49 gimble: readers.1/reader.2/source.1/reader.1: turn ended after 41s: ok
+2026/09/15 08:32:50 gimble: readers.2/reader.1/source.1/reader.1: turn started (gpt-5.6-luna)
+2026/09/15 08:32:50 gimble: readers.2/reader.2/source.1/reader.1: turn started (gpt-5.6-luna)
+2026/09/15 08:32:50 gimble: readers.2/reader.3/source.1/reader.1: turn started (gpt-5.6-luna)
+2026/09/15 08:33:15 gimble: readers.2/reader.2/source.1/reader.1: turn ended after 26s: ok
+2026/09/15 08:33:40 gimble: readers.2/reader.3/source.1/reader.1: turn ended after 51s: ok
+2026/09/15 08:33:40 gimble: readers.2/reader.1/source.1/reader.1: turn ended after 51s: ok
+2026/09/15 08:33:41 gimble: readers.3/reader.3/source.1/reader.1: turn started (gpt-5.6-luna)
+2026/09/15 08:33:41 gimble: readers.3/reader.2/source.1/reader.1: turn started (gpt-5.6-luna)
+2026/09/15 08:33:41 gimble: readers.3/reader.1/source.1/reader.1: turn started (gpt-5.6-luna)
+2026/09/15 08:34:26 gimble: readers.3/reader.1/source.1/reader.1: turn ended after 45s: ok
+2026/09/15 08:34:46 gimble: readers.3/reader.2/source.1/reader.1: turn ended after 1m5s: ok
+2026/09/15 08:35:02 gimble: readers.3/reader.3/source.1/reader.1: turn ended after 1m22s: ok
+2026/09/15 08:35:03 gimble: readers.4/reader.3/source.1/reader.1: turn started (gpt-5.6-luna)
+2026/09/15 08:35:03 gimble: readers.4/reader.2/source.1/reader.1: turn started (gpt-5.6-luna)
+2026/09/15 08:35:03 gimble: readers.4/reader.1/source.1/reader.1: turn started (gpt-5.6-luna)
+2026/09/15 08:35:16 gimble: readers.4/reader.3/source.1/reader.1: turn ended after 14s: ok
+2026/09/15 08:35:46 gimble: readers.4/reader.1/source.1/reader.1: turn ended after 43s: ok
+2026/09/15 08:36:10 gimble: readers.4/reader.2/source.1/reader.1: turn ended after 1m7s: ok
+semantic index: /Users/tyler/.codex/worktrees/7b5c/gimble-planning-index/ephemeral/attest/planning-index/index/README.md (12 indexed sources, 0 source debt)
+2026/09/15 08:36:10 gimble: run 01M2JQPYX8C7KVNGH4SRYFKNGM.semantic index ended: ok
+Semantic index: /Users/tyler/.codex/worktrees/7b5c/gimble-planning-index/ephemeral/attest/planning-index/index/README.md
+Sprint Plan will discover this index through /Users/tyler/.codex/worktrees/7b5c/gimble-planning-index/ephemeral/attest/planning-index/project/.gimble/semantic-index.json

@@ -1,0 +1,302 @@
+{
+  "source": "/Users/tyler/.codex/worktrees/7b5c/gimble-planning-index/ephemeral/attest/planning-index/cache",
+  "built_at": "2026-09-15T14:47:51Z",
+  "mode": "update",
+  "sources": {
+    "billing/refunds.md": {
+      "hash": "660f356ecf0e2a5debc9b10d17d778ae7957486335b9e13f9cdc90e018f405c7",
+      "leaf": "sources/99b311f852175650.md",
+      "themes": [
+        "Approved-credit SLA: issue within 11 calendar days (billing/refunds.md:3-3)",
+        "Partial-refund identity preservation: retain the original invoice identifier (billing/refunds.md:3-3)",
+        "Unapproved-request handling: no deadline commitment exists (billing/refunds.md:3-3)"
+      ],
+      "citations": [
+        {
+          "path": "billing/refunds.md",
+          "start_line": 3,
+          "end_line": 3,
+          "note": "Defines the approval deadline, invoice-identifier rule, and absence of an unapproved-request deadline."
+        }
+      ],
+      "recipes": [
+        "To process an approved credit, track issuance against an 11-calendar-day deadline (billing/refunds.md:3-3).",
+        "To process a partial refund, retain the original invoice identifier; for an unapproved request, communicate that no deadline is promised (billing/refunds.md:3-3)."
+      ],
+      "route": "routes/page-0001.md",
+      "route_chain": [
+        "routes/page-0001.md"
+      ]
+    },
+    "engineering/retry-policy.md": {
+      "hash": "878dd43a0ae754bba61622ad2d1184d8bf839b0da22c7944a6056b0e52f463a2",
+      "leaf": "sources/627e497d46be482b.md",
+      "themes": [
+        "Implement bounded retry backoff",
+        "Handle zero-based and negative attempts",
+        "Keep delay computation pure and side-effect free"
+      ],
+      "citations": [
+        {
+          "path": "engineering/retry-policy.md",
+          "start_line": 3,
+          "end_line": 3,
+          "note": "Defines the clamp, 7-second step schedule, and no-side-effects contract."
+        }
+      ],
+      "recipes": [
+        "Compute delay as 7 * min(max(attempt, 0), 4).",
+        "Expected values: attempt 0→0, 1→7, 2→14, 3→21, 4+→28.",
+        "Unit-test boundary cases such as -1, 0, 1, 3, 4, and a large attempt.",
+        "Use the returned seconds in an external retry mechanism; keep this helper free of I/O and timing operations."
+      ],
+      "route": "routes/page-0002.md",
+      "route_chain": [
+        "routes/page-0002.md"
+      ]
+    },
+    "engineering/storage.md": {
+      "hash": "75f4b454588679dc1761e606ad4b42b4c2f940612cbd9b7d02d03965feed823e",
+      "leaf": "sources/5ab659b9a083497f.md",
+      "themes": [
+        "Job-history persistence",
+        "Per-job event ordering",
+        "Restart-safe record readability"
+      ],
+      "citations": [
+        {
+          "path": "engineering/storage.md",
+          "start_line": 1,
+          "end_line": 3,
+          "note": "Defines stored-record format, event numbering, and restart-readability requirement."
+        }
+      ],
+      "recipes": [
+        "To record job history, append one JSONL event at a time and assign the next increasing integer within that job.",
+        "To recover after restart, read the persisted finished records and resume from the job's existing event history."
+      ],
+      "route": "routes/page-0003.md",
+      "route_chain": [
+        "routes/page-0003.md"
+      ]
+    },
+    "engineering/text-policy.md": {
+      "hash": "850f947466f64a16b6791b0da554741b4c16b9d69c83ba1a57f0c4d597612e25",
+      "leaf": "sources/f9c79cb146306b2e.md",
+      "themes": [
+        "Preserve Unicode for user-facing display labels.",
+        "Normalize machine slugs by lowercasing, trimming boundary whitespace, and converting each whitespace run to one hyphen.",
+        "Keep existing punctuation unchanged during slug generation."
+      ],
+      "citations": [
+        {
+          "path": "engineering/text-policy.md",
+          "start_line": 1,
+          "end_line": 3,
+          "note": "Defines display-label and machine-slug normalization behavior."
+        }
+      ],
+      "recipes": [
+        "For a display label, retain the original Unicode text.",
+        "For a machine slug: lowercase the input, strip boundary whitespace, replace each run of whitespace with a single hyphen, and leave punctuation intact."
+      ],
+      "route": "routes/page-0003.md",
+      "route_chain": [
+        "routes/page-0003.md"
+      ]
+    },
+    "operations/alerts.md": {
+      "hash": "8db530ef9199b1855598d5bb2b0df38a84113106d92429e917c9edc9929e52b9",
+      "leaf": "sources/9c2c76f024a8f57b.md",
+      "themes": [
+        "on-call alerting",
+        "health-probe failure thresholds",
+        "consecutive-failure state",
+        "success-based reset",
+        "unknown telemetry handling"
+      ],
+      "citations": [
+        {
+          "path": "operations/alerts.md",
+          "start_line": 1,
+          "end_line": 3,
+          "note": "Defines the paging threshold, reset rule, and missing-probe semantics."
+        }
+      ],
+      "recipes": [
+        "Implement a counter that increments on failure, pages at three consecutive failures, and resets to zero on success.",
+        "Handle missing probes as an explicit unknown state; leave the failure counter unchanged."
+      ],
+      "route": "routes/page-0006.md",
+      "route_chain": [
+        "routes/page-0006.md"
+      ]
+    },
+    "operations/backups.md": {
+      "hash": "0f0268d465c1f7a42735cd1ae6c387cf765b38ae96eb34e43b60f491a07909af",
+      "leaf": "sources/ef8607cd65776890.md",
+      "themes": [
+        "Backup scheduling: six-hour snapshot cadence.",
+        "Retention management: preserve the 24 most recent snapshots.",
+        "Recovery validation: perform monthly restore drills on the first Tuesday."
+      ],
+      "citations": [
+        {
+          "path": "operations/backups.md",
+          "start_line": 1,
+          "end_line": 3,
+          "note": "Defines the complete backup cadence, retention limit, and restore-drill schedule."
+        }
+      ],
+      "recipes": [
+        "To schedule backups, trigger snapshot creation every six hours and enforce retention by deleting snapshots older than the 24 most recent.",
+        "To validate recoverability, schedule a restore drill for the first Tuesday of each month and document its outcome."
+      ],
+      "route": "routes/page-0001.md",
+      "route_chain": [
+        "routes/page-0001.md"
+      ]
+    },
+    "operations/release.md": {
+      "hash": "85d666ef1f48ad0d5ba434009801703a7efc0d6df1e9511823142d30d4f9ef1c",
+      "leaf": "sources/b9c1ee9994d2d2fb.md",
+      "themes": [
+        "Scheduled deployment coordination: target 06:20–06:40 UTC for normal releases.",
+        "Emergency change authorization: require both an incident reference and the current on-call engineer.",
+        "Rollback data integrity: preserve stored job history during recovery."
+      ],
+      "citations": [
+        {
+          "path": "operations/release.md",
+          "start_line": 1,
+          "end_line": 3,
+          "note": "Complete release-window, emergency-patch, and rollback requirements."
+        }
+      ],
+      "recipes": [
+        "To schedule a normal deployment, select a time from 06:20 through 06:40 UTC.",
+        "To prepare an emergency patch, record the incident reference and current on-call engineer first.",
+        "To roll back safely, verify stored job history remains available before and after recovery."
+      ],
+      "route": "routes/page-0002.md",
+      "route_chain": [
+        "routes/page-0002.md"
+      ]
+    },
+    "product/accessibility.md": {
+      "hash": "2a1255cbb050d8bbff12e08072f7e56c6ccb1e236f1bb44aaae9f6dd30374aac",
+      "leaf": "sources/de42059c432efec2.md",
+      "themes": [
+        "Implement non-color status communication",
+        "Design keyboard-first task-detail access",
+        "Avoid exhaustive graph-canvas traversal"
+      ],
+      "citations": [
+        {
+          "path": "product/accessibility.md",
+          "start_line": 3,
+          "end_line": 3,
+          "note": "Requires text labels alongside color for all status indicators and keyboard access to task details without traversing the entire graph canvas."
+        }
+      ],
+      "recipes": [
+        "For each status indicator, pair the color cue with a text label; see product/accessibility.md:3.",
+        "For graph-based task views, provide a direct keyboard-reachable task-detail path; see product/accessibility.md:3."
+      ],
+      "route": "routes/page-0001.md",
+      "route_chain": [
+        "routes/page-0001.md"
+      ]
+    },
+    "product/navigation.md": {
+      "hash": "6387efde7ff3c777a678b2c859c3c70e3c327a7c59a1f644fcec21ce31382024",
+      "leaf": "sources/62ba99bf834f128d.md",
+      "themes": [
+        "Hierarchical scope navigation via breadcrumbs.",
+        "Sibling workflow navigation via a local map.",
+        "Context-preserving detail inspection."
+      ],
+      "citations": [
+        {
+          "path": "product/navigation.md",
+          "start_line": 3,
+          "end_line": 3,
+          "note": "Defines ancestry breadcrumbs, sibling workflow maps, and preserved map position."
+        }
+      ],
+      "recipes": [
+        "For scope navigation, render a breadcrumb for ancestry and a local workflow map for siblings; see product/navigation.md:3.",
+        "For node inspection, open details in a way that preserves the workflow-map position; see product/navigation.md:3."
+      ],
+      "route": "routes/page-0001.md",
+      "route_chain": [
+        "routes/page-0001.md"
+      ]
+    },
+    "security/secrets.md": {
+      "hash": "b04e3d68d8c72aa093aef3b1b236f8272fdc591c4b591c4eb51a0d9ce0c9d3e8",
+      "leaf": "sources/cfc93a4243b6b746.md",
+      "themes": [
+        "Secret redaction in operational/job logging",
+        "Credential metadata: record identifier and provider",
+        "Secret-safe configuration export",
+        "Auditability without secret disclosure"
+      ],
+      "citations": [
+        {
+          "path": "security/secrets.md",
+          "start_line": 3,
+          "end_line": 3,
+          "note": "Defines the complete logging and configuration-export secret-handling rule."
+        }
+      ],
+      "recipes": [
+        "When instrumenting a job, log the credential identifier and provider fields only; redact or exclude the credential value.",
+        "When exporting configuration, omit all secret values while retaining non-secret settings and credential metadata."
+      ],
+      "route": "routes/page-0001.md",
+      "route_chain": [
+        "routes/page-0001.md"
+      ]
+    },
+    "security/sessions.md": {
+      "hash": "026b1fb6e76a62aa84a7daab33eb243ce0312e344abe4bda9fb2c6403c2cf0c8",
+      "leaf": "sources/c9db7c6f4119e43c.md",
+      "themes": [
+        "session expiry",
+        "authentication activity refresh",
+        "failed-authentication handling",
+        "exact timeout enforcement"
+      ],
+      "citations": [
+        {
+          "path": "security/sessions.md",
+          "start_line": 1,
+          "end_line": 3,
+          "note": "Defines the session lifetime and activity-refresh rules."
+        }
+      ],
+      "recipes": [
+        "Expire a session when its inactivity duration reaches 42 minutes.",
+        "On each successful authenticated request, update the session activity timestamp.",
+        "Leave the activity timestamp unchanged after failed authentication."
+      ],
+      "route": "routes/page-0006.md",
+      "route_chain": [
+        "routes/page-0006.md"
+      ]
+    }
+  },
+  "file_count": 11,
+  "debt": null,
+  "routes": [
+    "routes/page-0001.md",
+    "routes/page-0002.md",
+    "routes/page-0003.md",
+    "routes/page-0004.md",
+    "routes/page-0005.md",
+    "routes/page-0006.md",
+    "routes/page-0007.md",
+    "routes/page-0008.md"
+  ]
+}

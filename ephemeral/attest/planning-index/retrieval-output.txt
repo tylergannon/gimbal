@@ -1,0 +1,31 @@
+Request and planning artifacts: /Users/tyler/.codex/worktrees/7b5c/gimble-planning-index/ephemeral/attest/planning-index/project/.gimble/requests/lfg-2555886597
+2026/09/15 08:38:10 gimble: run 01M2JR210FJQ6VZCZ94ESWS7JF.lfg started in /Users/tyler/.codex/worktrees/7b5c/gimble-planning-index/ephemeral/attest/planning-index/project/.gimble/runs/01M2JR210FJQ6VZCZ94ESWS7JF.lfg
+2026/09/15 08:38:11 gimble: worker.1: turn started (gpt-5.6-luna)
+2026/09/15 08:38:40 gimble: supervisor.1: turn started (haiku)
+2026/09/15 08:39:00 gimble: supervisor.1: turn ended after 20s: ok
+2026/09/15 08:39:10 gimble: supervisor.1: turn started (haiku)
+2026/09/15 08:39:17 gimble: supervisor.1: turn ended after 6s: ok
+2026/09/15 08:39:40 gimble: supervisor.1: turn started (haiku)
+2026/09/15 08:39:50 gimble: supervisor.1: turn ended after 9s: ok
+2026/09/15 08:40:11 gimble: supervisor.1: turn started (haiku)
+2026/09/15 08:40:20 gimble: worker.1: turn ended after 2m9s: ok
+2026/09/15 08:40:20 gimble: supervisor.1: turn ended after 10s: context canceled
+Read-only retrieval complete; no files were modified, committed, or sent remotely.
+
+1. Login usability: An inactive login remains usable for exactly 42 minutes. Successful authenticated requests refresh activity; failed logins do not.
+
+   Route: `security/sessions.md` → leaf `index/sources/c9db7c6f4119e43c.md`  
+   Source: `cache/security/sessions.md`, lines 1–3
+
+2. Normal deployment: Between 06:20 and 06:40 UTC.
+
+   Route: `operations/release.md` → leaf `index/sources/b9c1ee9994d2d2fb.md`  
+   Source: `cache/operations/release.md`, lines 1–3
+
+3. Retry delay: Use `7 * min(max(attempt, 0), 4)` seconds: attempts 0→0, 1→7, 2→14, 3→21, and 4+→28.
+
+   Route: `engineering/retry-policy.md` → leaf `index/sources/627e497d46be482b.md`  
+   Source: `cache/engineering/retry-policy.md`, lines 1–3
+
+
+2026/09/15 08:40:20 gimble: run 01M2JR210FJQ6VZCZ94ESWS7JF.lfg ended: ok

@@ -1,0 +1,9 @@
+{
+  "changed_source": "operations/backups.md",
+  "deleted_source": "billing/currency.md",
+  "model_reads_during_update": 1,
+  "unchanged_leaves_preserved": 10,
+  "stale_audit_failed_without_writes": true,
+  "clean_audit_passed_without_writes": true,
+  "source_preserved": true
+}

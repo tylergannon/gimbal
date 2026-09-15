@@ -1,0 +1,28 @@
+[
+  {
+    "query": "How long does an inactive login stay usable, and does a failed login refresh it?",
+    "expected_source": "security/sessions.md",
+    "expected_facts": [
+      "42 minutes",
+      "does not refresh"
+    ]
+  },
+  {
+    "query": "At what time can a normal deployment happen?",
+    "expected_source": "operations/release.md",
+    "expected_facts": [
+      "06:20",
+      "06:40",
+      "UTC"
+    ]
+  },
+  {
+    "query": "How should retry delay change as attempts increase?",
+    "expected_source": "engineering/retry-policy.md",
+    "expected_facts": [
+      "7",
+      "28",
+      "zero"
+    ]
+  }
+]

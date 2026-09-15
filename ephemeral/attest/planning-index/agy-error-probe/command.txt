@@ -1,0 +1,5 @@
+cwd: /tmp/agy-tool-probe.8zhRd2
+agy -p 'Use view_file to open /tmp/agy-tool-probe.8zhRd2/missing.md first. Then use view_file to open /tmp/agy-tool-probe.8zhRd2/valid.md. Say which read failed and quote the valid anchor.' --output-format stream-json --dangerously-skip-permissions --add-dir /tmp/agy-tool-probe.8zhRd2 --new-project --model gemini-3.8-flash-low --print-timeout 5m --log-file /tmp/agy-tool-probe.8zhRd2/agy.log > /tmp/agy-tool-probe.8zhRd2/raw.jsonl 2> /tmp/agy-tool-probe.8zhRd2/stderr.txt
+
+cwd: /Users/tyler/.codex/worktrees/7b5c/gimble-planning-index
+ephemeral/attest/planning-index/agy-probe-gimble run-prompt -model gemini-3.8-flash-low -workdir /tmp/agy-tool-probe.8zhRd2 -logs ephemeral/attest/planning-index/agy-error-probe/gimble-run -timeout 5m 'Use view_file to open /tmp/agy-tool-probe.8zhRd2/missing.md first. Then use view_file to open /tmp/agy-tool-probe.8zhRd2/valid.md. Say which read failed and quote the valid anchor.' > ephemeral/attest/planning-index/agy-error-probe/gimble-output.txt 2> ephemeral/attest/planning-index/agy-error-probe/gimble-stderr.txt

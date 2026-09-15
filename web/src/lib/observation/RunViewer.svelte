@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { RunObservation, usageOf, usageText, type Decision, type ObservationDelta, type RunSnapshot } from './index.js';
 	import SessionTimeline from './SessionTimeline.svelte';
+	import SteerBox from './SteerBox.svelte';
 
 	let { snapshot }: { snapshot: RunSnapshot } = $props();
 	const observation = $derived(new RunObservation(snapshot));
@@ -96,6 +97,9 @@
 			<span>{turn.scope}</span>
 		</header>
 		{#if state}<SessionTimeline {state} {revision} {observation} turn={turn.id} />{/if}
+		{#if currentRun.status === 'running' && turn.ended === 0}
+			<SteerBox run={currentRun.id} session={turn.session} name={session?.name ?? turn.session} />
+		{/if}
 	</section>
 {/each}
 {#if views.length === 0}<p>No agent turns have started.</p>{/if}

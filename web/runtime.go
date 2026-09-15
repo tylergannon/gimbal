@@ -12,7 +12,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"sync"
 
 	"github.com/tylergannon/gimble"
 	"github.com/tylergannon/gimble/internal/live"
@@ -28,8 +27,10 @@ type Runtime struct {
 	done    chan struct{}
 	address string
 
-	mu      sync.Mutex
-	running map[string]live.Controller // runs in progress by id, for Steer, KillScope, and KillTurn
+	// runs in progress by id, for Steer, KillScope, and KillTurn. The table
+	// is in the runtime's context too, so the page's remote functions steer
+	// the same runs these methods do.
+	runs *live.Runs
 }
 
 // Option configures the project's web listener.
@@ -123,7 +124,12 @@ func NewRuntime(ctx context.Context, projectDir string, opts ...Option) (*Runtim
 	// serves requests from this same context through BaseContext, so its
 	// routes and its page loads read the very same registry.
 	runtimeCtx = observation.WithRegistry(runtimeCtx, observation.NewRegistry(dir))
-	runtime := &Runtime{ctx: runtimeCtx, cancel: cancel, dir: dir, done: make(chan struct{}), running: make(map[string]live.Controller)}
+	// The table of runs in progress lives there too, for the same reason: a
+	// remote function is called with the request's context, which descends
+	// from this one, so the page reaches the very runs this Runtime holds.
+	runs := live.NewRuns()
+	runtimeCtx = live.WithRuns(runtimeCtx, runs)
+	runtime := &Runtime{ctx: runtimeCtx, cancel: cancel, dir: dir, done: make(chan struct{}), runs: runs}
 	if cfg.network == "none" {
 		context.AfterFunc(runtimeCtx, func() { close(runtime.done) })
 		return runtime, nil
@@ -205,7 +211,7 @@ func (r *Runtime) Run(ctx context.Context, name string, body func(context.Contex
 	defer cancel(nil)
 	// The run puts itself in the runtime's table under its id for as long
 	// as its body runs, so Steer, KillScope, and KillTurn can reach it.
-	runCtx = live.WithHook(runCtx, r.register)
+	runCtx = live.WithHook(runCtx, r.runs.Hook)
 	err := gimble.Run(gimble.Project(runCtx, r.dir), name, body)
 	if err == nil && context.Cause(runCtx) != nil {
 		return context.Cause(runCtx)
@@ -213,35 +219,12 @@ func (r *Runtime) Run(ctx context.Context, name string, body func(context.Contex
 	return err
 }
 
-func (r *Runtime) register(id string, run live.Controller) func() {
-	r.mu.Lock()
-	r.running[id] = run
-	r.mu.Unlock()
-	return func() {
-		r.mu.Lock()
-		delete(r.running, id)
-		r.mu.Unlock()
-	}
-}
-
-// inProgress returns the run in progress under runID; a finished or unknown run
-// is an error.
-func (r *Runtime) inProgress(runID string) (live.Controller, error) {
-	r.mu.Lock()
-	run := r.running[runID]
-	r.mu.Unlock()
-	if run == nil {
-		return nil, fmt.Errorf("gimble: no run %q in progress", runID)
-	}
-	return run, nil
-}
-
 // Steer sends message into the turn running on session sessionID of the run
 // runID, as the person watching the page: the run log records it with
 // Source "person", and landed reports whether a turn received it. An
 // unknown or finished run or session is an error.
 func (r *Runtime) Steer(ctx context.Context, runID, sessionID, message string) (landed bool, err error) {
-	run, err := r.inProgress(runID)
+	run, err := r.runs.InProgress(runID)
 	if err != nil {
 		return false, err
 	}
@@ -252,7 +235,7 @@ func (r *Runtime) Steer(ctx context.Context, runID, sessionID, message string) (
 // it, with a Killed cause naming who did it and why. The run log records
 // the kill on the scope. An unknown or finished run or scope is an error.
 func (r *Runtime) KillScope(runID, scopeKey, by, reason string) error {
-	run, err := r.inProgress(runID)
+	run, err := r.runs.InProgress(runID)
 	if err != nil {
 		return err
 	}
@@ -264,7 +247,7 @@ func (r *Runtime) KillScope(runID, scopeKey, by, reason string) error {
 // The run log records the kill on the turn. An unknown or finished run or
 // turn is an error.
 func (r *Runtime) KillTurn(runID, turnID, by, reason string) error {
-	run, err := r.inProgress(runID)
+	run, err := r.runs.InProgress(runID)
 	if err != nil {
 		return err
 	}

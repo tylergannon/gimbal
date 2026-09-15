@@ -8,4 +8,11 @@ package routes
 var (
 	// Skgo_guide is guide, published as src/routes/guide.remote.ts#guide.
 	Skgo_guide = guide
+	// Skgo_steer is steer, published as src/routes/steer.remote.ts#steer.
+	Skgo_steer = steer
+)
+
+type (
+	// SkgoArg_steer is the type steer takes.
+	SkgoArg_steer = Steer
 )

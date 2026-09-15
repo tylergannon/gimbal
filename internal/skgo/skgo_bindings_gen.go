@@ -29,6 +29,24 @@ func remote_guide(ctx context.Context, call skgo.Call) (any, error) {
 	return EncodeRoot0(out)
 }
 
+// remote_steer answers src/routes/steer.remote.ts#steer, a form.
+//
+// A form's submission is assigned onto the handler's own argument type:
+// kit posts a form as binary form data, which can carry an uploaded File,
+// and a File is not a value polytype describes.
+// The result is encoded by EncodeRoot1, generated for its result type.
+func remote_steer(ctx context.Context, call skgo.Call) (any, error) {
+	var in skgo0.SkgoArg_steer
+	if err := skgo.DecodeForm(call.Arg, &in); err != nil {
+		return nil, err
+	}
+	out, err := skgo0.Skgo_steer(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return EncodeRoot1(out)
+}
+
 // Remotes returns every remote function declared in the app, ready to hand
 // to skgo.NewRemotes.
 func Remotes() []*skgo.Remote {
@@ -39,6 +57,13 @@ func Remotes() []*skgo.Remote {
 			Name:   "guide",
 			Fn:     skgo0.Skgo_guide,
 			Call:   remote_guide,
+		}),
+		skgo.NewRemote(skgo.RemoteSpec{
+			Kind:   skgo.KindForm,
+			Module: "src/routes/steer.remote.ts",
+			Name:   "steer",
+			Fn:     skgo0.Skgo_steer,
+			Call:   remote_steer,
 		}),
 	}
 }

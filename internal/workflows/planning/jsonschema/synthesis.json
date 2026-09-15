@@ -1,0 +1,5 @@
+{"type":"object",
+"properties":{
+"question":{"type":"string"},
+"plan":{"type":"string"}
+},"required":["question","plan"],"additionalProperties":false}

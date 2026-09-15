@@ -20,6 +20,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/tylergannon/gimble"
 	"github.com/tylergannon/gimble/claude"
@@ -30,6 +31,22 @@ import (
 
 // Input starts a sprint.
 type Input struct {
+	// Goal is the desired result. When empty, Sprint or Issue supplies it.
+	Goal string `json:"goal"`
+	// Plan is an optional absolute local file containing the plan/specification.
+	Plan string `json:"plan"`
+	// Acceptance states the observable acceptance requirements.
+	Acceptance string `json:"acceptance"`
+	// Constraints carries non-negotiable constraints for every role.
+	Constraints string `json:"constraints"`
+	// ContextFiles are local files whose contents are supplied as scoped context.
+	ContextFiles []string `json:"context_files"`
+	// Checks are explicit repository commands. When present they replace default Gimble checks.
+	Checks []string `json:"checks"`
+	// SupervisorIntervalSeconds controls task supervisor look frequency. Zero uses the runtime default.
+	SupervisorIntervalSeconds int `json:"supervisor_interval_seconds"`
+	// Finish controls the exit policy: local (default), pr, or merge.
+	Finish string `json:"finish"`
 	// The sprint to build: its number in ephemeral/research/api/SPRINTS.md, e.g. 2. Zero when an issue is built instead.
 	Sprint int `json:"sprint"`
 	// The issue to build instead of a sprint: a GitHub issue number, or the path of a file holding the issue's text. Empty when a sprint is built.
@@ -72,21 +89,52 @@ func Sprint(ctx context.Context, in Input) error {
 // run is the workflow on the given harnesses: cx for the researcher, the
 // planner, and the coders; cl for the supervisors and the validator.
 func run(ctx context.Context, in Input, cx, cl gimble.HarnessAdapter) error {
+	if err := normalizeInput(&in); err != nil {
+		return err
+	}
 	gimble.SetJSON(ctx, "input", in)
 	text, err := goalText(ctx, in)
 	if err != nil {
 		return err
 	}
-	goal := text + "\n\n" + fmt.Sprintf(done, in.Repo)
-	validation, err := validationSection(in.Repo)
+	goal := text
+	if in.Plan != "" {
+		goal += "\n\nUse the local plan in " + in.Plan + ". The original goal, acceptance criteria, and current constraints take precedence over generated planning advice. Planning-only instructions do not prohibit this execution phase."
+	}
+	if in.Constraints != "" {
+		gimble.Set(ctx, "constraints", in.Constraints)
+	}
+	if in.Acceptance != "" {
+		gimble.Set(ctx, "acceptance", in.Acceptance)
+	}
+	var contextText strings.Builder
+	for i, file := range in.ContextFiles {
+		contents, err := os.ReadFile(file)
+		if err != nil {
+			return fmt.Errorf("sprint: context file %s: %w", file, err)
+		}
+		if i > 0 {
+			contextText.WriteString("\n\n")
+		}
+		contextText.WriteString("## ")
+		contextText.WriteString(filepath.Base(file))
+		contextText.WriteString("\n\n")
+		contextText.Write(contents)
+	}
+	if contextText.Len() > 0 {
+		gimble.Set(ctx, contextFilesKey, contextText.String())
+	}
+	validation, err := validationSection(in)
 	if err != nil {
 		return err
 	}
 
 	researcher := gimble.NewSession(ctx, "researcher", cx, in.Model, in.Repo)
-	if _, err := researcher.Generate[gimble.Text](ctx, researchPrompt+"\n\n"+goal); err != nil {
+	research, err := researcher.Generate[gimble.Text](ctx, researchPrompt+"\n\n"+goal+"\n\n"+gimble.ScopeText(ctx))
+	if err != nil {
 		return err
 	}
+	gimble.Set(ctx, "research result", string(research))
 	planner, err := researcher.Fork(ctx, "planner")
 	if err != nil {
 		return err
@@ -97,6 +145,7 @@ func run(ctx context.Context, in Input, cx, cl gimble.HarnessAdapter) error {
 	// did not see working is information for the planner's next round,
 	// never part of the goal; three rounds at most.
 	tasks := 0
+	var taskCommands []string
 	var findings []string
 	for round := 1; ; round++ {
 		err := gimble.Scope(ctx, "round", func(ctx context.Context) error {
@@ -108,7 +157,7 @@ func run(ctx context.Context, in Input, cx, cl gimble.HarnessAdapter) error {
 				if tasks++; tasks > in.Tasks {
 					break
 				}
-				if err := runTask(ctx, in, researcher, validator, cl, task); err != nil {
+				if err := runTaskWithCommands(ctx, in, researcher, validator, cl, task, &taskCommands); err != nil {
 					return err
 				}
 			}
@@ -120,7 +169,14 @@ func run(ctx context.Context, in Input, cx, cl gimble.HarnessAdapter) error {
 		if tasks > in.Tasks {
 			return fmt.Errorf("sprint: the planner was not done after %d tasks", in.Tasks)
 		}
-		review, err := validator.Generate[review](ctx, validatePrompt+"\n\n## Goal\n\n"+withoutProof(text)+"\n\n"+validation)
+		if err := finalChecks(ctx, in, taskCommands...); err != nil {
+			findings = []string{err.Error()}
+			if round == 3 {
+				return err
+			}
+			continue
+		}
+		review, err := validator.Generate[review](ctx, validatePrompt+"\n\n## Goal\n\n"+withoutProof(text)+"\n\n"+validation+"\n\n"+gimble.ScopeText(ctx))
 		if err != nil {
 			return err
 		}
@@ -134,9 +190,15 @@ func run(ctx context.Context, in Input, cx, cl gimble.HarnessAdapter) error {
 		}
 	}
 
-	// Exit and merge: the planner, who drove the sprint, files what is left
-	// and merges the branch.
-	summary, err := planner.Generate[gimble.Text](ctx, mergePrompt)
+	if in.Finish == "local" {
+		log.Printf("sprint: done locally; changes remain in %s", in.Repo)
+		return nil
+	}
+	finishPrompt := mergePrompt
+	if in.Finish == "pr" {
+		finishPrompt = prPrompt
+	}
+	summary, err := planner.Generate[gimble.Text](ctx, finishPrompt)
 	if err != nil {
 		return err
 	}
@@ -148,7 +210,82 @@ func run(ctx context.Context, in Input, cx, cl gimble.HarnessAdapter) error {
 // or one line naming the local file that holds the issue. An issue given by
 // number is fetched with gh and written under the repository's .gimble
 // directory first, so every agent reads it from the file.
+func normalizeInput(in *Input) error {
+	if strings.TrimSpace(in.Repo) == "" {
+		return errors.New("sprint: repo is required")
+	}
+	repo, err := filepath.Abs(in.Repo)
+	if err != nil {
+		return fmt.Errorf("sprint: repo: %w", err)
+	}
+	in.Repo = repo
+	if strings.TrimSpace(in.Goal) != "" && (in.Sprint != 0 || in.Issue != "") {
+		return errors.New("sprint: goal cannot be combined with sprint or issue")
+	}
+	if in.Tasks <= 0 {
+		in.Tasks = 10
+	}
+	if in.Finish == "" {
+		in.Finish = "local"
+	}
+	if in.Finish != "local" && in.Finish != "pr" && in.Finish != "merge" {
+		return fmt.Errorf("sprint: finish must be local, pr, or merge")
+	}
+	if in.SupervisorIntervalSeconds < 0 {
+		return errors.New("sprint: supervisor interval cannot be negative")
+	}
+	if in.SupervisorIntervalSeconds == 0 {
+		in.SupervisorIntervalSeconds = 30
+	}
+	if in.Finish != "local" && !in.DryRun {
+		if err := finishPreflight(in.Repo); err != nil {
+			return err
+		}
+	}
+	if strings.TrimSpace(in.Model) == "" {
+		in.Model = "gpt-5.6-luna"
+	}
+	if strings.TrimSpace(in.ReviewModel) == "" {
+		in.ReviewModel = "haiku"
+	}
+	for i, file := range in.ContextFiles {
+		path := file
+		if !filepath.IsAbs(path) {
+			path = filepath.Join(in.Repo, path)
+		}
+		abs, err := filepath.Abs(path)
+		if err != nil {
+			return fmt.Errorf("sprint: context file %d: %w", i+1, err)
+		}
+		if _, err := os.Stat(abs); err != nil {
+			return fmt.Errorf("sprint: context file %s: %w", abs, err)
+		}
+		in.ContextFiles[i] = abs
+	}
+	if in.Plan != "" {
+		plan := in.Plan
+		if !filepath.IsAbs(plan) {
+			plan = filepath.Join(in.Repo, plan)
+		}
+		abs, err := filepath.Abs(plan)
+		if err != nil {
+			return fmt.Errorf("sprint: plan: %w", err)
+		}
+		if _, err := os.Stat(abs); err != nil {
+			return fmt.Errorf("sprint: plan: %w", err)
+		}
+		in.Plan = abs
+	}
+	return nil
+}
+
 func goalText(ctx context.Context, in Input) (string, error) {
+	if strings.TrimSpace(in.Goal) != "" {
+		return strings.TrimSpace(in.Goal), nil
+	}
+	if in.Plan != "" {
+		return "Implement the local plan in " + in.Plan + ".", nil
+	}
 	if in.Issue == "" {
 		plan, err := os.ReadFile(filepath.Join(in.Repo, "ephemeral/research/api/SPRINTS.md"))
 		if err != nil {
@@ -188,9 +325,15 @@ func goalText(ctx context.Context, in Input) (string, error) {
 
 // validationSection is the Validation section of docs/definition-of-done.md,
 // read from the repository when the workflow runs.
-func validationSection(repo string) (string, error) {
-	doc, err := os.ReadFile(filepath.Join(repo, "docs/definition-of-done.md"))
+func validationSection(in Input) (string, error) {
+	if strings.TrimSpace(in.Acceptance) != "" {
+		return strings.TrimSpace(in.Acceptance), nil
+	}
+	doc, err := os.ReadFile(filepath.Join(in.Repo, "docs/definition-of-done.md"))
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return "No repository validation document was supplied.", nil
+		}
 		return "", err
 	}
 	text, ok := section(string(doc), "## Validation")
@@ -215,14 +358,24 @@ func withoutProof(text string) string {
 // runTask does one assignment, records the evidence requested by the planner,
 // and commits only when that evidence and the workflow's repository checks pass.
 func runTask(ctx context.Context, in Input, researcher, validator *gimble.Session, cl gimble.HarnessAdapter, task gimble.Task) error {
+	return runTaskWithCommands(ctx, in, researcher, validator, cl, task, nil)
+}
+
+func runTaskWithCommands(ctx context.Context, in Input, researcher, validator *gimble.Session, cl gimble.HarnessAdapter, task gimble.Task, taskCommands *[]string) error {
 	coder, err := researcher.Fork(ctx, "coder")
 	if err != nil {
 		return err
 	}
 	supervisor := gimble.NewSession(ctx, "supervisor", cl, in.ReviewModel, in.Repo)
-	result, workErr := coder.Generate[gimble.Text](ctx, codePrompt+"\n\n"+gimble.ScopeText(ctx),
-		gimble.WithSupervisor(supervisor, superviseInstruction),
-	)
+	if in.SupervisorIntervalSeconds > 0 {
+		result, workErr := coder.Generate[gimble.Text](ctx, codePrompt+"\n\n"+gimble.ScopeText(ctx), gimble.WithSupervisor(supervisor, superviseInstruction, gimble.WithInterval(time.Duration(in.SupervisorIntervalSeconds)*time.Second)))
+		return recordTaskResult(ctx, in, validator, task, result, workErr, taskCommands)
+	}
+	result, workErr := coder.Generate[gimble.Text](ctx, codePrompt+"\n\n"+gimble.ScopeText(ctx), gimble.WithSupervisor(supervisor, superviseInstruction))
+	return recordTaskResult(ctx, in, validator, task, result, workErr, taskCommands)
+}
+
+func recordTaskResult(ctx context.Context, in Input, validator *gimble.Session, task gimble.Task, result gimble.Text, workErr error, taskCommands *[]string) error {
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
@@ -241,6 +394,9 @@ func runTask(ctx context.Context, in Input, researcher, validator *gimble.Sessio
 		gimble.Set(ctx, "task command", commandText(task.Validation.Command, code, output))
 		if code != 0 {
 			passed = false
+			if taskCommands != nil {
+				*taskCommands = append(*taskCommands, task.Validation.Command)
+			}
 		}
 	}
 	assessmentPrompt := fmt.Sprintf(taskValidationPrompt, task.DefinitionOfDone)
@@ -255,28 +411,27 @@ func runTask(ctx context.Context, in Input, researcher, validator *gimble.Sessio
 	if len(assessment.NotSeenWorking) != 0 {
 		passed = false
 	}
-	if repositoryChecks.vet != "" {
-		code, output, err := command(ctx, in, repositoryChecks.vet)
-		if err != nil {
+	for _, check := range checksFor(in) {
+		if err := gimble.Scope(ctx, "check", func(ctx context.Context) error {
+			code, output, err := command(ctx, in, check)
+			if err != nil {
+				return err
+			}
+			gimble.Set(ctx, checkResultKey, commandText(check, code, output))
+			if code != 0 {
+				passed = false
+			}
+			return nil
+		}); err != nil {
 			return err
-		}
-		gimble.Set(ctx, "repository vet check", commandText(repositoryChecks.vet, code, output))
-		if code != 0 {
-			passed = false
-		}
-	}
-	if repositoryChecks.test != "" {
-		code, output, err := command(ctx, in, repositoryChecks.test)
-		if err != nil {
-			return err
-		}
-		gimble.Set(ctx, "repository test check", commandText(repositoryChecks.test, code, output))
-		if code != 0 {
-			passed = false
 		}
 	}
 	if !passed {
 		log.Printf("sprint: task %q did not validate, so its work stays uncommitted", task.Name)
+		return nil
+	}
+	if in.Finish == "local" {
+		log.Printf("sprint: task %q validated; local finish leaves work uncommitted", task.Name)
 		return nil
 	}
 	if _, err := git(ctx, in, "add", "-A"); err != nil {
@@ -325,23 +480,90 @@ func commandText(command string, code int, output string) string {
 	return fmt.Sprintf("$ %s\nexit %d\n%s", command, code, output)
 }
 
-const done = "Definition of done (docs/definition-of-done.md): the software actually works, and what this asks for is 90-95%% built and committed in %s, with `go vet ./...` and `go test ./...` exiting 0 there and each part seen working in a test or a command. Gate on these requirements only, never on code quality. When this is true the goal is met, even with quirks left: they are filed as issues after the loop, not fixed in it."
+func checksFor(in Input) []string {
+	if len(in.Checks) != 0 {
+		return in.Checks
+	}
+	mod, err := os.ReadFile(filepath.Join(in.Repo, "go.mod"))
+	if err == nil && strings.Contains(string(mod), "module github.com/tylergannon/gimble") {
+		return []string{repositoryChecks.vet, repositoryChecks.test}
+	}
+	return nil
+}
 
-const researchPrompt = `You are about to lead the build of the goal below on this repository, Gimble, a Go library. Read AGENTS.md, docs/definition-of-done.md, ephemeral/research/api/API.md, ephemeral/research/api/SPRINTS.md, and the code the goal touches, until you know where everything it needs is. Change no files. Answer with a short summary of what exists and what the goal needs.`
+func finalChecks(ctx context.Context, in Input, extra ...string) error {
+	checks := checksFor(in)
+	checks = append(checks, extra...)
+	if len(checks) == 0 {
+		return nil
+	}
+	return gimble.Scope(ctx, "final checks", func(ctx context.Context) error {
+		for _, check := range checks {
+			if strings.TrimSpace(check) == "" {
+				continue
+			}
+			var checkErr error
+			err := gimble.Scope(ctx, "check", func(ctx context.Context) error {
+				code, output, err := command(ctx, in, check)
+				if err != nil {
+					return err
+				}
+				gimble.Set(ctx, checkResultKey, commandText(check, code, output))
+				if code != 0 {
+					checkErr = fmt.Errorf("sprint: final check %q exited %d", check, code)
+				}
+				return nil
+			})
+			if err != nil {
+				return err
+			}
+			if checkErr != nil {
+				return checkErr
+			}
+		}
+		return nil
+	})
+}
 
-const codePrompt = `Complete the task in the scoped context, following AGENTS.md and ephemeral/research/api/API.md. Demonstrate the result and leave the work uncommitted. Answer with a short summary of what changed and the evidence you gathered.`
+func finishPreflight(repo string) error {
+	status := exec.Command("git", "status", "--porcelain", "--untracked-files=all")
+	status.Dir = repo
+	if out, err := status.CombinedOutput(); err != nil {
+		return fmt.Errorf("sprint: finish preflight: git status: %w: %s", err, strings.TrimSpace(string(out)))
+	} else if strings.TrimSpace(string(out)) != "" {
+		return errors.New("sprint: finish preflight: repository is dirty; commit or stash changes before pr/merge finish")
+	}
+	for _, path := range []string{".gimble/requests/probe", ".gimble/runs/probe", ".gimble/project.jsonl", ".gimble/issues/probe"} {
+		check := exec.Command("git", "check-ignore", "-q", "--", path)
+		check.Dir = repo
+		if err := check.Run(); err != nil {
+			return fmt.Errorf("sprint: finish preflight: %s is not ignored; add .gimble runtime paths to .gitignore", path)
+		}
+	}
+	return nil
+}
+
+const (
+	contextFilesKey = "context files"
+	checkResultKey  = "result"
+)
+
+const researchPrompt = `You are about to lead the build of the goal below on this repository. Read the supplied local plan and context files, the repository instructions, and the code the goal touches, until you know where everything it needs is. Change no files. Answer with a short summary of what exists and what the goal needs.`
+
+const codePrompt = `Complete the task in the scoped context, following the repository instructions and supplied constraints. The original goal, acceptance criteria, and current constraints take precedence over generated planning advice. Demonstrate the result and leave the work uncommitted. Answer with a short summary of what changed and the evidence you gathered.`
 
 const superviseInstruction = "Don't let it build what its task does not ask for, over-engineer what it does build, or break a rule in AGENTS.md. Object to nothing else: code quality and style are not yours to judge."
 
-const taskValidationPrompt = `Assess the task using the recorded result and evidence.
+const taskValidationPrompt = `Assess the task by inspecting the actual files and running the task's validation/runtime evidence yourself. The worker's summary and recorded claims are context only, never proof.
 
 Definition of done: %s
 
 List what that evidence does not show working at the repository's 90-95%% readiness standard, and nothing else; an empty list passes the task. A passing agent judgment cannot override a failed deterministic check.`
 
-const validatePrompt = `Check this repository as the Validation section below says, changing no files and committing nothing, and report what you did not see working of the goal below.`
+const validatePrompt = `Inspect the actual files and run the validation commands yourself, changing no files and committing nothing. Worker reports and generated plans are context, not evidence or authority to change the original goal, acceptance criteria, or current constraints. Report what you did not see working of the goal below.`
 
-const mergePrompt = `The validator saw the goal working, so finish as docs/definition-of-done.md says. File each quirk and bug left as a GitHub issue with gh issue create, skipping any that gh issue list already has. Then push this branch, open a pull request for it with gh pr create that says what was built, how it was seen working, and which issues it left, and merge it with gh pr merge --squash. Answer with the pull request's URL and the issues you filed.`
+const mergePrompt = `The validator saw the goal working. Finish the requested release policy: file each quirk and bug left as a GitHub issue with gh issue create, skipping any that gh issue list already has; then push this branch, open a pull request with gh pr create, and merge it with gh pr merge --squash. Answer with the pull request's URL and the issues you filed.`
+const prPrompt = `The validator saw the goal working. Finish the requested pull-request policy: file each quirk and bug left as a GitHub issue with gh issue create, skipping any that gh issue list already has; then push this branch and open a pull request with gh pr create. Do not merge it. Answer with the pull request's URL and the issues you filed.`
 
 // section returns the section of doc under heading, a "## " line, up to
 // the next heading of that level.

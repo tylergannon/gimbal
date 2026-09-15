@@ -12,6 +12,29 @@ worktree, a merge is written inline in the workflow that needs it, with
 `Group`, `Generate`, and git through `os/exec`. Never propose a new exported
 name; propose the program.
 
+## Use a builtin
+
+For existing coding work, start with `gimble work -repo /absolute/project
+-goal "the desired result"`. It asks useful questions and recommends `lfg`
+(one supervised worker), `plan` (three independent drafts, cross-critiques,
+and a saved plan), or `sprint` (planner, supervised coders, and independent
+validation). Each name is also a direct CLI command.
+
+Supply a design with `-file design.md`, an implementation plan with `-plan
+plan.md`, and boundaries with `-acceptance` and `-constraints`. File paths
+resolve from `-repo`; repeat `-file` and `-check` for more context or checks.
+Checks run in that repository. `plan` never implements; guided `work` offers
+execution after planning. `-yes` accepts recommendations without questions.
+Changes remain local and uncommitted unless Sprint explicitly receives
+`-finish pr` or `-finish merge`.
+
+The CLI prints request artifacts under `.gimble/requests` and records under
+`.gimble/runs`. `-dry-run` previews without models or execution commands;
+`-no-web` omits the live web server. The default models are Luna, Haiku,
+and Gemini Flash; use `-model`, `-review-model`, and `-planning-model` to
+select installed, authenticated native harness models. Use these workflows
+as readable Go examples in `internal/workflows/` when writing another.
+
 ## What a run is
 
 `gimble.Run(ctx, name, body)` runs `body` once and blocks until it returns.

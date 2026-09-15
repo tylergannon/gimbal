@@ -1,0 +1,6 @@
+{"type":"object",
+"properties":{
+"workflow":{"type":"string","description":"Choose lfg for a small clear change, plan for substantial or uncertain work, or sprint for a sufficiently detailed existing plan. Use exactly one of these names."},
+"reason":{"type":"string","description":"Briefly explain how the size and uncertainty of this particular task justify the choice."},
+"question":{"type":"string","description":"Ask one short question only when its answer materially changes the goal or choice. Otherwise return an empty string. Never require a planning ritual for a small clear task."}
+},"required":["workflow","reason","question"],"additionalProperties":false}

@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 
 	"github.com/tylergannon/gimble/internal/workflows/sprint"
 	"github.com/tylergannon/gimble/web"
@@ -20,6 +21,14 @@ func main() {
 	var in sprint.Input
 	flag.IntVar(&in.Sprint, "sprint", 0, "the sprint of SPRINTS.md to build")
 	flag.StringVar(&in.Issue, "issue", "", "the issue to build instead of a sprint: a GitHub issue number, or a file holding the issue's text")
+	flag.StringVar(&in.Goal, "goal", "", "desired result; replaces -sprint/-issue when supplied")
+	flag.StringVar(&in.Plan, "plan", "", "absolute local plan or specification file")
+	flag.StringVar(&in.Acceptance, "acceptance", "", "observable acceptance requirements")
+	flag.StringVar(&in.Constraints, "constraints", "", "non-negotiable constraints")
+	flag.Var((*stringList)(&in.ContextFiles), "context-file", "local context file (repeatable)")
+	flag.Var((*stringList)(&in.Checks), "check", "deterministic repository check (repeatable)")
+	flag.IntVar(&in.SupervisorIntervalSeconds, "supervisor-interval-seconds", 0, "supervisor look interval in seconds")
+	flag.StringVar(&in.Finish, "finish", "local", "finish policy: local, pr, or merge")
 	flag.BoolVar(&in.DryRun, "dry-run", false, "call no model and run no command: print every prompt with its schema, answered with example values")
 	flag.StringVar(&in.Model, "model", "gpt-5.6-luna", "Codex model for the researcher, the planner, and the coders")
 	flag.StringVar(&in.ReviewModel, "review-model", "haiku", "Claude Code model for the supervisors and the validator")
@@ -28,7 +37,7 @@ func main() {
 	uds := flag.String("uds", "", "Unix-domain socket for the web application instead of TCP")
 	noWeb := flag.Bool("no-web", false, "run without the web application")
 	flag.Parse()
-	if (in.Sprint == 0) == (in.Issue == "") {
+	if in.Goal == "" && (in.Sprint == 0) == (in.Issue == "") {
 		log.Fatal("sprint: give -sprint or -issue, not both")
 	}
 	repo, err := os.Getwd()
@@ -66,4 +75,13 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+}
+
+type stringList []string
+
+func (s *stringList) String() string { return strings.Join(*s, ",") }
+
+func (s *stringList) Set(value string) error {
+	*s = append(*s, value)
+	return nil
 }

@@ -25,6 +25,14 @@ and other runtime values may vary while the possible operations and their
 structural relationships remain explicit. This aesthetic guides bounded
 lint rules; it does not require exhaustive analysis of arbitrary Go.
 
+## Workflow web pages
+
+Select available workflows and their Go Input types explicitly at build
+time. Generate concrete bindings, schemas, and types through polytype/skgo.
+To make a workflow startable from the web, author an actual Svelte page for
+that workflow and link to it from the application. Runtime workflow
+registration and generic schema-driven launch forms are not the model.
+
 ## Read first
 
 - `go doc -all .`: the current public API and its behavioral contract.

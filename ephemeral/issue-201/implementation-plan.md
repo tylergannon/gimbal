@@ -3,19 +3,21 @@
 ## Outcome and authority
 
 Implement a source extractor that generates a Go `workflow.Graph` literal and
-a typed workflow value. Register those graphs before the application starts;
-associate each run with the exact registered graph revision. Workflow bodies
+a typed workflow value. Generate application bindings for an explicit build-time
+list of workflows; associate each run with the exact graph revision. Workflow bodies
 remain ordinary Go. This document is a proposed implementation design, not an
 implementation or a claim that extraction already works.
 
 Read the locally cached issue and its owner comment:
 `/Users/tyler/.codex/worktrees/a256/gimble/ephemeral/issue-201/issue-and-comments.md`.
-The owner comment dated **2026-09-14 23:10:57 UTC** supersedes conflicting text:
+The owner comment dated **2026-09-14 23:10:57 UTC**, with Tyler's subsequent
+clarifications in this handoff, supersedes conflicting text:
 
 - Generate **Go**, not a standalone JSON manifest. The Go type is canonical;
   skgo/polytype supplies its application serialization and TypeScript projection.
-- Add `gimble.Workflow[T]`, generated workflow values, `web.WithWorkflow[T]`, and
-  typed `Runtime.Run[T]`, including registration, run association, and cancellation.
+- Add `gimble.Workflow[T]`, generated workflow values, and typed `Runtime.Run[T]`.
+  Tyler's subsequent direction replaces runtime workflow registration with an
+  explicit build-time workflow list and generated concrete application bindings.
 - Make the builtin sprint's two repository checks explicit constant-key writes.
   Preserve a dynamic-key negative fixture for #162; do not weaken that rule.
 - Unresolved structure produces inspectable partial Go and a failing gate.
@@ -72,6 +74,16 @@ remain valid within the visible structure. Design the extractor for these simple
 workflow forms, keep lint detection bounded, and diagnose hidden structure rather
 than letting it drive the architecture. No relaxation of requirement (1) is
 recommended.
+
+### Updated direction for (2): application bindings are generated at build time
+
+Authors explicitly select the workflow types to expose. Generation resolves
+each workflow's Go Input and emits its concrete start binding and type/codecs.
+An author who wants web launching supplies an actual Svelte page for that
+workflow and links to it from the application. There is no runtime workflow
+registration prerequisite, generic launch-by-name dispatcher, or schema-driven
+generic form. This replaces the earlier WithWorkflow/registration proposal;
+section 4 describes the updated delivery.
 
 ## 1. The concrete graph type
 
@@ -299,7 +311,7 @@ absolute checkout paths. Build.Settings contains effective build-selection value
 such as CGO_ENABLED and relevant GOFLAGS, not timestamps or Git dirty status.
 Do not use Git HEAD alone: uncommitted source matters.
 This fingerprints the extraction inputs, not arbitrary files an agent may read
-later. Registration/run compatibility uses both ID and digest.
+later. Run-to-graph compatibility uses both ID and digest.
 
 `Source.SiteID` identifies a lexical site using module-relative file, qualified
 function, and AST position within that function. Line/column are navigation,
@@ -393,8 +405,8 @@ type Workflow[T any] interface {
 ```
 
 For `Sprint(context.Context, Input) error`, generate `workflow_gen.go` in the
-sprint package with an unexported zero-state implementation, an exported value
-`var Workflow generatedWorkflow`, a compile-time `gimble.Workflow[Input]`
+sprint package with an exported zero-state type `SprintWorkflow`, an exported value
+`var Workflow SprintWorkflow`, a compile-time `gimble.Workflow[Input]`
 assertion, and these methods:
 
 - `Name() string`: returns the selected constant name.
@@ -466,40 +478,100 @@ diagnostics or drift. Normal generation remains the way to write partial output.
 Regeneration/drift checks must ensure edited source cannot silently
 ship with a stale graph; `go build` alone does not run generators.
 
-## 4. Application registration and run association
+## 4. Build-time application bindings and run association
 
-Keep the requested assembly:
+Execution needs no prior workflow registration:
 
 ```go
-runtime, err := web.NewRuntime(ctx, project,
-	web.WithWorkflow(sprint.Workflow),
-	web.WithWorkflow(release.Workflow),
-	web.WithPort(8080),
-)
+runtime, err := web.NewRuntime(ctx, project, web.WithPort(8080))
 // Handle err before using runtime.
 err = runtime.Run(ctx, sprint.Workflow, sprint.Input{Issue: issueFile})
 ```
 
-Proposed signatures in web:
+Retain the typed synchronous entrypoint in web:
 
 ```go
-func WithWorkflow[T any](w gimble.Workflow[T]) Option
 func (r *Runtime) Run[T any](ctx context.Context, w gimble.Workflow[T], in T) error
 ```
 
-`WithWorkflow` evaluates Name/Graph and stores only the graph in configuration.
-Reject incomplete/diagnostic-bearing graphs, invalid references, name mismatch,
-and duplicate registrations by ID or workflow name. Freeze registration before
-serving. Configuration and the project observation registry hold graph values,
-never runnable functions or `any` inputs. Keep private copies at read/write
-boundaries; shared slices must not make a registered revision mutable.
+Typed Run obtains the graph from the supplied workflow, creates the normal
+run/root scope, and calls `w.Run(runCtx, in)` inside it. Wrong input types fail
+compilation. Reject incomplete/diagnostic-bearing graphs and invalid graph
+references without consulting a registration table. Replace the old web Run
+signature and migrate its callers; preserve the low-level gimble.Run primitive.
 
-Typed Run verifies registration and identity/digest before creating a run or
-invoking the workflow. It creates the normal run/root scope, then calls
-`w.Run(runCtx, in)` inside it. Wrong input types fail compilation. Unregistered
-or mismatched graphs fail before workflow side effects. Replace the old web
-Runtime.Run signature and migrate its callers; do not add a compatibility overload
-or change the low-level `gimble.Run(ctx, name, body)` primitive.
+### Explicit workflow list and generated start functions
+
+Add the requested `gimble generate-bindings` command. The author's directive
+selects concrete workflow types, for example:
+
+```go
+//go:generate gimble generate-bindings -workflow-type MyType,MyOtherType -pkg ./workflows -out web/src/routes/new/generated_[type].remote.go
+```
+
+The optional `-pkg` selects the source package, defaulting to the current package.
+`-out` selects the generated binding location; `[type]` expands per workflow.
+Use skgo's `*.remote.go` convention for emitted remote declarations, including
+the default filename, so the existing generator discovers them. Authors choose
+page paths and links explicitly. Workflow selection is resolved at build time.
+The exported SprintWorkflow type generated in section 2 is one such selection.
+
+For each selected type, infer its concrete Input from Run's signature and emit
+a separate typed start function. For example, a sprint binding has this shape:
+
+```go
+func startSprint(ctx context.Context, in sprint.Input) (string, error)
+```
+
+Its generated body starts exactly sprint.Workflow with exactly sprint.Input
+through the runtime and returns the new run ID. Mark it with skgo.Command and
+use the existing skgo pipeline to generate the TypeScript caller, strict input
+decoder, and response encoder. No function dispatches by a submitted workflow
+name or converts every Input into a common request type.
+
+Keep the generated route package independent of `web`: web already imports the
+generated skgo application, so importing web from a route would create a cycle.
+Provide the shared typed start bridge through the root package, available to
+caller modules, with the owning runtime reached through its request context.
+The runtime supplies that bridge's execution machinery. Concrete Input values
+remain typed throughout; the bridge does not require workflow registration.
+
+The workflow-specific page imports that concrete caller and generated Input
+type. Its fields, defaults, help text, validation presentation, layout, and
+navigation are authored Svelte. Link to that workflow's new-run page from
+elsewhere in the application. Generating bindings does not generate a form or
+automatically add a navigation link. Prove this with a small caller-example page;
+building a general launcher or redesigning the builtin UI is outside this task.
+
+### Reuse polytype and skgo
+
+The pinned polytype v1.0.0 exposes `codegen.Generate`/`codegen.Gen`, including
+JSON Schema, Go JSON support, TypeScript, and devalue output options. Drive these
+as a library for each concrete Input; group generation requests by declaring
+package. A small generated build-time driver can call `polytype.Declare[Input]`
+for types discovered by the command. JSON support for ordinary structs uses Go's
+normal encoding; polytype adds the codecs required for its enums/unions. Input
+must be a shape polytype supports to cross the web boundary.
+
+skgo v0.4.1 already uses polytype's grammar, TypeScript, and devalue generators
+for remote parameters and results. Generate the workflow-specific Go declarations
+and let that existing pipeline own their wire codecs and TS callers. Do not emit
+competing copies of those artifacts or implement a second remote protocol.
+JSON Schema/Go JSON generation and skgo transport generation use the same Input.
+The command coordinates these stages; a generic schema-to-form renderer is absent.
+
+Generation order is explicit: workflow types/graphs, Input schema/JSON support
+and concrete remote declarations, then skgo's linked packages and TS/devalue
+bindings. Avoid the route-module bootstrap cycle already handled by skgo. Fresh
+generation and regeneration after an Input edit must both work. The build fails
+on unsupported Input shapes, unresolved selected types, or output/name collisions.
+
+### Static graph availability and durable run association
+
+The same selected workflow list can emit explicit graph references for pre-run
+inspection and matching historical runs. This is compiled application data, not
+a mutable registration service or a prerequisite for a direct Go Run call.
+Keep graph values privately owned so a caller cannot mutate a shared revision.
 
 Pass the verified graph reference through an internal context seam to the
 low-level run creation. Add graph ID and digest to `RunStarted` and `RunRow`.
@@ -508,18 +580,18 @@ storage path. Existing `run.json`, reduced `observation.json`, durable deltas,
 replay/fallback, and live snapshots must preserve the same fields. Do not implement
 association as a live-only side map which disappears when the application restarts.
 
-The existing observation registry should expose its registered graphs and resolve
-a run's reference to one of them. A matching finished run resolves after restart;
+Resolve a run's reference against the compiled graph list. A matching finished
+run resolves after restart;
 a different/missing digest yields no compatible graph. A low-level unnamed-graph
 run remains observable with no graph. Never select a graph by name alone or
 reinterpret an old run with newer source. Historical graph archival is deferred;
 if added later, serialize this same Graph value.
 
-Add the smallest typed skgo queries needed to inspect registered graphs and a
+Add the smallest typed skgo queries needed to inspect compiled graphs and a
 run's matching graph before UI work. Return `workflow.Graph` values through the
 existing generated boundary; regenerate bindings/TypeScript instead of authoring
-a parallel DTO. Verify the actual serialized query result. No graph canvas,
-workflow form, or generic input dispatcher is part of this task.
+a parallel DTO. Verify the actual serialized query result. Graph rendering and
+generic input dispatch remain outside this task.
 
 ### Context lifetime
 
@@ -531,8 +603,11 @@ not cancel siblings; runtime cancellation reaches all runs.
 
 HTTP-triggered work must start from the runtime lifetime, not a request context
 which expires when the browser leaves. Preserve request cancellation for short
-query/steer operations. Do not add an HTTP start endpoint just to demonstrate this;
-exercise the lifetime rule with a small integration fixture if needed.
+query/steer operations. A generated start function returns once the run has been
+created, with its ID; it does not wait for the entire workflow. The runtime owns
+the background execution and records its eventual result/error. Closing the
+request or navigating to the run page must not cancel that execution. Use one
+shared runtime start implementation underneath the concrete generated bindings.
 
 ## 5. Delivery sequence
 
@@ -544,24 +619,27 @@ exercise the lifetime rule with a small integration fixture if needed.
    early-return behavior, pass/fail logic, per-check publication, and direct task
    values visible to the planner. Remove the now-unused mutable `checks` list;
    adapt its existing test instead of retaining a test-only production bypass.
-3. Register generated graphs, migrate web Run and callers, persist graph references,
-   and expose the typed inspection queries. Coordinate changed run fields with
+3. Generate the explicit workflow/Input bindings, migrate web Run and callers,
+   persist graph references, and expose typed start/inspection functions. Demonstrate
+   one authored workflow-specific Svelte page. Coordinate changed run fields with
    #173's observation work without implementing that issue's UI.
 4. Demonstrate the claims below, then complete normal build/lint/Go/web and
    generation-drift checks. Report failures as failures, not as narrative success.
 
 Likely implementation locations: new `workflow/graph.go`, root `workflow.go`,
-`cmd/gimblegraph/`, and a small internal extraction package; existing
+`cmd/gimblegraph/`, a small internal extraction package, and the
+`generate-bindings` subcommand in `cmd/`; existing
 `internal/gimblelint/`, `internal/workflows/sprint/`, `cmd/sprint/main.go`,
 `web/runtime.go`, `run.go`, `events.go`, `internal/observation/`, and typed query
 declarations in `web/src/routes/`. Generated files are produced by their tools.
-README explains the caller-facing generation and registration contract.
+README explains the explicit workflow list, generation, and authored-page contract.
 
 ## 6. Behavioral acceptance
 
 | Claim | Evidence the implementation must produce |
 | --- | --- |
-| Typed consumer works end to end | A separate Go module with its own unrelated Input generates from scratch, compiles, registers before any run, runs through Runtime, and resolves its recorded graph. A wrong Input type is rejected by the compiler. |
+| Typed consumer works end to end | A separate Go module with its own unrelated Input generates from scratch, compiles, runs through Runtime without registration, and resolves its recorded graph. A wrong Input type is rejected by the compiler. |
+| Web entrypoints are concrete | An explicit list of two workflows with different Inputs generates distinct typed remote callers and decoders. An authored Svelte page links to and starts its specific workflow, receives its run ID, and navigates away while the run continues. Invalid payloads fail before work starts. No generic form or runtime workflow selector is involved. |
 | The builtin graph reflects source | Inspect generated Sprint output against `Sprint`, `run`, `goalText`, `runTask`, `command`, and `git`: research/fork, outer rounds, inner planner/task repeat, coder/supervisor, task command, ancestor validator, both fixed checks, conditional commit, final validation/merge. Dry-run alternatives remain visible. |
 | Flow is semantic | Fixtures demonstrate sequence, mutually exclusive branches, two launched group children and their join, repeat/exit including break/return, and continuation after join. There is no child-completion edge that serializes its sibling. |
 | Resources and scopes are distinct | An ancestor session used in a child keeps its Owner while the child call has that child's Scope. A fork points to its origin and its own creation scope. |
@@ -569,9 +647,9 @@ README explains the caller-facing generation and registration contract.
 | Commands retain meaning | Construct-only, blocking Run/Output/CombinedOutput, and Start→Wait examples produce distinct kinds and correct construction links; a command followed by a validator has a real sequence. Dynamic args remain expressions. |
 | Identity and boundaries survive reuse | Same-named sites remain distinct, repeated tasks have one static template, two helper callers keep distinct continuations, and cross-scope edges retain their exact endpoints under a containment-based collapse/restore exercise. |
 | Failure is inspectable and fails closed | Dynamic Set keys, map-dispatched workers/simple aliases, and unresolved structural targets produce anchored diagnostics and nonzero gates. A valid dynamic branch/data fixture passes. Failed regeneration cannot leave a stale clean graph presented as current. |
-| Run association survives restart | Live and finished matching runs resolve to the registered graph; restart with a changed digest leaves the old run observable but unmatched. References survive durable snapshot, table, and supported replay paths. |
+| Run association survives restart | Live and finished matching runs resolve to the compiled graph; restart with a changed digest leaves the old run observable but unmatched. References survive durable snapshot, table, and supported replay paths. |
 | Cancellation is independent | Two active runs share one runtime; cancel A and B remains active; another run can start after A ends. Runtime cancellation stops all active runs. An already-cancelled synchronous caller does not start workflow work. |
-| Go remains the single graph model | Inspect the registered graph through a real skgo query and generated TypeScript/devalue boundary, comparing representative containment, flow endpoints, command payloads, and nested attachments. No hand-maintained JSON/TS graph model. |
+| Go remains the single graph model | Inspect the compiled graph through a real skgo query and generated TypeScript/devalue boundary, comparing representative containment, flow endpoints, command payloads, and nested attachments. No hand-maintained JSON/TS graph model. |
 
 Use source fixtures for static claims and an isolated executable caller module for
 runtime claims. A harmless real command and a cheap native agent turn can demonstrate

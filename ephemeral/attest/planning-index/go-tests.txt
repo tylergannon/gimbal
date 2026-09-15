@@ -1,0 +1,42 @@
+ok  	github.com/tylergannon/gimble	(cached)
+ok  	github.com/tylergannon/gimble/agy	(cached)
+ok  	github.com/tylergannon/gimble/claude	(cached)
+ok  	github.com/tylergannon/gimble/cmd	(cached)
+?   	github.com/tylergannon/gimble/cmd/sprint	[no test files]
+ok  	github.com/tylergannon/gimble/codex	(cached)
+?   	github.com/tylergannon/gimble/ephemeral/attest/codex-daemon	[no test files]
+?   	github.com/tylergannon/gimble/ephemeral/attest/issue-113	[no test files]
+?   	github.com/tylergannon/gimble/ephemeral/attest/issue-130/independent-runtime	[no test files]
+?   	github.com/tylergannon/gimble/ephemeral/attest/issue-149	[no test files]
+?   	github.com/tylergannon/gimble/ephemeral/attest/issue117	[no test files]
+?   	github.com/tylergannon/gimble/ephemeral/attest/issue125	[no test files]
+?   	github.com/tylergannon/gimble/ephemeral/attest/issue126	[no test files]
+?   	github.com/tylergannon/gimble/ephemeral/attest/issue129	[no test files]
+?   	github.com/tylergannon/gimble/ephemeral/attest/issue144	[no test files]
+?   	github.com/tylergannon/gimble/ephemeral/attest/issue192	[no test files]
+?   	github.com/tylergannon/gimble/ephemeral/attest/just-attest	[no test files]
+?   	github.com/tylergannon/gimble/ephemeral/attest/loop-practice/planner-ends	[no test files]
+?   	github.com/tylergannon/gimble/ephemeral/attest/loop-practice/supervisor-objects	[no test files]
+?   	github.com/tylergannon/gimble/ephemeral/attest/loop-practice/validation-command	[no test files]
+?   	github.com/tylergannon/gimble/ephemeral/attest/registry	[no test files]
+?   	github.com/tylergannon/gimble/ephemeral/attest/run-store	[no test files]
+?   	github.com/tylergannon/gimble/ephemeral/attest/skill/bakeoff	[no test files]
+ok  	github.com/tylergannon/gimble/ephemeral/research/issue-130/proof	(cached)
+?   	github.com/tylergannon/gimble/ephemeral/review/claude-loop-api/live	[no test files]
+ok  	github.com/tylergannon/gimble/internal/gimblelint	(cached)
+?   	github.com/tylergannon/gimble/internal/live	[no test files]
+ok  	github.com/tylergannon/gimble/internal/modelalias	(cached)
+ok  	github.com/tylergannon/gimble/internal/observation	(cached)
+ok  	github.com/tylergannon/gimble/internal/observation/modelpricesgen	(cached)
+ok  	github.com/tylergannon/gimble/internal/runlog	(cached)
+ok  	github.com/tylergannon/gimble/internal/sessionstate	(cached)
+?   	github.com/tylergannon/gimble/internal/skgo	[no test files]
+?   	github.com/tylergannon/gimble/internal/skgo/links/onzggl3sn52xizlt	[no test files]
+?   	github.com/tylergannon/gimble/internal/skgo/links/onzggl3sn52xizltf5zhk3ttf5nxe5lojfcf2	[no test files]
+ok  	github.com/tylergannon/gimble/internal/workflows/intake	(cached)
+ok  	github.com/tylergannon/gimble/internal/workflows/lfg	(cached)
+ok  	github.com/tylergannon/gimble/internal/workflows/planning	(cached)
+ok  	github.com/tylergannon/gimble/internal/workflows/semanticindex	(cached)
+ok  	github.com/tylergannon/gimble/internal/workflows/sprint	(cached)
+ok  	github.com/tylergannon/gimble/web	(cached)
+?   	github.com/tylergannon/gimble/web/src	[no test files]

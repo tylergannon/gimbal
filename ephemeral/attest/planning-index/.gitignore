@@ -1,0 +1,7 @@
+.gimble-index-*/
+project/.gimble/
+initial-index/
+initial-cache/
+native-records.tar.gz
+agy-probe-gimble
+agy-error-probe/raw.jsonl

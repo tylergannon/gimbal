@@ -1,0 +1,22 @@
+{
+  "Repo": "/Users/tyler/.codex/worktrees/7b5c/gimble-planning-index/ephemeral/attest/planning-index/project",
+  "Goal": "Plan the Python retry delay helper described in design.md, using the established shared policy.",
+  "Plan": "",
+  "Acceptance": "The plan implements exactly the shared retry policy and names its source evidence. It specifies a small Python module and tests without a scheduler or IO.",
+  "Constraints": "",
+  "SemanticIndex": "",
+  "TokenCache": "",
+  "ContextFiles": [
+    "/Users/tyler/.codex/worktrees/7b5c/gimble-planning-index/ephemeral/attest/planning-index/project/design.md"
+  ],
+  "Checks": [
+    "python3 -m unittest discover"
+  ],
+  "Model": "gpt-5.6-luna",
+  "ReviewModel": "haiku",
+  "PlanningModel": "gemini-3.8-flash-low",
+  "Tasks": 10,
+  "SupervisorIntervalSeconds": 30,
+  "Finish": "local",
+  "DryRun": false
+}

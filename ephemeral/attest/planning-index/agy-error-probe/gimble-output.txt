@@ -1,0 +1,5 @@
+The read of [`/tmp/agy-tool-probe.8zhRd2/missing.md`](file:///tmp/agy-tool-probe.8zhRd2/missing.md) failed because the file does not exist (`no such file or directory`).
+
+The anchor content from [`/tmp/agy-tool-probe.8zhRd2/valid.md`](file:///tmp/agy-tool-probe.8zhRd2/valid.md) is:
+
+> valid anchor

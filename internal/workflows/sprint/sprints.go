@@ -19,6 +19,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"text/template"
 
 	"github.com/tylergannon/gimble"
 )
@@ -248,7 +249,7 @@ func attemptTask(ctx context.Context, in Input, researcher, validator *gimble.Se
 			passed = false
 		}
 	}
-	assessment, err := validator.Generate[review](ctx, taskValidationPrompt)
+	assessment, err := validator.Generate[review](ctx, taskValidationPrompt, gimble.WithScopeTemplate(taskValidationScope))
 	if err != nil {
 		return err
 	}
@@ -328,7 +329,29 @@ const codePrompt = `Complete the task in the scoped context, following AGENTS.md
 
 const superviseInstruction = "Don't let it build what its task does not ask for, over-engineer what it does build, or break a rule in AGENTS.md. Object to nothing else: code quality and style are not yours to judge."
 
-const taskValidationPrompt = `Assess the task using the recorded result and evidence, against the definition of done and, if present, the validation query in the task record of the scoped context below.
+// taskValidationScope shapes the scope for the validator's assessment. The
+// task is what the validator judges against, so its fields are stated
+// rather than left as the JSON record they are stored as: the query it is
+// to answer is a sentence and not a nested field of an object. The
+// workflow's own Input record is left out; it is the run's configuration,
+// not evidence about the task.
+const taskValidationScopeText = `{{range .Values}}{{if eq .Key "task"}}## the task under assessment
+
+{{.Value.description}}
+
+Done when: {{.Value.definition_of_done}}
+{{with .Value.validation}}{{with .query}}
+Answer this about it too: {{.}}
+{{end}}{{end}}
+{{else if ne .Key "input"}}## {{.Key}}
+
+{{.Text}}
+
+{{end}}{{end}}`
+
+var taskValidationScope = template.Must(template.New("task validation scope").Parse(taskValidationScopeText))
+
+const taskValidationPrompt = `Assess the task using the recorded result and evidence, against the definition of done and the task's own terms below.
 
 List what that evidence does not show working at the repository's 90-95% readiness standard, and nothing else; an empty list passes the task. A passing agent judgment cannot override a failed deterministic check. The work is uncommitted by design: the workflow commits it once you pass it, so its being uncommitted is never a finding. Nor is how the work is written: legitimacy of the evidence is yours to judge, code quality and style are not.`
 

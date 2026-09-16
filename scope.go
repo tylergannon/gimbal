@@ -181,24 +181,65 @@ func store(ctx context.Context, key string, raw []byte) {
 	s.run.event(s.key, "", "", ValueSet{Key: key, Value: JSONText(raw)})
 }
 
+// ScopeValue is one value visible from a scope, as a WithScopeTemplate
+// template sees it.
+type ScopeValue struct {
+	// Key is what the value was set under.
+	Key string
+	// Value is the value itself, decoded from the JSON it was stored as: a
+	// string for Set, and for SetJSON the fields of the object.
+	Value any
+	// Text is the value as the default rendering shows it: a string as its
+	// text, anything else as indented JSON.
+	Text string
+}
+
+// ScopeData is the argument of a WithScopeTemplate template: the scoped
+// data Generate would otherwise render its own way.
+type ScopeData struct {
+	// Values is every value visible from the ctx's scope, outermost scope
+	// first, and for each key the value of the nearest scope that set it.
+	Values []ScopeValue
+	// By is the same values by key, for a template that names the ones it
+	// wants: {{.By.goal.Text}}, or index .By "definition of done" for a key
+	// that is not an identifier.
+	By map[string]ScopeValue
+}
+
+// scopeData collects every value visible from the ctx's scope, outermost
+// scope first, and for each key the value of the nearest scope that set it.
+func scopeData(ctx context.Context) ScopeData {
+	data := ScopeData{By: map[string]ScopeValue{}}
+	for s, _ := ctx.Value(scopeKey{}).(*scope); s != nil; s = s.parent {
+		s.mu.Lock()
+		for _, key := range slices.Backward(s.keys) {
+			if _, shown := data.By[key]; shown {
+				continue
+			}
+			raw := s.values[key]
+			value := ScopeValue{Key: key, Text: render(raw)}
+			if err := json.Unmarshal(raw, &value.Value); err != nil {
+				value.Value = value.Text
+			}
+			data.By[key] = value
+			data.Values = append(data.Values, value) // innermost first, reversed below
+		}
+		s.mu.Unlock()
+	}
+	slices.Reverse(data.Values)
+	return data
+}
+
 // scopeText renders every value visible from the ctx's scope for a prompt:
 // outermost scope first, and for each key the value of the nearest scope
 // that set it. Generate appends this to a turn's prompt itself; a workflow
 // no longer calls it.
 func scopeText(ctx context.Context) string {
-	shown := make(map[string]bool)
-	var sections []string // innermost first, reversed below
-	for s, _ := ctx.Value(scopeKey{}).(*scope); s != nil; s = s.parent {
-		s.mu.Lock()
-		for _, key := range slices.Backward(s.keys) {
-			if !shown[key] {
-				shown[key] = true
-				sections = append(sections, "## "+key+"\n\n"+render(s.values[key]))
-			}
-		}
-		s.mu.Unlock()
+	data := scopeData(ctx)
+	sections := make([]string, 0, len(data.Values))
+	for _, value := range data.Values {
+		sections = append(sections, "## "+value.Key+"\n\n"+value.Text)
 	}
-	slices.Reverse(sections)
 	return strings.Join(sections, "\n\n")
 }
 

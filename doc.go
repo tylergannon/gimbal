@@ -16,7 +16,9 @@
 // SetJSON record the run's data in the ctx's scope; Generate appends that
 // scope's rendered context to the prompt itself, as prompt + "\n\n" + the
 // render, or nothing when the scope holds no values. A workflow's prompt to
-// Generate is therefore a compile-time constant.
+// Generate is therefore a compile-time constant. One call can shape that
+// context its own way with WithScopeTemplate, whose template is parsed once
+// at package level so what the agent is sent stays readable in the source.
 //
 // RunCommand runs a command in the current scope and blocks until it exits,
 // returning its exit code, stdout, and stderr. The run records each command

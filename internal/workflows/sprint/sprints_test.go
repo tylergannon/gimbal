@@ -98,9 +98,12 @@ func TestRunTaskAssessesDefinitionOfDoneWithoutValidationRecipe(t *testing.T) {
 	if len(adapter.prompts) != 4 {
 		t.Fatalf("turns = %d, want two planner dispatches, the worker, and the task assessment", len(adapter.prompts))
 	}
-	assessment := adapter.prompts[len(adapter.prompts)-1]
-	if !strings.Contains(assessment, `"definition_of_done": "The expected result is demonstrated."`) {
-		t.Fatalf("assessment prompt omits the task record's definition of done:\n%s", assessment)
+	assessment := adapter.prompts[2]
+	if !strings.Contains(assessment, "Done when: The expected result is demonstrated.") {
+		t.Fatalf("assessment prompt omits the task's definition of done:\n%s", assessment)
+	}
+	if strings.Contains(assessment, `"definition_of_done"`) {
+		t.Fatalf("assessment prompt shows the task as its JSON record, not as its own terms:\n%s", assessment)
 	}
 	if got := runGit(t, repo, "rev-list", "--count", "HEAD"); got != "1" {
 		t.Fatalf("commit count = %s, want 1: an objection must block the task commit", got)
@@ -137,7 +140,7 @@ func TestDryRunShowsEveryPromptAndKeepsFindingsOutOfTheGoal(t *testing.T) {
 
 	prompts := dryPrompts(t, out.String())
 	want := "Read and implement the issue in " + issue + "."
-	var planner, validations []string
+	var planner, validations, assessments []string
 	for _, prompt := range prompts {
 		if strings.Contains(prompt, "gh issue view") {
 			t.Errorf("a prompt points at a remote source:\n%s", prompt)
@@ -147,6 +150,22 @@ func TestDryRunShowsEveryPromptAndKeepsFindingsOutOfTheGoal(t *testing.T) {
 			planner = append(planner, prompt)
 		case strings.HasPrefix(prompt, validatePrompt):
 			validations = append(validations, prompt)
+		case strings.HasPrefix(prompt, taskValidationPrompt):
+			assessments = append(assessments, prompt)
+		}
+	}
+	if len(assessments) == 0 {
+		t.Fatalf("no task assessment among %d prompts", len(prompts))
+	}
+	for _, prompt := range assessments {
+		if !strings.Contains(prompt, "## the task under assessment") || !strings.Contains(prompt, "Answer this about it too:") {
+			t.Errorf("the task assessment is not shaped by its own template:\n%s", prompt)
+		}
+		if strings.Contains(prompt, "## input") || strings.Contains(prompt, `"dry_run"`) {
+			t.Errorf("the task assessment carries the run's own input record:\n%s", prompt)
+		}
+		if !strings.Contains(prompt, "## definition of done") {
+			t.Errorf("the task assessment lost a scoped value its template keeps:\n%s", prompt)
 		}
 	}
 	for i, prompt := range []string{prompts[0], planner[0], validations[0]} {

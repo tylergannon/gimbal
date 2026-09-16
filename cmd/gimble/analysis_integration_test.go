@@ -11,12 +11,13 @@ import (
 )
 
 func TestBinaryAnalysisAndOrdinaryCLIRoutes(t *testing.T) {
-	repo, err := filepath.Abs("..")
+	repo, err := filepath.Abs("../..")
 	if err != nil {
 		t.Fatal(err)
 	}
-	binary := filepath.Join(t.TempDir(), "gimble")
-	build := exec.Command("go", "build", "-o", binary, "./cmd")
+	binDir := t.TempDir()
+	binary := filepath.Join(binDir, "gimble")
+	build := exec.Command("go", "build", "-o", binDir+string(os.PathSeparator), "./cmd/gimble")
 	build.Dir = repo
 	if output, err := build.CombinedOutput(); err != nil {
 		t.Fatalf("build gimble: %v\n%s", err, output)

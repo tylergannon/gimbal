@@ -62,7 +62,7 @@ func helpOf(t *testing.T, args ...string) string {
 }
 
 func lineWith(text, flag string) string {
-	for _, line := range strings.Split(text, "\n") {
+	for line := range strings.SplitSeq(text, "\n") {
 		if strings.Contains(line, flag) {
 			return line
 		}

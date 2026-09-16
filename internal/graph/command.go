@@ -154,7 +154,7 @@ func Command() *cobra.Command {
 	_ = cmd.MarkFlagRequired({{printf "%q" .Flag}})
 {{- end}}{{end}}
 {{- range .Roles}}
-	cmd.Flags().StringVar(&{{.Ident}}, {{printf "%q" .Name}}, {{printf "%q" .Default}}, {{printf "%q" .Usage}})
+	cmd.Flags().StringVar(&{{.Ident}}, {{printf "%q" .Name}}, {{if .Default}}roles[{{printf "%q" .Name}}]{{else}}""{{end}}, {{printf "%q" .Usage}})
 {{- if not .Default}}
 	_ = cmd.MarkFlagRequired({{printf "%q" .Name}})
 {{- end}}

@@ -29,10 +29,10 @@ const (
 	constantShape  = "[GIMBLE109-SIMPLE-WORKFLOWS/CONSTANT-SCOPE-TEMPLATE]: WithScopeTemplate's template must be a compile-time string constant, or a variable of this package declared with //go:embed, so what the agent is sent is readable from the source."
 )
 
-// cmdPath is exempt from GIMBLE108: cmd/run_prompt.go runs a prompt given on
+// cmdPath is exempt from GIMBLE108: cmd/gimble/run_prompt.go runs a prompt given on
 // the command line, so it cannot pass a constant. This is the only
 // exemption; no other mechanism is added.
-const cmdPath = gimblePath + "/cmd"
+const cmdPath = gimblePath + "/cmd/gimble"
 
 const gimblePath = "github.com/tylergannon/gimble"
 

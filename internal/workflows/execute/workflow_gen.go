@@ -56,7 +56,7 @@ func Command() *cobra.Command {
 	cmd.Flags().StringVar(&in.Repo, "repo", ".", "Absolute path of the repository the sprint is built in.")
 	cmd.Flags().StringVar(&optTest, "test", "", "The repository's test command, run with sh -c after the worker finishes; absent means go test ./...")
 	_ = cmd.MarkFlagRequired("sprint")
-	cmd.Flags().StringVar(&workerModel, "worker", "gpt-5.6-luna", "the model for role worker, as model or model:effort")
+	cmd.Flags().StringVar(&workerModel, "worker", roles["worker"], "the model for role worker, as model or model:effort")
 	cmd.Flags().IntVar(&port, "port", 8080, "loopback TCP port for the web application")
 	cmd.Flags().StringVar(&uds, "uds", "", "Unix-domain socket for the web application instead of TCP")
 	cmd.Flags().BoolVar(&noWeb, "no-web", false, "run without the web application")

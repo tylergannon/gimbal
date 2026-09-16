@@ -33,7 +33,7 @@ pre-commit:
 
           - name: gimble-lint
             glob: "*.go"
-            run: go run ./cmd lint ./...
+            run: go run ./cmd/gimble lint ./...
 
     - name: go-test
       glob: "*.go"
@@ -42,4 +42,4 @@ pre-commit:
 pre-push:
   jobs:
     - name: gimble-lint
-      run: go run ./cmd lint ./...
+      run: go run ./cmd/gimble lint ./...

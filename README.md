@@ -81,7 +81,7 @@ port 0 selects an available port.
 | `web/src/routes/*.remote.go` | server logic, colocated with the routes that call it |
 | `web/src/routes/**/server.go` | ordinary Go HTTP handlers for SvelteKit `+server.ts` routes |
 | `internal/skgo/` | skgo's generated Go implementation; never edited by hand |
-| `cmd/` | the binary |
+| `cmd/gimble/` | the binary |
 | `web/server.go` | the one composition the binary and any test both use |
 
 Write a remote function by adding a Go function to a `*.remote.go` file beside

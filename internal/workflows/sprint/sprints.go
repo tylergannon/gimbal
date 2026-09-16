@@ -25,7 +25,7 @@ import (
 )
 
 //go:generate go tool polytype --validate
-//go:generate go run github.com/tylergannon/gimble/cmd gen -entry Sprint -name sprint
+//go:generate go run github.com/tylergannon/gimble/cmd/gimble gen -entry Sprint -name sprint
 
 // Input starts a sprint.
 type Input struct {

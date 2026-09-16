@@ -103,7 +103,7 @@ Each is a compiling `Example` in the root package (`example_test.go`,
 
 A workflow is a package under `internal/workflows/` whose entry is
 `func Name(ctx context.Context, in Input) error`, with one directive:
-`//go:generate go run github.com/tylergannon/gimble/cmd gen -entry Name -name name`.
+`//go:generate go run github.com/tylergannon/gimble/cmd/gimble gen -entry Name -name name`.
 `go generate` prints `workflow_gen.go` beside it: the graph, which registers
 itself, and the workflow's `Command()`, a Cobra subcommand you can read: one
 flag per field of `Input`,
@@ -111,7 +111,7 @@ named from the field with its doc comment as help, required unless the field
 is a `polytype.Optional` (a bool is never required, and a `Repo` string
 defaults to the current directory); one `--<role>` flag per role the graph
 names, defaulting to the model the package's `roles` var gives it and
-required when it gives none; and `--port`, `--uds`, `--no-web`. One line in `cmd/workflows.go` adds it to `gimble run`. Then:
+required when it gives none; and `--port`, `--uds`, `--no-web`. One line in `cmd/gimble/workflows.go` adds it to `gimble run`. Then:
 
 ```sh
 gimble run --help

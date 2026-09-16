@@ -45,8 +45,7 @@ func Example() {
 	err := gimble.Run(ctx, "example", map[string]gimble.ModelBinding{"worker": {Adapter: &exampleAdapter{}, Model: "example"}}, func(ctx context.Context) error {
 		gimble.Set(ctx, "goal", "demonstrate the public API")
 		worker := gimble.NewSession(ctx, "worker", ".")
-		answer, err := worker.Generate[gimble.Text](ctx,
-			"Complete the goal.\n\n"+gimble.ScopeText(ctx))
+		answer, err := worker.Generate[gimble.Text](ctx, "Complete the goal.")
 		if err != nil {
 			return err
 		}

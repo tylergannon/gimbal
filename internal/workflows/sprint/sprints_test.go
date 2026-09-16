@@ -12,8 +12,14 @@ import (
 	"github.com/tylergannon/gimble"
 )
 
+// taskAdapter answers a worker's prose turn, a planner's dispatch (one task,
+// then dispatch ends), and a validator's assessment (always an objection),
+// so runTask can be exercised the way Loop actually drives it: with the
+// task record already in the task scope under "task".
 type taskAdapter struct {
+	task    gimble.Task
 	prompts []string
+	plans   int
 }
 
 func (a *taskAdapter) CreateSession(context.Context, string, string, string) (string, error) {
@@ -22,11 +28,25 @@ func (a *taskAdapter) CreateSession(context.Context, string, string, string) (st
 
 func (a *taskAdapter) RunTurn(_ context.Context, _ string, prompt string, schema json.RawMessage, _ func(gimble.AgentEvent) error) (gimble.TurnResult, error) {
 	a.prompts = append(a.prompts, prompt)
-	if len(schema) != 0 {
+	switch {
+	case len(schema) == 0:
+		out, err := json.Marshal("worker finished")
+		return gimble.TurnResult{Output: out}, err
+	case strings.HasPrefix(prompt, "You plan the loop"):
+		a.plans++
+		next := 0
+		p := struct {
+			Tasks []gimble.Task `json:"tasks"`
+			Next  *int          `json:"next"`
+		}{Tasks: []gimble.Task{a.task}}
+		if a.plans == 1 {
+			p.Next = &next
+		}
+		raw, err := json.Marshal(p)
+		return gimble.TurnResult{Output: raw}, err
+	default:
 		return gimble.TurnResult{Output: json.RawMessage(`{"not_seen_working":["The task has no evidence for its definition of done."]}`)}, nil
 	}
-	out, err := json.Marshal("worker finished")
-	return gimble.TurnResult{Output: out}, err
 }
 
 func (*taskAdapter) Steer(context.Context, string, string) (bool, error) { return false, nil }
@@ -48,25 +68,35 @@ func TestRunTaskAssessesDefinitionOfDoneWithoutValidationRecipe(t *testing.T) {
 	repositoryChecks = struct{ vet, test string }{}
 	t.Cleanup(func() { repositoryChecks = oldChecks })
 
-	adapter := &taskAdapter{}
-	err := gimble.Run(gimble.Project(t.Context(), t.TempDir()), "test", sprintModels(adapter, "test"), func(ctx context.Context) error {
+	adapter := &taskAdapter{task: gimble.Task{
+		Name:             "prove-result",
+		Description:      "Produce the expected result.",
+		DefinitionOfDone: "The expected result is demonstrated.",
+	}}
+	models := sprintModels(adapter, "test")
+	models["planner"] = gimble.ModelBinding{Adapter: adapter, Model: "test"}
+	err := gimble.Run(gimble.Project(t.Context(), t.TempDir()), "test", models, func(ctx context.Context) error {
 		researcher := gimble.NewSession(ctx, "researcher", repo)
 		validator := gimble.NewSession(ctx, "validator", repo)
-		return runTask(ctx, Input{Sprint: 1, Repo: repo}, researcher, validator, gimble.Task{
-			Name:             "prove-result",
-			Description:      "Produce the expected result.",
-			DefinitionOfDone: "The expected result is demonstrated.",
-		})
+		planner := gimble.NewSession(ctx, "planner", repo)
+		loop := gimble.Loop(ctx, "sprint", "ship", planner)
+		for ctx, task := range loop.Tasks {
+			if err := runTask(ctx, Input{Sprint: 1, Repo: repo}, researcher, validator, task); err != nil {
+				return err
+			}
+		}
+		return loop.Err()
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if len(adapter.prompts) != 2 {
-		t.Fatalf("turns = %d, want worker plus task assessment", len(adapter.prompts))
+	if len(adapter.prompts) != 4 {
+		t.Fatalf("turns = %d, want two planner dispatches, the worker, and the task assessment", len(adapter.prompts))
 	}
-	if !strings.Contains(adapter.prompts[1], "Definition of done: The expected result is demonstrated.") {
-		t.Fatalf("assessment prompt omits task definition of done:\n%s", adapter.prompts[1])
+	assessment := adapter.prompts[len(adapter.prompts)-1]
+	if !strings.Contains(assessment, `"definition_of_done": "The expected result is demonstrated."`) {
+		t.Fatalf("assessment prompt omits the task record's definition of done:\n%s", assessment)
 	}
 	if got := runGit(t, repo, "rev-list", "--count", "HEAD"); got != "1" {
 		t.Fatalf("commit count = %s, want 1: an objection must block the task commit", got)
@@ -127,8 +157,11 @@ func TestDryRunShowsEveryPromptAndKeepsFindingsOutOfTheGoal(t *testing.T) {
 		t.Errorf("the validator's prompt is not one line: %q", validatePrompt)
 	}
 	for _, prompt := range validations {
-		if strings.Contains(prompt, "Definition of done (docs") || strings.Contains(prompt, "Proof:") {
-			t.Errorf("the validator's prompt carries done boilerplate or a Proof line:\n%s", prompt)
+		if strings.Contains(prompt, "Proof:") {
+			t.Errorf("the validator's prompt carries a Proof line:\n%s", prompt)
+		}
+		if !strings.Contains(prompt, "## definition of done\n\nDefinition of done (docs") {
+			t.Errorf("the validator's prompt lacks the definition of done, now delivered through scope:\n%s", prompt)
 		}
 		if !strings.Contains(prompt, "## Validation\n\nThe validation side is an agent.") {
 			t.Errorf("the validator's prompt lacks the Validation section:\n%s", prompt)

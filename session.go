@@ -70,12 +70,36 @@ func (Text) ValidateJSON(raw []byte) error {
 	return json.Unmarshal(raw, &text)
 }
 
-// Generate runs one turn and blocks until it ends. T's schema is sent with
-// the prompt, and the result is validated here and decoded into T. A result
-// that does not validate is shown back to the model with the reason, a
-// bounded number of times, before it is an error. For Text no schema is
-// sent and the result is the final message. The options attach supervisors.
+// Generate runs one turn and blocks until it ends. Before dispatch, the
+// ctx scope's rendered context is appended to prompt as
+// prompt + "\n\n" + context, or nothing when the scope holds no values;
+// everything downstream (the recorded prompt, a supervisor's intro, the
+// re-ask on an invalid result, every harness adapter) sees that full
+// prompt. T's schema is sent with the prompt, and the result is validated
+// here and decoded into T. A result that does not validate is shown back to
+// the model with the reason, a bounded number of times, before it is an
+// error. For Text no schema is sent and the result is the final message.
+// The options attach supervisors.
 func (s *Session) Generate[T Output](ctx context.Context, prompt string, opts ...AgentOption) (T, error) {
+	return dispatch[T](ctx, s, appendScopeText(ctx, prompt), opts)
+}
+
+// appendScopeText adds the ctx scope's rendered context to prompt, the way
+// Generate hands it to the agent: prompt + "\n\n" + context, or prompt
+// unchanged when the scope holds no values.
+func appendScopeText(ctx context.Context, prompt string) string {
+	if text := scopeText(ctx); text != "" {
+		return prompt + "\n\n" + text
+	}
+	return prompt
+}
+
+// dispatch runs one turn for opts, without touching prompt: the internal
+// callers that build a prompt at runtime (Loop's planner turn, a
+// supervisor's look) call this directly instead of the exported Generate,
+// so they are exempt from GIMBLE108's constant-prompt rule and are not
+// given scope context a second time.
+func dispatch[T Output](ctx context.Context, s *Session, prompt string, opts []AgentOption) (T, error) {
 	if o := apply(opts); len(o.supervisors) > 0 {
 		return supervise[T](ctx, s, prompt, o.supervisors)
 	}
@@ -99,7 +123,7 @@ func generate[T Output](ctx context.Context, s *Session, prompt string, onEvent 
 	for attempt := 1; ; attempt++ {
 		ask := prompt
 		if problem != nil {
-			ask = fmt.Sprintf("Your previous answer was invalid and was discarded: %v. Answer again, correctly.", problem)
+			ask = prompt + fmt.Sprintf("\n\nYour previous answer was invalid and was discarded: %v. Answer again, correctly.", problem)
 		}
 		raw, err := s.turn(ctx, ask, out.Schema(), onEvent, outputType, out.ValidateJSON)
 		if err == nil {

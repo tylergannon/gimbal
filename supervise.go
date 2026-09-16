@@ -112,7 +112,7 @@ func supervise[T Output](ctx context.Context, s *Session, prompt string, supervi
 					continue
 				}
 				first = false
-				review, err := sup.session.Generate[review](withSteerSource(lookCtx, sup.session.id), look, sup.opts...)
+				review, err := dispatch[review](withSteerSource(lookCtx, sup.session.id), sup.session, look, sup.opts)
 				if err != nil {
 					if lookCtx.Err() != nil {
 						return

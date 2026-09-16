@@ -20,8 +20,11 @@ import (
 const controlTimeout = 5 * time.Second
 
 // autoCompactWindow sets Claude Code's auto-compact window so long turns
-// don't get cut off mid-task.
-const autoCompactWindow = "256k"
+// don't get cut off mid-task. It is a token count with no suffix: the CLI
+// does not parse "256k" and falls back to a 100k window, which with its 33k
+// compaction buffer and a 43k base context left a turn about 25k tokens of
+// room and made compaction thrash until the turn failed.
+const autoCompactWindow = "256000"
 
 // adapter runs Claude Code sessions.
 type adapter struct {

@@ -24,7 +24,13 @@ const (
 	unjoinedGo     = "[GIMBLE105-SET-MISUSE/UNJOINED-GOROUTINE]: Set in a raw goroutine can outlive its scope. Use Group."
 	reservedTask   = "[GIMBLE106-SET-MISUSE/RESERVED-TASK-KEY]: The task key belongs to Loop.Tasks and cannot be set by the task body."
 	noScopeContext = "[GIMBLE107-SET-MISUSE/CONTEXT-NOT-FROM-SCOPE]: Set needs a context supplied by a Gimble scope, not context.Background or context.TODO."
+	constantPrompt = "[GIMBLE108-SIMPLE-WORKFLOWS/CONSTANT-PROMPT]: Generate's prompt and WithSupervisor's instruction must be compile-time string constants, so a workflow's prompt is readable from its source. Put the run's data into the scope with Set or SetJSON instead; Generate appends it to the prompt."
 )
+
+// cmdPath is exempt from GIMBLE108: cmd/run_prompt.go runs a prompt given on
+// the command line, so it cannot pass a constant. This is the only
+// exemption; no other mechanism is added.
+const cmdPath = gimblePath + "/cmd"
 
 const gimblePath = "github.com/tylergannon/gimble"
 
@@ -69,6 +75,7 @@ func run(pass *analysis.Pass) (any, error) {
 	inspectResult := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
 	info := indexSyntax(pass, inspectResult)
 	reportSetSyntax(pass, info)
+	reportPromptSyntax(pass)
 	reportDynamicWorkers(pass, info)
 	reportDuplicates(pass, pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA))
 	return nil, nil
@@ -243,6 +250,53 @@ func reportSetSyntax(pass *analysis.Pass, si *syntaxInfo) {
 			return true
 		})
 	}
+}
+
+// reportPromptSyntax reports a Generate prompt or WithSupervisor instruction
+// that is not a compile-time string constant. Package cmd is exempt: it runs
+// a prompt given on the command line, so it cannot pass a constant, and that
+// is the only exemption there is.
+func reportPromptSyntax(pass *analysis.Pass) {
+	if pass.Pkg.Path() == cmdPath {
+		return
+	}
+	for _, file := range pass.Files {
+		ast.Inspect(file, func(n ast.Node) bool {
+			call, ok := n.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			index, ok := promptArgIndex(pass, call)
+			if !ok || index >= len(call.Args) {
+				return true
+			}
+			arg := call.Args[index]
+			if value := pass.TypesInfo.Types[arg].Value; value == nil || value.Kind() != constant.String {
+				pass.Reportf(arg.Pos(), "%s", constantPrompt)
+			}
+			return true
+		})
+	}
+}
+
+// promptArgIndex reports which argument of call is the prompt or instruction
+// GIMBLE108 checks: Generate's prompt (its method receiver's second call
+// argument, after ctx) or WithSupervisor's instruction (its second
+// argument, after the supervisor session).
+func promptArgIndex(pass *analysis.Pass, call *ast.CallExpr) (int, bool) {
+	callee := typeutil.Callee(pass.TypesInfo, call)
+	if callee == nil || callee.Pkg() == nil || callee.Pkg().Path() != gimblePath {
+		return 0, false
+	}
+	switch callee.Name() {
+	case "Generate":
+		if sig, ok := callee.Type().(*types.Signature); ok && sig.Recv() != nil {
+			return 1, true
+		}
+	case "WithSupervisor":
+		return 1, true
+	}
+	return 0, false
 }
 
 func enclosingBoundary(si *syntaxInfo, n ast.Node) (boundary, bool) {

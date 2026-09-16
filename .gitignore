@@ -5,6 +5,7 @@ web/editor/.svelte-kit
 .gimble/run/
 .gimble/runs/
 .gimble/issues/
+.gimble/project.jsonl
 
 # skgo app
 /bin/

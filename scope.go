@@ -181,10 +181,11 @@ func store(ctx context.Context, key string, raw []byte) {
 	s.run.event(s.key, "", "", ValueSet{Key: key, Value: JSONText(raw)})
 }
 
-// ScopeText renders every value visible from the ctx's scope for a prompt:
+// scopeText renders every value visible from the ctx's scope for a prompt:
 // outermost scope first, and for each key the value of the nearest scope
-// that set it.
-func ScopeText(ctx context.Context) string {
+// that set it. Generate appends this to a turn's prompt itself; a workflow
+// no longer calls it.
+func scopeText(ctx context.Context) string {
 	shown := make(map[string]bool)
 	var sections []string // innermost first, reversed below
 	for s, _ := ctx.Value(scopeKey{}).(*scope); s != nil; s = s.parent {

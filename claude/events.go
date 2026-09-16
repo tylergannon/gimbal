@@ -341,9 +341,14 @@ func (p *projector) blockStop(event map[string]any, ref map[string]any) error {
 		if inputText == "" {
 			inputText = "{}"
 		}
+		// A model sometimes streams input that is not a JSON object. Claude
+		// Code does not end the turn on it: it records the raw text under
+		// __unparsedToolInput, answers the call with an input validation
+		// error, and lets the model try again. The turn goes on here too,
+		// with the input recorded the same way.
 		var input map[string]any
 		if err := json.Unmarshal([]byte(inputText), &input); err != nil {
-			return fmt.Errorf("claude: tool_use %s input is not a JSON object: %w", state.id, err)
+			input = map[string]any{"__unparsedToolInput": map[string]any{"raw": inputText, "len": len(inputText)}}
 		}
 		if err := p.event("session.tool.input.ended", map[string]any{"assistantMessageID": p.messageID, "id": state.id, "text": inputText}, ref); err != nil {
 			return err

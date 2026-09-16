@@ -484,3 +484,19 @@ func mustProject(t *testing.T, err error) {
 }
 
 func jsonContains(raw json.RawMessage, text string) bool { return bytes.Contains(raw, []byte(text)) }
+
+func TestProjectorDropsOutputForAToolTheStepNoLongerHolds(t *testing.T) {
+	var events []gimble.AgentEvent
+	p := newProjector("thread-1", "turn-1", "gpt-test", func(event gimble.AgentEvent) error { events = append(events, event); return nil })
+	mustProject(t, p.itemStarted(json.RawMessage(`{"item":{"id":"call-1","type":"commandExecution","command":"go test ./...","cwd":"/w"}}`)))
+	_, _, err := p.itemCompleted(json.RawMessage(`{"item":{"id":"call-1","type":"commandExecution","status":"completed","aggregatedOutput":"ok"}}`))
+	mustProject(t, err)
+	before := len(events)
+	// Output that arrives after the command completed, and output for a
+	// command this step never saw, are dropped rather than ending the turn.
+	mustProject(t, p.toolOutputDelta(json.RawMessage(`{"itemId":"call-1","delta":"ok\n"}`)))
+	mustProject(t, p.toolOutputDelta(json.RawMessage(`{"itemId":"call-from-an-ended-step","delta":"ok\n"}`)))
+	if got := types(events[before:]); len(got) != 0 {
+		t.Fatalf("late deltas produced events: %v", got)
+	}
+}

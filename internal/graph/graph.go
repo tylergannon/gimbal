@@ -60,6 +60,7 @@ func extract(dir, entry, name string, overlay map[string][]byte) (workflow.Graph
 		group:      make(map[types.Object]*nodeRef),
 		loop:       make(map[types.Object]*nodeRef),
 		hasOp:      make(map[*types.Func]bool),
+		dead:       make(map[types.Object]bool),
 	}
 	body := []workflow.Operation{}
 	e.block(decl.Body.List, &body, scopeEnv{blockTail: true, callTail: true})
@@ -101,10 +102,13 @@ type extractor struct {
 	session     map[types.Object]binding
 	group       map[types.Object]*nodeRef
 	loop        map[types.Object]*nodeRef
-	stack       []*types.Func
-	helpers     []*helperState
-	hasOp       map[*types.Func]bool
-	walking     map[*types.Func]bool
+	// dead holds every identifier a reassignment made unreadable; a scoped
+	// walk's restore does not bring one back.
+	dead    map[types.Object]bool
+	stack   []*types.Func
+	helpers []*helperState
+	hasOp   map[*types.Func]bool
+	walking map[*types.Func]bool
 }
 
 func findFunc(pkg *packages.Package, name string) *ast.FuncDecl {
@@ -183,9 +187,15 @@ func (e *extractor) callbackBody(stmts []ast.Stmt, out *[]workflow.Operation) {
 
 // scoped walks a block with its own bindings: what is declared inside it is
 // gone at the join, so a use after the join is not a session, group, or loop
-// declared in an enclosing body.
+// declared in an enclosing body. What the block reassigned stays unread
+// after it, since the block ran.
 func (e *extractor) scoped(walk func()) {
 	session, group, loop := maps.Clone(e.session), maps.Clone(e.group), maps.Clone(e.loop)
 	walk()
 	e.session, e.group, e.loop = session, group, loop
+	for obj := range e.dead {
+		delete(e.session, obj)
+		delete(e.group, obj)
+		delete(e.loop, obj)
+	}
 }

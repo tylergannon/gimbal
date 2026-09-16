@@ -74,12 +74,18 @@ func (e *extractor) assign(stmt *ast.AssignStmt, out *[]workflow.Operation, en s
 		}
 		e.value(rhs, targets, out, en)
 	}
-	if stmt.Tok != token.ASSIGN {
-		return
-	}
 	for _, lhs := range stmt.Lhs {
-		e.reassigned(lhs)
+		if stmt.Tok == token.ASSIGN || e.redeclares(lhs) {
+			e.reassigned(lhs)
+		}
 	}
+}
+
+// redeclares reports whether a short declaration reuses an identifier that
+// already exists, which assigns to it rather than declaring it.
+func (e *extractor) redeclares(lhs ast.Expr) bool {
+	ident, ok := unparen(lhs).(*ast.Ident)
+	return ok && e.pkg.TypesInfo.Uses[ident] != nil
 }
 
 // declStmt walks a var declaration the same way as an assignment.
@@ -136,6 +142,7 @@ func (e *extractor) reassigned(lhs ast.Expr) {
 	if what == "" {
 		return
 	}
+	e.dead[obj] = true
 	e.diag(lhs.Pos(), "a %s reassigned after its declaration is not read", what)
 }
 

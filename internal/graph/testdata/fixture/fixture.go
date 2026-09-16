@@ -96,6 +96,28 @@ func Fixture(ctx context.Context) error {
 		return err
 	}
 
+	// A session reassigned inside a callback stays unread after it: the
+	// callback ran, so its old name would be a guess.
+	swapped := gimble.NewSession(ctx, "swapped", ".")
+	other := gimble.NewSession(ctx, "other", ".")
+	if err := gimble.Scope(ctx, "swap", func(ctx context.Context) error {
+		swapped = other
+		return nil
+	}); err != nil {
+		return err
+	}
+	if _, err := swapped.Generate[gimble.Text](ctx, workPrompt); err != nil {
+		return err
+	}
+
+	// A short declaration that reuses an identifier reassigns it too.
+	again := gimble.NewSession(ctx, "again", ".")
+	again, marker := gimble.NewSession(ctx, "once more", "."), true
+	_ = marker
+	if _, err := again.Generate[gimble.Text](ctx, workPrompt); err != nil {
+		return err
+	}
+
 	// A Gimble call written inside another call's arguments is not read.
 	_ = gimble.NewSession(ctx, "outer", workdirOf(gimble.NewSession(ctx, "inner", ".")))
 

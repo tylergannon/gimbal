@@ -171,9 +171,10 @@ func TestFixtureGraph(t *testing.T) {
 		t.Error("a callback's early return is its own control flow, not a helper's guard")
 	}
 
-	// Ten sites the rules refuse to guess at; the two branch assignments
-	// share one message, so there are nine distinct ones.
-	const sites = 10
+	// Fourteen sites the rules refuse to guess at; reassignments and the
+	// calls on what they left unbound share messages, so there are nine
+	// distinct ones.
+	const sites = 14
 	want := []string{
 		"NewSession's role is not a constant",
 		"a call through a function value is not read",

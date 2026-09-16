@@ -19,7 +19,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"text/template"
 
 	"github.com/tylergannon/gimble"
 )
@@ -250,7 +249,7 @@ func attemptTask(ctx context.Context, in Input, researcher, validator *gimble.Se
 			passed = false
 		}
 	}
-	assessment, err := validator.Generate[review](ctx, taskValidationPrompt, gimble.WithScopeTemplate(taskValidationScope))
+	assessment, err := validator.Generate[review](ctx, taskValidationPrompt, gimble.WithScopeTemplate(taskValidationScopeText))
 	if err != nil {
 		return err
 	}
@@ -349,8 +348,6 @@ Answer this about it too: {{.}}
 {{.Text}}
 
 {{end}}{{end}}`
-
-var taskValidationScope = template.Must(template.New("task validation scope").Parse(taskValidationScopeText))
 
 const taskValidationPrompt = `Assess the task using the recorded result and evidence, against the definition of done and the task's own terms below.
 

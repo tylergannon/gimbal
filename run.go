@@ -41,9 +41,10 @@ func Project(ctx context.Context, dir string) context.Context {
 var graphs = map[string]workflow.Graph{}
 
 // RegisterGraph records the shape of one workflow, which `gimble graph`
-// read from its source. A run of that name saves it as graph.json beside
-// its records, so what the run did can be read against what its source
-// could do.
+// read from its source, under the workflow's name, which is also its runs'
+// name. It is how the binary that runs a workflow knows the workflow's
+// shape: the run page draws a run against it. It is not written into the
+// run's record; a run read without its binary has the logs.
 //
 // Only generated code calls this, from the init of the file the generator
 // writes; a workflow is wired up by being built. Registering one name twice
@@ -147,9 +148,6 @@ func Run(ctx context.Context, name string, models map[string]ModelBinding, body 
 	if err := os.Mkdir(dir, 0o755); err != nil {
 		return fmt.Errorf("gimble: %w", err)
 	}
-	if err := saveGraph(dir, name); err != nil {
-		return err
-	}
 	w, err := newEventWriter(filepath.Join(dir, "run.jsonl"))
 	if err != nil {
 		return fmt.Errorf("gimble: %w", err)
@@ -197,24 +195,6 @@ func Run(ctx context.Context, name string, models map[string]ModelBinding, body 
 		r.projectEvent(cancelled)
 	}
 	return r.finish(name, err)
-}
-
-// saveGraph writes the shape of the workflow being run, when one was
-// registered under the run's name, as graph.json beside the run's records.
-// A workflow whose graph is not compiled in writes none.
-func saveGraph(dir, name string) error {
-	graph, ok := graphs[name]
-	if !ok {
-		return nil
-	}
-	data, err := json.Marshal(graph)
-	if err != nil {
-		return fmt.Errorf("gimble: graph: %w", err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "graph.json"), data, 0o644); err != nil {
-		return fmt.Errorf("gimble: graph: %w", err)
-	}
-	return nil
 }
 
 // root runs body as the run's root scope. A panic in the body, which is

@@ -277,26 +277,31 @@ func attemptTask(ctx context.Context, in Input, researcher, validator *gimble.Se
 			passed = false
 		}
 	}
-	if !passed {
+	// What happens at the end of a task is a branch, not an early return:
+	// the task's work is committed or it is not, and both readings belong in
+	// the workflow's graph. A return in the middle of this helper would show
+	// there as ending the loop body it is inlined into.
+	if passed {
+		// Nothing a run writes under .gimble is ever committed.
+		if _, err := git(ctx, in, "add", "-A", "--", ".", ":!.gimble"); err != nil {
+			return err
+		}
+		status, _ := git(ctx, in, "status", "--porcelain")
+		if status == "" {
+			log.Printf("sprint: task %q: nothing to commit", task.Name)
+		} else {
+			message := fmt.Sprintf("Sprint %d: %s\n\n%s", in.Sprint, task.Name, task.Description)
+			if in.Issue != "" {
+				message = fmt.Sprintf("Issue %s: %s\n\n%s", in.Issue, task.Name, task.Description)
+			}
+			if _, err := git(ctx, in, "commit", "-m", message); err != nil {
+				return err
+			}
+			log.Printf("sprint: task %q: committed", task.Name)
+		}
+	} else {
 		log.Printf("sprint: task %q did not validate, so its work stays uncommitted", task.Name)
-		return nil
 	}
-	// Nothing a run writes under .gimble is ever committed.
-	if _, err := git(ctx, in, "add", "-A", "--", ".", ":!.gimble"); err != nil {
-		return err
-	}
-	if status, _ := git(ctx, in, "status", "--porcelain"); status == "" {
-		log.Printf("sprint: task %q: nothing to commit", task.Name)
-		return nil
-	}
-	message := fmt.Sprintf("Sprint %d: %s\n\n%s", in.Sprint, task.Name, task.Description)
-	if in.Issue != "" {
-		message = fmt.Sprintf("Issue %s: %s\n\n%s", in.Issue, task.Name, task.Description)
-	}
-	if _, err := git(ctx, in, "commit", "-m", message); err != nil {
-		return err
-	}
-	log.Printf("sprint: task %q: committed", task.Name)
 	return nil
 }
 

@@ -16,7 +16,7 @@ require (
 	github.com/oklog/ulid/v2 v2.1.2
 	github.com/roasbeef/claude-agent-sdk-go v1.1.1-0.20260713164230-efdbecd88a98
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2
-	github.com/tylergannon/polytype v1.0.0
+	github.com/tylergannon/polytype v1.0.3
 	github.com/tylergannon/skgo v0.4.1
 	golang.org/x/sync v0.23.0
 	golang.org/x/tools v0.50.0

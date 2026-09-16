@@ -67,9 +67,12 @@ func Sprint(ctx context.Context, in Input) error {
 	if err != nil {
 		return err
 	}
+	gimble.Set(ctx, "goal", withoutProof(text))
+	gimble.Set(ctx, "definition of done", fmt.Sprintf(done, in.Repo))
+	gimble.Set(ctx, "validation", validation)
 
 	researcher := gimble.NewSession(ctx, "researcher", in.Repo)
-	if _, err := researcher.Generate[gimble.Text](ctx, researchPrompt+"\n\n"+goal); err != nil {
+	if _, err := researcher.Generate[gimble.Text](ctx, researchPrompt); err != nil {
 		return err
 	}
 	planner, err := researcher.Fork(ctx, "planner")
@@ -105,7 +108,7 @@ func Sprint(ctx context.Context, in Input) error {
 		if tasks > in.Tasks {
 			return fmt.Errorf("sprint: the planner was not done after %d tasks", in.Tasks)
 		}
-		review, err := validator.Generate[review](ctx, validatePrompt+"\n\n## Goal\n\n"+withoutProof(text)+"\n\n"+validation)
+		review, err := validator.Generate[review](ctx, validatePrompt)
 		if err != nil {
 			return err
 		}
@@ -206,7 +209,7 @@ func runTask(ctx context.Context, in Input, researcher, validator *gimble.Sessio
 		return err
 	}
 	supervisor := gimble.NewSession(ctx, "supervisor", in.Repo)
-	result, workErr := coder.Generate[gimble.Text](ctx, codePrompt+"\n\n"+gimble.ScopeText(ctx),
+	result, workErr := coder.Generate[gimble.Text](ctx, codePrompt,
 		gimble.WithSupervisor(supervisor, superviseInstruction),
 	)
 	if ctx.Err() != nil {
@@ -229,11 +232,7 @@ func runTask(ctx context.Context, in Input, researcher, validator *gimble.Sessio
 			passed = false
 		}
 	}
-	assessmentPrompt := fmt.Sprintf(taskValidationPrompt, task.DefinitionOfDone)
-	if query := strings.TrimSpace(task.Validation.Query); query != "" {
-		assessmentPrompt += "\n\nAdditional validation question:\n" + query
-	}
-	assessment, err := validator.Generate[review](ctx, assessmentPrompt+"\n\n"+gimble.ScopeText(ctx))
+	assessment, err := validator.Generate[review](ctx, taskValidationPrompt)
 	if err != nil {
 		return err
 	}
@@ -312,11 +311,9 @@ const codePrompt = `Complete the task in the scoped context, following AGENTS.md
 
 const superviseInstruction = "Don't let it build what its task does not ask for, over-engineer what it does build, or break a rule in AGENTS.md. Object to nothing else: code quality and style are not yours to judge."
 
-const taskValidationPrompt = `Assess the task using the recorded result and evidence.
+const taskValidationPrompt = `Assess the task using the recorded result and evidence, against the definition of done and, if present, the validation query in the task record of the scoped context below.
 
-Definition of done: %s
-
-List what that evidence does not show working at the repository's 90-95%% readiness standard, and nothing else; an empty list passes the task. A passing agent judgment cannot override a failed deterministic check.`
+List what that evidence does not show working at the repository's 90-95% readiness standard, and nothing else; an empty list passes the task. A passing agent judgment cannot override a failed deterministic check. The work is uncommitted by design: the workflow commits it once you pass it, so its being uncommitted is never a finding. Nor is how the work is written: legitimacy of the evidence is yours to judge, code quality and style are not.`
 
 const validatePrompt = `Check this repository as the Validation section below says, changing no files and committing nothing, and report what you did not see working of the goal below.`
 

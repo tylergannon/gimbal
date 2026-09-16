@@ -233,11 +233,11 @@ func TestLoopKilledTaskIsAFailedTaskNotABrokenLoop(t *testing.T) {
 	var mu sync.Mutex
 	var plans []string
 	f := &fake{answer: func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(AgentEvent) error) (string, error) {
-		if prompt == "wait" {
+		if strings.HasPrefix(prompt, "wait") {
 			<-ctx.Done()
 			return "", ctx.Err()
 		}
-		if prompt == "work" {
+		if strings.HasPrefix(prompt, "work") {
 			return "ok", nil
 		}
 		mu.Lock()
@@ -262,15 +262,16 @@ func TestLoopKilledTaskIsAFailedTaskNotABrokenLoop(t *testing.T) {
 		loop := Loop(ctx, "sprint", "ship", planner)
 		for ctx := range loop.Tasks {
 			worker := NewSession(ctx, "worker", t.TempDir())
-			prompt := "work"
 			if len(laps) == 0 {
-				prompt = "wait"
 				killWG.Go(func() {
 					runningTurns(t, f, 1)
 					killErr = r.run.CancelScope("sprint.1/task.1", kill)
 				})
+				_, err := worker.Generate[Text](ctx, "wait")
+				laps = append(laps, err)
+				continue
 			}
-			_, err := worker.Generate[Text](ctx, prompt)
+			_, err := worker.Generate[Text](ctx, "work")
 			laps = append(laps, err)
 		}
 		return loop.Err()

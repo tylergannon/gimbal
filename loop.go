@@ -100,7 +100,7 @@ func (l *loop) Tasks(yield func(context.Context, Task) bool) {
 			if err != nil {
 				return fmt.Errorf("gimble: %w", err)
 			}
-			a, err := l.planner.Generate[answer](ctx, planPrompt(l.name, l.planner.workdir, string(backlogText), ScopeText(ctx), previous))
+			a, err := dispatch[answer](ctx, l.planner, planPrompt(l.name, l.planner.workdir, string(backlogText), scopeText(ctx), previous), nil)
 			if err != nil {
 				return err
 			}

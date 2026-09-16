@@ -29,3 +29,21 @@ func Loop(context.Context, string, string, any) *LoopType { return &LoopType{} }
 func (*LoopType) Tasks(yield func(context.Context, Task) bool) {
 	yield(context.Background(), Task{})
 }
+
+// AgentOption stands in for gimble.AgentOption in the testdata stub.
+type AgentOption func()
+
+// Session stands in for gimble.Session: a generic Generate method whose
+// prompt argument GIMBLE108 checks, matching (*gimble.Session).Generate.
+type Session struct{}
+
+func (*Session) Generate[T any](context.Context, string, ...AgentOption) (T, error) {
+	var zero T
+	return zero, nil
+}
+
+// WithSupervisor stands in for gimble.WithSupervisor: its instruction
+// argument is the second one GIMBLE108 checks.
+func WithSupervisor(*Session, string, ...AgentOption) AgentOption {
+	return func() {}
+}

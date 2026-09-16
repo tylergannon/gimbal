@@ -121,6 +121,10 @@ func repoDir() string {
 	return dir
 }
 
+const bakeOffResearchPrompt = "Read the config loader in the repository named in the scoped context below and everything that calls it. Change nothing. Answer with where the file is read and by whom."
+
+const bakeOffJudgePrompt = "Two proposals to make the config loader in the repository named in the scoped context below read its file once per process are recorded there as \"candidate 1\" and \"candidate 2\". Read the code they name and pick the smaller change that is correct."
+
 // Example_bakeOff is fork and bake-off: one session reads the code once,
 // two forks of it each propose an approach at the same time in a Group,
 // and a judge on a different harness picks one. The judge reads the
@@ -133,8 +137,9 @@ func Example_bakeOff() {
 	claude := says(`{"winner":2,"why":"It changes one file and keeps Load's signature."}`)
 
 	err := gimble.Run(ctx, "bakeoff", map[string]gimble.ModelBinding{"judge": {Adapter: claude, Model: "claude-haiku-4-5-20251001"}, "researcher": {Adapter: codex, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
+		gimble.Set(ctx, "repository", repo)
 		researcher := gimble.NewSession(ctx, "researcher", repo)
-		if _, err := researcher.Generate[gimble.Text](ctx, "Read the config loader in "+repo+" and everything that calls it. Change nothing. Answer with where the file is read and by whom."); err != nil {
+		if _, err := researcher.Generate[gimble.Text](ctx, bakeOffResearchPrompt); err != nil {
 			return err
 		}
 
@@ -154,8 +159,10 @@ func Example_bakeOff() {
 			return err
 		}
 
+		gimble.Set(ctx, "candidate 1", string(proposals[0]))
+		gimble.Set(ctx, "candidate 2", string(proposals[1]))
 		judge := gimble.NewSession(ctx, "judge", repo)
-		v, err := judge.Generate[verdict](ctx, fmt.Sprintf("Two proposals to make the config loader in %s read its file once per process. Read the code they name and pick the smaller change that is correct.\n\n1. %s\n\n2. %s", repo, proposals[0], proposals[1]))
+		v, err := judge.Generate[verdict](ctx, bakeOffJudgePrompt)
 		if err != nil {
 			return err
 		}
@@ -168,6 +175,12 @@ func Example_bakeOff() {
 	// winner: 2 It changes one file and keeps Load's signature.
 	// <nil>
 }
+
+const critiqueDraftPrompt = "Write the notes file named in the scoped context below: how the config loader handles a missing, an empty, and a malformed config file, from the code."
+
+const critiqueReviewPrompt = "Read the notes file named in the scoped context below against the config loader's code. List each case it describes wrongly or leaves out. Change nothing."
+
+const critiqueFixPrompt = "A reviewer read the notes file named in the scoped context below and found the defects recorded there. Fix each one that is real. For each you reject, say why in one line."
 
 // Example_critiqueRound is a critique round: a writer drafts, a critic on
 // another harness reads the draft against the code and lists defects, and
@@ -189,15 +202,16 @@ func Example_critiqueRound() {
 	}}
 
 	err := gimble.Run(ctx, "critique", map[string]gimble.ModelBinding{"critic": {Adapter: claude, Model: "claude-haiku-4-5-20251001"}, "writer": {Adapter: codex, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
+		gimble.Set(ctx, "notes file", note)
 		writer := gimble.NewSession(ctx, "writer", repo)
 		critic := gimble.NewSession(ctx, "critic", repo)
-		if _, err := writer.Generate[gimble.Text](ctx, "Write "+note+": how the config loader handles a missing, an empty, and a malformed config file, from the code."); err != nil {
+		if _, err := writer.Generate[gimble.Text](ctx, critiqueDraftPrompt); err != nil {
 			return err
 		}
 		for round := 1; round <= 2; round++ {
 			var defects []string
 			err := gimble.Scope(ctx, "round", func(ctx context.Context) error {
-				c, err := critic.Generate[critique](ctx, "Read "+note+" against the config loader's code. List each case it describes wrongly or leaves out. Change nothing.")
+				c, err := critic.Generate[critique](ctx, critiqueReviewPrompt)
 				if err != nil {
 					return err
 				}
@@ -206,7 +220,7 @@ func Example_critiqueRound() {
 					return nil
 				}
 				gimble.Set(ctx, "defects", defects)
-				_, err = writer.Generate[gimble.Text](ctx, "A reviewer read "+note+" and found the defects below. Fix each one that is real. For each you reject, say why in one line.\n\n"+gimble.ScopeText(ctx))
+				_, err = writer.Generate[gimble.Text](ctx, critiqueFixPrompt)
 				return err
 			})
 			if err != nil {
@@ -227,6 +241,8 @@ func Example_critiqueRound() {
 	// <nil>
 }
 
+const supervisedWorkerPrompt = "Add a Parse function to the config loader in the repository named in the scoped context below, with one test that shows it working. Leave the work uncommitted. Answer with what changed."
+
 // Example_supervisedWorker is a supervised worker: a supervisor is a
 // session and one instruction, attached to the turn it watches. At its
 // interval it looks at what the worker did since its last look and steers
@@ -240,10 +256,11 @@ func Example_supervisedWorker() {
 	claude := says(`{"objections":[]}`)
 
 	err := gimble.Run(ctx, "supervised", map[string]gimble.ModelBinding{"coder": {Adapter: codex, Model: "gpt-5.6-luna"}, "taste": {Adapter: claude, Model: "claude-haiku-4-5-20251001"}}, func(ctx context.Context) error {
+		gimble.Set(ctx, "repository", repo)
 		coder := gimble.NewSession(ctx, "coder", repo)
 		taste := gimble.NewSession(ctx, "taste", repo)
 		result, err := coder.Generate[gimble.Text](ctx,
-			"Add a Parse function to the config loader in "+repo+", with one test that shows it working. Leave the work uncommitted. Answer with what changed.",
+			supervisedWorkerPrompt,
 			gimble.WithSupervisor(taste, "Don't let it build what the task does not ask for, or break a rule in AGENTS.md. Object to nothing else.", gimble.WithInterval(2*time.Minute)),
 		)
 		if err != nil {
@@ -258,6 +275,8 @@ func Example_supervisedWorker() {
 	// Done: Parse in config/parse.go, one test in config/parse_test.go, uncommitted.
 	// <nil>
 }
+
+const loopResearchPrompt = "Read the config loader in the repository named in the scoped context below and its tests. Change nothing. Answer with what exists."
 
 // Example_loopWithPlanner is a Loop with a planner: the planner, forked
 // from the session that read the code, keeps the backlog; each task runs
@@ -280,8 +299,9 @@ func Example_loopWithPlanner() {
 	}}
 
 	err := gimble.Run(ctx, "loop", map[string]gimble.ModelBinding{"researcher": {Adapter: codex, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
+		gimble.Set(ctx, "repository", repo)
 		researcher := gimble.NewSession(ctx, "researcher", repo)
-		if _, err := researcher.Generate[gimble.Text](ctx, "Read the config loader in "+repo+" and its tests. Change nothing. Answer with what exists."); err != nil {
+		if _, err := researcher.Generate[gimble.Text](ctx, loopResearchPrompt); err != nil {
 			return err
 		}
 		planner, err := researcher.Fork(ctx, "planner")
@@ -295,7 +315,7 @@ func Example_loopWithPlanner() {
 			if err != nil {
 				return err
 			}
-			result, err := coder.Generate[gimble.Text](ctx, "Do the task in the scoped context below. Leave the work uncommitted. Answer with what changed and what you saw working.\n\n"+gimble.ScopeText(ctx))
+			result, err := coder.Generate[gimble.Text](ctx, "Do the task in the scoped context below. Leave the work uncommitted. Answer with what changed and what you saw working.")
 			if err != nil {
 				return err
 			}
@@ -309,6 +329,8 @@ func Example_loopWithPlanner() {
 	// task: Read the config once
 	// <nil>
 }
+
+const worktreeCandidatePrompt = "In the worktree path recorded in the scoped context below, make the config loader read its file once per process, with a test that shows it. Write nowhere outside that path. Leave the work uncommitted. Answer with what changed."
 
 // Example_worktreePerCandidate is a worktree per candidate: each coder
 // edits its own git worktree, so two candidates never share a working
@@ -342,8 +364,9 @@ func Example_worktreePerCandidate() {
 					_, _, _, _ = gimble.RunCommand(context.WithoutCancel(ctx), "remove-worktree", repo, "git", "worktree", "remove", "--force", dir)
 				}()
 
+				gimble.Set(ctx, "worktree", dir)
 				coder := gimble.NewSession(ctx, "coder", dir)
-				result, err := coder.Generate[gimble.Text](ctx, "In "+dir+", make the config loader read its file once per process, with a test that shows it. Write nowhere outside "+dir+". Leave the work uncommitted. Answer with what changed.")
+				result, err := coder.Generate[gimble.Text](ctx, worktreeCandidatePrompt)
 				if err != nil {
 					return err
 				}
@@ -361,6 +384,8 @@ func Example_worktreePerCandidate() {
 	fmt.Println(err)
 }
 
+const validationCommandPrompt = "Make the config loader read its file once per process, with a test that shows it, in the repository named in the scoped context below. The check command named there must pass; if a previous try's check output is recorded there too, make it pass instead. The check itself stays as it is."
+
 // Example_validationCommand is a validation command: the check is a
 // command the workflow runs, chosen before the coder starts and never the
 // coder's to edit. Its exit code is the verdict, and its output is what the
@@ -374,10 +399,19 @@ func Example_validationCommand() {
 	check := "go test ./config/..."
 
 	err := gimble.Run(ctx, "validated", map[string]gimble.ModelBinding{"coder": {Adapter: codex, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
+		gimble.Set(ctx, "repository", repo)
+		gimble.Set(ctx, "check command", check)
 		coder := gimble.NewSession(ctx, "coder", repo)
-		prompt := "Make the config loader in " + repo + " read its file once per process, with a test that shows it. Leave the work uncommitted."
+		var lastCheckOutput string
 		for try := 1; try <= 3; try++ {
-			if _, err := coder.Generate[gimble.Text](ctx, prompt); err != nil {
+			err := gimble.Scope(ctx, "try", func(ctx context.Context) error {
+				if lastCheckOutput != "" {
+					gimble.Set(ctx, "last check output", lastCheckOutput)
+				}
+				_, err := coder.Generate[gimble.Text](ctx, validationCommandPrompt)
+				return err
+			})
+			if err != nil {
 				return err
 			}
 			code, stdout, stderr, err := gimble.RunCommand(ctx, "check", repo, "sh", "-c", check)
@@ -388,7 +422,7 @@ func Example_validationCommand() {
 				gimble.Set(ctx, "validated by", check)
 				return nil
 			}
-			prompt = fmt.Sprintf("`%s` in %s exited %d:\n\n%s%s\nMake it pass. The check itself stays as it is.", check, repo, code, stdout, stderr)
+			lastCheckOutput = fmt.Sprintf("exit %d:\n\n%s%s", code, stdout, stderr)
 		}
 		return fmt.Errorf("%s still fails after three tries", check)
 	})
@@ -404,6 +438,8 @@ func runID(project string) string {
 	}
 	return entries[0].Name()
 }
+
+const killedTurnRecoveryPrompt = "Your last turn was stopped: who stopped it and why are recorded in the scoped context below as \"kill by\" and \"kill reason\". Undo what was wrong, then finish the task. Answer with what changed."
 
 // Example_killedTurn is a turn killed by an operator and the loop that
 // recovers: while a task's coder is mid-turn, the operator watching the
@@ -455,10 +491,12 @@ func Example_killedTurn() {
 		loop := gimble.Loop(ctx, "work", "The config loader in "+repo+" reads its file once per process.", planner)
 		for ctx, task := range loop.Tasks {
 			coder := gimble.NewSession(ctx, "coder", repo)
-			result, err := coder.Generate[gimble.Text](ctx, "Do the task in the scoped context below. Leave the work uncommitted. Answer with what changed.\n\n"+gimble.ScopeText(ctx))
+			result, err := coder.Generate[gimble.Text](ctx, "Do the task in the scoped context below. Leave the work uncommitted. Answer with what changed.")
 			if kill, ok := errors.AsType[gimble.Killed](err); ok {
 				fmt.Printf("%s: turn killed by %s: %s\n", task.Name, kill.By, kill.Reason)
-				result, err = coder.Generate[gimble.Text](ctx, "Your last turn was stopped by "+kill.By+": "+kill.Reason+". Undo what was wrong, then finish the task. Answer with what changed.")
+				gimble.Set(ctx, "kill by", kill.By)
+				gimble.Set(ctx, "kill reason", kill.Reason)
+				result, err = coder.Generate[gimble.Text](ctx, killedTurnRecoveryPrompt)
 			}
 			if err != nil {
 				return err

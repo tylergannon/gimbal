@@ -237,7 +237,7 @@ func TestScopeData(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		got := ScopeText(inner)
+		got := scopeText(inner)
 		want := "## review\n\n{\n  \"objections\": [\n    \"too big\"\n  ]\n}\n\n## language\n\nzig"
 		if got != want {
 			t.Errorf("ScopeText = %q, want %q", got, want)
@@ -524,7 +524,7 @@ func TestLoopCarriesStructuredTaskAndFeedback(t *testing.T) {
 			taskKeys = append(taskKeys, s.key)
 			Set(ctx, "validation result", "exit 1: package does not compile")
 		}
-		parentText = ScopeText(ctx)
+		parentText = scopeText(ctx)
 		return loop.Err()
 	})
 	if err != nil {
@@ -754,7 +754,7 @@ func TestAttestEventFixture(t *testing.T) {
 			<-ctx.Done() // keep the look active until the worker finishes
 			return "", ctx.Err()
 		}
-		if prompt == "build" {
+		if strings.HasPrefix(prompt, "build") {
 			_ = emit(fakeAgentEvent("session.tool.called", session, "message-1", map[string]any{"id": "call-1", "input": map[string]any{"command": "test"}, "executed": true}))
 			_ = emit(fakeAgentEvent("session.tool.success", session, "message-1", map[string]any{"id": "call-1", "content": []any{map[string]any{"type": "text", "text": "ok"}}, "executed": true}))
 			for {

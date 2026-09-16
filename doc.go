@@ -12,9 +12,11 @@
 // visible in the workflow that needs them.
 //
 // NewSession creates a conversation owned by the current scope. Generate runs
-// a blocking turn and returns either Text or a schema-bearing Output. Set,
-// SetJSON, and ScopeText let the workflow explicitly choose which scoped data
-// it places in a prompt; Generate does not inject context implicitly.
+// a blocking turn and returns either Text or a schema-bearing Output. Set and
+// SetJSON record the run's data in the ctx's scope; Generate appends that
+// scope's rendered context to the prompt itself, as prompt + "\n\n" + the
+// render, or nothing when the scope holds no values. A workflow's prompt to
+// Generate is therefore a compile-time constant.
 //
 // RunCommand runs a command in the current scope and blocks until it exits,
 // returning its exit code, stdout, and stderr. The run records each command

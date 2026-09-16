@@ -17,10 +17,14 @@
 
 <form
 	class="steer"
-	{...box.enhance(async ({ submit }) => {
+	{...box.enhance(async (form) => {
 		refused = '';
 		try {
-			await submit();
+			await form.submit();
+			// Empty the box only once the message is with an agent. A message
+			// that was dropped or refused stays where it was typed, to send
+			// again; kit's own reset keeps the two hidden fields.
+			if (form.result?.landed) form.element.reset();
 		} catch (error) {
 			refused = error instanceof Error ? error.message : String(error);
 		}

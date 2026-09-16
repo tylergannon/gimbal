@@ -79,9 +79,34 @@ func (Text) ValidateJSON(raw []byte) error {
 // here and decoded into T. A result that does not validate is shown back to
 // the model with the reason, a bounded number of times, before it is an
 // error. For Text no schema is sent and the result is the final message.
-// The options attach supervisors.
+// The options attach supervisors, and WithScopeTemplate renders the scope's
+// context for this call in place of the runtime's own rendering.
 func (s *Session) Generate[T Output](ctx context.Context, prompt string, opts ...AgentOption) (T, error) {
-	return dispatch[T](ctx, s, appendScopeText(ctx, prompt), opts)
+	ask, err := scopedPrompt(ctx, prompt, apply(opts))
+	if err != nil {
+		var out T
+		return out, err
+	}
+	return dispatch[T](ctx, s, ask, opts)
+}
+
+// scopedPrompt is what Generate sends: prompt with the ctx scope's context
+// appended as prompt + "\n\n" + context, rendered the runtime's way or, when
+// the call gave a template, through it. A scope that holds no values, and a
+// template that renders to nothing, leave prompt as it is.
+func scopedPrompt(ctx context.Context, prompt string, o options) (string, error) {
+	if o.scopeTemplate == nil {
+		return appendScopeText(ctx, prompt), nil
+	}
+	var rendered strings.Builder
+	if err := o.scopeTemplate.Execute(&rendered, scopeData(ctx)); err != nil {
+		return "", fmt.Errorf("gimble: render the scope through the template %q: %w", o.scopeTemplate.Name(), err)
+	}
+	text := strings.TrimSpace(rendered.String())
+	if text == "" {
+		return prompt, nil
+	}
+	return prompt + "\n\n" + text, nil
 }
 
 // appendScopeText adds the ctx scope's rendered context to prompt, the way

@@ -28,8 +28,24 @@ const autoCompactWindow = "256000"
 
 // adapter runs Claude Code sessions.
 type adapter struct {
+	userConfiguration bool
+
 	mu       sync.Mutex
 	sessions map[string]*session
+}
+
+// Option configures the harness.
+type Option func(*adapter)
+
+// WithUserConfiguration lets a workflow's sessions load the user's own
+// Claude Code configuration: the MCP servers, plugins and settings under
+// ~/.claude. Ask for it only when the workflow's agents use those tools.
+// Every one of them is paid for on every request of every session: the
+// desktop integrations on the machine this was written on cost about 43k
+// tokens of tool definitions before a coder had read a line of the
+// repository.
+func WithUserConfiguration() Option {
+	return func(a *adapter) { a.userConfiguration = true }
 }
 
 type session struct {
@@ -49,9 +65,31 @@ type activeTurn struct {
 }
 
 // New returns Gimble's Claude Code harness. It launches Claude Code when a
-// session first needs it.
-func New() gimble.HarnessAdapter {
-	return &adapter{sessions: make(map[string]*session)}
+// session first needs it. Its sessions start on the CLI's own tools and the
+// repository's configuration, not the user's, unless a workflow asks for the
+// user's with WithUserConfiguration.
+func New(options ...Option) gimble.HarnessAdapter {
+	a := &adapter{sessions: make(map[string]*session)}
+	for _, option := range options {
+		option(a)
+	}
+	return a
+}
+
+// settingSources are the settings a session loads when it is not asking for
+// the user's own configuration: the repository's, and the checkout's own.
+// The user source, ~/.claude, is left out, so a coder does not inherit the
+// plugins and MCP servers of whoever started the run.
+const settingSources = "project,local"
+
+// isolate keeps a session on the CLI's own tools and the repository's
+// configuration. Without it a session inherits every MCP server and plugin
+// the user has installed and pays for their tool definitions on every
+// request, none of which a coder in a repository uses.
+func isolate(extra map[string]*string) []claudeagent.Option {
+	sources := settingSources
+	extra["setting-sources"] = &sources
+	return []claudeagent.Option{claudeagent.WithStrictMCPConfig(true)}
 }
 
 // CreateSession mints the id the first turn passes as --session-id.
@@ -122,6 +160,9 @@ func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema 
 		}),
 	}
 	extra := map[string]*string{}
+	if !a.userConfiguration {
+		options = append(options, isolate(extra)...)
+	}
 	if len(schema) > 0 {
 		text := string(schema)
 		extra["json-schema"] = &text
@@ -312,22 +353,41 @@ func decodeEnvelope(message claudeagent.Message) envelope {
 	return e
 }
 
+// assistantError is the error of a failed assistant message. Claude Code
+// states the code on the message and its own explanation of the failure as
+// the message's text; both belong in the error, so a reader of the run does
+// not have to open the CLI's transcript to learn why the turn failed.
 func assistantError(message claudeagent.Message) error {
 	var code claudeagent.AssistantMessageError
-	var requestID string
+	var requestID, explanation string
 	switch assistant := message.(type) {
 	case claudeagent.AssistantMessage:
-		code, requestID = assistant.Error, assistant.RequestID
+		code, requestID, explanation = assistant.Error, assistant.RequestID, blockText(assistant.Message.Content)
 	case *claudeagent.AssistantMessage:
-		code, requestID = assistant.Error, assistant.RequestID
+		code, requestID, explanation = assistant.Error, assistant.RequestID, blockText(assistant.Message.Content)
 	}
 	if code == "" {
 		return nil
 	}
-	if requestID != "" {
-		return fmt.Errorf("claude: assistant error: %s (request ID: %s)", code, requestID)
+	text := "claude: assistant error: " + string(code)
+	if explanation != "" {
+		text += ": " + explanation
 	}
-	return errors.New("claude: assistant error: " + string(code))
+	if requestID != "" {
+		text += " (request ID: " + requestID + ")"
+	}
+	return errors.New(text)
+}
+
+// blockText is the text Claude Code wrote on a message, as one line.
+func blockText(blocks []claudeagent.ContentBlock) string {
+	var parts []string
+	for _, block := range blocks {
+		if block.Type == "text" && strings.TrimSpace(block.Text) != "" {
+			parts = append(parts, strings.TrimSpace(block.Text))
+		}
+	}
+	return oneLine(strings.Join(parts, " "))
 }
 
 func asResult(message claudeagent.Message) (claudeagent.ResultMessage, bool) {

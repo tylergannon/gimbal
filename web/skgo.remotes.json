@@ -1,7 +1,8 @@
 {
 	"remotes": [
 		"10a713o/guide",
-		"x7ussb/steer"
+		"x7ussb/steer",
+		"x7ussb/steerLoop"
 	],
 	"loads": [
 		"src/routes/runs/[runID]/+page.server.ts"

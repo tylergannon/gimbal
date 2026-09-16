@@ -67,6 +67,11 @@ type loop struct {
 // chosen and prepared by the workflow. Loop keeps a revisable backlog in its
 // run scope and uses values recorded by each task as feedback for the next
 // decision. Range over its Tasks method and check Err afterward.
+//
+// An operator watching the run can send the loop a message by its scope
+// key, WrapUp or anything else in prose. It waits for the planner's next
+// decision rather than being dropped, because a planner is not always in a
+// turn, and the loop's record says whether the planner read it.
 func Loop(ctx context.Context, name, goal string, planner *Session) *loop {
 	return &loop{ctx: ctx, name: name, goal: goal, planner: planner}
 }
@@ -85,8 +90,18 @@ func (l *loop) Tasks(yield func(context.Context, Task) bool) {
 		l.err = err
 		return
 	}
-	l.err = parent.child(l.name).do(l.ctx, func(ctx context.Context) error {
-		loopScope, _ := current(ctx)
+	loopScope := parent.child(l.name)
+	loopScope.loop, loopScope.dispatching = true, true
+	l.err = loopScope.do(l.ctx, func(ctx context.Context) error {
+		// A message an operator sent but the planner never read is
+		// recorded as dropped, so every message has one record saying
+		// whether it reached a decision.
+		defer func() {
+			for _, message := range loopScope.endDispatch() {
+				loopScope.run.event(loopScope.key, "", "", Steer{Target: loopScope.key, Source: "person", Message: message})
+				logf("%s: a message was dropped, dispatch ended first: %s", loopScope.key, oneLine(message))
+			}
+		}()
 		dir := filepath.Join(loopScope.run.dir, "scopes", filepath.FromSlash(loopScope.key))
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return fmt.Errorf("gimble: %w", err)
@@ -100,7 +115,15 @@ func (l *loop) Tasks(yield func(context.Context, Task) bool) {
 			if err != nil {
 				return fmt.Errorf("gimble: %w", err)
 			}
-			a, err := dispatch[answer](ctx, l.planner, planPrompt(l.name, l.planner.workdir, string(backlogText), scopeText(ctx), previous), nil)
+			// What an operator sent while the last task ran is read here,
+			// at the decision it was sent for, and recorded as landed
+			// because the planner is about to see it.
+			messages := loopScope.takeMessages()
+			for _, message := range messages {
+				loopScope.run.event(loopScope.key, "", "", Steer{Target: loopScope.key, Source: "person", Message: message, Landed: true})
+				logf("%s: a message reached the planner: %s", loopScope.key, oneLine(message))
+			}
+			a, err := dispatch[answer](ctx, l.planner, planPrompt(l.name, l.planner.workdir, string(backlogText), scopeText(ctx), previous, messages), nil)
 			if err != nil {
 				return err
 			}
@@ -213,7 +236,13 @@ func validateTask(task Task) error {
 	}
 }
 
-func planPrompt(name, workdir, backlogText, scoped, previous string) string {
+// WrapUp is the message that tells a loop to stop taking on work. It is an
+// ordinary message to a loop's planner, sent by an operator who can see
+// that what is left is not worth another lap; the planner's prompt states
+// what it means, and the planner still writes the decision.
+const WrapUp = "Wrap this up: end dispatch at this decision."
+
+func planPrompt(name, workdir, backlogText, scoped, previous string, messages []string) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "You plan the loop %q in %s. Its backlog is shown below.\n\n", name, workdir)
 	b.WriteString("Choose the next assignment that offers the greatest concrete gain toward the goal, based on current evidence, priorities, and real dependencies. Size it for one worker to understand, complete, and demonstrate in one working session. A later task may offer more gain than repairing a nonblocking earlier defect; keep deferred defects visible.\n\n")
@@ -227,6 +256,10 @@ func planPrompt(name, workdir, backlogText, scoped, previous string) string {
 		b.WriteString("Previous task record:\n\n" + previous + "\n\n")
 	}
 	b.WriteString("Backlog now:\n\n" + backlogText + "\n\n")
+	if len(messages) > 0 {
+		b.WriteString("The person watching this run sent you this, for this decision:\n\n- " + strings.Join(messages, "\n- ") + "\n\n")
+		b.WriteString("Weigh it as you would any other evidence, except an instruction to wrap up: that one means end dispatch at this decision, with whatever is in flight finished or dropped.\n\n")
+	}
 	b.WriteString("Return the full revised task list in `tasks` and the index of the chosen task in `next`, or `next: null` to end dispatch; that does not certify that the goal is fulfilled.")
 	return b.String()
 }

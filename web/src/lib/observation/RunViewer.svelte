@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { RunObservation, usageOf, usageText, type Decision, type ObservationDelta, type RunSnapshot } from './index.js';
 	import SessionTimeline from './SessionTimeline.svelte';
+	import LoopBox from './LoopBox.svelte';
 	import SteerBox from './SteerBox.svelte';
 
 	let { snapshot }: { snapshot: RunSnapshot } = $props();
@@ -84,6 +85,9 @@
 		{#if scope.task !== undefined}<p>task · {taskName(scope.task)}</p>{/if}
 		{#each scope.decisions ?? [] as decision (decision.seq)}<p>decision · {decisionName(decision)}</p>{/each}
 		{#each Object.entries(scope.values ?? {}) as [name, value] (name)}<p>{name} · {JSON.stringify(value)}</p>{/each}
+		{#if scope.loop && scope.status === 'running' && currentRun.status === 'running'}
+			<LoopBox run={currentRun.id} scope={key} name={scope.name} />
+		{/if}
 	</section>
 {/each}
 

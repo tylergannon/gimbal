@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"text/template"
 	"time"
 )
 
@@ -20,8 +21,9 @@ import (
 type AgentOption func(*options)
 
 type options struct {
-	supervisors []supervisor
-	every       time.Duration
+	supervisors   []supervisor
+	every         time.Duration
+	scopeTemplate *template.Template
 }
 
 type supervisor struct {
@@ -41,6 +43,25 @@ func WithSupervisor(session *Session, instruction string, opts ...AgentOption) A
 	return func(o *options) {
 		o.supervisors = append(o.supervisors, supervisor{session: session, instruction: instruction, opts: opts})
 	}
+}
+
+// WithScopeTemplate renders the scope for this one Generate call through
+// tmpl instead of the runtime's own rendering. Its argument is the scoped
+// data that rendering would use, a ScopeData: every value visible from the
+// ctx's scope, outermost scope first, and for each key the value of the
+// nearest scope that set it. Its output is appended to the prompt in place
+// of the default text, and a template that renders to nothing leaves the
+// prompt alone. Nothing else changes: the prompt is still a constant, so
+// what the agent is sent stays readable from the source, and so is the
+// template, which is parsed once at package level from a constant or a file
+// brought in with go:embed. A failure to render the template is the error
+// Generate returns.
+//
+// It shapes the scope for the call it is given to. A supervisor's look is
+// built from the worker's transcript and carries no scope context, so this
+// does nothing among a supervisor's own options.
+func WithScopeTemplate(tmpl *template.Template) AgentOption {
+	return func(o *options) { o.scopeTemplate = tmpl }
 }
 
 // WithInterval is how often a supervisor looks, given among its options to

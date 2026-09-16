@@ -3,6 +3,7 @@ package sprint
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -17,9 +18,10 @@ import (
 // so runTask can be exercised the way Loop actually drives it: with the
 // task record already in the task scope under "task".
 type taskAdapter struct {
-	task    gimble.Task
-	prompts []string
-	plans   int
+	task           gimble.Task
+	prompts        []string
+	plans          int
+	validatorFails bool // the validator's turn errors instead of answering
 }
 
 func (a *taskAdapter) CreateSession(context.Context, string, string, string) (string, error) {
@@ -44,6 +46,8 @@ func (a *taskAdapter) RunTurn(_ context.Context, _ string, prompt string, schema
 		}
 		raw, err := json.Marshal(p)
 		return gimble.TurnResult{Output: raw}, err
+	case a.validatorFails:
+		return gimble.TurnResult{}, errors.New("adapter: the validator's turn failed")
 	default:
 		return gimble.TurnResult{Output: json.RawMessage(`{"not_seen_working":["The task has no evidence for its definition of done."]}`)}, nil
 	}
@@ -94,9 +98,12 @@ func TestRunTaskAssessesDefinitionOfDoneWithoutValidationRecipe(t *testing.T) {
 	if len(adapter.prompts) != 4 {
 		t.Fatalf("turns = %d, want two planner dispatches, the worker, and the task assessment", len(adapter.prompts))
 	}
-	assessment := adapter.prompts[len(adapter.prompts)-1]
-	if !strings.Contains(assessment, `"definition_of_done": "The expected result is demonstrated."`) {
-		t.Fatalf("assessment prompt omits the task record's definition of done:\n%s", assessment)
+	assessment := adapter.prompts[2]
+	if !strings.Contains(assessment, "Done when: The expected result is demonstrated.") {
+		t.Fatalf("assessment prompt omits the task's definition of done:\n%s", assessment)
+	}
+	if strings.Contains(assessment, `"definition_of_done"`) {
+		t.Fatalf("assessment prompt shows the task as its JSON record, not as its own terms:\n%s", assessment)
 	}
 	if got := runGit(t, repo, "rev-list", "--count", "HEAD"); got != "1" {
 		t.Fatalf("commit count = %s, want 1: an objection must block the task commit", got)
@@ -133,7 +140,7 @@ func TestDryRunShowsEveryPromptAndKeepsFindingsOutOfTheGoal(t *testing.T) {
 
 	prompts := dryPrompts(t, out.String())
 	want := "Read and implement the issue in " + issue + "."
-	var planner, validations []string
+	var planner, validations, assessments []string
 	for _, prompt := range prompts {
 		if strings.Contains(prompt, "gh issue view") {
 			t.Errorf("a prompt points at a remote source:\n%s", prompt)
@@ -143,6 +150,22 @@ func TestDryRunShowsEveryPromptAndKeepsFindingsOutOfTheGoal(t *testing.T) {
 			planner = append(planner, prompt)
 		case strings.HasPrefix(prompt, validatePrompt):
 			validations = append(validations, prompt)
+		case strings.HasPrefix(prompt, taskValidationPrompt):
+			assessments = append(assessments, prompt)
+		}
+	}
+	if len(assessments) == 0 {
+		t.Fatalf("no task assessment among %d prompts", len(prompts))
+	}
+	for _, prompt := range assessments {
+		if !strings.Contains(prompt, "## the task under assessment") || !strings.Contains(prompt, "Answer this about it too:") {
+			t.Errorf("the task assessment is not shaped by its own template:\n%s", prompt)
+		}
+		if strings.Contains(prompt, "## input") || strings.Contains(prompt, `"dry_run"`) {
+			t.Errorf("the task assessment carries the run's own input record:\n%s", prompt)
+		}
+		if !strings.Contains(prompt, "## definition of done") {
+			t.Errorf("the task assessment lost a scoped value its template keeps:\n%s", prompt)
 		}
 	}
 	for i, prompt := range []string{prompts[0], planner[0], validations[0]} {
@@ -236,4 +259,91 @@ func sprintModels(adapter gimble.HarnessAdapter, model string) map[string]gimble
 		models[role] = gimble.ModelBinding{Adapter: adapter, Model: model}
 	}
 	return models
+}
+
+// TestAValidatorTurnErrorFailsTheTaskAndTheLoopGoesOn: an error inside a
+// task is not the sprint's end. The validator's turn fails here; the task's
+// work stays uncommitted, the reason is recorded on the task's scope where
+// the planner reads it before its next decision, and dispatch continues.
+func TestAValidatorTurnErrorFailsTheTaskAndTheLoopGoesOn(t *testing.T) {
+	repo := t.TempDir()
+	runGit(t, repo, "init", "-q")
+	runGit(t, repo, "config", "user.email", "test@example.com")
+	runGit(t, repo, "config", "user.name", "Test")
+	if err := os.WriteFile(filepath.Join(repo, "before"), []byte("before\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runGit(t, repo, "add", "before")
+	runGit(t, repo, "commit", "-qm", "before")
+
+	oldChecks := repositoryChecks
+	repositoryChecks = struct{ vet, test string }{}
+	t.Cleanup(func() { repositoryChecks = oldChecks })
+
+	adapter := &taskAdapter{validatorFails: true, task: gimble.Task{
+		Name:             "prove-result",
+		Description:      "Produce the expected result.",
+		DefinitionOfDone: "The expected result is demonstrated.",
+	}}
+	models := sprintModels(adapter, "test")
+	models["planner"] = gimble.ModelBinding{Adapter: adapter, Model: "test"}
+	err := gimble.Run(gimble.Project(t.Context(), t.TempDir()), "test", models, func(ctx context.Context) error {
+		researcher := gimble.NewSession(ctx, "researcher", repo)
+		validator := gimble.NewSession(ctx, "validator", repo)
+		planner := gimble.NewSession(ctx, "planner", repo)
+		loop := gimble.Loop(ctx, "sprint", "ship", planner)
+		for ctx, task := range loop.Tasks {
+			if err := runTask(ctx, Input{Sprint: 1, Repo: repo}, researcher, validator, task); err != nil {
+				return err
+			}
+		}
+		return loop.Err()
+	})
+	if err != nil {
+		t.Fatalf("the sprint ended on a failed validator turn: %v", err)
+	}
+	if adapter.plans != 2 {
+		t.Fatalf("planner dispatches = %d, want the loop to plan again after the failed task", adapter.plans)
+	}
+	second := adapter.prompts[len(adapter.prompts)-1]
+	if !strings.Contains(second, "## task error") || !strings.Contains(second, "the validator's turn failed") {
+		t.Fatalf("the planner was not told why the task failed:\n%s", second)
+	}
+	if got := runGit(t, repo, "rev-list", "--count", "HEAD"); got != "1" {
+		t.Fatalf("commit count = %s, want 1: a failed task must stay uncommitted", got)
+	}
+}
+
+// TestACancelledContextStillEndsTheSprint: a cancelled ctx is the one thing
+// that ends a sprint from inside a task.
+func TestACancelledContextStillEndsTheSprint(t *testing.T) {
+	repo := t.TempDir()
+	runGit(t, repo, "init", "-q")
+	runGit(t, repo, "config", "user.email", "test@example.com")
+	runGit(t, repo, "config", "user.name", "Test")
+
+	adapter := &taskAdapter{task: gimble.Task{
+		Name:             "prove-result",
+		Description:      "Produce the expected result.",
+		DefinitionOfDone: "The expected result is demonstrated.",
+	}}
+	models := sprintModels(adapter, "test")
+	models["planner"] = gimble.ModelBinding{Adapter: adapter, Model: "test"}
+	err := gimble.Run(gimble.Project(t.Context(), t.TempDir()), "test", models, func(ctx context.Context) error {
+		researcher := gimble.NewSession(ctx, "researcher", repo)
+		validator := gimble.NewSession(ctx, "validator", repo)
+		planner := gimble.NewSession(ctx, "planner", repo)
+		loop := gimble.Loop(ctx, "sprint", "ship", planner)
+		for taskCtx, task := range loop.Tasks {
+			cancelled, cancel := context.WithCancel(taskCtx)
+			cancel()
+			if err := runTask(cancelled, Input{Sprint: 1, Repo: repo}, researcher, validator, task); err != nil {
+				return err
+			}
+		}
+		return loop.Err()
+	})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("the sprint ended with %v, want context.Canceled", err)
+	}
 }

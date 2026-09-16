@@ -12,7 +12,7 @@ const snapshot = (title = 'start'): RunSnapshot => {
 	return {
 		stream: 'stream-1', position: 0,
 		run: { id: 'run', name: 'Run', status: 'running', error: '', started: 1, ended: 0 },
-		scopes: { 'loop.1': { run: 'run', key: 'loop.1', name: 'loop.1', status: 'running', error: '', began: 1, ended: 0, values: {}, decisions: [] } },
+		scopes: { 'loop.1': { run: 'run', key: 'loop.1', name: 'loop.1', loop: true, status: 'running', error: '', began: 1, ended: 0, values: {}, decisions: [] } },
 		sessions: { ses: { run: 'run', id: 'ses', name: 'agent', adapter: 'codex', model: 'm', scope: 'lap', parent: '', created: 1 } },
 		turns: { turn: { run: 'run', id: 'turn', session: 'ses', scope: 'lap', prompt: 'go', output_type: 'gimble.Text', result: '', error: '', interrupted: false, started: 2, ended: 0, duration: 0 } },
 		turn_usage: {},
@@ -47,7 +47,7 @@ test('a replacement snapshot replaces every table, not only the transcripts', ()
 test('a row frame is one row of one table, replacing what was there', () => {
 	const observation = new RunObservation(snapshot())
 	const connection = observation.beginConnection()
-	observation.apply({ type: 'row', data: { table: 'scopes', key: 'loop.1/task.2', row: { run: 'run', key: 'loop.1/task.2', name: 'task.2', status: 'ended', error: '', task: { name: 'write a.txt' }, began: 3, ended: 4, values: { result: 'done' }, decisions: [] } } }, connection)
+	observation.apply({ type: 'row', data: { table: 'scopes', key: 'loop.1/task.2', row: { run: 'run', key: 'loop.1/task.2', name: 'task.2', loop: false, status: 'ended', error: '', task: { name: 'write a.txt' }, began: 3, ended: 4, values: { result: 'done' }, decisions: [] } } }, connection)
 	assert.equal(observation.scopes['loop.1/task.2'].status, 'ended')
 	assert.deepEqual(observation.scopes['loop.1/task.2'].values, { result: 'done' })
 

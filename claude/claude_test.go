@@ -87,3 +87,47 @@ func TestSessionKeepsItsEffortAndForksInheritIt(t *testing.T) {
 		t.Fatalf("fork = %q/%q, want model/xhigh", fork.model, fork.effort)
 	}
 }
+
+// TestAssistantErrorCarriesTheCLIsExplanation: when a turn fails, Claude
+// Code states the code on the assistant message and writes why it failed as
+// the message's text. The error carries both, so a reader of the run never
+// has to open the CLI's own transcript to learn the reason.
+func TestAssistantErrorCarriesTheCLIsExplanation(t *testing.T) {
+	message := claudeagent.AssistantMessage{Error: claudeagent.AssistantMessageErrorInvalidRequest}
+	message.Message.Content = []claudeagent.ContentBlock{{
+		Type: "text",
+		Text: "Autocompact is thrashing: the context refilled to the limit\nwithin 3 turns of the previous compact, 3 times in a row.",
+	}}
+	err := assistantError(message)
+	if err == nil {
+		t.Fatal("assistantError = nil, want an error")
+	}
+	want := "claude: assistant error: invalid_request: Autocompact is thrashing: the context refilled to the limit within 3 turns of the previous compact, 3 times in a row."
+	if err.Error() != want {
+		t.Fatalf("assistantError = %q, want %q", err, want)
+	}
+}
+
+// TestSessionsStartWithoutTheUsersMCPServers: a coder in a repository uses
+// the CLI's own tools, not the desktop integrations of whoever started the
+// run, and pays for nobody's tool definitions. A workflow that wants them
+// asks.
+func TestSessionsStartWithoutTheUsersMCPServers(t *testing.T) {
+	extra := map[string]*string{}
+	var applied claudeagent.Options
+	for _, option := range isolate(extra) {
+		option(&applied)
+	}
+	if !applied.StrictMCPConfig {
+		t.Fatal("MCP configuration is not strict: the user's servers still load")
+	}
+	if sources := extra["setting-sources"]; sources == nil || *sources != "project,local" {
+		t.Fatalf("setting sources = %v, want project,local", sources)
+	}
+	if New().(*adapter).userConfiguration {
+		t.Fatal("New() asked for the user's configuration")
+	}
+	if !New(WithUserConfiguration()).(*adapter).userConfiguration {
+		t.Fatal("WithUserConfiguration did not ask for the user's configuration")
+	}
+}

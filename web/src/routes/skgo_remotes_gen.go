@@ -10,9 +10,13 @@ var (
 	Skgo_guide = guide
 	// Skgo_steer is steer, published as src/routes/steer.remote.ts#steer.
 	Skgo_steer = steer
+	// Skgo_steerLoop is steerLoop, published as src/routes/steer.remote.ts#steerLoop.
+	Skgo_steerLoop = steerLoop
 )
 
 type (
 	// SkgoArg_steer is the type steer takes.
 	SkgoArg_steer = Steer
+	// SkgoArg_steerLoop is the type steerLoop takes.
+	SkgoArg_steerLoop = LoopMessage
 )

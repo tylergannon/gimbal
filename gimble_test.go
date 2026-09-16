@@ -251,14 +251,18 @@ func TestScopeData(t *testing.T) {
 
 func TestGenerate(t *testing.T) {
 	reasked := false
+	var reaskPrompt string
 	f := &fake{answer: func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(AgentEvent) error) (string, error) {
 		switch {
 		case len(schema) == 0:
 			return "hello", nil
-		case prompt == "bad":
+		case strings.HasPrefix(prompt, "review"):
+			return `{"objections": ["one"]}`, nil
+		case strings.HasPrefix(prompt, "bad") && !strings.Contains(prompt, "previous answer was invalid"):
 			return `{"objections": "not a list"}`, nil
-		case strings.Contains(prompt, "previous answer was invalid") && strings.Contains(prompt, "objections"):
+		case strings.HasPrefix(prompt, "bad") && strings.Contains(prompt, "previous answer was invalid") && strings.Contains(prompt, "objections"):
 			reasked = true
+			reaskPrompt = prompt
 			return `{"objections": ["one"]}`, nil
 		default:
 			return `{"objections": ["one"]}`, nil
@@ -266,6 +270,7 @@ func TestGenerate(t *testing.T) {
 	}}
 	var escaped *Session
 	err := runTest(t, bind(f, "m", "coder"), func(ctx context.Context) error {
+		Set(ctx, "language", "go")
 		s := NewSession(ctx, "coder", "/w")
 		text, err := s.Generate[Text](ctx, "hi")
 		if err != nil || text != "hello" {
@@ -277,6 +282,12 @@ func TestGenerate(t *testing.T) {
 		}
 		if got, err := s.Generate[review](ctx, "bad"); err != nil || len(got.Objections) != 1 || !reasked {
 			t.Errorf("Generate did not recover by re-asking after an invalid result: %v, %v, reasked=%v", got, err, reasked)
+		}
+		// The re-ask must carry Generate's full scope-appended prompt
+		// alongside the correction, not replace it: the scope holds
+		// "language", and it must still be there on the retry.
+		if !strings.Contains(reaskPrompt, "bad") || !strings.Contains(reaskPrompt, "## language\n\ngo") {
+			t.Errorf("re-ask dropped the original scope-appended prompt: %q", reaskPrompt)
 		}
 		if s.id != "coder.1" || NewSession(ctx, "coder", "/w").id != "coder.2" {
 			t.Errorf("session ids: %q", s.id)

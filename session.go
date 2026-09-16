@@ -123,7 +123,7 @@ func generate[T Output](ctx context.Context, s *Session, prompt string, onEvent 
 	for attempt := 1; ; attempt++ {
 		ask := prompt
 		if problem != nil {
-			ask = fmt.Sprintf("Your previous answer was invalid and was discarded: %v. Answer again, correctly.", problem)
+			ask = prompt + fmt.Sprintf("\n\nYour previous answer was invalid and was discarded: %v. Answer again, correctly.", problem)
 		}
 		raw, err := s.turn(ctx, ask, out.Schema(), onEvent, outputType, out.ValidateJSON)
 		if err == nil {

@@ -31,6 +31,7 @@ func (e *extractor) stmt(stmt ast.Stmt, out *[]workflow.Operation, en scopeEnv) 
 		if stmt.Init != nil {
 			e.stmt(stmt.Init, out, en)
 		}
+		e.nested(stmt.Pos(), "a for header", stmt.Cond, stmt.Post)
 		e.repeat(stmt, stmt.Body, header(e.pkg.Fset, stmt), out, en)
 	case *ast.RangeStmt:
 		e.rangeStmt(stmt, out, en)
@@ -117,25 +118,37 @@ func identExprs(names []*ast.Ident) []ast.Expr {
 // assigned from anything else the rules do not read loses it.
 func (e *extractor) rebind(lhs, rhs ast.Expr) {
 	obj := e.object(lhs)
-	if obj == nil || !isSessionType(obj.Type()) {
+	if obj == nil {
 		return
 	}
-	if _, ok := e.session[obj]; ok {
-		// The call that produced it already bound it.
-		if call, isCall := unparen(rhs).(*ast.CallExpr); isCall {
-			if name, gimble := e.gimbleCall(call); gimble && (name == "NewSession" || name == "Fork") {
-				return
-			}
+	if _, ok := e.group[obj]; ok {
+		if !e.isCallNamed(rhs, "Group") {
+			delete(e.group, obj)
+			e.diag(rhs.Pos(), "a group assigned from something other than Group is not read")
 		}
+		return
+	}
+	if _, ok := e.loop[obj]; ok {
+		if !e.isCallNamed(rhs, "Loop") {
+			delete(e.loop, obj)
+			e.diag(rhs.Pos(), "a loop assigned from something other than Loop is not read")
+		}
+		return
+	}
+	if !isSessionType(obj.Type()) {
+		return
+	}
+	if _, ok := e.session[obj]; ok && e.isCallNamed(rhs, "NewSession", "Fork") {
+		// The call that produced it already bound it.
+		return
 	}
 	if source, ok := e.binding(rhs); ok {
 		e.session[obj] = source
 		return
 	}
-	if call, isCall := unparen(rhs).(*ast.CallExpr); isCall {
-		if name, gimble := e.gimbleCall(call); gimble && (name == "NewSession" || name == "Fork") {
-			return
-		}
+	if e.isCallNamed(rhs, "NewSession", "Fork") {
+		// The call was read, or diagnosed and its binding already dropped.
+		return
 	}
 	delete(e.session, obj)
 	e.diag(rhs.Pos(), "a session assigned from something other than NewSession, Fork, or another session is not read")
@@ -147,9 +160,7 @@ func (e *extractor) ifChain(stmt *ast.IfStmt, out *[]workflow.Operation, en scop
 	current := stmt
 	for current != nil {
 		if current != stmt {
-			if current.Init != nil && e.holdsOperation(current.Init) {
-				e.diag(current.Init.Pos(), "an else-if initializer holding a Gimble call is not read")
-			}
+			e.nested(current.Pos(), "an else-if header", current.Init, current.Cond)
 		}
 		branches = append(branches, e.branch(e.ifCase(current), current.Pos(), current.Body.List, current.Cond, en))
 		switch alt := current.Else.(type) {
@@ -184,6 +195,7 @@ func (e *extractor) switchStmt(stmt *ast.SwitchStmt, out *[]workflow.Operation, 
 		if !ok {
 			continue
 		}
+		e.nested(c.Pos(), "a switch case expression", exprNodes(c.List)...)
 		label := ""
 		if len(c.List) > 0 {
 			label = textList(e.pkg.Fset, c.List)
@@ -206,7 +218,9 @@ type branch struct {
 
 func (e *extractor) branch(label string, pos token.Pos, stmts []ast.Stmt, cond ast.Expr, en scopeEnv) branch {
 	body := []workflow.Operation{}
-	e.block(stmts, &body, scopeEnv{blockTail: en.blockTail, callTail: en.callTail, inHelper: en.inHelper})
+	e.scoped(func() {
+		e.block(stmts, &body, scopeEnv{blockTail: en.blockTail, callTail: en.callTail, inHelper: en.inHelper})
+	})
 	return branch{
 		node: workflow.Branch{Source: e.at(pos), Case: label, Exits: exits(stmts), Body: body},
 		cond: cond,

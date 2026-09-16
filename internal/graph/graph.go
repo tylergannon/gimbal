@@ -9,6 +9,7 @@ import (
 	"go/ast"
 	"go/token"
 	"go/types"
+	"maps"
 	"path/filepath"
 	"slices"
 
@@ -163,8 +164,28 @@ func (e *extractor) laterHoldsOperation(stmts []ast.Stmt) bool {
 	return slices.ContainsFunc(stmts, func(s ast.Stmt) bool { return e.holdsOperation(s) })
 }
 
-// body walks a Gimble body: a Scope or Go callback, a Tasks range, or a
-// Repeat. A return there ends that body, so tail position starts again.
+// body walks a Tasks range or a Repeat. A return there ends that body, so
+// tail position starts again.
 func (e *extractor) body(stmts []ast.Stmt, out *[]workflow.Operation, en scopeEnv) {
-	e.block(stmts, out, scopeEnv{blockTail: true, callTail: true, inHelper: en.inHelper})
+	e.scoped(func() {
+		e.block(stmts, out, scopeEnv{blockTail: true, callTail: true, inHelper: en.inHelper})
+	})
+}
+
+// callbackBody walks a Scope or Go callback, which is a function of its own:
+// a return in it ends the callback, never the helper the callback is
+// written in.
+func (e *extractor) callbackBody(stmts []ast.Stmt, out *[]workflow.Operation) {
+	e.scoped(func() {
+		e.block(stmts, out, scopeEnv{blockTail: true, callTail: true})
+	})
+}
+
+// scoped walks a block with its own bindings: what is declared inside it is
+// gone at the join, so a use after the join is not a session, group, or loop
+// declared in an enclosing body.
+func (e *extractor) scoped(walk func()) {
+	session, group, loop := maps.Clone(e.session), maps.Clone(e.group), maps.Clone(e.loop)
+	walk()
+	e.session, e.group, e.loop = session, group, loop
 }

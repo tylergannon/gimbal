@@ -57,8 +57,54 @@ func Fixture(ctx context.Context) error {
 		return err
 	}
 	gimble.Set(ctx, "after", "three")
-	return nil
+
+	// A session bound in a branch is gone at the join, so the call after it
+	// names no session the source declares.
+	var chosen *gimble.Session
+	if roleName() == "reader" {
+		chosen = gimble.NewSession(ctx, "first", ".")
+	} else {
+		chosen = gimble.NewSession(ctx, "second", ".")
+	}
+	if _, err := chosen.Generate[gimble.Text](ctx, workPrompt); err != nil {
+		return err
+	}
+
+	// A group assigned from another group is not read, and neither is what
+	// is started on it afterwards.
+	one := gimble.Group(ctx, "one")
+	two := gimble.Group(ctx, "two")
+	one = two
+	one.Go("child", func(ctx context.Context) error {
+		gimble.Set(ctx, "child", "four")
+		return nil
+	})
+	if err := two.Wait(); err != nil {
+		return err
+	}
+
+	// A Gimble call written inside another call's arguments is not read.
+	_ = gimble.NewSession(ctx, "outer", workdirOf(gimble.NewSession(ctx, "inner", ".")))
+
+	// A callback is its own function, so its early return is shape even
+	// when the callback is written in a helper.
+	return guarded(ctx)
 }
+
+// guarded scopes a body whose first branch returns before it writes anything.
+func guarded(ctx context.Context) error {
+	return gimble.Scope(ctx, "guarded", func(ctx context.Context) error {
+		if skipped(ctx) {
+			return nil
+		}
+		gimble.Set(ctx, "guarded", "five")
+		return nil
+	})
+}
+
+func skipped(ctx context.Context) bool { return ctx.Err() != nil }
+
+func workdirOf(*gimble.Session) string { return "." }
 
 // review generates once and then returns early, after it has produced shape.
 func review(ctx context.Context, session *gimble.Session) error {

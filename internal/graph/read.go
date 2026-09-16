@@ -7,6 +7,7 @@ import (
 	"go/printer"
 	"go/token"
 	"go/types"
+	"slices"
 	"strings"
 
 	"golang.org/x/tools/go/types/typeutil"
@@ -274,4 +275,63 @@ func unparen(expr ast.Expr) ast.Expr {
 		}
 		expr = paren.X
 	}
+}
+
+// nested records a Gimble call written in an expression the rules do not
+// read, once for the whole expression. The authoring rule is to simplify
+// such source, not to guess at what it does.
+func (e *extractor) nested(pos token.Pos, where string, nodes ...ast.Node) {
+	if slices.ContainsFunc(nodes, e.holdsOperation) {
+		e.diag(pos, "a Gimble call nested in %s is not read", where)
+		return
+	}
+}
+
+// unbind drops what an identifier stood for, so a session call the rules
+// could not read leaves no stale binding behind.
+func (e *extractor) unbind(targets []ast.Expr) {
+	if obj := e.firstObject(targets); obj != nil {
+		delete(e.session, obj)
+	}
+}
+
+// isCallNamed reports whether an expression is a call on the named Gimble
+// function or method.
+func (e *extractor) isCallNamed(expr ast.Expr, names ...string) bool {
+	call, ok := unparen(expr).(*ast.CallExpr)
+	if !ok {
+		return false
+	}
+	name, ok := e.gimbleCall(call)
+	return ok && slices.Contains(names, name)
+}
+
+// plainArguments are the arguments of a Gimble call that are neither a body
+// nor an option: the ones whose own calls the rules do not read.
+func plainArguments(name string, call *ast.CallExpr) []ast.Node {
+	skip := -1
+	last := len(call.Args)
+	switch name {
+	case "Scope":
+		skip = 2
+	case "Go":
+		skip = 1
+	case "Generate", "WithSupervisor":
+		last = min(last, 2)
+	}
+	nodes := make([]ast.Node, 0, last)
+	for i := range last {
+		if i != skip {
+			nodes = append(nodes, call.Args[i])
+		}
+	}
+	return nodes
+}
+
+func exprNodes(exprs []ast.Expr) []ast.Node {
+	nodes := make([]ast.Node, len(exprs))
+	for i, expr := range exprs {
+		nodes[i] = expr
+	}
+	return nodes
 }

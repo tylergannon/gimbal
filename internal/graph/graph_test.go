@@ -1,6 +1,8 @@
 package graph_test
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -117,10 +119,57 @@ func TestFixtureGraph(t *testing.T) {
 		t.Error("the helper's late return exits")
 	}
 
+	// A session bound in a branch does not survive the join.
+	chosen, ok := find[workflow.Condition](g.Body, func(c workflow.Condition) bool {
+		return len(c.Branches) == 2 && c.Branches[0].Case == "roleName() == \"reader\""
+	})
+	if !ok {
+		t.Fatal("the fixture chooses a session in a branch")
+	}
+	for i, name := range []string{"first", "second"} {
+		if _, ok := find[workflow.Session](chosen.Branches[i].Body, func(s workflow.Session) bool { return s.Name == name }); !ok {
+			t.Errorf("branch %d declares the session %q", i, name)
+		}
+	}
+	if _, ok := find[workflow.AgentCall](g.Body, func(c workflow.AgentCall) bool { return c.Session == "second" }); ok {
+		t.Error("the call after the join names no session the source declares, so it is a diagnostic")
+	}
+
+	// A group assigned from another group is not read, and neither is what
+	// is started on it.
+	one, ok := find[workflow.Group](g.Body, func(gr workflow.Group) bool { return gr.Name == "one" })
+	if !ok {
+		t.Fatal("the fixture holds the group one")
+	}
+	if len(one.Children) != 0 {
+		t.Errorf("nothing is added to a group whose identifier was reassigned, got %+v", one.Children)
+	}
+
+	// A Gimble call inside another call's arguments is a diagnostic, not a node.
+	if _, ok := find[workflow.Session](g.Body, func(s workflow.Session) bool { return s.Name == "inner" }); ok {
+		t.Error("a session created inside another call's arguments is a diagnostic, not a node")
+	}
+
+	// A callback's early return is shape even inside an inlined helper.
+	guarded, ok := find[workflow.Scope](g.Body, func(s workflow.Scope) bool { return s.Name == "guarded" })
+	if !ok {
+		t.Fatal("the fixture holds the scope guarded")
+	}
+	skip, ok := find[workflow.Condition](guarded.Body, func(c workflow.Condition) bool {
+		return len(c.Branches) == 1 && c.Branches[0].Case == "skipped(ctx)"
+	})
+	if !ok || !skip.Branches[0].Exits {
+		t.Error("a callback's early return is its own control flow, not a helper's guard")
+	}
+
 	want := []string{
 		"NewSession's role is not a constant",
 		"a call through a function value is not read",
 		"ends only the helper it is written in",
+		"Generate is called on something that is not a session",
+		"a group assigned from something other than Group is not read",
+		"Go is called on something that is not a group",
+		"a Gimble call nested in a Gimble call's arguments is not read",
 	}
 	if len(g.Diagnostics) != len(want) {
 		t.Fatalf("the fixture has %d diagnostics, want %d: %v", len(g.Diagnostics), len(want), g.Diagnostics)
@@ -139,6 +188,28 @@ func TestFixtureGraph(t *testing.T) {
 	if _, ok := find[workflow.Session](g.Body, func(s workflow.Session) bool { return s.Name == "reader" }); ok {
 		t.Error("a session whose role the source does not spell out is a diagnostic, not a node")
 	}
+}
+
+// TestSourceWritesTheWorkflowsPackage checks that the writer names the
+// package the workflow is in, not the external test package beside it, and
+// that it honours an absolute output path.
+func TestSourceWritesTheWorkflowsPackage(t *testing.T) {
+	output := filepath.Join(t.TempDir(), "workflow_graph_gen.go")
+	if err := graph.Source("testdata/fixture", "Fixture", "fixture", output); err != nil {
+		t.Fatal(err)
+	}
+	written, err := os.ReadFile(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(written), "\npackage fixture\n") {
+		t.Errorf("the generated file is in package fixture, got:\n%s", firstLines(string(written)))
+	}
+}
+
+func firstLines(text string) string {
+	lines := strings.SplitN(text, "\n", 6)
+	return strings.Join(lines[:min(len(lines), 5)], "\n")
 }
 
 // find returns the first operation of type T in a body that answers want.

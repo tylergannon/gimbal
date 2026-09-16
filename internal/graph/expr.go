@@ -128,11 +128,13 @@ func (e *extractor) bindParameters(decl *ast.FuncDecl, callee *types.Func, call 
 // gimbleOperation reads one call on the Gimble package. It reports whether
 // the walk should keep descending into the call's own parts.
 func (e *extractor) gimbleOperation(name string, call *ast.CallExpr, targets []ast.Expr, out *[]workflow.Operation, en scopeEnv) bool {
+	e.nested(call.Pos(), "a Gimble call's arguments", plainArguments(name, call)...)
 	switch name {
 	case "NewSession":
 		role, ok := e.constant(call, 1)
 		if !ok {
 			e.diag(call.Pos(), "NewSession's role is not a constant, so the session it makes is not read")
+			e.unbind(targets)
 			return false
 		}
 		e.emit(out, workflow.Session{Source: e.at(call.Pos()), Name: role})
@@ -145,11 +147,13 @@ func (e *extractor) gimbleOperation(name string, call *ast.CallExpr, targets []a
 		source, ok := e.binding(e.receiver(call))
 		if !ok {
 			e.diag(call.Pos(), "Fork is called on something that is not a session declared in an enclosing body")
+			e.unbind(targets)
 			return false
 		}
 		forked, ok := e.constant(call, 1)
 		if !ok {
 			e.diag(call.Pos(), "Fork's name is not a constant, so the session it makes is not read")
+			e.unbind(targets)
 			return false
 		}
 		e.emit(out, workflow.Session{Source: e.at(call.Pos()), Name: forked, From: source.name})
@@ -202,7 +206,7 @@ func (e *extractor) gimbleOperation(name string, call *ast.CallExpr, targets []a
 			e.diag(call.Pos(), "Scope's name is not a constant, so the scope is not read")
 			return false
 		}
-		body := e.callback(call, 2, en)
+		body := e.callback(call, 2)
 		e.emit(out, workflow.Scope{Source: e.at(call.Pos()), Name: scope, Body: body})
 		return false
 
@@ -229,7 +233,7 @@ func (e *extractor) gimbleOperation(name string, call *ast.CallExpr, targets []a
 			e.diag(call.Pos(), "Go's name is not a constant, so the child is not read")
 			return false
 		}
-		body := e.callback(call, 1, en)
+		body := e.callback(call, 1)
 		group, ok := (*ref.ops)[ref.index].(workflow.Group)
 		if !ok {
 			return false
@@ -274,14 +278,14 @@ func (e *extractor) gimbleOperation(name string, call *ast.CallExpr, targets []a
 
 // callback walks the body a Scope or Go call is given: a function literal, or
 // a package-local function whose block stands in its place.
-func (e *extractor) callback(call *ast.CallExpr, index int, en scopeEnv) []workflow.Operation {
+func (e *extractor) callback(call *ast.CallExpr, index int) []workflow.Operation {
 	body := []workflow.Operation{}
 	if index >= len(call.Args) {
 		return body
 	}
 	switch fn := unparen(call.Args[index]).(type) {
 	case *ast.FuncLit:
-		e.body(fn.Body.List, &body, en)
+		e.callbackBody(fn.Body.List, &body)
 	default:
 		callee, _ := e.pkg.TypesInfo.Uses[identOf(fn)].(*types.Func)
 		if callee == nil || callee.Pkg() != e.pkg.Types {
@@ -298,7 +302,7 @@ func (e *extractor) callback(call *ast.CallExpr, index int, en scopeEnv) []workf
 			return body
 		}
 		e.stack = append(e.stack, callee)
-		e.body(decl.Body.List, &body, en)
+		e.callbackBody(decl.Body.List, &body)
 		e.stack = e.stack[:len(e.stack)-1]
 	}
 	return body

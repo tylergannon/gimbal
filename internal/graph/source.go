@@ -20,7 +20,11 @@ import (
 // is read, so a literal that no longer compiles against the workflow types
 // does not stop the next generation.
 func Source(dir, entry, name, output string) error {
-	file, err := filepath.Abs(filepath.Join(dir, output))
+	file := output
+	if !filepath.IsAbs(file) {
+		file = filepath.Join(dir, file)
+	}
+	file, err := filepath.Abs(file)
 	if err != nil {
 		return fmt.Errorf("graph: %w", err)
 	}
@@ -51,7 +55,7 @@ func packageName(dir, output, fallback string) (string, error) {
 	}
 	fset := token.NewFileSet()
 	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".go") {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".go") || strings.HasSuffix(entry.Name(), "_test.go") {
 			continue
 		}
 		path := filepath.Join(dir, entry.Name())

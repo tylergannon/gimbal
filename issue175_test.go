@@ -63,15 +63,15 @@ func TestKillScopeClosesEverySessionAndReportsTheCause(t *testing.T) {
 	var scopeErr, turnOne, turnTwo, seen error
 	var killErr error
 	var killWG sync.WaitGroup
-	err := Run(Project(t.Context(), project), "test", func(ctx context.Context) error {
+	err := Run(Project(t.Context(), project), "test", bind(f, "m", "one", "two"), func(ctx context.Context) error {
 		r, _ := current(ctx)
 		killWG.Go(func() {
 			runningTurns(t, f, 2)
 			killErr = r.run.CancelScope("lap.1", kill)
 		})
 		scopeErr = Scope(ctx, "lap", func(ctx context.Context) error {
-			one := NewSession(ctx, "one", f, "m", "/w")
-			two := NewSession(ctx, "two", f, "m", "/w")
+			one := NewSession(ctx, "one", "/w")
+			two := NewSession(ctx, "two", "/w")
 			var wg sync.WaitGroup
 			wg.Go(func() { _, turnOne = one.Generate[Text](ctx, "wait") })
 			wg.Go(func() { _, turnTwo = two.Generate[Text](ctx, "wait") })
@@ -124,11 +124,11 @@ func TestKillTurnEndsOnlyThatTurn(t *testing.T) {
 	var unknownErr error
 	var killErr error
 	var killWG sync.WaitGroup
-	err := Run(Project(t.Context(), project), "test", func(ctx context.Context) error {
+	err := Run(Project(t.Context(), project), "test", bind(f, "m", "coder"), func(ctx context.Context) error {
 		return Scope(ctx, "lap", func(ctx context.Context) error {
 			r, _ := current(ctx)
 			unknownErr = r.run.CancelTurn("lap.1/coder.1/turn.9", kill)
-			s := NewSession(ctx, "coder", f, "m", "/w")
+			s := NewSession(ctx, "coder", "/w")
 			killWG.Go(func() {
 				runningTurns(t, f, 1)
 				killErr = r.run.CancelTurn("lap.1/coder.1/turn.1", kill)
@@ -193,12 +193,12 @@ func TestGroupKilledChildLeavesItsSiblingsRunning(t *testing.T) {
 	var killErr error
 	results := make([]Text, 3)
 	errs := make([]error, 3)
-	err := runTest(t, func(ctx context.Context) error {
+	err := runTest(t, bind(f, "m", "candidate"), func(ctx context.Context) error {
 		r, _ := current(ctx)
 		g := Group(ctx, "bakeoff")
 		for i := range 3 {
 			g.Go("attempt", func(ctx context.Context) error {
-				results[i], errs[i] = NewSession(ctx, "candidate", f, "m", "/w").Generate[Text](ctx, "go")
+				results[i], errs[i] = NewSession(ctx, "candidate", "/w").Generate[Text](ctx, "go")
 				return errs[i]
 			})
 		}
@@ -256,12 +256,12 @@ func TestLoopKilledTaskIsAFailedTaskNotABrokenLoop(t *testing.T) {
 	var killErr error
 	var killWG sync.WaitGroup
 	var laps []error
-	err := Run(Project(t.Context(), project), "test", func(ctx context.Context) error {
+	err := Run(Project(t.Context(), project), "test", bind(f, "m", "planner", "worker"), func(ctx context.Context) error {
 		r, _ := current(ctx)
-		planner := NewSession(ctx, "planner", f, "m", t.TempDir())
+		planner := NewSession(ctx, "planner", t.TempDir())
 		loop := Loop(ctx, "sprint", "ship", planner)
 		for ctx := range loop.Tasks {
-			worker := NewSession(ctx, "worker", f, "m", t.TempDir())
+			worker := NewSession(ctx, "worker", t.TempDir())
 			prompt := "work"
 			if len(laps) == 0 {
 				prompt = "wait"
@@ -306,8 +306,8 @@ func TestLoopKilledTaskIsAFailedTaskNotABrokenLoop(t *testing.T) {
 func TestCancelledTurnLeavesTheSessionUsable(t *testing.T) {
 	f := waiting()
 	project := t.TempDir()
-	err := Run(Project(t.Context(), project), "test", func(ctx context.Context) error {
-		s := NewSession(ctx, "coder", f, "m", "/w")
+	err := Run(Project(t.Context(), project), "test", bind(f, "m", "coder"), func(ctx context.Context) error {
+		s := NewSession(ctx, "coder", "/w")
 		turnCtx, cancel := context.WithCancel(ctx)
 		go func() {
 			runningTurns(t, f, 1)

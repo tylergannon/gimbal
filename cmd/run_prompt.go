@@ -18,9 +18,7 @@ import (
 
 	jsonschema "github.com/santhosh-tekuri/jsonschema/v6"
 	"github.com/tylergannon/gimble"
-	"github.com/tylergannon/gimble/agy"
-	"github.com/tylergannon/gimble/claude"
-	"github.com/tylergannon/gimble/codex"
+	"github.com/tylergannon/gimble/internal/binding"
 	"github.com/tylergannon/gimble/internal/modelalias"
 	"github.com/tylergannon/gimble/web"
 )
@@ -84,17 +82,20 @@ func runPrompt(args []string, stdout, stderr io.Writer, getenv func(string) stri
 	if err != nil {
 		return err
 	}
-	adapter, err := promptAdapter(selection.Harness)
+	adapter, err := binding.Adapter(selection.Harness)
 	if err != nil {
 		return err
+	}
+	models := map[string]gimble.ModelBinding{
+		"run-prompt": {Adapter: adapter, Model: selection.Model, Effort: selection.Effort},
 	}
 
 	var output []byte
 	run := func() error {
-		return runtime.Run(ctx, "run-prompt", func(ctx context.Context) error {
+		return runtime.Run(ctx, "run-prompt", models, func(ctx context.Context) error {
 			turnCtx, cancel := context.WithTimeout(ctx, options.timeout)
 			defer cancel()
-			session := gimble.NewSession(ctx, "run-prompt", adapter, selection.Model, workdir)
+			session := gimble.NewSession(ctx, "run-prompt", workdir)
 			if options.outputSchema == "" {
 				result, err := session.Generate[gimble.Text](turnCtx, flags.Arg(0))
 				output = []byte(result)
@@ -174,26 +175,10 @@ func resolvePromptModel(options runPromptOptions, caller promptCaller) (modelali
 	if err != nil {
 		return modelalias.ResolvedSelection{}, err
 	}
-	if options.effort != "" && resolved.Harness != "agy" {
-		return modelalias.ResolvedSelection{}, fmt.Errorf("--effort is not supported by the current %s harness", resolved.Harness)
-	}
 	if resolved.Harness == "agy" && (resolved.Effort == "xhigh" || resolved.Effort == "max") {
 		return modelalias.ResolvedSelection{}, fmt.Errorf("agy supports effort low, medium, or high, not %q", resolved.Effort)
 	}
 	return resolved, nil
-}
-
-func promptAdapter(name string) (gimble.HarnessAdapter, error) {
-	switch name {
-	case "agy":
-		return agy.New(), nil
-	case "claude":
-		return claude.New(), nil
-	case "codex":
-		return codex.New(), nil
-	default:
-		return nil, fmt.Errorf("unknown harness %q", name)
-	}
 }
 
 func promptWorkdir(path string) (string, error) {

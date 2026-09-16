@@ -41,7 +41,7 @@ func TestIssue126CompletionContract(t *testing.T) {
 		var runErr error
 		var runWG sync.WaitGroup
 		runWG.Go(func() {
-			runErr = Run(Project(t.Context(), project), "observed", func(context.Context) error {
+			runErr = Run(Project(t.Context(), project), "observed", nil, func(context.Context) error {
 				<-release
 				return nil
 			})
@@ -71,7 +71,7 @@ func TestIssue126CompletionContract(t *testing.T) {
 		var runErr error
 		var runWG sync.WaitGroup
 		runWG.Go(func() {
-			runErr = Run(Project(t.Context(), project), "worker-failure", func(context.Context) error {
+			runErr = Run(Project(t.Context(), project), "worker-failure", nil, func(context.Context) error {
 				<-release
 				return workerErr
 			})
@@ -93,7 +93,7 @@ func TestIssue126CompletionContract(t *testing.T) {
 		var runErr error
 		var runWG sync.WaitGroup
 		runWG.Go(func() {
-			runErr = Run(Project(t.Context(), project), "observer-exit", func(context.Context) error {
+			runErr = Run(Project(t.Context(), project), "observer-exit", nil, func(context.Context) error {
 				<-release
 				return nil
 			})
@@ -117,7 +117,7 @@ func TestIssue126CompletionContract(t *testing.T) {
 		var runErr error
 		var runWG sync.WaitGroup
 		runWG.Go(func() {
-			runErr = Run(Project(runCtx, project), "cancelled", func(ctx context.Context) error {
+			runErr = Run(Project(runCtx, project), "cancelled", nil, func(ctx context.Context) error {
 				<-ctx.Done()
 				return ctx.Err()
 			})

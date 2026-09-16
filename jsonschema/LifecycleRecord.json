@@ -104,9 +104,10 @@
 "name":{"type":"string"},
 "adapter":{"type":"string"},
 "model":{"type":"string"},
+"effort":{"type":"string"},
 "workdir":{"type":"string"},
 "parent":{"type":"string"}
-},"required":["kind","name","adapter","model","workdir","parent"],"additionalProperties":false},
+},"required":["kind","name","adapter","model","effort","workdir","parent"],"additionalProperties":false},
 {"type":"object",
 "description":"Steer records a message sent to a running session or dropped after it ended.","properties":{
 "kind":{"type":"string","const":"steer"},

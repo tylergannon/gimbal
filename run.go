@@ -35,7 +35,8 @@ func Project(ctx context.Context, dir string) context.Context {
 }
 
 type run struct {
-	dir       string // <project>/runs/<id>
+	dir       string                  // <project>/runs/<id>
+	models    map[string]ModelBinding // what each role the workflow names runs on
 	writer    *eventWriter
 	project   *eventWriter
 	store     *observation.Store
@@ -95,8 +96,11 @@ func (r *run) closeError() error {
 	return &CloseError{errs: append([]error(nil), r.closeErrs...)}
 }
 
-// Run starts one run of a workflow and blocks until the body returns. The
-// run's ctx derives from the caller's, so main can put a deadline on it.
+// Run starts one run of a workflow and blocks until the body returns. models
+// binds every role the workflow names to the harness, model, and reasoning
+// effort it runs on; a role the workflow names and models leaves out is a
+// programming error and panics where the session is created.
+// The run's ctx derives from the caller's, so main can put a deadline on it.
 // The run is the root scope: when the body returns, each session it created
 // is actually released through its adapter's Close, then its ctx is
 // cancelled.
@@ -105,7 +109,7 @@ func (r *run) closeError() error {
 // aggregating every session's Close failure (nil when there were none) and
 // with the first recording failure, if any; cancellation alone is not
 // completion.
-func Run(ctx context.Context, name string, body func(ctx context.Context) error) error {
+func Run(ctx context.Context, name string, models map[string]ModelBinding, body func(ctx context.Context) error) error {
 	project, _ := ctx.Value(projectKey{}).(string)
 	if project == "" {
 		return errors.New("gimble: Run needs gimble.Project in its ctx")
@@ -126,7 +130,7 @@ func Run(ctx context.Context, name string, body func(ctx context.Context) error)
 	if err != nil {
 		return fmt.Errorf("gimble: %w", err)
 	}
-	r := &run{dir: dir, writer: w, sessions: make(map[string]*eventWriter), scopes: make(map[string]*scope), turns: make(map[string]context.CancelCauseFunc)}
+	r := &run{dir: dir, models: models, writer: w, sessions: make(map[string]*eventWriter), scopes: make(map[string]*scope), turns: make(map[string]context.CancelCauseFunc)}
 	// The run owns its observation store. With the web runtime in ctx it is
 	// registered there and the page can read it; without one the run still
 	// owns a private store and writes the same table files, so observation

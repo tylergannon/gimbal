@@ -46,9 +46,9 @@ func TestLiveKillTurnByID(t *testing.T) {
 	var first, second error
 	dir := filepath.Join(logs, "runs")
 	start := time.Now()
-	err = runtime.Run(ctx, "cancel-by-id", func(ctx context.Context) error {
+	err = runtime.Run(ctx, "cancel-by-id", map[string]gimble.ModelBinding{"worker": {Adapter: codex.New(), Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
 		return gimble.Scope(ctx, "lap", func(ctx context.Context) error {
-			session := gimble.NewSession(ctx, "worker", codex.New(), "gpt-5.6-luna", workspace)
+			session := gimble.NewSession(ctx, "worker", workspace)
 			killWG.Go(func() {
 				time.Sleep(4 * time.Second)
 				killErr = runtime.KillTurn(liveRunID(t, dir), turnID, kill.By, kill.Reason)

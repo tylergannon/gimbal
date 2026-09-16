@@ -35,7 +35,7 @@ func TestRunCommandRecordsEachOutcome(t *testing.T) {
 		}
 	}
 	var dir string
-	if err := Run(Project(t.Context(), project), "commands", func(ctx context.Context) error {
+	if err := Run(Project(t.Context(), project), "commands", nil, func(ctx context.Context) error {
 		dir = runDir(ctx)
 		record("say.1")(RunCommand(ctx, "say", workdir, "sh", "-c", "printf out; printf err >&2"))
 		if err := Scope(ctx, "retry", func(ctx context.Context) error {
@@ -150,7 +150,7 @@ func TestRunCommandRecordsEachOutcome(t *testing.T) {
 // the file's name. The caller gets all of it either way.
 func TestRunCommandKeepsLongOutputInAFile(t *testing.T) {
 	var dir, stdout string
-	if err := runTest(t, func(ctx context.Context) error {
+	if err := runTest(t, nil, func(ctx context.Context) error {
 		dir = runDir(ctx)
 		var err error
 		_, stdout, _, err = RunCommand(ctx, "long", "", "sh", "-c", "head -c 70000 /dev/zero | tr '\\0' x; printf end")
@@ -180,7 +180,7 @@ func TestRunCommandThatExitedKeepsItsExit(t *testing.T) {
 	var dir, stdout string
 	var code int
 	var err error
-	if runErr := runTest(t, func(ctx context.Context) error {
+	if runErr := runTest(t, nil, func(ctx context.Context) error {
 		dir = runDir(ctx)
 		_ = exec.CommandContext(ctx, "true")
 		exited, cancel := context.WithCancel(ctx)

@@ -20,12 +20,20 @@ inspiration, not the API.
 type HarnessAdapter interface { /* ... */ }
 
 // Session is a concrete struct wrapping one adapter session.
-type Session struct { /* adapter, session id, model, workdir */ }
+type Session struct { /* adapter, session id, model, effort, workdir */ }
 
-// NewSession creates a session in the scope the ctx is in, named for the
-// graph. It cannot fail: the agent process starts on the first turn, and
-// the adapter carries the harness-specific config.
-func NewSession(ctx context.Context, name string, adapter HarnessAdapter, model, workdir string) *Session
+// NewSession creates a session in the scope the ctx is in, for the role of
+// that name. The role says what the session does; the run says what it runs
+// on. It cannot fail: the agent process starts on the first turn.
+func NewSession(ctx context.Context, role, workdir string) *Session
+
+// ModelBinding is what one role runs on. A run binds every role its
+// workflow names; a role it leaves out panics where the session is made.
+type ModelBinding struct {
+	Adapter HarnessAdapter
+	Model   string
+	Effort  string
+}
 
 // Generate runs one turn and blocks until it ends. T is a polytype-generated
 // type: its schema is sent with the prompt, and the result is validated
@@ -58,13 +66,21 @@ func (s *Session) Fork(ctx context.Context, name string) (*Session, error)
   method (Go 1.27 allows generic methods on concrete types, never on
   interfaces). Unit tests fake the `HarnessAdapter` underneath; proof comes
   from live runs.
-- Sessions are created with `gimble.NewSession(ctx, name, adapter, model,
-  workdir)`. The run is in the ctx, and so is the scope the session belongs
-  to (see Scope). `workdir` is a path. Gimble has no worktree primitive: a
-  workflow that wants a candidate in its own worktree runs `git worktree
-  add` at the top of the scope body, removes it in a `defer`, and hands the
-  path to `NewSession`, so the worktree ends with the scope like everything
-  else.
+- Sessions are created with `gimble.NewSession(ctx, role, workdir)`. The run
+  is in the ctx, and so is the scope the session belongs to (see Scope), and
+  the run holds the `ModelBinding` of every role. A workflow names roles and
+  never a harness, a model, or an effort: it cares that the researcher reads
+  code and the validator reviews, not which model does it. `Fork` continues
+  its parent's conversation, so it runs on its parent's binding and is bound
+  to nothing of its own. `workdir` is a path. Gimble has no worktree
+  primitive: a workflow that wants a candidate in its own worktree runs `git
+  worktree add` at the top of the scope body, removes it in a `defer`, and
+  hands the path to `NewSession`, so the worktree ends with the scope like
+  everything else.
+- The bindings are an argument of `Run`, not a value smuggled through the
+  ctx: a command builds the map with one flag per role, unrolled, so a role
+  cannot be left out and a name the workflow never asks for is not a flag
+  at all.
 - One method for every turn. A prose turn is `Generate[gimble.Text]`, a
   polytype type Gimble ships, and for it the adapter sends no schema and
   returns the final message. This is where AI SDK 6 landed too: it
@@ -354,7 +370,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	err = runtime.Run(ctx, "sprint", func(ctx context.Context) error {
+	err = runtime.Run(ctx, "sprint", models, func(ctx context.Context) error {
 		return sprint(ctx, SprintInput{Goal: os.Args[1]})
 	})
 	if err != nil {
@@ -469,7 +485,7 @@ for _, prompt := range prompts {
 	g.Go("attempt", func(ctx context.Context) error {
 		// One session per turn in flight. They share the name: the name is the
 		// node, and the page stacks the instances under it.
-		s := gimble.NewSession(ctx, "candidate", adapter, model, workdir)
+		s := gimble.NewSession(ctx, "candidate", workdir)
 		res, err := s.Generate[Result](ctx, prompt)
 		results <- outcome{res, err} // a failure travels on the channel,
 		return nil                   // because returning it would cancel every other candidate
@@ -616,8 +632,8 @@ func WithInterval(every time.Duration) AgentOption
 ```
 
 ```go
-coder := gimble.NewSession(ctx, "coder", adapter, model, workdir)
-taste := gimble.NewSession(ctx, "taste", adapter, cheap, workdir)
+coder := gimble.NewSession(ctx, "coder", workdir)
+taste := gimble.NewSession(ctx, "taste", workdir)
 
 res, err := coder.Generate[Result](ctx, task.Description+"\n\n"+gimble.ScopeText(ctx),
 	gimble.WithSupervisor(taste, "don't let it over-engineer", gimble.WithInterval(time.Minute)),
@@ -739,7 +755,7 @@ a scope:
 err := gimble.Scope(ctx, "sprint", body)
 g := gimble.Group(ctx, "bakeoff")
 g.Go("attempt", body)
-coder := gimble.NewSession(ctx, "coder", adapter, model, workdir)
+coder := gimble.NewSession(ctx, "coder", workdir)
 validator, err := researcher.Fork(ctx, "validator")
 loop := gimble.Loop(ctx, "sprint", goal, planner)
 ```

@@ -43,6 +43,7 @@ type adapter struct {
 
 type session struct {
 	model          string
+	effort         string
 	workdir        string
 	ops            sync.Mutex
 	mu             sync.Mutex
@@ -60,10 +61,10 @@ type activeTurn struct {
 }
 
 type runRequest struct {
-	prompt, model, workdir, sessionID string
-	schema                            json.RawMessage
-	newProject                        bool
-	projector                         *projector
+	prompt, model, effort, workdir, sessionID string
+	schema                                    json.RawMessage
+	newProject                                bool
+	projector                                 *projector
 }
 
 type nativeResult struct {
@@ -87,7 +88,7 @@ func newAdapter(cfg config) *adapter {
 // CreateSession reserves an adapter session. The first visible user turn
 // starts the native Antigravity conversation, so no hidden model call escapes
 // Gimble's event and accounting record.
-func (a *adapter) CreateSession(ctx context.Context, model, workdir string) (string, error) {
+func (a *adapter) CreateSession(ctx context.Context, model, effort, workdir string) (string, error) {
 	if strings.TrimSpace(model) == "" {
 		return "", errors.New("agy: model is blank")
 	}
@@ -120,7 +121,7 @@ func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema 
 	s.mu.Unlock()
 
 	request := runRequest{
-		prompt: prompt, model: s.model, workdir: s.workdir, sessionID: conversationID,
+		prompt: prompt, model: s.model, effort: s.effort, workdir: s.workdir, sessionID: conversationID,
 		newProject: conversationID == "",
 		schema:     schema, projector: newProjector(sessionID, s.model, onEvent),
 	}
@@ -244,6 +245,10 @@ func (a *adapter) runOnce(ctx context.Context, s *session, request runRequest) (
 	}
 	if request.model != "" {
 		args = append(args, "--model", request.model)
+	}
+	// A native model name that already fixes its effort takes no flag.
+	if request.effort != "" && !modelIncludesEffort(request.model) {
+		args = append(args, "--effort", request.effort)
 	}
 	if len(request.schema) > 0 {
 		args = append(args, "--json-schema", string(request.schema))
@@ -500,3 +505,15 @@ func existingDir(path string) (string, error) {
 }
 
 var _ gimble.HarnessAdapter = (*adapter)(nil)
+
+// modelIncludesEffort reports whether a native model name already fixes the
+// reasoning effort, as gemini-3.8-flash-high does, so no --effort flag goes
+// with it.
+func modelIncludesEffort(model string) bool {
+	for _, suffix := range []string{"-low", "-medium", "-high"} {
+		if strings.HasSuffix(model, suffix) {
+			return true
+		}
+	}
+	return false
+}

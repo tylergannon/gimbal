@@ -89,6 +89,7 @@ type SessionCreated struct {
 	Name    string `json:"name"`
 	Adapter string `json:"adapter"`
 	Model   string `json:"model"`
+	Effort  string `json:"effort"`
 	Workdir string `json:"workdir"`
 	Parent  string `json:"parent"`
 }

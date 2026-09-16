@@ -16,7 +16,7 @@ import (
 
 func TestAdapterReleasesDescendantThatInheritedStdout(t *testing.T) {
 	adapter, record := testAdapter(t)
-	sessionID, err := adapter.CreateSession(t.Context(), "gemini-test-low", t.TempDir())
+	sessionID, err := adapter.CreateSession(t.Context(), "gemini-test-low", "", t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}

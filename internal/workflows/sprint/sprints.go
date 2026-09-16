@@ -21,8 +21,6 @@ import (
 	"strings"
 
 	"github.com/tylergannon/gimble"
-	"github.com/tylergannon/gimble/claude"
-	"github.com/tylergannon/gimble/codex"
 )
 
 //go:generate go tool polytype --validate
@@ -35,10 +33,6 @@ type Input struct {
 	Issue string `json:"issue"`
 	// Absolute path of the repository. Each validated task is committed to the branch checked out there, and the sprint ends by merging that branch.
 	Repo string `json:"repo"`
-	// Codex model for the researcher, the planner, and the coders, e.g. "gpt-5.6-luna".
-	Model string `json:"model"`
-	// Claude Code model for the supervisors and the validator, e.g. "haiku".
-	ReviewModel string `json:"review_model"`
 	// The most tasks to run in all. The sprint fails if the planner is not done by then.
 	Tasks int `json:"tasks"`
 	// Call no model and run no command: print each prompt with the schema it would send, answered with an example value, so every prompt can be read before a real run. A viewer, never proof.
@@ -59,18 +53,10 @@ var repositoryChecks = struct {
 	test: "go test ./...",
 }
 
-// Sprint builds sprint in.Sprint, or issue in.Issue.
+// Sprint builds sprint in.Sprint, or issue in.Issue. It names three roles,
+// which the run binds: researcher, whose conversation the planner and the
+// coders fork; validator; and supervisor.
 func Sprint(ctx context.Context, in Input) error {
-	if in.DryRun {
-		d := newDryRun(os.Stdout)
-		return run(ctx, in, d, d)
-	}
-	return run(ctx, in, codex.New(), claude.New())
-}
-
-// run is the workflow on the given harnesses: cx for the researcher, the
-// planner, and the coders; cl for the supervisors and the validator.
-func run(ctx context.Context, in Input, cx, cl gimble.HarnessAdapter) error {
 	gimble.SetJSON(ctx, "input", in)
 	text, err := goalText(ctx, in)
 	if err != nil {
@@ -82,7 +68,7 @@ func run(ctx context.Context, in Input, cx, cl gimble.HarnessAdapter) error {
 		return err
 	}
 
-	researcher := gimble.NewSession(ctx, "researcher", cx, in.Model, in.Repo)
+	researcher := gimble.NewSession(ctx, "researcher", in.Repo)
 	if _, err := researcher.Generate[gimble.Text](ctx, researchPrompt+"\n\n"+goal); err != nil {
 		return err
 	}
@@ -90,7 +76,7 @@ func run(ctx context.Context, in Input, cx, cl gimble.HarnessAdapter) error {
 	if err != nil {
 		return err
 	}
-	validator := gimble.NewSession(ctx, "validator", cl, in.ReviewModel, in.Repo)
+	validator := gimble.NewSession(ctx, "validator", in.Repo)
 
 	// Build until the planner is done, then validate. What the validator
 	// did not see working is information for the planner's next round,
@@ -107,7 +93,7 @@ func run(ctx context.Context, in Input, cx, cl gimble.HarnessAdapter) error {
 				if tasks++; tasks > in.Tasks {
 					break
 				}
-				if err := runTask(ctx, in, researcher, validator, cl, task); err != nil {
+				if err := runTask(ctx, in, researcher, validator, task); err != nil {
 					return err
 				}
 			}
@@ -214,12 +200,12 @@ func withoutProof(text string) string {
 
 // runTask does one assignment, records the evidence requested by the planner,
 // and commits only when that evidence and the workflow's repository checks pass.
-func runTask(ctx context.Context, in Input, researcher, validator *gimble.Session, cl gimble.HarnessAdapter, task gimble.Task) error {
+func runTask(ctx context.Context, in Input, researcher, validator *gimble.Session, task gimble.Task) error {
 	coder, err := researcher.Fork(ctx, "coder")
 	if err != nil {
 		return err
 	}
-	supervisor := gimble.NewSession(ctx, "supervisor", cl, in.ReviewModel, in.Repo)
+	supervisor := gimble.NewSession(ctx, "supervisor", in.Repo)
 	result, workErr := coder.Generate[gimble.Text](ctx, codePrompt+"\n\n"+gimble.ScopeText(ctx),
 		gimble.WithSupervisor(supervisor, superviseInstruction),
 	)
@@ -362,6 +348,10 @@ func git(ctx context.Context, in Input, args ...string) (string, error) {
 	}
 	return strings.TrimSpace(stdout), nil
 }
+
+// NewDryRun is the harness of a dry run: it calls no model and writes each
+// turn's prompt and schema to w. A run binds every role to it for -dry-run.
+func NewDryRun(w io.Writer) gimble.HarnessAdapter { return newDryRun(w) }
 
 // newDryRun is the harness of a dry run: it writes each turn to w.
 func newDryRun(w io.Writer) *dryRun {

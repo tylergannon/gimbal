@@ -32,11 +32,14 @@ type dryRun struct {
 	answered map[string]int // answers given per prompt kind and schema
 }
 
-func (d *dryRun) CreateSession(_ context.Context, model, _ string) (string, error) {
+func (d *dryRun) CreateSession(_ context.Context, model, effort, _ string) (string, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	d.sessions++
 	id := "session " + strconv.Itoa(d.sessions)
+	if effort != "" {
+		model += " (effort " + effort + ")"
+	}
 	d.models[id] = model
 	return id, nil
 }

@@ -35,7 +35,7 @@ func says(text string) *script {
 	return &script{answer: func(context.Context, string, json.RawMessage) (string, error) { return text, nil }}
 }
 
-func (s *script) CreateSession(context.Context, string, string) (string, error) {
+func (s *script) CreateSession(context.Context, string, string, string) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.made++
@@ -132,8 +132,8 @@ func Example_bakeOff() {
 	codex := says("Cache the parsed config on the loader and return it from Load.")
 	claude := says(`{"winner":2,"why":"It changes one file and keeps Load's signature."}`)
 
-	err := gimble.Run(ctx, "bakeoff", func(ctx context.Context) error {
-		researcher := gimble.NewSession(ctx, "researcher", codex, "gpt-5.6-luna", repo)
+	err := gimble.Run(ctx, "bakeoff", map[string]gimble.ModelBinding{"judge": {Adapter: claude, Model: "claude-haiku-4-5-20251001"}, "researcher": {Adapter: codex, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
+		researcher := gimble.NewSession(ctx, "researcher", repo)
 		if _, err := researcher.Generate[gimble.Text](ctx, "Read the config loader in "+repo+" and everything that calls it. Change nothing. Answer with where the file is read and by whom."); err != nil {
 			return err
 		}
@@ -154,7 +154,7 @@ func Example_bakeOff() {
 			return err
 		}
 
-		judge := gimble.NewSession(ctx, "judge", claude, "claude-haiku-4-5-20251001", repo)
+		judge := gimble.NewSession(ctx, "judge", repo)
 		v, err := judge.Generate[verdict](ctx, fmt.Sprintf("Two proposals to make the config loader in %s read its file once per process. Read the code they name and pick the smaller change that is correct.\n\n1. %s\n\n2. %s", repo, proposals[0], proposals[1]))
 		if err != nil {
 			return err
@@ -188,9 +188,9 @@ func Example_critiqueRound() {
 		return `{"defects":[]}`, nil
 	}}
 
-	err := gimble.Run(ctx, "critique", func(ctx context.Context) error {
-		writer := gimble.NewSession(ctx, "writer", codex, "gpt-5.6-luna", repo)
-		critic := gimble.NewSession(ctx, "critic", claude, "claude-haiku-4-5-20251001", repo)
+	err := gimble.Run(ctx, "critique", map[string]gimble.ModelBinding{"critic": {Adapter: claude, Model: "claude-haiku-4-5-20251001"}, "writer": {Adapter: codex, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
+		writer := gimble.NewSession(ctx, "writer", repo)
+		critic := gimble.NewSession(ctx, "critic", repo)
 		if _, err := writer.Generate[gimble.Text](ctx, "Write "+note+": how the config loader handles a missing, an empty, and a malformed config file, from the code."); err != nil {
 			return err
 		}
@@ -239,9 +239,9 @@ func Example_supervisedWorker() {
 	codex := says("Done: Parse in config/parse.go, one test in config/parse_test.go, uncommitted.")
 	claude := says(`{"objections":[]}`)
 
-	err := gimble.Run(ctx, "supervised", func(ctx context.Context) error {
-		coder := gimble.NewSession(ctx, "coder", codex, "gpt-5.6-luna", repo)
-		taste := gimble.NewSession(ctx, "taste", claude, "claude-haiku-4-5-20251001", repo)
+	err := gimble.Run(ctx, "supervised", map[string]gimble.ModelBinding{"coder": {Adapter: codex, Model: "gpt-5.6-luna"}, "taste": {Adapter: claude, Model: "claude-haiku-4-5-20251001"}}, func(ctx context.Context) error {
+		coder := gimble.NewSession(ctx, "coder", repo)
+		taste := gimble.NewSession(ctx, "taste", repo)
 		result, err := coder.Generate[gimble.Text](ctx,
 			"Add a Parse function to the config loader in "+repo+", with one test that shows it working. Leave the work uncommitted. Answer with what changed.",
 			gimble.WithSupervisor(taste, "Don't let it build what the task does not ask for, or break a rule in AGENTS.md. Object to nothing else.", gimble.WithInterval(2*time.Minute)),
@@ -279,8 +279,8 @@ func Example_loopWithPlanner() {
 		return `{"tasks":[],"next":null}`, nil
 	}}
 
-	err := gimble.Run(ctx, "loop", func(ctx context.Context) error {
-		researcher := gimble.NewSession(ctx, "researcher", codex, "gpt-5.6-luna", repo)
+	err := gimble.Run(ctx, "loop", map[string]gimble.ModelBinding{"researcher": {Adapter: codex, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
+		researcher := gimble.NewSession(ctx, "researcher", repo)
 		if _, err := researcher.Generate[gimble.Text](ctx, "Read the config loader in "+repo+" and its tests. Change nothing. Answer with what exists."); err != nil {
 			return err
 		}
@@ -324,7 +324,7 @@ func Example_worktreePerCandidate() {
 	repo := repoDir()
 	codex := says("Done: the loader reads its file once; the test is in config/load_test.go.")
 
-	err := gimble.Run(ctx, "worktrees", func(ctx context.Context) error {
+	err := gimble.Run(ctx, "worktrees", map[string]gimble.ModelBinding{"coder": {Adapter: codex, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
 		group := gimble.Group(ctx, "candidates")
 		for i := range 2 {
 			group.Go("candidate", func(ctx context.Context) error {
@@ -342,7 +342,7 @@ func Example_worktreePerCandidate() {
 					_, _, _, _ = gimble.RunCommand(context.WithoutCancel(ctx), "remove-worktree", repo, "git", "worktree", "remove", "--force", dir)
 				}()
 
-				coder := gimble.NewSession(ctx, "coder", codex, "gpt-5.6-luna", dir)
+				coder := gimble.NewSession(ctx, "coder", dir)
 				result, err := coder.Generate[gimble.Text](ctx, "In "+dir+", make the config loader read its file once per process, with a test that shows it. Write nowhere outside "+dir+". Leave the work uncommitted. Answer with what changed.")
 				if err != nil {
 					return err
@@ -373,8 +373,8 @@ func Example_validationCommand() {
 	codex := says("Done: Load caches the parsed config.")
 	check := "go test ./config/..."
 
-	err := gimble.Run(ctx, "validated", func(ctx context.Context) error {
-		coder := gimble.NewSession(ctx, "coder", codex, "gpt-5.6-luna", repo)
+	err := gimble.Run(ctx, "validated", map[string]gimble.ModelBinding{"coder": {Adapter: codex, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
+		coder := gimble.NewSession(ctx, "coder", repo)
 		prompt := "Make the config loader in " + repo + " read its file once per process, with a test that shows it. Leave the work uncommitted."
 		for try := 1; try <= 3; try++ {
 			if _, err := coder.Generate[gimble.Text](ctx, prompt); err != nil {
@@ -446,15 +446,15 @@ func Example_killedTurn() {
 
 	var killErr error
 	var operator sync.WaitGroup
-	err = runtime.Run(ctx, "recover", func(ctx context.Context) error {
+	err = runtime.Run(ctx, "recover", map[string]gimble.ModelBinding{"coder": {Adapter: codex, Model: "gpt-5.6-luna"}, "planner": {Adapter: codex, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
 		operator.Go(func() { // the operator, holding only ids from the page
 			<-coding
 			killErr = runtime.KillTurn(runID(project), "work.1/task.1/coder.1/turn.1", "tyler", "editing the wrong file")
 		})
-		planner := gimble.NewSession(ctx, "planner", codex, "gpt-5.6-luna", repo)
+		planner := gimble.NewSession(ctx, "planner", repo)
 		loop := gimble.Loop(ctx, "work", "The config loader in "+repo+" reads its file once per process.", planner)
 		for ctx, task := range loop.Tasks {
-			coder := gimble.NewSession(ctx, "coder", codex, "gpt-5.6-luna", repo)
+			coder := gimble.NewSession(ctx, "coder", repo)
 			result, err := coder.Generate[gimble.Text](ctx, "Do the task in the scoped context below. Leave the work uncommitted. Answer with what changed.\n\n"+gimble.ScopeText(ctx))
 			if kill, ok := errors.AsType[gimble.Killed](err); ok {
 				fmt.Printf("%s: turn killed by %s: %s\n", task.Name, kill.By, kill.Reason)

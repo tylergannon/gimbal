@@ -26,7 +26,7 @@ func TestIssue118ConcurrentRunsShareProjectLog(t *testing.T) {
 	var g errgroup.Group
 	for _, name := range []string{"alpha", "beta"} {
 		g.Go(func() error {
-			return Run(Project(t.Context(), project), name, func(ctx context.Context) error {
+			return Run(Project(t.Context(), project), name, nil, func(ctx context.Context) error {
 				// Neither run's body returns (and so neither writes
 				// RunEnded) until both have started, guaranteeing both
 				// runs are live in the project at once.

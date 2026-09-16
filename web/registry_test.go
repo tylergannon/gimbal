@@ -26,7 +26,7 @@ type blocking struct {
 	steers  []string
 }
 
-func (b *blocking) CreateSession(ctx context.Context, model, workdir string) (string, error) {
+func (b *blocking) CreateSession(ctx context.Context, model, effort, workdir string) (string, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.made++
@@ -118,9 +118,9 @@ func TestRuntimeReachesALiveRunByID(t *testing.T) {
 	var runErr error
 	var runWG sync.WaitGroup
 	runWG.Go(func() {
-		runErr = runtime.Run(ctx, "registry", func(ctx context.Context) error {
+		runErr = runtime.Run(ctx, "registry", map[string]gimble.ModelBinding{"coder": {Adapter: b, Model: "m"}}, func(ctx context.Context) error {
 			scopeErr = gimble.Scope(ctx, "lap", func(ctx context.Context) error {
-				coder := gimble.NewSession(ctx, "coder", b, "m", "/w")
+				coder := gimble.NewSession(ctx, "coder", "/w")
 				_, first = coder.Generate[gimble.Text](ctx, "wait")
 				_, second = coder.Generate[gimble.Text](ctx, "wait")
 				return second

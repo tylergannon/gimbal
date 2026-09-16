@@ -14,7 +14,7 @@ import (
 // needs no live process either.
 func TestCloseIsIdempotent(t *testing.T) {
 	ad := New().(*adapter)
-	id, err := ad.CreateSession(context.Background(), "model", ".")
+	id, err := ad.CreateSession(context.Background(), "model", "", ".")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,7 +43,7 @@ func TestAssistantErrorPreservesProviderRequestID(t *testing.T) {
 // unknown session is the error it always was.
 func TestSteerWithNoStreamLiveIsDropped(t *testing.T) {
 	ad := New().(*adapter)
-	id, err := ad.CreateSession(context.Background(), "model", ".")
+	id, err := ad.CreateSession(context.Background(), "model", "", ".")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -109,6 +109,19 @@ That leaves two real moves: make a tool smaller, or remove it.
 Measured end to end in a headless probe: **152,101 → 88,698 chars of tool
 schema (−15.9k tokens)**.
 
+Then, in the same pass:
+
+- Deleted `~/.claude/agents/` (9 unused project agents, each carrying verbose
+  `<example>` frontmatter): agent listing 10,531 → 2,947 chars (−1.9k).
+- Removed the tractor skills — three symlinks under `~/.claude/skills/` plus
+  the `tractor@tractor` plugin, which also drops its MCP instruction block and
+  tool names (−0.8k). Plugin-sourced skills are immune to `skillOverrides`
+  (the resolver returns `"on"` unconditionally for `source === "plugin"`), so
+  disabling the plugin is the only lever for those.
+- `skillOverrides`: 13 skills `off`, 10 `user-invocable-only` (−2.6k).
+
+Cumulative: **~53.5k → ~32.3k tokens of base context.**
+
 ### Available
 
 | Lever | ~Tokens | Cost |

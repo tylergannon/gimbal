@@ -232,6 +232,20 @@ func (r *Runtime) Steer(ctx context.Context, runID, sessionID, message string) (
 	return run.Steer(ctx, sessionID, message)
 }
 
+// SteerLoop holds message for the planner of the loop scopeKey of the run
+// runID, as the person watching the page. It reaches the planner at its
+// next planning decision, whether or not a turn is running when it is
+// sent, and the loop's record says whether the planner read it. An unknown
+// or finished run, or a scope that is not a loop still dispatching, is an
+// error.
+func (r *Runtime) SteerLoop(runID, scopeKey, message string) error {
+	run, err := r.runs.InProgress(runID)
+	if err != nil {
+		return err
+	}
+	return run.SteerLoop(scopeKey, message)
+}
+
 // KillScope ends the scope scopeKey of the run runID, and everything under
 // it, with a Killed cause naming who did it and why. The run log records
 // the kill on the scope. An unknown or finished run or scope is an error.

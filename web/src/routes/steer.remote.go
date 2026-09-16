@@ -8,6 +8,7 @@ import (
 
 	"github.com/tylergannon/skgo"
 
+	"github.com/tylergannon/gimble"
 	"github.com/tylergannon/gimble/internal/live"
 )
 
@@ -63,4 +64,52 @@ func steer(ctx context.Context, arg Steer) (Sent, error) {
 	return Sent{Landed: landed}, nil
 }
 
+// LoopMessage is what the loop card's forms post: which loop of which run,
+// and either what the person typed at its planner or the wrap-up
+// instruction, whose text is the runtime's own so the page never spells it.
+type LoopMessage struct {
+	Run     string `json:"run"`
+	Scope   string `json:"scope"`
+	Message string `json:"message"`
+	WrapUp  bool   `json:"wrap_up"`
+}
+
+// Waiting is the loop forms' answer: the message the planner will read at
+// its next decision. A loop's planner is not always in a turn, so nothing
+// here is dropped the way a steer to an idle session is; a loop that has
+// stopped dispatching is an error instead.
+type Waiting struct {
+	Message string `json:"message"`
+}
+
+// steerLoop holds one message for a loop's planner, as the person watching
+// the page. It is #235's half of the page: the loop records the message
+// when the planner reads it, and as dropped if dispatch ends first.
+func steerLoop(ctx context.Context, arg LoopMessage) (Waiting, error) {
+	message := strings.TrimSpace(arg.Message)
+	if arg.WrapUp {
+		message = gimble.WrapUp
+	}
+	if message == "" {
+		return Waiting{}, skgo.Invalidf("message", "Type a message before sending it.")
+	}
+	runs := live.RunsFrom(ctx)
+	if runs == nil {
+		return Waiting{}, skgo.Errorf(http.StatusInternalServerError,
+			"This server has no table of runs in its context, so no loop can be steered.")
+	}
+	run, err := runs.InProgress(arg.Run)
+	if err != nil {
+		return Waiting{}, skgo.Errorf(http.StatusNotFound,
+			"Run %s is not in progress, so there is nothing to steer.", arg.Run)
+	}
+	if err := run.SteerLoop(arg.Scope, message); err != nil {
+		return Waiting{}, skgo.Errorf(http.StatusNotFound,
+			"%s is not a loop still dispatching in %s, so its planner cannot be reached.", arg.Scope, arg.Run)
+	}
+	return Waiting{Message: message}, nil
+}
+
 var _ = skgo.Form(steer)
+
+var _ = skgo.Form(steerLoop)

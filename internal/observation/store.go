@@ -183,6 +183,7 @@ type record struct {
 		Parent      string          `json:"parent"`
 		Error       string          `json:"error"`
 		Task        json.RawMessage `json:"task"`
+		Loop        bool            `json:"loop"`
 		Key         string          `json:"key"`
 		Value       string          `json:"value"`
 		Prompt      string          `json:"prompt"`
@@ -260,6 +261,7 @@ func (s *Store) Lifecycle(raw json.RawMessage) error {
 	case "scope_began":
 		scope := s.scopeLocked(rec.Scope)
 		scope.Name, scope.Status, scope.Began = rec.Event.Name, StatusRunning, at
+		scope.Loop = rec.Event.Loop
 		if len(rec.Event.Task) > 0 {
 			scope.Task = rec.Event.Task
 		}

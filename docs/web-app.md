@@ -94,6 +94,7 @@ the join with the source. See Observability in
 | F7 | **Transcript.** Messages coalesced by id: user, assistant, thinking, tool call and result, deltas, per-step usage, harness errors, approval requests, nested transcripts. Model and five token cells per row, no dollars (#152). | exists |
 | F8 | **Loop backlog and decisions.** The backlog as the planner left it after each dispatch; scrub through decisions. | designed, not built |
 | F9 | **Steer, interrupt, cancel.** Steer box on every session; interrupt on a running turn; cancel on the run. The person is a supervisor node; their steers are attributed and marked landed or dropped. | designed, not built |
+| F9a | **Steer a loop.** On the card of a loop that is still dispatching: a message for its planner, read at the next decision whether or not a turn is running, and a wrap-up button that tells it to end dispatch there. Recorded on the loop like a steer, landed when the planner read it. | exists, #235 |
 | F10 | **Edges.** Supervisor to worker turn with instruction and interval; fork to parent; steer from source to target, landed or dropped. | designed, not built |
 | F11 | **Usage, time, cost by scope.** Every turn charged to the scope it ran in; sums per model with wall time and priced cost; one tree, live and finished. | in progress, #173 |
 | F12 | **Prompts before they run.** Every `Generate` call's prompt and schema as values, from a dry run or a captured cheap-tier run. | asked for, #168 |
@@ -124,6 +125,7 @@ cite them.
 | `sup.read-mid-turn` | Follow a transcript as it streams, tool output collapsed until wanted. |
 | `sup.will-it-land` | Before typing a steer, see whether a turn is running so it will land. |
 | `sup.steer` | Send a steer and see it in the transcript, landed or dropped, attributed to me. |
+| `sup.wrap-up-loop` | Tell a loop to wrap up, or anything else, and have its planner weigh it at the next decision. |
 | `sup.interrupt` | Interrupt one turn; the run continues. |
 | `sup.cancel-run` | Cancel a run, confirm once, watch every turn end and every scope close. |
 | `sup.see-other-supervisors` | See which reviewers watch a turn, what they were told, what they objected to. |

@@ -13,9 +13,11 @@ export type RunRow = { id: string; name: string; status: RunStatus; error: strin
 /** One planner decision: the record's sequence and the event's own words. */
 export type Decision = { seq: number; body: JSONValue }
 /** One scope instance. `key` is the slash path, so the parent is the path
- * above it. An ended scope with no error is 'ended', never 'succeeded'. */
+ * above it. An ended scope with no error is 'ended', never 'succeeded'.
+ * `loop` marks a Loop's own scope, whose planner a person at the page can
+ * send a message to while the run is in progress. */
 export type ScopeRow = {
-	run: string; key: string; name: string; status: 'running' | 'ended'; error: string
+	run: string; key: string; name: string; loop: boolean; status: 'running' | 'ended'; error: string
 	task?: JSONValue; began: number; ended: number
 	values: Record<string, JSONValue>; decisions: Decision[]
 }

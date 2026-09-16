@@ -34,12 +34,50 @@ type scope struct {
 	key    string                  // names with ordinals from the root, as in lap.3/bakeoff.1/attempt.2; "" for the root
 	cancel context.CancelCauseFunc // ends the scope's ctx; run.cancelScope reaches it by key
 
-	mu       sync.Mutex
-	ordinals map[string]int // the last ordinal given to each child scope and session name
-	keys     []string       // in the order they were set
-	values   map[string][]byte
-	sessions []*Session
-	ended    bool
+	loop bool // a Loop's own scope, which takes messages for its planner
+
+	mu          sync.Mutex
+	ordinals    map[string]int // the last ordinal given to each child scope and session name
+	keys        []string       // in the order they were set
+	values      map[string][]byte
+	sessions    []*Session
+	ended       bool
+	dispatching bool     // the loop's body is running, so its planner can still be reached
+	messages    []string // messages waiting for the planner's next decision
+}
+
+// queueMessage holds message for the planner of a loop that is still
+// dispatching, and reports whether it will be read. It is held rather than
+// delivered: a planner is not always in a turn, so a message to a loop
+// waits for its next planning turn instead of being dropped.
+func (s *scope) queueMessage(message string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.dispatching || s.ended {
+		return false
+	}
+	s.messages = append(s.messages, message)
+	return true
+}
+
+// takeMessages empties the queue for the planner's next prompt.
+func (s *scope) takeMessages() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	messages := s.messages
+	s.messages = nil
+	return messages
+}
+
+// endDispatch closes the loop to further messages and returns any that
+// never reached its planner.
+func (s *scope) endDispatch() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.dispatching = false
+	messages := s.messages
+	s.messages = nil
+	return messages
 }
 
 func current(ctx context.Context) (*scope, error) {
@@ -78,7 +116,7 @@ func (s *scope) adopt(session *Session) {
 func (s *scope) do(ctx context.Context, body func(context.Context) error) error {
 	ctx, s.cancel = context.WithCancelCause(context.WithValue(ctx, scopeKey{}, s))
 	s.run.addScope(s)
-	e := ScopeBegan{Name: path.Base(s.key)}
+	e := ScopeBegan{Name: path.Base(s.key), Loop: s.loop}
 	if task, ok := ctx.Value(taskKey{}).(Task); ok {
 		e.Task = optionalTask(task)
 	}

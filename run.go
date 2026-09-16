@@ -272,6 +272,25 @@ func (r *run) Steer(ctx context.Context, sessionID, message string) (bool, error
 	return s.sessions[i].Steer(withSteerSource(context.WithValue(ctx, scopeKey{}, s), "person"), message)
 }
 
+// SteerLoop holds message for the planner of the live loop key. A planner
+// is not always in a turn, so the message waits for the loop's next
+// planning decision instead of being dropped: it is recorded on the loop's
+// scope as landed when the planner reads it, and as dropped if dispatch
+// ends first. A key that is not a loop still dispatching is an error.
+func (r *run) SteerLoop(key, message string) error {
+	r.mu.Lock()
+	s := r.scopes[key]
+	r.mu.Unlock()
+	if s == nil || !s.loop {
+		return fmt.Errorf("gimble: no live loop %q", key)
+	}
+	if !s.queueMessage(message) {
+		return fmt.Errorf("gimble: the loop %q has stopped dispatching", key)
+	}
+	logf("%s: a message is waiting for the planner's next decision: %s", key, oneLine(message))
+	return nil
+}
+
 // CancelScope cancels the live scope key with cause, which every scope and
 // turn under it then reports through context.Cause. The kill is recorded
 // as a Killed lifecycle event on the scope before its ctx ends. An unknown

@@ -48,11 +48,14 @@ type Decision struct {
 }
 
 // ScopeRow is one scope instance. Key is the slash path, so the parent is
-// the path above it and is not repeated. The root scope's key is "".
+// the path above it and is not repeated. The root scope's key is "". Loop
+// marks a Loop's own scope, whose planner the page can send a message to
+// while the run is in progress.
 type ScopeRow struct {
 	Run       string                     `json:"run"`
 	Key       string                     `json:"key"`
 	Name      string                     `json:"name"`
+	Loop      bool                       `json:"loop"`
 	Status    string                     `json:"status"`
 	Error     string                     `json:"error"`
 	Task      json.RawMessage            `json:"task,omitempty"`

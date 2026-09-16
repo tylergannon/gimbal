@@ -89,3 +89,55 @@ func TestRunPageIsRenderedFromTheRunsObservation(t *testing.T) {
 		t.Fatalf("GET /runs/nope: status %d, want 404", recorder.Code)
 	}
 }
+
+// TestRunPageOffersTheWrapUpOnALoopsCard is #235's page half: while a run is
+// in progress, the card of a loop that is still dispatching carries the box
+// for its planner and the wrap-up button. A scope that is not a loop gets
+// neither.
+func TestRunPageOffersTheWrapUpOnALoopsCard(t *testing.T) {
+	dist, err := fs.Sub(Build, "build")
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler, _, err := NewHandler(dist, "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	project := t.TempDir()
+	registry := observation.NewRegistry(project)
+	runDir := filepath.Join(project, "runs", "run-loop")
+	if err := os.MkdirAll(runDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	store, err := observation.Open(registry, "run-loop", "looping", runDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, record := range []json.RawMessage{
+		json.RawMessage(`{"seq":1,"time":"2026-09-15T00:00:00Z","scope":"","event":{"kind":"run_started","name":"looping"}}`),
+		json.RawMessage(`{"seq":2,"time":"2026-09-15T00:00:01Z","scope":"sprint.1","event":{"kind":"scope_began","name":"sprint.1","loop":true}}`),
+		json.RawMessage(`{"seq":3,"time":"2026-09-15T00:00:02Z","scope":"quiet.1","event":{"kind":"scope_began","name":"quiet.1","loop":false}}`),
+	} {
+		if err := store.Lifecycle(record); err != nil {
+			t.Fatalf("fold %s: %v", record, err)
+		}
+	}
+
+	request := httptest.NewRequest(http.MethodGet, "/runs/run-loop", nil)
+	request = request.WithContext(observation.WithRegistry(request.Context(), registry))
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("GET /runs/run-loop: status %d, body %s", recorder.Code, recorder.Body.String())
+	}
+	body := recorder.Body.String()
+	if !strings.Contains(body, "Wrap up") {
+		t.Fatalf("the loop's card does not offer the wrap-up:\n%s", body)
+	}
+	if !strings.Contains(body, "Say something to the planner of sprint.1") {
+		t.Fatalf("the loop's card does not offer a message for its planner:\n%s", body)
+	}
+	if strings.Contains(body, "Say something to the planner of quiet.1") {
+		t.Fatalf("a scope that is not a loop was offered a planner box:\n%s", body)
+	}
+}

@@ -1,8 +1,8 @@
 // Package live is the seam between gimble.Run and the web runtime. A run
 // hands its Controller to whoever put a hook in the ctx, under the run's
 // id, for as long as the run is in progress; the runtime keeps those in a
-// table so an operator with only ids can steer a session or kill a scope
-// or a turn.
+// table so an operator with only ids can steer a session or a loop's
+// planner, or kill a scope or a turn.
 package live
 
 import (
@@ -19,6 +19,10 @@ type Controller interface {
 	// Steer sends message into the session's running turn as the person
 	// watching the run, and reports whether it landed there.
 	Steer(ctx context.Context, sessionID, message string) (landed bool, err error)
+	// SteerLoop holds message for the planner of the loop scope key. It
+	// reaches the planner at its next planning decision, whether or not a
+	// turn is running when it is sent.
+	SteerLoop(key, message string) error
 	// CancelScope ends the scope's ctx with cause.
 	CancelScope(key string, cause error) error
 	// CancelTurn ends only that turn's ctx with cause.

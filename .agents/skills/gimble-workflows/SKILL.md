@@ -62,6 +62,7 @@ through the web runtime:
 landed, err := runtime.Steer(ctx, runID, "work.1/task.2/coder.1", "look at the tests first")
 err = runtime.KillTurn(runID, "work.1/task.2/coder.1/turn.3", "tyler", "editing the wrong file")
 err = runtime.KillScope(runID, "work.1/task.2", "tyler", "off the rails")
+err = runtime.SteerLoop(runID, "work.1", gimble.WrapUp)
 ```
 
 A steer from the page is recorded with `source: "person"`; a supervisor's
@@ -74,6 +75,13 @@ A killed scope closes its sessions; its `Group` siblings run on; a `Loop`
 records the task failed with the reason and the planner sees it on the next
 lap. An unknown or finished id is an error. Write the workflow to handle the
 cause; the sending is the operator's.
+
+A message to a `Loop` is not a steer of a turn: a planner is not always in
+one, so `SteerLoop` holds it for the loop's next planning decision instead
+of dropping it, and the loop records it as landed once the planner has read
+it. `gimble.WrapUp` is the message that means end dispatch there; anything
+else in prose is the planner's to weigh. The run page offers both on the
+card of a loop that is still dispatching.
 
 ## The shapes
 

@@ -21,8 +21,6 @@ import (
 
 type projectKey struct{}
 
-type graphKey struct{}
-
 func runDir(ctx context.Context) string {
 	s, _ := ctx.Value(scopeKey{}).(*scope)
 	if s == nil || s.run == nil {
@@ -37,12 +35,24 @@ func Project(ctx context.Context, dir string) context.Context {
 	return context.WithValue(ctx, projectKey{}, dir)
 }
 
-// WithGraph puts the workflow's graph, extracted from its source before the
-// run, in the root ctx. Run saves it as graph.json in the run's directory,
-// so what the run did can be read against what its source could do. The
-// graph's Name must be the run's name.
-func WithGraph(ctx context.Context, graph workflow.Graph) context.Context {
-	return context.WithValue(ctx, graphKey{}, graph)
+// graphs holds the shape of every workflow compiled into this binary, by
+// name. Only generated code writes here, and only from an init, so the map
+// is complete and never written again by the time a run reads it.
+var graphs = map[string]workflow.Graph{}
+
+// RegisterGraph records the shape of one workflow, which `gimble graph`
+// read from its source. A run of that name saves it as graph.json beside
+// its records, so what the run did can be read against what its source
+// could do.
+//
+// Only generated code calls this, from the init of the file the generator
+// writes; a workflow is wired up by being built. Registering one name twice
+// is a programming error and panics.
+func RegisterGraph(graph workflow.Graph) {
+	if _, ok := graphs[graph.Name]; ok {
+		panic(fmt.Sprintf("gimble: a graph named %q is already registered", graph.Name))
+	}
+	graphs[graph.Name] = graph
 }
 
 type run struct {
@@ -137,7 +147,7 @@ func Run(ctx context.Context, name string, models map[string]ModelBinding, body 
 	if err := os.Mkdir(dir, 0o755); err != nil {
 		return fmt.Errorf("gimble: %w", err)
 	}
-	if err := saveGraph(ctx, dir, name); err != nil {
+	if err := saveGraph(dir, name); err != nil {
 		return err
 	}
 	w, err := newEventWriter(filepath.Join(dir, "run.jsonl"))
@@ -189,16 +199,13 @@ func Run(ctx context.Context, name string, models map[string]ModelBinding, body 
 	return r.finish(name, err)
 }
 
-// saveGraph writes the graph in ctx, if there is one, as graph.json beside
-// the run's records. A graph that names another workflow is a programming
-// error and stops the run before anything is recorded.
-func saveGraph(ctx context.Context, dir, name string) error {
-	graph, ok := ctx.Value(graphKey{}).(workflow.Graph)
+// saveGraph writes the shape of the workflow being run, when one was
+// registered under the run's name, as graph.json beside the run's records.
+// A workflow whose graph is not compiled in writes none.
+func saveGraph(dir, name string) error {
+	graph, ok := graphs[name]
 	if !ok {
 		return nil
-	}
-	if graph.Name != name {
-		return fmt.Errorf("gimble: the graph is of %q but the run is %q", graph.Name, name)
 	}
 	data, err := json.Marshal(graph)
 	if err != nil {

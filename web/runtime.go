@@ -216,9 +216,9 @@ func (r *Runtime) Run(ctx context.Context, name string, models map[string]gimble
 		return context.Cause(r.ctx)
 	}
 	// The run's context descends from the caller's, so what the caller put
-	// on it reaches the run: gimble.WithGraph's graph, above all. What the
-	// runtime owns is put on it here instead of being inherited, and the
-	// runtime's own end cancels it the way the caller's does.
+	// on it reaches the run. What the runtime owns is put on it here
+	// instead of being inherited, and the runtime's own end cancels it the
+	// way the caller's does.
 	runCtx, cancel := context.WithCancelCause(ctx)
 	stop := context.AfterFunc(r.ctx, func() { cancel(context.Cause(r.ctx)) })
 	defer stop()

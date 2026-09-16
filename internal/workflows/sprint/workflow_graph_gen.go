@@ -2,7 +2,12 @@
 
 package sprint
 
-import "github.com/tylergannon/gimble/workflow"
+import (
+	"github.com/tylergannon/gimble"
+	"github.com/tylergannon/gimble/workflow"
+)
+
+func init() { gimble.RegisterGraph(Graph) }
 
 // Graph is the shape of this workflow, read from the source of Sprint.
 var Graph = workflow.Graph{

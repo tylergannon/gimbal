@@ -228,6 +228,10 @@ func (e *extractor) gimbleOperation(name string, call *ast.CallExpr, targets []a
 			e.diag(call.Pos(), "Go is called on something that is not a group declared in an enclosing body")
 			return false
 		}
+		if ref.ops != out {
+			e.diag(call.Pos(), "Go on a group declared outside this body is not read")
+			return false
+		}
 		child, ok := e.constant(call, 0)
 		if !ok {
 			e.diag(call.Pos(), "Go's name is not a constant, so the child is not read")

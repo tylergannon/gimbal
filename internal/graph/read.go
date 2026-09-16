@@ -295,17 +295,6 @@ func (e *extractor) unbind(targets []ast.Expr) {
 	}
 }
 
-// isCallNamed reports whether an expression is a call on the named Gimble
-// function or method.
-func (e *extractor) isCallNamed(expr ast.Expr, names ...string) bool {
-	call, ok := unparen(expr).(*ast.CallExpr)
-	if !ok {
-		return false
-	}
-	name, ok := e.gimbleCall(call)
-	return ok && slices.Contains(names, name)
-}
-
 // plainArguments are the arguments of a Gimble call that are neither a body
 // nor an option: the ones whose own calls the rules do not read.
 func plainArguments(name string, call *ast.CallExpr) []ast.Node {

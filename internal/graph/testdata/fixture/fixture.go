@@ -70,8 +70,21 @@ func Fixture(ctx context.Context) error {
 		return err
 	}
 
-	// A group assigned from another group is not read, and neither is what
-	// is started on it afterwards.
+	// A group is started in the body that declares it, so a Go inside a
+	// branch is not read.
+	held := gimble.Group(ctx, "held")
+	if roleName() == "reader" {
+		held.Go("nested", func(ctx context.Context) error {
+			gimble.Set(ctx, "nested", "six")
+			return nil
+		})
+	}
+	if err := held.Wait(); err != nil {
+		return err
+	}
+
+	// A group reassigned after its declaration is not read, and neither is
+	// what is started on it afterwards.
 	one := gimble.Group(ctx, "one")
 	two := gimble.Group(ctx, "two")
 	one = two

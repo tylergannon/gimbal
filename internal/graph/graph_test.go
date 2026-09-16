@@ -135,8 +135,17 @@ func TestFixtureGraph(t *testing.T) {
 		t.Error("the call after the join names no session the source declares, so it is a diagnostic")
 	}
 
-	// A group assigned from another group is not read, and neither is what
-	// is started on it.
+	// A group is started in the body that declares it.
+	held, ok := find[workflow.Group](g.Body, func(gr workflow.Group) bool { return gr.Name == "held" })
+	if !ok {
+		t.Fatal("the fixture holds the group held")
+	}
+	if len(held.Children) != 0 {
+		t.Errorf("a Go inside a branch is not read, so the group stays childless, got %+v", held.Children)
+	}
+
+	// A group reassigned after its declaration is not read, and neither is
+	// what is started on it.
 	one, ok := find[workflow.Group](g.Body, func(gr workflow.Group) bool { return gr.Name == "one" })
 	if !ok {
 		t.Fatal("the fixture holds the group one")
@@ -162,17 +171,22 @@ func TestFixtureGraph(t *testing.T) {
 		t.Error("a callback's early return is its own control flow, not a helper's guard")
 	}
 
+	// Ten sites the rules refuse to guess at; the two branch assignments
+	// share one message, so there are nine distinct ones.
+	const sites = 10
 	want := []string{
 		"NewSession's role is not a constant",
 		"a call through a function value is not read",
 		"ends only the helper it is written in",
+		"a session reassigned after its declaration is not read",
 		"Generate is called on something that is not a session",
-		"a group assigned from something other than Group is not read",
+		"Go on a group declared outside this body is not read",
+		"a group reassigned after its declaration is not read",
 		"Go is called on something that is not a group",
 		"a Gimble call nested in a Gimble call's arguments is not read",
 	}
-	if len(g.Diagnostics) != len(want) {
-		t.Fatalf("the fixture has %d diagnostics, want %d: %v", len(g.Diagnostics), len(want), g.Diagnostics)
+	if len(g.Diagnostics) != sites {
+		t.Fatalf("the fixture has %d diagnostics, want %d: %v", len(g.Diagnostics), sites, g.Diagnostics)
 	}
 	for _, message := range want {
 		found := false

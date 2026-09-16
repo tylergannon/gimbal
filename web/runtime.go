@@ -210,6 +210,11 @@ func (r *Runtime) Run(ctx context.Context, name string, models map[string]gimble
 	if body == nil {
 		return errors.New("gimble: run body is nil")
 	}
+	// A runtime that has already ended starts no run: the body must never
+	// see a live context under a dead runtime.
+	if r.ctx.Err() != nil {
+		return context.Cause(r.ctx)
+	}
 	// The run's context descends from the caller's, so what the caller put
 	// on it reaches the run: gimble.WithGraph's graph, above all. What the
 	// runtime owns is put on it here instead of being inherited, and the

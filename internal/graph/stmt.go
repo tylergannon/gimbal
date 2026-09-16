@@ -74,10 +74,11 @@ func (e *extractor) assign(stmt *ast.AssignStmt, out *[]workflow.Operation, en s
 		}
 		e.value(rhs, targets, out, en)
 	}
-	if len(stmt.Rhs) == len(stmt.Lhs) {
-		for i, lhs := range stmt.Lhs {
-			e.rebind(lhs, stmt.Rhs[i])
-		}
+	if stmt.Tok != token.ASSIGN {
+		return
+	}
+	for _, lhs := range stmt.Lhs {
+		e.reassigned(lhs)
 	}
 }
 
@@ -98,9 +99,6 @@ func (e *extractor) declStmt(stmt *ast.DeclStmt, out *[]workflow.Operation, en s
 				targets = identExprs(values.Names[i : i+1])
 			}
 			e.value(value, targets, out, en)
-			if len(values.Values) == len(values.Names) {
-				e.rebind(targets[0], value)
-			}
 		}
 	}
 }
@@ -113,45 +111,32 @@ func identExprs(names []*ast.Ident) []ast.Expr {
 	return out
 }
 
-// rebind keeps the session table honest across assignment: a session
-// assigned from another bound session takes its binding, and a session
-// assigned from anything else the rules do not read loses it.
-func (e *extractor) rebind(lhs, rhs ast.Expr) {
+// reassigned drops what an identifier stood for when a plain assignment
+// gives it another value. A workflow names each conversation, group, and
+// loop once where it is declared; reassignment is not a shape the rules
+// read, so what follows it meets the unbound diagnostics.
+func (e *extractor) reassigned(lhs ast.Expr) {
 	obj := e.object(lhs)
 	if obj == nil {
 		return
 	}
+	what := ""
+	if _, ok := e.session[obj]; ok {
+		delete(e.session, obj)
+		what = "session"
+	}
 	if _, ok := e.group[obj]; ok {
-		if !e.isCallNamed(rhs, "Group") {
-			delete(e.group, obj)
-			e.diag(rhs.Pos(), "a group assigned from something other than Group is not read")
-		}
-		return
+		delete(e.group, obj)
+		what = "group"
 	}
 	if _, ok := e.loop[obj]; ok {
-		if !e.isCallNamed(rhs, "Loop") {
-			delete(e.loop, obj)
-			e.diag(rhs.Pos(), "a loop assigned from something other than Loop is not read")
-		}
+		delete(e.loop, obj)
+		what = "loop"
+	}
+	if what == "" {
 		return
 	}
-	if !isSessionType(obj.Type()) {
-		return
-	}
-	if _, ok := e.session[obj]; ok && e.isCallNamed(rhs, "NewSession", "Fork") {
-		// The call that produced it already bound it.
-		return
-	}
-	if source, ok := e.binding(rhs); ok {
-		e.session[obj] = source
-		return
-	}
-	if e.isCallNamed(rhs, "NewSession", "Fork") {
-		// The call was read, or diagnosed and its binding already dropped.
-		return
-	}
-	delete(e.session, obj)
-	e.diag(rhs.Pos(), "a session assigned from something other than NewSession, Fork, or another session is not read")
+	e.diag(lhs.Pos(), "a %s reassigned after its declaration is not read", what)
 }
 
 // ifChain records one if/else chain as a single Condition.
@@ -331,19 +316,23 @@ func (e *extractor) repeat(stmt ast.Stmt, block *ast.BlockStmt, cond string, out
 // Loop's per-task body, or an ordinary Go range, which is a Repeat.
 func (e *extractor) rangeStmt(stmt *ast.RangeStmt, out *[]workflow.Operation, en scopeEnv) {
 	if e.isTasksRange(stmt) {
-		e.tasksRange(stmt, en)
+		e.tasksRange(stmt, out, en)
 		return
 	}
 	e.exprs(stmt.X, out, en)
 	e.repeat(stmt, stmt.Body, header(e.pkg.Fset, stmt), out, en)
 }
 
-func (e *extractor) tasksRange(stmt *ast.RangeStmt, en scopeEnv) {
+func (e *extractor) tasksRange(stmt *ast.RangeStmt, out *[]workflow.Operation, en scopeEnv) {
 	selector, _ := unparen(stmt.X).(*ast.SelectorExpr)
 	obj := e.object(selector.X)
 	ref := e.loop[obj]
 	if ref == nil {
 		e.diag(stmt.X.Pos(), "a Tasks range over something other than a Loop declared in an enclosing body is not read")
+		return
+	}
+	if ref.ops != out {
+		e.diag(stmt.X.Pos(), "a Tasks range outside the body that declared its Loop is not read")
 		return
 	}
 	body := []workflow.Operation{}

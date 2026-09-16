@@ -264,7 +264,8 @@ func runTask(ctx context.Context, in Input, researcher, validator *gimble.Sessio
 		log.Printf("sprint: task %q did not validate, so its work stays uncommitted", task.Name)
 		return nil
 	}
-	if _, err := git(ctx, in, "add", "-A"); err != nil {
+	// Nothing a run writes under .gimble is ever committed.
+	if _, err := git(ctx, in, "add", "-A", "--", ".", ":!.gimble"); err != nil {
 		return err
 	}
 	if status, _ := git(ctx, in, "status", "--porcelain"); status == "" {

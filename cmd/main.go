@@ -1,4 +1,5 @@
-// Command gimble runs Gimble's project runtime and web application.
+// Command gimble runs Gimble's project runtime and web application, and
+// lists and runs the workflows built into it.
 package main
 
 import (
@@ -12,6 +13,8 @@ import (
 	"os/signal"
 	"strings"
 
+	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"github.com/tylergannon/gimble/internal/gimblelint"
 	"github.com/tylergannon/gimble/web"
 	"golang.org/x/tools/go/analysis/singlechecker"
@@ -51,8 +54,11 @@ func routeAnalysis(args []string) ([]string, bool) {
 }
 
 func isOrdinaryCLI(args []string) bool {
-	if len(args) > 0 && (args[0] == "run-prompt" || args[0] == "graph") {
-		return true
+	if len(args) > 0 {
+		switch args[0] {
+		case "run-prompt", "graph", "run", "ls":
+			return true
+		}
 	}
 	for _, arg := range args {
 		switch arg {
@@ -75,42 +81,78 @@ func isVetConfig(path string) bool {
 	return json.Unmarshal(data, &config) == nil && config.ImportPath != "" && config.GoFiles != nil
 }
 
+// run is the gimble command line: the server when no subcommand is given,
+// and ls, run, graph, and run-prompt. lint never reaches it, since main
+// routes it to the analyzer first.
 func run(args []string, stdout, stderr io.Writer, getenv func(string) string) error {
-	if len(args) > 0 && args[0] == "run-prompt" {
-		return runPrompt(args[1:], stdout, stderr, getenv)
-	}
-	if len(args) > 0 && args[0] == "graph" {
-		return runGraph(args[1:], stderr)
-	}
-	return runServer(args, stderr)
+	root := newRootCommand(stdout, stderr, getenv)
+	root.SetArgs(args)
+	return root.ExecuteContext(context.Background())
 }
 
-func runServer(args []string, stderr io.Writer) error {
-	flags := flag.NewFlagSet("gimble", flag.ContinueOnError)
-	flags.SetOutput(stderr)
-	port := flags.Int("port", 8080, "loopback TCP port for the web application")
-	uds := flags.String("uds", "", "Unix-domain socket for the web application instead of TCP")
-	noWeb := flags.Bool("no-web", false, "run without the web application")
-	if err := flags.Parse(args); err != nil {
-		return err
+func newRootCommand(stdout, stderr io.Writer, getenv func(string) string) *cobra.Command {
+	var server serverFlags
+	root := &cobra.Command{
+		Use:   "gimble",
+		Short: "Gimble's project runtime and web application",
+		Long: `Without a subcommand, gimble serves the runs under the current directory's
+.gimble on the web application and waits. gimble lint [packages] checks the
+workflow authoring rules, standalone or as a go vet tool.`,
+		Args:          cobra.NoArgs,
+		SilenceUsage:  true,
+		SilenceErrors: true,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return serve(cmd.Context(), server)
+		},
 	}
-	if flags.NArg() != 0 {
-		return fmt.Errorf("unexpected arguments: %v", flags.Args())
-	}
+	root.SetOut(stdout)
+	root.SetErr(stderr)
+	root.CompletionOptions.DisableDefaultCmd = true
+	server.bind(root.Flags())
+	root.AddCommand(newLsCommand(), newRunCommand(), &cobra.Command{
+		Use:                "graph -entry Entry -name name [-o file]",
+		Short:              "Write a workflow's graph and registration from its source; a package's go:generate directive runs it",
+		DisableFlagParsing: true,
+		RunE:               func(_ *cobra.Command, args []string) error { return runGraph(args, stderr) },
+	}, &cobra.Command{
+		Use:                "run-prompt [flags] PROMPT",
+		Short:              "Run one prompt on a harness and print the answer",
+		DisableFlagParsing: true,
+		RunE:               func(_ *cobra.Command, args []string) error { return runPrompt(args, stdout, stderr, getenv) },
+	})
+	return root
+}
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
-	defer stop()
+// serverFlags shape the web application of every command that runs one.
+type serverFlags struct {
+	port  int
+	uds   string
+	noWeb bool
+}
 
-	var options []web.Option
+func (f *serverFlags) bind(fs *pflag.FlagSet) {
+	fs.IntVar(&f.port, "port", 8080, "loopback TCP port for the web application")
+	fs.StringVar(&f.uds, "uds", "", "Unix-domain socket for the web application instead of TCP")
+	fs.BoolVar(&f.noWeb, "no-web", false, "run without the web application")
+}
+
+func (f *serverFlags) options() []web.Option {
 	switch {
-	case *noWeb:
-		options = append(options, web.WithNoWeb())
-	case *uds != "":
-		options = append(options, web.WithUDS(*uds))
+	case f.noWeb:
+		return []web.Option{web.WithNoWeb()}
+	case f.uds != "":
+		return []web.Option{web.WithUDS(f.uds)}
 	default:
-		options = append(options, web.WithPort(*port))
+		return []web.Option{web.WithPort(f.port)}
 	}
-	if _, err := web.NewRuntime(ctx, ".gimble", options...); err != nil {
+}
+
+// serve runs the web application over the current directory's project until
+// interrupted.
+func serve(ctx context.Context, server serverFlags) error {
+	ctx, stop := signal.NotifyContext(ctx, os.Interrupt)
+	defer stop()
+	if _, err := web.NewRuntime(ctx, ".gimble", server.options()...); err != nil {
 		return err
 	}
 	<-ctx.Done()

@@ -11,6 +11,7 @@ import (
 
 	"github.com/tylergannon/gimble"
 	"github.com/tylergannon/gimble/internal/graph"
+	"github.com/tylergannon/polytype"
 )
 
 // fake answers every prose turn with "done" and keeps each prompt.
@@ -63,7 +64,7 @@ func sprintRepo(t *testing.T) string {
 // with the test output in front of it.
 func TestExecuteBuildsThenTestsThenReports(t *testing.T) {
 	repo := sprintRepo(t)
-	f, err := run(t, Input{Sprint: 1, Repo: repo, Test: "echo ok"})
+	f, err := run(t, Input{Sprint: 1, Repo: repo, Test: present("echo ok")})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -82,7 +83,7 @@ func TestExecuteBuildsThenTestsThenReports(t *testing.T) {
 // TestExecuteFailsWhenTheTestsFail: the report is still made, and then the
 // run fails with the tests' exit code.
 func TestExecuteFailsWhenTheTestsFail(t *testing.T) {
-	f, err := run(t, Input{Sprint: 1, Repo: sprintRepo(t), Test: "exit 3"})
+	f, err := run(t, Input{Sprint: 1, Repo: sprintRepo(t), Test: present("exit 3")})
 	if err == nil || !strings.Contains(err.Error(), "the tests exited 3") {
 		t.Fatalf("err = %v, want the tests' exit code", err)
 	}
@@ -92,7 +93,7 @@ func TestExecuteFailsWhenTheTestsFail(t *testing.T) {
 }
 
 func TestExecuteNeedsTheSprintDocument(t *testing.T) {
-	_, err := run(t, Input{Sprint: 7, Repo: t.TempDir(), Test: "true"})
+	_, err := run(t, Input{Sprint: 7, Repo: t.TempDir()})
 	if err == nil || !strings.Contains(err.Error(), "no sprint document") {
 		t.Fatalf("err = %v, want no sprint document", err)
 	}
@@ -107,3 +108,6 @@ func TestGraphReadsWithoutDiagnostics(t *testing.T) {
 		t.Fatalf("the workflow reads without diagnostics, got %v", g.Diagnostics)
 	}
 }
+
+// present is an Optional that was given.
+func present[T any](v T) polytype.Optional[T] { return polytype.Optional[T]{Present: true, Value: v} }

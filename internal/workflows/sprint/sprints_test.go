@@ -8,9 +8,11 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/tylergannon/gimble"
+	"github.com/tylergannon/polytype"
 )
 
 // taskAdapter answers a worker's prose turn, a planner's dispatch (one task,
@@ -85,7 +87,7 @@ func TestRunTaskAssessesDefinitionOfDoneWithoutValidationRecipe(t *testing.T) {
 		planner := gimble.NewSession(ctx, "planner", repo)
 		loop := gimble.Loop(ctx, "sprint", "ship", planner)
 		for ctx, task := range loop.Tasks {
-			if err := runTask(ctx, Input{Sprint: 1, Repo: repo}, researcher, validator, task); err != nil {
+			if err := runTask(ctx, Input{Sprint: present(1), Repo: repo}, researcher, validator, task); err != nil {
 				return err
 			}
 		}
@@ -110,12 +112,55 @@ func TestRunTaskAssessesDefinitionOfDoneWithoutValidationRecipe(t *testing.T) {
 	}
 }
 
-// TestDryRunShowsEveryPromptAndKeepsFindingsOutOfTheGoal runs the workflow
-// dry on an issue file: no model and no command run, every prompt is printed
-// with its schema, the issue reaches each agent as an absolute local path,
-// and what the validator did not see working reaches the planner as scoped
-// context while the goal stays what it was.
-func TestDryRunShowsEveryPromptAndKeepsFindingsOutOfTheGoal(t *testing.T) {
+// scripted plays every role of a sprint on an issue file. Prose turns say
+// "done". A schema turn is answered by its kind, the first line of its
+// prompt: the planner dispatches one task on its first decision and ends
+// dispatch after; the validator's first assessment and first round check
+// each find one thing, and later ones find nothing. So the sprint runs one
+// task, a second round for the finding, and merges.
+type scripted struct {
+	mu      sync.Mutex
+	prompts []string
+	answers map[string]int // answers given per kind of prompt
+}
+
+func (*scripted) CreateSession(context.Context, string, string, string) (string, error) {
+	return "session", nil
+}
+
+func (s *scripted) RunTurn(_ context.Context, _ string, prompt string, schema json.RawMessage, _ func(gimble.AgentEvent) error) (gimble.TurnResult, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.prompts = append(s.prompts, prompt)
+	if len(schema) == 0 {
+		out, err := json.Marshal("done")
+		return gimble.TurnResult{Output: out}, err
+	}
+	kind, _, _ := strings.Cut(prompt, "\n")
+	s.answers[kind]++
+	first := s.answers[kind] == 1
+	if strings.HasPrefix(prompt, "You plan the loop") {
+		if first {
+			return gimble.TurnResult{Output: json.RawMessage(`{"tasks":[{"name":"hello","description":"Say hello.","definition_of_done":"hello prints.","validation":{"command":"","query":"Does it print?"}}],"next":0}`)}, nil
+		}
+		return gimble.TurnResult{Output: json.RawMessage(`{"tasks":[],"next":null}`)}, nil
+	}
+	if first {
+		return gimble.TurnResult{Output: json.RawMessage(`{"not_seen_working":["<example not_seen_working>"]}`)}, nil
+	}
+	return gimble.TurnResult{Output: json.RawMessage(`{"not_seen_working":[]}`)}, nil
+}
+
+func (*scripted) Steer(context.Context, string, string) (bool, error) { return false, nil }
+func (*scripted) Fork(context.Context, string) (string, error)        { return "fork", nil }
+func (*scripted) Close(context.Context, string) error                 { return nil }
+
+// TestEveryPromptIsLocalAndFindingsStayOutOfTheGoal runs the workflow on an
+// issue file through a scripted harness: the issue reaches each agent as an
+// absolute local path, the validator's prompt is one line with the
+// Validation section as context, what the validator did not see working
+// reaches the planner as scoped context, and the goal stays what it was.
+func TestEveryPromptIsLocalAndFindingsStayOutOfTheGoal(t *testing.T) {
 	repo := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(repo, "docs"), 0o755); err != nil {
 		t.Fatal(err)
@@ -127,21 +172,22 @@ func TestDryRunShowsEveryPromptAndKeepsFindingsOutOfTheGoal(t *testing.T) {
 	if err := os.WriteFile(issue, []byte("# Say hello\n\nPrint hello.\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	oldChecks := repositoryChecks
+	repositoryChecks = struct{ vet, test string }{}
+	t.Cleanup(func() { repositoryChecks = oldChecks })
 
-	var out strings.Builder
-	d := newDryRun(&out)
-	in := Input{Issue: issue, Repo: repo, Tasks: 10, DryRun: true}
-	err := gimble.Run(gimble.Project(t.Context(), t.TempDir()), "test", sprintModels(d, "dry"), func(ctx context.Context) error {
+	s := &scripted{answers: map[string]int{}}
+	in := Input{Issue: present(issue), Repo: repo}
+	err := gimble.Run(gimble.Project(t.Context(), t.TempDir()), "test", sprintModels(s, "test"), func(ctx context.Context) error {
 		return Sprint(ctx, in)
 	})
 	if err != nil {
-		t.Fatal(err, "\n", out.String())
+		t.Fatal(err)
 	}
 
-	prompts := dryPrompts(t, out.String())
 	want := "Read and implement the issue in " + issue + "."
 	var planner, validations, assessments []string
-	for _, prompt := range prompts {
+	for _, prompt := range s.prompts {
 		if strings.Contains(prompt, "gh issue view") {
 			t.Errorf("a prompt points at a remote source:\n%s", prompt)
 		}
@@ -155,20 +201,20 @@ func TestDryRunShowsEveryPromptAndKeepsFindingsOutOfTheGoal(t *testing.T) {
 		}
 	}
 	if len(assessments) == 0 {
-		t.Fatalf("no task assessment among %d prompts", len(prompts))
+		t.Fatalf("no task assessment among %d prompts", len(s.prompts))
 	}
 	for _, prompt := range assessments {
-		if !strings.Contains(prompt, "## the task under assessment") || !strings.Contains(prompt, "Answer this about it too:") {
+		if !strings.Contains(prompt, "## the task under assessment") || !strings.Contains(prompt, "Answer this about it too: Does it print?") {
 			t.Errorf("the task assessment is not shaped by its own template:\n%s", prompt)
 		}
-		if strings.Contains(prompt, "## input") || strings.Contains(prompt, `"dry_run"`) {
+		if strings.Contains(prompt, "## input") {
 			t.Errorf("the task assessment carries the run's own input record:\n%s", prompt)
 		}
 		if !strings.Contains(prompt, "## definition of done") {
 			t.Errorf("the task assessment lost a scoped value its template keeps:\n%s", prompt)
 		}
 	}
-	for i, prompt := range []string{prompts[0], planner[0], validations[0]} {
+	for i, prompt := range []string{s.prompts[0], planner[0], validations[0]} {
 		if !strings.Contains(prompt, want) {
 			t.Errorf("prompt %d does not name the issue file %q:\n%s", i, want, prompt)
 		}
@@ -184,7 +230,7 @@ func TestDryRunShowsEveryPromptAndKeepsFindingsOutOfTheGoal(t *testing.T) {
 			t.Errorf("the validator's prompt carries a Proof line:\n%s", prompt)
 		}
 		if !strings.Contains(prompt, "## definition of done\n\nDefinition of done (docs") {
-			t.Errorf("the validator's prompt lacks the definition of done, now delivered through scope:\n%s", prompt)
+			t.Errorf("the validator's prompt lacks the definition of done, delivered through scope:\n%s", prompt)
 		}
 		if !strings.Contains(prompt, "## Validation\n\nThe validation side is an agent.") {
 			t.Errorf("the validator's prompt lacks the Validation section:\n%s", prompt)
@@ -210,28 +256,25 @@ func TestDryRunShowsEveryPromptAndKeepsFindingsOutOfTheGoal(t *testing.T) {
 			t.Errorf("planner prompt %d informed of findings = %v:\n%s", i, informed, prompt)
 		}
 	}
-	if !strings.Contains(out.String(), "\"not_seen_working\"") || !strings.Contains(out.String(), "example answer (no model was called)") {
-		t.Errorf("the dry run does not show the schema or mark its answers:\n%s", out.String())
-	}
 	if entries, _ := os.ReadDir(repo); len(entries) != 2 {
-		t.Errorf("the dry run touched the repository: %v", entries)
+		t.Errorf("the run touched the repository: %v", entries)
 	}
 }
 
-// dryPrompts returns each prompt a dry run printed, in order.
-func dryPrompts(t *testing.T, out string) []string {
-	t.Helper()
-	var prompts []string
-	for _, turn := range strings.Split(out, "=== turn ")[1:] {
-		_, rest, ok := strings.Cut(turn, "--- prompt ---\n")
-		if !ok {
-			t.Fatalf("turn without a prompt:\n%s", turn)
+// TestSprintTakesASprintOrAnIssue: one of the two, never neither or both.
+func TestSprintTakesASprintOrAnIssue(t *testing.T) {
+	for _, in := range []Input{{}, {Sprint: present(1), Issue: present("issue.md")}} {
+		err := gimble.Run(gimble.Project(t.Context(), t.TempDir()), "test", sprintModels(&scripted{answers: map[string]int{}}, "test"), func(ctx context.Context) error {
+			return Sprint(ctx, in)
+		})
+		if err == nil || !strings.Contains(err.Error(), "give a sprint or an issue") {
+			t.Errorf("Sprint(%+v) = %v, want a refusal", in, err)
 		}
-		prompt, _, _ := strings.Cut(rest, "\n\n--- schema ---\n")
-		prompts = append(prompts, prompt)
 	}
-	return prompts
 }
+
+// present is an Optional that was given.
+func present[T any](v T) polytype.Optional[T] { return polytype.Optional[T]{Present: true, Value: v} }
 
 func TestWithoutProofDropsTheProofParagraph(t *testing.T) {
 	text := "## Sprint 3: the app\n\nShip: a page.\n\n- one\n- two\n\nProof: Sprint 4 is built by `cmd/sprint`\nfrom the form.\n\n`API.md`: Run."
@@ -293,7 +336,7 @@ func TestAValidatorTurnErrorFailsTheTaskAndTheLoopGoesOn(t *testing.T) {
 		planner := gimble.NewSession(ctx, "planner", repo)
 		loop := gimble.Loop(ctx, "sprint", "ship", planner)
 		for ctx, task := range loop.Tasks {
-			if err := runTask(ctx, Input{Sprint: 1, Repo: repo}, researcher, validator, task); err != nil {
+			if err := runTask(ctx, Input{Sprint: present(1), Repo: repo}, researcher, validator, task); err != nil {
 				return err
 			}
 		}
@@ -337,7 +380,7 @@ func TestACancelledContextStillEndsTheSprint(t *testing.T) {
 		for taskCtx, task := range loop.Tasks {
 			cancelled, cancel := context.WithCancel(taskCtx)
 			cancel()
-			if err := runTask(cancelled, Input{Sprint: 1, Repo: repo}, researcher, validator, task); err != nil {
+			if err := runTask(cancelled, Input{Sprint: present(1), Repo: repo}, researcher, validator, task); err != nil {
 				return err
 			}
 		}

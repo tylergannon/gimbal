@@ -244,6 +244,15 @@ func TestSourceWritesTheWorkflowsPackage(t *testing.T) {
 	if !strings.Contains(string(written), "\npackage fixture\n") {
 		t.Errorf("the generated file is in package fixture, got:\n%s", firstLines(string(written)))
 	}
+	for _, want := range []string{
+		"gimble.RegisterWorkflow(gimble.Registration{",
+		`Summary: "Fixture is the entry function the tests extract.",`,
+		"Run: func(ctx context.Context, _ json.RawMessage) error { return Fixture(ctx) },",
+	} {
+		if !strings.Contains(string(written), want) {
+			t.Errorf("the generated file does not register the workflow with %q:\n%s", want, written)
+		}
+	}
 }
 
 func firstLines(text string) string {

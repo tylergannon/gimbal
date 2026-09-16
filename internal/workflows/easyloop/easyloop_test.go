@@ -75,7 +75,7 @@ func run(t *testing.T, f *fake, in Input) error {
 func TestTheReviewerEndsTheLoop(t *testing.T) {
 	repo := t.TempDir()
 	f := &fake{plans: 5, metAt: 2}
-	if err := run(t, f, Input{Spec: repo + "/spec.md", Repo: repo, Tasks: 50}); err != nil {
+	if err := run(t, f, Input{Spec: repo + "/spec.md", Repo: repo}); err != nil {
 		t.Fatal(err)
 	}
 	if len(f.prompts) != 9 {
@@ -104,7 +104,7 @@ func TestTheReviewerEndsTheLoop(t *testing.T) {
 // reviewer has seen the spec met is not success.
 func TestThePlannerStoppingFirstFailsTheRun(t *testing.T) {
 	repo := t.TempDir()
-	err := run(t, &fake{plans: 1}, Input{Spec: repo + "/spec.md", Repo: repo, Tasks: 50})
+	err := run(t, &fake{plans: 1}, Input{Spec: repo + "/spec.md", Repo: repo})
 	if err == nil || !strings.Contains(err.Error(), "had not seen the spec met after 1 tasks") {
 		t.Fatalf("err = %v, want the reviewer's verdict to be missing", err)
 	}

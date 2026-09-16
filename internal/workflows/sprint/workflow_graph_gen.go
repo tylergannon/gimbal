@@ -3,103 +3,127 @@
 package sprint
 
 import (
+	"context"
+	"encoding/json"
+
 	"github.com/tylergannon/gimble"
 	"github.com/tylergannon/gimble/workflow"
 )
 
-func init() { gimble.RegisterGraph(Graph) }
+// The workflow registers itself when it is built: gimble lists it and runs it.
+func init() {
+	gimble.RegisterWorkflow(gimble.Registration{
+		Name:    "sprint",
+		Summary: "Sprint builds sprint in.Sprint, or issue in.Issue.",
+		Input:   (Input{}).Schema(),
+		Graph:   Graph,
+		Run: func(ctx context.Context, input json.RawMessage) error {
+			var in Input
+			if err := in.ValidateJSON(input); err != nil {
+				return err
+			}
+			if err := json.Unmarshal(input, &in); err != nil {
+				return err
+			}
+			return Sprint(ctx, in)
+		},
+	})
+}
 
 // Graph is the shape of this workflow, read from the source of Sprint.
 var Graph = workflow.Graph{
 	Name:   "sprint",
-	Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 60},
+	Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 59},
 	Body: []workflow.Operation{
-		workflow.Set{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 61}, Key: "input"},
-		workflow.Condition{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 153}, Branches: []workflow.Branch{
-			{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 153}, Case: "number, err := strconv.Atoi(in.Issue); err == nil", Exits: false, Body: []workflow.Operation{
-				workflow.Command{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 154}, Name: "issue"},
+		workflow.Condition{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 60}, Branches: []workflow.Branch{
+			{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 60}, Case: "in.Sprint.Present == in.Issue.Present", Exits: true, Body: []workflow.Operation{}},
+		}},
+		workflow.Set{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 64}, Key: "input"},
+		workflow.Condition{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 156}, Branches: []workflow.Branch{
+			{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 156}, Case: "number, err := strconv.Atoi(in.Issue.Value); err == nil", Exits: false, Body: []workflow.Operation{
+				workflow.Command{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 157}, Name: "issue"},
 			}},
 		}},
-		workflow.Set{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 71}, Key: "goal"},
-		workflow.Set{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 72}, Key: "definition of done"},
-		workflow.Set{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 73}, Key: "validation"},
-		workflow.Session{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 75}, Name: "researcher", From: ""},
-		workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 76}, Session: "researcher", Role: "researcher", Prompt: "You are about to lead the build of the goal below on this repository, Gimble, a Go library. Read AGENTS.md, docs/definition-of-done.md, ephemeral/research/api/API.md, ephemeral/research/api/SPRINTS.md, and the code the goal touches, until you know where everything it needs is. Change no files. Answer with a short summary of what exists and what the goal needs."},
-		workflow.Session{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 79}, Name: "planner", From: "researcher"},
-		workflow.Session{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 83}, Name: "validator", From: ""},
-		workflow.Repeat{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 90}, Cond: "round := 1; ; round++", Body: []workflow.Operation{
-			workflow.Scope{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 91}, Name: "round", Body: []workflow.Operation{
-				workflow.Condition{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 92}, Branches: []workflow.Branch{
-					{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 92}, Case: "len(findings) > 0", Exits: false, Body: []workflow.Operation{
-						workflow.Set{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 93}, Key: "what the validator did not see working"},
+		workflow.Set{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 74}, Key: "goal"},
+		workflow.Set{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 75}, Key: "definition of done"},
+		workflow.Set{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 76}, Key: "validation"},
+		workflow.Session{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 78}, Name: "researcher", From: ""},
+		workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 79}, Session: "researcher", Role: "researcher", Prompt: "You are about to lead the build of the goal below on this repository, Gimble, a Go library. Read AGENTS.md, docs/definition-of-done.md, ephemeral/research/api/API.md, ephemeral/research/api/SPRINTS.md, and the code the goal touches, until you know where everything it needs is. Change no files. Answer with a short summary of what exists and what the goal needs."},
+		workflow.Session{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 82}, Name: "planner", From: "researcher"},
+		workflow.Session{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 86}, Name: "validator", From: ""},
+		workflow.Repeat{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 93}, Cond: "round := 1; ; round++", Body: []workflow.Operation{
+			workflow.Scope{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 94}, Name: "round", Body: []workflow.Operation{
+				workflow.Condition{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 95}, Branches: []workflow.Branch{
+					{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 95}, Case: "len(findings) > 0", Exits: false, Body: []workflow.Operation{
+						workflow.Set{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 96}, Key: "what the validator did not see working"},
 					}},
 				}},
-				workflow.Loop{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 95}, Name: "sprint", Planner: "planner", Body: []workflow.Operation{
-					workflow.Condition{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 97}, Branches: []workflow.Branch{
-						{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 97}, Case: "tasks++; tasks > in.Tasks", Exits: true, Body: []workflow.Operation{}},
+				workflow.Loop{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 98}, Name: "sprint", Planner: "planner", Body: []workflow.Operation{
+					workflow.Condition{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 100}, Branches: []workflow.Branch{
+						{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 100}, Case: "tasks++; tasks > limit", Exits: true, Body: []workflow.Operation{}},
 					}},
-					workflow.Session{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 224}, Name: "coder", From: "researcher"},
-					workflow.Session{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 228}, Name: "supervisor", From: ""},
-					workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 229}, Session: "coder", Role: "researcher", Prompt: "Complete the task in the scoped context, following AGENTS.md and ephemeral/research/api/API.md. Demonstrate the result and leave the work uncommitted. Answer with a short summary of what changed and the evidence you gathered.", Supervisors: []workflow.Supervisor{
-						{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 230}, Session: "supervisor", Role: "supervisor", Instruction: "Don't let it build what its task does not ask for, over-engineer what it does build, or break a rule in AGENTS.md. Object to nothing else: code quality and style are not yours to judge."},
+					workflow.Session{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 227}, Name: "coder", From: "researcher"},
+					workflow.Session{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 231}, Name: "supervisor", From: ""},
+					workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 232}, Session: "coder", Role: "researcher", Prompt: "Complete the task in the scoped context, following AGENTS.md and ephemeral/research/api/API.md. Demonstrate the result and leave the work uncommitted. Answer with a short summary of what changed and the evidence you gathered.", Supervisors: []workflow.Supervisor{
+						{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 233}, Session: "supervisor", Role: "supervisor", Instruction: "Don't let it build what its task does not ask for, over-engineer what it does build, or break a rule in AGENTS.md. Object to nothing else: code quality and style are not yours to judge."},
 					}},
-					workflow.Set{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 235}, Key: "worker result"},
-					workflow.Condition{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 237}, Branches: []workflow.Branch{
-						{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 237}, Case: "workErr != nil", Exits: false, Body: []workflow.Operation{
-							workflow.Set{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 238}, Key: "worker error"},
+					workflow.Set{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 238}, Key: "worker result"},
+					workflow.Condition{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 240}, Branches: []workflow.Branch{
+						{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 240}, Case: "workErr != nil", Exits: false, Body: []workflow.Operation{
+							workflow.Set{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 241}, Key: "worker error"},
 						}},
 					}},
-					workflow.Condition{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 242}, Branches: []workflow.Branch{
-						{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 242}, Case: "strings.TrimSpace(task.Validation.Command) != \"\"", Exits: false, Body: []workflow.Operation{
+					workflow.Condition{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 245}, Branches: []workflow.Branch{
+						{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 245}, Case: "strings.TrimSpace(task.Validation.Command) != \"\"", Exits: false, Body: []workflow.Operation{
 							workflow.Command{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 314}, Name: "check"},
-							workflow.Set{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 247}, Key: "task command"},
+							workflow.Set{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 250}, Key: "task command"},
 						}},
 					}},
-					workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 252}, Session: "validator", Role: "validator", Prompt: "Assess the task using the recorded result and evidence, against the definition of done and the task's own terms below.\n\nList what that evidence does not show working at the repository's 90-95% readiness standard, and nothing else; an empty list passes the task. A passing agent judgment cannot override a failed deterministic check. The work is uncommitted by design: the workflow commits it once you pass it, so its being uncommitted is never a finding. Nor is how the work is written: legitimacy of the evidence is yours to judge, code quality and style are not."},
-					workflow.Set{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 256}, Key: "task assessment"},
-					workflow.Condition{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 260}, Branches: []workflow.Branch{
-						{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 260}, Case: "repositoryChecks.vet != \"\"", Exits: false, Body: []workflow.Operation{
+					workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 255}, Session: "validator", Role: "validator", Prompt: "Assess the task using the recorded result and evidence, against the definition of done and the task's own terms below.\n\nList what that evidence does not show working at the repository's 90-95% readiness standard, and nothing else; an empty list passes the task. A passing agent judgment cannot override a failed deterministic check. The work is uncommitted by design: the workflow commits it once you pass it, so its being uncommitted is never a finding. Nor is how the work is written: legitimacy of the evidence is yours to judge, code quality and style are not."},
+					workflow.Set{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 259}, Key: "task assessment"},
+					workflow.Condition{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 263}, Branches: []workflow.Branch{
+						{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 263}, Case: "repositoryChecks.vet != \"\"", Exits: false, Body: []workflow.Operation{
 							workflow.Command{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 314}, Name: "check"},
-							workflow.Set{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 265}, Key: "repository vet check"},
+							workflow.Set{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 268}, Key: "repository vet check"},
 						}},
 					}},
-					workflow.Condition{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 270}, Branches: []workflow.Branch{
-						{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 270}, Case: "repositoryChecks.test != \"\"", Exits: false, Body: []workflow.Operation{
+					workflow.Condition{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 273}, Branches: []workflow.Branch{
+						{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 273}, Case: "repositoryChecks.test != \"\"", Exits: false, Body: []workflow.Operation{
 							workflow.Command{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 314}, Name: "check"},
-							workflow.Set{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 275}, Key: "repository test check"},
+							workflow.Set{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 278}, Key: "repository test check"},
 						}},
 					}},
-					workflow.Condition{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 284}, Branches: []workflow.Branch{
-						{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 284}, Case: "passed", Exits: false, Body: []workflow.Operation{
-							workflow.Command{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 382}, Name: "git"},
-							workflow.Command{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 382}, Name: "git"},
-							workflow.Condition{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 290}, Branches: []workflow.Branch{
-								{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 290}, Case: "status == \"\"", Exits: false, Body: []workflow.Operation{}},
-								{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 292}, Case: "", Exits: false, Body: []workflow.Operation{
-									workflow.Command{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 382}, Name: "git"},
+					workflow.Condition{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 287}, Branches: []workflow.Branch{
+						{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 287}, Case: "passed", Exits: false, Body: []workflow.Operation{
+							workflow.Command{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 378}, Name: "git"},
+							workflow.Command{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 378}, Name: "git"},
+							workflow.Condition{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 293}, Branches: []workflow.Branch{
+								{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 293}, Case: "status == \"\"", Exits: false, Body: []workflow.Operation{}},
+								{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 295}, Case: "", Exits: false, Body: []workflow.Operation{
+									workflow.Command{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 378}, Name: "git"},
 								}},
 							}},
 						}},
-						{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 302}, Case: "", Exits: false, Body: []workflow.Operation{}},
+						{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 305}, Case: "", Exits: false, Body: []workflow.Operation{}},
 					}},
-					workflow.Condition{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 216}, Branches: []workflow.Branch{
-						{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 216}, Case: "err != nil", Exits: false, Body: []workflow.Operation{
-							workflow.Set{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 217}, Key: "task error"},
+					workflow.Condition{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 219}, Branches: []workflow.Branch{
+						{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 219}, Case: "err != nil", Exits: false, Body: []workflow.Operation{
+							workflow.Set{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 220}, Key: "task error"},
 						}},
 					}},
 				}},
 			}},
-			workflow.Condition{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 109}, Branches: []workflow.Branch{
-				{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 109}, Case: "tasks > in.Tasks", Exits: true, Body: []workflow.Operation{}},
+			workflow.Condition{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 112}, Branches: []workflow.Branch{
+				{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 112}, Case: "tasks > limit", Exits: true, Body: []workflow.Operation{}},
 			}},
-			workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 112}, Session: "validator", Role: "validator", Prompt: "Check this repository as the Validation section below says, changing no files and committing nothing, and report what you did not see working of the goal below."},
-			workflow.Condition{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 117}, Branches: []workflow.Branch{
-				{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 117}, Case: "len(findings) == 0", Exits: true, Body: []workflow.Operation{}},
+			workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 115}, Session: "validator", Role: "validator", Prompt: "Check this repository as the Validation section below says, changing no files and committing nothing, and report what you did not see working of the goal below."},
+			workflow.Condition{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 120}, Branches: []workflow.Branch{
+				{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 120}, Case: "len(findings) == 0", Exits: true, Body: []workflow.Operation{}},
 			}},
-			workflow.Condition{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 121}, Branches: []workflow.Branch{
-				{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 121}, Case: "round == 3", Exits: true, Body: []workflow.Operation{}},
+			workflow.Condition{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 124}, Branches: []workflow.Branch{
+				{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 124}, Case: "round == 3", Exits: true, Body: []workflow.Operation{}},
 			}},
 		}},
-		workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 128}, Session: "planner", Role: "researcher", Prompt: "The validator saw the goal working, so finish as docs/definition-of-done.md says. File each quirk and bug left as a GitHub issue with gh issue create, skipping any that gh issue list already has. Then push this branch, open a pull request for it with gh pr create that says what was built, how it was seen working, and which issues it left, and merge it with gh pr merge --squash. Answer with the pull request's URL and the issues you filed."},
+		workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/sprint/sprints.go", Line: 131}, Session: "planner", Role: "researcher", Prompt: "The validator saw the goal working, so finish as docs/definition-of-done.md says. File each quirk and bug left as a GitHub issue with gh issue create, skipping any that gh issue list already has. Then push this branch, open a pull request for it with gh pr create that says what was built, how it was seen working, and which issues it left, and merge it with gh pr merge --squash. Answer with the pull request's URL and the issues you filed."},
 	},
 }

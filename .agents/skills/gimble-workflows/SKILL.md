@@ -101,40 +101,31 @@ Each is a compiling `Example` in the root package (`example_test.go`,
 
 ## Run and watch
 
-A workflow is a `package main` (see `cmd/sprint/main.go`):
+A workflow is a package under `internal/workflows/` whose entry is
+`func Name(ctx context.Context, in Input) error`, with `Input` declared for
+polytype the way `internal/workflows/sprint/schema.go` does, and two
+directives: `go tool polytype --validate` and
+`go run github.com/tylergannon/gimble/cmd graph -entry Name -name name`.
+`go generate` writes its schema and its graph, and the graph file registers
+the workflow from its init; a blank import in `cmd/workflows.go` builds it
+into the binary. Then:
 
-```go
-ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
-defer stop()
-runtime, err := web.NewRuntime(ctx, filepath.Join(repo, ".gimble"), web.WithPort(8080))
-err = runtime.Run(ctx, "bakeoff", func(ctx context.Context) error { ... })
+```sh
+gimble ls
+gimble run <workflow> --help
+gimble run sprint --issue /abs/168.md --model gpt-5.6-luna --validator claude-haiku-4-5-20251001
 ```
 
-The log's first line is `gimble: run <id> started in <dir>`; the page is
+`gimble run` reads a workflow's flags from the workflow: one per field of
+its input, required unless the field is a `polytype.Optional`, with
+`--repo` for the repository (default the current directory); one per role
+its graph names, `--<role> model[:effort]`, with `--model` for every role
+not given its own; and `--port`, `--uds`, or `--no-web` for the page. The
+log's first line is `gimble: run <id> started in <dir>`; the page is
 `http://127.0.0.1:8080/runs/<id>`, live while it runs and after. Ctrl-C
-cancels the ctx, which interrupts every turn. `web.WithNoWeb()` runs without
-the page. `go run ./cmd/sprint -dry-run -issue <file>` shows the sprint
-workflow's prompts and schemas without calling a model; a new workflow that
-wants that writes a fake `HarnessAdapter` the way `internal/workflows/sprint/dryrun.go`
-does. `just vet` and `just test` are the repository's checks.
-
-The df-* skills are translated one workflow each, under `internal/workflows/`
-with a main under `cmd/`: `execute` (df-sprint-execute: one worker builds a
-planned sprint, then the tests run), `easyloop` (df-easy-loop-simple on
-`Loop`: plan, critique, revise, then a coder per task and a reviewer who runs
-the software and ends the loop), and `plan` (df-sprint-plan: three lanes
-draft and critique in two `Group`s, the run waits for the person's answers
-file, the planner merges). Each is about a page, and each package's graph
-is generated beside it by `go generate`.
-
-The df-* skills are translated one workflow each, under `internal/workflows/`
-with a main under `cmd/`: `execute` (df-sprint-execute: one worker builds a
-planned sprint, then the tests run), `easyloop` (df-easy-loop-simple on
-`Loop`: plan, critique, revise, then a coder per task and a reviewer who runs
-the software and ends the loop), and `plan` (df-sprint-plan: three lanes
-draft and critique in two `Group`s, the run waits for the person's answers
-file, the planner merges). Each is about a page, and each package's graph
-is generated beside it by `go generate`.
+cancels the ctx, which interrupts every turn. To read a workflow's prompts
+without a model, read its graph: every prompt is in it, verbatim. `just vet`
+and `just test` are the repository's checks.
 
 ## Read the record
 

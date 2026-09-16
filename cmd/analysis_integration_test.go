@@ -38,11 +38,15 @@ func TestBinaryAnalysisAndOrdinaryCLIRoutes(t *testing.T) {
 	if err := os.WriteFile(config, []byte(`{"ImportPath":"example.com/p","GoFiles":[]}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	for _, args := range [][]string{{"run-prompt", "-h", config}, {"-h", "-uds", config}} {
-		stdout, stderr, code = runCommand(t, repo, binary, args...)
-		if code != 0 || stdout != "" || !strings.Contains(stderr, "Usage of gimble") || strings.Contains(stderr, "gimblelint") {
-			t.Fatalf("ordinary CLI %q = exit %d\nstdout:\n%s\nstderr:\n%s", args, code, stdout, stderr)
-		}
+	args := []string{"run-prompt", "-h", config}
+	stdout, stderr, code = runCommand(t, repo, binary, args...)
+	if code != 0 || stdout != "" || !strings.Contains(stderr, "Usage of gimble") || strings.Contains(stderr, "gimblelint") {
+		t.Fatalf("ordinary CLI %q = exit %d\nstdout:\n%s\nstderr:\n%s", args, code, stdout, stderr)
+	}
+	args = []string{"--help", "--uds", config}
+	stdout, stderr, code = runCommand(t, repo, binary, args...)
+	if code != 0 || stderr != "" || !strings.Contains(stdout, "Usage:") || strings.Contains(stdout, "gimblelint") {
+		t.Fatalf("ordinary CLI %q = exit %d\nstdout:\n%s\nstderr:\n%s", args, code, stdout, stderr)
 	}
 }
 

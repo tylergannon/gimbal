@@ -10,10 +10,10 @@
 package sprint
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -21,6 +21,7 @@ import (
 	"strings"
 
 	"github.com/tylergannon/gimble"
+	"github.com/tylergannon/polytype"
 )
 
 //go:generate go tool polytype --validate
@@ -28,16 +29,14 @@ import (
 
 // Input starts a sprint.
 type Input struct {
-	// The sprint to build: its number in ephemeral/research/api/SPRINTS.md, e.g. 2. Zero when an issue is built instead.
-	Sprint int `json:"sprint"`
-	// The issue to build instead of a sprint: a GitHub issue number, or the path of a file holding the issue's text. Empty when a sprint is built.
-	Issue string `json:"issue"`
+	// The sprint to build: its number in ephemeral/research/api/SPRINTS.md, e.g. 2. Give this or an issue.
+	Sprint polytype.Optional[int] `json:"sprint,omitzero"`
+	// The issue to build instead of a sprint: a GitHub issue number, or the path of a file holding the issue's text.
+	Issue polytype.Optional[string] `json:"issue,omitzero"`
 	// Absolute path of the repository. Each validated task is committed to the branch checked out there, and the sprint ends by merging that branch.
 	Repo string `json:"repo"`
-	// The most tasks to run in all. The sprint fails if the planner is not done by then.
-	Tasks int `json:"tasks"`
-	// Call no model and run no command: print each prompt with the schema it would send, answered with an example value, so every prompt can be read before a real run. A viewer, never proof.
-	DryRun bool `json:"dry_run"`
+	// The most tasks to run in all; absent means 10. The sprint fails if the planner is not done by then.
+	Tasks polytype.Optional[int] `json:"tasks,omitzero"`
 }
 
 // review is what the validator reports.
@@ -58,6 +57,10 @@ var repositoryChecks = struct {
 // which the run binds: researcher, whose conversation the planner and the
 // coders fork; validator; and supervisor.
 func Sprint(ctx context.Context, in Input) error {
+	if in.Sprint.Present == in.Issue.Present {
+		return errors.New("sprint: give a sprint or an issue, not both")
+	}
+	limit := cmp.Or(in.Tasks.Value, 10)
 	gimble.SetJSON(ctx, "input", in)
 	text, err := goalText(ctx, in)
 	if err != nil {
@@ -94,7 +97,7 @@ func Sprint(ctx context.Context, in Input) error {
 			}
 			loop := gimble.Loop(ctx, "sprint", goal, planner)
 			for ctx, task := range loop.Tasks {
-				if tasks++; tasks > in.Tasks {
+				if tasks++; tasks > limit {
 					break
 				}
 				if err := runTask(ctx, in, researcher, validator, task); err != nil {
@@ -106,8 +109,8 @@ func Sprint(ctx context.Context, in Input) error {
 		if err != nil {
 			return err
 		}
-		if tasks > in.Tasks {
-			return fmt.Errorf("sprint: the planner was not done after %d tasks", in.Tasks)
+		if tasks > limit {
+			return fmt.Errorf("sprint: the planner was not done after %d tasks", limit)
 		}
 		review, err := validator.Generate[review](ctx, validatePrompt)
 		if err != nil {
@@ -138,19 +141,19 @@ func Sprint(ctx context.Context, in Input) error {
 // number is fetched with gh and written under the repository's .gimble
 // directory first, so every agent reads it from the file.
 func goalText(ctx context.Context, in Input) (string, error) {
-	if in.Issue == "" {
+	if !in.Issue.Present {
 		plan, err := os.ReadFile(filepath.Join(in.Repo, "ephemeral/research/api/SPRINTS.md"))
 		if err != nil {
 			return "", err
 		}
-		text, ok := section(string(plan), fmt.Sprintf("## Sprint %d:", in.Sprint))
+		text, ok := section(string(plan), fmt.Sprintf("## Sprint %d:", in.Sprint.Value))
 		if !ok {
-			return "", fmt.Errorf("sprint: SPRINTS.md has no Sprint %d", in.Sprint)
+			return "", fmt.Errorf("sprint: SPRINTS.md has no Sprint %d", in.Sprint.Value)
 		}
 		return text, nil
 	}
-	file := in.Issue
-	if number, err := strconv.Atoi(in.Issue); err == nil {
+	file := in.Issue.Value
+	if number, err := strconv.Atoi(in.Issue.Value); err == nil {
 		code, out, stderr, err := gimble.RunCommand(ctx, "issue", in.Repo, "gh", "issue", "view", strconv.Itoa(number), "--json", "title,body", "-t", `# {{.title}}{{"\n\n"}}{{.body}}{{"\n"}}`)
 		if err == nil && code != 0 {
 			err = fmt.Errorf("exit %d: %s", code, strings.TrimSpace(stderr))
@@ -290,9 +293,9 @@ func attemptTask(ctx context.Context, in Input, researcher, validator *gimble.Se
 		if status == "" {
 			log.Printf("sprint: task %q: nothing to commit", task.Name)
 		} else {
-			message := fmt.Sprintf("Sprint %d: %s\n\n%s", in.Sprint, task.Name, task.Description)
-			if in.Issue != "" {
-				message = fmt.Sprintf("Issue %s: %s\n\n%s", in.Issue, task.Name, task.Description)
+			message := fmt.Sprintf("Sprint %d: %s\n\n%s", in.Sprint.Value, task.Name, task.Description)
+			if in.Issue.Present {
+				message = fmt.Sprintf("Issue %s: %s\n\n%s", in.Issue.Value, task.Name, task.Description)
 			}
 			if _, err := git(ctx, in, "commit", "-m", message); err != nil {
 				return err
@@ -306,11 +309,8 @@ func attemptTask(ctx context.Context, in Input, researcher, validator *gimble.Se
 }
 
 // command runs text with sh in the repository and returns its exit code and
-// its output. A dry run runs nothing.
+// its output.
 func command(ctx context.Context, in Input, text string) (int, string, error) {
-	if in.DryRun {
-		return 0, "(dry run: not run)\n", nil
-	}
 	code, stdout, stderr, err := gimble.RunCommand(ctx, "check", in.Repo, "sh", "-c", text)
 	if err != nil {
 		return 0, "", fmt.Errorf("sprint: command %q: %w", text, err)
@@ -373,12 +373,8 @@ func section(doc, heading string) (string, bool) {
 	return strings.TrimSpace(heading + body), true
 }
 
-// git runs git in the repository and returns its trimmed output. A dry run
-// runs nothing and returns nothing.
+// git runs git in the repository and returns its trimmed output.
 func git(ctx context.Context, in Input, args ...string) (string, error) {
-	if in.DryRun {
-		return "", nil
-	}
 	code, stdout, stderr, err := gimble.RunCommand(ctx, "git", in.Repo, "git", args...)
 	if err == nil && code != 0 {
 		err = fmt.Errorf("exit %d: %s", code, strings.TrimSpace(stdout+stderr))
@@ -387,13 +383,4 @@ func git(ctx context.Context, in Input, args ...string) (string, error) {
 		return "", fmt.Errorf("git %s: %w", strings.Join(args, " "), err)
 	}
 	return strings.TrimSpace(stdout), nil
-}
-
-// NewDryRun is the harness of a dry run: it calls no model and writes each
-// turn's prompt and schema to w. A run binds every role to it for -dry-run.
-func NewDryRun(w io.Writer) gimble.HarnessAdapter { return newDryRun(w) }
-
-// newDryRun is the harness of a dry run: it writes each turn to w.
-func newDryRun(w io.Writer) *dryRun {
-	return &dryRun{w: w, models: make(map[string]string), answered: make(map[string]int)}
 }

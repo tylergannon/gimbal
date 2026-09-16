@@ -5,6 +5,7 @@
 package execute
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"log"
@@ -13,18 +14,20 @@ import (
 	"strings"
 
 	"github.com/tylergannon/gimble"
+	"github.com/tylergannon/polytype"
 )
 
+//go:generate go tool polytype --validate
 //go:generate go run github.com/tylergannon/gimble/cmd graph -entry Execute -name execute
 
 // Input starts the execute workflow.
 type Input struct {
 	// The sprint to execute: NNN of docs/sprints/SPRINT-NNN.md.
-	Sprint int
+	Sprint int `json:"sprint"`
 	// Absolute path of the repository the sprint is built in.
-	Repo string
-	// The repository's test command, run with sh -c after the worker finishes.
-	Test string
+	Repo string `json:"repo"`
+	// The repository's test command, run with sh -c after the worker finishes; absent means go test ./...
+	Test polytype.Optional[string] `json:"test,omitzero"`
 }
 
 // Execute builds sprint in.Sprint. It names one role, worker, which the run
@@ -42,7 +45,8 @@ func Execute(ctx context.Context, in Input) error {
 		return err
 	}
 
-	code, stdout, stderr, err := gimble.RunCommand(ctx, "tests", in.Repo, "sh", "-c", in.Test)
+	test := cmp.Or(in.Test.Value, "go test ./...")
+	code, stdout, stderr, err := gimble.RunCommand(ctx, "tests", in.Repo, "sh", "-c", test)
 	if err != nil {
 		return err
 	}
@@ -50,7 +54,7 @@ func Execute(ctx context.Context, in Input) error {
 	if len(output) > 3000 {
 		output = "[...]" + strings.ToValidUTF8(output[len(output)-3000:], "")
 	}
-	gimble.Set(ctx, "tests", fmt.Sprintf("$ %s\nexit %d\n%s", in.Test, code, output))
+	gimble.Set(ctx, "tests", fmt.Sprintf("$ %s\nexit %d\n%s", test, code, output))
 	report, err := worker.Generate[gimble.Text](ctx, reportPrompt)
 	if err != nil {
 		return err

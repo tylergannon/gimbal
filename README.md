@@ -37,6 +37,19 @@ just dev-web
 just dev-go
 ```
 
+## Run a workflow
+
+The same binary lists and runs the workflows built into it:
+
+```sh
+./bin/gimble ls
+./bin/gimble run <workflow> --help
+```
+
+`gimble run` reads a workflow's flags from the workflow itself: one per field
+of its input struct, and one model flag per role its graph names. `--repo` is
+the repository it runs in, whose `.gimble` holds the run, served as above.
+
 ## Lint workflows
 
 The distributed `gimble` binary also checks deterministic workflow authoring

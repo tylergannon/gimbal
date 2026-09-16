@@ -1,0 +1,6 @@
+{"type":"object",
+"description":"Input starts the easy loop.","properties":{
+"spec":{"type":"string","description":"Path of the spec document that says what is being built."},
+"repo":{"type":"string","description":"Absolute path of the repository the work is done in."},
+"tasks":{"type":"integer","description":"The most tasks to run in all; absent means 50."}
+},"required":["spec","repo"],"additionalProperties":false}

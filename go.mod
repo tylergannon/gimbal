@@ -16,6 +16,8 @@ require (
 	github.com/oklog/ulid/v2 v2.1.2
 	github.com/roasbeef/claude-agent-sdk-go v1.1.1-0.20260713164230-efdbecd88a98
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2
+	github.com/spf13/cobra v1.10.2
+	github.com/spf13/pflag v1.0.10
 	github.com/tylergannon/polytype v1.0.3
 	github.com/tylergannon/skgo v0.4.1
 	golang.org/x/sync v0.23.0
@@ -31,6 +33,7 @@ require (
 	github.com/dop251/goja_nodejs v0.0.0-20260212111938-1f56ff5bcf14 // indirect
 	github.com/go-sourcemap/sourcemap v2.1.4+incompatible // indirect
 	github.com/google/pprof v0.0.0-20260906184651-6331bc6350fe // indirect
+	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/tylergannon/structtag v0.1.0 // indirect
 	golang.org/x/mod v0.41.0 // indirect

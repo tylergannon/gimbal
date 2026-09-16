@@ -7,6 +7,7 @@ package graph
 import (
 	"fmt"
 	"go/ast"
+	"go/doc"
 	"go/token"
 	"go/types"
 	"maps"
@@ -22,10 +23,11 @@ const gimblePath = "github.com/tylergannon/gimble"
 // Extract loads the package in dir and returns the graph of the workflow its
 // function entry writes, under the name name.
 func Extract(dir, entry, name string) (workflow.Graph, error) {
-	return extract(dir, entry, name, nil)
+	graph, _, err := extract(dir, entry, name, nil)
+	return graph, err
 }
 
-func extract(dir, entry, name string, overlay map[string][]byte) (workflow.Graph, error) {
+func extract(dir, entry, name string, overlay map[string][]byte) (workflow.Graph, entryInfo, error) {
 	config := &packages.Config{
 		Mode: packages.NeedName | packages.NeedFiles | packages.NeedCompiledGoFiles |
 			packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo |
@@ -35,18 +37,22 @@ func extract(dir, entry, name string, overlay map[string][]byte) (workflow.Graph
 	}
 	loaded, err := packages.Load(config, ".")
 	if err != nil {
-		return workflow.Graph{}, fmt.Errorf("graph: %w", err)
+		return workflow.Graph{}, entryInfo{}, fmt.Errorf("graph: %w", err)
 	}
 	if len(loaded) != 1 {
-		return workflow.Graph{}, fmt.Errorf("graph: %s holds %d packages", dir, len(loaded))
+		return workflow.Graph{}, entryInfo{}, fmt.Errorf("graph: %s holds %d packages", dir, len(loaded))
 	}
 	pkg := loaded[0]
 	if len(pkg.Errors) > 0 {
-		return workflow.Graph{}, fmt.Errorf("graph: %s: %v", pkg.PkgPath, pkg.Errors[0])
+		return workflow.Graph{}, entryInfo{}, fmt.Errorf("graph: %s: %v", pkg.PkgPath, pkg.Errors[0])
 	}
 	decl := findFunc(pkg, entry)
 	if decl == nil || decl.Body == nil {
-		return workflow.Graph{}, fmt.Errorf("graph: %s has no function %s with a body", pkg.PkgPath, entry)
+		return workflow.Graph{}, entryInfo{}, fmt.Errorf("graph: %s has no function %s with a body", pkg.PkgPath, entry)
+	}
+	info, err := describe(pkg, decl)
+	if err != nil {
+		return workflow.Graph{}, entryInfo{}, err
 	}
 	module, modulePath := "", ""
 	if pkg.Module != nil {
@@ -69,7 +75,40 @@ func extract(dir, entry, name string, overlay map[string][]byte) (workflow.Graph
 		Source:      e.at(decl.Pos()),
 		Body:        body,
 		Diagnostics: e.diagnostics,
-	}, nil
+	}, info, nil
+}
+
+// entryInfo is what the generated registration needs about the entry besides
+// its body: the name of its input type, empty for an entry that takes only a
+// ctx, and the first sentence of its doc comment.
+type entryInfo struct{ input, summary string }
+
+// describe reads the entry's signature and doc comment. An entry takes a ctx
+// and at most one input, a type of its own package that polytype has given a
+// Schema method, so a run can be started from the input's JSON.
+func describe(pkg *packages.Package, decl *ast.FuncDecl) (entryInfo, error) {
+	info := entryInfo{summary: (&doc.Package{}).Synopsis(decl.Doc.Text())}
+	fn, ok := pkg.TypesInfo.Defs[decl.Name].(*types.Func)
+	if !ok {
+		return info, fmt.Errorf("graph: %s has no type", decl.Name.Name)
+	}
+	params := fn.Type().(*types.Signature).Params()
+	switch params.Len() {
+	case 1:
+		return info, nil
+	case 2:
+		named, ok := params.At(1).Type().(*types.Named)
+		if !ok || named.Obj().Pkg() != pkg.Types {
+			return info, fmt.Errorf("graph: %s's input is %s, not a type of its own package", decl.Name.Name, params.At(1).Type())
+		}
+		if obj, _, _ := types.LookupFieldOrMethod(named, true, pkg.Types, "Schema"); obj == nil {
+			return info, fmt.Errorf("graph: %s's input type %s has no Schema method: declare it for polytype and generate that first", decl.Name.Name, named.Obj().Name())
+		}
+		info.input = named.Obj().Name()
+		return info, nil
+	default:
+		return info, fmt.Errorf("graph: %s takes %d parameters; an entry takes a ctx and at most one input", decl.Name.Name, params.Len())
+	}
 }
 
 // binding is what an identifier of session type stands for: the name the

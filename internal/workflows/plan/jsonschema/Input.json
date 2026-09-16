@@ -1,0 +1,6 @@
+{"type":"object",
+"description":"Input starts the plan workflow.","properties":{
+"sprint":{"type":"integer","description":"The sprint to plan: NNN of the docs/sprints/SPRINT-NNN.md it writes."},
+"seed":{"type":"string","description":"What the sprint should be about, in a sentence or a paragraph."},
+"repo":{"type":"string","description":"Absolute path of the repository."}
+},"required":["sprint","seed","repo"],"additionalProperties":false}

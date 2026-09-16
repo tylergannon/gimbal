@@ -16,16 +16,17 @@ import (
 	"github.com/tylergannon/gimble"
 )
 
+//go:generate go tool polytype --validate
 //go:generate go run github.com/tylergannon/gimble/cmd graph -entry Plan -name plan
 
 // Input starts the plan workflow.
 type Input struct {
 	// The sprint to plan: NNN of the docs/sprints/SPRINT-NNN.md it writes.
-	Sprint int
+	Sprint int `json:"sprint"`
 	// What the sprint should be about, in a sentence or a paragraph.
-	Seed string
+	Seed string `json:"seed"`
 	// Absolute path of the repository.
-	Repo string
+	Repo string `json:"repo"`
 }
 
 // Plan writes docs/sprints/SPRINT-NNN.md for in.Sprint. It names four roles,

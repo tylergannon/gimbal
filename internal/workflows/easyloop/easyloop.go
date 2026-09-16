@@ -7,6 +7,7 @@
 package easyloop
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"log"
@@ -15,6 +16,7 @@ import (
 	"strings"
 
 	"github.com/tylergannon/gimble"
+	"github.com/tylergannon/polytype"
 )
 
 //go:generate go tool polytype --validate
@@ -22,12 +24,12 @@ import (
 
 // Input starts the easy loop.
 type Input struct {
-	// Absolute path of the spec document that says what is being built.
-	Spec string
+	// Path of the spec document that says what is being built.
+	Spec string `json:"spec"`
 	// Absolute path of the repository the work is done in.
-	Repo string
-	// The most tasks to run in all.
-	Tasks int
+	Repo string `json:"repo"`
+	// The most tasks to run in all; absent means 50.
+	Tasks polytype.Optional[int] `json:"tasks,omitzero"`
 }
 
 // review is what the reviewer reports after a task.
@@ -43,11 +45,16 @@ const goal = "Build what the spec document asks, as updated-plan.md in the plan 
 // EasyLoop builds what in.Spec asks. It names four roles, which the run
 // binds: planner, critic, coder, and reviewer.
 func EasyLoop(ctx context.Context, in Input) error {
-	plans := filepath.Join(in.Repo, "docs", "plans", strings.TrimSuffix(filepath.Base(in.Spec), filepath.Ext(in.Spec)))
+	spec, err := filepath.Abs(in.Spec)
+	if err != nil {
+		return err
+	}
+	limit := cmp.Or(in.Tasks.Value, 50)
+	plans := filepath.Join(in.Repo, "docs", "plans", strings.TrimSuffix(filepath.Base(spec), filepath.Ext(spec)))
 	if err := os.MkdirAll(plans, 0o755); err != nil {
 		return err
 	}
-	gimble.Set(ctx, "spec document", in.Spec)
+	gimble.Set(ctx, "spec document", spec)
 	gimble.Set(ctx, "plan directory", plans)
 
 	planner := gimble.NewSession(ctx, "planner", in.Repo)
@@ -69,7 +76,7 @@ func EasyLoop(ctx context.Context, in Input) error {
 	loop := gimble.Loop(ctx, "work", goal, planner)
 	tasks, met := 0, false
 	for ctx, task := range loop.Tasks {
-		if tasks++; tasks > in.Tasks {
+		if tasks++; tasks > limit {
 			break
 		}
 		report, err := coder.Generate[gimble.Text](ctx, codePrompt)

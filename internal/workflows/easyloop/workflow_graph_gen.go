@@ -3,40 +3,61 @@
 package easyloop
 
 import (
+	"context"
+	"encoding/json"
+
 	"github.com/tylergannon/gimble"
 	"github.com/tylergannon/gimble/workflow"
 )
 
-func init() { gimble.RegisterGraph(Graph) }
+// The workflow registers itself when it is built: gimble lists it and runs it.
+func init() {
+	gimble.RegisterWorkflow(gimble.Registration{
+		Name:    "easyloop",
+		Summary: "EasyLoop builds what in.Spec asks.",
+		Input:   (Input{}).Schema(),
+		Graph:   Graph,
+		Run: func(ctx context.Context, input json.RawMessage) error {
+			var in Input
+			if err := in.ValidateJSON(input); err != nil {
+				return err
+			}
+			if err := json.Unmarshal(input, &in); err != nil {
+				return err
+			}
+			return EasyLoop(ctx, in)
+		},
+	})
+}
 
 // Graph is the shape of this workflow, read from the source of EasyLoop.
 var Graph = workflow.Graph{
 	Name:   "easyloop",
-	Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 45},
+	Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 47},
 	Body: []workflow.Operation{
-		workflow.Set{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 50}, Key: "spec document"},
-		workflow.Set{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 51}, Key: "plan directory"},
-		workflow.Session{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 53}, Name: "planner", From: ""},
-		workflow.Session{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 54}, Name: "critic", From: ""},
-		workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 55}, Session: "planner", Role: "planner", Prompt: "Read the spec document named below, do focused reconnaissance of the repository, and write the plan to plan.md in the plan directory named below: Markdown checklist items, one \"- [ ]\" box per task."},
-		workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 58}, Session: "critic", Role: "critic", Prompt: "Read the spec document and plan.md in the plan directory named below, and write plan-critique.md there: where the plan misreads the spec, what it misses, and what it builds that the spec does not ask for."},
-		workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 61}, Session: "planner", Role: "planner", Prompt: "Read the spec document, plan.md, and plan-critique.md in the plan directory named below, and write updated-plan.md there: the plan revised for the critique, still Markdown checklist items with only unchecked \"- [ ]\" boxes, taking only the changes that derisk the work or make it better tested."},
-		workflow.Session{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 67}, Name: "coder", From: ""},
-		workflow.Session{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 68}, Name: "reviewer", From: ""},
-		workflow.Loop{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 69}, Name: "work", Planner: "planner", Body: []workflow.Operation{
-			workflow.Condition{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 72}, Branches: []workflow.Branch{
-				{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 72}, Case: "tasks++; tasks > in.Tasks", Exits: true, Body: []workflow.Operation{}},
+		workflow.Set{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 57}, Key: "spec document"},
+		workflow.Set{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 58}, Key: "plan directory"},
+		workflow.Session{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 60}, Name: "planner", From: ""},
+		workflow.Session{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 61}, Name: "critic", From: ""},
+		workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 62}, Session: "planner", Role: "planner", Prompt: "Read the spec document named below, do focused reconnaissance of the repository, and write the plan to plan.md in the plan directory named below: Markdown checklist items, one \"- [ ]\" box per task."},
+		workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 65}, Session: "critic", Role: "critic", Prompt: "Read the spec document and plan.md in the plan directory named below, and write plan-critique.md there: where the plan misreads the spec, what it misses, and what it builds that the spec does not ask for."},
+		workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 68}, Session: "planner", Role: "planner", Prompt: "Read the spec document, plan.md, and plan-critique.md in the plan directory named below, and write updated-plan.md there: the plan revised for the critique, still Markdown checklist items with only unchecked \"- [ ]\" boxes, taking only the changes that derisk the work or make it better tested."},
+		workflow.Session{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 74}, Name: "coder", From: ""},
+		workflow.Session{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 75}, Name: "reviewer", From: ""},
+		workflow.Loop{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 76}, Name: "work", Planner: "planner", Body: []workflow.Operation{
+			workflow.Condition{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 79}, Branches: []workflow.Branch{
+				{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 79}, Case: "tasks++; tasks > limit", Exits: true, Body: []workflow.Operation{}},
 			}},
-			workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 75}, Session: "coder", Role: "coder", Prompt: "Do the task below. Read the spec document and updated-plan.md in the plan directory named below first. Test what you write and run the repository's standard tests. Commit each change with git add of specific paths, never wildcards or -A. Do not edit updated-plan.md or tick any box. Answer with what changed, the evidence you gathered, and the exact text of each plan item you believe is done."},
-			workflow.Set{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 79}, Key: "coder's report"},
-			workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 80}, Session: "reviewer", Role: "reviewer", Prompt: "Judge the task's work below by your own testing: run the software and the repository's standard tests, and never take the coder's report as evidence. In updated-plan.md in the plan directory named below, tick the box of each item you saw complete; that is the only edit you may make there. Write review.md there saying what you found. Report what you did not see working, and whether every requirement of the spec document is now met. When it is, commit updated-plan.md and review.md with git add of their paths."},
-			workflow.Set{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 84}, Key: "review"},
-			workflow.Condition{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 86}, Branches: []workflow.Branch{
-				{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 86}, Case: "verdict.SpecMet", Exits: true, Body: []workflow.Operation{}},
+			workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 82}, Session: "coder", Role: "coder", Prompt: "Do the task below. Read the spec document and updated-plan.md in the plan directory named below first. Test what you write and run the repository's standard tests. Commit each change with git add of specific paths, never wildcards or -A. Do not edit updated-plan.md or tick any box. Answer with what changed, the evidence you gathered, and the exact text of each plan item you believe is done."},
+			workflow.Set{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 86}, Key: "coder's report"},
+			workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 87}, Session: "reviewer", Role: "reviewer", Prompt: "Judge the task's work below by your own testing: run the software and the repository's standard tests, and never take the coder's report as evidence. In updated-plan.md in the plan directory named below, tick the box of each item you saw complete; that is the only edit you may make there. Write review.md there saying what you found. Report what you did not see working, and whether every requirement of the spec document is now met. When it is, commit updated-plan.md and review.md with git add of their paths."},
+			workflow.Set{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 91}, Key: "review"},
+			workflow.Condition{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 93}, Branches: []workflow.Branch{
+				{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 93}, Case: "verdict.SpecMet", Exits: true, Body: []workflow.Operation{}},
 			}},
 		}},
-		workflow.Condition{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 94}, Branches: []workflow.Branch{
-			{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 94}, Case: "!met", Exits: true, Body: []workflow.Operation{}},
+		workflow.Condition{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 101}, Branches: []workflow.Branch{
+			{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 101}, Case: "!met", Exits: true, Body: []workflow.Operation{}},
 		}},
 	},
 }

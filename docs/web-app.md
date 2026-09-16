@@ -88,7 +88,7 @@ the join with the source. See Observability in
 | F1 | **Runs list.** Every run under `.gimble/runs/`, live and past, pushed live. Name, status, started, duration, total cost. Filter by status and workflow; search by id. | bare |
 | F2 | **Start a workflow.** One form per workflow, controls named by its Go input struct. The first is the sprint workflow. | designed, not built |
 | F3 | **The run graph.** Scopes as a tree from key prefixes on the run's wall clock. Instances of one node stack under one card. Overlapping siblings side by side. Sessions under the scope that created them; a turn where it ran. Two zoom levels. Connection state always visible. | flat list |
-| F4 | **Scope detail.** Name, key, began, ended, how it ended, its task, its values as `ScopeText` shows them to an agent, each planner decision. | bare |
+| F4 | **Scope detail.** Name, key, began, ended, how it ended, its task, its values as `Generate` hands them to the agent, each planner decision. | bare |
 | F5 | **Session card.** Name, adapter, model, workdir, parent if forked. Turns in order, running usage, whether a turn is running now. Home of the steer box. | bare |
 | F6 | **Turn detail.** Prompt as sent, output type and schema, result or error, interrupted, duration, usage per model with cost. A validation failure and its re-ask. | partly |
 | F7 | **Transcript.** Messages coalesced by id: user, assistant, thinking, tool call and result, deltas, per-step usage, harness errors, approval requests, nested transcripts. Model and five token cells per row, no dollars (#152). | exists |
@@ -127,7 +127,7 @@ cite them.
 | `sup.interrupt` | Interrupt one turn; the run continues. |
 | `sup.cancel-run` | Cancel a run, confirm once, watch every turn end and every scope close. |
 | `sup.see-other-supervisors` | See which reviewers watch a turn, what they were told, what they objected to. |
-| `sup.see-what-agent-saw` | Read a scope's values exactly as `ScopeText` handed them to the agent. |
+| `sup.see-what-agent-saw` | Read a scope's values exactly as `Generate` handed them to the agent. |
 
 ### Reviewer, reading afterwards
 

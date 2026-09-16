@@ -38,12 +38,12 @@ a kill.
 | `Group(ctx, name)` | errgroup: `Go(name, fn)` per child, then `return group.Wait()`. | First error cancels the siblings; a killed child does not. Always `Wait`. |
 | `Loop(ctx, name, goal, planner)` | The planner keeps a backlog and picks each next `Task`; `for ctx, task := range loop.Tasks {…}; return loop.Err()`. | Each task is a scope. What the body `Set`s is what the planner sees next. It ends by picking no task. |
 | `NewSession(ctx, name, adapter, model, workdir)` | One conversation on one harness in one dir. Cannot fail; the process starts on the first turn. | Adapters: `codex.New()`, `claude.New()`, `agy.New()`. |
-| `s.Generate[T](ctx, prompt, opts...)` | One blocking turn. `T` is `gimble.Text` for prose, or a polytype `Output` type whose schema is sent with the prompt. | Nothing is injected: put `ScopeText(ctx)` in the prompt yourself. A wrong-shaped answer is re-asked a bounded number of times. |
+| `s.Generate[T](ctx, prompt, opts...)` | One blocking turn. `T` is `gimble.Text` for prose, or a polytype `Output` type whose schema is sent with the prompt. `prompt` must be a compile-time string constant (GIMBLE108); `Generate` appends the ctx scope's rendered context to it itself, as `prompt + "\n\n" + context`. | Put the run's data into the scope with `Set`/`SetJSON` before the call. A wrong-shaped answer is re-asked a bounded number of times. |
 | `s.Fork(ctx, name)` | A new session with the conversation so far, in the same dir. | Read the code once, fork the readers. |
 | `s.Steer(ctx, message) (landed, err)` | From another goroutine while `Generate` blocks: lands at the worker's next model call. | Dropped when no turn runs: `landed` false, `err` nil. The log's `steer` record says the same. |
 | `RunCommand(ctx, name, workdir, command, args...)` | Runs one command and blocks until it exits: `(exitCode, stdout, stderr, err)`. | A nonzero exit is not an error; `err` is a command that could not start or was cancelled, exit code -1. Every command a workflow runs goes through it, never `os/exec`: it is recorded in the scope. |
-| `Set(ctx, key, v)`, `SetJSON(ctx, key, v)`, `ScopeText(ctx)` | Record a scalar or a polytype value in the ctx's scope; render every value visible from it, outermost first. | `Set` returns nothing and panics on misuse: a key set twice in one scope instance, or a scope that has ended. Revise by shadowing in a child scope. |
-| `WithSupervisor(session, instruction, opts...)`, `WithInterval(d)` | Options to `Generate`: a supervisor looks at what the worker did since its last look, every 3 minutes or `WithInterval`, and steers each objection in. | It never gates the result. Its own options are `opts`, so a supervisor can have a supervisor. |
+| `Set(ctx, key, v)`, `SetJSON(ctx, key, v)` | Record a scalar or a polytype value in the ctx's scope; `Generate` renders every value visible from it, outermost first, as the context it appends to the prompt. | `Set` returns nothing and panics on misuse: a key set twice in one scope instance, or a scope that has ended. Revise by shadowing in a child scope. |
+| `WithSupervisor(session, instruction, opts...)`, `WithInterval(d)` | Options to `Generate`: a supervisor looks at what the worker did since its last look, every 3 minutes or `WithInterval`, and steers each objection in. `instruction` must be a compile-time string constant too (GIMBLE108). | It never gates the result. Its own options are `opts`, so a supervisor can have a supervisor. |
 | `Killed{Target, By, Reason}` | The cause an operator's kill puts on a scope's or a turn's ctx. | `errors.As(err, &killed)` on a `Generate` error, or `context.Cause(ctx)`. See below. |
 
 Structured output: a struct whose field comments are the descriptions the
@@ -81,7 +81,7 @@ Each is a compiling `Example` in the root package (`example_test.go`,
 
 | Shape | Example | The point |
 | --- | --- | --- |
-| One turn | `Example` | `Set` the goal, one session, one `Generate` with `ScopeText`. |
+| One turn | `Example` | `Set` the goal, one session, one `Generate` with a constant prompt. |
 | Fork and bake-off | `Example_bakeOff` | One researcher reads; two forks propose in a `Group`; a judge on another harness picks by reading the proposals. |
 | Critique round | `Example_critiqueRound` | Critic reads the file against the code; writer takes or rejects each finding; at most two rounds. |
 | Supervised worker | `Example_supervisedWorker` | `WithSupervisor` on the turn; the worker's own answer comes back. |

@@ -20,16 +20,16 @@ import (
 )
 
 //go:generate go tool polytype --validate
-//go:generate go run github.com/tylergannon/gimble/cmd graph -entry EasyLoop -name easyloop
+//go:generate go run github.com/tylergannon/gimble/cmd gen -entry EasyLoop -name easyloop
 
 // Input starts the easy loop.
 type Input struct {
 	// Path of the spec document that says what is being built.
-	Spec string `json:"spec"`
+	Spec string
 	// Absolute path of the repository the work is done in.
-	Repo string `json:"repo"`
+	Repo string
 	// The most tasks to run in all; absent means 50.
-	Tasks polytype.Optional[int] `json:"tasks,omitzero"`
+	Tasks polytype.Optional[int]
 }
 
 // review is what the reviewer reports after a task.

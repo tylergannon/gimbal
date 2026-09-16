@@ -7,21 +7,18 @@ import (
 	"testing"
 )
 
-func TestLsListsTheWorkflowsBuiltIn(t *testing.T) {
-	var out, errOut bytes.Buffer
-	if err := run([]string{"ls"}, &out, &errOut, os.Getenv); err != nil {
-		t.Fatal(err)
-	}
+func TestRunListsTheWorkflowsBuiltIn(t *testing.T) {
+	help := helpOf(t)
 	for _, name := range []string{"easyloop", "execute", "plan", "sprint"} {
-		if !strings.Contains(out.String(), name+" ") {
-			t.Errorf("ls does not list %s:\n%s", name, out.String())
+		if !strings.Contains(help, "\n  "+name+" ") {
+			t.Errorf("run --help does not list %s:\n%s", name, help)
 		}
 	}
 }
 
 // TestRunHelpShowsTheInputsAndTheRoles: a workflow's flags are its input's
-// properties, required where the input requires them, and one model flag
-// per role its graph names.
+// fields, required where the input requires them, and one model flag per
+// role its graph names.
 func TestRunHelpShowsTheInputsAndTheRoles(t *testing.T) {
 	help := helpOf(t, "sprint")
 	for _, flag := range []string{"--sprint int", "--issue string", "--tasks int", "--repo string", "--researcher string", "--validator string", "--supervisor string", "--model string", "--port int", "--no-web"} {
@@ -56,10 +53,10 @@ func TestRunRefusesAMissingInputOrRole(t *testing.T) {
 	}
 }
 
-func helpOf(t *testing.T, workflow string) string {
+func helpOf(t *testing.T, args ...string) string {
 	t.Helper()
 	var out, errOut bytes.Buffer
-	if err := run([]string{"run", workflow, "--help"}, &out, &errOut, os.Getenv); err != nil {
+	if err := run(append(append([]string{"run"}, args...), "--help"), &out, &errOut, os.Getenv); err != nil {
 		t.Fatal(err)
 	}
 	return out.String()

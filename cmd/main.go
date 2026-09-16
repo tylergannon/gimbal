@@ -56,7 +56,7 @@ func routeAnalysis(args []string) ([]string, bool) {
 func isOrdinaryCLI(args []string) bool {
 	if len(args) > 0 {
 		switch args[0] {
-		case "run-prompt", "graph", "run", "ls":
+		case "run-prompt", "gen", "run":
 			return true
 		}
 	}
@@ -82,8 +82,8 @@ func isVetConfig(path string) bool {
 }
 
 // run is the gimble command line: the server when no subcommand is given,
-// and ls, run, graph, and run-prompt. lint never reaches it, since main
-// routes it to the analyzer first.
+// and run, gen, and run-prompt. lint never reaches it, since main routes it
+// to the analyzer first.
 func run(args []string, stdout, stderr io.Writer, getenv func(string) string) error {
 	root := newRootCommand(stdout, stderr, getenv)
 	root.SetArgs(args)
@@ -109,11 +109,11 @@ workflow authoring rules, standalone or as a go vet tool.`,
 	root.SetErr(stderr)
 	root.CompletionOptions.DisableDefaultCmd = true
 	server.bind(root.Flags())
-	root.AddCommand(newLsCommand(), newRunCommand(), &cobra.Command{
-		Use:                "graph -entry Entry -name name [-o file]",
-		Short:              "Write a workflow's graph and registration from its source; a package's go:generate directive runs it",
+	root.AddCommand(newRunCommand(), &cobra.Command{
+		Use:                "gen -entry Entry -name name [-o file]",
+		Short:              "Write a workflow's graph and its run subcommand from its source into one file; a package's go:generate directive runs it",
 		DisableFlagParsing: true,
-		RunE:               func(_ *cobra.Command, args []string) error { return runGraph(args, stderr) },
+		RunE:               func(_ *cobra.Command, args []string) error { return runGen(args, stderr) },
 	}, &cobra.Command{
 		Use:                "run-prompt [flags] PROMPT",
 		Short:              "Run one prompt on a harness and print the answer",

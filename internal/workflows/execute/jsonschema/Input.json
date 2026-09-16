@@ -1,6 +1,0 @@
-{"type":"object",
-"description":"Input starts the execute workflow.","properties":{
-"sprint":{"type":"integer","description":"The sprint to execute: NNN of docs/sprints/SPRINT-NNN.md."},
-"repo":{"type":"string","description":"Absolute path of the repository the sprint is built in."},
-"test":{"type":"string","description":"The repository's test command, run with sh -c after the worker finishes; absent means go test ./..."}
-},"required":["sprint","repo"],"additionalProperties":false}

@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"maps"
 	"os"
 	"path"
 	"path/filepath"
@@ -36,45 +35,25 @@ func Project(ctx context.Context, dir string) context.Context {
 	return context.WithValue(ctx, projectKey{}, dir)
 }
 
-// Registration is what a built workflow says about itself: its name, which
-// is also its runs' name; one sentence for a listing; the JSON Schema of its
-// input, whose properties are the flags of gimble run; its graph, which the
-// run page draws a run against; and how to run it from that input. The file
-// gimble graph writes in a workflow's package registers one from its init,
-// so a workflow is wired up by being built, and the gimble command lists and
-// runs whatever was built into it.
-type Registration struct {
-	Name    string
-	Summary string
-	// Input is the polytype-generated schema of the entry's input type, nil
-	// for an entry that takes only a ctx.
-	Input json.RawMessage
-	Graph workflow.Graph
-	Run   func(ctx context.Context, input json.RawMessage) error
-}
+// graphs holds the shape of every workflow compiled into this binary, by
+// name. Only generated code writes here, and only from an init, so the map
+// is complete and never written again by the time a run reads it.
+var graphs = map[string]workflow.Graph{}
 
-// registrations holds every workflow compiled into this binary, by name.
-// Only generated code writes here, and only from an init, so the map is
-// complete and never written again by the time anything reads it.
-var registrations = map[string]Registration{}
-
-// RegisterWorkflow records one built workflow. Only generated code calls
-// this, from the init of the file gimble graph writes. Registering one name
-// twice is a programming error and panics.
-func RegisterWorkflow(r Registration) {
-	if _, ok := registrations[r.Name]; ok {
-		panic(fmt.Sprintf("gimble: a workflow named %q is already registered", r.Name))
+// RegisterGraph records the shape of one workflow, which `gimble gen`
+// read from its source, under the workflow's name, which is also its runs'
+// name. It is how the binary that runs a workflow knows the workflow's
+// shape: the run page draws a run against it. It is not written into the
+// run's record; a run read without its binary has the logs.
+//
+// Only generated code calls this, from the init of the file the generator
+// writes; a workflow is wired up by being built. Registering one name twice
+// is a programming error and panics.
+func RegisterGraph(graph workflow.Graph) {
+	if _, ok := graphs[graph.Name]; ok {
+		panic(fmt.Sprintf("gimble: a graph named %q is already registered", graph.Name))
 	}
-	registrations[r.Name] = r
-}
-
-// Registered returns every workflow built into this binary, by name.
-func Registered() []Registration {
-	all := make([]Registration, 0, len(registrations))
-	for _, name := range slices.Sorted(maps.Keys(registrations)) {
-		all = append(all, registrations[name])
-	}
-	return all
+	graphs[graph.Name] = graph
 }
 
 type run struct {

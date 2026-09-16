@@ -13,6 +13,8 @@ import (
 	"maps"
 	"path/filepath"
 	"slices"
+	"strings"
+	"unicode"
 
 	"github.com/tylergannon/gimble/workflow"
 	"golang.org/x/tools/go/packages"
@@ -78,16 +80,28 @@ func extract(dir, entry, name string, overlay map[string][]byte) (workflow.Graph
 	}, info, nil
 }
 
-// entryInfo is what the generated registration needs about the entry besides
-// its body: the name of its input type, empty for an entry that takes only a
-// ctx, and the first sentence of its doc comment.
-type entryInfo struct{ input, summary string }
+// entryInfo is what the generated command needs about the entry besides its
+// body: its input type, empty for an entry that takes only a ctx, and that
+// type's fields; the first sentence of its doc comment; and the package's.
+type entryInfo struct {
+	input   string
+	summary string
+	long    string
+	fields  []field
+}
 
-// describe reads the entry's signature and doc comment. An entry takes a ctx
-// and at most one input, a type of its own package that polytype has given a
-// Schema method, so a run can be started from the input's JSON.
+// field is one field of the input type as a flag: its Go name, the flag's
+// name, whether the value is a string, an int, or a bool, whether the field
+// is a polytype.Optional the flag sets only when given, and its doc.
+type field struct {
+	name, flag, kind, doc string
+	optional              bool
+}
+
+// describe reads the entry's signature, its doc, and its input's fields. An
+// entry takes a ctx and at most one input, a struct of its own package.
 func describe(pkg *packages.Package, decl *ast.FuncDecl) (entryInfo, error) {
-	info := entryInfo{summary: (&doc.Package{}).Synopsis(decl.Doc.Text())}
+	info := entryInfo{summary: (&doc.Package{}).Synopsis(decl.Doc.Text()), long: packageDoc(pkg)}
 	fn, ok := pkg.TypesInfo.Defs[decl.Name].(*types.Func)
 	if !ok {
 		return info, fmt.Errorf("graph: %s has no type", decl.Name.Name)
@@ -101,14 +115,92 @@ func describe(pkg *packages.Package, decl *ast.FuncDecl) (entryInfo, error) {
 		if !ok || named.Obj().Pkg() != pkg.Types {
 			return info, fmt.Errorf("graph: %s's input is %s, not a type of its own package", decl.Name.Name, params.At(1).Type())
 		}
-		if obj, _, _ := types.LookupFieldOrMethod(named, true, pkg.Types, "Schema"); obj == nil {
-			return info, fmt.Errorf("graph: %s's input type %s has no Schema method: declare it for polytype and generate that first", decl.Name.Name, named.Obj().Name())
-		}
 		info.input = named.Obj().Name()
+		fields, err := inputFields(pkg, named.Obj().Name())
+		if err != nil {
+			return info, err
+		}
+		info.fields = fields
 		return info, nil
 	default:
 		return info, fmt.Errorf("graph: %s takes %d parameters; an entry takes a ctx and at most one input", decl.Name.Name, params.Len())
 	}
+}
+
+func packageDoc(pkg *packages.Package) string {
+	for _, file := range pkg.Syntax {
+		if file.Doc != nil {
+			return strings.TrimSpace(file.Doc.Text())
+		}
+	}
+	return ""
+}
+
+// inputFields reads the exported fields of the input struct in source order.
+func inputFields(pkg *packages.Package, typeName string) ([]field, error) {
+	var spec *ast.TypeSpec
+	for _, file := range pkg.Syntax {
+		for _, d := range file.Decls {
+			if gen, ok := d.(*ast.GenDecl); ok {
+				for _, s := range gen.Specs {
+					if ts, ok := s.(*ast.TypeSpec); ok && ts.Name.Name == typeName {
+						spec = ts
+					}
+				}
+			}
+		}
+	}
+	structType, ok := spec.Type.(*ast.StructType)
+	if spec == nil || !ok {
+		return nil, fmt.Errorf("graph: the input %s is not a struct", typeName)
+	}
+	var fields []field
+	for _, f := range structType.Fields.List {
+		for _, ident := range f.Names {
+			if !ident.IsExported() {
+				continue
+			}
+			kind, optional, err := flagKind(pkg.TypesInfo.TypeOf(f.Type))
+			if err != nil {
+				return nil, fmt.Errorf("graph: %s.%s: %w", typeName, ident.Name, err)
+			}
+			fields = append(fields, field{name: ident.Name, flag: kebab(ident.Name), kind: kind, optional: optional, doc: strings.TrimSpace(f.Doc.Text())})
+		}
+	}
+	return fields, nil
+}
+
+// flagKind is the flag a field's type makes: a string, an int, or a bool,
+// or a polytype.Optional of one, which is set only when given.
+func flagKind(t types.Type) (kind string, optional bool, err error) {
+	if named, ok := t.(*types.Named); ok && named.Obj().Pkg() != nil && named.Obj().Pkg().Path() == "github.com/tylergannon/polytype" && named.Obj().Name() == "Optional" && named.TypeArgs().Len() == 1 {
+		kind, _, err := flagKind(named.TypeArgs().At(0))
+		return kind, true, err
+	}
+	if basic, ok := t.(*types.Basic); ok {
+		switch basic.Kind() {
+		case types.String:
+			return "string", false, nil
+		case types.Int:
+			return "int", false, nil
+		case types.Bool:
+			return "bool", false, nil
+		}
+	}
+	return "", false, fmt.Errorf("%s is not a flag: a field is a string, an int, a bool, or a polytype.Optional of one", t)
+}
+
+// kebab is a Go name as a flag name: DryRun is dry-run.
+func kebab(name string) string {
+	var b strings.Builder
+	runes := []rune(name)
+	for i, r := range runes {
+		if i > 0 && unicode.IsUpper(r) && (unicode.IsLower(runes[i-1]) || unicode.IsDigit(runes[i-1]) || (i+1 < len(runes) && unicode.IsLower(runes[i+1]))) {
+			b.WriteByte('-')
+		}
+		b.WriteRune(unicode.ToLower(r))
+	}
+	return b.String()
 }
 
 // binding is what an identifier of session type stands for: the name the

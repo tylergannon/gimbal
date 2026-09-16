@@ -233,7 +233,7 @@ func TestFixtureGraph(t *testing.T) {
 // package the workflow is in, not the external test package beside it, and
 // that it honours an absolute output path.
 func TestSourceWritesTheWorkflowsPackage(t *testing.T) {
-	output := filepath.Join(t.TempDir(), "workflow_graph_gen.go")
+	output := filepath.Join(t.TempDir(), "workflow_gen.go")
 	if err := graph.Source("testdata/fixture", "Fixture", "fixture", output); err != nil {
 		t.Fatal(err)
 	}
@@ -241,16 +241,17 @@ func TestSourceWritesTheWorkflowsPackage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(written), "\npackage fixture\n") {
-		t.Errorf("the generated file is in package fixture, got:\n%s", firstLines(string(written)))
-	}
 	for _, want := range []string{
-		"gimble.RegisterWorkflow(gimble.Registration{",
-		`Summary: "Fixture is the entry function the tests extract.",`,
-		"Run: func(ctx context.Context, _ json.RawMessage) error { return Fixture(ctx) },",
+		"\npackage fixture\n",
+		"func init() { gimble.RegisterGraph(Graph) }",
+		"var Graph = workflow.Graph{",
+		"func Command() *cobra.Command {",
+		`Use:   "fixture",`,
+		`cmd.Flags().StringVar(&leadModel, "lead", "", "the model for role lead, as model or model:effort; --model when not given")`,
+		`return Fixture(ctx) })`,
 	} {
 		if !strings.Contains(string(written), want) {
-			t.Errorf("the generated file does not register the workflow with %q:\n%s", want, written)
+			t.Errorf("the generated file lacks %q:\n%s", want, firstLines(string(written)))
 		}
 	}
 }

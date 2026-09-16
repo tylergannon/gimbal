@@ -102,26 +102,24 @@ Each is a compiling `Example` in the root package (`example_test.go`,
 ## Run and watch
 
 A workflow is a package under `internal/workflows/` whose entry is
-`func Name(ctx context.Context, in Input) error`, with `Input` declared for
-polytype the way `internal/workflows/sprint/schema.go` does, and two
-directives: `go tool polytype --validate` and
-`go run github.com/tylergannon/gimble/cmd graph -entry Name -name name`.
-`go generate` writes its schema and its graph, and the graph file registers
-the workflow from its init; a blank import in `cmd/workflows.go` builds it
-into the binary. Then:
+`func Name(ctx context.Context, in Input) error`, with one directive:
+`//go:generate go run github.com/tylergannon/gimble/cmd gen -entry Name -name name`.
+`go generate` prints `workflow_gen.go` beside it: the graph, which registers
+itself, and the workflow's `Command()`, a Cobra subcommand you can read: one
+flag per field of `Input`,
+named from the field with its doc comment as help, required unless the field
+is a `polytype.Optional` (a bool is never required, and a `Repo` string
+defaults to the current directory); one `--<role>` flag per role the graph
+names, with `--model` for every role not given its own; and `--port`, `--uds`,
+`--no-web`. One line in `cmd/workflows.go` adds it to `gimble run`. Then:
 
 ```sh
-gimble ls
-gimble run <workflow> --help
+gimble run --help
+gimble run sprint --help
 gimble run sprint --issue /abs/168.md --model gpt-5.6-luna --validator claude-haiku-4-5-20251001
 ```
 
-`gimble run` reads a workflow's flags from the workflow: one per field of
-its input, required unless the field is a `polytype.Optional`, with
-`--repo` for the repository (default the current directory); one per role
-its graph names, `--<role> model[:effort]`, with `--model` for every role
-not given its own; and `--port`, `--uds`, or `--no-web` for the page. The
-log's first line is `gimble: run <id> started in <dir>`; the page is
+The log's first line is `gimble: run <id> started in <dir>`; the page is
 `http://127.0.0.1:8080/runs/<id>`, live while it runs and after. Ctrl-C
 cancels the ctx, which interrupts every turn. To read a workflow's prompts
 without a model, read its graph: every prompt is in it, verbatim. `just vet`

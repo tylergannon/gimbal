@@ -17,17 +17,16 @@ import (
 	"github.com/tylergannon/polytype"
 )
 
-//go:generate go tool polytype --validate
-//go:generate go run github.com/tylergannon/gimble/cmd graph -entry Execute -name execute
+//go:generate go run github.com/tylergannon/gimble/cmd gen -entry Execute -name execute
 
 // Input starts the execute workflow.
 type Input struct {
 	// The sprint to execute: NNN of docs/sprints/SPRINT-NNN.md.
-	Sprint int `json:"sprint"`
+	Sprint int
 	// Absolute path of the repository the sprint is built in.
-	Repo string `json:"repo"`
+	Repo string
 	// The repository's test command, run with sh -c after the worker finishes; absent means go test ./...
-	Test polytype.Optional[string] `json:"test,omitzero"`
+	Test polytype.Optional[string]
 }
 
 // Execute builds sprint in.Sprint. It names one role, worker, which the run

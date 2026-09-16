@@ -21,13 +21,15 @@ func TestRunListsTheWorkflowsBuiltIn(t *testing.T) {
 // role its graph names.
 func TestRunHelpShowsTheInputsAndTheRoles(t *testing.T) {
 	help := helpOf(t, "sprint")
-	for _, flag := range []string{"--sprint int", "--issue string", "--tasks int", "--repo string", "--researcher string", "--validator string", "--supervisor string", "--model string", "--port int", "--no-web"} {
+	for _, flag := range []string{"--sprint int", "--issue string", "--tasks int", "--repo string", "--researcher string", "--validator string", "--supervisor string", "--port int", "--no-web"} {
 		if !strings.Contains(help, flag) {
 			t.Errorf("run sprint --help lacks %s:\n%s", flag, help)
 		}
 	}
-	if strings.Contains(help, "(required)") {
-		t.Errorf("run sprint --help marks a flag required, but a sprint takes a sprint or an issue:\n%s", help)
+	for _, flag := range []string{"--sprint", "--issue", "--tasks", "--repo"} {
+		if strings.Contains(lineWith(help, flag), "(required)") {
+			t.Errorf("run sprint --help marks %s required:\n%s", flag, help)
+		}
 	}
 	help = helpOf(t, "execute")
 	if !strings.Contains(lineWith(help, "--sprint"), "(required)") {
@@ -43,13 +45,13 @@ func TestRunHelpShowsTheInputsAndTheRoles(t *testing.T) {
 
 func TestRunRefusesAMissingInputOrRole(t *testing.T) {
 	var out, errOut bytes.Buffer
-	err := run([]string{"run", "execute", "--model", "gpt-5.6-luna"}, &out, &errOut, os.Getenv)
+	err := run([]string{"run", "execute", "--worker", "gpt-5.6-luna"}, &out, &errOut, os.Getenv)
 	if err == nil || !strings.Contains(err.Error(), `"sprint"`) {
 		t.Errorf("run execute without --sprint = %v, want the required flag named", err)
 	}
 	err = run([]string{"run", "execute", "--sprint", "1"}, &out, &errOut, os.Getenv)
-	if err == nil || !strings.Contains(err.Error(), "give --worker or --model") {
-		t.Errorf("run execute without a model = %v, want the role named", err)
+	if err == nil || !strings.Contains(err.Error(), `"worker"`) {
+		t.Errorf("run execute without a model = %v, want the role's flag named", err)
 	}
 }
 

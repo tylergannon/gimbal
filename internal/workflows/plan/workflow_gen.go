@@ -75,15 +75,14 @@ var Graph = workflow.Graph{
 }
 
 // Command is gimble run plan: a flag for each field of Input, a
-// model flag for each role Plan names, the web application's flags, and
-// a run of Plan on the runtime.
+// model flag for each role Plan names, all required, the web
+// application's flags, and a run of Plan on the runtime.
 func Command() *cobra.Command {
 	var in Input
 	var plannerModel string
 	var claudeModel string
 	var codexModel string
 	var geminiModel string
-	var model string
 	var port int
 	var uds string
 	var noWeb bool
@@ -98,11 +97,14 @@ func Command() *cobra.Command {
 	cmd.Flags().StringVar(&in.Repo, "repo", ".", "Absolute path of the repository.")
 	_ = cmd.MarkFlagRequired("sprint")
 	_ = cmd.MarkFlagRequired("seed")
-	cmd.Flags().StringVar(&plannerModel, "planner", "", "the model for role planner, as model or model:effort; --model when not given")
-	cmd.Flags().StringVar(&claudeModel, "claude", "", "the model for role claude, as model or model:effort; --model when not given")
-	cmd.Flags().StringVar(&codexModel, "codex", "", "the model for role codex, as model or model:effort; --model when not given")
-	cmd.Flags().StringVar(&geminiModel, "gemini", "", "the model for role gemini, as model or model:effort; --model when not given")
-	cmd.Flags().StringVar(&model, "model", "", "the model for every role not given its own, as model or model:effort")
+	cmd.Flags().StringVar(&plannerModel, "planner", "", "the model for role planner, as model or model:effort")
+	_ = cmd.MarkFlagRequired("planner")
+	cmd.Flags().StringVar(&claudeModel, "claude", "", "the model for role claude, as model or model:effort")
+	_ = cmd.MarkFlagRequired("claude")
+	cmd.Flags().StringVar(&codexModel, "codex", "", "the model for role codex, as model or model:effort")
+	_ = cmd.MarkFlagRequired("codex")
+	cmd.Flags().StringVar(&geminiModel, "gemini", "", "the model for role gemini, as model or model:effort")
+	_ = cmd.MarkFlagRequired("gemini")
 	cmd.Flags().IntVar(&port, "port", 8080, "loopback TCP port for the web application")
 	cmd.Flags().StringVar(&uds, "uds", "", "Unix-domain socket for the web application instead of TCP")
 	cmd.Flags().BoolVar(&noWeb, "no-web", false, "run without the web application")
@@ -112,7 +114,7 @@ func Command() *cobra.Command {
 			return err
 		}
 		in.Repo = repo
-		models, err := binding.Roles(model, map[string]string{"planner": plannerModel, "claude": claudeModel, "codex": codexModel, "gemini": geminiModel})
+		models, err := binding.Roles(map[string]string{"planner": plannerModel, "claude": claudeModel, "codex": codexModel, "gemini": geminiModel})
 		if err != nil {
 			return err
 		}

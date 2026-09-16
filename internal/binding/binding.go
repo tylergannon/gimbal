@@ -4,7 +4,6 @@
 package binding
 
 import (
-	"cmp"
 	"fmt"
 	"maps"
 	"slices"
@@ -52,17 +51,16 @@ func Adapter(harness string) (gimble.HarnessAdapter, error) {
 	}
 }
 
-// Roles binds each role to the model its flag gave, or to fallback when the
-// flag was left empty, sharing one binding among the roles given the same
-// model so one harness serves them. A role given neither is an error naming
-// its flag.
-func Roles(fallback string, specs map[string]string) (map[string]gimble.ModelBinding, error) {
+// Roles binds each role to the model its flag gave, sharing one binding
+// among the roles given the same model so one harness serves them. A role
+// given no model is an error naming its flag.
+func Roles(specs map[string]string) (map[string]gimble.ModelBinding, error) {
 	bound := map[string]gimble.ModelBinding{}
 	models := make(map[string]gimble.ModelBinding, len(specs))
 	for _, role := range slices.Sorted(maps.Keys(specs)) {
-		spec := cmp.Or(specs[role], fallback)
+		spec := specs[role]
 		if spec == "" {
-			return nil, fmt.Errorf("give --%s or --model", role)
+			return nil, fmt.Errorf("give --%s", role)
 		}
 		if _, ok := bound[spec]; !ok {
 			b, err := Parse(spec)

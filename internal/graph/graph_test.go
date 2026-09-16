@@ -247,7 +247,7 @@ func TestSourceWritesTheWorkflowsPackage(t *testing.T) {
 		"var Graph = workflow.Graph{",
 		"func Command() *cobra.Command {",
 		`Use:   "fixture",`,
-		`cmd.Flags().StringVar(&leadModel, "lead", "", "the model for role lead, as model or model:effort; --model when not given")`,
+		`cmd.Flags().StringVar(&leadModel, "lead", "", "the model for role lead, as model or model:effort")`,
 		`return Fixture(ctx) })`,
 	} {
 		if !strings.Contains(string(written), want) {

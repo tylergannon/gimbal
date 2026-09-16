@@ -51,8 +51,8 @@ var Graph = workflow.Graph{
 }
 
 // Command is gimble run easyloop: a flag for each field of Input, a
-// model flag for each role EasyLoop names, the web application's flags, and
-// a run of EasyLoop on the runtime.
+// model flag for each role EasyLoop names, all required, the web
+// application's flags, and a run of EasyLoop on the runtime.
 func Command() *cobra.Command {
 	var in Input
 	var optTasks int
@@ -60,7 +60,6 @@ func Command() *cobra.Command {
 	var criticModel string
 	var coderModel string
 	var reviewerModel string
-	var model string
 	var port int
 	var uds string
 	var noWeb bool
@@ -74,11 +73,14 @@ func Command() *cobra.Command {
 	cmd.Flags().StringVar(&in.Repo, "repo", ".", "Absolute path of the repository the work is done in.")
 	cmd.Flags().IntVar(&optTasks, "tasks", 0, "The most tasks to run in all; absent means 50.")
 	_ = cmd.MarkFlagRequired("spec")
-	cmd.Flags().StringVar(&plannerModel, "planner", "", "the model for role planner, as model or model:effort; --model when not given")
-	cmd.Flags().StringVar(&criticModel, "critic", "", "the model for role critic, as model or model:effort; --model when not given")
-	cmd.Flags().StringVar(&coderModel, "coder", "", "the model for role coder, as model or model:effort; --model when not given")
-	cmd.Flags().StringVar(&reviewerModel, "reviewer", "", "the model for role reviewer, as model or model:effort; --model when not given")
-	cmd.Flags().StringVar(&model, "model", "", "the model for every role not given its own, as model or model:effort")
+	cmd.Flags().StringVar(&plannerModel, "planner", "", "the model for role planner, as model or model:effort")
+	_ = cmd.MarkFlagRequired("planner")
+	cmd.Flags().StringVar(&criticModel, "critic", "", "the model for role critic, as model or model:effort")
+	_ = cmd.MarkFlagRequired("critic")
+	cmd.Flags().StringVar(&coderModel, "coder", "", "the model for role coder, as model or model:effort")
+	_ = cmd.MarkFlagRequired("coder")
+	cmd.Flags().StringVar(&reviewerModel, "reviewer", "", "the model for role reviewer, as model or model:effort")
+	_ = cmd.MarkFlagRequired("reviewer")
 	cmd.Flags().IntVar(&port, "port", 8080, "loopback TCP port for the web application")
 	cmd.Flags().StringVar(&uds, "uds", "", "Unix-domain socket for the web application instead of TCP")
 	cmd.Flags().BoolVar(&noWeb, "no-web", false, "run without the web application")
@@ -91,7 +93,7 @@ func Command() *cobra.Command {
 			return err
 		}
 		in.Repo = repo
-		models, err := binding.Roles(model, map[string]string{"planner": plannerModel, "critic": criticModel, "coder": coderModel, "reviewer": reviewerModel})
+		models, err := binding.Roles(map[string]string{"planner": plannerModel, "critic": criticModel, "coder": coderModel, "reviewer": reviewerModel})
 		if err != nil {
 			return err
 		}

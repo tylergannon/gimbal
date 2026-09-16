@@ -37,13 +37,12 @@ var Graph = workflow.Graph{
 }
 
 // Command is gimble run execute: a flag for each field of Input, a
-// model flag for each role Execute names, the web application's flags, and
-// a run of Execute on the runtime.
+// model flag for each role Execute names, all required, the web
+// application's flags, and a run of Execute on the runtime.
 func Command() *cobra.Command {
 	var in Input
 	var optTest string
 	var workerModel string
-	var model string
 	var port int
 	var uds string
 	var noWeb bool
@@ -57,8 +56,8 @@ func Command() *cobra.Command {
 	cmd.Flags().StringVar(&in.Repo, "repo", ".", "Absolute path of the repository the sprint is built in.")
 	cmd.Flags().StringVar(&optTest, "test", "", "The repository's test command, run with sh -c after the worker finishes; absent means go test ./...")
 	_ = cmd.MarkFlagRequired("sprint")
-	cmd.Flags().StringVar(&workerModel, "worker", "", "the model for role worker, as model or model:effort; --model when not given")
-	cmd.Flags().StringVar(&model, "model", "", "the model for every role not given its own, as model or model:effort")
+	cmd.Flags().StringVar(&workerModel, "worker", "", "the model for role worker, as model or model:effort")
+	_ = cmd.MarkFlagRequired("worker")
 	cmd.Flags().IntVar(&port, "port", 8080, "loopback TCP port for the web application")
 	cmd.Flags().StringVar(&uds, "uds", "", "Unix-domain socket for the web application instead of TCP")
 	cmd.Flags().BoolVar(&noWeb, "no-web", false, "run without the web application")
@@ -71,7 +70,7 @@ func Command() *cobra.Command {
 			return err
 		}
 		in.Repo = repo
-		models, err := binding.Roles(model, map[string]string{"worker": workerModel})
+		models, err := binding.Roles(map[string]string{"worker": workerModel})
 		if err != nil {
 			return err
 		}

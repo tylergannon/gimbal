@@ -37,7 +37,7 @@ func source(pkg, entry string, info entryInfo, graph workflow.Graph) string {
 		data.Fields = append(data.Fields, cf)
 	}
 	for _, role := range graph.Roles() {
-		data.Roles = append(data.Roles, commandRole{Name: role, Ident: identifier(role) + "Model", Usage: "the model for role " + role + ", as model or model:effort; --model when not given"})
+		data.Roles = append(data.Roles, commandRole{Name: role, Ident: identifier(role) + "Model", Usage: "the model for role " + role + ", as model or model:effort"})
 	}
 	var b strings.Builder
 	if err := commandTemplate.Execute(&b, data); err != nil {
@@ -49,7 +49,7 @@ func source(pkg, entry string, info entryInfo, graph workflow.Graph) string {
 // reserved names the flags every command has, which an input field or a
 // role may not take.
 func reserved(info entryInfo, graph workflow.Graph) error {
-	taken := map[string]string{"model": "the default model", "port": "the web application", "uds": "the web application", "no-web": "the web application", "help": "cobra"}
+	taken := map[string]string{"port": "the web application", "uds": "the web application", "no-web": "the web application", "help": "cobra"}
 	for _, f := range info.fields {
 		if by, ok := taken[f.flag]; ok {
 			return fmt.Errorf("graph: the input field %s would be --%s, which is %s's", f.name, f.flag, by)
@@ -121,8 +121,8 @@ func init() { gimble.RegisterGraph(Graph) }
 
 {{.Graph}}
 // Command is gimble run {{.Name}}: {{if .Input}}a flag for each field of {{.Input}}, {{end}}a
-// model flag for each role {{.Entry}} names, the web application's flags, and
-// a run of {{.Entry}} on the runtime.
+// model flag for each role {{.Entry}} names, all required, the web
+// application's flags, and a run of {{.Entry}} on the runtime.
 func Command() *cobra.Command {
 {{- if .Input}}
 	var in {{.Input}}
@@ -133,7 +133,6 @@ func Command() *cobra.Command {
 {{- range .Roles}}
 	var {{.Ident}} string
 {{- end}}
-	var model string
 	var port int
 	var uds string
 	var noWeb bool
@@ -151,8 +150,8 @@ func Command() *cobra.Command {
 {{- end}}{{end}}
 {{- range .Roles}}
 	cmd.Flags().StringVar(&{{.Ident}}, {{printf "%q" .Name}}, "", {{printf "%q" .Usage}})
+	_ = cmd.MarkFlagRequired({{printf "%q" .Name}})
 {{- end}}
-	cmd.Flags().StringVar(&model, "model", "", "the model for every role not given its own, as model or model:effort")
 	cmd.Flags().IntVar(&port, "port", 8080, "loopback TCP port for the web application")
 	cmd.Flags().StringVar(&uds, "uds", "", "Unix-domain socket for the web application instead of TCP")
 	cmd.Flags().BoolVar(&noWeb, "no-web", false, "run without the web application")
@@ -169,7 +168,7 @@ func Command() *cobra.Command {
 {{- if .Repo}}
 		in.Repo = repo
 {{- end}}
-		models, err := binding.Roles(model, map[string]string{ {{range .Roles}}{{printf "%q" .Name}}: {{.Ident}}, {{end}}})
+		models, err := binding.Roles(map[string]string{ {{range .Roles}}{{printf "%q" .Name}}: {{.Ident}}, {{end}}})
 		if err != nil {
 			return err
 		}

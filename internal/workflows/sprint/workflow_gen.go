@@ -117,8 +117,8 @@ var Graph = workflow.Graph{
 }
 
 // Command is gimble run sprint: a flag for each field of Input, a
-// model flag for each role Sprint names, the web application's flags, and
-// a run of Sprint on the runtime.
+// model flag for each role Sprint names, all required, the web
+// application's flags, and a run of Sprint on the runtime.
 func Command() *cobra.Command {
 	var in Input
 	var optSprint int
@@ -127,7 +127,6 @@ func Command() *cobra.Command {
 	var researcherModel string
 	var validatorModel string
 	var supervisorModel string
-	var model string
 	var port int
 	var uds string
 	var noWeb bool
@@ -141,10 +140,12 @@ func Command() *cobra.Command {
 	cmd.Flags().StringVar(&optIssue, "issue", "", "The issue to build instead of a sprint: a GitHub issue number, or the path of a file holding the issue's text.")
 	cmd.Flags().StringVar(&in.Repo, "repo", ".", "Absolute path of the repository. Each validated task is committed to the branch checked out there, and the sprint ends by merging that branch.")
 	cmd.Flags().IntVar(&optTasks, "tasks", 0, "The most tasks to run in all; absent means 10. The sprint fails if the planner is not done by then.")
-	cmd.Flags().StringVar(&researcherModel, "researcher", "", "the model for role researcher, as model or model:effort; --model when not given")
-	cmd.Flags().StringVar(&validatorModel, "validator", "", "the model for role validator, as model or model:effort; --model when not given")
-	cmd.Flags().StringVar(&supervisorModel, "supervisor", "", "the model for role supervisor, as model or model:effort; --model when not given")
-	cmd.Flags().StringVar(&model, "model", "", "the model for every role not given its own, as model or model:effort")
+	cmd.Flags().StringVar(&researcherModel, "researcher", "", "the model for role researcher, as model or model:effort")
+	_ = cmd.MarkFlagRequired("researcher")
+	cmd.Flags().StringVar(&validatorModel, "validator", "", "the model for role validator, as model or model:effort")
+	_ = cmd.MarkFlagRequired("validator")
+	cmd.Flags().StringVar(&supervisorModel, "supervisor", "", "the model for role supervisor, as model or model:effort")
+	_ = cmd.MarkFlagRequired("supervisor")
 	cmd.Flags().IntVar(&port, "port", 8080, "loopback TCP port for the web application")
 	cmd.Flags().StringVar(&uds, "uds", "", "Unix-domain socket for the web application instead of TCP")
 	cmd.Flags().BoolVar(&noWeb, "no-web", false, "run without the web application")
@@ -163,7 +164,7 @@ func Command() *cobra.Command {
 			return err
 		}
 		in.Repo = repo
-		models, err := binding.Roles(model, map[string]string{"researcher": researcherModel, "validator": validatorModel, "supervisor": supervisorModel})
+		models, err := binding.Roles(map[string]string{"researcher": researcherModel, "validator": validatorModel, "supervisor": supervisorModel})
 		if err != nil {
 			return err
 		}

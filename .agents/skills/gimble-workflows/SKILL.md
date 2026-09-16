@@ -110,13 +110,12 @@ flag per field of `Input`,
 named from the field with its doc comment as help, required unless the field
 is a `polytype.Optional` (a bool is never required, and a `Repo` string
 defaults to the current directory); one `--<role>` flag per role the graph
-names, with `--model` for every role not given its own; and `--port`, `--uds`,
-`--no-web`. One line in `cmd/workflows.go` adds it to `gimble run`. Then:
+names, each required; and `--port`, `--uds`, `--no-web`. One line in `cmd/workflows.go` adds it to `gimble run`. Then:
 
 ```sh
 gimble run --help
 gimble run sprint --help
-gimble run sprint --issue /abs/168.md --model gpt-5.6-luna --validator claude-haiku-4-5-20251001
+gimble run sprint --issue /abs/168.md --researcher gpt-5.6-luna --validator claude-haiku-4-5-20251001 --supervisor claude-haiku-4-5-20251001
 ```
 
 The log's first line is `gimble: run <id> started in <dir>`; the page is

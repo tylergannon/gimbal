@@ -101,7 +101,7 @@ func (a *adapter) CreateSession(ctx context.Context, model, effort, workdir stri
 		return "", err
 	}
 	a.mu.Lock()
-	a.sessions[id] = &session{model: model, workdir: absolute}
+	a.sessions[id] = &session{model: model, effort: effort, workdir: absolute}
 	a.mu.Unlock()
 	return id, nil
 }

@@ -9,7 +9,6 @@ import (
 	"slices"
 	"strings"
 	"sync"
-	"text/template"
 	"time"
 )
 
@@ -23,7 +22,7 @@ type AgentOption func(*options)
 type options struct {
 	supervisors   []supervisor
 	every         time.Duration
-	scopeTemplate *template.Template
+	scopeTemplate string
 }
 
 type supervisor struct {
@@ -45,22 +44,25 @@ func WithSupervisor(session *Session, instruction string, opts ...AgentOption) A
 	}
 }
 
-// WithScopeTemplate renders the scope for this one Generate call through
-// tmpl instead of the runtime's own rendering. Its argument is the scoped
-// data that rendering would use, a ScopeData: every value visible from the
-// ctx's scope, outermost scope first, and for each key the value of the
-// nearest scope that set it. Its output is appended to the prompt in place
-// of the default text, and a template that renders to nothing leaves the
-// prompt alone. Nothing else changes: the prompt is still a constant, so
-// what the agent is sent stays readable from the source, and so is the
-// template, which is parsed once at package level from a constant or a file
-// brought in with go:embed. A failure to render the template is the error
-// Generate returns.
+// WithScopeTemplate renders the scope for this one Generate call through the
+// text/template tmpl instead of the runtime's own rendering. The template's
+// argument is the scoped data that rendering would use, a ScopeData: every
+// value visible from the ctx's scope, outermost scope first, and for each
+// key the value of the nearest scope that set it. Its output is appended to
+// the prompt in place of the default text, and a template that renders to
+// nothing leaves the prompt alone.
+//
+// tmpl is the template's text, and like the prompt it must be readable from
+// the source: a compile-time string constant, or a variable the embed
+// directive fills from a file, which a long template reads better as.
+// GIMBLE109 checks that. Gimble parses each text once and keeps it; a
+// template that cannot be parsed or cannot render is the error Generate
+// returns, before any model is called.
 //
 // It shapes the scope for the call it is given to. A supervisor's look is
 // built from the worker's transcript and carries no scope context, so this
 // does nothing among a supervisor's own options.
-func WithScopeTemplate(tmpl *template.Template) AgentOption {
+func WithScopeTemplate(tmpl string) AgentOption {
 	return func(o *options) { o.scopeTemplate = tmpl }
 }
 

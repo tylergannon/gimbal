@@ -47,3 +47,9 @@ func (*Session) Generate[T any](context.Context, string, ...AgentOption) (T, err
 func WithSupervisor(*Session, string, ...AgentOption) AgentOption {
 	return func() {}
 }
+
+// WithScopeTemplate stands in for gimble.WithScopeTemplate: its template
+// text is what GIMBLE109 checks.
+func WithScopeTemplate(string) AgentOption {
+	return func() {}
+}

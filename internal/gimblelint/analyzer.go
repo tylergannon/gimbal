@@ -7,6 +7,7 @@ import (
 	"go/constant"
 	"go/token"
 	"go/types"
+	"strings"
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/buildssa"
@@ -25,6 +26,7 @@ const (
 	reservedTask   = "[GIMBLE106-SET-MISUSE/RESERVED-TASK-KEY]: The task key belongs to Loop.Tasks and cannot be set by the task body."
 	noScopeContext = "[GIMBLE107-SET-MISUSE/CONTEXT-NOT-FROM-SCOPE]: Set needs a context supplied by a Gimble scope, not context.Background or context.TODO."
 	constantPrompt = "[GIMBLE108-SIMPLE-WORKFLOWS/CONSTANT-PROMPT]: Generate's prompt and WithSupervisor's instruction must be compile-time string constants, so a workflow's prompt is readable from its source. Put the run's data into the scope with Set or SetJSON instead; Generate appends it to the prompt."
+	constantShape  = "[GIMBLE109-SIMPLE-WORKFLOWS/CONSTANT-SCOPE-TEMPLATE]: WithScopeTemplate's template must be a compile-time string constant, or a variable of this package declared with //go:embed, so what the agent is sent is readable from the source."
 )
 
 // cmdPath is exempt from GIMBLE108: cmd/run_prompt.go runs a prompt given on
@@ -252,10 +254,12 @@ func reportSetSyntax(pass *analysis.Pass, si *syntaxInfo) {
 	}
 }
 
-// reportPromptSyntax reports a Generate prompt or WithSupervisor instruction
-// that is not a compile-time string constant. Package cmd is exempt: it runs
-// a prompt given on the command line, so it cannot pass a constant, and that
-// is the only exemption there is.
+// reportPromptSyntax reports text sent to an agent that is not readable from
+// the source: a Generate prompt or WithSupervisor instruction that is not a
+// compile-time string constant (GIMBLE108), and a WithScopeTemplate template
+// that is neither that nor an embedded file (GIMBLE109). Package cmd is
+// exempt: it runs a prompt given on the command line, so it cannot pass a
+// constant, and that is the only exemption there is.
 func reportPromptSyntax(pass *analysis.Pass) {
 	if pass.Pkg.Path() == cmdPath {
 		return
@@ -266,37 +270,95 @@ func reportPromptSyntax(pass *analysis.Pass) {
 			if !ok {
 				return true
 			}
-			index, ok := promptArgIndex(pass, call)
+			index, rule, ok := promptArgIndex(pass, call)
 			if !ok || index >= len(call.Args) {
 				return true
 			}
 			arg := call.Args[index]
-			if value := pass.TypesInfo.Types[arg].Value; value == nil || value.Kind() != constant.String {
-				pass.Reportf(arg.Pos(), "%s", constantPrompt)
+			if value := pass.TypesInfo.Types[arg].Value; value != nil && value.Kind() == constant.String {
+				return true
 			}
+			// A template's text reads better as a file, and a file brought in
+			// with go:embed is as readable from the source as a constant is:
+			// the directive names it.
+			if rule == constantShape && embeddedText(pass, arg) {
+				return true
+			}
+			pass.Reportf(arg.Pos(), "%s", rule)
 			return true
 		})
 	}
 }
 
-// promptArgIndex reports which argument of call is the prompt or instruction
-// GIMBLE108 checks: Generate's prompt (its method receiver's second call
-// argument, after ctx) or WithSupervisor's instruction (its second
-// argument, after the supervisor session).
-func promptArgIndex(pass *analysis.Pass, call *ast.CallExpr) (int, bool) {
+// promptArgIndex reports which argument of call carries text sent to an
+// agent, and the rule that argument answers to: Generate's prompt (its
+// method receiver's second call argument, after ctx), WithSupervisor's
+// instruction (its second argument, after the supervisor session), or
+// WithScopeTemplate's template (its only argument).
+func promptArgIndex(pass *analysis.Pass, call *ast.CallExpr) (int, string, bool) {
 	callee := typeutil.Callee(pass.TypesInfo, call)
 	if callee == nil || callee.Pkg() == nil || callee.Pkg().Path() != gimblePath {
-		return 0, false
+		return 0, "", false
 	}
 	switch callee.Name() {
 	case "Generate":
 		if sig, ok := callee.Type().(*types.Signature); ok && sig.Recv() != nil {
-			return 1, true
+			return 1, constantPrompt, true
 		}
 	case "WithSupervisor":
-		return 1, true
+		return 1, constantPrompt, true
+	case "WithScopeTemplate":
+		return 0, constantShape, true
 	}
-	return 0, false
+	return 0, "", false
+}
+
+// embeddedText reports whether arg names a package-level variable of the
+// package being analyzed that is declared with a go:embed directive. Its
+// text is then a file in the repository, which a reader and a static
+// analysis of the source can both reach.
+func embeddedText(pass *analysis.Pass, arg ast.Expr) bool {
+	ident, ok := arg.(*ast.Ident)
+	if !ok {
+		return false
+	}
+	variable, _ := pass.TypesInfo.Uses[ident].(*types.Var)
+	if variable == nil || variable.Parent() != pass.Pkg.Scope() {
+		return false
+	}
+	for _, file := range pass.Files {
+		for _, decl := range file.Decls {
+			declaration, ok := decl.(*ast.GenDecl)
+			if !ok || declaration.Tok != token.VAR {
+				continue
+			}
+			for _, spec := range declaration.Specs {
+				value, ok := spec.(*ast.ValueSpec)
+				if !ok {
+					continue
+				}
+				for _, name := range value.Names {
+					if pass.TypesInfo.Defs[name] != variable {
+						continue
+					}
+					return embedDirective(declaration.Doc) || embedDirective(value.Doc)
+				}
+			}
+		}
+	}
+	return false
+}
+
+func embedDirective(doc *ast.CommentGroup) bool {
+	if doc == nil {
+		return false
+	}
+	for _, comment := range doc.List {
+		if strings.HasPrefix(comment.Text, "//go:embed ") {
+			return true
+		}
+	}
+	return false
 }
 
 func enclosingBoundary(si *syntaxInfo, n ast.Node) (boundary, bool) {

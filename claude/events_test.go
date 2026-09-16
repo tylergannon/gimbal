@@ -351,3 +351,31 @@ func mustRaw(t *testing.T, err error) {
 		t.Fatal(err)
 	}
 }
+
+func TestRawProjectorKeepsTheTurnWhenToolInputIsNotJSON(t *testing.T) {
+	var events []gimble.AgentEvent
+	p := newProjector("session-1", "claude-test", func(event gimble.AgentEvent) error { events = append(events, event); return nil })
+	fixtures := []string{
+		`{"type":"stream_event","uuid":"e","session_id":"session-1","event":{"type":"message_start","message":{"id":"msg_native","model":"claude-native","usage":{"input_tokens":1}}}}`,
+		`{"type":"stream_event","uuid":"e","session_id":"session-1","event":{"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"toolu_bad","name":"Read","input":{}}}}`,
+		`{"type":"stream_event","uuid":"e","session_id":"session-1","event":{"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{\"offset\": 230,"}}}`,
+		`{"type":"stream_event","uuid":"e","session_id":"session-1","event":{"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":" 245}"}}}`,
+		`{"type":"stream_event","uuid":"e","session_id":"session-1","event":{"type":"content_block_stop","index":0}}`,
+		`{"type":"stream_event","uuid":"e","session_id":"session-1","event":{"type":"message_delta","delta":{"stop_reason":"tool_use"},"usage":{"output_tokens":3}}}`,
+		`{"type":"stream_event","uuid":"e","session_id":"session-1","event":{"type":"message_stop"}}`,
+		`{"type":"user","uuid":"u","session_id":"session-1","message":{"id":"user-message","content":[{"type":"tool_result","tool_use_id":"toolu_bad","content":"InputValidationError: Read was called with input that could not be parsed as JSON.","is_error":true}]}}`,
+	}
+	for _, fixture := range fixtures {
+		mustRaw(t, p.raw(json.RawMessage(fixture)))
+	}
+	got := claudeTypes(events)
+	if !slices.Contains(got, "session.tool.called") || !slices.Contains(got, "session.tool.failed") || got[len(got)-1] != "session.step.ended" {
+		t.Fatalf("event types = %v", got)
+	}
+	var called map[string]any
+	claudeData(t, events[slices.Index(got, "session.tool.called")], &called)
+	unparsed, _ := called["input"].(map[string]any)["__unparsedToolInput"].(map[string]any)
+	if unparsed["raw"] != `{"offset": 230, 245}` {
+		t.Fatalf("input = %#v", called["input"])
+	}
+}

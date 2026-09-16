@@ -16,7 +16,7 @@ func TestSetMisusePanics(t *testing.T) {
 	if got := caught(func() { Set(t.Context(), "goal", "x") }); got != `gimble: set "goal": no scope in the ctx; it must come from gimble.Run` {
 		t.Errorf("Set with no scope panicked with %v", got)
 	}
-	err := runTest(t, func(ctx context.Context) error {
+	err := runTest(t, nil, func(ctx context.Context) error {
 		var ended context.Context
 		err := Scope(ctx, "delivery", func(ctx context.Context) error {
 			ended = ctx

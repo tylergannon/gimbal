@@ -13,8 +13,10 @@ import (
 // that owns the session ends.
 type HarnessAdapter interface {
 	// CreateSession reserves one adapter session and returns its id. A harness
-	// may start its native process or conversation lazily in RunTurn.
-	CreateSession(ctx context.Context, model, workdir string) (string, error)
+	// may start its native process or conversation lazily in RunTurn. effort
+	// is the reasoning effort the role was bound to, empty when the run left
+	// it to the harness's own default.
+	CreateSession(ctx context.Context, model, effort, workdir string) (string, error)
 
 	// RunTurn runs one turn and blocks until it ends. It passes every event
 	// to onEvent as it arrives and returns the turn's output and the
@@ -35,6 +37,16 @@ type HarnessAdapter interface {
 	// Close releases whatever the adapter holds for the session. Idempotent.
 	// Called by the runtime when the owning scope ends.
 	Close(ctx context.Context, sessionID string) error
+}
+
+// ModelBinding is what one role runs on: the harness that serves it, the
+// model, and the reasoning effort. A run binds every role its workflow
+// names; the workflow itself names only the role.
+type ModelBinding struct {
+	Adapter HarnessAdapter
+	Model   string
+	// Effort is the reasoning effort, empty to leave it to the harness.
+	Effort string
 }
 
 // TurnResult is what one turn produced.

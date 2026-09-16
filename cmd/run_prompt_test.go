@@ -42,11 +42,16 @@ func TestResolvePromptModelPrecedence(t *testing.T) {
 	}
 }
 
-func TestResolvePromptModelRejectsEffortTheHarnessCannotReceive(t *testing.T) {
+// TestResolvePromptModelCarriesEffort: every harness takes the reasoning
+// effort a role is bound to, so only agy's own limit rejects one.
+func TestResolvePromptModelCarriesEffort(t *testing.T) {
 	for _, model := range []string{"gpt", "fable"} {
-		_, err := resolvePromptModel(runPromptOptions{model: model, effort: "max"}, promptCallerNone)
-		if err == nil || !strings.Contains(err.Error(), "not supported") {
+		resolved, err := resolvePromptModel(runPromptOptions{model: model, effort: "max"}, promptCallerNone)
+		if err != nil {
 			t.Fatalf("model %s error = %v", model, err)
+		}
+		if resolved.Effort != "max" {
+			t.Fatalf("model %s effort = %q, want max", model, resolved.Effort)
 		}
 	}
 	if _, err := resolvePromptModel(runPromptOptions{model: "flash", effort: "max"}, promptCallerNone); err == nil || !strings.Contains(err.Error(), "low, medium, or high") {

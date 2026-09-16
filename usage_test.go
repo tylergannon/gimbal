@@ -41,9 +41,9 @@ func TestSessionUsageAccumulates(t *testing.T) {
 	}
 	var totals []Usage
 	var dir string
-	err := runTest(t, func(ctx context.Context) error {
+	err := runTest(t, bind(f, "fake-model", "worker"), func(ctx context.Context) error {
 		dir = runDir(ctx)
-		s := NewSession(ctx, "worker", f, "fake-model", ".")
+		s := NewSession(ctx, "worker", ".")
 		_, err := s.turn(ctx, "go", nil, func(event AgentEvent) error {
 			if event.Type != "session.usage.updated" {
 				return nil
@@ -100,9 +100,9 @@ func TestTurnUsageFallsBackToItsSteps(t *testing.T) {
 		},
 	}
 	var dir string
-	if err := runTest(t, func(ctx context.Context) error {
+	if err := runTest(t, bind(f, "fake-model", "worker"), func(ctx context.Context) error {
 		dir = runDir(ctx)
-		s := NewSession(ctx, "worker", f, "fake-model", ".")
+		s := NewSession(ctx, "worker", ".")
 		_, err := s.turn(ctx, "go", nil, nil, "gimble.Text", nil)
 		return err
 	}); err != nil {

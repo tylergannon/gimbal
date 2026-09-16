@@ -19,7 +19,7 @@ type issue131Adapter struct {
 	next int
 }
 
-func (a *issue131Adapter) CreateSession(context.Context, string, string) (string, error) {
+func (a *issue131Adapter) CreateSession(context.Context, string, string, string) (string, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.next++
@@ -39,10 +39,10 @@ func (*issue131Adapter) Fork(_ context.Context, session string) (string, error) 
 
 func (*issue131Adapter) Close(context.Context, string) error { return nil }
 
-func issue131Run(t *testing.T, project, name string, body func(context.Context, *run) error) (*run, error) {
+func issue131Run(t *testing.T, project, name string, adapter HarnessAdapter, body func(context.Context, *run) error) (*run, error) {
 	t.Helper()
 	var got *run
-	err := Run(Project(t.Context(), project), name, func(ctx context.Context) error {
+	err := Run(Project(t.Context(), project), name, bind(adapter, "fake", "worker"), func(ctx context.Context) error {
 		scope, err := current(ctx)
 		if err != nil {
 			return err
@@ -55,9 +55,9 @@ func issue131Run(t *testing.T, project, name string, body func(context.Context, 
 
 func TestIssue131RunClosesOwnedSessionLogs(t *testing.T) {
 	adapter := &issue131Adapter{}
-	r, err := issue131Run(t, t.TempDir(), "session-close", func(ctx context.Context, _ *run) error {
+	r, err := issue131Run(t, t.TempDir(), "session-close", adapter, func(ctx context.Context, _ *run) error {
 		for i := range 4 {
-			s := NewSession(ctx, "worker", adapter, "fake", t.TempDir())
+			s := NewSession(ctx, "worker", t.TempDir())
 			if _, err := s.Generate[Text](ctx, fmt.Sprintf("turn-%d", i)); err != nil {
 				return err
 			}
@@ -85,7 +85,7 @@ func TestIssue131RunSurfacesRecordingFailures(t *testing.T) {
 		if err := os.Mkdir(filepath.Join(project, "project.jsonl"), 0o755); err != nil {
 			t.Fatal(err)
 		}
-		r, err := issue131Run(t, project, "project-open", func(context.Context, *run) error { return nil })
+		r, err := issue131Run(t, project, "project-open", &issue131Adapter{}, func(context.Context, *run) error { return nil })
 		if err == nil || !strings.Contains(err.Error(), "open project log") {
 			t.Fatalf("Run error = %v, want project-log open failure", err)
 		}
@@ -105,11 +105,11 @@ func TestIssue131RunSurfacesRecordingFailures(t *testing.T) {
 
 	t.Run("session open", func(t *testing.T) {
 		adapter := &issue131Adapter{}
-		_, err := issue131Run(t, t.TempDir(), "session-open", func(ctx context.Context, r *run) error {
+		_, err := issue131Run(t, t.TempDir(), "session-open", adapter, func(ctx context.Context, r *run) error {
 			if err := os.WriteFile(filepath.Join(r.dir, "sessions"), []byte("blocked"), 0o644); err != nil {
 				return err
 			}
-			_, generateErr := NewSession(ctx, "worker", adapter, "fake", t.TempDir()).Generate[Text](ctx, "turn")
+			_, generateErr := NewSession(ctx, "worker", t.TempDir()).Generate[Text](ctx, "turn")
 			return generateErr
 		})
 		if err == nil || !strings.Contains(err.Error(), "open session log") {
@@ -119,8 +119,8 @@ func TestIssue131RunSurfacesRecordingFailures(t *testing.T) {
 
 	t.Run("session write", func(t *testing.T) {
 		adapter := &issue131Adapter{}
-		_, err := issue131Run(t, t.TempDir(), "session-write", func(ctx context.Context, r *run) error {
-			s := NewSession(ctx, "worker", adapter, "fake", t.TempDir())
+		_, err := issue131Run(t, t.TempDir(), "session-write", adapter, func(ctx context.Context, r *run) error {
+			s := NewSession(ctx, "worker", t.TempDir())
 			if _, err := s.Generate[Text](ctx, "first"); err != nil {
 				return err
 			}
@@ -140,8 +140,8 @@ func TestIssue131RunSurfacesRecordingFailures(t *testing.T) {
 
 	t.Run("session close", func(t *testing.T) {
 		adapter := &issue131Adapter{}
-		_, err := issue131Run(t, t.TempDir(), "session-close-error", func(ctx context.Context, r *run) error {
-			s := NewSession(ctx, "worker", adapter, "fake", t.TempDir())
+		_, err := issue131Run(t, t.TempDir(), "session-close-error", adapter, func(ctx context.Context, r *run) error {
+			s := NewSession(ctx, "worker", t.TempDir())
 			if _, err := s.Generate[Text](ctx, "turn"); err != nil {
 				return err
 			}
@@ -157,7 +157,7 @@ func TestIssue131RunSurfacesRecordingFailures(t *testing.T) {
 
 	t.Run("run write and workflow error", func(t *testing.T) {
 		workflowErr := errors.New("workflow failed")
-		_, err := issue131Run(t, t.TempDir(), "combined", func(_ context.Context, r *run) error {
+		_, err := issue131Run(t, t.TempDir(), "combined", &issue131Adapter{}, func(_ context.Context, r *run) error {
 			if err := r.writer.file.Close(); err != nil {
 				return err
 			}

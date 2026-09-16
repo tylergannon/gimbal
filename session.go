@@ -17,6 +17,7 @@ type Session struct {
 	adapter HarnessAdapter
 	name    string
 	model   string
+	effort  string
 	workdir string
 	id      string // the creating scope's key, then name.ordinal, as in lap.3/coder.1
 
@@ -34,16 +35,25 @@ type Session struct {
 	activeEmit       func(AgentEvent) error
 }
 
-// NewSession creates a session in the scope the ctx is in, named for the
-// graph. It cannot fail: the agent process starts on the first turn, and
-// the adapter carries the harness-specific config. A session created outside
-// Run cannot generate turns or be forked.
-func NewSession(ctx context.Context, name string, adapter HarnessAdapter, model, workdir string) *Session {
-	s := &Session{adapter: adapter, name: name, model: model, workdir: workdir}
-	if scope, err := current(ctx); err == nil {
-		scope.adopt(s)
-		scope.run.event(scope.key, s.id, "", SessionCreated{Name: name, Adapter: fmt.Sprintf("%T", adapter), Model: model, Workdir: workdir})
+// NewSession creates a session in the scope the ctx is in, for the role of
+// that name. The role says what the session does; what it runs on is the
+// binding the run was started with. It cannot fail: the agent process
+// starts on the first turn. A role the run did not bind is a programming
+// error and panics, naming the role. A session created outside Run cannot
+// generate turns or be forked.
+func NewSession(ctx context.Context, role, workdir string) *Session {
+	s := &Session{name: role, workdir: workdir}
+	scope, err := current(ctx)
+	if err != nil {
+		return s
 	}
+	binding, bound := scope.run.models[role]
+	if !bound {
+		panic(fmt.Sprintf("gimble: the run did not bind the role %q", role))
+	}
+	s.adapter, s.model, s.effort = binding.Adapter, binding.Model, binding.Effort
+	scope.adopt(s)
+	scope.run.event(scope.key, s.id, "", SessionCreated{Name: role, Adapter: fmt.Sprintf("%T", s.adapter), Model: s.model, Effort: s.effort, Workdir: workdir})
 	return s
 }
 
@@ -132,7 +142,7 @@ func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessag
 	}()
 
 	if native == "" {
-		id, err := s.adapter.CreateSession(ctx, s.model, s.workdir)
+		id, err := s.adapter.CreateSession(ctx, s.model, s.effort, s.workdir)
 		if err != nil {
 			return nil, fmt.Errorf("gimble: %s: %w", s.id, err)
 		}
@@ -484,9 +494,10 @@ func steerSource(ctx context.Context) string {
 	return source
 }
 
-// Fork returns a new session, named for the graph, in the same workdir,
-// with the same conversation so far. The two sessions are independent
-// after that.
+// Fork returns a new session, named for the role it takes on, in the same
+// workdir, with the same conversation so far. A fork continues its parent's
+// conversation, so it runs on its parent's binding and the run binds
+// nothing for it. The two sessions are independent after that.
 func (s *Session) Fork(ctx context.Context, name string) (*Session, error) {
 	scope, err := current(ctx)
 	if err != nil {
@@ -499,7 +510,7 @@ func (s *Session) Fork(ctx context.Context, name string) (*Session, error) {
 	if err != nil {
 		return nil, err
 	}
-	fork := &Session{adapter: s.adapter, name: name, model: s.model, workdir: s.workdir}
+	fork := &Session{adapter: s.adapter, name: name, model: s.model, effort: s.effort, workdir: s.workdir}
 	if native != "" {
 		if fork.native, err = s.adapter.Fork(ctx, native); err != nil {
 			return nil, fmt.Errorf("gimble: fork %s: %w", s.id, err)

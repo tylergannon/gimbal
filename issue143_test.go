@@ -33,12 +33,12 @@ func TestCloseFailureNeverEntersScopeErrorButRunAggregatesEvery(t *testing.T) {
 	}
 	project := t.TempDir()
 	var scopeErr error
-	err := Run(Project(t.Context(), project), "close-fail", func(ctx context.Context) error {
+	err := Run(Project(t.Context(), project), "close-fail", bind(f, "m", "one", "two"), func(ctx context.Context) error {
 		scopeErr = Scope(ctx, "lap", func(ctx context.Context) error {
-			if _, err := NewSession(ctx, "one", f, "m", "/w").Generate[Text](ctx, "hi"); err != nil {
+			if _, err := NewSession(ctx, "one", "/w").Generate[Text](ctx, "hi"); err != nil {
 				return err
 			}
-			if _, err := NewSession(ctx, "two", f, "m", "/w").Generate[Text](ctx, "hi"); err != nil {
+			if _, err := NewSession(ctx, "two", "/w").Generate[Text](ctx, "hi"); err != nil {
 				return err
 			}
 			return nil
@@ -102,11 +102,11 @@ func TestCancelledRunStillClosesEverySessionOnAFreshContext(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
-	if err := Run(Project(ctx, t.TempDir()), "cancelled", func(ctx context.Context) error {
-		if _, err := NewSession(ctx, "one", f, "m", "/w").Generate[Text](ctx, "hi"); err != nil {
+	if err := Run(Project(ctx, t.TempDir()), "cancelled", bind(f, "m", "one", "two"), func(ctx context.Context) error {
+		if _, err := NewSession(ctx, "one", "/w").Generate[Text](ctx, "hi"); err != nil {
 			return err
 		}
-		if _, err := NewSession(ctx, "two", f, "m", "/w").Generate[Text](ctx, "hi"); err != nil {
+		if _, err := NewSession(ctx, "two", "/w").Generate[Text](ctx, "hi"); err != nil {
 			return err
 		}
 		cancel() // cancel the run's own ctx from inside the body
@@ -136,8 +136,8 @@ func TestUnusedSessionClosesWithoutAnAdapterCall(t *testing.T) {
 		t.Errorf("Close was called for a session with no native id: %s", session)
 	}
 	project := t.TempDir()
-	err := Run(Project(t.Context(), project), "unused", func(ctx context.Context) error {
-		NewSession(ctx, "idle", f, "m", "/w")
+	err := Run(Project(t.Context(), project), "unused", bind(f, "m", "idle"), func(ctx context.Context) error {
+		NewSession(ctx, "idle", "/w")
 		return nil
 	})
 	if err != nil {
@@ -171,8 +171,8 @@ func TestCloseFailureDoesNotAffectRecordingError(t *testing.T) {
 	}}
 	f.closeErr = func(string) error { return errors.New("boom") }
 	project := t.TempDir()
-	err := Run(Project(t.Context(), project), "recording", func(ctx context.Context) error {
-		_, err := NewSession(ctx, "one", f, "m", "/w").Generate[Text](ctx, "hi")
+	err := Run(Project(t.Context(), project), "recording", bind(f, "m", "one"), func(ctx context.Context) error {
+		_, err := NewSession(ctx, "one", "/w").Generate[Text](ctx, "hi")
 		return err
 	})
 	if _, ok := errors.AsType[*CloseError](err); !ok {

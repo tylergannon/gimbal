@@ -43,7 +43,7 @@ type fake struct {
 	closed  []string
 }
 
-func (f *fake) CreateSession(ctx context.Context, model, workdir string) (string, error) {
+func (f *fake) CreateSession(ctx context.Context, model, effort, workdir string) (string, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.made++
@@ -102,9 +102,19 @@ func (f *fake) Close(ctx context.Context, session string) error {
 	return nil
 }
 
-func runTest(t *testing.T, body func(ctx context.Context) error) error {
+func runTest(t *testing.T, models map[string]ModelBinding, body func(ctx context.Context) error) error {
 	t.Helper()
-	return Run(Project(t.Context(), t.TempDir()), "test", body)
+	return Run(Project(t.Context(), t.TempDir()), "test", models, body)
+}
+
+// bind binds each role to one fake harness, for a test that cares about the
+// runtime rather than about which model answers.
+func bind(adapter HarnessAdapter, model string, roles ...string) map[string]ModelBinding {
+	models := make(map[string]ModelBinding, len(roles))
+	for _, role := range roles {
+		models[role] = ModelBinding{Adapter: adapter, Model: model}
+	}
+	return models
 }
 
 func lifecycleKind(event LifecycleEvent) string {
@@ -161,7 +171,7 @@ func fakeAgentEvent(eventType, session, message string, fields map[string]any) A
 func TestRunLogCanBeRead(t *testing.T) {
 	project := t.TempDir()
 	var dir string
-	if err := Run(Project(t.Context(), project), "reader", func(ctx context.Context) error {
+	if err := Run(Project(t.Context(), project), "reader", nil, func(ctx context.Context) error {
 		dir = runDir(ctx)
 		return nil
 	}); err != nil {
@@ -215,7 +225,7 @@ func TestRunLogCanBeRead(t *testing.T) {
 }
 
 func TestScopeData(t *testing.T) {
-	err := runTest(t, func(ctx context.Context) error {
+	err := runTest(t, nil, func(ctx context.Context) error {
 		Set(ctx, "language", "go")
 		SetJSON(ctx, "review", review{Objections: []string{"too big"}})
 		var inner context.Context
@@ -255,8 +265,8 @@ func TestGenerate(t *testing.T) {
 		}
 	}}
 	var escaped *Session
-	err := runTest(t, func(ctx context.Context) error {
-		s := NewSession(ctx, "coder", f, "m", "/w")
+	err := runTest(t, bind(f, "m", "coder"), func(ctx context.Context) error {
+		s := NewSession(ctx, "coder", "/w")
 		text, err := s.Generate[Text](ctx, "hi")
 		if err != nil || text != "hello" {
 			t.Errorf("Generate[Text] = %q, %v", text, err)
@@ -268,11 +278,11 @@ func TestGenerate(t *testing.T) {
 		if got, err := s.Generate[review](ctx, "bad"); err != nil || len(got.Objections) != 1 || !reasked {
 			t.Errorf("Generate did not recover by re-asking after an invalid result: %v, %v, reasked=%v", got, err, reasked)
 		}
-		if s.id != "coder.1" || NewSession(ctx, "coder", f, "m", "/w").id != "coder.2" {
+		if s.id != "coder.1" || NewSession(ctx, "coder", "/w").id != "coder.2" {
 			t.Errorf("session ids: %q", s.id)
 		}
 		return Scope(ctx, "lap", func(ctx context.Context) error {
-			escaped = NewSession(ctx, "coder", f, "m", "/w")
+			escaped = NewSession(ctx, "coder", "/w")
 			if escaped.id != "lap.1/coder.1" {
 				t.Errorf("id = %q", escaped.id)
 			}
@@ -297,14 +307,14 @@ func TestGroupFirstErrorCancelsTheRest(t *testing.T) {
 		return "", ctx.Err()
 	}}
 	var slow error
-	err := runTest(t, func(ctx context.Context) error {
+	err := runTest(t, bind(f, "m", "candidate"), func(ctx context.Context) error {
 		g := Group(ctx, "bakeoff")
 		g.Go("attempt", func(ctx context.Context) error {
-			_, slow = NewSession(ctx, "candidate", f, "m", "/w").Generate[Text](ctx, "wait")
+			_, slow = NewSession(ctx, "candidate", "/w").Generate[Text](ctx, "wait")
 			return nil
 		})
 		g.Go("attempt", func(ctx context.Context) error {
-			_, err := NewSession(ctx, "candidate", f, "m", "/w").Generate[Text](ctx, "fail")
+			_, err := NewSession(ctx, "candidate", "/w").Generate[Text](ctx, "fail")
 			return err
 		})
 		return g.Wait()
@@ -321,8 +331,8 @@ func TestFork(t *testing.T) {
 	f := &fake{answer: func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(AgentEvent) error) (string, error) {
 		return session, nil
 	}}
-	err := runTest(t, func(ctx context.Context) error {
-		researcher := NewSession(ctx, "researcher", f, "m", "/w")
+	err := runTest(t, bind(f, "m", "researcher"), func(ctx context.Context) error {
+		researcher := NewSession(ctx, "researcher", "/w")
 		if _, err := researcher.Generate[Text](ctx, "prime"); err != nil {
 			return err
 		}
@@ -369,9 +379,9 @@ func TestSupervise(t *testing.T) {
 		}
 		return `{"objections": []}`, nil
 	}
-	err := runTest(t, func(ctx context.Context) error {
-		worker := NewSession(ctx, "coder", f, "m", "/w")
-		supervisor := NewSession(ctx, "taste", f, "m", "/w")
+	err := runTest(t, bind(f, "m", "coder", "taste"), func(ctx context.Context) error {
+		worker := NewSession(ctx, "coder", "/w")
+		supervisor := NewSession(ctx, "taste", "/w")
 		res, err := worker.Generate[Text](ctx, "build it", WithSupervisor(supervisor, "no plugin systems", WithInterval(10*time.Millisecond)))
 		if res != "done" {
 			t.Errorf("result %q", res)
@@ -421,10 +431,10 @@ func TestSuperviseASupervisor(t *testing.T) {
 		}
 		return `{"objections": []}`, nil
 	}
-	err := runTest(t, func(ctx context.Context) error {
-		worker := NewSession(ctx, "coder", f, "m", "/w")
-		supervisor := NewSession(ctx, "taste", f, "m", "/w")
-		lead := NewSession(ctx, "lead", f, "m", "/w")
+	err := runTest(t, bind(f, "m", "coder", "lead", "taste"), func(ctx context.Context) error {
+		worker := NewSession(ctx, "coder", "/w")
+		supervisor := NewSession(ctx, "taste", "/w")
+		lead := NewSession(ctx, "lead", "/w")
 		_, err := worker.Generate[Text](ctx, "build it", WithSupervisor(supervisor, "no plugin systems",
 			WithInterval(10*time.Millisecond),
 			WithSupervisor(lead, "no nitpicking", WithInterval(10*time.Millisecond)),
@@ -465,9 +475,9 @@ func TestSuperviseCancelsAndJoinsLook(t *testing.T) {
 				joined = true
 				return "", ctx.Err()
 			}}
-			err := Run(Project(ctx, t.TempDir()), "join", func(ctx context.Context) error {
-				worker := NewSession(ctx, "worker", f, "fake", ".")
-				reviewer := NewSession(ctx, "reviewer", f, "fake", ".")
+			err := Run(Project(ctx, t.TempDir()), "join", bind(f, "m", "reviewer", "worker"), func(ctx context.Context) error {
+				worker := NewSession(ctx, "worker", ".")
+				reviewer := NewSession(ctx, "reviewer", ".")
 				result, err := worker.Generate[Text](ctx, "work", WithSupervisor(reviewer, "watch", WithInterval(time.Millisecond)))
 				if !joined {
 					t.Error("Generate returned before the supervisor exited")
@@ -504,9 +514,9 @@ func TestLoopCarriesStructuredTaskAndFeedback(t *testing.T) {
 	var tasks []Task
 	var taskKeys []string
 	var parentText string
-	err := Run(Project(t.Context(), project), "test", func(ctx context.Context) error {
+	err := Run(Project(t.Context(), project), "test", bind(f, "m", "planner"), func(ctx context.Context) error {
 		Set(ctx, "constraint", "keep the public API small")
-		planner := NewSession(ctx, "planner", f, "m", t.TempDir())
+		planner := NewSession(ctx, "planner", t.TempDir())
 		loop := Loop(ctx, "sprint", "ship", planner)
 		for ctx, task := range loop.Tasks {
 			tasks = append(tasks, task)
@@ -599,8 +609,8 @@ func TestLoopReasksAfterInvalidPlan(t *testing.T) {
 				}
 			}}
 			var tasks []Task
-			err := runTest(t, func(ctx context.Context) error {
-				planner := NewSession(ctx, "planner", f, "m", t.TempDir())
+			err := runTest(t, bind(f, "m", "planner"), func(ctx context.Context) error {
+				planner := NewSession(ctx, "planner", t.TempDir())
 				loop := Loop(ctx, "sprint", "ship", planner)
 				for _, task := range loop.Tasks {
 					tasks = append(tasks, task)
@@ -633,8 +643,8 @@ func TestLoopReasksAfterInvalidPlan(t *testing.T) {
 			calls++
 			return string(duplicate), nil
 		}}
-		err := runTest(t, func(ctx context.Context) error {
-			planner := NewSession(ctx, "planner", f, "m", t.TempDir())
+		err := runTest(t, bind(f, "m", "planner"), func(ctx context.Context) error {
+			planner := NewSession(ctx, "planner", t.TempDir())
 			loop := Loop(ctx, "sprint", "ship", planner)
 			for range loop.Tasks {
 				t.Fatal("invalid task was yielded")
@@ -655,8 +665,8 @@ func TestLoopReasksAfterInvalidPlan(t *testing.T) {
 			calls++
 			return "", errors.New("harness fell over")
 		}}
-		err := runTest(t, func(ctx context.Context) error {
-			planner := NewSession(ctx, "planner", f, "m", t.TempDir())
+		err := runTest(t, bind(f, "m", "planner"), func(ctx context.Context) error {
+			planner := NewSession(ctx, "planner", t.TempDir())
 			loop := Loop(ctx, "sprint", "ship", planner)
 			for range loop.Tasks {
 				t.Fatal("task was yielded")
@@ -677,12 +687,12 @@ func TestLoopEndsTaskScopeOnBreak(t *testing.T) {
 	}}
 	var taskCtx context.Context
 	var worker *Session
-	err := runTest(t, func(ctx context.Context) error {
-		planner := NewSession(ctx, "planner", f, "m", t.TempDir())
+	err := runTest(t, bind(f, "m", "planner", "worker"), func(ctx context.Context) error {
+		planner := NewSession(ctx, "planner", t.TempDir())
 		loop := Loop(ctx, "work", "inspect", planner)
 		for ctx := range loop.Tasks {
 			taskCtx = ctx
-			worker = NewSession(ctx, "worker", f, "m", t.TempDir())
+			worker = NewSession(ctx, "worker", t.TempDir())
 			break
 		}
 		if err := loop.Err(); err != nil {
@@ -710,12 +720,12 @@ func TestLoopEndsTaskScopeOnCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	var taskCtx context.Context
 	var worker *Session
-	err := Run(Project(ctx, t.TempDir()), "test", func(ctx context.Context) error {
-		planner := NewSession(ctx, "planner", f, "m", t.TempDir())
+	err := Run(Project(ctx, t.TempDir()), "test", bind(f, "m", "planner", "worker"), func(ctx context.Context) error {
+		planner := NewSession(ctx, "planner", t.TempDir())
 		loop := Loop(ctx, "work", "wait", planner)
 		for ctx := range loop.Tasks {
 			taskCtx = ctx
-			worker = NewSession(ctx, "worker", f, "m", t.TempDir())
+			worker = NewSession(ctx, "worker", t.TempDir())
 			cancel()
 			<-ctx.Done()
 			break
@@ -764,12 +774,12 @@ func TestAttestEventFixture(t *testing.T) {
 	runsGroup, runCtx := errgroup.WithContext(ctx)
 	defer func() { cancel(); _ = runsGroup.Wait() }()
 	runsGroup.Go(func() error {
-		return Run(Project(runCtx, project), "attest", func(ctx context.Context) error {
+		return Run(Project(runCtx, project), "attest", bind(f, "m", "researcher", "reviewer", "worker"), func(ctx context.Context) error {
 			if runDir(ctx) == "" {
 				return errors.New("run directory was empty inside a run")
 			}
 			Set(ctx, "root", "value")
-			researcher := NewSession(ctx, "researcher", f, "model", project)
+			researcher := NewSession(ctx, "researcher", project)
 			if _, err := researcher.Generate[Text](ctx, "prime"); err != nil {
 				return err
 			}
@@ -777,8 +787,8 @@ func TestAttestEventFixture(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			worker := NewSession(ctx, "worker", f, "model", project)
-			reviewer := NewSession(ctx, "reviewer", f, "review", project)
+			worker := NewSession(ctx, "worker", project)
+			reviewer := NewSession(ctx, "reviewer", project)
 			turns := Group(ctx, "build")
 			turns.Go("worker", func(ctx context.Context) error {
 				_, err := worker.Generate[Text](ctx, "build", WithSupervisor(reviewer, "watch", WithInterval(time.Millisecond)))
@@ -1063,11 +1073,11 @@ func TestRunWritesTheTables(t *testing.T) {
 		return "done", nil
 	}}
 	var dir string
-	if err := Run(Project(t.Context(), t.TempDir()), "tables", func(ctx context.Context) error {
+	if err := Run(Project(t.Context(), t.TempDir()), "tables", bind(f, "m", "coder"), func(ctx context.Context) error {
 		dir = runDir(ctx)
 		// A session created at the root and used inside a group: the turn
 		// belongs to the scope it ran in, not the one it was made in.
-		s := NewSession(ctx, "coder", f, "test-model", "/w")
+		s := NewSession(ctx, "coder", "/w")
 		if _, err := s.Generate[Text](ctx, "prime"); err != nil {
 			return err
 		}
@@ -1135,9 +1145,9 @@ func TestTurnRecordsValidationFailure(t *testing.T) {
 		return `{"objections": "not a list"}`, nil
 	}}
 	var dir string
-	if err := Run(Project(t.Context(), t.TempDir()), "validate", func(ctx context.Context) error {
+	if err := Run(Project(t.Context(), t.TempDir()), "validate", bind(f, "m", "coder"), func(ctx context.Context) error {
 		dir = runDir(ctx)
-		s := NewSession(ctx, "coder", f, "m", "/w")
+		s := NewSession(ctx, "coder", "/w")
 		if _, err := s.Generate[review](ctx, "review"); err == nil {
 			t.Error("a result that does not validate was accepted")
 		}
@@ -1161,5 +1171,45 @@ func TestTurnRecordsValidationFailure(t *testing.T) {
 		if !strings.Contains(turn.Error, "objections") || turn.Result == "" {
 			t.Fatalf("turn_ended = %+v, want the validation failure and the result it rejected", turn)
 		}
+	}
+}
+
+// TestUnboundRolePanicsNamingTheRole: a workflow that names a role the run
+// did not bind is a programming error, caught where the session is made and
+// reported by name, not silently run on some other role's model.
+func TestUnboundRolePanicsNamingTheRole(t *testing.T) {
+	f := &fake{}
+	defer func() {
+		v := recover()
+		message, ok := v.(string)
+		if !ok || !strings.Contains(message, `the run did not bind the role "validator"`) {
+			t.Fatalf("panic = %v, want the unbound role named", v)
+		}
+	}()
+	_ = runTest(t, bind(f, "m", "researcher"), func(ctx context.Context) error {
+		NewSession(ctx, "validator", ".")
+		return nil
+	})
+	t.Fatal("an unbound role did not panic")
+}
+
+// TestForkRunsOnItsParentsBinding: a fork continues its parent's
+// conversation, so the run binds nothing for it and it keeps the parent's
+// model and effort.
+func TestForkRunsOnItsParentsBinding(t *testing.T) {
+	f := &fake{}
+	err := runTest(t, map[string]ModelBinding{"researcher": {Adapter: f, Model: "parent-model", Effort: "high"}}, func(ctx context.Context) error {
+		researcher := NewSession(ctx, "researcher", ".")
+		coder, err := researcher.Fork(ctx, "coder")
+		if err != nil {
+			return err
+		}
+		if coder.model != "parent-model" || coder.effort != "high" {
+			t.Fatalf("fork binding = %q/%q, want parent-model/high", coder.model, coder.effort)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
 }

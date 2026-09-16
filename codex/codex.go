@@ -53,6 +53,7 @@ type adapter struct {
 
 type session struct {
 	model   string
+	effort  string
 	workdir string
 
 	mu     sync.Mutex
@@ -189,7 +190,7 @@ func threadArchived(ctx context.Context, conn *connection, threadID string) (boo
 }
 
 // CreateSession starts a Codex thread.
-func (a *adapter) CreateSession(ctx context.Context, model, workdir string) (string, error) {
+func (a *adapter) CreateSession(ctx context.Context, model, effort, workdir string) (string, error) {
 	return a.thread(ctx, "thread/start", map[string]any{
 		"model":                 model,
 		"cwd":                   workdir,
@@ -197,7 +198,7 @@ func (a *adapter) CreateSession(ctx context.Context, model, workdir string) (str
 		"sandbox":               "danger-full-access",
 		"serviceName":           "gimble",
 		"experimentalRawEvents": true,
-	}, &session{model: model, workdir: workdir})
+	}, &session{model: model, effort: effort, workdir: workdir})
 }
 
 // Fork starts a new thread with the conversation of sessionID so far.
@@ -218,7 +219,7 @@ func (a *adapter) Fork(ctx context.Context, sessionID string) (string, error) {
 		"approvalPolicy":        "never",
 		"sandbox":               "danger-full-access",
 		"experimentalRawEvents": true,
-	}, &session{model: parent.model, workdir: parent.workdir})
+	}, &session{model: parent.model, effort: parent.effort, workdir: parent.workdir})
 }
 
 // thread calls a method that makes a thread and registers the returned
@@ -264,6 +265,9 @@ func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema 
 		"cwd":            s.workdir,
 		"approvalPolicy": "never",
 		"sandboxPolicy":  map[string]any{"type": "dangerFullAccess"},
+	}
+	if s.effort != "" {
+		params["effort"] = s.effort
 	}
 	if len(schema) > 0 {
 		params["outputSchema"] = schema

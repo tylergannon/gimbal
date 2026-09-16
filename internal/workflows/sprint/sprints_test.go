@@ -16,7 +16,7 @@ type taskAdapter struct {
 	prompts []string
 }
 
-func (a *taskAdapter) CreateSession(context.Context, string, string) (string, error) {
+func (a *taskAdapter) CreateSession(context.Context, string, string, string) (string, error) {
 	return "session", nil
 }
 
@@ -49,10 +49,10 @@ func TestRunTaskAssessesDefinitionOfDoneWithoutValidationRecipe(t *testing.T) {
 	t.Cleanup(func() { repositoryChecks = oldChecks })
 
 	adapter := &taskAdapter{}
-	err := gimble.Run(gimble.Project(t.Context(), t.TempDir()), "test", func(ctx context.Context) error {
-		researcher := gimble.NewSession(ctx, "researcher", adapter, "test", repo)
-		validator := gimble.NewSession(ctx, "validator", adapter, "test", repo)
-		return runTask(ctx, Input{Sprint: 1, Repo: repo, ReviewModel: "test"}, researcher, validator, adapter, gimble.Task{
+	err := gimble.Run(gimble.Project(t.Context(), t.TempDir()), "test", sprintModels(adapter, "test"), func(ctx context.Context) error {
+		researcher := gimble.NewSession(ctx, "researcher", repo)
+		validator := gimble.NewSession(ctx, "validator", repo)
+		return runTask(ctx, Input{Sprint: 1, Repo: repo}, researcher, validator, gimble.Task{
 			Name:             "prove-result",
 			Description:      "Produce the expected result.",
 			DefinitionOfDone: "The expected result is demonstrated.",
@@ -93,9 +93,9 @@ func TestDryRunShowsEveryPromptAndKeepsFindingsOutOfTheGoal(t *testing.T) {
 
 	var out strings.Builder
 	d := newDryRun(&out)
-	in := Input{Issue: issue, Repo: repo, Model: "codex-model", ReviewModel: "claude-model", Tasks: 10, DryRun: true}
-	err := gimble.Run(gimble.Project(t.Context(), t.TempDir()), "test", func(ctx context.Context) error {
-		return run(ctx, in, d, d)
+	in := Input{Issue: issue, Repo: repo, Tasks: 10, DryRun: true}
+	err := gimble.Run(gimble.Project(t.Context(), t.TempDir()), "test", sprintModels(d, "dry"), func(ctx context.Context) error {
+		return Sprint(ctx, in)
 	})
 	if err != nil {
 		t.Fatal(err, "\n", out.String())
@@ -194,4 +194,13 @@ func runGit(t *testing.T, dir string, args ...string) string {
 		t.Fatalf("git %s: %v: %s", strings.Join(args, " "), err, out)
 	}
 	return strings.TrimSpace(string(out))
+}
+
+// sprintModels binds the three roles the sprint names to one harness.
+func sprintModels(adapter gimble.HarnessAdapter, model string) map[string]gimble.ModelBinding {
+	models := map[string]gimble.ModelBinding{}
+	for _, role := range []string{"researcher", "validator", "supervisor"} {
+		models[role] = gimble.ModelBinding{Adapter: adapter, Model: model}
+	}
+	return models
 }

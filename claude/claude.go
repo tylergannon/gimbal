@@ -31,6 +31,7 @@ type adapter struct {
 
 type session struct {
 	model   string
+	effort  string
 	workdir string
 
 	mu     sync.Mutex
@@ -51,8 +52,8 @@ func New() gimble.HarnessAdapter {
 }
 
 // CreateSession mints the id the first turn passes as --session-id.
-func (a *adapter) CreateSession(ctx context.Context, model, workdir string) (string, error) {
-	return a.add(&session{model: model, workdir: workdir, fresh: true})
+func (a *adapter) CreateSession(ctx context.Context, model, effort, workdir string) (string, error) {
+	return a.add(&session{model: model, effort: effort, workdir: workdir, fresh: true})
 }
 
 // Fork mints an id for a new session that forks from sessionID on its
@@ -62,7 +63,7 @@ func (a *adapter) Fork(ctx context.Context, sessionID string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return a.add(&session{model: parent.model, workdir: parent.workdir, parent: sessionID})
+	return a.add(&session{model: parent.model, effort: parent.effort, workdir: parent.workdir, parent: sessionID})
 }
 
 func (a *adapter) add(s *session) (string, error) {
@@ -130,6 +131,9 @@ func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema 
 		extra["session-id"] = &sessionID
 	default:
 		options = append(options, claudeagent.WithResume(sessionID))
+	}
+	if s.effort != "" {
+		options = append(options, claudeagent.WithEffort(claudeagent.EffortLevel(s.effort)))
 	}
 	options = append(options, claudeagent.WithExtraArgs(extra))
 

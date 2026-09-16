@@ -193,9 +193,10 @@ func (r *Runtime) startWeb(cfg config) error {
 	return nil
 }
 
-// Run starts one workflow run and blocks until body returns. The run ends when
-// either ctx or the runtime context ends.
-func (r *Runtime) Run(ctx context.Context, name string, body func(context.Context) error) error {
+// Run starts one workflow run and blocks until body returns. models binds
+// every role the workflow names. The run ends when either ctx or the runtime
+// context ends.
+func (r *Runtime) Run(ctx context.Context, name string, models map[string]gimble.ModelBinding, body func(context.Context) error) error {
 	if r == nil {
 		return errors.New("gimble: nil runtime")
 	}
@@ -212,7 +213,7 @@ func (r *Runtime) Run(ctx context.Context, name string, body func(context.Contex
 	// The run puts itself in the runtime's table under its id for as long
 	// as its body runs, so Steer, KillScope, and KillTurn can reach it.
 	runCtx = live.WithHook(runCtx, r.runs.Hook)
-	err := gimble.Run(gimble.Project(runCtx, r.dir), name, body)
+	err := gimble.Run(gimble.Project(runCtx, r.dir), name, models, body)
 	if err == nil && context.Cause(runCtx) != nil {
 		return context.Cause(runCtx)
 	}

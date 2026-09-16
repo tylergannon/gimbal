@@ -51,8 +51,8 @@ func TestRunTurnAfterRedialResumesThread(t *testing.T) {
 	defer cancel()
 	ctx = gimble.Project(ctx, dir)
 
-	err := gimble.Run(ctx, "daemon-live", func(ctx context.Context) error {
-		session := gimble.NewSession(ctx, "live", ad, "gpt-5.6-luna", dir)
+	err := gimble.Run(ctx, "daemon-live", map[string]gimble.ModelBinding{"live": {Adapter: ad, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
+		session := gimble.NewSession(ctx, "live", dir)
 
 		first, err := session.Generate[gimble.Text](ctx, "Reply with exactly one word: one.")
 		if err != nil {
@@ -244,8 +244,8 @@ func TestCloseArchivesThreadsWithoutTouchingTheDaemon(t *testing.T) {
 	defer cancel()
 	ctx = gimble.Project(ctx, dir)
 
-	err = gimble.Run(ctx, "daemon-close-live", func(ctx context.Context) error {
-		session := gimble.NewSession(ctx, "live", ad, "gpt-5.6-luna", dir)
+	err = gimble.Run(ctx, "daemon-close-live", map[string]gimble.ModelBinding{"live": {Adapter: ad, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
+		session := gimble.NewSession(ctx, "live", dir)
 		if _, err := session.Generate[gimble.Text](ctx, "Reply with exactly one word: proof."); err != nil {
 			return err
 		}
@@ -350,8 +350,8 @@ func TestCloseArchivesThroughARedialedConnection(t *testing.T) {
 	ctx = gimble.Project(ctx, dir)
 
 	var dead *connection
-	err = gimble.Run(ctx, "daemon-close-redial-live", func(ctx context.Context) error {
-		session := gimble.NewSession(ctx, "live", ad, "gpt-5.6-luna", dir)
+	err = gimble.Run(ctx, "daemon-close-redial-live", map[string]gimble.ModelBinding{"live": {Adapter: ad, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
+		session := gimble.NewSession(ctx, "live", dir)
 		if _, err := session.Generate[gimble.Text](ctx, "Reply with exactly one word: proof."); err != nil {
 			return err
 		}
@@ -434,8 +434,8 @@ func TestForkOfAnArchivedParentFailsWithoutAGhost(t *testing.T) {
 	loadedBefore := loadedSet(t, probe)
 
 	var parent string
-	err = gimble.Run(ctx, "daemon-fork-archived-live", func(ctx context.Context) error {
-		session := gimble.NewSession(ctx, "live", ad, "gpt-5.6-luna", dir)
+	err = gimble.Run(ctx, "daemon-fork-archived-live", map[string]gimble.ModelBinding{"live": {Adapter: ad, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
+		session := gimble.NewSession(ctx, "live", dir)
 		if _, err := session.Generate[gimble.Text](ctx, "Reply with exactly one word: parent."); err != nil {
 			return err
 		}

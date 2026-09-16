@@ -14,7 +14,7 @@ import (
 // needs no live process either.
 func TestCloseIsIdempotent(t *testing.T) {
 	ad := New().(*adapter)
-	id, err := ad.CreateSession(context.Background(), "model", ".")
+	id, err := ad.CreateSession(context.Background(), "model", "", ".")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,7 +43,7 @@ func TestAssistantErrorPreservesProviderRequestID(t *testing.T) {
 // unknown session is the error it always was.
 func TestSteerWithNoStreamLiveIsDropped(t *testing.T) {
 	ad := New().(*adapter)
-	id, err := ad.CreateSession(context.Background(), "model", ".")
+	id, err := ad.CreateSession(context.Background(), "model", "", ".")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,5 +56,34 @@ func TestSteerWithNoStreamLiveIsDropped(t *testing.T) {
 	}
 	if _, err := ad.Steer(context.Background(), "unknown-session", "change course"); err == nil {
 		t.Fatal("Steer on an unknown session = nil, want an error")
+	}
+}
+
+// TestSessionKeepsItsEffortAndForksInheritIt: the reasoning effort a role is
+// bound to is held for every turn of the session, and a fork continues its
+// parent's conversation on the parent's effort.
+func TestSessionKeepsItsEffortAndForksInheritIt(t *testing.T) {
+	ad := New().(*adapter)
+	id, err := ad.CreateSession(context.Background(), "model", "xhigh", ".")
+	if err != nil {
+		t.Fatal(err)
+	}
+	parent, err := ad.session(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if parent.effort != "xhigh" {
+		t.Fatalf("session effort = %q, want xhigh", parent.effort)
+	}
+	forkID, err := ad.Fork(context.Background(), id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fork, err := ad.session(forkID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fork.effort != "xhigh" || fork.model != "model" {
+		t.Fatalf("fork = %q/%q, want model/xhigh", fork.model, fork.effort)
 	}
 }

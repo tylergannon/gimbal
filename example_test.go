@@ -11,7 +11,7 @@ import (
 
 type exampleAdapter struct{}
 
-func (*exampleAdapter) CreateSession(context.Context, string, string) (string, error) {
+func (*exampleAdapter) CreateSession(context.Context, string, string, string) (string, error) {
 	return "example-session", nil
 }
 
@@ -42,9 +42,9 @@ func Example() {
 	ctx, closeProject := exampleContext()
 	defer closeProject()
 
-	err := gimble.Run(ctx, "example", func(ctx context.Context) error {
+	err := gimble.Run(ctx, "example", map[string]gimble.ModelBinding{"worker": {Adapter: &exampleAdapter{}, Model: "example"}}, func(ctx context.Context) error {
 		gimble.Set(ctx, "goal", "demonstrate the public API")
-		worker := gimble.NewSession(ctx, "worker", &exampleAdapter{}, "example", ".")
+		worker := gimble.NewSession(ctx, "worker", ".")
 		answer, err := worker.Generate[gimble.Text](ctx,
 			"Complete the goal.\n\n"+gimble.ScopeText(ctx))
 		if err != nil {
@@ -64,7 +64,7 @@ func ExampleGroup() {
 	ctx, closeProject := exampleContext()
 	defer closeProject()
 
-	err := gimble.Run(ctx, "parallel", func(ctx context.Context) error {
+	err := gimble.Run(ctx, "parallel", nil, func(ctx context.Context) error {
 		group := gimble.Group(ctx, "drafts")
 		group.Go("draft", func(ctx context.Context) error {
 			gimble.Set(ctx, "approach", "first")
@@ -83,7 +83,7 @@ func ExampleGroup() {
 
 type exampleLoopAdapter struct{ turns int }
 
-func (*exampleLoopAdapter) CreateSession(context.Context, string, string) (string, error) {
+func (*exampleLoopAdapter) CreateSession(context.Context, string, string, string) (string, error) {
 	return "example-planner", nil
 }
 
@@ -105,8 +105,8 @@ func ExampleLoop() {
 	ctx, closeProject := exampleContext()
 	defer closeProject()
 
-	err := gimble.Run(ctx, "dispatch", func(ctx context.Context) error {
-		planner := gimble.NewSession(ctx, "planner", &exampleLoopAdapter{}, "example", ".")
+	err := gimble.Run(ctx, "dispatch", map[string]gimble.ModelBinding{"planner": {Adapter: &exampleLoopAdapter{}, Model: "example"}}, func(ctx context.Context) error {
+		planner := gimble.NewSession(ctx, "planner", ".")
 		loop := gimble.Loop(ctx, "work", "demonstrate adaptive dispatch", planner)
 		for ctx, task := range loop.Tasks {
 			fmt.Println(task.Name)

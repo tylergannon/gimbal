@@ -41,8 +41,8 @@ func TestSteerReportsLandedOrDropped(t *testing.T) {
 			}
 			var during, after bool
 			var duringErr, afterErr error
-			err := Run(Project(t.Context(), project), "steer", func(ctx context.Context) error {
-				worker := NewSession(ctx, "worker", f, "model", project)
+			err := Run(Project(t.Context(), project), "steer", bind(f, "model", "worker"), func(ctx context.Context) error {
+				worker := NewSession(ctx, "worker", project)
 				group, groupCtx := errgroup.WithContext(ctx)
 				group.Go(func() error {
 					_, err := worker.Generate[Text](groupCtx, "build")

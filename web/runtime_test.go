@@ -90,7 +90,7 @@ func TestRuntimeRunsWithoutWeb(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := runtime.Run(ctx, "headless", func(context.Context) error { return nil }); err != nil {
+	if err := runtime.Run(ctx, "headless", nil, func(context.Context) error { return nil }); err != nil {
 		t.Fatal(err)
 	}
 	cancel()

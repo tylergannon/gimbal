@@ -20,7 +20,7 @@ import (
 func TestAdapterCreatesResumesStructuresAndTranslates(t *testing.T) {
 	adapter, record := testAdapter(t)
 	workdir := t.TempDir()
-	sessionID, err := adapter.CreateSession(t.Context(), "gemini-test-low", workdir)
+	sessionID, err := adapter.CreateSession(t.Context(), "gemini-test-low", "", workdir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,7 +69,7 @@ func TestAdapterCreatesResumesStructuresAndTranslates(t *testing.T) {
 func TestAdapterSteerInterruptsAndResumesInsideTurn(t *testing.T) {
 	adapter, record := testAdapter(t)
 	workdir := t.TempDir()
-	sessionID, err := adapter.CreateSession(t.Context(), "gemini-test-low", workdir)
+	sessionID, err := adapter.CreateSession(t.Context(), "gemini-test-low", "", workdir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -102,7 +102,7 @@ func TestAdapterSteerInterruptsAndResumesInsideTurn(t *testing.T) {
 func TestAdapterCancellationAfterStdoutClosesStillInterruptsProcess(t *testing.T) {
 	adapter, record := testAdapter(t)
 	workdir := t.TempDir()
-	sessionID, err := adapter.CreateSession(t.Context(), "gemini-test-low", workdir)
+	sessionID, err := adapter.CreateSession(t.Context(), "gemini-test-low", "", workdir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -128,7 +128,7 @@ func TestAdapterCancellationAfterStdoutClosesStillInterruptsProcess(t *testing.T
 func TestAdapterPropagatesObserverFailure(t *testing.T) {
 	adapter, _ := testAdapter(t)
 	workdir := t.TempDir()
-	sessionID, err := adapter.CreateSession(t.Context(), "gemini-test-low", workdir)
+	sessionID, err := adapter.CreateSession(t.Context(), "gemini-test-low", "", workdir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -141,7 +141,7 @@ func TestAdapterPropagatesObserverFailure(t *testing.T) {
 
 func TestAdapterTreatsResultAsTerminalWhenProcessStaysAlive(t *testing.T) {
 	adapter, _ := testAdapter(t)
-	sessionID, err := adapter.CreateSession(t.Context(), "gemini-test-low", t.TempDir())
+	sessionID, err := adapter.CreateSession(t.Context(), "gemini-test-low", "", t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -290,4 +290,35 @@ func flagValue(args []string, name string) string {
 		}
 	}
 	return ""
+}
+
+// TestEffortReachesTheProcess: the reasoning effort a role is bound to
+// arrives on agy's command line, except where the model name already fixes
+// it, as gemini-3.8-flash-high does.
+func TestEffortReachesTheProcess(t *testing.T) {
+	for _, test := range []struct {
+		name, model, effort, want string
+	}{
+		{name: "base model takes the flag", model: "gemini-test", effort: "low", want: "low"},
+		{name: "no effort, no flag", model: "gemini-test", effort: "", want: ""},
+		{name: "model name fixes effort", model: "gemini-test-high", effort: "high", want: ""},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			adapter, record := testAdapter(t)
+			sessionID, err := adapter.CreateSession(t.Context(), test.model, test.effort, t.TempDir())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := adapter.RunTurn(t.Context(), sessionID, "hello", nil, func(gimble.AgentEvent) error { return nil }); err != nil {
+				t.Fatal(err)
+			}
+			invocations := readInvocations(t, record)
+			if len(invocations) != 1 {
+				t.Fatalf("invocations = %#v", invocations)
+			}
+			if got := flagValue(invocations[0], "--effort"); got != test.want {
+				t.Fatalf("--effort = %q, want %q in %#v", got, test.want, invocations[0])
+			}
+		})
+	}
 }

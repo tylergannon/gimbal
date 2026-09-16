@@ -25,9 +25,9 @@ func source(pkg, entry string, info entryInfo, graph workflow.Graph) string {
 			cf.Target = "&opt" + f.name
 			data.Optional = true
 		}
-		if f.name == "Repo" && f.kind == "string" && !f.optional {
+		if f.name == "WorkDir" && f.kind == "string" && !f.optional {
 			cf.Default = `"."`
-			data.Repo = true
+			data.WorkDir = true
 		}
 		if cf.Required = !f.optional && f.kind != "bool" && cf.Default != `"."`; cf.Required {
 			cf.Usage += " (required)"
@@ -92,7 +92,7 @@ type commandData struct {
 	Package, Name, Entry, Input, Summary, Long, Graph string
 	Fields                                            []commandField
 	Roles                                             []commandRole
-	Repo, Optional                                    bool
+	WorkDir, Optional                                 bool
 }
 
 type commandField struct {
@@ -168,12 +168,12 @@ func Command() *cobra.Command {
 			in.{{.Name}} = polytype.Optional[{{.Kind}}]{Present: true, Value: opt{{.Name}}}
 		}
 {{- end}}{{end}}
-		repo, err := filepath.Abs({{if .Repo}}in.Repo{{else}}"."{{end}})
+		workDir, err := filepath.Abs({{if .WorkDir}}in.WorkDir{{else}}"."{{end}})
 		if err != nil {
 			return err
 		}
-{{- if .Repo}}
-		in.Repo = repo
+{{- if .WorkDir}}
+		in.WorkDir = workDir
 {{- end}}
 		models, err := binding.Roles(map[string]string{ {{range .Roles}}{{printf "%q" .Name}}: {{.Ident}}, {{end}}})
 		if err != nil {
@@ -190,7 +190,7 @@ func Command() *cobra.Command {
 		default:
 			options = append(options, web.WithPort(port))
 		}
-		runtime, err := web.NewRuntime(ctx, filepath.Join(repo, ".gimble"), options...)
+		runtime, err := web.NewRuntime(ctx, filepath.Join(workDir, ".gimble"), options...)
 		if err != nil {
 			return err
 		}

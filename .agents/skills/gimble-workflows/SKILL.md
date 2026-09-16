@@ -108,7 +108,7 @@ A workflow is a package under `internal/workflows/` whose entry is
 itself, and the workflow's `Command()`, a Cobra subcommand you can read: one
 flag per field of `Input`,
 named from the field with its doc comment as help, required unless the field
-is a `polytype.Optional` (a bool is never required, and a `Repo` string
+is a `polytype.Optional` (a bool is never required, and a `WorkDir` string
 defaults to the current directory); one `--<role>` flag per role the graph
 names, defaulting to the model the package's `roles` var gives it and
 required when it gives none; and `--port`, `--uds`, `--no-web`. One line in `cmd/gimble/workflows.go` adds it to `gimble run`. Then:

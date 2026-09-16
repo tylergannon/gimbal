@@ -87,7 +87,7 @@ func TestRunTaskAssessesDefinitionOfDoneWithoutValidationRecipe(t *testing.T) {
 		planner := gimble.NewSession(ctx, "planner", repo)
 		loop := gimble.Loop(ctx, "sprint", "ship", planner)
 		for ctx, task := range loop.Tasks {
-			if err := runTask(ctx, Input{Sprint: present(1), Repo: repo}, researcher, validator, task); err != nil {
+			if err := runTask(ctx, Input{Sprint: present(1), WorkDir: repo}, researcher, validator, task); err != nil {
 				return err
 			}
 		}
@@ -177,7 +177,7 @@ func TestEveryPromptIsLocalAndFindingsStayOutOfTheGoal(t *testing.T) {
 	t.Cleanup(func() { repositoryChecks = oldChecks })
 
 	s := &scripted{answers: map[string]int{}}
-	in := Input{Issue: present(issue), Repo: repo}
+	in := Input{Issue: present(issue), WorkDir: repo}
 	err := gimble.Run(gimble.Project(t.Context(), t.TempDir()), "test", sprintModels(s, "test"), func(ctx context.Context) error {
 		return Sprint(ctx, in)
 	})
@@ -336,7 +336,7 @@ func TestAValidatorTurnErrorFailsTheTaskAndTheLoopGoesOn(t *testing.T) {
 		planner := gimble.NewSession(ctx, "planner", repo)
 		loop := gimble.Loop(ctx, "sprint", "ship", planner)
 		for ctx, task := range loop.Tasks {
-			if err := runTask(ctx, Input{Sprint: present(1), Repo: repo}, researcher, validator, task); err != nil {
+			if err := runTask(ctx, Input{Sprint: present(1), WorkDir: repo}, researcher, validator, task); err != nil {
 				return err
 			}
 		}
@@ -380,7 +380,7 @@ func TestACancelledContextStillEndsTheSprint(t *testing.T) {
 		for taskCtx, task := range loop.Tasks {
 			cancelled, cancel := context.WithCancel(taskCtx)
 			cancel()
-			if err := runTask(cancelled, Input{Sprint: present(1), Repo: repo}, researcher, validator, task); err != nil {
+			if err := runTask(cancelled, Input{Sprint: present(1), WorkDir: repo}, researcher, validator, task); err != nil {
 				return err
 			}
 		}

@@ -24,8 +24,8 @@ type Input struct {
 	Sprint int
 	// What the sprint should be about, in a sentence or a paragraph.
 	Seed string
-	// Absolute path of the repository.
-	Repo string
+	// Absolute path of the working directory.
+	WorkDir string
 }
 
 // The roles Plan names, and the model each runs on unless the run's flag
@@ -41,7 +41,7 @@ var roles = map[string]string{
 // Plan writes docs/sprints/SPRINT-NNN.md for in.Sprint. It names four roles,
 // which the run binds: planner, claude, codex, and gemini.
 func Plan(ctx context.Context, in Input) error {
-	drafts := filepath.Join(in.Repo, "docs", "sprints", "drafts")
+	drafts := filepath.Join(in.WorkDir, "docs", "sprints", "drafts")
 	if err := os.MkdirAll(drafts, 0o755); err != nil {
 		return err
 	}
@@ -53,7 +53,7 @@ func Plan(ctx context.Context, in Input) error {
 	gimble.Set(ctx, "intent document", file("INTENT"))
 	gimble.Set(ctx, "drafts directory", drafts)
 
-	planner := gimble.NewSession(ctx, "planner", in.Repo)
+	planner := gimble.NewSession(ctx, "planner", in.WorkDir)
 	if _, err := planner.Generate[gimble.Text](ctx, intentPrompt); err != nil {
 		return err
 	}
@@ -61,19 +61,19 @@ func Plan(ctx context.Context, in Input) error {
 	lanes := gimble.Group(ctx, "drafts")
 	lanes.Go("claude", func(ctx context.Context) error {
 		gimble.Set(ctx, "your draft", claudeDraft)
-		claude := gimble.NewSession(ctx, "claude", in.Repo)
+		claude := gimble.NewSession(ctx, "claude", in.WorkDir)
 		_, err := claude.Generate[gimble.Text](ctx, draftPrompt)
 		return err
 	})
 	lanes.Go("codex", func(ctx context.Context) error {
 		gimble.Set(ctx, "your draft", codexDraft)
-		codex := gimble.NewSession(ctx, "codex", in.Repo)
+		codex := gimble.NewSession(ctx, "codex", in.WorkDir)
 		_, err := codex.Generate[gimble.Text](ctx, draftPrompt)
 		return err
 	})
 	lanes.Go("gemini", func(ctx context.Context) error {
 		gimble.Set(ctx, "your draft", geminiDraft)
-		gemini := gimble.NewSession(ctx, "gemini", in.Repo)
+		gemini := gimble.NewSession(ctx, "gemini", in.WorkDir)
 		_, err := gemini.Generate[gimble.Text](ctx, draftPrompt)
 		return err
 	})
@@ -85,21 +85,21 @@ func Plan(ctx context.Context, in Input) error {
 	critiques.Go("claude", func(ctx context.Context) error {
 		gimble.Set(ctx, "drafts to review", []string{codexDraft, geminiDraft})
 		gimble.Set(ctx, "your critique", file("CLAUDE-CRITIQUE"))
-		claude := gimble.NewSession(ctx, "claude", in.Repo)
+		claude := gimble.NewSession(ctx, "claude", in.WorkDir)
 		_, err := claude.Generate[gimble.Text](ctx, critiquePrompt)
 		return err
 	})
 	critiques.Go("codex", func(ctx context.Context) error {
 		gimble.Set(ctx, "drafts to review", []string{claudeDraft, geminiDraft})
 		gimble.Set(ctx, "your critique", file("CODEX-CRITIQUE"))
-		codex := gimble.NewSession(ctx, "codex", in.Repo)
+		codex := gimble.NewSession(ctx, "codex", in.WorkDir)
 		_, err := codex.Generate[gimble.Text](ctx, critiquePrompt)
 		return err
 	})
 	critiques.Go("gemini", func(ctx context.Context) error {
 		gimble.Set(ctx, "drafts to review", []string{claudeDraft, codexDraft})
 		gimble.Set(ctx, "your critique", file("GEMINI-CRITIQUE"))
-		gemini := gimble.NewSession(ctx, "gemini", in.Repo)
+		gemini := gimble.NewSession(ctx, "gemini", in.WorkDir)
 		_, err := gemini.Generate[gimble.Text](ctx, critiquePrompt)
 		return err
 	})
@@ -116,12 +116,12 @@ func Plan(ctx context.Context, in Input) error {
 		return err
 	}
 	log.Printf("plan: answer the questions in %s by writing %s; the run waits for it", questions, answers)
-	if _, _, _, err := gimble.RunCommand(ctx, "ask", in.Repo, "sh", "-c", `until [ -s "$1" ]; do sleep 5; done`, "sh", answers); err != nil {
+	if _, _, _, err := gimble.RunCommand(ctx, "ask", in.WorkDir, "sh", "-c", `until [ -s "$1" ]; do sleep 5; done`, "sh", answers); err != nil {
 		return err
 	}
 
 	gimble.Set(ctx, "merge notes file", file("MERGE-NOTES"))
-	gimble.Set(ctx, "sprint document", filepath.Join(in.Repo, "docs", "sprints", fmt.Sprintf("SPRINT-%03d.md", in.Sprint)))
+	gimble.Set(ctx, "sprint document", filepath.Join(in.WorkDir, "docs", "sprints", fmt.Sprintf("SPRINT-%03d.md", in.Sprint)))
 	summary, err := planner.Generate[gimble.Text](ctx, mergePrompt)
 	if err != nil {
 		return err

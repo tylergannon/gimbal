@@ -64,7 +64,7 @@ func sprintRepo(t *testing.T) string {
 // with the test output in front of it.
 func TestExecuteBuildsThenTestsThenReports(t *testing.T) {
 	repo := sprintRepo(t)
-	f, err := run(t, Input{Sprint: 1, Repo: repo, Test: present("echo ok")})
+	f, err := run(t, Input{Sprint: 1, WorkDir: repo, Test: present("echo ok")})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -83,7 +83,7 @@ func TestExecuteBuildsThenTestsThenReports(t *testing.T) {
 // TestExecuteFailsWhenTheTestsFail: the report is still made, and then the
 // run fails with the tests' exit code.
 func TestExecuteFailsWhenTheTestsFail(t *testing.T) {
-	f, err := run(t, Input{Sprint: 1, Repo: sprintRepo(t), Test: present("exit 3")})
+	f, err := run(t, Input{Sprint: 1, WorkDir: sprintRepo(t), Test: present("exit 3")})
 	if err == nil || !strings.Contains(err.Error(), "the tests exited 3") {
 		t.Fatalf("err = %v, want the tests' exit code", err)
 	}
@@ -93,7 +93,7 @@ func TestExecuteFailsWhenTheTestsFail(t *testing.T) {
 }
 
 func TestExecuteNeedsTheSprintDocument(t *testing.T) {
-	_, err := run(t, Input{Sprint: 7, Repo: t.TempDir()})
+	_, err := run(t, Input{Sprint: 7, WorkDir: t.TempDir()})
 	if err == nil || !strings.Contains(err.Error(), "no sprint document") {
 		t.Fatalf("err = %v, want no sprint document", err)
 	}

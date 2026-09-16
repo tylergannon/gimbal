@@ -33,8 +33,8 @@ type Input struct {
 	Sprint polytype.Optional[int] `json:"sprint,omitzero"`
 	// The issue to build instead of a sprint: a GitHub issue number, or the path of a file holding the issue's text.
 	Issue polytype.Optional[string] `json:"issue,omitzero"`
-	// Absolute path of the repository. Each validated task is committed to the branch checked out there, and the sprint ends by merging that branch.
-	Repo string `json:"repo"`
+	// Absolute path of the working directory. Each validated task is committed to the branch checked out there, and the sprint ends by merging that branch.
+	WorkDir string `json:"work_dir"`
 	// The most tasks to run in all; absent means 10. The sprint fails if the planner is not done by then.
 	Tasks polytype.Optional[int] `json:"tasks,omitzero"`
 }
@@ -74,16 +74,16 @@ func Sprint(ctx context.Context, in Input) error {
 	if err != nil {
 		return err
 	}
-	goal := text + "\n\n" + fmt.Sprintf(done, in.Repo)
-	validation, err := validationSection(in.Repo)
+	goal := text + "\n\n" + fmt.Sprintf(done, in.WorkDir)
+	validation, err := validationSection(in.WorkDir)
 	if err != nil {
 		return err
 	}
 	gimble.Set(ctx, "goal", withoutProof(text))
-	gimble.Set(ctx, "definition of done", fmt.Sprintf(done, in.Repo))
+	gimble.Set(ctx, "definition of done", fmt.Sprintf(done, in.WorkDir))
 	gimble.Set(ctx, "validation", validation)
 
-	researcher := gimble.NewSession(ctx, "researcher", in.Repo)
+	researcher := gimble.NewSession(ctx, "researcher", in.WorkDir)
 	if _, err := researcher.Generate[gimble.Text](ctx, researchPrompt); err != nil {
 		return err
 	}
@@ -91,7 +91,7 @@ func Sprint(ctx context.Context, in Input) error {
 	if err != nil {
 		return err
 	}
-	validator := gimble.NewSession(ctx, "validator", in.Repo)
+	validator := gimble.NewSession(ctx, "validator", in.WorkDir)
 
 	// Build until the planner is done, then validate. What the validator
 	// did not see working is information for the planner's next round,
@@ -150,7 +150,7 @@ func Sprint(ctx context.Context, in Input) error {
 // directory first, so every agent reads it from the file.
 func goalText(ctx context.Context, in Input) (string, error) {
 	if !in.Issue.Present {
-		plan, err := os.ReadFile(filepath.Join(in.Repo, "ephemeral/research/api/SPRINTS.md"))
+		plan, err := os.ReadFile(filepath.Join(in.WorkDir, "ephemeral/research/api/SPRINTS.md"))
 		if err != nil {
 			return "", err
 		}
@@ -162,14 +162,14 @@ func goalText(ctx context.Context, in Input) (string, error) {
 	}
 	file := in.Issue.Value
 	if number, err := strconv.Atoi(in.Issue.Value); err == nil {
-		code, out, stderr, err := gimble.RunCommand(ctx, "issue", in.Repo, "gh", "issue", "view", strconv.Itoa(number), "--json", "title,body", "-t", `# {{.title}}{{"\n\n"}}{{.body}}{{"\n"}}`)
+		code, out, stderr, err := gimble.RunCommand(ctx, "issue", in.WorkDir, "gh", "issue", "view", strconv.Itoa(number), "--json", "title,body", "-t", `# {{.title}}{{"\n\n"}}{{.body}}{{"\n"}}`)
 		if err == nil && code != 0 {
 			err = fmt.Errorf("exit %d: %s", code, strings.TrimSpace(stderr))
 		}
 		if err != nil {
 			return "", fmt.Errorf("sprint: gh issue view %d: %w", number, err)
 		}
-		file = filepath.Join(in.Repo, ".gimble", "issues", fmt.Sprintf("%d.md", number))
+		file = filepath.Join(in.WorkDir, ".gimble", "issues", fmt.Sprintf("%d.md", number))
 		if err := os.MkdirAll(filepath.Dir(file), 0o755); err != nil {
 			return "", err
 		}
@@ -236,7 +236,7 @@ func attemptTask(ctx context.Context, in Input, researcher, validator *gimble.Se
 	if err != nil {
 		return err
 	}
-	supervisor := gimble.NewSession(ctx, "supervisor", in.Repo)
+	supervisor := gimble.NewSession(ctx, "supervisor", in.WorkDir)
 	result, workErr := coder.Generate[gimble.Text](ctx, codePrompt,
 		gimble.WithSupervisor(supervisor, superviseInstruction),
 	)
@@ -319,7 +319,7 @@ func attemptTask(ctx context.Context, in Input, researcher, validator *gimble.Se
 // command runs text with sh in the repository and returns its exit code and
 // its output.
 func command(ctx context.Context, in Input, text string) (int, string, error) {
-	code, stdout, stderr, err := gimble.RunCommand(ctx, "check", in.Repo, "sh", "-c", text)
+	code, stdout, stderr, err := gimble.RunCommand(ctx, "check", in.WorkDir, "sh", "-c", text)
 	if err != nil {
 		return 0, "", fmt.Errorf("sprint: command %q: %w", text, err)
 	}
@@ -383,7 +383,7 @@ func section(doc, heading string) (string, bool) {
 
 // git runs git in the repository and returns its trimmed output.
 func git(ctx context.Context, in Input, args ...string) (string, error) {
-	code, stdout, stderr, err := gimble.RunCommand(ctx, "git", in.Repo, "git", args...)
+	code, stdout, stderr, err := gimble.RunCommand(ctx, "git", in.WorkDir, "git", args...)
 	if err == nil && code != 0 {
 		err = fmt.Errorf("exit %d: %s", code, strings.TrimSpace(stdout+stderr))
 	}

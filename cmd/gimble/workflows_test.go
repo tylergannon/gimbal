@@ -21,12 +21,12 @@ func TestRunListsTheWorkflowsBuiltIn(t *testing.T) {
 // role its graph names.
 func TestRunHelpShowsTheInputsAndTheRoles(t *testing.T) {
 	help := helpOf(t, "sprint")
-	for _, flag := range []string{"--sprint int", "--issue string", "--tasks int", "--repo string", "--researcher string", "--validator string", "--supervisor string", "--port int", "--no-web"} {
+	for _, flag := range []string{"--sprint int", "--issue string", "--tasks int", "--work-dir string", "--researcher string", "--validator string", "--supervisor string", "--port int", "--no-web"} {
 		if !strings.Contains(help, flag) {
 			t.Errorf("run sprint --help lacks %s:\n%s", flag, help)
 		}
 	}
-	for _, flag := range []string{"--sprint", "--issue", "--tasks", "--repo"} {
+	for _, flag := range []string{"--sprint", "--issue", "--tasks", "--work-dir"} {
 		if strings.Contains(lineWith(help, flag), "(required)") {
 			t.Errorf("run sprint --help marks %s required:\n%s", flag, help)
 		}

@@ -47,8 +47,8 @@ The same binary runs the workflows built into it:
 ```
 
 Each workflow's subcommand is generated from its source: one flag per field
-of its input struct, and one model flag per role its graph names. `--repo` is
-the repository it runs in, whose `.gimble` holds the run, served as above.
+of its input struct, and one model flag per role its graph names. `--work-dir` is
+the working directory, whose `.gimble` holds the run, served as above.
 
 ## Lint workflows
 

@@ -94,7 +94,7 @@ func Command() *cobra.Command {
 	}
 	cmd.Flags().IntVar(&in.Sprint, "sprint", 0, "The sprint to plan: NNN of the docs/sprints/SPRINT-NNN.md it writes. (required)")
 	cmd.Flags().StringVar(&in.Seed, "seed", "", "What the sprint should be about, in a sentence or a paragraph. (required)")
-	cmd.Flags().StringVar(&in.Repo, "repo", ".", "Absolute path of the repository.")
+	cmd.Flags().StringVar(&in.WorkDir, "work-dir", ".", "Absolute path of the working directory.")
 	_ = cmd.MarkFlagRequired("sprint")
 	_ = cmd.MarkFlagRequired("seed")
 	cmd.Flags().StringVar(&plannerModel, "planner", roles["planner"], "the model for role planner, as model or model:effort")
@@ -105,11 +105,11 @@ func Command() *cobra.Command {
 	cmd.Flags().StringVar(&uds, "uds", "", "Unix-domain socket for the web application instead of TCP")
 	cmd.Flags().BoolVar(&noWeb, "no-web", false, "run without the web application")
 	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
-		repo, err := filepath.Abs(in.Repo)
+		workDir, err := filepath.Abs(in.WorkDir)
 		if err != nil {
 			return err
 		}
-		in.Repo = repo
+		in.WorkDir = workDir
 		models, err := binding.Roles(map[string]string{"planner": plannerModel, "claude": claudeModel, "codex": codexModel, "gemini": geminiModel})
 		if err != nil {
 			return err
@@ -125,7 +125,7 @@ func Command() *cobra.Command {
 		default:
 			options = append(options, web.WithPort(port))
 		}
-		runtime, err := web.NewRuntime(ctx, filepath.Join(repo, ".gimble"), options...)
+		runtime, err := web.NewRuntime(ctx, filepath.Join(workDir, ".gimble"), options...)
 		if err != nil {
 			return err
 		}

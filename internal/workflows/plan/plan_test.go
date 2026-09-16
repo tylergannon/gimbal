@@ -55,7 +55,7 @@ func TestEveryLaneDraftsThenCritiquesTheOtherTwo(t *testing.T) {
 		models[role] = gimble.ModelBinding{Adapter: f, Model: "test"}
 	}
 	err := gimble.Run(gimble.Project(t.Context(), t.TempDir()), "plan", models, func(ctx context.Context) error {
-		return Plan(ctx, Input{Sprint: 2, Seed: "Draw the graph.", Repo: repo})
+		return Plan(ctx, Input{Sprint: 2, Seed: "Draw the graph.", WorkDir: repo})
 	})
 	if err != nil {
 		t.Fatal(err)

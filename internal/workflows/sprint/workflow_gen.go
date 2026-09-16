@@ -138,7 +138,7 @@ func Command() *cobra.Command {
 	}
 	cmd.Flags().IntVar(&optSprint, "sprint", 0, "The sprint to build: its number in ephemeral/research/api/SPRINTS.md, e.g. 2. Give this or an issue.")
 	cmd.Flags().StringVar(&optIssue, "issue", "", "The issue to build instead of a sprint: a GitHub issue number, or the path of a file holding the issue's text.")
-	cmd.Flags().StringVar(&in.Repo, "repo", ".", "Absolute path of the repository. Each validated task is committed to the branch checked out there, and the sprint ends by merging that branch.")
+	cmd.Flags().StringVar(&in.WorkDir, "work-dir", ".", "Absolute path of the working directory. Each validated task is committed to the branch checked out there, and the sprint ends by merging that branch.")
 	cmd.Flags().IntVar(&optTasks, "tasks", 0, "The most tasks to run in all; absent means 10. The sprint fails if the planner is not done by then.")
 	cmd.Flags().StringVar(&researcherModel, "researcher", roles["researcher"], "the model for role researcher, as model or model:effort")
 	cmd.Flags().StringVar(&validatorModel, "validator", roles["validator"], "the model for role validator, as model or model:effort")
@@ -156,11 +156,11 @@ func Command() *cobra.Command {
 		if cmd.Flags().Changed("tasks") {
 			in.Tasks = polytype.Optional[int]{Present: true, Value: optTasks}
 		}
-		repo, err := filepath.Abs(in.Repo)
+		workDir, err := filepath.Abs(in.WorkDir)
 		if err != nil {
 			return err
 		}
-		in.Repo = repo
+		in.WorkDir = workDir
 		models, err := binding.Roles(map[string]string{"researcher": researcherModel, "validator": validatorModel, "supervisor": supervisorModel})
 		if err != nil {
 			return err
@@ -176,7 +176,7 @@ func Command() *cobra.Command {
 		default:
 			options = append(options, web.WithPort(port))
 		}
-		runtime, err := web.NewRuntime(ctx, filepath.Join(repo, ".gimble"), options...)
+		runtime, err := web.NewRuntime(ctx, filepath.Join(workDir, ".gimble"), options...)
 		if err != nil {
 			return err
 		}

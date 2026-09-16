@@ -26,8 +26,8 @@ import (
 type Input struct {
 	// Path of the spec document that says what is being built.
 	Spec string
-	// Absolute path of the repository the work is done in.
-	Repo string
+	// Absolute path of the working directory.
+	WorkDir string
 	// The most tasks to run in all; absent means 50.
 	Tasks polytype.Optional[int]
 }
@@ -60,15 +60,15 @@ func EasyLoop(ctx context.Context, in Input) error {
 		return err
 	}
 	limit := cmp.Or(in.Tasks.Value, 50)
-	plans := filepath.Join(in.Repo, "docs", "plans", strings.TrimSuffix(filepath.Base(spec), filepath.Ext(spec)))
+	plans := filepath.Join(in.WorkDir, "docs", "plans", strings.TrimSuffix(filepath.Base(spec), filepath.Ext(spec)))
 	if err := os.MkdirAll(plans, 0o755); err != nil {
 		return err
 	}
 	gimble.Set(ctx, "spec document", spec)
 	gimble.Set(ctx, "plan directory", plans)
 
-	planner := gimble.NewSession(ctx, "planner", in.Repo)
-	critic := gimble.NewSession(ctx, "critic", in.Repo)
+	planner := gimble.NewSession(ctx, "planner", in.WorkDir)
+	critic := gimble.NewSession(ctx, "critic", in.WorkDir)
 	if _, err := planner.Generate[gimble.Text](ctx, planPrompt); err != nil {
 		return err
 	}
@@ -81,8 +81,8 @@ func EasyLoop(ctx context.Context, in Input) error {
 
 	// The plan is written. The planner dispatches its work to the coder, and
 	// the reviewer judges each task and ends the loop when the spec is met.
-	coder := gimble.NewSession(ctx, "coder", in.Repo)
-	reviewer := gimble.NewSession(ctx, "reviewer", in.Repo)
+	coder := gimble.NewSession(ctx, "coder", in.WorkDir)
+	reviewer := gimble.NewSession(ctx, "reviewer", in.WorkDir)
 	loop := gimble.Loop(ctx, "work", goal, planner)
 	tasks, met := 0, false
 	for ctx, task := range loop.Tasks {

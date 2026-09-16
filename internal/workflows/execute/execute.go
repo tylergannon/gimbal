@@ -23,8 +23,8 @@ import (
 type Input struct {
 	// The sprint to execute: NNN of docs/sprints/SPRINT-NNN.md.
 	Sprint int
-	// Absolute path of the repository the sprint is built in.
-	Repo string
+	// Absolute path of the working directory the sprint is built in.
+	WorkDir string
 	// The repository's test command, run with sh -c after the worker finishes; absent means go test ./...
 	Test polytype.Optional[string]
 }
@@ -36,20 +36,20 @@ var roles = map[string]string{"worker": "gpt-5.6-luna"}
 // Execute builds sprint in.Sprint. It names one role, worker, which the run
 // binds.
 func Execute(ctx context.Context, in Input) error {
-	doc := filepath.Join(in.Repo, "docs", "sprints", fmt.Sprintf("SPRINT-%03d.md", in.Sprint))
+	doc := filepath.Join(in.WorkDir, "docs", "sprints", fmt.Sprintf("SPRINT-%03d.md", in.Sprint))
 	if _, err := os.Stat(doc); err != nil {
 		return fmt.Errorf("execute: no sprint document: %w", err)
 	}
 	gimble.Set(ctx, "sprint document", doc)
-	gimble.Set(ctx, "blockers file", filepath.Join(in.Repo, "docs", "sprints", "drafts", fmt.Sprintf("SPRINT-%03d-BLOCKERS.md", in.Sprint)))
+	gimble.Set(ctx, "blockers file", filepath.Join(in.WorkDir, "docs", "sprints", "drafts", fmt.Sprintf("SPRINT-%03d-BLOCKERS.md", in.Sprint)))
 
-	worker := gimble.NewSession(ctx, "worker", in.Repo)
+	worker := gimble.NewSession(ctx, "worker", in.WorkDir)
 	if _, err := worker.Generate[gimble.Text](ctx, executePrompt); err != nil {
 		return err
 	}
 
 	test := cmp.Or(in.Test.Value, "go test ./...")
-	code, stdout, stderr, err := gimble.RunCommand(ctx, "tests", in.Repo, "sh", "-c", test)
+	code, stdout, stderr, err := gimble.RunCommand(ctx, "tests", in.WorkDir, "sh", "-c", test)
 	if err != nil {
 		return err
 	}

@@ -312,22 +312,41 @@ func decodeEnvelope(message claudeagent.Message) envelope {
 	return e
 }
 
+// assistantError is the error of a failed assistant message. Claude Code
+// states the code on the message and its own explanation of the failure as
+// the message's text; both belong in the error, so a reader of the run does
+// not have to open the CLI's transcript to learn why the turn failed.
 func assistantError(message claudeagent.Message) error {
 	var code claudeagent.AssistantMessageError
-	var requestID string
+	var requestID, explanation string
 	switch assistant := message.(type) {
 	case claudeagent.AssistantMessage:
-		code, requestID = assistant.Error, assistant.RequestID
+		code, requestID, explanation = assistant.Error, assistant.RequestID, blockText(assistant.Message.Content)
 	case *claudeagent.AssistantMessage:
-		code, requestID = assistant.Error, assistant.RequestID
+		code, requestID, explanation = assistant.Error, assistant.RequestID, blockText(assistant.Message.Content)
 	}
 	if code == "" {
 		return nil
 	}
-	if requestID != "" {
-		return fmt.Errorf("claude: assistant error: %s (request ID: %s)", code, requestID)
+	text := "claude: assistant error: " + string(code)
+	if explanation != "" {
+		text += ": " + explanation
 	}
-	return errors.New("claude: assistant error: " + string(code))
+	if requestID != "" {
+		text += " (request ID: " + requestID + ")"
+	}
+	return errors.New(text)
+}
+
+// blockText is the text Claude Code wrote on a message, as one line.
+func blockText(blocks []claudeagent.ContentBlock) string {
+	var parts []string
+	for _, block := range blocks {
+		if block.Type == "text" && strings.TrimSpace(block.Text) != "" {
+			parts = append(parts, strings.TrimSpace(block.Text))
+		}
+	}
+	return oneLine(strings.Join(parts, " "))
 }
 
 func asResult(message claudeagent.Message) (claudeagent.ResultMessage, bool) {

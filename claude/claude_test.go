@@ -87,3 +87,23 @@ func TestSessionKeepsItsEffortAndForksInheritIt(t *testing.T) {
 		t.Fatalf("fork = %q/%q, want model/xhigh", fork.model, fork.effort)
 	}
 }
+
+// TestAssistantErrorCarriesTheCLIsExplanation: when a turn fails, Claude
+// Code states the code on the assistant message and writes why it failed as
+// the message's text. The error carries both, so a reader of the run never
+// has to open the CLI's own transcript to learn the reason.
+func TestAssistantErrorCarriesTheCLIsExplanation(t *testing.T) {
+	message := claudeagent.AssistantMessage{Error: claudeagent.AssistantMessageErrorInvalidRequest}
+	message.Message.Content = []claudeagent.ContentBlock{{
+		Type: "text",
+		Text: "Autocompact is thrashing: the context refilled to the limit\nwithin 3 turns of the previous compact, 3 times in a row.",
+	}}
+	err := assistantError(message)
+	if err == nil {
+		t.Fatal("assistantError = nil, want an error")
+	}
+	want := "claude: assistant error: invalid_request: Autocompact is thrashing: the context refilled to the limit within 3 turns of the previous compact, 3 times in a row."
+	if err.Error() != want {
+		t.Fatalf("assistantError = %q, want %q", err, want)
+	}
+}

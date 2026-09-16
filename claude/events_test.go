@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/tylergannon/gimble"
@@ -377,5 +378,34 @@ func TestRawProjectorKeepsTheTurnWhenToolInputIsNotJSON(t *testing.T) {
 	unparsed, _ := called["input"].(map[string]any)["__unparsedToolInput"].(map[string]any)
 	if unparsed["raw"] != `{"offset": 230, 245}` {
 		t.Fatalf("input = %#v", called["input"])
+	}
+}
+
+// TestRawProjectorRecordsTheCLIsExplanationOfAFailedTurn: the reason a turn
+// failed is the text of the synthetic assistant message that carries the
+// error code. It belongs on the failure record, not only in Claude Code's
+// own transcript.
+func TestRawProjectorRecordsTheCLIsExplanationOfAFailedTurn(t *testing.T) {
+	var events []gimble.AgentEvent
+	p := newProjector("session-1", "claude-test", func(event gimble.AgentEvent) error { events = append(events, event); return nil })
+	fixtures := []string{
+		`{"type":"stream_event","uuid":"e","session_id":"session-1","event":{"type":"message_start","message":{"id":"msg","model":"claude-test"}}}`,
+		`{"type":"assistant","uuid":"a","session_id":"session-1","request_id":"req_217","error":"invalid_request","message":{"id":"msg","role":"assistant","content":[{"type":"text","text":"Autocompact is thrashing: the context refilled\nto the limit within 3 turns of the previous compact."}]}}`,
+	}
+	for _, fixture := range fixtures {
+		mustRaw(t, p.raw(json.RawMessage(fixture)))
+	}
+	var failed map[string]any
+	claudeData(t, firstClaudeType(t, events, "session.step.failed"), &failed)
+	errorValue := failed["error"].(map[string]any)
+	want := "Autocompact is thrashing: the context refilled to the limit within 3 turns of the previous compact."
+	if errorValue["harnessMessage"] != want {
+		t.Fatalf("harnessMessage = %#v, want %q", errorValue["harnessMessage"], want)
+	}
+	if message, _ := errorValue["message"].(string); !strings.Contains(message, "invalid_request") || !strings.Contains(message, want) {
+		t.Fatalf("message = %q, want the code and the explanation", message)
+	}
+	if errorValue["requestID"] != "req_217" {
+		t.Fatalf("requestID = %#v", errorValue["requestID"])
 	}
 }

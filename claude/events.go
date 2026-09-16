@@ -369,7 +369,18 @@ func (p *projector) materializedAssistant(envelope map[string]any) error {
 		return fmt.Errorf("claude: materialized message.id %s does not match stream %s", nestedID, p.messageID)
 	}
 	if code := stringValue(envelope["error"]); code != "" {
-		errorValue := map[string]any{"type": code, "message": "Claude assistant error: " + code}
+		// Claude Code's own explanation of the failure is the message's
+		// text. It is the only statement of why the turn failed, so it
+		// belongs on the record beside the code.
+		text := "Claude assistant error: " + code
+		errorValue := map[string]any{"type": code}
+		if blocks, ok := message["content"].([]any); ok {
+			if explanation := oneLine(contentText(blocks)); explanation != "" {
+				text += ": " + explanation
+				errorValue["harnessMessage"] = explanation
+			}
+		}
+		errorValue["message"] = text
 		if requestID := stringValue(envelope["request_id"]); requestID != "" {
 			errorValue["requestID"] = requestID
 		}
@@ -625,6 +636,12 @@ func contentText(value any) string {
 		return fmt.Sprint(value)
 	}
 	return string(raw)
+}
+
+// oneLine collapses runs of whitespace, so a message Claude Code wrote
+// across several lines reads as one line in an error and in a log.
+func oneLine(text string) string {
+	return strings.Join(strings.Fields(text), " ")
 }
 
 func object(value any) map[string]any {

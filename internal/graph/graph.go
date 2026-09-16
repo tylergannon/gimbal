@@ -5,8 +5,10 @@
 package graph
 
 import (
+	"errors"
 	"fmt"
 	"go/ast"
+	"go/constant"
 	"go/doc"
 	"go/token"
 	"go/types"
@@ -84,10 +86,11 @@ func extract(dir, entry, name string, overlay map[string][]byte) (workflow.Graph
 // body: its input type, empty for an entry that takes only a ctx, and that
 // type's fields; the first sentence of its doc comment; and the package's.
 type entryInfo struct {
-	input   string
-	summary string
-	long    string
-	fields  []field
+	input    string
+	summary  string
+	long     string
+	fields   []field
+	defaults map[string]string // the roles var: each role's model unless a flag says otherwise
 }
 
 // field is one field of the input type as a flag: its Go name, the flag's
@@ -102,6 +105,11 @@ type field struct {
 // entry takes a ctx and at most one input, a struct of its own package.
 func describe(pkg *packages.Package, decl *ast.FuncDecl) (entryInfo, error) {
 	info := entryInfo{summary: (&doc.Package{}).Synopsis(decl.Doc.Text()), long: packageDoc(pkg)}
+	defaults, err := roleDefaults(pkg)
+	if err != nil {
+		return info, err
+	}
+	info.defaults = defaults
 	fn, ok := pkg.TypesInfo.Defs[decl.Name].(*types.Func)
 	if !ok {
 		return info, fmt.Errorf("graph: %s has no type", decl.Name.Name)
@@ -125,6 +133,41 @@ func describe(pkg *packages.Package, decl *ast.FuncDecl) (entryInfo, error) {
 	default:
 		return info, fmt.Errorf("graph: %s takes %d parameters; an entry takes a ctx and at most one input", decl.Name.Name, params.Len())
 	}
+}
+
+// roleDefaults reads the package's roles var, if it declares one: a
+// map[string]string literal of constant role names to the model each runs
+// on unless the run's flag says otherwise. Nil when there is none.
+func roleDefaults(pkg *packages.Package) (map[string]string, error) {
+	for _, file := range pkg.Syntax {
+		for _, d := range file.Decls {
+			gen, ok := d.(*ast.GenDecl)
+			if !ok || gen.Tok != token.VAR {
+				continue
+			}
+			for _, s := range gen.Specs {
+				spec := s.(*ast.ValueSpec)
+				if len(spec.Names) != 1 || spec.Names[0].Name != "roles" || len(spec.Values) != 1 {
+					continue
+				}
+				lit, ok := spec.Values[0].(*ast.CompositeLit)
+				if !ok || !types.Identical(pkg.TypesInfo.TypeOf(lit), types.NewMap(types.Typ[types.String], types.Typ[types.String])) {
+					return nil, errors.New("graph: roles is not a map[string]string literal")
+				}
+				defaults := map[string]string{}
+				for _, elt := range lit.Elts {
+					kv, ok := elt.(*ast.KeyValueExpr)
+					key, value := pkg.TypesInfo.Types[kv.Key].Value, pkg.TypesInfo.Types[kv.Value].Value
+					if !ok || key == nil || value == nil {
+						return nil, fmt.Errorf("graph: roles: each entry is a constant role name and a constant model, not %s", types.ExprString(elt))
+					}
+					defaults[constant.StringVal(key)] = constant.StringVal(value)
+				}
+				return defaults, nil
+			}
+		}
+	}
+	return nil, nil
 }
 
 func packageDoc(pkg *packages.Package) string {

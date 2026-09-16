@@ -29,6 +29,10 @@ type Input struct {
 	Test polytype.Optional[string]
 }
 
+// The roles Execute names, and the model each runs on unless the run's flag
+// says otherwise.
+var roles = map[string]string{"worker": "gpt-5.6-luna"}
+
 // Execute builds sprint in.Sprint. It names one role, worker, which the run
 // binds.
 func Execute(ctx context.Context, in Input) error {

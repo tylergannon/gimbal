@@ -21,38 +21,38 @@ func init() { gimble.RegisterGraph(Graph) }
 // Graph is the shape of this workflow, read from the source of EasyLoop.
 var Graph = workflow.Graph{
 	Name:   "easyloop",
-	Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 47},
+	Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 57},
 	Body: []workflow.Operation{
-		workflow.Set{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 57}, Key: "spec document"},
-		workflow.Set{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 58}, Key: "plan directory"},
-		workflow.Session{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 60}, Name: "planner", From: ""},
-		workflow.Session{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 61}, Name: "critic", From: ""},
-		workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 62}, Session: "planner", Role: "planner", Prompt: "Read the spec document named below, do focused reconnaissance of the repository, and write the plan to plan.md in the plan directory named below: Markdown checklist items, one \"- [ ]\" box per task."},
-		workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 65}, Session: "critic", Role: "critic", Prompt: "Read the spec document and plan.md in the plan directory named below, and write plan-critique.md there: where the plan misreads the spec, what it misses, and what it builds that the spec does not ask for."},
-		workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 68}, Session: "planner", Role: "planner", Prompt: "Read the spec document, plan.md, and plan-critique.md in the plan directory named below, and write updated-plan.md there: the plan revised for the critique, still Markdown checklist items with only unchecked \"- [ ]\" boxes, taking only the changes that derisk the work or make it better tested."},
-		workflow.Session{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 74}, Name: "coder", From: ""},
-		workflow.Session{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 75}, Name: "reviewer", From: ""},
-		workflow.Loop{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 76}, Name: "work", Planner: "planner", Body: []workflow.Operation{
-			workflow.Condition{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 79}, Branches: []workflow.Branch{
-				{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 79}, Case: "tasks++; tasks > limit", Exits: true, Body: []workflow.Operation{}},
+		workflow.Set{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 67}, Key: "spec document"},
+		workflow.Set{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 68}, Key: "plan directory"},
+		workflow.Session{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 70}, Name: "planner", From: ""},
+		workflow.Session{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 71}, Name: "critic", From: ""},
+		workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 72}, Session: "planner", Role: "planner", Prompt: "Read the spec document named below, do focused reconnaissance of the repository, and write the plan to plan.md in the plan directory named below: Markdown checklist items, one \"- [ ]\" box per task."},
+		workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 75}, Session: "critic", Role: "critic", Prompt: "Read the spec document and plan.md in the plan directory named below, and write plan-critique.md there: where the plan misreads the spec, what it misses, and what it builds that the spec does not ask for."},
+		workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 78}, Session: "planner", Role: "planner", Prompt: "Read the spec document, plan.md, and plan-critique.md in the plan directory named below, and write updated-plan.md there: the plan revised for the critique, still Markdown checklist items with only unchecked \"- [ ]\" boxes, taking only the changes that derisk the work or make it better tested."},
+		workflow.Session{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 84}, Name: "coder", From: ""},
+		workflow.Session{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 85}, Name: "reviewer", From: ""},
+		workflow.Loop{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 86}, Name: "work", Planner: "planner", Body: []workflow.Operation{
+			workflow.Condition{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 89}, Branches: []workflow.Branch{
+				{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 89}, Case: "tasks++; tasks > limit", Exits: true, Body: []workflow.Operation{}},
 			}},
-			workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 82}, Session: "coder", Role: "coder", Prompt: "Do the task below. Read the spec document and updated-plan.md in the plan directory named below first. Test what you write and run the repository's standard tests. Commit each change with git add of specific paths, never wildcards or -A. Do not edit updated-plan.md or tick any box. Answer with what changed, the evidence you gathered, and the exact text of each plan item you believe is done."},
-			workflow.Set{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 86}, Key: "coder's report"},
-			workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 87}, Session: "reviewer", Role: "reviewer", Prompt: "Judge the task's work below by your own testing: run the software and the repository's standard tests, and never take the coder's report as evidence. In updated-plan.md in the plan directory named below, tick the box of each item you saw complete; that is the only edit you may make there. Write review.md there saying what you found. Report what you did not see working, and whether every requirement of the spec document is now met. When it is, commit updated-plan.md and review.md with git add of their paths."},
-			workflow.Set{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 91}, Key: "review"},
-			workflow.Condition{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 93}, Branches: []workflow.Branch{
-				{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 93}, Case: "verdict.SpecMet", Exits: true, Body: []workflow.Operation{}},
+			workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 92}, Session: "coder", Role: "coder", Prompt: "Do the task below. Read the spec document and updated-plan.md in the plan directory named below first. Test what you write and run the repository's standard tests. Commit each change with git add of specific paths, never wildcards or -A. Do not edit updated-plan.md or tick any box. Answer with what changed, the evidence you gathered, and the exact text of each plan item you believe is done."},
+			workflow.Set{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 96}, Key: "coder's report"},
+			workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 97}, Session: "reviewer", Role: "reviewer", Prompt: "Judge the task's work below by your own testing: run the software and the repository's standard tests, and never take the coder's report as evidence. In updated-plan.md in the plan directory named below, tick the box of each item you saw complete; that is the only edit you may make there. Write review.md there saying what you found. Report what you did not see working, and whether every requirement of the spec document is now met. When it is, commit updated-plan.md and review.md with git add of their paths."},
+			workflow.Set{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 101}, Key: "review"},
+			workflow.Condition{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 103}, Branches: []workflow.Branch{
+				{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 103}, Case: "verdict.SpecMet", Exits: true, Body: []workflow.Operation{}},
 			}},
 		}},
-		workflow.Condition{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 101}, Branches: []workflow.Branch{
-			{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 101}, Case: "!met", Exits: true, Body: []workflow.Operation{}},
+		workflow.Condition{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 111}, Branches: []workflow.Branch{
+			{Source: workflow.Source{File: "internal/workflows/easyloop/easyloop.go", Line: 111}, Case: "!met", Exits: true, Body: []workflow.Operation{}},
 		}},
 	},
 }
 
 // Command is gimble run easyloop: a flag for each field of Input, a
-// model flag for each role EasyLoop names, all required, the web
-// application's flags, and a run of EasyLoop on the runtime.
+// model flag for each role EasyLoop names, with the default roles gives it,
+// the web application's flags, and a run of EasyLoop on the runtime.
 func Command() *cobra.Command {
 	var in Input
 	var optTasks int
@@ -73,14 +73,10 @@ func Command() *cobra.Command {
 	cmd.Flags().StringVar(&in.Repo, "repo", ".", "Absolute path of the repository the work is done in.")
 	cmd.Flags().IntVar(&optTasks, "tasks", 0, "The most tasks to run in all; absent means 50.")
 	_ = cmd.MarkFlagRequired("spec")
-	cmd.Flags().StringVar(&plannerModel, "planner", "", "the model for role planner, as model or model:effort")
-	_ = cmd.MarkFlagRequired("planner")
-	cmd.Flags().StringVar(&criticModel, "critic", "", "the model for role critic, as model or model:effort")
-	_ = cmd.MarkFlagRequired("critic")
-	cmd.Flags().StringVar(&coderModel, "coder", "", "the model for role coder, as model or model:effort")
-	_ = cmd.MarkFlagRequired("coder")
-	cmd.Flags().StringVar(&reviewerModel, "reviewer", "", "the model for role reviewer, as model or model:effort")
-	_ = cmd.MarkFlagRequired("reviewer")
+	cmd.Flags().StringVar(&plannerModel, "planner", "claude-haiku-4-5-20251001", "the model for role planner, as model or model:effort")
+	cmd.Flags().StringVar(&criticModel, "critic", "gpt-5.6-luna", "the model for role critic, as model or model:effort")
+	cmd.Flags().StringVar(&coderModel, "coder", "gpt-5.6-luna", "the model for role coder, as model or model:effort")
+	cmd.Flags().StringVar(&reviewerModel, "reviewer", "claude-haiku-4-5-20251001", "the model for role reviewer, as model or model:effort")
 	cmd.Flags().IntVar(&port, "port", 8080, "loopback TCP port for the web application")
 	cmd.Flags().StringVar(&uds, "uds", "", "Unix-domain socket for the web application instead of TCP")
 	cmd.Flags().BoolVar(&noWeb, "no-web", false, "run without the web application")

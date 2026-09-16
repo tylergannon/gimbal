@@ -40,6 +40,16 @@ type review struct {
 	SpecMet bool `json:"spec_met"`
 }
 
+// The roles EasyLoop names, and the model each runs on unless the run's
+// flag says otherwise: the skill's split, Claude plans and reviews, Codex
+// critiques and codes, on the cheap tier.
+var roles = map[string]string{
+	"planner":  "claude-haiku-4-5-20251001",
+	"critic":   "gpt-5.6-luna",
+	"coder":    "gpt-5.6-luna",
+	"reviewer": "claude-haiku-4-5-20251001",
+}
+
 const goal = "Build what the spec document asks, as updated-plan.md in the plan directory says; both are named in the context."
 
 // EasyLoop builds what in.Spec asks. It names four roles, which the run

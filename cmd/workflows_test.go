@@ -38,20 +38,17 @@ func TestRunHelpShowsTheInputsAndTheRoles(t *testing.T) {
 	if strings.Contains(lineWith(help, "--test"), "(required)") {
 		t.Errorf("run execute --help marks the optional --test required:\n%s", help)
 	}
-	if !strings.Contains(lineWith(help, "--worker"), "the model for role worker") {
-		t.Errorf("run execute --help lacks the worker's model flag:\n%s", help)
+	worker := lineWith(help, "--worker")
+	if !strings.Contains(worker, "the model for role worker") || !strings.Contains(worker, `(default "gpt-5.6-luna")`) || strings.Contains(worker, "(required)") {
+		t.Errorf("run execute --help does not give the worker its default model:\n%s", help)
 	}
 }
 
-func TestRunRefusesAMissingInputOrRole(t *testing.T) {
+func TestRunRefusesAMissingInput(t *testing.T) {
 	var out, errOut bytes.Buffer
 	err := run([]string{"run", "execute", "--worker", "gpt-5.6-luna"}, &out, &errOut, os.Getenv)
 	if err == nil || !strings.Contains(err.Error(), `"sprint"`) {
 		t.Errorf("run execute without --sprint = %v, want the required flag named", err)
-	}
-	err = run([]string{"run", "execute", "--sprint", "1"}, &out, &errOut, os.Getenv)
-	if err == nil || !strings.Contains(err.Error(), `"worker"`) {
-		t.Errorf("run execute without a model = %v, want the role's flag named", err)
 	}
 }
 

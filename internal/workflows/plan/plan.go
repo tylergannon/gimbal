@@ -28,6 +28,16 @@ type Input struct {
 	Repo string
 }
 
+// The roles Plan names, and the model each runs on unless the run's flag
+// says otherwise: the planner and the Claude lane on Claude, the Codex and
+// Gemini lanes on theirs, all on the cheap tier.
+var roles = map[string]string{
+	"planner": "claude-haiku-4-5-20251001",
+	"claude":  "claude-haiku-4-5-20251001",
+	"codex":   "gpt-5.6-luna",
+	"gemini":  "gemini-3.8-flash-low",
+}
+
 // Plan writes docs/sprints/SPRINT-NNN.md for in.Sprint. It names four roles,
 // which the run binds: planner, claude, codex, and gemini.
 func Plan(ctx context.Context, in Input) error {

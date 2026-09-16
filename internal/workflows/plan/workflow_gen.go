@@ -20,63 +20,63 @@ func init() { gimble.RegisterGraph(Graph) }
 // Graph is the shape of this workflow, read from the source of Plan.
 var Graph = workflow.Graph{
 	Name:   "plan",
-	Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 33},
+	Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 43},
 	Body: []workflow.Operation{
-		workflow.Set{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 42}, Key: "seed"},
-		workflow.Set{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 43}, Key: "intent document"},
-		workflow.Set{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 44}, Key: "drafts directory"},
-		workflow.Session{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 46}, Name: "planner", From: ""},
-		workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 47}, Session: "planner", Role: "planner", Prompt: "You are planning a sprint from the seed below. Orient first: read AGENTS.md, CLAUDE.md, or equivalent; the three most recent documents in docs/sprints/; docs/chapters/ledger.yaml and any chapter the seed names or a recent sprint links, if chapters exist; docs/SEMANTIC-INDEX.md if it exists; and the code the seed touches. Then write the intent document named below with these sections: Seed, Context, Pyramid Index, Semantic Index, Chapter Context, Recent Sprint Context, Relevant Codebase Areas, Constraints, Success Criteria, Open Questions. Answer with a short orientation summary."},
-		workflow.Group{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 51}, Name: "drafts", Children: []workflow.GroupChild{
-			{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 52}, Name: "claude", Body: []workflow.Operation{
-				workflow.Set{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 53}, Key: "your draft"},
-				workflow.Session{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 54}, Name: "claude", From: ""},
-				workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 55}, Session: "claude", Role: "claude", Prompt: "Read the intent document named below, this project's structure in AGENTS.md or equivalent, and its planning style in any existing docs/sprints/SPRINT-*.md. If the intent selects a chapter, read its chapter document and keep the plan aligned to it without treating the chapter as authoritative over sprint status. If the intent names a semantic index, follow its entrypoint to prior art before proposing an approach. Then write a comprehensive sprint plan to your draft file named below, with these sections: Overview, Use Cases, Architecture, Implementation Plan (phased, with files and tasks), Files Summary, Definition of Done, Risks and Mitigations, Dependencies, Open Questions."},
+		workflow.Set{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 52}, Key: "seed"},
+		workflow.Set{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 53}, Key: "intent document"},
+		workflow.Set{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 54}, Key: "drafts directory"},
+		workflow.Session{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 56}, Name: "planner", From: ""},
+		workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 57}, Session: "planner", Role: "planner", Prompt: "You are planning a sprint from the seed below. Orient first: read AGENTS.md, CLAUDE.md, or equivalent; the three most recent documents in docs/sprints/; docs/chapters/ledger.yaml and any chapter the seed names or a recent sprint links, if chapters exist; docs/SEMANTIC-INDEX.md if it exists; and the code the seed touches. Then write the intent document named below with these sections: Seed, Context, Pyramid Index, Semantic Index, Chapter Context, Recent Sprint Context, Relevant Codebase Areas, Constraints, Success Criteria, Open Questions. Answer with a short orientation summary."},
+		workflow.Group{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 61}, Name: "drafts", Children: []workflow.GroupChild{
+			{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 62}, Name: "claude", Body: []workflow.Operation{
+				workflow.Set{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 63}, Key: "your draft"},
+				workflow.Session{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 64}, Name: "claude", From: ""},
+				workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 65}, Session: "claude", Role: "claude", Prompt: "Read the intent document named below, this project's structure in AGENTS.md or equivalent, and its planning style in any existing docs/sprints/SPRINT-*.md. If the intent selects a chapter, read its chapter document and keep the plan aligned to it without treating the chapter as authoritative over sprint status. If the intent names a semantic index, follow its entrypoint to prior art before proposing an approach. Then write a comprehensive sprint plan to your draft file named below, with these sections: Overview, Use Cases, Architecture, Implementation Plan (phased, with files and tasks), Files Summary, Definition of Done, Risks and Mitigations, Dependencies, Open Questions."},
 			}},
-			{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 58}, Name: "codex", Body: []workflow.Operation{
-				workflow.Set{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 59}, Key: "your draft"},
-				workflow.Session{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 60}, Name: "codex", From: ""},
-				workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 61}, Session: "codex", Role: "codex", Prompt: "Read the intent document named below, this project's structure in AGENTS.md or equivalent, and its planning style in any existing docs/sprints/SPRINT-*.md. If the intent selects a chapter, read its chapter document and keep the plan aligned to it without treating the chapter as authoritative over sprint status. If the intent names a semantic index, follow its entrypoint to prior art before proposing an approach. Then write a comprehensive sprint plan to your draft file named below, with these sections: Overview, Use Cases, Architecture, Implementation Plan (phased, with files and tasks), Files Summary, Definition of Done, Risks and Mitigations, Dependencies, Open Questions."},
+			{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 68}, Name: "codex", Body: []workflow.Operation{
+				workflow.Set{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 69}, Key: "your draft"},
+				workflow.Session{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 70}, Name: "codex", From: ""},
+				workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 71}, Session: "codex", Role: "codex", Prompt: "Read the intent document named below, this project's structure in AGENTS.md or equivalent, and its planning style in any existing docs/sprints/SPRINT-*.md. If the intent selects a chapter, read its chapter document and keep the plan aligned to it without treating the chapter as authoritative over sprint status. If the intent names a semantic index, follow its entrypoint to prior art before proposing an approach. Then write a comprehensive sprint plan to your draft file named below, with these sections: Overview, Use Cases, Architecture, Implementation Plan (phased, with files and tasks), Files Summary, Definition of Done, Risks and Mitigations, Dependencies, Open Questions."},
 			}},
-			{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 64}, Name: "gemini", Body: []workflow.Operation{
-				workflow.Set{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 65}, Key: "your draft"},
-				workflow.Session{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 66}, Name: "gemini", From: ""},
-				workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 67}, Session: "gemini", Role: "gemini", Prompt: "Read the intent document named below, this project's structure in AGENTS.md or equivalent, and its planning style in any existing docs/sprints/SPRINT-*.md. If the intent selects a chapter, read its chapter document and keep the plan aligned to it without treating the chapter as authoritative over sprint status. If the intent names a semantic index, follow its entrypoint to prior art before proposing an approach. Then write a comprehensive sprint plan to your draft file named below, with these sections: Overview, Use Cases, Architecture, Implementation Plan (phased, with files and tasks), Files Summary, Definition of Done, Risks and Mitigations, Dependencies, Open Questions."},
-			}},
-		}},
-		workflow.Group{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 74}, Name: "critiques", Children: []workflow.GroupChild{
-			{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 75}, Name: "claude", Body: []workflow.Operation{
-				workflow.Set{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 76}, Key: "drafts to review"},
-				workflow.Set{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 77}, Key: "your critique"},
-				workflow.Session{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 78}, Name: "claude", From: ""},
-				workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 79}, Session: "claude", Role: "claude", Prompt: "You are reviewing two competing sprint plan drafts. Read the intent document named below for context, then both drafts named below. Write your critique to the critique file named below. For each draft, evaluate architectural soundness, completeness, phasing and ordering, risk coverage, feasibility, and definition of done. Note the strongest ideas worth keeping from each, and its weaknesses and gaps."},
-			}},
-			{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 82}, Name: "codex", Body: []workflow.Operation{
-				workflow.Set{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 83}, Key: "drafts to review"},
-				workflow.Set{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 84}, Key: "your critique"},
-				workflow.Session{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 85}, Name: "codex", From: ""},
-				workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 86}, Session: "codex", Role: "codex", Prompt: "You are reviewing two competing sprint plan drafts. Read the intent document named below for context, then both drafts named below. Write your critique to the critique file named below. For each draft, evaluate architectural soundness, completeness, phasing and ordering, risk coverage, feasibility, and definition of done. Note the strongest ideas worth keeping from each, and its weaknesses and gaps."},
-			}},
-			{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 89}, Name: "gemini", Body: []workflow.Operation{
-				workflow.Set{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 90}, Key: "drafts to review"},
-				workflow.Set{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 91}, Key: "your critique"},
-				workflow.Session{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 92}, Name: "gemini", From: ""},
-				workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 93}, Session: "gemini", Role: "gemini", Prompt: "You are reviewing two competing sprint plan drafts. Read the intent document named below for context, then both drafts named below. Write your critique to the critique file named below. For each draft, evaluate architectural soundness, completeness, phasing and ordering, risk coverage, feasibility, and definition of done. Note the strongest ideas worth keeping from each, and its weaknesses and gaps."},
+			{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 74}, Name: "gemini", Body: []workflow.Operation{
+				workflow.Set{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 75}, Key: "your draft"},
+				workflow.Session{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 76}, Name: "gemini", From: ""},
+				workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 77}, Session: "gemini", Role: "gemini", Prompt: "Read the intent document named below, this project's structure in AGENTS.md or equivalent, and its planning style in any existing docs/sprints/SPRINT-*.md. If the intent selects a chapter, read its chapter document and keep the plan aligned to it without treating the chapter as authoritative over sprint status. If the intent names a semantic index, follow its entrypoint to prior art before proposing an approach. Then write a comprehensive sprint plan to your draft file named below, with these sections: Overview, Use Cases, Architecture, Implementation Plan (phased, with files and tasks), Files Summary, Definition of Done, Risks and Mitigations, Dependencies, Open Questions."},
 			}},
 		}},
-		workflow.Set{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 103}, Key: "questions file"},
-		workflow.Set{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 104}, Key: "answers file"},
-		workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 105}, Session: "planner", Role: "planner", Prompt: "Read the three drafts and the three critiques in the drafts directory named below. Write the questions file named below for the person planning this sprint: first a short summary of the key differences across the drafts, where the critiques agree, and the unresolved tensions; then two to four targeted questions covering which direction resonates, whether to expand or narrow the scope, which aspects are critical against nice to have, and technical preferences where the drafts diverge. Answer with the questions."},
-		workflow.Command{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 109}, Name: "ask"},
-		workflow.Set{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 113}, Key: "merge notes file"},
-		workflow.Set{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 114}, Key: "sprint document"},
-		workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 115}, Session: "planner", Role: "planner", Prompt: "The person's answers are in the answers file named below. Merge the three drafts into the final sprint document named below: identify consensus across the critiques and ideas that appear in more than one draft, compare the architecture, phasing, risks, definition of done, and the novel ideas unique to one draft, and take the answers as decisions. Write your synthesis to the merge notes file named below first, then the sprint document, in the planning style of the existing sprint documents, with a concise Pyramid Index. Answer with what you chose and why."},
+		workflow.Group{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 84}, Name: "critiques", Children: []workflow.GroupChild{
+			{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 85}, Name: "claude", Body: []workflow.Operation{
+				workflow.Set{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 86}, Key: "drafts to review"},
+				workflow.Set{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 87}, Key: "your critique"},
+				workflow.Session{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 88}, Name: "claude", From: ""},
+				workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 89}, Session: "claude", Role: "claude", Prompt: "You are reviewing two competing sprint plan drafts. Read the intent document named below for context, then both drafts named below. Write your critique to the critique file named below. For each draft, evaluate architectural soundness, completeness, phasing and ordering, risk coverage, feasibility, and definition of done. Note the strongest ideas worth keeping from each, and its weaknesses and gaps."},
+			}},
+			{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 92}, Name: "codex", Body: []workflow.Operation{
+				workflow.Set{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 93}, Key: "drafts to review"},
+				workflow.Set{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 94}, Key: "your critique"},
+				workflow.Session{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 95}, Name: "codex", From: ""},
+				workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 96}, Session: "codex", Role: "codex", Prompt: "You are reviewing two competing sprint plan drafts. Read the intent document named below for context, then both drafts named below. Write your critique to the critique file named below. For each draft, evaluate architectural soundness, completeness, phasing and ordering, risk coverage, feasibility, and definition of done. Note the strongest ideas worth keeping from each, and its weaknesses and gaps."},
+			}},
+			{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 99}, Name: "gemini", Body: []workflow.Operation{
+				workflow.Set{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 100}, Key: "drafts to review"},
+				workflow.Set{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 101}, Key: "your critique"},
+				workflow.Session{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 102}, Name: "gemini", From: ""},
+				workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 103}, Session: "gemini", Role: "gemini", Prompt: "You are reviewing two competing sprint plan drafts. Read the intent document named below for context, then both drafts named below. Write your critique to the critique file named below. For each draft, evaluate architectural soundness, completeness, phasing and ordering, risk coverage, feasibility, and definition of done. Note the strongest ideas worth keeping from each, and its weaknesses and gaps."},
+			}},
+		}},
+		workflow.Set{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 113}, Key: "questions file"},
+		workflow.Set{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 114}, Key: "answers file"},
+		workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 115}, Session: "planner", Role: "planner", Prompt: "Read the three drafts and the three critiques in the drafts directory named below. Write the questions file named below for the person planning this sprint: first a short summary of the key differences across the drafts, where the critiques agree, and the unresolved tensions; then two to four targeted questions covering which direction resonates, whether to expand or narrow the scope, which aspects are critical against nice to have, and technical preferences where the drafts diverge. Answer with the questions."},
+		workflow.Command{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 119}, Name: "ask"},
+		workflow.Set{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 123}, Key: "merge notes file"},
+		workflow.Set{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 124}, Key: "sprint document"},
+		workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/plan/plan.go", Line: 125}, Session: "planner", Role: "planner", Prompt: "The person's answers are in the answers file named below. Merge the three drafts into the final sprint document named below: identify consensus across the critiques and ideas that appear in more than one draft, compare the architecture, phasing, risks, definition of done, and the novel ideas unique to one draft, and take the answers as decisions. Write your synthesis to the merge notes file named below first, then the sprint document, in the planning style of the existing sprint documents, with a concise Pyramid Index. Answer with what you chose and why."},
 	},
 }
 
 // Command is gimble run plan: a flag for each field of Input, a
-// model flag for each role Plan names, all required, the web
-// application's flags, and a run of Plan on the runtime.
+// model flag for each role Plan names, with the default roles gives it,
+// the web application's flags, and a run of Plan on the runtime.
 func Command() *cobra.Command {
 	var in Input
 	var plannerModel string
@@ -97,14 +97,10 @@ func Command() *cobra.Command {
 	cmd.Flags().StringVar(&in.Repo, "repo", ".", "Absolute path of the repository.")
 	_ = cmd.MarkFlagRequired("sprint")
 	_ = cmd.MarkFlagRequired("seed")
-	cmd.Flags().StringVar(&plannerModel, "planner", "", "the model for role planner, as model or model:effort")
-	_ = cmd.MarkFlagRequired("planner")
-	cmd.Flags().StringVar(&claudeModel, "claude", "", "the model for role claude, as model or model:effort")
-	_ = cmd.MarkFlagRequired("claude")
-	cmd.Flags().StringVar(&codexModel, "codex", "", "the model for role codex, as model or model:effort")
-	_ = cmd.MarkFlagRequired("codex")
-	cmd.Flags().StringVar(&geminiModel, "gemini", "", "the model for role gemini, as model or model:effort")
-	_ = cmd.MarkFlagRequired("gemini")
+	cmd.Flags().StringVar(&plannerModel, "planner", "claude-haiku-4-5-20251001", "the model for role planner, as model or model:effort")
+	cmd.Flags().StringVar(&claudeModel, "claude", "claude-haiku-4-5-20251001", "the model for role claude, as model or model:effort")
+	cmd.Flags().StringVar(&codexModel, "codex", "gpt-5.6-luna", "the model for role codex, as model or model:effort")
+	cmd.Flags().StringVar(&geminiModel, "gemini", "gemini-3.8-flash-low", "the model for role gemini, as model or model:effort")
 	cmd.Flags().IntVar(&port, "port", 8080, "loopback TCP port for the web application")
 	cmd.Flags().StringVar(&uds, "uds", "", "Unix-domain socket for the web application instead of TCP")
 	cmd.Flags().BoolVar(&noWeb, "no-web", false, "run without the web application")

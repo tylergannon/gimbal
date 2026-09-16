@@ -45,6 +45,14 @@ type review struct {
 	NotSeenWorking []string `json:"not_seen_working"`
 }
 
+// The roles Sprint names, and the model each runs on unless the run's flag
+// says otherwise: the cheap tier, for runs started to see something work.
+var roles = map[string]string{
+	"researcher": "gpt-5.6-luna",
+	"validator":  "claude-haiku-4-5-20251001",
+	"supervisor": "claude-haiku-4-5-20251001",
+}
+
 var repositoryChecks = struct {
 	vet  string
 	test string

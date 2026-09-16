@@ -38,6 +38,9 @@ func Source(dir, entry, name, output string) error {
 	if err != nil {
 		return err
 	}
+	if err := check(info, graph); err != nil {
+		return err
+	}
 	text, err := format.Source([]byte(source(pkg, entry, info, graph)))
 	if err != nil {
 		return fmt.Errorf("graph: %w", err)

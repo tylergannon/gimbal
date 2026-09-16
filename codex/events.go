@@ -239,9 +239,13 @@ func (p *projector) toolOutputDelta(params json.RawMessage) error {
 	if err := json.Unmarshal(params, &value); err != nil || value.ItemID == "" {
 		return errors.New("codex: tool output delta has no itemId")
 	}
+	// A delta can arrive for a tool this step no longer holds: the step was
+	// ended by a new item while the command still ran, or the command had
+	// already completed. The completed item carries the whole output, so
+	// the delta is dropped rather than ending the turn.
 	state := p.tools[value.ItemID]
 	if state == nil || state.done {
-		return fmt.Errorf("codex: output for unopened tool %s", value.ItemID)
+		return nil
 	}
 	state.output.WriteString(value.Delta)
 	return p.event("session.tool.progress", map[string]any{

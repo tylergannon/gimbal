@@ -107,3 +107,27 @@ func TestAssistantErrorCarriesTheCLIsExplanation(t *testing.T) {
 		t.Fatalf("assistantError = %q, want %q", err, want)
 	}
 }
+
+// TestSessionsStartWithoutTheUsersMCPServers: a coder in a repository uses
+// the CLI's own tools, not the desktop integrations of whoever started the
+// run, and pays for nobody's tool definitions. A workflow that wants them
+// asks.
+func TestSessionsStartWithoutTheUsersMCPServers(t *testing.T) {
+	extra := map[string]*string{}
+	var applied claudeagent.Options
+	for _, option := range isolate(extra) {
+		option(&applied)
+	}
+	if !applied.StrictMCPConfig {
+		t.Fatal("MCP configuration is not strict: the user's servers still load")
+	}
+	if sources := extra["setting-sources"]; sources == nil || *sources != "project,local" {
+		t.Fatalf("setting sources = %v, want project,local", sources)
+	}
+	if New().(*adapter).userConfiguration {
+		t.Fatal("New() asked for the user's configuration")
+	}
+	if !New(WithUserConfiguration()).(*adapter).userConfiguration {
+		t.Fatal("WithUserConfiguration did not ask for the user's configuration")
+	}
+}

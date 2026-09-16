@@ -18,8 +18,15 @@ func TestSprintGraph(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(g.Diagnostics) != 0 {
-		t.Fatalf("the sprint reads without diagnostics, got %v", g.Diagnostics)
+	// The sprint attempts a task in a helper that is not called in tail
+	// position, so that helper's two late returns end the helper and say so.
+	if len(g.Diagnostics) != 2 {
+		t.Fatalf("the sprint reads with two diagnostics, got %v", g.Diagnostics)
+	}
+	for _, d := range g.Diagnostics {
+		if !strings.Contains(d.Message, "ends only the helper it is written in") {
+			t.Errorf("unexpected diagnostic: %v", d)
+		}
 	}
 	if g.Name != "sprint" {
 		t.Fatalf("name = %q", g.Name)

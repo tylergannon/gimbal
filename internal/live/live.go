@@ -5,7 +5,11 @@
 // or a turn.
 package live
 
-import "context"
+import (
+	"context"
+	"fmt"
+	"sync"
+)
 
 // Controller is the face of one run in progress. The session, scope, and
 // turn ids are the ones the run log carries: lap.3/coder.1 for a session,
@@ -37,4 +41,57 @@ func WithHook(ctx context.Context, hook Hook) context.Context {
 func FromContext(ctx context.Context) Hook {
 	hook, _ := ctx.Value(hookKey{}).(Hook)
 	return hook
+}
+
+// Runs is the table of the runs in progress, by id. It rides in the runtime's
+// context the way the observation registry does, so that the web runtime's
+// own methods and the page's remote functions reach one table rather than
+// each holding a view of the runs.
+type Runs struct {
+	mu   sync.Mutex
+	runs map[string]Controller
+}
+
+// NewRuns returns an empty table.
+func NewRuns() *Runs {
+	return &Runs{runs: map[string]Controller{}}
+}
+
+// Hook is the table's Hook: it holds run under id until the run's body has
+// returned. Pass it to WithHook.
+func (t *Runs) Hook(id string, run Controller) (release func()) {
+	t.mu.Lock()
+	t.runs[id] = run
+	t.mu.Unlock()
+	return func() {
+		t.mu.Lock()
+		delete(t.runs, id)
+		t.mu.Unlock()
+	}
+}
+
+// InProgress returns the run in progress under id. A run that has finished is
+// gone from the table, so it reads the same as one that never existed: an
+// error, which is what an operator acting on a stale page is owed.
+func (t *Runs) InProgress(id string) (Controller, error) {
+	t.mu.Lock()
+	run := t.runs[id]
+	t.mu.Unlock()
+	if run == nil {
+		return nil, fmt.Errorf("gimble: no run %q in progress", id)
+	}
+	return run, nil
+}
+
+type runsKey struct{}
+
+// WithRuns puts the table in the ctx for anything serving from it to find.
+func WithRuns(ctx context.Context, runs *Runs) context.Context {
+	return context.WithValue(ctx, runsKey{}, runs)
+}
+
+// RunsFrom returns the ctx's table, or nil when no runtime put one there.
+func RunsFrom(ctx context.Context) *Runs {
+	runs, _ := ctx.Value(runsKey{}).(*Runs)
+	return runs
 }

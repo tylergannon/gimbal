@@ -118,6 +118,24 @@ workflow's prompts and schemas without calling a model; a new workflow that
 wants that writes a fake `HarnessAdapter` the way `internal/workflows/sprint/dryrun.go`
 does. `just vet` and `just test` are the repository's checks.
 
+The df-* skills are translated one workflow each, under `internal/workflows/`
+with a main under `cmd/`: `execute` (df-sprint-execute: one worker builds a
+planned sprint, then the tests run), `easyloop` (df-easy-loop-simple on
+`Loop`: plan, critique, revise, then a coder per task and a reviewer who runs
+the software and ends the loop), and `plan` (df-sprint-plan: three lanes
+draft and critique in two `Group`s, the run waits for the person's answers
+file, the planner merges). Each is about a page, and each package's graph
+is generated beside it by `go generate`.
+
+The df-* skills are translated one workflow each, under `internal/workflows/`
+with a main under `cmd/`: `execute` (df-sprint-execute: one worker builds a
+planned sprint, then the tests run), `easyloop` (df-easy-loop-simple on
+`Loop`: plan, critique, revise, then a coder per task and a reviewer who runs
+the software and ends the loop), and `plan` (df-sprint-plan: three lanes
+draft and critique in two `Group`s, the run waits for the person's answers
+file, the planner merges). Each is about a page, and each package's graph
+is generated beside it by `go generate`.
+
 ## Read the record
 
 Under `<project>/runs/<id>/`:

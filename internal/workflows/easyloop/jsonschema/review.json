@@ -1,0 +1,5 @@
+{"type":"object",
+"description":"review is what the reviewer reports after a task.","properties":{
+"not_seen_working":{"type":"array","description":"What the task's work did not show working, one finding each. Empty when everything the task asked for was seen working.","items":{"type":"string"}},
+"spec_met":{"type":"boolean","description":"Whether every requirement of the spec document is now met, judged by your own testing. True ends the loop."}
+},"required":["not_seen_working","spec_met"],"additionalProperties":false}

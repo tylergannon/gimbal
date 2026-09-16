@@ -202,8 +202,24 @@ func withoutProof(text string) string {
 }
 
 // runTask does one assignment, records the evidence requested by the planner,
-// and commits only when that evidence and the workflow's repository checks pass.
+// and commits only when that evidence and the workflow's repository checks
+// pass. Only a cancelled ctx ends the sprint from inside a task: anything
+// else that fails here, a validator turn or the commit itself, means the
+// task did not validate. It is recorded on the task's scope, its work stays
+// uncommitted, and the planner plans again, the same as a rejection.
 func runTask(ctx context.Context, in Input, researcher, validator *gimble.Session, task gimble.Task) error {
+	err := attemptTask(ctx, in, researcher, validator, task)
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+	if err != nil {
+		gimble.Set(ctx, "task error", err.Error())
+		log.Printf("sprint: task %q failed, so its work stays uncommitted: %v", task.Name, err)
+	}
+	return nil
+}
+
+func attemptTask(ctx context.Context, in Input, researcher, validator *gimble.Session, task gimble.Task) error {
 	coder, err := researcher.Fork(ctx, "coder")
 	if err != nil {
 		return err

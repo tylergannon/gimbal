@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"text/template"
 	"time"
 )
 
@@ -95,18 +96,40 @@ func (s *Session) Generate[T Output](ctx context.Context, prompt string, opts ..
 // the call gave a template, through it. A scope that holds no values, and a
 // template that renders to nothing, leave prompt as it is.
 func scopedPrompt(ctx context.Context, prompt string, o options) (string, error) {
-	if o.scopeTemplate == nil {
+	if o.scopeTemplate == "" {
 		return appendScopeText(ctx, prompt), nil
 	}
+	shape, err := scopeTemplate(o.scopeTemplate)
+	if err != nil {
+		return "", err
+	}
 	var rendered strings.Builder
-	if err := o.scopeTemplate.Execute(&rendered, scopeData(ctx)); err != nil {
-		return "", fmt.Errorf("gimble: render the scope through the template %q: %w", o.scopeTemplate.Name(), err)
+	if err := shape.Execute(&rendered, scopeData(ctx)); err != nil {
+		return "", fmt.Errorf("gimble: render the scope template: %w", err)
 	}
 	text := strings.TrimSpace(rendered.String())
 	if text == "" {
 		return prompt, nil
 	}
 	return prompt + "\n\n" + text, nil
+}
+
+// scopeTemplates holds what WithScopeTemplate has parsed, by its text. A
+// template's text is a constant or an embedded file, so one parse serves
+// every call that passes it, however many turns a run takes.
+var scopeTemplates sync.Map
+
+// scopeTemplate parses text, or returns what an earlier call parsed.
+func scopeTemplate(text string) (*template.Template, error) {
+	if parsed, ok := scopeTemplates.Load(text); ok {
+		return parsed.(*template.Template), nil
+	}
+	parsed, err := template.New("scope").Parse(text)
+	if err != nil {
+		return nil, fmt.Errorf("gimble: parse the scope template: %w", err)
+	}
+	scopeTemplates.Store(text, parsed)
+	return parsed, nil
 }
 
 // appendScopeText adds the ctx scope's rendered context to prompt, the way

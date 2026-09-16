@@ -161,6 +161,33 @@ Package `github.com/tylergannon/gimble/cmd` is exempt: `cmd/run_prompt.go`
 runs a prompt given on the command line, so it cannot pass a constant. That
 is the only exemption; no other mechanism is added.
 
+## GIMBLE109: constant scope templates
+
+`GIMBLE109-SIMPLE-WORKFLOWS/CONSTANT-SCOPE-TEMPLATE` reports a
+`WithScopeTemplate` call whose template is neither a compile-time string
+constant nor a variable of the same package declared with `//go:embed`. The
+option changes what the agent is sent, so the template must be as readable
+from the source as the prompt is. A long template reads better as a file,
+and the directive names the file.
+
+```go
+// Reported.
+session.Generate[Result](ctx, prompt, gimble.WithScopeTemplate(shape+extra))
+
+// Allowed: a constant.
+const shape = `{{range .Values}}## {{.Key}}{{"\n\n"}}{{.Text}}{{end}}`
+session.Generate[Result](ctx, prompt, gimble.WithScopeTemplate(shape))
+
+// Allowed: the file the directive names.
+//go:embed shape.tmpl
+var shape string
+session.Generate[Result](ctx, prompt, gimble.WithScopeTemplate(shape))
+```
+
+Gimble parses the text once per template and keeps it, so the parse is not
+repeated per turn. A template that cannot be parsed, or that cannot render
+the scope, is the error `Generate` returns, before any model is called.
+
 ## Limits and runtime backstop
 
 This is a source-level, report-only analyzer. It checks the patterns above in

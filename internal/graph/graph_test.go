@@ -18,15 +18,8 @@ func TestSprintGraph(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// The sprint attempts a task in a helper that is not called in tail
-	// position, so that helper's two late returns end the helper and say so.
-	if len(g.Diagnostics) != 2 {
-		t.Fatalf("the sprint reads with two diagnostics, got %v", g.Diagnostics)
-	}
-	for _, d := range g.Diagnostics {
-		if !strings.Contains(d.Message, "ends only the helper it is written in") {
-			t.Errorf("unexpected diagnostic: %v", d)
-		}
+	if len(g.Diagnostics) != 0 {
+		t.Fatalf("the sprint reads without diagnostics, got %v", g.Diagnostics)
 	}
 	if g.Name != "sprint" {
 		t.Fatalf("name = %q", g.Name)
@@ -62,25 +55,49 @@ func TestSprintGraph(t *testing.T) {
 		t.Errorf("the supervisor's role = %q, want supervisor", coder.Supervisors[0].Role)
 	}
 
-	unvalidated, ok := find[workflow.Condition](loop.Body, func(c workflow.Condition) bool {
-		return len(c.Branches) == 1 && c.Branches[0].Case == "!passed"
+	// A task's work is committed when it validated and left alone when it
+	// did not, and the graph draws that as the branch it is. The sprint used
+	// to leave the unvalidated case by returning from the middle of an
+	// inlined helper, which the graph cannot show, and the extractor said so.
+	outcome, ok := find[workflow.Condition](loop.Body, func(c workflow.Condition) bool {
+		return len(c.Branches) == 2 && c.Branches[0].Case == "passed"
 	})
 	if !ok {
 		t.Fatal("the task body says what happens when the task did not validate")
 	}
-	if !unvalidated.Branches[0].Exits {
-		t.Error("the !passed branch ends the task, so it exits")
+	if len(outcome.Branches[1].Body) != 0 {
+		t.Errorf("a task that did not validate does nothing, got %+v", outcome.Branches[1].Body)
 	}
 
-	commands := 0
+	// The three git commands a validated task runs: the add and the status
+	// under the branch itself, the commit under the status that found work.
+	if commands := gitCommands(outcome.Branches[0].Body); commands != 3 {
+		t.Errorf("a validated task runs three git commands, got %d", commands)
+	}
 	for _, op := range loop.Body {
 		if command, ok := op.(workflow.Command); ok && command.Name == "git" {
-			commands++
+			t.Errorf("the git command at %+v runs whatever the task's outcome", command.Source)
 		}
 	}
-	if commands != 3 {
-		t.Errorf("the task body holds three unconditional git commands, got %d", commands)
+}
+
+// gitCommands counts the git commands in body and in the branches of its
+// conditions, which is how deep the sprint's commit sequence nests.
+func gitCommands(body []workflow.Operation) int {
+	commands := 0
+	for _, op := range body {
+		switch op := op.(type) {
+		case workflow.Command:
+			if op.Name == "git" {
+				commands++
+			}
+		case workflow.Condition:
+			for _, branch := range op.Branches {
+				commands += gitCommands(branch.Body)
+			}
+		}
 	}
+	return commands
 }
 
 // TestFixtureGraph reads the fixture workflow, which holds the sites the

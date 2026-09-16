@@ -51,7 +51,7 @@ func routeAnalysis(args []string) ([]string, bool) {
 }
 
 func isOrdinaryCLI(args []string) bool {
-	if len(args) > 0 && args[0] == "run-prompt" {
+	if len(args) > 0 && (args[0] == "run-prompt" || args[0] == "graph") {
 		return true
 	}
 	for _, arg := range args {
@@ -78,6 +78,9 @@ func isVetConfig(path string) bool {
 func run(args []string, stdout, stderr io.Writer, getenv func(string) string) error {
 	if len(args) > 0 && args[0] == "run-prompt" {
 		return runPrompt(args[1:], stdout, stderr, getenv)
+	}
+	if len(args) > 0 && args[0] == "graph" {
+		return runGraph(args[1:], stderr)
 	}
 	return runServer(args, stderr)
 }

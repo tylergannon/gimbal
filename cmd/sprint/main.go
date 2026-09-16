@@ -70,6 +70,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	ctx = gimble.WithGraph(ctx, sprint.Graph)
 	err = runtime.Run(ctx, "sprint", models, func(ctx context.Context) error {
 		return sprint.Sprint(ctx, in)
 	})

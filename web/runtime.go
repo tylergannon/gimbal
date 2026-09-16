@@ -31,6 +31,9 @@ type Runtime struct {
 	// is in the runtime's context too, so the page's remote functions steer
 	// the same runs these methods do.
 	runs *live.Runs
+	// registry is where every run the runtime starts registers its store.
+	// Run puts it on the caller's context, which is the run's context.
+	registry *observation.Registry
 }
 
 // Option configures the project's web listener.
@@ -123,13 +126,14 @@ func NewRuntime(ctx context.Context, projectDir string, opts ...Option) (*Runtim
 	// runtime starts finds it there and registers its store; the web server
 	// serves requests from this same context through BaseContext, so its
 	// routes and its page loads read the very same registry.
-	runtimeCtx = observation.WithRegistry(runtimeCtx, observation.NewRegistry(dir))
+	registry := observation.NewRegistry(dir)
+	runtimeCtx = observation.WithRegistry(runtimeCtx, registry)
 	// The table of runs in progress lives there too, for the same reason: a
 	// remote function is called with the request's context, which descends
 	// from this one, so the page reaches the very runs this Runtime holds.
 	runs := live.NewRuns()
 	runtimeCtx = live.WithRuns(runtimeCtx, runs)
-	runtime := &Runtime{ctx: runtimeCtx, cancel: cancel, dir: dir, done: make(chan struct{}), runs: runs}
+	runtime := &Runtime{ctx: runtimeCtx, cancel: cancel, dir: dir, done: make(chan struct{}), runs: runs, registry: registry}
 	if cfg.network == "none" {
 		context.AfterFunc(runtimeCtx, func() { close(runtime.done) })
 		return runtime, nil
@@ -206,10 +210,21 @@ func (r *Runtime) Run(ctx context.Context, name string, models map[string]gimble
 	if body == nil {
 		return errors.New("gimble: run body is nil")
 	}
-	runCtx, cancel := context.WithCancelCause(r.ctx)
-	stop := context.AfterFunc(ctx, func() { cancel(context.Cause(ctx)) })
+	// A runtime that has already ended starts no run: the body must never
+	// see a live context under a dead runtime.
+	if r.ctx.Err() != nil {
+		return context.Cause(r.ctx)
+	}
+	// The run's context descends from the caller's, so what the caller put
+	// on it reaches the run: gimble.WithGraph's graph, above all. What the
+	// runtime owns is put on it here instead of being inherited, and the
+	// runtime's own end cancels it the way the caller's does.
+	runCtx, cancel := context.WithCancelCause(ctx)
+	stop := context.AfterFunc(r.ctx, func() { cancel(context.Cause(r.ctx)) })
 	defer stop()
 	defer cancel(nil)
+	runCtx = observation.WithRegistry(runCtx, r.registry)
+	runCtx = live.WithRuns(runCtx, r.runs)
 	// The run puts itself in the runtime's table under its id for as long
 	// as its body runs, so Steer, KillScope, and KillTurn can reach it.
 	runCtx = live.WithHook(runCtx, r.runs.Hook)

@@ -16,9 +16,12 @@ import (
 	"github.com/oklog/ulid/v2"
 	"github.com/tylergannon/gimble/internal/live"
 	"github.com/tylergannon/gimble/internal/observation"
+	"github.com/tylergannon/gimble/workflow"
 )
 
 type projectKey struct{}
+
+type graphKey struct{}
 
 func runDir(ctx context.Context) string {
 	s, _ := ctx.Value(scopeKey{}).(*scope)
@@ -32,6 +35,14 @@ func runDir(ctx context.Context) string {
 // under its runs directory.
 func Project(ctx context.Context, dir string) context.Context {
 	return context.WithValue(ctx, projectKey{}, dir)
+}
+
+// WithGraph puts the workflow's graph, extracted from its source before the
+// run, in the root ctx. Run saves it as graph.json in the run's directory,
+// so what the run did can be read against what its source could do. The
+// graph's Name must be the run's name.
+func WithGraph(ctx context.Context, graph workflow.Graph) context.Context {
+	return context.WithValue(ctx, graphKey{}, graph)
 }
 
 type run struct {
@@ -126,6 +137,9 @@ func Run(ctx context.Context, name string, models map[string]ModelBinding, body 
 	if err := os.Mkdir(dir, 0o755); err != nil {
 		return fmt.Errorf("gimble: %w", err)
 	}
+	if err := saveGraph(ctx, dir, name); err != nil {
+		return err
+	}
 	w, err := newEventWriter(filepath.Join(dir, "run.jsonl"))
 	if err != nil {
 		return fmt.Errorf("gimble: %w", err)
@@ -173,6 +187,27 @@ func Run(ctx context.Context, name string, models map[string]ModelBinding, body 
 		r.projectEvent(cancelled)
 	}
 	return r.finish(name, err)
+}
+
+// saveGraph writes the graph in ctx, if there is one, as graph.json beside
+// the run's records. A graph that names another workflow is a programming
+// error and stops the run before anything is recorded.
+func saveGraph(ctx context.Context, dir, name string) error {
+	graph, ok := ctx.Value(graphKey{}).(workflow.Graph)
+	if !ok {
+		return nil
+	}
+	if graph.Name != name {
+		return fmt.Errorf("gimble: the graph is of %q but the run is %q", graph.Name, name)
+	}
+	data, err := json.Marshal(graph)
+	if err != nil {
+		return fmt.Errorf("gimble: graph: %w", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "graph.json"), data, 0o644); err != nil {
+		return fmt.Errorf("gimble: graph: %w", err)
+	}
+	return nil
 }
 
 // root runs body as the run's root scope. A panic in the body, which is

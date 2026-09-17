@@ -46,9 +46,10 @@ The same binary runs the workflows built into it:
 ./bin/gimble run <workflow> --help
 ```
 
-Each workflow's subcommand is generated from its source: one flag per field
-of its input struct, and one model flag per role its graph names. `--work-dir` is
-the working directory, whose `.gimble` holds the run, served as above.
+Each workflow's subcommand is generated from its source: Gimble's `--work-dir`
+environment flag, one flag per field of its workflow input struct, and one
+model flag per role its graph names. The absolute work directory is passed to
+the entry in `gimble.Env`; its `.gimble` holds the run, served as above.
 
 The binary currently includes the read-only `review` workflow. Its code-review
 model defaults to `gpt-5.6-luna` from `cmd/gimble/defaults.json`; pass
@@ -64,7 +65,8 @@ declared structured outputs, then the independent workflow generator in
 `internal/generate/`. It can rebuild missing or stale generated commands
 without first building the application CLI.
 
-Author a workflow in one Go file with its entry, `Input`, result structs, and
+Author a workflow in one Go file with its `func Name(ctx context.Context, env
+gimble.Env, in Input) error` entry, `Input`, result structs, and
 generate directives; declare its result structs to Polytype in a
 `//go:build jsonschema` file beside it, as the root package does; then import
 its generated `Command(defaults)` and register it in

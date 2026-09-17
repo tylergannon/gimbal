@@ -22,21 +22,22 @@ func init() { gimble.RegisterGraph(Graph) }
 // Graph is the shape of this workflow, read from the source of Review.
 var Graph = workflow.Graph{
 	Name:   "review",
-	Source: workflow.Source{File: "internal/workflows/review/review.go", Line: 28},
+	Source: workflow.Source{File: "internal/workflows/review/review.go", Line: 26},
 	Body: []workflow.Operation{
-		workflow.Set{Source: workflow.Source{File: "internal/workflows/review/review.go", Line: 29}, Key: "goal"},
-		workflow.Session{Source: workflow.Source{File: "internal/workflows/review/review.go", Line: 30}, Name: "code-review", From: ""},
-		workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/review/review.go", Line: 31}, Session: "code-review", Role: "code-review", Prompt: "Read the code in your working directory. Assess the goal given below. Report concrete correctness issues; return an empty findings list when there are none. Make no changes."},
-		workflow.Set{Source: workflow.Source{File: "internal/workflows/review/review.go", Line: 35}, Key: "result"},
+		workflow.Set{Source: workflow.Source{File: "internal/workflows/review/review.go", Line: 27}, Key: "goal"},
+		workflow.Session{Source: workflow.Source{File: "internal/workflows/review/review.go", Line: 28}, Name: "code-review", From: ""},
+		workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/review/review.go", Line: 29}, Session: "code-review", Role: "code-review", Prompt: "Read the code in your working directory. Assess the goal given below. Report concrete correctness issues; return an empty findings list when there are none. Make no changes."},
+		workflow.Set{Source: workflow.Source{File: "internal/workflows/review/review.go", Line: 33}, Key: "result"},
 	},
 }
 
-// Command is gimble run review: a flag for each field of Input, a
-// model flag for each role Review names, with defaults supplied by the caller,
+// Command is gimble run review: Gimble's environment flag, a flag for each field of Input, a
+// model flag for each role Review names with defaults supplied by the caller,
 // the web application's flags, and a run of Review on the runtime.
 func Command(defaults map[gimble.WorkflowRole]string) *cobra.Command {
 	var in Input
 	var codeReviewModel string
+	var workDir string
 	var port int
 	var uds string
 	var noWeb bool
@@ -46,9 +47,9 @@ func Command(defaults map[gimble.WorkflowRole]string) *cobra.Command {
 		Long:  "Package review is a small read-only code review workflow.",
 		Args:  cobra.NoArgs,
 	}
-	cmd.Flags().StringVar(&in.WorkDir, "work-dir", ".", "WorkDir is the absolute path of the repository to review.")
 	cmd.Flags().StringVar(&in.Goal, "goal", "", "Goal says what the review should assess. (required)")
 	_ = cmd.MarkFlagRequired("goal")
+	cmd.Flags().StringVar(&workDir, "work-dir", ".", "the working directory for this run")
 	cmd.Flags().StringVar(&codeReviewModel, "code-review", defaults[gimble.WorkflowRole("code-review")], "the model for role code-review, as model or model:effort")
 	if defaults[gimble.WorkflowRole("code-review")] == "" {
 		_ = cmd.MarkFlagRequired("code-review")
@@ -57,11 +58,10 @@ func Command(defaults map[gimble.WorkflowRole]string) *cobra.Command {
 	cmd.Flags().StringVar(&uds, "uds", "", "Unix-domain socket for the web application instead of TCP")
 	cmd.Flags().BoolVar(&noWeb, "no-web", false, "run without the web application")
 	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
-		workDir, err := filepath.Abs(in.WorkDir)
+		workDir, err := filepath.Abs(workDir)
 		if err != nil {
 			return err
 		}
-		in.WorkDir = workDir
 		models, err := binding.Roles(map[gimble.WorkflowRole]string{gimble.WorkflowRole("code-review"): codeReviewModel})
 		if err != nil {
 			return err
@@ -81,7 +81,8 @@ func Command(defaults map[gimble.WorkflowRole]string) *cobra.Command {
 		if err != nil {
 			return err
 		}
-		return runtime.Run(ctx, "review", models, func(ctx context.Context) error { return Review(ctx, in) })
+		env := gimble.Env{WorkDir: workDir}
+		return runtime.Run(ctx, "review", models, func(ctx context.Context) error { return Review(ctx, env, in) })
 	}
 	return cmd
 }

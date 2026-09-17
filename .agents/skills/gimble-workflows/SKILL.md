@@ -105,16 +105,17 @@ Each is a compiling `Example` in the root package (`example_test.go`,
 ## Run and watch
 
 A workflow is a package under `internal/workflows/` whose entry is
-`func Name(ctx context.Context, in Input) error`, with the directive
+`func Name(ctx context.Context, env gimble.Env, in Input) error`. `env` is
+Gimble-owned and holds the absolute initial `WorkDir`; `Input` contains only
+arguments belonging to that workflow. The entry has the directive
 `//go:generate go run github.com/tylergannon/gimble/internal/generate/gimblegen -entry Name -name name`,
 placed after its polytype directive when it has structured outputs.
 `go generate` runs the independent generator in `internal/generate/` and
 prints `workflow_gen.go` beside the workflow: the graph, which registers
 itself, and the workflow's `Command(defaults)`, a Cobra subcommand you can read: one
-flag per field of `Input`,
-named from the field with its doc comment as help, required unless the field
-is a `polytype.Optional` (a bool is never required, and a `WorkDir` string
-defaults to the current directory); one `--<role>` flag per role the graph
+`--work-dir`, which defaults to the current directory; one flag per field of
+`Input`, named from the field with its doc comment as help, required unless the
+field is a `polytype.Optional` (a bool is never required); one `--<role>` flag per role the graph
 names, defaulting to the model supplied by the application and required when
 that default is empty; and `--port`, `--uds`, `--no-web`. One line in `cmd/gimble/workflows.go` adds it to `gimble run`. Then:
 

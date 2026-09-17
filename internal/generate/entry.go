@@ -12,8 +12,8 @@ import (
 )
 
 // entryInfo is what the generated command needs about the entry besides its
-// body: its input type, empty for an entry that takes only a ctx, and that
-// type's fields; the first sentence of its doc comment; and the package's.
+// body: its optional workflow input type and that type's fields; the first
+// sentence of its doc comment; and the package's.
 type entryInfo struct {
 	input   string
 	summary string
@@ -30,7 +30,8 @@ type field struct {
 }
 
 // describe reads the entry's signature, its doc, and its input's fields. An
-// entry takes a ctx and at most one input, a struct of its own package.
+// entry takes a ctx, gimble.Env, and at most one workflow input, a struct of
+// its own package.
 func describe(pkg *packages.Package, decl *ast.FuncDecl) (entryInfo, error) {
 	info := entryInfo{summary: (&doc.Package{}).Synopsis(decl.Doc.Text()), long: packageDoc(pkg)}
 	fn, ok := pkg.TypesInfo.Defs[decl.Name].(*types.Func)
@@ -38,13 +39,16 @@ func describe(pkg *packages.Package, decl *ast.FuncDecl) (entryInfo, error) {
 		return info, fmt.Errorf("generate: %s has no type", decl.Name.Name)
 	}
 	params := fn.Type().(*types.Signature).Params()
+	if params.Len() < 2 || !isGimbleEnv(params.At(1).Type()) {
+		return info, fmt.Errorf("generate: %s's second parameter is not gimble.Env", decl.Name.Name)
+	}
 	switch params.Len() {
-	case 1:
-		return info, nil
 	case 2:
-		named, ok := params.At(1).Type().(*types.Named)
+		return info, nil
+	case 3:
+		named, ok := params.At(2).Type().(*types.Named)
 		if !ok || named.Obj().Pkg() != pkg.Types {
-			return info, fmt.Errorf("generate: %s's input is %s, not a type of its own package", decl.Name.Name, params.At(1).Type())
+			return info, fmt.Errorf("generate: %s's input is %s, not a type of its own package", decl.Name.Name, params.At(2).Type())
 		}
 		info.input = named.Obj().Name()
 		fields, err := inputFields(pkg, named.Obj().Name())
@@ -54,8 +58,13 @@ func describe(pkg *packages.Package, decl *ast.FuncDecl) (entryInfo, error) {
 		info.fields = fields
 		return info, nil
 	default:
-		return info, fmt.Errorf("generate: %s takes %d parameters; an entry takes a ctx and at most one input", decl.Name.Name, params.Len())
+		return info, fmt.Errorf("generate: %s takes %d parameters; an entry takes a ctx, gimble.Env, and at most one input", decl.Name.Name, params.Len())
 	}
+}
+
+func isGimbleEnv(t types.Type) bool {
+	named, ok := t.(*types.Named)
+	return ok && named.Obj().Pkg() != nil && named.Obj().Pkg().Path() == gimblePath && named.Obj().Name() == "Env"
 }
 
 func packageDoc(pkg *packages.Package) string {

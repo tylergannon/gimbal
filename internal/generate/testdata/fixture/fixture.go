@@ -16,7 +16,7 @@ const (
 )
 
 // Fixture is the entry function the tests extract.
-func Fixture(ctx context.Context) error {
+func Fixture(ctx context.Context, _ gimble.Env) error {
 	lead := gimble.NewSession(ctx, "lead", ".")
 	watcher := gimble.NewSession(ctx, "watcher", ".")
 	chief := gimble.NewSession(ctx, "chief", ".")
@@ -127,7 +127,7 @@ func Fixture(ctx context.Context) error {
 }
 
 // SprintShape is a compact workflow used to exercise the main graph shapes.
-func SprintShape(ctx context.Context) error {
+func SprintShape(ctx context.Context, _ gimble.Env) error {
 	researcher := gimble.NewSession(ctx, "researcher", ".")
 	planner, err := researcher.Fork(ctx, "planner")
 	if err != nil {
@@ -159,6 +159,16 @@ func SprintShape(ctx context.Context) error {
 	}
 	return nil
 }
+
+// MissingEnv is invalid as a generated workflow entry.
+func MissingEnv(ctx context.Context) error { return nil }
+
+type WorkDirInput struct {
+	WorkDir string
+}
+
+// HasWorkDirInput is invalid because WorkDir belongs to gimble.Env.
+func HasWorkDirInput(ctx context.Context, _ gimble.Env, _ WorkDirInput) error { return nil }
 
 // guarded scopes a body whose first branch returns before it writes anything.
 func guarded(ctx context.Context) error {

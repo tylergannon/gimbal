@@ -10,10 +10,8 @@ import (
 //go:generate go tool polytype --validate
 //go:generate go run github.com/tylergannon/gimble/internal/generate/gimblegen -entry Review -name review
 
-// Input starts a review of the repository at WorkDir.
+// Input describes what to review.
 type Input struct {
-	// WorkDir is the absolute path of the repository to review.
-	WorkDir string
 	// Goal says what the review should assess.
 	Goal string
 }
@@ -25,9 +23,9 @@ type Result struct {
 }
 
 // Review asks one reviewer to inspect the repository read-only and record its findings.
-func Review(ctx context.Context, in Input) error {
+func Review(ctx context.Context, env gimble.Env, in Input) error {
 	gimble.Set(ctx, "goal", in.Goal)
-	reviewer := gimble.NewSession(ctx, gimble.RoleCodeReview, in.WorkDir)
+	reviewer := gimble.NewSession(ctx, gimble.RoleCodeReview, env.WorkDir)
 	result, err := reviewer.Generate[Result](ctx, reviewPrompt)
 	if err != nil {
 		return err

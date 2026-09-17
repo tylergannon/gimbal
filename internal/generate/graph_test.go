@@ -215,9 +215,11 @@ func TestSourceWritesTheWorkflowsPackage(t *testing.T) {
 		"var Graph = workflow.Graph{",
 		"func Command(defaults map[gimble.WorkflowRole]string) *cobra.Command {",
 		`Use:   "fixture",`,
+		`cmd.Flags().StringVar(&workDir, "work-dir", ".", "the working directory for this run")`,
 		`cmd.Flags().StringVar(&leadModel, "lead", defaults[gimble.WorkflowRole("lead")], "the model for role lead, as model or model:effort")`,
 		`if defaults[gimble.WorkflowRole("lead")] == "" {`,
-		`return Fixture(ctx) })`,
+		`env := gimble.Env{WorkDir: workDir}`,
+		`return Fixture(ctx, env) })`,
 	} {
 		if !strings.Contains(string(written), want) {
 			t.Errorf("the generated file lacks %q:\n%s", want, firstLines(string(written)))
@@ -242,6 +244,20 @@ func TestGeneratedCommandUsesCentralizedRoleDefaults(t *testing.T) {
 		if !strings.Contains(text, want) {
 			t.Errorf("generated command lacks %q", want)
 		}
+	}
+}
+
+func TestGeneratedEntryRequiresEnv(t *testing.T) {
+	_, err := generate.Extract("testdata/fixture", "MissingEnv", "missing-env")
+	if err == nil || !strings.Contains(err.Error(), "second parameter is not gimble.Env") {
+		t.Fatalf("Extract MissingEnv error = %v", err)
+	}
+}
+
+func TestWorkflowInputCannotClaimWorkDir(t *testing.T) {
+	err := generate.Source("testdata/fixture", "HasWorkDirInput", "has-work-dir-input", filepath.Join(t.TempDir(), "workflow_gen.go"))
+	if err == nil || !strings.Contains(err.Error(), "input field WorkDir would be --work-dir, which is the Gimble environment's") {
+		t.Fatalf("Source HasWorkDirInput error = %v", err)
 	}
 }
 

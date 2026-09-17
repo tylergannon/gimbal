@@ -528,15 +528,15 @@ Why each line is there:
 When the candidates return different types, use one channel per type and a
 `select`, written in the workflow that needs it.
 
-## Loop
+## PromiseLoop
 
 The [Promises, dispatch, and completion](LOOP.md) record explains the design.
-`Loop` is adaptive dispatch: a planner chooses the next useful assignment from
-the goal, current evidence, priorities, and dependencies. The workflow chooses
-and prepares the planner Session.
+`PromiseLoop` is adaptive dispatch: a planner chooses the next useful
+assignment from the goal, current evidence, priorities, and dependencies. The
+workflow chooses and prepares the planner Session.
 
 ```go
-loop := gimble.Loop(ctx, "sprint", goal, planner)
+loop := gimble.PromiseLoop(ctx, "sprint", goal, planner)
 for ctx, task := range loop.Tasks {
 	implement(ctx, coder, task)
 }
@@ -566,13 +566,13 @@ than fulfillment of the whole goal. Validation is a request for evidence, not
 the result itself; either field may be empty.
 
 The backlog is markdown with YAML frontmatter containing the immutable `goal`
-and a structured `tasks` list. It lives under the Loop scope in the run
+and a structured `tasks` list. It lives under the PromiseLoop scope in the run
 directory. On each dispatch, the planner receives the backlog, visible scoped
 context, and values recorded by the preceding task. It edits the backlog and
 returns the next Task exactly as recorded there, or returns no task to end
-dispatch. Loop refuses to yield a malformed backlog and shows its error to the
+dispatch. PromiseLoop refuses to yield a malformed backlog and shows its error to the
 planner for repair. A malformed returned Task or disagreement between the Task
-and backlog ends the Loop rather than yielding ambiguous work.
+and backlog ends the PromiseLoop rather than yielding ambiguous work.
 
 The planner is asked to choose the assignment with the greatest concrete gain
 toward the overall Definition of Done, sized for one worker to understand,
@@ -582,16 +582,16 @@ planner may choose later work with greater value. Workspace access is for
 planning; the planner changes only its backlog and leaves assignment work and
 validation to the workflow it dispatches.
 
-Each yielded context is a child `task` scope. Loop stores the structured Task
+Each yielded context is a child `task` scope. PromiseLoop stores the structured Task
 there before calling the body. The workflow records the worker result and any
-validation evidence with `Set` or `SetJSON`; Loop explicitly projects those
+validation evidence with `Set` or `SetJSON`; PromiseLoop explicitly projects those
 local values into the next planner prompt without promoting them into the
 parent scope. The task and planner decision are also structured in the durable
 run events, so later backlog edits do not rewrite what was dispatched.
 
 Details:
 
-- Loop does not execute `Validation.Command`, select a validator for
+- PromiseLoop does not execute `Validation.Command`, select a validator for
   `Validation.Query`, or infer success from the body returning. The workflow
   performs validation visibly in ordinary Go and records the actual result.
   A deterministic check is binary; agent judgment uses the repository's
@@ -605,9 +605,9 @@ Details:
   gives the planner evidence to plan from; ordinary Go control flow can instead
   end the workflow.
 - `Err` is checked after the range, the way `bufio.Scanner` does it, because
-  the yielded pair is the context and Task. Loop errors report persistence,
+  the yielded pair is the context and Task. PromiseLoop errors report persistence,
   malformed planner data, cancellation, or planner harness failures. Failed
-  task validation is recorded feedback, not a Loop error.
+  task validation is recorded feedback, not a PromiseLoop error.
 - Limits, retry policy, validation execution, and overall completion remain
   visible in the enclosing workflow.
 
@@ -757,7 +757,7 @@ g := gimble.Group(ctx, "bakeoff")
 g.Go("attempt", body)
 coder := gimble.NewSession(ctx, "coder", workdir)
 validator, err := researcher.Fork(ctx, "validator")
-loop := gimble.Loop(ctx, "sprint", goal, planner)
+loop := gimble.PromiseLoop(ctx, "sprint", goal, planner)
 ```
 
 - The name identifies the node, not the instance. Five bake-off candidates
@@ -966,6 +966,20 @@ That way we can locate `RunCommand` in static analysis etc."
   tail and the file's name. The environment is not recorded.
 - No stdin, no environment, no streaming: `sh -c` is a command like any
   other.
+
+## Current decision (2026-09-17)
+
+Finite iteration and adaptive planning have separate public APIs.
+`Iterate(ctx, name, items)` ranges over a slice and yields each item with a
+fresh child scope named `name`; sessions created inside close before the next
+item. It has no planner, backlog, object, or separate error channel. Session
+close failures still reach the enclosing `Run` aggregate.
+
+`PromiseLoop(ctx, name, goal, planner)` owns adaptive dispatch. Range over its
+`Tasks` iterator and check `Err` afterward, because planner, persistence, and
+cancellation failures must be distinguishable from normal completion. Its task
+scopes retain the name `task`, planner backlog, feedback, and operator message
+semantics.
 
 ## Still open
 

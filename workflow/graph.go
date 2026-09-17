@@ -105,16 +105,23 @@ type Scope struct {
 	Body []Operation `json:"body"`
 }
 
-// Loop is planner-directed dispatch: gimble.Loop and the range over its Tasks.
-// Planner is the planner session's name. Body is the per-task body, which the
-// runtime places in a scope named "task" beneath the loop's own and where it
-// writes the key "task". How many tasks there will be is the planner's
-// decision and is not knowable here.
-type Loop struct {
+// PromiseLoop is planner-directed dispatch. Planner names the planner session;
+// Body runs under a child scope named "task", where the runtime writes key
+// "task". How many tasks there will be is the planner's decision.
+type PromiseLoop struct {
 	Source
 	Name    string      `json:"name"`
 	Planner string      `json:"planner"`
 	Body    []Operation `json:"body"`
+}
+
+// Iterate ranges over a collection supplied by ordinary Go. Each item runs in
+// a fresh child scope named Name. The collection's values and length are
+// runtime data, so the graph records only the scoped body.
+type Iterate struct {
+	Source
+	Name string      `json:"name"`
+	Body []Operation `json:"body"`
 }
 
 // Repeat is a Go for or range statement whose body contains an operation,
@@ -169,12 +176,13 @@ type Diagnostic struct {
 	Message string `json:"message"`
 }
 
-func (Session) operation()   {}
-func (AgentCall) operation() {}
-func (Command) operation()   {}
-func (Set) operation()       {}
-func (Scope) operation()     {}
-func (Loop) operation()      {}
-func (Repeat) operation()    {}
-func (Group) operation()     {}
-func (Condition) operation() {}
+func (Session) operation()     {}
+func (AgentCall) operation()   {}
+func (Command) operation()     {}
+func (Set) operation()         {}
+func (Scope) operation()       {}
+func (PromiseLoop) operation() {}
+func (Iterate) operation()     {}
+func (Repeat) operation()      {}
+func (Group) operation()       {}
+func (Condition) operation()   {}

@@ -25,8 +25,10 @@ export type Graph = {
     "kind": "condition";
   } | Omit<Group, "kind"> & {
     "kind": "group";
-  } | Omit<Loop, "kind"> & {
-    "kind": "loop";
+  } | Omit<Iterate, "kind"> & {
+    "kind": "iterate";
+  } | Omit<PromiseLoop, "kind"> & {
+    "kind": "promise_loop";
   } | Omit<Repeat, "kind"> & {
     "kind": "repeat";
   } | Omit<Scope, "kind"> & {
@@ -132,8 +134,10 @@ export type Branch = {
     "kind": "condition";
   } | Omit<Group, "kind"> & {
     "kind": "group";
-  } | Omit<Loop, "kind"> & {
-    "kind": "loop";
+  } | Omit<Iterate, "kind"> & {
+    "kind": "iterate";
+  } | Omit<PromiseLoop, "kind"> & {
+    "kind": "promise_loop";
   } | Omit<Repeat, "kind"> & {
     "kind": "repeat";
   } | Omit<Scope, "kind"> & {
@@ -176,8 +180,10 @@ export type GroupChild = {
     "kind": "condition";
   } | Omit<Group, "kind"> & {
     "kind": "group";
-  } | Omit<Loop, "kind"> & {
-    "kind": "loop";
+  } | Omit<Iterate, "kind"> & {
+    "kind": "iterate";
+  } | Omit<PromiseLoop, "kind"> & {
+    "kind": "promise_loop";
   } | Omit<Repeat, "kind"> & {
     "kind": "repeat";
   } | Omit<Scope, "kind"> & {
@@ -190,9 +196,42 @@ export type GroupChild = {
 };
 
 /**
- * Loop is planner-directed dispatch: gimble.Loop and the range over its Tasks. Planner is the planner session's name. Body is the per-task body, which the runtime places in a scope named "task" beneath the loop's own and where it writes the key "task". How many tasks there will be is the planner's decision and is not knowable here.
+ * Iterate ranges over a collection supplied by ordinary Go. Each item runs in a fresh child scope named Name. The collection's values and length are runtime data, so the graph records only the scoped body.
  */
-export type Loop = {
+export type Iterate = {
+  /**
+   * File is the path relative to the module root, with forward slashes.
+   */
+  "file": string;
+  "line": number;
+  "name": string;
+  "body": Array<Omit<AgentCall, "kind"> & {
+    "kind": "agent_call";
+  } | Omit<Command, "kind"> & {
+    "kind": "command";
+  } | Omit<Condition, "kind"> & {
+    "kind": "condition";
+  } | Omit<Group, "kind"> & {
+    "kind": "group";
+  } | Omit<Iterate, "kind"> & {
+    "kind": "iterate";
+  } | Omit<PromiseLoop, "kind"> & {
+    "kind": "promise_loop";
+  } | Omit<Repeat, "kind"> & {
+    "kind": "repeat";
+  } | Omit<Scope, "kind"> & {
+    "kind": "scope";
+  } | Omit<Session, "kind"> & {
+    "kind": "session";
+  } | Omit<Set, "kind"> & {
+    "kind": "set";
+  }>;
+};
+
+/**
+ * PromiseLoop is planner-directed dispatch. Planner names the planner session; Body runs under a child scope named "task", where the runtime writes key "task". How many tasks there will be is the planner's decision.
+ */
+export type PromiseLoop = {
   /**
    * File is the path relative to the module root, with forward slashes.
    */
@@ -208,8 +247,10 @@ export type Loop = {
     "kind": "condition";
   } | Omit<Group, "kind"> & {
     "kind": "group";
-  } | Omit<Loop, "kind"> & {
-    "kind": "loop";
+  } | Omit<Iterate, "kind"> & {
+    "kind": "iterate";
+  } | Omit<PromiseLoop, "kind"> & {
+    "kind": "promise_loop";
   } | Omit<Repeat, "kind"> & {
     "kind": "repeat";
   } | Omit<Scope, "kind"> & {
@@ -239,8 +280,10 @@ export type Repeat = {
     "kind": "condition";
   } | Omit<Group, "kind"> & {
     "kind": "group";
-  } | Omit<Loop, "kind"> & {
-    "kind": "loop";
+  } | Omit<Iterate, "kind"> & {
+    "kind": "iterate";
+  } | Omit<PromiseLoop, "kind"> & {
+    "kind": "promise_loop";
   } | Omit<Repeat, "kind"> & {
     "kind": "repeat";
   } | Omit<Scope, "kind"> & {
@@ -270,8 +313,10 @@ export type Scope = {
     "kind": "condition";
   } | Omit<Group, "kind"> & {
     "kind": "group";
-  } | Omit<Loop, "kind"> & {
-    "kind": "loop";
+  } | Omit<Iterate, "kind"> & {
+    "kind": "iterate";
+  } | Omit<PromiseLoop, "kind"> & {
+    "kind": "promise_loop";
   } | Omit<Repeat, "kind"> & {
     "kind": "repeat";
   } | Omit<Scope, "kind"> & {

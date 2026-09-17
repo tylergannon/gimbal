@@ -81,7 +81,7 @@ func extract(dir, entry, name string, overlay map[string][]byte) (workflow.Graph
 type binding struct{ name, role string }
 
 // nodeRef points at a node already placed in a body, so a later call can add
-// to it: a Group's children, a Loop's per-task body.
+// to it: a Group's children, a PromiseLoop's per-task body.
 type nodeRef struct {
 	ops   *[]workflow.Operation
 	index int

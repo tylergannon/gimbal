@@ -1,6 +1,6 @@
 ---
 name: gimble-workflows
-description: Write, run, and read a Gimble workflow: an agent workflow as ordinary Go on the root package gimble (Run, Scope, Group, Loop, sessions, Generate, RunCommand, supervisors, kills). Use whenever asked to write or change a workflow, a bake-off, a critique round, a loop, a supervisor, or to run one and read its record.
+description: Write, run, and read a Gimble workflow: an agent workflow as ordinary Go on the root package gimble (Run, Scope, Group, Iterate, PromiseLoop, sessions, Generate, RunCommand, supervisors, kills). Use whenever asked to write or change a workflow, a bake-off, a critique round, a loop, a supervisor, or to run one and read its record.
 ---
 
 # Gimble workflows
@@ -16,8 +16,8 @@ exported name; propose the program.
 
 `gimble.Run(ctx, name, models, body)` runs `body` once and blocks until it returns.
 The body is the workflow. Inside it, scopes form a tree: `Run` is the root,
-`Scope`, each `Group.Go` child, and each `Loop` task open a child. A session
-belongs to the scope that created it and is closed when that scope's body
+`Scope`, each `Group.Go` child, each `Iterate` item, and each `PromiseLoop` task open a child.
+A session belongs to the scope that created it and is closed when that scope's body
 returns, so a session made inside `Group.Go` is gone after that child. The
 run's record is written under `<project>/runs/<id>/` as it goes. Every ctx
 in the tree is a child of its parent's, so cancelling the run's ctx is how
@@ -36,7 +36,8 @@ a kill.
 | `Run(ctx, name, models, body)` | The run and its root scope, with a model binding for every role it uses. | Join every goroutine before `body` returns. |
 | `Scope(ctx, name, body)` | A named child scope; returns `body`'s error. | Values set in it are visible to its children, not its parent. |
 | `Group(ctx, name)` | errgroup: `Go(name, fn)` per child, then `return group.Wait()`. | First error cancels the siblings; a killed child does not. Always `Wait`. |
-| `Loop(ctx, name, goal, planner)` | The planner keeps a backlog and picks each next `Task`; `for ctx, task := range loop.Tasks {…}; return loop.Err()`. | Each task is a scope. What the body `Set`s is what the planner sees next. It ends by picking no task. |
+| `Iterate(ctx, name, items)` | Yields each item in a finite slice with a fresh child scope: `for ctx, item := range gimble.Iterate(ctx, "candidate", candidates) { … }`. | Sessions created with the yielded context close before the next item. The slice supplies order and bounds. |
+| `PromiseLoop(ctx, name, goal, planner)` | The planner keeps a backlog and picks each next `Task`; range over `loop.Tasks`, then check `loop.Err()`. | Each task is a scope. What the body `Set`s is what the planner sees next. It ends by picking no task. |
 | `NewSession(ctx, role, workdir)` | One conversation using the run's model binding for that cognitive role. Cannot fail; the process starts on the first turn. | Prefer Gimble's `Role...` constants; applications may define additional `WorkflowRole` constants. |
 | `s.Generate[T](ctx, prompt, opts...)` | One blocking turn. `T` is `gimble.Text` for prose, or a polytype `Output` type whose schema is sent with the prompt. `prompt` must be a compile-time string constant (GIMBLE108); `Generate` appends the ctx scope's rendered context to it itself, as `prompt + "\n\n" + context`. | Put the run's data into the scope with `Set`/`SetJSON` before the call. A wrong-shaped answer is re-asked a bounded number of times. |
 | `s.Fork(ctx, name)` | A new session with the conversation so far, in the same dir. | Read the code once, fork the readers. |
@@ -74,17 +75,18 @@ on every ctx under the target: `errors.As(err, &killed)` on the `Generate`
 error tells a kill from an ordinary failure, and `context.Cause(ctx)` shows
 it anywhere below. A killed turn ends only that turn: the session, its
 scope, and the loop keep running, and the body decides whether to re-ask.
-A killed scope closes its sessions; its `Group` siblings run on; a `Loop`
-records the task failed with the reason and the planner sees it on the next
-lap. An unknown or finished id is an error. Write the workflow to handle the
-cause; the sending is the operator's.
+A killed scope closes its sessions; its `Group` siblings run on. A planner
+task records the failure for the planner; ordinary iteration cleanup follows
+normal Go cancellation and control flow. An unknown or finished id is an
+error. Write the workflow to handle the cause; the sending is the operator's.
 
-A message to a `Loop` is not a steer of a turn: a planner is not always in
-one, so `SteerLoop` holds it for the loop's next planning decision instead
-of dropping it, and the loop records it as landed once the planner has read
-it. `gimble.WrapUp` is the message that means end dispatch there; anything
-else in prose is the planner's to weigh. The run page offers both on the
-card of a loop that is still dispatching.
+For a `PromiseLoop` dispatch, a message to the loop is not a steer of a
+turn: a planner is not always in one, so `SteerLoop` holds it for the loop's
+next planning decision instead of dropping it, and the loop records it as
+landed once the planner has read it. `gimble.WrapUp` is the message that means
+end dispatch there; anything else in prose is the planner's to weigh.
+`Iterate` has no planner and accepts no planner messages. The run page offers
+loop controls on a loop that is still dispatching.
 
 ## The shapes
 

@@ -13,12 +13,13 @@ func TestRolesAreEveryNewSessionOnceInSourceOrder(t *testing.T) {
 			{Body: []Operation{Session{Name: "claude"}}},
 			{Body: []Operation{Session{Name: "claude"}}},
 		}},
-		Loop{Body: []Operation{
+		PromiseLoop{Body: []Operation{
 			Scope{Body: []Operation{Session{Name: "supervisor"}}},
 			Condition{Branches: []Branch{{Body: []Operation{Session{Name: "judge"}}}}},
 		}},
+		Iterate{Body: []Operation{Session{Name: "iterator"}}},
 	}}
-	if got := g.Roles(); !slices.Equal(got, []string{"researcher", "claude", "supervisor", "judge"}) {
+	if got := g.Roles(); !slices.Equal(got, []string{"researcher", "claude", "supervisor", "judge", "iterator"}) {
 		t.Fatalf("Roles = %q", got)
 	}
 }

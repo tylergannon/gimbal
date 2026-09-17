@@ -135,7 +135,7 @@ func SprintShape(ctx context.Context, _ gimble.Env) error {
 	}
 	for round := 0; round < 1; round++ {
 		if err := gimble.Scope(ctx, "round", func(ctx context.Context) error {
-			loop := gimble.Loop(ctx, "sprint", "review the code", planner)
+			loop := gimble.PromiseLoop(ctx, "sprint", "review the code", planner)
 			for ctx, task := range loop.Tasks {
 				_ = task
 				coder, err := researcher.Fork(ctx, "coder")
@@ -169,6 +169,26 @@ type WorkDirParams struct {
 
 // HasWorkDirParams is invalid because WorkDir belongs to gimble.Env.
 func HasWorkDirParams(ctx context.Context, _ gimble.Env, _ WorkDirParams) error { return nil }
+
+func IterationShape(ctx context.Context, _ gimble.Env) error {
+	for ctx := range gimble.Iterate(ctx, "iteration", []string{"one", "two"}) {
+		session := gimble.NewSession(ctx, "reviewer", ".")
+		if _, err := session.Generate[gimble.Text](ctx, workPrompt); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func PlannerReassignmentShape(ctx context.Context, _ gimble.Env) error {
+	planner := gimble.NewSession(ctx, "planner", ".")
+	loop := gimble.PromiseLoop(ctx, "tasks", "review the code", planner)
+	for ctx, task := range loop.Tasks {
+		planner = gimble.NewSession(ctx, "replacement", ".")
+		_ = task
+	}
+	return nil
+}
 
 // guarded scopes a body whose first branch returns before it writes anything.
 func guarded(ctx context.Context) error {

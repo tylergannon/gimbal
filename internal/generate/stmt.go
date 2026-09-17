@@ -319,35 +319,50 @@ func (e *extractor) repeat(stmt ast.Stmt, block *ast.BlockStmt, cond string, out
 	e.emit(out, workflow.Repeat{Source: e.at(stmt.Pos()), Cond: cond, Body: body})
 }
 
-// rangeStmt is either the range over a Loop's Tasks, which supplies that
-// Loop's per-task body, or an ordinary Go range, which is a Repeat.
+// rangeStmt is a range over PromiseLoop.Tasks, gimble.Iterate, or an ordinary
+// Go range, which is a Repeat.
 func (e *extractor) rangeStmt(stmt *ast.RangeStmt, out *[]workflow.Operation, en scopeEnv) {
-	if e.isTasksRange(stmt) {
-		e.tasksRange(stmt, out, en)
+	if _, ok := e.promiseTasksRange(stmt); ok {
+		e.promiseTasksRangeBody(stmt, out, en)
+		return
+	}
+	if call, ok := e.iterateRange(stmt); ok {
+		e.iterateRangeBody(stmt, call, out, en)
 		return
 	}
 	e.exprs(stmt.X, out, en)
 	e.repeat(stmt, stmt.Body, header(e.pkg.Fset, stmt), out, en)
 }
 
-func (e *extractor) tasksRange(stmt *ast.RangeStmt, out *[]workflow.Operation, en scopeEnv) {
-	selector, _ := unparen(stmt.X).(*ast.SelectorExpr)
+func (e *extractor) promiseTasksRangeBody(stmt *ast.RangeStmt, out *[]workflow.Operation, en scopeEnv) {
+	selector, _ := e.promiseTasksRange(stmt)
 	obj := e.object(selector.X)
 	ref := e.loop[obj]
 	if ref == nil {
-		e.diag(stmt.X.Pos(), "a Tasks range over something other than a Loop declared in an enclosing body is not read")
+		e.diag(stmt.X.Pos(), "a Tasks range over something other than a PromiseLoop declared in an enclosing body is not read")
 		return
 	}
 	if ref.ops != out {
-		e.diag(stmt.X.Pos(), "a Tasks range outside the body that declared its Loop is not read")
+		e.diag(stmt.X.Pos(), "a Tasks range outside the body that declared its PromiseLoop is not read")
 		return
 	}
 	body := []workflow.Operation{}
 	e.body(stmt.Body.List, &body, en)
-	loop, ok := (*ref.ops)[ref.index].(workflow.Loop)
+	loop, ok := (*ref.ops)[ref.index].(workflow.PromiseLoop)
 	if !ok {
 		return
 	}
 	loop.Body = body
 	(*ref.ops)[ref.index] = loop
+}
+
+func (e *extractor) iterateRangeBody(stmt *ast.RangeStmt, call *ast.CallExpr, out *[]workflow.Operation, en scopeEnv) {
+	name, ok := e.constant(call, 1)
+	if !ok {
+		e.diag(call.Pos(), "Iterate's scope name is not a constant, so the iteration is not read")
+		return
+	}
+	body := []workflow.Operation{}
+	e.body(stmt.Body.List, &body, en)
+	e.emit(out, workflow.Iterate{Source: e.at(call.Pos()), Name: name, Body: body})
 }

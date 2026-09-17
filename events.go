@@ -53,8 +53,8 @@ type RunCancelled struct {
 
 func (RunCancelled) lifecycleEvent() {}
 
-// ScopeBegan records entry into one scope instance. Loop marks a Loop's own
-// scope, the one whose planner an operator can send a message to.
+// ScopeBegan records entry into one scope instance. Loop marks a PromiseLoop's
+// own scope, the one whose planner an operator can send a message to.
 type ScopeBegan struct {
 	Name string                  `json:"name"`
 	Loop bool                    `json:"loop"`

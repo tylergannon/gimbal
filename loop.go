@@ -12,7 +12,7 @@ import (
 	"github.com/tylergannon/polytype"
 )
 
-// Task is one assignment selected by a Loop planner.
+// Task is one assignment selected by a PromiseLoop planner.
 type Task struct {
 	// Name is a short label for recognizing the work.
 	Name string `json:"name"`
@@ -55,7 +55,7 @@ func (a answer) ValidateJSON(raw []byte) error {
 	return validatePlan(p)
 }
 
-type loop struct {
+type promiseLoop struct {
 	ctx     context.Context
 	name    string
 	goal    string
@@ -63,17 +63,16 @@ type loop struct {
 	err     error
 }
 
-// Loop opens planner-directed dispatch for goal. The planner is the Session
-// chosen and prepared by the workflow. Loop keeps a revisable backlog in its
-// run scope and uses values recorded by each task as feedback for the next
-// decision. Range over its Tasks method and check Err afterward.
+// PromiseLoop opens planner-directed dispatch for goal. The planner keeps a
+// revisable backlog and selects each task. Range over Tasks and check Err
+// afterward to distinguish normal completion from planner, persistence, or
+// cancellation failure.
 //
-// An operator watching the run can send the loop a message by its scope
-// key, WrapUp or anything else in prose. It waits for the planner's next
-// decision rather than being dropped, because a planner is not always in a
-// turn, and the loop's record says whether the planner read it.
-func Loop(ctx context.Context, name, goal string, planner *Session) *loop {
-	return &loop{ctx: ctx, name: name, goal: goal, planner: planner}
+// An operator can send this loop a message while it is dispatching. The
+// message waits for the planner's next decision rather than being dropped
+// between turns.
+func PromiseLoop(ctx context.Context, name, goal string, planner *Session) *promiseLoop {
+	return &promiseLoop{ctx: ctx, name: name, goal: goal, planner: planner}
 }
 
 // Tasks yields planner-selected assignments. Each ctx is a child scope that
@@ -84,7 +83,11 @@ func Loop(ctx context.Context, name, goal string, planner *Session) *loop {
 // The planner may revise, reorder, and extend the backlog as work reveals what
 // matters. It ends dispatch by returning no task. That decision is distinct
 // from validation and from fulfillment of the enclosing goal.
-func (l *loop) Tasks(yield func(context.Context, Task) bool) {
+func (l *promiseLoop) Tasks(yield func(context.Context, Task) bool) {
+	if l.planner == nil {
+		l.err = errors.New("gimble: PromiseLoop requires a planner session")
+		return
+	}
 	parent, err := current(l.ctx)
 	if err != nil {
 		l.err = err
@@ -188,8 +191,8 @@ func (l *loop) Tasks(yield func(context.Context, Task) bool) {
 
 // Err returns the error that ended dispatch, if any: persistence, malformed
 // planner data, cancellation, or the planner's harness. A failed task
-// validation recorded by the workflow is feedback, not a Loop error.
-func (l *loop) Err() error {
+// validation recorded by the workflow is feedback, not a PromiseLoop error.
+func (l *promiseLoop) Err() error {
 	return l.err
 }
 

@@ -100,13 +100,13 @@ func (*exampleLoopAdapter) Fork(context.Context, string) (string, error) {
 }
 func (*exampleLoopAdapter) Close(context.Context, string) error { return nil }
 
-func ExampleLoop() {
+func ExamplePromiseLoop() {
 	ctx, closeProject := exampleContext()
 	defer closeProject()
 
 	err := gimble.Run(ctx, "dispatch", map[gimble.WorkflowRole]gimble.ModelBinding{"planner": {Adapter: &exampleLoopAdapter{}, Model: "example"}}, func(ctx context.Context) error {
 		planner := gimble.NewSession(ctx, "planner", ".")
-		loop := gimble.Loop(ctx, "work", "demonstrate adaptive dispatch", planner)
+		loop := gimble.PromiseLoop(ctx, "work", "demonstrate adaptive dispatch", planner)
 		for ctx, task := range loop.Tasks {
 			fmt.Println(task.Name)
 			gimble.Set(ctx, "result", "assignment recorded")
@@ -117,5 +117,25 @@ func ExampleLoop() {
 
 	// Output:
 	// Show the task
+	// <nil>
+}
+
+func ExampleIterate() {
+	ctx, closeProject := exampleContext()
+	defer closeProject()
+
+	err := gimble.Run(ctx, "iterations", nil, func(ctx context.Context) error {
+		count := 0
+		for itemCtx, item := range gimble.Iterate(ctx, "work", []string{"one", "two"}) {
+			count++
+			gimble.Set(itemCtx, "item", item)
+		}
+		fmt.Println(count)
+		return nil
+	})
+	fmt.Println(err)
+
+	// Output:
+	// 2
 	// <nil>
 }

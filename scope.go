@@ -34,7 +34,7 @@ type scope struct {
 	key    string                  // names with ordinals from the root, as in lap.3/bakeoff.1/attempt.2; "" for the root
 	cancel context.CancelCauseFunc // ends the scope's ctx; run.cancelScope reaches it by key
 
-	loop bool // a Loop's own scope, which takes messages for its planner
+	loop bool // a PromiseLoop's own scope, which takes messages for its planner
 
 	mu          sync.Mutex
 	ordinals    map[string]int // the last ordinal given to each child scope and session name
@@ -281,7 +281,7 @@ func scopeText(ctx context.Context) string {
 	return strings.Join(sections, "\n\n")
 }
 
-// localText renders only the values written in this scope. Loop uses it to
+// localText renders only the values written in this scope. PromiseLoop uses it to
 // carry a completed task's record forward without promoting those values into
 // the parent scope.
 func (s *scope) localText() string {

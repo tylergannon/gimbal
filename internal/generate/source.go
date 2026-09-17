@@ -1,4 +1,4 @@
-package graph
+package generate
 
 import (
 	"fmt"
@@ -28,7 +28,7 @@ func Source(dir, entry, name, output string) error {
 	}
 	file, err := filepath.Abs(file)
 	if err != nil {
-		return fmt.Errorf("graph: %w", err)
+		return fmt.Errorf("generate: %w", err)
 	}
 	pkg, err := packageName(dir, file, name)
 	if err != nil {
@@ -43,10 +43,10 @@ func Source(dir, entry, name, output string) error {
 	}
 	text, err := format.Source([]byte(source(pkg, entry, info, graph)))
 	if err != nil {
-		return fmt.Errorf("graph: %w", err)
+		return fmt.Errorf("generate: %w", err)
 	}
 	if err := os.WriteFile(file, text, 0o644); err != nil {
-		return fmt.Errorf("graph: %w", err)
+		return fmt.Errorf("generate: %w", err)
 	}
 	return nil
 }
@@ -56,7 +56,7 @@ func Source(dir, entry, name, output string) error {
 func packageName(dir, output, fallback string) (string, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return "", fmt.Errorf("graph: %w", err)
+		return "", fmt.Errorf("generate: %w", err)
 	}
 	fset := token.NewFileSet()
 	for _, entry := range entries {

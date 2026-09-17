@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/tylergannon/gimble"
-	"github.com/tylergannon/gimble/internal/graph"
+	"github.com/tylergannon/gimble/internal/generate"
 	"github.com/tylergannon/gimble/workflow"
 )
 
@@ -111,7 +111,7 @@ func TestThePlannerStoppingFirstFailsTheRun(t *testing.T) {
 }
 
 func TestGraphReadsWithoutDiagnostics(t *testing.T) {
-	g, err := graph.Extract(".", "EasyLoop", "easyloop")
+	g, err := generate.Extract(".", "EasyLoop", "easyloop")
 	if err != nil {
 		t.Fatal(err)
 	}

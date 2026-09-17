@@ -40,7 +40,7 @@ func Project(ctx context.Context, dir string) context.Context {
 // is complete and never written again by the time a run reads it.
 var graphs = map[string]workflow.Graph{}
 
-// RegisterGraph records the shape of one workflow, which `gimble gen`
+// RegisterGraph records the shape of one workflow, which the workflow generator
 // read from its source, under the workflow's name, which is also its runs'
 // name. It is how the binary that runs a workflow knows the workflow's
 // shape: the run page draws a run against it. It is not written into the

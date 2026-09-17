@@ -16,7 +16,7 @@ import (
 	"github.com/tylergannon/gimble"
 )
 
-//go:generate go run github.com/tylergannon/gimble/cmd/gimble gen -entry Plan -name plan
+//go:generate go run github.com/tylergannon/gimble/internal/generate/gimblegen -entry Plan -name plan
 
 // Input starts the plan workflow.
 type Input struct {

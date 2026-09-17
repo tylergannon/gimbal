@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/tylergannon/gimble"
-	"github.com/tylergannon/gimble/internal/graph"
+	"github.com/tylergannon/gimble/internal/generate"
 	"github.com/tylergannon/polytype"
 )
 
@@ -100,7 +100,7 @@ func TestExecuteNeedsTheSprintDocument(t *testing.T) {
 }
 
 func TestGraphReadsWithoutDiagnostics(t *testing.T) {
-	g, err := graph.Extract(".", "Execute", "execute")
+	g, err := generate.Extract(".", "Execute", "execute")
 	if err != nil {
 		t.Fatal(err)
 	}

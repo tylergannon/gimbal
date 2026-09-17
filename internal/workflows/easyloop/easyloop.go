@@ -19,8 +19,8 @@ import (
 	"github.com/tylergannon/polytype"
 )
 
+//go:generate go run github.com/tylergannon/gimble/internal/generate/gimblegen -entry EasyLoop -name easyloop
 //go:generate go tool polytype --validate
-//go:generate go run github.com/tylergannon/gimble/cmd/gimble gen -entry EasyLoop -name easyloop
 
 // Input starts the easy loop.
 type Input struct {

@@ -50,6 +50,10 @@ Each workflow's subcommand is generated from its source: one flag per field
 of its input struct, and one model flag per role its graph names. `--work-dir` is
 the working directory, whose `.gimble` holds the run, served as above.
 
+`go generate ./internal/workflows/...` runs the independent workflow generator
+in `internal/generate/`. It can rebuild missing or stale generated commands
+without first building the application CLI.
+
 ## Lint workflows
 
 The distributed `gimble` binary also checks deterministic workflow authoring

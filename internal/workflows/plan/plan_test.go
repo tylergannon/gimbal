@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/tylergannon/gimble"
-	"github.com/tylergannon/gimble/internal/graph"
+	"github.com/tylergannon/gimble/internal/generate"
 	"github.com/tylergannon/gimble/workflow"
 )
 
@@ -118,7 +118,7 @@ func index(prompts []string, text string) int {
 }
 
 func TestGraphReadsWithoutDiagnostics(t *testing.T) {
-	g, err := graph.Extract(".", "Plan", "plan")
+	g, err := generate.Extract(".", "Plan", "plan")
 	if err != nil {
 		t.Fatal(err)
 	}

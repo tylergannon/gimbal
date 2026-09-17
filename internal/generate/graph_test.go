@@ -1,4 +1,4 @@
-package graph_test
+package generate_test
 
 import (
 	"os"
@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/tylergannon/gimble/internal/graph"
+	"github.com/tylergannon/gimble/internal/generate"
 	"github.com/tylergannon/gimble/workflow"
 )
 
@@ -14,7 +14,7 @@ import (
 // graph exists to show: the control flows, the nested scopes, the
 // supervisions, and the role on each agent call.
 func TestSprintGraph(t *testing.T) {
-	g, err := graph.Extract("../workflows/sprint", "Sprint", "sprint")
+	g, err := generate.Extract("../workflows/sprint", "Sprint", "sprint")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -103,7 +103,7 @@ func gitCommands(body []workflow.Operation) int {
 // TestFixtureGraph reads the fixture workflow, which holds the sites the
 // rules read and the sites they refuse to guess at.
 func TestFixtureGraph(t *testing.T) {
-	g, err := graph.Extract("testdata/fixture", "Fixture", "fixture")
+	g, err := generate.Extract("testdata/fixture", "Fixture", "fixture")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -234,7 +234,7 @@ func TestFixtureGraph(t *testing.T) {
 // that it honours an absolute output path.
 func TestSourceWritesTheWorkflowsPackage(t *testing.T) {
 	output := filepath.Join(t.TempDir(), "workflow_gen.go")
-	if err := graph.Source("testdata/fixture", "Fixture", "fixture", output); err != nil {
+	if err := generate.Source("testdata/fixture", "Fixture", "fixture", output); err != nil {
 		t.Fatal(err)
 	}
 	written, err := os.ReadFile(output)

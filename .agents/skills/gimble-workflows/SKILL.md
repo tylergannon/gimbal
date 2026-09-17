@@ -103,8 +103,9 @@ Each is a compiling `Example` in the root package (`example_test.go`,
 
 A workflow is a package under `internal/workflows/` whose entry is
 `func Name(ctx context.Context, in Input) error`, with one directive:
-`//go:generate go run github.com/tylergannon/gimble/cmd/gimble gen -entry Name -name name`.
-`go generate` prints `workflow_gen.go` beside it: the graph, which registers
+`//go:generate go run github.com/tylergannon/gimble/internal/generate/gimblegen -entry Name -name name`.
+`go generate` runs the independent generator in `internal/generate/` and
+prints `workflow_gen.go` beside the workflow: the graph, which registers
 itself, and the workflow's `Command()`, a Cobra subcommand you can read: one
 flag per field of `Input`,
 named from the field with its doc comment as help, required unless the field

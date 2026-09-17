@@ -1,4 +1,4 @@
-package graph
+package generate
 
 import (
 	"go/ast"

@@ -1,0 +1,176 @@
+package generate
+
+import (
+	"errors"
+	"fmt"
+	"go/ast"
+	"go/constant"
+	"go/doc"
+	"go/token"
+	"go/types"
+	"strings"
+	"unicode"
+
+	"golang.org/x/tools/go/packages"
+)
+
+// entryInfo is what the generated command needs about the entry besides its
+// body: its input type, empty for an entry that takes only a ctx, and that
+// type's fields; the first sentence of its doc comment; and the package's.
+type entryInfo struct {
+	input    string
+	summary  string
+	long     string
+	fields   []field
+	defaults map[string]string // the roles var: each role's model unless a flag says otherwise
+}
+
+// field is one field of the input type as a flag: its Go name, the flag's
+// name, whether the value is a string, an int, or a bool, whether the field
+// is a polytype.Optional the flag sets only when given, and its doc.
+type field struct {
+	name, flag, kind, doc string
+	optional              bool
+}
+
+// describe reads the entry's signature, its doc, and its input's fields. An
+// entry takes a ctx and at most one input, a struct of its own package.
+func describe(pkg *packages.Package, decl *ast.FuncDecl) (entryInfo, error) {
+	info := entryInfo{summary: (&doc.Package{}).Synopsis(decl.Doc.Text()), long: packageDoc(pkg)}
+	defaults, err := roleDefaults(pkg)
+	if err != nil {
+		return info, err
+	}
+	info.defaults = defaults
+	fn, ok := pkg.TypesInfo.Defs[decl.Name].(*types.Func)
+	if !ok {
+		return info, fmt.Errorf("generate: %s has no type", decl.Name.Name)
+	}
+	params := fn.Type().(*types.Signature).Params()
+	switch params.Len() {
+	case 1:
+		return info, nil
+	case 2:
+		named, ok := params.At(1).Type().(*types.Named)
+		if !ok || named.Obj().Pkg() != pkg.Types {
+			return info, fmt.Errorf("generate: %s's input is %s, not a type of its own package", decl.Name.Name, params.At(1).Type())
+		}
+		info.input = named.Obj().Name()
+		fields, err := inputFields(pkg, named.Obj().Name())
+		if err != nil {
+			return info, err
+		}
+		info.fields = fields
+		return info, nil
+	default:
+		return info, fmt.Errorf("generate: %s takes %d parameters; an entry takes a ctx and at most one input", decl.Name.Name, params.Len())
+	}
+}
+
+// roleDefaults reads the package's roles var, if it declares one: a
+// map[string]string literal of constant role names to the model each runs
+// on unless the run's flag says otherwise. Nil when there is none.
+func roleDefaults(pkg *packages.Package) (map[string]string, error) {
+	for _, file := range pkg.Syntax {
+		for _, d := range file.Decls {
+			gen, ok := d.(*ast.GenDecl)
+			if !ok || gen.Tok != token.VAR {
+				continue
+			}
+			for _, s := range gen.Specs {
+				spec := s.(*ast.ValueSpec)
+				if len(spec.Names) != 1 || spec.Names[0].Name != "roles" || len(spec.Values) != 1 {
+					continue
+				}
+				lit, ok := spec.Values[0].(*ast.CompositeLit)
+				if !ok || !types.Identical(pkg.TypesInfo.TypeOf(lit), types.NewMap(types.Typ[types.String], types.Typ[types.String])) {
+					return nil, errors.New("generate: roles is not a map[string]string literal")
+				}
+				defaults := map[string]string{}
+				for _, elt := range lit.Elts {
+					kv, ok := elt.(*ast.KeyValueExpr)
+					key, value := pkg.TypesInfo.Types[kv.Key].Value, pkg.TypesInfo.Types[kv.Value].Value
+					if !ok || key == nil || value == nil {
+						return nil, fmt.Errorf("generate: roles: each entry is a constant role name and a constant model, not %s", types.ExprString(elt))
+					}
+					defaults[constant.StringVal(key)] = constant.StringVal(value)
+				}
+				return defaults, nil
+			}
+		}
+	}
+	return nil, nil
+}
+
+func packageDoc(pkg *packages.Package) string {
+	for _, file := range pkg.Syntax {
+		if file.Doc != nil {
+			return strings.TrimSpace(file.Doc.Text())
+		}
+	}
+	return ""
+}
+
+// inputFields reads the exported fields of the input struct in source order.
+func inputFields(pkg *packages.Package, typeName string) ([]field, error) {
+	var spec *ast.TypeSpec
+	for _, file := range pkg.Syntax {
+		for _, d := range file.Decls {
+			if gen, ok := d.(*ast.GenDecl); ok {
+				for _, s := range gen.Specs {
+					if ts, ok := s.(*ast.TypeSpec); ok && ts.Name.Name == typeName {
+						spec = ts
+					}
+				}
+			}
+		}
+	}
+	structType, ok := spec.Type.(*ast.StructType)
+	if spec == nil || !ok {
+		return nil, fmt.Errorf("generate: the input %s is not a struct", typeName)
+	}
+	var fields []field
+	for _, f := range structType.Fields.List {
+		for _, ident := range f.Names {
+			if !ident.IsExported() {
+				continue
+			}
+			kind, optional, err := flagKind(pkg.TypesInfo.TypeOf(f.Type))
+			if err != nil {
+				return nil, fmt.Errorf("generate: %s.%s: %w", typeName, ident.Name, err)
+			}
+			fields = append(fields, field{name: ident.Name, flag: kebab(ident.Name), kind: kind, optional: optional, doc: strings.TrimSpace(f.Doc.Text())})
+		}
+	}
+	return fields, nil
+}
+
+func flagKind(t types.Type) (kind string, optional bool, err error) {
+	if named, ok := t.(*types.Named); ok && named.Obj().Pkg() != nil && named.Obj().Pkg().Path() == "github.com/tylergannon/polytype" && named.Obj().Name() == "Optional" && named.TypeArgs().Len() == 1 {
+		kind, _, err := flagKind(named.TypeArgs().At(0))
+		return kind, true, err
+	}
+	if basic, ok := t.(*types.Basic); ok {
+		switch basic.Kind() {
+		case types.String:
+			return "string", false, nil
+		case types.Int:
+			return "int", false, nil
+		case types.Bool:
+			return "bool", false, nil
+		}
+	}
+	return "", false, fmt.Errorf("%s is not a flag: a field is a string, an int, a bool, or a polytype.Optional of one", t)
+}
+
+func kebab(name string) string {
+	var b strings.Builder
+	runes := []rune(name)
+	for i, r := range runes {
+		if i > 0 && unicode.IsUpper(r) && (unicode.IsLower(runes[i-1]) || unicode.IsDigit(runes[i-1]) || (i+1 < len(runes) && unicode.IsLower(runes[i+1]))) {
+			b.WriteByte('-')
+		}
+		b.WriteRune(unicode.ToLower(r))
+	}
+	return b.String()
+}

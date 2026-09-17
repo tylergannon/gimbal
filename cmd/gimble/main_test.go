@@ -35,7 +35,6 @@ func TestRouteAnalysis(t *testing.T) {
 		{name: "server wins over real vet config", args: []string{"-h", "-uds", vetConfig}},
 		{name: "ordinary server", args: []string{"-no-web"}},
 		{name: "run a workflow", args: []string{"run", "execute", "--sprint", "1"}},
-		{name: "generate a workflow", args: []string{"gen", "-entry", "Sprint", "-name", "sprint"}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

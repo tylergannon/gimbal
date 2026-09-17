@@ -17,7 +17,7 @@ import (
 	"github.com/tylergannon/polytype"
 )
 
-//go:generate go run github.com/tylergannon/gimble/cmd/gimble gen -entry Execute -name execute
+//go:generate go run github.com/tylergannon/gimble/internal/generate/gimblegen -entry Execute -name execute
 
 // Input starts the execute workflow.
 type Input struct {

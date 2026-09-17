@@ -129,6 +129,25 @@ type TurnEnded struct {
 
 func (TurnEnded) lifecycleEvent() {}
 
+// InterviewQuestionAsked records a question waiting for a person's answer.
+// LifecycleRecord supplies its scope and session placement.
+type InterviewQuestionAsked struct {
+	Name       string `json:"name"`
+	QuestionID string `json:"question_id"`
+	Question   string `json:"question"`
+}
+
+func (InterviewQuestionAsked) lifecycleEvent() {}
+
+// InterviewQuestionAnswered records the answer accepted for one interview
+// question. An empty answer records that the person ended the interview.
+type InterviewQuestionAnswered struct {
+	QuestionID string `json:"question_id"`
+	Answer     string `json:"answer"`
+}
+
+func (InterviewQuestionAnswered) lifecycleEvent() {}
+
 // CommandStarted records a command RunCommand is starting in the record's
 // scope. ID is the scope's key and Name with an ordinal, as in
 // lap.3/check.2; Workdir is absolute.

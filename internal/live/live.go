@@ -16,6 +16,9 @@ import (
 // lap.3 for a scope, lap.3/coder.1/turn.2 for a turn. An unknown or already
 // ended id is an error.
 type Controller interface {
+	// AnswerInterview delivers the first answer to the pending interview
+	// question id. An empty answer ends the interview normally.
+	AnswerInterview(questionID, answer string) error
 	// Steer sends message into the session's running turn as the person
 	// watching the run, and reports whether it landed there.
 	Steer(ctx context.Context, sessionID, message string) (landed bool, err error)

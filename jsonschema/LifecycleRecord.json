@@ -33,6 +33,19 @@
 "recording_error":{"type":"string"}
 },"required":["kind","recording_error"],"additionalProperties":false},
 {"type":"object",
+"description":"InterviewQuestionAnswered records the answer accepted for one interview question. An empty answer records that the person ended the interview.","properties":{
+"kind":{"type":"string","const":"interview_question_answered"},
+"question_id":{"type":"string"},
+"answer":{"type":"string"}
+},"required":["kind","question_id","answer"],"additionalProperties":false},
+{"type":"object",
+"description":"InterviewQuestionAsked records a question waiting for a person's answer. LifecycleRecord supplies its scope and session placement.","properties":{
+"kind":{"type":"string","const":"interview_question_asked"},
+"name":{"type":"string"},
+"question_id":{"type":"string"},
+"question":{"type":"string"}
+},"required":["kind","name","question_id","question"],"additionalProperties":false},
+{"type":"object",
 "description":"Killed is the cause of a ctx that an operator cancelled on purpose, and the lifecycle record of that kill. Target is the scope key or turn id that was killed; By is who did it, \"\" when unknown. context.Cause(ctx) returns it in every scope and turn under the target, so workflow code that cares checks errors.As(context.Cause(ctx), \u0026killed); code that does not care sees ctx.Err() as before.","properties":{
 "kind":{"type":"string","const":"killed"},
 "target":{"type":"string"},

@@ -8,6 +8,11 @@
 // descriptors are released from the shared daemon. An archived thread
 // cannot be used again through the adapter; see callThread for why.
 //
+// Set GIMBLE_CODEX_DEBUG_DIR to a local directory to record every received
+// WebSocket frame, in receive order, before parsing. Each connection writes
+// its own private JSONL file. Captures can contain sensitive data and must
+// not be committed. Debug capture failures are reported without aborting work.
+//
 // When this adapter is the one to start the daemon (connect, on a stopped
 // daemon), it raises its own soft RLIMIT_NOFILE to the hard limit first, so
 // the daemon inherits room for a wide Group instead of the 256 a default
@@ -23,6 +28,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"maps"
 	"strings"
 	"sync"
@@ -417,6 +423,9 @@ func input(text string) []map[string]any {
 // the turn completes and returns the agent's final message.
 func readTurn(ctx context.Context, conn *connection, ch chan rpcMessage, threadID, turnID string, emit *projector) (string, error) {
 	var final string
+	textOrder := make(map[string]int)
+	finalOrder := 0
+	finalPhase := false
 	childParents := make(map[string]string)
 	childProjectors := make(map[string]*projector)
 	defer func() {
@@ -443,7 +452,7 @@ func readTurn(ctx context.Context, conn *connection, ch chan rpcMessage, threadI
 			if len(message.ID) > 0 && message.Method != "" {
 				return "", refuse(conn, message, project)
 			}
-			if err := projectChildNotification(message, project); err != nil {
+			if err := projectNotification(message, project); err != nil {
 				return "", err
 			}
 			continue
@@ -454,49 +463,34 @@ func readTurn(ctx context.Context, conn *connection, ch chan rpcMessage, threadI
 		if !matches(message.Params, threadID, turnID) {
 			continue
 		}
+		if message.Method == "item/started" || message.Method == "item/completed" {
+			if item, ok := decodeItem(message.Params); ok && item.kind == "agentMessage" {
+				if _, seen := textOrder[item.id]; !seen {
+					textOrder[item.id] = len(textOrder) + 1
+				}
+			}
+		}
+		if err := projectNotification(message, emit); err != nil {
+			return "", err
+		}
 		switch message.Method {
 		case "item/started":
-			if err := emit.itemStarted(message.Params); err != nil {
-				return "", err
-			}
 			registerCodexChildren(conn, ch, message.Params, childParents)
-		case "item/agentMessage/delta":
-			if err := emit.textDelta(message.Params); err != nil {
-				return "", err
-			}
-		case "item/reasoning/summaryTextDelta":
-			if err := emit.reasoningDelta(message.Params); err != nil {
-				return "", err
-			}
-		case "item/commandExecution/outputDelta":
-			if err := emit.toolOutputDelta(message.Params); err != nil {
-				return "", err
-			}
 		case "item/completed":
 			registerCodexChildren(conn, ch, message.Params, childParents)
-			text, ok, err := emit.itemCompleted(message.Params)
-			if err != nil {
-				return "", err
-			}
-			if ok {
-				final = text
-			}
-		case "rawResponseItem/completed":
-			if err := emit.rawResponseItemCompleted(message.Params); err != nil {
-				return "", err
-			}
-		case "rawResponse/completed":
-			if err := emit.rawResponseCompleted(message.Params); err != nil {
-				return "", err
-			}
-		case "thread/tokenUsage/updated":
-			if err := emit.tokenUsageUpdated(message.Params); err != nil {
-				return "", err
+			// The native answer, not successful rendering of its transcript,
+			// determines the result returned to the workflow.
+			if item, ok := decodeItem(message.Params); ok && item.kind == "agentMessage" {
+				isFinal := item.value["phase"] == "final_answer"
+				order := textOrder[item.id]
+				// Prefer the provider's explicit final answer. For older events
+				// without phase, a late completion must not replace a newer item.
+				if (isFinal && !finalPhase) || (isFinal == finalPhase && order >= finalOrder) {
+					final, _ = item.value["text"].(string)
+					finalOrder, finalPhase = order, isFinal
+				}
 			}
 		case "turn/completed":
-			if err := emit.turnCompleted(message.Params); err != nil {
-				return "", err
-			}
 			status, failure := completedTurn(message.Params)
 			switch status {
 			case "completed":
@@ -515,11 +509,11 @@ func readTurn(ctx context.Context, conn *connection, ch chan rpcMessage, threadI
 				return "", fmt.Errorf("codex: the turn ended with status %q", status)
 			}
 		case "error":
-			willRetry, projectErr := emit.harnessError(message.Params)
-			if projectErr != nil {
-				return "", projectErr
+			var notice struct {
+				WillRetry bool `json:"willRetry"`
 			}
-			if !willRetry {
+			_ = json.Unmarshal(message.Params, &notice)
+			if !notice.WillRetry {
 				return "", errorNotification(message.Params)
 			}
 		}
@@ -549,6 +543,21 @@ func messageTurnID(raw json.RawMessage) string {
 		return envelope.TurnID
 	}
 	return envelope.Turn.ID
+}
+
+// Transcript projection is best-effort. An unexpected display shape is a
+// diagnostic, never a reason to discard a native answer or abort the agent.
+// Real provider failures are handled by readTurn; sink failures still propagate.
+func projectNotification(message rpcMessage, emit *projector) error {
+	err := projectChildNotification(message, emit)
+	if err == nil {
+		return nil
+	}
+	if _, ok := errors.AsType[*eventSinkError](err); ok {
+		return err
+	}
+	log.Printf("gimble: Codex projection warning (thread %s, turn %s, %s): %v; continuing", emit.sessionID, emit.turnID, message.Method, err)
+	return nil
 }
 
 func projectChildNotification(message rpcMessage, emit *projector) error {

@@ -27,12 +27,8 @@ type projector struct {
 	streamed      bool
 	compacting    bool
 	partOrdinal   int
-	textOpen      bool
-	textOrdinal   int
-	text          strings.Builder
-	reasoningOpen bool
-	reasoningOrd  int
-	reasoning     strings.Builder
+	parts         map[string]*contentPart
+	partQueues    map[string][]*contentPart
 	tools         map[string]*toolState
 	nestedTools   map[string]*nestedToolState
 	responseCalls map[string]bool
@@ -45,6 +41,22 @@ type toolState struct {
 	output strings.Builder
 	done   bool
 }
+
+// Native items can overlap or repeat. Keep their identity and buffer later
+// parts while the transcript's current part streams. This serializes display
+// events without imposing that ordering on the provider or mixing their text.
+type contentPart struct {
+	ordinal       int
+	text          strings.Builder
+	done, visible bool
+	native        any
+}
+
+// A sink failure (for example, writing the run record) is operational, not
+// an unexpected provider display shape. Preserve it through projection.
+type eventSinkError struct{ error }
+
+func (e *eventSinkError) Unwrap() error { return e.error }
 
 type nestedToolState struct {
 	messageID string
@@ -59,6 +71,7 @@ func newProjector(sessionID, turnID, model string, emit func(gimble.AgentEvent) 
 	return &projector{
 		emit: emit, sessionID: sessionID, turnID: turnID, model: model,
 		tools: make(map[string]*toolState), nestedTools: make(map[string]*nestedToolState), responseCalls: make(map[string]bool),
+		parts: make(map[string]*contentPart), partQueues: make(map[string][]*contentPart),
 	}
 }
 
@@ -75,7 +88,10 @@ func (p *projector) event(eventType string, data map[string]any, native any) err
 			return err
 		}
 	}
-	return p.emit(event)
+	if err := p.emit(event); err != nil {
+		return &eventSinkError{err}
+	}
+	return nil
 }
 
 func (p *projector) ensureStep(nativeMessageID string, native any) error {
@@ -132,6 +148,10 @@ func (p *projector) itemStarted(params json.RawMessage) error {
 		p.compacting = true
 		return nil
 	}
+	if (item.kind == "reasoning" && p.parts["reasoning\x00"+item.id] != nil) ||
+		(item.kind == "agentMessage" && p.parts["text\x00"+item.id] != nil) {
+		return nil // a delta or earlier start already introduced this item
+	}
 	if p.streamed && (!isTool(item.kind) || p.responseCallsSettled()) {
 		if err := p.endStep(nil); err != nil {
 			return err
@@ -142,33 +162,57 @@ func (p *projector) itemStarted(params json.RawMessage) error {
 	}
 	switch {
 	case item.kind == "agentMessage":
-		return p.startText(p.nativeRef(params))
+		_, err := p.contentPart("text", item.id, p.nativeRef(params))
+		return err
 	case item.kind == "reasoning":
-		return p.startReasoning(p.nativeRef(params))
+		_, err := p.contentPart("reasoning", item.id, p.nativeRef(params))
+		return err
 	case isTool(item.kind):
 		return p.startTool(item, params)
 	}
 	return nil
 }
 
-func (p *projector) startText(native any) error {
-	if p.textOpen {
-		return errors.New("codex: a second text part opened before the first ended")
+func (p *projector) contentPart(kind, id string, native any) (*contentPart, error) {
+	if id == "" && len(p.partQueues[kind]) > 0 {
+		return p.partQueues[kind][0], nil
 	}
-	p.textOpen, p.textOrdinal = true, p.partOrdinal
+	key := kind + "\x00" + id
+	if part := p.parts[key]; part != nil {
+		return part, nil
+	}
+	part := &contentPart{ordinal: p.partOrdinal, native: native}
 	p.partOrdinal++
-	p.text.Reset()
-	return p.event("session.text.started", map[string]any{"assistantMessageID": p.messageID, "ordinal": p.textOrdinal}, native)
+	p.parts[key] = part
+	p.partQueues[kind] = append(p.partQueues[kind], part)
+	return part, p.flushParts(kind)
 }
 
-func (p *projector) startReasoning(native any) error {
-	if p.reasoningOpen {
-		return errors.New("codex: a second reasoning part opened before the first ended")
+func (p *projector) flushParts(kind string) error {
+	for len(p.partQueues[kind]) > 0 {
+		part := p.partQueues[kind][0]
+		data := map[string]any{"assistantMessageID": p.messageID, "ordinal": part.ordinal}
+		if !part.visible {
+			if err := p.event("session."+kind+".started", data, part.native); err != nil {
+				return err
+			}
+			part.visible = true
+			if !part.done && part.text.Len() > 0 {
+				if err := p.event("session."+kind+".delta", map[string]any{"assistantMessageID": p.messageID, "ordinal": part.ordinal, "delta": part.text.String()}, part.native); err != nil {
+					return err
+				}
+			}
+		}
+		if !part.done {
+			return nil
+		}
+		data["text"] = part.text.String()
+		if err := p.event("session."+kind+".ended", data, part.native); err != nil {
+			return err
+		}
+		p.partQueues[kind] = p.partQueues[kind][1:]
 	}
-	p.reasoningOpen, p.reasoningOrd = true, p.partOrdinal
-	p.partOrdinal++
-	p.reasoning.Reset()
-	return p.event("session.reasoning.started", map[string]any{"assistantMessageID": p.messageID, "ordinal": p.reasoningOrd}, native)
+	return nil
 }
 
 func (p *projector) startTool(item nativeItem, params json.RawMessage) error {
@@ -196,37 +240,33 @@ func (p *projector) startTool(item nativeItem, params json.RawMessage) error {
 func (p *projector) textDelta(params json.RawMessage) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if !p.stepOpen {
-		if err := p.ensureStep(paramItemID(params), p.nativeRef(params)); err != nil {
-			return err
-		}
-	}
-	if !p.textOpen {
-		if err := p.startText(p.nativeRef(params)); err != nil {
-			return err
-		}
-	}
-	delta := deltaText(params)
-	p.text.WriteString(delta)
-	return p.event("session.text.delta", map[string]any{"assistantMessageID": p.messageID, "ordinal": p.textOrdinal, "delta": delta}, p.nativeRef(params))
+	return p.contentDelta("text", params)
 }
 
 func (p *projector) reasoningDelta(params json.RawMessage) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if !p.stepOpen {
-		if err := p.ensureStep(paramItemID(params), p.nativeRef(params)); err != nil {
-			return err
-		}
+	return p.contentDelta("reasoning", params)
+}
+
+func (p *projector) contentDelta(kind string, params json.RawMessage) error {
+	id := paramItemID(params)
+	if part := p.parts[kind+"\x00"+id]; part != nil && part.done {
+		return nil
 	}
-	if !p.reasoningOpen {
-		if err := p.startReasoning(p.nativeRef(params)); err != nil {
-			return err
-		}
+	if err := p.ensureStep(id, p.nativeRef(params)); err != nil {
+		return err
+	}
+	part, err := p.contentPart(kind, id, p.nativeRef(params))
+	if err != nil {
+		return err
 	}
 	delta := deltaText(params)
-	p.reasoning.WriteString(delta)
-	return p.event("session.reasoning.delta", map[string]any{"assistantMessageID": p.messageID, "ordinal": p.reasoningOrd, "delta": delta}, p.nativeRef(params))
+	part.text.WriteString(delta)
+	if !part.visible {
+		return nil
+	}
+	return p.event("session."+kind+".delta", map[string]any{"assistantMessageID": p.messageID, "ordinal": part.ordinal, "delta": delta}, p.nativeRef(params))
 }
 
 func (p *projector) toolOutputDelta(params json.RawMessage) error {
@@ -266,6 +306,11 @@ func (p *projector) itemCompleted(params json.RawMessage) (string, bool, error) 
 		p.compacting = false
 		return "", false, nil
 	}
+	for _, kind := range []string{"text", "reasoning"} {
+		if part := p.parts[kind+"\x00"+item.id]; part != nil && part.done {
+			return "", false, nil
+		}
+	}
 	if !p.stepOpen {
 		if err := p.ensureStep(item.id, p.nativeRef(params)); err != nil {
 			return "", false, err
@@ -275,35 +320,19 @@ func (p *projector) itemCompleted(params json.RawMessage) (string, bool, error) 
 	switch {
 	case item.kind == "agentMessage":
 		text, _ := item.value["text"].(string)
-		if !p.textOpen {
-			if err := p.startText(ref); err != nil {
-				return "", false, err
-			}
-		}
-		p.text.Reset()
-		p.text.WriteString(text)
-		if err := p.event("session.text.ended", map[string]any{"assistantMessageID": p.messageID, "ordinal": p.textOrdinal, "text": text}, ref); err != nil {
-			return "", false, err
-		}
-		p.textOpen = false
-		return text, true, nil
+		err := p.completePart("text", item.id, text, ref)
+		return text, true, err
 	case item.kind == "reasoning":
 		text := joined(item.value["summary"])
 		if text == "" {
 			text = joined(item.value["content"])
 		}
-		if text == "" && !p.reasoningOpen {
+		if text == "" && p.parts["reasoning\x00"+item.id] == nil {
 			return "", false, nil
 		}
-		if !p.reasoningOpen {
-			if err := p.startReasoning(ref); err != nil {
-				return "", false, err
-			}
-		}
-		if err := p.event("session.reasoning.ended", map[string]any{"assistantMessageID": p.messageID, "ordinal": p.reasoningOrd, "text": text}, ref); err != nil {
+		if err := p.completePart("reasoning", item.id, text, ref); err != nil {
 			return "", false, err
 		}
-		p.reasoningOpen = false
 	case isTool(item.kind):
 		state := p.tools[item.id]
 		if state == nil {
@@ -343,6 +372,23 @@ func (p *projector) itemCompleted(params json.RawMessage) (string, bool, error) 
 		}
 	}
 	return "", false, nil
+}
+
+func (p *projector) completePart(kind, id, text string, native any) error {
+	part, err := p.contentPart(kind, id, native)
+	if err != nil || part.done {
+		return err
+	}
+	part.text.Reset()
+	part.text.WriteString(text)
+	part.done = true
+	if err := p.flushParts(kind); err != nil {
+		return err
+	}
+	if p.streamed && p.pendingTools == 0 && p.responseCallsSettled() {
+		return p.endStep(nil)
+	}
+	return nil
 }
 
 // nestedEvent attaches one normalized event from a native child thread to the
@@ -478,6 +524,16 @@ func (p *projector) turnCompleted(params json.RawMessage) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.stepOpen {
+		// Turn completion is authoritative even when a partial item never
+		// received its own completion (for example, an abandoned retry).
+		for _, kind := range []string{"text", "reasoning"} {
+			for _, part := range p.partQueues[kind] {
+				part.done = true
+			}
+			if err := p.flushParts(kind); err != nil {
+				return err
+			}
+		}
 		if p.pendingTools != 0 {
 			return fmt.Errorf("codex: turn completed with %d unsettled tools", p.pendingTools)
 		}
@@ -553,8 +609,8 @@ func (p *projector) endStep(params json.RawMessage) error {
 	if !p.stepOpen {
 		return nil
 	}
-	if p.textOpen || p.reasoningOpen {
-		return errors.New("codex: step ended with an open text or reasoning part")
+	if len(p.partQueues["text"]) > 0 || len(p.partQueues["reasoning"]) > 0 {
+		return nil
 	}
 	ref := p.nativeRef(params)
 	err := p.event("session.step.ended", map[string]any{
@@ -573,7 +629,7 @@ func (p *projector) endStep(params json.RawMessage) error {
 
 func (p *projector) resetStep() {
 	p.stepOpen, p.streamed = false, false
-	p.textOpen, p.reasoningOpen = false, false
+	p.partQueues = make(map[string][]*contentPart)
 	p.messageID, p.responseID = "", ""
 	p.tools = make(map[string]*toolState)
 	p.responseCalls = make(map[string]bool)

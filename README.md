@@ -50,9 +50,21 @@ Each workflow's subcommand is generated from its source: one flag per field
 of its input struct, and one model flag per role its graph names. `--work-dir` is
 the working directory, whose `.gimble` holds the run, served as above.
 
-The binary currently includes the read-only `review` workflow. Its reviewer
-model defaults to `gpt-5.6-luna` from `cmd/gimble/defaults.json`; pass
-`--reviewer` to override it.
+The binary includes read-only `review` and `delivery`. Delivery reads a local
+brief, plans implementation tasks, and checks the result with both a fixed
+command and an independent validator:
+
+```sh
+./bin/gimble run delivery --work-dir /absolute/path/to/repository \
+  --brief /absolute/path/to/brief.md --validation 'go test ./...' --max-tasks 10
+```
+
+The brief holds the agreed requirements and paths to any design material.
+Relative brief paths resolve against `--work-dir`. Failed validation goes back
+to the planner; exhausting the task limit or ending dispatch without validated
+completion is an error. Model defaults come from `cmd/gimble/defaults.json`
+and are currently `gpt-5.6-luna`; use `--planner`, `--implementer`, `--validator`,
+or `--reviewer` to override the corresponding role.
 
 `go generate ./internal/workflows/...` runs the independent workflow generator
 in `internal/generate/`. It can rebuild missing or stale generated commands

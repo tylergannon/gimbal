@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 
 	"github.com/spf13/cobra"
+	"github.com/tylergannon/gimble/internal/workflows/delivery"
 	"github.com/tylergannon/gimble/internal/workflows/review"
 )
 
@@ -26,6 +27,7 @@ func newRunCommand() *cobra.Command {
 		Use:   "run",
 		Short: "Run a workflow built into this binary; gimble run --help lists them",
 	}
-	run.AddCommand(review.Command(workflowDefaults()))
+	defaults := workflowDefaults()
+	run.AddCommand(delivery.Command(defaults), review.Command(defaults))
 	return run
 }

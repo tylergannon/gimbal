@@ -1,0 +1,5 @@
+{"type":"object",
+"description":"Verdict is the independent validator's assessment of the whole brief.","properties":{
+"satisfied":{"type":"boolean","description":"Satisfied is true only when the validator observed the whole brief working."},
+"findings":{"type":"array","description":"Findings lists unmet required behavior or invalid proof.","items":{"type":"string"}}
+},"required":["satisfied","findings"],"additionalProperties":false}

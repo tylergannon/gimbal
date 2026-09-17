@@ -47,7 +47,7 @@ The same binary runs the workflows built into it:
 ```
 
 Each workflow's subcommand is generated from its source: Gimble's `--work-dir`
-environment flag, one flag per field of its workflow input struct, and one
+environment flag, one flag per field of its workflow parameter struct, and one
 model flag per role its graph names. The absolute work directory is passed to
 the entry in `gimble.Env`; its `.gimble` holds the run, served as above.
 
@@ -66,7 +66,8 @@ declared structured outputs, then the independent workflow generator in
 without first building the application CLI.
 
 Author a workflow in one Go file with its `func Name(ctx context.Context, env
-gimble.Env, in Input) error` entry, `Input`, result structs, and
+gimble.Env, params NameParams) error` entry, workflow-specific parameter and
+result structs, and
 generate directives; declare its result structs to Polytype in a
 `//go:build jsonschema` file beside it, as the root package does; then import
 its generated `Command(defaults)` and register it in

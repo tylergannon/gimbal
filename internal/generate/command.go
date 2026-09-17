@@ -11,16 +11,16 @@ import (
 
 // source prints the workflow's generated file as Go: its graph, registered
 // from an init, and its gimble run subcommand, with Gimble's environment
-// flags, a flag for each field of the workflow input, a model flag for each
-// role the graph names, the web application's flags, and a RunE that fills
-// the environment and input, binds the roles, starts the runtime, and calls
+// flags, a flag for each workflow parameter, a model flag for each role the
+// graph names, the web application's flags, and a RunE that fills the
+// environment and parameters, binds the roles, starts the runtime, and calls
 // the entry.
 func source(pkg, entry string, info entryInfo, graph workflow.Graph) string {
-	data := commandData{Package: pkg, Name: graph.Name, Entry: entry, Input: info.input, Summary: info.summary, Long: info.long, Graph: literal(entry, graph)}
+	data := commandData{Package: pkg, Name: graph.Name, Entry: entry, Params: info.params, Summary: info.summary, Long: info.long, Graph: literal(entry, graph)}
 	for _, f := range info.fields {
-		cf := commandField{Name: f.name, Flag: f.flag, Kind: f.kind, Optional: f.optional, Usage: f.doc}
+		cf := parameterField{Name: f.name, Flag: f.flag, Kind: f.kind, Optional: f.optional, Usage: f.doc}
 		cf.Var, cf.Default = map[string]string{"string": "StringVar", "int": "IntVar", "bool": "BoolVar"}[f.kind], map[string]string{"string": `""`, "int": "0", "bool": "false"}[f.kind]
-		cf.Target = "&in." + f.name
+		cf.Target = "&params." + f.name
 		if f.optional {
 			cf.Target = "&opt" + f.name
 			data.Optional = true
@@ -40,16 +40,16 @@ func source(pkg, entry string, info entryInfo, graph workflow.Graph) string {
 	return b.String()
 }
 
-// check refuses a command whose flags would collide: an input field or a
+// check refuses a command whose flags would collide: a parameter field or a
 // role named like a flag every command has, or like each other; and a roles
 // entry for a role the workflow never creates a session for.
 func check(info entryInfo, graph workflow.Graph) error {
 	taken := map[string]string{"work-dir": "the Gimble environment", "port": "the web application", "uds": "the web application", "no-web": "the web application", "help": "cobra"}
 	for _, f := range info.fields {
 		if by, ok := taken[f.flag]; ok {
-			return fmt.Errorf("generate: the input field %s would be --%s, which is %s's", f.name, f.flag, by)
+			return fmt.Errorf("generate: the parameter field %s would be --%s, which is %s's", f.name, f.flag, by)
 		}
-		taken[f.flag] = "the input"
+		taken[f.flag] = "a workflow parameter"
 	}
 	roles := graph.Roles()
 	for _, role := range roles {
@@ -80,13 +80,13 @@ func identifier(name string) string {
 }
 
 type commandData struct {
-	Package, Name, Entry, Input, Summary, Long, Graph string
-	Fields                                            []commandField
-	Roles                                             []commandRole
-	Optional                                          bool
+	Package, Name, Entry, Params, Summary, Long, Graph string
+	Fields                                             []parameterField
+	Roles                                              []commandRole
+	Optional                                           bool
 }
 
-type commandField struct {
+type parameterField struct {
 	Name, Flag, Kind, Var, Target, Default, Usage string
 	Optional, Required                            bool
 }
@@ -118,12 +118,12 @@ import (
 func init() { gimble.RegisterGraph(Graph) }
 
 {{.Graph}}
-// Command is gimble run {{.Name}}: Gimble's environment flag, {{if .Input}}a flag for each field of {{.Input}}, {{end}}a
+// Command is gimble run {{.Name}}: Gimble's environment flag, {{if .Params}}a flag for each field of {{.Params}}, {{end}}a
 // model flag for each role {{.Entry}} names with defaults supplied by the caller,
 // the web application's flags, and a run of {{.Entry}} on the runtime.
 func Command(defaults map[gimble.WorkflowRole]string) *cobra.Command {
-{{- if .Input}}
-	var in {{.Input}}
+{{- if .Params}}
+	var params {{.Params}}
 {{- end}}
 {{- range .Fields}}{{if .Optional}}
 	var opt{{.Name}} {{.Kind}}
@@ -160,7 +160,7 @@ func Command(defaults map[gimble.WorkflowRole]string) *cobra.Command {
 	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
 {{- range .Fields}}{{if .Optional}}
 		if cmd.Flags().Changed({{printf "%q" .Flag}}) {
-			in.{{.Name}} = polytype.Optional[{{.Kind}}]{Present: true, Value: opt{{.Name}}}
+			params.{{.Name}} = polytype.Optional[{{.Kind}}]{Present: true, Value: opt{{.Name}}}
 		}
 {{- end}}{{end}}
 		workDir, err := filepath.Abs(workDir)
@@ -187,7 +187,7 @@ func Command(defaults map[gimble.WorkflowRole]string) *cobra.Command {
 			return err
 		}
 		env := gimble.Env{WorkDir: workDir}
-		return runtime.Run(ctx, {{printf "%q" .Name}}, models, func(ctx context.Context) error { return {{.Entry}}(ctx, env{{if .Input}}, in{{end}}) })
+		return runtime.Run(ctx, {{printf "%q" .Name}}, models, func(ctx context.Context) error { return {{.Entry}}(ctx, env{{if .Params}}, params{{end}}) })
 	}
 	return cmd
 }

@@ -10,8 +10,8 @@ import (
 //go:generate go tool polytype --validate
 //go:generate go run github.com/tylergannon/gimble/internal/generate/gimblegen -entry Review -name review
 
-// Input describes what to review.
-type Input struct {
+// ReviewParams describes what to review.
+type ReviewParams struct {
 	// Goal says what the review should assess.
 	Goal string
 }
@@ -23,8 +23,8 @@ type Result struct {
 }
 
 // Review asks one reviewer to inspect the repository read-only and record its findings.
-func Review(ctx context.Context, env gimble.Env, in Input) error {
-	gimble.Set(ctx, "goal", in.Goal)
+func Review(ctx context.Context, env gimble.Env, params ReviewParams) error {
+	gimble.Set(ctx, "goal", params.Goal)
 	reviewer := gimble.NewSession(ctx, gimble.RoleCodeReview, env.WorkDir)
 	result, err := reviewer.Generate[Result](ctx, reviewPrompt)
 	if err != nil {

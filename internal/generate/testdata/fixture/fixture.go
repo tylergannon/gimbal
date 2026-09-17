@@ -163,12 +163,12 @@ func SprintShape(ctx context.Context, _ gimble.Env) error {
 // MissingEnv is invalid as a generated workflow entry.
 func MissingEnv(ctx context.Context) error { return nil }
 
-type WorkDirInput struct {
+type WorkDirParams struct {
 	WorkDir string
 }
 
-// HasWorkDirInput is invalid because WorkDir belongs to gimble.Env.
-func HasWorkDirInput(ctx context.Context, _ gimble.Env, _ WorkDirInput) error { return nil }
+// HasWorkDirParams is invalid because WorkDir belongs to gimble.Env.
+func HasWorkDirParams(ctx context.Context, _ gimble.Env, _ WorkDirParams) error { return nil }
 
 // guarded scopes a body whose first branch returns before it writes anything.
 func guarded(ctx context.Context) error {

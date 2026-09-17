@@ -15,7 +15,7 @@ import (
 
 // Source writes the workflow entry's graph and Gimble run subcommand into one
 // Go file. The graph is registered from init; the command has Gimble's
-// environment flags, a flag for each input field, and a model flag for each
+// environment flags, a flag for each workflow parameter, and a model flag for each
 // role the entry names.
 //
 // The file is replaced by an empty package clause while the package is

@@ -31,11 +31,11 @@ var Graph = workflow.Graph{
 	},
 }
 
-// Command is gimble run review: Gimble's environment flag, a flag for each field of Input, a
+// Command is gimble run review: Gimble's environment flag, a flag for each field of ReviewParams, a
 // model flag for each role Review names with defaults supplied by the caller,
 // the web application's flags, and a run of Review on the runtime.
 func Command(defaults map[gimble.WorkflowRole]string) *cobra.Command {
-	var in Input
+	var params ReviewParams
 	var codeReviewModel string
 	var workDir string
 	var port int
@@ -47,7 +47,7 @@ func Command(defaults map[gimble.WorkflowRole]string) *cobra.Command {
 		Long:  "Package review is a small read-only code review workflow.",
 		Args:  cobra.NoArgs,
 	}
-	cmd.Flags().StringVar(&in.Goal, "goal", "", "Goal says what the review should assess. (required)")
+	cmd.Flags().StringVar(&params.Goal, "goal", "", "Goal says what the review should assess. (required)")
 	_ = cmd.MarkFlagRequired("goal")
 	cmd.Flags().StringVar(&workDir, "work-dir", ".", "the working directory for this run")
 	cmd.Flags().StringVar(&codeReviewModel, "code-review", defaults[gimble.WorkflowRole("code-review")], "the model for role code-review, as model or model:effort")
@@ -82,7 +82,7 @@ func Command(defaults map[gimble.WorkflowRole]string) *cobra.Command {
 			return err
 		}
 		env := gimble.Env{WorkDir: workDir}
-		return runtime.Run(ctx, "review", models, func(ctx context.Context) error { return Review(ctx, env, in) })
+		return runtime.Run(ctx, "review", models, func(ctx context.Context) error { return Review(ctx, env, params) })
 	}
 	return cmd
 }

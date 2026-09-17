@@ -254,10 +254,10 @@ func TestGeneratedEntryRequiresEnv(t *testing.T) {
 	}
 }
 
-func TestWorkflowInputCannotClaimWorkDir(t *testing.T) {
-	err := generate.Source("testdata/fixture", "HasWorkDirInput", "has-work-dir-input", filepath.Join(t.TempDir(), "workflow_gen.go"))
-	if err == nil || !strings.Contains(err.Error(), "input field WorkDir would be --work-dir, which is the Gimble environment's") {
-		t.Fatalf("Source HasWorkDirInput error = %v", err)
+func TestWorkflowParamsCannotClaimWorkDir(t *testing.T) {
+	err := generate.Source("testdata/fixture", "HasWorkDirParams", "has-work-dir-params", filepath.Join(t.TempDir(), "workflow_gen.go"))
+	if err == nil || !strings.Contains(err.Error(), "parameter field WorkDir would be --work-dir, which is the Gimble environment's") {
+		t.Fatalf("Source HasWorkDirParams error = %v", err)
 	}
 }
 

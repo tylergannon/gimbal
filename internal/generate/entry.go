@@ -12,16 +12,16 @@ import (
 )
 
 // entryInfo is what the generated command needs about the entry besides its
-// body: its optional workflow input type and that type's fields; the first
+// body: its optional workflow parameter type and that type's fields; the first
 // sentence of its doc comment; and the package's.
 type entryInfo struct {
-	input   string
+	params  string
 	summary string
 	long    string
 	fields  []field
 }
 
-// field is one field of the input type as a flag: its Go name, the flag's
+// field is one field of the parameter type as a flag: its Go name, the flag's
 // name, whether the value is a string, an int, or a bool, whether the field
 // is a polytype.Optional the flag sets only when given, and its doc.
 type field struct {
@@ -29,9 +29,9 @@ type field struct {
 	optional              bool
 }
 
-// describe reads the entry's signature, its doc, and its input's fields. An
-// entry takes a ctx, gimble.Env, and at most one workflow input, a struct of
-// its own package.
+// describe reads the entry's signature, its doc, and its parameters' fields.
+// An entry takes a ctx, gimble.Env, and at most one workflow parameter struct
+// from its own package.
 func describe(pkg *packages.Package, decl *ast.FuncDecl) (entryInfo, error) {
 	info := entryInfo{summary: (&doc.Package{}).Synopsis(decl.Doc.Text()), long: packageDoc(pkg)}
 	fn, ok := pkg.TypesInfo.Defs[decl.Name].(*types.Func)
@@ -48,17 +48,17 @@ func describe(pkg *packages.Package, decl *ast.FuncDecl) (entryInfo, error) {
 	case 3:
 		named, ok := params.At(2).Type().(*types.Named)
 		if !ok || named.Obj().Pkg() != pkg.Types {
-			return info, fmt.Errorf("generate: %s's input is %s, not a type of its own package", decl.Name.Name, params.At(2).Type())
+			return info, fmt.Errorf("generate: %s's params are %s, not a type of its own package", decl.Name.Name, params.At(2).Type())
 		}
-		info.input = named.Obj().Name()
-		fields, err := inputFields(pkg, named.Obj().Name())
+		info.params = named.Obj().Name()
+		fields, err := paramFields(pkg, named.Obj().Name())
 		if err != nil {
 			return info, err
 		}
 		info.fields = fields
 		return info, nil
 	default:
-		return info, fmt.Errorf("generate: %s takes %d parameters; an entry takes a ctx, gimble.Env, and at most one input", decl.Name.Name, params.Len())
+		return info, fmt.Errorf("generate: %s takes %d parameters; an entry takes a ctx, gimble.Env, and at most one parameter struct", decl.Name.Name, params.Len())
 	}
 }
 
@@ -76,8 +76,8 @@ func packageDoc(pkg *packages.Package) string {
 	return ""
 }
 
-// inputFields reads the exported fields of the input struct in source order.
-func inputFields(pkg *packages.Package, typeName string) ([]field, error) {
+// paramFields reads the exported fields of the parameter struct in source order.
+func paramFields(pkg *packages.Package, typeName string) ([]field, error) {
 	var spec *ast.TypeSpec
 	for _, file := range pkg.Syntax {
 		for _, d := range file.Decls {
@@ -92,7 +92,7 @@ func inputFields(pkg *packages.Package, typeName string) ([]field, error) {
 	}
 	structType, ok := spec.Type.(*ast.StructType)
 	if spec == nil || !ok {
-		return nil, fmt.Errorf("generate: the input %s is not a struct", typeName)
+		return nil, fmt.Errorf("generate: the parameter type %s is not a struct", typeName)
 	}
 	var fields []field
 	for _, f := range structType.Fields.List {

@@ -23,12 +23,12 @@ func TestBinaryAnalysisAndOrdinaryCLIRoutes(t *testing.T) {
 		t.Fatalf("build gimble: %v\n%s", err, output)
 	}
 
-	stdout, stderr, code := runCommand(t, repo, binary, "lint", "./internal/workflows/sprint")
+	stdout, stderr, code := runCommand(t, repo, binary, "lint", "./internal/workflows/review")
 	if code != 0 || stdout != "" || stderr != "" {
 		t.Fatalf("standalone lint = exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 
-	stdout, stderr, code = runCommand(t, repo, "go", "vet", "-vettool="+binary, "./internal/workflows/sprint")
+	stdout, stderr, code = runCommand(t, repo, "go", "vet", "-vettool="+binary, "./internal/workflows/review")
 	if code != 0 || stdout != "" || stderr != "" {
 		t.Fatalf("vettool lint = exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}

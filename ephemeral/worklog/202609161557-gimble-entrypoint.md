@@ -4,3 +4,4 @@ friction: The commit hook rejects the pre-existing generation-only roles maps as
 correction: Tyler wants WorkDir instead of Repo for the workflow working directory; apply the name consistently to inputs, CLI flags, schema, generated commands, and documentation.
 correction: Tyler requests smaller-agent delegation for implementation, with the parent retaining architecture, explicit handoffs, and review.
 decision: Workflow generation belongs under internal/generate with an independent executable; the application entrypoint must not be a build prerequisite for replacing stale generated commands. Keep command-input metadata in entry.go beside the emitter.
+decision: Narrow the release PR to generator infrastructure plus one trivial read-only review workflow; defer the four full workflows to issue #247, with their source archived at immutable11243ae. Centralize the reviewer default in embedded defaults.json and leave schema generation to its worker.

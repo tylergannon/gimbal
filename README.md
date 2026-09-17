@@ -50,9 +50,19 @@ Each workflow's subcommand is generated from its source: one flag per field
 of its input struct, and one model flag per role its graph names. `--work-dir` is
 the working directory, whose `.gimble` holds the run, served as above.
 
+The binary currently includes the read-only `review` workflow. Its reviewer
+model defaults to `gpt-5.6-luna` from `cmd/gimble/defaults.json`; pass
+`--reviewer` to override it.
+
 `go generate ./internal/workflows/...` runs the independent workflow generator
 in `internal/generate/`. It can rebuild missing or stale generated commands
-without first building the application CLI.
+and schemas without first building the application CLI.
+
+Author a workflow in one Go file with its entry, `Input`, result structs, and
+generator directive, then import its generated `Command(defaults)` and
+register it in `cmd/gimble/workflows.go`. The application reads the shared
+`cmd/gimble/defaults.json` once; an unknown role is required on the command
+line when that file has no default for it.
 
 ## Lint workflows
 

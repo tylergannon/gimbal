@@ -13,10 +13,10 @@ import (
 	"github.com/tylergannon/gimble/workflow"
 )
 
-// Source writes one Go file for the workflow entry in dir: its graph as a
-// typed literal, which an init registers, and its gimble run subcommand, a
-// flag for each field of its input and a model flag for each role it names.
-// A workflow is wired to its shape and its command by being built.
+// Source generates schemas for local structured output types and writes the
+// workflow entry's graph and Gimble run subcommand into one Go file. The graph
+// is registered from init; the command has a flag for each input field and
+// model flag for each role the entry names.
 //
 // The file is replaced by an empty package clause while the package is
 // read, so one that no longer compiles against the source as it now stands
@@ -33,6 +33,22 @@ func Source(dir, entry, name, output string) error {
 	pkg, err := packageName(dir, file, name)
 	if err != nil {
 		return err
+	}
+	types, err := discoverSchemaTypes(dir)
+	if err != nil {
+		return err
+	}
+	if len(types) == 0 {
+		if err := removeSchemaArtifacts(dir); err != nil {
+			return err
+		}
+	} else {
+		if err := writeSchema(dir, pkg, types); err != nil {
+			return err
+		}
+		if err := runPolytype(dir); err != nil {
+			return err
+		}
 	}
 	graph, info, err := extract(dir, entry, name, map[string][]byte{file: []byte("package " + pkg + "\n")})
 	if err != nil {

@@ -61,10 +61,9 @@ func (*script) Fork(_ context.Context, session string) (string, error) {
 func (*script) Close(context.Context, string) error { return nil }
 
 // verdict is a judge's answer. Its field comments are the descriptions
-// the judge reads in the schema. A real workflow generates Schema and
-// ValidateJSON with polytype (`//go:generate go tool polytype --validate`,
-// as internal/workflows/sprint does); here they are written out so the
-// type can live in a test file.
+// the judge reads in the schema. A real workflow's generator writes schema
+// and validation code for local structured output types; these methods are
+// written out here so the type can live in a test file.
 type verdict struct {
 	// Winner is the number of the better candidate: 1 or 2.
 	Winner int `json:"winner"`

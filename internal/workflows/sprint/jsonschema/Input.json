@@ -1,7 +1,0 @@
-{"type":"object",
-"description":"Input starts a sprint.","properties":{
-"sprint":{"type":"integer","description":"The sprint to build: its number in ephemeral/research/api/SPRINTS.md, e.g. 2. Give this or an issue."},
-"issue":{"type":"string","description":"The issue to build instead of a sprint: a GitHub issue number, or the path of a file holding the issue's text."},
-"work_dir":{"type":"string","description":"Absolute path of the working directory. Each validated task is committed to the branch checked out there, and the sprint ends by merging that branch."},
-"tasks":{"type":"integer","description":"The most tasks to run in all; absent means 10. The sprint fails if the planner is not done by then."}
-},"required":["work_dir"],"additionalProperties":false}

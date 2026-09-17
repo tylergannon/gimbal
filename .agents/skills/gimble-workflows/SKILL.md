@@ -47,11 +47,11 @@ a kill.
 | `WithSupervisor(session, instruction, opts...)`, `WithInterval(d)` | Options to `Generate`: a supervisor looks at what the worker did since its last look, every 3 minutes or `WithInterval`, and steers each objection in. `instruction` must be a compile-time string constant too (GIMBLE108). | It never gates the result. Its own options are `opts`, so a supervisor can have a supervisor. |
 | `Killed{Target, By, Reason}` | The cause an operator's kill puts on a scope's or a turn's ctx. | `errors.As(err, &killed)` on a `Generate` error, or `context.Cause(ctx)`. See below. |
 
-Structured output: a struct whose field comments are the descriptions the
-model reads, with `//go:generate go tool polytype --validate` in the package
-and a `//go:build jsonschema` stub file that `polytype.Declare`s each type,
-as `internal/workflows/sprint/schema.go` does. A field comment is prompt
-text: write it as an instruction.
+Structured output: a local struct whose field comments are the descriptions
+the model reads. The independent generator discovers local types passed to
+`Generate` and writes their schema and validation code beside the workflow;
+there is no workflow-specific schema directive or stub to maintain. A field
+comment is prompt text: write it as an instruction.
 
 ## Kills
 
@@ -106,19 +106,19 @@ A workflow is a package under `internal/workflows/` whose entry is
 `//go:generate go run github.com/tylergannon/gimble/internal/generate/gimblegen -entry Name -name name`.
 `go generate` runs the independent generator in `internal/generate/` and
 prints `workflow_gen.go` beside the workflow: the graph, which registers
-itself, and the workflow's `Command()`, a Cobra subcommand you can read: one
+itself, and the workflow's `Command(defaults)`, a Cobra subcommand you can read: one
 flag per field of `Input`,
 named from the field with its doc comment as help, required unless the field
 is a `polytype.Optional` (a bool is never required, and a `WorkDir` string
 defaults to the current directory); one `--<role>` flag per role the graph
-names, defaulting to the model the package's `roles` var gives it and
-required when it gives none; and `--port`, `--uds`, `--no-web`. One line in `cmd/gimble/workflows.go` adds it to `gimble run`. Then:
+names, defaulting to the model supplied by the application and required when
+that default is empty; and `--port`, `--uds`, `--no-web`. One line in `cmd/gimble/workflows.go` adds it to `gimble run`. Then:
 
 ```sh
 gimble run --help
-gimble run sprint --help
-gimble run sprint --issue /abs/168.md
-gimble run sprint --issue /abs/168.md --researcher gpt-5.6-luna:high
+gimble run review --help
+gimble run review --work-dir /abs/repository --goal "find correctness bugs"
+gimble run review --work-dir /abs/repository --goal "find correctness bugs" --reviewer gpt-5.6-luna:high
 ```
 
 The log's first line is `gimble: run <id> started in <dir>`; the page is

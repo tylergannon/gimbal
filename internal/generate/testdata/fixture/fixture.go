@@ -126,6 +126,40 @@ func Fixture(ctx context.Context) error {
 	return guarded(ctx)
 }
 
+// SprintShape is a compact workflow used to exercise the main graph shapes.
+func SprintShape(ctx context.Context) error {
+	researcher := gimble.NewSession(ctx, "researcher", ".")
+	planner, err := researcher.Fork(ctx, "planner")
+	if err != nil {
+		return err
+	}
+	for round := 0; round < 1; round++ {
+		if err := gimble.Scope(ctx, "round", func(ctx context.Context) error {
+			loop := gimble.Loop(ctx, "sprint", "review the code", planner)
+			for ctx, task := range loop.Tasks {
+				_ = task
+				coder, err := researcher.Fork(ctx, "coder")
+				if err != nil {
+					return err
+				}
+				if _, err := coder.Generate[gimble.Text](ctx, workPrompt); err != nil {
+					return err
+				}
+				if ctx.Err() == nil {
+					_, _, _, err = gimble.RunCommand(ctx, "git", ".", "git", "status")
+					if err != nil {
+						return err
+					}
+				}
+			}
+			return loop.Err()
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // guarded scopes a body whose first branch returns before it writes anything.
 func guarded(ctx context.Context) error {
 	return gimble.Scope(ctx, "guarded", func(ctx context.Context) error {

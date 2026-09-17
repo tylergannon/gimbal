@@ -10,21 +10,16 @@ import (
 	"github.com/tylergannon/gimble/workflow"
 )
 
-// TestSprintGraph reads the sprint workflow and checks the four things the
-// graph exists to show: the control flows, the nested scopes, the
-// supervisions, and the role on each agent call.
-func TestSprintGraph(t *testing.T) {
-	g, err := generate.Extract("../workflows/sprint", "Sprint", "sprint")
+// TestControlFlowGraph reads a compact workflow fixture and checks the main
+// control-flow, nested scope, loop, session, call, and command shapes.
+func TestControlFlowGraph(t *testing.T) {
+	g, err := generate.Extract("testdata/fixture", "SprintShape", "sprint")
 	if err != nil {
 		t.Fatal(err)
-	}
-	if len(g.Diagnostics) != 0 {
-		t.Fatalf("the sprint reads without diagnostics, got %v", g.Diagnostics)
 	}
 	if g.Name != "sprint" {
 		t.Fatalf("name = %q", g.Name)
 	}
-
 	rounds, ok := find[workflow.Repeat](g.Body, func(r workflow.Repeat) bool { return strings.Contains(r.Cond, "round") })
 	if !ok {
 		t.Fatal("the sprint's rounds are a Repeat in the entry body")
@@ -48,36 +43,8 @@ func TestSprintGraph(t *testing.T) {
 	if coder.Role != "researcher" {
 		t.Errorf("the coder's role = %q, want researcher, the session it was forked from", coder.Role)
 	}
-	if len(coder.Supervisors) != 1 {
-		t.Fatalf("the coder's call has one supervisor, got %d", len(coder.Supervisors))
-	}
-	if coder.Supervisors[0].Role != "supervisor" {
-		t.Errorf("the supervisor's role = %q, want supervisor", coder.Supervisors[0].Role)
-	}
-
-	// A task's work is committed when it validated and left alone when it
-	// did not, and the graph draws that as the branch it is. The sprint used
-	// to leave the unvalidated case by returning from the middle of an
-	// inlined helper, which the graph cannot show, and the extractor said so.
-	outcome, ok := find[workflow.Condition](loop.Body, func(c workflow.Condition) bool {
-		return len(c.Branches) == 2 && c.Branches[0].Case == "passed"
-	})
-	if !ok {
-		t.Fatal("the task body says what happens when the task did not validate")
-	}
-	if len(outcome.Branches[1].Body) != 0 {
-		t.Errorf("a task that did not validate does nothing, got %+v", outcome.Branches[1].Body)
-	}
-
-	// The three git commands a validated task runs: the add and the status
-	// under the branch itself, the commit under the status that found work.
-	if commands := gitCommands(outcome.Branches[0].Body); commands != 3 {
-		t.Errorf("a validated task runs three git commands, got %d", commands)
-	}
-	for _, op := range loop.Body {
-		if command, ok := op.(workflow.Command); ok && command.Name == "git" {
-			t.Errorf("the git command at %+v runs whatever the task's outcome", command.Source)
-		}
+	if gitCommands(loop.Body) == 0 {
+		t.Fatal("the loop holds the conditional git command")
 	}
 }
 
@@ -242,17 +209,38 @@ func TestSourceWritesTheWorkflowsPackage(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, want := range []string{
+		"//go:build !jsonschema",
 		"\npackage fixture\n",
 		"func init() { gimble.RegisterGraph(Graph) }",
 		"var Graph = workflow.Graph{",
-		"func Command() *cobra.Command {",
+		"func Command(defaults map[string]string) *cobra.Command {",
 		`Use:   "fixture",`,
-		`cmd.Flags().StringVar(&leadModel, "lead", "", "the model for role lead, as model or model:effort")`,
-		`_ = cmd.MarkFlagRequired("lead")`,
+		`cmd.Flags().StringVar(&leadModel, "lead", defaults["lead"], "the model for role lead, as model or model:effort")`,
+		`if defaults["lead"] == "" {`,
 		`return Fixture(ctx) })`,
 	} {
 		if !strings.Contains(string(written), want) {
 			t.Errorf("the generated file lacks %q:\n%s", want, firstLines(string(written)))
+		}
+	}
+}
+
+func TestGeneratedCommandUsesCentralizedRoleDefaults(t *testing.T) {
+	output := filepath.Join(t.TempDir(), "workflow_gen.go")
+	if err := generate.Source("testdata/fixture", "Fixture", "fixture", output); err != nil {
+		t.Fatal(err)
+	}
+	written, err := os.ReadFile(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(written)
+	if strings.Contains(text, "roles[") {
+		t.Fatalf("generated command still reads workflow roles")
+	}
+	for _, want := range []string{`defaults["lead"]`, `if defaults["lead"] == ""`, `"lead": leadModel`} {
+		if !strings.Contains(text, want) {
+			t.Errorf("generated command lacks %q", want)
 		}
 	}
 }

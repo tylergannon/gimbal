@@ -1,12 +1,23 @@
 package main
 
 import (
+	_ "embed"
+	"encoding/json"
+
 	"github.com/spf13/cobra"
-	"github.com/tylergannon/gimble/internal/workflows/easyloop"
-	"github.com/tylergannon/gimble/internal/workflows/execute"
-	"github.com/tylergannon/gimble/internal/workflows/plan"
-	"github.com/tylergannon/gimble/internal/workflows/sprint"
+	"github.com/tylergannon/gimble/internal/workflows/review"
 )
+
+//go:embed defaults.json
+var workflowDefaultsJSON []byte
+
+func workflowDefaults() map[string]string {
+	var defaults map[string]string
+	if err := json.Unmarshal(workflowDefaultsJSON, &defaults); err != nil {
+		panic(err)
+	}
+	return defaults
+}
 
 // newRunCommand is gimble run: the workflows built into this binary, each
 // the Command its package generated.
@@ -15,6 +26,6 @@ func newRunCommand() *cobra.Command {
 		Use:   "run",
 		Short: "Run a workflow built into this binary; gimble run --help lists them",
 	}
-	run.AddCommand(easyloop.Command(), execute.Command(), plan.Command(), sprint.Command())
+	run.AddCommand(review.Command(workflowDefaults()))
 	return run
 }

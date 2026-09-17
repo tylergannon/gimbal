@@ -5,50 +5,67 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/spf13/cobra"
+	"github.com/tylergannon/gimble/internal/workflows/review"
 )
 
 func TestRunListsTheWorkflowsBuiltIn(t *testing.T) {
 	help := helpOf(t)
-	for _, name := range []string{"easyloop", "execute", "plan", "sprint"} {
+	for _, name := range []string{"review"} {
 		if !strings.Contains(help, "\n  "+name+" ") {
 			t.Errorf("run --help does not list %s:\n%s", name, help)
 		}
 	}
 }
 
-// TestRunHelpShowsTheInputsAndTheRoles: a workflow's flags are its input's
-// fields, required where the input requires them, and one model flag per
-// role its graph names.
+// TestRunHelpShowsTheInputsAndTheRoles checks the review workflow's generated
+// input flags and its centrally supplied reviewer model.
 func TestRunHelpShowsTheInputsAndTheRoles(t *testing.T) {
-	help := helpOf(t, "sprint")
-	for _, flag := range []string{"--sprint int", "--issue string", "--tasks int", "--work-dir string", "--researcher string", "--validator string", "--supervisor string", "--port int", "--no-web"} {
+	help := helpOf(t, "review")
+	for _, flag := range []string{"--work-dir string", "--goal string", "--reviewer string", "--port int", "--no-web"} {
 		if !strings.Contains(help, flag) {
-			t.Errorf("run sprint --help lacks %s:\n%s", flag, help)
+			t.Errorf("run review --help lacks %s:\n%s", flag, help)
 		}
 	}
-	for _, flag := range []string{"--sprint", "--issue", "--tasks", "--work-dir"} {
-		if strings.Contains(lineWith(help, flag), "(required)") {
-			t.Errorf("run sprint --help marks %s required:\n%s", flag, help)
-		}
+	if strings.Contains(lineWith(help, "--work-dir"), "(required)") {
+		t.Errorf("run review --help marks --work-dir required:\n%s", help)
 	}
-	help = helpOf(t, "execute")
-	if !strings.Contains(lineWith(help, "--sprint"), "(required)") {
-		t.Errorf("run execute --help does not mark --sprint required:\n%s", help)
+	if !strings.Contains(lineWith(help, "--goal"), "(required)") {
+		t.Errorf("run review --help does not mark --goal required:\n%s", help)
 	}
-	if strings.Contains(lineWith(help, "--test"), "(required)") {
-		t.Errorf("run execute --help marks the optional --test required:\n%s", help)
-	}
-	worker := lineWith(help, "--worker")
-	if !strings.Contains(worker, "the model for role worker") || !strings.Contains(worker, `(default "gpt-5.6-luna")`) || strings.Contains(worker, "(required)") {
-		t.Errorf("run execute --help does not give the worker its default model:\n%s", help)
+	reviewer := lineWith(help, "--reviewer")
+	if !strings.Contains(reviewer, "the model for role reviewer") || !strings.Contains(reviewer, `(default "gpt-5.6-luna")`) || strings.Contains(reviewer, "(required)") {
+		t.Errorf("run review --help does not give the reviewer its default model:\n%s", help)
 	}
 }
 
 func TestRunRefusesAMissingInput(t *testing.T) {
 	var out, errOut bytes.Buffer
-	err := run([]string{"run", "execute", "--worker", "gpt-5.6-luna"}, &out, &errOut, os.Getenv)
-	if err == nil || !strings.Contains(err.Error(), `"sprint"`) {
-		t.Errorf("run execute without --sprint = %v, want the required flag named", err)
+	err := run([]string{"run", "review", "--reviewer", "gpt-5.6-luna"}, &out, &errOut, os.Getenv)
+	if err == nil || !strings.Contains(err.Error(), `"goal"`) {
+		t.Errorf("run review without --goal = %v, want the required flag named", err)
+	}
+}
+
+func TestReviewCommandRoleDefaultAndOverride(t *testing.T) {
+	withDefault := review.Command(map[string]string{"reviewer": "gpt-5.6-luna"})
+	if got := withDefault.Flags().Lookup("reviewer").DefValue; got != "gpt-5.6-luna" {
+		t.Fatalf("reviewer default = %q", got)
+	}
+	withoutDefault := review.Command(map[string]string{})
+	flag := withoutDefault.Flags().Lookup("reviewer")
+	if len(flag.Annotations[cobra.BashCompOneRequiredFlag]) == 0 {
+		t.Fatal("reviewer without a default is not marked required")
+	}
+	if err := withoutDefault.Flags().Set("reviewer", "gpt-5.6-luna:high"); err != nil {
+		t.Fatal(err)
+	}
+	if got := withoutDefault.Flags().Lookup("reviewer").Value.String(); got != "gpt-5.6-luna:high" {
+		t.Fatalf("reviewer override = %q", got)
+	}
+	if err := withoutDefault.Flags().Set("goal", "find bugs"); err != nil {
+		t.Fatal(err)
 	}
 }
 

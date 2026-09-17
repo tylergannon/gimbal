@@ -50,9 +50,14 @@ Each workflow's subcommand is generated from its source: one flag per field
 of its input struct, and one model flag per role its graph names. `--work-dir` is
 the working directory, whose `.gimble` holds the run, served as above.
 
-The binary currently includes the read-only `review` workflow. Its reviewer
+The binary currently includes the read-only `review` workflow. Its code-review
 model defaults to `gpt-5.6-luna` from `cmd/gimble/defaults.json`; pass
-`--reviewer` to override it.
+`--code-review` to override it.
+
+Workflow roles name cognitive work, not positions in a workflow. Gimble's
+prescribed `WorkflowRole` constants and their descriptions live together in
+`roles.go`; applications may define additional typed constants when they need
+a role the catalog does not provide.
 
 `go generate ./internal/workflows/...` runs Polytype for each workflow's
 declared structured outputs, then the independent workflow generator in

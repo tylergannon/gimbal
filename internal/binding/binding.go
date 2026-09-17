@@ -54,9 +54,9 @@ func Adapter(harness string) (gimble.HarnessAdapter, error) {
 // Roles binds each role to the model its flag gave, sharing one binding
 // among the roles given the same model so one harness serves them. A role
 // given no model is an error naming its flag.
-func Roles(specs map[string]string) (map[string]gimble.ModelBinding, error) {
+func Roles(specs map[gimble.WorkflowRole]string) (map[gimble.WorkflowRole]gimble.ModelBinding, error) {
 	bound := map[string]gimble.ModelBinding{}
-	models := make(map[string]gimble.ModelBinding, len(specs))
+	models := make(map[gimble.WorkflowRole]gimble.ModelBinding, len(specs))
 	for _, role := range slices.Sorted(maps.Keys(specs)) {
 		spec := specs[role]
 		if spec == "" {

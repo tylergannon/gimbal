@@ -83,7 +83,7 @@ func TestLoopFormReachesThePlannerOfALoop(t *testing.T) {
 	dispatched, sent := make(chan struct{}), make(chan struct{})
 	var runWG sync.WaitGroup
 	runWG.Go(func() {
-		_ = runtime.Run(ctx, "looping", map[string]gimble.ModelBinding{"planner": {Adapter: p, Model: "m"}}, func(ctx context.Context) error {
+		_ = runtime.Run(ctx, "looping", map[gimble.WorkflowRole]gimble.ModelBinding{"planner": {Adapter: p, Model: "m"}}, func(ctx context.Context) error {
 			planner := gimble.NewSession(ctx, "planner", "/w")
 			loop := gimble.Loop(ctx, "sprint", "ship it", planner)
 			for range loop.Tasks {
@@ -191,7 +191,7 @@ func TestTheWrapUpButtonWorksWithoutJavaScript(t *testing.T) {
 	dispatched, sent := make(chan struct{}), make(chan struct{})
 	var runWG sync.WaitGroup
 	runWG.Go(func() {
-		_ = runtime.Run(ctx, "looping", map[string]gimble.ModelBinding{"planner": {Adapter: p, Model: "m"}}, func(ctx context.Context) error {
+		_ = runtime.Run(ctx, "looping", map[gimble.WorkflowRole]gimble.ModelBinding{"planner": {Adapter: p, Model: "m"}}, func(ctx context.Context) error {
 			planner := gimble.NewSession(ctx, "planner", "/w")
 			loop := gimble.Loop(ctx, "sprint", "ship it", planner)
 			for range loop.Tasks {

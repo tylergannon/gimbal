@@ -124,7 +124,7 @@ func init() { gimble.RegisterGraph(Graph) }
 // Command is gimble run {{.Name}}: {{if .Input}}a flag for each field of {{.Input}}, {{end}}a
 // model flag for each role {{.Entry}} names, with defaults supplied by the caller,
 // the web application's flags, and a run of {{.Entry}} on the runtime.
-func Command(defaults map[string]string) *cobra.Command {
+func Command(defaults map[gimble.WorkflowRole]string) *cobra.Command {
 {{- if .Input}}
 	var in {{.Input}}
 {{- end}}
@@ -150,8 +150,8 @@ func Command(defaults map[string]string) *cobra.Command {
 	_ = cmd.MarkFlagRequired({{printf "%q" .Flag}})
 {{- end}}{{end}}
 {{- range .Roles}}
-	cmd.Flags().StringVar(&{{.Ident}}, {{printf "%q" .Name}}, defaults[{{printf "%q" .Name}}], {{printf "%q" .Usage}})
-	if defaults[{{printf "%q" .Name}}] == "" {
+	cmd.Flags().StringVar(&{{.Ident}}, {{printf "%q" .Name}}, defaults[gimble.WorkflowRole({{printf "%q" .Name}})], {{printf "%q" .Usage}})
+	if defaults[gimble.WorkflowRole({{printf "%q" .Name}})] == "" {
 		_ = cmd.MarkFlagRequired({{printf "%q" .Name}})
 	}
 {{- end}}
@@ -171,7 +171,7 @@ func Command(defaults map[string]string) *cobra.Command {
 {{- if .WorkDir}}
 		in.WorkDir = workDir
 {{- end}}
-		models, err := binding.Roles(map[string]string{ {{range .Roles}}{{printf "%q" .Name}}: {{.Ident}}, {{end}}})
+		models, err := binding.Roles(map[gimble.WorkflowRole]string{ {{range .Roles}}gimble.WorkflowRole({{printf "%q" .Name}}): {{.Ident}}, {{end}}})
 		if err != nil {
 			return err
 		}

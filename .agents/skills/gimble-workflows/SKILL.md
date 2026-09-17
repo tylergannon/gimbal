@@ -14,7 +14,7 @@ exported name; propose the program.
 
 ## What a run is
 
-`gimble.Run(ctx, name, body)` runs `body` once and blocks until it returns.
+`gimble.Run(ctx, name, models, body)` runs `body` once and blocks until it returns.
 The body is the workflow. Inside it, scopes form a tree: `Run` is the root,
 `Scope`, each `Group.Go` child, and each `Loop` task open a child. A session
 belongs to the scope that created it and is closed when that scope's body
@@ -33,11 +33,11 @@ a kill.
 | Name | What it does | What to know |
 | --- | --- | --- |
 | `Project(ctx, dir)` | Puts the project dir in the ctx; runs land in `dir/runs/`. | Use `web.NewRuntime` instead for a run you watch. |
-| `Run(ctx, name, body)` | The run and its root scope. | Join every goroutine before `body` returns. |
+| `Run(ctx, name, models, body)` | The run and its root scope, with a model binding for every role it uses. | Join every goroutine before `body` returns. |
 | `Scope(ctx, name, body)` | A named child scope; returns `body`'s error. | Values set in it are visible to its children, not its parent. |
 | `Group(ctx, name)` | errgroup: `Go(name, fn)` per child, then `return group.Wait()`. | First error cancels the siblings; a killed child does not. Always `Wait`. |
 | `Loop(ctx, name, goal, planner)` | The planner keeps a backlog and picks each next `Task`; `for ctx, task := range loop.Tasks {…}; return loop.Err()`. | Each task is a scope. What the body `Set`s is what the planner sees next. It ends by picking no task. |
-| `NewSession(ctx, name, adapter, model, workdir)` | One conversation on one harness in one dir. Cannot fail; the process starts on the first turn. | Adapters: `codex.New()`, `claude.New()`, `agy.New()`. |
+| `NewSession(ctx, role, workdir)` | One conversation using the run's model binding for that cognitive role. Cannot fail; the process starts on the first turn. | Prefer Gimble's `Role...` constants; applications may define additional `WorkflowRole` constants. |
 | `s.Generate[T](ctx, prompt, opts...)` | One blocking turn. `T` is `gimble.Text` for prose, or a polytype `Output` type whose schema is sent with the prompt. `prompt` must be a compile-time string constant (GIMBLE108); `Generate` appends the ctx scope's rendered context to it itself, as `prompt + "\n\n" + context`. | Put the run's data into the scope with `Set`/`SetJSON` before the call. A wrong-shaped answer is re-asked a bounded number of times. |
 | `s.Fork(ctx, name)` | A new session with the conversation so far, in the same dir. | Read the code once, fork the readers. |
 | `s.Steer(ctx, message) (landed, err)` | From another goroutine while `Generate` blocks: lands at the worker's next model call. | Dropped when no turn runs: `landed` false, `err` nil. The log's `steer` record says the same. |
@@ -122,7 +122,7 @@ that default is empty; and `--port`, `--uds`, `--no-web`. One line in `cmd/gimbl
 gimble run --help
 gimble run review --help
 gimble run review --work-dir /abs/repository --goal "find correctness bugs"
-gimble run review --work-dir /abs/repository --goal "find correctness bugs" --reviewer gpt-5.6-luna:high
+gimble run review --work-dir /abs/repository --goal "find correctness bugs" --code-review gpt-5.6-luna:high
 ```
 
 The log's first line is `gimble: run <id> started in <dir>`; the page is

@@ -57,8 +57,8 @@ func RegisterGraph(graph workflow.Graph) {
 }
 
 type run struct {
-	dir       string                  // <project>/runs/<id>
-	models    map[string]ModelBinding // what each role the workflow names runs on
+	dir       string                        // <project>/runs/<id>
+	models    map[WorkflowRole]ModelBinding // what each role the workflow names runs on
 	writer    *eventWriter
 	project   *eventWriter
 	store     *observation.Store
@@ -131,7 +131,7 @@ func (r *run) closeError() error {
 // aggregating every session's Close failure (nil when there were none) and
 // with the first recording failure, if any; cancellation alone is not
 // completion.
-func Run(ctx context.Context, name string, models map[string]ModelBinding, body func(ctx context.Context) error) error {
+func Run(ctx context.Context, name string, models map[WorkflowRole]ModelBinding, body func(ctx context.Context) error) error {
 	project, _ := ctx.Value(projectKey{}).(string)
 	if project == "" {
 		return errors.New("gimble: Run needs gimble.Project in its ctx")

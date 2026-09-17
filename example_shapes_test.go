@@ -135,7 +135,7 @@ func Example_bakeOff() {
 	codex := says("Cache the parsed config on the loader and return it from Load.")
 	claude := says(`{"winner":2,"why":"It changes one file and keeps Load's signature."}`)
 
-	err := gimble.Run(ctx, "bakeoff", map[string]gimble.ModelBinding{"judge": {Adapter: claude, Model: "claude-haiku-4-5-20251001"}, "researcher": {Adapter: codex, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
+	err := gimble.Run(ctx, "bakeoff", map[gimble.WorkflowRole]gimble.ModelBinding{"judge": {Adapter: claude, Model: "claude-haiku-4-5-20251001"}, "researcher": {Adapter: codex, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
 		gimble.Set(ctx, "repository", repo)
 		researcher := gimble.NewSession(ctx, "researcher", repo)
 		if _, err := researcher.Generate[gimble.Text](ctx, bakeOffResearchPrompt); err != nil {
@@ -200,7 +200,7 @@ func Example_critiqueRound() {
 		return `{"defects":[]}`, nil
 	}}
 
-	err := gimble.Run(ctx, "critique", map[string]gimble.ModelBinding{"critic": {Adapter: claude, Model: "claude-haiku-4-5-20251001"}, "writer": {Adapter: codex, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
+	err := gimble.Run(ctx, "critique", map[gimble.WorkflowRole]gimble.ModelBinding{"critic": {Adapter: claude, Model: "claude-haiku-4-5-20251001"}, "writer": {Adapter: codex, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
 		gimble.Set(ctx, "notes file", note)
 		writer := gimble.NewSession(ctx, "writer", repo)
 		critic := gimble.NewSession(ctx, "critic", repo)
@@ -254,7 +254,7 @@ func Example_supervisedWorker() {
 	codex := says("Done: Parse in config/parse.go, one test in config/parse_test.go, uncommitted.")
 	claude := says(`{"objections":[]}`)
 
-	err := gimble.Run(ctx, "supervised", map[string]gimble.ModelBinding{"coder": {Adapter: codex, Model: "gpt-5.6-luna"}, "taste": {Adapter: claude, Model: "claude-haiku-4-5-20251001"}}, func(ctx context.Context) error {
+	err := gimble.Run(ctx, "supervised", map[gimble.WorkflowRole]gimble.ModelBinding{"coder": {Adapter: codex, Model: "gpt-5.6-luna"}, "taste": {Adapter: claude, Model: "claude-haiku-4-5-20251001"}}, func(ctx context.Context) error {
 		gimble.Set(ctx, "repository", repo)
 		coder := gimble.NewSession(ctx, "coder", repo)
 		taste := gimble.NewSession(ctx, "taste", repo)
@@ -297,7 +297,7 @@ func Example_loopWithPlanner() {
 		return `{"tasks":[],"next":null}`, nil
 	}}
 
-	err := gimble.Run(ctx, "loop", map[string]gimble.ModelBinding{"researcher": {Adapter: codex, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
+	err := gimble.Run(ctx, "loop", map[gimble.WorkflowRole]gimble.ModelBinding{"researcher": {Adapter: codex, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
 		gimble.Set(ctx, "repository", repo)
 		researcher := gimble.NewSession(ctx, "researcher", repo)
 		if _, err := researcher.Generate[gimble.Text](ctx, loopResearchPrompt); err != nil {
@@ -345,7 +345,7 @@ func Example_worktreePerCandidate() {
 	repo := repoDir()
 	codex := says("Done: the loader reads its file once; the test is in config/load_test.go.")
 
-	err := gimble.Run(ctx, "worktrees", map[string]gimble.ModelBinding{"coder": {Adapter: codex, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
+	err := gimble.Run(ctx, "worktrees", map[gimble.WorkflowRole]gimble.ModelBinding{"coder": {Adapter: codex, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
 		group := gimble.Group(ctx, "candidates")
 		for i := range 2 {
 			group.Go("candidate", func(ctx context.Context) error {
@@ -397,7 +397,7 @@ func Example_validationCommand() {
 	codex := says("Done: Load caches the parsed config.")
 	check := "go test ./config/..."
 
-	err := gimble.Run(ctx, "validated", map[string]gimble.ModelBinding{"coder": {Adapter: codex, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
+	err := gimble.Run(ctx, "validated", map[gimble.WorkflowRole]gimble.ModelBinding{"coder": {Adapter: codex, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
 		gimble.Set(ctx, "repository", repo)
 		gimble.Set(ctx, "check command", check)
 		coder := gimble.NewSession(ctx, "coder", repo)
@@ -481,7 +481,7 @@ func Example_killedTurn() {
 
 	var killErr error
 	var operator sync.WaitGroup
-	err = runtime.Run(ctx, "recover", map[string]gimble.ModelBinding{"coder": {Adapter: codex, Model: "gpt-5.6-luna"}, "planner": {Adapter: codex, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
+	err = runtime.Run(ctx, "recover", map[gimble.WorkflowRole]gimble.ModelBinding{"coder": {Adapter: codex, Model: "gpt-5.6-luna"}, "planner": {Adapter: codex, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
 		operator.Go(func() { // the operator, holding only ids from the page
 			<-coding
 			killErr = runtime.KillTurn(runID(project), "work.1/task.1/coder.1/turn.1", "tyler", "editing the wrong file")

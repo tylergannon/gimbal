@@ -118,7 +118,7 @@ func TestRuntimeReachesALiveRunByID(t *testing.T) {
 	var runErr error
 	var runWG sync.WaitGroup
 	runWG.Go(func() {
-		runErr = runtime.Run(ctx, "registry", map[string]gimble.ModelBinding{"coder": {Adapter: b, Model: "m"}}, func(ctx context.Context) error {
+		runErr = runtime.Run(ctx, "registry", map[gimble.WorkflowRole]gimble.ModelBinding{"coder": {Adapter: b, Model: "m"}}, func(ctx context.Context) error {
 			scopeErr = gimble.Scope(ctx, "lap", func(ctx context.Context) error {
 				coder := gimble.NewSession(ctx, "coder", "/w")
 				_, first = coder.Generate[gimble.Text](ctx, "wait")

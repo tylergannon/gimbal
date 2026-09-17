@@ -27,7 +27,7 @@ type Result struct {
 // Review asks one reviewer to inspect the repository read-only and record its findings.
 func Review(ctx context.Context, in Input) error {
 	gimble.Set(ctx, "goal", in.Goal)
-	reviewer := gimble.NewSession(ctx, "reviewer", in.WorkDir)
+	reviewer := gimble.NewSession(ctx, gimble.RoleCodeReview, in.WorkDir)
 	result, err := reviewer.Generate[Result](ctx, reviewPrompt)
 	if err != nil {
 		return err

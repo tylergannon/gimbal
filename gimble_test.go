@@ -102,15 +102,15 @@ func (f *fake) Close(ctx context.Context, session string) error {
 	return nil
 }
 
-func runTest(t *testing.T, models map[string]ModelBinding, body func(ctx context.Context) error) error {
+func runTest(t *testing.T, models map[WorkflowRole]ModelBinding, body func(ctx context.Context) error) error {
 	t.Helper()
 	return Run(Project(t.Context(), t.TempDir()), "test", models, body)
 }
 
 // bind binds each role to one fake harness, for a test that cares about the
 // runtime rather than about which model answers.
-func bind(adapter HarnessAdapter, model string, roles ...string) map[string]ModelBinding {
-	models := make(map[string]ModelBinding, len(roles))
+func bind(adapter HarnessAdapter, model string, roles ...WorkflowRole) map[WorkflowRole]ModelBinding {
+	models := make(map[WorkflowRole]ModelBinding, len(roles))
 	for _, role := range roles {
 		models[role] = ModelBinding{Adapter: adapter, Model: model}
 	}
@@ -1209,7 +1209,7 @@ func TestUnboundRolePanicsNamingTheRole(t *testing.T) {
 // model and effort.
 func TestForkRunsOnItsParentsBinding(t *testing.T) {
 	f := &fake{}
-	err := runTest(t, map[string]ModelBinding{"researcher": {Adapter: f, Model: "parent-model", Effort: "high"}}, func(ctx context.Context) error {
+	err := runTest(t, map[WorkflowRole]ModelBinding{"researcher": {Adapter: f, Model: "parent-model", Effort: "high"}}, func(ctx context.Context) error {
 		researcher := NewSession(ctx, "researcher", ".")
 		coder, err := researcher.Fork(ctx, "coder")
 		if err != nil {

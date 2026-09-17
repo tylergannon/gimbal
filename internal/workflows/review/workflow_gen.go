@@ -25,8 +25,8 @@ var Graph = workflow.Graph{
 	Source: workflow.Source{File: "internal/workflows/review/review.go", Line: 28},
 	Body: []workflow.Operation{
 		workflow.Set{Source: workflow.Source{File: "internal/workflows/review/review.go", Line: 29}, Key: "goal"},
-		workflow.Session{Source: workflow.Source{File: "internal/workflows/review/review.go", Line: 30}, Name: "reviewer", From: ""},
-		workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/review/review.go", Line: 31}, Session: "reviewer", Role: "reviewer", Prompt: "Read the code in your working directory. Assess the goal given below. Report concrete correctness issues; return an empty findings list when there are none. Make no changes."},
+		workflow.Session{Source: workflow.Source{File: "internal/workflows/review/review.go", Line: 30}, Name: "code-review", From: ""},
+		workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/review/review.go", Line: 31}, Session: "code-review", Role: "code-review", Prompt: "Read the code in your working directory. Assess the goal given below. Report concrete correctness issues; return an empty findings list when there are none. Make no changes."},
 		workflow.Set{Source: workflow.Source{File: "internal/workflows/review/review.go", Line: 35}, Key: "result"},
 	},
 }
@@ -34,9 +34,9 @@ var Graph = workflow.Graph{
 // Command is gimble run review: a flag for each field of Input, a
 // model flag for each role Review names, with defaults supplied by the caller,
 // the web application's flags, and a run of Review on the runtime.
-func Command(defaults map[string]string) *cobra.Command {
+func Command(defaults map[gimble.WorkflowRole]string) *cobra.Command {
 	var in Input
-	var reviewerModel string
+	var codeReviewModel string
 	var port int
 	var uds string
 	var noWeb bool
@@ -49,9 +49,9 @@ func Command(defaults map[string]string) *cobra.Command {
 	cmd.Flags().StringVar(&in.WorkDir, "work-dir", ".", "WorkDir is the absolute path of the repository to review.")
 	cmd.Flags().StringVar(&in.Goal, "goal", "", "Goal says what the review should assess. (required)")
 	_ = cmd.MarkFlagRequired("goal")
-	cmd.Flags().StringVar(&reviewerModel, "reviewer", defaults["reviewer"], "the model for role reviewer, as model or model:effort")
-	if defaults["reviewer"] == "" {
-		_ = cmd.MarkFlagRequired("reviewer")
+	cmd.Flags().StringVar(&codeReviewModel, "code-review", defaults[gimble.WorkflowRole("code-review")], "the model for role code-review, as model or model:effort")
+	if defaults[gimble.WorkflowRole("code-review")] == "" {
+		_ = cmd.MarkFlagRequired("code-review")
 	}
 	cmd.Flags().IntVar(&port, "port", 8080, "loopback TCP port for the web application")
 	cmd.Flags().StringVar(&uds, "uds", "", "Unix-domain socket for the web application instead of TCP")
@@ -62,7 +62,7 @@ func Command(defaults map[string]string) *cobra.Command {
 			return err
 		}
 		in.WorkDir = workDir
-		models, err := binding.Roles(map[string]string{"reviewer": reviewerModel})
+		models, err := binding.Roles(map[gimble.WorkflowRole]string{gimble.WorkflowRole("code-review"): codeReviewModel})
 		if err != nil {
 			return err
 		}

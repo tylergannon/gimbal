@@ -42,7 +42,7 @@ func Fixture(ctx context.Context) error {
 	}
 
 	// A role the source does not spell out cannot be read.
-	nameless := gimble.NewSession(ctx, roleName(), ".")
+	nameless := gimble.NewSession(ctx, gimble.WorkflowRole(roleName()), ".")
 	_ = nameless
 
 	// A call through a function value cannot be read either.

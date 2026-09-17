@@ -86,7 +86,7 @@ func runPrompt(args []string, stdout, stderr io.Writer, getenv func(string) stri
 	if err != nil {
 		return err
 	}
-	models := map[string]gimble.ModelBinding{
+	models := map[gimble.WorkflowRole]gimble.ModelBinding{
 		"run-prompt": {Adapter: adapter, Model: selection.Model, Effort: selection.Effort},
 	}
 

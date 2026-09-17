@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/spf13/cobra"
+	"github.com/tylergannon/gimble"
 	"github.com/tylergannon/gimble/internal/workflows/review"
 )
 
@@ -20,10 +21,10 @@ func TestRunListsTheWorkflowsBuiltIn(t *testing.T) {
 }
 
 // TestRunHelpShowsTheInputsAndTheRoles checks the review workflow's generated
-// input flags and its centrally supplied reviewer model.
+// input flags and its centrally supplied code-review model.
 func TestRunHelpShowsTheInputsAndTheRoles(t *testing.T) {
 	help := helpOf(t, "review")
-	for _, flag := range []string{"--work-dir string", "--goal string", "--reviewer string", "--port int", "--no-web"} {
+	for _, flag := range []string{"--work-dir string", "--goal string", "--code-review string", "--port int", "--no-web"} {
 		if !strings.Contains(help, flag) {
 			t.Errorf("run review --help lacks %s:\n%s", flag, help)
 		}
@@ -34,35 +35,35 @@ func TestRunHelpShowsTheInputsAndTheRoles(t *testing.T) {
 	if !strings.Contains(lineWith(help, "--goal"), "(required)") {
 		t.Errorf("run review --help does not mark --goal required:\n%s", help)
 	}
-	reviewer := lineWith(help, "--reviewer")
-	if !strings.Contains(reviewer, "the model for role reviewer") || !strings.Contains(reviewer, `(default "gpt-5.6-luna")`) || strings.Contains(reviewer, "(required)") {
-		t.Errorf("run review --help does not give the reviewer its default model:\n%s", help)
+	codeReview := lineWith(help, "--code-review")
+	if !strings.Contains(codeReview, "the model for role code-review") || !strings.Contains(codeReview, `(default "gpt-5.6-luna")`) || strings.Contains(codeReview, "(required)") {
+		t.Errorf("run review --help does not give code review its default model:\n%s", help)
 	}
 }
 
 func TestRunRefusesAMissingInput(t *testing.T) {
 	var out, errOut bytes.Buffer
-	err := run([]string{"run", "review", "--reviewer", "gpt-5.6-luna"}, &out, &errOut, os.Getenv)
+	err := run([]string{"run", "review", "--code-review", "gpt-5.6-luna"}, &out, &errOut, os.Getenv)
 	if err == nil || !strings.Contains(err.Error(), `"goal"`) {
 		t.Errorf("run review without --goal = %v, want the required flag named", err)
 	}
 }
 
 func TestReviewCommandRoleDefaultAndOverride(t *testing.T) {
-	withDefault := review.Command(map[string]string{"reviewer": "gpt-5.6-luna"})
-	if got := withDefault.Flags().Lookup("reviewer").DefValue; got != "gpt-5.6-luna" {
-		t.Fatalf("reviewer default = %q", got)
+	withDefault := review.Command(map[gimble.WorkflowRole]string{gimble.RoleCodeReview: "gpt-5.6-luna"})
+	if got := withDefault.Flags().Lookup("code-review").DefValue; got != "gpt-5.6-luna" {
+		t.Fatalf("code-review default = %q", got)
 	}
-	withoutDefault := review.Command(map[string]string{})
-	flag := withoutDefault.Flags().Lookup("reviewer")
+	withoutDefault := review.Command(map[gimble.WorkflowRole]string{})
+	flag := withoutDefault.Flags().Lookup("code-review")
 	if len(flag.Annotations[cobra.BashCompOneRequiredFlag]) == 0 {
-		t.Fatal("reviewer without a default is not marked required")
+		t.Fatal("code-review without a default is not marked required")
 	}
-	if err := withoutDefault.Flags().Set("reviewer", "gpt-5.6-luna:high"); err != nil {
+	if err := withoutDefault.Flags().Set("code-review", "gpt-5.6-luna:high"); err != nil {
 		t.Fatal(err)
 	}
-	if got := withoutDefault.Flags().Lookup("reviewer").Value.String(); got != "gpt-5.6-luna:high" {
-		t.Fatalf("reviewer override = %q", got)
+	if got := withoutDefault.Flags().Lookup("code-review").Value.String(); got != "gpt-5.6-luna:high" {
+		t.Fatalf("code-review override = %q", got)
 	}
 	if err := withoutDefault.Flags().Set("goal", "find bugs"); err != nil {
 		t.Fatal(err)

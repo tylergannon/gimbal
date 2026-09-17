@@ -213,10 +213,10 @@ func TestSourceWritesTheWorkflowsPackage(t *testing.T) {
 		"\npackage fixture\n",
 		"func init() { gimble.RegisterGraph(Graph) }",
 		"var Graph = workflow.Graph{",
-		"func Command(defaults map[string]string) *cobra.Command {",
+		"func Command(defaults map[gimble.WorkflowRole]string) *cobra.Command {",
 		`Use:   "fixture",`,
-		`cmd.Flags().StringVar(&leadModel, "lead", defaults["lead"], "the model for role lead, as model or model:effort")`,
-		`if defaults["lead"] == "" {`,
+		`cmd.Flags().StringVar(&leadModel, "lead", defaults[gimble.WorkflowRole("lead")], "the model for role lead, as model or model:effort")`,
+		`if defaults[gimble.WorkflowRole("lead")] == "" {`,
 		`return Fixture(ctx) })`,
 	} {
 		if !strings.Contains(string(written), want) {
@@ -238,7 +238,7 @@ func TestGeneratedCommandUsesCentralizedRoleDefaults(t *testing.T) {
 	if strings.Contains(text, "roles[") {
 		t.Fatalf("generated command still reads workflow roles")
 	}
-	for _, want := range []string{`defaults["lead"]`, `if defaults["lead"] == ""`, `"lead": leadModel`} {
+	for _, want := range []string{`defaults[gimble.WorkflowRole("lead")]`, `if defaults[gimble.WorkflowRole("lead")] == ""`, `gimble.WorkflowRole("lead"): leadModel`} {
 		if !strings.Contains(text, want) {
 			t.Errorf("generated command lacks %q", want)
 		}

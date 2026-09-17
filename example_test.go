@@ -42,7 +42,7 @@ func Example() {
 	ctx, closeProject := exampleContext()
 	defer closeProject()
 
-	err := gimble.Run(ctx, "example", map[string]gimble.ModelBinding{"worker": {Adapter: &exampleAdapter{}, Model: "example"}}, func(ctx context.Context) error {
+	err := gimble.Run(ctx, "example", map[gimble.WorkflowRole]gimble.ModelBinding{"worker": {Adapter: &exampleAdapter{}, Model: "example"}}, func(ctx context.Context) error {
 		gimble.Set(ctx, "goal", "demonstrate the public API")
 		worker := gimble.NewSession(ctx, "worker", ".")
 		answer, err := worker.Generate[gimble.Text](ctx, "Complete the goal.")
@@ -104,7 +104,7 @@ func ExampleLoop() {
 	ctx, closeProject := exampleContext()
 	defer closeProject()
 
-	err := gimble.Run(ctx, "dispatch", map[string]gimble.ModelBinding{"planner": {Adapter: &exampleLoopAdapter{}, Model: "example"}}, func(ctx context.Context) error {
+	err := gimble.Run(ctx, "dispatch", map[gimble.WorkflowRole]gimble.ModelBinding{"planner": {Adapter: &exampleLoopAdapter{}, Model: "example"}}, func(ctx context.Context) error {
 		planner := gimble.NewSession(ctx, "planner", ".")
 		loop := gimble.Loop(ctx, "work", "demonstrate adaptive dispatch", planner)
 		for ctx, task := range loop.Tasks {

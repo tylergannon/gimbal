@@ -1,0 +1,6 @@
+{"type":"object",
+"description":"Assessment is an independent validator's judgment of the implementation.","properties":{
+"complete":{"type":"boolean","description":"Complete is true only after the full issue requirements were demonstrated through the real running browser interface."},
+"observed":{"type":"string","description":"Observed states what the validator personally saw in the code, checks, and live browser interaction."},
+"unmet_requirements":{"type":"array","description":"UnmetRequirements lists each issue requirement that was not demonstrated; use an empty list only when Complete is true.","items":{"type":"string"}}
+},"required":["complete","observed","unmet_requirements"],"additionalProperties":false}

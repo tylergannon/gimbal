@@ -6,13 +6,13 @@ build:
     cd web && pnpm install
     go generate ./...
     cd web && pnpm exec vp build
-    go build -o bin/gimble ./cmd
+    go build -o bin/gimble ./cmd/gimble
 
 dev-web:
     cd web && ORIGIN='{{origin}}' pnpm exec vp dev --host 127.0.0.1 --port 5173 --strictPort
 
 dev-go:
-    GIMBLE_WEB_PROXY=http://127.0.0.1:5173 GIMBLE_WEB_ORIGIN='{{origin}}' go run ./cmd --port 8080
+    GIMBLE_WEB_PROXY=http://127.0.0.1:5173 GIMBLE_WEB_ORIGIN='{{origin}}' go run ./cmd/gimble --port 8080
 
 e2e run="run":
     cd e2e && pnpm install
@@ -21,7 +21,7 @@ e2e run="run":
 
 vet:
     go vet ./...
-    go build -o bin/gimble ./cmd
+    go build -o bin/gimble ./cmd/gimble
     ./bin/gimble lint ./...
 
 test:

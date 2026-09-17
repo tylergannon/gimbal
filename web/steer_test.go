@@ -41,7 +41,7 @@ func TestSteerFormReachesTheSessionAPersonIsWatching(t *testing.T) {
 	)
 	var runWG sync.WaitGroup
 	runWG.Go(func() {
-		_ = runtime.Run(ctx, "steering", map[string]gimble.ModelBinding{"coder": {Adapter: b, Model: "m"}}, func(ctx context.Context) error {
+		_ = runtime.Run(ctx, "steering", map[gimble.WorkflowRole]gimble.ModelBinding{"coder": {Adapter: b, Model: "m"}}, func(ctx context.Context) error {
 			return gimble.Scope(ctx, "lap", func(ctx context.Context) error {
 				coder := gimble.NewSession(ctx, "coder", "/w")
 				_, err := coder.Generate[gimble.Text](ctx, "wait")
@@ -101,7 +101,7 @@ func TestSteerFormRefusesWhatItCannotDeliver(t *testing.T) {
 	b := &blocking{}
 	var runWG sync.WaitGroup
 	runWG.Go(func() {
-		_ = runtime.Run(ctx, "steering", map[string]gimble.ModelBinding{"coder": {Adapter: b, Model: "m"}}, func(ctx context.Context) error {
+		_ = runtime.Run(ctx, "steering", map[gimble.WorkflowRole]gimble.ModelBinding{"coder": {Adapter: b, Model: "m"}}, func(ctx context.Context) error {
 			return gimble.Scope(ctx, "lap", func(ctx context.Context) error {
 				coder := gimble.NewSession(ctx, "coder", "/w")
 				_, err := coder.Generate[gimble.Text](ctx, "wait")

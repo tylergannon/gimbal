@@ -200,7 +200,7 @@ func (r *Runtime) startWeb(cfg config) error {
 // Run starts one workflow run and blocks until body returns. models binds
 // every role the workflow names. The run ends when either ctx or the runtime
 // context ends.
-func (r *Runtime) Run(ctx context.Context, name string, models map[string]gimble.ModelBinding, body func(context.Context) error) error {
+func (r *Runtime) Run(ctx context.Context, name string, models map[gimble.WorkflowRole]gimble.ModelBinding, body func(context.Context) error) error {
 	if r == nil {
 		return errors.New("gimble: nil runtime")
 	}

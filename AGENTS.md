@@ -72,7 +72,7 @@ source, and prompts are plain English: "Read and implement the issue in
   `tylergannon/skgo` app: `web/` is the SvelteKit app, Go beside its pages
   in `web/src/routes/*.remote.go`, `web/server.go` is the one `NewHandler`
   the binary and the tests share, `generated/` is written by `go generate
-  ./...` and never by hand, `cmd/` is the binary. `just build` builds all
+  ./...` and never by hand, `cmd/gimble/` is the binary. `just build` builds all
   of it. `docs-site/` is the fully prerendered SvelteKit documentation site.
   The page's Go imports `gimble`, so `gimble` never imports the page; that is
   why `Serve` is in package `web`.

@@ -1,0 +1,4 @@
+{"type":"object",
+"description":"Result is the reviewer's list of concrete correctness findings.","properties":{
+"findings":{"type":"array","description":"Findings lists concrete correctness issues found in the code, one per entry.","items":{"type":"string"}}
+},"required":["findings"],"additionalProperties":false}

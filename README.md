@@ -37,6 +37,44 @@ just dev-web
 just dev-go
 ```
 
+## Run a workflow
+
+The same binary runs the workflows built into it:
+
+```sh
+./bin/gimble run --help
+./bin/gimble run <workflow> --help
+```
+
+Each workflow's subcommand is generated from its source: Gimble's `--work-dir`
+environment flag, one flag per field of its workflow parameter struct, and one
+model flag per role its graph names. The absolute work directory is passed to
+the entry in `gimble.Env`; its `.gimble` holds the run, served as above.
+
+The binary currently includes the read-only `review` workflow. Its code-review
+model defaults to `gpt-5.6-luna` from `cmd/gimble/defaults.json`; pass
+`--code-review` to override it.
+
+Workflow roles name cognitive work, not positions in a workflow. Gimble's
+prescribed `WorkflowRole` constants and their descriptions live together in
+`roles.go`; applications may define additional typed constants when they need
+a role the catalog does not provide.
+
+`go generate ./internal/workflows/...` runs Polytype for each workflow's
+declared structured outputs, then the independent workflow generator in
+`internal/generate/`. It can rebuild missing or stale generated commands
+without first building the application CLI.
+
+Author a workflow in one Go file with its `func Name(ctx context.Context, env
+gimble.Env, params NameParams) error` entry, workflow-specific parameter and
+result structs, and
+generate directives; declare its result structs to Polytype in a
+`//go:build jsonschema` file beside it, as the root package does; then import
+its generated `Command(defaults)` and register it in
+`cmd/gimble/workflows.go`. The application reads the shared
+`cmd/gimble/defaults.json` once; an unknown role is required on the command
+line when that file has no default for it.
+
 ## Lint workflows
 
 The distributed `gimble` binary also checks deterministic workflow authoring
@@ -68,7 +106,7 @@ port 0 selects an available port.
 | `web/src/routes/*.remote.go` | server logic, colocated with the routes that call it |
 | `web/src/routes/**/server.go` | ordinary Go HTTP handlers for SvelteKit `+server.ts` routes |
 | `internal/skgo/` | skgo's generated Go implementation; never edited by hand |
-| `cmd/` | the binary |
+| `cmd/gimble/` | the binary |
 | `web/server.go` | the one composition the binary and any test both use |
 
 Write a remote function by adding a Go function to a `*.remote.go` file beside

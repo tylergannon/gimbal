@@ -14,7 +14,7 @@ exported name; propose the program.
 
 ## What a run is
 
-`gimble.Run(ctx, name, body)` runs `body` once and blocks until it returns.
+`gimble.Run(ctx, name, models, body)` runs `body` once and blocks until it returns.
 The body is the workflow. Inside it, scopes form a tree: `Run` is the root,
 `Scope`, each `Group.Go` child, and each `Loop` task open a child. A session
 belongs to the scope that created it and is closed when that scope's body
@@ -33,11 +33,11 @@ a kill.
 | Name | What it does | What to know |
 | --- | --- | --- |
 | `Project(ctx, dir)` | Puts the project dir in the ctx; runs land in `dir/runs/`. | Use `web.NewRuntime` instead for a run you watch. |
-| `Run(ctx, name, body)` | The run and its root scope. | Join every goroutine before `body` returns. |
+| `Run(ctx, name, models, body)` | The run and its root scope, with a model binding for every role it uses. | Join every goroutine before `body` returns. |
 | `Scope(ctx, name, body)` | A named child scope; returns `body`'s error. | Values set in it are visible to its children, not its parent. |
 | `Group(ctx, name)` | errgroup: `Go(name, fn)` per child, then `return group.Wait()`. | First error cancels the siblings; a killed child does not. Always `Wait`. |
 | `Loop(ctx, name, goal, planner)` | The planner keeps a backlog and picks each next `Task`; `for ctx, task := range loop.Tasks {…}; return loop.Err()`. | Each task is a scope. What the body `Set`s is what the planner sees next. It ends by picking no task. |
-| `NewSession(ctx, name, adapter, model, workdir)` | One conversation on one harness in one dir. Cannot fail; the process starts on the first turn. | Adapters: `codex.New()`, `claude.New()`, `agy.New()`. |
+| `NewSession(ctx, role, workdir)` | One conversation using the run's model binding for that cognitive role. Cannot fail; the process starts on the first turn. | Prefer Gimble's `Role...` constants; applications may define additional `WorkflowRole` constants. |
 | `s.Generate[T](ctx, prompt, opts...)` | One blocking turn. `T` is `gimble.Text` for prose, or a polytype `Output` type whose schema is sent with the prompt. `prompt` must be a compile-time string constant (GIMBLE108); `Generate` appends the ctx scope's rendered context to it itself, as `prompt + "\n\n" + context`. | Put the run's data into the scope with `Set`/`SetJSON` before the call. A wrong-shaped answer is re-asked a bounded number of times. |
 | `s.Fork(ctx, name)` | A new session with the conversation so far, in the same dir. | Read the code once, fork the readers. |
 | `s.Steer(ctx, message) (landed, err)` | From another goroutine while `Generate` blocks: lands at the worker's next model call. | Dropped when no turn runs: `landed` false, `err` nil. The log's `steer` record says the same. |
@@ -47,11 +47,14 @@ a kill.
 | `WithSupervisor(session, instruction, opts...)`, `WithInterval(d)` | Options to `Generate`: a supervisor looks at what the worker did since its last look, every 3 minutes or `WithInterval`, and steers each objection in. `instruction` must be a compile-time string constant too (GIMBLE108). | It never gates the result. Its own options are `opts`, so a supervisor can have a supervisor. |
 | `Killed{Target, By, Reason}` | The cause an operator's kill puts on a scope's or a turn's ctx. | `errors.As(err, &killed)` on a `Generate` error, or `context.Cause(ctx)`. See below. |
 
-Structured output: a struct whose field comments are the descriptions the
-model reads, with `//go:generate go tool polytype --validate` in the package
-and a `//go:build jsonschema` stub file that `polytype.Declare`s each type,
-as `internal/workflows/sprint/schema.go` does. A field comment is prompt
-text: write it as an instruction.
+Structured output: a local struct whose field comments are the descriptions
+the model reads. Declare it to polytype in a `//go:build jsonschema` file
+beside the workflow, as the root package's `schema.go` does: a panic stub for
+`Schema` and `ValidateJSON`, then `polytype.Declare(T.Schema)`. The
+workflow's `//go:generate go tool polytype --validate` line, placed before its
+gimblegen directive, writes the real methods. Pass an undeclared type to
+`Generate` and the compiler names the missing method. A field comment is
+prompt text: write it as an instruction.
 
 ## Kills
 
@@ -101,22 +104,34 @@ Each is a compiling `Example` in the root package (`example_test.go`,
 
 ## Run and watch
 
-A workflow is a `package main` (see `cmd/sprint/main.go`):
+A workflow is a package under `internal/workflows/` whose entry is
+`func Name(ctx context.Context, env gimble.Env, params NameParams) error`.
+`env` is Gimble-owned and holds the absolute initial `WorkDir`; `params` and
+its workflow-specific type contain only arguments belonging to that workflow.
+The entry has the directive
+`//go:generate go run github.com/tylergannon/gimble/internal/generate/gimblegen -entry Name -name name`,
+placed after its polytype directive when it has structured outputs.
+`go generate` runs the independent generator in `internal/generate/` and
+prints `workflow_gen.go` beside the workflow: the graph, which registers
+itself, and the workflow's `Command(defaults)`, a Cobra subcommand you can read: one
+`--work-dir`, which defaults to the current directory; one flag per field of
+the parameter struct, named from the field with its doc comment as help, required unless the
+field is a `polytype.Optional` (a bool is never required); one `--<role>` flag per role the graph
+names, defaulting to the model supplied by the application and required when
+that default is empty; and `--port`, `--uds`, `--no-web`. One line in `cmd/gimble/workflows.go` adds it to `gimble run`. Then:
 
-```go
-ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
-defer stop()
-runtime, err := web.NewRuntime(ctx, filepath.Join(repo, ".gimble"), web.WithPort(8080))
-err = runtime.Run(ctx, "bakeoff", func(ctx context.Context) error { ... })
+```sh
+gimble run --help
+gimble run review --help
+gimble run review --work-dir /abs/repository --goal "find correctness bugs"
+gimble run review --work-dir /abs/repository --goal "find correctness bugs" --code-review gpt-5.6-luna:high
 ```
 
 The log's first line is `gimble: run <id> started in <dir>`; the page is
 `http://127.0.0.1:8080/runs/<id>`, live while it runs and after. Ctrl-C
-cancels the ctx, which interrupts every turn. `web.WithNoWeb()` runs without
-the page. `go run ./cmd/sprint -dry-run -issue <file>` shows the sprint
-workflow's prompts and schemas without calling a model; a new workflow that
-wants that writes a fake `HarnessAdapter` the way `internal/workflows/sprint/dryrun.go`
-does. `just vet` and `just test` are the repository's checks.
+cancels the ctx, which interrupts every turn. To read a workflow's prompts
+without a model, read its graph: every prompt is in it, verbatim. `just vet`
+and `just test` are the repository's checks.
 
 ## Read the record
 

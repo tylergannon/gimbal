@@ -5,6 +5,8 @@ package binding
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 
 	"github.com/tylergannon/gimble"
@@ -47,4 +49,27 @@ func Adapter(harness string) (gimble.HarnessAdapter, error) {
 	default:
 		return nil, fmt.Errorf("unknown harness %q", harness)
 	}
+}
+
+// Roles binds each role to the model its flag gave, sharing one binding
+// among the roles given the same model so one harness serves them. A role
+// given no model is an error naming its flag.
+func Roles(specs map[gimble.WorkflowRole]string) (map[gimble.WorkflowRole]gimble.ModelBinding, error) {
+	bound := map[string]gimble.ModelBinding{}
+	models := make(map[gimble.WorkflowRole]gimble.ModelBinding, len(specs))
+	for _, role := range slices.Sorted(maps.Keys(specs)) {
+		spec := specs[role]
+		if spec == "" {
+			return nil, fmt.Errorf("give --%s", role)
+		}
+		if _, ok := bound[spec]; !ok {
+			b, err := Parse(spec)
+			if err != nil {
+				return nil, fmt.Errorf("--%s: %w", role, err)
+			}
+			bound[spec] = b
+		}
+		models[role] = bound[spec]
+	}
+	return models, nil
 }

@@ -1,4 +1,0 @@
-{"type":"object",
-"description":"review is what the validator reports.","properties":{
-"not_seen_working":{"type":"array","description":"What the validator did not see working, one finding each. Empty when everything asked for was seen working.","items":{"type":"string"}}
-},"required":["not_seen_working"],"additionalProperties":false}

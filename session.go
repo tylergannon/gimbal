@@ -42,8 +42,9 @@ type Session struct {
 // starts on the first turn. A role the run did not bind is a programming
 // error and panics, naming the role. A session created outside Run cannot
 // generate turns or be forked.
-func NewSession(ctx context.Context, role, workdir string) *Session {
-	s := &Session{name: role, workdir: workdir}
+func NewSession(ctx context.Context, role WorkflowRole, workdir string) *Session {
+	name := string(role)
+	s := &Session{name: name, workdir: workdir}
 	scope, err := current(ctx)
 	if err != nil {
 		return s
@@ -54,7 +55,7 @@ func NewSession(ctx context.Context, role, workdir string) *Session {
 	}
 	s.adapter, s.model, s.effort = binding.Adapter, binding.Model, binding.Effort
 	scope.adopt(s)
-	scope.run.event(scope.key, s.id, "", SessionCreated{Name: role, Adapter: fmt.Sprintf("%T", s.adapter), Model: s.model, Effort: s.effort, Workdir: workdir})
+	scope.run.event(scope.key, s.id, "", SessionCreated{Name: name, Adapter: fmt.Sprintf("%T", s.adapter), Model: s.model, Effort: s.effort, Workdir: workdir})
 	return s
 }
 

@@ -40,7 +40,7 @@ func Project(ctx context.Context, dir string) context.Context {
 // is complete and never written again by the time a run reads it.
 var graphs = map[string]workflow.Graph{}
 
-// RegisterGraph records the shape of one workflow, which `gimble graph`
+// RegisterGraph records the shape of one workflow, which the workflow generator
 // read from its source, under the workflow's name, which is also its runs'
 // name. It is how the binary that runs a workflow knows the workflow's
 // shape: the run page draws a run against it. It is not written into the
@@ -57,8 +57,8 @@ func RegisterGraph(graph workflow.Graph) {
 }
 
 type run struct {
-	dir       string                  // <project>/runs/<id>
-	models    map[string]ModelBinding // what each role the workflow names runs on
+	dir       string                        // <project>/runs/<id>
+	models    map[WorkflowRole]ModelBinding // what each role the workflow names runs on
 	writer    *eventWriter
 	project   *eventWriter
 	store     *observation.Store
@@ -131,7 +131,7 @@ func (r *run) closeError() error {
 // aggregating every session's Close failure (nil when there were none) and
 // with the first recording failure, if any; cancellation alone is not
 // completion.
-func Run(ctx context.Context, name string, models map[string]ModelBinding, body func(ctx context.Context) error) error {
+func Run(ctx context.Context, name string, models map[WorkflowRole]ModelBinding, body func(ctx context.Context) error) error {
 	project, _ := ctx.Value(projectKey{}).(string)
 	if project == "" {
 		return errors.New("gimble: Run needs gimble.Project in its ctx")

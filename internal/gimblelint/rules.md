@@ -157,7 +157,7 @@ As with GIMBLE102, a constant expression built from literals and named
 constants is still allowed; only a value that can change at runtime is
 reported.
 
-Package `github.com/tylergannon/gimble/cmd` is exempt: `cmd/run_prompt.go`
+Package `github.com/tylergannon/gimble/cmd/gimble` is exempt: `cmd/gimble/run_prompt.go`
 runs a prompt given on the command line, so it cannot pass a constant. That
 is the only exemption; no other mechanism is added.
 

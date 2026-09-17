@@ -1,7 +1,7 @@
 {"type":"object",
 "description":"plan is the planner's whole answer for one dispatch: the revised backlog and the index of the next task, or null to end dispatch.","properties":{
 "tasks":{"type":"array","items":{"type":"object",
-"description":"Task is one assignment selected by a Loop planner.","properties":{
+"description":"Task is one assignment selected by a PromiseLoop planner.","properties":{
 "name":{"type":"string","description":"Name is a short label for recognizing the work."},
 "description":{"type":"string","description":"Description states the desired result and any necessary, non-obvious information. It leaves the approach to the worker."},
 "definition_of_done":{"type":"string","description":"DefinitionOfDone says how to recognize successful completion of this assignment. It does not declare that the enclosing goal is complete."},

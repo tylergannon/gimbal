@@ -6,8 +6,9 @@
 // establish the root scope and durable record for one workflow run.
 //
 // Workflows use normal Go control flow. Scope names a bounded segment of work;
-// Group provides an observable form of errgroup-style concurrency; Loop yields
-// planner-selected tasks. Gimble supplies these runtime primitives, not named
+// Group provides an observable form of errgroup-style concurrency; Iterate
+// scopes the items of a finite collection; PromiseLoop lets a planner select
+// tasks adaptively. Gimble supplies these runtime primitives, not named
 // tactics: retries, critique rounds, bake-offs, and delivery methods remain
 // visible in the workflow that needs them.
 //

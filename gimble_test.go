@@ -528,7 +528,7 @@ func TestLoopCarriesStructuredTaskAndFeedback(t *testing.T) {
 	err := Run(Project(t.Context(), project), "test", bind(f, "m", "planner"), func(ctx context.Context) error {
 		Set(ctx, "constraint", "keep the public API small")
 		planner := NewSession(ctx, "planner", t.TempDir())
-		loop := Loop(ctx, "sprint", "ship", planner)
+		loop := PromiseLoop(ctx, "sprint", "ship", planner)
 		for ctx, task := range loop.Tasks {
 			tasks = append(tasks, task)
 			s, _ := current(ctx)
@@ -622,7 +622,7 @@ func TestLoopReasksAfterInvalidPlan(t *testing.T) {
 			var tasks []Task
 			err := runTest(t, bind(f, "m", "planner"), func(ctx context.Context) error {
 				planner := NewSession(ctx, "planner", t.TempDir())
-				loop := Loop(ctx, "sprint", "ship", planner)
+				loop := PromiseLoop(ctx, "sprint", "ship", planner)
 				for _, task := range loop.Tasks {
 					tasks = append(tasks, task)
 				}
@@ -656,7 +656,7 @@ func TestLoopReasksAfterInvalidPlan(t *testing.T) {
 		}}
 		err := runTest(t, bind(f, "m", "planner"), func(ctx context.Context) error {
 			planner := NewSession(ctx, "planner", t.TempDir())
-			loop := Loop(ctx, "sprint", "ship", planner)
+			loop := PromiseLoop(ctx, "sprint", "ship", planner)
 			for range loop.Tasks {
 				t.Fatal("invalid task was yielded")
 			}
@@ -678,7 +678,7 @@ func TestLoopReasksAfterInvalidPlan(t *testing.T) {
 		}}
 		err := runTest(t, bind(f, "m", "planner"), func(ctx context.Context) error {
 			planner := NewSession(ctx, "planner", t.TempDir())
-			loop := Loop(ctx, "sprint", "ship", planner)
+			loop := PromiseLoop(ctx, "sprint", "ship", planner)
 			for range loop.Tasks {
 				t.Fatal("task was yielded")
 			}
@@ -700,7 +700,7 @@ func TestLoopEndsTaskScopeOnBreak(t *testing.T) {
 	var worker *Session
 	err := runTest(t, bind(f, "m", "planner", "worker"), func(ctx context.Context) error {
 		planner := NewSession(ctx, "planner", t.TempDir())
-		loop := Loop(ctx, "work", "inspect", planner)
+		loop := PromiseLoop(ctx, "work", "inspect", planner)
 		for ctx := range loop.Tasks {
 			taskCtx = ctx
 			worker = NewSession(ctx, "worker", t.TempDir())
@@ -733,7 +733,7 @@ func TestLoopEndsTaskScopeOnCancellation(t *testing.T) {
 	var worker *Session
 	err := Run(Project(ctx, t.TempDir()), "test", bind(f, "m", "planner", "worker"), func(ctx context.Context) error {
 		planner := NewSession(ctx, "planner", t.TempDir())
-		loop := Loop(ctx, "work", "wait", planner)
+		loop := PromiseLoop(ctx, "work", "wait", planner)
 		for ctx := range loop.Tasks {
 			taskCtx = ctx
 			worker = NewSession(ctx, "worker", t.TempDir())

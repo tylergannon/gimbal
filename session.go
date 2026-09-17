@@ -144,7 +144,7 @@ func appendScopeText(ctx context.Context, prompt string) string {
 }
 
 // dispatch runs one turn for opts, without touching prompt: the internal
-// callers that build a prompt at runtime (Loop's planner turn, a
+// callers that build a prompt at runtime (PromiseLoop's planner turn, a
 // supervisor's look) call this directly instead of the exported Generate,
 // so they are exempt from GIMBLE108's constant-prompt rule and are not
 // given scope context a second time.

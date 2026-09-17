@@ -57,7 +57,7 @@ Ship: `go get github.com/tylergannon/gimble` and write any workflow in
   there is something new, objections become steers, no gate. A supervisor
   takes the same options, so it can be supervised. `Review` is
   `struct{ Objections []string }`.
-- `Loop(ctx, name, goal, planner)`, `Tasks`, structured `Task`, `Err`.
+- `PromiseLoop(ctx, name, goal, planner)`, `Tasks`, structured `Task`, `Err`.
   Backlog file: markdown with YAML frontmatter, immutable goal, and revisable
   tasks. Per dispatch: reload, ask the planner, yield a child scope containing
   the selected task, and carry that scope's recorded result into the next

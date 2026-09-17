@@ -94,7 +94,7 @@ func (e *CloseError) Unwrap() []error { return e.errs }
 
 // recordCloseFailure folds one session's Close failure into the run's
 // aggregate close error, under a mutex since sibling scopes end
-// concurrently (Group, Loop tasks).
+// concurrently (Group, PromiseLoop tasks).
 func (r *run) recordCloseFailure(sessionID string, err error) {
 	if r == nil || err == nil {
 		return

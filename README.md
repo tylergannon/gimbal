@@ -74,6 +74,9 @@ its generated `Command(defaults)` and register it in
 `cmd/gimble/workflows.go`. The application reads the shared
 `cmd/gimble/defaults.json` once; an unknown role is required on the command
 line when that file has no default for it.
+Use `Iterate(ctx, name, items)` to give each item in a finite slice its own
+scope. Use `PromiseLoop(ctx, name, goal, planner)` and range over its `Tasks`
+when a planner chooses work adaptively; check `Err()` afterward.
 
 ## Lint workflows
 

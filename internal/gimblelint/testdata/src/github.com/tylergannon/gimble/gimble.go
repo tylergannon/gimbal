@@ -23,11 +23,22 @@ func (*GroupType) Go(_ string, body func(context.Context) error) {
 }
 func (*GroupType) Wait() error { return nil }
 
-type LoopType struct{}
+type PromiseLoopType struct{}
 
-func Loop(context.Context, string, string, any) *LoopType { return &LoopType{} }
-func (*LoopType) Tasks(yield func(context.Context, Task) bool) {
+func PromiseLoop(context.Context, string, string, *Session) *PromiseLoopType {
+	return &PromiseLoopType{}
+}
+func (*PromiseLoopType) Tasks(yield func(context.Context, Task) bool) {
 	yield(context.Background(), Task{})
+}
+func Iterate[T any](_ context.Context, _ string, items []T) func(func(context.Context, T) bool) {
+	return func(yield func(context.Context, T) bool) {
+		for _, item := range items {
+			if !yield(context.Background(), item) {
+				return
+			}
+		}
+	}
 }
 
 // AgentOption stands in for gimble.AgentOption in the testdata stub.

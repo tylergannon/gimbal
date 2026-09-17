@@ -277,7 +277,7 @@ func Example_supervisedWorker() {
 
 const loopResearchPrompt = "Read the config loader in the repository named in the scoped context below and its tests. Change nothing. Answer with what exists."
 
-// Example_loopWithPlanner is a Loop with a planner: the planner, forked
+// Example_loopWithPlanner is a PromiseLoop with a planner: the planner, forked
 // from the session that read the code, keeps the backlog; each task runs
 // in its own scope with a coder forked from the same reading; what the
 // body records with Set is what the planner sees before its next
@@ -307,7 +307,7 @@ func Example_loopWithPlanner() {
 		if err != nil {
 			return err
 		}
-		loop := gimble.Loop(ctx, "work", "The config loader in "+repo+" reads its file once per process, and a test shows it.", planner)
+		loop := gimble.PromiseLoop(ctx, "work", "The config loader in "+repo+" reads its file once per process, and a test shows it.", planner)
 		for ctx, task := range loop.Tasks {
 			fmt.Println("task:", task.Name)
 			coder, err := researcher.Fork(ctx, "coder")
@@ -487,7 +487,7 @@ func Example_killedTurn() {
 			killErr = runtime.KillTurn(runID(project), "work.1/task.1/coder.1/turn.1", "tyler", "editing the wrong file")
 		})
 		planner := gimble.NewSession(ctx, "planner", repo)
-		loop := gimble.Loop(ctx, "work", "The config loader in "+repo+" reads its file once per process.", planner)
+		loop := gimble.PromiseLoop(ctx, "work", "The config loader in "+repo+" reads its file once per process.", planner)
 		for ctx, task := range loop.Tasks {
 			coder := gimble.NewSession(ctx, "coder", repo)
 			result, err := coder.Generate[gimble.Text](ctx, "Do the task in the scoped context below. Leave the work uncommitted. Answer with what changed.")

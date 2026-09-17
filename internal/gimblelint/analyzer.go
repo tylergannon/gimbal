@@ -23,7 +23,7 @@ const (
 	duplicateKey   = "[GIMBLE103-SET-MISUSE/DUPLICATE-KEY]: This scope can set the same context key more than once. Use one write per key in each scope."
 	wrongContext   = "[GIMBLE104-SET-MISUSE/WRONG-CONTEXT]: Set must use the context parameter of this child scope."
 	unjoinedGo     = "[GIMBLE105-SET-MISUSE/UNJOINED-GOROUTINE]: Set in a raw goroutine can outlive its scope. Use Group."
-	reservedTask   = "[GIMBLE106-SET-MISUSE/RESERVED-TASK-KEY]: The task key belongs to Loop.Tasks and cannot be set by the task body."
+	reservedTask   = "[GIMBLE106-SET-MISUSE/RESERVED-TASK-KEY]: The task key belongs to PromiseLoop.Tasks and cannot be set by the task body."
 	noScopeContext = "[GIMBLE107-SET-MISUSE/CONTEXT-NOT-FROM-SCOPE]: Set needs a context supplied by a Gimble scope, not context.Background or context.TODO."
 	constantPrompt = "[GIMBLE108-SIMPLE-WORKFLOWS/CONSTANT-PROMPT]: Generate's prompt and WithSupervisor's instruction must be compile-time string constants, so a workflow's prompt is readable from its source. Put the run's data into the scope with Set or SetJSON instead; Generate appends it to the prompt."
 	constantShape  = "[GIMBLE109-SIMPLE-WORKFLOWS/CONSTANT-SCOPE-TEMPLATE]: WithScopeTemplate's template must be a compile-time string constant, or a variable of this package declared with //go:embed, so what the agent is sent is readable from the source."
@@ -151,11 +151,12 @@ func indexSyntax(pass *analysis.Pass, in *inspector.Inspector) *syntaxInfo {
 					}
 				}
 			case *ast.RangeStmt:
-				if !isTasksRange(pass, n) {
+				tasks, ok := scopedRange(pass, n)
+				if !ok {
 					break
 				}
 				ctxObj := identObject(pass, n.Key)
-				si.boundaries[n] = boundary{body: n.Body, ctxObj: ctxObj, tasks: true}
+				si.boundaries[n] = boundary{body: n.Body, ctxObj: ctxObj, tasks: tasks}
 				if u := enclosingUnit(si, n); u != nil {
 					u.workflow = true
 				}
@@ -683,7 +684,7 @@ func isSetCall(pass *analysis.Pass, call *ast.CallExpr) bool {
 
 func isWorkflowOperation(name string) bool {
 	switch name {
-	case "Run", "Scope", "Group", "Go", "Loop", "Tasks", "NewSession", "Fork", "Generate", "Set", "SetJSON":
+	case "Run", "Scope", "Group", "Go", "PromiseLoop", "Tasks", "Iterate", "NewSession", "Fork", "Generate", "Set", "SetJSON":
 		return true
 	default:
 		return false
@@ -708,17 +709,28 @@ func firstParam(pass *analysis.Pass, typ *ast.FuncType) types.Object {
 	return pass.TypesInfo.Defs[typ.Params.List[0].Names[0]]
 }
 
-func isTasksRange(pass *analysis.Pass, stmt *ast.RangeStmt) bool {
-	sel, ok := unparen(stmt.X).(*ast.SelectorExpr)
+func scopedRange(pass *analysis.Pass, stmt *ast.RangeStmt) (tasks bool, ok bool) {
+	expr := unparen(stmt.X)
+	if call, isCall := expr.(*ast.CallExpr); isCall {
+		name, isGimble := gimbleCall(pass, call)
+		return false, isGimble && name == "Iterate"
+	}
+	sel, ok := expr.(*ast.SelectorExpr)
 	if !ok || sel.Sel.Name != "Tasks" {
-		return false
+		return false, false
 	}
 	selection := pass.TypesInfo.Selections[sel]
-	if selection == nil {
-		return false
+	if selection != nil {
+		obj := selection.Obj()
+		if obj.Pkg() != nil && obj.Pkg().Path() == gimblePath && obj.Name() == "Tasks" {
+			return true, true
+		}
 	}
-	obj := selection.Obj()
-	return obj.Pkg() != nil && obj.Pkg().Path() == gimblePath && obj.Name() == "Tasks"
+	obj := pass.TypesInfo.Uses[sel.Sel]
+	if obj != nil && obj.Pkg() != nil && obj.Pkg().Path() == gimblePath && obj.Name() == "Tasks" {
+		return true, true
+	}
+	return false, false
 }
 
 func identObject(pass *analysis.Pass, expr ast.Expr) types.Object {

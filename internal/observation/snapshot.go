@@ -16,7 +16,7 @@ const (
 )
 
 // Scope statuses. An ended scope with no error is "ended", never
-// "succeeded": a range-body error in a Loop leaves the task and loop scopes
+// "succeeded": a range-body error in a PromiseLoop leaves the task and loop scopes
 // ended with an empty error while the run's own error is set.
 const (
 	StatusEnded = "ended"

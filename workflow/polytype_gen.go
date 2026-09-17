@@ -31,7 +31,7 @@ func (b Branch) MarshalJSON() ([]byte, error) {
 	}
 	__raw0 := make([]json.RawMessage, len(b.Body))
 	for __index, __value := range b.Body {
-		if __raw0[__index], err = __jsonMarshal__workflow__Operation__c7c156216e8ac4e85f9adcdeaa8b5236a6c4983d128c2b4580ec005da390ca81(__value); err != nil {
+		if __raw0[__index], err = __jsonMarshal__workflow__Operation__cd615a22398ad691eba3d89de0c8069f331488dfc04516d8211eae3bad7311d7(__value); err != nil {
 			return nil, fmt.Errorf("field body[%d]: %w", __index, err)
 		}
 	}
@@ -66,7 +66,7 @@ func (b *Branch) UnmarshalJSON(data []byte) (err error) {
 			__decoded0 = make([]Operation, len(__raw0))
 		}
 		for __index, __raw := range __raw0 {
-			if __decoded0[__index], err = __jsonUnmarshal__workflow__Operation__c7c156216e8ac4e85f9adcdeaa8b5236a6c4983d128c2b4580ec005da390ca81(__raw); err != nil {
+			if __decoded0[__index], err = __jsonUnmarshal__workflow__Operation__cd615a22398ad691eba3d89de0c8069f331488dfc04516d8211eae3bad7311d7(__raw); err != nil {
 				return fmt.Errorf("field body[%d]: %w", __index, err)
 			}
 		}
@@ -93,7 +93,7 @@ func (g Graph) MarshalJSON() ([]byte, error) {
 	}
 	__raw0 := make([]json.RawMessage, len(g.Body))
 	for __index, __value := range g.Body {
-		if __raw0[__index], err = __jsonMarshal__workflow__Operation__c7c156216e8ac4e85f9adcdeaa8b5236a6c4983d128c2b4580ec005da390ca81(__value); err != nil {
+		if __raw0[__index], err = __jsonMarshal__workflow__Operation__cd615a22398ad691eba3d89de0c8069f331488dfc04516d8211eae3bad7311d7(__value); err != nil {
 			return nil, fmt.Errorf("field body[%d]: %w", __index, err)
 		}
 	}
@@ -128,7 +128,7 @@ func (g *Graph) UnmarshalJSON(data []byte) (err error) {
 			__decoded0 = make([]Operation, len(__raw0))
 		}
 		for __index, __raw := range __raw0 {
-			if __decoded0[__index], err = __jsonUnmarshal__workflow__Operation__c7c156216e8ac4e85f9adcdeaa8b5236a6c4983d128c2b4580ec005da390ca81(__raw); err != nil {
+			if __decoded0[__index], err = __jsonUnmarshal__workflow__Operation__cd615a22398ad691eba3d89de0c8069f331488dfc04516d8211eae3bad7311d7(__raw); err != nil {
 				return fmt.Errorf("field body[%d]: %w", __index, err)
 			}
 		}
@@ -155,7 +155,7 @@ func (g GroupChild) MarshalJSON() ([]byte, error) {
 	}
 	__raw0 := make([]json.RawMessage, len(g.Body))
 	for __index, __value := range g.Body {
-		if __raw0[__index], err = __jsonMarshal__workflow__Operation__c7c156216e8ac4e85f9adcdeaa8b5236a6c4983d128c2b4580ec005da390ca81(__value); err != nil {
+		if __raw0[__index], err = __jsonMarshal__workflow__Operation__cd615a22398ad691eba3d89de0c8069f331488dfc04516d8211eae3bad7311d7(__value); err != nil {
 			return nil, fmt.Errorf("field body[%d]: %w", __index, err)
 		}
 	}
@@ -190,7 +190,7 @@ func (g *GroupChild) UnmarshalJSON(data []byte) (err error) {
 			__decoded0 = make([]Operation, len(__raw0))
 		}
 		for __index, __raw := range __raw0 {
-			if __decoded0[__index], err = __jsonUnmarshal__workflow__Operation__c7c156216e8ac4e85f9adcdeaa8b5236a6c4983d128c2b4580ec005da390ca81(__raw); err != nil {
+			if __decoded0[__index], err = __jsonUnmarshal__workflow__Operation__cd615a22398ad691eba3d89de0c8069f331488dfc04516d8211eae3bad7311d7(__raw); err != nil {
 				return fmt.Errorf("field body[%d]: %w", __index, err)
 			}
 		}
@@ -202,22 +202,22 @@ func (g *GroupChild) UnmarshalJSON(data []byte) (err error) {
 }
 
 // MarshalJSON is a generated custom json.Marshaler implementation for
-// Loop.
-func (l Loop) MarshalJSON() ([]byte, error) {
-	type Alias Loop
+// Iterate.
+func (i Iterate) MarshalJSON() ([]byte, error) {
+	type Alias Iterate
 	type Wrapper struct {
 		Alias
 		Body json.RawMessage `json:"body"`
 	}
-	wrapper := Wrapper{Alias: Alias(l)}
+	wrapper := Wrapper{Alias: Alias(i)}
 	var err error
 
-	if l.Body == nil {
+	if i.Body == nil {
 		return nil, fmt.Errorf("field body: nil registered interface slice")
 	}
-	__raw0 := make([]json.RawMessage, len(l.Body))
-	for __index, __value := range l.Body {
-		if __raw0[__index], err = __jsonMarshal__workflow__Operation__c7c156216e8ac4e85f9adcdeaa8b5236a6c4983d128c2b4580ec005da390ca81(__value); err != nil {
+	__raw0 := make([]json.RawMessage, len(i.Body))
+	for __index, __value := range i.Body {
+		if __raw0[__index], err = __jsonMarshal__workflow__Operation__cd615a22398ad691eba3d89de0c8069f331488dfc04516d8211eae3bad7311d7(__value); err != nil {
 			return nil, fmt.Errorf("field body[%d]: %w", __index, err)
 		}
 	}
@@ -229,9 +229,9 @@ func (l Loop) MarshalJSON() ([]byte, error) {
 }
 
 // UnmarshalJSON is a generated custom json.Unmarshaler implementation for
-// Loop.
-func (l *Loop) UnmarshalJSON(data []byte) (err error) {
-	type Alias Loop
+// Iterate.
+func (i *Iterate) UnmarshalJSON(data []byte) (err error) {
+	type Alias Iterate
 	type Wrapper struct {
 		Alias
 		Body json.RawMessage `json:"body"`
@@ -240,7 +240,7 @@ func (l *Loop) UnmarshalJSON(data []byte) (err error) {
 	if err = json.Unmarshal(data, &wrapper); err != nil {
 		return err
 	}
-	__next := Loop(wrapper.Alias)
+	__next := Iterate(wrapper.Alias)
 
 	if len(wrapper.Body) > 0 {
 		var __raw0 []json.RawMessage
@@ -252,14 +252,76 @@ func (l *Loop) UnmarshalJSON(data []byte) (err error) {
 			__decoded0 = make([]Operation, len(__raw0))
 		}
 		for __index, __raw := range __raw0 {
-			if __decoded0[__index], err = __jsonUnmarshal__workflow__Operation__c7c156216e8ac4e85f9adcdeaa8b5236a6c4983d128c2b4580ec005da390ca81(__raw); err != nil {
+			if __decoded0[__index], err = __jsonUnmarshal__workflow__Operation__cd615a22398ad691eba3d89de0c8069f331488dfc04516d8211eae3bad7311d7(__raw); err != nil {
 				return fmt.Errorf("field body[%d]: %w", __index, err)
 			}
 		}
 		__next.Body = __decoded0
 	}
 
-	*l = __next
+	*i = __next
+	return nil
+}
+
+// MarshalJSON is a generated custom json.Marshaler implementation for
+// PromiseLoop.
+func (p PromiseLoop) MarshalJSON() ([]byte, error) {
+	type Alias PromiseLoop
+	type Wrapper struct {
+		Alias
+		Body json.RawMessage `json:"body"`
+	}
+	wrapper := Wrapper{Alias: Alias(p)}
+	var err error
+
+	if p.Body == nil {
+		return nil, fmt.Errorf("field body: nil registered interface slice")
+	}
+	__raw0 := make([]json.RawMessage, len(p.Body))
+	for __index, __value := range p.Body {
+		if __raw0[__index], err = __jsonMarshal__workflow__Operation__cd615a22398ad691eba3d89de0c8069f331488dfc04516d8211eae3bad7311d7(__value); err != nil {
+			return nil, fmt.Errorf("field body[%d]: %w", __index, err)
+		}
+	}
+	if wrapper.Body, err = __polytype_marshal(__raw0); err != nil {
+		return nil, fmt.Errorf("field body: %w", err)
+	}
+
+	return __polytype_marshal(&wrapper)
+}
+
+// UnmarshalJSON is a generated custom json.Unmarshaler implementation for
+// PromiseLoop.
+func (p *PromiseLoop) UnmarshalJSON(data []byte) (err error) {
+	type Alias PromiseLoop
+	type Wrapper struct {
+		Alias
+		Body json.RawMessage `json:"body"`
+	}
+	var wrapper Wrapper
+	if err = json.Unmarshal(data, &wrapper); err != nil {
+		return err
+	}
+	__next := PromiseLoop(wrapper.Alias)
+
+	if len(wrapper.Body) > 0 {
+		var __raw0 []json.RawMessage
+		if err = json.Unmarshal(wrapper.Body, &__raw0); err != nil {
+			return fmt.Errorf("field body: %w", err)
+		}
+		var __decoded0 []Operation
+		if __raw0 != nil {
+			__decoded0 = make([]Operation, len(__raw0))
+		}
+		for __index, __raw := range __raw0 {
+			if __decoded0[__index], err = __jsonUnmarshal__workflow__Operation__cd615a22398ad691eba3d89de0c8069f331488dfc04516d8211eae3bad7311d7(__raw); err != nil {
+				return fmt.Errorf("field body[%d]: %w", __index, err)
+			}
+		}
+		__next.Body = __decoded0
+	}
+
+	*p = __next
 	return nil
 }
 
@@ -279,7 +341,7 @@ func (r Repeat) MarshalJSON() ([]byte, error) {
 	}
 	__raw0 := make([]json.RawMessage, len(r.Body))
 	for __index, __value := range r.Body {
-		if __raw0[__index], err = __jsonMarshal__workflow__Operation__c7c156216e8ac4e85f9adcdeaa8b5236a6c4983d128c2b4580ec005da390ca81(__value); err != nil {
+		if __raw0[__index], err = __jsonMarshal__workflow__Operation__cd615a22398ad691eba3d89de0c8069f331488dfc04516d8211eae3bad7311d7(__value); err != nil {
 			return nil, fmt.Errorf("field body[%d]: %w", __index, err)
 		}
 	}
@@ -314,7 +376,7 @@ func (r *Repeat) UnmarshalJSON(data []byte) (err error) {
 			__decoded0 = make([]Operation, len(__raw0))
 		}
 		for __index, __raw := range __raw0 {
-			if __decoded0[__index], err = __jsonUnmarshal__workflow__Operation__c7c156216e8ac4e85f9adcdeaa8b5236a6c4983d128c2b4580ec005da390ca81(__raw); err != nil {
+			if __decoded0[__index], err = __jsonUnmarshal__workflow__Operation__cd615a22398ad691eba3d89de0c8069f331488dfc04516d8211eae3bad7311d7(__raw); err != nil {
 				return fmt.Errorf("field body[%d]: %w", __index, err)
 			}
 		}
@@ -341,7 +403,7 @@ func (s Scope) MarshalJSON() ([]byte, error) {
 	}
 	__raw0 := make([]json.RawMessage, len(s.Body))
 	for __index, __value := range s.Body {
-		if __raw0[__index], err = __jsonMarshal__workflow__Operation__c7c156216e8ac4e85f9adcdeaa8b5236a6c4983d128c2b4580ec005da390ca81(__value); err != nil {
+		if __raw0[__index], err = __jsonMarshal__workflow__Operation__cd615a22398ad691eba3d89de0c8069f331488dfc04516d8211eae3bad7311d7(__value); err != nil {
 			return nil, fmt.Errorf("field body[%d]: %w", __index, err)
 		}
 	}
@@ -376,7 +438,7 @@ func (s *Scope) UnmarshalJSON(data []byte) (err error) {
 			__decoded0 = make([]Operation, len(__raw0))
 		}
 		for __index, __raw := range __raw0 {
-			if __decoded0[__index], err = __jsonUnmarshal__workflow__Operation__c7c156216e8ac4e85f9adcdeaa8b5236a6c4983d128c2b4580ec005da390ca81(__raw); err != nil {
+			if __decoded0[__index], err = __jsonUnmarshal__workflow__Operation__cd615a22398ad691eba3d89de0c8069f331488dfc04516d8211eae3bad7311d7(__raw); err != nil {
 				return fmt.Errorf("field body[%d]: %w", __index, err)
 			}
 		}
@@ -387,7 +449,7 @@ func (s *Scope) UnmarshalJSON(data []byte) (err error) {
 	return nil
 }
 
-func __jsonMarshal__workflow__Operation__c7c156216e8ac4e85f9adcdeaa8b5236a6c4983d128c2b4580ec005da390ca81(value Operation) (json.RawMessage, error) {
+func __jsonMarshal__workflow__Operation__cd615a22398ad691eba3d89de0c8069f331488dfc04516d8211eae3bad7311d7(value Operation) (json.RawMessage, error) {
 	if value == nil {
 		return nil, fmt.Errorf("cannot marshal nil registered interface Operation")
 	}
@@ -409,8 +471,11 @@ func __jsonMarshal__workflow__Operation__c7c156216e8ac4e85f9adcdeaa8b5236a6c4983
 	case Group:
 		discriminator = "group"
 		data, err = __polytype_marshal(&object)
-	case Loop:
-		discriminator = "loop"
+	case Iterate:
+		discriminator = "iterate"
+		data, err = __polytype_marshal(&object)
+	case PromiseLoop:
+		discriminator = "promise_loop"
 		data, err = __polytype_marshal(&object)
 	case Repeat:
 		discriminator = "repeat"
@@ -436,7 +501,7 @@ func __jsonMarshal__workflow__Operation__c7c156216e8ac4e85f9adcdeaa8b5236a6c4983
 	)
 }
 
-func __jsonUnmarshal__workflow__Operation__c7c156216e8ac4e85f9adcdeaa8b5236a6c4983d128c2b4580ec005da390ca81(data []byte) (Operation, error) {
+func __jsonUnmarshal__workflow__Operation__cd615a22398ad691eba3d89de0c8069f331488dfc04516d8211eae3bad7311d7(data []byte) (Operation, error) {
 	var (
 		temp          map[string]json.RawMessage
 		discriminator string
@@ -476,8 +541,14 @@ func __jsonUnmarshal__workflow__Operation__c7c156216e8ac4e85f9adcdeaa8b5236a6c49
 			return nil, err
 		}
 		return obj, nil
-	case "loop":
-		var obj Loop
+	case "iterate":
+		var obj Iterate
+		if err = json.Unmarshal(data, &obj); err != nil {
+			return nil, err
+		}
+		return obj, nil
+	case "promise_loop":
+		var obj PromiseLoop
 		if err = json.Unmarshal(data, &obj); err != nil {
 			return nil, err
 		}

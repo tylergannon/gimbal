@@ -17,7 +17,9 @@ func (g Graph) Roles() []string {
 				}
 			case Scope:
 				walk(op.Body)
-			case Loop:
+			case PromiseLoop:
+				walk(op.Body)
+			case Iterate:
 				walk(op.Body)
 			case Repeat:
 				walk(op.Body)

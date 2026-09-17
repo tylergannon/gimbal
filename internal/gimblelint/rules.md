@@ -54,8 +54,9 @@ repeating that key in one scope; GIMBLE103 still applies.
 `GIMBLE103-SET-MISUSE/DUPLICATE-KEY` reports a second `Set` or `SetJSON` with
 the same constant key and the same scope context when the earlier write must
 run first. It also reports a write using a context defined outside a loop,
-because that context can be reused across iterations. In a `Loop.Tasks` range,
-a captured outer context is likewise reused; use the yielded task context.
+because that context can be reused across iterations. In either an
+`Iterate` or `PromiseLoop.Tasks` range, a captured outer context is likewise
+reused; use the yielded context.
 
 ```go
 // Reported.
@@ -74,8 +75,8 @@ Mutually exclusive branches are not reported by this rule.
 
 `GIMBLE104-SET-MISUSE/WRONG-CONTEXT` reports a `Set` or `SetJSON` inside a
 function-literal callback passed directly to `Run`, `Scope`, or `Group.Go`, or
-a `Loop.Tasks` body, when it writes through a different context than that
-callback or task body received. Use that parameter directly: aliases and
+a `Iterate` or `PromiseLoop.Tasks` body, when it writes through a different
+context than that callback or task body received. Use that parameter directly: aliases and
 derived contexts are not followed for this rule.
 
 ```go
@@ -110,8 +111,9 @@ return group.Wait()
 ## GIMBLE106: reserve the task key
 
 `GIMBLE106-SET-MISUSE/RESERVED-TASK-KEY` reports `Set` or `SetJSON` of the
-constant key `"task"` through the yielded context in a `Loop.Tasks` body. The
-iterator owns that key for its task record. Use another key for task results.
+constant key `"task"` through the yielded context in a `PromiseLoop.Tasks`
+body. The promise loop owns that key for its task record. `Iterate` has no
+task record and does not reserve this key.
 
 ```go
 for taskCtx, task := range loop.Tasks {

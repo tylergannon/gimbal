@@ -7,6 +7,7 @@ import (
 	"github.com/tylergannon/gimble"
 )
 
+//go:generate go tool polytype --validate
 //go:generate go run github.com/tylergannon/gimble/internal/generate/gimblegen -entry Review -name review
 
 // Input starts a review of the repository at WorkDir.

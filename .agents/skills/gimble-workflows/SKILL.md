@@ -48,10 +48,13 @@ a kill.
 | `Killed{Target, By, Reason}` | The cause an operator's kill puts on a scope's or a turn's ctx. | `errors.As(err, &killed)` on a `Generate` error, or `context.Cause(ctx)`. See below. |
 
 Structured output: a local struct whose field comments are the descriptions
-the model reads. The independent generator discovers local types passed to
-`Generate` and writes their schema and validation code beside the workflow;
-there is no workflow-specific schema directive or stub to maintain. A field
-comment is prompt text: write it as an instruction.
+the model reads. Declare it to polytype in a `//go:build jsonschema` file
+beside the workflow, as the root package's `schema.go` does: a panic stub for
+`Schema` and `ValidateJSON`, then `polytype.Declare(T.Schema)`. The
+workflow's `//go:generate go tool polytype --validate` line, placed before its
+gimblegen directive, writes the real methods. Pass an undeclared type to
+`Generate` and the compiler names the missing method. A field comment is
+prompt text: write it as an instruction.
 
 ## Kills
 
@@ -102,8 +105,9 @@ Each is a compiling `Example` in the root package (`example_test.go`,
 ## Run and watch
 
 A workflow is a package under `internal/workflows/` whose entry is
-`func Name(ctx context.Context, in Input) error`, with one directive:
-`//go:generate go run github.com/tylergannon/gimble/internal/generate/gimblegen -entry Name -name name`.
+`func Name(ctx context.Context, in Input) error`, with the directive
+`//go:generate go run github.com/tylergannon/gimble/internal/generate/gimblegen -entry Name -name name`,
+placed after its polytype directive when it has structured outputs.
 `go generate` runs the independent generator in `internal/generate/` and
 prints `workflow_gen.go` beside the workflow: the graph, which registers
 itself, and the workflow's `Command(defaults)`, a Cobra subcommand you can read: one

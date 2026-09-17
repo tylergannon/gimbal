@@ -54,13 +54,16 @@ The binary currently includes the read-only `review` workflow. Its reviewer
 model defaults to `gpt-5.6-luna` from `cmd/gimble/defaults.json`; pass
 `--reviewer` to override it.
 
-`go generate ./internal/workflows/...` runs the independent workflow generator
-in `internal/generate/`. It can rebuild missing or stale generated commands
-and schemas without first building the application CLI.
+`go generate ./internal/workflows/...` runs Polytype for each workflow's
+declared structured outputs, then the independent workflow generator in
+`internal/generate/`. It can rebuild missing or stale generated commands
+without first building the application CLI.
 
 Author a workflow in one Go file with its entry, `Input`, result structs, and
-generator directive, then import its generated `Command(defaults)` and
-register it in `cmd/gimble/workflows.go`. The application reads the shared
+generate directives; declare its result structs to Polytype in a
+`//go:build jsonschema` file beside it, as the root package does; then import
+its generated `Command(defaults)` and register it in
+`cmd/gimble/workflows.go`. The application reads the shared
 `cmd/gimble/defaults.json` once; an unknown role is required on the command
 line when that file has no default for it.
 

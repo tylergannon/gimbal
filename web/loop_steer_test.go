@@ -65,6 +65,61 @@ func (p *planning) said(n int) string {
 	return p.prompts[n-1]
 }
 
+func TestPlainIterationsHaveNoPlannerControls(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	project := t.TempDir()
+	runtime, err := NewRuntime(ctx, project, WithPort(0))
+	if err != nil {
+		t.Fatal(err)
+	}
+	entered, release := make(chan struct{}), make(chan struct{})
+	done := make(chan error, 1)
+	go func() {
+		done <- runtime.Run(ctx, "repeating", nil, func(ctx context.Context) error {
+			loop := gimble.Loop(ctx, "rounds")
+			for ctx := range loop.Iterations {
+				gimble.Set(ctx, "answer", "visible in this iteration")
+				close(entered)
+				select {
+				case <-release:
+				case <-ctx.Done():
+				}
+				break
+			}
+			return loop.Err()
+		})
+	}()
+	defer func() {
+		close(release)
+		if err := <-done; err != nil {
+			t.Errorf("iteration run: %v", err)
+		}
+	}()
+	<-entered
+	id := runID(t, project)
+	response, err := http.Get("http://" + runtime.address + "/runs/" + id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = response.Body.Close() }()
+	document, err := io.ReadAll(response.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response.StatusCode != http.StatusOK || !strings.Contains(string(document), "rounds.1/iteration.1") {
+		t.Fatalf("iteration page: status %d, body %s", response.StatusCode, document)
+	}
+	if strings.Contains(string(document), "Wrap up") || strings.Contains(string(document), "Say something to the planner") {
+		t.Fatal("plain iteration offered planner controls")
+	}
+	var status *skgo.HTTPError
+	_, err = routes.Skgo_steerLoop(runtime.ctx, routes.LoopMessage{Run: id, Scope: "rounds.1", Message: "hello"})
+	if !errors.As(err, &status) || status.Status != http.StatusNotFound {
+		t.Fatalf("steer plain loop = %v, want 404", err)
+	}
+}
+
 // TestLoopFormReachesThePlannerOfALoop is the page half of #235: the wrap-up
 // button and the message box on a loop's card post to the same run the
 // runtime reaches, the message waits while a task runs and no turn is
@@ -85,8 +140,8 @@ func TestLoopFormReachesThePlannerOfALoop(t *testing.T) {
 	runWG.Go(func() {
 		_ = runtime.Run(ctx, "looping", map[string]gimble.ModelBinding{"planner": {Adapter: p, Model: "m"}}, func(ctx context.Context) error {
 			planner := gimble.NewSession(ctx, "planner", "/w")
-			loop := gimble.Loop(ctx, "sprint", "ship it", planner)
-			for range loop.Tasks {
+			loop := gimble.Loop(ctx, "sprint")
+			for range loop.Tasks("ship it", planner) {
 				close(dispatched)
 				<-sent
 			}
@@ -193,8 +248,8 @@ func TestTheWrapUpButtonWorksWithoutJavaScript(t *testing.T) {
 	runWG.Go(func() {
 		_ = runtime.Run(ctx, "looping", map[string]gimble.ModelBinding{"planner": {Adapter: p, Model: "m"}}, func(ctx context.Context) error {
 			planner := gimble.NewSession(ctx, "planner", "/w")
-			loop := gimble.Loop(ctx, "sprint", "ship it", planner)
-			for range loop.Tasks {
+			loop := gimble.Loop(ctx, "sprint")
+			for range loop.Tasks("ship it", planner) {
 				close(dispatched)
 				<-sent
 			}

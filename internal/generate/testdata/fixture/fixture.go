@@ -135,8 +135,8 @@ func SprintShape(ctx context.Context) error {
 	}
 	for round := 0; round < 1; round++ {
 		if err := gimble.Scope(ctx, "round", func(ctx context.Context) error {
-			loop := gimble.Loop(ctx, "sprint", "review the code", planner)
-			for ctx, task := range loop.Tasks {
+			loop := gimble.Loop(ctx, "sprint")
+			for ctx, task := range loop.Tasks("review the code", planner) {
 				_ = task
 				coder, err := researcher.Fork(ctx, "coder")
 				if err != nil {
@@ -156,6 +156,27 @@ func SprintShape(ctx context.Context) error {
 		}); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+func IterationShape(ctx context.Context) error {
+	loop := gimble.Loop(ctx, "iterations")
+	for ctx := range loop.Iterations {
+		session := gimble.NewSession(ctx, "reviewer", ".")
+		if _, err := session.Generate[gimble.Text](ctx, workPrompt); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func PlannerReassignmentShape(ctx context.Context) error {
+	planner := gimble.NewSession(ctx, "planner", ".")
+	loop := gimble.Loop(ctx, "tasks")
+	for ctx, task := range loop.Tasks("review the code", planner) {
+		planner = gimble.NewSession(ctx, "replacement", ".")
+		_ = task
 	}
 	return nil
 }

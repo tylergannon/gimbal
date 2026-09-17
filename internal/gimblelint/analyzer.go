@@ -151,11 +151,12 @@ func indexSyntax(pass *analysis.Pass, in *inspector.Inspector) *syntaxInfo {
 					}
 				}
 			case *ast.RangeStmt:
-				if !isTasksRange(pass, n) {
+				kind, ok := loopRangeKind(pass, n)
+				if !ok {
 					break
 				}
 				ctxObj := identObject(pass, n.Key)
-				si.boundaries[n] = boundary{body: n.Body, ctxObj: ctxObj, tasks: true}
+				si.boundaries[n] = boundary{body: n.Body, ctxObj: ctxObj, tasks: kind == "Tasks"}
 				if u := enclosingUnit(si, n); u != nil {
 					u.workflow = true
 				}
@@ -708,17 +709,27 @@ func firstParam(pass *analysis.Pass, typ *ast.FuncType) types.Object {
 	return pass.TypesInfo.Defs[typ.Params.List[0].Names[0]]
 }
 
-func isTasksRange(pass *analysis.Pass, stmt *ast.RangeStmt) bool {
-	sel, ok := unparen(stmt.X).(*ast.SelectorExpr)
-	if !ok || sel.Sel.Name != "Tasks" {
-		return false
+func loopRangeKind(pass *analysis.Pass, stmt *ast.RangeStmt) (string, bool) {
+	expr := unparen(stmt.X)
+	if call, ok := expr.(*ast.CallExpr); ok {
+		expr = unparen(call.Fun)
+	}
+	sel, ok := expr.(*ast.SelectorExpr)
+	if !ok || (sel.Sel.Name != "Tasks" && sel.Sel.Name != "Iterations") {
+		return "", false
 	}
 	selection := pass.TypesInfo.Selections[sel]
-	if selection == nil {
-		return false
+	if selection != nil {
+		obj := selection.Obj()
+		if obj.Pkg() != nil && obj.Pkg().Path() == gimblePath && (obj.Name() == "Tasks" || obj.Name() == "Iterations") {
+			return obj.Name(), true
+		}
 	}
-	obj := selection.Obj()
-	return obj.Pkg() != nil && obj.Pkg().Path() == gimblePath && obj.Name() == "Tasks"
+	obj := pass.TypesInfo.Uses[sel.Sel]
+	if obj != nil && obj.Pkg() != nil && obj.Pkg().Path() == gimblePath && (obj.Name() == "Tasks" || obj.Name() == "Iterations") {
+		return obj.Name(), true
+	}
+	return "", false
 }
 
 func identObject(pass *analysis.Pass, expr ast.Expr) types.Object {

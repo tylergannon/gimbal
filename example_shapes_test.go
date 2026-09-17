@@ -307,8 +307,8 @@ func Example_loopWithPlanner() {
 		if err != nil {
 			return err
 		}
-		loop := gimble.Loop(ctx, "work", "The config loader in "+repo+" reads its file once per process, and a test shows it.", planner)
-		for ctx, task := range loop.Tasks {
+		loop := gimble.Loop(ctx, "work")
+		for ctx, task := range loop.Tasks("The config loader in "+repo+" reads its file once per process, and a test shows it.", planner) {
 			fmt.Println("task:", task.Name)
 			coder, err := researcher.Fork(ctx, "coder")
 			if err != nil {
@@ -487,8 +487,8 @@ func Example_killedTurn() {
 			killErr = runtime.KillTurn(runID(project), "work.1/task.1/coder.1/turn.1", "tyler", "editing the wrong file")
 		})
 		planner := gimble.NewSession(ctx, "planner", repo)
-		loop := gimble.Loop(ctx, "work", "The config loader in "+repo+" reads its file once per process.", planner)
-		for ctx, task := range loop.Tasks {
+		loop := gimble.Loop(ctx, "work")
+		for ctx, task := range loop.Tasks("The config loader in "+repo+" reads its file once per process.", planner) {
 			coder := gimble.NewSession(ctx, "coder", repo)
 			result, err := coder.Generate[gimble.Text](ctx, "Do the task in the scoped context below. Leave the work uncommitted. Answer with what changed.")
 			if kill, ok := errors.AsType[gimble.Killed](err); ok {

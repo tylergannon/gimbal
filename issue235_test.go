@@ -59,8 +59,8 @@ func TestAMessageToALoopReachesThePlannerAtItsNextDecision(t *testing.T) {
 	err := runTest(t, bind(loopFake(&prompts), "model", plannerRole), func(ctx context.Context) error {
 		dir = runDir(ctx)
 		planner := NewSession(ctx, plannerRole, ".")
-		loop := Loop(ctx, "sprint", "ship it", planner)
-		for taskCtx, task := range loop.Tasks {
+		loop := Loop(ctx, "sprint")
+		for taskCtx, task := range loop.Tasks("ship it", planner) {
 			scope, err := current(taskCtx)
 			if err != nil {
 				return err
@@ -114,8 +114,8 @@ func TestAMessageALoopNeverReadIsRecordedAsDropped(t *testing.T) {
 	err := runTest(t, bind(loopFake(&prompts), "model", plannerRole), func(ctx context.Context) error {
 		dir = runDir(ctx)
 		planner := NewSession(ctx, plannerRole, ".")
-		loop := Loop(ctx, "sprint", "ship it", planner)
-		for taskCtx := range loop.Tasks {
+		loop := Loop(ctx, "sprint")
+		for taskCtx := range loop.Tasks("ship it", planner) {
 			scope, err := current(taskCtx)
 			if err != nil {
 				return err

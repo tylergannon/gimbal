@@ -319,34 +319,54 @@ func (e *extractor) repeat(stmt ast.Stmt, block *ast.BlockStmt, cond string, out
 	e.emit(out, workflow.Repeat{Source: e.at(stmt.Pos()), Cond: cond, Body: body})
 }
 
-// rangeStmt is either the range over a Loop's Tasks, which supplies that
-// Loop's per-task body, or an ordinary Go range, which is a Repeat.
+// rangeStmt is a range over a Loop iterator, which supplies that Loop's body,
+// or an ordinary Go range, which is a Repeat.
 func (e *extractor) rangeStmt(stmt *ast.RangeStmt, out *[]workflow.Operation, en scopeEnv) {
-	if e.isTasksRange(stmt) {
-		e.tasksRange(stmt, out, en)
+	if kind, _, _, ok := e.loopRange(stmt); ok {
+		e.loopRangeBody(stmt, kind, out, en)
 		return
 	}
 	e.exprs(stmt.X, out, en)
 	e.repeat(stmt, stmt.Body, header(e.pkg.Fset, stmt), out, en)
 }
 
-func (e *extractor) tasksRange(stmt *ast.RangeStmt, out *[]workflow.Operation, en scopeEnv) {
-	selector, _ := unparen(stmt.X).(*ast.SelectorExpr)
+func (e *extractor) loopRangeBody(stmt *ast.RangeStmt, kind string, out *[]workflow.Operation, en scopeEnv) {
+	_, selector, _, _ := e.loopRange(stmt)
+	if selector == nil {
+		return
+	}
 	obj := e.object(selector.X)
 	ref := e.loop[obj]
 	if ref == nil {
-		e.diag(stmt.X.Pos(), "a Tasks range over something other than a Loop declared in an enclosing body is not read")
+		e.diag(stmt.X.Pos(), "a %s range over something other than a Loop declared in an enclosing body is not read", kind)
 		return
 	}
 	if ref.ops != out {
-		e.diag(stmt.X.Pos(), "a Tasks range outside the body that declared its Loop is not read")
+		e.diag(stmt.X.Pos(), "a %s range outside the body that declared its Loop is not read", kind)
 		return
+	}
+	var planner binding
+	if kind == "Tasks" {
+		_, _, call, _ := e.loopRange(stmt)
+		if call == nil || len(call.Args) < 2 {
+			e.diag(stmt.X.Pos(), "Tasks range has no planner, so the loop is not read")
+			return
+		}
+		var ok bool
+		planner, ok = e.binding(call.Args[1])
+		if !ok {
+			e.diag(call.Args[1].Pos(), "Tasks' planner is not a session declared in an enclosing body")
+			return
+		}
 	}
 	body := []workflow.Operation{}
 	e.body(stmt.Body.List, &body, en)
 	loop, ok := (*ref.ops)[ref.index].(workflow.Loop)
 	if !ok {
 		return
+	}
+	if kind == "Tasks" {
+		loop.Planner = planner.name
 	}
 	loop.Body = body
 	(*ref.ops)[ref.index] = loop

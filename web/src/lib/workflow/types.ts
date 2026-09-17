@@ -190,7 +190,7 @@ export type GroupChild = {
 };
 
 /**
- * Loop is planner-directed dispatch: gimble.Loop and the range over its Tasks. Planner is the planner session's name. Body is the per-task body, which the runtime places in a scope named "task" beneath the loop's own and where it writes the key "task". How many tasks there will be is the planner's decision and is not knowable here.
+ * Loop is either a plain per-iteration loop or planner-directed dispatch. Planner is empty when the source ranges over Iterations, and its body runs under a fresh child scope named "iteration". For Tasks(goal, planner), Planner names the planner session and the body runs under a child scope named "task", where the runtime writes key "task". How many iterations or tasks there will be is not knowable here.
  */
 export type Loop = {
   /**

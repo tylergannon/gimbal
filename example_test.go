@@ -106,8 +106,8 @@ func ExampleLoop() {
 
 	err := gimble.Run(ctx, "dispatch", map[string]gimble.ModelBinding{"planner": {Adapter: &exampleLoopAdapter{}, Model: "example"}}, func(ctx context.Context) error {
 		planner := gimble.NewSession(ctx, "planner", ".")
-		loop := gimble.Loop(ctx, "work", "demonstrate adaptive dispatch", planner)
-		for ctx, task := range loop.Tasks {
+		loop := gimble.Loop(ctx, "work")
+		for ctx, task := range loop.Tasks("demonstrate adaptive dispatch", planner) {
 			fmt.Println(task.Name)
 			gimble.Set(ctx, "result", "assignment recorded")
 		}
@@ -117,5 +117,29 @@ func ExampleLoop() {
 
 	// Output:
 	// Show the task
+	// <nil>
+}
+
+func ExampleLoop_iterations() {
+	ctx, closeProject := exampleContext()
+	defer closeProject()
+
+	err := gimble.Run(ctx, "iterations", nil, func(ctx context.Context) error {
+		loop := gimble.Loop(ctx, "work")
+		count := 0
+		for iterationCtx := range loop.Iterations {
+			count++
+			gimble.Set(iterationCtx, "item", count)
+			if count == 2 {
+				break
+			}
+		}
+		fmt.Println(count, loop.Err())
+		return loop.Err()
+	})
+	fmt.Println(err)
+
+	// Output:
+	// 2 <nil>
 	// <nil>
 }

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"iter"
 	"os"
 	"path/filepath"
 	"strings"
@@ -56,24 +57,55 @@ func (a answer) ValidateJSON(raw []byte) error {
 }
 
 type loop struct {
-	ctx     context.Context
-	name    string
-	goal    string
-	planner *Session
-	err     error
+	ctx  context.Context
+	name string
+	err  error
 }
 
-// Loop opens planner-directed dispatch for goal. The planner is the Session
-// chosen and prepared by the workflow. Loop keeps a revisable backlog in its
-// run scope and uses values recorded by each task as feedback for the next
-// decision. Range over its Tasks method and check Err afterward.
+// Loop describes a named scope. The scope is opened when Iterations or Tasks
+// is ranged over; check Err afterward.
 //
-// An operator watching the run can send the loop a message by its scope
-// key, WrapUp or anything else in prose. It waits for the planner's next
-// decision rather than being dropped, because a planner is not always in a
-// turn, and the loop's record says whether the planner read it.
-func Loop(ctx context.Context, name, goal string, planner *Session) *loop {
-	return &loop{ctx: ctx, name: name, goal: goal, planner: planner}
+// Only Tasks accepts operator messages: it waits for the planner's next
+// decision rather than dropping a message sent between turns.
+func Loop(ctx context.Context, name string) *loop {
+	return &loop{ctx: ctx, name: name}
+}
+
+// Iterations yields fresh child scopes for ordinary Go iteration. The loop
+// scope has no planner state, backlog, or operator message inbox.
+func (l *loop) Iterations(yield func(context.Context) bool) {
+	parent, err := current(l.ctx)
+	if err != nil {
+		l.err = err
+		return
+	}
+	container := parent.child(l.name)
+	l.err = container.do(l.ctx, func(ctx context.Context) error {
+		for {
+			if err := ctx.Err(); err != nil {
+				return context.Cause(ctx)
+			}
+			more := true
+			iteration := container.child("iteration")
+			if err := iteration.do(ctx, func(iterCtx context.Context) error {
+				more = yield(iterCtx)
+				if err := iterCtx.Err(); err != nil {
+					return context.Cause(iterCtx)
+				}
+				return nil
+			}); err != nil {
+				return err
+			}
+			// Close runs after the body callback. Cancellation during that
+			// cleanup must still be observed before honoring break.
+			if err := ctx.Err(); err != nil {
+				return context.Cause(ctx)
+			}
+			if !more {
+				return nil
+			}
+		}
+	})
 }
 
 // Tasks yields planner-selected assignments. Each ctx is a child scope that
@@ -84,7 +116,17 @@ func Loop(ctx context.Context, name, goal string, planner *Session) *loop {
 // The planner may revise, reorder, and extend the backlog as work reveals what
 // matters. It ends dispatch by returning no task. That decision is distinct
 // from validation and from fulfillment of the enclosing goal.
-func (l *loop) Tasks(yield func(context.Context, Task) bool) {
+func (l *loop) Tasks(goal string, planner *Session) iter.Seq2[context.Context, Task] {
+	return func(yield func(context.Context, Task) bool) {
+		l.tasks(goal, planner, yield)
+	}
+}
+
+func (l *loop) tasks(goal string, planner *Session, yield func(context.Context, Task) bool) {
+	if planner == nil {
+		l.err = errors.New("gimble: Loop.Tasks requires a planner session")
+		return
+	}
 	parent, err := current(l.ctx)
 	if err != nil {
 		l.err = err
@@ -111,7 +153,7 @@ func (l *loop) Tasks(yield func(context.Context, Task) bool) {
 		tasks := []Task{}
 		var previous string
 		for {
-			backlogText, err := backlogJSON(l.goal, tasks)
+			backlogText, err := backlogJSON(goal, tasks)
 			if err != nil {
 				return fmt.Errorf("gimble: %w", err)
 			}
@@ -123,7 +165,7 @@ func (l *loop) Tasks(yield func(context.Context, Task) bool) {
 				loopScope.run.event(loopScope.key, "", "", Steer{Target: loopScope.key, Source: "person", Message: message, Landed: true})
 				logf("%s: a message reached the planner: %s", loopScope.key, oneLine(message))
 			}
-			a, err := dispatch[answer](ctx, l.planner, planPrompt(l.name, l.planner.workdir, string(backlogText), scopeText(ctx), previous, messages), nil)
+			a, err := dispatch[answer](ctx, planner, planPrompt(l.name, planner.workdir, string(backlogText), scopeText(ctx), previous, messages), nil)
 			if err != nil {
 				return err
 			}
@@ -133,7 +175,7 @@ func (l *loop) Tasks(yield func(context.Context, Task) bool) {
 				tasks = []Task{}
 			}
 
-			revisedText, err := backlogJSON(l.goal, tasks)
+			revisedText, err := backlogJSON(goal, tasks)
 			if err != nil {
 				return fmt.Errorf("gimble: %w", err)
 			}
@@ -186,9 +228,9 @@ func (l *loop) Tasks(yield func(context.Context, Task) bool) {
 	})
 }
 
-// Err returns the error that ended dispatch, if any: persistence, malformed
-// planner data, cancellation, or the planner's harness. A failed task
-// validation recorded by the workflow is feedback, not a Loop error.
+// Err returns the error that ended iteration or dispatch, if any: persistence,
+// malformed planner data, cancellation, or the planner's harness. A failed
+// task validation recorded by the workflow is feedback, not a Loop error.
 func (l *loop) Err() error {
 	return l.err
 }

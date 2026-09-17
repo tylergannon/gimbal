@@ -63,6 +63,8 @@ generator directive, then import its generated `Command(defaults)` and
 register it in `cmd/gimble/workflows.go`. The application reads the shared
 `cmd/gimble/defaults.json` once; an unknown role is required on the command
 line when that file has no default for it.
+Use `Loop(ctx, name)` with `range loop.Iterations` for fresh per-iteration
+scopes, or `loop.Tasks(goal, planner)` when adaptive planner dispatch is wanted.
 
 ## Lint workflows
 

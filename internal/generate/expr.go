@@ -252,19 +252,10 @@ func (e *extractor) gimbleOperation(name string, call *ast.CallExpr, targets []a
 			e.diag(call.Pos(), "Loop's name is not a constant, so the loop is not read")
 			return false
 		}
-		if len(call.Args) < 4 {
-			return false
-		}
-		planner, ok := e.binding(call.Args[3])
-		if !ok {
-			e.diag(call.Args[3].Pos(), "Loop's planner is not a session declared in an enclosing body")
-			return false
-		}
 		e.emit(out, workflow.Loop{
-			Source:  e.at(call.Pos()),
-			Name:    loop,
-			Planner: planner.name,
-			Body:    []workflow.Operation{},
+			Source: e.at(call.Pos()),
+			Name:   loop,
+			Body:   []workflow.Operation{},
 		})
 		if obj := e.firstObject(targets); obj != nil {
 			e.loop[obj] = &nodeRef{ops: out, index: len(*out) - 1}

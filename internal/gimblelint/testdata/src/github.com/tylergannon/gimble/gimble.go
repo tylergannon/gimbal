@@ -25,9 +25,14 @@ func (*GroupType) Wait() error { return nil }
 
 type LoopType struct{}
 
-func Loop(context.Context, string, string, any) *LoopType { return &LoopType{} }
-func (*LoopType) Tasks(yield func(context.Context, Task) bool) {
-	yield(context.Background(), Task{})
+func Loop(context.Context, string) *LoopType { return &LoopType{} }
+func (*LoopType) Iterations(yield func(context.Context) bool) {
+	yield(context.Background())
+}
+func (*LoopType) Tasks(string, *Session) func(func(context.Context, Task) bool) {
+	return func(yield func(context.Context, Task) bool) {
+		yield(context.Background(), Task{})
+	}
 }
 
 // AgentOption stands in for gimble.AgentOption in the testdata stub.

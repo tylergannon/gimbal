@@ -70,10 +70,18 @@ func contextChecks(ctx context.Context) {
 }
 
 func taskChecks(ctx context.Context) {
-	loop := gimble.Loop(ctx, "work", "goal", nil)
-	for taskCtx, task := range loop.Tasks {
+	loop := gimble.Loop(ctx, "work")
+	for taskCtx, task := range loop.Tasks("goal", nil) {
 		gimble.Set(taskCtx, "task", task) // want `GIMBLE106-SET-MISUSE/RESERVED-TASK-KEY`
 		gimble.Set(taskCtx, "result", task)
 		gimble.Set(ctx, "outer loop context", task) // want `GIMBLE103-SET-MISUSE/DUPLICATE-KEY` `GIMBLE104-SET-MISUSE/WRONG-CONTEXT`
+	}
+}
+
+func iterationChecks(ctx context.Context) {
+	loop := gimble.Loop(ctx, "iterations")
+	for iterationCtx := range loop.Iterations {
+		gimble.Set(iterationCtx, "task", 1)
+		gimble.Set(ctx, "outer iteration context", 1) // want `GIMBLE103-SET-MISUSE/DUPLICATE-KEY` `GIMBLE104-SET-MISUSE/WRONG-CONTEXT`
 	}
 }

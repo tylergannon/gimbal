@@ -967,6 +967,16 @@ That way we can locate `RunCommand` in static analysis etc."
 - No stdin, no environment, no streaming: `sh -c` is a command like any
   other.
 
+## Current decision (2026-09-16)
+
+The accepted Loop surface is `Loop(ctx, name) *loop`: ranging over
+`loop.Iterations` yields fresh child scopes named `iteration`, with no planner
+or backlog. `loop.Tasks(goal, planner)` remains adaptive planner dispatch and
+uses `task` child scopes; `loop.Err` is checked after the range. The outer
+session survives iteration cleanup, while sessions created inside an
+iteration close on continue, break, return, or cancellation. Workflow code
+carries any data needed by the next iteration explicitly in ordinary Go.
+
 ## Still open
 
 - `Compact`. Open-minded. What is wanted is not the harness's in-place

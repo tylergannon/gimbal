@@ -259,8 +259,8 @@ func TestLoopKilledTaskIsAFailedTaskNotABrokenLoop(t *testing.T) {
 	err := Run(Project(t.Context(), project), "test", bind(f, "m", "planner", "worker"), func(ctx context.Context) error {
 		r, _ := current(ctx)
 		planner := NewSession(ctx, "planner", t.TempDir())
-		loop := Loop(ctx, "sprint", "ship", planner)
-		for ctx := range loop.Tasks {
+		loop := Loop(ctx, "sprint")
+		for ctx := range loop.Tasks("ship", planner) {
 			worker := NewSession(ctx, "worker", t.TempDir())
 			if len(laps) == 0 {
 				killWG.Go(func() {

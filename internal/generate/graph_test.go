@@ -3,6 +3,7 @@ package generate_test
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -45,6 +46,47 @@ func TestControlFlowGraph(t *testing.T) {
 	}
 	if gitCommands(loop.Body) == 0 {
 		t.Fatal("the loop holds the conditional git command")
+	}
+}
+
+func TestIterationsGraph(t *testing.T) {
+	g, err := generate.Extract("testdata/fixture", "IterationShape", "iterations")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(g.Diagnostics) != 0 {
+		t.Fatalf("raw iteration diagnostics = %v", g.Diagnostics)
+	}
+	if !contains(g.Roles(), "reviewer") {
+		t.Fatalf("raw iteration roles = %v, want reviewer", g.Roles())
+	}
+	loop, ok := find[workflow.Loop](g.Body, func(loop workflow.Loop) bool { return loop.Name == "iterations" })
+	if !ok {
+		t.Fatal("the iteration loop is missing")
+	}
+	if loop.Planner != "" {
+		t.Fatalf("raw iteration loop planner = %q, want empty", loop.Planner)
+	}
+	if _, ok := find[workflow.AgentCall](loop.Body, func(call workflow.AgentCall) bool { return call.Session == "reviewer" }); !ok {
+		t.Fatal("raw iteration body lacks reviewer call")
+	}
+}
+
+func contains(values []string, want string) bool {
+	return slices.Contains(values, want)
+}
+
+func TestTasksPlannerIsResolvedBeforeBody(t *testing.T) {
+	g, err := generate.Extract("testdata/fixture", "PlannerReassignmentShape", "tasks")
+	if err != nil {
+		t.Fatal(err)
+	}
+	loop, ok := find[workflow.Loop](g.Body, func(loop workflow.Loop) bool { return loop.Name == "tasks" })
+	if !ok {
+		t.Fatal("the task loop is missing")
+	}
+	if loop.Planner != "planner" {
+		t.Fatalf("planner = %q, want planner despite body reassignment", loop.Planner)
 	}
 }
 

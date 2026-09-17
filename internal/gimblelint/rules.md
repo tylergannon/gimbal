@@ -54,8 +54,9 @@ repeating that key in one scope; GIMBLE103 still applies.
 `GIMBLE103-SET-MISUSE/DUPLICATE-KEY` reports a second `Set` or `SetJSON` with
 the same constant key and the same scope context when the earlier write must
 run first. It also reports a write using a context defined outside a loop,
-because that context can be reused across iterations. In a `Loop.Tasks` range,
-a captured outer context is likewise reused; use the yielded task context.
+because that context can be reused across iterations. In either a
+`Loop.Iterations` or `Loop.Tasks` range, a captured outer context is likewise
+reused; use the yielded context.
 
 ```go
 // Reported.
@@ -63,7 +64,7 @@ gimble.Set(ctx, "result", first)
 gimble.SetJSON(ctx, "result", second)
 
 // Allowed: each taskCtx belongs to one task scope.
-for taskCtx, task := range loop.Tasks {
+for taskCtx, task := range loop.Tasks("goal", planner) {
 	gimble.Set(taskCtx, "result", task.Name)
 }
 ```
@@ -74,8 +75,8 @@ Mutually exclusive branches are not reported by this rule.
 
 `GIMBLE104-SET-MISUSE/WRONG-CONTEXT` reports a `Set` or `SetJSON` inside a
 function-literal callback passed directly to `Run`, `Scope`, or `Group.Go`, or
-a `Loop.Tasks` body, when it writes through a different context than that
-callback or task body received. Use that parameter directly: aliases and
+a `Loop.Iterations` or `Loop.Tasks` body, when it writes through a different
+context than that callback or task body received. Use that parameter directly: aliases and
 derived contexts are not followed for this rule.
 
 ```go
@@ -111,10 +112,11 @@ return group.Wait()
 
 `GIMBLE106-SET-MISUSE/RESERVED-TASK-KEY` reports `Set` or `SetJSON` of the
 constant key `"task"` through the yielded context in a `Loop.Tasks` body. The
-iterator owns that key for its task record. Use another key for task results.
+iterator owns that key for its task record. Raw `Loop.Iterations` has no task
+record and does not reserve this key.
 
 ```go
-for taskCtx, task := range loop.Tasks {
+for taskCtx, task := range loop.Tasks("goal", planner) {
 	// Reported.
 	gimble.Set(taskCtx, "task", task.Name)
 	// Allowed.

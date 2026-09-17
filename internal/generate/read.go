@@ -22,22 +22,33 @@ func (e *extractor) gimbleCall(call *ast.CallExpr) (string, bool) {
 	return callee.Name(), true
 }
 
-// isTasksRange reports whether a range statement ranges over a Loop's Tasks.
-func (e *extractor) isTasksRange(stmt *ast.RangeStmt) bool {
-	selector, ok := unparen(stmt.X).(*ast.SelectorExpr)
-	if !ok || selector.Sel.Name != "Tasks" {
-		return false
+// loopRange reports whether a range statement ranges over a Loop iterator.
+func (e *extractor) loopRange(stmt *ast.RangeStmt) (string, *ast.SelectorExpr, *ast.CallExpr, bool) {
+	expr := unparen(stmt.X)
+	var call *ast.CallExpr
+	if c, ok := expr.(*ast.CallExpr); ok {
+		call = c
+		expr = unparen(c.Fun)
 	}
-	return isGimbleTasks(e.pkg.TypesInfo, selector)
+	selector, ok := expr.(*ast.SelectorExpr)
+	if !ok || (selector.Sel.Name != "Tasks" && selector.Sel.Name != "Iterations") || !isGimbleLoopMember(e.pkg.TypesInfo, selector) {
+		return "", nil, nil, false
+	}
+	return selector.Sel.Name, selector, call, true
+}
+
+func isGimbleLoopMember(info *types.Info, selector *ast.SelectorExpr) bool {
+	selection := info.Selections[selector]
+	if selection != nil {
+		obj := selection.Obj()
+		return obj.Pkg() != nil && obj.Pkg().Path() == gimblePath && (obj.Name() == "Tasks" || obj.Name() == "Iterations")
+	}
+	obj := info.Uses[selector.Sel]
+	return obj != nil && obj.Pkg() != nil && obj.Pkg().Path() == gimblePath && (obj.Name() == "Tasks" || obj.Name() == "Iterations")
 }
 
 func isGimbleTasks(info *types.Info, selector *ast.SelectorExpr) bool {
-	selection := info.Selections[selector]
-	if selection == nil {
-		return false
-	}
-	obj := selection.Obj()
-	return obj.Pkg() != nil && obj.Pkg().Path() == gimblePath && obj.Name() == "Tasks"
+	return selector.Sel.Name == "Tasks" && isGimbleLoopMember(info, selector)
 }
 
 // receiver is the value a method is called on.

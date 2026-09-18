@@ -1,13 +1,19 @@
-# esbuild is nothing this app imports any more — the engine's bundle is built
-# by kit's own vite build — but pnpm still installs it, as an optional
-# transitive dependency of @voidzero-dev/vite-plus-core, and refuses to finish
-# an install that leaves a build script unanswered. Its install script only
-# fetches or checks a platform binary nothing runs, so the answer is no.
 allowBuilds:
-  esbuild: false
-# The adapter is asked for as the newest version at or below this app's skgo,
-# and that is the only one skgo accepts. Held to a minimum release age, pnpm
-# would install an older one for a day after every release that changes it.
+  esbuild: true
+catalog:
+  vite: npm:@voidzero-dev/vite-plus-core@0.3.1
+  vitest: 4.1.11
+  vite-plus: 0.3.1
+  "@vitest/browser-playwright": 4.1.11
 minimumReleaseAgeExclude:
-  - '@types/node@22.20.1'
-  - '@skgo/sveltekit-adapter'
+  - "@skgo/sveltekit-adapter@0.5.0"
+overrides:
+  vite@*: "catalog:"
+  vitest@*: "catalog:"
+peerDependencyRules:
+  allowAny:
+    - vite
+    - vitest
+  allowedVersions:
+    vite: "*"
+    vitest: "*"

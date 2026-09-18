@@ -5,6 +5,7 @@ build:
     go mod tidy
     cd web && pnpm install
     go generate ./...
+    cd web && pnpm exec vp fmt
     cd web && pnpm exec vp build
     go build -o bin/gimble ./cmd/gimble
 
@@ -27,6 +28,15 @@ vet:
 test:
     go test -count=1 ./...
     cd web && pnpm test
+
+storybook:
+    cd web && pnpm storybook --host 127.0.0.1
+
+fmt:
+    cd web && pnpm exec vp fmt
+
+fmt-check:
+    cd web && pnpm exec vp fmt --check
 
 prices:
     go run ./internal/observation/modelpricesgen

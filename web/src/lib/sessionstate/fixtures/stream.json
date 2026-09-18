@@ -1,31 +1,198 @@
 {
   "seed": {
-    "info": [{
-      "id": "ses_probe",
-      "projectID": "project",
-      "location": { "directory": "/oracle" },
-      "time": { "created": 1, "updated": 1 },
-      "cost": 0,
-      "tokens": { "input": 0, "output": 0, "reasoning": 0, "cache": { "read": 0, "write": 0 } }
-    }],
+    "info": [
+      {
+        "id": "ses_probe",
+        "projectID": "project",
+        "location": { "directory": "/oracle" },
+        "time": { "created": 1, "updated": 1 },
+        "cost": 0,
+        "tokens": { "input": 0, "output": 0, "reasoning": 0, "cache": { "read": 0, "write": 0 } }
+      }
+    ],
     "messages": { "ses_probe": [] }
   },
   "events": [
-    { "id":"evt_step","created":1,"durable":{"aggregateID":"ses_probe","seq":1,"version":1},"type":"session.step.started","data":{"sessionID":"ses_probe","assistantMessageID":"msg_assistant","agent":"build","model":{"id":"model","providerID":"provider"}} },
-    { "id":"evt_text_0","created":2,"durable":{"aggregateID":"ses_probe","seq":2,"version":1},"type":"session.text.started","data":{"sessionID":"ses_probe","assistantMessageID":"msg_assistant","ordinal":0} },
-    { "id":"evt_text_delta","created":3,"type":"session.text.delta","data":{"sessionID":"ses_probe","assistantMessageID":"msg_assistant","ordinal":0,"delta":"draft"} },
-    { "id":"evt_text_end","created":4,"durable":{"aggregateID":"ses_probe","seq":3,"version":1},"type":"session.text.ended","data":{"sessionID":"ses_probe","assistantMessageID":"msg_assistant","ordinal":0,"text":"final"} },
-    { "id":"evt_reason_0","created":5,"durable":{"aggregateID":"ses_probe","seq":4,"version":1},"type":"session.reasoning.started","data":{"sessionID":"ses_probe","assistantMessageID":"msg_assistant","ordinal":0,"state":{"arbitrary":{"nested":null}}} },
-    { "id":"evt_reason_delta","created":6,"type":"session.reasoning.delta","data":{"sessionID":"ses_probe","assistantMessageID":"msg_assistant","ordinal":0,"delta":"thinking"} },
-    { "id":"evt_reason_end","created":7,"durable":{"aggregateID":"ses_probe","seq":5,"version":1},"type":"session.reasoning.ended","data":{"sessionID":"ses_probe","assistantMessageID":"msg_assistant","ordinal":0,"text":"thought","state":{"opaque":[1,true]}} },
-    { "id":"evt_tool_start","created":8,"durable":{"aggregateID":"ses_probe","seq":6,"version":1},"type":"session.tool.input.started","data":{"sessionID":"ses_probe","assistantMessageID":"msg_assistant","id":"call_1","name":"bash"} },
-    { "id":"evt_tool_delta","created":9,"type":"session.tool.input.delta","data":{"sessionID":"ses_probe","assistantMessageID":"msg_assistant","id":"call_1","delta":"{\"x\":"} },
-    { "id":"evt_tool_end","created":10,"durable":{"aggregateID":"ses_probe","seq":7,"version":1},"type":"session.tool.input.ended","data":{"sessionID":"ses_probe","assistantMessageID":"msg_assistant","id":"call_1","text":"{\"x\":1}"} },
-    { "id":"evt_tool_called","created":11,"durable":{"aggregateID":"ses_probe","seq":8,"version":1},"type":"session.tool.called","data":{"sessionID":"ses_probe","assistantMessageID":"msg_assistant","id":"call_1","input":{"x":1},"executed":true,"state":{"provider":"raw"}} },
-    { "id":"evt_tool_progress","created":12,"type":"session.tool.progress","data":{"sessionID":"ses_probe","assistantMessageID":"msg_assistant","id":"call_1","metadata":{"percent":50}} },
-    { "id":"evt_tool_success","created":13,"durable":{"aggregateID":"ses_probe","seq":9,"version":2},"type":"session.tool.success","data":{"sessionID":"ses_probe","assistantMessageID":"msg_assistant","id":"call_1","content":[{"type":"text","text":"done"}],"metadata":{"result":{"ok":true}},"executed":false,"resultState":{"responseID":"r"}} },
-    { "id":"evt_step_end","created":14,"durable":{"aggregateID":"ses_probe","seq":10,"version":1},"type":"session.step.ended","data":{"sessionID":"ses_probe","assistantMessageID":"msg_assistant","finish":"stop","cost":1,"tokens":{"input":2,"output":3,"reasoning":1,"cache":{"read":0,"write":0}},"providerState":{"raw":null}} },
-    { "id":"evt_exec_start","created":15,"durable":{"aggregateID":"ses_probe","seq":11,"version":1},"type":"session.execution.started","data":{"sessionID":"ses_probe"} },
-    { "id":"evt_exec_stop","created":16,"durable":{"aggregateID":"ses_probe","seq":12,"version":1},"type":"session.execution.interrupted","data":{"sessionID":"ses_probe","reason":"shutdown"} }
+    {
+      "id": "evt_step",
+      "created": 1,
+      "durable": { "aggregateID": "ses_probe", "seq": 1, "version": 1 },
+      "type": "session.step.started",
+      "data": {
+        "sessionID": "ses_probe",
+        "assistantMessageID": "msg_assistant",
+        "agent": "build",
+        "model": { "id": "model", "providerID": "provider" }
+      }
+    },
+    {
+      "id": "evt_text_0",
+      "created": 2,
+      "durable": { "aggregateID": "ses_probe", "seq": 2, "version": 1 },
+      "type": "session.text.started",
+      "data": { "sessionID": "ses_probe", "assistantMessageID": "msg_assistant", "ordinal": 0 }
+    },
+    {
+      "id": "evt_text_delta",
+      "created": 3,
+      "type": "session.text.delta",
+      "data": {
+        "sessionID": "ses_probe",
+        "assistantMessageID": "msg_assistant",
+        "ordinal": 0,
+        "delta": "draft"
+      }
+    },
+    {
+      "id": "evt_text_end",
+      "created": 4,
+      "durable": { "aggregateID": "ses_probe", "seq": 3, "version": 1 },
+      "type": "session.text.ended",
+      "data": {
+        "sessionID": "ses_probe",
+        "assistantMessageID": "msg_assistant",
+        "ordinal": 0,
+        "text": "final"
+      }
+    },
+    {
+      "id": "evt_reason_0",
+      "created": 5,
+      "durable": { "aggregateID": "ses_probe", "seq": 4, "version": 1 },
+      "type": "session.reasoning.started",
+      "data": {
+        "sessionID": "ses_probe",
+        "assistantMessageID": "msg_assistant",
+        "ordinal": 0,
+        "state": { "arbitrary": { "nested": null } }
+      }
+    },
+    {
+      "id": "evt_reason_delta",
+      "created": 6,
+      "type": "session.reasoning.delta",
+      "data": {
+        "sessionID": "ses_probe",
+        "assistantMessageID": "msg_assistant",
+        "ordinal": 0,
+        "delta": "thinking"
+      }
+    },
+    {
+      "id": "evt_reason_end",
+      "created": 7,
+      "durable": { "aggregateID": "ses_probe", "seq": 5, "version": 1 },
+      "type": "session.reasoning.ended",
+      "data": {
+        "sessionID": "ses_probe",
+        "assistantMessageID": "msg_assistant",
+        "ordinal": 0,
+        "text": "thought",
+        "state": { "opaque": [1, true] }
+      }
+    },
+    {
+      "id": "evt_tool_start",
+      "created": 8,
+      "durable": { "aggregateID": "ses_probe", "seq": 6, "version": 1 },
+      "type": "session.tool.input.started",
+      "data": {
+        "sessionID": "ses_probe",
+        "assistantMessageID": "msg_assistant",
+        "id": "call_1",
+        "name": "bash"
+      }
+    },
+    {
+      "id": "evt_tool_delta",
+      "created": 9,
+      "type": "session.tool.input.delta",
+      "data": {
+        "sessionID": "ses_probe",
+        "assistantMessageID": "msg_assistant",
+        "id": "call_1",
+        "delta": "{\"x\":"
+      }
+    },
+    {
+      "id": "evt_tool_end",
+      "created": 10,
+      "durable": { "aggregateID": "ses_probe", "seq": 7, "version": 1 },
+      "type": "session.tool.input.ended",
+      "data": {
+        "sessionID": "ses_probe",
+        "assistantMessageID": "msg_assistant",
+        "id": "call_1",
+        "text": "{\"x\":1}"
+      }
+    },
+    {
+      "id": "evt_tool_called",
+      "created": 11,
+      "durable": { "aggregateID": "ses_probe", "seq": 8, "version": 1 },
+      "type": "session.tool.called",
+      "data": {
+        "sessionID": "ses_probe",
+        "assistantMessageID": "msg_assistant",
+        "id": "call_1",
+        "input": { "x": 1 },
+        "executed": true,
+        "state": { "provider": "raw" }
+      }
+    },
+    {
+      "id": "evt_tool_progress",
+      "created": 12,
+      "type": "session.tool.progress",
+      "data": {
+        "sessionID": "ses_probe",
+        "assistantMessageID": "msg_assistant",
+        "id": "call_1",
+        "metadata": { "percent": 50 }
+      }
+    },
+    {
+      "id": "evt_tool_success",
+      "created": 13,
+      "durable": { "aggregateID": "ses_probe", "seq": 9, "version": 2 },
+      "type": "session.tool.success",
+      "data": {
+        "sessionID": "ses_probe",
+        "assistantMessageID": "msg_assistant",
+        "id": "call_1",
+        "content": [{ "type": "text", "text": "done" }],
+        "metadata": { "result": { "ok": true } },
+        "executed": false,
+        "resultState": { "responseID": "r" }
+      }
+    },
+    {
+      "id": "evt_step_end",
+      "created": 14,
+      "durable": { "aggregateID": "ses_probe", "seq": 10, "version": 1 },
+      "type": "session.step.ended",
+      "data": {
+        "sessionID": "ses_probe",
+        "assistantMessageID": "msg_assistant",
+        "finish": "stop",
+        "cost": 1,
+        "tokens": { "input": 2, "output": 3, "reasoning": 1, "cache": { "read": 0, "write": 0 } },
+        "providerState": { "raw": null }
+      }
+    },
+    {
+      "id": "evt_exec_start",
+      "created": 15,
+      "durable": { "aggregateID": "ses_probe", "seq": 11, "version": 1 },
+      "type": "session.execution.started",
+      "data": { "sessionID": "ses_probe" }
+    },
+    {
+      "id": "evt_exec_stop",
+      "created": 16,
+      "durable": { "aggregateID": "ses_probe", "seq": 12, "version": 1 },
+      "type": "session.execution.interrupted",
+      "data": { "sessionID": "ses_probe", "reason": "shutdown" }
+    }
   ]
 }

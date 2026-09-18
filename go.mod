@@ -20,7 +20,7 @@ require (
 	github.com/spf13/pflag v1.0.10
 	github.com/tiktoken-go/tokenizer v0.8.1
 	github.com/tylergannon/polytype v1.0.3
-	github.com/tylergannon/skgo v0.4.1
+	github.com/tylergannon/skgo v0.5.0
 	golang.org/x/sync v0.23.0
 	golang.org/x/tools v0.50.0
 )

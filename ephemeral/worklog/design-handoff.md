@@ -15,3 +15,11 @@ decision: Tyler explicitly included both stopping a running turn and cancelling 
 friction: Two research lanes could discover public image links but could not render them. The parent inspected Studio, Langfuse, Chrome, Blender, and Sentry references in Chrome and corrected unsupported visual claims (including Sentry tabs absent from the screenshot). The execution lane directly inspected its three images. Captions alone must not be labeled visual inspection.
 
 decision: Curated eight unique products into three interaction directions, deduplicating Temporal across lanes. Reference screenshots are public embeds with source attribution, not locally committed assets. Final layout and deliverable remain a user/design choice; all concepts retain the required map and active controls.
+
+correction: Tyler supplied Gemini and Claude research as suggestions, explicitly not requirements. Checked a useful subset against primary sources and added only two targeted visual references; no feature expansion or layout decision follows from those reports.
+
+doc_bug: The Gemini report says Gimble only visualizes rather than executes workflows, conflates a waiting interview with a paused run, and recommends freezing live history. Preserve the actual execution/concurrency model in the handoff; other sessions can progress while one awaits input.
+
+decision: AWS's iteration selection and Airflow's selected-task input form sharpen existing design scenarios. Perfetto navigation and Temporal event grouping remain optional inspiration. Checkpoint replay, node bypassing, runtime diagnostics, transport changes, assignees, and arbitrary adoption thresholds were not accepted.
+
+friction: The public Gemini share loaded its report in the browser, but converting the downloaded HTML directly produced only the page shell. Read the rendered report; retain the raw download outside the repository and a concise, attributed assessment in the packet. Gemini-generated illustrations are not product screenshot evidence.

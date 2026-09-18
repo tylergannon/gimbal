@@ -47,6 +47,18 @@ inside every node, or the busy backdrop. This is a useful counterexample
 as well as inspiration: Gimble observes code; it is not a node editor.
 [Source manual](https://docs.blender.org/manual/en/latest/interface/controls/nodes/introduction.html).
 
+### Airflow — human input at the selected task
+
+![Airflow task graph beside its Required Action form](https://airflow.apache.org/docs/apache-airflow/stable/_images/hitl_wait_for_input.png)
+
+**Visible:** a selected `wait_for_input` node among parallel siblings,
+graph overview controls, and that task's input form in the right-hand
+detail panel. **Borrow:** retain workflow location while answering a
+specific question. **Do not borrow:** generic approvals, task-state
+editing, or treating one waiting task as a paused run. The screenshot's
+older “Deferred” label is not a proposed Gimble status.
+[Source tutorial](https://airflow.apache.org/docs/apache-airflow/stable/tutorial/hitl.html).
+
 ## B. History-first workspace
 
 Lead with an execution outline or time-aligned lanes plus stable detail.
@@ -86,6 +98,18 @@ the same thing as Gimble's generated source graph.
 [Source, including both images](https://langfuse.com/docs/observability/best-practices).
 Direct image navigation was blocked in our browser; the embedded images on
 the source page rendered and were inspected. This link may need that fallback.
+
+### AWS Step Functions — distinguish each repeated execution
+
+![AWS execution table with expanded map iterations and timelines](https://docs.aws.amazon.com/images/step-functions/latest/dg/images/sm-table-view-timeline-color-codes.png)
+
+**Visible:** numbered, expandable iterations; one selected row; distinct
+statuses and durations; compact aligned timelines. **Borrow:** make the
+particular execution instance explicit. The documentation additionally
+describes linked graph/table selection and an iteration picker; those
+interactions are not demonstrated by this still image. **Do not borrow:**
+AWS state-machine semantics or restart/redrive controls.
+[Source execution-details guide](https://docs.aws.amazon.com/step-functions/latest/dg/concepts-view-execution-details.html).
 
 ## C. Attention-first run console
 
@@ -144,6 +168,8 @@ would be poor for reading the long conversations Gimble produces.
 
 The detailed research notes are optional appendices:
 `research-agent-interfaces.md`, `research-execution-interfaces.md`, and
-`research-adjacent-interfaces.md`. Temporal appeared in two lanes and is
-intentionally counted once here. Eight distinct products are enough for
-this round; further browsing should answer a concrete design question.
+`research-adjacent-interfaces.md`. [Supplemental intake](research-intake.md)
+assesses Tyler's supplied Gemini and Claude reports. Temporal appeared in
+two lanes and is intentionally counted once here. The two additions answer
+specific questions about repeated instances and task-scoped human input;
+they do not add required features or dictate a layout.

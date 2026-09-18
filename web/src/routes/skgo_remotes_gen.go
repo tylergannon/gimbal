@@ -8,6 +8,8 @@ package routes
 var (
 	// Skgo_guide is guide, published as src/routes/guide.remote.ts#guide.
 	Skgo_guide = guide
+	// Skgo_answerInterview is answerInterview, published as src/routes/interview.remote.ts#answerInterview.
+	Skgo_answerInterview = answerInterview
 	// Skgo_steer is steer, published as src/routes/steer.remote.ts#steer.
 	Skgo_steer = steer
 	// Skgo_steerLoop is steerLoop, published as src/routes/steer.remote.ts#steerLoop.
@@ -15,6 +17,8 @@ var (
 )
 
 type (
+	// SkgoArg_answerInterview is the type answerInterview takes.
+	SkgoArg_answerInterview = InterviewAnswer
 	// SkgoArg_steer is the type steer takes.
 	SkgoArg_steer = Steer
 	// SkgoArg_steerLoop is the type steerLoop takes.

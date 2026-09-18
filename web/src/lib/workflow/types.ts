@@ -25,6 +25,8 @@ export type Graph = {
     "kind": "condition";
   } | Omit<Group, "kind"> & {
     "kind": "group";
+  } | Omit<Interview, "kind"> & {
+    "kind": "interview";
   } | Omit<Iterate, "kind"> & {
     "kind": "iterate";
   } | Omit<PromiseLoop, "kind"> & {
@@ -134,6 +136,8 @@ export type Branch = {
     "kind": "condition";
   } | Omit<Group, "kind"> & {
     "kind": "group";
+  } | Omit<Interview, "kind"> & {
+    "kind": "interview";
   } | Omit<Iterate, "kind"> & {
     "kind": "iterate";
   } | Omit<PromiseLoop, "kind"> & {
@@ -180,6 +184,8 @@ export type GroupChild = {
     "kind": "condition";
   } | Omit<Group, "kind"> & {
     "kind": "group";
+  } | Omit<Interview, "kind"> & {
+    "kind": "interview";
   } | Omit<Iterate, "kind"> & {
     "kind": "iterate";
   } | Omit<PromiseLoop, "kind"> & {
@@ -193,6 +199,19 @@ export type GroupChild = {
   } | Omit<Set, "kind"> & {
     "kind": "set";
   }>;
+};
+
+/**
+ * Interview is one gimble.Interview. Session is the conversation conducting it; its questions, answers, and internal turns are runtime facts.
+ */
+export type Interview = {
+  /**
+   * File is the path relative to the module root, with forward slashes.
+   */
+  "file": string;
+  "line": number;
+  "name": string;
+  "session": string;
 };
 
 /**
@@ -213,6 +232,8 @@ export type Iterate = {
     "kind": "condition";
   } | Omit<Group, "kind"> & {
     "kind": "group";
+  } | Omit<Interview, "kind"> & {
+    "kind": "interview";
   } | Omit<Iterate, "kind"> & {
     "kind": "iterate";
   } | Omit<PromiseLoop, "kind"> & {
@@ -247,6 +268,8 @@ export type PromiseLoop = {
     "kind": "condition";
   } | Omit<Group, "kind"> & {
     "kind": "group";
+  } | Omit<Interview, "kind"> & {
+    "kind": "interview";
   } | Omit<Iterate, "kind"> & {
     "kind": "iterate";
   } | Omit<PromiseLoop, "kind"> & {
@@ -280,6 +303,8 @@ export type Repeat = {
     "kind": "condition";
   } | Omit<Group, "kind"> & {
     "kind": "group";
+  } | Omit<Interview, "kind"> & {
+    "kind": "interview";
   } | Omit<Iterate, "kind"> & {
     "kind": "iterate";
   } | Omit<PromiseLoop, "kind"> & {
@@ -313,6 +338,8 @@ export type Scope = {
     "kind": "condition";
   } | Omit<Group, "kind"> & {
     "kind": "group";
+  } | Omit<Interview, "kind"> & {
+    "kind": "interview";
   } | Omit<Iterate, "kind"> & {
     "kind": "iterate";
   } | Omit<PromiseLoop, "kind"> & {

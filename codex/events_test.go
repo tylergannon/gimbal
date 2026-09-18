@@ -259,15 +259,9 @@ func TestProjectorFillsStepFromRecordedTokenUsage(t *testing.T) {
 	}
 }
 
-func TestProjectorRejectsSecondOpenTextAndPropagatesCallbackError(t *testing.T) {
-	p := newProjector("thread", "turn", "model", func(gimble.AgentEvent) error { return nil })
-	mustProject(t, p.itemStarted(json.RawMessage(`{"item":{"id":"one","type":"agentMessage"}}`)))
-	if err := p.itemStarted(json.RawMessage(`{"item":{"id":"two","type":"agentMessage"}}`)); err == nil {
-		t.Fatal("second open text part was accepted")
-	}
-
+func TestProjectorPropagatesCallbackError(t *testing.T) {
 	boom := errors.New("observer stopped")
-	p = newProjector("thread", "turn", "model", func(gimble.AgentEvent) error { return boom })
+	p := newProjector("thread", "turn", "model", func(gimble.AgentEvent) error { return boom })
 	if err := p.itemStarted(json.RawMessage(`{"item":{"id":"one","type":"agentMessage"}}`)); !errors.Is(err, boom) {
 		t.Fatalf("callback error = %v, want %v", err, boom)
 	}

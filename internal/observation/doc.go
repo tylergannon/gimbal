@@ -1,4 +1,4 @@
-// Package observation holds one run's store: the seven tables of facts as Go
+// Package observation holds one run's store: the eight tables of facts as Go
 // maps, the roll-ups computed from them, one transcript projection per turn,
 // and the bounded subscribers the web server streams to.
 //

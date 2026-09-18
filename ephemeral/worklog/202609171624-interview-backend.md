@@ -1,0 +1,2 @@
+correction: The selected task recipe is advisory; issue 249 is authoritative, and the smallest implementation must keep a human-ended interview as normal completion.
+decision: This task owns only the blocking backend primitive, its SetJSON-compatible transcript, lifecycle facts, run-local delivery, generated root schema, and focused tests; graph, observation, remote form, UI, and example work remain outside this task.

@@ -1,0 +1,8 @@
+{"type":"object",
+"description":"InterviewTranscript is the question-and-answer history returned by Interview. It is a generated Output, so a workflow can retain it with SetJSON.","properties":{
+"exchanges":{"type":"array","description":"Exchanges are the questions the interviewer asked and the answers the person gave, in order.","items":{"type":"object",
+"description":"InterviewExchange is one answered question in an InterviewTranscript.","properties":{
+"question":{"type":"string"},
+"answer":{"type":"string"}
+},"required":["question","answer"],"additionalProperties":false}}
+},"required":["exchanges"],"additionalProperties":false}

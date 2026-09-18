@@ -29,12 +29,30 @@ func remote_guide(ctx context.Context, call skgo.Call) (any, error) {
 	return EncodeRoot0(out)
 }
 
-// remote_steer answers src/routes/steer.remote.ts#steer, a form.
+// remote_answerInterview answers src/routes/interview.remote.ts#answerInterview, a form.
 //
 // A form's submission is assigned onto the handler's own argument type:
 // kit posts a form as binary form data, which can carry an uploaded File,
 // and a File is not a value polytype describes.
 // The result is encoded by EncodeRoot1, generated for its result type.
+func remote_answerInterview(ctx context.Context, call skgo.Call) (any, error) {
+	var in skgo0.SkgoArg_answerInterview
+	if err := skgo.DecodeForm(call.Arg, &in); err != nil {
+		return nil, err
+	}
+	out, err := skgo0.Skgo_answerInterview(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return EncodeRoot1(out)
+}
+
+// remote_steer answers src/routes/steer.remote.ts#steer, a form.
+//
+// A form's submission is assigned onto the handler's own argument type:
+// kit posts a form as binary form data, which can carry an uploaded File,
+// and a File is not a value polytype describes.
+// The result is encoded by EncodeRoot2, generated for its result type.
 func remote_steer(ctx context.Context, call skgo.Call) (any, error) {
 	var in skgo0.SkgoArg_steer
 	if err := skgo.DecodeForm(call.Arg, &in); err != nil {
@@ -44,7 +62,7 @@ func remote_steer(ctx context.Context, call skgo.Call) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	return EncodeRoot1(out)
+	return EncodeRoot2(out)
 }
 
 // remote_steerLoop answers src/routes/steer.remote.ts#steerLoop, a form.
@@ -52,7 +70,7 @@ func remote_steer(ctx context.Context, call skgo.Call) (any, error) {
 // A form's submission is assigned onto the handler's own argument type:
 // kit posts a form as binary form data, which can carry an uploaded File,
 // and a File is not a value polytype describes.
-// The result is encoded by EncodeRoot2, generated for its result type.
+// The result is encoded by EncodeRoot3, generated for its result type.
 func remote_steerLoop(ctx context.Context, call skgo.Call) (any, error) {
 	var in skgo0.SkgoArg_steerLoop
 	if err := skgo.DecodeForm(call.Arg, &in); err != nil {
@@ -62,7 +80,7 @@ func remote_steerLoop(ctx context.Context, call skgo.Call) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	return EncodeRoot2(out)
+	return EncodeRoot3(out)
 }
 
 // Remotes returns every remote function declared in the app, ready to hand
@@ -75,6 +93,13 @@ func Remotes() []*skgo.Remote {
 			Name:   "guide",
 			Fn:     skgo0.Skgo_guide,
 			Call:   remote_guide,
+		}),
+		skgo.NewRemote(skgo.RemoteSpec{
+			Kind:   skgo.KindForm,
+			Module: "src/routes/interview.remote.ts",
+			Name:   "answerInterview",
+			Fn:     skgo0.Skgo_answerInterview,
+			Call:   remote_answerInterview,
 		}),
 		skgo.NewRemote(skgo.RemoteSpec{
 			Kind:   skgo.KindForm,

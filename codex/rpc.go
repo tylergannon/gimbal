@@ -27,6 +27,7 @@ const readLimit = 64 << 20
 type connection struct {
 	ws     *websocket.Conn
 	nextID atomic.Int64
+	debug  *rawRecorder
 
 	writeMu sync.Mutex
 
@@ -118,6 +119,7 @@ func connect(ctx context.Context, startDaemon bool) (*connection, error) {
 
 	c := &connection{
 		ws:       ws,
+		debug:    openRawRecorder(),
 		pending:  make(map[int64]chan rpcMessage),
 		threads:  make(map[string]chan rpcMessage),
 		readDone: make(chan struct{}),
@@ -201,12 +203,14 @@ func (c *connection) unregisterThread(threadID string) {
 }
 
 func (c *connection) read() {
+	defer c.debug.close()
 	for {
 		_, data, err := c.ws.Read(context.Background())
 		if err != nil {
 			c.finishRead(err)
 			return
 		}
+		c.debug.record(data)
 		var message rpcMessage
 		if err := json.Unmarshal(data, &message); err != nil {
 			c.finishRead(fmt.Errorf("codex: decode app-server message: %w", err))

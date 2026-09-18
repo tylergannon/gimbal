@@ -1,0 +1,4 @@
+{"type":"object",
+"description":"interviewDecision is one turn's decision: ask Question, or use null when the purpose is fulfilled and the interview is done.","properties":{
+"question":{"type":["string","null"],"description":"Question is the single next useful question. Use null when no more questions are needed."}
+},"required":["question"],"additionalProperties":false}

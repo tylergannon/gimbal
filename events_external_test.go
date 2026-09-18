@@ -21,6 +21,8 @@ func TestPublishedEventTypesAreUsableOutsideGimble(t *testing.T) {
 		gimble.SessionClosed{},
 		gimble.TurnStarted{},
 		gimble.TurnEnded{Usage: []gimble.ModelUsage{}},
+		gimble.InterviewQuestionAsked{},
+		gimble.InterviewQuestionAnswered{},
 		gimble.SuperviseAttached{},
 		gimble.Steer{},
 		gimble.Killed{},

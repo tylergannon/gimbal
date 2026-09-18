@@ -240,6 +240,65 @@ func dvDecodeTime(raw any, at string) (time.Time, error) {
 	return v, nil
 }
 
+func encInterviewAnswered(v pkg_onzggl3sn52xizlt.InterviewAnswered, at string) (any, error) {
+	enc1 := devalue.NewObject()
+	var enc2 any = bool(v.Accepted)
+	enc1.Set("accepted", enc2)
+	return enc1, nil
+}
+
+func decInterviewAnswered(raw any, at string) (pkg_onzggl3sn52xizlt.InterviewAnswered, error) {
+	var dvZero pkg_onzggl3sn52xizlt.InterviewAnswered
+	var dec1 pkg_onzggl3sn52xizlt.InterviewAnswered
+	obj2, err := dvObject(raw, at)
+	if err != nil {
+		return dvZero, err
+	}
+	if err := dvKnown(obj2, at, "accepted"); err != nil {
+		return dvZero, err
+	}
+	raw3, err := dvRequired(obj2, "accepted", at+"/accepted")
+	if err != nil {
+		return dvZero, err
+	}
+	dec4, err := dvBool(raw3, at+"/accepted")
+	if err != nil {
+		return dvZero, err
+	}
+	dec1.Accepted = dec4
+	return dec1, nil
+}
+
+// EncodeInterviewAnswered converts v into the devalue value model.
+func EncodeInterviewAnswered(v pkg_onzggl3sn52xizlt.InterviewAnswered) (any, error) {
+	return encInterviewAnswered(v, "")
+}
+
+// DecodeInterviewAnswered converts a devalue value model tree into a pkg_onzggl3sn52xizlt.InterviewAnswered, rejecting any
+// shape the type grammar does not admit.
+func DecodeInterviewAnswered(raw any) (pkg_onzggl3sn52xizlt.InterviewAnswered, error) {
+	return decInterviewAnswered(raw, "")
+}
+
+// StringifyInterviewAnswered encodes v and serializes it with devalue.
+func StringifyInterviewAnswered(v pkg_onzggl3sn52xizlt.InterviewAnswered) (string, error) {
+	encoded, err := encInterviewAnswered(v, "")
+	if err != nil {
+		return "", err
+	}
+	return devalue.Stringify(encoded)
+}
+
+// ParseInterviewAnswered parses a devalue document and decodes it into a pkg_onzggl3sn52xizlt.InterviewAnswered.
+func ParseInterviewAnswered(s string) (pkg_onzggl3sn52xizlt.InterviewAnswered, error) {
+	var zero pkg_onzggl3sn52xizlt.InterviewAnswered
+	parsed, err := devalue.Parse(s, nil)
+	if err != nil {
+		return zero, err
+	}
+	return decInterviewAnswered(parsed, "")
+}
+
 func encSent(v pkg_onzggl3sn52xizlt.Sent, at string) (any, error) {
 	enc1 := devalue.NewObject()
 	var enc2 any = bool(v.Landed)
@@ -445,7 +504,50 @@ func ParseRoot0(s string) (string, error) {
 	return decRoot0(parsed, "")
 }
 
-func encRoot1(v pkg_onzggl3sn52xizlt.Sent, at string) (any, error) {
+func encRoot1(v pkg_onzggl3sn52xizlt.InterviewAnswered, at string) (any, error) {
+	enc1, err := encInterviewAnswered(v, at)
+	if err != nil {
+		return nil, err
+	}
+	return enc1, nil
+}
+
+func decRoot1(raw any, at string) (pkg_onzggl3sn52xizlt.InterviewAnswered, error) {
+	var dvZero pkg_onzggl3sn52xizlt.InterviewAnswered
+	dec1, err := decInterviewAnswered(raw, at)
+	if err != nil {
+		return dvZero, err
+	}
+	return dec1, nil
+}
+
+// EncodeRoot1 converts v into the devalue value model.
+func EncodeRoot1(v pkg_onzggl3sn52xizlt.InterviewAnswered) (any, error) { return encRoot1(v, "") }
+
+// DecodeRoot1 converts a devalue value model tree into a pkg_onzggl3sn52xizlt.InterviewAnswered, rejecting any
+// shape the type grammar does not admit.
+func DecodeRoot1(raw any) (pkg_onzggl3sn52xizlt.InterviewAnswered, error) { return decRoot1(raw, "") }
+
+// StringifyRoot1 encodes v and serializes it with devalue.
+func StringifyRoot1(v pkg_onzggl3sn52xizlt.InterviewAnswered) (string, error) {
+	encoded, err := encRoot1(v, "")
+	if err != nil {
+		return "", err
+	}
+	return devalue.Stringify(encoded)
+}
+
+// ParseRoot1 parses a devalue document and decodes it into a pkg_onzggl3sn52xizlt.InterviewAnswered.
+func ParseRoot1(s string) (pkg_onzggl3sn52xizlt.InterviewAnswered, error) {
+	var zero pkg_onzggl3sn52xizlt.InterviewAnswered
+	parsed, err := devalue.Parse(s, nil)
+	if err != nil {
+		return zero, err
+	}
+	return decRoot1(parsed, "")
+}
+
+func encRoot2(v pkg_onzggl3sn52xizlt.Sent, at string) (any, error) {
 	enc1, err := encSent(v, at)
 	if err != nil {
 		return nil, err
@@ -453,7 +555,7 @@ func encRoot1(v pkg_onzggl3sn52xizlt.Sent, at string) (any, error) {
 	return enc1, nil
 }
 
-func decRoot1(raw any, at string) (pkg_onzggl3sn52xizlt.Sent, error) {
+func decRoot2(raw any, at string) (pkg_onzggl3sn52xizlt.Sent, error) {
 	var dvZero pkg_onzggl3sn52xizlt.Sent
 	dec1, err := decSent(raw, at)
 	if err != nil {
@@ -462,33 +564,33 @@ func decRoot1(raw any, at string) (pkg_onzggl3sn52xizlt.Sent, error) {
 	return dec1, nil
 }
 
-// EncodeRoot1 converts v into the devalue value model.
-func EncodeRoot1(v pkg_onzggl3sn52xizlt.Sent) (any, error) { return encRoot1(v, "") }
+// EncodeRoot2 converts v into the devalue value model.
+func EncodeRoot2(v pkg_onzggl3sn52xizlt.Sent) (any, error) { return encRoot2(v, "") }
 
-// DecodeRoot1 converts a devalue value model tree into a pkg_onzggl3sn52xizlt.Sent, rejecting any
+// DecodeRoot2 converts a devalue value model tree into a pkg_onzggl3sn52xizlt.Sent, rejecting any
 // shape the type grammar does not admit.
-func DecodeRoot1(raw any) (pkg_onzggl3sn52xizlt.Sent, error) { return decRoot1(raw, "") }
+func DecodeRoot2(raw any) (pkg_onzggl3sn52xizlt.Sent, error) { return decRoot2(raw, "") }
 
-// StringifyRoot1 encodes v and serializes it with devalue.
-func StringifyRoot1(v pkg_onzggl3sn52xizlt.Sent) (string, error) {
-	encoded, err := encRoot1(v, "")
+// StringifyRoot2 encodes v and serializes it with devalue.
+func StringifyRoot2(v pkg_onzggl3sn52xizlt.Sent) (string, error) {
+	encoded, err := encRoot2(v, "")
 	if err != nil {
 		return "", err
 	}
 	return devalue.Stringify(encoded)
 }
 
-// ParseRoot1 parses a devalue document and decodes it into a pkg_onzggl3sn52xizlt.Sent.
-func ParseRoot1(s string) (pkg_onzggl3sn52xizlt.Sent, error) {
+// ParseRoot2 parses a devalue document and decodes it into a pkg_onzggl3sn52xizlt.Sent.
+func ParseRoot2(s string) (pkg_onzggl3sn52xizlt.Sent, error) {
 	var zero pkg_onzggl3sn52xizlt.Sent
 	parsed, err := devalue.Parse(s, nil)
 	if err != nil {
 		return zero, err
 	}
-	return decRoot1(parsed, "")
+	return decRoot2(parsed, "")
 }
 
-func encRoot2(v pkg_onzggl3sn52xizlt.Waiting, at string) (any, error) {
+func encRoot3(v pkg_onzggl3sn52xizlt.Waiting, at string) (any, error) {
 	enc1, err := encWaiting(v, at)
 	if err != nil {
 		return nil, err
@@ -496,7 +598,7 @@ func encRoot2(v pkg_onzggl3sn52xizlt.Waiting, at string) (any, error) {
 	return enc1, nil
 }
 
-func decRoot2(raw any, at string) (pkg_onzggl3sn52xizlt.Waiting, error) {
+func decRoot3(raw any, at string) (pkg_onzggl3sn52xizlt.Waiting, error) {
 	var dvZero pkg_onzggl3sn52xizlt.Waiting
 	dec1, err := decWaiting(raw, at)
 	if err != nil {
@@ -505,33 +607,33 @@ func decRoot2(raw any, at string) (pkg_onzggl3sn52xizlt.Waiting, error) {
 	return dec1, nil
 }
 
-// EncodeRoot2 converts v into the devalue value model.
-func EncodeRoot2(v pkg_onzggl3sn52xizlt.Waiting) (any, error) { return encRoot2(v, "") }
+// EncodeRoot3 converts v into the devalue value model.
+func EncodeRoot3(v pkg_onzggl3sn52xizlt.Waiting) (any, error) { return encRoot3(v, "") }
 
-// DecodeRoot2 converts a devalue value model tree into a pkg_onzggl3sn52xizlt.Waiting, rejecting any
+// DecodeRoot3 converts a devalue value model tree into a pkg_onzggl3sn52xizlt.Waiting, rejecting any
 // shape the type grammar does not admit.
-func DecodeRoot2(raw any) (pkg_onzggl3sn52xizlt.Waiting, error) { return decRoot2(raw, "") }
+func DecodeRoot3(raw any) (pkg_onzggl3sn52xizlt.Waiting, error) { return decRoot3(raw, "") }
 
-// StringifyRoot2 encodes v and serializes it with devalue.
-func StringifyRoot2(v pkg_onzggl3sn52xizlt.Waiting) (string, error) {
-	encoded, err := encRoot2(v, "")
+// StringifyRoot3 encodes v and serializes it with devalue.
+func StringifyRoot3(v pkg_onzggl3sn52xizlt.Waiting) (string, error) {
+	encoded, err := encRoot3(v, "")
 	if err != nil {
 		return "", err
 	}
 	return devalue.Stringify(encoded)
 }
 
-// ParseRoot2 parses a devalue document and decodes it into a pkg_onzggl3sn52xizlt.Waiting.
-func ParseRoot2(s string) (pkg_onzggl3sn52xizlt.Waiting, error) {
+// ParseRoot3 parses a devalue document and decodes it into a pkg_onzggl3sn52xizlt.Waiting.
+func ParseRoot3(s string) (pkg_onzggl3sn52xizlt.Waiting, error) {
 	var zero pkg_onzggl3sn52xizlt.Waiting
 	parsed, err := devalue.Parse(s, nil)
 	if err != nil {
 		return zero, err
 	}
-	return decRoot2(parsed, "")
+	return decRoot3(parsed, "")
 }
 
-func encRoot3(v pkg_src.RunSnapshot, at string) (any, error) {
+func encRoot4(v pkg_src.RunSnapshot, at string) (any, error) {
 	enc1, err := encRunSnapshot(v, at)
 	if err != nil {
 		return nil, err
@@ -539,7 +641,7 @@ func encRoot3(v pkg_src.RunSnapshot, at string) (any, error) {
 	return enc1, nil
 }
 
-func decRoot3(raw any, at string) (pkg_src.RunSnapshot, error) {
+func decRoot4(raw any, at string) (pkg_src.RunSnapshot, error) {
 	var dvZero pkg_src.RunSnapshot
 	dec1, err := decRunSnapshot(raw, at)
 	if err != nil {
@@ -548,28 +650,28 @@ func decRoot3(raw any, at string) (pkg_src.RunSnapshot, error) {
 	return dec1, nil
 }
 
-// EncodeRoot3 converts v into the devalue value model.
-func EncodeRoot3(v pkg_src.RunSnapshot) (any, error) { return encRoot3(v, "") }
+// EncodeRoot4 converts v into the devalue value model.
+func EncodeRoot4(v pkg_src.RunSnapshot) (any, error) { return encRoot4(v, "") }
 
-// DecodeRoot3 converts a devalue value model tree into a pkg_src.RunSnapshot, rejecting any
+// DecodeRoot4 converts a devalue value model tree into a pkg_src.RunSnapshot, rejecting any
 // shape the type grammar does not admit.
-func DecodeRoot3(raw any) (pkg_src.RunSnapshot, error) { return decRoot3(raw, "") }
+func DecodeRoot4(raw any) (pkg_src.RunSnapshot, error) { return decRoot4(raw, "") }
 
-// StringifyRoot3 encodes v and serializes it with devalue.
-func StringifyRoot3(v pkg_src.RunSnapshot) (string, error) {
-	encoded, err := encRoot3(v, "")
+// StringifyRoot4 encodes v and serializes it with devalue.
+func StringifyRoot4(v pkg_src.RunSnapshot) (string, error) {
+	encoded, err := encRoot4(v, "")
 	if err != nil {
 		return "", err
 	}
 	return devalue.Stringify(encoded)
 }
 
-// ParseRoot3 parses a devalue document and decodes it into a pkg_src.RunSnapshot.
-func ParseRoot3(s string) (pkg_src.RunSnapshot, error) {
+// ParseRoot4 parses a devalue document and decodes it into a pkg_src.RunSnapshot.
+func ParseRoot4(s string) (pkg_src.RunSnapshot, error) {
 	var zero pkg_src.RunSnapshot
 	parsed, err := devalue.Parse(s, nil)
 	if err != nil {
 		return zero, err
 	}
-	return decRoot3(parsed, "")
+	return decRoot4(parsed, "")
 }

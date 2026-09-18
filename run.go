@@ -57,19 +57,20 @@ func RegisterGraph(graph workflow.Graph) {
 }
 
 type run struct {
-	dir       string                        // <project>/runs/<id>
-	models    map[WorkflowRole]ModelBinding // what each role the workflow names runs on
-	writer    *eventWriter
-	project   *eventWriter
-	store     *observation.Store
-	mu        sync.Mutex
-	sessions  map[string]*eventWriter
-	scopes    map[string]*scope                  // live scopes by key, for cancelScope
-	turns     map[string]context.CancelCauseFunc // running turns by id, for cancelTurn
-	errMu     sync.Mutex
-	recordErr error
-	closeMu   sync.Mutex
-	closeErrs []error
+	dir        string                        // <project>/runs/<id>
+	models     map[WorkflowRole]ModelBinding // what each role the workflow names runs on
+	writer     *eventWriter
+	project    *eventWriter
+	store      *observation.Store
+	mu         sync.Mutex
+	sessions   map[string]*eventWriter
+	scopes     map[string]*scope                  // live scopes by key, for cancelScope
+	turns      map[string]context.CancelCauseFunc // running turns by id, for cancelTurn
+	interviews map[string]*interviewWaiter        // questions waiting for a person's answer
+	errMu      sync.Mutex
+	recordErr  error
+	closeMu    sync.Mutex
+	closeErrs  []error
 }
 
 // CloseError aggregates every HarnessAdapter.Close failure a run's sessions
@@ -152,7 +153,7 @@ func Run(ctx context.Context, name string, models map[WorkflowRole]ModelBinding,
 	if err != nil {
 		return fmt.Errorf("gimble: %w", err)
 	}
-	r := &run{dir: dir, models: models, writer: w, sessions: make(map[string]*eventWriter), scopes: make(map[string]*scope), turns: make(map[string]context.CancelCauseFunc)}
+	r := &run{dir: dir, models: models, writer: w, sessions: make(map[string]*eventWriter), scopes: make(map[string]*scope), turns: make(map[string]context.CancelCauseFunc), interviews: make(map[string]*interviewWaiter)}
 	// The run owns its observation store. With the web runtime in ctx it is
 	// registered there and the page can read it; without one the run still
 	// owns a private store and writes the same table files, so observation
@@ -269,6 +270,61 @@ func (r *run) removeTurn(id string) {
 // The run is the live.Controller the web runtime holds while the body
 // runs. Its methods are exported so the interface can name them; run itself
 // stays unexported, so nothing here is part of the package's API.
+
+type interviewWaiter struct {
+	answer chan string
+}
+
+func (r *run) registerInterviewQuestion() (string, *interviewWaiter) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.interviews == nil {
+		r.interviews = make(map[string]*interviewWaiter)
+	}
+	var id string
+	for {
+		id = ulid.Make().String()
+		if r.interviews[id] == nil {
+			break
+		}
+	}
+	waiter := &interviewWaiter{answer: make(chan string, 1)}
+	r.interviews[id] = waiter
+	return id, waiter
+}
+
+func (r *run) waitInterviewAnswer(ctx context.Context, questionID string, waiter *interviewWaiter) (string, error) {
+	select {
+	case answer := <-waiter.answer:
+		return answer, nil
+	case <-ctx.Done():
+		r.mu.Lock()
+		if r.interviews[questionID] == waiter {
+			delete(r.interviews, questionID)
+			r.mu.Unlock()
+			return "", ctx.Err()
+		}
+		r.mu.Unlock()
+		// AnswerInterview won the race with cancellation and removed this
+		// waiter only after accepting one answer into its buffered channel.
+		return <-waiter.answer, nil
+	}
+}
+
+// AnswerInterview delivers answer to the question waiting under questionID.
+// The first delivery removes the waiter; later or unknown ids are rejected.
+// An empty answer tells Interview that the person ended it.
+func (r *run) AnswerInterview(questionID, answer string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	waiter := r.interviews[questionID]
+	if waiter == nil {
+		return fmt.Errorf("gimble: no pending interview question %q", questionID)
+	}
+	delete(r.interviews, questionID)
+	waiter.answer <- answer
+	return nil
+}
 
 // Steer sends message into the running turn of the session id, as the
 // person watching the run: the Steer record carries Source "person", which

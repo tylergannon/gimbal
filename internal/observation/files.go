@@ -10,20 +10,21 @@ import (
 	"slices"
 )
 
-// The seven tables. A name is both the file's stem beside the run log and the
+// The eight tables. A name is both the file's stem beside the run log and the
 // key the snapshot holds that table under, so a `row` frame names one thing.
 const (
 	tableRun        = "run"
 	tableScopes     = "scopes"
 	tableSessions   = "sessions"
+	tableInterviews = "interviews"
 	tableTurns      = "turns"
 	tableTurnUsage  = "turn_usage"
 	tableModelCalls = "model_calls"
 	tableCommands   = "commands"
 )
 
-// tables is every table, in the order the seven files are written.
-var tables = []string{tableRun, tableScopes, tableSessions, tableTurns, tableTurnUsage, tableModelCalls, tableCommands}
+// tables is every table, in the order the eight files are written.
+var tables = []string{tableRun, tableScopes, tableSessions, tableInterviews, tableTurns, tableTurnUsage, tableModelCalls, tableCommands}
 
 // tableRowsLocked is one table as its file holds it: a JSON array in a fixed
 // order, so the same state always writes the same bytes.
@@ -45,6 +46,15 @@ func (s *Store) tableRowsLocked(table string) any {
 		}
 		slices.SortFunc(out, func(a, b SessionRow) int {
 			return cmp.Or(cmp.Compare(a.Created, b.Created), cmp.Compare(a.ID, b.ID))
+		})
+		return out
+	case tableInterviews:
+		out := make([]InterviewRow, 0, len(s.interviews))
+		for _, row := range s.interviews {
+			out = append(out, *row)
+		}
+		slices.SortFunc(out, func(a, b InterviewRow) int {
+			return cmp.Or(cmp.Compare(a.Asked, b.Asked), cmp.Compare(a.QuestionID, b.QuestionID))
 		})
 		return out
 	case tableTurns:
@@ -108,11 +118,11 @@ func (s *Store) writeTablesLocked(changed []string) error {
 	return nil
 }
 
-// writeAllTablesLocked rewrites all seven, which is what Open does for an empty
+// writeAllTablesLocked rewrites all eight, which is what Open does for an empty
 // run and what a replay does for a directory missing any of them.
 func (s *Store) writeAllTablesLocked() error { return s.writeTablesLocked(tables) }
 
-// missingTable reports the first of the seven files a directory does not hold.
+// missingTable reports the first of the eight files a directory does not hold.
 func missingTable(dir string) string {
 	for _, table := range tables {
 		if _, err := os.Stat(filepath.Join(dir, table+".json")); err != nil {

@@ -51,7 +51,7 @@ type openCall struct {
 	started int64
 }
 
-// Store is one run's observation: the seven tables as Go maps, one transcript
+// Store is one run's observation: the eight tables as Go maps, one transcript
 // per turn, and the subscribers the page streams from. Every mutation and
 // every detachment goes through mu, so a snapshot and the suffix behind it
 // come from one cut.
@@ -64,6 +64,7 @@ type Store struct {
 	run         RunRow
 	scopes      map[string]*ScopeRow
 	sessions    map[string]*SessionRow
+	interviews  map[string]*InterviewRow
 	turns       map[string]*TurnRow
 	turnUsage   map[string]map[string]Usage
 	modelCalls  map[string][]ModelCallRow
@@ -81,7 +82,7 @@ type Store struct {
 	// noWrite suppresses the per-fold file writes. Opening a run sets it: the
 	// files are its input, and a rebuild writes them once at the end.
 	noWrite bool
-	// fromTables says the facts came from the seven files. A finished run's
+	// fromTables says the facts came from the eight files. A finished run's
 	// tables are its accounting, so the session logs read afterwards are only
 	// transcripts: a step in them accounts for nothing.
 	fromTables bool
@@ -99,6 +100,7 @@ func newStore(registry *Registry, id, name, dir string) *Store {
 		run:         RunRow{ID: id, Name: name, Status: StatusRunning},
 		scopes:      map[string]*ScopeRow{},
 		sessions:    map[string]*SessionRow{},
+		interviews:  map[string]*InterviewRow{},
 		turns:       map[string]*TurnRow{},
 		turnUsage:   map[string]map[string]Usage{},
 		modelCalls:  map[string][]ModelCallRow{},
@@ -123,9 +125,9 @@ func newStreamID() string {
 
 // Open returns the store for one run and registers it, if there is a
 // registry. A run started without the web runtime still gets a store: it owns
-// it privately and writes the same seven files.
+// it privately and writes the same eight files.
 //
-// The seven files are written empty straight away, so a run with no steps still
+// The eight files are written empty straight away, so a run with no steps still
 // has a model_calls.json. The error is that write's, and the run records it as
 // a recording failure: the store itself is usable either way.
 func Open(registry *Registry, id, name, dir string) (*Store, error) {
@@ -189,6 +191,9 @@ type record struct {
 		Prompt      string          `json:"prompt"`
 		OutputType  string          `json:"output_type"`
 		Result      string          `json:"result"`
+		QuestionID  string          `json:"question_id"`
+		Question    string          `json:"question"`
+		Answer      string          `json:"answer"`
 		Interrupted bool            `json:"interrupted"`
 		Duration    int64           `json:"duration"`
 		ID          string          `json:"id"`
@@ -293,6 +298,17 @@ func (s *Store) Lifecycle(raw json.RawMessage) error {
 			Scope: rec.Scope, Parent: rec.Event.Parent, Created: at,
 		}
 		changed = append(changed, change{tableSessions, rec.Session})
+	case "interview_question_asked":
+		s.interviews[rec.Event.QuestionID] = &InterviewRow{
+			Run: s.run.ID, QuestionID: rec.Event.QuestionID, Name: rec.Event.Name,
+			Scope: rec.Scope, Session: rec.Session, Question: rec.Event.Question,
+			Status: InterviewStatusPending, Asked: at,
+		}
+		changed = append(changed, change{tableInterviews, rec.Event.QuestionID})
+	case "interview_question_answered":
+		interview := s.interviewLocked(rec.Scope, rec.Session, rec.Event.QuestionID)
+		interview.Status, interview.Answer, interview.Answered = InterviewStatusAnswered, rec.Event.Answer, at
+		changed = append(changed, change{tableInterviews, rec.Event.QuestionID})
 	case "turn_started":
 		turn := s.turnLocked(Placement{Scope: rec.Scope, Session: rec.Session, Turn: rec.Turn})
 		turn.Prompt, turn.OutputType, turn.Started = rec.Event.Prompt, rec.Event.OutputType, at
@@ -398,6 +414,8 @@ func (s *Store) rowLocked(table, key string) any {
 		return *s.scopes[key]
 	case tableSessions:
 		return *s.sessions[key]
+	case tableInterviews:
+		return *s.interviews[key]
 	case tableTurns:
 		return *s.turns[key]
 	case tableTurnUsage:
@@ -427,6 +445,17 @@ func (s *Store) commandLocked(scope, id string) *CommandRow {
 	}
 	row := &CommandRow{Run: s.run.ID, ID: id, Scope: scope}
 	s.commands[id] = row
+	return row
+}
+
+// interviewLocked is one question row, created on first sight so replaying a
+// partial log still preserves an accepted answer.
+func (s *Store) interviewLocked(scope, session, questionID string) *InterviewRow {
+	if row, ok := s.interviews[questionID]; ok {
+		return row
+	}
+	row := &InterviewRow{Run: s.run.ID, QuestionID: questionID, Scope: scope, Session: session}
+	s.interviews[questionID] = row
 	return row
 }
 
@@ -672,6 +701,7 @@ func (s *Store) snapshotLocked() RunSnapshot {
 		Run:         s.run,
 		Scopes:      make(map[string]ScopeRow, len(s.scopes)),
 		Sessions:    make(map[string]SessionRow, len(s.sessions)),
+		Interviews:  make(map[string]InterviewRow, len(s.interviews)),
 		Turns:       make(map[string]TurnRow, len(s.turns)),
 		TurnUsage:   make(map[string]map[string]Usage, len(s.turnUsage)),
 		ModelCalls:  make(map[string][]ModelCallRow, len(s.modelCalls)),
@@ -684,6 +714,9 @@ func (s *Store) snapshotLocked() RunSnapshot {
 	}
 	for id, row := range s.sessions {
 		out.Sessions[id] = *row
+	}
+	for id, row := range s.interviews {
+		out.Interviews[id] = *row
 	}
 	for id, row := range s.turns {
 		out.Turns[id] = *row

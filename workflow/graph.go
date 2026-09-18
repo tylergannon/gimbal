@@ -71,6 +71,14 @@ type AgentCall struct {
 	Supervisors []Supervisor `json:"supervisors"`
 }
 
+// Interview is one gimble.Interview. Session is the conversation conducting
+// it; its questions, answers, and internal turns are runtime facts.
+type Interview struct {
+	Source
+	Name    string `json:"name"`
+	Session string `json:"session"`
+}
+
 // Supervisor is one gimble.WithSupervisor on a call: a session watching the
 // work and the constant it was told to watch for. Its own supervisors watch
 // its look turns. How often it looks is a knob the run records, not shape.
@@ -178,6 +186,7 @@ type Diagnostic struct {
 
 func (Session) operation()     {}
 func (AgentCall) operation()   {}
+func (Interview) operation()   {}
 func (Command) operation()     {}
 func (Set) operation()         {}
 func (Scope) operation()       {}

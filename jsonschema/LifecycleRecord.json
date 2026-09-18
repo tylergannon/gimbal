@@ -6,7 +6,7 @@
 "session":{"type":"string"},
 "turn":{"type":"string"},
 "event":{"anyOf":[{"type":"object",
-"description":"CommandEnded records how the command ID ended. A command that ran has its exit code and no error. One that could not start has exit code -1 and the error, and one its ctx cancelled has both and Interrupted as well. Stdout and Stderr are its output; past the size a record keeps, they are the tail, and StdoutFile or StderrFile names the file in the run's directory that holds all of it.","properties":{
+"description":"CommandEnded records how the command ID ended. A command that ran has its exit code and no error. One that could not start has exit code -1 and the error, and one its ctx cancelled has both and Interrupted as well. Stdout and Stderr are exact for a small stream. Past the size a return keeps they are bounded head/tail excerpts with an omission marker and an absolute path. StdoutFile and StderrFile are run-relative paths to the complete streams; every command that starts has both files while it runs.","properties":{
 "kind":{"type":"string","const":"command_ended"},
 "id":{"type":"string"},
 "exit_code":{"type":"integer"},
@@ -169,9 +169,16 @@
 "output_type":{"type":"string"}
 },"required":["kind","prompt","output_type"],"additionalProperties":false},
 {"type":"object",
-"description":"ValueSet records one value written into a scope.","properties":{
+"description":"ValueSet records one value written into a scope. A small value is carried in Value. A file-backed value carries Artifact instead; the two are mutually exclusive. A later record for the same key may replace the inline recording with an artifact when aggregate prompt budgeting first abbreviates it.","properties":{
 "kind":{"type":"string","const":"value_set"},
 "key":{"type":"string"},
-"value":{"type":"string","description":"JSONText is JSON source text carried opaquely by an event. Complete events contain one encoded value; delta events may contain only the next fragment. Text preserves provider-specific payloads while the event remains a closed Polytype shape."}
-},"required":["kind","key","value"],"additionalProperties":false}]}
+"value":{"type":"string","description":"JSONText is JSON source text carried opaquely by an event. Complete events contain one encoded value; delta events may contain only the next fragment. Text preserves provider-specific payloads while the event remains a closed Polytype shape."},
+"artifact":{"type":"object",
+"description":"ValueArtifact describes a complete scope value stored under the run. File is relative to the run directory. Format is \"text\" for a Set string and \"json\" for every other value; Preview is bounded prompt text, not a second complete value.","properties":{
+"file":{"type":"string"},
+"size":{"type":"integer"},
+"format":{"type":"string"},
+"preview":{"type":"string"}
+},"required":["file","size","format","preview"],"additionalProperties":false}
+},"required":["kind","key"],"additionalProperties":false}]}
 },"required":["seq","time","scope","event"],"additionalProperties":false}

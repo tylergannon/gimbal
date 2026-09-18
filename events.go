@@ -78,10 +78,25 @@ type PlannerDecision struct {
 
 func (PlannerDecision) lifecycleEvent() {}
 
-// ValueSet records one value written into a scope.
+// ValueArtifact describes a complete scope value stored under the run. File is
+// relative to the run directory. Format is "text" for a Set string and "json"
+// for every other value; Preview is bounded prompt text, not a second complete
+// value.
+type ValueArtifact struct {
+	File    string `json:"file"`
+	Size    int64  `json:"size"`
+	Format  string `json:"format"`
+	Preview string `json:"preview"`
+}
+
+// ValueSet records one value written into a scope. A small value is carried in
+// Value. A file-backed value carries Artifact instead; the two are mutually
+// exclusive. A later record for the same key may replace the inline recording
+// with an artifact when aggregate prompt budgeting first abbreviates it.
 type ValueSet struct {
-	Key   string   `json:"key"`
-	Value JSONText `json:"value"`
+	Key      string                           `json:"key"`
+	Value    polytype.Optional[JSONText]      `json:"value,omitzero"`
+	Artifact polytype.Optional[ValueArtifact] `json:"artifact,omitzero"`
 }
 
 func (ValueSet) lifecycleEvent() {}
@@ -164,9 +179,10 @@ func (CommandStarted) lifecycleEvent() {}
 // CommandEnded records how the command ID ended. A command that ran has its
 // exit code and no error. One that could not start has exit code -1 and the
 // error, and one its ctx cancelled has both and Interrupted as well. Stdout
-// and Stderr are its output; past the size a record keeps, they are the
-// tail, and StdoutFile or StderrFile names the file in the run's directory
-// that holds all of it.
+// and Stderr are exact for a small stream. Past the size a return keeps they
+// are bounded head/tail excerpts with an omission marker and an absolute path.
+// StdoutFile and StderrFile are run-relative paths to the complete streams;
+// every command that starts has both files while it runs.
 type CommandEnded struct {
 	ID          string        `json:"id"`
 	ExitCode    int           `json:"exit_code"`

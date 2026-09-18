@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { RunObservation, usageOf, usageText, type Decision, type InterviewRow, type ObservationDelta, type RunSnapshot, type TurnRow } from './index.js';
+	import { RunObservation, usageOf, usageText, type Decision, type InterviewRow, type ObservationDelta, type RunSnapshot, type ScopeValue, type TurnRow } from './index.js';
 	import InterviewNode from './InterviewNode.svelte';
 	import SessionTimeline from './SessionTimeline.svelte';
 	import LoopBox from './LoopBox.svelte';
@@ -16,6 +16,9 @@
 	const scopes = $derived.by(() => { revision; return Object.entries(observation.scopes).sort(([a], [b]) => a.localeCompare(b)); });
 	const taskName = (task: unknown) =>
 		typeof task === 'object' && task !== null && 'name' in task ? String((task as { name: unknown }).name) : JSON.stringify(task);
+	const scopeValueText = (value: ScopeValue) => value.artifact
+		? `${value.artifact.preview}\nComplete ${value.artifact.format}: ${value.artifact.file}`
+		: JSON.stringify(value.value);
 	// A decision's body is the planner's own event, so the task it dispatched
 	// is read out of it; a decision with none ended the dispatch.
 	const decisionName = (decision: Decision) => {
@@ -112,7 +115,7 @@
 		{#if scope.error}<p class="run-error">{scope.error}</p>{/if}
 		{#if scope.task !== undefined}<p>task · {taskName(scope.task)}</p>{/if}
 		{#each scope.decisions ?? [] as decision (decision.seq)}<p>decision · {decisionName(decision)}</p>{/each}
-		{#each Object.entries(scope.values ?? {}) as [name, value] (name)}<p>{name} · {JSON.stringify(value)}</p>{/each}
+		{#each Object.entries(scope.values ?? {}) as [name, value] (name)}<p>{name} · {scopeValueText(value)}</p>{/each}
 		{#if scope.loop && scope.status === 'running' && currentRun.status === 'running'}
 			<LoopBox run={currentRun.id} scope={key} name={scope.name} />
 		{/if}

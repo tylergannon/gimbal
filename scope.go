@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"path"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -39,11 +40,20 @@ type scope struct {
 	mu          sync.Mutex
 	ordinals    map[string]int // the last ordinal given to each child scope and session name
 	keys        []string       // in the order they were set
-	values      map[string][]byte
+	values      map[string]*scopeValue
 	sessions    []*Session
 	ended       bool
 	dispatching bool     // the loop's body is running, so its planner can still be reached
 	messages    []string // messages waiting for the planner's next decision
+}
+
+// scopeValue is the immutable semantic value Set captured. Its representation
+// may move from raw JSON to a run artifact when either the value or the visible
+// aggregate exceeds a prompt budget.
+type scopeValue struct {
+	owner    *scope
+	raw      []byte
+	artifact *artifactDescriptor
 }
 
 // queueMessage holds message for the planner of a loop that is still
@@ -212,11 +222,56 @@ func store(ctx context.Context, key string, raw []byte) {
 		panic(fmt.Sprintf("gimble: %q is already set in scope %q", key, s.key))
 	}
 	if s.values == nil {
-		s.values = make(map[string][]byte)
+		s.values = make(map[string]*scopeValue)
 	}
-	s.values[key] = raw
+	value := &scopeValue{owner: s, raw: append([]byte(nil), raw...)}
+	if tokenCount("## "+key+"\n\n"+render(raw)) > contextEntryTokenLimit {
+		if err := s.spillValueLocked(key, value); err != nil {
+			panic(fmt.Sprintf("gimble: set %q: write artifact: %v", key, err))
+		}
+	}
+	s.values[key] = value
 	s.keys = append(s.keys, key)
-	s.run.event(s.key, "", "", ValueSet{Key: key, Value: JSONText(raw)})
+	s.run.event(s.key, "", "", valueEvent(key, value))
+}
+
+func (s *scope) spillValueLocked(key string, value *scopeValue) error {
+	if value.artifact != nil {
+		return nil
+	}
+	var text string
+	format, extension := "json", ".json"
+	var scalar string
+	data := value.raw
+	if json.Unmarshal(value.raw, &scalar) == nil {
+		format, extension = "text", ".txt"
+		text, data = scalar, []byte(scalar)
+	} else {
+		text = render(value.raw)
+	}
+	relative := filepath.ToSlash(filepath.Join("values", encodedPath(s.key), encodedComponent(key)+extension))
+	desc, err := s.run.writeArtifact(relative, data)
+	if err != nil {
+		return err
+	}
+	desc.format, desc.preview = format, preview(text)
+	value.raw, value.artifact = nil, &desc
+	return nil
+}
+
+func (s *scope) ensureArtifact(key string, value *scopeValue) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if value.artifact != nil {
+		return nil
+	}
+	if err := s.spillValueLocked(key, value); err != nil {
+		return err
+	}
+	// This is a representation update for the same immutable value. Reducers
+	// replace the inline row, so finished tables and a log rebuild agree.
+	s.run.event(s.key, "", "", valueEvent(key, value))
+	return nil
 }
 
 // ScopeValue is one value visible from a scope, as a WithScopeTemplate
@@ -248,23 +303,18 @@ type ScopeData struct {
 // scope first, and for each key the value of the nearest scope that set it.
 func scopeData(ctx context.Context) ScopeData {
 	data := ScopeData{By: map[string]ScopeValue{}}
-	for s, _ := ctx.Value(scopeKey{}).(*scope); s != nil; s = s.parent {
-		s.mu.Lock()
-		for _, key := range slices.Backward(s.keys) {
-			if _, shown := data.By[key]; shown {
-				continue
-			}
-			raw := s.values[key]
-			value := ScopeValue{Key: key, Text: render(raw)}
-			if err := json.Unmarshal(raw, &value.Value); err != nil {
-				value.Value = value.Text
-			}
-			data.By[key] = value
-			data.Values = append(data.Values, value) // innermost first, reversed below
+	for _, visible := range visibleValues(ctx) {
+		raw, err := valueBytes(visible.value)
+		if err != nil {
+			panic(fmt.Sprintf("gimble: read scope value %q: %v", visible.key, err))
 		}
-		s.mu.Unlock()
+		value := ScopeValue{Key: visible.key, Text: render(raw)}
+		if err := json.Unmarshal(raw, &value.Value); err != nil {
+			value.Value = value.Text
+		}
+		data.By[visible.key] = value
+		data.Values = append(data.Values, value)
 	}
-	slices.Reverse(data.Values)
 	return data
 }
 
@@ -273,25 +323,116 @@ func scopeData(ctx context.Context) ScopeData {
 // that set it. Generate appends this to a turn's prompt itself; a workflow
 // no longer calls it.
 func scopeText(ctx context.Context) string {
-	data := scopeData(ctx)
-	sections := make([]string, 0, len(data.Values))
-	for _, value := range data.Values {
-		sections = append(sections, "## "+value.Key+"\n\n"+value.Text)
+	visible := visibleValues(ctx)
+	if len(visible) == 0 {
+		return ""
 	}
-	return strings.Join(sections, "\n\n")
+	sections := renderVisible(visible, -1)
+	text := strings.Join(sections, "\n\n")
+	if tokenCount(text) <= contextTokenLimit {
+		return text
+	}
+	for _, item := range visible {
+		if err := item.owner.ensureArtifact(item.key, item.value); err != nil {
+			panic(fmt.Sprintf("gimble: render scope value %q: write artifact: %v", item.key, err))
+		}
+	}
+	low, high := 0, artifactPreviewBytes
+	best := renderVisible(visible, 0)
+	for low <= high {
+		middle := low + (high-low)/2
+		candidate := renderVisible(visible, middle)
+		if tokenCount(strings.Join(candidate, "\n\n")) <= contextTokenLimit {
+			best = candidate
+			low = middle + 1
+		} else {
+			high = middle - 1
+		}
+	}
+	text = strings.Join(best, "\n\n")
+	if tokenCount(text) <= contextTokenLimit {
+		return text
+	}
+	var index strings.Builder
+	for _, item := range visible {
+		fmt.Fprintf(&index, "## %s\n\nComplete value: %s\n\n", item.key, artifactAbsolute(item.owner.run, *item.value.artifact))
+	}
+	desc, err := visible[0].owner.run.writeContentArtifact("scope-index", strings.TrimSpace(index.String()))
+	if err != nil {
+		panic(fmt.Sprintf("gimble: write scope index: %v", err))
+	}
+	return fitExcerpt(index.String(), artifactAbsolute(visible[0].owner.run, desc), contextTokenLimit)
 }
 
 // localText renders only the values written in this scope. PromiseLoop uses it to
 // carry a completed task's record forward without promoting those values into
 // the parent scope.
 func (s *scope) localText() string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	sections := make([]string, 0, len(s.keys))
-	for _, key := range s.keys {
-		sections = append(sections, "## "+key+"\n\n"+render(s.values[key]))
+	ctx := context.WithValue(context.Background(), scopeKey{}, s)
+	visible := visibleValues(ctx)
+	local := visible[:0]
+	for _, item := range visible {
+		if item.owner == s {
+			local = append(local, item)
+		}
 	}
-	return strings.Join(sections, "\n\n")
+	return strings.Join(renderVisible(local, -1), "\n\n")
+}
+
+type visibleValue struct {
+	owner *scope
+	key   string
+	value *scopeValue
+}
+
+func visibleValues(ctx context.Context) []visibleValue {
+	seen := map[string]bool{}
+	var values []visibleValue
+	for s, _ := ctx.Value(scopeKey{}).(*scope); s != nil; s = s.parent {
+		s.mu.Lock()
+		for _, key := range slices.Backward(s.keys) {
+			if !seen[key] {
+				seen[key] = true
+				values = append(values, visibleValue{owner: s, key: key, value: s.values[key]})
+			}
+		}
+		s.mu.Unlock()
+	}
+	slices.Reverse(values)
+	return values
+}
+
+func renderVisible(values []visibleValue, bodyBytes int) []string {
+	sections := make([]string, 0, len(values))
+	for _, item := range values {
+		item.owner.mu.Lock()
+		raw := append([]byte(nil), item.value.raw...)
+		var artifact *artifactDescriptor
+		if item.value.artifact != nil {
+			copy := *item.value.artifact
+			artifact = &copy
+		}
+		item.owner.mu.Unlock()
+		var text string
+		if artifact == nil {
+			text = render(raw)
+		} else {
+			desc := *artifact
+			path := artifactAbsolute(item.owner.run, desc)
+			prefix := ""
+			if desc.format == "json" {
+				prefix = "JSON excerpt (the complete JSON is in the referenced file):\n\n"
+			}
+			maxBytes := artifactPreviewBytes
+			if bodyBytes >= 0 {
+				maxBytes = bodyBytes
+			}
+			allowed := contextEntryTokenLimit - tokenCount("## "+item.key+"\n\n"+prefix)
+			text = prefix + fitExcerptBytes(desc.preview, path, allowed, maxBytes)
+		}
+		sections = append(sections, "## "+item.key+"\n\n"+text)
+	}
+	return sections
 }
 
 // render shows a JSON string as its text and anything else as indented JSON.

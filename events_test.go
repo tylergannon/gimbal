@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/tylergannon/polytype"
 )
 
 func TestAgentRecordUsesNativeEventAndOuterNativeRef(t *testing.T) {
@@ -92,7 +94,7 @@ func TestLifecycleEventUnionRoundTripsEveryVariant(t *testing.T) {
 		{"scope_began", ScopeBegan{Name: "task", Task: optionalTask(Task{Name: "Implement", Description: "Make it work.", DefinitionOfDone: "It works."})}},
 		{"scope_ended", ScopeEnded{Error: ""}},
 		{"planner_decision", PlannerDecision{Task: optionalTask(Task{Name: "Implement", Description: "Make events durable.", DefinitionOfDone: "The event is recorded."})}},
-		{"value_set", ValueSet{Key: "goal", Value: JSONText(`"ship"`)}},
+		{"value_set", ValueSet{Key: "goal", Artifact: polytype.Optional[ValueArtifact]{Present: true, Value: ValueArtifact{File: "artifacts/values/root/x-Z29hbA.txt", Size: 120000, Format: "text", Preview: "ship ..."}}}},
 		{"session_created", SessionCreated{Name: "coder", Adapter: "codex", Model: "gpt", Workdir: "/work", Parent: "researcher.1"}},
 		{"session_closed", SessionClosed{}},
 		{"turn_started", TurnStarted{Prompt: "build", OutputType: "gimble.Text"}},
@@ -100,7 +102,7 @@ func TestLifecycleEventUnionRoundTripsEveryVariant(t *testing.T) {
 		{"interview_question_asked", InterviewQuestionAsked{Name: "requirements", QuestionID: "question-1", Question: "What must be true?"}},
 		{"interview_question_answered", InterviewQuestionAnswered{QuestionID: "question-1", Answer: "It must work."}},
 		{"command_started", CommandStarted{ID: "lap.1/check.1", Name: "check", Command: "go", Args: []string{"test", "./..."}, Workdir: "/work"}},
-		{"command_ended", CommandEnded{ID: "lap.1/check.1", ExitCode: 1, Stdout: "FAIL", Stderr: "", StdoutFile: "commands/lap.1/check.1.stdout", Duration: time.Second}},
+		{"command_ended", CommandEnded{ID: "lap.1/check.1", ExitCode: 1, Stdout: "FAIL", Stderr: "", StdoutFile: "artifacts/commands/x-bGFwLjE/x-Y2hlY2suMQ/stdout.log", Duration: time.Second}},
 		{"supervise_attached", SuperviseAttached{Reviewer: "reviewer.1", Worker: "worker.1/turn.1", Instruction: "watch", Interval: time.Minute}},
 		{"steer", Steer{Target: "worker.1", Source: "reviewer.1", Message: "fix it", Landed: true}},
 		{"killed", Killed{Target: "worker.1/turn.1", By: "operator", Reason: "off the rails"}},

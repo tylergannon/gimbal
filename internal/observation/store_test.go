@@ -672,7 +672,7 @@ func TestSnapshotCarriesScopeTree(t *testing.T) {
 	if got.Name != "task.2" || got.Status != StatusEnded || got.Error != "" {
 		t.Fatalf("task scope = %+v", got)
 	}
-	if string(got.Task) != `{"name":"write a.txt"}` || string(got.Values["worker result"]) != `"done"` {
+	if string(got.Task) != `{"name":"write a.txt"}` || string(got.Values["worker result"].Value) != `"done"` {
 		t.Fatalf("task scope lost its dispatch or its values: %+v", got)
 	}
 	decisions := scopes["loop.1"].Decisions

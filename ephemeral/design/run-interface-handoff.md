@@ -23,6 +23,24 @@ The team is free to choose navigation, composition, visual style, and how
 map and history complement one another. A graph does not have to contain
 the entire transcript inside its nodes.
 
+Companion: `graph-and-state-examples.md` includes a complete small graph,
+a larger real workflow's shape, and explicitly fictional runtime content.
+The research notes provide precedents, not additional requirements.
+
+### Feature coverage at a glance
+
+| Required area | Include in the design |
+| --- | --- |
+| Runs | Current/past distinction, identity and status, useful summaries, finding and opening an older run. |
+| Historical review | Outcome, ordered activity, concurrency, repeated instances, prompts/results, tools, commands, errors, usage, decisions and interventions. |
+| Live interaction | Current activity, pending interviews with correct placement, agent steer feedback, loop messages/wrap-up, stop-turn and cancel-run controls, live/disconnected states. |
+| Generated map | Declared structure, call sequence, scope/group/loop hierarchy, click-to-inspect, pan/zoom, repeated execution selection, missing/incomplete graph treatment. |
+
+Tyler explicitly included stop-turn and cancel-run controls in the design;
+they are not existing web capabilities. Starting runs, workflow editing,
+scheduling, and accounts have not been requested. Do not inherit them from
+research examples.
+
 ## What the person needs to accomplish
 
 ### Find a run
@@ -63,9 +81,13 @@ Existing interactions to preserve:
   currently end an interview normally; the design should make that intent
   understandable rather than depend on discovering an empty-submit trick.
 
-Turn interruption and cancellation are related design considerations, but
-the current page has no such controls. Mark proposals for these separately
-from the interactions already wired up; do not assume a remote exists.
+Also required: stop a running turn and cancel an entire run. Make their
+different targets and consequences explicit, show the action's progress and
+outcome, and guard against accidentally cancelling all work when the person
+means one turn. Stopping a turn does not itself cancel the entire run; the
+workflow decides how to handle that interruption. The current page has no
+such controls. Their web wiring is implementation work, not a reason to
+omit them from the design.
 
 ### Explore the workflow map
 
@@ -150,12 +172,14 @@ needs engineering verification, especially for repeated calls on one session.
 
 ## Requested design return
 
-A connected prototype or annotated screens demonstrating the four requested
-capabilities and the walkthroughs above. Include overview/detail zoom
-behavior, live versus historical states, pending interviews, action feedback,
-and the no-graph/disconnected cases. Explain navigation and selection; mark
-new data/control needs separately from existing capabilities. Bring visual
-judgment, not a new workflow abstraction or a backend implementation plan.
+First compare a small number of genuinely different interaction concepts
+using the same graph and run scenarios. This is the proposed exploration
+process, pending Tyler's choice of deliverable. Choose a direction before
+spending effort polishing every screen. A concept should show navigation,
+overview/detail zoom, live versus historical states, pending interviews,
+action feedback, and no-graph/disconnected cases. Mark new data/control needs
+separately from existing capabilities. Bring visual judgment, not a new
+workflow abstraction or a backend implementation plan.
 
 ## Source packet
 

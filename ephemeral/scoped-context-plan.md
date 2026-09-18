@@ -63,14 +63,15 @@ live observation store just because the scope map now holds a descriptor.
 
 ## Context budget
 
-Starting policy: T = 15,000 estimated tokens for the automatically supplied
-scope context, with a provisional per-entry ceiling of 4,000. Both figures are
-policy defaults, not new workflow abstractions. This is not a promise about
-the provider's entire conversation window or an exact provider token count.
-Use one documented, deterministic accounting method; include keys, headings,
-paths, omission markers, and previews, not just payload text. Verify Unicode,
-code, and JSON cases before choosing an estimator. Avoid presenting bytes/4
-as a strict token guarantee.
+Starting policy: T = 15,000 tokens for the automatically supplied scope context,
+with a provisional per-entry ceiling of 4,000. Use
+[tiktoken-go/tokenizer](https://github.com/tiktoken-go/tokenizer), with its
+`o200k_base` encoding and `Count` method, as one common counter across harnesses.
+It is pure Go with embedded vocabularies, so counting needs no runtime download.
+Treat that count as a practical approximation for other providers. Tyler's
+tolerance is roughly 50%; exact model matching is unnecessary. Count the whole
+render, including headings, references, and previews. These limits cover added
+scope context, not the provider's entire conversation history.
 
 At Set/SetJSON, snapshot once and spill a value that exceeds the per-entry
 ceiling. Small entries can remain inline. Aggregate overflow is handled for
@@ -113,17 +114,16 @@ Keep only bounded previews in memory, retaining partial files on failure or
 cancellation and propagating capture errors. Record paths and previews so the
 existing run reader can retrieve full output.
 
-There is a real contract decision: RunCommand currently returns complete
-stdout/stderr strings. Streaming to files bounds capture memory, but reading
-the files back to satisfy that return contract recreates the allocation.
+Keep the scalar return shape. Small results remain complete strings; large
+results return head/tail excerpts with an omission marker and the absolute
+full-file path in the text. Agents can follow that reference. No caller
+migration project or further return-contract decision is needed for this pass.
 
-Recommendation: small results remain complete strings; large results return
-clearly labeled bounded excerpts with full-file references. Keep the scalar
-return shape, but explicitly change and document the output semantics and
-update callers that parse stdout. Never substitute a filename or silently
-truncate machine-readable output. If complete return strings remain required,
-describe this phase as disk-backed capture, not bounded end-to-end memory.
-Resolve this choice before implementing the command change.
+Read only a bounded prefix and suffix from each file, using seek/ReadAt or a
+similarly simple helper. Small files are read once, without duplicated overlap.
+Do not read complete large files back into memory to produce their previews.
+Use byte limits for those reads and the token counter for the resulting text;
+do not tokenize an entire command log merely to preview it.
 
 ## Delivery and evidence
 
@@ -139,7 +139,7 @@ Resolve this choice before implementing the command change.
    values, deep inheritance, shadowing, sibling independence, template output,
    planner feedback, Unicode, and the too-many-references fallback. Assert the
    measured complete render fits T and omitted content remains recoverable.
-4. After the return-contract decision, stream command output. Test both streams,
+4. Stream command output and return previews with file references. Test both streams,
    very large output, partial output on cancellation/nonzero exit, capture
    failures, bounded retained buffers, and full file fidelity. Do not infer a
    memory bound merely from an artifact's existence.

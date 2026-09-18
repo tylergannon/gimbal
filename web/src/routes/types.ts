@@ -4,47 +4,47 @@
  * InterviewAnswer is what one pending question's form posts. The question ID is opaque and run-local; together with the run it names exactly one waiter.
  */
 export type InterviewAnswer = {
-  "run": string;
-  "question_id": string;
-  "answer": string;
+  run: string;
+  question_id: string;
+  answer: string;
 };
 
 /**
  * InterviewAnswered confirms that the waiting interview accepted the answer.
  */
 export type InterviewAnswered = {
-  "accepted": boolean;
+  accepted: boolean;
 };
 
 /**
  * LoopMessage is what the loop card's forms post: which loop of which run, and either what the person typed at its planner or the wrap-up instruction, whose text is the runtime's own so the page never spells it.
  */
 export type LoopMessage = {
-  "run": string;
-  "scope": string;
-  "message": string;
-  "wrap_up": boolean;
+  run: string;
+  scope: string;
+  message: string;
+  wrap_up: boolean;
 };
 
 /**
  * Sent is the form's answer. Landed is false when the message reached the session but no turn was running to receive it, which is not an error: a steer sent to an idle session is dropped, and the person is told so.
  */
 export type Sent = {
-  "landed": boolean;
+  landed: boolean;
 };
 
 /**
  * Steer is what the run page's form posts: which session of which run the person is watching, and what they typed at it.
  */
 export type Steer = {
-  "run": string;
-  "session": string;
-  "message": string;
+  run: string;
+  session: string;
+  message: string;
 };
 
 /**
  * Waiting is the loop forms' answer: the message the planner will read at its next decision. A loop's planner is not always in a turn, so nothing here is dropped the way a steer to an idle session is; a loop that has stopped dispatching is an error instead.
  */
 export type Waiting = {
-  "message": string;
+  message: string;
 };

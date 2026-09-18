@@ -1,232 +1,232 @@
 {
- "seed": {
-  "info": [
-   {
-    "id": "ses_overlap",
-    "projectID": "project",
-    "location": {
-     "directory": "/oracle"
+  "seed": {
+    "info": [
+      {
+        "id": "ses_overlap",
+        "projectID": "project",
+        "location": {
+          "directory": "/oracle"
+        },
+        "time": {
+          "created": 1,
+          "updated": 1
+        },
+        "cost": 0,
+        "tokens": {
+          "input": 0,
+          "output": 0,
+          "reasoning": 0,
+          "cache": {
+            "read": 0,
+            "write": 0
+          }
+        }
+      }
+    ],
+    "messages": {
+      "ses_overlap": []
+    }
+  },
+  "events": [
+    {
+      "id": "evt_1",
+      "created": 1,
+      "durable": {
+        "aggregateID": "ses_overlap",
+        "seq": 1,
+        "version": 1
+      },
+      "type": "session.step.started",
+      "data": {
+        "sessionID": "ses_overlap",
+        "assistantMessageID": "msg_assistant",
+        "agent": "build",
+        "model": {
+          "id": "model",
+          "providerID": "provider",
+          "variant": "default"
+        }
+      }
     },
-    "time": {
-     "created": 1,
-     "updated": 1
+    {
+      "id": "evt_2",
+      "created": 2,
+      "durable": {
+        "aggregateID": "ses_overlap",
+        "seq": 2,
+        "version": 1
+      },
+      "type": "session.reasoning.started",
+      "data": {
+        "sessionID": "ses_overlap",
+        "assistantMessageID": "msg_assistant",
+        "ordinal": 0,
+        "state": {
+          "block": "first"
+        }
+      }
     },
-    "cost": 0,
-    "tokens": {
-     "input": 0,
-     "output": 0,
-     "reasoning": 0,
-     "cache": {
-      "read": 0,
-      "write": 0
-     }
+    {
+      "id": "evt_3",
+      "created": 3,
+      "durable": {
+        "aggregateID": "ses_overlap",
+        "seq": 3,
+        "version": 1
+      },
+      "type": "session.reasoning.delta",
+      "data": {
+        "sessionID": "ses_overlap",
+        "assistantMessageID": "msg_assistant",
+        "ordinal": 0,
+        "delta": "first-a"
+      }
+    },
+    {
+      "id": "evt_4",
+      "created": 4,
+      "durable": {
+        "aggregateID": "ses_overlap",
+        "seq": 4,
+        "version": 1
+      },
+      "type": "session.reasoning.started",
+      "data": {
+        "sessionID": "ses_overlap",
+        "assistantMessageID": "msg_assistant",
+        "ordinal": 1,
+        "state": {
+          "block": "second"
+        }
+      }
+    },
+    {
+      "id": "evt_5",
+      "created": 5,
+      "durable": {
+        "aggregateID": "ses_overlap",
+        "seq": 5,
+        "version": 1
+      },
+      "type": "session.reasoning.delta",
+      "data": {
+        "sessionID": "ses_overlap",
+        "assistantMessageID": "msg_assistant",
+        "ordinal": 1,
+        "delta": "second-a"
+      }
+    },
+    {
+      "id": "evt_6",
+      "created": 6,
+      "durable": {
+        "aggregateID": "ses_overlap",
+        "seq": 6,
+        "version": 1
+      },
+      "type": "session.reasoning.delta",
+      "data": {
+        "sessionID": "ses_overlap",
+        "assistantMessageID": "msg_assistant",
+        "ordinal": 0,
+        "delta": "first-b"
+      }
+    },
+    {
+      "id": "evt_7",
+      "created": 7,
+      "durable": {
+        "aggregateID": "ses_overlap",
+        "seq": 7,
+        "version": 1
+      },
+      "type": "session.reasoning.ended",
+      "data": {
+        "sessionID": "ses_overlap",
+        "assistantMessageID": "msg_assistant",
+        "ordinal": 1,
+        "text": "second-final",
+        "state": {
+          "block": "second"
+        }
+      }
+    },
+    {
+      "id": "evt_8",
+      "created": 8,
+      "durable": {
+        "aggregateID": "ses_overlap",
+        "seq": 8,
+        "version": 1
+      },
+      "type": "session.reasoning.delta",
+      "data": {
+        "sessionID": "ses_overlap",
+        "assistantMessageID": "msg_assistant",
+        "ordinal": 0,
+        "delta": "first-c"
+      }
+    },
+    {
+      "id": "evt_9",
+      "created": 9,
+      "durable": {
+        "aggregateID": "ses_overlap",
+        "seq": 9,
+        "version": 1
+      },
+      "type": "session.reasoning.ended",
+      "data": {
+        "sessionID": "ses_overlap",
+        "assistantMessageID": "msg_assistant",
+        "ordinal": 0,
+        "text": "first-final",
+        "state": {
+          "block": "first"
+        }
+      }
+    },
+    {
+      "id": "evt_10",
+      "created": 10,
+      "durable": {
+        "aggregateID": "ses_overlap",
+        "seq": 10,
+        "version": 1
+      },
+      "type": "session.reasoning.delta",
+      "data": {
+        "sessionID": "ses_overlap",
+        "assistantMessageID": "msg_assistant",
+        "ordinal": 0,
+        "delta": "after-all"
+      }
+    },
+    {
+      "id": "evt_11",
+      "created": 11,
+      "durable": {
+        "aggregateID": "ses_overlap",
+        "seq": 11,
+        "version": 1
+      },
+      "type": "session.step.ended",
+      "data": {
+        "sessionID": "ses_overlap",
+        "assistantMessageID": "msg_assistant",
+        "finish": "stop",
+        "rawFinish": "stop",
+        "cost": 0,
+        "tokens": {
+          "input": 0,
+          "output": 0,
+          "reasoning": 0,
+          "cache": {
+            "read": 0,
+            "write": 0
+          }
+        }
+      }
     }
-   }
-  ],
-  "messages": {
-   "ses_overlap": []
-  }
- },
- "events": [
-  {
-   "id": "evt_1",
-   "created": 1,
-   "durable": {
-    "aggregateID": "ses_overlap",
-    "seq": 1,
-    "version": 1
-   },
-   "type": "session.step.started",
-   "data": {
-    "sessionID": "ses_overlap",
-    "assistantMessageID": "msg_assistant",
-    "agent": "build",
-    "model": {
-     "id": "model",
-     "providerID": "provider",
-     "variant": "default"
-    }
-   }
-  },
-  {
-   "id": "evt_2",
-   "created": 2,
-   "durable": {
-    "aggregateID": "ses_overlap",
-    "seq": 2,
-    "version": 1
-   },
-   "type": "session.reasoning.started",
-   "data": {
-    "sessionID": "ses_overlap",
-    "assistantMessageID": "msg_assistant",
-    "ordinal": 0,
-    "state": {
-     "block": "first"
-    }
-   }
-  },
-  {
-   "id": "evt_3",
-   "created": 3,
-   "durable": {
-    "aggregateID": "ses_overlap",
-    "seq": 3,
-    "version": 1
-   },
-   "type": "session.reasoning.delta",
-   "data": {
-    "sessionID": "ses_overlap",
-    "assistantMessageID": "msg_assistant",
-    "ordinal": 0,
-    "delta": "first-a"
-   }
-  },
-  {
-   "id": "evt_4",
-   "created": 4,
-   "durable": {
-    "aggregateID": "ses_overlap",
-    "seq": 4,
-    "version": 1
-   },
-   "type": "session.reasoning.started",
-   "data": {
-    "sessionID": "ses_overlap",
-    "assistantMessageID": "msg_assistant",
-    "ordinal": 1,
-    "state": {
-     "block": "second"
-    }
-   }
-  },
-  {
-   "id": "evt_5",
-   "created": 5,
-   "durable": {
-    "aggregateID": "ses_overlap",
-    "seq": 5,
-    "version": 1
-   },
-   "type": "session.reasoning.delta",
-   "data": {
-    "sessionID": "ses_overlap",
-    "assistantMessageID": "msg_assistant",
-    "ordinal": 1,
-    "delta": "second-a"
-   }
-  },
-  {
-   "id": "evt_6",
-   "created": 6,
-   "durable": {
-    "aggregateID": "ses_overlap",
-    "seq": 6,
-    "version": 1
-   },
-   "type": "session.reasoning.delta",
-   "data": {
-    "sessionID": "ses_overlap",
-    "assistantMessageID": "msg_assistant",
-    "ordinal": 0,
-    "delta": "first-b"
-   }
-  },
-  {
-   "id": "evt_7",
-   "created": 7,
-   "durable": {
-    "aggregateID": "ses_overlap",
-    "seq": 7,
-    "version": 1
-   },
-   "type": "session.reasoning.ended",
-   "data": {
-    "sessionID": "ses_overlap",
-    "assistantMessageID": "msg_assistant",
-    "ordinal": 1,
-    "text": "second-final",
-    "state": {
-     "block": "second"
-    }
-   }
-  },
-  {
-   "id": "evt_8",
-   "created": 8,
-   "durable": {
-    "aggregateID": "ses_overlap",
-    "seq": 8,
-    "version": 1
-   },
-   "type": "session.reasoning.delta",
-   "data": {
-    "sessionID": "ses_overlap",
-    "assistantMessageID": "msg_assistant",
-    "ordinal": 0,
-    "delta": "first-c"
-   }
-  },
-  {
-   "id": "evt_9",
-   "created": 9,
-   "durable": {
-    "aggregateID": "ses_overlap",
-    "seq": 9,
-    "version": 1
-   },
-   "type": "session.reasoning.ended",
-   "data": {
-    "sessionID": "ses_overlap",
-    "assistantMessageID": "msg_assistant",
-    "ordinal": 0,
-    "text": "first-final",
-    "state": {
-     "block": "first"
-    }
-   }
-  },
-  {
-   "id": "evt_10",
-   "created": 10,
-   "durable": {
-    "aggregateID": "ses_overlap",
-    "seq": 10,
-    "version": 1
-   },
-   "type": "session.reasoning.delta",
-   "data": {
-    "sessionID": "ses_overlap",
-    "assistantMessageID": "msg_assistant",
-    "ordinal": 0,
-    "delta": "after-all"
-   }
-  },
-  {
-   "id": "evt_11",
-   "created": 11,
-   "durable": {
-    "aggregateID": "ses_overlap",
-    "seq": 11,
-    "version": 1
-   },
-   "type": "session.step.ended",
-   "data": {
-    "sessionID": "ses_overlap",
-    "assistantMessageID": "msg_assistant",
-    "finish": "stop",
-    "rawFinish": "stop",
-    "cost": 0,
-    "tokens": {
-     "input": 0,
-     "output": 0,
-     "reasoning": 0,
-     "cache": {
-      "read": 0,
-      "write": 0
-     }
-    }
-   }
-  }
- ]
+  ]
 }

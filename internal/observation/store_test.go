@@ -317,7 +317,7 @@ func TestFinishedRunStaysReadable(t *testing.T) {
 }
 
 // TestOpenWritesEmptyTables is the files half of the store: a run has its
-// seven arrays from the start, so a run with no steps still has a
+// eight arrays from the start, so a run with no steps still has a
 // model_calls.json and nothing has to guess whether a file will appear.
 func TestOpenWritesEmptyTables(t *testing.T) {
 	dir := t.TempDir()

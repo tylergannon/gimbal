@@ -129,6 +129,10 @@ func (s *Store) restoreLocked(snapshot RunSnapshot) {
 		row := v
 		s.sessions[k] = &row
 	}
+	for k, v := range snapshot.Interviews {
+		row := v
+		s.interviews[k] = &row
+	}
 	for k, v := range snapshot.Turns {
 		row := v
 		s.turns[k] = &row
@@ -198,6 +202,11 @@ func (s *Store) restoreRowLocked(frame rowFrame) {
 		var v SessionRow
 		if json.Unmarshal(raw, &v) == nil {
 			s.sessions[frame.Key] = &v
+		}
+	case tableInterviews:
+		var v InterviewRow
+		if json.Unmarshal(raw, &v) == nil {
+			s.interviews[frame.Key] = &v
 		}
 	case tableTurns:
 		var v TurnRow

@@ -22,6 +22,13 @@ const (
 	StatusEnded = "ended"
 )
 
+// Interview statuses describe whether its question is still waiting for a
+// person or has accepted its one answer.
+const (
+	InterviewStatusPending  = "pending"
+	InterviewStatusAnswered = "answered"
+)
+
 // Placement is where a native event happened in the workflow. It lives
 // outside the native envelope, so native IDs stay unchanged inside it and
 // two concurrent turns never share a projection.
@@ -49,6 +56,7 @@ type RunSnapshot struct {
 	Run         RunRow                      `json:"run"`
 	Scopes      map[string]ScopeRow         `json:"scopes"`
 	Sessions    map[string]SessionRow       `json:"sessions"`
+	Interviews  map[string]InterviewRow     `json:"interviews"`
 	Turns       map[string]TurnRow          `json:"turns"`
 	TurnUsage   map[string]map[string]Usage `json:"turn_usage"`
 	ModelCalls  map[string][]ModelCallRow   `json:"model_calls"`

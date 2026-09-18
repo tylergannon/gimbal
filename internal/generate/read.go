@@ -216,7 +216,7 @@ func (e *extractor) funcHoldsOperation(fn *types.Func) bool {
 
 func isOperation(name string) bool {
 	switch name {
-	case "Run", "Scope", "Group", "Go", "PromiseLoop", "Tasks", "Iterate", "NewSession", "Fork", "Generate", "Set", "SetJSON", "RunCommand":
+	case "Run", "Scope", "Group", "Go", "PromiseLoop", "Tasks", "Iterate", "NewSession", "Fork", "Generate", "Interview", "Set", "SetJSON", "RunCommand":
 		return true
 	default:
 		return false

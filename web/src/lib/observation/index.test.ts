@@ -14,6 +14,7 @@ const snapshot = (title = 'start'): RunSnapshot => {
 		run: { id: 'run', name: 'Run', status: 'running', error: '', started: 1, ended: 0 },
 		scopes: { 'loop.1': { run: 'run', key: 'loop.1', name: 'loop.1', loop: true, status: 'running', error: '', began: 1, ended: 0, values: {}, decisions: [] } },
 		sessions: { ses: { run: 'run', id: 'ses', name: 'agent', adapter: 'codex', model: 'm', scope: 'lap', parent: '', created: 1 } },
+		interviews: {},
 		turns: { turn: { run: 'run', id: 'turn', session: 'ses', scope: 'lap', prompt: 'go', output_type: 'gimble.Text', result: '', error: '', interrupted: false, started: 2, ended: 0, duration: 0 } },
 		turn_usage: {},
 		model_calls: {},
@@ -56,6 +57,11 @@ test('a row frame is one row of one table, replacing what was there', () => {
 	// created in.
 	assert.equal(observation.turns['turn.2'].scope, 'loop.1/task.2')
 	assert.equal(observation.sessions.ses.scope, 'lap')
+
+	observation.apply({ type: 'row', data: { table: 'interviews', key: 'question-1', row: { run: 'run', question_id: 'question-1', name: 'preferences', scope: 'loop.1/task.2', session: 'ses', question: 'Which color?', status: 'pending', answer: '', asked: 6, answered: 0 } } }, connection)
+	assert.equal(observation.interviews['question-1'].question, 'Which color?')
+	observation.apply({ type: 'row', data: { table: 'interviews', key: 'question-1', row: { run: 'run', question_id: 'question-1', name: 'preferences', scope: 'loop.1/task.2', session: 'ses', question: 'Which color?', status: 'answered', answer: 'Blue', asked: 6, answered: 7 } } }, connection)
+	assert.equal(observation.interviews['question-1'].answer, 'Blue')
 
 	observation.apply({ type: 'row', data: { table: 'turn_usage', key: 'turn.2', row: { m: usage(12, 0.5) } } }, connection)
 	assert.deepEqual(observation.turnUsage['turn.2'], { m: usage(12, 0.5) })
@@ -114,6 +120,7 @@ test('the snapshot it hands back is every table and every transcript', () => {
 	assert.deepEqual(out.turn_usage, { turn: { m: usage(3) } })
 	assert.deepEqual(out.scopes, observation.scopes)
 	assert.deepEqual(out.sessions, observation.sessions)
+	assert.deepEqual(out.interviews, observation.interviews)
 	assert.deepEqual(out.turns, observation.turns)
 	assert.equal(out.transcripts.turn.snapshot.state.info.ses.title, 'start')
 })

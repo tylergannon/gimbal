@@ -279,6 +279,80 @@ func TestInterviewFirstAnswerWinsConcurrentSubmissions(t *testing.T) {
 	}
 }
 
+func TestInterviewRoutesAnswersToConcurrentQuestions(t *testing.T) {
+	var mu sync.Mutex
+	turns := map[string]int{}
+	f := &fake{answer: func(_ context.Context, session, _ string, _ json.RawMessage, _ func(AgentEvent) error) (string, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		turns[session]++
+		if turns[session] == 1 {
+			return fmt.Sprintf(`{"question":%q}`, "Question from "+session), nil
+		}
+		return `{"question":null}`, nil
+	}}
+	err := runTest(t, bind(f, "m", "interviewer"), func(ctx context.Context) error {
+		scope, _ := current(ctx)
+		first := startInterview(ctx, "first", NewSession(ctx, "interviewer", "/w"), "Ask once.")
+		waitCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		defer cancel()
+		firstID, err := pendingInterviewQuestion(waitCtx, scope.run)
+		if err != nil {
+			return err
+		}
+
+		second := startInterview(ctx, "second", NewSession(ctx, "interviewer", "/w"), "Ask once too.")
+		var secondID string
+		ticker := time.NewTicker(time.Millisecond)
+		defer ticker.Stop()
+		for secondID == "" {
+			scope.run.mu.Lock()
+			for id := range scope.run.interviews {
+				if id != firstID {
+					secondID = id
+				}
+			}
+			scope.run.mu.Unlock()
+			if secondID != "" {
+				break
+			}
+			select {
+			case <-waitCtx.Done():
+				return waitCtx.Err()
+			case <-ticker.C:
+			}
+		}
+
+		if err := scope.run.AnswerInterview(secondID, "second answer"); err != nil {
+			return err
+		}
+		if err := scope.run.AnswerInterview(firstID, "first answer"); err != nil {
+			return err
+		}
+		firstResult, err := receiveInterview(waitCtx, first)
+		if err != nil {
+			return err
+		}
+		secondResult, err := receiveInterview(waitCtx, second)
+		if err != nil {
+			return err
+		}
+		if firstResult.err != nil || secondResult.err != nil {
+			return errors.Join(firstResult.err, secondResult.err)
+		}
+		if len(firstResult.transcript.Exchanges) != 1 || firstResult.transcript.Exchanges[0].Answer != "first answer" {
+			t.Errorf("first interview = %#v, want its own answer", firstResult.transcript)
+		}
+		if len(secondResult.transcript.Exchanges) != 1 || secondResult.transcript.Exchanges[0].Answer != "second answer" {
+			t.Errorf("second interview = %#v, want its own answer", secondResult.transcript)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestInterviewRejectsMismatchedAndStaleQuestionIDs(t *testing.T) {
 	var turn int
 	f := &fake{answer: func(_ context.Context, _ string, _ string, _ json.RawMessage, _ func(AgentEvent) error) (string, error) {

@@ -121,6 +121,8 @@ func operation(op workflow.Operation) string {
 			fmt.Fprintf(&b, ", Supervisors: %s", supervisors(op.Supervisors))
 		}
 		b.WriteString("}")
+	case workflow.Interview:
+		fmt.Fprintf(&b, "workflow.Interview{Source: %s, Name: %s, Session: %s}", position(op.Source), strconv.Quote(op.Name), strconv.Quote(op.Session))
 	case workflow.Command:
 		fmt.Fprintf(&b, "workflow.Command{Source: %s, Name: %s}", position(op.Source), strconv.Quote(op.Name))
 	case workflow.Set:

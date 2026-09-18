@@ -78,6 +78,22 @@ type SessionRow struct {
 	Created int64  `json:"created"`
 }
 
+// InterviewRow is one question an interview asked. An accepted answer updates
+// the same row from pending to answered; an empty answer means the person
+// ended the interview.
+type InterviewRow struct {
+	Run        string `json:"run"`
+	QuestionID string `json:"question_id"`
+	Name       string `json:"name"`
+	Scope      string `json:"scope"`
+	Session    string `json:"session"`
+	Question   string `json:"question"`
+	Status     string `json:"status"`
+	Answer     string `json:"answer"`
+	Asked      int64  `json:"asked"`
+	Answered   int64  `json:"answered"`
+}
+
 // TurnRow is one agent turn. Scope is where the turn ran, which is what a
 // turn's tokens are charged to. Result is the recorded JSON text.
 type TurnRow struct {

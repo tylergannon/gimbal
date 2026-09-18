@@ -684,7 +684,7 @@ func isSetCall(pass *analysis.Pass, call *ast.CallExpr) bool {
 
 func isWorkflowOperation(name string) bool {
 	switch name {
-	case "Run", "Scope", "Group", "Go", "PromiseLoop", "Tasks", "Iterate", "NewSession", "Fork", "Generate", "Set", "SetJSON":
+	case "Run", "Scope", "Group", "Go", "PromiseLoop", "Tasks", "Iterate", "NewSession", "Fork", "Generate", "Interview", "Set", "SetJSON":
 		return true
 	default:
 		return false

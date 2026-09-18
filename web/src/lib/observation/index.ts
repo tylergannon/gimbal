@@ -24,6 +24,11 @@ export type ScopeRow = {
 /** One agent conversation. `scope` is where it was created, which is not
  * where its turns necessarily ran. */
 export type SessionRow = { run: string; id: string; name: string; adapter: string; model: string; scope: string; parent: string; created: number }
+/** One interview question. An accepted answer updates the same row. */
+export type InterviewRow = {
+	run: string; question_id: string; name: string; scope: string; session: string; question: string
+	status: 'pending' | 'answered'; answer: string; asked: number; answered: number
+}
 /** One agent turn. `scope` is where the turn ran, which is what its tokens
  * are charged to. */
 export type TurnRow = {
@@ -47,6 +52,7 @@ export type RunSnapshot = {
 	run: RunRow
 	scopes: Record<string, ScopeRow>
 	sessions: Record<string, SessionRow>
+	interviews: Record<string, InterviewRow>
 	turns: Record<string, TurnRow>
 	turn_usage: Record<string, Record<string, Usage>>
 	model_calls: Record<string, ModelCallRow[]>
@@ -61,6 +67,7 @@ export type RowFrame =
 	| { table: 'run'; key: string; row: RunRow }
 	| { table: 'scopes'; key: string; row: ScopeRow }
 	| { table: 'sessions'; key: string; row: SessionRow }
+	| { table: 'interviews'; key: string; row: InterviewRow }
 	| { table: 'turns'; key: string; row: TurnRow }
 	| { table: 'turn_usage'; key: string; row: Record<string, Usage> }
 	| { table: 'model_calls'; key: string; row: ModelCallRow[] }
@@ -84,6 +91,7 @@ export class RunObservation {
 	run: RunRow
 	scopes: Record<string, ScopeRow> = {}
 	sessions: Record<string, SessionRow> = {}
+	interviews: Record<string, InterviewRow> = {}
 	turns: Record<string, TurnRow> = {}
 	turnUsage: Record<string, Record<string, Usage>> = {}
 	modelCalls: Record<string, ModelCallRow[]> = {}
@@ -108,6 +116,7 @@ export class RunObservation {
 		this.position = snapshot.position
 		this.scopes = clone(snapshot.scopes ?? {})
 		this.sessions = clone(snapshot.sessions ?? {})
+		this.interviews = clone(snapshot.interviews ?? {})
 		this.turns = clone(snapshot.turns ?? {})
 		this.turnUsage = clone(snapshot.turn_usage ?? {})
 		this.modelCalls = clone(snapshot.model_calls ?? {})
@@ -160,6 +169,7 @@ export class RunObservation {
 			case 'run': this.run = clone(frame.row); break
 			case 'scopes': this.scopes[frame.key] = clone(frame.row); break
 			case 'sessions': this.sessions[frame.key] = clone(frame.row); break
+			case 'interviews': this.interviews[frame.key] = clone(frame.row); break
 			case 'turns': this.turns[frame.key] = clone(frame.row); break
 			case 'turn_usage': this.turnUsage[frame.key] = clone(frame.row); break
 			case 'model_calls': this.modelCalls[frame.key] = clone(frame.row); break
@@ -171,7 +181,7 @@ export class RunObservation {
 	snapshot(): RunSnapshot {
 		return {
 			stream: this.stream, position: this.position,
-			run: clone(this.run), scopes: clone(this.scopes), sessions: clone(this.sessions),
+			run: clone(this.run), scopes: clone(this.scopes), sessions: clone(this.sessions), interviews: clone(this.interviews),
 			turns: clone(this.turns), turn_usage: clone(this.turnUsage), model_calls: clone(this.modelCalls),
 			totals: clone(this.totals),
 			transcripts: Object.fromEntries([...this.transcripts].map(([turn, value]) => [turn, {

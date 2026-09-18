@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { RunObservation, usageOf, usageText, type Decision, type ObservationDelta, type RunSnapshot } from './index.js';
+	import { RunObservation, usageOf, usageText, type Decision, type InterviewRow, type ObservationDelta, type RunSnapshot, type TurnRow } from './index.js';
+	import InterviewNode from './InterviewNode.svelte';
 	import SessionTimeline from './SessionTimeline.svelte';
 	import LoopBox from './LoopBox.svelte';
 	import SteerBox from './SteerBox.svelte';
@@ -22,13 +23,40 @@
 		const task = typeof body === 'object' && body !== null ? (body as { task?: unknown }).task : undefined;
 		return task === undefined ? 'ended dispatch' : taskName(task);
 	};
-	// One section per turn, oldest first. A turn is where the work happened,
-	// and its session says which agent ran it.
-	const views = $derived.by(() => {
+	type TurnView = { kind: 'turn'; key: string; started: number; turn: TurnRow };
+	type InterviewView = {
+		kind: 'interview'; key: string; started: number; scope: string; session: string;
+		questions: InterviewRow[]; turns: TurnRow[];
+	};
+	const interviewNodeKey = (scope: string, session: string) => `${scope}\0${session}`;
+	// An interview owns repeated typed turns on one session at one scope. Once
+	// its first question arrives, those turns and every later question stay in
+	// one activity node; all other turns retain the page's per-turn shape.
+	const activities = $derived.by(() => {
 		revision;
-		return Object.values(observation.turns)
-			.sort((a, b) => a.started - b.started || a.id.localeCompare(b.id))
-			.map((turn) => ({ turn, session: observation.sessions[turn.session], state: observation.state(turn.id) }));
+		const interviews = new Map<string, InterviewView>();
+		for (const question of Object.values(observation.interviews).sort((a, b) => a.asked - b.asked || a.question_id.localeCompare(b.question_id))) {
+			const key = interviewNodeKey(question.scope, question.session);
+			let view = interviews.get(key);
+			if (!view) {
+				view = { kind: 'interview', key: `interview:${key}`, started: question.asked, scope: question.scope, session: question.session, questions: [], turns: [] };
+				interviews.set(key, view);
+			}
+			view.questions.push(question);
+			view.started = Math.min(view.started, question.asked);
+		}
+
+		const ordinary: TurnView[] = [];
+		for (const turn of Object.values(observation.turns).sort((a, b) => a.started - b.started || a.id.localeCompare(b.id))) {
+			const interview = interviews.get(interviewNodeKey(turn.scope, turn.session));
+			if (interview && turn.output_type === 'gimble.interviewDecision') {
+				interview.turns.push(turn);
+				interview.started = Math.min(interview.started, turn.started);
+			} else {
+				ordinary.push({ kind: 'turn', key: `turn:${turn.id}`, started: turn.started, turn });
+			}
+		}
+		return [...ordinary, ...interviews.values()].sort((a, b) => a.started - b.started || a.key.localeCompare(b.key));
 	});
 
 	$effect(() => {
@@ -91,22 +119,35 @@
 	</section>
 {/each}
 
-{#each views as view (view.turn.id)}
-	{@const turn = view.turn}
-	{@const session = view.session}
-	{@const state = view.state}
-	<section class="invocation">
-		<header>
-			<div><h2>{session?.name ?? turn.session}</h2><p>{session?.adapter ?? 'agent'} · {session?.model ?? 'model unavailable'}</p></div>
-			<span>{turn.scope}</span>
-		</header>
-		{#if state}<SessionTimeline {state} {revision} {observation} turn={turn.id} />{/if}
-		{#if currentRun.status === 'running' && turn.ended === 0}
-			<SteerBox run={currentRun.id} session={turn.session} name={session?.name ?? turn.session} />
-		{/if}
-	</section>
+{#each activities as activity (activity.key)}
+	{#if activity.kind === 'interview'}
+		<InterviewNode
+			run={currentRun.id}
+			status={currentRun.status}
+			scope={activity.scope}
+			session={observation.sessions[activity.session]}
+			turns={activity.turns}
+			questions={activity.questions}
+			{revision}
+			{observation}
+		/>
+	{:else}
+		{@const turn = activity.turn}
+		{@const session = observation.sessions[turn.session]}
+		{@const state = observation.state(turn.id)}
+		<section class="invocation">
+			<header>
+				<div><h2>{session?.name ?? turn.session}</h2><p>{session?.adapter ?? 'agent'} · {session?.model ?? 'model unavailable'}</p></div>
+				<span>{turn.scope}</span>
+			</header>
+			{#if state}<SessionTimeline {state} {revision} {observation} turn={turn.id} />{/if}
+			{#if currentRun.status === 'running' && turn.ended === 0}
+				<SteerBox run={currentRun.id} session={turn.session} name={session?.name ?? turn.session} />
+			{/if}
+		</section>
+	{/if}
 {/each}
-{#if views.length === 0}<p>No agent turns have started.</p>{/if}
+{#if activities.length === 0}<p>No agent turns have started.</p>{/if}
 
 <style>
 	.run-header, .invocation > header, .scope > header, .states { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }

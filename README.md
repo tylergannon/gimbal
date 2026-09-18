@@ -18,16 +18,6 @@ only.
 
 ## Build and run
 
-Gimble has not been publicly announced. For now, distribution targets agents
-running on this machine in other projects. Building locally and installing
-with `go install ./cmd/gimble` is sufficient; signed binaries and scalable
-public distribution are outside the current scope. Build the frontend first
-as described below so the installed binary includes the web application.
-
-This local distribution scope does not lower the standard for the skills:
-agents in other projects must be able to use the workflow-authoring and
-run-operation instructions without relying on context from Gimble's development.
-
 This project uses Justfile for its build commands. It requires Node 24, pnpm 11, and just.
 
 ```sh

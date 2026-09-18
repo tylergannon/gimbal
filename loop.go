@@ -60,19 +60,21 @@ type promiseLoop struct {
 	name    string
 	goal    string
 	planner *Session
+	opts    []AgentOption
 	err     error
 }
 
 // PromiseLoop opens planner-directed dispatch for goal. The planner keeps a
 // revisable backlog and selects each task. Range over Tasks and check Err
 // afterward to distinguish normal completion from planner, persistence, or
-// cancellation failure.
+// cancellation failure. opts apply to every planning dispatch, so
+// WithSupervisor can watch and steer the planner while it decides.
 //
 // An operator can send this loop a message while it is dispatching. The
 // message waits for the planner's next decision rather than being dropped
 // between turns.
-func PromiseLoop(ctx context.Context, name, goal string, planner *Session) *promiseLoop {
-	return &promiseLoop{ctx: ctx, name: name, goal: goal, planner: planner}
+func PromiseLoop(ctx context.Context, name, goal string, planner *Session, opts ...AgentOption) *promiseLoop {
+	return &promiseLoop{ctx: ctx, name: name, goal: goal, planner: planner, opts: opts}
 }
 
 // Tasks yields planner-selected assignments. Each ctx is a child scope that
@@ -130,7 +132,7 @@ func (l *promiseLoop) Tasks(yield func(context.Context, Task) bool) {
 			if err != nil {
 				return err
 			}
-			a, err := dispatch[answer](ctx, l.planner, prompt, nil)
+			a, err := dispatch[answer](ctx, l.planner, prompt, l.opts)
 			if err != nil {
 				return err
 			}

@@ -114,13 +114,15 @@ type Scope struct {
 }
 
 // PromiseLoop is planner-directed dispatch. Planner names the planner session;
-// Body runs under a child scope named "task", where the runtime writes key
-// "task". How many tasks there will be is the planner's decision.
+// Supervisors watch each planning decision. Body runs under a child scope named
+// "task", where the runtime writes key "task". How many tasks there will be is
+// the planner's decision.
 type PromiseLoop struct {
 	Source
-	Name    string      `json:"name"`
-	Planner string      `json:"planner"`
-	Body    []Operation `json:"body"`
+	Name        string       `json:"name"`
+	Planner     string       `json:"planner"`
+	Supervisors []Supervisor `json:"supervisors"`
+	Body        []Operation  `json:"body"`
 }
 
 // Iterate ranges over a collection supplied by ordinary Go. Each item runs in

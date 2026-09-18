@@ -278,10 +278,11 @@ func (e *extractor) gimbleOperation(name string, call *ast.CallExpr, targets []a
 			return false
 		}
 		e.emit(out, workflow.PromiseLoop{
-			Source:  e.at(call.Pos()),
-			Name:    loop,
-			Planner: planner.name,
-			Body:    []workflow.Operation{},
+			Source:      e.at(call.Pos()),
+			Name:        loop,
+			Planner:     planner.name,
+			Supervisors: e.supervisors(call, 4),
+			Body:        []workflow.Operation{},
 		})
 		if obj := e.firstObject(targets); obj != nil {
 			e.loop[obj] = &nodeRef{ops: out, index: len(*out) - 1}

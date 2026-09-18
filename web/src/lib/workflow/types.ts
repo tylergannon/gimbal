@@ -250,7 +250,7 @@ export type Iterate = {
 };
 
 /**
- * PromiseLoop is planner-directed dispatch. Planner names the planner session; Body runs under a child scope named "task", where the runtime writes key "task". How many tasks there will be is the planner's decision.
+ * PromiseLoop is planner-directed dispatch. Planner names the planner session; Supervisors watch each planning decision. Body runs under a child scope named "task", where the runtime writes key "task". How many tasks there will be is the planner's decision.
  */
 export type PromiseLoop = {
   /**
@@ -260,6 +260,7 @@ export type PromiseLoop = {
   "line": number;
   "name": string;
   "planner": string;
+  "supervisors": Array<Supervisor>;
   "body": Array<Omit<AgentCall, "kind"> & {
     "kind": "agent_call";
   } | Omit<Command, "kind"> & {

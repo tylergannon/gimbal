@@ -591,6 +591,124 @@ func TestLoopCarriesStructuredTaskAndFeedback(t *testing.T) {
 	}
 }
 
+func TestPromiseLoopSupervisesEachPlanningDecision(t *testing.T) {
+	const instruction = "Keep each planning decision within the goal."
+	var plannerCalls int
+	var supervisorPrompts []string
+	var dir string
+	f := &fake{}
+	f.answer = func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(AgentEvent) error) (string, error) {
+		switch session {
+		case "native-1":
+			plannerCalls++
+			decision := "first"
+			if plannerCalls == 2 {
+				decision = "second"
+			}
+			if err := emit(fakeAgentEvent("session.tool.success", session, "message-1", map[string]any{
+				"id":       "plan-" + decision,
+				"content":  []any{map[string]any{"type": "text", "text": "planner evidence: " + decision}},
+				"executed": true,
+			})); err != nil {
+				return "", err
+			}
+			for range 500 {
+				f.mu.Lock()
+				steered := slices.ContainsFunc(f.steers, func(message string) bool {
+					return strings.Contains(message, decision+" planner")
+				})
+				f.mu.Unlock()
+				if steered {
+					break
+				}
+				select {
+				case <-ctx.Done():
+					return "", ctx.Err()
+				case <-time.After(time.Millisecond):
+				}
+			}
+			f.mu.Lock()
+			steered := slices.ContainsFunc(f.steers, func(message string) bool {
+				return strings.Contains(message, decision+" planner")
+			})
+			f.mu.Unlock()
+			if !steered {
+				return "", errors.New("planner was not steered")
+			}
+			if plannerCalls == 1 {
+				raw, err := json.Marshal(plan{Tasks: []Task{{Name: "Inspect", Description: "Inspect the current behavior.", DefinitionOfDone: "The behavior is known."}}, Next: polytype.Nullable[int]{Present: true}})
+				return string(raw), err
+			}
+			raw, err := json.Marshal(plan{Tasks: []Task{}, Next: polytype.Nullable[int]{}})
+			return string(raw), err
+
+		case "native-2":
+			f.mu.Lock()
+			supervisorPrompts = append(supervisorPrompts, prompt)
+			f.mu.Unlock()
+			switch {
+			case strings.Contains(prompt, "planner evidence: first"):
+				return `{"objections":["keep the first planner decision within the goal"]}`, nil
+			case strings.Contains(prompt, "planner evidence: second"):
+				return `{"objections":["keep the second planner decision within the goal"]}`, nil
+			default:
+				return `{"objections":[]}`, nil
+			}
+		default:
+			return "", errors.New("unexpected session")
+		}
+	}
+
+	err := runTest(t, bind(f, "m", "planner", "planner-watch"), func(ctx context.Context) error {
+		dir = runDir(ctx)
+		planner := NewSession(ctx, "planner", t.TempDir())
+		watcher := NewSession(ctx, "planner-watch", t.TempDir())
+		loop := PromiseLoop(ctx, "sprint", "ship it", planner,
+			WithSupervisor(watcher, instruction, WithInterval(time.Millisecond)),
+		)
+		for range loop.Tasks {
+		}
+		return loop.Err()
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plannerCalls != 2 {
+		t.Fatalf("planning calls = %d, want two", plannerCalls)
+	}
+	f.mu.Lock()
+	prompts := slices.Clone(supervisorPrompts)
+	f.mu.Unlock()
+	for _, evidence := range []string{"planner evidence: first", "planner evidence: second"} {
+		if !slices.ContainsFunc(prompts, func(prompt string) bool { return strings.Contains(prompt, evidence) }) {
+			t.Errorf("no supervisor observation contained %q:\n%s", evidence, strings.Join(prompts, "\n---\n"))
+		}
+	}
+
+	var attached, landed int
+	for _, record := range readRecords[LifecycleRecord](t, filepath.Join(dir, "run.jsonl")) {
+		switch event := record.Event.(type) {
+		case SuperviseAttached:
+			if event.Reviewer == "planner-watch.1" && strings.HasPrefix(event.Worker, "planner.1/turn.") {
+				attached++
+				if event.Instruction != instruction || event.Interval != time.Millisecond {
+					t.Errorf("planner supervision = %+v", event)
+				}
+			}
+		case Steer:
+			if event.Source == "planner-watch.1" && event.Target == "planner.1" && event.Landed {
+				landed++
+			}
+		}
+	}
+	if attached != 2 {
+		t.Errorf("planner supervision attachments = %d, want one for each decision", attached)
+	}
+	if landed < 2 {
+		t.Errorf("landed planner steers = %d, want one for each decision", landed)
+	}
+}
+
 func TestLoopReasksAfterInvalidPlan(t *testing.T) {
 	task := Task{Name: "Build", Description: "Make it build.", DefinitionOfDone: "It builds."}
 	good, err := json.Marshal(plan{Tasks: []Task{task}, Next: polytype.Nullable[int]{Present: true, Value: 0}})

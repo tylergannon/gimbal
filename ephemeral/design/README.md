@@ -10,7 +10,7 @@ it neither starts an implementation nor selects a final concept.
 2. [Graph and state examples](graph-and-state-examples.md): one complete
    source-derived graph, a larger real workflow projection, and explicitly
    fictional run/interview content for exercising the design.
-3. [Visual reference board](visual-reference-board.md): eight attributed
+3. [Visual reference board](visual-reference-board.md): ten attributed
    screenshots, useful patterns and traps, and three contrasting concepts.
 4. This index, including the proposed handoff message below.
 
@@ -44,6 +44,8 @@ comparison first; it is not an instruction to implement production code.
 
 ## Optional research material
 
+- [Assessment of the supplied Gemini and Claude reports](research-intake.md):
+  useful additions, checked sources, and suggestions deliberately not adopted.
 - [Reusable 150-word research prompt](research-prompt.md).
 - [Agent-interface research](research-agent-interfaces.md).
 - [Execution-interface research](research-execution-interfaces.md).

@@ -112,6 +112,10 @@ func scopedPrompt(ctx context.Context, prompt string, o options) (string, error)
 	if text == "" {
 		return prompt, nil
 	}
+	text, err = budgetRenderedText(ctx, "scope-template", text, contextTokenLimit)
+	if err != nil {
+		return "", err
+	}
 	return prompt + "\n\n" + text, nil
 }
 

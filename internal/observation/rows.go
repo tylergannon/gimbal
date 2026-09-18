@@ -47,22 +47,39 @@ type Decision struct {
 	Body json.RawMessage `json:"body"`
 }
 
+// ValueArtifact is the durable description of a scope value stored under the
+// run directory. File is run-relative and Preview is bounded display text.
+type ValueArtifact struct {
+	File    string `json:"file"`
+	Size    int64  `json:"size"`
+	Format  string `json:"format"`
+	Preview string `json:"preview"`
+}
+
+// ScopeValue is either an inline JSON value or a file-backed value. The
+// representation matches the lifecycle record so live reduction, table loads,
+// and log rebuilds expose the same fact without loading the complete artifact.
+type ScopeValue struct {
+	Value    json.RawMessage `json:"value,omitempty"`
+	Artifact *ValueArtifact  `json:"artifact,omitempty"`
+}
+
 // ScopeRow is one scope instance. Key is the slash path, so the parent is
 // the path above it and is not repeated. The root scope's key is "". Loop
 // marks a PromiseLoop's own scope, whose planner the page can send a message to
 // while the run is in progress.
 type ScopeRow struct {
-	Run       string                     `json:"run"`
-	Key       string                     `json:"key"`
-	Name      string                     `json:"name"`
-	Loop      bool                       `json:"loop"`
-	Status    string                     `json:"status"`
-	Error     string                     `json:"error"`
-	Task      json.RawMessage            `json:"task,omitempty"`
-	Began     int64                      `json:"began"`
-	Ended     int64                      `json:"ended"`
-	Values    map[string]json.RawMessage `json:"values"`
-	Decisions []Decision                 `json:"decisions"`
+	Run       string                `json:"run"`
+	Key       string                `json:"key"`
+	Name      string                `json:"name"`
+	Loop      bool                  `json:"loop"`
+	Status    string                `json:"status"`
+	Error     string                `json:"error"`
+	Task      json.RawMessage       `json:"task,omitempty"`
+	Began     int64                 `json:"began"`
+	Ended     int64                 `json:"ended"`
+	Values    map[string]ScopeValue `json:"values"`
+	Decisions []Decision            `json:"decisions"`
 }
 
 // SessionRow is one agent conversation. Scope is where the session was
@@ -123,9 +140,9 @@ type TurnUsageRow struct {
 // CommandRow is one command a workflow ran with RunCommand. Scope is where it
 // ran. A command that ran has its exit code and no error; one that could not
 // start has exit code -1 and the error, and one its ctx cancelled has both and
-// Interrupted as well. Stdout and Stderr are the output the record keeps, the
-// tail of a longer stream, and StdoutFile or StderrFile then names the file
-// beside the run log that holds all of it.
+// Interrupted as well. Stdout and Stderr are exact small streams or bounded
+// head/tail excerpts of larger ones. StdoutFile and StderrFile name the
+// complete files relative to the run directory.
 type CommandRow struct {
 	Run         string   `json:"run"`
 	ID          string   `json:"id"`

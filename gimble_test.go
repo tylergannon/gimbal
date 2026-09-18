@@ -945,8 +945,8 @@ func TestAttestEventFixture(t *testing.T) {
 	}
 	for _, e := range tailed {
 		if value, ok := e.Event.(ValueSet); ok {
-			if value.Key == "root" && value.Value != JSONText(`"value"`) {
-				t.Errorf("root set value = %s, want JSON string", value.Value)
+			if value.Key == "root" && (!value.Value.Present || value.Value.Value != JSONText(`"value"`)) {
+				t.Errorf("root set value = %+v, want JSON string", value.Value)
 			}
 			if value.Key == "child" && e.Scope != "nested.1" {
 				t.Errorf("child set scope = %q, want nested.1", e.Scope)

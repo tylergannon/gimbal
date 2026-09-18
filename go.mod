@@ -18,6 +18,7 @@ require (
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10
+	github.com/tiktoken-go/tokenizer v0.8.1
 	github.com/tylergannon/polytype v1.0.3
 	github.com/tylergannon/skgo v0.4.1
 	golang.org/x/sync v0.23.0

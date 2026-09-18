@@ -188,6 +188,7 @@ type record struct {
 		Loop        bool            `json:"loop"`
 		Key         string          `json:"key"`
 		Value       string          `json:"value"`
+		Artifact    *ValueArtifact  `json:"artifact"`
 		Prompt      string          `json:"prompt"`
 		OutputType  string          `json:"output_type"`
 		Result      string          `json:"result"`
@@ -277,9 +278,15 @@ func (s *Store) Lifecycle(raw json.RawMessage) error {
 		scope.Status, scope.Error, scope.Ended = StatusEnded, rec.Event.Error, at
 		changed = append(changed, change{tableScopes, rec.Scope})
 	case "value_set":
-		// The record carries a stored value as its JSON source text.
 		scope := s.scopeLocked(rec.Scope)
-		scope.Values[rec.Event.Key] = json.RawMessage(rec.Event.Value)
+		value := ScopeValue{}
+		if rec.Event.Artifact != nil {
+			artifact := *rec.Event.Artifact
+			value.Artifact = &artifact
+		} else {
+			value.Value = json.RawMessage(rec.Event.Value)
+		}
+		scope.Values[rec.Event.Key] = value
 		changed = append(changed, change{tableScopes, rec.Scope})
 	case "planner_decision":
 		var body struct {
@@ -433,7 +440,7 @@ func (s *Store) scopeLocked(key string) *ScopeRow {
 	if row, ok := s.scopes[key]; ok {
 		return row
 	}
-	row := &ScopeRow{Run: s.run.ID, Key: key, Name: key, Status: StatusRunning, Values: map[string]json.RawMessage{}}
+	row := &ScopeRow{Run: s.run.ID, Key: key, Name: key, Status: StatusRunning, Values: map[string]ScopeValue{}}
 	s.scopes[key] = row
 	return row
 }
@@ -746,9 +753,14 @@ func (s *Store) snapshotLocked() RunSnapshot {
 func cloneScope(in ScopeRow) ScopeRow {
 	out := in
 	out.Task = cloneRaw(in.Task)
-	out.Values = make(map[string]json.RawMessage, len(in.Values))
+	out.Values = make(map[string]ScopeValue, len(in.Values))
 	for key, value := range in.Values {
-		out.Values[key] = cloneRaw(value)
+		copied := ScopeValue{Value: cloneRaw(value.Value)}
+		if value.Artifact != nil {
+			artifact := *value.Artifact
+			copied.Artifact = &artifact
+		}
+		out.Values[key] = copied
 	}
 	out.Decisions = make([]Decision, 0, len(in.Decisions))
 	for _, decision := range in.Decisions {

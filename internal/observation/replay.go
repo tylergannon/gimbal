@@ -133,7 +133,7 @@ func (s *Store) loadTables(dir string) error {
 	}
 	for _, row := range scopes {
 		if row.Values == nil {
-			row.Values = map[string]json.RawMessage{}
+			row.Values = map[string]ScopeValue{}
 		}
 		s.scopes[row.Key] = &row
 	}

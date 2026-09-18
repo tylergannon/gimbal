@@ -12,6 +12,8 @@ export type RunStatus = 'running' | 'completed' | 'failed' | 'cancelled'
 export type RunRow = { id: string; name: string; status: RunStatus; error: string; started: number; ended: number }
 /** One planner decision: the record's sequence and the event's own words. */
 export type Decision = { seq: number; body: JSONValue }
+export type ValueArtifact = { file: string; size: number; format: 'text' | 'json'; preview: string }
+export type ScopeValue = { value?: JSONValue; artifact?: ValueArtifact }
 /** One scope instance. `key` is the slash path, so the parent is the path
  * above it. An ended scope with no error is 'ended', never 'succeeded'.
  * `loop` marks a PromiseLoop's own scope, whose planner a person at the page can
@@ -19,7 +21,7 @@ export type Decision = { seq: number; body: JSONValue }
 export type ScopeRow = {
 	run: string; key: string; name: string; loop: boolean; status: 'running' | 'ended'; error: string
 	task?: JSONValue; began: number; ended: number
-	values: Record<string, JSONValue>; decisions: Decision[]
+	values: Record<string, ScopeValue>; decisions: Decision[]
 }
 /** One agent conversation. `scope` is where it was created, which is not
  * where its turns necessarily ran. */

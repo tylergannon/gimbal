@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Recorded run</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="bundle.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+@font-face{font-family:"Inter Variable";src:local("Inter Variable"),local("Inter");font-weight:100 900;font-style:normal;font-display:swap}
+body{margin:0;background:var(--background)}
+a{color:var(--chart-2)}a:hover{color:var(--foreground)}
+.shell{--font-sans:"Inter Variable",ui-sans-serif,system-ui,sans-serif;--font-mono:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;--line:oklch(0.64 0 0);--line-soft:oklch(0.8 0 0);--line-strong:oklch(0.35 0 0);--ink-2:oklch(0.42 0 0);--ground:oklch(0.96 0 0);--paper-1:oklch(0.99 0 0);--paper-2:oklch(1 0 0);--live:var(--chart-4);--live-ring:var(--chart-3);--live-soft:color-mix(in oklch,var(--chart-3) 14%,transparent);font-family:var(--font-sans);font-size:14px;line-height:20px;color:var(--foreground);background:var(--background);-webkit-font-smoothing:antialiased}
+.shell[data-theme="dark"]{--line:oklch(0.62 0 0);--line-soft:oklch(0.42 0 0);--line-strong:oklch(0.85 0 0);--ink-2:oklch(0.8 0 0);--ground:oklch(0.16 0 0);--paper-1:oklch(0.2 0 0);--paper-2:oklch(0.24 0 0);--live:var(--chart-1);--live-ring:var(--chart-2)}
+.mono{font-family:var(--font-mono)}
+.muted{color:var(--ink-2)}
+.xs{font-size:13px;line-height:18px}
+.lbl{font-size:13px;line-height:18px;font-weight:600;color:var(--foreground);letter-spacing:.01em}
+.sec>.lbl{padding-bottom:6px;border-bottom:1px solid var(--border)}
+.pip{position:relative;display:inline-block;width:10px;height:10px;border-radius:9999px;flex-shrink:0;box-sizing:border-box}
+.pip-ok{background:var(--foreground)}
+.pip-run{border:2px solid var(--live-ring);border-top-color:transparent;animation:gspin 1s linear infinite}
+.pip-fail{background:var(--destructive)}
+.pip-fail::before,.pip-fail::after{content:"";position:absolute;left:2px;right:2px;top:4px;height:1.5px;background:var(--background);transform:rotate(45deg)}
+.pip-fail::after{transform:rotate(-45deg)}
+.pip-none{border:1.5px dashed var(--ink-2)}
+.pip-wait{background:var(--background);box-shadow:inset 0 0 0 2px var(--live)}
+.pip-wait::after{content:"";position:absolute;left:3px;top:3px;width:4px;height:4px;border-radius:9999px;background:var(--live)}
+.pip-stop{background:var(--muted-foreground)}
+.pip-sel{outline:2px solid var(--live);outline-offset:2px}
+@keyframes gspin{to{transform:rotate(360deg)}}
+.node{position:absolute;box-sizing:border-box;background:var(--card);color:var(--card-foreground);border:1px solid var(--line);border-radius:calc(var(--radius) - 2px);box-shadow:0 1px 2px 0 rgb(0 0 0 / .06);padding:10px 12px;display:flex;flex-direction:column;gap:6px}
+.node>div:first-child>svg:first-child{box-sizing:content-box;padding:5px;background:var(--muted);border-radius:calc(var(--radius) - 4px);color:var(--foreground);flex-shrink:0}
+.node .ttl{font-size:14px;line-height:20px;font-weight:600;letter-spacing:-.005em}
+.node .excerpt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--muted-foreground);font-size:12px;line-height:16px}
+.node.sel{border-color:var(--live);box-shadow:0 0 0 3px var(--live-soft),0 1px 2px 0 rgb(0 0 0 / .06)}
+.node.declared{border-style:dashed;background:color-mix(in oklch,var(--card) 60%,transparent);box-shadow:none}
+.region{position:absolute;box-sizing:border-box;border:1px solid var(--line);border-radius:var(--radius);background:color-mix(in oklch,var(--card) 55%,transparent)}
+.region-loop{border-left:3px solid var(--foreground)}
+.region-dashed{border-style:dashed;background:transparent}
+.rlabel{position:absolute;display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 8px;font-size:12px;line-height:16px;font-weight:600;color:var(--foreground);background:var(--card);border:1px solid var(--line);border-radius:calc(var(--radius) - 4px);white-space:nowrap;box-shadow:0 1px 2px 0 rgb(0 0 0 / .06)}
+.rlabel .mono{font-weight:500}
+.chip{position:absolute;box-sizing:border-box;display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 9px;border-radius:calc(var(--radius) - 4px);border:1px solid var(--line);background:var(--card);font-size:12px;line-height:16px;white-space:nowrap;color:var(--foreground);box-shadow:0 1px 2px 0 rgb(0 0 0 / .05)}
+.chip.session{border-color:color-mix(in oklch,var(--live) 45%,transparent)}
+.chip.session>svg:first-child{color:var(--live)}
+.chip.sel{border-color:var(--live);box-shadow:0 0 0 3px var(--live-soft)}
+.ctx{position:absolute;display:inline-flex;align-items:center;gap:6px;font-size:12px;line-height:16px;color:var(--muted-foreground);white-space:nowrap}
+.sup{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px;border-radius:9999px;border:1px dashed var(--line-strong);font-size:12px;line-height:16px;color:var(--foreground);background:var(--card);white-space:nowrap}
+.pips{display:inline-flex;align-items:center;gap:5px}
+.rail{stroke:var(--live);stroke-width:2;fill:none}
+.tie{stroke:var(--live);stroke-width:1.5;fill:none}
+.tie-dash{stroke:var(--muted-foreground);stroke-dasharray:3 3}
+.seq{stroke:oklch(0.5 0 0);stroke-width:2;fill:none}
+.tree-row{display:flex;align-items:center;gap:8px;height:28px;padding:0 8px;border-radius:calc(var(--radius) - 4px);box-sizing:border-box;font-size:13px;line-height:18px;white-space:nowrap}
+.tree-row.sel{background:var(--live-soft);color:var(--foreground);box-shadow:inset 3px 0 0 var(--live)}
+.kv{display:grid;grid-template-columns:104px 1fr;gap:6px 12px;font-size:13px;line-height:18px}
+.kv.box{border:1px solid var(--border);border-radius:calc(var(--radius) - 2px);padding:10px 12px}
+.code{font-family:var(--font-mono);font-size:12px;line-height:18px;background:var(--muted);border:1px solid var(--border);border-radius:calc(var(--radius) - 4px);padding:8px 10px;white-space:pre-wrap;color:var(--foreground);margin:0}
+.inst{display:flex;align-items:center;gap:10px;min-height:40px;padding:6px 10px;border:1px solid var(--border);border-radius:calc(var(--radius) - 2px);box-sizing:border-box}
+.inst.sel{border-color:var(--live);background:var(--live-soft)}
+.act{display:flex;align-items:flex-start;gap:8px;font-size:13px;line-height:18px}
+.sec{display:flex;flex-direction:column;gap:8px}
+.q{display:flex;flex-direction:column;gap:4px;padding:8px 10px;border-left:2px solid var(--line-strong);font-size:13px;line-height:18px}
+.q.live{border-left-color:var(--live);background:var(--live-soft);border-radius:0 calc(var(--radius) - 4px) calc(var(--radius) - 4px) 0}
+.a{display:flex;flex-direction:column;gap:4px;padding:8px 10px;border-radius:calc(var(--radius) - 2px);background:var(--muted);border:1px solid var(--border);font-size:13px;line-height:18px}
+.lane{display:flex;align-items:center;height:28px;box-sizing:border-box;border-radius:calc(var(--radius) - 4px)}
+.lane.sel{background:var(--live-soft);box-shadow:inset 3px 0 0 var(--live)}
+.lane-name{width:220px;flex-shrink:0;display:flex;align-items:center;gap:8px;font-size:13px;line-height:18px;white-space:nowrap;padding-left:8px;box-sizing:border-box}
+.lane-bars{position:relative;flex-grow:1;height:28px}
+.bar{position:absolute;top:8px;height:12px;border-radius:3px;background:var(--foreground)}
+.bar-scope{background:color-mix(in oklch,var(--foreground) 18%,transparent);border:1px solid var(--line);box-sizing:border-box}
+.bar-fail{background:var(--destructive)}
+.bar-sel{outline:2px solid var(--live);outline-offset:2px}
+.tick{position:absolute;top:0;bottom:0;border-left:1px solid var(--border)}
+.row{display:flex;align-items:center;gap:8px;font-size:13px;line-height:18px}
+.chipx{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 9px;border-radius:calc(var(--radius) - 4px);border:1px solid var(--line);background:var(--card);font-size:12px;line-height:16px;white-space:nowrap}
+.regionx{box-sizing:border-box;border:1px solid var(--line);border-radius:calc(var(--radius) - 4px);background:color-mix(in oklch,var(--card) 55%,var(--muted));padding:4px 8px;font-size:12px;font-weight:600;color:var(--foreground)}
+.topbar{height:56px;box-sizing:border-box;flex-shrink:0;display:flex;align-items:center;gap:16px;padding:0 16px;border-bottom:1px solid var(--line);background:var(--card)}
+.leftcol{width:264px;flex-shrink:0;box-sizing:border-box;border-right:1px solid var(--line);background:var(--sidebar);color:var(--sidebar-foreground);display:flex;flex-direction:column;padding:16px 12px;gap:22px;overflow:hidden}
+.mapground{flex-grow:1;position:relative;overflow:hidden;background-color:var(--ground);background-image:radial-gradient(oklch(0.8 0 0) 1px,transparent 1px);background-size:20px 20px}
+.shell[data-theme="dark"] .mapground{background-image:radial-gradient(oklch(0.32 0 0) 1px,transparent 1px)}
+.inspector{width:400px;flex-shrink:0;box-sizing:border-box;border-left:1px solid var(--line);background:var(--card);color:var(--card-foreground);display:flex;flex-direction:column;overflow:hidden}
+.insp-head{padding:14px 16px 0;display:flex;flex-direction:column;gap:8px;background:color-mix(in oklch,var(--muted) 60%,var(--card));border-bottom:1px solid var(--border)}
+.insp-foot{border-top:1px solid var(--border);padding:12px 16px;display:flex;align-items:center;gap:10px;background:color-mix(in oklch,var(--muted) 60%,var(--card))}
+.mapchrome{background:var(--card);border:1px solid var(--line);border-radius:calc(var(--radius) - 2px);box-shadow:0 1px 2px 0 rgb(0 0 0 / .06)}
+.searchbox{display:flex;align-items:center;gap:6px;height:32px;width:240px;box-sizing:border-box;padding:0 10px;border:1px solid var(--line);border-radius:calc(var(--radius) - 2px);background:var(--background);color:var(--muted-foreground);font-size:13px}
+.h1{font-size:24px;line-height:32px;font-weight:600;letter-spacing:-0.025em}
+.runname{font-size:15px;font-weight:600;letter-spacing:-.01em}
+.nd{position:absolute;box-sizing:border-box;height:44px;display:flex;align-items:center;gap:10px;padding:0 12px 0 8px;background:var(--paper-2);color:var(--card-foreground);border:1px solid var(--line);border-radius:8px;box-shadow:0 1px 2px 0 rgb(0 0 0 / .08);white-space:nowrap}
+.nd .ico{width:26px;height:26px;display:inline-flex;align-items:center;justify-content:center;background:var(--muted);border-radius:calc(var(--radius) - 4px);color:var(--foreground);flex-shrink:0}
+.nd .nm{font-size:15px;line-height:20px;font-weight:600;letter-spacing:-.005em}
+.nd .meta{font-size:13px;line-height:18px;color:var(--ink-2)}
+.nd .sp{flex-grow:1}
+.nd .eye{display:inline-flex;color:var(--muted-foreground)}
+.nd.sel{border-color:var(--live-ring);box-shadow:0 0 0 3px var(--live-soft),0 1px 2px 0 rgb(0 0 0 / .08)}
+.nd.sm{height:36px;padding:0 10px 0 8px;gap:8px}
+.nd.sm .ico{width:20px;height:20px;background:transparent;color:var(--ink-2)}
+.nd.sm .nm{font-size:13.5px;line-height:18px;font-weight:500;font-family:var(--font-mono)}
+.ret{stroke:oklch(0.45 0 0);stroke-width:1.5;fill:none}
+.disc{display:flex;align-items:center;gap:8px;height:40px;border-top:1px solid var(--border);font-size:13px;line-height:18px;font-weight:500;color:var(--foreground)}
+.disc:last-child{border-bottom:1px solid var(--border)}
+.disc>svg{color:var(--muted-foreground);flex-shrink:0}
+.disc .sum{margin-left:auto;font-weight:400;color:var(--ink-2);font-size:13px;line-height:18px;white-space:nowrap}
+.scope{position:absolute;box-sizing:border-box;border:1px solid var(--line-soft);border-radius:10px;background:var(--paper-1);box-shadow:0 1px 2px rgb(0 0 0 / .05)}
+.scope.l2{background:var(--paper-2);box-shadow:0 1px 3px rgb(0 0 0 / .08),0 1px 2px rgb(0 0 0 / .04)}
+.scope.path{border-color:var(--line);box-shadow:0 4px 12px rgb(0 0 0 / .10),0 1px 2px rgb(0 0 0 / .06)}
+.scope.sel{background:var(--paper-2);border:1.5px solid var(--line-strong);box-shadow:0 14px 32px rgb(0 0 0 / .18),0 3px 6px rgb(0 0 0 / .08)}
+.slabel{position:absolute;box-sizing:border-box;display:inline-flex;align-items:center;gap:7px;height:24px;padding:0 10px;font-size:13px;line-height:18px;font-weight:600;color:var(--foreground);background:var(--paper-1);border:1px solid var(--line-soft);border-radius:7px;white-space:nowrap}
+.slabel.l2{background:var(--paper-2)}
+.slabel.path{border-color:var(--line)}
+.slabel.sel{background:var(--paper-2);border:1.5px solid var(--line-strong)}
+.slabel.select{padding-right:7px;box-shadow:0 1px 2px rgb(0 0 0 / .08);cursor:pointer}
+.slabel.select>svg:last-child{color:var(--ink-2)}
+.cap{position:absolute;font-size:13px;line-height:18px;font-weight:600;color:var(--ink-2);white-space:nowrap}
+.key{position:absolute;box-sizing:border-box;display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 8px;border:1px solid var(--line);border-radius:6px;background:var(--paper-2);font-family:var(--font-mono);font-size:13px;line-height:18px;color:var(--foreground);white-space:nowrap}
+.key>svg{color:var(--ink-2);flex-shrink:0}
+.key.unset{border-style:dashed;border-color:var(--line-soft);background:transparent;color:var(--ink-2)}
+.keys{position:absolute;display:flex;align-items:center;gap:8px}
+.keys .key{position:static}
+.watcher{position:absolute;box-sizing:border-box;width:232px;height:36px;display:flex;align-items:center;gap:8px;padding:0 10px;border:1px solid var(--line);border-radius:8px;background:var(--paper-2);box-shadow:0 1px 2px rgb(0 0 0 / .08);font-size:13px;line-height:18px;font-weight:500;color:var(--foreground);white-space:nowrap}
+.watcher>svg{color:var(--ink-2);flex-shrink:0}
+.watcher .pip{margin-left:auto}
+.gaze{stroke:oklch(0.45 0 0);stroke-width:1.5;stroke-dasharray:2 3;fill:none}
+.scope.alt{background:var(--paper-1)}
+.slabel.alt{background:var(--paper-1)}
+.slabel>.fi{color:var(--ink-2)}
+.fold{position:absolute;display:flex;align-items:center;gap:4px}
+.g{display:inline-flex;align-items:center;gap:4px;height:26px;padding:0 5px;border:1px solid var(--line-soft);border-radius:6px;background:var(--paper-2);color:var(--ink-2)}
+.g .pip{width:8px;height:8px}
+.ptitle{position:absolute;font-size:15px;line-height:20px;font-weight:600;color:var(--foreground);white-space:nowrap}
+.note{position:absolute;font-size:13px;line-height:18px;color:var(--foreground);display:flex;flex-direction:column;gap:6px}
+.note>div{display:flex;gap:8px}
+.note b{font-weight:600;color:var(--ink-2);flex-shrink:0;width:14px}
+</style>
+</helmet>
+<div class="shell" data-theme="light" style="width: 1440px; height: 900px; box-sizing: border-box; display: flex; flex-direction: column; position: relative; overflow: hidden;">
+
+  <header class="topbar">
+    <nav data-slot="breadcrumb" aria-label="breadcrumb" class="cn-breadcrumb">
+      <ol data-slot="breadcrumb-list" class="cn-breadcrumb-list flex flex-wrap items-center wrap-break-word">
+        <li data-slot="breadcrumb-item" class="cn-breadcrumb-item inline-flex items-center"><a data-slot="breadcrumb-link" class="cn-breadcrumb-link" href="Runs.dc.html">Runs</a></li>
+        <li data-slot="breadcrumb-separator" role="presentation" aria-hidden="true" class="cn-breadcrumb-separator"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></li>
+        <li data-slot="breadcrumb-item" class="cn-breadcrumb-item inline-flex items-center"><span data-slot="breadcrumb-page" class="cn-breadcrumb-page runname">implement-interview</span></li>
+        <li data-slot="breadcrumb-separator" role="presentation" aria-hidden="true" class="cn-breadcrumb-separator"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></li>
+        <li data-slot="breadcrumb-item" class="cn-breadcrumb-item inline-flex items-center"><span data-slot="breadcrumb-page" class="cn-breadcrumb-page mono">01M2QZ7P</span></li>
+      </ol>
+    </nav>
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <span data-slot="badge" class="cn-badge cn-badge-variant-destructive inline-flex w-fit shrink-0 items-center justify-center overflow-hidden whitespace-nowrap">Failed</span>
+      <span class="muted xs">Ended Sep 15, 15:43 · 1h 12m</span>
+    </div>
+    <div style="flex-grow: 1;"></div>
+    <div class="searchbox">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      <span style="flex-grow: 1;">Find a scope, turn or command</span>
+      <kbd data-slot="kbd" class="cn-kbd pointer-events-none inline-flex items-center justify-center select-none">/</kbd>
+    </div>
+    <span class="muted xs">Recorded run · nothing here is live</span>
+  </header>
+
+  <div style="flex-grow: 1; display: flex; min-height: 0;">
+
+    <aside class="leftcol">
+      <div class="sec">
+        <div class="lbl" style="padding: 0 8px;">Outcome</div>
+        <div class="tree-row" style="height: auto; padding: 6px 8px; align-items: flex-start; white-space: normal;">
+          <span class="pip pip-fail" style="margin-top: 4px;"></span>
+          <div style="display: flex; flex-direction: column; gap: 2px;">
+            <span>Failed in <span class="mono">task.4/test.1</span></span>
+            <span class="muted xs">The workflow returned the command’s error.</span>
+          </div>
+        </div>
+        <div class="kv muted xs" style="padding: 0 8px; grid-template-columns: 56px 1fr;">
+          <span>Started</span><span>Sep 15, 14:31:02</span>
+          <span>Usage</span><span>412k in · 58k out · cost not reported</span>
+          <span>Record</span><span class="mono">.gimble/runs/01M2QZ7P</span>
+        </div>
+      </div>
+
+      <div class="sec" style="flex-grow: 1; min-height: 0;">
+        <div class="lbl" style="padding: 0 8px; display: flex; justify-content: space-between;"><span>Outline</span><span style="font-weight: 400;">what ran</span></div>
+        <div style="display: flex; flex-direction: column; gap: 1px;">
+          <div class="tree-row"><span class="pip pip-fail"></span><span class="mono">implement-interview</span><span class="muted xs">run</span></div>
+          <div class="tree-row" style="padding-left: 24px;"><span class="pip pip-ok"></span><span class="mono">reconnaissance.1</span></div>
+          <div class="tree-row" style="padding-left: 24px;"><span class="pip pip-fail"></span><span class="mono">implementation.1</span><span class="muted xs">4 tasks</span></div>
+          <div class="tree-row" style="padding-left: 40px;"><span class="pip pip-fail"></span><span class="mono">task.1</span><span class="muted xs">task-check exit 1</span></div>
+          <div class="tree-row" style="padding-left: 40px;"><span class="pip pip-ok"></span><span class="mono">task.2</span></div>
+          <div class="tree-row" style="padding-left: 40px;"><span class="pip pip-ok"></span><span class="mono">task.3</span></div>
+          <div class="tree-row" style="padding-left: 40px;"><span class="pip pip-fail"></span><span class="mono">task.4</span></div>
+          <div class="tree-row" style="padding-left: 56px;"><span class="pip pip-ok"></span><span class="mono">coding.1 / turn.4</span></div>
+          <div class="tree-row" style="padding-left: 56px;"><span class="pip pip-ok"></span><span class="mono">build.1</span></div>
+          <div class="tree-row" style="padding-left: 56px;"><span class="pip pip-ok"></span><span class="mono">vet.1</span></div>
+          <div class="tree-row sel" style="padding-left: 56px;"><span class="pip pip-fail"></span><span class="mono">test.1</span><span class="xs" style="opacity: .7;">exit 1</span></div>
+        </div>
+      </div>
+    </aside>
+
+    <main style="flex-grow: 1; position: relative; overflow: hidden; background: var(--background); display: flex; flex-direction: column; gap: 16px; padding: 16px; box-sizing: border-box;">
+      <div data-slot="alert" role="alert" data-variant="default" class="cn-alert cn-alert-variant-default group/alert relative w-full">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+        <div data-slot="alert-title" class="cn-alert-title">No compiled graph matches this run</div>
+        <div data-slot="alert-description" class="cn-alert-description">The current binary’s implement-interview changed after this run was recorded, so no map is drawn. The record below stands on its own: scopes, turns, commands and their outcomes.</div>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <div data-slot="toggle-group" data-variant="outline" data-size="sm" data-spacing="0" data-orientation="horizontal" role="group" class="cn-toggle-group group/toggle-group flex w-fit flex-row items-center">
+          <button data-slot="toggle-group-item" data-variant="outline" data-size="sm" data-spacing="0" data-state="on" aria-pressed="true" class="cn-toggle-group-item shrink-0" type="button">Lanes</button>
+          <button data-slot="toggle-group-item" data-variant="outline" data-size="sm" data-spacing="0" data-state="off" aria-pressed="false" class="cn-toggle-group-item shrink-0" type="button">Outline</button>
+        </div>
+        <span class="muted xs">Scopes as lanes on the run’s clock. Overlap is concurrency; indentation is containment. Task 2 and 3 are collapsed.</span>
+      </div>
+
+      <div style="display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: var(--radius); background: var(--card); overflow: hidden;">
+        <div class="lane" style="height: 24px; border-bottom: 1px solid var(--border); border-radius: 0;">
+          <div class="lane-name lbl">scope</div>
+          <div class="lane-bars" style="height: 24px;">
+            <span class="tick" style="left: 0;"></span><span class="xs muted mono" style="position: absolute; left: 4px; top: 3px;">0m</span>
+            <span class="tick" style="left: 20.8%;"></span><span class="xs muted mono" style="position: absolute; left: calc(20.8% + 4px); top: 3px;">15m</span>
+            <span class="tick" style="left: 41.6%;"></span><span class="xs muted mono" style="position: absolute; left: calc(41.6% + 4px); top: 3px;">30m</span>
+            <span class="tick" style="left: 62.5%;"></span><span class="xs muted mono" style="position: absolute; left: calc(62.5% + 4px); top: 3px;">45m</span>
+            <span class="tick" style="left: 83.3%;"></span><span class="xs muted mono" style="position: absolute; left: calc(83.3% + 4px); top: 3px;">60m</span>
+            <span class="xs mono" style="position: absolute; right: 6px; top: 3px; color: var(--destructive); font-weight: 600;">72m</span>
+          </div>
+        </div>
+        <div style="display: flex; flex-direction: column; padding: 6px 8px 8px; gap: 1px;">
+          <div class="lane"><div class="lane-name"><span class="pip pip-ok"></span><span class="mono">reconnaissance.1</span></div><div class="lane-bars"><span class="bar bar-scope" style="left: 0%; width: 8.3%;"></span></div></div>
+          <div class="lane"><div class="lane-name" style="padding-left: 24px;"><span class="pip pip-ok"></span><span class="mono">backend.1</span></div><div class="lane-bars"><span class="bar" style="left: 0%; width: 6.9%;"></span></div></div>
+          <div class="lane"><div class="lane-name" style="padding-left: 24px;"><span class="pip pip-ok"></span><span class="mono">frontend.1</span></div><div class="lane-bars"><span class="bar" style="left: 0%; width: 8.3%;"></span></div></div>
+          <div class="lane"><div class="lane-name"><span class="pip pip-fail"></span><span class="mono">implementation.1</span><span class="muted xs">loop</span></div><div class="lane-bars"><span class="bar bar-scope" style="left: 8.3%; width: 91.7%;"></span></div></div>
+          <div class="lane"><div class="lane-name" style="padding-left: 24px;"><span class="pip pip-fail"></span><span class="mono">task.1</span></div><div class="lane-bars"><span class="bar bar-scope" style="left: 8.3%; width: 22.2%;"></span></div></div>
+          <div class="lane"><div class="lane-name" style="padding-left: 40px;"><span class="pip pip-ok"></span><span class="mono">coding.1 / turn.1</span></div><div class="lane-bars"><span class="bar" style="left: 8.3%; width: 11.1%;"></span></div></div>
+          <div class="lane"><div class="lane-name" style="padding-left: 40px;"><span class="pip pip-fail"></span><span class="mono">task-check.1</span><span class="muted xs">exit 1</span></div><div class="lane-bars"><span class="bar bar-fail" style="left: 19.4%; width: 1.4%;"></span></div></div>
+          <div class="lane"><div class="lane-name" style="padding-left: 40px;"><span class="pip pip-ok"></span><span class="mono">build.1 · vet.1 · test.1</span></div><div class="lane-bars"><span class="bar" style="left: 20.8%; width: 1.2%;"></span><span class="bar" style="left: 22.2%; width: 1.2%;"></span><span class="bar" style="left: 23.6%; width: 1.4%;"></span></div></div>
+          <div class="lane"><div class="lane-name" style="padding-left: 40px;"><span class="pip pip-ok"></span><span class="mono">qa-orchestration.1</span></div><div class="lane-bars"><span class="bar" style="left: 25%; width: 5.5%;"></span></div></div>
+          <div class="lane"><div class="lane-name" style="padding-left: 24px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="muted"><path d="m9 18 6-6-6-6"/></svg><span class="pip pip-ok"></span><span class="mono">task.2</span><span class="muted xs">5 rows</span></div><div class="lane-bars"><span class="bar bar-scope" style="left: 30.5%; width: 25%;"></span></div></div>
+          <div class="lane"><div class="lane-name" style="padding-left: 24px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="muted"><path d="m9 18 6-6-6-6"/></svg><span class="pip pip-ok"></span><span class="mono">task.3</span><span class="muted xs">5 rows</span></div><div class="lane-bars"><span class="bar bar-scope" style="left: 55.5%; width: 25%;"></span></div></div>
+          <div class="lane"><div class="lane-name" style="padding-left: 24px;"><span class="pip pip-fail"></span><span class="mono">task.4</span></div><div class="lane-bars"><span class="bar bar-scope" style="left: 80.5%; width: 19.5%;"></span></div></div>
+          <div class="lane"><div class="lane-name" style="padding-left: 40px;"><span class="pip pip-ok"></span><span class="mono">coding.1 / turn.4</span></div><div class="lane-bars"><span class="bar" style="left: 80.5%; width: 13.9%;"></span></div></div>
+          <div class="lane"><div class="lane-name" style="padding-left: 40px;"><span class="pip pip-ok"></span><span class="mono">build.1</span></div><div class="lane-bars"><span class="bar" style="left: 94.4%; width: 1.4%;"></span></div></div>
+          <div class="lane"><div class="lane-name" style="padding-left: 40px;"><span class="pip pip-ok"></span><span class="mono">vet.1</span></div><div class="lane-bars"><span class="bar" style="left: 95.8%; width: 1.4%;"></span></div></div>
+          <div class="lane sel"><div class="lane-name" style="padding-left: 40px;"><span class="pip pip-fail"></span><span class="mono">test.1</span><span class="xs" style="opacity: .7;">exit 1</span></div><div class="lane-bars"><span class="bar bar-fail bar-sel" style="left: 97.2%; width: 2.6%;"></span></div></div>
+          <div class="lane"><div class="lane-name" style="padding-left: 40px;"><span class="pip pip-none"></span><span class="mono muted">qa-orchestration</span><span class="muted xs">not observed: the run ended first</span></div><div class="lane-bars"></div></div>
+        </div>
+      </div>
+      <p class="muted xs" style="margin: 0;">Supervisor looks and steers are on each turn, not on this clock: open a coding turn to read them.</p>
+    </main>
+
+    <aside class="inspector">
+      <div class="insp-head">
+        <div class="muted xs mono">implementation.1 › task.4 › test.1</div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 17 6-6-6-6"/><path d="M12 19h8"/></svg>
+          <span style="font-size: 16px; line-height: 24px; font-weight: 600; letter-spacing: -0.01em;">test</span>
+          <span data-slot="badge" class="cn-badge cn-badge-variant-outline inline-flex w-fit shrink-0 items-center justify-center overflow-hidden whitespace-nowrap">command</span>
+          <span style="flex-grow: 1;"></span>
+          <span data-slot="badge" class="cn-badge cn-badge-variant-destructive inline-flex w-fit shrink-0 items-center justify-center overflow-hidden whitespace-nowrap">exit 1</span>
+        </div>
+        <div class="muted xs">fourth run of this call site · <a href="#" class="mono">implementinterview.go:124</a> at the recorded version</div>
+        <div data-slot="tabs" data-orientation="horizontal" class="cn-tabs group/tabs flex data-horizontal:flex-col" style="margin-top: 4px;">
+          <div data-slot="tabs-list" data-variant="line" role="tablist" class="cn-tabs-list cn-tabs-list-variant-line group/tabs-list inline-flex w-fit items-center justify-center text-muted-foreground" style="width: 100%;">
+            <button data-slot="tabs-trigger" role="tab" data-state="active" data-active="" aria-selected="true" class="cn-tabs-trigger relative inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center whitespace-nowrap text-foreground/60 transition-all" type="button">This instance</button>
+            <button data-slot="tabs-trigger" role="tab" data-state="inactive" class="cn-tabs-trigger relative inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center whitespace-nowrap text-foreground/60 transition-all" type="button">All 4 instances</button>
+          </div>
+        </div>
+      </div>
+
+      <div style="flex-grow: 1; overflow: hidden; display: flex; flex-direction: column; gap: 14px; padding: 12px 16px 12px;">
+        <div data-slot="alert" role="alert" data-variant="destructive" class="cn-alert cn-alert-variant-destructive group/alert relative w-full">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>
+          <div data-slot="alert-title" class="cn-alert-title">The run failed here</div>
+          <div data-slot="alert-description" class="cn-alert-description">The workflow returned this command’s error, so nothing after it was observed.</div>
+        </div>
+
+        <div class="kv box">
+          <span class="muted">Command</span><span class="mono xs">just test</span>
+          <span class="muted">Ran</span><span class="mono xs">go test ./...</span>
+          <span class="muted">Exit code</span><span>1</span>
+          <span class="muted">Started</span><span>15:41:02</span>
+          <span class="muted">Duration</span><span>1m 48s</span>
+          <span class="muted">Recorded as</span><span class="mono xs">just test</span>
+        </div>
+
+        <div class="sec">
+          <div class="lbl" style="display: flex; justify-content: space-between;"><span>Output · last 4 lines</span><a href="#" class="xs" style="font-weight: 400;">full output</a></div>
+          <pre class="code">--- FAIL: TestInterviewAnswer (0.02s)
+    rows_test.go:88: answered = 0, want &gt; 0
+FAIL
+FAIL    gimble/internal/observation   0.412s</pre>
+        </div>
+
+        <div class="sec">
+          <div class="lbl">In this task</div>
+          <div class="tree-row" style="padding: 0 8px; border: 1px solid var(--border);"><span class="pip pip-ok"></span><span class="mono">coding.1 / turn.4</span><span class="muted xs">ended 15:40:58 · 10m 04s</span><svg style="margin-left: auto;" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="muted"><path d="m9 18 6-6-6-6"/></svg></div>
+          <div class="tree-row" style="padding: 0 8px; border: 1px solid var(--border);"><span class="pip pip-ok"></span><span class="mono">build.1 · vet.1</span><span class="muted xs">exit 0 · 41 s, 38 s</span><svg style="margin-left: auto;" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="muted"><path d="m9 18 6-6-6-6"/></svg></div>
+        </div>
+
+        <div class="sec">
+          <div class="lbl">Earlier instances of test</div>
+          <div class="muted" style="font-size: 13px; line-height: 18px;">Passed in task.1, task.2 and task.3; this fourth outcome ended the run.</div>
+        </div>
+      </div>
+
+      <div class="insp-foot">
+        <span class="xs" style="color: var(--foreground);">This run ended Sep 15 at 15:43. Steering, answers and stop controls are not offered on a record.</span>
+      </div>
+    </aside>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

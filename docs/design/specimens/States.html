@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>States sheet</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="bundle.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+@font-face{font-family:"Inter Variable";src:local("Inter Variable"),local("Inter");font-weight:100 900;font-style:normal;font-display:swap}
+body{margin:0;background:var(--background)}
+a{color:var(--chart-2)}a:hover{color:var(--foreground)}
+.shell{--font-sans:"Inter Variable",ui-sans-serif,system-ui,sans-serif;--font-mono:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;--line:oklch(0.64 0 0);--line-soft:oklch(0.8 0 0);--line-strong:oklch(0.35 0 0);--ink-2:oklch(0.42 0 0);--ground:oklch(0.96 0 0);--paper-1:oklch(0.99 0 0);--paper-2:oklch(1 0 0);--live:var(--chart-4);--live-ring:var(--chart-3);--live-soft:color-mix(in oklch,var(--chart-3) 14%,transparent);font-family:var(--font-sans);font-size:14px;line-height:20px;color:var(--foreground);background:var(--background);-webkit-font-smoothing:antialiased}
+.shell[data-theme="dark"]{--line:oklch(0.62 0 0);--line-soft:oklch(0.42 0 0);--line-strong:oklch(0.85 0 0);--ink-2:oklch(0.8 0 0);--ground:oklch(0.16 0 0);--paper-1:oklch(0.2 0 0);--paper-2:oklch(0.24 0 0);--live:var(--chart-1);--live-ring:var(--chart-2)}
+.mono{font-family:var(--font-mono)}
+.muted{color:var(--ink-2)}
+.xs{font-size:13px;line-height:18px}
+.lbl{font-size:13px;line-height:18px;font-weight:600;color:var(--foreground);letter-spacing:.01em}
+.sec>.lbl{padding-bottom:6px;border-bottom:1px solid var(--border)}
+.pip{position:relative;display:inline-block;width:10px;height:10px;border-radius:9999px;flex-shrink:0;box-sizing:border-box}
+.pip-ok{background:var(--foreground)}
+.pip-run{border:2px solid var(--live-ring);border-top-color:transparent;animation:gspin 1s linear infinite}
+.pip-fail{background:var(--destructive)}
+.pip-fail::before,.pip-fail::after{content:"";position:absolute;left:2px;right:2px;top:4px;height:1.5px;background:var(--background);transform:rotate(45deg)}
+.pip-fail::after{transform:rotate(-45deg)}
+.pip-none{border:1.5px dashed var(--ink-2)}
+.pip-wait{background:var(--background);box-shadow:inset 0 0 0 2px var(--live)}
+.pip-wait::after{content:"";position:absolute;left:3px;top:3px;width:4px;height:4px;border-radius:9999px;background:var(--live)}
+.pip-stop{background:var(--muted-foreground)}
+.pip-sel{outline:2px solid var(--live);outline-offset:2px}
+@keyframes gspin{to{transform:rotate(360deg)}}
+.node{position:absolute;box-sizing:border-box;background:var(--card);color:var(--card-foreground);border:1px solid var(--line);border-radius:calc(var(--radius) - 2px);box-shadow:0 1px 2px 0 rgb(0 0 0 / .06);padding:10px 12px;display:flex;flex-direction:column;gap:6px}
+.node>div:first-child>svg:first-child{box-sizing:content-box;padding:5px;background:var(--muted);border-radius:calc(var(--radius) - 4px);color:var(--foreground);flex-shrink:0}
+.node .ttl{font-size:14px;line-height:20px;font-weight:600;letter-spacing:-.005em}
+.node .excerpt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--muted-foreground);font-size:12px;line-height:16px}
+.node.sel{border-color:var(--live);box-shadow:0 0 0 3px var(--live-soft),0 1px 2px 0 rgb(0 0 0 / .06)}
+.node.declared{border-style:dashed;background:color-mix(in oklch,var(--card) 60%,transparent);box-shadow:none}
+.region{position:absolute;box-sizing:border-box;border:1px solid var(--line);border-radius:var(--radius);background:color-mix(in oklch,var(--card) 55%,transparent)}
+.region-loop{border-left:3px solid var(--foreground)}
+.region-dashed{border-style:dashed;background:transparent}
+.rlabel{position:absolute;display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 8px;font-size:12px;line-height:16px;font-weight:600;color:var(--foreground);background:var(--card);border:1px solid var(--line);border-radius:calc(var(--radius) - 4px);white-space:nowrap;box-shadow:0 1px 2px 0 rgb(0 0 0 / .06)}
+.rlabel .mono{font-weight:500}
+.chip{position:absolute;box-sizing:border-box;display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 9px;border-radius:calc(var(--radius) - 4px);border:1px solid var(--line);background:var(--card);font-size:12px;line-height:16px;white-space:nowrap;color:var(--foreground);box-shadow:0 1px 2px 0 rgb(0 0 0 / .05)}
+.chip.session{border-color:color-mix(in oklch,var(--live) 45%,transparent)}
+.chip.session>svg:first-child{color:var(--live)}
+.chip.sel{border-color:var(--live);box-shadow:0 0 0 3px var(--live-soft)}
+.ctx{position:absolute;display:inline-flex;align-items:center;gap:6px;font-size:12px;line-height:16px;color:var(--muted-foreground);white-space:nowrap}
+.sup{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px;border-radius:9999px;border:1px dashed var(--line-strong);font-size:12px;line-height:16px;color:var(--foreground);background:var(--card);white-space:nowrap}
+.pips{display:inline-flex;align-items:center;gap:5px}
+.rail{stroke:var(--live);stroke-width:2;fill:none}
+.tie{stroke:var(--live);stroke-width:1.5;fill:none}
+.tie-dash{stroke:var(--muted-foreground);stroke-dasharray:3 3}
+.seq{stroke:oklch(0.5 0 0);stroke-width:2;fill:none}
+.tree-row{display:flex;align-items:center;gap:8px;height:28px;padding:0 8px;border-radius:calc(var(--radius) - 4px);box-sizing:border-box;font-size:13px;line-height:18px;white-space:nowrap}
+.tree-row.sel{background:var(--live-soft);color:var(--foreground);box-shadow:inset 3px 0 0 var(--live)}
+.kv{display:grid;grid-template-columns:104px 1fr;gap:6px 12px;font-size:13px;line-height:18px}
+.kv.box{border:1px solid var(--border);border-radius:calc(var(--radius) - 2px);padding:10px 12px}
+.code{font-family:var(--font-mono);font-size:12px;line-height:18px;background:var(--muted);border:1px solid var(--border);border-radius:calc(var(--radius) - 4px);padding:8px 10px;white-space:pre-wrap;color:var(--foreground);margin:0}
+.inst{display:flex;align-items:center;gap:10px;min-height:40px;padding:6px 10px;border:1px solid var(--border);border-radius:calc(var(--radius) - 2px);box-sizing:border-box}
+.inst.sel{border-color:var(--live);background:var(--live-soft)}
+.act{display:flex;align-items:flex-start;gap:8px;font-size:13px;line-height:18px}
+.sec{display:flex;flex-direction:column;gap:8px}
+.q{display:flex;flex-direction:column;gap:4px;padding:8px 10px;border-left:2px solid var(--line-strong);font-size:13px;line-height:18px}
+.q.live{border-left-color:var(--live);background:var(--live-soft);border-radius:0 calc(var(--radius) - 4px) calc(var(--radius) - 4px) 0}
+.a{display:flex;flex-direction:column;gap:4px;padding:8px 10px;border-radius:calc(var(--radius) - 2px);background:var(--muted);border:1px solid var(--border);font-size:13px;line-height:18px}
+.lane{display:flex;align-items:center;height:28px;box-sizing:border-box;border-radius:calc(var(--radius) - 4px)}
+.lane.sel{background:var(--live-soft);box-shadow:inset 3px 0 0 var(--live)}
+.lane-name{width:220px;flex-shrink:0;display:flex;align-items:center;gap:8px;font-size:13px;line-height:18px;white-space:nowrap;padding-left:8px;box-sizing:border-box}
+.lane-bars{position:relative;flex-grow:1;height:28px}
+.bar{position:absolute;top:8px;height:12px;border-radius:3px;background:var(--foreground)}
+.bar-scope{background:color-mix(in oklch,var(--foreground) 18%,transparent);border:1px solid var(--line);box-sizing:border-box}
+.bar-fail{background:var(--destructive)}
+.bar-sel{outline:2px solid var(--live);outline-offset:2px}
+.tick{position:absolute;top:0;bottom:0;border-left:1px solid var(--border)}
+.row{display:flex;align-items:center;gap:8px;font-size:13px;line-height:18px}
+.chipx{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 9px;border-radius:calc(var(--radius) - 4px);border:1px solid var(--line);background:var(--card);font-size:12px;line-height:16px;white-space:nowrap}
+.regionx{box-sizing:border-box;border:1px solid var(--line);border-radius:calc(var(--radius) - 4px);background:color-mix(in oklch,var(--card) 55%,var(--muted));padding:4px 8px;font-size:12px;font-weight:600;color:var(--foreground)}
+.topbar{height:56px;box-sizing:border-box;flex-shrink:0;display:flex;align-items:center;gap:16px;padding:0 16px;border-bottom:1px solid var(--line);background:var(--card)}
+.leftcol{width:264px;flex-shrink:0;box-sizing:border-box;border-right:1px solid var(--line);background:var(--sidebar);color:var(--sidebar-foreground);display:flex;flex-direction:column;padding:16px 12px;gap:22px;overflow:hidden}
+.mapground{flex-grow:1;position:relative;overflow:hidden;background-color:var(--ground);background-image:radial-gradient(oklch(0.8 0 0) 1px,transparent 1px);background-size:20px 20px}
+.shell[data-theme="dark"] .mapground{background-image:radial-gradient(oklch(0.32 0 0) 1px,transparent 1px)}
+.inspector{width:400px;flex-shrink:0;box-sizing:border-box;border-left:1px solid var(--line);background:var(--card);color:var(--card-foreground);display:flex;flex-direction:column;overflow:hidden}
+.insp-head{padding:14px 16px 0;display:flex;flex-direction:column;gap:8px;background:color-mix(in oklch,var(--muted) 60%,var(--card));border-bottom:1px solid var(--border)}
+.insp-foot{border-top:1px solid var(--border);padding:12px 16px;display:flex;align-items:center;gap:10px;background:color-mix(in oklch,var(--muted) 60%,var(--card))}
+.mapchrome{background:var(--card);border:1px solid var(--line);border-radius:calc(var(--radius) - 2px);box-shadow:0 1px 2px 0 rgb(0 0 0 / .06)}
+.searchbox{display:flex;align-items:center;gap:6px;height:32px;width:240px;box-sizing:border-box;padding:0 10px;border:1px solid var(--line);border-radius:calc(var(--radius) - 2px);background:var(--background);color:var(--muted-foreground);font-size:13px}
+.h1{font-size:24px;line-height:32px;font-weight:600;letter-spacing:-0.025em}
+.runname{font-size:15px;font-weight:600;letter-spacing:-.01em}
+.nd{position:absolute;box-sizing:border-box;height:44px;display:flex;align-items:center;gap:10px;padding:0 12px 0 8px;background:var(--paper-2);color:var(--card-foreground);border:1px solid var(--line);border-radius:8px;box-shadow:0 1px 2px 0 rgb(0 0 0 / .08);white-space:nowrap}
+.nd .ico{width:26px;height:26px;display:inline-flex;align-items:center;justify-content:center;background:var(--muted);border-radius:calc(var(--radius) - 4px);color:var(--foreground);flex-shrink:0}
+.nd .nm{font-size:15px;line-height:20px;font-weight:600;letter-spacing:-.005em}
+.nd .meta{font-size:13px;line-height:18px;color:var(--ink-2)}
+.nd .sp{flex-grow:1}
+.nd .eye{display:inline-flex;color:var(--muted-foreground)}
+.nd.sel{border-color:var(--live-ring);box-shadow:0 0 0 3px var(--live-soft),0 1px 2px 0 rgb(0 0 0 / .08)}
+.nd.sm{height:36px;padding:0 10px 0 8px;gap:8px}
+.nd.sm .ico{width:20px;height:20px;background:transparent;color:var(--ink-2)}
+.nd.sm .nm{font-size:13.5px;line-height:18px;font-weight:500;font-family:var(--font-mono)}
+.ret{stroke:oklch(0.45 0 0);stroke-width:1.5;fill:none}
+.disc{display:flex;align-items:center;gap:8px;height:40px;border-top:1px solid var(--border);font-size:13px;line-height:18px;font-weight:500;color:var(--foreground)}
+.disc:last-child{border-bottom:1px solid var(--border)}
+.disc>svg{color:var(--muted-foreground);flex-shrink:0}
+.disc .sum{margin-left:auto;font-weight:400;color:var(--ink-2);font-size:13px;line-height:18px;white-space:nowrap}
+.scope{position:absolute;box-sizing:border-box;border:1px solid var(--line-soft);border-radius:10px;background:var(--paper-1);box-shadow:0 1px 2px rgb(0 0 0 / .05)}
+.scope.l2{background:var(--paper-2);box-shadow:0 1px 3px rgb(0 0 0 / .08),0 1px 2px rgb(0 0 0 / .04)}
+.scope.path{border-color:var(--line);box-shadow:0 4px 12px rgb(0 0 0 / .10),0 1px 2px rgb(0 0 0 / .06)}
+.scope.sel{background:var(--paper-2);border:1.5px solid var(--line-strong);box-shadow:0 14px 32px rgb(0 0 0 / .18),0 3px 6px rgb(0 0 0 / .08)}
+.slabel{position:absolute;box-sizing:border-box;display:inline-flex;align-items:center;gap:7px;height:24px;padding:0 10px;font-size:13px;line-height:18px;font-weight:600;color:var(--foreground);background:var(--paper-1);border:1px solid var(--line-soft);border-radius:7px;white-space:nowrap}
+.slabel.l2{background:var(--paper-2)}
+.slabel.path{border-color:var(--line)}
+.slabel.sel{background:var(--paper-2);border:1.5px solid var(--line-strong)}
+.slabel.select{padding-right:7px;box-shadow:0 1px 2px rgb(0 0 0 / .08);cursor:pointer}
+.slabel.select>svg:last-child{color:var(--ink-2)}
+.cap{position:absolute;font-size:13px;line-height:18px;font-weight:600;color:var(--ink-2);white-space:nowrap}
+.key{position:absolute;box-sizing:border-box;display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 8px;border:1px solid var(--line);border-radius:6px;background:var(--paper-2);font-family:var(--font-mono);font-size:13px;line-height:18px;color:var(--foreground);white-space:nowrap}
+.key>svg{color:var(--ink-2);flex-shrink:0}
+.key.unset{border-style:dashed;border-color:var(--line-soft);background:transparent;color:var(--ink-2)}
+.keys{position:absolute;display:flex;align-items:center;gap:8px}
+.keys .key{position:static}
+.watcher{position:absolute;box-sizing:border-box;width:232px;height:36px;display:flex;align-items:center;gap:8px;padding:0 10px;border:1px solid var(--line);border-radius:8px;background:var(--paper-2);box-shadow:0 1px 2px rgb(0 0 0 / .08);font-size:13px;line-height:18px;font-weight:500;color:var(--foreground);white-space:nowrap}
+.watcher>svg{color:var(--ink-2);flex-shrink:0}
+.watcher .pip{margin-left:auto}
+.gaze{stroke:oklch(0.45 0 0);stroke-width:1.5;stroke-dasharray:2 3;fill:none}
+.scope.alt{background:var(--paper-1)}
+.slabel.alt{background:var(--paper-1)}
+.slabel>.fi{color:var(--ink-2)}
+.fold{position:absolute;display:flex;align-items:center;gap:4px}
+.g{display:inline-flex;align-items:center;gap:4px;height:26px;padding:0 5px;border:1px solid var(--line-soft);border-radius:6px;background:var(--paper-2);color:var(--ink-2)}
+.g .pip{width:8px;height:8px}
+.ptitle{position:absolute;font-size:15px;line-height:20px;font-weight:600;color:var(--foreground);white-space:nowrap}
+.note{position:absolute;font-size:13px;line-height:18px;color:var(--foreground);display:flex;flex-direction:column;gap:6px}
+.note>div{display:flex;gap:8px}
+.note b{font-weight:600;color:var(--ink-2);flex-shrink:0;width:14px}
+</style>
+</helmet>
+<div class="shell" data-theme="light" style="width: 1440px; height: 1080px; box-sizing: border-box; padding: 24px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; align-content: start;">
+
+  <!-- 1 Stop a turn -->
+  <div data-slot="card" data-size="sm" class="cn-card group/card flex flex-col">
+    <div data-slot="card-header" class="cn-card-header group/card-header grid auto-rows-min items-start">
+      <div data-slot="card-title" class="cn-font-heading cn-card-title">Stop a turn</div>
+      <div data-slot="card-description" class="cn-card-description">Confirms in place. Names the turn and its scope; says the run continues.</div>
+    </div>
+    <div data-slot="card-content" class="cn-card-content" style="display: flex; flex-direction: column; gap: 8px;">
+      <button data-slot="button" class="cn-button cn-button-variant-outline cn-button-size-sm group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap" type="button" style="align-self: flex-start;" aria-expanded="true"><svg data-icon="inline-start" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="5" y="5" rx="2"/></svg>Stop turn</button>
+      <div data-slot="popover-content" data-state="open" class="cn-popover-content cn-popover-content-logical z-50 w-72 outline-hidden" style="position: static; width: 320px; display: flex; flex-direction: column; gap: 10px;">
+        <div data-slot="popover-header" class="cn-popover-header">
+          <div data-slot="popover-title" class="cn-popover-title">Stop <span class="mono">coding.1 / turn.3</span>?</div>
+          <div data-slot="popover-description" class="cn-popover-description">Ends only this turn, in implementation.1/task.3. The run keeps going and the workflow decides what follows.</div>
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 8px;">
+          <button data-slot="button" class="cn-button cn-button-variant-ghost cn-button-size-sm group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap" type="button">Keep going</button>
+          <button data-slot="button" class="cn-button cn-button-variant-default cn-button-size-sm group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap" type="button">Stop turn</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2 Action feedback -->
+  <div data-slot="card" data-size="sm" class="cn-card group/card flex flex-col">
+    <div data-slot="card-header" class="cn-card-header group/card-header grid auto-rows-min items-start">
+      <div data-slot="card-title" class="cn-font-heading cn-card-title">Action progress and outcome</div>
+      <div data-slot="card-description" class="cn-card-description">Shown in the top bar where the button was, then kept in the run’s record.</div>
+    </div>
+    <div data-slot="card-content" class="cn-card-content" style="display: flex; flex-direction: column; gap: 10px;">
+      <div class="row"><span class="pip pip-run"></span><span>Stopping <span class="mono">coding.1 / turn.3</span>…</span></div>
+      <div class="row"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span>Turn stopped · 12:44:10</span></div>
+      <div class="row muted" style="padding-left: 22px;">Then: sprint-planning read the record and assigned task.4 · 12:44:31</div>
+      <div data-slot="separator" role="none" style="height: 1px; background: var(--border);"></div>
+      <div class="row"><span class="pip pip-run"></span><span>Cancelling run…</span></div>
+      <div class="row"><span class="pip pip-stop"></span><span>Run cancelled · 12:45:02 · record kept</span></div>
+      <div class="row muted" style="padding-left: 22px;">A cancelled run reads like any recorded run; nothing in it is live.</div>
+    </div>
+  </div>
+
+  <!-- 3 Steer -->
+  <div data-slot="card" data-size="sm" class="cn-card group/card flex flex-col">
+    <div data-slot="card-header" class="cn-card-header group/card-header grid auto-rows-min items-start">
+      <div data-slot="card-title" class="cn-font-heading cn-card-title">Steer a running turn</div>
+      <div data-slot="card-description" class="cn-card-description">Sending is not delivery. Both outcomes are said plainly, beside the turn.</div>
+    </div>
+    <div data-slot="card-content" class="cn-card-content" style="display: flex; flex-direction: column; gap: 10px;">
+      <label for="steer" class="lbl">Steer <span class="mono">coding.1</span> on turn 3</label>
+      <textarea id="steer" data-slot="textarea" class="cn-textarea" rows="2" style="width: 100%; box-sizing: border-box; resize: none;">Prefer the existing rows API over a new table.</textarea>
+      <div style="display: flex; gap: 8px;"><button data-slot="button" class="cn-button cn-button-variant-default cn-button-size-sm group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap" type="button">Steer</button></div>
+      <div class="row"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span>Landed on turn 3 · 12:41:07</span></div>
+      <div class="row"><span class="pip pip-fail"></span><span>Dropped: turn 3 ended before delivery. <span class="muted">Say it again on the next turn.</span></span></div>
+    </div>
+  </div>
+
+  <!-- 4 Planner messages -->
+  <div data-slot="card" data-size="sm" class="cn-card group/card flex flex-col">
+    <div data-slot="card-header" class="cn-card-header group/card-header grid auto-rows-min items-start">
+      <div data-slot="card-title" class="cn-font-heading cn-card-title">Message the planner</div>
+      <div data-slot="card-description" class="cn-card-description">Loop messages wait for a planning decision. That is not a steer, and the sheet says so.</div>
+    </div>
+    <div data-slot="card-content" class="cn-card-content" style="display: flex; flex-direction: column; gap: 10px;">
+      <div style="display: flex; gap: 8px;">
+        <button data-slot="button" class="cn-button cn-button-variant-outline cn-button-size-sm group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap" type="button">Message planner</button>
+        <button data-slot="button" class="cn-button cn-button-variant-outline cn-button-size-sm group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap" type="button">Ask to wrap up</button>
+      </div>
+      <div class="row"><span class="pip pip-wait"></span><span>Queued for the next planning decision · after task.3 ends</span></div>
+      <div class="row"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span>Wrap-up read at the task.3 decision · planner is finishing</span></div>
+    </div>
+  </div>
+
+  <!-- 5 Connection -->
+  <div data-slot="card" data-size="sm" class="cn-card group/card flex flex-col">
+    <div data-slot="card-header" class="cn-card-header group/card-header grid auto-rows-min items-start">
+      <div data-slot="card-title" class="cn-font-heading cn-card-title">Connection is not run status</div>
+      <div data-slot="card-description" class="cn-card-description">The badge pair in the top bar keeps them apart. A lost socket never paints the run failed.</div>
+    </div>
+    <div data-slot="card-content" class="cn-card-content" style="display: flex; flex-direction: column; gap: 10px;">
+      <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+        <span data-slot="badge" class="cn-badge cn-badge-variant-outline inline-flex w-fit shrink-0 items-center justify-center overflow-hidden whitespace-nowrap" style="gap: 6px;"><span class="pip pip-run" style="width: 8px; height: 8px;"></span>Running</span>
+        <span data-slot="badge" class="cn-badge cn-badge-variant-secondary inline-flex w-fit shrink-0 items-center justify-center overflow-hidden whitespace-nowrap" style="gap: 6px;"><span class="pip pip-ok" style="width: 6px; height: 6px;"></span>Live</span>
+        <span data-slot="badge" class="cn-badge cn-badge-variant-secondary inline-flex w-fit shrink-0 items-center justify-center overflow-hidden whitespace-nowrap" style="gap: 6px;"><span class="pip pip-run" style="width: 8px; height: 8px;"></span>Reconnecting</span>
+        <span data-slot="badge" class="cn-badge cn-badge-variant-outline inline-flex w-fit shrink-0 items-center justify-center overflow-hidden whitespace-nowrap" style="gap: 6px; border-style: dashed;"><span class="pip pip-none" style="width: 8px; height: 8px;"></span>Disconnected 42 s</span>
+      </div>
+      <div data-slot="alert" role="alert" data-variant="default" class="cn-alert cn-alert-variant-default group/alert relative w-full">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h.01"/><path d="M8.5 16.429a5 5 0 0 1 7 0"/><path d="M5 12.859a10 10 0 0 1 5.17-2.69"/><path d="M19 12.859a10 10 0 0 0-2.007-1.523"/><path d="M2 8.82a15 15 0 0 1 4.177-2.643"/><path d="M22 8.82a15 15 0 0 0-11.288-3.764"/><path d="m2 2 20 20"/></svg>
+        <div data-slot="alert-title" class="cn-alert-title">Connection lost 42 s ago</div>
+        <div data-slot="alert-description" class="cn-alert-description">Showing the last state received. The run may still be going. <a href="#">Reconnect</a></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6 Stale question -->
+  <div data-slot="card" data-size="sm" class="cn-card group/card flex flex-col">
+    <div data-slot="card-header" class="cn-card-header group/card-header grid auto-rows-min items-start">
+      <div data-slot="card-title" class="cn-font-heading cn-card-title">Question replaced while typing</div>
+      <div data-slot="card-description" class="cn-card-description">An answer always goes to the question it was written for, or not at all.</div>
+    </div>
+    <div data-slot="card-content" class="cn-card-content" style="display: flex; flex-direction: column; gap: 10px;">
+      <div data-slot="alert" role="alert" data-variant="default" class="cn-alert cn-alert-variant-default group/alert relative w-full">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>
+        <div data-slot="alert-title" class="cn-alert-title">The interviewer moved on</div>
+        <div data-slot="alert-description" class="cn-alert-description">Question 2 was withdrawn and question 3 is waiting. Your draft is kept; read the new question before sending.</div>
+      </div>
+      <div style="display: flex; gap: 8px;">
+        <button data-slot="button" class="cn-button cn-button-variant-default cn-button-size-sm group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap" type="button">Show question 3</button>
+        <button data-slot="button" class="cn-button cn-button-variant-ghost cn-button-size-sm group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap" type="button">Discard draft</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 7 Empty states -->
+  <div data-slot="card" data-size="sm" class="cn-card group/card flex flex-col">
+    <div data-slot="card-header" class="cn-card-header group/card-header grid auto-rows-min items-start">
+      <div data-slot="card-title" class="cn-font-heading cn-card-title">Empty project and missing run</div>
+      <div data-slot="card-description" class="cn-card-description">Runs are started from the terminal, so the empty state points there.</div>
+    </div>
+    <div data-slot="card-content" class="cn-card-content" style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px;">
+      <div data-slot="empty" class="cn-empty flex w-full min-w-0 flex-1 flex-col items-center justify-center text-center text-balance" style="border: 1px dashed var(--border); border-radius: var(--radius); padding: 16px 8px;">
+        <div data-slot="empty-header" class="cn-empty-header flex max-w-sm flex-col items-center">
+          <div data-slot="empty-icon" data-variant="icon" class="cn-empty-media cn-empty-media-icon flex shrink-0 items-center justify-center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 17 6-6-6-6"/><path d="M12 19h8"/></svg></div>
+          <div data-slot="empty-title" class="cn-font-heading cn-empty-title">No runs yet</div>
+          <div data-slot="empty-description" class="cn-empty-description text-muted-foreground">Start a workflow from the terminal. It appears here while it runs.</div>
+        </div>
+      </div>
+      <div data-slot="empty" class="cn-empty flex w-full min-w-0 flex-1 flex-col items-center justify-center text-center text-balance" style="border: 1px dashed var(--border); border-radius: var(--radius); padding: 16px 8px;">
+        <div data-slot="empty-header" class="cn-empty-header flex max-w-sm flex-col items-center">
+          <div data-slot="empty-icon" data-variant="icon" class="cn-empty-media cn-empty-media-icon flex shrink-0 items-center justify-center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></div>
+          <div data-slot="empty-title" class="cn-font-heading cn-empty-title">Run not found</div>
+          <div data-slot="empty-description" class="cn-empty-description text-muted-foreground"><span class="mono">01M2XXXX</span> is not in this project’s record. It may belong to another project runtime.</div>
+        </div>
+        <div data-slot="empty-content" class="cn-empty-content flex w-full max-w-sm min-w-0 flex-col items-center text-balance"><button data-slot="button" class="cn-button cn-button-variant-outline cn-button-size-xs group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap" type="button">Back to runs</button></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 8 Map vocabulary -->
+  <div data-slot="card" data-size="sm" class="cn-card group/card flex flex-col">
+    <div data-slot="card-header" class="cn-card-header group/card-header grid auto-rows-min items-start">
+      <div data-slot="card-title" class="cn-font-heading cn-card-title">Map vocabulary</div>
+      <div data-slot="card-description" class="cn-card-description">Shape carries meaning before color does. Blue is liveness and selection; red is failure.</div>
+    </div>
+    <div data-slot="card-content" class="cn-card-content" style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 16px; font-size: 13px; line-height: 18px; align-items: center;">
+      <div class="row"><span class="chipx" style="height: 28px; font-size: 13px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>coding</span><span class="muted">agent call</span></div>
+      <div class="row"><span class="chipx" style="height: 28px; font-size: 13px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 17 6-6-6-6"/><path d="M12 19h8"/></svg><span class="mono">test</span></span><span class="muted">command</span></div>
+      <div class="row"><span class="chipx" style="height: 28px; font-size: 13px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>preferences</span><span class="muted">interview</span></div>
+      <div class="row"><span class="chipx" style="height: 28px; font-size: 13px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5c0 1.1.9 2 2 2h1"/><path d="M16 21h1a2 2 0 0 0 2-2v-5c0-1.1.9-2 2-2a2 2 0 0 1-2-2V5a2 2 0 0 0-2-2h-1"/></svg>context<span class="muted">1 of 8</span></span><span class="muted">keys written so far</span></div>
+      <div class="row"><span class="regionx" style="width: 96px; font-size: 13px; display: inline-flex; align-items: center; gap: 6px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>scope</span><span class="muted">a sheet; tints alternate</span></div>
+      <div class="row"><span class="regionx" style="width: 96px; font-size: 13px; display: inline-flex; align-items: center; gap: 6px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><path d="M18 9v2c0 .6-.4 1-1 1H7c-.6 0-1-.4-1-1V9"/><path d="M12 12v3"/></svg>group</span><span class="muted">concurrent children</span></div>
+      <div class="row"><span class="regionx" style="width: 96px; font-size: 13px; display: inline-flex; align-items: center; gap: 6px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg>loop</span><span class="muted">repeats; returns to the planner</span></div>
+      <div class="row"><span class="chipx" style="height: 28px; font-size: 13px;"><span class="pip pip-run"></span>task 3 of 3<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span><span class="muted">instance select</span></div>
+      <div class="row"><span class="chipx" style="height: 28px; font-size: 13px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>watcher</span><span class="muted">supervisor, in the margin</span></div>
+      <div class="row"><span class="row" style="gap: 4px;"><span class="g"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg><span class="pip pip-ok"></span></span><span class="g"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 17 6-6-6-6"/><path d="M12 19h8"/></svg><span class="pip pip-fail"></span></span><span class="g"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg><span class="pip pip-none"></span></span></span><span class="muted">folded scope</span></div>
+      <div class="row" style="grid-column: span 2; gap: 14px; margin-top: 4px;"><span class="row" style="gap: 6px;"><span class="pip pip-ok"></span>ended</span><span class="row" style="gap: 6px;"><span class="pip pip-run"></span>running</span><span class="row" style="gap: 6px;"><span class="pip pip-fail"></span>failed</span><span class="row" style="gap: 6px;"><span class="pip pip-wait"></span>waiting for you</span><span class="row" style="gap: 6px;"><span class="pip pip-none"></span>not yet</span></div>
+    </div>
+  </div>
+
+  <!-- 9 Iteration and instance -->
+  <div data-slot="card" data-size="sm" class="cn-card group/card flex flex-col">
+    <div data-slot="card-header" class="cn-card-header group/card-header grid auto-rows-min items-start">
+      <div data-slot="card-title" class="cn-font-heading cn-card-title">One call site, many instances</div>
+      <div data-slot="card-description" class="cn-card-description">Definition and history stay separate objects, joined by selection.</div>
+    </div>
+    <div data-slot="card-content" class="cn-card-content" style="display: flex; flex-direction: column; gap: 10px;">
+      <div class="row"><span class="slabel sel select" style="position: static;"><span class="pip pip-run"></span>task 3 of 3<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span><span class="muted xs">defaults to the latest instance; holds fifty as well as three</span></div>
+      <div class="muted" style="font-size: 13px; line-height: 18px;">Picking an instance recolors every pip in that scope for that pass and points the detail pane at it.</div>
+      <div class="row"><span class="mono xs">coding.1 / turn.2</span><span class="muted xs">is a turn on session coding.1, executed in scope implementation.1/task.2, from the call at line 92.</span></div>
+      <div class="muted xs">Three names, three things: the session, the scope, the call site. The map never merges them.</div>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

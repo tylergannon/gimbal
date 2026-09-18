@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Run workspace</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="bundle.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+@font-face{font-family:"Inter Variable";src:local("Inter Variable"),local("Inter");font-weight:100 900;font-style:normal;font-display:swap}
+body{margin:0;background:var(--background)}
+a{color:var(--chart-2)}a:hover{color:var(--foreground)}
+.shell{--font-sans:"Inter Variable",ui-sans-serif,system-ui,sans-serif;--font-mono:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;--line:oklch(0.64 0 0);--line-soft:oklch(0.8 0 0);--line-strong:oklch(0.35 0 0);--ink-2:oklch(0.42 0 0);--ground:oklch(0.96 0 0);--paper-1:oklch(0.99 0 0);--paper-2:oklch(1 0 0);--live:var(--chart-4);--live-ring:var(--chart-3);--live-soft:color-mix(in oklch,var(--chart-3) 14%,transparent);font-family:var(--font-sans);font-size:14px;line-height:20px;color:var(--foreground);background:var(--background);-webkit-font-smoothing:antialiased}
+.shell[data-theme="dark"]{--line:oklch(0.62 0 0);--line-soft:oklch(0.42 0 0);--line-strong:oklch(0.85 0 0);--ink-2:oklch(0.8 0 0);--ground:oklch(0.16 0 0);--paper-1:oklch(0.2 0 0);--paper-2:oklch(0.24 0 0);--live:var(--chart-1);--live-ring:var(--chart-2)}
+.mono{font-family:var(--font-mono)}
+.muted{color:var(--ink-2)}
+.xs{font-size:13px;line-height:18px}
+.lbl{font-size:13px;line-height:18px;font-weight:600;color:var(--foreground);letter-spacing:.01em}
+.sec>.lbl{padding-bottom:6px;border-bottom:1px solid var(--border)}
+.pip{position:relative;display:inline-block;width:10px;height:10px;border-radius:9999px;flex-shrink:0;box-sizing:border-box}
+.pip-ok{background:var(--foreground)}
+.pip-run{border:2px solid var(--live-ring);border-top-color:transparent;animation:gspin 1s linear infinite}
+.pip-fail{background:var(--destructive)}
+.pip-fail::before,.pip-fail::after{content:"";position:absolute;left:2px;right:2px;top:4px;height:1.5px;background:var(--background);transform:rotate(45deg)}
+.pip-fail::after{transform:rotate(-45deg)}
+.pip-none{border:1.5px dashed var(--ink-2)}
+.pip-wait{background:var(--background);box-shadow:inset 0 0 0 2px var(--live)}
+.pip-wait::after{content:"";position:absolute;left:3px;top:3px;width:4px;height:4px;border-radius:9999px;background:var(--live)}
+.pip-stop{background:var(--muted-foreground)}
+.pip-sel{outline:2px solid var(--live);outline-offset:2px}
+@keyframes gspin{to{transform:rotate(360deg)}}
+.node{position:absolute;box-sizing:border-box;background:var(--card);color:var(--card-foreground);border:1px solid var(--line);border-radius:calc(var(--radius) - 2px);box-shadow:0 1px 2px 0 rgb(0 0 0 / .06);padding:10px 12px;display:flex;flex-direction:column;gap:6px}
+.node>div:first-child>svg:first-child{box-sizing:content-box;padding:5px;background:var(--muted);border-radius:calc(var(--radius) - 4px);color:var(--foreground);flex-shrink:0}
+.node .ttl{font-size:14px;line-height:20px;font-weight:600;letter-spacing:-.005em}
+.node .excerpt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--muted-foreground);font-size:12px;line-height:16px}
+.node.sel{border-color:var(--live);box-shadow:0 0 0 3px var(--live-soft),0 1px 2px 0 rgb(0 0 0 / .06)}
+.node.declared{border-style:dashed;background:color-mix(in oklch,var(--card) 60%,transparent);box-shadow:none}
+.region{position:absolute;box-sizing:border-box;border:1px solid var(--line);border-radius:var(--radius);background:color-mix(in oklch,var(--card) 55%,transparent)}
+.region-loop{border-left:3px solid var(--foreground)}
+.region-dashed{border-style:dashed;background:transparent}
+.rlabel{position:absolute;display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 8px;font-size:12px;line-height:16px;font-weight:600;color:var(--foreground);background:var(--card);border:1px solid var(--line);border-radius:calc(var(--radius) - 4px);white-space:nowrap;box-shadow:0 1px 2px 0 rgb(0 0 0 / .06)}
+.rlabel .mono{font-weight:500}
+.chip{position:absolute;box-sizing:border-box;display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 9px;border-radius:calc(var(--radius) - 4px);border:1px solid var(--line);background:var(--card);font-size:12px;line-height:16px;white-space:nowrap;color:var(--foreground);box-shadow:0 1px 2px 0 rgb(0 0 0 / .05)}
+.chip.session{border-color:color-mix(in oklch,var(--live) 45%,transparent)}
+.chip.session>svg:first-child{color:var(--live)}
+.chip.sel{border-color:var(--live);box-shadow:0 0 0 3px var(--live-soft)}
+.ctx{position:absolute;display:inline-flex;align-items:center;gap:6px;font-size:12px;line-height:16px;color:var(--muted-foreground);white-space:nowrap}
+.sup{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px;border-radius:9999px;border:1px dashed var(--line-strong);font-size:12px;line-height:16px;color:var(--foreground);background:var(--card);white-space:nowrap}
+.pips{display:inline-flex;align-items:center;gap:5px}
+.rail{stroke:var(--live);stroke-width:2;fill:none}
+.tie{stroke:var(--live);stroke-width:1.5;fill:none}
+.tie-dash{stroke:var(--muted-foreground);stroke-dasharray:3 3}
+.seq{stroke:oklch(0.5 0 0);stroke-width:2;fill:none}
+.tree-row{display:flex;align-items:center;gap:8px;height:28px;padding:0 8px;border-radius:calc(var(--radius) - 4px);box-sizing:border-box;font-size:13px;line-height:18px;white-space:nowrap}
+.tree-row.sel{background:var(--live-soft);color:var(--foreground);box-shadow:inset 3px 0 0 var(--live)}
+.kv{display:grid;grid-template-columns:104px 1fr;gap:6px 12px;font-size:13px;line-height:18px}
+.kv.box{border:1px solid var(--border);border-radius:calc(var(--radius) - 2px);padding:10px 12px}
+.code{font-family:var(--font-mono);font-size:12px;line-height:18px;background:var(--muted);border:1px solid var(--border);border-radius:calc(var(--radius) - 4px);padding:8px 10px;white-space:pre-wrap;color:var(--foreground);margin:0}
+.inst{display:flex;align-items:center;gap:10px;min-height:40px;padding:6px 10px;border:1px solid var(--border);border-radius:calc(var(--radius) - 2px);box-sizing:border-box}
+.inst.sel{border-color:var(--live);background:var(--live-soft)}
+.act{display:flex;align-items:flex-start;gap:8px;font-size:13px;line-height:18px}
+.sec{display:flex;flex-direction:column;gap:8px}
+.q{display:flex;flex-direction:column;gap:4px;padding:8px 10px;border-left:2px solid var(--line-strong);font-size:13px;line-height:18px}
+.q.live{border-left-color:var(--live);background:var(--live-soft);border-radius:0 calc(var(--radius) - 4px) calc(var(--radius) - 4px) 0}
+.a{display:flex;flex-direction:column;gap:4px;padding:8px 10px;border-radius:calc(var(--radius) - 2px);background:var(--muted);border:1px solid var(--border);font-size:13px;line-height:18px}
+.lane{display:flex;align-items:center;height:28px;box-sizing:border-box;border-radius:calc(var(--radius) - 4px)}
+.lane.sel{background:var(--live-soft);box-shadow:inset 3px 0 0 var(--live)}
+.lane-name{width:220px;flex-shrink:0;display:flex;align-items:center;gap:8px;font-size:13px;line-height:18px;white-space:nowrap;padding-left:8px;box-sizing:border-box}
+.lane-bars{position:relative;flex-grow:1;height:28px}
+.bar{position:absolute;top:8px;height:12px;border-radius:3px;background:var(--foreground)}
+.bar-scope{background:color-mix(in oklch,var(--foreground) 18%,transparent);border:1px solid var(--line);box-sizing:border-box}
+.bar-fail{background:var(--destructive)}
+.bar-sel{outline:2px solid var(--live);outline-offset:2px}
+.tick{position:absolute;top:0;bottom:0;border-left:1px solid var(--border)}
+.row{display:flex;align-items:center;gap:8px;font-size:13px;line-height:18px}
+.chipx{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 9px;border-radius:calc(var(--radius) - 4px);border:1px solid var(--line);background:var(--card);font-size:12px;line-height:16px;white-space:nowrap}
+.regionx{box-sizing:border-box;border:1px solid var(--line);border-radius:calc(var(--radius) - 4px);background:color-mix(in oklch,var(--card) 55%,var(--muted));padding:4px 8px;font-size:12px;font-weight:600;color:var(--foreground)}
+.topbar{height:56px;box-sizing:border-box;flex-shrink:0;display:flex;align-items:center;gap:16px;padding:0 16px;border-bottom:1px solid var(--line);background:var(--card)}
+.leftcol{width:264px;flex-shrink:0;box-sizing:border-box;border-right:1px solid var(--line);background:var(--sidebar);color:var(--sidebar-foreground);display:flex;flex-direction:column;padding:16px 12px;gap:22px;overflow:hidden}
+.mapground{flex-grow:1;position:relative;overflow:hidden;background-color:var(--ground);background-image:radial-gradient(oklch(0.8 0 0) 1px,transparent 1px);background-size:20px 20px}
+.shell[data-theme="dark"] .mapground{background-image:radial-gradient(oklch(0.32 0 0) 1px,transparent 1px)}
+.inspector{width:400px;flex-shrink:0;box-sizing:border-box;border-left:1px solid var(--line);background:var(--card);color:var(--card-foreground);display:flex;flex-direction:column;overflow:hidden}
+.insp-head{padding:14px 16px 0;display:flex;flex-direction:column;gap:8px;background:color-mix(in oklch,var(--muted) 60%,var(--card));border-bottom:1px solid var(--border)}
+.insp-foot{border-top:1px solid var(--border);padding:12px 16px;display:flex;align-items:center;gap:10px;background:color-mix(in oklch,var(--muted) 60%,var(--card))}
+.mapchrome{background:var(--card);border:1px solid var(--line);border-radius:calc(var(--radius) - 2px);box-shadow:0 1px 2px 0 rgb(0 0 0 / .06)}
+.searchbox{display:flex;align-items:center;gap:6px;height:32px;width:240px;box-sizing:border-box;padding:0 10px;border:1px solid var(--line);border-radius:calc(var(--radius) - 2px);background:var(--background);color:var(--muted-foreground);font-size:13px}
+.h1{font-size:24px;line-height:32px;font-weight:600;letter-spacing:-0.025em}
+.runname{font-size:15px;font-weight:600;letter-spacing:-.01em}
+.nd{position:absolute;box-sizing:border-box;height:44px;display:flex;align-items:center;gap:10px;padding:0 12px 0 8px;background:var(--paper-2);color:var(--card-foreground);border:1px solid var(--line);border-radius:8px;box-shadow:0 1px 2px 0 rgb(0 0 0 / .08);white-space:nowrap}
+.nd .ico{width:26px;height:26px;display:inline-flex;align-items:center;justify-content:center;background:var(--muted);border-radius:calc(var(--radius) - 4px);color:var(--foreground);flex-shrink:0}
+.nd .nm{font-size:15px;line-height:20px;font-weight:600;letter-spacing:-.005em}
+.nd .meta{font-size:13px;line-height:18px;color:var(--ink-2)}
+.nd .sp{flex-grow:1}
+.nd .eye{display:inline-flex;color:var(--muted-foreground)}
+.nd.sel{border-color:var(--live-ring);box-shadow:0 0 0 3px var(--live-soft),0 1px 2px 0 rgb(0 0 0 / .08)}
+.nd.sm{height:36px;padding:0 10px 0 8px;gap:8px}
+.nd.sm .ico{width:20px;height:20px;background:transparent;color:var(--ink-2)}
+.nd.sm .nm{font-size:13.5px;line-height:18px;font-weight:500;font-family:var(--font-mono)}
+.ret{stroke:oklch(0.45 0 0);stroke-width:1.5;fill:none}
+.disc{display:flex;align-items:center;gap:8px;height:40px;border-top:1px solid var(--border);font-size:13px;line-height:18px;font-weight:500;color:var(--foreground)}
+.disc:last-child{border-bottom:1px solid var(--border)}
+.disc>svg{color:var(--muted-foreground);flex-shrink:0}
+.disc .sum{margin-left:auto;font-weight:400;color:var(--ink-2);font-size:13px;line-height:18px;white-space:nowrap}
+.scope{position:absolute;box-sizing:border-box;border:1px solid var(--line-soft);border-radius:10px;background:var(--paper-1);box-shadow:0 1px 2px rgb(0 0 0 / .05)}
+.scope.l2{background:var(--paper-2);box-shadow:0 1px 3px rgb(0 0 0 / .08),0 1px 2px rgb(0 0 0 / .04)}
+.scope.path{border-color:var(--line);box-shadow:0 4px 12px rgb(0 0 0 / .10),0 1px 2px rgb(0 0 0 / .06)}
+.scope.sel{background:var(--paper-2);border:1.5px solid var(--line-strong);box-shadow:0 14px 32px rgb(0 0 0 / .18),0 3px 6px rgb(0 0 0 / .08)}
+.slabel{position:absolute;box-sizing:border-box;display:inline-flex;align-items:center;gap:7px;height:24px;padding:0 10px;font-size:13px;line-height:18px;font-weight:600;color:var(--foreground);background:var(--paper-1);border:1px solid var(--line-soft);border-radius:7px;white-space:nowrap}
+.slabel.l2{background:var(--paper-2)}
+.slabel.path{border-color:var(--line)}
+.slabel.sel{background:var(--paper-2);border:1.5px solid var(--line-strong)}
+.slabel.select{padding-right:7px;box-shadow:0 1px 2px rgb(0 0 0 / .08);cursor:pointer}
+.slabel.select>svg:last-child{color:var(--ink-2)}
+.cap{position:absolute;font-size:13px;line-height:18px;font-weight:600;color:var(--ink-2);white-space:nowrap}
+.key{position:absolute;box-sizing:border-box;display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 8px;border:1px solid var(--line);border-radius:6px;background:var(--paper-2);font-family:var(--font-mono);font-size:13px;line-height:18px;color:var(--foreground);white-space:nowrap}
+.key>svg{color:var(--ink-2);flex-shrink:0}
+.key.unset{border-style:dashed;border-color:var(--line-soft);background:transparent;color:var(--ink-2)}
+.keys{position:absolute;display:flex;align-items:center;gap:8px}
+.keys .key{position:static}
+.watcher{position:absolute;box-sizing:border-box;width:232px;height:36px;display:flex;align-items:center;gap:8px;padding:0 10px;border:1px solid var(--line);border-radius:8px;background:var(--paper-2);box-shadow:0 1px 2px rgb(0 0 0 / .08);font-size:13px;line-height:18px;font-weight:500;color:var(--foreground);white-space:nowrap}
+.watcher>svg{color:var(--ink-2);flex-shrink:0}
+.watcher .pip{margin-left:auto}
+.gaze{stroke:oklch(0.45 0 0);stroke-width:1.5;stroke-dasharray:2 3;fill:none}
+.scope.alt{background:var(--paper-1)}
+.slabel.alt{background:var(--paper-1)}
+.slabel>.fi{color:var(--ink-2)}
+.fold{position:absolute;display:flex;align-items:center;gap:4px}
+.g{display:inline-flex;align-items:center;gap:4px;height:26px;padding:0 5px;border:1px solid var(--line-soft);border-radius:6px;background:var(--paper-2);color:var(--ink-2)}
+.g .pip{width:8px;height:8px}
+.ptitle{position:absolute;font-size:15px;line-height:20px;font-weight:600;color:var(--foreground);white-space:nowrap}
+.note{position:absolute;font-size:13px;line-height:18px;color:var(--foreground);display:flex;flex-direction:column;gap:6px}
+.note>div{display:flex;gap:8px}
+.note b{font-weight:600;color:var(--ink-2);flex-shrink:0;width:14px}
+</style>
+</helmet>
+<div class="shell" data-theme="light" style="width: 1440px; height: 900px; box-sizing: border-box; display: flex; flex-direction: column; position: relative; overflow: hidden;">
+
+  <header class="topbar">
+    <nav data-slot="breadcrumb" aria-label="breadcrumb" class="cn-breadcrumb">
+      <ol data-slot="breadcrumb-list" class="cn-breadcrumb-list flex flex-wrap items-center wrap-break-word">
+        <li data-slot="breadcrumb-item" class="cn-breadcrumb-item inline-flex items-center"><a data-slot="breadcrumb-link" class="cn-breadcrumb-link" href="Runs.dc.html">Runs</a></li>
+        <li data-slot="breadcrumb-separator" role="presentation" aria-hidden="true" class="cn-breadcrumb-separator"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></li>
+        <li data-slot="breadcrumb-item" class="cn-breadcrumb-item inline-flex items-center"><span data-slot="breadcrumb-page" class="cn-breadcrumb-page runname">implement-interview</span></li>
+        <li data-slot="breadcrumb-separator" role="presentation" aria-hidden="true" class="cn-breadcrumb-separator"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></li>
+        <li data-slot="breadcrumb-item" class="cn-breadcrumb-item inline-flex items-center"><span data-slot="breadcrumb-page" class="cn-breadcrumb-page mono">01M2RX4A</span></li>
+      </ol>
+    </nav>
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <span data-slot="badge" class="cn-badge cn-badge-variant-outline inline-flex w-fit shrink-0 items-center justify-center overflow-hidden whitespace-nowrap" style="gap: 6px;"><span class="pip pip-run" style="width: 8px; height: 8px;"></span>Running</span>
+      <span data-slot="badge" class="cn-badge cn-badge-variant-secondary inline-flex w-fit shrink-0 items-center justify-center overflow-hidden whitespace-nowrap" style="gap: 6px;"><span class="pip pip-ok" style="width: 6px; height: 6px;"></span>Live</span>
+      <span class="muted xs mono">48m 12s</span>
+    </div>
+    <div class="xs" style="display: flex; align-items: center; gap: 5px; padding-left: 8px; border-left: 1px solid var(--line-soft);"><span class="muted">now</span><a href="#" style="text-decoration: none; font-weight: 500;">coding · task 3</a></div>
+    <div style="flex-grow: 1;"></div>
+    <div class="searchbox">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      <span style="flex-grow: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Find a scope or turn</span>
+      <kbd data-slot="kbd" class="cn-kbd pointer-events-none inline-flex items-center justify-center select-none">/</kbd>
+    </div>
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <button data-slot="button" class="cn-button cn-button-variant-outline cn-button-size-sm group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap" type="button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-icon="inline-start"><rect width="14" height="14" x="5" y="5" rx="2"/></svg>Stop turn</button>
+      <button data-slot="button" class="cn-button cn-button-variant-outline cn-button-size-sm group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap" type="button" style="color: var(--destructive);"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-icon="inline-start"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>Cancel run</button>
+    </div>
+  </header>
+
+  <div style="flex-grow: 1; display: flex; min-height: 0;">
+
+    <main class="mapground">
+
+      <div class="mapchrome" style="position: absolute; right: 12px; top: 12px; z-index: 3; display: flex; align-items: center; gap: 4px; padding: 2px;">
+        <button data-slot="button" class="cn-button cn-button-variant-ghost cn-button-size-icon-xs group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap" type="button" aria-label="Fit to view"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg></button><button data-slot="button" class="cn-button cn-button-variant-ghost cn-button-size-icon-xs group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap" type="button" aria-label="Zoom out"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/></svg></button><span class="xs mono" style="padding: 0 4px; min-width: 40px; text-align: center;">100%</span><button data-slot="button" class="cn-button cn-button-variant-ghost cn-button-size-icon-xs group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap" type="button" aria-label="Zoom in"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg></button>
+      </div>
+
+      <div style="position: absolute; left: 0; top: 48px; width: 1040px; height: 796px;">
+
+        <div class="scope " style="left:260px;top:64px;width:600px;height:140px;"></div>
+        <div class="scope l2" style="left:268px;top:100px;width:288px;height:80px;"></div>
+        <div class="scope l2" style="left:564px;top:100px;width:288px;height:80px;"></div>
+        <div class="scope path" style="left:260px;top:244px;width:600px;height:500px;"></div>
+        <div class="scope l2 sel" style="left:268px;top:340px;width:556px;height:372px;"></div>
+
+        <svg width="1040" height="796" viewBox="0 0 1040 796" style="position: absolute; left: 0; top: 0; overflow: visible;" aria-hidden="true">
+          <defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="oklch(0.45 0 0)"/></marker></defs>
+          <circle cx="560" cy="30" r="4" fill="oklch(0.5 0 0)"/>
+          <path class="seq" d="M560,34 V84 M412,84 H708 M412,84 V100 M708,84 V100 M412,180 V192 M708,180 V192 M412,192 H708 M560,192 V272 M560,316 V372 M560,416 V436 M560,472 V492 M560,528 V548 M560,584 V604 M560,640 V660 M560,744 V768"/>
+          <path class="ret" d="M560,704 V730 H840 V294 H745" marker-end="url(#arr)"/>
+          <circle cx="560" cy="772" r="4" fill="oklch(0.5 0 0)"/>
+          <path class="gaze" d="M248,370 H256 V418 H248 M256,394 H378"/>
+        </svg>
+
+        <div class="slabel " style="left:272px;top:53px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><path d="M18 9v2c0 .6-.4 1-1 1H7c-.6 0-1-.4-1-1V9"/><path d="M12 12v3"/></svg>reconnaissance</div>
+        <div class="slabel l2" style="left:280px;top:89px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>backend</div>
+        <div class="nd" style="left:276px;top:124px;width:272px;"><span class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg></span><span class="nm">api-research</span><span class="sp"></span><span class="pip pip-ok"></span></div>
+        <div class="slabel l2" style="left:576px;top:89px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>frontend</div>
+        <div class="nd" style="left:572px;top:124px;width:272px;"><span class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg></span><span class="nm">frontend-research</span><span class="sp"></span><span class="pip pip-ok"></span></div>
+
+        <div class="slabel path" style="left:272px;top:233px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg>implementation</div>
+        <div class="nd" style="left:380px;top:272px;width:360px;"><span class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg></span><span class="nm">sprint-planning</span><span class="meta">planner</span><span class="sp"></span><span class="pip pip-ok"></span></div>
+
+        <div class="slabel sel select" style="left: 280px; top: 328px;"><span class="pip pip-run"></span>task 3 of 3<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></div>
+        <div class="slabel sel" style="right: 232px; top: 328px; font-weight: 500;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5c0 1.1.9 2 2 2h1"/><path d="M16 21h1a2 2 0 0 0 2-2v-5c0-1.1.9-2 2-2a2 2 0 0 1-2-2V5a2 2 0 0 0-2-2h-1"/></svg>context<span class="muted">1 of 8</span></div>
+
+        <div class="nd sel" style="left:380px;top:372px;width:360px;"><span class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg></span><span class="nm">coding</span><span class="meta">turn 3</span><span class="sp"></span><span class="pip pip-run"></span></div>
+        <div class="nd sm" style="left:380px;top:436px;width:360px;"><span class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 17 6-6-6-6"/><path d="M12 19h8"/></svg></span><span class="nm">task-check</span><span class="sp"></span><span class="pip pip-none"></span></div>
+        <div class="nd sm" style="left:380px;top:492px;width:360px;"><span class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 17 6-6-6-6"/><path d="M12 19h8"/></svg></span><span class="nm">build</span><span class="sp"></span><span class="pip pip-none"></span></div>
+        <div class="nd sm" style="left:380px;top:548px;width:360px;"><span class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 17 6-6-6-6"/><path d="M12 19h8"/></svg></span><span class="nm">vet</span><span class="sp"></span><span class="pip pip-none"></span></div>
+        <div class="nd sm" style="left:380px;top:604px;width:360px;"><span class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 17 6-6-6-6"/><path d="M12 19h8"/></svg></span><span class="nm">test</span><span class="sp"></span><span class="pip pip-none"></span></div>
+        <div class="nd" style="left:380px;top:660px;width:360px;"><span class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg></span><span class="nm">qa-orchestration</span><span class="sp"></span><span class="pip pip-none"></span></div>
+
+        <div class="cap" style="left: 16px; top: 328px;">watching</div>
+        <div class="watcher" style="left:16px;top:352px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg><span>implementation-scope-review</span><span class="pip pip-ok"></span></div>
+        <div class="watcher" style="left:16px;top:400px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg><span>architectural-critique</span><span class="pip pip-run"></span></div>
+
+        <div class="cap" style="left: 573px; top: 763px; font-weight: 500;">end</div>
+      </div>
+    </main>
+
+    <aside class="inspector">
+      <div class="insp-head" style="padding-bottom: 12px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>
+          <span style="font-size: 16px; line-height: 24px; font-weight: 600; letter-spacing: -0.01em;">coding</span>
+          <span data-slot="badge" class="cn-badge cn-badge-variant-outline inline-flex w-fit shrink-0 items-center justify-center overflow-hidden whitespace-nowrap">agent call</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 6px; font-size: 13px; line-height: 18px;"><span class="muted">task 3</span><span class="muted">·</span><span class="pip pip-run"></span><span>running</span><span class="muted">·</span><span class="mono muted">1m 48s</span></div>
+      </div>
+
+      <div style="flex-grow: 1; overflow: hidden; display: flex; flex-direction: column; gap: 16px; padding: 14px 16px 12px;">
+        <div class="sec">
+          <div class="lbl" style="display: flex; justify-content: space-between;"><span>Assignment</span><span class="muted" style="font-weight: 400;">from sprint-planning</span></div>
+          <div style="font-size: 14px; line-height: 20px;">Wire the answered timestamp through the web answer flow so the interview row updates without a reload. Stay inside the observation rows.</div>
+        </div>
+
+        <div class="sec">
+          <div class="lbl" style="display: flex; justify-content: space-between;"><span>Activity <span class="muted" style="font-weight: 400;">· 9 tool calls</span></span><a href="#" class="xs" style="font-weight: 400;">open transcript</a></div>
+          <div class="act"><span class="mono muted xs" style="width:60px;flex-shrink:0;">12:47:02</span><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><span class="muted">Read</span> web/src/lib/workflow/types.ts</span></div>
+          <div class="act"><span class="mono muted xs" style="width:60px;flex-shrink:0;">12:47:41</span><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><span class="muted">Edit</span> web/src/routes/runs/[id]/+page.svelte</span></div>
+          <div class="act"><span class="mono muted xs" style="width:60px;flex-shrink:0;">12:48:10</span><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><span class="muted">Bash</span> <span class="mono xs">go test ./internal/observation/</span> <span class="pip pip-run" style="width: 8px; height: 8px; margin-left: 4px;"></span></span></div>
+        </div>
+
+        <div style="display: flex; flex-direction: column;">
+          <div class="disc"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg><span>Prompt sent</span><span class="sum">1.2k chars · 4 context sections</span></div>
+          <div class="disc"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg><span>Watchers</span><span class="sum">2 · one looking now</span></div>
+          <div class="disc"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg><span>Session</span><span class="sum">coding · turn 3</span></div>
+          <div class="disc"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg><span>Usage</span><span class="sum">18k in · 1.1k out</span></div>
+          <div class="disc"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg><span>Definition</span><span class="sum mono">implementinterview.go:92</span></div>
+        </div>
+      </div>
+
+      <div class="insp-foot" style="flex-direction: column; align-items: stretch; gap: 8px;">
+        <textarea data-slot="textarea" class="cn-textarea" rows="2" placeholder="Steer this turn…" style="width: 100%; box-sizing: border-box; resize: none;"></textarea>
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span class="muted xs" style="flex-grow: 1;">Lands before the next tool call. Dropped if the turn ends first.</span>
+          <button data-slot="button" class="cn-button cn-button-variant-default cn-button-size-sm group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap" type="button">Steer</button>
+        </div>
+      </div>
+    </aside>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

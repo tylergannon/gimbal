@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Runs list</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="bundle.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+@font-face{font-family:"Inter Variable";src:local("Inter Variable"),local("Inter");font-weight:100 900;font-style:normal;font-display:swap}
+body{margin:0;background:var(--background)}
+a{color:var(--chart-2)}a:hover{color:var(--foreground)}
+.shell{--font-sans:"Inter Variable",ui-sans-serif,system-ui,sans-serif;--font-mono:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;--line:oklch(0.64 0 0);--line-soft:oklch(0.8 0 0);--line-strong:oklch(0.35 0 0);--ink-2:oklch(0.42 0 0);--ground:oklch(0.96 0 0);--paper-1:oklch(0.99 0 0);--paper-2:oklch(1 0 0);--live:var(--chart-4);--live-ring:var(--chart-3);--live-soft:color-mix(in oklch,var(--chart-3) 14%,transparent);font-family:var(--font-sans);font-size:14px;line-height:20px;color:var(--foreground);background:var(--background);-webkit-font-smoothing:antialiased}
+.shell[data-theme="dark"]{--line:oklch(0.62 0 0);--line-soft:oklch(0.42 0 0);--line-strong:oklch(0.85 0 0);--ink-2:oklch(0.8 0 0);--ground:oklch(0.16 0 0);--paper-1:oklch(0.2 0 0);--paper-2:oklch(0.24 0 0);--live:var(--chart-1);--live-ring:var(--chart-2)}
+.mono{font-family:var(--font-mono)}
+.muted{color:var(--ink-2)}
+.xs{font-size:13px;line-height:18px}
+.lbl{font-size:13px;line-height:18px;font-weight:600;color:var(--foreground);letter-spacing:.01em}
+.sec>.lbl{padding-bottom:6px;border-bottom:1px solid var(--border)}
+.pip{position:relative;display:inline-block;width:10px;height:10px;border-radius:9999px;flex-shrink:0;box-sizing:border-box}
+.pip-ok{background:var(--foreground)}
+.pip-run{border:2px solid var(--live-ring);border-top-color:transparent;animation:gspin 1s linear infinite}
+.pip-fail{background:var(--destructive)}
+.pip-fail::before,.pip-fail::after{content:"";position:absolute;left:2px;right:2px;top:4px;height:1.5px;background:var(--background);transform:rotate(45deg)}
+.pip-fail::after{transform:rotate(-45deg)}
+.pip-none{border:1.5px dashed var(--ink-2)}
+.pip-wait{background:var(--background);box-shadow:inset 0 0 0 2px var(--live)}
+.pip-wait::after{content:"";position:absolute;left:3px;top:3px;width:4px;height:4px;border-radius:9999px;background:var(--live)}
+.pip-stop{background:var(--muted-foreground)}
+.pip-sel{outline:2px solid var(--live);outline-offset:2px}
+@keyframes gspin{to{transform:rotate(360deg)}}
+.node{position:absolute;box-sizing:border-box;background:var(--card);color:var(--card-foreground);border:1px solid var(--line);border-radius:calc(var(--radius) - 2px);box-shadow:0 1px 2px 0 rgb(0 0 0 / .06);padding:10px 12px;display:flex;flex-direction:column;gap:6px}
+.node>div:first-child>svg:first-child{box-sizing:content-box;padding:5px;background:var(--muted);border-radius:calc(var(--radius) - 4px);color:var(--foreground);flex-shrink:0}
+.node .ttl{font-size:14px;line-height:20px;font-weight:600;letter-spacing:-.005em}
+.node .excerpt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--muted-foreground);font-size:12px;line-height:16px}
+.node.sel{border-color:var(--live);box-shadow:0 0 0 3px var(--live-soft),0 1px 2px 0 rgb(0 0 0 / .06)}
+.node.declared{border-style:dashed;background:color-mix(in oklch,var(--card) 60%,transparent);box-shadow:none}
+.region{position:absolute;box-sizing:border-box;border:1px solid var(--line);border-radius:var(--radius);background:color-mix(in oklch,var(--card) 55%,transparent)}
+.region-loop{border-left:3px solid var(--foreground)}
+.region-dashed{border-style:dashed;background:transparent}
+.rlabel{position:absolute;display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 8px;font-size:12px;line-height:16px;font-weight:600;color:var(--foreground);background:var(--card);border:1px solid var(--line);border-radius:calc(var(--radius) - 4px);white-space:nowrap;box-shadow:0 1px 2px 0 rgb(0 0 0 / .06)}
+.rlabel .mono{font-weight:500}
+.chip{position:absolute;box-sizing:border-box;display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 9px;border-radius:calc(var(--radius) - 4px);border:1px solid var(--line);background:var(--card);font-size:12px;line-height:16px;white-space:nowrap;color:var(--foreground);box-shadow:0 1px 2px 0 rgb(0 0 0 / .05)}
+.chip.session{border-color:color-mix(in oklch,var(--live) 45%,transparent)}
+.chip.session>svg:first-child{color:var(--live)}
+.chip.sel{border-color:var(--live);box-shadow:0 0 0 3px var(--live-soft)}
+.ctx{position:absolute;display:inline-flex;align-items:center;gap:6px;font-size:12px;line-height:16px;color:var(--muted-foreground);white-space:nowrap}
+.sup{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px;border-radius:9999px;border:1px dashed var(--line-strong);font-size:12px;line-height:16px;color:var(--foreground);background:var(--card);white-space:nowrap}
+.pips{display:inline-flex;align-items:center;gap:5px}
+.rail{stroke:var(--live);stroke-width:2;fill:none}
+.tie{stroke:var(--live);stroke-width:1.5;fill:none}
+.tie-dash{stroke:var(--muted-foreground);stroke-dasharray:3 3}
+.seq{stroke:oklch(0.5 0 0);stroke-width:2;fill:none}
+.tree-row{display:flex;align-items:center;gap:8px;height:28px;padding:0 8px;border-radius:calc(var(--radius) - 4px);box-sizing:border-box;font-size:13px;line-height:18px;white-space:nowrap}
+.tree-row.sel{background:var(--live-soft);color:var(--foreground);box-shadow:inset 3px 0 0 var(--live)}
+.kv{display:grid;grid-template-columns:104px 1fr;gap:6px 12px;font-size:13px;line-height:18px}
+.kv.box{border:1px solid var(--border);border-radius:calc(var(--radius) - 2px);padding:10px 12px}
+.code{font-family:var(--font-mono);font-size:12px;line-height:18px;background:var(--muted);border:1px solid var(--border);border-radius:calc(var(--radius) - 4px);padding:8px 10px;white-space:pre-wrap;color:var(--foreground);margin:0}
+.inst{display:flex;align-items:center;gap:10px;min-height:40px;padding:6px 10px;border:1px solid var(--border);border-radius:calc(var(--radius) - 2px);box-sizing:border-box}
+.inst.sel{border-color:var(--live);background:var(--live-soft)}
+.act{display:flex;align-items:flex-start;gap:8px;font-size:13px;line-height:18px}
+.sec{display:flex;flex-direction:column;gap:8px}
+.q{display:flex;flex-direction:column;gap:4px;padding:8px 10px;border-left:2px solid var(--line-strong);font-size:13px;line-height:18px}
+.q.live{border-left-color:var(--live);background:var(--live-soft);border-radius:0 calc(var(--radius) - 4px) calc(var(--radius) - 4px) 0}
+.a{display:flex;flex-direction:column;gap:4px;padding:8px 10px;border-radius:calc(var(--radius) - 2px);background:var(--muted);border:1px solid var(--border);font-size:13px;line-height:18px}
+.lane{display:flex;align-items:center;height:28px;box-sizing:border-box;border-radius:calc(var(--radius) - 4px)}
+.lane.sel{background:var(--live-soft);box-shadow:inset 3px 0 0 var(--live)}
+.lane-name{width:220px;flex-shrink:0;display:flex;align-items:center;gap:8px;font-size:13px;line-height:18px;white-space:nowrap;padding-left:8px;box-sizing:border-box}
+.lane-bars{position:relative;flex-grow:1;height:28px}
+.bar{position:absolute;top:8px;height:12px;border-radius:3px;background:var(--foreground)}
+.bar-scope{background:color-mix(in oklch,var(--foreground) 18%,transparent);border:1px solid var(--line);box-sizing:border-box}
+.bar-fail{background:var(--destructive)}
+.bar-sel{outline:2px solid var(--live);outline-offset:2px}
+.tick{position:absolute;top:0;bottom:0;border-left:1px solid var(--border)}
+.row{display:flex;align-items:center;gap:8px;font-size:13px;line-height:18px}
+.chipx{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 9px;border-radius:calc(var(--radius) - 4px);border:1px solid var(--line);background:var(--card);font-size:12px;line-height:16px;white-space:nowrap}
+.regionx{box-sizing:border-box;border:1px solid var(--line);border-radius:calc(var(--radius) - 4px);background:color-mix(in oklch,var(--card) 55%,var(--muted));padding:4px 8px;font-size:12px;font-weight:600;color:var(--foreground)}
+.topbar{height:56px;box-sizing:border-box;flex-shrink:0;display:flex;align-items:center;gap:16px;padding:0 16px;border-bottom:1px solid var(--line);background:var(--card)}
+.leftcol{width:264px;flex-shrink:0;box-sizing:border-box;border-right:1px solid var(--line);background:var(--sidebar);color:var(--sidebar-foreground);display:flex;flex-direction:column;padding:16px 12px;gap:22px;overflow:hidden}
+.mapground{flex-grow:1;position:relative;overflow:hidden;background-color:var(--ground);background-image:radial-gradient(oklch(0.8 0 0) 1px,transparent 1px);background-size:20px 20px}
+.shell[data-theme="dark"] .mapground{background-image:radial-gradient(oklch(0.32 0 0) 1px,transparent 1px)}
+.inspector{width:400px;flex-shrink:0;box-sizing:border-box;border-left:1px solid var(--line);background:var(--card);color:var(--card-foreground);display:flex;flex-direction:column;overflow:hidden}
+.insp-head{padding:14px 16px 0;display:flex;flex-direction:column;gap:8px;background:color-mix(in oklch,var(--muted) 60%,var(--card));border-bottom:1px solid var(--border)}
+.insp-foot{border-top:1px solid var(--border);padding:12px 16px;display:flex;align-items:center;gap:10px;background:color-mix(in oklch,var(--muted) 60%,var(--card))}
+.mapchrome{background:var(--card);border:1px solid var(--line);border-radius:calc(var(--radius) - 2px);box-shadow:0 1px 2px 0 rgb(0 0 0 / .06)}
+.searchbox{display:flex;align-items:center;gap:6px;height:32px;width:240px;box-sizing:border-box;padding:0 10px;border:1px solid var(--line);border-radius:calc(var(--radius) - 2px);background:var(--background);color:var(--muted-foreground);font-size:13px}
+.h1{font-size:24px;line-height:32px;font-weight:600;letter-spacing:-0.025em}
+.runname{font-size:15px;font-weight:600;letter-spacing:-.01em}
+.nd{position:absolute;box-sizing:border-box;height:44px;display:flex;align-items:center;gap:10px;padding:0 12px 0 8px;background:var(--paper-2);color:var(--card-foreground);border:1px solid var(--line);border-radius:8px;box-shadow:0 1px 2px 0 rgb(0 0 0 / .08);white-space:nowrap}
+.nd .ico{width:26px;height:26px;display:inline-flex;align-items:center;justify-content:center;background:var(--muted);border-radius:calc(var(--radius) - 4px);color:var(--foreground);flex-shrink:0}
+.nd .nm{font-size:15px;line-height:20px;font-weight:600;letter-spacing:-.005em}
+.nd .meta{font-size:13px;line-height:18px;color:var(--ink-2)}
+.nd .sp{flex-grow:1}
+.nd .eye{display:inline-flex;color:var(--muted-foreground)}
+.nd.sel{border-color:var(--live-ring);box-shadow:0 0 0 3px var(--live-soft),0 1px 2px 0 rgb(0 0 0 / .08)}
+.nd.sm{height:36px;padding:0 10px 0 8px;gap:8px}
+.nd.sm .ico{width:20px;height:20px;background:transparent;color:var(--ink-2)}
+.nd.sm .nm{font-size:13.5px;line-height:18px;font-weight:500;font-family:var(--font-mono)}
+.ret{stroke:oklch(0.45 0 0);stroke-width:1.5;fill:none}
+.disc{display:flex;align-items:center;gap:8px;height:40px;border-top:1px solid var(--border);font-size:13px;line-height:18px;font-weight:500;color:var(--foreground)}
+.disc:last-child{border-bottom:1px solid var(--border)}
+.disc>svg{color:var(--muted-foreground);flex-shrink:0}
+.disc .sum{margin-left:auto;font-weight:400;color:var(--ink-2);font-size:13px;line-height:18px;white-space:nowrap}
+.scope{position:absolute;box-sizing:border-box;border:1px solid var(--line-soft);border-radius:10px;background:var(--paper-1);box-shadow:0 1px 2px rgb(0 0 0 / .05)}
+.scope.l2{background:var(--paper-2);box-shadow:0 1px 3px rgb(0 0 0 / .08),0 1px 2px rgb(0 0 0 / .04)}
+.scope.path{border-color:var(--line);box-shadow:0 4px 12px rgb(0 0 0 / .10),0 1px 2px rgb(0 0 0 / .06)}
+.scope.sel{background:var(--paper-2);border:1.5px solid var(--line-strong);box-shadow:0 14px 32px rgb(0 0 0 / .18),0 3px 6px rgb(0 0 0 / .08)}
+.slabel{position:absolute;box-sizing:border-box;display:inline-flex;align-items:center;gap:7px;height:24px;padding:0 10px;font-size:13px;line-height:18px;font-weight:600;color:var(--foreground);background:var(--paper-1);border:1px solid var(--line-soft);border-radius:7px;white-space:nowrap}
+.slabel.l2{background:var(--paper-2)}
+.slabel.path{border-color:var(--line)}
+.slabel.sel{background:var(--paper-2);border:1.5px solid var(--line-strong)}
+.slabel.select{padding-right:7px;box-shadow:0 1px 2px rgb(0 0 0 / .08);cursor:pointer}
+.slabel.select>svg:last-child{color:var(--ink-2)}
+.cap{position:absolute;font-size:13px;line-height:18px;font-weight:600;color:var(--ink-2);white-space:nowrap}
+.key{position:absolute;box-sizing:border-box;display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 8px;border:1px solid var(--line);border-radius:6px;background:var(--paper-2);font-family:var(--font-mono);font-size:13px;line-height:18px;color:var(--foreground);white-space:nowrap}
+.key>svg{color:var(--ink-2);flex-shrink:0}
+.key.unset{border-style:dashed;border-color:var(--line-soft);background:transparent;color:var(--ink-2)}
+.keys{position:absolute;display:flex;align-items:center;gap:8px}
+.keys .key{position:static}
+.watcher{position:absolute;box-sizing:border-box;width:232px;height:36px;display:flex;align-items:center;gap:8px;padding:0 10px;border:1px solid var(--line);border-radius:8px;background:var(--paper-2);box-shadow:0 1px 2px rgb(0 0 0 / .08);font-size:13px;line-height:18px;font-weight:500;color:var(--foreground);white-space:nowrap}
+.watcher>svg{color:var(--ink-2);flex-shrink:0}
+.watcher .pip{margin-left:auto}
+.gaze{stroke:oklch(0.45 0 0);stroke-width:1.5;stroke-dasharray:2 3;fill:none}
+.scope.alt{background:var(--paper-1)}
+.slabel.alt{background:var(--paper-1)}
+.slabel>.fi{color:var(--ink-2)}
+.fold{position:absolute;display:flex;align-items:center;gap:4px}
+.g{display:inline-flex;align-items:center;gap:4px;height:26px;padding:0 5px;border:1px solid var(--line-soft);border-radius:6px;background:var(--paper-2);color:var(--ink-2)}
+.g .pip{width:8px;height:8px}
+.ptitle{position:absolute;font-size:15px;line-height:20px;font-weight:600;color:var(--foreground);white-space:nowrap}
+.note{position:absolute;font-size:13px;line-height:18px;color:var(--foreground);display:flex;flex-direction:column;gap:6px}
+.note>div{display:flex;gap:8px}
+.note b{font-weight:600;color:var(--ink-2);flex-shrink:0;width:14px}
+</style>
+</helmet>
+<div class="shell" data-theme="light" style="width: 1440px; height: 900px; box-sizing: border-box; display: flex; flex-direction: column; position: relative; overflow: hidden;">
+
+  <header class="topbar" style="padding: 0 24px; gap: 12px;">
+    <span style="font-weight: 600; letter-spacing: -0.01em;">Gimble</span>
+    <span class="muted">/</span>
+    <span class="mono muted" style="font-size: 13px;">~/src/gimble</span>
+    <div style="flex-grow: 1;"></div>
+    <span data-slot="badge" class="cn-badge cn-badge-variant-secondary inline-flex w-fit shrink-0 items-center justify-center overflow-hidden whitespace-nowrap" style="gap: 6px;"><span class="pip pip-ok" style="width: 6px; height: 6px;"></span>Connected · local runtime</span>
+  </header>
+
+  <main style="flex-grow: 1; overflow: hidden; display: flex; justify-content: center;">
+    <div style="width: 1120px; box-sizing: border-box; padding: 36px 0 24px; display: flex; flex-direction: column; gap: 28px;">
+
+      <div style="display: flex; flex-direction: column; gap: 4px;">
+        <h1 style="margin: 0; font-size: 24px; line-height: 32px; font-weight: 600; letter-spacing: -0.025em;">Runs</h1>
+        <p class="muted" style="margin: 0;">Everything this project runtime has recorded. Current work first.</p>
+      </div>
+
+      <section style="display: flex; flex-direction: column; gap: 10px;">
+        <div class="lbl">Needs your answer · 2</div>
+        <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px;">
+          <a href="Interview.dc.html" data-slot="item" data-variant="outline" data-size="sm" class="cn-item cn-item-variant-outline cn-item-size-sm group/item flex items-center" style="text-decoration: none; gap: 12px;">
+            <div data-slot="item-media" data-variant="icon" class="cn-item-media cn-item-media-variant-icon flex shrink-0 items-center justify-center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg></div>
+            <div data-slot="item-content" class="cn-item-content flex flex-1 flex-col" style="min-width: 0;">
+              <div data-slot="item-title" class="cn-item-title line-clamp-1 flex w-fit items-center" style="gap: 6px;"><span>plan-trip</span><span class="mono muted xs">research.1/lodging.1 · preferences</span></div>
+              <div data-slot="item-description" class="cn-item-description line-clamp-2 font-normal">Would you trade reliable Wi-Fi for a more secluded cabin?</div>
+            </div>
+            <div data-slot="item-actions" class="cn-item-actions flex items-center" style="gap: 8px;"><span class="muted xs">40 s</span><span data-slot="button" class="cn-button cn-button-variant-default cn-button-size-xs group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap">Answer</span></div>
+          </a>
+          <a href="Interview.dc.html" data-slot="item" data-variant="outline" data-size="sm" class="cn-item cn-item-variant-outline cn-item-size-sm group/item flex items-center" style="text-decoration: none; gap: 12px;">
+            <div data-slot="item-media" data-variant="icon" class="cn-item-media cn-item-media-variant-icon flex shrink-0 items-center justify-center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg></div>
+            <div data-slot="item-content" class="cn-item-content flex flex-1 flex-col" style="min-width: 0;">
+              <div data-slot="item-title" class="cn-item-title line-clamp-1 flex w-fit items-center" style="gap: 6px;"><span>plan-trip</span><span class="mono muted xs">research.1/transport.1 · preferences</span></div>
+              <div data-slot="item-description" class="cn-item-description line-clamp-2 font-normal">What is the longest drive you would enjoy?</div>
+            </div>
+            <div data-slot="item-actions" class="cn-item-actions flex items-center" style="gap: 8px;"><span class="muted xs">35 s</span><span data-slot="button" class="cn-button cn-button-variant-default cn-button-size-xs group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap">Answer</span></div>
+          </a>
+        </div>
+      </section>
+
+      <section style="display: flex; flex-direction: column; gap: 12px;">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <div data-slot="toggle-group" data-variant="outline" data-size="sm" data-spacing="0" data-orientation="horizontal" role="group" class="cn-toggle-group group/toggle-group flex w-fit flex-row items-center">
+            <button data-slot="toggle-group-item" data-variant="outline" data-size="sm" data-spacing="0" data-state="on" aria-pressed="true" class="cn-toggle-group-item shrink-0" type="button">All · 6</button>
+            <button data-slot="toggle-group-item" data-variant="outline" data-size="sm" data-spacing="0" data-state="off" aria-pressed="false" class="cn-toggle-group-item shrink-0" type="button">Active · 2</button>
+            <button data-slot="toggle-group-item" data-variant="outline" data-size="sm" data-spacing="0" data-state="off" aria-pressed="false" class="cn-toggle-group-item shrink-0" type="button">Needs answer · 1</button>
+            <button data-slot="toggle-group-item" data-variant="outline" data-size="sm" data-spacing="0" data-state="off" aria-pressed="false" class="cn-toggle-group-item shrink-0" type="button">Ended · 2</button>
+            <button data-slot="toggle-group-item" data-variant="outline" data-size="sm" data-spacing="0" data-state="off" aria-pressed="false" class="cn-toggle-group-item shrink-0" type="button">Failed · 1</button>
+            <button data-slot="toggle-group-item" data-variant="outline" data-size="sm" data-spacing="0" data-state="off" aria-pressed="false" class="cn-toggle-group-item shrink-0" type="button">Cancelled · 1</button>
+          </div>
+          <div style="flex-grow: 1;"></div>
+          <label for="run-search" class="lbl" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0);">Search runs</label>
+          <input id="run-search" data-slot="input" class="cn-input" type="search" placeholder="Search by workflow or run id" style="width: 300px;">
+        </div>
+
+        <div data-slot="table-container" class="cn-table-container" style="border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; background: var(--card);">
+          <table data-slot="table" class="cn-table" style="width: 100%;">
+            <thead data-slot="table-header" class="cn-table-header">
+              <tr data-slot="table-row" class="cn-table-row">
+                <th data-slot="table-head" class="cn-table-head" style="width: 260px;">Workflow</th>
+                <th data-slot="table-head" class="cn-table-head" style="width: 130px;">Status</th>
+                <th data-slot="table-head" class="cn-table-head">Now, or how it ended</th>
+                <th data-slot="table-head" class="cn-table-head" style="width: 150px;">Started</th>
+                <th data-slot="table-head" class="cn-table-head" style="width: 90px; text-align: right;">Duration</th>
+                <th data-slot="table-head" class="cn-table-head" style="width: 40px;"></th>
+              </tr>
+            </thead>
+            <tbody data-slot="table-body" class="cn-table-body">
+              <tr data-slot="table-row" class="cn-table-row rowlink">
+                <td data-slot="table-cell" class="cn-table-cell"><div style="display: flex; flex-direction: column; gap: 2px;"><a href="Interview.dc.html" style="font-weight: 500; text-decoration: none;">plan-trip</a><span class="mono muted xs">01M2RWXNFFYQA4HHQWMQ252CYF</span></div></td>
+                <td data-slot="table-cell" class="cn-table-cell"><span data-slot="badge" class="cn-badge cn-badge-variant-outline inline-flex w-fit shrink-0 items-center justify-center overflow-hidden whitespace-nowrap" style="gap: 6px;"><span class="pip pip-run" style="width: 8px; height: 8px;"></span>Running</span></td>
+                <td data-slot="table-cell" class="cn-table-cell"><div style="display: flex; align-items: center; gap: 8px;"><span data-slot="badge" class="cn-badge cn-badge-variant-default inline-flex w-fit shrink-0 items-center justify-center overflow-hidden whitespace-nowrap">2 questions waiting</span><span class="muted" style="font-size: 13px;">research.1/lodging.1 · research.1/transport.1</span></div></td>
+                <td data-slot="table-cell" class="cn-table-cell muted" style="font-size: 13px;">12 min ago</td>
+                <td data-slot="table-cell" class="cn-table-cell mono muted" style="font-size: 13px; text-align: right;">12m 40s</td>
+                <td data-slot="table-cell" class="cn-table-cell muted"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></td>
+              </tr>
+              <tr data-slot="table-row" class="cn-table-row rowlink">
+                <td data-slot="table-cell" class="cn-table-cell"><div style="display: flex; flex-direction: column; gap: 2px;"><a href="Main.dc.html" style="font-weight: 500; text-decoration: none;">implement-interview</a><span class="mono muted xs">01M2RX4A9Q0ZT7V4C3D8N1KMB2</span></div></td>
+                <td data-slot="table-cell" class="cn-table-cell"><span data-slot="badge" class="cn-badge cn-badge-variant-outline inline-flex w-fit shrink-0 items-center justify-center overflow-hidden whitespace-nowrap" style="gap: 6px;"><span class="pip pip-run" style="width: 8px; height: 8px;"></span>Running</span></td>
+                <td data-slot="table-cell" class="cn-table-cell" style="font-size: 13px;"><span class="mono">coding.1 / turn.3</span> <span class="muted">in implementation.1/task.3 · 2 supervisors watching</span></td>
+                <td data-slot="table-cell" class="cn-table-cell muted" style="font-size: 13px;">48 min ago</td>
+                <td data-slot="table-cell" class="cn-table-cell mono muted" style="font-size: 13px; text-align: right;">48m 12s</td>
+                <td data-slot="table-cell" class="cn-table-cell muted"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></td>
+              </tr>
+              <tr data-slot="table-row" class="cn-table-row rowlink">
+                <td data-slot="table-cell" class="cn-table-cell"><div style="display: flex; flex-direction: column; gap: 2px;"><span style="font-weight: 500;">interview</span><span class="mono muted xs">01M2R9K2WQ6HS8E5A1F0J4TPCX</span></div></td>
+                <td data-slot="table-cell" class="cn-table-cell"><span data-slot="badge" class="cn-badge cn-badge-variant-outline inline-flex w-fit shrink-0 items-center justify-center overflow-hidden whitespace-nowrap" style="gap: 6px;"><span class="pip pip-ok" style="width: 8px; height: 8px;"></span>Ended</span></td>
+                <td data-slot="table-cell" class="cn-table-cell muted" style="font-size: 13px;">5 exchanges · preferences returned</td>
+                <td data-slot="table-cell" class="cn-table-cell muted" style="font-size: 13px;">Yesterday 16:20</td>
+                <td data-slot="table-cell" class="cn-table-cell mono muted" style="font-size: 13px; text-align: right;">9m 05s</td>
+                <td data-slot="table-cell" class="cn-table-cell muted"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></td>
+              </tr>
+              <tr data-slot="table-row" class="cn-table-row rowlink">
+                <td data-slot="table-cell" class="cn-table-cell"><div style="display: flex; flex-direction: column; gap: 2px;"><a href="History.dc.html" style="font-weight: 500; text-decoration: none;">implement-interview</a><span class="mono muted xs">01M2QZ7PB3N6D0R9X2G5HKW8VY</span></div></td>
+                <td data-slot="table-cell" class="cn-table-cell"><span data-slot="badge" class="cn-badge cn-badge-variant-destructive inline-flex w-fit shrink-0 items-center justify-center overflow-hidden whitespace-nowrap">Failed</span></td>
+                <td data-slot="table-cell" class="cn-table-cell" style="font-size: 13px;"><span class="mono">test</span> <span class="muted">exit 1 in implementation.1/task.4</span></td>
+                <td data-slot="table-cell" class="cn-table-cell muted" style="font-size: 13px;">Sep 15, 14:31</td>
+                <td data-slot="table-cell" class="cn-table-cell mono muted" style="font-size: 13px; text-align: right;">1h 12m</td>
+                <td data-slot="table-cell" class="cn-table-cell muted"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></td>
+              </tr>
+              <tr data-slot="table-row" class="cn-table-row rowlink">
+                <td data-slot="table-cell" class="cn-table-cell"><div style="display: flex; flex-direction: column; gap: 2px;"><span style="font-weight: 500;">plan-trip</span><span class="mono muted xs">01M2Q1HD4T8KJ2M7P5S0B9XNAE</span></div></td>
+                <td data-slot="table-cell" class="cn-table-cell"><span data-slot="badge" class="cn-badge cn-badge-variant-outline inline-flex w-fit shrink-0 items-center justify-center overflow-hidden whitespace-nowrap" style="gap: 6px;"><span class="pip pip-stop" style="width: 8px; height: 8px;"></span>Cancelled</span></td>
+                <td data-slot="table-cell" class="cn-table-cell muted" style="font-size: 13px;">Cancelled by the operator during research.1</td>
+                <td data-slot="table-cell" class="cn-table-cell muted" style="font-size: 13px;">Sep 14, 09:02</td>
+                <td data-slot="table-cell" class="cn-table-cell mono muted" style="font-size: 13px; text-align: right;">3m 21s</td>
+                <td data-slot="table-cell" class="cn-table-cell muted"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></td>
+              </tr>
+              <tr data-slot="table-row" class="cn-table-row rowlink">
+                <td data-slot="table-cell" class="cn-table-cell"><div style="display: flex; flex-direction: column; gap: 2px;"><span style="font-weight: 500;">interview</span><span class="mono muted xs">01M2P0AAZ5V3C1K8Y6W2E4RQHT</span></div></td>
+                <td data-slot="table-cell" class="cn-table-cell"><span data-slot="badge" class="cn-badge cn-badge-variant-outline inline-flex w-fit shrink-0 items-center justify-center overflow-hidden whitespace-nowrap" style="gap: 6px;"><span class="pip pip-ok" style="width: 8px; height: 8px;"></span>Ended</span></td>
+                <td data-slot="table-cell" class="cn-table-cell" style="font-size: 13px;"><div style="display: flex; align-items: center; gap: 8px;"><span class="muted">3 exchanges</span><span data-slot="badge" class="cn-badge cn-badge-variant-secondary inline-flex w-fit shrink-0 items-center justify-center overflow-hidden whitespace-nowrap">no compiled graph for this version</span></div></td>
+                <td data-slot="table-cell" class="cn-table-cell muted" style="font-size: 13px;">Sep 12, 11:47</td>
+                <td data-slot="table-cell" class="cn-table-cell mono muted" style="font-size: 13px; text-align: right;">7m 50s</td>
+                <td data-slot="table-cell" class="cn-table-cell muted"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="muted xs" style="margin: 0;">Runs are recorded tables on disk. Opening an older run reads its record; nothing is replayed. “Needs answer” comes from pending questions, not from a run status.</p>
+      </section>
+    </div>
+  </main>
+</div>
+</x-dc>
+</body>
+</html>

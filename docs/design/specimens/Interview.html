@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Live interview</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="bundle.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+@font-face{font-family:"Inter Variable";src:local("Inter Variable"),local("Inter");font-weight:100 900;font-style:normal;font-display:swap}
+body{margin:0;background:var(--background)}
+a{color:var(--chart-2)}a:hover{color:var(--foreground)}
+.shell{--font-sans:"Inter Variable",ui-sans-serif,system-ui,sans-serif;--font-mono:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;--line:oklch(0.64 0 0);--line-soft:oklch(0.8 0 0);--line-strong:oklch(0.35 0 0);--ink-2:oklch(0.42 0 0);--ground:oklch(0.96 0 0);--paper-1:oklch(0.99 0 0);--paper-2:oklch(1 0 0);--live:var(--chart-4);--live-ring:var(--chart-3);--live-soft:color-mix(in oklch,var(--chart-3) 14%,transparent);font-family:var(--font-sans);font-size:14px;line-height:20px;color:var(--foreground);background:var(--background);-webkit-font-smoothing:antialiased}
+.shell[data-theme="dark"]{--line:oklch(0.62 0 0);--line-soft:oklch(0.42 0 0);--line-strong:oklch(0.85 0 0);--ink-2:oklch(0.8 0 0);--ground:oklch(0.16 0 0);--paper-1:oklch(0.2 0 0);--paper-2:oklch(0.24 0 0);--live:var(--chart-1);--live-ring:var(--chart-2)}
+.mono{font-family:var(--font-mono)}
+.muted{color:var(--ink-2)}
+.xs{font-size:13px;line-height:18px}
+.lbl{font-size:13px;line-height:18px;font-weight:600;color:var(--foreground);letter-spacing:.01em}
+.sec>.lbl{padding-bottom:6px;border-bottom:1px solid var(--border)}
+.pip{position:relative;display:inline-block;width:10px;height:10px;border-radius:9999px;flex-shrink:0;box-sizing:border-box}
+.pip-ok{background:var(--foreground)}
+.pip-run{border:2px solid var(--live-ring);border-top-color:transparent;animation:gspin 1s linear infinite}
+.pip-fail{background:var(--destructive)}
+.pip-fail::before,.pip-fail::after{content:"";position:absolute;left:2px;right:2px;top:4px;height:1.5px;background:var(--background);transform:rotate(45deg)}
+.pip-fail::after{transform:rotate(-45deg)}
+.pip-none{border:1.5px dashed var(--ink-2)}
+.pip-wait{background:var(--background);box-shadow:inset 0 0 0 2px var(--live)}
+.pip-wait::after{content:"";position:absolute;left:3px;top:3px;width:4px;height:4px;border-radius:9999px;background:var(--live)}
+.pip-stop{background:var(--muted-foreground)}
+.pip-sel{outline:2px solid var(--live);outline-offset:2px}
+@keyframes gspin{to{transform:rotate(360deg)}}
+.node{position:absolute;box-sizing:border-box;background:var(--card);color:var(--card-foreground);border:1px solid var(--line);border-radius:calc(var(--radius) - 2px);box-shadow:0 1px 2px 0 rgb(0 0 0 / .06);padding:10px 12px;display:flex;flex-direction:column;gap:6px}
+.node>div:first-child>svg:first-child{box-sizing:content-box;padding:5px;background:var(--muted);border-radius:calc(var(--radius) - 4px);color:var(--foreground);flex-shrink:0}
+.node .ttl{font-size:14px;line-height:20px;font-weight:600;letter-spacing:-.005em}
+.node .excerpt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--muted-foreground);font-size:12px;line-height:16px}
+.node.sel{border-color:var(--live);box-shadow:0 0 0 3px var(--live-soft),0 1px 2px 0 rgb(0 0 0 / .06)}
+.node.declared{border-style:dashed;background:color-mix(in oklch,var(--card) 60%,transparent);box-shadow:none}
+.region{position:absolute;box-sizing:border-box;border:1px solid var(--line);border-radius:var(--radius);background:color-mix(in oklch,var(--card) 55%,transparent)}
+.region-loop{border-left:3px solid var(--foreground)}
+.region-dashed{border-style:dashed;background:transparent}
+.rlabel{position:absolute;display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 8px;font-size:12px;line-height:16px;font-weight:600;color:var(--foreground);background:var(--card);border:1px solid var(--line);border-radius:calc(var(--radius) - 4px);white-space:nowrap;box-shadow:0 1px 2px 0 rgb(0 0 0 / .06)}
+.rlabel .mono{font-weight:500}
+.chip{position:absolute;box-sizing:border-box;display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 9px;border-radius:calc(var(--radius) - 4px);border:1px solid var(--line);background:var(--card);font-size:12px;line-height:16px;white-space:nowrap;color:var(--foreground);box-shadow:0 1px 2px 0 rgb(0 0 0 / .05)}
+.chip.session{border-color:color-mix(in oklch,var(--live) 45%,transparent)}
+.chip.session>svg:first-child{color:var(--live)}
+.chip.sel{border-color:var(--live);box-shadow:0 0 0 3px var(--live-soft)}
+.ctx{position:absolute;display:inline-flex;align-items:center;gap:6px;font-size:12px;line-height:16px;color:var(--muted-foreground);white-space:nowrap}
+.sup{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px;border-radius:9999px;border:1px dashed var(--line-strong);font-size:12px;line-height:16px;color:var(--foreground);background:var(--card);white-space:nowrap}
+.pips{display:inline-flex;align-items:center;gap:5px}
+.rail{stroke:var(--live);stroke-width:2;fill:none}
+.tie{stroke:var(--live);stroke-width:1.5;fill:none}
+.tie-dash{stroke:var(--muted-foreground);stroke-dasharray:3 3}
+.seq{stroke:oklch(0.5 0 0);stroke-width:2;fill:none}
+.tree-row{display:flex;align-items:center;gap:8px;height:28px;padding:0 8px;border-radius:calc(var(--radius) - 4px);box-sizing:border-box;font-size:13px;line-height:18px;white-space:nowrap}
+.tree-row.sel{background:var(--live-soft);color:var(--foreground);box-shadow:inset 3px 0 0 var(--live)}
+.kv{display:grid;grid-template-columns:104px 1fr;gap:6px 12px;font-size:13px;line-height:18px}
+.kv.box{border:1px solid var(--border);border-radius:calc(var(--radius) - 2px);padding:10px 12px}
+.code{font-family:var(--font-mono);font-size:12px;line-height:18px;background:var(--muted);border:1px solid var(--border);border-radius:calc(var(--radius) - 4px);padding:8px 10px;white-space:pre-wrap;color:var(--foreground);margin:0}
+.inst{display:flex;align-items:center;gap:10px;min-height:40px;padding:6px 10px;border:1px solid var(--border);border-radius:calc(var(--radius) - 2px);box-sizing:border-box}
+.inst.sel{border-color:var(--live);background:var(--live-soft)}
+.act{display:flex;align-items:flex-start;gap:8px;font-size:13px;line-height:18px}
+.sec{display:flex;flex-direction:column;gap:8px}
+.q{display:flex;flex-direction:column;gap:4px;padding:8px 10px;border-left:2px solid var(--line-strong);font-size:13px;line-height:18px}
+.q.live{border-left-color:var(--live);background:var(--live-soft);border-radius:0 calc(var(--radius) - 4px) calc(var(--radius) - 4px) 0}
+.a{display:flex;flex-direction:column;gap:4px;padding:8px 10px;border-radius:calc(var(--radius) - 2px);background:var(--muted);border:1px solid var(--border);font-size:13px;line-height:18px}
+.lane{display:flex;align-items:center;height:28px;box-sizing:border-box;border-radius:calc(var(--radius) - 4px)}
+.lane.sel{background:var(--live-soft);box-shadow:inset 3px 0 0 var(--live)}
+.lane-name{width:220px;flex-shrink:0;display:flex;align-items:center;gap:8px;font-size:13px;line-height:18px;white-space:nowrap;padding-left:8px;box-sizing:border-box}
+.lane-bars{position:relative;flex-grow:1;height:28px}
+.bar{position:absolute;top:8px;height:12px;border-radius:3px;background:var(--foreground)}
+.bar-scope{background:color-mix(in oklch,var(--foreground) 18%,transparent);border:1px solid var(--line);box-sizing:border-box}
+.bar-fail{background:var(--destructive)}
+.bar-sel{outline:2px solid var(--live);outline-offset:2px}
+.tick{position:absolute;top:0;bottom:0;border-left:1px solid var(--border)}
+.row{display:flex;align-items:center;gap:8px;font-size:13px;line-height:18px}
+.chipx{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 9px;border-radius:calc(var(--radius) - 4px);border:1px solid var(--line);background:var(--card);font-size:12px;line-height:16px;white-space:nowrap}
+.regionx{box-sizing:border-box;border:1px solid var(--line);border-radius:calc(var(--radius) - 4px);background:color-mix(in oklch,var(--card) 55%,var(--muted));padding:4px 8px;font-size:12px;font-weight:600;color:var(--foreground)}
+.topbar{height:56px;box-sizing:border-box;flex-shrink:0;display:flex;align-items:center;gap:16px;padding:0 16px;border-bottom:1px solid var(--line);background:var(--card)}
+.leftcol{width:264px;flex-shrink:0;box-sizing:border-box;border-right:1px solid var(--line);background:var(--sidebar);color:var(--sidebar-foreground);display:flex;flex-direction:column;padding:16px 12px;gap:22px;overflow:hidden}
+.mapground{flex-grow:1;position:relative;overflow:hidden;background-color:var(--ground);background-image:radial-gradient(oklch(0.8 0 0) 1px,transparent 1px);background-size:20px 20px}
+.shell[data-theme="dark"] .mapground{background-image:radial-gradient(oklch(0.32 0 0) 1px,transparent 1px)}
+.inspector{width:400px;flex-shrink:0;box-sizing:border-box;border-left:1px solid var(--line);background:var(--card);color:var(--card-foreground);display:flex;flex-direction:column;overflow:hidden}
+.insp-head{padding:14px 16px 0;display:flex;flex-direction:column;gap:8px;background:color-mix(in oklch,var(--muted) 60%,var(--card));border-bottom:1px solid var(--border)}
+.insp-foot{border-top:1px solid var(--border);padding:12px 16px;display:flex;align-items:center;gap:10px;background:color-mix(in oklch,var(--muted) 60%,var(--card))}
+.mapchrome{background:var(--card);border:1px solid var(--line);border-radius:calc(var(--radius) - 2px);box-shadow:0 1px 2px 0 rgb(0 0 0 / .06)}
+.searchbox{display:flex;align-items:center;gap:6px;height:32px;width:240px;box-sizing:border-box;padding:0 10px;border:1px solid var(--line);border-radius:calc(var(--radius) - 2px);background:var(--background);color:var(--muted-foreground);font-size:13px}
+.h1{font-size:24px;line-height:32px;font-weight:600;letter-spacing:-0.025em}
+.runname{font-size:15px;font-weight:600;letter-spacing:-.01em}
+.nd{position:absolute;box-sizing:border-box;height:44px;display:flex;align-items:center;gap:10px;padding:0 12px 0 8px;background:var(--paper-2);color:var(--card-foreground);border:1px solid var(--line);border-radius:8px;box-shadow:0 1px 2px 0 rgb(0 0 0 / .08);white-space:nowrap}
+.nd .ico{width:26px;height:26px;display:inline-flex;align-items:center;justify-content:center;background:var(--muted);border-radius:calc(var(--radius) - 4px);color:var(--foreground);flex-shrink:0}
+.nd .nm{font-size:15px;line-height:20px;font-weight:600;letter-spacing:-.005em}
+.nd .meta{font-size:13px;line-height:18px;color:var(--ink-2)}
+.nd .sp{flex-grow:1}
+.nd .eye{display:inline-flex;color:var(--muted-foreground)}
+.nd.sel{border-color:var(--live-ring);box-shadow:0 0 0 3px var(--live-soft),0 1px 2px 0 rgb(0 0 0 / .08)}
+.nd.sm{height:36px;padding:0 10px 0 8px;gap:8px}
+.nd.sm .ico{width:20px;height:20px;background:transparent;color:var(--ink-2)}
+.nd.sm .nm{font-size:13.5px;line-height:18px;font-weight:500;font-family:var(--font-mono)}
+.ret{stroke:oklch(0.45 0 0);stroke-width:1.5;fill:none}
+.disc{display:flex;align-items:center;gap:8px;height:40px;border-top:1px solid var(--border);font-size:13px;line-height:18px;font-weight:500;color:var(--foreground)}
+.disc:last-child{border-bottom:1px solid var(--border)}
+.disc>svg{color:var(--muted-foreground);flex-shrink:0}
+.disc .sum{margin-left:auto;font-weight:400;color:var(--ink-2);font-size:13px;line-height:18px;white-space:nowrap}
+.scope{position:absolute;box-sizing:border-box;border:1px solid var(--line-soft);border-radius:10px;background:var(--paper-1);box-shadow:0 1px 2px rgb(0 0 0 / .05)}
+.scope.l2{background:var(--paper-2);box-shadow:0 1px 3px rgb(0 0 0 / .08),0 1px 2px rgb(0 0 0 / .04)}
+.scope.path{border-color:var(--line);box-shadow:0 4px 12px rgb(0 0 0 / .10),0 1px 2px rgb(0 0 0 / .06)}
+.scope.sel{background:var(--paper-2);border:1.5px solid var(--line-strong);box-shadow:0 14px 32px rgb(0 0 0 / .18),0 3px 6px rgb(0 0 0 / .08)}
+.slabel{position:absolute;box-sizing:border-box;display:inline-flex;align-items:center;gap:7px;height:24px;padding:0 10px;font-size:13px;line-height:18px;font-weight:600;color:var(--foreground);background:var(--paper-1);border:1px solid var(--line-soft);border-radius:7px;white-space:nowrap}
+.slabel.l2{background:var(--paper-2)}
+.slabel.path{border-color:var(--line)}
+.slabel.sel{background:var(--paper-2);border:1.5px solid var(--line-strong)}
+.slabel.select{padding-right:7px;box-shadow:0 1px 2px rgb(0 0 0 / .08);cursor:pointer}
+.slabel.select>svg:last-child{color:var(--ink-2)}
+.cap{position:absolute;font-size:13px;line-height:18px;font-weight:600;color:var(--ink-2);white-space:nowrap}
+.key{position:absolute;box-sizing:border-box;display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 8px;border:1px solid var(--line);border-radius:6px;background:var(--paper-2);font-family:var(--font-mono);font-size:13px;line-height:18px;color:var(--foreground);white-space:nowrap}
+.key>svg{color:var(--ink-2);flex-shrink:0}
+.key.unset{border-style:dashed;border-color:var(--line-soft);background:transparent;color:var(--ink-2)}
+.keys{position:absolute;display:flex;align-items:center;gap:8px}
+.keys .key{position:static}
+.watcher{position:absolute;box-sizing:border-box;width:232px;height:36px;display:flex;align-items:center;gap:8px;padding:0 10px;border:1px solid var(--line);border-radius:8px;background:var(--paper-2);box-shadow:0 1px 2px rgb(0 0 0 / .08);font-size:13px;line-height:18px;font-weight:500;color:var(--foreground);white-space:nowrap}
+.watcher>svg{color:var(--ink-2);flex-shrink:0}
+.watcher .pip{margin-left:auto}
+.gaze{stroke:oklch(0.45 0 0);stroke-width:1.5;stroke-dasharray:2 3;fill:none}
+.scope.alt{background:var(--paper-1)}
+.slabel.alt{background:var(--paper-1)}
+.slabel>.fi{color:var(--ink-2)}
+.fold{position:absolute;display:flex;align-items:center;gap:4px}
+.g{display:inline-flex;align-items:center;gap:4px;height:26px;padding:0 5px;border:1px solid var(--line-soft);border-radius:6px;background:var(--paper-2);color:var(--ink-2)}
+.g .pip{width:8px;height:8px}
+.ptitle{position:absolute;font-size:15px;line-height:20px;font-weight:600;color:var(--foreground);white-space:nowrap}
+.note{position:absolute;font-size:13px;line-height:18px;color:var(--foreground);display:flex;flex-direction:column;gap:6px}
+.note>div{display:flex;gap:8px}
+.note b{font-weight:600;color:var(--ink-2);flex-shrink:0;width:14px}
+</style>
+</helmet>
+<div class="shell" data-theme="light" style="width: 1440px; height: 900px; box-sizing: border-box; display: flex; flex-direction: column; position: relative; overflow: hidden;">
+
+  <header class="topbar">
+    <nav data-slot="breadcrumb" aria-label="breadcrumb" class="cn-breadcrumb">
+      <ol data-slot="breadcrumb-list" class="cn-breadcrumb-list flex flex-wrap items-center wrap-break-word">
+        <li data-slot="breadcrumb-item" class="cn-breadcrumb-item inline-flex items-center"><a data-slot="breadcrumb-link" class="cn-breadcrumb-link" href="Runs.dc.html">Runs</a></li>
+        <li data-slot="breadcrumb-separator" role="presentation" aria-hidden="true" class="cn-breadcrumb-separator"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></li>
+        <li data-slot="breadcrumb-item" class="cn-breadcrumb-item inline-flex items-center"><span data-slot="breadcrumb-page" class="cn-breadcrumb-page runname">plan-trip</span></li>
+        <li data-slot="breadcrumb-separator" role="presentation" aria-hidden="true" class="cn-breadcrumb-separator"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></li>
+        <li data-slot="breadcrumb-item" class="cn-breadcrumb-item inline-flex items-center"><span data-slot="breadcrumb-page" class="cn-breadcrumb-page mono">01M2RWXN</span></li>
+      </ol>
+    </nav>
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <span data-slot="badge" class="cn-badge cn-badge-variant-outline inline-flex w-fit shrink-0 items-center justify-center overflow-hidden whitespace-nowrap" style="gap: 6px;"><span class="pip pip-run" style="width: 8px; height: 8px;"></span>Running</span>
+      <span data-slot="badge" class="cn-badge cn-badge-variant-secondary inline-flex w-fit shrink-0 items-center justify-center overflow-hidden whitespace-nowrap" style="gap: 6px;"><span class="pip pip-ok" style="width: 6px; height: 6px;"></span>Live</span>
+      <span class="muted xs mono">12m 40s</span>
+    </div>
+    <div class="xs" style="display: flex; align-items: center; gap: 6px; padding-left: 8px; border-left: 1px solid var(--line-soft);"><span class="pip pip-wait"></span><a href="#" style="text-decoration: none; font-weight: 500;">2 questions waiting</a></div>
+    <div style="flex-grow: 1;"></div>
+    <div class="searchbox">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      <span style="flex-grow: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Find a scope or turn</span>
+      <kbd data-slot="kbd" class="cn-kbd pointer-events-none inline-flex items-center justify-center select-none">/</kbd>
+    </div>
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <button data-slot="button" class="cn-button cn-button-variant-outline cn-button-size-sm group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap" type="button" disabled style="opacity: .5;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-icon="inline-start"><rect width="14" height="14" x="5" y="5" rx="2"/></svg>Stop turn</button>
+      <button data-slot="button" class="cn-button cn-button-variant-outline cn-button-size-sm group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap" type="button" style="color: var(--destructive);"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-icon="inline-start"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>Cancel run</button>
+    </div>
+  </header>
+
+  <div style="flex-grow: 1; display: flex; min-height: 0;">
+    <main class="mapground">
+      <div class="mapchrome" style="position: absolute; right: 12px; top: 12px; z-index: 3; display: flex; align-items: center; gap: 4px; padding: 2px;">
+        <button data-slot="button" class="cn-button cn-button-variant-ghost cn-button-size-icon-xs group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap" type="button" aria-label="Fit to view"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg></button><button data-slot="button" class="cn-button cn-button-variant-ghost cn-button-size-icon-xs group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap" type="button" aria-label="Zoom out"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/></svg></button><span class="xs mono" style="padding: 0 4px; min-width: 40px; text-align: center;">100%</span><button data-slot="button" class="cn-button cn-button-variant-ghost cn-button-size-icon-xs group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap" type="button" aria-label="Zoom in"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg></button>
+      </div>
+      <div style="position: absolute; left: 0; top: 48px; width: 1040px; height: 796px;">
+        <div class="scope path" style="left:260px;top:64px;width:600px;height:156px;"></div>
+        <div class="scope l2 sel" style="left:268px;top:100px;width:288px;height:96px;"></div>
+        <div class="scope l2" style="left:564px;top:100px;width:288px;height:96px;"></div>
+        <svg width="1040" height="796" viewBox="0 0 1040 796" style="position: absolute; left: 0; top: 0; overflow: visible;" aria-hidden="true">
+          <circle cx="560" cy="30" r="4" fill="oklch(0.5 0 0)"/>
+          <path class="seq" d="M560,34 V84 M412,84 H708 M412,84 V100 M708,84 V100 M412,196 V208 M708,196 V208 M412,208 H708 M560,208 V256 M560,300 V324"/>
+          <circle cx="560" cy="328" r="4" fill="oklch(0.5 0 0)"/>
+        </svg>
+        <div class="slabel path" style="left:272px;top:53px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><path d="M18 9v2c0 .6-.4 1-1 1H7c-.6 0-1-.4-1-1V9"/><path d="M12 12v3"/></svg>research</div>
+        <div class="slabel sel" style="left:280px;top:89px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>lodging</div>
+        <div class="nd sel" style="left:276px;top:132px;width:272px;"><span class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg></span><span class="nm">preferences</span><span class="meta">question 2 · 40 s</span><span class="sp"></span><span class="pip pip-wait"></span></div>
+        <div class="slabel l2" style="left:576px;top:89px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>transport</div>
+        <div class="nd" style="left:572px;top:132px;width:272px;"><span class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg></span><span class="nm">preferences</span><span class="meta">question 2 · 35 s</span><span class="sp"></span><span class="pip pip-wait"></span></div>
+        <div class="nd" style="left:380px;top:256px;width:360px;"><span class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg></span><span class="nm">planner</span><span class="meta">not started</span><span class="sp"></span><span class="pip pip-none"></span></div>
+        <div class="cap" style="left: 573px; top: 319px; font-weight: 500;">end</div>
+      </div>
+    </main>
+
+    <aside class="inspector">
+      <div class="insp-head">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>
+          <span style="font-size: 16px; line-height: 24px; font-weight: 600; letter-spacing: -0.01em;">preferences</span>
+          <span data-slot="badge" class="cn-badge cn-badge-variant-outline inline-flex w-fit shrink-0 items-center justify-center overflow-hidden whitespace-nowrap">interview</span>
+          <span style="flex-grow: 1;"></span>
+          <span data-slot="badge" class="cn-badge cn-badge-variant-default inline-flex w-fit shrink-0 items-center justify-center overflow-hidden whitespace-nowrap">Waiting for you</span>
+        </div>
+        <div class="muted xs">scope <span class="mono">research.1/lodging.1</span> · session <span class="mono">interviewer.1</span> · <a href="#" class="mono">plantrip.go:31</a></div>
+        <div data-slot="tabs" data-orientation="horizontal" class="cn-tabs group/tabs flex data-horizontal:flex-col" style="margin-top: 4px;">
+          <div data-slot="tabs-list" data-variant="line" role="tablist" class="cn-tabs-list cn-tabs-list-variant-line group/tabs-list inline-flex w-fit items-center justify-center text-muted-foreground" style="width: 100%;">
+            <button data-slot="tabs-trigger" role="tab" data-state="active" data-active="" aria-selected="true" class="cn-tabs-trigger relative inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center whitespace-nowrap text-foreground/60 transition-all" type="button">Exchanges</button>
+            <button data-slot="tabs-trigger" role="tab" data-state="inactive" class="cn-tabs-trigger relative inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center whitespace-nowrap text-foreground/60 transition-all" type="button">Definition</button>
+          </div>
+        </div>
+      </div>
+
+      <div style="flex-grow: 1; overflow: hidden; display: flex; flex-direction: column; gap: 12px; padding: 12px 16px 16px;">
+        <div class="q">
+          <div class="lbl" style="display: flex; justify-content: space-between;"><span>Question 1</span><span class="mono" style="font-weight: 400;">12:02:14</span></div>
+          <div>What would make a weekend trip feel restful to you?</div>
+        </div>
+        <div class="a">
+          <div class="lbl" style="display: flex; justify-content: space-between;"><span>You</span><span class="mono" style="font-weight: 400;">12:03:40</span></div>
+          <div>A quiet mountain cabin, easy walks, and no crowds.</div>
+        </div>
+        <div class="xs muted" style="display: flex; align-items: center; gap: 8px; padding: 2px 10px; white-space: nowrap;"><span class="pip pip-ok"></span><span class="mono">interviewer.1 / turn.2</span><span>· thought 18 s</span><a href="#" style="margin-left: auto;">transcript</a></div>
+        <div class="q live">
+          <div class="lbl" style="display: flex; justify-content: space-between;"><span style="display: inline-flex; align-items: center; gap: 6px;"><span class="pip pip-wait"></span>Question 2 · waiting 40 s</span><span class="mono" style="font-weight: 400;">12:04:10</span></div>
+          <div style="font-size: 14px;">Would you trade reliable Wi-Fi for a more secluded cabin?</div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 4px;">
+          <label for="answer" class="lbl">Your answer</label>
+          <textarea id="answer" data-slot="textarea" class="cn-textarea" rows="4" placeholder="Answer here. Send with ⌘⏎" style="width: 100%; box-sizing: border-box; resize: none;"></textarea>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <button data-slot="button" class="cn-button cn-button-variant-default cn-button-size-sm group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap" type="button">Answer</button>
+            <button data-slot="button" class="cn-button cn-button-variant-outline cn-button-size-sm group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap" type="button">End interview</button>
+            <span class="muted xs" style="margin-left: auto;">draft kept if the question changes</span>
+          </div>
+          <p class="muted xs" style="margin: 0;">End interview sends no answer. The interviewer stops asking and plan-trip continues with the two exchanges so far.</p>
+        </div>
+      </div>
+
+      <div class="insp-foot">
+        <span class="pip pip-wait"></span>
+        <span class="xs" style="flex-grow: 1; color: var(--foreground);">Also waiting: <span class="mono">research.1/transport.1</span> · “What is the longest drive you would enjoy?”</span>
+        <button data-slot="button" class="cn-button cn-button-variant-outline cn-button-size-xs group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap" type="button">Open</button>
+      </div>
+    </aside>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

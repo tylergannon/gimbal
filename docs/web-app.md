@@ -20,6 +20,7 @@ add one for a preference.
 | Import alias | `#lib/...`, the Node subpath import in `web/package.json`. SvelteKit 3 removed `$lib`. | One alias in the app. `web/tsconfig.json` repeats it under `paths` only because the shadcn CLI checks for it there. |
 | Where decisions live | This file, on `main` | The design team reads the instructions beside the primitives. |
 | Data path | SSR snapshot first, then a Server-Sent Events stream; a past run is reduced from its logs (#169) | Already how the run page works. A constraint on the design, not a choice for it. |
+| Run interface design | `docs/design/README.md` and the HTML specimens beside it, rendered from the design canvas | Agreed 2026-09-18: one home per fact, scopes as sheets that fold, contrast for tired eyes. |
 
 ### The install, and how to change it
 

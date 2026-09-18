@@ -13,6 +13,9 @@ These are three related responsibilities: artifact storage, prompt budgeting,
 and bounded command capture. An artifacts directory supports the other two,
 but moving output to disk alone does not bound prompts or returned Go strings.
 
+This is storage for the run where it was created. A run is not relocatable and
+cannot be resumed after moving it. Nothing in this work adds either behavior.
+
 ## What exists
 
 - `scope.go` marshals each Set/SetJSON value into a scope-local byte slice and
@@ -53,13 +56,19 @@ complete JSON. Keep an internal descriptor with the path, original size, type,
 and a bounded head/tail preview. Publish a reference only after the file is
 successfully written. A failed write fails the operation/run explicitly: it
 must not silently lose data, publish a broken pointer, or fall back to retaining
-unlimited bytes. Set has no error return today, so the implementation must
-settle how an artifact write error reaches Run before changing storage.
+unlimited bytes. `Set` and `SetJSON` have no error return, so a failed artifact
+write panics immediately, as a failed value encoding does today. The run records
+the panic through its existing panic path when recording is still available,
+then lets it escape. There is no sticky-error mechanism and no public API change.
 
-Use run-relative paths in durable records and absolute paths in agent prompts.
-Artifacts survive scope closure for review. Value records and the web reader
-must understand file-backed values; do not retain another full copy in the
-live observation store just because the scope map now holds a descriptor.
+Structured artifact fields in durable records use run-relative paths. Agent
+prompts and scalar command returns use absolute paths. A recorded prompt remains
+the exact prompt sent to the agent, including its absolute path; this is not a
+portability promise. Readers resolve structured references against the run's
+existing directory. Artifacts survive scope closure for review. Value records
+and the web reader must understand file-backed values; do not retain another
+full copy in the live observation store just because the scope map now holds a
+descriptor.
 
 ## Context budget
 
@@ -72,6 +81,12 @@ Treat that count as a practical approximation for other providers. Tyler's
 tolerance is roughly 50%; exact model matching is unnecessary. Count the whole
 render, including headings, references, and previews. These limits cover added
 scope context, not the provider's entire conversation history.
+
+For an ordinary Generate, T covers the scope context Gimble appends, not the
+caller's prompt. For a planner turn, the same policy covers the dynamic context
+Gimble assembles for that turn, including visible scope values and the previous
+task record. Fixed workflow/planner instructions and provider conversation
+history are outside this budget. This is not general context-window management.
 
 At Set/SetJSON, snapshot once and spill a value that exceeds the per-entry
 ceiling. Small entries can remain inline. Aggregate overflow is handled for
@@ -114,6 +129,12 @@ Keep only bounded previews in memory, retaining partial files on failure or
 cancellation and propagating capture errors. Record paths and previews so the
 existing run reader can retrieve full output.
 
+Every started command streams both output channels to its run-owned files; this
+is what makes output inspectable while the command is still running. The files
+remain with the run. A capture failure is returned through RunCommand's existing
+error result and recorded as a run failure; it does not publish a successful
+reference to incomplete or missing storage.
+
 Keep the scalar return shape. Small results remain complete strings; large
 results return head/tail excerpts with an omission marker and the absolute
 full-file path in the text. Agents can follow that reference. No caller
@@ -125,28 +146,94 @@ Do not read complete large files back into memory to produce their previews.
 Use byte limits for those reads and the token counter for the resulting text;
 do not tokenize an entire command log merely to preview it.
 
-## Delivery and evidence
+## Implementation sequence
 
-1. Establish scope isolation. The added unit test captures actual Generate
-   prompts in the parent, child, parent again, and sibling. It covers Set and
-   SetJSON, shadowed and child-only keys, default and custom rendering, and
-   successful/error child exits. Parent and sibling prompts must exactly equal
-   the original parent prompt. No production changes are required for this.
-2. Add runtime artifact storage and file-backed scope values together with
-   record/reader support. Test exact file contents, uniqueness, containment,
-   write failures, and references readable after the child ends.
-3. Add per-entry and total context budgets. Test one large value, many small
-   values, deep inheritance, shadowing, sibling independence, template output,
-   planner feedback, Unicode, and the too-many-references fallback. Assert the
-   measured complete render fits T and omitted content remains recoverable.
-4. Stream command output and return previews with file references. Test both streams,
-   very large output, partial output on cancellation/nonzero exit, capture
-   failures, bounded retained buffers, and full file fidelity. Do not infer a
-   memory bound merely from an artifact's existence.
-5. Run the real workflow with Codex gpt-5.6-luna: make context exceed T, observe
-   the actual prompt, have the agent read omitted middle content from a file,
-   and inspect command artifacts while output is still streaming. Report what
-   was seen in chat/PR; commit no proof programs, screenshots, or run logs.
+1. Add one internal artifact substrate: contained collision-free paths, atomic
+   publication, immutable descriptors, and bounded UTF-8 prefix/suffix reads.
+   Do not add an exported artifact API.
+2. Put large Set/SetJSON snapshots on that substrate and change the lifecycle
+   record, live observation store, finished-run tables, and log rebuild together
+   so a file-backed value has one meaning everywhere.
+3. Add the per-entry and aggregate context budgets after inheritance and
+   shadowing have resolved. Then apply the same final-render check to
+   WithScopeTemplate and the planner's runtime-generated context.
+4. Stream RunCommand output through the same artifact substrate. Preserve exact
+   small scalar returns and produce bounded large returns without reading a
+   complete large file back into memory.
+5. Run the repository gates and the one live acceptance run described below.
+
+## Focused tests
+
+Keep this to roughly seven focused test functions on the branch, including the
+scope-isolation regression that already exists. Use table-driven subtests rather
+than creating one test for every example below, and add no test framework or
+proof program.
+
+1. The existing parent/child/restored-parent/sibling prompt isolation test.
+2. Artifact path containment, collision-free encoding, atomic publication, and
+   the decided panic on write failure.
+3. One file-backed scope value through the live reader, ended scope, finished
+   table read, and missing-table log rebuild, with exact file contents.
+4. One table-driven default-render budget test covering a large entry, aggregate
+   overflow, inheritance and shadowing, sibling independence, Unicode, and the
+   too-many-references index fallback.
+5. One test covering final WithScopeTemplate output and PromiseLoop's previous
+   task record so neither bypasses the budget.
+6. One command test covering small and large stdout/stderr, visible file growth
+   while running, bounded returned previews, and byte-for-byte file fidelity.
+7. One abnormal-command test covering nonzero exit, cancellation, partial
+   output, capture failure, and directly asserted bounded preview state. Do not
+   infer a memory bound merely from the existence of an artifact.
+
+If the implementation wants materially more tests, stop and explain which
+uncovered behavioral seam requires them instead of expanding the matrix.
+
+## Definition of done
+
+- Every ordinary Generate receives only values visible from its current scope,
+  with nearest-scope shadowing. Returning successfully or with an error from a
+  child restores the parent's original rendered context and budget, and a
+  sibling sees no child-only value. This holds for default and custom rendering.
+- The complete Gimble-added context render is at most T according to the common
+  o200k_base counter. A value over the per-entry ceiling and any value abbreviated
+  to satisfy the aggregate ceiling has a labeled head/tail excerpt, omission
+  marker, and usable absolute path. If references alone exceed T, a bounded
+  index preview points to the complete index. No omitted entry is unreachable.
+- Large strings remain readable UTF-8 text and structured values remain complete
+  valid JSON. Their artifacts are immutable, contained by the run, and readable
+  after their scope ends. Live observation, finished table loading, and log
+  rebuild agree on the descriptor without retaining another full payload.
+- WithScopeTemplate preserves typed `.Value` access before its final output is
+  budgeted. PromiseLoop's runtime-generated context, including the preceding
+  task's local record, cannot bypass the same policy.
+- Every started RunCommand writes stdout and stderr to files while it runs. Small
+  returns are exact. Large returns are bounded head/tail excerpts with an
+  omission marker and absolute full-file path. Nonzero exit and cancellation
+  retain all bytes captured before the process ended, and command capture never
+  accumulates a complete large stream in memory.
+- An artifact write failure never creates a broken reference or an unlimited
+  in-memory fallback. Set/SetJSON artifact failure panics immediately;
+  RunCommand capture failure returns an error. Both use the run's existing
+  failure-recording path without promising that a broken filesystem can record
+  its own failure durably.
+- The workflow-facing API gains no artifact primitive, wrapper, relocation, or
+  resume behavior. Godoc and the generated event/schema code describe the
+  changed RunCommand return semantics and file-backed record representation.
+- The focused tests above and the existing repository build, test, race, vet,
+  lint, and generation gates pass sequentially.
+
+## Evidence
+
+The Go tests are the primary evidence for this backend change because they cross
+the real Run, prompt assembly, filesystem, subprocess, observation, and replay
+boundaries. No new browser scenario is required.
+
+Run one real workflow with Codex gpt-5.6-luna. Make the context exceed T, put a
+sentinel only in omitted middle content, and observe the agent follow the
+absolute path and report that sentinel. Separately observe a command artifact
+growing while its command is still running. Report the exact behavior seen and
+the proved commit in chat or the PR. Commit no proof program, screenshot, run
+log, or other proof artifact.
 
 No summarizing model, vector index, configurable eviction framework, new
 workflow wrappers, or public artifact API is needed to establish this behavior.

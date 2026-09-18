@@ -133,9 +133,12 @@ func SprintShape(ctx context.Context, _ gimble.Env) error {
 	if err != nil {
 		return err
 	}
+	plannerWatch := gimble.NewSession(ctx, "planner-watch", ".")
 	for round := 0; round < 1; round++ {
 		if err := gimble.Scope(ctx, "round", func(ctx context.Context) error {
-			loop := gimble.PromiseLoop(ctx, "sprint", "review the code", planner)
+			loop := gimble.PromiseLoop(ctx, "sprint", "review the code", planner,
+				gimble.WithSupervisor(plannerWatch, watchInstruction),
+			)
 			for ctx, task := range loop.Tasks {
 				_ = task
 				coder, err := researcher.Fork(ctx, "coder")

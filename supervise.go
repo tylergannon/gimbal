@@ -14,9 +14,9 @@ import (
 
 //go:generate go tool polytype --validate
 
-// AgentOption is an argument to Generate. The same options are a
-// supervisor's own where WithSupervisor attaches it, so a supervisor can
-// have an interval and supervisors of its own.
+// AgentOption is an argument to Generate or PromiseLoop. The same options
+// are a supervisor's own where WithSupervisor attaches it, so a supervisor
+// can have an interval and supervisors of its own.
 type AgentOption func(*options)
 
 type options struct {
@@ -31,8 +31,9 @@ type supervisor struct {
 	opts        []AgentOption
 }
 
-// WithSupervisor attaches a supervisor to a turn: a session of its own and
-// an instruction saying what to watch for. While the turn runs, the
+// WithSupervisor attaches a supervisor to a turn, including a PromiseLoop
+// planner's turn: a session of its own and an instruction saying what to
+// watch for. While the turn runs, the
 // supervisor looks at what the worker did since its last look, and each
 // objection it raises is steered into the turn. When the worker finishes,
 // Generate cancels and joins its supervisors before returning the worker's
@@ -59,9 +60,10 @@ func WithSupervisor(session *Session, instruction string, opts ...AgentOption) A
 // template that cannot be parsed or cannot render is the error Generate
 // returns, before any model is called.
 //
-// It shapes the scope for the call it is given to. A supervisor's look is
-// built from the worker's transcript and carries no scope context, so this
-// does nothing among a supervisor's own options.
+// It shapes the scope for the Generate call it is given to. A supervisor's
+// look is built from the worker's transcript and carries no scope context, so
+// this does nothing among a supervisor's own options or as a PromiseLoop
+// option.
 func WithScopeTemplate(tmpl string) AgentOption {
 	return func(o *options) { o.scopeTemplate = tmpl }
 }

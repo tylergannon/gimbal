@@ -130,7 +130,11 @@ func operation(op workflow.Operation) string {
 	case workflow.Scope:
 		fmt.Fprintf(&b, "workflow.Scope{Source: %s, Name: %s, Body: %s}", position(op.Source), strconv.Quote(op.Name), operations(op.Body))
 	case workflow.PromiseLoop:
-		fmt.Fprintf(&b, "workflow.PromiseLoop{Source: %s, Name: %s, Planner: %s, Body: %s}", position(op.Source), strconv.Quote(op.Name), strconv.Quote(op.Planner), operations(op.Body))
+		fmt.Fprintf(&b, "workflow.PromiseLoop{Source: %s, Name: %s, Planner: %s", position(op.Source), strconv.Quote(op.Name), strconv.Quote(op.Planner))
+		if len(op.Supervisors) > 0 {
+			fmt.Fprintf(&b, ", Supervisors: %s", supervisors(op.Supervisors))
+		}
+		fmt.Fprintf(&b, ", Body: %s}", operations(op.Body))
 	case workflow.Iterate:
 		fmt.Fprintf(&b, "workflow.Iterate{Source: %s, Name: %s, Body: %s}", position(op.Source), strconv.Quote(op.Name), operations(op.Body))
 	case workflow.Repeat:

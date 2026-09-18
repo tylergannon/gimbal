@@ -315,6 +315,8 @@ func plainArguments(name string, call *ast.CallExpr) []ast.Node {
 		skip = 1
 	case "Generate", "WithSupervisor":
 		last = min(last, 2)
+	case "PromiseLoop":
+		last = min(last, 4)
 	}
 	nodes := make([]ast.Node, 0, last)
 	for i := range last {

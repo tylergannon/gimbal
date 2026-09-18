@@ -36,6 +36,12 @@ func TestControlFlowGraph(t *testing.T) {
 	if loop.Planner != "planner" {
 		t.Errorf("the loop's planner = %q, want planner", loop.Planner)
 	}
+	if len(loop.Supervisors) != 1 || loop.Supervisors[0].Role != "planner-watch" {
+		t.Fatalf("the planner is watched by planner-watch, got %+v", loop.Supervisors)
+	}
+	if !contains(g.Roles(), "planner-watch") {
+		t.Fatalf("planner supervisor role is not discoverable: %v", g.Roles())
+	}
 
 	coder, ok := find[workflow.AgentCall](loop.Body, func(c workflow.AgentCall) bool { return c.Session == "coder" })
 	if !ok {
@@ -262,6 +268,27 @@ func TestSourceWritesTheWorkflowsPackage(t *testing.T) {
 	} {
 		if !strings.Contains(string(written), want) {
 			t.Errorf("the generated file lacks %q:\n%s", want, firstLines(string(written)))
+		}
+	}
+}
+
+func TestSourceWritesPlannerSupervisionAndRole(t *testing.T) {
+	output := filepath.Join(t.TempDir(), "workflow_gen.go")
+	if err := generate.Source("testdata/fixture", "SprintShape", "sprint", output); err != nil {
+		t.Fatal(err)
+	}
+	written, err := os.ReadFile(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"workflow.PromiseLoop{",
+		"Supervisors: []workflow.Supervisor{",
+		`Role: "planner-watch"`,
+		`cmd.Flags().StringVar(&plannerWatchModel, "planner-watch"`,
+	} {
+		if !strings.Contains(string(written), want) {
+			t.Errorf("the generated source lacks %q:\n%s", want, string(written))
 		}
 	}
 }

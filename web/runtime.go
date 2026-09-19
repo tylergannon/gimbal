@@ -41,17 +41,38 @@ type Runtime struct {
 	registry *observation.Registry
 	// conversations owns the chat worktrees and live harness sessions for the
 	// same lifetime as this runtime.
-	conversations *conversation.Manager
+	conversations                 *conversation.Manager
+	reviewConversationWorkflow    ConversationWorkflow
+	implementConversationWorkflow ConversationWorkflow
 }
 
 // Option configures the project's web listener.
 type Option func(*config) error
 
 type config struct {
-	network  string
-	port     int
-	uds      string
-	explicit string
+	network                       string
+	port                          int
+	uds                           string
+	explicit                      string
+	reviewConversationWorkflow    ConversationWorkflow
+	implementConversationWorkflow ConversationWorkflow
+}
+
+// ConversationWorkflow is one of the two built-in workflow entries the
+// binary makes available to conversation agents.
+type ConversationWorkflow func(context.Context, *Runtime, string, conversation.LaunchRequest) error
+
+// WithConversationWorkflows supplies the concrete review and implementation
+// entries to the server without making web import their internal packages.
+func WithConversationWorkflows(review, implement ConversationWorkflow) Option {
+	return func(c *config) error {
+		if review == nil || implement == nil {
+			return errors.New("gimble: conversation workflow entries must not be nil")
+		}
+		c.reviewConversationWorkflow = review
+		c.implementConversationWorkflow = implement
+		return nil
+	}
 }
 
 // WithPort serves the web application on the given loopback TCP port. Port 0
@@ -142,13 +163,19 @@ func NewRuntime(ctx context.Context, projectDir string, opts ...Option) (*Runtim
 	// from this one, so the page reaches the very runs this Runtime holds.
 	runs := live.NewRuns()
 	runtimeCtx = live.WithRuns(runtimeCtx, runs)
-	conversations, err := conversation.New(runtimeCtx, dir, binding.Adapter)
+	runtime := &Runtime{
+		ctx: runtimeCtx, cancel: cancel, dir: dir, done: make(chan struct{}), runs: runs, registry: registry,
+		reviewConversationWorkflow:    cfg.reviewConversationWorkflow,
+		implementConversationWorkflow: cfg.implementConversationWorkflow,
+	}
+	conversations, err := conversation.New(runtimeCtx, dir, binding.Adapter, runtime.launchConversationWorkflow)
 	if err != nil {
 		cancel(err)
 		return nil, err
 	}
 	runtimeCtx = conversation.WithManager(runtimeCtx, conversations)
-	runtime := &Runtime{ctx: runtimeCtx, cancel: cancel, dir: dir, done: make(chan struct{}), runs: runs, registry: registry, conversations: conversations}
+	runtime.ctx = runtimeCtx
+	runtime.conversations = conversations
 	if err := runtime.startControl(); err != nil {
 		cancel(err)
 		return nil, err
@@ -258,12 +285,65 @@ func (r *Runtime) Run(ctx context.Context, name string, models map[gimble.Workfl
 	runCtx = live.WithRuns(runCtx, r.runs)
 	// The run puts itself in the runtime's table under its id for as long
 	// as its body runs, so Steer, KillScope, and KillTurn can reach it.
-	runCtx = live.WithHook(runCtx, r.runs.Hook)
+	hook := r.runs.Hook
+	if started, _ := ctx.Value(conversationRunStartedKey{}).(func(string)); started != nil {
+		hook = func(id string, run live.Controller) func() {
+			release := r.runs.Hook(id, run)
+			started(id)
+			return release
+		}
+	}
+	runCtx = live.WithHook(runCtx, hook)
 	err := gimble.Run(gimble.Project(runCtx, r.dir), name, models, body)
 	if err == nil && context.Cause(runCtx) != nil {
 		return context.Cause(runCtx)
 	}
 	return err
+}
+
+type conversationRunStartedKey struct{}
+
+func (r *Runtime) launchConversationWorkflow(worktree string, request conversation.LaunchRequest) (conversation.LaunchedRun, error) {
+	var entry ConversationWorkflow
+	switch request.Workflow {
+	case conversation.WorkflowReview:
+		entry = r.reviewConversationWorkflow
+	case conversation.WorkflowImplement:
+		entry = r.implementConversationWorkflow
+	default:
+		return conversation.LaunchedRun{}, fmt.Errorf("unsupported conversation workflow %q", request.Workflow)
+	}
+	if entry == nil {
+		return conversation.LaunchedRun{}, fmt.Errorf("conversation workflow %q is not configured", request.Workflow)
+	}
+
+	started := make(chan string, 1)
+	done := make(chan error, 1)
+	ctx := context.WithValue(r.ctx, conversationRunStartedKey{}, func(id string) { started <- id })
+	go func() {
+		defer close(done)
+		done <- entry(ctx, r, worktree, request)
+	}()
+
+	select {
+	case id := <-started:
+		return conversation.LaunchedRun{ID: id, Done: done}, nil
+	case err := <-done:
+		select {
+		case id := <-started:
+			finished := make(chan error, 1)
+			finished <- err
+			close(finished)
+			return conversation.LaunchedRun{ID: id, Done: finished}, nil
+		default:
+		}
+		if err == nil {
+			err = errors.New("workflow entry returned before starting a run")
+		}
+		return conversation.LaunchedRun{}, err
+	case <-r.ctx.Done():
+		return conversation.LaunchedRun{}, context.Cause(r.ctx)
+	}
 }
 
 // Steer sends message into the turn running on session sessionID of the run

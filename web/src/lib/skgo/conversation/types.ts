@@ -16,6 +16,7 @@ export type Conversation = {
   created: number;
   updated: number;
   messages: Array<Message>;
+  runs: Array<Run>;
 };
 
 /**
@@ -25,4 +26,14 @@ export type Message = {
   role: string;
   text: string;
   created: number;
+};
+
+/**
+ * Run is one workflow the conversation agent successfully launched.
+ */
+export type Run = {
+  id: string;
+  workflow: string;
+  status: string;
+  error: string;
 };

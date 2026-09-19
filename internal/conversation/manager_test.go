@@ -3,12 +3,14 @@ package conversation
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/tylergannon/gimble"
 )
@@ -28,7 +30,7 @@ func TestManagerRoutesAllProvidersAndKeepsConversationHistory(t *testing.T) {
 	manager, err := New(ctx, project, func(provider string) (gimble.HarnessAdapter, error) {
 		routed = append(routed, provider)
 		return adapters[provider], nil
-	})
+	}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,7 +93,7 @@ func TestManagerRoutesAllProvidersAndKeepsConversationHistory(t *testing.T) {
 	restarted, err := New(t.Context(), project, func(string) (gimble.HarnessAdapter, error) {
 		t.Fatal("reading saved history should not create an adapter")
 		return nil, nil
-	})
+	}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -107,11 +109,111 @@ func TestManagerRoutesAllProvidersAndKeepsConversationHistory(t *testing.T) {
 	}
 }
 
+func TestManagerRoutesReviewAndImplementationLaunchesAndTracksTheirResults(t *testing.T) {
+	repository := newRepository(t)
+	project := filepath.Join(repository, ".gimble")
+	adapter := &chatAdapter{
+		sessions: make(map[string][]string),
+		replies: []conversationReply{
+			{Message: "I can request that review.", Workflow: WorkflowReview, Goal: "Find concrete bugs."},
+			{Message: "I can request that implementation.", Workflow: WorkflowImplement, Goal: "Ship the bounded change.", DefinitionOfDoneFile: "done.md"},
+			{Message: "I can request another review.", Workflow: WorkflowReview, Goal: "This launch should fail."},
+		},
+	}
+	type launchCall struct {
+		worktree string
+		request  LaunchRequest
+	}
+	var calls []launchCall
+	done := []chan error{make(chan error, 1), make(chan error, 1)}
+	launcher := func(worktree string, request LaunchRequest) (LaunchedRun, error) {
+		calls = append(calls, launchCall{worktree: worktree, request: request})
+		if len(calls) == 3 {
+			return LaunchedRun{}, errors.New("entry rejected the request")
+		}
+		return LaunchedRun{ID: "run-" + request.Workflow, Done: done[len(calls)-1]}, nil
+	}
+	manager, err := New(t.Context(), project, func(string) (gimble.HarnessAdapter, error) {
+		return adapter, nil
+	}, launcher)
+	if err != nil {
+		t.Fatal(err)
+	}
+	item, err := manager.Create(t.Context(), NewConversation{Provider: "codex"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	reviewing, err := manager.Send(item.ID, "Please review this worktree.")
+	if err != nil {
+		t.Fatal(err)
+	}
+	implementing, err := manager.Send(item.ID, "Now implement the agreed change.")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(calls) != 2 || calls[0].request.Workflow != WorkflowReview || calls[1].request.Workflow != WorkflowImplement {
+		t.Fatalf("launch routing = %+v", calls)
+	}
+	if calls[0].worktree != item.Worktree || calls[1].worktree != item.Worktree {
+		t.Fatalf("launches did not use conversation worktree %q: %+v", item.Worktree, calls)
+	}
+	if calls[1].request.Goal != "Ship the bounded change." || calls[1].request.DefinitionOfDoneFile != "done.md" {
+		t.Fatalf("implementation inputs = %+v", calls[1].request)
+	}
+	if len(reviewing.Runs) != 1 || reviewing.Runs[0].Status != RunStatusRunning || len(implementing.Runs) != 2 {
+		t.Fatalf("started run associations = %+v", implementing.Runs)
+	}
+
+	done[0] <- nil
+	done[1] <- errors.New("implementation failed")
+	eventually(t, func() bool {
+		updated, _ := manager.Get(item.ID)
+		return updated.Runs[0].Status == RunStatusCompleted &&
+			updated.Runs[1].Status == RunStatusError && updated.Runs[1].Error == "implementation failed"
+	})
+	savedJSON, err := os.ReadFile(filepath.Join(project, "conversations", item.ID+".json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var saved Conversation
+	if err := json.Unmarshal(savedJSON, &saved); err != nil {
+		t.Fatal(err)
+	}
+	if saved.Runs[0].Status != RunStatusCompleted || saved.Runs[1].Status != RunStatusError {
+		t.Fatalf("terminal run statuses were not persisted: %+v", saved.Runs)
+	}
+
+	failed, err := manager.Send(item.ID, "Request one more review.")
+	if err == nil || !strings.Contains(err.Error(), "entry rejected the request") {
+		t.Fatalf("failed launch error = %v", err)
+	}
+	if len(failed.Runs) != 2 {
+		t.Fatalf("failed launch persisted a run association: %+v", failed.Runs)
+	}
+	if failed.Status != StatusError {
+		t.Fatalf("failed launch conversation status = %q", failed.Status)
+	}
+}
+
+func eventually(t *testing.T, condition func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		if condition() {
+			return
+		}
+		time.Sleep(time.Millisecond)
+	}
+	t.Fatal("condition did not become true")
+}
+
 type chatAdapter struct {
 	mu       sync.Mutex
 	sessions map[string][]string
 	turns    int
 	next     int
+	replies  []conversationReply
 }
 
 func (a *chatAdapter) CreateSession(context.Context, string, string, string) (string, error) {
@@ -133,7 +235,12 @@ func (a *chatAdapter) RunTurn(_ context.Context, session, prompt string, _ json.
 	if strings.Contains(prompt, "What word") && len(history) > 0 {
 		answer = "You asked me to remember cobalt."
 	}
-	output, _ := json.Marshal(answer)
+	reply := conversationReply{Message: answer}
+	if len(a.replies) > 0 {
+		reply = a.replies[0]
+		a.replies = a.replies[1:]
+	}
+	output, _ := json.Marshal(reply)
 	return gimble.TurnResult{Output: output}, nil
 }
 

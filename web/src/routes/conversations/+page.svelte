@@ -2,6 +2,7 @@
   import { goto, invalidateAll } from "$app/navigation";
   import BotIcon from "@lucide/svelte/icons/bot";
   import GitBranchIcon from "@lucide/svelte/icons/git-branch";
+  import ExternalLinkIcon from "@lucide/svelte/icons/external-link";
   import LoaderCircleIcon from "@lucide/svelte/icons/loader-circle";
   import MessageSquarePlusIcon from "@lucide/svelte/icons/message-square-plus";
   import SendIcon from "@lucide/svelte/icons/send";
@@ -17,7 +18,7 @@
     agy: "gemini-3.8-flash-low",
   };
 
-  let current = $state<Conversation>();
+  let current = $derived(data.selected);
   let title = $state("");
   let provider = $state("");
   let model = $state("");
@@ -27,11 +28,11 @@
   let feedback = $state("");
 
   $effect(() => {
-    current = data.selected;
-  });
-
-  $effect(() => {
-    if (data.selected.status !== "working") return;
+    if (
+      data.selected.status !== "working" &&
+      !data.selected.runs.some((run) => run.status === "running")
+    )
+      return;
     const refresh = window.setInterval(() => void invalidateAll(), 750);
     return () => window.clearInterval(refresh);
   });
@@ -132,8 +133,11 @@
         >
           <span class="list-title">{item.title}</span>
           <span class="list-meta">
-            <span class:working={item.status === "working"}></span>
-            {providerName(item.provider)} · {item.messages.length} messages
+            <span
+              class:working={item.status === "working" ||
+                item.runs.some((run) => run.status === "running")}
+            ></span>
+            {providerName(item.provider)} · {item.messages.length} messages · {item.runs.length} runs
           </span>
         </a>
       {:else}
@@ -160,6 +164,22 @@
       </header>
 
       <div class="transcript" aria-live="polite">
+        {#if current.runs.length > 0}
+          <section class="conversation-runs" aria-label="Workflow runs">
+            <span class="role">Workflow runs</span>
+            {#each current.runs as run (run.id)}
+              <a href={`/runs/${encodeURIComponent(run.id)}`}>
+                <span class="run-name">{run.workflow}</span>
+                <span class:running={run.status === "running"} class:error={run.status === "error"} class="run-status">
+                  {run.status}
+                </span>
+                <code>{run.id}</code>
+                <ExternalLinkIcon size={14} aria-hidden="true" />
+              </a>
+              {#if run.error}<p class="run-error">{run.error}</p>{/if}
+            {/each}
+          </section>
+        {/if}
         {#each current.messages as entry, index (`${entry.created}-${index}`)}
           <article class:assistant={entry.role === "assistant"} class="message">
             <span class="role">{entry.role === "assistant" ? providerName(current.provider) : "You"}</span>
@@ -179,7 +199,7 @@
           </div>
         {/if}
         {#if current.error}
-          <div class="error-state"><strong>Provider error</strong><span>{current.error}</span></div>
+          <div class="error-state"><strong>Conversation error</strong><span>{current.error}</span></div>
         {/if}
         {#if !current.live}
           <div class="history-state">
@@ -404,6 +424,32 @@
   .role { display: block; margin-bottom: 5px; color: var(--muted-foreground); font-size: 0.7rem; font-weight: 700; }
   .message p { padding: 11px 14px; border-radius: 16px 16px 4px 16px; background: var(--accent); white-space: pre-wrap; }
   .message.assistant p { padding: 0; border-radius: 0; background: transparent; }
+
+  .conversation-runs {
+    display: grid;
+    align-self: stretch;
+    gap: 7px;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+  }
+
+  .conversation-runs a {
+    display: grid;
+    grid-template-columns: auto auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 9px;
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .conversation-runs a:hover .run-name { text-decoration: underline; }
+  .run-name { font-size: 0.8rem; font-weight: 700; text-transform: capitalize; }
+  .run-status { padding: 2px 7px; border-radius: 999px; color: var(--muted-foreground); background: var(--accent); font-size: 0.65rem; font-weight: 700; }
+  .run-status.running { color: var(--status-running); }
+  .run-status.error { color: var(--destructive); }
+  .run-error { margin-left: 0; color: var(--destructive); font-size: 0.72rem; }
 
   .working-state,
   .error-state,

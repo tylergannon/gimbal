@@ -10,6 +10,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/tylergannon/gimble/internal/conversation"
+	"github.com/tylergannon/gimble/internal/observation"
 )
 
 func TestRuntimeListenerOptionsConflict(t *testing.T) {
@@ -95,4 +98,61 @@ func TestRuntimeRunsWithoutWeb(t *testing.T) {
 	}
 	cancel()
 	<-runtime.done
+}
+
+func TestConversationWorkflowStartsInThisRuntimeAndReportsLaunchFailure(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	startedBody := make(chan struct{})
+	finishBody := make(chan struct{})
+	wantWorktree := filepath.Join(t.TempDir(), "conversation-worktree")
+	reviewEntry := func(ctx context.Context, runtime *Runtime, worktree string, _ conversation.LaunchRequest) error {
+		if worktree != wantWorktree {
+			return errors.New("review received the wrong worktree")
+		}
+		return runtime.Run(ctx, conversation.WorkflowReview, nil, func(context.Context) error {
+			close(startedBody)
+			<-finishBody
+			return nil
+		})
+	}
+	implementEntry := func(context.Context, *Runtime, string, conversation.LaunchRequest) error {
+		return errors.New("implementation inputs were rejected")
+	}
+	runtime, err := NewRuntime(ctx, t.TempDir(), WithNoWeb(), WithConversationWorkflows(reviewEntry, implementEntry))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	launched, err := runtime.launchConversationWorkflow(wantWorktree, conversation.LaunchRequest{
+		Workflow: conversation.WorkflowReview, Goal: "Inspect it",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	<-startedBody
+	if !strings.HasSuffix(launched.ID, ".review") {
+		t.Fatalf("started run id = %q", launched.ID)
+	}
+	if _, live := runtime.registry.Live(launched.ID); !live {
+		t.Fatal("conversation run is not live in the server's observation registry")
+	}
+	close(finishBody)
+	if err := <-launched.Done; err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err := runtime.registry.Snapshot(launched.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snapshot.Run.Status != observation.StatusCompleted {
+		t.Fatalf("terminal run status = %q", snapshot.Run.Status)
+	}
+
+	failed, err := runtime.launchConversationWorkflow(wantWorktree, conversation.LaunchRequest{
+		Workflow: conversation.WorkflowImplement, Goal: "Change it", DefinitionOfDoneFile: "done.md",
+	})
+	if err == nil || !strings.Contains(err.Error(), "inputs were rejected") {
+		t.Fatalf("failed implementation launch = (%+v, %v)", failed, err)
+	}
 }

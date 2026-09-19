@@ -536,6 +536,16 @@ func encConversation(v pkg_conversation.Conversation, at string) (any, error) {
 	}
 	var enc17 any = enc13
 	enc1.Set("messages", enc17)
+	enc18 := make([]any, 0, len(v.Runs))
+	for i19, item20 := range v.Runs {
+		enc21, err := encRun(item20, at+"/runs"+"/"+strconv.Itoa(i19))
+		if err != nil {
+			return nil, err
+		}
+		enc18 = append(enc18, enc21)
+	}
+	var enc22 any = enc18
+	enc1.Set("runs", enc22)
 	return enc1, nil
 }
 
@@ -546,7 +556,7 @@ func decConversation(raw any, at string) (pkg_conversation.Conversation, error) 
 	if err != nil {
 		return dvZero, err
 	}
-	if err := dvKnown(obj2, at, "id", "title", "provider", "model", "branch", "worktree", "live", "status", "error", "created", "updated", "messages"); err != nil {
+	if err := dvKnown(obj2, at, "id", "title", "provider", "model", "branch", "worktree", "live", "status", "error", "created", "updated", "messages", "runs"); err != nil {
 		return dvZero, err
 	}
 	raw3, err := dvRequired(obj2, "id", at+"/id")
@@ -667,6 +677,23 @@ func decConversation(raw any, at string) (pkg_conversation.Conversation, error) 
 		dec28 = append(dec28, dec32)
 	}
 	dec1.Messages = dec28
+	raw33, err := dvRequired(obj2, "runs", at+"/runs")
+	if err != nil {
+		return dvZero, err
+	}
+	items35, err := dvArray(raw33, at+"/runs")
+	if err != nil {
+		return dvZero, err
+	}
+	dec34 := make([]pkg_conversation.Run, 0, len(items35))
+	for i36, item37 := range items35 {
+		dec38, err := decRun(item37, at+"/runs"+"/"+strconv.Itoa(i36))
+		if err != nil {
+			return dvZero, err
+		}
+		dec34 = append(dec34, dec38)
+	}
+	dec1.Runs = dec34
 	return dec1, nil
 }
 
@@ -774,6 +801,94 @@ func ParseMessage(s string) (pkg_conversation.Message, error) {
 		return zero, err
 	}
 	return decMessage(parsed, "")
+}
+
+func encRun(v pkg_conversation.Run, at string) (any, error) {
+	enc1 := devalue.NewObject()
+	var enc2 any = string(v.ID)
+	enc1.Set("id", enc2)
+	var enc3 any = string(v.Workflow)
+	enc1.Set("workflow", enc3)
+	var enc4 any = string(v.Status)
+	enc1.Set("status", enc4)
+	var enc5 any = string(v.Error)
+	enc1.Set("error", enc5)
+	return enc1, nil
+}
+
+func decRun(raw any, at string) (pkg_conversation.Run, error) {
+	var dvZero pkg_conversation.Run
+	var dec1 pkg_conversation.Run
+	obj2, err := dvObject(raw, at)
+	if err != nil {
+		return dvZero, err
+	}
+	if err := dvKnown(obj2, at, "id", "workflow", "status", "error"); err != nil {
+		return dvZero, err
+	}
+	raw3, err := dvRequired(obj2, "id", at+"/id")
+	if err != nil {
+		return dvZero, err
+	}
+	dec4, err := dvString(raw3, at+"/id")
+	if err != nil {
+		return dvZero, err
+	}
+	dec1.ID = dec4
+	raw5, err := dvRequired(obj2, "workflow", at+"/workflow")
+	if err != nil {
+		return dvZero, err
+	}
+	dec6, err := dvString(raw5, at+"/workflow")
+	if err != nil {
+		return dvZero, err
+	}
+	dec1.Workflow = dec6
+	raw7, err := dvRequired(obj2, "status", at+"/status")
+	if err != nil {
+		return dvZero, err
+	}
+	dec8, err := dvString(raw7, at+"/status")
+	if err != nil {
+		return dvZero, err
+	}
+	dec1.Status = dec8
+	raw9, err := dvRequired(obj2, "error", at+"/error")
+	if err != nil {
+		return dvZero, err
+	}
+	dec10, err := dvString(raw9, at+"/error")
+	if err != nil {
+		return dvZero, err
+	}
+	dec1.Error = dec10
+	return dec1, nil
+}
+
+// EncodeRun converts v into the devalue value model.
+func EncodeRun(v pkg_conversation.Run) (any, error) { return encRun(v, "") }
+
+// DecodeRun converts a devalue value model tree into a pkg_conversation.Run, rejecting any
+// shape the type grammar does not admit.
+func DecodeRun(raw any) (pkg_conversation.Run, error) { return decRun(raw, "") }
+
+// StringifyRun encodes v and serializes it with devalue.
+func StringifyRun(v pkg_conversation.Run) (string, error) {
+	encoded, err := encRun(v, "")
+	if err != nil {
+		return "", err
+	}
+	return devalue.Stringify(encoded)
+}
+
+// ParseRun parses a devalue document and decodes it into a pkg_conversation.Run.
+func ParseRun(s string) (pkg_conversation.Run, error) {
+	var zero pkg_conversation.Run
+	parsed, err := devalue.Parse(s, nil)
+	if err != nil {
+		return zero, err
+	}
+	return decRun(parsed, "")
 }
 
 func encSendConversationMessage(v pkg_onzggl3sn52xizlt.SendConversationMessage, at string) (any, error) {

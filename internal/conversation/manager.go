@@ -24,6 +24,13 @@ const (
 	StatusIdle    = "idle"
 	StatusWorking = "working"
 	StatusError   = "error"
+
+	RunStatusRunning   = "running"
+	RunStatusCompleted = "completed"
+	RunStatusError     = "error"
+
+	WorkflowReview    = "review"
+	WorkflowImplement = "implement"
 )
 
 // Message is one visible turn in a conversation transcript.
@@ -31,6 +38,14 @@ type Message struct {
 	Role    string `json:"role"`
 	Text    string `json:"text"`
 	Created int64  `json:"created"`
+}
+
+// Run is one workflow the conversation agent successfully launched.
+type Run struct {
+	ID       string `json:"id"`
+	Workflow string `json:"workflow"`
+	Status   string `json:"status"`
+	Error    string `json:"error"`
 }
 
 // Conversation is the durable metadata and visible transcript for one chat.
@@ -47,6 +62,7 @@ type Conversation struct {
 	Created  int64     `json:"created"`
 	Updated  int64     `json:"updated"`
 	Messages []Message `json:"messages"`
+	Runs     []Run     `json:"runs"`
 }
 
 // NewConversation is the provider and optional presentation selected by the
@@ -60,6 +76,24 @@ type NewConversation struct {
 // AdapterFactory resolves a provider name to its existing Gimble harness.
 type AdapterFactory func(string) (gimble.HarnessAdapter, error)
 
+// LaunchRequest is the small set of inputs a conversation agent can give the
+// two built-in workflows exposed by the Gimble binary.
+type LaunchRequest struct {
+	Workflow             string
+	Goal                 string
+	DefinitionOfDoneFile string
+}
+
+// LaunchedRun is returned only after a workflow has actually started. Done
+// reports its terminal result while the owning runtime remains alive.
+type LaunchedRun struct {
+	ID   string
+	Done <-chan error
+}
+
+// WorkflowLauncher starts a built-in workflow in worktree.
+type WorkflowLauncher func(worktree string, request LaunchRequest) (LaunchedRun, error)
+
 type activeConversation struct {
 	turnMu  sync.Mutex
 	adapter gimble.HarnessAdapter
@@ -72,6 +106,7 @@ type Manager struct {
 	ctx        context.Context
 	projectDir string
 	factory    AdapterFactory
+	launcher   WorkflowLauncher
 
 	mu      sync.RWMutex
 	items   map[string]*Conversation
@@ -97,7 +132,7 @@ func FromContext(ctx context.Context) *Manager {
 
 // New loads the saved conversation metadata. It does not touch Git or start a
 // harness until the person creates or sends to a conversation.
-func New(ctx context.Context, projectDir string, factory AdapterFactory) (*Manager, error) {
+func New(ctx context.Context, projectDir string, factory AdapterFactory, launcher WorkflowLauncher) (*Manager, error) {
 	if ctx == nil {
 		return nil, errors.New("conversation: runtime context is nil")
 	}
@@ -109,7 +144,7 @@ func New(ctx context.Context, projectDir string, factory AdapterFactory) (*Manag
 		return nil, fmt.Errorf("conversation: create store: %w", err)
 	}
 	manager := &Manager{
-		ctx: ctx, projectDir: projectDir, factory: factory,
+		ctx: ctx, projectDir: projectDir, factory: factory, launcher: launcher,
 		items: make(map[string]*Conversation), active: make(map[string]*activeConversation),
 	}
 	entries, err := os.ReadDir(dir)
@@ -131,10 +166,22 @@ func New(ctx context.Context, projectDir string, factory AdapterFactory) (*Manag
 		if item.ID == "" {
 			return nil, fmt.Errorf("conversation: %s has no id", entry.Name())
 		}
+		if item.Messages == nil {
+			item.Messages = []Message{}
+		}
+		if item.Runs == nil {
+			item.Runs = []Run{}
+		}
 		// A process cannot honestly claim that a native session from the prior
 		// runtime is still working. Its saved transcript remains readable.
 		if item.Status == StatusWorking {
 			item.Status = StatusIdle
+		}
+		for index := range item.Runs {
+			if item.Runs[index].Status == RunStatusRunning {
+				item.Runs[index].Status = RunStatusError
+				item.Runs[index].Error = "The server restarted before this run recorded a terminal state."
+			}
 		}
 		item.Live = false
 		copy := item
@@ -180,7 +227,7 @@ func (m *Manager) Create(ctx context.Context, in NewConversation) (Conversation,
 	item := &Conversation{
 		ID: id, Title: title, Provider: provider, Model: model,
 		Branch: branch, Worktree: worktree, Live: true, Status: StatusIdle,
-		Created: now, Updated: now, Messages: []Message{},
+		Created: now, Updated: now, Messages: []Message{}, Runs: []Run{},
 	}
 	if err := m.save(item); err != nil {
 		return Conversation{}, err
@@ -278,19 +325,44 @@ func (m *Manager) Send(id, text string) (Conversation, error) {
 		}
 		active.session = session
 	}
-	result, err := active.adapter.RunTurn(m.ctx, active.session, text, nil, func(gimble.AgentEvent) error { return nil })
+	result, err := active.adapter.RunTurn(m.ctx, active.session, conversationPrompt+text, conversationReplySchema, func(gimble.AgentEvent) error { return nil })
 	if err != nil {
 		return m.fail(item, err)
 	}
-	var response string
+	var response conversationReply
 	if err := json.Unmarshal(result.Output, &response); err != nil {
-		return m.fail(item, fmt.Errorf("provider returned an invalid text response: %w", err))
+		return m.fail(item, fmt.Errorf("provider returned an invalid conversation response: %w", err))
+	}
+	response.Message = strings.TrimSpace(response.Message)
+	if response.Message == "" {
+		return m.fail(item, errors.New("provider returned an empty conversation response"))
+	}
+	request, err := response.launchRequest()
+	if err != nil {
+		return m.fail(item, err)
+	}
+
+	var launched LaunchedRun
+	if request.Workflow != "" {
+		if m.launcher == nil {
+			return m.fail(item, errors.New("conversation: this server has no conversation workflows configured"))
+		}
+		launched, err = m.launcher(worktree, request)
+		if err != nil {
+			return m.fail(item, fmt.Errorf("conversation: launch %s: %w", request.Workflow, err))
+		}
+		if launched.ID == "" || launched.Done == nil {
+			return m.fail(item, fmt.Errorf("conversation: launch %s did not report a started run", request.Workflow))
+		}
 	}
 
 	m.mu.Lock()
 	item = m.items[id]
 	now = time.Now().UnixMilli()
-	item.Messages = append(item.Messages, Message{Role: "assistant", Text: response, Created: now})
+	item.Messages = append(item.Messages, Message{Role: "assistant", Text: response.Message, Created: now})
+	if request.Workflow != "" {
+		item.Runs = append(item.Runs, Run{ID: launched.ID, Workflow: request.Workflow, Status: RunStatusRunning})
+	}
 	item.Status, item.Error, item.Updated = StatusIdle, "", now
 	err = m.save(item)
 	snapshot := clone(item)
@@ -298,7 +370,37 @@ func (m *Manager) Send(id, text string) (Conversation, error) {
 	if err != nil {
 		return Conversation{}, err
 	}
+	if request.Workflow != "" {
+		go m.watchRun(id, launched.ID, launched.Done)
+	}
 	return snapshot, nil
+}
+
+func (m *Manager) watchRun(conversationID, runID string, done <-chan error) {
+	cause, ok := <-done
+	if !ok {
+		cause = errors.New("workflow ended without reporting a result")
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	item := m.items[conversationID]
+	if item == nil {
+		return
+	}
+	for index := range item.Runs {
+		if item.Runs[index].ID != runID {
+			continue
+		}
+		item.Runs[index].Status = RunStatusCompleted
+		item.Runs[index].Error = ""
+		if cause != nil {
+			item.Runs[index].Status = RunStatusError
+			item.Runs[index].Error = cause.Error()
+		}
+		item.Updated = time.Now().UnixMilli()
+		_ = m.save(item)
+		return
+	}
 }
 
 func (m *Manager) fail(item *Conversation, cause error) (Conversation, error) {
@@ -432,5 +534,53 @@ func gitOutput(ctx context.Context, dir string, args ...string) (string, error) 
 func clone(item *Conversation) Conversation {
 	copy := *item
 	copy.Messages = slices.Clone(item.Messages)
+	copy.Runs = slices.Clone(item.Runs)
 	return copy
 }
+
+type conversationReply struct {
+	Message              string `json:"message"`
+	Workflow             string `json:"workflow"`
+	Goal                 string `json:"goal"`
+	DefinitionOfDoneFile string `json:"definition_of_done_file"`
+}
+
+func (r conversationReply) launchRequest() (LaunchRequest, error) {
+	request := LaunchRequest{
+		Workflow: strings.TrimSpace(r.Workflow), Goal: strings.TrimSpace(r.Goal),
+		DefinitionOfDoneFile: strings.TrimSpace(r.DefinitionOfDoneFile),
+	}
+	switch request.Workflow {
+	case "":
+		return request, nil
+	case WorkflowReview:
+		if request.Goal == "" {
+			return LaunchRequest{}, errors.New("conversation: review launch needs a goal")
+		}
+	case WorkflowImplement:
+		if request.Goal == "" || request.DefinitionOfDoneFile == "" {
+			return LaunchRequest{}, errors.New("conversation: implementation launch needs a promise and definition-of-done file")
+		}
+	default:
+		return LaunchRequest{}, fmt.Errorf("conversation: unsupported workflow %q", request.Workflow)
+	}
+	return request, nil
+}
+
+const conversationPrompt = `You are the agent in a Gimble conversation. Reply to the person's message and optionally request one built-in workflow launch in this conversation's worktree.
+
+Always return the structured response requested by the schema. Set workflow to "" for ordinary chat. To request a read-only review, set workflow to "review" and goal to the concrete review goal. To request implementation, set workflow to "implement", goal to the promise, and definition_of_done_file to a local file path in the worktree. Leave unused strings empty. The server, not you, decides whether launch succeeds, so describe the request without claiming a run has started.
+
+Person: `
+
+var conversationReplySchema = json.RawMessage(`{
+  "type": "object",
+  "properties": {
+    "message": {"type": "string"},
+    "workflow": {"type": "string", "enum": ["", "review", "implement"]},
+    "goal": {"type": "string"},
+    "definition_of_done_file": {"type": "string"}
+  },
+  "required": ["message", "workflow", "goal", "definition_of_done_file"],
+  "additionalProperties": false
+}`)

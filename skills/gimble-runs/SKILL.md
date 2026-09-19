@@ -108,6 +108,16 @@ For direct inspection, start with stored run and turn results, then the
 relevant session transcript or recorded command output. Follow the consumer
 project's policy for retaining or sharing evidence.
 
+## Work from a conversation
+
+Run `gimble --port 0` from a Git checkout and open **Conversations**. Choose
+Codex, Claude, or agy/Gemini when creating a conversation; Gimble creates its
+worktree and branch. Ask the agent to start a review or implementation, then
+open the linked run to monitor it in the same server. Implementation needs a
+local definition-of-done file in the conversation's worktree. Keep the server
+running: after a restart, saved conversations are readable history, but their
+provider sessions cannot continue yet.
+
 ## Report what happened
 
 Give the workflow, project, model, run ID, useful result, and observed evidence.

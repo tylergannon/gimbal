@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"os"
@@ -67,6 +68,61 @@ func TestConversationPageRendersProviderAndRealWorktreeFacts(t *testing.T) {
 	}
 	if got := strings.Count(string(body), "data-sveltekit-reload"); got != len(items) {
 		t.Errorf("saved conversation links with document navigation = %d, want %d", got, len(items))
+	}
+}
+
+func TestConversationPageRendersLinkedWorkflowStatusAndSavedContext(t *testing.T) {
+	repository := t.TempDir()
+	gitForConversationPage(t, repository, "init", "-q")
+	gitForConversationPage(t, repository, "config", "user.email", "gimble-test@example.invalid")
+	gitForConversationPage(t, repository, "config", "user.name", "Gimble Test")
+	if err := os.WriteFile(filepath.Join(repository, "README.md"), []byte("test\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	gitForConversationPage(t, repository, "add", "README.md")
+	gitForConversationPage(t, repository, "commit", "-qm", "initial")
+
+	project := filepath.Join(repository, ".gimble")
+	store := filepath.Join(project, "conversations")
+	if err := os.MkdirAll(store, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	item := conversation.Conversation{
+		ID: "saved-conversation", Title: "Saved launch", Provider: "codex", Model: "gpt-5.6-luna",
+		Branch: "gimble/conversation-saved", Worktree: repository, Status: conversation.StatusIdle,
+		Messages: []conversation.Message{{Role: "user", Text: "Keep this context", Created: 1}},
+		Runs:     []conversation.Run{{ID: "01RUN.review", Workflow: conversation.WorkflowReview, Status: conversation.RunStatusCompleted}},
+	}
+	encoded, err := json.Marshal(item)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(store, item.ID+".json"), encoded, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithCancel(t.Context())
+	runtime, err := NewRuntime(ctx, project, WithPort(0))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		cancel()
+		<-runtime.done
+	}()
+	response, err := http.Get("http://" + runtime.address + "/conversations?conversation=" + item.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = response.Body.Close() }()
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"Workflow runs", "/runs/01RUN.review", "completed", "Keep this context"} {
+		if !strings.Contains(string(body), want) {
+			t.Errorf("conversation page does not contain %q", want)
+		}
 	}
 }
 

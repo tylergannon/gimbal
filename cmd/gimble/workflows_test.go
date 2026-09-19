@@ -32,6 +32,11 @@ func TestImplementHelpExplainsItsGenericContract(t *testing.T) {
 			t.Errorf("run implement --help lacks %q:\n%s", text, help)
 		}
 	}
+	for _, text := range []string{"Model cost guidance", "sprint-planning", "architectural-critique", "gpt-5.6-sol:high", "claude-opus-5:high"} {
+		if !strings.Contains(help, text) {
+			t.Errorf("run implement --help lacks model-selection guidance %q:\n%s", text, help)
+		}
+	}
 	if strings.Contains(help, "frontend") || strings.Contains(help, "Storybook") {
 		t.Errorf("run implement --help retains frontend-specific language:\n%s", help)
 	}
@@ -53,6 +58,11 @@ func TestPyramidSummaryHelpExplainsItsFixedInputs(t *testing.T) {
 	if !strings.Contains(help, "until the next level") || !strings.Contains(help, "under 100 tokens") {
 		t.Errorf("run pyramid-summary --help lacks the halving rule:\n%s", help)
 	}
+	for _, text := range []string{"Model cost guidance", "up to six slots", "gpt-5.6-sol:high", "claude-opus-5:high"} {
+		if !strings.Contains(help, text) {
+			t.Errorf("run pyramid-summary --help lacks model-selection guidance %q:\n%s", text, help)
+		}
+	}
 }
 
 func TestResearchDocumentHelpShowsLimitsAndModelDefaults(t *testing.T) {
@@ -71,9 +81,14 @@ func TestResearchDocumentHelpShowsLimitsAndModelDefaults(t *testing.T) {
 		"research-planning":    "gpt-5.6-luna",
 	}
 	for role, model := range roleDefaults {
-		line := lineWith(help, "--"+role)
+		line := lineWith(help, "--"+role+" string")
 		if !strings.Contains(line, `advanced override`) || !strings.Contains(line, `omit this flag`) || !strings.Contains(line, `(default "`+model+`")`) {
 			t.Errorf("%s does not clearly preserve its %s workflow default:\n%s", role, model, line)
+		}
+	}
+	for _, text := range []string{"Model cost guidance", "research, indexing, curation", "gpt-5.6-sol:high", "claude-opus-5:high"} {
+		if !strings.Contains(help, text) {
+			t.Errorf("run research-document --help lacks model-selection guidance %q:\n%s", text, help)
 		}
 	}
 }
@@ -93,7 +108,7 @@ func TestRunHelpShowsTheInputsAndTheRoles(t *testing.T) {
 	if !strings.Contains(lineWith(help, "--goal"), "(required)") {
 		t.Errorf("run review --help does not mark --goal required:\n%s", help)
 	}
-	codeReview := lineWith(help, "--code-review")
+	codeReview := lineWith(help, "--code-review string")
 	if !strings.Contains(codeReview, "advanced override for role code-review") || !strings.Contains(codeReview, "omit this flag") || !strings.Contains(codeReview, `(default "gpt-5.6-luna")`) || strings.Contains(codeReview, "(required)") {
 		t.Errorf("run review --help does not give code review its default model:\n%s", help)
 	}
@@ -146,7 +161,7 @@ func helpOf(t *testing.T, args ...string) string {
 
 func lineWith(text, flag string) string {
 	for line := range strings.SplitSeq(text, "\n") {
-		if strings.Contains(line, flag) {
+		if strings.HasPrefix(strings.TrimSpace(line), flag+" ") {
 			return line
 		}
 	}

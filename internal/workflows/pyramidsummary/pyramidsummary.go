@@ -16,6 +16,17 @@
 // A material defect in the supplied largest document or after the repair wave
 // ends the workflow honestly.
 //
+// Model cost guidance: the configured defaults reserve Astra for
+// document-authoring and editorial-review; planning and supervision already
+// use Luna. Because authoring runs in parallel across up to six slots, those
+// choices multiply. Keep Astra when compression requires difficult technical,
+// high-stakes, or contested judgment. For straightforward compression of an
+// already validated document, deliberately tune those two roles down to Sol
+// or Opus:
+//
+//	--document-authoring gpt-5.6-sol:high \
+//	--editorial-review claude-opus-5:high
+//
 // Example:
 //
 //	gimble run pyramid-summary \

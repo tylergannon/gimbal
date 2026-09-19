@@ -17,6 +17,15 @@
 // and the editor reports only nitpicks, or returns an error after the editorial
 // round limit.
 //
+// Model cost guidance: the configured defaults reserve Astra for
+// document-authoring and editorial-review; research, indexing, curation, and
+// supervision already use Luna. Keep Astra for ambiguous, contested,
+// high-stakes, or technically difficult synthesis. For a clearly bounded,
+// routine document, deliberately tune those two roles down to Sol or Opus:
+//
+//	--document-authoring gpt-5.6-sol:high \
+//	--editorial-review claude-opus-5:high
+//
 // Example:
 //
 //	gimble run research-document \

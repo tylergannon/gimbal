@@ -43,13 +43,15 @@ gimble run review --work-dir /abs/project --no-web --goal "Review the parser cha
 
 Use an absolute project path. Do not pass role-model flags by default: the
 workflow's displayed defaults are its intended role configuration, and a
-supplied flag replaces one. Generic cost guidance is not authority to replace
-those defaults. Override a role only when the user explicitly requests a
-particular model or effort, or when its default cannot run and the user approves
-the replacement. Never downgrade synthesis, document authoring, editorial
-judgment, or another deliberately strong role on your own initiative. Before
-an authorized override, read every role line in `--help` and state the resulting
-mapping. Record the models actually used in the result report.
+supplied flag replaces one. Override a role when the user requests a particular
+model or effort, when its default cannot run and the user approves the
+replacement, or when the workflow's own help identifies the present work as a
+clearly bounded case for a cheaper model. In that last case, prefer the
+documented Sol or Opus selection for routine work, but retain the configured
+frontier default when the help's ambiguity, risk, or difficulty criteria apply.
+Do not turn general cost pressure into blanket overrides across unrelated
+roles. Before an override, read every role line in `--help` and state the
+resulting mapping. Record the models actually used in the result report.
 
 The workflow command remains running until its work finishes. Keep that process
 alive while watching or steering from another shell. `--no-web` disables the

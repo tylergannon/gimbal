@@ -1,0 +1,6 @@
+{"type":"object",
+"description":"Assessment is the independent validator's judgment of the milestone.","properties":{
+"complete":{"type":"boolean","description":"Complete is true only after every claim in the requirements file was demonstrated in the running Storybook or web application."},
+"observed":{"type":"string","description":"Observed states what the validator personally saw in the code, the checks, and the real browser."},
+"unmet_claims":{"type":"array","description":"UnmetClaims lists each claim in the requirements file that was not demonstrated; use an empty list only when Complete is true.","items":{"type":"string"}}
+},"required":["complete","observed","unmet_claims"],"additionalProperties":false}

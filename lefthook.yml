@@ -39,6 +39,25 @@ pre-commit:
       glob: "*.go"
       run: env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE -u GIT_PREFIX go test ./...
 
+    - name: web
+      group:
+        parallel: true
+        jobs:
+          - name: web-check
+            glob: "web/**"
+            root: "web/"
+            run: pnpm check
+
+          - name: web-fmt
+            glob: "web/**"
+            root: "web/"
+            run: pnpm exec vp fmt --check
+
+          - name: web-test
+            glob: "web/**"
+            root: "web/"
+            run: pnpm test
+
 pre-push:
   jobs:
     - name: gimble-lint

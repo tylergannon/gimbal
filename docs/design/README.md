@@ -19,6 +19,13 @@ root element; set it to `dark` to see the dark theme.
 | `States.html` | Small states and the map vocabulary. |
 | `Collapse.html` | A folded scope, what a fold keeps, and depth by alternating tint. |
 
+## Building it
+
+`milestone-1-storybook.md` and `milestone-2-app.md` are the claims a build
+run implements and demonstrates: first every component in Storybook, then
+the application on those components. `gimble run build-frontend` takes one
+milestone file and commits each task with the repository's hooks running.
+
 ## The rules
 
 - **One home per fact.** The map is shape plus status. Names, prompts,

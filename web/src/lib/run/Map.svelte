@@ -55,12 +55,20 @@
   let foldedScopes = $state<string[]>([]);
   let selectedKey = $state<string | undefined>(undefined);
   let zoom = $state(1);
+  let now = $state(Date.now());
   let viewport: HTMLDivElement | undefined;
   let dragging = $state(false);
   let dragOrigin: { x: number; y: number; left: number; top: number } | undefined;
+  const running = $derived(snapshot.run.status === "running");
+
+  $effect(() => {
+    if (!running) return;
+    const timer = window.setInterval(() => (now = Date.now()), 1_000);
+    return () => window.clearInterval(timer);
+  });
 
   const layout = $derived(
-    buildMapLayout(graph, snapshot, { selectedInstances, foldedScopes, selectedKey }),
+    buildMapLayout(graph, snapshot, { selectedInstances, foldedScopes, selectedKey, now }),
   );
 
   function selectSheet(sheet: (typeof layout.sheets)[number]) {

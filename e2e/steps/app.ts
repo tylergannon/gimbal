@@ -97,7 +97,9 @@ When('I select recorded work in the workspace', async ({ page }) => {
 });
 
 Then('the detail pane describes that selected work', async ({ page, browserState }) => {
-	await expect(page.locator('aside').getByRole('heading')).toBeVisible();
-	await expect(page.locator('aside')).not.toContainText('Select a sheet, call, command, interview, or watcher');
+	const detail = page.locator('aside');
+	await expect(detail.getByRole('heading')).toBeVisible();
+	await expect(detail.locator('.empty-selection')).toHaveCount(0);
+	await expect(detail.locator('.placement')).toBeVisible();
 	expect(browserState.pageErrors).toEqual([]);
 });

@@ -146,6 +146,71 @@ test("selected promise-loop instance drives every runtime fact", () => {
   );
 });
 
+test("interrupted turns and commands are ended while genuine failures stay failed", () => {
+  const snapshot = structuredClone(implementInterviewFixture.snapshot);
+  snapshot.turns["coding.1/turn.2"].interrupted = true;
+  snapshot.turns["coding.1/turn.2"].error = "turn stopped";
+  snapshot.commands["implementation.1/task.2/task-check.1"].interrupted = true;
+  snapshot.commands["implementation.1/task.2/task-check.1"].error = "command stopped";
+  snapshot.commands["implementation.1/task.2/build.1"].exit_code = 2;
+  snapshot.commands["implementation.1/task.2/build.1"].error = "build failed";
+
+  const layout = buildMapLayout(implementInterviewFixture.graph, snapshot, {
+    selectedInstances: { "implementation.1/task": "implementation.1/task.2" },
+  });
+  const task2Nodes = layout.nodes.filter((node) => node.scopeKey === "implementation.1/task.2");
+
+  assert.deepEqual(
+    task2Nodes.map((node) => [operationName(node.operation), node.state]),
+    [
+      ["coding", "ended"],
+      ["task-check", "ended"],
+      ["build", "failed"],
+      ["vet", "ended"],
+      ["test", "ended"],
+      ["qa-orchestration", "ended"],
+    ],
+  );
+});
+
+test("live folded elapsed time uses the render clock while ended and recorded scopes stay fixed", () => {
+  const live = structuredClone(planTripFixture.snapshot);
+  const started = live.run.started;
+  const liveLayout = buildMapLayout(planTripFixture.graph, live, {
+    foldedScopes: ["research.1"],
+    now: started + 125_000,
+  });
+  assert.equal(
+    liveLayout.sheets.find((sheet) => sheet.scope.key === "research.1")?.elapsed,
+    "2m 00s",
+  );
+
+  const ended = structuredClone(live);
+  ended.scopes["research.1"].ended = started + 65_000;
+  const endedLayout = buildMapLayout(planTripFixture.graph, ended, {
+    foldedScopes: ["research.1"],
+    now: started + 999_000,
+  });
+  assert.equal(
+    endedLayout.sheets.find((sheet) => sheet.scope.key === "research.1")?.elapsed,
+    "1m 00s",
+  );
+
+  const recorded = structuredClone(live);
+  recorded.run.status = "completed";
+  recorded.run.ended = started + 125_000;
+  recorded.scopes["research.1"].ended = 0;
+  recorded.scopes["research.1/transport.1"].began = started + 900_000;
+  const recordedLayout = buildMapLayout(planTripFixture.graph, recorded, {
+    foldedScopes: ["research.1"],
+    now: started + 999_000,
+  });
+  assert.equal(
+    recordedLayout.sheets.find((sheet) => sheet.scope.key === "research.1")?.elapsed,
+    "2m 00s",
+  );
+});
+
 test("runtime ordinal scope names bind to their declared graph scopes", () => {
   const snapshot = structuredClone(implementInterviewFixture.snapshot);
   for (const scope of Object.values(snapshot.scopes)) {

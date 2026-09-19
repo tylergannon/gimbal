@@ -5,7 +5,7 @@
   import { Badge } from "#lib/components/ui/badge/index.js";
   import { Button } from "#lib/components/ui/button/index.js";
   import { Input } from "#lib/components/ui/input/index.js";
-  import type { RunRow, TurnRow } from "../observation/index.js";
+  import type { ConnectionState, RunRow, TurnRow } from "../observation/index.js";
   import Pip from "./Pip.svelte";
 
   let {
@@ -20,7 +20,7 @@
     oncancel,
   }: {
     run: RunRow;
-    connection: "connecting" | "live" | "disconnected";
+    connection: ConnectionState;
     activeTurn?: TurnRow;
     waiting?: number;
     stopping?: boolean;
@@ -85,11 +85,12 @@
         <Badge variant="outline" class="disconnected">
           <Pip state="not-yet" /> Disconnected {disconnectedSeconds} s
         </Badge>
-      {:else}
+      {:else if connection === "live"}
         <Badge variant="secondary">
-          <Pip state={connection === "live" ? "ended" : "running"} />
-          {connection === "live" ? "Live" : "Connecting"}
+          <Pip state="ended" /> Live
         </Badge>
+      {:else}
+        <Badge variant="secondary"><Pip state="running" /> Connecting</Badge>
       {/if}
     {/if}
     <span class="elapsed">{elapsed}</span>

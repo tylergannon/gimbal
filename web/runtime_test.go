@@ -50,7 +50,7 @@ func TestRuntimeServesWebApplicationOverUDSAndCleansUp(t *testing.T) {
 	if readErr != nil || closeErr != nil {
 		t.Fatalf("read response: %v; close response: %v", readErr, closeErr)
 	}
-	if response.StatusCode != http.StatusOK || !strings.Contains(string(body), "gimble") {
+	if response.StatusCode != http.StatusOK || !strings.Contains(string(body), "Runs") {
 		t.Fatalf("GET /: status %d, body %q", response.StatusCode, body)
 	}
 	cancel()

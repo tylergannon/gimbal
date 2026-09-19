@@ -4,7 +4,11 @@ import type { InterviewAnswer } from "../../routes/interview.remote.js";
 import type { LoopMessage, Steer } from "../../routes/steer.remote.js";
 import { RunObservation } from "../observation/index.js";
 import DetailPane from "./DetailPane.svelte";
-import { implementInterviewFixture, planTripFixture } from "./fixtures/index.js";
+import {
+  implementInterviewFixture,
+  planTripFixture,
+  serviceOwnershipFixture,
+} from "./fixtures/index.js";
 
 test("a selected interview follows the next pending question and submits its identity", async () => {
   const operation = planTripFixture.graph.body[0];
@@ -157,4 +161,26 @@ test("an unobserved guarded command does not inherit its ended scope state", asy
 
   await expect.element(screen.getByText("Not observed")).toBeVisible();
   expect(document.querySelector('aside [data-state="not-yet"]')).not.toBeNull();
+});
+
+test("a service selection shows declaration ownership and source without runtime status", async () => {
+  const operation = serviceOwnershipFixture.graph.body.find(
+    (candidate) => candidate.kind === "scope",
+  );
+  if (!operation || operation.kind !== "scope") throw new Error("backend scope is missing");
+  const service = operation.services[0];
+  if (!service) throw new Error("api service is missing");
+
+  const screen = await render(DetailPane, {
+    snapshot: serviceOwnershipFixture.snapshot,
+    selection: {
+      kind: "service",
+      scope: serviceOwnershipFixture.snapshot.scopes["backend.1"],
+      service,
+    },
+  });
+
+  await expect.element(screen.getByText("Declared service")).toBeVisible();
+  await expect.element(screen.getByText("examples/services/services.go:15")).toBeVisible();
+  expect(document.querySelector("aside .title-row [data-state]")).toBeNull();
 });

@@ -22,8 +22,9 @@ func init() { gimble.RegisterGraph(Graph) }
 
 // Graph is the shape of this workflow, read from the source of PyramidSummary.
 var Graph = workflow.Graph{
-	Name:   "pyramid-summary",
-	Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 85},
+	Name:     "pyramid-summary",
+	Source:   workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 85},
+	Services: []workflow.Service{},
 	Body: []workflow.Operation{
 		workflow.Condition{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 87}, Branches: []workflow.Branch{
 			{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 87}, Case: "goal == \"\"", Exits: true, Body: []workflow.Operation{}},
@@ -48,7 +49,7 @@ var Graph = workflow.Graph{
 			{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 148}, Case: "largestCount[0] > largestBudget", Exits: true, Body: []workflow.Operation{}},
 		}},
 		workflow.Group{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 158}, Name: "compressions", Children: []workflow.GroupChild{
-			{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 159}, Name: "summary1", Body: []workflow.Operation{
+			{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 159}, Name: "summary1", Services: []workflow.Service{}, Body: []workflow.Operation{
 				workflow.Condition{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 160}, Branches: []workflow.Branch{
 					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 160}, Case: "slots[0].Level == 0", Exits: true, Body: []workflow.Operation{}},
 				}},
@@ -61,7 +62,7 @@ var Graph = workflow.Graph{
 					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 169}, Session: "document-supervision", Role: "document-supervision", Instruction: "The goal is the clearest standalone understanding this pyramid level can hold. Ensure the author measures with the supplied token counter, removes secondary detail before central knowledge, and writes legible prose rather than compressed fragments. Object to renewed research or polishing beyond the assigned document."},
 				}},
 			}},
-			{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 174}, Name: "summary2", Body: []workflow.Operation{
+			{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 174}, Name: "summary2", Services: []workflow.Service{}, Body: []workflow.Operation{
 				workflow.Condition{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 175}, Branches: []workflow.Branch{
 					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 175}, Case: "slots[1].Level == 0", Exits: true, Body: []workflow.Operation{}},
 				}},
@@ -74,7 +75,7 @@ var Graph = workflow.Graph{
 					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 184}, Session: "document-supervision", Role: "document-supervision", Instruction: "The goal is the clearest standalone understanding this pyramid level can hold. Ensure the author measures with the supplied token counter, removes secondary detail before central knowledge, and writes legible prose rather than compressed fragments. Object to renewed research or polishing beyond the assigned document."},
 				}},
 			}},
-			{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 189}, Name: "summary3", Body: []workflow.Operation{
+			{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 189}, Name: "summary3", Services: []workflow.Service{}, Body: []workflow.Operation{
 				workflow.Condition{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 190}, Branches: []workflow.Branch{
 					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 190}, Case: "slots[2].Level == 0", Exits: true, Body: []workflow.Operation{}},
 				}},
@@ -87,7 +88,7 @@ var Graph = workflow.Graph{
 					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 199}, Session: "document-supervision", Role: "document-supervision", Instruction: "The goal is the clearest standalone understanding this pyramid level can hold. Ensure the author measures with the supplied token counter, removes secondary detail before central knowledge, and writes legible prose rather than compressed fragments. Object to renewed research or polishing beyond the assigned document."},
 				}},
 			}},
-			{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 204}, Name: "summary4", Body: []workflow.Operation{
+			{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 204}, Name: "summary4", Services: []workflow.Service{}, Body: []workflow.Operation{
 				workflow.Condition{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 205}, Branches: []workflow.Branch{
 					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 205}, Case: "slots[3].Level == 0", Exits: true, Body: []workflow.Operation{}},
 				}},
@@ -100,7 +101,7 @@ var Graph = workflow.Graph{
 					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 214}, Session: "document-supervision", Role: "document-supervision", Instruction: "The goal is the clearest standalone understanding this pyramid level can hold. Ensure the author measures with the supplied token counter, removes secondary detail before central knowledge, and writes legible prose rather than compressed fragments. Object to renewed research or polishing beyond the assigned document."},
 				}},
 			}},
-			{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 219}, Name: "summary5", Body: []workflow.Operation{
+			{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 219}, Name: "summary5", Services: []workflow.Service{}, Body: []workflow.Operation{
 				workflow.Condition{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 220}, Branches: []workflow.Branch{
 					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 220}, Case: "slots[4].Level == 0", Exits: true, Body: []workflow.Operation{}},
 				}},
@@ -113,7 +114,7 @@ var Graph = workflow.Graph{
 					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 229}, Session: "document-supervision", Role: "document-supervision", Instruction: "The goal is the clearest standalone understanding this pyramid level can hold. Ensure the author measures with the supplied token counter, removes secondary detail before central knowledge, and writes legible prose rather than compressed fragments. Object to renewed research or polishing beyond the assigned document."},
 				}},
 			}},
-			{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 234}, Name: "summary6", Body: []workflow.Operation{
+			{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 234}, Name: "summary6", Services: []workflow.Service{}, Body: []workflow.Operation{
 				workflow.Condition{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 235}, Branches: []workflow.Branch{
 					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 235}, Case: "slots[5].Level == 0", Exits: true, Body: []workflow.Operation{}},
 				}},
@@ -136,7 +137,7 @@ var Graph = workflow.Graph{
 				workflow.Session{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 258}, Name: "document-supervision", From: ""},
 				workflow.PromiseLoop{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 259}, Name: "extra-top-levels", Planner: "pyramid-planning", Supervisors: []workflow.Supervisor{
 					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 260}, Session: "document-supervision", Role: "document-supervision", Instruction: "Dispatch only the exact extra top-level assignments listed in context, once each. Object to invented work, repeated levels, changed budgets or paths, or continued dispatch after the list is exhausted."},
-				}, Body: []workflow.Operation{
+				}, Services: []workflow.Service{}, Body: []workflow.Operation{
 					workflow.Condition{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 263}, Branches: []workflow.Branch{
 						{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 263}, Case: "tasksRun >= len(extraTopLevels)", Exits: true, Body: []workflow.Operation{}},
 					}},
@@ -166,7 +167,7 @@ var Graph = workflow.Graph{
 			{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 310}, Case: "noIssues(repairIssues[1:])", Exits: true, Body: []workflow.Operation{}},
 		}},
 		workflow.Group{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 314}, Name: "repair", Children: []workflow.GroupChild{
-			{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 315}, Name: "summary1", Body: []workflow.Operation{
+			{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 315}, Name: "summary1", Services: []workflow.Service{}, Body: []workflow.Operation{
 				workflow.Condition{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 316}, Branches: []workflow.Branch{
 					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 316}, Case: "slots[0].Level == 0 || len(repairIssues[slots[0].Level-1]) == 0", Exits: true, Body: []workflow.Operation{}},
 				}},
@@ -180,7 +181,7 @@ var Graph = workflow.Graph{
 					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 326}, Session: "document-supervision", Role: "document-supervision", Instruction: "The goal is the clearest standalone understanding this pyramid level can hold. Ensure the author measures with the supplied token counter, removes secondary detail before central knowledge, and writes legible prose rather than compressed fragments. Object to renewed research or polishing beyond the assigned document."},
 				}},
 			}},
-			{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 329}, Name: "summary2", Body: []workflow.Operation{
+			{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 329}, Name: "summary2", Services: []workflow.Service{}, Body: []workflow.Operation{
 				workflow.Condition{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 330}, Branches: []workflow.Branch{
 					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 330}, Case: "slots[1].Level == 0 || len(repairIssues[slots[1].Level-1]) == 0", Exits: true, Body: []workflow.Operation{}},
 				}},
@@ -194,7 +195,7 @@ var Graph = workflow.Graph{
 					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 340}, Session: "document-supervision", Role: "document-supervision", Instruction: "The goal is the clearest standalone understanding this pyramid level can hold. Ensure the author measures with the supplied token counter, removes secondary detail before central knowledge, and writes legible prose rather than compressed fragments. Object to renewed research or polishing beyond the assigned document."},
 				}},
 			}},
-			{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 343}, Name: "summary3", Body: []workflow.Operation{
+			{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 343}, Name: "summary3", Services: []workflow.Service{}, Body: []workflow.Operation{
 				workflow.Condition{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 344}, Branches: []workflow.Branch{
 					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 344}, Case: "slots[2].Level == 0 || len(repairIssues[slots[2].Level-1]) == 0", Exits: true, Body: []workflow.Operation{}},
 				}},
@@ -208,7 +209,7 @@ var Graph = workflow.Graph{
 					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 354}, Session: "document-supervision", Role: "document-supervision", Instruction: "The goal is the clearest standalone understanding this pyramid level can hold. Ensure the author measures with the supplied token counter, removes secondary detail before central knowledge, and writes legible prose rather than compressed fragments. Object to renewed research or polishing beyond the assigned document."},
 				}},
 			}},
-			{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 357}, Name: "summary4", Body: []workflow.Operation{
+			{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 357}, Name: "summary4", Services: []workflow.Service{}, Body: []workflow.Operation{
 				workflow.Condition{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 358}, Branches: []workflow.Branch{
 					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 358}, Case: "slots[3].Level == 0 || len(repairIssues[slots[3].Level-1]) == 0", Exits: true, Body: []workflow.Operation{}},
 				}},
@@ -222,7 +223,7 @@ var Graph = workflow.Graph{
 					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 368}, Session: "document-supervision", Role: "document-supervision", Instruction: "The goal is the clearest standalone understanding this pyramid level can hold. Ensure the author measures with the supplied token counter, removes secondary detail before central knowledge, and writes legible prose rather than compressed fragments. Object to renewed research or polishing beyond the assigned document."},
 				}},
 			}},
-			{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 371}, Name: "summary5", Body: []workflow.Operation{
+			{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 371}, Name: "summary5", Services: []workflow.Service{}, Body: []workflow.Operation{
 				workflow.Condition{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 372}, Branches: []workflow.Branch{
 					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 372}, Case: "slots[4].Level == 0 || len(repairIssues[slots[4].Level-1]) == 0", Exits: true, Body: []workflow.Operation{}},
 				}},
@@ -236,7 +237,7 @@ var Graph = workflow.Graph{
 					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 382}, Session: "document-supervision", Role: "document-supervision", Instruction: "The goal is the clearest standalone understanding this pyramid level can hold. Ensure the author measures with the supplied token counter, removes secondary detail before central knowledge, and writes legible prose rather than compressed fragments. Object to renewed research or polishing beyond the assigned document."},
 				}},
 			}},
-			{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 385}, Name: "summary6", Body: []workflow.Operation{
+			{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 385}, Name: "summary6", Services: []workflow.Service{}, Body: []workflow.Operation{
 				workflow.Condition{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 386}, Branches: []workflow.Branch{
 					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 386}, Case: "slots[5].Level == 0 || len(repairIssues[slots[5].Level-1]) == 0", Exits: true, Body: []workflow.Operation{}},
 				}},
@@ -260,7 +261,7 @@ var Graph = workflow.Graph{
 				workflow.Session{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 414}, Name: "document-supervision", From: ""},
 				workflow.PromiseLoop{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 415}, Name: "repair-extra-top-levels", Planner: "pyramid-planning", Supervisors: []workflow.Supervisor{
 					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 416}, Session: "document-supervision", Role: "document-supervision", Instruction: "Dispatch only the exact extra top-level assignments listed in context, once each. Object to invented work, repeated levels, changed budgets or paths, or continued dispatch after the list is exhausted."},
-				}, Body: []workflow.Operation{
+				}, Services: []workflow.Service{}, Body: []workflow.Operation{
 					workflow.Condition{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 419}, Branches: []workflow.Branch{
 						{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 419}, Case: "tasksRun >= len(extraTopRepairs)", Exits: true, Body: []workflow.Operation{}},
 					}},
@@ -270,7 +271,7 @@ var Graph = workflow.Graph{
 				}},
 			}},
 		}},
-		workflow.Scope{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 433}, Name: "final-validation", Body: []workflow.Operation{
+		workflow.Scope{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 433}, Name: "final-validation", Services: []workflow.Service{}, Body: []workflow.Operation{
 			workflow.Repeat{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 458}, Cond: "i, document := range documents", Body: []workflow.Operation{
 				workflow.Command{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 459}, Name: "count-tokens"},
 				workflow.Condition{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 463}, Branches: []workflow.Branch{

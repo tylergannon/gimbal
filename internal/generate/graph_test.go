@@ -32,9 +32,7 @@ func TestControlFlowGraph(t *testing.T) {
 	if _, ok := find[workflow.Command](round.Body, func(c workflow.Command) bool { return c.Name == "tests" }); !ok {
 		t.Fatal("the round holds the Check command")
 	}
-	if _, ok := find[workflow.Command](round.Body, func(c workflow.Command) bool { return c.Name == "preview" }); !ok {
-		t.Fatal("the round holds the Service command")
-	}
+	assertServices(t, "round", round.Services, "preview")
 	loop, ok := find[workflow.PromiseLoop](round.Body, func(l workflow.PromiseLoop) bool { return l.Name == "sprint" })
 	if !ok {
 		t.Fatal("the round holds the loop sprint")
@@ -78,6 +76,56 @@ func TestIterateGraph(t *testing.T) {
 	}
 	if _, ok := find[workflow.AgentCall](iteration.Body, func(call workflow.AgentCall) bool { return call.Session == "reviewer" }); !ok {
 		t.Fatal("raw iteration body lacks reviewer call")
+	}
+}
+
+func TestServicesBelongToTheirDeclaringScopes(t *testing.T) {
+	g, err := generate.Extract("testdata/fixture", "ServiceOwnershipShape", "services")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(g.Diagnostics) != 0 {
+		t.Fatalf("service ownership diagnostics = %v", g.Diagnostics)
+	}
+	assertServices(t, "root", g.Services, "root-db")
+
+	backend, ok := find[workflow.Scope](g.Body, func(scope workflow.Scope) bool { return scope.Name == "backend" })
+	if !ok {
+		t.Fatal("the backend scope is missing")
+	}
+	assertServices(t, "backend", backend.Services, "api")
+	if _, ok := find[workflow.Command](backend.Body, func(command workflow.Command) bool { return command.Name == "build" }); !ok {
+		t.Fatal("the backend's ordered body lacks build")
+	}
+
+	iteration, ok := find[workflow.Iterate](g.Body, func(iteration workflow.Iterate) bool { return iteration.Name == "iteration" })
+	if !ok {
+		t.Fatal("the iteration scope is missing")
+	}
+	assertServices(t, "iteration", iteration.Services, "fixture")
+	if _, ok := find[workflow.Command](iteration.Body, func(command workflow.Command) bool { return command.Name == "tests" }); !ok {
+		t.Fatal("the iteration's ordered body lacks tests")
+	}
+
+	for _, name := range []string{"root-db", "api", "fixture"} {
+		if _, ok := find[workflow.Command](g.Body, func(command workflow.Command) bool { return command.Name == name }); ok {
+			t.Errorf("service %q was also emitted as a root command", name)
+		}
+	}
+}
+
+func assertServices(t *testing.T, owner string, services []workflow.Service, names ...string) {
+	t.Helper()
+	if len(services) != len(names) {
+		t.Fatalf("%s services = %+v, want %v", owner, services, names)
+	}
+	for i, name := range names {
+		if services[i].Name != name {
+			t.Errorf("%s service %d = %q, want %q", owner, i, services[i].Name, name)
+		}
+		if services[i].File == "" || services[i].Line == 0 {
+			t.Errorf("%s service %q has no source location: %+v", owner, name, services[i].Source)
+		}
 	}
 }
 
@@ -292,6 +340,8 @@ func TestSourceWritesPlannerSupervisionAndRole(t *testing.T) {
 		"workflow.PromiseLoop{",
 		"Supervisors: []workflow.Supervisor{",
 		`Role: "planner-watch"`,
+		"Services: []workflow.Service{",
+		`Name: "preview"`,
 		`cmd.Flags().StringVar(&plannerWatchModel, "planner-watch"`,
 	} {
 		if !strings.Contains(string(written), want) {

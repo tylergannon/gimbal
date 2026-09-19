@@ -15,6 +15,10 @@ export type Graph = {
    */
   source: Source;
   /**
+   * Services are the long-lived commands the root scope owns, in source order. They are declarations on the scope, not ordered operations.
+   */
+  services: Array<Service>;
+  /**
    * Body is the entry function's operations, in source order.
    */
   body: Array<
@@ -70,6 +74,18 @@ export type Source = {
 };
 
 /**
+ * Service is one gimble.Service declaration. The containing Graph, Scope, Iterate, PromiseLoop task, or GroupChild owns its lifetime. It is not an ordered operation; the command line and runtime process are the run's record.
+ */
+export type Service = {
+  /**
+   * File is the path relative to the module root, with forward slashes.
+   */
+  file: string;
+  line: number;
+  name: string;
+};
+
+/**
  * AgentCall is one Session.Generate. Session is the name of the session that speaks, resolved outward to the nearest body declaring it, so two calls on one name are two steps on one conversation. Role is the role that session runs as: its own name for a NewSession, its ancestor's for a fork, so the coder's role is "researcher".
  */
 export type AgentCall = {
@@ -106,7 +122,7 @@ export type Supervisor = {
 };
 
 /**
- * Command is one gimble.RunCommand, gimble.Check, or gimble.Service. Name is the constant name RunCommand or Service gives it, or the constant context key Check gives it; the command line and its outcome are the run's record.
+ * Command is one gimble.RunCommand or gimble.Check. Name is the constant name RunCommand gives it, or the constant context key Check gives it; the command line and its outcome are the run's record.
  */
 export type Command = {
   /**
@@ -200,6 +216,7 @@ export type GroupChild = {
   file: string;
   line: number;
   name: string;
+  services: Array<Service>;
   body: Array<
     | (Omit<AgentCall, "kind"> & {
         kind: "agent_call";
@@ -260,6 +277,7 @@ export type Iterate = {
   file: string;
   line: number;
   name: string;
+  services: Array<Service>;
   body: Array<
     | (Omit<AgentCall, "kind"> & {
         kind: "agent_call";
@@ -309,6 +327,10 @@ export type PromiseLoop = {
   name: string;
   planner: string;
   supervisors: Array<Supervisor>;
+  /**
+   * Services belong to each task scope described by Body.
+   */
+  services: Array<Service>;
   body: Array<
     | (Omit<AgentCall, "kind"> & {
         kind: "agent_call";
@@ -403,6 +425,7 @@ export type Scope = {
   file: string;
   line: number;
   name: string;
+  services: Array<Service>;
   body: Array<
     | (Omit<AgentCall, "kind"> & {
         kind: "agent_call";

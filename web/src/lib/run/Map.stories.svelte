@@ -1,7 +1,11 @@
 <script module lang="ts">
   import { defineMeta } from "@storybook/addon-svelte-csf";
   import Map, { type MapSelection } from "./Map.svelte";
-  import { implementInterviewFixture, planTripFixture } from "./fixtures/index.js";
+  import {
+    implementInterviewFixture,
+    planTripFixture,
+    serviceOwnershipFixture,
+  } from "./fixtures/index.js";
 
   const { Story } = defineMeta({
     title: "Gimble/Run/Map",
@@ -13,6 +17,7 @@
 <script lang="ts">
   let implementSelection = $state("Select a sheet, step, watcher, or task instance");
   let planSelection = $state("Select a sheet or interview");
+  let serviceSelection = $state("Select a service or ordered step");
   let implementSnapshot = $state.raw(implementInterviewFixture.snapshot);
 
   function selectionLabel(selection: MapSelection) {
@@ -20,6 +25,9 @@
     if (selection.kind === "instance") return `Selected instance ${selection.scope.key}`;
     if (selection.kind === "watcher") {
       return `Selected watcher ${selection.supervisor.session} in ${selection.scope.key}`;
+    }
+    if (selection.kind === "service") {
+      return `Selected service ${selection.service.name} in ${selection.scope.key || "root"}`;
     }
     const name =
       selection.operation.kind === "agent_call"
@@ -51,6 +59,17 @@
       graph={implementInterviewFixture.graph}
       snapshot={implementSnapshot}
       onselect={(selection) => (implementSelection = selectionLabel(selection))}
+    />
+  </div>
+</Story>
+
+<Story name="Scope-owned services" asChild>
+  <div class="story-frame">
+    <p class="selection" aria-live="polite">{serviceSelection}</p>
+    <Map
+      graph={serviceOwnershipFixture.graph}
+      snapshot={serviceOwnershipFixture.snapshot}
+      onselect={(selection) => (serviceSelection = selectionLabel(selection))}
     />
   </div>
 </Story>

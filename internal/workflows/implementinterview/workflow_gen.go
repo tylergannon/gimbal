@@ -21,8 +21,9 @@ func init() { gimble.RegisterGraph(Graph) }
 
 // Graph is the shape of this workflow, read from the source of ImplementInterview.
 var Graph = workflow.Graph{
-	Name:   "implement-interview",
-	Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 45},
+	Name:     "implement-interview",
+	Source:   workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 45},
+	Services: []workflow.Service{},
 	Body: []workflow.Operation{
 		workflow.Condition{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 46}, Branches: []workflow.Branch{
 			{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 46}, Case: "!filepath.IsAbs(params.RequirementsFile) || !filepath.IsAbs(params.ReferenceDir)", Exits: true, Body: []workflow.Operation{}},
@@ -37,11 +38,11 @@ var Graph = workflow.Graph{
 		workflow.Set{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 60}, Key: "reference-directory"},
 		workflow.Set{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 61}, Key: "repository"},
 		workflow.Group{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 63}, Name: "reconnaissance", Children: []workflow.GroupChild{
-			{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 64}, Name: "backend", Body: []workflow.Operation{
+			{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 64}, Name: "backend", Services: []workflow.Service{}, Body: []workflow.Operation{
 				workflow.Session{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 65}, Name: "api-research", From: ""},
 				workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 66}, Session: "api-research", Role: "api-research", Prompt: "Read the saved issue, current Go API and design docs, pinned dependencies, runtime/events/generation code, Polytype use, and skgo Go remote-function APIs. Do not edit source. Under the reference directory, create backend/index.md with deep implementation notes and provenance, and save useful official source documentation under backend/. Distinguish verified facts from proposals."},
 			}},
-			{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 69}, Name: "frontend", Body: []workflow.Operation{
+			{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 69}, Name: "frontend", Services: []workflow.Service{}, Body: []workflow.Operation{
 				workflow.Session{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 70}, Name: "frontend-research", From: ""},
 				workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 71}, Session: "frontend-research", Role: "frontend-research", Prompt: "Read the saved issue, current live-run UI, pinned frontend dependencies, and installed shadcn-svelte components. Research the actual Svelte, SvelteKit, shadcn-svelte, and Bits UI APIs needed by the issue. Do not edit source. Under the reference directory, create frontend/index.md with deep implementation notes and provenance, and save useful official source documentation under frontend/. Distinguish verified facts from proposals."},
 			}},
@@ -50,7 +51,7 @@ var Graph = workflow.Graph{
 		workflow.Session{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 79}, Name: "coding", From: ""},
 		workflow.Session{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 80}, Name: "implementation-scope-review", From: ""},
 		workflow.Session{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 81}, Name: "architectural-critique", From: ""},
-		workflow.PromiseLoop{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 84}, Name: "implementation", Planner: "sprint-planning", Body: []workflow.Operation{
+		workflow.PromiseLoop{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 84}, Name: "implementation", Planner: "sprint-planning", Services: []workflow.Service{}, Body: []workflow.Operation{
 			workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 92}, Session: "coding", Role: "coding", Prompt: "Read the saved issue and the local reference directory, then implement only the selected task in the repository. Do not expand the specification, modify the requirements or this build workflow, weaken its fixed checks, commit, merge, or add proof scripts or run output. Preserve unrelated work. Answer with what changed and what you personally ran or observed.", Supervisors: []workflow.Supervisor{
 				{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 93}, Session: "implementation-scope-review", Role: "implementation-scope-review", Instruction: "Watch only for concrete backend or public-API work beyond the saved issue 249. Steer against unnecessary wrappers, frameworks, speculative APIs, and unrelated features. Do not edit source, object on style, or demand improvements outside the requirements."},
 				{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 94}, Session: "architectural-critique", Role: "architectural-critique", Instruction: "Watch only for concrete frontend or general implementation work beyond the saved issue 249. Steer against unnecessary abstractions, frameworks, speculative features, and unrelated polish. Do not edit source, object on style, or demand improvements outside the requirements."},

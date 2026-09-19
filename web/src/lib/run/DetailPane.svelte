@@ -15,6 +15,7 @@
   import EyeIcon from "@lucide/svelte/icons/eye";
   import InterviewIcon from "@lucide/svelte/icons/message-circle-question-mark";
   import RepeatIcon from "@lucide/svelte/icons/repeat-2";
+  import ServerIcon from "@lucide/svelte/icons/server";
   import TerminalIcon from "@lucide/svelte/icons/terminal";
   import { Badge } from "#lib/components/ui/badge/index.js";
   import { Button } from "#lib/components/ui/button/index.js";
@@ -131,6 +132,7 @@
   const title = $derived.by(() => {
     if (!selection) return snapshot.run.name;
     if (selection.kind === "watcher") return selection.supervisor.session;
+    if (selection.kind === "service") return selection.service.name;
     if (selection.kind === "history-turn") return session?.name ?? selection.turn.id;
     if (selection.kind === "history-command") return selection.command.name;
     if (selection.kind === "history-scope" || selection.kind === "sheet" || selection.kind === "instance")
@@ -142,6 +144,7 @@
   const kind = $derived.by(() => {
     if (!selection) return "run";
     if (selection.kind === "watcher") return "watcher";
+    if (selection.kind === "service") return "service";
     if (notObserved && selection.kind === "node") {
       return selection.operation.kind === "agent_call"
         ? "agent call"
@@ -249,6 +252,7 @@
     <div class="title-row">
       {#if kind === "agent call"}<BotIcon size={16} />
       {:else if kind === "command"}<TerminalIcon size={16} />
+      {:else if kind === "service"}<ServerIcon size={16} />
       {:else if kind === "interview"}<InterviewIcon size={16} />
       {:else if kind === "watcher"}<EyeIcon size={16} />
       {:else if kind === "loop"}<RepeatIcon size={16} />
@@ -256,7 +260,7 @@
       <h2>{title}</h2>
       <Badge variant="outline">{kind}</Badge>
       <span class="spacer"></span>
-      <Pip state={pipState} />
+      {#if selection?.kind !== "service"}<Pip state={pipState} />{/if}
     </div>
     {#if scope}
       <div class="placement">scope <code>{scope.key || "root"}</code>{#if session} · session <code>{session.id}</code>{/if}</div>
@@ -282,6 +286,14 @@
       <section>
         <div class="section-title">Session</div>
         <dl><dt>Role</dt><dd>{selection.supervisor.role}</dd><dt>Source</dt><dd><code>{selection.supervisor.file}:{selection.supervisor.line}</code></dd></dl>
+      </section>
+    {:else if selection.kind === "service"}
+      <section>
+        <div class="section-title">Declared service</div>
+        <p>This service belongs to <code>{scope?.key || "root"}</code>. Its process state is runtime evidence, not part of this static declaration.</p>
+        <dl>
+          <dt>Source</dt><dd><code>{selection.service.file}:{selection.service.line}</code></dd>
+        </dl>
       </section>
     {:else if notObserved}
       <section class="not-observed">

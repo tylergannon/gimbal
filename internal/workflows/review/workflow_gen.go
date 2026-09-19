@@ -21,8 +21,9 @@ func init() { gimble.RegisterGraph(Graph) }
 
 // Graph is the shape of this workflow, read from the source of Review.
 var Graph = workflow.Graph{
-	Name:   "review",
-	Source: workflow.Source{File: "internal/workflows/review/review.go", Line: 26},
+	Name:     "review",
+	Source:   workflow.Source{File: "internal/workflows/review/review.go", Line: 26},
+	Services: []workflow.Service{},
 	Body: []workflow.Operation{
 		workflow.Set{Source: workflow.Source{File: "internal/workflows/review/review.go", Line: 27}, Key: "goal"},
 		workflow.Session{Source: workflow.Source{File: "internal/workflows/review/review.go", Line: 28}, Name: "code-review", From: ""},

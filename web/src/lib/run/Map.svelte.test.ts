@@ -2,7 +2,11 @@ import { expect, test } from "vite-plus/test";
 import { userEvent } from "vitest/browser";
 import { render } from "vitest-browser-svelte";
 import Map, { type MapSelection } from "./Map.svelte";
-import { implementInterviewFixture, planTripFixture } from "./fixtures/index.js";
+import {
+  implementInterviewFixture,
+  planTripFixture,
+  serviceOwnershipFixture,
+} from "./fixtures/index.js";
 
 test("pointer and keyboard instance selection replace the rendered runtime facts", async () => {
   const selections: MapSelection[] = [];
@@ -104,4 +108,31 @@ test("opening a sheet folds its sibling while the root remains permanent", async
   expect(
     document.querySelector(`button[aria-label="Fold ${planTripFixture.graph.name}"]`),
   ).toBeNull();
+});
+
+test("service declarations are selectable scope properties, not command nodes", async () => {
+  const selections: MapSelection[] = [];
+  const screen = await render(Map, {
+    ...serviceOwnershipFixture,
+    onselect: (selection) => selections.push(selection),
+  });
+
+  const root = screen.getByRole("button", { name: "Select service root-db" });
+  await expect.element(root).toHaveAttribute("title", "examples/services/services.go:11");
+  await root.click();
+  expect(selections.at(-1)?.kind).toBe("service");
+  if (selections.at(-1)?.kind === "service") {
+    expect(selections.at(-1)?.scope.key).toBe("");
+  }
+  await expect.element(root).toHaveAttribute("aria-pressed", "true");
+
+  await screen.getByRole("button", { name: "Select service api" }).click();
+  if (selections.at(-1)?.kind === "service") {
+    expect(selections.at(-1)?.scope.key).toBe("backend.1");
+  }
+
+  expect(document.querySelector('button[aria-label="Select root-db"]')).toBeNull();
+  await screen.getByRole("button", { name: "Fold iteration" }).click();
+  expect(document.querySelector('button[aria-label="Select service fixture"]')).toBeNull();
+  await expect.element(screen.getByTitle("1 declared service")).toBeVisible();
 });

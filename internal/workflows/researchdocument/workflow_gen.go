@@ -22,8 +22,9 @@ func init() { gimble.RegisterGraph(Graph) }
 
 // Graph is the shape of this workflow, read from the source of ResearchDocument.
 var Graph = workflow.Graph{
-	Name:   "research-document",
-	Source: workflow.Source{File: "internal/workflows/researchdocument/researchdocument.go", Line: 105},
+	Name:     "research-document",
+	Source:   workflow.Source{File: "internal/workflows/researchdocument/researchdocument.go", Line: 105},
+	Services: []workflow.Service{},
 	Body: []workflow.Operation{
 		workflow.Condition{Source: workflow.Source{File: "internal/workflows/researchdocument/researchdocument.go", Line: 107}, Branches: []workflow.Branch{
 			{Source: workflow.Source{File: "internal/workflows/researchdocument/researchdocument.go", Line: 107}, Case: "goal == \"\"", Exits: true, Body: []workflow.Operation{}},
@@ -52,7 +53,7 @@ var Graph = workflow.Graph{
 		}},
 		workflow.Set{Source: workflow.Source{File: "internal/workflows/researchdocument/researchdocument.go", Line: 165}, Key: "research plan"},
 		workflow.Group{Source: workflow.Source{File: "internal/workflows/researchdocument/researchdocument.go", Line: 191}, Name: "research", Children: []workflow.GroupChild{
-			{Source: workflow.Source{File: "internal/workflows/researchdocument/researchdocument.go", Line: 192}, Name: "agent1", Body: []workflow.Operation{
+			{Source: workflow.Source{File: "internal/workflows/researchdocument/researchdocument.go", Line: 192}, Name: "agent1", Services: []workflow.Service{}, Body: []workflow.Operation{
 				workflow.Set{Source: workflow.Source{File: "internal/workflows/researchdocument/researchdocument.go", Line: 193}, Key: "assigned topic group"},
 				workflow.Set{Source: workflow.Source{File: "internal/workflows/researchdocument/researchdocument.go", Line: 194}, Key: "topic directories"},
 				workflow.Set{Source: workflow.Source{File: "internal/workflows/researchdocument/researchdocument.go", Line: 195}, Key: "minimum sources per assigned topic"},
@@ -63,7 +64,7 @@ var Graph = workflow.Graph{
 				}},
 				workflow.Set{Source: workflow.Source{File: "internal/workflows/researchdocument/researchdocument.go", Line: 203}, Key: "research result"},
 			}},
-			{Source: workflow.Source{File: "internal/workflows/researchdocument/researchdocument.go", Line: 211}, Name: "agent2", Body: []workflow.Operation{
+			{Source: workflow.Source{File: "internal/workflows/researchdocument/researchdocument.go", Line: 211}, Name: "agent2", Services: []workflow.Service{}, Body: []workflow.Operation{
 				workflow.Set{Source: workflow.Source{File: "internal/workflows/researchdocument/researchdocument.go", Line: 212}, Key: "assigned topic group"},
 				workflow.Set{Source: workflow.Source{File: "internal/workflows/researchdocument/researchdocument.go", Line: 213}, Key: "topic directories"},
 				workflow.Set{Source: workflow.Source{File: "internal/workflows/researchdocument/researchdocument.go", Line: 214}, Key: "minimum sources per assigned topic"},
@@ -74,7 +75,7 @@ var Graph = workflow.Graph{
 				}},
 				workflow.Set{Source: workflow.Source{File: "internal/workflows/researchdocument/researchdocument.go", Line: 222}, Key: "research result"},
 			}},
-			{Source: workflow.Source{File: "internal/workflows/researchdocument/researchdocument.go", Line: 230}, Name: "agent3", Body: []workflow.Operation{
+			{Source: workflow.Source{File: "internal/workflows/researchdocument/researchdocument.go", Line: 230}, Name: "agent3", Services: []workflow.Service{}, Body: []workflow.Operation{
 				workflow.Set{Source: workflow.Source{File: "internal/workflows/researchdocument/researchdocument.go", Line: 231}, Key: "assigned topic group"},
 				workflow.Set{Source: workflow.Source{File: "internal/workflows/researchdocument/researchdocument.go", Line: 232}, Key: "topic directories"},
 				workflow.Set{Source: workflow.Source{File: "internal/workflows/researchdocument/researchdocument.go", Line: 233}, Key: "minimum sources per assigned topic"},
@@ -85,7 +86,7 @@ var Graph = workflow.Graph{
 				}},
 				workflow.Set{Source: workflow.Source{File: "internal/workflows/researchdocument/researchdocument.go", Line: 241}, Key: "research result"},
 			}},
-			{Source: workflow.Source{File: "internal/workflows/researchdocument/researchdocument.go", Line: 249}, Name: "agent4", Body: []workflow.Operation{
+			{Source: workflow.Source{File: "internal/workflows/researchdocument/researchdocument.go", Line: 249}, Name: "agent4", Services: []workflow.Service{}, Body: []workflow.Operation{
 				workflow.Set{Source: workflow.Source{File: "internal/workflows/researchdocument/researchdocument.go", Line: 250}, Key: "assigned topic group"},
 				workflow.Set{Source: workflow.Source{File: "internal/workflows/researchdocument/researchdocument.go", Line: 251}, Key: "topic directories"},
 				workflow.Set{Source: workflow.Source{File: "internal/workflows/researchdocument/researchdocument.go", Line: 252}, Key: "minimum sources per assigned topic"},
@@ -96,7 +97,7 @@ var Graph = workflow.Graph{
 				}},
 				workflow.Set{Source: workflow.Source{File: "internal/workflows/researchdocument/researchdocument.go", Line: 260}, Key: "research result"},
 			}},
-			{Source: workflow.Source{File: "internal/workflows/researchdocument/researchdocument.go", Line: 268}, Name: "agent5", Body: []workflow.Operation{
+			{Source: workflow.Source{File: "internal/workflows/researchdocument/researchdocument.go", Line: 268}, Name: "agent5", Services: []workflow.Service{}, Body: []workflow.Operation{
 				workflow.Set{Source: workflow.Source{File: "internal/workflows/researchdocument/researchdocument.go", Line: 269}, Key: "assigned topic group"},
 				workflow.Set{Source: workflow.Source{File: "internal/workflows/researchdocument/researchdocument.go", Line: 270}, Key: "topic directories"},
 				workflow.Set{Source: workflow.Source{File: "internal/workflows/researchdocument/researchdocument.go", Line: 271}, Key: "minimum sources per assigned topic"},
@@ -121,7 +122,7 @@ var Graph = workflow.Graph{
 		}},
 		workflow.Session{Source: workflow.Source{File: "internal/workflows/researchdocument/researchdocument.go", Line: 312}, Name: "editorial-review", From: ""},
 		workflow.Repeat{Source: workflow.Source{File: "internal/workflows/researchdocument/researchdocument.go", Line: 313}, Cond: "round := 1; round <= maxRounds; round++", Body: []workflow.Operation{
-			workflow.Scope{Source: workflow.Source{File: "internal/workflows/researchdocument/researchdocument.go", Line: 315}, Name: "editorial-round", Body: []workflow.Operation{
+			workflow.Scope{Source: workflow.Source{File: "internal/workflows/researchdocument/researchdocument.go", Line: 315}, Name: "editorial-round", Services: []workflow.Service{}, Body: []workflow.Operation{
 				workflow.Set{Source: workflow.Source{File: "internal/workflows/researchdocument/researchdocument.go", Line: 316}, Key: "editorial round"},
 				workflow.Command{Source: workflow.Source{File: "internal/workflows/researchdocument/researchdocument.go", Line: 317}, Name: "count-tokens"},
 				workflow.Condition{Source: workflow.Source{File: "internal/workflows/researchdocument/researchdocument.go", Line: 321}, Branches: []workflow.Branch{

@@ -21,8 +21,9 @@ func init() { gimble.RegisterGraph(Graph) }
 
 // Graph is the shape of this workflow, read from the source of Implement.
 var Graph = workflow.Graph{
-	Name:   "implement",
-	Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 60},
+	Name:     "implement",
+	Source:   workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 60},
+	Services: []workflow.Service{},
 	Body: []workflow.Operation{
 		workflow.Condition{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 61}, Branches: []workflow.Branch{
 			{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 61}, Case: "params.MaxTasks < 1", Exits: true, Body: []workflow.Operation{}},
@@ -41,7 +42,7 @@ var Graph = workflow.Graph{
 		workflow.Session{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 86}, Name: "architectural-critique", From: ""},
 		workflow.PromiseLoop{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 89}, Name: "implementation", Planner: "sprint-planning", Supervisors: []workflow.Supervisor{
 			{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 90}, Session: "architectural-critique", Role: "architectural-critique", Instruction: "Keep the plan inside the requirements file. Object to invented features, speculative infrastructure, polishing, or unrelated repairs. Preserve failed checks and validator findings as evidence for replanning; do not declare the overall goal complete merely because dispatch can stop."},
-		}, Body: []workflow.Operation{
+		}, Services: []workflow.Service{}, Body: []workflow.Operation{
 			workflow.Session{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 98}, Name: "coding", From: ""},
 			workflow.Session{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 99}, Name: "architectural-critique", From: ""},
 			workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 100}, Session: "coding", Role: "coding", Prompt: "Read the requirements file and implement only the selected task in the repository. Make the actual source changes and run useful focused checks. Do not edit the requirements, this workflow, or the fixed validation command; do not commit, push, merge, deploy, or add proof scripts and run output. Preserve unrelated work. Answer with what changed and what you personally ran or observed.", Supervisors: []workflow.Supervisor{

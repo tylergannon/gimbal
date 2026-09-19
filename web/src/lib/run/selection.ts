@@ -1,5 +1,5 @@
 import type { CommandRow, RunSnapshot, ScopeRow, TurnRow } from "../observation/index.js";
-import type { Graph } from "../workflow/types.js";
+import type { Graph, Service } from "../workflow/types.js";
 import type { Supervisor } from "../workflow/types.js";
 import type { MapSelection } from "./Map.svelte";
 
@@ -27,6 +27,10 @@ const withoutOrdinals = (key: string) =>
     .map((part) => part.replace(/\.\d+$/, ""))
     .join("/");
 
+function addServices(shape: Shape, services: Service[], scope: string) {
+  for (const service of services) shape.commands.add(join(scope, service.name));
+}
+
 function addOperations(shape: Shape, operations: Operation[], scope: string) {
   for (const operation of operations) {
     switch (operation.kind) {
@@ -46,6 +50,7 @@ function addOperations(shape: Shape, operations: Operation[], scope: string) {
       case "iterate": {
         const child = join(scope, operation.name);
         shape.scopes.add(child);
+        addServices(shape, operation.services, child);
         addOperations(shape, operation.body as Operation[], child);
         break;
       }
@@ -55,6 +60,7 @@ function addOperations(shape: Shape, operations: Operation[], scope: string) {
         for (const child of operation.children) {
           const branch = join(group, child.name);
           shape.scopes.add(branch);
+          addServices(shape, child.services, branch);
           addOperations(shape, child.body as Operation[], branch);
         }
         break;
@@ -66,6 +72,7 @@ function addOperations(shape: Shape, operations: Operation[], scope: string) {
         shape.scopes.add(task);
         shape.calls.add(join(loop, operation.planner));
         addSupervisors(shape, operation.supervisors, loop);
+        addServices(shape, operation.services, task);
         addOperations(shape, operation.body as Operation[], task);
         break;
       }
@@ -104,6 +111,7 @@ export function graphMatchesSnapshot(graph: Graph, snapshot: RunSnapshot) {
     commands: new Set(),
     interviews: new Set(),
   };
+  addServices(shape, graph.services, "");
   addOperations(shape, graph.body, "");
 
   if (
@@ -145,6 +153,9 @@ export function selectedRuntimeKey(selection: RunSelection | undefined) {
     return selection.scope.key;
   }
   if (selection.kind === "watcher") return `watcher:${selection.supervisor.session}`;
+  if (selection.kind === "service") {
+    return `service:${selection.scope.key}:${selection.service.name}:${selection.service.file}:${selection.service.line}`;
+  }
   const runtime = selection.runtime;
   if (!runtime) return `${selection.scope.key}:${selection.operation.kind}`;
   if ("question_id" in runtime) return runtime.question_id;

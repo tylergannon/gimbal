@@ -189,6 +189,30 @@ func IterationShape(ctx context.Context, _ gimble.Env) error {
 	return nil
 }
 
+func ServiceOwnershipShape(ctx context.Context, _ gimble.Env) error {
+	if err := gimble.Service(ctx, "root-db", ".", "exec sleep 30"); err != nil {
+		return err
+	}
+	if err := gimble.Scope(ctx, "backend", func(ctx context.Context) error {
+		if err := gimble.Service(ctx, "api", ".", "exec sleep 30"); err != nil {
+			return err
+		}
+		_, _, _, err := gimble.RunCommand(ctx, "build", ".", "go", "build", "./...")
+		return err
+	}); err != nil {
+		return err
+	}
+	for ctx := range gimble.Iterate(ctx, "iteration", []string{"one", "two"}) {
+		if err := gimble.Service(ctx, "fixture", ".", "exec sleep 30"); err != nil {
+			return err
+		}
+		if err := gimble.Check(ctx, "tests", ".", "go", "test", "./..."); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func PlannerReassignmentShape(ctx context.Context, _ gimble.Env) error {
 	planner := gimble.NewSession(ctx, "planner", ".")
 	loop := gimble.PromiseLoop(ctx, "tasks", "review the code", planner)

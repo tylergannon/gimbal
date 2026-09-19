@@ -1009,6 +1009,15 @@ boundary, so the command must remain foreground and keep its workload in the
 owned group. There are no restarts, readiness framework, dependency graph,
 persistent daemon, launchd integration, or external-resource cleanup.
 
+The static graph records each call as `workflow.Service{Name, Source}` on the
+scope record that owns it: the root `Graph`, a named `Scope`, an `Iterate`
+body, a `PromiseLoop` task body, or a `GroupChild`. A service is not an
+`Operation` and never appears in an ordered `Body`. `Repeat` and `Condition`
+create no scope, so declarations inside them remain properties of the nearest
+enclosing owner. The page presents that collection inside the owner's sheet,
+without a sequence connector or runtime-status pip; runtime process instances
+remain ordinary command records.
+
 ## Current decision (2026-09-17)
 
 Finite iteration and adaptive planning have separate public APIs.

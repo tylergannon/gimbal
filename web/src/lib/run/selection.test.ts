@@ -4,6 +4,7 @@ import {
   implementInterviewFixture,
   mismatchedHistoryFixture,
   planTripFixture,
+  serviceOwnershipFixture,
 } from "./fixtures/index.js";
 import { graphMatchesSnapshot } from "./selection.js";
 
@@ -13,6 +14,11 @@ test("accepts runtime rows that fit the registered graph", () => {
     true,
   );
   assert.equal(graphMatchesSnapshot(planTripFixture.graph, planTripFixture.snapshot), true);
+  assert.equal(
+    graphMatchesSnapshot(serviceOwnershipFixture.graph, serviceOwnershipFixture.snapshot),
+    true,
+    "service runtime command rows still belong to the static graph without becoming steps",
+  );
 });
 
 test("rejects a missing runtime path instead of inventing a map placement", () => {

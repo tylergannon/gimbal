@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "vite-plus/test";
-import { implementInterviewFixture, planTripFixture } from "./fixtures/index.js";
+import {
+  implementInterviewFixture,
+  planTripFixture,
+  serviceOwnershipFixture,
+} from "./fixtures/index.js";
 import { buildMapLayout } from "./layout.js";
 
 const operationName = (
@@ -250,4 +254,59 @@ test("a refreshed snapshot replaces selected-instance runtime facts", () => {
       node.scopeKey === "implementation.1/task.3" && operationName(node.operation) === "coding",
   );
   assert.equal(coding?.state, "ended");
+});
+
+test("services stay on their owning scopes and out of the operation sequence", () => {
+  const layout = buildMapLayout(serviceOwnershipFixture.graph, serviceOwnershipFixture.snapshot);
+
+  assert.deepEqual(
+    layout.services.map((group) => [group.scopeKey, group.items.map((item) => item.service.name)]),
+    [
+      ["", ["root-db"]],
+      ["backend.1", ["api"]],
+      ["iteration.2", ["fixture"]],
+    ],
+  );
+  assert.deepEqual(
+    layout.nodes.map((node) => operationName(node.operation)),
+    ["root-build", "build", "tests"],
+  );
+
+  for (const scopeKey of ["backend.1", "iteration.2"]) {
+    const sheet = layout.sheets.find((candidate) => candidate.scope.key === scopeKey);
+    const services = layout.services.find((candidate) => candidate.scopeKey === scopeKey);
+    assert.ok(sheet);
+    assert.ok(services);
+    assert.ok(services.x >= sheet.x && services.x + services.width <= sheet.x + sheet.width);
+    assert.ok(services.y >= sheet.y && services.y + services.height <= sheet.y + sheet.height);
+  }
+
+  for (const services of layout.services) {
+    const center = services.x + services.width / 2;
+    const crossesPanel = layout.connections.some((path) => {
+      const match = /^M([\d.]+),([\d.]+) V([\d.]+)$/.exec(path);
+      if (!match || Number(match[1]) !== center) return false;
+      const from = Number(match[2]);
+      const to = Number(match[3]);
+      return from < services.y + services.height && to > services.y;
+    });
+    assert.equal(
+      crossesPanel,
+      false,
+      `${services.scopeKey || "root"} has no sequence line through its service panel`,
+    );
+  }
+});
+
+test("folded owners retain a service count without rendering process rows", () => {
+  const layout = buildMapLayout(serviceOwnershipFixture.graph, serviceOwnershipFixture.snapshot, {
+    foldedScopes: ["iteration.2"],
+  });
+  const iteration = layout.sheets.find((sheet) => sheet.scope.key === "iteration.2");
+  assert.ok(iteration);
+  assert.equal(iteration.serviceCount, 1);
+  assert.equal(
+    layout.services.some((services) => services.scopeKey === "iteration.2"),
+    false,
+  );
 });

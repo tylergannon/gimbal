@@ -11,6 +11,9 @@ it. Everything else is ordinary Go written in the workflow.
 
 ## Read first
 
+- `skills/gimble/SKILL.md`: authoring workflows, building and releasing Gimble,
+  and using its workflows.
+
 - `go doc -all .`: the current public API and its behavioral contract.
 - `ephemeral/research/api/API.md`: the design record and reasons behind the API.
 - `ephemeral/research/api/SPRINTS.md`: what is being built, in what order,

@@ -10,7 +10,7 @@ It is supporting research for the three skills linked above.
 
 | Your question | Read next |
 | --- | --- |
-| What should the three skills teach, and in what order? | [Skill contents](../../../.agents/skills/gimble/SKILL.md) |
+| What should the three skills teach, and in what order? | [Skill contents](../../../skills/gimble/SKILL.md) |
 | How should I structure a workflow, its agents, context, and feedback? | [Authoring route](routes/authoring/index.md) |
 | What priorities govern building, validating, merging, and installing Gimble? | [Build and release route](routes/release/index.md) |
 | How do I call a workflow, steer it, and decide whether its promise was fulfilled? | [Usage route](routes/use/index.md) |

@@ -19,3 +19,5 @@ correction: Tyler wanted cheap agents to gather information and the primary agen
 correction: Go API details belong entirely in Godoc, not these skills. Removed the API catalog, signatures, options, types, and run-table inventory; kept workflow teachings, development methodology, proof, CLI use, and terminology.
 
 friction: Overbuilt the supporting index and delayed the actual writing. The existing topic routes and cited leaves are sufficient working material; no benchmark or polished index delivery is claimed.
+
+correction: Tyler specified `skills/` as the repository home for the Gimble skills. Moved the router and three sub-skills there, updated discovery and maintained-source links, and refreshed installed copies. Historical research citations remain pinned to their original source revision.

@@ -105,7 +105,8 @@ user has asked to keep it. After merging a feature or fix:
 5. Compare installed instruction files with their maintained source. A
    successful install command alone does not establish that the copies match.
 
-The shared local skill location is `~/.agents/skills/`. The Gimble set is
+The maintained skill source is `skills/` in this repository.
+The shared local installation location is `~/.agents/skills/`. The Gimble set is
 `gimble`, `gimble-workflows`, `gimble-release`, and `gimble-runs`. For an affected
 plugin, inspect its actual installation and use its update mechanism; preserve
 unrelated local configuration. Report when a new session is needed to load

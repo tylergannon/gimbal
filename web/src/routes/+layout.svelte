@@ -1,13 +1,22 @@
 <script lang="ts">
 	import '../app.css';
+	import { navigating } from '$app/state';
 	import favicon from '#lib/assets/favicon.svg';
+	import RunsLoading from '#lib/run/RunsLoading.svelte';
 
 	let { children } = $props();
+	const loadingRuns = $derived(navigating.to?.url.pathname === '/' && navigating.from?.url.pathname !== '/');
 </script>
 
 <svelte:head><link rel="icon" href={favicon} /></svelte:head>
 <nav class="site-nav"><a href="/conversations">Conversations</a><a href="/">Runs</a><a href="/about">About</a></nav>
-<main>{@render children()}</main>
+<main>
+	{#if loadingRuns}
+		<div class="runs-page"><RunsLoading /></div>
+	{:else}
+		{@render children()}
+	{/if}
+</main>
 
 <style>
 	:global(body) {
@@ -36,5 +45,12 @@
 
 	main {
 		min-width: 0;
+	}
+
+	.runs-page {
+		display: flex;
+		min-width: 0;
+		justify-content: center;
+		padding: 0 32px;
 	}
 </style>

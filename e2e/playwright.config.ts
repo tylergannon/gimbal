@@ -23,8 +23,8 @@ export default defineConfig({
 	webServer: process.env.BASE_URL
 		? undefined
 		: {
-				command: 'bin/gimble --port 0',
-				cwd: fileURLToPath(new URL('..', import.meta.url)),
+				command: '../../../bin/gimble --port 0',
+				cwd: fileURLToPath(new URL('fixtures/project', import.meta.url)),
 				env: { GIMBLE_WEB_PROXY: '', GIMBLE_WEB_ORIGIN: '' },
 				wait: {
 					stderr:

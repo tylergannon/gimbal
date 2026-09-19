@@ -22,3 +22,19 @@ func TestRolesShareABindingAndNameTheMissingFlag(t *testing.T) {
 		t.Errorf("err = %v, want the missing role named", err)
 	}
 }
+
+func TestRolesBindCurrentGeminiResearchModels(t *testing.T) {
+	models, err := Roles(map[gimble.WorkflowRole]string{
+		"research-indexing":  "gemini-3.8-flash-medium",
+		"document-authoring": "gemini-3.1-pro-high",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := models["research-indexing"]; got.Model != "gemini-3.8-flash-medium" || got.Effort != "medium" {
+		t.Errorf("research-indexing = model %q effort %q", got.Model, got.Effort)
+	}
+	if got := models["document-authoring"]; got.Model != "gemini-3.1-pro-high" || got.Effort != "high" {
+		t.Errorf("document-authoring = model %q effort %q", got.Model, got.Effort)
+	}
+}

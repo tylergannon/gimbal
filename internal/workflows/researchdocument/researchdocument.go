@@ -17,25 +17,11 @@
 // and the editor reports only nitpicks, or returns an error after the editorial
 // round limit.
 //
-// Model cost guidance: the configured defaults reserve Astra for
-// document-authoring and editorial-review; research, indexing, curation, and
-// supervision already use Luna. Keep Astra for ambiguous, contested,
-// high-stakes, or technically difficult synthesis. For a clearly bounded,
-// routine document, deliberately tune those two roles down to Sol or Opus:
-//
-//	--document-authoring gpt-5.6-sol:high \
-//	--editorial-review claude-opus-5:high
-//
-// For low-risk background research where elapsed time and rejected editorial
-// drafts are cheap, another profile spends one frontier turn on the plan and
-// uses Terra and Sonnet for the repeated writing and review:
-//
-//	--research-planning gpt-6-astra:high \
-//	--document-authoring gpt-5.6-terra:high \
-//	--editorial-review claude-sonnet-5:high
-//
-// Material editorial failures can trigger another bounded revision. Provider,
-// harness, and execution errors still end the run rather than retrying.
+// Model defaults deliberately put broad collection on Gemini Flash and report
+// synthesis on Gemini Pro. Research planning, parallel research and indexing,
+// index curation, and supervision use Gemini 3.8 Flash at medium effort.
+// Document authoring and independent editorial review use Gemini 3.1 Pro at
+// high effort. The displayed role flags can still replace an individual pin.
 //
 // Example:
 //

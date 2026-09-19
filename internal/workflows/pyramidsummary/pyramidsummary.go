@@ -16,26 +16,11 @@
 // A material defect in the supplied largest document or after the repair wave
 // ends the workflow honestly.
 //
-// Model cost guidance: the configured defaults reserve Astra for
-// document-authoring and editorial-review; planning and supervision already
-// use Luna. Because authoring runs in parallel across up to six slots, those
-// choices multiply. Keep Astra when compression requires difficult technical,
-// high-stakes, or contested judgment. For straightforward compression of an
-// already validated document, deliberately tune those two roles down to Sol
-// or Opus:
-//
-//	--document-authoring gpt-5.6-sol:high \
-//	--editorial-review claude-opus-5:high
-//
-// For low-risk background compression where elapsed time and one rejected
-// draft wave are cheap, the already validated largest document supplies a
-// strong starting point for cheaper repeated work:
-//
-//	--document-authoring gpt-5.6-terra:high \
-//	--editorial-review claude-sonnet-5:high
-//
-// The repair wave can reject weak completed drafts. Provider, harness, and
-// execution errors still end the run rather than retrying.
+// Model defaults use Gemini 3.1 Pro at high effort for document authoring and
+// editorial review, Gemini 3.8 Flash at medium effort for document
+// supervision, and Luna for pyramid planning. Because authoring runs in
+// parallel across up to six slots, callers should inspect these displayed pins
+// before launching a large pyramid and override them deliberately when needed.
 //
 // Example:
 //

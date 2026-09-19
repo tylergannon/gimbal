@@ -6,6 +6,8 @@ web/editor/.svelte-kit
 .gimble/runs/
 .gimble/issues/
 .gimble/project.jsonl
+.gimble/conversations/
+.gimble/conversation-worktrees/
 
 # skgo app
 /bin/

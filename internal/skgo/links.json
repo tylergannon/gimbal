@@ -11,6 +11,10 @@
 			"target": "web/src/routes"
 		},
 		{
+			"link": "internal/skgo/links/onzggl3sn52xizltf5rw63twmvzhgylunfxw44y",
+			"target": "web/src/routes/conversations"
+		},
+		{
 			"link": "internal/skgo/links/onzggl3sn52xizltf5zhk3ttf5nxe5lojfcf2",
 			"target": "web/src/routes/runs/[runID]"
 		}

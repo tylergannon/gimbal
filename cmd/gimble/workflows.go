@@ -1,15 +1,19 @@
 package main
 
 import (
+	"context"
 	_ "embed"
 	"encoding/json"
 
 	"github.com/spf13/cobra"
 	"github.com/tylergannon/gimble"
+	"github.com/tylergannon/gimble/internal/binding"
+	"github.com/tylergannon/gimble/internal/conversation"
 	"github.com/tylergannon/gimble/internal/workflows/implementation"
 	"github.com/tylergannon/gimble/internal/workflows/pyramidsummary"
 	"github.com/tylergannon/gimble/internal/workflows/researchdocument"
 	"github.com/tylergannon/gimble/internal/workflows/review"
+	"github.com/tylergannon/gimble/web"
 )
 
 //go:embed defaults.json
@@ -21,6 +25,42 @@ func workflowDefaults() map[gimble.WorkflowRole]string {
 		panic(err)
 	}
 	return defaults
+}
+
+func conversationWorkflowOption() web.Option {
+	defaults := workflowDefaults()
+	reviewEntry := func(ctx context.Context, runtime *web.Runtime, worktree string, request conversation.LaunchRequest) error {
+		models, err := binding.Roles(map[gimble.WorkflowRole]string{
+			gimble.RoleCodeReview: defaults[gimble.RoleCodeReview],
+		})
+		if err != nil {
+			return err
+		}
+		env := gimble.Env{WorkDir: worktree}
+		params := review.ReviewParams{Goal: request.Goal}
+		return runtime.Run(ctx, conversation.WorkflowReview, models, func(ctx context.Context) error {
+			return review.Review(ctx, env, params)
+		})
+	}
+	implementEntry := func(ctx context.Context, runtime *web.Runtime, worktree string, request conversation.LaunchRequest) error {
+		models, err := binding.Roles(map[gimble.WorkflowRole]string{
+			gimble.RoleSprintPlanning:        defaults[gimble.RoleSprintPlanning],
+			gimble.RoleArchitecturalCritique: defaults[gimble.RoleArchitecturalCritique],
+			gimble.WorkflowRole("coding"):    defaults[gimble.WorkflowRole("coding")],
+			gimble.RoleQAOrchestration:       defaults[gimble.RoleQAOrchestration],
+		})
+		if err != nil {
+			return err
+		}
+		env := gimble.Env{WorkDir: worktree}
+		params := implementation.Params{
+			Promise: request.Goal, DefinitionOfDoneFile: request.DefinitionOfDoneFile, MaxTasks: 3,
+		}
+		return runtime.Run(ctx, conversation.WorkflowImplement, models, func(ctx context.Context) error {
+			return implementation.Implement(ctx, env, params)
+		})
+	}
+	return web.WithConversationWorkflows(reviewEntry, implementEntry)
 }
 
 // newRunCommand is gimble run: the workflows built into this binary, each

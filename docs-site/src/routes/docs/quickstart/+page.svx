@@ -1,0 +1,84 @@
+<script lang="ts">
+  import DocsPage from "#lib/components/DocsPage.svelte";
+  import Shot from "#lib/components/Shot.svelte";
+
+  const headings = [
+    { id: "build", text: "Build the binary" },
+    { id: "run", text: "Run a built-in workflow" },
+    { id: "watch", text: "Watch it" },
+    { id: "library", text: "Use the library" },
+  ];
+</script>
+
+<DocsPage
+  title="Quickstart"
+  description="Build Gimble, run a read-only review of your own repository, and watch it in the console."
+  eyebrow="Start here"
+  {headings}
+>
+
+<h2 id="build">Build the binary</h2>
+
+You need Go 1.27, Node 24, pnpm 11, and [just](https://github.com/casey/just). Node is a build-time dependency only; the console is embedded in the binary.
+
+```sh
+git clone https://github.com/tylergannon/gimble
+cd gimble
+just build
+```
+
+Gimble drives coding-agent harnesses you already have. Install and sign in to at least one of Codex, Claude Code, or Antigravity before running a workflow.
+
+<h2 id="run">Run a built-in workflow</h2>
+
+`review` is the smallest built-in workflow: one reviewer, read-only, structured findings. Point it at any repository.
+
+```sh
+./bin/gimble run review \
+  --work-dir ~/src/your-project \
+  --goal "Find correctness bugs in the payment retry logic"
+```
+
+Every role has a default model, shown in `--help`. Override one for a single run with its flag, as `model` or `model:effort`:
+
+```sh
+./bin/gimble run review --goal "..." --code-review flash
+```
+
+<h2 id="watch">Watch it</h2>
+
+The run serves the console on [http://127.0.0.1:8080](http://127.0.0.1:8080) while it works. Afterward, `gimble` with no subcommand serves every run recorded under the project's `.gimble` directory.
+
+<figure>
+  <Shot src="shots/runs.png" alt="The runs list with status, latest activity, cost, elapsed time, sessions, and turns for each run." />
+</figure>
+
+From a terminal, `gimble runs` lists runs in progress, `gimble watch RUN` follows one, and `gimble steer RUN MESSAGE --session ID` sends a message into a running agent turn.
+
+<h2 id="library">Use the library</h2>
+
+The runtime is an ordinary Go package. Its contract is its Godoc and compiling examples.
+
+```sh
+go get github.com/tylergannon/gimble
+go doc -all github.com/tylergannon/gimble
+```
+
+A complete program, from the package examples:
+
+```go
+err := gimble.Run(ctx, "example", models, func(ctx context.Context) error {
+	gimble.Set(ctx, "goal", "demonstrate the public API")
+	worker := gimble.NewSession(ctx, "worker", ".")
+	answer, err := worker.Generate[gimble.Text](ctx, "Complete the goal.")
+	if err != nil {
+		return err
+	}
+	fmt.Println(answer)
+	return nil
+})
+```
+
+`models` maps each role the workflow names to a harness adapter, a model, and an effort. The workflow never names a model.
+
+</DocsPage>

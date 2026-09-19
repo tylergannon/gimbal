@@ -100,6 +100,101 @@
       0 24px 80px oklch(0 0 0 / 0.22);
     @apply border-border border;
   }
+  .frame {
+    overflow: hidden;
+    border-radius: 0.9rem;
+    background: oklch(0.2 0.014 55);
+    box-shadow:
+      0 0 0 1px oklch(0.94 0.02 78 / 0.14),
+      0 40px 120px oklch(0 0 0 / 0.45);
+  }
+  .frame-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.6rem 0.85rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .frame-bar i {
+    width: 0.55rem;
+    height: 0.55rem;
+    border-radius: 999px;
+    background: oklch(0.94 0.02 78 / 0.18);
+  }
+  .frame-bar span {
+    margin-left: 0.5rem;
+    color: var(--muted-foreground);
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.04em;
+  }
+  .frame img {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+  .code pre {
+    margin: 0;
+    overflow-x: auto;
+    padding: 1.25rem;
+    background: transparent !important;
+    font-size: 0.8rem;
+    line-height: 1.7;
+  }
+  .doc-prose figure {
+    margin-block: 2rem;
+  }
+  .doc-prose figcaption {
+    margin-top: 0.75rem;
+    color: var(--muted-foreground);
+    font-size: 0.85rem;
+  }
+  .doc-prose a {
+    color: var(--primary);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    text-decoration-color: oklch(0.76 0.145 63 / 0.4);
+  }
+  .doc-prose table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.92rem;
+  }
+  .doc-prose th,
+  .doc-prose td {
+    border-bottom: 1px solid var(--border);
+    padding: 0.6rem 0.75rem 0.6rem 0;
+    text-align: left;
+    vertical-align: top;
+  }
+  .doc-prose th {
+    color: var(--foreground);
+    font-weight: 600;
+  }
+  .token.comment {
+    color: oklch(0.6 0.02 73);
+    font-style: italic;
+  }
+  .token.keyword,
+  .token.boolean {
+    color: oklch(0.76 0.145 63);
+  }
+  .token.string,
+  .token.char {
+    color: oklch(0.8 0.1 140);
+  }
+  .token.function,
+  .token.builtin {
+    color: oklch(0.85 0.08 230);
+  }
+  .token.number,
+  .token.constant {
+    color: oklch(0.8 0.1 30);
+  }
+  .token.operator,
+  .token.punctuation {
+    color: oklch(0.72 0.02 75);
+  }
   .doc-prose {
     color: oklch(0.83 0.018 75);
     font-size: 1rem;

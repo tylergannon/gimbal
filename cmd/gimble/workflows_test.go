@@ -13,10 +13,27 @@ import (
 
 func TestRunListsTheWorkflowsBuiltIn(t *testing.T) {
 	help := helpOf(t)
-	for _, name := range []string{"pyramid-summary", "research-document", "review"} {
+	for _, name := range []string{"implement", "pyramid-summary", "research-document", "review"} {
 		if !strings.Contains(help, "\n  "+name+" ") {
 			t.Errorf("run --help does not list %s:\n%s", name, help)
 		}
+	}
+}
+
+func TestImplementHelpExplainsItsGenericContract(t *testing.T) {
+	help := helpOf(t, "implement")
+	for _, flag := range []string{"--requirements-file string", "--validation-command string", "--max-tasks int"} {
+		if !strings.Contains(help, flag) || !strings.Contains(lineWith(help, flag), "(required)") {
+			t.Errorf("run implement --help lacks required %s:\n%s", flag, help)
+		}
+	}
+	for _, text := range []string{"planner-directed loop", "does not commit", "independent validator"} {
+		if !strings.Contains(help, text) {
+			t.Errorf("run implement --help lacks %q:\n%s", text, help)
+		}
+	}
+	if strings.Contains(help, "frontend") || strings.Contains(help, "Storybook") {
+		t.Errorf("run implement --help retains frontend-specific language:\n%s", help)
 	}
 }
 

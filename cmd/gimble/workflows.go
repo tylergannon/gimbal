@@ -6,7 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/tylergannon/gimble"
-	"github.com/tylergannon/gimble/internal/workflows/buildfrontend"
+	"github.com/tylergannon/gimble/internal/workflows/implementation"
 	"github.com/tylergannon/gimble/internal/workflows/pyramidsummary"
 	"github.com/tylergannon/gimble/internal/workflows/researchdocument"
 	"github.com/tylergannon/gimble/internal/workflows/review"
@@ -31,7 +31,7 @@ func newRunCommand() *cobra.Command {
 		Short: "Run a workflow built into this binary; gimble run --help lists them",
 	}
 	run.AddCommand(review.Command(workflowDefaults()))
-	run.AddCommand(buildfrontend.Command(workflowDefaults()))
+	run.AddCommand(implementation.Command(workflowDefaults()))
 	run.AddCommand(researchdocument.Command(workflowDefaults()))
 	run.AddCommand(pyramidsummary.Command(workflowDefaults()))
 	return run

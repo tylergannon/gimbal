@@ -11,6 +11,9 @@ export type BrowserState = {
 };
 
 export const test = base.extend<{ browserState: BrowserState }>({
+	baseURL: async ({}, use) => {
+		await use(process.env.BASE_URL || `http://127.0.0.1:${process.env.GIMBLE_E2E_PORT}`);
+	},
 	browserState: [
 		async ({ page }, use) => {
 			const state: BrowserState = { documents: 0, remoteMark: 0, remotes: [], pageErrors: [] };

@@ -61,7 +61,7 @@ Run required repository checks appropriate to the change:
 | `just vet` | Go vet, binary build, and Gimble lint. |
 | `just test` | Go and frontend unit tests. |
 | `just fmt-check` | Frontend formatting. |
-| `just e2e` against a running server | Browser behavior through Playwright. |
+| `just e2e` after `just build` | Browser behavior against the built binary on an isolated port. Set `BASE_URL` to use an existing server. |
 
 A documentation-only edit needs instruction and link checks. For application
 behavior, run the real path the claim concerns: a workflow, separate CLI

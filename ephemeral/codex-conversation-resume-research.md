@@ -23,12 +23,12 @@ The harness needs narrowly scoped capabilities to resume an existing native sess
    Restart only Gimble, resume the saved ID, and request the token without supplying it or enabling alternate retrieval. Pass requires exact recovery, the same returned ID, and no replacement thread. Together, these checks distinguish native model context from transcript replay and prove cleanup before reload. A timeout, resource leak, changed ID, or failed context recovery leaves the candidate unverified and blocks claiming restart continuation; diagnose only in isolation. No live lifecycle test was run for this recommendation, and no shared session may be mutated, archived, unarchived, interrupted, stopped, or restarted during research.
 
 [design]: codex-conversation-resume-sources/topic-005/INDEX.md
-[manager]: codex-conversation-resume-sources/topic-005/sources/gimble-manager.go
+[manager]: codex-conversation-resume-sources/topic-005/sources/gimble-manager.go.txt
 [harness]: codex-conversation-resume-sources/topic-001/sources/harness-contract.md
 [tests]: codex-conversation-resume-sources/topic-001/sources/lifecycle-tests.md
 [identity]: codex-conversation-resume-sources/topic-002/INDEX.md
 [official]: codex-conversation-resume-sources/topic-006/sources/codex-app-server-official.md
-[adapter]: codex-conversation-resume-sources/topic-005/sources/gimble-codex-adapter.go
+[adapter]: codex-conversation-resume-sources/topic-005/sources/gimble-codex-adapter.go.txt
 [primary]: codex-conversation-resume-sources/topic-003/sources/codex-app-server-primary-lifecycle.md
 [history]: codex-conversation-resume-sources/topic-004/sources/gimble-codex-0.153.4-history.md
 [test]: codex-conversation-resume-sources/topic-006/clips/isolated-acceptance-test.md

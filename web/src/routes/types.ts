@@ -41,6 +41,27 @@ export type LoopMessage = {
 };
 
 /**
+ * RunItem is the one list row and the presentation text derived from its observation. Keeping the text beside the row avoids a second map-shaped state model at the load boundary.
+ */
+export type RunItem = {
+  run: RunRow;
+  summary: string;
+  elapsed: string;
+};
+
+/**
+ * RunRow is the run itself. Times are Unix ms, as every time in a row is.
+ */
+export type RunRow = {
+  id: string;
+  name: string;
+  status: string;
+  error: string;
+  started: number;
+  ended: number;
+};
+
+/**
  * Sent is the form's answer. Landed is false when the message reached the session but no turn was running to receive it, which is not an error: a steer sent to an idle session is dropped, and the person is told so.
  */
 export type Sent = {

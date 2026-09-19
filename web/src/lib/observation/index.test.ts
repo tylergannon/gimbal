@@ -133,6 +133,40 @@ test("replacement snapshot resets machines and stale connection callbacks cannot
   assert.deepEqual(observation.state("turn")?.info.ses.permissions, ["read"]);
 });
 
+test("an idle open connection is live without waiting for a delta", () => {
+  const observation = new RunObservation(snapshot());
+  const generation = observation.beginConnection();
+
+  assert.equal(observation.connection, "connecting");
+  assert.equal(observation.connectionOpened(generation), true);
+  assert.equal(observation.connection, "live");
+});
+
+test("a disconnected connection stays disconnected across retries and returns live on open", () => {
+  const observation = new RunObservation(snapshot());
+  const generation = observation.beginConnection();
+  observation.connectionOpened(generation);
+
+  assert.equal(observation.connectionLost(generation), true);
+  assert.equal(observation.connection, "disconnected");
+  assert.equal(observation.retryConnection(generation), true);
+  assert.equal(observation.connection, "disconnected");
+  assert.equal(observation.connectionOpened(generation), true);
+  assert.equal(observation.connection, "live");
+});
+
+test("recorded runs stay recorded and do not retry", () => {
+  const recorded = snapshot();
+  recorded.run.status = "completed";
+  const observation = new RunObservation(recorded);
+  const generation = observation.beginConnection();
+
+  assert.equal(observation.connection, "recorded");
+  assert.equal(observation.retryConnection(generation), false);
+  assert.equal(observation.connectionLost(generation), false);
+  assert.equal(observation.connection, "recorded");
+});
+
 test("a replacement snapshot replaces every table, not only the transcripts", () => {
   const observation = new RunObservation(snapshot());
   const connection = observation.beginConnection();

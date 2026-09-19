@@ -148,6 +148,22 @@ A nonzero exit is evidence rather than a `Check` error; failure to execute,
 capture, or record is an error. Use `RunCommand` when ordinary Go needs the
 returned values itself. `Check` gathers evidence and never certifies success.
 
+Use `Service(ctx, name, workdir, command)` for a foreground dependency that
+must live for one scope, such as a development server. Gimble starts the
+string through `zsh -c` and continues immediately; successful start is not a
+readiness check. Keep readiness in ordinary workflow code with `Check` or the
+protocol the service exposes. Any exit before scope shutdown, including exit
+zero, fails and cancels the owning scope.
+
+The declaring scope is the lifetime boundary. A service outside an `Iterate`
+stays alive across its item scopes; one declared inside an item ends before
+the next item. Normal close and cancellation send SIGTERM to the service's
+process group, followed by bounded SIGKILL escalation. The command must remain
+in the foreground and its descendants must remain in that process group.
+Gimble records output and status but does not add restarts, health checks, or
+management of resources owned externally by Docker, Overmind, or similar
+tools.
+
 A validator examines the work and the legitimacy of its validation. A green
 build or test gate establishes only what it exercised. Claims about live
 workflows, external steering, or browser interactions require observing those

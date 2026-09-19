@@ -985,6 +985,30 @@ the scope value returns an error. The stdout and stderr fields use
 `RunCommand`'s bounded large-output representation, including the path to the
 complete stream. `Check` does not evaluate, certify, or change loop control.
 
+## Scope-owned services (2026-09-19)
+
+`Service(ctx, name, workdir, command) error` starts `command` through `zsh -c`
+in a dedicated process group and returns once it has started. The current
+scope owns it. Start is not readiness; workflows express readiness with
+ordinary code or `Check`.
+
+A service is required for the remainder of its scope. Any process exit before
+intentional shutdown, including exit zero, records its status and output,
+cancels the scope, and becomes the scope's error. The first transition wins a
+race: shutdown marked first makes the later exit intentional; an exit observed
+first remains a service failure. A service declared outside an `Iterate`
+therefore spans its item scopes, while one declared inside an item ends with
+that item.
+
+Normal scope close and cancellation both signal the entire owned group with
+SIGTERM, wait five seconds, then use SIGKILL and wait at most five seconds
+more. The direct child is reaped and the group must disappear before cleanup
+is successful. Output remains in the ordinary command artifacts and lifecycle
+records. Descendants that call `setpgid` or `setsid` escape this portable
+boundary, so the command must remain foreground and keep its workload in the
+owned group. There are no restarts, readiness framework, dependency graph,
+persistent daemon, launchd integration, or external-resource cleanup.
+
 ## Current decision (2026-09-17)
 
 Finite iteration and adaptive planning have separate public APIs.

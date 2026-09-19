@@ -106,7 +106,7 @@ export type Supervisor = {
 };
 
 /**
- * Command is one gimble.RunCommand or gimble.Check. Name is the constant name RunCommand gives it or the constant context key Check gives it; the command line and its outcome are the run's record.
+ * Command is one gimble.RunCommand, gimble.Check, or gimble.Service. Name is the constant name RunCommand or Service gives it, or the constant context key Check gives it; the command line and its outcome are the run's record.
  */
 export type Command = {
   /**

@@ -25,10 +25,10 @@ type group struct {
 //	return group.Wait()
 //
 // Each child receives its own named scope. The first error cancels the group,
-// interrupting the other children's turns; Wait joins every child, ends the
-// group scope, and returns that first error. A child killed by an operator
-// (its error's cause is a Killed) is gone, not an abort: its siblings run
-// on, and Wait still returns its error.
+// interrupting the other children's turns and services; Wait joins every
+// child, ends the group scope, and returns that first error. A child killed by
+// an operator (its error's cause is a Killed) is gone, not an abort: its
+// siblings run on, and Wait still returns its error.
 // The caller must Wait on every exit path. To stop children early, cancel
 // their parent context before waiting; cancellation alone does not join them.
 func Group(ctx context.Context, name string) *group {
@@ -38,6 +38,7 @@ func Group(ctx context.Context, name string) *group {
 	}
 	g := &group{scope: parent.child(name)}
 	g.ctx, g.scope.cancel = context.WithCancelCause(context.WithValue(ctx, scopeKey{}, g.scope))
+	g.scope.ctx = g.ctx
 	g.scope.run.addScope(g.scope)
 	g.scope.run.event(g.scope.key, "", "", ScopeBegan{Name: name})
 	return g
@@ -91,7 +92,6 @@ func (g *group) Wait() error {
 		return g.err
 	}
 	g.wg.Wait()
-	g.scope.run.event(g.scope.key, "", "", ScopeEnded{Error: errString(g.err)})
-	g.scope.end()
+	g.err = g.scope.finish(g.err)
 	return g.err
 }

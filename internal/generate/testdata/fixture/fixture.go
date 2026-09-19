@@ -136,6 +136,9 @@ func SprintShape(ctx context.Context, _ gimble.Env) error {
 	plannerWatch := gimble.NewSession(ctx, "planner-watch", ".")
 	for round := 0; round < 1; round++ {
 		if err := gimble.Scope(ctx, "round", func(ctx context.Context) error {
+			if err := gimble.Service(ctx, "preview", ".", "exec sleep 30"); err != nil {
+				return err
+			}
 			if err := gimble.Check(ctx, "tests", ".", "go", "test", "./..."); err != nil {
 				return err
 			}

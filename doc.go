@@ -25,10 +25,12 @@
 // RunCommand runs a command in the current scope and blocks until it exits,
 // returning its exit code, stdout, and stderr. Check instead records that
 // result directly in the scope context for a following agent turn to assess.
-// The run records every command beside the scope's turns.
+// Service starts a required foreground command through zsh and makes the
+// current scope own its lifetime. The run records each of them beside the
+// scope's turns.
 //
 // Every operation follows context.Context. Returning from a scope closes its
-// sessions, Group.Wait joins its children, and cancelling a run interrupts its
-// agent work. See the package examples for complete, compiling uses of runs
-// and groups.
+// sessions and stops its services, Group.Wait joins its children, and
+// cancelling a run interrupts its agent work and services. See the package
+// examples for complete, compiling uses of runs and groups.
 package gimble

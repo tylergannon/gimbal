@@ -82,6 +82,15 @@ func (c *commandCapture) result(runDir, relative string) (string, error) {
 	return string(head) + marker + string(tail), nil
 }
 
+func openCommandCapture(r *run, id, stream string) (*commandCapture, string, error) {
+	relative := filepath.ToSlash(filepath.Join("commands", encodedPath(id), stream+".log"))
+	file, stored, err := r.openArtifact(relative)
+	if err != nil {
+		return nil, "", err
+	}
+	return &commandCapture{file: file}, stored, nil
+}
+
 // RunCommand runs command with args in workdir and blocks until it exits.
 // name is the command's name for the graph, a constant at the call site:
 // the command's id is the scope's key and the name with an ordinal, as in
@@ -206,18 +215,10 @@ func runCommand(ctx context.Context, s *scope, name, workdir, command string, ar
 	ended := CommandEnded{ID: id, ExitCode: -1}
 	var commandErr error
 
-	openCapture := func(stream string) (*commandCapture, string, error) {
-		relative := filepath.ToSlash(filepath.Join("commands", encodedPath(id), stream+".log"))
-		file, stored, err := s.run.openArtifact(relative)
-		if err != nil {
-			return nil, "", err
-		}
-		return &commandCapture{file: file}, stored, nil
-	}
-	out, stdoutFile, captureErr := openCapture("stdout")
+	out, stdoutFile, captureErr := openCommandCapture(s.run, id, "stdout")
 	if captureErr == nil {
 		var errOut *commandCapture
-		errOut, ended.StderrFile, captureErr = openCapture("stderr")
+		errOut, ended.StderrFile, captureErr = openCommandCapture(s.run, id, "stderr")
 		if captureErr == nil {
 			ended.StdoutFile = stdoutFile
 			_, _, commandErr = runCapturedCommand(ctx, id, workdir, command, args, s.run, out, errOut, &ended)

@@ -66,6 +66,9 @@
   const nodeOperation = $derived<NodeOperation | undefined>(
     selection?.kind === "node" ? selection.operation : undefined,
   );
+  const agentDefinition = $derived(
+    nodeOperation?.kind === "agent_call" ? nodeOperation : undefined,
+  );
 
   const selectedTurnID = $derived.by(() => {
     if (!selection) return "";
@@ -194,6 +197,25 @@
       .filter((row) => row.scope === selectedScope.key && sessionIDs.has(row.session))
       .sort((left, right) => left.started - right.started)
       .at(-1);
+  }
+
+  function latestWatcherTurn(selectedScope: ScopeRow | undefined, sessionName: string) {
+    if (!selectedScope) return undefined;
+    const sessionIDs = new Set(
+      Object.values(snapshot.sessions)
+        .filter((row) => row.name === sessionName)
+        .map((row) => row.id),
+    );
+    return Object.values(snapshot.turns)
+      .filter((row) => row.scope === selectedScope.key && sessionIDs.has(row.session))
+      .sort((left, right) => left.started - right.started)
+      .at(-1);
+  }
+
+  function turnOutcome(row: TurnRow) {
+    if (!row.ended) return "running";
+    if (row.interrupted) return "interrupted";
+    return row.error ? "failed" : "ended";
   }
 
   function latestCommand(selectedScope: ScopeRow | undefined, operation: NodeOperation | undefined) {
@@ -350,9 +372,24 @@
           <dt>Workdir</dt><dd><code>{command.workdir}</code></dd>
         </dl>
       </section>
-      {#if command.stdout || command.stderr}
-        <section><div class="section-title">Output · tail</div><pre>{command.stderr || command.stdout}</pre></section>
-      {/if}
+      <section class="command-output">
+        <div class="section-title">Stdout</div>
+        <pre>{command.stdout || "No stdout was recorded."}</pre>
+        {#if command.stdout_file}
+          <p class="output-reference">Complete output <code>{command.stdout_file}</code></p>
+        {:else}
+          <p class="help">No complete-output reference was recorded.</p>
+        {/if}
+      </section>
+      <section class="command-output">
+        <div class="section-title">Stderr</div>
+        <pre>{command.stderr || "No stderr was recorded."}</pre>
+        {#if command.stderr_file}
+          <p class="output-reference">Complete output <code>{command.stderr_file}</code></p>
+        {:else}
+          <p class="help">No complete-output reference was recorded.</p>
+        {/if}
+      </section>
     {:else if turn}
       {#if scope?.task !== undefined}
         <section><div class="section-title">Assignment</div><p>{taskDescription(scope.task)}</p></section>
@@ -373,9 +410,56 @@
       </section>
       <div class="disclosures">
         <details><summary><ChevronRightIcon size={14} />Prompt sent <span>{turn.prompt.length} chars</span></summary><pre>{turn.prompt}</pre></details>
+        <details>
+          <summary><ChevronRightIcon size={14} />Watchers <span>{agentDefinition?.supervisors.length ?? 0}</span></summary>
+          {#if agentDefinition}
+            {#each agentDefinition.supervisors as watcher (watcher.session)}
+              {@const watcherTurn = latestWatcherTurn(scope, watcher.session)}
+              <article class="watcher-detail">
+                <div><strong>{watcher.session}</strong><span>{watcher.role}</span></div>
+                <p>{watcher.instruction || "No watcher instruction was recorded."}</p>
+                {#if watcherTurn}
+                  <dl>
+                    <dt>Latest turn in scope</dt><dd><code>{watcherTurn.id}</code></dd>
+                    <dt>Outcome</dt><dd>{turnOutcome(watcherTurn)}</dd>
+                  </dl>
+                  {#if watcherTurn.result}
+                    <pre>{watcherTurn.result}</pre>
+                  {:else if watcherTurn.error}
+                    <pre>{watcherTurn.error}</pre>
+                  {:else}
+                    <p class="help">No completed watcher result has been recorded.</p>
+                  {/if}
+                {:else}
+                  <p class="help">No watcher turn has been recorded in this scope.</p>
+                {/if}
+              </article>
+            {:else}
+              <p class="disclosure-empty">No watchers are defined for this call.</p>
+            {/each}
+          {:else}
+            <p class="disclosure-empty">No watcher definition is available for this recorded turn.</p>
+          {/if}
+        </details>
         <details><summary><ChevronRightIcon size={14} />Session <span>{session?.name ?? turn.session}</span></summary><dl><dt>Adapter</dt><dd>{session?.adapter}</dd><dt>Model</dt><dd>{session?.model}</dd></dl></details>
         <details><summary><ChevronRightIcon size={14} />Usage <span>{usageText(Object.values(snapshot.turn_usage[turn.id] ?? {})[0] ?? usageOf(undefined))}</span></summary></details>
-        {#if nodeOperation}<details><summary><ChevronRightIcon size={14} />Definition <span><code>{nodeOperation.file}:{nodeOperation.line}</code></span></summary></details>{/if}
+        <details>
+          <summary><ChevronRightIcon size={14} />Definition <span>{#if agentDefinition}<code>{agentDefinition.file}:{agentDefinition.line}</code>{:else}not available{/if}</span></summary>
+          {#if agentDefinition}
+            <dl>
+              <dt>Role</dt><dd>{agentDefinition.role}</dd>
+              <dt>Session</dt><dd>{agentDefinition.session}</dd>
+              <dt>Source</dt><dd><code>{agentDefinition.file}:{agentDefinition.line}</code></dd>
+            </dl>
+            {#if agentDefinition.prompt}
+              <pre>{agentDefinition.prompt}</pre>
+            {:else}
+              <p class="disclosure-empty">No declared prompt is present in the workflow definition.</p>
+            {/if}
+          {:else}
+            <p class="disclosure-empty">No workflow definition is available for this recorded turn.</p>
+          {/if}
+        </details>
       </div>
     {:else if scope}
       {#if scope.task !== undefined}<section><div class="section-title">Assignment</div><p>{taskDescription(scope.task)}</p></section>{/if}
@@ -446,6 +530,14 @@
   label { font-size: 13px; font-weight: 600; }
   .action-row, .footer-row { display: flex; align-items: center; gap: 8px; }
   .value { display: grid; gap: 5px; }
+  .output-reference { margin: 0; color: var(--status-muted); font-size: 12px; line-height: 18px; overflow-wrap: anywhere; }
+  .watcher-detail { display: grid; gap: 8px; padding: 0 0 10px 22px; }
+  .watcher-detail + .watcher-detail { padding-top: 10px; border-top: 1px solid var(--border); }
+  .watcher-detail > div { display: flex; align-items: baseline; gap: 8px; font-size: 13px; }
+  .watcher-detail > div span { color: var(--status-muted); }
+  .watcher-detail p, .disclosure-empty { margin: 0 0 10px 22px; font-size: 13px; line-height: 18px; white-space: pre-wrap; }
+  .watcher-detail p { margin: 0; }
+  .watcher-detail dl { margin-bottom: 0; }
   .feedback { margin: 0; padding: 7px 9px; color: var(--foreground); font-size: 13px; background: var(--map-live-soft); border-radius: 6px; }
   .feedback.error { color: var(--destructive); background: color-mix(in oklch, var(--destructive) 10%, transparent); }
   .detail-foot { display: flex; flex-direction: column; gap: 8px; padding: 12px 16px; background: color-mix(in oklch, var(--muted) 60%, var(--card)); border-top: 1px solid var(--border); }

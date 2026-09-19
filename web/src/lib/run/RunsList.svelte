@@ -3,30 +3,36 @@
 
   export type RunsFilter = "all" | "active" | "needs-answer" | "ended" | "failed" | "cancelled";
 
+  export type RunCardItem = {
+    run: RunRow;
+    summary: string;
+    elapsed: string;
+    activity_at: number;
+    cost: string;
+    session_count: number;
+    turn_count: number;
+    instruction: string;
+  };
+
   export type RunsListProps = {
-    runs: RunRow[];
+    items: RunCardItem[];
     attention: InterviewRow[];
-    summaries: Record<string, string>;
-    elapsed: Record<string, string>;
     now?: number;
     onopenrun?: (run: RunRow) => void;
   };
 </script>
 
 <script lang="ts">
-  import ChevronRightIcon from "@lucide/svelte/icons/chevron-right";
+  import ArrowUpRightIcon from "@lucide/svelte/icons/arrow-up-right";
   import MessageCircleQuestionIcon from "@lucide/svelte/icons/message-circle-question-mark";
   import { Badge } from "#lib/components/ui/badge/index.js";
   import { Button } from "#lib/components/ui/button/index.js";
   import { Input } from "#lib/components/ui/input/index.js";
-  import * as Table from "#lib/components/ui/table/index.js";
   import Pip from "./Pip.svelte";
 
   let {
-    runs,
+    items,
     attention,
-    summaries,
-    elapsed,
     now = Date.now(),
     onopenrun,
   }: RunsListProps = $props();
@@ -34,6 +40,7 @@
   let filter = $state<RunsFilter>("all");
   let query = $state("");
 
+  const runs = $derived(items.map((item) => item.run));
   const pending = $derived(attention.filter((question) => question.status === "pending"));
   const pendingRunIDs = $derived(new Set(pending.map((question) => question.run)));
   const counts = $derived.by(() => ({
@@ -44,9 +51,10 @@
     failed: runs.filter((run) => run.status === "failed").length,
     cancelled: runs.filter((run) => run.status === "cancelled").length,
   }));
-  const filteredRuns = $derived.by(() => {
+  const filteredItems = $derived.by(() => {
     const needle = query.trim().toLocaleLowerCase();
-    return runs.filter((run) => {
+    return items.filter((item) => {
+      const run = item.run;
       const matchesFilter =
         filter === "all" ||
         (filter === "active" && run.status === "running") ||
@@ -76,6 +84,7 @@
   }
 
   function relativeTime(timestamp: number) {
+    if (timestamp === 0) return "No activity yet";
     const seconds = Math.max(0, Math.floor((now - timestamp) / 1000));
     if (seconds < 60) return `${seconds} s`;
     const minutes = Math.floor(seconds / 60);
@@ -101,11 +110,21 @@
     return pending.filter((question) => question.run === runID).length;
   }
 
-  function summaryDetail(run: RunRow) {
+  function pendingLabel(runID: string) {
+    const count = pendingCount(runID);
+    return `${count} ${count === 1 ? "question" : "questions"} waiting`;
+  }
+
+  function summaryDetail(item: RunCardItem) {
+    const run = item.run;
     const count = pendingCount(run.id);
-    const summary = summaries[run.id] ?? (run.error || "Recorded run");
+    const summary = item.summary || run.error || "Recorded run";
     if (count === 0) return summary;
     return summary.replace(/^\d+ questions? waiting\s*·\s*/, "");
+  }
+
+  function activityTitle(timestamp: number) {
+    return timestamp === 0 ? undefined : new Date(timestamp).toLocaleString();
   }
 </script>
 
@@ -159,57 +178,70 @@
       </label>
     </div>
 
-    <div class="table-shell">
-      <Table.Root>
-        <Table.Header>
-          <Table.Row>
-            <Table.Head class="workflow-column">Workflow</Table.Head>
-            <Table.Head class="status-column">Status</Table.Head>
-            <Table.Head>Now, or how it ended</Table.Head>
-            <Table.Head class="started-column">Started</Table.Head>
-            <Table.Head class="duration-column">Duration</Table.Head>
-            <Table.Head class="open-column"><span class="sr-only">Open run</span></Table.Head>
-          </Table.Row>
-        </Table.Header>
-        <Table.Body>
-          {#each filteredRuns as run (run.id)}
-            <Table.Row>
-              <Table.Cell>
-                <button class="run-link" type="button" onclick={() => onopenrun?.(run)}>
-                  <strong>{run.name}</strong>
-                  <span>{run.id}</span>
-                </button>
-              </Table.Cell>
-              <Table.Cell>
-                <Badge variant={run.status === "failed" ? "destructive" : "outline"} class="status">
-                  {#if run.status !== "failed"}<Pip state={pipState(run)} />{/if}
-                  {statusLabel(run)}
-                </Badge>
-              </Table.Cell>
-              <Table.Cell>
-                <div class="summary">
-                  {#if pendingCount(run.id) > 0}
-                    <Badge>{pendingCount(run.id)} questions waiting</Badge>
-                  {/if}
-                  <span>{summaryDetail(run)}</span>
-                </div>
-              </Table.Cell>
-              <Table.Cell class="secondary">{relativeTime(run.started)}</Table.Cell>
-              <Table.Cell class="duration">{elapsed[run.id] ?? "—"}</Table.Cell>
-              <Table.Cell>
-                <button class="open-run" type="button" aria-label={`Open ${run.name} ${run.id}`} onclick={() => onopenrun?.(run)}>
-                  <ChevronRightIcon size={14} />
-                </button>
-              </Table.Cell>
-            </Table.Row>
-          {:else}
-            <Table.Row>
-              <Table.Cell colspan={6} class="no-results">No runs match this filter.</Table.Cell>
-            </Table.Row>
-          {/each}
-        </Table.Body>
-      </Table.Root>
-    </div>
+    {#if filteredItems.length > 0}
+      <div class="cards">
+        {#each filteredItems as item (item.run.id)}
+          <button
+            class="run-card"
+            class:live={item.run.status === "running"}
+            type="button"
+            aria-label={`Open ${item.run.name} ${item.run.id}`}
+            onclick={() => onopenrun?.(item.run)}
+          >
+            <span class="card-head">
+              <span class="identity">
+                <strong>{item.run.name}</strong>
+                <code>{item.run.id}</code>
+              </span>
+              <Badge
+                variant={item.run.status === "failed" ? "destructive" : "outline"}
+                class="status"
+              >
+                {#if item.run.status !== "failed"}<Pip state={pipState(item.run)} />{/if}
+                {statusLabel(item.run)}
+              </Badge>
+            </span>
+
+            <span class="latest">
+              <span class="activity">
+                <span>Latest activity</span>
+                <time
+                  datetime={item.activity_at ? new Date(item.activity_at).toISOString() : undefined}
+                  title={activityTitle(item.activity_at)}
+                >{relativeTime(item.activity_at)}</time>
+              </span>
+              <span class="summary">
+                {#if pendingCount(item.run.id) > 0}
+                  <Badge>{pendingLabel(item.run.id)}</Badge>
+                {/if}
+                <span>{summaryDetail(item)}</span>
+              </span>
+            </span>
+
+            <span class="instruction">
+              <span>Latest instruction</span>
+              {#if item.instruction}
+                <span class="prompt">{item.instruction}</span>
+              {:else}
+                <span class="prompt no-instruction">No instruction recorded yet.</span>
+              {/if}
+            </span>
+
+            <span class="card-foot">
+              <span class="stats">
+                <span><span>Total cost</span><strong>{item.cost}</strong></span>
+                <span><span>Elapsed</span><strong>{item.elapsed}</strong></span>
+                <span><span>Sessions</span><strong>{item.session_count}</strong></span>
+                <span><span>Turns</span><strong>{item.turn_count}</strong></span>
+              </span>
+              <span class="open-label">Open run <ArrowUpRightIcon size={14} /></span>
+            </span>
+          </button>
+        {/each}
+      </div>
+    {:else}
+      <div class="no-results" role="status">No runs match this filter or search.</div>
+    {/if}
     <p class="footnote">
       Runs are recorded tables on disk. Opening an older run reads its record; nothing is replayed.
       “Needs answer” comes from pending questions, not from a run status.
@@ -333,8 +365,7 @@
   }
 
   .attention-title span,
-  .attention-actions,
-  .run-link span {
+  .attention-actions {
     font-family: var(--font-mono);
     font-size: 13px;
   }
@@ -366,8 +397,7 @@
   }
 
   .tools,
-  .filters,
-  .summary {
+  .filters {
     display: flex;
     align-items: center;
   }
@@ -401,8 +431,7 @@
     margin-left: auto;
   }
 
-  .search span,
-  .sr-only {
+  .search > span {
     position: absolute;
     width: 1px;
     height: 1px;
@@ -414,70 +443,94 @@
     border: 0;
   }
 
-  .table-shell {
-    overflow: hidden;
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+  }
+
+  .run-card {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 16px;
+    padding: 16px;
+    color: var(--foreground);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
     background: var(--card);
     border: 1px solid var(--map-line);
     border-radius: var(--radius);
+    box-shadow: 0 1px 2px rgb(0 0 0 / 6%);
+    transition:
+      border-color 120ms ease,
+      box-shadow 120ms ease,
+      transform 120ms ease;
   }
 
-  :global(.table-shell [data-slot="table-container"]) {
-    overflow-x: auto;
+  .run-card.live {
+    border-color: color-mix(in oklch, var(--status-running) 45%, var(--map-line));
   }
 
-  :global(.table-shell th),
-  :global(.table-shell td) {
-    padding: 10px 12px;
+  .run-card:hover,
+  .run-card:focus-visible {
+    border-color: var(--map-line-strong);
+    outline: none;
+    box-shadow:
+      0 0 0 3px color-mix(in oklch, var(--status-running) 14%, transparent),
+      0 4px 12px rgb(0 0 0 / 8%);
+    transform: translateY(-1px);
   }
 
-  :global(.table-shell tbody tr:last-child) {
-    border-bottom: 0;
-  }
-
-  :global(.table-shell .workflow-column) {
-    width: 260px;
-  }
-
-  :global(.table-shell .status-column) {
-    width: 130px;
-  }
-
-  :global(.table-shell .started-column) {
-    width: 150px;
-  }
-
-  :global(.table-shell .duration-column) {
-    width: 90px;
-    text-align: right;
-  }
-
-  :global(.table-shell .open-column) {
-    width: 40px;
-  }
-
-  .run-link {
+  .card-head,
+  .card-foot,
+  .activity,
+  .summary,
+  .stats,
+  .open-label {
     display: flex;
+    align-items: center;
+  }
+
+  .card-head,
+  .card-foot {
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .identity,
+  .latest,
+  .instruction {
+    display: flex;
+    min-width: 0;
     flex-direction: column;
+  }
+
+  .identity {
     gap: 2px;
-    padding: 0;
-    color: var(--foreground);
-    text-align: left;
-    cursor: pointer;
-    background: transparent;
-    border: 0;
   }
 
-  .run-link strong {
-    color: var(--status-live);
-    font-weight: 500;
+  .identity strong {
+    overflow: hidden;
+    font-size: 16px;
+    line-height: 22px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
-  .run-link:hover strong,
-  .run-link:focus-visible strong {
-    text-decoration: underline;
+  .identity code,
+  .stats strong,
+  .activity time {
+    font-family: var(--font-mono);
+    font-size: 12px;
   }
 
-  .run-link span {
+  .identity code,
+  .activity,
+  .instruction > span:first-child,
+  .stats > span > span,
+  .footnote {
     color: var(--status-muted);
   }
 
@@ -485,43 +538,95 @@
     gap: 6px;
   }
 
+  .latest {
+    gap: 7px;
+  }
+
+  .activity {
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 12px;
+    line-height: 16px;
+  }
+
   .summary {
-    min-width: 280px;
+    min-height: 22px;
     gap: 8px;
     font-size: 13px;
+    line-height: 18px;
   }
 
-  :global(.table-shell .secondary),
-  :global(.table-shell .duration) {
-    color: var(--status-muted);
+  .summary > span:last-child {
+    display: -webkit-box;
+    min-width: 0;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
   }
 
-  :global(.table-shell .duration) {
-    font-family: var(--font-mono);
+  .instruction {
+    gap: 5px;
+    padding: 10px 12px;
+    background: color-mix(in oklch, var(--muted) 62%, transparent);
+    border-radius: calc(var(--radius) - 3px);
+  }
+
+  .instruction > span:first-child,
+  .stats > span > span {
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 15px;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+  }
+
+  .prompt {
+    display: -webkit-box;
+    min-height: 40px;
+    overflow: hidden;
     font-size: 13px;
-    color: var(--status-muted);
-    text-align: right;
+    line-height: 20px;
+    white-space: pre-wrap;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
   }
 
-  .open-run {
-    display: inline-flex;
-    padding: 5px;
+  .prompt.no-instruction {
     color: var(--status-muted);
-    cursor: pointer;
-    background: transparent;
-    border: 0;
-    border-radius: calc(var(--radius) - 4px);
+    font-style: italic;
   }
 
-  .open-run:hover,
-  .open-run:focus-visible {
-    color: var(--foreground);
-    background: var(--muted);
+  .stats {
+    min-width: 0;
+    gap: 16px;
   }
 
-  :global(.table-shell .no-results) {
-    height: 96px;
+  .stats > span {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  .stats strong {
+    font-weight: 500;
+  }
+
+  .open-label {
+    flex: 0 0 auto;
+    gap: 4px;
+    color: var(--status-live);
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .no-results {
+    display: grid;
+    min-height: 160px;
+    place-items: center;
     color: var(--status-muted);
+    background: var(--card);
+    border: 1px dashed var(--map-line);
+    border-radius: var(--radius);
     text-align: center;
   }
 
@@ -551,6 +656,23 @@
     .search {
       width: 100%;
       margin-left: 0;
+    }
+  }
+
+  @media (max-width: 760px) {
+    .cards {
+      grid-template-columns: 1fr;
+    }
+
+    .card-foot {
+      align-items: flex-end;
+    }
+
+    .stats {
+      display: grid;
+      flex: 1;
+      grid-template-columns: repeat(2, minmax(64px, 1fr));
+      gap: 8px 16px;
     }
   }
 </style>

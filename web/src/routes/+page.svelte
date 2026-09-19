@@ -1,15 +1,17 @@
 <script lang="ts">
-  import { goto } from "$app/navigation";
+  import { goto, invalidateAll } from "$app/navigation";
+  import { onMount } from "svelte";
   import type { InterviewRow, RunRow } from "#lib/observation/index.js";
-  import RunsList from "#lib/run/RunsList.svelte";
+  import RunsList, { type RunCardItem } from "#lib/run/RunsList.svelte";
   import SmallStates from "#lib/run/SmallStates.svelte";
 
-  type RunItem = { run: RunRow; summary: string; elapsed: string };
-  let { data }: { data: { items: RunItem[]; attention: InterviewRow[]; now: number } } = $props();
+  let { data }: { data: { items: RunCardItem[]; attention: InterviewRow[]; now: number } } =
+    $props();
 
-  const runs = $derived(data.items.map((item) => item.run));
-  const summaries = $derived(Object.fromEntries(data.items.map((item) => [item.run.id, item.summary])));
-  const elapsed = $derived(Object.fromEntries(data.items.map((item) => [item.run.id, item.elapsed])));
+  onMount(() => {
+    const refresh = window.setInterval(() => void invalidateAll(), 2_000);
+    return () => window.clearInterval(refresh);
+  });
 
   function openRun(run: RunRow) {
     void goto(`/runs/${encodeURIComponent(run.id)}`);
@@ -25,14 +27,12 @@
 </svelte:head>
 
 <div class="runs-page">
-  {#if runs.length === 0}
+  {#if data.items.length === 0}
     <div class="empty-project"><SmallStates state="empty" /></div>
   {:else}
     <RunsList
-      {runs}
+      items={data.items}
       attention={data.attention}
-      {summaries}
-      {elapsed}
       now={data.now}
       onopenrun={openRun}
     />

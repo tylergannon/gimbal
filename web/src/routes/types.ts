@@ -15,6 +15,15 @@ export type ControlAccepted = {
 };
 
 /**
+ * CreateConversation is the explicit provider and model selection for a new conversation. Model may be blank to use the provider's cheap default.
+ */
+export type CreateConversation = {
+  title: string;
+  provider: string;
+  model: string;
+};
+
+/**
  * InterviewAnswer is what one pending question's form posts. The question ID is opaque and run-local; together with the run it names exactly one waiter.
  */
 export type InterviewAnswer = {
@@ -47,6 +56,11 @@ export type RunItem = {
   run: RunRow;
   summary: string;
   elapsed: string;
+  activity_at: number;
+  cost: string;
+  session_count: number;
+  turn_count: number;
+  instruction: string;
 };
 
 /**
@@ -59,6 +73,14 @@ export type RunRow = {
   error: string;
   started: number;
   ended: number;
+};
+
+/**
+ * SendConversationMessage is one visible user turn.
+ */
+export type SendConversationMessage = {
+  conversation: string;
+  message: string;
 };
 
 /**

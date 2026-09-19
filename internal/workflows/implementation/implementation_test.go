@@ -15,12 +15,12 @@ import (
 )
 
 type implementationHarness struct {
-	mu       sync.Mutex
-	created  int
-	plans    int
-	prompts  []string
-	verdicts []bool
-	closed   []string
+	mu          sync.Mutex
+	created     int
+	plans       int
+	prompts     []string
+	assessments []Assessment
+	closed      []string
 }
 
 func (h *implementationHarness) CreateSession(context.Context, string, string, string) (string, error) {
@@ -48,19 +48,20 @@ func (h *implementationHarness) RunTurn(_ context.Context, _ string, prompt stri
 		h.plans++
 		h.prompts = append(h.prompts, prompt)
 		h.mu.Unlock()
-		return gimble.TurnResult{Output: json.RawMessage(`{"tasks":[{"name":"implement","description":"implement the requirement","definition_of_done":"the requirement works","validation":{"command":"","query":""}}],"next":0}`)}, nil
-	case strings.Contains(prompt, "Independently read the complete requirements file"):
+		return gimble.TurnResult{Output: json.RawMessage(`{"tasks":[{"name":"implement","description":"implement the next part of the promise","definition_of_done":"the selected behavior is directly demonstrated","validation":{"command":"printf task-check-output","query":"Observe whether the selected behavior works"}}],"next":0}`)}, nil
+	case strings.Contains(prompt, "Independently validate the selected task and the overall promise"):
 		h.mu.Lock()
-		complete := true
-		if len(h.verdicts) > 0 {
-			complete = h.verdicts[0]
-			h.verdicts = h.verdicts[1:]
+		assessment := Assessment{ValidationPassed: true, Observed: "promise works", SubstantialGaps: []string{}, SmallGaps: []string{"optional polish"}}
+		if len(h.assessments) > 0 {
+			assessment = h.assessments[0]
+			h.assessments = h.assessments[1:]
 		}
 		h.mu.Unlock()
-		if complete {
-			return gimble.TurnResult{Output: json.RawMessage(`{"complete":true,"observed":"requirement works","unmet_requirements":[]}`)}, nil
+		raw, err := json.Marshal(assessment)
+		if err != nil {
+			return gimble.TurnResult{}, err
 		}
-		return gimble.TurnResult{Output: json.RawMessage(`{"complete":false,"observed":"inspected repository","unmet_requirements":["still incomplete"]}`)}, nil
+		return gimble.TurnResult{Output: raw}, nil
 	default:
 		if len(schema) == 0 {
 			return gimble.TurnResult{Output: json.RawMessage(`"implemented"`)}, nil
@@ -69,16 +70,16 @@ func (h *implementationHarness) RunTurn(_ context.Context, _ string, prompt stri
 	}
 }
 
-func implementationParams(t *testing.T, validation string, maxTasks int) (gimble.Env, Params) {
+func implementationParams(t *testing.T, maxTasks int) (gimble.Env, Params) {
 	t.Helper()
 	workDir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(workDir, "requirements.md"), []byte("Implement the feature."), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(workDir, "done.md"), []byte("The feature works in the real application."), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	return gimble.Env{WorkDir: workDir}, Params{
-		RequirementsFile:  "requirements.md",
-		ValidationCommand: validation,
-		MaxTasks:          maxTasks,
+		Promise:              "Implement the feature",
+		DefinitionOfDoneFile: "done.md",
+		MaxTasks:             maxTasks,
 	}
 }
 
@@ -94,33 +95,31 @@ func runImplementation(t *testing.T, h *implementationHarness, env gimble.Env, p
 		func(ctx context.Context) error { return Implement(ctx, env, params) })
 }
 
-func TestImplementSucceedsOnlyWithCommandAndIndependentAcceptance(t *testing.T) {
-	h := &implementationHarness{verdicts: []bool{true}}
-	env, params := implementationParams(t, "true", 1)
+func TestImplementStopsImmediatelyWhenValidationPassesWithSmallGaps(t *testing.T) {
+	h := &implementationHarness{assessments: []Assessment{{ValidationPassed: true, Observed: "saw it work at 90–95%", SubstantialGaps: []string{}, SmallGaps: []string{"optional polish remains"}}}}
+	env, params := implementationParams(t, 3)
 	if err := runImplementation(t, h, env, params); err != nil {
 		t.Fatal(err)
 	}
-}
-
-func TestImplementFailedValidationCannotBeOverridden(t *testing.T) {
-	h := &implementationHarness{verdicts: []bool{true}}
-	env, params := implementationParams(t, "false", 1)
-	if err := runImplementation(t, h, env, params); err == nil {
-		t.Fatal("failed fixed validation was accepted")
+	if h.plans != 1 {
+		t.Fatalf("planner turns = %d, want 1; a passing validation with small gaps must not take another lap", h.plans)
 	}
 }
 
-func TestImplementReplansWithValidatorAndCommandEvidence(t *testing.T) {
-	h := &implementationHarness{verdicts: []bool{false, true}}
-	env, params := implementationParams(t, "printf fixed-validation-output", 2)
+func TestImplementReplansOnlyForSubstantialGaps(t *testing.T) {
+	h := &implementationHarness{assessments: []Assessment{
+		{ValidationPassed: false, Observed: "inspected repository", SubstantialGaps: []string{"still incomplete"}, SmallGaps: []string{}},
+		{ValidationPassed: true, Observed: "promise works", SubstantialGaps: []string{}, SmallGaps: []string{"optional polish"}},
+	}}
+	env, params := implementationParams(t, 2)
 	if err := runImplementation(t, h, env, params); err != nil {
 		t.Fatal(err)
 	}
 	if h.plans != 2 {
 		t.Fatalf("planner turns = %d, want 2", h.plans)
 	}
-	if !strings.Contains(h.prompts[1], "still incomplete") || !strings.Contains(h.prompts[1], "fixed-validation-output") {
-		t.Fatalf("second planner prompt lacks validator or command evidence:\n%s", h.prompts[1])
+	if !strings.Contains(h.prompts[1], "still incomplete") || !strings.Contains(h.prompts[1], "task-check-output") {
+		t.Fatalf("second planner prompt lacks validation or check evidence:\n%s", h.prompts[1])
 	}
 }
 

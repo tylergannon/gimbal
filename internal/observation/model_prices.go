@@ -50,3 +50,22 @@ func pricedCost(model string, tokens Tokens) (float64, bool) {
 		tokens.CacheWrite*price.cacheWrite +
 		(tokens.Output+tokens.Reasoning)*price.output) / 1_000_000, true
 }
+
+// TotalCost prices one observation roll-up. A harness-stated cost is used only
+// when the catalog does not know that model; without either source, the total
+// is unknown rather than a misleading partial sum.
+func TotalCost(total Total) (float64, bool) {
+	var cost float64
+	for model, usage := range total.ByModel {
+		priced, ok := pricedCost(model, usage.Tokens)
+		if ok {
+			cost += priced
+			continue
+		}
+		if usage.StatedCost == 0 {
+			return 0, false
+		}
+		cost += usage.StatedCost
+	}
+	return cost, true
+}

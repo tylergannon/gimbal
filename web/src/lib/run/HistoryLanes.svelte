@@ -108,10 +108,12 @@
   };
   const state = (lane: Lane): PipState => {
     if (lane.kind === "command") {
+      if (lane.command.interrupted) return "ended";
       if (lane.command.error || (lane.command.ended && lane.command.exit_code !== 0)) return "failed";
       return lane.command.ended ? "ended" : "running";
     }
     if (lane.kind === "turn") {
+      if (lane.turn.interrupted) return "ended";
       if (lane.turn.error) return "failed";
       return lane.turn.ended ? "ended" : "running";
     }

@@ -1,0 +1,11 @@
+# UI live state bundle
+
+correction: The prior task worktree was removed after merge; the user requested restoring it for the next UI bundle. Retain this restored worktree for the user.
+decision: Try the installed implement workflow on #271 and #273 together. Requirements are local and fixed, with a bounded four-assignment run and independent validation. The parent owns git delivery.
+doc_bug: skills/gimble-runs/SKILL.md still says review is the only current built-in; installed help at e0032af lists implement and research workflows. Use rendered help and source for invocation; repairing that documentation is outside this bundle.
+correction: Launching the implementation workflow is not sufficient monitoring. Stay with the run, inspect deterministic results and independent assessments, and steer concrete findings through the loop.
+friction: The E2E placeholder exclusion searched all detail-pane text, including agent transcripts that quote the test source. The live implement run triggered a false failure despite a selected agent heading. Assert against the empty-state element, preserving positive selection coverage.
+decision: Initial snapshot SSE tests do not cover joining at the current stream position with an empty suffix. The parent reproduced a two-second header timeout on that idle catch-up path and queued it to the planner.
+friction: The task.2 QA agent returned complete=true for its selected SSE assignment despite the validation prompt requiring the complete bundle. The red fixed gate prevented premature success. Parent steered the planner to preserve #271, browser evidence, and the failing assertion as unmet; whole-requirements validation needs explicit verification.
+correction: The user rejected the slow all-Luna trial and requested default models. Stop Luna, preserve useful changes, and restart with Astra planning/validation and Sol coding. For substantive implementation, do not optimize model choice for token savings at the expense of delivery time.
+friction: The installed workflow advanced to c234108 during the run: invocation now takes promise and definition-of-done-file, with no validation-command flag. Read current rendered help on restart and carry required check evidence in the definition of done.

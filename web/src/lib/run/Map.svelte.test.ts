@@ -99,6 +99,114 @@ test("nodes, watchers, and sheets report selection and folded summaries stay tru
   expect(selections.at(-1)?.kind).toBe("sheet");
 });
 
+test("interrupted map records are ended while a genuine command failure remains failed", async () => {
+  const snapshot = structuredClone(implementInterviewFixture.snapshot);
+  snapshot.turns["coding.1/turn.2"].interrupted = true;
+  snapshot.turns["coding.1/turn.2"].error = "turn stopped";
+  snapshot.commands["implementation.1/task.2/task-check.1"].interrupted = true;
+  snapshot.commands["implementation.1/task.2/task-check.1"].error = "command stopped";
+  snapshot.commands["implementation.1/task.2/build.1"].exit_code = 2;
+  snapshot.commands["implementation.1/task.2/build.1"].error = "build failed";
+
+  const screen = await render(Map, { graph: implementInterviewFixture.graph, snapshot });
+  const trigger = screen.getByRole("button", { name: "Select task instance" });
+  await trigger.click();
+  await screen.getByRole("option", { name: "task 2 of 3" }).click();
+
+  expect(
+    document.querySelector('button[aria-label="Select coding"] [data-state="ended"]'),
+  ).not.toBeNull();
+  expect(
+    document.querySelector('button[aria-label="Select task-check"] [data-state="ended"]'),
+  ).not.toBeNull();
+  expect(
+    document.querySelector('button[aria-label="Select build"] [data-state="failed"]'),
+  ).not.toBeNull();
+});
+
+test("a folded live scope advances its visible elapsed time while idle", async () => {
+  const snapshot = structuredClone(planTripFixture.snapshot);
+  const now = Date.now();
+  snapshot.run.started = now - 75_000;
+  snapshot.scopes["research.1"].began = now - 65_000;
+
+  const screen = await render(Map, { graph: planTripFixture.graph, snapshot });
+  await screen.getByRole("button", { name: "Fold research" }).click();
+  const elapsed = (): Element => {
+    const element = document.querySelector('[data-scope="research.1"] .fold-summary .elapsed');
+    expect(element, "folded live elapsed duration should be rendered").not.toBeNull();
+    if (!element) throw new Error("folded live elapsed duration is missing");
+    return element;
+  };
+  const before = elapsed().textContent;
+  expect(before).toMatch(/^\d+m \d{2}s$/);
+
+  await new Promise((resolve) => setTimeout(resolve, 1_250));
+
+  expect(elapsed().textContent).not.toBe(before);
+});
+
+test("a folded live scope advances while snapshots arrive faster than its clock", async () => {
+  const snapshot = structuredClone(planTripFixture.snapshot);
+  const now = Date.now();
+  snapshot.run.started = now - 75_000;
+  snapshot.scopes["research.1"].began = now - 65_000;
+
+  const screen = await render(Map, { graph: planTripFixture.graph, snapshot });
+  await screen.getByRole("button", { name: "Fold research" }).click();
+  const elapsed = (): Element => {
+    const element = document.querySelector('[data-scope="research.1"] .fold-summary .elapsed');
+    expect(element, "folded live elapsed duration should be rendered").not.toBeNull();
+    if (!element) throw new Error("folded live elapsed duration is missing");
+    return element;
+  };
+  const before = elapsed().textContent;
+
+  for (let update = 1; update <= 6; update++) {
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    const refreshed = structuredClone(snapshot);
+    refreshed.position += update;
+    await screen.rerender({ graph: planTripFixture.graph, snapshot: refreshed });
+  }
+
+  expect(elapsed().textContent).not.toBe(before);
+});
+
+test("a folded ended or recorded scope keeps its visible elapsed time fixed", async () => {
+  const snapshot = structuredClone(planTripFixture.snapshot);
+  const now = Date.now();
+  snapshot.run.started = now - 75_000;
+  snapshot.scopes["research.1"].began = now - 65_000;
+  snapshot.scopes["research.1"].ended = now - 20_000;
+
+  const screen = await render(Map, { graph: planTripFixture.graph, snapshot });
+  await screen.getByRole("button", { name: "Fold research" }).click();
+  const elapsed = (): Element => {
+    const element = document.querySelector('[data-scope="research.1"] .fold-summary .elapsed');
+    expect(element, "folded elapsed duration should be rendered").not.toBeNull();
+    if (!element) throw new Error("folded elapsed duration is missing");
+    return element;
+  };
+  const endedBefore = elapsed().textContent;
+  expect(endedBefore).toBe("0m 45s");
+
+  await new Promise((resolve) => setTimeout(resolve, 1_250));
+  expect(elapsed().textContent).toBe(endedBefore);
+
+  const recorded = structuredClone(snapshot);
+  recorded.run.status = "completed";
+  recorded.run.ended = now - 1_000;
+  recorded.scopes["research.1"].ended = 0;
+  for (const scope of Object.values(recorded.scopes)) scope.began = now - 70_000;
+  recorded.scopes["research.1"].began = now - 65_000;
+  await screen.rerender({ graph: planTripFixture.graph, snapshot: recorded });
+  const recordedBefore = elapsed().textContent;
+  expect(recordedBefore).toBe("1m 04s");
+
+  await new Promise((resolve) => setTimeout(resolve, 1_250));
+  expect(elapsed().textContent).toBe(recordedBefore);
+});
+
 test("opening a sheet folds its sibling while the root remains permanent", async () => {
   const screen = await render(Map, planTripFixture);
 

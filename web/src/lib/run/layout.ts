@@ -185,6 +185,7 @@ export type MapLayoutOptions = {
   selectedInstances?: Readonly<Record<string, string>>;
   foldedScopes?: readonly string[];
   selectedKey?: string;
+  now?: number;
 };
 
 type Placement = {
@@ -439,6 +440,7 @@ function runtimeFor(snapshot: RunSnapshot, scopeKey: string, operation: NodeOper
 
 function turnState(turn?: TurnRow): PipState {
   if (!turn) return "not-yet";
+  if (turn.interrupted) return "ended";
   if (turn.error) return "failed";
   return turn.ended === 0 ? "running" : "ended";
 }
@@ -447,6 +449,7 @@ function operationState(snapshot: RunSnapshot, scopeKey: string, operation: Node
   if (operation.kind === "command") {
     const command = commandFor(snapshot, scopeKey, operation.name);
     if (!command) return "not-yet" as const;
+    if (command.interrupted) return "ended" as const;
     if (command.error || command.exit_code !== 0) return "failed" as const;
     return command.ended === 0 ? ("running" as const) : ("ended" as const);
   }
@@ -517,8 +520,11 @@ function observedAt(snapshot: RunSnapshot) {
   );
 }
 
-function elapsedFor(snapshot: RunSnapshot, scope: ScopeRow) {
-  const milliseconds = Math.max(0, (scope.ended || observedAt(snapshot)) - scope.began);
+function elapsedFor(snapshot: RunSnapshot, scope: ScopeRow, now?: number) {
+  const recordedAt = snapshot.run.ended || observedAt(snapshot);
+  const endpoint =
+    scope.ended || (snapshot.run.status === "running" ? (now ?? observedAt(snapshot)) : recordedAt);
+  const milliseconds = Math.max(0, endpoint - scope.began);
   const minutes = Math.floor(milliseconds / 60_000);
   const seconds = Math.floor(milliseconds / 1_000) % 60;
   return `${minutes}m ${seconds.toString().padStart(2, "0")}s`;
@@ -617,7 +623,7 @@ function addSheet(
     instanceGroupKey: instanceGroupKey(parentScopeKey, declaredScopeName(scope)),
     selectionKey: sheetSelectionKey(scope.key),
     folded: placement.foldedScopes.has(scope.key),
-    elapsed: elapsedFor(placement.snapshot, scope),
+    elapsed: elapsedFor(placement.snapshot, scope, placement.options.now),
     steps: steps ?? foldedSteps(placement.snapshot, scope.key, operations),
     selected: false,
     selectionPath: false,

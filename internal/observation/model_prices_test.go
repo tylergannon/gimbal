@@ -1,6 +1,9 @@
 package observation
 
-import "testing"
+import (
+	"math"
+	"testing"
+)
 
 func TestModelPriceFor(t *testing.T) {
 	for _, want := range []struct {
@@ -38,5 +41,21 @@ func TestPricedCost(t *testing.T) {
 	}
 	if cost, ok := pricedCost("not-a-priced-model", Tokens{}); ok || cost != 0 {
 		t.Fatalf("unknown price = %v, %t; want 0, false", cost, ok)
+	}
+}
+
+func TestTotalCostUsesCatalogAndStatedFallback(t *testing.T) {
+	total := Total{ByModel: map[string]Usage{
+		"gpt-5.6-luna":  {Tokens: Tokens{Input: 1_000_000, Output: 100_000}},
+		"private-model": {StatedCost: 0.5},
+	}}
+	cost, ok := TotalCost(total)
+	if !ok || math.Abs(cost-0.82) > 1e-12 {
+		t.Fatalf("total cost = %v, %t; want 0.82, true", cost, ok)
+	}
+
+	total.ByModel["unpriced-model"] = Usage{Input: 1}
+	if cost, ok := TotalCost(total); ok || cost != 0 {
+		t.Fatalf("incomplete total = %v, %t; want 0, false", cost, ok)
 	}
 }

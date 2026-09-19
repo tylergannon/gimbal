@@ -1,0 +1,7 @@
+{"type":"object",
+"description":"ResearchResult summarizes the local evidence a researcher actually left.","properties":{
+"summary":{"type":"string"},
+"source_files":{"type":"array","items":{"type":"string"}},
+"questions_addressed":{"type":"array","items":{"type":"string"}},
+"unresolved_questions":{"type":"array","items":{"type":"string"}}
+},"required":["summary","source_files","questions_addressed","unresolved_questions"],"additionalProperties":false}

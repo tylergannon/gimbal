@@ -1,0 +1,9 @@
+{"type":"object",
+"description":"TopicGroup is one coherent assignment for a parallel researcher.","properties":{
+"name":{"type":"string"},
+"topics":{"type":"array","items":{"type":"object",
+"description":"Topic is one bounded area of research and the questions it must address.","properties":{
+"name":{"type":"string"},
+"questions":{"type":"array","items":{"type":"string"}}
+},"required":["name","questions"],"additionalProperties":false}}
+},"required":["name","topics"],"additionalProperties":false}

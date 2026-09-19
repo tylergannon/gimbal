@@ -1,0 +1,6 @@
+{"type":"object",
+"description":"EditorialVerdict distinguishes material document failures from optional polish.","properties":{
+"only_nitpicks":{"type":"boolean"},
+"material_issues":{"type":"array","items":{"type":"string"}},
+"missing_topics":{"type":"array","items":{"type":"string"}}
+},"required":["only_nitpicks","material_issues","missing_topics"],"additionalProperties":false}

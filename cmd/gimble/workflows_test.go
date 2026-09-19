@@ -13,10 +13,40 @@ import (
 
 func TestRunListsTheWorkflowsBuiltIn(t *testing.T) {
 	help := helpOf(t)
-	for _, name := range []string{"review"} {
+	for _, name := range []string{"pyramid-summary", "research-document", "review"} {
 		if !strings.Contains(help, "\n  "+name+" ") {
 			t.Errorf("run --help does not list %s:\n%s", name, help)
 		}
+	}
+}
+
+func TestPyramidSummaryHelpExplainsItsFixedInputs(t *testing.T) {
+	help := helpOf(t, "pyramid-summary")
+	for _, flag := range []string{"--goal string", "--semantic-index string", "--largest-document string", "--output-dir string"} {
+		if !strings.Contains(help, flag) || !strings.Contains(lineWith(help, flag), "(required)") {
+			t.Errorf("run pyramid-summary --help lacks required %s:\n%s", flag, help)
+		}
+	}
+	if !strings.Contains(help, "--largest-token-budget int") || !strings.Contains(help, "default starting budget of 3200") {
+		t.Errorf("run pyramid-summary --help lacks the configurable largest budget:\n%s", help)
+	}
+	if !strings.Contains(help, "until the next level") || !strings.Contains(help, "under 100 tokens") {
+		t.Errorf("run pyramid-summary --help lacks the halving rule:\n%s", help)
+	}
+}
+
+func TestResearchDocumentHelpShowsLimitsAndModelDefaults(t *testing.T) {
+	help := helpOf(t, "research-document")
+	for _, flag := range []string{"--goal string", "--research-dir string", "--output string", "--token-budget int", "--min-sources-per-topic int", "--max-editorial-rounds int"} {
+		if !strings.Contains(help, flag) {
+			t.Errorf("run research-document --help lacks %s:\n%s", flag, help)
+		}
+	}
+	if !strings.Contains(lineWith(help, "--document-authoring"), `(default "gpt-6-astra")`) {
+		t.Errorf("document authoring does not default to Astra:\n%s", help)
+	}
+	if !strings.Contains(lineWith(help, "--research-indexing"), `(default "gpt-5.6-luna")`) {
+		t.Errorf("research indexing does not default to Luna:\n%s", help)
 	}
 }
 

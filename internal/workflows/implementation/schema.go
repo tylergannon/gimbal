@@ -1,6 +1,6 @@
 //go:build jsonschema
 
-package buildfrontend
+package implementation
 
 import (
 	"encoding/json"

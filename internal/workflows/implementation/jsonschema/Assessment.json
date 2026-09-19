@@ -1,0 +1,6 @@
+{"type":"object",
+"description":"Assessment is an independent validator's judgment of the complete requirements.","properties":{
+"complete":{"type":"boolean","description":"Complete is true only when the validator observed that every requirement is satisfied."},
+"observed":{"type":"string","description":"Observed states what the validator personally inspected or ran."},
+"unmet_requirements":{"type":"array","description":"UnmetRequirements lists required behavior or proof that remains missing.","items":{"type":"string"}}
+},"required":["complete","observed","unmet_requirements"],"additionalProperties":false}

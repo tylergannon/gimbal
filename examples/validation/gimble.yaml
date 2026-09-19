@@ -1,0 +1,26 @@
+# Create /tmp/gimble-validation-target first and choose an unused port.
+# Keep the observer's --work-dir separate from this disposable target.
+product:
+  name: Gimble
+  workdir: /tmp/gimble-validation-target
+  cli: gimble
+  start: gimble --port 43827
+  ready: curl --fail --silent http://127.0.0.1:43827/ >/dev/null
+  browser_url: http://127.0.0.1:43827
+output_dir: /tmp/gimble-validation-artifacts
+timeout: 15m
+# Optional executable overrides; bare names use PATH.
+# tools:
+#   playwright_cli: /absolute/path/to/playwright-cli
+#   terminal_server: /absolute/path/to/gotty
+#   video_decoder: /absolute/path/to/ffmpeg
+features:
+  - id: browser-navigation
+    surface: browser
+    exercise: Navigate between Conversations, Runs, and About, then reload the current page.
+    expected: Each destination renders successfully, and reloading preserves a working page.
+  - id: cli-count-tokens
+    surface: cli
+    setup: Create an empty file inside the disposable target directory.
+    exercise: Run count-tokens on the empty file, then on a nonexistent file. Record both exit statuses.
+    expected: The empty file reports zero tokens and exits zero. The nonexistent file produces an error and exits nonzero.

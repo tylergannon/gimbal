@@ -13,7 +13,7 @@ import (
 
 func TestRunListsTheWorkflowsBuiltIn(t *testing.T) {
 	help := helpOf(t)
-	for _, name := range []string{"implement", "pyramid-summary", "research-document", "review"} {
+	for _, name := range []string{"implement", "pyramid-summary", "research-document", "review", "validate-product"} {
 		if !strings.Contains(help, "\n  "+name+" ") {
 			t.Errorf("run --help does not list %s:\n%s", name, help)
 		}
@@ -176,4 +176,16 @@ func lineWith(text, flag string) string {
 		}
 	}
 	return ""
+}
+
+func TestValidateProductHelp(t *testing.T) {
+	help := helpOf(t, "validate-product")
+	if !strings.Contains(lineWith(help, "--suite-file string"), "(required)") {
+		t.Fatal(help)
+	}
+	for _, role := range []string{"product-operation", "product-validation"} {
+		if !strings.Contains(lineWith(help, "--"+role+" string"), `(default "gpt-5.6-luna")`) {
+			t.Fatal(help)
+		}
+	}
 }

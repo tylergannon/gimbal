@@ -1,0 +1,6 @@
+{"type":"object",
+"description":"Observation records what the operator actually observed, not a verdict.","properties":{
+"summary":{"type":"string"},
+"evidence_files":{"type":"array","items":{"type":"string"}},
+"blocked_reason":{"type":"string"}
+},"required":["summary","evidence_files","blocked_reason"],"additionalProperties":false}

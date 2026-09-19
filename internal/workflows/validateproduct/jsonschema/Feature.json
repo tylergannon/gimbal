@@ -1,0 +1,8 @@
+{"type":"object",
+"properties":{
+"id":{"type":"string"},
+"surface":{"type":"string"},
+"setup":{"type":"string"},
+"exercise":{"type":"string"},
+"expected":{"type":"string"}
+},"required":["id","surface","setup","exercise","expected"],"additionalProperties":false}

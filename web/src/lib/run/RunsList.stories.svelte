@@ -25,10 +25,8 @@
     </header>
     <main>
       <RunsList
-        runs={runsListFixture.runs}
+        items={runsListFixture.items}
         attention={runsListFixture.attention}
-        summaries={runsListFixture.summaries}
-        elapsed={runsListFixture.elapsed}
         now={1_800_000_760_000}
         onopenrun={(run) => (event = `open-run · ${run.id}`)}
       />

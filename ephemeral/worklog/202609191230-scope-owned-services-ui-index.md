@@ -1,0 +1,2 @@
+friction: df-semantic-index describes an output directory, while this task names the exact entrypoint file `corpus/INDEX.md` -> keep the semantic index self-contained at that path, with topic indexes as leaves and routing/eval notes inline.
+decision: organize retrieval around issue-284's authoring questions and use the four-precedent comparison already selected by topic-007; retain topic-004's Dagger and the longer clips as secondary evidence rather than broadening the final comparison.

@@ -28,8 +28,8 @@
       <SmallStates state="disconnected" onreconnect={() => (event = "reconnect")} />
       <SmallStates
         state="no-graph"
-        runID="01M2QZ7P"
-        onbacktoruns={() => (event = "back-to-runs")}
+        workflowName="implement"
+        graphProblem="mismatch"
       />
     </main>
   </div>

@@ -154,7 +154,7 @@ When('the delayed Runs data arrives', async ({ browserState }) => {
 
 Then('recorded cards replace the loading feedback', async ({ page, browserState }) => {
 	await expect(page.getByRole('status').filter({ hasText: 'Loading runs…' })).toHaveCount(0);
-	await expect(page.getByRole('button', { name: 'Open long-failure fixture-failed' })).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Open implement fixture-failed' })).toBeVisible();
 	expect(browserState.pageErrors).toEqual([]);
 });
 
@@ -170,7 +170,7 @@ When('a background Runs refresh is delayed', async ({ page, browserState }) => {
 });
 
 Then('the current Runs card stays visible and usable', async ({ page, browserState }) => {
-	const card = page.getByRole('button', { name: 'Open long-failure fixture-failed' });
+	const card = page.getByRole('button', { name: 'Open implement fixture-failed' });
 	await expect(card).toBeVisible();
 	await card.focus();
 	await expect(card).toBeFocused();
@@ -184,7 +184,7 @@ When('the background Runs refresh arrives with updated data', async ({ browserSt
 });
 
 Then('the card updates without navigation loading feedback', async ({ page, browserState }) => {
-	const card = page.getByRole('button', { name: 'Open long-failure fixture-failed' });
+	const card = page.getByRole('button', { name: 'Open implement fixture-failed' });
 	await expect(card).toContainText('Refresh completed with updated fixture data.');
 	await expect(page.getByRole('status').filter({ hasText: 'Loading runs…' })).toHaveCount(0);
 	expect(browserState.pageErrors).toEqual([]);
@@ -194,7 +194,7 @@ Then(
 	'the failed Runs card is contained with a reachable action at desktop and phone widths',
 	async ({ page, browserState }) => {
 		const assertContained = async () => {
-			const card = page.getByRole('button', { name: 'Open long-failure fixture-failed' });
+			const card = page.getByRole('button', { name: 'Open implement fixture-failed' });
 			await expect(card).toBeVisible();
 			await expect(card.locator('.open-label')).toBeVisible();
 			await card.focus();

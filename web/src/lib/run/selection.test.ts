@@ -37,7 +37,7 @@ test("rejects a missing runtime path instead of inventing a map placement", () =
 });
 
 test("current activity resolves pending interviews and supervisor turns to their map nodes", () => {
-  const waiting = currentActivitySelection(planTripFixture.graph, planTripFixture.snapshot, true);
+  const waiting = currentActivitySelection(planTripFixture.graph, planTripFixture.snapshot);
   assert.equal(waiting?.kind, "node");
   if (waiting?.kind !== "node") return;
   assert.equal(waiting.scope.key, "research.1/transport.1");
@@ -46,7 +46,6 @@ test("current activity resolves pending interviews and supervisor turns to their
   const active = currentActivitySelection(
     implementInterviewFixture.graph,
     implementInterviewFixture.snapshot,
-    true,
   );
   assert.equal(active?.kind, "watcher");
   if (active?.kind !== "watcher") return;
@@ -58,7 +57,6 @@ test("navigation finds old scope instances and turns with coordinated map select
   const items = runNavigationItems(
     implementInterviewFixture.graph,
     implementInterviewFixture.snapshot,
-    true,
   );
   const scope = items.find((item) => item.id === "scope:implementation.1/task.2");
   assert.equal(scope?.selection.kind, "sheet");
@@ -79,7 +77,6 @@ test("selection rebinds to refreshed rows and resets for missing items or anothe
   const selected = runNavigationItems(
     implementInterviewFixture.graph,
     implementInterviewFixture.snapshot,
-    true,
   ).find((item) => item.id === "turn:coding.1/turn.2")?.selection;
   assert.ok(selected);
 
@@ -117,4 +114,14 @@ test("service selections rebind to refreshed owner scopes", () => {
   assert.equal(rebound?.kind, "service");
   assert.equal(rebound?.scope, refreshed.scopes["backend.1"]);
   if (rebound?.kind === "service") assert.equal(rebound.service, service);
+});
+
+test("navigation keeps service process commands searchable as graph-backed service selections", () => {
+  const items = runNavigationItems(serviceOwnershipFixture.graph, serviceOwnershipFixture.snapshot);
+  const api = items.find((item) => item.id === "command:backend.1/api.1");
+  assert.equal(api?.selection.kind, "service");
+  if (api?.selection.kind !== "service") return;
+  assert.equal(api.selection.service.name, "api");
+  assert.equal(api.selection.scope.key, "backend.1");
+  assert.equal(api.selection.runtime?.id, "backend.1/api.1");
 });

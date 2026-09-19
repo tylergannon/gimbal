@@ -15,16 +15,16 @@
 
   let {
     state,
-    runID = "01M2XXXX",
+    workflowName = "workflow",
+    graphProblem = "missing",
     disconnectedFor = "42 s",
     onreconnect,
-    onbacktoruns,
   }: {
     state: SmallState;
-    runID?: string;
+    workflowName?: string;
+    graphProblem?: "missing" | "mismatch";
     disconnectedFor?: string;
     onreconnect?: () => void;
-    onbacktoruns?: () => void;
   } = $props();
 </script>
 
@@ -79,22 +79,38 @@
     </Card.Content>
   {:else}
     <Card.Header>
-      <Card.Title>No matching graph</Card.Title>
-      <Card.Description>The recorded run remains readable when its workflow definition changes.</Card.Description>
+      <Card.Title>Workflow graph required</Card.Title>
+      <Card.Description>This run cannot be mapped by the workflow graph compiled into this server.</Card.Description>
     </Card.Header>
     <Card.Content class="no-graph-state">
       <div class="message" role="status">
         <CircleAlertIcon size={16} />
         <div>
-          <strong>No compiled graph matches this run</strong>
-          <span>Scopes, turns, commands and their outcomes are shown as recorded lanes instead.</span>
+          <strong>
+            {graphProblem === "mismatch"
+              ? "The registered graph does not match this run"
+              : `No generated graph is registered for ${workflowName}`}
+          </strong>
+          <span>
+            Regenerate the workflow, then rebuild and restart the binary serving this project.
+          </span>
         </div>
       </div>
       <div class="missing-run">
         <SearchXIcon size={16} />
-        <span><code>{runID}</code> has no map in the current binary.</span>
+        <span>
+          Run <code>go generate ./...</code> from the module that owns <code>{workflowName}</code>.
+          Its generated file must call <code>gimble.RegisterGraph</code> for this workflow.
+        </span>
       </div>
-      <Button variant="outline" size="sm" onclick={() => onbacktoruns?.()}>Back to runs</Button>
+      <div class="missing-run">
+        <TerminalIcon size={16} />
+        <span>
+          Rebuild the serving binary and restart it. In the Gimble checkout, use
+          <code>just build</code>.
+        </span>
+      </div>
+      <a class="back-link" href="/">Back to runs</a>
     </Card.Content>
   {/if}
 </Card.Root>
@@ -227,12 +243,33 @@
   }
 
   :global(.connection-state button),
-  :global(.no-graph-state button) {
+  .back-link {
     align-self: flex-start;
   }
 
-  .missing-run {
+  .back-link {
+    display: inline-flex;
+    height: 32px;
+    align-items: center;
+    justify-content: center;
+    padding: 0 12px;
+    color: var(--foreground);
     font-size: 13px;
+    font-weight: 500;
+    text-decoration: none;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+  }
+
+  .missing-run {
+    align-items: flex-start;
+    font-size: 13px;
+    line-height: 20px;
+  }
+
+  .missing-run :global(svg) {
+    flex-shrink: 0;
+    margin-top: 2px;
   }
 
   code {

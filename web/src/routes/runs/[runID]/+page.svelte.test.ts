@@ -61,6 +61,44 @@ async function renderRunningPage(
   return { screen, snapshot, stream: TestEventSource.instances[0] };
 }
 
+test("a missing graph requires generation and a rebuilt serving binary", async () => {
+  const snapshot = structuredClone(planTripFixture.snapshot);
+  const screen = await render(Page, { data: { snapshot, graph: "" } });
+
+  await expect.element(screen.getByText("Workflow graph required", { exact: true })).toBeVisible();
+  await expect
+    .element(screen.getByText(`No generated graph is registered for ${snapshot.run.name}`))
+    .toBeVisible();
+  await expect.element(screen.getByText("go generate ./...", { exact: true })).toBeVisible();
+  await expect.element(screen.getByText("just build", { exact: true })).toBeVisible();
+  await expect
+    .element(screen.getByRole("link", { name: "Back to runs" }))
+    .toHaveAttribute("href", "/");
+  expect(document.querySelector('[aria-label="Recorded run history"]')).toBeNull();
+  expect(document.querySelector('[aria-label$="workflow map"]')).toBeNull();
+});
+
+test("an incompatible registered graph requires regeneration and rebuild", async () => {
+  const snapshot = structuredClone(planTripFixture.snapshot);
+  const screen = await render(Page, {
+    data: { snapshot, graph: JSON.stringify(implementInterviewFixture.graph) },
+  });
+
+  await expect
+    .element(screen.getByText("The registered graph does not match this run", { exact: true }))
+    .toBeVisible();
+  await expect
+    .element(
+      screen.getByText(
+        "Regenerate the workflow, then rebuild and restart the binary serving this project.",
+        { exact: true },
+      ),
+    )
+    .toBeVisible();
+  expect(document.querySelector('[aria-label="Recorded run history"]')).toBeNull();
+  expect(document.querySelector('[aria-label$="workflow map"]')).toBeNull();
+});
+
 test("topbar navigation reveals folded current activity and keeps map and detail coordinated", async () => {
   const { screen } = await renderRunningPage();
   await screen.getByRole("button", { name: "Fold research" }).click();

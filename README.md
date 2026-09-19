@@ -65,6 +65,13 @@ declared structured outputs, then the independent workflow generator in
 `internal/generate/`. It can rebuild missing or stale generated commands
 without first building the application CLI.
 
+The generated file also registers the workflow graph under the run's workflow
+name. The run page requires that graph to match the recorded structure. After
+changing a workflow's shape, regenerate it, rebuild the binary that serves the
+project, and restart that binary; missing or stale generated graph code is
+reported on the run page with those corrective steps instead of a graphless
+history view.
+
 Author a workflow in one Go file with its `func Name(ctx context.Context, env
 gimble.Env, params NameParams) error` entry, workflow-specific parameter and
 result structs, and

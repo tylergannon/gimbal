@@ -283,5 +283,4 @@ export const mismatchedHistorySnapshot: RunSnapshot = {
 export const mismatchedHistoryFixture = {
   graph: undefined,
   snapshot: mismatchedHistorySnapshot,
-  graphNotice: "No compiled graph matches this run",
 } as const;

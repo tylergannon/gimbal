@@ -11,10 +11,22 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/tylergannon/gimble"
 	"github.com/tylergannon/gimble/internal/observation"
+	"github.com/tylergannon/gimble/workflow"
 )
 
 func TestRunPageKeepsInterviewHistoryAcrossQuestionsAndReload(t *testing.T) {
+	const workflowName = "interview-ssr-fixture"
+	gimble.RegisterGraph(workflow.Graph{
+		Name: workflowName,
+		Body: []workflow.Operation{
+			workflow.Scope{Name: "preferences", Body: []workflow.Operation{
+				workflow.Session{Name: "interviewer"},
+				workflow.Interview{Name: "preferences", Session: "interviewer"},
+			}},
+		},
+	})
 	dist, err := fs.Sub(Build, "build")
 	if err != nil {
 		t.Fatal(err)
@@ -29,12 +41,12 @@ func TestRunPageKeepsInterviewHistoryAcrossQuestionsAndReload(t *testing.T) {
 	if err := os.MkdirAll(runDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	store, err := observation.Open(registry, "run-interview", "interview", runDir)
+	store, err := observation.Open(registry, "run-interview", workflowName, runDir)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, record := range []json.RawMessage{
-		json.RawMessage(`{"seq":1,"time":"2026-09-17T17:00:00Z","scope":"","event":{"kind":"run_started","name":"interview"}}`),
+		json.RawMessage(`{"seq":1,"time":"2026-09-17T17:00:00Z","scope":"","event":{"kind":"run_started","name":"interview-ssr-fixture"}}`),
 		json.RawMessage(`{"seq":2,"time":"2026-09-17T17:00:01Z","scope":"preferences.1","event":{"kind":"scope_began","name":"preferences.1"}}`),
 		json.RawMessage(`{"seq":3,"time":"2026-09-17T17:00:02Z","scope":"preferences.1","session":"preferences.1/interviewer.1","event":{"kind":"session_created","name":"interviewer","adapter":"fixture","model":"test-model","workdir":"/w"}}`),
 		json.RawMessage(`{"seq":4,"time":"2026-09-17T17:00:03Z","scope":"preferences.1","session":"preferences.1/interviewer.1","turn":"preferences.1/interviewer.1/turn.1","event":{"kind":"turn_started","prompt":"first","output_type":"gimble.interviewDecision"}}`),
@@ -73,10 +85,13 @@ func TestRunPageKeepsInterviewHistoryAcrossQuestionsAndReload(t *testing.T) {
 		}
 		return recorder.Body.String()
 	}
-	assertHistory := func(body string) {
+	assertGraph := func(body string) {
 		t.Helper()
-		if !strings.Contains(body, "No registered graph is available for this run") {
-			t.Fatal("run without a compiled graph did not use the honest history view")
+		if !strings.Contains(body, workflowName+" workflow map") {
+			t.Fatal("run with a matching compiled graph did not render the workflow map")
+		}
+		if strings.Contains(body, "Workflow graph required") {
+			t.Fatal("run with a matching compiled graph rendered the corrective state")
 		}
 		for _, want := range []string{"preferences.1", "first interview turn", "second interview turn", "Which color?", "Blue"} {
 			if !strings.Contains(body, want) {
@@ -86,7 +101,7 @@ func TestRunPageKeepsInterviewHistoryAcrossQuestionsAndReload(t *testing.T) {
 	}
 
 	thinking := render()
-	assertHistory(thinking)
+	assertGraph(thinking)
 	if !strings.Contains(thinking, "Stop turn") {
 		t.Fatal("the workspace did not expose a stop control for the running interview turn")
 	}
@@ -102,7 +117,7 @@ func TestRunPageKeepsInterviewHistoryAcrossQuestionsAndReload(t *testing.T) {
 
 	for reload := range 2 {
 		pending := render()
-		assertHistory(pending)
+		assertGraph(pending)
 		for _, want := range []string{"What shade?", "answerInterview"} {
 			if !strings.Contains(pending, want) {
 				t.Fatalf("reload %d does not show %q", reload, want)

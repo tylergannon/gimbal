@@ -19,8 +19,8 @@ import (
 type Data struct {
 	Snapshot hooks.RunSnapshot `json:"snapshot"`
 	// Graph is the registered workflow graph's own JSON. It is empty when this
-	// binary has no graph under the run's workflow name; the page then renders
-	// the durable history without inventing a source map.
+	// binary has no graph under the run's workflow name; the page then tells the
+	// developer to regenerate the workflow and rebuild the serving binary.
 	Graph string `json:"graph"`
 }
 

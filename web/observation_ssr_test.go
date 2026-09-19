@@ -90,10 +90,9 @@ func TestRunPageIsRenderedFromTheRunsObservation(t *testing.T) {
 	}
 }
 
-// TestRunPageKeepsLoopHistoryWhenTheGraphIsUnavailable exercises the honest
-// fallback. The record still names the loop and its ordinary sibling, while
-// the page carries the existing loop remote for client-side selection.
-func TestRunPageKeepsLoopHistoryWhenTheGraphIsUnavailable(t *testing.T) {
+// TestRunPageRequiresGenerationWhenTheGraphIsUnavailable exercises the
+// corrective state without changing the saved run.
+func TestRunPageRequiresGenerationWhenTheGraphIsUnavailable(t *testing.T) {
 	dist, err := fs.Sub(Build, "build")
 	if err != nil {
 		t.Fatal(err)
@@ -131,13 +130,16 @@ func TestRunPageKeepsLoopHistoryWhenTheGraphIsUnavailable(t *testing.T) {
 	}
 	body := recorder.Body.String()
 	for _, want := range []string{
-		"No registered graph is available for this run",
-		"sprint.1",
-		"quiet.1",
-		"steerLoop",
+		"Workflow graph required",
+		"No generated graph is registered for looping",
+		"go generate ./...",
+		"just build",
 	} {
 		if !strings.Contains(body, want) {
-			t.Fatalf("the loop history does not contain %q:\n%s", want, body)
+			t.Fatalf("the graph guidance does not contain %q:\n%s", want, body)
 		}
+	}
+	if strings.Contains(body, `aria-label="Recorded run history"`) {
+		t.Fatal("the missing-graph page still rendered history navigation")
 	}
 }

@@ -29,6 +29,20 @@ implemented and has been seen working.
   legitimately invalid. Validation is not a blank check to ask for
   enhancements, or for fixes to bugs that do not prevent validation.
 
+## Execution and observation
+
+Observation may degrade; execution must not. Provider events, Gimble's
+projection of them, and the files and page built from that projection are
+diagnostic evidence. Missing, overlapping, duplicated, or unexpectedly ordered
+events do not cancel active work and do not replace a harness's authoritative
+successful result with failure. Preserve what was actually observed and expose
+the gap rather than inventing a settlement or enforcing one the provider did
+not promise.
+
+Execution still fails when its authority says it failed: the harness cannot be
+started or reached, the provider returns failure, the caller cancels, no
+terminal result arrives, or a required result is absent or invalid.
+
 ## Exit and merge
 
 Once the software actually works and is 90-95% complete, the agents

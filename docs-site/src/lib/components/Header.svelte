@@ -4,6 +4,7 @@
 
   const nav = [
     { route: "/docs/guide" as const, label: "Guide" },
+    { route: "/docs/roles" as const, label: "Roles" },
     { route: "/docs/about" as const, label: "About" },
   ];
 </script>

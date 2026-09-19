@@ -15,6 +15,7 @@
 
   const entries = [
     { route: "/docs/guide" as const, title: "Guide" },
+    { route: "/docs/roles" as const, title: "Workflow roles" },
     { route: "/docs/about" as const, title: "About" },
   ];
 

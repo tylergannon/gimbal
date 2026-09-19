@@ -106,6 +106,29 @@ export type ModelCallRow = Tokens & {
   started: number;
   ended: number;
 };
+/** One command a workflow ran with RunCommand. `scope` is where it ran and
+ * `id` is that scope's key with the command's own `name.ordinal` appended.
+ * `stdout` and `stderr` are whole small outputs and the excerpts of larger
+ * ones; the file fields name the complete streams kept under the run. */
+export type CommandRow = {
+  run: string;
+  id: string;
+  scope: string;
+  name: string;
+  command: string;
+  args: string[];
+  workdir: string;
+  exit_code: number;
+  stdout: string;
+  stderr: string;
+  stdout_file: string;
+  stderr_file: string;
+  error: string;
+  interrupted: boolean;
+  started: number;
+  ended: number;
+  duration: number;
+};
 /** One roll-up: across every model, and per model. */
 export type Total = { all: Usage; by_model: Record<string, Usage> };
 /** Every scope's and every session's roll-up, computed in Go. The browser
@@ -124,6 +147,7 @@ export type RunSnapshot = {
   turns: Record<string, TurnRow>;
   turn_usage: Record<string, Record<string, Usage>>;
   model_calls: Record<string, ModelCallRow[]>;
+  commands: Record<string, CommandRow>;
   totals: Totals;
   transcripts: Record<string, Transcript>;
 };
@@ -138,7 +162,8 @@ export type RowFrame =
   | { table: "interviews"; key: string; row: InterviewRow }
   | { table: "turns"; key: string; row: TurnRow }
   | { table: "turn_usage"; key: string; row: Record<string, Usage> }
-  | { table: "model_calls"; key: string; row: ModelCallRow[] };
+  | { table: "model_calls"; key: string; row: ModelCallRow[] }
+  | { table: "commands"; key: string; row: CommandRow };
 
 export type ObservationFrame =
   | { type: "snapshot"; data: RunSnapshot }
@@ -174,6 +199,7 @@ export class RunObservation {
   turns: Record<string, TurnRow> = {};
   turnUsage: Record<string, Record<string, Usage>> = {};
   modelCalls: Record<string, ModelCallRow[]> = {};
+  commands: Record<string, CommandRow> = {};
   totals: Totals = { scopes: {}, sessions: {} };
   readonly transcripts = new Map<string, Transcribed>();
   revision = 0;
@@ -210,6 +236,7 @@ export class RunObservation {
     this.turns = clone(snapshot.turns ?? {});
     this.turnUsage = clone(snapshot.turn_usage ?? {});
     this.modelCalls = clone(snapshot.model_calls ?? {});
+    this.commands = clone(snapshot.commands ?? {});
     this.totals = clone(snapshot.totals ?? { scopes: {}, sessions: {} });
     this.messageRevisions.clear();
     this.snapshotRevision = this.revision + 1;
@@ -289,6 +316,9 @@ export class RunObservation {
       case "model_calls":
         this.modelCalls[frame.key] = clone(frame.row);
         break;
+      case "commands":
+        this.commands[frame.key] = clone(frame.row);
+        break;
     }
   }
 
@@ -309,6 +339,7 @@ export class RunObservation {
       turns: clone(this.turns),
       turn_usage: clone(this.turnUsage),
       model_calls: clone(this.modelCalls),
+      commands: clone(this.commands),
       totals: clone(this.totals),
       transcripts: Object.fromEntries(
         [...this.transcripts].map(([turn, value]) => [

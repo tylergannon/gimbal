@@ -81,6 +81,7 @@ const snapshot = (title = "start"): RunSnapshot => {
     },
     turn_usage: {},
     model_calls: {},
+    commands: {},
     totals: { scopes: {}, sessions: {} },
     transcripts: { turn: { snapshot: value, provenance: {} } },
   };
@@ -433,4 +434,56 @@ test("a delta advances the cursor only after its complete frame group applies", 
     observation.applyDelta({ stream: "stale", position: 2, frames: [] }, connection),
     false,
   );
+});
+
+test("a command row starts and then ends in place, the way the store writes it", () => {
+  const observation = new RunObservation(snapshot());
+  const connection = observation.beginConnection();
+  const started = {
+    run: "run",
+    id: "loop.1/check.1",
+    scope: "loop.1",
+    name: "check",
+    command: "go",
+    args: ["test", "./..."],
+    workdir: "/src",
+    exit_code: -1,
+    stdout: "",
+    stderr: "",
+    stdout_file: "commands/loop.1/check.1/stdout.log",
+    stderr_file: "commands/loop.1/check.1/stderr.log",
+    error: "",
+    interrupted: false,
+    started: 10,
+    ended: 0,
+    duration: 0,
+  };
+  assert.equal(
+    observation.applyDelta(
+      {
+        stream: "stream-1",
+        position: 1,
+        frames: [{ type: "row", data: { table: "commands", key: started.id, row: started } }],
+      },
+      connection,
+    ),
+    true,
+  );
+  assert.deepEqual(observation.commands[started.id], started);
+  // The end is the same row again, so the cursor and the row move together.
+  const ended = { ...started, exit_code: 1, stdout: "FAIL", ended: 12, duration: 2 };
+  assert.equal(
+    observation.applyDelta(
+      {
+        stream: "stream-1",
+        position: 2,
+        frames: [{ type: "row", data: { table: "commands", key: ended.id, row: ended } }],
+      },
+      connection,
+    ),
+    true,
+  );
+  assert.equal(observation.position, 2);
+  assert.equal(observation.commands[started.id].exit_code, 1);
+  assert.deepEqual(observation.snapshot().commands[started.id], ended);
 });

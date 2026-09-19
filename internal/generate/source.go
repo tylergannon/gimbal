@@ -83,6 +83,7 @@ func literal(entry string, graph workflow.Graph) string {
 	b.WriteString("var Graph = workflow.Graph{\n")
 	fmt.Fprintf(&b, "Name: %s,\n", strconv.Quote(graph.Name))
 	fmt.Fprintf(&b, "Source: %s,\n", position(graph.Source))
+	fmt.Fprintf(&b, "Services: %s,\n", services(graph.Services))
 	fmt.Fprintf(&b, "Body: %s,\n", operations(graph.Body))
 	if len(graph.Diagnostics) > 0 {
 		b.WriteString("Diagnostics: []workflow.Diagnostic{\n")
@@ -110,6 +111,16 @@ func operations(ops []workflow.Operation) string {
 	return b.String()
 }
 
+func services(declarations []workflow.Service) string {
+	var b strings.Builder
+	b.WriteString("[]workflow.Service{\n")
+	for _, service := range declarations {
+		fmt.Fprintf(&b, "{Source: %s, Name: %s},\n", position(service.Source), strconv.Quote(service.Name))
+	}
+	b.WriteString("}")
+	return b.String()
+}
+
 func operation(op workflow.Operation) string {
 	var b strings.Builder
 	switch op := op.(type) {
@@ -128,21 +139,21 @@ func operation(op workflow.Operation) string {
 	case workflow.Set:
 		fmt.Fprintf(&b, "workflow.Set{Source: %s, Key: %s}", position(op.Source), strconv.Quote(op.Key))
 	case workflow.Scope:
-		fmt.Fprintf(&b, "workflow.Scope{Source: %s, Name: %s, Body: %s}", position(op.Source), strconv.Quote(op.Name), operations(op.Body))
+		fmt.Fprintf(&b, "workflow.Scope{Source: %s, Name: %s, Services: %s, Body: %s}", position(op.Source), strconv.Quote(op.Name), services(op.Services), operations(op.Body))
 	case workflow.PromiseLoop:
 		fmt.Fprintf(&b, "workflow.PromiseLoop{Source: %s, Name: %s, Planner: %s", position(op.Source), strconv.Quote(op.Name), strconv.Quote(op.Planner))
 		if len(op.Supervisors) > 0 {
 			fmt.Fprintf(&b, ", Supervisors: %s", supervisors(op.Supervisors))
 		}
-		fmt.Fprintf(&b, ", Body: %s}", operations(op.Body))
+		fmt.Fprintf(&b, ", Services: %s, Body: %s}", services(op.Services), operations(op.Body))
 	case workflow.Iterate:
-		fmt.Fprintf(&b, "workflow.Iterate{Source: %s, Name: %s, Body: %s}", position(op.Source), strconv.Quote(op.Name), operations(op.Body))
+		fmt.Fprintf(&b, "workflow.Iterate{Source: %s, Name: %s, Services: %s, Body: %s}", position(op.Source), strconv.Quote(op.Name), services(op.Services), operations(op.Body))
 	case workflow.Repeat:
 		fmt.Fprintf(&b, "workflow.Repeat{Source: %s, Cond: %s, Body: %s}", position(op.Source), strconv.Quote(op.Cond), operations(op.Body))
 	case workflow.Group:
 		fmt.Fprintf(&b, "workflow.Group{Source: %s, Name: %s, Children: []workflow.GroupChild{\n", position(op.Source), strconv.Quote(op.Name))
 		for _, child := range op.Children {
-			fmt.Fprintf(&b, "{Source: %s, Name: %s, Body: %s},\n", position(child.Source), strconv.Quote(child.Name), operations(child.Body))
+			fmt.Fprintf(&b, "{Source: %s, Name: %s, Services: %s, Body: %s},\n", position(child.Source), strconv.Quote(child.Name), services(child.Services), operations(child.Body))
 		}
 		b.WriteString("}}")
 	case workflow.Condition:

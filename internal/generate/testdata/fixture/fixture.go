@@ -136,6 +136,9 @@ func SprintShape(ctx context.Context, _ gimble.Env) error {
 	plannerWatch := gimble.NewSession(ctx, "planner-watch", ".")
 	for round := 0; round < 1; round++ {
 		if err := gimble.Scope(ctx, "round", func(ctx context.Context) error {
+			if err := gimble.Service(ctx, "preview", ".", "exec sleep 30"); err != nil {
+				return err
+			}
 			if err := gimble.Check(ctx, "tests", ".", "go", "test", "./..."); err != nil {
 				return err
 			}
@@ -180,6 +183,30 @@ func IterationShape(ctx context.Context, _ gimble.Env) error {
 	for ctx := range gimble.Iterate(ctx, "iteration", []string{"one", "two"}) {
 		session := gimble.NewSession(ctx, "reviewer", ".")
 		if _, err := session.Generate[gimble.Text](ctx, workPrompt); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func ServiceOwnershipShape(ctx context.Context, _ gimble.Env) error {
+	if err := gimble.Service(ctx, "root-db", ".", "exec sleep 30"); err != nil {
+		return err
+	}
+	if err := gimble.Scope(ctx, "backend", func(ctx context.Context) error {
+		if err := gimble.Service(ctx, "api", ".", "exec sleep 30"); err != nil {
+			return err
+		}
+		_, _, _, err := gimble.RunCommand(ctx, "build", ".", "go", "build", "./...")
+		return err
+	}); err != nil {
+		return err
+	}
+	for ctx := range gimble.Iterate(ctx, "iteration", []string{"one", "two"}) {
+		if err := gimble.Service(ctx, "fixture", ".", "exec sleep 30"); err != nil {
+			return err
+		}
+		if err := gimble.Check(ctx, "tests", ".", "go", "test", "./..."); err != nil {
 			return err
 		}
 	}

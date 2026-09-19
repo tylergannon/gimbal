@@ -208,6 +208,15 @@ func (e *extractor) gimbleOperation(name string, call *ast.CallExpr, targets []a
 		e.emit(out, workflow.Command{Source: e.at(call.Pos()), Name: command})
 		return false
 
+	case "Service":
+		service, ok := e.constant(call, 1)
+		if !ok {
+			e.diag(call.Pos(), "Service's name is not a constant, so the service is not read")
+			return false
+		}
+		e.emitService(workflow.Service{Source: e.at(call.Pos()), Name: service})
+		return false
+
 	case "Check":
 		key, ok := e.constant(call, 1)
 		if !ok {
@@ -232,8 +241,8 @@ func (e *extractor) gimbleOperation(name string, call *ast.CallExpr, targets []a
 			e.diag(call.Pos(), "Scope's name is not a constant, so the scope is not read")
 			return false
 		}
-		body := e.callback(call, 2)
-		e.emit(out, workflow.Scope{Source: e.at(call.Pos()), Name: scope, Body: body})
+		body, services := e.callback(call, 2)
+		e.emit(out, workflow.Scope{Source: e.at(call.Pos()), Name: scope, Services: services, Body: body})
 		return false
 
 	case "Group":
@@ -263,12 +272,12 @@ func (e *extractor) gimbleOperation(name string, call *ast.CallExpr, targets []a
 			e.diag(call.Pos(), "Go's name is not a constant, so the child is not read")
 			return false
 		}
-		body := e.callback(call, 1)
+		body, services := e.callback(call, 1)
 		group, ok := (*ref.ops)[ref.index].(workflow.Group)
 		if !ok {
 			return false
 		}
-		group.Children = append(group.Children, workflow.GroupChild{Source: e.at(call.Pos()), Name: child, Body: body})
+		group.Children = append(group.Children, workflow.GroupChild{Source: e.at(call.Pos()), Name: child, Services: services, Body: body})
 		(*ref.ops)[ref.index] = group
 		return false
 
@@ -291,6 +300,7 @@ func (e *extractor) gimbleOperation(name string, call *ast.CallExpr, targets []a
 			Name:        loop,
 			Planner:     planner.name,
 			Supervisors: e.supervisors(call, 4),
+			Services:    []workflow.Service{},
 			Body:        []workflow.Operation{},
 		})
 		if obj := e.firstObject(targets); obj != nil {
@@ -309,10 +319,14 @@ func (e *extractor) gimbleOperation(name string, call *ast.CallExpr, targets []a
 
 // callback walks the body a Scope or Go call is given: a function literal, or
 // a package-local function whose block stands in its place.
-func (e *extractor) callback(call *ast.CallExpr, index int) []workflow.Operation {
+func (e *extractor) callback(call *ast.CallExpr, index int) ([]workflow.Operation, []workflow.Service) {
 	body := []workflow.Operation{}
+	services := []workflow.Service{}
+	previous := e.services
+	e.services = &services
+	defer func() { e.services = previous }()
 	if index >= len(call.Args) {
-		return body
+		return body, services
 	}
 	switch fn := unparen(call.Args[index]).(type) {
 	case *ast.FuncLit:
@@ -321,22 +335,22 @@ func (e *extractor) callback(call *ast.CallExpr, index int) []workflow.Operation
 		callee, _ := e.pkg.TypesInfo.Uses[identOf(fn)].(*types.Func)
 		if callee == nil || callee.Pkg() != e.pkg.Types {
 			e.diag(call.Args[index].Pos(), "the body is not a function literal or a function of this package, so it is not read")
-			return body
+			return body, services
 		}
 		decl := e.declFor(callee)
 		if decl == nil || decl.Body == nil {
 			e.diag(call.Args[index].Pos(), "the body is not a function of this package with a body, so it is not read")
-			return body
+			return body, services
 		}
 		if slices.Contains(e.stack, callee) {
 			e.diag(call.Args[index].Pos(), "%s calls itself, and a recursive body is not read", callee.Name())
-			return body
+			return body, services
 		}
 		e.stack = append(e.stack, callee)
 		e.callbackBody(decl.Body.List, &body)
 		e.stack = e.stack[:len(e.stack)-1]
 	}
-	return body
+	return body, services
 }
 
 // supervisors reads the options of a Generate call: the supervisors watching

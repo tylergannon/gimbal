@@ -67,10 +67,13 @@ func extract(dir, entry, name string, overlay map[string][]byte) (workflow.Graph
 		dead:       make(map[types.Object]bool),
 	}
 	body := []workflow.Operation{}
+	services := []workflow.Service{}
+	e.services = &services
 	e.block(decl.Body.List, &body, scopeEnv{blockTail: true, callTail: true})
 	return workflow.Graph{
 		Name:        name,
 		Source:      e.at(decl.Pos()),
+		Services:    services,
 		Body:        body,
 		Diagnostics: e.diagnostics,
 	}, info, nil
@@ -108,11 +111,12 @@ type extractor struct {
 	loop        map[types.Object]*nodeRef
 	// dead holds every identifier a reassignment made unreadable; a scoped
 	// walk's restore does not bring one back.
-	dead    map[types.Object]bool
-	stack   []*types.Func
-	helpers []*helperState
-	hasOp   map[*types.Func]bool
-	walking map[*types.Func]bool
+	dead     map[types.Object]bool
+	stack    []*types.Func
+	helpers  []*helperState
+	hasOp    map[*types.Func]bool
+	walking  map[*types.Func]bool
+	services *[]workflow.Service
 }
 
 func findFunc(pkg *packages.Package, name string) *ast.FuncDecl {
@@ -149,6 +153,15 @@ func (e *extractor) diag(pos token.Pos, format string, args ...any) {
 // is inside has now produced shape.
 func (e *extractor) emit(out *[]workflow.Operation, op workflow.Operation) {
 	*out = append(*out, op)
+	e.emittedShape()
+}
+
+func (e *extractor) emitService(service workflow.Service) {
+	*e.services = append(*e.services, service)
+	e.emittedShape()
+}
+
+func (e *extractor) emittedShape() {
 	for _, h := range e.helpers {
 		h.emitted = true
 	}
@@ -178,6 +191,19 @@ func (e *extractor) body(stmts []ast.Stmt, out *[]workflow.Operation, en scopeEn
 	e.scoped(func() {
 		e.block(stmts, out, scopeEnv{blockTail: true, callTail: true, inHelper: en.inHelper})
 	})
+}
+
+// ownedBody walks a runtime scope body with a fresh service collection. The
+// caller stores both the ordered operations and the declarations its scope
+// owns.
+func (e *extractor) ownedBody(stmts []ast.Stmt, en scopeEnv) ([]workflow.Operation, []workflow.Service) {
+	body := []workflow.Operation{}
+	services := []workflow.Service{}
+	previous := e.services
+	e.services = &services
+	e.body(stmts, &body, en)
+	e.services = previous
+	return body, services
 }
 
 // callbackBody walks a Scope or Go callback, which is a function of its own:

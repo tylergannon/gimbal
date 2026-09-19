@@ -21,8 +21,9 @@ func init() { gimble.RegisterGraph(Graph) }
 
 // Graph is the shape of this workflow, read from the source of Implement.
 var Graph = workflow.Graph{
-	Name:   "implement",
-	Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 64},
+	Name:     "implement",
+	Source:   workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 64},
+	Services: []workflow.Service{},
 	Body: []workflow.Operation{
 		workflow.Condition{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 65}, Branches: []workflow.Branch{
 			{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 65}, Case: "params.MaxTasks < 1", Exits: true, Body: []workflow.Operation{}},
@@ -42,7 +43,7 @@ var Graph = workflow.Graph{
 		workflow.Session{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 91}, Name: "architectural-critique", From: ""},
 		workflow.PromiseLoop{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 92}, Name: "implementation", Planner: "sprint-planning", Supervisors: []workflow.Supervisor{
 			{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 93}, Session: "architectural-critique", Role: "architectural-critique", Instruction: "Keep the plan inside the promise and its definition-of-done file. Every selected task needs a concrete definition of done that advances the promise. Object to invented features, speculative infrastructure, polishing, or unrelated repairs. Preserve failed checks and substantial validator findings as evidence for replanning. When validation passes at 90–95% with only small gaps, end immediately; never plan work for the last 5%."},
-		}, Body: []workflow.Operation{
+		}, Services: []workflow.Service{}, Body: []workflow.Operation{
 			workflow.Session{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 101}, Name: "coding", From: ""},
 			workflow.Session{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 102}, Name: "architectural-critique", From: ""},
 			workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 103}, Session: "coding", Role: "coding", Prompt: "Read the promise, the definition-of-done file, and the selected task with its definition of done. Implement only that task in the repository. Make the actual source changes and gather useful evidence. Do not edit the definition of done or this workflow; do not commit, push, merge, deploy, or add proof scripts and run output. Preserve unrelated work. Answer with what changed and what you personally ran or observed.", Supervisors: []workflow.Supervisor{
@@ -99,21 +100,33 @@ func Command(defaults map[gimble.WorkflowRole]string) *cobra.Command {
 	_ = cmd.MarkFlagRequired("definition-of-done-file")
 	_ = cmd.MarkFlagRequired("max-tasks")
 	cmd.Flags().StringVar(&workDir, "work-dir", ".", "the working directory for this run")
-	cmd.Flags().StringVar(&sprintPlanningModel, "sprint-planning", defaults[gimble.WorkflowRole("sprint-planning")], "the model for role sprint-planning, as model or model:effort")
-	if defaults[gimble.WorkflowRole("sprint-planning")] == "" {
+	sprintPlanningModelDefault := defaults[gimble.WorkflowRole("sprint-planning")]
+	if sprintPlanningModelDefault == "" {
+		cmd.Flags().StringVar(&sprintPlanningModel, "sprint-planning", "", "the model for role sprint-planning, as model or model:effort")
 		_ = cmd.MarkFlagRequired("sprint-planning")
+	} else {
+		cmd.Flags().StringVar(&sprintPlanningModel, "sprint-planning", sprintPlanningModelDefault, "advanced override for role sprint-planning, as model or model:effort; omit this flag to use the displayed workflow default")
 	}
-	cmd.Flags().StringVar(&architecturalCritiqueModel, "architectural-critique", defaults[gimble.WorkflowRole("architectural-critique")], "the model for role architectural-critique, as model or model:effort")
-	if defaults[gimble.WorkflowRole("architectural-critique")] == "" {
+	architecturalCritiqueModelDefault := defaults[gimble.WorkflowRole("architectural-critique")]
+	if architecturalCritiqueModelDefault == "" {
+		cmd.Flags().StringVar(&architecturalCritiqueModel, "architectural-critique", "", "the model for role architectural-critique, as model or model:effort")
 		_ = cmd.MarkFlagRequired("architectural-critique")
+	} else {
+		cmd.Flags().StringVar(&architecturalCritiqueModel, "architectural-critique", architecturalCritiqueModelDefault, "advanced override for role architectural-critique, as model or model:effort; omit this flag to use the displayed workflow default")
 	}
-	cmd.Flags().StringVar(&codingModel, "coding", defaults[gimble.WorkflowRole("coding")], "the model for role coding, as model or model:effort")
-	if defaults[gimble.WorkflowRole("coding")] == "" {
+	codingModelDefault := defaults[gimble.WorkflowRole("coding")]
+	if codingModelDefault == "" {
+		cmd.Flags().StringVar(&codingModel, "coding", "", "the model for role coding, as model or model:effort")
 		_ = cmd.MarkFlagRequired("coding")
+	} else {
+		cmd.Flags().StringVar(&codingModel, "coding", codingModelDefault, "advanced override for role coding, as model or model:effort; omit this flag to use the displayed workflow default")
 	}
-	cmd.Flags().StringVar(&qaOrchestrationModel, "qa-orchestration", defaults[gimble.WorkflowRole("qa-orchestration")], "the model for role qa-orchestration, as model or model:effort")
-	if defaults[gimble.WorkflowRole("qa-orchestration")] == "" {
+	qaOrchestrationModelDefault := defaults[gimble.WorkflowRole("qa-orchestration")]
+	if qaOrchestrationModelDefault == "" {
+		cmd.Flags().StringVar(&qaOrchestrationModel, "qa-orchestration", "", "the model for role qa-orchestration, as model or model:effort")
 		_ = cmd.MarkFlagRequired("qa-orchestration")
+	} else {
+		cmd.Flags().StringVar(&qaOrchestrationModel, "qa-orchestration", qaOrchestrationModelDefault, "advanced override for role qa-orchestration, as model or model:effort; omit this flag to use the displayed workflow default")
 	}
 	cmd.Flags().IntVar(&port, "port", 8080, "loopback TCP port for the web application")
 	cmd.Flags().StringVar(&uds, "uds", "", "Unix-domain socket for the web application instead of TCP")

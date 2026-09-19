@@ -4,6 +4,7 @@ import {
   implementInterviewFixture,
   mismatchedHistoryFixture,
   planTripFixture,
+  serviceOwnershipFixture,
 } from "./fixtures/index.js";
 import {
   currentActivitySelection,
@@ -18,6 +19,11 @@ test("accepts runtime rows that fit the registered graph", () => {
     true,
   );
   assert.equal(graphMatchesSnapshot(planTripFixture.graph, planTripFixture.snapshot), true);
+  assert.equal(
+    graphMatchesSnapshot(serviceOwnershipFixture.graph, serviceOwnershipFixture.snapshot),
+    true,
+    "service runtime command rows still belong to the static graph without becoming steps",
+  );
 });
 
 test("rejects a missing runtime path instead of inventing a map placement", () => {
@@ -91,4 +97,24 @@ test("selection rebinds to refreshed rows and resets for missing items or anothe
   const anotherRun = structuredClone(implementInterviewFixture.snapshot);
   anotherRun.run.id = "another-run";
   assert.equal(rebindSelection(selected, anotherRun), undefined);
+});
+
+test("service selections rebind to refreshed owner scopes", () => {
+  const operation = serviceOwnershipFixture.graph.body.find(
+    (candidate) => candidate.kind === "scope",
+  );
+  if (!operation || operation.kind !== "scope") throw new Error("backend scope is missing");
+  const service = operation.services[0];
+  if (!service) throw new Error("api service is missing");
+  const selection = {
+    kind: "service" as const,
+    scope: serviceOwnershipFixture.snapshot.scopes["backend.1"],
+    service,
+  };
+
+  const refreshed = structuredClone(serviceOwnershipFixture.snapshot);
+  const rebound = rebindSelection(selection, refreshed);
+  assert.equal(rebound?.kind, "service");
+  assert.equal(rebound?.scope, refreshed.scopes["backend.1"]);
+  if (rebound?.kind === "service") assert.equal(rebound.service, service);
 });

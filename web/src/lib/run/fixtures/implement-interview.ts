@@ -16,6 +16,7 @@ const workflowFile = "internal/workflows/implementinterview/implementinterview.g
 export const implementInterviewGraph: Graph = {
   name: "implement-interview",
   source: { file: workflowFile, line: 45 },
+  services: [],
   body: [
     {
       kind: "condition",
@@ -66,6 +67,7 @@ export const implementInterviewGraph: Graph = {
           file: workflowFile,
           line: 64,
           name: "backend",
+          services: [],
           body: [
             { kind: "session", file: workflowFile, line: 65, name: "api-research", from: "" },
             {
@@ -84,6 +86,7 @@ export const implementInterviewGraph: Graph = {
           file: workflowFile,
           line: 69,
           name: "frontend",
+          services: [],
           body: [
             {
               kind: "session",
@@ -129,6 +132,7 @@ export const implementInterviewGraph: Graph = {
       name: "implementation",
       planner: "sprint-planning",
       supervisors: [],
+      services: [],
       body: [
         {
           kind: "agent_call",

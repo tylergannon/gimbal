@@ -35,6 +35,7 @@
   import GitForkIcon from "@lucide/svelte/icons/git-fork";
   import InterviewIcon from "@lucide/svelte/icons/message-circle-question-mark";
   import RepeatIcon from "@lucide/svelte/icons/repeat-2";
+  import ServerIcon from "@lucide/svelte/icons/server";
   import TerminalIcon from "@lucide/svelte/icons/terminal";
   import type { Snippet } from "svelte";
   import * as Select from "#lib/components/ui/select/index.js";
@@ -52,6 +53,7 @@
     root = false,
     foldable = true,
     contextTotal = 0,
+    serviceCount = 0,
     elapsed = "",
     steps = [],
     onselect,
@@ -71,6 +73,7 @@
     root?: boolean;
     foldable?: boolean;
     contextTotal?: number;
+    serviceCount?: number;
     elapsed?: string;
     steps?: FoldedStep[];
     onselect?: SheetSelection;
@@ -193,6 +196,12 @@
   {#if isFolded}
     <button type="button" class="fold-summary" onclick={selectSheet}>
       <span class="glyphs">
+        {#if serviceCount > 0}
+          <span class="service-summary" title={`${serviceCount} declared ${serviceCount === 1 ? "service" : "services"}`}>
+            <ServerIcon size={13} />
+            <span>{serviceCount} {serviceCount === 1 ? "service" : "services"}</span>
+          </span>
+        {/if}
         {#each steps as step}
           <span class="glyph" title={step.operation.kind.replace("_", " ")}>
             {#if step.operation.kind === "agent_call"}
@@ -293,6 +302,15 @@
   .sheet[data-depth="1"] .label,
   .sheet.selected .label {
     background: var(--map-paper-2);
+  }
+
+  .service-summary {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    color: var(--status-muted);
+    font-family: var(--font-mono);
+    font-size: 12px;
   }
 
   .sheet.path .label {

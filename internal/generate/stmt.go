@@ -346,13 +346,13 @@ func (e *extractor) promiseTasksRangeBody(stmt *ast.RangeStmt, out *[]workflow.O
 		e.diag(stmt.X.Pos(), "a Tasks range outside the body that declared its PromiseLoop is not read")
 		return
 	}
-	body := []workflow.Operation{}
-	e.body(stmt.Body.List, &body, en)
+	body, services := e.ownedBody(stmt.Body.List, en)
 	loop, ok := (*ref.ops)[ref.index].(workflow.PromiseLoop)
 	if !ok {
 		return
 	}
 	loop.Body = body
+	loop.Services = services
 	(*ref.ops)[ref.index] = loop
 }
 
@@ -362,7 +362,6 @@ func (e *extractor) iterateRangeBody(stmt *ast.RangeStmt, call *ast.CallExpr, ou
 		e.diag(call.Pos(), "Iterate's scope name is not a constant, so the iteration is not read")
 		return
 	}
-	body := []workflow.Operation{}
-	e.body(stmt.Body.List, &body, en)
-	e.emit(out, workflow.Iterate{Source: e.at(call.Pos()), Name: name, Body: body})
+	body, services := e.ownedBody(stmt.Body.List, en)
+	e.emit(out, workflow.Iterate{Source: e.at(call.Pos()), Name: name, Services: services, Body: body})
 }

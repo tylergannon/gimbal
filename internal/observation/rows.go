@@ -137,12 +137,13 @@ type TurnUsageRow struct {
 	Usage
 }
 
-// CommandRow is one command a workflow ran with RunCommand. Scope is where it
-// ran. A command that ran has its exit code and no error; one that could not
-// start has exit code -1 and the error, and one its ctx cancelled has both and
-// Interrupted as well. Stdout and Stderr are exact small streams or bounded
-// head/tail excerpts of larger ones. StdoutFile and StderrFile name the
-// complete files relative to the run directory.
+// CommandRow is one command a workflow ran with RunCommand, Check, or Service.
+// Scope is where it ran. A command that ran has its exit code and no error; one
+// that could not start has exit code -1 and the error, and one interrupted by
+// cancellation or scope-owned shutdown has both and Interrupted as well.
+// Stdout and Stderr are exact small streams or bounded head/tail excerpts of
+// larger ones. StdoutFile and StderrFile name the complete files relative to
+// the run directory.
 type CommandRow struct {
 	Run         string   `json:"run"`
 	ID          string   `json:"id"`

@@ -2,7 +2,11 @@ import { expect, test } from "vite-plus/test";
 import { userEvent } from "vitest/browser";
 import { render } from "vitest-browser-svelte";
 import Map, { type MapSelection } from "./Map.svelte";
-import { implementInterviewFixture, planTripFixture } from "./fixtures/index.js";
+import {
+  implementInterviewFixture,
+  planTripFixture,
+  serviceOwnershipFixture,
+} from "./fixtures/index.js";
 import { currentActivitySelection } from "./selection.js";
 
 test("pointer and keyboard instance selection replace the rendered runtime facts", async () => {
@@ -213,6 +217,59 @@ test("opening a sheet folds its sibling while the root remains permanent", async
   expect(
     document.querySelector(`button[aria-label="Fold ${planTripFixture.graph.name}"]`),
   ).toBeNull();
+});
+
+test("service declarations are selectable scope properties, not command nodes", async () => {
+  const selections: MapSelection[] = [];
+  const screen = await render(Map, {
+    ...serviceOwnershipFixture,
+    onselect: (selection) => selections.push(selection),
+  });
+
+  const root = screen.getByRole("button", { name: "Select service root-db" });
+  await expect.element(root).toHaveAttribute("title", "examples/services/services.go:11");
+  await root.click();
+  expect(selections.at(-1)?.kind).toBe("service");
+  if (selections.at(-1)?.kind === "service") {
+    expect(selections.at(-1)?.scope.key).toBe("");
+  }
+  await expect.element(root).toHaveAttribute("aria-pressed", "true");
+
+  await screen.getByRole("button", { name: "Select service api" }).click();
+  if (selections.at(-1)?.kind === "service") {
+    expect(selections.at(-1)?.scope.key).toBe("backend.1");
+  }
+
+  expect(document.querySelector('button[aria-label="Select root-db"]')).toBeNull();
+  await screen.getByRole("button", { name: "Fold iteration" }).click();
+  expect(document.querySelector('button[aria-label="Select service fixture"]')).toBeNull();
+  await expect.element(screen.getByTitle("1 declared service")).toBeVisible();
+
+  const iteration = serviceOwnershipFixture.graph.body.find(
+    (operation) => operation.kind === "iterate",
+  );
+  if (!iteration || iteration.kind !== "iterate") throw new Error("iteration is missing");
+  const fixture = iteration.services[0];
+  if (!fixture) throw new Error("fixture service is missing");
+  const revealed: MapSelection = {
+    kind: "service",
+    scope: serviceOwnershipFixture.snapshot.scopes["iteration.2"],
+    service: fixture,
+  };
+  await screen.rerender({
+    ...serviceOwnershipFixture,
+    selected: revealed,
+    reveal: { request: 1, selection: revealed },
+    onselect: (selection) => selections.push(selection),
+  });
+  await expect.element(screen.getByRole("button", { name: "Fold iteration" })).toBeVisible();
+  const selectedFixture = screen.getByRole("button", { name: "Select service fixture" });
+  await expect.element(selectedFixture).toHaveAttribute("aria-pressed", "true");
+  expect(
+    document
+      .querySelector('button[aria-label="Select service fixture"]')
+      ?.getAttribute("data-selection-key"),
+  ).toContain("service:iteration.2:fixture");
 });
 
 test("a controlled fold selection stays folded until an explicit navigation reveal", async () => {

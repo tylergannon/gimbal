@@ -12,6 +12,7 @@ import type {
   Graph,
   Group as GraphGroup,
   PromiseLoop,
+  Service,
   Supervisor,
 } from "../workflow/types.js";
 
@@ -32,6 +33,8 @@ type MeasuredNode = {
 
 type MeasuredBranch = {
   name: string;
+  services: Service[];
+  serviceTop: number;
   body: MeasuredSequence;
   width: number;
   contentTop: number;
@@ -51,6 +54,8 @@ type MeasuredLoop = {
   operation: PromiseLoop & { kind: "promise_loop" };
   planner: MeasuredNode;
   body: MeasuredSequence;
+  serviceHeight: number;
+  bodyTop: number;
   width: number;
   height: number;
   taskHeight: number;
@@ -60,6 +65,8 @@ type MeasuredScope = {
   kind: "scope";
   operation: Extract<Operation, { kind: "scope" | "iterate" }>;
   body: MeasuredSequence;
+  serviceHeight: number;
+  contentTop: number;
   width: number;
   height: number;
 };
@@ -98,6 +105,7 @@ export type MapSheetLayout = {
   height: number;
   depth: number;
   contextTotal: number;
+  serviceCount: number;
   parentScopeKey: string;
   instanceGroupKey: string;
   selectionKey: string;
@@ -106,6 +114,15 @@ export type MapSheetLayout = {
   steps: Array<{ operation: NodeOperation; state: PipState }>;
   selected: boolean;
   selectionPath: boolean;
+};
+
+export type MapServicesLayout = {
+  scopeKey: string;
+  items: Array<{ service: Service; selectionKey: string; selected: boolean }>;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 };
 
 export type GroupLayout = {
@@ -156,6 +173,7 @@ export type MapLayout = {
   connections: string[];
   watcherBrackets: string[];
   nodes: MapNodeLayout[];
+  services: MapServicesLayout[];
   sheets: MapSheetLayout[];
   groups: GroupLayout[];
   loops: LoopLayout[];
@@ -175,6 +193,7 @@ type Placement = {
   options: MapLayoutOptions;
   foldedScopes: Set<string>;
   nodes: MapNodeLayout[];
+  services: MapServicesLayout[];
   sheets: MapSheetLayout[];
   groups: GroupLayout[];
   loops: LoopLayout[];
@@ -187,8 +206,6 @@ type PlacedBlock = { entryY: number; exitY: number; height: number };
 
 const canvasWidth = 1040;
 const centerX = 560;
-const startY = 30;
-const firstTop = 64;
 const nodeWidth = 360;
 const nodeGap = 20;
 const groupInset = 8;
@@ -206,6 +223,11 @@ const watcherWidth = 248;
 const watcherHeight = 36;
 const watcherGap = 12;
 const foldedHeight = 64;
+const servicePanelGap = 12;
+
+function servicePanelHeight(services: readonly Service[]) {
+  return services.length === 0 ? 0 : 32 + services.length * 30;
+}
 
 function isNode(operation: Operation): operation is NodeOperation {
   return (
@@ -258,11 +280,25 @@ function measureOperation(operation: Operation, context: MeasureContext): Measur
   if (operation.kind === "group") {
     const branches = operation.children.map((child) => {
       const first = firstVisibleOperation(child.body as Sequence);
-      const contentTop = first?.kind === "interview" ? 32 : 24;
+      const serviceTop = 24;
+      const serviceHeight = servicePanelHeight(child.services);
+      const contentTop = serviceHeight
+        ? serviceTop + serviceHeight + servicePanelGap
+        : first?.kind === "interview"
+          ? 32
+          : 24;
       const body = measureSequence(child.body as Sequence, { nodeWidth: 272, gap: context.gap });
       const width = Math.max(288, body.width + 16);
       const height = Math.max(64, contentTop + body.height + 12);
-      return { name: child.name, body, width, contentTop, height };
+      return {
+        name: child.name,
+        services: child.services,
+        serviceTop,
+        body,
+        width,
+        contentTop,
+        height,
+      };
     });
     const width =
       branches.reduce((sum, branch) => sum + branch.width, groupInset * 2) +
@@ -293,13 +329,17 @@ function measureOperation(operation: Operation, context: MeasureContext): Measur
       nodeWidth,
       gap: nodeGap,
     });
-    const taskHeight = loopTaskBodyTop + body.height + loopTaskBottom;
+    const serviceHeight = servicePanelHeight(operation.services);
+    const bodyTop = loopTaskBodyTop + serviceHeight + (serviceHeight ? servicePanelGap : 0);
+    const taskHeight = bodyTop + body.height + loopTaskBottom;
     return [
       {
         kind: "loop",
         operation,
         planner: measureNode(planner, nodeWidth),
         body,
+        serviceHeight,
+        bodyTop,
         width: loopWidth,
         taskHeight,
         height: loopTaskTop + taskHeight + loopBottom,
@@ -308,14 +348,18 @@ function measureOperation(operation: Operation, context: MeasureContext): Measur
   }
 
   const body = measureSequence(operation.body as Sequence, context);
+  const serviceHeight = servicePanelHeight(operation.services);
+  const contentTop = serviceHeight ? 24 + serviceHeight + servicePanelGap : 32;
   const width = Math.max(context.nodeWidth + 16, body.width + 16);
   return [
     {
       kind: "scope",
       operation,
       body,
+      serviceHeight,
+      contentTop,
       width,
-      height: 32 + body.height + 8,
+      height: contentTop + body.height + 8,
     },
   ];
 }
@@ -453,6 +497,10 @@ export function nodeSelectionKey(scopeKey: string, operation: NodeOperation) {
   return `node:${scopeKey}:${operation.kind}:${name}:${operation.file}:${operation.line}`;
 }
 
+export function serviceSelectionKey(scopeKey: string, service: Service) {
+  return `service:${scopeKey}:${service.name}:${service.file}:${service.line}`;
+}
+
 export function sheetSelectionKey(scopeKey: string) {
   return `sheet:${scopeKey}`;
 }
@@ -556,6 +604,7 @@ function addSheet(
   height: number,
   depth: number,
   contextTotal = 0,
+  serviceCount = 0,
   operations: Sequence = [],
   steps?: Array<{ operation: NodeOperation; state: PipState }>,
 ) {
@@ -569,6 +618,7 @@ function addSheet(
     height,
     depth,
     contextTotal,
+    serviceCount,
     parentScopeKey,
     instanceGroupKey: instanceGroupKey(parentScopeKey, declaredScopeName(scope)),
     selectionKey: sheetSelectionKey(scope.key),
@@ -578,6 +628,42 @@ function addSheet(
     selected: false,
     selectionPath: false,
   });
+}
+
+function addServices(
+  placement: Placement,
+  services: Service[],
+  scopeKey: string,
+  center: number,
+  top: number,
+  width: number,
+) {
+  const height = servicePanelHeight(services);
+  if (height === 0) return;
+  placement.services.push({
+    scopeKey,
+    items: services.map((service) => ({
+      service,
+      selectionKey: serviceSelectionKey(scopeKey, service),
+      selected: false,
+    })),
+    x: center - width / 2,
+    y: top,
+    width,
+    height,
+  });
+}
+
+function addServiceBypass(
+  placement: Placement,
+  center: number,
+  panelWidth: number,
+  fromY: number,
+  toY: number,
+) {
+  if (toY <= fromY) return;
+  const side = center + panelWidth / 2 + 4;
+  placement.connections.push(`M${center},${fromY} H${side} V${toY} H${center}`);
 }
 
 function placeNode(
@@ -653,6 +739,7 @@ function placeGroup(
       foldedHeight,
       depth,
       0,
+      0,
       group.operation.children.flatMap((child) => child.body as Sequence),
       groupFoldedSteps(placement, group.operation, scope),
     );
@@ -675,6 +762,14 @@ function placeGroup(
     let branchHeight = branchFolded ? foldedHeight : branch.height;
 
     if (branchScope && !branchFolded) {
+      addServices(
+        placement,
+        branch.services,
+        branchScope.key,
+        x + branchCenter,
+        top + branchTop + branch.serviceTop,
+        branch.width - 16,
+      );
       const body = placeSequence(
         placement,
         branch.body,
@@ -706,6 +801,7 @@ function placeGroup(
         branchHeight,
         depth + 1,
         0,
+        branch.services.length,
         (group.operation.children.find((child) => child.name === branch.name)?.body ??
           []) as Sequence,
       );
@@ -727,6 +823,7 @@ function placeGroup(
       group.width,
       height,
       depth,
+      0,
       0,
       group.operation.children.flatMap((child) => child.body as Sequence),
       groupFoldedSteps(placement, group.operation, scope),
@@ -811,6 +908,7 @@ function placeLoop(
       foldedHeight,
       depth,
       0,
+      0,
       loop.operation.body as Sequence,
       loopFoldedSteps(placement, loop, scope),
     );
@@ -828,12 +926,22 @@ function placeLoop(
   const taskFolded = taskScope ? placement.foldedScopes.has(taskScope.key) : false;
 
   const bodyScopeKey = taskScope?.key ?? loopScopeKey;
+  if (!taskFolded) {
+    addServices(
+      placement,
+      loop.operation.services,
+      bodyScopeKey,
+      center,
+      taskY + loopTaskBodyTop,
+      nodeWidth,
+    );
+  }
   const body = taskFolded
     ? undefined
-    : placeSequence(placement, loop.body, bodyScopeKey, center, taskY + loopTaskBodyTop, depth + 1);
+    : placeSequence(placement, loop.body, bodyScopeKey, center, taskY + loop.bodyTop, depth + 1);
   const taskHeight = taskFolded
     ? foldedHeight
-    : loopTaskBodyTop + (body?.height ?? 0) + loopTaskBottom;
+    : loop.bodyTop + (body?.height ?? 0) + loopTaskBottom;
   const height = loopTaskTop + taskHeight + loopBottom;
 
   if (taskScope) {
@@ -849,10 +957,16 @@ function placeLoop(
       taskHeight,
       depth + 1,
       collectSetKeys(loop.operation.body as Sequence).size + 1,
+      loop.operation.services.length,
       loop.operation.body as Sequence,
     );
   }
-  placement.connections.push(`M${center},${planner.exitY} V${body?.entryY ?? taskY}`);
+  if (loop.serviceHeight > 0) {
+    placement.connections.push(`M${center},${planner.exitY} V${taskY}`);
+    addServiceBypass(placement, center, nodeWidth, taskY, body?.entryY ?? taskY + taskHeight);
+  } else {
+    placement.connections.push(`M${center},${planner.exitY} V${body?.entryY ?? taskY}`);
+  }
 
   const bodyNodes = placement.nodes.filter(
     (node) => node.scopeKey === bodyScopeKey && node.y >= taskY && node.y < taskY + taskHeight,
@@ -891,6 +1005,7 @@ function placeLoop(
       height,
       depth,
       0,
+      0,
       loop.operation.body as Sequence,
       loopFoldedSteps(placement, loop, scope),
     );
@@ -922,19 +1037,33 @@ function placeScope(
       foldedHeight,
       depth,
       collectSetKeys(measured.operation.body as Sequence).size,
+      measured.operation.services.length,
       measured.operation.body as Sequence,
     );
     return { entryY: top, exitY: top + foldedHeight, height: foldedHeight };
   }
+  const scopeKey = scope?.key ?? parentScope;
+  addServices(
+    placement,
+    measured.operation.services,
+    scopeKey,
+    center,
+    top + 24,
+    measured.width - 16,
+  );
   const body = placeSequence(
     placement,
     measured.body,
-    scope?.key ?? parentScope,
+    scopeKey,
     center,
-    top + 32,
+    top + measured.contentTop,
     depth + 1,
   );
-  const height = Math.max(foldedHeight, 32 + (body?.height ?? 0) + 8);
+  const height = Math.max(foldedHeight, measured.contentTop + (body?.height ?? 0) + 8);
+  if (measured.serviceHeight > 0) {
+    addServiceBypass(placement, center, measured.width - 16, top, body?.entryY ?? top + height);
+    if (body) placement.connections.push(`M${center},${body.exitY} V${top + height}`);
+  }
   if (scope) {
     addSheet(
       placement,
@@ -948,11 +1077,12 @@ function placeScope(
       height,
       depth,
       collectSetKeys(measured.operation.body as Sequence).size,
+      measured.operation.services.length,
       measured.operation.body as Sequence,
     );
   }
   return body
-    ? { entryY: body.entryY, exitY: top + height, height }
+    ? { entryY: measured.serviceHeight > 0 ? top : body.entryY, exitY: top + height, height }
     : { entryY: top, exitY: top + height, height };
 }
 
@@ -980,6 +1110,9 @@ function applySelection(placement: Placement) {
   let selectedScope = "";
   let selectedKey = placement.options.selectedKey;
   const selectedNode = placement.nodes.find((node) => node.selectionKey === selectedKey);
+  const selectedService = placement.services
+    .flatMap((group) => group.items.map((item) => ({ group, item })))
+    .find(({ item }) => item.selectionKey === selectedKey);
   const selectedWatcher = placement.watchers.find(
     (watcher) => watcher.selectionKey === selectedKey,
   );
@@ -988,6 +1121,9 @@ function applySelection(placement: Placement) {
   if (selectedNode) {
     selectedNode.selected = true;
     selectedScope = selectedNode.scopeKey;
+  } else if (selectedService) {
+    selectedService.item.selected = true;
+    selectedScope = selectedService.group.scopeKey;
   } else if (selectedWatcher) {
     selectedWatcher.selected = true;
     selectedScope = selectedWatcher.watchedScope;
@@ -1020,6 +1156,7 @@ export function buildMapLayout(
     options,
     foldedScopes: new Set(options.foldedScopes),
     nodes: [],
+    services: [],
     sheets: [],
     groups: [],
     loops: [],
@@ -1028,6 +1165,11 @@ export function buildMapLayout(
     watcherBrackets: [],
   };
 
+  const rootServiceTop = graph.services.length > 0 ? 20 : 0;
+  const rootServiceHeight = servicePanelHeight(graph.services);
+  addServices(placement, graph.services, "", centerX, rootServiceTop, nodeWidth);
+  const startY = rootServiceHeight > 0 ? rootServiceTop + rootServiceHeight + 24 : 30;
+  const firstTop = startY + 34;
   let cursor = firstTop;
   let first: PlacedBlock | undefined;
   let previous: PlacedBlock | undefined;
@@ -1057,6 +1199,7 @@ export function buildMapLayout(
     connections: placement.connections,
     watcherBrackets: placement.watcherBrackets,
     nodes: placement.nodes,
+    services: placement.services,
     sheets: placement.sheets,
     groups: placement.groups,
     loops: placement.loops,

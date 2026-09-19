@@ -15,6 +15,7 @@ const workflowFile = "examples/plantrip/plantrip.go";
 export const planTripGraph: Graph = {
   name: "plan-trip",
   source: { file: workflowFile, line: 20 },
+  services: [],
   body: [
     {
       kind: "group",
@@ -26,6 +27,7 @@ export const planTripGraph: Graph = {
           file: workflowFile,
           line: 23,
           name: "lodging",
+          services: [],
           body: [
             { kind: "session", file: workflowFile, line: 24, name: "interviewer", from: "" },
             {
@@ -41,6 +43,7 @@ export const planTripGraph: Graph = {
           file: workflowFile,
           line: 36,
           name: "transport",
+          services: [],
           body: [
             { kind: "session", file: workflowFile, line: 37, name: "interviewer", from: "" },
             {

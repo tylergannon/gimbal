@@ -23,6 +23,9 @@ type Graph struct {
 	Name string `json:"name"`
 	// Source anchors the entry function.
 	Source Source `json:"source"`
+	// Services are the long-lived commands the root scope owns, in source
+	// order. They are declarations on the scope, not ordered operations.
+	Services []Service `json:"services"`
 	// Body is the entry function's operations, in source order.
 	Body []Operation `json:"body"`
 	// Diagnostics records what the extractor could not read. A graph with
@@ -91,9 +94,17 @@ type Supervisor struct {
 }
 
 // Command is one gimble.RunCommand or gimble.Check. Name is the constant name
-// RunCommand gives it or the constant context key Check gives it; the command
+// RunCommand gives it, or the constant context key Check gives it; the command
 // line and its outcome are the run's record.
 type Command struct {
+	Source
+	Name string `json:"name"`
+}
+
+// Service is one gimble.Service declaration. The containing Graph, Scope,
+// Iterate, PromiseLoop task, or GroupChild owns its lifetime. It is not an
+// ordered operation; the command line and runtime process are the run's record.
+type Service struct {
 	Source
 	Name string `json:"name"`
 }
@@ -110,8 +121,9 @@ type Set struct {
 // in it and holds the values set in it.
 type Scope struct {
 	Source
-	Name string      `json:"name"`
-	Body []Operation `json:"body"`
+	Name     string      `json:"name"`
+	Services []Service   `json:"services"`
+	Body     []Operation `json:"body"`
 }
 
 // PromiseLoop is planner-directed dispatch. Planner names the planner session;
@@ -123,7 +135,9 @@ type PromiseLoop struct {
 	Name        string       `json:"name"`
 	Planner     string       `json:"planner"`
 	Supervisors []Supervisor `json:"supervisors"`
-	Body        []Operation  `json:"body"`
+	// Services belong to each task scope described by Body.
+	Services []Service   `json:"services"`
+	Body     []Operation `json:"body"`
 }
 
 // Iterate ranges over a collection supplied by ordinary Go. Each item runs in
@@ -131,8 +145,9 @@ type PromiseLoop struct {
 // runtime data, so the graph records only the scoped body.
 type Iterate struct {
 	Source
-	Name string      `json:"name"`
-	Body []Operation `json:"body"`
+	Name     string      `json:"name"`
+	Services []Service   `json:"services"`
+	Body     []Operation `json:"body"`
 }
 
 // Repeat is a Go for or range statement whose body contains an operation,
@@ -155,8 +170,9 @@ type Group struct {
 // GroupChild is one Group.Go call: a named body in its own scope.
 type GroupChild struct {
 	Source
-	Name string      `json:"name"`
-	Body []Operation `json:"body"`
+	Name     string      `json:"name"`
+	Services []Service   `json:"services"`
+	Body     []Operation `json:"body"`
 }
 
 // Condition is an if/else chain or a switch, recorded when one of its

@@ -5,7 +5,7 @@
     ScopeRow,
     TurnRow,
   } from "../observation/index.js";
-  import type { Supervisor } from "../workflow/types.js";
+  import type { Service, Supervisor } from "../workflow/types.js";
   import type { NodeOperation } from "./Node.svelte";
 
   export type MapSelection =
@@ -17,6 +17,7 @@
         operation: NodeOperation;
         runtime?: TurnRow | CommandRow | InterviewRow;
       }
+    | { kind: "service"; scope: ScopeRow; service: Service }
     | {
         kind: "watcher";
         scope: ScopeRow;
@@ -35,11 +36,13 @@
   import Group from "./Group.svelte";
   import Loop from "./Loop.svelte";
   import Node from "./Node.svelte";
+  import Services from "./Services.svelte";
   import Sheet from "./Sheet.svelte";
   import Watcher from "./Watcher.svelte";
   import {
     buildMapLayout,
     nodeSelectionKey,
+    serviceSelectionKey,
     sheetSelectionKey,
     watcherSelectionKey,
   } from "./layout.js";
@@ -87,6 +90,9 @@
     }
     if (selection.kind === "watcher") {
       return watcherSelectionKey(selection.scope.key, selection.supervisor);
+    }
+    if (selection.kind === "service") {
+      return serviceSelectionKey(selection.scope.key, selection.service);
     }
     return nodeSelectionKey(selection.scope.key, selection.operation);
   }
@@ -182,6 +188,14 @@
       operation: node.operation,
       runtime: node.runtime,
     });
+  }
+
+  function selectService(group: (typeof layout.services)[number], service: Service) {
+    const scope = snapshot.scopes[group.scopeKey];
+    const item = group.items.find((candidate) => candidate.service === service);
+    if (!scope || !item) return;
+    selectedKey = item.selectionKey;
+    onselect?.({ kind: "service", scope, service });
   }
 
   function selectWatcher(watcher: (typeof layout.watchers)[number]) {
@@ -307,6 +321,7 @@
           selected={sheet.selected}
           selectionPath={sheet.selectionPath}
           contextTotal={sheet.contextTotal}
+          serviceCount={sheet.serviceCount}
           selectedInstance={sheet.scope.key}
           folded={sheet.folded}
           elapsed={sheet.elapsed}
@@ -330,6 +345,22 @@
     {#each layout.loops as loop}
       <div class="placed structural" style:left={`${loop.x}px`} style:top={`${loop.y}px`}>
         <Loop {...loop} />
+      </div>
+    {/each}
+
+    {#each layout.services as group}
+      <div
+        class="placed service-panel"
+        style:left={`${group.x}px`}
+        style:top={`${group.y}px`}
+        style:width={`${group.width}px`}
+        style:height={`${group.height}px`}
+      >
+        <Services
+          items={group.items}
+          root={group.scopeKey === ""}
+          onselect={(service) => selectService(group, service)}
+        />
       </div>
     {/each}
 

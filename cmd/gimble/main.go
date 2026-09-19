@@ -148,7 +148,8 @@ func (f *serverFlags) options() []web.Option {
 func serve(ctx context.Context, server serverFlags) error {
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt)
 	defer stop()
-	if _, err := web.NewRuntime(ctx, ".gimble", server.options()...); err != nil {
+	options := append(server.options(), conversationWorkflowOption())
+	if _, err := web.NewRuntime(ctx, ".gimble", options...); err != nil {
 		return err
 	}
 	<-ctx.Done()

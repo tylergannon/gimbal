@@ -1,6 +1,8 @@
 ---
 name: gimble-workflows
-description: Write, run, and read a Gimble workflow: an agent workflow as ordinary Go on the root package gimble (Run, Scope, Group, Iterate, PromiseLoop, sessions, Generate, RunCommand, supervisors, kills). Use whenever asked to write or change a workflow, a bake-off, a critique round, a loop, a supervisor, or to run one and read its record.
+description: >
+  Write, run, and read Gimble workflows as ordinary Go. Use when authoring or
+  changing a workflow, PromiseLoop, or supervisor, or inspecting its run record.
 ---
 
 # Gimble workflows
@@ -45,7 +47,7 @@ a kill.
 | `RunCommand(ctx, name, workdir, command, args...)` | Runs one command and blocks until it exits: `(exitCode, stdout, stderr, err)`. | A nonzero exit is not an error; `err` is a command that could not start or was cancelled, exit code -1. Every command a workflow runs goes through it, never `os/exec`: it is recorded in the scope. |
 | `Set(ctx, key, v)`, `SetJSON(ctx, key, v)` | Record a scalar or a polytype value in the ctx's scope; `Generate` renders every value visible from it, outermost first, as the context it appends to the prompt. | `Set` returns nothing and panics on misuse: a key set twice in one scope instance, or a scope that has ended. Revise by shadowing in a child scope. |
 | `WithScopeTemplate(tmpl)` | An option to `Generate`: the scope is rendered for that one call through the `text/template` text `tmpl`, whose argument is a `gimble.ScopeData` (`Values` outermost first, `By` keyed; each has `Key`, `Value`, `Text`). | `tmpl` must be a string constant or a `//go:embed` variable (GIMBLE109), so what the agent is sent stays readable in the source; a long template reads better as a file. Gimble parses each text once. A template that cannot be parsed or rendered is the error `Generate` returns. |
-| `WithSupervisor(session, instruction, opts...)`, `WithInterval(d)` | Options to `Generate`: a supervisor looks at what the worker did since its last look, every 3 minutes or `WithInterval`, and steers each objection in. `instruction` must be a compile-time string constant too (GIMBLE108). | It never gates the result. Its own options are `opts`, so a supervisor can have a supervisor. |
+| `WithSupervisor(session, instruction, opts...)`, `WithInterval(d)` | Options to `Generate` or `PromiseLoop`: a supervisor looks at what the worker did since its last look, every 3 minutes or `WithInterval`, and steers each objection in. `instruction` must be a compile-time string constant too (GIMBLE108). | It never gates the result. Its own options are `opts`, so a supervisor can have a supervisor. |
 | `Killed{Target, By, Reason}` | The cause an operator's kill puts on a scope's or a turn's ctx. | `errors.As(err, &killed)` on a `Generate` error, or `context.Cause(ctx)`. See below. |
 
 Structured output: a local struct whose field comments are the descriptions
@@ -105,6 +107,18 @@ Each is a compiling `Example` in the root package (`example_test.go`,
 | Killed by an operator, loop recovers | `Example_killedTurn` | `runtime.KillTurn` by id mid-turn; the task's `Generate` returns the `Killed`; the body re-asks the same session and the loop goes on. |
 
 ## Run and watch
+
+For discovering and steering compiled runs from another shell, use `gimble-runs`.
+
+For a coached implementation loop, attach a scope coach to the planner and
+to each worker and validator turn. A suitable constant instruction is:
+"Keep work within the requirements. Steer against over-engineering,
+unrequested features, gold-plating, and hypothetical edge-case fixes without
+a reasonable actual failing unit test. Do not edit files or demand unrelated
+improvements." Pass it with `WithSupervisor` to `PromiseLoop` and `Generate`.
+Sequential turns can share a coach session; concurrent turns need separate
+sessions. Also put the scope constraint in the working agents' initial context:
+a short turn may finish before its coach's first look.
 
 A workflow is a package under `internal/workflows/` whose entry is
 `func Name(ctx context.Context, env gimble.Env, params NameParams) error`.

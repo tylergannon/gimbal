@@ -56,7 +56,7 @@ func routeAnalysis(args []string) ([]string, bool) {
 func isOrdinaryCLI(args []string) bool {
 	if len(args) > 0 {
 		switch args[0] {
-		case "run-prompt", "run":
+		case "run-prompt", "run", "runs", "watch", "steer":
 			return true
 		}
 	}
@@ -115,6 +115,7 @@ workflow authoring rules, standalone or as a go vet tool.`,
 		DisableFlagParsing: true,
 		RunE:               func(_ *cobra.Command, args []string) error { return runPrompt(args, stdout, stderr, getenv) },
 	})
+	root.AddCommand(newRunsCommand(), newWatchCommand(), newSteerCommand())
 	return root
 }
 

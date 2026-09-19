@@ -1,0 +1,3 @@
+decision: Treat Go os/exec Wait as the authoritative observation point for runtime exit and I/O completion; Start success proves spawn only, not readiness or continued service health.
+decision: Treat zsh -c as a status-reporting wrapper whose tracked PID is not a sufficient descendant-ownership proof; explicit exec, background lists, pipelines, and tool-specific daemonization change what shell exit means.
+unresolved: The downloaded Go/zsh/POSIX sources do not settle a portable macOS/Linux process-group/session strategy for bounded descendant cleanup; keep that as an implementation-dependent constraint.

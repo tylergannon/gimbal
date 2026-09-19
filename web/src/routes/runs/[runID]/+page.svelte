@@ -2,6 +2,7 @@
   import type { Graph } from "#lib/workflow/types.js";
   import {
     RunObservation,
+    type ConnectionState,
     type ObservationDelta,
     type RunSnapshot,
   } from "#lib/observation/index.js";
@@ -30,7 +31,6 @@
   const answerForm = answerInterview.for("workspace-answer");
 
   let revision = $state(0);
-  let connection = $state<"connecting" | "live" | "disconnected">("connecting");
   let selection = $state<RunSelection>();
   let cancelOpen = $state(false);
   let stopping = $state(false);
@@ -40,6 +40,10 @@
   const snapshot = $derived.by(() => {
     revision;
     return observation.snapshot();
+  });
+  const connection = $derived.by((): ConnectionState => {
+    revision;
+    return observation.connection;
   });
   const graphMatches = $derived(graph ? graphMatchesSnapshot(graph, snapshot) : false);
   const activeTurn = $derived(
@@ -67,7 +71,6 @@
   $effect(() => {
     observation;
     revision = observation.revision;
-    connection = "connecting";
     selection = undefined;
     cancelOpen = false;
     controlFeedback = "";
@@ -160,40 +163,46 @@
     const generation = observation.beginConnection();
     let stream: EventSource | undefined;
     let retry: ReturnType<typeof setTimeout> | undefined;
+    let attempt = 0;
     const delta = (message: MessageEvent<string>) => {
       if (!observation.isCurrentConnection(generation)) return;
       if (observation.applyDelta(JSON.parse(message.data) as ObservationDelta, generation)) {
-        revision = observation.revision;
+        revision++;
       }
     };
     const replacement = (message: MessageEvent<string>) => {
       if (observation.replace(JSON.parse(message.data) as RunSnapshot, generation)) {
-        revision = observation.revision;
+        revision++;
       }
     };
     const connect = () => {
-      if (!observation.isCurrentConnection(generation)) return;
-      connection = "connecting";
+      if (!observation.retryConnection(generation)) return;
+      const currentAttempt = ++attempt;
       const query = new URLSearchParams({
         stream: observation.stream,
         position: String(observation.position),
       });
-      stream = new EventSource(
+      const currentStream = new EventSource(
         `/api/runs/${encodeURIComponent(observation.run.id)}/events?${query}`,
       );
-      stream.addEventListener("delta", delta as EventListener);
-      stream.addEventListener("snapshot", replacement as EventListener);
-      stream.onopen = () => {
-        if (observation.isCurrentConnection(generation)) connection = "live";
+      stream = currentStream;
+      currentStream.addEventListener("delta", delta as EventListener);
+      currentStream.addEventListener("snapshot", replacement as EventListener);
+      currentStream.onopen = () => {
+        if (attempt !== currentAttempt) return;
+        if (observation.connectionOpened(generation)) revision++;
       };
-      stream.onerror = () => {
-        if (!observation.isCurrentConnection(generation)) return;
-        connection = "disconnected";
-        stream?.close();
-        if (observation.run.status === "running") retry = setTimeout(connect, 250);
+      currentStream.onerror = () => {
+        if (attempt !== currentAttempt) return;
+        attempt++;
+        const shouldRetry = observation.connectionLost(generation);
+        if (observation.isCurrentConnection(generation)) revision++;
+        currentStream.close();
+        if (stream === currentStream) stream = undefined;
+        if (shouldRetry) retry = setTimeout(connect, 250);
       };
     };
-    connect();
+    if (observation.run.status === "running") connect();
     return () => {
       observation.endConnection(generation);
       if (retry !== undefined) clearTimeout(retry);

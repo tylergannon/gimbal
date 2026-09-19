@@ -67,6 +67,7 @@
         (row) => row.scope === scope.key && row.name === operation.name,
       );
       if (!command) return "not-yet";
+      if (command.interrupted) return "ended";
       return command.error || command.exit_code !== 0 ? "failed" : "ended";
     }
 
@@ -85,6 +86,7 @@
       (row) => row.scope === scope.key && sessions.some((session) => session.id === row.session),
     );
     if (!turn) return "not-yet";
+    if (turn.interrupted) return "ended";
     if (turn.error) return "failed";
     return turn.ended === 0 ? "running" : "ended";
   }

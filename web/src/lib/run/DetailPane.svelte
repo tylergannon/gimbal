@@ -157,17 +157,21 @@
     notObserved
       ? "not-yet"
       : command
-      ? command.error || (command.ended > 0 && command.exit_code !== 0)
+      ? command.interrupted
+        ? "ended"
+        : command.error || (command.ended > 0 && command.exit_code !== 0)
         ? "failed"
         : command.ended
           ? "ended"
-          : "running"
+        : "running"
       : interview
         ? interview.status === "pending"
           ? "waiting"
           : "ended"
         : turn
-          ? turn.error
+          ? turn.interrupted
+            ? "ended"
+            : turn.error
             ? "failed"
             : turn.ended
               ? "ended"
@@ -267,7 +271,11 @@
     {#if !selection}
       <section>
         <div class="section-title">Run overview</div>
-        <p>{snapshot.run.error || "Select a sheet, call, command, interview, or watcher to inspect it."}</p>
+        {#if snapshot.run.error}
+          <p>{snapshot.run.error}</p>
+        {:else}
+          <p class="empty-selection">Select a sheet, call, command, interview, or watcher to inspect it.</p>
+        {/if}
         <dl>
           <dt>Scopes</dt><dd>{Object.keys(snapshot.scopes).length}</dd>
           <dt>Turns</dt><dd>{Object.keys(snapshot.turns).length}</dd>
@@ -330,7 +338,7 @@
         </section>
       {/if}
     {:else if command}
-      {#if command.error || command.exit_code !== 0}
+      {#if !command.interrupted && (command.error || command.exit_code !== 0)}
         <div class="failure"><strong>{command.ended ? `Command exited ${command.exit_code}` : "Command failed"}</strong><p>{command.error || "The recorded command returned a nonzero exit code."}</p></div>
       {/if}
       <section>

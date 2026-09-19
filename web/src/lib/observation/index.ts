@@ -20,6 +20,7 @@ export type Tokens = {
 export type Usage = Tokens & { stated_cost: number };
 
 export type RunStatus = "running" | "completed" | "failed" | "cancelled";
+export type ConnectionState = "connecting" | "live" | "disconnected" | "recorded";
 /** The rows of the run store, as Go writes them. Times are Unix ms. */
 export type RunRow = {
   id: string;
@@ -190,6 +191,7 @@ const clone = <T>(value: T): T => structuredClone(value);
 /** Live run state. Revision invalidates renderers without cloning transcript data per frame. */
 export class RunObservation {
   run: RunRow;
+  connection: ConnectionState;
   scopes: Record<string, ScopeRow> = {};
   sessions: Record<string, SessionRow> = {};
   interviews: Record<string, InterviewRow> = {};
@@ -208,12 +210,32 @@ export class RunObservation {
 
   constructor(snapshot: RunSnapshot) {
     this.run = clone(snapshot.run);
+    this.connection = this.run.status === "running" ? "connecting" : "recorded";
     this.stream = snapshot.stream;
     this.position = snapshot.position;
     this.replace(snapshot);
   }
   beginConnection(): number {
-    return ++this.connectionGeneration;
+    const generation = ++this.connectionGeneration;
+    this.connection = this.run.status === "running" ? "connecting" : "recorded";
+    return generation;
+  }
+  retryConnection(generation: number): boolean {
+    return this.isCurrentConnection(generation) && this.run.status === "running";
+  }
+  connectionOpened(generation: number): boolean {
+    if (!this.isCurrentConnection(generation)) return false;
+    this.connection = this.run.status === "running" ? "live" : "recorded";
+    return true;
+  }
+  connectionLost(generation: number): boolean {
+    if (!this.isCurrentConnection(generation)) return false;
+    if (this.run.status !== "running") {
+      this.connection = "recorded";
+      return false;
+    }
+    this.connection = "disconnected";
+    return true;
   }
   endConnection(generation: number) {
     if (generation === this.connectionGeneration) this.connectionGeneration++;
@@ -225,6 +247,7 @@ export class RunObservation {
   replace(snapshot: RunSnapshot, generation?: number): boolean {
     if (generation !== undefined && !this.isCurrentConnection(generation)) return false;
     this.run = clone(snapshot.run);
+    if (this.run.status !== "running") this.connection = "recorded";
     this.stream = snapshot.stream;
     this.position = snapshot.position;
     this.scopes = clone(snapshot.scopes ?? {});
@@ -294,6 +317,7 @@ export class RunObservation {
     switch (frame.table) {
       case "run":
         this.run = clone(frame.row);
+        if (this.run.status !== "running") this.connection = "recorded";
         break;
       case "scopes":
         this.scopes[frame.key] = clone(frame.row);

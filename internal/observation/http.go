@@ -92,6 +92,14 @@ func serveEvents(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 
 	control := http.NewResponseController(w)
+	if snapshot == nil && len(suffix) == 0 {
+		if err := control.SetWriteDeadline(time.Now().Add(writeTimeout)); err != nil && !errors.Is(err, http.ErrNotSupported) {
+			return
+		}
+		if err := control.Flush(); err != nil {
+			return
+		}
+	}
 	if snapshot != nil {
 		if err := writeFrame(w, control, Frame{Name: FrameSnapshot, Data: mustMarshal(snapshot)}); err != nil {
 			return

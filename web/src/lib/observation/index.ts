@@ -96,6 +96,26 @@ export type TurnRow = {
   ended: number;
   duration: number;
 };
+/** One command run by the workflow, matching the public command table. */
+export type CommandRow = {
+  run: string;
+  id: string;
+  scope: string;
+  name: string;
+  command: string;
+  args: string[];
+  workdir: string;
+  exit_code: number;
+  stdout: string;
+  stderr: string;
+  stdout_file: string;
+  stderr_file: string;
+  error: string;
+  interrupted: boolean;
+  started: number;
+  ended: number;
+  duration: number;
+};
 /** One step that reached a model: the drill below a turn. It is a fact and is
  * never summed. */
 export type ModelCallRow = Tokens & {
@@ -124,6 +144,7 @@ export type RunSnapshot = {
   turns: Record<string, TurnRow>;
   turn_usage: Record<string, Record<string, Usage>>;
   model_calls: Record<string, ModelCallRow[]>;
+  commands?: Record<string, CommandRow>;
   totals: Totals;
   transcripts: Record<string, Transcript>;
 };

@@ -1,0 +1,3 @@
+decision: Built the exact requested corpus/INDEX.md as a single task-first semantic entry point, using the ten existing topic indexes as routing leaves and linking longer clips for races, signal semantics, and portability evidence.
+decision: Kept the index scoped to issue 276; retained two bounded workflow-tool comparisons and one explicit macOS/Linux unresolved point, with no API or implementation proposal.
+friction: The semantic-index skill models `to` as an output directory while the request names an exact INDEX.md file -> used the exact file as the entrypoint and kept housekeeping/retrieval probes inline rather than changing the requested path shape.

@@ -58,7 +58,17 @@ func TestPyramidSummaryHelpExplainsItsFixedInputs(t *testing.T) {
 	if !strings.Contains(help, "until the next level") || !strings.Contains(help, "under 100 tokens") {
 		t.Errorf("run pyramid-summary --help lacks the halving rule:\n%s", help)
 	}
-	for _, text := range []string{"Model cost guidance", "up to six slots", "gpt-5.6-sol:high", "claude-opus-5:high", "low-risk background compression", "gpt-5.6-terra:high", "claude-sonnet-5:high", "execution errors still end the run"} {
+	for role, model := range map[string]string{
+		"document-authoring":   "gemini-3.1-pro-high",
+		"document-supervision": "gemini-3.8-flash-medium",
+		"editorial-review":     "gemini-3.1-pro-high",
+		"pyramid-planning":     "gpt-5.6-luna",
+	} {
+		if line := lineWith(help, "--"+role+" string"); !strings.Contains(line, `(default "`+model+`")`) {
+			t.Errorf("%s does not show its %s workflow default:\n%s", role, model, line)
+		}
+	}
+	for _, text := range []string{"Model defaults use Gemini 3.1 Pro", "Gemini 3.8 Flash", "up to six slots"} {
 		if !strings.Contains(help, text) {
 			t.Errorf("run pyramid-summary --help lacks model-selection guidance %q:\n%s", text, help)
 		}
@@ -73,12 +83,12 @@ func TestResearchDocumentHelpShowsLimitsAndModelDefaults(t *testing.T) {
 		}
 	}
 	roleDefaults := map[string]string{
-		"document-authoring":   "gpt-6-astra",
-		"document-supervision": "gpt-5.6-luna",
-		"editorial-review":     "gpt-6-astra",
-		"index-curation":       "gpt-5.6-luna",
-		"research-indexing":    "gpt-5.6-luna",
-		"research-planning":    "gpt-5.6-luna",
+		"document-authoring":   "gemini-3.1-pro-high",
+		"document-supervision": "gemini-3.8-flash-medium",
+		"editorial-review":     "gemini-3.1-pro-high",
+		"index-curation":       "gemini-3.8-flash-medium",
+		"research-indexing":    "gemini-3.8-flash-medium",
+		"research-planning":    "gemini-3.8-flash-medium",
 	}
 	for role, model := range roleDefaults {
 		line := lineWith(help, "--"+role+" string")
@@ -86,7 +96,7 @@ func TestResearchDocumentHelpShowsLimitsAndModelDefaults(t *testing.T) {
 			t.Errorf("%s does not clearly preserve its %s workflow default:\n%s", role, model, line)
 		}
 	}
-	for _, text := range []string{"Model cost guidance", "research, indexing, curation", "gpt-5.6-sol:high", "claude-opus-5:high", "low-risk background research", "gpt-5.6-terra:high", "claude-sonnet-5:high", "execution errors still end the run"} {
+	for _, text := range []string{"broad collection on Gemini Flash", "synthesis on Gemini Pro", "Gemini 3.8 Flash", "Gemini 3.1 Pro"} {
 		if !strings.Contains(help, text) {
 			t.Errorf("run research-document --help lacks model-selection guidance %q:\n%s", text, help)
 		}

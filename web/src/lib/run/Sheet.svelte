@@ -96,8 +96,12 @@
     return row.status === "running" ? "running" : "ended";
   }
 
+  function declaredScopeName(row: ScopeRow) {
+    return (row.key.split("/").at(-1) ?? row.name).replace(/\.\d+$/, "");
+  }
+
   function instanceLabel(index: number) {
-    return `${activeScope.name} ${index + 1} of ${instances.length}`;
+    return `${declaredScopeName(activeScope)} ${index + 1} of ${instances.length}`;
   }
 
   function selectInstance(key: string) {

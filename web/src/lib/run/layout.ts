@@ -336,9 +336,14 @@ function parentKey(key: string) {
   return separator < 0 ? "" : key.slice(0, separator);
 }
 
+function declaredScopeName(scope: ScopeRow) {
+  const runtimeName = scope.key.split("/").at(-1) ?? scope.name;
+  return runtimeName.replace(/\.\d+$/, "");
+}
+
 function childScopes(snapshot: RunSnapshot, parent: string, name: string) {
   return Object.values(snapshot.scopes)
-    .filter((scope) => parentKey(scope.key) === parent && scope.name === name)
+    .filter((scope) => parentKey(scope.key) === parent && declaredScopeName(scope) === name)
     .sort((left, right) => left.began - right.began);
 }
 
@@ -559,7 +564,7 @@ function addSheet(
     depth,
     contextTotal,
     parentScopeKey,
-    instanceGroupKey: instanceGroupKey(parentScopeKey, scope.name),
+    instanceGroupKey: instanceGroupKey(parentScopeKey, declaredScopeName(scope)),
     selectionKey: sheetSelectionKey(scope.key),
     folded: placement.foldedScopes.has(scope.key),
     elapsed: elapsedFor(placement.snapshot, scope),

@@ -14,6 +14,7 @@
   import { cancelRun, stopTurn } from "../../control.remote.js";
   import { answerInterview, type InterviewAnswer } from "../../interview.remote.js";
   import { steer, steerLoop, type LoopMessage, type Steer } from "../../steer.remote.js";
+  import { tick } from "svelte";
 
   let { data }: { data: { snapshot: RunSnapshot; graph: string } } = $props();
 
@@ -73,9 +74,8 @@
   });
 
   async function deliverSteer(request: Steer): Promise<ActionFeedback> {
-    steerForm.fields.run.set(request.run);
-    steerForm.fields.session.set(request.session);
-    steerForm.fields.message.set(request.message);
+    steerForm.fields.set(request);
+    await tick();
     const submitted = await steerForm.submit();
     if (!submitted || !steerForm.result) {
       return {
@@ -89,10 +89,8 @@
   }
 
   async function deliverLoop(request: LoopMessage): Promise<ActionFeedback> {
-    loopForm.fields.run.set(request.run);
-    loopForm.fields.scope.set(request.scope);
-    loopForm.fields.message.set(request.message);
-    loopForm.fields.wrap_up.set(request.wrap_up);
+    loopForm.fields.set(request);
+    await tick();
     const submitted = await loopForm.submit();
     if (!submitted || !loopForm.result) {
       return {
@@ -109,9 +107,8 @@
   }
 
   async function deliverAnswer(request: InterviewAnswer): Promise<ActionFeedback> {
-    answerForm.fields.run.set(request.run);
-    answerForm.fields.question_id.set(request.question_id);
-    answerForm.fields.answer.set(request.answer);
+    answerForm.fields.set(request);
+    await tick();
     const submitted = await answerForm.submit();
     if (!submitted || !answerForm.result?.accepted) {
       return {
@@ -257,20 +254,25 @@
 />
 
 <form class="remote-form" {...steerForm} aria-hidden="true">
-  <input {...steerForm.fields.run.as("hidden", "")} />
-  <input {...steerForm.fields.session.as("hidden", "")} />
-  <input {...steerForm.fields.message.as("hidden", "")} />
+  <input {...steerForm.fields.run.as("hidden", steerForm.fields.run.value() ?? "")} />
+  <input {...steerForm.fields.session.as("hidden", steerForm.fields.session.value() ?? "")} />
+  <input {...steerForm.fields.message.as("hidden", steerForm.fields.message.value() ?? "")} />
 </form>
 <form class="remote-form" {...loopForm} aria-hidden="true">
-  <input {...loopForm.fields.run.as("hidden", "")} />
-  <input {...loopForm.fields.scope.as("hidden", "")} />
-  <input {...loopForm.fields.message.as("hidden", "")} />
-  <input {...loopForm.fields.wrap_up.as("hidden", false)} />
+  <input {...loopForm.fields.run.as("hidden", loopForm.fields.run.value() ?? "")} />
+  <input {...loopForm.fields.scope.as("hidden", loopForm.fields.scope.value() ?? "")} />
+  <input {...loopForm.fields.message.as("hidden", loopForm.fields.message.value() ?? "")} />
+  <input {...loopForm.fields.wrap_up.as("hidden", loopForm.fields.wrap_up.value() ?? false)} />
 </form>
 <form class="remote-form" {...answerForm} aria-hidden="true">
-  <input {...answerForm.fields.run.as("hidden", "")} />
-  <input {...answerForm.fields.question_id.as("hidden", "")} />
-  <input {...answerForm.fields.answer.as("hidden", "")} />
+  <input {...answerForm.fields.run.as("hidden", answerForm.fields.run.value() ?? "")} />
+  <input
+    {...answerForm.fields.question_id.as(
+      "hidden",
+      answerForm.fields.question_id.value() ?? "",
+    )}
+  />
+  <input {...answerForm.fields.answer.as("hidden", answerForm.fields.answer.value() ?? "")} />
 </form>
 
 <style>

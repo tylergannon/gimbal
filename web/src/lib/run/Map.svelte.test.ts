@@ -43,6 +43,26 @@ test("pointer and keyboard instance selection replace the rendered runtime facts
   ).not.toBeNull();
 });
 
+test("instance selection works when runtime scope names include ordinals", async () => {
+  const snapshot = structuredClone(implementInterviewFixture.snapshot);
+  for (const scope of Object.values(snapshot.scopes)) {
+    if (scope.key) scope.name = scope.key.split("/").at(-1) ?? scope.name;
+  }
+  const screen = await render(Map, { graph: implementInterviewFixture.graph, snapshot });
+
+  const trigger = screen.getByRole("button", { name: "Select task.3 instance" });
+  await trigger.click();
+  await screen.getByRole("option", { name: "task 2 of 3" }).click();
+
+  await expect
+    .element(screen.getByRole("button", { name: "Select task.2 instance" }))
+    .toHaveTextContent("task 2 of 3");
+  expect(document.querySelector('[data-scope="implementation.1/task.2"]')).not.toBeNull();
+  await expect
+    .element(screen.getByRole("button", { name: "Select task-check" }))
+    .toHaveTextContent("exit 1");
+});
+
 test("nodes, watchers, and sheets report selection and folded summaries stay truthful", async () => {
   const selections: MapSelection[] = [];
   const screen = await render(Map, {

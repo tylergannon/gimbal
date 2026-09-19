@@ -146,6 +146,32 @@ test("selected promise-loop instance drives every runtime fact", () => {
   );
 });
 
+test("runtime ordinal scope names bind to their declared graph scopes", () => {
+  const snapshot = structuredClone(implementInterviewFixture.snapshot);
+  for (const scope of Object.values(snapshot.scopes)) {
+    if (scope.key) scope.name = scope.key.split("/").at(-1) ?? scope.name;
+  }
+
+  const layout = buildMapLayout(implementInterviewFixture.graph, snapshot);
+  const implementation = layout.sheets.find((sheet) => sheet.scope.key === "implementation.1");
+  const task = layout.sheets.find((sheet) => sheet.scope.key === "implementation.1/task.3");
+  const coding = layout.nodes.find(
+    (node) =>
+      node.scopeKey === "implementation.1/task.3" && operationName(node.operation) === "coding",
+  );
+
+  assert.equal(implementation?.scope.name, "implementation.1");
+  assert.equal(implementation?.kind, "loop");
+  assert.equal(task?.scope.name, "task.3");
+  assert.equal(task?.instances.length, 3);
+  assert.equal(task?.instanceGroupKey, "implementation.1/task");
+  assert.equal(
+    coding?.runtime && "id" in coding.runtime ? coding.runtime.id : undefined,
+    "coding.1/turn.3",
+  );
+  assert.equal(coding?.state, "running");
+});
+
 test("folded summaries retain child-scope states and selected-instance facts", () => {
   const reconnaissance = buildMapLayout(
     implementInterviewFixture.graph,

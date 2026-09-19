@@ -7,6 +7,7 @@ import (
 
 	"github.com/tylergannon/gimble"
 	"github.com/tylergannon/gimble/internal/live"
+	"github.com/tylergannon/gimble/internal/observation"
 	routes "github.com/tylergannon/gimble/internal/skgo/links/onzggl3sn52xizlt"
 )
 
@@ -52,5 +53,44 @@ func TestRunPageControlsReachTheLiveRun(t *testing.T) {
 	}
 	if !errors.As(controlled.cause, &killed) || killed.Target != "" || killed.By != "person" {
 		t.Fatalf("cancel cause = %#v, want person kill of root scope", controlled.cause)
+	}
+}
+
+func TestCancelRunPersistsACancelledRecord(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	project := t.TempDir()
+	runtime, err := NewRuntime(ctx, project, WithNoWeb())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	entered := make(chan struct{})
+	done := make(chan error, 1)
+	go func() {
+		done <- runtime.Run(ctx, "cancelled-run", nil, func(ctx context.Context) error {
+			close(entered)
+			<-ctx.Done()
+			return context.Cause(ctx)
+		})
+	}()
+	<-entered
+	id := startedRunID(t, project)
+
+	result, err := routes.Skgo_cancelRun(runtime.ctx, routes.CancelRun{Run: id})
+	if err != nil || !result.Accepted {
+		t.Fatalf("cancel run = %+v, %v; want accepted", result, err)
+	}
+	var killed gimble.Killed
+	if err := <-done; !errors.As(err, &killed) || killed.By != "person" || killed.Target != "" {
+		t.Fatalf("run error = %#v; want person kill of root scope", err)
+	}
+
+	snapshot, err := observation.NewRegistry(project).Snapshot(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snapshot.Run.Status != observation.StatusCancelled {
+		t.Fatalf("reloaded run status = %q, want %q", snapshot.Run.Status, observation.StatusCancelled)
 	}
 }

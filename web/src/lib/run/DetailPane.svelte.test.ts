@@ -1,7 +1,7 @@
 import { expect, test } from "vite-plus/test";
 import { render } from "vitest-browser-svelte";
 import type { InterviewAnswer } from "../../routes/interview.remote.js";
-import type { LoopMessage } from "../../routes/steer.remote.js";
+import type { LoopMessage, Steer } from "../../routes/steer.remote.js";
 import { RunObservation } from "../observation/index.js";
 import DetailPane from "./DetailPane.svelte";
 import { implementInterviewFixture, planTripFixture } from "./fixtures/index.js";
@@ -101,6 +101,40 @@ test("the selected loop emits the existing wrap-up control payload", async () =>
       scope: "implementation.1",
       message: "",
       wrap_up: true,
+    },
+  ]);
+});
+
+test("steering emits the selected runtime session and entered message", async () => {
+  const loop = implementInterviewFixture.graph.body.find(
+    (operation) => operation.kind === "promise_loop",
+  );
+  const coding = loop?.body.find((operation) => operation.kind === "agent_call");
+  if (!coding || coding.kind !== "agent_call") throw new Error("coding node is missing");
+  const turn = implementInterviewFixture.snapshot.turns["coding.1/turn.3"];
+  const sent: Steer[] = [];
+  const screen = await render(DetailPane, {
+    snapshot: implementInterviewFixture.snapshot,
+    observation: new RunObservation(implementInterviewFixture.snapshot),
+    selection: {
+      kind: "node" as const,
+      scope: implementInterviewFixture.snapshot.scopes["implementation.1/task.3"],
+      operation: coding,
+      runtime: turn,
+    },
+    onsteer: async (message: Steer) => {
+      sent.push(message);
+      return { ok: true, message: "landed" };
+    },
+  });
+
+  await screen.getByPlaceholder("Steer this turn…").fill("Check the failing assertion first.");
+  await screen.getByRole("button", { name: "Steer" }).click();
+  expect(sent).toEqual([
+    {
+      run: implementInterviewFixture.snapshot.run.id,
+      session: turn.session,
+      message: "Check the failing assertion first.",
     },
   ]);
 });

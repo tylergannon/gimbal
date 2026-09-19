@@ -75,6 +75,7 @@ type run struct {
 	scopes     map[string]*scope                  // live scopes by key, for cancelScope
 	turns      map[string]context.CancelCauseFunc // running turns by id, for cancelTurn
 	interviews map[string]*interviewWaiter        // questions waiting for a person's answer
+	rootCancel error                              // explicit cancellation of the root scope
 	errMu      sync.Mutex
 	recordErr  error
 	closeMu    sync.Mutex
@@ -202,6 +203,14 @@ func Run(ctx context.Context, name string, models map[WorkflowRole]ModelBinding,
 		cancelled := RunCancelled{Name: name, Source: steerSource(ctx), Error: ctx.Err().Error()}
 		r.event("", "", "", cancelled)
 		r.projectEvent(cancelled)
+	} else if cause := r.rootCancellation(); cause != nil {
+		source := ""
+		if killed, ok := errors.AsType[Killed](cause); ok {
+			source = killed.By
+		}
+		cancelled := RunCancelled{Name: name, Source: source, Error: cause.Error()}
+		r.event("", "", "", cancelled)
+		r.projectEvent(cancelled)
 	}
 	return r.finish(name, err)
 }
@@ -259,6 +268,12 @@ func (r *run) removeScope(s *scope) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	delete(r.scopes, s.key)
+}
+
+func (r *run) rootCancellation() error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.rootCancel
 }
 
 // addTurn and removeTurn keep the run's table of running turns, keyed by
@@ -384,6 +399,9 @@ func (r *run) SteerLoop(key, message string) error {
 func (r *run) CancelScope(key string, cause error) error {
 	r.mu.Lock()
 	s := r.scopes[key]
+	if s != nil && key == "" && r.rootCancel == nil {
+		r.rootCancel = cause
+	}
 	r.mu.Unlock()
 	if s == nil {
 		return fmt.Errorf("gimble: no live scope %q", key)

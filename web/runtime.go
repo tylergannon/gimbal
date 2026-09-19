@@ -12,20 +12,22 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/tylergannon/gimble"
 	"github.com/tylergannon/gimble/internal/live"
 	"github.com/tylergannon/gimble/internal/observation"
 )
 
-// Runtime owns a project's runs and web application. It remains active until
+// Runtime owns a project's runs, control socket, and web application. It remains active until
 // the context passed to NewRuntime is cancelled.
 type Runtime struct {
-	ctx     context.Context
-	cancel  context.CancelCauseFunc
-	dir     string
-	done    chan struct{}
-	address string
+	ctx      context.Context
+	cancel   context.CancelCauseFunc
+	dir      string
+	done     chan struct{}
+	shutdown sync.WaitGroup
+	address  string
 
 	// runs in progress by id, for Steer, KillScope, and KillTurn. The table
 	// is in the runtime's context too, so the page's remote functions steer
@@ -75,8 +77,8 @@ func WithUDS(path string) Option {
 	}
 }
 
-// WithNoWeb prevents the runtime from opening a listener. Runs and their
-// durable records still work normally.
+// WithNoWeb disables the web listener. The control socket, runs, and their
+// durable records remain available.
 func WithNoWeb() Option {
 	return func(c *config) error {
 		if err := c.selectListener("no web"); err != nil {
@@ -95,9 +97,9 @@ func (c *config) selectListener(name string) error {
 	return nil
 }
 
-// NewRuntime creates the runtime for projectDir and starts its web application
-// before returning. It listens on loopback port 8080 unless an option selects
-// another port, a Unix-domain socket, or no listener.
+// NewRuntime creates the runtime for projectDir and starts its control socket
+// and web application before returning. The web application listens on loopback
+// port 8080 unless an option selects another port, a Unix-domain socket, or no web.
 func NewRuntime(ctx context.Context, projectDir string, opts ...Option) (*Runtime, error) {
 	if ctx == nil {
 		return nil, errors.New("gimble: runtime context is nil")
@@ -134,14 +136,20 @@ func NewRuntime(ctx context.Context, projectDir string, opts ...Option) (*Runtim
 	runs := live.NewRuns()
 	runtimeCtx = live.WithRuns(runtimeCtx, runs)
 	runtime := &Runtime{ctx: runtimeCtx, cancel: cancel, dir: dir, done: make(chan struct{}), runs: runs, registry: registry}
+	if err := runtime.startControl(); err != nil {
+		cancel(err)
+		return nil, err
+	}
 	if cfg.network == "none" {
-		context.AfterFunc(runtimeCtx, func() { close(runtime.done) })
+		runtime.waitForShutdown()
 		return runtime, nil
 	}
 	if err := runtime.startWeb(cfg); err != nil {
 		cancel(err)
+		runtime.shutdown.Wait()
 		return nil, err
 	}
+	runtime.waitForShutdown()
 	return runtime, nil
 }
 
@@ -154,6 +162,7 @@ func (r *Runtime) startWeb(cfg config) error {
 	if err != nil {
 		return fmt.Errorf("gimble: listen on %s: %w", address, err)
 	}
+	r.shutdown.Add(1)
 	origin := ""
 	if cfg.network == "tcp" {
 		origin = "http://" + listener.Addr().String()
@@ -164,11 +173,13 @@ func (r *Runtime) startWeb(cfg config) error {
 	dist, err := fs.Sub(Build, "build")
 	if err != nil {
 		_ = listener.Close()
+		r.shutdown.Done()
 		return fmt.Errorf("gimble: web application: %w", err)
 	}
 	handler, mode, err := NewHandler(dist, os.Getenv("GIMBLE_WEB_PROXY"), origin)
 	if err != nil {
 		_ = listener.Close()
+		r.shutdown.Done()
 		return fmt.Errorf("gimble: assemble web application: %w", err)
 	}
 	server := &http.Server{
@@ -191,10 +202,17 @@ func (r *Runtime) startWeb(cfg config) error {
 		if cfg.network == "unix" {
 			_ = os.Remove(address)
 		}
-		close(r.done)
+		r.shutdown.Done()
 	})
 	log.Printf("gimble: web application listening on %s (%s)", listener.Addr(), mode)
 	return nil
+}
+
+func (r *Runtime) waitForShutdown() {
+	go func() {
+		r.shutdown.Wait()
+		close(r.done)
+	}()
 }
 
 // Run starts one workflow run and blocks until body returns. models binds

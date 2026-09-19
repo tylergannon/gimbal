@@ -32,10 +32,10 @@ own context parameter. It does not perform whole-program or pointer analysis.
 
 ## GIMBLE102: constant context keys
 
-`GIMBLE102-SIMPLE-WORKFLOWS/CONSTANT-CONTEXT-KEY` reports a `gimble.Set` or
-`gimble.SetJSON` key that is not a compile-time string constant. Use a literal,
-a named constant, or a constant expression for the key; put changing data in
-the value.
+`GIMBLE102-SIMPLE-WORKFLOWS/CONSTANT-CONTEXT-KEY` reports a `gimble.Set`,
+`gimble.SetJSON`, or `gimble.Check` key that is not a compile-time string
+constant. Use a literal, a named constant, or a constant expression for the
+key; put changing data in the value.
 
 ```go
 // Reported.
@@ -51,10 +51,10 @@ repeating that key in one scope; GIMBLE103 still applies.
 
 ## GIMBLE103: one write per scope key
 
-`GIMBLE103-SET-MISUSE/DUPLICATE-KEY` reports a second `Set` or `SetJSON` with
-the same constant key and the same scope context when the earlier write must
-run first. It also reports a write using a context defined outside a loop,
-because that context can be reused across iterations. In either an
+`GIMBLE103-SET-MISUSE/DUPLICATE-KEY` reports a second `Set`, `SetJSON`, or
+`Check` with the same constant key and the same scope context when the earlier
+write must run first. It also reports a write using a context defined outside a
+loop, because that context can be reused across iterations. In either an
 `Iterate` or `PromiseLoop.Tasks` range, a captured outer context is likewise
 reused; use the yielded context.
 
@@ -63,21 +63,30 @@ reused; use the yielded context.
 gimble.Set(ctx, "result", first)
 gimble.SetJSON(ctx, "result", second)
 
+// Also reported: repeated checks name their observations explicitly.
+gimble.Check(ctx, "tests.1", ".", "go", "test", "./...")
+gimble.Check(ctx, "tests.1", ".", "go", "test", "./...")
+
 // Allowed: each taskCtx belongs to one task scope.
 for taskCtx, task := range loop.Tasks {
 	gimble.Set(taskCtx, "result", task.Name)
 }
+
+// Allowed: two observations have two explicit keys.
+gimble.Check(ctx, "tests.1", ".", "go", "test", "./...")
+gimble.Check(ctx, "tests.2", ".", "go", "test", "./...")
 ```
 
 Mutually exclusive branches are not reported by this rule.
 
 ## GIMBLE104: use the child scope context
 
-`GIMBLE104-SET-MISUSE/WRONG-CONTEXT` reports a `Set` or `SetJSON` inside a
-function-literal callback passed directly to `Run`, `Scope`, or `Group.Go`, or
-a `Iterate` or `PromiseLoop.Tasks` body, when it writes through a different
-context than that callback or task body received. Use that parameter directly: aliases and
-derived contexts are not followed for this rule.
+`GIMBLE104-SET-MISUSE/WRONG-CONTEXT` reports a `Set`, `SetJSON`, or `Check`
+inside a function-literal callback passed directly to `Run`, `Scope`, or
+`Group.Go`, or an `Iterate` or `PromiseLoop.Tasks` body, when it writes through
+a different context than that callback or task body received. Use that
+parameter directly: aliases and derived contexts are not followed for this
+rule.
 
 ```go
 gimble.Scope(parent, "child", func(child context.Context) error {
@@ -91,9 +100,10 @@ gimble.Scope(parent, "child", func(child context.Context) error {
 
 ## GIMBLE105: do not write from a raw goroutine
 
-`GIMBLE105-SET-MISUSE/UNJOINED-GOROUTINE` reports a `Set` or `SetJSON` in a
-raw `go` statement inside one of the recognized child-scope boundaries. A raw
-goroutine can outlive its scope. Use a named `Group` child instead.
+`GIMBLE105-SET-MISUSE/UNJOINED-GOROUTINE` reports a `Set`, `SetJSON`, or
+`Check` in a raw `go` statement inside one of the recognized child-scope
+boundaries. A raw goroutine can outlive its scope. Use a named `Group` child
+instead.
 
 ```go
 // Reported.
@@ -110,10 +120,10 @@ return group.Wait()
 
 ## GIMBLE106: reserve the task key
 
-`GIMBLE106-SET-MISUSE/RESERVED-TASK-KEY` reports `Set` or `SetJSON` of the
-constant key `"task"` through the yielded context in a `PromiseLoop.Tasks`
-body. The promise loop owns that key for its task record. `Iterate` has no
-task record and does not reserve this key.
+`GIMBLE106-SET-MISUSE/RESERVED-TASK-KEY` reports `Set`, `SetJSON`, or `Check`
+of the constant key `"task"` through the yielded context in a
+`PromiseLoop.Tasks` body. The promise loop owns that key for its task record.
+`Iterate` has no task record and does not reserve this key.
 
 ```go
 for taskCtx, task := range loop.Tasks {
@@ -126,9 +136,9 @@ for taskCtx, task := range loop.Tasks {
 
 ## GIMBLE107: context must come from a scope
 
-`GIMBLE107-SET-MISUSE/CONTEXT-NOT-FROM-SCOPE` reports `Set` or `SetJSON` called
-directly with `context.Background()` or `context.TODO()`. Create or enter a
-Gimble scope and use the context it supplies.
+`GIMBLE107-SET-MISUSE/CONTEXT-NOT-FROM-SCOPE` reports `Set`, `SetJSON`, or
+`Check` called directly with `context.Background()` or `context.TODO()`. Create
+or enter a Gimble scope and use the context it supplies.
 
 ```go
 // Reported.

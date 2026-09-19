@@ -16,6 +16,7 @@ func keyChecks(ctx context.Context, input string, value any) {
 	gimble.Set(ctx, "literal", value)
 	gimble.Set(ctx, namedKey, value)
 	gimble.SetJSON(ctx, joinedKey, value)
+	_ = gimble.Check(ctx, "check", ".", "true")
 	gimble.Set(ctx, "dynamic value", input)
 
 	variable := "variable"
@@ -23,11 +24,14 @@ func keyChecks(ctx context.Context, input string, value any) {
 	gimble.Set(ctx, input, value)                              // want `GIMBLE102-SIMPLE-WORKFLOWS/CONSTANT-CONTEXT-KEY`
 	gimble.Set(ctx, fmt.Sprintf("formatted %s", input), value) // want `GIMBLE102-SIMPLE-WORKFLOWS/CONSTANT-CONTEXT-KEY`
 	gimble.SetJSON(ctx, keyFromFunction(), value)              // want `GIMBLE102-SIMPLE-WORKFLOWS/CONSTANT-CONTEXT-KEY`
+	_ = gimble.Check(ctx, input, ".", "true")                  // want `GIMBLE102-SIMPLE-WORKFLOWS/CONSTANT-CONTEXT-KEY`
 }
 
 func duplicateChecks(ctx context.Context, branch bool) {
 	gimble.Set(ctx, "duplicate", 1)
 	gimble.SetJSON(ctx, "duplicate", 2) // want `GIMBLE103-SET-MISUSE/DUPLICATE-KEY`
+	_ = gimble.Check(ctx, "check", ".", "true")
+	_ = gimble.Check(ctx, "check", ".", "true") // want `GIMBLE103-SET-MISUSE/DUPLICATE-KEY`
 
 	if branch {
 		gimble.Set(ctx, "one branch", 1)

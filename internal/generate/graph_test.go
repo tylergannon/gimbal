@@ -29,6 +29,9 @@ func TestControlFlowGraph(t *testing.T) {
 	if !ok {
 		t.Fatal("the rounds hold the scope round")
 	}
+	if _, ok := find[workflow.Command](round.Body, func(c workflow.Command) bool { return c.Name == "tests" }); !ok {
+		t.Fatal("the round holds the Check command")
+	}
 	loop, ok := find[workflow.PromiseLoop](round.Body, func(l workflow.PromiseLoop) bool { return l.Name == "sprint" })
 	if !ok {
 		t.Fatal("the round holds the loop sprint")

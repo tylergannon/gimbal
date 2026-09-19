@@ -122,13 +122,19 @@ func (r *run) recordingError() error {
 }
 
 func (r *run) event(scope, session, turn string, event LifecycleEvent) {
+	_ = r.eventResult(scope, session, turn, event)
+}
+
+func (r *run) eventResult(scope, session, turn string, event LifecycleEvent) error {
 	if r != nil && r.writer != nil {
 		record, err := r.writer.writeLifecycle(scope, session, turn, event, true)
 		r.recordFailure("write run log", err)
-		if err == nil {
-			r.observeLifecycle(scope, session, turn, event, record)
+		if err != nil {
+			return err
 		}
+		return r.observeLifecycle(scope, session, turn, event, record)
 	}
+	return nil
 }
 
 func (r *run) projectEvent(event LifecycleEvent) {

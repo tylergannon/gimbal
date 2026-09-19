@@ -1,0 +1,4 @@
+decision: Issue 284 synthesis uses four primary product precedents (Pulumi, Kubernetes, GitHub Actions, Docker Compose) and keeps their ownership/labeling evidence separate from runtime lifecycle semantics.
+decision: The minimal recommendation is scope-owned Services metadata plus Source/Name, with RunCommand and Check remaining in ordered Body; root, named Scope, and Iterate reuse existing nesting.
+friction: The assigned UI corpus was provisioned empty and official HTML pages were initially one-line/large -> downloaded official Markdown/API bodies where available and kept line-addressable clips for citation.
+unresolved: Exact field spelling/icon token and collapsed-scope service summary are not settled by local evidence; acceptance should assert semantics and accessible labels, not pixels.

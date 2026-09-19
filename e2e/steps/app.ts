@@ -1,10 +1,23 @@
 import { expect } from '@playwright/test';
 import { createBdd } from 'playwright-bdd';
-import { hydrated, test } from './fixtures.js';
+import {
+	delayNextRunsData,
+	hydrated,
+	setRunsFixture,
+	test,
+	updateFailedRunSummary
+} from './fixtures.js';
 
 const { Given, When, Then } = createBdd(test);
 
 Given('I open the project runs', async ({ page, browserState }) => {
+	await page.goto('/');
+	await hydrated(page);
+	expect(browserState.documents).toBe(1);
+});
+
+Given('I open the controlled project runs', async ({ page, browserState }) => {
+	managedFixtureOnly();
 	await page.goto('/');
 	await hydrated(page);
 	expect(browserState.documents).toBe(1);
@@ -103,3 +116,120 @@ Then('the detail pane describes that selected work', async ({ page, browserState
 	await expect(detail.locator('.placement')).toBeVisible();
 	expect(browserState.pageErrors).toEqual([]);
 });
+
+Given('I open About with recorded runs available', async ({ page, browserState }) => {
+	managedFixtureOnly();
+	await page.goto('/about');
+	await hydrated(page);
+	expect(browserState.documents).toBe(1);
+});
+
+Given('I open About with an empty project', async ({ page, browserState }) => {
+	managedFixtureOnly();
+	setRunsFixture(false);
+	await page.goto('/about');
+	await hydrated(page);
+	expect(browserState.documents).toBe(1);
+});
+
+When('I follow Runs while its data is delayed', async ({ page, browserState }) => {
+	delayNextRunsData(page, browserState);
+	browserState.pendingNavigation = page.getByRole('link', { name: 'Runs' }).click();
+	await browserState.runsRequestSeen;
+});
+
+Then('accessible Runs loading cards remain until data arrives', async ({ page, browserState }) => {
+	await expect(page.getByRole('status').filter({ hasText: 'Loading runs…' })).toBeVisible();
+	await expect(page.getByRole('region', { name: 'Runs' })).toHaveAttribute('aria-busy', 'true');
+	await expect(page.locator('[data-loading-card]')).toHaveCount(2);
+	await expect(page.getByTestId('title')).toHaveCount(0);
+	expect(browserState.documents).toBe(1);
+	expect(browserState.pageErrors).toEqual([]);
+});
+
+When('the delayed Runs data arrives', async ({ browserState }) => {
+	browserState.releaseRunsRequest?.();
+	await browserState.pendingNavigation;
+});
+
+Then('recorded cards replace the loading feedback', async ({ page, browserState }) => {
+	await expect(page.getByRole('status').filter({ hasText: 'Loading runs…' })).toHaveCount(0);
+	await expect(page.getByRole('button', { name: 'Open long-failure fixture-failed' })).toBeVisible();
+	expect(browserState.pageErrors).toEqual([]);
+});
+
+Then('the empty project replaces the loading feedback', async ({ page, browserState }) => {
+	await expect(page.getByRole('status').filter({ hasText: 'Loading runs…' })).toHaveCount(0);
+	await expect(page.getByText('No runs yet')).toBeVisible();
+	expect(browserState.pageErrors).toEqual([]);
+});
+
+When('a background Runs refresh is delayed', async ({ page, browserState }) => {
+	delayNextRunsData(page, browserState);
+	await browserState.runsRequestSeen;
+});
+
+Then('the current Runs card stays visible and usable', async ({ page, browserState }) => {
+	const card = page.getByRole('button', { name: 'Open long-failure fixture-failed' });
+	await expect(card).toBeVisible();
+	await card.focus();
+	await expect(card).toBeFocused();
+	await expect(page.getByRole('status').filter({ hasText: 'Loading runs…' })).toHaveCount(0);
+	expect(browserState.pageErrors).toEqual([]);
+});
+
+When('the background Runs refresh arrives with updated data', async ({ browserState }) => {
+	updateFailedRunSummary('Refresh completed with updated fixture data.');
+	browserState.releaseRunsRequest?.();
+});
+
+Then('the card updates without navigation loading feedback', async ({ page, browserState }) => {
+	const card = page.getByRole('button', { name: 'Open long-failure fixture-failed' });
+	await expect(card).toContainText('Refresh completed with updated fixture data.');
+	await expect(page.getByRole('status').filter({ hasText: 'Loading runs…' })).toHaveCount(0);
+	expect(browserState.pageErrors).toEqual([]);
+});
+
+Then(
+	'the failed Runs card is contained with a reachable action at desktop and phone widths',
+	async ({ page, browserState }) => {
+		const assertContained = async () => {
+			const card = page.getByRole('button', { name: 'Open long-failure fixture-failed' });
+			await expect(card).toBeVisible();
+			await expect(card.locator('.open-label')).toBeVisible();
+			await card.focus();
+			await expect(card).toBeFocused();
+			const metrics = await page.evaluate(() => {
+				const summary = document.querySelector<HTMLElement>('.run-card .summary > span:last-child');
+				const open = document.querySelector<HTMLElement>('.run-card .open-label');
+				if (!summary || !open) throw new Error('Runs card summary or action is missing');
+				const openBox = open.getBoundingClientRect();
+				return {
+					pageWidth: document.documentElement.clientWidth,
+					pageScrollWidth: document.documentElement.scrollWidth,
+					openLeft: openBox.left,
+					openRight: openBox.right,
+					overflowWrap: getComputedStyle(summary).overflowWrap,
+					summaryHeight: summary.getBoundingClientRect().height,
+					lineHeight: Number.parseFloat(getComputedStyle(summary).lineHeight)
+				};
+			});
+			expect(metrics.pageScrollWidth).toBeLessThanOrEqual(metrics.pageWidth);
+			expect(metrics.openLeft).toBeGreaterThanOrEqual(0);
+			expect(metrics.openRight).toBeLessThanOrEqual(metrics.pageWidth);
+			expect(metrics.overflowWrap).toBe('anywhere');
+			expect(metrics.summaryHeight).toBeGreaterThan(metrics.lineHeight);
+			expect(metrics.summaryHeight).toBeLessThanOrEqual(metrics.lineHeight * 2 + 1);
+		};
+
+		await page.setViewportSize({ width: 1280, height: 800 });
+		await assertContained();
+		await page.setViewportSize({ width: 390, height: 844 });
+		await assertContained();
+		expect(browserState.pageErrors).toEqual([]);
+	}
+);
+
+function managedFixtureOnly(): void {
+	test.skip(Boolean(process.env.BASE_URL), 'requires the managed table-fixture server');
+}

@@ -560,6 +560,7 @@
     display: -webkit-box;
     min-width: 0;
     overflow: hidden;
+    overflow-wrap: anywhere;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
   }

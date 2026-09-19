@@ -6,15 +6,27 @@
 	export type RowStatus = RunRow["status"] | ScopeRow["status"] | InterviewRow["status"];
 
 	/** The five shapes of States.html, shape before colour. */
-	type Shape = "ended" | "running" | "failed" | "waiting" | "not-yet";
+	export type Shape = "ended" | "running" | "failed" | "waiting" | "not-yet";
 
-	/** What each shape is called, for anyone who cannot see it. */
-	const wording: Record<Shape, string> = {
+	/** What each shape is called, for anyone who cannot see it. A folded
+	 * sheet says the same word beside its elapsed time. */
+	export const wording: Record<Shape, string> = {
 		ended: "ended",
 		running: "running",
 		failed: "failed",
 		waiting: "waiting for you",
 		"not-yet": "not yet",
+	};
+
+	/** A row's status is what it ended as; its error is whether that was a
+	 * failure. A cancelled run stopped rather than failed, so it reads as
+	 * ended unless it carries an error of its own. */
+	export const shapeOf = (status: RowStatus | undefined, error = ""): Shape => {
+		if (status === undefined) return "not-yet";
+		if (status === "failed" || error !== "") return "failed";
+		if (status === "running") return "running";
+		if (status === "pending") return "waiting";
+		return "ended";
 	};
 </script>
 
@@ -31,16 +43,7 @@
 
 	const { status, error = "", size = 10 }: Props = $props();
 
-	// A row's status is what it ended as; its error is whether that was a
-	// failure. A cancelled run stopped rather than failed, so it reads as
-	// ended unless it carries an error of its own.
-	const shape = $derived.by((): Shape => {
-		if (status === undefined) return "not-yet";
-		if (status === "failed" || error !== "") return "failed";
-		if (status === "running") return "running";
-		if (status === "pending") return "waiting";
-		return "ended";
-	});
+	const shape = $derived(shapeOf(status, error));
 </script>
 
 <span

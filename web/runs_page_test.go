@@ -38,8 +38,8 @@ func TestRunsPageRendersEveryRunAndPendingInterview(t *testing.T) {
 
 	ended := openTestRun(t, registry, project, "run-ended", "release")
 	for _, record := range []json.RawMessage{
-		json.RawMessage(`{"seq":1,"time":"2026-09-18T11:00:00Z","scope":"","event":{"kind":"run_started","name":"release"}}`),
-		json.RawMessage(`{"seq":2,"time":"2026-09-18T11:07:30Z","scope":"","event":{"kind":"run_ended","name":"release","error":""}}`),
+		json.RawMessage(`{"seq":1,"time":"2026-09-15T11:00:00Z","scope":"","event":{"kind":"run_started","name":"release"}}`),
+		json.RawMessage(`{"seq":2,"time":"2026-09-15T11:07:30Z","scope":"","event":{"kind":"run_ended","name":"release","error":""}}`),
 	} {
 		if err := ended.Lifecycle(record); err != nil {
 			t.Fatalf("fold ended record %s: %v", record, err)
@@ -67,6 +67,7 @@ func TestRunsPageRendersEveryRunAndPendingInterview(t *testing.T) {
 		"release",
 		"Ended",
 		"7m 30s",
+		"Sep ",
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("the runs page does not contain %q:\n%s", want, body)
@@ -74,6 +75,32 @@ func TestRunsPageRendersEveryRunAndPendingInterview(t *testing.T) {
 	}
 	if strings.Contains(body, "Agent workflows in Go") {
 		t.Fatal("the old guide landing page is still rendered at /")
+	}
+}
+
+func TestRunsPageRendersAnEmptyProject(t *testing.T) {
+	dist, err := fs.Sub(Build, "build")
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler, _, err := NewHandler(dist, "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	project := t.TempDir()
+	request := httptest.NewRequest(http.MethodGet, "/", nil)
+	ctx := observation.WithRegistry(request.Context(), observation.NewRegistry(project))
+	request = request.WithContext(hooks.WithProjectDir(ctx, project))
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("GET /: status %d, body %s", recorder.Code, recorder.Body.String())
+	}
+	for _, want := range []string{"Empty project", "No runs yet"} {
+		if !strings.Contains(recorder.Body.String(), want) {
+			t.Fatalf("the empty runs page does not contain %q:\n%s", want, recorder.Body.String())
+		}
 	}
 }
 

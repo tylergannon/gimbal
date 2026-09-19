@@ -82,7 +82,9 @@
     if (minutes < 60) return `${minutes} min ago`;
     const hours = Math.floor(minutes / 60);
     if (hours < 24) return `${hours} h ago`;
-    return new Intl.DateTimeFormat("en", { month: "short", day: "numeric" }).format(timestamp);
+    const date = new Date(timestamp);
+    const month = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][date.getMonth()];
+    return `${month} ${date.getDate()}`;
   }
 
   function statusLabel(run: RunRow) {

@@ -27,6 +27,16 @@
 //	--document-authoring gpt-5.6-sol:high \
 //	--editorial-review claude-opus-5:high
 //
+// For low-risk background compression where elapsed time and one rejected
+// draft wave are cheap, the already validated largest document supplies a
+// strong starting point for cheaper repeated work:
+//
+//	--document-authoring gpt-5.6-terra:high \
+//	--editorial-review claude-sonnet-5:high
+//
+// The repair wave can reject weak completed drafts. Provider, harness, and
+// execution errors still end the run rather than retrying.
+//
 // Example:
 //
 //	gimble run pyramid-summary \

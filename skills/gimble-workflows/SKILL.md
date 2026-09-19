@@ -120,6 +120,20 @@ Keep retries, limits, and escalation visible and proportionate to the task.
 A supplied plan can seed the backlog without dictating every later assignment.
 Ending dispatch and fulfilling the goal are separate decisions.
 
+Spend capability where uncertainty lives. A frontier planner can be worth one
+expensive turn when it leaves a strong, bounded plan whose assignments are
+reversible and independently checkable. Low-risk background work can then use
+cheaper Terra or Sonnet workers when elapsed time matters less than token cost
+and the workflow can tolerate a few completed attempts being rejected by
+validation before one succeeds. Keep the validator strong enough for the risk,
+feed each rejection back to planning, and cap the attempts.
+
+This is a workflow property, not a model-selection slogan. Do not use the
+pattern where work is irreversible, validation is weak, or a bad attempt can
+corrupt shared state. A provider, harness, or execution error is not a rejected
+implementation attempt and does not retry unless the workflow explicitly
+handles it.
+
 ## Coach against scope drift
 
 For implementation workflows, give the planner, workers, and validators scope

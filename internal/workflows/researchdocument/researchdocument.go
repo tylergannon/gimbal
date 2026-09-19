@@ -26,6 +26,17 @@
 //	--document-authoring gpt-5.6-sol:high \
 //	--editorial-review claude-opus-5:high
 //
+// For low-risk background research where elapsed time and rejected editorial
+// drafts are cheap, another profile spends one frontier turn on the plan and
+// uses Terra and Sonnet for the repeated writing and review:
+//
+//	--research-planning gpt-6-astra:high \
+//	--document-authoring gpt-5.6-terra:high \
+//	--editorial-review claude-sonnet-5:high
+//
+// Material editorial failures can trigger another bounded revision. Provider,
+// harness, and execution errors still end the run rather than retrying.
+//
 // Example:
 //
 //	gimble run research-document \

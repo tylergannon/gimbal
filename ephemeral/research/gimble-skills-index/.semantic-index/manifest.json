@@ -1,0 +1,671 @@
+{
+  "source_root": "/Users/tyler/.codex/worktrees/365e/gimble",
+  "source_commit": "db40543c015d7ce102c50e69cb9ea79a47b64e67",
+  "reader_model": "gpt-5.6-luna",
+  "main_model": "inherit",
+  "model_override": "Explicit user instruction overrides inherited reader default",
+  "segments": {
+    "01-structure": [
+      "AGENTS.md",
+      "doc.go",
+      "ephemeral/research/api/API.md",
+      "example_test.go",
+      "example_shapes_test.go",
+      "group.go",
+      "run.go"
+    ],
+    "02-context": [
+      "session.go",
+      "scope.go",
+      "artifact.go",
+      "command.go",
+      "docs/context-budget.md",
+      "ephemeral/scoped-context-plan.md",
+      "ephemeral/worklog/scoped-context-plan.md",
+      "context_artifact_test.go",
+      "scope_isolation_test.go"
+    ],
+    "03-planning": [
+      "loop.go",
+      "iterate.go",
+      "ephemeral/research/api/LOOP.md",
+      "ephemeral/research/api/LOOP-WORK.md",
+      "ephemeral/worklog/202609111449-issue125-loop-contract.md",
+      "ephemeral/worklog/20260916-scoped-loop-254.md",
+      "promise_loop_live_test.go"
+    ],
+    "04-supervision": [
+      "supervise.go",
+      "supervise_bounds_test.go",
+      "steer_test.go",
+      "ephemeral/worklog/planner-supervision.md",
+      "ephemeral/worklog/agent-steering.md",
+      "ephemeral/agent-steering-requirements.md",
+      "ephemeral/worklog/202609111647-supervisor-bounds.md"
+    ],
+    "05-methodology": [
+      "docs/definition-of-done.md",
+      "ephemeral/research/api/SPRINTS.md",
+      "ephemeral/reviews/202609112230-issue125-loop-round-01.md",
+      "ephemeral/reviews/202609112242-issue125-loop-round-02.md",
+      "/Users/tyler/.agents/skills/proof-of-work/SKILL.md",
+      "/Users/tyler/.agents/skills/agent-protocol/SKILL.md",
+      "/Users/tyler/.agents/skills/adversarial-review/SKILL.md",
+      "/Users/tyler/.agents/skills/consensus/SKILL.md",
+      "/Users/tyler/.agents/skills/write-prompts/SKILL.md",
+      "/Users/tyler/.agents/skills/write-prompts/references/loop-prompts.md"
+    ],
+    "06-build-release": [
+      "justfile",
+      "go.mod",
+      "lefthook.yml",
+      "scripts/check-staged-content.sh",
+      ".github/workflows/docs.yml",
+      ".github/workflows/prices.yml",
+      "web/package.json",
+      "web/server.go",
+      "ephemeral/worklog/202609181700-skgo-050-web-regeneration.md",
+      "ephemeral/worklog/202609140000-sprint-lint-hooks.md",
+      "ephemeral/worklog/20260914-issue174-docs-site.md"
+    ],
+    "07-operations": [
+      ".agents/skills/gimble-runs/SKILL.md",
+      "cmd/gimble/main.go",
+      "cmd/gimble/runs.go",
+      "cmd/gimble/steer.go",
+      "cmd/gimble/workflows.go",
+      "cmd/gimble/defaults.json",
+      "web/control.go",
+      "web/runtime.go",
+      "docs/web-app.md",
+      "docs/sprints/RUN-STORE.md",
+      "internal/observation/store.go",
+      "internal/observation/files.go",
+      "internal/observation/durable.go"
+    ],
+    "08-promises": [
+      ".agents/skills/df-promise/SKILL.md",
+      ".agents/skills/df-promise/scripts/promise.py",
+      "ephemeral/legacy/docs/five-arts.md",
+      "ephemeral/legacy/docs/direction.md"
+    ],
+    "09-chapters-sprints": [
+      ".agents/skills/df-chapter-create/SKILL.md",
+      ".agents/skills/df-chapter-create/scripts/chapter.py",
+      ".agents/skills/df-sprint-plan/SKILL.md",
+      ".agents/skills/df-sprint-plan/scripts/ledger.py",
+      "docs/sprints/SPRINT-001.md",
+      "docs/sprints/ledger.yaml",
+      "docs/SEMANTIC-INDEX.md"
+    ],
+    "10-delivery-loops": [
+      ".agents/skills/df-easy-loop-e2e/SKILL.md",
+      ".agents/skills/df-easy-loop-simple/SKILL.md",
+      ".agents/skills/df-sprint-execute/SKILL.md",
+      "ephemeral/legacy/docs/workflows-as-programs.md",
+      "ephemeral/worklog/20260912-sprint001-codex-draft.md",
+      "ephemeral/worklog/20260912-sprint001-codex-critique.md"
+    ],
+    "11-workflow-packaging": [
+      ".agents/skills/gimble-workflows/SKILL.md",
+      "internal/workflows/review/review.go",
+      "internal/workflows/review/schema.go",
+      "internal/workflows/interview/interview.go",
+      "internal/workflows/implementinterview/implementinterview.go",
+      "internal/generate/entry.go",
+      "internal/generate/command.go",
+      "internal/generate/gimblegen/main.go",
+      "workflow/graph.go",
+      "workflow/roles.go",
+      "env.go",
+      "ephemeral/worklog/202609171047-workflow-roles.md",
+      "internal/generate/read.go"
+    ],
+    "12-historical-teachings": [
+      "ephemeral/legacy/ephemeral/projects/gimble/programmatic-workflows/ACTIONS-AND-KNOWLEDGE-VERBATIM.md",
+      "ephemeral/legacy/ephemeral/projects/gimble/programmatic-workflows/CONCURRENCY-SHAPES.md",
+      "ephemeral/legacy/ephemeral/projects/gimble/programmatic-workflows/CONTEXT-REFRAMING-VERBATIM.md",
+      "ephemeral/legacy/ephemeral/projects/gimble/programmatic-workflows/DIRECTION-CLARIFICATION-VERBATIM.md",
+      "ephemeral/legacy/ephemeral/projects/gimble/programmatic-workflows/DIRECTION-CORRECTIONS-VERBATIM.md",
+      "ephemeral/legacy/ephemeral/projects/gimble/programmatic-workflows/INPUT-SEPARATION-VERBATIM.md",
+      "ephemeral/legacy/ephemeral/projects/gimble/programmatic-workflows/KEY-CLAIM-VERBATIM.md",
+      "ephemeral/legacy/ephemeral/projects/gimble/programmatic-workflows/POC-RECOVERY.md",
+      "ephemeral/legacy/ephemeral/projects/gimble/programmatic-workflows/POC-WORKFLOWS.md",
+      "ephemeral/worklog/202609152233-issue-227-graph.md",
+      "ephemeral/worklog/interview-249-workflow.md",
+      "ephemeral/worklog/202609161557-gimble-entrypoint.md"
+    ]
+  },
+  "sources": [
+    {
+      "segment": "01-structure",
+      "path": "AGENTS.md",
+      "sha256": "9b3d76f19ac5f9737551d1e5ba1c0433b567d20cb0efc01061c745ea52ee3dcc"
+    },
+    {
+      "segment": "01-structure",
+      "path": "doc.go",
+      "sha256": "3ce7ddaade911e408f2f567154184ad0a86cc3aec8e5f7869648685b08c487d2"
+    },
+    {
+      "segment": "01-structure",
+      "path": "ephemeral/research/api/API.md",
+      "sha256": "5ad6f0b74bc4e5d86b5d82f9976c5aca34a9be0d247d89bb9ffca2a75b184d48"
+    },
+    {
+      "segment": "01-structure",
+      "path": "example_test.go",
+      "sha256": "649be60699a86dc4b9ea342a3e7071b550bffd8d073962cbbec97b9d12891fe2"
+    },
+    {
+      "segment": "01-structure",
+      "path": "example_shapes_test.go",
+      "sha256": "afea04ef95866d79d5d14e7448d1f0429cc5b4746ec416ce5d38baa9b81c4431"
+    },
+    {
+      "segment": "01-structure",
+      "path": "group.go",
+      "sha256": "0f8aa8662034a7b2b07de08ff13c847bfcafc85f0a22a25866fe5bbd55ae2bd3"
+    },
+    {
+      "segment": "01-structure",
+      "path": "run.go",
+      "sha256": "008508418903b65d7369602e192d7b13e6b497e7252cd877ab9081b5dafd49bf"
+    },
+    {
+      "segment": "02-context",
+      "path": "session.go",
+      "sha256": "837f53eb613c1f0645de57095101d19c546eabd98ddc780b6c0c9140343b0169"
+    },
+    {
+      "segment": "02-context",
+      "path": "scope.go",
+      "sha256": "3b7365bcf8c1f879bbba92536d5fa2dd9548d2cc2f1e33d6c46a0995616c9033"
+    },
+    {
+      "segment": "02-context",
+      "path": "artifact.go",
+      "sha256": "67476d8d315ff6060860c4e6e7d0d49ee5e55dadc68bb9eb7552f46aecfc3e77"
+    },
+    {
+      "segment": "02-context",
+      "path": "command.go",
+      "sha256": "29e9bb24f05341dba8be4eb081d23748d28c3b0a61b78345f175baf9602d9add"
+    },
+    {
+      "segment": "02-context",
+      "path": "docs/context-budget.md",
+      "sha256": "8cada5d2c59d698330f391827131f59d1aa74c19790708df198efd52883f0e9c"
+    },
+    {
+      "segment": "02-context",
+      "path": "ephemeral/scoped-context-plan.md",
+      "sha256": "64e6476e91785afa153e7f3194e425dbdd729c0556ebe62b200685dbf2f0defe"
+    },
+    {
+      "segment": "02-context",
+      "path": "ephemeral/worklog/scoped-context-plan.md",
+      "sha256": "25fd116054e19181c9a5fa7ff876b0e28804dd02303fe4b935ddc0ef766191d1"
+    },
+    {
+      "segment": "02-context",
+      "path": "context_artifact_test.go",
+      "sha256": "f43c0945989c5243298e5e65abcd38375976a91f3a598506153632b30969d728"
+    },
+    {
+      "segment": "02-context",
+      "path": "scope_isolation_test.go",
+      "sha256": "518cb1f5c25d2c22a6ae91af5c5a52806fe5907150026c19eb680940350ee0c2"
+    },
+    {
+      "segment": "03-planning",
+      "path": "loop.go",
+      "sha256": "c3585f0fe6882d40f6b3aab96f6a566210400527b4e914bf75e26a7eb93b03b9"
+    },
+    {
+      "segment": "03-planning",
+      "path": "iterate.go",
+      "sha256": "d8ed00edc2a73448d7d8637109408fb2bb7d1d50f920739b4a503d4fb0351694"
+    },
+    {
+      "segment": "03-planning",
+      "path": "ephemeral/research/api/LOOP.md",
+      "sha256": "9e2c914d27dbfb5d967e87b32bc39997ec5a3f79aca97e7a2edc067c070095d6"
+    },
+    {
+      "segment": "03-planning",
+      "path": "ephemeral/research/api/LOOP-WORK.md",
+      "sha256": "2b65391ac343e81cc9f2e5e5e1be436d8f20baad351cbfa5215edcae6fe7f56a"
+    },
+    {
+      "segment": "03-planning",
+      "path": "ephemeral/worklog/202609111449-issue125-loop-contract.md",
+      "sha256": "ca43dacd380f58b1ffae6df7b7dce11c87f849f920b6257ebe400509493c6a25"
+    },
+    {
+      "segment": "03-planning",
+      "path": "ephemeral/worklog/20260916-scoped-loop-254.md",
+      "sha256": "e50891107cdc51ba0de8fa2ea123123b463048ae23f7b43004b754fdcad398cf"
+    },
+    {
+      "segment": "03-planning",
+      "path": "promise_loop_live_test.go",
+      "sha256": "cb65c492c4582d18feb568c7418f60ed953f0366a994cee8ea717fda627fbf0a"
+    },
+    {
+      "segment": "04-supervision",
+      "path": "supervise.go",
+      "sha256": "f606135dde767c12cedc392f910c4debb4748a7dcf03e69ed849077a93cf55e6"
+    },
+    {
+      "segment": "04-supervision",
+      "path": "supervise_bounds_test.go",
+      "sha256": "9068538c1ad1ceb58fbbdc41d5ae15d5122479fb64727464f17ec9c2f0550488"
+    },
+    {
+      "segment": "04-supervision",
+      "path": "steer_test.go",
+      "sha256": "68931bc919fb1f46c7d4a7e8f1868f69aa92e408b3ea167858abc871cbc4b681"
+    },
+    {
+      "segment": "04-supervision",
+      "path": "ephemeral/worklog/planner-supervision.md",
+      "sha256": "692feb2ae2da5e486297ff82b5b5185a2d670318359f08f39f0388fad1e38a59"
+    },
+    {
+      "segment": "04-supervision",
+      "path": "ephemeral/worklog/agent-steering.md",
+      "sha256": "2d1273f024165eb7cbe5754a64c7b21d630691a177902894602836331cf68761"
+    },
+    {
+      "segment": "04-supervision",
+      "path": "ephemeral/agent-steering-requirements.md",
+      "sha256": "c787339d3eb35af134ff18904f4eecfd3a2ad58298b1dae3fb8da31556eff9b1"
+    },
+    {
+      "segment": "04-supervision",
+      "path": "ephemeral/worklog/202609111647-supervisor-bounds.md",
+      "sha256": "e60a9517dc4829d9888ef1973f183ab515560c510c47685909e3df77231a9910"
+    },
+    {
+      "segment": "05-methodology",
+      "path": "docs/definition-of-done.md",
+      "sha256": "5dc62785f6efe888aec61b56c7c53519f47232088e94c52745786072504d093e"
+    },
+    {
+      "segment": "05-methodology",
+      "path": "ephemeral/research/api/SPRINTS.md",
+      "sha256": "3eabc0c5ef83b5f047903fe6be7c0e019f741ee86771fa437c3883741bfa298f"
+    },
+    {
+      "segment": "05-methodology",
+      "path": "ephemeral/reviews/202609112230-issue125-loop-round-01.md",
+      "sha256": "69beff793f4b5e946cebfc33202fa1b8da08f76f659368c842fdeeebb110318c"
+    },
+    {
+      "segment": "05-methodology",
+      "path": "ephemeral/reviews/202609112242-issue125-loop-round-02.md",
+      "sha256": "6a58364918e37cfa0ccdbe386499fb729881b7a4cad7e5a0c71ae0fb94eaeb90"
+    },
+    {
+      "segment": "05-methodology",
+      "path": "/Users/tyler/.agents/skills/proof-of-work/SKILL.md",
+      "sha256": "cff352011cdfe13919d134a8f0ba66eca72df0b4c675f4cfa173251a94f985a8"
+    },
+    {
+      "segment": "05-methodology",
+      "path": "/Users/tyler/.agents/skills/agent-protocol/SKILL.md",
+      "sha256": "8a55b9c7dcfe3e32fccdaa782cc71503c1dca943e2fbe95e0273e2c4b2cf5e38"
+    },
+    {
+      "segment": "05-methodology",
+      "path": "/Users/tyler/.agents/skills/adversarial-review/SKILL.md",
+      "sha256": "f293dc1d93df56ec946a37a7ea49b7084f70980d78030bf0fa3ce91bf7a14e13"
+    },
+    {
+      "segment": "05-methodology",
+      "path": "/Users/tyler/.agents/skills/consensus/SKILL.md",
+      "sha256": "5e6418a0b778a6a1fb95a28cb10055f3b773ae08fb73ff9a76051fbd464089f4"
+    },
+    {
+      "segment": "05-methodology",
+      "path": "/Users/tyler/.agents/skills/write-prompts/SKILL.md",
+      "sha256": "c8ed72ce5773c8dc3f0db01902e2d76c18941b76b13027a8a76920f6fa9f5881"
+    },
+    {
+      "segment": "05-methodology",
+      "path": "/Users/tyler/.agents/skills/write-prompts/references/loop-prompts.md",
+      "sha256": "49764aa9ac1ffd1affd52cc5c0072357c6c8b74b54ff710052898c9a8d892210"
+    },
+    {
+      "segment": "06-build-release",
+      "path": "justfile",
+      "sha256": "576a62124cc95be2e0a5357b0227d9bfbd6e44332614145048708ed270103179"
+    },
+    {
+      "segment": "06-build-release",
+      "path": "go.mod",
+      "sha256": "25a4230e2832ae74f4bd0472004e399c1c4ad5a3fe60de4e91efe6ffb56aaa42"
+    },
+    {
+      "segment": "06-build-release",
+      "path": "lefthook.yml",
+      "sha256": "b97702e304682e0cb3097ed2843c402cf98fb21587e663a2a4ac7423c6608407"
+    },
+    {
+      "segment": "06-build-release",
+      "path": "scripts/check-staged-content.sh",
+      "sha256": "d5f9b4a59789c1b79891f0c43f43b6ffea529d68aead073c11b20b2476bb10db"
+    },
+    {
+      "segment": "06-build-release",
+      "path": ".github/workflows/docs.yml",
+      "sha256": "641b215913ee4d876eade8622870fea024e9ac894a088fba69778de3c28f1f35"
+    },
+    {
+      "segment": "06-build-release",
+      "path": ".github/workflows/prices.yml",
+      "sha256": "7e7b584339bf7e1556471996ef193481a4f846562ff8e0fda12b1b618ad0a88f"
+    },
+    {
+      "segment": "06-build-release",
+      "path": "web/package.json",
+      "sha256": "2a162e155804df52f66f38ef370e72f8b623c0760ad7c7f9af4ff30c6a687050"
+    },
+    {
+      "segment": "06-build-release",
+      "path": "web/server.go",
+      "sha256": "b35e5dbec4c4b03b4fcccb0ef06d857cad8ff154a4afa0ce00b6a5a625718056"
+    },
+    {
+      "segment": "06-build-release",
+      "path": "ephemeral/worklog/202609181700-skgo-050-web-regeneration.md",
+      "sha256": "1161cb1b313059667f807fcfddeb3980a54c3c443f8cb30b5e39dc2fe77fa702"
+    },
+    {
+      "segment": "06-build-release",
+      "path": "ephemeral/worklog/202609140000-sprint-lint-hooks.md",
+      "sha256": "09dcaeabbc076a106dce4f814dc535f34919cac5efad39010021cc3d988437a2"
+    },
+    {
+      "segment": "06-build-release",
+      "path": "ephemeral/worklog/20260914-issue174-docs-site.md",
+      "sha256": "261181d02e7763f625f5085646066c9f4a81e424b4f5a626de3256661b3ba1fa"
+    },
+    {
+      "segment": "07-operations",
+      "path": ".agents/skills/gimble-runs/SKILL.md",
+      "sha256": "2ee06e91b945e83018ba979cd7c743467fb3e869b8520f8e9db6199dac61a65e"
+    },
+    {
+      "segment": "07-operations",
+      "path": "cmd/gimble/main.go",
+      "sha256": "852e777491426caa17807919ebd012014a766e812afef257bd351ec775acf912"
+    },
+    {
+      "segment": "07-operations",
+      "path": "cmd/gimble/runs.go",
+      "sha256": "4bb28467dc09f263be2e4b3fff9323974aad2a6a43e6798011851fa42c9773cd"
+    },
+    {
+      "segment": "07-operations",
+      "path": "cmd/gimble/steer.go",
+      "sha256": "9c52e7df423452a98511dbb9a2b28293032b38a24c89434509997f234d2964bd"
+    },
+    {
+      "segment": "07-operations",
+      "path": "cmd/gimble/workflows.go",
+      "sha256": "9666088d770cc4b44bb4904c715cb80712158250d5a6faae70b5c7a427a457a6"
+    },
+    {
+      "segment": "07-operations",
+      "path": "cmd/gimble/defaults.json",
+      "sha256": "c32e9252ad7adc7cadc6286328ccb3811e43dc4e7cf1862081a86cbfa442cd91"
+    },
+    {
+      "segment": "07-operations",
+      "path": "web/control.go",
+      "sha256": "b81dea9c66e961cdfdb88d37e3f4f4387a6149774bd5f4f42d1dafacfeab51e4"
+    },
+    {
+      "segment": "07-operations",
+      "path": "web/runtime.go",
+      "sha256": "d0feec440d3d7bd5252a73d36a8143305dcbc8e556ad4ee41d43fb0ff6a4477c"
+    },
+    {
+      "segment": "07-operations",
+      "path": "docs/web-app.md",
+      "sha256": "4c160135b6538109338b8ccb31f036e3bae61db644513f277400a74152a2d25c"
+    },
+    {
+      "segment": "07-operations",
+      "path": "docs/sprints/RUN-STORE.md",
+      "sha256": "f30d7c87aa2a23a9522d18afe3571bc736644fe77003cf75f36b33807461af80"
+    },
+    {
+      "segment": "08-promises",
+      "path": ".agents/skills/df-promise/SKILL.md",
+      "sha256": "9cf1c6fc6ce5da0fdaf5a5524f5570cc3173918880c7cc883e5a5e4abad91ee0"
+    },
+    {
+      "segment": "08-promises",
+      "path": ".agents/skills/df-promise/scripts/promise.py",
+      "sha256": "07b4caa0ab0fd1a5e40d43ccf4b0eb77f9b87a5f7f7bcce63b1f70339ebe1b12"
+    },
+    {
+      "segment": "08-promises",
+      "path": "ephemeral/legacy/docs/five-arts.md",
+      "sha256": "489d8535884eeedc01aea574f06935f4e52933698e0837f481f3240c1742687e"
+    },
+    {
+      "segment": "08-promises",
+      "path": "ephemeral/legacy/docs/direction.md",
+      "sha256": "bbb2c829d92095a3c360d051d01888278c42cf63daa9e4992c1e055ac016fbe0"
+    },
+    {
+      "segment": "09-chapters-sprints",
+      "path": ".agents/skills/df-chapter-create/SKILL.md",
+      "sha256": "c4a850ce34421309384d20a355524b303186c7a1d1b5ca3107b30987b907fa9d"
+    },
+    {
+      "segment": "09-chapters-sprints",
+      "path": ".agents/skills/df-chapter-create/scripts/chapter.py",
+      "sha256": "7eb24d180f55e6b3882b4e2c44062a6231ba029d51af1cadc2734baef7fc382d"
+    },
+    {
+      "segment": "09-chapters-sprints",
+      "path": ".agents/skills/df-sprint-plan/SKILL.md",
+      "sha256": "96c4710f19c6ed56c98f361b4caf81998d2c9c3464e4cdf942373a8cd30809f7"
+    },
+    {
+      "segment": "09-chapters-sprints",
+      "path": ".agents/skills/df-sprint-plan/scripts/ledger.py",
+      "sha256": "c3c9043fd5f06a818fb24d30ea8ef54cb8a0e10742a194e98e4dddffbbf80918"
+    },
+    {
+      "segment": "09-chapters-sprints",
+      "path": "docs/sprints/SPRINT-001.md",
+      "sha256": "026bc9af3995c4e072c7e93cb3fba2df439d582a22c8b5af3b71f6f563b87a38"
+    },
+    {
+      "segment": "09-chapters-sprints",
+      "path": "docs/sprints/ledger.yaml",
+      "sha256": "6e4eaacae5c7aea20c6292b6911fc7a1851d5b7405b4751e70e03d546163e25c"
+    },
+    {
+      "segment": "09-chapters-sprints",
+      "path": "docs/SEMANTIC-INDEX.md",
+      "sha256": "60d77fa43e3b77c9c30d0b19a1c2d551174e5bb52e3371a65d9ebbbd06164ca2"
+    },
+    {
+      "segment": "10-delivery-loops",
+      "path": ".agents/skills/df-easy-loop-e2e/SKILL.md",
+      "sha256": "822a60471136e414aefe9e94457c4d8fe1d4dce3e7fd9be09a60e2b9ca8885be"
+    },
+    {
+      "segment": "10-delivery-loops",
+      "path": ".agents/skills/df-easy-loop-simple/SKILL.md",
+      "sha256": "9356dabd2fbb1263686545ba413010d1c92ef7223298ecf251d3ef3d12c0364c"
+    },
+    {
+      "segment": "10-delivery-loops",
+      "path": ".agents/skills/df-sprint-execute/SKILL.md",
+      "sha256": "352fe0f4080b9ae18bddf95ee87e56ba54c308a4d3617385fc7cd3ff73600dfe"
+    },
+    {
+      "segment": "10-delivery-loops",
+      "path": "ephemeral/legacy/docs/workflows-as-programs.md",
+      "sha256": "5960373dceea55a2317415a7d3b315cf9d5b0280d997a2a1b91eb773ce3089fe"
+    },
+    {
+      "segment": "10-delivery-loops",
+      "path": "ephemeral/worklog/20260912-sprint001-codex-draft.md",
+      "sha256": "4d77d67a7698e763bafd8c32962186ca6d993c36e64862162eed669ce00f7704"
+    },
+    {
+      "segment": "10-delivery-loops",
+      "path": "ephemeral/worklog/20260912-sprint001-codex-critique.md",
+      "sha256": "9904cb02a79017c628f69d64ed8494c8c0057ef919542892bb0ee771b8775b13"
+    },
+    {
+      "segment": "11-workflow-packaging",
+      "path": ".agents/skills/gimble-workflows/SKILL.md",
+      "sha256": "b23b1a3d26776be80cc94b77d2e33b803cfb602c4510fa3891b035c9e032e567"
+    },
+    {
+      "segment": "11-workflow-packaging",
+      "path": "internal/workflows/review/review.go",
+      "sha256": "604d40456e7e3e40bfcbcd84fe943b656a1b46d04a768ae42aa04e5f07d27e92"
+    },
+    {
+      "segment": "11-workflow-packaging",
+      "path": "internal/workflows/review/schema.go",
+      "sha256": "66ad3e62b19612c3a7c98d47d4ef5a56a46c702fa46f372338b462e5513feae2"
+    },
+    {
+      "segment": "11-workflow-packaging",
+      "path": "internal/workflows/interview/interview.go",
+      "sha256": "e505b930b4ca7f2a4ef712db8f1d2639bdd51e559f8726a358e8f2a808768ed3"
+    },
+    {
+      "segment": "11-workflow-packaging",
+      "path": "internal/workflows/implementinterview/implementinterview.go",
+      "sha256": "a3d5182eecda0c55667480f0d86c5e26c71c7c9749154e2f3ec63ea3a3c3bd44"
+    },
+    {
+      "segment": "11-workflow-packaging",
+      "path": "internal/generate/entry.go",
+      "sha256": "18be0c6651ad001c9796e20368f766121c7771846d6810bb4a4bcd24ee13b61a"
+    },
+    {
+      "segment": "11-workflow-packaging",
+      "path": "internal/generate/command.go",
+      "sha256": "b87f9edbf396c870c35627d634476c404ebc69220bce7683dc590d0dac3f332a"
+    },
+    {
+      "segment": "11-workflow-packaging",
+      "path": "internal/generate/gimblegen/main.go",
+      "sha256": "67f3da8d98166e10fb2d90ed650aaa6581e34f380c78eba16fc8b2ba7fd29ccf"
+    },
+    {
+      "segment": "11-workflow-packaging",
+      "path": "workflow/graph.go",
+      "sha256": "2ad40cf838165bbb4bcb44c506ae9acaae1a335db1e458f43ab2f1e36b388392"
+    },
+    {
+      "segment": "11-workflow-packaging",
+      "path": "workflow/roles.go",
+      "sha256": "a0da6290b47bc6fc031bdf7d16837a94cfc761af40275b348c84eb6cb0ad1919"
+    },
+    {
+      "segment": "11-workflow-packaging",
+      "path": "env.go",
+      "sha256": "2d58dd2af8285089706eef025eaa16f5d971f51e5da8baa5ff01d85d08e1e3ae"
+    },
+    {
+      "segment": "11-workflow-packaging",
+      "path": "ephemeral/worklog/202609171047-workflow-roles.md",
+      "sha256": "1bf0d8dd3311e74adf2554b7b48e8fb019eec10166e87b4aec55e174d0edcc8c"
+    },
+    {
+      "segment": "12-historical-teachings",
+      "path": "ephemeral/legacy/ephemeral/projects/gimble/programmatic-workflows/ACTIONS-AND-KNOWLEDGE-VERBATIM.md",
+      "sha256": "15f20b6ad450c98fdadbbe0a6a91ed9ad84595512ce78a8ae52ad2cf8469a8c1"
+    },
+    {
+      "segment": "12-historical-teachings",
+      "path": "ephemeral/legacy/ephemeral/projects/gimble/programmatic-workflows/CONCURRENCY-SHAPES.md",
+      "sha256": "9c8326d02cbcb7508ffdfe498aa5de0ce77959d9bf70632c0a83244769cba778"
+    },
+    {
+      "segment": "12-historical-teachings",
+      "path": "ephemeral/legacy/ephemeral/projects/gimble/programmatic-workflows/CONTEXT-REFRAMING-VERBATIM.md",
+      "sha256": "4475eecd7e1af52d8f10666a3228589fbd7c119f0cbacc3148340e37111ff948"
+    },
+    {
+      "segment": "12-historical-teachings",
+      "path": "ephemeral/legacy/ephemeral/projects/gimble/programmatic-workflows/DIRECTION-CLARIFICATION-VERBATIM.md",
+      "sha256": "a21cc023302b71f11bc6a761a09b14816f90f855348b2e5d2512d3870e51e592"
+    },
+    {
+      "segment": "12-historical-teachings",
+      "path": "ephemeral/legacy/ephemeral/projects/gimble/programmatic-workflows/DIRECTION-CORRECTIONS-VERBATIM.md",
+      "sha256": "7700fa224915c7b8aad78c9d5be33242f2c44058eafe347693a3bc395f24da55"
+    },
+    {
+      "segment": "12-historical-teachings",
+      "path": "ephemeral/legacy/ephemeral/projects/gimble/programmatic-workflows/INPUT-SEPARATION-VERBATIM.md",
+      "sha256": "8cae5cec1f42800849a74be6d2ea7e2927506f1f1dd56994fe60cc1e61946716"
+    },
+    {
+      "segment": "12-historical-teachings",
+      "path": "ephemeral/legacy/ephemeral/projects/gimble/programmatic-workflows/KEY-CLAIM-VERBATIM.md",
+      "sha256": "eb2a0914387b800b464a4b7b58649f8a9f5d835a1d83b15d05fb0019de2e8347"
+    },
+    {
+      "segment": "12-historical-teachings",
+      "path": "ephemeral/legacy/ephemeral/projects/gimble/programmatic-workflows/POC-RECOVERY.md",
+      "sha256": "bbec465edd650ec8186b290a9a9503559ab65a6147b505f11596c2bd30cf79d8"
+    },
+    {
+      "segment": "12-historical-teachings",
+      "path": "ephemeral/legacy/ephemeral/projects/gimble/programmatic-workflows/POC-WORKFLOWS.md",
+      "sha256": "32b91564361011900c734fa8c1fda14515998289407f60484ba001239cb3f499"
+    },
+    {
+      "segment": "12-historical-teachings",
+      "path": "ephemeral/worklog/202609152233-issue-227-graph.md",
+      "sha256": "0bb1c1edbc28014b86b0261770b77f45b404c3a161b98de981da817871996695"
+    },
+    {
+      "segment": "12-historical-teachings",
+      "path": "ephemeral/worklog/interview-249-workflow.md",
+      "sha256": "8958d0f83b216e6f4224c5279c68dc98136de6f97d1067437bdc8092fab3fa5f"
+    },
+    {
+      "segment": "12-historical-teachings",
+      "path": "ephemeral/worklog/202609161557-gimble-entrypoint.md",
+      "sha256": "8ab2c2aea7be4551ca67e27ed01f7da8b2124ae9d61fe82ac204439cbc130422"
+    },
+    {
+      "segment": "11-workflow-packaging",
+      "path": "internal/generate/read.go",
+      "sha256": "e84cec5bc9ea16861f9e93ab7d86652d449e4f335af476b20f25557f407c87fa"
+    },
+    {
+      "segment": "07-operations",
+      "path": "internal/observation/store.go",
+      "sha256": "ddaf3b5f7746ccfdf2ad2d91bc41271cf633e6c28ca116f0bd60ff5a22e79f45"
+    },
+    {
+      "segment": "07-operations",
+      "path": "internal/observation/files.go",
+      "sha256": "edeb57cdec0039ade27503daae98042c471a52058decd63cc7633eefb86c9503"
+    },
+    {
+      "segment": "07-operations",
+      "path": "internal/observation/durable.go",
+      "sha256": "816ead312ea80b2b43d17172721a6eab69a681360be1a3d354b6a87b5caa9300"
+    }
+  ]
+}

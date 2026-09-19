@@ -23,3 +23,9 @@ and machine failure are acknowledged limitations.
 The earlier Opus feasibility pilot and its evidence are local at
 /private/tmp/gimble-opus-validation-artifacts/REPORT.md. That pilot is evidence for
 the tools and lifecycle approach, not proof of this new workflow's correctness.
+
+Follow-up user request: fix both findings in
+`ephemeral/reviews/20260919-validate-product-round-01.md`, then obtain an
+adversarial review from Fable 5.1. The two findings concern evidence/report
+ownership and report completion claims that precede the outer run's agent-session
+cleanup outcome. No merge or installation was requested in this follow-up.

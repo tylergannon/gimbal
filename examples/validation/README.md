@@ -20,6 +20,11 @@ Each feature supplies an ID, `browser` or `cli` surface, optional setup, actions
 exercise, and expected behavior. CLI interaction is filmed through a local GoTTY
 terminal. Reports, supporting evidence, and per-feature WebM recordings are saved
 under a unique directory in `output_dir`. A failed or blocked feature makes the
-run unsuccessful. Cancellation attempts bounded recording finalization and cleanup;
+run unsuccessful. The report contains feature results and any workflow-body error;
+it makes no overall completion claim. Daily automation must check the command's
+exit status (or the final Gimble run status), which includes agent-session cleanup
+failures that arrive after report writing. Validators may cite only unchanged
+original evidence from their feature; report modification blocks the feature.
+Cancellation attempts bounded recording finalization and cleanup;
 hard process termination cannot guarantee either. Schedule invocations externally
 for daily runs.

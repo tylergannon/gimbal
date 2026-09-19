@@ -86,7 +86,7 @@ func TestMissingPrerequisiteRetainsEveryFeature(t *testing.T) {
 	if err := json.Unmarshal(data, &got); err != nil {
 		t.Fatal(err)
 	}
-	if got.Complete || got.Error == "" || len(got.Features) != 2 {
+	if got.Error == "" || len(got.Features) != 2 {
 		t.Fatalf("report = %+v", got)
 	}
 	for _, f := range got.Features {

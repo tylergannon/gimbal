@@ -24,7 +24,10 @@
 // passes. Failed expectations remain failures; there are no automatic test retries.
 // Reports and recordings go into a unique validation-* directory under output_dir.
 // report.json includes every declared feature, including those never reached.
-// Success requires every feature to pass and owned-resource cleanup to succeed.
+// The report contains feature evidence, not an overall completion claim. Overall
+// success is the command's zero exit status (or the final Gimble run status), which
+// requires every feature to pass and owned-resource cleanup to succeed. Consumers
+// must check that final outcome: agent cleanup can fail after this report is written.
 // Cancellation uses bounded cleanup outside the cancelled context. SIGKILL or a
 // machine crash cannot guarantee finalized video, process cleanup, or a final report.
 //
@@ -85,8 +88,7 @@ type featureResult struct {
 type report struct {
 	Product  string          `json:"product"`
 	Revision string          `json:"revision,omitempty"`
-	Complete bool            `json:"complete"`
-	Error    string          `json:"error,omitempty"`
+	Error    string          `json:"workflow_error,omitempty"`
 	Features []featureResult `json:"features"`
 }
 
@@ -109,7 +111,6 @@ func ValidateProduct(ctx context.Context, env gimble.Env, params Params) (result
 		result.Features = append(result.Features, featureResult{ID: feature.ID, Status: "blocked", Reason: "not exercised"})
 	}
 	defer func() {
-		result.Complete = resultErr == nil
 		if resultErr != nil {
 			result.Error = resultErr.Error()
 		}
@@ -118,7 +119,6 @@ func ValidateProduct(ctx context.Context, env gimble.Env, params Params) (result
 	if err := writeReport(reportPath, result); err != nil {
 		return err
 	}
-	gimble.Set(ctx, "report path", reportPath)
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	driver, err := exec.LookPath(suite.Tools.PlaywrightCLI)
@@ -165,6 +165,10 @@ func ValidateProduct(ctx context.Context, env gimble.Env, params Params) (result
 		}
 		index := 0
 		for featureCtx, feature := range gimble.Iterate(ctx, "feature", suite.Features) {
+			reportDigest, err := fileDigest(reportPath)
+			if err != nil {
+				return err
+			}
 			item := &result.Features[index]
 			index++
 			dir := filepath.Join(output, strconv.Itoa(index))
@@ -174,7 +178,7 @@ func ValidateProduct(ctx context.Context, env gimble.Env, params Params) (result
 			item.Video = filepath.Join(dir, "video.webm")
 			session := "validation-" + filepath.Base(output) + "-" + strconv.Itoa(index)
 			var observation Observation
-			err := gimble.Scope(featureCtx, "exercise", func(ctx context.Context) (exerciseErr error) {
+			err = gimble.Scope(featureCtx, "exercise", func(ctx context.Context) (exerciseErr error) {
 				target := suite.Product.BrowserURL
 				if feature.Surface == "cli" {
 					terminal, err := exec.LookPath(suite.Tools.TerminalServer)
@@ -274,8 +278,12 @@ func ValidateProduct(ctx context.Context, env gimble.Env, params Params) (result
 			})
 			if err != nil {
 				item.Reason = err.Error()
+			} else if err := unchanged(reportPath, reportDigest); err != nil {
+				item.Reason = "operator modified the workflow report: " + err.Error()
 			} else if observation.BlockedReason != "" {
 				item.Reason = observation.BlockedReason
+			} else if len(observation.EvidenceFiles) == 0 {
+				item.Reason = "operator supplied no evidence"
 			} else {
 				code, _, stderr, decodeErr := gimble.RunCommand(featureCtx, "decode-video", dir, decoder, "-v", "error", "-xerror", "-i", item.Video, "-f", "image2", "-update", "1", "-y", filepath.Join(dir, "last-frame.png"))
 				if decodeErr != nil {
@@ -285,32 +293,40 @@ func ValidateProduct(ctx context.Context, env gimble.Env, params Params) (result
 				} else if info, err := os.Stat(filepath.Join(dir, "last-frame.png")); err != nil || info.Size() == 0 {
 					item.Reason = "video decoder produced no frame"
 				} else {
-					gimble.SetJSON(featureCtx, "feature", feature)
-					gimble.SetJSON(featureCtx, "operator observation", observation)
-					gimble.Set(featureCtx, "evidence directory", dir)
-					gimble.Set(featureCtx, "video", item.Video)
-					gimble.Set(featureCtx, "video decoder", decoder)
-					validator := gimble.NewSession(featureCtx, "product-validation", dir)
-					verdict, err := validator.Generate[Verdict](featureCtx, validatePrompt)
+					originals, err := snapshotEvidence(dir, append(append([]string{}, observation.EvidenceFiles...), item.Video))
 					if err != nil {
-						item.Reason = err.Error()
-					} else if verdict.Status != "pass" && verdict.Status != "fail" && verdict.Status != "blocked" {
-						item.Reason = "validator returned an invalid status"
-					} else if strings.TrimSpace(verdict.Reason) == "" || len(verdict.EvidenceFiles) == 0 {
-						item.Reason = "validator supplied no explanation or evidence"
+						item.Reason = "invalid operator evidence: " + err.Error()
 					} else {
-						item.Status, item.Reason, item.Evidence = verdict.Status, verdict.Reason, verdict.EvidenceFiles
-						for i, path := range item.Evidence {
-							item.Evidence[i] = absolute(dir, path)
-							info, err := os.Stat(item.Evidence[i])
-							if err != nil || !info.Mode().IsRegular() || info.Size() == 0 {
-								item.Status = "blocked"
-								item.Reason = "validator cited missing or empty evidence: " + path
-								break
-							}
+						// Close the validator before checking that original evidence stayed unchanged.
+						var verdict Verdict
+						err := gimble.Scope(featureCtx, "validation", func(ctx context.Context) error {
+							gimble.SetJSON(ctx, "feature", feature)
+							gimble.SetJSON(ctx, "operator observation", observation)
+							gimble.Set(ctx, "evidence directory", dir)
+							gimble.Set(ctx, "video", item.Video)
+							gimble.Set(ctx, "video decoder", decoder)
+							validator := gimble.NewSession(ctx, "product-validation", dir)
+							var err error
+							verdict, err = validator.Generate[Verdict](ctx, validatePrompt)
+							return err
+						})
+						evidence, evidenceErr := verdictEvidence(dir, originals, verdict.EvidenceFiles)
+						if err != nil {
+							item.Reason = err.Error()
+						} else if evidenceErr != nil {
+							item.Reason = "invalid validator evidence: " + evidenceErr.Error()
+						} else if verdict.Status != "pass" && verdict.Status != "fail" && verdict.Status != "blocked" {
+							item.Reason = "validator returned an invalid status"
+						} else if strings.TrimSpace(verdict.Reason) == "" || len(evidence) == 0 {
+							item.Reason = "validator supplied no explanation or evidence"
+						} else {
+							item.Status, item.Reason, item.Evidence = verdict.Status, verdict.Reason, evidence
 						}
 					}
 				}
+			}
+			if err := unchanged(reportPath, reportDigest); err != nil {
+				item.Status, item.Reason = "blocked", "agent modified the workflow report: "+err.Error()
 			}
 			if err := writeReport(reportPath, result); err != nil {
 				return err
@@ -345,4 +361,4 @@ For CLI features, type commands into the browser terminal. Its text is drawn on 
 Save original observations in the evidence directory and return their absolute paths with a concise account of what happened. Report missing prerequisites or inability to exercise the feature in BlockedReason. A failed expectation is an observation for the independent validator, not a reason to silently retry until it passes. Do not modify the workflow report or fabricate evidence.`
 
 const validatePrompt = `Independently decide whether the recorded interaction demonstrates the feature's expected behavior. Inspect the actual evidence files and sample relevant frames of the finalized video using the supplied decoder; do not accept the operator's summary as proof. The recording must show the same interaction as the supporting outputs and screenshots. Verify command exit statuses where relevant, distinguish an expected product error from an infrastructure error, and preserve unmet expectations.
-Return pass only when the original observations establish the whole expected outcome. Return fail for a demonstrated product mismatch, or blocked for insufficient evidence or missing prerequisites. Explain the observed-versus-expected result and cite the actual evidence files you inspected. Do not operate the target, repair the product, modify evidence, or change the expected outcome. You may write sampled video frames inside the evidence directory.`
+Return pass only when the original observations establish the whole expected outcome. Return fail for a demonstrated product mismatch, or blocked for insufficient evidence or missing prerequisites. Explain the observed-versus-expected result and cite the actual evidence files you inspected. Return the verdict only in your structured response; the workflow owns report writing. Do not write or modify any report, original evidence, product files, or expected outcome. You may create sampled video frames in the evidence directory for inspection, but cite only the original operator evidence files and the supplied video. All citations must belong to this feature. Do not operate the target or repair the product.`

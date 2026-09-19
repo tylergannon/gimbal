@@ -17,7 +17,7 @@
         operation: NodeOperation;
         runtime?: TurnRow | CommandRow | InterviewRow;
       }
-    | { kind: "service"; scope: ScopeRow; service: Service }
+    | { kind: "service"; scope: ScopeRow; service: Service; runtime?: CommandRow }
     | {
         kind: "watcher";
         scope: ScopeRow;

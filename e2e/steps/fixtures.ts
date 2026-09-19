@@ -81,7 +81,7 @@ export function setRunsFixture(populated: boolean): void {
     run: [
       {
         id: "fixture-failed",
-        name: "long-failure",
+        name: "implement",
         status: "failed",
         error: "FailureSummaryWithoutAnyBreaks".repeat(100),
         started: 1789800000000,

@@ -191,6 +191,13 @@ package documentation for long help, and parameter field comments for flag
 help. Put the detailed explanation and examples in package documentation;
 extra paragraphs only in the function comment do not become long help.
 
+The run UI requires the generated graph that matches the recorded workflow.
+Keep the workflow's `go:generate` directive, run generation after changing its
+shape, and compile the generated file into the binary that serves the run. The
+generated `init` registers the graph under the workflow's run name. A missing
+or structurally stale graph is an authoring/build error: regenerate, rebuild,
+and restart the serving binary rather than relying on a graphless run view.
+
 Inspect the generated workflow list and detailed help after changing the
 comments. A graph or output schema does not replace caller documentation.
 If the desired help requires a generator change, identify that concrete gap.

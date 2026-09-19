@@ -288,7 +288,7 @@ test("a controlled fold selection stays folded until an explicit navigation reve
   });
   await expect.element(screen.getByRole("button", { name: "Open research" })).toBeVisible();
 
-  const activity = currentActivitySelection(planTripFixture.graph, planTripFixture.snapshot, true);
+  const activity = currentActivitySelection(planTripFixture.graph, planTripFixture.snapshot);
   expect(activity?.kind).toBe("node");
   if (activity?.kind !== "node") return;
   await screen.rerender({

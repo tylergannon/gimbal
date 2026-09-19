@@ -8,8 +8,8 @@
   } from "#lib/observation/index.js";
   import CancelGuard from "#lib/run/CancelGuard.svelte";
   import DetailPane, { type ActionFeedback } from "#lib/run/DetailPane.svelte";
-  import HistoryLanes from "#lib/run/HistoryLanes.svelte";
   import Map, { type MapSelection } from "#lib/run/Map.svelte";
+  import SmallStates from "#lib/run/SmallStates.svelte";
   import Topbar from "#lib/run/Topbar.svelte";
   import {
     asMapSelection,
@@ -56,8 +56,12 @@
     return observation.connection;
   });
   const graphMatches = $derived(graph ? graphMatchesSnapshot(graph, snapshot) : false);
-  const searchItems = $derived(runNavigationItems(graph, snapshot, graphMatches));
-  const currentSelection = $derived(currentActivitySelection(graph, snapshot, graphMatches));
+  const searchItems = $derived(
+    graph && graphMatches ? runNavigationItems(graph, snapshot) : [],
+  );
+  const currentSelection = $derived(
+    graph && graphMatches ? currentActivitySelection(graph, snapshot) : undefined,
+  );
   const activeTurn = $derived(
     Object.values(snapshot.turns)
       .filter((turn) => turn.ended === 0)
@@ -278,14 +282,13 @@
         onselect={selectWithoutReveal}
       />
     {:else}
-      <HistoryLanes
-        {snapshot}
-        reason={graph
-          ? "The registered graph does not match this run"
-          : "No registered graph is available for this run"}
-        selected={selection}
-        onselect={selectWithoutReveal}
-      />
+      <div class="graph-required">
+        <SmallStates
+          state="no-graph"
+          workflowName={snapshot.run.name}
+          graphProblem={graph ? "mismatch" : "missing"}
+        />
+      </div>
     {/if}
     <DetailPane
       {snapshot}
@@ -360,6 +363,15 @@
     min-width: 0;
     min-height: 0;
     flex: 1;
+  }
+
+  .graph-required {
+    box-sizing: border-box;
+    min-width: 0;
+    flex: 1;
+    padding: 24px;
+    overflow: auto;
+    background: var(--background);
   }
 
   .remote-form {

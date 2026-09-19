@@ -91,8 +91,8 @@ Then('About is visible in a new document', async ({ page, browserState }) => {
 Then('the run workspace shows its identity and observation', async ({ page, browserState }) => {
 	await expect(page.getByRole('navigation', { name: 'Breadcrumb' }).getByRole('link', { name: 'Runs' })).toBeVisible();
 	const map = page.locator('[aria-label$="workflow map"]');
-	const history = page.getByRole('region', { name: 'Recorded run history' });
-	expect((await map.count()) + (await history.count())).toBe(1);
+	await expect(map).toBeVisible();
+	await expect(page.getByRole('region', { name: 'Recorded run history' })).toHaveCount(0);
 	expect(browserState.pageErrors).toEqual([]);
 });
 
@@ -102,11 +102,7 @@ When('I select recorded work in the workspace', async ({ page }) => {
 			'[aria-label$="workflow map"] button[aria-label^="Select "]:not([aria-label$=" instance"])'
 		)
 		.first();
-	if (await mapSelection.count()) {
-		await mapSelection.click();
-		return;
-	}
-	await page.getByRole('region', { name: 'Recorded run history' }).getByRole('button').first().click();
+	await mapSelection.click();
 });
 
 Then('the detail pane describes that selected work', async ({ page, browserState }) => {
@@ -154,7 +150,7 @@ When('the delayed Runs data arrives', async ({ browserState }) => {
 
 Then('recorded cards replace the loading feedback', async ({ page, browserState }) => {
 	await expect(page.getByRole('status').filter({ hasText: 'Loading runs…' })).toHaveCount(0);
-	await expect(page.getByRole('button', { name: 'Open long-failure fixture-failed' })).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Open implement fixture-failed' })).toBeVisible();
 	expect(browserState.pageErrors).toEqual([]);
 });
 
@@ -170,7 +166,7 @@ When('a background Runs refresh is delayed', async ({ page, browserState }) => {
 });
 
 Then('the current Runs card stays visible and usable', async ({ page, browserState }) => {
-	const card = page.getByRole('button', { name: 'Open long-failure fixture-failed' });
+	const card = page.getByRole('button', { name: 'Open implement fixture-failed' });
 	await expect(card).toBeVisible();
 	await card.focus();
 	await expect(card).toBeFocused();
@@ -184,7 +180,7 @@ When('the background Runs refresh arrives with updated data', async ({ browserSt
 });
 
 Then('the card updates without navigation loading feedback', async ({ page, browserState }) => {
-	const card = page.getByRole('button', { name: 'Open long-failure fixture-failed' });
+	const card = page.getByRole('button', { name: 'Open implement fixture-failed' });
 	await expect(card).toContainText('Refresh completed with updated fixture data.');
 	await expect(page.getByRole('status').filter({ hasText: 'Loading runs…' })).toHaveCount(0);
 	expect(browserState.pageErrors).toEqual([]);
@@ -194,7 +190,7 @@ Then(
 	'the failed Runs card is contained with a reachable action at desktop and phone widths',
 	async ({ page, browserState }) => {
 		const assertContained = async () => {
-			const card = page.getByRole('button', { name: 'Open long-failure fixture-failed' });
+			const card = page.getByRole('button', { name: 'Open implement fixture-failed' });
 			await expect(card).toBeVisible();
 			await expect(card.locator('.open-label')).toBeVisible();
 			await card.focus();

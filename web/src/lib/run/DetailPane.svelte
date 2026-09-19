@@ -73,7 +73,6 @@
 
   const selectedTurnID = $derived.by(() => {
     if (!selection) return "";
-    if (selection.kind === "history-turn") return selection.turn.id;
     if (selection.kind === "node" && selection.runtime && "prompt" in selection.runtime)
       return selection.runtime.id;
     if (selection.kind === "watcher") return selection.turn?.id ?? "";
@@ -85,7 +84,7 @@
 
   const selectedCommandID = $derived.by(() => {
     if (!selection) return "";
-    if (selection.kind === "history-command") return selection.command.id;
+    if (selection.kind === "service" && selection.runtime) return selection.runtime.id;
     if (selection.kind === "node" && selection.runtime && "exit_code" in selection.runtime)
       return selection.runtime.id;
     return "";
@@ -136,9 +135,7 @@
     if (!selection) return snapshot.run.name;
     if (selection.kind === "watcher") return selection.supervisor.session;
     if (selection.kind === "service") return selection.service.name;
-    if (selection.kind === "history-turn") return session?.name ?? selection.turn.id;
-    if (selection.kind === "history-command") return selection.command.name;
-    if (selection.kind === "history-scope" || selection.kind === "sheet" || selection.kind === "instance")
+    if (selection.kind === "sheet" || selection.kind === "instance")
       return selection.scope.name || snapshot.run.name;
     return selection.operation.kind === "agent_call"
       ? selection.operation.session
@@ -147,7 +144,7 @@
   const kind = $derived.by(() => {
     if (!selection) return "run";
     if (selection.kind === "watcher") return "watcher";
-    if (selection.kind === "service") return "service";
+    if (selection.kind === "service" && !selection.runtime) return "service";
     if (notObserved && selection.kind === "node") {
       return selection.operation.kind === "agent_call"
         ? "agent call"
@@ -317,7 +314,7 @@
         <div class="section-title">Session</div>
         <dl><dt>Role</dt><dd>{selection.supervisor.role}</dd><dt>Source</dt><dd><code>{selection.supervisor.file}:{selection.supervisor.line}</code></dd></dl>
       </section>
-    {:else if selection.kind === "service"}
+    {:else if selection.kind === "service" && !command}
       <section>
         <div class="section-title">Declared service</div>
         <p>This service belongs to <code>{scope?.key || "root"}</code>. Its process state is runtime evidence, not part of this static declaration.</p>

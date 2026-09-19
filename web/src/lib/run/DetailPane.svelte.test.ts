@@ -185,6 +185,30 @@ test("a service selection shows declaration ownership and source without runtime
   expect(document.querySelector("aside .title-row [data-state]")).toBeNull();
 });
 
+test("a service process command selected from search retains command detail", async () => {
+  const operation = serviceOwnershipFixture.graph.body.find(
+    (candidate) => candidate.kind === "scope",
+  );
+  if (!operation || operation.kind !== "scope") throw new Error("backend scope is missing");
+  const service = operation.services[0];
+  if (!service) throw new Error("api service is missing");
+  const runtime = serviceOwnershipFixture.snapshot.commands["backend.1/api.1"];
+
+  const screen = await render(DetailPane, {
+    snapshot: serviceOwnershipFixture.snapshot,
+    selection: {
+      kind: "service",
+      scope: serviceOwnershipFixture.snapshot.scopes["backend.1"],
+      service,
+      runtime,
+    },
+  });
+
+  await expect.element(screen.getByText("This instance")).toBeVisible();
+  await expect.element(screen.getByText("api", { exact: true }).first()).toBeVisible();
+  await expect.element(screen.getByText("Declared service")).not.toBeInTheDocument();
+});
+
 test("command detail exposes both streams and their complete-output references", async () => {
   const loop = implementInterviewFixture.graph.body.find(
     (operation) => operation.kind === "promise_loop",
@@ -250,27 +274,4 @@ test("watchers and definition disclosures show graph facts and honest empty stat
   await screen.getByText(/^Definition/).click();
   await expect.element(screen.getByText("coding", { exact: true }).last()).toBeVisible();
   await expect.element(screen.getByText(coding.prompt)).toBeVisible();
-
-  const history = await render(DetailPane, {
-    snapshot: implementInterviewFixture.snapshot,
-    selection: {
-      kind: "history-turn",
-      scope: implementInterviewFixture.snapshot.scopes["implementation.1/task.1"],
-      turn: implementInterviewFixture.snapshot.turns["coding.1/turn.1"],
-    },
-  });
-  await history
-    .getByText(/^Watchers/)
-    .last()
-    .click();
-  await expect
-    .element(history.getByText("No watcher definition is available for this recorded turn."))
-    .toBeVisible();
-  await history
-    .getByText(/^Definition/)
-    .last()
-    .click();
-  await expect
-    .element(history.getByText("No workflow definition is available for this recorded turn."))
-    .toBeVisible();
 });

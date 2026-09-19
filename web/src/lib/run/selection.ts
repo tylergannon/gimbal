@@ -10,12 +10,7 @@ import type { Supervisor } from "../workflow/types.js";
 import type { MapSelection } from "./Map.svelte";
 import { buildMapLayout } from "./layout.js";
 
-export type HistorySelection =
-  | { kind: "history-scope"; scope: ScopeRow }
-  | { kind: "history-turn"; scope: ScopeRow; turn: TurnRow }
-  | { kind: "history-command"; scope: ScopeRow; command: CommandRow };
-
-export type RunSelection = MapSelection | HistorySelection;
+export type RunSelection = MapSelection;
 
 export type RunNavigationItem = {
   id: string;
@@ -102,14 +97,21 @@ function mapResolver(graph: Graph, snapshot: RunSnapshot) {
     },
     command(command: CommandRow): MapSelection | undefined {
       const scope = snapshot.scopes[command.scope];
-      const node = layoutFor(command.scope).nodes.find(
+      const layout = layoutFor(command.scope);
+      const node = layout.nodes.find(
         (item) =>
           item.scopeKey === command.scope &&
           item.operation.kind === "command" &&
           item.operation.name === command.name,
       );
-      return scope && node
-        ? { kind: "node", scope, operation: node.operation, runtime: command }
+      if (scope && node) {
+        return { kind: "node", scope, operation: node.operation, runtime: command };
+      }
+      const declaredService = layout.services
+        .find((group) => group.scopeKey === command.scope)
+        ?.items.find((item) => item.service.name === command.name)?.service;
+      return scope && declaredService
+        ? { kind: "service", scope, service: declaredService, runtime: command }
         : undefined;
     },
   };
@@ -227,17 +229,12 @@ export function graphMatchesSnapshot(graph: Graph, snapshot: RunSnapshot) {
 
 export function selectedRuntimeKey(selection: RunSelection | undefined) {
   if (!selection) return undefined;
-  if (selection.kind === "history-turn") return selection.turn.id;
-  if (selection.kind === "history-command") return selection.command.id;
-  if (
-    selection.kind === "history-scope" ||
-    selection.kind === "sheet" ||
-    selection.kind === "instance"
-  ) {
+  if (selection.kind === "sheet" || selection.kind === "instance") {
     return selection.scope.key;
   }
   if (selection.kind === "watcher") return `watcher:${selection.supervisor.session}`;
   if (selection.kind === "service") {
+    if (selection.runtime) return selection.runtime.id;
     return `service:${selection.scope.key}:${selection.service.name}:${selection.service.file}:${selection.service.line}`;
   }
   const runtime = selection.runtime;
@@ -271,42 +268,26 @@ function mapSelectionForCommand(
 }
 
 export function currentActivitySelection(
-  graph: Graph | undefined,
+  graph: Graph,
   snapshot: RunSnapshot,
-  matchesGraph: boolean,
 ): RunSelection | undefined {
   const interview = Object.values(snapshot.interviews)
     .filter((row) => row.status === "pending")
     .sort((left, right) => right.asked - left.asked)[0];
   if (interview) {
-    if (graph && matchesGraph) {
-      const selection = mapSelectionForInterview(graph, snapshot, interview);
-      if (selection) return selection;
-    }
-    const scope = snapshot.scopes[interview.scope];
-    return scope ? { kind: "history-scope", scope } : undefined;
+    return mapSelectionForInterview(graph, snapshot, interview);
   }
 
   const turn = Object.values(snapshot.turns)
     .filter((row) => row.ended === 0)
     .sort((left, right) => right.started - left.started)[0];
   if (!turn) return undefined;
-  if (graph && matchesGraph) {
-    const selection = mapSelectionForTurn(graph, snapshot, turn);
-    if (selection) return selection;
-  }
-  const scope = snapshot.scopes[turn.scope];
-  return scope ? { kind: "history-turn", scope, turn } : undefined;
+  return mapSelectionForTurn(graph, snapshot, turn);
 }
 
-export function runNavigationItems(
-  graph: Graph | undefined,
-  snapshot: RunSnapshot,
-  matchesGraph: boolean,
-): RunNavigationItem[] {
+export function runNavigationItems(graph: Graph, snapshot: RunSnapshot): RunNavigationItem[] {
   const items: RunNavigationItem[] = [];
-  const mapAvailable = Boolean(graph && matchesGraph);
-  const resolver = graph && matchesGraph ? mapResolver(graph, snapshot) : undefined;
+  const resolver = mapResolver(graph, snapshot);
 
   for (const scope of Object.values(snapshot.scopes).sort(
     (left, right) => left.began - right.began || left.key.localeCompare(right.key),
@@ -316,7 +297,7 @@ export function runNavigationItems(
       id: `scope:${scope.key}`,
       label: scope.key,
       context: scope.loop ? "loop scope" : "scope",
-      selection: mapAvailable ? { kind: "sheet", scope } : { kind: "history-scope", scope },
+      selection: { kind: "sheet", scope },
     });
   }
 
@@ -326,13 +307,14 @@ export function runNavigationItems(
     const scope = snapshot.scopes[turn.scope];
     const session = snapshot.sessions[turn.session];
     if (!scope) continue;
-    const mapSelection = resolver?.turn(turn);
+    const mapSelection = resolver.turn(turn);
+    if (!mapSelection) continue;
     const ordinal = /turn\.(\d+)$/.exec(turn.id)?.[1];
     items.push({
       id: `turn:${turn.id}`,
       label: `${session?.name ?? turn.session}${ordinal ? ` · turn ${ordinal}` : ""}`,
       context: turn.scope || snapshot.run.name,
-      selection: mapSelection ?? { kind: "history-turn", scope, turn },
+      selection: mapSelection,
     });
   }
 
@@ -341,12 +323,13 @@ export function runNavigationItems(
   )) {
     const scope = snapshot.scopes[command.scope];
     if (!scope) continue;
-    const mapSelection = resolver?.command(command);
+    const mapSelection = resolver.command(command);
+    if (!mapSelection) continue;
     items.push({
       id: `command:${command.id}`,
       label: command.name,
       context: command.scope || snapshot.run.name,
-      selection: mapSelection ?? { kind: "history-command", scope, command },
+      selection: mapSelection,
     });
   }
 
@@ -361,24 +344,19 @@ export function rebindSelection(
   const scope = snapshot.scopes[selection.scope.key];
   if (!scope) return undefined;
 
-  if (selection.kind === "history-scope") return { ...selection, scope };
   if (selection.kind === "sheet" || selection.kind === "instance") {
     return { ...selection, scope };
-  }
-  if (selection.kind === "history-turn") {
-    const turn = snapshot.turns[selection.turn.id];
-    return turn ? { ...selection, scope, turn } : undefined;
-  }
-  if (selection.kind === "history-command") {
-    const command = snapshot.commands[selection.command.id];
-    return command ? { ...selection, scope, command } : undefined;
   }
   if (selection.kind === "watcher") {
     if (!selection.turn) return { ...selection, scope };
     const turn = snapshot.turns[selection.turn.id];
     return turn ? { ...selection, scope, turn } : undefined;
   }
-  if (selection.kind === "service") return { ...selection, scope };
+  if (selection.kind === "service") {
+    if (!selection.runtime) return { ...selection, scope };
+    const runtime = snapshot.commands[selection.runtime.id];
+    return runtime ? { ...selection, scope, runtime } : undefined;
+  }
 
   if (!selection.runtime) return { ...selection, scope };
   let runtime: TurnRow | CommandRow | InterviewRow | undefined;
@@ -393,6 +371,5 @@ export function rebindSelection(
 }
 
 export function asMapSelection(selection: RunSelection | undefined): MapSelection | undefined {
-  if (!selection || selection.kind.startsWith("history-")) return undefined;
-  return selection as MapSelection;
+  return selection;
 }

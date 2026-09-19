@@ -7,6 +7,7 @@
   import { Input } from "#lib/components/ui/input/index.js";
   import type { ConnectionState, RunRow, TurnRow } from "../observation/index.js";
   import Pip from "./Pip.svelte";
+  import type { RunNavigationItem } from "./selection.js";
 
   let {
     run,
@@ -16,6 +17,10 @@
     stopping = false,
     cancelling = false,
     feedback = "",
+    searchItems = [],
+    currentAvailable = false,
+    onnavigate,
+    oncurrent,
     onstop,
     oncancel,
   }: {
@@ -26,15 +31,22 @@
     stopping?: boolean;
     cancelling?: boolean;
     feedback?: string;
+    searchItems?: RunNavigationItem[];
+    currentAvailable?: boolean;
+    onnavigate?: (item: RunNavigationItem) => void;
+    oncurrent?: () => void;
     onstop?: () => void;
     oncancel?: () => void;
   } = $props();
 
-  const terminal = $derived(run.status !== "running");
-  const elapsed = $derived(formatDuration((run.ended || Date.now()) - run.started));
-  const statusVariant = $derived(run.status === "failed" ? "destructive" : "outline");
   let disconnectedAt = $state(0);
   let now = $state(Date.now());
+  let query = $state("");
+  let searchOpen = $state(false);
+  let searchInput = $state<HTMLInputElement | null>(null);
+  const terminal = $derived(run.status !== "running");
+  const elapsed = $derived(formatDuration((run.ended || now) - run.started));
+  const statusVariant = $derived(run.status === "failed" ? "destructive" : "outline");
 
   $effect(() => {
     if (connection !== "disconnected") {
@@ -42,6 +54,10 @@
       return;
     }
     if (!disconnectedAt) disconnectedAt = Date.now();
+  });
+
+  $effect(() => {
+    if (terminal && connection !== "disconnected") return;
     now = Date.now();
     const timer = window.setInterval(() => (now = Date.now()), 1_000);
     return () => window.clearInterval(timer);
@@ -67,7 +83,46 @@
     const scope = activeTurn.scope.split("/").at(-1)?.replace(".", " ") ?? "run";
     return `now ${scope}`;
   });
+
+  const matches = $derived.by(() => {
+    const needle = query.trim().toLocaleLowerCase();
+    if (!needle) return [];
+    const terms = needle.split(/\s+/);
+    return searchItems
+      .filter((item) => {
+        const text = `${item.label} ${item.context}`.toLocaleLowerCase();
+        return terms.every((term) => text.includes(term));
+      })
+      .slice(0, 8);
+  });
+
+  function choose(item: RunNavigationItem) {
+    query = item.label;
+    searchOpen = false;
+    onnavigate?.(item);
+  }
+
+  function searchKeydown(event: KeyboardEvent) {
+    if (event.key === "Escape") {
+      searchOpen = false;
+      searchInput?.blur();
+    } else if (event.key === "Enter" && matches[0]) {
+      event.preventDefault();
+      choose(matches[0]);
+    }
+  }
+
+  function shortcut(event: KeyboardEvent) {
+    if (event.key !== "/" || event.metaKey || event.ctrlKey || event.altKey) return;
+    const target = event.target as HTMLElement;
+    if (target.closest("input, textarea, [contenteditable=true]")) return;
+    event.preventDefault();
+    searchInput?.focus();
+    searchOpen = true;
+  }
 </script>
+
+<svelte:window onkeydown={shortcut} />
 
 <header class="topbar">
   <nav aria-label="Breadcrumb" class="breadcrumb">
@@ -96,16 +151,45 @@
     <span class="elapsed">{elapsed}</span>
   </div>
 
-  <div class="current" class:waiting={waiting > 0}>
+  <button
+    type="button"
+    class="current"
+    class:waiting={waiting > 0}
+    disabled={!currentAvailable}
+    title={currentAvailable ? "Reveal current activity" : currentLabel}
+    onclick={oncurrent}
+  >
     {#if waiting > 0}<Pip state="waiting" />{/if}
     {currentLabel}
-  </div>
+  </button>
 
   <div class="spacer"></div>
   <label class="search">
     <SearchIcon size={14} />
-    <Input aria-label="Find a scope, turn, or command" placeholder="Find a scope or turn" />
+    <Input
+      bind:ref={searchInput}
+      bind:value={query}
+      aria-label="Find a scope, turn, or command"
+      aria-expanded={searchOpen && matches.length > 0}
+      aria-controls="run-search-results"
+      placeholder="Find a scope or turn"
+      onfocus={() => (searchOpen = true)}
+      oninput={() => (searchOpen = true)}
+      onkeydown={searchKeydown}
+      onblur={() => window.setTimeout(() => (searchOpen = false), 100)}
+    />
     <kbd>/</kbd>
+    {#if searchOpen && query.trim()}
+      <div id="run-search-results" class="search-results" role="listbox">
+        {#each matches as item (item.id)}
+          <button type="button" role="option" aria-selected="false" onclick={() => choose(item)}>
+            <strong>{item.label}</strong><span>{item.context}</span>
+          </button>
+        {:else}
+          <p>No matching scope, turn, or command</p>
+        {/each}
+      </div>
+    {/if}
   </label>
   {#if !terminal}
     <div class="controls">
@@ -207,7 +291,19 @@
   .current {
     gap: 6px;
     padding-left: 8px;
+    font: inherit;
+    cursor: pointer;
+    background: transparent;
+    border: 0;
     border-left: 1px solid var(--map-line-soft);
+  }
+
+  .current:disabled {
+    cursor: default;
+  }
+
+  .current:not(:disabled):hover {
+    color: var(--foreground);
   }
 
   .current.waiting {
@@ -248,6 +344,63 @@
     background: var(--muted);
     border: 1px solid var(--border);
     border-radius: 4px;
+  }
+
+  .search-results {
+    position: absolute;
+    z-index: 30;
+    top: calc(100% + 6px);
+    right: 0;
+    width: 360px;
+    max-height: 320px;
+    padding: 4px;
+    overflow: auto;
+    color: var(--foreground);
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    box-shadow: var(--shadow-md);
+  }
+
+  .search-results button {
+    display: flex;
+    width: 100%;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 7px 8px;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    background: transparent;
+    border: 0;
+    border-radius: 5px;
+  }
+
+  .search-results button:hover,
+  .search-results button:focus-visible {
+    background: var(--muted);
+    outline: none;
+  }
+
+  .search-results strong {
+    overflow: hidden;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .search-results span,
+  .search-results p {
+    color: var(--status-muted);
+    font-size: 12px;
+  }
+
+  .search-results p {
+    margin: 0;
+    padding: 8px;
   }
 
   .controls {

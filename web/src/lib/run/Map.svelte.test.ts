@@ -7,6 +7,7 @@ import {
   planTripFixture,
   serviceOwnershipFixture,
 } from "./fixtures/index.js";
+import { currentActivitySelection } from "./selection.js";
 
 test("pointer and keyboard instance selection replace the rendered runtime facts", async () => {
   const selections: MapSelection[] = [];
@@ -243,4 +244,66 @@ test("service declarations are selectable scope properties, not command nodes", 
   await screen.getByRole("button", { name: "Fold iteration" }).click();
   expect(document.querySelector('button[aria-label="Select service fixture"]')).toBeNull();
   await expect.element(screen.getByTitle("1 declared service")).toBeVisible();
+
+  const iteration = serviceOwnershipFixture.graph.body.find(
+    (operation) => operation.kind === "iterate",
+  );
+  if (!iteration || iteration.kind !== "iterate") throw new Error("iteration is missing");
+  const fixture = iteration.services[0];
+  if (!fixture) throw new Error("fixture service is missing");
+  const revealed: MapSelection = {
+    kind: "service",
+    scope: serviceOwnershipFixture.snapshot.scopes["iteration.2"],
+    service: fixture,
+  };
+  await screen.rerender({
+    ...serviceOwnershipFixture,
+    selected: revealed,
+    reveal: { request: 1, selection: revealed },
+    onselect: (selection) => selections.push(selection),
+  });
+  await expect.element(screen.getByRole("button", { name: "Fold iteration" })).toBeVisible();
+  const selectedFixture = screen.getByRole("button", { name: "Select service fixture" });
+  await expect.element(selectedFixture).toHaveAttribute("aria-pressed", "true");
+  expect(
+    document
+      .querySelector('button[aria-label="Select service fixture"]')
+      ?.getAttribute("data-selection-key"),
+  ).toContain("service:iteration.2:fixture");
+});
+
+test("a controlled fold selection stays folded until an explicit navigation reveal", async () => {
+  let selected: MapSelection | undefined;
+  const screen = await render(Map, {
+    ...planTripFixture,
+    onselect: (next) => (selected = next),
+  });
+
+  await screen.getByRole("button", { name: "Fold research" }).click();
+  expect(selected?.kind).toBe("sheet");
+  await screen.rerender({
+    ...planTripFixture,
+    selected,
+    onselect: (next) => (selected = next),
+  });
+  await expect.element(screen.getByRole("button", { name: "Open research" })).toBeVisible();
+
+  const activity = currentActivitySelection(planTripFixture.graph, planTripFixture.snapshot, true);
+  expect(activity?.kind).toBe("node");
+  if (activity?.kind !== "node") return;
+  await screen.rerender({
+    ...planTripFixture,
+    selected: activity,
+    reveal: { request: 1, selection: activity },
+    onselect: (next) => (selected = next),
+  });
+
+  await expect.element(screen.getByRole("button", { name: "Fold research" })).toBeVisible();
+  const selectedInterview = document.querySelector(
+    'button[aria-label="Select preferences"][aria-pressed="true"]',
+  );
+  expect(selectedInterview).not.toBeNull();
+  expect(
+    selectedInterview?.closest("[data-selection-key]")?.getAttribute("data-selection-key"),
+  ).toContain("research.1/transport.1");
 });

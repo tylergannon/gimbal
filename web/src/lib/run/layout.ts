@@ -492,20 +492,20 @@ function operationMeta(snapshot: RunSnapshot, scopeKey: string, operation: NodeO
   return match ? `turn ${match[1]}` : "turn";
 }
 
-function nodeSelectionKey(scopeKey: string, operation: NodeOperation) {
+export function nodeSelectionKey(scopeKey: string, operation: NodeOperation) {
   const name = operation.kind === "agent_call" ? operation.session : operation.name;
   return `node:${scopeKey}:${operation.kind}:${name}:${operation.file}:${operation.line}`;
 }
 
-function serviceSelectionKey(scopeKey: string, service: Service) {
+export function serviceSelectionKey(scopeKey: string, service: Service) {
   return `service:${scopeKey}:${service.name}:${service.file}:${service.line}`;
 }
 
-function sheetSelectionKey(scopeKey: string) {
+export function sheetSelectionKey(scopeKey: string) {
   return `sheet:${scopeKey}`;
 }
 
-function watcherSelectionKey(scopeKey: string, supervisor: Supervisor) {
+export function watcherSelectionKey(scopeKey: string, supervisor: Supervisor) {
   return `watcher:${scopeKey}:${supervisor.session}:${supervisor.file}:${supervisor.line}`;
 }
 
@@ -1130,15 +1130,7 @@ function applySelection(placement: Placement) {
   } else if (selectedSheet) {
     selectedSheet.selected = true;
     selectedScope = selectedSheet.scope.key;
-  } else {
-    const automatic = placement.nodes.find(
-      (node) => node.state === "running" || node.state === "waiting",
-    );
-    if (!automatic) return undefined;
-    automatic.selected = true;
-    selectedScope = automatic.scopeKey;
-    selectedKey = automatic.selectionKey;
-  }
+  } else return undefined;
 
   const matchingSheets = placement.sheets.filter((sheet) =>
     isAncestorScope(sheet.scope.key, selectedScope),

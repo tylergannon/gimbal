@@ -3,6 +3,7 @@
 
   export type ServiceItem = {
     service: Service;
+    selectionKey: string;
     selected: boolean;
   };
 </script>
@@ -31,6 +32,7 @@
       <button
         type="button"
         class:selected={item.selected}
+        data-selection-key={item.selectionKey}
         aria-pressed={item.selected}
         aria-label={`Select service ${item.service.name}`}
         title={`${item.service.file}:${item.service.line}`}

@@ -184,3 +184,93 @@ test("a service selection shows declaration ownership and source without runtime
   await expect.element(screen.getByText("examples/services/services.go:15")).toBeVisible();
   expect(document.querySelector("aside .title-row [data-state]")).toBeNull();
 });
+
+test("command detail exposes both streams and their complete-output references", async () => {
+  const loop = implementInterviewFixture.graph.body.find(
+    (operation) => operation.kind === "promise_loop",
+  );
+  const command = loop?.body.find(
+    (operation) => operation.kind === "command" && operation.name === "build",
+  );
+  if (!command || command.kind !== "command") throw new Error("build command is missing");
+
+  const snapshot = structuredClone(implementInterviewFixture.snapshot);
+  const runtime = snapshot.commands["implementation.1/task.1/build.1"];
+  runtime.stdout = "build completed\n";
+  runtime.stderr = "development warning\n";
+  runtime.stdout_file = "artifacts/commands/build.1/stdout.log";
+  runtime.stderr_file = "artifacts/commands/build.1/stderr.log";
+
+  const screen = await render(DetailPane, {
+    snapshot,
+    selection: {
+      kind: "node",
+      scope: snapshot.scopes["implementation.1/task.1"],
+      operation: command,
+      runtime,
+    },
+  });
+
+  await expect.element(screen.getByText("build completed")).toBeVisible();
+  await expect.element(screen.getByText("development warning")).toBeVisible();
+  await expect.element(screen.getByText("artifacts/commands/build.1/stdout.log")).toBeVisible();
+  await expect.element(screen.getByText("artifacts/commands/build.1/stderr.log")).toBeVisible();
+});
+
+test("watchers and definition disclosures show graph facts and honest empty states", async () => {
+  const loop = implementInterviewFixture.graph.body.find(
+    (operation) => operation.kind === "promise_loop",
+  );
+  const coding = loop?.body.find((operation) => operation.kind === "agent_call");
+  if (!coding || coding.kind !== "agent_call") throw new Error("coding node is missing");
+
+  const screen = await render(DetailPane, {
+    snapshot: implementInterviewFixture.snapshot,
+    observation: new RunObservation(implementInterviewFixture.snapshot),
+    selection: {
+      kind: "node",
+      scope: implementInterviewFixture.snapshot.scopes["implementation.1/task.3"],
+      operation: coding,
+      runtime: implementInterviewFixture.snapshot.turns["coding.1/turn.3"],
+    },
+  });
+
+  await screen.getByText(/^Watchers/).click();
+  await expect
+    .element(screen.getByText("implementation-scope-review", { exact: true }).first())
+    .toBeVisible();
+  await expect.element(screen.getByText("Latest turn in scope").first()).toBeVisible();
+  await expect
+    .element(screen.getByText("No completed watcher result has been recorded."))
+    .toBeVisible();
+  await expect
+    .element(screen.getByText("No watcher turn has been recorded in this scope."))
+    .not.toBeInTheDocument();
+
+  await screen.getByText(/^Definition/).click();
+  await expect.element(screen.getByText("coding", { exact: true }).last()).toBeVisible();
+  await expect.element(screen.getByText(coding.prompt)).toBeVisible();
+
+  const history = await render(DetailPane, {
+    snapshot: implementInterviewFixture.snapshot,
+    selection: {
+      kind: "history-turn",
+      scope: implementInterviewFixture.snapshot.scopes["implementation.1/task.1"],
+      turn: implementInterviewFixture.snapshot.turns["coding.1/turn.1"],
+    },
+  });
+  await history
+    .getByText(/^Watchers/)
+    .last()
+    .click();
+  await expect
+    .element(history.getByText("No watcher definition is available for this recorded turn."))
+    .toBeVisible();
+  await history
+    .getByText(/^Definition/)
+    .last()
+    .click();
+  await expect
+    .element(history.getByText("No workflow definition is available for this recorded turn."))
+    .toBeVisible();
+});

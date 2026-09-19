@@ -27,3 +27,5 @@ friction: Follow-up research-document run failed in index-curation on agy result
 friction: Reusing the corpus did not avoid agy failure: retry run01M2XMQ94EEC1Y3XQ7CBAYP5GY.research-document ended during research with result arriving before tool step30 settled. Requested role-model replacement per gimble-runs instruction; no application repair in this research scope.
 
 delivery: Two research-document attempts failed on the same agy unsettled-tool-step condition. Independent generator evidence review and author synthesis completed the report without making an OpenCode model turn; the durable conclusion is a proven oapi-codegen component-model layer (243 schemas, zero paths, compiling union tests) plus a custom HTTP/SSE boundary, with runtime execution still unproven.
+
+delivery: Filed P1 bug #302 for the two observed non-finish AgY tools: run_command step/item 148 and view_file step/item 30. Root cause remains unconfirmed; saved runs retain normalized events but no raw native stream.

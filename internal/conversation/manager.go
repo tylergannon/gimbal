@@ -50,19 +50,20 @@ type Run struct {
 
 // Conversation is the durable metadata and visible transcript for one chat.
 type Conversation struct {
-	ID       string    `json:"id"`
-	Title    string    `json:"title"`
-	Provider string    `json:"provider"`
-	Model    string    `json:"model"`
-	Branch   string    `json:"branch"`
-	Worktree string    `json:"worktree"`
-	Live     bool      `json:"live"`
-	Status   string    `json:"status"`
-	Error    string    `json:"error"`
-	Created  int64     `json:"created"`
-	Updated  int64     `json:"updated"`
-	Messages []Message `json:"messages"`
-	Runs     []Run     `json:"runs"`
+	ID            string    `json:"id"`
+	Title         string    `json:"title"`
+	Provider      string    `json:"provider"`
+	Model         string    `json:"model"`
+	Branch        string    `json:"branch"`
+	Worktree      string    `json:"worktree"`
+	NativeSession string    `json:"native_session"`
+	Live          bool      `json:"live"`
+	Status        string    `json:"status"`
+	Error         string    `json:"error"`
+	Created       int64     `json:"created"`
+	Updated       int64     `json:"updated"`
+	Messages      []Message `json:"messages"`
+	Runs          []Run     `json:"runs"`
 }
 
 // NewConversation is the provider and optional presentation selected by the
@@ -98,10 +99,19 @@ type activeConversation struct {
 	turnMu  sync.Mutex
 	adapter gimble.HarnessAdapter
 	session string
+	resume  bool
+}
+
+// persistentSessionAdapter is the extra lifecycle used only by durable,
+// human-facing conversations. Workflow sessions continue to use Close.
+type persistentSessionAdapter interface {
+	ResumeSession(context.Context, string, string, string, string) error
+	DetachSession(context.Context, string) error
 }
 
 // Manager is owned by one web.Runtime. Durable state is under projectDir;
-// adapters and native session identities exist only for that runtime's life.
+// adapters exist only for that runtime's life. Providers that support durable
+// conversation sessions may persist their native identity with the transcript.
 type Manager struct {
 	ctx        context.Context
 	projectDir string
@@ -172,8 +182,8 @@ func New(ctx context.Context, projectDir string, factory AdapterFactory, launche
 		if item.Runs == nil {
 			item.Runs = []Run{}
 		}
-		// A process cannot honestly claim that a native session from the prior
-		// runtime is still working. Its saved transcript remains readable.
+		// A restarted process cannot claim that prior in-flight work is still
+		// running, even when the provider conversation itself is resumable.
 		if item.Status == StatusWorking {
 			item.Status = StatusIdle
 		}
@@ -183,7 +193,9 @@ func New(ctx context.Context, projectDir string, factory AdapterFactory, launche
 				item.Runs[index].Error = "The server restarted before this run recorded a terminal state."
 			}
 		}
-		item.Live = false
+		// A persisted native identity can be resumed lazily on the next send.
+		// Loading the page itself still does not start or contact a harness.
+		item.Live = item.NativeSession != ""
 		copy := item
 		manager.items[item.ID] = &copy
 	}
@@ -267,11 +279,13 @@ func (m *Manager) List() []Conversation {
 func (m *Manager) Get(id string) (Conversation, bool) {
 	m.mu.RLock()
 	item := m.items[id]
-	m.mu.RUnlock()
 	if item == nil {
+		m.mu.RUnlock()
 		return Conversation{}, false
 	}
-	return clone(item), true
+	snapshot := clone(item)
+	m.mu.RUnlock()
+	return snapshot, true
 }
 
 // Send records the user's message, runs one turn on the conversation's live
@@ -281,13 +295,18 @@ func (m *Manager) Send(id, text string) (Conversation, error) {
 	if text == "" {
 		return Conversation{}, errors.New("conversation: message is blank")
 	}
-	m.mu.RLock()
+	m.mu.Lock()
 	item := m.items[id]
 	active := m.active[id]
-	m.mu.RUnlock()
 	if item == nil {
+		m.mu.Unlock()
 		return Conversation{}, fmt.Errorf("conversation: unknown conversation %q", id)
 	}
+	if active == nil && item.NativeSession != "" {
+		active = &activeConversation{session: item.NativeSession, resume: true}
+		m.active[id] = active
+	}
+	m.mu.Unlock()
 	if active == nil {
 		return clone(item), errors.New("conversation: this saved conversation belongs to an earlier server session; its history is readable, but its native provider session is no longer live")
 	}
@@ -317,6 +336,17 @@ func (m *Manager) Send(id, text string) (Conversation, error) {
 		}
 		active.adapter = adapter
 	}
+	if active.resume {
+		resumer, ok := active.adapter.(persistentSessionAdapter)
+		if !ok {
+			return m.fail(item, errors.New("conversation: this provider cannot resume a saved native session"))
+		}
+		_, effort, _ := providerModel(provider, model)
+		if err := resumer.ResumeSession(m.ctx, active.session, model, effort, worktree); err != nil {
+			return m.fail(item, fmt.Errorf("conversation: resume native session: %w", err))
+		}
+		active.resume = false
+	}
 	if active.session == "" {
 		_, effort, _ := providerModel(provider, model)
 		session, err := active.adapter.CreateSession(m.ctx, model, effort, worktree)
@@ -324,6 +354,16 @@ func (m *Manager) Send(id, text string) (Conversation, error) {
 			return m.fail(item, err)
 		}
 		active.session = session
+		if _, ok := active.adapter.(persistentSessionAdapter); ok {
+			m.mu.Lock()
+			item = m.items[id]
+			item.NativeSession = session
+			if err := m.save(item); err != nil {
+				m.mu.Unlock()
+				return m.fail(item, err)
+			}
+			m.mu.Unlock()
+		}
 	}
 	result, err := active.adapter.RunTurn(m.ctx, active.session, conversationPrompt+text, conversationReplySchema, func(gimble.AgentEvent) error { return nil })
 	if err != nil {
@@ -433,7 +473,11 @@ func (m *Manager) Close() {
 	for _, conversation := range active {
 		conversation.turnMu.Lock()
 		if conversation.adapter != nil && conversation.session != "" {
-			_ = conversation.adapter.Close(context.WithoutCancel(m.ctx), conversation.session)
+			if persistent, ok := conversation.adapter.(persistentSessionAdapter); ok {
+				_ = persistent.DetachSession(context.WithoutCancel(m.ctx), conversation.session)
+			} else {
+				_ = conversation.adapter.Close(context.WithoutCancel(m.ctx), conversation.session)
+			}
 		}
 		conversation.turnMu.Unlock()
 	}

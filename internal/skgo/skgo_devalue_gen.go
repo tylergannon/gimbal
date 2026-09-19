@@ -516,36 +516,38 @@ func encConversation(v pkg_conversation.Conversation, at string) (any, error) {
 	enc1.Set("branch", enc6)
 	var enc7 any = string(v.Worktree)
 	enc1.Set("worktree", enc7)
-	var enc8 any = bool(v.Live)
-	enc1.Set("live", enc8)
-	var enc9 any = string(v.Status)
-	enc1.Set("status", enc9)
-	var enc10 any = string(v.Error)
-	enc1.Set("error", enc10)
-	var enc11 any = float64(v.Created)
-	enc1.Set("created", enc11)
-	var enc12 any = float64(v.Updated)
-	enc1.Set("updated", enc12)
-	enc13 := make([]any, 0, len(v.Messages))
-	for i14, item15 := range v.Messages {
-		enc16, err := encMessage(item15, at+"/messages"+"/"+strconv.Itoa(i14))
+	var enc8 any = string(v.NativeSession)
+	enc1.Set("native_session", enc8)
+	var enc9 any = bool(v.Live)
+	enc1.Set("live", enc9)
+	var enc10 any = string(v.Status)
+	enc1.Set("status", enc10)
+	var enc11 any = string(v.Error)
+	enc1.Set("error", enc11)
+	var enc12 any = float64(v.Created)
+	enc1.Set("created", enc12)
+	var enc13 any = float64(v.Updated)
+	enc1.Set("updated", enc13)
+	enc14 := make([]any, 0, len(v.Messages))
+	for i15, item16 := range v.Messages {
+		enc17, err := encMessage(item16, at+"/messages"+"/"+strconv.Itoa(i15))
 		if err != nil {
 			return nil, err
 		}
-		enc13 = append(enc13, enc16)
+		enc14 = append(enc14, enc17)
 	}
-	var enc17 any = enc13
-	enc1.Set("messages", enc17)
-	enc18 := make([]any, 0, len(v.Runs))
-	for i19, item20 := range v.Runs {
-		enc21, err := encRun(item20, at+"/runs"+"/"+strconv.Itoa(i19))
+	var enc18 any = enc14
+	enc1.Set("messages", enc18)
+	enc19 := make([]any, 0, len(v.Runs))
+	for i20, item21 := range v.Runs {
+		enc22, err := encRun(item21, at+"/runs"+"/"+strconv.Itoa(i20))
 		if err != nil {
 			return nil, err
 		}
-		enc18 = append(enc18, enc21)
+		enc19 = append(enc19, enc22)
 	}
-	var enc22 any = enc18
-	enc1.Set("runs", enc22)
+	var enc23 any = enc19
+	enc1.Set("runs", enc23)
 	return enc1, nil
 }
 
@@ -556,7 +558,7 @@ func decConversation(raw any, at string) (pkg_conversation.Conversation, error) 
 	if err != nil {
 		return dvZero, err
 	}
-	if err := dvKnown(obj2, at, "id", "title", "provider", "model", "branch", "worktree", "live", "status", "error", "created", "updated", "messages", "runs"); err != nil {
+	if err := dvKnown(obj2, at, "id", "title", "provider", "model", "branch", "worktree", "native_session", "live", "status", "error", "created", "updated", "messages", "runs"); err != nil {
 		return dvZero, err
 	}
 	raw3, err := dvRequired(obj2, "id", at+"/id")
@@ -613,87 +615,96 @@ func decConversation(raw any, at string) (pkg_conversation.Conversation, error) 
 		return dvZero, err
 	}
 	dec1.Worktree = dec14
-	raw15, err := dvRequired(obj2, "live", at+"/live")
+	raw15, err := dvRequired(obj2, "native_session", at+"/native_session")
 	if err != nil {
 		return dvZero, err
 	}
-	dec16, err := dvBool(raw15, at+"/live")
+	dec16, err := dvString(raw15, at+"/native_session")
 	if err != nil {
 		return dvZero, err
 	}
-	dec1.Live = dec16
-	raw17, err := dvRequired(obj2, "status", at+"/status")
+	dec1.NativeSession = dec16
+	raw17, err := dvRequired(obj2, "live", at+"/live")
 	if err != nil {
 		return dvZero, err
 	}
-	dec18, err := dvString(raw17, at+"/status")
+	dec18, err := dvBool(raw17, at+"/live")
 	if err != nil {
 		return dvZero, err
 	}
-	dec1.Status = dec18
-	raw19, err := dvRequired(obj2, "error", at+"/error")
+	dec1.Live = dec18
+	raw19, err := dvRequired(obj2, "status", at+"/status")
 	if err != nil {
 		return dvZero, err
 	}
-	dec20, err := dvString(raw19, at+"/error")
+	dec20, err := dvString(raw19, at+"/status")
 	if err != nil {
 		return dvZero, err
 	}
-	dec1.Error = dec20
-	raw21, err := dvRequired(obj2, "created", at+"/created")
+	dec1.Status = dec20
+	raw21, err := dvRequired(obj2, "error", at+"/error")
 	if err != nil {
 		return dvZero, err
 	}
-	num23, err := dvInteger(raw21, at+"/created", math.MinInt64, math.MaxInt64)
+	dec22, err := dvString(raw21, at+"/error")
 	if err != nil {
 		return dvZero, err
 	}
-	dec22 := int64(num23)
-	dec1.Created = dec22
-	raw24, err := dvRequired(obj2, "updated", at+"/updated")
+	dec1.Error = dec22
+	raw23, err := dvRequired(obj2, "created", at+"/created")
 	if err != nil {
 		return dvZero, err
 	}
-	num26, err := dvInteger(raw24, at+"/updated", math.MinInt64, math.MaxInt64)
+	num25, err := dvInteger(raw23, at+"/created", math.MinInt64, math.MaxInt64)
 	if err != nil {
 		return dvZero, err
 	}
-	dec25 := int64(num26)
-	dec1.Updated = dec25
-	raw27, err := dvRequired(obj2, "messages", at+"/messages")
+	dec24 := int64(num25)
+	dec1.Created = dec24
+	raw26, err := dvRequired(obj2, "updated", at+"/updated")
 	if err != nil {
 		return dvZero, err
 	}
-	items29, err := dvArray(raw27, at+"/messages")
+	num28, err := dvInteger(raw26, at+"/updated", math.MinInt64, math.MaxInt64)
 	if err != nil {
 		return dvZero, err
 	}
-	dec28 := make([]pkg_conversation.Message, 0, len(items29))
-	for i30, item31 := range items29 {
-		dec32, err := decMessage(item31, at+"/messages"+"/"+strconv.Itoa(i30))
+	dec27 := int64(num28)
+	dec1.Updated = dec27
+	raw29, err := dvRequired(obj2, "messages", at+"/messages")
+	if err != nil {
+		return dvZero, err
+	}
+	items31, err := dvArray(raw29, at+"/messages")
+	if err != nil {
+		return dvZero, err
+	}
+	dec30 := make([]pkg_conversation.Message, 0, len(items31))
+	for i32, item33 := range items31 {
+		dec34, err := decMessage(item33, at+"/messages"+"/"+strconv.Itoa(i32))
 		if err != nil {
 			return dvZero, err
 		}
-		dec28 = append(dec28, dec32)
+		dec30 = append(dec30, dec34)
 	}
-	dec1.Messages = dec28
-	raw33, err := dvRequired(obj2, "runs", at+"/runs")
+	dec1.Messages = dec30
+	raw35, err := dvRequired(obj2, "runs", at+"/runs")
 	if err != nil {
 		return dvZero, err
 	}
-	items35, err := dvArray(raw33, at+"/runs")
+	items37, err := dvArray(raw35, at+"/runs")
 	if err != nil {
 		return dvZero, err
 	}
-	dec34 := make([]pkg_conversation.Run, 0, len(items35))
-	for i36, item37 := range items35 {
-		dec38, err := decRun(item37, at+"/runs"+"/"+strconv.Itoa(i36))
+	dec36 := make([]pkg_conversation.Run, 0, len(items37))
+	for i38, item39 := range items37 {
+		dec40, err := decRun(item39, at+"/runs"+"/"+strconv.Itoa(i38))
 		if err != nil {
 			return dvZero, err
 		}
-		dec34 = append(dec34, dec38)
+		dec36 = append(dec36, dec40)
 	}
-	dec1.Runs = dec34
+	dec1.Runs = dec36
 	return dec1, nil
 }
 

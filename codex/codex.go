@@ -314,6 +314,72 @@ func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema 
 	return gimble.TurnResult{Output: json.RawMessage(strings.TrimSpace(text))}, nil
 }
 
+// ResumeSession restores a durable human-facing conversation to this adapter.
+// It subscribes the adapter's connection to the existing thread and rebuilds
+// only local routing state; workflow sessions do not use this lifecycle.
+func (a *adapter) ResumeSession(ctx context.Context, sessionID, model, effort, workdir string) error {
+	if strings.TrimSpace(sessionID) == "" {
+		return errors.New("codex: resume session id is blank")
+	}
+	conn, err := a.conn(ctx)
+	if err != nil {
+		return err
+	}
+	result, err := callThread(ctx, conn, "thread/resume", map[string]any{
+		"threadId":              sessionID,
+		"cwd":                   workdir,
+		"approvalPolicy":        "never",
+		"sandbox":               "danger-full-access",
+		"experimentalRawEvents": true,
+	})
+	if err != nil {
+		return fmt.Errorf("codex: resume thread %s: %w", sessionID, err)
+	}
+	resumed, err := threadID(result)
+	if err != nil {
+		return fmt.Errorf("codex: resume thread %s: %w", sessionID, err)
+	}
+	if resumed != sessionID {
+		return fmt.Errorf("codex: resume thread %s: daemon returned a different thread id %s", sessionID, resumed)
+	}
+	conn.registerThread(sessionID)
+	a.mu.Lock()
+	a.sessions[sessionID] = &session{model: model, effort: effort, workdir: workdir}
+	a.mu.Unlock()
+	return nil
+}
+
+// DetachSession releases this adapter's subscription to a durable human-facing
+// conversation without archiving its stored thread. If this was the last
+// subscriber, app-server unloads the thread after its inactivity grace period.
+func (a *adapter) DetachSession(ctx context.Context, sessionID string) error {
+	a.mu.Lock()
+	_, known := a.sessions[sessionID]
+	delete(a.sessions, sessionID)
+	a.mu.Unlock()
+	if !known {
+		return nil
+	}
+	a.connMu.Lock()
+	if a.sharedConn != nil {
+		a.sharedConn.unregisterThread(sessionID)
+	}
+	a.connMu.Unlock()
+	conn, err := a.connection(ctx, false)
+	if errors.Is(err, errDaemonNotRunning) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("codex: detach thread %s: %w", sessionID, err)
+	}
+	callCtx, cancel := context.WithTimeout(ctx, requestTimeout)
+	defer cancel()
+	if _, err := conn.call(callCtx, "thread/unsubscribe", map[string]any{"threadId": sessionID}); err != nil {
+		return fmt.Errorf("codex: detach thread %s: %w", sessionID, err)
+	}
+	return nil
+}
+
 // Steer sends message into the thread's running turn and reports whether
 // it landed. With no turn running, or when turn/steer fails because the
 // turn ended while the steer was on its way, the message is dropped: false

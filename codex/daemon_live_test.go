@@ -394,6 +394,67 @@ func TestCloseArchivesThroughARedialedConnection(t *testing.T) {
 	t.Logf("daemon pid before=%s after=%s (unchanged)", beforePID, afterPID)
 }
 
+// TestDetachedConversationResumesTheSameNativeThread is the live proof for
+// human-facing dashboard conversations: one adapter detaches without archive,
+// a fresh adapter resumes the exact thread id, and Codex retains context that
+// Gimble did not replay. The test archives its own thread after proving resume.
+//
+//	GIMBLE_LIVE=1 go test ./codex -run TestDetachedConversationResumesTheSameNativeThread -v
+func TestDetachedConversationResumesTheSameNativeThread(t *testing.T) {
+	if os.Getenv("GIMBLE_LIVE") != "1" {
+		t.Skip("set GIMBLE_LIVE=1 to run against the live codex app-server daemon")
+	}
+	workdir := t.TempDir()
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	first := New().(*adapter)
+	thread, err := first.CreateSession(ctx, "gpt-5.6-luna", "low", workdir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	token := "cobalt-7319"
+	if _, err := first.RunTurn(ctx, thread, "Remember the token "+token+". Reply only READY.", nil, func(gimble.AgentEvent) error { return nil }); err != nil {
+		t.Fatal(err)
+	}
+	beforeSocket, running, err := daemonStatus(ctx)
+	if err != nil || !running {
+		t.Fatalf("daemon after first turn: running=%t err=%v", running, err)
+	}
+	if err := first.DetachSession(ctx, thread); err != nil {
+		t.Fatal(err)
+	}
+
+	second := New().(*adapter)
+	if err := second.ResumeSession(ctx, thread, "gpt-5.6-luna", "low", workdir); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := second.Close(context.Background(), thread); err != nil {
+			t.Errorf("archive resumed test thread: %v", err)
+		}
+	}()
+	result, err := second.RunTurn(ctx, thread, "What token did I ask you to remember? Reply with only the token.", nil, func(gimble.AgentEvent) error { return nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	var answer string
+	if err := json.Unmarshal(result.Output, &answer); err != nil {
+		t.Fatal(err)
+	}
+	if strings.TrimSpace(answer) != token {
+		t.Fatalf("resumed thread answered %q, want %q", answer, token)
+	}
+	afterSocket, running, err := daemonStatus(ctx)
+	if err != nil || !running {
+		t.Fatalf("daemon after resume: running=%t err=%v", running, err)
+	}
+	if beforeSocket != afterSocket {
+		t.Fatalf("daemon socket changed from %s to %s", beforeSocket, afterSocket)
+	}
+	t.Logf("thread %s detached and resumed with native context; daemon socket stayed %s", thread, beforeSocket)
+}
+
 // TestForkOfAnArchivedParentFailsWithoutAGhost: Close archives threads, and
 // the daemon refuses thread/fork and thread/resume on an archived thread.
 // The adapter must not unarchive for the caller: on this daemon version

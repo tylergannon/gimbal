@@ -194,8 +194,8 @@ func (c *connection) routeThread(threadID string, ch chan rpcMessage) {
 
 // unregisterThread stops routing threadID's notifications and server
 // requests to this connection. It is the counterpart to registerThread,
-// called from Close; it does not itself tell the daemon anything, that is
-// thread/archive's job.
+// used before either archive or unsubscribe; it does not itself tell the
+// daemon anything.
 func (c *connection) unregisterThread(threadID string) {
 	c.threadsMu.Lock()
 	defer c.threadsMu.Unlock()

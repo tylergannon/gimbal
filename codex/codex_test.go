@@ -91,6 +91,42 @@ func TestCloseNeverStartsAStoppedDaemon(t *testing.T) {
 	}
 }
 
+func TestDetachNeverStartsAStoppedDaemon(t *testing.T) {
+	dir := t.TempDir()
+	calls := filepath.Join(dir, "calls")
+	script := "#!/bin/sh\necho \"$@\" >> " + calls + "\n" +
+		"case \"$*\" in *'daemon version'*) echo '{\"status\":\"stopped\",\"socketPath\":\"" + filepath.Join(dir, "none.sock") + "\"}';; esac\n"
+	if err := os.WriteFile(filepath.Join(dir, "codex"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	ad := New().(*adapter)
+	conn := &connection{threads: make(map[string]chan rpcMessage), readDone: make(chan struct{})}
+	conn.registerThread("thread-1")
+	close(conn.readDone)
+	ad.sharedConn = conn
+	ad.sessions["thread-1"] = &session{}
+
+	if err := ad.DetachSession(context.Background(), "thread-1"); err != nil {
+		t.Fatalf("DetachSession = %v, want nil: a stopped daemon has no subscription to release", err)
+	}
+	if n := len(ad.sessions); n != 0 {
+		t.Fatalf("sessions after DetachSession = %d, want 0", n)
+	}
+	recorded, _ := os.ReadFile(calls)
+	if strings.Contains(string(recorded), "daemon start") {
+		t.Fatalf("DetachSession started the daemon; fake codex saw:\n%s", recorded)
+	}
+}
+
+func TestResumeSessionRejectsBlankNativeIDWithoutConnecting(t *testing.T) {
+	ad := New().(*adapter)
+	if err := ad.ResumeSession(t.Context(), "", "gpt-5.6-luna", "low", t.TempDir()); err == nil {
+		t.Fatal("ResumeSession with blank id = nil, want an error")
+	}
+}
+
 // TestSteerWithNoTurnRunningIsDropped: a steer on a thread with no turn
 // running has nothing to land in. The adapter reports it dropped, false and
 // no error, without a call to the daemon: there is no active turn to route

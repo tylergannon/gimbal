@@ -12,24 +12,23 @@ Given('I open the project runs', async ({ page, browserState }) => {
 
 Then('recorded runs show identity, status and time', async ({ page, browserState }) => {
 	await expect(page.getByRole('heading', { name: 'Runs', exact: true })).toBeVisible();
-	const rows = page.getByRole('region', { name: 'Recorded runs' }).getByRole('row').filter({
-		has: page.locator('button[aria-label^="Open "]')
-	});
-	expect(await rows.count()).toBeGreaterThan(0);
-	const cells = rows.first().getByRole('cell');
-	await expect(cells.nth(0).getByRole('button')).not.toHaveText('');
-	await expect(cells.nth(1)).toContainText(/Running|Ended|Failed|Cancelled/);
-	await expect(cells.nth(3)).toContainText(/^(\d+ (s|min|h) ago|[A-Z][a-z]{2} \d+)$/);
-	await expect(cells.nth(4)).not.toHaveText('');
+	const cards = page.getByRole('region', { name: 'Recorded runs' }).getByRole('button', { name: /^Open / });
+	expect(await cards.count()).toBeGreaterThan(0);
+	const card = cards.first();
+	await expect(card.locator('.identity strong')).not.toHaveText('');
+	await expect(card.locator('.identity code')).not.toHaveText('');
+	await expect(card.locator('.status')).toContainText(/Running|Ended|Failed|Cancelled/);
+	await expect(card.locator('time')).toContainText(/^(\d+ s|\d+ (min|h) ago|[A-Z][a-z]{2} \d+)$/);
+	await expect(card.locator('.stats')).toContainText('Total cost');
+	await expect(card.locator('.stats')).toContainText('Elapsed');
+	await expect(card.locator('.instruction')).toContainText('Latest instruction');
 	expect(browserState.pageErrors).toEqual([]);
 });
 
 When('I filter runs by the first recorded status', async ({ page }) => {
 	const recorded = page.getByRole('region', { name: 'Recorded runs' });
-	const firstRow = recorded.getByRole('row').filter({
-		has: page.locator('button[aria-label^="Open "]')
-	}).first();
-	const status = (await firstRow.getByRole('cell').nth(1).innerText()).trim();
+	const firstCard = recorded.getByRole('button', { name: /^Open / }).first();
+	const status = (await firstCard.locator('.status').innerText()).trim();
 	const filter = status === 'Running' ? 'Active' : status;
 	await recorded.getByRole('button', { name: new RegExp(`^${filter} ·`) }).click();
 });
@@ -39,12 +38,10 @@ Then('only runs with that status remain', async ({ page }) => {
 	const selected = recorded.getByRole('button', { pressed: true });
 	const filter = ((await selected.innerText()).split('·')[0] ?? '').trim();
 	const status = filter === 'Active' ? 'Running' : filter;
-	const rows = recorded.getByRole('row').filter({
-		has: page.locator('button[aria-label^="Open "]')
-	});
-	expect(await rows.count()).toBeGreaterThan(0);
-	for (const row of await rows.all()) {
-		await expect(row.getByRole('cell').nth(1)).toContainText(status);
+	const cards = recorded.getByRole('button', { name: /^Open / });
+	expect(await cards.count()).toBeGreaterThan(0);
+	for (const card of await cards.all()) {
+		await expect(card.locator('.status')).toContainText(status);
 	}
 });
 

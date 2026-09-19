@@ -24,6 +24,18 @@
 //	--sprint-planning gpt-5.6-sol:high \
 //	--architectural-critique claude-opus-5:high
 //
+// For low-risk background implementation where elapsed time and rejected
+// validation laps are cheap, keep the frontier sprint-planning default and use
+// Terra and Sonnet for most repeated work:
+//
+//	--coding gpt-5.6-terra:high \
+//	--architectural-critique claude-sonnet-5:high \
+//	--qa-orchestration claude-sonnet-5:high
+//
+// A failed validation can send substantial gaps back to the frontier planner.
+// Provider, harness, and execution errors still end the run rather than
+// retrying.
+//
 // Example:
 //
 //	gimble run implement \

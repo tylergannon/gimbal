@@ -53,6 +53,14 @@ Do not turn general cost pressure into blanket overrides across unrelated
 roles. Before an override, read every role line in `--help` and state the
 resulting mapping. Record the models actually used in the result report.
 
+Another useful profile spends frontier capability on planning, then assigns
+low-risk, reversible, independently checkable background work to Terra or
+Sonnet. Prefer it when wall-clock time is cheap and the workflow has bounded
+validation feedback that can reject a weak completed attempt and try a better
+assignment. The plan is not proof, so keep independent validation appropriate
+to the risk. Do not assume the workflow retries provider, harness, or execution
+errors; only an explicit retry path does that.
+
 The workflow command remains running until its work finishes. Keep that process
 alive while watching or steering from another shell. `--no-web` disables the
 browser listener while retaining local control and records. Omit it for the

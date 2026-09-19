@@ -32,7 +32,7 @@ func TestImplementHelpExplainsItsGenericContract(t *testing.T) {
 			t.Errorf("run implement --help lacks %q:\n%s", text, help)
 		}
 	}
-	for _, text := range []string{"Model cost guidance", "sprint-planning", "architectural-critique", "gpt-5.6-sol:high", "claude-opus-5:high"} {
+	for _, text := range []string{"Model cost guidance", "sprint-planning", "architectural-critique", "gpt-5.6-sol:high", "claude-opus-5:high", "low-risk background implementation", "gpt-5.6-terra:high", "claude-sonnet-5:high", "execution errors still end the run"} {
 		if !strings.Contains(help, text) {
 			t.Errorf("run implement --help lacks model-selection guidance %q:\n%s", text, help)
 		}
@@ -58,7 +58,7 @@ func TestPyramidSummaryHelpExplainsItsFixedInputs(t *testing.T) {
 	if !strings.Contains(help, "until the next level") || !strings.Contains(help, "under 100 tokens") {
 		t.Errorf("run pyramid-summary --help lacks the halving rule:\n%s", help)
 	}
-	for _, text := range []string{"Model cost guidance", "up to six slots", "gpt-5.6-sol:high", "claude-opus-5:high"} {
+	for _, text := range []string{"Model cost guidance", "up to six slots", "gpt-5.6-sol:high", "claude-opus-5:high", "low-risk background compression", "gpt-5.6-terra:high", "claude-sonnet-5:high", "execution errors still end the run"} {
 		if !strings.Contains(help, text) {
 			t.Errorf("run pyramid-summary --help lacks model-selection guidance %q:\n%s", text, help)
 		}
@@ -86,7 +86,7 @@ func TestResearchDocumentHelpShowsLimitsAndModelDefaults(t *testing.T) {
 			t.Errorf("%s does not clearly preserve its %s workflow default:\n%s", role, model, line)
 		}
 	}
-	for _, text := range []string{"Model cost guidance", "research, indexing, curation", "gpt-5.6-sol:high", "claude-opus-5:high"} {
+	for _, text := range []string{"Model cost guidance", "research, indexing, curation", "gpt-5.6-sol:high", "claude-opus-5:high", "low-risk background research", "gpt-5.6-terra:high", "claude-sonnet-5:high", "execution errors still end the run"} {
 		if !strings.Contains(help, text) {
 			t.Errorf("run research-document --help lacks model-selection guidance %q:\n%s", text, help)
 		}

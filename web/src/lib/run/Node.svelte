@@ -1,5 +1,5 @@
 <script lang="ts">
-	import Pip from "./Pip.svelte";
+	import Pip, { type RowStatus } from "./Pip.svelte";
 	import {
 		mapIcon,
 		mapWording,
@@ -16,6 +16,10 @@
 		/** The row the run wrote for this step, absent while the run has not
 		 * reached it. It carries the node's status. */
 		row?: StepRow;
+		/** The state to draw when the caller states it rather than handing a
+		 * row: one word of the run's own status vocabulary. A gallery uses it
+		 * to draw a state no fixture row holds; the map hands rows. */
+		status?: RowStatus;
 		/** The one line of run under the name: "turn 3", "planner",
 		 * "question 2 · 40 s", "not started". Prompts, values and timings are
 		 * the detail pane's business, never the map's. */
@@ -29,11 +33,20 @@
 		onselect?: () => void;
 	};
 
-	const { step, row, meta = "", selected = false, small = false, onselect }: Props = $props();
+	const {
+		step,
+		row,
+		status,
+		meta = "",
+		selected = false,
+		small = false,
+		onselect,
+	}: Props = $props();
 
 	const Icon = $derived(mapIcon[step.kind]);
 	const name = $derived(stepName(step));
-	const state = $derived(rowStatus(row));
+	// A stated state wins, because only a caller with no row states one.
+	const state = $derived(status === undefined ? rowStatus(row) : { status, error: "" });
 
 	// A command is named the way it is typed, so it reads in the monospace
 	// face wherever it appears; the small variant is monospace throughout,
@@ -130,9 +143,10 @@
 		color: var(--ink-2);
 	}
 
+	/* The small variant is compact in its height, its padding and its icon.
+	   The name stays at the 15px claim 9 sets, only lighter; the specimen
+	   shrinks it to 13.5px, and the map's floor for text wins. */
 	.sm .nm {
-		font-size: 13.5px;
-		line-height: 18px;
 		font-weight: 500;
 	}
 

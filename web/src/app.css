@@ -71,12 +71,12 @@
   --live-soft: color-mix(in oklch, var(--chart-3) 14%, transparent);
 
   /* The map's elevation. Shadow means one thing on the map: the path to the
-     selection, so the sheet's three steps are named for it, and a node and a
-     label carry the same small lift. The sizes are the specimens'; the
-     colour is `--shade`, so a theme casts every shadow in one ink. */
+     selection, so a sheet off it is flat and the two steps that are left are
+     named for the path and its end. A node carries the specimens' own small
+     lift. The sizes are the specimens'; the colour is `--shade`, so a theme
+     casts every shadow in one ink. */
   --shade: oklch(0% 0 0);
   --shadow-node: 0 1px 2px 0 color-mix(in srgb, var(--shade) 8%, transparent);
-  --shadow-sheet: 0 1px 2px color-mix(in srgb, var(--shade) 5%, transparent);
   --shadow-sheet-path:
     0 4px 12px color-mix(in srgb, var(--shade) 10%, transparent),
     0 1px 2px color-mix(in srgb, var(--shade) 6%, transparent);

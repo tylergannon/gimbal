@@ -112,19 +112,54 @@
 	/** A loop folds to one glyph per pass. */
 	const taskGlyphs: SheetStep[] = tasks.map((one) => ({ step: task, row: one.row }));
 
-	/** The one line of run under a node's name. */
-	const metaOf = (row?: StepRow): string => {
+	/** The one line of run under a node's name. A check that passed says
+	 * nothing, the way `Main.html` draws it; one that did not says so. */
+	const metaOf = (one: SheetStep): string => {
+		if (one.status === "failed") return "the check failed";
+		const row = one.row;
 		if (row === undefined) return "not started";
-		if ("question_id" in row) return "question waiting";
-		if ("exit_code" in row || "key" in row) return "";
+		if ("question_id" in row) return row.status === "pending" ? "question waiting" : "answered";
+		if ("exit_code" in row) {
+			if (row.ended === 0) return "running";
+			return row.exit_code === 0 ? "" : `exit ${row.exit_code}`;
+		}
+		if ("key" in row) return "";
 		return `turn ${row.id.slice(row.id.lastIndexOf(".") + 1)}`;
 	};
+
+	/** The steps of a body, which are the ones a `Node` draws. A glyph can
+	 * also stand for a nested scope, and a scope is a sheet, never a node. */
+	const nodes = (shown: SheetStep[]): (SheetStep & { step: Step })[] =>
+		shown.filter(
+			(one): one is SheetStep & { step: Step } =>
+				one.step.kind === "agent_call" ||
+				one.step.kind === "command" ||
+				one.step.kind === "interview",
+		);
+
+	/** Collapse.html's own pass: the second task with its first check failed.
+	 * The fixture is `Main.html`'s run, where every check passed, so the
+	 * failure is stated rather than taken from a row the run never wrote. */
+	const collapseTasks: SheetInstance[] = tasks.map((one, index) =>
+		index !== 1
+			? one
+			: {
+					...one,
+					steps: one.steps?.map((step) =>
+						stepName(step.step) === "task-check" ? { ...step, status: "failed" } : step,
+					),
+				},
+	);
 </script>
 
 <script lang="ts">
-	// What the repeated scope reported last, which is what a detail pane
-	// would be pointed at.
-	let reported = $state("implementation.1/task.3");
+	// The pass each board is showing, which is also what it reports outwards:
+	// one piece of state, so the label, the body, the fold and the line under
+	// the board cannot disagree.
+	let shown = $state(tasks[tasks.length - 1].row.key);
+	let reported = $state(tasks[tasks.length - 1].row.key);
+	let kept = $state(collapseTasks[1].row.key);
+	let beside = $state(tasks[tasks.length - 1].row.key);
 </script>
 
 <Story
@@ -139,9 +174,11 @@
 	{#snippet template(args)}
 		<div class="board" style="width: 320px">
 			<Sheet {...args}>
-				{#each legs[0].steps as one (stepName(one.step))}
-					<Node step={one.step} row={one.row} meta={metaOf(one.row)} />
-				{/each}
+				{#snippet children(steps)}
+					{#each nodes(steps) as one (stepName(one.step))}
+						<Node step={one.step} row={one.row} status={one.status} meta={metaOf(one)} />
+					{/each}
+				{/snippet}
 			</Sheet>
 		</div>
 	{/snippet}
@@ -167,9 +204,11 @@
 							steps={leg.steps}
 							elapsed={elapsed(leg.row)}
 						>
-							{#each leg.steps as one (stepName(one.step))}
-								<Node step={one.step} row={one.row} meta={metaOf(one.row)} />
-							{/each}
+							{#snippet children(steps)}
+								{#each nodes(steps) as one (stepName(one.step))}
+									<Node step={one.step} row={one.row} status={one.status} meta={metaOf(one)} />
+								{/each}
+							{/snippet}
 						</Sheet>
 					{/each}
 				</div>
@@ -186,18 +225,21 @@
 					scope={task}
 					instances={tasks}
 					writes={taskWrites}
-					oninstance={(key) => (reported = key)}
+					bind:instance={shown}
 					selected
 				>
-					{#each stepsIn(reported) as one (stepName(one.step))}
-						<Node
-							step={one.step}
-							row={one.row}
-							meta={metaOf(one.row)}
-							small={one.step.kind === "command"}
-							selected={one.step.kind === "agent_call" && stepName(one.step) === "coding"}
-						/>
-					{/each}
+					{#snippet children(steps)}
+						{#each nodes(steps) as one (stepName(one.step))}
+							<Node
+								step={one.step}
+								row={one.row}
+								status={one.status}
+								meta={metaOf(one)}
+								small={one.step.kind === "command"}
+								selected={stepName(one.step) === "coding"}
+							/>
+						{/each}
+					{/snippet}
 				</Sheet>
 			</Sheet>
 		</Sheet>
@@ -212,20 +254,27 @@
 			scope={task}
 			instances={tasks}
 			writes={taskWrites}
+			bind:instance={shown}
 			oninstance={(key) => (reported = key)}
 			path
 			selected
 		>
-			{#each stepsIn(reported) as one (stepName(one.step))}
-				<Node
-					step={one.step}
-					row={one.row}
-					meta={metaOf(one.row)}
-					small={one.step.kind === "command"}
-				/>
-			{/each}
+			{#snippet children(steps)}
+				{#each nodes(steps) as one (stepName(one.step))}
+					<Node
+						step={one.step}
+						row={one.row}
+						status={one.status}
+						meta={metaOf(one)}
+						small={one.step.kind === "command"}
+					/>
+				{/each}
+			{/snippet}
 		</Sheet>
-		<p class="note">Reported to the outside: <span class="mono">{reported}</span></p>
+		<p class="note">
+			Reported to the outside: <span class="mono">{reported}</span>. The chevron beside the select
+			folds the pass and opens it again.
+		</p>
 	</div>
 </Story>
 
@@ -234,18 +283,35 @@
 	<div class="board" style="width: 460px">
 		<Sheet
 			scope={task}
-			instances={tasks}
-			instance="implementation.1/task.2"
+			instances={collapseTasks}
 			writes={taskWrites}
+			bind:instance={kept}
+			oninstance={(key) => (reported = key)}
 			folded
-		/>
+		>
+			{#snippet children(steps)}
+				{#each nodes(steps) as one (stepName(one.step))}
+					<Node
+						step={one.step}
+						row={one.row}
+						status={one.status}
+						meta={metaOf(one)}
+						small={one.step.kind === "command"}
+					/>
+				{/each}
+			{/snippet}
+		</Sheet>
 		<ol class="note">
 			<li>The label stays, and so does the select on a repeated scope.</li>
 			<li>One glyph per step, in source order, carrying that step's status in this pass.</li>
 			<li>The scope's own status and elapsed time on the right.</li>
-			<li>Nothing else. Names, prompts and context wait until it is opened.</li>
-			<li>Click the glyphs to open it. Opening a scope folds its siblings.</li>
+			<li>Nothing else. Names, prompts and the context chip wait until it is opened.</li>
+			<li>The chevron opens it, and so do the glyphs. Opening a scope folds its siblings.</li>
 		</ol>
+		<p class="note">
+			Showing <span class="mono">{kept}</span>. Picking another pass changes the glyphs, the status
+			and the elapsed time together, and the body it opens to is that same pass.
+		</p>
 	</div>
 </Story>
 
@@ -270,9 +336,11 @@
 							elapsed={elapsed(leg.row)}
 							folded={leg.scope.name !== "backend"}
 						>
-							{#each leg.steps as one (stepName(one.step))}
-								<Node step={one.step} row={one.row} meta={metaOf(one.row)} />
-							{/each}
+							{#snippet children(steps)}
+								{#each nodes(steps) as one (stepName(one.step))}
+									<Node step={one.step} row={one.row} status={one.status} meta={metaOf(one)} />
+								{/each}
+							{/snippet}
 						</Sheet>
 					{/each}
 				</div>
@@ -284,12 +352,31 @@
 				steps={taskGlyphs}
 				elapsed={elapsed(scopeAt("implementation.1"))}
 			>
-				<Sheet scope={task} instances={tasks} writes={taskWrites} folded />
+				<Sheet
+					scope={task}
+					instances={tasks}
+					writes={taskWrites}
+					bind:instance={beside}
+					folded
+				>
+					{#snippet children(steps)}
+						{#each nodes(steps) as one (stepName(one.step))}
+							<Node
+								step={one.step}
+								row={one.row}
+								status={one.status}
+								meta={metaOf(one)}
+								small={one.step.kind === "command"}
+							/>
+						{/each}
+					{/snippet}
+				</Sheet>
 			</Sheet>
 		</Sheet>
 		<p class="note">
-			Open the reconnaissance group and the implementation loop folds, and the other way about. The
-			canvas has no label and never folds.
+			Open the reconnaissance group and the implementation loop folds, and the other way about. Every
+			sheet here folds and opens again: the plain ones by their label, the repeated pass by the
+			chevron beside its select. The canvas has no label and never folds.
 		</p>
 	</div>
 </Story>

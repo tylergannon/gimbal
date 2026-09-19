@@ -1,0 +1,10 @@
+```go
+type HarnessAdapter interface {
+	CreateSession(ctx context.Context, model, effort, workdir string) (string, error)
+	RunTurn(ctx context.Context, sessionID, prompt string, schema json.RawMessage,
+		onEvent func(AgentEvent) error) (TurnResult, error)
+	Steer(ctx context.Context, sessionID, message string) (landed bool, err error)
+	Fork(ctx context.Context, sessionID string) (string, error)
+	Close(ctx context.Context, sessionID string) error
+}
+```

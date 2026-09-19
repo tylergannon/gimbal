@@ -1,0 +1,80 @@
+<script lang="ts">
+  import DocsPage from "#lib/components/DocsPage.svelte";
+  import RunHelp from "#lib/snippets/RunHelp.svx";
+
+  const headings = [
+    { id: "review", text: "review" },
+    { id: "implement", text: "implement" },
+    { id: "research-document", text: "research-document" },
+    { id: "pyramid-summary", text: "pyramid-summary" },
+    { id: "flags", text: "Flags every workflow has" },
+  ];
+</script>
+
+<DocsPage
+  title="Built-in workflows"
+  description="Four workflows ship in the binary. Each is ordinary Gimble code you can read, and each command is generated from its source."
+  eyebrow="Feature"
+  {headings}
+>
+
+<RunHelp />
+
+`gimble run WORKFLOW --help` is the full reference for each one. The source is under [`internal/workflows`](https://github.com/tylergannon/gimble/tree/main/internal/workflows).
+
+<h2 id="review">review</h2>
+
+One reviewer inspects a repository read-only and returns a list of concrete correctness findings. The whole workflow is about ten lines, which makes it the one to read first.
+
+```sh
+gimble run review --goal "Find correctness bugs in the retry logic"
+```
+
+<h2 id="implement">implement</h2>
+
+Fulfills a promise through a bounded planner loop. On each lap a planner picks the next assignment and gives it a definition of done; a fresh coding agent implements it under a scope coach; an optional command gathers evidence; a fresh independent validator judges the task and the overall promise. The loop exits when validation passes at 90–95% with only small gaps, and records those gaps instead of taking another lap. It never commits, pushes, merges, or edits the definition of done.
+
+```sh
+gimble run implement \
+  --promise "Ship the local issue without unrelated changes" \
+  --definition-of-done-file ./issue.md \
+  --max-tasks 8
+```
+
+Primitives used: [promise loop](../primitives/#promise-loop), [supervision](../primitives/#supervision), [scoped context](../primitives/#context), [`Check`](../primitives/#evidence).
+
+<h2 id="research-document">research-document</h2>
+
+Researches a subject into a local semantic index, writes a document within a token budget, and revises it until an independent editor finds only nitpicks. A planner returns five groups of topics, one per parallel researcher; each leaves local source files and an index that cites them.
+
+```sh
+gimble run research-document \
+  --goal "Explain passkeys to security-conscious product managers" \
+  --research-dir ./passkeys-research \
+  --output ./passkeys.md \
+  --token-budget 3200
+```
+
+<h2 id="pyramid-summary">pyramid-summary</h2>
+
+Compresses one validated document into a pyramid of summaries, halving the token budget at each level until the next would be under 100 tokens. Six authors write levels in parallel; one editor then reads every level together for fidelity and useful compression. Roles can sit on different harnesses in the same run:
+
+```sh
+gimble run pyramid-summary \
+  --goal "Explain passkeys to security-conscious product managers" \
+  --semantic-index ./passkeys-research/INDEX.md \
+  --largest-document ./passkeys.md \
+  --output-dir ./passkeys-pyramid \
+  --document-authoring gpt-5.6-sol:high \
+  --editorial-review claude-opus-5:high
+```
+
+<h2 id="flags">Flags every workflow has</h2>
+
+| Flag | Meaning |
+| --- | --- |
+| `--work-dir` | The project directory. Its `.gimble` holds the run. |
+| `--ROLE` | One per role the workflow names, as `model` or `model:effort`. Defaults come from one shared file. |
+| `--port`, `--uds`, `--no-web` | Where the console listens, or that it should not. |
+
+</DocsPage>

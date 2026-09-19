@@ -2,6 +2,7 @@
   import type { Snippet } from "svelte";
   import { page } from "$app/state";
   import { resolve } from "$app/paths";
+  import { docs as entries, site } from "#lib/site";
 
   interface Props {
     title: string;
@@ -13,15 +14,9 @@
 
   let { title, description, eyebrow, headings, children }: Props = $props();
 
-  const entries = [
-    { route: "/docs/guide" as const, title: "Guide" },
-    { route: "/docs/roles" as const, title: "Workflow roles" },
-    { route: "/docs/about" as const, title: "About" },
-  ];
-
-  const canonical = $derived(
-    new URL(page.url.pathname, "https://tylergannon.github.io").toString(),
-  );
+  const canonical = $derived(new URL(page.url.pathname, site.origin).toString());
+  const index = $derived(entries.findIndex((entry) => entry.route === page.route.id));
+  const next = $derived(index >= 0 ? entries[index + 1] : undefined);
 </script>
 
 <svelte:head>
@@ -32,6 +27,8 @@
   <meta property="og:title" content={`${title} · Gimble`} />
   <meta property="og:description" content={description} />
   <meta property="og:url" content={canonical} />
+  <meta property="og:image" content={`${site.base}/og.png`} />
+  <meta name="twitter:card" content="summary_large_image" />
 </svelte:head>
 
 <div class="shell grid gap-12 pt-8 lg:grid-cols-[13rem_minmax(0,1fr)] xl:grid-cols-[13rem_minmax(0,1fr)_12rem]">
@@ -65,13 +62,23 @@
 
     <header class="border-border mb-10 border-b pb-9">
       <p class="eyebrow mb-4">{eyebrow}</p>
-      <h1 class="font-serif text-4xl leading-[0.98] font-medium tracking-[-0.035em] text-balance sm:text-6xl">{title}</h1>
+      <h1 class="font-serif text-4xl leading-[1.02] font-medium tracking-[-0.03em] text-balance sm:text-5xl">{title}</h1>
       <p class="text-muted-foreground mt-5 max-w-3xl text-lg leading-8">{description}</p>
     </header>
 
-    <article class="doc-prose max-w-[48rem]">
+    <article class="doc-prose max-w-[52rem]">
       {@render children()}
     </article>
+
+    {#if next}
+      <a class="group border-border hover:bg-muted/40 mt-16 flex max-w-[52rem] items-center justify-between rounded-xl border px-6 py-5 transition-colors" href={resolve(next.route)}>
+        <span>
+          <span class="eyebrow block">Next</span>
+          <span class="mt-1 block text-lg font-semibold">{next.title}</span>
+        </span>
+        <span class="text-muted-foreground group-hover:text-primary text-xl transition-colors" aria-hidden="true">→</span>
+      </a>
+    {/if}
   </main>
 
   <aside class="hidden xl:block">

@@ -93,12 +93,23 @@ does not document the invocation for its caller.
 
 Commit and push meaningful work; follow repository review and squash-merge
 practice within the user's authorized scope. Retain the task worktree when the
-user has asked to keep it. After merging a feature or fix:
+user has asked to keep it. Update affected skill and plugin instructions in
+their maintained source before merging. After every feature or fix merges,
+reinstall both the CLI and the Gimble skills on this machine:
 
 1. Fast-forward the main checkout and build the merged source with `just build`.
 2. Install it with `go install ./cmd/gimble`.
-3. Update affected instructions in their maintained skill or plugin source and
-   refresh those packages' installed copies, including supporting references.
+3. Reinstall the published skills, including their supporting references:
+
+   ```sh
+   vp dlx -- skills add https://github.com/tylergannon/gimble/tree/main/skills \
+     --global --agent codex claude-code --skill '*' --yes
+   ```
+
+   The source URL scopes discovery to this repository's `skills/` directory;
+   using the repository root would also discover internal `.agents/skills`.
+   Keep the installer's default symlink mode. Refresh any affected plugin
+   through its own installation mechanism as well.
 4. Resolve the executable with `command -v gimble`. Check `gimble --help`,
    `gimble run --help`, and affected workflow help; exercise the relevant
    installed behavior when a behavioral change requires it.

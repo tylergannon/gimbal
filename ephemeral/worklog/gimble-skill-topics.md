@@ -21,3 +21,5 @@ correction: Go API details belong entirely in Godoc, not these skills. Removed t
 friction: Overbuilt the supporting index and delayed the actual writing. The existing topic routes and cited leaves are sufficient working material; no benchmark or polished index delivery is claimed.
 
 correction: Tyler specified `skills/` as the repository home for the Gimble skills. Moved the router and three sub-skills there, updated discovery and maintained-source links, and refreshed installed copies. Historical research citations remain pinned to their original source revision.
+
+decision: Publish and install the skills with `vp dlx -- skills add`, using the GitHub `/tree/main/skills` source URL to restrict discovery to the maintained skills. The release skill requires reinstalling both the CLI and skills after feature or fix merges.

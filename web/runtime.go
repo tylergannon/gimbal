@@ -15,6 +15,8 @@ import (
 	"sync"
 
 	"github.com/tylergannon/gimble"
+	"github.com/tylergannon/gimble/internal/binding"
+	"github.com/tylergannon/gimble/internal/conversation"
 	"github.com/tylergannon/gimble/internal/live"
 	"github.com/tylergannon/gimble/internal/observation"
 	hooks "github.com/tylergannon/gimble/web/src"
@@ -37,6 +39,9 @@ type Runtime struct {
 	// registry is where every run the runtime starts registers its store.
 	// Run puts it on the caller's context, which is the run's context.
 	registry *observation.Registry
+	// conversations owns the chat worktrees and live harness sessions for the
+	// same lifetime as this runtime.
+	conversations *conversation.Manager
 }
 
 // Option configures the project's web listener.
@@ -137,7 +142,13 @@ func NewRuntime(ctx context.Context, projectDir string, opts ...Option) (*Runtim
 	// from this one, so the page reaches the very runs this Runtime holds.
 	runs := live.NewRuns()
 	runtimeCtx = live.WithRuns(runtimeCtx, runs)
-	runtime := &Runtime{ctx: runtimeCtx, cancel: cancel, dir: dir, done: make(chan struct{}), runs: runs, registry: registry}
+	conversations, err := conversation.New(runtimeCtx, dir, binding.Adapter)
+	if err != nil {
+		cancel(err)
+		return nil, err
+	}
+	runtimeCtx = conversation.WithManager(runtimeCtx, conversations)
+	runtime := &Runtime{ctx: runtimeCtx, cancel: cancel, dir: dir, done: make(chan struct{}), runs: runs, registry: registry, conversations: conversations}
 	if err := runtime.startControl(); err != nil {
 		cancel(err)
 		return nil, err

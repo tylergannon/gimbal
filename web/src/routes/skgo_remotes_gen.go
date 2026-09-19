@@ -10,6 +10,10 @@ var (
 	Skgo_cancelRun = cancelRun
 	// Skgo_stopTurn is stopTurn, published as src/routes/control.remote.ts#stopTurn.
 	Skgo_stopTurn = stopTurn
+	// Skgo_createConversation is createConversation, published as src/routes/conversation.remote.ts#createConversation.
+	Skgo_createConversation = createConversation
+	// Skgo_sendConversationMessage is sendConversationMessage, published as src/routes/conversation.remote.ts#sendConversationMessage.
+	Skgo_sendConversationMessage = sendConversationMessage
 	// Skgo_answerInterview is answerInterview, published as src/routes/interview.remote.ts#answerInterview.
 	Skgo_answerInterview = answerInterview
 	// Skgo_steer is steer, published as src/routes/steer.remote.ts#steer.

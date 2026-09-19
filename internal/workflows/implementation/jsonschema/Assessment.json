@@ -1,6 +1,7 @@
 {"type":"object",
-"description":"Assessment is an independent validator's judgment of the complete requirements.","properties":{
-"complete":{"type":"boolean","description":"Complete is true only when the validator observed that every requirement is satisfied."},
+"description":"Assessment is an independent validator's bounded completion judgment.","properties":{
+"validation_passed":{"type":"boolean","description":"ValidationPassed is true when the promise and definition of done hold at 90–95% completion with no substantial gap."},
 "observed":{"type":"string","description":"Observed states what the validator personally inspected or ran."},
-"unmet_requirements":{"type":"array","description":"UnmetRequirements lists required behavior or proof that remains missing.","items":{"type":"string"}}
-},"required":["complete","observed","unmet_requirements"],"additionalProperties":false}
+"substantial_gaps":{"type":"array","description":"SubstantialGaps lists unmet requirements that justify another implementation lap.","items":{"type":"string"}},
+"small_gaps":{"type":"array","description":"SmallGaps lists optional finishing work that must not block exit or trigger another lap.","items":{"type":"string"}}
+},"required":["validation_passed","observed","substantial_gaps","small_gaps"],"additionalProperties":false}

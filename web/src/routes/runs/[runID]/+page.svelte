@@ -9,13 +9,20 @@
   import CancelGuard from "#lib/run/CancelGuard.svelte";
   import DetailPane, { type ActionFeedback } from "#lib/run/DetailPane.svelte";
   import HistoryLanes from "#lib/run/HistoryLanes.svelte";
-  import Map from "#lib/run/Map.svelte";
+  import Map, { type MapSelection } from "#lib/run/Map.svelte";
   import Topbar from "#lib/run/Topbar.svelte";
-  import { graphMatchesSnapshot, type RunSelection } from "#lib/run/selection.js";
+  import {
+    asMapSelection,
+    currentActivitySelection,
+    graphMatchesSnapshot,
+    rebindSelection,
+    runNavigationItems,
+    type RunSelection,
+  } from "#lib/run/selection.js";
   import { cancelRun, stopTurn } from "../../control.remote.js";
   import { answerInterview, type InterviewAnswer } from "../../interview.remote.js";
   import { steer, steerLoop, type LoopMessage, type Steer } from "../../steer.remote.js";
-  import { tick } from "svelte";
+  import { tick, untrack } from "svelte";
 
   let { data }: { data: { snapshot: RunSnapshot; graph: string } } = $props();
 
@@ -32,10 +39,13 @@
 
   let revision = $state(0);
   let selection = $state<RunSelection>();
+  let reveal = $state<{ request: number; selection: MapSelection }>();
   let cancelOpen = $state(false);
   let stopping = $state(false);
   let cancelling = $state(false);
   let controlFeedback = $state("");
+  let observedRunID = "";
+  let revealSequence = 0;
 
   const snapshot = $derived.by(() => {
     revision;
@@ -46,6 +56,8 @@
     return observation.connection;
   });
   const graphMatches = $derived(graph ? graphMatchesSnapshot(graph, snapshot) : false);
+  const searchItems = $derived(runNavigationItems(graph, snapshot, graphMatches));
+  const currentSelection = $derived(currentActivitySelection(graph, snapshot, graphMatches));
   const activeTurn = $derived(
     Object.values(snapshot.turns)
       .filter((turn) => turn.ended === 0)
@@ -69,12 +81,39 @@
     issues?.map((issue) => issue.message).join(" ") || fallback;
 
   $effect(() => {
-    observation;
-    revision = observation.revision;
-    selection = undefined;
-    cancelOpen = false;
-    controlFeedback = "";
+    const next = observation;
+    const runChanged = observedRunID !== "" && observedRunID !== next.run.id;
+    const current = untrack(() => selection);
+    revision = next.revision;
+    selection = runChanged ? undefined : rebindSelection(current, next.snapshot());
+    if (runChanged) {
+      reveal = undefined;
+      cancelOpen = false;
+      controlFeedback = "";
+    }
+    observedRunID = next.run.id;
   });
+
+  $effect(() => {
+    const latest = snapshot;
+    const current = untrack(() => selection);
+    if (current) {
+      const rebound = rebindSelection(current, latest);
+      selection = rebound;
+      if (!rebound) reveal = undefined;
+    }
+  });
+
+  function navigateTo(next: RunSelection) {
+    selection = next;
+    const mapSelection = asMapSelection(next);
+    if (mapSelection) reveal = { request: ++revealSequence, selection: mapSelection };
+  }
+
+  function selectWithoutReveal(next: RunSelection) {
+    selection = next;
+    reveal = undefined;
+  }
 
   async function deliverSteer(request: Steer): Promise<ActionFeedback> {
     steerForm.fields.set(request);
@@ -222,12 +261,22 @@
     {stopping}
     {cancelling}
     feedback={controlFeedback}
+    {searchItems}
+    currentAvailable={Boolean(currentSelection)}
+    onnavigate={(item) => navigateTo(item.selection)}
+    oncurrent={() => currentSelection && navigateTo(currentSelection)}
     onstop={stopActiveTurn}
     oncancel={() => (cancelOpen = true)}
   />
   <div class="workspace-body">
     {#if graph && graphMatches}
-      <Map {graph} {snapshot} onselect={(next) => (selection = next)} />
+      <Map
+        {graph}
+        {snapshot}
+        selected={asMapSelection(selection)}
+        {reveal}
+        onselect={selectWithoutReveal}
+      />
     {:else}
       <HistoryLanes
         {snapshot}
@@ -235,7 +284,7 @@
           ? "The registered graph does not match this run"
           : "No registered graph is available for this run"}
         selected={selection}
-        onselect={(next) => (selection = next)}
+        onselect={selectWithoutReveal}
       />
     {/if}
     <DetailPane

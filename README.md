@@ -148,15 +148,25 @@ Vite; modules, styles, static assets and HMR continue through to Vite.
 
 ## Browser acceptance
 
-The generated Playwright-BDD suite in `e2e/` is the starter application's
-executable contract. Start either the production binary or both development
-processes, then run:
+The Playwright-BDD suite in `e2e/` checks browser behavior. Build the application,
+then run:
 
 ```sh
+just build
 just e2e
 ```
 
-The same scenarios run in both modes. They prove that Go rendered the initial
-document, a greeting visibly refreshes without reloading, and client navigation
-and a direct deep link both reach the About route. Each outcome leaves a
-screenshot under `e2e/screenshots/` so a successful run can be inspected.
+By default, Playwright starts `bin/gimble` with its embedded frontend on a free
+port, waits for its listening address, and stops it after the suite. It uses the
+existing build, so rebuild after changes. To check a server you have already
+started, use `BASE_URL=http://127.0.0.1:8080 just e2e`; Playwright then leaves that
+server running. The scenarios need a recorded run in the project's `.gimble/runs/`;
+for a clean checkout, seed the existing test fixture first:
+
+```sh
+mkdir -p .gimble/runs/e2e-cancelled
+cp internal/observation/testdata/cancelled-run.jsonl .gimble/runs/e2e-cancelled/run.jsonl
+```
+
+Each outcome leaves a screenshot under `e2e/screenshots/` so a successful run can
+be inspected.

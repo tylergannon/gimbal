@@ -22,18 +22,21 @@ func TestRunListsTheWorkflowsBuiltIn(t *testing.T) {
 
 func TestImplementHelpExplainsItsGenericContract(t *testing.T) {
 	help := helpOf(t, "implement")
-	for _, flag := range []string{"--requirements-file string", "--validation-command string", "--max-tasks int"} {
+	for _, flag := range []string{"--promise string", "--definition-of-done-file string", "--max-tasks int"} {
 		if !strings.Contains(help, flag) || !strings.Contains(lineWith(help, flag), "(required)") {
 			t.Errorf("run implement --help lacks required %s:\n%s", flag, help)
 		}
 	}
-	for _, text := range []string{"planner-directed loop", "does not commit", "independent validator"} {
+	for _, text := range []string{"planner-directed loop", "does not commit", "independent validator", "90–95%", "must not cause another lap"} {
 		if !strings.Contains(help, text) {
 			t.Errorf("run implement --help lacks %q:\n%s", text, help)
 		}
 	}
 	if strings.Contains(help, "frontend") || strings.Contains(help, "Storybook") {
 		t.Errorf("run implement --help retains frontend-specific language:\n%s", help)
+	}
+	if strings.Contains(help, "validation command") || strings.Contains(help, "check-command") {
+		t.Errorf("run implement --help conflates checks with validation:\n%s", help)
 	}
 }
 

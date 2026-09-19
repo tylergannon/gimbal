@@ -1,0 +1,4 @@
+decision: For issue 276, recommend a single owning-scope contract: start failure is synchronous; required-child exit before intentional shutdown fails the owner; normal close and cancellation run bounded SIGTERM/escalation cleanup; output and final status remain observable.
+decision: Treat process-group/session cleanup as the ownership boundary, but report escape or inability to verify descendants rather than claiming a universal macOS/Linux tree guarantee.
+friction: The assigned corpus topic directories were provisioned but empty, so this synthesis downloaded its own primary evidence instead of relying on unavailable parallel artifacts.
+doc_bug: The research request says “using the collected primary evidence,” but no earlier topic evidence was present; the indexes record the downloaded evidence and keep the synthesis within the assigned questions.

@@ -1,0 +1,9 @@
+{"type":"object",
+"description":"PyramidVerdict is the editor's judgment of the complete pyramid.","properties":{
+"only_nitpicks":{"type":"boolean"},
+"levels":{"type":"array","items":{"type":"object",
+"description":"LevelVerdict lists the material problems assigned to one pyramid level.","properties":{
+"level":{"type":"integer"},
+"material_issues":{"type":"array","items":{"type":"string"}}
+},"required":["level","material_issues"],"additionalProperties":false}}
+},"required":["only_nitpicks","levels"],"additionalProperties":false}

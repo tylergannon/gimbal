@@ -4,5 +4,12 @@
   "coding": "gpt-5.6-sol:high",
   "frontend-aesthetics": "gpt-6-astra:medium",
   "frontend-architecture": "gpt-6-astra:medium",
-  "qa-orchestration": "gpt-6-astra:high"
+  "qa-orchestration": "gpt-6-astra:high",
+  "research-planning": "gpt-5.6-luna",
+  "research-indexing": "gpt-5.6-luna",
+  "index-curation": "gpt-5.6-luna",
+  "document-authoring": "gpt-6-astra",
+  "editorial-review": "gpt-6-astra",
+  "document-supervision": "gpt-5.6-luna",
+  "pyramid-planning": "gpt-5.6-luna"
 }

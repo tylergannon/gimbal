@@ -91,8 +91,8 @@ Then('About is visible in a new document', async ({ page, browserState }) => {
 Then('the run workspace shows its identity and observation', async ({ page, browserState }) => {
 	await expect(page.getByRole('navigation', { name: 'Breadcrumb' }).getByRole('link', { name: 'Runs' })).toBeVisible();
 	const map = page.locator('[aria-label$="workflow map"]');
-	const history = page.getByRole('region', { name: 'Recorded run history' });
-	expect((await map.count()) + (await history.count())).toBe(1);
+	await expect(map).toBeVisible();
+	await expect(page.getByRole('region', { name: 'Recorded run history' })).toHaveCount(0);
 	expect(browserState.pageErrors).toEqual([]);
 });
 
@@ -102,11 +102,7 @@ When('I select recorded work in the workspace', async ({ page }) => {
 			'[aria-label$="workflow map"] button[aria-label^="Select "]:not([aria-label$=" instance"])'
 		)
 		.first();
-	if (await mapSelection.count()) {
-		await mapSelection.click();
-		return;
-	}
-	await page.getByRole('region', { name: 'Recorded run history' }).getByRole('button').first().click();
+	await mapSelection.click();
 });
 
 Then('the detail pane describes that selected work', async ({ page, browserState }) => {

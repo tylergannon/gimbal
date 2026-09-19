@@ -25,6 +25,7 @@
     "@lucide/svelte": "^1.47.0",
     "@skgo/sveltekit-adapter": "0.5.0",
     "@storybook/addon-svelte-csf": "latest",
+    "@storybook/addon-themes": "^10.6.0",
     "@storybook/sveltekit": "^10.6.0",
     "@sveltejs/kit": "^3.0.0-next.0",
     "@sveltejs/vite-plugin-svelte": "^7.2.0",

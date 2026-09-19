@@ -9,6 +9,7 @@ import (
 
 	"github.com/tylergannon/skgo"
 
+	"github.com/tylergannon/gimble"
 	"github.com/tylergannon/gimble/internal/observation"
 	hooks "github.com/tylergannon/gimble/web/src"
 )
@@ -17,6 +18,10 @@ import (
 // transported type, so the component receives the observation itself.
 type Data struct {
 	Snapshot hooks.RunSnapshot `json:"snapshot"`
+	// Graph is the registered workflow graph's own JSON. It is empty when this
+	// binary has no graph under the run's workflow name; the page then renders
+	// the durable history without inventing a source map.
+	Graph string `json:"graph"`
 }
 
 // load answers the page's data from the run registry the server was started
@@ -48,7 +53,15 @@ func load(ctx context.Context) (Data, error) {
 	if err != nil {
 		return Data{}, err
 	}
-	return Data{Snapshot: hooks.RunSnapshot{JSON: string(encoded)}}, nil
+	graphJSON := ""
+	if graph, ok := gimble.RegisteredGraph(snapshot.Run.Name); ok {
+		encodedGraph, err := json.Marshal(graph)
+		if err != nil {
+			return Data{}, err
+		}
+		graphJSON = string(encodedGraph)
+	}
+	return Data{Snapshot: hooks.RunSnapshot{JSON: string(encoded)}, Graph: graphJSON}, nil
 }
 
 var _ = skgo.Load(load)

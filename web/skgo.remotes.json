@@ -1,5 +1,11 @@
 {
-  "remotes": ["10a713o/guide", "1698czr/answerInterview", "x7ussb/steer", "x7ussb/steerLoop"],
-  "loads": ["src/routes/runs/[runID]/+page.server.ts"],
+  "remotes": [
+    "1698czr/answerInterview",
+    "rm4r49/cancelRun",
+    "rm4r49/stopTurn",
+    "x7ussb/steer",
+    "x7ussb/steerLoop"
+  ],
+  "loads": ["src/routes/+page.server.ts", "src/routes/runs/[runID]/+page.server.ts"],
   "endpoints": {}
 }

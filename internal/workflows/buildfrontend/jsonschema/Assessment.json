@@ -1,0 +1,6 @@
+{"type":"object",
+"description":"Assessment is the independent validator's judgment of the milestone.","properties":{
+"complete":{"type":"boolean","description":"Complete is true when the software runs and the claims of the requirements file hold at 90 to 95 percent in your own observation of the running Storybook or web application; small gaps are listed, not disqualifying."},
+"observed":{"type":"string","description":"Observed states what the validator personally saw in the code, the checks, and the real browser."},
+"unmet_claims":{"type":"array","description":"UnmetClaims lists each claim you did not see holding, each marked small or substantial; small gaps may stand beside Complete true.","items":{"type":"string"}}
+},"required":["complete","observed","unmet_claims"],"additionalProperties":false}

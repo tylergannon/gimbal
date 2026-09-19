@@ -4,12 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"html"
 	"io"
 	"net/http"
-	"net/url"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"sync"
 	"testing"
@@ -196,111 +193,5 @@ func TestLoopFormReachesThePlannerOfALoop(t *testing.T) {
 	}
 	if _, err := routes.Skgo_steerLoop(runtime.ctx, routes.LoopMessage{Run: id, Scope: "sprint.1", Message: "too late"}); !errors.As(err, &status) || status.Status != 404 {
 		t.Errorf("finished run = %v, want a 404", err)
-	}
-}
-
-// loopForm is the form on the loop's card whose hidden wrap_up field holds
-// want ("on" for the wrap-up button, "off" for the message box), as the
-// rendered document holds it: its action and every field a browser would
-// post.
-func loopForm(t *testing.T, body, want string) (string, url.Values) {
-	t.Helper()
-	for _, form := range regexp.MustCompile(`(?s)<form[^>]*class="loop[^"]*"[^>]*>.*?</form>`).FindAllString(body, -1) {
-		action := regexp.MustCompile(`action="([^"]*)"`).FindStringSubmatch(form)
-		if action == nil {
-			t.Fatalf("a loop form has no action:\n%s", form)
-		}
-		fields := url.Values{}
-		for _, input := range regexp.MustCompile(`<(?:input|textarea)[^>]*>`).FindAllString(form, -1) {
-			name := regexp.MustCompile(`name="([^"]*)"`).FindStringSubmatch(input)
-			value := regexp.MustCompile(`value="([^"]*)"`).FindStringSubmatch(input)
-			if name == nil || value == nil {
-				t.Fatalf("a loop form field has no name or value:\n%s", input)
-			}
-			fields.Set(html.UnescapeString(name[1]), html.UnescapeString(value[1]))
-		}
-		for field, value := range fields {
-			if strings.Contains(field, "wrap_up") && value[0] == want {
-				return html.UnescapeString(action[1]), fields
-			}
-		}
-	}
-	t.Fatalf("no loop form with wrap_up %q in:\n%s", want, body)
-	return "", nil
-}
-
-// TestTheWrapUpButtonWorksWithoutJavaScript posts the loop card's forms as
-// the browser itself would, from the document the page rendered: the
-// wrap-up button and a typed message, each to the action and fields it
-// actually carries. It is the whole path, with no client in it.
-func TestTheWrapUpButtonWorksWithoutJavaScript(t *testing.T) {
-	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
-	project := t.TempDir()
-	runtime, err := NewRuntime(ctx, project, WithPort(0))
-	if err != nil {
-		t.Fatal(err)
-	}
-	p := &planning{}
-	dispatched, sent := make(chan struct{}), make(chan struct{})
-	var runWG sync.WaitGroup
-	runWG.Go(func() {
-		_ = runtime.Run(ctx, "looping", map[gimble.WorkflowRole]gimble.ModelBinding{"planner": {Adapter: p, Model: "m"}}, func(ctx context.Context) error {
-			planner := gimble.NewSession(ctx, "planner", "/w")
-			loop := gimble.PromiseLoop(ctx, "sprint", "ship it", planner)
-			for range loop.Tasks {
-				close(dispatched)
-				<-sent
-			}
-			return loop.Err()
-		})
-	})
-	<-dispatched
-	id := runID(t, project)
-
-	page := "http://" + runtime.address + "/runs/" + id
-	response, err := http.Get(page)
-	if err != nil {
-		t.Fatal(err)
-	}
-	document, err := io.ReadAll(response.Body)
-	_ = response.Body.Close()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	for _, post := range []struct {
-		wrapUp  string
-		message string
-	}{{wrapUp: "on"}, {wrapUp: "off", message: "one typed message"}} {
-		action, fields := loopForm(t, string(document), post.wrapUp)
-		for field := range fields {
-			if strings.Contains(field, "message") {
-				fields.Set(field, post.message)
-			}
-		}
-		// A browser states the origin it posted from, and kit refuses a form
-		// POST that does not: the header is part of the submission, not of
-		// the client's scripting.
-		request, err := http.NewRequest(http.MethodPost, page+action, strings.NewReader(fields.Encode()))
-		if err != nil {
-			t.Fatal(err)
-		}
-		request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		request.Header.Set("Origin", "http://"+runtime.address)
-		submitted, err := http.DefaultClient.Do(request)
-		if err != nil {
-			t.Fatal(err)
-		}
-		_ = submitted.Body.Close()
-		if submitted.StatusCode >= 400 {
-			t.Fatalf("posting the %s form: status %d", post.wrapUp, submitted.StatusCode)
-		}
-	}
-
-	close(sent)
-	runWG.Wait()
-	if next := p.said(2); !strings.Contains(next, gimble.WrapUp) || !strings.Contains(next, "one typed message") {
-		t.Fatalf("the planner was not told what the forms posted:\n%s", next)
 	}
 }

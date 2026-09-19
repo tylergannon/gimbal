@@ -1,0 +1,9 @@
+version: "2"
+linters:
+  exclusions:
+    paths:
+      - tmp/
+formatters:
+  exclusions:
+    paths:
+      - tmp/

@@ -3,7 +3,7 @@
   "sprint-planning": "gpt-6-astra:high",
   "coding": "gpt-5.6-sol:high",
   "architectural-critique": "gpt-6-astra:medium",
-  "qa-orchestration": "gpt-6-astra:high",
+  "qa-orchestration": "gpt-5.6-sol:high",
   "research-planning": "gpt-5.6-luna",
   "research-indexing": "gpt-5.6-luna",
   "index-curation": "gpt-5.6-luna",

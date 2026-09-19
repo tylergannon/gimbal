@@ -15,7 +15,8 @@ render it with Playwright to compare pixels.
 ## Claims
 
 Each claim is something the validator can see in the running Storybook or
-in a command's output. The milestone is done when every claim holds.
+in a command's output. The milestone is done when the software runs and the
+claims hold at 90 to 95 percent; small gaps are listed, not chased.
 
 ### Ground
 

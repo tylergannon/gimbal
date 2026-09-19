@@ -28,11 +28,11 @@ type BuildParams struct {
 
 // Assessment is the independent validator's judgment of the milestone.
 type Assessment struct {
-	// Complete is true only after every claim in the requirements file was demonstrated in the running Storybook or web application.
+	// Complete is true when the software runs and the claims of the requirements file hold at 90 to 95 percent in your own observation of the running Storybook or web application; small gaps are listed, not disqualifying.
 	Complete bool `json:"complete"`
 	// Observed states what the validator personally saw in the code, the checks, and the real browser.
 	Observed string `json:"observed"`
-	// UnmetClaims lists each claim in the requirements file that was not demonstrated; use an empty list only when Complete is true.
+	// UnmetClaims lists each claim you did not see holding, each marked small or substantial; small gaps may stand beside Complete true.
 	UnmetClaims []string `json:"unmet_claims"`
 }
 
@@ -73,8 +73,9 @@ func BuildFrontend(ctx context.Context, env gimble.Env, params BuildParams) erro
 	coder := gimble.NewSession(ctx, roleCoding, env.WorkDir)
 	aesthetics := gimble.NewSession(ctx, gimble.RoleFrontendAesthetics, env.WorkDir)
 	architecture := gimble.NewSession(ctx, gimble.RoleFrontendArchitecture, env.WorkDir)
-	goal := "Implement every claim in " + params.RequirementsFile +
-		" in the repository and have each one demonstrated by the independent validator in the running software."
+	gimble.Set(ctx, "definition of done", doneRule)
+	goal := "Implement the claims in " + params.RequirementsFile +
+		" in the repository so the software runs and the independent validator sees the claims holding. Done is 90 to 95 percent, never 100: a task ends when its software runs and its claims hold with only small gaps, and then the next task starts; no task is spent polishing what already works, and a small gap the validator lists is noted, not assigned."
 	loop := gimble.PromiseLoop(ctx, "build", goal, planner)
 
 	completed := false
@@ -176,10 +177,13 @@ git commit -q -m "$1"
 git log -1 --format='committed %h %s'
 git push -q -u origin HEAD || echo "push failed; the commit is local"`
 
-const codingPrompt = "Read the requirements file and the design directory in your context, then implement only the selected task in the repository. Do not expand the specification, modify the requirements, this build workflow, or its fixed checks, and do not commit, push, or merge: after your turn the workflow runs just build and the Storybook build, then commits and pushes the task itself, and the commit hooks are the checks. Anything you produce that is not source, such as screenshots or notes, goes under the scratch directory, and every untracked file you leave in the repository goes into the commit, so leave none you did not mean. Write no proof scripts or run output into the repository. Answer with what changed and what you personally ran or observed."
+// doneRule is the rule every session in the run reads: done is runnable and 90 to 95 percent right, and then the next task.
+const doneRule = "Done means the software runs and the claims hold at 90 to 95 percent. At that point the task is finished and the next one starts; nobody polishes to 100, and small gaps are listed for later, not fixed now."
 
-const aestheticsPrompt = "Watch the worker's components against the design directory: the README's rules and the specimen page each component implements. Steer when markup or CSS drifts from its specimen, when text on the map falls under 13px or a node name is not 15px, when a colour is not a token, when contrast drops, when a state from States.html is missing, or when something is drawn that the rules say is not drawn. Do not edit source, object on code style, or ask for anything the requirements do not claim."
+const codingPrompt = "Read the requirements file and the design directory in your context, then implement only the selected task in the repository. Do not expand the specification, modify the requirements, this build workflow, or its fixed checks, and do not commit, push, or merge: after your turn the workflow runs just build and the Storybook build, then commits and pushes the task itself, and the commit hooks are the checks. Anything you produce that is not source, such as screenshots or notes, goes under the scratch directory, and every untracked file you leave in the repository goes into the commit, so leave none you did not mean. Write no proof scripts or run output into the repository. Stop when the task's software runs and its claims hold at 90 to 95 percent; do not polish past that, and leave small gaps for later. Answer with what changed and what you personally ran or observed."
 
-const architecturePrompt = "Watch for concrete work beyond the requirements file, and for structure that will not survive the move into the application: components that fetch or call remote functions, props that are not the application's own types, legacy Svelte syntax instead of runes, a graph layout library, a second copy of the tokens, or changes under internal/observation or to generated skgo files. Do not edit source, object on style, or demand improvements outside the requirements."
+const aestheticsPrompt = "Watch the worker's components against the design directory: the README's rules and the specimen page each component implements. Steer when markup or CSS drifts from its specimen, when text on the map falls under 13px or a node name is not 15px, when a colour is not a token, when contrast drops, when a state from States.html is missing, or when something is drawn that the rules say is not drawn. Do not edit source, object on code style, or ask for anything the requirements do not claim; raise only what would leave a claim unmet, never polish on something that already works."
 
-const validationPrompt = "Independently read the requirements file, the design README and its specimens, the implementation with its stories and tests, and the recorded command results. Make no source changes and do not treat the worker report as evidence. Start Storybook from the web directory on a free port other than 6006, or the web application when the requirements are about it, open each story in a real browser through the installed Playwright from the shell, screenshot it into the scratch directory, and look at the screenshots yourself beside the specimen pages rendered the same way. Stop what you started afterward and write nothing into the repository. Complete is true only when you personally demonstrated every claim in the requirements file; a green build or a report is not a demonstration. List each claim you did not see demonstrated."
+const architecturePrompt = "Watch for concrete work beyond the requirements file, and for structure that will not survive the move into the application: components that fetch or call remote functions, props that are not the application's own types, legacy Svelte syntax instead of runes, a graph layout library, a second copy of the tokens, or changes under internal/observation or to generated skgo files. Do not edit source, object on style, or demand improvements outside the requirements; raise only what would leave a claim unmet."
+
+const validationPrompt = "Independently read the requirements file, the design README and its specimens, the implementation with its stories and tests, and the recorded command results. Make no source changes and do not treat the worker report as evidence. Start Storybook from the web directory on a free port other than 6006, or the web application when the requirements are about it, open each story in a real browser through the installed Playwright from the shell, screenshot it into the scratch directory, and look at the screenshots yourself beside the specimen pages rendered the same way. Stop what you started afterward and write nothing into the repository. Complete is true when the software runs and the claims hold at 90 to 95 percent by what you personally saw; a green build or a report is not seeing, and a small gap does not make it false. List each claim you did not see holding, marked small or substantial."

@@ -6,13 +6,20 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
+  /* The blue scale the design's tokens name; blue-600 rings and spinners,
+     blue-700 links and selection. */
+  --color-blue-300: oklch(0.809 0.105 251.813);
+  --color-blue-500: oklch(0.623 0.214 259.815);
+  --color-blue-600: oklch(0.546 0.245 262.881);
+  --color-blue-700: oklch(0.488 0.243 264.376);
+  --color-blue-800: oklch(0.424 0.199 265.638);
   --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  --foreground: oklch(0% 0 0);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
+  --card-foreground: oklch(0% 0 0);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
+  --popover-foreground: oklch(0% 0 0);
+  --primary: oklch(0% 0 0);
   --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
@@ -21,23 +28,47 @@
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.97 0.01 17);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
   --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
+  --chart-1: var(--color-blue-300);
+  --chart-2: var(--color-blue-500);
+  --chart-3: var(--color-blue-600);
+  --chart-4: var(--color-blue-700);
+  --chart-5: var(--color-blue-800);
   --radius: 0.625rem;
   --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-foreground: oklch(0% 0 0);
   --sidebar-primary: oklch(0.205 0 0);
   --sidebar-primary-foreground: oklch(0.985 0 0);
   --sidebar-accent: oklch(0.97 0 0);
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+  --surface: oklch(0.98 0 0);
+  --surface-foreground: var(--foreground);
+  --code: var(--surface);
+  --code-foreground: var(--surface-foreground);
+  --code-highlight: oklch(0.96 0 0);
+  --code-number: oklch(0.56 0 0);
+  --selection: oklch(0% 0 0);
+  --selection-foreground: oklch(1 0 0);
+
+  /* The run interface's own drawing tokens, as the specimens name them:
+     the lines it rules, the second ink, the ground it sits on, the two
+     paper tints nested sheets alternate between, and the blues that mean
+     liveness and selection. */
+  --line: oklch(0.64 0 0);
+  --line-soft: oklch(0.8 0 0);
+  --line-strong: oklch(0.35 0 0);
+  --ink-2: oklch(0.42 0 0);
+  --ground: oklch(0.96 0 0);
+  --paper-1: oklch(0.99 0 0);
+  --paper-2: oklch(1 0 0);
+  --live: var(--chart-4);
+  --live-ring: var(--chart-3);
+  --live-soft: color-mix(in oklch, var(--chart-3) 14%, transparent);
 }
 
 .dark {
@@ -53,17 +84,18 @@
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.269 0 0);
   --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
+  --accent: oklch(0.371 0 0);
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.704 0.191 22.216);
+  --destructive-foreground: oklch(0.58 0.22 27);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
+  --chart-1: var(--color-blue-300);
+  --chart-2: var(--color-blue-500);
+  --chart-3: var(--color-blue-600);
+  --chart-4: var(--color-blue-700);
+  --chart-5: var(--color-blue-800);
   --sidebar: oklch(0.205 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
   --sidebar-primary: oklch(0.488 0.243 264.376);
@@ -71,7 +103,28 @@
   --sidebar-accent: oklch(0.269 0 0);
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --sidebar-ring: oklch(0.439 0 0);
+  --surface: oklch(0.2 0 0);
+  --surface-foreground: oklch(0.708 0 0);
+  --code: var(--surface);
+  --code-foreground: var(--surface-foreground);
+  --code-highlight: oklch(0.27 0 0);
+  --code-number: oklch(0.72 0 0);
+  --selection: oklch(0.922 0 0);
+  --selection-foreground: oklch(0.205 0 0);
+
+  /* The specimens' dark overrides: lighter lines and ink, darker ground,
+     the two paper tints lifted off it, and the blues stepped up so they
+     stay legible on black. */
+  --line: oklch(0.62 0 0);
+  --line-soft: oklch(0.42 0 0);
+  --line-strong: oklch(0.85 0 0);
+  --ink-2: oklch(0.8 0 0);
+  --ground: oklch(0.16 0 0);
+  --paper-1: oklch(0.2 0 0);
+  --paper-2: oklch(0.24 0 0);
+  --live: var(--chart-1);
+  --live-ring: var(--chart-2);
 }
 
 @theme inline {

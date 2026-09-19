@@ -1,0 +1,15 @@
+# Research brief: durable human-facing Codex conversations
+
+Determine the smallest supported way for Gimble's new human-facing Conversations page to continue the same native Codex conversation after the Gimble server exits and restarts. This concerns the dashboard conversation, not agent sessions inside unattended workflow runs. Research and recommend; do not implement.
+
+Read the current checkout's `internal/conversation/manager.go`, `harness.go`, `codex/codex.go`, and relevant Codex lifecycle tests. Conversation metadata and the visible transcript are already persisted; live adapter/session bindings are not. Current Codex Close archives threads, while callThread rejects archived threads. Codex uses a shared app-server daemon that Gimble must never stop or restart. Other users and tasks share it.
+
+The key uncertainty is how to preserve native conversation history while releasing live resources. Simply skipping archive might retain loaded threads or MCP processes. Simply unarchiving may encounter a known historical defect. Investigate the actual installed Codex version (observed 0.155.0-alpha.9.2) and current official docs/source rather than treating historical behavior as current fact.
+
+Historical context to verify: Gimble's source and prior review describe codex-cli 0.153.4 unarchive producing a ghost loaded thread. The user prohibited probing thread/unarchive or codex unarchive against the shared daemon. Preserve that boundary. Do not mutate, archive, unarchive, interrupt, stop, or restart existing shared-daemon sessions. Do not run live lifecycle tests during this research; use read-only documentation, source, installed help/schema, and existing recorded evidence. If a live probe is needed to settle a question, mark it unresolved and propose a bounded isolated test.
+
+Cover only questions needed for a decision: provider history and stable IDs; resume/archive/unarchive/unload/disconnect semantics; installed-version evidence versus old assumptions; Gimble's minimum persistence and lifecycle changes; and a small acceptance test for same-context continuation with resource cleanup. No general provider survey, workflow recovery, multi-project support, new framework, or speculative race handling.
+
+Use official OpenAI documentation and primary source. Save useful source material locally and cite it. Distinguish current documented guarantees, source observations with version or commit, existing historical tests, and unverified inference. Existing repository files count as sources when relevant; do not pad source counts. Downloaded source excerpts are research material and must not be committed as implementation or proof programs.
+
+The final document must lead with whether the path is clear and the recommended design, including any correction to the earlier idea of simply disconnecting without archiving. Include a roughly half-page proposal, then concise supporting evidence and any single material open question. Cap the complete document at 2000 tokens. Do not perform application changes, commit, push, open issues, or create PRs; the managing agent will handle the research artifact.

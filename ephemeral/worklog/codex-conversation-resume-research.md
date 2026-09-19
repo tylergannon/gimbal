@@ -1,0 +1,11 @@
+# Codex conversation continuation research
+
+correction: Human-facing saved conversations and unattended workflow sessions have distinct lifetimes. This task only researches continuity of the former.
+decision: Investigate current Codex persistence and resource cleanup before accepting the proposal to skip archive on server shutdown. Historical shared-daemon unarchive failures are evidence to recheck, not authority to repeat invasive probes.
+
+correction: Current official app-server documentation describes explicit unsubscribe with delayed unload after 30 minutes without subscribers or activity. The old archive-only assumption is insufficient for persistent human conversations; installed-schema availability alone does not prove runtime cleanup.
+friction: Several research roles repeated lifecycle discovery, and one continued refining its completed index after the evidence converged. Manager steers assigned lifecycle research to one owner and directed completed researchers to return. For six bounded topics, combined index curation needs one entry-point document, not a routing hierarchy or retrieval evaluation.
+decision: For the installed codex-cli 0.155.0-alpha.9.2, persist app-server thread.id as the continuation key; sessionId is root/fork lineage, while thread/read and thread/list expose stored history separately from thread/loaded/list runtime residency. Verified against official docs, generated installed schemas, and the exact upstream rust-v0.155.0-alpha.9.2 source.
+correction: Do not treat the installed CLI's resume SESSION_ID help or Gimble's local transcript as proof of the app-server continuation contract; the authoritative native handle is the app-server thread.id and live behavior still requires the lifecycle group's bounded isolated test.
+
+evidence: Topic 001 confirms `Conversation` JSON persists metadata, transcript, runs, and worktree association, while `activeConversation` holds the adapter and native session string only in memory. `New` forces restored `Live=false` and `Send` rejects a restored conversation instead of creating a new native context. Codex `Close` drops local routing/session state then archives the thread to unload daemon resources; cleanup never stops or restarts the shared daemon. Focused non-live tests passed; no shared-daemon lifecycle mutation was performed.

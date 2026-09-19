@@ -47,6 +47,11 @@ export type RunItem = {
   run: RunRow;
   summary: string;
   elapsed: string;
+  activity_at: number;
+  cost: string;
+  session_count: number;
+  turn_count: number;
+  instruction: string;
 };
 
 /**

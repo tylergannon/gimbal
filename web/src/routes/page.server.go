@@ -21,9 +21,14 @@ import (
 // observation. Keeping the text beside the row avoids a second map-shaped
 // state model at the load boundary.
 type RunItem struct {
-	Run     observation.RunRow `json:"run"`
-	Summary string             `json:"summary"`
-	Elapsed string             `json:"elapsed"`
+	Run          observation.RunRow `json:"run"`
+	Summary      string             `json:"summary"`
+	Elapsed      string             `json:"elapsed"`
+	ActivityAt   int64              `json:"activity_at"`
+	Cost         string             `json:"cost"`
+	SessionCount int                `json:"session_count"`
+	TurnCount    int                `json:"turn_count"`
+	Instruction  string             `json:"instruction"`
 }
 
 // RunsData is the complete server snapshot needed by RunsList.
@@ -55,20 +60,31 @@ func load(ctx context.Context) (RunsData, error) {
 	}
 
 	data := RunsData{Items: []RunItem{}, Attention: []observation.InterviewRow{}, Now: now}
+	disk := observation.NewRegistry(projectDir)
 	for _, entry := range entries {
 		if !entry.IsDir() {
 			continue
 		}
-		snapshot, err := registry.Snapshot(entry.Name())
+		var snapshot observation.RunSnapshot
+		if store, live := registry.Live(entry.Name()); live {
+			snapshot = store.Snapshot()
+		} else {
+			snapshot, err = disk.Snapshot(entry.Name())
+		}
 		if err != nil {
 			return RunsData{}, fmt.Errorf("read run %s: %w", entry.Name(), err)
 		}
 		pending := pendingInterviews(snapshot)
 		data.Attention = append(data.Attention, pending...)
 		data.Items = append(data.Items, RunItem{
-			Run:     snapshot.Run,
-			Summary: summarizeRun(snapshot, pending),
-			Elapsed: formatElapsed(snapshot.Run, now),
+			Run:          snapshot.Run,
+			Summary:      summarizeRun(snapshot, pending),
+			Elapsed:      formatElapsed(snapshot.Run, now),
+			ActivityAt:   latestActivity(snapshot),
+			Cost:         formatCost(snapshot),
+			SessionCount: len(snapshot.Sessions),
+			TurnCount:    len(snapshot.Turns),
+			Instruction:  latestInstruction(snapshot),
 		})
 	}
 
@@ -87,6 +103,56 @@ func load(ctx context.Context) (RunsData, error) {
 		return -compareInt64(left.Asked, right.Asked)
 	})
 	return data, nil
+}
+
+func latestActivity(snapshot observation.RunSnapshot) int64 {
+	latest := max(snapshot.Run.Started, snapshot.Run.Ended)
+	for _, scope := range snapshot.Scopes {
+		latest = max(latest, scope.Began, scope.Ended)
+	}
+	for _, session := range snapshot.Sessions {
+		latest = max(latest, session.Created)
+	}
+	for _, interview := range snapshot.Interviews {
+		latest = max(latest, interview.Asked, interview.Answered)
+	}
+	for _, turn := range snapshot.Turns {
+		latest = max(latest, turn.Started, turn.Ended)
+	}
+	for _, calls := range snapshot.ModelCalls {
+		for _, call := range calls {
+			latest = max(latest, call.Started, call.Ended)
+		}
+	}
+	for _, command := range snapshot.Commands {
+		latest = max(latest, command.Started, command.Ended)
+	}
+	return latest
+}
+
+func latestInstruction(snapshot observation.RunSnapshot) string {
+	var latest observation.TurnRow
+	for _, turn := range snapshot.Turns {
+		if turn.Started > latest.Started || turn.Started == latest.Started && turn.ID > latest.ID {
+			latest = turn
+		}
+	}
+	return latest.Prompt
+}
+
+func formatCost(snapshot observation.RunSnapshot) string {
+	total, ok := snapshot.Totals.Scopes[""]
+	if !ok {
+		return "—"
+	}
+	cost, ok := observation.TotalCost(total)
+	if !ok {
+		return "—"
+	}
+	if cost > 0 && cost < 0.01 {
+		return fmt.Sprintf("$%.4f", cost)
+	}
+	return fmt.Sprintf("$%.2f", cost)
 }
 
 func pendingInterviews(snapshot observation.RunSnapshot) []observation.InterviewRow {

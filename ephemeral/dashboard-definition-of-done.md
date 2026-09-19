@@ -1,0 +1,11 @@
+# Run dashboard
+
+User request: a complete dashboard page with a little widget/card for each current and recent run, showing last activity, total cost, other useful stats, and most recent instruction. Ship correct software quickly; stop at working 90-95%, with no speculative edge cases or unrelated functionality.
+
+Make the home runs page a useful responsive card dashboard in the existing visual language. Current runs come first, followed by recent runs. Each card identifies the workflow/run, status, last activity, total cost, elapsed time, session/turn counts, and latest instruction (the latest recorded turn prompt is a sufficient interpretation). Cards open the existing run detail. Preserve existing search, status filters, and pending-question access. Show useful empty/no-instruction states. Update while open so current work stays useful; reuse existing data paths where practical. Do not add start-run forms, charts, multi-project behavior, new runtime APIs, or an observability redesign.
+
+The dashboard must work for real current and saved runs. Derive displayed facts from existing authoritative observations and existing pricing logic. A card's timestamp should reflect actual observed activity supported by the current records, rather than merely its start time. Do not parse transcript text for stats. No new exported root API names.
+
+Proof: run the built app and observe cards with current and completed runs, accurate instruction/stats, live changes without manual reload, search/filter and opening a card. Add focused regression tests for the changed behavior; run required relevant checks. Independent validator must inspect the implementation and personally exercise the browser behavior with Playwright or equivalent. No committed screenshots, logs, proof programs, or run-output files.
+
+Work only in /Users/tyler/.codex/worktrees/56ec/gimble on codex/run-dashboard. You are not alone: manager handles delivery and independent browser inspection; preserve others' work. Do not commit, push, merge or reinstall; manager handles those after validation. Keep changes focused on the dashboard and its supporting data/tests. Read existing repo instructions and relevant Svelte factoring skill. Do not modify this definition of done. Do not broaden scope to repair unrelated documentation drift. Prefer one coherent implementation task.

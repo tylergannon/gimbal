@@ -14,8 +14,8 @@ be supplied externally or through the suite's prepare command; there is no reque
 for a scheduler framework, product auto-repair, or a model evaluation framework.
 
 Expected reporting preserves every declared feature as pass, fail, or blocked,
-including incomplete runs. A passing feature needs actual recorded interaction
-and supporting evidence assessed by a separate agent. A failed expectation must
+including incomplete runs. A passing feature needs actual interaction with the product and a useful
+explanation supported by screenshots or command output. A failed expectation must
 not disappear through retries. Owned target/browser/terminal resources and video
 recording need cleanup on success, failure, and ordinary cancellation. Hard kill
 and machine failure are acknowledged limitations.
@@ -29,3 +29,11 @@ Follow-up user request: fix both findings in
 adversarial review from Fable 5.1. The two findings concern evidence/report
 ownership and report completion claims that precede the outer run's agent-session
 cleanup outcome. No merge or installation was requested in this follow-up.
+
+
+Latest user clarification: screenshots should be taken by the exercising agent at
+appropriate moments. Video is intended for optional human review. Prioritize the
+80/20 case and remove redundant validation machinery. The simplified shape is one
+agent per feature that exercises and assesses the product, saves screenshots and
+CLI output, and returns its result; recording remains workflow-owned. Earlier
+independent-agent and video-analysis requirements in this design are superseded.

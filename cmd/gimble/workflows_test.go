@@ -183,9 +183,18 @@ func TestValidateProductHelp(t *testing.T) {
 	if !strings.Contains(lineWith(help, "--suite-file string"), "(required)") {
 		t.Fatal(help)
 	}
-	for _, role := range []string{"product-operation", "product-validation"} {
+	for _, role := range []string{"product-operation"} {
 		if !strings.Contains(lineWith(help, "--"+role+" string"), `(default "gpt-5.6-luna")`) {
 			t.Fatal(help)
+		}
+	}
+}
+
+func TestValidateProductHelpHasNoVideoAnalysisOrSecondAgent(t *testing.T) {
+	help := helpOf(t, "validate-product")
+	for _, removed := range []string{"--product-validation", "ffmpeg", "video_decoder"} {
+		if strings.Contains(help, removed) {
+			t.Fatalf("obsolete requirement %s in help", removed)
 		}
 	}
 }

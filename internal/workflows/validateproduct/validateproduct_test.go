@@ -12,87 +12,70 @@ import (
 	"github.com/tylergannon/gimble"
 )
 
-// The fixture replaces only external agents/media tools; the real workflow and
-// runtime own the scopes, reports, citation checks, and adapter cleanup.
+// The real workflow and runtime own scopes, recording cleanup, and reports.
 type validationHarness struct {
-	dirs      map[string]string
-	attack    string
-	closeRole string
-	prompts   []string
+	dir                                 string
+	status                              string
+	emptyOutput, badCitation, closeFail bool
+	prompts                             []string
 }
 
-func (h *validationHarness) CreateSession(_ context.Context, model, _ string, dir string) (string, error) {
-	h.dirs[model] = dir
-	return model, nil
+func (h *validationHarness) CreateSession(_ context.Context, _, _ string, dir string) (string, error) {
+	h.dir = dir
+	return "operator", nil
 }
 func (*validationHarness) Fork(context.Context, string) (string, error) {
 	return "", errors.New("unexpected fork")
 }
 func (*validationHarness) Steer(context.Context, string, string) (bool, error) { return false, nil }
-func (h *validationHarness) Close(_ context.Context, id string) error {
-	if id == h.closeRole {
+func (h *validationHarness) Close(context.Context, string) error {
+	if h.closeFail {
 		return errors.New("injected close failure")
 	}
 	return nil
 }
-func (h *validationHarness) RunTurn(_ context.Context, id, prompt string, _ json.RawMessage, _ func(gimble.AgentEvent) error) (gimble.TurnResult, error) {
+func (h *validationHarness) RunTurn(_ context.Context, _, prompt string, _ json.RawMessage, _ func(gimble.AgentEvent) error) (gimble.TurnResult, error) {
 	h.prompts = append(h.prompts, prompt)
-	dir := h.dirs[id]
-	original := filepath.Join(dir, "original.txt")
-	var output any
-	if id == "operator" {
-		if err := os.WriteFile(original, []byte("observed behavior"), 0600); err != nil {
-			return gimble.TurnResult{}, err
-		}
-		output = Observation{Summary: "observed", EvidenceFiles: []string{original}}
-	} else {
-		citation := original
-		switch h.attack {
-		case "foreign":
-			citation = filepath.Join(dir, "..", "foreign.txt")
-			if err := os.WriteFile(citation, []byte("another feature"), 0600); err != nil {
-				return gimble.TurnResult{}, err
-			}
-		case "report-citation":
-			citation = filepath.Join(dir, "..", "report.json")
-		case "modify-original":
-			if err := os.WriteFile(original, []byte("forged behavior"), 0600); err != nil {
-				return gimble.TurnResult{}, err
-			}
-		case "modify-report":
-			if err := os.WriteFile(filepath.Join(dir, "..", "report.json"), []byte(`{"complete":true}`), 0600); err != nil {
-				return gimble.TurnResult{}, err
-			}
-		}
-		output = Verdict{Status: "pass", Reason: "observed expected behavior", EvidenceFiles: []string{citation}}
+	path := filepath.Join(h.dir, "stdout.txt")
+	content := []byte("observed behavior")
+	if h.emptyOutput {
+		content = nil
 	}
-	raw, err := json.Marshal(output)
+	if err := os.WriteFile(path, content, 0600); err != nil {
+		return gimble.TurnResult{}, err
+	}
+	verdict := Verdict{Status: h.status, Reason: "what the agent actually observed", EvidenceFiles: []string{path}}
+	if h.badCitation {
+		verdict.EvidenceFiles = append(verdict.EvidenceFiles, filepath.Join(h.dir, "..", "report.json"))
+	}
+	raw, err := json.Marshal(verdict)
 	return gimble.TurnResult{Output: raw}, err
 }
 
 func TestWorkflowEvidenceAndCleanupOutcome(t *testing.T) {
-	for _, tc := range []struct{ name, attack, closeRole string }{
-		{name: "success"},
-		{name: "foreign evidence", attack: "foreign"},
-		{name: "circular report citation", attack: "report-citation"},
-		{name: "original evidence modified", attack: "modify-original"},
-		{name: "report modified", attack: "modify-report"},
-		{name: "operator cleanup fails", closeRole: "operator"},
-		{name: "validator cleanup fails", closeRole: "validator"},
+	for _, tc := range []struct {
+		name, status                                      string
+		emptyOutput, badCitation, closeFail, missingVideo bool
+	}{
+		{name: "success", status: "pass"},
+		{name: "empty command output is valid", status: "pass", emptyOutput: true},
+		{name: "failure survives bad attachment", status: "fail", badCitation: true},
+		{name: "foreign attachment prevents overall success", status: "pass", badCitation: true},
+		{name: "unable to exercise", status: "blocked"},
+		{name: "agent cleanup fails", status: "pass", closeFail: true},
+		{name: "recording missing", status: "pass", missingVideo: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			dir := t.TempDir()
 			driver := filepath.Join(dir, "driver")
-			decoder := filepath.Join(dir, "decoder")
-			for path, body := range map[string]string{
-				driver:  "#!/bin/sh\nif [ \"$2\" = video-start ]; then printf 'fixture video' > \"$3\"; fi\n",
-				decoder: "#!/bin/sh\nfor last; do :; done\nprintf 'fixture frame' > \"$last\"\n",
-			} {
-				if err := os.WriteFile(path, []byte(body), 0700); err != nil {
-					t.Fatal(err)
-				}
+			body := "#!/bin/sh\nif [ \"$2\" = video-start ]; then printf 'fixture video' > \"$3\"; fi\n"
+			if tc.missingVideo {
+				body = "#!/bin/sh\nexit 0\n"
 			}
-			suite := Suite{Product: Product{Name: "fixture", Workdir: dir, BrowserURL: "http://127.0.0.1:1"}, Tools: Tools{PlaywrightCLI: driver, VideoDecoder: decoder}, OutputDir: filepath.Join(dir, "output"), Features: []Feature{{ID: "feature", Surface: "browser", Exercise: "observe", Expected: "expected behavior"}}}
+			if err := os.WriteFile(driver, []byte(body), 0700); err != nil {
+				t.Fatal(err)
+			}
+			suite := Suite{Product: Product{Name: "fixture", Workdir: dir, BrowserURL: "http://127.0.0.1:1"}, Tools: Tools{PlaywrightCLI: driver}, OutputDir: filepath.Join(dir, "output"), Features: []Feature{{ID: "feature", Surface: "browser", Exercise: "observe", Expected: "expected behavior"}}}
 			data, err := json.Marshal(suite)
 			if err != nil {
 				t.Fatal(err)
@@ -101,21 +84,22 @@ func TestWorkflowEvidenceAndCleanupOutcome(t *testing.T) {
 			if err := os.WriteFile(input, data, 0600); err != nil {
 				t.Fatal(err)
 			}
-			h := &validationHarness{dirs: map[string]string{}, attack: tc.attack, closeRole: tc.closeRole}
-			models := map[gimble.WorkflowRole]gimble.ModelBinding{"product-operation": {Adapter: h, Model: "operator"}, "product-validation": {Adapter: h, Model: "validator"}}
+			h := &validationHarness{status: tc.status, emptyOutput: tc.emptyOutput, badCitation: tc.badCitation, closeFail: tc.closeFail}
+			models := map[gimble.WorkflowRole]gimble.ModelBinding{"product-operation": {Adapter: h, Model: "operator"}}
 			runErr := gimble.Run(gimble.Project(t.Context(), t.TempDir()), "validate-product-test", models, func(ctx context.Context) error {
 				return ValidateProduct(ctx, gimble.Env{WorkDir: dir}, Params{SuiteFile: input})
 			})
-			if tc.attack == "" && tc.closeRole == "" && runErr != nil {
-				t.Fatal(runErr)
+			wantError := tc.status != "pass" || tc.badCitation || tc.closeFail || tc.missingVideo
+			if (runErr != nil) != wantError {
+				t.Fatalf("run error = %v, want error %v", runErr, wantError)
 			}
-			if (tc.attack != "" || tc.closeRole != "") && runErr == nil {
-				t.Fatal("run accepted invalid evidence or failed cleanup")
-			}
-			if tc.closeRole != "" {
+			if tc.closeFail {
 				if _, ok := errors.AsType[*gimble.CloseError](runErr); !ok {
-					t.Fatalf("error = %v, want CloseError", runErr)
+					t.Fatalf("want CloseError, got %v", runErr)
 				}
+			}
+			if len(h.prompts) != 1 {
+				t.Fatalf("got %d agent turns, want one", len(h.prompts))
 			}
 			paths, err := filepath.Glob(filepath.Join(suite.OutputDir, "validation-*", "report.json"))
 			if err != nil || len(paths) != 1 {
@@ -129,12 +113,11 @@ func TestWorkflowEvidenceAndCleanupOutcome(t *testing.T) {
 			if err := json.Unmarshal(data, &got); err != nil {
 				t.Fatal(err)
 			}
-			want := "pass"
-			if tc.attack != "" {
-				want = "blocked"
+			if len(got.Features) != 1 || got.Features[0].Status != tc.status || got.Features[0].Reason != "what the agent actually observed" {
+				t.Fatalf("agent finding was lost: %+v", got)
 			}
-			if len(got.Features) != 1 || got.Features[0].Status != want {
-				t.Fatalf("report = %+v, want %s", got, want)
+			if (got.Features[0].Error != "") != (tc.badCitation || tc.missingVideo) {
+				t.Fatalf("artifact error = %q", got.Features[0].Error)
 			}
 			if strings.Contains(string(data), `"complete"`) {
 				t.Fatal("feature report must not certify outer run completion")
@@ -144,7 +127,7 @@ func TestWorkflowEvidenceAndCleanupOutcome(t *testing.T) {
 					t.Fatal("workflow report path leaked into agent context")
 				}
 			}
-			if tc.attack != "" && got.Error == "" {
+			if (tc.badCitation || tc.missingVideo || tc.status != "pass") && got.Error == "" {
 				t.Fatalf("blocked report lacks workflow error: %+v", got)
 			}
 		})

@@ -13,7 +13,6 @@ timeout: 15m
 # tools:
 #   playwright_cli: /absolute/path/to/playwright-cli
 #   terminal_server: /absolute/path/to/gotty
-#   video_decoder: /absolute/path/to/ffmpeg
 features:
   - id: browser-navigation
     surface: browser

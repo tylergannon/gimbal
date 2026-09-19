@@ -12,16 +12,14 @@
 // must remain in the foreground and keep descendants in its process group.
 //
 // Prerequisites are authenticated agent harnesses, playwright-cli with an installed
-// browser, ffmpeg for video decoding, and GoTTY plus zsh for CLI features. The
-// optional tools object overrides playwright_cli, terminal_server (GoTTY), and
-// video_decoder executable paths. Nothing is installed automatically. CLI commands
-// run in a real loopback terminal; agents retain output and exit status separately
-// because its canvas text is not available in accessibility snapshots.
+// browser, and GoTTY plus zsh for CLI features. The optional tools object overrides
+// playwright_cli and terminal_server (GoTTY) executable paths. Nothing is installed
+// automatically. CLI commands run in a real loopback terminal.
 //
-// Each feature gets a fresh recorded browser session and independent operator and
-// validator sessions. The workflow finalizes video, closes the browser, and decodes
-// the video before validation. Missing evidence or prerequisites are blocked, not
-// passes. Failed expectations remain failures; there are no automatic test retries.
+// One agent exercises each feature, takes screenshots at useful moments, and
+// reports pass/fail/blocked from what it observes. CLI output and exit statuses
+// supplement screenshots. Video is recorded for optional human review, not analyzed
+// by another agent. There are no automatic test retries or evidence fingerprints.
 // Reports and recordings go into a unique validation-* directory under output_dir.
 // report.json includes every declared feature, including those never reached.
 // The report contains feature evidence, not an overall completion claim. Overall
@@ -62,16 +60,9 @@ type Params struct {
 	SuiteFile string
 }
 
-// Observation records what the operator actually observed, not a verdict.
-type Observation struct {
-	Summary       string   `json:"summary"`
-	EvidenceFiles []string `json:"evidence_files"`
-	BlockedReason string   `json:"blocked_reason"`
-}
-
-// Verdict is the independent validator's evidence-based result.
+// Verdict is the exercising agent's result, with screenshots and command output.
 type Verdict struct {
-	// Status is pass, fail, or blocked. Missing evidence is blocked.
+	// Status is pass, fail, or blocked.
 	Status        string   `json:"status"`
 	Reason        string   `json:"reason"`
 	EvidenceFiles []string `json:"evidence_files"`
@@ -83,6 +74,7 @@ type featureResult struct {
 	Reason   string   `json:"reason"`
 	Video    string   `json:"video,omitempty"`
 	Evidence []string `json:"evidence,omitempty"`
+	Error    string   `json:"error,omitempty"` // Recording, cleanup, or attachment problem; preserves the product finding.
 }
 
 type report struct {
@@ -92,7 +84,7 @@ type report struct {
 	Features []featureResult `json:"features"`
 }
 
-// ValidateProduct operates and independently validates each declared feature with video.
+// ValidateProduct exercises declared features and saves screenshots, results, and video for human review.
 func ValidateProduct(ctx context.Context, env gimble.Env, params Params) (resultErr error) {
 	suite, timeout, err := readSuite(absolute(env.WorkDir, params.SuiteFile))
 	if err != nil {
@@ -124,10 +116,6 @@ func ValidateProduct(ctx context.Context, env gimble.Env, params Params) (result
 	driver, err := exec.LookPath(suite.Tools.PlaywrightCLI)
 	if err != nil {
 		return fmt.Errorf("browser driver prerequisite: %w", err)
-	}
-	decoder, err := exec.LookPath(suite.Tools.VideoDecoder)
-	if err != nil {
-		return fmt.Errorf("video decoder prerequisite: %w", err)
 	}
 
 	err = gimble.Scope(ctx, "product", func(ctx context.Context) error {
@@ -165,10 +153,6 @@ func ValidateProduct(ctx context.Context, env gimble.Env, params Params) (result
 		}
 		index := 0
 		for featureCtx, feature := range gimble.Iterate(ctx, "feature", suite.Features) {
-			reportDigest, err := fileDigest(reportPath)
-			if err != nil {
-				return err
-			}
 			item := &result.Features[index]
 			index++
 			dir := filepath.Join(output, strconv.Itoa(index))
@@ -177,8 +161,8 @@ func ValidateProduct(ctx context.Context, env gimble.Env, params Params) (result
 			}
 			item.Video = filepath.Join(dir, "video.webm")
 			session := "validation-" + filepath.Base(output) + "-" + strconv.Itoa(index)
-			var observation Observation
-			err = gimble.Scope(featureCtx, "exercise", func(ctx context.Context) (exerciseErr error) {
+			var verdict Verdict
+			err := gimble.Scope(featureCtx, "exercise", func(ctx context.Context) (exerciseErr error) {
 				target := suite.Product.BrowserURL
 				if feature.Surface == "cli" {
 					terminal, err := exec.LookPath(suite.Tools.TerminalServer)
@@ -273,60 +257,39 @@ func ValidateProduct(ctx context.Context, env gimble.Env, params Params) (result
 				gimble.Set(ctx, "browser command", shellQuote(driver)+" -s="+shellQuote(session))
 				gimble.Set(ctx, "evidence directory", dir)
 				operator := gimble.NewSession(ctx, "product-operation", dir)
-				observation, err = operator.Generate[Observation](ctx, operatePrompt)
+				verdict, err = operator.Generate[Verdict](ctx, operatePrompt)
 				return err
 			})
-			if err != nil {
-				item.Reason = err.Error()
-			} else if err := unchanged(reportPath, reportDigest); err != nil {
-				item.Reason = "operator modified the workflow report: " + err.Error()
-			} else if observation.BlockedReason != "" {
-				item.Reason = observation.BlockedReason
-			} else if len(observation.EvidenceFiles) == 0 {
-				item.Reason = "operator supplied no evidence"
-			} else {
-				code, _, stderr, decodeErr := gimble.RunCommand(featureCtx, "decode-video", dir, decoder, "-v", "error", "-xerror", "-i", item.Video, "-f", "image2", "-update", "1", "-y", filepath.Join(dir, "last-frame.png"))
-				if decodeErr != nil {
-					item.Reason = decodeErr.Error()
-				} else if code != 0 {
-					item.Reason = fmt.Sprintf("video decoding failed: %s", stderr)
-				} else if info, err := os.Stat(filepath.Join(dir, "last-frame.png")); err != nil || info.Size() == 0 {
-					item.Reason = "video decoder produced no frame"
-				} else {
-					originals, err := snapshotEvidence(dir, append(append([]string{}, observation.EvidenceFiles...), item.Video))
-					if err != nil {
-						item.Reason = "invalid operator evidence: " + err.Error()
-					} else {
-						// Close the validator before checking that original evidence stayed unchanged.
-						var verdict Verdict
-						err := gimble.Scope(featureCtx, "validation", func(ctx context.Context) error {
-							gimble.SetJSON(ctx, "feature", feature)
-							gimble.SetJSON(ctx, "operator observation", observation)
-							gimble.Set(ctx, "evidence directory", dir)
-							gimble.Set(ctx, "video", item.Video)
-							gimble.Set(ctx, "video decoder", decoder)
-							validator := gimble.NewSession(ctx, "product-validation", dir)
-							var err error
-							verdict, err = validator.Generate[Verdict](ctx, validatePrompt)
-							return err
-						})
-						evidence, evidenceErr := verdictEvidence(dir, originals, verdict.EvidenceFiles)
-						if err != nil {
-							item.Reason = err.Error()
-						} else if evidenceErr != nil {
-							item.Reason = "invalid validator evidence: " + evidenceErr.Error()
-						} else if verdict.Status != "pass" && verdict.Status != "fail" && verdict.Status != "blocked" {
-							item.Reason = "validator returned an invalid status"
-						} else if strings.TrimSpace(verdict.Reason) == "" || len(evidence) == 0 {
-							item.Reason = "validator supplied no explanation or evidence"
-						} else {
-							item.Status, item.Reason, item.Evidence = verdict.Status, verdict.Reason, evidence
-						}
+			if (verdict.Status == "pass" || verdict.Status == "fail" || verdict.Status == "blocked") && strings.TrimSpace(verdict.Reason) != "" {
+				item.Status, item.Reason = verdict.Status, verdict.Reason
+			} else if err == nil {
+				err = errors.New("agent returned no valid feature result")
+			}
+			for _, path := range verdict.EvidenceFiles {
+				resolved, pathErr := evidencePath(dir, path)
+				if pathErr == nil {
+					info, statErr := os.Stat(resolved)
+					if statErr != nil {
+						pathErr = statErr
+					} else if !info.Mode().IsRegular() {
+						pathErr = fmt.Errorf("evidence is not a file: %s", path)
 					}
 				}
+				if pathErr != nil {
+					err = errors.Join(err, pathErr)
+				} else {
+					item.Evidence = append(item.Evidence, resolved)
+				}
 			}
-			if err := unchanged(reportPath, reportDigest); err != nil {
-				item.Status, item.Reason = "blocked", "agent modified the workflow report: "+err.Error()
+			if item.Status == "pass" && len(item.Evidence) == 0 {
+				item.Status = "blocked"
+				err = errors.Join(err, errors.New("no screenshots or command output attached"))
+			}
+			if info, videoErr := os.Stat(item.Video); videoErr != nil || !info.Mode().IsRegular() || info.Size() == 0 {
+				err = errors.Join(err, errors.New("recording is missing or empty"))
+			}
+			if err != nil {
+				item.Error = err.Error()
 			}
 			if err := writeReport(reportPath, result); err != nil {
 				return err
@@ -338,8 +301,8 @@ func ValidateProduct(ctx context.Context, env gimble.Env, params Params) (result
 		return err
 	}
 	for _, item := range result.Features {
-		if item.Status != "pass" {
-			return fmt.Errorf("validation incomplete: feature %s is %s", item.ID, item.Status)
+		if item.Status != "pass" || item.Error != "" {
+			return fmt.Errorf("validation incomplete: feature %s is %s (error: %s)", item.ID, item.Status, item.Error)
 		}
 	}
 	return nil
@@ -356,9 +319,6 @@ func writeReport(path string, result report) error {
 	return os.Rename(path+".tmp", path)
 }
 
-const operatePrompt = `Exercise the given feature against the running target. Perform its setup and interactions, preserving the expected outcome unchanged. Use the supplied browser command and its existing session for all browser or terminal interactions: recording is already active and the workflow owns video-stop and close. Do not create another browser session or stop this one. Do not repair the product or change its source.
-For CLI features, type commands into the browser terminal. Its text is drawn on canvas: retain command output and exit status in files in the evidence directory, using tee and the shell's pipeline status where appropriate, and take screenshots of the visible terminal. Do not substitute direct shell execution for the recorded CLI interaction. Browser features likewise need snapshots or screenshots showing the relevant actual state.
-Save original observations in the evidence directory and return their absolute paths with a concise account of what happened. Report missing prerequisites or inability to exercise the feature in BlockedReason. A failed expectation is an observation for the independent validator, not a reason to silently retry until it passes. Do not modify the workflow report or fabricate evidence.`
-
-const validatePrompt = `Independently decide whether the recorded interaction demonstrates the feature's expected behavior. Inspect the actual evidence files and sample relevant frames of the finalized video using the supplied decoder; do not accept the operator's summary as proof. The recording must show the same interaction as the supporting outputs and screenshots. Verify command exit statuses where relevant, distinguish an expected product error from an infrastructure error, and preserve unmet expectations.
-Return pass only when the original observations establish the whole expected outcome. Return fail for a demonstrated product mismatch, or blocked for insufficient evidence or missing prerequisites. Explain the observed-versus-expected result and cite the actual evidence files you inspected. Return the verdict only in your structured response; the workflow owns report writing. Do not write or modify any report, original evidence, product files, or expected outcome. You may create sampled video frames in the evidence directory for inspection, but cite only the original operator evidence files and the supplied video. All citations must belong to this feature. Do not operate the target or repair the product.`
+const operatePrompt = `Exercise the given feature against the running product and compare what you observe with its expected behavior. Perform its setup, use the supplied browser command and existing session for all interactions, and take screenshots at useful moments, especially the result or any failure. The workflow records video for optional human review and handles video-stop and close; your assessment should use the live product, screenshots, and command output.
+For CLI features, type commands into the browser terminal and save their output and exit statuses alongside terminal screenshots in the evidence directory. Empty output can be meaningful. Do not substitute direct shell execution for the recorded CLI interaction.
+Return pass when the expected behavior is observed, fail when the product behaves incorrectly, or blocked when you cannot perform the check. Explain what happened and attach the absolute paths of relevant screenshots and output files from this feature's evidence directory. Return your result only in the structured response; the workflow writes the report. Do not repair the product, change expectations, fabricate evidence, or retry until a failure disappears.`

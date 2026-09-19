@@ -1,6 +1,6 @@
 {"type":"object",
-"description":"Verdict is the independent validator's evidence-based result.","properties":{
-"status":{"type":"string","description":"Status is pass, fail, or blocked. Missing evidence is blocked."},
+"description":"Verdict is the exercising agent's result, with screenshots and command output.","properties":{
+"status":{"type":"string","description":"Status is pass, fail, or blocked."},
 "reason":{"type":"string"},
 "evidence_files":{"type":"array","items":{"type":"string"}}
 },"required":["status","reason","evidence_files"],"additionalProperties":false}

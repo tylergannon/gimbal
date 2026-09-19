@@ -22,9 +22,8 @@ func __gen_jsonschema_panic(fname string, err error) {
 
 // Compiled JSON schemas for validation, initialized once at startup.
 var (
-	__gen_jsonschema_compiled_Observation *jsonschema.Schema
-	__gen_jsonschema_compiled_Verdict     *jsonschema.Schema
-	__gen_jsonschema_compiled_Feature     *jsonschema.Schema
+	__gen_jsonschema_compiled_Verdict *jsonschema.Schema
+	__gen_jsonschema_compiled_Feature *jsonschema.Schema
 )
 
 func init() {
@@ -46,11 +45,6 @@ func init() {
 	}
 
 	{
-		var __zero Observation
-		__gen_jsonschema_compiled_Observation = compile("Observation", __zero.Schema())
-	}
-
-	{
 		var __zero Verdict
 		__gen_jsonschema_compiled_Verdict = compile("Verdict", __zero.Schema())
 	}
@@ -59,15 +53,6 @@ func init() {
 		var __zero Feature
 		__gen_jsonschema_compiled_Feature = compile("Feature", __zero.Schema())
 	}
-}
-
-func (Observation) Schema() json.RawMessage {
-	const fileName = "jsonschema/Observation.json"
-	data, err := __gen_jsonschema_fs.ReadFile(fileName)
-	if err != nil {
-		__gen_jsonschema_panic(fileName, err)
-	}
-	return data
 }
 
 func (Verdict) Schema() json.RawMessage {
@@ -86,15 +71,6 @@ func (Feature) Schema() json.RawMessage {
 		__gen_jsonschema_panic(fileName, err)
 	}
 	return data
-}
-
-// ValidateJSON validates the given JSON bytes against the schema for Observation.
-func (Observation) ValidateJSON(data []byte) error {
-	inst, err := jsonschema.UnmarshalJSON(bytes.NewReader(data))
-	if err != nil {
-		return err
-	}
-	return __gen_jsonschema_compiled_Observation.Validate(inst)
 }
 
 // ValidateJSON validates the given JSON bytes against the schema for Verdict.

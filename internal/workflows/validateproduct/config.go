@@ -38,7 +38,6 @@ type Product struct {
 type Tools struct {
 	PlaywrightCLI  string `json:"playwright_cli" yaml:"playwright_cli"`
 	TerminalServer string `json:"terminal_server" yaml:"terminal_server"`
-	VideoDecoder   string `json:"video_decoder" yaml:"video_decoder"`
 }
 
 type Feature struct {
@@ -89,10 +88,7 @@ func readSuite(name string) (Suite, time.Duration, error) {
 	if suite.Tools.TerminalServer == "" {
 		suite.Tools.TerminalServer = "gotty"
 	}
-	if suite.Tools.VideoDecoder == "" {
-		suite.Tools.VideoDecoder = "ffmpeg"
-	}
-	for _, value := range []*string{&suite.Tools.PlaywrightCLI, &suite.Tools.TerminalServer, &suite.Tools.VideoDecoder, &suite.Product.CLI} {
+	for _, value := range []*string{&suite.Tools.PlaywrightCLI, &suite.Tools.TerminalServer, &suite.Product.CLI} {
 		if strings.ContainsRune(*value, filepath.Separator) {
 			*value = absolute(base, *value)
 		}
@@ -128,3 +124,20 @@ func absolute(base, path string) string {
 }
 
 func shellQuote(value string) string { return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'" }
+
+// Resolve symlinks before checking containment, including links in parent directories.
+func evidencePath(dir, path string) (string, error) {
+	root, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		return "", err
+	}
+	resolved, err := filepath.EvalSymlinks(absolute(dir, path))
+	if err != nil {
+		return "", err
+	}
+	relative, err := filepath.Rel(root, resolved)
+	if err != nil || !filepath.IsLocal(relative) {
+		return "", fmt.Errorf("evidence is outside this feature: %s", path)
+	}
+	return resolved, nil
+}

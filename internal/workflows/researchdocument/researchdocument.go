@@ -4,16 +4,16 @@
 //
 // The planner returns exactly five coherent groups of adjacent or related
 // topics, one for each explicitly named parallel researcher. Each topic must
-// leave at least the requested number of useful local source files, address
-// every assigned question or mark it unresolved, and write an INDEX.md that
-// cites those sources and links to longer clips when compression would lose
-// important detail. The index is a means to the document, not a completeness
-// project.
+// preserve at least the requested number of useful local sources, distinguish
+// original evidence from interpretation, and address each question or mark it
+// unresolved. Topic indexes and a compact combined index route author questions
+// to precise source passages and longer annotated clips. The index is a means
+// to finding evidence for the document, not a second report.
 //
 // The author uses the combined semantic index as its entry point to the corpus.
-// An editorial pass checks the document against the goal, index, and token
-// budget. Material omissions trigger targeted research and index repair before
-// another revision. The workflow succeeds when the document is within budget
+// An editorial pass checks consequential claims against original evidence,
+// along with the document goal and token budget. Material omissions trigger
+// targeted research and index repair before another revision. The workflow succeeds when the document is within budget
 // and the editor reports only nitpicks, or returns an error after the editorial
 // round limit.
 //
@@ -436,22 +436,30 @@ func requireNonemptyFile(name string) error {
 	return nil
 }
 
-const planTopicsPrompt = `Break the research needed for the document into exactly five groups of adjacent or related topics, one group for each parallel researcher. Every group must contain at least one topic. For each topic, give the specific questions its researcher must answer. Cover what the audience needs for the requested understanding; do not plan globally comprehensive research.`
+const planTopicsPrompt = `Plan the research needed for the document goal in exactly five coherent groups, one per parallel researcher, with at least one topic per group. Give each topic specific, neutral questions about what remains unknown. Preserve the caller's settled requirements; do not turn them into open questions or assume a preferred solution. Keep assignments distinct and proportional to the requested document, rather than planning comprehensive coverage of the field.`
 
-const researchTopicsPrompt = `Research every assigned topic for the final document. The topic directories align with the assigned topics in the same order. For each topic, download at least the required number of useful sources into that topic directory's sources subdirectory. Address every assigned question or explicitly mark it unresolved. Write INDEX.md in each topic directory with a concise goal-relevant synthesis, citations to the local source files, and links to longer clips in its clips subdirectory when summarizing would lose important detail. Return the files and questions you actually addressed. Stop once this definition of done is met for every assigned topic.`
+const researchTopicsPrompt = `Collect original evidence for every assigned topic. The topic directories align with the topics in the same order. Download at least the required number of useful sources into each topic's sources directory, preserving original text or faithful excerpts with their origin, version or retrieval date, and precise source locations. Keep your interpretation separate from that source text.
 
-const researchGapsPrompt = `Research the missing topics identified by the editor. Download at least the required number of useful sources into the gap research sources directory, using the same minimum per missing topic. Write INDEX.md at the exact gap research index path with a concise goal-relevant synthesis, local citations, and links to indispensable longer clips. Return what you actually researched. Stop when the gaps can support the document.`
+Write a compact INDEX.md for each topic that routes the assigned questions to the relevant local evidence. Give short source annotations and precise citation bookmarks; put indispensable longer annotations or excerpts in clips and link them. Distinguish supported facts from inference, contradictions, and unresolved questions. Do not replace evidence with a report or speculative implementation. Check that the local citations resolve, return the files and questions actually addressed, and stop when the assigned questions have evidence or explicit gaps and the research floor is met.`
 
-const researchCoachPrompt = `The goal is the best possible document within its token budget, not a perfect corpus or index. Ensure the worker meets the stated research floor, preserves useful evidence locally, and makes the index sufficient for writing. Object to work beyond what would materially improve the document.`
+const researchGapsPrompt = `Collect original evidence for the editor's missing topics in the gap research sources directory, meeting the required minimum per topic. Preserve source text or faithful excerpts with origin, version or retrieval date, and precise locations; keep your interpretation separate. Write a compact INDEX.md at the exact gap research index path, routing each gap to local evidence and any indispensable longer clips. Distinguish supported answers from contradictions and unresolved questions. Check the citations and return what you actually researched. Stop when the evidence supports repairing the document or the remaining uncertainty is explicit.`
 
-const compressionCoachPrompt = `The goal is the most important understanding the token budget can hold. Ensure the author actively measures the document with the supplied token counter and edits it under budget. Object when low-value specifics, examples, qualifications, or secondary claims displace the central explanation.`
+const researchCoachPrompt = `Keep the work proportional to the document goal. Check that original evidence remains distinct from interpretation, research questions preserve the caller's requirements, and index notes provide short routes to useful citations. Steer away from unsupported conclusions, repeated summaries, and speculative implementation. The research floor is a minimum; file counts alone do not establish sufficient evidence.`
 
-const buildIndexPrompt = `Build the semantic index at the exact semantic index path from the topic indexes. Organize it for the document goal: preserve the important knowledge, cite local evidence, and link to longer clips when compression would lose something the author may need. The index should be the author's sufficient entry point into the corpus. Stop when it supports writing the document; do not perfect it for its own sake.`
+const compressionCoachPrompt = `Help the author convey the most important supported understanding within the measured token budget. Prefer removing repetition and secondary material over removing evidence, consequential uncertainty, or qualifications that change a claim's meaning. Keep citations usable and recommendations distinguishable from source facts.`
 
-const updateIndexPrompt = `Update the semantic index with the gap research identified in this editorial round. Preserve its usefulness as the author's single entry point, add the important missing knowledge and local citations, and stop when the document can be repaired.`
+const buildIndexPrompt = `Build a compact semantic routing tree at the exact semantic index path, using the topic indexes and their local evidence. The source cache holds the evidence; the index helps an author decide where to look. Organize routes by likely author questions and cross-cutting themes, not by researcher assignment. For each route, briefly explain when to follow it and link to the relevant topic, annotated leaf, or precise source passage. Keep detailed knowledge in those destinations instead of repeating their summaries in the root.
 
-const writeDocumentPrompt = `Write the requested document at the exact document path. Use the semantic index as the only entry point to the research; follow its links to longer local clips only when needed. Maximize the audience's understanding of the most important knowledge within the token budget. Prefer strong lossy compression over accumulating facts. Do not browse the corpus independently or spend work improving the index. Before finishing, repeatedly run the token counter executable with "count-tokens" and the document path, editing the document until the reported count is at or below the budget.`
+Explain the corpus scope, source locations, citation conventions, and known gaps or conflicts. Preserve original source files. Check that links resolve and walk representative routes from the entrypoint to supporting evidence. Stop when the author can find the needed evidence through a small number of clear choices; a nonempty index or a file count alone is not evidence of useful retrieval.`
 
-const editorialPrompt = `Independently read the document and semantic index at their exact paths. Assess whether the document achieves its goal within the token budget. OnlyNitpicks is true only when nothing important is absent, misleading, badly prioritized, or wasteful enough to justify another revision. Put authoring or compression defects in MaterialIssues. Put a topic in MissingTopics only when the semantic index lacks the knowledge needed to repair the document.`
+const updateIndexPrompt = `Integrate the gap research into the semantic index's existing routes. Add or repair links to the relevant evidence, update unresolved questions and conflicts, and preserve working routes. Keep the entrypoint compact and original sources unchanged. Check the affected paths from entrypoint to evidence; stop when they support repairing the document.`
 
-const reviseDocumentPrompt = `Revise the document at its exact path using the editorial verdict, measured token count, and current semantic index. Fix every material issue. Protect the most important understanding; remove lower-value specifics, examples, qualifications, and secondary claims before weakening the central explanation. Before finishing, repeatedly run the token counter executable with "count-tokens" and the document path, editing until the reported count is at or below the budget.`
+const writeDocumentPrompt = `Write the requested document at the exact document path. Start research retrieval at the semantic index and follow its routes to relevant original sources and annotated clips. Use the index to locate evidence, not as a substitute for it. Ground consequential claims in source passages, distinguish recommendations from facts, and preserve uncertainty where evidence is missing or conflicting. Do not independently expand the research or redesign the index; make any material evidence gaps clear for the editor.
+
+Prioritize the audience's requested understanding and keep citations usable. Run the supplied token counter executable with "count-tokens" and the document path, and edit until the measured count is within budget. Compress repetition and secondary detail without changing the meaning or certainty of supported claims.`
+
+const editorialPrompt = `Independently assess the document against the caller's goal and token budget. Use the semantic index to locate original evidence, then trace the document's consequential factual claims and recommendations to the cited passages. Agreement between the document and index is not source verification. Check that requirements remain intact, citations support their claims, and facts, inference, and unresolved uncertainty are distinguished.
+
+Set OnlyNitpicks only when no unsupported or misleading claim, missing requirement, or material prioritization or compression problem warrants revision. Put defects repairable from existing evidence in MaterialIssues. Put topics in MissingTopics when absent or inadequate evidence requires targeted research, explaining what must be established. Do not introduce optional enhancements or reopen the caller's settled requirements.`
+
+const reviseDocumentPrompt = `Revise the document at its exact path using the editorial verdict, measured token count, and current semantic index. Follow the affected routes to original evidence and repair every material issue; do not simply repeat a corrected summary without checking its support. Preserve the caller's requirements and make unresolved evidence gaps explicit. Remove repetition and secondary detail before weakening central claims or their necessary qualifications. Run the supplied token counter executable with "count-tokens" and the document path, editing until the measured count is within budget.`

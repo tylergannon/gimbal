@@ -6,7 +6,7 @@
 </script>
 
 <svelte:head><link rel="icon" href={favicon} /></svelte:head>
-<nav><a href="/">Guide</a><a href="/about">About</a></nav>
+<nav class="site-nav"><a href="/">Guide</a><a href="/about">About</a></nav>
 <main>{@render children()}</main>
 
 <style>

@@ -14,3 +14,9 @@ Feature: The Gimble guide works through a browser
     Then About is visible without a document reload
     When I load the About route directly
     Then About is visible in a new document
+
+  Scenario: A selected run opens in the live workspace
+    Given I open the selected Gimble run
+    Then the run workspace shows its identity and observation
+    When I select recorded work in the workspace
+    Then the detail pane describes that selected work

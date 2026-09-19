@@ -6,6 +6,10 @@ package routes
 // bindings package can spell. Each is the function itself and not a wrapper:
 // skgo.Refresh finds a query by the code pointer of the function it names.
 var (
+	// Skgo_cancelRun is cancelRun, published as src/routes/control.remote.ts#cancelRun.
+	Skgo_cancelRun = cancelRun
+	// Skgo_stopTurn is stopTurn, published as src/routes/control.remote.ts#stopTurn.
+	Skgo_stopTurn = stopTurn
 	// Skgo_guide is guide, published as src/routes/guide.remote.ts#guide.
 	Skgo_guide = guide
 	// Skgo_answerInterview is answerInterview, published as src/routes/interview.remote.ts#answerInterview.

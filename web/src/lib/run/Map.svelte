@@ -26,6 +26,10 @@
 </script>
 
 <script lang="ts">
+  import { tick } from "svelte";
+  import FitIcon from "@lucide/svelte/icons/focus";
+  import MinusIcon from "@lucide/svelte/icons/minus";
+  import PlusIcon from "@lucide/svelte/icons/plus";
   import type { Graph } from "../workflow/types.js";
   import type { RunSnapshot } from "../observation/index.js";
   import Group from "./Group.svelte";
@@ -50,6 +54,10 @@
   let selectedInstances = $state<Record<string, string>>({});
   let foldedScopes = $state<string[]>([]);
   let selectedKey = $state<string | undefined>(undefined);
+  let zoom = $state(1);
+  let viewport: HTMLDivElement | undefined;
+  let dragging = $state(false);
+  let dragOrigin: { x: number; y: number; left: number; top: number } | undefined;
 
   const layout = $derived(
     buildMapLayout(graph, snapshot, { selectedInstances, foldedScopes, selectedKey }),
@@ -117,10 +125,83 @@
       turn: watcher.turn,
     });
   }
+
+  function setZoom(next: number) {
+    zoom = Math.min(1.5, Math.max(0.5, Math.round(next * 10) / 10));
+  }
+
+  async function fitView() {
+    if (!viewport) return;
+    const next = Math.min(
+      1,
+      (viewport.clientWidth - 48) / layout.width,
+      (viewport.clientHeight - 48) / layout.height,
+    );
+    setZoom(next);
+    await tick();
+    viewport.scrollTo({ left: 0, top: 0, behavior: "smooth" });
+  }
+
+  function startPan(event: PointerEvent) {
+    if (
+      !viewport ||
+      event.button !== 0 ||
+      (event.target as HTMLElement).closest("button, [role=listbox]")
+    )
+      return;
+    dragging = true;
+    dragOrigin = {
+      x: event.clientX,
+      y: event.clientY,
+      left: viewport.scrollLeft,
+      top: viewport.scrollTop,
+    };
+    viewport?.setPointerCapture(event.pointerId);
+  }
+
+  function pan(event: PointerEvent) {
+    if (!dragging || !dragOrigin || !viewport) return;
+    viewport.scrollLeft = dragOrigin.left - (event.clientX - dragOrigin.x);
+    viewport.scrollTop = dragOrigin.top - (event.clientY - dragOrigin.y);
+  }
+
+  function stopPan(event: PointerEvent) {
+    dragging = false;
+    dragOrigin = undefined;
+    if (viewport?.hasPointerCapture(event.pointerId)) viewport.releasePointerCapture(event.pointerId);
+  }
 </script>
 
-<div class="map" role="region" aria-label={`${graph.name} workflow map`}>
-  <div class="canvas" style:width={`${layout.width}px`} style:height={`${layout.height}px`}>
+<div
+  class="map"
+  class:dragging
+  role="region"
+  aria-label={`${graph.name} workflow map`}
+  bind:this={viewport}
+  onpointerdown={startPan}
+  onpointermove={pan}
+  onpointerup={stopPan}
+  onpointercancel={stopPan}
+>
+  <div class="map-controls" aria-label="Map view controls">
+    <button type="button" aria-label="Fit to view" title="Fit to view" onclick={fitView}>
+      <FitIcon size={14} />
+    </button>
+    <button type="button" aria-label="Zoom out" title="Zoom out" onclick={() => setZoom(zoom - 0.1)}>
+      <MinusIcon size={14} />
+    </button>
+    <span aria-live="polite">{Math.round(zoom * 100)}%</span>
+    <button type="button" aria-label="Zoom in" title="Zoom in" onclick={() => setZoom(zoom + 0.1)}>
+      <PlusIcon size={14} />
+    </button>
+  </div>
+  <div class="scaled" style:width={`${layout.width * zoom}px`} style:height={`${layout.height * zoom}px`}>
+  <div
+    class="canvas"
+    style:width={`${layout.width}px`}
+    style:height={`${layout.height}px`}
+    style:transform={`scale(${zoom})`}
+  >
     <svg
       class="connections"
       width={layout.width}
@@ -224,6 +305,7 @@
       end
     </span>
   </div>
+  </div>
 </div>
 
 <style>
@@ -231,16 +313,77 @@
     position: relative;
     width: 100%;
     min-height: 360px;
+    height: 100%;
     overflow: auto;
+    cursor: grab;
     color: var(--foreground);
     background-color: color-mix(in oklch, var(--background) 96%, var(--foreground));
     background-image: radial-gradient(color-mix(in oklch, var(--foreground) 20%, transparent) 1px, transparent 1px);
     background-size: 20px 20px;
   }
 
-  .canvas {
+  .map.dragging {
+    cursor: grabbing;
+    user-select: none;
+  }
+
+  .map-controls {
+    position: sticky;
+    z-index: 10;
+    top: 12px;
+    left: calc(100% - 176px);
+    display: flex;
+    width: max-content;
+    height: 32px;
+    box-sizing: border-box;
+    align-items: center;
+    gap: 2px;
+    margin-bottom: -32px;
+    padding: 2px;
+    background: var(--card);
+    border: 1px solid var(--map-line);
+    border-radius: calc(var(--radius) - 2px);
+    box-shadow: var(--shadow-xs);
+  }
+
+  .map-controls button {
+    display: inline-flex;
+    width: 26px;
+    height: 26px;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    color: var(--foreground);
+    cursor: pointer;
+    background: transparent;
+    border: 0;
+    border-radius: 5px;
+  }
+
+  .map-controls button:hover {
+    background: var(--muted);
+  }
+
+  .map-controls button:focus-visible {
+    outline: 2px solid var(--status-live);
+  }
+
+  .map-controls span {
+    min-width: 42px;
+    color: var(--status-muted);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    text-align: center;
+  }
+
+  .scaled {
     position: relative;
     margin: 0 auto;
+  }
+
+  .canvas {
+    position: relative;
+    transform-origin: top left;
   }
 
   .placed {

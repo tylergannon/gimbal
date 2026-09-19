@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { JSONObject } from '../sessionstate/index.js';
-	import { usageOf, usageText } from './index.js';
+	import { usageOf, usageText } from '../observation/index.js';
 
 	let { message, pending, revision }: { message: JSONObject; pending?: JSONObject; revision: number } = $props();
 	const text = (value: unknown) => typeof value === 'string' ? value : JSON.stringify(value, null, 2);
@@ -74,17 +74,16 @@
 </article>
 
 <style>
-	article { border: 1px solid #dfe3ea; border-radius: .65rem; padding: .85rem 1rem; background: #fff; }
-	article.assistant { border-left: 3px solid #4468d7; }
-	header { display: flex; justify-content: space-between; gap: 1rem; color: #556070; font-size: .82rem; text-transform: capitalize; }
+	article { border: 1px solid var(--border); border-radius: .65rem; padding: .85rem 1rem; background: var(--card); }
+	header { display: flex; justify-content: space-between; gap: 1rem; color: var(--status-muted); font-size: .82rem; text-transform: capitalize; }
 	.prose { white-space: pre-wrap; margin: .65rem 0; }
-	.reasoning { color: #515a68; }
+	.reasoning { color: var(--status-muted); }
 	details { margin-top: .65rem; }
-	.tool { margin-top: .65rem; border-radius: .45rem; background: #f3f5f8; padding: .7rem; }
-	.progress { color: #174d9b; }
-	.nested { margin-top: .6rem; padding-left: .6rem; border-left: 2px solid #9aa8c5; }
+	.tool { margin-top: .65rem; border-radius: .45rem; background: var(--muted); padding: .7rem; }
+	.progress { color: var(--status-live); }
+	.nested { margin-top: .6rem; padding-left: .6rem; border-left: 2px solid var(--map-line); }
 	pre { overflow-x: auto; white-space: pre-wrap; font: .82rem/1.45 ui-monospace, monospace; }
-	footer { margin-top: .65rem; color: #697386; font-size: .75rem; }
-	.error { color: #a22525; }
-	.warning { color: #8a5a00; }
+	footer { margin-top: .65rem; color: var(--status-muted); font-size: .75rem; }
+	.error { color: var(--destructive); }
+	.warning { color: var(--foreground); }
 </style>

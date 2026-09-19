@@ -81,6 +81,7 @@ const snapshot = (title = "start"): RunSnapshot => {
     },
     turn_usage: {},
     model_calls: {},
+    commands: {},
     totals: { scopes: {}, sessions: {} },
     transcripts: { turn: { snapshot: value, provenance: {} } },
   };

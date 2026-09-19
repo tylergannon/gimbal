@@ -1,11 +1,314 @@
 <script lang="ts">
-	import RunViewer from '#lib/observation/RunViewer.svelte';
-	import type { RunSnapshot } from '#lib/observation/index.js';
+  import type { Graph } from "#lib/workflow/types.js";
+  import {
+    RunObservation,
+    type ObservationDelta,
+    type RunSnapshot,
+  } from "#lib/observation/index.js";
+  import CancelGuard from "#lib/run/CancelGuard.svelte";
+  import DetailPane, { type ActionFeedback } from "#lib/run/DetailPane.svelte";
+  import HistoryLanes from "#lib/run/HistoryLanes.svelte";
+  import Map from "#lib/run/Map.svelte";
+  import Topbar from "#lib/run/Topbar.svelte";
+  import { graphMatchesSnapshot, type RunSelection } from "#lib/run/selection.js";
+  import { cancelRun, stopTurn } from "../../control.remote.js";
+  import { answerInterview, type InterviewAnswer } from "../../interview.remote.js";
+  import { steer, steerLoop, type LoopMessage, type Steer } from "../../steer.remote.js";
 
-	// The page is the run's viewer. Everything it shows comes from the
-	// snapshot the Go load handed over and the frames the store pushes after
-	// it, so there is nothing else to fetch here.
-	let { data }: { data: { snapshot: RunSnapshot } } = $props();
+  let { data }: { data: { snapshot: RunSnapshot; graph: string } } = $props();
+
+  // SvelteKit may retain this page component while navigating between run IDs.
+  // Replacing route data therefore replaces both sources of truth and causes
+  // the SSE effect below to clean up the old connection before opening a new one.
+  const observation = $derived(new RunObservation(data.snapshot));
+  const graph = $derived<Graph | undefined>(
+    data.graph ? (JSON.parse(data.graph) as Graph) : undefined,
+  );
+  const steerForm = steer.for("workspace-steer");
+  const loopForm = steerLoop.for("workspace-loop");
+  const answerForm = answerInterview.for("workspace-answer");
+
+  let revision = $state(0);
+  let connection = $state<"connecting" | "live" | "disconnected">("connecting");
+  let selection = $state<RunSelection>();
+  let cancelOpen = $state(false);
+  let stopping = $state(false);
+  let cancelling = $state(false);
+  let controlFeedback = $state("");
+
+  const snapshot = $derived.by(() => {
+    revision;
+    return observation.snapshot();
+  });
+  const graphMatches = $derived(graph ? graphMatchesSnapshot(graph, snapshot) : false);
+  const activeTurn = $derived(
+    Object.values(snapshot.turns)
+      .filter((turn) => turn.ended === 0)
+      .sort((left, right) => right.started - left.started)[0],
+  );
+  const waiting = $derived(
+    Object.values(snapshot.interviews).filter((row) => row.status === "pending").length,
+  );
+  const openScopes = $derived(
+    Object.values(snapshot.scopes).filter((scope) => scope.status === "running").length,
+  );
+  const activeSupervisors = $derived(
+    Object.values(snapshot.turns).filter((turn) => {
+      if (turn.ended) return false;
+      const name = snapshot.sessions[turn.session]?.name ?? "";
+      return name.includes("review") || name.includes("supervisor") || name.includes("critique");
+    }).length,
+  );
+
+  const issueText = (issues: { message: string }[] | undefined, fallback: string) =>
+    issues?.map((issue) => issue.message).join(" ") || fallback;
+
+  $effect(() => {
+    observation;
+    revision = observation.revision;
+    connection = "connecting";
+    selection = undefined;
+    cancelOpen = false;
+    controlFeedback = "";
+  });
+
+  async function deliverSteer(request: Steer): Promise<ActionFeedback> {
+    steerForm.fields.run.set(request.run);
+    steerForm.fields.session.set(request.session);
+    steerForm.fields.message.set(request.message);
+    const submitted = await steerForm.submit();
+    if (!submitted || !steerForm.result) {
+      return {
+        ok: false,
+        message: issueText(steerForm.fields.allIssues(), "The message was not accepted."),
+      };
+    }
+    return steerForm.result.landed
+      ? { ok: true, message: "Sent into the running turn." }
+      : { ok: false, message: "Not sent: the turn ended before it could receive the message." };
+  }
+
+  async function deliverLoop(request: LoopMessage): Promise<ActionFeedback> {
+    loopForm.fields.run.set(request.run);
+    loopForm.fields.scope.set(request.scope);
+    loopForm.fields.message.set(request.message);
+    loopForm.fields.wrap_up.set(request.wrap_up);
+    const submitted = await loopForm.submit();
+    if (!submitted || !loopForm.result) {
+      return {
+        ok: false,
+        message: issueText(loopForm.fields.allIssues(), "The planner message was not accepted."),
+      };
+    }
+    return {
+      ok: true,
+      message: request.wrap_up
+        ? "Wrap-up is waiting for the planner’s next decision."
+        : "Message is waiting for the planner’s next decision.",
+    };
+  }
+
+  async function deliverAnswer(request: InterviewAnswer): Promise<ActionFeedback> {
+    answerForm.fields.run.set(request.run);
+    answerForm.fields.question_id.set(request.question_id);
+    answerForm.fields.answer.set(request.answer);
+    const submitted = await answerForm.submit();
+    if (!submitted || !answerForm.result?.accepted) {
+      return {
+        ok: false,
+        message: issueText(answerForm.fields.allIssues(), "The interview is no longer waiting."),
+      };
+    }
+    return {
+      ok: true,
+      message: request.answer ? "Answer accepted by the waiting interview." : "Interview ended.",
+    };
+  }
+
+  async function stopActiveTurn() {
+    if (!activeTurn || stopping) return;
+    stopping = true;
+    controlFeedback = "";
+    try {
+      const result = await stopTurn({ run: snapshot.run.id, turn: activeTurn.id });
+      controlFeedback = result.accepted
+        ? "Stop accepted. Waiting for the run record to update."
+        : "The turn did not accept the stop request.";
+      if (result.accepted) cancelOpen = false;
+    } catch (error) {
+      controlFeedback = error instanceof Error ? error.message : String(error);
+    } finally {
+      stopping = false;
+    }
+  }
+
+  async function cancelActiveRun() {
+    if (cancelling) return;
+    cancelling = true;
+    controlFeedback = "";
+    try {
+      const result = await cancelRun({ run: snapshot.run.id });
+      controlFeedback = result.accepted
+        ? "Cancellation accepted. Waiting for the run record to update."
+        : "The run did not accept cancellation.";
+      if (result.accepted) cancelOpen = false;
+    } catch (error) {
+      controlFeedback = error instanceof Error ? error.message : String(error);
+    } finally {
+      cancelling = false;
+    }
+  }
+
+  $effect(() => {
+    const generation = observation.beginConnection();
+    let stream: EventSource | undefined;
+    let retry: ReturnType<typeof setTimeout> | undefined;
+    const delta = (message: MessageEvent<string>) => {
+      if (!observation.isCurrentConnection(generation)) return;
+      if (observation.applyDelta(JSON.parse(message.data) as ObservationDelta, generation)) {
+        revision = observation.revision;
+      }
+    };
+    const replacement = (message: MessageEvent<string>) => {
+      if (observation.replace(JSON.parse(message.data) as RunSnapshot, generation)) {
+        revision = observation.revision;
+      }
+    };
+    const connect = () => {
+      if (!observation.isCurrentConnection(generation)) return;
+      connection = "connecting";
+      const query = new URLSearchParams({
+        stream: observation.stream,
+        position: String(observation.position),
+      });
+      stream = new EventSource(
+        `/api/runs/${encodeURIComponent(observation.run.id)}/events?${query}`,
+      );
+      stream.addEventListener("delta", delta as EventListener);
+      stream.addEventListener("snapshot", replacement as EventListener);
+      stream.onopen = () => {
+        if (observation.isCurrentConnection(generation)) connection = "live";
+      };
+      stream.onerror = () => {
+        if (!observation.isCurrentConnection(generation)) return;
+        connection = "disconnected";
+        stream?.close();
+        if (observation.run.status === "running") retry = setTimeout(connect, 250);
+      };
+    };
+    connect();
+    return () => {
+      observation.endConnection(generation);
+      if (retry !== undefined) clearTimeout(retry);
+      stream?.close();
+    };
+  });
 </script>
 
-<RunViewer snapshot={data.snapshot} />
+<svelte:head><title>{snapshot.run.name} · Gimble</title></svelte:head>
+
+<div class="run-workspace">
+  <Topbar
+    run={snapshot.run}
+    {connection}
+    {activeTurn}
+    {waiting}
+    {stopping}
+    {cancelling}
+    feedback={controlFeedback}
+    onstop={stopActiveTurn}
+    oncancel={() => (cancelOpen = true)}
+  />
+  <div class="workspace-body">
+    {#if graph && graphMatches}
+      <Map {graph} {snapshot} onselect={(next) => (selection = next)} />
+    {:else}
+      <HistoryLanes
+        {snapshot}
+        reason={graph
+          ? "The registered graph does not match this run"
+          : "No registered graph is available for this run"}
+        selected={selection}
+        onselect={(next) => (selection = next)}
+      />
+    {/if}
+    <DetailPane
+      {snapshot}
+      {selection}
+      {observation}
+      {revision}
+      onsteer={deliverSteer}
+      onloop={deliverLoop}
+      onanswer={deliverAnswer}
+    />
+  </div>
+</div>
+
+<CancelGuard
+  open={cancelOpen}
+  run={snapshot.run}
+  {activeTurn}
+  {openScopes}
+  supervisors={activeSupervisors}
+  busy={stopping || cancelling}
+  onopenchange={(open) => (cancelOpen = open)}
+  onstop={stopActiveTurn}
+  oncancel={cancelActiveRun}
+/>
+
+<form class="remote-form" {...steerForm} aria-hidden="true">
+  <input {...steerForm.fields.run.as("hidden", "")} />
+  <input {...steerForm.fields.session.as("hidden", "")} />
+  <input {...steerForm.fields.message.as("hidden", "")} />
+</form>
+<form class="remote-form" {...loopForm} aria-hidden="true">
+  <input {...loopForm.fields.run.as("hidden", "")} />
+  <input {...loopForm.fields.scope.as("hidden", "")} />
+  <input {...loopForm.fields.message.as("hidden", "")} />
+  <input {...loopForm.fields.wrap_up.as("hidden", false)} />
+</form>
+<form class="remote-form" {...answerForm} aria-hidden="true">
+  <input {...answerForm.fields.run.as("hidden", "")} />
+  <input {...answerForm.fields.question_id.as("hidden", "")} />
+  <input {...answerForm.fields.answer.as("hidden", "")} />
+</form>
+
+<style>
+  :global(body:has(.run-workspace) .site-nav) {
+    display: none;
+  }
+
+  :global(body:has(.run-workspace) main) {
+    max-width: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .run-workspace {
+    display: flex;
+    height: 100vh;
+    min-height: 560px;
+    flex-direction: column;
+    overflow: hidden;
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    background: var(--background);
+  }
+
+  .workspace-body {
+    display: flex;
+    min-width: 0;
+    min-height: 0;
+    flex: 1;
+  }
+
+  .remote-form {
+    display: none;
+  }
+
+  @media (max-width: 760px) {
+    .workspace-body {
+      overflow-x: auto;
+    }
+  }
+</style>

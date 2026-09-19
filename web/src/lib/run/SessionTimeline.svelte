@@ -1,8 +1,8 @@
 <script lang="ts">
 	import type { JSONObject, ProjectionState } from '../sessionstate/index.js';
-	import type { RunObservation } from './index.js';
+	import type { RunObservation } from '../observation/index.js';
 	import MessageRow from './MessageRow.svelte';
-	import { usageOf, usageText } from './index.js';
+	import { usageOf, usageText } from '../observation/index.js';
 
 	let { state, revision, observation, turn }: { state: Readonly<ProjectionState>; revision: number; observation: RunObservation; turn: string } = $props();
 	const text = (value: unknown) => typeof value === 'string' ? value : JSON.stringify(value, null, 2);
@@ -54,11 +54,11 @@
 	.timeline { display: grid; gap: .8rem; }
 	.native-session { display: grid; gap: .8rem; }
 	.session-header code { text-transform: none; }
-	article { border: 1px solid #dfe3ea; border-radius: .65rem; padding: .85rem 1rem; background: #fff; }
-	.permission { border-left: 3px solid #b7791f; }
-	header { display: flex; justify-content: space-between; gap: 1rem; color: #556070; font-size: .82rem; text-transform: capitalize; }
+	article { border: 1px solid var(--border); border-radius: .65rem; padding: .85rem 1rem; background: var(--card); }
+	.permission { border-left: 3px solid var(--map-line-strong); }
+	header { display: flex; justify-content: space-between; gap: 1rem; color: var(--status-muted); font-size: .82rem; text-transform: capitalize; }
 	.prose { white-space: pre-wrap; margin: .65rem 0; }
 	pre { overflow-x: auto; white-space: pre-wrap; font: .82rem/1.45 ui-monospace, monospace; }
-	.empty { color: #697386; }
-	.session-total { color: #556070; font-size: .78rem; }
+	.empty { color: var(--status-muted); }
+	.session-total { color: var(--status-muted); font-size: .78rem; }
 </style>

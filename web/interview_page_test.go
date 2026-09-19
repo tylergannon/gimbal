@@ -14,7 +14,7 @@ import (
 	"github.com/tylergannon/gimble/internal/observation"
 )
 
-func TestRunPageKeepsAnInterviewInOneNodeAcrossQuestionsAndReload(t *testing.T) {
+func TestRunPageKeepsInterviewHistoryAcrossQuestionsAndReload(t *testing.T) {
 	dist, err := fs.Sub(Build, "build")
 	if err != nil {
 		t.Fatal(err)
@@ -73,25 +73,22 @@ func TestRunPageKeepsAnInterviewInOneNodeAcrossQuestionsAndReload(t *testing.T) 
 		}
 		return recorder.Body.String()
 	}
-	assertOneNode := func(body string) {
+	assertHistory := func(body string) {
 		t.Helper()
-		if got := strings.Count(body, "data-interview-node="); got != 1 {
-			t.Fatalf("interview nodes = %d, want one", got)
+		if !strings.Contains(body, "No registered graph is available for this run") {
+			t.Fatal("run without a compiled graph did not use the honest history view")
 		}
-		if got := strings.Count(body, "data-interview-turn="); got != 2 {
-			t.Fatalf("interview turns = %d, want two in the node", got)
-		}
-		for _, want := range []string{"first interview turn", "second interview turn", "Which color?", "Blue"} {
+		for _, want := range []string{"preferences.1", "first interview turn", "second interview turn", "Which color?", "Blue"} {
 			if !strings.Contains(body, want) {
-				t.Fatalf("interview node does not contain %q", want)
+				t.Fatalf("interview history does not contain %q", want)
 			}
 		}
 	}
 
 	thinking := render()
-	assertOneNode(thinking)
-	if !strings.Contains(thinking, "Say something to interviewer") {
-		t.Fatal("the interview node did not keep steering beside its running next turn")
+	assertHistory(thinking)
+	if !strings.Contains(thinking, "Stop turn") {
+		t.Fatal("the workspace did not expose a stop control for the running interview turn")
 	}
 
 	for _, record := range []json.RawMessage{
@@ -105,8 +102,8 @@ func TestRunPageKeepsAnInterviewInOneNodeAcrossQuestionsAndReload(t *testing.T) 
 
 	for reload := range 2 {
 		pending := render()
-		assertOneNode(pending)
-		for _, want := range []string{"What shade?", "Type your answer", "Submit an empty answer to end the interview."} {
+		assertHistory(pending)
+		for _, want := range []string{"What shade?", "answerInterview"} {
 			if !strings.Contains(pending, want) {
 				t.Fatalf("reload %d does not show %q", reload, want)
 			}

@@ -3,7 +3,7 @@
 	import MessageRow from './MessageRow.svelte';
 
 	const { Story } = defineMeta({
-		title: 'Gimble/MessageRow',
+		title: 'Gimble/Run/Message row',
 		component: MessageRow,
 		tags: ['autodocs']
 	});

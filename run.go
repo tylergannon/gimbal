@@ -56,6 +56,14 @@ func RegisterGraph(graph workflow.Graph) {
 	graphs[graph.Name] = graph
 }
 
+// RegisteredGraph returns the workflow graph compiled into this binary under
+// name. A run's workflow name is the lookup key used by the web application.
+// The returned graph is immutable registration data and must not be modified.
+func RegisteredGraph(name string) (workflow.Graph, bool) {
+	graph, ok := graphs[name]
+	return graph, ok
+}
+
 type run struct {
 	dir        string                        // <project>/runs/<id>
 	models     map[WorkflowRole]ModelBinding // what each role the workflow names runs on

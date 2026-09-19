@@ -90,11 +90,10 @@ func TestRunPageIsRenderedFromTheRunsObservation(t *testing.T) {
 	}
 }
 
-// TestRunPageOffersTheWrapUpOnALoopsCard is #235's page half: while a run is
-// in progress, the card of a loop that is still dispatching carries the box
-// for its planner and the wrap-up button. A scope that is not a loop gets
-// neither.
-func TestRunPageOffersTheWrapUpOnALoopsCard(t *testing.T) {
+// TestRunPageKeepsLoopHistoryWhenTheGraphIsUnavailable exercises the honest
+// fallback. The record still names the loop and its ordinary sibling, while
+// the page carries the existing loop remote for client-side selection.
+func TestRunPageKeepsLoopHistoryWhenTheGraphIsUnavailable(t *testing.T) {
 	dist, err := fs.Sub(Build, "build")
 	if err != nil {
 		t.Fatal(err)
@@ -131,13 +130,14 @@ func TestRunPageOffersTheWrapUpOnALoopsCard(t *testing.T) {
 		t.Fatalf("GET /runs/run-loop: status %d, body %s", recorder.Code, recorder.Body.String())
 	}
 	body := recorder.Body.String()
-	if !strings.Contains(body, "Wrap up") {
-		t.Fatalf("the loop's card does not offer the wrap-up:\n%s", body)
-	}
-	if !strings.Contains(body, "Say something to the planner of sprint.1") {
-		t.Fatalf("the loop's card does not offer a message for its planner:\n%s", body)
-	}
-	if strings.Contains(body, "Say something to the planner of quiet.1") {
-		t.Fatalf("a scope that is not a loop was offered a planner box:\n%s", body)
+	for _, want := range []string{
+		"No registered graph is available for this run",
+		"sprint.1",
+		"quiet.1",
+		"steerLoop",
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("the loop history does not contain %q:\n%s", want, body)
+		}
 	}
 }

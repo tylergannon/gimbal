@@ -61,7 +61,9 @@ milestone file and commits each task with the repository's hooks running.
   not yet. Blue is liveness and selection, red is failure, nothing else has a
   hue.
 - **Contrast for tired eyes.** Borders clear 3:1, text clears 4.5:1, nothing
-  on the map is under 13px, node names are 15px. Text links use blue-700;
+  on the map is under 13px, node names are 15px, including the small
+  command variant, whose name is set in the mono face (the specimens draw
+  that one at 13.5px; 15px is the rule). Text links use blue-700;
   rings and spinners use blue-600. Secondary text is `oklch(0.42 0 0)`, not
   the token's mid gray.
 - **Overview and detail are separate designs.** The detail pane in the

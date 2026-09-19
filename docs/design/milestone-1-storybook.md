@@ -63,7 +63,9 @@ in a command's output. The milestone is done when every claim holds.
    dot: waiting for you. Dashed: not yet.
 9. `Node`: agent call, command, and interview, each with its icon, a 15px
    name, a meta line, a selected state, and a small variant, in every pip
-   state.
+   state that kind can hold. Only an interview waits for a person; an agent
+   call or a command is never "waiting for you", and an interrupted turn or
+   command is ended, not waiting.
 10. `Sheet`, the scope: nested sheets alternate between the two paper tints
     and inset by 8px; shadow only on the path to the selection; the selected
     sheet raised with a dark border; a label straddling the top border with

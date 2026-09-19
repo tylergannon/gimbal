@@ -15,6 +15,15 @@
 // and must not cause another lap. Only a substantial unmet requirement permits
 // replanning, until the task limit is exhausted or the planner stops honestly.
 //
+// Model cost guidance: the configured defaults use Astra for sprint-planning
+// and architectural-critique, while coding and independent validation already
+// use Sol. Keep Astra for ambiguous, cross-cutting, or architecture-heavy
+// changes. For a small, local, well-specified change, deliberately tune the two
+// Astra roles down to Sol or Opus:
+//
+//	--sprint-planning gpt-5.6-sol:high \
+//	--architectural-critique claude-opus-5:high
+//
 // Example:
 //
 //	gimble run implement \

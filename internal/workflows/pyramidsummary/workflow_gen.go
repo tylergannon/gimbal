@@ -23,266 +23,266 @@ func init() { gimble.RegisterGraph(Graph) }
 // Graph is the shape of this workflow, read from the source of PyramidSummary.
 var Graph = workflow.Graph{
 	Name:     "pyramid-summary",
-	Source:   workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 85},
+	Source:   workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 96},
 	Services: []workflow.Service{},
 	Body: []workflow.Operation{
-		workflow.Condition{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 87}, Branches: []workflow.Branch{
-			{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 87}, Case: "goal == \"\"", Exits: true, Body: []workflow.Operation{}},
+		workflow.Condition{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 98}, Branches: []workflow.Branch{
+			{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 98}, Case: "goal == \"\"", Exits: true, Body: []workflow.Operation{}},
 		}},
-		workflow.Condition{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 94}, Branches: []workflow.Branch{
-			{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 94}, Case: "largestBudget < minimumLevelBudget", Exits: true, Body: []workflow.Operation{}},
+		workflow.Condition{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 105}, Branches: []workflow.Branch{
+			{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 105}, Case: "largestBudget < minimumLevelBudget", Exits: true, Body: []workflow.Operation{}},
 		}},
-		workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 136}, Key: "document goal"},
-		workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 137}, Key: "semantic index path"},
-		workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 138}, Key: "largest document path"},
-		workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 139}, Key: "largest token budget"},
-		workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 140}, Key: "pyramid document paths"},
-		workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 141}, Key: "pyramid token budgets"},
-		workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 142}, Key: "token counter executable"},
-		workflow.Repeat{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 458}, Cond: "i, document := range documents", Body: []workflow.Operation{
-			workflow.Command{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 459}, Name: "count-tokens"},
-			workflow.Condition{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 463}, Branches: []workflow.Branch{
-				{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 463}, Case: "exit != 0", Exits: true, Body: []workflow.Operation{}},
-			}},
-		}},
-		workflow.Condition{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 148}, Branches: []workflow.Branch{
-			{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 148}, Case: "largestCount[0] > largestBudget", Exits: true, Body: []workflow.Operation{}},
-		}},
-		workflow.Group{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 158}, Name: "compressions", Children: []workflow.GroupChild{
-			{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 159}, Name: "summary1", Services: []workflow.Service{}, Body: []workflow.Operation{
-				workflow.Condition{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 160}, Branches: []workflow.Branch{
-					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 160}, Case: "slots[0].Level == 0", Exits: true, Body: []workflow.Operation{}},
-				}},
-				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 163}, Key: "pyramid level"},
-				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 164}, Key: "target document path"},
-				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 165}, Key: "target token budget"},
-				workflow.Session{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 166}, Name: "document-authoring", From: ""},
-				workflow.Session{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 167}, Name: "document-supervision", From: ""},
-				workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 168}, Session: "document-authoring", Role: "document-authoring", Prompt: "Write this pyramid level at the exact target document path. Compress the largest document rather than restarting research. Use the original goal and semantic index only to judge importance, preserve factual fidelity, and resolve what should survive at this level. The result must be accurate, standalone, and legible prose rather than notes or fragments. Do not pad it. Before finishing, repeatedly run the token counter executable with \"count-tokens\" and the target path, editing until the document is at or below its target budget.", Supervisors: []workflow.Supervisor{
-					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 169}, Session: "document-supervision", Role: "document-supervision", Instruction: "The goal is the clearest standalone understanding this pyramid level can hold. Ensure the author measures with the supplied token counter, removes secondary detail before central knowledge, and writes legible prose rather than compressed fragments. Object to renewed research or polishing beyond the assigned document."},
-				}},
-			}},
-			{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 174}, Name: "summary2", Services: []workflow.Service{}, Body: []workflow.Operation{
-				workflow.Condition{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 175}, Branches: []workflow.Branch{
-					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 175}, Case: "slots[1].Level == 0", Exits: true, Body: []workflow.Operation{}},
-				}},
-				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 178}, Key: "pyramid level"},
-				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 179}, Key: "target document path"},
-				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 180}, Key: "target token budget"},
-				workflow.Session{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 181}, Name: "document-authoring", From: ""},
-				workflow.Session{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 182}, Name: "document-supervision", From: ""},
-				workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 183}, Session: "document-authoring", Role: "document-authoring", Prompt: "Write this pyramid level at the exact target document path. Compress the largest document rather than restarting research. Use the original goal and semantic index only to judge importance, preserve factual fidelity, and resolve what should survive at this level. The result must be accurate, standalone, and legible prose rather than notes or fragments. Do not pad it. Before finishing, repeatedly run the token counter executable with \"count-tokens\" and the target path, editing until the document is at or below its target budget.", Supervisors: []workflow.Supervisor{
-					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 184}, Session: "document-supervision", Role: "document-supervision", Instruction: "The goal is the clearest standalone understanding this pyramid level can hold. Ensure the author measures with the supplied token counter, removes secondary detail before central knowledge, and writes legible prose rather than compressed fragments. Object to renewed research or polishing beyond the assigned document."},
-				}},
-			}},
-			{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 189}, Name: "summary3", Services: []workflow.Service{}, Body: []workflow.Operation{
-				workflow.Condition{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 190}, Branches: []workflow.Branch{
-					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 190}, Case: "slots[2].Level == 0", Exits: true, Body: []workflow.Operation{}},
-				}},
-				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 193}, Key: "pyramid level"},
-				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 194}, Key: "target document path"},
-				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 195}, Key: "target token budget"},
-				workflow.Session{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 196}, Name: "document-authoring", From: ""},
-				workflow.Session{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 197}, Name: "document-supervision", From: ""},
-				workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 198}, Session: "document-authoring", Role: "document-authoring", Prompt: "Write this pyramid level at the exact target document path. Compress the largest document rather than restarting research. Use the original goal and semantic index only to judge importance, preserve factual fidelity, and resolve what should survive at this level. The result must be accurate, standalone, and legible prose rather than notes or fragments. Do not pad it. Before finishing, repeatedly run the token counter executable with \"count-tokens\" and the target path, editing until the document is at or below its target budget.", Supervisors: []workflow.Supervisor{
-					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 199}, Session: "document-supervision", Role: "document-supervision", Instruction: "The goal is the clearest standalone understanding this pyramid level can hold. Ensure the author measures with the supplied token counter, removes secondary detail before central knowledge, and writes legible prose rather than compressed fragments. Object to renewed research or polishing beyond the assigned document."},
-				}},
-			}},
-			{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 204}, Name: "summary4", Services: []workflow.Service{}, Body: []workflow.Operation{
-				workflow.Condition{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 205}, Branches: []workflow.Branch{
-					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 205}, Case: "slots[3].Level == 0", Exits: true, Body: []workflow.Operation{}},
-				}},
-				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 208}, Key: "pyramid level"},
-				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 209}, Key: "target document path"},
-				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 210}, Key: "target token budget"},
-				workflow.Session{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 211}, Name: "document-authoring", From: ""},
-				workflow.Session{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 212}, Name: "document-supervision", From: ""},
-				workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 213}, Session: "document-authoring", Role: "document-authoring", Prompt: "Write this pyramid level at the exact target document path. Compress the largest document rather than restarting research. Use the original goal and semantic index only to judge importance, preserve factual fidelity, and resolve what should survive at this level. The result must be accurate, standalone, and legible prose rather than notes or fragments. Do not pad it. Before finishing, repeatedly run the token counter executable with \"count-tokens\" and the target path, editing until the document is at or below its target budget.", Supervisors: []workflow.Supervisor{
-					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 214}, Session: "document-supervision", Role: "document-supervision", Instruction: "The goal is the clearest standalone understanding this pyramid level can hold. Ensure the author measures with the supplied token counter, removes secondary detail before central knowledge, and writes legible prose rather than compressed fragments. Object to renewed research or polishing beyond the assigned document."},
-				}},
-			}},
-			{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 219}, Name: "summary5", Services: []workflow.Service{}, Body: []workflow.Operation{
-				workflow.Condition{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 220}, Branches: []workflow.Branch{
-					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 220}, Case: "slots[4].Level == 0", Exits: true, Body: []workflow.Operation{}},
-				}},
-				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 223}, Key: "pyramid level"},
-				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 224}, Key: "target document path"},
-				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 225}, Key: "target token budget"},
-				workflow.Session{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 226}, Name: "document-authoring", From: ""},
-				workflow.Session{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 227}, Name: "document-supervision", From: ""},
-				workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 228}, Session: "document-authoring", Role: "document-authoring", Prompt: "Write this pyramid level at the exact target document path. Compress the largest document rather than restarting research. Use the original goal and semantic index only to judge importance, preserve factual fidelity, and resolve what should survive at this level. The result must be accurate, standalone, and legible prose rather than notes or fragments. Do not pad it. Before finishing, repeatedly run the token counter executable with \"count-tokens\" and the target path, editing until the document is at or below its target budget.", Supervisors: []workflow.Supervisor{
-					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 229}, Session: "document-supervision", Role: "document-supervision", Instruction: "The goal is the clearest standalone understanding this pyramid level can hold. Ensure the author measures with the supplied token counter, removes secondary detail before central knowledge, and writes legible prose rather than compressed fragments. Object to renewed research or polishing beyond the assigned document."},
-				}},
-			}},
-			{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 234}, Name: "summary6", Services: []workflow.Service{}, Body: []workflow.Operation{
-				workflow.Condition{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 235}, Branches: []workflow.Branch{
-					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 235}, Case: "slots[5].Level == 0", Exits: true, Body: []workflow.Operation{}},
-				}},
-				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 238}, Key: "pyramid level"},
-				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 239}, Key: "target document path"},
-				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 240}, Key: "target token budget"},
-				workflow.Session{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 241}, Name: "document-authoring", From: ""},
-				workflow.Session{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 242}, Name: "document-supervision", From: ""},
-				workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 243}, Session: "document-authoring", Role: "document-authoring", Prompt: "Write this pyramid level at the exact target document path. Compress the largest document rather than restarting research. Use the original goal and semantic index only to judge importance, preserve factual fidelity, and resolve what should survive at this level. The result must be accurate, standalone, and legible prose rather than notes or fragments. Do not pad it. Before finishing, repeatedly run the token counter executable with \"count-tokens\" and the target path, editing until the document is at or below its target budget.", Supervisors: []workflow.Supervisor{
-					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 244}, Session: "document-supervision", Role: "document-supervision", Instruction: "The goal is the clearest standalone understanding this pyramid level can hold. Ensure the author measures with the supplied token counter, removes secondary detail before central knowledge, and writes legible prose rather than compressed fragments. Object to renewed research or polishing beyond the assigned document."},
-				}},
+		workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 147}, Key: "document goal"},
+		workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 148}, Key: "semantic index path"},
+		workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 149}, Key: "largest document path"},
+		workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 150}, Key: "largest token budget"},
+		workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 151}, Key: "pyramid document paths"},
+		workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 152}, Key: "pyramid token budgets"},
+		workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 153}, Key: "token counter executable"},
+		workflow.Repeat{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 469}, Cond: "i, document := range documents", Body: []workflow.Operation{
+			workflow.Command{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 470}, Name: "count-tokens"},
+			workflow.Condition{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 474}, Branches: []workflow.Branch{
+				{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 474}, Case: "exit != 0", Exits: true, Body: []workflow.Operation{}},
 			}},
 		}},
-		workflow.Condition{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 253}, Branches: []workflow.Branch{
-			{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 253}, Case: "len(extraTopLevels) > 0", Exits: false, Body: []workflow.Operation{
-				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 254}, Key: "extra top level assignments"},
-				workflow.Session{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 255}, Name: "pyramid-planning", From: ""},
-				workflow.Session{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 256}, Name: "document-authoring", From: ""},
-				workflow.Session{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 257}, Name: "document-supervision", From: ""},
-				workflow.Session{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 258}, Name: "document-supervision", From: ""},
-				workflow.PromiseLoop{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 259}, Name: "extra-top-levels", Planner: "pyramid-planning", Supervisors: []workflow.Supervisor{
-					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 260}, Session: "document-supervision", Role: "document-supervision", Instruction: "Dispatch only the exact extra top-level assignments listed in context, once each. Object to invented work, repeated levels, changed budgets or paths, or continued dispatch after the list is exhausted."},
+		workflow.Condition{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 159}, Branches: []workflow.Branch{
+			{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 159}, Case: "largestCount[0] > largestBudget", Exits: true, Body: []workflow.Operation{}},
+		}},
+		workflow.Group{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 169}, Name: "compressions", Children: []workflow.GroupChild{
+			{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 170}, Name: "summary1", Services: []workflow.Service{}, Body: []workflow.Operation{
+				workflow.Condition{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 171}, Branches: []workflow.Branch{
+					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 171}, Case: "slots[0].Level == 0", Exits: true, Body: []workflow.Operation{}},
+				}},
+				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 174}, Key: "pyramid level"},
+				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 175}, Key: "target document path"},
+				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 176}, Key: "target token budget"},
+				workflow.Session{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 177}, Name: "document-authoring", From: ""},
+				workflow.Session{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 178}, Name: "document-supervision", From: ""},
+				workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 179}, Session: "document-authoring", Role: "document-authoring", Prompt: "Write this pyramid level at the exact target document path. Compress the largest document rather than restarting research. Use the original goal and semantic index only to judge importance, preserve factual fidelity, and resolve what should survive at this level. The result must be accurate, standalone, and legible prose rather than notes or fragments. Do not pad it. Before finishing, repeatedly run the token counter executable with \"count-tokens\" and the target path, editing until the document is at or below its target budget.", Supervisors: []workflow.Supervisor{
+					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 180}, Session: "document-supervision", Role: "document-supervision", Instruction: "The goal is the clearest standalone understanding this pyramid level can hold. Ensure the author measures with the supplied token counter, removes secondary detail before central knowledge, and writes legible prose rather than compressed fragments. Object to renewed research or polishing beyond the assigned document."},
+				}},
+			}},
+			{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 185}, Name: "summary2", Services: []workflow.Service{}, Body: []workflow.Operation{
+				workflow.Condition{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 186}, Branches: []workflow.Branch{
+					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 186}, Case: "slots[1].Level == 0", Exits: true, Body: []workflow.Operation{}},
+				}},
+				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 189}, Key: "pyramid level"},
+				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 190}, Key: "target document path"},
+				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 191}, Key: "target token budget"},
+				workflow.Session{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 192}, Name: "document-authoring", From: ""},
+				workflow.Session{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 193}, Name: "document-supervision", From: ""},
+				workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 194}, Session: "document-authoring", Role: "document-authoring", Prompt: "Write this pyramid level at the exact target document path. Compress the largest document rather than restarting research. Use the original goal and semantic index only to judge importance, preserve factual fidelity, and resolve what should survive at this level. The result must be accurate, standalone, and legible prose rather than notes or fragments. Do not pad it. Before finishing, repeatedly run the token counter executable with \"count-tokens\" and the target path, editing until the document is at or below its target budget.", Supervisors: []workflow.Supervisor{
+					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 195}, Session: "document-supervision", Role: "document-supervision", Instruction: "The goal is the clearest standalone understanding this pyramid level can hold. Ensure the author measures with the supplied token counter, removes secondary detail before central knowledge, and writes legible prose rather than compressed fragments. Object to renewed research or polishing beyond the assigned document."},
+				}},
+			}},
+			{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 200}, Name: "summary3", Services: []workflow.Service{}, Body: []workflow.Operation{
+				workflow.Condition{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 201}, Branches: []workflow.Branch{
+					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 201}, Case: "slots[2].Level == 0", Exits: true, Body: []workflow.Operation{}},
+				}},
+				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 204}, Key: "pyramid level"},
+				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 205}, Key: "target document path"},
+				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 206}, Key: "target token budget"},
+				workflow.Session{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 207}, Name: "document-authoring", From: ""},
+				workflow.Session{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 208}, Name: "document-supervision", From: ""},
+				workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 209}, Session: "document-authoring", Role: "document-authoring", Prompt: "Write this pyramid level at the exact target document path. Compress the largest document rather than restarting research. Use the original goal and semantic index only to judge importance, preserve factual fidelity, and resolve what should survive at this level. The result must be accurate, standalone, and legible prose rather than notes or fragments. Do not pad it. Before finishing, repeatedly run the token counter executable with \"count-tokens\" and the target path, editing until the document is at or below its target budget.", Supervisors: []workflow.Supervisor{
+					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 210}, Session: "document-supervision", Role: "document-supervision", Instruction: "The goal is the clearest standalone understanding this pyramid level can hold. Ensure the author measures with the supplied token counter, removes secondary detail before central knowledge, and writes legible prose rather than compressed fragments. Object to renewed research or polishing beyond the assigned document."},
+				}},
+			}},
+			{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 215}, Name: "summary4", Services: []workflow.Service{}, Body: []workflow.Operation{
+				workflow.Condition{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 216}, Branches: []workflow.Branch{
+					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 216}, Case: "slots[3].Level == 0", Exits: true, Body: []workflow.Operation{}},
+				}},
+				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 219}, Key: "pyramid level"},
+				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 220}, Key: "target document path"},
+				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 221}, Key: "target token budget"},
+				workflow.Session{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 222}, Name: "document-authoring", From: ""},
+				workflow.Session{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 223}, Name: "document-supervision", From: ""},
+				workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 224}, Session: "document-authoring", Role: "document-authoring", Prompt: "Write this pyramid level at the exact target document path. Compress the largest document rather than restarting research. Use the original goal and semantic index only to judge importance, preserve factual fidelity, and resolve what should survive at this level. The result must be accurate, standalone, and legible prose rather than notes or fragments. Do not pad it. Before finishing, repeatedly run the token counter executable with \"count-tokens\" and the target path, editing until the document is at or below its target budget.", Supervisors: []workflow.Supervisor{
+					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 225}, Session: "document-supervision", Role: "document-supervision", Instruction: "The goal is the clearest standalone understanding this pyramid level can hold. Ensure the author measures with the supplied token counter, removes secondary detail before central knowledge, and writes legible prose rather than compressed fragments. Object to renewed research or polishing beyond the assigned document."},
+				}},
+			}},
+			{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 230}, Name: "summary5", Services: []workflow.Service{}, Body: []workflow.Operation{
+				workflow.Condition{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 231}, Branches: []workflow.Branch{
+					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 231}, Case: "slots[4].Level == 0", Exits: true, Body: []workflow.Operation{}},
+				}},
+				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 234}, Key: "pyramid level"},
+				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 235}, Key: "target document path"},
+				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 236}, Key: "target token budget"},
+				workflow.Session{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 237}, Name: "document-authoring", From: ""},
+				workflow.Session{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 238}, Name: "document-supervision", From: ""},
+				workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 239}, Session: "document-authoring", Role: "document-authoring", Prompt: "Write this pyramid level at the exact target document path. Compress the largest document rather than restarting research. Use the original goal and semantic index only to judge importance, preserve factual fidelity, and resolve what should survive at this level. The result must be accurate, standalone, and legible prose rather than notes or fragments. Do not pad it. Before finishing, repeatedly run the token counter executable with \"count-tokens\" and the target path, editing until the document is at or below its target budget.", Supervisors: []workflow.Supervisor{
+					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 240}, Session: "document-supervision", Role: "document-supervision", Instruction: "The goal is the clearest standalone understanding this pyramid level can hold. Ensure the author measures with the supplied token counter, removes secondary detail before central knowledge, and writes legible prose rather than compressed fragments. Object to renewed research or polishing beyond the assigned document."},
+				}},
+			}},
+			{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 245}, Name: "summary6", Services: []workflow.Service{}, Body: []workflow.Operation{
+				workflow.Condition{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 246}, Branches: []workflow.Branch{
+					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 246}, Case: "slots[5].Level == 0", Exits: true, Body: []workflow.Operation{}},
+				}},
+				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 249}, Key: "pyramid level"},
+				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 250}, Key: "target document path"},
+				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 251}, Key: "target token budget"},
+				workflow.Session{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 252}, Name: "document-authoring", From: ""},
+				workflow.Session{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 253}, Name: "document-supervision", From: ""},
+				workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 254}, Session: "document-authoring", Role: "document-authoring", Prompt: "Write this pyramid level at the exact target document path. Compress the largest document rather than restarting research. Use the original goal and semantic index only to judge importance, preserve factual fidelity, and resolve what should survive at this level. The result must be accurate, standalone, and legible prose rather than notes or fragments. Do not pad it. Before finishing, repeatedly run the token counter executable with \"count-tokens\" and the target path, editing until the document is at or below its target budget.", Supervisors: []workflow.Supervisor{
+					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 255}, Session: "document-supervision", Role: "document-supervision", Instruction: "The goal is the clearest standalone understanding this pyramid level can hold. Ensure the author measures with the supplied token counter, removes secondary detail before central knowledge, and writes legible prose rather than compressed fragments. Object to renewed research or polishing beyond the assigned document."},
+				}},
+			}},
+		}},
+		workflow.Condition{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 264}, Branches: []workflow.Branch{
+			{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 264}, Case: "len(extraTopLevels) > 0", Exits: false, Body: []workflow.Operation{
+				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 265}, Key: "extra top level assignments"},
+				workflow.Session{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 266}, Name: "pyramid-planning", From: ""},
+				workflow.Session{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 267}, Name: "document-authoring", From: ""},
+				workflow.Session{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 268}, Name: "document-supervision", From: ""},
+				workflow.Session{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 269}, Name: "document-supervision", From: ""},
+				workflow.PromiseLoop{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 270}, Name: "extra-top-levels", Planner: "pyramid-planning", Supervisors: []workflow.Supervisor{
+					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 271}, Session: "document-supervision", Role: "document-supervision", Instruction: "Dispatch only the exact extra top-level assignments listed in context, once each. Object to invented work, repeated levels, changed budgets or paths, or continued dispatch after the list is exhausted."},
 				}, Services: []workflow.Service{}, Body: []workflow.Operation{
-					workflow.Condition{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 263}, Branches: []workflow.Branch{
-						{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 263}, Case: "tasksRun >= len(extraTopLevels)", Exits: true, Body: []workflow.Operation{}},
+					workflow.Condition{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 274}, Branches: []workflow.Branch{
+						{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 274}, Case: "tasksRun >= len(extraTopLevels)", Exits: true, Body: []workflow.Operation{}},
 					}},
-					workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 267}, Session: "document-authoring", Role: "document-authoring", Prompt: "Perform the current extra top-level task exactly as assigned. Write its output path within its stated budget by compressing the largest document, using the original goal and semantic index only to judge importance and factual fidelity. Produce accurate, standalone, legible prose. Before finishing, repeatedly run the token counter executable with \"count-tokens\" and the assigned output path until it is within budget.", Supervisors: []workflow.Supervisor{
-						{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 268}, Session: "document-supervision", Role: "document-supervision", Instruction: "The goal is the clearest standalone understanding this pyramid level can hold. Ensure the author measures with the supplied token counter, removes secondary detail before central knowledge, and writes legible prose rather than compressed fragments. Object to renewed research or polishing beyond the assigned document."},
+					workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 278}, Session: "document-authoring", Role: "document-authoring", Prompt: "Perform the current extra top-level task exactly as assigned. Write its output path within its stated budget by compressing the largest document, using the original goal and semantic index only to judge importance and factual fidelity. Produce accurate, standalone, legible prose. Before finishing, repeatedly run the token counter executable with \"count-tokens\" and the assigned output path until it is within budget.", Supervisors: []workflow.Supervisor{
+						{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 279}, Session: "document-supervision", Role: "document-supervision", Instruction: "The goal is the clearest standalone understanding this pyramid level can hold. Ensure the author measures with the supplied token counter, removes secondary detail before central knowledge, and writes legible prose rather than compressed fragments. Object to renewed research or polishing beyond the assigned document."},
 					}},
 				}},
 			}},
 		}},
-		workflow.Repeat{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 458}, Cond: "i, document := range documents", Body: []workflow.Operation{
-			workflow.Command{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 459}, Name: "count-tokens"},
-			workflow.Condition{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 463}, Branches: []workflow.Branch{
-				{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 463}, Case: "exit != 0", Exits: true, Body: []workflow.Operation{}},
+		workflow.Repeat{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 469}, Cond: "i, document := range documents", Body: []workflow.Operation{
+			workflow.Command{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 470}, Name: "count-tokens"},
+			workflow.Condition{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 474}, Branches: []workflow.Branch{
+				{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 474}, Case: "exit != 0", Exits: true, Body: []workflow.Operation{}},
 			}},
 		}},
-		workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 291}, Key: "measured token counts"},
-		workflow.Session{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 293}, Name: "editorial-review", From: ""},
-		workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 294}, Session: "editorial-review", Role: "editorial-review", Prompt: "Read every pyramid document, the original goal, and the semantic index at their exact paths. Assess the complete pyramid together. Every level must be accurate, independently legible, within its measured budget, and meaningfully more compressed than the preceding level. Important knowledge should survive longer than secondary detail, and no level may contradict another. Report only material problems, not optional polish. Assign every material problem to each level that must change. Return OnlyNitpicks true with an empty Levels list only when the entire pyramid needs no further substantive work."},
-		workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 298}, Key: "pyramid verdict"},
-		workflow.Condition{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 299}, Branches: []workflow.Branch{
-			{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 299}, Case: "verdict.OnlyNitpicks && len(verdict.Levels) == 0", Exits: true, Body: []workflow.Operation{}},
-		}},
-		workflow.Condition{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 302}, Branches: []workflow.Branch{
-			{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 302}, Case: "issues := issuesForLevel(verdict, 1); len(issues) > 0", Exits: true, Body: []workflow.Operation{}},
-		}},
+		workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 302}, Key: "measured token counts"},
+		workflow.Session{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 304}, Name: "editorial-review", From: ""},
+		workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 305}, Session: "editorial-review", Role: "editorial-review", Prompt: "Read every pyramid document, the original goal, and the semantic index at their exact paths. Assess the complete pyramid together. Every level must be accurate, independently legible, within its measured budget, and meaningfully more compressed than the preceding level. Important knowledge should survive longer than secondary detail, and no level may contradict another. Report only material problems, not optional polish. Assign every material problem to each level that must change. Return OnlyNitpicks true with an empty Levels list only when the entire pyramid needs no further substantive work."},
+		workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 309}, Key: "pyramid verdict"},
 		workflow.Condition{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 310}, Branches: []workflow.Branch{
-			{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 310}, Case: "noIssues(repairIssues[1:])", Exits: true, Body: []workflow.Operation{}},
+			{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 310}, Case: "verdict.OnlyNitpicks && len(verdict.Levels) == 0", Exits: true, Body: []workflow.Operation{}},
 		}},
-		workflow.Group{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 314}, Name: "repair", Children: []workflow.GroupChild{
-			{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 315}, Name: "summary1", Services: []workflow.Service{}, Body: []workflow.Operation{
-				workflow.Condition{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 316}, Branches: []workflow.Branch{
-					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 316}, Case: "slots[0].Level == 0 || len(repairIssues[slots[0].Level-1]) == 0", Exits: true, Body: []workflow.Operation{}},
+		workflow.Condition{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 313}, Branches: []workflow.Branch{
+			{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 313}, Case: "issues := issuesForLevel(verdict, 1); len(issues) > 0", Exits: true, Body: []workflow.Operation{}},
+		}},
+		workflow.Condition{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 321}, Branches: []workflow.Branch{
+			{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 321}, Case: "noIssues(repairIssues[1:])", Exits: true, Body: []workflow.Operation{}},
+		}},
+		workflow.Group{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 325}, Name: "repair", Children: []workflow.GroupChild{
+			{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 326}, Name: "summary1", Services: []workflow.Service{}, Body: []workflow.Operation{
+				workflow.Condition{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 327}, Branches: []workflow.Branch{
+					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 327}, Case: "slots[0].Level == 0 || len(repairIssues[slots[0].Level-1]) == 0", Exits: true, Body: []workflow.Operation{}},
 				}},
-				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 319}, Key: "pyramid level"},
-				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 320}, Key: "target document path"},
-				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 321}, Key: "target token budget"},
-				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 322}, Key: "material issues"},
-				workflow.Session{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 323}, Name: "document-authoring", From: ""},
-				workflow.Session{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 324}, Name: "document-supervision", From: ""},
-				workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 325}, Session: "document-authoring", Role: "document-authoring", Prompt: "Revise this pyramid level at its exact target path to fix every assigned material issue. Judge importance against the original goal, largest document, and semantic index. Preserve legible standalone prose and the right knowledge for this level. Before finishing, repeatedly run the token counter executable with \"count-tokens\" and the target path, editing until the document is at or below its target budget.", Supervisors: []workflow.Supervisor{
-					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 326}, Session: "document-supervision", Role: "document-supervision", Instruction: "The goal is the clearest standalone understanding this pyramid level can hold. Ensure the author measures with the supplied token counter, removes secondary detail before central knowledge, and writes legible prose rather than compressed fragments. Object to renewed research or polishing beyond the assigned document."},
-				}},
-			}},
-			{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 329}, Name: "summary2", Services: []workflow.Service{}, Body: []workflow.Operation{
-				workflow.Condition{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 330}, Branches: []workflow.Branch{
-					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 330}, Case: "slots[1].Level == 0 || len(repairIssues[slots[1].Level-1]) == 0", Exits: true, Body: []workflow.Operation{}},
-				}},
-				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 333}, Key: "pyramid level"},
-				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 334}, Key: "target document path"},
-				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 335}, Key: "target token budget"},
-				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 336}, Key: "material issues"},
-				workflow.Session{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 337}, Name: "document-authoring", From: ""},
-				workflow.Session{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 338}, Name: "document-supervision", From: ""},
-				workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 339}, Session: "document-authoring", Role: "document-authoring", Prompt: "Revise this pyramid level at its exact target path to fix every assigned material issue. Judge importance against the original goal, largest document, and semantic index. Preserve legible standalone prose and the right knowledge for this level. Before finishing, repeatedly run the token counter executable with \"count-tokens\" and the target path, editing until the document is at or below its target budget.", Supervisors: []workflow.Supervisor{
-					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 340}, Session: "document-supervision", Role: "document-supervision", Instruction: "The goal is the clearest standalone understanding this pyramid level can hold. Ensure the author measures with the supplied token counter, removes secondary detail before central knowledge, and writes legible prose rather than compressed fragments. Object to renewed research or polishing beyond the assigned document."},
+				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 330}, Key: "pyramid level"},
+				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 331}, Key: "target document path"},
+				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 332}, Key: "target token budget"},
+				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 333}, Key: "material issues"},
+				workflow.Session{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 334}, Name: "document-authoring", From: ""},
+				workflow.Session{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 335}, Name: "document-supervision", From: ""},
+				workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 336}, Session: "document-authoring", Role: "document-authoring", Prompt: "Revise this pyramid level at its exact target path to fix every assigned material issue. Judge importance against the original goal, largest document, and semantic index. Preserve legible standalone prose and the right knowledge for this level. Before finishing, repeatedly run the token counter executable with \"count-tokens\" and the target path, editing until the document is at or below its target budget.", Supervisors: []workflow.Supervisor{
+					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 337}, Session: "document-supervision", Role: "document-supervision", Instruction: "The goal is the clearest standalone understanding this pyramid level can hold. Ensure the author measures with the supplied token counter, removes secondary detail before central knowledge, and writes legible prose rather than compressed fragments. Object to renewed research or polishing beyond the assigned document."},
 				}},
 			}},
-			{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 343}, Name: "summary3", Services: []workflow.Service{}, Body: []workflow.Operation{
-				workflow.Condition{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 344}, Branches: []workflow.Branch{
-					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 344}, Case: "slots[2].Level == 0 || len(repairIssues[slots[2].Level-1]) == 0", Exits: true, Body: []workflow.Operation{}},
+			{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 340}, Name: "summary2", Services: []workflow.Service{}, Body: []workflow.Operation{
+				workflow.Condition{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 341}, Branches: []workflow.Branch{
+					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 341}, Case: "slots[1].Level == 0 || len(repairIssues[slots[1].Level-1]) == 0", Exits: true, Body: []workflow.Operation{}},
 				}},
-				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 347}, Key: "pyramid level"},
-				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 348}, Key: "target document path"},
-				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 349}, Key: "target token budget"},
-				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 350}, Key: "material issues"},
-				workflow.Session{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 351}, Name: "document-authoring", From: ""},
-				workflow.Session{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 352}, Name: "document-supervision", From: ""},
-				workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 353}, Session: "document-authoring", Role: "document-authoring", Prompt: "Revise this pyramid level at its exact target path to fix every assigned material issue. Judge importance against the original goal, largest document, and semantic index. Preserve legible standalone prose and the right knowledge for this level. Before finishing, repeatedly run the token counter executable with \"count-tokens\" and the target path, editing until the document is at or below its target budget.", Supervisors: []workflow.Supervisor{
-					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 354}, Session: "document-supervision", Role: "document-supervision", Instruction: "The goal is the clearest standalone understanding this pyramid level can hold. Ensure the author measures with the supplied token counter, removes secondary detail before central knowledge, and writes legible prose rather than compressed fragments. Object to renewed research or polishing beyond the assigned document."},
-				}},
-			}},
-			{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 357}, Name: "summary4", Services: []workflow.Service{}, Body: []workflow.Operation{
-				workflow.Condition{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 358}, Branches: []workflow.Branch{
-					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 358}, Case: "slots[3].Level == 0 || len(repairIssues[slots[3].Level-1]) == 0", Exits: true, Body: []workflow.Operation{}},
-				}},
-				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 361}, Key: "pyramid level"},
-				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 362}, Key: "target document path"},
-				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 363}, Key: "target token budget"},
-				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 364}, Key: "material issues"},
-				workflow.Session{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 365}, Name: "document-authoring", From: ""},
-				workflow.Session{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 366}, Name: "document-supervision", From: ""},
-				workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 367}, Session: "document-authoring", Role: "document-authoring", Prompt: "Revise this pyramid level at its exact target path to fix every assigned material issue. Judge importance against the original goal, largest document, and semantic index. Preserve legible standalone prose and the right knowledge for this level. Before finishing, repeatedly run the token counter executable with \"count-tokens\" and the target path, editing until the document is at or below its target budget.", Supervisors: []workflow.Supervisor{
-					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 368}, Session: "document-supervision", Role: "document-supervision", Instruction: "The goal is the clearest standalone understanding this pyramid level can hold. Ensure the author measures with the supplied token counter, removes secondary detail before central knowledge, and writes legible prose rather than compressed fragments. Object to renewed research or polishing beyond the assigned document."},
+				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 344}, Key: "pyramid level"},
+				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 345}, Key: "target document path"},
+				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 346}, Key: "target token budget"},
+				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 347}, Key: "material issues"},
+				workflow.Session{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 348}, Name: "document-authoring", From: ""},
+				workflow.Session{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 349}, Name: "document-supervision", From: ""},
+				workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 350}, Session: "document-authoring", Role: "document-authoring", Prompt: "Revise this pyramid level at its exact target path to fix every assigned material issue. Judge importance against the original goal, largest document, and semantic index. Preserve legible standalone prose and the right knowledge for this level. Before finishing, repeatedly run the token counter executable with \"count-tokens\" and the target path, editing until the document is at or below its target budget.", Supervisors: []workflow.Supervisor{
+					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 351}, Session: "document-supervision", Role: "document-supervision", Instruction: "The goal is the clearest standalone understanding this pyramid level can hold. Ensure the author measures with the supplied token counter, removes secondary detail before central knowledge, and writes legible prose rather than compressed fragments. Object to renewed research or polishing beyond the assigned document."},
 				}},
 			}},
-			{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 371}, Name: "summary5", Services: []workflow.Service{}, Body: []workflow.Operation{
-				workflow.Condition{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 372}, Branches: []workflow.Branch{
-					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 372}, Case: "slots[4].Level == 0 || len(repairIssues[slots[4].Level-1]) == 0", Exits: true, Body: []workflow.Operation{}},
+			{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 354}, Name: "summary3", Services: []workflow.Service{}, Body: []workflow.Operation{
+				workflow.Condition{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 355}, Branches: []workflow.Branch{
+					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 355}, Case: "slots[2].Level == 0 || len(repairIssues[slots[2].Level-1]) == 0", Exits: true, Body: []workflow.Operation{}},
 				}},
-				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 375}, Key: "pyramid level"},
-				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 376}, Key: "target document path"},
-				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 377}, Key: "target token budget"},
-				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 378}, Key: "material issues"},
-				workflow.Session{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 379}, Name: "document-authoring", From: ""},
-				workflow.Session{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 380}, Name: "document-supervision", From: ""},
-				workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 381}, Session: "document-authoring", Role: "document-authoring", Prompt: "Revise this pyramid level at its exact target path to fix every assigned material issue. Judge importance against the original goal, largest document, and semantic index. Preserve legible standalone prose and the right knowledge for this level. Before finishing, repeatedly run the token counter executable with \"count-tokens\" and the target path, editing until the document is at or below its target budget.", Supervisors: []workflow.Supervisor{
-					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 382}, Session: "document-supervision", Role: "document-supervision", Instruction: "The goal is the clearest standalone understanding this pyramid level can hold. Ensure the author measures with the supplied token counter, removes secondary detail before central knowledge, and writes legible prose rather than compressed fragments. Object to renewed research or polishing beyond the assigned document."},
+				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 358}, Key: "pyramid level"},
+				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 359}, Key: "target document path"},
+				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 360}, Key: "target token budget"},
+				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 361}, Key: "material issues"},
+				workflow.Session{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 362}, Name: "document-authoring", From: ""},
+				workflow.Session{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 363}, Name: "document-supervision", From: ""},
+				workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 364}, Session: "document-authoring", Role: "document-authoring", Prompt: "Revise this pyramid level at its exact target path to fix every assigned material issue. Judge importance against the original goal, largest document, and semantic index. Preserve legible standalone prose and the right knowledge for this level. Before finishing, repeatedly run the token counter executable with \"count-tokens\" and the target path, editing until the document is at or below its target budget.", Supervisors: []workflow.Supervisor{
+					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 365}, Session: "document-supervision", Role: "document-supervision", Instruction: "The goal is the clearest standalone understanding this pyramid level can hold. Ensure the author measures with the supplied token counter, removes secondary detail before central knowledge, and writes legible prose rather than compressed fragments. Object to renewed research or polishing beyond the assigned document."},
 				}},
 			}},
-			{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 385}, Name: "summary6", Services: []workflow.Service{}, Body: []workflow.Operation{
-				workflow.Condition{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 386}, Branches: []workflow.Branch{
-					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 386}, Case: "slots[5].Level == 0 || len(repairIssues[slots[5].Level-1]) == 0", Exits: true, Body: []workflow.Operation{}},
+			{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 368}, Name: "summary4", Services: []workflow.Service{}, Body: []workflow.Operation{
+				workflow.Condition{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 369}, Branches: []workflow.Branch{
+					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 369}, Case: "slots[3].Level == 0 || len(repairIssues[slots[3].Level-1]) == 0", Exits: true, Body: []workflow.Operation{}},
 				}},
-				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 389}, Key: "pyramid level"},
-				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 390}, Key: "target document path"},
-				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 391}, Key: "target token budget"},
-				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 392}, Key: "material issues"},
-				workflow.Session{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 393}, Name: "document-authoring", From: ""},
-				workflow.Session{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 394}, Name: "document-supervision", From: ""},
-				workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 395}, Session: "document-authoring", Role: "document-authoring", Prompt: "Revise this pyramid level at its exact target path to fix every assigned material issue. Judge importance against the original goal, largest document, and semantic index. Preserve legible standalone prose and the right knowledge for this level. Before finishing, repeatedly run the token counter executable with \"count-tokens\" and the target path, editing until the document is at or below its target budget.", Supervisors: []workflow.Supervisor{
-					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 396}, Session: "document-supervision", Role: "document-supervision", Instruction: "The goal is the clearest standalone understanding this pyramid level can hold. Ensure the author measures with the supplied token counter, removes secondary detail before central knowledge, and writes legible prose rather than compressed fragments. Object to renewed research or polishing beyond the assigned document."},
+				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 372}, Key: "pyramid level"},
+				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 373}, Key: "target document path"},
+				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 374}, Key: "target token budget"},
+				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 375}, Key: "material issues"},
+				workflow.Session{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 376}, Name: "document-authoring", From: ""},
+				workflow.Session{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 377}, Name: "document-supervision", From: ""},
+				workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 378}, Session: "document-authoring", Role: "document-authoring", Prompt: "Revise this pyramid level at its exact target path to fix every assigned material issue. Judge importance against the original goal, largest document, and semantic index. Preserve legible standalone prose and the right knowledge for this level. Before finishing, repeatedly run the token counter executable with \"count-tokens\" and the target path, editing until the document is at or below its target budget.", Supervisors: []workflow.Supervisor{
+					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 379}, Session: "document-supervision", Role: "document-supervision", Instruction: "The goal is the clearest standalone understanding this pyramid level can hold. Ensure the author measures with the supplied token counter, removes secondary detail before central knowledge, and writes legible prose rather than compressed fragments. Object to renewed research or polishing beyond the assigned document."},
+				}},
+			}},
+			{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 382}, Name: "summary5", Services: []workflow.Service{}, Body: []workflow.Operation{
+				workflow.Condition{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 383}, Branches: []workflow.Branch{
+					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 383}, Case: "slots[4].Level == 0 || len(repairIssues[slots[4].Level-1]) == 0", Exits: true, Body: []workflow.Operation{}},
+				}},
+				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 386}, Key: "pyramid level"},
+				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 387}, Key: "target document path"},
+				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 388}, Key: "target token budget"},
+				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 389}, Key: "material issues"},
+				workflow.Session{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 390}, Name: "document-authoring", From: ""},
+				workflow.Session{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 391}, Name: "document-supervision", From: ""},
+				workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 392}, Session: "document-authoring", Role: "document-authoring", Prompt: "Revise this pyramid level at its exact target path to fix every assigned material issue. Judge importance against the original goal, largest document, and semantic index. Preserve legible standalone prose and the right knowledge for this level. Before finishing, repeatedly run the token counter executable with \"count-tokens\" and the target path, editing until the document is at or below its target budget.", Supervisors: []workflow.Supervisor{
+					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 393}, Session: "document-supervision", Role: "document-supervision", Instruction: "The goal is the clearest standalone understanding this pyramid level can hold. Ensure the author measures with the supplied token counter, removes secondary detail before central knowledge, and writes legible prose rather than compressed fragments. Object to renewed research or polishing beyond the assigned document."},
+				}},
+			}},
+			{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 396}, Name: "summary6", Services: []workflow.Service{}, Body: []workflow.Operation{
+				workflow.Condition{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 397}, Branches: []workflow.Branch{
+					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 397}, Case: "slots[5].Level == 0 || len(repairIssues[slots[5].Level-1]) == 0", Exits: true, Body: []workflow.Operation{}},
+				}},
+				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 400}, Key: "pyramid level"},
+				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 401}, Key: "target document path"},
+				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 402}, Key: "target token budget"},
+				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 403}, Key: "material issues"},
+				workflow.Session{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 404}, Name: "document-authoring", From: ""},
+				workflow.Session{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 405}, Name: "document-supervision", From: ""},
+				workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 406}, Session: "document-authoring", Role: "document-authoring", Prompt: "Revise this pyramid level at its exact target path to fix every assigned material issue. Judge importance against the original goal, largest document, and semantic index. Preserve legible standalone prose and the right knowledge for this level. Before finishing, repeatedly run the token counter executable with \"count-tokens\" and the target path, editing until the document is at or below its target budget.", Supervisors: []workflow.Supervisor{
+					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 407}, Session: "document-supervision", Role: "document-supervision", Instruction: "The goal is the clearest standalone understanding this pyramid level can hold. Ensure the author measures with the supplied token counter, removes secondary detail before central knowledge, and writes legible prose rather than compressed fragments. Object to renewed research or polishing beyond the assigned document."},
 				}},
 			}},
 		}},
-		workflow.Condition{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 409}, Branches: []workflow.Branch{
-			{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 409}, Case: "len(extraTopRepairs) > 0", Exits: false, Body: []workflow.Operation{
-				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 410}, Key: "extra top level repairs"},
-				workflow.Session{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 411}, Name: "pyramid-planning", From: ""},
-				workflow.Session{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 412}, Name: "document-authoring", From: ""},
-				workflow.Session{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 413}, Name: "document-supervision", From: ""},
-				workflow.Session{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 414}, Name: "document-supervision", From: ""},
-				workflow.PromiseLoop{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 415}, Name: "repair-extra-top-levels", Planner: "pyramid-planning", Supervisors: []workflow.Supervisor{
-					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 416}, Session: "document-supervision", Role: "document-supervision", Instruction: "Dispatch only the exact extra top-level assignments listed in context, once each. Object to invented work, repeated levels, changed budgets or paths, or continued dispatch after the list is exhausted."},
+		workflow.Condition{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 420}, Branches: []workflow.Branch{
+			{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 420}, Case: "len(extraTopRepairs) > 0", Exits: false, Body: []workflow.Operation{
+				workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 421}, Key: "extra top level repairs"},
+				workflow.Session{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 422}, Name: "pyramid-planning", From: ""},
+				workflow.Session{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 423}, Name: "document-authoring", From: ""},
+				workflow.Session{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 424}, Name: "document-supervision", From: ""},
+				workflow.Session{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 425}, Name: "document-supervision", From: ""},
+				workflow.PromiseLoop{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 426}, Name: "repair-extra-top-levels", Planner: "pyramid-planning", Supervisors: []workflow.Supervisor{
+					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 427}, Session: "document-supervision", Role: "document-supervision", Instruction: "Dispatch only the exact extra top-level assignments listed in context, once each. Object to invented work, repeated levels, changed budgets or paths, or continued dispatch after the list is exhausted."},
 				}, Services: []workflow.Service{}, Body: []workflow.Operation{
-					workflow.Condition{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 419}, Branches: []workflow.Branch{
-						{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 419}, Case: "tasksRun >= len(extraTopRepairs)", Exits: true, Body: []workflow.Operation{}},
+					workflow.Condition{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 430}, Branches: []workflow.Branch{
+						{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 430}, Case: "tasksRun >= len(extraTopRepairs)", Exits: true, Body: []workflow.Operation{}},
 					}},
-					workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 423}, Session: "document-authoring", Role: "document-authoring", Prompt: "Perform the current extra top-level repair exactly as assigned. Fix every listed material issue using the original goal, largest document, and semantic index as judgment aids. Preserve accurate, standalone, legible prose. Before finishing, repeatedly run the token counter executable with \"count-tokens\" and the assigned output path until it is within budget.", Supervisors: []workflow.Supervisor{
-						{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 424}, Session: "document-supervision", Role: "document-supervision", Instruction: "The goal is the clearest standalone understanding this pyramid level can hold. Ensure the author measures with the supplied token counter, removes secondary detail before central knowledge, and writes legible prose rather than compressed fragments. Object to renewed research or polishing beyond the assigned document."},
+					workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 434}, Session: "document-authoring", Role: "document-authoring", Prompt: "Perform the current extra top-level repair exactly as assigned. Fix every listed material issue using the original goal, largest document, and semantic index as judgment aids. Preserve accurate, standalone, legible prose. Before finishing, repeatedly run the token counter executable with \"count-tokens\" and the assigned output path until it is within budget.", Supervisors: []workflow.Supervisor{
+						{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 435}, Session: "document-supervision", Role: "document-supervision", Instruction: "The goal is the clearest standalone understanding this pyramid level can hold. Ensure the author measures with the supplied token counter, removes secondary detail before central knowledge, and writes legible prose rather than compressed fragments. Object to renewed research or polishing beyond the assigned document."},
 					}},
 				}},
 			}},
 		}},
-		workflow.Scope{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 433}, Name: "final-validation", Services: []workflow.Service{}, Body: []workflow.Operation{
-			workflow.Repeat{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 458}, Cond: "i, document := range documents", Body: []workflow.Operation{
-				workflow.Command{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 459}, Name: "count-tokens"},
-				workflow.Condition{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 463}, Branches: []workflow.Branch{
-					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 463}, Case: "exit != 0", Exits: true, Body: []workflow.Operation{}},
+		workflow.Scope{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 444}, Name: "final-validation", Services: []workflow.Service{}, Body: []workflow.Operation{
+			workflow.Repeat{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 469}, Cond: "i, document := range documents", Body: []workflow.Operation{
+				workflow.Command{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 470}, Name: "count-tokens"},
+				workflow.Condition{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 474}, Branches: []workflow.Branch{
+					{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 474}, Case: "exit != 0", Exits: true, Body: []workflow.Operation{}},
 				}},
 			}},
-			workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 443}, Key: "measured token counts"},
-			workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 444}, Session: "editorial-review", Role: "editorial-review", Prompt: "Read every pyramid document, the original goal, and the semantic index at their exact paths. Assess the complete pyramid together. Every level must be accurate, independently legible, within its measured budget, and meaningfully more compressed than the preceding level. Important knowledge should survive longer than secondary detail, and no level may contradict another. Report only material problems, not optional polish. Assign every material problem to each level that must change. Return OnlyNitpicks true with an empty Levels list only when the entire pyramid needs no further substantive work."},
-			workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 448}, Key: "final pyramid verdict"},
-			workflow.Condition{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 449}, Branches: []workflow.Branch{
-				{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 449}, Case: "finalVerdict.OnlyNitpicks && len(finalVerdict.Levels) == 0", Exits: true, Body: []workflow.Operation{}},
+			workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 454}, Key: "measured token counts"},
+			workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 455}, Session: "editorial-review", Role: "editorial-review", Prompt: "Read every pyramid document, the original goal, and the semantic index at their exact paths. Assess the complete pyramid together. Every level must be accurate, independently legible, within its measured budget, and meaningfully more compressed than the preceding level. Important knowledge should survive longer than secondary detail, and no level may contradict another. Report only material problems, not optional polish. Assign every material problem to each level that must change. Return OnlyNitpicks true with an empty Levels list only when the entire pyramid needs no further substantive work."},
+			workflow.Set{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 459}, Key: "final pyramid verdict"},
+			workflow.Condition{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 460}, Branches: []workflow.Branch{
+				{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 460}, Case: "finalVerdict.OnlyNitpicks && len(finalVerdict.Levels) == 0", Exits: true, Body: []workflow.Operation{}},
 			}},
 		}},
 	},
@@ -305,7 +305,7 @@ func Command(defaults map[gimble.WorkflowRole]string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "pyramid-summary",
 		Short: "PyramidSummary writes and validates every derived compression of a largest document.",
-		Long:  "Package pyramidsummary compresses one validated research-backed document\ninto a pyramid that repeatedly halves its token budget until the next level\nwould be under 100 tokens. The largest budget defaults to 3200.\n\nThe largest document and its semantic index already exist when this workflow\nstarts. Six fixed author slots independently write up to six of the smallest\nderived levels in parallel. When a larger starting budget creates additional\nupper levels, a bounded Promise Loop writes those after the fixed fan-out.\nEvery author retains the original goal and index as aids for judging which\nknowledge matters, but research is over.\n\nOne editor then reads every level together. It checks factual fidelity,\nlegibility, useful progressive compression, and whether important ideas\nsurvive longer than secondary detail. Derived levels with material issues\nreceive one bounded repair wave followed by one final whole-pyramid review.\nA material defect in the supplied largest document or after the repair wave\nends the workflow honestly.\n\nExample:\n\n\tgimble run pyramid-summary \\\n\t  --goal \"Explain passkeys to security-conscious product managers\" \\\n\t  --semantic-index ./passkeys-research/INDEX.md \\\n\t  --largest-document ./passkeys.md \\\n\t  --output-dir ./passkeys-pyramid",
+		Long:  "Package pyramidsummary compresses one validated research-backed document\ninto a pyramid that repeatedly halves its token budget until the next level\nwould be under 100 tokens. The largest budget defaults to 3200.\n\nThe largest document and its semantic index already exist when this workflow\nstarts. Six fixed author slots independently write up to six of the smallest\nderived levels in parallel. When a larger starting budget creates additional\nupper levels, a bounded Promise Loop writes those after the fixed fan-out.\nEvery author retains the original goal and index as aids for judging which\nknowledge matters, but research is over.\n\nOne editor then reads every level together. It checks factual fidelity,\nlegibility, useful progressive compression, and whether important ideas\nsurvive longer than secondary detail. Derived levels with material issues\nreceive one bounded repair wave followed by one final whole-pyramid review.\nA material defect in the supplied largest document or after the repair wave\nends the workflow honestly.\n\nModel cost guidance: the configured defaults reserve Astra for\ndocument-authoring and editorial-review; planning and supervision already\nuse Luna. Because authoring runs in parallel across up to six slots, those\nchoices multiply. Keep Astra when compression requires difficult technical,\nhigh-stakes, or contested judgment. For straightforward compression of an\nalready validated document, deliberately tune those two roles down to Sol\nor Opus:\n\n\t--document-authoring gpt-5.6-sol:high \\\n\t--editorial-review claude-opus-5:high\n\nExample:\n\n\tgimble run pyramid-summary \\\n\t  --goal \"Explain passkeys to security-conscious product managers\" \\\n\t  --semantic-index ./passkeys-research/INDEX.md \\\n\t  --largest-document ./passkeys.md \\\n\t  --output-dir ./passkeys-pyramid",
 		Args:  cobra.NoArgs,
 	}
 	cmd.Flags().StringVar(&params.Goal, "goal", "", "Goal describes the audience, subject, and understanding every level must preserve. (required)")

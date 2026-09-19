@@ -128,15 +128,23 @@ func TestProjectorSettlesStructuredFinishToolFromResult(t *testing.T) {
 	}
 }
 
-func TestProjectorRejectsUnsettledNonFinishStepAtResult(t *testing.T) {
-	p := newProjector("adapter-session", "model", func(gimble.AgentEvent) error { return nil })
+func TestProjectorLeavesUnsettledNonFinishStepAsObservedAtResult(t *testing.T) {
+	var events []gimble.AgentEvent
+	p := newProjector("adapter-session", "model", func(event gimble.AgentEvent) error {
+		events = append(events, event)
+		return nil
+	})
 	p.setConversation("native-conversation")
 	mustProject(t, p.envelope(envelope{StepUpdate: &stepUpdate{
 		ConversationID: "native-conversation", StepIndex: 2, StepType: "tool", State: "ACTIVE",
 		ToolInfo: &toolInfo{Name: "run_command", Parameters: map[string]any{"CommandLine": "sleep 1"}},
 	}}))
-	if err := p.envelope(envelope{Result: &result{Status: "SUCCESS"}}); err == nil {
-		t.Fatal("result accepted an unsettled non-finish tool")
+	mustProject(t, p.envelope(envelope{Result: &result{Status: "SUCCESS"}}))
+	want := []string{
+		"session.step.started", "session.tool.input.started", "session.tool.input.ended", "session.tool.called",
+	}
+	if got := eventTypes(events); !slices.Equal(got, want) {
+		t.Fatalf("event types = %v, want %v", got, want)
 	}
 }
 

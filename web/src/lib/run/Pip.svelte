@@ -1,6 +1,8 @@
-<script lang="ts">
-  type PipState = "ended" | "running" | "failed" | "waiting" | "not-yet";
+<script module lang="ts">
+  export type PipState = "ended" | "running" | "failed" | "waiting" | "not-yet";
+</script>
 
+<script lang="ts">
   let { state }: { state: PipState } = $props();
 </script>
 

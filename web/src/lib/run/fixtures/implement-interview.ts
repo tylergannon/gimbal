@@ -338,7 +338,15 @@ const scopes = {
     },
     began: started + 410_000,
     ended: started + 1_120_000,
-    values: {},
+    values: {
+      "task check": { value: "exit 0" },
+      "just build": { value: "exit 0" },
+      "just vet": { value: "exit 0" },
+      "just test": { value: "exit 0" },
+      "independent assessment": { value: { complete: false, findings: ["One task remains."] } },
+      "worker report": { value: "Added the observation timestamp and its focused tests." },
+      "deterministic checks passed": { value: true },
+    },
     decisions: [],
   },
   "implementation.1/task.2": {
@@ -354,7 +362,15 @@ const scopes = {
     },
     began: started + 1_130_000,
     ended: started + 2_630_000,
-    values: {},
+    values: {
+      "task check": { value: "exit 1\nanswered timestamp was still zero" },
+      "just build": { value: "exit 0" },
+      "just vet": { value: "exit 0" },
+      "just test": { value: "exit 0" },
+      "independent assessment": { value: { complete: false, findings: ["Live update remains."] } },
+      "worker report": { value: "Returned the timestamp through the existing remote boundary." },
+      "deterministic checks passed": { value: false },
+    },
     decisions: [],
   },
   "implementation.1/task.3": {
@@ -437,6 +453,26 @@ const sessions = {
     parent: "",
     created: started + 410_000,
   },
+  "implementation.1/task.1/qa-orchestration.1": {
+    run: runID,
+    id: "implementation.1/task.1/qa-orchestration.1",
+    name: "qa-orchestration",
+    adapter: "codex",
+    model: "gpt-5.6-luna",
+    scope: "implementation.1/task.1",
+    parent: "",
+    created: started + 1_105_000,
+  },
+  "implementation.1/task.2/qa-orchestration.1": {
+    run: runID,
+    id: "implementation.1/task.2/qa-orchestration.1",
+    name: "qa-orchestration",
+    adapter: "codex",
+    model: "gpt-5.6-luna",
+    scope: "implementation.1/task.2",
+    parent: "",
+    created: started + 2_605_000,
+  },
 } satisfies Record<string, SessionRow>;
 
 const turns = {
@@ -511,6 +547,34 @@ const turns = {
     ended: 0,
     duration: 87_000,
   },
+  "implementation.1/task.1/qa-orchestration.1/turn.1": {
+    run: runID,
+    id: "implementation.1/task.1/qa-orchestration.1/turn.1",
+    session: "implementation.1/task.1/qa-orchestration.1",
+    scope: "implementation.1/task.1",
+    prompt: "Independently verify task 1.",
+    output_type: "Assessment",
+    result: '{"complete":false,"findings":["One task remains."]}',
+    error: "",
+    interrupted: false,
+    started: started + 1_105_000,
+    ended: started + 1_115_000,
+    duration: 10_000,
+  },
+  "implementation.1/task.2/qa-orchestration.1/turn.1": {
+    run: runID,
+    id: "implementation.1/task.2/qa-orchestration.1/turn.1",
+    session: "implementation.1/task.2/qa-orchestration.1",
+    scope: "implementation.1/task.2",
+    prompt: "Independently verify task 2.",
+    output_type: "Assessment",
+    result: '{"complete":false,"findings":["Live update remains."]}',
+    error: "",
+    interrupted: false,
+    started: started + 2_605_000,
+    ended: started + 2_625_000,
+    duration: 20_000,
+  },
 } satisfies Record<string, TurnRow>;
 
 const usage: Usage = {
@@ -541,7 +605,39 @@ const modelCalls = {
 } satisfies Record<string, ModelCallRow[]>;
 
 const interviews = {} satisfies Record<string, InterviewRow>;
-const commands = {} satisfies Record<string, CommandRow>;
+
+const commandRow = (scope: string, name: string, offset: number, exitCode = 0): CommandRow => ({
+  run: runID,
+  id: `${scope}/${name}.1`,
+  scope,
+  name,
+  command: name === "task-check" ? "sh" : "just",
+  args: name === "task-check" ? ["-lc", "go test ./internal/observation/"] : [name],
+  workdir: "/workspace/gimble",
+  exit_code: exitCode,
+  stdout: exitCode === 0 ? "ok\n" : "",
+  stderr: exitCode === 0 ? "" : "answered timestamp was still zero\n",
+  stdout_file: `commands/${scope}/${name}.1.stdout`,
+  stderr_file: `commands/${scope}/${name}.1.stderr`,
+  error: "",
+  interrupted: false,
+  started: started + offset,
+  ended: started + offset + 20_000,
+  duration: 20_000,
+});
+
+const task1 = "implementation.1/task.1";
+const task2 = "implementation.1/task.2";
+const commands = {
+  [`${task1}/task-check.1`]: commandRow(task1, "task-check", 1_021_000),
+  [`${task1}/build.1`]: commandRow(task1, "build", 1_042_000),
+  [`${task1}/vet.1`]: commandRow(task1, "vet", 1_063_000),
+  [`${task1}/test.1`]: commandRow(task1, "test", 1_084_000),
+  [`${task2}/task-check.1`]: commandRow(task2, "task-check", 2_521_000, 1),
+  [`${task2}/build.1`]: commandRow(task2, "build", 2_542_000),
+  [`${task2}/vet.1`]: commandRow(task2, "vet", 2_563_000),
+  [`${task2}/test.1`]: commandRow(task2, "test", 2_584_000),
+} satisfies Record<string, CommandRow>;
 
 export const implementInterviewSnapshot: RunSnapshot = {
   stream: "implement-interview-specimen",

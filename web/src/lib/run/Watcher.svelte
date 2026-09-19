@@ -6,17 +6,29 @@
   let {
     supervisor,
     state,
+    selected = false,
+    onselect,
   }: {
     supervisor: Supervisor;
     state: PipState;
+    selected?: boolean;
+    onselect?: (supervisor: Supervisor) => void;
   } = $props();
 </script>
 
-<div class="watcher" data-watcher={supervisor.session}>
+<button
+  type="button"
+  class="watcher"
+  class:selected
+  data-watcher={supervisor.session}
+  aria-pressed={selected}
+  aria-label={`Select watcher ${supervisor.session}`}
+  onclick={() => onselect?.(supervisor)}
+>
   <EyeIcon size={14} />
   <span>{supervisor.session}</span>
   <Pip {state} />
-</div>
+</button>
 
 <style>
   .watcher {
@@ -28,15 +40,31 @@
     gap: 6px;
     padding: 0 8px;
     color: var(--foreground);
+    font: inherit;
     font-size: 13px;
     font-weight: 500;
     letter-spacing: -0.02em;
     line-height: 18px;
     white-space: nowrap;
+    cursor: pointer;
     background: var(--map-paper-2);
     border: 1px solid var(--map-line);
     border-radius: 8px;
     box-shadow: var(--shadow-xs);
+  }
+
+  .watcher:hover {
+    border-color: var(--map-line-strong);
+  }
+
+  .watcher:focus-visible {
+    outline: 2px solid var(--status-live);
+    outline-offset: 2px;
+  }
+
+  .watcher.selected {
+    border-color: var(--status-running);
+    box-shadow: 0 0 0 3px var(--map-live-soft), var(--shadow-xs);
   }
 
   .watcher > :global(svg) {

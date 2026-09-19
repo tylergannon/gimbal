@@ -1,3 +1,30 @@
+<script module lang="ts">
+  import type {
+    CommandRow,
+    InterviewRow,
+    ScopeRow,
+    TurnRow,
+  } from "../observation/index.js";
+  import type { Supervisor } from "../workflow/types.js";
+  import type { NodeOperation } from "./Node.svelte";
+
+  export type MapSelection =
+    | { kind: "sheet"; scope: ScopeRow }
+    | { kind: "instance"; scope: ScopeRow }
+    | {
+        kind: "node";
+        scope: ScopeRow;
+        operation: NodeOperation;
+        runtime?: TurnRow | CommandRow | InterviewRow;
+      }
+    | {
+        kind: "watcher";
+        scope: ScopeRow;
+        supervisor: Supervisor;
+        turn?: TurnRow;
+      };
+</script>
+
 <script lang="ts">
   import type { Graph } from "../workflow/types.js";
   import type { RunSnapshot } from "../observation/index.js";
@@ -11,15 +38,88 @@
   let {
     graph,
     snapshot,
+    onselect,
+    oninstancechange,
   }: {
     graph: Graph;
     snapshot: RunSnapshot;
+    onselect?: (selection: MapSelection) => void;
+    oninstancechange?: (scope: ScopeRow) => void;
   } = $props();
 
-  const layout = $derived(buildMapLayout(graph, snapshot));
+  let selectedInstances = $state<Record<string, string>>({});
+  let foldedScopes = $state<string[]>([]);
+  let selectedKey = $state<string | undefined>(undefined);
+
+  const layout = $derived(
+    buildMapLayout(graph, snapshot, { selectedInstances, foldedScopes, selectedKey }),
+  );
+
+  function selectSheet(sheet: (typeof layout.sheets)[number]) {
+    selectedKey = sheet.selectionKey;
+    onselect?.({ kind: "sheet", scope: sheet.scope });
+  }
+
+  function changeInstance(sheet: (typeof layout.sheets)[number], scope: ScopeRow) {
+    selectedInstances = { ...selectedInstances, [sheet.instanceGroupKey]: scope.key };
+    if (foldedScopes.includes(sheet.scope.key)) {
+      foldedScopes = [...foldedScopes.filter((key) => key !== sheet.scope.key), scope.key];
+    }
+    selectedKey = `sheet:${scope.key}`;
+    oninstancechange?.(scope);
+    onselect?.({ kind: "instance", scope });
+  }
+
+  function openSheet(sheet: (typeof layout.sheets)[number]) {
+    const siblingKeys = layout.sheets
+      .filter(
+        (candidate) =>
+          candidate.parentScopeKey === sheet.parentScopeKey &&
+          candidate.scope.key !== sheet.scope.key,
+      )
+      .map((candidate) => candidate.scope.key);
+    foldedScopes = Array.from(
+      new Set([
+        ...foldedScopes.filter((key) => key !== sheet.scope.key),
+        ...siblingKeys,
+      ]),
+    );
+    selectSheet(sheet);
+  }
+
+  function foldSheet(sheet: (typeof layout.sheets)[number]) {
+    if (!foldedScopes.includes(sheet.scope.key)) {
+      foldedScopes = [...foldedScopes, sheet.scope.key];
+    }
+    selectSheet(sheet);
+  }
+
+  function selectNode(node: (typeof layout.nodes)[number]) {
+    const scope = snapshot.scopes[node.scopeKey];
+    if (!scope) return;
+    selectedKey = node.selectionKey;
+    onselect?.({
+      kind: "node",
+      scope,
+      operation: node.operation,
+      runtime: node.runtime,
+    });
+  }
+
+  function selectWatcher(watcher: (typeof layout.watchers)[number]) {
+    const scope = snapshot.scopes[watcher.watchedScope];
+    if (!scope) return;
+    selectedKey = watcher.selectionKey;
+    onselect?.({
+      kind: "watcher",
+      scope,
+      supervisor: watcher.supervisor,
+      turn: watcher.turn,
+    });
+  }
 </script>
 
-<div class="map" role="img" aria-label={`${graph.name} workflow map`}>
+<div class="map" role="region" aria-label={`${graph.name} workflow map`}>
   <div class="canvas" style:width={`${layout.width}px`} style:height={`${layout.height}px`}>
     <svg
       class="connections"
@@ -45,6 +145,7 @@
         style:top={`${sheet.y}px`}
         style:width={`${sheet.width}px`}
         style:height={`${sheet.height}px`}
+        style:z-index={sheet.depth}
       >
         <Sheet
           scope={sheet.scope}
@@ -54,7 +155,14 @@
           selected={sheet.selected}
           selectionPath={sheet.selectionPath}
           contextTotal={sheet.contextTotal}
-          foldable={false}
+          selectedInstance={sheet.scope.key}
+          folded={sheet.folded}
+          elapsed={sheet.elapsed}
+          steps={sheet.steps}
+          onselect={() => selectSheet(sheet)}
+          oninstancechange={(scope) => changeInstance(sheet, scope)}
+          onopen={() => openSheet(sheet)}
+          onfold={() => foldSheet(sheet)}
         >
           <div class="sheet-space" style:height={`${Math.max(24, sheet.height - 40)}px`}></div>
         </Sheet>
@@ -62,13 +170,13 @@
     {/each}
 
     {#each layout.groups as group}
-      <div class="placed" style:left={`${group.x}px`} style:top={`${group.y}px`}>
+      <div class="placed structural" style:left={`${group.x}px`} style:top={`${group.y}px`}>
         <Group {...group} />
       </div>
     {/each}
 
     {#each layout.loops as loop}
-      <div class="placed" style:left={`${loop.x}px`} style:top={`${loop.y}px`}>
+      <div class="placed structural" style:left={`${loop.x}px`} style:top={`${loop.y}px`}>
         <Loop {...loop} />
       </div>
     {/each}
@@ -87,6 +195,7 @@
           meta={node.meta}
           selected={node.selected}
           small={node.operation.kind === "command"}
+          onselect={() => selectNode(node)}
         />
       </div>
     {/each}
@@ -102,7 +211,12 @@
         style:width={`${watcher.width}px`}
         style:height={`${watcher.height}px`}
       >
-        <Watcher supervisor={watcher.supervisor} state={watcher.state} />
+        <Watcher
+          supervisor={watcher.supervisor}
+          state={watcher.state}
+          selected={watcher.selected}
+          onselect={() => selectWatcher(watcher)}
+        />
       </div>
     {/each}
 
@@ -133,6 +247,10 @@
     position: absolute;
   }
 
+  .structural {
+    pointer-events: none;
+  }
+
   .sheet {
     z-index: 0;
   }
@@ -147,7 +265,7 @@
 
   .connections {
     position: absolute;
-    z-index: 1;
+    z-index: 2;
     inset: 0;
     overflow: visible;
     pointer-events: none;
@@ -171,13 +289,13 @@
   }
 
   .placed:not(.sheet) {
-    z-index: 2;
+    z-index: 3;
   }
 
   .watching,
   .end {
     position: absolute;
-    z-index: 3;
+    z-index: 4;
     color: var(--status-muted);
     font-size: 13px;
     font-weight: 600;

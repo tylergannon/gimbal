@@ -108,3 +108,120 @@ test("lays out plan-trip with pending interviews before its unexecuted planner",
   assert.equal(layout.groups.length, 1);
   assert.equal(layout.loops.length, 0);
 });
+
+test("selected promise-loop instance drives every runtime fact", () => {
+  const task2 = buildMapLayout(
+    implementInterviewFixture.graph,
+    implementInterviewFixture.snapshot,
+    { selectedInstances: { "implementation.1/task": "implementation.1/task.2" } },
+  );
+
+  assert.equal(
+    task2.sheets.find((sheet) => sheet.instances.length === 3)?.scope.key,
+    "implementation.1/task.2",
+  );
+  assert.deepEqual(
+    task2.nodes.slice(3).map((node) => [operationName(node.operation), node.state, node.meta]),
+    [
+      ["coding", "ended", "turn 2"],
+      ["task-check", "failed", "exit 1"],
+      ["build", "ended", "exit 0"],
+      ["vet", "ended", "exit 0"],
+      ["test", "ended", "exit 0"],
+      ["qa-orchestration", "ended", "turn 1"],
+    ],
+  );
+
+  const task3 = buildMapLayout(
+    implementInterviewFixture.graph,
+    implementInterviewFixture.snapshot,
+    { selectedInstances: { "implementation.1/task": "implementation.1/task.3" } },
+  );
+  assert.deepEqual(
+    task3.nodes.slice(3, 5).map((node) => [operationName(node.operation), node.state, node.meta]),
+    [
+      ["coding", "running", "turn 3"],
+      ["task-check", "not-yet", "not started"],
+    ],
+  );
+});
+
+test("folded summaries retain child-scope states and selected-instance facts", () => {
+  const reconnaissance = buildMapLayout(
+    implementInterviewFixture.graph,
+    implementInterviewFixture.snapshot,
+    { foldedScopes: ["reconnaissance.1"] },
+  ).sheets.find((sheet) => sheet.scope.key === "reconnaissance.1");
+  assert.ok(reconnaissance);
+  assert.deepEqual(
+    reconnaissance.steps.map((step) => [operationName(step.operation), step.state]),
+    [
+      ["api-research", "ended"],
+      ["frontend-research", "ended"],
+    ],
+  );
+
+  const research = buildMapLayout(planTripFixture.graph, planTripFixture.snapshot, {
+    foldedScopes: ["research.1"],
+  }).sheets.find((sheet) => sheet.scope.key === "research.1");
+  assert.ok(research);
+  assert.deepEqual(
+    research.steps.map((step) => [operationName(step.operation), step.state]),
+    [
+      ["preferences", "waiting"],
+      ["preferences", "waiting"],
+    ],
+  );
+
+  const task2 = buildMapLayout(
+    implementInterviewFixture.graph,
+    implementInterviewFixture.snapshot,
+    {
+      selectedInstances: { "implementation.1/task": "implementation.1/task.2" },
+      foldedScopes: ["implementation.1/task.2"],
+    },
+  ).sheets.find((sheet) => sheet.scope.key === "implementation.1/task.2");
+  assert.ok(task2);
+  assert.deepEqual(
+    task2.steps.slice(0, 2).map((step) => [operationName(step.operation), step.state]),
+    [
+      ["coding", "ended"],
+      ["task-check", "failed"],
+    ],
+  );
+
+  const implementation = buildMapLayout(
+    implementInterviewFixture.graph,
+    implementInterviewFixture.snapshot,
+    {
+      selectedInstances: { "implementation.1/task": "implementation.1/task.2" },
+      foldedScopes: ["implementation.1"],
+    },
+  ).sheets.find((sheet) => sheet.scope.key === "implementation.1");
+  assert.ok(implementation);
+  assert.deepEqual(
+    implementation.steps.slice(0, 3).map((step) => [operationName(step.operation), step.state]),
+    [
+      ["sprint-planning", "ended"],
+      ["coding", "ended"],
+      ["task-check", "failed"],
+    ],
+  );
+});
+
+test("a refreshed snapshot replaces selected-instance runtime facts", () => {
+  const snapshot = structuredClone(implementInterviewFixture.snapshot);
+  snapshot.turns["coding.1/turn.3"].ended = snapshot.turns["coding.1/turn.3"].started + 120_000;
+  snapshot.turns["coding.1/turn.3"].duration = 120_000;
+  snapshot.scopes["implementation.1/task.3"].status = "ended";
+  snapshot.scopes["implementation.1/task.3"].ended = snapshot.turns["coding.1/turn.3"].ended;
+
+  const layout = buildMapLayout(implementInterviewFixture.graph, snapshot, {
+    selectedInstances: { "implementation.1/task": "implementation.1/task.3" },
+  });
+  const coding = layout.nodes.find(
+    (node) =>
+      node.scopeKey === "implementation.1/task.3" && operationName(node.operation) === "coding",
+  );
+  assert.equal(coding?.state, "ended");
+});

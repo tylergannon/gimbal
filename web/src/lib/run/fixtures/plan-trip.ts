@@ -159,6 +159,30 @@ const sessions = {
 } satisfies Record<string, SessionRow>;
 
 const interviews = {
+  "01M2RWXNFFYQA4HHQWMQ252CYA": {
+    run: runID,
+    question_id: "01M2RWXNFFYQA4HHQWMQ252CYA",
+    name: "preferences",
+    scope: "research.1/lodging.1",
+    session: "research.1/lodging.1/interviewer.1",
+    question: "What would make a weekend trip feel restful to you?",
+    status: "answered",
+    answer: "A quiet mountain cabin, easy walks, and no crowds.",
+    asked: started + 12_000,
+    answered: started + 22_000,
+  },
+  "01M2RWXNFFYQA4HHQWMQ252CYB": {
+    run: runID,
+    question_id: "01M2RWXNFFYQA4HHQWMQ252CYB",
+    name: "preferences",
+    scope: "research.1/transport.1",
+    session: "research.1/transport.1/interviewer.1",
+    question: "Would you rather drive or take a train?",
+    status: "answered",
+    answer: "Drive, if the route itself is pleasant.",
+    asked: started + 14_000,
+    answered: started + 24_000,
+  },
   "01M2RWXNFFYQA4HHQWMQ252CYF": {
     run: runID,
     question_id: "01M2RWXNFFYQA4HHQWMQ252CYF",

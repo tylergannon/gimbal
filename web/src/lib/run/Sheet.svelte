@@ -50,6 +50,7 @@
     selectionPath = false,
     folded = false,
     root = false,
+    foldable = true,
     contextTotal = 0,
     elapsed = "",
     steps = [],
@@ -68,6 +69,7 @@
     selectionPath?: boolean;
     folded?: boolean;
     root?: boolean;
+    foldable?: boolean;
     contextTotal?: number;
     elapsed?: string;
     steps?: FoldedStep[];
@@ -167,18 +169,20 @@
         </button>
       {/if}
 
-      <button
-        type="button"
-        class="fold-toggle"
-        aria-label={isFolded ? `Open ${activeScope.name}` : `Fold ${activeScope.name}`}
-        onclick={() => (isFolded ? onopen?.(activeScope) : onfold?.(activeScope))}
-      >
-        {#if isFolded}
-          <ChevronRightIcon size={14} />
-        {:else}
-          <ChevronDownIcon size={14} />
-        {/if}
-      </button>
+      {#if foldable}
+        <button
+          type="button"
+          class="fold-toggle"
+          aria-label={isFolded ? `Open ${activeScope.name}` : `Fold ${activeScope.name}`}
+          onclick={() => (isFolded ? onopen?.(activeScope) : onfold?.(activeScope))}
+        >
+          {#if isFolded}
+            <ChevronRightIcon size={14} />
+          {:else}
+            <ChevronDownIcon size={14} />
+          {/if}
+        </button>
+      {/if}
     </div>
   {/if}
 

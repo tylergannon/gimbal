@@ -11,3 +11,19 @@ friction: Two research lanes wrote the shared final-report path before their ass
 correction: The upstream Go SDK exists, but its inspected generated surface lacks fork, async prompt, schema format, and the newer API routes. Verify concrete SDK coverage rather than inferring availability from a JS/TS-only research corpus.
 
 friction: Links from ephemeral/research/opencode to the local .gimble corpus require three parent levels. Check report reference targets after synthesis.
+
+correction: User prefers the newer OpenCode API as the adapter foundation. Assess its functionality gaps first; cross-generation composition is a secondary option, not the default decision gate.
+
+decision: The follow-up research must actually generate and compile candidate Go clients from installed `opencode generate` output and probe union behavior. Generation success alone is not evidence of a usable SDK.
+
+correction: User previously wrote proprietary libopenapi-based OpenCode SDK generators; source is unavailable and must not be sought or reused. Evaluate current generators with bounded experiments; avoid prolonged workaround work when narrow custom generation is simpler. Future custom design can draw on user recollection via HITL.
+
+correction: User wants the root model to coordinate and synthesize; delegate chores including generation, probes, compilation and validation to subagents. Root should review evidence and direct follow-ups rather than run experiments itself.
+
+correction: User favors reusing generated Go types even if off-the-shelf client/server endpoint generation fails. Test models-only oapi-codegen/ogen before recommending custom struct generation; a hybrid generated-types/custom-SDK approach matches prior successful experience.
+
+friction: Follow-up research-document run failed in index-curation on agy result arriving with unsettled tool step148; corpus preserved. Retry workflow using existing evidence rather than repeat generation experiments.
+
+friction: Reusing the corpus did not avoid agy failure: retry run01M2XMQ94EEC1Y3XQ7CBAYP5GY.research-document ended during research with result arriving before tool step30 settled. Requested role-model replacement per gimble-runs instruction; no application repair in this research scope.
+
+delivery: Two research-document attempts failed on the same agy unsettled-tool-step condition. Independent generator evidence review and author synthesis completed the report without making an OpenCode model turn; the durable conclusion is a proven oapi-codegen component-model layer (243 schemas, zero paths, compiling union tests) plus a custom HTTP/SSE boundary, with runtime execution still unproven.

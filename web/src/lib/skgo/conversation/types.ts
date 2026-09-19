@@ -10,6 +10,7 @@ export type Conversation = {
   model: string;
   branch: string;
   worktree: string;
+  native_session: string;
   live: boolean;
   status: string;
   error: string;

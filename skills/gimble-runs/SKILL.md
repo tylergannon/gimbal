@@ -131,8 +131,9 @@ Codex, Claude, or agy/Gemini when creating a conversation; Gimble creates its
 worktree and branch. Ask the agent to start a review or implementation, then
 open the linked run to monitor it in the same server. Implementation needs a
 local definition-of-done file in the conversation's worktree. Keep the server
-running: after a restart, saved conversations are readable history, but their
-provider sessions cannot continue yet.
+running while a turn or workflow is active. After a restart, saved Codex
+conversations resume their native thread on the next message. Saved Claude and
+agy/Gemini conversations remain readable history and cannot continue yet.
 
 ## Report what happened
 

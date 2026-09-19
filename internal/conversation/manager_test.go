@@ -109,6 +109,64 @@ func TestManagerRoutesAllProvidersAndKeepsConversationHistory(t *testing.T) {
 	}
 }
 
+func TestManagerResumesPersistentNativeSessionAfterRestart(t *testing.T) {
+	repository := newRepository(t)
+	project := filepath.Join(repository, ".gimble")
+	adapter := &persistentChatAdapter{sessions: make(map[string][]string)}
+	createdAdapters := 0
+	factory := func(string) (gimble.HarnessAdapter, error) {
+		createdAdapters++
+		return adapter, nil
+	}
+
+	first, err := New(t.Context(), project, factory, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	item, err := first.Create(t.Context(), NewConversation{Provider: "codex"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	item, err = first.Send(item.ID, "Remember cobalt for the next turn.")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if item.NativeSession == "" {
+		t.Fatal("first turn did not persist the native session id")
+	}
+	nativeSession := item.NativeSession
+	first.Close()
+	if adapter.detached != nativeSession {
+		t.Fatalf("detached session = %q, want %q", adapter.detached, nativeSession)
+	}
+
+	createdBeforeRestart := createdAdapters
+	restarted, err := New(t.Context(), project, factory, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if createdAdapters != createdBeforeRestart {
+		t.Fatal("loading saved conversations contacted the provider")
+	}
+	saved, ok := restarted.Get(item.ID)
+	if !ok || !saved.Live {
+		t.Fatalf("saved persistent conversation is not sendable after restart: %+v", saved)
+	}
+	continued, err := restarted.Send(item.ID, "What word did I ask you to remember?")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if adapter.resumed != nativeSession {
+		t.Fatalf("resumed session = %q, want %q", adapter.resumed, nativeSession)
+	}
+	if continued.NativeSession != nativeSession {
+		t.Fatalf("continued native session = %q, want unchanged %q", continued.NativeSession, nativeSession)
+	}
+	if got := continued.Messages[len(continued.Messages)-1].Text; got != "You asked me to remember cobalt." {
+		t.Fatalf("resumed turn lost native context: %q", got)
+	}
+}
+
 func TestManagerRoutesReviewAndImplementationLaunchesAndTracksTheirResults(t *testing.T) {
 	repository := newRepository(t)
 	project := filepath.Join(repository, ".gimble")
@@ -247,6 +305,27 @@ func (a *chatAdapter) RunTurn(_ context.Context, session, prompt string, _ json.
 func (*chatAdapter) Steer(context.Context, string, string) (bool, error) { return false, nil }
 func (*chatAdapter) Fork(context.Context, string) (string, error)        { return "", nil }
 func (*chatAdapter) Close(context.Context, string) error                 { return nil }
+
+type persistentChatAdapter struct {
+	chatAdapter
+	resumed  string
+	detached string
+}
+
+func (a *persistentChatAdapter) ResumeSession(_ context.Context, session, _, _, _ string) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if _, ok := a.sessions[session]; !ok {
+		return errors.New("unknown persistent session")
+	}
+	a.resumed = session
+	return nil
+}
+
+func (a *persistentChatAdapter) DetachSession(_ context.Context, session string) error {
+	a.detached = session
+	return nil
+}
 
 func newRepository(t *testing.T) string {
 	t.Helper()

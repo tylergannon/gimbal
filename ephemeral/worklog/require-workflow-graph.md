@@ -1,0 +1,1 @@
+correction: Tyler rejected #290 as unnecessary fallback work: require developers to generate a matching graph, show a regenerate-and-rebuild error otherwise, and remove the history-row UI. A source-inferred gap without demonstrated user impact should not automatically become another implementation task.

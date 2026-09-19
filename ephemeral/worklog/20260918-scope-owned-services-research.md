@@ -1,0 +1,3 @@
+decision: Compared exactly two bounded foreground-service test tools, Playwright Test webServer and start-server-and-test, because both directly model setup/readiness/work/teardown without persistent daemon ownership.
+friction: start-server-and-test uses the repository default branch master rather than main; resolved by querying the GitHub repository metadata before downloading its README and source.
+decision: Treat Playwright's process-group graceful shutdown plus bounded escalation as the strongest transferable evidence, while recording start-server-and-test's post-readiness observer gap and lack of explicit escalation.

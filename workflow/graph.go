@@ -90,8 +90,9 @@ type Supervisor struct {
 	Supervisors []Supervisor `json:"supervisors"`
 }
 
-// Command is one gimble.RunCommand. Name is the constant name the call
-// gives it; the command line and its outcome are the run's record.
+// Command is one gimble.RunCommand or gimble.Check. Name is the constant name
+// RunCommand gives it or the constant context key Check gives it; the command
+// line and its outcome are the run's record.
 type Command struct {
 	Source
 	Name string `json:"name"`

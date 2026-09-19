@@ -942,15 +942,17 @@ func cancelRun(ctx context.Context, runID string) error
 
 `RunCommand(ctx, name, workdir, command, args...) (exitCode int, stdout,
 stderr string, err error)` runs one command and blocks until it exits.
+`Check(ctx, key, workdir, command, args...) error` runs through the same
+command path and records its result directly in the current scope's context.
 Tyler, 2026-09-15: "The whole point is to have a SIMPLE API for running
 commands, that should make it a single API call for running commands ... a
 blocking function that returns the exit code, stdout and stderr as scalars.
 That way we can locate `RunCommand` in static analysis etc."
 
 - One call is both the construction and the execution, so a static pass
-  finds every command a workflow runs by the name `RunCommand`, and the run
-  holds a record of each one that ran. Workflow code runs its commands
-  through it; harness internals keep `os/exec`.
+  finds every command a workflow runs by `RunCommand` or `Check`, and the run
+  holds a record of each one that ran. Workflow code runs its commands through
+  them; harness internals keep `os/exec`.
 - `name` is a constant at the call site, as for sessions and scopes. The
   id is the scope's key and the name with an ordinal (`lap.3/check.2`), so
   a retried command is two records, and a command in each of two group
@@ -966,6 +968,22 @@ That way we can locate `RunCommand` in static analysis etc."
   tail and the file's name. The environment is not recorded.
 - No stdin, no environment, no streaming: `sh -c` is a command like any
   other.
+
+`Check` is the evidence-gathering form. Its key is an explicit context key,
+with the same compile-time-constant and one-write-per-scope rules as `Set` and
+`SetJSON`. A workflow that may run a check twice writes distinct call-site
+keys such as `tests.1` and `tests.2`; Gimble does not invent them. Each value
+contains the command, arguments, absolute working directory, exit code,
+stdout, stderr, and execution error, preserving both attempts.
+The normal scope rules apply: a following turn in that scope sees the values;
+a completed PromiseLoop task carries its local values into the planner's next
+decision; a closed child does not promote them into its parent.
+
+A nonzero exit is evidence and `Check` returns nil so an explicit evaluator can
+judge it. Failure to start, cancellation, capture failure, or failure to record
+the scope value returns an error. The stdout and stderr fields use
+`RunCommand`'s bounded large-output representation, including the path to the
+complete stream. `Check` does not evaluate, certify, or change loop control.
 
 ## Current decision (2026-09-17)
 

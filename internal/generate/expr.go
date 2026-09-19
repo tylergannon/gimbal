@@ -208,6 +208,15 @@ func (e *extractor) gimbleOperation(name string, call *ast.CallExpr, targets []a
 		e.emit(out, workflow.Command{Source: e.at(call.Pos()), Name: command})
 		return false
 
+	case "Check":
+		key, ok := e.constant(call, 1)
+		if !ok {
+			e.diag(call.Pos(), "Check's context key is not a constant, so the command is not read")
+			return false
+		}
+		e.emit(out, workflow.Command{Source: e.at(call.Pos()), Name: key})
+		return false
+
 	case "Set", "SetJSON":
 		key, ok := e.constant(call, 1)
 		if !ok {

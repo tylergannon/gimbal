@@ -19,7 +19,7 @@
 "duration":{"type":"integer","description":"A Duration represents the elapsed time between two instants as an int64 nanosecond count. The representation limits the largest representable duration to approximately 290 years."}
 },"required":["kind","id","exit_code","stdout","stderr","stdout_file","stderr_file","error","interrupted","duration"],"additionalProperties":false},
 {"type":"object",
-"description":"CommandStarted records a command RunCommand is starting in the record's scope. ID is the scope's key and Name with an ordinal, as in lap.3/check.2; Workdir is absolute.","properties":{
+"description":"CommandStarted records a command RunCommand or Check is starting in the record's scope. ID is the scope's key and Name with an ordinal, as in lap.3/check.2; Workdir is absolute.","properties":{
 "kind":{"type":"string","const":"command_started"},
 "id":{"type":"string"},
 "name":{"type":"string"},

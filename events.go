@@ -163,8 +163,8 @@ type InterviewQuestionAnswered struct {
 
 func (InterviewQuestionAnswered) lifecycleEvent() {}
 
-// CommandStarted records a command RunCommand is starting in the record's
-// scope. ID is the scope's key and Name with an ordinal, as in
+// CommandStarted records a command RunCommand or Check is starting in the
+// record's scope. ID is the scope's key and Name with an ordinal, as in
 // lap.3/check.2; Workdir is absolute.
 type CommandStarted struct {
 	ID      string   `json:"id"`

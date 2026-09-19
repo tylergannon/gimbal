@@ -139,6 +139,15 @@ Choose meaningful acceptance evidence before implementation when practical.
 Do not let a worker weaken that condition to obtain a pass. Record the actual
 check result; an agent saying it passed cannot override a failed command.
 
+Use `Check` when an agent should interpret a command result: it records the
+command, working directory, exit code, both output streams, and any execution
+error in the current scope for the next turn. Its key follows the same rules as
+`Set`: it is a compile-time constant written once in that scope. Name repeated
+observations explicitly at their call sites, such as `tests.1` and `tests.2`.
+A nonzero exit is evidence rather than a `Check` error; failure to execute,
+capture, or record is an error. Use `RunCommand` when ordinary Go needs the
+returned values itself. `Check` gathers evidence and never certifies success.
+
 A validator examines the work and the legitimacy of its validation. A green
 build or test gate establishes only what it exercised. Claims about live
 workflows, external steering, or browser interactions require observing those

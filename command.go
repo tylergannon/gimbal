@@ -2,6 +2,7 @@ package gimble
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -102,14 +103,108 @@ func RunCommand(ctx context.Context, name, workdir, command string, args ...stri
 	if err != nil {
 		return -1, "", "", err
 	}
+	_, ended, err, _ := runCommand(ctx, s, name, workdir, command, args)
+	return ended.ExitCode, ended.Stdout, ended.Stderr, err
+}
+
+// Check runs command and records its result under key in the current scope's
+// context. Like Set and SetJSON, key is explicit and may be written only once
+// in a scope. Repeated checks therefore use distinct keys written at their call
+// sites, such as tests.1 and tests.2. The result records the command,
+// arguments, absolute working directory, exit code, stdout, stderr, and any
+// execution error. Generate sees it through the usual scope context, and a
+// completed PromiseLoop task carries it to the planner through the usual task
+// feedback.
+//
+// A nonzero exit is evidence and returns nil. An error is returned when the
+// command could not start, its ctx was cancelled, its output could not be
+// captured, or its result could not be recorded. Large streams use the same
+// bounded excerpt and complete-output file reference as RunCommand.
+func Check(ctx context.Context, key, workdir, command string, args ...string) error {
+	s, err := current(ctx)
+	if err != nil {
+		return err
+	}
+	if err := checkKeyAvailable(s, key); err != nil {
+		return err
+	}
+	started, ended, commandErr, commandRecordErr := runCommand(ctx, s, key, workdir, command, args)
+	result := struct {
+		Command  string   `json:"command"`
+		Args     []string `json:"args"`
+		Workdir  string   `json:"workdir"`
+		ExitCode int      `json:"exit_code"`
+		Stdout   string   `json:"stdout"`
+		Stderr   string   `json:"stderr"`
+		Error    string   `json:"error,omitempty"`
+	}{
+		Command:  started.Command,
+		Args:     append([]string(nil), started.Args...),
+		Workdir:  started.Workdir,
+		ExitCode: ended.ExitCode,
+		Stdout:   ended.Stdout,
+		Stderr:   ended.Stderr,
+		Error:    ended.Error,
+	}
+	raw, err := json.Marshal(result)
+	if err != nil {
+		return errors.Join(commandErr, commandRecordErr, fmt.Errorf("gimble: check %q: encode result: %w", key, err))
+	}
+	return errors.Join(commandErr, commandRecordErr, recordCheckResult(s, key, raw))
+}
+
+func checkKeyAvailable(s *scope, key string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.ended {
+		return fmt.Errorf("gimble: check %q: scope %q ended", key, s.key)
+	}
+	if _, ok := s.values[key]; ok {
+		return fmt.Errorf("gimble: check result %q is already recorded in scope %q", key, s.key)
+	}
+	return nil
+}
+
+func recordCheckResult(s *scope, key string, raw []byte) error {
+	if s == nil {
+		return errors.New("gimble: check: no scope in the ctx; it must come from gimble.Run")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.ended {
+		return fmt.Errorf("gimble: check %q: scope %q ended", key, s.key)
+	}
+	if _, ok := s.values[key]; ok {
+		return fmt.Errorf("gimble: check result %q is already recorded in scope %q", key, s.key)
+	}
+	if s.values == nil {
+		s.values = make(map[string]*scopeValue)
+	}
+	value := &scopeValue{owner: s, raw: append([]byte(nil), raw...)}
+	if tokenCount("## "+key+"\n\n"+render(raw)) > contextEntryTokenLimit {
+		if err := s.spillValueLocked(key, value); err != nil {
+			return fmt.Errorf("gimble: check %q: record result: %w", key, err)
+		}
+	}
+	s.values[key] = value
+	s.keys = append(s.keys, key)
+	if err := s.run.eventResult(s.key, "", "", valueEvent(key, value)); err != nil {
+		return fmt.Errorf("gimble: check %q: record result: %w", key, err)
+	}
+	return nil
+}
+
+func runCommand(ctx context.Context, s *scope, name, workdir, command string, args []string) (CommandStarted, CommandEnded, error, error) {
 	s.mu.Lock()
 	id := s.next(name)
 	s.mu.Unlock()
 	dir, _ := filepath.Abs(workdir)
-	s.run.event(s.key, "", "", CommandStarted{ID: id, Name: name, Command: command, Args: args, Workdir: dir})
+	started := CommandStarted{ID: id, Name: name, Command: command, Args: args, Workdir: dir}
+	startRecordErr := s.run.eventResult(s.key, "", "", started)
 	logf("%s: command started: %s", id, oneLine(strings.Join(append([]string{command}, args...), " ")))
 	start := time.Now()
 	ended := CommandEnded{ID: id, ExitCode: -1}
+	var commandErr error
 
 	openCapture := func(stream string) (*commandCapture, string, error) {
 		relative := filepath.ToSlash(filepath.Join("commands", encodedPath(id), stream+".log"))
@@ -125,20 +220,20 @@ func RunCommand(ctx context.Context, name, workdir, command string, args ...stri
 		errOut, ended.StderrFile, captureErr = openCapture("stderr")
 		if captureErr == nil {
 			ended.StdoutFile = stdoutFile
-			stdout, stderr, err = runCapturedCommand(ctx, id, workdir, command, args, s.run, out, errOut, &ended)
+			_, _, commandErr = runCapturedCommand(ctx, id, workdir, command, args, s.run, out, errOut, &ended)
 		} else {
 			_ = out.close()
 			ended.StdoutFile = stdoutFile
 		}
 	}
 	if captureErr != nil {
-		err = fmt.Errorf("gimble: %s: capture output: %w", id, captureErr)
+		commandErr = fmt.Errorf("gimble: %s: capture output: %w", id, captureErr)
 		s.run.recordFailure("capture command output "+id, captureErr)
 	}
-	ended.Error, ended.Duration = errString(err), time.Since(start)
-	s.run.event(s.key, "", "", ended)
-	logf("%s: command ended after %s: exit %d: %v", id, ended.Duration.Round(time.Millisecond), ended.ExitCode, orNone(err))
-	return ended.ExitCode, stdout, stderr, err
+	ended.Error, ended.Duration = errString(commandErr), time.Since(start)
+	endRecordErr := s.run.eventResult(s.key, "", "", ended)
+	logf("%s: command ended after %s: exit %d: %v", id, ended.Duration.Round(time.Millisecond), ended.ExitCode, orNone(commandErr))
+	return started, ended, commandErr, errors.Join(startRecordErr, endRecordErr)
 }
 
 func runCapturedCommand(ctx context.Context, id, workdir, command string, args []string, r *run, out, errOut *commandCapture, ended *CommandEnded) (stdout, stderr string, err error) {

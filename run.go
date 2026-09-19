@@ -467,11 +467,13 @@ func orNone(err error) any {
 // The store decides what each kind means; this is only the handover. A record
 // the store cannot fold, or a table file it cannot write, is a recording
 // failure and enters the run's own verdict.
-func (r *run) observeLifecycle(_, _, _ string, _ LifecycleEvent, record json.RawMessage) {
+func (r *run) observeLifecycle(_, _, _ string, _ LifecycleEvent, record json.RawMessage) error {
 	if r == nil || r.store == nil {
-		return
+		return nil
 	}
-	r.recordFailure("observe lifecycle", r.store.Lifecycle(record))
+	err := r.store.Lifecycle(record)
+	r.recordFailure("observe lifecycle", err)
+	return err
 }
 
 // observeAgent applies one stamped native event to its invocation's

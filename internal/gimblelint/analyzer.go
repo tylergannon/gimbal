@@ -21,10 +21,10 @@ const (
 	dynamicWorkers = "[GIMBLE101-SIMPLE-WORKFLOWS/NO-DYNAMIC-WORKERS]: Workflow control flow must be visible in the source. Call worker functions directly in an if or switch instead of selecting a function dynamically."
 	constantKey    = "[GIMBLE102-SIMPLE-WORKFLOWS/CONSTANT-CONTEXT-KEY]: Context keys must be compile-time constants so a workflow's recorded fields are explicit in its source. Use a named constant or string literal; keep changing data in the value."
 	duplicateKey   = "[GIMBLE103-SET-MISUSE/DUPLICATE-KEY]: This scope can set the same context key more than once. Use one write per key in each scope."
-	wrongContext   = "[GIMBLE104-SET-MISUSE/WRONG-CONTEXT]: Set must use the context parameter of this child scope."
-	unjoinedGo     = "[GIMBLE105-SET-MISUSE/UNJOINED-GOROUTINE]: Set in a raw goroutine can outlive its scope. Use Group."
+	wrongContext   = "[GIMBLE104-SET-MISUSE/WRONG-CONTEXT]: A context write must use the context parameter of this child scope."
+	unjoinedGo     = "[GIMBLE105-SET-MISUSE/UNJOINED-GOROUTINE]: A context write in a raw goroutine can outlive its scope. Use Group."
 	reservedTask   = "[GIMBLE106-SET-MISUSE/RESERVED-TASK-KEY]: The task key belongs to PromiseLoop.Tasks and cannot be set by the task body."
-	noScopeContext = "[GIMBLE107-SET-MISUSE/CONTEXT-NOT-FROM-SCOPE]: Set needs a context supplied by a Gimble scope, not context.Background or context.TODO."
+	noScopeContext = "[GIMBLE107-SET-MISUSE/CONTEXT-NOT-FROM-SCOPE]: A context write needs a context supplied by a Gimble scope, not context.Background or context.TODO."
 	constantPrompt = "[GIMBLE108-SIMPLE-WORKFLOWS/CONSTANT-PROMPT]: Generate's prompt and WithSupervisor's instruction must be compile-time string constants, so a workflow's prompt is readable from its source. Put the run's data into the scope with Set or SetJSON instead; Generate appends it to the prompt."
 	constantShape  = "[GIMBLE109-SIMPLE-WORKFLOWS/CONSTANT-SCOPE-TEMPLATE]: WithScopeTemplate's template must be a compile-time string constant, or a variable of this package declared with //go:embed, so what the agent is sent is readable from the source."
 )
@@ -657,7 +657,7 @@ func isSSASet(call ssa.CallInstruction) bool {
 			callee = origin
 		}
 	}
-	return callee != nil && callee.Pkg != nil && callee.Pkg.Pkg.Path() == gimblePath && (callee.Name() == "Set" || callee.Name() == "SetJSON")
+	return callee != nil && callee.Pkg != nil && callee.Pkg.Pkg.Path() == gimblePath && (callee.Name() == "Set" || callee.Name() == "SetJSON" || callee.Name() == "Check")
 }
 
 func ssaString(value ssa.Value) (string, bool) {
@@ -679,12 +679,12 @@ func gimbleCall(pass *analysis.Pass, call *ast.CallExpr) (string, bool) {
 
 func isSetCall(pass *analysis.Pass, call *ast.CallExpr) bool {
 	name, ok := gimbleCall(pass, call)
-	return ok && (name == "Set" || name == "SetJSON")
+	return ok && (name == "Set" || name == "SetJSON" || name == "Check")
 }
 
 func isWorkflowOperation(name string) bool {
 	switch name {
-	case "Run", "Scope", "Group", "Go", "PromiseLoop", "Tasks", "Iterate", "NewSession", "Fork", "Generate", "Interview", "Set", "SetJSON":
+	case "Run", "Scope", "Group", "Go", "PromiseLoop", "Tasks", "Iterate", "NewSession", "Fork", "Generate", "Interview", "Set", "SetJSON", "Check":
 		return true
 	default:
 		return false

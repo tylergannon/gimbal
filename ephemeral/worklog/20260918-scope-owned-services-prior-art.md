@@ -1,0 +1,3 @@
+decision: Issue 276 prior-art report follows corpus/INDEX.md only; downloaded primary evidence refines two index claims without changing the index.
+correction: ESRCH establishes absence of the targeted process group at observation and may be benign; it neither automatically proves incomplete group cleanup nor establishes cleanup of escaped descendants.
+correction: The downloaded Playwright plugin races service exit during setup, not through the whole test operation; its child-close observation does not establish descendant cleanup. Continuous required-service failure observation is a Gimble recommendation, not demonstrated Playwright behavior.

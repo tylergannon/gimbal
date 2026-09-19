@@ -12,6 +12,7 @@
   const taskScopes = Object.values(snapshot.scopes)
     .filter((scope) => scope.key.startsWith("implementation.1/task."))
     .sort((left, right) => left.began - right.began);
+  const latestTaskKey = taskScopes.at(-1)?.key ?? "";
   const backendScope = snapshot.scopes["reconnaissance.1/backend.1"];
   const frontendScope = snapshot.scopes["reconnaissance.1/frontend.1"];
 
@@ -51,6 +52,14 @@
   const backendOperation = backendAgent as NodeOperation;
   const frontendOperation = frontendAgent as NodeOperation;
   const taskOperations: NodeOperation[] = [coding, taskCheck, ...bodyCommands, validator];
+  const observedAt = Math.max(
+    snapshot.run.started,
+    ...Object.values(snapshot.scopes).map((scope) => scope.ended || scope.began),
+    ...Object.values(snapshot.turns).map((turn) => turn.ended || turn.started + turn.duration),
+    ...Object.values(snapshot.commands ?? {}).map(
+      (command) => command.ended || command.started + command.duration,
+    ),
+  );
 
   function stateFor(scope: ScopeRow, operation: NodeOperation): PipState {
     if (operation.kind === "command") {
@@ -84,6 +93,13 @@
     return taskOperations.map((operation) => ({ operation, state: stateFor(scope, operation) }));
   }
 
+  function elapsedFor(scope: ScopeRow) {
+    const milliseconds = Math.max(0, (scope.ended || observedAt) - scope.began);
+    const minutes = Math.floor(milliseconds / 60_000);
+    const seconds = Math.floor(milliseconds / 1_000) % 60;
+    return `${minutes}m ${seconds.toString().padStart(2, "0")}s`;
+  }
+
   function metaFor(scope: ScopeRow, operation: NodeOperation) {
     if (operation.kind === "command") {
       const command = Object.values(snapshot.commands ?? {}).find(
@@ -109,8 +125,9 @@
 </script>
 
 <script lang="ts">
-  let selectedTaskKey = $state(taskScopes.at(-1)?.key ?? "");
-  let selectedMessage = $state(taskScopes.at(-1)?.key ?? "");
+  let selectedTaskKey = $state(latestTaskKey);
+  let selectedMessage = $state(latestTaskKey);
+  let implementationFolded = $state(false);
   let pathFolded = $state(false);
   let foldedTaskKey = $state(taskScopes[1].key);
   let foldedDemo = $state(true);
@@ -129,6 +146,12 @@
     selectedMessage = `Selected ${scope.key}`;
   }
 
+  function openImplementation() {
+    implementationFolded = false;
+    selectedTaskKey = latestTaskKey;
+    selectedMessage = `Opened ${implementationScope.key}; showing ${latestTaskKey}`;
+  }
+
   function open(scope: ScopeRow) {
     openSibling = scope.key;
     siblingMessage = `Opened ${scope.key}; folded its sibling`;
@@ -143,17 +166,20 @@
         scope={implementationScope}
         kind="loop"
         selectionPath
-        elapsed="43m 02s"
+        elapsed={elapsedFor(implementationScope)}
+        steps={stepsFor(selectedTask)}
+        folded={implementationFolded}
         onselect={(scope) => (selectedMessage = `Selected ${scope.key}`)}
+        onopen={openImplementation}
+        onfold={() => (implementationFolded = true)}
       >
         <Sheet
-          scope={selectedTask}
+          scope={taskScopes[0]}
           instances={taskScopes}
-          selectedInstance={selectedTask.key}
           depth={1}
           selected
           contextTotal={8}
-          elapsed={selectedTask.status === "running" ? "1m 48s" : "6m 03s"}
+          elapsed={elapsedFor(selectedTask)}
           steps={stepsFor(selectedTask)}
           folded={pathFolded}
           onselect={(scope) => (selectedMessage = `Selected ${scope.key}`)}
@@ -193,7 +219,7 @@
       selectedInstance={foldedTask.key}
       selected
       contextTotal={8}
-      elapsed={foldedTask.key.endsWith(".2") ? "6m 03s" : "1m 48s"}
+      elapsed={elapsedFor(foldedTask)}
       steps={stepsFor(foldedTask)}
       folded={foldedDemo}
       oninstancechange={(scope) => (foldedTaskKey = scope.key)}
@@ -223,7 +249,7 @@
           scope={backendScope}
           kind="scope"
           folded={openSibling !== backendScope.key}
-          elapsed="4m 06s"
+          elapsed={elapsedFor(backendScope)}
           steps={[{ operation: backendOperation, state: "ended" }]}
           onopen={open}
           onfold={() => open(frontendScope)}
@@ -234,7 +260,7 @@
           scope={frontendScope}
           kind="scope"
           folded={openSibling !== frontendScope.key}
-          elapsed="4m 12s"
+          elapsed={elapsedFor(frontendScope)}
           steps={[{ operation: frontendOperation, state: "ended" }]}
           onopen={open}
           onfold={() => open(backendScope)}

@@ -6,6 +6,24 @@
   export type SheetKind = "scope" | "group" | "loop";
   export type FoldedStep = { operation: NodeOperation; state: PipState };
   export type SheetSelection = (scope: ScopeRow) => void;
+
+  export function countWrittenContextKeys(scope: ScopeRow) {
+    const keys = new Set(Object.keys(scope.values));
+    if (scope.task !== undefined) keys.add("task");
+    return keys.size;
+  }
+
+  export function resolveScopeInstance(
+    scope: ScopeRow,
+    instances: ScopeRow[],
+    selectedInstance?: string,
+  ) {
+    const latest = instances.reduce(
+      (current, instance) => (instance.began > current.began ? instance : current),
+      instances.at(-1) ?? scope,
+    );
+    return instances.find((item) => item.key === selectedInstance) ?? latest;
+  }
 </script>
 
 <script lang="ts">
@@ -25,7 +43,7 @@
   let {
     scope,
     instances = [scope],
-    selectedInstance = scope.key,
+    selectedInstance,
     kind = "scope",
     depth = 0,
     selected = false,
@@ -60,14 +78,16 @@
     children?: Snippet;
   } = $props();
 
-  const activeScope = $derived(instances.find((item) => item.key === selectedInstance) ?? scope);
+  let localSelectedInstance = $state<string | undefined>(undefined);
+
+  const activeScope = $derived(
+    resolveScopeInstance(scope, instances, selectedInstance ?? localSelectedInstance),
+  );
   const instanceIndex = $derived(instances.findIndex((item) => item.key === activeScope.key));
   const repeated = $derived(instances.length > 1);
   const isFolded = $derived(root ? false : folded);
-  const state = $derived(scopeState(activeScope));
-  const contextWritten = $derived(
-    Object.keys(activeScope.values).length + (activeScope.task === undefined ? 0 : 1),
-  );
+  const scopePipState = $derived(scopeState(activeScope));
+  const contextWritten = $derived(countWrittenContextKeys(activeScope));
 
   function scopeState(row: ScopeRow): PipState {
     if (row.error) return "failed";
@@ -80,7 +100,10 @@
 
   function selectInstance(key: string) {
     const next = instances.find((item) => item.key === key);
-    if (next) oninstancechange?.(next);
+    if (next) {
+      localSelectedInstance = key;
+      oninstancechange?.(next);
+    }
   }
 
   function selectSheet() {
@@ -106,7 +129,7 @@
             class="sheet-trigger"
             aria-label={`Select ${activeScope.name} instance`}
           >
-            <Pip {state} />
+            <Pip state={scopePipState} />
             <span>{instanceLabel(instanceIndex)}</span>
           </Select.Trigger>
           <Select.Content>
@@ -175,7 +198,9 @@
           </span>
         {/each}
       </span>
-      <span class="summary-status"><Pip {state} />{state.replace("-", " ")}</span>
+      <span class="summary-status">
+        <Pip state={scopePipState} />{scopePipState.replace("-", " ")}
+      </span>
       {#if elapsed}<span class="elapsed">{elapsed}</span>{/if}
     </button>
   {:else}

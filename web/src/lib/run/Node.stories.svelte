@@ -47,7 +47,10 @@
           {#each states as state}
             <div>
               <span>{state}</span>
-              <Node operation={item.operation} {state} meta={item.meta} />
+              <div class="selection-pair">
+                <Node operation={item.operation} {state} meta={item.meta} />
+                <Node operation={item.operation} {state} meta={item.meta} selected />
+              </div>
             </div>
           {/each}
         </div>
@@ -65,7 +68,10 @@
           {#each states as state}
             <div>
               <span>{state}</span>
-              <Node operation={item.operation} {state} meta={item.meta} small />
+              <div class="selection-pair">
+                <Node operation={item.operation} {state} meta={item.meta} small />
+                <Node operation={item.operation} {state} meta={item.meta} small selected />
+              </div>
             </div>
           {/each}
         </div>
@@ -147,6 +153,12 @@
     color: var(--status-muted);
     font-size: 13px;
     line-height: 18px;
+  }
+
+  .selection-pair {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
   }
 
   .selection-story {

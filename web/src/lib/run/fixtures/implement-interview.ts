@@ -293,7 +293,7 @@ const scopes = {
     status: "ended",
     error: "",
     began: started + 12_000,
-    ended: started + 306_000,
+    ended: started + 258_000,
     values: {},
     decisions: [],
   },
@@ -305,7 +305,7 @@ const scopes = {
     status: "ended",
     error: "",
     began: started + 12_000,
-    ended: started + 312_000,
+    ended: started + 264_000,
     values: {},
     decisions: [],
   },
@@ -339,6 +339,12 @@ const scopes = {
     began: started + 410_000,
     ended: started + 1_120_000,
     values: {
+      task: {
+        value: {
+          name: "Observation timestamp",
+          description: "Add answered timestamps to the observation rows.",
+        },
+      },
       "task check": { value: "exit 0" },
       "just build": { value: "exit 0" },
       "just vet": { value: "exit 0" },
@@ -360,9 +366,15 @@ const scopes = {
       name: "Answer endpoint timestamp",
       description: "Return the answered timestamp through the answer endpoint.",
     },
-    began: started + 1_130_000,
+    began: started + 2_267_000,
     ended: started + 2_630_000,
     values: {
+      task: {
+        value: {
+          name: "Answer endpoint timestamp",
+          description: "Return the answered timestamp through the answer endpoint.",
+        },
+      },
       "task check": { value: "exit 1\nanswered timestamp was still zero" },
       "just build": { value: "exit 0" },
       "just vet": { value: "exit 0" },
@@ -385,9 +397,17 @@ const scopes = {
       description:
         "Wire the answered timestamp through the web answer flow so the interview row updates without a reload. Stay inside the observation rows.",
     },
-    began: started + 2_640_000,
+    began: started + 2_794_000,
     ended: 0,
-    values: {},
+    values: {
+      task: {
+        value: {
+          name: "Live answered timestamp",
+          description:
+            "Wire the answered timestamp through the web answer flow so the interview row updates without a reload. Stay inside the observation rows.",
+        },
+      },
+    },
     decisions: [],
   },
 } satisfies Record<string, ScopeRow>;
@@ -500,9 +520,9 @@ const turns = {
     result: "Returned the timestamp through the existing remote boundary.",
     error: "",
     interrupted: false,
-    started: started + 1_130_000,
+    started: started + 2_267_000,
     ended: started + 2_520_000,
-    duration: 1_390_000,
+    duration: 253_000,
   },
   "coding.1/turn.3": {
     run: runID,
@@ -515,7 +535,7 @@ const turns = {
     result: "",
     error: "",
     interrupted: false,
-    started: started + 2_784_000,
+    started: started + 2_794_000,
     ended: 0,
     duration: 108_000,
   },
@@ -529,8 +549,8 @@ const turns = {
     result: "No backend or public-API scope expansion observed.",
     error: "",
     interrupted: false,
-    started: started + 2_790_000,
-    ended: started + 2_850_000,
+    started: started + 2_800_000,
+    ended: started + 2_860_000,
     duration: 60_000,
   },
   "architectural-critique.1/turn.3": {
@@ -543,7 +563,7 @@ const turns = {
     result: "",
     error: "",
     interrupted: false,
-    started: started + 2_805_000,
+    started: started + 2_815_000,
     ended: 0,
     duration: 87_000,
   },
@@ -598,7 +618,7 @@ const modelCalls = {
       cache_write: 0,
       output: 1_100,
       reasoning: 0,
-      started: started + 2_784_000,
+      started: started + 2_794_000,
       ended: 0,
     },
   ],

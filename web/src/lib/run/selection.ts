@@ -1,7 +1,14 @@
-import type { CommandRow, RunSnapshot, ScopeRow, TurnRow } from "../observation/index.js";
+import type {
+  CommandRow,
+  InterviewRow,
+  RunSnapshot,
+  ScopeRow,
+  TurnRow,
+} from "../observation/index.js";
 import type { Graph } from "../workflow/types.js";
 import type { Supervisor } from "../workflow/types.js";
 import type { MapSelection } from "./Map.svelte";
+import { buildMapLayout } from "./layout.js";
 
 export type HistorySelection =
   | { kind: "history-scope"; scope: ScopeRow }
@@ -9,6 +16,13 @@ export type HistorySelection =
   | { kind: "history-command"; scope: ScopeRow; command: CommandRow };
 
 export type RunSelection = MapSelection | HistorySelection;
+
+export type RunNavigationItem = {
+  id: string;
+  label: string;
+  context: string;
+  selection: RunSelection;
+};
 
 type Operation = Graph["body"][number];
 
@@ -26,6 +40,76 @@ const withoutOrdinals = (key: string) =>
     .filter(Boolean)
     .map((part) => part.replace(/\.\d+$/, ""))
     .join("/");
+
+function selectedInstancesFor(scopeKey: string) {
+  const selected: Record<string, string> = {};
+  let parent = "";
+  for (const part of scopeKey.split("/")) {
+    if (!part) continue;
+    const key = parent ? `${parent}/${part}` : part;
+    selected[`${parent}/${part.replace(/\.\d+$/, "")}`] = key;
+    parent = key;
+  }
+  return selected;
+}
+
+function mapResolver(graph: Graph, snapshot: RunSnapshot) {
+  const layouts = new Map<string, ReturnType<typeof buildMapLayout>>();
+  const layoutFor = (scope: string) => {
+    let layout = layouts.get(scope);
+    if (!layout) {
+      layout = buildMapLayout(graph, snapshot, { selectedInstances: selectedInstancesFor(scope) });
+      layouts.set(scope, layout);
+    }
+    return layout;
+  };
+
+  return {
+    turn(turn: TurnRow): MapSelection | undefined {
+      const scope = snapshot.scopes[turn.scope];
+      const session = snapshot.sessions[turn.session];
+      if (!scope || !session) return undefined;
+      const layout = layoutFor(turn.scope);
+      const watcher = layout.watchers.find(
+        (item) => item.watchedScope === turn.scope && item.supervisor.session === session.name,
+      );
+      if (watcher) {
+        return { kind: "watcher", scope, supervisor: watcher.supervisor, turn };
+      }
+      const node = layout.nodes.find(
+        (item) =>
+          item.scopeKey === turn.scope &&
+          ((item.operation.kind === "agent_call" && item.operation.session === session.name) ||
+            (item.operation.kind === "interview" && item.operation.session === session.name)),
+      );
+      return node ? { kind: "node", scope, operation: node.operation, runtime: turn } : undefined;
+    },
+    interview(interview: InterviewRow): MapSelection | undefined {
+      const scope = snapshot.scopes[interview.scope];
+      const node = layoutFor(interview.scope).nodes.find(
+        (item) =>
+          item.scopeKey === interview.scope &&
+          item.operation.kind === "interview" &&
+          item.operation.name === interview.name,
+      );
+      return scope && node
+        ? { kind: "node", scope, operation: node.operation, runtime: interview }
+        : undefined;
+    },
+    command(command: CommandRow): MapSelection | undefined {
+      const scope = snapshot.scopes[command.scope];
+      const node = layoutFor(command.scope).nodes.find(
+        (item) =>
+          item.scopeKey === command.scope &&
+          item.operation.kind === "command" &&
+          item.operation.name === command.name,
+      );
+      return scope && node
+        ? { kind: "node", scope, operation: node.operation, runtime: command }
+        : undefined;
+    },
+  };
+}
 
 function addOperations(shape: Shape, operations: Operation[], scope: string) {
   for (const operation of operations) {
@@ -149,4 +233,154 @@ export function selectedRuntimeKey(selection: RunSelection | undefined) {
   if (!runtime) return `${selection.scope.key}:${selection.operation.kind}`;
   if ("question_id" in runtime) return runtime.question_id;
   return runtime.id;
+}
+
+export function mapSelectionForTurn(
+  graph: Graph,
+  snapshot: RunSnapshot,
+  turn: TurnRow,
+): MapSelection | undefined {
+  return mapResolver(graph, snapshot).turn(turn);
+}
+
+export function mapSelectionForInterview(
+  graph: Graph,
+  snapshot: RunSnapshot,
+  interview: InterviewRow,
+): MapSelection | undefined {
+  return mapResolver(graph, snapshot).interview(interview);
+}
+
+function mapSelectionForCommand(
+  graph: Graph,
+  snapshot: RunSnapshot,
+  command: CommandRow,
+): MapSelection | undefined {
+  return mapResolver(graph, snapshot).command(command);
+}
+
+export function currentActivitySelection(
+  graph: Graph | undefined,
+  snapshot: RunSnapshot,
+  matchesGraph: boolean,
+): RunSelection | undefined {
+  const interview = Object.values(snapshot.interviews)
+    .filter((row) => row.status === "pending")
+    .sort((left, right) => right.asked - left.asked)[0];
+  if (interview) {
+    if (graph && matchesGraph) {
+      const selection = mapSelectionForInterview(graph, snapshot, interview);
+      if (selection) return selection;
+    }
+    const scope = snapshot.scopes[interview.scope];
+    return scope ? { kind: "history-scope", scope } : undefined;
+  }
+
+  const turn = Object.values(snapshot.turns)
+    .filter((row) => row.ended === 0)
+    .sort((left, right) => right.started - left.started)[0];
+  if (!turn) return undefined;
+  if (graph && matchesGraph) {
+    const selection = mapSelectionForTurn(graph, snapshot, turn);
+    if (selection) return selection;
+  }
+  const scope = snapshot.scopes[turn.scope];
+  return scope ? { kind: "history-turn", scope, turn } : undefined;
+}
+
+export function runNavigationItems(
+  graph: Graph | undefined,
+  snapshot: RunSnapshot,
+  matchesGraph: boolean,
+): RunNavigationItem[] {
+  const items: RunNavigationItem[] = [];
+  const mapAvailable = Boolean(graph && matchesGraph);
+  const resolver = graph && matchesGraph ? mapResolver(graph, snapshot) : undefined;
+
+  for (const scope of Object.values(snapshot.scopes).sort(
+    (left, right) => left.began - right.began || left.key.localeCompare(right.key),
+  )) {
+    if (!scope.key) continue;
+    items.push({
+      id: `scope:${scope.key}`,
+      label: scope.key,
+      context: scope.loop ? "loop scope" : "scope",
+      selection: mapAvailable ? { kind: "sheet", scope } : { kind: "history-scope", scope },
+    });
+  }
+
+  for (const turn of Object.values(snapshot.turns).sort(
+    (left, right) => left.started - right.started || left.id.localeCompare(right.id),
+  )) {
+    const scope = snapshot.scopes[turn.scope];
+    const session = snapshot.sessions[turn.session];
+    if (!scope) continue;
+    const mapSelection = resolver?.turn(turn);
+    const ordinal = /turn\.(\d+)$/.exec(turn.id)?.[1];
+    items.push({
+      id: `turn:${turn.id}`,
+      label: `${session?.name ?? turn.session}${ordinal ? ` · turn ${ordinal}` : ""}`,
+      context: turn.scope || snapshot.run.name,
+      selection: mapSelection ?? { kind: "history-turn", scope, turn },
+    });
+  }
+
+  for (const command of Object.values(snapshot.commands).sort(
+    (left, right) => left.started - right.started || left.id.localeCompare(right.id),
+  )) {
+    const scope = snapshot.scopes[command.scope];
+    if (!scope) continue;
+    const mapSelection = resolver?.command(command);
+    items.push({
+      id: `command:${command.id}`,
+      label: command.name,
+      context: command.scope || snapshot.run.name,
+      selection: mapSelection ?? { kind: "history-command", scope, command },
+    });
+  }
+
+  return items;
+}
+
+export function rebindSelection(
+  selection: RunSelection | undefined,
+  snapshot: RunSnapshot,
+): RunSelection | undefined {
+  if (!selection || selection.scope.run !== snapshot.run.id) return undefined;
+  const scope = snapshot.scopes[selection.scope.key];
+  if (!scope) return undefined;
+
+  if (selection.kind === "history-scope") return { ...selection, scope };
+  if (selection.kind === "sheet" || selection.kind === "instance") {
+    return { ...selection, scope };
+  }
+  if (selection.kind === "history-turn") {
+    const turn = snapshot.turns[selection.turn.id];
+    return turn ? { ...selection, scope, turn } : undefined;
+  }
+  if (selection.kind === "history-command") {
+    const command = snapshot.commands[selection.command.id];
+    return command ? { ...selection, scope, command } : undefined;
+  }
+  if (selection.kind === "watcher") {
+    if (!selection.turn) return { ...selection, scope };
+    const turn = snapshot.turns[selection.turn.id];
+    return turn ? { ...selection, scope, turn } : undefined;
+  }
+
+  if (!selection.runtime) return { ...selection, scope };
+  let runtime: TurnRow | CommandRow | InterviewRow | undefined;
+  if ("question_id" in selection.runtime) {
+    runtime = snapshot.interviews[selection.runtime.question_id];
+  } else if ("command" in selection.runtime) {
+    runtime = snapshot.commands[selection.runtime.id];
+  } else {
+    runtime = snapshot.turns[selection.runtime.id];
+  }
+  return runtime ? { ...selection, scope, runtime } : undefined;
+}
+
+export function asMapSelection(selection: RunSelection | undefined): MapSelection | undefined {
+  if (!selection || selection.kind.startsWith("history-")) return undefined;
+  return selection as MapSelection;
 }

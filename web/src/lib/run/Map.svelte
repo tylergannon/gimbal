@@ -37,16 +37,25 @@
   import Node from "./Node.svelte";
   import Sheet from "./Sheet.svelte";
   import Watcher from "./Watcher.svelte";
-  import { buildMapLayout } from "./layout.js";
+  import {
+    buildMapLayout,
+    nodeSelectionKey,
+    sheetSelectionKey,
+    watcherSelectionKey,
+  } from "./layout.js";
 
   let {
     graph,
     snapshot,
+    selected,
+    reveal,
     onselect,
     oninstancechange,
   }: {
     graph: Graph;
     snapshot: RunSnapshot;
+    selected?: MapSelection;
+    reveal?: { request: number; selection: MapSelection };
     onselect?: (selection: MapSelection) => void;
     oninstancechange?: (scope: ScopeRow) => void;
   } = $props();
@@ -59,6 +68,7 @@
   let viewport: HTMLDivElement | undefined;
   let dragging = $state(false);
   let dragOrigin: { x: number; y: number; left: number; top: number } | undefined;
+  let lastRevealRequest = 0;
   const running = $derived(snapshot.run.status === "running");
 
   $effect(() => {
@@ -70,6 +80,58 @@
   const layout = $derived(
     buildMapLayout(graph, snapshot, { selectedInstances, foldedScopes, selectedKey, now }),
   );
+
+  function selectionKey(selection: MapSelection) {
+    if (selection.kind === "sheet" || selection.kind === "instance") {
+      return sheetSelectionKey(selection.scope.key);
+    }
+    if (selection.kind === "watcher") {
+      return watcherSelectionKey(selection.scope.key, selection.supervisor);
+    }
+    return nodeSelectionKey(selection.scope.key, selection.operation);
+  }
+
+  function revealScope(scopeKey: string) {
+    const nextInstances = { ...selectedInstances };
+    const path: string[] = [];
+    let parent = "";
+    for (const part of scopeKey.split("/")) {
+      if (!part) continue;
+      const key = parent ? `${parent}/${part}` : part;
+      const name = part.replace(/\.\d+$/, "");
+      nextInstances[`${parent}/${name}`] = key;
+      path.push(key);
+      parent = key;
+    }
+    selectedInstances = nextInstances;
+    foldedScopes = foldedScopes.filter((key) => !path.includes(key));
+  }
+
+  async function revealSelection(selection: MapSelection, key: string) {
+    selectedKey = key;
+    revealScope(selection.scope.key);
+    await tick();
+    const element = Array.from(
+      viewport?.querySelectorAll<HTMLElement>("[data-selection-key]") ?? [],
+    ).find((candidate) => candidate.dataset.selectionKey === key);
+    element?.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
+  }
+
+  $effect(() => {
+    const next = selected;
+    if (!next) {
+      selectedKey = undefined;
+      return;
+    }
+    selectedKey = selectionKey(next);
+  });
+
+  $effect(() => {
+    const next = reveal;
+    if (!next || next.request === lastRevealRequest) return;
+    lastRevealRequest = next.request;
+    void revealSelection(next.selection, selectionKey(next.selection));
+  });
 
   function selectSheet(sheet: (typeof layout.sheets)[number]) {
     selectedKey = sheet.selectionKey;
@@ -230,6 +292,7 @@
     {#each layout.sheets as sheet}
       <div
         class="placed sheet"
+        data-selection-key={sheet.selectionKey}
         style:left={`${sheet.x}px`}
         style:top={`${sheet.y}px`}
         style:width={`${sheet.width}px`}
@@ -273,6 +336,7 @@
     {#each layout.nodes as node}
       <div
         class="placed"
+        data-selection-key={node.selectionKey}
         style:left={`${node.x}px`}
         style:top={`${node.y}px`}
         style:width={`${node.width}px`}
@@ -295,6 +359,7 @@
     {#each layout.watchers as watcher}
       <div
         class="placed"
+        data-selection-key={watcher.selectionKey}
         style:left={`${watcher.x}px`}
         style:top={`${watcher.y}px`}
         style:width={`${watcher.width}px`}

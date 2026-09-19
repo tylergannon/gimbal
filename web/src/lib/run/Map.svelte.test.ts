@@ -3,6 +3,7 @@ import { userEvent } from "vitest/browser";
 import { render } from "vitest-browser-svelte";
 import Map, { type MapSelection } from "./Map.svelte";
 import { implementInterviewFixture, planTripFixture } from "./fixtures/index.js";
+import { currentActivitySelection } from "./selection.js";
 
 test("pointer and keyboard instance selection replace the rendered runtime facts", async () => {
   const selections: MapSelection[] = [];
@@ -212,4 +213,40 @@ test("opening a sheet folds its sibling while the root remains permanent", async
   expect(
     document.querySelector(`button[aria-label="Fold ${planTripFixture.graph.name}"]`),
   ).toBeNull();
+});
+
+test("a controlled fold selection stays folded until an explicit navigation reveal", async () => {
+  let selected: MapSelection | undefined;
+  const screen = await render(Map, {
+    ...planTripFixture,
+    onselect: (next) => (selected = next),
+  });
+
+  await screen.getByRole("button", { name: "Fold research" }).click();
+  expect(selected?.kind).toBe("sheet");
+  await screen.rerender({
+    ...planTripFixture,
+    selected,
+    onselect: (next) => (selected = next),
+  });
+  await expect.element(screen.getByRole("button", { name: "Open research" })).toBeVisible();
+
+  const activity = currentActivitySelection(planTripFixture.graph, planTripFixture.snapshot, true);
+  expect(activity?.kind).toBe("node");
+  if (activity?.kind !== "node") return;
+  await screen.rerender({
+    ...planTripFixture,
+    selected: activity,
+    reveal: { request: 1, selection: activity },
+    onselect: (next) => (selected = next),
+  });
+
+  await expect.element(screen.getByRole("button", { name: "Fold research" })).toBeVisible();
+  const selectedInterview = document.querySelector(
+    'button[aria-label="Select preferences"][aria-pressed="true"]',
+  );
+  expect(selectedInterview).not.toBeNull();
+  expect(
+    selectedInterview?.closest("[data-selection-key]")?.getAttribute("data-selection-key"),
+  ).toContain("research.1/transport.1");
 });

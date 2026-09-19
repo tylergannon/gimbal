@@ -1,0 +1,2 @@
+decision: Use Pulumi's explicit parent tree as the closest static ownership precedent; use Terraform for stable nested/repeated addresses and Kubernetes as a caution that owner references can carry lifecycle semantics.
+decision: Keep the research scoped to issue #284's static graph question; do not import runtime lifecycle, garbage collection, provisioning order, or dependency-graph behavior from the precedents.

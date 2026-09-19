@@ -50,9 +50,12 @@ func Command(defaults map[gimble.WorkflowRole]string) *cobra.Command {
 	cmd.Flags().StringVar(&params.Goal, "goal", "", "Goal says what the review should assess. (required)")
 	_ = cmd.MarkFlagRequired("goal")
 	cmd.Flags().StringVar(&workDir, "work-dir", ".", "the working directory for this run")
-	cmd.Flags().StringVar(&codeReviewModel, "code-review", defaults[gimble.WorkflowRole("code-review")], "the model for role code-review, as model or model:effort")
-	if defaults[gimble.WorkflowRole("code-review")] == "" {
+	codeReviewModelDefault := defaults[gimble.WorkflowRole("code-review")]
+	if codeReviewModelDefault == "" {
+		cmd.Flags().StringVar(&codeReviewModel, "code-review", "", "the model for role code-review, as model or model:effort")
 		_ = cmd.MarkFlagRequired("code-review")
+	} else {
+		cmd.Flags().StringVar(&codeReviewModel, "code-review", codeReviewModelDefault, "advanced override for role code-review, as model or model:effort; omit this flag to use the displayed workflow default")
 	}
 	cmd.Flags().IntVar(&port, "port", 8080, "loopback TCP port for the web application")
 	cmd.Flags().StringVar(&uds, "uds", "", "Unix-domain socket for the web application instead of TCP")

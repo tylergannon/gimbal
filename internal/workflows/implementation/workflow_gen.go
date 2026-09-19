@@ -102,21 +102,33 @@ func Command(defaults map[gimble.WorkflowRole]string) *cobra.Command {
 	_ = cmd.MarkFlagRequired("validation-command")
 	_ = cmd.MarkFlagRequired("max-tasks")
 	cmd.Flags().StringVar(&workDir, "work-dir", ".", "the working directory for this run")
-	cmd.Flags().StringVar(&sprintPlanningModel, "sprint-planning", defaults[gimble.WorkflowRole("sprint-planning")], "the model for role sprint-planning, as model or model:effort")
-	if defaults[gimble.WorkflowRole("sprint-planning")] == "" {
+	sprintPlanningModelDefault := defaults[gimble.WorkflowRole("sprint-planning")]
+	if sprintPlanningModelDefault == "" {
+		cmd.Flags().StringVar(&sprintPlanningModel, "sprint-planning", "", "the model for role sprint-planning, as model or model:effort")
 		_ = cmd.MarkFlagRequired("sprint-planning")
+	} else {
+		cmd.Flags().StringVar(&sprintPlanningModel, "sprint-planning", sprintPlanningModelDefault, "advanced override for role sprint-planning, as model or model:effort; omit this flag to use the displayed workflow default")
 	}
-	cmd.Flags().StringVar(&architecturalCritiqueModel, "architectural-critique", defaults[gimble.WorkflowRole("architectural-critique")], "the model for role architectural-critique, as model or model:effort")
-	if defaults[gimble.WorkflowRole("architectural-critique")] == "" {
+	architecturalCritiqueModelDefault := defaults[gimble.WorkflowRole("architectural-critique")]
+	if architecturalCritiqueModelDefault == "" {
+		cmd.Flags().StringVar(&architecturalCritiqueModel, "architectural-critique", "", "the model for role architectural-critique, as model or model:effort")
 		_ = cmd.MarkFlagRequired("architectural-critique")
+	} else {
+		cmd.Flags().StringVar(&architecturalCritiqueModel, "architectural-critique", architecturalCritiqueModelDefault, "advanced override for role architectural-critique, as model or model:effort; omit this flag to use the displayed workflow default")
 	}
-	cmd.Flags().StringVar(&codingModel, "coding", defaults[gimble.WorkflowRole("coding")], "the model for role coding, as model or model:effort")
-	if defaults[gimble.WorkflowRole("coding")] == "" {
+	codingModelDefault := defaults[gimble.WorkflowRole("coding")]
+	if codingModelDefault == "" {
+		cmd.Flags().StringVar(&codingModel, "coding", "", "the model for role coding, as model or model:effort")
 		_ = cmd.MarkFlagRequired("coding")
+	} else {
+		cmd.Flags().StringVar(&codingModel, "coding", codingModelDefault, "advanced override for role coding, as model or model:effort; omit this flag to use the displayed workflow default")
 	}
-	cmd.Flags().StringVar(&qaOrchestrationModel, "qa-orchestration", defaults[gimble.WorkflowRole("qa-orchestration")], "the model for role qa-orchestration, as model or model:effort")
-	if defaults[gimble.WorkflowRole("qa-orchestration")] == "" {
+	qaOrchestrationModelDefault := defaults[gimble.WorkflowRole("qa-orchestration")]
+	if qaOrchestrationModelDefault == "" {
+		cmd.Flags().StringVar(&qaOrchestrationModel, "qa-orchestration", "", "the model for role qa-orchestration, as model or model:effort")
 		_ = cmd.MarkFlagRequired("qa-orchestration")
+	} else {
+		cmd.Flags().StringVar(&qaOrchestrationModel, "qa-orchestration", qaOrchestrationModelDefault, "advanced override for role qa-orchestration, as model or model:effort; omit this flag to use the displayed workflow default")
 	}
 	cmd.Flags().IntVar(&port, "port", 8080, "loopback TCP port for the web application")
 	cmd.Flags().StringVar(&uds, "uds", "", "Unix-domain socket for the web application instead of TCP")

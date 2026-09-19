@@ -31,7 +31,7 @@ func source(pkg, entry string, info entryInfo, graph workflow.Graph) string {
 		data.Fields = append(data.Fields, cf)
 	}
 	for _, role := range graph.Roles() {
-		data.Roles = append(data.Roles, commandRole{Name: role, Ident: identifier(role) + "Model", Usage: "the model for role " + role + ", as model or model:effort"})
+		data.Roles = append(data.Roles, commandRole{Name: role, Ident: identifier(role) + "Model"})
 	}
 	var b strings.Builder
 	if err := commandTemplate.Execute(&b, data); err != nil {
@@ -91,7 +91,7 @@ type parameterField struct {
 	Optional, Required                            bool
 }
 
-type commandRole struct{ Name, Ident, Usage string }
+type commandRole struct{ Name, Ident string }
 
 var commandTemplate = template.Must(template.New("command").Parse(`//go:build !jsonschema
 
@@ -149,9 +149,12 @@ func Command(defaults map[gimble.WorkflowRole]string) *cobra.Command {
 {{- end}}{{end}}
 	cmd.Flags().StringVar(&workDir, "work-dir", ".", "the working directory for this run")
 {{- range .Roles}}
-	cmd.Flags().StringVar(&{{.Ident}}, {{printf "%q" .Name}}, defaults[gimble.WorkflowRole({{printf "%q" .Name}})], {{printf "%q" .Usage}})
-	if defaults[gimble.WorkflowRole({{printf "%q" .Name}})] == "" {
+	{{.Ident}}Default := defaults[gimble.WorkflowRole({{printf "%q" .Name}})]
+	if {{.Ident}}Default == "" {
+		cmd.Flags().StringVar(&{{.Ident}}, {{printf "%q" .Name}}, "", {{printf "%q" (printf "the model for role %s, as model or model:effort" .Name)}})
 		_ = cmd.MarkFlagRequired({{printf "%q" .Name}})
+	} else {
+		cmd.Flags().StringVar(&{{.Ident}}, {{printf "%q" .Name}}, {{.Ident}}Default, {{printf "%q" (printf "advanced override for role %s, as model or model:effort; omit this flag to use the displayed workflow default" .Name)}})
 	}
 {{- end}}
 	cmd.Flags().IntVar(&port, "port", 8080, "loopback TCP port for the web application")

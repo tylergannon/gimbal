@@ -59,11 +59,19 @@ func TestResearchDocumentHelpShowsLimitsAndModelDefaults(t *testing.T) {
 			t.Errorf("run research-document --help lacks %s:\n%s", flag, help)
 		}
 	}
-	if !strings.Contains(lineWith(help, "--document-authoring"), `(default "gpt-6-astra")`) {
-		t.Errorf("document authoring does not default to Astra:\n%s", help)
+	roleDefaults := map[string]string{
+		"document-authoring":   "gpt-6-astra",
+		"document-supervision": "gpt-5.6-luna",
+		"editorial-review":     "gpt-6-astra",
+		"index-curation":       "gpt-5.6-luna",
+		"research-indexing":    "gpt-5.6-luna",
+		"research-planning":    "gpt-5.6-luna",
 	}
-	if !strings.Contains(lineWith(help, "--research-indexing"), `(default "gpt-5.6-luna")`) {
-		t.Errorf("research indexing does not default to Luna:\n%s", help)
+	for role, model := range roleDefaults {
+		line := lineWith(help, "--"+role)
+		if !strings.Contains(line, `advanced override`) || !strings.Contains(line, `omit this flag`) || !strings.Contains(line, `(default "`+model+`")`) {
+			t.Errorf("%s does not clearly preserve its %s workflow default:\n%s", role, model, line)
+		}
 	}
 }
 
@@ -83,7 +91,7 @@ func TestRunHelpShowsTheInputsAndTheRoles(t *testing.T) {
 		t.Errorf("run review --help does not mark --goal required:\n%s", help)
 	}
 	codeReview := lineWith(help, "--code-review")
-	if !strings.Contains(codeReview, "the model for role code-review") || !strings.Contains(codeReview, `(default "gpt-5.6-luna")`) || strings.Contains(codeReview, "(required)") {
+	if !strings.Contains(codeReview, "advanced override for role code-review") || !strings.Contains(codeReview, "omit this flag") || !strings.Contains(codeReview, `(default "gpt-5.6-luna")`) || strings.Contains(codeReview, "(required)") {
 		t.Errorf("run review --help does not give code review its default model:\n%s", help)
 	}
 }
@@ -98,13 +106,20 @@ func TestRunRefusesAMissingInput(t *testing.T) {
 
 func TestReviewCommandRoleDefaultAndOverride(t *testing.T) {
 	withDefault := review.Command(map[gimble.WorkflowRole]string{gimble.RoleCodeReview: "gpt-5.6-luna"})
-	if got := withDefault.Flags().Lookup("code-review").DefValue; got != "gpt-5.6-luna" {
+	defaultFlag := withDefault.Flags().Lookup("code-review")
+	if got := defaultFlag.DefValue; got != "gpt-5.6-luna" {
 		t.Fatalf("code-review default = %q", got)
+	}
+	if !strings.Contains(defaultFlag.Usage, "omit this flag") {
+		t.Fatalf("code-review usage does not explain how to preserve its default: %q", defaultFlag.Usage)
 	}
 	withoutDefault := review.Command(map[gimble.WorkflowRole]string{})
 	flag := withoutDefault.Flags().Lookup("code-review")
 	if len(flag.Annotations[cobra.BashCompOneRequiredFlag]) == 0 {
 		t.Fatal("code-review without a default is not marked required")
+	}
+	if strings.Contains(flag.Usage, "omit this flag") {
+		t.Fatalf("required code-review flag claims it can be omitted: %q", flag.Usage)
 	}
 	if err := withoutDefault.Flags().Set("code-review", "gpt-5.6-luna:high"); err != nil {
 		t.Fatal(err)

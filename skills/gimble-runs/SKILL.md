@@ -38,12 +38,18 @@ workflow's source or the user rather than guessing at its authority.
 ## Start a run
 
 ```sh
-gimble run review --work-dir /abs/project --code-review gpt-5.6-luna --no-web --goal "Review the parser changes for correctness; report concrete findings with evidence."
+gimble run review --work-dir /abs/project --no-web --goal "Review the parser changes for correctness; report concrete findings with evidence."
 ```
 
-Use an absolute project path. Supply role models through the flags shown by
-help, as a model or `model:effort`. Choose a model suitable for the work; use
-cheap models for demonstrations. Record the model used in the result report.
+Use an absolute project path. Do not pass role-model flags by default: the
+workflow's displayed defaults are its intended role configuration, and a
+supplied flag replaces one. Generic cost guidance is not authority to replace
+those defaults. Override a role only when the user explicitly requests a
+particular model or effort, or when its default cannot run and the user approves
+the replacement. Never downgrade synthesis, document authoring, editorial
+judgment, or another deliberately strong role on your own initiative. Before
+an authorized override, read every role line in `--help` and state the resulting
+mapping. Record the models actually used in the result report.
 
 The workflow command remains running until its work finishes. Keep that process
 alive while watching or steering from another shell. `--no-web` disables the

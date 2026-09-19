@@ -264,8 +264,9 @@ func TestSourceWritesTheWorkflowsPackage(t *testing.T) {
 		"func Command(defaults map[gimble.WorkflowRole]string) *cobra.Command {",
 		`Use:   "fixture",`,
 		`cmd.Flags().StringVar(&workDir, "work-dir", ".", "the working directory for this run")`,
-		`cmd.Flags().StringVar(&leadModel, "lead", defaults[gimble.WorkflowRole("lead")], "the model for role lead, as model or model:effort")`,
-		`if defaults[gimble.WorkflowRole("lead")] == "" {`,
+		`leadModelDefault := defaults[gimble.WorkflowRole("lead")]`,
+		`if leadModelDefault == "" {`,
+		`advanced override for role lead`,
 		`env := gimble.Env{WorkDir: workDir}`,
 		`return Fixture(ctx, env) })`,
 	} {
@@ -309,7 +310,7 @@ func TestGeneratedCommandUsesCentralizedRoleDefaults(t *testing.T) {
 	if strings.Contains(text, "roles[") {
 		t.Fatalf("generated command still reads workflow roles")
 	}
-	for _, want := range []string{`defaults[gimble.WorkflowRole("lead")]`, `if defaults[gimble.WorkflowRole("lead")] == ""`, `gimble.WorkflowRole("lead"): leadModel`} {
+	for _, want := range []string{`leadModelDefault := defaults[gimble.WorkflowRole("lead")]`, `if leadModelDefault == ""`, `advanced override for role lead`, `omit this flag to use the displayed workflow default`, `gimble.WorkflowRole("lead"): leadModel`} {
 		if !strings.Contains(text, want) {
 			t.Errorf("generated command lacks %q", want)
 		}

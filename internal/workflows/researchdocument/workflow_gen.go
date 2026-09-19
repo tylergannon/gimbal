@@ -195,29 +195,47 @@ func Command(defaults map[gimble.WorkflowRole]string) *cobra.Command {
 	_ = cmd.MarkFlagRequired("output")
 	_ = cmd.MarkFlagRequired("token-budget")
 	cmd.Flags().StringVar(&workDir, "work-dir", ".", "the working directory for this run")
-	cmd.Flags().StringVar(&researchPlanningModel, "research-planning", defaults[gimble.WorkflowRole("research-planning")], "the model for role research-planning, as model or model:effort")
-	if defaults[gimble.WorkflowRole("research-planning")] == "" {
+	researchPlanningModelDefault := defaults[gimble.WorkflowRole("research-planning")]
+	if researchPlanningModelDefault == "" {
+		cmd.Flags().StringVar(&researchPlanningModel, "research-planning", "", "the model for role research-planning, as model or model:effort")
 		_ = cmd.MarkFlagRequired("research-planning")
+	} else {
+		cmd.Flags().StringVar(&researchPlanningModel, "research-planning", researchPlanningModelDefault, "advanced override for role research-planning, as model or model:effort; omit this flag to use the displayed workflow default")
 	}
-	cmd.Flags().StringVar(&researchIndexingModel, "research-indexing", defaults[gimble.WorkflowRole("research-indexing")], "the model for role research-indexing, as model or model:effort")
-	if defaults[gimble.WorkflowRole("research-indexing")] == "" {
+	researchIndexingModelDefault := defaults[gimble.WorkflowRole("research-indexing")]
+	if researchIndexingModelDefault == "" {
+		cmd.Flags().StringVar(&researchIndexingModel, "research-indexing", "", "the model for role research-indexing, as model or model:effort")
 		_ = cmd.MarkFlagRequired("research-indexing")
+	} else {
+		cmd.Flags().StringVar(&researchIndexingModel, "research-indexing", researchIndexingModelDefault, "advanced override for role research-indexing, as model or model:effort; omit this flag to use the displayed workflow default")
 	}
-	cmd.Flags().StringVar(&documentSupervisionModel, "document-supervision", defaults[gimble.WorkflowRole("document-supervision")], "the model for role document-supervision, as model or model:effort")
-	if defaults[gimble.WorkflowRole("document-supervision")] == "" {
+	documentSupervisionModelDefault := defaults[gimble.WorkflowRole("document-supervision")]
+	if documentSupervisionModelDefault == "" {
+		cmd.Flags().StringVar(&documentSupervisionModel, "document-supervision", "", "the model for role document-supervision, as model or model:effort")
 		_ = cmd.MarkFlagRequired("document-supervision")
+	} else {
+		cmd.Flags().StringVar(&documentSupervisionModel, "document-supervision", documentSupervisionModelDefault, "advanced override for role document-supervision, as model or model:effort; omit this flag to use the displayed workflow default")
 	}
-	cmd.Flags().StringVar(&indexCurationModel, "index-curation", defaults[gimble.WorkflowRole("index-curation")], "the model for role index-curation, as model or model:effort")
-	if defaults[gimble.WorkflowRole("index-curation")] == "" {
+	indexCurationModelDefault := defaults[gimble.WorkflowRole("index-curation")]
+	if indexCurationModelDefault == "" {
+		cmd.Flags().StringVar(&indexCurationModel, "index-curation", "", "the model for role index-curation, as model or model:effort")
 		_ = cmd.MarkFlagRequired("index-curation")
+	} else {
+		cmd.Flags().StringVar(&indexCurationModel, "index-curation", indexCurationModelDefault, "advanced override for role index-curation, as model or model:effort; omit this flag to use the displayed workflow default")
 	}
-	cmd.Flags().StringVar(&documentAuthoringModel, "document-authoring", defaults[gimble.WorkflowRole("document-authoring")], "the model for role document-authoring, as model or model:effort")
-	if defaults[gimble.WorkflowRole("document-authoring")] == "" {
+	documentAuthoringModelDefault := defaults[gimble.WorkflowRole("document-authoring")]
+	if documentAuthoringModelDefault == "" {
+		cmd.Flags().StringVar(&documentAuthoringModel, "document-authoring", "", "the model for role document-authoring, as model or model:effort")
 		_ = cmd.MarkFlagRequired("document-authoring")
+	} else {
+		cmd.Flags().StringVar(&documentAuthoringModel, "document-authoring", documentAuthoringModelDefault, "advanced override for role document-authoring, as model or model:effort; omit this flag to use the displayed workflow default")
 	}
-	cmd.Flags().StringVar(&editorialReviewModel, "editorial-review", defaults[gimble.WorkflowRole("editorial-review")], "the model for role editorial-review, as model or model:effort")
-	if defaults[gimble.WorkflowRole("editorial-review")] == "" {
+	editorialReviewModelDefault := defaults[gimble.WorkflowRole("editorial-review")]
+	if editorialReviewModelDefault == "" {
+		cmd.Flags().StringVar(&editorialReviewModel, "editorial-review", "", "the model for role editorial-review, as model or model:effort")
 		_ = cmd.MarkFlagRequired("editorial-review")
+	} else {
+		cmd.Flags().StringVar(&editorialReviewModel, "editorial-review", editorialReviewModelDefault, "advanced override for role editorial-review, as model or model:effort; omit this flag to use the displayed workflow default")
 	}
 	cmd.Flags().IntVar(&port, "port", 8080, "loopback TCP port for the web application")
 	cmd.Flags().StringVar(&uds, "uds", "", "Unix-domain socket for the web application instead of TCP")

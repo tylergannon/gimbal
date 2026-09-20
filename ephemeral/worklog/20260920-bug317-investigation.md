@@ -17,3 +17,5 @@ decision: Sol observed waiting and completed structured successes with active ba
 decision: Terra observed acknowledged schema-B reinitialization and literal jsonSchema null both leave schema A enforced on CLI 2.1.270, including a late notification. Persistent-session design must explicitly settle per-call schema enforcement; SDK acknowledgement alone is not behavioral proof.
 
 clarification: Schema mutation is relevant only to successive differently typed Generate calls in one persistent session; it is not required for a waiting answer and automatic continuation of the same assignment. Keep the completion question separate from that compatibility decision.
+
+friction: The documentary editor incorrectly asserted TaskOutput was absent from the official tools reference. Direct primary-page inspection showed an explicit deprecation entry -> corrected the final report from the current source rather than treating editorial acceptance as factual proof.

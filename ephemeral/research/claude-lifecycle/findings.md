@@ -165,6 +165,11 @@ do not silently mark outstanding work successful or automatically repeat
 possibly completed non-idempotent work. Any continuation should explicitly
 re-check the unresolved task before producing the eventual terminal result.
 
+The [environment reference](https://code.claude.com/docs/en/env-vars) also
+documents a separate supervised background-session handoff mechanism. This was
+not tested and must not be conflated with ordinary SDK close/resume; it remains
+an alternative hosting path to investigate if process replacement is required.
+
 On cancellation or unrecoverable transport loss, resolve the caller as cancelled
 or failed rather than substituting an intermediate waiting response. Guaranteeing
 progress forever is impossible if a task hangs or the provider fails; an explicit

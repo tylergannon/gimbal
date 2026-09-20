@@ -42,7 +42,7 @@ func runPrompt(args []string, stdout, stderr io.Writer, getenv func(string) stri
 	flags := flag.NewFlagSet("gimble run-prompt", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	var options runPromptOptions
-	flags.StringVar(&options.model, "model", "", "model name or alias; omitted inside Codex or Claude selects the opposite provider")
+	flags.StringVar(&options.model, "model", "", "model name or alias; OpenCode uses opencode/MODEL or opencode/PROVIDER/MODEL; omitted inside Codex or Claude selects the opposite provider")
 	flags.StringVar(&options.modelVersion, "model-version", "", "exact model-family version")
 	flags.StringVar(&options.effort, "effort", "", "reasoning effort: low, medium, high, xhigh, or max")
 	flags.StringVar(&options.outputSchema, "output-schema", "", "exact JSON Schema for structured output; omit for plain text")

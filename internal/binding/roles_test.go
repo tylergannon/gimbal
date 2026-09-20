@@ -38,3 +38,42 @@ func TestRolesBindCurrentGeminiResearchModels(t *testing.T) {
 		t.Errorf("document-authoring = model %q effort %q", got.Model, got.Effort)
 	}
 }
+
+func TestParseBindsOpenCodeModelForms(t *testing.T) {
+	tests := []struct {
+		spec  string
+		model string
+	}{
+		{spec: "opencode/ling-3.0-flash-fin-free", model: "ling-3.0-flash-fin-free"},
+		{spec: "opencode/opencode/ling-3.0-flash-fin-free", model: "opencode/ling-3.0-flash-fin-free"},
+		{spec: "opencode/future-provider/model-outside-gimble-families:low", model: "future-provider/model-outside-gimble-families"},
+	}
+	for _, test := range tests {
+		binding, err := Parse(test.spec)
+		if err != nil {
+			t.Fatalf("Parse(%q): %v", test.spec, err)
+		}
+		if binding.Model != test.model {
+			t.Errorf("Parse(%q).Model = %q, want %q", test.spec, binding.Model, test.model)
+		}
+		if binding.Adapter == nil {
+			t.Errorf("Parse(%q).Adapter is nil", test.spec)
+		}
+	}
+}
+
+func TestRolesShareOpenCodeAdapterAcrossModels(t *testing.T) {
+	models, err := Roles(map[gimble.WorkflowRole]string{
+		"first":  "opencode/ling-3.0-flash-fin-free",
+		"second": "opencode/openrouter/model-outside-gimble-families",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if models["first"].Adapter != models["second"].Adapter {
+		t.Error("OpenCode roles on different models got separate adapters")
+	}
+	if models["first"].Model == models["second"].Model {
+		t.Error("distinct OpenCode model selections collapsed to one model")
+	}
+}

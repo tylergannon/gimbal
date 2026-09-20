@@ -51,7 +51,7 @@ var families = map[string]map[string]model{
 	},
 }
 
-var harnesses = map[string]string{"openai": "codex", "anthropic": "claude", "gemini": "agy"}
+var harnesses = map[string]string{"openai": "codex", "anthropic": "claude", "gemini": "agy", "opencode": "opencode"}
 
 func Resolve(selection Selection) (ResolvedSelection, error) {
 	if strings.TrimSpace(selection.Name) == "" {
@@ -71,6 +71,17 @@ func Resolve(selection Selection) (ResolvedSelection, error) {
 	}
 
 	entry, known := aliases[selection.Name]
+	if after, ok := strings.CutPrefix(selection.Name, "opencode/"); ok {
+		modelID := after
+		if modelID == "" || strings.HasPrefix(modelID, "/") || strings.HasSuffix(modelID, "/") || strings.Contains(modelID, "//") {
+			return ResolvedSelection{}, fmt.Errorf("invalid OpenCode model name %q; expected opencode/<model-id> or opencode/<provider>/<model-id>", selection.Name)
+		}
+		if selection.VersionPresent {
+			return ResolvedSelection{}, fmt.Errorf("OpenCode model name %q already selects a model and cannot also declare version", selection.Name)
+		}
+		entry = model{alias: selection.Name, provider: "opencode", native: modelID}
+		known = true
+	}
 	if selection.VersionPresent {
 		if known && selection.Name != "gpt" && selection.Name != "flash" && selection.Name != "fable" {
 			return ResolvedSelection{}, fmt.Errorf("model name %q already selects a version and cannot also declare version", selection.Name)
@@ -95,15 +106,19 @@ func Resolve(selection Selection) (ResolvedSelection, error) {
 	}
 
 	effort := entry.effort
-	if fixed := nativeEffort(entry.native); fixed != "" {
-		effort = fixed
+	fixedEffort := ""
+	if entry.provider != "opencode" {
+		fixedEffort = nativeEffort(entry.native)
+	}
+	if fixedEffort != "" {
+		effort = fixedEffort
 	}
 	if selection.EffortPresent {
-		if fixed := nativeEffort(entry.native); fixed != "" && fixed != selection.Effort {
+		if fixedEffort != "" && fixedEffort != selection.Effort {
 			if selection.Name != "flash" {
-				return ResolvedSelection{}, fmt.Errorf("model name %q fixes effort at %q and conflicts with explicit effort %q", selection.Name, fixed, selection.Effort)
+				return ResolvedSelection{}, fmt.Errorf("model name %q fixes effort at %q and conflicts with explicit effort %q", selection.Name, fixedEffort, selection.Effort)
 			}
-			entry.native = strings.TrimSuffix(entry.native, "-"+fixed) + "-" + selection.Effort
+			entry.native = strings.TrimSuffix(entry.native, "-"+fixedEffort) + "-" + selection.Effort
 		}
 		effort = selection.Effort
 	}

@@ -53,10 +53,10 @@ func Command(defaults map[gimble.WorkflowRole]string) *cobra.Command {
 	cmd.Flags().StringVar(&workDir, "work-dir", ".", "the working directory for this run")
 	codeReviewModelDefault := defaults[gimble.WorkflowRole("code-review")]
 	if codeReviewModelDefault == "" {
-		cmd.Flags().StringVar(&codeReviewModel, "code-review", "", "the model for role code-review, as model or model:effort")
+		cmd.Flags().StringVar(&codeReviewModel, "code-review", "", "the model for role code-review, as model or model:effort; OpenCode uses opencode/model or opencode/provider/model")
 		_ = cmd.MarkFlagRequired("code-review")
 	} else {
-		cmd.Flags().StringVar(&codeReviewModel, "code-review", codeReviewModelDefault, "advanced override for role code-review, as model or model:effort; omit this flag to use the displayed workflow default")
+		cmd.Flags().StringVar(&codeReviewModel, "code-review", codeReviewModelDefault, "advanced override for role code-review, as model or model:effort; OpenCode uses opencode/model or opencode/provider/model; omit this flag to use the displayed workflow default")
 	}
 	cmd.Flags().IntVar(&port, "port", 8080, "loopback TCP port for the web application")
 	cmd.Flags().StringVar(&uds, "uds", "", "Unix-domain socket for the web application instead of TCP")

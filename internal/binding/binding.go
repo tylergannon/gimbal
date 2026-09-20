@@ -14,6 +14,7 @@ import (
 	"github.com/tylergannon/gimble/claude"
 	"github.com/tylergannon/gimble/codex"
 	"github.com/tylergannon/gimble/internal/modelalias"
+	"github.com/tylergannon/gimble/opencode"
 )
 
 // Parse reads "model" or "model:effort", resolves the model through
@@ -21,6 +22,18 @@ import (
 // once per call, so a caller binding several roles to one harness should
 // reuse the adapter rather than call Parse twice for it.
 func Parse(spec string) (gimble.ModelBinding, error) {
+	resolved, err := resolve(spec)
+	if err != nil {
+		return gimble.ModelBinding{}, err
+	}
+	adapter, err := Adapter(resolved.Harness)
+	if err != nil {
+		return gimble.ModelBinding{}, fmt.Errorf("model %q: %w", spec, err)
+	}
+	return gimble.ModelBinding{Adapter: adapter, Model: resolved.Model, Effort: resolved.Effort}, nil
+}
+
+func resolve(spec string) (modelalias.ResolvedSelection, error) {
 	name, effort, hasEffort := strings.Cut(spec, ":")
 	selection := modelalias.Selection{Name: strings.TrimSpace(name)}
 	if hasEffort {
@@ -28,13 +41,9 @@ func Parse(spec string) (gimble.ModelBinding, error) {
 	}
 	resolved, err := modelalias.Resolve(selection)
 	if err != nil {
-		return gimble.ModelBinding{}, fmt.Errorf("model %q: %w", spec, err)
+		return modelalias.ResolvedSelection{}, fmt.Errorf("model %q: %w", spec, err)
 	}
-	adapter, err := Adapter(resolved.Harness)
-	if err != nil {
-		return gimble.ModelBinding{}, fmt.Errorf("model %q: %w", spec, err)
-	}
-	return gimble.ModelBinding{Adapter: adapter, Model: resolved.Model, Effort: resolved.Effort}, nil
+	return resolved, nil
 }
 
 // Adapter is the harness of that name.
@@ -46,6 +55,8 @@ func Adapter(harness string) (gimble.HarnessAdapter, error) {
 		return claude.New(), nil
 	case "codex":
 		return codex.New(), nil
+	case "opencode":
+		return opencode.New(), nil
 	default:
 		return nil, fmt.Errorf("unknown harness %q", harness)
 	}
@@ -56,6 +67,7 @@ func Adapter(harness string) (gimble.HarnessAdapter, error) {
 // given no model is an error naming its flag.
 func Roles(specs map[gimble.WorkflowRole]string) (map[gimble.WorkflowRole]gimble.ModelBinding, error) {
 	bound := map[string]gimble.ModelBinding{}
+	var sharedOpenCode gimble.HarnessAdapter
 	models := make(map[gimble.WorkflowRole]gimble.ModelBinding, len(specs))
 	for _, role := range slices.Sorted(maps.Keys(specs)) {
 		spec := specs[role]
@@ -63,11 +75,23 @@ func Roles(specs map[gimble.WorkflowRole]string) (map[gimble.WorkflowRole]gimble
 			return nil, fmt.Errorf("give --%s", role)
 		}
 		if _, ok := bound[spec]; !ok {
-			b, err := Parse(spec)
+			resolved, err := resolve(spec)
 			if err != nil {
 				return nil, fmt.Errorf("--%s: %w", role, err)
 			}
-			bound[spec] = b
+			var adapter gimble.HarnessAdapter
+			if resolved.Harness == "opencode" && sharedOpenCode != nil {
+				adapter = sharedOpenCode
+			} else {
+				adapter, err = Adapter(resolved.Harness)
+				if err != nil {
+					return nil, fmt.Errorf("--%s: model %q: %w", role, spec, err)
+				}
+				if resolved.Harness == "opencode" {
+					sharedOpenCode = adapter
+				}
+			}
+			bound[spec] = gimble.ModelBinding{Adapter: adapter, Model: resolved.Model, Effort: resolved.Effort}
 		}
 		models[role] = bound[spec]
 	}

@@ -49,3 +49,11 @@ delivery: Filed P1 bug #302 for the two observed non-finish AgY tools: run_comma
 delivery: Reran the installed research-document workflow after the AgY fix using clean installed revision 9b192995b1a17b7fbdefd5297aa770b77e6f2818. Run 01M2Y1XE66XVD7C17N4H5G7MXX.research-document completed successfully with default Gemini 3.8 Flash medium researchers/indexer and Gemini 3.1 Pro high author/editor; editorial round 2 accepted no material findings. Reused completed evidence and generator trials; no new OpenCode inference or generator trials.
 
 friction: The first author pass collapsed the requested compendium to 1,622 tokens and introduced unsupported contract/coverage estimates. Independent editorial rejection plus caller steering restored the full evidence-based report (10,027 tokens) and corrected source-versus-observation boundaries. Preserve the full brief during targeted corrections; verify indexes as well as final prose because unsupported operation-count/LOC estimates and step-versus-execution completion claims survived in intermediate indexes. Bounded rerun-cache corrections flag those estimates and prevent treating a step-ended event alone as turn completion.
+
+correction: Implementation handoffs should state the end state and observable definition of done, with the research entry point available to every agent. Avoid converting implementation preferences and hypothetical edge cases into a long requirements checklist.
+
+friction: Abort-and-continue steering can race natural POST completion: a delayed abort can kill the newly started continuation. The workflow reproduced this with a deterministic regression, added an abort-return handoff barrier, and independently validated live steering. Preserve the regression when simplifying steering later.
+
+decision: Raw OpenCode events and synchronous POST outcomes remain separate evidence. Observation gaps must not replace successful native execution with failure; event-only completion is deferred until the captured corpus supports it.
+
+delivery: Deferred OpenCode 1.18.31 native fork failure after a successful text/schema/remember/recall sequence in issue #308. Plain-text native forks work; the minimal triggering condition and upstream cause remain unproven.

@@ -35,3 +35,16 @@ func TestOpenCodeHelpDocumentsSharedStateAndStopConsequence(t *testing.T) {
 		}
 	}
 }
+
+func TestOpenCodeHelpDocumentsConfigurationAndCaptures(t *testing.T) {
+	t.Parallel()
+	var output bytes.Buffer
+	if err := run([]string{"opencode", "--help"}, &output, &bytes.Buffer{}, os.Getenv); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"opencode/MODEL", "GIMBLE_OPENCODE_DIR", "~/.gimble/opencode", "captures/"} {
+		if !strings.Contains(output.String(), want) {
+			t.Fatalf("help missing %q:\n%s", want, output.String())
+		}
+	}
+}

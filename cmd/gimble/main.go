@@ -125,7 +125,11 @@ func newOpenCodeCommand(stdout io.Writer, getenv func(string) string) *cobra.Com
 	command := &cobra.Command{
 		Use:   "opencode",
 		Short: "Manage Gimble's shared OpenCode server",
-		Args:  cobra.NoArgs,
+		Long: `Manage the shared OpenCode server used by opencode/MODEL and
+opencode/PROVIDER/MODEL selections. State defaults to ~/.gimble/opencode;
+GIMBLE_OPENCODE_DIR changes that default. Raw adapter captures are written
+under the selected state directory's captures/ subdirectory.`,
+		Args: cobra.NoArgs,
 	}
 	defaultStateDir := strings.TrimSpace(getenv("GIMBLE_OPENCODE_DIR"))
 	if defaultStateDir == "" && strings.TrimSpace(getenv("HOME")) != "" {
@@ -134,9 +138,10 @@ func newOpenCodeCommand(stdout io.Writer, getenv func(string) string) *cobra.Com
 
 	var startStateDir string
 	start := &cobra.Command{
-		Use:   "start",
-		Short: "Start the shared OpenCode server if it is not already running",
-		Args:  cobra.NoArgs,
+		Use:     "start",
+		Short:   "Start the shared OpenCode server if it is not already running",
+		Example: "  gimble opencode start\n  gimble opencode start --state-dir .gimble/opencode",
+		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			info, err := opencode.StartServer(cmd.Context(), startStateDir)
 			if err != nil {
@@ -154,9 +159,10 @@ func newOpenCodeCommand(stdout io.Writer, getenv func(string) string) *cobra.Com
 
 	var stopStateDir string
 	stop := &cobra.Command{
-		Use:   "stop",
-		Short: "Stop the shared OpenCode server and interrupt its active work",
-		Args:  cobra.NoArgs,
+		Use:     "stop",
+		Short:   "Stop the shared OpenCode server and interrupt its active work",
+		Example: "  gimble opencode stop\n  gimble opencode stop --state-dir .gimble/opencode",
+		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			stopped, err := opencode.StopServer(cmd.Context(), stopStateDir)
 			if err != nil {

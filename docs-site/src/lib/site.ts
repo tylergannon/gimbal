@@ -40,7 +40,7 @@ export const features = [
   {
     route: "/docs/built-in",
     name: "Built-in workflows",
-    line: "Implement, review, research, and summarize from the command line on day one.",
+    line: "Implement, review, user-test, research, and summarize from the command line on day one.",
     shot: "shots/runs.png",
   },
   {

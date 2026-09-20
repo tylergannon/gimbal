@@ -55,7 +55,7 @@ import (
 )
 
 //go:generate go tool polytype --validate
-//go:generate go run github.com/tylergannon/gimble/internal/generate/gimblegen -entry Implement -name implement
+//go:generate go run github.com/tylergannon/gimble/internal/generate/gimblegen -entry Implement -name implement -mermaid ../../../docs-site/src/lib/generated/workflows/implement.mmd
 
 const roleCoding gimble.WorkflowRole = "coding"
 

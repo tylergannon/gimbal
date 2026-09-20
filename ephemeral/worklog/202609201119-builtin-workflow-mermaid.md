@@ -1,0 +1,5 @@
+decision: Built-in workflow diagrams are generated as Mermaid source from workflow.Graph, rendered to SVG by the pinned Mermaid CLI during the docs build, and composed into MDsveX through Svelte components; Mermaid is not shipped to the browser.
+correction: MDsveX can compose a custom Mermaid component but does not natively compile Mermaid fences; the previously cited client-side example uses onMount and mermaid.run rather than build-time rendering.
+friction: docs CI currently does not run Go generation or check generated drift -> add a generation-and-clean-tree gate for generated workflow diagrams.
+friction: Mermaid 11 emits randomized, very large paths for decorative node shapes unless handDrawnSeed is fixed; use classic rectangles for non-branch nodes and a fixed seed for byte-stable, compact SVG assets.
+friction: repository Go tests that render the web app require the skgo manifest from `just build`; a fresh worktree can fail `just test` only because that build artifact is absent -> run the prescribed build before the full test gate.

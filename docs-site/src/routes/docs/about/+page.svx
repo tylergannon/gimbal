@@ -47,6 +47,6 @@ Gimble is a reaction to the work around Attractor, not an implementation of it. 
 
 <h2 id="status">Status</h2>
 
-Gimble is young and moves quickly. The Go API, the console, three harness adapters, and four built-in workflows exist today. Authoring a new CLI workflow currently happens inside the Gimble checkout; the library itself is usable from any Go module. The programming contract is the Godoc: `go doc -all github.com/tylergannon/gimble`.
+Gimble is young and moves quickly. The Go API, the console, three harness adapters, and five built-in workflows exist today. Authoring a new CLI workflow currently happens inside the Gimble checkout; the library itself is usable from any Go module. The programming contract is the Godoc: `go doc -all github.com/tylergannon/gimble`.
 
 </DocsPage>

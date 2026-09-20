@@ -82,12 +82,16 @@ func TestSourceWritesMermaidAndSvelteComponent(t *testing.T) {
 	}
 }
 
-func TestMermaidRendersPromiseLoopSupervisors(t *testing.T) {
+func TestMermaidOmitsProgramDetails(t *testing.T) {
 	graph := workflow.Graph{
-		Name: "supervised-loop",
+		Name:     "shape",
+		Services: []workflow.Service{{Name: "server"}},
 		Body: []workflow.Operation{workflow.PromiseLoop{
-			Name:    "tasks",
-			Planner: "planner",
+			Name: "tasks",
+			Body: []workflow.Operation{
+				workflow.Set{Key: "task"},
+				workflow.Session{Name: "worker"},
+			},
 			Supervisors: []workflow.Supervisor{{
 				Session: "coach",
 				Role:    "scope-coach",
@@ -96,12 +100,57 @@ func TestMermaidRendersPromiseLoopSupervisors(t *testing.T) {
 	}
 
 	got := generate.Mermaid(graph)
+	for _, unwanted := range [][]byte{
+		[]byte(`set<br/>`),
+		[]byte(`session<br/>`),
+		[]byte(`service<br/>`),
+		[]byte(`supervisor<br/>`),
+	} {
+		if bytes.Contains(got, unwanted) {
+			t.Errorf("Mermaid output contains program detail %q:\n%s", unwanted, got)
+		}
+	}
+	if !bytes.Contains(got, []byte(`subgraph s2["Loop · tasks"]`)) {
+		t.Errorf("Mermaid output lacks loop box:\n%s", got)
+	}
+}
+
+func TestMermaidSummarizesFanOutArms(t *testing.T) {
+	graph := workflow.Graph{Name: "fan-out", Body: []workflow.Operation{workflow.Group{
+		Name: "workers",
+		Children: []workflow.GroupChild{{Name: "worker1", Body: []workflow.Operation{
+			workflow.Session{Name: "writer"},
+			workflow.AgentCall{Session: "writer", Role: "document-authoring"},
+			workflow.Set{Key: "draft"},
+			workflow.AgentCall{Session: "writer", Role: "document-authoring"},
+			workflow.Command{Name: "count-tokens"},
+		}}},
+	}}}
+
+	got := generate.Mermaid(graph)
 	for _, want := range [][]byte{
-		[]byte(`supervisor<br/>scope-coach<br/>coach`),
-		[]byte(`-. "watches" .->`),
+		[]byte(`Arm · worker1<br/>2× Generate · document-authoring<br/>Command · count-tokens`),
+		[]byte(`subgraph s2["Fan out · workers"]`),
 	} {
 		if !bytes.Contains(got, want) {
 			t.Errorf("Mermaid output lacks %q:\n%s", want, got)
 		}
+	}
+}
+
+func TestMermaidKeepsConditionLabelsPresentational(t *testing.T) {
+	graph := workflow.Graph{Name: "condition", Body: []workflow.Operation{workflow.Condition{
+		Branches: []workflow.Branch{{
+			Case: `ready := strings.TrimSpace(result.Ready); ready != ""`,
+			Body: []workflow.Operation{workflow.Command{Name: "readiness"}},
+		}},
+	}}}
+
+	got := generate.Mermaid(graph)
+	if !bytes.Contains(got, []byte(`-->|"ready != &#34;&#34;"|`)) {
+		t.Errorf("Mermaid output lacks the final predicate:\n%s", got)
+	}
+	if bytes.Contains(got, []byte(`ready :=`)) {
+		t.Errorf("Mermaid output includes assignment machinery:\n%s", got)
 	}
 }

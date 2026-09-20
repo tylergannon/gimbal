@@ -1,0 +1,2 @@
+correction: Mermaid diagrams are for recognizing workflow shape, not reproducing the full graph; Set and Session declarations must not become diagram nodes, loops need explicit visual containment, and concurrent fan-out arms must be summarized rather than expanded into their complete programs.
+decision: Keep only Generate, Command, and structural control flow as primary diagram entities; omit Set keys and Session names until they demonstrate non-intrusive value.

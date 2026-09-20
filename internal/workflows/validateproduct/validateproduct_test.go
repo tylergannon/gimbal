@@ -15,22 +15,25 @@ import (
 	"github.com/tylergannon/gimble/workflow"
 )
 
-type testSession struct{ role, dir string }
+type testSession struct {
+	role, dir string
+	turns     int
+}
 type testingHarness struct {
-	mu                                sync.Mutex
-	sessions                          map[string]testSession
-	arrivals                          chan struct{}
-	want, finished                    int
-	failTester, failVisual, failClose bool
-	calls                             []string
-	prompts                           map[string][]string
+	mu                                             sync.Mutex
+	sessions                                       map[string]testSession
+	arrivals                                       chan struct{}
+	want, finished                                 int
+	failTester, failDebrief, failVisual, failClose bool
+	calls                                          []string
+	prompts                                        map[string][]string
 }
 
 func (h *testingHarness) CreateSession(_ context.Context, role, _ string, dir string) (string, error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	id := role + "-" + dir
-	h.sessions[id] = testSession{role, dir}
+	h.sessions[id] = testSession{role: role, dir: dir}
 	return id, nil
 }
 func (*testingHarness) Fork(context.Context, string) (string, error) {
@@ -46,24 +49,38 @@ func (h *testingHarness) Close(context.Context, string) error {
 func (h *testingHarness) RunTurn(ctx context.Context, id, prompt string, _ json.RawMessage, _ func(gimble.AgentEvent) error) (gimble.TurnResult, error) {
 	h.mu.Lock()
 	s := h.sessions[id]
+	s.turns++
+	h.sessions[id] = s
 	h.calls = append(h.calls, s.role)
 	h.prompts[s.role] = append(h.prompts[s.role], prompt)
 	h.mu.Unlock()
 	if s.role == "tester" {
-		h.arrivals <- struct{}{}
-		// Neither tester can finish until both entered their turns: real fan-out.
-		for len(h.arrivals) < h.want {
-			select {
-			case <-ctx.Done():
-				return gimble.TurnResult{}, ctx.Err()
-			case <-time.After(time.Millisecond):
+		if s.turns == 1 {
+			h.arrivals <- struct{}{}
+			// Neither tester can finish until both entered their turns: real fan-out.
+			for len(h.arrivals) < h.want {
+				select {
+				case <-ctx.Done():
+					return gimble.TurnResult{}, ctx.Err()
+				case <-time.After(time.Millisecond):
+				}
 			}
 		}
-		h.mu.Lock()
-		h.finished++
-		h.mu.Unlock()
-		if h.failTester && filepath.Base(s.dir) == "a" {
+		failedTask := s.turns == 1 && h.failTester && filepath.Base(s.dir) == "a"
+		if s.turns == 2 || failedTask {
+			h.mu.Lock()
+			h.finished++
+			h.mu.Unlock()
+		}
+		if failedTask {
 			return gimble.TurnResult{}, errors.New("tester unavailable")
+		}
+		if s.turns == 2 {
+			if h.failDebrief && filepath.Base(s.dir) == "a" {
+				return gimble.TurnResult{}, errors.New("debrief unavailable")
+			}
+			raw, _ := json.Marshal("# UI/UX debrief\nConcrete preferences from the completed task.")
+			return gimble.TurnResult{Output: raw}, nil
 		}
 	} else {
 		h.mu.Lock()
@@ -82,12 +99,14 @@ func (h *testingHarness) RunTurn(ctx context.Context, id, prompt string, _ json.
 
 func TestUserTestingStages(t *testing.T) {
 	for _, tc := range []struct {
-		name                  string
-		n                     int
-		tester, visual, close bool
+		name                           string
+		n                              int
+		tester, debrief, visual, close bool
 	}{
 		{name: "two parallel workloads", n: 2},
 		{name: "unused slots skip", n: 1},
+		{name: "all three testers get a debrief", n: 3},
+		{name: "debrief failure preserves task report", n: 2, debrief: true},
 		{name: "tester failure still reaches triage", n: 2, tester: true},
 		{name: "visual failure still reaches triage", n: 2, visual: true},
 		{name: "cleanup failure reaches run outcome", n: 1, close: true},
@@ -101,12 +120,12 @@ func TestUserTestingStages(t *testing.T) {
 				t.Fatal(err)
 			}
 			saveSuite(t, s, input)
-			h := &testingHarness{sessions: map[string]testSession{}, arrivals: make(chan struct{}, 3), want: tc.n, failTester: tc.tester, failVisual: tc.visual, failClose: tc.close, prompts: map[string][]string{}}
+			h := &testingHarness{sessions: map[string]testSession{}, arrivals: make(chan struct{}, 3), want: tc.n, failTester: tc.tester, failDebrief: tc.debrief, failVisual: tc.visual, failClose: tc.close, prompts: map[string][]string{}}
 			models := map[gimble.WorkflowRole]gimble.ModelBinding{"product-operation": {Adapter: h, Model: "tester"}, "product-visual-review": {Adapter: h, Model: "visual"}, "product-triage": {Adapter: h, Model: "triage"}}
 			err := gimble.Run(gimble.Project(t.Context(), t.TempDir()), "user-testing", models, func(ctx context.Context) error {
 				return ValidateProduct(ctx, gimble.Env{WorkDir: filepath.Dir(input)}, Params{SuiteFile: input})
 			})
-			if (err != nil) != (tc.tester || tc.visual || tc.close) {
+			if (err != nil) != (tc.tester || tc.debrief || tc.visual || tc.close) {
 				t.Fatalf("run error: %v", err)
 			}
 			if tc.close {
@@ -114,8 +133,27 @@ func TestUserTestingStages(t *testing.T) {
 					t.Fatalf("want CloseError: %v", err)
 				}
 			}
-			if len(h.calls) != tc.n+2 || h.calls[tc.n] != "visual" || h.calls[tc.n+1] != "triage" {
+			testerCalls := tc.n * 2
+			if tc.tester {
+				testerCalls--
+			}
+			if len(h.calls) != testerCalls+2 || h.calls[testerCalls] != "visual" || h.calls[testerCalls+1] != "triage" {
 				t.Fatalf("stage order: %v", h.calls)
+			}
+			for _, session := range h.sessions {
+				if session.role != "tester" {
+					continue
+				}
+				want := 2
+				if tc.tester && filepath.Base(session.dir) == "a" {
+					want = 1
+				}
+				if session.turns != want {
+					t.Fatalf("session lost continuity: %+v", session)
+				}
+			}
+			if len(h.sessions) != tc.n+2 {
+				t.Fatalf("unexpected extra sessions: %+v", h.sessions)
 			}
 			paths, _ := filepath.Glob(filepath.Join(s.OutputDir, "user-testing-*", "reports.json"))
 			if len(paths) != 1 {
@@ -136,8 +174,19 @@ func TestUserTestingStages(t *testing.T) {
 				if r.ElapsedSeconds <= 0 {
 					t.Fatal("elapsed time not measured")
 				}
-				if (r.Error != "") != (tc.tester && i == 0) {
+				if (r.Error != "") != ((tc.tester || tc.debrief) && i == 0) {
 					t.Fatalf("wrong execution error: %+v", r)
+				}
+				body, readErr := os.ReadFile(r.Report)
+				if readErr != nil {
+					t.Fatal(readErr)
+				}
+				if (!tc.tester || i != 0) && !strings.Contains(string(body), "# tester report") {
+					t.Fatal("lost original task report")
+				}
+				wantDebrief := !tc.tester && !tc.debrief || i != 0
+				if strings.Contains(string(body), "# UI/UX debrief") != wantDebrief {
+					t.Fatalf("wrong debrief content: %s", body)
 				}
 			}
 			for _, file := range []string{"visual-review.md", "findings.md"} {
@@ -146,9 +195,15 @@ func TestUserTestingStages(t *testing.T) {
 				}
 			}
 			for _, p := range h.prompts["tester"] {
+				if !strings.HasPrefix(p, userPrompt) {
+					continue
+				}
 				if !strings.Contains(p, "Never inspect the source code of the product under test (A)") || !strings.Contains(p, "screenshots directory") {
 					t.Fatal("tester missing user boundary or capture context")
 				}
+			}
+			if tc.debrief && !strings.Contains(h.prompts["triage"][0], "debrief unavailable") {
+				t.Fatal("triage lost debrief failure")
 			}
 			if tc.visual && !strings.Contains(h.prompts["triage"][0], "image tool unavailable") {
 				t.Fatal("triage lost visual-review failure")

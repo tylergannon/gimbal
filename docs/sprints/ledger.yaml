@@ -4,3 +4,8 @@ sprints:
     status: planned
     created: "2026-09-12T20:10:29+00:00"
     updated: "2026-09-12T20:10:29+00:00"
+  - id: SPRINT-0002
+    title: Claude Generate waits through native completion
+    status: planned
+    created: "2026-09-20T17:27:35+00:00"
+    updated: "2026-09-20T17:27:35+00:00"

@@ -1,6 +1,6 @@
 # Sprint 002: Claude Generate waits through native completion
 
-**Status:** planned. **Issue:** 317. No chapter is selected.
+**Status:** in progress. **Issue:** 317. No chapter is selected.
 
 ## Pyramid Index
 

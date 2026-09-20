@@ -28,13 +28,20 @@ func main() {
 		singlechecker.Main(gimblelint.Analyzer)
 		return
 	}
-	if err := run(os.Args[1:], os.Stdout, os.Stderr, os.Getenv); err != nil {
-		if errors.Is(err, flag.ErrHelp) {
-			return
-		}
-		_, _ = fmt.Fprintln(os.Stderr, "gimble:", err)
-		os.Exit(1)
+	if code := executeCLI(os.Args[1:], os.Stdout, os.Stderr, os.Getenv, defaultArtifactUploaders()); code != 0 {
+		os.Exit(code)
 	}
+}
+
+func executeCLI(args []string, stdout, stderr io.Writer, getenv func(string) string, uploaders artifactUploaderConstructors) int {
+	if err := runWithUploaders(args, stdout, stderr, getenv, uploaders); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
+		_, _ = fmt.Fprintln(stderr, "gimble:", err)
+		return 1
+	}
+	return 0
 }
 
 // routeAnalysis recognizes the standalone lint command and the three calls in
@@ -58,7 +65,7 @@ func routeAnalysis(args []string) ([]string, bool) {
 func isOrdinaryCLI(args []string) bool {
 	if len(args) > 0 {
 		switch args[0] {
-		case "run-prompt", "run", "runs", "watch", "steer", "count-tokens", "opencode":
+		case "run-prompt", "run", "runs", "watch", "steer", "count-tokens", "opencode", "upload-artifact":
 			return true
 		}
 	}
@@ -83,11 +90,15 @@ func isVetConfig(path string) bool {
 	return json.Unmarshal(data, &config) == nil && config.ImportPath != "" && config.GoFiles != nil
 }
 
-// run is the gimble command line: the server when no subcommand is given,
-// and run and run-prompt. lint never reaches it, since main routes it
-// to the analyzer first.
+// run is the ordinary Gimble command line. lint never reaches it, since main
+// routes that command to the analyzer first.
 func run(args []string, stdout, stderr io.Writer, getenv func(string) string) error {
+	return runWithUploaders(args, stdout, stderr, getenv, defaultArtifactUploaders())
+}
+
+func runWithUploaders(args []string, stdout, stderr io.Writer, getenv func(string) string, uploaders artifactUploaderConstructors) error {
 	root := newRootCommand(stdout, stderr, getenv)
+	root.AddCommand(newUploadArtifactCommand(stdout, getenv, uploaders))
 	root.SetArgs(args)
 	return root.ExecuteContext(context.Background())
 }

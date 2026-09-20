@@ -93,7 +93,10 @@ does not document the invocation for its caller.
 
 Commit and push meaningful work; follow repository review and squash-merge
 practice within the user's authorized scope. Retain the task worktree when the
-user has asked to keep it. Update affected skill and plugin instructions in
+user has asked to keep it. Every release must update `CHANGELOG.md`: move the
+relevant entries from `Unreleased` under a version heading with the release date,
+update comparison links when tags exist, and leave a new empty `Unreleased`
+section for subsequent work. Update affected skill and plugin instructions in
 their maintained source before merging. After every feature or fix merges,
 reinstall both the CLI and the Gimble skills on this machine:
 

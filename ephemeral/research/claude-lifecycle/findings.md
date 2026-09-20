@@ -7,6 +7,9 @@ claude-haiku-4-5-20251001. Their notes distinguish observations from proposals:
 [literature report](literature.md) collects versioned documentation, source,
 and historical reports. The assignments are in [briefs/](briefs/common.md).
 
+The [server-hosting follow-up](server-hosting.md) distinguishes Claude’s
+multi-session servers from their per-session worker processes.
+
 ## What actually happens after a waiting result
 
 A native successful result closes one generation. It does not inherently close

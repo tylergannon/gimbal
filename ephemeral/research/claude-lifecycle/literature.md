@@ -20,7 +20,7 @@ This report synthesizes Anthropic specifications, SDK implementations, 13 audite
 
 ### 2.1 1:1 Subprocess Architecture and Hosting Contracts
 - **Canonical Specs**: [`hosting.md`](https://code.claude.com/docs/en/agent-sdk/hosting.md); [`streaming-vs-single-mode.md`](https://code.claude.com/docs/en/agent-sdk/streaming-vs-single-mode.md) (Local: [`topic-001/sources/agent-sdk-streaming-and-hosting.md`](/private/tmp/gimble-317-literature/corpus/topic-001/sources/agent-sdk-streaming-and-hosting.md)).
-- **Subprocess Model**: Each session runs one `claude` CLI subprocess over stdio (`stdin`/`stdout`/`stderr`). Concurrency scales via $N$ subprocesses; no documented shared daemon exists.
+- **Subprocess Model**: Each session runs one `claude` CLI subprocess over stdio (`stdin`/`stdout`/`stderr`). Concurrency scales via $N$ subprocesses; the SDK retains per-session workers. Remote Control has a multi-session server but also spawns workers; see [hosting follow-up](server-hosting.md).
 - **Streaming vs Single-Message**: Single-message mode (`claude -p`) exits on turn completion. Persistent streaming input (`ClaudeSDKClient`, `streamInput()`, Go `Stream`) maintains the subprocess across turns, enabling queued inputs, cancellation, and background task notifications.
 
 ### 2.2 Stdio Pipe Lifetimes and Teardown Sequence

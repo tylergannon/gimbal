@@ -1,5 +1,13 @@
 # OpenCode harness research
 
+decision: User chose the legacy API for the adapter. Keep one shared OpenCode server across projects/runs, controlled by `gimble opencode start|stop`, with runtime-configurable state defaulting to `~/.gimble/`. Verify source and settle remaining questions before implementation. Generate only required types; handwritten HTTP methods and SSE are preferred over further SDK codegen machinery.
+
+correction: Legacy `/event` is directory/workspace-scoped; `/global/event` spans the server. The existing Gimble event callback already records correct run ownership, so a new adapter needs session routing, not another storage layer.
+
+correction: Legacy idle is not a universal completion barrier. Fatal processor errors can emit idle before cleanup, structured output can update after assistant completion, recoverable compaction can emit session.error, and pre-run async failure can omit idle. Preserve these source-derived cases in live validation; do not copy CLI idle handling without its synchronous prompt completion signal.
+
+correction: Legacy and newer APIs share SessionTable, but the inspected prompt input/message tables and runners differ. Different list results never proved separate session identity; shared identity likewise does not prove newer steering reaches an active legacy turn. Source traces found no such input bridge.
+
 correction: GitHub release `target_commitish` is not authoritative for the release tag's actual commit. For OpenCode v1.18.27 it names b04697366f05419e9bd7a92f841813dd976161c9, while `git ls-remote` resolves the tag to 4b7e19e315cca414121ba1d61523fef74bb3ae8b. Resolve the tag before comparing package versions or claiming installed/source drift.
 
 decision: Inspect the installed OpenCode server's `/doc` alongside the website. Version 1.18.27 declares both legacy endpoints and an experimental `/api` family with distinct prompt-delivery and durable-event contracts; a legacy-only comparison would miss decision-relevant capabilities.

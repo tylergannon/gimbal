@@ -151,10 +151,10 @@ func Command(defaults map[gimble.WorkflowRole]string) *cobra.Command {
 {{- range .Roles}}
 	{{.Ident}}Default := defaults[gimble.WorkflowRole({{printf "%q" .Name}})]
 	if {{.Ident}}Default == "" {
-		cmd.Flags().StringVar(&{{.Ident}}, {{printf "%q" .Name}}, "", {{printf "%q" (printf "the model for role %s, as model or model:effort" .Name)}})
+		cmd.Flags().StringVar(&{{.Ident}}, {{printf "%q" .Name}}, "", {{printf "%q" (printf "the model for role %s, as model or model:effort; OpenCode uses opencode/model or opencode/provider/model" .Name)}})
 		_ = cmd.MarkFlagRequired({{printf "%q" .Name}})
 	} else {
-		cmd.Flags().StringVar(&{{.Ident}}, {{printf "%q" .Name}}, {{.Ident}}Default, {{printf "%q" (printf "advanced override for role %s, as model or model:effort; omit this flag to use the displayed workflow default" .Name)}})
+		cmd.Flags().StringVar(&{{.Ident}}, {{printf "%q" .Name}}, {{.Ident}}Default, {{printf "%q" (printf "advanced override for role %s, as model or model:effort; OpenCode uses opencode/model or opencode/provider/model; omit this flag to use the displayed workflow default" .Name)}})
 	}
 {{- end}}
 	cmd.Flags().IntVar(&port, "port", 8080, "loopback TCP port for the web application")

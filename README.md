@@ -3,7 +3,7 @@
 **Agent workflows that read like pseudocode.** Gimble is a Go runtime for
 multi-agent workflows: write the workflow as a plain Go function, and Gimble
 gives it scoped context, planner loops, supervision, and a live console, on
-Codex, Claude Code, Antigravity, or your own harness.
+Codex, Claude Code, Antigravity, OpenCode, or your own harness.
 
 [![The Gimble console showing a planner loop with a watched coding turn](docs-site/static/shots/console.png)](https://tylergannon.github.io/gimble/)
 
@@ -12,7 +12,7 @@ Codex, Claude Code, Antigravity, or your own harness.
 - **[Primitives for agent work](https://tylergannon.github.io/gimble/docs/primitives/)** — scoped context delivery, promise loops, supervision, and a graph read from your source.
 - **[Curated roles, bound to models](https://tylergannon.github.io/gimble/docs/roles/)** — workflows name kinds of cognitive work; a run binds each to a harness, model, and effort.
 - **[Built-in workflows](https://tylergannon.github.io/gimble/docs/built-in/)** — `implement`, `review`, `research-document`, and `pyramid-summary` from the command line.
-- **[Any harness](https://tylergannon.github.io/gimble/docs/harnesses/)** — Codex, Claude Code, and Antigravity adapters ship in the box; five methods add another.
+- **[Any harness](https://tylergannon.github.io/gimble/docs/harnesses/)** — Codex, Claude Code, Antigravity, and OpenCode adapters ship in the box; five methods add another.
 
 Start with the [quickstart](https://tylergannon.github.io/gimble/docs/quickstart/).
 The public programming contract is the root package's Godoc and compiling
@@ -66,6 +66,23 @@ The binary includes the `implement`, `review`, `research-document`, and
 `pyramid-summary` workflows. Each role's model defaults from
 `cmd/gimble/defaults.json`; pass the role's flag, such as `--code-review`, to
 override it.
+
+Select the legacy OpenCode adapter with `opencode/<model-id>`, or name an
+explicit OpenCode provider with `opencode/<provider>/<model-id>`. The same
+forms work with `gimble run-prompt --model` and every workflow role-model flag:
+
+```sh
+gimble run-prompt --model opencode/ling-3.0-flash-fin-free "Reply exactly OK"
+gimble run review --code-review opencode/opencode/ling-3.0-flash-fin-free --goal "Review the current changes."
+```
+
+The shared server starts on first use and remains running when a session
+closes. `gimble opencode start` is idempotent; `gimble opencode stop` stops the
+server and interrupts its active work. Runtime state defaults to
+`~/.gimble/opencode`; set `GIMBLE_OPENCODE_DIR` for another default or pass
+`--state-dir` to those lifecycle commands. Raw request, result, and SSE capture
+files are under `<state-dir>/captures/` for correlating native events with
+completed turns.
 
 Workflow roles name cognitive work, not positions in a workflow. Gimble's
 prescribed `WorkflowRole` constants and their descriptions live together in

@@ -11,11 +11,13 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/tylergannon/gimble/internal/gimblelint"
+	"github.com/tylergannon/gimble/opencode"
 	"github.com/tylergannon/gimble/web"
 	"golang.org/x/tools/go/analysis/singlechecker"
 )
@@ -56,7 +58,7 @@ func routeAnalysis(args []string) ([]string, bool) {
 func isOrdinaryCLI(args []string) bool {
 	if len(args) > 0 {
 		switch args[0] {
-		case "run-prompt", "run", "runs", "watch", "steer", "count-tokens":
+		case "run-prompt", "run", "runs", "watch", "steer", "count-tokens", "opencode":
 			return true
 		}
 	}
@@ -115,8 +117,68 @@ workflow authoring rules, standalone or as a go vet tool.`,
 		DisableFlagParsing: true,
 		RunE:               func(_ *cobra.Command, args []string) error { return runPrompt(args, stdout, stderr, getenv) },
 	})
-	root.AddCommand(newRunsCommand(), newWatchCommand(), newSteerCommand(), newCountTokensCommand())
+	root.AddCommand(newRunsCommand(), newWatchCommand(), newSteerCommand(), newCountTokensCommand(), newOpenCodeCommand(stdout, getenv))
 	return root
+}
+
+func newOpenCodeCommand(stdout io.Writer, getenv func(string) string) *cobra.Command {
+	command := &cobra.Command{
+		Use:   "opencode",
+		Short: "Manage Gimble's shared OpenCode server",
+		Long: `Manage the shared OpenCode server used by opencode/MODEL and
+opencode/PROVIDER/MODEL selections. State defaults to ~/.gimble/opencode;
+GIMBLE_OPENCODE_DIR changes that default. Raw adapter captures are written
+under the selected state directory's captures/ subdirectory.`,
+		Args: cobra.NoArgs,
+	}
+	defaultStateDir := strings.TrimSpace(getenv("GIMBLE_OPENCODE_DIR"))
+	if defaultStateDir == "" && strings.TrimSpace(getenv("HOME")) != "" {
+		defaultStateDir = filepath.Join(getenv("HOME"), ".gimble", "opencode")
+	}
+
+	var startStateDir string
+	start := &cobra.Command{
+		Use:     "start",
+		Short:   "Start the shared OpenCode server if it is not already running",
+		Example: "  gimble opencode start\n  gimble opencode start --state-dir .gimble/opencode",
+		Args:    cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			info, err := opencode.StartServer(cmd.Context(), startStateDir)
+			if err != nil {
+				return err
+			}
+			if info.Started {
+				_, err = fmt.Fprintf(stdout, "OpenCode started at %s (pid %d)\n", info.URL, info.PID)
+			} else {
+				_, err = fmt.Fprintf(stdout, "OpenCode already running at %s (pid %d)\n", info.URL, info.PID)
+			}
+			return err
+		},
+	}
+	start.Flags().StringVar(&startStateDir, "state-dir", defaultStateDir, "shared runtime state directory")
+
+	var stopStateDir string
+	stop := &cobra.Command{
+		Use:     "stop",
+		Short:   "Stop the shared OpenCode server and interrupt its active work",
+		Example: "  gimble opencode stop\n  gimble opencode stop --state-dir .gimble/opencode",
+		Args:    cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			stopped, err := opencode.StopServer(cmd.Context(), stopStateDir)
+			if err != nil {
+				return err
+			}
+			if stopped {
+				_, err = fmt.Fprintln(stdout, "OpenCode stopped")
+			} else {
+				_, err = fmt.Fprintln(stdout, "OpenCode is not running")
+			}
+			return err
+		},
+	}
+	stop.Flags().StringVar(&stopStateDir, "state-dir", defaultStateDir, "shared runtime state directory")
+	command.AddCommand(start, stop)
+	return command
 }
 
 // serverFlags shape the web application of every command that runs one.

@@ -120,52 +120,52 @@ func Command(defaults map[gimble.WorkflowRole]string) *cobra.Command {
 	cmd.Flags().StringVar(&workDir, "work-dir", ".", "the working directory for this run")
 	apiResearchModelDefault := defaults[gimble.WorkflowRole("api-research")]
 	if apiResearchModelDefault == "" {
-		cmd.Flags().StringVar(&apiResearchModel, "api-research", "", "the model for role api-research, as model or model:effort")
+		cmd.Flags().StringVar(&apiResearchModel, "api-research", "", "the model for role api-research, as model or model:effort; OpenCode uses opencode/model or opencode/provider/model")
 		_ = cmd.MarkFlagRequired("api-research")
 	} else {
-		cmd.Flags().StringVar(&apiResearchModel, "api-research", apiResearchModelDefault, "advanced override for role api-research, as model or model:effort; omit this flag to use the displayed workflow default")
+		cmd.Flags().StringVar(&apiResearchModel, "api-research", apiResearchModelDefault, "advanced override for role api-research, as model or model:effort; OpenCode uses opencode/model or opencode/provider/model; omit this flag to use the displayed workflow default")
 	}
 	frontendResearchModelDefault := defaults[gimble.WorkflowRole("frontend-research")]
 	if frontendResearchModelDefault == "" {
-		cmd.Flags().StringVar(&frontendResearchModel, "frontend-research", "", "the model for role frontend-research, as model or model:effort")
+		cmd.Flags().StringVar(&frontendResearchModel, "frontend-research", "", "the model for role frontend-research, as model or model:effort; OpenCode uses opencode/model or opencode/provider/model")
 		_ = cmd.MarkFlagRequired("frontend-research")
 	} else {
-		cmd.Flags().StringVar(&frontendResearchModel, "frontend-research", frontendResearchModelDefault, "advanced override for role frontend-research, as model or model:effort; omit this flag to use the displayed workflow default")
+		cmd.Flags().StringVar(&frontendResearchModel, "frontend-research", frontendResearchModelDefault, "advanced override for role frontend-research, as model or model:effort; OpenCode uses opencode/model or opencode/provider/model; omit this flag to use the displayed workflow default")
 	}
 	sprintPlanningModelDefault := defaults[gimble.WorkflowRole("sprint-planning")]
 	if sprintPlanningModelDefault == "" {
-		cmd.Flags().StringVar(&sprintPlanningModel, "sprint-planning", "", "the model for role sprint-planning, as model or model:effort")
+		cmd.Flags().StringVar(&sprintPlanningModel, "sprint-planning", "", "the model for role sprint-planning, as model or model:effort; OpenCode uses opencode/model or opencode/provider/model")
 		_ = cmd.MarkFlagRequired("sprint-planning")
 	} else {
-		cmd.Flags().StringVar(&sprintPlanningModel, "sprint-planning", sprintPlanningModelDefault, "advanced override for role sprint-planning, as model or model:effort; omit this flag to use the displayed workflow default")
+		cmd.Flags().StringVar(&sprintPlanningModel, "sprint-planning", sprintPlanningModelDefault, "advanced override for role sprint-planning, as model or model:effort; OpenCode uses opencode/model or opencode/provider/model; omit this flag to use the displayed workflow default")
 	}
 	codingModelDefault := defaults[gimble.WorkflowRole("coding")]
 	if codingModelDefault == "" {
-		cmd.Flags().StringVar(&codingModel, "coding", "", "the model for role coding, as model or model:effort")
+		cmd.Flags().StringVar(&codingModel, "coding", "", "the model for role coding, as model or model:effort; OpenCode uses opencode/model or opencode/provider/model")
 		_ = cmd.MarkFlagRequired("coding")
 	} else {
-		cmd.Flags().StringVar(&codingModel, "coding", codingModelDefault, "advanced override for role coding, as model or model:effort; omit this flag to use the displayed workflow default")
+		cmd.Flags().StringVar(&codingModel, "coding", codingModelDefault, "advanced override for role coding, as model or model:effort; OpenCode uses opencode/model or opencode/provider/model; omit this flag to use the displayed workflow default")
 	}
 	implementationScopeReviewModelDefault := defaults[gimble.WorkflowRole("implementation-scope-review")]
 	if implementationScopeReviewModelDefault == "" {
-		cmd.Flags().StringVar(&implementationScopeReviewModel, "implementation-scope-review", "", "the model for role implementation-scope-review, as model or model:effort")
+		cmd.Flags().StringVar(&implementationScopeReviewModel, "implementation-scope-review", "", "the model for role implementation-scope-review, as model or model:effort; OpenCode uses opencode/model or opencode/provider/model")
 		_ = cmd.MarkFlagRequired("implementation-scope-review")
 	} else {
-		cmd.Flags().StringVar(&implementationScopeReviewModel, "implementation-scope-review", implementationScopeReviewModelDefault, "advanced override for role implementation-scope-review, as model or model:effort; omit this flag to use the displayed workflow default")
+		cmd.Flags().StringVar(&implementationScopeReviewModel, "implementation-scope-review", implementationScopeReviewModelDefault, "advanced override for role implementation-scope-review, as model or model:effort; OpenCode uses opencode/model or opencode/provider/model; omit this flag to use the displayed workflow default")
 	}
 	architecturalCritiqueModelDefault := defaults[gimble.WorkflowRole("architectural-critique")]
 	if architecturalCritiqueModelDefault == "" {
-		cmd.Flags().StringVar(&architecturalCritiqueModel, "architectural-critique", "", "the model for role architectural-critique, as model or model:effort")
+		cmd.Flags().StringVar(&architecturalCritiqueModel, "architectural-critique", "", "the model for role architectural-critique, as model or model:effort; OpenCode uses opencode/model or opencode/provider/model")
 		_ = cmd.MarkFlagRequired("architectural-critique")
 	} else {
-		cmd.Flags().StringVar(&architecturalCritiqueModel, "architectural-critique", architecturalCritiqueModelDefault, "advanced override for role architectural-critique, as model or model:effort; omit this flag to use the displayed workflow default")
+		cmd.Flags().StringVar(&architecturalCritiqueModel, "architectural-critique", architecturalCritiqueModelDefault, "advanced override for role architectural-critique, as model or model:effort; OpenCode uses opencode/model or opencode/provider/model; omit this flag to use the displayed workflow default")
 	}
 	qaOrchestrationModelDefault := defaults[gimble.WorkflowRole("qa-orchestration")]
 	if qaOrchestrationModelDefault == "" {
-		cmd.Flags().StringVar(&qaOrchestrationModel, "qa-orchestration", "", "the model for role qa-orchestration, as model or model:effort")
+		cmd.Flags().StringVar(&qaOrchestrationModel, "qa-orchestration", "", "the model for role qa-orchestration, as model or model:effort; OpenCode uses opencode/model or opencode/provider/model")
 		_ = cmd.MarkFlagRequired("qa-orchestration")
 	} else {
-		cmd.Flags().StringVar(&qaOrchestrationModel, "qa-orchestration", qaOrchestrationModelDefault, "advanced override for role qa-orchestration, as model or model:effort; omit this flag to use the displayed workflow default")
+		cmd.Flags().StringVar(&qaOrchestrationModel, "qa-orchestration", qaOrchestrationModelDefault, "advanced override for role qa-orchestration, as model or model:effort; OpenCode uses opencode/model or opencode/provider/model; omit this flag to use the displayed workflow default")
 	}
 	cmd.Flags().IntVar(&port, "port", 8080, "loopback TCP port for the web application")
 	cmd.Flags().StringVar(&uds, "uds", "", "Unix-domain socket for the web application instead of TCP")

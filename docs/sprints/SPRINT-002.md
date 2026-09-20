@@ -1,6 +1,6 @@
 # Sprint 002: Claude Generate waits through native completion
 
-**Status:** in progress. **Issue:** 317. No chapter is selected.
+**Status:** completed. **Issue:** 317. No chapter is selected.
 
 ## Pyramid Index
 
@@ -80,8 +80,10 @@ Keep the temporary two-call workflow outside the checkout and run it with
 Claude Haiku after the repair. It uses real `gimble.Run`, one `NewSession`, and
 two sequential `Generate` calls. Call one launches exactly one finite native
 background Bash command, yields the explicit waiting declaration, and neither
-polls nor blocks on `TaskOutput`. The command mints its receipt only at
-completion. The fixture must observe, in order: waiting while `Generate` is
+polls nor blocks on `TaskOutput`. After notification, it may read that
+notification's exact output file once: native completion can supply a path
+instead of stdout. No pre-notification read is allowed. The command mints its
+receipt only at completion. The fixture must observe, in order: waiting while `Generate` is
 still pending; a native completion notification; a final response originating
 from that automatic wakeup; receipt equality in the typed final value; then
 the first call's return. It captures submitted input too, proving no hidden
@@ -102,17 +104,19 @@ references; schema-changing resume; and validation retries/continuations. They
 must not grow into a blanket background-task registry or unrelated-provider
 test suite.
 
-## Definition of done and open decisions
+## Definition of done and implementation decisions
 
 The product sprint is complete only when focused checks pass and the changed
 harness produces a green live Haiku run with these observations. An independent
 validator reads fixture, raw capture, and source; verifies the red baseline was
 not softened; and confirms both shapes, PIDs, session ID, wakeup, receipt, and
-ordering. No green repair is claimed here.
+ordering. Independent Sol-high validation passed the live Haiku workflow,
+focused race checks, vet/build, and the full Go/frontend test suite.
 
-Before coding, settle the exact reference-preserving envelope construction,
-the private attribution rule for resumed orphan results, and the `Text`/
-validation-retry interaction. These are bounded design questions; they do not
-authorize a public contract or persistent-service design. Writing and merging
-this planned document is a separate gate from implementing and proving the
-repair.
+The implementation composes the private envelope while preserving local
+references, named anchors, and literal caller data. Native initialization
+followed by requesting status supplies the bounded prompt-attribution barrier;
+earlier results cannot finish the submitted prompt. `Text` uses a string final
+payload, and malformed private output uses the existing validation retry.
+Legacy `dependencies` name-map handling remains a small follow-up in
+[issue 321](https://github.com/tylergannon/gimble/issues/321).

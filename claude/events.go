@@ -507,9 +507,9 @@ func (p *projector) nativeRef(envelope map[string]any, itemID string) map[string
 	return ref
 }
 
-// result records the turn report from Claude Code's final message. Every
-// accounting figure in `result` is per-turn, not a running total for the
-// conversation, so the report is the turn's and replaces any earlier one.
+// result records the latest report from Claude Code. Across automatic
+// continuations modelUsage is cumulative for the native process, so the latest
+// report already includes the waiting generations that preceded it.
 func (p *projector) result(envelope map[string]any) error {
 	report := make(map[string]gimble.Usage)
 	for model, raw := range object(envelope["modelUsage"]) {

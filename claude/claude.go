@@ -4,11 +4,14 @@
 package claude
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"iter"
+	"maps"
 	"strings"
 	"sync"
 	"time"
@@ -163,10 +166,12 @@ func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema 
 	if !a.userConfiguration {
 		options = append(options, isolate(extra)...)
 	}
-	if len(schema) > 0 {
-		text := string(schema)
-		extra["json-schema"] = &text
+	nativeSchema, err := completionSchema(schema)
+	if err != nil {
+		return gimble.TurnResult{}, fmt.Errorf("claude: compose completion schema: %w", err)
 	}
+	text := string(nativeSchema)
+	extra["json-schema"] = &text
 	switch {
 	case parent != "":
 		options = append(options, claudeagent.WithForkSession(parent))
@@ -203,7 +208,7 @@ func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema 
 		return gimble.TurnResult{}, fmt.Errorf("claude: %w", err)
 	}
 
-	result, err := waitTurn(ctx, stream, nativeErrors, sessionID, s)
+	out, err := waitTurn(ctx, stream, nativeErrors, sessionID, s)
 	if ctx.Err() != nil {
 		return gimble.TurnResult{}, ctx.Err()
 	}
@@ -211,15 +216,7 @@ func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema 
 		return gimble.TurnResult{}, err
 	}
 	usage := project.turnUsage()
-	if len(schema) == 0 {
-		out, err := json.Marshal(result.Result)
-		return gimble.TurnResult{Output: out, Usage: usage}, err
-	}
-	if result.StructuredOutput == nil {
-		return gimble.TurnResult{}, errors.New("claude: the turn ended without structured output")
-	}
-	out, err := json.Marshal(result.StructuredOutput)
-	return gimble.TurnResult{Output: out, Usage: usage}, err
+	return gimble.TurnResult{Output: out, Usage: usage}, nil
 }
 
 // Steer sends message on the running turn's live SDK stream and reports
@@ -279,7 +276,23 @@ func (s *session) getActive() *activeTurn {
 
 // waitTurn reads the turn to its result. When ctx ends first it interrupts
 // the turn and waits briefly for Claude Code to wind down.
-func waitTurn(ctx context.Context, stream *claudeagent.Stream, nativeErrors <-chan error, sessionID string, s *session) (claudeagent.ResultMessage, error) {
+type turnStream interface {
+	Messages() iter.Seq[claudeagent.Message]
+	InterruptWithReceipt(context.Context) (*claudeagent.InterruptReceipt, error)
+}
+
+// invalidCompletion is intentionally malformed JSON. Returning it as the
+// turn's output sends a missing or malformed private completion through
+// Generate's existing bounded validation retry, regardless of the caller's
+// schema (including schemas that accept null).
+var invalidCompletion = json.RawMessage("{")
+
+// waitTurn reads one submitted prompt through any explicit waiting results and
+// native automatic continuations. A resumed process can first replay orphan
+// results from work owned by an earlier process. The process's init followed by
+// status=requesting is the bounded post-submit barrier: origin and result index
+// describe a generation, but do not prove that the queued prompt was received.
+func waitTurn(ctx context.Context, stream turnStream, nativeErrors <-chan error, sessionID string, s *session) (json.RawMessage, error) {
 	messages := make(chan claudeagent.Message)
 	stop := make(chan struct{})
 	defer close(stop)
@@ -296,27 +309,34 @@ func waitTurn(ctx context.Context, stream *claudeagent.Stream, nativeErrors <-ch
 
 	done := ctx.Done()
 	var grace <-chan time.Time
+	initialized := false
+	promptReceived := false
+	canceling := false
 	for {
 		select {
 		case err := <-nativeErrors:
 			if err != nil {
-				return claudeagent.ResultMessage{}, err
+				return nil, err
 			}
 		case <-done:
+			canceling = true
 			done = nil
 			interruptCtx, cancel := context.WithTimeout(context.Background(), controlTimeout)
 			_, _ = stream.InterruptWithReceipt(interruptCtx)
 			cancel()
 			grace = time.After(controlTimeout)
 		case <-grace:
-			return claudeagent.ResultMessage{}, ctx.Err()
+			return nil, ctx.Err()
 		case message, ok := <-messages:
 			if !ok {
-				return claudeagent.ResultMessage{}, errors.New("claude: the stream ended without a result")
+				if canceling {
+					return nil, ctx.Err()
+				}
+				return nil, errors.New("claude: the stream ended without a completed result")
 			}
 			envelope := decodeEnvelope(message)
 			if envelope.SessionID != "" && envelope.SessionID != sessionID {
-				return claudeagent.ResultMessage{}, fmt.Errorf("claude: got session %s, want %s", envelope.SessionID, sessionID)
+				return nil, fmt.Errorf("claude: got session %s, want %s", envelope.SessionID, sessionID)
 			}
 			if envelope.SessionID != "" && (envelope.Type != "system" || envelope.Subtype != "init") {
 				s.mu.Lock()
@@ -324,18 +344,190 @@ func waitTurn(ctx context.Context, stream *claudeagent.Stream, nativeErrors <-ch
 				s.mu.Unlock()
 			}
 			if err := assistantError(message); err != nil {
-				return claudeagent.ResultMessage{}, err
+				return nil, err
+			}
+			if envelope.Type == "system" && envelope.Subtype == "init" {
+				initialized = true
+			}
+			if initialized && requesting(message) {
+				promptReceived = true
 			}
 			if result, ok := asResult(message); ok {
-				if done == nil {
-					return claudeagent.ResultMessage{}, ctx.Err()
+				if canceling {
+					return nil, ctx.Err()
 				}
 				if result.Subtype != "success" && result.Status != "success" {
-					return claudeagent.ResultMessage{}, errors.New(resultFailure(result))
+					return nil, errors.New(resultFailure(result))
 				}
-				return result, nil
+				if !promptReceived {
+					continue
+				}
+				state, value, valid := completionValue(result.StructuredOutput)
+				if !valid {
+					return invalidCompletion, nil
+				}
+				switch state {
+				case "waiting":
+					continue
+				case "completed":
+					return value, nil
+				default:
+					return invalidCompletion, nil
+				}
 			}
 		}
+	}
+}
+
+func completionValue(value any) (string, json.RawMessage, bool) {
+	raw, err := json.Marshal(value)
+	if err != nil || value == nil {
+		return "", nil, false
+	}
+	var completion struct {
+		State   string          `json:"state"`
+		Message *string         `json:"message"`
+		Value   json.RawMessage `json:"value"`
+	}
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&completion); err != nil {
+		return "", nil, false
+	}
+	switch completion.State {
+	case "waiting":
+		// Native structured output cannot express conditional fields without
+		// top-level combinators. A model may include a provisional caller value
+		// while explicitly waiting; it is ignored and can never complete the turn.
+		return completion.State, nil, completion.Message != nil
+	case "completed":
+		return completion.State, completion.Value, completion.Value != nil
+	default:
+		return completion.State, nil, false
+	}
+}
+
+func requesting(message claudeagent.Message) bool {
+	switch status := message.(type) {
+	case claudeagent.StatusMessage:
+		return status.Status != nil && *status.Status == claudeagent.SDKStatusRequesting
+	case *claudeagent.StatusMessage:
+		return status.Status != nil && *status.Status == claudeagent.SDKStatusRequesting
+	default:
+		return false
+	}
+}
+
+// completionSchema embeds the caller's schema under an adapter-private
+// completion envelope. Local references keep their caller-schema meaning:
+// root definitions are hoisted, other root references are redirected to the
+// embedded caller root, and a collision-free private definition name is used.
+// Text receives the same lifecycle with a string as its final value.
+func completionSchema(schema json.RawMessage) (json.RawMessage, error) {
+	var caller any = map[string]any{"type": "string"}
+	if len(schema) > 0 {
+		if err := json.Unmarshal(schema, &caller); err != nil {
+			return nil, err
+		}
+	}
+	root, isObject := caller.(map[string]any)
+	defs := make(map[string]any)
+	var legacyDefinitions map[string]any
+	name := "__gimble_completion_value"
+	if isObject {
+		if existing, ok := root["$defs"].(map[string]any); ok {
+			maps.Copy(defs, existing)
+		}
+		for {
+			if _, exists := defs[name]; !exists {
+				break
+			}
+			name += "_"
+		}
+		if _, hasID := root["$id"]; !hasID {
+			rewriteLocalRefs(root, name, false)
+			delete(root, "$defs")
+			if legacy, ok := root["definitions"].(map[string]any); ok {
+				// Legacy definitions use a separate JSON-pointer namespace but
+				// still have to remain at the composed document root.
+				legacyDefinitions = make(map[string]any, len(legacy))
+				maps.Copy(legacyDefinitions, legacy)
+				delete(root, "definitions")
+			}
+		}
+	}
+	defs[name] = caller
+	valueRef := map[string]any{"$ref": "#/$defs/" + name}
+	composed := map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"state": map[string]any{
+				"type": "string", "enum": []string{"waiting", "completed"},
+				"description": "Use waiting while required work is pending, then completed only when the whole assignment is done.",
+			},
+			"message": map[string]any{"type": "string", "description": "Required for waiting: a short witness of what remains pending. Omit when completed."},
+			"value":   valueRef,
+		},
+		"required":             []string{"state"},
+		"additionalProperties": false,
+		"$defs":                defs,
+	}
+	if isObject {
+		if dialect, ok := root["$schema"]; ok {
+			composed["$schema"] = dialect
+			delete(root, "$schema")
+		}
+	}
+	if legacyDefinitions != nil {
+		composed["definitions"] = legacyDefinitions
+	}
+	return json.Marshal(composed)
+}
+
+func rewriteLocalRefs(value any, rootName string, nestedResource bool) {
+	switch value := value.(type) {
+	case []any:
+		for _, item := range value {
+			rewriteLocalRefs(item, rootName, nestedResource)
+		}
+	case map[string]any:
+		if _, ok := value["$id"]; ok {
+			nestedResource = true
+		}
+		for key, item := range value {
+			if key == "properties" || key == "patternProperties" || key == "dependentSchemas" || key == "$defs" || key == "definitions" {
+				rewriteSchemaNameMap(item, rootName, nestedResource)
+				continue
+			}
+			// These keywords contain caller instances, not subschemas. In
+			// particular, an object with a "$ref" member under const/default is
+			// literal data and changing it changes the caller's contract.
+			if key == "const" || key == "default" || key == "enum" || key == "examples" {
+				continue
+			}
+			if !nestedResource && (key == "$ref" || key == "$dynamicRef" || key == "$recursiveRef") {
+				// A fragment beginning "#/" is a JSON Pointer into the caller's
+				// old document root. A fragment such as "#node" is a named anchor;
+				// relocation does not change its anchor identity, so preserve it.
+				if ref, ok := item.(string); ok && (ref == "#" || strings.HasPrefix(ref, "#/")) && ref != "#/$defs" && !strings.HasPrefix(ref, "#/$defs/") && ref != "#/definitions" && !strings.HasPrefix(ref, "#/definitions/") {
+					value[key] = "#/$defs/" + rootName + strings.TrimPrefix(ref, "#")
+				}
+			}
+			rewriteLocalRefs(item, rootName, nestedResource)
+		}
+	}
+}
+
+// rewriteSchemaNameMap walks the values of maps whose keys are caller-chosen
+// names. A property or definition named "default" or "$id" is not itself a
+// schema keyword; only its value is a schema node.
+func rewriteSchemaNameMap(value any, rootName string, nestedResource bool) {
+	named, ok := value.(map[string]any)
+	if !ok {
+		return
+	}
+	for _, schema := range named {
+		rewriteLocalRefs(schema, rootName, nestedResource)
 	}
 }
 

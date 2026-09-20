@@ -92,7 +92,7 @@ func measureRetrieval(dir, scope string) string {
 		encoded, _ := json.Marshal(usage)
 		tokens = "Recorded provider usage (separate from returned text): " + string(encoded)
 	}
-	return fmt.Sprintf("Observed retrieval tool calls: %d; failed: %d; unfinished: %d; recorded returned text: %d bytes.\n\n%s\n\nCounts deduplicate tool identities and exclude submit_result bookkeeping. Returned bytes count recorded text/error messages, not physical file reads; harness truncation and unreported output may reduce them. Provider-unreported token fields appear as zero.", counts.calls, counts.failed, counts.unfinished, counts.bytes, tokens)
+	return fmt.Sprintf("Observed tool calls during retrieval: %d; failed: %d; unfinished: %d; recorded returned text: %d bytes.\n\n%s\n\nCounts include harness and instruction overhead, deduplicate tool identities, and exclude submit_result bookkeeping. Returned bytes count recorded text/error messages, not physical file reads; harness truncation and unreported output may reduce them. Provider-unreported token fields appear as zero.", counts.calls, counts.failed, counts.unfinished, counts.bytes, tokens)
 }
 
 type toolCounts struct{ calls, failed, unfinished, bytes int }

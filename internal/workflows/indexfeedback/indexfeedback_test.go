@@ -112,7 +112,7 @@ func TestFeedbackFreshRetrievalAccountingAndAdvisoryFailure(t *testing.T) {
 				}
 				return
 			}
-			for _, want := range []string{"Source-backed feedback", "retrieval interrupted", "tool calls: 1", "6 bytes", "Recorded provider usage"} {
+			for _, want := range []string{"Source-backed feedback", "retrieval interrupted", "tool calls during retrieval: 1", "6 bytes", "Recorded provider usage"} {
 				if !strings.Contains(string(data), want) {
 					t.Errorf("feedback lacks %q: %s", want, data)
 				}

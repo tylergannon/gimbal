@@ -135,9 +135,13 @@ project's policy for retaining or sharing evidence.
 ## Run practical user testing
 
 `gimble run validate-product --suite-file /abs/suite.yaml --no-web` runs one to
-three caller-assigned workloads, reviews their screenshots with Gemini Flash,
-and synthesizes findings. Supply the product, local assignment files, isolated
-workspaces, startup/readiness commands or existing URLs, and an output directory.
+three caller-assigned workloads with Opus 5, reviews their screenshots with Gemini
+Flash, and synthesizes findings. After each workload, the same tester session
+answers one follow-up: its three favorite and three least favorite aspects of UX
+and UI separately, with concrete examples. The debrief is appended to the task
+report; elapsed workload time excludes it. Supply the product, local assignment
+files, isolated workspaces, startup/readiness commands or existing URLs, and an
+output directory.
 The command's help describes the JSON/YAML input and model overrides. Set
 `issue_repo` to publish deduplicated findings there; omit it for reports only.
 

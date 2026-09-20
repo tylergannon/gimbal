@@ -3,7 +3,11 @@
 `gimble run validate-product --suite-file /absolute/path/to/suite.yaml --no-web`
 
 The fixed workflow has three tester slots (one to three workloads), one screenshot
-review, and one final triage turn. Assign useful jobs, not feature checklists.
+review, and one final triage turn. Each tester gets one follow-up in its existing
+session to name its three favorite and three least favorite aspects of UX and UI
+separately, grounded in its own interactions. This debrief is appended to its
+report; measured workload time excludes the debrief. Assign useful jobs, not
+feature checklists.
 Product A is always tested through its public interface and user documentation;
 testers never inspect A's source. When A works on another project B, the tester
 can read B but should normally rely on A to do its job.
@@ -31,7 +35,7 @@ and `output_dir` receives a unique run directory. `timeout` defaults to one hour
 `playwright_cli` optionally overrides the browser executable. Workspaces must not
 overlap; shared external services/accounts should also be isolated by the caller.
 
-The tester role `product-operation` defaults to Luna. `product-visual-review`
+The tester role `product-operation` defaults to Claude Opus 5. `product-visual-review`
 defaults to Gemini Flash and opens screenshots to check readability and captions.
 `product-triage` defaults to GPT-6 Astra and combines findings. Their corresponding
 CLI flags can override models. The final agent checks existing issues and files

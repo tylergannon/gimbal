@@ -16,9 +16,11 @@
 //
 // The three tester slots are explicit; unused slots do nothing. The caller assigns
 // workloads; no planner invents work or retries failures. Each tester saves ordered,
-// captioned screenshots and reports task outcome and UX separately. Video records
-// the browser for optional human review; agents do not analyze it. Gemini Flash
-// opens screenshots to check readability and claims, not to repeat the workload.
+// captioned screenshots and reports task outcome. One follow-up on the same session
+// asks for its three favorite and least favorite aspects of UX and UI separately,
+// appended to user-report.md. Elapsed time covers the task, excluding this debrief.
+// Video records the browser for optional human review; agents do not analyze it.
+// Gemini Flash opens screenshots to check readability and claims, not to repeat the workload.
 // The final agent reads all reports, deduplicates findings against existing GitHub
 // issues, and opens actionable issues in issue_repo (owner/repository). Omit
 // issue_repo to produce a report without publishing issues. Product defects are
@@ -33,8 +35,8 @@
 // status includes cleanup errors; files alone do not certify run completion.
 // Bounded browser cleanup runs outside cancellation; hard kills cannot guarantee it.
 //
-// Roles: product-operation defaults to Luna, product-visual-review to Gemini Flash,
-// and product-triage to GPT-6 Astra. Each has its normal model override flag.
+// Roles: product-operation defaults to Claude Opus 5, product-visual-review to
+// Gemini Flash, and product-triage to GPT-6 Astra. Each has its model override flag.
 //
 // Example:
 //
@@ -165,6 +167,11 @@ func ValidateProduct(ctx context.Context, env gimble.Env, params Params) (result
 		start := time.Now()
 		text, err := tester.Generate[gimble.Text](ctx, userPrompt)
 		reports[0].ElapsedSeconds = time.Since(start).Seconds()
+		if err == nil {
+			feedback, feedbackErr := tester.Generate[gimble.Text](ctx, experiencePrompt)
+			text += "\n\n" + feedback
+			err = feedbackErr
+		}
 		turns[0] = errors.Join(err, os.WriteFile(reports[0].Report, []byte(text), 0644))
 		reports[0].Error = errorText(turns[0])
 		return nil
@@ -180,6 +187,11 @@ func ValidateProduct(ctx context.Context, env gimble.Env, params Params) (result
 		start := time.Now()
 		text, err := tester.Generate[gimble.Text](ctx, userPrompt)
 		reports[1].ElapsedSeconds = time.Since(start).Seconds()
+		if err == nil {
+			feedback, feedbackErr := tester.Generate[gimble.Text](ctx, experiencePrompt)
+			text += "\n\n" + feedback
+			err = feedbackErr
+		}
 		turns[1] = errors.Join(err, os.WriteFile(reports[1].Report, []byte(text), 0644))
 		reports[1].Error = errorText(turns[1])
 		return nil
@@ -195,6 +207,11 @@ func ValidateProduct(ctx context.Context, env gimble.Env, params Params) (result
 		start := time.Now()
 		text, err := tester.Generate[gimble.Text](ctx, userPrompt)
 		reports[2].ElapsedSeconds = time.Since(start).Seconds()
+		if err == nil {
+			feedback, feedbackErr := tester.Generate[gimble.Text](ctx, experiencePrompt)
+			text += "\n\n" + feedback
+			err = feedbackErr
+		}
 		turns[2] = errors.Join(err, os.WriteFile(reports[2].Report, []byte(text), 0644))
 		reports[2].Error = errorText(turns[2])
 		return nil

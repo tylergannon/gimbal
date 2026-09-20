@@ -183,7 +183,7 @@ func TestValidateProductHelp(t *testing.T) {
 	if !strings.Contains(lineWith(help, "--suite-file string"), "(required)") {
 		t.Fatal(help)
 	}
-	for role, model := range map[string]string{"product-operation": "gpt-5.6-luna", "product-visual-review": "gemini-3.8-flash-medium", "product-triage": "gpt-6-astra:high"} {
+	for role, model := range map[string]string{"product-operation": "claude-opus-5:high", "product-visual-review": "gemini-3.8-flash-medium", "product-triage": "gpt-6-astra:high"} {
 		if !strings.Contains(lineWith(help, "--"+role+" string"), `(default "`+model+`")`) {
 			t.Fatal(help)
 		}

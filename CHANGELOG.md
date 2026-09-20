@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Claude `Generate` waits through background-task continuations before returning
+  the final value, and subsequent calls resume the conversation with their own
+  output schema.
+
 ### Added
 
 - `gimble upload-artifact` support for Cloudflare R2 and AWS S3, with

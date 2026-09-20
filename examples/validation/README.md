@@ -18,6 +18,13 @@ instance. For a CLI-only product, supply the URL of a loopback terminal such as
 GoTTY; its startup command can live in the workload's `start` field. Ordinary CLI
 output can also accompany a browser workload's screenshots.
 
+For Gimble workloads, launch the delegated workflow with its own `--port` and
+have the tester navigate the recorded browser to that listener for live monitoring.
+A separately started Gimble server is useful for history, but can retain a stale
+snapshot of a run owned by another process. The owning listener also serves
+`GET /api/runs/{runID}` and `/api/runs/{runID}/events`. Preserve `.gimble` when a
+delegated scaffold operation copies files into the active project.
+
 Inputs are JSON or YAML; paths resolve from the suite file. `product` names A,
 `guides` lists public local usage documents, `workloads` supplies the assignments,
 and `output_dir` receives a unique run directory. `timeout` defaults to one hour.

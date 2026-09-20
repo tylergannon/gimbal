@@ -10,7 +10,10 @@ in B's repository. This assignment permits creating a branch, committing, pushin
 and opening that PR; do not merge it. Rely on Gimble's agents to inspect and edit
 B rather than doing the implementation yourself. Do not inspect Gimble's source.
 
-Monitor the work through the supplied web interface. Explore the controls and
+Start the implementation workflow with its own web listener (`--port`, not
+`--no-web`) and navigate the recorded browser to that address for live monitoring.
+The initially supplied standalone server is a history/start page. Preserve the
+active project's `.git` and `.gimble` when delegating scaffolding. Explore the controls and
 information you naturally need to understand what is happening. Report whether
 you reached a usable PR, link it, and describe interruptions, confusion, bugs,
 and the most annoying parts of the experience. Capture ordered screenshots with

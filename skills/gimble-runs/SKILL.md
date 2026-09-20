@@ -22,8 +22,7 @@ gimble run review --help
 ```
 
 Installed help tells you what is available and which inputs and model flags
-it accepts. The current built-in is `review`, a read-only code review. The
-presence of a `df-*` skill does not make it a Gimble command.
+it accepts. The presence of a `df-*` skill does not make it a Gimble command.
 
 Establish the goal, target project, permitted changes, and what would
 demonstrate a useful result. A supplied chapter or sprint can provide context;
@@ -123,6 +122,22 @@ capabilities.
 For direct inspection, start with stored run and turn results, then the
 relevant session transcript or recorded command output. Follow the consumer
 project's policy for retaining or sharing evidence.
+
+## Run practical user testing
+
+`gimble run validate-product --suite-file /abs/suite.yaml --no-web` runs one to
+three caller-assigned workloads, reviews their screenshots with Gemini Flash,
+and synthesizes findings. Supply the product, local assignment files, isolated
+workspaces, startup/readiness commands or existing URLs, and an output directory.
+The command's help describes the JSON/YAML input and model overrides. Set
+`issue_repo` to publish deduplicated findings there; omit it for reports only.
+
+Assign useful tasks rather than exhaustive feature checklists. Testers must never
+inspect the tested product's source. They capture captioned screenshots and report
+task success separately from usability; video is for optional human review.
+When testing Gimble by having it build another project, use the delegated run's
+own web listener for live UI/API monitoring. A standalone history viewer can
+retain stale snapshots of runs owned by another process.
 
 ## Work from a conversation
 

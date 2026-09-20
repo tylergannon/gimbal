@@ -7,4 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Practical product user-testing workflow with up to three parallel assignments,
+  captioned screenshots and human-review videos, Gemini Flash visual review, and
+  consolidated findings with optional GitHub issue creation.
+
 [Unreleased]: https://github.com/tylergannon/gimble/commits/main

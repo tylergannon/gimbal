@@ -1,0 +1,8 @@
+{"type":"object",
+"properties":{
+"questions":{"type":"array","items":{"type":"object",
+"properties":{
+"question":{"type":"string"},
+"evidence":{"type":"string","description":"Evidence gives original source paths, line ranges, and supporting excerpts."}
+},"required":["question","evidence"],"additionalProperties":false}}
+},"required":["questions"],"additionalProperties":false}

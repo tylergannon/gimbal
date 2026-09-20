@@ -128,6 +128,18 @@ Gimble has no generic resume command. Repository promise helpers may define
 their own resumable state, schedules, and badges; those are separate
 capabilities.
 
+`research-document` launches an independent `index-feedback` run after building
+or updating its combined semantic index. It continues immediately and records
+an `index feedback file` path in the originating scope. Read that Markdown file
+for the three-question quality sample and measured retrieval activity; the
+sidecar's own run contains its sessions. Luna is the default for all sidecar
+roles. The sidecar has a ten-minute deadline, makes no repairs, and never gates
+the document. Launch or evaluation failures are advisory incomplete outcomes.
+Its files live under `.gimble/index-feedback/`; it can finish after the parent
+exits. For an existing index, use `gimble run index-feedback --help` to run the
+same feedback pass directly. This is a sample over live local files, not a
+fixed-corpus benchmark or proof that every question works.
+
 For direct inspection, start with stored run and turn results, then the
 relevant session transcript or recorded command output. Follow the consumer
 project's policy for retaining or sharing evidence.

@@ -17,6 +17,14 @@
 // and the editor reports only nitpicks, or returns an error after the editorial
 // round limit.
 //
+// After each combined-index build or update, an independent index-feedback
+// sidecar samples retrieval quality with Luna. It runs for at most ten minutes,
+// makes no repairs, and never gates document completion. The originating scope
+// records the feedback file under .gimble/index-feedback; the separate sidecar
+// run holds its sessions. It may finish after this workflow exits. If the
+// sidecar fails to launch or evaluate, that is advisory failure, not a document
+// failure. Sources and indexes are read in place, so updates can overlap a pass.
+//
 // Model defaults deliberately put broad collection on Gemini Flash and report
 // synthesis on Gemini Pro. Research planning, parallel research and indexing,
 // index curation, and supervision use Gemini 3.8 Flash at medium effort.
@@ -304,6 +312,14 @@ func ResearchDocument(ctx context.Context, env gimble.Env, params Params) error 
 	if err := requireNonemptyFile(indexPath); err != nil {
 		return fmt.Errorf("semantic index: %w", err)
 	}
+	exit, feedback, launchError, launchErr := gimble.RunCommand(ctx, "index-feedback", env.WorkDir, "zsh", "-c", launchIndexFeedback, "zsh",
+		filepath.Join(env.WorkDir, ".gimble", "index-feedback"), tokenCounter, "run", "index-feedback", "--no-web", "--work-dir", env.WorkDir,
+		"--goal", goal, "--corpus", researchDir, "--index", indexPath)
+	if launchErr != nil || exit != 0 {
+		gimble.Set(ctx, "index feedback launch error", fmt.Sprintf("%v; %s", launchErr, launchError))
+	} else {
+		gimble.Set(ctx, "index feedback file", strings.TrimSpace(feedback))
+	}
 
 	author := gimble.NewSession(ctx, roleDocumentAuthoring, env.WorkDir)
 	compressionCoach := gimble.NewSession(ctx, roleDocumentSupervision, env.WorkDir)
@@ -372,6 +388,17 @@ func ResearchDocument(ctx context.Context, env gimble.Env, params Params) error 
 				if _, err := curator.Generate[gimble.Text](ctx, updateIndexPrompt,
 					gimble.WithSupervisor(indexCoach, researchCoachPrompt)); err != nil {
 					return err
+				}
+				if err := requireNonemptyFile(indexPath); err != nil {
+					return fmt.Errorf("semantic index: %w", err)
+				}
+				exit, feedback, launchError, launchErr := gimble.RunCommand(ctx, "index-feedback", env.WorkDir, "zsh", "-c", launchIndexFeedback, "zsh",
+					filepath.Join(env.WorkDir, ".gimble", "index-feedback"), tokenCounter, "run", "index-feedback", "--no-web", "--work-dir", env.WorkDir,
+					"--goal", goal, "--corpus", researchDir, "--index", indexPath)
+				if launchErr != nil || exit != 0 {
+					gimble.Set(ctx, "index feedback launch error", fmt.Sprintf("%v; %s", launchErr, launchError))
+				} else {
+					gimble.Set(ctx, "index feedback file", strings.TrimSpace(feedback))
 				}
 			}
 
@@ -463,3 +490,24 @@ const editorialPrompt = `Independently assess the document against the caller's 
 Set OnlyNitpicks only when no unsupported or misleading claim, missing requirement, or material prioritization or compression problem warrants revision. Put defects repairable from existing evidence in MaterialIssues. Put topics in MissingTopics when absent or inadequate evidence requires targeted research, explaining what must be established. Do not introduce optional enhancements or reopen the caller's settled requirements.`
 
 const reviseDocumentPrompt = `Revise the document at its exact path using the editorial verdict, measured token count, and current semantic index. Follow the affected routes to original evidence and repair every material issue; do not simply repeat a corrected summary without checking its support. Preserve the caller's requirements and make unresolved evidence gaps explicit. Remove repetition and secondary detail before weakening central claims or their necessary qualifications. Run the supplied token counter executable with "count-tokens" and the document path, editing until the measured count is within budget.`
+
+// Positional arguments preserve paths and goals literally. The detached CLI
+// owns its run and deadline; neither its pipes nor its lifetime belong to the
+// parent RunCommand. Even pre-workflow CLI failures leave feedback and a log.
+const launchIndexFeedback = `set -eu
+root=$1
+shift
+mkdir -p "$root"
+feedback_dir=$(mktemp -d "$root/evaluation.XXXXXX")
+printf '# Index feedback — starting\n\nSee sidecar.log for launch diagnostics.\n' > "$feedback_dir/feedback.md"
+nohup zsh -c '
+  feedback_dir=$1
+  shift
+  "$@" --output "$feedback_dir/feedback.md" > "$feedback_dir/sidecar.log" 2>&1
+  result=$?
+  if [ "$result" -ne 0 ]; then
+    printf "\nSidecar incomplete (exit %s). See sidecar.log.\n" "$result" >> "$feedback_dir/feedback.md"
+  fi
+' zsh "$feedback_dir" "$@" < /dev/null > /dev/null 2>&1 &
+printf '%s\n' "$feedback_dir/feedback.md"
+`

@@ -5,6 +5,7 @@ web/editor/.svelte-kit
 .gimble/run/
 .gimble/runs/
 .gimble/issues/
+.gimble/index-feedback/
 .gimble/project.jsonl
 .gimble/conversations/
 .gimble/conversation-worktrees/

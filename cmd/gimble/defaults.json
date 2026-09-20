@@ -1,4 +1,7 @@
 {
+  "index-sampling": "gpt-5.6-luna",
+  "index-retrieval": "gpt-5.6-luna",
+  "index-assessment": "gpt-5.6-luna",
   "product-operation": "claude-opus-5:high",
   "product-visual-review": "gemini-3.8-flash-medium",
   "product-triage": "gpt-6-astra:high",

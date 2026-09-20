@@ -31,6 +31,7 @@ func TestRouteAnalysis(t *testing.T) {
 		{name: "vet unit", args: []string{"-json", vetConfig}, want: []string{"-json", vetConfig}, ok: true},
 		{name: "run prompt help with cfg argument", args: []string{"run-prompt", "-h", ordinaryConfig}},
 		{name: "run prompt wins over real vet config", args: []string{"run-prompt", "-h", vetConfig}},
+		{name: "upload artifact wins over real vet config", args: []string{"upload-artifact", "--provider", "r2", vetConfig}},
 		{name: "server help with cfg socket", args: []string{"-h", "-uds", ordinaryConfig}},
 		{name: "server wins over real vet config", args: []string{"-h", "-uds", vetConfig}},
 		{name: "ordinary server", args: []string{"-no-web"}},

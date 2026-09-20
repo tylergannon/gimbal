@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `gimble upload-artifact` support for Cloudflare R2 and AWS S3, with
+  user-wide configuration in `~/.gimble/config.json` and environment overrides.
 - Practical product user-testing workflow with up to three parallel assignments,
   captioned screenshots and human-review videos, Gemini Flash visual review, and
   consolidated findings with optional GitHub issue creation. Testers use Opus 5

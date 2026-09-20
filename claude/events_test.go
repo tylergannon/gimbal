@@ -136,6 +136,32 @@ func TestRawProjectorReportsTurnUsageFromResult(t *testing.T) {
 	}
 }
 
+func TestRawProjectorKeepsCumulativeContinuationUsage(t *testing.T) {
+	p := newProjector("session", "haiku", func(gimble.AgentEvent) error { return nil })
+	mustRaw(t, p.raw(json.RawMessage(resultFixture)))
+	var continuation map[string]any
+	if err := json.Unmarshal([]byte(resultFixture), &continuation); err != nil {
+		t.Fatal(err)
+	}
+	continuation["total_cost_usd"] = 0.031
+	model := continuation["modelUsage"].(map[string]any)["claude-haiku-4-5-20251001"].(map[string]any)
+	model["costUSD"], model["inputTokens"], model["outputTokens"] = 0.031, 18.0, 300.0
+	model["thinkingTokens"], model["cacheReadInputTokens"], model["cacheCreationInputTokens"] = 150.0, 40000.0, 12000.0
+	raw, err := json.Marshal(continuation)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustRaw(t, p.raw(raw))
+
+	want := gimble.Usage{Cost: 0.031}
+	want.Tokens.Input, want.Tokens.Output, want.Tokens.Reasoning = 18, 150, 150
+	want.Tokens.Cache.Read, want.Tokens.Cache.Write = 40000, 12000
+	got := p.turnUsage()
+	if len(got) != 1 || got["claude-haiku-4-5-20251001"] != want {
+		t.Fatalf("continuation report = %#v, want latest cumulative %#v", got, want)
+	}
+}
+
 func TestRawProjectorDistinguishesToolErrorAndGuardsSingleOpen(t *testing.T) {
 	var events []gimble.AgentEvent
 	p := newProjector("session", "model", func(event gimble.AgentEvent) error { events = append(events, event); return nil })

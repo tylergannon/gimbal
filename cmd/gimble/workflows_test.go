@@ -13,7 +13,7 @@ import (
 
 func TestRunListsTheWorkflowsBuiltIn(t *testing.T) {
 	help := helpOf(t)
-	for _, name := range []string{"implement", "pyramid-summary", "research-document", "review"} {
+	for _, name := range []string{"implement", "pyramid-summary", "research-document", "review", "validate-product"} {
 		if !strings.Contains(help, "\n  "+name+" ") {
 			t.Errorf("run --help does not list %s:\n%s", name, help)
 		}
@@ -176,4 +176,21 @@ func lineWith(text, flag string) string {
 		}
 	}
 	return ""
+}
+
+func TestValidateProductHelp(t *testing.T) {
+	help := helpOf(t, "validate-product")
+	if !strings.Contains(lineWith(help, "--suite-file string"), "(required)") {
+		t.Fatal(help)
+	}
+	for role, model := range map[string]string{"product-operation": "gpt-5.6-luna", "product-visual-review": "gemini-3.8-flash-medium", "product-triage": "gpt-6-astra:high"} {
+		if !strings.Contains(lineWith(help, "--"+role+" string"), `(default "`+model+`")`) {
+			t.Fatal(help)
+		}
+	}
+	for _, text := range []string{"one to three workloads", "implementation source", "issue_repo", "human review"} {
+		if !strings.Contains(help, text) {
+			t.Fatalf("missing %s", text)
+		}
+	}
 }

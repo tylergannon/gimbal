@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Practical product user-testing workflow with up to three parallel assignments,
+  captioned screenshots and human-review videos, Gemini Flash visual review, and
+  consolidated findings with optional GitHub issue creation.
 - OpenCode legacy harness with explicit `opencode/model` and
   `opencode/provider/model` routing, one shared server managed by
   `gimble opencode start|stop`, and raw event/request captures for diagnostics.

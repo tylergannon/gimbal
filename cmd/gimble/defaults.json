@@ -1,4 +1,7 @@
 {
+  "product-operation": "gpt-5.6-luna",
+  "product-visual-review": "gemini-3.8-flash-medium",
+  "product-triage": "gpt-6-astra:high",
   "code-review": "gpt-5.6-luna",
   "sprint-planning": "gpt-6-astra:high",
   "coding": "gpt-5.6-sol:high",

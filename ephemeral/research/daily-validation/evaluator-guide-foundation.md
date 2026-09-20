@@ -176,3 +176,32 @@ overflow/readability, difficulty locating watcher outcomes, and search excluding
 visible unstarted nodes. Synthesis correctly separated those observations from
 unproved claims such as a broken fit-to-view control. Useful partial findings
 do not turn this incomplete practical evaluation into a completed one.
+
+## Sol rerun: complete practical journey
+
+At the user's request, the next run selected `gpt-5.6-sol:medium` through
+`--product-operation`, retaining Sonnet 5 implementation roles, Flash screenshot
+review, Astra synthesis, and the same Gimble build and practical assignment.
+A fresh Scrabbler worktree started from the same baseline; the previous attempt
+was preserved. No waiting-workaround prompt change was introduced.
+
+Sol initiated new implementation, observed the live UI through coding and QA,
+recovered from the run-owned listener closing at completion, inspected the saved
+validation result, and personally exercised the built feature in the recorded
+browser. It then committed/pushed the Gimble-produced change and opened Scrabbler
+PR #8, unmerged. The task took 14m49s and its same-session UI/UX debrief took 29s.
+No outer-agent steering, code repair, or rescue was needed. This demonstrates the
+intended practical journey for this run; it does not establish that Claude's
+background-task lifecycle defect is fixed or that one model is universally better.
+
+Sol disclosed its own shell-wrapper failure (assigning zsh's read-only `status`
+variable after successful target completion) separately from the target result.
+It recovered without restarting implementation. This distinction belongs in
+outcome reporting: an observer's tooling error is not automatically a product
+failure.
+
+Independent screenshot review remained valuable: Flash spotted an initial 500
+screen omitted by the tester's caption, two claims about activity below the
+visible viewport, and an incorrect screenshot reference. Preserve those limits
+alongside the successful task result. Screenshot review checks visual evidence;
+it does not replace the actual interaction record or establish hidden behavior.

@@ -46,3 +46,10 @@ The only repository file this workflow may create or revise is:
 No application changes, git operations, additional worklogs, PRs, or issue posts.
 Other investigators are active: do not change their files. Produce a concise
 report within 6500 tokens; detailed source passages belong in the local corpus.
+
+## Source audit during collection
+
+Before curation, authoring, or editorial acceptance, read
+/private/tmp/gimble-317-literature/verification/corrections.md and the fetched
+issue originals beside it. Correct outdated status and unsupported causal
+claims in the corpus; do not carry them into the report as current guarantees.

@@ -139,3 +139,40 @@ overall Gimble UX/UI, evidence limitations, and outer-agent interventions.
 
 Fold this note into those destinations after incorporating the upcoming run's
 observations. No official documentation has been changed by this note.
+
+## First new-work Opus trial: lifecycle limitation observed
+
+The 2026-09-20 trial used Opus 5 for evaluation, Sonnet 5 for all target
+implementation roles, Flash for screenshot review, and Astra for synthesis.
+Opus started new work and explored the live Gimble UI, saving 13 screenshots.
+After 6m11s it returned a waiting message expecting its background command to
+notify it later. The harness treated that return as the completed task turn,
+requested the debrief (which returned no text), and closed the recorded browser.
+The target implementation was still running. No outer steering occurred.
+
+The harness subsequently exited 0, while its synthesis correctly reported the
+practical assignment incomplete. There was no evaluator verification of the
+delivered feature, no PR, and no final user-experience debrief at that point.
+This is direct evidence for distinguishing harness execution from assignment
+completion, not evidence that the target implementation failed.
+
+Operational guidance to carry into the next assignment: the evaluator must
+remain in its active task turn, using its tool's supported wait mechanism while
+delegated work runs, then verify delivery and produce the final report. Returning
+an idle message is not a supported continuation mechanism for this workflow.
+That instruction has not yet been tested as a repair. Do not claim the lifecycle
+problem is resolved or add a general retry framework on the strength of this note.
+
+The target later completed in 13m24s. Its independent Sonnet validator reported
+passing browser checks for the required drag interactions and 18 passing unit
+tests. This was the target's validation, not the missing evaluator's acceptance
+exercise. The resulting Scrabbler change remains in its isolated worktree;
+no feature PR was created. The outer agent did not implement, repair, or finish
+the evaluator's assignment. Test listeners stopped and the user's separate
+preview remained running.
+
+Screenshot review and synthesis still yielded useful UI findings: inspector
+overflow/readability, difficulty locating watcher outcomes, and search excluding
+visible unstarted nodes. Synthesis correctly separated those observations from
+unproved claims such as a broken fit-to-view control. Useful partial findings
+do not turn this incomplete practical evaluation into a completed one.

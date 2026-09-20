@@ -1,10 +1,21 @@
 # Gimble
 
-Gimble is a Go library for writing agent workflows as ordinary Go. It is a
-host-neutral runtime: a workflow can drive Codex, Claude Code, another agent
-harness, or an adapter you provide. Gimble is not a feature of any one coding
-agent or development environment, and it can run wherever your Go program can
-run. Its public programming contract is the root package's Godoc and compiling
+**Agent workflows that read like pseudocode.** Gimble is a Go runtime for
+multi-agent workflows: write the workflow as a plain Go function, and Gimble
+gives it scoped context, planner loops, supervision, and a live console, on
+Codex, Claude Code, Antigravity, or your own harness.
+
+[![The Gimble console showing a planner loop with a watched coding turn](docs-site/static/shots/console.png)](https://tylergannon.github.io/gimble/)
+
+- **[Live multi-agent console](https://tylergannon.github.io/gimble/docs/console/)** — watch every scope, turn, and command on one map; steer an agent, answer its questions, or stop it.
+- **[Workflows that read like pseudocode](https://tylergannon.github.io/gimble/docs/workflows/)** — the whole process is one Go function, with prompts visible at the call site.
+- **[Primitives for agent work](https://tylergannon.github.io/gimble/docs/primitives/)** — scoped context delivery, promise loops, supervision, and a graph read from your source.
+- **[Curated roles, bound to models](https://tylergannon.github.io/gimble/docs/roles/)** — workflows name kinds of cognitive work; a run binds each to a harness, model, and effort.
+- **[Built-in workflows](https://tylergannon.github.io/gimble/docs/built-in/)** — `implement`, `review`, `research-document`, and `pyramid-summary` from the command line.
+- **[Any harness](https://tylergannon.github.io/gimble/docs/harnesses/)** — Codex, Claude Code, and Antigravity adapters ship in the box; five methods add another.
+
+Start with the [quickstart](https://tylergannon.github.io/gimble/docs/quickstart/).
+The public programming contract is the root package's Godoc and compiling
 examples:
 
 ```sh
@@ -51,9 +62,10 @@ environment flag, one flag per field of its workflow parameter struct, and one
 model flag per role its graph names. The absolute work directory is passed to
 the entry in `gimble.Env`; its `.gimble` holds the run, served as above.
 
-The binary currently includes the read-only `review` workflow. Its code-review
-model defaults to `gpt-5.6-luna` from `cmd/gimble/defaults.json`; pass
-`--code-review` to override it.
+The binary includes the `implement`, `review`, `research-document`, and
+`pyramid-summary` workflows. Each role's model defaults from
+`cmd/gimble/defaults.json`; pass the role's flag, such as `--code-review`, to
+override it.
 
 Workflow roles name cognitive work, not positions in a workflow. Gimble's
 prescribed `WorkflowRole` constants and their descriptions live together in

@@ -217,8 +217,10 @@ func (p *projector) projectTool(step *projectedStep, update *stepUpdate) error {
 
 // agy reports its schema-returning finish tool as ACTIVE, then puts the
 // structured value directly in the result envelope without a DONE update.
-// Settle only that documented terminal tool; any other open step is a broken
-// stream rather than inferred success.
+// Settle that tool from the value the result actually carries. Other native
+// steps may still be ACTIVE when agy successfully ends a turn, notably a
+// background command that print mode abandons on exit. Leave those steps as
+// observed: the result settles the turn, not every diagnostic step in it.
 func (p *projector) finishResult(result *result) error {
 	indexes := make([]int, 0, len(p.steps))
 	for index := range p.steps {
@@ -231,7 +233,7 @@ func (p *projector) finishResult(result *result) error {
 			continue
 		}
 		if step.kind != "tool" || step.name != "finish" || !step.toolCalled {
-			return fmt.Errorf("agy: result arrived with unsettled %s step %d", step.kind, index)
+			continue
 		}
 		if result.Status == "SUCCESS" {
 			if err := p.event("session.tool.success", map[string]any{

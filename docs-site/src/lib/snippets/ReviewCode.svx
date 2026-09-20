@@ -1,0 +1,13 @@
+```go
+// Review asks one reviewer to inspect the repository read-only and record its findings.
+func Review(ctx context.Context, env gimble.Env, params ReviewParams) error {
+	gimble.Set(ctx, "goal", params.Goal)
+	reviewer := gimble.NewSession(ctx, gimble.RoleCodeReview, env.WorkDir)
+	result, err := reviewer.Generate[Result](ctx, reviewPrompt)
+	if err != nil {
+		return err
+	}
+	gimble.SetJSON(ctx, "result", result)
+	return nil
+}
+```

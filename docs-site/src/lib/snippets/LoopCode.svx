@@ -1,0 +1,30 @@
+```go
+gimble.Set(ctx, "promise", promise)
+gimble.Set(ctx, "definition of done file", dodFile)
+
+planner := gimble.NewSession(ctx, gimble.RoleSprintPlanning, env.WorkDir)
+coach := gimble.NewSession(ctx, gimble.RoleArchitecturalCritique, env.WorkDir)
+loop := gimble.PromiseLoop(ctx, "implementation", promise, planner,
+	gimble.WithSupervisor(coach, planningScopePrompt))
+
+for taskCtx, task := range loop.Tasks {
+	worker := gimble.NewSession(taskCtx, roleCoding, env.WorkDir)
+	report, err := worker.Generate[gimble.Text](taskCtx, implementationPrompt,
+		gimble.WithSupervisor(workerCoach, implementationScopePrompt))
+	if err != nil {
+		return err
+	}
+	gimble.Set(taskCtx, "worker report", string(report))
+	gimble.Check(taskCtx, "task check", env.WorkDir, "sh", "-lc", task.Validation.Command)
+
+	validator := gimble.NewSession(taskCtx, gimble.RoleQAOrchestration, env.WorkDir)
+	assessment, err := validator.Generate[Assessment](taskCtx, validationPrompt)
+	if err != nil {
+		return err
+	}
+	if assessment.ValidationPassed {
+		break
+	}
+}
+return loop.Err()
+```

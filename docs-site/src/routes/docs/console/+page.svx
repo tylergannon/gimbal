@@ -1,0 +1,73 @@
+<script lang="ts">
+  import DocsPage from "#lib/components/DocsPage.svelte";
+  import Shot from "#lib/components/Shot.svelte";
+
+  const headings = [
+    { id: "map", text: "The map" },
+    { id: "detail", text: "The detail pane" },
+    { id: "reach-in", text: "Reaching into a run" },
+    { id: "runs", text: "The runs list" },
+    { id: "cli", text: "The same thing from a terminal" },
+  ];
+</script>
+
+<DocsPage
+  title="Console"
+  description="A live map of a multi-agent run, served by the run itself. Watch it, read any part of it, and reach in."
+  eyebrow="Feature"
+  {headings}
+>
+
+<figure>
+  <Shot src="shots/console.png" alt="A planner loop in the console with the coding turn selected." label="a recorded planner-loop run" eager />
+  <figcaption>A recorded run. The coding turn is selected; its assignment and model calls are on the right.</figcaption>
+</figure>
+
+Every `gimble run` starts the console on loopback port 8080. There is nothing to deploy and nothing to configure. `--port`, `--uds`, and `--no-web` change that.
+
+<h2 id="map">The map</h2>
+
+The map is the workflow's shape plus the run's status. Steps stack on one spine in source order. A group's branches sit side by side between a fork and a join. A loop's body returns to its planner by an arrow. Each scope is a sheet, so nesting is visible at a glance, and a scope folds when you do not need its inside.
+
+The shape comes from your source, not from the run. `go generate` reads the workflow function into a typed graph, so the console draws the whole map before the first turn starts, and steps that have not run yet are already there.
+
+<h2 id="detail">The detail pane</h2>
+
+The map carries shape and status only. Select anything to read the rest in one place:
+
+- **A turn:** its assignment, the context it was sent, each model call with token counts, and its transcript and tool activity.
+- **A scope:** the values written in it, including captured command output.
+- **A watcher:** the supervisor's instruction, its role, and the source line that attached it.
+
+<figure>
+  <Shot src="shots/supervision.png" alt="A supervisor selected in the console, showing its instruction, role, and source line." label="a watcher, selected" />
+  <figcaption>A supervisor. Its instruction is a constant in the workflow; the console links it to the line that attached it.</figcaption>
+</figure>
+
+<h2 id="reach-in">Reaching into a run</h2>
+
+- **Steer** a running agent turn with a message. It lands in the live turn, not the next one.
+- **Message a loop's planner.** The message waits for the planner's next decision.
+- **Answer an interview.** When a workflow calls `Interview`, the run blocks and the question appears in the console.
+- **Stop a turn or cancel the run.** They are different actions, and the console says which you are about to do.
+
+A recorded run offers none of these. It is a record.
+
+<h2 id="runs">The runs list</h2>
+
+<figure>
+  <Shot src="shots/runs.png" alt="The runs list." />
+</figure>
+
+Current work first, then everything recorded for the project, with filters for active, needs answer, ended, failed, and cancelled. Each run shows its latest activity and instruction, total cost, elapsed time, sessions, and turns. Runs are tables on disk; opening an old one reads its record, and nothing is replayed.
+
+<h2 id="cli">The same thing from a terminal</h2>
+
+```sh
+gimble runs                                    # runs in progress
+gimble watch RUN                               # snapshot, then follow
+gimble steer RUN "message" --session ID        # steer an agent turn
+gimble steer RUN "message" --loop SCOPE        # queue a message for a planner
+```
+
+</DocsPage>

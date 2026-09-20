@@ -162,6 +162,25 @@ func TestAdapterTreatsResultAsTerminalWhenProcessStaysAlive(t *testing.T) {
 	}
 }
 
+func TestAdapterAcceptsSuccessfulResultWithUnsettledToolObservation(t *testing.T) {
+	adapter, _ := testAdapter(t)
+	sessionID, err := adapter.CreateSession(t.Context(), "gemini-test-low", "", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var events []gimble.AgentEvent
+	result, err := adapter.RunTurn(t.Context(), sessionID, "UNSETTLED_TOOL", nil, func(event gimble.AgentEvent) error {
+		events = append(events, event)
+		return nil
+	})
+	if err != nil || string(result.Output) != `"OK"` {
+		t.Fatalf("result=%s error=%v", result.Output, err)
+	}
+	if got := eventTypes(events); !slices.Contains(got, "session.tool.called") || slices.Contains(got, "session.tool.success") || slices.Contains(got, "session.tool.failed") {
+		t.Fatalf("events = %v", got)
+	}
+}
+
 func testAdapter(t *testing.T) (*adapter, string) {
 	t.Helper()
 	record := filepath.Join(t.TempDir(), "invocations.jsonl")
@@ -216,6 +235,12 @@ func TestAgyHelperProcess(t *testing.T) {
 	}
 	if prompt == "STEER" {
 		response = "steered"
+	}
+	if prompt == "UNSETTLED_TOOL" {
+		writeEnvelope(map[string]any{"event": "step_update", "step_update": map[string]any{
+			"conversation_id": conversation, "step_index": 2, "state": "ACTIVE", "step_type": "tool",
+			"tool_info": map[string]any{"name": "run_command", "parameters": map[string]any{"CommandLine": "sleep 75"}},
+		}})
 	}
 	writeEnvelope(map[string]any{"event": "step_update", "step_update": map[string]any{
 		"conversation_id": conversation, "step_index": 1, "state": "DONE", "step_type": "agent_response", "text_delta": response,

@@ -1,44 +1,29 @@
 <script lang="ts">
   import { Check, Copy } from "@lucide/svelte";
-  import { Button } from "#lib/components/ui/button/index.js";
 
-  const prompt =
-    "go get github.com/tylergannon/gimble\ngo doc -all github.com/tylergannon/gimble";
+  const command = "go get github.com/tylergannon/gimble";
   let copied = $state(false);
 
-  async function copyPrompt() {
-    await navigator.clipboard.writeText(prompt);
+  async function copy() {
+    await navigator.clipboard.writeText(command);
     copied = true;
     window.setTimeout(() => (copied = false), 1800);
   }
 </script>
 
-<div class="surface group relative overflow-hidden rounded-2xl p-1" data-testid="install-prompt">
-  <div class="border-border/70 flex items-center gap-2 border-b px-4 py-3">
-    <span class="size-2 rounded-full bg-red-400/70"></span>
-    <span class="size-2 rounded-full bg-amber-300/70"></span>
-    <span class="size-2 rounded-full bg-emerald-400/70"></span>
-    <span class="text-muted-foreground ml-2 font-mono text-[0.65rem] tracking-[0.16em] uppercase">Start here</span>
-  </div>
-  <div class="flex flex-col gap-5 p-5 sm:flex-row sm:items-start sm:justify-between sm:p-6">
-    <code class="text-foreground max-w-2xl whitespace-pre-line text-sm leading-7 sm:text-base">{prompt}</code>
-    <Button
-      variant="outline"
-      size="sm"
-      class="shrink-0 self-start"
-      onclick={copyPrompt}
-      aria-label={copied ? "Install commands copied" : "Copy install commands"}
-    >
-      {#if copied}
-        <Check aria-hidden="true" />
-        Copied
-      {:else}
-        <Copy aria-hidden="true" />
-        Copy
-      {/if}
-    </Button>
-  </div>
-  <p class="sr-only" aria-live="polite">
-    {copied ? "Install commands copied to clipboard." : ""}
-  </p>
+<div class="border-border bg-card flex items-center gap-3 rounded-lg border py-2 pr-2 pl-4" data-testid="install-prompt">
+  <span class="text-primary font-mono text-sm select-none" aria-hidden="true">$</span>
+  <code class="text-foreground min-w-0 flex-1 overflow-x-auto text-[0.8rem] whitespace-nowrap">{command}</code>
+  <button
+    class="text-muted-foreground hover:text-foreground hover:bg-muted grid size-8 shrink-0 place-items-center rounded-md transition-colors"
+    onclick={copy}
+    aria-label={copied ? "Install command copied" : "Copy install command"}
+  >
+    {#if copied}
+      <Check class="size-4" aria-hidden="true" />
+    {:else}
+      <Copy class="size-4" aria-hidden="true" />
+    {/if}
+  </button>
+  <p class="sr-only" aria-live="polite">{copied ? "Install command copied to clipboard." : ""}</p>
 </div>

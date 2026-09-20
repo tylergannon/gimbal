@@ -1,0 +1,8 @@
+```sh
+$ gimble run --help
+Available Commands:
+  implement         Implement modifies a repository until its promise is independently demonstrated.
+  pyramid-summary   PyramidSummary writes and validates every derived compression of a largest document.
+  research-document ResearchDocument produces a research-backed document within a token budget.
+  review            Review asks one reviewer to inspect the repository read-only and record its findings.
+```

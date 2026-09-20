@@ -45,9 +45,11 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 
 	"github.com/tylergannon/gimble"
 	"github.com/tylergannon/polytype"
@@ -312,13 +314,16 @@ func ResearchDocument(ctx context.Context, env gimble.Env, params Params) error 
 	if err := requireNonemptyFile(indexPath); err != nil {
 		return fmt.Errorf("semantic index: %w", err)
 	}
-	exit, feedback, launchError, launchErr := gimble.RunCommand(ctx, "index-feedback", env.WorkDir, "zsh", "-c", launchIndexFeedback, "zsh",
+	launch := exec.CommandContext(ctx, "zsh", "-c", launchIndexFeedback, "zsh",
 		filepath.Join(env.WorkDir, ".gimble", "index-feedback"), tokenCounter, "run", "index-feedback", "--no-web", "--work-dir", env.WorkDir,
 		"--goal", goal, "--corpus", researchDir, "--index", indexPath)
-	if launchErr != nil || exit != 0 {
-		gimble.Set(ctx, "index feedback launch error", fmt.Sprintf("%v; %s", launchErr, launchError))
+	launch.Dir = env.WorkDir
+	launch.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	feedback, launchErr := launch.CombinedOutput()
+	if launchErr != nil {
+		gimble.Set(ctx, "index feedback launch error", fmt.Sprintf("%v; %s", launchErr, feedback))
 	} else {
-		gimble.Set(ctx, "index feedback file", strings.TrimSpace(feedback))
+		gimble.Set(ctx, "index feedback file", strings.TrimSpace(string(feedback)))
 	}
 
 	author := gimble.NewSession(ctx, roleDocumentAuthoring, env.WorkDir)
@@ -392,13 +397,16 @@ func ResearchDocument(ctx context.Context, env gimble.Env, params Params) error 
 				if err := requireNonemptyFile(indexPath); err != nil {
 					return fmt.Errorf("semantic index: %w", err)
 				}
-				exit, feedback, launchError, launchErr := gimble.RunCommand(ctx, "index-feedback", env.WorkDir, "zsh", "-c", launchIndexFeedback, "zsh",
+				launch := exec.CommandContext(ctx, "zsh", "-c", launchIndexFeedback, "zsh",
 					filepath.Join(env.WorkDir, ".gimble", "index-feedback"), tokenCounter, "run", "index-feedback", "--no-web", "--work-dir", env.WorkDir,
 					"--goal", goal, "--corpus", researchDir, "--index", indexPath)
-				if launchErr != nil || exit != 0 {
-					gimble.Set(ctx, "index feedback launch error", fmt.Sprintf("%v; %s", launchErr, launchError))
+				launch.Dir = env.WorkDir
+				launch.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+				feedback, launchErr := launch.CombinedOutput()
+				if launchErr != nil {
+					gimble.Set(ctx, "index feedback launch error", fmt.Sprintf("%v; %s", launchErr, feedback))
 				} else {
-					gimble.Set(ctx, "index feedback file", strings.TrimSpace(feedback))
+					gimble.Set(ctx, "index feedback file", strings.TrimSpace(string(feedback)))
 				}
 			}
 
@@ -492,8 +500,9 @@ Set OnlyNitpicks only when no unsupported or misleading claim, missing requireme
 const reviseDocumentPrompt = `Revise the document at its exact path using the editorial verdict, measured token count, and current semantic index. Follow the affected routes to original evidence and repair every material issue; do not simply repeat a corrected summary without checking its support. Preserve the caller's requirements and make unresolved evidence gaps explicit. Remove repetition and secondary detail before weakening central claims or their necessary qualifications. Run the supplied token counter executable with "count-tokens" and the document path, editing until the measured count is within budget.`
 
 // Positional arguments preserve paths and goals literally. The detached CLI
-// owns its run and deadline; neither its pipes nor its lifetime belong to the
-// parent RunCommand. Even pre-workflow CLI failures leave feedback and a log.
+// owns its run and deadline; its launcher starts a separate OS session, and
+// neither its pipes nor its process group belong to the parent. Even
+// pre-workflow CLI failures leave feedback and a log.
 const launchIndexFeedback = `set -eu
 root=$1
 shift

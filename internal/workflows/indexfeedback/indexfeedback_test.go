@@ -71,6 +71,9 @@ func (a *feedbackAdapter) RunTurn(ctx context.Context, id, prompt string, schema
 	if strings.HasPrefix(prompt, assessPrompt) && (!strings.Contains(prompt, "PRIVATE_EVIDENCE") || !strings.Contains(prompt, "retrieval interrupted")) {
 		a.t.Fatalf("assessor lacks evidence or failure: %s", prompt)
 	}
+	if strings.HasPrefix(prompt, assessPrompt) && (strings.Contains(prompt, "feedback file") || strings.Contains(prompt, "BUILDER_CONTEXT")) {
+		a.t.Fatalf("assessor saw output or builder context: %s", prompt)
+	}
 	return gimble.TurnResult{Output: json.RawMessage(`"Source-backed feedback"`), Usage: map[string]gimble.Usage{"test": {Tokens: gimble.Tokens{Input: 10, Output: 2}}}}, nil
 }
 

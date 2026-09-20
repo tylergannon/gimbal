@@ -153,7 +153,7 @@ func IndexFeedback(ctx context.Context, env gimble.Env, params Params) (err erro
 	gimble.SetJSON(ctx, "sampled evidence", questions)
 	gimble.Set(ctx, "retrieval attempts", attempts.String())
 	assessor := gimble.NewSession(ctx, "index-assessment", workdir)
-	feedback, err := assessor.Generate[gimble.Text](ctx, assessPrompt)
+	feedback, err := assessor.Generate[gimble.Text](ctx, assessPrompt, gimble.WithScopeTemplate(assessmentContext))
 	if err != nil {
 		return err
 	}
@@ -172,8 +172,14 @@ const retrievalContext = `Question: {{.By.question.Text}}
 Index entrypoint: {{.By.index.Text}}
 Read-only corpus: {{.By.corpus.Text}}`
 
+const assessmentContext = `Goal: {{.By.goal.Text}}
+Read-only corpus: {{.By.corpus.Text}}
+Index entrypoint: {{.By.index.Text}}
+Sampled evidence: {{(index .By "sampled evidence").Text}}
+Retrieval attempts: {{(index .By "retrieval attempts").Text}}`
+
 const samplePrompt = `Sample a few original source files in the local corpus and propose exactly three useful questions for the goal, with precise supporting source paths, line ranges, and short verbatim excerpts. Derive them from source evidence, not the index's claims. Keep this small: sample rather than exhaustively survey. Use only local source files; no outside research, other agents, edits, or evaluation records. Return the questions and evidence directly, without writing files.`
 
 const retrievePrompt = `Answer the question using the semantic index as your starting point. Follow its routes to original evidence and give precise local source citations and short supporting excerpts. If you cannot find support, say what is missing. Keep this a quick attempt: aim for at most five retrieval calls and bounded excerpts rather than dumping whole files. Use only the supplied index and corpus; no outside research, other agents, edits, or evaluation records. Return your answer directly without writing files.`
 
-const assessPrompt = `Give concise, practical feedback on this semantic index from the three retrieval attempts. Check the returned citations and the sampled evidence against original local source passages; do not assume the sampler is right. Distinguish correct supported answers, missing or unsupported answers, and incomplete retrievals. Explain concrete routing improvements with affected paths when the observations support them. Do not blame the index for a retriever or harness failure. Cite observed measurements without inventing counts or universal quality scores. This is advisory feedback from a small sample, not an acceptance decision. Do not repair anything, do outside research, read evaluation logs, or launch other agents. Return the feedback directly.`
+const assessPrompt = `Give practical advisory feedback on this semantic index in at most 250 words. Check the returned citations and sampled evidence against original local source passages; the sampler can be wrong. Give one or two sentences per question distinguishing supported, unsupported, and incomplete answers. Then suggest up to three concrete routing improvements with affected paths, where the observations justify them. Do not blame the index for a retriever or harness failure or infer a universal quality score. The workflow will append the recorded measurements. Use only the supplied corpus and index, make no edits or files, and do not launch other agents. Return the feedback directly.`

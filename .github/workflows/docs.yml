@@ -29,8 +29,17 @@ jobs:
           node-version: "24"
           cache: pnpm
           cache-dependency-path: docs-site/pnpm-lock.yaml
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - name: Check generated workflow diagrams
+        run: |
+          go generate ./internal/workflows/review ./internal/workflows/validateproduct ./internal/workflows/implementation ./internal/workflows/researchdocument ./internal/workflows/pyramidsummary
+          git diff --exit-code
       - run: pnpm install --frozen-lockfile
         working-directory: docs-site
+        env:
+          PUPPETEER_SKIP_DOWNLOAD: "true"
       - run: pnpm run check
         working-directory: docs-site
       - run: pnpm run build

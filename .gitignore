@@ -24,6 +24,7 @@ e2e/test-results/
 docs-site/node_modules/
 docs-site/.svelte-kit/
 docs-site/dist/
+docs-site/src/lib/generated/workflows/*.svg
 
 .claude/worktrees
 

@@ -8,7 +8,7 @@ import (
 )
 
 //go:generate go tool polytype --validate
-//go:generate go run github.com/tylergannon/gimble/internal/generate/gimblegen -entry Review -name review
+//go:generate go run github.com/tylergannon/gimble/internal/generate/gimblegen -entry Review -name review -mermaid ../../../docs-site/src/lib/generated/workflows/review.mmd
 
 // ReviewParams describes what to review.
 type ReviewParams struct {

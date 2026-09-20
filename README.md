@@ -62,8 +62,8 @@ environment flag, one flag per field of its workflow parameter struct, and one
 model flag per role its graph names. The absolute work directory is passed to
 the entry in `gimble.Env`; its `.gimble` holds the run, served as above.
 
-The binary includes the `implement`, `review`, `research-document`, and
-`pyramid-summary` workflows. Each role's model defaults from
+The binary includes the `implement`, `review`, `validate-product`,
+`research-document`, and `pyramid-summary` workflows. Each role's model defaults from
 `cmd/gimble/defaults.json`; pass the role's flag, such as `--code-review`, to
 override it.
 

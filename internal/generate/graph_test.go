@@ -300,7 +300,7 @@ func TestFixtureGraph(t *testing.T) {
 // that it honours an absolute output path.
 func TestSourceWritesTheWorkflowsPackage(t *testing.T) {
 	output := filepath.Join(t.TempDir(), "workflow_gen.go")
-	if err := generate.Source("testdata/fixture", "Fixture", "fixture", output); err != nil {
+	if err := generate.Source("testdata/fixture", "Fixture", "fixture", output, ""); err != nil {
 		t.Fatal(err)
 	}
 	written, err := os.ReadFile(output)
@@ -329,7 +329,7 @@ func TestSourceWritesTheWorkflowsPackage(t *testing.T) {
 
 func TestSourceWritesPlannerSupervisionAndRole(t *testing.T) {
 	output := filepath.Join(t.TempDir(), "workflow_gen.go")
-	if err := generate.Source("testdata/fixture", "SprintShape", "sprint", output); err != nil {
+	if err := generate.Source("testdata/fixture", "SprintShape", "sprint", output, ""); err != nil {
 		t.Fatal(err)
 	}
 	written, err := os.ReadFile(output)
@@ -352,7 +352,7 @@ func TestSourceWritesPlannerSupervisionAndRole(t *testing.T) {
 
 func TestGeneratedCommandUsesCentralizedRoleDefaults(t *testing.T) {
 	output := filepath.Join(t.TempDir(), "workflow_gen.go")
-	if err := generate.Source("testdata/fixture", "Fixture", "fixture", output); err != nil {
+	if err := generate.Source("testdata/fixture", "Fixture", "fixture", output, ""); err != nil {
 		t.Fatal(err)
 	}
 	written, err := os.ReadFile(output)
@@ -378,7 +378,7 @@ func TestGeneratedEntryRequiresEnv(t *testing.T) {
 }
 
 func TestWorkflowParamsCannotClaimWorkDir(t *testing.T) {
-	err := generate.Source("testdata/fixture", "HasWorkDirParams", "has-work-dir-params", filepath.Join(t.TempDir(), "workflow_gen.go"))
+	err := generate.Source("testdata/fixture", "HasWorkDirParams", "has-work-dir-params", filepath.Join(t.TempDir(), "workflow_gen.go"), "")
 	if err == nil || !strings.Contains(err.Error(), "parameter field WorkDir would be --work-dir, which is the Gimble environment's") {
 		t.Fatalf("Source HasWorkDirParams error = %v", err)
 	}

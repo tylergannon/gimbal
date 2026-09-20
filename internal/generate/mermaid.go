@@ -17,7 +17,6 @@ func Mermaid(graph workflow.Graph) []byte {
 	r.indent++
 
 	root := r.node("rect", "workflow<br/>"+graph.Name, "workflow")
-	r.services(graph.Services, root)
 	body := r.body(graph.Body)
 	if body.entry != "" {
 		r.edge(root, body.entry, "")
@@ -28,14 +27,12 @@ func Mermaid(graph workflow.Graph) []byte {
 	}
 
 	r.line("classDef workflow fill:#292524,stroke:#f59e0b,color:#fff7ed,stroke-width:2px")
-	r.line("classDef session fill:#172554,stroke:#60a5fa,color:#eff6ff")
-	r.line("classDef agent fill:#052e16,stroke:#4ade80,color:#f0fdf4")
+	r.line("classDef generate fill:#052e16,stroke:#4ade80,color:#f0fdf4,stroke-width:2px")
 	r.line("classDef interview fill:#3b0764,stroke:#c084fc,color:#faf5ff")
-	r.line("classDef command fill:#451a03,stroke:#fbbf24,color:#fffbeb")
-	r.line("classDef data fill:#262626,stroke:#a3a3a3,color:#fafafa")
+	r.line("classDef command fill:#451a03,stroke:#fbbf24,color:#fffbeb,stroke-width:2px")
 	r.line("classDef structure fill:#2e1065,stroke:#a78bfa,color:#f5f3ff,stroke-width:2px")
-	r.line("classDef service fill:#082f49,stroke:#38bdf8,color:#f0f9ff,stroke-dasharray:5 3")
-	r.line("classDef supervisor fill:#431407,stroke:#fb923c,color:#fff7ed,stroke-dasharray:5 3")
+	r.line("classDef arm fill:#172554,stroke:#60a5fa,color:#eff6ff")
+	r.line("classDef exit fill:#262626,stroke:#a3a3a3,color:#fafafa")
 	r.line("classDef diagnostic fill:#450a0a,stroke:#f87171,color:#fef2f2,stroke-width:2px")
 	r.line("classDef boundary fill:#1c1917,stroke:#78716c,color:#d6d3d1")
 
@@ -68,6 +65,8 @@ func (r *mermaidRenderer) node(shape, label, class string) string {
 	id := r.id("n")
 	label = mermaidLabel(label)
 	switch shape {
+	case "generate":
+		r.line(`%s[["%s"]]:::%s`, id, label, class)
 	case "diamond":
 		r.line(`%s{"%s"}:::%s`, id, label, class)
 	case "hexagon":
@@ -117,32 +116,33 @@ func (r *mermaidRenderer) body(operations []workflow.Operation) mermaidSpan {
 func (r *mermaidRenderer) operation(operation workflow.Operation) mermaidSpan {
 	switch operation := operation.(type) {
 	case workflow.Session:
-		label := "session<br/>" + operation.Name
-		if operation.From != "" {
-			label += "<br/>fork of " + operation.From
-		}
-		return r.single(r.node("rect", label, "session"))
+		return mermaidSpan{}
 	case workflow.AgentCall:
-		node := r.node("rect", "agent<br/>"+operation.Session, "agent")
-		r.supervisors(operation.Supervisors, node)
-		return r.single(node)
+		role := operation.Role
+		if role == "" {
+			role = operation.Session
+		}
+		return r.single(r.node("generate", "Generate<br/>"+role, "generate"))
 	case workflow.Interview:
-		return r.single(r.node("rect", "interview<br/>"+operation.Name, "interview"))
+		return r.single(r.node("rect", "Interview<br/>"+operation.Name, "interview"))
 	case workflow.Command:
-		return r.single(r.node("rect", "command<br/>"+operation.Name, "command"))
+		return r.single(r.node("rect", "Command<br/>"+operation.Name, "command"))
 	case workflow.Set:
-		return r.single(r.node("rect", "set<br/>"+operation.Key, "data"))
+		return mermaidSpan{}
 	case workflow.Scope:
-		return r.container("scope · "+operation.Name, operation.Services, operation.Body)
+		return r.container("Scope · "+operation.Name, operation.Body)
 	case workflow.PromiseLoop:
-		return r.loop("promise loop · "+operation.Name, "planner · "+operation.Planner, "dispatch task", "fulfilled", operation.Services, operation.Supervisors, operation.Body)
+		return r.loop("Loop · "+operation.Name, "task", "complete", operation.Body)
 	case workflow.Iterate:
-		return r.loop("iteration · "+operation.Name, "each item", "item", "done", operation.Services, nil, operation.Body)
+		return r.loop("Loop · "+operation.Name, "item", "done", operation.Body)
 	case workflow.Repeat:
-		return r.loop("repeat", operation.Cond, "again", "done", nil, nil, operation.Body)
+		return r.loop("Loop · repeat", "repeat", "done", operation.Body)
 	case workflow.Group:
 		return r.group(operation)
 	case workflow.Condition:
+		if !conditionHasVisibleBranch(operation) {
+			return mermaidSpan{}
+		}
 		return r.condition(operation)
 	default:
 		return r.single(r.node("rect", "unknown operation", "diagnostic"))
@@ -153,33 +153,27 @@ func (r *mermaidRenderer) single(node string) mermaidSpan {
 	return mermaidSpan{entry: node, exits: []string{node}}
 }
 
-func (r *mermaidRenderer) container(title string, services []workflow.Service, operations []workflow.Operation) mermaidSpan {
+func (r *mermaidRenderer) container(title string, operations []workflow.Operation) mermaidSpan {
+	if !hasDiagramOperation(operations) {
+		return mermaidSpan{}
+	}
 	subgraph := r.id("s")
 	r.line(`subgraph %s["%s"]`, subgraph, mermaidLabel(title))
 	r.indent++
 	r.line("direction TB")
-	start := r.node("boundary", "", "boundary")
-	r.services(services, start)
 	body := r.body(operations)
-	if body.entry != "" {
-		r.edge(start, body.entry, "")
-	} else {
-		body.exits = []string{start}
-	}
 	r.indent--
 	r.line("end")
-	return mermaidSpan{entry: start, exits: body.exits}
+	return body
 }
 
-func (r *mermaidRenderer) loop(title, label, bodyLabel, exitLabel string, services []workflow.Service, supervisors []workflow.Supervisor, operations []workflow.Operation) mermaidSpan {
+func (r *mermaidRenderer) loop(title, bodyLabel, exitLabel string, operations []workflow.Operation) mermaidSpan {
 	subgraph := r.id("s")
 	r.line(`subgraph %s["%s"]`, subgraph, mermaidLabel(title))
 	r.indent++
 	r.line("direction TB")
-	decision := r.node("diamond", label, "structure")
+	decision := r.node("diamond", "Loop", "structure")
 	done := r.node("boundary", "", "boundary")
-	r.services(services, decision)
-	r.supervisors(supervisors, decision)
 	body := r.body(operations)
 	if body.entry != "" {
 		r.edge(decision, body.entry, bodyLabel)
@@ -195,17 +189,15 @@ func (r *mermaidRenderer) loop(title, label, bodyLabel, exitLabel string, servic
 
 func (r *mermaidRenderer) group(group workflow.Group) mermaidSpan {
 	subgraph := r.id("s")
-	r.line(`subgraph %s["%s"]`, subgraph, mermaidLabel("concurrent · "+group.Name))
+	r.line(`subgraph %s["%s"]`, subgraph, mermaidLabel("Fan out · "+group.Name))
 	r.indent++
-	r.line("direction TB")
-	fork := r.node("hexagon", "fan out", "structure")
+	r.line("direction LR")
+	fork := r.node("hexagon", "Fan out", "structure")
 	join := r.node("boundary", "", "boundary")
 	for _, child := range group.Children {
-		childSpan := r.container("child · "+child.Name, child.Services, child.Body)
-		r.edge(fork, childSpan.entry, child.Name)
-		for _, exit := range childSpan.exits {
-			r.edge(exit, join, "")
-		}
+		arm := r.node("rect", armLabel(child), "arm")
+		r.edge(fork, arm, "")
+		r.edge(arm, join, "")
 	}
 	if len(group.Children) == 0 {
 		r.edge(fork, join, "")
@@ -220,7 +212,7 @@ func (r *mermaidRenderer) condition(condition workflow.Condition) mermaidSpan {
 	join := r.node("boundary", "", "boundary")
 	hasDefault := false
 	for _, branch := range condition.Branches {
-		label := branch.Case
+		label := mermaidConditionLabel(branch.Case)
 		if label == "" {
 			label = "else"
 			hasDefault = true
@@ -228,7 +220,7 @@ func (r *mermaidRenderer) condition(condition workflow.Condition) mermaidSpan {
 		body := r.body(branch.Body)
 		if body.entry == "" {
 			if branch.Exits {
-				exit := r.node("rect", "exit", "data")
+				exit := r.node("rect", "exit", "exit")
 				r.edge(decision, exit, label)
 			} else {
 				r.edge(decision, join, label)
@@ -237,7 +229,7 @@ func (r *mermaidRenderer) condition(condition workflow.Condition) mermaidSpan {
 		}
 		r.edge(decision, body.entry, label)
 		if branch.Exits {
-			exit := r.node("rect", "exit", "data")
+			exit := r.node("rect", "exit", "exit")
 			for _, tail := range body.exits {
 				r.edge(tail, exit, "")
 			}
@@ -253,23 +245,100 @@ func (r *mermaidRenderer) condition(condition workflow.Condition) mermaidSpan {
 	return mermaidSpan{entry: decision, exits: []string{join}}
 }
 
-func (r *mermaidRenderer) services(services []workflow.Service, owner string) {
-	for _, service := range services {
-		node := r.node("rect", "service<br/>"+service.Name, "service")
-		r.dashed(node, owner, "lifetime")
+func hasDiagramOperation(operations []workflow.Operation) bool {
+	for _, operation := range operations {
+		switch operation := operation.(type) {
+		case workflow.Session, workflow.Set:
+			continue
+		case workflow.Scope:
+			if hasDiagramOperation(operation.Body) {
+				return true
+			}
+		case workflow.Condition:
+			if conditionHasVisibleBranch(operation) {
+				return true
+			}
+		default:
+			return true
+		}
 	}
+	return false
 }
 
-func (r *mermaidRenderer) supervisors(supervisors []workflow.Supervisor, watched string) {
-	for _, supervisor := range supervisors {
-		label := "supervisor<br/>" + supervisor.Role
-		if supervisor.Session != supervisor.Role {
-			label += "<br/>" + supervisor.Session
+func conditionHasVisibleBranch(condition workflow.Condition) bool {
+	for _, branch := range condition.Branches {
+		if hasDiagramOperation(branch.Body) {
+			return true
 		}
-		node := r.node("rect", label, "supervisor")
-		r.dashed(node, watched, "watches")
-		r.supervisors(supervisor.Supervisors, node)
 	}
+	return false
+}
+
+func armLabel(child workflow.GroupChild) string {
+	lines := []string{"Arm · " + child.Name}
+	lines = append(lines, armSummaries(child.Body)...)
+	return strings.Join(lines, "<br/>")
+}
+
+func armSummaries(operations []workflow.Operation) []string {
+	type summary struct {
+		label string
+		count int
+	}
+	var summaries []summary
+	positions := map[string]int{}
+	var add func([]workflow.Operation)
+	add = func(operations []workflow.Operation) {
+		for _, operation := range operations {
+			var label string
+			switch operation := operation.(type) {
+			case workflow.AgentCall:
+				role := operation.Role
+				if role == "" {
+					role = operation.Session
+				}
+				label = "Generate · " + role
+			case workflow.Command:
+				label = "Command · " + operation.Name
+			case workflow.Interview:
+				label = "Interview · " + operation.Name
+			case workflow.PromiseLoop:
+				label = "Loop · " + operation.Name
+			case workflow.Iterate:
+				label = "Loop · " + operation.Name
+			case workflow.Repeat:
+				label = "Loop"
+			case workflow.Group:
+				label = "Fan out · " + operation.Name
+			case workflow.Scope:
+				add(operation.Body)
+			case workflow.Condition:
+				for _, branch := range operation.Branches {
+					add(branch.Body)
+				}
+			}
+			if label == "" {
+				continue
+			}
+			if position, ok := positions[label]; ok {
+				summaries[position].count++
+				continue
+			}
+			positions[label] = len(summaries)
+			summaries = append(summaries, summary{label: label, count: 1})
+		}
+	}
+	add(operations)
+
+	labels := make([]string, 0, len(summaries))
+	for _, summary := range summaries {
+		if summary.count == 1 {
+			labels = append(labels, summary.label)
+			continue
+		}
+		labels = append(labels, fmt.Sprintf("%d× %s", summary.count, summary.label))
+	}
+	return labels
 }
 
 func mermaidLabel(label string) string {
@@ -278,6 +347,19 @@ func mermaidLabel(label string) string {
 		parts[i] = html.EscapeString(strings.Join(strings.Fields(part), " "))
 	}
 	return strings.Join(parts, "<br/>")
+}
+
+func mermaidConditionLabel(label string) string {
+	label = strings.Join(strings.Fields(label), " ")
+	if _, predicate, ok := strings.Cut(label, ";"); ok {
+		label = strings.TrimSpace(predicate)
+	}
+	const limit = 48
+	runes := []rune(label)
+	if len(runes) > limit {
+		label = string(runes[:limit-1]) + "…"
+	}
+	return label
 }
 
 func mermaidEdgeLabel(label string) string {

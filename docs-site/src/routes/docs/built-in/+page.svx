@@ -26,7 +26,7 @@
 
 <RunHelp />
 
-`gimble run WORKFLOW --help` is the full invocation reference. The diagrams below are generated from the same `workflow.Graph` the live console uses, so they show declared structure rather than an idealized process.
+`gimble run WORKFLOW --help` is the full invocation reference. The diagrams below are generated from the same `workflow.Graph` the live console uses. They show the workflow's calls, loops, scopes, and fan-out—not every value assignment, session declaration, or guard.
 
 <h2 id="review">review</h2>
 

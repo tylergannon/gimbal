@@ -33,10 +33,16 @@ recreate deterministic E2E or unit tests as elaborate agent instructions.
 
 ## Boundaries
 
-Test Gimble as a user. Product skills and user documentation are allowed; Gimble's
-implementation source is not evidence for this assessment. If a workload is a
-coding issue in another project, that project's source remains available for doing
-the job. The source restriction concerns the product being evaluated.
+For every product under test (A), the user-testing agent must never inspect A's
+source code. Test through its public interface, skills, and user documentation.
+If A's source is encountered accidentally, ignore it and exclude it from the
+assessment. This is a general rule, not a Gimble-specific restriction.
+
+When A is Gimble, a workload may involve doing work in another project (B). The
+tester may inspect B's source, but should not normally need to: it should delegate
+the work to Gimble and trust Gimble to perform it. Agents Gimble dispatches to
+implement the workload can work in B's source. The user-testing agent evaluates A
+from the experience and observable outcome rather than doing A's job itself.
 
 Keep the [feature inventory](feature-inventory.md) for code inspection and unit,
 integration, E2E, and build-test coverage. It can suggest varied workloads, but is

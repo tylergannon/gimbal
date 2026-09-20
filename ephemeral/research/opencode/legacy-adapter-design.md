@@ -48,11 +48,11 @@ Ordinary legacy prompt submission can join an active loop, but a finish race can
 
 The user suggested newer API steering for legacy sessions. Two independent source traces found that both APIs share SessionTable, correcting any inference that different list results prove separate session identities. However, newer admission writes SessionInputTable, and newer prompt promotion writes SessionMessageTable. The legacy loop reads MessageTable/PartTable. Newer wake invokes a separate coordinator/runner; the inspected projector does not bridge its prompts into the legacy execution. Therefore newer `delivery:"steer"` is not a supported shortcut for this legacy adapter. An accepted session ID or prompt does not establish active-run interoperability. See the mixed-generation follow-up in both audits.
 
-Questions presented to the user:
+Decisions and remaining verification:
 
-1. Automatically start the shared server on first use, or require explicit `gimble opencode start`? Recommendation: automatic start, with explicit start available for prewarming. Cleanup never starts or stops it.
-2. Does explicit `gimble opencode stop` interrupt all active work, or refuse while busy? Recommendation for the simple command: stop means stop, and affected runs report interruption.
+1. User selected automatic start on first use, with explicit `gimble opencode start` available for prewarming. Cleanup never starts or stops it.
+2. User selected explicit `gimble opencode stop` interrupting all active work. Affected runs report interruption.
 3. The user proposed newer-API steering instead of selecting boundary delivery or abort/continue. Source inspection rules out treating this as a supported bridge. Recommend proving legacy `noReply:true` boundary delivery before opting for interruption.
-4. Would one synchronous prompt-completion request per active turn, alongside the shared SSE stream, be acceptable for a definite result, or must the adapter remain async-only? This is an explicit tradeoff against the user's preference for fewer long-running requests. If async-only is required, resolve the exceptional completion cases before implementation; do not silently weaken completion semantics.
+4. User selected async-only prompting. Use short HTTP calls and the shared SSE stream; do not introduce a synchronous prompt fallback. Investigate and prove the exceptional completion cases within that design. The concern is truthful terminal-state detection, not a preference against async transport.
 
 Live validation must establish the selected completion and steering behavior, concurrency across sessions/directories, actual schema output, fork independence, cancellation, and shared process survival after session Close. Tests and probes remain delegated; no proof is claimed from this source audit alone.

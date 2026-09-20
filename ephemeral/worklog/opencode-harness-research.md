@@ -1,5 +1,7 @@
 # OpenCode harness research
 
+decision: User selected shared OpenCode server autostart on first use, explicit stop interrupting active runs, and async-only prompting. Resolve completion/error ordering using that architecture; no synchronous prompt fallback.
+
 decision: User chose the legacy API for the adapter. Keep one shared OpenCode server across projects/runs, controlled by `gimble opencode start|stop`, with runtime-configurable state defaulting to `~/.gimble/`. Verify source and settle remaining questions before implementation. Generate only required types; handwritten HTTP methods and SSE are preferred over further SDK codegen machinery.
 
 correction: Legacy `/event` is directory/workspace-scoped; `/global/event` spans the server. The existing Gimble event callback already records correct run ownership, so a new adapter needs session routing, not another storage layer.

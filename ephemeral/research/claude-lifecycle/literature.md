@@ -1,5 +1,12 @@
 # Claude Agent Lifecycle, Streaming Contracts, and Completion Semantics
 
+Update: the [Generate-lifetime experiment](generate-lifetime.md) demonstrated
+that a new process can resume the same conversation with a different schema or
+no schema. Prefer retaining the process through one logical Generate, rather
+than the whole Session, when live work need not span calls. Earlier session-wide
+recommendations below are superseded by this narrower option.
+
+
 ## 1. Executive Summary & Problem Framing
 
 Gimble integrates LLM agents as Go workflows via `claude-agent-sdk-go` (pinned at `v1.1.1-0.20260912021749-9a4ffeca77cc`). In Incident 317 ([`issue-317.md`](issue-317.md)), Claude ran background commands, yielded a waiting turn, and was torn down by Gimble's per-turn adapter lifecycle ([`claude/claude.go`](../../../claude/claude.go)). Resuming via `--resume` injected an orphan notification before answering the debrief prompt, emitting an empty result that aborted the run. Incident 317 native transcript proves an orphan notification queued before debrief and records show an empty result; the exact raw sequence (`result_index: 0` empty before `result_index: 1`) was observed in controlled reproduction probes (`sdk-text/`, `sdk-structured/`), not from a retained raw stream of Incident 317.

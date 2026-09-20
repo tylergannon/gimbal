@@ -21,3 +21,5 @@ clarification: Schema mutation is relevant only to successive differently typed 
 friction: The documentary editor incorrectly asserted TaskOutput was absent from the official tools reference. Direct primary-page inspection showed an explicit deprecation entry -> corrected the final report from the current source rather than treating editorial acceptance as factual proof.
 
 correction: Server survey missed Remote Control server mode because top-level help omits it. Official remote-control docs plus subcommand help confirm multi-session capacity; embedded 2.1.270 bridge code confirms child_process.spawn per session. Distinguish a shared server entrypoint from shared in-process session execution.
+
+correction: User proposed retaining Claude for one logical Generate rather than the whole Session. Live Haiku probe passed waiting -> automatic completed -> EOF -> resume schema B -> SIGTERM -> resume schema C -> EOF -> resume plain text, with one conversation ID and context preserved. Schema stickiness was limited to tested in-process reinitialization; process-per-logical-call is the smaller direction when no live service must span calls.

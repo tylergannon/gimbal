@@ -1,6 +1,12 @@
 # Claude waiting and structured completion: investigation synthesis
 
-This is a decision brief, not an implementation specification. Sol and Terra
+This is a decision brief, not an implementation specification.
+
+Updated after the [Generate-lifetime probe](generate-lifetime.md): prefer one
+process per logical Generate, retained through waiting and continuation, then
+closed after terminal completion. A new process successfully resumed the same
+conversation with different schemas and with no schema. The session-wide
+process option discussed below is no longer the smallest proposed direction. Sol and Terra
 investigated independently using live Claude Code 2.1.270 with
 claude-haiku-4-5-20251001. Their notes distinguish observations from proposals:
 [Sol](sol-semantics.md), [Terra](terra-lifecycle.md). The companion
@@ -80,10 +86,13 @@ check can strengthen the decision. Do not present parsing as proof of truth.
 
 ## The smallest direction worth testing
 
-Preserve Claude's background capabilities. Give each Gimble session one native
-client/process and one continuously consuming stream reader. Release them at
-session/scope shutdown, not after each native result. The pinned Go SDK already
-supports multiple rounds through Stream.Send and Stream.Messages.
+Preserve Claude's background capabilities within the logical Generate call.
+Keep its native client/process and one stream reader alive through intermediate
+results, then close after the associated terminal outcome. Resume the same
+conversation in a fresh process for the next call. The pinned Go SDK supports
+multiple generations through Stream.Messages; a native result need not end the
+logical call. Session-wide ownership remains an alternative only if live work
+must span calls.
 
 For an assigned task, require an explicit structured declaration associated
 with that assignment. A waiting declaration keeps the logical Generate pending;
@@ -131,7 +140,9 @@ This does not prove that no other or future protocol path exists. It does mean
 we cannot promise arbitrary per-Generate native schemas simply by retaining the
 existing process.
 
-Possible choices, requiring a product decision and a live prototype:
+Fresh-process resume now provides a demonstrated schema boundary between
+completed calls. The following alternatives matter only if a process must
+stay alive across differently typed calls:
 
 - A fixed native schema for a session whose tasks genuinely share a result type.
 - One stable native envelope containing assignment identity, waiting/completed/

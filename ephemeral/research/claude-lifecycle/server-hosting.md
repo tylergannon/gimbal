@@ -1,5 +1,12 @@
 # Follow-up: multi-session servers and process count
 
+Update: the [Generate-lifetime experiment](generate-lifetime.md) demonstrated
+that a new process can resume the same conversation with a different schema or
+no schema. Prefer retaining the process through one logical Generate, rather
+than the whole Session, when live work need not span calls. Earlier session-wide
+recommendations below are superseded by this narrower option.
+
+
 Checked 2026-09-20 against current official documentation and the installed
 Claude Code 2.1.270 binary. Earlier wording that no shared daemon/server exists
 was too broad. Claude has two relevant supervisors, but neither establishes

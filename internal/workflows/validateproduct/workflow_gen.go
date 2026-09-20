@@ -107,24 +107,24 @@ func Command(defaults map[gimble.WorkflowRole]string) *cobra.Command {
 	cmd.Flags().StringVar(&workDir, "work-dir", ".", "the working directory for this run")
 	productOperationModelDefault := defaults[gimble.WorkflowRole("product-operation")]
 	if productOperationModelDefault == "" {
-		cmd.Flags().StringVar(&productOperationModel, "product-operation", "", "the model for role product-operation, as model or model:effort")
+		cmd.Flags().StringVar(&productOperationModel, "product-operation", "", "the model for role product-operation, as model or model:effort; OpenCode uses opencode/model or opencode/provider/model")
 		_ = cmd.MarkFlagRequired("product-operation")
 	} else {
-		cmd.Flags().StringVar(&productOperationModel, "product-operation", productOperationModelDefault, "advanced override for role product-operation, as model or model:effort; omit this flag to use the displayed workflow default")
+		cmd.Flags().StringVar(&productOperationModel, "product-operation", productOperationModelDefault, "advanced override for role product-operation, as model or model:effort; OpenCode uses opencode/model or opencode/provider/model; omit this flag to use the displayed workflow default")
 	}
 	productVisualReviewModelDefault := defaults[gimble.WorkflowRole("product-visual-review")]
 	if productVisualReviewModelDefault == "" {
-		cmd.Flags().StringVar(&productVisualReviewModel, "product-visual-review", "", "the model for role product-visual-review, as model or model:effort")
+		cmd.Flags().StringVar(&productVisualReviewModel, "product-visual-review", "", "the model for role product-visual-review, as model or model:effort; OpenCode uses opencode/model or opencode/provider/model")
 		_ = cmd.MarkFlagRequired("product-visual-review")
 	} else {
-		cmd.Flags().StringVar(&productVisualReviewModel, "product-visual-review", productVisualReviewModelDefault, "advanced override for role product-visual-review, as model or model:effort; omit this flag to use the displayed workflow default")
+		cmd.Flags().StringVar(&productVisualReviewModel, "product-visual-review", productVisualReviewModelDefault, "advanced override for role product-visual-review, as model or model:effort; OpenCode uses opencode/model or opencode/provider/model; omit this flag to use the displayed workflow default")
 	}
 	productTriageModelDefault := defaults[gimble.WorkflowRole("product-triage")]
 	if productTriageModelDefault == "" {
-		cmd.Flags().StringVar(&productTriageModel, "product-triage", "", "the model for role product-triage, as model or model:effort")
+		cmd.Flags().StringVar(&productTriageModel, "product-triage", "", "the model for role product-triage, as model or model:effort; OpenCode uses opencode/model or opencode/provider/model")
 		_ = cmd.MarkFlagRequired("product-triage")
 	} else {
-		cmd.Flags().StringVar(&productTriageModel, "product-triage", productTriageModelDefault, "advanced override for role product-triage, as model or model:effort; omit this flag to use the displayed workflow default")
+		cmd.Flags().StringVar(&productTriageModel, "product-triage", productTriageModelDefault, "advanced override for role product-triage, as model or model:effort; OpenCode uses opencode/model or opencode/provider/model; omit this flag to use the displayed workflow default")
 	}
 	cmd.Flags().IntVar(&port, "port", 8080, "loopback TCP port for the web application")
 	cmd.Flags().StringVar(&uds, "uds", "", "Unix-domain socket for the web application instead of TCP")

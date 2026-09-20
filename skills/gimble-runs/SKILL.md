@@ -52,6 +52,15 @@ Do not turn general cost pressure into blanket overrides across unrelated
 roles. Before an override, read every role line in `--help` and state the
 resulting mapping. Record the models actually used in the result report.
 
+OpenCode models are explicit: `opencode/<model-id>` selects OpenCode's
+`opencode` provider, while `opencode/<provider>/<model-id>` selects another
+provider configured in OpenCode. Both forms work on workflow role flags and on
+`gimble run-prompt --model`. The shared server starts on first use and survives
+session close. Its state defaults to `~/.gimble/opencode`, or
+`GIMBLE_OPENCODE_DIR`; `gimble opencode start|stop [--state-dir DIR]` manages
+it directly, and stop interrupts active work. Raw request/result/SSE captures
+are written to `<state-dir>/captures/`.
+
 Another useful profile spends frontier capability on planning, then assigns
 low-risk, reversible, independently checkable background work to Terra or
 Sonnet. Prefer it when wall-clock time is cheap and the workflow has bounded

@@ -17,6 +17,9 @@ func TestResolve(t *testing.T) {
 		{Selection{Name: "flash"}, "gemini-3.8-flash-medium", "agy", "medium"},
 		{Selection{Name: "flash", Version: "3.7", VersionPresent: true, Effort: "low", EffortPresent: true}, "gemini-3.7-flash-low", "agy", "low"},
 		{Selection{Name: "gemini-3.8-flash-low"}, "gemini-3.8-flash-low", "agy", "low"},
+		{Selection{Name: "opencode/ling-3.0-flash-fin-free"}, "ling-3.0-flash-fin-free", "opencode", ""},
+		{Selection{Name: "opencode/gemini-model-name-low"}, "gemini-model-name-low", "opencode", ""},
+		{Selection{Name: "opencode/openrouter/vendor/future-model", Effort: "medium", EffortPresent: true}, "openrouter/vendor/future-model", "opencode", "medium"},
 	}
 	for _, test := range tests {
 		got, err := Resolve(test.selection)
@@ -40,6 +43,9 @@ func TestResolveRejectsInvalidSelections(t *testing.T) {
 		{Selection{Name: "mystery"}, "cannot determine provider"},
 		{Selection{Name: "fable", Effort: "ultra", EffortPresent: true}, "unsupported model effort"},
 		{Selection{Name: "gemini-3.8-flash-low", Effort: "high", EffortPresent: true}, "fixes effort"},
+		{Selection{Name: "opencode/"}, "expected opencode/<model-id>"},
+		{Selection{Name: "opencode/provider/"}, "expected opencode/<model-id>"},
+		{Selection{Name: "opencode/ling-3.0", Version: "1", VersionPresent: true}, "cannot also declare version"},
 	}
 	for _, test := range tests {
 		_, err := Resolve(test.selection)

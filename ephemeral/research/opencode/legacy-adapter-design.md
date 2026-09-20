@@ -53,6 +53,8 @@ Decisions and remaining verification:
 1. User selected automatic start on first use, with explicit `gimble opencode start` available for prewarming. Cleanup never starts or stops it.
 2. User selected explicit `gimble opencode stop` interrupting all active work. Affected runs report interruption.
 3. The user proposed newer-API steering instead of selecting boundary delivery or abort/continue. Source inspection rules out treating this as a supported bridge. Recommend proving legacy `noReply:true` boundary delivery before opting for interruption.
-4. User selected async-only prompting. Use short HTTP calls and the shared SSE stream; do not introduce a synchronous prompt fallback. Investigate and prove the exceptional completion cases within that design. The concern is truthful terminal-state detection, not a preference against async transport.
+4. Superseded by the user's latest instruction: build the easy two-connection version first, using a synchronous prompt POST for completion alongside the shared SSE stream. Record raw events and POST outcomes. A later Luna analysis can infer event-only semantics before discarding POST responses; do not make that transition without evidence.
+
+5. User selected explicit model routing: `opencode/<model>` means the OpenCode provider; `opencode/<provider>/<model>` names another provider through OpenCode. Unprefixed model routing stays as it is. The authoritative implementation brief is [opencode-adapter.md](../../requirements/opencode-adapter.md).
 
 Live validation must establish the selected completion and steering behavior, concurrency across sessions/directories, actual schema output, fork independence, cancellation, and shared process survival after session Close. Tests and probes remain delegated; no proof is claimed from this source audit alone.

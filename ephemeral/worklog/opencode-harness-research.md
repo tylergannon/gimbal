@@ -1,5 +1,11 @@
 # OpenCode harness research
 
+correction: User wants implementation instructions focused on end state and definition of done, not a pedantic implementation checklist. Give workflow agents access to the whole corpus and semantic indexes, then leave routine design choices to them.
+
+decision: User reversed async-only to simplify initial delivery: synchronous prompt POST plus shared SSE, with raw event capture and response correlation. Later Luna analysis may justify event-only reduction; do not discard POST authority yet. User explicitly requested Gimble workflows for implementation.
+
+decision: Explicit model prefix selects OpenCode independently of model family: opencode/model defaults provider to opencode; opencode/provider/model selects the named provider. Preserve existing unprefixed routing and avoid a new model catalog.
+
 decision: User selected shared OpenCode server autostart on first use, explicit stop interrupting active runs, and async-only prompting. Resolve completion/error ordering using that architecture; no synchronous prompt fallback.
 
 decision: User chose the legacy API for the adapter. Keep one shared OpenCode server across projects/runs, controlled by `gimble opencode start|stop`, with runtime-configurable state defaulting to `~/.gimble/`. Verify source and settle remaining questions before implementation. Generate only required types; handwritten HTTP methods and SSE are preferred over further SDK codegen machinery.

@@ -1,37 +1,44 @@
-// Package validateproduct exercises a product's declared CLI and browser features
-// and records each interaction as video. Product-specific commands and expected
-// outcomes come from a JSON or YAML suite file; no scheduler or product repair is
-// performed. Use a disposable target project, separate from this observing run.
+// Package validateproduct runs practical user testing: up to three independent
+// workloads in parallel, one screenshot review, then one synthesis/issue-triage
+// turn. It is a focus group, not an exhaustive feature checklist or source review.
+// Testers never inspect the implementation source of the product under test (A).
+// If A does work on a second project (B), B's source is permitted but the tester
+// should normally rely on A to do that work.
 //
-// The suite contains product {name, workdir, prepare?, start?, ready?, browser_url?,
-// cli?, revision?}, output_dir, timeout (default 15m), and features with unique id,
-// surface (browser or cli), optional setup, exercise, and expected instructions.
-// Relative paths resolve from the suite file. prepare/start/ready are zsh commands;
-// ready is polled for at most 30 seconds and is required with start. An existing
-// target can omit start and is never stopped by this workflow. A started target
-// must remain in the foreground and keep descendants in its process group.
+// Supply a JSON/YAML suite with product, guides (local user-documentation files),
+// output_dir, and one to three workloads. Each workload has name, assignment_file
+// (local task/issue text and allowed actions), an existing isolated workdir, url,
+// and optional foreground start and ready shell commands. Prepare/build the desired
+// product version before invocation. Existing targets are not stopped. A start
+// command requires ready, polled for at most 30 seconds. For a CLI-only product,
+// start a loopback terminal such as GoTTY and supply its URL. Testers may use shell
+// commands as ordinary users, including invoking Gimble to delegate work on B.
 //
-// Prerequisites are authenticated agent harnesses, playwright-cli with an installed
-// browser, and GoTTY plus zsh for CLI features. The optional tools object overrides
-// playwright_cli and terminal_server (GoTTY) executable paths. Nothing is installed
-// automatically. CLI commands run in a real loopback terminal.
+// The three tester slots are explicit; unused slots do nothing. The caller assigns
+// workloads; no planner invents work or retries failures. Each tester saves ordered,
+// captioned screenshots and reports task outcome and UX separately. Video records
+// the browser for optional human review; agents do not analyze it. Gemini Flash
+// opens screenshots to check readability and claims, not to repeat the workload.
+// The final agent reads all reports, deduplicates findings against existing GitHub
+// issues, and opens actionable issues in issue_repo (owner/repository). Omit
+// issue_repo to produce a report without publishing issues. Product defects are
+// findings, not workflow execution errors; failed agent turns remain execution errors.
 //
-// One agent exercises each feature, takes screenshots at useful moments, and
-// reports pass/fail/blocked from what it observes. CLI output and exit statuses
-// supplement screenshots. Video is recorded for optional human review, not analyzed
-// by another agent. There are no automatic test retries or evidence fingerprints.
-// Reports and recordings go into a unique validation-* directory under output_dir.
-// report.json includes every declared feature, including those never reached.
-// The report contains feature evidence, not an overall completion claim. Overall
-// success is the command's zero exit status (or the final Gimble run status), which
-// requires every feature to pass and owned-resource cleanup to succeed. Consumers
-// must check that final outcome: agent cleanup can fail after this report is written.
-// Cancellation uses bounded cleanup outside the cancelled context. SIGKILL or a
-// machine crash cannot guarantee finalized video, process cleanup, or a final report.
+// Prerequisites: authenticated harnesses, playwright-cli and its installed browser,
+// and authenticated gh when publishing issues. playwright_cli can override the
+// driver's executable path. timeout defaults to 1h. All paths resolve from the
+// suite file. Output is a unique user-testing-* directory containing reports.json,
+// per-tester user-report.md, screenshots and video.webm, visual-review.md and
+// findings.md. Elapsed time is measured by the workflow. The final command/run
+// status includes cleanup errors; files alone do not certify run completion.
+// Bounded browser cleanup runs outside cancellation; hard kills cannot guarantee it.
+//
+// Roles: product-operation defaults to Luna, product-visual-review to Gemini Flash,
+// and product-triage to GPT-6 Astra. Each has its normal model override flag.
 //
 // Example:
 //
-//	gimble run validate-product --suite-file /abs/project/validation.yaml --no-web
+//	gimble run validate-product --suite-file /abs/user-testing.yaml --no-web
 package validateproduct
 
 import (
@@ -39,286 +46,195 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net"
-	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/tylergannon/gimble"
 )
 
-//go:generate go tool polytype --validate
 //go:generate go run github.com/tylergannon/gimble/internal/generate/gimblegen -entry ValidateProduct -name validate-product
 
-// Params locates the caller-owned product and feature definitions.
 type Params struct {
-	// SuiteFile is the JSON/YAML product target, feature list, and artifact configuration.
+	// SuiteFile names the JSON/YAML product, local workload assignments, and issue repository.
 	SuiteFile string
 }
 
-// Verdict is the exercising agent's result, with screenshots and command output.
-type Verdict struct {
-	// Status is pass, fail, or blocked.
-	Status        string   `json:"status"`
-	Reason        string   `json:"reason"`
-	EvidenceFiles []string `json:"evidence_files"`
+type workloadReport struct {
+	Name           string  `json:"name"`
+	Assignment     string  `json:"assignment"`
+	Report         string  `json:"report"`
+	Video          string  `json:"video"`
+	ElapsedSeconds float64 `json:"elapsed_seconds"`
+	Error          string  `json:"error,omitempty"`
 }
 
-type featureResult struct {
-	ID       string   `json:"id"`
-	Status   string   `json:"status"`
-	Reason   string   `json:"reason"`
-	Video    string   `json:"video,omitempty"`
-	Evidence []string `json:"evidence,omitempty"`
-	Error    string   `json:"error,omitempty"` // Recording, cleanup, or attachment problem; preserves the product finding.
-}
-
-type report struct {
-	Product  string          `json:"product"`
-	Revision string          `json:"revision,omitempty"`
-	Error    string          `json:"workflow_error,omitempty"`
-	Features []featureResult `json:"features"`
-}
-
-// ValidateProduct exercises declared features and saves screenshots, results, and video for human review.
+// ValidateProduct runs user workloads, checks their screenshots, and triages findings.
 func ValidateProduct(ctx context.Context, env gimble.Env, params Params) (resultErr error) {
 	suite, timeout, err := readSuite(absolute(env.WorkDir, params.SuiteFile))
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(suite.OutputDir, 0o755); err != nil {
-		return err
-	}
-	output, err := os.MkdirTemp(suite.OutputDir, "validation-")
+	driver, err := exec.LookPath(suite.PlaywrightCLI)
 	if err != nil {
 		return err
 	}
-	reportPath := filepath.Join(output, "report.json")
-	result := report{Product: suite.Product.Name, Revision: suite.Product.Revision}
-	for _, feature := range suite.Features {
-		result.Features = append(result.Features, featureResult{ID: feature.ID, Status: "blocked", Reason: "not exercised"})
+	if err := os.MkdirAll(suite.OutputDir, 0755); err != nil {
+		return err
 	}
-	defer func() {
-		if resultErr != nil {
-			result.Error = resultErr.Error()
-		}
-		resultErr = errors.Join(resultErr, writeReport(reportPath, result))
-	}()
-	if err := writeReport(reportPath, result); err != nil {
+	output, err := os.MkdirTemp(suite.OutputDir, "user-testing-")
+	if err != nil {
 		return err
 	}
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	driver, err := exec.LookPath(suite.Tools.PlaywrightCLI)
-	if err != nil {
-		return fmt.Errorf("browser driver prerequisite: %w", err)
+	reports := make([]workloadReport, len(suite.Workloads))
+	dirs, names := make([]string, len(reports)), make([]string, len(reports))
+	var turns [3]error
+	var opened, recording [3]bool
+	reportsFile := filepath.Join(output, "reports.json")
+	defer func() { resultErr = errors.Join(resultErr, writeJSON(reportsFile, reports)) }()
+	// Explicit teardown is needed because playwright-cli launches a browser daemon.
+	closeBrowsers := func() error {
+		var failures []error
+		for i := range reports {
+			if !opened[i] {
+				continue
+			}
+			opened[i] = false
+			for _, action := range []string{"video-stop", "close"} {
+				if action == "video-stop" && !recording[i] {
+					continue
+				}
+				cleanup, stop := context.WithTimeout(context.Background(), 20*time.Second)
+				cmd := exec.CommandContext(cleanup, driver, "-s="+names[i], action)
+				cmd.Dir = dirs[i]
+				cmd.WaitDelay = 2 * time.Second
+				log, err := cmd.CombinedOutput()
+				stop()
+				if err != nil {
+					failures = append(failures, fmt.Errorf("%s %s: %w: %s", reports[i].Name, action, err, log))
+				}
+				failures = append(failures, os.WriteFile(filepath.Join(dirs[i], action+".log"), log, 0644))
+			}
+		}
+		return errors.Join(failures...)
 	}
-
-	err = gimble.Scope(ctx, "product", func(ctx context.Context) error {
-		if suite.Product.Prepare != "" {
-			code, _, stderr, err := gimble.RunCommand(ctx, "prepare", suite.Product.Workdir, "zsh", "-c", suite.Product.Prepare)
-			if err != nil {
-				return err
-			}
-			if code != 0 {
-				return fmt.Errorf("prepare exited %d: %s", code, stderr)
-			}
-		}
-		if suite.Product.Start != "" {
-			if err := gimble.Service(ctx, "target", suite.Product.Workdir, suite.Product.Start); err != nil {
-				return err
-			}
-		}
-		if suite.Product.Ready != "" {
-			readyCtx, stop := context.WithTimeout(ctx, 30*time.Second)
-			defer stop()
-			for {
-				code, _, _, err := gimble.RunCommand(readyCtx, "readiness", suite.Product.Workdir, "zsh", "-c", suite.Product.Ready)
-				if err != nil {
-					return fmt.Errorf("readiness: %w", err)
-				}
-				if code == 0 {
-					break
-				}
-				select {
-				case <-readyCtx.Done():
-					return fmt.Errorf("product readiness: %w", readyCtx.Err())
-				case <-time.After(250 * time.Millisecond):
-				}
-			}
-		}
-		index := 0
-		for featureCtx, feature := range gimble.Iterate(ctx, "feature", suite.Features) {
-			item := &result.Features[index]
-			index++
-			dir := filepath.Join(output, strconv.Itoa(index))
-			if err := os.Mkdir(dir, 0o755); err != nil {
-				return err
-			}
-			item.Video = filepath.Join(dir, "video.webm")
-			session := "validation-" + filepath.Base(output) + "-" + strconv.Itoa(index)
-			var verdict Verdict
-			err := gimble.Scope(featureCtx, "exercise", func(ctx context.Context) (exerciseErr error) {
-				target := suite.Product.BrowserURL
-				if feature.Surface == "cli" {
-					terminal, err := exec.LookPath(suite.Tools.TerminalServer)
-					if err != nil {
-						return fmt.Errorf("terminal prerequisite: %w", err)
-					}
-					executable, err := exec.LookPath(suite.Product.CLI)
-					if err != nil {
-						return fmt.Errorf("CLI prerequisite: %w", err)
-					}
-					listener, err := net.Listen("tcp", "127.0.0.1:0")
-					if err != nil {
-						return err
-					}
-					port := strconv.Itoa(listener.Addr().(*net.TCPAddr).Port)
-					if err := listener.Close(); err != nil {
-						return err
-					}
-					command := "exec " + shellQuote(terminal) + " --config /dev/null --enable-webgl=false --permit-write --address 127.0.0.1 --port " + port + " --close-signal 15 --close-timeout 3 zsh -f"
-					if err := gimble.Service(ctx, "terminal", suite.Product.Workdir, command); err != nil {
-						return err
-					}
-					target = "http://127.0.0.1:" + port
-					readyCtx, stop := context.WithTimeout(ctx, 30*time.Second)
-					defer stop()
-					for {
-						req, err := http.NewRequestWithContext(readyCtx, http.MethodGet, target, nil)
-						if err != nil {
-							return err
-						}
-						response, err := http.DefaultClient.Do(req)
-						ready := err == nil && response.StatusCode == http.StatusOK
-						if response != nil {
-							_ = response.Body.Close()
-						}
-						if ready {
-							break
-						}
-						select {
-						case <-readyCtx.Done():
-							return fmt.Errorf("terminal readiness: %w", readyCtx.Err())
-						case <-time.After(100 * time.Millisecond):
-						}
-					}
-					gimble.Set(ctx, "CLI executable", executable)
-				}
-				// Playwright daemonizes. Explicit cleanup is independent of the scope's ctx.
-				recording := false
-				defer func() {
-					for _, action := range []string{"video-stop", "close"} {
-						if action == "video-stop" && !recording {
-							continue
-						}
-						cleanupCtx, stop := context.WithTimeout(context.Background(), 20*time.Second)
-						cmd := exec.CommandContext(cleanupCtx, driver, "-s="+session, action)
-						cmd.Dir = dir
-						cmd.WaitDelay = 2 * time.Second
-						output, err := cmd.CombinedOutput()
-						stop()
-						if err != nil {
-							exerciseErr = errors.Join(exerciseErr, fmt.Errorf("browser %s: %w: %s", action, err, output))
-						}
-						if err := os.WriteFile(filepath.Join(dir, action+".log"), output, 0o644); err != nil {
-							exerciseErr = errors.Join(exerciseErr, err)
-						}
-					}
-				}()
-				code, _, stderr, err := gimble.RunCommand(ctx, "open-browser", dir, driver, "-s="+session, "open", "about:blank")
-				if err != nil {
-					return err
-				}
-				if code != 0 {
-					return fmt.Errorf("open browser exited %d: %s", code, stderr)
-				}
-				recording = true // Attempt stop even if recording startup is interrupted.
-				code, _, stderr, err = gimble.RunCommand(ctx, "start-video", dir, driver, "-s="+session, "video-start", item.Video, "--cursor")
-				if err != nil {
-					return err
-				}
-				if code != 0 {
-					return fmt.Errorf("start video exited %d: %s", code, stderr)
-				}
-				code, _, stderr, err = gimble.RunCommand(ctx, "open-target", dir, driver, "-s="+session, "goto", target)
-				if err != nil {
-					return err
-				}
-				if code != 0 {
-					return fmt.Errorf("open target exited %d: %s", code, stderr)
-				}
-				gimble.SetJSON(ctx, "feature", feature)
-				gimble.Set(ctx, "target working directory", suite.Product.Workdir)
-				gimble.Set(ctx, "browser command", shellQuote(driver)+" -s="+shellQuote(session))
-				gimble.Set(ctx, "evidence directory", dir)
-				operator := gimble.NewSession(ctx, "product-operation", dir)
-				verdict, err = operator.Generate[Verdict](ctx, operatePrompt)
-				return err
-			})
-			if (verdict.Status == "pass" || verdict.Status == "fail" || verdict.Status == "blocked") && strings.TrimSpace(verdict.Reason) != "" {
-				item.Status, item.Reason = verdict.Status, verdict.Reason
-			} else if err == nil {
-				err = errors.New("agent returned no valid feature result")
-			}
-			for _, path := range verdict.EvidenceFiles {
-				resolved, pathErr := evidencePath(dir, path)
-				if pathErr == nil {
-					info, statErr := os.Stat(resolved)
-					if statErr != nil {
-						pathErr = statErr
-					} else if !info.Mode().IsRegular() {
-						pathErr = fmt.Errorf("evidence is not a file: %s", path)
-					}
-				}
-				if pathErr != nil {
-					err = errors.Join(err, pathErr)
-				} else {
-					item.Evidence = append(item.Evidence, resolved)
-				}
-			}
-			if item.Status == "pass" && len(item.Evidence) == 0 {
-				item.Status = "blocked"
-				err = errors.Join(err, errors.New("no screenshots or command output attached"))
-			}
-			if info, videoErr := os.Stat(item.Video); videoErr != nil || !info.Mode().IsRegular() || info.Size() == 0 {
-				err = errors.Join(err, errors.New("recording is missing or empty"))
-			}
-			if err != nil {
-				item.Error = err.Error()
-			}
-			if err := writeReport(reportPath, result); err != nil {
-				return err
-			}
-		}
-		return ctx.Err()
-	})
-	if err != nil {
+	defer func() { resultErr = errors.Join(resultErr, closeBrowsers()) }()
+	for i, w := range suite.Workloads {
+		dirs[i] = filepath.Join(output, fmt.Sprintf("tester%d", i+1))
+		names[i] = filepath.Base(output) + fmt.Sprintf("-%d", i+1)
+		reports[i] = workloadReport{Name: w.Name, Assignment: w.AssignmentFile, Report: filepath.Join(dirs[i], "user-report.md"), Video: filepath.Join(dirs[i], "video.webm"), Error: "not run"}
+	}
+	if err := writeJSON(reportsFile, reports); err != nil {
 		return err
 	}
-	for _, item := range result.Features {
-		if item.Status != "pass" || item.Error != "" {
-			return fmt.Errorf("validation incomplete: feature %s is %s (error: %s)", item.ID, item.Status, item.Error)
+	for i, w := range suite.Workloads {
+		if err := os.MkdirAll(dirs[i], 0755); err != nil {
+			return err
+		}
+		if w.Start != "" {
+			if err := gimble.Service(ctx, "product", w.Workdir, w.Start); err != nil {
+				return err
+			}
+		}
+		if w.Ready != "" {
+			ready, stop := context.WithTimeout(ctx, 30*time.Second)
+			code, _, stderr, err := gimble.RunCommand(ready, "readiness", w.Workdir, "zsh", "-c", "until ( "+w.Ready+"\n); do sleep 0.25; done")
+			stop()
+			if err != nil || code != 0 {
+				return fmt.Errorf("%s readiness: %w", w.Name, errors.Join(err, fmt.Errorf("exit %d: %s", code, stderr)))
+			}
+		}
+		opened[i], recording[i] = true, true
+		browser := shellQuote(driver) + " -s=" + shellQuote(names[i])
+		code, _, stderr, err := gimble.RunCommand(ctx, "record-browser", dirs[i], "zsh", "-c", browser+" open about:blank && "+browser+" video-start "+shellQuote(reports[i].Video)+" --cursor && "+browser+" goto "+shellQuote(w.URL))
+		if err != nil || code != 0 {
+			return fmt.Errorf("%s browser: %w", w.Name, errors.Join(err, fmt.Errorf("exit %d: %s", code, stderr)))
 		}
 	}
-	return nil
+	gimble.Set(ctx, "product under test", suite.Product)
+	gimble.Set(ctx, "product user documentation", suite.Guides)
+	users := gimble.Group(ctx, "user-testing")
+	users.Go("tester1", func(ctx context.Context) error {
+		gimble.Set(ctx, "assignment file", suite.Workloads[0].AssignmentFile)
+		gimble.Set(ctx, "screenshots directory", dirs[0])
+		gimble.Set(ctx, "browser command", shellQuote(driver)+" -s="+shellQuote(names[0]))
+		tester := gimble.NewSession(ctx, "product-operation", suite.Workloads[0].Workdir)
+		start := time.Now()
+		text, err := tester.Generate[gimble.Text](ctx, userPrompt)
+		reports[0].ElapsedSeconds = time.Since(start).Seconds()
+		turns[0] = errors.Join(err, os.WriteFile(reports[0].Report, []byte(text), 0644))
+		reports[0].Error = errorText(turns[0])
+		return nil
+	})
+	users.Go("tester2", func(ctx context.Context) error {
+		if len(suite.Workloads) < 2 {
+			return nil
+		}
+		gimble.Set(ctx, "assignment file", suite.Workloads[1].AssignmentFile)
+		gimble.Set(ctx, "screenshots directory", dirs[1])
+		gimble.Set(ctx, "browser command", shellQuote(driver)+" -s="+shellQuote(names[1]))
+		tester := gimble.NewSession(ctx, "product-operation", suite.Workloads[1].Workdir)
+		start := time.Now()
+		text, err := tester.Generate[gimble.Text](ctx, userPrompt)
+		reports[1].ElapsedSeconds = time.Since(start).Seconds()
+		turns[1] = errors.Join(err, os.WriteFile(reports[1].Report, []byte(text), 0644))
+		reports[1].Error = errorText(turns[1])
+		return nil
+	})
+	users.Go("tester3", func(ctx context.Context) error {
+		if len(suite.Workloads) < 3 {
+			return nil
+		}
+		gimble.Set(ctx, "assignment file", suite.Workloads[2].AssignmentFile)
+		gimble.Set(ctx, "screenshots directory", dirs[2])
+		gimble.Set(ctx, "browser command", shellQuote(driver)+" -s="+shellQuote(names[2]))
+		tester := gimble.NewSession(ctx, "product-operation", suite.Workloads[2].Workdir)
+		start := time.Now()
+		text, err := tester.Generate[gimble.Text](ctx, userPrompt)
+		reports[2].ElapsedSeconds = time.Since(start).Seconds()
+		turns[2] = errors.Join(err, os.WriteFile(reports[2].Report, []byte(text), 0644))
+		reports[2].Error = errorText(turns[2])
+		return nil
+	})
+	groupErr := users.Wait()
+	recordingErr := closeBrowsers()
+	if err := writeJSON(reportsFile, reports); err != nil {
+		return errors.Join(groupErr, recordingErr, err)
+	}
+	if ctx.Err() != nil {
+		return errors.Join(ctx.Err(), groupErr, recordingErr, errors.Join(turns[:]...))
+	}
+	gimble.Set(ctx, "workload reports", reportsFile)
+	gimble.Set(ctx, "execution errors", errorText(errors.Join(groupErr, recordingErr, errors.Join(turns[:]...))))
+	visual := gimble.NewSession(ctx, "product-visual-review", output)
+	visualText, visualErr := visual.Generate[gimble.Text](ctx, visualPrompt)
+	visualFile := filepath.Join(output, "visual-review.md")
+	visualErr = errors.Join(visualErr, os.WriteFile(visualFile, []byte(visualText), 0644))
+	gimble.Set(ctx, "screenshot review", visualFile)
+	gimble.Set(ctx, "screenshot review error", errorText(visualErr))
+	gimble.Set(ctx, "issue repository", suite.IssueRepo)
+	triage := gimble.NewSession(ctx, "product-triage", output)
+	findings, triageErr := triage.Generate[gimble.Text](ctx, triagePrompt)
+	triageErr = errors.Join(triageErr, os.WriteFile(filepath.Join(output, "findings.md"), []byte(findings), 0644))
+	return errors.Join(groupErr, recordingErr, errors.Join(turns[:]...), visualErr, triageErr)
 }
 
-func writeReport(path string, result report) error {
-	data, err := json.MarshalIndent(result, "", "  ")
+func writeJSON(path string, value any) error {
+	data, err := json.MarshalIndent(value, "", "  ")
 	if err != nil {
 		return err
 	}
-	if err := os.WriteFile(path+".tmp", data, 0o644); err != nil {
+	if err := os.WriteFile(path+".tmp", data, 0644); err != nil {
 		return err
 	}
 	return os.Rename(path+".tmp", path)
 }
-
-const operatePrompt = `Exercise the given feature against the running product and compare what you observe with its expected behavior. Perform its setup, use the supplied browser command and existing session for all interactions, and take screenshots at useful moments, especially the result or any failure. The workflow records video for optional human review and handles video-stop and close; your assessment should use the live product, screenshots, and command output.
-For CLI features, type commands into the browser terminal and save their output and exit statuses alongside terminal screenshots in the evidence directory. Empty output can be meaningful. Do not substitute direct shell execution for the recorded CLI interaction.
-Return pass when the expected behavior is observed, fail when the product behaves incorrectly, or blocked when you cannot perform the check. Explain what happened and attach the absolute paths of relevant screenshots and output files from this feature's evidence directory. Return your result only in the structured response; the workflow writes the report. Do not repair the product, change expectations, fabricate evidence, or retry until a failure disappears.`
+func errorText(err error) string {
+	if err != nil {
+		return err.Error()
+	}
+	return ""
+}

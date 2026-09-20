@@ -1,25 +1,23 @@
-# Create /tmp/gimble-validation-target first and choose an unused port.
-# Keep the observer's --work-dir separate from this disposable target.
-product:
-  name: Gimble
-  workdir: /tmp/gimble-validation-target
-  cli: gimble
-  start: gimble --port 43827
-  ready: curl --fail --silent http://127.0.0.1:43827/ >/dev/null
-  browser_url: http://127.0.0.1:43827
-output_dir: /tmp/gimble-validation-artifacts
-timeout: 15m
-# Optional executable overrides; bare names use PATH.
-# tools:
-#   playwright_cli: /absolute/path/to/playwright-cli
-#   terminal_server: /absolute/path/to/gotty
-features:
-  - id: browser-navigation
-    surface: browser
-    exercise: Navigate between Conversations, Runs, and About, then reload the current page.
-    expected: Each destination renders successfully, and reloading preserves a working page.
-  - id: cli-count-tokens
-    surface: cli
-    setup: Create an empty file inside the disposable target directory.
-    exercise: Run count-tokens on the empty file, then on a nonexistent file. Record both exit statuses.
-    expected: The empty file reports zero tokens and exits zero. The nonexistent file produces an error and exits nonzero.
+# Prepare distinct project-B worktrees and save each issue/task locally first.
+product: Gimble
+# Public usage instructions are allowed; A's implementation source is not.
+guides:
+  - ../../skills/gimble-runs/SKILL.md
+output_dir: /tmp/gimble-user-testing/artifacts
+timeout: 1h
+# Omit issue_repo for a report-only rehearsal.
+issue_repo: tylergannon/gimble
+# playwright_cli: /absolute/path/to/playwright-cli
+workloads:
+  - name: issue-to-pr
+    assignment_file: issue-to-pr.md
+    workdir: /tmp/gimble-user-testing/project-b-implementation
+    start: gimble --port 43827
+    ready: curl --fail --silent http://127.0.0.1:43827/ >/dev/null
+    url: http://127.0.0.1:43827
+  - name: review-a-change
+    assignment_file: review-a-change.md
+    workdir: /tmp/gimble-user-testing/project-b-review
+    start: gimble --port 43828
+    ready: curl --fail --silent http://127.0.0.1:43828/ >/dev/null
+    url: http://127.0.0.1:43828

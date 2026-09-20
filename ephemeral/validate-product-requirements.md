@@ -37,3 +37,11 @@ appropriate moments. Video is intended for optional human review. Prioritize the
 agent per feature that exercises and assesses the product, saves screenshots and
 CLI output, and returns its result; recording remains workflow-owned. Earlier
 independent-agent and video-analysis requirements in this design are superseded.
+
+
+Current implementation request: write the practical workload workflow above,
+keeping it simple, flat, and as non-dynamic as possible. This replaces the earlier
+feature-by-feature loop. Use caller-defined practical assignments, parallel user
+sessions, a Gemini Flash screenshot/caption review, and final senior-agent issue
+triage. Never inspect the primary product A's implementation source; project B's
+source is permitted but the tester should normally rely on A to do that work.

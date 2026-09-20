@@ -7,45 +7,32 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
 )
 
-// Suite is the JSON/YAML description of a product and its observable features.
-// Relative filesystem paths resolve from the suite file's directory.
+// Suite describes the product and up to three independent user workloads.
+// Paths are relative to the suite file, not the observing project's directory.
 type Suite struct {
-	Product   Product   `json:"product" yaml:"product"`
-	Tools     Tools     `json:"tools" yaml:"tools"`
-	OutputDir string    `json:"output_dir" yaml:"output_dir"`
-	Timeout   string    `json:"timeout" yaml:"timeout"`
-	Features  []Feature `json:"features" yaml:"features"`
+	Product       string     `json:"product" yaml:"product"`
+	Guides        []string   `json:"guides" yaml:"guides"`
+	Workloads     []Workload `json:"workloads" yaml:"workloads"`
+	OutputDir     string     `json:"output_dir" yaml:"output_dir"`
+	Timeout       string     `json:"timeout" yaml:"timeout"`
+	PlaywrightCLI string     `json:"playwright_cli" yaml:"playwright_cli"`
+	IssueRepo     string     `json:"issue_repo" yaml:"issue_repo"`
 }
 
-type Product struct {
-	Name       string `json:"name" yaml:"name"`
-	Workdir    string `json:"workdir" yaml:"workdir"`
-	Prepare    string `json:"prepare" yaml:"prepare"`
-	Start      string `json:"start" yaml:"start"`
-	Ready      string `json:"ready" yaml:"ready"`
-	BrowserURL string `json:"browser_url" yaml:"browser_url"`
-	CLI        string `json:"cli" yaml:"cli"`
-	Revision   string `json:"revision" yaml:"revision"`
-}
-
-// Tools names installed executables; bare names are resolved on PATH.
-type Tools struct {
-	PlaywrightCLI  string `json:"playwright_cli" yaml:"playwright_cli"`
-	TerminalServer string `json:"terminal_server" yaml:"terminal_server"`
-}
-
-type Feature struct {
-	ID       string `json:"id" yaml:"id"`
-	Surface  string `json:"surface" yaml:"surface"`
-	Setup    string `json:"setup" yaml:"setup"`
-	Exercise string `json:"exercise" yaml:"exercise"`
-	Expected string `json:"expected" yaml:"expected"`
+type Workload struct {
+	Name           string `json:"name" yaml:"name"`
+	AssignmentFile string `json:"assignment_file" yaml:"assignment_file"`
+	Workdir        string `json:"workdir" yaml:"workdir"`
+	Start          string `json:"start" yaml:"start"`
+	Ready          string `json:"ready" yaml:"ready"`
+	URL            string `json:"url" yaml:"url"`
 }
 
 func readSuite(name string) (Suite, time.Duration, error) {
@@ -54,7 +41,7 @@ func readSuite(name string) (Suite, time.Duration, error) {
 	if err != nil {
 		return suite, 0, err
 	}
-	decoder := yaml.NewDecoder(bytes.NewReader(data)) // JSON is a YAML subset.
+	decoder := yaml.NewDecoder(bytes.NewReader(data))
 	decoder.KnownFields(true)
 	if err := decoder.Decode(&suite); err != nil {
 		return suite, 0, err
@@ -63,81 +50,78 @@ func readSuite(name string) (Suite, time.Duration, error) {
 	if err := decoder.Decode(&extra); err != io.EOF {
 		return suite, 0, fmt.Errorf("expected one JSON or YAML document")
 	}
-	if strings.TrimSpace(suite.Product.Name) == "" || suite.Product.Workdir == "" || suite.OutputDir == "" || len(suite.Features) == 0 {
-		return suite, 0, fmt.Errorf("product name, workdir, output_dir, and at least one feature are required")
+	if strings.TrimSpace(suite.Product) == "" || suite.OutputDir == "" || len(suite.Workloads) < 1 || len(suite.Workloads) > 3 {
+		return suite, 0, fmt.Errorf("product, output_dir, and one to three workloads are required")
 	}
 	base := filepath.Dir(name)
-	suite.Product.Workdir = absolute(base, suite.Product.Workdir)
 	suite.OutputDir = absolute(base, suite.OutputDir)
-	if info, err := os.Stat(suite.Product.Workdir); err != nil || !info.IsDir() {
-		return suite, 0, fmt.Errorf("product workdir must be an existing directory")
+	if suite.PlaywrightCLI == "" {
+		suite.PlaywrightCLI = "playwright-cli"
 	}
-	if suite.Product.Start != "" && strings.TrimSpace(suite.Product.Ready) == "" {
-		return suite, 0, fmt.Errorf("a startup command requires a readiness command")
+	if strings.ContainsRune(suite.PlaywrightCLI, filepath.Separator) {
+		suite.PlaywrightCLI = absolute(base, suite.PlaywrightCLI)
 	}
 	if suite.Timeout == "" {
-		suite.Timeout = "15m"
+		suite.Timeout = "1h"
 	}
 	timeout, err := time.ParseDuration(suite.Timeout)
 	if err != nil || timeout <= 0 {
 		return suite, 0, fmt.Errorf("timeout must be a positive duration")
 	}
-	if suite.Tools.PlaywrightCLI == "" {
-		suite.Tools.PlaywrightCLI = "playwright-cli"
+	if suite.IssueRepo != "" && !regexp.MustCompile(`^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$`).MatchString(suite.IssueRepo) {
+		return suite, 0, fmt.Errorf("issue_repo must be owner/repository, or empty for report-only")
 	}
-	if suite.Tools.TerminalServer == "" {
-		suite.Tools.TerminalServer = "gotty"
+	files := make([]string, 0, len(suite.Guides)+len(suite.Workloads))
+	for i, path := range suite.Guides {
+		suite.Guides[i] = absolute(base, path)
+		files = append(files, suite.Guides[i])
 	}
-	for _, value := range []*string{&suite.Tools.PlaywrightCLI, &suite.Tools.TerminalServer, &suite.Product.CLI} {
-		if strings.ContainsRune(*value, filepath.Separator) {
-			*value = absolute(base, *value)
+	names, dirs := map[string]bool{}, []string{}
+	for i := range suite.Workloads {
+		w := &suite.Workloads[i]
+		if strings.TrimSpace(w.Name) == "" || names[w.Name] || w.AssignmentFile == "" || w.Workdir == "" {
+			return suite, 0, fmt.Errorf("workloads need unique names, assignment_file, and workdir")
+		}
+		names[w.Name] = true
+		w.AssignmentFile = absolute(base, w.AssignmentFile)
+		files = append(files, w.AssignmentFile)
+		w.Workdir = absolute(base, w.Workdir)
+		info, err := os.Stat(w.Workdir)
+		if err != nil || !info.IsDir() {
+			return suite, 0, fmt.Errorf("workload %s needs an existing workspace", w.Name)
+		}
+		realDir, err := filepath.EvalSymlinks(w.Workdir)
+		if err != nil {
+			return suite, 0, err
+		}
+		for _, other := range dirs {
+			a, _ := filepath.Rel(other, realDir)
+			b, _ := filepath.Rel(realDir, other)
+			if filepath.IsLocal(a) || filepath.IsLocal(b) {
+				return suite, 0, fmt.Errorf("workload workspaces must not overlap")
+			}
+		}
+		dirs = append(dirs, realDir)
+		u, err := url.Parse(w.URL)
+		if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
+			return suite, 0, fmt.Errorf("workload %s needs an http(s) url", w.Name)
+		}
+		if w.Start != "" && strings.TrimSpace(w.Ready) == "" {
+			return suite, 0, fmt.Errorf("workload %s startup needs a readiness command", w.Name)
 		}
 	}
-	seen := map[string]bool{}
-	for _, f := range suite.Features {
-		if strings.TrimSpace(f.ID) == "" || seen[f.ID] || strings.TrimSpace(f.Exercise) == "" || strings.TrimSpace(f.Expected) == "" {
-			return suite, 0, fmt.Errorf("features need unique nonempty IDs, exercise, and expected outcomes")
-		}
-		seen[f.ID] = true
-		switch f.Surface {
-		case "browser":
-			u, e := url.Parse(suite.Product.BrowserURL)
-			if e != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
-				return suite, 0, fmt.Errorf("browser features require an http(s) browser_url")
-			}
-		case "cli":
-			if suite.Product.CLI == "" {
-				return suite, 0, fmt.Errorf("CLI features require product.cli")
-			}
-		default:
-			return suite, 0, fmt.Errorf("feature %s: surface must be browser or cli", f.ID)
+	for _, path := range files {
+		info, err := os.Stat(path)
+		if err != nil || !info.Mode().IsRegular() {
+			return suite, 0, fmt.Errorf("input must be a local file: %s", path)
 		}
 	}
 	return suite, timeout, nil
 }
-
 func absolute(base, path string) string {
 	if filepath.IsAbs(path) {
 		return filepath.Clean(path)
 	}
 	return filepath.Join(base, path)
 }
-
 func shellQuote(value string) string { return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'" }
-
-// Resolve symlinks before checking containment, including links in parent directories.
-func evidencePath(dir, path string) (string, error) {
-	root, err := filepath.EvalSymlinks(dir)
-	if err != nil {
-		return "", err
-	}
-	resolved, err := filepath.EvalSymlinks(absolute(dir, path))
-	if err != nil {
-		return "", err
-	}
-	relative, err := filepath.Rel(root, resolved)
-	if err != nil || !filepath.IsLocal(relative) {
-		return "", fmt.Errorf("evidence is outside this feature: %s", path)
-	}
-	return resolved, nil
-}

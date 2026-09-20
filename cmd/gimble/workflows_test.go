@@ -183,18 +183,14 @@ func TestValidateProductHelp(t *testing.T) {
 	if !strings.Contains(lineWith(help, "--suite-file string"), "(required)") {
 		t.Fatal(help)
 	}
-	for _, role := range []string{"product-operation"} {
-		if !strings.Contains(lineWith(help, "--"+role+" string"), `(default "gpt-5.6-luna")`) {
+	for role, model := range map[string]string{"product-operation": "gpt-5.6-luna", "product-visual-review": "gemini-3.8-flash-medium", "product-triage": "gpt-6-astra:high"} {
+		if !strings.Contains(lineWith(help, "--"+role+" string"), `(default "`+model+`")`) {
 			t.Fatal(help)
 		}
 	}
-}
-
-func TestValidateProductHelpHasNoVideoAnalysisOrSecondAgent(t *testing.T) {
-	help := helpOf(t, "validate-product")
-	for _, removed := range []string{"--product-validation", "ffmpeg", "video_decoder"} {
-		if strings.Contains(help, removed) {
-			t.Fatalf("obsolete requirement %s in help", removed)
+	for _, text := range []string{"one to three workloads", "implementation source", "issue_repo", "human review"} {
+		if !strings.Contains(help, text) {
+			t.Fatalf("missing %s", text)
 		}
 	}
 }

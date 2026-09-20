@@ -1,34 +1,41 @@
-# Product validation
+# Practical user testing
 
-`gimble run validate-product --suite-file /absolute/path/to/suite.yaml`
-reads JSON or YAML. The adjacent Gimble suite is a small starting example, not a
-complete feature inventory. Create its disposable target directory before running;
-use a different observer directory with `--work-dir`.
+`gimble run validate-product --suite-file /absolute/path/to/suite.yaml --no-web`
 
-Install `playwright-cli` and its browser, GoTTY (for CLI cases).
-Set their executable paths in `tools` when they are not on PATH. The `product-operation` role defaults to `gpt-5.6-luna`; its CLI flag overrides it. Read `gimble run validate-product --help` for the contract.
+The fixed workflow has three tester slots (one to three workloads), one screenshot
+review, and one final triage turn. Assign useful jobs, not feature checklists.
+Product A is always tested through its public interface and user documentation;
+testers never inspect A's source. When A works on another project B, the tester
+can read B but should normally rely on A to do its job.
 
-All project details belong in the suite. `product.prepare` optionally builds or
-fetches a desired revision; `product.start` launches a foreground service and needs
-`product.ready` to check readiness. Omit `start` to use an existing target. The
-optional `revision` field is a caller-supplied label. `cli` names an executable,
-not a command with arguments. Relative paths resolve from the suite file.
+Before running, build/install the desired product version, prepare separate
+project-B workspaces, and save issue/task text locally. The example assignments
+expect `issue.md` and `change.md` in their respective workspaces. Choose unused
+ports and install `playwright-cli` and its browser. The observer's `--work-dir`
+should be separate from these test workspaces. Each workload can supply a
+foreground `start` command with a `ready` check, or point `url` at an existing
+instance. For a CLI-only product, supply the URL of a loopback terminal such as
+GoTTY; its startup command can live in the workload's `start` field. Ordinary CLI
+output can also accompany a browser workload's screenshots.
 
-Each feature supplies an ID, `browser` or `cli` surface, optional setup, actions to
-exercise, and expected behavior. CLI interaction is filmed through a local GoTTY
-terminal. One agent performs each feature, takes screenshots at useful moments,
-checks the result, and reports pass/fail/blocked. CLI output and exit statuses
-supplement screenshots; empty output is allowed. Videos are for optional human
-review, with no second agent pass or frame analysis.
+Inputs are JSON or YAML; paths resolve from the suite file. `product` names A,
+`guides` lists public local usage documents, `workloads` supplies the assignments,
+and `output_dir` receives a unique run directory. `timeout` defaults to one hour.
+`playwright_cli` optionally overrides the browser executable. Workspaces must not
+overlap; shared external services/accounts should also be isolated by the caller.
 
-Reports, screenshots, command output, and per-feature WebM recordings are saved
-under a unique directory in `output_dir`. A failed or blocked feature makes the
-run unsuccessful. The report contains feature results and any workflow-body error;
-it makes no overall completion claim. Daily automation must check the command's
-exit status (or the final Gimble run status), which includes agent-session cleanup
-failures that arrive after report writing. Recording or attachment problems appear
-in the feature's separate `error` field and make the overall run unsuccessful
-without discarding the agent's observed-versus-expected explanation.
-Cancellation attempts bounded recording finalization and cleanup;
-hard process termination cannot guarantee either. Schedule invocations externally
-for daily runs.
+The tester role `product-operation` defaults to Luna. `product-visual-review`
+defaults to Gemini Flash and opens screenshots to check readability and captions.
+`product-triage` defaults to GPT-6 Astra and combines findings. Their corresponding
+CLI flags can override models. The final agent checks existing issues and files
+new actionable ones in `issue_repo`. Omit `issue_repo` for report-only operation.
+Publishing requires authenticated `gh`; task permissions such as creating a PR in
+B belong explicitly in that workload's assignment.
+
+Results include each tester's Markdown report, ordered captioned screenshots,
+measured elapsed time, and a browser video for optional human review. Flash writes
+`visual-review.md`; triage writes `findings.md` with issue URLs or proposed issues.
+`reports.json` points to workload reports and records execution errors. A failed
+task is a useful user-testing finding. A failed agent turn or failed cleanup makes
+the command unsuccessful even if other workloads produced useful reports. Check
+the final command exit/run status; report files alone do not certify completion.

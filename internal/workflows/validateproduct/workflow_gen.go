@@ -21,61 +21,66 @@ func init() { gimble.RegisterGraph(Graph) }
 
 // Graph is the shape of this workflow, read from the source of ValidateProduct.
 var Graph = workflow.Graph{
-	Name:     "validate-product",
-	Source:   workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 88},
-	Services: []workflow.Service{},
+	Name:   "validate-product",
+	Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 74},
+	Services: []workflow.Service{
+		{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 138}, Name: "product"},
+	},
 	Body: []workflow.Operation{
-		workflow.Scope{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 121}, Name: "product", Services: []workflow.Service{
-			{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 132}, Name: "target"},
-		}, Body: []workflow.Operation{
-			workflow.Condition{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 122}, Branches: []workflow.Branch{
-				{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 122}, Case: "suite.Product.Prepare != \"\"", Exits: false, Body: []workflow.Operation{
-					workflow.Command{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 123}, Name: "prepare"},
-					workflow.Condition{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 127}, Branches: []workflow.Branch{
-						{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 127}, Case: "code != 0", Exits: true, Body: []workflow.Operation{}},
+		workflow.Repeat{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 133}, Cond: "i, w := range suite.Workloads", Body: []workflow.Operation{
+			workflow.Condition{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 142}, Branches: []workflow.Branch{
+				{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 142}, Case: "w.Ready != \"\"", Exits: false, Body: []workflow.Operation{
+					workflow.Command{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 144}, Name: "readiness"},
+					workflow.Condition{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 146}, Branches: []workflow.Branch{
+						{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 146}, Case: "err != nil || code != 0", Exits: true, Body: []workflow.Operation{}},
 					}},
 				}},
 			}},
-			workflow.Condition{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 136}, Branches: []workflow.Branch{
-				{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 136}, Case: "suite.Product.Ready != \"\"", Exits: false, Body: []workflow.Operation{
-					workflow.Repeat{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 139}, Cond: "", Body: []workflow.Operation{
-						workflow.Command{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 140}, Name: "readiness"},
-						workflow.Condition{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 144}, Branches: []workflow.Branch{
-							{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 144}, Case: "code == 0", Exits: true, Body: []workflow.Operation{}},
-						}},
-					}},
-				}},
-			}},
-			workflow.Iterate{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 155}, Name: "feature", Services: []workflow.Service{}, Body: []workflow.Operation{
-				workflow.Scope{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 165}, Name: "exercise", Services: []workflow.Service{
-					{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 185}, Name: "terminal"},
-				}, Body: []workflow.Operation{
-					workflow.Condition{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 167}, Branches: []workflow.Branch{
-						{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 167}, Case: "feature.Surface == \"cli\"", Exits: false, Body: []workflow.Operation{
-							workflow.Set{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 210}, Key: "CLI executable"},
-						}},
-					}},
-					workflow.Command{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 233}, Name: "open-browser"},
-					workflow.Condition{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 237}, Branches: []workflow.Branch{
-						{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 237}, Case: "code != 0", Exits: true, Body: []workflow.Operation{}},
-					}},
-					workflow.Command{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 241}, Name: "start-video"},
-					workflow.Condition{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 245}, Branches: []workflow.Branch{
-						{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 245}, Case: "code != 0", Exits: true, Body: []workflow.Operation{}},
-					}},
-					workflow.Command{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 248}, Name: "open-target"},
-					workflow.Condition{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 252}, Branches: []workflow.Branch{
-						{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 252}, Case: "code != 0", Exits: true, Body: []workflow.Operation{}},
-					}},
-					workflow.Set{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 255}, Key: "feature"},
-					workflow.Set{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 256}, Key: "target working directory"},
-					workflow.Set{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 257}, Key: "browser command"},
-					workflow.Set{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 258}, Key: "evidence directory"},
-					workflow.Session{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 259}, Name: "product-operation", From: ""},
-					workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 260}, Session: "product-operation", Role: "product-operation", Prompt: "Exercise the given feature against the running product and compare what you observe with its expected behavior. Perform its setup, use the supplied browser command and existing session for all interactions, and take screenshots at useful moments, especially the result or any failure. The workflow records video for optional human review and handles video-stop and close; your assessment should use the live product, screenshots, and command output.\nFor CLI features, type commands into the browser terminal and save their output and exit statuses alongside terminal screenshots in the evidence directory. Empty output can be meaningful. Do not substitute direct shell execution for the recorded CLI interaction.\nReturn pass when the expected behavior is observed, fail when the product behaves incorrectly, or blocked when you cannot perform the check. Explain what happened and attach the absolute paths of relevant screenshots and output files from this feature's evidence directory. Return your result only in the structured response; the workflow writes the report. Do not repair the product, change expectations, fabricate evidence, or retry until a failure disappears."},
-				}},
+			workflow.Command{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 152}, Name: "record-browser"},
+			workflow.Condition{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 153}, Branches: []workflow.Branch{
+				{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 153}, Case: "err != nil || code != 0", Exits: true, Body: []workflow.Operation{}},
 			}},
 		}},
+		workflow.Set{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 157}, Key: "product under test"},
+		workflow.Set{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 158}, Key: "product user documentation"},
+		workflow.Group{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 159}, Name: "user-testing", Children: []workflow.GroupChild{
+			{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 160}, Name: "tester1", Services: []workflow.Service{}, Body: []workflow.Operation{
+				workflow.Set{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 161}, Key: "assignment file"},
+				workflow.Set{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 162}, Key: "screenshots directory"},
+				workflow.Set{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 163}, Key: "browser command"},
+				workflow.Session{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 164}, Name: "product-operation", From: ""},
+				workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 166}, Session: "product-operation", Role: "product-operation", Prompt: "Read your local assignment and the relevant product user documentation. Test the product as a neutral member of a software engineering team evaluating it for real use. Carry out the practical task through the product, using it for the heavy lifting. Monitor progress through its web interface; explore relevant controls naturally and note what helps or hinders you. Follow the assignment's permitted actions and definition of task completion.\nNever inspect the source code of the product under test (A). Ignore accidentally encountered A source in your analysis. If the task involves another project B, its source is permitted but should normally be unnecessary for you: rely on A to perform that work. Public product skills and user documentation are allowed. Do not repair A or hide failures by retrying until they disappear.\nUse the supplied browser command and its existing recorded session. The workflow owns recording and shutdown; video is for human review. Take screenshots at meaningful moments, including important screens, controls, working interactions and failures. Save them in the screenshots directory with sequential names and a caption for each. Retain useful CLI output and exit statuses there too; empty output is legitimate.\nReturn a Markdown user report: whether the task was completed and its concrete output (for example a PR), blockers and bugs, incorrect/missing/illegible/out-of-place information, and up to three most annoying aspects of the experience. Keep task success and UX quality distinct. Include the ordered screenshot paths and captions, describing observed behavior rather than inferring internals. The workflow records elapsed time and saves your response; do not edit other testers' files or workflow reports."},
+			}},
+			{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 172}, Name: "tester2", Services: []workflow.Service{}, Body: []workflow.Operation{
+				workflow.Condition{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 173}, Branches: []workflow.Branch{
+					{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 173}, Case: "len(suite.Workloads) < 2", Exits: true, Body: []workflow.Operation{}},
+				}},
+				workflow.Set{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 176}, Key: "assignment file"},
+				workflow.Set{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 177}, Key: "screenshots directory"},
+				workflow.Set{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 178}, Key: "browser command"},
+				workflow.Session{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 179}, Name: "product-operation", From: ""},
+				workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 181}, Session: "product-operation", Role: "product-operation", Prompt: "Read your local assignment and the relevant product user documentation. Test the product as a neutral member of a software engineering team evaluating it for real use. Carry out the practical task through the product, using it for the heavy lifting. Monitor progress through its web interface; explore relevant controls naturally and note what helps or hinders you. Follow the assignment's permitted actions and definition of task completion.\nNever inspect the source code of the product under test (A). Ignore accidentally encountered A source in your analysis. If the task involves another project B, its source is permitted but should normally be unnecessary for you: rely on A to perform that work. Public product skills and user documentation are allowed. Do not repair A or hide failures by retrying until they disappear.\nUse the supplied browser command and its existing recorded session. The workflow owns recording and shutdown; video is for human review. Take screenshots at meaningful moments, including important screens, controls, working interactions and failures. Save them in the screenshots directory with sequential names and a caption for each. Retain useful CLI output and exit statuses there too; empty output is legitimate.\nReturn a Markdown user report: whether the task was completed and its concrete output (for example a PR), blockers and bugs, incorrect/missing/illegible/out-of-place information, and up to three most annoying aspects of the experience. Keep task success and UX quality distinct. Include the ordered screenshot paths and captions, describing observed behavior rather than inferring internals. The workflow records elapsed time and saves your response; do not edit other testers' files or workflow reports."},
+			}},
+			{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 187}, Name: "tester3", Services: []workflow.Service{}, Body: []workflow.Operation{
+				workflow.Condition{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 188}, Branches: []workflow.Branch{
+					{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 188}, Case: "len(suite.Workloads) < 3", Exits: true, Body: []workflow.Operation{}},
+				}},
+				workflow.Set{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 191}, Key: "assignment file"},
+				workflow.Set{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 192}, Key: "screenshots directory"},
+				workflow.Set{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 193}, Key: "browser command"},
+				workflow.Session{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 194}, Name: "product-operation", From: ""},
+				workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 196}, Session: "product-operation", Role: "product-operation", Prompt: "Read your local assignment and the relevant product user documentation. Test the product as a neutral member of a software engineering team evaluating it for real use. Carry out the practical task through the product, using it for the heavy lifting. Monitor progress through its web interface; explore relevant controls naturally and note what helps or hinders you. Follow the assignment's permitted actions and definition of task completion.\nNever inspect the source code of the product under test (A). Ignore accidentally encountered A source in your analysis. If the task involves another project B, its source is permitted but should normally be unnecessary for you: rely on A to perform that work. Public product skills and user documentation are allowed. Do not repair A or hide failures by retrying until they disappear.\nUse the supplied browser command and its existing recorded session. The workflow owns recording and shutdown; video is for human review. Take screenshots at meaningful moments, including important screens, controls, working interactions and failures. Save them in the screenshots directory with sequential names and a caption for each. Retain useful CLI output and exit statuses there too; empty output is legitimate.\nReturn a Markdown user report: whether the task was completed and its concrete output (for example a PR), blockers and bugs, incorrect/missing/illegible/out-of-place information, and up to three most annoying aspects of the experience. Keep task success and UX quality distinct. Include the ordered screenshot paths and captions, describing observed behavior rather than inferring internals. The workflow records elapsed time and saves your response; do not edit other testers' files or workflow reports."},
+			}},
+		}},
+		workflow.Set{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 210}, Key: "workload reports"},
+		workflow.Set{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 211}, Key: "execution errors"},
+		workflow.Session{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 212}, Name: "product-visual-review", From: ""},
+		workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 213}, Session: "product-visual-review", Role: "product-visual-review", Prompt: "Read the workload manifest and each available user report. Open the actual screenshot images with your image-viewing tool; filenames and captions alone are not visual evidence. Inspect the important result screens and reported problem screens, plus a representative selection of the rest. Assess whether the interface is readable and usable and whether each inspected image supports its caption. Do not watch or sample videos or repeat the user tasks.\nReturn a Markdown visual review listing exactly which images you viewed, visible problems, caption mismatches, and anything you could not verify. If you cannot open images, report that limitation instead of claiming a visual review. Screenshots do not establish hidden behavior or end-to-end task success. Do not inspect A's source, edit original evidence, operate the product, or publish issues."},
+		workflow.Set{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 216}, Key: "screenshot review"},
+		workflow.Set{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 217}, Key: "screenshot review error"},
+		workflow.Set{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 218}, Key: "issue repository"},
+		workflow.Session{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 219}, Name: "product-triage", From: ""},
+		workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 220}, Session: "product-triage", Role: "product-triage", Prompt: "Read all workload reports, measured durations, execution errors, and the screenshot review. Produce a concise assessment of practical task completion and user experience. Reconcile contradictions without inventing facts; separate observed defects, UX complaints, and unverified suspicions. Never inspect the tested product's source. Avoid turning preferences or missing evidence into confirmed bugs.\nIf the issue repository is empty, return proposed issues in your report and do not publish anything. Otherwise use gh to inspect existing issues in that repository and create only new, actionable issues supported by these observations. Group duplicate findings. Each issue should explain the workload, observed versus expected behavior, user impact, and reproduction context, with available evidence. Use a local body file for multiline issue text. Use accessible evidence links when available; identify local-only screenshots honestly, never invent hosted URLs. Do not modify the product or post speculative issues to satisfy a quota.\nReturn a Markdown findings report with task outcomes and elapsed times, the most consequential usability problems, evidence limitations, and the URLs of issues created or relevant existing issues. Report publication failures explicitly; do not claim an issue was created without a successful tool result."},
 	},
 }
 
@@ -85,17 +90,19 @@ var Graph = workflow.Graph{
 func Command(defaults map[gimble.WorkflowRole]string) *cobra.Command {
 	var params Params
 	var productOperationModel string
+	var productVisualReviewModel string
+	var productTriageModel string
 	var workDir string
 	var port int
 	var uds string
 	var noWeb bool
 	cmd := &cobra.Command{
 		Use:   "validate-product",
-		Short: "ValidateProduct exercises declared features and saves screenshots, results, and video for human review.",
-		Long:  "Package validateproduct exercises a product's declared CLI and browser features\nand records each interaction as video. Product-specific commands and expected\noutcomes come from a JSON or YAML suite file; no scheduler or product repair is\nperformed. Use a disposable target project, separate from this observing run.\n\nThe suite contains product {name, workdir, prepare?, start?, ready?, browser_url?,\ncli?, revision?}, output_dir, timeout (default 15m), and features with unique id,\nsurface (browser or cli), optional setup, exercise, and expected instructions.\nRelative paths resolve from the suite file. prepare/start/ready are zsh commands;\nready is polled for at most 30 seconds and is required with start. An existing\ntarget can omit start and is never stopped by this workflow. A started target\nmust remain in the foreground and keep descendants in its process group.\n\nPrerequisites are authenticated agent harnesses, playwright-cli with an installed\nbrowser, and GoTTY plus zsh for CLI features. The optional tools object overrides\nplaywright_cli and terminal_server (GoTTY) executable paths. Nothing is installed\nautomatically. CLI commands run in a real loopback terminal.\n\nOne agent exercises each feature, takes screenshots at useful moments, and\nreports pass/fail/blocked from what it observes. CLI output and exit statuses\nsupplement screenshots. Video is recorded for optional human review, not analyzed\nby another agent. There are no automatic test retries or evidence fingerprints.\nReports and recordings go into a unique validation-* directory under output_dir.\nreport.json includes every declared feature, including those never reached.\nThe report contains feature evidence, not an overall completion claim. Overall\nsuccess is the command's zero exit status (or the final Gimble run status), which\nrequires every feature to pass and owned-resource cleanup to succeed. Consumers\nmust check that final outcome: agent cleanup can fail after this report is written.\nCancellation uses bounded cleanup outside the cancelled context. SIGKILL or a\nmachine crash cannot guarantee finalized video, process cleanup, or a final report.\n\nExample:\n\n\tgimble run validate-product --suite-file /abs/project/validation.yaml --no-web",
+		Short: "ValidateProduct runs user workloads, checks their screenshots, and triages findings.",
+		Long:  "Package validateproduct runs practical user testing: up to three independent\nworkloads in parallel, one screenshot review, then one synthesis/issue-triage\nturn. It is a focus group, not an exhaustive feature checklist or source review.\nTesters never inspect the implementation source of the product under test (A).\nIf A does work on a second project (B), B's source is permitted but the tester\nshould normally rely on A to do that work.\n\nSupply a JSON/YAML suite with product, guides (local user-documentation files),\noutput_dir, and one to three workloads. Each workload has name, assignment_file\n(local task/issue text and allowed actions), an existing isolated workdir, url,\nand optional foreground start and ready shell commands. Prepare/build the desired\nproduct version before invocation. Existing targets are not stopped. A start\ncommand requires ready, polled for at most 30 seconds. For a CLI-only product,\nstart a loopback terminal such as GoTTY and supply its URL. Testers may use shell\ncommands as ordinary users, including invoking Gimble to delegate work on B.\n\nThe three tester slots are explicit; unused slots do nothing. The caller assigns\nworkloads; no planner invents work or retries failures. Each tester saves ordered,\ncaptioned screenshots and reports task outcome and UX separately. Video records\nthe browser for optional human review; agents do not analyze it. Gemini Flash\nopens screenshots to check readability and claims, not to repeat the workload.\nThe final agent reads all reports, deduplicates findings against existing GitHub\nissues, and opens actionable issues in issue_repo (owner/repository). Omit\nissue_repo to produce a report without publishing issues. Product defects are\nfindings, not workflow execution errors; failed agent turns remain execution errors.\n\nPrerequisites: authenticated harnesses, playwright-cli and its installed browser,\nand authenticated gh when publishing issues. playwright_cli can override the\ndriver's executable path. timeout defaults to 1h. All paths resolve from the\nsuite file. Output is a unique user-testing-* directory containing reports.json,\nper-tester user-report.md, screenshots and video.webm, visual-review.md and\nfindings.md. Elapsed time is measured by the workflow. The final command/run\nstatus includes cleanup errors; files alone do not certify run completion.\nBounded browser cleanup runs outside cancellation; hard kills cannot guarantee it.\n\nRoles: product-operation defaults to Luna, product-visual-review to Gemini Flash,\nand product-triage to GPT-6 Astra. Each has its normal model override flag.\n\nExample:\n\n\tgimble run validate-product --suite-file /abs/user-testing.yaml --no-web",
 		Args:  cobra.NoArgs,
 	}
-	cmd.Flags().StringVar(&params.SuiteFile, "suite-file", "", "SuiteFile is the JSON/YAML product target, feature list, and artifact configuration. (required)")
+	cmd.Flags().StringVar(&params.SuiteFile, "suite-file", "", "SuiteFile names the JSON/YAML product, local workload assignments, and issue repository. (required)")
 	_ = cmd.MarkFlagRequired("suite-file")
 	cmd.Flags().StringVar(&workDir, "work-dir", ".", "the working directory for this run")
 	productOperationModelDefault := defaults[gimble.WorkflowRole("product-operation")]
@@ -105,6 +112,20 @@ func Command(defaults map[gimble.WorkflowRole]string) *cobra.Command {
 	} else {
 		cmd.Flags().StringVar(&productOperationModel, "product-operation", productOperationModelDefault, "advanced override for role product-operation, as model or model:effort; omit this flag to use the displayed workflow default")
 	}
+	productVisualReviewModelDefault := defaults[gimble.WorkflowRole("product-visual-review")]
+	if productVisualReviewModelDefault == "" {
+		cmd.Flags().StringVar(&productVisualReviewModel, "product-visual-review", "", "the model for role product-visual-review, as model or model:effort")
+		_ = cmd.MarkFlagRequired("product-visual-review")
+	} else {
+		cmd.Flags().StringVar(&productVisualReviewModel, "product-visual-review", productVisualReviewModelDefault, "advanced override for role product-visual-review, as model or model:effort; omit this flag to use the displayed workflow default")
+	}
+	productTriageModelDefault := defaults[gimble.WorkflowRole("product-triage")]
+	if productTriageModelDefault == "" {
+		cmd.Flags().StringVar(&productTriageModel, "product-triage", "", "the model for role product-triage, as model or model:effort")
+		_ = cmd.MarkFlagRequired("product-triage")
+	} else {
+		cmd.Flags().StringVar(&productTriageModel, "product-triage", productTriageModelDefault, "advanced override for role product-triage, as model or model:effort; omit this flag to use the displayed workflow default")
+	}
 	cmd.Flags().IntVar(&port, "port", 8080, "loopback TCP port for the web application")
 	cmd.Flags().StringVar(&uds, "uds", "", "Unix-domain socket for the web application instead of TCP")
 	cmd.Flags().BoolVar(&noWeb, "no-web", false, "run without the web application")
@@ -113,7 +134,7 @@ func Command(defaults map[gimble.WorkflowRole]string) *cobra.Command {
 		if err != nil {
 			return err
 		}
-		models, err := binding.Roles(map[gimble.WorkflowRole]string{gimble.WorkflowRole("product-operation"): productOperationModel})
+		models, err := binding.Roles(map[gimble.WorkflowRole]string{gimble.WorkflowRole("product-operation"): productOperationModel, gimble.WorkflowRole("product-visual-review"): productVisualReviewModel, gimble.WorkflowRole("product-triage"): productTriageModel})
 		if err != nil {
 			return err
 		}

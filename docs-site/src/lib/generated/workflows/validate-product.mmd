@@ -21,21 +21,19 @@ flowchart TD
     direction LR
     n10{{"Fan out"}}:::structure
     n11[" "]:::boundary
-    n12["Arm · tester1<br/>2× Generate · product-operation"]:::arm
+    n12["Arm · tester1<br/>2× Generate · product-operation<br/>Loop"]:::arm
     n10 --> n12
     n12 --> n11
-    n13["Arm · tester2<br/>2× Generate · product-operation"]:::arm
+    n13["Arm · tester2<br/>2× Generate · product-operation<br/>Loop"]:::arm
     n10 --> n13
     n13 --> n11
-    n14["Arm · tester3<br/>2× Generate · product-operation"]:::arm
+    n14["Arm · tester3<br/>2× Generate · product-operation<br/>Loop"]:::arm
     n10 --> n14
     n14 --> n11
   end
   n4 --> n10
-  n15[["Generate<br/>product-visual-review"]]:::generate
+  n15[["Generate<br/>product-triage"]]:::generate
   n11 --> n15
-  n16[["Generate<br/>product-triage"]]:::generate
-  n15 --> n16
   n1 --> n3
   classDef workflow fill:#292524,stroke:#f59e0b,color:#fff7ed,stroke-width:2px
   classDef generate fill:#052e16,stroke:#4ade80,color:#f0fdf4,stroke-width:2px

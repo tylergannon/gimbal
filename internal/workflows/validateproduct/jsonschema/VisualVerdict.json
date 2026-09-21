@@ -1,0 +1,7 @@
+{"type":"object",
+"description":"VisualVerdict says whether Gemini could inspect the cited screenshots and whether their visible contents support the report's visual claims.","properties":{
+"review_completed":{"type":"boolean","description":"ReviewCompleted is false when Gemini could not open all cited screenshots."},
+"supported":{"type":"boolean","description":"Supported is true only when every inspected screenshot supports its caption, reference, and visible claim."},
+"opened_images":{"type":"array","description":"OpenedImages lists the exact paths Gemini opened with its image-viewing tool.","items":{"type":"string"}},
+"feedback":{"type":"string","description":"Feedback identifies each mismatch or evidence limitation precisely enough for correction or triage."}
+},"required":["review_completed","supported","opened_images","feedback"],"additionalProperties":false}

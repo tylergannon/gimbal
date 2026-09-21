@@ -51,14 +51,14 @@
 </div>
 
 <style>
-	.timeline { display: grid; gap: .8rem; }
-	.native-session { display: grid; gap: .8rem; }
+	.timeline { display: grid; min-width: 0; gap: .8rem; }
+	.native-session { display: grid; min-width: 0; gap: .8rem; }
 	.session-header code { text-transform: none; }
-	article { border: 1px solid var(--border); border-radius: .65rem; padding: .85rem 1rem; background: var(--card); }
+	article { min-width: 0; border: 1px solid var(--border); border-radius: .65rem; padding: .85rem 1rem; background: var(--card); }
 	.permission { border-left: 3px solid var(--map-line-strong); }
-	header { display: flex; justify-content: space-between; gap: 1rem; color: var(--status-muted); font-size: .82rem; text-transform: capitalize; }
-	.prose { white-space: pre-wrap; margin: .65rem 0; }
-	pre { overflow-x: auto; white-space: pre-wrap; font: .82rem/1.45 ui-monospace, monospace; }
+	header { display: flex; justify-content: space-between; gap: 1rem; min-width: 0; color: var(--status-muted); font-size: 13px; text-transform: capitalize; }
+	.prose { min-width: 0; overflow-wrap: anywhere; white-space: pre-wrap; margin: .65rem 0; }
+	pre { min-width: 0; overflow-x: auto; white-space: pre-wrap; overflow-wrap: anywhere; font: 13px/1.45 ui-monospace, monospace; }
 	.empty { color: var(--status-muted); }
-	.session-total { color: var(--status-muted); font-size: .78rem; }
+	.session-total { color: var(--status-muted); font-size: 13px; }
 </style>

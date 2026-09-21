@@ -11,6 +11,7 @@
   import Map, { type MapSelection } from "#lib/run/Map.svelte";
   import SmallStates from "#lib/run/SmallStates.svelte";
   import Topbar from "#lib/run/Topbar.svelte";
+  import Workspace from "#lib/run/Workspace.svelte";
   import {
     asMapSelection,
     currentActivitySelection,
@@ -116,6 +117,11 @@
 
   function selectWithoutReveal(next: RunSelection) {
     selection = next;
+    reveal = undefined;
+  }
+
+  function clearSelection() {
+    selection = undefined;
     reveal = undefined;
   }
 
@@ -272,34 +278,41 @@
     onstop={stopActiveTurn}
     oncancel={() => (cancelOpen = true)}
   />
-  <div class="workspace-body">
-    {#if graph && graphMatches}
-      <Map
-        {graph}
-        {snapshot}
-        selected={asMapSelection(selection)}
-        {reveal}
-        onselect={selectWithoutReveal}
-      />
-    {:else}
-      <div class="graph-required">
-        <SmallStates
-          state="no-graph"
-          workflowName={snapshot.run.name}
-          graphProblem={graph ? "mismatch" : "missing"}
+  <Workspace open={Boolean(selection)} onclose={clearSelection}>
+    {#snippet map()}
+      {#if graph && graphMatches}
+        <Map
+          {graph}
+          {snapshot}
+          selected={asMapSelection(selection)}
+          {reveal}
+          onselect={selectWithoutReveal}
         />
-      </div>
-    {/if}
-    <DetailPane
-      {snapshot}
-      {selection}
-      {observation}
-      {revision}
-      onsteer={deliverSteer}
-      onloop={deliverLoop}
-      onanswer={deliverAnswer}
-    />
-  </div>
+      {:else}
+        <div class="graph-required">
+          <SmallStates
+            state="no-graph"
+            workflowName={snapshot.run.name}
+            graphProblem={graph ? "mismatch" : "missing"}
+          />
+        </div>
+      {/if}
+    {/snippet}
+    {#snippet pane({ width, maximized, onmaximize })}
+      <DetailPane
+        {snapshot}
+        {selection}
+        {observation}
+        {revision}
+        {width}
+        {maximized}
+        {onmaximize}
+        onsteer={deliverSteer}
+        onloop={deliverLoop}
+        onanswer={deliverAnswer}
+      />
+    {/snippet}
+  </Workspace>
 </div>
 
 <CancelGuard
@@ -358,13 +371,6 @@
     background: var(--background);
   }
 
-  .workspace-body {
-    display: flex;
-    min-width: 0;
-    min-height: 0;
-    flex: 1;
-  }
-
   .graph-required {
     box-sizing: border-box;
     min-width: 0;
@@ -376,11 +382,5 @@
 
   .remote-form {
     display: none;
-  }
-
-  @media (max-width: 760px) {
-    .workspace-body {
-      overflow-x: auto;
-    }
   }
 </style>

@@ -14,6 +14,8 @@
   import ChevronRightIcon from "@lucide/svelte/icons/chevron-right";
   import EyeIcon from "@lucide/svelte/icons/eye";
   import InterviewIcon from "@lucide/svelte/icons/message-circle-question-mark";
+  import MaximizeIcon from "@lucide/svelte/icons/maximize-2";
+  import MinimizeIcon from "@lucide/svelte/icons/minimize-2";
   import RepeatIcon from "@lucide/svelte/icons/repeat-2";
   import ServerIcon from "@lucide/svelte/icons/server";
   import TerminalIcon from "@lucide/svelte/icons/terminal";
@@ -40,17 +42,23 @@
     selection,
     observation,
     revision = 0,
+    width = 480,
+    maximized = false,
     onsteer,
     onloop,
     onanswer,
+    onmaximize,
   }: {
     snapshot: RunSnapshot;
     selection?: RunSelection;
     observation?: RunObservation;
     revision?: number;
+    width?: number;
+    maximized?: boolean;
     onsteer?: (request: Steer) => Promise<ActionFeedback>;
     onloop?: (request: LoopMessage) => Promise<ActionFeedback>;
     onanswer?: (request: InterviewAnswer) => Promise<ActionFeedback>;
+    onmaximize?: () => void;
   } = $props();
 
   let steerMessage = $state("");
@@ -270,7 +278,7 @@
   }
 </script>
 
-<aside class="detail">
+<aside class="detail" class:maximized style:width={maximized ? undefined : `${width}px`}>
   <header class="detail-head">
     <div class="title-row">
       {#if kind === "agent call"}<BotIcon size={16} />
@@ -284,6 +292,17 @@
       <Badge variant="outline">{kind}</Badge>
       <span class="spacer"></span>
       {#if selection?.kind !== "service"}<Pip state={pipState} />{/if}
+      {#if onmaximize}
+        <button
+          type="button"
+          class="maximize"
+          aria-label={maximized ? "Restore the detail pane" : "Maximize the detail pane"}
+          title={`${maximized ? "Restore" : "Maximize"} (\\)`}
+          onclick={onmaximize}
+        >
+          {#if maximized}<MinimizeIcon size={16} />{:else}<MaximizeIcon size={16} />{/if}
+        </button>
+      {/if}
     </div>
     {#if scope}
       <div class="placement">scope <code>{scope.key || "root"}</code>{#if session} · session <code>{session.id}</code>{/if}</div>
@@ -503,7 +522,8 @@
 </aside>
 
 <style>
-  .detail { display: flex; width: 400px; min-width: 340px; flex-shrink: 0; flex-direction: column; overflow: hidden; color: var(--card-foreground); background: var(--card); border-left: 1px solid var(--map-line); }
+  .detail { display: flex; min-width: 340px; flex-shrink: 0; flex-direction: column; overflow: hidden; color: var(--card-foreground); background: var(--card); border-left: 1px solid var(--map-line); }
+  .detail.maximized { width: 100%; min-width: 0; border-left: none; }
   .detail-head { display: flex; flex-direction: column; gap: 8px; padding: 14px 16px 12px; background: color-mix(in oklch, var(--muted) 60%, var(--card)); border-bottom: 1px solid var(--border); }
   .title-row { display: flex; align-items: center; gap: 8px; }
   h2 { margin: 0; overflow: hidden; font-size: 16px; line-height: 24px; letter-spacing: -.01em; text-overflow: ellipsis; white-space: nowrap; }
@@ -552,5 +572,7 @@
   .detail-foot { display: flex; flex-direction: column; gap: 8px; padding: 12px 16px; background: color-mix(in oklch, var(--muted) 60%, var(--card)); border-top: 1px solid var(--border); }
   .footer-row span { flex: 1; color: var(--status-muted); font-size: 13px; line-height: 18px; }
   .recorded { padding: 12px 16px; color: var(--foreground); background: color-mix(in oklch, var(--muted) 60%, var(--card)); border-top: 1px solid var(--border); }
-  @media (max-width: 960px) { .detail { width: 340px; } }
+  .maximize { display: inline-flex; width: 28px; height: 28px; align-items: center; justify-content: center; color: var(--foreground); cursor: pointer; background: transparent; border: 0; border-radius: 6px; }
+  .maximize:hover { background: var(--muted); }
+  .maximize:focus-visible { outline: 2px solid var(--status-live); }
 </style>

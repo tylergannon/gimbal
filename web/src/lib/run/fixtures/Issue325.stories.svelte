@@ -12,10 +12,25 @@
     (operation) => operation.kind === "promise_loop",
   );
   const coding = implementation?.body.find((operation) => operation.kind === "agent_call");
-  if (!coding || coding.kind !== "agent_call") {
-    throw new Error("issue 325 fixture is missing the coding agent_call node");
+  const taskCheckCondition = implementation?.body.find(
+    (operation) => operation.kind === "condition",
+  );
+  const taskCheck =
+    taskCheckCondition?.kind === "condition"
+      ? taskCheckCondition.branches[0]?.body.find(
+          (operation) => operation.kind === "command" && operation.name === "task-check",
+        )
+      : undefined;
+  if (!coding || coding.kind !== "agent_call" || !taskCheck || taskCheck.kind !== "command") {
+    throw new Error("issue 325 fixture is missing the coding agent_call or task-check node");
   }
   const codingNode = coding;
+  const taskCheckNode = taskCheck;
+  const taskCheckScope = issue325Fixture.snapshot.scopes["implementation.1/task.1"];
+  const taskCheckRuntime = issue325Fixture.snapshot.commands["implementation.1/task.1/task-check.1"];
+  if (!taskCheckScope || !taskCheckRuntime) {
+    throw new Error("issue 325 fixture is missing the task-check command row");
+  }
 
   const runningObservation = new RunObservation(issue325Fixture.snapshot);
   const finishedObservation = new RunObservation(issue325Finished);
@@ -72,6 +87,22 @@
       snapshot={issue325Fixture.snapshot}
       observation={runningObservation}
       selection={{ kind: "sheet", scope: runningTaskScope }}
+    />
+  </div>
+</Story>
+
+<!-- A failed command (exit_code 1): stderr must render before stdout. -->
+<Story name="Failed command" asChild>
+  <div style="display: flex; justify-content: flex-end; height: 900px; background: var(--background);">
+    <DetailPane
+      snapshot={issue325Fixture.snapshot}
+      observation={runningObservation}
+      selection={{
+        kind: "node",
+        scope: taskCheckScope,
+        operation: taskCheckNode,
+        runtime: taskCheckRuntime,
+      }}
     />
   </div>
 </Story>

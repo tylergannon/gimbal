@@ -85,7 +85,7 @@
 	.head :global(.chevron.open) { transform: rotate(90deg); }
 	.head strong { color: var(--foreground); font-weight: 600; }
 	.spacer { flex: 1; }
-	.meta { flex-shrink: 0; color: var(--status-muted); font-family: var(--font-mono); font-size: 13px; }
+	.meta { flex-shrink: 0; text-transform: none; color: var(--status-muted); font-family: var(--font-mono); font-size: 13px; }
 	.status { flex-shrink: 0; font-size: 13px; }
 	.content { display: flex; min-width: 0; flex-direction: column; gap: .65rem; padding: 0 1rem .85rem; }
 	.prose { min-width: 0; margin: 0; overflow-wrap: anywhere; font-size: 13px; line-height: 1.5; white-space: pre-wrap; }

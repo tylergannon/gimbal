@@ -26,7 +26,7 @@
 <div class="prompt-and-context">
 	<section>
 		<div class="heading">Prompt</div>
-		<Payload label="prompt" text={prompt} maxHeight={420} />
+		<Payload label="prompt" text={prompt} maxHeight={420} prose />
 	</section>
 	<section>
 		<div class="heading">Context sent</div>

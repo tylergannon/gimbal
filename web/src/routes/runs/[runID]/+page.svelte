@@ -5,6 +5,7 @@
     type ConnectionState,
     type ObservationDelta,
     type RunSnapshot,
+    type TurnRow,
   } from "#lib/observation/index.js";
   import CancelGuard from "#lib/run/CancelGuard.svelte";
   import DetailPane, { type ActionFeedback } from "#lib/run/DetailPane.svelte";
@@ -174,6 +175,22 @@
     };
   }
 
+  function selectScope(scopeKey: string) {
+    const target = snapshot.scopes[scopeKey];
+    if (target) selectWithoutReveal({ kind: "sheet", scope: target });
+  }
+
+  async function stopSelectedTurn(turn: TurnRow): Promise<ActionFeedback> {
+    try {
+      const result = await stopTurn({ run: snapshot.run.id, turn: turn.id });
+      return result.accepted
+        ? { ok: true, message: "Stop accepted. Waiting for the run record to update." }
+        : { ok: false, message: "The turn did not accept the stop request." };
+    } catch (error) {
+      return { ok: false, message: error instanceof Error ? error.message : String(error) };
+    }
+  }
+
   async function stopActiveTurn() {
     if (!activeTurn || stopping) return;
     stopping = true;
@@ -310,6 +327,8 @@
         onsteer={deliverSteer}
         onloop={deliverLoop}
         onanswer={deliverAnswer}
+        onstop={stopSelectedTurn}
+        onselectscope={selectScope}
       />
     {/snippet}
   </Workspace>

@@ -17,8 +17,18 @@
 	const formatTime = (ms: number) =>
 		new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
+	const resultIsJSON = $derived.by(() => {
+		if (!turn.result) return false;
+		try {
+			JSON.parse(turn.result);
+			return true;
+		} catch {
+			return false;
+		}
+	});
 	const resultText = $derived.by(() => {
 		if (!turn.result) return '';
+		if (!resultIsJSON) return turn.result;
 		try {
 			return JSON.stringify(JSON.parse(turn.result), null, 2);
 		} catch {
@@ -46,7 +56,7 @@
 			<span>finished {formatTime(turn.ended)}</span>
 		</div>
 		{#if turn.result}
-			<Payload label="result" text={resultText} maxHeight={420} />
+			<Payload label="result" text={resultText} maxHeight={420} prose={!resultIsJSON} />
 		{/if}
 		{#if turn.error}
 			<Payload label="error" text={turn.error} tone="error" maxHeight={420} />

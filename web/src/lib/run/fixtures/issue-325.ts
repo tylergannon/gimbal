@@ -19,12 +19,26 @@ import type {
   Usage,
 } from "../../observation/index.js";
 import type { Snapshot } from "../../sessionstate/index.js";
+import type { Graph } from "../../workflow/types.js";
 import { implementInterviewGraph } from "./implement-interview.js";
 
-export const issue325Graph = implementInterviewGraph;
+// The implement workflow's graph without its research group, which this run
+// does not have, under this run's own name so the page accepts the pair.
+export const issue325Graph: Graph = {
+  ...implementInterviewGraph,
+  name: "implement",
+  body: implementInterviewGraph.body.filter(
+    (operation) => !(operation.kind === "group" && operation.name === "reconnaissance"),
+  ),
+};
 
 const runID = "01M2ZTP8DFJQAYF7QSK36AYPHH";
-const started = 1_820_000_000_000;
+// Fixed once at module load, not a literal calendar date: the running turn's
+// elapsed time (now - turn.started) must stay positive AND plausible (a
+// coding turn a few minutes old, not one apparently still running 600 days
+// later) for as long as this fixture is read, which a hardcoded past date
+// cannot promise.
+const started = Date.now() - 20 * 60 * 1000;
 
 // ---------------------------------------------------------------------------
 // Scope values: a long assignment, a long definition of done, repository

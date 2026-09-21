@@ -6,6 +6,8 @@ import { RunObservation } from "../observation/index.js";
 import DetailPane from "./DetailPane.svelte";
 import {
   implementInterviewFixture,
+  issue325Finished,
+  issue325Fixture,
   planTripFixture,
   serviceOwnershipFixture,
 } from "./fixtures/index.js";
@@ -85,6 +87,8 @@ test("the selected loop emits the existing wrap-up control payload", async () =>
     },
   });
 
+  await screen.getByRole("tab", { name: "Context" }).click();
+
   const refreshed = structuredClone(implementInterviewFixture.snapshot);
   refreshed.scopes["implementation.1"].values.backlog = { value: "one task remains" };
   await screen.rerender({
@@ -96,6 +100,7 @@ test("the selected loop emits the existing wrap-up control payload", async () =>
       return { ok: true, message: "waiting" };
     },
   });
+  await screen.getByText("backlog", { exact: true }).click();
   await expect.element(screen.getByText("one task remains")).toBeVisible();
 
   await screen.getByRole("button", { name: "Wrap up" }).click();
@@ -259,11 +264,14 @@ test("watchers and definition disclosures show graph facts and honest empty stat
     },
   });
 
-  await screen.getByText(/^Watchers/).click();
+  await screen.getByRole("tab", { name: "Result" }).click();
   await expect
     .element(screen.getByText("implementation-scope-review", { exact: true }).first())
     .toBeVisible();
-  await expect.element(screen.getByText("Latest turn in scope").first()).toBeVisible();
+  await expect
+    .element(screen.getByText("architectural-critique", { exact: true }).first())
+    .toBeVisible();
+  await screen.getByText("architectural-critique", { exact: true }).first().click();
   await expect
     .element(screen.getByText("No completed watcher result has been recorded."))
     .toBeVisible();
@@ -271,7 +279,75 @@ test("watchers and definition disclosures show graph facts and honest empty stat
     .element(screen.getByText("No watcher turn has been recorded in this scope."))
     .not.toBeInTheDocument();
 
-  await screen.getByText(/^Definition/).click();
+  await screen.getByRole("tab", { name: "Source" }).click();
   await expect.element(screen.getByText("coding", { exact: true }).last()).toBeVisible();
   await expect.element(screen.getByText(coding.prompt)).toBeVisible();
+});
+
+function issue325Coding() {
+  const implementation = issue325Fixture.graph.body.find(
+    (operation) => operation.kind === "promise_loop",
+  );
+  const coding = implementation?.body.find((operation) => operation.kind === "agent_call");
+  if (!coding || coding.kind !== "agent_call") throw new Error("coding node is missing");
+  return coding;
+}
+
+test("a running turn opens on Activity, not Result", async () => {
+  const coding = issue325Coding();
+  const scope = issue325Fixture.snapshot.scopes["implementation.1/task.1"];
+  const turn = issue325Fixture.snapshot.turns["coding.1/turn.2"];
+
+  const screen = await render(DetailPane, {
+    snapshot: issue325Fixture.snapshot,
+    observation: new RunObservation(issue325Fixture.snapshot),
+    selection: { kind: "node", scope, operation: coding, runtime: turn },
+  });
+
+  await expect
+    .element(screen.getByRole("tab", { name: "Activity" }))
+    .toHaveAttribute("aria-selected", "true");
+  await expect
+    .element(screen.getByRole("tab", { name: "Result" }))
+    .toHaveAttribute("aria-selected", "false");
+});
+
+test("a finished turn opens on Result and shows turn.result", async () => {
+  const coding = issue325Coding();
+  const scope = issue325Finished.scopes["implementation.1/task.1"];
+  const turn = issue325Finished.turns["coding.1/turn.2"];
+
+  const screen = await render(DetailPane, {
+    snapshot: issue325Finished,
+    observation: new RunObservation(issue325Finished),
+    selection: { kind: "node", scope, operation: coding, runtime: turn },
+  });
+
+  await expect
+    .element(screen.getByRole("tab", { name: "Result" }))
+    .toHaveAttribute("aria-selected", "true");
+  await expect.element(screen.getByText(/Added the document-level dragend listener/)).toBeVisible();
+});
+
+test("the assignment lives only on the scope's Overview, not the agent-turn pane", async () => {
+  const coding = issue325Coding();
+  const scope = issue325Fixture.snapshot.scopes["implementation.1/task.1"];
+  const turn = issue325Fixture.snapshot.turns["coding.1/turn.2"];
+  const assignmentSnippet = "Implement GitHub issue #1: replace Scrabbler's click-to-place";
+
+  const turnScreen = await render(DetailPane, {
+    snapshot: issue325Fixture.snapshot,
+    observation: new RunObservation(issue325Fixture.snapshot),
+    selection: { kind: "node", scope, operation: coding, runtime: turn },
+  });
+  expect(document.body.textContent).not.toContain(assignmentSnippet);
+
+  const scopeScreen = await render(DetailPane, {
+    snapshot: issue325Fixture.snapshot,
+    selection: { kind: "sheet", scope },
+  });
+  await expect
+    .element(scopeScreen.getByText(new RegExp(assignmentSnippet.slice(0, 40))))
+    .toBeVisible();
+  void turnScreen;
 });

@@ -15,8 +15,13 @@
 		'description'
 	] as const;
 
+	// A nested string field survives JSON.stringify with its newlines escaped
+	// to a literal backslash-n, which is valid JSON but unreadable in a pane
+	// meant for people to read. Un-escape those two characters back into a
+	// real line break for display; a top-level string value never passes
+	// through JSON.stringify at all; so its own newlines are already real.
 	const rowText = (value: unknown): string =>
-		typeof value === 'string' ? value : JSON.stringify(value, null, 2);
+		typeof value === 'string' ? value : JSON.stringify(value, null, 2).replace(/\\n/g, '\n');
 
 	const truncateLeft = (value: string, max = 60): string =>
 		value.length <= max ? value : `…${value.slice(value.length - (max - 1))}`;

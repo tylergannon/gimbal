@@ -11,7 +11,6 @@
 <script lang="ts">
   import BotIcon from "@lucide/svelte/icons/bot";
   import BracesIcon from "@lucide/svelte/icons/braces";
-  import ChevronRightIcon from "@lucide/svelte/icons/chevron-right";
   import EyeIcon from "@lucide/svelte/icons/eye";
   import InterviewIcon from "@lucide/svelte/icons/message-circle-question-mark";
   import MaximizeIcon from "@lucide/svelte/icons/maximize-2";
@@ -22,10 +21,7 @@
   import { Badge } from "#lib/components/ui/badge/index.js";
   import { Button } from "#lib/components/ui/button/index.js";
   import { Textarea } from "#lib/components/ui/textarea/index.js";
-  import SessionTimeline from "./SessionTimeline.svelte";
   import {
-    usageOf,
-    usageText,
     type CommandRow,
     type InterviewRow,
     type RunObservation,
@@ -36,6 +32,10 @@
   import type { NodeOperation } from "./Node.svelte";
   import Pip, { type PipState } from "./Pip.svelte";
   import type { RunSelection } from "./selection.js";
+  import TabBar from "./detail/TabBar.svelte";
+  import SessionDetail, { type WatcherRow } from "./detail/SessionDetail.svelte";
+  import ScopeContext from "./detail/ScopeContext.svelte";
+  import Payload from "./detail/Payload.svelte";
 
   let {
     snapshot,
@@ -47,7 +47,9 @@
     onsteer,
     onloop,
     onanswer,
+    onstop,
     onmaximize,
+    onselectscope,
   }: {
     snapshot: RunSnapshot;
     selection?: RunSelection;
@@ -58,7 +60,9 @@
     onsteer?: (request: Steer) => Promise<ActionFeedback>;
     onloop?: (request: LoopMessage) => Promise<ActionFeedback>;
     onanswer?: (request: InterviewAnswer) => Promise<ActionFeedback>;
+    onstop?: (turn: TurnRow) => Promise<ActionFeedback>;
     onmaximize?: () => void;
+    onselectscope?: (scopeKey: string) => void;
   } = $props();
 
   let steerMessage = $state("");
@@ -123,7 +127,6 @@
       .sort((left, right) => left.asked - right.asked);
   });
   const session = $derived(turn ? snapshot.sessions[turn.session] : interview ? snapshot.sessions[interview.session] : undefined);
-  const transcriptState = $derived(turn && observation ? observation.state(turn.id) : undefined);
   const notObserved = $derived(
     selection?.kind === "node" &&
       (selection.operation.kind === "agent_call" ||
@@ -133,7 +136,6 @@
       !command &&
       !interview,
   );
-  const liveTurn = $derived(snapshot.run.status === "running" && !!turn && turn.ended === 0);
   const liveLoop = $derived(snapshot.run.status === "running" && !!scope?.loop && scope.status === "running");
   const pendingInterview = $derived(
     snapshot.run.status === "running" && interview?.status === "pending",
@@ -193,6 +195,59 @@
               ? "running"
               : "ended",
   );
+
+  // The last branch of the body: a scope selected on its own (a "sheet"),
+  // loop or not. Tabbed the same way a turn is.
+  const scopeSelected = $derived(kind === "scope" || kind === "loop");
+  const live = $derived(snapshot.run.status === "running");
+
+  function watcherPip(row: TurnRow): PipState {
+    return !row.ended ? "running" : row.error ? "failed" : "ended";
+  }
+
+  const watcherRows = $derived<WatcherRow[]>(
+    agentDefinition?.supervisors.map((watcher) => {
+      const watcherTurn = latestWatcherTurn(scope, watcher.session);
+      if (!watcherTurn) {
+        return {
+          session: watcher.session,
+          role: watcher.role,
+          pip: "not-yet",
+          verdict: "not yet run",
+          result: "No watcher turn has been recorded in this scope.",
+        };
+      }
+      return {
+        session: watcher.session,
+        role: watcher.role,
+        pip: watcherPip(watcherTurn),
+        verdict: turnOutcome(watcherTurn),
+        result: watcherTurn.result || watcherTurn.error || "No completed watcher result has been recorded.",
+      };
+    }) ?? [],
+  );
+
+  type ScopeTabID = "overview" | "context" | "decisions";
+  const scopeTabs = $derived.by(() => {
+    const tabs: { id: ScopeTabID; label: string }[] = [
+      { id: "overview", label: "Overview" },
+      { id: "context", label: "Context" },
+    ];
+    if (scope?.loop && (scope.decisions?.length ?? 0) > 0) tabs.push({ id: "decisions", label: "Decisions" });
+    return tabs;
+  });
+  // A plain-string derived, not `scope?.key` read directly in the effect
+  // below: `scope` is a fresh object every snapshot update even when its key
+  // is unchanged, and an effect that reads it would reset the open tab on
+  // every rerender rather than only when the selected scope actually changes.
+  const scopeKey = $derived(scope?.key ?? "");
+  let scopeActive = $state<ScopeTabID>("overview");
+  $effect(() => {
+    // A freshly selected scope re-opens on Overview, not whatever tab a
+    // previous scope left showing.
+    scopeKey;
+    scopeActive = "overview";
+  });
 
   function latestTurn(selectedScope: ScopeRow | undefined, operation: NodeOperation | undefined) {
     if (!selectedScope || operation?.kind !== "agent_call") return undefined;
@@ -305,10 +360,32 @@
       {/if}
     </div>
     {#if scope}
-      <div class="placement">scope <code>{scope.key || "root"}</code>{#if session} · session <code>{session.id}</code>{/if}</div>
+      <div class="placement" title={`${scope.key || "root"}${session ? ` · ${session.id}` : ""}`}>
+        {scope.key || "root"}{session ? ` · ${session.id}` : ""}
+      </div>
     {/if}
   </header>
 
+  {#if scopeSelected}
+    <TabBar tabs={scopeTabs} active={scopeActive} onselect={(id) => (scopeActive = id as ScopeTabID)} />
+  {/if}
+
+  {#if turn && (selection?.kind === "node" || selection?.kind === "watcher")}
+    <SessionDetail
+      {snapshot}
+      {observation}
+      {revision}
+      {turn}
+      definition={agentDefinition}
+      watchers={selection?.kind === "node" ? watcherRows : []}
+      {live}
+      onsteer={(message) =>
+        onsteer?.({ run: snapshot.run.id, session: turn.session, message }) ??
+        Promise.resolve({ ok: false, message: "Steering is unavailable." })}
+      onstop={onstop ? () => onstop(turn) : undefined}
+      onscope={onselectscope}
+    />
+  {:else}
   <div class="detail-body">
     {#if !selection}
       <section>
@@ -388,6 +465,7 @@
         </section>
       {/if}
     {:else if command}
+      {@const failed = !command.interrupted && command.ended > 0 && command.exit_code !== 0}
       {#if !command.interrupted && (command.error || command.exit_code !== 0)}
         <div class="failure"><strong>{command.ended ? `Command exited ${command.exit_code}` : "Command failed"}</strong><p>{command.error || "The recorded command returned a nonzero exit code."}</p></div>
       {/if}
@@ -400,105 +478,72 @@
           <dt>Workdir</dt><dd><code>{command.workdir}</code></dd>
         </dl>
       </section>
-      <section class="command-output">
-        <div class="section-title">Stdout</div>
-        <pre>{command.stdout || "No stdout was recorded."}</pre>
-        {#if command.stdout_file}
-          <p class="output-reference">Complete output <code>{command.stdout_file}</code></p>
-        {:else}
-          <p class="help">No complete-output reference was recorded.</p>
-        {/if}
-      </section>
-      <section class="command-output">
-        <div class="section-title">Stderr</div>
-        <pre>{command.stderr || "No stderr was recorded."}</pre>
-        {#if command.stderr_file}
-          <p class="output-reference">Complete output <code>{command.stderr_file}</code></p>
-        {:else}
-          <p class="help">No complete-output reference was recorded.</p>
-        {/if}
-      </section>
-    {:else if turn}
-      {#if scope?.task !== undefined}
-        <section><div class="section-title">Assignment</div><p>{taskDescription(scope.task)}</p></section>
+      {#snippet stdout()}
+        <section class="command-output">
+          <Payload label="stdout" text={command.stdout || "No stdout was recorded."} anchor="bottom" />
+          {#if command.stdout_file}
+            <p class="output-reference">Complete output <code>{command.stdout_file}</code></p>
+          {:else}
+            <p class="help">No complete-output reference was recorded.</p>
+          {/if}
+        </section>
+      {/snippet}
+      {#snippet stderr()}
+        <section class="command-output">
+          <Payload
+            label="stderr"
+            text={command.stderr || "No stderr was recorded."}
+            anchor="bottom"
+            tone={command.exit_code !== 0 ? "error" : undefined}
+          />
+          {#if command.stderr_file}
+            <p class="output-reference">Complete output <code>{command.stderr_file}</code></p>
+          {:else}
+            <p class="help">No complete-output reference was recorded.</p>
+          {/if}
+        </section>
+      {/snippet}
+      {#if failed}
+        {@render stderr()}
+        {@render stdout()}
+      {:else}
+        {@render stdout()}
+        {@render stderr()}
       {/if}
-      <section>
-        <div class="section-title">Activity <span>· {snapshot.model_calls[turn.id]?.length ?? 0} model calls</span></div>
-        {#each (snapshot.model_calls[turn.id] ?? []).slice(-4) as call (call.message)}
-          <div class="activity"><code>{new Date(call.started).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</code><span>{call.model}</span><span>{call.output} out</span></div>
-        {/each}
-      </section>
-      <section>
-        <div class="section-title">Transcript and tool activity</div>
-        {#if transcriptState && observation}
-          <SessionTimeline state={transcriptState} {revision} {observation} turn={turn.id} />
-        {:else}
-          <p class="help">No session transcript events have been recorded for this turn.</p>
-        {/if}
-      </section>
-      <div class="disclosures">
-        <details><summary><ChevronRightIcon size={14} />Prompt sent <span>{turn.prompt.length} chars</span></summary><pre>{turn.prompt}</pre></details>
-        <details>
-          <summary><ChevronRightIcon size={14} />Watchers <span>{agentDefinition?.supervisors.length ?? 0}</span></summary>
-          {#if agentDefinition}
-            {#each agentDefinition.supervisors as watcher (watcher.session)}
-              {@const watcherTurn = latestWatcherTurn(scope, watcher.session)}
-              <article class="watcher-detail">
-                <div><strong>{watcher.session}</strong><span>{watcher.role}</span></div>
-                <p>{watcher.instruction || "No watcher instruction was recorded."}</p>
-                {#if watcherTurn}
-                  <dl>
-                    <dt>Latest turn in scope</dt><dd><code>{watcherTurn.id}</code></dd>
-                    <dt>Outcome</dt><dd>{turnOutcome(watcherTurn)}</dd>
-                  </dl>
-                  {#if watcherTurn.result}
-                    <pre>{watcherTurn.result}</pre>
-                  {:else if watcherTurn.error}
-                    <pre>{watcherTurn.error}</pre>
-                  {:else}
-                    <p class="help">No completed watcher result has been recorded.</p>
-                  {/if}
-                {:else}
-                  <p class="help">No watcher turn has been recorded in this scope.</p>
-                {/if}
-              </article>
-            {:else}
-              <p class="disclosure-empty">No watchers are defined for this call.</p>
-            {/each}
-          {:else}
-            <p class="disclosure-empty">No watcher definition is available for this recorded turn.</p>
-          {/if}
-        </details>
-        <details><summary><ChevronRightIcon size={14} />Session <span>{session?.name ?? turn.session}</span></summary><dl><dt>Adapter</dt><dd>{session?.adapter}</dd><dt>Model</dt><dd>{session?.model}</dd></dl></details>
-        <details><summary><ChevronRightIcon size={14} />Usage <span>{usageText(Object.values(snapshot.turn_usage[turn.id] ?? {})[0] ?? usageOf(undefined))}</span></summary></details>
-        <details>
-          <summary><ChevronRightIcon size={14} />Definition <span>{#if agentDefinition}<code>{agentDefinition.file}:{agentDefinition.line}</code>{:else}not available{/if}</span></summary>
-          {#if agentDefinition}
-            <dl>
-              <dt>Role</dt><dd>{agentDefinition.role}</dd>
-              <dt>Session</dt><dd>{agentDefinition.session}</dd>
-              <dt>Source</dt><dd><code>{agentDefinition.file}:{agentDefinition.line}</code></dd>
-            </dl>
-            {#if agentDefinition.prompt}
-              <pre>{agentDefinition.prompt}</pre>
-            {:else}
-              <p class="disclosure-empty">No declared prompt is present in the workflow definition.</p>
-            {/if}
-          {:else}
-            <p class="disclosure-empty">No workflow definition is available for this recorded turn.</p>
-          {/if}
-        </details>
-      </div>
     {:else if scope}
-      {#if scope.task !== undefined}<section><div class="section-title">Assignment</div><p>{taskDescription(scope.task)}</p></section>{/if}
-      <section>
-        <div class="section-title">Values written</div>
-        {#if Object.keys(scope.values).length === 0}<p class="help">No values were written in this scope.</p>{/if}
-        {#each Object.entries(scope.values) as [key, value] (key)}
-          <div class="value"><code>{key}</code><pre>{value.artifact?.preview ?? text(value.value)}</pre></div>
+      {#if scopeActive === "overview"}
+        {#if scope.task !== undefined}
+          <section>
+            <div class="section-title">Assignment</div>
+            <Payload label="assignment" text={taskDescription(scope.task)} prose maxHeight={320} />
+          </section>
+        {/if}
+        <section>
+          <div class="section-title">Status</div>
+          <dl>
+            <dt>Status</dt><dd>{scope.status}</dd>
+            <dt>Elapsed</dt><dd>{duration(scope.began, scope.ended)}</dd>
+          </dl>
+        </section>
+        {#if scope.error}
+          <div class="failure"><strong>Scope failed</strong><p>{scope.error}</p></div>
+        {/if}
+        <section>
+          <div class="section-title">Sessions</div>
+          {#each Object.values(snapshot.sessions).filter((row) => row.scope === scope.key) as row (row.id)}
+            <div class="session-row"><Pip state={Object.values(snapshot.turns).some((turnRow) => turnRow.session === row.id && turnRow.ended === 0) ? "running" : "ended"} /><code>{row.id}</code><span>{row.model}</span></div>
+          {/each}
+        </section>
+      {:else if scopeActive === "context"}
+        <ScopeContext {snapshot} scopeKey={scope.key} onscope={onselectscope} />
+      {:else if scopeActive === "decisions"}
+        {#each [...scope.decisions].sort((left, right) => right.seq - left.seq) as decision (decision.seq)}
+          <section class="decision-row">
+            <div class="section-title">Decision {decision.seq}</div>
+            <Payload label="decision" text={text(decision.body)} maxHeight={260} />
+          </section>
         {/each}
-      </section>
-      <section><div class="section-title">Sessions</div>{#each Object.values(snapshot.sessions).filter((row) => row.scope === scope.key) as row (row.id)}<div class="session-row"><Pip state={Object.values(snapshot.turns).some((turnRow) => turnRow.session === row.id && turnRow.ended === 0) ? "running" : "ended"} /><code>{row.id}</code><span>{row.model}</span></div>{/each}</section>
+      {/if}
     {/if}
 
     {#if feedback}
@@ -506,18 +551,14 @@
     {/if}
   </div>
 
-  {#if liveTurn && turn}
-    <footer class="detail-foot">
-      <Textarea rows={2} bind:value={steerMessage} placeholder="Steer this turn…" />
-      <div class="footer-row"><span>Lands before the next model call. Dropped if the turn ends first.</span><Button size="sm" disabled={pending || !steerMessage.trim()} onclick={() => act(() => onsteer?.({ run: snapshot.run.id, session: turn.session, message: steerMessage }) ?? Promise.resolve({ ok: false, message: "Steering is unavailable." }), () => (steerMessage = ""))}>Steer</Button></div>
-    </footer>
-  {:else if liveLoop && scope}
+  {#if liveLoop && scope}
     <footer class="detail-foot">
       <Textarea rows={2} bind:value={loopMessage} placeholder="Message the loop planner…" />
       <div class="footer-row"><Button variant="outline" size="sm" disabled={pending} onclick={() => act(() => onloop?.({ run: snapshot.run.id, scope: scope.key, message: "", wrap_up: true }) ?? Promise.resolve({ ok: false, message: "Loop control is unavailable." }))}>Wrap up</Button><span>Read at the planner’s next decision.</span><Button size="sm" disabled={pending || !loopMessage.trim()} onclick={() => act(() => onloop?.({ run: snapshot.run.id, scope: scope.key, message: loopMessage, wrap_up: false }) ?? Promise.resolve({ ok: false, message: "Loop control is unavailable." }), () => (loopMessage = ""))}>Send</Button></div>
     </footer>
-  {:else if snapshot.run.status !== "running"}
+  {:else if snapshot.run.status !== "running" && !turn}
     <footer class="recorded">This run has ended. Steering, answers, and stop controls are not offered on a record.</footer>
+  {/if}
   {/if}
 </aside>
 
@@ -529,26 +570,18 @@
   h2 { margin: 0; overflow: hidden; font-size: 16px; line-height: 24px; letter-spacing: -.01em; text-overflow: ellipsis; white-space: nowrap; }
   .spacer { flex: 1; }
   .placement, .help, .recorded { color: var(--status-muted); font-size: 13px; line-height: 18px; }
+  .placement { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   code { font-family: var(--font-mono); }
-  .detail-body { display: flex; min-height: 0; flex: 1; flex-direction: column; gap: 16px; padding: 14px 16px; overflow: auto; }
+  .detail-body { display: flex; min-height: 0; flex: 1; flex-direction: column; gap: 16px; padding: 14px 16px; overflow-y: auto; overflow-x: hidden; }
   section { display: flex; flex-direction: column; gap: 8px; }
   section p { margin: 0; font-size: 14px; line-height: 20px; white-space: pre-wrap; }
   .section-title { padding-bottom: 6px; font-size: 13px; font-weight: 600; line-height: 18px; border-bottom: 1px solid var(--border); }
-  .section-title span { color: var(--status-muted); font-weight: 400; }
   dl { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 6px 12px; margin: 0; font-size: 13px; line-height: 18px; }
   dt { color: var(--status-muted); }
   dd { min-width: 0; margin: 0; overflow-wrap: anywhere; }
-  pre { max-height: 220px; margin: 0; padding: 8px 10px; overflow: auto; color: var(--foreground); font-family: var(--font-mono); font-size: 12px; line-height: 18px; white-space: pre-wrap; background: var(--muted); border: 1px solid var(--border); border-radius: 6px; }
-  .activity, .session-row { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 13px; }
-  .activity code { width: 64px; flex-shrink: 0; color: var(--status-muted); }
-  .activity span:nth-child(2), .session-row code { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .activity span:last-child, .session-row span { color: var(--status-muted); }
-  .disclosures details { border-top: 1px solid var(--border); }
-  .disclosures details:last-child { border-bottom: 1px solid var(--border); }
-  summary { display: flex; height: 40px; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; cursor: pointer; list-style: none; }
-  summary span { margin-left: auto; overflow: hidden; max-width: 230px; color: var(--status-muted); font-weight: 400; text-overflow: ellipsis; white-space: nowrap; }
-  details[open] summary :global(svg) { transform: rotate(90deg); }
-  details pre, details dl { margin-bottom: 10px; }
+  .session-row { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 13px; }
+  .session-row code { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .session-row span { color: var(--status-muted); }
   .failure { padding: 10px 12px; color: var(--destructive); font-size: 13px; border: 1px solid color-mix(in oklch, var(--destructive) 45%, transparent); border-radius: 7px; }
   .not-observed { padding: 10px 12px; border: 1px dashed var(--map-line); border-radius: 7px; }
   .failure p { margin: 3px 0 0; color: var(--status-muted); }
@@ -558,15 +591,8 @@
   .exchanges article strong { font-size: 13px; }
   label { font-size: 13px; font-weight: 600; }
   .action-row, .footer-row { display: flex; align-items: center; gap: 8px; }
-  .value { display: grid; gap: 5px; }
   .output-reference { margin: 0; color: var(--status-muted); font-size: 12px; line-height: 18px; overflow-wrap: anywhere; }
-  .watcher-detail { display: grid; gap: 8px; padding: 0 0 10px 22px; }
-  .watcher-detail + .watcher-detail { padding-top: 10px; border-top: 1px solid var(--border); }
-  .watcher-detail > div { display: flex; align-items: baseline; gap: 8px; font-size: 13px; }
-  .watcher-detail > div span { color: var(--status-muted); }
-  .watcher-detail p, .disclosure-empty { margin: 0 0 10px 22px; font-size: 13px; line-height: 18px; white-space: pre-wrap; }
-  .watcher-detail p { margin: 0; }
-  .watcher-detail dl { margin-bottom: 0; }
+  .decision-row { gap: 6px; }
   .feedback { margin: 0; padding: 7px 9px; color: var(--foreground); font-size: 13px; background: var(--map-live-soft); border-radius: 6px; }
   .feedback.error { color: var(--destructive); background: color-mix(in oklch, var(--destructive) 10%, transparent); }
   .detail-foot { display: flex; flex-direction: column; gap: 8px; padding: 12px 16px; background: color-mix(in oklch, var(--muted) 60%, var(--card)); border-top: 1px solid var(--border); }

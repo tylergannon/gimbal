@@ -1,13 +1,20 @@
 <script module lang="ts">
   import { defineMeta } from "@storybook/addon-svelte-csf";
-  import { implementInterviewFixture } from "#lib/run/fixtures/index.js";
+  import { implementInterviewFixture, issue325Fixture } from "#lib/run/fixtures/index.js";
   import { resetRemotes, setRemote } from "#lib/storybook/remotes.js";
   import { installStoryStream } from "#lib/storybook/stream.js";
   import Page from "./+page.svelte";
 
   installStoryStream();
 
+  // The issue 325 fixture has real transcripts, a long assignment and a failed
+  // command, so it is what the page is worth looking at with.
   const data = () => ({
+    snapshot: structuredClone(issue325Fixture.snapshot),
+    graph: JSON.stringify(issue325Fixture.graph),
+  });
+
+  const interviewData = () => ({
     snapshot: structuredClone(implementInterviewFixture.snapshot),
     graph: JSON.stringify(implementInterviewFixture.graph),
   });
@@ -25,6 +32,8 @@
 <!-- Rendered as a child, not through args: Storybook wraps args in a proxy
      the page cannot structuredClone. -->
 <Story name="Live run" asChild><Page data={data()} /></Story>
+
+<Story name="Live run · interview workflow" asChild><Page data={interviewData()} /></Story>
 
 <Story
   name="Steer is dropped"

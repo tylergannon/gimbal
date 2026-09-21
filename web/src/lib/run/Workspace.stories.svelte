@@ -1,11 +1,12 @@
 <script module lang="ts">
   import { defineMeta } from "@storybook/addon-svelte-csf";
+  import { RunObservation } from "../observation/index.js";
   import DetailPane from "./DetailPane.svelte";
   import Map, { type MapSelection } from "./Map.svelte";
   import Workspace from "./Workspace.svelte";
-  import { implementInterviewFixture } from "./fixtures/index.js";
+  import { issue325Fixture } from "./fixtures/index.js";
 
-  const implementation = implementInterviewFixture.graph.body.find(
+  const implementation = issue325Fixture.graph.body.find(
     (operation) => operation.kind === "promise_loop",
   );
   const coding = implementation?.body.find((operation) => operation.kind === "agent_call");
@@ -13,10 +14,12 @@
   const codingNode = coding;
   const nodeSelection: MapSelection = {
     kind: "node",
-    scope: implementInterviewFixture.snapshot.scopes["implementation.1/task.3"],
+    scope: issue325Fixture.snapshot.scopes["implementation.1/task.1"],
     operation: codingNode,
-    runtime: implementInterviewFixture.snapshot.turns["coding.1/turn.3"],
+    runtime: issue325Fixture.snapshot.turns["coding.1/turn.2"],
   };
+
+  const observation = new RunObservation(issue325Fixture.snapshot);
 
   const { Story } = defineMeta({
     title: "Gimble/Run/Workspace resize",
@@ -30,11 +33,12 @@
     <div class="story-topbar">Runs › implement · a stand-in for the real Topbar</div>
     <Workspace open>
       {#snippet map()}
-        <Map graph={implementInterviewFixture.graph} snapshot={implementInterviewFixture.snapshot} selected={nodeSelection} />
+        <Map graph={issue325Fixture.graph} snapshot={issue325Fixture.snapshot} selected={nodeSelection} />
       {/snippet}
       {#snippet pane({ width, maximized, onmaximize })}
         <DetailPane
-          snapshot={implementInterviewFixture.snapshot}
+          snapshot={issue325Fixture.snapshot}
+          {observation}
           selection={nodeSelection}
           {width}
           {maximized}
@@ -50,11 +54,12 @@
     <div class="story-topbar">Runs › implement · a stand-in for the real Topbar</div>
     <Workspace open initialMaximized={true}>
       {#snippet map()}
-        <Map graph={implementInterviewFixture.graph} snapshot={implementInterviewFixture.snapshot} selected={nodeSelection} />
+        <Map graph={issue325Fixture.graph} snapshot={issue325Fixture.snapshot} selected={nodeSelection} />
       {/snippet}
       {#snippet pane({ width, maximized, onmaximize })}
         <DetailPane
-          snapshot={implementInterviewFixture.snapshot}
+          snapshot={issue325Fixture.snapshot}
+          {observation}
           selection={nodeSelection}
           {width}
           {maximized}
@@ -70,11 +75,12 @@
     <div class="story-topbar">Runs › implement · a stand-in for the real Topbar</div>
     <Workspace open>
       {#snippet map()}
-        <Map graph={implementInterviewFixture.graph} snapshot={implementInterviewFixture.snapshot} selected={nodeSelection} />
+        <Map graph={issue325Fixture.graph} snapshot={issue325Fixture.snapshot} selected={nodeSelection} />
       {/snippet}
       {#snippet pane({ width, maximized, onmaximize })}
         <DetailPane
-          snapshot={implementInterviewFixture.snapshot}
+          snapshot={issue325Fixture.snapshot}
+          {observation}
           selection={nodeSelection}
           {width}
           {maximized}

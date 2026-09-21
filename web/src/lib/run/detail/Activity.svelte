@@ -146,6 +146,15 @@
 		overflow-y: auto;
 		padding: 4px 2px 8px;
 	}
+	/* Each message/tool row has its own `overflow: hidden` for border-radius
+	 * clipping, which resets a flex item's automatic minimum size to 0 (CSS
+	 * Flexbox §4.5). Without flex-shrink: 0, the browser is then free to
+	 * shrink whole rows toward zero height when the list is taller than the
+	 * scroller's box, rendering an empty row as a bare pair of borders — a
+	 * stray horizontal rule where a message should be. */
+	.scroller > :global(*) {
+		flex-shrink: 0;
+	}
 	.empty {
 		margin: 0;
 		color: var(--status-muted);

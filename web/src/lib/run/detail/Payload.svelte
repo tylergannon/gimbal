@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import CheckIcon from '@lucide/svelte/icons/check';
 	import CopyIcon from '@lucide/svelte/icons/copy';
 	import WrapTextIcon from '@lucide/svelte/icons/wrap-text';
@@ -12,7 +13,8 @@
 		maxHeight = 260,
 		wrap = true,
 		tone,
-		anchor
+		anchor,
+		prose = false
 	}: {
 		label: string;
 		text: string;
@@ -20,9 +22,16 @@
 		wrap?: boolean;
 		tone?: 'error';
 		anchor?: 'top' | 'bottom';
+		/** Prose (a written result, not data): sans font at 14px instead of
+		 * mono, with the text's own newlines shown as real line breaks. JSON
+		 * and other structured payloads stay mono and pretty-printed. */
+		prose?: boolean;
 	} = $props();
 
-	let wrapped = $state(wrap);
+	// Seeded once from the initial prop, explicitly outside reactive tracking:
+	// this is a local toggle from here on, not a mirror of a prop that can
+	// change out from under the reader.
+	let wrapped = $state(untrack(() => wrap));
 	let expanded = $state(false);
 	let copied = $state(false);
 	let scroller: HTMLDivElement | undefined = $state();
@@ -74,6 +83,7 @@
 	<div
 		class="scroller"
 		class:wrap={wrapped}
+		class:prose
 		style={`max-height: ${maxHeight}px`}
 		bind:this={scroller}
 	>
@@ -163,6 +173,11 @@
 		color: var(--code-foreground);
 		font-family: var(--font-mono);
 		font-size: 13px;
+		line-height: 1.5;
+	}
+	.scroller.prose pre {
+		font-family: var(--font-sans);
+		font-size: 14px;
 		line-height: 1.5;
 	}
 	.payload.error pre {

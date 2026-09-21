@@ -234,3 +234,20 @@ func TestStaticWorkflowGraph(t *testing.T) {
 		t.Fatal("missing explicit tester group")
 	}
 }
+
+func TestScreenshotClaimsStayGrounded(t *testing.T) {
+	for name, prompt := range map[string]string{
+		"tester":     userPrompt,
+		"experience": experiencePrompt,
+	} {
+		if !strings.Contains(prompt, "reopen") && !strings.Contains(prompt, "open that exact image") {
+			t.Fatalf("%s prompt does not require inspecting the saved image", name)
+		}
+		if !strings.Contains(prompt, "exact path") || !strings.Contains(prompt, "visibly support") {
+			t.Fatalf("%s prompt does not ground claims and references in the saved image", name)
+		}
+	}
+	if !strings.Contains(triagePrompt, "screenshot review's corrections") || !strings.Contains(triagePrompt, "reference it found incorrect") {
+		t.Fatal("triage prompt does not preserve independent screenshot corrections")
+	}
+}

@@ -284,6 +284,62 @@ test("watchers and definition disclosures show graph facts and honest empty stat
   await expect.element(screen.getByText(coding.prompt)).toBeVisible();
 });
 
+test("a selected watcher distinguishes objections, no objections, and no recorded turn", async () => {
+  const loop = implementInterviewFixture.graph.body.find(
+    (operation) => operation.kind === "promise_loop",
+  );
+  const coding = loop?.body.find((operation) => operation.kind === "agent_call");
+  if (!coding || coding.kind !== "agent_call") throw new Error("coding node is missing");
+  const supervisor = coding.supervisors.find(
+    (candidate) => candidate.session === "implementation-scope-review",
+  );
+  if (!supervisor) throw new Error("watcher definition is missing");
+
+  const noObjections = structuredClone(implementInterviewFixture.snapshot);
+  const scope = noObjections.scopes["implementation.1/task.3"];
+  const turn = noObjections.turns["implementation-scope-review.1/turn.3"];
+  turn.result = '{"objections":[]}';
+  const screen = await render(DetailPane, {
+    snapshot: noObjections,
+    observation: new RunObservation(noObjections),
+    selection: { kind: "watcher", scope, supervisor, turn },
+  });
+
+  await expect
+    .element(screen.getByRole("tab", { name: "Result" }))
+    .toHaveAttribute("aria-selected", "true");
+  await expect.element(screen.getByText(/"objections": \[\]/)).toBeVisible();
+
+  const objections = structuredClone(noObjections);
+  const objectingTurn = objections.turns["implementation-scope-review.1/turn.3"];
+  objectingTurn.result = '{"objections":["remove the wrapper"]}';
+  await screen.rerender({
+    snapshot: objections,
+    observation: new RunObservation(objections),
+    selection: {
+      kind: "watcher",
+      scope: objections.scopes["implementation.1/task.3"],
+      supervisor,
+      turn: objectingTurn,
+    },
+  });
+  await expect.element(screen.getByText(/remove the wrapper/)).toBeVisible();
+
+  await screen.rerender({
+    snapshot: implementInterviewFixture.snapshot,
+    observation: new RunObservation(implementInterviewFixture.snapshot),
+    selection: {
+      kind: "watcher",
+      scope: implementInterviewFixture.snapshot.scopes["implementation.1/task.1"],
+      supervisor,
+    },
+  });
+  await expect
+    .element(screen.getByText("No watcher turn has been recorded in this scope."))
+    .toBeVisible();
+  await expect.element(screen.getByText(supervisor.instruction)).toBeVisible();
+});
+
 function issue325Coding() {
   const implementation = issue325Fixture.graph.body.find(
     (operation) => operation.kind === "promise_loop",

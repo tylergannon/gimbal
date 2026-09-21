@@ -3,6 +3,34 @@
 Prepared 2026-09-21 against Gimble `7c90f9b`. This is a recommendation and
 research index; no implementation or recurring audit has been started.
 
+## Owner clarification (2026-09-21)
+
+Leave #341 out of the active queue. Retain SSE; replacing it with `query.live`
+is not a cleanup requirement. This supersedes the blanket SSE-replacement
+recommendations in the archived catalogue and issues. The recurring audit must
+respect this exception and must not keep reporting the retained SSE endpoint.
+
+Keep resource identity in route parameters and use standard SSE resumption.
+The current stream is run-wide: `/api/runs/{runID}/events` already puts the run
+in the path; `?stream=` identifies the observation stream generation, not an
+agent session. The session page remains `/runs/[runID]/sessions/[sessionID]`.
+If stream generation is explicitly addressed in the URL, it belongs in a path
+segment, not an identity query parameter.
+
+The server already emits `id: <stream>:<position>` on deltas, but reads resume
+state only from query parameters. The page closes and recreates EventSource
+on errors with a 250 ms timer. A focused follow-up should read `Last-Event-ID`,
+allow native EventSource reconnection, and give replacement snapshots an event
+ID too. Preserve snapshot fallback when a cursor is stale or from a previous
+stream generation, and stop reconnecting when the run is complete.
+
+Native EventSource sends the header automatically on reconnect after receiving
+an `id:`; its constructor cannot set an initial custom header. Initial connection
+therefore needs either a fresh snapshot or the existing permitted bootstrap
+position, with the header taking precedence on reconnect. Prove reconnect,
+snapshot fallback and terminal shutdown before removing the custom retry path.
+See the [SSE standard](https://html.spec.whatwg.org/multipage/server-sent-events.html#the-last-event-id-header).
+
 ## Collected materials
 
 The complete local packet is at
@@ -62,14 +90,13 @@ not a claim that every adjacent pair has a strict dependency.
 | 8 | [#338 Rendering](https://github.com/tylergannon/gimble/issues/338) | 13, 18, 19, 27–30 | Finish shared rendering after structural edits; demonstrate error containment. |
 | 9 | [#340 Transport](https://github.com/tylergannon/gimble/issues/340) | 0, 26 | Typed graph transport and deletion of the unused snapshot route; preserve events. |
 | 10 | [#342 Session route](https://github.com/tylergannon/gimble/issues/342) | Routing / feature | Reuse repaired leaves and inspect preserved WIP; prove direct URL, Back and streaming. |
-| 11 | [#341 Live data](https://github.com/tylergannon/gimble/issues/341) | 0, 2 | Blocked until skgo prerequisites and recovery/byte measurements are demonstrated. |
-| 12 | [#344 Guidance and recurring audit](https://github.com/tylergannon/gimble/issues/344) | 0–3, 10, 20, 26, 31 | Promote corrected guidance and enable recurring reports after the cleanup. |
+| Deferred | [#341 Live data](https://github.com/tylergannon/gimble/issues/341) | 0, 2 | Explicitly excluded by Tyler; retain SSE. |
+| 11 | [#344 Guidance and recurring audit](https://github.com/tylergannon/gimble/issues/344) | 0–3, 10, 20, 26, 31 | Promote corrected guidance, including the SSE exception, and enable recurring reports after the active cleanup. |
 
-#344 combines several stages: its skgo window/map prerequisites must precede
-#341, while scheduling the recurring audit follows completion of the cleanup.
-Do not let that packaging create a circular dependency or call the list finished
-while #341 remains blocked. Generated argument validation also belongs to skgo,
-not hand edits to Gimble's generated remote stubs.
+#344 combines several stages. Its window/map work associated with #341 is also
+deferred; it does not block finishing this queue or scheduling the recurring
+audit. Generated argument validation belongs to skgo, not hand edits to Gimble's
+generated remote stubs.
 
 ## Workflow recommendation
 
@@ -94,7 +121,7 @@ merge. It is not already a complete issue-delivery workflow. Keep the new
 sequence visible in its source; GitHub actions belong to agent turns under the
 repository's definition of done. Regenerate its CLI and graph when implemented.
 
-After the list is resolved, enable a weekly audit of current main: Flash finds
+After the active list is resolved, enable a weekly audit of current main: Flash finds
 candidates using the catalogue and relevant documentation; Sonnet independently
 checks the actual code, rejects duplicates and unsupported suggestions, and
 opens a report only for a confirmed new pattern or recurrence. Reports need a
@@ -107,8 +134,8 @@ the catalogue. No fixed finding quota; no notification when nothing changed.
 - The live-query results are Claude's recorded findings, not experiments rerun
   during this collation. Delta batching failed; the open-window spike passed
   limited checks but did not prove deliberately dropped frames, long-outage
-  recovery, or bytes versus the existing endpoint on the same run. Keep #341
-  blocked on those gaps and the skgo support named in its issue.
+  recovery, or bytes versus the existing endpoint on the same run. #341 and its
+  prerequisites are now deferred by the owner, rather than completion gates.
 - The raw reports are noisy. Round 1 reviewer 01 recommends query-string filters
   that the owner rejected. Round 2 reviewer 01 still offers `command` for the
   loop's real form. Round 2 reviewer 09 finding 10 explicitly describes correct

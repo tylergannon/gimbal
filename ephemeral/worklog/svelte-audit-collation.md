@@ -19,3 +19,9 @@ a quota, independent verification, and deduplication against existing reports.
 
 decision: Preserve the uncommitted claude/session-page files as research input
 for #342; do not modify the other session's working tree.
+
+correction: Tyler deferred #341 and rejects eliminating SSE as a cleanup goal.
+Retain SSE, keep identity in route parameters, and prefer native Last-Event-ID
+resumption. The current query's stream token is an observation generation, not
+an agent session; the run ID is already in the route. Update audit guidance so
+it does not repeatedly report this accepted exception.

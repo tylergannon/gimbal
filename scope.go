@@ -393,14 +393,21 @@ func scopeData(ctx context.Context) ScopeData {
 // that set it. Generate appends this to a turn's prompt itself; a workflow
 // no longer calls it.
 func scopeText(ctx context.Context) string {
+	text, _ := scopeTextAndContext(ctx)
+	return text
+}
+
+// scopeTextAndContext renders the default scope context and describes whether
+// each visible value's complete keyed section survived that final rendering.
+func scopeTextAndContext(ctx context.Context) (string, []ContextEntry) {
 	visible := visibleValues(ctx)
 	if len(visible) == 0 {
-		return ""
+		return "", nil
 	}
 	sections := renderVisible(visible, -1)
 	text := strings.Join(sections, "\n\n")
 	if tokenCount(text) <= contextTokenLimit {
-		return text
+		return text, defaultContextEntries(visible, sections)
 	}
 	for _, item := range visible {
 		if err := item.owner.ensureArtifact(item.key, item.value); err != nil {
@@ -421,7 +428,7 @@ func scopeText(ctx context.Context) string {
 	}
 	text = strings.Join(best, "\n\n")
 	if tokenCount(text) <= contextTokenLimit {
-		return text
+		return text, defaultContextEntries(visible, best)
 	}
 	var index strings.Builder
 	for _, item := range visible {
@@ -431,7 +438,7 @@ func scopeText(ctx context.Context) string {
 	if err != nil {
 		panic(fmt.Sprintf("gimble: write scope index: %v", err))
 	}
-	return fitExcerpt(index.String(), artifactAbsolute(visible[0].owner.run, desc), contextTokenLimit)
+	return fitExcerpt(index.String(), artifactAbsolute(visible[0].owner.run, desc), contextTokenLimit), defaultContextEntries(visible, nil)
 }
 
 // localText renders only the values written in this scope. PromiseLoop uses it to
@@ -470,6 +477,45 @@ func visibleValues(ctx context.Context) []visibleValue {
 	}
 	slices.Reverse(values)
 	return values
+}
+
+// defaultContextEntries compares each final rendered section with the value's
+// complete default section. A nil sections slice is the pointer-only index.
+func defaultContextEntries(visible []visibleValue, sections []string) []ContextEntry {
+	entries := make([]ContextEntry, 0, len(visible))
+	for i, item := range visible {
+		complete := false
+		if sections != nil {
+			raw, err := valueBytes(item.value)
+			if err != nil {
+				panic(fmt.Sprintf("gimble: read scope value %q: %v", item.key, err))
+			}
+			complete = sections[i] == "## "+item.key+"\n\n"+render(raw)
+		}
+		entries = append(entries, ContextEntry{Key: item.key, Scope: item.owner.key, Complete: complete})
+	}
+	return entries
+}
+
+// templateContextEntries describes the visible values in their render order
+// without copying their bodies. contextText is the final template text sent to
+// the agent; empty content is not evidence that a value was included.
+func templateContextEntries(ctx context.Context, contextText string) []ContextEntry {
+	visible := visibleValues(ctx)
+	if len(visible) == 0 {
+		return nil
+	}
+	entries := make([]ContextEntry, 0, len(visible))
+	for _, item := range visible {
+		raw, err := valueBytes(item.value)
+		if err != nil {
+			panic(fmt.Sprintf("gimble: read scope value %q: %v", item.key, err))
+		}
+		body := render(raw)
+		complete := body != "" && strings.Contains(contextText, body)
+		entries = append(entries, ContextEntry{Key: item.key, Scope: item.owner.key, Complete: complete})
+	}
+	return entries
 }
 
 func renderVisible(values []visibleValue, bodyBytes int) []string {

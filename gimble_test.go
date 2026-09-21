@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"maps"
 	"os"
 	"path/filepath"
@@ -310,6 +311,331 @@ func TestGenerate(t *testing.T) {
 	if _, err := escaped.Generate[Text](t.Context(), "zombie"); err == nil {
 		t.Error("a session whose scope ended ran a turn")
 	}
+}
+
+func TestGenerateRecordsPromptAndScopeContextSeparately(t *testing.T) {
+	var sent []string
+	adapter := &fake{answer: func(_ context.Context, _, prompt string, _ json.RawMessage, _ func(AgentEvent) error) (string, error) {
+		sent = append(sent, prompt)
+		return "done", nil
+	}}
+	project := t.TempDir()
+	var dir string
+	err := Run(Project(t.Context(), project), "turn-context", bind(adapter, "m", "worker"), func(ctx context.Context) error {
+		dir = runDir(ctx)
+		Set(ctx, "first", "one")
+		Set(ctx, "shared", "parent")
+		return Scope(ctx, "child", func(ctx context.Context) error {
+			Set(ctx, "shared", "child")
+			Set(ctx, "last", "three")
+			session := NewSession(ctx, "worker", "/w")
+			if _, err := session.Generate[Text](ctx, "bare prompt"); err != nil {
+				return err
+			}
+			if _, err := session.Generate[Text](ctx, "templated", WithScopeTemplate(`{{(index .By "shared").Text}}`)); err != nil {
+				return err
+			}
+			_, err := dispatch[Text](ctx, session, "direct prompt", nil)
+			return err
+		})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantSent := []string{
+		"bare prompt\n\n## first\n\none\n\n## shared\n\nchild\n\n## last\n\nthree",
+		"templated\n\nchild",
+		"direct prompt",
+	}
+	if !slices.Equal(sent, wantSent) {
+		t.Fatalf("adapter prompts = %#v, want %#v", sent, wantSent)
+	}
+
+	records := readRecords[LifecycleRecord](t, filepath.Join(dir, "run.jsonl"))
+	var started []TurnStarted
+	for _, record := range records {
+		if event, ok := record.Event.(TurnStarted); ok {
+			started = append(started, event)
+		}
+	}
+	if len(started) != 3 {
+		t.Fatalf("started turns = %d, want 3", len(started))
+	}
+	wantContext := []ContextEntry{
+		{Key: "first", Scope: "", Complete: true},
+		{Key: "shared", Scope: "child.1", Complete: true},
+		{Key: "last", Scope: "child.1", Complete: true},
+	}
+	if started[0].Prompt != "bare prompt" || !started[0].Context.Present || !slices.Equal(started[0].Context.Value, wantContext) {
+		t.Errorf("default turn = %+v, want bare prompt and context %+v", started[0], wantContext)
+	}
+	templatedContext := []ContextEntry{
+		{Key: "first", Scope: "", Complete: false},
+		{Key: "shared", Scope: "child.1", Complete: true},
+		{Key: "last", Scope: "child.1", Complete: false},
+	}
+	if started[1].Prompt != "templated" || !started[1].Context.Present || !slices.Equal(started[1].Context.Value, templatedContext) {
+		t.Errorf("templated turn = %+v, want bare prompt and context %+v", started[1], templatedContext)
+	}
+	if started[2].Prompt != "direct prompt" || started[2].Context.Present {
+		t.Errorf("direct dispatch turn = %+v, want its existing prompt and no context", started[2])
+	}
+}
+
+func TestScopeTemplateRecordsCompletenessFromSentText(t *testing.T) {
+	artifact := strings.Repeat("a", 74_999)
+	partial := artifact[:64]
+	overBudget := strings.Repeat("template budget ", 20_000)
+	var sent []string
+	adapter := &fake{answer: func(_ context.Context, _, prompt string, _ json.RawMessage, _ func(AgentEvent) error) (string, error) {
+		sent = append(sent, prompt)
+		return "done", nil
+	}}
+	var dir string
+	err := Run(Project(t.Context(), t.TempDir()), "template-context", bind(adapter, "m", "worker"), func(ctx context.Context) error {
+		dir = runDir(ctx)
+		Set(ctx, "artifact", artifact)
+		Set(ctx, "empty", "")
+		Set(ctx, "omitted", "not sent")
+		Set(ctx, "over-budget", overBudget)
+		session := NewSession(ctx, "worker", "/w")
+		if _, err := session.Generate[Text](ctx, "full", WithScopeTemplate(`{{.By.artifact.Text}}`)); err != nil {
+			return err
+		}
+		if _, err := session.Generate[Text](ctx, "partial", WithScopeTemplate(`{{slice .By.artifact.Text 0 64}}`)); err != nil {
+			return err
+		}
+		_, err := session.Generate[Text](ctx, "shortened", WithScopeTemplate(`{{(index .By "over-budget").Text}}`))
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sent) != 3 {
+		t.Fatalf("adapter prompts = %d, want 3", len(sent))
+	}
+	if sent[0] != "full\n\n"+artifact {
+		t.Fatal("artifact-backed value was not sent byte-for-byte by the template")
+	}
+	if sent[1] != "partial\n\n"+partial {
+		t.Fatal("partial template output changed")
+	}
+	shortened := strings.TrimPrefix(sent[2], "shortened\n\n")
+	if shortened == overBudget || !strings.Contains(shortened, "bytes omitted") || tokenCount(shortened) > contextTokenLimit {
+		t.Fatal("over-budget template output was not shortened as before")
+	}
+
+	records := readRecords[LifecycleRecord](t, filepath.Join(dir, "run.jsonl"))
+	var started []TurnStarted
+	for _, record := range records {
+		if event, ok := record.Event.(TurnStarted); ok {
+			started = append(started, event)
+		}
+	}
+	if len(started) != 3 {
+		t.Fatalf("started turns = %d, want 3", len(started))
+	}
+	want := [][]ContextEntry{
+		{
+			{Key: "artifact", Scope: "", Complete: true},
+			{Key: "empty", Scope: "", Complete: false},
+			{Key: "omitted", Scope: "", Complete: false},
+			{Key: "over-budget", Scope: "", Complete: false},
+		},
+		{
+			{Key: "artifact", Scope: "", Complete: false},
+			{Key: "empty", Scope: "", Complete: false},
+			{Key: "omitted", Scope: "", Complete: false},
+			{Key: "over-budget", Scope: "", Complete: false},
+		},
+		{
+			{Key: "artifact", Scope: "", Complete: false},
+			{Key: "empty", Scope: "", Complete: false},
+			{Key: "omitted", Scope: "", Complete: false},
+			{Key: "over-budget", Scope: "", Complete: false},
+		},
+	}
+	for i := range started {
+		if !started[i].Context.Present || !slices.Equal(started[i].Context.Value, want[i]) {
+			t.Errorf("turn %d context = %+v, want %+v", i+1, started[i].Context, want[i])
+		}
+	}
+	raw, err := os.ReadFile(filepath.Join(dir, "turns.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var rows []observation.TurnRow
+	if err := json.Unmarshal(raw, &rows); err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != len(want) {
+		t.Fatalf("turns.json rows = %d, want %d", len(rows), len(want))
+	}
+	for i := range rows {
+		if !rows[i].Context.Present || len(rows[i].Context.Value) != len(want[i]) {
+			t.Fatalf("turns.json row %d context = %+v, want %d entries", i+1, rows[i].Context, len(want[i]))
+		}
+		for j := range want[i] {
+			got := rows[i].Context.Value[j]
+			if got.Key != want[i][j].Key || got.Scope != want[i][j].Scope || got.Complete != want[i][j].Complete {
+				t.Errorf("turns.json row %d context %d = %+v, want %+v", i+1, j+1, got, want[i][j])
+			}
+		}
+	}
+}
+
+func TestGenerateRecordsAggregateSpillFromSentRepresentation(t *testing.T) {
+	var sent, dir string
+	var smallStoredAsArtifact bool
+	adapter := &fake{answer: func(_ context.Context, _, prompt string, _ json.RawMessage, _ func(AgentEvent) error) (string, error) {
+		sent = prompt
+		return "done", nil
+	}}
+	err := Run(Project(t.Context(), t.TempDir()), "aggregate-context", bind(adapter, "m", "worker"), func(ctx context.Context) error {
+		dir = runDir(ctx)
+		Set(ctx, "small", "kept whole")
+		for i := range 7 {
+			key := fmt.Sprintf("bulk-%d", i)
+			store(ctx, key, encode(key, strings.Repeat("bulk ", 2_500)))
+		}
+		if _, err := NewSession(ctx, "worker", "/w").Generate[Text](ctx, "inspect"); err != nil {
+			return err
+		}
+		scope, _ := current(ctx)
+		scope.mu.Lock()
+		smallStoredAsArtifact = scope.values["small"].artifact != nil
+		scope.mu.Unlock()
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !smallStoredAsArtifact {
+		t.Fatal("small value did not spill when the aggregate exceeded its budget")
+	}
+	if !strings.Contains(sent, "## small\n\nkept whole") {
+		t.Fatal("adapter did not receive the small value's complete body")
+	}
+
+	records := readRecords[LifecycleRecord](t, filepath.Join(dir, "run.jsonl"))
+	var started TurnStarted
+	for _, record := range records {
+		if event, ok := record.Event.(TurnStarted); ok {
+			started = event
+			break
+		}
+	}
+	if !started.Context.Present || len(started.Context.Value) != 8 {
+		t.Fatalf("TurnStarted context = %+v, want 8 entries", started.Context)
+	}
+	if got := started.Context.Value[0]; got != (ContextEntry{Key: "small", Scope: "", Complete: true}) {
+		t.Fatalf("TurnStarted small entry = %+v, want complete", got)
+	}
+
+	raw, err := os.ReadFile(filepath.Join(dir, "turns.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var rows []observation.TurnRow
+	if err := json.Unmarshal(raw, &rows); err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 || !rows[0].Context.Present || len(rows[0].Context.Value) != 8 {
+		t.Fatalf("turns.json rows = %+v, want one row with 8 context entries", rows)
+	}
+	if got := rows[0].Context.Value[0]; got.Key != "small" || got.Scope != "" || !got.Complete {
+		t.Fatalf("turns.json small entry = %+v, want complete", got)
+	}
+}
+
+func TestGenerateRecordsEmptyDefaultIndexAsIncomplete(t *testing.T) {
+	var sent, dir string
+	adapter := &fake{answer: func(_ context.Context, _, prompt string, _ json.RawMessage, _ func(AgentEvent) error) (string, error) {
+		sent = prompt
+		return "done", nil
+	}}
+	err := Run(Project(t.Context(), t.TempDir()), "indexed-context", bind(adapter, "m", "worker"), func(ctx context.Context) error {
+		dir = runDir(ctx)
+		Set(ctx, "empty", "")
+		for i := range 70 {
+			var key strings.Builder
+			fmt.Fprintf(&key, "key-%03d-", i)
+			for j := range 120 {
+				fmt.Fprintf(&key, "%04x", i*131+j*977)
+			}
+			store(ctx, key.String(), encode(key.String(), "value"))
+		}
+		_, err := NewSession(ctx, "worker", "/w").Generate[Text](ctx, "inspect")
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(sent, "## empty\n\nComplete value: ") {
+		t.Fatal("default rendering did not use the pointer-only scope index")
+	}
+
+	records := readRecords[LifecycleRecord](t, filepath.Join(dir, "run.jsonl"))
+	var started TurnStarted
+	for _, record := range records {
+		if event, ok := record.Event.(TurnStarted); ok {
+			started = event
+			break
+		}
+	}
+	if !started.Context.Present || len(started.Context.Value) != 71 {
+		t.Fatalf("TurnStarted context = %+v, want 71 entries", started.Context)
+	}
+	if got := started.Context.Value[0]; got != (ContextEntry{Key: "empty", Scope: "", Complete: false}) {
+		t.Fatalf("TurnStarted empty entry = %+v, want incomplete", got)
+	}
+
+	raw, err := os.ReadFile(filepath.Join(dir, "turns.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var rows []observation.TurnRow
+	if err := json.Unmarshal(raw, &rows); err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 || !rows[0].Context.Present || len(rows[0].Context.Value) != 71 {
+		t.Fatalf("turns.json rows = %+v, want one row with 71 context entries", rows)
+	}
+	if got := rows[0].Context.Value[0]; got.Key != "empty" || got.Scope != "" || got.Complete {
+		t.Fatalf("turns.json empty entry = %+v, want incomplete", got)
+	}
+}
+
+func TestGenerateRecordsShortenedContextWithoutChangingAdapterPrompt(t *testing.T) {
+	var sent, expected, dir string
+	adapter := &fake{answer: func(_ context.Context, _, prompt string, _ json.RawMessage, _ func(AgentEvent) error) (string, error) {
+		sent = prompt
+		return "done", nil
+	}}
+	err := Run(Project(t.Context(), t.TempDir()), "short-context", bind(adapter, "m", "worker"), func(ctx context.Context) error {
+		dir = runDir(ctx)
+		Set(ctx, "large", strings.Repeat("scope context ", 20_000))
+		expected = appendScopeText(ctx, "inspect")
+		_, err := NewSession(ctx, "worker", "/w").Generate[Text](ctx, "inspect")
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sent != expected {
+		t.Fatalf("adapter prompt changed:\nwant %q\n got %q", expected, sent)
+	}
+	records := readRecords[LifecycleRecord](t, filepath.Join(dir, "run.jsonl"))
+	for _, record := range records {
+		if event, ok := record.Event.(TurnStarted); ok {
+			want := []ContextEntry{{Key: "large", Scope: "", Complete: false}}
+			if event.Prompt != "inspect" || !event.Context.Present || !slices.Equal(event.Context.Value, want) {
+				t.Fatalf("shortened turn = %+v, want bare prompt and %+v", event, want)
+			}
+			return
+		}
+	}
+	t.Fatal("run log has no turn_started event")
 }
 
 func TestGroupFirstErrorCancelsTheRest(t *testing.T) {

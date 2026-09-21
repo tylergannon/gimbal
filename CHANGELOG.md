@@ -12,8 +12,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Claude `Generate` waits through background-task continuations before returning
   the final value, and subsequent calls resume the conversation with their own
   output schema.
+- The run page's detail pane no longer opens on a wall of assignment text. Tool
+  input and output render with real newlines, each payload wraps and scrolls on
+  its own, and a wide payload cannot drag the pane sideways (#325).
+
+### Changed
+
+- `TurnStarted.Prompt` records the prompt a workflow passed to `Generate`. The
+  scope values sent with it are listed separately in `TurnStarted.Context` (key,
+  owning scope, and whether the complete value was sent). What an agent is sent
+  is unchanged; runs saved earlier open as before.
 
 ### Added
+
+- Detail pane view control: drag to resize, maximize over the map with `\`, a
+  remembered width, and an overlay sheet on narrow windows.
+- An agent turn's detail is tabbed: Activity while it runs, Result once it has
+  ended, Prompt with its scope context apart, Usage, and Source. Stop turn sits
+  beside Steer and stops the selected turn. A scope's detail shows its
+  assignment, its context with what each value shadows, and a loop's decisions.
+- Storybook stand-ins for remote functions, so the whole run page renders and
+  can be driven without a server.
 
 - `gimble upload-artifact` support for Cloudflare R2 and AWS S3, with
   user-wide configuration in `~/.gimble/config.json` and environment overrides.

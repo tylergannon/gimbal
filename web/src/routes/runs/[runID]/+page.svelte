@@ -5,12 +5,14 @@
     type ConnectionState,
     type ObservationDelta,
     type RunSnapshot,
+    type TurnRow,
   } from "#lib/observation/index.js";
   import CancelGuard from "#lib/run/CancelGuard.svelte";
   import DetailPane, { type ActionFeedback } from "#lib/run/DetailPane.svelte";
   import Map, { type MapSelection } from "#lib/run/Map.svelte";
   import SmallStates from "#lib/run/SmallStates.svelte";
   import Topbar from "#lib/run/Topbar.svelte";
+  import Workspace from "#lib/run/Workspace.svelte";
   import {
     asMapSelection,
     currentActivitySelection,
@@ -119,6 +121,11 @@
     reveal = undefined;
   }
 
+  function clearSelection() {
+    selection = undefined;
+    reveal = undefined;
+  }
+
   async function deliverSteer(request: Steer): Promise<ActionFeedback> {
     steerForm.fields.set(request);
     await tick();
@@ -166,6 +173,22 @@
       ok: true,
       message: request.answer ? "Answer accepted by the waiting interview." : "Interview ended.",
     };
+  }
+
+  function selectScope(scopeKey: string) {
+    const target = snapshot.scopes[scopeKey];
+    if (target) selectWithoutReveal({ kind: "sheet", scope: target });
+  }
+
+  async function stopSelectedTurn(turn: TurnRow): Promise<ActionFeedback> {
+    try {
+      const result = await stopTurn({ run: snapshot.run.id, turn: turn.id });
+      return result.accepted
+        ? { ok: true, message: "Stop accepted. Waiting for the run record to update." }
+        : { ok: false, message: "The turn did not accept the stop request." };
+    } catch (error) {
+      return { ok: false, message: error instanceof Error ? error.message : String(error) };
+    }
   }
 
   async function stopActiveTurn() {
@@ -272,34 +295,43 @@
     onstop={stopActiveTurn}
     oncancel={() => (cancelOpen = true)}
   />
-  <div class="workspace-body">
-    {#if graph && graphMatches}
-      <Map
-        {graph}
-        {snapshot}
-        selected={asMapSelection(selection)}
-        {reveal}
-        onselect={selectWithoutReveal}
-      />
-    {:else}
-      <div class="graph-required">
-        <SmallStates
-          state="no-graph"
-          workflowName={snapshot.run.name}
-          graphProblem={graph ? "mismatch" : "missing"}
+  <Workspace open={Boolean(selection)} onclose={clearSelection}>
+    {#snippet map()}
+      {#if graph && graphMatches}
+        <Map
+          {graph}
+          {snapshot}
+          selected={asMapSelection(selection)}
+          {reveal}
+          onselect={selectWithoutReveal}
         />
-      </div>
-    {/if}
-    <DetailPane
-      {snapshot}
-      {selection}
-      {observation}
-      {revision}
-      onsteer={deliverSteer}
-      onloop={deliverLoop}
-      onanswer={deliverAnswer}
-    />
-  </div>
+      {:else}
+        <div class="graph-required">
+          <SmallStates
+            state="no-graph"
+            workflowName={snapshot.run.name}
+            graphProblem={graph ? "mismatch" : "missing"}
+          />
+        </div>
+      {/if}
+    {/snippet}
+    {#snippet pane({ width, maximized, onmaximize })}
+      <DetailPane
+        {snapshot}
+        {selection}
+        {observation}
+        {revision}
+        {width}
+        {maximized}
+        {onmaximize}
+        onsteer={deliverSteer}
+        onloop={deliverLoop}
+        onanswer={deliverAnswer}
+        onstop={stopSelectedTurn}
+        onselectscope={selectScope}
+      />
+    {/snippet}
+  </Workspace>
 </div>
 
 <CancelGuard
@@ -358,13 +390,6 @@
     background: var(--background);
   }
 
-  .workspace-body {
-    display: flex;
-    min-width: 0;
-    min-height: 0;
-    flex: 1;
-  }
-
   .graph-required {
     box-sizing: border-box;
     min-width: 0;
@@ -376,11 +401,5 @@
 
   .remote-form {
     display: none;
-  }
-
-  @media (max-width: 760px) {
-    .workspace-body {
-      overflow-x: auto;
-    }
   }
 </style>

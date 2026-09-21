@@ -59,6 +59,11 @@ func checkSavedRun(t *testing.T, snapshot RunSnapshot) {
 	if len(snapshot.Turns) != 6 {
 		t.Errorf("turns = %d, want 6", len(snapshot.Turns))
 	}
+	for id, turn := range snapshot.Turns {
+		if turn.Context.Present {
+			t.Errorf("pre-change turn %s has context entries: %+v", id, turn.Context)
+		}
+	}
 	calls := 0
 	for _, perTurn := range snapshot.ModelCalls {
 		calls += len(perTurn)

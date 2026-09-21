@@ -6,3 +6,4 @@
 package skgo
 
 //go:generate go tool skgo generate --web ../../web
+//go:generate go tool polytype --target ../observation --typescript ../../web/src/lib/skgo/observation

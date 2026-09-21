@@ -1,30 +1,21 @@
 <script module lang="ts">
-  export type SmallState = "empty" | "loading" | "disconnected" | "no-graph";
+  export type SmallState = "empty" | "no-graph";
 </script>
 
 <script lang="ts">
   import CircleAlertIcon from "@lucide/svelte/icons/circle-alert";
   import SearchXIcon from "@lucide/svelte/icons/search-x";
   import TerminalIcon from "@lucide/svelte/icons/terminal";
-  import WifiOffIcon from "@lucide/svelte/icons/wifi-off";
-  import { Badge } from "#lib/components/ui/badge/index.js";
-  import { Button } from "#lib/components/ui/button/index.js";
   import * as Card from "#lib/components/ui/card/index.js";
-  import { Skeleton } from "#lib/components/ui/skeleton/index.js";
-  import Pip from "./Pip.svelte";
 
   let {
     state,
     workflowName = "workflow",
     graphProblem = "missing",
-    disconnectedFor = "42 s",
-    onreconnect,
   }: {
     state: SmallState;
     workflowName?: string;
     graphProblem?: "missing" | "mismatch";
-    disconnectedFor?: string;
-    onreconnect?: () => void;
   } = $props();
 </script>
 
@@ -40,42 +31,6 @@
         <strong>No runs yet</strong>
         <span>Start a workflow from the terminal. It appears here while it runs.</span>
       </div>
-    </Card.Content>
-  {:else if state === "loading"}
-    <Card.Header>
-      <Card.Title>Loading a run</Card.Title>
-      <Card.Description>The page keeps its structure while recorded rows arrive.</Card.Description>
-    </Card.Header>
-    <Card.Content class="loading-state" aria-label="Loading run">
-      <div class="loading-line"><Skeleton class="pip-skeleton" /><Skeleton class="title-skeleton" /></div>
-      <Skeleton class="wide-skeleton" />
-      <Skeleton class="medium-skeleton" />
-      <div class="loading-table">
-        <Skeleton />
-        <Skeleton />
-        <Skeleton />
-      </div>
-    </Card.Content>
-  {:else if state === "disconnected"}
-    <Card.Header>
-      <Card.Title>Connection is not run status</Card.Title>
-      <Card.Description>A lost socket never paints the run failed.</Card.Description>
-    </Card.Header>
-    <Card.Content class="connection-state">
-      <div class="badges">
-        <Badge variant="outline" class="state-badge"><Pip state="running" />Running</Badge>
-        <Badge variant="outline" class="state-badge disconnected">
-          <Pip state="not-yet" />Disconnected {disconnectedFor}
-        </Badge>
-      </div>
-      <div class="message" role="status">
-        <WifiOffIcon size={16} />
-        <div>
-          <strong>Connection lost {disconnectedFor} ago</strong>
-          <span>Showing the last state received. The run may still be going.</span>
-        </div>
-      </div>
-      <Button variant="outline" size="sm" onclick={() => onreconnect?.()}>Reconnect</Button>
     </Card.Content>
   {:else}
     <Card.Header>
@@ -161,62 +116,16 @@
     border-radius: calc(var(--radius) - 2px);
   }
 
-  :global(.loading-state),
-  :global(.connection-state),
   :global(.no-graph-state) {
     display: flex;
     flex-direction: column;
     gap: 12px;
   }
 
-  .loading-line,
-  .badges,
   .missing-run {
     display: flex;
     align-items: center;
     gap: 8px;
-  }
-
-  :global(.pip-skeleton) {
-    width: 12px;
-    height: 12px;
-    border-radius: 999px;
-  }
-
-  :global(.title-skeleton) {
-    width: 42%;
-    height: 18px;
-  }
-
-  :global(.wide-skeleton) {
-    width: 100%;
-    height: 12px;
-  }
-
-  :global(.medium-skeleton) {
-    width: 68%;
-    height: 12px;
-  }
-
-  .loading-table {
-    display: grid;
-    grid-template-columns: 1.3fr 0.8fr 1.8fr;
-    gap: 8px;
-    padding-top: 8px;
-    border-top: 1px solid var(--map-line);
-  }
-
-  .loading-table :global([data-slot="skeleton"]) {
-    height: 52px;
-  }
-
-  :global(.state-badge) {
-    gap: 6px;
-  }
-
-  :global(.state-badge.disconnected) {
-    border-color: var(--map-line);
-    border-style: dashed;
   }
 
   .message {
@@ -242,7 +151,6 @@
     color: var(--status-muted);
   }
 
-  :global(.connection-state button),
   .back-link {
     align-self: flex-start;
   }

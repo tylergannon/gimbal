@@ -21,6 +21,12 @@ it. Everything else is ordinary Go written in the workflow.
 - `docs/definition-of-done.md`: how work is gated, validated, and merged.
 - `docs/web-app.md`: the web app's UI decisions, features, and user stories
   by name. The shadcn-svelte primitives are in `web/src/lib/components/ui/`.
+- `ephemeral/research/svelte-idioms/dos-and-donts.md`: before changing any
+  Svelte or SvelteKit code in `web/`. Tyler's hard rules (no query params for
+  identity, no History API, `form` remotes for real forms and `command`
+  elsewhere, no code bent for a test harness) and the anti-patterns found in
+  this app, each with the replacement and a grep signature. The docs it cites
+  are `svelte-idiomatic.txt` beside it.
 
 ## No wrappers
 

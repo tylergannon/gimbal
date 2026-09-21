@@ -97,7 +97,7 @@ func TestLifecycleEventUnionRoundTripsEveryVariant(t *testing.T) {
 		{"value_set", ValueSet{Key: "goal", Artifact: polytype.Optional[ValueArtifact]{Present: true, Value: ValueArtifact{File: "artifacts/values/root/x-Z29hbA.txt", Size: 120000, Format: "text", Preview: "ship ..."}}}},
 		{"session_created", SessionCreated{Name: "coder", Adapter: "codex", Model: "gpt", Workdir: "/work", Parent: "researcher.1"}},
 		{"session_closed", SessionClosed{}},
-		{"turn_started", TurnStarted{Prompt: "build", OutputType: "gimble.Text"}},
+		{"turn_started", TurnStarted{Prompt: "build", Context: optionalContext([]ContextEntry{{Key: "goal", Scope: "", Complete: true}}), OutputType: "gimble.Text"}},
 		{"turn_ended", TurnEnded{Result: JSONText(`"done"`), Usage: []ModelUsage{{Model: "m", Cost: 0.5, Tokens: Tokens{Input: 1}}}, Duration: time.Second}},
 		{"interview_question_asked", InterviewQuestionAsked{Name: "requirements", QuestionID: "question-1", Question: "What must be true?"}},
 		{"interview_question_answered", InterviewQuestionAnswered{QuestionID: "question-1", Answer: "It must work."}},

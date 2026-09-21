@@ -5,6 +5,9 @@ import {
   type ProjectionState,
   type Snapshot,
 } from "../sessionstate/index.js";
+import type { ContextEntry } from "../skgo/observation/types.js";
+
+export type { ContextEntry } from "../skgo/observation/types.js";
 
 /** The five token counts every harness reports, flat. A count the provider
  * did not report is 0: zero is a number, and nothing here says whether it was
@@ -89,6 +92,7 @@ export type TurnRow = {
   session: string;
   scope: string;
   prompt: string;
+  context?: ContextEntry[];
   output_type: string;
   result: string;
   error: string;

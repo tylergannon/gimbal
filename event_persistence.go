@@ -99,6 +99,13 @@ func optionalTask(task Task) polytype.Optional[Task] {
 	return polytype.Optional[Task]{Present: true, Value: task}
 }
 
+func optionalContext(entries []ContextEntry) polytype.Optional[[]ContextEntry] {
+	if len(entries) == 0 {
+		return polytype.Optional[[]ContextEntry]{}
+	}
+	return polytype.Optional[[]ContextEntry]{Present: true, Value: append([]ContextEntry(nil), entries...)}
+}
+
 func (w *eventWriter) close() error { return w.file.Close() }
 
 func (r *run) recordFailure(operation string, err error) {

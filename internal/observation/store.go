@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/tylergannon/gimble/internal/sessionstate"
+	"github.com/tylergannon/polytype"
 )
 
 // Frame is one SSE frame: the event name and its data. The store produces
@@ -190,6 +191,7 @@ type record struct {
 		Value       string          `json:"value"`
 		Artifact    *ValueArtifact  `json:"artifact"`
 		Prompt      string          `json:"prompt"`
+		Context     []ContextEntry  `json:"context"`
 		OutputType  string          `json:"output_type"`
 		Result      string          `json:"result"`
 		QuestionID  string          `json:"question_id"`
@@ -319,6 +321,12 @@ func (s *Store) Lifecycle(raw json.RawMessage) error {
 	case "turn_started":
 		turn := s.turnLocked(Placement{Scope: rec.Scope, Session: rec.Session, Turn: rec.Turn})
 		turn.Prompt, turn.OutputType, turn.Started = rec.Event.Prompt, rec.Event.OutputType, at
+		if len(rec.Event.Context) > 0 {
+			turn.Context.Present = true
+			turn.Context.Value = append([]ContextEntry(nil), rec.Event.Context...)
+		} else {
+			turn.Context = polytype.Optional[[]ContextEntry]{}
+		}
 		changed = append(changed, change{tableTurns, rec.Turn})
 	case "turn_ended":
 		turn := s.turnLocked(Placement{Scope: rec.Scope, Session: rec.Session, Turn: rec.Turn})

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -20,6 +21,12 @@ func sessionCreated(scope, session, model string) json.RawMessage {
 func turnStarted(scope, session, turn string) json.RawMessage {
 	return json.RawMessage(`{"seq":2,"time":"2026-09-13T00:00:01Z","scope":"` + scope + `","session":"` + session +
 		`","turn":"` + turn + `","event":{"kind":"turn_started","prompt":"hello","output_type":"gimble.Text"}}`)
+}
+
+func turnStartedWithContext(scope, session, turn string) json.RawMessage {
+	return json.RawMessage(`{"seq":2,"time":"2026-09-13T00:00:01Z","scope":"` + scope + `","session":"` + session +
+		`","turn":"` + turn + `","event":{"kind":"turn_started","prompt":"build","context":[` +
+		`{"key":"goal","scope":"","complete":true},{"key":"task","scope":"lap.1","complete":false}],"output_type":"gimble.Text"}}`)
 }
 
 // turnEnded is the harness's own report for one turn, as []ModelUsage.
@@ -139,6 +146,78 @@ func TestSubscriberJoiningAfterTurnStartedSeesThePrompt(t *testing.T) {
 	defer sub.Close()
 	if got := snapshot.Turns["t1"]; got.Prompt != "hello" || got.Session != "s1" || got.OutputType != "gimble.Text" {
 		t.Fatalf("first snapshot's turn = %+v", got)
+	}
+}
+
+func TestTurnContextRoundTripsThroughTableAndLogRebuild(t *testing.T) {
+	want := []ContextEntry{{Key: "goal", Scope: "", Complete: true}, {Key: "task", Scope: "lap.1", Complete: false}}
+
+	t.Run("turns table", func(t *testing.T) {
+		dir := t.TempDir()
+		store, err := Open(nil, "run-1", "fixture", dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		fold(t, store, sessionCreated("", "s1", "m"), turnStartedWithContext("lap.1", "s1", "t1"))
+		raw, err := os.ReadFile(filepath.Join(dir, "turns.json"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var rows []TurnRow
+		if err := json.Unmarshal(raw, &rows); err != nil {
+			t.Fatal(err)
+		}
+		if len(rows) != 1 || rows[0].Prompt != "build" || !rows[0].Context.Present || !reflect.DeepEqual(rows[0].Context.Value, want) {
+			t.Fatalf("turns.json = %+v, want prompt build and context %+v", rows, want)
+		}
+	})
+
+	t.Run("log rebuild", func(t *testing.T) {
+		dir := t.TempDir()
+		line := append(append([]byte(nil), turnStartedWithContext("lap.1", "s1", "t1")...), '\n')
+		if err := os.WriteFile(filepath.Join(dir, "run.jsonl"), line, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		store, err := open(nil, "run-1", dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := store.Snapshot().Turns["t1"]
+		if got.Prompt != "build" || !got.Context.Present || !reflect.DeepEqual(got.Context.Value, want) {
+			t.Fatalf("rebuilt turn = %+v, want prompt build and context %+v", got, want)
+		}
+		raw, err := os.ReadFile(filepath.Join(dir, "turns.json"))
+		if err != nil || !strings.Contains(string(raw), `"context":[{"key":"goal"`) {
+			t.Fatalf("rebuilt turns.json = %s, %v", raw, err)
+		}
+	})
+}
+
+func TestPreContextTurnsTableStillOpens(t *testing.T) {
+	dir := t.TempDir()
+	store, err := Open(nil, "old-run", "fixture", dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{snapshotFile, deltaFile} {
+		if err := os.Remove(filepath.Join(dir, name)); err != nil && !os.IsNotExist(err) {
+			t.Fatal(err)
+		}
+	}
+	old := `[{"run":"old-run","id":"t1","session":"s1","scope":"","prompt":"hello\n\n## goal\n\nship","output_type":"gimble.Text","result":"","error":"","interrupted":false,"started":1,"ended":0,"duration":0}]`
+	if err := os.WriteFile(filepath.Join(dir, "turns.json"), []byte(old), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := open(nil, "old-run", dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	turn := loaded.Snapshot().Turns["t1"]
+	if turn.Prompt != "hello\n\n## goal\n\nship" || turn.Context.Present {
+		t.Fatalf("old turn = %+v, want glued prompt and no context entries", turn)
 	}
 }
 

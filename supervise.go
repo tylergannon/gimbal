@@ -99,7 +99,7 @@ const (
 )
 
 // supervise is Generate with supervisors attached.
-func supervise[T Output](ctx context.Context, s *Session, prompt string, supervisors []supervisor) (T, error) {
+func supervise[T Output](ctx context.Context, s *Session, prompt string, supervisors []supervisor, started *TurnStarted) (T, error) {
 	t := newTranscript(len(supervisors), supervisorRetentionBytes)
 	history := filepath.Join(runDir(ctx), "sessions", s.id+".jsonl")
 	for _, sup := range supervisors {
@@ -152,7 +152,7 @@ func supervise[T Output](ctx context.Context, s *Session, prompt string, supervi
 		})
 	}
 	var out T
-	return generate[T](ctx, s, prompt, t.append, fmt.Sprintf("%T", out))
+	return generate[T](ctx, s, prompt, t.append, fmt.Sprintf("%T", out), started)
 }
 
 // lookIntro carries the fixed instructions, plus bounded copies of the

@@ -31,3 +31,25 @@ correction: Tyler wants the whole series in one worktree. The workflow should
 add an outer issue-list iteration around the existing implementation promise
 loop. Remove the proposed per-issue worktrees/merges; checkpoint successful
 issues in sequence on one branch.
+
+decision: Tyler authorized trying the existing implement loop inside the outer
+series, with active monitoring for cost and latency rather than stopping merely
+because it is expensive or slow. Preserve run records and note timing, model
+usage, retries, validation outcomes, and signs of process overhead.
+
+decision: Every issue scope carries the absolute research-index path as context,
+and the tracked series file points to the local issue snapshots. This makes the
+Claude catalogue, twenty raw reports, POCs, and session-page WIP discoverable
+without loading the full corpus into every prompt.
+
+friction: gimblegen emits fixed `Graph` and `Command` identifiers, so two
+generated entrypoints cannot share a package even though same-package placement
+would let the extractor inline the existing implementation helper. Filed #348;
+keep the issue-series package self-contained for this run rather than expanding
+the current task into a generator refactor.
+
+friction: the first full `just test` attempt reached the web tests before a
+fresh `web/build/skgo.manifest.json` existed. Running `just build` first created
+the normal generated web output; the following full `just test` passed. This is
+an ordering dependency in a clean checkout, not a failure in the issue-series
+workflow.

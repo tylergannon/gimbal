@@ -10,6 +10,7 @@ import (
 	"github.com/tylergannon/gimble/internal/binding"
 	"github.com/tylergannon/gimble/internal/conversation"
 	"github.com/tylergannon/gimble/internal/workflows/implementation"
+	"github.com/tylergannon/gimble/internal/workflows/issueseries"
 	"github.com/tylergannon/gimble/internal/workflows/pyramidsummary"
 	"github.com/tylergannon/gimble/internal/workflows/researchdocument"
 	"github.com/tylergannon/gimble/internal/workflows/review"
@@ -74,6 +75,7 @@ func newRunCommand() *cobra.Command {
 	run.AddCommand(review.Command(workflowDefaults()))
 	run.AddCommand(validateproduct.Command(workflowDefaults()))
 	run.AddCommand(implementation.Command(workflowDefaults()))
+	run.AddCommand(issueseries.Command(workflowDefaults()))
 	run.AddCommand(researchdocument.Command(workflowDefaults()))
 	run.AddCommand(pyramidsummary.Command(workflowDefaults()))
 	return run

@@ -101,14 +101,16 @@ generated remote stubs.
 
 ## Workflow recommendation
 
-Write one ordinary Go workflow over the ordered local issue files with
-`gimble.Iterate`. For each issue: refresh its local text and inspect current main,
-create one worktree, implement, run relevant checks, independently observe the
-requested behavior, repair substantial failures within a proposed three-attempt
-limit, then have the delivery agent commit, push, open and squash-merge the PR.
-Confirm the merge before starting the next issue from updated main. Stop and
-retain the worktree on an execution failure or exhausted attempts; a blocked
-issue stays explicitly pending. No parallel issue writers or candidate bake-offs.
+Use one worktree and branch for the entire ordered list, per Tyler's correction.
+Add an outer `gimble.Iterate` over local issue files around the existing
+implementation promise loop. The inner loop already plans the issue, implements,
+collects checks, independently validates, and replans substantial gaps within
+its task limit. Reuse that behavior instead of inventing a second issue engine.
+Finish and checkpoint each issue before advancing to the next in the same tree;
+later issues inherit earlier fixes. Commit and push meaningful checkpoints and
+deliver the series together, without per-issue worktrees, rebases, or merges.
+Stop with the tree intact on an execution failure or exhausted task limit; an
+unresolved issue stays pending. No parallel issue writers or candidate bake-offs.
 
 Use GPT Terra for coding, Claude Sonnet for independent validation and difficult
 local reasoning, and Gemini Flash for documentation retrieval, candidate scans
@@ -116,11 +118,11 @@ and deduplication. Configure these roles explicitly: existing workflow defaults
 include more expensive models. Keep scope coaching advisory. Use Haiku/Luna/Flash
 for live application probes and report the model actually used.
 
-The existing `internal/workflows/implementation/implementation.go` supplies a
-useful bounded worker/validator pattern, but explicitly does not commit, push or
-merge. It is not already a complete issue-delivery workflow. Keep the new
-sequence visible in its source; GitHub actions belong to agent turns under the
-repository's definition of done. Regenerate its CLI and graph when implemented.
+The existing `internal/workflows/implementation/implementation.go` is the inner
+loop to reuse. It explicitly does not commit, push or merge: checkpoints belong
+after a successfully completed issue, outside that loop. Keep the outer sequence
+visible in its source; GitHub actions belong to agent turns under the repository's
+definition of done. Regenerate its CLI and graph when implemented.
 
 After the active list is resolved, enable a weekly audit of current main: Flash finds
 candidates using the catalogue and relevant documentation; Sonnet independently

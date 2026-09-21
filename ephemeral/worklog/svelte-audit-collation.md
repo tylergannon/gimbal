@@ -26,3 +26,8 @@ resumption. The current query's stream token is an observation generation, not
 an agent session; the run ID is already in the route. Update audit guidance so
 it does not repeatedly report this accepted exception.
 decision: Filed #347 separately from deferred #341 for stream identity in the route and standard Last-Event-ID resumption; included it in the active sequential queue.
+
+correction: Tyler wants the whole series in one worktree. The workflow should
+add an outer issue-list iteration around the existing implementation promise
+loop. Remove the proposed per-issue worktrees/merges; checkpoint successful
+issues in sequence on one branch.

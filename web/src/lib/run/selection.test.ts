@@ -11,6 +11,7 @@ import {
   graphMatchesSnapshot,
   rebindSelection,
   runNavigationItems,
+  selectionSessionID,
 } from "./selection.js";
 
 test("accepts runtime rows that fit the registered graph", () => {
@@ -124,4 +125,18 @@ test("navigation keeps service process commands searchable as graph-backed servi
   assert.equal(api.selection.service.name, "api");
   assert.equal(api.selection.scope.key, "backend.1");
   assert.equal(api.selection.runtime?.id, "backend.1/api.1");
+});
+
+test("a selection names its session only when it has a turn behind it", () => {
+  const { snapshot } = implementInterviewFixture;
+  const turn = Object.values(snapshot.turns)[0];
+  assert.ok(turn);
+  const scope = snapshot.scopes[turn.scope];
+  assert.ok(scope);
+  assert.equal(selectionSessionID({ kind: "sheet", scope }), undefined);
+  assert.equal(selectionSessionID(undefined), undefined);
+  const current = currentActivitySelection(implementInterviewFixture.graph, snapshot);
+  if (current?.kind === "node" && current.runtime && "session" in current.runtime) {
+    assert.equal(selectionSessionID(current), current.runtime.session);
+  }
 });

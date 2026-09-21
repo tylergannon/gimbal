@@ -19,10 +19,12 @@
     feedback = "",
     searchItems = [],
     currentAvailable = false,
+    sessionName,
     onnavigate,
     oncurrent,
     onstop,
     oncancel,
+    onclosesession,
   }: {
     run: RunRow;
     connection: ConnectionState;
@@ -33,10 +35,14 @@
     feedback?: string;
     searchItems?: RunNavigationItem[];
     currentAvailable?: boolean;
+    /** The open session page's session name. Extends the breadcrumb and
+     * shows the Close button. */
+    sessionName?: string;
     onnavigate?: (item: RunNavigationItem) => void;
     oncurrent?: () => void;
     onstop?: () => void;
     oncancel?: () => void;
+    onclosesession?: () => void;
   } = $props();
 
   let disconnectedAt = $state(0);
@@ -127,7 +133,8 @@
 <header class="topbar">
   <nav aria-label="Breadcrumb" class="breadcrumb">
     <a href="/">Runs</a><span aria-hidden="true">›</span><strong>{run.name}</strong
-    ><span aria-hidden="true">›</span><code>{run.id.split(".")[0]?.slice(-8) || run.id}</code>
+    ><span aria-hidden="true">›</span><code>{run.id.split(".")[0]?.slice(-8) || run.id}</code
+    >{#if sessionName}<span aria-hidden="true">›</span><strong>{sessionName}</strong>{/if}
   </nav>
 
   <div class="states">
@@ -216,6 +223,11 @@
     <span class="recorded">Recorded run · nothing here is live</span>
   {/if}
   {#if feedback}<span class="feedback" role="status">{feedback}</span>{/if}
+  {#if sessionName}
+    <Button variant="outline" size="sm" class="close-session" title="Close the session page (Esc)" onclick={onclosesession}>
+      <XIcon data-icon="inline-start" size={16} />Close
+    </Button>
+  {/if}
 </header>
 
 <style>
@@ -409,6 +421,10 @@
 
   .controls :global(.cancel) {
     color: var(--destructive);
+  }
+
+  :global(.close-session) {
+    flex-shrink: 0;
   }
 
   .feedback {

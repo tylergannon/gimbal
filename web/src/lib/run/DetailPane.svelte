@@ -31,7 +31,8 @@
   } from "../observation/index.js";
   import type { NodeOperation } from "./Node.svelte";
   import Pip, { type PipState } from "./Pip.svelte";
-  import type { RunSelection } from "./selection.js";
+  import { selectionSessionID, type RunSelection } from "./selection.js";
+  import { watcherRows } from "./watchers.js";
   import TabBar from "./detail/TabBar.svelte";
   import SessionDetail, { type WatcherRow } from "./detail/SessionDetail.svelte";
   import ScopeContext from "./detail/ScopeContext.svelte";
@@ -50,6 +51,7 @@
     onstop,
     onmaximize,
     onselectscope,
+    onopen,
   }: {
     snapshot: RunSnapshot;
     selection?: RunSelection;
@@ -63,6 +65,9 @@
     onstop?: (turn: TurnRow) => Promise<ActionFeedback>;
     onmaximize?: () => void;
     onselectscope?: (scopeKey: string) => void;
+    /** Shows the session view for this selection's session. The button
+     * appears only when the selection has a session. */
+    onopen?: () => void;
   } = $props();
 
   let steerMessage = $state("");
@@ -82,6 +87,7 @@
   const agentDefinition = $derived(
     nodeOperation?.kind === "agent_call" ? nodeOperation : undefined,
   );
+  const openSessionID = $derived(selectionSessionID(selection));
 
   const selectedTurnID = $derived.by(() => {
     if (!selection) return "";
@@ -201,31 +207,7 @@
   const scopeSelected = $derived(kind === "scope" || kind === "loop");
   const live = $derived(snapshot.run.status === "running");
 
-  function watcherPip(row: TurnRow): PipState {
-    return !row.ended ? "running" : row.error ? "failed" : "ended";
-  }
-
-  const watcherRows = $derived<WatcherRow[]>(
-    agentDefinition?.supervisors.map((watcher) => {
-      const watcherTurn = latestWatcherTurn(scope, watcher.session);
-      if (!watcherTurn) {
-        return {
-          session: watcher.session,
-          role: watcher.role,
-          pip: "not-yet",
-          verdict: "not yet run",
-          result: "No watcher turn has been recorded in this scope.",
-        };
-      }
-      return {
-        session: watcher.session,
-        role: watcher.role,
-        pip: watcherPip(watcherTurn),
-        verdict: turnOutcome(watcherTurn),
-        result: watcherTurn.result || watcherTurn.error || "No completed watcher result has been recorded.",
-      };
-    }) ?? [],
-  );
+  const watcherRowList = $derived<WatcherRow[]>(watcherRows(snapshot, scope?.key ?? "", agentDefinition));
 
   type ScopeTabID = "overview" | "context" | "decisions";
   const scopeTabs = $derived.by(() => {
@@ -260,25 +242,6 @@
       .filter((row) => row.scope === selectedScope.key && sessionIDs.has(row.session))
       .sort((left, right) => left.started - right.started)
       .at(-1);
-  }
-
-  function latestWatcherTurn(selectedScope: ScopeRow | undefined, sessionName: string) {
-    if (!selectedScope) return undefined;
-    const sessionIDs = new Set(
-      Object.values(snapshot.sessions)
-        .filter((row) => row.name === sessionName)
-        .map((row) => row.id),
-    );
-    return Object.values(snapshot.turns)
-      .filter((row) => row.scope === selectedScope.key && sessionIDs.has(row.session))
-      .sort((left, right) => left.started - right.started)
-      .at(-1);
-  }
-
-  function turnOutcome(row: TurnRow) {
-    if (!row.ended) return "running";
-    if (row.interrupted) return "interrupted";
-    return row.error ? "failed" : "ended";
   }
 
   function latestCommand(selectedScope: ScopeRow | undefined, operation: NodeOperation | undefined) {
@@ -347,6 +310,11 @@
       <Badge variant="outline">{kind}</Badge>
       <span class="spacer"></span>
       {#if selection?.kind !== "service"}<Pip state={pipState} />{/if}
+      {#if onopen && openSessionID}
+        <button type="button" class="open-session" title="Show every turn of this session (o)" onclick={onopen}>
+          Open session
+        </button>
+      {/if}
       {#if onmaximize}
         <button
           type="button"
@@ -377,7 +345,7 @@
       {revision}
       {turn}
       definition={agentDefinition}
-      watchers={selection?.kind === "node" ? watcherRows : []}
+      watchers={selection?.kind === "node" ? watcherRowList : []}
       {live}
       onsteer={(message) =>
         onsteer?.({ run: snapshot.run.id, session: turn.session, message }) ??
@@ -605,4 +573,7 @@
   .maximize { display: inline-flex; width: 28px; height: 28px; align-items: center; justify-content: center; color: var(--foreground); cursor: pointer; background: transparent; border: 0; border-radius: 6px; }
   .maximize:hover { background: var(--muted); }
   .maximize:focus-visible { outline: 2px solid var(--status-live); }
+  .open-session { display: inline-flex; align-items: center; gap: 4px; height: 28px; padding: 0 8px; color: var(--foreground); font-size: 13px; cursor: pointer; background: transparent; border: 1px solid var(--map-line); border-radius: 6px; }
+  .open-session:hover { background: var(--muted); }
+  .open-session:focus-visible { outline: 2px solid var(--status-live); }
 </style>

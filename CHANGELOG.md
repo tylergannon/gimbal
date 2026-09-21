@@ -30,6 +30,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- A session view on the run page: every turn of one agent session in a list,
+  the chosen turn's full detail beside it, and steer and stop. Open it with
+  the pane's Open session button, `o`, or a double-click on an agent node;
+  leave with Close or Esc. The URL does not change (the session route is
+  #342).
 - Detail pane view control: drag to resize, maximize over the map with `\`, a
   remembered width, and an overlay sheet on narrow windows.
 - An agent turn's detail is tabbed: Activity while it runs, Result once it has

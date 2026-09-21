@@ -10,6 +10,7 @@
   import CancelGuard from "#lib/run/CancelGuard.svelte";
   import DetailPane, { type ActionFeedback } from "#lib/run/DetailPane.svelte";
   import Map, { type MapSelection } from "#lib/run/Map.svelte";
+  import SessionPage from "#lib/run/detail/SessionPage.svelte";
   import SmallStates from "#lib/run/SmallStates.svelte";
   import Topbar from "#lib/run/Topbar.svelte";
   import Workspace from "#lib/run/Workspace.svelte";
@@ -17,10 +18,13 @@
     asMapSelection,
     currentActivitySelection,
     graphMatchesSnapshot,
+    mapSelectionForTurn,
     rebindSelection,
     runNavigationItems,
+    selectionSessionID,
     type RunSelection,
   } from "#lib/run/selection.js";
+  import { watcherRows } from "#lib/run/watchers.js";
   import { cancelRun, stopTurn } from "../../control.remote.js";
   import { answerInterview, type InterviewAnswer } from "../../interview.remote.js";
   import { steer, steerLoop, type LoopMessage, type Steer } from "../../steer.remote.js";
@@ -46,6 +50,8 @@
   let stopping = $state(false);
   let cancelling = $state(false);
   let controlFeedback = $state("");
+  // The session shown on its own in place of the map and pane.
+  let openSessionID = $state<string>();
   let observedRunID = "";
   let revealSequence = 0;
 
@@ -83,6 +89,47 @@
     }).length,
   );
 
+  const openSessionName = $derived(openSessionID ? snapshot.sessions[openSessionID]?.name : undefined);
+
+  // The open session's agent call and its watchers, found from its latest
+  // turn: the Source and Result tabs need them, as they do in the pane.
+  const openSessionCall = $derived.by(() => {
+    if (!openSessionID || !graph || !graphMatches) return undefined;
+    const latest = Object.values(snapshot.turns)
+      .filter((row) => row.session === openSessionID)
+      .sort((left, right) => left.started - right.started)
+      .at(-1);
+    const found = latest ? mapSelectionForTurn(graph, snapshot, latest) : undefined;
+    if (found?.kind !== "node" || found.operation.kind !== "agent_call") return undefined;
+    return { definition: found.operation, watchers: watcherRows(snapshot, found.scope.key, found.operation) };
+  });
+
+  function openSession(next: RunSelection | undefined) {
+    const id = selectionSessionID(next);
+    if (id) openSessionID = id;
+  }
+
+  function closeSession() {
+    openSessionID = undefined;
+  }
+
+  function isEditable(target: EventTarget | null) {
+    const element = target as HTMLElement | null;
+    return Boolean(element?.closest("input, textarea, [contenteditable=true]"));
+  }
+
+  function handleKeydown(event: KeyboardEvent) {
+    if (cancelOpen || isEditable(event.target)) return;
+    if (event.metaKey || event.ctrlKey || event.altKey) return;
+    if (event.key === "Escape" && openSessionID) {
+      event.preventDefault();
+      closeSession();
+    } else if (event.key === "o" && !openSessionID && selectionSessionID(selection)) {
+      event.preventDefault();
+      openSession(selection);
+    }
+  }
+
   const issueText = (issues: { message: string }[] | undefined, fallback: string) =>
     issues?.map((issue) => issue.message).join(" ") || fallback;
 
@@ -96,6 +143,7 @@
       reveal = undefined;
       cancelOpen = false;
       controlFeedback = "";
+      openSessionID = undefined;
     }
     observedRunID = next.run.id;
   });
@@ -279,6 +327,8 @@
 
 <svelte:head><title>{snapshot.run.name} · Gimble</title></svelte:head>
 
+<svelte:window onkeydown={handleKeydown} />
+
 <div class="run-workspace">
   <Topbar
     run={snapshot.run}
@@ -294,44 +344,70 @@
     oncurrent={() => currentSelection && navigateTo(currentSelection)}
     onstop={stopActiveTurn}
     oncancel={() => (cancelOpen = true)}
+    sessionName={openSessionName}
+    onclosesession={closeSession}
   />
-  <Workspace open={Boolean(selection)} onclose={clearSelection}>
-    {#snippet map()}
-      {#if graph && graphMatches}
-        <Map
-          {graph}
-          {snapshot}
-          selected={asMapSelection(selection)}
-          {reveal}
-          onselect={selectWithoutReveal}
-        />
-      {:else}
-        <div class="graph-required">
-          <SmallStates
-            state="no-graph"
-            workflowName={snapshot.run.name}
-            graphProblem={graph ? "mismatch" : "missing"}
+  <!-- Hidden, not unmounted, while a session is open, so the map keeps its
+  scroll and expanded instances. -->
+  <div class={["workspace-slot", { hidden: Boolean(openSessionID) }]}>
+    <Workspace open={Boolean(selection) && !openSessionID} onclose={clearSelection}>
+      {#snippet map()}
+        {#if graph && graphMatches}
+          <Map
+            {graph}
+            {snapshot}
+            selected={asMapSelection(selection)}
+            {reveal}
+            onselect={selectWithoutReveal}
+            onopen={openSession}
           />
-        </div>
-      {/if}
-    {/snippet}
-    {#snippet pane({ width, maximized, onmaximize })}
-      <DetailPane
+        {:else}
+          <div class="graph-required">
+            <SmallStates
+              state="no-graph"
+              workflowName={snapshot.run.name}
+              graphProblem={graph ? "mismatch" : "missing"}
+            />
+          </div>
+        {/if}
+      {/snippet}
+      {#snippet pane({ width, maximized, onmaximize })}
+        <DetailPane
+          {snapshot}
+          {selection}
+          {observation}
+          {revision}
+          {width}
+          {maximized}
+          {onmaximize}
+          onsteer={deliverSteer}
+          onloop={deliverLoop}
+          onanswer={deliverAnswer}
+          onstop={stopSelectedTurn}
+          onselectscope={selectScope}
+          onopen={() => openSession(selection)}
+        />
+      {/snippet}
+    </Workspace>
+  </div>
+  {#if openSessionID}
+    <div class="workspace-slot">
+      <SessionPage
         {snapshot}
-        {selection}
         {observation}
         {revision}
-        {width}
-        {maximized}
-        {onmaximize}
+        sessionID={openSessionID}
+        definition={openSessionCall?.definition}
+        watchers={openSessionCall?.watchers}
         onsteer={deliverSteer}
-        onloop={deliverLoop}
-        onanswer={deliverAnswer}
         onstop={stopSelectedTurn}
-        onselectscope={selectScope}
+        onscope={(scopeKey) => {
+          closeSession();
+          selectScope(scopeKey);
+        }}
       />
-    {/snippet}
-  </Workspace>
+    </div>
+  {/if}
 </div>
 
 <CancelGuard
@@ -388,6 +464,16 @@
     color: var(--foreground);
     font-family: var(--font-sans);
     background: var(--background);
+  }
+
+  .workspace-slot {
+    display: flex;
+    min-height: 0;
+    flex: 1;
+  }
+
+  .workspace-slot.hidden {
+    display: none;
   }
 
   .graph-required {

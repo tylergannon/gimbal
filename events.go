@@ -122,10 +122,21 @@ type SessionClosed struct {
 
 func (SessionClosed) lifecycleEvent() {}
 
-// TurnStarted records the beginning of one agent turn.
+// ContextEntry identifies one scope value visible to a turn. Scope is the
+// nearest scope that set Key. Complete says the complete value was sent inline;
+// it is false when the value was omitted or shortened.
+type ContextEntry struct {
+	Key      string `json:"key"`
+	Scope    string `json:"scope"`
+	Complete bool   `json:"complete"`
+}
+
+// TurnStarted records the beginning of one agent turn. Generate records the
+// prompt the workflow passed separately from the scope context sent with it.
 type TurnStarted struct {
-	Prompt     string `json:"prompt"`
-	OutputType string `json:"output_type"`
+	Prompt     string                            `json:"prompt"`
+	Context    polytype.Optional[[]ContextEntry] `json:"context,omitzero"`
+	OutputType string                            `json:"output_type"`
 }
 
 func (TurnStarted) lifecycleEvent() {}

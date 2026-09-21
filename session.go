@@ -75,48 +75,54 @@ func (Text) ValidateJSON(raw []byte) error {
 // Generate runs one turn and blocks until it ends. Before dispatch, the
 // ctx scope's rendered context is appended to prompt as
 // prompt + "\n\n" + context, or nothing when the scope holds no values;
-// everything downstream (the recorded prompt, a supervisor's intro, the
-// re-ask on an invalid result, every harness adapter) sees that full
-// prompt. T's schema is sent with the prompt, and the result is validated
-// here and decoded into T. A result that does not validate is shown back to
-// the model with the reason, a bounded number of times, before it is an
-// error. For Text no schema is sent and the result is the final message.
-// The options attach supervisors, and WithScopeTemplate renders the scope's
-// context for this call in place of the runtime's own rendering.
+// every harness adapter, a supervisor's intro, and a re-ask on an invalid
+// result sees that full prompt. TurnStarted instead records prompt exactly as
+// passed here and identifies the visible scope values separately. T's schema
+// is sent with the prompt, and the result is validated here and decoded into
+// T. A result that does not validate is shown back to the model with the
+// reason, a bounded number of times, before it is an error. For Text no schema
+// is sent and the result is the final message. The options attach supervisors,
+// and WithScopeTemplate renders the scope's context for this call in place of
+// the runtime's own rendering.
 func (s *Session) Generate[T Output](ctx context.Context, prompt string, opts ...AgentOption) (T, error) {
-	ask, err := scopedPrompt(ctx, prompt, apply(opts))
+	ask, context, err := scopedPrompt(ctx, prompt, apply(opts))
 	if err != nil {
 		var out T
 		return out, err
 	}
-	return dispatch[T](ctx, s, ask, opts)
+	started := &TurnStarted{Prompt: prompt, Context: optionalContext(context)}
+	return dispatchRecorded[T](ctx, s, ask, opts, started)
 }
 
 // scopedPrompt is what Generate sends: prompt with the ctx scope's context
 // appended as prompt + "\n\n" + context, rendered the runtime's way or, when
 // the call gave a template, through it. A scope that holds no values, and a
 // template that renders to nothing, leave prompt as it is.
-func scopedPrompt(ctx context.Context, prompt string, o options) (string, error) {
+func scopedPrompt(ctx context.Context, prompt string, o options) (string, []ContextEntry, error) {
 	if o.scopeTemplate == "" {
-		return appendScopeText(ctx, prompt), nil
+		text, entries := scopeTextAndContext(ctx)
+		if text == "" {
+			return prompt, entries, nil
+		}
+		return prompt + "\n\n" + text, entries, nil
 	}
 	shape, err := scopeTemplate(o.scopeTemplate)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	var rendered strings.Builder
 	if err := shape.Execute(&rendered, scopeData(ctx)); err != nil {
-		return "", fmt.Errorf("gimble: render the scope template: %w", err)
+		return "", nil, fmt.Errorf("gimble: render the scope template: %w", err)
 	}
 	text := strings.TrimSpace(rendered.String())
 	if text == "" {
-		return prompt, nil
+		return prompt, templateContextEntries(ctx, text), nil
 	}
 	text, err = budgetRenderedText(ctx, "scope-template", text, contextTokenLimit)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
-	return prompt + "\n\n" + text, nil
+	return prompt + "\n\n" + text, templateContextEntries(ctx, text), nil
 }
 
 // scopeTemplates holds what WithScopeTemplate has parsed, by its text. A
@@ -153,11 +159,18 @@ func appendScopeText(ctx context.Context, prompt string) string {
 // so they are exempt from GIMBLE108's constant-prompt rule and are not
 // given scope context a second time.
 func dispatch[T Output](ctx context.Context, s *Session, prompt string, opts []AgentOption) (T, error) {
+	return dispatchRecorded[T](ctx, s, prompt, opts, nil)
+}
+
+// dispatchRecorded is dispatch with the TurnStarted view supplied by Generate.
+// A nil started preserves direct dispatch's current behavior: each actual ask,
+// including a validation retry, is recorded exactly as it is sent.
+func dispatchRecorded[T Output](ctx context.Context, s *Session, prompt string, opts []AgentOption, started *TurnStarted) (T, error) {
 	if o := apply(opts); len(o.supervisors) > 0 {
-		return supervise[T](ctx, s, prompt, o.supervisors)
+		return supervise[T](ctx, s, prompt, o.supervisors, started)
 	}
 	var out T
-	return generate[T](ctx, s, prompt, nil, fmt.Sprintf("%T", out))
+	return generate[T](ctx, s, prompt, nil, fmt.Sprintf("%T", out), started)
 }
 
 // errInvalidResult marks a turn whose harness succeeded but whose result did
@@ -170,7 +183,7 @@ var errInvalidResult = errors.New("invalid result")
 // model with the reason; only the last failure is returned.
 const generateAttempts = 3
 
-func generate[T Output](ctx context.Context, s *Session, prompt string, onEvent func(AgentEvent) error, outputType string) (T, error) {
+func generate[T Output](ctx context.Context, s *Session, prompt string, onEvent func(AgentEvent) error, outputType string, started *TurnStarted) (T, error) {
 	var out T
 	var problem error
 	for attempt := 1; ; attempt++ {
@@ -178,7 +191,7 @@ func generate[T Output](ctx context.Context, s *Session, prompt string, onEvent 
 		if problem != nil {
 			ask = prompt + fmt.Sprintf("\n\nYour previous answer was invalid and was discarded: %v. Answer again, correctly.", problem)
 		}
-		raw, err := s.turn(ctx, ask, out.Schema(), onEvent, outputType, out.ValidateJSON)
+		raw, err := s.turn(ctx, ask, out.Schema(), onEvent, outputType, out.ValidateJSON, started)
 		if err == nil {
 			if err = json.Unmarshal(raw, &out); err == nil {
 				return out, nil
@@ -198,7 +211,7 @@ func generate[T Output](ctx context.Context, s *Session, prompt string, onEvent 
 // turn runs one agent turn and records its outcome. validate, if any, is the
 // typed output's check: the turn is recorded as failed when the result does
 // not validate, because that is what the turn produced.
-func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessage, onEvent func(AgentEvent) error, outputType string, validate func([]byte) error) (json.RawMessage, error) {
+func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessage, onEvent func(AgentEvent) error, outputType string, validate func([]byte) error, started *TurnStarted) (json.RawMessage, error) {
 	s.mu.Lock()
 	if err := s.usable(); err != nil {
 		s.mu.Unlock()
@@ -234,7 +247,14 @@ func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessag
 	start := time.Now()
 	scope, _ := current(ctx)
 	if scope != nil {
-		scope.run.event(scope.key, s.id, turnID, TurnStarted{Prompt: prompt, OutputType: outputType})
+		event := TurnStarted{Prompt: prompt, OutputType: outputType}
+		if started != nil {
+			event.Prompt = started.Prompt
+			if started.Context.Present {
+				event.Context = optionalContext(started.Context.Value)
+			}
+		}
+		scope.run.event(scope.key, s.id, turnID, event)
 	}
 	var turnUsage Usage
 	var wrapped func(AgentEvent) error

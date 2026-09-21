@@ -163,9 +163,15 @@
 "interrupted":{"type":"boolean"}
 },"required":["kind","result","error","usage","duration","interrupted"],"additionalProperties":false},
 {"type":"object",
-"description":"TurnStarted records the beginning of one agent turn.","properties":{
+"description":"TurnStarted records the beginning of one agent turn. Generate records the prompt the workflow passed separately from the scope context sent with it.","properties":{
 "kind":{"type":"string","const":"turn_started"},
 "prompt":{"type":"string"},
+"context":{"type":"array","items":{"type":"object",
+"description":"ContextEntry identifies one scope value visible to a turn. Scope is the nearest scope that set Key. Complete says the complete value was sent inline; it is false when the value was omitted or shortened.","properties":{
+"key":{"type":"string"},
+"scope":{"type":"string"},
+"complete":{"type":"boolean"}
+},"required":["key","scope","complete"],"additionalProperties":false}},
 "output_type":{"type":"string"}
 },"required":["kind","prompt","output_type"],"additionalProperties":false},
 {"type":"object",

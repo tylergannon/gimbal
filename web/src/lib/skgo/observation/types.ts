@@ -15,3 +15,31 @@ export type InterviewRow = {
   asked: number;
   answered: number;
 };
+
+/**
+ * TurnRow is one agent turn. Scope is where the turn ran, which is what a turn's tokens are charged to. Context identifies the scope values sent with Prompt, without copying their bodies. Result is the recorded JSON text.
+ */
+export type TurnRow = {
+  run: string;
+  id: string;
+  session: string;
+  scope: string;
+  prompt: string;
+  context?: Array<ContextEntry>;
+  output_type: string;
+  result: string;
+  error: string;
+  interrupted: boolean;
+  started: number;
+  ended: number;
+  duration: number;
+};
+
+/**
+ * ContextEntry identifies one scope value visible to a turn. Scope is the nearest scope that set Key. Complete says the complete value was sent inline; it is false when the value was omitted or shortened.
+ */
+export type ContextEntry = {
+  key: string;
+  scope: string;
+  complete: boolean;
+};

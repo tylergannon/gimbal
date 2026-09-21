@@ -1,6 +1,10 @@
 package observation
 
-import "encoding/json"
+import (
+	"encoding/json"
+
+	"github.com/tylergannon/polytype"
+)
 
 // Tokens is the five counts every harness reports, flat. A count the
 // provider did not report is 0: zero is a number, and nothing here says
@@ -111,21 +115,32 @@ type InterviewRow struct {
 	Answered   int64  `json:"answered"`
 }
 
+// ContextEntry identifies one scope value visible to a turn. Scope is the
+// nearest scope that set Key. Complete says the complete value was sent inline;
+// it is false when the value was omitted or shortened.
+type ContextEntry struct {
+	Key      string `json:"key"`
+	Scope    string `json:"scope"`
+	Complete bool   `json:"complete"`
+}
+
 // TurnRow is one agent turn. Scope is where the turn ran, which is what a
-// turn's tokens are charged to. Result is the recorded JSON text.
+// turn's tokens are charged to. Context identifies the scope values sent with
+// Prompt, without copying their bodies. Result is the recorded JSON text.
 type TurnRow struct {
-	Run         string `json:"run"`
-	ID          string `json:"id"`
-	Session     string `json:"session"`
-	Scope       string `json:"scope"`
-	Prompt      string `json:"prompt"`
-	OutputType  string `json:"output_type"`
-	Result      string `json:"result"`
-	Error       string `json:"error"`
-	Interrupted bool   `json:"interrupted"`
-	Started     int64  `json:"started"`
-	Ended       int64  `json:"ended"`
-	Duration    int64  `json:"duration"`
+	Run         string                            `json:"run"`
+	ID          string                            `json:"id"`
+	Session     string                            `json:"session"`
+	Scope       string                            `json:"scope"`
+	Prompt      string                            `json:"prompt"`
+	Context     polytype.Optional[[]ContextEntry] `json:"context,omitzero"`
+	OutputType  string                            `json:"output_type"`
+	Result      string                            `json:"result"`
+	Error       string                            `json:"error"`
+	Interrupted bool                              `json:"interrupted"`
+	Started     int64                             `json:"started"`
+	Ended       int64                             `json:"ended"`
+	Duration    int64                             `json:"duration"`
 }
 
 // TurnUsageRow is what one model spent in one turn. It is the only table

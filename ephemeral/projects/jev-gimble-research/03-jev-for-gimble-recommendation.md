@@ -29,7 +29,7 @@ The six-day-old ecosystem supplies useful early evidence, not production proof. 
 - successful low-latency routing and guardrail demos, alongside prompt sensitivity and protocol-specific failures;
 - context-pruning experiments that sometimes save tokens but can slow the agent, invalidate provider prompt caches, or remove failed attempts the agent needs to avoid repeating.
 
-Those stories are catalogued with their evidence strength in [the ecosystem field report](02-jev-ecosystem-field-report.md) and its [local source index](runs/02-ecosystem-research/INDEX.md). Most results are author-reported, on small or project-specific datasets, and only days old. They justify an experiment, not a product commitment.
+Those stories are catalogued with their evidence strength in [the ecosystem field report](02-jev-ecosystem-field-report.md). Most results are author-reported, on small or project-specific datasets, and only days old. They justify an experiment, not a product commitment.
 
 ## The boundary that should not move
 
@@ -40,7 +40,7 @@ Those stories are catalogued with their evidence strength in [the ecosystem fiel
 - rate limiting, timeouts, retry budgets, spend limits, model-version recording, and fail-open behavior;
 - policy: which signals may trigger which action.
 
-Jev is documented to be jagged on counting, arithmetic, dates, multi-hop indirection, long distracting state, and logically equivalent question formulations. Its `Choice` output always chooses among the supplied options even when none is good. Raw probabilities from separately phrased questions must not be treated as a coherent Bayesian model. See [primitives and confidence](index/sources/core-foundations/primitives-confidence.md) and the technical report’s [jagged-edge evidence](runs/01-technical-research/topic-004/INDEX.md).
+Jev is documented to be jagged on counting, arithmetic, dates, multi-hop indirection, long distracting state, and logically equivalent question formulations. Its `Choice` output always chooses among the supplied options even when none is good. Raw probabilities from separately phrased questions must not be treated as a coherent Bayesian model. See [primitives and confidence](index/sources/core-foundations/primitives-confidence.md) and the [technical report](01-jev-capabilities-and-gimble-fit.md).
 
 ### Give Jev bounded semantic work
 

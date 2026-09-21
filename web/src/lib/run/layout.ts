@@ -6,7 +6,7 @@ import type {
   RunSnapshot,
   ScopeRow,
   TurnRow,
-} from "../observation/index.js";
+} from "../observation/index.svelte.js";
 import type {
   AgentCall,
   Graph,

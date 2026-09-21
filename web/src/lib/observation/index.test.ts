@@ -7,8 +7,8 @@ import {
   usageText,
   type RunSnapshot,
   type Usage,
-} from "./index.ts";
-import type { Snapshot } from "../sessionstate/index.ts";
+} from "./index.svelte.ts";
+import type { Snapshot } from "../sessionstate/index.svelte.ts";
 
 const projection = (): Snapshot => ({
   state: {
@@ -347,32 +347,45 @@ test("a totals frame is the roll-ups, and the page never sums anything itself", 
   assert.equal(observation.totals.sessions.ses, undefined);
 });
 
-test("message revision survives a following row frame", () => {
+test("an in-place transcript mutation survives a following row frame", () => {
   const observation = new RunObservation(snapshot());
   const connection = observation.beginConnection();
-  observation.apply(
-    {
-      type: "event",
-      data: {
-        scope: "lap",
-        session: "ses",
-        turn: "turn",
-        event: {
-          id: "delta",
-          created: 3,
-          type: "session.text.delta",
-          data: { sessionID: "ses", assistantMessageID: "message", delta: "done" },
-        },
-      },
+  const event = (type: string, data: Record<string, unknown>) => ({
+    type: "event" as const,
+    data: {
+      scope: "lap",
+      session: "ses",
+      turn: "turn",
+      event: { id: type, created: 3, type, data },
     },
+  });
+  observation.apply(
+    event("session.step.started", {
+      sessionID: "ses",
+      assistantMessageID: "message",
+      agent: "agent",
+      model: { providerID: "test", id: "test" },
+    }),
     connection,
   );
-  const changed = observation.messageRevision("turn", "message");
+  observation.apply(
+    event("session.text.started", { sessionID: "ses", assistantMessageID: "message" }),
+    connection,
+  );
+  observation.apply(
+    event("session.text.delta", {
+      sessionID: "ses",
+      assistantMessageID: "message",
+      delta: "done",
+    }),
+    connection,
+  );
+  assert.equal(observation.state("turn")?.message.ses[0]?.content[0]?.text, "done");
   observation.apply(
     { type: "row", data: { table: "turn_usage", key: "turn", row: { m: usage(2) } } },
     connection,
   );
-  assert.equal(observation.messageRevision("turn", "message"), changed);
+  assert.equal(observation.state("turn")?.message.ses[0]?.content[0]?.text, "done");
 });
 
 test("usage is five zero-filled token counts and a stated cost, whatever the harness reported", () => {

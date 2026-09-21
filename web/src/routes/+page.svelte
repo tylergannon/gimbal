@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { InterviewRow } from "#lib/observation/index.js";
+  import type { InterviewRow } from "#lib/observation/index.svelte.js";
   import RunsList, { type RunCardItem } from "#lib/run/RunsList.svelte";
   import SmallStates from "#lib/run/SmallStates.svelte";
   import { watchRuns } from "./runs.remote.js";

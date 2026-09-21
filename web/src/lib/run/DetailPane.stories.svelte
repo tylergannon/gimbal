@@ -1,6 +1,6 @@
 <script module lang="ts">
   import { defineMeta } from "@storybook/addon-svelte-csf";
-  import { RunObservation } from "../observation/index.js";
+  import { RunObservation } from "../observation/index.svelte.js";
   import DetailPane from "./DetailPane.svelte";
   import { implementInterviewFixture, planTripFixture } from "./fixtures/index.js";
 

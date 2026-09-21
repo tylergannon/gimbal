@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, test } from "vite-plus/test";
 import { render } from "vitest-browser-svelte";
 import { implementInterviewFixture, planTripFixture } from "#lib/run/fixtures/index.js";
-import type { ObservationDelta, RunSnapshot } from "#lib/observation/index.js";
+import type { ObservationDelta, RunSnapshot } from "#lib/observation/index.svelte.js";
 import Page from "./+page.svelte";
 
 class TestEventSource {

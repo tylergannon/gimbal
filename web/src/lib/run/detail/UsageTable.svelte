@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { Usage } from '../../observation/index.js';
+	import type { Usage } from '../../observation/index.svelte.js';
 
 	let { usage, title }: { usage: Usage; title?: string } = $props();
 

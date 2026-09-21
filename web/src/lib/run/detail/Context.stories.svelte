@@ -1,6 +1,6 @@
 <script module lang="ts">
 	import { defineMeta } from '@storybook/addon-svelte-csf';
-	import type { TurnRow } from '../../observation/index.js';
+	import type { TurnRow } from '../../observation/index.svelte.js';
 	import { issue325GluedPrompt, issue325Snapshot } from '../fixtures/issue-325.js';
 	import Payload from './Payload.svelte';
 	import PromptAndContext from './PromptAndContext.svelte';

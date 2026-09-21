@@ -17,8 +17,8 @@ import type {
   SessionRow,
   TurnRow,
   Usage,
-} from "../../observation/index.js";
-import type { Snapshot } from "../../sessionstate/index.js";
+} from "../../observation/index.svelte.js";
+import type { Snapshot } from "../../sessionstate/index.svelte.js";
 import type { Graph } from "../../workflow/types.js";
 import { implementInterviewGraph } from "./implement-interview.js";
 

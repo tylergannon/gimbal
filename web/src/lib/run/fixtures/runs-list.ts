@@ -1,4 +1,4 @@
-import type { InterviewRow, RunRow } from "../../observation/index.js";
+import type { InterviewRow, RunRow } from "../../observation/index.svelte.js";
 import { planTripSnapshot } from "./plan-trip.js";
 
 const rows = [

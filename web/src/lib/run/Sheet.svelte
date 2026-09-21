@@ -1,5 +1,5 @@
 <script module lang="ts">
-  import type { ScopeRow } from "../observation/index.js";
+  import type { ScopeRow } from "../observation/index.svelte.js";
   import type { NodeOperation } from "./Node.svelte";
   import type { PipState } from "./Pip.svelte";
 

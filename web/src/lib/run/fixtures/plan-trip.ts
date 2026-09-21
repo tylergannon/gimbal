@@ -7,7 +7,7 @@ import type {
   ScopeRow,
   SessionRow,
   TurnRow,
-} from "../../observation/index.js";
+} from "../../observation/index.svelte.js";
 import type { Graph } from "../../workflow/types.js";
 
 const workflowFile = "examples/plantrip/plantrip.go";

@@ -4,7 +4,8 @@ import {
   type JSONValue,
   type ProjectionState,
   type Snapshot,
-} from "../sessionstate/index.js";
+} from "../sessionstate/index.svelte.js";
+import { SvelteMap } from "svelte/reactivity";
 import type { ContextEntry } from "../skgo/observation/types.js";
 
 export type { ContextEntry } from "../skgo/observation/types.js";
@@ -190,27 +191,25 @@ export type Transcribed = { projection: SessionProjection; provenance: Record<st
 const emptySnapshot = (): Snapshot => ({
   state: { info: {}, family: {}, active: {}, message: {}, pending: {}, permission: {}, form: {} },
 });
-const clone = <T>(value: T): T => structuredClone(value);
+const clone = <T>(value: T): T =>
+  structuredClone(typeof window === "undefined" ? value : ($state.snapshot(value) as T));
 
-/** Live run state. Revision invalidates renderers without cloning transcript data per frame. */
+/** Live run state. Its fields are reactive so renderers can read the model directly. */
 export class RunObservation {
-  run: RunRow;
-  connection: ConnectionState;
-  scopes: Record<string, ScopeRow> = {};
-  sessions: Record<string, SessionRow> = {};
-  interviews: Record<string, InterviewRow> = {};
-  turns: Record<string, TurnRow> = {};
-  turnUsage: Record<string, Record<string, Usage>> = {};
-  modelCalls: Record<string, ModelCallRow[]> = {};
-  commands: Record<string, CommandRow> = {};
-  totals: Totals = { scopes: {}, sessions: {} };
-  readonly transcripts = new Map<string, Transcribed>();
-  revision = 0;
-  private messageRevisions = new Map<string, number>();
-  private snapshotRevision = 0;
+  run: RunRow = $state({} as RunRow);
+  connection: ConnectionState = $state("connecting");
+  scopes: Record<string, ScopeRow> = $state({});
+  sessions: Record<string, SessionRow> = $state({});
+  interviews: Record<string, InterviewRow> = $state({});
+  turns: Record<string, TurnRow> = $state({});
+  turnUsage: Record<string, Record<string, Usage>> = $state({});
+  modelCalls: Record<string, ModelCallRow[]> = $state({});
+  commands: Record<string, CommandRow> = $state({});
+  totals: Totals = $state({ scopes: {}, sessions: {} });
+  readonly transcripts = new SvelteMap<string, Transcribed>();
   private connectionGeneration = 0;
-  stream: string;
-  position: number;
+  stream = $state("");
+  position = $state(0);
 
   constructor(snapshot: RunSnapshot) {
     this.run = clone(snapshot.run);
@@ -262,15 +261,12 @@ export class RunObservation {
     this.modelCalls = clone(snapshot.model_calls ?? {});
     this.commands = clone(snapshot.commands ?? {});
     this.totals = clone(snapshot.totals ?? { scopes: {}, sessions: {} });
-    this.messageRevisions.clear();
-    this.snapshotRevision = this.revision + 1;
     this.transcripts.clear();
     for (const [turn, value] of Object.entries(snapshot.transcripts ?? {}))
       this.transcripts.set(turn, {
         projection: SessionProjection.restore(value.snapshot),
         provenance: clone(value.provenance),
       });
-    this.revision++;
     return true;
   }
 
@@ -299,8 +295,6 @@ export class RunObservation {
         break;
       case "event": {
         const value = frame.data;
-        const messageID = canonicalMessageID(value.event);
-        if (messageID) this.messageRevisions.set(`${value.turn}\0${messageID}`, this.revision + 1);
         let transcript = this.transcripts.get(value.turn);
         if (!transcript) {
           transcript = { projection: SessionProjection.restore(emptySnapshot()), provenance: {} };
@@ -311,7 +305,6 @@ export class RunObservation {
         break;
       }
     }
-    this.revision++;
     return true;
   }
 
@@ -349,9 +342,6 @@ export class RunObservation {
 
   state(turn: string): Readonly<ProjectionState> | undefined {
     return this.transcripts.get(turn)?.projection.viewState();
-  }
-  messageRevision(turn: string, message: string): number {
-    return this.messageRevisions.get(`${turn}\0${message}`) ?? this.snapshotRevision;
   }
   snapshot(): RunSnapshot {
     return {

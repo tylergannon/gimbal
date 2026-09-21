@@ -1,7 +1,7 @@
 <script lang="ts">
 	// A turn's answer: banner + result + error while ended, "still running" +
 	// last text while live. This is the block issue 325 says is missing.
-	import type { TurnRow } from '../../observation/index.js';
+	import type { TurnRow } from '../../observation/index.svelte.js';
 	import Payload from './Payload.svelte';
 
 	let { turn, lastText }: { turn: TurnRow; lastText?: string } = $props();

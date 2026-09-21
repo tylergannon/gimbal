@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { RunSnapshot } from '../../observation/index.js';
+	import type { RunSnapshot } from '../../observation/index.svelte.js';
 	import ContextList from './ContextList.svelte';
 	import { visibleContext } from './contextOf.js';
 

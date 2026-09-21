@@ -1,5 +1,5 @@
 <script module lang="ts">
-  import type { InterviewRow, RunRow } from "../observation/index.js";
+  import type { InterviewRow, RunRow } from "../observation/index.svelte.js";
 
   export type RunsFilter = "all" | "active" | "needs-answer" | "ended" | "failed" | "cancelled";
 

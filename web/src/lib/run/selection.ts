@@ -4,7 +4,7 @@ import type {
   RunSnapshot,
   ScopeRow,
   TurnRow,
-} from "../observation/index.js";
+} from "../observation/index.svelte.js";
 import type { Graph, Service } from "../workflow/types.js";
 import type { Supervisor } from "../workflow/types.js";
 import type { MapSelection } from "./Map.svelte";

@@ -3,7 +3,7 @@
   import Node, { type NodeOperation } from "./Node.svelte";
   import type { PipState } from "./Pip.svelte";
   import Sheet, { type FoldedStep } from "./Sheet.svelte";
-  import type { ScopeRow } from "../observation/index.js";
+  import type { ScopeRow } from "../observation/index.svelte.js";
   import { implementInterviewFixture } from "./fixtures/index.js";
 
   const { graph, snapshot } = implementInterviewFixture;

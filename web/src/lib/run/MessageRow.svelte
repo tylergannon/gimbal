@@ -1,19 +1,13 @@
 <script lang="ts">
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
-	import type { JSONObject } from '../sessionstate/index.js';
-	import { usageOf, usageText } from '../observation/index.js';
+	import type { JSONObject } from '../sessionstate/index.svelte.js';
+	import { usageOf, usageText } from '../observation/index.svelte.js';
 	import Payload from './detail/Payload.svelte';
 	import ToolCall from './detail/ToolCall.svelte';
 
-	let { message, pending, revision, quiet = false }: { message: JSONObject; pending?: JSONObject; revision: number; quiet?: boolean } = $props();
+	let { message, pending, quiet = false }: { message: JSONObject; pending?: JSONObject; quiet?: boolean } = $props();
 	const text = (value: unknown) => typeof value === 'string' ? value : JSON.stringify(value, null, 2);
-	const row: JSONObject = $derived.by(() => {
-		revision;
-		return {
-			...message,
-			...(message.content ? { content: message.content.map((part: JSONObject) => ({ ...part, ...(part.state ? { state: { ...part.state } } : {}) })) } : {})
-		};
-	});
+	const row = $derived(message);
 	const status = $derived(pending?.delivery ?? (row.error ? 'failed' : row.time?.completed ? 'completed' : 'running'));
 	// Quiet mode drops an assistant message straight to its tool rows when it
 	// carries no text or reasoning of its own — no "Assistant / completed"

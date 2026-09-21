@@ -2,11 +2,10 @@
   import type { Graph } from "#lib/workflow/types.js";
   import {
     RunObservation,
-    type ConnectionState,
     type ObservationDelta,
     type RunSnapshot,
     type TurnRow,
-  } from "#lib/observation/index.js";
+  } from "#lib/observation/index.svelte.js";
   import CancelGuard from "#lib/run/CancelGuard.svelte";
   import DetailPane, { type ActionFeedback } from "#lib/run/DetailPane.svelte";
   import Map, { type MapSelection } from "#lib/run/Map.svelte";
@@ -39,7 +38,6 @@
   const loopForm = steerLoop.for("workspace-loop");
   const answerForm = answerInterview.for("workspace-answer");
 
-  let revision = $state(0);
   let selection = $state<RunSelection>();
   let reveal = $state<{ request: number; selection: MapSelection }>();
   let cancelOpen = $state(false);
@@ -49,14 +47,8 @@
   let observedRunID = "";
   let revealSequence = 0;
 
-  const snapshot = $derived.by(() => {
-    revision;
-    return observation.snapshot();
-  });
-  const connection = $derived.by((): ConnectionState => {
-    revision;
-    return observation.connection;
-  });
+  const snapshot = $derived(observation.snapshot());
+  const connection = $derived(observation.connection);
   const graphMatches = $derived(graph ? graphMatchesSnapshot(graph, snapshot) : false);
   const searchItems = $derived(
     graph && graphMatches ? runNavigationItems(graph, snapshot) : [],
@@ -90,7 +82,6 @@
     const next = observation;
     const runChanged = observedRunID !== "" && observedRunID !== next.run.id;
     const current = untrack(() => selection);
-    revision = next.revision;
     selection = runChanged ? undefined : rebindSelection(current, next.snapshot());
     if (runChanged) {
       reveal = undefined;
@@ -232,14 +223,10 @@
     let attempt = 0;
     const delta = (message: MessageEvent<string>) => {
       if (!observation.isCurrentConnection(generation)) return;
-      if (observation.applyDelta(JSON.parse(message.data) as ObservationDelta, generation)) {
-        revision++;
-      }
+      observation.applyDelta(JSON.parse(message.data) as ObservationDelta, generation);
     };
     const replacement = (message: MessageEvent<string>) => {
-      if (observation.replace(JSON.parse(message.data) as RunSnapshot, generation)) {
-        revision++;
-      }
+      observation.replace(JSON.parse(message.data) as RunSnapshot, generation);
     };
     const connect = () => {
       if (!observation.retryConnection(generation)) return;
@@ -256,13 +243,12 @@
       currentStream.addEventListener("snapshot", replacement as EventListener);
       currentStream.onopen = () => {
         if (attempt !== currentAttempt) return;
-        if (observation.connectionOpened(generation)) revision++;
+        observation.connectionOpened(generation);
       };
       currentStream.onerror = () => {
         if (attempt !== currentAttempt) return;
         attempt++;
         const shouldRetry = observation.connectionLost(generation);
-        if (observation.isCurrentConnection(generation)) revision++;
         currentStream.close();
         if (stream === currentStream) stream = undefined;
         if (shouldRetry) retry = setTimeout(connect, 250);
@@ -320,7 +306,6 @@
         {snapshot}
         {selection}
         {observation}
-        {revision}
         {width}
         {maximized}
         {onmaximize}

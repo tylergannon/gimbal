@@ -5,7 +5,7 @@
   import { Badge } from "#lib/components/ui/badge/index.js";
   import { Button } from "#lib/components/ui/button/index.js";
   import { Input } from "#lib/components/ui/input/index.js";
-  import type { ConnectionState, RunRow, TurnRow } from "../observation/index.js";
+  import type { ConnectionState, RunRow, TurnRow } from "../observation/index.svelte.js";
   import Pip from "./Pip.svelte";
   import type { RunNavigationItem } from "./selection.js";
 

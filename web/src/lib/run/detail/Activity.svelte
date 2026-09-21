@@ -1,34 +1,32 @@
 <script lang="ts">
-	// The transcript for one turn: quieter than SessionTimeline (no raw
+	// The transcript for one turn: quieter than previous timeline (no raw
 	// session-id heading, tool-only messages skip their card chrome via
 	// MessageRow's `quiet` prop), windowed to the last 50 messages with a
 	// "Load earlier" control, and pinned to the tail while the reader is near
 	// the bottom.
-	import type { ProjectionState } from '../../sessionstate/index.js';
-	import type { RunObservation } from '../../observation/index.js';
+	import type { ProjectionState } from '../../sessionstate/index.svelte.js';
+	import type { RunObservation } from '../../observation/index.svelte.js';
 	import MessageRow from '../MessageRow.svelte';
 
 	// Destructured under a local alias: a binding literally named `state`
 	// would collide with the `$state` rune used below.
 	let {
 		state: transcriptState,
-		revision,
 		observation,
 		turn
-	}: { state: Readonly<ProjectionState>; revision: number; observation: RunObservation; turn: string } =
+	}: { state: Readonly<ProjectionState>; observation: RunObservation; turn: string } =
 		$props();
 
 	const WINDOW = 50;
 	const NEAR_BOTTOM_PX = 48;
 
-	const sessions = $derived.by(() => {
-		revision;
-		return Object.keys(transcriptState.message).map((sessionID) => ({
+	const sessions = $derived(
+		Object.keys(transcriptState.message).map((sessionID) => ({
 			sessionID,
 			messages: transcriptState.message[sessionID] ?? [],
 			pending: new Map((transcriptState.pending[sessionID] ?? []).map((input) => [input.id, input]))
-		}));
-	});
+		})),
+	);
 	const allMessages = $derived.by(() =>
 		sessions.flatMap((session) => session.messages.map((message) => ({ session, message })))
 	);
@@ -93,10 +91,7 @@
 	<div class="scroller" bind:this={scroller} onscroll={onScroll}>
 		{#each visibleMessages as { session, message } (message.id)}
 			<MessageRow
-				{message}
-				pending={session.pending.get(message.id)}
-				revision={revision + observation.messageRevision(turn, message.id)}
-				quiet
+				{message} pending={session.pending.get(message.id)} quiet
 			/>
 		{/each}
 		{#if visibleMessages.length === 0}

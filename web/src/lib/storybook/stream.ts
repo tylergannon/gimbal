@@ -1,6 +1,6 @@
 // A stand-in for the run page's EventSource in Storybook: it opens at once,
 // so the page shows Live, and a story can push deltas through `send`.
-import type { ObservationDelta, RunSnapshot } from "../observation/index.js";
+import type { ObservationDelta, RunSnapshot } from "../observation/index.svelte.js";
 
 export class StoryEventSource {
   static instances: StoryEventSource[] = [];

@@ -8,7 +8,7 @@ import type {
   SessionRow,
   TurnRow,
   Usage,
-} from "../../observation/index.js";
+} from "../../observation/index.svelte.js";
 
 const runID = "01M2QZ7PB3N6D0R9X2G5HKW8VY";
 const started = 1_799_910_662_000;

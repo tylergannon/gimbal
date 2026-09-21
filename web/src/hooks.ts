@@ -1,4 +1,4 @@
-import type { RunSnapshot } from "#lib/observation/index.js";
+import type { RunSnapshot } from "#lib/observation/index.svelte.js";
 
 // skgo renders pages in an embedded JavaScript engine, and that engine has no
 // `structuredClone`: it is a platform global, not a language one, so nothing

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "vite-plus/test";
-import type { RunSnapshot, ScopeRow, TurnRow } from "../../observation/index.js";
+import type { RunSnapshot, ScopeRow, TurnRow } from "../../observation/index.svelte.js";
 import { issue325Snapshot } from "../fixtures/issue-325.js";
 import { barePrompt, turnContext, valueSize, valueText, visibleContext } from "./contextOf.js";
 

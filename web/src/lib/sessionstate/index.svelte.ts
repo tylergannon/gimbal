@@ -31,7 +31,8 @@ const emptyState = (): ProjectionState => ({
   permission: {},
   form: {},
 });
-const clone = <T>(value: T): T => structuredClone(value);
+const clone = <T>(value: T): T =>
+  structuredClone(typeof window === "undefined" ? value : ($state.snapshot(value) as T));
 const eventMessageID = (id: string) => id.replace(/^evt_/, "msg_");
 
 const toolProgressMetadata = (state: JSONObject, value: JSONObject): JSONObject => {
@@ -49,7 +50,7 @@ const toolProgressMetadata = (state: JSONObject, value: JSONObject): JSONObject 
 };
 
 export class SessionProjection {
-  private state: ProjectionState;
+  private state: ProjectionState = $state(emptyState());
   private messageIndex = new Map<string, Map<string, JSONObject>>();
   private latestText = new Map<string, JSONObject>();
   private openReasoning = new Map<string, JSONObject[]>();

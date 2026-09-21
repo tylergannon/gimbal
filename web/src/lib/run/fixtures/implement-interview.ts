@@ -8,7 +8,7 @@ import type {
   SessionRow,
   TurnRow,
   Usage,
-} from "../../observation/index.js";
+} from "../../observation/index.svelte.js";
 import type { Graph } from "../../workflow/types.js";
 
 const workflowFile = "internal/workflows/implementinterview/implementinterview.go";

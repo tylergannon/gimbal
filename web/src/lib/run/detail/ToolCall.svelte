@@ -1,6 +1,6 @@
 <script lang="ts">
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
-	import type { JSONObject } from '../../sessionstate/index.js';
+	import type { JSONObject } from '../../sessionstate/index.svelte.js';
 	import Payload from './Payload.svelte';
 
 	let { part, maxHeight = 260 }: { part: JSONObject; maxHeight?: number } = $props();

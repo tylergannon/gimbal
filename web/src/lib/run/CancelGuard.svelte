@@ -2,7 +2,7 @@
   import StopIcon from "@lucide/svelte/icons/square";
   import XIcon from "@lucide/svelte/icons/x";
   import * as AlertDialog from "#lib/components/ui/alert-dialog/index.js";
-  import type { RunRow, TurnRow } from "../observation/index.js";
+  import type { RunRow, TurnRow } from "../observation/index.svelte.js";
 
   let {
     open,

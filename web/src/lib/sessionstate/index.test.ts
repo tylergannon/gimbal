@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { describe, test } from "vite-plus/test";
-import { SessionProjection, type ProjectionState } from "./index.ts";
+import { SessionProjection, type ProjectionState } from "./index.svelte.ts";
 
 const initial = (fixture: any): ProjectionState => {
   const info = Object.fromEntries(fixture.seed.info.map((item: any) => [item.id, item]));

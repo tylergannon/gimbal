@@ -6,7 +6,12 @@
 // A turn that recorded `context` has the workflow's own prompt in `prompt`.
 // A turn saved before turns recorded their context has one glued string:
 // prompt + "\n\n" + the rendered values.
-import type { ContextEntry, RunSnapshot, ScopeValue, TurnRow } from "../../observation/index.js";
+import type {
+  ContextEntry,
+  RunSnapshot,
+  ScopeValue,
+  TurnRow,
+} from "../../observation/index.svelte.js";
 
 export type TurnContextEntry = ContextEntry;
 

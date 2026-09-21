@@ -29,13 +29,12 @@
 	import UsageTable from './UsageTable.svelte';
 	import Payload from './Payload.svelte';
 	import TabBar from './TabBar.svelte';
-	import { usageOf, type RunObservation, type RunSnapshot, type TurnRow } from '../../observation/index.js';
+	import { usageOf, type RunObservation, type RunSnapshot, type TurnRow } from '../../observation/index.svelte.js';
 	import type { ActionFeedback } from '../DetailPane.svelte';
 
 	let {
 		snapshot,
 		observation,
-		revision,
 		turn,
 		definition,
 		watchers = [],
@@ -46,7 +45,6 @@
 	}: {
 		snapshot: RunSnapshot;
 		observation?: RunObservation;
-		revision: number;
 		turn: TurnRow;
 		definition?: AgentCall;
 		watchers?: WatcherRow[];
@@ -84,10 +82,7 @@
 		Object.values(snapshot.turn_usage[turn.id] ?? {}).reduce((sum, usage) => sum + usage.stated_cost, 0)
 	);
 
-	const transcriptState = $derived.by(() => {
-		revision;
-		return observation ? observation.state(turn.id) : undefined;
-	});
+	const transcriptState = $derived(observation?.state(turn.id));
 	const lastAssistantText = $derived.by(() => {
 		const state = transcriptState;
 		if (!state) return undefined;
@@ -124,7 +119,7 @@
 	];
 	let active = $state<TabID>(untrack(() => (turn.ended ? 'result' : 'activity')));
 	// A plain-string derived, not `turn.id` read directly in the effect below:
-	// `turn` is a fresh object on every snapshot revision even when it names
+	// `turn` is a fresh object on every model update even when it names
 	// the same turn, and an effect reading it inline would reopen on Activity
 	// or Result on every live update, yanking a reader off whatever tab
 	// (Prompt, Usage, Source) they were actually reading.
@@ -146,7 +141,7 @@
 	{#if active === 'activity'}
 		<div role="tabpanel" id="panel-activity" aria-labelledby="tab-activity" class="panel activity-panel">
 			{#if transcriptState && observation}
-				<Activity state={transcriptState} {revision} {observation} turn={turn.id} />
+				<Activity state={transcriptState} {observation} turn={turn.id} />
 			{:else}
 				<p class="empty">No transcript recorded for this turn.</p>
 			{/if}

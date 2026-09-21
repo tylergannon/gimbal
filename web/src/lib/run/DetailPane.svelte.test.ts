@@ -2,7 +2,7 @@ import { expect, test } from "vite-plus/test";
 import { render } from "vitest-browser-svelte";
 import type { InterviewAnswer } from "../../routes/interview.remote.js";
 import type { LoopMessage, Steer } from "../../routes/steer.remote.js";
-import { RunObservation } from "../observation/index.js";
+import { RunObservation } from "../observation/index.svelte.js";
 import DetailPane from "./DetailPane.svelte";
 import {
   implementInterviewFixture,
@@ -366,6 +366,48 @@ test("a running turn opens on Activity, not Result", async () => {
   await expect
     .element(screen.getByRole("tab", { name: "Result" }))
     .toHaveAttribute("aria-selected", "false");
+});
+
+test("a live transcript delta updates the rendered message in place", async () => {
+  const coding = issue325Coding();
+  const scope = issue325Fixture.snapshot.scopes["implementation.1/task.1"];
+  const turn = issue325Fixture.snapshot.turns["coding.1/turn.2"];
+  const observation = new RunObservation(issue325Fixture.snapshot);
+  const connection = observation.beginConnection();
+  const before =
+    "Running the full vitest suite now to confirm nothing outside +page.test.ts regressed.";
+
+  const screen = await render(DetailPane, {
+    snapshot: issue325Fixture.snapshot,
+    observation,
+    selection: { kind: "node", scope, operation: coding, runtime: turn },
+  });
+  await expect.element(screen.getByText(before, { exact: true })).toBeVisible();
+
+  observation.apply(
+    {
+      type: "event",
+      data: {
+        scope: scope.key,
+        session: turn.session,
+        turn: turn.id,
+        event: {
+          id: "live-text-delta",
+          created: Date.now(),
+          type: "session.text.delta",
+          data: {
+            sessionID: "ses_coding_turn2",
+            assistantMessageID: "msg_coding2_11",
+            delta: " It is still streaming.",
+          },
+        },
+      },
+    },
+    connection,
+  );
+  await expect
+    .element(screen.getByText(`${before} It is still streaming.`, { exact: true }))
+    .toBeVisible();
 });
 
 test("a finished turn opens on Result and shows turn.result", async () => {

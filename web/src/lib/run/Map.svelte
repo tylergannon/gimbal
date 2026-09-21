@@ -4,7 +4,7 @@
     InterviewRow,
     ScopeRow,
     TurnRow,
-  } from "../observation/index.js";
+  } from "../observation/index.svelte.js";
   import type { Service, Supervisor } from "../workflow/types.js";
   import type { NodeOperation } from "./Node.svelte";
 
@@ -32,7 +32,7 @@
   import MinusIcon from "@lucide/svelte/icons/minus";
   import PlusIcon from "@lucide/svelte/icons/plus";
   import type { Graph } from "../workflow/types.js";
-  import type { RunSnapshot } from "../observation/index.js";
+  import type { RunSnapshot } from "../observation/index.svelte.js";
   import Group from "./Group.svelte";
   import Loop from "./Loop.svelte";
   import Node from "./Node.svelte";

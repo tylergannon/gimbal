@@ -1,4 +1,4 @@
-import type { CommandRow, RunSnapshot, ScopeRow } from "../../observation/index.js";
+import type { CommandRow, RunSnapshot, ScopeRow } from "../../observation/index.svelte.js";
 import type { Graph } from "../../workflow/types.js";
 
 const workflowFile = "examples/services/services.go";

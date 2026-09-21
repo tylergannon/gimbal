@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { RunSnapshot, TurnRow } from '../../observation/index.js';
+	import type { RunSnapshot, TurnRow } from '../../observation/index.svelte.js';
 	import ContextList from './ContextList.svelte';
 	import { barePrompt, turnContext, valueSize } from './contextOf.js';
 	import Payload from './Payload.svelte';

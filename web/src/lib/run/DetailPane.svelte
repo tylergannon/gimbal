@@ -28,7 +28,7 @@
     type RunSnapshot,
     type ScopeRow,
     type TurnRow,
-  } from "../observation/index.js";
+  } from "../observation/index.svelte.js";
   import type { NodeOperation } from "./Node.svelte";
   import Pip, { type PipState } from "./Pip.svelte";
   import type { RunSelection } from "./selection.js";
@@ -41,7 +41,6 @@
     snapshot,
     selection,
     observation,
-    revision = 0,
     width = 480,
     maximized = false,
     onsteer,
@@ -54,7 +53,6 @@
     snapshot: RunSnapshot;
     selection?: RunSelection;
     observation?: RunObservation;
-    revision?: number;
     width?: number;
     maximized?: boolean;
     onsteer?: (request: Steer) => Promise<ActionFeedback>;
@@ -374,7 +372,6 @@
     <SessionDetail
       {snapshot}
       {observation}
-      {revision}
       {turn}
       definition={agentDefinition}
       watchers={selection?.kind === "node" ? watcherRows : []}

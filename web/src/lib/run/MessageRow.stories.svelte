@@ -12,7 +12,6 @@
 <Story
 	name="Assistant response"
 	args={{
-		revision: 0,
 		message: {
 			id: 'message-1',
 			type: 'assistant',
@@ -38,7 +37,6 @@
 <Story
 	name="Assistant with tool calls"
 	args={{
-		revision: 0,
 		message: {
 			id: 'message-2',
 			type: 'assistant',

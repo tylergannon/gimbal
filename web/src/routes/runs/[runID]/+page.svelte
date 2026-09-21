@@ -3,7 +3,6 @@
   import {
     RunObservation,
     type ConnectionState,
-    type ObservationDelta,
     type RunSnapshot,
     type TurnRow,
   } from "#lib/observation/index.js";
@@ -24,7 +23,9 @@
   import { cancelRun, stopTurn } from "../../control.remote.js";
   import { answerInterview, type InterviewAnswer } from "../../interview.remote.js";
   import { steer, steerLoop, type LoopMessage, type Steer } from "../../steer.remote.js";
+  import { invalidate } from "$app/navigation";
   import { tick, untrack } from "svelte";
+  import { watchWindow } from "./window.remote.js";
 
   let { data }: { data: { snapshot: RunSnapshot; graph: string } } = $props();
 
@@ -48,6 +49,22 @@
   let controlFeedback = $state("");
   let observedRunID = "";
   let revealSequence = 0;
+  // Windowed live query (spike): when the connection has been down longer
+  // than the window's own healing span (windowSpanMs), a still-open item
+  // may have changed and dropped out of every yield the browser missed, so
+  // the page resyncs from a fresh load rather than trusting the window to
+  // catch it up on reconnect.
+  let disconnectedSince: number | undefined;
+  let resyncing = false;
+  const windowSpanMs = 3000;
+  // $state.raw, not $state: the live query instance manages its own runes
+  // internally, and Svelte's deep-proxying of a plain $state wrapped around
+  // a class with reactive accessors thrashed (observed while proving this
+  // spike: the connected-tracking effect below re-ran thousands of times a
+  // second with no state change). $state.raw only reacts when the reference
+  // itself is reassigned, which is all a second effect needs.
+  let liveInstance: ReturnType<typeof watchWindow> | undefined = $state.raw();
+  let liveGeneration = 0;
 
   const snapshot = $derived.by(() => {
     revision;
@@ -225,55 +242,82 @@
     }
   }
 
+  // Windowed live query (spike; see ephemeral/research for the brief). One
+  // `query.live` instance for the run replaces the hand-rolled EventSource
+  // this effect used to open: every yield is UPSERTED into the observation
+  // (applyWindow), which is idempotent, so a duplicate or a healed repeat
+  // changes nothing. The effect below this one tracks the live instance's
+  // own `connected` flag; once it has been down longer than the window's
+  // own healing span, a change may have fallen out of every yield the
+  // browser missed, so the page resyncs from a fresh load of this route
+  // (not invalidateAll) instead of trusting the window to catch it up.
   $effect(() => {
     const generation = observation.beginConnection();
-    let stream: EventSource | undefined;
-    let retry: ReturnType<typeof setTimeout> | undefined;
-    let attempt = 0;
-    const delta = (message: MessageEvent<string>) => {
-      if (!observation.isCurrentConnection(generation)) return;
-      if (observation.applyDelta(JSON.parse(message.data) as ObservationDelta, generation)) {
-        revision++;
+    if (observation.run.status !== "running") {
+      liveInstance = undefined;
+      return () => observation.endConnection(generation);
+    }
+    const instance = watchWindow({ run: observation.run.id });
+    liveInstance = instance;
+    liveGeneration = generation;
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        for await (const win of instance) {
+          if (cancelled || !observation.isCurrentConnection(generation)) return;
+          if (observation.applyWindow(win)) revision++;
+        }
+      } catch {
+        // Terminal failure. The connection effect below already reflects
+        // this through instance.connected/instance.done and drives the
+        // resync once it has lasted past the window's own healing span.
       }
-    };
-    const replacement = (message: MessageEvent<string>) => {
-      if (observation.replace(JSON.parse(message.data) as RunSnapshot, generation)) {
-        revision++;
-      }
-    };
-    const connect = () => {
-      if (!observation.retryConnection(generation)) return;
-      const currentAttempt = ++attempt;
-      const query = new URLSearchParams({
-        stream: observation.stream,
-        position: String(observation.position),
-      });
-      const currentStream = new EventSource(
-        `/api/runs/${encodeURIComponent(observation.run.id)}/events?${query}`,
-      );
-      stream = currentStream;
-      currentStream.addEventListener("delta", delta as EventListener);
-      currentStream.addEventListener("snapshot", replacement as EventListener);
-      currentStream.onopen = () => {
-        if (attempt !== currentAttempt) return;
-        if (observation.connectionOpened(generation)) revision++;
-      };
-      currentStream.onerror = () => {
-        if (attempt !== currentAttempt) return;
-        attempt++;
-        const shouldRetry = observation.connectionLost(generation);
-        if (observation.isCurrentConnection(generation)) revision++;
-        currentStream.close();
-        if (stream === currentStream) stream = undefined;
-        if (shouldRetry) retry = setTimeout(connect, 250);
-      };
-    };
-    if (observation.run.status === "running") connect();
+    })();
+
     return () => {
+      cancelled = true;
+      if (liveInstance === instance) liveInstance = undefined;
       observation.endConnection(generation);
-      if (retry !== undefined) clearTimeout(retry);
-      stream?.close();
     };
+  });
+
+  // Tracks the live instance's own `connected` flag, kept at the top level
+  // (not nested in the effect above) so it only reruns when connectivity
+  // itself changes.
+  //
+  // Observed while proving this spike: this effect's body ran far more
+  // often than `connected` actually changed value (a kit/Svelte
+  // interaction this spike did not track down -- see the report). lastSeen
+  // makes every action below idempotent against that: nothing happens
+  // unless the value read this time differs from the value acted on last
+  // time, which is what correctness here actually depends on.
+  let lastSeenConnected: boolean | undefined;
+  $effect(() => {
+    const instance = liveInstance;
+    if (!instance) return;
+    const generation = liveGeneration;
+    const connected = instance.connected;
+    if (connected === lastSeenConnected) return;
+    lastSeenConnected = connected;
+    // eslint-disable-next-line no-console -- proof instrumentation for the spike; removed before merge.
+    console.info("[window] connected=", connected);
+    if (connected) {
+      if (observation.connectionOpened(generation)) revision++;
+      disconnectedSince = undefined;
+      return;
+    }
+    if (disconnectedSince === undefined) disconnectedSince = Date.now();
+    if (observation.connectionLost(generation)) revision++;
+    if (!resyncing && Date.now() - disconnectedSince > windowSpanMs) {
+      resyncing = true;
+      // eslint-disable-next-line no-console -- proof instrumentation for the spike; harmless in prod.
+      console.info("[window] resyncing after an outage longer than the healing span");
+      void invalidate((url) => url.pathname === location.pathname).finally(() => {
+        resyncing = false;
+        disconnectedSince = undefined;
+      });
+    }
   });
 </script>
 

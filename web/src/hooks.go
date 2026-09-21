@@ -31,3 +31,19 @@ type RunSnapshot struct {
 // the value travels under, and a client with no decoder for it cannot read
 // the response at all.
 var _ = skgo.Transported[RunSnapshot]("RunSnapshot")
+
+// Window carries one windowed live yield from the run route's
+// `query.live` (see window.remote.go): the complete current value of only
+// the parts and rows that changed recently. Same reasoning as RunSnapshot --
+// a part's shape is whatever the provider sent, which polytype's static
+// grammar cannot spell -- and the same encoding: JSON in, JSON.parse back
+// out in src/hooks.ts.
+//
+// This type exists only for this spike. If the pattern moves into skgo,
+// this escape hatch is exactly the seam a shared recipe would want to
+// close.
+type Window struct {
+	JSON string `json:"json"`
+}
+
+var _ = skgo.Transported[Window]("Window")

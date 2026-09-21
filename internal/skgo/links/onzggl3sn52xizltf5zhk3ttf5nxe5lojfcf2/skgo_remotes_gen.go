@@ -2,10 +2,21 @@
 
 package runid
 
+import (
+	hooks "github.com/tylergannon/gimble/web/src"
+)
+
 // The functions this package declares, published under names the generated
 // bindings package can spell. Each is the function itself and not a wrapper:
 // skgo.Refresh finds a query by the code pointer of the function it names.
 var (
+	// Skgo_watchWindow is watchWindow, published as src/routes/runs/[runID]/window.remote.ts#watchWindow.
+	Skgo_watchWindow = watchWindow
 	// Skgo_load is load, published as the server load of src/routes/runs/[runID]/+page.server.ts.
 	Skgo_load = load
+)
+
+type (
+	// SkgoOut_watchWindow is the type watchWindow yields.
+	SkgoOut_watchWindow = hooks.Window
 )

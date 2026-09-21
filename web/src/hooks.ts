@@ -1,4 +1,4 @@
-import type { RunSnapshot } from "#lib/observation/index.js";
+import type { RunSnapshot, RunWindow } from "#lib/observation/index.js";
 
 // skgo renders pages in an embedded JavaScript engine, and that engine has no
 // `structuredClone`: it is a platform global, not a language one, so nothing
@@ -23,8 +23,16 @@ export const transport = {
     encode: () => false as const,
     decode: ({ json }: { json: string }): RunSnapshot => JSON.parse(json) as RunSnapshot,
   },
+  // Spike (see ephemeral/research): the run route's window.remote.go
+  // `query.live` sends the same JSON-string escape hatch as RunSnapshot,
+  // for the same reason -- a part's shape is whatever the provider sent.
+  Window: {
+    encode: () => false as const,
+    decode: ({ json }: { json: string }): RunWindow => JSON.parse(json) as RunWindow,
+  },
 };
 
-// The generated `+page.server.ts` imports the transported type from here by
-// the key's name, and what the page receives is the decoded snapshot.
-export type { RunSnapshot };
+// The generated `+page.server.ts` and `window.remote.ts` import the
+// transported type from here by the key's name, and what the page receives
+// is the decoded value itself.
+export type { RunSnapshot, RunWindow as Window };

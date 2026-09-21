@@ -187,6 +187,40 @@ export type ObservationDelta = { stream: string; position: number; frames: Obser
 /** One turn's live transcript. */
 export type Transcribed = { projection: SessionProjection; provenance: Record<string, unknown> };
 
+// --- Windowed live query (spike; see ephemeral/research for the brief) ---
+//
+// One yield of web/src/routes/runs/[runID]/window.remote.go's `query.live`:
+// the complete current value of only the parts and rows that changed
+// recently, healed by the next yield if a frame was dropped. It is a
+// separate shape from ObservationFrame/ObservationDelta above -- there is no
+// position and nothing here is a delta -- so it gets its own names rather
+// than reusing RowFrame for something that is not one of its variants.
+
+/** One message header or content-array entry, at its current value. `kind`
+ * is "header" for the message's own fields (everything but content) or the
+ * part's own type ("text" | "reasoning" | "tool" | ...) for a content entry,
+ * in which case `index` is its position in the message's content array. */
+export type WindowPartFrame = {
+  turn: string;
+  session: string;
+  message: string;
+  kind: string;
+  index?: number;
+  value: JSONValue;
+};
+
+/** One table row at its current value, table and key exactly as the store's
+ * own row frame names them. */
+export type WindowRowFrame = { table: string; key: string; value: JSONValue };
+
+export type RunWindow = {
+  at: number;
+  parts: Record<string, WindowPartFrame>;
+  rows: Record<string, WindowRowFrame>;
+  totals?: Totals;
+  ended: boolean;
+};
+
 const emptySnapshot = (): Snapshot => ({
   state: { info: {}, family: {}, active: {}, message: {}, pending: {}, permission: {}, form: {} },
 });
@@ -313,6 +347,79 @@ export class RunObservation {
     }
     this.revision++;
     return true;
+  }
+
+  /** Upserts one windowed live yield (see RunWindow above): every row and
+   * part it carries is the complete current value of that item, so applying
+   * the same window twice changes nothing, and applying an older one after a
+   * newer one just rewrites the same current value back in. */
+  applyWindow(win: RunWindow): boolean {
+    for (const row of Object.values(win.rows)) this.setWindowRow(row);
+    if (win.totals) this.totals = clone(win.totals);
+    for (const part of Object.values(win.parts)) this.upsertPart(part);
+    this.revision++;
+    return true;
+  }
+
+  /** Same table switch as setRow, over the window's own (untyped) row
+   * shape: `value` is this table's row exactly as GET /api/runs/:id and the
+   * SSE `row` frame already send it. */
+  private setWindowRow(row: WindowRowFrame) {
+    switch (row.table) {
+      case "run":
+        this.run = clone(row.value as RunRow);
+        if (this.run.status !== "running") this.connection = "recorded";
+        break;
+      case "scopes":
+        this.scopes[row.key] = clone(row.value as ScopeRow);
+        break;
+      case "sessions":
+        this.sessions[row.key] = clone(row.value as SessionRow);
+        break;
+      case "interviews":
+        this.interviews[row.key] = clone(row.value as InterviewRow);
+        break;
+      case "turns":
+        this.turns[row.key] = clone(row.value as TurnRow);
+        break;
+      case "turn_usage":
+        this.turnUsage[row.key] = clone(row.value as Record<string, Usage>);
+        break;
+      case "model_calls":
+        this.modelCalls[row.key] = clone(row.value as ModelCallRow[]);
+        break;
+      case "commands":
+        this.commands[row.key] = clone(row.value as CommandRow);
+        break;
+    }
+  }
+
+  /** Places one part into its message, in its turn's transcript, creating
+   * either as needed. This bypasses event reduction on purpose: the value
+   * already is the complete current fact -- computed server-side the same
+   * way this projection would have, by applying the same native events --
+   * so making it visible here is just an upsert, not a second reduction. */
+  private upsertPart(part: WindowPartFrame) {
+    let transcript = this.transcripts.get(part.turn);
+    if (!transcript) {
+      transcript = { projection: SessionProjection.restore(emptySnapshot()), provenance: {} };
+      this.transcripts.set(part.turn, transcript);
+    }
+    const state = transcript.projection.viewState();
+    const list = state.message[part.session] ?? (state.message[part.session] = []);
+    let message = list.find((row) => row.id === part.message);
+    if (!message) {
+      message = { id: part.message };
+      list.push(message);
+    }
+    if (part.kind === "header") {
+      const header = part.value as JSONObject;
+      for (const key of Object.keys(header)) message[key] = clone(header[key]);
+    } else {
+      if (!Array.isArray(message.content)) message.content = [];
+      message.content[part.index ?? 0] = clone(part.value);
+    }
+    this.messageRevisions.set(`${part.turn}\0${part.message}`, this.revision + 1);
   }
 
   /** One changed row replaces what was there. The run is one row and has no

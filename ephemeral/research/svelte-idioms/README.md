@@ -19,7 +19,7 @@ segment, not an identity query parameter.
 
 The server already emits `id: <stream>:<position>` on deltas, but reads resume
 state only from query parameters. The page closes and recreates EventSource
-on errors with a 250 ms timer. A focused follow-up should read `Last-Event-ID`,
+on errors with a 250 ms timer. The separate [#347](https://github.com/tylergannon/gimble/issues/347) should read `Last-Event-ID`,
 allow native EventSource reconnection, and give replacement snapshots an event
 ID too. Preserve snapshot fallback when a cursor is stale or from a previous
 stream generation, and stop reconnecting when the run is complete.
@@ -91,7 +91,8 @@ not a claim that every adjacent pair has a strict dependency.
 | 9 | [#340 Transport](https://github.com/tylergannon/gimble/issues/340) | 0, 26 | Typed graph transport and deletion of the unused snapshot route; preserve events. |
 | 10 | [#342 Session route](https://github.com/tylergannon/gimble/issues/342) | Routing / feature | Reuse repaired leaves and inspect preserved WIP; prove direct URL, Back and streaming. |
 | Deferred | [#341 Live data](https://github.com/tylergannon/gimble/issues/341) | 0, 2 | Explicitly excluded by Tyler; retain SSE. |
-| 11 | [#344 Guidance and recurring audit](https://github.com/tylergannon/gimble/issues/344) | 0–3, 10, 20, 26, 31 | Promote corrected guidance, including the SSE exception, and enable recurring reports after the active cleanup. |
+| 11 | [#347 Standard SSE](https://github.com/tylergannon/gimble/issues/347) | SSE follow-up | Keep SSE; route stream identity and prove native Last-Event-ID resumption and snapshot recovery. |
+| 12 | [#344 Guidance and recurring audit](https://github.com/tylergannon/gimble/issues/344) | 0–3, 10, 20, 26, 31 | Promote corrected guidance, including the SSE exception, and enable recurring reports after the active cleanup. |
 
 #344 combines several stages. Its window/map work associated with #341 is also
 deferred; it does not block finishing this queue or scheduling the recurring

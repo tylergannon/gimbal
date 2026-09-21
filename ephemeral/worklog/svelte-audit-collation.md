@@ -25,3 +25,4 @@ Retain SSE, keep identity in route parameters, and prefer native Last-Event-ID
 resumption. The current query's stream token is an observation generation, not
 an agent session; the run ID is already in the route. Update audit guidance so
 it does not repeatedly report this accepted exception.
+decision: Filed #347 separately from deferred #341 for stream identity in the route and standard Last-Event-ID resumption; included it in the active sequential queue.

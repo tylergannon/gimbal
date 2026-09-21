@@ -184,6 +184,14 @@ export type ObservationFrame =
 
 export type ObservationDelta = { stream: string; position: number; frames: ObservationFrame[] };
 
+/** live-query-poc spike: one frame of `watchRun`'s query.live, decoded from
+ * its transported JSON (web/src/hooks.go `EventBatch`, web/src/hooks.ts). A
+ * `from`/`to` batch advances the position by one or more coalesced deltas; a
+ * `reset` is a full snapshot, sent when the Go join could not resume. */
+export type EventBatchWire =
+  | { from: number; to: number; deltas: ObservationDelta[] }
+  | { reset: RunSnapshot };
+
 /** One turn's live transcript. */
 export type Transcribed = { projection: SessionProjection; provenance: Record<string, unknown> };
 

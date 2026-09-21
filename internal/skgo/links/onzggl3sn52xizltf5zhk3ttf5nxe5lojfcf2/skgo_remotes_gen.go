@@ -6,6 +6,13 @@ package runid
 // bindings package can spell. Each is the function itself and not a wrapper:
 // skgo.Refresh finds a query by the code pointer of the function it names.
 var (
+	// Skgo_watchRun is watchRun, published as src/routes/runs/[runID]/events.remote.ts#watchRun.
+	Skgo_watchRun = watchRun
 	// Skgo_load is load, published as the server load of src/routes/runs/[runID]/+page.server.ts.
 	Skgo_load = load
+)
+
+type (
+	// SkgoOut_watchRun is the type watchRun yields.
+	SkgoOut_watchRun = EventBatch
 )

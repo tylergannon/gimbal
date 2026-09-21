@@ -31,3 +31,13 @@ type RunSnapshot struct {
 // the value travels under, and a client with no decoder for it cannot read
 // the response at all.
 var _ = skgo.Transported[RunSnapshot]("RunSnapshot")
+
+// EventBatch is the live-query-POC spike's transport type (see
+// web/src/routes/runs/[runID]/events.remote.go). It is declared here rather
+// than beside the route because kit's transport hook is one global
+// declaration; this whole type only exists on claude/live-query-poc.
+type EventBatch struct {
+	JSON string `json:"json"`
+}
+
+var _ = skgo.Transported[EventBatch]("EventBatch")

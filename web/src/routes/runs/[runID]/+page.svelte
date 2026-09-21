@@ -3,7 +3,7 @@
   import {
     RunObservation,
     type ConnectionState,
-    type ObservationDelta,
+    type EventBatchWire,
     type RunSnapshot,
     type TurnRow,
   } from "#lib/observation/index.js";
@@ -22,9 +22,34 @@
     type RunSelection,
   } from "#lib/run/selection.js";
   import { cancelRun, stopTurn } from "../../control.remote.js";
+  import { watchRun } from "./events.remote.js";
   import { answerInterview, type InterviewAnswer } from "../../interview.remote.js";
   import { steer, steerLoop, type LoopMessage, type Steer } from "../../steer.remote.js";
   import { tick, untrack } from "svelte";
+
+  // live-query-poc spike: fold one frame of watchRun's query.live into
+  // observation. A `reset` replaces the whole snapshot; a `from`/`to` batch
+  // applies its (possibly coalesced) deltas in order, skipping any whose
+  // position the page already holds (kit's reconnect can replay a live
+  // query's original argument) and reporting a gap when one is missing (kit
+  // dropped an intermediate frame under backpressure) so the caller opens a
+  // fresh instance from the page's current position instead of the stale one.
+  function foldEventBatch(
+    target: RunObservation,
+    batch: EventBatchWire,
+    generation: number,
+  ): { changed: boolean; gap: boolean } {
+    if ("reset" in batch) {
+      return { changed: target.replace(batch.reset, generation), gap: false };
+    }
+    let changed = false;
+    for (const delta of batch.deltas) {
+      if (delta.position <= target.position) continue;
+      if (!target.applyDelta(delta, generation)) return { changed, gap: true };
+      changed = true;
+    }
+    return { changed, gap: false };
+  }
 
   let { data }: { data: { snapshot: RunSnapshot; graph: string } } = $props();
 
@@ -227,52 +252,55 @@
 
   $effect(() => {
     const generation = observation.beginConnection();
-    let stream: EventSource | undefined;
-    let retry: ReturnType<typeof setTimeout> | undefined;
-    let attempt = 0;
-    const delta = (message: MessageEvent<string>) => {
-      if (!observation.isCurrentConnection(generation)) return;
-      if (observation.applyDelta(JSON.parse(message.data) as ObservationDelta, generation)) {
-        revision++;
-      }
-    };
-    const replacement = (message: MessageEvent<string>) => {
-      if (observation.replace(JSON.parse(message.data) as RunSnapshot, generation)) {
-        revision++;
-      }
-    };
-    const connect = () => {
-      if (!observation.retryConnection(generation)) return;
-      const currentAttempt = ++attempt;
-      const query = new URLSearchParams({
+    let disposed = false;
+
+    // One pass over one live-query instance. kit retries transport failures
+    // against this same instance's argument on its own (that is how the
+    // "server restarted mid-run" case resumes); this loop only has to react
+    // to two things the instance itself won't: a gap (kit's backpressure is
+    // latest-wins, so a slow fold can miss an intermediate batch entirely —
+    // detected when foldEventBatch reports one), and the stream ending
+    // because the instance's own argument cannot resume any further (a
+    // terminal error). Either one means opening a fresh instance from
+    // observation's current position rather than the stale argument this
+    // instance was opened with.
+    const consume = async (): Promise<"gap" | "ended" | "stopped"> => {
+      const events = watchRun({
+        run: observation.run.id,
         stream: observation.stream,
-        position: String(observation.position),
+        position: observation.position,
       });
-      const currentStream = new EventSource(
-        `/api/runs/${encodeURIComponent(observation.run.id)}/events?${query}`,
-      );
-      stream = currentStream;
-      currentStream.addEventListener("delta", delta as EventListener);
-      currentStream.addEventListener("snapshot", replacement as EventListener);
-      currentStream.onopen = () => {
-        if (attempt !== currentAttempt) return;
-        if (observation.connectionOpened(generation)) revision++;
-      };
-      currentStream.onerror = () => {
-        if (attempt !== currentAttempt) return;
-        attempt++;
-        const shouldRetry = observation.connectionLost(generation);
-        if (observation.isCurrentConnection(generation)) revision++;
-        currentStream.close();
-        if (stream === currentStream) stream = undefined;
-        if (shouldRetry) retry = setTimeout(connect, 250);
-      };
+      let opened = false;
+      try {
+        for await (const batch of events) {
+          if (disposed || !observation.isCurrentConnection(generation)) return "stopped";
+          if (!opened) {
+            opened = true;
+            if (observation.connectionOpened(generation)) revision++;
+          }
+          const { changed, gap } = foldEventBatch(observation, batch as EventBatchWire, generation);
+          if (changed) revision++;
+          if (gap) return "gap";
+        }
+      } catch {
+        if (disposed || !observation.isCurrentConnection(generation)) return "stopped";
+        if (observation.connectionLost(generation)) revision++;
+        return "ended";
+      }
+      return "ended";
     };
-    if (observation.run.status === "running") connect();
+
+    const run = async () => {
+      while (!disposed && observation.isCurrentConnection(generation)) {
+        const outcome = await consume();
+        if (outcome !== "gap") return;
+      }
+    };
+    if (observation.run.status === "running") void run();
+
     return () => {
+      disposed = true;
       observation.endConnection(generation);
-      if (retry !== undefined) clearTimeout(retry);
-      stream?.close();
     };
   });
 </script>

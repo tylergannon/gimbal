@@ -1,4 +1,4 @@
-import type { RunSnapshot } from "#lib/observation/index.js";
+import type { EventBatchWire, RunSnapshot } from "#lib/observation/index.js";
 
 // skgo renders pages in an embedded JavaScript engine, and that engine has no
 // `structuredClone`: it is a platform global, not a language one, so nothing
@@ -23,8 +23,17 @@ export const transport = {
     encode: () => false as const,
     decode: ({ json }: { json: string }): RunSnapshot => JSON.parse(json) as RunSnapshot,
   },
+  // live-query-poc spike (web/src/routes/runs/[runID]/events.remote.go):
+  // same trick, for one frame of the run page's query.live.
+  EventBatch: {
+    encode: () => false as const,
+    decode: ({ json }: { json: string }): EventBatchWire => JSON.parse(json) as EventBatchWire,
+  },
 };
 
 // The generated `+page.server.ts` imports the transported type from here by
 // the key's name, and what the page receives is the decoded snapshot.
 export type { RunSnapshot };
+// Likewise the generated `events.remote.ts` imports `EventBatch` from here;
+// what watchRun's live query actually yields is the decoded union.
+export type { EventBatchWire as EventBatch };

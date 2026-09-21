@@ -373,3 +373,15 @@ export function rebindSelection(
 export function asMapSelection(selection: RunSelection | undefined): MapSelection | undefined {
   return selection;
 }
+
+/** The session a selection points at, when it has one: the agent's own
+ * session on a node selection with a turn or interview runtime, or the
+ * watcher's session on a watcher selection with a recorded turn. */
+export function selectionSessionID(selection: RunSelection | undefined): string | undefined {
+  if (!selection) return undefined;
+  if (selection.kind === "node" && selection.runtime && "session" in selection.runtime) {
+    return selection.runtime.session;
+  }
+  if (selection.kind === "watcher" && selection.turn) return selection.turn.session;
+  return undefined;
+}

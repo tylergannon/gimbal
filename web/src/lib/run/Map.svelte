@@ -54,6 +54,7 @@
     reveal,
     onselect,
     oninstancechange,
+    onopen,
   }: {
     graph: Graph;
     snapshot: RunSnapshot;
@@ -61,6 +62,10 @@
     reveal?: { request: number; selection: MapSelection };
     onselect?: (selection: MapSelection) => void;
     oninstancechange?: (scope: ScopeRow) => void;
+    /** Fired on a double-click of an agent-call node, with the same
+     * selection a single click would make. The run page opens that call's
+     * session view. */
+    onopen?: (selection: MapSelection) => void;
   } = $props();
 
   let selectedInstances = $state<Record<string, string>>({});
@@ -188,6 +193,13 @@
       operation: node.operation,
       runtime: node.runtime,
     });
+  }
+
+  function openNode(node: (typeof layout.nodes)[number]) {
+    if (node.operation.kind !== "agent_call") return;
+    const scope = snapshot.scopes[node.scopeKey];
+    if (!scope) return;
+    onopen?.({ kind: "node", scope, operation: node.operation, runtime: node.runtime });
   }
 
   function selectService(group: (typeof layout.services)[number], service: Service) {
@@ -365,6 +377,7 @@
     {/each}
 
     {#each layout.nodes as node}
+      <!-- svelte-ignore a11y_no_static_element_interactions -- double-click is a mouse shortcut; the keyboard route is the pane's Open session button and the page's "o" key -->
       <div
         class="placed"
         data-selection-key={node.selectionKey}
@@ -372,6 +385,7 @@
         style:top={`${node.y}px`}
         style:width={`${node.width}px`}
         style:height={`${node.height}px`}
+        ondblclick={() => openNode(node)}
       >
         <Node
           operation={node.operation}

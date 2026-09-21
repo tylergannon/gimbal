@@ -1,6 +1,6 @@
 # The Svelte docs subset the reviewers read
 
-`svelte-idiomatic.txt` (not committed: it is copied third-party text, ~13,600 lines, ~115k tokens) is a verbatim subset of https://svelte.dev/llms-full.txt, fetched 2026-09-21. The full file (~37,800 lines, ~300k tokens) overflowed a reviewer's context, so whole top-level sections were selected, never excerpted, in original order.
+`svelte-idiomatic.txt` (~13,600 lines, ~115k tokens; committed on purpose so cited line numbers stay fixed and the audit has a pinned copy) is a verbatim subset of https://svelte.dev/llms-full.txt, fetched 2026-09-21. The full file (~37,800 lines, ~300k tokens) overflowed a reviewer's context, so whole top-level sections were selected, never excerpted, in original order.
 
 Regenerate: download llms-full.txt, split on top-level `# ` headings outside code fences, and keep exactly these 79 sections:
 

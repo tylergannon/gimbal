@@ -23,9 +23,6 @@
 	const rowText = (value: unknown): string =>
 		typeof value === 'string' ? value : JSON.stringify(value, null, 2).replace(/\\n/g, '\n');
 
-	const truncateLeft = (value: string, max = 60): string =>
-		value.length <= max ? value : `…${value.slice(value.length - (max - 1))}`;
-
 	const digestOf = (input: unknown): string => {
 		if (input === undefined || input === null) return '';
 		if (typeof input === 'string') return input;
@@ -86,7 +83,10 @@
 		return formatDuration(Math.max(0, end - start));
 	});
 
-	const digest = $derived(truncateLeft(digestOf(part.state?.input)));
+	// One line. A path keeps its end, where the file name is; a command keeps
+	// its start. The cut is CSS, so it follows the pane's width.
+	const digest = $derived(digestOf(part.state?.input).split('\n')[0] ?? '');
+	const keepsEnd = $derived(/^\S*\/\S*$/.test(digest));
 
 	const inputEntries = $derived.by(() => {
 		const input = part.state?.input;
@@ -111,7 +111,7 @@
 	<button type="button" class="summary" aria-expanded={open} onclick={() => (manualOpen = !open)}>
 		<ChevronRightIcon size={14} class={open ? 'chevron open' : 'chevron'} />
 		<span class="name">{part.name}</span>
-		{#if digest}<span class="digest" title={digestOf(part.state?.input)}>{digest}</span>{/if}
+		{#if digest}<span class="digest" class:keeps-end={keepsEnd} title={digest}><bdi>{digest}</bdi></span>{/if}
 		<span class="spacer"></span>
 		<span class="status" data-status={status}>{statusLabel}</span>
 		{#if duration}<span class="duration">{duration}</span>{/if}
@@ -215,6 +215,10 @@
 		font-size: 13px;
 		text-overflow: ellipsis;
 		white-space: nowrap;
+	}
+	.digest.keeps-end {
+		direction: rtl;
+		text-align: left;
 	}
 	.spacer {
 		flex: 0 1 8px;

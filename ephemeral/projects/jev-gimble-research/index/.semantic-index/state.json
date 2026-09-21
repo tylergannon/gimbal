@@ -1,0 +1,101 @@
+{
+  "index_metrics": {
+    "balance_ratio": 1.0,
+    "benchmark_file_count": 2,
+    "breadth_by_level": {
+      "1": 5,
+      "2": 15,
+      "3": 51
+    },
+    "citation_count": 903,
+    "citation_density_per_leaf": 19.21,
+    "debt_marker_count": 31,
+    "exists": true,
+    "extension_counts": {
+      ".jsonl": 1,
+      ".md": 53
+    },
+    "fan_out": {
+      "max": 52,
+      "mean": 6.87,
+      "skewed_nodes": [
+        "."
+      ],
+      "variance": 162.7
+    },
+    "file_count": 54,
+    "last_benchmark_at": "2026-09-21T20:05:33+00:00",
+    "likely_leaf_count": 47,
+    "max_file_depth": 3,
+    "mean_leaf_depth": 3,
+    "orphan_leaf_count": 0,
+    "orphan_leaves": [],
+    "path": "/Users/tyler/.codex/worktrees/14b6/gimble/ephemeral/projects/jev-gimble-research/index",
+    "routing_density": 129.0,
+    "routing_file_count": 7,
+    "routing_files": [
+      ".semantic-index/evals.jsonl",
+      "README.md",
+      "TOPICS.md",
+      "routes/cookbooks/README.md",
+      "routes/foundations/README.md",
+      "routes/javascript/README.md",
+      "routes/python/README.md"
+    ],
+    "sample_likely_leaves": [
+      "sources/cookbooks-a/autoformat.md",
+      "sources/cookbooks-a/autoresearch_feature_discovery.md",
+      "sources/cookbooks-a/citation_check.md",
+      "sources/cookbooks-a/classification_using_confidence.md",
+      "sources/cookbooks-a/classifying_rag_passages.md",
+      "sources/cookbooks-a/consistency_choice_cookbook.md",
+      "sources/cookbooks-a/consistency_noul_cookbook.md",
+      "sources/cookbooks-a/date_extraction_cookbook.md",
+      "sources/cookbooks-a/entity_alignment.md",
+      "sources/cookbooks-b/cascades-and-bounded-extraction.md",
+      "sources/cookbooks-b/retrieval-and-hierarchies.md",
+      "sources/cookbooks-b/skill-routing-and-batching.md",
+      "sources/cookbooks-b/tool-routing-and-guardrails.md",
+      "sources/core-foundations/interface-capabilities.md",
+      "sources/core-foundations/primitives-confidence.md",
+      "sources/core-foundations/programmatic-supervision.md",
+      "sources/js-sdk-classes/api-error-envelope-and-client-http-errors.md",
+      "sources/js-sdk-classes/api-promise-and-response-access.md",
+      "sources/js-sdk-classes/base-errors-and-network-failures.md",
+      "sources/js-sdk-classes/client-configuration-and-system-one.md",
+      "sources/js-sdk-classes/rate-limit-and-server-errors.md",
+      "sources/js-sdk-functions-interfaces-a/logging-and-model-metadata.md",
+      "sources/js-sdk-functions-interfaces-a/question-construction.md",
+      "sources/js-sdk-functions-interfaces-a/request-options-and-retry-policy.md",
+      "sources/js-sdk-functions-interfaces-a/response-types.md",
+      "sources/js-sdk-interfaces-b-overview/client-configuration-and-response-access.md",
+      "sources/js-sdk-interfaces-b-overview/score-semantics.md",
+      "sources/js-sdk-interfaces-b-overview/sdk-version-evolution-and-compatibility.md",
+      "sources/js-sdk-interfaces-b-overview/system-one-contract.md",
+      "sources/js-sdk-type-aliases/generic-result-and-score-typing.md",
+      "sources/js-sdk-type-aliases/json-state-and-entry-types.md",
+      "sources/js-sdk-type-aliases/question-and-criteria-types.md",
+      "sources/js-sdk-type-aliases/runtime-fetch-environment-and-logging-seams.md",
+      "sources/js-sdk-variables/environment-logging-and-version-constants.md",
+      "sources/patterns-demos/agent-onboarding-and-coding-agents.md",
+      "sources/patterns-demos/composite-scoring.md",
+      "sources/patterns-demos/confidence-gated-routing.md",
+      "sources/patterns-demos/decision-model-primer.md",
+      "sources/patterns-demos/documentation-catalog-clues.md",
+      "sources/patterns-demos/intent-routing.md"
+    ],
+    "state": null
+  },
+  "last_housekeeping_at": "2026-09-21T20:05:52+00:00",
+  "last_mode": "scratch-build",
+  "source": {
+    "exists": true,
+    "extension_counts": {
+      ".md": 110,
+      ".txt": 2,
+      ".xml": 1
+    },
+    "file_count": 113,
+    "path": "/Users/tyler/.codex/worktrees/14b6/gimble/ephemeral/projects/jev-gimble-research/token-cache/official-docs"
+  }
+}

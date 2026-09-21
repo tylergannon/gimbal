@@ -1,0 +1,75 @@
+# Decision primitives, probability, and confidence
+
+## Purpose
+
+This leaf maps Jev's three output shapes to programmatic decisions and records the confidence semantics needed to gate automated supervision safely.
+
+## Key concepts
+
+- **Choice selects among a closed set.** A Choice question returns the highest-probability option, the full distribution over caller-supplied options, and a scalar confidence derived from that distribution. It is appropriate for routing or coaching-mode selection, not an open-ended response. `/Users/tyler/.codex/worktrees/14b6/gimble/ephemeral/projects/jev-gimble-research/token-cache/official-docs/pages/primitives/choice.md:238-253`; `/Users/tyler/.codex/worktrees/14b6/gimble/ephemeral/projects/jev-gimble-research/token-cache/official-docs/pages/primitives/choice.md:317-349`
+- **Choice criteria are part of the model input.** Option names and descriptions are visible to the model, while question IDs are not. Use descriptions to distinguish adjacent interventions, include `other`/`none of the above` when the set is not exhaustive, and use structured `what`, `not_for`, and examples when boundaries remain confused. A Choice accepts up to 255 options. `/Users/tyler/.codex/worktrees/14b6/gimble/ephemeral/projects/jev-gimble-research/token-cache/official-docs/pages/primitives/choice.md:255-284`; `/Users/tyler/.codex/worktrees/14b6/gimble/ephemeral/projects/jev-gimble-research/token-cache/official-docs/pages/primitives/choice.md:351-357`; `/Users/tyler/.codex/worktrees/14b6/gimble/ephemeral/projects/jev-gimble-research/token-cache/official-docs/pages/primitives/choice.md:599-663`
+- **Noul estimates one yes/no proposition.** The single `noul` value is the probability of “yes”: values near 1 are strong yes, near 0 strong no, and near 0.5 ambiguous. Noul has no separate confidence field because one probability completely specifies the binary distribution. `/Users/tyler/.codex/worktrees/14b6/gimble/ephemeral/projects/jev-gimble-research/token-cache/official-docs/pages/primitives/noul.md:238-248`; `/Users/tyler/.codex/worktrees/14b6/gimble/ephemeral/projects/jev-gimble-research/token-cache/official-docs/pages/primitives/noul.md:337-355`
+- **Noul is probability of a proposition, not degree on a scale.** A middle value can mean weak evidence or ambiguity; it does not mean “medium severity.” Degree belongs in Score. Threshold direction should reflect asymmetric error cost, and an ambiguous band can route to review. `/Users/tyler/.codex/worktrees/14b6/gimble/ephemeral/projects/jev-gimble-research/token-cache/official-docs/pages/primitives/noul.md:356-378`
+- **Noul questions should be atomic and positively oriented.** A conjunction such as “angry and requesting a refund” should become two Nouls combined in code. Phrase high values as yes to avoid inverted downstream logic, and add explicit true/false criteria only when the boundary needs clarification. `/Users/tyler/.codex/worktrees/14b6/gimble/ephemeral/projects/jev-gimble-research/token-cache/official-docs/pages/primitives/noul.md:380-392`
+- **Score locates state on a caller-defined ordered rubric.** It accepts 2–10 ordered level descriptions. The output includes the probability-weighted numeric position, the level legend, probabilities, and confidence; a fractional score represents a distribution between levels, not a hidden continuous ground-truth quantity. `/Users/tyler/.codex/worktrees/14b6/gimble/ephemeral/projects/jev-gimble-research/token-cache/official-docs/pages/primitives/score.md:550-565`; `/Users/tyler/.codex/worktrees/14b6/gimble/ephemeral/projects/jev-gimble-research/token-cache/official-docs/pages/primitives/score.md:628-669`
+- **Read Score's distribution, not just its mean.** Different probability distributions can produce the same score, and confidence describes concentration rather than correctness. Low Score confidence can mean overlapping levels, a multi-dimensional question, or insufficient state. `/Users/tyler/.codex/worktrees/14b6/gimble/ephemeral/projects/jev-gimble-research/token-cache/official-docs/pages/primitives/score.md:671-738`
+- **Good Score levels describe situations.** The model sees descriptions but not level numbers or neighboring relationships, so “moderately severe,” number-only levels, and “worse than previous” are weak. Each Score should measure one dimension; add only levels that are distinct, then validate wording on known examples. `/Users/tyler/.codex/worktrees/14b6/gimble/ephemeral/projects/jev-gimble-research/token-cache/official-docs/pages/primitives/score.md:740-760`
+- **Confidence is derived from the returned probability distribution.** For Choice and Score, peaked distributions are high-confidence and flat distributions low-confidence. The docs' three-option interactive demo uses an approximation, while the production formula is not specified. Full probabilities are available if a different uncertainty statistic better fits the application. `/Users/tyler/.codex/worktrees/14b6/gimble/ephemeral/projects/jev-gimble-research/token-cache/official-docs/pages/confidence.md:143-157`
+- **Calibration is population-level, not a guarantee about one answer.** System One probabilities are trained to reflect uncertainty across groups of predictions. High confidence says the distribution is concentrated; it does not prove the selected answer is correct. `/Users/tyler/.codex/worktrees/14b6/gimble/ephemeral/projects/jev-gimble-research/token-cache/official-docs/pages/concepts/system-one.md:19-23`; `/Users/tyler/.codex/worktrees/14b6/gimble/ephemeral/projects/jev-gimble-research/token-cache/official-docs/pages/primitives/score.md:730-734`
+- **Confidence should change system behavior, not decorate logs.** The documented pattern is high confidence → automatic action, medium → confirmation/review/more evidence, low → no action or escalation. The boundaries depend on the consequence of a wrong action and should be tuned using the application's own data. `/Users/tyler/.codex/worktrees/14b6/gimble/ephemeral/projects/jev-gimble-research/token-cache/official-docs/pages/confidence.md:159-179`; `/Users/tyler/.codex/worktrees/14b6/gimble/ephemeral/projects/jev-gimble-research/token-cache/official-docs/pages/confidence.md:181-220`
+- **Questions over one state should be batched.** Different primitive types can be mixed; questions are evaluated independently and in parallel, adding question tokens but little latency. The docs report a worked 13-question comparison as 11.5× cheaper and 9.6× faster than separate calls, though that is a cookbook-specific observation rather than a universal benchmark. `/Users/tyler/.codex/worktrees/14b6/gimble/ephemeral/projects/jev-gimble-research/token-cache/official-docs/pages/primitives.md:360-445`
+- **Dependent questions require another request.** Answers in one request do not become context for sibling questions. Only perform a second call when code genuinely needs the first answer to fetch evidence, build state, or choose the next answer space; otherwise fan out speculatively and ignore unused answers. `/Users/tyler/.codex/worktrees/14b6/gimble/ephemeral/projects/jev-gimble-research/token-cache/official-docs/pages/primitives.md:448-460`
+- **Composite judgments belong in code.** Split broad judgments into independent Nouls or Scores, normalize differently sized Score scales, and combine with explicit weights or a downstream classical model. This keeps the weighting inspectable and editable without prompt rewrites. `/Users/tyler/.codex/worktrees/14b6/gimble/ephemeral/projects/jev-gimble-research/token-cache/official-docs/pages/concepts/how-to-build-with-system-one.md:761-800`; `/Users/tyler/.codex/worktrees/14b6/gimble/ephemeral/projects/jev-gimble-research/token-cache/official-docs/pages/primitives/score.md:762-764`; `/Users/tyler/.codex/worktrees/14b6/gimble/ephemeral/projects/jev-gimble-research/token-cache/official-docs/pages/primitives/score.md:873-933`
+
+## Important citation bookmarks
+
+- Primitive selection guide: `/Users/tyler/.codex/worktrees/14b6/gimble/ephemeral/projects/jev-gimble-research/token-cache/official-docs/pages/primitives.md:279-312`
+- Choice request/response contract: `/Users/tyler/.codex/worktrees/14b6/gimble/ephemeral/projects/jev-gimble-research/token-cache/official-docs/pages/api.md:114-150`; `/Users/tyler/.codex/worktrees/14b6/gimble/ephemeral/projects/jev-gimble-research/token-cache/official-docs/pages/api.md:246-280`
+- Noul request/response contract: `/Users/tyler/.codex/worktrees/14b6/gimble/ephemeral/projects/jev-gimble-research/token-cache/official-docs/pages/api.md:73-112`; `/Users/tyler/.codex/worktrees/14b6/gimble/ephemeral/projects/jev-gimble-research/token-cache/official-docs/pages/api.md:225-243`
+- Score request/response contract: `/Users/tyler/.codex/worktrees/14b6/gimble/ephemeral/projects/jev-gimble-research/token-cache/official-docs/pages/api.md:152-178`; `/Users/tyler/.codex/worktrees/14b6/gimble/ephemeral/projects/jev-gimble-research/token-cache/official-docs/pages/api.md:283-322`
+- Confidence semantics and three-way routing: `/Users/tyler/.codex/worktrees/14b6/gimble/ephemeral/projects/jev-gimble-research/token-cache/official-docs/pages/confidence.md:143-179`
+- Risk-adjusted threshold example: `/Users/tyler/.codex/worktrees/14b6/gimble/ephemeral/projects/jev-gimble-research/token-cache/official-docs/pages/confidence.md:181-220`
+- Batch/parallel and dependency rules: `/Users/tyler/.codex/worktrees/14b6/gimble/ephemeral/projects/jev-gimble-research/token-cache/official-docs/pages/primitives.md:360-460`
+
+## Themes
+
+- **Typed evidence rather than prose:** every answer can drive a branch, threshold, rank, or feature without parsing generated language.
+- **Honest abstention:** uncertainty should create review or evidence-gathering paths.
+- **One semantic dimension per question:** diagnosable signals are more useful than a single opaque “agent quality” score.
+- **Code-side policy:** risk tolerance, weights, thresholds, and side effects remain explicit ordinary code.
+- **Probabilities as data:** keep full distributions for calibration, monitoring, and downstream modeling rather than persisting only the winning label.
+
+## Gotchas and version limitations
+
+- Confidence is not correctness, and the local docs contain no per-domain accuracy or calibration error. A high-confidence wrong answer is still possible. `/Users/tyler/.codex/worktrees/14b6/gimble/ephemeral/projects/jev-gimble-research/token-cache/official-docs/pages/concepts/system-one.md:19-23`; `/Users/tyler/.codex/worktrees/14b6/gimble/ephemeral/projects/jev-gimble-research/token-cache/official-docs/pages/primitives/score.md:730-734`
+- The same semantic question expressed as Noul versus Choice need not yield arithmetically comparable probability, and a question plus its negation need not sum to one. Do not transfer thresholds across primitive types or impose identities across separately evaluated questions. `/Users/tyler/.codex/worktrees/14b6/gimble/ephemeral/projects/jev-gimble-research/token-cache/official-docs/pages/model-jaggedness/jev-1.13.md:116-137`
+- Score is weak for numeric precision. Do not interpolate its levels to reconstruct a real magnitude; use the expectation for ranking/thresholding and keep exact arithmetic in code. `/Users/tyler/.codex/worktrees/14b6/gimble/ephemeral/projects/jev-gimble-research/token-cache/official-docs/pages/model-jaggedness/jev-1.13.md:35-76`
+- Adding rubric examples can raise confidence without making an answer more correct. Validate examples on held-out inputs with known expected levels. `/Users/tyler/.codex/worktrees/14b6/gimble/ephemeral/projects/jev-gimble-research/token-cache/official-docs/pages/primitives/score.md:1015-1025`
+- The docs do not publish the exact confidence function, calibration dataset, expected calibration error, or stability of values across model versions.
+
+## Task recipes
+
+### Encode “does this run need intervention?”
+
+1. Use independent Nouls for observable failure conditions such as “Is the agent repeating an unsuccessful action?”, “Does the latest tool result contradict the agent's claim?”, and “Is required user authority missing?”; do not join them into one compound question. Start at `/Users/tyler/.codex/worktrees/14b6/gimble/ephemeral/projects/jev-gimble-research/token-cache/official-docs/pages/primitives/noul.md:380-392`.
+2. Store each probability, then compose intervention policy in code. Use separate positive/negative thresholds and an uncertain band sent to a reviewer. Start at `/Users/tyler/.codex/worktrees/14b6/gimble/ephemeral/projects/jev-gimble-research/token-cache/official-docs/pages/primitives/noul.md:394-444`.
+3. Tune thresholds by false-intervention versus missed-intervention cost on labeled Gimble runs, not by copying documentation examples. Start at `/Users/tyler/.codex/worktrees/14b6/gimble/ephemeral/projects/jev-gimble-research/token-cache/official-docs/pages/confidence.md:175-220`.
+
+### Select the coaching mode
+
+1. Use Choice only after enumerating a closed, actionable set such as `clarify_goal`, `point_to_evidence`, `stop_repetition`, `request_authority`, `escalate_reasoner`, and `none`. Include `none` because a trace may need no coaching. Start at `/Users/tyler/.codex/worktrees/14b6/gimble/ephemeral/projects/jev-gimble-research/token-cache/official-docs/pages/primitives/choice.md:351-357`.
+2. Give each option contrastive `what`, `not_for`, and real trace examples. Start at `/Users/tyler/.codex/worktrees/14b6/gimble/ephemeral/projects/jev-gimble-research/token-cache/official-docs/pages/primitives/choice.md:599-663`.
+3. Use the full distribution: low confidence can trigger review, and a meaningful runner-up can cause a second check or multiple flags rather than blindly accepting the winner. Start at `/Users/tyler/.codex/worktrees/14b6/gimble/ephemeral/projects/jev-gimble-research/token-cache/official-docs/pages/primitives/choice.md:496-504` and `/Users/tyler/.codex/worktrees/14b6/gimble/ephemeral/projects/jev-gimble-research/token-cache/official-docs/pages/primitives/choice.md:562-590`.
+
+### Score intervention urgency without hiding dimensions
+
+1. Ask separate Scores for consequence, time sensitivity, and evidence sufficiency; define concrete situations at every level. Start at `/Users/tyler/.codex/worktrees/14b6/gimble/ephemeral/projects/jev-gimble-research/token-cache/official-docs/pages/primitives/score.md:740-760`.
+2. Normalize scales before weighting and keep the weights in code. Start at `/Users/tyler/.codex/worktrees/14b6/gimble/ephemeral/projects/jev-gimble-research/token-cache/official-docs/pages/primitives/score.md:873-933`.
+3. Gate action on both score and confidence; a high severity estimate with low confidence should usually gather evidence or escalate instead of issuing a forceful automatic steer.
+
+## Gaps left by this source segment
+
+- No exact confidence formula or published calibration metrics.
+- No guidance on online recalibration under label delay or class imbalance.
+- No benchmark for agent-trace classification, coaching selection, or supervision outcomes.
+

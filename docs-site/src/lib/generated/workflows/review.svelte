@@ -2,6 +2,10 @@
 <script lang="ts">
   import WorkflowDiagram from "#lib/components/WorkflowDiagram.svelte";
   import src from "./review.svg";
+
+  const prompts = [
+    { role: "code-review", text: "Read the code in your working directory. Assess the goal given below. Report concrete correctness issues; return an empty findings list when there are none. Make no changes." },
+  ];
 </script>
 
-<WorkflowDiagram title="review workflow" {src} />
+<WorkflowDiagram title="review workflow" {src} {prompts} />

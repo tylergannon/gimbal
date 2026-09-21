@@ -23,7 +23,7 @@ for (const file of inputs) {
         theme: "base",
         securityLevel: "strict",
         fontFamily: "Inter, ui-sans-serif, sans-serif",
-        flowchart: { curve: "basis", htmlLabels: true, useMaxWidth: false },
+        flowchart: { curve: "basis", htmlLabels: true, useMaxWidth: false, wrappingWidth: 320 },
         themeVariables: {
           background: "transparent",
           primaryColor: "#292524",

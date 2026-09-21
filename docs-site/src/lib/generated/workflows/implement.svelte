@@ -2,6 +2,11 @@
 <script lang="ts">
   import WorkflowDiagram from "#lib/components/WorkflowDiagram.svelte";
   import src from "./implement.svg";
+
+  const prompts = [
+    { role: "coding", text: "Read the promise, the definition-of-done file, and the selected task with its definition of done. Implement only that task in the repository. Make the actual source changes and gather useful evidence. Do not edit the definition of done or this workflow; do not commit, push, merge, deploy, or add proof scripts and run output. Preserve unrelated work. Answer with what changed and what you personally ran or observed." },
+    { role: "qa-orchestration", text: "Independently validate the selected task and the overall promise. Read the promise, the supplied definition-of-done file, the task's own definition of done, and the completion rule. Inspect the actual repository and recorded evidence, then personally observe any behavior needed by the definitions of done that checks do not establish. Make no source changes and do not treat the worker report as proof. Unit tests and other commands are evidence, never validation by themselves. ValidationPassed is true when the promise and definition of done hold at 90–95% with no substantial gap. Put remaining optional finishing work in SmallGaps; small gaps must not make validation fail or trigger another lap. Set ValidationPassed false only for a substantial unmet requirement or invalid evidence, and list each reason in SubstantialGaps. Do not demand 100%, style preferences, polish, or unrelated improvements." },
+  ];
 </script>
 
-<WorkflowDiagram title="implement workflow" {src} />
+<WorkflowDiagram title="implement workflow" {src} {prompts} />

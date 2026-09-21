@@ -2,7 +2,6 @@ package generate
 
 import (
 	"fmt"
-	"html"
 	"strings"
 
 	"github.com/tylergannon/gimble/workflow"
@@ -34,14 +33,18 @@ func Mermaid(graph workflow.Graph) []byte {
 	r.line("classDef arm fill:#172554,stroke:#60a5fa,color:#eff6ff")
 	r.line("classDef exit fill:#262626,stroke:#a3a3a3,color:#fafafa")
 	r.line("classDef diagnostic fill:#450a0a,stroke:#f87171,color:#fef2f2,stroke-width:2px")
-	r.line("classDef boundary fill:#1c1917,stroke:#78716c,color:#d6d3d1")
 
 	return []byte(r.String())
 }
 
 type mermaidSpan struct {
 	entry string
-	exits []string
+	exits []mermaidExit
+}
+
+type mermaidExit struct {
+	node  string
+	label string
 }
 
 type mermaidRenderer struct {
@@ -71,8 +74,6 @@ func (r *mermaidRenderer) node(shape, label, class string) string {
 		r.line(`%s{"%s"}:::%s`, id, label, class)
 	case "hexagon":
 		r.line(`%s{{"%s"}}:::%s`, id, label, class)
-	case "boundary":
-		r.line(`%s[" "]:::%s`, id, class)
 	default:
 		r.line(`%s["%s"]:::%s`, id, label, class)
 	}
@@ -95,6 +96,14 @@ func (r *mermaidRenderer) dashed(from, to, label string) {
 	r.line(`%s -. "%s" .-> %s`, from, mermaidEdgeLabel(label), to)
 }
 
+func (r *mermaidRenderer) connect(exit mermaidExit, to, label string) {
+	r.edge(exit.node, to, joinedEdgeLabel(exit.label, label))
+}
+
+func (r *mermaidRenderer) connectDashed(exit mermaidExit, to, label string) {
+	r.dashed(exit.node, to, joinedEdgeLabel(exit.label, label))
+}
+
 func (r *mermaidRenderer) body(operations []workflow.Operation) mermaidSpan {
 	var result mermaidSpan
 	for _, operation := range operations {
@@ -106,7 +115,7 @@ func (r *mermaidRenderer) body(operations []workflow.Operation) mermaidSpan {
 			result.entry = span.entry
 		}
 		for _, exit := range result.exits {
-			r.edge(exit, span.entry, "")
+			r.connect(exit, span.entry, "")
 		}
 		result.exits = span.exits
 	}
@@ -122,7 +131,11 @@ func (r *mermaidRenderer) operation(operation workflow.Operation) mermaidSpan {
 		if role == "" {
 			role = operation.Session
 		}
-		return r.single(r.node("generate", "Generate<br/>"+role, "generate"))
+		label := "Generate · " + role
+		if prompt := promptExcerpt(operation.Prompt); prompt != "" {
+			label += "<br/>Prompt<br/>" + prompt
+		}
+		return r.single(r.node("generate", label, "generate"))
 	case workflow.Interview:
 		return r.single(r.node("rect", "Interview<br/>"+operation.Name, "interview"))
 	case workflow.Command:
@@ -132,15 +145,22 @@ func (r *mermaidRenderer) operation(operation workflow.Operation) mermaidSpan {
 	case workflow.Scope:
 		return r.container("Scope · "+operation.Name, operation.Body)
 	case workflow.PromiseLoop:
-		return r.loop("Loop · "+operation.Name, "task", "complete", operation.Body)
+		return r.loop("Planner loop · "+operation.Name, "Next planned task?", "yes", "planner stops", operation.Body)
 	case workflow.Iterate:
-		return r.loop("Loop · "+operation.Name, "item", "done", operation.Body)
+		return r.loop("For each · "+operation.Name, "Next item?", "yes", "done", operation.Body)
 	case workflow.Repeat:
-		return r.loop("Loop · repeat", "repeat", "done", operation.Body)
+		return r.loop("Repeat", "Run another round?", "yes", "no", operation.Body)
 	case workflow.Group:
 		return r.group(operation)
 	case workflow.Condition:
-		if !conditionHasVisibleBranch(operation) {
+		if command, ok := optionalCommand(operation); ok {
+			label := "Optional Command<br/>" + command.Name
+			if condition := humanCondition(operation.Branches[0].Case); condition != "" {
+				label += "<br/>" + strings.TrimSuffix(condition, "?")
+			}
+			return r.single(r.node("rect", label, "command"))
+		}
+		if !r.conditionVisible(operation) {
 			return mermaidSpan{}
 		}
 		return r.condition(operation)
@@ -150,11 +170,11 @@ func (r *mermaidRenderer) operation(operation workflow.Operation) mermaidSpan {
 }
 
 func (r *mermaidRenderer) single(node string) mermaidSpan {
-	return mermaidSpan{entry: node, exits: []string{node}}
+	return mermaidSpan{entry: node, exits: []mermaidExit{{node: node}}}
 }
 
 func (r *mermaidRenderer) container(title string, operations []workflow.Operation) mermaidSpan {
-	if !hasDiagramOperation(operations) {
+	if !r.hasDiagramOperation(operations) {
 		return mermaidSpan{}
 	}
 	subgraph := r.id("s")
@@ -167,24 +187,24 @@ func (r *mermaidRenderer) container(title string, operations []workflow.Operatio
 	return body
 }
 
-func (r *mermaidRenderer) loop(title, bodyLabel, exitLabel string, operations []workflow.Operation) mermaidSpan {
+func (r *mermaidRenderer) loop(title, decisionLabel, bodyLabel, exitLabel string, operations []workflow.Operation) mermaidSpan {
 	subgraph := r.id("s")
 	r.line(`subgraph %s["%s"]`, subgraph, mermaidLabel(title))
 	r.indent++
 	r.line("direction TB")
-	decision := r.node("diamond", "Loop", "structure")
-	done := r.node("boundary", "", "boundary")
+	decision := r.node("diamond", decisionLabel, "structure")
+	done := r.node("rect", "Loop complete", "exit")
 	body := r.body(operations)
 	if body.entry != "" {
 		r.edge(decision, body.entry, bodyLabel)
 		for _, exit := range body.exits {
-			r.dashed(exit, decision, "next")
+			r.connectDashed(exit, decision, "again")
 		}
 	}
 	r.edge(decision, done, exitLabel)
 	r.indent--
 	r.line("end")
-	return mermaidSpan{entry: decision, exits: []string{done}}
+	return mermaidSpan{entry: decision, exits: []mermaidExit{{node: done}}}
 }
 
 func (r *mermaidRenderer) group(group workflow.Group) mermaidSpan {
@@ -193,69 +213,88 @@ func (r *mermaidRenderer) group(group workflow.Group) mermaidSpan {
 	r.indent++
 	r.line("direction LR")
 	fork := r.node("hexagon", "Fan out", "structure")
-	join := r.node("boundary", "", "boundary")
-	for _, child := range group.Children {
-		arm := r.node("rect", armLabel(child), "arm")
+	var exits []mermaidExit
+	for _, arms := range groupedArms(group.Children) {
+		arm := r.node("rect", groupedArmLabel(arms), "arm")
 		r.edge(fork, arm, "")
-		r.edge(arm, join, "")
+		exits = append(exits, mermaidExit{node: arm})
 	}
 	if len(group.Children) == 0 {
-		r.edge(fork, join, "")
+		exits = append(exits, mermaidExit{node: fork})
 	}
 	r.indent--
 	r.line("end")
-	return mermaidSpan{entry: fork, exits: []string{join}}
+	return mermaidSpan{entry: fork, exits: exits}
 }
 
 func (r *mermaidRenderer) condition(condition workflow.Condition) mermaidSpan {
-	decision := r.node("diamond", "condition", "structure")
-	join := r.node("boundary", "", "boundary")
+	branches := condition.Branches
+	if len(branches) == 0 {
+		return mermaidSpan{}
+	}
+	single := len(branches) == 1 && branches[0].Case != ""
+	decisionLabel := "Choose"
+	if single {
+		if label := humanCondition(branches[0].Case); label != "" {
+			decisionLabel = label
+		} else {
+			decisionLabel = "Decision"
+		}
+	}
+	decision := r.node("diamond", decisionLabel, "structure")
+	var exits []mermaidExit
 	hasDefault := false
-	for _, branch := range condition.Branches {
-		label := mermaidConditionLabel(branch.Case)
-		if label == "" {
+	for index, branch := range branches {
+		label := humanCondition(branch.Case)
+		if strings.TrimSpace(branch.Case) == "" {
 			label = "else"
 			hasDefault = true
+		} else if single {
+			label = "yes"
+		} else if label == "" {
+			label = fmt.Sprintf("path %d", index+1)
 		}
 		body := r.body(branch.Body)
 		if body.entry == "" {
 			if branch.Exits {
-				exit := r.node("rect", "exit", "exit")
+				exit := r.node("rect", conditionExitLabel(branch.Case), "exit")
 				r.edge(decision, exit, label)
 			} else {
-				r.edge(decision, join, label)
+				exits = append(exits, mermaidExit{node: decision, label: label})
 			}
 			continue
 		}
 		r.edge(decision, body.entry, label)
 		if branch.Exits {
-			exit := r.node("rect", "exit", "exit")
+			exit := r.node("rect", conditionExitLabel(branch.Case), "exit")
 			for _, tail := range body.exits {
-				r.edge(tail, exit, "")
+				r.connect(tail, exit, "")
 			}
 			continue
 		}
-		for _, tail := range body.exits {
-			r.edge(tail, join, "")
-		}
+		exits = append(exits, body.exits...)
 	}
 	if !hasDefault {
-		r.edge(decision, join, "otherwise")
+		label := "otherwise"
+		if single {
+			label = "no"
+		}
+		exits = append(exits, mermaidExit{node: decision, label: label})
 	}
-	return mermaidSpan{entry: decision, exits: []string{join}}
+	return mermaidSpan{entry: decision, exits: exits}
 }
 
-func hasDiagramOperation(operations []workflow.Operation) bool {
+func (r *mermaidRenderer) hasDiagramOperation(operations []workflow.Operation) bool {
 	for _, operation := range operations {
 		switch operation := operation.(type) {
 		case workflow.Session, workflow.Set:
 			continue
 		case workflow.Scope:
-			if hasDiagramOperation(operation.Body) {
+			if r.hasDiagramOperation(operation.Body) {
 				return true
 			}
 		case workflow.Condition:
-			if conditionHasVisibleBranch(operation) {
+			if r.conditionVisible(operation) {
 				return true
 			}
 		default:
@@ -265,18 +304,72 @@ func hasDiagramOperation(operations []workflow.Operation) bool {
 	return false
 }
 
-func conditionHasVisibleBranch(condition workflow.Condition) bool {
+func (r *mermaidRenderer) conditionVisible(condition workflow.Condition) bool {
+	if _, ok := optionalCommand(condition); ok {
+		return true
+	}
 	for _, branch := range condition.Branches {
-		if hasDiagramOperation(branch.Body) {
+		if r.hasDiagramOperation(branch.Body) || (branch.Exits && meaningfulExitGuard(branch.Case)) {
 			return true
 		}
 	}
 	return false
 }
 
-func armLabel(child workflow.GroupChild) string {
-	lines := []string{"Arm · " + child.Name}
-	lines = append(lines, armSummaries(child.Body)...)
+func meaningfulExitGuard(condition string) bool {
+	condition = strings.TrimSpace(condition)
+	return strings.Contains(condition, "ValidationPassed") ||
+		strings.Contains(condition, "OnlyNitpicks") ||
+		strings.HasPrefix(condition, "tasksRun >=")
+}
+
+func optionalCommand(condition workflow.Condition) (workflow.Command, bool) {
+	if len(condition.Branches) != 1 || condition.Branches[0].Exits {
+		return workflow.Command{}, false
+	}
+	var command workflow.Command
+	visible := 0
+	for _, operation := range condition.Branches[0].Body {
+		switch operation := operation.(type) {
+		case workflow.Session, workflow.Set:
+			continue
+		case workflow.Command:
+			command = operation
+			visible++
+		default:
+			return workflow.Command{}, false
+		}
+	}
+	return command, visible == 1
+}
+
+type armGroup struct {
+	names     []string
+	summaries []string
+}
+
+func groupedArms(children []workflow.GroupChild) []armGroup {
+	var groups []armGroup
+	positions := map[string]int{}
+	for _, child := range children {
+		summaries := armSummaries(child.Body)
+		key := strings.Join(summaries, "\x00")
+		if position, ok := positions[key]; ok {
+			groups[position].names = append(groups[position].names, child.Name)
+			continue
+		}
+		positions[key] = len(groups)
+		groups = append(groups, armGroup{names: []string{child.Name}, summaries: summaries})
+	}
+	return groups
+}
+
+func groupedArmLabel(group armGroup) string {
+	title := "Arm · " + group.names[0]
+	if len(group.names) > 1 {
+		title = fmt.Sprintf("%d parallel arms · %s", len(group.names), strings.Join(group.names, ", "))
+	}
+	lines := append([]string{title}, group.summaries...)
 	return strings.Join(lines, "<br/>")
 }
 
@@ -298,6 +391,9 @@ func armSummaries(operations []workflow.Operation) []string {
 					role = operation.Session
 				}
 				label = "Generate · " + role
+				if prompt := promptExcerpt(operation.Prompt); prompt != "" {
+					label += "<br/>Prompt<br/>" + prompt
+				}
 			case workflow.Command:
 				label = "Command · " + operation.Name
 			case workflow.Interview:
@@ -344,24 +440,112 @@ func armSummaries(operations []workflow.Operation) []string {
 func mermaidLabel(label string) string {
 	parts := strings.Split(label, "<br/>")
 	for i, part := range parts {
-		parts[i] = html.EscapeString(strings.Join(strings.Fields(part), " "))
+		parts[i] = mermaidText(strings.Join(strings.Fields(part), " "))
 	}
 	return strings.Join(parts, "<br/>")
 }
 
-func mermaidConditionLabel(label string) string {
+func humanCondition(label string) string {
 	label = strings.Join(strings.Fields(label), " ")
-	if _, predicate, ok := strings.Cut(label, ";"); ok {
+	initialization := ""
+	if init, predicate, ok := strings.Cut(label, ";"); ok {
+		initialization = init
 		label = strings.TrimSpace(predicate)
 	}
-	const limit = 48
-	runes := []rune(label)
-	if len(runes) > limit {
-		label = string(runes[:limit-1]) + "…"
+	switch {
+	case strings.Contains(initialization, "task.Validation.Command") || strings.Contains(label, "task.Validation.Command"):
+		return "Task validation command supplied?"
+	case strings.Contains(label, "ValidationPassed"):
+		return "Independent validation passed?"
+	case strings.Contains(label, "tasksRun >= params.MaxTasks"):
+		return "Task limit reached?"
+	case strings.Contains(label, "finalVerdict.OnlyNitpicks"):
+		return "Final review passed?"
+	case strings.Contains(label, "OnlyNitpicks") && strings.Contains(label, "MissingTopics"):
+		return "Editor accepted the document?"
+	case strings.Contains(label, "verdict.OnlyNitpicks"):
+		return "Review found only nitpicks?"
+	case strings.Contains(label, "verdict.MissingTopics"):
+		return "Editor found missing research topics?"
+	case label == `w.Ready != ""`:
+		return "Workload ready?"
+	case label == "err != nil || code != 0" || label == "exit != 0":
+		return "Command failed?"
+	case label == "err == nil":
+		return "Command succeeded?"
+	case strings.Contains(label, "len(extraTopLevels) > 0"):
+		return "Extra top levels needed?"
+	case strings.Contains(label, "tasksRun >= len(extraTopLevels)"):
+		return "All extra top levels complete?"
+	case strings.Contains(label, "len(extraTopRepairs) > 0"):
+		return "Extra repairs needed?"
+	case strings.Contains(label, "tasksRun >= len(extraTopRepairs)"):
+		return "All extra repairs complete?"
 	}
-	return label
+	return ""
 }
 
 func mermaidEdgeLabel(label string) string {
-	return strings.ReplaceAll(mermaidLabel(label), "|", "&#124;")
+	return mermaidLabel(label)
+}
+
+func joinedEdgeLabel(first, second string) string {
+	switch {
+	case first == "":
+		return second
+	case second == "":
+		return first
+	default:
+		return first + " · " + second
+	}
+}
+
+func mermaidText(text string) string {
+	replacer := strings.NewReplacer(
+		"#", "#35;",
+		"&", "#38;",
+		`"`, "#quot;",
+		"<", "#60;",
+		">", "#62;",
+		"|", "#124;",
+	)
+	return replacer.Replace(text)
+}
+
+func promptExcerpt(prompt string) string {
+	prompt = strings.Join(strings.Fields(prompt), " ")
+	if prompt == "" {
+		return ""
+	}
+	end := 0
+	sentences := 0
+	for i, r := range prompt {
+		if r != '.' && r != '?' && r != '!' {
+			continue
+		}
+		next := i + len(string(r))
+		if next < len(prompt) && prompt[next] != ' ' {
+			continue
+		}
+		sentences++
+		end = next
+		if sentences == 2 {
+			break
+		}
+	}
+	if end == 0 || end == len(prompt) {
+		return prompt
+	}
+	return prompt[:end] + " …"
+}
+
+func conditionExitLabel(condition string) string {
+	switch {
+	case strings.Contains(condition, "ValidationPassed"), strings.Contains(condition, "OnlyNitpicks"):
+		return "Finish"
+	case strings.Contains(condition, "tasksRun >= len("):
+		return "Done"
+	default:
+		return "Stop"
+	}
 }

@@ -74,7 +74,9 @@ func TestSourceWritesMermaidAndSvelteComponent(t *testing.T) {
 	}
 	for _, want := range [][]byte{
 		[]byte(`import src from "./fixture.svg";`),
-		[]byte(`<WorkflowDiagram title="fixture workflow" {src} />`),
+		[]byte(`{ role: "lead", text: "do the work" }`),
+		[]byte(`{ role: "lead", text: "check the work" }`),
+		[]byte(`<WorkflowDiagram title="fixture workflow" {src} {prompts} />`),
 	} {
 		if !bytes.Contains(component, want) {
 			t.Errorf("generated component lacks %q:\n%s", want, component)
@@ -110,7 +112,7 @@ func TestMermaidOmitsProgramDetails(t *testing.T) {
 			t.Errorf("Mermaid output contains program detail %q:\n%s", unwanted, got)
 		}
 	}
-	if !bytes.Contains(got, []byte(`subgraph s2["Loop · tasks"]`)) {
+	if !bytes.Contains(got, []byte(`subgraph s2["Planner loop · tasks"]`)) {
 		t.Errorf("Mermaid output lacks loop box:\n%s", got)
 	}
 }
@@ -141,16 +143,87 @@ func TestMermaidSummarizesFanOutArms(t *testing.T) {
 func TestMermaidKeepsConditionLabelsPresentational(t *testing.T) {
 	graph := workflow.Graph{Name: "condition", Body: []workflow.Operation{workflow.Condition{
 		Branches: []workflow.Branch{{
-			Case: `ready := strings.TrimSpace(result.Ready); ready != ""`,
+			Case: `command := strings.TrimSpace(task.Validation.Command); command != ""`,
 			Body: []workflow.Operation{workflow.Command{Name: "readiness"}},
 		}},
 	}}}
 
 	got := generate.Mermaid(graph)
-	if !bytes.Contains(got, []byte(`-->|"ready != &#34;&#34;"|`)) {
-		t.Errorf("Mermaid output lacks the final predicate:\n%s", got)
+	if !bytes.Contains(got, []byte(`Optional Command<br/>readiness<br/>Task validation command supplied`)) {
+		t.Errorf("Mermaid output lacks the readable optional command:\n%s", got)
 	}
-	if bytes.Contains(got, []byte(`ready :=`)) {
+	if bytes.Contains(got, []byte(`command :=`)) || bytes.Contains(got, []byte(`command !=`)) {
 		t.Errorf("Mermaid output includes assignment machinery:\n%s", got)
+	}
+}
+
+func TestMermaidShowsPromptInstructionsAndLoopExitDecisions(t *testing.T) {
+	graph := workflow.Graph{Name: "implementation", Body: []workflow.Operation{workflow.PromiseLoop{
+		Name: "tasks",
+		Body: []workflow.Operation{
+			workflow.AgentCall{
+				Session: "worker",
+				Role:    "coding",
+				Prompt:  "Read the selected task. Implement only that task. Preserve unrelated work.",
+			},
+			workflow.Condition{Branches: []workflow.Branch{{
+				Case:  "assessment.ValidationPassed",
+				Exits: true,
+			}}},
+			workflow.Condition{Branches: []workflow.Branch{{
+				Case:  "tasksRun >= params.MaxTasks",
+				Exits: true,
+			}}},
+		},
+	}}}
+
+	got := generate.Mermaid(graph)
+	for _, want := range [][]byte{
+		[]byte(`Generate · coding<br/>Prompt<br/>Read the selected task. Implement only that task. …`),
+		[]byte(`Independent validation passed?`),
+		[]byte(`Task limit reached?`),
+		[]byte(`"Finish"`),
+		[]byte(`"Stop"`),
+	} {
+		if !bytes.Contains(got, want) {
+			t.Errorf("Mermaid output lacks %q:\n%s", want, got)
+		}
+	}
+}
+
+func TestMermaidUsesMermaidEntities(t *testing.T) {
+	graph := workflow.Graph{Name: `quotes & "angles"`, Body: []workflow.Operation{
+		workflow.AgentCall{Role: "review", Prompt: `Check x != "" & y < 2.`},
+	}}
+
+	got := generate.Mermaid(graph)
+	for _, want := range [][]byte{[]byte(`#quot;`), []byte(`#38;`), []byte(`#60;`)} {
+		if !bytes.Contains(got, want) {
+			t.Errorf("Mermaid output lacks entity %q:\n%s", want, got)
+		}
+	}
+	if bytes.Contains(got, []byte(`&#`)) {
+		t.Errorf("Mermaid output uses HTML entities that render literally:\n%s", got)
+	}
+}
+
+func TestMermaidDoesNotExposeUnknownGoConditions(t *testing.T) {
+	graph := workflow.Graph{Name: "condition", Body: []workflow.Operation{workflow.Condition{
+		Branches: []workflow.Branch{
+			{Case: `shouldRetry && attempt < max`, Body: []workflow.Operation{workflow.Command{Name: "retry"}}},
+			{Case: `err != nil`, Exits: true},
+		},
+	}}}
+
+	got := generate.Mermaid(graph)
+	for _, unwanted := range [][]byte{[]byte(`shouldRetry`), []byte(`attempt`), []byte(`err != nil`)} {
+		if bytes.Contains(got, unwanted) {
+			t.Errorf("Mermaid output exposes raw Go condition %q:\n%s", unwanted, got)
+		}
+	}
+	for _, want := range [][]byte{[]byte(`|"path 1"|`), []byte(`|"path 2"|`)} {
+		if !bytes.Contains(got, want) {
+			t.Errorf("Mermaid output lacks neutral branch label %q:\n%s", want, got)
+		}
 	}
 }

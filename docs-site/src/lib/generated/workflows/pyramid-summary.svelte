@@ -2,6 +2,14 @@
 <script lang="ts">
   import WorkflowDiagram from "#lib/components/WorkflowDiagram.svelte";
   import src from "./pyramid-summary.svg";
+
+  const prompts = [
+    { role: "document-authoring", text: "Write this pyramid level at the exact target document path. Compress the largest document rather than restarting research. Use the original goal and semantic index only to judge importance, preserve factual fidelity, and resolve what should survive at this level. The result must be accurate, standalone, and legible prose rather than notes or fragments. Do not pad it. Before finishing, repeatedly run the token counter executable with \"count-tokens\" and the target path, editing until the document is at or below its target budget." },
+    { role: "document-authoring", text: "Perform the current extra top-level task exactly as assigned. Write its output path within its stated budget by compressing the largest document, using the original goal and semantic index only to judge importance and factual fidelity. Produce accurate, standalone, legible prose. Before finishing, repeatedly run the token counter executable with \"count-tokens\" and the assigned output path until it is within budget." },
+    { role: "editorial-review", text: "Read every pyramid document, the original goal, and the semantic index at their exact paths. Assess the complete pyramid together. Every level must be accurate, independently legible, within its measured budget, and meaningfully more compressed than the preceding level. Important knowledge should survive longer than secondary detail, and no level may contradict another. Report only material problems, not optional polish. Assign every material problem to each level that must change. Return OnlyNitpicks true with an empty Levels list only when the entire pyramid needs no further substantive work." },
+    { role: "document-authoring", text: "Revise this pyramid level at its exact target path to fix every assigned material issue. Judge importance against the original goal, largest document, and semantic index. Preserve legible standalone prose and the right knowledge for this level. Before finishing, repeatedly run the token counter executable with \"count-tokens\" and the target path, editing until the document is at or below its target budget." },
+    { role: "document-authoring", text: "Perform the current extra top-level repair exactly as assigned. Fix every listed material issue using the original goal, largest document, and semantic index as judgment aids. Preserve accurate, standalone, legible prose. Before finishing, repeatedly run the token counter executable with \"count-tokens\" and the assigned output path until it is within budget." },
+  ];
 </script>
 
-<WorkflowDiagram title="pyramid-summary workflow" {src} />
+<WorkflowDiagram title="pyramid-summary workflow" {src} {prompts} />

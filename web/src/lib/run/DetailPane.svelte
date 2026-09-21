@@ -403,6 +403,10 @@
       </section>
     {:else if selection.kind === "watcher"}
       <section>
+        <div class="section-title">Outcome</div>
+        <p class="empty-selection">No watcher turn has been recorded in this scope.</p>
+      </section>
+      <section>
         <div class="section-title">Instruction</div>
         <p>{selection.supervisor.instruction}</p>
       </section>

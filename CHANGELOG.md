@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Product evaluators reopen saved screenshots before captioning or citing them,
+  ground captions in visible evidence, and carry independent screenshot-review
+  corrections into final triage (#323).
+- Selecting a watcher in the run graph shows its recorded result and states
+  explicitly when no watcher turn was recorded (#324).
 - Claude `Generate` waits through background-task continuations before returning
   the final value, and subsequent calls resume the conversation with their own
   output schema.

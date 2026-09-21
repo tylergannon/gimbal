@@ -18,7 +18,6 @@
     items: RunCardItem[];
     attention: InterviewRow[];
     now?: number;
-    onopenrun?: (run: RunRow) => void;
   };
 </script>
 
@@ -34,7 +33,6 @@
     items,
     attention,
     now = Date.now(),
-    onopenrun,
   }: RunsListProps = $props();
 
   let filter = $state<RunsFilter>("all");
@@ -77,11 +75,6 @@
     { value: "failed", label: "Failed" },
     { value: "cancelled", label: "Cancelled" },
   ];
-
-  function openRun(runID: string) {
-    const run = runs.find((candidate) => candidate.id === runID);
-    if (run) onopenrun?.(run);
-  }
 
   function relativeTime(timestamp: number) {
     if (timestamp === 0) return "No activity yet";
@@ -139,7 +132,7 @@
       <h2 id="attention-title">Needs your answer · {pending.length}</h2>
       <div class="attention-grid">
         {#each pending as question (question.question_id)}
-          <button class="attention-item" type="button" onclick={() => openRun(question.run)}>
+          <a class="attention-item" href={`/runs/${encodeURIComponent(question.run)}`}>
             <span class="attention-icon"><MessageCircleQuestionIcon size={16} /></span>
             <span class="attention-copy">
               <span class="attention-title">
@@ -152,7 +145,7 @@
               <span>{relativeTime(question.asked)}</span>
               <span class="answer-label">Answer</span>
             </span>
-          </button>
+          </a>
         {/each}
       </div>
     </section>
@@ -181,12 +174,11 @@
     {#if filteredItems.length > 0}
       <div class="cards">
         {#each filteredItems as item (item.run.id)}
-          <button
+          <a
             class="run-card"
             class:live={item.run.status === "running"}
-            type="button"
             aria-label={`Open ${item.run.name} ${item.run.id}`}
-            onclick={() => onopenrun?.(item.run)}
+            href={`/runs/${encodeURIComponent(item.run.id)}`}
           >
             <span class="card-head">
               <span class="identity">
@@ -236,7 +228,7 @@
               </span>
               <span class="open-label">Open run <ArrowUpRightIcon size={14} /></span>
             </span>
-          </button>
+          </a>
         {/each}
       </div>
     {:else}

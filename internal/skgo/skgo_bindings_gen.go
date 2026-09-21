@@ -156,12 +156,30 @@ func remote_answerInterview(ctx context.Context, call skgo.Call) (any, error) {
 	return EncodeRoot6(out)
 }
 
+// remote_watchRuns answers src/routes/runs.remote.ts#watchRuns, a query.live.
+//
+// It takes no argument, so any argument at all is refused — kit's own
+// validator for a function declared without one answers 400 too.
+// The result is encoded by EncodeRoot7, generated for its result type.
+func remote_watchRuns(ctx context.Context, call skgo.Call, yield func(any) error) error {
+	if err := skgo.RefuseArgument(call); err != nil {
+		return err
+	}
+	return skgo1.Skgo_watchRuns(ctx, func(out skgo1.SkgoOut_watchRuns) error {
+		tree, err := EncodeRoot7(out)
+		if err != nil {
+			return err
+		}
+		return yield(tree)
+	})
+}
+
 // remote_steer answers src/routes/steer.remote.ts#steer, a form.
 //
 // A form's submission is assigned onto the handler's own argument type:
 // kit posts a form as binary form data, which can carry an uploaded File,
 // and a File is not a value polytype describes.
-// The result is encoded by EncodeRoot7, generated for its result type.
+// The result is encoded by EncodeRoot8, generated for its result type.
 func remote_steer(ctx context.Context, call skgo.Call) (any, error) {
 	var in skgo1.SkgoArg_steer
 	if err := skgo.DecodeForm(call.Arg, &in); err != nil {
@@ -171,7 +189,7 @@ func remote_steer(ctx context.Context, call skgo.Call) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	return EncodeRoot7(out)
+	return EncodeRoot8(out)
 }
 
 // remote_steerLoop answers src/routes/steer.remote.ts#steerLoop, a form.
@@ -179,7 +197,7 @@ func remote_steer(ctx context.Context, call skgo.Call) (any, error) {
 // A form's submission is assigned onto the handler's own argument type:
 // kit posts a form as binary form data, which can carry an uploaded File,
 // and a File is not a value polytype describes.
-// The result is encoded by EncodeRoot8, generated for its result type.
+// The result is encoded by EncodeRoot9, generated for its result type.
 func remote_steerLoop(ctx context.Context, call skgo.Call) (any, error) {
 	var in skgo1.SkgoArg_steerLoop
 	if err := skgo.DecodeForm(call.Arg, &in); err != nil {
@@ -189,7 +207,7 @@ func remote_steerLoop(ctx context.Context, call skgo.Call) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	return EncodeRoot8(out)
+	return EncodeRoot9(out)
 }
 
 // Remotes returns every remote function declared in the app, ready to hand
@@ -236,6 +254,13 @@ func Remotes() []*skgo.Remote {
 			Call:   remote_answerInterview,
 		}),
 		skgo.NewRemote(skgo.RemoteSpec{
+			Kind:   skgo.KindLive,
+			Module: "src/routes/runs.remote.ts",
+			Name:   "watchRuns",
+			Fn:     skgo1.Skgo_watchRuns,
+			Live:   remote_watchRuns,
+		}),
+		skgo.NewRemote(skgo.RemoteSpec{
 			Kind:   skgo.KindForm,
 			Module: "src/routes/steer.remote.ts",
 			Name:   "steer",
@@ -250,15 +275,6 @@ func Remotes() []*skgo.Remote {
 			Call:   remote_steerLoop,
 		}),
 	}
-}
-
-// load_page answers src/routes/+page.server.ts.
-//
-// A load's result is the one value no generated encoder produces: it may
-// hold a skgo.Deferred, and `Promise<T>` is not a projection of any Go
-// type, so the value is encoded where a promise can still be recognised.
-func load_page(ctx context.Context) (any, error) {
-	return skgo1.Skgo_load(ctx)
 }
 
 // load_conversations_page answers src/routes/conversations/+page.server.ts.
@@ -283,7 +299,6 @@ func load_runs_runID_page(ctx context.Context) (any, error) {
 // skgo.NewLoads.
 func Loads() []*skgo.ServerLoad {
 	return []*skgo.ServerLoad{
-		skgo.NewServerLoad(skgo.LoadSpec{Module: "src/routes/+page.server.ts", Run: load_page}),
 		skgo.NewServerLoad(skgo.LoadSpec{Module: "src/routes/conversations/+page.server.ts", Run: load_conversations_page}),
 		skgo.NewServerLoad(skgo.LoadSpec{Module: "src/routes/runs/[runID]/+page.server.ts", Run: load_runs_runID_page}),
 	}

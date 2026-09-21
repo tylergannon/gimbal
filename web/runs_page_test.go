@@ -1,18 +1,99 @@
 package web
 
 import (
+	"bufio"
+	"context"
 	"encoding/json"
 	"io/fs"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/tylergannon/gimble/internal/observation"
 	hooks "github.com/tylergannon/gimble/web/src"
 )
+
+func TestRunsListLiveQuerySendsNewRunWithoutReload(t *testing.T) {
+	dist, err := fs.Sub(Build, "build")
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler, _, err := NewHandler(dist, "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	project := t.TempDir()
+	registry := observation.NewRegistry(project)
+	server := httptest.NewUnstartedServer(handler)
+	server.Config.BaseContext = func(net.Listener) context.Context {
+		return hooks.WithProjectDir(observation.WithRegistry(context.Background(), registry), project)
+	}
+	server.Start()
+	defer server.Close()
+
+	request, err := http.NewRequest(http.MethodGet, server.URL+"/_app/remote/1h2g0b8/watchRuns", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response, err := server.Client().Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := response.Body.Close(); err != nil {
+			t.Errorf("close runs live query response: %v", err)
+		}
+	}()
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("open runs live query: status %d", response.StatusCode)
+	}
+
+	frames := make(chan string, 2)
+	go func() {
+		scanner := bufio.NewScanner(response.Body)
+		for scanner.Scan() {
+			if line := scanner.Text(); strings.HasPrefix(line, "data: ") {
+				frames <- strings.TrimPrefix(line, "data: ")
+			}
+		}
+		close(frames)
+	}()
+	next := func(what string) string {
+		t.Helper()
+		select {
+		case frame, open := <-frames:
+			if !open {
+				t.Fatalf("runs live query closed before %s", what)
+			}
+			return frame
+		case <-time.After(5 * time.Second):
+			t.Fatalf("runs live query did not send %s", what)
+			return ""
+		}
+	}
+
+	if first := next("the initial empty list"); strings.Contains(first, "new-run") {
+		t.Fatalf("initial live list unexpectedly contains the new run: %s", first)
+	}
+
+	runDir := filepath.Join(project, "runs", "new-run")
+	if err := os.MkdirAll(runDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := observation.Open(registry, "new-run", "new workflow", runDir); err != nil {
+		t.Fatal(err)
+	}
+
+	if second := next("the newly started run"); !strings.Contains(second, "new-run") {
+		t.Fatalf("live list did not contain the new run: %s", second)
+	}
+}
 
 func TestRunsPageRendersEveryRunAndPendingInterview(t *testing.T) {
 	dist, err := fs.Sub(Build, "build")

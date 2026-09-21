@@ -3,16 +3,14 @@ import { render } from "vitest-browser-svelte";
 import RunsList from "./RunsList.svelte";
 import { runsListFixture } from "./fixtures/index.js";
 
-test("cards show observation-derived facts and open the selected run", async () => {
-  const opened: string[] = [];
+test("cards show observation-derived facts and expose their run links", async () => {
   const screen = await render(RunsList, {
     items: runsListFixture.items,
     attention: runsListFixture.attention,
     now: 1_800_000_760_000,
-    onopenrun: (run) => opened.push(run.id),
   });
 
-  const card = screen.getByRole("button", {
+  const card = screen.getByRole("link", {
     name: "Open plan-trip 01M2RWXNFFYQA4HHQWMQ252CYF",
   });
   await expect.element(card).toHaveTextContent("Running");
@@ -26,31 +24,28 @@ test("cards show observation-derived facts and open the selected run", async () 
     .element(card)
     .toHaveTextContent("Compare the available cabins and ask about the tradeoffs that matter.");
 
-  await card.click();
-  expect(opened).toEqual(["01M2RWXNFFYQA4HHQWMQ252CYF"]);
+  await expect.element(card).toHaveAttribute("href", "/runs/01M2RWXNFFYQA4HHQWMQ252CYF");
   await expect.element(screen.getByText("No instruction recorded yet.")).toBeVisible();
 });
 
 test("filters, search, attention access, and refreshed card data stay useful", async () => {
-  const opened: string[] = [];
   const screen = await render(RunsList, {
     items: runsListFixture.items,
     attention: runsListFixture.attention,
     now: 1_800_000_760_000,
-    onopenrun: (run) => opened.push(run.id),
   });
 
   await screen.getByRole("button", { name: "Failed · 1" }).click();
   await expect
     .element(
-      screen.getByRole("button", {
+      screen.getByRole("link", {
         name: "Open implement-interview 01M2QZ7PB3N6D0R9X2G5HKW8VY",
       }),
     )
     .toBeVisible();
   await expect
     .element(
-      screen.getByRole("button", {
+      screen.getByRole("link", {
         name: "Open plan-trip 01M2RWXNFFYQA4HHQWMQ252CYF",
       }),
     )
@@ -60,15 +55,15 @@ test("filters, search, attention access, and refreshed card data stay useful", a
   await screen.getByPlaceholder("Search by workflow or run id").fill("Q1HD4");
   await expect
     .element(
-      screen.getByRole("button", {
+      screen.getByRole("link", {
         name: "Open plan-trip 01M2Q1HD4T8KJ2M7P5S0B9XNAE",
       }),
     )
     .toBeVisible();
 
   await screen.getByPlaceholder("Search by workflow or run id").fill("");
-  await screen.getByText("Would you trade reliable Wi-Fi for a more secluded cabin?").click();
-  expect(opened).toEqual(["01M2RWXNFFYQA4HHQWMQ252CYF"]);
+  const attention = screen.getByRole("link", { name: /would you trade reliable wi-fi/i });
+  await expect.element(attention).toHaveAttribute("href", "/runs/01M2RWXNFFYQA4HHQWMQ252CYF");
 
   const refreshed = structuredClone(runsListFixture.items);
   refreshed[0].activity_at = 1_800_000_755_000;
@@ -79,10 +74,9 @@ test("filters, search, attention access, and refreshed card data stay useful", a
     items: refreshed,
     attention: runsListFixture.attention,
     now: 1_800_000_760_000,
-    onopenrun: (run) => opened.push(run.id),
   });
 
-  const refreshedCard = screen.getByRole("button", {
+  const refreshedCard = screen.getByRole("link", {
     name: "Open plan-trip 01M2RWXNFFYQA4HHQWMQ252CYF",
   });
   await expect.element(refreshedCard).toHaveTextContent("5 s");

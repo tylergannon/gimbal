@@ -19,13 +19,14 @@ import (
 type Registry struct {
 	dir string
 
-	mu   sync.RWMutex
-	runs map[string]*Store
+	mu      sync.RWMutex
+	runs    map[string]*Store
+	updates chan struct{}
 }
 
 // NewRegistry returns the registry for a project directory.
 func NewRegistry(projectDir string) *Registry {
-	return &Registry{dir: projectDir, runs: map[string]*Store{}}
+	return &Registry{dir: projectDir, runs: map[string]*Store{}, updates: make(chan struct{})}
 }
 
 type registryKey struct{}
@@ -51,6 +52,33 @@ func (r *Registry) add(s *Store) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.runs[s.id] = s
+	r.changedLocked()
+}
+
+// Changes closes whenever a run in the registry changes. A caller reads the
+// current channel before its snapshot, then waits for it to close before
+// reading the next snapshot, so no change can be missed between those steps.
+func (r *Registry) Changes() <-chan struct{} {
+	if r == nil {
+		return nil
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.updates
+}
+
+func (r *Registry) changed() {
+	if r == nil {
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.changedLocked()
+}
+
+func (r *Registry) changedLocked() {
+	close(r.updates)
+	r.updates = make(chan struct{})
 }
 
 // Live returns the store of a run that is still going. A finished run is

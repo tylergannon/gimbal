@@ -159,14 +159,19 @@ func (s *Store) Close() error {
 		return nil
 	}
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	if s.closed {
+		s.mu.Unlock()
 		return nil
 	}
 	s.closed = true
 	s.finishSubscribersLocked()
 	s.finishJoinSubscribersLocked()
-	return s.saveSnapshotLocked()
+	err := s.saveSnapshotLocked()
+	s.mu.Unlock()
+	if err == nil {
+		s.registry.changed()
+	}
+	return err
 }
 
 // record is one lifecycle record, decoded flat: every field any kind carries,
@@ -242,8 +247,8 @@ func (s *Store) Lifecycle(raw json.RawMessage) error {
 	at := rec.Time.UnixMilli()
 
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	if s.closed {
+		s.mu.Unlock()
 		return nil
 	}
 
@@ -358,7 +363,12 @@ func (s *Store) Lifecycle(raw json.RawMessage) error {
 		command.Ended, command.Duration = at, rec.Event.Duration/int64(time.Millisecond)
 		changed = append(changed, change{tableCommands, rec.Event.ID})
 	}
-	return s.commitLocked(changed)
+	err := s.commitLocked(changed)
+	s.mu.Unlock()
+	if err == nil {
+		s.registry.changed()
+	}
+	return err
 }
 
 // change is one row one record touched: which table, and the key it sits at.
@@ -521,8 +531,8 @@ func (s *Store) Event(at Placement, envelope, nativeRef json.RawMessage) error {
 	}
 
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	if s.closed {
+		s.mu.Unlock()
 		return fmt.Errorf("observation: run %s is closed", s.id)
 	}
 	changed := s.turnSeenLocked(at)
@@ -531,10 +541,15 @@ func (s *Store) Event(at Placement, envelope, nativeRef json.RawMessage) error {
 	s.foldProvenanceLocked(script, ref, nativeRef)
 	changed = append(changed, s.foldStepLocked(at, event, envelope)...)
 
-	return s.commitLocked(changed, Frame{Name: FrameEvent, Data: mustMarshal(eventFrame{
+	err = s.commitLocked(changed, Frame{Name: FrameEvent, Data: mustMarshal(eventFrame{
 		Scope: at.Scope, Session: at.Session, Turn: at.Turn,
 		Event: envelope, NativeRef: nativeRef,
 	})})
+	s.mu.Unlock()
+	if err == nil {
+		s.registry.changed()
+	}
+	return err
 }
 
 // turnSeenLocked makes the turn's row if no turn_started record made it, and

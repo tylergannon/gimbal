@@ -10,10 +10,6 @@
   });
 </script>
 
-<script lang="ts">
-  let event = $state("Choose a run, answer card, or filter");
-</script>
-
 <Story name="Recorded runs" asChild>
   <div class="story-page">
     <header class="project-bar">
@@ -28,10 +24,8 @@
         items={runsListFixture.items}
         attention={runsListFixture.attention}
         now={1_800_000_760_000}
-        onopenrun={(run) => (event = `open-run · ${run.id}`)}
       />
     </main>
-    <p class="event" aria-live="polite">{event}</p>
   </div>
 </Story>
 
@@ -86,18 +80,4 @@
     justify-content: center;
   }
 
-  .event {
-    position: fixed;
-    right: 16px;
-    bottom: 16px;
-    padding: 7px 10px;
-    margin: 0;
-    color: var(--foreground);
-    font-family: var(--font-mono);
-    font-size: 12px;
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: calc(var(--radius) - 2px);
-    box-shadow: var(--shadow-md);
-  }
 </style>

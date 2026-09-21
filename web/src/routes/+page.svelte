@@ -1,21 +1,13 @@
 <script lang="ts">
-  import { goto, invalidateAll } from "$app/navigation";
-  import { onMount } from "svelte";
-  import type { InterviewRow, RunRow } from "#lib/observation/index.js";
+  import type { InterviewRow } from "#lib/observation/index.js";
   import RunsList, { type RunCardItem } from "#lib/run/RunsList.svelte";
   import SmallStates from "#lib/run/SmallStates.svelte";
+  import { watchRuns } from "./runs.remote.js";
 
-  let { data }: { data: { items: RunCardItem[]; attention: InterviewRow[]; now: number } } =
-    $props();
-
-  onMount(() => {
-    const refresh = window.setInterval(() => void invalidateAll(), 2_000);
-    return () => window.clearInterval(refresh);
-  });
-
-  function openRun(run: RunRow) {
-    void goto(`/runs/${encodeURIComponent(run.id)}`);
-  }
+  const runs = watchRuns();
+  const data = $derived(
+    (await runs) as { items: RunCardItem[]; attention: InterviewRow[]; now: number },
+  );
 </script>
 
 <svelte:head>
@@ -34,7 +26,6 @@
       items={data.items}
       attention={data.attention}
       now={data.now}
-      onopenrun={openRun}
     />
   {/if}
 </div>

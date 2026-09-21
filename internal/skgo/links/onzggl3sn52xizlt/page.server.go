@@ -38,7 +38,7 @@ type RunsData struct {
 	Now       int64                      `json:"now"`
 }
 
-func load(ctx context.Context) (RunsData, error) {
+func runsData(ctx context.Context) (RunsData, error) {
 	event := skgo.EventFrom(ctx)
 	if request := event.Request(); request != nil {
 		ctx = request.Context()
@@ -242,5 +242,3 @@ func plural(count int, singular, plural string) string {
 	}
 	return plural
 }
-
-var _ = skgo.Load(load)

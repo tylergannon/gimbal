@@ -50,6 +50,15 @@ export type LoopMessage = {
 };
 
 /**
+ * RunsData is the complete server snapshot needed by RunsList.
+ */
+export type RunsData = {
+  items: Array<RunItem>;
+  attention: Array<InterviewRow>;
+  now: number;
+};
+
+/**
  * RunItem is the one list row and the presentation text derived from its observation. Keeping the text beside the row avoids a second map-shaped state model at the load boundary.
  */
 export type RunItem = {
@@ -73,6 +82,22 @@ export type RunRow = {
   error: string;
   started: number;
   ended: number;
+};
+
+/**
+ * InterviewRow is one question an interview asked. An accepted answer updates the same row from pending to answered; an empty answer means the person ended the interview.
+ */
+export type InterviewRow = {
+  run: string;
+  question_id: string;
+  name: string;
+  scope: string;
+  session: string;
+  question: string;
+  status: string;
+  answer: string;
+  asked: number;
+  answered: number;
 };
 
 /**

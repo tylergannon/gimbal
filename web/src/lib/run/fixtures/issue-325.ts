@@ -3,11 +3,14 @@
 // very long assignment, escaped-newline-laden tool payloads, a glued
 // call-site + context prompt, and a running turn with no visible result yet.
 //
-// The context/bare_prompt fields on turns below are not part of TurnRow in
-// observation/index.ts yet (a Go change is adding them). We type the turns
-// loosely here with a local intersection type instead of editing that file.
+// Its coding turns record their context the way the runtime does: `prompt` is
+// what the workflow wrote, and `context` names each visible value once,
+// outermost scope first, the nearest scope owning a shadowed key.
+// `issue325GluedPrompt` is what the same turn's `prompt` held in a run saved
+// before turns recorded their context.
 import type {
   CommandRow,
+  ContextEntry,
   ModelCallRow,
   RunSnapshot,
   ScopeRow,
@@ -22,15 +25,6 @@ export const issue325Graph = implementInterviewGraph;
 
 const runID = "01M2ZTP8DFJQAYF7QSK36AYPHH";
 const started = 1_820_000_000_000;
-
-/** One entry describing which scope value a call-site prompt folded in, and
- * whether the whole value made it in or only a preview. Mirrors the shape a
- * pending Go change adds to TurnRow. */
-type TurnContextEntry = { key: string; scope: string; complete: boolean };
-/** TurnRow plus the two fields the Go change is adding: `context` (what was
- * folded into the prompt) and `bare_prompt` (just the call-site text, before
- * folding). Loosely typed on purpose — see file header. */
-type IssueTurnRow = TurnRow & { context?: TurnContextEntry[]; bare_prompt?: string };
 
 // ---------------------------------------------------------------------------
 // Scope values: a long assignment, a long definition of done, repository
@@ -284,25 +278,18 @@ const promptFor = (sections: [string, string][]) =>
   "\n\n" +
   sections.map(([key, value]) => renderSection(key, value)).join("\n\n");
 
-const turn1Sections: [string, string][] = [
+const sentSections: [string, string][] = [
+  ["repository_notes", repositoryNotesArtifact.preview],
   ["assignment", taskAssignmentValue],
   ["definition_of_done", taskDefinitionOfDone],
-  ["definition_of_done", definitionOfDoneLoop],
-  ["repository_notes", repositoryNotesArtifact.preview],
 ];
 
-const turn2Sections: [string, string][] = [
-  ["assignment", taskAssignmentValue],
-  ["definition_of_done", taskDefinitionOfDone],
-  ["definition_of_done", definitionOfDoneLoop],
-  ["repository_notes", repositoryNotesArtifact.preview],
-];
+export const issue325GluedPrompt = promptFor(sentSections);
 
-const turn1Context: TurnContextEntry[] = [
+const turn1Context: ContextEntry[] = [
+  { key: "repository_notes", scope: "implementation.1", complete: false },
   { key: "assignment", scope: "implementation.1/task.1", complete: true },
   { key: "definition_of_done", scope: "implementation.1/task.1", complete: true },
-  { key: "definition_of_done", scope: "implementation.1", complete: true },
-  { key: "repository_notes", scope: "implementation.1", complete: false },
 ];
 
 const turn1EndedResult =
@@ -324,7 +311,7 @@ const turns = {
     id: "coding.1/turn.1",
     session: "coding.1",
     scope: "implementation.1/task.1",
-    prompt: promptFor(turn1Sections),
+    prompt: bareCodingPrompt,
     output_type: "text",
     result: turn1EndedResult,
     error: "",
@@ -333,14 +320,13 @@ const turns = {
     ended: started + 890_000,
     duration: 770_000,
     context: turn1Context,
-    bare_prompt: bareCodingPrompt,
   },
   "coding.1/turn.2": {
     run: runID,
     id: "coding.1/turn.2",
     session: "coding.1",
     scope: "implementation.1/task.1",
-    prompt: promptFor(turn2Sections),
+    prompt: bareCodingPrompt,
     output_type: "text",
     result: "",
     error: "",
@@ -349,7 +335,6 @@ const turns = {
     ended: 0,
     duration: 0,
     context: turn1Context,
-    bare_prompt: bareCodingPrompt,
   },
   "sprint-planning.1/turn.1": {
     run: runID,
@@ -383,7 +368,7 @@ const turns = {
     ended: started + 918_000,
     duration: 18_000,
   },
-} satisfies Record<string, IssueTurnRow>;
+} satisfies Record<string, TurnRow>;
 
 // ---------------------------------------------------------------------------
 // Command: task check FAILED on the first pass.
@@ -1356,7 +1341,7 @@ const finishedSnapshot: RunSnapshot = structuredClone(issue325Snapshot);
 
 const finishedEnd = started + 1_180_000;
 
-const finishedTurn2 = finishedSnapshot.turns["coding.1/turn.2"] as IssueTurnRow;
+const finishedTurn2 = finishedSnapshot.turns["coding.1/turn.2"] as TurnRow;
 finishedTurn2.result =
   "Added the document-level dragend listener and the canPlace() guard on the in-board drop " +
   "path, fixing both cases task check flagged: an occupied-square drop no longer overwrites the " +

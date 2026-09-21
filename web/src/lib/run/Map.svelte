@@ -51,27 +51,22 @@
     graph,
     snapshot,
     selected,
-    reveal,
     onselect,
-    oninstancechange,
   }: {
     graph: Graph;
     snapshot: RunSnapshot;
     selected?: MapSelection;
-    reveal?: { request: number; selection: MapSelection };
     onselect?: (selection: MapSelection) => void;
-    oninstancechange?: (scope: ScopeRow) => void;
   } = $props();
 
   let selectedInstances = $state<Record<string, string>>({});
   let foldedScopes = $state<string[]>([]);
-  let selectedKey = $state<string | undefined>(undefined);
+  let selectedKey = $derived(selected ? selectionKey(selected) : undefined);
   let zoom = $state(1);
   let now = $state(Date.now());
   let viewport: HTMLDivElement | undefined;
   let dragging = $state(false);
   let dragOrigin: { x: number; y: number; left: number; top: number } | undefined;
-  let lastRevealRequest = 0;
   const running = $derived(snapshot.run.status === "running");
 
   $effect(() => {
@@ -113,7 +108,8 @@
     foldedScopes = foldedScopes.filter((key) => !path.includes(key));
   }
 
-  async function revealSelection(selection: MapSelection, key: string) {
+  export async function revealSelection(selection: MapSelection) {
+    const key = selectionKey(selection);
     selectedKey = key;
     revealScope(selection.scope.key);
     await tick();
@@ -122,22 +118,6 @@
     ).find((candidate) => candidate.dataset.selectionKey === key);
     element?.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
   }
-
-  $effect(() => {
-    const next = selected;
-    if (!next) {
-      selectedKey = undefined;
-      return;
-    }
-    selectedKey = selectionKey(next);
-  });
-
-  $effect(() => {
-    const next = reveal;
-    if (!next || next.request === lastRevealRequest) return;
-    lastRevealRequest = next.request;
-    void revealSelection(next.selection, selectionKey(next.selection));
-  });
 
   function selectSheet(sheet: (typeof layout.sheets)[number]) {
     selectedKey = sheet.selectionKey;
@@ -150,7 +130,6 @@
       foldedScopes = [...foldedScopes.filter((key) => key !== sheet.scope.key), scope.key];
     }
     selectedKey = `sheet:${scope.key}`;
-    oninstancechange?.(scope);
     onselect?.({ kind: "instance", scope });
   }
 

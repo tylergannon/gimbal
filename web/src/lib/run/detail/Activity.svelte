@@ -32,10 +32,6 @@
 	);
 
 	let visibleCount = $state(WINDOW);
-	$effect(() => {
-		turn;
-		visibleCount = WINDOW;
-	});
 	const hiddenCount = $derived(Math.max(0, allMessages.length - visibleCount));
 	const visibleMessages = $derived(allMessages.slice(Math.max(0, allMessages.length - visibleCount)));
 

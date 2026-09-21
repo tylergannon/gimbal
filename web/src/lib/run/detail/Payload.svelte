@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { untrack } from 'svelte';
 	import CheckIcon from '@lucide/svelte/icons/check';
 	import CopyIcon from '@lucide/svelte/icons/copy';
 	import WrapTextIcon from '@lucide/svelte/icons/wrap-text';
@@ -28,10 +27,9 @@
 		prose?: boolean;
 	} = $props();
 
-	// Seeded once from the initial prop, explicitly outside reactive tracking:
-	// this is a local toggle from here on, not a mirror of a prop that can
-	// change out from under the reader.
-	let wrapped = $state(untrack(() => wrap));
+	// Seeded once from the initial prop: this is a local toggle from here on,
+	// not a mirror of a prop that can change out from under the reader.
+	let wrapped = $state(wrap);
 	let expanded = $state(false);
 	let copied = $state(false);
 	let scroller: HTMLDivElement | undefined = $state();

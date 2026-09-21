@@ -18,7 +18,6 @@
 </script>
 
 <script lang="ts">
-	import { untrack } from 'svelte';
 	import type { AgentCall } from '../../workflow/types.js';
 	import Pip from '../Pip.svelte';
 	import StatusLine from './StatusLine.svelte';
@@ -117,20 +116,9 @@
 		{ id: 'usage', label: 'Usage' },
 		{ id: 'source', label: 'Source' }
 	];
-	let active = $state<TabID>(untrack(() => (turn.ended ? 'result' : 'activity')));
-	// A plain-string derived, not `turn.id` read directly in the effect below:
-	// `turn` is a fresh object on every model update even when it names
-	// the same turn, and an effect reading it inline would reopen on Activity
-	// or Result on every live update, yanking a reader off whatever tab
-	// (Prompt, Usage, Source) they were actually reading.
-	const turnID = $derived(turn.id);
-	$effect(() => {
-		// A freshly selected turn re-opens on the tab that answers "what is it
-		// doing" or "how did it end" — not whatever tab a previous turn left
-		// scrolled to.
-		turnID;
-		active = untrack(() => (turn.ended ? 'result' : 'activity'));
-	});
+	// DetailPane keys this component by turn identity, so this seed is kept for
+	// live updates of the same turn and naturally resets for another turn.
+	let active = $state<TabID>(turn.ended ? 'result' : 'activity');
 </script>
 
 <StatusLine state={outcomeState} duration={durationText} model={session?.model ?? ''} {calls} {cost} />

@@ -39,7 +39,6 @@
     oncancel?: () => void;
   } = $props();
 
-  let disconnectedAt = $state(0);
   let now = $state(Date.now());
   let query = $state("");
   let searchOpen = $state(false);
@@ -48,13 +47,7 @@
   const elapsed = $derived(formatDuration((run.ended || now) - run.started));
   const statusVariant = $derived(run.status === "failed" ? "destructive" : "outline");
 
-  $effect(() => {
-    if (connection !== "disconnected") {
-      disconnectedAt = 0;
-      return;
-    }
-    if (!disconnectedAt) disconnectedAt = Date.now();
-  });
+  const disconnectedAt = $derived(connection === "disconnected" ? Date.now() : 0);
 
   $effect(() => {
     if (terminal && connection !== "disconnected") return;

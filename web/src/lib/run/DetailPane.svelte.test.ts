@@ -427,6 +427,66 @@ test("a finished turn opens on Result and shows turn.result", async () => {
   await expect.element(screen.getByText(/Added the document-level dragend listener/)).toBeVisible();
 });
 
+test("scope and turn tabs keep their choice through live refreshes and reset for a new identity", async () => {
+  const coding = issue325Coding();
+  const scope = issue325Fixture.snapshot.scopes["implementation.1/task.1"];
+  const turn = issue325Fixture.snapshot.turns["coding.1/turn.2"];
+  const screen = await render(DetailPane, {
+    snapshot: issue325Fixture.snapshot,
+    observation: new RunObservation(issue325Fixture.snapshot),
+    selection: { kind: "sheet", scope },
+  });
+
+  await screen.getByRole("tab", { name: "Context" }).click();
+  const refreshedScope = structuredClone(issue325Fixture.snapshot);
+  refreshedScope.scopes[scope.key].values.refresh = { value: "new scope data" };
+  await screen.rerender({
+    snapshot: refreshedScope,
+    observation: new RunObservation(refreshedScope),
+    selection: { kind: "sheet", scope },
+  });
+  await expect
+    .element(screen.getByRole("tab", { name: "Context" }))
+    .toHaveAttribute("aria-selected", "true");
+
+  const parentScope = refreshedScope.scopes["implementation.1"];
+  await screen.rerender({
+    snapshot: refreshedScope,
+    observation: new RunObservation(refreshedScope),
+    selection: { kind: "sheet", scope: parentScope },
+  });
+  await expect
+    .element(screen.getByRole("tab", { name: "Overview" }))
+    .toHaveAttribute("aria-selected", "true");
+
+  await screen.rerender({
+    snapshot: refreshedScope,
+    observation: new RunObservation(refreshedScope),
+    selection: { kind: "node", scope, operation: coding, runtime: turn },
+  });
+  await screen.getByRole("tab", { name: "Source" }).click();
+  const refreshedTurn = structuredClone(refreshedScope);
+  refreshedTurn.turns[turn.id].result = "still the selected turn";
+  await screen.rerender({
+    snapshot: refreshedTurn,
+    observation: new RunObservation(refreshedTurn),
+    selection: { kind: "node", scope, operation: coding, runtime: turn },
+  });
+  await expect
+    .element(screen.getByRole("tab", { name: "Source" }))
+    .toHaveAttribute("aria-selected", "true");
+
+  const previousTurn = refreshedTurn.turns["coding.1/turn.1"];
+  await screen.rerender({
+    snapshot: refreshedTurn,
+    observation: new RunObservation(refreshedTurn),
+    selection: { kind: "node", scope, operation: coding, runtime: previousTurn },
+  });
+  await expect
+    .element(screen.getByRole("tab", { name: "Result" }))
+    .toHaveAttribute("aria-selected", "true");
+});
+
 test("the assignment lives only on the scope's Overview, not the agent-turn pane", async () => {
   const coding = issue325Coding();
   const scope = issue325Fixture.snapshot.scopes["implementation.1/task.1"];

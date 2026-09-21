@@ -23,7 +23,7 @@
   import { cancelRun, stopTurn } from "../../control.remote.js";
   import { answerInterview, type InterviewAnswer } from "../../interview.remote.js";
   import { steer, steerLoop, type LoopMessage, type Steer } from "../../steer.remote.js";
-  import { tick, untrack } from "svelte";
+  import { tick } from "svelte";
 
   let { data }: { data: { snapshot: RunSnapshot; graph: string } } = $props();
 
@@ -38,16 +38,20 @@
   const loopForm = steerLoop.for("workspace-loop");
   const answerForm = answerInterview.for("workspace-answer");
 
-  let selection = $state<RunSelection>();
-  let reveal = $state<{ request: number; selection: MapSelection }>();
+  // The click-owned selection is an identity, while the view always reads the
+  // corresponding rows from the current snapshot. A replacement snapshot can
+  // therefore refresh it or make it disappear without an effect writing state.
+  let selected = $state<RunSelection>();
+  let mapView = $state<{
+    revealSelection(selection: MapSelection): Promise<void>;
+  }>();
   let cancelOpen = $state(false);
   let stopping = $state(false);
   let cancelling = $state(false);
   let controlFeedback = $state("");
-  let observedRunID = "";
-  let revealSequence = 0;
 
   const snapshot = $derived(observation.snapshot());
+  const selection = $derived(rebindSelection(selected, snapshot));
   const connection = $derived(observation.connection);
   const graphMatches = $derived(graph ? graphMatchesSnapshot(graph, snapshot) : false);
   const searchItems = $derived(
@@ -78,43 +82,18 @@
   const issueText = (issues: { message: string }[] | undefined, fallback: string) =>
     issues?.map((issue) => issue.message).join(" ") || fallback;
 
-  $effect(() => {
-    const next = observation;
-    const runChanged = observedRunID !== "" && observedRunID !== next.run.id;
-    const current = untrack(() => selection);
-    selection = runChanged ? undefined : rebindSelection(current, next.snapshot());
-    if (runChanged) {
-      reveal = undefined;
-      cancelOpen = false;
-      controlFeedback = "";
-    }
-    observedRunID = next.run.id;
-  });
-
-  $effect(() => {
-    const latest = snapshot;
-    const current = untrack(() => selection);
-    if (current) {
-      const rebound = rebindSelection(current, latest);
-      selection = rebound;
-      if (!rebound) reveal = undefined;
-    }
-  });
-
   function navigateTo(next: RunSelection) {
-    selection = next;
+    selected = next;
     const mapSelection = asMapSelection(next);
-    if (mapSelection) reveal = { request: ++revealSequence, selection: mapSelection };
+    if (mapSelection) void mapView?.revealSelection(mapSelection);
   }
 
   function selectWithoutReveal(next: RunSelection) {
-    selection = next;
-    reveal = undefined;
+    selected = next;
   }
 
   function clearSelection() {
-    selection = undefined;
-    reveal = undefined;
+    selected = undefined;
   }
 
   async function deliverSteer(request: Steer): Promise<ActionFeedback> {
@@ -285,10 +264,10 @@
     {#snippet map()}
       {#if graph && graphMatches}
         <Map
+          bind:this={mapView}
           {graph}
           {snapshot}
           selected={asMapSelection(selection)}
-          {reveal}
           onselect={selectWithoutReveal}
         />
       {:else}

@@ -83,10 +83,8 @@
     children?: Snippet;
   } = $props();
 
-  let localSelectedInstance = $state<string | undefined>(undefined);
-
   const activeScope = $derived(
-    resolveScopeInstance(scope, instances, selectedInstance ?? localSelectedInstance),
+    resolveScopeInstance(scope, instances, selectedInstance),
   );
   const instanceIndex = $derived(instances.findIndex((item) => item.key === activeScope.key));
   const repeated = $derived(instances.length > 1);
@@ -110,7 +108,6 @@
   function selectInstance(key: string) {
     const next = instances.find((item) => item.key === key);
     if (next) {
-      localSelectedInstance = key;
       oninstancechange?.(next);
     }
   }

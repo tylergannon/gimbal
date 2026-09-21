@@ -234,18 +234,12 @@
     if (scope?.loop && (scope.decisions?.length ?? 0) > 0) tabs.push({ id: "decisions", label: "Decisions" });
     return tabs;
   });
-  // A plain-string derived, not `scope?.key` read directly in the effect
-  // below: `scope` is a fresh object every snapshot update even when its key
-  // is unchanged, and an effect that reads it would reset the open tab on
-  // every rerender rather than only when the selected scope actually changes.
   const scopeKey = $derived(scope?.key ?? "");
-  let scopeActive = $state<ScopeTabID>("overview");
-  $effect(() => {
-    // A freshly selected scope re-opens on Overview, not whatever tab a
-    // previous scope left showing.
-    scopeKey;
-    scopeActive = "overview";
-  });
+  // An overridden tab remains open while its scope's snapshot rows refresh,
+  // then returns to Overview when selection changes identity.
+  let scopeActive = $derived.by<ScopeTabID>(() =>
+    scopeKey ? "overview" : "overview",
+  );
 
   function latestTurn(selectedScope: ScopeRow | undefined, operation: NodeOperation | undefined) {
     if (!selectedScope || operation?.kind !== "agent_call") return undefined;
@@ -369,19 +363,21 @@
   {/if}
 
   {#if turn && (selection?.kind === "node" || selection?.kind === "watcher")}
-    <SessionDetail
-      {snapshot}
-      {observation}
-      {turn}
-      definition={agentDefinition}
-      watchers={selection?.kind === "node" ? watcherRows : []}
-      {live}
-      onsteer={(message) =>
-        onsteer?.({ run: snapshot.run.id, session: turn.session, message }) ??
-        Promise.resolve({ ok: false, message: "Steering is unavailable." })}
-      onstop={onstop ? () => onstop(turn) : undefined}
-      onscope={onselectscope}
-    />
+    {#key turn.id}
+      <SessionDetail
+        {snapshot}
+        {observation}
+        {turn}
+        definition={agentDefinition}
+        watchers={selection?.kind === "node" ? watcherRows : []}
+        {live}
+        onsteer={(message) =>
+          onsteer?.({ run: snapshot.run.id, session: turn.session, message }) ??
+          Promise.resolve({ ok: false, message: "Steering is unavailable." })}
+        onstop={onstop ? () => onstop(turn) : undefined}
+        onscope={onselectscope}
+      />
+    {/key}
   {:else}
   <div class="detail-body">
     {#if !selection}

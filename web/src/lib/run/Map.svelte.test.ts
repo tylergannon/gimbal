@@ -259,9 +259,9 @@ test("service declarations are selectable scope properties, not command nodes", 
   await screen.rerender({
     ...serviceOwnershipFixture,
     selected: revealed,
-    reveal: { request: 1, selection: revealed },
     onselect: (selection) => selections.push(selection),
   });
+  await screen.component.revealSelection(revealed);
   await expect.element(screen.getByRole("button", { name: "Fold iteration" })).toBeVisible();
   const selectedFixture = screen.getByRole("button", { name: "Select service fixture" });
   await expect.element(selectedFixture).toHaveAttribute("aria-pressed", "true");
@@ -294,9 +294,9 @@ test("a controlled fold selection stays folded until an explicit navigation reve
   await screen.rerender({
     ...planTripFixture,
     selected: activity,
-    reveal: { request: 1, selection: activity },
     onselect: (next) => (selected = next),
   });
+  await screen.component.revealSelection(activity);
 
   await expect.element(screen.getByRole("button", { name: "Fold research" })).toBeVisible();
   const selectedInterview = document.querySelector(

@@ -121,6 +121,7 @@ type Manager struct {
 	mu      sync.RWMutex
 	items   map[string]*Conversation
 	active  map[string]*activeConversation
+	changes chan struct{}
 	closing bool
 }
 
@@ -156,6 +157,7 @@ func New(ctx context.Context, projectDir string, factory AdapterFactory, launche
 	manager := &Manager{
 		ctx: ctx, projectDir: projectDir, factory: factory, launcher: launcher,
 		items: make(map[string]*Conversation), active: make(map[string]*activeConversation),
+		changes: make(chan struct{}),
 	}
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -251,8 +253,23 @@ func (m *Manager) Create(ctx context.Context, in NewConversation) (Conversation,
 	}
 	m.items[id] = item
 	m.active[id] = &activeConversation{}
+	m.changedLocked()
 	m.mu.Unlock()
 	return clone(item), nil
+}
+
+// Changes closes whenever a conversation snapshot changes. Callers take a
+// fresh channel after each observed change, then read the snapshot they need.
+func (m *Manager) Changes() <-chan struct{} {
+	m.mu.RLock()
+	changes := m.changes
+	m.mu.RUnlock()
+	return changes
+}
+
+func (m *Manager) changedLocked() {
+	close(m.changes)
+	m.changes = make(chan struct{})
 }
 
 // List returns newest-first durable snapshots.
@@ -326,6 +343,7 @@ func (m *Manager) Send(id, text string) (Conversation, error) {
 		m.mu.Unlock()
 		return Conversation{}, err
 	}
+	m.changedLocked()
 	provider, model, worktree := item.Provider, item.Model, item.Worktree
 	m.mu.Unlock()
 
@@ -406,6 +424,7 @@ func (m *Manager) Send(id, text string) (Conversation, error) {
 	item.Status, item.Error, item.Updated = StatusIdle, "", now
 	err = m.save(item)
 	snapshot := clone(item)
+	m.changedLocked()
 	m.mu.Unlock()
 	if err != nil {
 		return Conversation{}, err
@@ -439,6 +458,7 @@ func (m *Manager) watchRun(conversationID, runID string, done <-chan error) {
 		}
 		item.Updated = time.Now().UnixMilli()
 		_ = m.save(item)
+		m.changedLocked()
 		return
 	}
 }
@@ -449,6 +469,7 @@ func (m *Manager) fail(item *Conversation, cause error) (Conversation, error) {
 	item.Status, item.Error, item.Updated = StatusError, cause.Error(), time.Now().UnixMilli()
 	saveErr := m.save(item)
 	snapshot := clone(item)
+	m.changedLocked()
 	m.mu.Unlock()
 	if saveErr != nil {
 		return snapshot, errors.Join(cause, saveErr)

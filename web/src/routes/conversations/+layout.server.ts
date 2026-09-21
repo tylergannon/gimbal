@@ -13,11 +13,11 @@ const unimplemented = (route: string): never => {
       "skgo: route " +
         route +
         " is prerendered, and its branch has a Go server load at " +
-        "src/routes/conversations/page.server.go" +
+        "src/routes/conversations/layout.server.go" +
         "; skgo cannot answer a load while kit prerenders (#81). Remove the prerender or move the load",
     );
   throw new Error("skgo: implemented in Go");
 };
 
-export const load = (event: { url: URL }): { items: Array<Conversation>; selected: Conversation } =>
+export const load = (event: { url: URL }): { items: Array<Conversation> } =>
   unimplemented(event.url.pathname);

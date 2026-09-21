@@ -6,6 +6,6 @@ package conversations
 // bindings package can spell. Each is the function itself and not a wrapper:
 // skgo.Refresh finds a query by the code pointer of the function it names.
 var (
-	// Skgo_load is load, published as the server load of src/routes/conversations/+page.server.ts.
+	// Skgo_load is load, published as the server load of src/routes/conversations/+layout.server.ts.
 	Skgo_load = load
 )

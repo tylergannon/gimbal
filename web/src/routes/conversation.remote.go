@@ -37,7 +37,7 @@ func createConversation(ctx context.Context, arg CreateConversation) (conversati
 		Title: arg.Title, Provider: arg.Provider, Model: arg.Model,
 	})
 	if err != nil {
-		return conversation.Conversation{}, skgo.Errorf(http.StatusBadRequest, "%s", err)
+		return conversation.Conversation{}, skgo.Invalidf("", "%s", err)
 	}
 	return item, nil
 }
@@ -53,11 +53,41 @@ func sendConversationMessage(ctx context.Context, arg SendConversationMessage) (
 	}
 	item, err := manager.Send(arg.Conversation, arg.Message)
 	if err != nil {
-		return item, skgo.Errorf(http.StatusBadGateway, "%s", err)
+		return item, skgo.Invalidf("", "%s", err)
 	}
 	return item, nil
 }
 
-var _ = skgo.Command(createConversation)
+func watchConversation(ctx context.Context, id string, yield func(conversation.Conversation) error) error {
+	event := skgo.EventFrom(ctx)
+	if request := event.Request(); request != nil {
+		ctx = request.Context()
+	}
+	manager := conversation.FromContext(ctx)
+	if manager == nil {
+		return skgo.Errorf(http.StatusInternalServerError,
+			"This server has no conversation manager in its runtime context.")
+	}
 
-var _ = skgo.Command(sendConversationMessage)
+	for {
+		changes := manager.Changes()
+		item, ok := manager.Get(id)
+		if !ok {
+			return skgo.Errorf(http.StatusNotFound, "There is no conversation %s in this project.", id)
+		}
+		if err := yield(item); err != nil {
+			return err
+		}
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-changes:
+		}
+	}
+}
+
+var _ = skgo.Form(createConversation)
+
+var _ = skgo.Form(sendConversationMessage)
+
+var _ = skgo.LiveQuery(watchConversation)

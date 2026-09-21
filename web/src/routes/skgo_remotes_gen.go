@@ -2,6 +2,10 @@
 
 package routes
 
+import (
+	conversation "github.com/tylergannon/gimble/internal/conversation"
+)
+
 // The functions this package declares, published under names the generated
 // bindings package can spell. Each is the function itself and not a wrapper:
 // skgo.Refresh finds a query by the code pointer of the function it names.
@@ -14,6 +18,8 @@ var (
 	Skgo_createConversation = createConversation
 	// Skgo_sendConversationMessage is sendConversationMessage, published as src/routes/conversation.remote.ts#sendConversationMessage.
 	Skgo_sendConversationMessage = sendConversationMessage
+	// Skgo_watchConversation is watchConversation, published as src/routes/conversation.remote.ts#watchConversation.
+	Skgo_watchConversation = watchConversation
 	// Skgo_answerInterview is answerInterview, published as src/routes/interview.remote.ts#answerInterview.
 	Skgo_answerInterview = answerInterview
 	// Skgo_watchRuns is watchRuns, published as src/routes/runs.remote.ts#watchRuns.
@@ -25,6 +31,12 @@ var (
 )
 
 type (
+	// SkgoArg_createConversation is the type createConversation takes.
+	SkgoArg_createConversation = CreateConversation
+	// SkgoArg_sendConversationMessage is the type sendConversationMessage takes.
+	SkgoArg_sendConversationMessage = SendConversationMessage
+	// SkgoOut_watchConversation is the type watchConversation yields.
+	SkgoOut_watchConversation = conversation.Conversation
 	// SkgoArg_answerInterview is the type answerInterview takes.
 	SkgoArg_answerInterview = InterviewAnswer
 	// SkgoOut_watchRuns is the type watchRuns yields.

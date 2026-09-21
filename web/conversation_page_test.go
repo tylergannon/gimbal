@@ -46,7 +46,7 @@ func TestConversationPageRendersProviderAndRealWorktreeFacts(t *testing.T) {
 		items = append(items, item)
 	}
 	selected := items[2]
-	response, err := http.Get("http://" + runtime.address + "/conversations?conversation=" + selected.ID)
+	response, err := http.Get("http://" + runtime.address + "/conversations/" + selected.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -66,8 +66,14 @@ func TestConversationPageRendersProviderAndRealWorktreeFacts(t *testing.T) {
 			t.Errorf("conversation page does not contain %q", want)
 		}
 	}
-	if got := strings.Count(string(body), "data-sveltekit-reload"); got != len(items) {
-		t.Errorf("saved conversation links with document navigation = %d, want %d", got, len(items))
+	if strings.Contains(string(body), "data-sveltekit-reload") {
+		t.Error("saved conversation links force document navigation")
+	}
+	if strings.Contains(string(body), "?conversation=") {
+		t.Error("conversation page retains query-string identity")
+	}
+	if !strings.Contains(string(body), "/conversations/"+selected.ID) {
+		t.Errorf("conversation page does not link to canonical path for %q", selected.ID)
 	}
 }
 
@@ -110,7 +116,7 @@ func TestConversationPageRendersLinkedWorkflowStatusAndSavedContext(t *testing.T
 		cancel()
 		<-runtime.done
 	}()
-	response, err := http.Get("http://" + runtime.address + "/conversations?conversation=" + item.ID)
+	response, err := http.Get("http://" + runtime.address + "/conversations/" + item.ID)
 	if err != nil {
 		t.Fatal(err)
 	}

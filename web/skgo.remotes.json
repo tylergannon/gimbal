@@ -3,12 +3,17 @@
     "1698czr/answerInterview",
     "1emnx1f/createConversation",
     "1emnx1f/sendConversationMessage",
+    "1emnx1f/watchConversation",
     "1h2g0b8/watchRuns",
     "rm4r49/cancelRun",
     "rm4r49/stopTurn",
     "x7ussb/steer",
     "x7ussb/steerLoop"
   ],
-  "loads": ["src/routes/conversations/+page.server.ts", "src/routes/runs/[runID]/+page.server.ts"],
+  "loads": [
+    "src/routes/conversations/+layout.server.ts",
+    "src/routes/conversations/[conversationID]/+page.server.ts",
+    "src/routes/runs/[runID]/+page.server.ts"
+  ],
   "endpoints": {}
 }

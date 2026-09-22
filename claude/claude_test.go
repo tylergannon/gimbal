@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	claudeagent "github.com/roasbeef/claude-agent-sdk-go"
+	claudeagent "github.com/tylergannon/claude-agent-sdk-go"
 )
 
 // TestCloseIsIdempotent covers acceptance item 4: closing a Claude session

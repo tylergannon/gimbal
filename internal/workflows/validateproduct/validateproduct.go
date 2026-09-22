@@ -35,7 +35,7 @@
 // status includes cleanup errors; files alone do not certify run completion.
 // Bounded browser cleanup runs outside cancellation; hard kills cannot guarantee it.
 //
-// Roles: product-operation defaults to Claude Opus 5, product-visual-review to
+// Roles: product-operation defaults to Claude Opus 5.5, product-visual-review to
 // Gemini Flash, and product-triage to GPT-6 Astra. Each has its model override flag.
 //
 // Example:

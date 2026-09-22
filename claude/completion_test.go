@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	claudeagent "github.com/roasbeef/claude-agent-sdk-go"
 	jsonschema "github.com/santhosh-tekuri/jsonschema/v6"
+	claudeagent "github.com/tylergannon/claude-agent-sdk-go"
 	"github.com/tylergannon/gimble"
 )
 

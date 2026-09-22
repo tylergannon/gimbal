@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Default model selections now use GPT-6 Sol/Luna and Claude Opus 5.5 where
+  those tiers are configured. The `gpt` shorthand now selects GPT-6 Sol.
+
+### Added
+
+- The `opus` shorthand selects Claude Opus 5.5, with explicit Opus 5.5 and 5
+  choices. The GPT family supports explicit versions 6 and 5.6.
+
 ### Fixed
 
 - Product evaluators reopen saved screenshots before captioning or citing them,

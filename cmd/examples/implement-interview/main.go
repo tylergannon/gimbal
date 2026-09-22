@@ -13,11 +13,11 @@ func main() {
 	cmd := implementinterview.Command(map[gimble.WorkflowRole]string{
 		"api-research":                   "gpt-5.6-terra:high",
 		"frontend-research":              "claude-sonnet-5:high",
-		gimble.RoleSprintPlanning:        "claude-opus-5:max",
-		"coding":                         "gpt-5.6-sol:xhigh",
+		gimble.RoleSprintPlanning:        "claude-opus-5-5:max",
+		"coding":                         "gpt-6-sol:xhigh",
 		"implementation-scope-review":    "gpt-5.6-terra:high",
 		gimble.RoleArchitecturalCritique: "claude-sonnet-5:high",
-		gimble.RoleQAOrchestration:       "claude-opus-5:max",
+		gimble.RoleQAOrchestration:       "claude-opus-5-5:max",
 	})
 	cmd.SilenceUsage = true
 	cmd.SilenceErrors = true

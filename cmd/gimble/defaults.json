@@ -1,17 +1,17 @@
 {
-  "product-operation": "claude-opus-5:high",
+  "product-operation": "claude-opus-5-5:high",
   "product-visual-review": "gemini-3.8-flash-medium",
   "product-triage": "gpt-6-astra:high",
-  "code-review": "gpt-5.6-luna",
+  "code-review": "gpt-6-luna",
   "sprint-planning": "gpt-6-astra:high",
-  "coding": "gpt-5.6-sol:high",
+  "coding": "gpt-6-sol:high",
   "architectural-critique": "gpt-6-astra:medium",
-  "qa-orchestration": "gpt-5.6-sol:high",
+  "qa-orchestration": "gpt-6-sol:high",
   "research-planning": "gemini-3.8-flash-medium",
   "research-indexing": "gemini-3.8-flash-medium",
   "index-curation": "gemini-3.8-flash-medium",
   "document-authoring": "gemini-3.1-pro-high",
   "editorial-review": "gemini-3.1-pro-high",
   "document-supervision": "gemini-3.8-flash-medium",
-  "pyramid-planning": "gpt-5.6-luna"
+  "pyramid-planning": "gpt-6-luna"
 }

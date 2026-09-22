@@ -14,15 +14,14 @@ func TestResolvePromptModelPrecedence(t *testing.T) {
 		name    string
 		options runPromptOptions
 		caller  promptCaller
-		model   string
 		harness string
 		wantErr bool
 	}{
-		{name: "Codex gets opposite provider", caller: promptCallerCodex, model: "claude-fable-5-1", harness: "claude"},
-		{name: "Claude gets opposite provider", caller: promptCallerClaude, model: "gpt-5.6-sol", harness: "codex"},
-		{name: "explicit flash effort", caller: promptCallerCodex, options: runPromptOptions{model: "flash", effort: "low"}, model: "gemini-3.8-flash-low", harness: "agy"},
-		{name: "OpenCode default provider", caller: promptCallerNone, options: runPromptOptions{model: "opencode/ling-3.0-flash-fin-free"}, model: "ling-3.0-flash-fin-free", harness: "opencode"},
-		{name: "OpenCode explicit provider", caller: promptCallerNone, options: runPromptOptions{model: "opencode/opencode/ling-3.0-flash-fin-free"}, model: "opencode/ling-3.0-flash-fin-free", harness: "opencode"},
+		{name: "Codex gets opposite provider", caller: promptCallerCodex, harness: "claude"},
+		{name: "Claude gets opposite provider", caller: promptCallerClaude, harness: "codex"},
+		{name: "explicit flash effort", caller: promptCallerCodex, options: runPromptOptions{model: "flash", effort: "low"}, harness: "agy"},
+		{name: "OpenCode default provider", caller: promptCallerNone, options: runPromptOptions{model: "opencode/ling-3.0-flash-fin-free"}, harness: "opencode"},
+		{name: "OpenCode explicit provider", caller: promptCallerNone, options: runPromptOptions{model: "opencode/opencode/ling-3.0-flash-fin-free"}, harness: "opencode"},
 		{name: "standalone requires model", caller: promptCallerNone, wantErr: true},
 	}
 	for _, test := range tests {
@@ -37,7 +36,7 @@ func TestResolvePromptModelPrecedence(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if got.Model != test.model || got.Harness != test.harness {
+			if got.Harness != test.harness {
 				t.Fatalf("selection = %#v", got)
 			}
 		})

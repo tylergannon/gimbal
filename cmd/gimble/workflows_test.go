@@ -20,21 +20,16 @@ func TestRunListsTheWorkflowsBuiltIn(t *testing.T) {
 	}
 }
 
-func TestImplementHelpExplainsItsGenericContract(t *testing.T) {
+func TestImplementHelpExplainsItsOutcomeContract(t *testing.T) {
 	help := helpOf(t, "implement")
-	for _, flag := range []string{"--promise string", "--definition-of-done-file string", "--max-tasks int"} {
+	for _, flag := range []string{"--outcomes-file string", "--max-tasks-per-outcome int"} {
 		if !strings.Contains(help, flag) || !strings.Contains(lineWith(help, flag), "(required)") {
 			t.Errorf("run implement --help lacks required %s:\n%s", flag, help)
 		}
 	}
-	for _, text := range []string{"planner-directed loop", "does not commit", "independent validator", "90–95%", "must not cause another lap"} {
+	for _, text := range []string{"ordered list of outcomes", "PromiseLoop", "not commit", "independent validator", "90–95%", "next outcome"} {
 		if !strings.Contains(help, text) {
 			t.Errorf("run implement --help lacks %q:\n%s", text, help)
-		}
-	}
-	for _, text := range []string{"Model cost guidance", "sprint-planning", "architectural-critique", "Sol or Opus", "low-risk background implementation", "Terra and Sonnet", "execution errors still end the run"} {
-		if !strings.Contains(help, text) {
-			t.Errorf("run implement --help lacks model-selection guidance %q:\n%s", text, help)
 		}
 	}
 	if strings.Contains(help, "frontend") || strings.Contains(help, "Storybook") {

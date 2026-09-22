@@ -80,9 +80,9 @@ type AdapterFactory func(string) (gimble.HarnessAdapter, error)
 // LaunchRequest is the small set of inputs a conversation agent can give the
 // two built-in workflows exposed by the Gimble binary.
 type LaunchRequest struct {
-	Workflow             string
-	Goal                 string
-	DefinitionOfDoneFile string
+	Workflow     string
+	Goal         string
+	OutcomesFile string
 }
 
 // LaunchedRun is returned only after a workflow has actually started. Done
@@ -583,16 +583,16 @@ func clone(item *Conversation) Conversation {
 }
 
 type conversationReply struct {
-	Message              string `json:"message"`
-	Workflow             string `json:"workflow"`
-	Goal                 string `json:"goal"`
-	DefinitionOfDoneFile string `json:"definition_of_done_file"`
+	Message      string `json:"message"`
+	Workflow     string `json:"workflow"`
+	Goal         string `json:"goal"`
+	OutcomesFile string `json:"outcomes_file"`
 }
 
 func (r conversationReply) launchRequest() (LaunchRequest, error) {
 	request := LaunchRequest{
 		Workflow: strings.TrimSpace(r.Workflow), Goal: strings.TrimSpace(r.Goal),
-		DefinitionOfDoneFile: strings.TrimSpace(r.DefinitionOfDoneFile),
+		OutcomesFile: strings.TrimSpace(r.OutcomesFile),
 	}
 	switch request.Workflow {
 	case "":
@@ -602,8 +602,8 @@ func (r conversationReply) launchRequest() (LaunchRequest, error) {
 			return LaunchRequest{}, errors.New("conversation: review launch needs a goal")
 		}
 	case WorkflowImplement:
-		if request.Goal == "" || request.DefinitionOfDoneFile == "" {
-			return LaunchRequest{}, errors.New("conversation: implementation launch needs a promise and definition-of-done file")
+		if request.OutcomesFile == "" {
+			return LaunchRequest{}, errors.New("conversation: implementation launch needs an outcomes file")
 		}
 	default:
 		return LaunchRequest{}, fmt.Errorf("conversation: unsupported workflow %q", request.Workflow)
@@ -613,7 +613,7 @@ func (r conversationReply) launchRequest() (LaunchRequest, error) {
 
 const conversationPrompt = `You are the agent in a Gimble conversation. Reply to the person's message and optionally request one built-in workflow launch in this conversation's worktree.
 
-Always return the structured response requested by the schema. Set workflow to "" for ordinary chat. To request a read-only review, set workflow to "review" and goal to the concrete review goal. To request implementation, set workflow to "implement", goal to the promise, and definition_of_done_file to a local file path in the worktree. Leave unused strings empty. The server, not you, decides whether launch succeeds, so describe the request without claiming a run has started.
+Always return the structured response requested by the schema. Set workflow to "" for ordinary chat. To request a read-only review, set workflow to "review" and goal to the concrete review goal. To request implementation, set workflow to "implement" and outcomes_file to a local JSON file containing an ordered array of outcome strings in the worktree. Leave unused strings empty. The server, not you, decides whether launch succeeds, so describe the request without claiming a run has started.
 
 Person: `
 
@@ -623,8 +623,8 @@ var conversationReplySchema = json.RawMessage(`{
     "message": {"type": "string"},
     "workflow": {"type": "string", "enum": ["", "review", "implement"]},
     "goal": {"type": "string"},
-    "definition_of_done_file": {"type": "string"}
+    "outcomes_file": {"type": "string"}
   },
-  "required": ["message", "workflow", "goal", "definition_of_done_file"],
+  "required": ["message", "workflow", "goal", "outcomes_file"],
   "additionalProperties": false
 }`)

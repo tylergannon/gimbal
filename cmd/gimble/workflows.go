@@ -55,7 +55,7 @@ func conversationWorkflowOption() web.Option {
 		}
 		env := gimble.Env{WorkDir: worktree}
 		params := implementation.Params{
-			Promise: request.Goal, DefinitionOfDoneFile: request.DefinitionOfDoneFile, MaxTasks: 3,
+			OutcomesFile: request.OutcomesFile, MaxTasksPerOutcome: 3,
 		}
 		return runtime.Run(ctx, conversation.WorkflowImplement, models, func(ctx context.Context) error {
 			return implementation.Implement(ctx, env, params)

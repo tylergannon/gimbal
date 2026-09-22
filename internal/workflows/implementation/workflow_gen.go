@@ -22,54 +22,53 @@ func init() { gimble.RegisterGraph(Graph) }
 // Graph is the shape of this workflow, read from the source of Implement.
 var Graph = workflow.Graph{
 	Name:     "implement",
-	Source:   workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 85},
+	Source:   workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 64},
 	Services: []workflow.Service{},
 	Body: []workflow.Operation{
-		workflow.Condition{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 86}, Branches: []workflow.Branch{
-			{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 86}, Case: "params.MaxTasks < 1", Exits: true, Body: []workflow.Operation{}},
+		workflow.Condition{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 65}, Branches: []workflow.Branch{
+			{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 65}, Case: "params.MaxTasksPerOutcome < 1", Exits: true, Body: []workflow.Operation{}},
 		}},
-		workflow.Condition{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 90}, Branches: []workflow.Branch{
-			{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 90}, Case: "promise == \"\"", Exits: true, Body: []workflow.Operation{}},
+		workflow.Condition{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 80}, Branches: []workflow.Branch{
+			{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 80}, Case: "len(outcomes) == 0", Exits: true, Body: []workflow.Operation{}},
 		}},
-		workflow.Condition{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 101}, Branches: []workflow.Branch{
-			{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 101}, Case: "!info.Mode().IsRegular()", Exits: true, Body: []workflow.Operation{}},
-		}},
-		workflow.Set{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 105}, Key: "promise"},
-		workflow.Set{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 106}, Key: "definition of done file"},
-		workflow.Set{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 107}, Key: "repository"},
-		workflow.Set{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 108}, Key: "maximum tasks"},
-		workflow.Set{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 109}, Key: "completion rule"},
-		workflow.Session{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 111}, Name: "sprint-planning", From: ""},
-		workflow.Session{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 112}, Name: "architectural-critique", From: ""},
-		workflow.PromiseLoop{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 113}, Name: "implementation", Planner: "sprint-planning", Supervisors: []workflow.Supervisor{
-			{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 114}, Session: "architectural-critique", Role: "architectural-critique", Instruction: "Keep the plan inside the promise and its definition-of-done file. Every selected task needs a concrete definition of done that advances the promise. Object to invented features, speculative infrastructure, polishing, or unrelated repairs. Preserve failed checks and substantial validator findings as evidence for replanning. When validation passes at 90–95% with only small gaps, end immediately; never plan work for the last 5%."},
-		}, Services: []workflow.Service{}, Body: []workflow.Operation{
-			workflow.Session{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 122}, Name: "coding", From: ""},
-			workflow.Session{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 123}, Name: "architectural-critique", From: ""},
-			workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 124}, Session: "coding", Role: "coding", Prompt: "Read the promise, the definition-of-done file, and the selected task with its definition of done. Implement only that task in the repository. Make the actual source changes and gather useful evidence. Do not edit the definition of done or this workflow; do not commit, push, merge, deploy, or add proof scripts and run output. Preserve unrelated work. Answer with what changed and what you personally ran or observed.", Supervisors: []workflow.Supervisor{
-				{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 125}, Session: "architectural-critique", Role: "architectural-critique", Instruction: "Watch only for concrete work beyond the selected assignment, the promise, or the definition-of-done file. Object to invented features, speculative abstractions, edits to the definition of done, unrelated cleanup, and polishing toward 100%. Do not edit source or demand optional finishing work once the selected result is at 90–95%."},
-			}},
-			workflow.Set{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 130}, Key: "worker report"},
-			workflow.Condition{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 132}, Branches: []workflow.Branch{
-				{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 132}, Case: "command := strings.TrimSpace(task.Validation.Command); command != \"\"", Exits: false, Body: []workflow.Operation{
-					workflow.Command{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 133}, Name: "task check"},
+		workflow.Set{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 89}, Key: "outcomes file"},
+		workflow.Set{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 90}, Key: "repository"},
+		workflow.Set{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 91}, Key: "maximum tasks per outcome"},
+		workflow.Set{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 92}, Key: "completion rule"},
+		workflow.Iterate{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 95}, Name: "outcome", Services: []workflow.Service{}, Body: []workflow.Operation{
+			workflow.Set{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 97}, Key: "outcome"},
+			workflow.Session{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 98}, Name: "sprint-planning", From: ""},
+			workflow.Session{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 99}, Name: "architectural-critique", From: ""},
+			workflow.PromiseLoop{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 100}, Name: "implementation", Planner: "sprint-planning", Supervisors: []workflow.Supervisor{
+				{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 101}, Session: "architectural-critique", Role: "architectural-critique", Instruction: "Steer only on concrete over-engineering, gold-plating, unrequested behavior, or work beyond the selected outcome. Do not edit source, create new requirements, or treat style preferences and optional polish as blockers."},
+			}, Services: []workflow.Service{}, Body: []workflow.Operation{
+				workflow.Session{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 108}, Name: "coding", From: ""},
+				workflow.Session{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 109}, Name: "architectural-critique", From: ""},
+				workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 110}, Session: "coding", Role: "coding", Prompt: "Read the selected outcome and task with its definition of done. Implement only that task in the repository and gather useful evidence. Do not edit the outcomes file or this workflow; do not commit, push, merge, deploy, or add proof scripts or run output. Preserve unrelated work. Report what changed and what you personally observed.", Supervisors: []workflow.Supervisor{
+					{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 111}, Session: "architectural-critique", Role: "architectural-critique", Instruction: "Steer only on concrete over-engineering, gold-plating, unrequested behavior, or work beyond the selected outcome. Do not edit source, create new requirements, or treat style preferences and optional polish as blockers."},
+				}},
+				workflow.Set{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 116}, Key: "worker report"},
+				workflow.Condition{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 118}, Branches: []workflow.Branch{
+					{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 118}, Case: "command := strings.TrimSpace(task.Validation.Command); command != \"\"", Exits: false, Body: []workflow.Operation{
+						workflow.Command{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 119}, Name: "task check"},
+					}},
+				}},
+				workflow.Session{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 125}, Name: "qa-orchestration", From: ""},
+				workflow.Session{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 126}, Name: "architectural-critique", From: ""},
+				workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 127}, Session: "qa-orchestration", Role: "qa-orchestration", Prompt: "Independently validate the selected task and current outcome. Inspect the repository and recorded evidence, then personally observe behavior that checks alone do not establish. Make no source changes and do not treat the worker report as proof. ValidationPassed is true when the outcome holds at 90–95% with no substantial gap. List optional polish in SmallGaps; list only genuinely unmet requirements or invalid evidence in SubstantialGaps. Do not demand 100% or work from later outcomes.", Supervisors: []workflow.Supervisor{
+					{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 128}, Session: "architectural-critique", Role: "architectural-critique", Instruction: "Steer only on concrete over-engineering, gold-plating, unrequested behavior, or work beyond the selected outcome. Do not edit source, create new requirements, or treat style preferences and optional polish as blockers."},
+				}},
+				workflow.Set{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 133}, Key: "independent assessment"},
+				workflow.Condition{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 134}, Branches: []workflow.Branch{
+					{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 134}, Case: "assessment.ValidationPassed", Exits: true, Body: []workflow.Operation{}},
+				}},
+				workflow.Condition{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 138}, Branches: []workflow.Branch{
+					{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 138}, Case: "tasksRun >= params.MaxTasksPerOutcome", Exits: true, Body: []workflow.Operation{}},
 				}},
 			}},
-			workflow.Session{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 139}, Name: "qa-orchestration", From: ""},
-			workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 140}, Session: "qa-orchestration", Role: "qa-orchestration", Prompt: "Independently validate the selected task and the overall promise. Read the promise, the supplied definition-of-done file, the task's own definition of done, and the completion rule. Inspect the actual repository and recorded evidence, then personally observe any behavior needed by the definitions of done that checks do not establish. Make no source changes and do not treat the worker report as proof. Unit tests and other commands are evidence, never validation by themselves. ValidationPassed is true when the promise and definition of done hold at 90–95% with no substantial gap. Put remaining optional finishing work in SmallGaps; small gaps must not make validation fail or trigger another lap. Set ValidationPassed false only for a substantial unmet requirement or invalid evidence, and list each reason in SubstantialGaps. Do not demand 100%, style preferences, polish, or unrelated improvements."},
-			workflow.Set{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 145}, Key: "independent assessment"},
-			workflow.Condition{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 146}, Branches: []workflow.Branch{
-				{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 146}, Case: "assessment.ValidationPassed", Exits: true, Body: []workflow.Operation{}},
+			workflow.Condition{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 148}, Branches: []workflow.Branch{
+				{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 148}, Case: "!completed", Exits: true, Body: []workflow.Operation{}},
 			}},
-			workflow.Condition{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 150}, Branches: []workflow.Branch{
-				{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 150}, Case: "tasksRun >= params.MaxTasks", Exits: true, Body: []workflow.Operation{}},
-			}},
-		}},
-		workflow.Condition{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 161}, Branches: []workflow.Branch{
-			{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 161}, Case: "completed", Exits: true, Body: []workflow.Operation{}},
-		}},
-		workflow.Condition{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 164}, Branches: []workflow.Branch{
-			{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 164}, Case: "exhausted", Exits: true, Body: []workflow.Operation{}},
 		}},
 	},
 }
@@ -89,16 +88,14 @@ func Command(defaults map[gimble.WorkflowRole]string) *cobra.Command {
 	var noWeb bool
 	cmd := &cobra.Command{
 		Use:   "implement",
-		Short: "Implement modifies a repository until its promise is independently demonstrated.",
-		Long:  "Package implementation fulfills a promise through a bounded,\nplanner-directed loop and independently validates the result.\n\nThe caller supplies the promise and a local definition-of-done file. On each\nlap, a planner chooses the next coherent assignment and gives it its own\ndefinition of done. A fresh coding agent implements that assignment. The\nplanner may request a command as task evidence; its result is recorded, but\na passing check is never validation by itself.\n\nThe workflow does not commit, push, merge, deploy, or rewrite the\ndefinition of done. After each task, a fresh independent validator judges\nboth that task's definition of done and the overall promise against actual\nevidence and observed behavior. The loop exits when validation passes at\n90–95% completion with only small gaps. Those gaps are recorded for later\nand must not cause another lap. Only a substantial unmet requirement permits\nreplanning, until the task limit is exhausted or the planner stops honestly.\n\nModel cost guidance: the configured defaults use Astra for sprint-planning\nand architectural-critique, while coding and independent validation already\nuse Sol. Keep Astra for ambiguous, cross-cutting, or architecture-heavy\nchanges. For a small, local, well-specified change, deliberately tune the two\nAstra roles down to Sol or Opus:\n\n\t--sprint-planning gpt-6-sol:high \\\n\t--architectural-critique claude-opus-5-5:high\n\nFor low-risk background implementation where elapsed time and rejected\nvalidation laps are cheap, keep the frontier sprint-planning default and use\nTerra and Sonnet for most repeated work:\n\n\t--coding gpt-5.6-terra:high \\\n\t--architectural-critique claude-sonnet-5:high \\\n\t--qa-orchestration claude-sonnet-5:high\n\nA failed validation can send substantial gaps back to the frontier planner.\nProvider, harness, and execution errors still end the run rather than\nretrying.\n\nExample:\n\n\tgimble run implement \\\n\t  --promise \"Ship the local issue without unrelated changes\" \\\n\t  --definition-of-done-file ./issue.md \\\n\t  --max-tasks 8",
+		Short: "Implement works through supplied outcomes until each is demonstrated.",
+		Long:  "Package implementation works through an ordered list of outcomes. Each\noutcome has its own bounded PromiseLoop and independent validation; there is\nno planner deciding which outcome comes next.\n\nThe caller supplies a local JSON file containing an array of outcome\nstrings. The workflow takes them in file order. Within an outcome, a planner\nmay choose another task only when validation finds a substantial gap. A\npassing judgment at 90–95% with only small gaps advances immediately to the\nnext outcome. An incomplete outcome stops the run; later outcomes do not\nstart.\n\nScope supervisors watch the planner, coder, and validator for unnecessary\ncomplexity, gold-plating, and work outside the selected outcome. They steer\nbut never gate completion. The workflow changes the working tree but does\nnot commit, push, merge, deploy, or edit the outcomes file. Checks gather\nevidence; the independent validator judges whether the behavior was seen.\n\nExample outcomes.json:\n\n\t[\"The CLI starts work in the selected instance\", \"The page observes that work live\"]\n\nExample invocation:\n\n\tgimble run implement --outcomes-file ./outcomes.json --max-tasks-per-outcome 3",
 		Args:  cobra.NoArgs,
 	}
-	cmd.Flags().StringVar(&params.Promise, "promise", "", "Promise is the outcome the implementation loop must fulfill. (required)")
-	cmd.Flags().StringVar(&params.DefinitionOfDoneFile, "definition-of-done-file", "", "DefinitionOfDoneFile is the local file the validator uses to judge fulfillment. (required)")
-	cmd.Flags().IntVar(&params.MaxTasks, "max-tasks", 0, "MaxTasks is the maximum number of planner assignments the run may execute. (required)")
-	_ = cmd.MarkFlagRequired("promise")
-	_ = cmd.MarkFlagRequired("definition-of-done-file")
-	_ = cmd.MarkFlagRequired("max-tasks")
+	cmd.Flags().StringVar(&params.OutcomesFile, "outcomes-file", "", "OutcomesFile is a local JSON array of outcome strings, in execution order. (required)")
+	cmd.Flags().IntVar(&params.MaxTasksPerOutcome, "max-tasks-per-outcome", 0, "MaxTasksPerOutcome bounds planner assignments for each outcome. (required)")
+	_ = cmd.MarkFlagRequired("outcomes-file")
+	_ = cmd.MarkFlagRequired("max-tasks-per-outcome")
 	cmd.Flags().StringVar(&workDir, "work-dir", ".", "the working directory for this run")
 	sprintPlanningModelDefault := defaults[gimble.WorkflowRole("sprint-planning")]
 	if sprintPlanningModelDefault == "" {

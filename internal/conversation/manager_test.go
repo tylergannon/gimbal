@@ -174,7 +174,7 @@ func TestManagerRoutesReviewAndImplementationLaunchesAndTracksTheirResults(t *te
 		sessions: make(map[string][]string),
 		replies: []conversationReply{
 			{Message: "I can request that review.", Workflow: WorkflowReview, Goal: "Find concrete bugs."},
-			{Message: "I can request that implementation.", Workflow: WorkflowImplement, Goal: "Ship the bounded change.", DefinitionOfDoneFile: "done.md"},
+			{Message: "I can request that implementation.", Workflow: WorkflowImplement, OutcomesFile: "outcomes.json"},
 			{Message: "I can request another review.", Workflow: WorkflowReview, Goal: "This launch should fail."},
 		},
 	}
@@ -216,7 +216,7 @@ func TestManagerRoutesReviewAndImplementationLaunchesAndTracksTheirResults(t *te
 	if calls[0].worktree != item.Worktree || calls[1].worktree != item.Worktree {
 		t.Fatalf("launches did not use conversation worktree %q: %+v", item.Worktree, calls)
 	}
-	if calls[1].request.Goal != "Ship the bounded change." || calls[1].request.DefinitionOfDoneFile != "done.md" {
+	if calls[1].request.OutcomesFile != "outcomes.json" {
 		t.Fatalf("implementation inputs = %+v", calls[1].request)
 	}
 	if len(reviewing.Runs) != 1 || reviewing.Runs[0].Status != RunStatusRunning || len(implementing.Runs) != 2 {

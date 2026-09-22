@@ -150,7 +150,7 @@ func TestConversationWorkflowStartsInThisRuntimeAndReportsLaunchFailure(t *testi
 	}
 
 	failed, err := runtime.launchConversationWorkflow(wantWorktree, conversation.LaunchRequest{
-		Workflow: conversation.WorkflowImplement, Goal: "Change it", DefinitionOfDoneFile: "done.md",
+		Workflow: conversation.WorkflowImplement, OutcomesFile: "outcomes.json",
 	})
 	if err == nil || !strings.Contains(err.Error(), "inputs were rejected") {
 		t.Fatalf("failed implementation launch = (%+v, %v)", failed, err)

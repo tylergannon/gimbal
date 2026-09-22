@@ -2,8 +2,8 @@
 name: gimble-release
 description: >
   Build and deliver changes to the Gimble application. Covers development
-  priorities, proof, generated frontend assets, merge, local installation,
-  and refreshing Gimble instructions in installed skills and plugins.
+  priorities, model catalog refreshes, proof, generated frontend assets,
+  merge, local installation, and refreshing installed Gimble instructions.
 ---
 
 # Build and release Gimble
@@ -89,6 +89,25 @@ supplies long help; parameter field comments supply flag help. Check the built
 command's workflow list and affected workflow help. A graph or output schema
 does not document the invocation for its caller.
 
+## Model catalog refresh
+
+The daily models.dev job opens a PR for generated price data; it does not
+publish a release. The repository's Actions setting permits bot-created PRs;
+the job grants only contents and pull-request write access. Review new and
+removed model IDs before merging it. If a new version changes an existing
+family, update its unversioned shorthand and
+explicit versions in `internal/modelalias/modelalias.go`, all affected built-in
+roles in `cmd/gimble/defaults.json`, and other configured defaults or help.
+Keep each role's intended model tier. Check the rendered `gimble run` role
+flags, not only the JSON. Tests for aliases should cover resolution and
+overrides without fixing a moving shorthand to today's version.
+
+Before tagging a release, check that `go.mod` has no replacement that blocks
+versioned installation. Prove installation from a pushed commit with
+`go install github.com/tylergannon/gimble/cmd/gimble@<commit>`; after tagging,
+install the exact tag and inspect the installed CLI. A checkout install does not
+establish that the published module can be installed.
+
 ## Merge and refresh the local installation
 
 Commit and push meaningful work; follow repository review and squash-merge
@@ -127,8 +146,8 @@ unrelated local configuration. Report when a new session is needed to load
 updated instructions.
 
 Local release needs no binary signing or scalable distribution system. The
-existing docs-site CI and model-price patch automation have their own scope;
-they do not imply a general CLI publishing pipeline.
+docs-site CI and scheduled model-catalog PR have their own scope; they do not
+imply a general CLI publishing pipeline.
 
 ## Report delivery
 

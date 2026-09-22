@@ -22,9 +22,9 @@ examples:
 go doc -all github.com/tylergannon/gimble
 ```
 
-The project runtime starts the SvelteKit web application automatically. It
-listens on loopback port 8080 by default; `web.WithPort`, `web.WithUDS`, and
-`web.WithNoWeb` select another runtime shape. Node is a build-time dependency
+The persistent instance starts the SvelteKit web application automatically.
+It listens on loopback port 8080 by default; `web.WithPort`, `web.WithUDS`, and
+`web.WithNoWeb` select another listener shape. Node is a build-time dependency
 only.
 
 ## Build and run
@@ -50,17 +50,29 @@ just dev-go
 
 ## Run a workflow
 
-The same binary runs the workflows built into it:
+Start an instance, then use the same build of the binary to submit a workflow
+compiled into it:
 
 ```sh
+./bin/gimble --instance-dir /tmp/gimble-instance --project /absolute/project
 ./bin/gimble run --help
 ./bin/gimble run <workflow> --help
+./bin/gimble run review --instance-dir /tmp/gimble-instance --project /absolute/project --goal "Review the current changes" --follow
 ```
 
-Each workflow's subcommand is generated from its source: Gimble's `--work-dir`
-environment flag, one flag per field of its workflow parameter struct, and one
-model flag per role its graph names. The absolute work directory is passed to
-the entry in `gimble.Env`; its `.gimble` holds the run, served as above.
+Run the first command in its own terminal. `--project` admits a repository;
+`--instance-dir` holds instance control and discovery, separately from the
+project's `.gimble/runs` and conversation files. Repeat `--project` to admit
+more repositories. The generated subcommand sends parameters and model choices
+to the selected running instance. A project has one active instance owner; a
+second instance refuses it, including through a path alias. Different projects
+can run on independently configured instances, and a project can reopen after
+its owner exits. `--work-dir` controls execution independently of the owning
+project and defaults to that project. `--follow` waits for the
+terminal result. The instance executes the compiled body, owns live controls,
+and uses its startup PATH, executables, and provider configuration. The CLI
+does not send or execute a Go closure. A server build without that workflow
+cannot run it.
 
 The binary includes the `implement`, `review`, `validate-product`,
 `research-document`, and `pyramid-summary` workflows. Each role's model defaults from
@@ -101,15 +113,34 @@ project, and restart that binary; missing or stale generated graph code is
 reported on the run page with those corrective steps instead of a graphless
 history view.
 
-Author a workflow in one Go file with its `func Name(ctx context.Context, env
-gimble.Env, params NameParams) error` entry, workflow-specific parameter and
-result structs, and
-generate directives; declare its result structs to Polytype in a
-`//go:build jsonschema` file beside it, as the root package does; then import
-its generated `Command(defaults)` and register it in
-`cmd/gimble/workflows.go`. The application reads the shared
-`cmd/gimble/defaults.json` once; an unknown role is required on the command
-line when that file has no default for it.
+The supported user-authored hosted path is in this Gimble checkout. Add a
+package under `internal/workflows/`, using `internal/workflows/review/` as the
+small example. Give it an entry such as `func Name(ctx context.Context, env
+gimble.Env, params NameParams) error` and a `//go:generate` directive for
+`go run github.com/tylergannon/gimble/internal/generate/gimblegen -entry Name
+-name name`. For structured result types, add a `//go:build jsonschema` file
+and Polytype generation as the review package does. Run `just build`; import
+the package in `cmd/gimble/workflows.go`, add its generated
+`Command(workflowDefaults())` to `newRunCommand`, and add its `Hosted()` to
+`builtInWorkflows` with the exact generated run name. Rebuild, restart the
+instance with that binary, and invoke its generated subcommand. The graph's
+registration comes from the generated file compiled into the instance.
+An unknown role is required on the command line when
+`cmd/gimble/defaults.json` has no default for it. The generator uses Gimble
+internal packages and the application web build; generation in arbitrary
+external Go modules and submitting an arbitrary closure are not supported
+hosted paths.
+
+Standalone `gimble.Run(gimble.Project(ctx, dir), ...)` executes in its caller's
+process and writes durable state under `dir/runs`; it does not join a running
+instance's live registry or controls. `gimble run-prompt` runs its own headless
+runtime in the CLI process. Its logs default to a temporary directory; `--logs`
+must name a fresh, empty directory. Both inherit the caller's environment,
+not the hosted instance's environment. Keep these directories separate from
+projects admitted to a running instance: concurrent shared-state use is not a
+supported contract. Their records are local durable state, not live hosted
+runs, even while an instance happens to be running elsewhere.
+
 Use `Iterate(ctx, name, items)` to give each item in a finite slice its own
 scope. Use `PromiseLoop(ctx, name, goal, planner)` and range over its `Tasks`
 when a planner chooses work adaptively; check `Err()` afterward.

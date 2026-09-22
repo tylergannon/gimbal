@@ -25,9 +25,10 @@
     type RunSelection,
   } from "#lib/run/selection.js";
   import { watcherRows } from "#lib/run/watchers.js";
-  import { cancelRun, stopTurn } from "../../control.remote.js";
-  import { answerInterview, type InterviewAnswer } from "../../interview.remote.js";
-  import { steer, steerLoop, type LoopMessage, type Steer } from "../../steer.remote.js";
+  import { cancelRun, stopTurn } from "../../../../control.remote.js";
+  import { answerInterview, type InterviewAnswer } from "../../../../interview.remote.js";
+  import { steer, steerLoop, type LoopMessage, type Steer } from "../../../../steer.remote.js";
+	import { page } from "$app/state";
   import { tick, untrack } from "svelte";
 
   let { data }: { data: { snapshot: RunSnapshot; graph: string } } = $props();
@@ -297,7 +298,7 @@
         position: String(observation.position),
       });
       const currentStream = new EventSource(
-        `/api/runs/${encodeURIComponent(observation.run.id)}/events?${query}`,
+		`/projects/${page.params.project}/api/runs/${encodeURIComponent(observation.run.id)}/events?${query}`,
       );
       stream = currentStream;
       currentStream.addEventListener("delta", delta as EventListener);
@@ -365,6 +366,7 @@
           <div class="graph-required">
             <SmallStates
               state="no-graph"
+			  backHref={`/projects/${page.params.project}`}
               workflowName={snapshot.run.name}
               graphProblem={graph ? "mismatch" : "missing"}
             />

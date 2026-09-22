@@ -6,13 +6,13 @@ package validateproduct
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"os"
-	"os/signal"
 	"path/filepath"
 
 	"github.com/spf13/cobra"
 	"github.com/tylergannon/gimble"
-	"github.com/tylergannon/gimble/internal/binding"
 	"github.com/tylergannon/gimble/web"
 	"github.com/tylergannon/gimble/workflow"
 )
@@ -99,27 +99,47 @@ var Graph = workflow.Graph{
 	},
 }
 
-// Command is gimble run validate-product: Gimble's environment flag, a flag for each field of Params, a
-// model flag for each role ValidateProduct names with defaults supplied by the caller,
-// the web application's flags, and a run of ValidateProduct on the runtime.
+// Hosted is the entry ValidateProduct supplies to the persistent instance.
+func Hosted() web.WorkflowEntry {
+	return func(ctx context.Context, env gimble.Env, raw json.RawMessage) error {
+		var params Params
+		if err := json.Unmarshal(raw, &params); err != nil {
+			return err
+		}
+		return ValidateProduct(ctx, env, params)
+	}
+}
+
+// Command is gimble run validate-product: a flag for each field of Params, a
+// model flag for each role ValidateProduct names, instance and project selection,
+// and optional waiting for the hosted run's terminal result.
 func Command(defaults map[gimble.WorkflowRole]string) *cobra.Command {
 	var params Params
 	var productOperationModel string
 	var productVisualReviewModel string
 	var productTriageModel string
 	var workDir string
-	var port int
-	var uds string
-	var noWeb bool
+	var project string
+	var instanceDir string
+	var conversation string
+	var follow bool
 	cmd := &cobra.Command{
 		Use:   "validate-product",
 		Short: "ValidateProduct runs user workloads, checks their screenshots, and triages findings.",
-		Long:  "Package validateproduct runs practical user testing: up to three independent\nworkloads in parallel, one screenshot review, then one synthesis/issue-triage\nturn. It is a focus group, not an exhaustive feature checklist or source review.\nTesters never inspect the implementation source of the product under test (A).\nIf A does work on a second project (B), B's source is permitted but the tester\nshould normally rely on A to do that work.\n\nSupply a JSON/YAML suite with product, guides (local user-documentation files),\noutput_dir, and one to three workloads. Each workload has name, assignment_file\n(local task/issue text and allowed actions), an existing isolated workdir, url,\nand optional foreground start and ready shell commands. Prepare/build the desired\nproduct version before invocation. Existing targets are not stopped. A start\ncommand requires ready, polled for at most 30 seconds. For a CLI-only product,\nstart a loopback terminal such as GoTTY and supply its URL. Testers may use shell\ncommands as ordinary users, including invoking Gimble to delegate work on B.\n\nThe three tester slots are explicit; unused slots do nothing. The caller assigns\nworkloads; no planner invents work or retries failures. Each tester saves ordered,\ncaptioned screenshots and reports task outcome. One follow-up on the same session\nasks for its three favorite and least favorite aspects of UX and UI separately,\nappended to user-report.md. Elapsed time covers the task, excluding this debrief.\nVideo records the browser for optional human review; agents do not analyze it.\nGemini Flash opens screenshots to check readability and claims, not to repeat the workload.\nThe final agent reads all reports, deduplicates findings against existing GitHub\nissues, and opens actionable issues in issue_repo (owner/repository). Omit\nissue_repo to produce a report without publishing issues. Product defects are\nfindings, not workflow execution errors; failed agent turns remain execution errors.\n\nPrerequisites: authenticated harnesses, playwright-cli and its installed browser,\nand authenticated gh when publishing issues. playwright_cli can override the\ndriver's executable path. timeout defaults to 1h. All paths resolve from the\nsuite file. Output is a unique user-testing-* directory containing reports.json,\nper-tester user-report.md, screenshots and video.webm, visual-review.md and\nfindings.md. Elapsed time is measured by the workflow. The final command/run\nstatus includes cleanup errors; files alone do not certify run completion.\nBounded browser cleanup runs outside cancellation; hard kills cannot guarantee it.\n\nRoles: product-operation defaults to Claude Opus 5.5, product-visual-review to\nGemini Flash, and product-triage to GPT-6 Astra. Each has its model override flag.\n\nExample:\n\n\tgimble run validate-product --suite-file /abs/user-testing.yaml --no-web",
+		Long:  "Package validateproduct runs practical user testing: up to three independent\nworkloads in parallel, one screenshot review, then one synthesis/issue-triage\nturn. It is a focus group, not an exhaustive feature checklist or source review.\nTesters never inspect the implementation source of the product under test (A).\nIf A does work on a second project (B), B's source is permitted but the tester\nshould normally rely on A to do that work.\n\nSupply a JSON/YAML suite with product, guides (local user-documentation files),\noutput_dir, and one to three workloads. Each workload has name, assignment_file\n(local task/issue text and allowed actions), an existing isolated workdir, url,\nand optional foreground start and ready shell commands. Prepare/build the desired\nproduct version before invocation. Existing targets are not stopped. A start\ncommand requires ready, polled for at most 30 seconds. For a CLI-only product,\nstart a loopback terminal such as GoTTY and supply its URL. Testers may use shell\ncommands as ordinary users, including invoking Gimble to delegate work on B.\n\nThe three tester slots are explicit; unused slots do nothing. The caller assigns\nworkloads; no planner invents work or retries failures. Each tester saves ordered,\ncaptioned screenshots and reports task outcome. One follow-up on the same session\nasks for its three favorite and least favorite aspects of UX and UI separately,\nappended to user-report.md. Elapsed time covers the task, excluding this debrief.\nVideo records the browser for optional human review; agents do not analyze it.\nGemini Flash opens screenshots to check readability and claims, not to repeat the workload.\nThe final agent reads all reports, deduplicates findings against existing GitHub\nissues, and opens actionable issues in issue_repo (owner/repository). Omit\nissue_repo to produce a report without publishing issues. Product defects are\nfindings, not workflow execution errors; failed agent turns remain execution errors.\n\nPrerequisites: authenticated harnesses, playwright-cli and its installed browser,\nand authenticated gh when publishing issues. playwright_cli can override the\ndriver's executable path. timeout defaults to 1h. All paths resolve from the\nsuite file. Output is a unique user-testing-* directory containing reports.json,\nper-tester user-report.md, screenshots and video.webm, visual-review.md and\nfindings.md. Elapsed time is measured by the workflow. The final command/run\nstatus includes cleanup errors; files alone do not certify run completion.\nBounded browser cleanup runs outside cancellation; hard kills cannot guarantee it.\n\nRoles: product-operation defaults to Claude Opus 5.5, product-visual-review to\nGemini Flash, and product-triage to GPT-6 Astra. Each has its model override flag.\n\nExample:\n\n\tgimble run validate-product --suite-file /abs/user-testing.yaml --instance-dir /abs/instance --project /abs/project" + "\n\nThe selected persistent instance owns this run. --project selects its admitted repository; --work-dir selects the execution directory independently. --instance-dir selects the instance state directory (or GIMBLE_INSTANCE_DIR, default .gimble). --follow waits for terminal success or failure; otherwise the run continues after this client exits. Each role flag chooses a model and optional effort. Executable lookup, PATH, and provider configuration come from the instance startup environment.",
 		Args:  cobra.NoArgs,
 	}
 	cmd.Flags().StringVar(&params.SuiteFile, "suite-file", "", "SuiteFile names the JSON/YAML product, local workload assignments, and issue repository. (required)")
 	_ = cmd.MarkFlagRequired("suite-file")
-	cmd.Flags().StringVar(&workDir, "work-dir", ".", "the working directory for this run")
+	cmd.Flags().StringVar(&workDir, "work-dir", "", "execution directory (default: owning project)")
+	cmd.Flags().StringVar(&project, "project", ".", "admitted repository owning this run and its observation")
+	instanceDefault := os.Getenv("GIMBLE_INSTANCE_DIR")
+	if instanceDefault == "" {
+		instanceDefault = ".gimble"
+	}
+	cmd.Flags().StringVar(&instanceDir, "instance-dir", instanceDefault, "selected running instance state directory (default: GIMBLE_INSTANCE_DIR or .gimble)")
+	cmd.Flags().StringVar(&conversation, "conversation", "", "associate this run with a conversation in the owning project")
+	cmd.Flags().BoolVar(&follow, "follow", false, "wait for the hosted run's terminal result; without this flag the run survives client exit")
 	productOperationModelDefault := defaults[gimble.WorkflowRole("product-operation")]
 	if productOperationModelDefault == "" {
 		cmd.Flags().StringVar(&productOperationModel, "product-operation", "", "the model for role product-operation, as model or model:effort; OpenCode uses opencode/model or opencode/provider/model")
@@ -141,35 +161,44 @@ func Command(defaults map[gimble.WorkflowRole]string) *cobra.Command {
 	} else {
 		cmd.Flags().StringVar(&productTriageModel, "product-triage", productTriageModelDefault, "advanced override for role product-triage, as model or model:effort; OpenCode uses opencode/model or opencode/provider/model; omit this flag to use the displayed workflow default")
 	}
-	cmd.Flags().IntVar(&port, "port", 8080, "loopback TCP port for the web application")
-	cmd.Flags().StringVar(&uds, "uds", "", "Unix-domain socket for the web application instead of TCP")
-	cmd.Flags().BoolVar(&noWeb, "no-web", false, "run without the web application")
 	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
-		workDir, err := filepath.Abs(workDir)
+		project, err := filepath.Abs(project)
 		if err != nil {
 			return err
 		}
-		models, err := binding.Roles(map[gimble.WorkflowRole]string{gimble.WorkflowRole("product-operation"): productOperationModel, gimble.WorkflowRole("product-visual-review"): productVisualReviewModel, gimble.WorkflowRole("product-triage"): productTriageModel})
+		if workDir == "" {
+			workDir = project
+		}
+		workDir, err = filepath.Abs(workDir)
 		if err != nil {
 			return err
 		}
-		ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt)
-		defer stop()
-		var options []web.Option
-		switch {
-		case noWeb:
-			options = append(options, web.WithNoWeb())
-		case uds != "":
-			options = append(options, web.WithUDS(uds))
-		default:
-			options = append(options, web.WithPort(port))
+		values := map[string]any{
+			"SuiteFile": params.SuiteFile,
 		}
-		runtime, err := web.NewRuntime(ctx, filepath.Join(workDir, ".gimble"), options...)
+		paramsJSON, err := json.Marshal(values)
 		if err != nil {
 			return err
 		}
-		env := gimble.Env{WorkDir: workDir}
-		return runtime.Run(ctx, "validate-product", models, func(ctx context.Context) error { return ValidateProduct(ctx, env, params) })
+		admitted, err := web.Submit(cmd.Context(), instanceDir, project, web.Submission{
+			Name: "validate-product", Params: paramsJSON, WorkDir: workDir, Conversation: conversation,
+			Models: map[gimble.WorkflowRole]string{gimble.WorkflowRole("product-operation"): productOperationModel, gimble.WorkflowRole("product-visual-review"): productVisualReviewModel, gimble.WorkflowRole("product-triage"): productTriageModel},
+		})
+		if err != nil {
+			return err
+		}
+		fmt.Fprintln(cmd.OutOrStdout(), admitted.ID)
+		if !follow {
+			return nil
+		}
+		result, err := web.Follow(cmd.Context(), instanceDir, project, admitted.ID)
+		if err != nil {
+			return err
+		}
+		if result.Status != "completed" {
+			return fmt.Errorf("run %s %s: %s", admitted.ID, result.Status, result.Error)
+		}
+		return nil
 	}
 	return cmd
 }

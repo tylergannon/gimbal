@@ -53,6 +53,14 @@ func (r *Registry) add(s *Store) {
 	r.runs[s.id] = s
 }
 
+func (r *Registry) remove(s *Store) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.runs[s.id] == s {
+		delete(r.runs, s.id)
+	}
+}
+
 // Live returns the store of a run that is still going. A finished run is
 // still in the map and still readable, but there is no suffix to subscribe to.
 func (r *Registry) Live(id string) (*Store, bool) {

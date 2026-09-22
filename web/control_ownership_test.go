@@ -3,24 +3,31 @@ package web
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"sync"
 	"testing"
 )
 
-func TestControlRunsBelongToThisRuntime(t *testing.T) {
-	project, err := os.MkdirTemp("/tmp", "gimble-owners-")
-	if err != nil {
-		t.Fatal(err)
+func TestControlRunsBelongToThisProject(t *testing.T) {
+	base := t.TempDir()
+	projectA, projectB := filepath.Join(base, "a"), filepath.Join(base, "b")
+	for _, project := range []string{projectA, projectB} {
+		if err := os.Mkdir(project, 0o755); err != nil {
+			t.Fatal(err)
+		}
 	}
-	t.Cleanup(func() { _ = os.RemoveAll(project) })
 	ctx, cancel := context.WithCancel(t.Context())
 	var workers sync.WaitGroup
 	t.Cleanup(func() { cancel(); workers.Wait() })
-	first, err := NewRuntime(ctx, project, WithNoWeb())
+	instance, err := NewInstance(ctx, filepath.Join(base, "instance"), WithNoWeb())
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := NewRuntime(ctx, project, WithNoWeb())
+	first, err := instance.AdmitProject(projectA)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := instance.AdmitProject(projectB)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -45,9 +52,9 @@ func TestControlRunsBelongToThisRuntime(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(firstRuns) != 1 || len(secondRuns) != 1 {
-		t.Fatalf("each runtime must advertise only its own active run: first=%d second=%d", len(firstRuns), len(secondRuns))
+		t.Fatalf("each project must advertise only its own active run: first=%d second=%d", len(firstRuns), len(secondRuns))
 	}
 	if firstRuns[0].ID == secondRuns[0].ID {
-		t.Fatal("different runtimes advertised the same run")
+		t.Fatal("different projects advertised the same run")
 	}
 }

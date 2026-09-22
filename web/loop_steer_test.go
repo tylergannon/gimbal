@@ -94,7 +94,7 @@ func TestIterateScopesHaveNoPlannerControls(t *testing.T) {
 	}()
 	<-entered
 	id := runID(t, project)
-	response, err := http.Get("http://" + runtime.address + "/runs/" + id)
+	response, err := http.Get("http://" + runtime.instance.address + "/projects/" + runtime.id + "/runs/" + id)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -174,7 +174,7 @@ func TestLoopFormReachesThePlannerOfALoop(t *testing.T) {
 		t.Fatalf("the planner was not told what the page sent:\n%s", next)
 	}
 	var steered []gimble.LifecycleRecord
-	if err := runlog.Read[gimble.LifecycleRecord](ctx, filepath.Join(project, "runs", id), func(record gimble.LifecycleRecord) error {
+	if err := runlog.Read[gimble.LifecycleRecord](ctx, filepath.Join(project, ".gimble", "runs", id), func(record gimble.LifecycleRecord) error {
 		if _, ok := record.Event.(gimble.Steer); ok {
 			steered = append(steered, record)
 		}

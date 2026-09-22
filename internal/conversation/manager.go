@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/tylergannon/gimble"
+	"github.com/tylergannon/gimble/internal/observation"
 )
 
 const (
@@ -28,9 +29,6 @@ const (
 	RunStatusRunning   = "running"
 	RunStatusCompleted = "completed"
 	RunStatusError     = "error"
-
-	WorkflowReview    = "review"
-	WorkflowImplement = "implement"
 )
 
 // Message is one visible turn in a conversation transcript.
@@ -77,24 +75,6 @@ type NewConversation struct {
 // AdapterFactory resolves a provider name to its existing Gimble harness.
 type AdapterFactory func(string) (gimble.HarnessAdapter, error)
 
-// LaunchRequest is the small set of inputs a conversation agent can give the
-// two built-in workflows exposed by the Gimble binary.
-type LaunchRequest struct {
-	Workflow     string
-	Goal         string
-	OutcomesFile string
-}
-
-// LaunchedRun is returned only after a workflow has actually started. Done
-// reports its terminal result while the owning runtime remains alive.
-type LaunchedRun struct {
-	ID   string
-	Done <-chan error
-}
-
-// WorkflowLauncher starts a built-in workflow in worktree.
-type WorkflowLauncher func(worktree string, request LaunchRequest) (LaunchedRun, error)
-
 type activeConversation struct {
 	turnMu  sync.Mutex
 	adapter gimble.HarnessAdapter
@@ -113,10 +93,13 @@ type persistentSessionAdapter interface {
 // adapters exist only for that runtime's life. Providers that support durable
 // conversation sessions may persist their native identity with the transcript.
 type Manager struct {
-	ctx        context.Context
-	projectDir string
-	factory    AdapterFactory
-	launcher   WorkflowLauncher
+	ctx         context.Context
+	projectDir  string
+	factory     AdapterFactory
+	cli         string
+	instanceDir string
+	project     string
+	registry    *observation.Registry
 
 	mu      sync.RWMutex
 	items   map[string]*Conversation
@@ -142,7 +125,7 @@ func FromContext(ctx context.Context) *Manager {
 
 // New loads the saved conversation metadata. It does not touch Git or start a
 // harness until the person creates or sends to a conversation.
-func New(ctx context.Context, projectDir string, factory AdapterFactory, launcher WorkflowLauncher) (*Manager, error) {
+func New(ctx context.Context, projectDir string, factory AdapterFactory, cli, instanceDir, project string, registry *observation.Registry) (*Manager, error) {
 	if ctx == nil {
 		return nil, errors.New("conversation: runtime context is nil")
 	}
@@ -154,7 +137,7 @@ func New(ctx context.Context, projectDir string, factory AdapterFactory, launche
 		return nil, fmt.Errorf("conversation: create store: %w", err)
 	}
 	manager := &Manager{
-		ctx: ctx, projectDir: projectDir, factory: factory, launcher: launcher,
+		ctx: ctx, projectDir: projectDir, factory: factory, cli: cli, instanceDir: instanceDir, project: project, registry: registry,
 		items: make(map[string]*Conversation), active: make(map[string]*activeConversation),
 	}
 	entries, err := os.ReadDir(dir)
@@ -182,17 +165,12 @@ func New(ctx context.Context, projectDir string, factory AdapterFactory, launche
 		if item.Runs == nil {
 			item.Runs = []Run{}
 		}
-		// A restarted process cannot claim that prior in-flight work is still
-		// running, even when the provider conversation itself is resumable.
+		// The conversation turn is no longer active after a restart. Run state
+		// is read separately from the project's authoritative run record.
 		if item.Status == StatusWorking {
 			item.Status = StatusIdle
 		}
-		for index := range item.Runs {
-			if item.Runs[index].Status == RunStatusRunning {
-				item.Runs[index].Status = RunStatusError
-				item.Runs[index].Error = "The server restarted before this run recorded a terminal state."
-			}
-		}
+		manager.refresh(&item)
 		// A persisted native identity can be resumed lazily on the next send.
 		// Loading the page itself still does not start or contact a harness.
 		item.Live = item.NativeSession != ""
@@ -257,12 +235,13 @@ func (m *Manager) Create(ctx context.Context, in NewConversation) (Conversation,
 
 // List returns newest-first durable snapshots.
 func (m *Manager) List() []Conversation {
-	m.mu.RLock()
+	m.mu.Lock()
 	items := make([]Conversation, 0, len(m.items))
 	for _, item := range m.items {
+		m.refresh(item)
 		items = append(items, clone(item))
 	}
-	m.mu.RUnlock()
+	m.mu.Unlock()
 	slices.SortFunc(items, func(left, right Conversation) int {
 		if left.Updated == right.Updated {
 			return strings.Compare(right.ID, left.ID)
@@ -277,15 +256,81 @@ func (m *Manager) List() []Conversation {
 
 // Get returns one durable snapshot.
 func (m *Manager) Get(id string) (Conversation, bool) {
-	m.mu.RLock()
+	m.mu.Lock()
 	item := m.items[id]
 	if item == nil {
-		m.mu.RUnlock()
+		m.mu.Unlock()
 		return Conversation{}, false
 	}
+	m.refresh(item)
 	snapshot := clone(item)
-	m.mu.RUnlock()
+	m.mu.Unlock()
 	return snapshot, true
+}
+
+// Associate records a run admitted by the ordinary CLI for this conversation.
+// The association is saved before the submission response returns to the CLI.
+func (m *Manager) Associate(id, runID, workflow, workdir string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	item := m.items[id]
+	if item == nil || item.Worktree != workdir {
+		return errors.New("conversation: run must use the conversation's worktree")
+	}
+	item.Runs = append(item.Runs, Run{ID: runID, Workflow: workflow, Status: RunStatusRunning})
+	item.Updated = time.Now().UnixMilli()
+	return m.save(item)
+}
+
+// Worktree returns the execution directory permitted for an associated run.
+func (m *Manager) Worktree(id string) (string, bool) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	item := m.items[id]
+	if item == nil {
+		return "", false
+	}
+	return item.Worktree, true
+}
+
+// RefreshRun reads the authoritative project run row after execution ends.
+func (m *Manager) RefreshRun(id string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, item := range m.items {
+		for _, run := range item.Runs {
+			if run.ID == id {
+				m.refresh(item)
+				return
+			}
+		}
+	}
+}
+
+func (m *Manager) refresh(item *Conversation) {
+	if m.registry == nil {
+		return
+	}
+	changed := false
+	for index := range item.Runs {
+		run := &item.Runs[index]
+		if run.Status != RunStatusRunning {
+			continue
+		}
+		snapshot, err := m.registry.Snapshot(run.ID)
+		if err != nil || snapshot.Run.Status == observation.StatusRunning {
+			continue
+		}
+		run.Status, run.Error = RunStatusCompleted, ""
+		if snapshot.Run.Status != observation.StatusCompleted {
+			run.Status, run.Error = RunStatusError, snapshot.Run.Error
+		}
+		changed = true
+	}
+	if changed {
+		item.Updated = time.Now().UnixMilli()
+		_ = m.save(item)
+	}
 }
 
 // Send records the user's message, runs one turn on the conversation's live
@@ -365,7 +410,8 @@ func (m *Manager) Send(id, text string) (Conversation, error) {
 			m.mu.Unlock()
 		}
 	}
-	result, err := active.adapter.RunTurn(m.ctx, active.session, conversationPrompt+text, conversationReplySchema, func(gimble.AgentEvent) error { return nil })
+	prompt := fmt.Sprintf(conversationPrompt, m.cli, m.instanceDir, m.project, worktree, id) + text
+	result, err := active.adapter.RunTurn(m.ctx, active.session, prompt, conversationReplySchema, func(gimble.AgentEvent) error { return nil })
 	if err != nil {
 		return m.fail(item, err)
 	}
@@ -377,32 +423,11 @@ func (m *Manager) Send(id, text string) (Conversation, error) {
 	if response.Message == "" {
 		return m.fail(item, errors.New("provider returned an empty conversation response"))
 	}
-	request, err := response.launchRequest()
-	if err != nil {
-		return m.fail(item, err)
-	}
-
-	var launched LaunchedRun
-	if request.Workflow != "" {
-		if m.launcher == nil {
-			return m.fail(item, errors.New("conversation: this server has no conversation workflows configured"))
-		}
-		launched, err = m.launcher(worktree, request)
-		if err != nil {
-			return m.fail(item, fmt.Errorf("conversation: launch %s: %w", request.Workflow, err))
-		}
-		if launched.ID == "" || launched.Done == nil {
-			return m.fail(item, fmt.Errorf("conversation: launch %s did not report a started run", request.Workflow))
-		}
-	}
-
 	m.mu.Lock()
 	item = m.items[id]
 	now = time.Now().UnixMilli()
 	item.Messages = append(item.Messages, Message{Role: "assistant", Text: response.Message, Created: now})
-	if request.Workflow != "" {
-		item.Runs = append(item.Runs, Run{ID: launched.ID, Workflow: request.Workflow, Status: RunStatusRunning})
-	}
+	m.refresh(item)
 	item.Status, item.Error, item.Updated = StatusIdle, "", now
 	err = m.save(item)
 	snapshot := clone(item)
@@ -410,37 +435,7 @@ func (m *Manager) Send(id, text string) (Conversation, error) {
 	if err != nil {
 		return Conversation{}, err
 	}
-	if request.Workflow != "" {
-		go m.watchRun(id, launched.ID, launched.Done)
-	}
 	return snapshot, nil
-}
-
-func (m *Manager) watchRun(conversationID, runID string, done <-chan error) {
-	cause, ok := <-done
-	if !ok {
-		cause = errors.New("workflow ended without reporting a result")
-	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	item := m.items[conversationID]
-	if item == nil {
-		return
-	}
-	for index := range item.Runs {
-		if item.Runs[index].ID != runID {
-			continue
-		}
-		item.Runs[index].Status = RunStatusCompleted
-		item.Runs[index].Error = ""
-		if cause != nil {
-			item.Runs[index].Status = RunStatusError
-			item.Runs[index].Error = cause.Error()
-		}
-		item.Updated = time.Now().UnixMilli()
-		_ = m.save(item)
-		return
-	}
 }
 
 func (m *Manager) fail(item *Conversation, cause error) (Conversation, error) {
@@ -583,48 +578,22 @@ func clone(item *Conversation) Conversation {
 }
 
 type conversationReply struct {
-	Message      string `json:"message"`
-	Workflow     string `json:"workflow"`
-	Goal         string `json:"goal"`
-	OutcomesFile string `json:"outcomes_file"`
+	Message string `json:"message"`
 }
 
-func (r conversationReply) launchRequest() (LaunchRequest, error) {
-	request := LaunchRequest{
-		Workflow: strings.TrimSpace(r.Workflow), Goal: strings.TrimSpace(r.Goal),
-		OutcomesFile: strings.TrimSpace(r.OutcomesFile),
-	}
-	switch request.Workflow {
-	case "":
-		return request, nil
-	case WorkflowReview:
-		if request.Goal == "" {
-			return LaunchRequest{}, errors.New("conversation: review launch needs a goal")
-		}
-	case WorkflowImplement:
-		if request.OutcomesFile == "" {
-			return LaunchRequest{}, errors.New("conversation: implementation launch needs an outcomes file")
-		}
-	default:
-		return LaunchRequest{}, fmt.Errorf("conversation: unsupported workflow %q", request.Workflow)
-	}
-	return request, nil
-}
+const conversationPrompt = `You are the agent in a Gimble conversation. Work in the conversation worktree and reply to the person's message.
 
-const conversationPrompt = `You are the agent in a Gimble conversation. Reply to the person's message and optionally request one built-in workflow launch in this conversation's worktree.
+For an ordinary chat request, answer without launching a workflow. When the person asks you to run a built-in workflow, invoke the ordinary Gimble CLI yourself. The executable is %q. Use its "run" help to choose the workflow and flags. Always pass --instance-dir %q, --project %q, --work-dir %q, and --conversation %q. The project owns observation and saved history; the worktree is only the execution directory. For a review use "run review --goal ...". For an implementation use "run implement --outcomes-file ..." with a local outcomes file. The CLI prints the accepted run ID. Do not infer acceptance from your own prose; report what the CLI actually said. You may omit --follow; the server records the run's terminal status independently.
 
-Always return the structured response requested by the schema. Set workflow to "" for ordinary chat. To request a read-only review, set workflow to "review" and goal to the concrete review goal. To request implementation, set workflow to "implement" and outcomes_file to a local JSON file containing an ordered array of outcome strings in the worktree. Leave unused strings empty. The server, not you, decides whether launch succeeds, so describe the request without claiming a run has started.
+Return only the message requested by the schema.
 
 Person: `
 
 var conversationReplySchema = json.RawMessage(`{
   "type": "object",
   "properties": {
-    "message": {"type": "string"},
-    "workflow": {"type": "string", "enum": ["", "review", "implement"]},
-    "goal": {"type": "string"},
-    "outcomes_file": {"type": "string"}
+    "message": {"type": "string"}
   },
-  "required": ["message", "workflow", "goal", "outcomes_file"],
+  "required": ["message"],
   "additionalProperties": false
 }`)

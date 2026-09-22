@@ -1,15 +1,17 @@
 <script lang="ts">
 	import '../app.css';
-	import { navigating } from '$app/state';
+	import { navigating, page } from '$app/state';
 	import favicon from '#lib/assets/favicon.svg';
 	import RunsLoading from '#lib/run/RunsLoading.svelte';
 
 	let { children } = $props();
-	const loadingRuns = $derived(navigating.to?.url.pathname === '/' && navigating.from?.url.pathname !== '/');
+	const project = $derived(page.params.project);
+	const root = $derived(project ? `/projects/${project}` : '/');
+	const loadingRuns = $derived(navigating.to?.url.pathname === root && navigating.from?.url.pathname !== root);
 </script>
 
 <svelte:head><link rel="icon" href={favicon} /></svelte:head>
-<nav class="site-nav"><a href="/conversations">Conversations</a><a href="/">Runs</a><a href="/about">About</a></nav>
+<nav class="site-nav"><a href="/">Projects</a>{#if project}<a href={`${root}/conversations`}>Conversations</a><a href={root}>Runs</a><a href={`${root}/about`}>About</a>{/if}</nav>
 <main>
 	{#if loadingRuns}
 		<div class="runs-page"><RunsLoading /></div>

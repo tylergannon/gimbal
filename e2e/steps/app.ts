@@ -13,12 +13,16 @@ const { Given, When, Then } = createBdd(test);
 Given('I open the project runs', async ({ page, browserState }) => {
 	await page.goto('/');
 	await hydrated(page);
+	await page.locator('section.projects a').first().click();
+	await hydrated(page);
 	expect(browserState.documents).toBe(1);
 });
 
 Given('I open the controlled project runs', async ({ page, browserState }) => {
 	managedFixtureOnly();
 	await page.goto('/');
+	await hydrated(page);
+	await page.locator('section.projects a').first().click();
 	await hydrated(page);
 	expect(browserState.documents).toBe(1);
 });
@@ -79,7 +83,7 @@ Then('About is visible without a document reload', async ({ page, browserState }
 });
 
 When('I load the About route directly', async ({ page }) => {
-	await page.goto('/about');
+	await page.goto(`${projectBase(page)}/about`);
 });
 
 Then('About is visible in a new document', async ({ page, browserState }) => {
@@ -115,7 +119,10 @@ Then('the detail pane describes that selected work', async ({ page, browserState
 
 Given('I open About with recorded runs available', async ({ page, browserState }) => {
 	managedFixtureOnly();
-	await page.goto('/about');
+	await page.goto('/');
+	await hydrated(page);
+	await page.locator('section.projects a').first().click();
+	await page.getByRole('link', { name: 'About' }).click();
 	await hydrated(page);
 	expect(browserState.documents).toBe(1);
 });
@@ -123,7 +130,10 @@ Given('I open About with recorded runs available', async ({ page, browserState }
 Given('I open About with an empty project', async ({ page, browserState }) => {
 	managedFixtureOnly();
 	setRunsFixture(false);
-	await page.goto('/about');
+	await page.goto('/');
+	await hydrated(page);
+	await page.locator('section.projects a').first().click();
+	await page.getByRole('link', { name: 'About' }).click();
 	await hydrated(page);
 	expect(browserState.documents).toBe(1);
 });
@@ -228,4 +238,10 @@ Then(
 
 function managedFixtureOnly(): void {
 	test.skip(Boolean(process.env.BASE_URL), 'requires the managed table-fixture server');
+}
+
+function projectBase(page: { url(): string }): string {
+	const match = new URL(page.url()).pathname.match(/^\/projects\/[^/]+/);
+	if (!match) throw new Error('not viewing a project');
+	return match[0];
 }

@@ -40,7 +40,7 @@
 //
 // Example:
 //
-//	gimble run validate-product --suite-file /abs/user-testing.yaml --no-web
+//	gimble run validate-product --suite-file /abs/user-testing.yaml --instance-dir /abs/instance --project /abs/project
 package validateproduct
 
 import (

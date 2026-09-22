@@ -29,3 +29,9 @@ correction: Tyler rejected that security-focused destination, not merely its pos
 decision: Fable 5.1's fresh review of the simplified plan identified four functional gaps: a workflow panic must not kill an unrelated project in the shared host; hosted runs need a stated environment source; a second instance must exercise the chosen same-project ownership behavior; and the publication window must not be represented as the unproven cause of #326. The plan now addresses these without restoring the security framework, and Fable's next full review found no material findings. This remains design consensus, not runtime proof or diagnosis of the historical 500.
 
 friction: The installed `gimble run implement` was still the superseded single-promise workflow, while the ordered-outcome replacement existed only as unfinished source edits. Tyler pointed out that `go run ./cmd/gimble` can execute the checkout directly; finish generation and wiring, then launch that command rather than treating installation as a blocker.
+
+correction: Do not finish a turn while an hours-long workflow is still running and imply later phase monitoring without an actual wake mechanism. The current app had no automation update tool available; keeping the turn active and checking the run was the only available monitoring path here.
+
+correction: Internal polling is for the agent's awareness. Tyler wants occasional substantive updates, not repetitive unchanged-state commentary every minute; report meaningful phase results, blockers, and final proof instead.
+
+friction: The outcome-loop run finished with all seven validator passes, but browser e2e was still 5/6 because its saved implement fixture used the superseded root-level `implementation.1` graph shape. Update the fixture's scopes to `outcome.1/implementation.1`; the subsequent real browser run passed 6/6. Keep post-run checks separate from the workflow's aggregate ok verdict.

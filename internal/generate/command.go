@@ -13,8 +13,8 @@ import (
 // from an init, and its gimble run subcommand, with Gimble's environment
 // flags, a flag for each workflow parameter, a model flag for each role the
 // graph names, the web application's flags, and a RunE that fills the
-// environment and parameters, binds the roles, starts the runtime, and calls
-// the entry.
+// environment and parameters, sends the role choices to the selected instance,
+// and reports the admitted run.
 func source(pkg, entry string, info entryInfo, graph workflow.Graph) string {
 	data := commandData{Package: pkg, Name: graph.Name, Entry: entry, Params: info.params, Summary: info.summary, Long: info.long, Graph: literal(entry, graph)}
 	for _, f := range info.fields {
@@ -44,7 +44,7 @@ func source(pkg, entry string, info entryInfo, graph workflow.Graph) string {
 // role named like a flag every command has, or like each other; and a roles
 // entry for a role the workflow never creates a session for.
 func check(info entryInfo, graph workflow.Graph) error {
-	taken := map[string]string{"work-dir": "the Gimble environment", "port": "the web application", "uds": "the web application", "no-web": "the web application", "help": "cobra"}
+	taken := map[string]string{"work-dir": "the Gimble environment", "project": "the Gimble environment", "instance-dir": "the Gimble instance", "follow": "the Gimble run", "help": "cobra"}
 	for _, f := range info.fields {
 		if by, ok := taken[f.flag]; ok {
 			return fmt.Errorf("generate: the parameter field %s would be --%s, which is %s's", f.name, f.flag, by)
@@ -101,13 +101,13 @@ package {{.Package}}
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"os"
-	"os/signal"
 	"path/filepath"
 
 	"github.com/spf13/cobra"
 	"github.com/tylergannon/gimble"
-	"github.com/tylergannon/gimble/internal/binding"
 	"github.com/tylergannon/gimble/web"
 	"github.com/tylergannon/gimble/workflow"
 {{- if .Optional}}
@@ -118,9 +118,18 @@ import (
 func init() { gimble.RegisterGraph(Graph) }
 
 {{.Graph}}
-// Command is gimble run {{.Name}}: Gimble's environment flag, {{if .Params}}a flag for each field of {{.Params}}, {{end}}a
-// model flag for each role {{.Entry}} names with defaults supplied by the caller,
-// the web application's flags, and a run of {{.Entry}} on the runtime.
+// Hosted is the entry {{.Entry}} supplies to the persistent instance.
+func Hosted() web.WorkflowEntry {
+	return func(ctx context.Context, env gimble.Env, raw json.RawMessage) error {
+		{{if .Params}}var params {{.Params}}
+		if err := json.Unmarshal(raw, &params); err != nil { return err }
+		return {{.Entry}}(ctx, env, params){{else}}return {{.Entry}}(ctx, env){{end}}
+	}
+}
+
+// Command is gimble run {{.Name}}: {{if .Params}}a flag for each field of {{.Params}}, {{end}}a
+// model flag for each role {{.Entry}} names, instance and project selection,
+// and optional waiting for the hosted run's terminal result.
 func Command(defaults map[gimble.WorkflowRole]string) *cobra.Command {
 {{- if .Params}}
 	var params {{.Params}}
@@ -132,13 +141,14 @@ func Command(defaults map[gimble.WorkflowRole]string) *cobra.Command {
 	var {{.Ident}} string
 {{- end}}
 	var workDir string
-	var port int
-	var uds string
-	var noWeb bool
+	var project string
+	var instanceDir string
+	var conversation string
+	var follow bool
 	cmd := &cobra.Command{
 		Use:   {{printf "%q" .Name}},
 		Short: {{printf "%q" .Summary}},
-		Long:  {{printf "%q" .Long}},
+		Long:  {{printf "%q" .Long}} + "\n\nThe selected persistent instance owns this run. --project selects its admitted repository; --work-dir selects the execution directory independently. --instance-dir selects the instance state directory (or GIMBLE_INSTANCE_DIR, default .gimble). --follow waits for terminal success or failure; otherwise the run continues after this client exits. Each role flag chooses a model and optional effort. Executable lookup, PATH, and provider configuration come from the instance startup environment.",
 		Args:  cobra.NoArgs,
 	}
 {{- range .Fields}}
@@ -147,7 +157,13 @@ func Command(defaults map[gimble.WorkflowRole]string) *cobra.Command {
 {{- range .Fields}}{{if .Required}}
 	_ = cmd.MarkFlagRequired({{printf "%q" .Flag}})
 {{- end}}{{end}}
-	cmd.Flags().StringVar(&workDir, "work-dir", ".", "the working directory for this run")
+	cmd.Flags().StringVar(&workDir, "work-dir", "", "execution directory (default: owning project)")
+	cmd.Flags().StringVar(&project, "project", ".", "admitted repository owning this run and its observation")
+	instanceDefault := os.Getenv("GIMBLE_INSTANCE_DIR")
+	if instanceDefault == "" { instanceDefault = ".gimble" }
+	cmd.Flags().StringVar(&instanceDir, "instance-dir", instanceDefault, "selected running instance state directory (default: GIMBLE_INSTANCE_DIR or .gimble)")
+	cmd.Flags().StringVar(&conversation, "conversation", "", "associate this run with a conversation in the owning project")
+	cmd.Flags().BoolVar(&follow, "follow", false, "wait for the hosted run's terminal result; without this flag the run survives client exit")
 {{- range .Roles}}
 	{{.Ident}}Default := defaults[gimble.WorkflowRole({{printf "%q" .Name}})]
 	if {{.Ident}}Default == "" {
@@ -157,40 +173,48 @@ func Command(defaults map[gimble.WorkflowRole]string) *cobra.Command {
 		cmd.Flags().StringVar(&{{.Ident}}, {{printf "%q" .Name}}, {{.Ident}}Default, {{printf "%q" (printf "advanced override for role %s, as model or model:effort; OpenCode uses opencode/model or opencode/provider/model; omit this flag to use the displayed workflow default" .Name)}})
 	}
 {{- end}}
-	cmd.Flags().IntVar(&port, "port", 8080, "loopback TCP port for the web application")
-	cmd.Flags().StringVar(&uds, "uds", "", "Unix-domain socket for the web application instead of TCP")
-	cmd.Flags().BoolVar(&noWeb, "no-web", false, "run without the web application")
 	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
 {{- range .Fields}}{{if .Optional}}
 		if cmd.Flags().Changed({{printf "%q" .Flag}}) {
 			params.{{.Name}} = polytype.Optional[{{.Kind}}]{Present: true, Value: opt{{.Name}}}
 		}
 {{- end}}{{end}}
-		workDir, err := filepath.Abs(workDir)
+		project, err := filepath.Abs(project)
 		if err != nil {
 			return err
 		}
-		models, err := binding.Roles(map[gimble.WorkflowRole]string{ {{range .Roles}}gimble.WorkflowRole({{printf "%q" .Name}}): {{.Ident}}, {{end}}})
+		if workDir == "" { workDir = project }
+		workDir, err = filepath.Abs(workDir)
 		if err != nil {
 			return err
 		}
-		ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt)
-		defer stop()
-		var options []web.Option
-		switch {
-		case noWeb:
-			options = append(options, web.WithNoWeb())
-		case uds != "":
-			options = append(options, web.WithUDS(uds))
-		default:
-			options = append(options, web.WithPort(port))
+{{- if .Params}}
+		values := map[string]any{
+{{- range .Fields}}{{if not .Optional}}
+			{{printf "%q" .Name}}: params.{{.Name}},
+{{- end}}{{end}}
 		}
-		runtime, err := web.NewRuntime(ctx, filepath.Join(workDir, ".gimble"), options...)
+{{- range .Fields}}{{if .Optional}}
+		if params.{{.Name}}.Present { values[{{printf "%q" .Name}}] = params.{{.Name}}.Value }
+{{- end}}{{end}}
+		paramsJSON, err := json.Marshal(values)
+{{- else}}
+		paramsJSON, err := json.Marshal(struct{}{})
+{{- end}}
 		if err != nil {
 			return err
 		}
-		env := gimble.Env{WorkDir: workDir}
-		return runtime.Run(ctx, {{printf "%q" .Name}}, models, func(ctx context.Context) error { return {{.Entry}}(ctx, env{{if .Params}}, params{{end}}) })
+		admitted, err := web.Submit(cmd.Context(), instanceDir, project, web.Submission{
+			Name: {{printf "%q" .Name}}, Params: paramsJSON, WorkDir: workDir, Conversation: conversation,
+			Models: map[gimble.WorkflowRole]string{ {{range .Roles}}gimble.WorkflowRole({{printf "%q" .Name}}): {{.Ident}}, {{end}}},
+		})
+		if err != nil { return err }
+		fmt.Fprintln(cmd.OutOrStdout(), admitted.ID)
+		if !follow { return nil }
+		result, err := web.Follow(cmd.Context(), instanceDir, project, admitted.ID)
+		if err != nil { return err }
+		if result.Status != "completed" { return fmt.Errorf("run %s %s: %s", admitted.ID, result.Status, result.Error) }
+		return nil
 	}
 	return cmd
 }

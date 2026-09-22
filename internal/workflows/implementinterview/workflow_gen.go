@@ -6,13 +6,13 @@ package implementinterview
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"os"
-	"os/signal"
 	"path/filepath"
 
 	"github.com/spf13/cobra"
 	"github.com/tylergannon/gimble"
-	"github.com/tylergannon/gimble/internal/binding"
 	"github.com/tylergannon/gimble/web"
 	"github.com/tylergannon/gimble/workflow"
 )
@@ -89,9 +89,20 @@ var Graph = workflow.Graph{
 	},
 }
 
-// Command is gimble run implement-interview: Gimble's environment flag, a flag for each field of InterviewBuildParams, a
-// model flag for each role ImplementInterview names with defaults supplied by the caller,
-// the web application's flags, and a run of ImplementInterview on the runtime.
+// Hosted is the entry ImplementInterview supplies to the persistent instance.
+func Hosted() web.WorkflowEntry {
+	return func(ctx context.Context, env gimble.Env, raw json.RawMessage) error {
+		var params InterviewBuildParams
+		if err := json.Unmarshal(raw, &params); err != nil {
+			return err
+		}
+		return ImplementInterview(ctx, env, params)
+	}
+}
+
+// Command is gimble run implement-interview: a flag for each field of InterviewBuildParams, a
+// model flag for each role ImplementInterview names, instance and project selection,
+// and optional waiting for the hosted run's terminal result.
 func Command(defaults map[gimble.WorkflowRole]string) *cobra.Command {
 	var params InterviewBuildParams
 	var apiResearchModel string
@@ -102,13 +113,14 @@ func Command(defaults map[gimble.WorkflowRole]string) *cobra.Command {
 	var architecturalCritiqueModel string
 	var qaOrchestrationModel string
 	var workDir string
-	var port int
-	var uds string
-	var noWeb bool
+	var project string
+	var instanceDir string
+	var conversation string
+	var follow bool
 	cmd := &cobra.Command{
 		Use:   "implement-interview",
 		Short: "ImplementInterview researches, implements, and independently validates issue 249.",
-		Long:  "Package implementinterview builds and demonstrates Gimble issue 249.",
+		Long:  "Package implementinterview builds and demonstrates Gimble issue 249." + "\n\nThe selected persistent instance owns this run. --project selects its admitted repository; --work-dir selects the execution directory independently. --instance-dir selects the instance state directory (or GIMBLE_INSTANCE_DIR, default .gimble). --follow waits for terminal success or failure; otherwise the run continues after this client exits. Each role flag chooses a model and optional effort. Executable lookup, PATH, and provider configuration come from the instance startup environment.",
 		Args:  cobra.NoArgs,
 	}
 	cmd.Flags().StringVar(&params.RequirementsFile, "requirements-file", "", "RequirementsFile is the absolute path to the locally saved issue 249. (required)")
@@ -117,7 +129,15 @@ func Command(defaults map[gimble.WorkflowRole]string) *cobra.Command {
 	_ = cmd.MarkFlagRequired("requirements-file")
 	_ = cmd.MarkFlagRequired("reference-dir")
 	_ = cmd.MarkFlagRequired("max-tasks")
-	cmd.Flags().StringVar(&workDir, "work-dir", ".", "the working directory for this run")
+	cmd.Flags().StringVar(&workDir, "work-dir", "", "execution directory (default: owning project)")
+	cmd.Flags().StringVar(&project, "project", ".", "admitted repository owning this run and its observation")
+	instanceDefault := os.Getenv("GIMBLE_INSTANCE_DIR")
+	if instanceDefault == "" {
+		instanceDefault = ".gimble"
+	}
+	cmd.Flags().StringVar(&instanceDir, "instance-dir", instanceDefault, "selected running instance state directory (default: GIMBLE_INSTANCE_DIR or .gimble)")
+	cmd.Flags().StringVar(&conversation, "conversation", "", "associate this run with a conversation in the owning project")
+	cmd.Flags().BoolVar(&follow, "follow", false, "wait for the hosted run's terminal result; without this flag the run survives client exit")
 	apiResearchModelDefault := defaults[gimble.WorkflowRole("api-research")]
 	if apiResearchModelDefault == "" {
 		cmd.Flags().StringVar(&apiResearchModel, "api-research", "", "the model for role api-research, as model or model:effort; OpenCode uses opencode/model or opencode/provider/model")
@@ -167,35 +187,46 @@ func Command(defaults map[gimble.WorkflowRole]string) *cobra.Command {
 	} else {
 		cmd.Flags().StringVar(&qaOrchestrationModel, "qa-orchestration", qaOrchestrationModelDefault, "advanced override for role qa-orchestration, as model or model:effort; OpenCode uses opencode/model or opencode/provider/model; omit this flag to use the displayed workflow default")
 	}
-	cmd.Flags().IntVar(&port, "port", 8080, "loopback TCP port for the web application")
-	cmd.Flags().StringVar(&uds, "uds", "", "Unix-domain socket for the web application instead of TCP")
-	cmd.Flags().BoolVar(&noWeb, "no-web", false, "run without the web application")
 	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
-		workDir, err := filepath.Abs(workDir)
+		project, err := filepath.Abs(project)
 		if err != nil {
 			return err
 		}
-		models, err := binding.Roles(map[gimble.WorkflowRole]string{gimble.WorkflowRole("api-research"): apiResearchModel, gimble.WorkflowRole("frontend-research"): frontendResearchModel, gimble.WorkflowRole("sprint-planning"): sprintPlanningModel, gimble.WorkflowRole("coding"): codingModel, gimble.WorkflowRole("implementation-scope-review"): implementationScopeReviewModel, gimble.WorkflowRole("architectural-critique"): architecturalCritiqueModel, gimble.WorkflowRole("qa-orchestration"): qaOrchestrationModel})
+		if workDir == "" {
+			workDir = project
+		}
+		workDir, err = filepath.Abs(workDir)
 		if err != nil {
 			return err
 		}
-		ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt)
-		defer stop()
-		var options []web.Option
-		switch {
-		case noWeb:
-			options = append(options, web.WithNoWeb())
-		case uds != "":
-			options = append(options, web.WithUDS(uds))
-		default:
-			options = append(options, web.WithPort(port))
+		values := map[string]any{
+			"RequirementsFile": params.RequirementsFile,
+			"ReferenceDir":     params.ReferenceDir,
+			"MaxTasks":         params.MaxTasks,
 		}
-		runtime, err := web.NewRuntime(ctx, filepath.Join(workDir, ".gimble"), options...)
+		paramsJSON, err := json.Marshal(values)
 		if err != nil {
 			return err
 		}
-		env := gimble.Env{WorkDir: workDir}
-		return runtime.Run(ctx, "implement-interview", models, func(ctx context.Context) error { return ImplementInterview(ctx, env, params) })
+		admitted, err := web.Submit(cmd.Context(), instanceDir, project, web.Submission{
+			Name: "implement-interview", Params: paramsJSON, WorkDir: workDir, Conversation: conversation,
+			Models: map[gimble.WorkflowRole]string{gimble.WorkflowRole("api-research"): apiResearchModel, gimble.WorkflowRole("frontend-research"): frontendResearchModel, gimble.WorkflowRole("sprint-planning"): sprintPlanningModel, gimble.WorkflowRole("coding"): codingModel, gimble.WorkflowRole("implementation-scope-review"): implementationScopeReviewModel, gimble.WorkflowRole("architectural-critique"): architecturalCritiqueModel, gimble.WorkflowRole("qa-orchestration"): qaOrchestrationModel},
+		})
+		if err != nil {
+			return err
+		}
+		fmt.Fprintln(cmd.OutOrStdout(), admitted.ID)
+		if !follow {
+			return nil
+		}
+		result, err := web.Follow(cmd.Context(), instanceDir, project, admitted.ID)
+		if err != nil {
+			return err
+		}
+		if result.Status != "completed" {
+			return fmt.Errorf("run %s %s: %s", admitted.ID, result.Status, result.Error)
+		}
+		return nil
 	}
 	return cmd
 }

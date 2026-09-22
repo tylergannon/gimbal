@@ -44,7 +44,7 @@ func TestLiveKillTurnByID(t *testing.T) {
 	var killErr error
 	var killWG sync.WaitGroup
 	var first, second error
-	dir := filepath.Join(logs, "runs")
+	dir := filepath.Join(logs, ".gimble", "runs")
 	start := time.Now()
 	err = runtime.Run(ctx, "cancel-by-id", map[gimble.WorkflowRole]gimble.ModelBinding{"worker": {Adapter: codex.New(), Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
 		return gimble.Scope(ctx, "lap", func(ctx context.Context) error {

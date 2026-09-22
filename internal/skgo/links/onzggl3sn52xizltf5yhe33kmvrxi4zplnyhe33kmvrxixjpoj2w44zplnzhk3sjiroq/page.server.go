@@ -31,8 +31,8 @@ type Data struct {
 func load(ctx context.Context) (Data, error) {
 	event := skgo.EventFrom(ctx)
 	if request := event.Request(); request != nil {
-		// The registry rides on the request context the runtime supplies
-		// through BaseContext, which is also what an SSR render carries.
+		// The instance attaches the admitted project's registry to the
+		// request context, which an SSR render also carries.
 		ctx = request.Context()
 	}
 	registry := observation.FromContext(ctx)

@@ -30,7 +30,7 @@ func runDir(ctx context.Context) string {
 }
 
 // Project puts the project's directory in the root ctx. Runs are made
-// under its runs directory.
+// under its runs directory. This alone does not attach a run to a web instance.
 func Project(ctx context.Context, dir string) context.Context {
 	return context.WithValue(ctx, projectKey{}, dir)
 }
@@ -141,6 +141,13 @@ func (r *run) closeError() error {
 // aggregating every session's Close failure (nil when there were none) and
 // with the first recording failure, if any; cancellation alone is not
 // completion.
+//
+// Called with only a Project context, Run executes in the caller's process and
+// writes its supplied project's durable files without joining a running web
+// instance or its live controls. Use a separate project directory from one
+// admitted to a concurrently running instance; shared-state use has no
+// supported contract. Hosted runs are submitted to an instance with a
+// workflow compiled into its binary.
 func Run(ctx context.Context, name string, models map[WorkflowRole]ModelBinding, body func(ctx context.Context) error) error {
 	project, _ := ctx.Value(projectKey{}).(string)
 	if project == "" {
@@ -155,19 +162,22 @@ func Run(ctx context.Context, name string, models map[WorkflowRole]ModelBinding,
 	if err := os.MkdirAll(filepath.Dir(dir), 0o755); err != nil {
 		return fmt.Errorf("gimble: %w", err)
 	}
-	if err := os.Mkdir(dir, 0o755); err != nil {
-		return fmt.Errorf("gimble: %w", err)
-	}
-	w, err := newEventWriter(filepath.Join(dir, "run.jsonl"))
-	if err != nil {
-		return fmt.Errorf("gimble: %w", err)
-	}
-	r := &run{dir: dir, models: models, writer: w, sessions: make(map[string]*eventWriter), scopes: make(map[string]*scope), turns: make(map[string]context.CancelCauseFunc), interviews: make(map[string]*interviewWaiter)}
 	// The run owns its observation store. With the web runtime in ctx it is
 	// registered there and the page can read it; without one the run still
 	// owns a private store and writes the same table files, so observation
 	// does not depend on who started the run.
-	store, storeErr := observation.Open(observation.FromContext(ctx), id, name, dir)
+	store, storeErr := observation.Open(observation.FromContext(ctx), id, name, dir, func() error {
+		return os.Mkdir(dir, 0o755)
+	})
+	if store == nil {
+		return fmt.Errorf("gimble: %w", storeErr)
+	}
+	w, err := newEventWriter(filepath.Join(dir, "run.jsonl"))
+	if err != nil {
+		_ = store.Close()
+		return fmt.Errorf("gimble: %w", err)
+	}
+	r := &run{dir: dir, models: models, writer: w, sessions: make(map[string]*eventWriter), scopes: make(map[string]*scope), turns: make(map[string]context.CancelCauseFunc), interviews: make(map[string]*interviewWaiter)}
 	r.store = store
 	r.recordFailure("open observation", storeErr)
 	pw, pwErr := newEventWriter(filepath.Join(project, "project.jsonl"))

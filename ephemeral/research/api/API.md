@@ -334,18 +334,46 @@ func Run(ctx context.Context, name string, body func(ctx context.Context) error)
 // request's, and Start returns the run id at once.
 func Start(ctx context.Context, name string, body func(ctx context.Context) error) (string, error)
 
-// NewRuntime owns the project directory and starts its web application. It is
-// in package web, beside the embedded build, because the page's remote
-// functions import gimble and gimble cannot import the page.
-func NewRuntime(ctx context.Context, dir string, opts ...Option) (*Runtime, error)
+// NewInstance starts one listener and control endpoint. Instance state is
+// separate from every project's durable run and conversation files.
+func NewInstance(ctx context.Context, instanceDir string, opts ...Option) (*Instance, error)
+func (i *Instance) AdmitProject(projectDir string) (*Runtime, error)
+
+// NewRuntime is the existing single-project entry point. Its project and
+// instance state use the same directory.
+func NewRuntime(ctx context.Context, projectDir string, opts ...Option) (*Runtime, error)
 
 func WithPort(port int) Option
 func WithUDS(path string) Option
 func WithNoWeb() Option
 ```
 
-The process is a server first. It serves the project's runs directory for
-its whole life, live runs and past ones alike, and it hosts the workflows
+The process is a server first. One instance can admit multiple projects while
+holding a single web listener and control socket. Each returned Runtime owns
+only its project's registry, live controls, conversation manager, and files.
+The control discovery file is under `instanceDir/control/`; a control request
+can select an admitted project with `X-Gimble-Project: /absolute/project/path`.
+Without that header, this foundation serves the first admitted project. Browser
+project selection and CLI submission are later outcomes.
+One instance may admit multiple projects. A canonical project has one active
+instance owner: another instance refuses it, including through an ordinary
+path alias. Once the owner stops, another instance can admit the project and
+read its existing history. Independently configured instances can host
+different projects concurrently.
+
+```go
+instance, err := web.NewInstance(ctx, "/tmp/gimble-one", web.WithPort(8080))
+if err != nil { return err }
+projectA, err := instance.AdmitProject("/work/a")
+if err != nil { return err }
+projectB, err := instance.AdmitProject("/work/b")
+if err != nil { return err }
+// projectA.Run and projectB.Run may execute concurrently. A second instance
+// can use another state directory and web port for a different project.
+```
+
+The instance serves each project's runs directory for its whole life, live
+runs and past ones alike, and it hosts the workflows
 compiled into it. `Run` and `Start` create a run inside it: a directory
 under the project's runs, the event log, the session registry, the scope
 store. They register the run with the server as live, open the root scope,
@@ -353,8 +381,26 @@ and call the body. When the body returns, the root scope ends like any other,
 sessions closed and ctx cancelled, the log gets its final event, and from
 then on the run is served the way every past run is: from its log.
 
-How a run starts is ordinary Go in the workflow's `main`. There is no CLI
-in Gimble:
+The supported hosted CLI path compiles a workflow package into the Gimble
+checkout's binary. Its generated `Hosted()` is registered through
+`web.WithWorkflows`; its generated `Command()` submits the run to that same
+binary running as an instance. The instance owns live observation and controls,
+while the selected project's `.gimble` owns durable runs. The command cannot
+transport an arbitrary Go closure. Generated command and graph code currently
+depends on Gimble's internal packages and web build, so this is not an
+external-module authoring promise. See README's "Run a workflow" for the
+build and registration steps.
+
+The following standalone Go composition is an alternative direct runtime API:
+
+`gimble.Run(gimble.Project(ctx, dir), ...)` is still available for a caller
+that needs no web runtime. It executes in that caller's process and writes
+under the supplied `dir`; it does not join an instance's live registry. The
+CLI's `run-prompt` creates its own headless runtime and stores logs in a
+temporary directory or an explicitly fresh empty `--logs` directory. Both
+use their own process environment. Keep their state separate from an admitted
+project while its instance runs; concurrent shared-state use has no supported
+contract. Neither provides a way to submit a closure to the hosted instance.
 
 ```go
 func sprint(ctx context.Context, in SprintInput) error {
@@ -366,7 +412,7 @@ func sprint(ctx context.Context, in SprintInput) error {
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
-	runtime, err := web.NewRuntime(ctx, ".gimble")
+	runtime, err := web.NewRuntime(ctx, ".")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -383,10 +429,10 @@ func main() {
 - The process stays up after the body returns, so the page does not die
   under the person looking at it. A headless caller returns instead of
   waiting on the ctx.
-- `web.Runtime` directly owns the project and assembled web application; the
-  root `gimble` package does not import or expose web assembly. Workflow tests
+- `web.Instance` owns web assembly and endpoints; `web.Runtime` is an admitted
+  project. The root `gimble` package does not import web assembly. Workflow tests
   can still call `Project` and `Run` with fake adapters and no web listener.
-- The page starts runs through one form per workflow, typed with the
+- A page can start runs through one form per workflow, typed with the
   workflow's own input. It is a `skgo.Form` beside the workflow's Svelte
   page, and this is all the code there is:
 

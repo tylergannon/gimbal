@@ -28,8 +28,9 @@ type runtimeDiscovery struct {
 }
 
 type runtimeClient struct {
-	pid    int
-	socket string
+	pid     int
+	socket  string
+	project string
 }
 
 type listedRun struct {
@@ -47,13 +48,13 @@ func newRunsCommand() *cobra.Command {
 	var workDir string
 	command := &cobra.Command{
 		Use:   "runs",
-		Short: "List runs in progress in this project's running Gimble instances",
+		Short: "List runs in progress in this project's running Gimble instance",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return listRuns(cmd.Context(), cmd.OutOrStdout(), workDir)
 		},
 	}
-	command.Flags().StringVar(&workDir, "work-dir", ".", "the working directory for this project")
+	command.Flags().StringVar(&workDir, "work-dir", ".", "repository directory owning this project's .gimble state")
 	return command
 }
 
@@ -69,7 +70,7 @@ func newWatchCommand() *cobra.Command {
 			return watchRun(ctx, cmd.OutOrStdout(), workDir, args[0])
 		},
 	}
-	command.Flags().StringVar(&workDir, "work-dir", ".", "the working directory for this project")
+	command.Flags().StringVar(&workDir, "work-dir", ".", "repository directory owning this project's .gimble state")
 	return command
 }
 
@@ -138,6 +139,7 @@ func (r runtimeClient) request(ctx context.Context, method, path string, body io
 	if err != nil {
 		return nil, func() {}, err
 	}
+	request.Header.Set("X-Gimble-Project", r.project)
 	transport := &http.Transport{DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
 		return (&net.Dialer{}).DialContext(ctx, "unix", r.socket)
 	}}
@@ -201,6 +203,10 @@ func discoverRuntimes(workDir string) ([]runtimeClient, error) {
 	if err != nil {
 		return nil, err
 	}
+	project, err = filepath.EvalSymlinks(project)
+	if err != nil {
+		return nil, err
+	}
 	controlDir := filepath.Join(project, ".gimble", "control")
 	entries, err := os.ReadDir(controlDir)
 	if errors.Is(err, os.ErrNotExist) {
@@ -222,7 +228,7 @@ func discoverRuntimes(workDir string) ([]runtimeClient, error) {
 		if json.Unmarshal(contents, &discovery) != nil || discovery.PID == 0 || discovery.Socket == "" {
 			continue
 		}
-		clients = append(clients, runtimeClient{pid: discovery.PID, socket: discovery.Socket})
+		clients = append(clients, runtimeClient{pid: discovery.PID, socket: discovery.Socket, project: project})
 	}
 	slices.SortFunc(clients, func(a, b runtimeClient) int { return a.pid - b.pid })
 	return clients, nil

@@ -67,7 +67,7 @@ func TestSteerFormReachesTheSessionAPersonIsWatching(t *testing.T) {
 	runWG.Wait()
 
 	var steered []gimble.LifecycleRecord
-	if err := runlog.Read[gimble.LifecycleRecord](ctx, filepath.Join(project, "runs", id), func(record gimble.LifecycleRecord) error {
+	if err := runlog.Read[gimble.LifecycleRecord](ctx, filepath.Join(project, ".gimble", "runs", id), func(record gimble.LifecycleRecord) error {
 		if _, ok := record.Event.(gimble.Steer); ok {
 			steered = append(steered, record)
 		}

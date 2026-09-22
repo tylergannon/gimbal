@@ -26,7 +26,7 @@ func TestRuntimeControlSocket(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	discoveries, err := filepath.Glob(filepath.Join(project, "control", "*.json"))
+	discoveries, err := filepath.Glob(filepath.Join(project, ".gimble", "control", "*.json"))
 	if err != nil || len(discoveries) != 1 {
 		t.Fatalf("control discovery files = %v, %v; want one", discoveries, err)
 	}
@@ -38,13 +38,17 @@ func TestRuntimeControlSocket(t *testing.T) {
 	if err := json.Unmarshal(contents, &discovery); err != nil {
 		t.Fatal(err)
 	}
-	if discovery.Socket == "" || discovery.Project != project {
+	canonical, err := canonicalProject(project)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if discovery.Socket == "" || discovery.Project != canonical {
 		t.Fatalf("discovery = %+v", discovery)
 	}
 
 	client := controlClient(discovery.Socket)
 	defer client.CloseIdleConnections()
-	runs := getRuns(t, client)
+	runs := getRuns(t, client, project)
 	if len(runs) != 0 {
 		t.Fatalf("initial runs = %+v; want none", runs)
 	}
@@ -66,11 +70,16 @@ func TestRuntimeControlSocket(t *testing.T) {
 	startedTurns(t, b, 1)
 	id := runID(t, project)
 
-	runs = getRuns(t, client)
+	runs = getRuns(t, client, project)
 	if len(runs) != 1 || runs[0].ID != id || runs[0].Status != observation.StatusRunning {
 		t.Fatalf("runs = %+v; want active %s", runs, id)
 	}
-	response, err := client.Get("http://control/api/runs/" + id)
+	request, err := http.NewRequest(http.MethodGet, "http://control/api/runs/"+id, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Header.Set("X-Gimble-Project", project)
+	response, err := client.Do(request)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -87,13 +96,13 @@ func TestRuntimeControlSocket(t *testing.T) {
 	var steerResponse struct {
 		Landed bool `json:"landed"`
 	}
-	postJSON(t, client, "/control/steer", map[string]string{
+	postJSON(t, client, project, "/control/steer", map[string]string{
 		"run": id, "session": "lap.1/coder.1", "message": "look at this",
 	}, &steerResponse)
 	if !steerResponse.Landed {
 		t.Fatal("control steer was dropped")
 	}
-	postJSON(t, client, "/control/steer", map[string]string{
+	postJSON(t, client, project, "/control/steer", map[string]string{
 		"run": id, "session": "lap.1/coder.2", "message": "nothing should receive this",
 	}, &steerResponse)
 	if steerResponse.Landed {
@@ -105,7 +114,7 @@ func TestRuntimeControlSocket(t *testing.T) {
 	runWG.Wait()
 
 	cancel()
-	<-runtime.done
+	<-runtime.instance.done
 	if _, err := os.Stat(discovery.Socket); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("control socket after shutdown: %v", err)
 	}
@@ -120,9 +129,14 @@ func controlClient(socket string) *http.Client {
 	}}}
 }
 
-func getRuns(t *testing.T, client *http.Client) []observation.RunRow {
+func getRuns(t *testing.T, client *http.Client, project string) []observation.RunRow {
 	t.Helper()
-	response, err := client.Get("http://control/control/runs")
+	request, err := http.NewRequest(http.MethodGet, "http://control/control/runs", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Header.Set("X-Gimble-Project", project)
+	response, err := client.Do(request)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -137,7 +151,7 @@ func getRuns(t *testing.T, client *http.Client) []observation.RunRow {
 	return runs
 }
 
-func postJSON(t *testing.T, client *http.Client, path string, value any, result any) {
+func postJSON(t *testing.T, client *http.Client, project, path string, value any, result any) {
 	t.Helper()
 	encoded, err := json.Marshal(value)
 	if err != nil {
@@ -148,6 +162,7 @@ func postJSON(t *testing.T, client *http.Client, path string, value any, result 
 		t.Fatal(err)
 	}
 	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("X-Gimble-Project", project)
 	response, err := client.Do(request)
 	if err != nil {
 		t.Fatal(err)

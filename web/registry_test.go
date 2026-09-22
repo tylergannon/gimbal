@@ -89,7 +89,7 @@ func startedTurns(t *testing.T, b *blocking, n int) {
 // same id Run produced and the page shows.
 func runID(t *testing.T, project string) string {
 	t.Helper()
-	entries, err := os.ReadDir(filepath.Join(project, "runs"))
+	entries, err := os.ReadDir(filepath.Join(project, ".gimble", "runs"))
 	if err != nil || len(entries) != 1 {
 		t.Fatalf("runs = %v, %v", entries, err)
 	}
@@ -182,7 +182,7 @@ func TestRuntimeReachesALiveRunByID(t *testing.T) {
 
 	var steered []gimble.LifecycleRecord
 	var kills []gimble.LifecycleRecord
-	if err := runlog.Read[gimble.LifecycleRecord](ctx, filepath.Join(project, "runs", id), func(record gimble.LifecycleRecord) error {
+	if err := runlog.Read[gimble.LifecycleRecord](ctx, filepath.Join(project, ".gimble", "runs", id), func(record gimble.LifecycleRecord) error {
 		switch record.Event.(type) {
 		case gimble.Steer:
 			steered = append(steered, record)

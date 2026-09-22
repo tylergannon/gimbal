@@ -6,13 +6,13 @@ package researchdocument
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"os"
-	"os/signal"
 	"path/filepath"
 
 	"github.com/spf13/cobra"
 	"github.com/tylergannon/gimble"
-	"github.com/tylergannon/gimble/internal/binding"
 	"github.com/tylergannon/gimble/web"
 	"github.com/tylergannon/gimble/workflow"
 	"github.com/tylergannon/polytype"
@@ -162,9 +162,20 @@ var Graph = workflow.Graph{
 	},
 }
 
-// Command is gimble run research-document: Gimble's environment flag, a flag for each field of Params, a
-// model flag for each role ResearchDocument names with defaults supplied by the caller,
-// the web application's flags, and a run of ResearchDocument on the runtime.
+// Hosted is the entry ResearchDocument supplies to the persistent instance.
+func Hosted() web.WorkflowEntry {
+	return func(ctx context.Context, env gimble.Env, raw json.RawMessage) error {
+		var params Params
+		if err := json.Unmarshal(raw, &params); err != nil {
+			return err
+		}
+		return ResearchDocument(ctx, env, params)
+	}
+}
+
+// Command is gimble run research-document: a flag for each field of Params, a
+// model flag for each role ResearchDocument names, instance and project selection,
+// and optional waiting for the hosted run's terminal result.
 func Command(defaults map[gimble.WorkflowRole]string) *cobra.Command {
 	var params Params
 	var optMinSourcesPerTopic int
@@ -176,13 +187,14 @@ func Command(defaults map[gimble.WorkflowRole]string) *cobra.Command {
 	var documentAuthoringModel string
 	var editorialReviewModel string
 	var workDir string
-	var port int
-	var uds string
-	var noWeb bool
+	var project string
+	var instanceDir string
+	var conversation string
+	var follow bool
 	cmd := &cobra.Command{
 		Use:   "research-document",
 		Short: "ResearchDocument produces a research-backed document within a token budget.",
-		Long:  "Package researchdocument researches a subject into a local semantic index,\nwrites a size-bounded document, and revises it until an independent editor\nfinds only nitpicks.\n\nThe planner returns exactly five coherent groups of adjacent or related\ntopics, one for each explicitly named parallel researcher. Each topic must\npreserve at least the requested number of useful local sources, distinguish\noriginal evidence from interpretation, and address each question or mark it\nunresolved. Topic indexes and a compact combined index route author questions\nto precise source passages and longer annotated clips. The index is a means\nto finding evidence for the document, not a second report.\n\nThe author uses the combined semantic index as its entry point to the corpus.\nAn editorial pass checks consequential claims against original evidence,\nalong with the document goal and token budget. Material omissions trigger\ntargeted research and index repair before another revision. The workflow succeeds when the document is within budget\nand the editor reports only nitpicks, or returns an error after the editorial\nround limit.\n\nModel defaults deliberately put broad collection on Gemini Flash and report\nsynthesis on Gemini Pro. Research planning, parallel research and indexing,\nindex curation, and supervision use Gemini 3.8 Flash at medium effort.\nDocument authoring and independent editorial review use Gemini 3.1 Pro at\nhigh effort. The displayed role flags can still replace an individual pin.\n\nExample:\n\n\tgimble run research-document \\\n\t  --goal \"Explain passkeys to security-conscious product managers\" \\\n\t  --research-dir ./passkeys-research \\\n\t  --output ./passkeys.md \\\n\t  --token-budget 4000",
+		Long:  "Package researchdocument researches a subject into a local semantic index,\nwrites a size-bounded document, and revises it until an independent editor\nfinds only nitpicks.\n\nThe planner returns exactly five coherent groups of adjacent or related\ntopics, one for each explicitly named parallel researcher. Each topic must\npreserve at least the requested number of useful local sources, distinguish\noriginal evidence from interpretation, and address each question or mark it\nunresolved. Topic indexes and a compact combined index route author questions\nto precise source passages and longer annotated clips. The index is a means\nto finding evidence for the document, not a second report.\n\nThe author uses the combined semantic index as its entry point to the corpus.\nAn editorial pass checks consequential claims against original evidence,\nalong with the document goal and token budget. Material omissions trigger\ntargeted research and index repair before another revision. The workflow succeeds when the document is within budget\nand the editor reports only nitpicks, or returns an error after the editorial\nround limit.\n\nModel defaults deliberately put broad collection on Gemini Flash and report\nsynthesis on Gemini Pro. Research planning, parallel research and indexing,\nindex curation, and supervision use Gemini 3.8 Flash at medium effort.\nDocument authoring and independent editorial review use Gemini 3.1 Pro at\nhigh effort. The displayed role flags can still replace an individual pin.\n\nExample:\n\n\tgimble run research-document \\\n\t  --goal \"Explain passkeys to security-conscious product managers\" \\\n\t  --research-dir ./passkeys-research \\\n\t  --output ./passkeys.md \\\n\t  --token-budget 4000" + "\n\nThe selected persistent instance owns this run. --project selects its admitted repository; --work-dir selects the execution directory independently. --instance-dir selects the instance state directory (or GIMBLE_INSTANCE_DIR, default .gimble). --follow waits for terminal success or failure; otherwise the run continues after this client exits. Each role flag chooses a model and optional effort. Executable lookup, PATH, and provider configuration come from the instance startup environment.",
 		Args:  cobra.NoArgs,
 	}
 	cmd.Flags().StringVar(&params.Goal, "goal", "", "Goal describes the audience, subject, and understanding the document must produce. (required)")
@@ -195,7 +207,15 @@ func Command(defaults map[gimble.WorkflowRole]string) *cobra.Command {
 	_ = cmd.MarkFlagRequired("research-dir")
 	_ = cmd.MarkFlagRequired("output")
 	_ = cmd.MarkFlagRequired("token-budget")
-	cmd.Flags().StringVar(&workDir, "work-dir", ".", "the working directory for this run")
+	cmd.Flags().StringVar(&workDir, "work-dir", "", "execution directory (default: owning project)")
+	cmd.Flags().StringVar(&project, "project", ".", "admitted repository owning this run and its observation")
+	instanceDefault := os.Getenv("GIMBLE_INSTANCE_DIR")
+	if instanceDefault == "" {
+		instanceDefault = ".gimble"
+	}
+	cmd.Flags().StringVar(&instanceDir, "instance-dir", instanceDefault, "selected running instance state directory (default: GIMBLE_INSTANCE_DIR or .gimble)")
+	cmd.Flags().StringVar(&conversation, "conversation", "", "associate this run with a conversation in the owning project")
+	cmd.Flags().BoolVar(&follow, "follow", false, "wait for the hosted run's terminal result; without this flag the run survives client exit")
 	researchPlanningModelDefault := defaults[gimble.WorkflowRole("research-planning")]
 	if researchPlanningModelDefault == "" {
 		cmd.Flags().StringVar(&researchPlanningModel, "research-planning", "", "the model for role research-planning, as model or model:effort; OpenCode uses opencode/model or opencode/provider/model")
@@ -238,9 +258,6 @@ func Command(defaults map[gimble.WorkflowRole]string) *cobra.Command {
 	} else {
 		cmd.Flags().StringVar(&editorialReviewModel, "editorial-review", editorialReviewModelDefault, "advanced override for role editorial-review, as model or model:effort; OpenCode uses opencode/model or opencode/provider/model; omit this flag to use the displayed workflow default")
 	}
-	cmd.Flags().IntVar(&port, "port", 8080, "loopback TCP port for the web application")
-	cmd.Flags().StringVar(&uds, "uds", "", "Unix-domain socket for the web application instead of TCP")
-	cmd.Flags().BoolVar(&noWeb, "no-web", false, "run without the web application")
 	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
 		if cmd.Flags().Changed("min-sources-per-topic") {
 			params.MinSourcesPerTopic = polytype.Optional[int]{Present: true, Value: optMinSourcesPerTopic}
@@ -248,31 +265,52 @@ func Command(defaults map[gimble.WorkflowRole]string) *cobra.Command {
 		if cmd.Flags().Changed("max-editorial-rounds") {
 			params.MaxEditorialRounds = polytype.Optional[int]{Present: true, Value: optMaxEditorialRounds}
 		}
-		workDir, err := filepath.Abs(workDir)
+		project, err := filepath.Abs(project)
 		if err != nil {
 			return err
 		}
-		models, err := binding.Roles(map[gimble.WorkflowRole]string{gimble.WorkflowRole("research-planning"): researchPlanningModel, gimble.WorkflowRole("research-indexing"): researchIndexingModel, gimble.WorkflowRole("document-supervision"): documentSupervisionModel, gimble.WorkflowRole("index-curation"): indexCurationModel, gimble.WorkflowRole("document-authoring"): documentAuthoringModel, gimble.WorkflowRole("editorial-review"): editorialReviewModel})
+		if workDir == "" {
+			workDir = project
+		}
+		workDir, err = filepath.Abs(workDir)
 		if err != nil {
 			return err
 		}
-		ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt)
-		defer stop()
-		var options []web.Option
-		switch {
-		case noWeb:
-			options = append(options, web.WithNoWeb())
-		case uds != "":
-			options = append(options, web.WithUDS(uds))
-		default:
-			options = append(options, web.WithPort(port))
+		values := map[string]any{
+			"Goal":        params.Goal,
+			"ResearchDir": params.ResearchDir,
+			"Output":      params.Output,
+			"TokenBudget": params.TokenBudget,
 		}
-		runtime, err := web.NewRuntime(ctx, filepath.Join(workDir, ".gimble"), options...)
+		if params.MinSourcesPerTopic.Present {
+			values["MinSourcesPerTopic"] = params.MinSourcesPerTopic.Value
+		}
+		if params.MaxEditorialRounds.Present {
+			values["MaxEditorialRounds"] = params.MaxEditorialRounds.Value
+		}
+		paramsJSON, err := json.Marshal(values)
 		if err != nil {
 			return err
 		}
-		env := gimble.Env{WorkDir: workDir}
-		return runtime.Run(ctx, "research-document", models, func(ctx context.Context) error { return ResearchDocument(ctx, env, params) })
+		admitted, err := web.Submit(cmd.Context(), instanceDir, project, web.Submission{
+			Name: "research-document", Params: paramsJSON, WorkDir: workDir, Conversation: conversation,
+			Models: map[gimble.WorkflowRole]string{gimble.WorkflowRole("research-planning"): researchPlanningModel, gimble.WorkflowRole("research-indexing"): researchIndexingModel, gimble.WorkflowRole("document-supervision"): documentSupervisionModel, gimble.WorkflowRole("index-curation"): indexCurationModel, gimble.WorkflowRole("document-authoring"): documentAuthoringModel, gimble.WorkflowRole("editorial-review"): editorialReviewModel},
+		})
+		if err != nil {
+			return err
+		}
+		fmt.Fprintln(cmd.OutOrStdout(), admitted.ID)
+		if !follow {
+			return nil
+		}
+		result, err := web.Follow(cmd.Context(), instanceDir, project, admitted.ID)
+		if err != nil {
+			return err
+		}
+		if result.Status != "completed" {
+			return fmt.Errorf("run %s %s: %s", admitted.ID, result.Status, result.Error)
+		}
+		return nil
 	}
 	return cmd
 }

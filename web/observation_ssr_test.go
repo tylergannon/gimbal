@@ -59,7 +59,7 @@ func TestRunPageIsRenderedFromTheRunsObservation(t *testing.T) {
 		}
 	}
 
-	request := httptest.NewRequest(http.MethodGet, "/runs/run-1", nil)
+	request := httptest.NewRequest(http.MethodGet, "/projects/test/runs/run-1", nil)
 	request = request.WithContext(observation.WithRegistry(request.Context(), registry))
 	recorder := httptest.NewRecorder()
 	handler.ServeHTTP(recorder, request)
@@ -81,7 +81,7 @@ func TestRunPageIsRenderedFromTheRunsObservation(t *testing.T) {
 	}
 
 	// An unknown run is an ordinary 404, not an empty page.
-	missing := httptest.NewRequest(http.MethodGet, "/runs/nope", nil)
+	missing := httptest.NewRequest(http.MethodGet, "/projects/test/runs/nope", nil)
 	missing = missing.WithContext(observation.WithRegistry(missing.Context(), registry))
 	recorder = httptest.NewRecorder()
 	handler.ServeHTTP(recorder, missing)
@@ -121,7 +121,7 @@ func TestRunPageRequiresGenerationWhenTheGraphIsUnavailable(t *testing.T) {
 		}
 	}
 
-	request := httptest.NewRequest(http.MethodGet, "/runs/run-loop", nil)
+	request := httptest.NewRequest(http.MethodGet, "/projects/test/runs/run-loop", nil)
 	request = request.WithContext(observation.WithRegistry(request.Context(), registry))
 	recorder := httptest.NewRecorder()
 	handler.ServeHTTP(recorder, request)

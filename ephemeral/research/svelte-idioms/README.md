@@ -1,7 +1,21 @@
 # Svelte cleanup: collected research and sequential delivery
 
-Prepared 2026-09-21 against Gimble `7c90f9b`. This is a recommendation and
-research index; no implementation or recurring audit has been started.
+Prepared 2026-09-21 against Gimble `7c90f9b`. This is the research index and
+delivery record for the active sequential cleanup. The recurring audit has not
+started.
+
+## Delivery status
+
+The single-worktree issue series has completed and pushed #343 (`d9160a7`),
+#339 (`c37cd0b`), #333 (`7a0edfc`), #335 (`d45ddb9`), and #336 (`0158df8`). It
+is stopped at #334 after two foreground runs exhausted three PromiseLoop tasks
+each. The #334 source change and deterministic checks are green, but a fresh
+independent live proof cannot reach its first Haiku planner task. Raw structured
+Haiku controls return in seconds while live PromiseLoop and interview workflows
+stall or return `unexpected EOF`. That runtime blocker is tracked in
+[#351](https://github.com/tylergannon/gimble/issues/351). Do not rerun #334 or
+advance the series until #351 is resolved or the required live proof becomes
+available; preserve the current uncommitted #334 diff.
 
 ## Owner clarification (2026-09-21)
 

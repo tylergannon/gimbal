@@ -53,3 +53,36 @@ fresh `web/build/skgo.manifest.json` existed. Running `just build` first created
 the normal generated web output; the following full `just test` passed. This is
 an ordering dependency in a clean checkout, not a failure in the issue-series
 workflow.
+
+correction: Keep the agreed implementation shape literal: one sequential outer
+loop over issue files with the existing PromiseLoop inside each issue. Do not
+replace it with a second lean workflow or file a competing redesign issue.
+
+friction: A resumed planner searched `.gimble/runs` and read a prior session
+result that already contained Gimble transcript output. Recording that result
+recursively amplified the new session and observation logs to 19 GB each and
+filled the disk. Archive old run directories outside the worktree before retry,
+and explicitly forbid agents from using raw run transcripts as task context.
+
+friction: #334 exhausted three PromiseLoop laps after 77 minutes even though
+the source and deterministic checks were green. The third Terra worker proved
+all three live form actions, but Sonnet spent 29m56s rebuilding the proof and
+hit three stalls in Gimble's structured Claude planner stream; raw Haiku CLI
+returned in about 1.2 seconds. For the retry, keep Terra on implementation and
+Sonnet on scope supervision, but use Sol for independent validation so the
+validator has the direct computer-use path that succeeded in the worker lap.
+
+correction: Do not use `nohup` or detach servers for monitoring or live proof.
+Foreground tool sessions are the ownership boundary; verify and clean every
+child process before a lap ends.
+
+friction: A second foreground #334 run spent about 75m41s across three more
+PromiseLoop laps (10 Sonnet, 167 Sol, 107 Terra calls). Terra and Sol repeatedly
+showed that raw Haiku structured-output controls complete in seconds while a
+fresh live PromiseLoop or interview workflow stalls or returns `unexpected
+EOF` before its first usable result. Full deterministic checks for the Svelte
+change stayed green, but independent validation correctly withheld completion
+because the loop-message and interview behaviors could not be observed in a
+fresh run. Filed #351 with the bounded reproduction and left the #334 diff
+untouched. Do not spend another issue-series retry on #334 until #351 is
+resolved or the live proof becomes available.

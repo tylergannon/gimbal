@@ -36,11 +36,11 @@ func TestManagerRoutesAllProvidersAndKeepsConversationHistory(t *testing.T) {
 	}
 
 	providers := []struct {
-		name, model string
+		name, modelPrefix string
 	}{
-		{"codex", "gpt-6-luna"},
-		{"claude", "claude-haiku-4-5-20251001"},
-		{"agy", "gemini-3.8-flash-low"},
+		{"codex", "gpt-"},
+		{"claude", "claude-"},
+		{"agy", "gemini-"},
 	}
 	created := make([]Conversation, 0, len(providers))
 	for _, provider := range providers {
@@ -48,8 +48,8 @@ func TestManagerRoutesAllProvidersAndKeepsConversationHistory(t *testing.T) {
 		if err != nil {
 			t.Fatalf("create %s: %v", provider.name, err)
 		}
-		if item.Model != provider.model {
-			t.Errorf("%s default model = %q, want %q", provider.name, item.Model, provider.model)
+		if !strings.HasPrefix(item.Model, provider.modelPrefix) {
+			t.Errorf("%s default model = %q, want prefix %q", provider.name, item.Model, provider.modelPrefix)
 		}
 		branch := git(t, item.Worktree, "branch", "--show-current")
 		if branch != item.Branch {

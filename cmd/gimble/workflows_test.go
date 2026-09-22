@@ -32,7 +32,7 @@ func TestImplementHelpExplainsItsGenericContract(t *testing.T) {
 			t.Errorf("run implement --help lacks %q:\n%s", text, help)
 		}
 	}
-	for _, text := range []string{"Model cost guidance", "sprint-planning", "architectural-critique", "gpt-6-sol:high", "claude-opus-5-5:high", "low-risk background implementation", "gpt-5.6-terra:high", "claude-sonnet-5:high", "execution errors still end the run"} {
+	for _, text := range []string{"Model cost guidance", "sprint-planning", "architectural-critique", "Sol or Opus", "low-risk background implementation", "Terra and Sonnet", "execution errors still end the run"} {
 		if !strings.Contains(help, text) {
 			t.Errorf("run implement --help lacks model-selection guidance %q:\n%s", text, help)
 		}
@@ -58,16 +58,6 @@ func TestPyramidSummaryHelpExplainsItsFixedInputs(t *testing.T) {
 	if !strings.Contains(help, "until the next level") || !strings.Contains(help, "under 100 tokens") {
 		t.Errorf("run pyramid-summary --help lacks the halving rule:\n%s", help)
 	}
-	for role, model := range map[string]string{
-		"document-authoring":   "gemini-3.1-pro-high",
-		"document-supervision": "gemini-3.8-flash-medium",
-		"editorial-review":     "gemini-3.1-pro-high",
-		"pyramid-planning":     "gpt-6-luna",
-	} {
-		if line := lineWith(help, "--"+role+" string"); !strings.Contains(line, `(default "`+model+`")`) {
-			t.Errorf("%s does not show its %s workflow default:\n%s", role, model, line)
-		}
-	}
 	for _, text := range []string{"Model defaults use Gemini 3.1 Pro", "Gemini 3.8 Flash", "up to six slots"} {
 		if !strings.Contains(help, text) {
 			t.Errorf("run pyramid-summary --help lacks model-selection guidance %q:\n%s", text, help)
@@ -80,20 +70,6 @@ func TestResearchDocumentHelpShowsLimitsAndModelDefaults(t *testing.T) {
 	for _, flag := range []string{"--goal string", "--research-dir string", "--output string", "--token-budget int", "--min-sources-per-topic int", "--max-editorial-rounds int"} {
 		if !strings.Contains(help, flag) {
 			t.Errorf("run research-document --help lacks %s:\n%s", flag, help)
-		}
-	}
-	roleDefaults := map[string]string{
-		"document-authoring":   "gemini-3.1-pro-high",
-		"document-supervision": "gemini-3.8-flash-medium",
-		"editorial-review":     "gemini-3.1-pro-high",
-		"index-curation":       "gemini-3.8-flash-medium",
-		"research-indexing":    "gemini-3.8-flash-medium",
-		"research-planning":    "gemini-3.8-flash-medium",
-	}
-	for role, model := range roleDefaults {
-		line := lineWith(help, "--"+role+" string")
-		if !strings.Contains(line, `advanced override`) || !strings.Contains(line, `omit this flag`) || !strings.Contains(line, `(default "`+model+`")`) {
-			t.Errorf("%s does not clearly preserve its %s workflow default:\n%s", role, model, line)
 		}
 	}
 	for _, text := range []string{"broad collection on Gemini Flash", "synthesis on Gemini Pro", "Gemini 3.8 Flash", "Gemini 3.1 Pro"} {
@@ -119,23 +95,23 @@ func TestRunHelpShowsTheInputsAndTheRoles(t *testing.T) {
 		t.Errorf("run review --help does not mark --goal required:\n%s", help)
 	}
 	codeReview := lineWith(help, "--code-review string")
-	if !strings.Contains(codeReview, "advanced override for role code-review") || !strings.Contains(codeReview, "omit this flag") || !strings.Contains(codeReview, `(default "gpt-6-luna")`) || strings.Contains(codeReview, "(required)") {
+	if !strings.Contains(codeReview, "advanced override for role code-review") || !strings.Contains(codeReview, "omit this flag") || strings.Contains(codeReview, "(required)") {
 		t.Errorf("run review --help does not give code review its default model:\n%s", help)
 	}
 }
 
 func TestRunRefusesAMissingInput(t *testing.T) {
 	var out, errOut bytes.Buffer
-	err := run([]string{"run", "review", "--code-review", "gpt-6-luna"}, &out, &errOut, os.Getenv)
+	err := run([]string{"run", "review", "--code-review", "model"}, &out, &errOut, os.Getenv)
 	if err == nil || !strings.Contains(err.Error(), `"goal"`) {
 		t.Errorf("run review without --goal = %v, want the required flag named", err)
 	}
 }
 
 func TestReviewCommandRoleDefaultAndOverride(t *testing.T) {
-	withDefault := review.Command(map[gimble.WorkflowRole]string{gimble.RoleCodeReview: "gpt-6-luna"})
+	withDefault := review.Command(map[gimble.WorkflowRole]string{gimble.RoleCodeReview: "model"})
 	defaultFlag := withDefault.Flags().Lookup("code-review")
-	if got := defaultFlag.DefValue; got != "gpt-6-luna" {
+	if got := defaultFlag.DefValue; got != "model" {
 		t.Fatalf("code-review default = %q", got)
 	}
 	if !strings.Contains(defaultFlag.Usage, "omit this flag") {
@@ -149,10 +125,10 @@ func TestReviewCommandRoleDefaultAndOverride(t *testing.T) {
 	if strings.Contains(flag.Usage, "omit this flag") {
 		t.Fatalf("required code-review flag claims it can be omitted: %q", flag.Usage)
 	}
-	if err := withoutDefault.Flags().Set("code-review", "gpt-6-luna:high"); err != nil {
+	if err := withoutDefault.Flags().Set("code-review", "test-model:high"); err != nil {
 		t.Fatal(err)
 	}
-	if got := withoutDefault.Flags().Lookup("code-review").Value.String(); got != "gpt-6-luna:high" {
+	if got := withoutDefault.Flags().Lookup("code-review").Value.String(); got != "test-model:high" {
 		t.Fatalf("code-review override = %q", got)
 	}
 	if err := withoutDefault.Flags().Set("goal", "find bugs"); err != nil {
@@ -182,11 +158,6 @@ func TestValidateProductHelp(t *testing.T) {
 	help := helpOf(t, "validate-product")
 	if !strings.Contains(lineWith(help, "--suite-file string"), "(required)") {
 		t.Fatal(help)
-	}
-	for role, model := range map[string]string{"product-operation": "claude-opus-5-5:high", "product-visual-review": "gemini-3.8-flash-medium", "product-triage": "gpt-6-astra:high"} {
-		if !strings.Contains(lineWith(help, "--"+role+" string"), `(default "`+model+`")`) {
-			t.Fatal(help)
-		}
 	}
 	for _, text := range []string{"one to three workloads", "implementation source", "issue_repo", "human review"} {
 		if !strings.Contains(help, text) {

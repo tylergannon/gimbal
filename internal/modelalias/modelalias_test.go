@@ -12,7 +12,7 @@ func TestResolve(t *testing.T) {
 		harness   string
 		effort    string
 	}{
-		{Selection{Name: "gpt"}, "gpt-5.6-sol", "codex", "high"},
+		{Selection{Name: "gpt"}, "gpt-6-sol", "codex", "high"},
 		{Selection{Name: "fable"}, "claude-fable-5-1", "claude", "high"},
 		{Selection{Name: "flash"}, "gemini-3.8-flash-medium", "agy", "medium"},
 		{Selection{Name: "flash", Version: "3.7", VersionPresent: true, Effort: "low", EffortPresent: true}, "gemini-3.7-flash-low", "agy", "low"},

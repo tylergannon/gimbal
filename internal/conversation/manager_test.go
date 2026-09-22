@@ -38,7 +38,7 @@ func TestManagerRoutesAllProvidersAndKeepsConversationHistory(t *testing.T) {
 	providers := []struct {
 		name, model string
 	}{
-		{"codex", "gpt-5.6-luna"},
+		{"codex", "gpt-6-luna"},
 		{"claude", "claude-haiku-4-5-20251001"},
 		{"agy", "gemini-3.8-flash-low"},
 	}

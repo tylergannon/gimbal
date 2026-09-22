@@ -512,7 +512,7 @@ func providerModel(provider, model string) (string, string, error) {
 	switch provider {
 	case "codex":
 		if model == "" {
-			model = "gpt-5.6-luna"
+			model = "gpt-6-luna"
 		}
 		if !strings.HasPrefix(model, "gpt-") && !strings.HasPrefix(model, "o1") && !strings.HasPrefix(model, "o3") && !strings.HasPrefix(model, "o4") {
 			return "", "", fmt.Errorf("conversation: model %q is not a Codex model", model)

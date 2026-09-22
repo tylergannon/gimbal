@@ -21,8 +21,8 @@
 // changes. For a small, local, well-specified change, deliberately tune the two
 // Astra roles down to Sol or Opus:
 //
-//	--sprint-planning gpt-5.6-sol:high \
-//	--architectural-critique claude-opus-5:high
+//	--sprint-planning gpt-6-sol:high \
+//	--architectural-critique claude-opus-5-5:high
 //
 // For low-risk background implementation where elapsed time and rejected
 // validation laps are cheap, keep the frontier sprint-planning default and use

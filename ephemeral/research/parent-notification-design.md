@@ -1,255 +1,217 @@
-# Parent notifications: composition and delivery plan
+# Parent notifications in the shared Gimble instance
 
-Design reviewed with Claude Fable 5.1, 2026-09-22. Research basis:
+Revised 2026-09-22 after Tyler identified the active single-instance migration.
+This supersedes the earlier connector-process design and its three-round
+Fable consensus. That consensus applied to the old topology, not this revision.
+Claude Fable 5.1 re-reviewed this revision against the migration in round 04:
+only nitpicks remain, with no material findings. Review session:
+`5dc86ff9-69dc-4263-853f-2b20ae8efb53`. Its implementation clarifications
+are incorporated below.
+No application behavior has been implemented or proven by this document.
+
+## Authoritative context and current integration target
+
+Tyler wants a parent ChatGPT or Claude Desktop instance to launch a workflow,
+end its turn, and receive occasional updates without model polling. This
+must compose into the product without provider conditionals scattered through
+execution. One server must serve concurrent parents of different kinds;
+provider choice is not a process startup mode.
+
+The active task is **Investigate issue 326**, in
+`/Users/tyler/.codex/worktrees/2128/gimble`. Its authoritative migration plan is
+`ephemeral/research/issue-326/single-instance-plan.md` there. Read that plan
+and its current code before implementation. It says one instance can host
+many projects; independently configured instances remain permissible for
+tests and separate uses. This is one local user's tool, not a multi-user
+security system. Notification work must not invent another runtime owner.
+
+The migration worktree was inspected at `50ad4e6` with ongoing uncommitted
+implementation. The following are observed integration points, not claims
+that the migration is released or fully validated:
+
+- `web.Instance` owns listeners/control socket and maps projects to project
+  `Runtime` state. Each project owns runs, observations and conversations.
+- `web.Submit` and `/control/submit` implement the shared submission path;
+  generated `gimble run` commands are clients, not runtime constructors.
+- Instance selection, owning project and execution workdir are distinct.
+  The control client supplies `X-Gimble-Project`; the web routes use
+  `/projects/{projectID}/runs/{runID}`.
+- Conversation agents use the same CLI, with a conversation association.
+  The structured workflow reply and direct conversation-launch callbacks
+  are being removed. Do not factor or revive them for notifications.
+- Existing project-scoped snapshot/SSE observations remain the source for
+  notification policy. `Admission` currently returns the accepted run ID.
+
+Background research is in
 `/Users/tyler/.codex/worktrees/76c1/gimble/ephemeral/research/parent-workflow-notifications.md`.
-This is a delivery plan, not implemented behavior or a new public API.
+Its transport findings remain useful, but references to the old runtime
+and launch topology are historical.
 
-Consensus: three rounds in reviewer session
-`5dc86ff9-69dc-4263-853f-2b20ae8efb53`; round 3 reports **only nitpicks
-remain**, with no material findings. Local review artifacts are
-`ephemeral/reviews/parent-notifications-fable-round-01.md` through
-`parent-notifications-fable-round-03.md`. The repository excludes these
-review artifacts from Git. Round 3 leaves four implementation notes:
-retain the web origin for reattachment (including a UDS without an origin),
-validate workflow availability before creating a worktree, choose the
-default progress cadence and relevant changes, and report live proof in
-chat/PR rather than committing run records. These do not change the agreed
-composition. Host capability experiments remain prerequisites to delivery.
+## Composition: a per-subscription observer with a bound delivery endpoint
 
-## Authoritative request
-
-Tyler wants a parent ChatGPT or Claude Desktop instance to initiate a Gimble
-workflow, finish its turn, and receive occasional later updates without
-remaining active polling. He asks for consensus with Claude Fable on the
-plan and a software design pattern that composes this behavior into the
-existing product without conditionals interleaved throughout it.
-Repository AGENTS.md and docs/definition-of-done.md apply. Existing workflow
-code remains ordinary Go. A protocol feature is not proof of client behavior.
-
-## Composition: observer plus delivery adapter
-
-Put the observer and its delivery adapter together in a small parent
-connector, outside the workflow runtime. The connector subscribes to the
-existing Gimble run stream, selects useful updates, and supplies them to a
-bound delivery function. In pattern terms this is Observer plus Strategy,
-with a ports-and-adapters boundary around the host protocol.
+The pattern remains Observer plus Strategy. Its lifetime/composition owner
+is the shared instance. One internal notification component accepts a run
+reference and an already-bound delivery function. It observes that project's
+existing run state, coalesces useful updates, and calls the function.
 
 ```text
-parent --launch tool--> connector --local control--> Gimble runtime
-                           ^                            |
-                           | existing run SSE           | ordinary workflow
-                           +----------------------------+
-                           |
-                    observation policy
-                           |
-                    bound send function
-                           |
-                    original parent turn
+Claude parent -- ordinary launch client --+
+                                         +--> one Gimble instance
+Codex parent  -- ordinary launch client --+      |
+                                                +-- project A / runs
+                                                +-- project B / runs
+                                                |
+                                   per-run parent subscriptions
+                                     /                     \
+                           bound Codex endpoint     bound Claude endpoint
+                                  |                        |
+                             parent turn              parent turn
 ```
 
-Both Codex and Claude use this same arrangement. Gimble's runtime never
-speaks the parent's protocol. The connector binds the host-specific function
-once for a subscription; the shared observer never switches on provider.
-A Go function taking context and an update, returning submission error, is
-enough. There is no event bus, plugin registry, or interface hierarchy.
-Normal error handling and deciding which state changes matter belong in
-this one observer, not throughout the application.
+Instance, project, run, and parent are distinct identities. A subscription
+contains the run's owning project and run ID plus its own parent destination
+and cadence. Execution workdir is not project identity; a Gimble conversation
+ID is not an external Codex thread ID. No server-global current parent or
+provider exists. Two subscriptions may bind different providers even when
+they watch runs in the same project.
 
-The connector is a local MCP server process, launched/configured by its
-host. Its process context owns the lifetime of observers, not an individual
-tool-call context. If the host shares that process, each observer has its
-own immutable destination binding. The launch tool returns while that
-process remains connected.
-Claude's instance is also a configured channel and writes its notifications
-directly; Codex's instance maintains a connection to the shared app-server.
-This is one process shape for both adapters, not a runtime callback for one
-and an external consumer for the other. No acknowledgement protocol or
-per-parent notification stream is added to Gimble.
+Transport-specific registration handlers construct the delivery function
+once per subscription. The common observer receives that function; it does
+not switch on provider, ask which app launched the server, or read the
+server's startup environment to infer the caller. Ordinary Go function
+injection is sufficient. Avoid a plugin framework, general message bus,
+interface hierarchy, or provider fields propagated through workflow calls.
 
-## Gimble integration and launch ownership
+The instance owns subscription lifetime and cancels it at shutdown. A
+subscription can stop independently of its run. Registration/disconnection
+changes a subscription, never the selected instance or workflow ownership.
+Workflows with no subscribers incur no notification behavior.
 
-The existing `web.Runtime` continues to own execution. The connector uses
-the service's Unix control socket, and the service must already be running
-for the first delivery. Setup documents this requirement. Request completion,
-MCP tool return, and connector disconnection do not cancel its workflow.
-No claim is made about executing through service death or machine shutdown.
-If discovery finds multiple live services for the project, require an
-explicit control-socket selection instead of silently choosing an owner.
-The launch receipt publishes the actual web origin and `/runs/{runID}` URL
-from that runtime, or states that no web view is available. With web disabled,
-details can still name the run directory, but there is no answering link;
-an interview notice must say it requires the web answering surface. Do not
-invent a URL from port 8080 or from the Unix control socket.
+## Launch and attach are separate operations
 
-The first vertical delivery exposes review, then implementation: these have
-existing runtime-owned launch entries in `cmd/gimble/workflows.go` and
-`web/runtime.go:306`. Factor that existing operation into one application
-entry called by the conversation manager and a new control launch handler.
-It takes an explicit work directory and the existing workflow-specific
-inputs, keeps the actual workflow calls and role bindings, and returns the
-real run ID. This launch entry is unaware of parents and notifications.
-No new exported root `gimble` API or general workflow catalog is proposed.
-Other built-in CLI workflow launches are not silently covered by this slice.
+Use the migration's ordinary `gimble run`/submission contract unchanged for
+launch semantics. Once the caller has the accepted run ID, it subscribes on
+the same selected instance and owning project. Parent tooling may present
+launch-and-subscribe as one interaction, but there is one workflow submission
+path, not an MCP-specific launch engine. On an ambiguous launch response,
+discover/report the run rather than automatically submitting it again.
 
-The work directory contract is explicit. Existing conversations retain their
-current worktree creation and ownership. For both external review and
-implementation, the connector creates an isolated Git worktree on a new
-branch from the caller's explicit base revision, using ordinary git. It
-passes that absolute path to the launch entry. Review's read-only behavior
-is a prompt instruction, not a sandbox guarantee; the isolation keeps its
-normal working directory separate from the parent's checkout. The receipt
-includes branch and worktree path. The parent/user owns that worktree; retain
-it after success, failure, or disconnect, with cleanup through ordinary Git
-after inspection/merge. Do not transplant uncommitted changes into it; this
-slice reviews the requested committed revision. Pre-launch validation fails
-before creating a workflow.
+Attachment starts with the current snapshot and then follows changes, so
+fast completion before subscription is supported. A missing parent transport
+must not undo an accepted launch. Reattachment uses the existing run ID and
+explicit destination; it never launches work.
 
-The launch entry's existing one-value `LaunchedRun.Done` must have exactly
-one receiver. For conversations it remains `Manager.watchRun`. For an
-external launch, a runtime-owned goroutine receives and logs its result.
-The connector never consumes this channel: its notification source is the
-existing observation snapshot/stream. Thus it cannot steal the result and
-make another consumer misreport a closed channel. No completion fan-out
-abstraction is needed.
+This feature adds no worktree-creation policy. The caller supplies the
+execution workdir through the existing CLI, and conversation agents retain
+the migration's conversation worktree behavior. Repository worktree rules
+still apply to coding tasks. Parent notification code neither chooses a
+branch nor owns cleanup of execution worktrees.
+Parent setup instructions must make the isolated `--work-dir` requirement
+explicit for coding tasks; the CLI otherwise defaults to the project checkout.
 
-On an ambiguous launch response the connector reports the uncertainty and
-uses run discovery; it never automatically retries the launch. This avoids
-restarting work without inventing durable idempotent-launch infrastructure.
-After receiving the run ID, it attaches the observer and returns the receipt.
-A fast finished run is still readable through the snapshot endpoint.
+A subscription setup response should supply the actual project-qualified
+run URL from the selected instance, or an absolute run directory when no
+usable web origin exists. Retain/query the origin on reattachment too;
+never infer it from port 8080 or a Unix socket. The migration's actual route
+and instance-selection contract are authoritative.
+The instance must retain its web origin; a Unix socket without a configured
+web origin also means there is no usable browser URL.
 
-## Observer behavior
+## Transport adapters without more Gimble servers
 
-The implementation lives in one internal package used by the connector.
-It reads the existing snapshot and resumes using stream identity/position.
-No notification hooks are added to `Run`, `Generate`, loops, worker harness
-adapters, workflow bodies, observation producers, or Svelte components.
+Codex: registration binds the actual invoking thread on the shared app-server.
+The instance's outbound adapter keeps whatever connection lifecycle is
+required and submits `turn/start` with empty input and `toolOutput`. It
+borrows that thread; it does not own, archive, replace, or change its approval
+policy. Its connection serves this destination, not a global Codex mode.
 
-Keep only current state, the last reported summary, and unsent important
-updates in memory for the connector's lifetime:
+Claude Code: the host may require a stdio MCP/channel process. Treat that as
+a thin transport client of the existing instance, analogous to the CLI,
+not another Gimble server or notification-policy owner. It opens a
+project/run subscription stream on the existing control surface and forwards
+already-selected updates as `notifications/claude/channel`. The server's
+selected-update stream is a new project-scoped control route, using
+`X-Gimble-Project`; it is not the existing raw observation SSE. The server's
+bound send function writes to that subscription's stream. Backpressure and
+stream errors stay in that subscription. No work executes in the relay and
+it does not duplicate cadence/coalescing logic. Current Channels require
+legacy MCP negotiation; that belongs to the relay, not the Gimble instance.
 
-- At the requested interval, send compact progress if relevant structured
-  state changed. Coalesce intervening activity. No per-token updates and
-  no summarizer model. An idle timer wakes code, not the parent model.
-- Notify promptly for a pending interview with question ID and the existing
-  run-page answering link. Recheck that it remains pending before a retry.
-- Notify promptly for observed terminal status, superseding stale progress.
-  Preserve the run ID and a details location; do not equate run completion
-  with proof that the user's goal was achieved.
+The stream path and direct Codex path implement the same internal send
+function with an intentionally limited contract: successful local transport
+submission, not proof that the parent model processed it. For a streamed
+relay that means the connected stream accepted the update, not that Claude
+read it. No invented cross-transport acknowledgement system is required.
+If the relay disconnects, stop that binding; a reattachment starts from
+current state and may repeat a summary. Explain this support limit honestly.
 
-Observation remains diagnostic evidence. The connector reports what the
-run store says, including unavailable/uncertain status if observations are
-missing. EOF or loss of a runtime connection never means success. Delivery
-must not strengthen the execution verdict or claim that every result can be
-reconstructed when observation failed. A degraded observation stream cannot
-cancel execution. The external launch receiver logs the actual returned
-error; notification delivery errors stay in the connector.
+Ordinary Claude Desktop Chat remains a separate target. Test its mounted
+MCP App `sendMessage` behavior. If it works, the view consumes the instance's
+selected-update stream as another transport client. It has no local copy of
+notification policy. A widget's lifetime cannot be presented as durable
+background delivery. If the app cannot start the required idle turn, record
+that missing host capability; Claude Code is not a substitute for it.
 
-Slow delivery cannot hold the observation store lock or block a workflow.
-The reader coalesces into bounded pending state; a separate sender uses a
-context deadline and capped backoff. An unreachable parent is a connector
-problem, not a failed workflow. Existing run data remain available to the
-user. Expose connector/subscription status in its tool response; no new
-notification UI or workflow error fields are needed.
+## Observation policy and isolation
 
-There is deliberately no crash-recovery outbox in the first delivery.
-Within a running connector, retry unsent updates and reconcile snapshots
-after transport reconnect. After connector restart, an explicit reattach
-uses the existing run ID and the parent's confirmed destination; it reports
-current state without relaunching work. Exactly-once delivery is not promised.
-A lost response can make a retry duplicate a notification. A successful
-Claude channel write proves less than a successful Codex RPC response;
-neither proves the model processed the update. Stop removes the subscription,
-not the workflow. Keep these limits in client setup/help.
+One policy uses structured run facts. Start with a configurable three-minute
+progress interval, reporting changed scope/task status rather than token
+activity; pending interviews and terminal state notify promptly. Interview
+updates carry the existing answering URL and question ID; if no answering
+surface is available say so. Suppress a question that has already been
+answered. No summarizer model or token stream is needed.
 
-## Host binding and capability experiments
+Each subscription keeps bounded in-memory pending state: latest progress,
+current pending questions, and terminal state. Reading observations and
+sending updates are separate so a slow parent cannot block the store or
+execution. Use per-send deadlines and capped retry backoff for reachable
+outbound adapters; terminal state supersedes stale progress. Normal
+conditionals for state changes and errors remain local to this component.
 
-### Codex desktop task
+The notification component does not consume a workflow's completion channel
+or reinterpret the execution result. It reports the existing observation
+state. EOF, transport loss, or missing observations are not success. Missing
+notifications never turn a successful workflow into a failure.
 
-The capability experiment must establish how the host identifies the
-invoking thread: inspect the connector's own environment, whether it is
-spawned per thread or shared, and per-call request metadata. Exercise a
-parent and subagent in the same checkout. Prefer verified host-supplied
-per-call identity, or process identity only after verifying that process is
-exclusive to one thread. A shared process must bind each subscription from
-that invocation's identity, not from its startup environment.
+There is no durable notification ledger or exactly-once promise in the first
+slice. Instance restart loses subscriptions, while project/run history keeps
+its existing durability. Explicit reattachment reports current state without
+restarting work. Do not make durable execution or offline wake claims from
+durable observation files.
 
-During this design session, the parent's shell `CODEX_THREAD_ID` matched
-`01a0cb35-9664-7ae2-a736-103f91c26a4a`, the task previously reached through
-app-server. That is evidence to investigate, not proof of MCP process scope.
-A model-relayed thread ID is caller-supplied data, not host-authenticated
-identity. It must not silently become the automatic binding mechanism.
-Validate the bound thread against the daemon before launching. If no
-unambiguous host-supplied source is available, automatic binding is blocked;
-an explicitly operator-configured target can support a narrower integration,
-with its loaded-thread validation and limitations stated. Never infer a
-target from the selected UI tab, title, or matching workspace. The identity
-experiment settles which of these supported paths can ship.
+## Delivery gates and sequence
 
-Bind that ID to the running shared daemon. Submit `turn/start` with empty
-`input` and `toolOutput`. Reuse socket-discovery knowledge from
-`codex/rpc.go`, not worker-session ownership: its adapter Close archives
-threads, while this thread is borrowed. The connector never archives the
-parent, changes its approval policy, restarts the daemon, or creates a
-substitute conversation.
+1. Wait for #326 to land before implementing notification integration, then
+   rebase and verify the landed submission and project-routing interfaces.
+   Independent host capability experiments can happen before it lands.
+   Do not modify the migration worktree or
+   build on its removed callbacks. This plan adds notification subscription
+   handling on the same control surface and one instance-owned component;
+   no changes to Run, Generate, loops, workflow bodies, or event producers.
+2. Prove host binding and wake with disposable parents. For Codex, inspect
+   per-call metadata and client process scope, verify the real invoking
+   identity for parent and subagent, and check which client handles approval
+   requests after event injection/disconnection. Never infer caller identity
+   from the shared Gimble process environment. A model-relayed ID is explicit
+   caller configuration, not host-authenticated identity; use only a proven
+   automatic binding or an honestly documented explicit destination.
+   First test an ordinary registration CLI's own `CODEX_THREAD_ID`, supplied
+   by its invoking host, alongside per-call MCP metadata. Its scope and
+   subagent behavior still need live verification.
+3. Test an idle Claude Code channel and ordinary Claude Desktop App follow-up
+   independently, including switched conversation and app closure. Keep
+   unsupported lifecycle cases explicit. Use cheap models; report exact
+   versions, behavior, and model in chat/PR, not committed run artifacts.
+4. Deliver one built-in run from launch receipt through subscription, parent
+   final answer, progress and terminal update. Notifications are independent
+   of the workflow name; no review/implementation-only launch subsystem is
+   introduced. Add each host adapter only after its capability experiment.
+5. The composition proof is simultaneous subscriptions for a Codex parent and
+   a Claude parent on the same instance, including different projects and
+   two parents sharing a project. Demonstrate correct routing with no server
+   restart or global mode change. Focus package tests on this routing,
+   coalescing, fast completion, slow-subscriber isolation and unsubscribe.
 
-Before accepting this adapter, demonstrate which connected client receives
-approval/permission requests for the injected turn, how the desktop renders
-and answers them, and what happens on connector disconnect during that turn.
-Keep the connection alive for required server requests. If the desktop does
-not retain usable approval handling, the experiment must establish a
-supported relay or report the route blocked; never reuse the worker adapter's
-automatic refusals or bypass approvals to make the proof pass.
-
-### Claude Code channel
-
-The same connector exposes the launch tool and advertises the documented
-experimental channel capability. Its bound sender emits
-`notifications/claude/channel` to the session that owns the MCP connection.
-It uses the legacy MCP negotiation currently required for Channels, plus
-the custom-channel preview setup. No arbitrary parent ID is accepted for
-this adapter. Confirm that the process remains alive after the parent ends
-its turn, that an idle event starts another turn, and that busy-turn events
-are handled. A stopped session has no active channel; it is not durable push.
-
-### Ordinary Claude Desktop Chat
-
-This remains a named target of the plan. Run an MCP App experiment before
-claiming its delivery: launch a delayed run, finish the parent turn, then
-have the mounted widget request a follow-up using `sendMessage` without a
-user click. Test switched conversation, backgrounded app, and quit/reopen
-separately. Establish both delivery and a new model turn in the same chat.
-A UI context update alone is insufficient.
-
-If the only working mechanism depends on a mounted view, document that
-support boundary and design that adapter from its observed lifecycle; do
-not pretend it is the stdio-channel adapter. If it cannot meet the idle-turn
-requirement, record the blocker explicitly and present the proven Codex and
-Claude Code routes as narrower capabilities, not completed Claude Desktop
-support. No generic widget transport is built speculatively.
-
-## Delivery sequence
-
-1. Run the three host capability experiments above using disposable parents,
-   first synthetic delayed events, then real run events. Record versions,
-   exact parent identity source, approval routing, new-turn behavior, and
-   process lifetime. Use cheap models for behavioral proof. This gate
-   determines which host adapters can honestly ship.
-2. Deliver review end-to-end: the small parent-neutral control launch seam,
-   the connector's observer, and the verified Codex sender. Demonstrate a
-   real run ID, a finished parent turn, later progress, and the final report
-   with no parent polling. An ordinary run has no notification subscription.
-3. Add the verified Claude channel sender and implementation launch with
-   explicit worktree creation/ownership. Confirm that the observer logic and
-   actual workflow code do not change between destinations. Deliver the
-   Desktop Chat adapter if its experiment supports it; otherwise report its
-   unresolved host limitation rather than closing that requirement.
-4. Add focused package tests for fast completion, one-value result ownership,
-   correct destination binding, coalescing, reconnect to current snapshot,
-   slow delivery isolation, and failure/EOF not becoming success. Live proof
-   covers the actual host UI, final-answer gap, and reconnect. Keep test and
-   proof effort tied to these behaviors, not a speculative durability system.
-
-Any implementation is a subsequent task. This task produces the reviewed
-plan and the composition decision; runtime support claims require the
-experiments above. Internal names are implementation choices.
+Design consensus is about this composition and plan. It is not proof of host
+wake behavior. Internal symbol names remain implementation choices; no new
+root-package API is proposed.

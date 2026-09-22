@@ -23,3 +23,9 @@ correction: Fable identified missing external worktree ownership, competing rece
 correction: Fable round 2 confirmed the shared connector composition but found that review is read-only by prompt, not by sandbox. Both external workflows now use isolated worktrees. The plan also explicitly publishes the runtime's actual run URL and gates Codex binding on observed host identity/process scope instead of treating a model-supplied ID as authenticated.
 
 decision: Claude Fable 5.1 session 5dc86ff9-69dc-4263-853f-2b20ae8efb53 reached only nitpicks remain in round 3. Consensus is on the delivery plan and observer-plus-adapter composition, not proof of host wake behavior. The host experiments remain the first delivery gate; no application code changed.
+
+correction: Tyler identified the active migration in task Investigate issue 326. Its plan and current 2128 worktree introduce one multi-project Instance, ordinary CLI submission, project-qualified routes, and remove the direct conversation callbacks. The prior notification plan was based on stale topology; its consensus is superseded. Revised around instance-owned per-subscription observers and bound destinations, with Claude stdio only a thin transport client. No global provider mode, alternate launcher, or new worktree policy.
+
+decision: Fable round 04 independently inspected the revised design and active migration code and found no material issues, only nitpicks. Recorded its clarifications about registration CLI identity, retained web origin, explicit caller workdir guidance and the new selected-update control route. Consensus applies to composition, not proven host wake capability.
+
+decision: Wait for #326 to land before implementing notification integration; rebase and verify landed interfaces first. Independent host experiments do not depend on that merge. The migration worktree was read only; no application code changed in this task.

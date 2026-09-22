@@ -135,7 +135,7 @@ project's policy for retaining or sharing evidence.
 ## Run practical user testing
 
 `gimble run validate-product --suite-file /abs/suite.yaml --no-web` runs one to
-three caller-assigned workloads with Opus 5, reviews their screenshots with Gemini
+three caller-assigned workloads with Opus 5.5, reviews their screenshots with Gemini
 Flash, and synthesizes findings. After each workload, the same tester session
 answers one follow-up: its three favorite and three least favorite aspects of UX
 and UI separately, with concrete examples. The debrief is appended to the task

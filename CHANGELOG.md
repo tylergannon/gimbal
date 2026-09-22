@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.1] - 2026-09-22
+
+### Fixed
+
+- Use the directly importable Claude SDK fork v1.1.1, removing the module
+  replacement that prevented installing Gimble from a published version.
+- Show Claude Opus 5.5 consistently in the built-in product workflow help and
+  installed Gimble instructions.
+
 ## [0.11.0] - 2026-09-22
 
 ### Changed
@@ -67,5 +76,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `opencode/provider/model` routing, one shared server managed by
   `gimble opencode start|stop`, and raw event/request captures for diagnostics.
 
-[Unreleased]: https://github.com/tylergannon/gimble/compare/v0.11.0...main
+[Unreleased]: https://github.com/tylergannon/gimble/compare/v0.11.1...main
+[0.11.1]: https://github.com/tylergannon/gimble/compare/v0.11.0...v0.11.1
 [0.11.0]: https://github.com/tylergannon/gimble/releases/tag/v0.11.0

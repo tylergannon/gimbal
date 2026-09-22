@@ -4,14 +4,12 @@ Gimble depends on the forked module:
 
 ```text
 github.com/tylergannon/claude-agent-sdk-go
-v1.1.1-0.20260912021749-9a4ffeca77cc
-revision 9a4ffeca77cca476e5f9e987c4baec71b3d4d2ce
+v1.1.1
+revision ee4bad38b6a1aa11fa71def9530e0e609c2e18f8
 ```
 
-The fork starts from `github.com/roasbeef/claude-agent-sdk-go` revision
-`efdbecd88a98`. It retains the upstream license and removes the upstream
-repository's tracked `.cache/` and `scratch/` artifacts from the published
-module.
+The fork retains the upstream MIT license and declares its own module path.
+The raw message observer was added to the current fork main at v1.1.1.
 
 Local change:
 

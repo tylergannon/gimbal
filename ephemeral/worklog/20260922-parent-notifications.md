@@ -11,3 +11,15 @@ discovery: Read-only inspection reached the running local Codex daemon and found
 discovery: Claude Code Channels document same-session event-driven turns but do not register on MCP 2026-07-28. The modern Tasks extension and legacy channel notifications are different paths; latest protocol support is not automatically the right integration choice.
 
 discovery: Gimble's Codex worker adapter archives its owned threads on Close. A connector borrowing the user's parent thread must not reuse that ownership behavior.
+
+decision: Tyler requested Claude Fable consensus on a composition pattern and delivery plan. The proposed boundary is one observer of existing run observations plus an injected parent delivery function, composed once at application launch rather than interleaved through workflow execution.
+
+friction: Installed agent CLI launched codex app-server despite explicit anthropic/Fable flags in this session. Stopped that attempt and launched Claude CLI directly with claude-fable-5-1; only the actual Fable review can count toward the requested consensus.
+
+correction: Fable round 1 found that a runtime-held delivery function did not fit the out-of-process Claude channel. Revised the design so the same MCP connector process owns the observer and bound sender for both Codex and Claude Code; the runtime only launches workflows and exposes its existing observation stream.
+
+correction: Fable identified missing external worktree ownership, competing receivers of the one-value completion channel, an unproven source of parent identity, and a missing ordinary Claude Desktop experiment. The revised plan makes these concrete and removes speculative durable notification ledger machinery.
+
+correction: Fable round 2 confirmed the shared connector composition but found that review is read-only by prompt, not by sandbox. Both external workflows now use isolated worktrees. The plan also explicitly publishes the runtime's actual run URL and gates Codex binding on observed host identity/process scope instead of treating a model-supplied ID as authenticated.
+
+decision: Claude Fable 5.1 session 5dc86ff9-69dc-4263-853f-2b20ae8efb53 reached only nitpicks remain in round 3. Consensus is on the delivery plan and observer-plus-adapter composition, not proof of host wake behavior. The host experiments remain the first delivery gate; no application code changed.

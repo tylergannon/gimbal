@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 concurrency:
   group: model-prices-main
@@ -26,8 +27,10 @@ jobs:
       - uses: taiki-e/install-action@just
       - name: Refresh generated prices
         run: just prices
-      - name: Commit the next patch release
+      - name: Open catalog refresh for model review
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
 
@@ -48,25 +51,19 @@ jobs:
             exit 1
           fi
 
-          baseline=""
-          for tag in $(git tag --merged HEAD --list 'v*' --sort=-v:refname); do
-            if [[ "$tag" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
-              baseline="$tag"
-              break
-            fi
-          done
-          if [[ -z "$baseline" ]]; then
-            echo "no valid vX.Y.Z tag reachable from main; establish the initial release tag before enabling price refreshes" >&2
-            exit 1
-          fi
-
-          version="${baseline#v}"
-          IFS=. read -r major minor patch <<< "$version"
-          next="v${major}.${minor}.$((10#$patch + 1))"
-
+          branch="automation/model-catalog-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          git switch -c "$branch"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -- internal/observation/model_prices_gen.go
           git commit -m "chore: refresh model prices"
-          git tag "$next"
-          git push --atomic origin HEAD:main "$next"
+          git push origin "$branch"
+
+          cat > /tmp/model-catalog-pr.md <<'EOF'
+          Scheduled models.dev refresh. The commit updates the generated model-price table.
+
+          Before merging, inspect added and removed model IDs. When a newer model changes a family, update the default shorthand and explicit versions in `internal/modelalias/modelalias.go`, every affected built-in role in `cmd/gimble/defaults.json`, other configured defaults, and rendered workflow help or skills. Preserve each role's intended model tier. Do not add assertions that pin a moving shorthand to one version.
+
+          Follow the model-catalog review in `skills/gimble-release/SKILL.md`. Publish a release only after the complete model change is merged and checked; verify a public commit install before tagging and an exact-tag install afterward.
+          EOF
+          gh pr create --base main --head "$branch" --title "Refresh models.dev catalog and review model defaults" --body-file /tmp/model-catalog-pr.md

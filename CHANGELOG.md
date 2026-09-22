@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-09-22
+
 ### Changed
 
 - Default model selections now use GPT-6 Sol/Luna and Claude Opus 5.5 where
@@ -65,4 +67,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `opencode/provider/model` routing, one shared server managed by
   `gimble opencode start|stop`, and raw event/request captures for diagnostics.
 
-[Unreleased]: https://github.com/tylergannon/gimble/commits/main
+[Unreleased]: https://github.com/tylergannon/gimble/compare/v0.11.0...main
+[0.11.0]: https://github.com/tylergannon/gimble/releases/tag/v0.11.0

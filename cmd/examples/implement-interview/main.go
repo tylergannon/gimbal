@@ -1,28 +1,65 @@
-// Command implement-interview builds and demonstrates Gimble issue 249.
+// Command implement-interview runs the issue 249 example in this process.
 package main
 
 import (
+	"context"
+	"flag"
 	"fmt"
 	"os"
+	"os/signal"
+	"path/filepath"
 
 	"github.com/tylergannon/gimble"
+	"github.com/tylergannon/gimble/internal/binding"
 	"github.com/tylergannon/gimble/internal/workflows/implementinterview"
 )
 
 func main() {
-	cmd := implementinterview.Command(map[gimble.WorkflowRole]string{
-		"api-research":                   "gpt-5.6-terra:high",
-		"frontend-research":              "claude-sonnet-5:high",
-		gimble.RoleSprintPlanning:        "claude-opus-5-5:max",
-		"coding":                         "gpt-6-sol:xhigh",
-		"implementation-scope-review":    "gpt-5.6-terra:high",
-		gimble.RoleArchitecturalCritique: "claude-sonnet-5:high",
-		gimble.RoleQAOrchestration:       "claude-opus-5-5:max",
-	})
-	cmd.SilenceUsage = true
-	cmd.SilenceErrors = true
-	if err := cmd.Execute(); err != nil {
-		_, _ = fmt.Fprintln(os.Stderr, "implement-interview:", err)
+	projectFlag := flag.String("project", ".", "project directory for the standalone run")
+	workDirFlag := flag.String("work-dir", "", "execution directory (default: project)")
+	requirementsFile := flag.String("requirements-file", "", "absolute path to the locally saved requirements file (required)")
+	referenceDir := flag.String("reference-dir", "", "absolute path to the research directory (required)")
+	maxTasks := flag.Int("max-tasks", 0, "maximum planner assignments (required, at least 1)")
+	apiResearch := flag.String("api-research", "gpt-5.6-terra:high", "model for API research")
+	frontendResearch := flag.String("frontend-research", "claude-sonnet-5:high", "model for frontend research")
+	planning := flag.String("sprint-planning", "claude-opus-5-5:max", "model for sprint planning")
+	coding := flag.String("coding", "gpt-6-sol:xhigh", "model for coding")
+	scopeReview := flag.String("implementation-scope-review", "gpt-5.6-terra:high", "model for implementation scope review")
+	architecture := flag.String("architectural-critique", "claude-sonnet-5:high", "model for architectural critique")
+	qa := flag.String("qa-orchestration", "claude-opus-5-5:max", "model for QA orchestration")
+	flag.Parse()
+	if *requirementsFile == "" || *referenceDir == "" || *maxTasks < 1 || flag.NArg() != 0 {
+		fmt.Fprintln(os.Stderr, "implement-interview: give --requirements-file, --reference-dir, --max-tasks (at least 1), and no positional arguments")
+		os.Exit(2)
+	}
+	project, err := filepath.Abs(*projectFlag)
+	if err == nil {
+		workDir := *workDirFlag
+		if workDir == "" {
+			workDir = project
+		}
+		workDir, err = filepath.Abs(workDir)
+		if err == nil {
+			var models map[gimble.WorkflowRole]gimble.ModelBinding
+			models, err = binding.Roles(map[gimble.WorkflowRole]string{
+				"api-research": *apiResearch, "frontend-research": *frontendResearch,
+				gimble.RoleSprintPlanning: *planning, "coding": *coding,
+				"implementation-scope-review": *scopeReview, gimble.RoleArchitecturalCritique: *architecture,
+				gimble.RoleQAOrchestration: *qa,
+			})
+			if err == nil {
+				ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+				defer stop()
+				err = gimble.Run(gimble.Project(ctx, project), "implement-interview", models, func(ctx context.Context) error {
+					return implementinterview.ImplementInterview(ctx, gimble.Env{WorkDir: workDir}, implementinterview.InterviewBuildParams{
+						RequirementsFile: *requirementsFile, ReferenceDir: *referenceDir, MaxTasks: *maxTasks,
+					})
+				})
+			}
+		}
+	}
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "implement-interview:", err)
 		os.Exit(1)
 	}
 }

@@ -84,7 +84,11 @@ func runPrompt(args []string, stdout, stderr io.Writer, getenv func(string) stri
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	runtime, err := web.NewRuntime(ctx, projectDir, web.WithNoWeb())
+	instance, err := web.NewInstance(ctx, filepath.Join(projectDir, ".gimble"), []string{projectDir}, web.WithNoWeb())
+	if err != nil {
+		return err
+	}
+	runtime, err := instance.Owner.Project(projectDir)
 	if err != nil {
 		return err
 	}

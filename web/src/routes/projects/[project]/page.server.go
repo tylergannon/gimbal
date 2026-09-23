@@ -13,8 +13,8 @@ import (
 
 	"github.com/tylergannon/skgo"
 
+	"github.com/tylergannon/gimble/internal/host"
 	"github.com/tylergannon/gimble/internal/observation"
-	hooks "github.com/tylergannon/gimble/web/src"
 )
 
 // RunItem is the one list row and the presentation text derived from its
@@ -44,7 +44,7 @@ func load(ctx context.Context) (RunsData, error) {
 		ctx = request.Context()
 	}
 	registry := observation.FromContext(ctx)
-	projectDir := hooks.ProjectDir(ctx)
+	projectDir := host.ProjectDir(ctx)
 	if registry == nil || projectDir == "" {
 		return RunsData{}, skgo.Errorf(http.StatusInternalServerError,
 			"This server has no project observation in its context, so its runs cannot be listed.")

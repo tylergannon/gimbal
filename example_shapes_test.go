@@ -457,7 +457,11 @@ func Example_killedTurn() {
 	defer func() { _ = os.RemoveAll(project) }()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	runtime, err := web.NewRuntime(ctx, project, web.WithNoWeb())
+	instance, err := web.NewInstance(ctx, filepath.Join(project, ".gimble"), []string{project}, web.WithNoWeb())
+	if err != nil {
+		panic(err)
+	}
+	runtime, err := instance.Owner.Project(project)
 	if err != nil {
 		panic(err)
 	}

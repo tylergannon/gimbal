@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/tylergannon/gimble"
+	"github.com/tylergannon/gimble/internal/host"
 	"github.com/tylergannon/gimble/internal/observation"
 )
 
@@ -21,7 +22,7 @@ func TestRuntimeControlSocket(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	project := t.TempDir()
-	runtime, err := NewRuntime(ctx, project, WithNoWeb())
+	instance, runtime, err := newProject(ctx, project, WithNoWeb())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -38,7 +39,7 @@ func TestRuntimeControlSocket(t *testing.T) {
 	if err := json.Unmarshal(contents, &discovery); err != nil {
 		t.Fatal(err)
 	}
-	canonical, err := canonicalProject(project)
+	canonical, err := host.CanonicalProject(project)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -114,7 +115,7 @@ func TestRuntimeControlSocket(t *testing.T) {
 	runWG.Wait()
 
 	cancel()
-	<-runtime.instance.done
+	<-instance.done
 	if _, err := os.Stat(discovery.Socket); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("control socket after shutdown: %v", err)
 	}

@@ -17,6 +17,7 @@ import (
 
 	"github.com/tylergannon/gimble"
 	"github.com/tylergannon/gimble/internal/binding"
+	"github.com/tylergannon/gimble/internal/host"
 	"github.com/tylergannon/gimble/internal/observation"
 )
 
@@ -33,22 +34,12 @@ type controlHandler struct {
 	instance *Instance
 }
 
-func (h controlHandler) project(r *http.Request) (*Runtime, error) {
+func (h controlHandler) project(r *http.Request) (*host.Project, error) {
 	name := r.Header.Get("X-Gimble-Project")
 	if name == "" {
 		return nil, errors.New("gimble: project is required")
 	}
-	path, err := canonicalProject(name)
-	if err != nil {
-		return nil, err
-	}
-	h.instance.mu.RLock()
-	defer h.instance.mu.RUnlock()
-	p := h.instance.projects[path]
-	if p == nil {
-		return nil, fmt.Errorf("gimble: project %s is not admitted", path)
-	}
-	return p, nil
+	return h.instance.Owner.Project(name)
 }
 
 func (h controlHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -96,62 +87,23 @@ func (h controlHandler) submit(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "unknown built-in workflow "+request.Name, http.StatusBadRequest)
 		return
 	}
-	if !filepath.IsAbs(request.WorkDir) {
-		http.Error(w, "work_dir must be absolute", http.StatusBadRequest)
-		return
-	}
-	if info, err := os.Stat(request.WorkDir); err != nil || !info.IsDir() {
-		http.Error(w, "work_dir must be an existing directory", http.StatusBadRequest)
-		return
-	}
-	if request.Conversation != "" {
-		worktree, ok := p.conversations.Worktree(request.Conversation)
-		if !ok || worktree != request.WorkDir {
-			http.Error(w, "conversation does not belong to this project and worktree", http.StatusBadRequest)
-			return
-		}
-	}
 	models, err := binding.Roles(request.Models)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	started := make(chan string, 1)
-	ctx := context.WithValue(p.ctx, conversationRunStartedKey{}, func(id string) { started <- id })
-	done := make(chan error, 1)
-	go func() {
-		done <- p.Run(ctx, request.Name, models, func(ctx context.Context) error {
-			return entry(ctx, gimble.Env{WorkDir: request.WorkDir}, request.Params)
-		})
-	}()
-	var id string
-	finished := false
-	select {
-	case id = <-started:
-	case err := <-done:
-		finished = true
-		select {
-		case id = <-started:
-		default:
+	id, err := p.Start(request.Name, request.WorkDir, request.Conversation, models, func(ctx context.Context) error {
+		return entry(ctx, gimble.Env{WorkDir: request.WorkDir}, request.Params)
+	})
+	if err != nil {
+		status := http.StatusBadRequest
+		if errors.Is(err, host.ErrStartFailed) {
+			status = http.StatusInternalServerError
+		} else if errors.Is(err, host.ErrStopped) {
+			status = http.StatusServiceUnavailable
 		}
-		if id == "" {
-			http.Error(w, fmt.Sprintf("run could not start: %v", err), http.StatusInternalServerError)
-			return
-		}
-	case <-p.ctx.Done():
-		http.Error(w, "instance stopped", http.StatusServiceUnavailable)
+		http.Error(w, err.Error(), status)
 		return
-	}
-	if request.Conversation != "" {
-		if err := p.conversations.Associate(request.Conversation, id, request.Name, request.WorkDir); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		if finished {
-			p.conversations.RefreshRun(id)
-		} else {
-			go func() { <-done; p.conversations.RefreshRun(id) }()
-		}
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(Admission{ID: id})
@@ -163,7 +115,7 @@ func (h controlHandler) runs(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "project is not admitted", http.StatusNotFound)
 		return
 	}
-	rows, err := p.controlRuns()
+	rows, err := controlRuns(p)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -238,7 +190,6 @@ func (i *Instance) startControl() error {
 		return fmt.Errorf("gimble: control identity: %w", err)
 	}
 	identity := hex.EncodeToString(rawID[:])
-	i.controlID = identity
 	socket := filepath.Join(i.dir, identity+".sock")
 	discovery := filepath.Join(controlDir, identity+".json")
 	listener, err := net.Listen("unix", socket)
@@ -253,7 +204,7 @@ func (i *Instance) startControl() error {
 		return fmt.Errorf("gimble: listen on control socket: %w", err)
 	}
 	info := controlDiscovery{PID: os.Getpid(), Socket: socket, Project: i.dir}
-	i.controlSocket = socket
+	i.Owner.SetControl(identity, socket)
 	encoded, err := json.Marshal(info)
 	if err != nil {
 		_ = listener.Close()
@@ -269,7 +220,7 @@ func (i *Instance) startControl() error {
 	server := &http.Server{
 		Handler: controlMux(i),
 		BaseContext: func(net.Listener) context.Context {
-			return i.ctx
+			return host.WithOwner(i.ctx, i.Owner)
 		},
 	}
 	i.shutdown.Add(1)
@@ -283,40 +234,12 @@ func (i *Instance) startControl() error {
 	context.AfterFunc(i.ctx, func() {
 		_ = server.Close()
 		<-serveDone
-		i.activeRuns.Wait()
+		i.Owner.Close()
 		_ = os.Remove(socket)
 		_ = os.Remove(discovery)
-		i.mu.RLock()
-		projects := make([]*Runtime, 0, len(i.projects))
-		for _, project := range i.projects {
-			projects = append(projects, project)
-		}
-		i.mu.RUnlock()
-		for _, project := range projects {
-			project.conversations.Close()
-			_ = os.Remove(filepath.Join(project.dir, "control", identity+".json"))
-			_ = project.ownerLock.Close()
-		}
 		i.shutdown.Done()
 	})
 	log.Printf("gimble: control socket listening on %s", socket)
-	return nil
-}
-
-func (i *Instance) writeProjectDiscovery(project string) error {
-	dir := filepath.Join(project, ".gimble", "control")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return err
-	}
-	path := filepath.Join(dir, i.controlID+".json")
-	info := controlDiscovery{PID: os.Getpid(), Socket: i.controlSocket, Project: project}
-	data, err := json.Marshal(info)
-	if err != nil {
-		return err
-	}
-	if err := os.WriteFile(path, data, 0o644); err != nil {
-		return err
-	}
 	return nil
 }
 
@@ -328,12 +251,12 @@ func controlMux(i *Instance) http.Handler {
 			http.Error(w, "project is not admitted", http.StatusNotFound)
 			return
 		}
-		observation.Routes(h).ServeHTTP(w, r.WithContext(p.requestContext(r.Context())))
+		observation.Routes(h).ServeHTTP(w, r.WithContext(p.RequestContext(r.Context())))
 	})
 }
 
-func (r *Runtime) controlRuns() ([]observation.RunRow, error) {
-	entries, err := os.ReadDir(filepath.Join(r.dir, "runs"))
+func controlRuns(r *host.Project) ([]observation.RunRow, error) {
+	entries, err := os.ReadDir(filepath.Join(r.Dir(), "runs"))
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return []observation.RunRow{}, nil
@@ -345,10 +268,10 @@ func (r *Runtime) controlRuns() ([]observation.RunRow, error) {
 		if !entry.IsDir() {
 			continue
 		}
-		if _, err := r.runs.InProgress(entry.Name()); err != nil {
+		if _, err := r.Runs().InProgress(entry.Name()); err != nil {
 			continue
 		}
-		snapshot, err := r.registry.Snapshot(entry.Name())
+		snapshot, err := r.Registry().Snapshot(entry.Name())
 		if err != nil {
 			continue
 		}

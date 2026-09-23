@@ -2,8 +2,6 @@ package web
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -19,54 +17,22 @@ import (
 	"strings"
 	"sync"
 
-	"golang.org/x/sys/unix"
-
 	"github.com/tylergannon/gimble"
-	"github.com/tylergannon/gimble/internal/binding"
-	"github.com/tylergannon/gimble/internal/conversation"
-	"github.com/tylergannon/gimble/internal/live"
-	"github.com/tylergannon/gimble/internal/observation"
-	hooks "github.com/tylergannon/gimble/web/src"
+	"github.com/tylergannon/gimble/internal/host"
 )
-
-// Runtime is one admitted project's runs and conversations. Its Instance owns
-// the listeners and remains active until its startup context is cancelled.
-type Runtime struct {
-	instance *Instance
-	ctx      context.Context
-	project  string
-	id       string
-	dir      string
-
-	// runs in progress by id, for Steer, KillScope, and KillTurn. The table
-	// is in the runtime's context too, so the page's remote functions steer
-	// the same runs these methods do.
-	runs *live.Runs
-	// registry is where every run the runtime starts registers its store.
-	// Run puts it on the caller's context, which is the run's context.
-	registry *observation.Registry
-	// conversations owns the chat worktrees and live harness sessions for the
-	// same lifetime as this runtime.
-	conversations *conversation.Manager
-	ownerLock     *os.File
-}
 
 // Instance owns one web listener, one control socket, and any number of
 // admitted projects. Project state and durable files live below each project's
 // directory; instanceDir holds only the control endpoint and discovery.
 type Instance struct {
-	ctx           context.Context
-	cancel        context.CancelCauseFunc
-	dir           string
-	done          chan struct{}
-	shutdown      sync.WaitGroup
-	activeRuns    sync.WaitGroup
-	address       string
-	mu            sync.RWMutex
-	projects      map[string]*Runtime
-	workflows     map[string]WorkflowEntry
-	controlSocket string
-	controlID     string
+	ctx       context.Context
+	cancel    context.CancelCauseFunc
+	dir       string
+	done      chan struct{}
+	shutdown  sync.WaitGroup
+	address   string
+	Owner     *host.Owner
+	workflows map[string]WorkflowEntry
 }
 
 // WorkflowEntry executes one built-in workflow with its submitted parameters.
@@ -169,14 +135,14 @@ func NewInstance(ctx context.Context, instanceDir string, initialProjects []stri
 	}
 	runtimeCtx, cancel := context.WithCancelCause(ctx)
 	instance := &Instance{
-		ctx: runtimeCtx, cancel: cancel, dir: dir, done: make(chan struct{}), projects: make(map[string]*Runtime), workflows: cfg.workflows,
+		ctx: runtimeCtx, cancel: cancel, dir: dir, done: make(chan struct{}), workflows: cfg.workflows, Owner: host.New(runtimeCtx, dir),
 	}
 	if err := instance.startControl(); err != nil {
 		cancel(err)
 		return nil, err
 	}
 	for _, project := range initialProjects {
-		if _, err := instance.AdmitProject(project); err != nil {
+		if _, err := instance.Owner.AdmitProject(project); err != nil {
 			cancel(err)
 			instance.waitForShutdown()
 			<-instance.done
@@ -194,105 +160,6 @@ func NewInstance(ctx context.Context, instanceDir string, initialProjects []stri
 	}
 	instance.waitForShutdown()
 	return instance, nil
-}
-
-// NewRuntime starts an instance for a repository. Its records and instance
-// discovery live in that repository's .gimble directory.
-func NewRuntime(ctx context.Context, projectDir string, opts ...Option) (*Runtime, error) {
-	project, err := canonicalProject(projectDir)
-	if err != nil {
-		return nil, err
-	}
-	i, err := NewInstance(ctx, filepath.Join(project, ".gimble"), []string{project}, opts...)
-	if err != nil {
-		return nil, err
-	}
-	p, err := i.AdmitProject(project)
-	if err != nil {
-		i.cancel(err)
-		<-i.done
-		return nil, err
-	}
-	return p, nil
-}
-
-// AdmitProject admits a repository once. Another instance cannot admit the
-// same canonical project until this instance ends. Its .gimble state and the
-// execution workdirs supplied by workflows are separate from its identity.
-func (i *Instance) AdmitProject(dir string) (*Runtime, error) {
-	if i == nil || i.ctx.Err() != nil {
-		return nil, errors.New("gimble: instance is closed")
-	}
-	path, err := canonicalProject(dir)
-	if err != nil {
-		return nil, err
-	}
-	state := filepath.Join(path, ".gimble")
-	if err := os.MkdirAll(state, 0o755); err != nil {
-		return nil, err
-	}
-	i.mu.Lock()
-	defer i.mu.Unlock()
-	if i.ctx.Err() != nil {
-		return nil, errors.New("gimble: instance is closed")
-	}
-	if p := i.projects[path]; p != nil {
-		return p, nil
-	}
-	// Keep the file itself after release. Removing it would let a new owner
-	// lock a different inode while another contender still holds the old one.
-	ownerLock, err := os.OpenFile(filepath.Join(state, "owner.lock"), os.O_CREATE|os.O_RDWR, 0o644)
-	if err != nil {
-		return nil, fmt.Errorf("gimble: claim project %s: %w", path, err)
-	}
-	if err := unix.Flock(int(ownerLock.Fd()), unix.LOCK_EX|unix.LOCK_NB); err != nil {
-		_ = ownerLock.Close()
-		if errors.Is(err, unix.EWOULDBLOCK) {
-			return nil, fmt.Errorf("gimble: project %s is already owned by another instance", path)
-		}
-		return nil, fmt.Errorf("gimble: claim project %s: %w", path, err)
-	}
-	claimed := false
-	defer func() {
-		if !claimed {
-			_ = ownerLock.Close()
-		}
-	}()
-	projectCtx := hooks.WithProjectDir(i.ctx, state)
-	registry := observation.NewRegistry(state)
-	projectCtx = observation.WithRegistry(projectCtx, registry)
-	runs := live.NewRuns()
-	projectCtx = live.WithRuns(projectCtx, runs)
-	p := &Runtime{instance: i, ctx: projectCtx, project: path, id: projectID(path), dir: state, runs: runs, registry: registry, ownerLock: ownerLock}
-	cli, err := os.Executable()
-	if err != nil {
-		return nil, err
-	}
-	conversations, err := conversation.New(projectCtx, state, binding.Adapter, cli, i.dir, path, registry)
-	if err != nil {
-		return nil, err
-	}
-	p.ctx = conversation.WithManager(projectCtx, conversations)
-	p.conversations = conversations
-	if err := i.writeProjectDiscovery(path); err != nil {
-		return nil, err
-	}
-	i.projects[path] = p
-	claimed = true
-	return p, nil
-}
-
-func canonicalProject(dir string) (string, error) {
-	path, err := filepath.Abs(dir)
-	if err != nil {
-		return "", err
-	}
-	return filepath.EvalSymlinks(path)
-}
-
-func projectID(path string) string {
-	sum := sha256.Sum256([]byte(path))
-	return hex.EncodeToString(sum[:16])
 }
 
 func (i *Instance) startWeb(cfg config) error {
@@ -365,6 +232,7 @@ func (i *Instance) Wait() {
 
 func (i *Instance) projectRequest(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r = r.WithContext(host.WithOwner(r.Context(), i.Owner))
 		path := r.URL.Path
 		if strings.HasPrefix(path, "/_app/") {
 			// Kit's remote endpoint is shared by all pages. The browser supplies
@@ -374,149 +242,29 @@ func (i *Instance) projectRequest(next http.Handler) http.Handler {
 				path = parsed.Path
 			}
 		}
-		var p *Runtime
-		i.mu.RLock()
-		choices := make([]hooks.ProjectChoice, 0, len(i.projects))
-		for _, candidate := range i.projects {
-			choices = append(choices, hooks.ProjectChoice{ID: candidate.id, Path: candidate.project})
-			if strings.HasPrefix(path, "/projects/"+candidate.id) &&
-				(len(path) == len("/projects/")+len(candidate.id) || path[len("/projects/")+len(candidate.id)] == '/') {
+		var p *host.Project
+		projects := i.Owner.Projects()
+		choices := make([]host.ProjectChoice, 0, len(projects))
+		for _, candidate := range projects {
+			choices = append(choices, host.ProjectChoice{ID: candidate.ID(), Path: candidate.Path()})
+			if strings.HasPrefix(path, "/projects/"+candidate.ID()) &&
+				(len(path) == len("/projects/")+len(candidate.ID()) || path[len("/projects/")+len(candidate.ID())] == '/') {
 				p = candidate
-				break
 			}
 		}
-		i.mu.RUnlock()
-		slices.SortFunc(choices, func(a, b hooks.ProjectChoice) int { return strings.Compare(a.Path, b.Path) })
+		slices.SortFunc(choices, func(a, b host.ProjectChoice) int { return strings.Compare(a.Path, b.Path) })
 		if p == nil {
 			if strings.HasPrefix(r.URL.Path, "/projects/") || strings.Contains(r.URL.Path, "/remote/") || strings.HasPrefix(r.URL.Path, "/api/") {
 				http.NotFound(w, r)
 				return
 			}
-			next.ServeHTTP(w, r.WithContext(hooks.WithProjects(r.Context(), choices)))
+			next.ServeHTTP(w, r.WithContext(host.WithProjects(r.Context(), choices)))
 			return
 		}
-		if strings.HasPrefix(r.URL.Path, "/projects/"+p.id+"/api/") {
+		if strings.HasPrefix(r.URL.Path, "/projects/"+p.ID()+"/api/") {
 			r = r.Clone(r.Context())
-			r.URL.Path = strings.TrimPrefix(r.URL.Path, "/projects/"+p.id)
+			r.URL.Path = strings.TrimPrefix(r.URL.Path, "/projects/"+p.ID())
 		}
-		next.ServeHTTP(w, r.WithContext(p.requestContext(r.Context())))
+		next.ServeHTTP(w, r.WithContext(p.RequestContext(r.Context())))
 	})
-}
-
-func (p *Runtime) requestContext(ctx context.Context) context.Context {
-	ctx = hooks.WithProjectDir(ctx, p.dir)
-	ctx = observation.WithRegistry(ctx, p.registry)
-	ctx = live.WithRuns(ctx, p.runs)
-	return conversation.WithManager(ctx, p.conversations)
-}
-
-// Run starts one workflow run and blocks until body returns. models binds
-// every role the workflow names. The run ends when either ctx or the runtime
-// context ends. A workflow panic is recorded as a failed run and returned as
-// an error; direct gimble.Run callers still receive the panic.
-func (r *Runtime) Run(ctx context.Context, name string, models map[gimble.WorkflowRole]gimble.ModelBinding, body func(context.Context) error) (err error) {
-	if r == nil {
-		return errors.New("gimble: nil runtime")
-	}
-	if ctx == nil {
-		return errors.New("gimble: run context is nil")
-	}
-	if body == nil {
-		return errors.New("gimble: run body is nil")
-	}
-	// Run writes the failed terminal record before re-raising a workflow panic.
-	// A hosted run reports that failure to its caller without taking down the
-	// instance's other runs or listeners.
-	defer func() {
-		if value := recover(); value != nil {
-			err = fmt.Errorf("gimble: hosted workflow panic: %v", value)
-		}
-	}()
-	// A runtime that has already ended starts no run: the body must never
-	// see a live context under a dead runtime.
-	r.instance.mu.Lock()
-	if r.instance.ctx.Err() != nil {
-		r.instance.mu.Unlock()
-		return context.Cause(r.instance.ctx)
-	}
-	r.instance.activeRuns.Add(1)
-	r.instance.mu.Unlock()
-	defer r.instance.activeRuns.Done()
-	// The run's context descends from the caller's, so what the caller put
-	// on it reaches the run. What the runtime owns is put on it here
-	// instead of being inherited, and the runtime's own end cancels it the
-	// way the caller's does.
-	runCtx, cancel := context.WithCancelCause(ctx)
-	stop := context.AfterFunc(r.instance.ctx, func() { cancel(context.Cause(r.instance.ctx)) })
-	defer stop()
-	defer cancel(nil)
-	runCtx = observation.WithRegistry(runCtx, r.registry)
-	runCtx = live.WithRuns(runCtx, r.runs)
-	// The run puts itself in the runtime's table under its id for as long
-	// as its body runs, so Steer, KillScope, and KillTurn can reach it.
-	hook := r.runs.Hook
-	if started, _ := ctx.Value(conversationRunStartedKey{}).(func(string)); started != nil {
-		hook = func(id string, run live.Controller) func() {
-			release := r.runs.Hook(id, run)
-			started(id)
-			return release
-		}
-	}
-	runCtx = live.WithHook(runCtx, hook)
-	err = gimble.Run(gimble.Project(runCtx, r.dir), name, models, body)
-	if err == nil && context.Cause(runCtx) != nil {
-		return context.Cause(runCtx)
-	}
-	return err
-}
-
-type conversationRunStartedKey struct{}
-
-// Steer sends message into the turn running on session sessionID of the run
-// runID, as the person watching the page: the run log records it with
-// Source "person", and landed reports whether a turn received it. An
-// unknown or finished run or session is an error.
-func (r *Runtime) Steer(ctx context.Context, runID, sessionID, message string) (landed bool, err error) {
-	run, err := r.runs.InProgress(runID)
-	if err != nil {
-		return false, err
-	}
-	return run.Steer(ctx, sessionID, message)
-}
-
-// SteerLoop holds message for the planner of the loop scopeKey of the run
-// runID, as the person watching the page. It reaches the planner at its
-// next planning decision, whether or not a turn is running when it is
-// sent, and the loop's record says whether the planner read it. An unknown
-// or finished run, or a scope that is not a loop still dispatching, is an
-// error.
-func (r *Runtime) SteerLoop(runID, scopeKey, message string) error {
-	run, err := r.runs.InProgress(runID)
-	if err != nil {
-		return err
-	}
-	return run.SteerLoop(scopeKey, message)
-}
-
-// KillScope ends the scope scopeKey of the run runID, and everything under
-// it, with a Killed cause naming who did it and why. The run log records
-// the kill on the scope. An unknown or finished run or scope is an error.
-func (r *Runtime) KillScope(runID, scopeKey, by, reason string) error {
-	run, err := r.runs.InProgress(runID)
-	if err != nil {
-		return err
-	}
-	return run.CancelScope(scopeKey, gimble.Killed{Target: scopeKey, By: by, Reason: reason})
-}
-
-// KillTurn ends only the turn turnID of the run runID with a Killed cause
-// naming who did it and why; the turn's session and scope keep running.
-// The run log records the kill on the turn. An unknown or finished run or
-// turn is an error.
-func (r *Runtime) KillTurn(runID, turnID, by, reason string) error {
-	run, err := r.runs.InProgress(runID)
-	if err != nil {
-		return err
-	}
-	return run.CancelTurn(turnID, gimble.Killed{Target: turnID, By: by, Reason: reason})
 }

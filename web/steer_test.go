@@ -29,7 +29,7 @@ func TestSteerFormReachesTheSessionAPersonIsWatching(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	project := t.TempDir()
-	runtime, err := NewRuntime(ctx, project, WithNoWeb())
+	_, runtime, err := newProject(ctx, project, WithNoWeb())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,7 +53,7 @@ func TestSteerFormReachesTheSessionAPersonIsWatching(t *testing.T) {
 	startedTurns(t, b, 1)
 	id := runID(t, project)
 
-	sent, err := routes.Skgo_steer(runtime.ctx, routes.Steer{Run: id, Session: session, Message: "  look at the tests  "})
+	sent, err := routes.Skgo_steer(runtime.Context(), routes.Steer{Run: id, Session: session, Message: "  look at the tests  "})
 	if err != nil || !sent.Landed {
 		t.Fatalf("steer = %+v, %v; want it landed", sent, err)
 	}
@@ -94,7 +94,7 @@ func TestSteerFormRefusesWhatItCannotDeliver(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	project := t.TempDir()
-	runtime, err := NewRuntime(ctx, project, WithNoWeb())
+	_, runtime, err := newProject(ctx, project, WithNoWeb())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -115,7 +115,7 @@ func TestSteerFormRefusesWhatItCannotDeliver(t *testing.T) {
 	// An empty box is the field's problem, not the server's: kit hangs the
 	// message off the input and the page stays as it is.
 	var invalid *skgo.Invalid
-	if _, err := routes.Skgo_steer(runtime.ctx, routes.Steer{Run: id, Session: "lap.1/coder.1", Message: "   "}); !errors.As(err, &invalid) {
+	if _, err := routes.Skgo_steer(runtime.Context(), routes.Steer{Run: id, Session: "lap.1/coder.1", Message: "   "}); !errors.As(err, &invalid) {
 		t.Fatalf("empty message = %v, want an issue on the field", err)
 	}
 	if len(invalid.Issues) != 1 || invalid.Issues[0].Field != "message" {
@@ -123,7 +123,7 @@ func TestSteerFormRefusesWhatItCannotDeliver(t *testing.T) {
 	}
 
 	var status *skgo.HTTPError
-	if _, err := routes.Skgo_steer(runtime.ctx, routes.Steer{Run: id, Session: "lap.1/nobody.1", Message: "hello"}); !errors.As(err, &status) || status.Status != 404 {
+	if _, err := routes.Skgo_steer(runtime.Context(), routes.Steer{Run: id, Session: "lap.1/nobody.1", Message: "hello"}); !errors.As(err, &status) || status.Status != 404 {
 		t.Errorf("unknown session = %v, want a 404", err)
 	}
 
@@ -132,7 +132,7 @@ func TestSteerFormRefusesWhatItCannotDeliver(t *testing.T) {
 	}
 	runWG.Wait()
 
-	if _, err := routes.Skgo_steer(runtime.ctx, routes.Steer{Run: id, Session: "lap.1/coder.1", Message: "too late"}); !errors.As(err, &status) || status.Status != 404 {
+	if _, err := routes.Skgo_steer(runtime.Context(), routes.Steer{Run: id, Session: "lap.1/coder.1", Message: "too late"}); !errors.As(err, &status) || status.Status != 404 {
 		t.Errorf("finished run = %v, want a 404", err)
 	}
 }

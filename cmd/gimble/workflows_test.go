@@ -12,7 +12,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/tylergannon/gimble"
 	"github.com/tylergannon/gimble/internal/workflows/researchdocument"
-	"github.com/tylergannon/gimble/internal/workflows/review"
 	"github.com/tylergannon/gimble/web"
 )
 
@@ -39,7 +38,7 @@ func TestGeneratedCommandPreservesOptionalPresence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := instance.AdmitProject(project); err != nil {
+	if _, err := instance.Owner.AdmitProject(project); err != nil {
 		t.Fatal(err)
 	}
 	baseArgs := []string{"run", "research-document", "--instance-dir", instanceDir, "--project", project, "--goal", "goal", "--research-dir", base, "--output", filepath.Join(base, "out.md"), "--token-budget", "100", "--follow"}
@@ -159,7 +158,7 @@ func TestRunRefusesAMissingInput(t *testing.T) {
 }
 
 func TestReviewCommandRoleDefaultAndOverride(t *testing.T) {
-	withDefault := review.Command(map[gimble.WorkflowRole]string{gimble.RoleCodeReview: "model"})
+	withDefault := reviewCommand(map[gimble.WorkflowRole]string{gimble.RoleCodeReview: "model"})
 	defaultFlag := withDefault.Flags().Lookup("code-review")
 	if got := defaultFlag.DefValue; got != "model" {
 		t.Fatalf("code-review default = %q", got)
@@ -167,7 +166,7 @@ func TestReviewCommandRoleDefaultAndOverride(t *testing.T) {
 	if !strings.Contains(defaultFlag.Usage, "omit this flag") {
 		t.Fatalf("code-review usage does not explain how to preserve its default: %q", defaultFlag.Usage)
 	}
-	withoutDefault := review.Command(map[gimble.WorkflowRole]string{})
+	withoutDefault := reviewCommand(map[gimble.WorkflowRole]string{})
 	flag := withoutDefault.Flags().Lookup("code-review")
 	if len(flag.Annotations[cobra.BashCompOneRequiredFlag]) == 0 {
 		t.Fatal("code-review without a default is not marked required")

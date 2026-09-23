@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/tylergannon/gimble/internal/host"
+
 	"github.com/tylergannon/gimble"
 	"github.com/tylergannon/gimble/web"
 )
@@ -22,7 +24,7 @@ func TestRunsCommandListsRunsFromRunningInstance(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	project := t.TempDir()
-	runtime, err := web.NewRuntime(ctx, project, web.WithNoWeb())
+	_, runtime, err := testProject(ctx, project, web.WithNoWeb())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,16 +81,16 @@ func TestRunsCommandSelectsAdmittedProjectThroughAlias(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	projectA, err := instance.AdmitProject(a)
+	projectA, err := instance.Owner.AdmitProject(a)
 	if err != nil {
 		t.Fatal(err)
 	}
-	projectB, err := instance.AdmitProject(b)
+	projectB, err := instance.Owner.AdmitProject(b)
 	if err != nil {
 		t.Fatal(err)
 	}
 	started := make(chan struct{}, 2)
-	for _, project := range []*web.Runtime{projectA, projectB} {
+	for _, project := range []*host.Project{projectA, projectB} {
 		work.Go(func() {
 			_ = project.Run(ctx, "selected", nil, func(ctx context.Context) error {
 				started <- struct{}{}
@@ -200,7 +202,7 @@ func TestWatchRunReadsSnapshotAndSSEFromRuntime(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	project := t.TempDir()
-	runtime, err := web.NewRuntime(ctx, project, web.WithNoWeb())
+	_, runtime, err := testProject(ctx, project, web.WithNoWeb())
 	if err != nil {
 		t.Fatal(err)
 	}

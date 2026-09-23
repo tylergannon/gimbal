@@ -8,10 +8,10 @@ import (
 
 	"github.com/tylergannon/skgo"
 
-	skgo1 "github.com/tylergannon/gimble/internal/skgo/links/onzggl3sn52xizlt"
-	skgo2 "github.com/tylergannon/gimble/internal/skgo/links/onzggl3sn52xizltf5yhe33kmvrxi4zplnyhe33kmvrxixi"
-	skgo3 "github.com/tylergannon/gimble/internal/skgo/links/onzggl3sn52xizltf5yhe33kmvrxi4zplnyhe33kmvrxixjpmnxw45tfojzwc5djn5xhg"
-	skgo4 "github.com/tylergannon/gimble/internal/skgo/links/onzggl3sn52xizltf5yhe33kmvrxi4zplnyhe33kmvrxixjpmnxw45tfojzwc5djn5xhgl23mnxw45tfojzwc5djn5xesrc5"
+	skgo0 "github.com/tylergannon/gimble/internal/skgo/links/onzggl3sn52xizlt"
+	skgo1 "github.com/tylergannon/gimble/internal/skgo/links/onzggl3sn52xizltf5yhe33kmvrxi4zplnyhe33kmvrxixi"
+	skgo2 "github.com/tylergannon/gimble/internal/skgo/links/onzggl3sn52xizltf5yhe33kmvrxi4zplnyhe33kmvrxixjpmnxw45tfojzwc5djn5xhg"
+	skgo3 "github.com/tylergannon/gimble/internal/skgo/links/onzggl3sn52xizltf5yhe33kmvrxi4zplnyhe33kmvrxixjpmnxw45tfojzwc5djn5xhgl23mnxw45tfojzwc5djn5xesrc5"
 	skgo5 "github.com/tylergannon/gimble/internal/skgo/links/onzggl3sn52xizltf5yhe33kmvrxi4zplnyhe33kmvrxixjpoj2w44zplnzhk3sjiroq"
 	skgotp0 "github.com/tylergannon/gimble/web/src"
 )
@@ -30,7 +30,7 @@ func remote_cancelRun(ctx context.Context, call skgo.Call) (any, error) {
 	if err != nil {
 		return nil, skgo.BadRequest(err)
 	}
-	out, err := skgo1.Skgo_cancelRun(ctx, in)
+	out, err := skgo0.Skgo_cancelRun(ctx, in)
 	if err != nil {
 		return nil, err
 	}
@@ -61,7 +61,7 @@ func remote_stopTurn(ctx context.Context, call skgo.Call) (any, error) {
 	if err != nil {
 		return nil, skgo.BadRequest(err)
 	}
-	out, err := skgo1.Skgo_stopTurn(ctx, in)
+	out, err := skgo0.Skgo_stopTurn(ctx, in)
 	if err != nil {
 		return nil, err
 	}
@@ -92,7 +92,7 @@ func remote_createConversation(ctx context.Context, call skgo.Call) (any, error)
 	if err != nil {
 		return nil, skgo.BadRequest(err)
 	}
-	out, err := skgo1.Skgo_createConversation(ctx, in)
+	out, err := skgo0.Skgo_createConversation(ctx, in)
 	if err != nil {
 		return nil, err
 	}
@@ -123,7 +123,7 @@ func remote_sendConversationMessage(ctx context.Context, call skgo.Call) (any, e
 	if err != nil {
 		return nil, skgo.BadRequest(err)
 	}
-	out, err := skgo1.Skgo_sendConversationMessage(ctx, in)
+	out, err := skgo0.Skgo_sendConversationMessage(ctx, in)
 	if err != nil {
 		return nil, err
 	}
@@ -147,11 +147,11 @@ func requestedArg_sendConversationMessage(arg any) (any, error) {
 // and a File is not a value polytype describes.
 // The result is encoded by EncodeRoot6, generated for its result type.
 func remote_answerInterview(ctx context.Context, call skgo.Call) (any, error) {
-	var in skgo1.SkgoArg_answerInterview
+	var in skgo0.SkgoArg_answerInterview
 	if err := skgo.DecodeForm(call.Arg, &in); err != nil {
 		return nil, err
 	}
-	out, err := skgo1.Skgo_answerInterview(ctx, in)
+	out, err := skgo0.Skgo_answerInterview(ctx, in)
 	if err != nil {
 		return nil, err
 	}
@@ -165,11 +165,11 @@ func remote_answerInterview(ctx context.Context, call skgo.Call) (any, error) {
 // and a File is not a value polytype describes.
 // The result is encoded by EncodeRoot7, generated for its result type.
 func remote_steer(ctx context.Context, call skgo.Call) (any, error) {
-	var in skgo1.SkgoArg_steer
+	var in skgo0.SkgoArg_steer
 	if err := skgo.DecodeForm(call.Arg, &in); err != nil {
 		return nil, err
 	}
-	out, err := skgo1.Skgo_steer(ctx, in)
+	out, err := skgo0.Skgo_steer(ctx, in)
 	if err != nil {
 		return nil, err
 	}
@@ -183,11 +183,11 @@ func remote_steer(ctx context.Context, call skgo.Call) (any, error) {
 // and a File is not a value polytype describes.
 // The result is encoded by EncodeRoot8, generated for its result type.
 func remote_steerLoop(ctx context.Context, call skgo.Call) (any, error) {
-	var in skgo1.SkgoArg_steerLoop
+	var in skgo0.SkgoArg_steerLoop
 	if err := skgo.DecodeForm(call.Arg, &in); err != nil {
 		return nil, err
 	}
-	out, err := skgo1.Skgo_steerLoop(ctx, in)
+	out, err := skgo0.Skgo_steerLoop(ctx, in)
 	if err != nil {
 		return nil, err
 	}
@@ -202,7 +202,7 @@ func Remotes() []*skgo.Remote {
 			Kind:      skgo.KindCommand,
 			Module:    "src/routes/control.remote.ts",
 			Name:      "cancelRun",
-			Fn:        skgo1.Skgo_cancelRun,
+			Fn:        skgo0.Skgo_cancelRun,
 			Call:      remote_cancelRun,
 			DecodeArg: requestedArg_cancelRun,
 		}),
@@ -210,7 +210,7 @@ func Remotes() []*skgo.Remote {
 			Kind:      skgo.KindCommand,
 			Module:    "src/routes/control.remote.ts",
 			Name:      "stopTurn",
-			Fn:        skgo1.Skgo_stopTurn,
+			Fn:        skgo0.Skgo_stopTurn,
 			Call:      remote_stopTurn,
 			DecodeArg: requestedArg_stopTurn,
 		}),
@@ -218,7 +218,7 @@ func Remotes() []*skgo.Remote {
 			Kind:      skgo.KindCommand,
 			Module:    "src/routes/conversation.remote.ts",
 			Name:      "createConversation",
-			Fn:        skgo1.Skgo_createConversation,
+			Fn:        skgo0.Skgo_createConversation,
 			Call:      remote_createConversation,
 			DecodeArg: requestedArg_createConversation,
 		}),
@@ -226,7 +226,7 @@ func Remotes() []*skgo.Remote {
 			Kind:      skgo.KindCommand,
 			Module:    "src/routes/conversation.remote.ts",
 			Name:      "sendConversationMessage",
-			Fn:        skgo1.Skgo_sendConversationMessage,
+			Fn:        skgo0.Skgo_sendConversationMessage,
 			Call:      remote_sendConversationMessage,
 			DecodeArg: requestedArg_sendConversationMessage,
 		}),
@@ -234,21 +234,21 @@ func Remotes() []*skgo.Remote {
 			Kind:   skgo.KindForm,
 			Module: "src/routes/interview.remote.ts",
 			Name:   "answerInterview",
-			Fn:     skgo1.Skgo_answerInterview,
+			Fn:     skgo0.Skgo_answerInterview,
 			Call:   remote_answerInterview,
 		}),
 		skgo.NewRemote(skgo.RemoteSpec{
 			Kind:   skgo.KindForm,
 			Module: "src/routes/steer.remote.ts",
 			Name:   "steer",
-			Fn:     skgo1.Skgo_steer,
+			Fn:     skgo0.Skgo_steer,
 			Call:   remote_steer,
 		}),
 		skgo.NewRemote(skgo.RemoteSpec{
 			Kind:   skgo.KindForm,
 			Module: "src/routes/steer.remote.ts",
 			Name:   "steerLoop",
-			Fn:     skgo1.Skgo_steerLoop,
+			Fn:     skgo0.Skgo_steerLoop,
 			Call:   remote_steerLoop,
 		}),
 	}
@@ -260,7 +260,7 @@ func Remotes() []*skgo.Remote {
 // hold a skgo.Deferred, and `Promise<T>` is not a projection of any Go
 // type, so the value is encoded where a promise can still be recognised.
 func load_page(ctx context.Context) (any, error) {
-	return skgo1.Skgo_load(ctx)
+	return skgo0.Skgo_load(ctx)
 }
 
 // load_projects_project_page answers src/routes/projects/[project]/+page.server.ts.
@@ -269,7 +269,7 @@ func load_page(ctx context.Context) (any, error) {
 // hold a skgo.Deferred, and `Promise<T>` is not a projection of any Go
 // type, so the value is encoded where a promise can still be recognised.
 func load_projects_project_page(ctx context.Context) (any, error) {
-	return skgo2.Skgo_load(ctx)
+	return skgo1.Skgo_load(ctx)
 }
 
 // load_projects_project_conversations_page answers src/routes/projects/[project]/conversations/+page.server.ts.
@@ -278,7 +278,7 @@ func load_projects_project_page(ctx context.Context) (any, error) {
 // hold a skgo.Deferred, and `Promise<T>` is not a projection of any Go
 // type, so the value is encoded where a promise can still be recognised.
 func load_projects_project_conversations_page(ctx context.Context) (any, error) {
-	return skgo3.Skgo_Load(ctx)
+	return skgo2.Skgo_Load(ctx)
 }
 
 // load_projects_project_conversations_conversationID_page answers src/routes/projects/[project]/conversations/[conversationID]/+page.server.ts.
@@ -287,7 +287,7 @@ func load_projects_project_conversations_page(ctx context.Context) (any, error) 
 // hold a skgo.Deferred, and `Promise<T>` is not a projection of any Go
 // type, so the value is encoded where a promise can still be recognised.
 func load_projects_project_conversations_conversationID_page(ctx context.Context) (any, error) {
-	return skgo4.Skgo_Load(ctx)
+	return skgo3.Skgo_Load(ctx)
 }
 
 // load_projects_project_runs_runID_page answers src/routes/projects/[project]/runs/[runID]/+page.server.ts.

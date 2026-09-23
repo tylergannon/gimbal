@@ -30,7 +30,7 @@ func TestDirectRunDoesNotJoinAnInstance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	project, err := instance.AdmitProject(hostedProject)
+	project, err := instance.Owner.AdmitProject(hostedProject)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -48,7 +48,7 @@ func TestDirectRunDoesNotJoinAnInstance(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(directProject, "runs", id, "run.json")); err != nil {
 		t.Fatalf("direct run row: %v", err)
 	}
-	if _, err := project.registry.Snapshot(id); !errors.Is(err, observation.ErrNoRun) {
+	if _, err := project.Registry().Snapshot(id); !errors.Is(err, observation.ErrNoRun) {
 		t.Fatalf("instance unexpectedly observed direct run: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(hostedProject, ".gimble", "runs", id)); !errors.Is(err, os.ErrNotExist) {
@@ -57,14 +57,14 @@ func TestDirectRunDoesNotJoinAnInstance(t *testing.T) {
 }
 
 func TestRuntimeListenerOptionsConflict(t *testing.T) {
-	_, err := NewRuntime(t.Context(), t.TempDir(), WithPort(0), WithNoWeb())
+	_, _, err := newProject(t.Context(), t.TempDir(), WithPort(0), WithNoWeb())
 	if err == nil || !strings.Contains(err.Error(), "conflict") {
 		t.Fatalf("conflicting listener options: %v", err)
 	}
-	if _, err := NewRuntime(t.Context(), t.TempDir(), WithPort(65536)); err == nil {
+	if _, _, err := newProject(t.Context(), t.TempDir(), WithPort(65536)); err == nil {
 		t.Fatal("invalid port was accepted")
 	}
-	if _, err := NewRuntime(t.Context(), t.TempDir(), WithUDS("  ")); err == nil {
+	if _, _, err := newProject(t.Context(), t.TempDir(), WithUDS("  ")); err == nil {
 		t.Fatal("blank UDS path was accepted")
 	}
 }
@@ -77,7 +77,7 @@ func TestRuntimeServesWebApplicationOverUDSAndCleansUp(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = os.RemoveAll(socketDir) })
 	socket := filepath.Join(socketDir, "gimble.sock")
-	runtime, err := NewRuntime(ctx, t.TempDir(), WithUDS(socket))
+	instance, _, err := newProject(ctx, t.TempDir(), WithUDS(socket))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -98,7 +98,7 @@ func TestRuntimeServesWebApplicationOverUDSAndCleansUp(t *testing.T) {
 		t.Fatalf("GET /: status %d, body %q", response.StatusCode, body)
 	}
 	cancel()
-	<-runtime.instance.done
+	<-instance.done
 	if _, err := os.Stat(socket); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("socket still exists after shutdown: %v", err)
 	}
@@ -106,11 +106,11 @@ func TestRuntimeServesWebApplicationOverUDSAndCleansUp(t *testing.T) {
 
 func TestRuntimeUsesSelectedArbitraryPortAndShutsDown(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
-	runtime, err := NewRuntime(ctx, t.TempDir(), WithPort(0))
+	instance, _, err := newProject(ctx, t.TempDir(), WithPort(0))
 	if err != nil {
 		t.Fatal(err)
 	}
-	response, err := http.Get("http://" + runtime.instance.address + "/")
+	response, err := http.Get("http://" + instance.address + "/")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -121,8 +121,8 @@ func TestRuntimeUsesSelectedArbitraryPortAndShutsDown(t *testing.T) {
 		t.Fatalf("GET /: status %d", response.StatusCode)
 	}
 	cancel()
-	<-runtime.instance.done
-	if conn, err := net.Dial("tcp", runtime.instance.address); err == nil {
+	<-instance.done
+	if conn, err := net.Dial("tcp", instance.address); err == nil {
 		_ = conn.Close()
 		t.Fatal("TCP listener remained open after shutdown")
 	}
@@ -130,7 +130,7 @@ func TestRuntimeUsesSelectedArbitraryPortAndShutsDown(t *testing.T) {
 
 func TestRuntimeRunsWithoutWeb(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
-	runtime, err := NewRuntime(ctx, t.TempDir(), WithNoWeb())
+	instance, runtime, err := newProject(ctx, t.TempDir(), WithNoWeb())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -138,5 +138,5 @@ func TestRuntimeRunsWithoutWeb(t *testing.T) {
 		t.Fatal(err)
 	}
 	cancel()
-	<-runtime.instance.done
+	<-instance.done
 }

@@ -17,7 +17,7 @@ import (
 func TestSteerCommandDeliversToRunningSession(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	project := t.TempDir()
-	runtime, err := web.NewRuntime(ctx, project, web.WithNoWeb())
+	_, runtime, err := testProject(ctx, project, web.WithNoWeb())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,7 +62,7 @@ func TestSteerCommandDeliversToRunningSession(t *testing.T) {
 func TestSteerCommandReportsIdleSessionAsDropped(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	project := t.TempDir()
-	runtime, err := web.NewRuntime(ctx, project, web.WithNoWeb())
+	_, runtime, err := testProject(ctx, project, web.WithNoWeb())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -108,7 +108,7 @@ func TestSteerCommandReportsIdleSessionAsDropped(t *testing.T) {
 func TestSteerCommandRejectsInvalidAndUnknownTargets(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	project := t.TempDir()
-	runtime, err := web.NewRuntime(ctx, project, web.WithNoWeb())
+	_, runtime, err := testProject(ctx, project, web.WithNoWeb())
 	if err != nil {
 		t.Fatal(err)
 	}

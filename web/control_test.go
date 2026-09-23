@@ -61,7 +61,7 @@ func TestCancelRunPersistsACancelledRecord(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	project := t.TempDir()
-	runtime, err := NewRuntime(ctx, project, WithNoWeb())
+	_, runtime, err := newProject(ctx, project, WithNoWeb())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -78,7 +78,7 @@ func TestCancelRunPersistsACancelledRecord(t *testing.T) {
 	<-entered
 	id := startedRunID(t, project)
 
-	result, err := routes.Skgo_cancelRun(runtime.ctx, routes.CancelRun{Run: id})
+	result, err := routes.Skgo_cancelRun(runtime.Context(), routes.CancelRun{Run: id})
 	if err != nil || !result.Accepted {
 		t.Fatalf("cancel run = %+v, %v; want accepted", result, err)
 	}

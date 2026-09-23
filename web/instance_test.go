@@ -6,12 +6,15 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/tylergannon/gimble/internal/host"
 
 	"github.com/tylergannon/gimble/internal/conversation"
 	"github.com/tylergannon/gimble/internal/observation"
@@ -43,15 +46,15 @@ func TestInstanceOwnsEndpointsAndProjectsOwnState(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	a, err := i.AdmitProject(projectA)
+	a, err := i.Owner.AdmitProject(projectA)
 	if err != nil {
 		t.Fatal(err)
 	}
-	b, err := i.AdmitProject(projectB)
+	b, err := i.Owner.AdmitProject(projectB)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if again, err := i.AdmitProject(projectA); err != nil || again != a {
+	if again, err := i.Owner.AdmitProject(projectA); err != nil || again != a {
 		t.Fatalf("readmit project: %p, %v", again, err)
 	}
 	alias := filepath.Join(base, "alias-a")
@@ -59,20 +62,20 @@ func TestInstanceOwnsEndpointsAndProjectsOwnState(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, path := range []string{alias, filepath.Join(base, "b", "..", "a"), projectA} {
-		if again, err := i.AdmitProject(path); err != nil || again != a {
+		if again, err := i.Owner.AdmitProject(path); err != nil || again != a {
 			t.Fatalf("alias %s admitted separate project: %p, %v", path, again, err)
 		}
 	}
-	if a.registry == b.registry || a.runs == b.runs || a.conversations == b.conversations {
+	if a.Registry() == b.Registry() || a.Runs() == b.Runs() || a.Conversations() == b.Conversations() {
 		t.Fatal("projects share live state")
 	}
-	if a.instance != b.instance {
+	if a.Owner() != b.Owner() {
 		t.Fatal("admission made a second owner or listener")
 	}
-	for _, p := range []*Runtime{a, b} {
-		items := p.conversations.List()
-		if len(items) != 1 || items[0].ID != filepath.Base(p.project) {
-			t.Fatalf("conversation state for %s: %+v", p.dir, items)
+	for _, p := range []*host.Project{a, b} {
+		items := p.Conversations().List()
+		if len(items) != 1 || items[0].ID != filepath.Base(p.Path()) {
+			t.Fatalf("conversation state for %s: %+v", p.Dir(), items)
 		}
 	}
 	if entries, err := filepath.Glob(filepath.Join(i.dir, "control", "*.json")); err != nil || len(entries) != 1 {
@@ -87,7 +90,7 @@ func TestInstanceOwnsEndpointsAndProjectsOwnState(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	c, err := j.AdmitProject(projectC)
+	c, err := j.Owner.AdmitProject(projectC)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -106,16 +109,16 @@ func TestInstanceOwnsEndpointsAndProjectsOwnState(t *testing.T) {
 	}
 
 	started := make(chan struct{}, 3)
-	finish := map[*Runtime]chan struct{}{a: make(chan struct{}), b: make(chan struct{}), c: make(chan struct{})}
+	finish := map[*host.Project]chan struct{}{a: make(chan struct{}), b: make(chan struct{}), c: make(chan struct{})}
 	var wg sync.WaitGroup
-	for _, p := range []*Runtime{a, b, c} {
+	for _, p := range []*host.Project{a, b, c} {
 		wg.Go(func() {
 			if err := p.Run(ctx, "held", nil, func(context.Context) error {
 				started <- struct{}{}
 				<-finish[p]
 				return nil
 			}); err != nil {
-				t.Errorf("run in %s: %v", p.dir, err)
+				t.Errorf("run in %s: %v", p.Dir(), err)
 			}
 		})
 	}
@@ -136,12 +139,12 @@ func TestInstanceOwnsEndpointsAndProjectsOwnState(t *testing.T) {
 			t.Fatal("runs did not overlap")
 		}
 	}
-	for _, p := range []*Runtime{a, b, c} {
-		rows, err := p.controlRuns()
+	for _, p := range []*host.Project{a, b, c} {
+		rows, err := controlRuns(p)
 		if err != nil || len(rows) != 1 || rows[0].Status != observation.StatusRunning {
-			t.Fatalf("live runs in %s: %+v, %v", p.dir, rows, err)
+			t.Fatalf("live runs in %s: %+v, %v", p.Dir(), rows, err)
 		}
-		if _, err := os.Stat(filepath.Join(p.dir, "runs", rows[0].ID, "run.jsonl")); err != nil {
+		if _, err := os.Stat(filepath.Join(p.Dir(), "runs", rows[0].ID, "run.jsonl")); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -156,7 +159,7 @@ func TestInstanceOwnsEndpointsAndProjectsOwnState(t *testing.T) {
 	}
 	aID := instanceControlRuns(t, i, projectA)[0].ID
 	bID := instanceControlRuns(t, i, projectB)[0].ID
-	stream, err := (&http.Client{Timeout: 2 * time.Second}).Get("http://" + i.address + "/projects/" + a.id + "/api/runs/" + aID + "/events")
+	stream, err := (&http.Client{Timeout: 2 * time.Second}).Get("http://" + i.address + "/projects/" + a.ID() + "/api/runs/" + aID + "/events")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -168,15 +171,15 @@ func TestInstanceOwnsEndpointsAndProjectsOwnState(t *testing.T) {
 		path, contains, absent string
 		status                 int
 	}{
-		{"/projects/" + a.id, aID, bID, http.StatusOK},
-		{"/projects/" + b.id, bID, aID, http.StatusOK},
-		{"/projects/" + a.id + "/runs/" + aID, aID, bID, http.StatusOK},
-		{"/projects/" + b.id + "/runs/" + aID, "", "", http.StatusNotFound},
-		{"/projects/" + a.id + "/api/runs/" + aID, aID, bID, http.StatusOK},
-		{"/projects/" + b.id + "/api/runs/" + aID, "", "", http.StatusNotFound},
-		{"/projects/" + a.id + "/conversations/a", "Selected conversation a", "Selected conversation b", http.StatusOK},
-		{"/projects/" + b.id + "/conversations/b", "Selected conversation b", "Selected conversation a", http.StatusOK},
-		{"/projects/" + b.id + "/api/runs/" + aID + "/events", "", "", http.StatusNotFound},
+		{"/projects/" + a.ID(), aID, bID, http.StatusOK},
+		{"/projects/" + b.ID(), bID, aID, http.StatusOK},
+		{"/projects/" + a.ID() + "/runs/" + aID, aID, bID, http.StatusOK},
+		{"/projects/" + b.ID() + "/runs/" + aID, "", "", http.StatusNotFound},
+		{"/projects/" + a.ID() + "/api/runs/" + aID, aID, bID, http.StatusOK},
+		{"/projects/" + b.ID() + "/api/runs/" + aID, "", "", http.StatusNotFound},
+		{"/projects/" + a.ID() + "/conversations/a", "Selected conversation a", "Selected conversation b", http.StatusOK},
+		{"/projects/" + b.ID() + "/conversations/b", "Selected conversation b", "Selected conversation a", http.StatusOK},
+		{"/projects/" + b.ID() + "/api/runs/" + aID + "/events", "", "", http.StatusNotFound},
 	} {
 		response, err := http.Get("http://" + i.address + test.path)
 		if err != nil {
@@ -197,7 +200,7 @@ func TestInstanceOwnsEndpointsAndProjectsOwnState(t *testing.T) {
 	if status := instanceSnapshotStatus(t, i, projectB, aID); status != http.StatusNotFound {
 		t.Fatalf("A run visible in B: status %d", status)
 	}
-	releaseProbe := a.runs.Hook("control-probe", &controlledRun{})
+	releaseProbe := a.Runs().Hook("control-probe", &controlledRun{})
 	defer releaseProbe()
 	if status := instanceControlStatus(t, i, projectA, "control-probe"); status != http.StatusOK {
 		t.Fatalf("A control status %d", status)
@@ -213,7 +216,7 @@ func TestInstanceOwnsEndpointsAndProjectsOwnState(t *testing.T) {
 	close(finish[a])
 	deadline := time.After(5 * time.Second)
 	for {
-		rows, _ := a.controlRuns()
+		rows, _ := controlRuns(a)
 		if len(rows) == 0 {
 			break
 		}
@@ -239,15 +242,15 @@ func TestInstanceOwnsEndpointsAndProjectsOwnState(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, project := range []string{projectA, projectB} {
-		if _, err := reopened.AdmitProject(project); err != nil {
+		if _, err := reopened.Owner.AdmitProject(project); err != nil {
 			t.Fatal(err)
 		}
 	}
 	for _, test := range []struct{ path, id string }{
-		{"/projects/" + a.id + "/runs/" + aID, aID},
-		{"/projects/" + b.id + "/runs/" + bID, bID},
-		{"/projects/" + a.id + "/conversations/a", "a"},
-		{"/projects/" + b.id + "/conversations/b", "b"},
+		{"/projects/" + a.ID() + "/runs/" + aID, aID},
+		{"/projects/" + b.ID() + "/runs/" + bID, bID},
+		{"/projects/" + a.ID() + "/conversations/a", "a"},
+		{"/projects/" + b.ID() + "/conversations/b", "b"},
 	} {
 		response, err := http.Get("http://" + reopened.address + test.path)
 		if err != nil {
@@ -258,6 +261,46 @@ func TestInstanceOwnsEndpointsAndProjectsOwnState(t *testing.T) {
 		if response.StatusCode != http.StatusOK || !strings.Contains(string(body), test.id) {
 			t.Fatalf("reopen %s: status %d, missing %s", test.path, response.StatusCode, test.id)
 		}
+	}
+}
+
+func TestRouteAdmissionIsImmediatelyVisibleToPageAndControl(t *testing.T) {
+	base := t.TempDir()
+	project := filepath.Join(base, "project")
+	if err := os.Mkdir(project, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	instance, err := NewInstance(ctx, filepath.Join(base, "instance"), nil, WithPort(0))
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := httptest.NewRecorder()
+	instance.projectRequest(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		owner := host.OwnerFrom(r.Context())
+		if owner == nil {
+			t.Error("route has no host owner")
+			return
+		}
+		if _, err := owner.AdmitProject(project); err != nil {
+			t.Error(err)
+		}
+	})).ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/", nil))
+	admitted, err := instance.Owner.Project(project)
+	if err != nil {
+		t.Fatal(err)
+	}
+	page, err := http.Get("http://" + instance.address + "/projects/" + admitted.ID())
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = page.Body.Close()
+	if page.StatusCode != http.StatusOK {
+		t.Fatalf("new project page: HTTP %d", page.StatusCode)
+	}
+	if runs := instanceControlRuns(t, instance, project); len(runs) != 0 {
+		t.Fatalf("new project control rows: %+v", runs)
 	}
 }
 
@@ -303,16 +346,16 @@ func TestBrowserControlUsesReferringProject(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	a, err := i.AdmitProject(aPath)
+	a, err := i.Owner.AdmitProject(aPath)
 	if err != nil {
 		t.Fatal(err)
 	}
-	b, err := i.AdmitProject(bPath)
+	b, err := i.Owner.AdmitProject(bPath)
 	if err != nil {
 		t.Fatal(err)
 	}
 	controller := &controlledRun{}
-	release := a.runs.Hook("control-probe", controller)
+	release := a.Runs().Hook("control-probe", controller)
 	defer release()
 	remoteID := ""
 	for _, remote := range generated.Remotes() {
@@ -351,13 +394,13 @@ func TestBrowserControlUsesReferringProject(t *testing.T) {
 		result, _ := io.ReadAll(response.Body)
 		return response.StatusCode, string(result)
 	}
-	if status, body := post("/projects/" + b.id + "/runs/control-probe"); status != http.StatusOK || !strings.Contains(body, "not in progress") || controller.cause != nil {
+	if status, body := post("/projects/" + b.ID() + "/runs/control-probe"); status != http.StatusOK || !strings.Contains(body, "not in progress") || controller.cause != nil {
 		t.Fatalf("B controlled A: status %d, body %s, cause %v", status, body, controller.cause)
 	}
 	if status, body := post(""); status != http.StatusNotFound || controller.cause != nil {
 		t.Fatalf("unqualified control reached A: status %d, body %s, cause %v", status, body, controller.cause)
 	}
-	if status, body := post("/projects/" + a.id + "/runs/control-probe"); status != http.StatusOK || controller.cause == nil {
+	if status, body := post("/projects/" + a.ID() + "/runs/control-probe"); status != http.StatusOK || controller.cause == nil {
 		t.Fatalf("A control: status %d, body %s, cause %v", status, body, controller.cause)
 	}
 }
@@ -378,22 +421,22 @@ func TestInstanceCreatesConversationsInEachProject(t *testing.T) {
 		gitForConversationPage(t, repo, "config", "user.email", "gimble-test@example.invalid")
 		gitForConversationPage(t, repo, "config", "user.name", "Gimble Test")
 		gitForConversationPage(t, repo, "commit", "-qm", "initial", "--allow-empty")
-		p, err := i.AdmitProject(repo)
+		p, err := i.Owner.AdmitProject(repo)
 		if err != nil {
 			t.Fatal(err)
 		}
-		item, err := p.conversations.Create(ctx, conversation.NewConversation{Title: name, Provider: "codex"})
+		item, err := p.Conversations().Create(ctx, conversation.NewConversation{Title: name, Provider: "codex"})
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !strings.HasPrefix(item.Worktree, filepath.Join(p.dir, "conversation-worktrees")) {
+		if !strings.HasPrefix(item.Worktree, filepath.Join(p.Dir(), "conversation-worktrees")) {
 			t.Fatalf("%s worktree in %s", name, item.Worktree)
 		}
-		if _, err := os.Stat(filepath.Join(p.dir, "conversations", item.ID+".json")); err != nil {
+		if _, err := os.Stat(filepath.Join(p.Dir(), "conversations", item.ID+".json")); err != nil {
 			t.Fatal(err)
 		}
-		if len(p.conversations.List()) != 1 {
-			t.Fatalf("%s conversation list: %+v", name, p.conversations.List())
+		if len(p.Conversations().List()) != 1 {
+			t.Fatalf("%s conversation list: %+v", name, p.Conversations().List())
 		}
 	}
 }

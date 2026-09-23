@@ -6,11 +6,6 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/tylergannon/gimble"
-	"github.com/tylergannon/gimble/internal/workflows/implementation"
-	"github.com/tylergannon/gimble/internal/workflows/pyramidsummary"
-	"github.com/tylergannon/gimble/internal/workflows/researchdocument"
-	"github.com/tylergannon/gimble/internal/workflows/review"
-	"github.com/tylergannon/gimble/internal/workflows/validateproduct"
 	"github.com/tylergannon/gimble/web"
 )
 
@@ -26,27 +21,27 @@ func workflowDefaults() map[gimble.WorkflowRole]string {
 }
 
 // newRunCommand is gimble run: the workflows built into this binary, each
-// the Command its package generated.
+// the Command generated beside this application.
 func newRunCommand() *cobra.Command {
 	run := &cobra.Command{
 		Use:   "run",
 		Short: "Submit a compiled workflow to a running Gimble instance",
-		Long:  "Submit a workflow compiled into both this CLI and the selected persistent instance. To add one, author it under internal/workflows/ in the Gimble checkout, generate and build with just build, register its generated Command and Hosted entries in cmd/gimble/workflows.go, and restart the serving binary. A CLI command does not transport a Go closure. The instance owns accepted runs after this client exits. Each workflow accepts --instance-dir (or GIMBLE_INSTANCE_DIR, default .gimble), --project for the admitted owner, --work-dir for execution, and --follow for terminal success or failure. Model and effort flags select each role; executables, PATH, and provider configuration come from the instance startup environment.",
+		Long:  "Submit a workflow compiled into both this CLI and the selected persistent instance. To add one, author it under internal/workflows/ in the Gimble checkout, generate its graph and application command with just build, register the generated command and hosted entry in cmd/gimble/workflows.go, and restart the serving binary. A CLI command does not transport a Go closure. The instance owns accepted runs after this client exits. Each workflow accepts --instance-dir (or GIMBLE_INSTANCE_DIR, default .gimble), --project for the admitted owner, --work-dir for execution, and --follow for terminal success or failure. Model and effort flags select each role; executables, PATH, and provider configuration come from the instance startup environment.",
 	}
-	run.AddCommand(review.Command(workflowDefaults()))
-	run.AddCommand(validateproduct.Command(workflowDefaults()))
-	run.AddCommand(implementation.Command(workflowDefaults()))
-	run.AddCommand(researchdocument.Command(workflowDefaults()))
-	run.AddCommand(pyramidsummary.Command(workflowDefaults()))
+	run.AddCommand(reviewCommand(workflowDefaults()))
+	run.AddCommand(validateproductCommand(workflowDefaults()))
+	run.AddCommand(implementationCommand(workflowDefaults()))
+	run.AddCommand(researchdocumentCommand(workflowDefaults()))
+	run.AddCommand(pyramidsummaryCommand(workflowDefaults()))
 	return run
 }
 
 func builtInWorkflows() web.Option {
 	return web.WithWorkflows(map[string]web.WorkflowEntry{
-		"review":            review.Hosted(),
-		"validate-product":  validateproduct.Hosted(),
-		"implement":         implementation.Hosted(),
-		"research-document": researchdocument.Hosted(),
-		"pyramid-summary":   pyramidsummary.Hosted(),
+		"review":            reviewHosted(),
+		"validate-product":  validateproductHosted(),
+		"implement":         implementationHosted(),
+		"research-document": researchdocumentHosted(),
+		"pyramid-summary":   pyramidsummaryHosted(),
 	})
 }

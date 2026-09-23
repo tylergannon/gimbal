@@ -89,7 +89,7 @@ type persistentSessionAdapter interface {
 	DetachSession(context.Context, string) error
 }
 
-// Manager is owned by one web.Runtime. Durable state is under projectDir;
+// Manager is owned by one host project. Durable state is under projectDir;
 // adapters exist only for that runtime's life. Providers that support durable
 // conversation sessions may persist their native identity with the transcript.
 type Manager struct {

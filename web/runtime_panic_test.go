@@ -60,7 +60,7 @@ func TestHostedPanicsLeaveOtherRunsAndPageUsable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	runtime, err := instance.AdmitProject(project)
+	runtime, err := instance.Owner.AdmitProject(project)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,7 +92,7 @@ func TestHostedPanicsLeaveOtherRunsAndPageUsable(t *testing.T) {
 			t.Fatalf("follow %s: row %+v, error %v", tc.name, row, err)
 		}
 		failedIDs[tc.name] = admitted.ID
-		page, err := http.Get("http://" + instance.address + "/projects/" + runtime.id + "/runs/" + admitted.ID)
+		page, err := http.Get("http://" + instance.address + "/projects/" + runtime.ID() + "/runs/" + admitted.ID)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -102,11 +102,11 @@ func TestHostedPanicsLeaveOtherRunsAndPageUsable(t *testing.T) {
 		}
 	}
 
-	busySnapshot, err := runtime.registry.Snapshot(busy.ID)
+	busySnapshot, err := runtime.Registry().Snapshot(busy.ID)
 	if err != nil || busySnapshot.Run.Status != observation.StatusRunning {
 		t.Fatalf("unrelated run: %+v, %v", busySnapshot.Run, err)
 	}
-	page, err := http.Get("http://" + instance.address + "/projects/" + runtime.id)
+	page, err := http.Get("http://" + instance.address + "/projects/" + runtime.ID())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -136,7 +136,7 @@ func TestHostedPanicsLeaveOtherRunsAndPageUsable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	reopened, err := restarted.AdmitProject(project)
+	reopened, err := restarted.Owner.AdmitProject(project)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -148,7 +148,7 @@ func TestHostedPanicsLeaveOtherRunsAndPageUsable(t *testing.T) {
 			t.Fatalf("follow reopened %s: %+v, %v", name, row, err)
 		}
 	}
-	saved, ok := reopened.conversations.Get(chat.ID)
+	saved, ok := reopened.Conversations().Get(chat.ID)
 	if !ok || len(saved.Runs) != 1 || saved.Runs[0].Status != conversation.RunStatusError || !strings.Contains(saved.Runs[0].Error, "child exploded") {
 		t.Fatalf("reopened conversation run: %+v", saved.Runs)
 	}

@@ -48,10 +48,10 @@ func TestHostedSubmissionOwnsRunBeyondClient(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := instance.AdmitProject(projectA); err != nil {
+	if _, err := instance.Owner.AdmitProject(projectA); err != nil {
 		t.Fatal(err)
 	}
-	projectRuntime, err := instance.AdmitProject(projectB)
+	projectRuntime, err := instance.Owner.AdmitProject(projectB)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -78,7 +78,7 @@ func TestHostedSubmissionOwnsRunBeyondClient(t *testing.T) {
 	if row.Status != "failed" || !strings.Contains(row.Error, "requested failure") {
 		t.Fatalf("terminal row: %+v", row)
 	}
-	snapshot, err := projectRuntime.registry.Snapshot(admitted.ID)
+	snapshot, err := projectRuntime.Registry().Snapshot(admitted.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -119,7 +119,7 @@ func TestConversationSubmissionPersistsProjectRunAndTerminalFailure(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	runtime, err := instance.AdmitProject(project)
+	runtime, err := instance.Owner.AdmitProject(project)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -132,7 +132,7 @@ func TestConversationSubmissionPersistsProjectRunAndTerminalFailure(t *testing.T
 	}
 	deadline := time.Now().Add(5 * time.Second)
 	for {
-		stored, _ := runtime.conversations.Get(item.ID)
+		stored, _ := runtime.Conversations().Get(item.ID)
 		if len(stored.Runs) == 1 && stored.Runs[0].Status == conversation.RunStatusError {
 			break
 		}
@@ -147,7 +147,7 @@ func TestConversationSubmissionPersistsProjectRunAndTerminalFailure(t *testing.T
 	if _, err := os.Stat(filepath.Join(worktree, ".gimble", "runs", admitted.ID)); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("worktree became run owner: %v", err)
 	}
-	snapshot, err := runtime.registry.Snapshot(admitted.ID)
+	snapshot, err := runtime.Registry().Snapshot(admitted.ID)
 	if err != nil {
 		t.Fatal(err)
 	}

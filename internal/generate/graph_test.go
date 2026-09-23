@@ -300,7 +300,8 @@ func TestFixtureGraph(t *testing.T) {
 // that it honours an absolute output path.
 func TestSourceWritesTheWorkflowsPackage(t *testing.T) {
 	output := filepath.Join(t.TempDir(), "workflow_gen.go")
-	if err := generate.Source("testdata/fixture", "Fixture", "fixture", output, ""); err != nil {
+	command := filepath.Join(t.TempDir(), "fixture_gen.go")
+	if err := generate.Source("testdata/fixture", "Fixture", "fixture", output, "", command); err != nil {
 		t.Fatal(err)
 	}
 	written, err := os.ReadFile(output)
@@ -312,7 +313,21 @@ func TestSourceWritesTheWorkflowsPackage(t *testing.T) {
 		"\npackage fixture\n",
 		"func init() { gimble.RegisterGraph(Graph) }",
 		"var Graph = workflow.Graph{",
-		"func Command(defaults map[gimble.WorkflowRole]string) *cobra.Command {",
+	} {
+		if !strings.Contains(string(written), want) {
+			t.Errorf("the generated graph lacks %q:\n%s", want, firstLines(string(written)))
+		}
+	}
+	if strings.Contains(string(written), "github.com/spf13/cobra") || strings.Contains(string(written), "github.com/tylergannon/gimble/web") {
+		t.Fatalf("workflow graph imports application integration")
+	}
+	written, err = os.ReadFile(command)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"\npackage main\n",
+		"func fixtureCommand(defaults map[gimble.WorkflowRole]string) *cobra.Command {",
 		`Use:   "fixture",`,
 		`cmd.Flags().StringVar(&workDir, "work-dir", "", "execution directory (default: owning project)")`,
 		`cmd.Flags().StringVar(&project, "project", ".",`,
@@ -320,8 +335,8 @@ func TestSourceWritesTheWorkflowsPackage(t *testing.T) {
 		`leadModelDefault := defaults[gimble.WorkflowRole("lead")]`,
 		`if leadModelDefault == "" {`,
 		`advanced override for role lead`,
-		`func Hosted() web.WorkflowEntry`,
-		`return Fixture(ctx, env)`,
+		`func fixtureHosted() web.WorkflowEntry`,
+		`return fixture.Fixture(ctx, env)`,
 		`web.Submit(cmd.Context(), instanceDir, project, web.Submission{`,
 	} {
 		if !strings.Contains(string(written), want) {
@@ -332,7 +347,8 @@ func TestSourceWritesTheWorkflowsPackage(t *testing.T) {
 
 func TestSourceWritesPlannerSupervisionAndRole(t *testing.T) {
 	output := filepath.Join(t.TempDir(), "workflow_gen.go")
-	if err := generate.Source("testdata/fixture", "SprintShape", "sprint", output, ""); err != nil {
+	command := filepath.Join(t.TempDir(), "sprint_gen.go")
+	if err := generate.Source("testdata/fixture", "SprintShape", "sprint", output, "", command); err != nil {
 		t.Fatal(err)
 	}
 	written, err := os.ReadFile(output)
@@ -345,20 +361,27 @@ func TestSourceWritesPlannerSupervisionAndRole(t *testing.T) {
 		`Role: "planner-watch"`,
 		"Services: []workflow.Service{",
 		`Name: "preview"`,
-		`cmd.Flags().StringVar(&plannerWatchModel, "planner-watch"`,
 	} {
 		if !strings.Contains(string(written), want) {
 			t.Errorf("the generated source lacks %q:\n%s", want, string(written))
 		}
 	}
+	written, err = os.ReadFile(command)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(written), `cmd.Flags().StringVar(&plannerWatchModel, "planner-watch"`) {
+		t.Errorf("generated command lacks planner-watch role")
+	}
 }
 
 func TestGeneratedCommandUsesCentralizedRoleDefaults(t *testing.T) {
 	output := filepath.Join(t.TempDir(), "workflow_gen.go")
-	if err := generate.Source("testdata/fixture", "Fixture", "fixture", output, ""); err != nil {
+	command := filepath.Join(t.TempDir(), "fixture_gen.go")
+	if err := generate.Source("testdata/fixture", "Fixture", "fixture", output, "", command); err != nil {
 		t.Fatal(err)
 	}
-	written, err := os.ReadFile(output)
+	written, err := os.ReadFile(command)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -373,6 +396,45 @@ func TestGeneratedCommandUsesCentralizedRoleDefaults(t *testing.T) {
 	}
 }
 
+func TestSourceRecoversMissingAndStaleOutputsRepeatably(t *testing.T) {
+	graphFile, err := filepath.Abs(filepath.Join("testdata", "fixture", "workflow_regeneration_check.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	commandFile := filepath.Join(t.TempDir(), "fixture_gen.go")
+	t.Cleanup(func() { _ = os.Remove(graphFile) })
+	generateFiles := func() ([]byte, []byte) {
+		t.Helper()
+		if err := generate.Source("testdata/fixture", "Fixture", "fixture", graphFile, "", commandFile); err != nil {
+			t.Fatal(err)
+		}
+		graph, err := os.ReadFile(graphFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		command, err := os.ReadFile(commandFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return graph, command
+	}
+	firstGraph, firstCommand := generateFiles()
+	secondGraph, secondCommand := generateFiles()
+	if !slices.Equal(firstGraph, secondGraph) || !slices.Equal(firstCommand, secondCommand) {
+		t.Fatal("generation from existing output changed bytes")
+	}
+	if err := os.WriteFile(graphFile, []byte("package fixture\nvar broken = absentSymbol\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(commandFile, []byte("stale command"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	thirdGraph, thirdCommand := generateFiles()
+	if !slices.Equal(firstGraph, thirdGraph) || !slices.Equal(firstCommand, thirdCommand) {
+		t.Fatal("generation did not recover the exact output from stale files")
+	}
+}
+
 func TestGeneratedEntryRequiresEnv(t *testing.T) {
 	_, err := generate.Extract("testdata/fixture", "MissingEnv", "missing-env")
 	if err == nil || !strings.Contains(err.Error(), "second parameter is not gimble.Env") {
@@ -381,7 +443,7 @@ func TestGeneratedEntryRequiresEnv(t *testing.T) {
 }
 
 func TestWorkflowParamsCannotClaimWorkDir(t *testing.T) {
-	err := generate.Source("testdata/fixture", "HasWorkDirParams", "has-work-dir-params", filepath.Join(t.TempDir(), "workflow_gen.go"), "")
+	err := generate.Source("testdata/fixture", "HasWorkDirParams", "has-work-dir-params", filepath.Join(t.TempDir(), "workflow_gen.go"), "", "")
 	if err == nil || !strings.Contains(err.Error(), "parameter field WorkDir would be --work-dir, which is the Gimble environment's") {
 		t.Fatalf("Source HasWorkDirParams error = %v", err)
 	}

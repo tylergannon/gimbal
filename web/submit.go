@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/tylergannon/gimble/internal/host"
 	"github.com/tylergannon/gimble/internal/observation"
 )
 
@@ -88,7 +89,7 @@ func selectedInstance(ctx context.Context, instanceDir, project string) (selecte
 	if err != nil {
 		return selectedClient{}, err
 	}
-	project, err = canonicalProject(project)
+	project, err = host.CanonicalProject(project)
 	if err != nil {
 		return selectedClient{}, err
 	}

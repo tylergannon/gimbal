@@ -5,6 +5,13 @@ This is a recommendation for review, not an implemented or accepted replacement
 contract. Three independent code passes covered dispatch, host ownership, and
 SKGO/Polytype transport. No application code was changed.
 
+Subsequent decision: Tyler chose automatic project admission and the same SKGO
+remote endpoint for browser and generated Go clients, with workflow definitions
+remaining entirely at design/build time. The
+[implementation plan](implementation-plan.md) and
+[definition of done](definition-of-done.md) supersede this assessment's separate
+JSON endpoint recommendation. The findings below remain the historical audit.
+
 ## Recommendation
 
 Keep the multi-project, single-process host. Replace its generic workflow

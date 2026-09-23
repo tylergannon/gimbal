@@ -140,18 +140,90 @@ func requestedArg_sendConversationMessage(arg any) (any, error) {
 	return in, nil
 }
 
-// remote_answerInterview answers src/routes/interview.remote.ts#answerInterview, a form.
+// remote_startImplement answers src/routes/implement_start.remote.ts#startImplement, a form.
 //
 // A form's submission is assigned onto the handler's own argument type:
 // kit posts a form as binary form data, which can carry an uploaded File,
 // and a File is not a value polytype describes.
 // The result is encoded by EncodeRoot6, generated for its result type.
+func remote_startImplement(ctx context.Context, call skgo.Call) (any, error) {
+	var in skgo0.SkgoArg_startImplement
+	if err := skgo.DecodeForm(call.Arg, &in); err != nil {
+		return nil, err
+	}
+	out, err := skgo0.Skgo_startImplement(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return EncodeRoot6(out)
+}
+
+// remote_answerInterview answers src/routes/interview.remote.ts#answerInterview, a form.
+//
+// A form's submission is assigned onto the handler's own argument type:
+// kit posts a form as binary form data, which can carry an uploaded File,
+// and a File is not a value polytype describes.
+// The result is encoded by EncodeRoot7, generated for its result type.
 func remote_answerInterview(ctx context.Context, call skgo.Call) (any, error) {
 	var in skgo0.SkgoArg_answerInterview
 	if err := skgo.DecodeForm(call.Arg, &in); err != nil {
 		return nil, err
 	}
 	out, err := skgo0.Skgo_answerInterview(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return EncodeRoot7(out)
+}
+
+// remote_startPyramidSummary answers src/routes/pyramidsummary_start.remote.ts#startPyramidSummary, a form.
+//
+// A form's submission is assigned onto the handler's own argument type:
+// kit posts a form as binary form data, which can carry an uploaded File,
+// and a File is not a value polytype describes.
+// The result is encoded by EncodeRoot6, generated for its result type.
+func remote_startPyramidSummary(ctx context.Context, call skgo.Call) (any, error) {
+	var in skgo0.SkgoArg_startPyramidSummary
+	if err := skgo.DecodeForm(call.Arg, &in); err != nil {
+		return nil, err
+	}
+	out, err := skgo0.Skgo_startPyramidSummary(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return EncodeRoot6(out)
+}
+
+// remote_startResearchDocument answers src/routes/researchdocument_start.remote.ts#startResearchDocument, a form.
+//
+// A form's submission is assigned onto the handler's own argument type:
+// kit posts a form as binary form data, which can carry an uploaded File,
+// and a File is not a value polytype describes.
+// The result is encoded by EncodeRoot6, generated for its result type.
+func remote_startResearchDocument(ctx context.Context, call skgo.Call) (any, error) {
+	var in skgo0.SkgoArg_startResearchDocument
+	if err := skgo.DecodeForm(call.Arg, &in); err != nil {
+		return nil, err
+	}
+	out, err := skgo0.Skgo_startResearchDocument(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return EncodeRoot6(out)
+}
+
+// remote_startReview answers src/routes/review_start.remote.ts#startReview, a form.
+//
+// A form's submission is assigned onto the handler's own argument type:
+// kit posts a form as binary form data, which can carry an uploaded File,
+// and a File is not a value polytype describes.
+// The result is encoded by EncodeRoot6, generated for its result type.
+func remote_startReview(ctx context.Context, call skgo.Call) (any, error) {
+	var in skgo0.SkgoArg_startReview
+	if err := skgo.DecodeForm(call.Arg, &in); err != nil {
+		return nil, err
+	}
+	out, err := skgo0.Skgo_startReview(ctx, in)
 	if err != nil {
 		return nil, err
 	}
@@ -163,7 +235,7 @@ func remote_answerInterview(ctx context.Context, call skgo.Call) (any, error) {
 // A form's submission is assigned onto the handler's own argument type:
 // kit posts a form as binary form data, which can carry an uploaded File,
 // and a File is not a value polytype describes.
-// The result is encoded by EncodeRoot7, generated for its result type.
+// The result is encoded by EncodeRoot8, generated for its result type.
 func remote_steer(ctx context.Context, call skgo.Call) (any, error) {
 	var in skgo0.SkgoArg_steer
 	if err := skgo.DecodeForm(call.Arg, &in); err != nil {
@@ -173,7 +245,7 @@ func remote_steer(ctx context.Context, call skgo.Call) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	return EncodeRoot7(out)
+	return EncodeRoot8(out)
 }
 
 // remote_steerLoop answers src/routes/steer.remote.ts#steerLoop, a form.
@@ -181,7 +253,7 @@ func remote_steer(ctx context.Context, call skgo.Call) (any, error) {
 // A form's submission is assigned onto the handler's own argument type:
 // kit posts a form as binary form data, which can carry an uploaded File,
 // and a File is not a value polytype describes.
-// The result is encoded by EncodeRoot8, generated for its result type.
+// The result is encoded by EncodeRoot9, generated for its result type.
 func remote_steerLoop(ctx context.Context, call skgo.Call) (any, error) {
 	var in skgo0.SkgoArg_steerLoop
 	if err := skgo.DecodeForm(call.Arg, &in); err != nil {
@@ -191,7 +263,25 @@ func remote_steerLoop(ctx context.Context, call skgo.Call) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	return EncodeRoot8(out)
+	return EncodeRoot9(out)
+}
+
+// remote_startValidateProduct answers src/routes/validateproduct_start.remote.ts#startValidateProduct, a form.
+//
+// A form's submission is assigned onto the handler's own argument type:
+// kit posts a form as binary form data, which can carry an uploaded File,
+// and a File is not a value polytype describes.
+// The result is encoded by EncodeRoot6, generated for its result type.
+func remote_startValidateProduct(ctx context.Context, call skgo.Call) (any, error) {
+	var in skgo0.SkgoArg_startValidateProduct
+	if err := skgo.DecodeForm(call.Arg, &in); err != nil {
+		return nil, err
+	}
+	out, err := skgo0.Skgo_startValidateProduct(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return EncodeRoot6(out)
 }
 
 // Remotes returns every remote function declared in the app, ready to hand
@@ -232,10 +322,38 @@ func Remotes() []*skgo.Remote {
 		}),
 		skgo.NewRemote(skgo.RemoteSpec{
 			Kind:   skgo.KindForm,
+			Module: "src/routes/implement_start.remote.ts",
+			Name:   "startImplement",
+			Fn:     skgo0.Skgo_startImplement,
+			Call:   remote_startImplement,
+		}),
+		skgo.NewRemote(skgo.RemoteSpec{
+			Kind:   skgo.KindForm,
 			Module: "src/routes/interview.remote.ts",
 			Name:   "answerInterview",
 			Fn:     skgo0.Skgo_answerInterview,
 			Call:   remote_answerInterview,
+		}),
+		skgo.NewRemote(skgo.RemoteSpec{
+			Kind:   skgo.KindForm,
+			Module: "src/routes/pyramidsummary_start.remote.ts",
+			Name:   "startPyramidSummary",
+			Fn:     skgo0.Skgo_startPyramidSummary,
+			Call:   remote_startPyramidSummary,
+		}),
+		skgo.NewRemote(skgo.RemoteSpec{
+			Kind:   skgo.KindForm,
+			Module: "src/routes/researchdocument_start.remote.ts",
+			Name:   "startResearchDocument",
+			Fn:     skgo0.Skgo_startResearchDocument,
+			Call:   remote_startResearchDocument,
+		}),
+		skgo.NewRemote(skgo.RemoteSpec{
+			Kind:   skgo.KindForm,
+			Module: "src/routes/review_start.remote.ts",
+			Name:   "startReview",
+			Fn:     skgo0.Skgo_startReview,
+			Call:   remote_startReview,
 		}),
 		skgo.NewRemote(skgo.RemoteSpec{
 			Kind:   skgo.KindForm,
@@ -250,6 +368,13 @@ func Remotes() []*skgo.Remote {
 			Name:   "steerLoop",
 			Fn:     skgo0.Skgo_steerLoop,
 			Call:   remote_steerLoop,
+		}),
+		skgo.NewRemote(skgo.RemoteSpec{
+			Kind:   skgo.KindForm,
+			Module: "src/routes/validateproduct_start.remote.ts",
+			Name:   "startValidateProduct",
+			Fn:     skgo0.Skgo_startValidateProduct,
+			Call:   remote_startValidateProduct,
 		}),
 	}
 }

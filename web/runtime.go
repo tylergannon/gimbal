@@ -2,7 +2,6 @@ package web
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -17,44 +16,34 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/tylergannon/gimble"
 	"github.com/tylergannon/gimble/internal/host"
+	generated "github.com/tylergannon/gimble/internal/skgo"
+	"github.com/tylergannon/skgo"
 )
 
 // Instance owns one web listener, one control socket, and any number of
 // admitted projects. Project state and durable files live below each project's
 // directory; instanceDir holds only the control endpoint and discovery.
 type Instance struct {
-	ctx       context.Context
-	cancel    context.CancelCauseFunc
-	dir       string
-	done      chan struct{}
-	shutdown  sync.WaitGroup
-	address   string
-	Owner     *host.Owner
-	workflows map[string]WorkflowEntry
-}
-
-// WorkflowEntry executes one built-in workflow with its submitted parameters.
-type WorkflowEntry func(context.Context, gimble.Env, json.RawMessage) error
-
-// WithWorkflows makes the binary's built-in entries available to admitted projects.
-func WithWorkflows(entries map[string]WorkflowEntry) Option {
-	return func(c *config) error {
-		c.workflows = entries
-		return nil
-	}
+	ctx          context.Context
+	cancel       context.CancelCauseFunc
+	dir          string
+	done         chan struct{}
+	shutdown     sync.WaitGroup
+	address      string
+	Owner        *host.Owner
+	startRemotes *skgo.Remotes
+	startPaths   map[string]bool
 }
 
 // Option configures the instance's web listener.
 type Option func(*config) error
 
 type config struct {
-	workflows map[string]WorkflowEntry
-	network   string
-	port      int
-	uds       string
-	explicit  string
+	network  string
+	port     int
+	uds      string
+	explicit string
 }
 
 // WithPort serves the web application on the given loopback TCP port. Port 0
@@ -135,7 +124,21 @@ func NewInstance(ctx context.Context, instanceDir string, initialProjects []stri
 	}
 	runtimeCtx, cancel := context.WithCancelCause(ctx)
 	instance := &Instance{
-		ctx: runtimeCtx, cancel: cancel, dir: dir, done: make(chan struct{}), workflows: cfg.workflows, Owner: host.New(runtimeCtx, dir),
+		ctx: runtimeCtx, cancel: cancel, dir: dir, done: make(chan struct{}), Owner: host.New(runtimeCtx, dir),
+	}
+	starts, err := stockStartRemotes()
+	if err != nil {
+		cancel(err)
+		return nil, err
+	}
+	instance.startRemotes, err = skgo.NewRemotes(skgo.RemoteConfig{Transport: generated.Transport()}, starts...)
+	if err != nil {
+		cancel(err)
+		return nil, fmt.Errorf("gimble: assemble control remotes: %w", err)
+	}
+	instance.startPaths = make(map[string]bool, len(starts))
+	for _, remote := range starts {
+		instance.startPaths[instance.startRemotes.Prefix()+remote.ID()] = true
 	}
 	if err := instance.startControl(); err != nil {
 		cancel(err)
@@ -233,6 +236,10 @@ func (i *Instance) Wait() {
 func (i *Instance) projectRequest(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		r = r.WithContext(host.WithOwner(r.Context(), i.Owner))
+		if i.startPaths[r.URL.Path] {
+			next.ServeHTTP(w, r)
+			return
+		}
 		path := r.URL.Path
 		if strings.HasPrefix(path, "/_app/") {
 			// Kit's remote endpoint is shared by all pages. The browser supplies

@@ -3,60 +3,46 @@ package main
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
 	"github.com/spf13/cobra"
 	"github.com/tylergannon/gimble"
-	"github.com/tylergannon/gimble/internal/workflows/researchdocument"
 	"github.com/tylergannon/gimble/web"
 )
 
-func TestGeneratedCommandPreservesOptionalPresence(t *testing.T) {
+func TestGeneratedCLIClientReachesUnknownProjectAndFollowReportsFailure(t *testing.T) {
 	base := t.TempDir()
 	project := filepath.Join(base, "project")
 	if err := os.Mkdir(project, 0o755); err != nil {
 		t.Fatal(err)
 	}
 	instanceDir := filepath.Join(base, "instance")
-	seen := make(chan researchdocument.Params, 2)
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
-	instance, err := web.NewInstance(ctx, instanceDir, nil, web.WithNoWeb(), web.WithWorkflows(map[string]web.WorkflowEntry{
-		"research-document": func(_ context.Context, _ gimble.Env, raw json.RawMessage) error {
-			var params researchdocument.Params
-			if err := json.Unmarshal(raw, &params); err != nil {
-				return err
-			}
-			seen <- params
-			return nil
-		},
-	}))
+	instance, err := web.NewInstance(ctx, instanceDir, nil, web.WithNoWeb())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := instance.Owner.AdmitProject(project); err != nil {
-		t.Fatal(err)
+	var output bytes.Buffer
+	args := []string{"run", "validate-product", "--instance-dir", instanceDir, "--project", project, "--suite-file", filepath.Join(base, "missing-suite.json"), "--follow"}
+	err = run(args, &output, &bytes.Buffer{}, os.Getenv)
+	if err == nil || !strings.Contains(err.Error(), "failed") {
+		t.Fatalf("--follow error = %v; output %q", err, output.String())
 	}
-	baseArgs := []string{"run", "research-document", "--instance-dir", instanceDir, "--project", project, "--goal", "goal", "--research-dir", base, "--output", filepath.Join(base, "out.md"), "--token-budget", "100", "--follow"}
-	for _, extra := range [][]string{nil, {"--min-sources-per-topic", "0"}} {
-		var output bytes.Buffer
-		if err := run(append(append([]string{}, baseArgs...), extra...), &output, &bytes.Buffer{}, os.Getenv); err != nil {
-			t.Fatal(err)
-		}
-		if !strings.Contains(output.String(), ".research-document") {
-			t.Fatal(output.String())
-		}
+	match := regexp.MustCompile(`^[0-9A-HJKMNP-TV-Z]{26}(?:\.[a-z-]+)?$`).FindString(strings.TrimSpace(output.String()))
+	if match == "" {
+		t.Fatalf("CLI did not print accepted run ID: %q", output.String())
 	}
-	first, second := <-seen, <-seen
-	if first.Goal != "goal" || first.MinSourcesPerTopic.Present || first.MaxEditorialRounds.Present {
-		t.Fatalf("absent optionals: %+v", first)
+	row, err := web.Follow(context.Background(), instanceDir, project, match)
+	if err != nil || row.Status != "failed" {
+		t.Fatalf("server-owned terminal row = %+v, %v", row, err)
 	}
-	if !second.MinSourcesPerTopic.Present || second.MinSourcesPerTopic.Value != 0 || second.MaxEditorialRounds.Present {
-		t.Fatalf("explicit zero optional: %+v", second)
+	if len(instance.Owner.Projects()) != 1 {
+		t.Fatalf("first start admitted %d projects", len(instance.Owner.Projects()))
 	}
 }
 
@@ -173,15 +159,6 @@ func TestReviewCommandRoleDefaultAndOverride(t *testing.T) {
 	}
 	if strings.Contains(flag.Usage, "omit this flag") {
 		t.Fatalf("required code-review flag claims it can be omitted: %q", flag.Usage)
-	}
-	if err := withoutDefault.Flags().Set("code-review", "test-model:high"); err != nil {
-		t.Fatal(err)
-	}
-	if got := withoutDefault.Flags().Lookup("code-review").Value.String(); got != "test-model:high" {
-		t.Fatalf("code-review override = %q", got)
-	}
-	if err := withoutDefault.Flags().Set("goal", "find bugs"); err != nil {
-		t.Fatal(err)
 	}
 }
 

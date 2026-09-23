@@ -60,7 +60,7 @@ func TestSourceWritesMermaidAndSvelteComponent(t *testing.T) {
 	dir := t.TempDir()
 	goOutput := dir + "/workflow_gen.go"
 	mermaidOutput := dir + "/fixture.mmd"
-	if err := generate.Source("testdata/fixture", "Fixture", "fixture", goOutput, mermaidOutput, ""); err != nil {
+	if err := generate.Source("testdata/fixture", "Fixture", "fixture", goOutput, mermaidOutput); err != nil {
 		t.Fatal(err)
 	}
 	for _, path := range []string{goOutput, mermaidOutput, dir + "/fixture.svelte"} {

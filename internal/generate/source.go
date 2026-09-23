@@ -14,8 +14,7 @@ import (
 	"github.com/tylergannon/gimble/workflow"
 )
 
-// Source writes the workflow entry's graph into its package. When commandOutput
-// is given, it writes the hosted adapter and run command into cmd/gimble.
+// Source writes the workflow entry's graph into its package.
 // When mermaidOutput is not empty, it also writes the graph as Mermaid
 // source and a Svelte component that presents the SVG produced from it by the
 // documentation build.
@@ -23,7 +22,7 @@ import (
 // The file is replaced by an empty package clause while the package is
 // read, so one that no longer compiles against the source as it now stands
 // does not stop the next generation.
-func Source(dir, entry, name, output, mermaidOutput, commandOutput string) error {
+func Source(dir, entry, name, output, mermaidOutput string) error {
 	file := output
 	if !filepath.IsAbs(file) {
 		file = filepath.Join(dir, file)
@@ -49,19 +48,6 @@ func Source(dir, entry, name, output, mermaidOutput, commandOutput string) error
 	}
 	if err := os.WriteFile(file, text, 0o644); err != nil {
 		return fmt.Errorf("generate: %w", err)
-	}
-	if commandOutput != "" {
-		commandFile := commandOutput
-		if !filepath.IsAbs(commandFile) {
-			commandFile = filepath.Join(dir, commandFile)
-		}
-		command, err := format.Source([]byte(integrationSource(pkg, entry, info, graph)))
-		if err != nil {
-			return fmt.Errorf("generate: %w", err)
-		}
-		if err := os.WriteFile(commandFile, command, 0o644); err != nil {
-			return fmt.Errorf("generate: %w", err)
-		}
 	}
 	if mermaidOutput != "" {
 		if err := writeMermaid(dir, name, mermaidOutput, graph); err != nil {

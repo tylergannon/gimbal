@@ -5,5 +5,6 @@
 // needs skgo to be a writable checkout.
 package skgo
 
+//go:generate go run github.com/tylergannon/gimble/internal/generate/stockgen ../..
 //go:generate go tool skgo generate --web ../../web
 //go:generate go tool polytype --target ../observation --typescript ../../web/src/lib/skgo/observation

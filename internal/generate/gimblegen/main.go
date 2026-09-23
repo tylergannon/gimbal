@@ -26,7 +26,6 @@ func run(args []string) error {
 	entry := flags.String("entry", "", "the workflow's entry function")
 	name := flags.String("name", "", "the workflow's name, which is also the run's name")
 	output := flags.String("o", "workflow_gen.go", "the file to write")
-	command := flags.String("command", "", "optional application command output outside the workflow package")
 	mermaid := flags.String("mermaid", "", "optional .mmd file for the workflow diagram")
 	if err := flags.Parse(args); err != nil {
 		return err
@@ -37,5 +36,5 @@ func run(args []string) error {
 	if *entry == "" || *name == "" {
 		return errors.New("-entry and -name are required")
 	}
-	return generate.Source(".", *entry, *name, *output, *mermaid, *command)
+	return generate.Source(".", *entry, *name, *output, *mermaid)
 }

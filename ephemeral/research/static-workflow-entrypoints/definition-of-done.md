@@ -5,6 +5,16 @@ completion standard for the future implementation, not a report of completed
 work. The repository's [definition of done](../../../docs/definition-of-done.md)
 continues to govern validation and delivery.
 
+## Scope amendment (2026-09-23)
+
+At the user's direction, visible human start forms and all browser/UI-specific
+proof are deferred from the current CLI integration outcome. They are not a
+gate for that outcome and must not be implemented as part of it. The scoped
+outcome must still prove all five generated CLI clients reach their matching
+Form handlers and establish the requested CLI transport and lifecycle behavior.
+The separate UI outcome will not run in this workflow. Visible forms remain an
+explicit uncompleted item outside this delivery.
+
 The change is done when the architecture is present and the user-visible
 behavior below has been observed. Compilation and green tests support those
 claims; they do not substitute for the stated running-application evidence.

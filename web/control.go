@@ -15,8 +15,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/tylergannon/gimble"
-	"github.com/tylergannon/gimble/internal/binding"
 	"github.com/tylergannon/gimble/internal/host"
 	"github.com/tylergannon/gimble/internal/observation"
 )
@@ -46,8 +44,6 @@ func (h controlHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case r.Method == http.MethodGet && r.URL.Path == "/control/runs":
 		h.runs(w, r)
-	case r.Method == http.MethodPost && r.URL.Path == "/control/submit":
-		h.submit(w, r)
 	case r.Method == http.MethodPost && r.URL.Path == "/control/steer":
 		h.steer(w, r)
 	case r.Method == http.MethodPost && r.URL.Path == "/control/steer-loop":
@@ -55,58 +51,6 @@ func (h controlHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	default:
 		http.NotFound(w, r)
 	}
-}
-
-// Submission carries choices across the process boundary without binding a
-// harness in the client process. The instance resolves models and executables.
-type Submission struct {
-	Name         string                         `json:"name"`
-	Params       json.RawMessage                `json:"params"`
-	Models       map[gimble.WorkflowRole]string `json:"models"`
-	WorkDir      string                         `json:"work_dir"`
-	Conversation string                         `json:"conversation,omitempty"`
-}
-
-type Admission struct {
-	ID string `json:"id"`
-}
-
-func (h controlHandler) submit(w http.ResponseWriter, r *http.Request) {
-	p, err := h.project(r)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
-	}
-	var request Submission
-	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	entry := h.instance.workflows[request.Name]
-	if entry == nil {
-		http.Error(w, "unknown built-in workflow "+request.Name, http.StatusBadRequest)
-		return
-	}
-	models, err := binding.Roles(request.Models)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	id, err := p.Start(request.Name, request.WorkDir, request.Conversation, models, func(ctx context.Context) error {
-		return entry(ctx, gimble.Env{WorkDir: request.WorkDir}, request.Params)
-	})
-	if err != nil {
-		status := http.StatusBadRequest
-		if errors.Is(err, host.ErrStartFailed) {
-			status = http.StatusInternalServerError
-		} else if errors.Is(err, host.ErrStopped) {
-			status = http.StatusServiceUnavailable
-		}
-		http.Error(w, err.Error(), status)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(Admission{ID: id})
 }
 
 func (h controlHandler) runs(w http.ResponseWriter, r *http.Request) {
@@ -246,6 +190,14 @@ func (i *Instance) startControl() error {
 func controlMux(i *Instance) http.Handler {
 	h := controlHandler{instance: i}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet && r.URL.Path == "/control/live" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		if i.startPaths[r.URL.Path] {
+			i.startRemotes.ServeHTTP(w, r)
+			return
+		}
 		p, err := h.project(r)
 		if err != nil || p == nil {
 			http.Error(w, "project is not admitted", http.StatusNotFound)

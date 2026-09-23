@@ -5,55 +5,35 @@
 package main
 
 import (
-	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 
 	"github.com/spf13/cobra"
 	"github.com/tylergannon/gimble"
-	implementation "github.com/tylergannon/gimble/internal/workflows/implementation"
+	"github.com/tylergannon/gimble/internal/skgo/client"
+	routes "github.com/tylergannon/gimble/internal/skgo/links/onzggl3sn52xizlt"
 	"github.com/tylergannon/gimble/web"
+	"github.com/tylergannon/polytype"
 )
 
-// implementationHosted is the entry Implement supplies to the persistent instance.
-func implementationHosted() web.WorkflowEntry {
-	return func(ctx context.Context, env gimble.Env, raw json.RawMessage) error {
-		var params implementation.Params
-		if err := json.Unmarshal(raw, &params); err != nil {
-			return err
-		}
-		return implementation.Implement(ctx, env, params)
-	}
-}
-
-// implementationCommand is gimble run implement: a flag for each field of Params, a
-// model flag for each role Implement names, instance and project selection,
-// and optional waiting for the hosted run's terminal result.
+// implementationCommand is gimble run implement and submits the matching Form remote.
 func implementationCommand(defaults map[gimble.WorkflowRole]string) *cobra.Command {
-	var params implementation.Params
+	var valueOutcomesFile string
+	var valueMaxTasksPerOutcome int
 	var sprintPlanningModel string
 	var architecturalCritiqueModel string
 	var codingModel string
 	var qaOrchestrationModel string
-	var workDir string
-	var project string
-	var instanceDir string
-	var conversation string
+	var workDir, project, instanceDir, conversation string
 	var follow bool
-	cmd := &cobra.Command{
-		Use:   "implement",
-		Short: "Implement works through supplied outcomes until each is demonstrated.",
-		Long:  "Package implementation works through an ordered list of outcomes. Each\noutcome has its own bounded PromiseLoop and independent validation; there is\nno planner deciding which outcome comes next.\n\nThe caller supplies a local JSON file containing an array of outcome\nstrings. The workflow takes them in file order. Within an outcome, a planner\nmay choose another task only when validation finds a substantial gap. A\npassing judgment at 90–95% with only small gaps advances immediately to the\nnext outcome. An incomplete outcome stops the run; later outcomes do not\nstart.\n\nScope supervisors watch the planner, coder, and validator for unnecessary\ncomplexity, gold-plating, and work outside the selected outcome. They steer\nbut never gate completion. The workflow changes the working tree but does\nnot commit, push, merge, deploy, or edit the outcomes file. Checks gather\nevidence; the independent validator judges whether the behavior was seen.\n\nExample outcomes.json:\n\n\t[\"The CLI starts work in the selected instance\", \"The page observes that work live\"]\n\nExample invocation:\n\n\tgimble run implement --outcomes-file ./outcomes.json --max-tasks-per-outcome 3" + "\n\nThe selected persistent instance owns this run. --project selects its admitted repository; --work-dir selects the execution directory independently. --instance-dir selects the instance state directory (or GIMBLE_INSTANCE_DIR, default .gimble). --follow waits for terminal success or failure; otherwise the run continues after this client exits. Each role flag chooses a model and optional effort. Executable lookup, PATH, and provider configuration come from the instance startup environment.",
-		Args:  cobra.NoArgs,
-	}
-	cmd.Flags().StringVar(&params.OutcomesFile, "outcomes-file", "", "OutcomesFile is a local JSON array of outcome strings, in execution order. (required)")
-	cmd.Flags().IntVar(&params.MaxTasksPerOutcome, "max-tasks-per-outcome", 0, "MaxTasksPerOutcome bounds planner assignments for each outcome. (required)")
+	cmd := &cobra.Command{Use: "implement", Short: "Implement works through supplied outcomes until each is demonstrated.", Long: "Package implementation works through an ordered list of outcomes. Each\noutcome has its own bounded PromiseLoop and independent validation; there is\nno planner deciding which outcome comes next.\n\nThe caller supplies a local JSON file containing an array of outcome\nstrings. The workflow takes them in file order. Within an outcome, a planner\nmay choose another task only when validation finds a substantial gap. A\npassing judgment at 90–95% with only small gaps advances immediately to the\nnext outcome. An incomplete outcome stops the run; later outcomes do not\nstart.\n\nScope supervisors watch the planner, coder, and validator for unnecessary\ncomplexity, gold-plating, and work outside the selected outcome. They steer\nbut never gate completion. The workflow changes the working tree but does\nnot commit, push, merge, deploy, or edit the outcomes file. Checks gather\nevidence; the independent validator judges whether the behavior was seen.\n\nExample outcomes.json:\n\n\t[\"The CLI starts work in the selected instance\", \"The page observes that work live\"]\n\nExample invocation:\n\n\tgimble run implement --outcomes-file ./outcomes.json --max-tasks-per-outcome 3" + "\n\nThe selected persistent instance owns this run. --project selects its admitted repository; --work-dir selects the execution directory independently. --instance-dir selects the instance state directory (or GIMBLE_INSTANCE_DIR, default .gimble). --follow waits for terminal success or failure; otherwise the run continues after this client exits. Each role flag chooses a model and optional effort. Executable lookup, PATH, and provider configuration come from the instance startup environment.", Args: cobra.NoArgs}
+	cmd.Flags().StringVar(&valueOutcomesFile, "outcomes-file", "", "OutcomesFile is a local JSON array of outcome strings, in execution order. (required)")
+	cmd.Flags().IntVar(&valueMaxTasksPerOutcome, "max-tasks-per-outcome", 0, "MaxTasksPerOutcome bounds planner assignments for each outcome. (required)")
 	_ = cmd.MarkFlagRequired("outcomes-file")
 	_ = cmd.MarkFlagRequired("max-tasks-per-outcome")
 	cmd.Flags().StringVar(&workDir, "work-dir", "", "execution directory (default: owning project)")
-	cmd.Flags().StringVar(&project, "project", ".", "admitted repository owning this run and its observation")
+	cmd.Flags().StringVar(&project, "project", ".", "repository owning this run and its observation; admitted on first start")
 	instanceDefault := os.Getenv("GIMBLE_INSTANCE_DIR")
 	if instanceDefault == "" {
 		instanceDefault = ".gimble"
@@ -101,31 +81,32 @@ func implementationCommand(defaults map[gimble.WorkflowRole]string) *cobra.Comma
 		if err != nil {
 			return err
 		}
-		values := map[string]any{
-			"OutcomesFile":       params.OutcomesFile,
-			"MaxTasksPerOutcome": params.MaxTasksPerOutcome,
+		formInput := routes.StartImplementInput{ProjectDir: project, WorkDir: workDir, Conversation: conversation,
+			OutcomesFile:              valueOutcomesFile,
+			MaxTasksPerOutcome:        valueMaxTasksPerOutcome,
+			RoleSprintPlanning:        polytype.Optional[string]{Present: cmd.Flags().Changed("sprint-planning"), Value: sprintPlanningModel},
+			RoleArchitecturalCritique: polytype.Optional[string]{Present: cmd.Flags().Changed("architectural-critique"), Value: architecturalCritiqueModel},
+			RoleCoding:                polytype.Optional[string]{Present: cmd.Flags().Changed("coding"), Value: codingModel},
+			RoleQaOrchestration:       polytype.Optional[string]{Present: cmd.Flags().Changed("qa-orchestration"), Value: qaOrchestrationModel},
 		}
-		paramsJSON, err := json.Marshal(values)
+		formClient, err := web.SelectedFormClient(cmd.Context(), instanceDir, project)
 		if err != nil {
 			return err
 		}
-		admitted, err := web.Submit(cmd.Context(), instanceDir, project, web.Submission{
-			Name: "implement", Params: paramsJSON, WorkDir: workDir, Conversation: conversation,
-			Models: map[gimble.WorkflowRole]string{gimble.WorkflowRole("sprint-planning"): sprintPlanningModel, gimble.WorkflowRole("architectural-critique"): architecturalCritiqueModel, gimble.WorkflowRole("coding"): codingModel, gimble.WorkflowRole("qa-orchestration"): qaOrchestrationModel},
-		})
+		accepted, err := (client.Client{FormClient: formClient}).StartImplement(cmd.Context(), formInput)
 		if err != nil {
-			return err
+			return fmt.Errorf("start implement: %w", err)
 		}
-		fmt.Fprintln(cmd.OutOrStdout(), admitted.ID)
+		fmt.Fprintln(cmd.OutOrStdout(), accepted.RunID)
 		if !follow {
 			return nil
 		}
-		result, err := web.Follow(cmd.Context(), instanceDir, project, admitted.ID)
+		result, err := web.Follow(cmd.Context(), instanceDir, project, accepted.RunID)
 		if err != nil {
 			return err
 		}
 		if result.Status != "completed" {
-			return fmt.Errorf("run %s %s: %s", admitted.ID, result.Status, result.Error)
+			return fmt.Errorf("run %s %s: %s", accepted.RunID, result.Status, result.Error)
 		}
 		return nil
 	}

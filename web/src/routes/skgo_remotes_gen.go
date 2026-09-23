@@ -14,21 +14,57 @@ var (
 	Skgo_createConversation = createConversation
 	// Skgo_sendConversationMessage is sendConversationMessage, published as src/routes/conversation.remote.ts#sendConversationMessage.
 	Skgo_sendConversationMessage = sendConversationMessage
+	// Skgo_startImplement is startImplement, published as src/routes/implement_start.remote.ts#startImplement.
+	Skgo_startImplement = startImplement
 	// Skgo_answerInterview is answerInterview, published as src/routes/interview.remote.ts#answerInterview.
 	Skgo_answerInterview = answerInterview
+	// Skgo_startPyramidSummary is startPyramidSummary, published as src/routes/pyramidsummary_start.remote.ts#startPyramidSummary.
+	Skgo_startPyramidSummary = startPyramidSummary
+	// Skgo_startResearchDocument is startResearchDocument, published as src/routes/researchdocument_start.remote.ts#startResearchDocument.
+	Skgo_startResearchDocument = startResearchDocument
+	// Skgo_startReview is startReview, published as src/routes/review_start.remote.ts#startReview.
+	Skgo_startReview = startReview
 	// Skgo_steer is steer, published as src/routes/steer.remote.ts#steer.
 	Skgo_steer = steer
 	// Skgo_steerLoop is steerLoop, published as src/routes/steer.remote.ts#steerLoop.
 	Skgo_steerLoop = steerLoop
+	// Skgo_startValidateProduct is startValidateProduct, published as src/routes/validateproduct_start.remote.ts#startValidateProduct.
+	Skgo_startValidateProduct = startValidateProduct
 	// Skgo_load is load, published as the server load of src/routes/+page.server.ts.
 	Skgo_load = load
 )
 
 type (
+	// SkgoArg_startImplement is the type startImplement takes.
+	SkgoArg_startImplement = StartImplementInput
+	// SkgoOut_startImplement is the type startImplement returns.
+	SkgoOut_startImplement = StartAccepted
 	// SkgoArg_answerInterview is the type answerInterview takes.
 	SkgoArg_answerInterview = InterviewAnswer
+	// SkgoOut_answerInterview is the type answerInterview returns.
+	SkgoOut_answerInterview = InterviewAnswered
+	// SkgoArg_startPyramidSummary is the type startPyramidSummary takes.
+	SkgoArg_startPyramidSummary = StartPyramidSummaryInput
+	// SkgoOut_startPyramidSummary is the type startPyramidSummary returns.
+	SkgoOut_startPyramidSummary = StartAccepted
+	// SkgoArg_startResearchDocument is the type startResearchDocument takes.
+	SkgoArg_startResearchDocument = StartResearchDocumentInput
+	// SkgoOut_startResearchDocument is the type startResearchDocument returns.
+	SkgoOut_startResearchDocument = StartAccepted
+	// SkgoArg_startReview is the type startReview takes.
+	SkgoArg_startReview = StartReviewInput
+	// SkgoOut_startReview is the type startReview returns.
+	SkgoOut_startReview = StartAccepted
 	// SkgoArg_steer is the type steer takes.
 	SkgoArg_steer = Steer
+	// SkgoOut_steer is the type steer returns.
+	SkgoOut_steer = Sent
 	// SkgoArg_steerLoop is the type steerLoop takes.
 	SkgoArg_steerLoop = LoopMessage
+	// SkgoOut_steerLoop is the type steerLoop returns.
+	SkgoOut_steerLoop = Waiting
+	// SkgoArg_startValidateProduct is the type startValidateProduct takes.
+	SkgoArg_startValidateProduct = StartValidateProductInput
+	// SkgoOut_startValidateProduct is the type startValidateProduct returns.
+	SkgoOut_startValidateProduct = StartAccepted
 )

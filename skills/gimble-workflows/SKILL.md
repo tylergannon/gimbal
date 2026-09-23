@@ -189,24 +189,20 @@ Style preferences and unrelated improvements do not become acceptance gates.
 
 ## Make the workflow callable and understandable
 
-The supported hosted authoring path is inside the Gimble checkout. Add a Go
+The supported built-in authoring path is inside the Gimble checkout. Add a Go
 package under `internal/workflows/`, following `internal/workflows/review/`:
 an entry taking `context.Context`, `gimble.Env`, and optionally one package-local
 parameter struct; a `//go:generate` directive for `gimblegen`; and Polytype
-generation when the workflow has structured result types. Run `just build` from
-the checkout. It runs `go generate ./...`, builds the web assets, and compiles
-the generated graph, `Hosted()`, and `Command()` into `bin/gimble`.
-
-In `cmd/gimble/workflows.go`, add the package's generated `Command(workflowDefaults())`
-to `newRunCommand` and its `Hosted()` under the same run name to
-`builtInWorkflows`. Rebuild and restart the serving binary; invoke the same
-build's `gimble run <name>` against that running instance. The command submits
-parameters and role-model choices; the instance executes the compiled Go body
-and owns live observation. Its project owns durable run files. The command
-cannot send a Go closure, and a different or older server binary cannot run a
-newly compiled workflow. This generator and web build are checkout-internal;
-external-module generation and arbitrary closure submission are not supported
-hosted paths.
+generation when the workflow has structured result types. Add its metadata to
+`internal/builtin/workflows.go`. `go generate ./...` uses that one stock
+selection to emit the graph, workflow-specific SKGO Form handler, CLI command,
+and generated Go client binding. The handler calls the concrete workflow and
+the CLI command calls its matching SKGO client against the same remote identity.
+Run `just build` from the checkout, then restart the serving binary and invoke
+the same build's `gimble run <name>` against that instance. The instance admits
+the project on first start and owns the run after the CLI exits. A command does
+not send a Go closure, and a different or older server binary cannot run a
+newly compiled workflow. Generation remains checkout-internal.
 
 Standalone `gimble.Run(gimble.Project(ctx, dir), ...)` runs in its caller's
 process, writes under `dir/runs`, and does not attach to a running instance.

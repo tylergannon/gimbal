@@ -4,6 +4,16 @@ Status: planned, not implemented. Based on Gimble `cde79c24` and the subsequent
 conversation with Tyler. Completion is defined in
 [definition-of-done.md](definition-of-done.md).
 
+## Scope amendment (2026-09-23)
+
+At the user's direction, visible human start forms and their browser/UI proof
+are deferred from the current CLI integration outcome. This outcome covers the
+five generated CLI-to-SKGO-client paths, their shared Form handlers, removal of
+generic workflow dispatch, and the focused/lifecycle evidence named by its task.
+Do not implement start-form pages or claim UI acceptance here. The separate UI
+outcome will not run in this workflow; visible forms remain an explicit gap for
+the caller to track outside this delivery.
+
 This plan supersedes the separate JSON launch endpoint recommendation in
 [assessment.md](assessment.md). Browser and CLI will call the same generated
 SKGO remote endpoint. The dependency correction is the first implementation

@@ -60,7 +60,7 @@ var Graph = workflow.Graph{
 				}},
 				workflow.Set{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 133}, Key: "independent assessment"},
 				workflow.Condition{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 134}, Branches: []workflow.Branch{
-					{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 134}, Case: "assessment.ValidationPassed", Exits: true, Body: []workflow.Operation{}},
+					{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 134}, Case: "assessment.ValidationPassed && len(assessment.SubstantialGaps) == 0", Exits: true, Body: []workflow.Operation{}},
 				}},
 				workflow.Condition{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 138}, Branches: []workflow.Branch{
 					{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 138}, Case: "tasksRun >= params.MaxTasksPerOutcome", Exits: true, Body: []workflow.Operation{}},

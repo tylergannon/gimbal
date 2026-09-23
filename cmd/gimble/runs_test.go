@@ -75,7 +75,7 @@ func TestRunsCommandSelectsAdmittedProjectThroughAlias(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	instance, err := web.NewInstance(ctx, filepath.Join(base, "instance"), web.WithNoWeb())
+	instance, err := web.NewInstance(ctx, filepath.Join(base, "instance"), nil, web.WithNoWeb())
 	if err != nil {
 		t.Fatal(err)
 	}

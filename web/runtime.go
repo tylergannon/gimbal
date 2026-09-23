@@ -60,6 +60,7 @@ type Instance struct {
 	dir           string
 	done          chan struct{}
 	shutdown      sync.WaitGroup
+	activeRuns    sync.WaitGroup
 	address       string
 	mu            sync.RWMutex
 	projects      map[string]*Runtime
@@ -140,9 +141,10 @@ func (c *config) selectListener(name string) error {
 }
 
 // NewInstance starts one instance with independently configurable state and
-// endpoints. AdmitProject adds projects without opening another listener.
+// endpoints. Initial projects are admitted before the web listener starts.
+// AdmitProject can add more projects without opening another listener.
 // The web application listens on loopback port 8080 unless configured otherwise.
-func NewInstance(ctx context.Context, instanceDir string, opts ...Option) (*Instance, error) {
+func NewInstance(ctx context.Context, instanceDir string, initialProjects []string, opts ...Option) (*Instance, error) {
 	if ctx == nil {
 		return nil, errors.New("gimble: runtime context is nil")
 	}
@@ -173,6 +175,14 @@ func NewInstance(ctx context.Context, instanceDir string, opts ...Option) (*Inst
 		cancel(err)
 		return nil, err
 	}
+	for _, project := range initialProjects {
+		if _, err := instance.AdmitProject(project); err != nil {
+			cancel(err)
+			instance.waitForShutdown()
+			<-instance.done
+			return nil, err
+		}
+	}
 	if cfg.network == "none" {
 		instance.waitForShutdown()
 		return instance, nil
@@ -193,7 +203,7 @@ func NewRuntime(ctx context.Context, projectDir string, opts ...Option) (*Runtim
 	if err != nil {
 		return nil, err
 	}
-	i, err := NewInstance(ctx, filepath.Join(project, ".gimble"), opts...)
+	i, err := NewInstance(ctx, filepath.Join(project, ".gimble"), []string{project}, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -347,6 +357,12 @@ func (i *Instance) waitForShutdown() {
 	}()
 }
 
+// Wait blocks until the instance has stopped its listeners and released its
+// projects after their active work has ended.
+func (i *Instance) Wait() {
+	<-i.done
+}
+
 func (i *Instance) projectRequest(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
@@ -418,9 +434,14 @@ func (r *Runtime) Run(ctx context.Context, name string, models map[gimble.Workfl
 	}()
 	// A runtime that has already ended starts no run: the body must never
 	// see a live context under a dead runtime.
-	if r.ctx.Err() != nil {
-		return context.Cause(r.ctx)
+	r.instance.mu.Lock()
+	if r.instance.ctx.Err() != nil {
+		r.instance.mu.Unlock()
+		return context.Cause(r.instance.ctx)
 	}
+	r.instance.activeRuns.Add(1)
+	r.instance.mu.Unlock()
+	defer r.instance.activeRuns.Done()
 	// The run's context descends from the caller's, so what the caller put
 	// on it reaches the run. What the runtime owns is put on it here
 	// instead of being inherited, and the runtime's own end cancels it the

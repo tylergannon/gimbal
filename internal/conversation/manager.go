@@ -105,6 +105,7 @@ type Manager struct {
 	items   map[string]*Conversation
 	active  map[string]*activeConversation
 	closing bool
+	closed  chan struct{}
 }
 
 type managerKey struct{}
@@ -138,7 +139,7 @@ func New(ctx context.Context, projectDir string, factory AdapterFactory, cli, in
 	}
 	manager := &Manager{
 		ctx: ctx, projectDir: projectDir, factory: factory, cli: cli, instanceDir: instanceDir, project: project, registry: registry,
-		items: make(map[string]*Conversation), active: make(map[string]*activeConversation),
+		items: make(map[string]*Conversation), active: make(map[string]*activeConversation), closed: make(chan struct{}),
 	}
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -457,9 +458,11 @@ func (m *Manager) Close() {
 	m.mu.Lock()
 	if m.closing {
 		m.mu.Unlock()
+		<-m.closed
 		return
 	}
 	m.closing = true
+	defer close(m.closed)
 	active := make([]*activeConversation, 0, len(m.active))
 	for _, conversation := range m.active {
 		active = append(active, conversation)

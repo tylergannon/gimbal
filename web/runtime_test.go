@@ -26,7 +26,7 @@ func TestDirectRunDoesNotJoinAnInstance(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	instance, err := NewInstance(ctx, filepath.Join(root, "instance"), WithNoWeb())
+	instance, err := NewInstance(ctx, filepath.Join(root, "instance"), nil, WithNoWeb())
 	if err != nil {
 		t.Fatal(err)
 	}

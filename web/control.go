@@ -283,14 +283,20 @@ func (i *Instance) startControl() error {
 	context.AfterFunc(i.ctx, func() {
 		_ = server.Close()
 		<-serveDone
+		i.activeRuns.Wait()
 		_ = os.Remove(socket)
 		_ = os.Remove(discovery)
 		i.mu.RLock()
+		projects := make([]*Runtime, 0, len(i.projects))
 		for _, project := range i.projects {
+			projects = append(projects, project)
+		}
+		i.mu.RUnlock()
+		for _, project := range projects {
+			project.conversations.Close()
 			_ = os.Remove(filepath.Join(project.dir, "control", identity+".json"))
 			_ = project.ownerLock.Close()
 		}
-		i.mu.RUnlock()
 		i.shutdown.Done()
 	})
 	log.Printf("gimble: control socket listening on %s", socket)

@@ -12,13 +12,14 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestProjectOwnershipAcrossProcesses(t *testing.T) {
 	if project := os.Getenv("GIMBLE_TEST_OWNED_PROJECT"); project != "" {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		instance, err := NewInstance(ctx, os.Getenv("GIMBLE_TEST_INSTANCE_DIR"), WithNoWeb())
+		instance, err := NewInstance(ctx, os.Getenv("GIMBLE_TEST_INSTANCE_DIR"), nil, WithNoWeb())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -81,7 +82,7 @@ func TestProjectOwnershipAcrossProcesses(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
-	other, err := NewInstance(ctx, filepath.Join(base, "other"), WithPort(0))
+	other, err := NewInstance(ctx, filepath.Join(base, "other"), nil, WithPort(0))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -123,4 +124,63 @@ func TestProjectOwnershipAcrossProcesses(t *testing.T) {
 	if response.StatusCode != http.StatusOK {
 		t.Fatalf("reopened run history status: %d", response.StatusCode)
 	}
+}
+
+func TestProjectOwnershipLastsUntilCancelledRunUnwinds(t *testing.T) {
+	base := t.TempDir()
+	project := filepath.Join(base, "project")
+	if err := os.Mkdir(project, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	owner, err := NewInstance(ctx, filepath.Join(base, "owner"), []string{project}, WithNoWeb())
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := owner.AdmitProject(project)
+	if err != nil {
+		t.Fatal(err)
+	}
+	started := make(chan struct{})
+	unwinding := make(chan struct{})
+	release := make(chan struct{})
+	runDone := make(chan error, 1)
+	go func() {
+		runDone <- p.Run(context.Background(), "slow-shutdown", nil, func(runCtx context.Context) error {
+			close(started)
+			<-runCtx.Done()
+			close(unwinding)
+			<-release
+			return runCtx.Err()
+		})
+	}()
+	<-started
+	cancel()
+	<-unwinding
+	waitDone := make(chan struct{})
+	go func() {
+		owner.Wait()
+		close(waitDone)
+	}()
+	select {
+	case <-waitDone:
+		t.Fatal("owner ended while its run was still unwinding")
+	case <-time.After(50 * time.Millisecond):
+	}
+	otherCtx, otherCancel := context.WithCancel(t.Context())
+	defer otherCancel()
+	if _, err := NewInstance(otherCtx, filepath.Join(base, "other"), []string{project}, WithNoWeb()); err == nil || !strings.Contains(err.Error(), "already owned by another instance") {
+		t.Fatalf("second owner admitted during shutdown: %v", err)
+	}
+	close(release)
+	if err := <-runDone; err == nil {
+		t.Fatal("cancelled run reported success")
+	}
+	<-waitDone
+	reopened, err := NewInstance(otherCtx, filepath.Join(base, "other"), []string{project}, WithNoWeb())
+	if err != nil {
+		t.Fatalf("reopen after run cleanup: %v", err)
+	}
+	otherCancel()
+	<-reopened.done
 }

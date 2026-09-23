@@ -235,15 +235,11 @@ func serve(ctx context.Context, server serverFlags) error {
 	if len(projects) == 0 {
 		projects = []string{"."}
 	}
-	instance, err := web.NewInstance(ctx, server.instanceDir, options...)
+	instance, err := web.NewInstance(ctx, server.instanceDir, projects, options...)
 	if err != nil {
 		return err
 	}
-	for _, project := range projects {
-		if _, err := instance.AdmitProject(project); err != nil {
-			return err
-		}
-	}
 	<-ctx.Done()
+	instance.Wait()
 	return nil
 }

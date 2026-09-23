@@ -44,7 +44,7 @@ func TestHostedSubmissionOwnsRunBeyondClient(t *testing.T) {
 			return ctx.Err()
 		}
 	}
-	instance, err := NewInstance(ctx, instanceDir, WithNoWeb(), WithWorkflows(map[string]WorkflowEntry{"fixture": entry}))
+	instance, err := NewInstance(ctx, instanceDir, nil, WithNoWeb(), WithWorkflows(map[string]WorkflowEntry{"fixture": entry}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,7 +110,7 @@ func TestConversationSubmissionPersistsProjectRunAndTerminalFailure(t *testing.T
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	instanceDir := filepath.Join(base, "instance")
-	instance, err := NewInstance(ctx, instanceDir, WithNoWeb(), WithWorkflows(map[string]WorkflowEntry{
+	instance, err := NewInstance(ctx, instanceDir, nil, WithNoWeb(), WithWorkflows(map[string]WorkflowEntry{
 		"fixture": func(ctx context.Context, env gimble.Env, _ json.RawMessage) error {
 			gimble.Set(ctx, "workdir", env.WorkDir)
 			return errors.New("fixture failed")

@@ -334,10 +334,11 @@ func Run(ctx context.Context, name string, body func(ctx context.Context) error)
 // request's, and Start returns the run id at once.
 func Start(ctx context.Context, name string, body func(ctx context.Context) error) (string, error)
 
-// NewInstance starts one listener and control endpoint. Instance state is
-// separate from every project's durable run and conversation files.
-func NewInstance(ctx context.Context, instanceDir string, opts ...Option) (*Instance, error)
+// NewInstance admits its initial projects before starting the web listener.
+// Instance state is separate from project run and conversation files.
+func NewInstance(ctx context.Context, instanceDir string, initialProjects []string, opts ...Option) (*Instance, error)
 func (i *Instance) AdmitProject(projectDir string) (*Runtime, error)
+func (i *Instance) Wait()
 
 // NewRuntime is the existing single-project entry point. Its project and
 // instance state use the same directory.
@@ -352,9 +353,9 @@ The process is a server first. One instance can admit multiple projects while
 holding a single web listener and control socket. Each returned Runtime owns
 only its project's registry, live controls, conversation manager, and files.
 The control discovery file is under `instanceDir/control/`; a control request
-can select an admitted project with `X-Gimble-Project: /absolute/project/path`.
-Without that header, this foundation serves the first admitted project. Browser
-project selection and CLI submission are later outcomes.
+selects an admitted project with `X-Gimble-Project: /absolute/project/path`.
+The browser selects a project through its path, and the CLI submits to the
+selected instance. A project is required for control requests.
 One instance may admit multiple projects. A canonical project has one active
 instance owner: another instance refuses it, including through an ordinary
 path alias. Once the owner stops, another instance can admit the project and
@@ -362,7 +363,7 @@ read its existing history. Independently configured instances can host
 different projects concurrently.
 
 ```go
-instance, err := web.NewInstance(ctx, "/tmp/gimble-one", web.WithPort(8080))
+instance, err := web.NewInstance(ctx, "/tmp/gimble-one", []string{"/work/a", "/work/b"}, web.WithPort(8080))
 if err != nil { return err }
 projectA, err := instance.AdmitProject("/work/a")
 if err != nil { return err }

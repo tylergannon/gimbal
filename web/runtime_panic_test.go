@@ -56,7 +56,7 @@ func TestHostedPanicsLeaveOtherRunsAndPageUsable(t *testing.T) {
 	instanceDir := filepath.Join(base, "instance")
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
-	instance, err := NewInstance(ctx, instanceDir, WithPort(0), WithWorkflows(entries))
+	instance, err := NewInstance(ctx, instanceDir, nil, WithPort(0), WithWorkflows(entries))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -132,7 +132,7 @@ func TestHostedPanicsLeaveOtherRunsAndPageUsable(t *testing.T) {
 	<-instance.done
 	restartCtx, stopRestart := context.WithCancel(t.Context())
 	defer stopRestart()
-	restarted, err := NewInstance(restartCtx, instanceDir, WithNoWeb(), WithWorkflows(entries))
+	restarted, err := NewInstance(restartCtx, instanceDir, nil, WithNoWeb(), WithWorkflows(entries))
 	if err != nil {
 		t.Fatal(err)
 	}

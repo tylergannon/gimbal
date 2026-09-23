@@ -26,7 +26,7 @@ func TestGeneratedCommandPreservesOptionalPresence(t *testing.T) {
 	seen := make(chan researchdocument.Params, 2)
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
-	instance, err := web.NewInstance(ctx, instanceDir, web.WithNoWeb(), web.WithWorkflows(map[string]web.WorkflowEntry{
+	instance, err := web.NewInstance(ctx, instanceDir, nil, web.WithNoWeb(), web.WithWorkflows(map[string]web.WorkflowEntry{
 		"research-document": func(_ context.Context, _ gimble.Env, raw json.RawMessage) error {
 			var params researchdocument.Params
 			if err := json.Unmarshal(raw, &params); err != nil {

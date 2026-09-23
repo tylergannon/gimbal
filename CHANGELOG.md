@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-09-22
+
+### Added
+
+- One Gimble instance can host multiple projects with separate live runs,
+  conversations, controls, and durable history. Multiple configured instances
+  can coexist; one active instance owns a given project at a time.
+- Compiled workflow commands submit to the selected instance, with separate
+  project ownership and execution workdir. Conversations launch workflows
+  through that same CLI and retain their run association across restarts.
+- The `implement` workflow walks an ordered list of outcomes, using a bounded
+  PromiseLoop and independent validation within each outcome.
+
+### Fixed
+
+- A newly published hosted run is observed live without rereading its
+  incomplete directory. Hosted workflow panics fail their run without ending
+  the instance or unrelated runs.
+- The web listener starts only after its initial projects are admitted, and
+  project ownership lasts until active runs and conversations finish shutdown.
+
 ## [0.11.1] - 2026-09-22
 
 ### Fixed
@@ -76,6 +97,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `opencode/provider/model` routing, one shared server managed by
   `gimble opencode start|stop`, and raw event/request captures for diagnostics.
 
-[Unreleased]: https://github.com/tylergannon/gimble/compare/v0.11.1...main
+[Unreleased]: https://github.com/tylergannon/gimble/compare/v0.12.0...main
+[0.12.0]: https://github.com/tylergannon/gimble/compare/v0.11.1...v0.12.0
 [0.11.1]: https://github.com/tylergannon/gimble/compare/v0.11.0...v0.11.1
 [0.11.0]: https://github.com/tylergannon/gimble/releases/tag/v0.11.0

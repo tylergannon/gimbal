@@ -19,7 +19,7 @@ func TestControlRunsBelongToThisProject(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	var workers sync.WaitGroup
 	t.Cleanup(func() { cancel(); workers.Wait() })
-	instance, err := NewInstance(ctx, filepath.Join(base, "instance"), WithNoWeb())
+	instance, err := NewInstance(ctx, filepath.Join(base, "instance"), nil, WithNoWeb())
 	if err != nil {
 		t.Fatal(err)
 	}

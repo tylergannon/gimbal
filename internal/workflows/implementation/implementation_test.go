@@ -134,6 +134,24 @@ func TestImplementReplansInsideOutcomeAndStopsBeforeLaterOutcomeOnFailure(t *tes
 	}
 }
 
+func TestImplementDoesNotAdvanceOnContradictoryValidation(t *testing.T) {
+	h := &implementationHarness{assessments: []Assessment{
+		{ValidationPassed: true, Observed: "partial", SubstantialGaps: []string{"project B controls are broken"}},
+		{ValidationPassed: true, Observed: "both projects work"},
+		{ValidationPassed: true, Observed: "next outcome works"},
+	}}
+	env, params := implementationParams(t, []string{"First", "Second"}, 2)
+	if err := runImplementation(t, h, env, params); err != nil {
+		t.Fatal(err)
+	}
+	if h.plans != 3 {
+		t.Fatalf("planner turns = %d, want two for first outcome and one for second", h.plans)
+	}
+	if !strings.Contains(h.prompts[1], "project B controls are broken") || !strings.Contains(h.prompts[2], "Second") {
+		t.Fatalf("contradictory assessment advanced the outcome: %q", h.prompts)
+	}
+}
+
 func TestImplementRejectsEmptyOutcomesBeforeStartingAgents(t *testing.T) {
 	env, params := implementationParams(t, []string{"First", " "}, 2)
 	h := &implementationHarness{}

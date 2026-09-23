@@ -19,7 +19,7 @@ func TestHostedRunPublicationBeforeDirectoryIsReadable(t *testing.T) {
 	instanceDir := filepath.Join(t.TempDir(), "instance")
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
-	instance, err := NewInstance(ctx, instanceDir, WithPort(0))
+	instance, err := NewInstance(ctx, instanceDir, nil, WithPort(0))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -195,7 +195,7 @@ func TestHostedRunPublicationBeforeDirectoryIsReadable(t *testing.T) {
 	<-instance.done
 	restartCtx, stop := context.WithCancel(t.Context())
 	defer stop()
-	restarted, err := NewInstance(restartCtx, instanceDir, WithNoWeb())
+	restarted, err := NewInstance(restartCtx, instanceDir, nil, WithNoWeb())
 	if err != nil {
 		t.Fatal(err)
 	}

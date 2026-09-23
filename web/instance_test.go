@@ -39,7 +39,7 @@ func TestInstanceOwnsEndpointsAndProjectsOwnState(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	i, err := NewInstance(ctx, filepath.Join(base, "instance-one"), WithPort(0))
+	i, err := NewInstance(ctx, filepath.Join(base, "instance-one"), nil, WithPort(0))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -83,7 +83,7 @@ func TestInstanceOwnsEndpointsAndProjectsOwnState(t *testing.T) {
 			t.Fatalf("project discovery: %v, %v", entries, err)
 		}
 	}
-	j, err := NewInstance(ctx, filepath.Join(base, "instance-two"), WithPort(0))
+	j, err := NewInstance(ctx, filepath.Join(base, "instance-two"), nil, WithPort(0))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -234,7 +234,7 @@ func TestInstanceOwnsEndpointsAndProjectsOwnState(t *testing.T) {
 	wg.Wait()
 	cancel()
 	<-i.done
-	reopened, err := NewInstance(t.Context(), filepath.Join(base, "restart"), WithPort(0))
+	reopened, err := NewInstance(t.Context(), filepath.Join(base, "restart"), nil, WithPort(0))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -261,11 +261,39 @@ func TestInstanceOwnsEndpointsAndProjectsOwnState(t *testing.T) {
 	}
 }
 
+func TestInitialProjectsAreAdmittedBeforeWebServes(t *testing.T) {
+	base := t.TempDir()
+	projects := []string{filepath.Join(base, "a"), filepath.Join(base, "b")}
+	for _, project := range projects {
+		if err := os.Mkdir(project, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	i, err := NewInstance(ctx, filepath.Join(base, "host"), projects, WithPort(0))
+	if err != nil {
+		t.Fatal(err)
+	}
+	response, err := http.Get("http://" + i.address + "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	page, err := io.ReadAll(response.Body)
+	_ = response.Body.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response.StatusCode != http.StatusOK || !strings.Contains(string(page), projects[0]) || !strings.Contains(string(page), projects[1]) {
+		t.Fatalf("first page: status %d, missing initial projects", response.StatusCode)
+	}
+}
+
 func TestBrowserControlUsesReferringProject(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	base := t.TempDir()
-	i, err := NewInstance(ctx, filepath.Join(base, "instance"), WithPort(0))
+	i, err := NewInstance(ctx, filepath.Join(base, "instance"), nil, WithPort(0))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -337,7 +365,7 @@ func TestBrowserControlUsesReferringProject(t *testing.T) {
 func TestInstanceCreatesConversationsInEachProject(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
-	i, err := NewInstance(ctx, filepath.Join(t.TempDir(), "instance"), WithNoWeb())
+	i, err := NewInstance(ctx, filepath.Join(t.TempDir(), "instance"), nil, WithNoWeb())
 	if err != nil {
 		t.Fatal(err)
 	}

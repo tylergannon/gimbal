@@ -131,7 +131,7 @@ func Implement(ctx context.Context, env gimble.Env, params Params) error {
 				break
 			}
 			gimble.SetJSON(taskCtx, "independent assessment", assessment)
-			if assessment.ValidationPassed {
+			if assessment.ValidationPassed && len(assessment.SubstantialGaps) == 0 {
 				completed = true
 				break
 			}

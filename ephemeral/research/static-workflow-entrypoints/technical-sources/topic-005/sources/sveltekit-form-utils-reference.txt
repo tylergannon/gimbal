@@ -1,0 +1,136 @@
+# SvelteKit Form Utils Wire Format and Coercion Reference Excerpts
+
+Origin: /Users/tyler/src/skgo/ephemeral/inspiration/reference/kit@3.0.0-next.27/src/runtime/form-utils.js
+Version: @sveltejs/kit 3.0.0-next.27
+Date: 2026-09-23
+
+---
+## 1. parse_form_key, coerce_form_value, convert_formdata (lines 20-73, 83-113)
+
+```javascript
+/**
+ * Separates a form field's path from the metadata encoded in its name.
+ * @param {string} form_id
+ * @param {string} key
+ * @returns {{ name: string; type: 'number' | 'boolean' | null; is_array: boolean }}
+ */
+export function parse_form_key(form_id, key) {
+	const suffix = '/' + form_id;
+	let name = key;
+	let image_coordinate = '';
+
+	if (name.startsWith('i:') && (name.endsWith(suffix + '.x') || name.endsWith(suffix + '.y'))) {
+		image_coordinate = name[name.length - 1];
+		name = name.slice(0, -2);
+	}
+
+	if (!name.endsWith(suffix)) {
+		throw new Error(`Form contained a field that wasn't created with form.fields.as(...): ${name}`);
+	}
+
+	name = name.slice(0, -suffix.length);
+
+	/** @type {'number' | 'boolean' | null} */
+	let type = null;
+
+	if (name.startsWith('n:')) {
+		name = name.slice(2);
+		type = 'number';
+	} else if (name.startsWith('b:')) {
+		name = name.slice(2);
+		type = 'boolean';
+	} else if (name.startsWith('i:')) {
+		name = name.slice(2);
+		type = 'number';
+	}
+
+	const is_array = name.endsWith('[]');
+	if (is_array) name = name.slice(0, -2);
+	if (image_coordinate) name += '.' + image_coordinate;
+
+	return { name, type, is_array };
+}
+
+/**
+ * @param {'number' | 'boolean' | null} type
+ * @param {any} value
+ * @returns {any}
+ */
+export function coerce_form_value(type, value) {
+	if (Array.isArray(value)) return value.map((value) => coerce_form_value(type, value));
+	if (type === 'number') return value === '' ? undefined : parseFloat(value);
+	if (type === 'boolean') return value === 'on';
+	return value;
+}
+
+/**
+ * Convert `FormData` into a POJO
+ * @param {string} form_id
+ * @param {FormData} data
+ */
+export function convert_formdata(form_id, data) {
+	/** @type {Record<string, any>} */
+	const result = {};
+
+	for (const field_name of data.keys()) {
+		/** @type {any[]} */
+		const values = data.getAll(field_name);
+
+		const field = parse_form_key(form_id, field_name);
+
+		const entries = values.filter(
+			(entry) => typeof entry === 'string' || entry.name !== '' || entry.size > 0
+		);
+		if (entries.length === 0 && !field.is_array) continue;
+
+		if (entries.length > 1 && !field.is_array) {
+			throw new Error(
+				`Form cannot contain duplicated keys — "${field.name}" has ${entries.length} values`
+			);
+		}
+
+		set_nested_value(
+			result,
+			field,
+			coerce_form_value(field.type, field.is_array ? entries : entries[0])
+		);
+	}
+
+	return result;
+}
+```
+
+---
+## 2. Binary Form Wire Format Specification (lines 115-144)
+
+```javascript
+export const BINARY_FORM_CONTENT_TYPE = 'application/x-sveltekit-formdata';
+const BINARY_FORM_VERSION = 0;
+const HEADER_BYTES = 1 + 4 + 2;
+/**
+ * The binary format is as follows:
+ * - 1 byte: Format version
+ * - 4 bytes: Length of the header (u32)
+ * - 2 bytes: Length of the file offset table (u16)
+ * - header: devalue.stringify([data, meta])
+ * - file offset table: JSON.stringify([offset1, offset2, ...]) (empty if no files) (offsets start from the end of the table)
+ * - file1, file2, ...
+ * @param {Record<string, any>} data
+ * @param {BinaryFormMeta} meta
+ */
+export function serialize_binary_form(data, meta) {
+	/** @type {Array<BlobPart>} */
+	const blob_parts = [new Uint8Array([BINARY_FORM_VERSION])];
+
+	/** @type {Array<[file: File, index: number]>} */
+	const files = [];
+
+	const encoded_header = devalue.stringify([data, meta], {
+		File: (file) => {
+			if (!(file instanceof File)) return;
+
+			files.push([file, files.length]);
+			return [file.name, file.type, file.size, file.lastModified, files.length - 1];
+		}
+	});
+```

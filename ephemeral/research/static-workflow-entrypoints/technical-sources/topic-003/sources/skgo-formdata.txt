@@ -1,0 +1,109 @@
+# SKGO Formdata Package: formdata.go and formdata_test.go
+Origin: /Users/tyler/.codex/worktrees/d798/skgo/internal/formdata/formdata.go
+Origin: /Users/tyler/.codex/worktrees/d798/skgo/internal/formdata/formdata_test.go
+Version: skgo worktree at fed929b
+Retrieval Date: 2026-09-23
+
+---
+
+### Excerpt 1: Binary Form Envelope Specification and Parser
+
+Location: `internal/formdata/formdata.go`, lines 11-41, 65-76, 94-147:
+
+```go
+// The envelope is defined in `runtime/form-utils.js`:
+//
+//	1 byte  format version (0)
+//	4 bytes header length, little-endian u32
+//	2 bytes file offset table length, little-endian u16
+//	N bytes header: devalue.stringify([data, meta])
+//	M bytes file offset table: JSON array of offsets, or empty when no files
+//	        file bodies, concatenated, smallest first
+//
+// The offsets are relative to the end of the table and are listed in the order
+// the files appear in the header, not the order they appear in the body.
+
+const ContentType = "application/x-sveltekit-formdata"
+const version = 0
+const headerBytes = 1 + 4 + 2
+
+type Meta struct {
+	RemoteRefreshes []string
+	ValidateOnly bool
+}
+
+func ParseWith(body []byte, transport map[string]func(any) (any, error)) (data any, meta Meta, err error) {
+	if len(body) < headerBytes {
+		return nil, Meta{}, badRequest("too short")
+	}
+	if body[0] != version {
+		return nil, Meta{}, badRequest("got version %d, expected version %d", body[0], version)
+	}
+
+	headerLen := binary.LittleEndian.Uint32(body[1:5])
+	offsetsLen := binary.LittleEndian.Uint16(body[5:7])
+
+	headerEnd := uint64(headerBytes) + uint64(headerLen)
+	if headerEnd > uint64(len(body)) {
+		return nil, Meta{}, badRequest("data too short")
+	}
+	tableEnd := headerEnd + uint64(offsetsLen)
+	if tableEnd > uint64(len(body)) {
+		return nil, Meta{}, badRequest("file offset table too short")
+	}
+
+	offsets, err := parseOffsets(body[headerEnd:tableEnd])
+	if err != nil {
+		return nil, Meta{}, err
+	}
+
+	files := &fileTable{offsets: offsets, start: tableEnd, body: body}
+	revivers := map[string]func(any) (any, error){fileTag: files.revive}
+	for key, decode := range transport {
+		if _, taken := revivers[key]; taken {
+			continue
+		}
+		revivers[key] = decode
+	}
+	parsed, err := devalue.Parse(string(body[headerBytes:headerEnd]), revivers)
+	if err != nil {
+		return nil, Meta{}, badRequest("%v", err)
+	}
+	if err := files.check(); err != nil {
+		return nil, Meta{}, err
+	}
+
+	pair, ok := parsed.([]any)
+	if !ok || len(pair) != 2 {
+		return nil, Meta{}, badRequest("header is not a [data, meta] pair")
+	}
+	return pair[0], readMeta(pair[1]), nil
+}
+```
+
+---
+
+### Excerpt 2: Golden Vectors in formdata_test.go
+
+Location: `internal/formdata/formdata_test.go`, lines 23-45:
+
+```go
+const (
+	// {title: 'Hello', body: 'World'}, no files, no refreshes.
+	goldenPlain = "AEYAAAAAAFtbMSw0XSx7InRpdGxlIjoyLCJib2R5IjozfSwiSGVsbG8iLCJXb3JsZCIseyJyZW1vdGVfcmVmcmVzaGVzIjo1fSxbXV0="
+
+	// {count: 42, agree: true, tags: ['a','b'], author: {name: 'Ada'}} with one
+	// refresh key — the shape `convert_formdata` produces once it has coerced
+	// `n:`- and `b:`-prefixed fields and nested the dotted ones.
+	goldenTyped = "AIgAAAAAAFtbMSw5XSx7ImNvdW50IjoyLCJhZ3JlZSI6MywidGFncyI6NCwiYXV0aG9yIjo3fSw0Mix0cnVlLFs1LDZdLCJhIiwiYiIseyJuYW1lIjo4fSwiQWRhIix7InJlbW90ZV9yZWZyZXNoZXMiOjEwfSxbMTFdLCJhYmMxMjMvZ2V0VG9kb3MvIl0="
+
+	// {caption: 'a picture', upload: File('pic.bin', bytes 1..5)}.
+	goldenOneFile = "AJYAAAADAFtbMSwxMF0seyJjYXB0aW9uIjoyLCJ1cGxvYWQiOjN9LCJhIHBpY3R1cmUiLFsiRmlsZSIsNF0sWzUsNiw3LDgsOV0sInBpYy5iaW4iLCJhcHBsaWNhdGlvbi9vY3RldC1zdHJlYW0iLDUsMTcwMDAwMDAwMDAwMCwwLHsicmVtb3RlX3JlZnJlc2hlcyI6MTF9LFtdXVswXQECAwQF"
+
+	// {big: File(20 bytes), small: File(2 bytes)}.
+	goldenTwoFiles = "ALIAAAAFAFtbMSwxNV0seyJiaWciOjIsInNtYWxsIjo5fSxbIkZpbGUiLDNdLFs0LDUsNiw3LDhdLCJiaWcudHh0IiwidGV4dC9wbGFpbiIsMjAsMTcwMDAwMDAwMDAwMSwwLFsiRmlsZSIsMTBdLFsxMSw1LDEyLDEzLDE0XSwic21hbGwudHh0IiwyLDE3MDAwMDAwMDAwMDIsMSx7InJlbW90ZV9yZWZyZXNoZXMiOjE2fSxbXV1bMiwwXXNzQkJCQkJCQkJCQkJCQkJCQkJCQkI="
+
+	// {nothing: File(0 bytes), some: File(3 bytes)}
+	goldenEmptyFile = "ALIAAAAFAFtbMSwxNF0seyJub3RoaW5nIjoyLCJzb21lIjo4fSxbIkZpbGUiLDNdLFs0LDUsNiw3LDZdLCJlbXB0eS50eHQiLCJ0ZXh0L3BsYWluIiwwLDE3MDAwMDAwMDAwMDMsWyJGaWxlIiw5XSxbMTAsNSwxMSwxMiwxM10sInNvbWUudHh0IiwzLDE3MDAwMDAwMDAwMDQsMSx7InJlbW90ZV9yZWZyZXNoZXMiOjE1fSxbXV1bMCwwXXh5eg=="
+)
+```

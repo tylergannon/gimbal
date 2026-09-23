@@ -1,0 +1,153 @@
+# SKGO Form Implementation: remote_form.go and remote_form_test.go
+Origin: /Users/tyler/.codex/worktrees/d798/skgo/remote_form.go
+Origin: /Users/tyler/.codex/worktrees/d798/skgo/remote_form_test.go
+Version: skgo worktree at fed929b
+Retrieval Date: 2026-09-23
+
+---
+
+### Excerpt 1: SKGO Server Form Handling, Validation-Only Check, and Issue/Result Serialization
+
+Location: `remote_form.go`, lines 123-230:
+
+```go
+func (rs *Remotes) serveForm(w http.ResponseWriter, r *http.Request, fn *Remote) {
+	if r.Method != http.MethodPost {
+		rs.writeErrorStatus(w, &HTTPError{
+			Status:  405,
+			Message: "`form` functions must be invoked via POST request, not " + r.Method,
+		}, http.StatusMethodNotAllowed)
+		return
+	}
+
+	media := mediaType(r.Header.Get("Content-Type"))
+	if !isFormContentType(media) {
+		rs.writeErrorStatus(w, &HTTPError{
+			Status:  415,
+			Message: "`form` functions expect form-encoded data — received " + r.Header.Get("Content-Type"),
+		}, http.StatusUnsupportedMediaType)
+		return
+	}
+
+	if media != formdata.ContentType {
+		rs.writeErrorStatus(w, &HTTPError{
+			Status:  415,
+			Message: "`form` functions need an enhanced submission; this app renders on the client only",
+		}, http.StatusUnsupportedMediaType)
+		return
+	}
+
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxFormBytes))
+	if err != nil {
+		rs.writeErrorStatus(w, &HTTPError{Status: 413, Message: "Payload Too Large"}, http.StatusRequestEntityTooLarge)
+		return
+	}
+
+	arg, meta, err := formdata.ParseWith(body, rs.cfg.Transport.revivers())
+	if err != nil {
+		rs.writeError(w, &HTTPError{Status: 400, Message: "Bad Request"})
+		return
+	}
+
+	// `validate_only` asks for the declarative schema's verdict without
+	// running the handler. skgo's stubs are declared `'unchecked'` — the
+	// validation is the Go handler's own work — so there is no schema to
+	// consult and the honest answer is the one kit gives for an unchecked
+	// form: no issues. Running the handler here instead would execute its
+	// side effects on every keystroke.
+	if meta.ValidateOnly {
+		rs.writeResult(w, rs.newEvent(r, false), map[string]any{"_": []any{}})
+		return
+	}
+
+	ev := rs.newEvent(r, true)
+	ev.refreshes = newRefreshSet(rs, meta.RemoteRefreshes)
+	ctx := withEvent(r.Context(), ev)
+
+	value, err := rs.call(ctx, fn, rs.newCall(arg, true))
+	if err != nil {
+		var invalid *Invalid
+		if errors.As(err, &invalid) {
+			rs.writeResult(w, ev, map[string]any{"_": devalue.NewObject(
+				"submission", true,
+				"issues", issueNodes(invalid.Issues),
+			)})
+			return
+		}
+		if redirect := asRedirect(err); redirect != nil {
+			rs.writeResult(w, ev, map[string]any{"redirect": redirect.Location})
+			return
+		}
+		rs.writeError(w, asHTTPError(err))
+		return
+	}
+
+	data := map[string]any{"_": devalue.NewObject("submission", true, "result", value)}
+	q, l := rs.collectRefreshes(r.Context(), ev)
+	if len(q) > 0 {
+		data["q"] = q
+	}
+	if len(l) > 0 {
+		data["l"] = l
+	}
+	if len(ev.refreshes.ignored) > 0 {
+		data["i"] = ev.refreshes.ignored
+	}
+	if len(q) > 0 || len(l) > 0 {
+		data["r"] = true
+	}
+	rs.writeResult(w, ev, data)
+}
+```
+
+---
+
+### Excerpt 2: SKGO Issue Structs and Wire Path Formatting
+
+Location: `remote_form.go`, lines 51-69, 237-254:
+
+```go
+type Issue struct {
+	Field   string
+	Message string
+}
+
+type Invalid struct {
+	Issues []Issue
+}
+
+func issueNodes(issues []Issue) []any {
+	nodes := make([]any, 0, len(issues))
+	for _, issue := range issues {
+		path := splitFieldPath(issue.Field)
+		nodes = append(nodes, devalue.NewObject(
+			"name", buildFieldPath(path),
+			"path", path,
+			"message", issue.Message,
+			"server", true,
+		))
+	}
+	return nodes
+}
+```
+
+---
+
+### Excerpt 3: SKGO Golden Fixtures and Test Verifications
+
+Location: `remote_form_test.go`, lines 19-30, 82-99, 150-185, 238-243:
+
+```go
+const (
+	// {from: 'Ada', body: 'hello there'} asking for `worolc/getMessages/` to be
+	// refreshed in the same flight. `worolc` is kit's hash of
+	// "src/lib/todos.remote.ts", which is what testModule is.
+	formGoldenSubmission = "AGAAAAAAAFtbMSw0XSx7ImZyb20iOjIsImJvZHkiOjN9LCJBZGEiLCJoZWxsbyB0aGVyZSIseyJyZW1vdGVfcmVmcmVzaGVzIjo1fSxbNl0sIndvcm9sYy9nZXRNZXNzYWdlcy8iXQ=="
+
+	// {from: 'Ada', attachment: File('note.txt', 'haiku bytes')}.
+	formGoldenWithFile = "AIUAAAADAFtbMSwxMF0seyJmcm9tIjoyLCJhdHRhY2htZW50IjozfSwiQWRhIixbIkZpbGUiLDRdLFs1LDYsNyw4LDldLCJub3RlLnR4dCIsInRleHQvcGxhaW4iLDExLDE3MDAwMDAwMDAwMDAsMCx7InJlbW90ZV9yZWZyZXNoZXMiOjExfSxbXV1bMF1oYWlrdSBieXRlcw=="
+
+	// What `form.validate()` posts as the visitor types.
+	formGoldenValidateOnly = "AC4AAAAAAFtbMSwzXSx7ImZyb20iOjJ9LCIiLHsidmFsaWRhdGVfb25seSI6NH0sdHJ1ZV0="
+)
+```

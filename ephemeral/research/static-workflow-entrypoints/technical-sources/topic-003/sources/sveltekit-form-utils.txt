@@ -1,0 +1,102 @@
+# SvelteKit Reference: runtime/form-utils.js
+Origin: /Users/tyler/src/skgo/ephemeral/inspiration/reference/kit@3.0.0-next.25/src/runtime/form-utils.js
+Version: @sveltejs/kit@3.0.0-next.25 (pinned reference)
+Retrieval Date: 2026-09-23
+
+---
+
+### Excerpt 1: Binary Form Envelope Specification and Constants
+
+Location: `src/runtime/form-utils.js`, lines 26-32, 108-119:
+
+```javascript
+export const BINARY_FORM_CONTENT_TYPE = 'application/x-sveltekit-formdata';
+export const BINARY_FORM_VERSION = 0;
+
+/**
+ * Serializes a form into a binary representation:
+ * - 1 byte: Format version
+ * - 4 bytes: Length of the header (u32)
+ * - 2 bytes: Length of the file offset table (u16)
+ * - header: devalue.stringify([data, meta])
+ * - file offset table: JSON.stringify([offset1, offset2, ...]) (empty if no files) (offsets start from the end of the table)
+ * - file1, file2, ...
+ * @param {Record<string, any>} data
+ * @param {BinaryFormMeta} meta
+ */
+export function serialize_binary_form(data, meta) {
+	/** @type {Array<BlobPart>} */
+	const blob_parts = [new Uint8Array([BINARY_FORM_VERSION])];
+
+	/** @type {Array<[file: File, index: number]>} */
+	const files = [];
+
+	const encoded_header = devalue.stringify([data, meta], {
+		File: (file) => {
+			if (!(file instanceof File)) return;
+
+			files.push([file, files.length]);
+			return [file.name, file.type, file.size, file.lastModified, files.length - 1];
+		}
+	});
+
+	const encoded_header_buffer = text_encoder.encode(encoded_header);
+
+	let encoded_file_offsets = '';
+	if (files.length) {
+		// Sort small files to the front
+		files.sort(([a], [b]) => a.size - b.size);
+
+		/** @type {Array<number>} */
+		const file_offsets = new Array(files.length);
+		let start = 0;
+		for (const [file, index] of files) {
+			file_offsets[index] = start;
+			start += file.size;
+		}
+		encoded_file_offsets = JSON.stringify(file_offsets);
+	}
+
+	const length_buffer = new Uint8Array(4);
+	const length_view = new DataView(length_buffer.buffer);
+
+	length_view.setUint32(0, encoded_header_buffer.byteLength, true);
+	blob_parts.push(length_buffer.slice());
+
+	length_view.setUint16(0, encoded_file_offsets.length, true);
+	blob_parts.push(length_buffer.slice(0, 2));
+
+	blob_parts.push(encoded_header_buffer);
+	blob_parts.push(encoded_file_offsets);
+
+	for (const [file] of files) {
+		blob_parts.push(file);
+	}
+
+	return {
+		blob: new Blob(blob_parts)
+	};
+}
+```
+
+---
+
+### Excerpt 2: Deserialization and Content-Type Handling
+
+Location: `src/runtime/form-utils.js`, lines 178-186:
+
+```javascript
+/**
+ * @param {Request} request
+ * @param {string} form_id
+ * @returns {Promise<{ data: Record<string, any>; meta: BinaryFormMeta; form_data: FormData | null }>}
+ */
+export async function deserialize_binary_form(request, form_id) {
+	if (request.headers.get('content-type') !== BINARY_FORM_CONTENT_TYPE) {
+		const form_data = await request.formData();
+		return { data: convert_formdata(form_id, form_data), meta: {}, form_data };
+	}
+	if (!request.body) {
+		throw deserialize_error('no body');
+	}
+```

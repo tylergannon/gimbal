@@ -29,12 +29,22 @@ only.
 
 ## Build and run
 
-This project uses Justfile for its build commands. It requires Node 24, pnpm 11, and just.
+This project uses Justfile for its build commands. It requires Go 1.27, Node 24,
+pnpm 11, and just. From a source checkout:
 
 ```sh
 just build
 ./bin/gimble
 ```
+
+`just build` runs Go generation and the skgo/SvelteKit production build before
+compiling the CLI. The build checks that `web/build/skgo.manifest.json` exists;
+the resulting `bin/gimble` embeds the manifest and web assets. To put that
+binary on your Go executable path, run `go install ./cmd/gimble` **after**
+`just build` in the same checkout. A versioned
+`go install github.com/tylergannon/gimble/cmd/gimble@<version>` skips the web
+build and does not produce a working web-enabled CLI. Use a checkout of the
+desired tag and `just build` for a versioned CLI.
 
 Then open http://127.0.0.1:8080. The page's heading, the Go version below it, and the
 greeting counter all come from `web/src/routes/hello.remote.go` — the

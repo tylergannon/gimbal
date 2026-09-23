@@ -1,0 +1,1 @@
+doc_bug: Release guidance treated a successful versioned Go install as a usable CLI, but the module archive omits the ignored skgo frontend build. Verify a binary built from source with `just build` through its web listener, and describe versioned Go installation as unsupported for the CLI.

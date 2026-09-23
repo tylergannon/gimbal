@@ -38,13 +38,11 @@ just build
 ```
 
 `just build` runs Go generation and the skgo/SvelteKit production build before
-compiling the CLI. The build checks that `web/build/skgo.manifest.json` exists;
-the resulting `bin/gimble` embeds the manifest and web assets. To put that
-binary on your Go executable path, run `go install ./cmd/gimble` **after**
-`just build` in the same checkout. A versioned
-`go install github.com/tylergannon/gimble/cmd/gimble@<version>` skips the web
-build and does not produce a working web-enabled CLI. Use a checkout of the
-desired tag and `just build` for a versioned CLI.
+compiling the CLI. It checks for `web/build/skgo.manifest.json` and packages the
+web app into `web/build.zip`, which the binary embeds. To install from a checkout,
+run `go install ./cmd/gimble` after `just build`. Starting with v0.12.1, a
+versioned `go install github.com/tylergannon/gimble/cmd/gimble@<version>` uses
+the packaged web app and needs no frontend build at install time.
 
 Then open http://127.0.0.1:8080. The page's heading, the Go version below it, and the
 greeting counter all come from `web/src/routes/hello.remote.go` — the

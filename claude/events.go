@@ -70,6 +70,18 @@ func (p *projector) event(eventType string, data map[string]any, native any) err
 	return p.emit(event)
 }
 
+// observe never lets a projection error stop Claude's turn. The raw message
+// remains available in a diagnostic when the transcript cannot represent it.
+func (p *projector) observe(raw json.RawMessage) {
+	if err := p.raw(raw); err != nil {
+		_ = p.event("session.synthetic", map[string]any{
+			"text":        "Claude event projection gap: " + err.Error(),
+			"description": "Observation gap",
+			"metadata":    map[string]any{"raw": string(raw)},
+		}, map[string]any{"provider": "claude", "sessionID": p.sessionID})
+	}
+}
+
 func (p *projector) raw(raw json.RawMessage) error {
 	var envelope map[string]any
 	if err := json.Unmarshal(raw, &envelope); err != nil {
@@ -404,7 +416,14 @@ func (p *projector) toolResults(envelope map[string]any) error {
 			return errors.New("claude: tool_result has no tool_use_id")
 		}
 		if !p.pendingTools[id] {
-			return fmt.Errorf("claude: result for unknown tool_use_id %s", id)
+			if err := p.event("session.synthetic", map[string]any{
+				"text":        "Claude tool result has no observed tool call: " + id,
+				"description": "Observation gap",
+				"metadata":    envelope,
+			}, p.nativeRef(envelope, id)); err != nil {
+				return err
+			}
+			continue
 		}
 		delete(p.pendingTools, id)
 		ref := p.nativeRef(envelope, id)

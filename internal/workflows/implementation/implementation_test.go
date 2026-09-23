@@ -3,6 +3,7 @@ package implementation
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -11,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/tylergannon/gimble"
+	"github.com/tylergannon/gimble/internal/runlog"
 	"github.com/tylergannon/gimble/workflow"
 )
 
@@ -20,6 +22,8 @@ type implementationHarness struct {
 	plans       int
 	prompts     []string
 	assessments []Assessment
+	qaFailures  int
+	qaAttempts  int
 }
 
 func (h *implementationHarness) CreateSession(context.Context, string, string, string) (string, error) {
@@ -43,6 +47,11 @@ func (h *implementationHarness) RunTurn(_ context.Context, _ string, prompt stri
 		return gimble.TurnResult{Output: json.RawMessage(`{"tasks":[{"name":"implement","description":"implement the next part of this outcome","definition_of_done":"the selected behavior is directly demonstrated","validation":{"command":"printf task-check-output","query":"Observe whether it works"}}],"next":0}`)}, nil
 	case strings.Contains(prompt, "Independently validate the selected task and current outcome"):
 		h.mu.Lock()
+		h.qaAttempts++
+		if h.qaAttempts <= h.qaFailures {
+			h.mu.Unlock()
+			return gimble.TurnResult{}, errors.New("claude: result for unknown tool_use_id toolu_test")
+		}
 		assessment := Assessment{ValidationPassed: true, Observed: "saw the outcome work", SmallGaps: []string{"optional polish"}}
 		if len(h.assessments) > 0 {
 			assessment = h.assessments[0]
@@ -65,6 +74,74 @@ func (h *implementationHarness) RunTurn(_ context.Context, _ string, prompt stri
 			return gimble.TurnResult{Output: json.RawMessage(`"implemented"`)}, nil
 		}
 		return gimble.TurnResult{Output: json.RawMessage(`"no objection"`)}, nil
+	}
+}
+
+func TestImplementRecoversQAProtocolFailureAndRecordsEachAttempt(t *testing.T) {
+	for _, test := range []struct {
+		name        string
+		qaFailures  int
+		wantSuccess bool
+	}{
+		{"recovers", 1, true},
+		{"exhausted", 2, false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			h := &implementationHarness{qaFailures: test.qaFailures}
+			env, params := implementationParams(t, []string{"QA must validate the outcome"}, 1)
+			project := t.TempDir()
+			models := map[gimble.WorkflowRole]gimble.ModelBinding{
+				gimble.RoleSprintPlanning:        {Adapter: h, Model: "model"},
+				roleCoding:                       {Adapter: h, Model: "model"},
+				gimble.RoleArchitecturalCritique: {Adapter: h, Model: "model"},
+				gimble.RoleQAOrchestration:       {Adapter: h, Model: "model"},
+			}
+			err := gimble.Run(gimble.Project(t.Context(), project), "implementation-test", models,
+				func(ctx context.Context) error { return Implement(ctx, env, params) })
+			if test.wantSuccess && err != nil {
+				t.Fatal(err)
+			}
+			if !test.wantSuccess && (err == nil || !strings.Contains(err.Error(), "provider/session error after 2 attempts") || strings.Contains(err.Error(), "incomplete")) {
+				t.Fatalf("run error = %v, want explicit provider/session failure", err)
+			}
+			if h.qaAttempts != 2 || h.plans != 1 {
+				t.Fatalf("QA attempts = %d, planner turns = %d; want 2 and 1", h.qaAttempts, h.plans)
+			}
+			runs, err := filepath.Glob(filepath.Join(project, "runs", "*"))
+			if err != nil || len(runs) != 1 {
+				t.Fatalf("run directories = %v, error = %v", runs, err)
+			}
+			var qaTurns []gimble.TurnEnded
+			var judgments, passedChecks int
+			if err := runlog.Read[gimble.LifecycleRecord](t.Context(), runs[0], func(record gimble.LifecycleRecord) error {
+				if strings.Contains(record.Turn.Value, "/qa-orchestration.") {
+					if ended, ok := record.Event.(gimble.TurnEnded); ok {
+						qaTurns = append(qaTurns, ended)
+					}
+				}
+				if set, ok := record.Event.(gimble.ValueSet); ok && set.Key == "independent assessment" {
+					judgments++
+				}
+				if check, ok := record.Event.(gimble.CommandEnded); ok && strings.Contains(check.Stdout, "task-check-output") && check.ExitCode == 0 {
+					passedChecks++
+				}
+				return nil
+			}); err != nil {
+				t.Fatal(err)
+			}
+			if passedChecks != 1 {
+				t.Fatalf("passed task checks = %d, want one before QA recovery", passedChecks)
+			}
+			if len(qaTurns) != 2 || !strings.Contains(qaTurns[0].Error, "unknown tool_use_id") {
+				t.Fatalf("QA turn records = %+v, want original error and retry", qaTurns)
+			}
+			if test.wantSuccess && (qaTurns[1].Error != "" || judgments != 1) {
+				t.Fatalf("recovered QA turn = %+v, judgments = %d", qaTurns[1], judgments)
+			}
+			if !test.wantSuccess && (!strings.Contains(qaTurns[1].Error, "unknown tool_use_id") || judgments != 0) {
+				t.Fatalf("exhausted QA turn = %+v, judgments = %d", qaTurns[1], judgments)
+			}
+		})
 	}
 }
 

@@ -57,6 +57,56 @@ func TestRawProjectorUsesNestedMessageIDAndExactToolUseID(t *testing.T) {
 	}
 }
 
+func TestRawProjectorRecordsUnknownToolResultWithoutFailingTurn(t *testing.T) {
+	var events []gimble.AgentEvent
+	p := newProjector("session", "model", func(event gimble.AgentEvent) error {
+		events = append(events, event)
+		return nil
+	})
+	for _, raw := range []string{
+		`{"type":"stream_event","event":{"type":"message_start","message":{"id":"assistant-1","model":"model"}}}`,
+		`{"type":"stream_event","event":{"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"known","name":"Bash","input":{}}}}`,
+		`{"type":"stream_event","event":{"type":"content_block_stop","index":0}}`,
+		`{"type":"stream_event","event":{"type":"message_delta","delta":{"stop_reason":"tool_use"}}}`,
+		`{"type":"stream_event","event":{"type":"message_stop"}}`,
+		`{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"missing","content":"unmatched"},{"type":"tool_result","tool_use_id":"known","content":"ok"}]}}`,
+	} {
+		mustRaw(t, p.raw(json.RawMessage(raw)))
+	}
+	if got := countClaudeType(events, "session.synthetic"); got != 1 {
+		t.Fatalf("observation gap count = %d, types = %v", got, claudeTypes(events))
+	}
+	if got := countClaudeType(events, "session.tool.success"); got != 1 {
+		t.Fatalf("known tool result count = %d, types = %v", got, claudeTypes(events))
+	}
+	if got := countClaudeType(events, "session.step.ended"); got != 1 {
+		t.Fatalf("step did not finish after known tool result: %v", claudeTypes(events))
+	}
+	gap := firstClaudeType(t, events, "session.synthetic")
+	if !bytes.Contains(gap.Data, []byte(`"tool_use_id":"missing"`)) || !bytes.Contains(gap.NativeRef, []byte(`"itemID":"missing"`)) {
+		t.Fatalf("gap lost the unmatched result: data=%s native=%s", gap.Data, gap.NativeRef)
+	}
+}
+
+func TestProjectionErrorRecordsGapAndDoesNotStopLaterEvents(t *testing.T) {
+	var events []gimble.AgentEvent
+	p := newProjector("session", "model", func(event gimble.AgentEvent) error {
+		events = append(events, event)
+		return nil
+	})
+	p.observe(json.RawMessage(`{"type":"stream_event"}`))
+	p.observe(json.RawMessage(`{"type":"stream_event","event":{"type":"message_start","message":{"id":"assistant-1","model":"model"}}}`))
+	p.observe(json.RawMessage(`{"type":"stream_event","event":{"type":"message_delta","delta":{"stop_reason":"end_turn"}}}`))
+	p.observe(json.RawMessage(`{"type":"stream_event","event":{"type":"message_stop"}}`))
+	if got := claudeTypes(events); !slices.Equal(got, []string{"session.synthetic", "session.step.started", "session.step.streamed", "session.step.ended"}) {
+		t.Fatalf("events after projection gap = %v", got)
+	}
+	gap := events[0]
+	if !bytes.Contains(gap.Data, []byte(`"raw":"{\"type\":\"stream_event\"}"`)) {
+		t.Fatalf("diagnostic lost raw message: %s", gap.Data)
+	}
+}
+
 func TestRawProjectorStreamsTextAndZeroFillsAbsentUsage(t *testing.T) {
 	var events []gimble.AgentEvent
 	p := newProjector("session", "model", func(event gimble.AgentEvent) error { events = append(events, event); return nil })

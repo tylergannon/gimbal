@@ -174,22 +174,25 @@ func dispatchRecorded[T Output](ctx context.Context, s *Session, prompt string, 
 }
 
 // errInvalidResult marks a turn whose harness succeeded but whose result did
-// not validate or decode. generate re-asks the model on it and returns every
-// other error as it is.
+// not validate or decode. generate re-asks the model on it.
 var errInvalidResult = errors.New("invalid result")
 
-// generateAttempts bounds how many times one Generate asks the model for a
-// result. A result that fails validation or decoding is shown back to the
-// model with the reason; only the last failure is returned.
+// generateAttempts bounds invalid answers. A result that fails validation or
+// decoding is shown back to the model with the reason.
 const generateAttempts = 3
+const protocolAttempts = 2
 
 func generate[T Output](ctx context.Context, s *Session, prompt string, onEvent func(AgentEvent) error, outputType string, started *TurnStarted) (T, error) {
 	var out T
 	var problem error
-	for attempt := 1; ; attempt++ {
+	invalidAttempts, protocolFailures := 0, 0
+	for {
 		ask := prompt
 		if problem != nil {
 			ask = prompt + fmt.Sprintf("\n\nYour previous answer was invalid and was discarded: %v. Answer again, correctly.", problem)
+		}
+		if protocolFailures > 0 {
+			ask += "\n\nThe previous turn stopped with a provider/session error. Inspect the work already done and continue this task."
 		}
 		raw, err := s.turn(ctx, ask, out.Schema(), onEvent, outputType, out.ValidateJSON, started)
 		if err == nil {
@@ -198,12 +201,23 @@ func generate[T Output](ctx context.Context, s *Session, prompt string, onEvent 
 			}
 			err = fmt.Errorf("gimble: %s: decode the result: %w: %w", s.id, errInvalidResult, err)
 		} else if !errors.Is(err, errInvalidResult) {
+			// Projector gaps stay inside Claude's observer. This is a failure
+			// returned by Claude or its SDK after the native turn stopped.
+			if strings.Contains(err.Error(), "claude:") && strings.Contains(err.Error(), "unknown tool_use_id") {
+				protocolFailures++
+				if protocolFailures < protocolAttempts && ctx.Err() == nil {
+					logf("%s: provider/session error, retrying turn (%d of %d): %v", s.id, protocolFailures, protocolAttempts, err)
+					continue
+				}
+				return out, fmt.Errorf("gimble: %s: provider/session error after %d attempts: %w", s.id, protocolFailures, err)
+			}
 			return out, err
 		}
-		if attempt == generateAttempts {
-			return out, fmt.Errorf("gimble: %s: no valid result after %d attempts: %w", s.id, attempt, err)
+		invalidAttempts++
+		if invalidAttempts == generateAttempts {
+			return out, fmt.Errorf("gimble: %s: no valid result after %d attempts: %w", s.id, invalidAttempts, err)
 		}
-		logf("%s: the result is invalid, so the model is asked again (%d of %d): %v", s.id, attempt, generateAttempts, err)
+		logf("%s: the result is invalid, so the model is asked again (%d of %d): %v", s.id, invalidAttempts, generateAttempts, err)
 		problem = err
 	}
 }

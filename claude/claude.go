@@ -144,14 +144,8 @@ func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema 
 		claudeagent.WithAllowDangerouslySkipPermissions(true),
 		claudeagent.WithEnv(map[string]string{"CLAUDE_CODE_AUTO_COMPACT_WINDOW": autoCompactWindow}),
 		claudeagent.WithRawMessageObserver(func(raw json.RawMessage) error {
-			err := project.raw(raw)
-			if err != nil {
-				select {
-				case nativeErrors <- err:
-				default:
-				}
-			}
-			return err
+			project.observe(raw)
+			return nil
 		}),
 		claudeagent.WithStderr(func(data string) {
 			if err := fatalStderr(data); err != nil {

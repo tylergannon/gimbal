@@ -1,0 +1,7 @@
+correction: Tyler requires generated per-workflow HTTP entrypoints with direct typed calls, matching generated CLI entrypoints; one host may execute many workflows/projects but must not select workflow executables from a runtime name registry.
+decision: Assessment only. Preserve the multi-project host and recommend replacing its admission dispatcher; no application edits or live provider runs are part of this assessment.
+doc_bug: The API design record sketches workflow-start Forms, but the current remote manifest has none. Treat that sketch as intended design, not existing reuse surface.
+decision: Separate shared typed Go admission from shared HTTP wire protocol. Generated CLI JSON endpoints and SKGO browser Forms can use the same operation without copying SvelteKit framing into Gimble.
+friction: Optional workflow parameters already have Polytype devalue support, but current SKGO Form binding bypasses those codecs and cannot bind a scalar into Optional[T]. Target SKGO form binding when implementing start forms; do not assume a Polytype upgrade is required.
+doc_bug: Generator tests enforce generic Hosted/Submit wiring, and Gimble lint still uses Run's pre-model-argument callback index. Green checks do not establish the requested static endpoint architecture.
+decision: Current compiled examples interview and implement-interview submit to names absent from the stock server; example execution topology must be explicit when changing generation.

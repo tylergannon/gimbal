@@ -64,6 +64,6 @@ jobs:
 
           Before merging, inspect added and removed model IDs. When a newer model changes a family, update the default shorthand and explicit versions in `internal/modelalias/modelalias.go`, every affected built-in role in `cmd/gimble/defaults.json`, other configured defaults, and rendered workflow help or skills. Preserve each role's intended model tier. Do not add assertions that pin a moving shorthand to one version.
 
-          Follow the model-catalog review in `skills/gimble-release/SKILL.md`. Publish a release only after the complete model change is merged and checked; build the pushed commit and exact tag with `just build`, then verify each binary with its web listener running.
+          Follow the model-catalog review in `skills/gimble-release/SKILL.md`. Publish a release only after the complete model change is merged and checked; verify a published-commit install before tagging and an exact-tag install afterward, each with its web listener running.
           EOF
           gh pr create --base main --head "$branch" --title "Refresh models.dev catalog and review model defaults" --body-file /tmp/model-catalog-pr.md

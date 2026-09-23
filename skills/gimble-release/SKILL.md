@@ -44,10 +44,10 @@ just build
 
 The current recipe prepares Go and frontend dependencies, runs generation,
 formats generated frontend output, builds Svelte, checks that
-`web/build/skgo.manifest.json` exists, and builds `bin/gimble` with the web
-application embedded. Run `go install ./cmd/gimble` only after `just build` in
-the same checkout. A versioned `go install ...@version` skips the frontend
-build and cannot produce a working web-enabled CLI.
+`web/build/skgo.manifest.json` exists, packages `web/build.zip`, and builds
+`bin/gimble` with the web application embedded. Run `go install ./cmd/gimble`
+only after `just build` in the same checkout. Since v0.12.1, versioned
+`go install` uses the committed archive without rebuilding the frontend.
 
 Generators own generated files. Regenerate and inspect their diff rather than
 patching generated output by hand. Preserve Gimble-owned application code when
@@ -104,11 +104,11 @@ Keep each role's intended model tier. Check the rendered `gimble run` role
 flags, not only the JSON. Tests for aliases should cover resolution and
 overrides without fixing a moving shorthand to today's version.
 
-For a release, check out the pushed commit and then the exact tag in a clean
-worktree. Run `just build` and start each resulting binary with its web listener;
-confirm it serves the page. Publish a binary only if it came from that complete
-build. The Go module remains installable as a library, but its versioned CLI
-install is not a supported distribution path.
+Before tagging a release, check that `go.mod` has no replacement that blocks
+versioned installation. Install from the pushed commit with
+`go install github.com/tylergannon/gimble/cmd/gimble@<commit>` and start its web
+listener; confirm it serves the page. After tagging, repeat with the exact tag.
+A successful install without a served page does not prove the published CLI works.
 
 ## Merge and refresh the local installation
 

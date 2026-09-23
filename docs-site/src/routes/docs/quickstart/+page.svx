@@ -28,11 +28,12 @@ just build
 ```
 
 `just build` generates the Go bindings, builds the skgo/SvelteKit app, checks
-for `web/build/skgo.manifest.json`, and compiles `bin/gimble` with the web app
-embedded. To install the built CLI on your Go executable path, run
-`go install ./cmd/gimble` from this checkout after `just build`. For a specific
-release, check out its tag before building. A versioned `go install ...@version`
-does not run the frontend build and cannot start Gimble's web listener.
+for `web/build/skgo.manifest.json`, and packages the app into `web/build.zip`
+for embedding in `bin/gimble`. To install from this checkout, run
+`go install ./cmd/gimble` after `just build`. Starting with v0.12.1, you can
+also install a release directly with
+`go install github.com/tylergannon/gimble/cmd/gimble@<version>`; its packaged
+web app starts without a frontend build on the installing machine.
 
 Gimble drives coding-agent harnesses you already have. Install and sign in to at least one of Codex, Claude Code, or Antigravity before running a workflow.
 

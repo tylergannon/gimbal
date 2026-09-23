@@ -230,7 +230,7 @@ func (f *serverFlags) options() []web.Option {
 func serve(ctx context.Context, server serverFlags) error {
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt)
 	defer stop()
-	options := append(server.options(), builtInWorkflows())
+	options := server.options()
 	projects := server.projects
 	if len(projects) == 0 {
 		projects = []string{"."}

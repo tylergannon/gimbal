@@ -3,6 +3,13 @@
 	import { navigating, page } from '$app/state';
 	import favicon from '#lib/assets/favicon.svg';
 	import RunsLoading from '#lib/run/RunsLoading.svelte';
+	// Keep compiled start remotes in Kit's manifest until their visible forms
+	// import them from the start pages.
+	import './review_start.remote';
+	import './implement_start.remote';
+	import './researchdocument_start.remote';
+	import './pyramidsummary_start.remote';
+	import './validateproduct_start.remote';
 
 	let { children } = $props();
 	const project = $derived(page.params.project);

@@ -26,18 +26,18 @@ func TestConversationPageRendersProviderAndRealWorktreeFacts(t *testing.T) {
 	gitForConversationPage(t, repository, "commit", "-qm", "initial")
 
 	ctx, cancel := context.WithCancel(t.Context())
-	runtime, err := NewRuntime(ctx, repository, WithPort(0))
+	instance, runtime, err := newProject(ctx, repository, WithPort(0))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer func() {
 		cancel()
-		<-runtime.instance.done
+		<-instance.done
 	}()
 
 	items := make([]conversation.Conversation, 0, 3)
 	for _, provider := range []string{"codex", "claude", "agy"} {
-		item, err := runtime.conversations.Create(ctx, conversation.NewConversation{
+		item, err := runtime.Conversations().Create(ctx, conversation.NewConversation{
 			Title: provider + " page", Provider: provider,
 		})
 		if err != nil {
@@ -46,7 +46,7 @@ func TestConversationPageRendersProviderAndRealWorktreeFacts(t *testing.T) {
 		items = append(items, item)
 	}
 	selected := items[2]
-	response, err := http.Get("http://" + runtime.instance.address + "/projects/" + runtime.id + "/conversations/" + selected.ID)
+	response, err := http.Get("http://" + instance.address + "/projects/" + runtime.ID() + "/conversations/" + selected.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -66,7 +66,7 @@ func TestConversationPageRendersProviderAndRealWorktreeFacts(t *testing.T) {
 			t.Errorf("conversation page does not contain %q", want)
 		}
 	}
-	if got := strings.Count(string(body), "/projects/"+runtime.id+"/conversations/"); got != len(items) {
+	if got := strings.Count(string(body), "/projects/"+runtime.ID()+"/conversations/"); got != len(items) {
 		t.Errorf("saved conversation links with document navigation = %d, want %d", got, len(items))
 	}
 }
@@ -102,15 +102,15 @@ func TestConversationPageRendersLinkedWorkflowStatusAndSavedContext(t *testing.T
 	}
 
 	ctx, cancel := context.WithCancel(t.Context())
-	runtime, err := NewRuntime(ctx, repository, WithPort(0))
+	instance, runtime, err := newProject(ctx, repository, WithPort(0))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer func() {
 		cancel()
-		<-runtime.instance.done
+		<-instance.done
 	}()
-	response, err := http.Get("http://" + runtime.instance.address + "/projects/" + runtime.id + "/conversations/" + item.ID)
+	response, err := http.Get("http://" + instance.address + "/projects/" + runtime.ID() + "/conversations/" + item.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -119,7 +119,7 @@ func TestConversationPageRendersLinkedWorkflowStatusAndSavedContext(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"Workflow runs", "/projects/" + runtime.id + "/runs/01RUN.review", "completed", "Keep this context"} {
+	for _, want := range []string{"Workflow runs", "/projects/" + runtime.ID() + "/runs/01RUN.review", "completed", "Keep this context"} {
 		if !strings.Contains(string(body), want) {
 			t.Errorf("conversation page does not contain %q", want)
 		}

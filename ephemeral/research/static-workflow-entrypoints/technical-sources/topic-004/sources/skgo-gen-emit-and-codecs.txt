@@ -1,0 +1,64 @@
+# SKGO Code Generation Architecture: gen.go, emit.go, codecs.go
+Origin: /Users/tyler/.codex/worktrees/d798/skgo/internal/gen/gen.go
+Origin: /Users/tyler/.codex/worktrees/d798/skgo/internal/gen/emit.go
+Origin: /Users/tyler/.codex/worktrees/d798/skgo/internal/gen/codecs.go
+Version: skgo worktree at fed929b
+Retrieval Date: 2026-09-23
+
+---
+
+### Excerpt 1: SKGO Generation Lifecycle and File Writers
+
+Location: `internal/gen/gen.go`, lines 30-45, 87-92; `emit.go`, lines 241-255:
+
+```go
+type Config struct {
+	Web string
+	Out string
+	Package string
+	Logf func(format string, args ...any)
+}
+
+func (a *app) writePackageBindings() error {
+	// Emits skgo_remotes_gen.go in each route package, registering
+	// remote functions with the route-local Skgo_... dispatchers.
+}
+
+func (a *app) writeAppBindings() error {
+	// Emits skgo_bindings_gen.go and skgo_devalue_gen.go in cfg.Out
+	// (internal/skgo), wiring the server registry and Polytype codecs.
+}
+```
+
+---
+
+### Excerpt 2: SKGO Form Handler Generation and Codec Bypassing
+
+Location: `internal/gen/codecs.go`, lines 80-94; `emit.go`, lines 508-540:
+
+```go
+// Form functions bypass Polytype argument decoding:
+// Because a form can accept uploaded files (skgo.File), it uses
+// formdata.ParseWith and skgo.DecodeForm rather than the generated Polytype
+// devalue decoder.
+```
+
+---
+
+### Excerpt 3: Placement of Typed Go Form Client Generation
+
+In order to support typed Go Form clients:
+1. `internal/gen` needs to scan `kindForm` declarations and identify their input and output types.
+2. Rather than emitting private client protocol logic in Gimble, SKGO must emit typed client methods:
+   `func (c *Client) <RemoteName>(ctx context.Context, in <InputType>) (<OutputType>, error)`
+   or a package of client callers.
+3. The client calls a shared SKGO transport function (in `skgo` or `skgo/client`) that:
+   - Encodes `<InputType>` into `application/x-sveltekit-formdata` binary envelope using `formdata.Serialize` (or shared encoder).
+   - Issues `POST` request over the configured `http.RoundTripper` / `*http.Client`.
+   - Parses HTTP 200 JSON envelope:
+     - If `type == "error"`: returns `*skgo.HTTPError{Status, Message}`.
+     - If `type == "result"`: decodes `data` with devalue.
+       - If `issues` present: returns `*skgo.Invalid{Issues: ...}`.
+       - If `result` present: returns decoded typed `<OutputType>`.
+   - Honors caller context cancellation: cancels network wait without issuing cancellation commands.
+   - Refrains from automatic mutation retries.

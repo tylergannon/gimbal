@@ -104,7 +104,7 @@ func TestRuntimeReachesALiveRunByID(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	project := t.TempDir()
-	runtime, err := NewRuntime(ctx, project, WithNoWeb())
+	_, runtime, err := newProject(ctx, project, WithNoWeb())
 	if err != nil {
 		t.Fatal(err)
 	}

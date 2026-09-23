@@ -1,0 +1,175 @@
+// Origin: /Users/tyler/.codex/worktrees/d798/gimble/web/control.go
+// Revision: 40dc82947eed99202fd9cb1dd377b6a3c2abbccc
+// Date: 2026-09-23
+// Scope: Control socket handling, legacy Submission / submit entrypoint, and control muxing.
+
+package web
+
+import (
+	"context"
+	"crypto/rand"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"log"
+	"net"
+	"net/http"
+	"os"
+	"path/filepath"
+	"slices"
+	"strings"
+
+	"github.com/tylergannon/gimble"
+	"github.com/tylergannon/gimble/internal/binding"
+	"github.com/tylergannon/gimble/internal/observation"
+)
+
+// controlDiscovery is the small file a local client finds below the instance
+// state directory. The file is only a hint: clients must dial Socket and
+// ask the runtime for its live state before treating the instance as running.
+type controlDiscovery struct {
+	PID     int    `json:"pid"`
+	Socket  string `json:"socket"`
+	Project string `json:"project"`
+}
+
+type controlHandler struct {
+	instance *Instance
+}
+
+func (h controlHandler) project(r *http.Request) (*Runtime, error) {
+	name := r.Header.Get("X-Gimble-Project")
+	if name == "" {
+		return nil, errors.New("gimble: project is required")
+	}
+	path, err := canonicalProject(name)
+	if err != nil {
+		return nil, err
+	}
+	h.instance.mu.RLock()
+	defer h.instance.mu.RUnlock()
+	p := h.instance.projects[path]
+	if p == nil {
+		return nil, fmt.Errorf("gimble: project %s is not admitted", path)
+	}
+	return p, nil
+}
+
+func (h controlHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	switch {
+	case r.Method == http.MethodGet && r.URL.Path == "/control/runs":
+		h.runs(w, r)
+	case r.Method == http.MethodPost && r.URL.Path == "/control/submit":
+		h.submit(w, r)
+	case r.Method == http.MethodPost && r.URL.Path == "/control/steer":
+		h.steer(w, r)
+	case r.Method == http.MethodPost && r.URL.Path == "/control/steer-loop":
+		h.steerLoop(w, r)
+	default:
+		http.NotFound(w, r)
+	}
+}
+
+// Submission carries choices across the process boundary without binding a
+// harness in the client process. The instance resolves models and executables.
+type Submission struct {
+	Name         string                         `json:"name"`
+	Params       json.RawMessage                `json:"params"`
+	Models       map[gimble.WorkflowRole]string `json:"models"`
+	WorkDir      string                         `json:"work_dir"`
+	Conversation string                         `json:"conversation,omitempty"`
+}
+
+type Admission struct {
+	ID string `json:"id"`
+}
+
+func (h controlHandler) submit(w http.ResponseWriter, r *http.Request) {
+	p, err := h.project(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	var request Submission
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	entry := h.instance.workflows[request.Name]
+	if entry == nil {
+		http.Error(w, "unknown built-in workflow "+request.Name, http.StatusBadRequest)
+		return
+	}
+	if !filepath.IsAbs(request.WorkDir) {
+		http.Error(w, "work_dir must be absolute", http.StatusBadRequest)
+		return
+	}
+	if info, err := os.Stat(request.WorkDir); err != nil || !info.IsDir() {
+		http.Error(w, "work_dir must be an existing directory", http.StatusBadRequest)
+		return
+	}
+	if request.Conversation != "" {
+		worktree, ok := p.conversations.Worktree(request.Conversation)
+		if !ok || worktree != request.WorkDir {
+			http.Error(w, "conversation does not belong to this project and worktree", http.StatusBadRequest)
+			return
+		}
+	}
+	models, err := binding.Roles(request.Models)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	started := make(chan string, 1)
+	ctx := context.WithValue(p.ctx, conversationRunStartedKey{}, func(id string) { started <- id })
+	done := make(chan error, 1)
+	go func() {
+		done <- p.Run(ctx, request.Name, models, func(ctx context.Context) error {
+			return entry(ctx, gimble.Env{WorkDir: request.WorkDir}, request.Params)
+		})
+	}()
+	var id string
+	finished := false
+	select {
+	case id = <-started:
+	case err := <-done:
+		finished = true
+		select {
+		case id = <-started:
+		default:
+		}
+		if id == "" {
+			http.Error(w, fmt.Sprintf("run could not start: %v", err), http.StatusInternalServerError)
+			return
+		}
+	case <-p.ctx.Done():
+		http.Error(w, "instance stopped", http.StatusServiceUnavailable)
+		return
+	}
+	if request.Conversation != "" {
+		if err := p.conversations.Associate(request.Conversation, id, request.Name, request.WorkDir); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if finished {
+			p.conversations.RefreshRun(id)
+		} else {
+			go func() { <-done; p.conversations.RefreshRun(id) }()
+		}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(Admission{ID: id})
+}
+
+func controlMux(i *Instance) http.Handler {
+	h := controlHandler{instance: i}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		p, err := h.project(r)
+		if err != nil || p == nil {
+			http.Error(w, "project is not admitted", http.StatusNotFound)
+			return
+		}
+		observation.Routes(h).ServeHTTP(w, r.WithContext(p.requestContext(r.Context())))
+	})
+}

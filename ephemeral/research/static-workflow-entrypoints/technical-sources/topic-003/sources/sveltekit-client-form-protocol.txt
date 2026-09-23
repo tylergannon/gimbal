@@ -1,0 +1,96 @@
+# SvelteKit Reference: form.svelte.js and shared.svelte.js
+Origin: /Users/tyler/src/skgo/ephemeral/inspiration/reference/kit@3.0.0-next.25/src/runtime/client/remote-functions/form.svelte.js
+Origin: /Users/tyler/src/skgo/ephemeral/inspiration/reference/kit@3.0.0-next.25/src/runtime/client/remote-functions/shared.svelte.js
+Version: @sveltejs/kit@3.0.0-next.25 (pinned reference)
+Retrieval Date: 2026-09-23
+
+---
+
+### Excerpt 1: form.svelte.js - Request Assembly and Headers in Enhanced Submission
+
+Location: `src/runtime/client/remote-functions/form.svelte.js`, lines 242-261:
+
+```javascript
+							const { blob } = serialize_binary_form(convert(form_data), {
+								remote_refreshes: Array.from(refreshes ?? [])
+							});
+
+							const response = await remote_request(
+								`${base}/${app_dir}/remote/${action_id_without_key}`,
+								{
+									method: 'POST',
+									headers: {
+										'Content-Type': BINARY_FORM_CONTENT_TYPE,
+										// Forms cannot be called during rendering, so it's save to use location here
+										'x-sveltekit-pathname': location.pathname,
+										'x-sveltekit-search': location.search
+									},
+									body: blob
+								}
+							);
+
+							({ issues: raw_issues = [], result } = response._ ?? {});
+```
+
+---
+
+### Excerpt 2: form.svelte.js - Validation-Only Request (form.validate)
+
+Location: `src/runtime/client/remote-functions/form.svelte.js`, lines 728-750:
+
+```javascript
+						const result = await remote_request(
+							`${base}/${app_dir}/remote/${action_id_without_key}`,
+							{
+								method: 'POST',
+								headers: {
+									'Content-Type': BINARY_FORM_CONTENT_TYPE,
+									// Validation should not be and will not be called during rendering, so it's save to use location here
+									'x-sveltekit-pathname': location.pathname,
+									'x-sveltekit-search': location.search
+								},
+								body: serialize_binary_form(data, {
+									validate_only: true
+								}).blob
+							}
+						);
+
+						if (validate_id !== id) {
+							return;
+						}
+
+						array = /** @type {InternalRemoteFormIssue[]} */ (result._);
+```
+
+---
+
+### Excerpt 3: shared.svelte.js - Client remote_request and Response Decoding
+
+Location: `src/runtime/client/remote-functions/shared.svelte.js`, lines 113-137:
+
+```javascript
+export async function remote_request(url, init) {
+	const response = await fetch(url, init);
+	const status = response.status;
+
+	// detect new deployments from the response header
+	notify_version(response.headers.get('x-sveltekit-version'));
+
+	if (!response.ok) {
+		const result = await response.json().catch(() => undefined);
+
+		throw result?.type === 'error'
+			? new HandledHttpError({ status, ...result.error })
+			: new HttpError({ status, message: response.statusText });
+	}
+
+	const result = /** @type {RemoteFunctionResponse} */ (await response.json());
+
+	if (result.type === 'error') {
+		throw new HandledHttpError(result.error);
+	}
+
+	const data = /** @type {RemoteFunctionData} */ (
+		result.data ? devalue.parse(result.data, app.decoders) : {}
+	);
+```

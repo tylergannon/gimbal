@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/tylergannon/gimble/internal/host"
+
 	"github.com/tylergannon/skgo"
 
 	"github.com/tylergannon/gimble"
@@ -46,11 +48,11 @@ func (*interviewing) Steer(context.Context, string, string) (bool, error) { retu
 func (*interviewing) Fork(context.Context, string) (string, error)        { return "fork", nil }
 func (*interviewing) Close(context.Context, string) error                 { return nil }
 
-func pendingQuestion(t *testing.T, runtime *Runtime, runID, except string) observation.InterviewRow {
+func pendingQuestion(t *testing.T, runtime *host.Project, runID, except string) observation.InterviewRow {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for {
-		snapshot, err := runtime.registry.Snapshot(runID)
+		snapshot, err := runtime.Registry().Snapshot(runID)
 		if err == nil {
 			for id, question := range snapshot.Interviews {
 				if id != except && question.Status == observation.InterviewStatusPending {
@@ -84,7 +86,7 @@ func TestInterviewAnswerFormReachesTheWaitingInterview(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	project := t.TempDir()
-	runtime, err := NewRuntime(ctx, project, WithNoWeb())
+	_, runtime, err := newProject(ctx, project, WithNoWeb())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,7 +106,7 @@ func TestInterviewAnswerFormReachesTheWaitingInterview(t *testing.T) {
 
 	id := startedRunID(t, project)
 	first := pendingQuestion(t, runtime, id, "")
-	answered, err := routes.Skgo_answerInterview(runtime.ctx, routes.InterviewAnswer{
+	answered, err := routes.Skgo_answerInterview(runtime.Context(), routes.InterviewAnswer{
 		Run: id, QuestionID: first.QuestionID, Answer: "Blue",
 	})
 	if err != nil || !answered.Accepted {
@@ -112,14 +114,14 @@ func TestInterviewAnswerFormReachesTheWaitingInterview(t *testing.T) {
 	}
 
 	var status *skgo.HTTPError
-	if _, err := routes.Skgo_answerInterview(runtime.ctx, routes.InterviewAnswer{
+	if _, err := routes.Skgo_answerInterview(runtime.Context(), routes.InterviewAnswer{
 		Run: id, QuestionID: first.QuestionID, Answer: "duplicate",
 	}); !errors.As(err, &status) || status.Status != 404 {
 		t.Fatalf("stale answer = %v, want 404", err)
 	}
 
 	second := pendingQuestion(t, runtime, id, first.QuestionID)
-	answered, err = routes.Skgo_answerInterview(runtime.ctx, routes.InterviewAnswer{
+	answered, err = routes.Skgo_answerInterview(runtime.Context(), routes.InterviewAnswer{
 		Run: id, QuestionID: second.QuestionID, Answer: "",
 	})
 	if err != nil || !answered.Accepted {

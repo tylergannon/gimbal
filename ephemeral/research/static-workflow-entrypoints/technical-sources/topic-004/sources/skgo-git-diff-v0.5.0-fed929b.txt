@@ -1,0 +1,91 @@
+# SKGO Release Baseline and Worktree Diff: v0.5.0 vs fed929b
+Origin: /Users/tyler/.codex/worktrees/d798/skgo
+Version: v0.5.0 (commit a14ceed) through fed929b (HEAD of codex/workflow-form-clients)
+Retrieval Date: 2026-09-23
+
+---
+
+### Excerpt 1: Git Log v0.5.0..fed929b
+
+```text
+commit fed929be657dbcf739bc474681fb78922c26217c (HEAD -> codex/workflow-form-clients, origin/main, origin/HEAD, main)
+Author: Tyler Gannon <tyler@tylergannon.com>
+Date:   Wed Sep 18 18:49:00 2026 -0400
+
+    refactor: use polytype devalue uneval (#152)
+
+commit 6c8a95ae1583d7aa32a0d922e92c10bcf596b412 (tag: v0.6.0)
+Author: Tyler Gannon <tyler@tylergannon.com>
+Date:   Wed Sep 18 17:00:00 2026 -0400
+
+    feat: expose Svelte installer choices in skgo new
+
+commit a14ceed150ea8a2ff5b4306fe51d6c8b3986ae27 (tag: v0.5.0)
+Author: Tyler Gannon <tyler@tylergannon.com>
+Date:   Wed Sep 11 12:00:00 2026 -0400
+
+    feat: delegate project generation to VitePlus and sv (#150)
+```
+
+---
+
+### Excerpt 2: Git Diff Stat v0.5.0..fed929b
+
+```text
+ document.go                                        |   2 +-
+ document_assemble.go                               |   2 +-
+ document_form.go                                   |   2 +-
+ document_form_test.go                              |   2 +-
+ document_stream_test.go                            |   2 +-
+ ephemeral/worklog/202609181749-polytype-devalue-uneval.md |   2 +
+ example/e2e/features/ssr.feature                   |   5 +
+ example/e2e/steps/ssr.ts                           |  16 +
+ example/go.mod                                     |   4 +-
+ example/go.sum                                     |   8 +-
+ example/internal/skgo/links/onzggl3sn52xizlt/layout.server.go |  14 +-
+ example/internal/skgo/skgo_devalue_gen.go          |   9 +-
+ example/web/src/routes/+layout.server.ts           |   2 +-
+ example/web/src/routes/+layout.svelte              |   5 +
+ example/web/src/routes/layout.server.go            |  14 +-
+ go.mod                                             |   4 +-
+ go.sum                                             |   8 +-
+ internal/devalue/eval_test.go                      | 267 -------
+ internal/devalue/js.go                             | 252 -------
+ internal/devalue/typedarray.go                     |  65 --
+ internal/devalue/uneval.go                         | 772 --------------------
+ internal/devalue/uneval_test.go                    | 775 ---------------------
+ internal/devalue/value.go                          | 422 -----------
+ transport.go                                       |   2 +-
+ README.md                                          |  25 +-
+ cmd/skgo/main.go                                   |  27 +-
+ ephemeral/worklog/202609181700-upstream-installer-choices.md |  12 +
+ internal/newapp/gofiles/README.md.tmpl             |   8 +-
+ internal/newapp/newapp.go                          | 283 +++++++++++--
+ internal/newapp/newapp_test.go                     | 439 +++++++++++++++++----
+ internal/sv/README.md                              |  10 +-
+ internal/sv/sv-addon.js                            | 253 ++++++------
+ internal/sv/sv-addon.source.js                     |  64 ++-
+ 33 files changed, 1079 insertions(+), 2849 deletions(-)
+```
+
+---
+
+### Excerpt 3: Gimble Dependency Pinning in go.mod
+
+Location: `/Users/tyler/.codex/worktrees/d798/gimble/go.mod`
+
+```text
+require (
+	github.com/tylergannon/polytype v1.0.3
+	github.com/tylergannon/skgo v0.5.0
+)
+```
+
+Analysis:
+1. Gimble pins v0.5.0.
+2. In the skgo repository, v0.6.0 added `skgo new` installer choices.
+3. fed929b refactored skgo to delete internal/devalue (2,574 LOC removed) and use polytype/devalue.Uneval directly.
+4. Neither v0.5.0 nor fed929b currently contains:
+   - Go client generation for remote Forms in `internal/gen`
+   - Form decoding support for `polytype.Optional[T]` in `internal/formdata/decode.go`
+5. Therefore, a new release baseline (e.g. v0.7.0) containing client generation and form scalar/optional decoding must be cut before Gimble can pin it.

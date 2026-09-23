@@ -145,8 +145,9 @@ answers one follow-up: its three favorite and three least favorite aspects of UX
 and UI separately, with concrete examples. The debrief is appended to the task
 report; elapsed workload time excludes it. Supply the product, local assignment
 files, isolated workspaces, startup/readiness commands or existing URLs, and an
-output directory. Start an instance admitting `/abs/project` first; `--follow`
-waits for triage and issue publication. The command's help describes the
+output directory. Start the selected instance; the workflow command admits
+`/abs/project` on its first start when it was not admitted at startup.
+`--follow` waits for triage and issue publication. The command's help describes the
 JSON/YAML input and model overrides. Publishing requires authenticated `gh`
 and a configured public artifact destination.
 

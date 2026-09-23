@@ -35,7 +35,11 @@ func TestLiveKillTurnByID(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
-	runtime, err := web.NewRuntime(ctx, logs, web.WithNoWeb())
+	instance, err := web.NewInstance(ctx, filepath.Join(logs, ".gimble"), []string{logs}, web.WithNoWeb())
+	if err != nil {
+		t.Fatal(err)
+	}
+	runtime, err := instance.Owner.Project(logs)
 	if err != nil {
 		t.Fatal(err)
 	}

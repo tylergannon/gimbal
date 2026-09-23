@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/tylergannon/gimble/internal/host"
 	"github.com/tylergannon/gimble/internal/observation"
-	hooks "github.com/tylergannon/gimble/web/src"
 )
 
 func TestRunsPageRendersEveryRunAndPendingInterview(t *testing.T) {
@@ -52,7 +52,7 @@ func TestRunsPageRendersEveryRunAndPendingInterview(t *testing.T) {
 
 	request := httptest.NewRequest(http.MethodGet, "/projects/test", nil)
 	ctx := observation.WithRegistry(request.Context(), registry)
-	request = request.WithContext(hooks.WithProjectDir(ctx, project))
+	request = request.WithContext(host.WithProjectDir(ctx, project))
 	recorder := httptest.NewRecorder()
 	handler.ServeHTTP(recorder, request)
 	if recorder.Code != http.StatusOK {
@@ -102,7 +102,7 @@ func TestRunsPageRendersAnEmptyProject(t *testing.T) {
 	project := t.TempDir()
 	request := httptest.NewRequest(http.MethodGet, "/projects/test", nil)
 	ctx := observation.WithRegistry(request.Context(), observation.NewRegistry(project))
-	request = request.WithContext(hooks.WithProjectDir(ctx, project))
+	request = request.WithContext(host.WithProjectDir(ctx, project))
 	recorder := httptest.NewRecorder()
 	handler.ServeHTTP(recorder, request)
 	if recorder.Code != http.StatusOK {
@@ -141,7 +141,7 @@ func TestRunsPageRefreshesAForeignRunFromDisk(t *testing.T) {
 		t.Helper()
 		request := httptest.NewRequest(http.MethodGet, "/projects/test", nil)
 		ctx := observation.WithRegistry(request.Context(), servedRegistry)
-		request = request.WithContext(hooks.WithProjectDir(ctx, project))
+		request = request.WithContext(host.WithProjectDir(ctx, project))
 		recorder := httptest.NewRecorder()
 		handler.ServeHTTP(recorder, request)
 		if recorder.Code != http.StatusOK {

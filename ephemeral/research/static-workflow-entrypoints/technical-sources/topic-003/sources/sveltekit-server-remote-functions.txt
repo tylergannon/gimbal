@@ -1,0 +1,112 @@
+# SvelteKit Reference: runtime/server/remote-functions.js
+Origin: /Users/tyler/src/skgo/ephemeral/inspiration/reference/kit@3.0.0-next.25/src/runtime/server/remote-functions.js
+Version: @sveltejs/kit@3.0.0-next.25 (pinned reference)
+Retrieval Date: 2026-09-23
+
+---
+
+### Excerpt 1: Server Dispatch of Form Remotes
+
+Location: `src/runtime/server/remote-functions.js`, lines 227-277:
+
+```javascript
+			case 'form': {
+				if (event.request.method !== 'POST') {
+					throw new SvelteKitError(
+						405,
+						'Method Not Allowed',
+						`\`form\` functions must be invoked via POST request, not ${event.request.method}`
+					);
+				}
+
+				if (!is_form_content_type(event.request)) {
+					throw new SvelteKitError(
+						415,
+						'Unsupported Media Type',
+						`\`form\` functions expect form-encoded data — received ${event.request.headers.get(
+							'content-type'
+						)}`
+					);
+				}
+
+				const {
+					data: input,
+					meta,
+					form_data
+				} = await deserialize_binary_form(event.request, internals.id);
+				state.remote.requested = create_requested_map(meta.remote_refreshes);
+
+				// If this is a keyed form instance (created via form.for(key)), add the key to the form data (unless already set)
+				// Note that additional_args will only be set if the form is not enhanced, as enhanced forms transfer the key inside `data`.
+				if (additional_args && !('id' in input)) {
+					input.id = JSON.parse(decodeURIComponent(additional_args));
+				}
+
+				const fn = internals.fn;
+				data._ = await with_request_store(
+					{ event, state: { ...state, is_in_remote_form_or_command: true } },
+					() => fn(input, meta, form_data)
+				);
+
+				if (data._.issues) {
+					// special case — don't serialize refreshes/reconnects
+					return Response.json(
+						/** @type {RemoteFunctionResponse} */ ({
+							type: 'result',
+							data: stringify(data)
+						}),
+						{ headers }
+					);
+				}
+
+				break;
+			}
+```
+
+---
+
+### Excerpt 2: Server Response Serialization: HTTP 200 for Both Success and Runtime Errors
+
+Location: `src/runtime/server/remote-functions.js`, lines 313-350:
+
+```javascript
+		await collect_remote_data(data, event, state);
+
+		return Response.json(
+			/** @type {RemoteFunctionResponse} */ ({
+				type: 'result',
+				data: stringify(data)
+			}),
+			{ headers }
+		);
+	} catch (error) {
+		if (error instanceof Redirect) {
+			const data = await collect_remote_data({ redirect: error.location }, event, state);
+
+			return Response.json(
+				/** @type {RemoteFunctionResponse} */ ({
+					type: 'result',
+					data: stringify(data)
+				}),
+				{ headers }
+			);
+		}
+
+		const transformed = await handle_error_and_jsonify(event, state, error);
+
+		return Response.json(
+			/** @type {RemoteFunctionResponse} */ ({
+				type: 'error',
+				error: transformed
+			}),
+			{
+				// By setting a non-200 during prerendering we fail the prerender process (unless handleHttpError handles it).
+				// Errors at runtime will be passed to the client and are handled there
+				status: state.prerendering ? transformed.status : undefined,
+				headers: {
+					'cache-control': 'private, no-store'
+				}
+			}
+		);
+	}
+```

@@ -1,0 +1,46 @@
+# Source: web/src/project.go - Context Keys and Helpers for Project Scoping
+
+- **Origin**: `/Users/tyler/.codex/worktrees/d798/gimble/web/src/project.go`
+- **Commit**: `40dc82947eed99202fd9cb1dd377b6a3c2abbccc`
+- **Retrieval Date**: 2026-09-23
+- **Scope**: Complete implementation of project context keys, `WithProjectDir`, `ProjectDir`, `WithProjects`, and `Projects`.
+
+---
+
+```go
+package hooks
+
+import "context"
+
+type projectDirKey struct{}
+type projectsKey struct{}
+
+type ProjectChoice struct {
+	ID   string `json:"id"`
+	Path string `json:"path"`
+}
+
+func WithProjects(ctx context.Context, choices []ProjectChoice) context.Context {
+	return context.WithValue(ctx, projectsKey{}, choices)
+}
+
+func Projects(ctx context.Context) []ProjectChoice {
+	choices, _ := ctx.Value(projectsKey{}).([]ProjectChoice)
+	return choices
+}
+
+// WithProjectDir keeps the runtime's project directory on the request context
+// so server loads can discover the runs that belong to this application.
+func WithProjectDir(ctx context.Context, dir string) context.Context {
+	return context.WithValue(ctx, projectDirKey{}, dir)
+}
+
+// ProjectDir returns the runtime's project directory from ctx.
+func ProjectDir(ctx context.Context) string {
+	if ctx == nil {
+		return ""
+	}
+	dir, _ := ctx.Value(projectDirKey{}).(string)
+	return dir
+}
+```

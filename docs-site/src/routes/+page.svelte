@@ -6,7 +6,7 @@
   import LoopCode from "#lib/snippets/LoopCode.svx";
   import RunHelp from "#lib/snippets/RunHelp.svx";
   import { features, primitives, site } from "#lib/site";
-  import defaults from "../../../cmd/gimble/defaults.json";
+  import defaults from "../../../internal/builtin/defaults.json";
 
   const title = `${site.name} — ${site.headline}`;
   const canonical = `${site.base}/`;
@@ -120,7 +120,7 @@
         <a class="text-primary mt-6 inline-block text-sm font-medium" href={resolve("/docs/roles")}>The role catalog →</a>
       </div>
       <div class="frame">
-        <div class="frame-bar"><i></i><i></i><i></i><span>cmd/gimble/defaults.json</span></div>
+        <div class="frame-bar"><i></i><i></i><i></i><span>internal/builtin/defaults.json</span></div>
         <dl class="divide-border divide-y font-mono text-[0.8rem]">
           {#each bindings as [role, model]}
             <div class="flex items-center justify-between gap-4 px-5 py-2">

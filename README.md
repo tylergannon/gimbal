@@ -68,11 +68,13 @@ compiled into it:
 ./bin/gimble run review --instance-dir /tmp/gimble-instance --project /absolute/project --goal "Review the current changes" --follow
 ```
 
-Run the first command in its own terminal. `--project` admits a repository;
+Run the first command in its own terminal. A start command admits its `--project`
+repository on first use, even if the instance did not open it at startup;
 `--instance-dir` holds instance control and discovery, separately from the
 project's `.gimble/runs` and conversation files. Repeat `--project` to admit
-more repositories. The generated subcommand sends parameters and model choices
-to the selected running instance. A project has one active instance owner; a
+more repositories at startup. Each generated subcommand calls its workflow's
+typed SKGO Form endpoint, the same handler used by its generated browser binding.
+A project has one active instance owner; a
 second instance refuses it, including through a path alias. Different projects
 can run on independently configured instances, and a project can reopen after
 its owner exits. `--work-dir` controls execution independently of the owning
@@ -109,10 +111,11 @@ prescribed `WorkflowRole` constants and their descriptions live together in
 `roles.go`; applications may define additional typed constants when they need
 a role the catalog does not provide.
 
-`go generate ./internal/workflows/...` runs Polytype for each workflow's
-declared structured outputs, then the independent workflow generator in
-`internal/generate/`. It can rebuild missing or stale generated commands
-without first building the application CLI.
+`go generate ./...` regenerates workflow graphs, the stock Form handlers and
+CLI commands selected in `internal/builtin/workflows.go`, and the SKGO browser
+and Go bindings. `internal/generate/gimblegen` emits workflow graph metadata;
+`internal/generate/stockgen` emits the five built-in start entrypoints from one
+selection.
 
 The generated file also registers the workflow graph under the run's workflow
 name. The run page requires that graph to match the recorded structure. After
@@ -121,17 +124,16 @@ project, and restart that binary; missing or stale generated graph code is
 reported on the run page with those corrective steps instead of a graphless
 history view.
 
-The supported user-authored hosted path is in this Gimble checkout. Add a
-package under `internal/workflows/`, using `internal/workflows/review/` as the
-small example. Give it an entry such as `func Name(ctx context.Context, env
+The supported built-in authoring path is in this Gimble checkout. Add a package
+under `internal/workflows/`, using `internal/workflows/review/` as the small
+example. Give it an entry such as `func Name(ctx context.Context, env
 gimble.Env, params NameParams) error` and a `//go:generate` directive for
-`go run github.com/tylergannon/gimble/internal/generate/gimblegen -entry Name
--name name`. For structured result types, add a `//go:build jsonschema` file
-and Polytype generation as the review package does. Run `just build`; import
-the package in `cmd/gimble/workflows.go`, add its generated
-`Command(workflowDefaults())` to `newRunCommand`, and add its `Hosted()` to
-`builtInWorkflows` with the exact generated run name. Rebuild, restart the
-instance with that binary, and invoke its generated subcommand. The graph's
+`gimblegen`. For structured result types, add a `//go:build jsonschema` file
+and Polytype generation as the review package does. Add the built-in to
+`internal/builtin/workflows.go`; `go generate ./...` produces its graph, typed
+Form handler, CLI command and Go client binding from that selection. The
+handler calls the workflow directly and the CLI calls the matching generated
+SKGO client. Rebuild and restart the instance with that binary. The graph's
 registration comes from the generated file compiled into the instance.
 An unknown role is required on the command line when
 `cmd/gimble/defaults.json` has no default for it. The generator uses Gimble

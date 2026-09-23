@@ -1,0 +1,224 @@
+# Polytype Optional and Codec Source Excerpts
+
+Origin: github.com/tylergannon/polytype@v1.0.3 (module cache) / polytype@v1.1.0
+Date: 2026-09-23
+
+---
+## 1. optionality.go (lines 15-48)
+
+```go
+// Optional represents an object property that may be absent. The zero value is
+// absent; a present value may contain T's zero value but may not encode as null.
+// Containing struct fields must use json:",omitzero" so absent values are
+// omitted before MarshalJSON is called.
+type Optional[T any] struct {
+	Present bool
+	Value   T
+}
+
+// IsZero reports whether the property is absent.
+func (o Optional[T]) IsZero() bool { return !o.Present }
+
+// MarshalJSON encodes a present non-null value.
+func (o Optional[T]) MarshalJSON() ([]byte, error) {
+	if !o.Present {
+		return nil, errOptionalAbsent
+	}
+	return marshalPresent(o.Value)
+}
+
+// UnmarshalJSON decodes a present non-null value without mutating the receiver
+// when decoding fails.
+func (o *Optional[T]) UnmarshalJSON(data []byte) error {
+	if isJSONNull(data) {
+		return errors.New("Optional value cannot be JSON null")
+	}
+	var value T
+	if err := json.Unmarshal(data, &value); err != nil {
+		return err
+	}
+	*o = Optional[T]{Present: true, Value: value}
+	return nil
+}
+```
+
+---
+## 2. internal/builder/typegrammar.go (lines 719-729)
+
+```go
+	wrapper, inner, err := field.Wrapper()
+	if err != nil {
+		return nil, err
+	}
+	if err := validateStaticFieldWireContract(owner, field, wrapper); err != nil {
+		return nil, err
+	}
+	if wrapper == syntax.WrapperOptional && !field.HasJSONOption("omitzero") {
+		return nil, fmt.Errorf("%s field %s.%s requires json:\",omitzero\" at %s", wrapper, owner.Name(), fieldName(field), field.Position())
+	}
+```
+
+---
+## 3. devalue/codegen/decode.go (lines 50-77, 211-233, 258-291)
+
+```go
+// decode emits the statements that convert the devalue value model expression
+// raw into a Go value of the node's structural type, and returns its name.
+func (e *emitter) decode(node typegrammar.Type, raw, at string) (string, error) {
+	out := e.name("dec")
+	switch n := node.(type) {
+	case *typegrammar.Scalar:
+		switch n.Kind {
+		case typegrammar.Bool:
+			e.writef("%s, err := dvBool(%s, %s)", out, raw, at)
+			e.check()
+		case typegrammar.String:
+			e.writef("%s, err := dvString(%s, %s)", out, raw, at)
+			e.check()
+		case typegrammar.Float64:
+			e.writef("%s, err := dvNumber(%s, %s)", out, raw, at)
+			e.check()
+		case typegrammar.Float32:
+			e.writef("%s, err := dvFloat32(%s, %s)", out, raw, at)
+			e.check()
+		default:
+			bounds, ok := numericRange[n.Kind]
+			if !ok {
+				return "", e.errorf("unsupported scalar kind %q", n.Kind)
+			}
+			number := e.name("num")
+			e.writef("%s, err := dvInteger(%s, %s, %s, %s)", number, raw, at, bounds[0], bounds[1])
+			e.check()
+			e.writef("%s := %s(%s)", out, n.Kind, number)
+		}
+		return out, nil
+...
+func (e *emitter) decodeObjectInto(n *typegrammar.Object, target, raw, at string) error {
+	object := e.name("obj")
+	e.writef("%s, err := dvObject(%s, %s)", object, raw, at)
+	e.check()
+	known := make([]string, 0, len(n.Fields))
+	for _, field := range n.Fields {
+		known = append(known, strconv.Quote(field.JSONName))
+	}
+	e.writef("if err := dvKnown(%s, %s%s); err != nil {", object, at, joinPrefixed(known))
+	if e.zero == "" {
+		e.writef("return nil, err")
+	} else {
+		e.writef("return %s, err", e.zero)
+	}
+	e.writef("}")
+
+	for _, field := range n.Fields {
+		if err := e.decodeField(field, object, target, at); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+...
+func (e *emitter) decodeField(field typegrammar.Field, object, out, at string) error {
+	target := out + "." + field.GoName
+	key := strconv.Quote(field.JSONName)
+	fieldPath := e.childPath(at, field.JSONName)
+
+	required := func() string {
+		value := e.name("raw")
+		e.writef("%s, err := dvRequired(%s, %s, %s)", value, object, key, fieldPath)
+		e.check()
+		return value
+	}
+	optional := func() string {
+		value, present := e.name("raw"), e.name("ok")
+		e.writef("%s, %s, err := dvPresent(%s, %s, %s)", value, present, object, key, fieldPath)
+		e.check()
+		e.writef("if %s {", present)
+		return value
+	}
+
+	switch n := field.Value.(type) {
+	case *typegrammar.Required:
+		return e.assign(n.Type, target, required(), fieldPath)
+
+	case *typegrammar.Optional:
+		value := optional()
+		e.writef("%s.Present = true", target)
+		if err := e.assign(n.Type, target+".Value", value, fieldPath); err != nil {
+			return err
+		}
+		e.writef("}")
+		return nil
+```
+
+---
+## 4. devalue/codegen/encode.go (lines 135-145)
+
+```go
+	case *typegrammar.Optional:
+		// An absent Optional is no property at all.
+		e.writef("if %s.Present {", value)
+		fieldPath := e.childPath(at, field.JSONName)
+		encoded, err := e.encode(n.Type, value+".Value", fieldPath)
+		if err != nil {
+			return err
+		}
+		e.writef("%s.Set(%s, %s)", object, key, encoded)
+		e.writef("}")
+		return nil
+```
+
+---
+## 5. devalue/codegen/codec.go.tmpl (lines 61-113, 160-169)
+
+```go
+func dvBool(raw any, at string) (bool, error) {
+	v, ok := raw.(bool)
+	if !ok {
+		return false, dvErr(at, "expected a boolean, got %s", dvKind(raw))
+	}
+	return v, nil
+}
+
+func dvString(raw any, at string) (string, error) {
+	v, ok := raw.(string)
+	if !ok {
+		return "", dvErr(at, "expected a string, got %s", dvKind(raw))
+	}
+	return v, nil
+}
+
+func dvNumber(raw any, at string) (float64, error) {
+	v, ok := raw.(float64)
+	if !ok {
+		return 0, dvErr(at, "expected a number, got %s", dvKind(raw))
+	}
+	return v, nil
+}
+
+func dvInteger(raw any, at string, min, max float64) (float64, error) {
+	v, err := dvNumber(raw, at)
+	if err != nil {
+		return 0, err
+	}
+	if math.IsInf(v, 0) || math.IsNaN(v) || v != math.Trunc(v) {
+		return 0, dvErr(at, "expected an integer, got %v", v)
+	}
+	if v < min || v > max {
+		return 0, dvErr(at, "number %v is out of range", v)
+	}
+	return v, nil
+}
+...
+// dvPresent reads an optional property. It reports absence, and rejects an
+// explicit undefined, which is not the same thing on this wire.
+func dvPresent(o *devalue.Object, key string, at string) (any, bool, error) {
+	v, ok := o.Get(key)
+	if !ok {
+		return nil, false, nil
+	}
+	if _, undefined := v.(devalue.UndefinedValue); undefined {
+		return nil, false, dvErr(at, "value is undefined")
+	}
+	return v, true, nil
+}
+```

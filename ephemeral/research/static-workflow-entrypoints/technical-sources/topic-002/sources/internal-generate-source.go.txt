@@ -1,0 +1,63 @@
+// Origin: /Users/tyler/.codex/worktrees/d798/gimble/internal/generate/source.go
+// Revision: 40dc82947eed99202fd9cb1dd377b6a3c2abbccc
+// Date: 2026-09-23
+// Scope: Source function, parsing workflow entry, overlay mechanism, and output file writing.
+
+package generate
+
+import (
+	"errors"
+	"fmt"
+	"go/format"
+	"go/parser"
+	"go/token"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+
+	"github.com/tylergannon/gimble/workflow"
+)
+
+// Source writes the workflow entry's graph and Gimble run subcommand into one
+// Go file. When mermaidOutput is not empty, it also writes the graph as Mermaid
+// source and a Svelte component that presents the SVG produced from it by the
+// documentation build.
+//
+// The file is replaced by an empty package clause while the package is
+// read, so one that no longer compiles against the source as it now stands
+// does not stop the next generation.
+func Source(dir, entry, name, output, mermaidOutput string) error {
+	file := output
+	if !filepath.IsAbs(file) {
+		file = filepath.Join(dir, file)
+	}
+	file, err := filepath.Abs(file)
+	if err != nil {
+		return fmt.Errorf("generate: %w", err)
+	}
+	pkg, err := packageName(dir, file, name)
+	if err != nil {
+		return err
+	}
+	graph, info, err := extract(dir, entry, name, map[string][]byte{file: []byte("package " + pkg + "\n")})
+	if err != nil {
+		return err
+	}
+	if err := check(info, graph); err != nil {
+		return err
+	}
+	text, err := format.Source([]byte(source(pkg, entry, info, graph)))
+	if err != nil {
+		return fmt.Errorf("generate: %w", err)
+	}
+	if err := os.WriteFile(file, text, 0o644); err != nil {
+		return fmt.Errorf("generate: %w", err)
+	}
+	if mermaidOutput != "" {
+		if err := writeMermaid(dir, name, mermaidOutput, graph); err != nil {
+			return err
+		}
+	}
+	return nil
+}

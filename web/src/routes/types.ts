@@ -65,6 +65,92 @@ export type Sent = {
 };
 
 /**
+ * StartAccepted identifies the registered run and its owning project.
+ */
+export type StartAccepted = {
+  project_id: string;
+  run_id: string;
+};
+
+/**
+ * StartImplementInput is the flat typed request for the implement workflow.
+ */
+export type StartImplementInput = {
+  project_dir: string;
+  work_dir: string;
+  conversation: string;
+  outcomes_file: string;
+  max_tasks_per_outcome: number;
+  role_sprint_planning?: string;
+  role_architectural_critique?: string;
+  role_coding?: string;
+  role_qa_orchestration?: string;
+};
+
+/**
+ * StartPyramidSummaryInput is the flat typed request for the pyramid-summary workflow.
+ */
+export type StartPyramidSummaryInput = {
+  project_dir: string;
+  work_dir: string;
+  conversation: string;
+  goal: string;
+  semantic_index: string;
+  largest_document: string;
+  output_dir: string;
+  largest_token_budget?: number;
+  role_document_authoring?: string;
+  role_document_supervision?: string;
+  role_pyramid_planning?: string;
+  role_editorial_review?: string;
+};
+
+/**
+ * StartResearchDocumentInput is the flat typed request for the research-document workflow.
+ */
+export type StartResearchDocumentInput = {
+  project_dir: string;
+  work_dir: string;
+  conversation: string;
+  goal: string;
+  research_dir: string;
+  output: string;
+  token_budget: number;
+  min_sources_per_topic?: number;
+  max_editorial_rounds?: number;
+  role_research_planning?: string;
+  role_research_indexing?: string;
+  role_document_supervision?: string;
+  role_index_curation?: string;
+  role_document_authoring?: string;
+  role_editorial_review?: string;
+};
+
+/**
+ * StartReviewInput is the flat typed request for the review workflow.
+ */
+export type StartReviewInput = {
+  project_dir: string;
+  work_dir: string;
+  conversation: string;
+  goal: string;
+  role_code_review?: string;
+};
+
+/**
+ * StartValidateProductInput is the flat typed request for the validate-product workflow.
+ */
+export type StartValidateProductInput = {
+  project_dir: string;
+  work_dir: string;
+  conversation: string;
+  suite_file: string;
+  role_product_operation?: string;
+  role_product_visual_review?: string;
+  role_product_triage?: string;
+};
+
+/**
  * Steer is what the run page's form posts: which session of which run the person is watching, and what they typed at it.
  */
 export type Steer = {

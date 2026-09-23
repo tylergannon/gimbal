@@ -66,7 +66,7 @@ func TestIterateScopesHaveNoPlannerControls(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	project := t.TempDir()
-	runtime, err := NewRuntime(ctx, project, WithPort(0))
+	instance, runtime, err := newProject(ctx, project, WithPort(0))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,7 +94,7 @@ func TestIterateScopesHaveNoPlannerControls(t *testing.T) {
 	}()
 	<-entered
 	id := runID(t, project)
-	response, err := http.Get("http://" + runtime.instance.address + "/projects/" + runtime.id + "/runs/" + id)
+	response, err := http.Get("http://" + instance.address + "/projects/" + runtime.ID() + "/runs/" + id)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,7 +110,7 @@ func TestIterateScopesHaveNoPlannerControls(t *testing.T) {
 		t.Fatal("plain iteration offered planner controls")
 	}
 	var status *skgo.HTTPError
-	_, err = routes.Skgo_steerLoop(runtime.ctx, routes.LoopMessage{Run: id, Scope: "round.1", Message: "hello"})
+	_, err = routes.Skgo_steerLoop(runtime.Context(), routes.LoopMessage{Run: id, Scope: "round.1", Message: "hello"})
 	if !errors.As(err, &status) || status.Status != http.StatusNotFound {
 		t.Fatalf("steer plain loop = %v, want 404", err)
 	}
@@ -126,7 +126,7 @@ func TestLoopFormReachesThePlannerOfALoop(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	project := t.TempDir()
-	runtime, err := NewRuntime(ctx, project, WithNoWeb())
+	_, runtime, err := newProject(ctx, project, WithNoWeb())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -148,22 +148,22 @@ func TestLoopFormReachesThePlannerOfALoop(t *testing.T) {
 	<-dispatched
 	id := runID(t, project)
 
-	waiting, err := routes.Skgo_steerLoop(runtime.ctx, routes.LoopMessage{Run: id, Scope: "sprint.1", WrapUp: true})
+	waiting, err := routes.Skgo_steerLoop(runtime.Context(), routes.LoopMessage{Run: id, Scope: "sprint.1", WrapUp: true})
 	if err != nil || waiting.Message != gimble.WrapUp {
 		t.Fatalf("wrap up = %+v, %v; want the runtime's own wrap-up message", waiting, err)
 	}
-	if waiting, err := routes.Skgo_steerLoop(runtime.ctx, routes.LoopMessage{Run: id, Scope: "sprint.1", Message: "  and nothing after it  "}); err != nil || waiting.Message != "and nothing after it" {
+	if waiting, err := routes.Skgo_steerLoop(runtime.Context(), routes.LoopMessage{Run: id, Scope: "sprint.1", Message: "  and nothing after it  "}); err != nil || waiting.Message != "and nothing after it" {
 		t.Fatalf("message = %+v, %v; want it waiting, trimmed", waiting, err)
 	}
 
 	// An empty box is the field's problem, not the server's.
 	var invalid *skgo.Invalid
-	if _, err := routes.Skgo_steerLoop(runtime.ctx, routes.LoopMessage{Run: id, Scope: "sprint.1", Message: "   "}); !errors.As(err, &invalid) {
+	if _, err := routes.Skgo_steerLoop(runtime.Context(), routes.LoopMessage{Run: id, Scope: "sprint.1", Message: "   "}); !errors.As(err, &invalid) {
 		t.Fatalf("empty message = %v, want an issue on the field", err)
 	}
 	// Only a loop takes messages: a task's own scope is live and is not one.
 	var status *skgo.HTTPError
-	if _, err := routes.Skgo_steerLoop(runtime.ctx, routes.LoopMessage{Run: id, Scope: "sprint.1/task.1", Message: "hello"}); !errors.As(err, &status) || status.Status != 404 {
+	if _, err := routes.Skgo_steerLoop(runtime.Context(), routes.LoopMessage{Run: id, Scope: "sprint.1/task.1", Message: "hello"}); !errors.As(err, &status) || status.Status != 404 {
 		t.Errorf("a message to a task scope = %v, want a 404", err)
 	}
 
@@ -191,7 +191,7 @@ func TestLoopFormReachesThePlannerOfALoop(t *testing.T) {
 			t.Errorf("Steer record = %+v %+v, want it landed on sprint.1 from the person", record, steer)
 		}
 	}
-	if _, err := routes.Skgo_steerLoop(runtime.ctx, routes.LoopMessage{Run: id, Scope: "sprint.1", Message: "too late"}); !errors.As(err, &status) || status.Status != 404 {
+	if _, err := routes.Skgo_steerLoop(runtime.Context(), routes.LoopMessage{Run: id, Scope: "sprint.1", Message: "too late"}); !errors.As(err, &status) || status.Status != 404 {
 		t.Errorf("finished run = %v, want a 404", err)
 	}
 }

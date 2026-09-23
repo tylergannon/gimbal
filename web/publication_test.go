@@ -23,12 +23,12 @@ func TestHostedRunPublicationBeforeDirectoryIsReadable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	runtime, err := instance.AdmitProject(project)
+	runtime, err := instance.Owner.AdmitProject(project)
 	if err != nil {
 		t.Fatal(err)
 	}
 	client := &http.Client{Timeout: 5 * time.Second}
-	base := "http://" + instance.address + "/projects/" + runtime.id
+	base := "http://" + instance.address + "/projects/" + runtime.ID()
 	get := func(path string) *http.Response {
 		t.Helper()
 		response, err := client.Get(base + path)
@@ -63,7 +63,7 @@ func TestHostedRunPublicationBeforeDirectoryIsReadable(t *testing.T) {
 	opened := make(chan *observation.Store, 1)
 	openErr := make(chan error, 1)
 	go func() {
-		store, err := observation.Open(runtime.registry, id, "publication", dir, func() error {
+		store, err := observation.Open(runtime.Registry(), id, "publication", dir, func() error {
 			if err := os.Mkdir(dir, 0o755); err != nil {
 				return err
 			}
@@ -78,7 +78,7 @@ func TestHostedRunPublicationBeforeDirectoryIsReadable(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(dir, "run.json")); !os.IsNotExist(err) {
 		t.Fatalf("run table already exists at the publication boundary: %v", err)
 	}
-	store, live := runtime.registry.Live(id)
+	store, live := runtime.Registry().Live(id)
 	if !live {
 		t.Fatal("directory is visible but its hosted observation is not live")
 	}
@@ -199,12 +199,12 @@ func TestHostedRunPublicationBeforeDirectoryIsReadable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	reopened, err := restarted.AdmitProject(project)
+	reopened, err := restarted.Owner.AdmitProject(project)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, runID := range []string{id, hostedID} {
-		saved, err := reopened.registry.Snapshot(runID)
+		saved, err := reopened.Registry().Snapshot(runID)
 		if err != nil || saved.Run.Status != observation.StatusCompleted {
 			t.Fatalf("reopened %s = %+v, %v", runID, saved.Run, err)
 		}

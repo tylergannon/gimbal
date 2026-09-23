@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"sync"
 	"testing"
+
+	"github.com/tylergannon/gimble/internal/host"
 )
 
 func TestControlRunsBelongToThisProject(t *testing.T) {
@@ -23,16 +25,16 @@ func TestControlRunsBelongToThisProject(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	first, err := instance.AdmitProject(projectA)
+	first, err := instance.Owner.AdmitProject(projectA)
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := instance.AdmitProject(projectB)
+	second, err := instance.Owner.AdmitProject(projectB)
 	if err != nil {
 		t.Fatal(err)
 	}
 	started := make(chan struct{}, 2)
-	for _, runtime := range []*Runtime{first, second} {
+	for _, runtime := range []*host.Project{first, second} {
 		workers.Go(func() {
 			_ = runtime.Run(ctx, "owned", nil, func(ctx context.Context) error {
 				started <- struct{}{}
@@ -43,11 +45,11 @@ func TestControlRunsBelongToThisProject(t *testing.T) {
 	}
 	<-started
 	<-started
-	firstRuns, err := first.controlRuns()
+	firstRuns, err := controlRuns(first)
 	if err != nil {
 		t.Fatal(err)
 	}
-	secondRuns, err := second.controlRuns()
+	secondRuns, err := controlRuns(second)
 	if err != nil {
 		t.Fatal(err)
 	}

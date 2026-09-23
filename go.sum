@@ -170,10 +170,10 @@ github.com/tiktoken-go/tokenizer v0.8.1 h1:4obDoB6/dhdBt9xMweX4nww5cjdOq/nYF4ecw
 github.com/tiktoken-go/tokenizer v0.8.1/go.mod h1:eLA0t6nGvn9mDc7gt90qt7pMat+gE9ViqwQ6l9B+tA4=
 github.com/tylergannon/claude-agent-sdk-go v1.1.1 h1:udcv5Jg8p9TVLOwBHoeG8JWEOFgQL+VUqzzKauwoFfs=
 github.com/tylergannon/claude-agent-sdk-go v1.1.1/go.mod h1:k8RYkcYnEX7j4sNivRsRnkNwUzrnBV6F8Ovc2dzbbBU=
-github.com/tylergannon/polytype v1.0.3 h1:Ptygmz862d+OxYdj0wxe0fE4Cdaz6mC0ewSF7YmESZA=
-github.com/tylergannon/polytype v1.0.3/go.mod h1:HjvaoQ55ionY6k/kb3WFIicPpO15zBBZwxX3n/+Yksg=
-github.com/tylergannon/skgo v0.5.0 h1:SFCu7FUqEYX9y87roGVuOX6pzLhjNULqumL6+gRniC0=
-github.com/tylergannon/skgo v0.5.0/go.mod h1:ICBQu/IuEFvpTHRQUmrnP398uI/O74vvDR4eSKZ+Tfc=
+github.com/tylergannon/polytype v1.1.0 h1:tKkhW5b0yb8wFNAWYPSPY5WawZRvz3ou1HDxb2DLo4A=
+github.com/tylergannon/polytype v1.1.0/go.mod h1:Y35uUigmOAa0TGHwEWxkGqg8YHm7Xs4SxS+tOWF2QKQ=
+github.com/tylergannon/skgo v0.7.0 h1:KWwdxXxg90fZEq9x2A4jzqyxdWgHtnH+djrFWYVEO1c=
+github.com/tylergannon/skgo v0.7.0/go.mod h1:i3PK+dpSCW0WND6i/v9q2hIWbCg3jFCQxaElegLXMOE=
 github.com/tylergannon/structtag v0.1.0 h1:Vn4ZEemGUtAfw9ddEtHQILKnIWqSWCSpciFTNPh1gcY=
 github.com/tylergannon/structtag v0.1.0/go.mod h1:Rjgg4hJfebaKNeyqoLh4n+zKhfVBdMyc7nBHIlQsVw0=
 github.com/vmware-labs/yaml-jsonpath v0.3.2 h1:/5QKeCBGdsInyDCyVNLbXyilb61MXGi9NP674f9Hobk=
@@ -221,6 +221,8 @@ golang.org/x/telemetry v0.0.0-20260908163034-4bcc4b2ee518 h1:F5BWKvW126NXR74uxkx
 golang.org/x/telemetry v0.0.0-20260908163034-4bcc4b2ee518/go.mod h1:i+ivNqjDnTF3WTElsdk5g9V5DTSBYgdNo7xTU9SDwYA=
 golang.org/x/term v0.0.0-20201126162022-7de9c90e9dd1/go.mod h1:bj7SfCRtBDWHUb9snDiAeCFNEtKQo2Wmx5Cou7ajbmo=
 golang.org/x/term v0.0.0-20210927222741-03fcf44c2211/go.mod h1:jbD1KX2456YbFQfuXm/mYQcufACuNUgVhRMnK/tPxf8=
+golang.org/x/term v0.46.0 h1:3+OXuTbaKDgwk8jTi3aSLHRlmWqHEUDUtxnbFigO4YE=
+golang.org/x/term v0.46.0/go.mod h1:+K02xbkittuwc0Am4abfA3Fc+XRGXkvBXNO88NCXPoc=
 golang.org/x/text v0.3.0/go.mod h1:NqM8EUOU14njkJ3fqMW+pc6Ldnwhi/IjpwHt7yyuwOQ=
 golang.org/x/text v0.3.3/go.mod h1:5Zoc/QRtKVWzQhOtBMvqHzDpF6irO9z98xDceosuGiQ=
 golang.org/x/text v0.3.6/go.mod h1:5Zoc/QRtKVWzQhOtBMvqHzDpF6irO9z98xDceosuGiQ=

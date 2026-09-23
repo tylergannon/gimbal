@@ -1,9 +1,19 @@
-package hooks
+package host
 
 import "context"
 
 type projectDirKey struct{}
 type projectsKey struct{}
+type ownerKey struct{}
+
+func WithOwner(ctx context.Context, owner *Owner) context.Context {
+	return context.WithValue(ctx, ownerKey{}, owner)
+}
+
+func OwnerFrom(ctx context.Context) *Owner {
+	owner, _ := ctx.Value(ownerKey{}).(*Owner)
+	return owner
+}
 
 type ProjectChoice struct {
 	ID   string `json:"id"`
@@ -19,13 +29,10 @@ func Projects(ctx context.Context) []ProjectChoice {
 	return choices
 }
 
-// WithProjectDir keeps the runtime's project directory on the request context
-// so server loads can discover the runs that belong to this application.
 func WithProjectDir(ctx context.Context, dir string) context.Context {
 	return context.WithValue(ctx, projectDirKey{}, dir)
 }
 
-// ProjectDir returns the runtime's project directory from ctx.
 func ProjectDir(ctx context.Context) string {
 	if ctx == nil {
 		return ""

@@ -1,7 +1,6 @@
 package web
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -12,38 +11,12 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
+	"github.com/tylergannon/gimble/internal/host"
 	"github.com/tylergannon/gimble/internal/observation"
+	"github.com/tylergannon/skgo"
 )
-
-// Submit sends a built-in workflow to exactly the selected instance. It never
-// starts a runtime. project is the owner of the run, distinct from WorkDir.
-func Submit(ctx context.Context, instanceDir, project string, request Submission) (Admission, error) {
-	client, err := selectedInstance(ctx, instanceDir, project)
-	if err != nil {
-		return Admission{}, err
-	}
-	data, err := json.Marshal(request)
-	if err != nil {
-		return Admission{}, err
-	}
-	response, err := client.request(ctx, http.MethodPost, "/control/submit", bytes.NewReader(data))
-	if err != nil {
-		return Admission{}, fmt.Errorf("selected Gimble instance is unavailable: %w", err)
-	}
-	defer func() { _ = response.Body.Close() }()
-	if response.StatusCode != http.StatusOK {
-		message, _ := io.ReadAll(io.LimitReader(response.Body, 4096))
-		return Admission{}, fmt.Errorf("submit workflow: %s: %s", response.Status, strings.TrimSpace(string(message)))
-	}
-	var admitted Admission
-	if err := json.NewDecoder(response.Body).Decode(&admitted); err != nil {
-		return Admission{}, err
-	}
-	return admitted, nil
-}
 
 // Follow waits for the selected instance's project-scoped terminal run row.
 func Follow(ctx context.Context, instanceDir, project, id string) (observation.RunRow, error) {
@@ -79,6 +52,19 @@ func Follow(ctx context.Context, instanceDir, project, id string) (observation.R
 	}
 }
 
+// SelectedFormClient connects generated SKGO clients to the selected instance's
+// control socket. Start Forms carry their project path in their typed input.
+func SelectedFormClient(ctx context.Context, instanceDir, project string) (skgo.FormClient, error) {
+	selected, err := selectedInstance(ctx, instanceDir, project)
+	if err != nil {
+		return skgo.FormClient{}, err
+	}
+	transport := &http.Transport{DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+		return (&net.Dialer{}).DialContext(ctx, "unix", selected.socket)
+	}}
+	return skgo.FormClient{BaseURL: "http://gimble", HTTPClient: &http.Client{Transport: transport}}, nil
+}
+
 type selectedClient struct {
 	socket, project string
 }
@@ -88,7 +74,7 @@ func selectedInstance(ctx context.Context, instanceDir, project string) (selecte
 	if err != nil {
 		return selectedClient{}, err
 	}
-	project, err = canonicalProject(project)
+	project, err = host.CanonicalProject(project)
 	if err != nil {
 		return selectedClient{}, err
 	}
@@ -111,7 +97,7 @@ func selectedInstance(ctx context.Context, instanceDir, project string) (selecte
 		var discovery controlDiscovery
 		if json.Unmarshal(data, &discovery) == nil && discovery.Socket != "" {
 			candidate := selectedClient{socket: discovery.Socket, project: project}
-			probe, err := candidate.request(ctx, http.MethodGet, "/control/runs", nil)
+			probe, err := candidate.request(ctx, http.MethodGet, "/control/live", nil)
 			if err == nil {
 				_ = probe.Body.Close()
 				if probe.StatusCode == http.StatusOK {
@@ -121,7 +107,7 @@ func selectedInstance(ctx context.Context, instanceDir, project string) (selecte
 		}
 	}
 	if len(clients) != 1 {
-		return selectedClient{}, fmt.Errorf("selected Gimble instance at %s has %d live endpoints admitting project %s; start or select one instance with --instance-dir", instanceDir, len(clients), project)
+		return selectedClient{}, fmt.Errorf("selected Gimble instance at %s has %d live endpoints; start or select one instance with --instance-dir", instanceDir, len(clients))
 	}
 	return clients[0], nil
 }

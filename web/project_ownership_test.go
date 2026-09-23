@@ -23,14 +23,14 @@ func TestProjectOwnershipAcrossProcesses(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		p, err := instance.AdmitProject(project)
+		p, err := instance.Owner.AdmitProject(project)
 		if err != nil {
 			t.Fatal(err)
 		}
 		if err := p.Run(ctx, "ownership-history", nil, func(context.Context) error { return nil }); err != nil {
 			t.Fatal(err)
 		}
-		entries, err := os.ReadDir(filepath.Join(p.dir, "runs"))
+		entries, err := os.ReadDir(filepath.Join(p.Dir(), "runs"))
 		if err != nil || len(entries) != 1 {
 			t.Fatalf("owned run history: %v, %v", entries, err)
 		}
@@ -86,7 +86,7 @@ func TestProjectOwnershipAcrossProcesses(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := other.AdmitProject(projectB); err != nil {
+	if _, err := other.Owner.AdmitProject(projectB); err != nil {
 		t.Fatal(err)
 	}
 	alias := filepath.Join(base, "alias-a")
@@ -94,7 +94,7 @@ func TestProjectOwnershipAcrossProcesses(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, path := range []string{projectA, alias, filepath.Join(projectB, "..", "a")} {
-		if _, err := other.AdmitProject(path); err == nil || !strings.Contains(err.Error(), "already owned by another instance") {
+		if _, err := other.Owner.AdmitProject(path); err == nil || !strings.Contains(err.Error(), "already owned by another instance") {
 			t.Fatalf("admit owned project %s: %v", path, err)
 		}
 	}
@@ -112,11 +112,11 @@ func TestProjectOwnershipAcrossProcesses(t *testing.T) {
 	if err := owner.Wait(); err != nil {
 		t.Fatalf("owner shutdown: %v; stderr: %s", err, stderr.String())
 	}
-	reopened, err := other.AdmitProject(alias)
+	reopened, err := other.Owner.AdmitProject(alias)
 	if err != nil {
 		t.Fatalf("reopen after owner shutdown: %v", err)
 	}
-	response, err = http.Get("http://" + other.address + "/projects/" + reopened.id + "/runs/" + runID)
+	response, err = http.Get("http://" + other.address + "/projects/" + reopened.ID() + "/runs/" + runID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -137,7 +137,7 @@ func TestProjectOwnershipLastsUntilCancelledRunUnwinds(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	p, err := owner.AdmitProject(project)
+	p, err := owner.Owner.AdmitProject(project)
 	if err != nil {
 		t.Fatal(err)
 	}

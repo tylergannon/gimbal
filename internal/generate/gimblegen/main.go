@@ -1,4 +1,4 @@
-// Command gimblegen writes a workflow's generated graph and run command.
+// Command gimblegen writes a workflow's graph and optional application command.
 package main
 
 import (

@@ -19,7 +19,7 @@ func TestSteerCommandQueuesForNextPlanningDecision(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 	project := t.TempDir()
-	runtime, err := web.NewRuntime(ctx, project, web.WithNoWeb())
+	_, runtime, err := testProject(ctx, project, web.WithNoWeb())
 	if err != nil {
 		t.Fatal(err)
 	}

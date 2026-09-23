@@ -312,21 +312,13 @@ func TestSourceWritesTheWorkflowsPackage(t *testing.T) {
 		"\npackage fixture\n",
 		"func init() { gimble.RegisterGraph(Graph) }",
 		"var Graph = workflow.Graph{",
-		"func Command(defaults map[gimble.WorkflowRole]string) *cobra.Command {",
-		`Use:   "fixture",`,
-		`cmd.Flags().StringVar(&workDir, "work-dir", "", "execution directory (default: owning project)")`,
-		`cmd.Flags().StringVar(&project, "project", ".",`,
-		`cmd.Flags().BoolVar(&follow, "follow", false,`,
-		`leadModelDefault := defaults[gimble.WorkflowRole("lead")]`,
-		`if leadModelDefault == "" {`,
-		`advanced override for role lead`,
-		`func Hosted() web.WorkflowEntry`,
-		`return Fixture(ctx, env)`,
-		`web.Submit(cmd.Context(), instanceDir, project, web.Submission{`,
 	} {
 		if !strings.Contains(string(written), want) {
-			t.Errorf("the generated file lacks %q:\n%s", want, firstLines(string(written)))
+			t.Errorf("the generated graph lacks %q:\n%s", want, firstLines(string(written)))
 		}
+	}
+	if strings.Contains(string(written), "github.com/spf13/cobra") || strings.Contains(string(written), "github.com/tylergannon/gimble/web") {
+		t.Fatalf("workflow graph imports application integration")
 	}
 }
 
@@ -345,7 +337,6 @@ func TestSourceWritesPlannerSupervisionAndRole(t *testing.T) {
 		`Role: "planner-watch"`,
 		"Services: []workflow.Service{",
 		`Name: "preview"`,
-		`cmd.Flags().StringVar(&plannerWatchModel, "planner-watch"`,
 	} {
 		if !strings.Contains(string(written), want) {
 			t.Errorf("the generated source lacks %q:\n%s", want, string(written))
@@ -353,23 +344,34 @@ func TestSourceWritesPlannerSupervisionAndRole(t *testing.T) {
 	}
 }
 
-func TestGeneratedCommandUsesCentralizedRoleDefaults(t *testing.T) {
-	output := filepath.Join(t.TempDir(), "workflow_gen.go")
-	if err := generate.Source("testdata/fixture", "Fixture", "fixture", output, ""); err != nil {
-		t.Fatal(err)
-	}
-	written, err := os.ReadFile(output)
+func TestSourceRecoversMissingAndStaleOutputsRepeatably(t *testing.T) {
+	graphFile, err := filepath.Abs(filepath.Join("testdata", "fixture", "workflow_regeneration_check.go"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	text := string(written)
-	if strings.Contains(text, "roles[") {
-		t.Fatalf("generated command still reads workflow roles")
-	}
-	for _, want := range []string{`leadModelDefault := defaults[gimble.WorkflowRole("lead")]`, `if leadModelDefault == ""`, `advanced override for role lead`, `omit this flag to use the displayed workflow default`, `gimble.WorkflowRole("lead"): leadModel`} {
-		if !strings.Contains(text, want) {
-			t.Errorf("generated command lacks %q", want)
+	t.Cleanup(func() { _ = os.Remove(graphFile) })
+	generateFiles := func() []byte {
+		t.Helper()
+		if err := generate.Source("testdata/fixture", "Fixture", "fixture", graphFile, ""); err != nil {
+			t.Fatal(err)
 		}
+		graph, err := os.ReadFile(graphFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return graph
+	}
+	firstGraph := generateFiles()
+	secondGraph := generateFiles()
+	if !slices.Equal(firstGraph, secondGraph) {
+		t.Fatal("generation from existing output changed bytes")
+	}
+	if err := os.WriteFile(graphFile, []byte("package fixture\nvar broken = absentSymbol\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	thirdGraph := generateFiles()
+	if !slices.Equal(firstGraph, thirdGraph) {
+		t.Fatal("generation did not recover the exact output from stale files")
 	}
 }
 

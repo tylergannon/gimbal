@@ -1,0 +1,315 @@
+# SKGO Form Decoding and Codec Bypass Source Excerpts
+
+Origin: /Users/tyler/.codex/worktrees/d798/skgo
+Commit: fed929b0f9894dc12c72b75da8387f572b5aacd6
+Date: 2026-09-23
+
+---
+## 1. remote_form.go (lines 1-16, 123-179)
+
+```go
+// The Go side of SvelteKit's `form` remote function.
+//
+// A form is the fourth remote kind and the only one whose argument is not a
+// devalue payload in a URL or a JSON body. A hydrated kit page posts a form as
+// `application/x-sveltekit-formdata`: kit's client turns the FormData into a
+// POJO first — coercing types, nesting dotted names — and appends any uploaded
+// file's bytes raw after the header. That is why a form cannot reuse
+// the generated devalue decoder every other kind uses: a File is not a JSON
+// value and polytype describes none, so the generated closure assigns the
+// submission onto the handler's own argument type with skgo.DecodeForm.
+//
+// The two things a form does that a command does not are both kit's design,
+// not additions here. Its handler may report validation failures against named
+// fields, which kit's client hangs off `form.fields.<name>.issues()`, and a
+// submission carrying issues suppresses single-flight refreshes entirely —
+// kit's server returns before it collects them.
+package skgo
+...
+func (rs *Remotes) serveForm(w http.ResponseWriter, r *http.Request, fn *Remote) {
+	if r.Method != http.MethodPost {
+		rs.writeErrorStatus(w, &HTTPError{
+			Status:  405,
+			Message: "`form` functions must be invoked via POST request, not " + r.Method,
+		}, http.StatusMethodNotAllowed)
+		return
+	}
+
+	media := mediaType(r.Header.Get("Content-Type"))
+	if !isFormContentType(media) {
+		rs.writeErrorStatus(w, &HTTPError{
+			Status:  415,
+			Message: "`form` functions expect form-encoded data — received " + r.Header.Get("Content-Type"),
+		}, http.StatusUnsupportedMediaType)
+		return
+	}
+
+	if media != formdata.ContentType {
+		rs.writeErrorStatus(w, &HTTPError{
+			Status:  415,
+			Message: "`form` functions need an enhanced submission; this app renders on the client only",
+		}, http.StatusUnsupportedMediaType)
+		return
+	}
+
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxFormBytes))
+	if err != nil {
+		rs.writeErrorStatus(w, &HTTPError{Status: 413, Message: "Payload Too Large"}, http.StatusRequestEntityTooLarge)
+		return
+	}
+
+	arg, meta, err := formdata.ParseWith(body, rs.cfg.Transport.revivers())
+	if err != nil {
+		rs.writeError(w, &HTTPError{Status: 400, Message: "Bad Request"})
+		return
+	}
+
+	if meta.ValidateOnly {
+		rs.writeResult(w, rs.newEvent(r, false), map[string]any{"_": []any{}})
+		return
+	}
+
+	ev := rs.newEvent(r, true)
+	ev.refreshes = newRefreshSet(rs, meta.RemoteRefreshes)
+	ctx := withEvent(r.Context(), ev)
+
+	value, err := rs.call(ctx, fn, rs.newCall(arg, true))
+...
+```
+
+---
+## 2. remote.go (lines 421-434)
+
+```go
+// DecodeForm assigns a form submission onto the handler's argument type.
+//
+// A form is the one remote kind whose argument is not a devalue payload: a
+// hydrated kit page posts `application/x-sveltekit-formdata`, whose POJO can
+// carry an uploaded File. A File is not a JSON value and polytype does not
+// describe one, so the generated closure calls this instead of a generated
+// decoder; into is a pointer to the handler's own argument type, so the shape
+// is still fixed by the Go signature and never by a type parameter here.
+func DecodeForm(arg any, into any) error {
+	if err := formdata.Decode(arg, into); err != nil {
+		return &HTTPError{Status: 400, Message: "Bad Request"}
+	}
+	return nil
+}
+```
+
+---
+## 3. internal/gen/codecs.go (lines 75-98)
+
+```go
+// planCodecs decides, for every remote function, which codecs answer its
+// argument and its result, and registers the roots polytype has to emit.
+//
+// Three shapes have no generated codec, and each for a reason that is kit's or
+// polytype's rather than a shortcut:
+//
+//   - A form's argument. Kit posts a form as `application/x-sveltekit-formdata`,
+//     whose POJO can carry an uploaded File. A File is not a JSON value and
+//     polytype describes none, so the submission is assigned onto the
+//     handler's own argument type by skgo.DecodeForm instead.
+//   - A result that can reach a type the app transports. It has to reach
+//     devalue as itself so the `transport` hook's reducer still recognises it;
+//     see skgo.Call.Transported.
+//   - A function declared without an argument. There is no argument type, and
+//     kit's own validator for such a function refuses every argument.
+func (a *app) planCodecs() error {
+	for _, fn := range a.remotes {
+		if fn.in != nil && fn.kind != kindForm {
+			fn.inCodec = a.codecSet.root(fn.in, fn.goPkg.loadDir, fn.pos)
+		}
+		if !a.containsTransported(fn.out) {
+			fn.outCodec = a.codecSet.root(fn.out, fn.goPkg.loadDir, fn.pos)
+		}
+	}
+	for _, entry := range a.transportKeyOrder() {
+		a.codecSet.root(entry.named, entry.goPkg.loadDir, entry.pos)
+	}
+	return nil
+}
+```
+
+---
+## 4. internal/gen/emit.go (lines 591-604)
+
+```go
+// writeArgument emits the decode step shared by every kind but batch.
+func (a *app) writeArgument(b *strings.Builder, fn *remoteFn, indent, fail string) {
+	switch {
+	case fn.kind == kindForm:
+		fmt.Fprintf(b, "%svar in %s\n", indent, a.inAlias(fn))
+		fmt.Fprintf(b, "%sif err := skgo.DecodeForm(call.Arg, &in); err != nil {\n%s\t%s\n%s}\n", indent, indent, fail, indent)
+	case fn.inCodec != "":
+		fmt.Fprintf(b, "%sif err := skgo.RequireArgument(call); err != nil {\n%s\t%s\n%s}\n", indent, indent, fail, indent)
+		fmt.Fprintf(b, "%sin, err := Decode%s(call.Arg)\n", indent, fn.inCodec)
+		fmt.Fprintf(b, "%sif err != nil {\n%s\t%s\n%s}\n", indent, indent, strings.Replace(fail, "err", "skgo.BadRequest(err)", 1), indent)
+	default:
+		fmt.Fprintf(b, "%sif err := skgo.RefuseArgument(call); err != nil {\n%s\t%s\n%s}\n", indent, indent, fail, indent)
+	}
+}
+```
+
+---
+## 5. internal/formdata/decode.go (lines 26-86, 98-152, 177-212)
+
+```go
+// Decode assigns a parsed form submission onto a typed Go value.
+//
+// It exists because a form is the one remote kind whose argument cannot go
+// through encoding/json: an uploaded file's bytes are a []byte that JSON would
+// have to base64 twice, and a File is not a JSON value at all. So the tree is
+// walked directly instead, and a File lands on a File field as itself.
+//
+// Field names follow encoding/json's rules — the `json` tag wins, otherwise
+// the field name matches case-insensitively — so a Go struct that already
+// describes a query's argument describes a form's the same way.
+//
+// A field the submission did not carry is left alone rather than zeroed. An
+// unchecked checkbox and an empty number input are both simply absent from a
+// browser's FormData, so "missing" is the normal case and not an error.
+func Decode(data any, into any) error {
+	target := reflect.ValueOf(into)
+	if target.Kind() != reflect.Pointer || target.IsNil() {
+		return fmt.Errorf("skgo: form decode target must be a non-nil pointer, got %T", into)
+	}
+	return assign(data, target.Elem(), "")
+}
+
+// assign writes one node of the tree into dst. path is the dotted field path,
+// used only to make a type error say which field it was about.
+func assign(node any, dst reflect.Value, path string) error {
+	if node == nil {
+		return nil
+	}
+	if _, undefined := node.(devalue.UndefinedValue); undefined {
+		return nil
+	}
+	if _, hole := node.(devalue.HoleValue); hole {
+		return nil
+	}
+
+	if file, ok := node.(File); ok {
+		return assignFile(file, dst, path)
+	}
+
+	if dst.Kind() == reflect.Interface && dst.NumMethod() == 0 {
+		dst.Set(reflect.ValueOf(node))
+		return nil
+	}
+
+	if dst.Kind() == reflect.Pointer {
+		if dst.IsNil() {
+			dst.Set(reflect.New(dst.Type().Elem()))
+		}
+		return assign(node, dst.Elem(), path)
+	}
+
+	switch value := node.(type) {
+	case string:
+		return assignString(value, dst, path)
+	case bool:
+		if dst.Kind() != reflect.Bool {
+			return typeError(path, "a boolean", dst.Type())
+		}
+		dst.SetBool(value)
+		return nil
+	case float64:
+		return assignNumber(value, dst, path)
+	case []any:
+		return assignSlice(value, dst, path)
+	case *devalue.Object:
+		return assignObject(value, dst, path)
+	default:
+		return typeError(path, fmt.Sprintf("%T", node), dst.Type())
+	}
+}
+
+func assignString(value string, dst reflect.Value, path string) error {
+	switch dst.Kind() {
+	case reflect.String:
+		dst.SetString(value)
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
+		reflect.Float32, reflect.Float64:
+		if strings.TrimSpace(value) == "" {
+			return nil
+		}
+		n, err := strconv.ParseFloat(value, 64)
+		if err != nil {
+			return typeError(path, strconv.Quote(value), dst.Type())
+		}
+		return assignNumber(n, dst, path)
+	case reflect.Bool:
+		dst.SetBool(value == "on" || value == "true")
+	default:
+		return typeError(path, "text", dst.Type())
+	}
+	return nil
+}
+
+func assignNumber(value float64, dst reflect.Value, path string) error {
+	switch dst.Kind() {
+	case reflect.Float32, reflect.Float64:
+		if dst.OverflowFloat(value) {
+			return typeError(path, strconv.FormatFloat(value, 'g', -1, 64), dst.Type())
+		}
+		dst.SetFloat(value)
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		n := int64(value)
+		if float64(n) != value || dst.OverflowInt(n) {
+			return typeError(path, strconv.FormatFloat(value, 'g', -1, 64), dst.Type())
+		}
+		dst.SetInt(n)
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		n := uint64(value)
+		if value < 0 || float64(n) != value || dst.OverflowUint(n) {
+			return typeError(path, strconv.FormatFloat(value, 'g', -1, 64), dst.Type())
+		}
+		dst.SetUint(n)
+	case reflect.String:
+		dst.SetString(strconv.FormatFloat(value, 'g', -1, 64))
+	default:
+		return typeError(path, "a number", dst.Type())
+	}
+	return nil
+}
+
+func assignObject(obj *devalue.Object, dst reflect.Value, path string) error {
+	switch dst.Kind() {
+	case reflect.Struct:
+		fields := fieldIndex(dst.Type())
+		for _, key := range obj.Keys() {
+			index, ok := fields[strings.ToLower(key)]
+			if !ok {
+				continue
+			}
+			value, _ := obj.Get(key)
+			if err := assign(value, dst.FieldByIndex(index), join(path, key)); err != nil {
+				return err
+			}
+		}
+		return nil
+	case reflect.Map:
+		if dst.Type().Key().Kind() != reflect.String {
+			return typeError(path, "an object", dst.Type())
+		}
+		if dst.IsNil() {
+			dst.Set(reflect.MakeMap(dst.Type()))
+		}
+		for _, key := range obj.Keys() {
+			value, _ := obj.Get(key)
+			entry := reflect.New(dst.Type().Elem()).Elem()
+			if err := assign(value, entry, join(path, key)); err != nil {
+				return err
+			}
+			dst.SetMapIndex(reflect.ValueOf(key).Convert(dst.Type().Key()), entry)
+		}
+		return nil
+	default:
+		return typeError(path, "an object", dst.Type())
+	}
+}
+```

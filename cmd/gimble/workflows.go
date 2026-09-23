@@ -1,52 +1,23 @@
 package main
 
 import (
-	_ "embed"
-	"encoding/json"
-
 	"github.com/spf13/cobra"
 	"github.com/tylergannon/gimble"
-	"github.com/tylergannon/gimble/internal/workflows/implementation"
-	"github.com/tylergannon/gimble/internal/workflows/pyramidsummary"
-	"github.com/tylergannon/gimble/internal/workflows/researchdocument"
-	"github.com/tylergannon/gimble/internal/workflows/review"
-	"github.com/tylergannon/gimble/internal/workflows/validateproduct"
-	"github.com/tylergannon/gimble/web"
+	"github.com/tylergannon/gimble/internal/builtin"
 )
 
-//go:embed defaults.json
-var workflowDefaultsJSON []byte
-
 func workflowDefaults() map[gimble.WorkflowRole]string {
-	var defaults map[gimble.WorkflowRole]string
-	if err := json.Unmarshal(workflowDefaultsJSON, &defaults); err != nil {
-		panic(err)
-	}
-	return defaults
+	return builtin.Defaults()
 }
 
 // newRunCommand is gimble run: the workflows built into this binary, each
-// the Command its package generated.
+// the Command generated beside this application.
 func newRunCommand() *cobra.Command {
 	run := &cobra.Command{
 		Use:   "run",
 		Short: "Submit a compiled workflow to a running Gimble instance",
-		Long:  "Submit a workflow compiled into both this CLI and the selected persistent instance. To add one, author it under internal/workflows/ in the Gimble checkout, generate and build with just build, register its generated Command and Hosted entries in cmd/gimble/workflows.go, and restart the serving binary. A CLI command does not transport a Go closure. The instance owns accepted runs after this client exits. Each workflow accepts --instance-dir (or GIMBLE_INSTANCE_DIR, default .gimble), --project for the admitted owner, --work-dir for execution, and --follow for terminal success or failure. Model and effort flags select each role; executables, PATH, and provider configuration come from the instance startup environment.",
+		Long:  "Submit a workflow compiled into both this CLI and the selected persistent instance. To add one, author it under internal/workflows/ in the Gimble checkout, generate its graph and Form handler with just build, and restart the serving binary. The stock workflow selection in internal/builtin/workflows.go generates the matching CLI command. A CLI command does not transport a Go closure. The instance owns accepted runs after this client exits. Each workflow accepts --instance-dir (or GIMBLE_INSTANCE_DIR, default .gimble), --project for its owning repository, --work-dir for execution, and --follow for terminal success or failure. Model and effort flags select each role; executables, PATH, and provider configuration come from the instance startup environment.",
 	}
-	run.AddCommand(review.Command(workflowDefaults()))
-	run.AddCommand(validateproduct.Command(workflowDefaults()))
-	run.AddCommand(implementation.Command(workflowDefaults()))
-	run.AddCommand(researchdocument.Command(workflowDefaults()))
-	run.AddCommand(pyramidsummary.Command(workflowDefaults()))
+	addStockCommands(run, workflowDefaults())
 	return run
-}
-
-func builtInWorkflows() web.Option {
-	return web.WithWorkflows(map[string]web.WorkflowEntry{
-		"review":            review.Hosted(),
-		"validate-product":  validateproduct.Hosted(),
-		"implement":         implementation.Hosted(),
-		"research-document": researchdocument.Hosted(),
-		"pyramid-summary":   pyramidsummary.Hosted(),
-	})
 }

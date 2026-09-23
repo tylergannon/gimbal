@@ -134,16 +134,21 @@ project's policy for retaining or sharing evidence.
 
 ## Run practical user testing
 
-`gimble run validate-product --suite-file /abs/suite.yaml --no-web` runs one to
-three caller-assigned workloads with Opus 5.5, reviews their screenshots with Gemini
-Flash, and synthesizes findings. After each workload, the same tester session
+`gimble run validate-product --suite-file /abs/suite.yaml --instance-dir /abs/instance --project /abs/project --follow`
+runs one to three caller-assigned workloads with Opus 5.5, reviews their
+screenshots with Gemini Flash, and synthesizes findings. The suite requires
+`issue_repo` for the tested product. The final agent checks for duplicates,
+uploads supporting screenshots
+with `gimble upload-artifact`, and publishes supported findings there. After each
+workload, the same tester session
 answers one follow-up: its three favorite and three least favorite aspects of UX
 and UI separately, with concrete examples. The debrief is appended to the task
 report; elapsed workload time excludes it. Supply the product, local assignment
 files, isolated workspaces, startup/readiness commands or existing URLs, and an
-output directory.
-The command's help describes the JSON/YAML input and model overrides. Set
-`issue_repo` to publish deduplicated findings there; omit it for reports only.
+output directory. Start an instance admitting `/abs/project` first; `--follow`
+waits for triage and issue publication. The command's help describes the
+JSON/YAML input and model overrides. Publishing requires authenticated `gh`
+and a configured public artifact destination.
 
 Assign useful tasks rather than exhaustive feature checklists. Testers must never
 inspect the tested product's source. They capture captioned screenshots and report

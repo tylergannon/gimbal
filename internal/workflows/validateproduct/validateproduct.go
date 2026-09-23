@@ -22,14 +22,15 @@
 // Video records the browser for optional human review; agents do not analyze it.
 // Gemini Flash opens screenshots to check readability and claims, not to repeat the workload.
 // The final agent reads all reports, deduplicates findings against existing GitHub
-// issues, and opens actionable issues in issue_repo (owner/repository). Omit
-// issue_repo to produce a report without publishing issues. Product defects are
-// findings, not workflow execution errors; failed agent turns remain execution errors.
+// issues, uploads supporting screenshots, and opens actionable issues in the
+// required issue_repo (owner/repository). Product defects are findings, not
+// workflow execution errors; failed agent turns remain execution errors.
 //
 // Prerequisites: authenticated harnesses, playwright-cli and its installed browser,
-// and authenticated gh when publishing issues. playwright_cli can override the
-// driver's executable path. timeout defaults to 1h. All paths resolve from the
-// suite file. Output is a unique user-testing-* directory containing reports.json,
+// authenticated gh, and a configured gimble upload-artifact destination.
+// playwright_cli can override the driver's executable path. timeout defaults
+// to 1h. All paths resolve from the suite file. Output is a unique
+// user-testing-* directory containing reports.json,
 // per-tester user-report.md, screenshots and video.webm, visual-review.md and
 // findings.md. Elapsed time is measured by the workflow. The final command/run
 // status includes cleanup errors; files alone do not certify run completion.

@@ -12,7 +12,7 @@ import (
 func suiteFixture(t *testing.T, n int) (Suite, string) {
 	t.Helper()
 	dir := t.TempDir()
-	s := Suite{Product: "Example A", OutputDir: filepath.Join(dir, "output")}
+	s := Suite{Product: "Example A", OutputDir: filepath.Join(dir, "output"), IssueRepo: "example/product-a"}
 	for i := range n {
 		workdir := filepath.Join(dir, string(rune('a'+i)))
 		if err := os.Mkdir(workdir, 0700); err != nil {
@@ -48,6 +48,7 @@ func TestSuiteInputs(t *testing.T) {
 		{"shared workspace", func(s *Suite) { s.Workloads[1].Workdir = s.Workloads[0].Workdir }, "overlap"},
 		{"missing local issue", func(s *Suite) { s.Workloads[0].AssignmentFile = "missing.md" }, "local file"},
 		{"startup needs readiness", func(s *Suite) { s.Workloads[0].Start = "server" }, "readiness"},
+		{"missing repository", func(s *Suite) { s.IssueRepo = "" }, "issue_repo is required"},
 		{"bad repository", func(s *Suite) { s.IssueRepo = "https://github.com/example/repo" }, "owner/repository"},
 		{"bad timeout", func(s *Suite) { s.Timeout = "0s" }, "positive duration"},
 	} {
@@ -73,7 +74,7 @@ func TestSuiteInputs(t *testing.T) {
 }
 func TestYAMLRelativeFiles(t *testing.T) {
 	s, path := suiteFixture(t, 1)
-	data := "product: Example\noutput_dir: output\nworkloads:\n  - name: first\n    assignment_file: a/assignment.md\n    workdir: a\n    url: http://localhost:1234\n"
+	data := "product: Example\nissue_repo: example/product-a\noutput_dir: output\nworkloads:\n  - name: first\n    assignment_file: a/assignment.md\n    workdir: a\n    url: http://localhost:1234\n"
 	if err := os.WriteFile(path, []byte(data), 0600); err != nil {
 		t.Fatal(err)
 	}

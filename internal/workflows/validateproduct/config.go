@@ -68,8 +68,8 @@ func readSuite(name string) (Suite, time.Duration, error) {
 	if err != nil || timeout <= 0 {
 		return suite, 0, fmt.Errorf("timeout must be a positive duration")
 	}
-	if suite.IssueRepo != "" && !regexp.MustCompile(`^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$`).MatchString(suite.IssueRepo) {
-		return suite, 0, fmt.Errorf("issue_repo must be owner/repository, or empty for report-only")
+	if !regexp.MustCompile(`^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$`).MatchString(suite.IssueRepo) {
+		return suite, 0, fmt.Errorf("issue_repo is required as owner/repository")
 	}
 	files := make([]string, 0, len(suite.Guides)+len(suite.Workloads))
 	for i, path := range suite.Guides {

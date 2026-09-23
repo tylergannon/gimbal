@@ -208,6 +208,9 @@ func TestUserTestingStages(t *testing.T) {
 			if tc.visual && !strings.Contains(h.prompts["triage"][0], "image tool unavailable") {
 				t.Fatal("triage lost visual-review failure")
 			}
+			if !strings.Contains(h.prompts["triage"][0], "example/product-a") {
+				t.Fatal("triage lost the required issue destination")
+			}
 		})
 	}
 }
@@ -249,5 +252,8 @@ func TestScreenshotClaimsStayGrounded(t *testing.T) {
 	}
 	if !strings.Contains(triagePrompt, "screenshot review's corrections") || !strings.Contains(triagePrompt, "reference it found incorrect") {
 		t.Fatal("triage prompt does not preserve independent screenshot corrections")
+	}
+	if !strings.Contains(triagePrompt, "gimble upload-artifact") || !strings.Contains(triagePrompt, "hosted images") {
+		t.Fatal("triage prompt does not require online screenshot evidence for issues")
 	}
 }

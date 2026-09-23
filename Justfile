@@ -7,6 +7,7 @@ build:
     cd web && pnpm exec vp fmt
     cd web && pnpm exec vp build
     test -s web/build/skgo.manifest.json
+    cd web && zip -X -FS -qr build.zip build
     go build -o bin/gimble ./cmd/gimble
 
 dev-web:

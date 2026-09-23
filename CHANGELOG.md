@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.1] - 2026-09-22
+
+### Fixed
+
+- Include the generated web application in the published Go module, so a
+  versioned `go install` binary can start its console without a local build.
+
 ## [0.12.0] - 2026-09-22
 
 ### Added
@@ -97,7 +104,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `opencode/provider/model` routing, one shared server managed by
   `gimble opencode start|stop`, and raw event/request captures for diagnostics.
 
-[Unreleased]: https://github.com/tylergannon/gimble/compare/v0.12.0...main
+[Unreleased]: https://github.com/tylergannon/gimble/compare/v0.12.1...main
+[0.12.1]: https://github.com/tylergannon/gimble/compare/v0.12.0...v0.12.1
 [0.12.0]: https://github.com/tylergannon/gimble/compare/v0.11.1...v0.12.0
 [0.11.1]: https://github.com/tylergannon/gimble/compare/v0.11.0...v0.11.1
 [0.11.0]: https://github.com/tylergannon/gimble/releases/tag/v0.11.0

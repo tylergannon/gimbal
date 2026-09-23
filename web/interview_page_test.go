@@ -76,7 +76,7 @@ func TestRunPageKeepsInterviewHistoryAcrossQuestionsAndReload(t *testing.T) {
 	}
 
 	render := func() string {
-		request := httptest.NewRequest(http.MethodGet, "/runs/run-interview", nil)
+		request := httptest.NewRequest(http.MethodGet, "/projects/test/runs/run-interview", nil)
 		request = request.WithContext(observation.WithRegistry(request.Context(), registry))
 		recorder := httptest.NewRecorder()
 		handler.ServeHTTP(recorder, request)

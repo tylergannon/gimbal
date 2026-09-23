@@ -108,9 +108,15 @@ func newRootCommand(stdout, stderr io.Writer, getenv func(string) string) *cobra
 	root := &cobra.Command{
 		Use:   "gimble",
 		Short: "Gimble's project runtime and web application",
-		Long: `Without a subcommand, gimble serves the runs under the current directory's
-.gimble on the web application and waits. gimble lint [packages] checks the
-workflow authoring rules, standalone or as a go vet tool.`,
+		Long: `Without a subcommand, gimble serves the current repository on the web
+application and waits. Repeat --project to admit multiple repositories to one
+instance. Each repository keeps its runs and conversations under .gimble.
+An active project has one instance owner. A second instance refuses that
+project, including a path alias; it can admit the project after the owner exits.
+Separate instances can host different projects with distinct instance
+directories and web endpoints.
+gimble lint [packages] checks workflow authoring rules, standalone or as a go
+vet tool.`,
 		Args:          cobra.NoArgs,
 		SilenceUsage:  true,
 		SilenceErrors: true,
@@ -124,7 +130,7 @@ workflow authoring rules, standalone or as a go vet tool.`,
 	server.bind(root.Flags())
 	root.AddCommand(newRunCommand(), &cobra.Command{
 		Use:                "run-prompt [flags] PROMPT",
-		Short:              "Run one prompt on a harness and print the answer",
+		Short:              "Run one prompt in a separate headless runtime and print the answer",
 		DisableFlagParsing: true,
 		RunE:               func(_ *cobra.Command, args []string) error { return runPrompt(args, stdout, stderr, getenv) },
 	})
@@ -194,15 +200,19 @@ under the selected state directory's captures/ subdirectory.`,
 
 // serverFlags shape the web application of every command that runs one.
 type serverFlags struct {
-	port  int
-	uds   string
-	noWeb bool
+	port        int
+	uds         string
+	noWeb       bool
+	projects    []string
+	instanceDir string
 }
 
 func (f *serverFlags) bind(fs *pflag.FlagSet) {
 	fs.IntVar(&f.port, "port", 8080, "loopback TCP port for the web application")
 	fs.StringVar(&f.uds, "uds", "", "Unix-domain socket for the web application instead of TCP")
 	fs.BoolVar(&f.noWeb, "no-web", false, "run without the web application")
+	fs.StringArrayVar(&f.projects, "project", nil, "repository directory to admit (repeat for multiple projects; default: current directory)")
+	fs.StringVar(&f.instanceDir, "instance-dir", ".gimble", "state directory for this persistent instance (default .gimble)")
 }
 
 func (f *serverFlags) options() []web.Option {
@@ -216,15 +226,20 @@ func (f *serverFlags) options() []web.Option {
 	}
 }
 
-// serve runs the web application over the current directory's project until
-// interrupted.
+// serve runs one instance over the selected repositories until interrupted.
 func serve(ctx context.Context, server serverFlags) error {
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt)
 	defer stop()
-	options := append(server.options(), conversationWorkflowOption())
-	if _, err := web.NewRuntime(ctx, ".gimble", options...); err != nil {
+	options := append(server.options(), builtInWorkflows())
+	projects := server.projects
+	if len(projects) == 0 {
+		projects = []string{"."}
+	}
+	instance, err := web.NewInstance(ctx, server.instanceDir, projects, options...)
+	if err != nil {
 		return err
 	}
 	<-ctx.Done()
+	instance.Wait()
 	return nil
 }

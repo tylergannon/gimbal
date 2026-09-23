@@ -6,13 +6,13 @@ package review
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"os"
-	"os/signal"
 	"path/filepath"
 
 	"github.com/spf13/cobra"
 	"github.com/tylergannon/gimble"
-	"github.com/tylergannon/gimble/internal/binding"
 	"github.com/tylergannon/gimble/web"
 	"github.com/tylergannon/gimble/workflow"
 )
@@ -32,25 +32,45 @@ var Graph = workflow.Graph{
 	},
 }
 
-// Command is gimble run review: Gimble's environment flag, a flag for each field of ReviewParams, a
-// model flag for each role Review names with defaults supplied by the caller,
-// the web application's flags, and a run of Review on the runtime.
+// Hosted is the entry Review supplies to the persistent instance.
+func Hosted() web.WorkflowEntry {
+	return func(ctx context.Context, env gimble.Env, raw json.RawMessage) error {
+		var params ReviewParams
+		if err := json.Unmarshal(raw, &params); err != nil {
+			return err
+		}
+		return Review(ctx, env, params)
+	}
+}
+
+// Command is gimble run review: a flag for each field of ReviewParams, a
+// model flag for each role Review names, instance and project selection,
+// and optional waiting for the hosted run's terminal result.
 func Command(defaults map[gimble.WorkflowRole]string) *cobra.Command {
 	var params ReviewParams
 	var codeReviewModel string
 	var workDir string
-	var port int
-	var uds string
-	var noWeb bool
+	var project string
+	var instanceDir string
+	var conversation string
+	var follow bool
 	cmd := &cobra.Command{
 		Use:   "review",
 		Short: "Review asks one reviewer to inspect the repository read-only and record its findings.",
-		Long:  "Package review is a small read-only code review workflow.",
+		Long:  "Package review is a small read-only code review workflow." + "\n\nThe selected persistent instance owns this run. --project selects its admitted repository; --work-dir selects the execution directory independently. --instance-dir selects the instance state directory (or GIMBLE_INSTANCE_DIR, default .gimble). --follow waits for terminal success or failure; otherwise the run continues after this client exits. Each role flag chooses a model and optional effort. Executable lookup, PATH, and provider configuration come from the instance startup environment.",
 		Args:  cobra.NoArgs,
 	}
 	cmd.Flags().StringVar(&params.Goal, "goal", "", "Goal says what the review should assess. (required)")
 	_ = cmd.MarkFlagRequired("goal")
-	cmd.Flags().StringVar(&workDir, "work-dir", ".", "the working directory for this run")
+	cmd.Flags().StringVar(&workDir, "work-dir", "", "execution directory (default: owning project)")
+	cmd.Flags().StringVar(&project, "project", ".", "admitted repository owning this run and its observation")
+	instanceDefault := os.Getenv("GIMBLE_INSTANCE_DIR")
+	if instanceDefault == "" {
+		instanceDefault = ".gimble"
+	}
+	cmd.Flags().StringVar(&instanceDir, "instance-dir", instanceDefault, "selected running instance state directory (default: GIMBLE_INSTANCE_DIR or .gimble)")
+	cmd.Flags().StringVar(&conversation, "conversation", "", "associate this run with a conversation in the owning project")
+	cmd.Flags().BoolVar(&follow, "follow", false, "wait for the hosted run's terminal result; without this flag the run survives client exit")
 	codeReviewModelDefault := defaults[gimble.WorkflowRole("code-review")]
 	if codeReviewModelDefault == "" {
 		cmd.Flags().StringVar(&codeReviewModel, "code-review", "", "the model for role code-review, as model or model:effort; OpenCode uses opencode/model or opencode/provider/model")
@@ -58,35 +78,44 @@ func Command(defaults map[gimble.WorkflowRole]string) *cobra.Command {
 	} else {
 		cmd.Flags().StringVar(&codeReviewModel, "code-review", codeReviewModelDefault, "advanced override for role code-review, as model or model:effort; OpenCode uses opencode/model or opencode/provider/model; omit this flag to use the displayed workflow default")
 	}
-	cmd.Flags().IntVar(&port, "port", 8080, "loopback TCP port for the web application")
-	cmd.Flags().StringVar(&uds, "uds", "", "Unix-domain socket for the web application instead of TCP")
-	cmd.Flags().BoolVar(&noWeb, "no-web", false, "run without the web application")
 	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
-		workDir, err := filepath.Abs(workDir)
+		project, err := filepath.Abs(project)
 		if err != nil {
 			return err
 		}
-		models, err := binding.Roles(map[gimble.WorkflowRole]string{gimble.WorkflowRole("code-review"): codeReviewModel})
+		if workDir == "" {
+			workDir = project
+		}
+		workDir, err = filepath.Abs(workDir)
 		if err != nil {
 			return err
 		}
-		ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt)
-		defer stop()
-		var options []web.Option
-		switch {
-		case noWeb:
-			options = append(options, web.WithNoWeb())
-		case uds != "":
-			options = append(options, web.WithUDS(uds))
-		default:
-			options = append(options, web.WithPort(port))
+		values := map[string]any{
+			"Goal": params.Goal,
 		}
-		runtime, err := web.NewRuntime(ctx, filepath.Join(workDir, ".gimble"), options...)
+		paramsJSON, err := json.Marshal(values)
 		if err != nil {
 			return err
 		}
-		env := gimble.Env{WorkDir: workDir}
-		return runtime.Run(ctx, "review", models, func(ctx context.Context) error { return Review(ctx, env, params) })
+		admitted, err := web.Submit(cmd.Context(), instanceDir, project, web.Submission{
+			Name: "review", Params: paramsJSON, WorkDir: workDir, Conversation: conversation,
+			Models: map[gimble.WorkflowRole]string{gimble.WorkflowRole("code-review"): codeReviewModel},
+		})
+		if err != nil {
+			return err
+		}
+		fmt.Fprintln(cmd.OutOrStdout(), admitted.ID)
+		if !follow {
+			return nil
+		}
+		result, err := web.Follow(cmd.Context(), instanceDir, project, admitted.ID)
+		if err != nil {
+			return err
+		}
+		if result.Status != "completed" {
+			return fmt.Errorf("run %s %s: %s", admitted.ID, result.Status, result.Error)
+		}
+		return nil
 	}
 	return cmd
 }

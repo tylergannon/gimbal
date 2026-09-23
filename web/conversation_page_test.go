@@ -26,13 +26,13 @@ func TestConversationPageRendersProviderAndRealWorktreeFacts(t *testing.T) {
 	gitForConversationPage(t, repository, "commit", "-qm", "initial")
 
 	ctx, cancel := context.WithCancel(t.Context())
-	runtime, err := NewRuntime(ctx, filepath.Join(repository, ".gimble"), WithPort(0))
+	runtime, err := NewRuntime(ctx, repository, WithPort(0))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer func() {
 		cancel()
-		<-runtime.done
+		<-runtime.instance.done
 	}()
 
 	items := make([]conversation.Conversation, 0, 3)
@@ -46,7 +46,7 @@ func TestConversationPageRendersProviderAndRealWorktreeFacts(t *testing.T) {
 		items = append(items, item)
 	}
 	selected := items[2]
-	response, err := http.Get("http://" + runtime.address + "/conversations?conversation=" + selected.ID)
+	response, err := http.Get("http://" + runtime.instance.address + "/projects/" + runtime.id + "/conversations/" + selected.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -66,7 +66,7 @@ func TestConversationPageRendersProviderAndRealWorktreeFacts(t *testing.T) {
 			t.Errorf("conversation page does not contain %q", want)
 		}
 	}
-	if got := strings.Count(string(body), "data-sveltekit-reload"); got != len(items) {
+	if got := strings.Count(string(body), "/projects/"+runtime.id+"/conversations/"); got != len(items) {
 		t.Errorf("saved conversation links with document navigation = %d, want %d", got, len(items))
 	}
 }
@@ -91,7 +91,7 @@ func TestConversationPageRendersLinkedWorkflowStatusAndSavedContext(t *testing.T
 		ID: "saved-conversation", Title: "Saved launch", Provider: "codex", Model: "gpt-5.6-luna",
 		Branch: "gimble/conversation-saved", Worktree: repository, Status: conversation.StatusIdle,
 		Messages: []conversation.Message{{Role: "user", Text: "Keep this context", Created: 1}},
-		Runs:     []conversation.Run{{ID: "01RUN.review", Workflow: conversation.WorkflowReview, Status: conversation.RunStatusCompleted}},
+		Runs:     []conversation.Run{{ID: "01RUN.review", Workflow: "review", Status: conversation.RunStatusCompleted}},
 	}
 	encoded, err := json.Marshal(item)
 	if err != nil {
@@ -102,15 +102,15 @@ func TestConversationPageRendersLinkedWorkflowStatusAndSavedContext(t *testing.T
 	}
 
 	ctx, cancel := context.WithCancel(t.Context())
-	runtime, err := NewRuntime(ctx, project, WithPort(0))
+	runtime, err := NewRuntime(ctx, repository, WithPort(0))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer func() {
 		cancel()
-		<-runtime.done
+		<-runtime.instance.done
 	}()
-	response, err := http.Get("http://" + runtime.address + "/conversations?conversation=" + item.ID)
+	response, err := http.Get("http://" + runtime.instance.address + "/projects/" + runtime.id + "/conversations/" + item.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -119,7 +119,7 @@ func TestConversationPageRendersLinkedWorkflowStatusAndSavedContext(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"Workflow runs", "/runs/01RUN.review", "completed", "Keep this context"} {
+	for _, want := range []string{"Workflow runs", "/projects/" + runtime.id + "/runs/01RUN.review", "completed", "Keep this context"} {
 		if !strings.Contains(string(body), want) {
 			t.Errorf("conversation page does not contain %q", want)
 		}

@@ -1,55 +1,18 @@
 <script lang="ts">
-  import { goto, invalidateAll } from "$app/navigation";
-  import { onMount } from "svelte";
-  import type { InterviewRow, RunRow } from "#lib/observation/index.js";
-  import RunsList, { type RunCardItem } from "#lib/run/RunsList.svelte";
-  import SmallStates from "#lib/run/SmallStates.svelte";
-
-  let { data }: { data: { items: RunCardItem[]; attention: InterviewRow[]; now: number } } =
-    $props();
-
-  onMount(() => {
-    const refresh = window.setInterval(() => void invalidateAll(), 2_000);
-    return () => window.clearInterval(refresh);
-  });
-
-  function openRun(run: RunRow) {
-    void goto(`/runs/${encodeURIComponent(run.id)}`);
-  }
+  let { data }: { data: { projects: { id: string; path: string }[] } } = $props();
 </script>
 
-<svelte:head>
-  <title>Runs — Gimble</title>
-  <meta
-    name="description"
-    content="Every live and recorded agent workflow run in this Gimble project."
-  />
-</svelte:head>
-
-<div class="runs-page">
-  {#if data.items.length === 0}
-    <div class="empty-project"><SmallStates state="empty" /></div>
+<svelte:head><title>Projects — Gimble</title></svelte:head>
+<section class="projects">
+  <h1>Projects</h1>
+  {#each data.projects as project (project.id)}
+    <a href={`/projects/${project.id}`}>{project.path}</a>
   {:else}
-    <RunsList
-      items={data.items}
-      attention={data.attention}
-      now={data.now}
-      onopenrun={openRun}
-    />
-  {/if}
-</div>
+    <p>No projects admitted.</p>
+  {/each}
+</section>
 
 <style>
-  .runs-page {
-    display: flex;
-    min-width: 0;
-    justify-content: center;
-    padding: 0 32px;
-  }
-
-  .empty-project {
-    box-sizing: border-box;
-    width: min(1120px, 100%);
-    padding: 36px 0 24px;
-  }
+  .projects { max-width: 760px; margin: 3rem auto; padding: 0 1.5rem; }
+  .projects a { display: block; padding: .75rem; color: var(--status-live); }
 </style>

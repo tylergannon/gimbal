@@ -17,8 +17,7 @@ const writeTimeout = 10 * time.Second
 
 // Routes answers the observation endpoints and passes every other request
 // on. It takes its registry from the request context, which the web server
-// supplies from the runtime context through BaseContext, so there is one
-// composition and a test injects the same context.
+// supplies for the admitted project. Tests can inject the same context.
 func Routes(next http.Handler) http.Handler {
 	mux := http.NewServeMux()
 	mux.Handle("/", next)

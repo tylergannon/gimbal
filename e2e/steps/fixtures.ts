@@ -103,9 +103,21 @@ export function setRunsFixture(populated: boolean): void {
       },
       {
         run: "fixture-failed",
-        key: "implementation.1",
-        name: "implementation.1",
+        key: "outcome.1",
+        name: "outcome.1",
         loop: false,
+        status: "ended",
+        error: "fixture failed",
+        began: 1789800010000,
+        ended: 1789800050000,
+        values: {},
+        decisions: [],
+      },
+      {
+        run: "fixture-failed",
+        key: "outcome.1/implementation.1",
+        name: "implementation.1",
+        loop: true,
         status: "ended",
         error: "fixture failed",
         began: 1789800010000,
@@ -148,7 +160,7 @@ export function delayNextRunsData(page: Page, state: BrowserState): void {
   state.releaseRunsRequest = release;
   let delayed = false;
   void page.route("**/__data.json*", async (route: Route) => {
-    if (new URL(route.request().url()).pathname !== "/__data.json" || delayed) {
+    if (!new URL(route.request().url()).pathname.endsWith("/__data.json") || delayed) {
       await route.continue();
       return;
     }

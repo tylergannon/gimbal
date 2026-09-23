@@ -1,5 +1,6 @@
 <script lang="ts">
   import { goto, invalidateAll } from "$app/navigation";
+	import { page } from "$app/state";
   import BotIcon from "@lucide/svelte/icons/bot";
   import GitBranchIcon from "@lucide/svelte/icons/git-branch";
   import ExternalLinkIcon from "@lucide/svelte/icons/external-link";
@@ -7,7 +8,7 @@
   import MessageSquarePlusIcon from "@lucide/svelte/icons/message-square-plus";
   import SendIcon from "@lucide/svelte/icons/send";
   import TerminalSquareIcon from "@lucide/svelte/icons/square-terminal";
-  import { createConversation, sendConversationMessage } from "../conversation.remote.js";
+  import { createConversation, sendConversationMessage } from "../../routes/conversation.remote.js";
   import type { Conversation, Message } from "#lib/skgo/conversation/types.js";
 
   let { data }: { data: { items: Conversation[]; selected: Conversation } } = $props();
@@ -50,7 +51,7 @@
     try {
       const created = await createConversation({ title, provider, model });
       title = "";
-      await goto(`/conversations?conversation=${encodeURIComponent(created.id)}`);
+	  await goto(`/projects/${page.params.project}/conversations/${encodeURIComponent(created.id)}`);
       await invalidateAll();
     } catch (error) {
       feedback = error instanceof Error ? error.message : String(error);
@@ -128,8 +129,7 @@
       {#each data.items as item (item.id)}
         <a
           class:active={item.id === current?.id}
-          href={`/conversations?conversation=${encodeURIComponent(item.id)}`}
-          data-sveltekit-reload
+		  href={`/projects/${page.params.project}/conversations/${encodeURIComponent(item.id)}`}
         >
           <span class="list-title">{item.title}</span>
           <span class="list-meta">
@@ -168,7 +168,7 @@
           <section class="conversation-runs" aria-label="Workflow runs">
             <span class="role">Workflow runs</span>
             {#each current.runs as run (run.id)}
-              <a href={`/runs/${encodeURIComponent(run.id)}`}>
+			  <a href={`/projects/${page.params.project}/runs/${encodeURIComponent(run.id)}`}>
                 <span class="run-name">{run.workflow}</span>
                 <span class:running={run.status === "running"} class:error={run.status === "error"} class="run-status">
                   {run.status}

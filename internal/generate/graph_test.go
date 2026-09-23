@@ -314,12 +314,15 @@ func TestSourceWritesTheWorkflowsPackage(t *testing.T) {
 		"var Graph = workflow.Graph{",
 		"func Command(defaults map[gimble.WorkflowRole]string) *cobra.Command {",
 		`Use:   "fixture",`,
-		`cmd.Flags().StringVar(&workDir, "work-dir", ".", "the working directory for this run")`,
+		`cmd.Flags().StringVar(&workDir, "work-dir", "", "execution directory (default: owning project)")`,
+		`cmd.Flags().StringVar(&project, "project", ".",`,
+		`cmd.Flags().BoolVar(&follow, "follow", false,`,
 		`leadModelDefault := defaults[gimble.WorkflowRole("lead")]`,
 		`if leadModelDefault == "" {`,
 		`advanced override for role lead`,
-		`env := gimble.Env{WorkDir: workDir}`,
-		`return Fixture(ctx, env) })`,
+		`func Hosted() web.WorkflowEntry`,
+		`return Fixture(ctx, env)`,
+		`web.Submit(cmd.Context(), instanceDir, project, web.Submission{`,
 	} {
 		if !strings.Contains(string(written), want) {
 			t.Errorf("the generated file lacks %q:\n%s", want, firstLines(string(written)))

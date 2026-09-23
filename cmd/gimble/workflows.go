@@ -1,14 +1,11 @@
 package main
 
 import (
-	"context"
 	_ "embed"
 	"encoding/json"
 
 	"github.com/spf13/cobra"
 	"github.com/tylergannon/gimble"
-	"github.com/tylergannon/gimble/internal/binding"
-	"github.com/tylergannon/gimble/internal/conversation"
 	"github.com/tylergannon/gimble/internal/workflows/implementation"
 	"github.com/tylergannon/gimble/internal/workflows/pyramidsummary"
 	"github.com/tylergannon/gimble/internal/workflows/researchdocument"
@@ -28,48 +25,13 @@ func workflowDefaults() map[gimble.WorkflowRole]string {
 	return defaults
 }
 
-func conversationWorkflowOption() web.Option {
-	defaults := workflowDefaults()
-	reviewEntry := func(ctx context.Context, runtime *web.Runtime, worktree string, request conversation.LaunchRequest) error {
-		models, err := binding.Roles(map[gimble.WorkflowRole]string{
-			gimble.RoleCodeReview: defaults[gimble.RoleCodeReview],
-		})
-		if err != nil {
-			return err
-		}
-		env := gimble.Env{WorkDir: worktree}
-		params := review.ReviewParams{Goal: request.Goal}
-		return runtime.Run(ctx, conversation.WorkflowReview, models, func(ctx context.Context) error {
-			return review.Review(ctx, env, params)
-		})
-	}
-	implementEntry := func(ctx context.Context, runtime *web.Runtime, worktree string, request conversation.LaunchRequest) error {
-		models, err := binding.Roles(map[gimble.WorkflowRole]string{
-			gimble.RoleSprintPlanning:        defaults[gimble.RoleSprintPlanning],
-			gimble.RoleArchitecturalCritique: defaults[gimble.RoleArchitecturalCritique],
-			gimble.WorkflowRole("coding"):    defaults[gimble.WorkflowRole("coding")],
-			gimble.RoleQAOrchestration:       defaults[gimble.RoleQAOrchestration],
-		})
-		if err != nil {
-			return err
-		}
-		env := gimble.Env{WorkDir: worktree}
-		params := implementation.Params{
-			Promise: request.Goal, DefinitionOfDoneFile: request.DefinitionOfDoneFile, MaxTasks: 3,
-		}
-		return runtime.Run(ctx, conversation.WorkflowImplement, models, func(ctx context.Context) error {
-			return implementation.Implement(ctx, env, params)
-		})
-	}
-	return web.WithConversationWorkflows(reviewEntry, implementEntry)
-}
-
 // newRunCommand is gimble run: the workflows built into this binary, each
 // the Command its package generated.
 func newRunCommand() *cobra.Command {
 	run := &cobra.Command{
 		Use:   "run",
-		Short: "Run a workflow built into this binary; gimble run --help lists them",
+		Short: "Submit a compiled workflow to a running Gimble instance",
+		Long:  "Submit a workflow compiled into both this CLI and the selected persistent instance. To add one, author it under internal/workflows/ in the Gimble checkout, generate and build with just build, register its generated Command and Hosted entries in cmd/gimble/workflows.go, and restart the serving binary. A CLI command does not transport a Go closure. The instance owns accepted runs after this client exits. Each workflow accepts --instance-dir (or GIMBLE_INSTANCE_DIR, default .gimble), --project for the admitted owner, --work-dir for execution, and --follow for terminal success or failure. Model and effort flags select each role; executables, PATH, and provider configuration come from the instance startup environment.",
 	}
 	run.AddCommand(review.Command(workflowDefaults()))
 	run.AddCommand(validateproduct.Command(workflowDefaults()))
@@ -77,4 +39,14 @@ func newRunCommand() *cobra.Command {
 	run.AddCommand(researchdocument.Command(workflowDefaults()))
 	run.AddCommand(pyramidsummary.Command(workflowDefaults()))
 	return run
+}
+
+func builtInWorkflows() web.Option {
+	return web.WithWorkflows(map[string]web.WorkflowEntry{
+		"review":            review.Hosted(),
+		"validate-product":  validateproduct.Hosted(),
+		"implement":         implementation.Hosted(),
+		"research-document": researchdocument.Hosted(),
+		"pyramid-summary":   pyramidsummary.Hosted(),
+	})
 }

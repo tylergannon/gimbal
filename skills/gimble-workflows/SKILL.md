@@ -189,11 +189,32 @@ Style preferences and unrelated improvements do not become acceptance gates.
 
 ## Make the workflow callable and understandable
 
-The current built-in authoring path is inside the Gimble checkout. Follow the
-small existing review workflow and the repository's generation and command
-registration conventions. Generated command support currently depends on
-Gimble internals and its web build; do not assume it is an independent generator
-for arbitrary external Go modules.
+The supported hosted authoring path is inside the Gimble checkout. Add a Go
+package under `internal/workflows/`, following `internal/workflows/review/`:
+an entry taking `context.Context`, `gimble.Env`, and optionally one package-local
+parameter struct; a `//go:generate` directive for `gimblegen`; and Polytype
+generation when the workflow has structured result types. Run `just build` from
+the checkout. It runs `go generate ./...`, builds the web assets, and compiles
+the generated graph, `Hosted()`, and `Command()` into `bin/gimble`.
+
+In `cmd/gimble/workflows.go`, add the package's generated `Command(workflowDefaults())`
+to `newRunCommand` and its `Hosted()` under the same run name to
+`builtInWorkflows`. Rebuild and restart the serving binary; invoke the same
+build's `gimble run <name>` against that running instance. The command submits
+parameters and role-model choices; the instance executes the compiled Go body
+and owns live observation. Its project owns durable run files. The command
+cannot send a Go closure, and a different or older server binary cannot run a
+newly compiled workflow. This generator and web build are checkout-internal;
+external-module generation and arbitrary closure submission are not supported
+hosted paths.
+
+Standalone `gimble.Run(gimble.Project(ctx, dir), ...)` runs in its caller's
+process, writes under `dir/runs`, and does not attach to a running instance.
+`gimble run-prompt` creates its own headless runtime, using a temporary log
+directory unless `--logs` names a fresh, empty directory. Neither path joins
+the hosted instance's live controls or inherits its startup environment. Keep
+their durable state separate from projects admitted to a running instance;
+concurrent shared-state use has no supported contract.
 
 CLI documentation is part of authoring. A caller should understand purpose,
 required inputs, meaningful defaults, outputs or changes, completion and proof

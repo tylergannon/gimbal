@@ -1,7 +1,7 @@
 # The web app
 
-Every Gimble runtime serves one web application: the project's runs, live
-and past, drawn as the graph of agents that did the work, with a person at
+One Gimble instance serves one web application for its admitted projects' runs,
+live and past, drawn as the graph of agents that did the work, with a person at
 the page able to steer any of them. This file is what the design team and
 the coding agents share: the UI decisions that are made, the features, the
 user stories by name, and what is deliberately not on the page.
@@ -159,7 +159,7 @@ Proposed first pass: all of Operator; `sup.read-mid-turn`,
 - Context-window meters, quota windows, MCP status, raw payload retention
   (declined in #173).
 - Editing the workflow. The workflow is Go.
-- Multi-project. One runtime, one project directory, one page.
+- Browser project selection is pending; the instance and per-project state are in place.
 
 ## Vocabulary
 

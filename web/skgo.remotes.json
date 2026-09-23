@@ -10,8 +10,10 @@
   ],
   "loads": [
     "src/routes/+page.server.ts",
-    "src/routes/conversations/+page.server.ts",
-    "src/routes/runs/[runID]/+page.server.ts"
+    "src/routes/projects/[project]/+page.server.ts",
+    "src/routes/projects/[project]/conversations/+page.server.ts",
+    "src/routes/projects/[project]/conversations/[conversationID]/+page.server.ts",
+    "src/routes/projects/[project]/runs/[runID]/+page.server.ts"
   ],
   "endpoints": {}
 }

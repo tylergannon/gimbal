@@ -99,7 +99,7 @@ func TestPromptProjectDirRejectsNonemptyDirectory(t *testing.T) {
 
 func TestWriteRunPromptLogsNamesTheCompletedRun(t *testing.T) {
 	project := t.TempDir()
-	runDir := filepath.Join(project, "runs", "run-217")
+	runDir := filepath.Join(project, ".gimble", "runs", "run-217")
 	if err := os.MkdirAll(runDir, 0o755); err != nil {
 		t.Fatal(err)
 	}

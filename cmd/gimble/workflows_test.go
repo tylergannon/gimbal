@@ -2,14 +2,64 @@ package main
 
 import (
 	"bytes"
+	"context"
+	"encoding/json"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/spf13/cobra"
 	"github.com/tylergannon/gimble"
+	"github.com/tylergannon/gimble/internal/workflows/researchdocument"
 	"github.com/tylergannon/gimble/internal/workflows/review"
+	"github.com/tylergannon/gimble/web"
 )
+
+func TestGeneratedCommandPreservesOptionalPresence(t *testing.T) {
+	base := t.TempDir()
+	project := filepath.Join(base, "project")
+	if err := os.Mkdir(project, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	instanceDir := filepath.Join(base, "instance")
+	seen := make(chan researchdocument.Params, 2)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	instance, err := web.NewInstance(ctx, instanceDir, nil, web.WithNoWeb(), web.WithWorkflows(map[string]web.WorkflowEntry{
+		"research-document": func(_ context.Context, _ gimble.Env, raw json.RawMessage) error {
+			var params researchdocument.Params
+			if err := json.Unmarshal(raw, &params); err != nil {
+				return err
+			}
+			seen <- params
+			return nil
+		},
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := instance.AdmitProject(project); err != nil {
+		t.Fatal(err)
+	}
+	baseArgs := []string{"run", "research-document", "--instance-dir", instanceDir, "--project", project, "--goal", "goal", "--research-dir", base, "--output", filepath.Join(base, "out.md"), "--token-budget", "100", "--follow"}
+	for _, extra := range [][]string{nil, {"--min-sources-per-topic", "0"}} {
+		var output bytes.Buffer
+		if err := run(append(append([]string{}, baseArgs...), extra...), &output, &bytes.Buffer{}, os.Getenv); err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(output.String(), ".research-document") {
+			t.Fatal(output.String())
+		}
+	}
+	first, second := <-seen, <-seen
+	if first.Goal != "goal" || first.MinSourcesPerTopic.Present || first.MaxEditorialRounds.Present {
+		t.Fatalf("absent optionals: %+v", first)
+	}
+	if !second.MinSourcesPerTopic.Present || second.MinSourcesPerTopic.Value != 0 || second.MaxEditorialRounds.Present {
+		t.Fatalf("explicit zero optional: %+v", second)
+	}
+}
 
 func TestRunListsTheWorkflowsBuiltIn(t *testing.T) {
 	help := helpOf(t)
@@ -20,21 +70,16 @@ func TestRunListsTheWorkflowsBuiltIn(t *testing.T) {
 	}
 }
 
-func TestImplementHelpExplainsItsGenericContract(t *testing.T) {
+func TestImplementHelpExplainsItsOutcomeContract(t *testing.T) {
 	help := helpOf(t, "implement")
-	for _, flag := range []string{"--promise string", "--definition-of-done-file string", "--max-tasks int"} {
+	for _, flag := range []string{"--outcomes-file string", "--max-tasks-per-outcome int"} {
 		if !strings.Contains(help, flag) || !strings.Contains(lineWith(help, flag), "(required)") {
 			t.Errorf("run implement --help lacks required %s:\n%s", flag, help)
 		}
 	}
-	for _, text := range []string{"planner-directed loop", "does not commit", "independent validator", "90–95%", "must not cause another lap"} {
+	for _, text := range []string{"ordered list of outcomes", "PromiseLoop", "not commit", "independent validator", "90–95%", "next outcome"} {
 		if !strings.Contains(help, text) {
 			t.Errorf("run implement --help lacks %q:\n%s", text, help)
-		}
-	}
-	for _, text := range []string{"Model cost guidance", "sprint-planning", "architectural-critique", "Sol or Opus", "low-risk background implementation", "Terra and Sonnet", "execution errors still end the run"} {
-		if !strings.Contains(help, text) {
-			t.Errorf("run implement --help lacks model-selection guidance %q:\n%s", text, help)
 		}
 	}
 	if strings.Contains(help, "frontend") || strings.Contains(help, "Storybook") {
@@ -83,9 +128,14 @@ func TestResearchDocumentHelpShowsLimitsAndModelDefaults(t *testing.T) {
 // input flags and its centrally supplied code-review model.
 func TestRunHelpShowsTheInputsAndTheRoles(t *testing.T) {
 	help := helpOf(t, "review")
-	for _, flag := range []string{"--work-dir string", "--goal string", "--code-review string", "--port int", "--no-web"} {
+	for _, flag := range []string{"--work-dir string", "--project string", "--instance-dir string", "--follow", "--goal string", "--code-review string"} {
 		if !strings.Contains(help, flag) {
 			t.Errorf("run review --help lacks %s:\n%s", flag, help)
+		}
+	}
+	for _, phrase := range []string{"persistent instance", "client exits", "instance startup environment", "optional effort"} {
+		if !strings.Contains(help, phrase) {
+			t.Errorf("run review --help lacks %q", phrase)
 		}
 	}
 	if strings.Contains(lineWith(help, "--work-dir"), "(required)") {

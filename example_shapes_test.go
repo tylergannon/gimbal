@@ -431,7 +431,7 @@ func Example_validationCommand() {
 // runID is the id of the one run under project: the id the page shows,
 // which an operator holds instead of a pointer.
 func runID(project string) string {
-	entries, err := os.ReadDir(filepath.Join(project, "runs"))
+	entries, err := os.ReadDir(filepath.Join(project, ".gimble", "runs"))
 	if err != nil || len(entries) != 1 {
 		panic(fmt.Sprintf("runs under %s: %v, %v", project, entries, err))
 	}

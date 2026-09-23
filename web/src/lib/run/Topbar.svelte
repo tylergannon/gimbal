@@ -1,5 +1,6 @@
 <script lang="ts">
   import SearchIcon from "@lucide/svelte/icons/search";
+	import { page } from "$app/state";
   import StopIcon from "@lucide/svelte/icons/square";
   import XIcon from "@lucide/svelte/icons/x";
   import { Badge } from "#lib/components/ui/badge/index.js";
@@ -132,7 +133,7 @@
 
 <header class="topbar">
   <nav aria-label="Breadcrumb" class="breadcrumb">
-    <a href="/">Runs</a><span aria-hidden="true">›</span><strong>{run.name}</strong
+	<a href={`/projects/${page.params.project}`}>Runs</a><span aria-hidden="true">›</span><strong>{run.name}</strong
     ><span aria-hidden="true">›</span><code>{run.id.split(".")[0]?.slice(-8) || run.id}</code
     >{#if sessionName}<span aria-hidden="true">›</span><strong>{sessionName}</strong>{/if}
   </nav>

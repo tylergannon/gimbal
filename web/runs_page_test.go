@@ -50,7 +50,7 @@ func TestRunsPageRendersEveryRunAndPendingInterview(t *testing.T) {
 		}
 	}
 
-	request := httptest.NewRequest(http.MethodGet, "/", nil)
+	request := httptest.NewRequest(http.MethodGet, "/projects/test", nil)
 	ctx := observation.WithRegistry(request.Context(), registry)
 	request = request.WithContext(hooks.WithProjectDir(ctx, project))
 	recorder := httptest.NewRecorder()
@@ -100,7 +100,7 @@ func TestRunsPageRendersAnEmptyProject(t *testing.T) {
 	}
 
 	project := t.TempDir()
-	request := httptest.NewRequest(http.MethodGet, "/", nil)
+	request := httptest.NewRequest(http.MethodGet, "/projects/test", nil)
 	ctx := observation.WithRegistry(request.Context(), observation.NewRegistry(project))
 	request = request.WithContext(hooks.WithProjectDir(ctx, project))
 	recorder := httptest.NewRecorder()
@@ -139,7 +139,7 @@ func TestRunsPageRefreshesAForeignRunFromDisk(t *testing.T) {
 
 	render := func() string {
 		t.Helper()
-		request := httptest.NewRequest(http.MethodGet, "/", nil)
+		request := httptest.NewRequest(http.MethodGet, "/projects/test", nil)
 		ctx := observation.WithRegistry(request.Context(), servedRegistry)
 		request = request.WithContext(hooks.WithProjectDir(ctx, project))
 		recorder := httptest.NewRecorder()

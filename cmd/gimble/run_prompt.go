@@ -41,13 +41,19 @@ type runPromptOptions struct {
 func runPrompt(args []string, stdout, stderr io.Writer, getenv func(string) string) error {
 	flags := flag.NewFlagSet("gimble run-prompt", flag.ContinueOnError)
 	flags.SetOutput(stderr)
+	flags.Usage = func() {
+		_, _ = fmt.Fprintln(stderr, "Run one prompt in this process, separate from any hosted instance. Logs use a temporary directory unless --logs names a fresh empty directory. This run has no hosted live controls; use a separate log directory from projects admitted to an instance.")
+		_, _ = fmt.Fprintln(stderr, "Usage of gimble run-prompt:")
+		_, _ = fmt.Fprintln(stderr, "  gimble run-prompt [flags] PROMPT")
+		flags.PrintDefaults()
+	}
 	var options runPromptOptions
 	flags.StringVar(&options.model, "model", "", "model name or alias; OpenCode uses opencode/MODEL or opencode/PROVIDER/MODEL; omitted inside Codex or Claude selects the opposite provider")
 	flags.StringVar(&options.modelVersion, "model-version", "", "exact model-family version")
 	flags.StringVar(&options.effort, "effort", "", "reasoning effort: low, medium, high, xhigh, or max")
 	flags.StringVar(&options.outputSchema, "output-schema", "", "exact JSON Schema for structured output; omit for plain text")
 	flags.StringVar(&options.workdir, "workdir", ".", "agent workspace")
-	flags.StringVar(&options.logs, "logs", "", "new project log directory; default is a temporary directory")
+	flags.StringVar(&options.logs, "logs", "", "new directory for .gimble run records; default is a temporary directory")
 	flags.DurationVar(&options.timeout, "timeout", 20*time.Minute, "turn timeout")
 	if err := flags.Parse(args); err != nil {
 		return err
@@ -134,7 +140,7 @@ func runPrompt(args []string, stdout, stderr io.Writer, getenv func(string) stri
 }
 
 func writeRunPromptLogs(stderr io.Writer, projectDir string) error {
-	runDir, err := soleRunDir(projectDir)
+	runDir, err := soleRunDir(filepath.Join(projectDir, ".gimble"))
 	if err != nil {
 		return err
 	}

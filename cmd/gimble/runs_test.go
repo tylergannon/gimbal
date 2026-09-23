@@ -18,21 +18,17 @@ import (
 	"github.com/tylergannon/gimble/web"
 )
 
-func TestRunsCommandListsRunsFromRunningInstances(t *testing.T) {
+func TestRunsCommandListsRunsFromRunningInstance(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	project := t.TempDir()
-	var runtimes []*web.Runtime
-	for range 2 {
-		runtime, err := web.NewRuntime(ctx, project+"/.gimble", web.WithNoWeb())
-		if err != nil {
-			t.Fatal(err)
-		}
-		runtimes = append(runtimes, runtime)
+	runtime, err := web.NewRuntime(ctx, project, web.WithNoWeb())
+	if err != nil {
+		t.Fatal(err)
 	}
-	started := make(chan struct{}, len(runtimes))
+	started := make(chan struct{}, 2)
 	var workers sync.WaitGroup
-	for _, runtime := range runtimes {
+	for range 2 {
 		workers.Go(func() {
 			_ = runtime.Run(ctx, "listed", nil, func(ctx context.Context) error {
 				started <- struct{}{}
@@ -41,7 +37,7 @@ func TestRunsCommandListsRunsFromRunningInstances(t *testing.T) {
 			})
 		})
 	}
-	for range runtimes {
+	for range 2 {
 		<-started
 	}
 
@@ -54,8 +50,8 @@ func TestRunsCommandListsRunsFromRunningInstances(t *testing.T) {
 	if err := json.Unmarshal(output.Bytes(), &got); err != nil {
 		t.Fatal(err)
 	}
-	if len(got.Runs) != len(runtimes) {
-		t.Fatalf("runs = %+v; want %d", got.Runs, len(runtimes))
+	if len(got.Runs) != 2 {
+		t.Fatalf("runs = %+v; want 2", got.Runs)
 	}
 	for _, run := range got.Runs {
 		if run.Status != "running" || run.PID == 0 || run.Name != "listed" {
@@ -65,6 +61,71 @@ func TestRunsCommandListsRunsFromRunningInstances(t *testing.T) {
 
 	cancel()
 	workers.Wait()
+}
+
+func TestRunsCommandSelectsAdmittedProjectThroughAlias(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	base := t.TempDir()
+	var work sync.WaitGroup
+	t.Cleanup(func() { cancel(); work.Wait() })
+	a := filepath.Join(base, "a")
+	b := filepath.Join(base, "b")
+	for _, path := range []string{a, b} {
+		if err := os.MkdirAll(path, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	instance, err := web.NewInstance(ctx, filepath.Join(base, "instance"), nil, web.WithNoWeb())
+	if err != nil {
+		t.Fatal(err)
+	}
+	projectA, err := instance.AdmitProject(a)
+	if err != nil {
+		t.Fatal(err)
+	}
+	projectB, err := instance.AdmitProject(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	started := make(chan struct{}, 2)
+	for _, project := range []*web.Runtime{projectA, projectB} {
+		work.Go(func() {
+			_ = project.Run(ctx, "selected", nil, func(ctx context.Context) error {
+				started <- struct{}{}
+				<-ctx.Done()
+				return ctx.Err()
+			})
+		})
+	}
+	<-started
+	<-started
+	alias := filepath.Join(base, "alias-b")
+	if err := os.Symlink(b, alias); err != nil {
+		t.Fatal(err)
+	}
+	var output bytes.Buffer
+	if err := run([]string{"runs", "--work-dir", alias}, &output, io.Discard, os.Getenv); err != nil {
+		t.Fatal(err)
+	}
+	var selected runsOutput
+	if err := json.Unmarshal(output.Bytes(), &selected); err != nil {
+		t.Fatal(err)
+	}
+	if len(selected.Runs) != 1 {
+		t.Fatalf("B alias lists %+v", selected.Runs)
+	}
+	bID := selected.Runs[0].ID
+	output.Reset()
+	if err := run([]string{"runs", "--work-dir", filepath.Join(base, "b", "..", "a")}, &output, io.Discard, os.Getenv); err != nil {
+		t.Fatal(err)
+	}
+	var other runsOutput
+	if err := json.Unmarshal(output.Bytes(), &other); err != nil {
+		t.Fatal(err)
+	}
+	if len(other.Runs) != 1 || other.Runs[0].ID == bID {
+		t.Fatalf("A normalized path lists %+v", other.Runs)
+	}
 }
 
 func TestRunsCommandReturnsEmptyJSONWithoutRuntime(t *testing.T) {
@@ -139,7 +200,7 @@ func TestWatchRunReadsSnapshotAndSSEFromRuntime(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	project := t.TempDir()
-	runtime, err := web.NewRuntime(ctx, filepath.Join(project, ".gimble"), web.WithNoWeb())
+	runtime, err := web.NewRuntime(ctx, project, web.WithNoWeb())
 	if err != nil {
 		t.Fatal(err)
 	}

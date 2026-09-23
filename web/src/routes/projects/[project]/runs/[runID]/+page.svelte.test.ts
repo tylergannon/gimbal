@@ -1,8 +1,10 @@
-import { afterEach, beforeEach, expect, test } from "vite-plus/test";
+import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 import { render } from "vitest-browser-svelte";
 import { implementInterviewFixture, planTripFixture } from "#lib/run/fixtures/index.js";
 import type { ObservationDelta, RunSnapshot } from "#lib/observation/index.js";
 import Page from "./+page.svelte";
+
+vi.mock("$app/state", () => ({ page: { params: { project: "test-project" } } }));
 
 class TestEventSource {
   static instances: TestEventSource[] = [];
@@ -73,7 +75,7 @@ test("a missing graph requires generation and a rebuilt serving binary", async (
   await expect.element(screen.getByText("just build", { exact: true })).toBeVisible();
   await expect
     .element(screen.getByRole("link", { name: "Back to runs" }))
-    .toHaveAttribute("href", "/");
+    .toHaveAttribute("href", "/projects/test-project");
   expect(document.querySelector('[aria-label="Recorded run history"]')).toBeNull();
   expect(document.querySelector('[aria-label$="workflow map"]')).toBeNull();
 });

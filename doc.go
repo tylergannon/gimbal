@@ -3,7 +3,12 @@
 // Codex, Claude Code, another harness, or an adapter supplied by its author.
 //
 // Project places the project directory in a context. Run uses that context to
-// establish the root scope and durable record for one workflow run.
+// establish the root scope and durable record for one workflow run. A direct
+// Run executes in its caller's process and does not join a running web
+// instance. The supported hosted authoring path compiles a workflow and its
+// generated command into the Gimble checkout's binary; the command submits
+// to that running instance, which owns live observation. Keep independent
+// direct-run project state separate from a concurrently hosted project.
 //
 // Workflows use normal Go control flow. Scope names a bounded segment of work;
 // Group provides an observable form of errgroup-style concurrency; Iterate

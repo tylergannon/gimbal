@@ -126,15 +126,25 @@ func newStreamID() string {
 
 // Open returns the store for one run and registers it, if there is a
 // registry. A run started without the web runtime still gets a store: it owns
-// it privately and writes the same eight files.
+// it privately and writes the same eight files. For a newly started run,
+// createDir makes its directory after registration, so a reader cannot find
+// the directory before the run's own store is available.
 //
 // The eight files are written empty straight away, so a run with no steps still
 // has a model_calls.json. The error is that write's, and the run records it as
 // a recording failure: the store itself is usable either way.
-func Open(registry *Registry, id, name, dir string) (*Store, error) {
+func Open(registry *Registry, id, name, dir string, createDir ...func() error) (*Store, error) {
 	s := newStore(registry, id, name, dir)
 	if registry != nil {
 		registry.add(s)
+	}
+	if len(createDir) != 0 {
+		if err := createDir[0](); err != nil {
+			if registry != nil {
+				registry.remove(s)
+			}
+			return nil, err
+		}
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()

@@ -16,7 +16,7 @@ type ConversationsData struct {
 	Selected conversation.Conversation   `json:"selected"`
 }
 
-func load(ctx context.Context) (ConversationsData, error) {
+func Load(ctx context.Context) (ConversationsData, error) {
 	event := skgo.EventFrom(ctx)
 	if request := event.Request(); request != nil {
 		ctx = request.Context()
@@ -28,10 +28,7 @@ func load(ctx context.Context) (ConversationsData, error) {
 	}
 	items := manager.List()
 	data := ConversationsData{Items: items, Selected: conversation.Conversation{Messages: []conversation.Message{}}}
-	selected := ""
-	if request := event.Request(); request != nil {
-		selected = request.URL.Query().Get("conversation")
-	}
+	selected := event.Param("conversationID")
 	if selected == "" && len(items) > 0 {
 		selected = items[0].ID
 	}
@@ -41,4 +38,4 @@ func load(ctx context.Context) (ConversationsData, error) {
 	return data, nil
 }
 
-var _ = skgo.Load(load)
+var _ = skgo.Load(Load)

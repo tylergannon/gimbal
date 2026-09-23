@@ -3,6 +3,21 @@ package hooks
 import "context"
 
 type projectDirKey struct{}
+type projectsKey struct{}
+
+type ProjectChoice struct {
+	ID   string `json:"id"`
+	Path string `json:"path"`
+}
+
+func WithProjects(ctx context.Context, choices []ProjectChoice) context.Context {
+	return context.WithValue(ctx, projectsKey{}, choices)
+}
+
+func Projects(ctx context.Context) []ProjectChoice {
+	choices, _ := ctx.Value(projectsKey{}).([]ProjectChoice)
+	return choices
+}
 
 // WithProjectDir keeps the runtime's project directory on the request context
 // so server loads can discover the runs that belong to this application.

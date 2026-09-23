@@ -11,9 +11,50 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/tylergannon/gimble/internal/conversation"
+	"github.com/tylergannon/gimble"
 	"github.com/tylergannon/gimble/internal/observation"
 )
+
+func TestDirectRunDoesNotJoinAnInstance(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	root := t.TempDir()
+	hostedProject := filepath.Join(root, "hosted")
+	directProject := filepath.Join(root, "direct")
+	for _, dir := range []string{hostedProject, directProject} {
+		if err := os.Mkdir(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	instance, err := NewInstance(ctx, filepath.Join(root, "instance"), nil, WithNoWeb())
+	if err != nil {
+		t.Fatal(err)
+	}
+	project, err := instance.AdmitProject(hostedProject)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := gimble.Run(gimble.Project(ctx, directProject), "direct", nil, func(ctx context.Context) error {
+		gimble.Set(ctx, "message", "direct-ok")
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	runs, err := os.ReadDir(filepath.Join(directProject, "runs"))
+	if err != nil || len(runs) != 1 {
+		t.Fatalf("direct durable runs = %v, %v", runs, err)
+	}
+	id := runs[0].Name()
+	if _, err := os.Stat(filepath.Join(directProject, "runs", id, "run.json")); err != nil {
+		t.Fatalf("direct run row: %v", err)
+	}
+	if _, err := project.registry.Snapshot(id); !errors.Is(err, observation.ErrNoRun) {
+		t.Fatalf("instance unexpectedly observed direct run: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(hostedProject, ".gimble", "runs", id)); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("direct run appeared in hosted project: %v", err)
+	}
+}
 
 func TestRuntimeListenerOptionsConflict(t *testing.T) {
 	_, err := NewRuntime(t.Context(), t.TempDir(), WithPort(0), WithNoWeb())
@@ -53,11 +94,11 @@ func TestRuntimeServesWebApplicationOverUDSAndCleansUp(t *testing.T) {
 	if readErr != nil || closeErr != nil {
 		t.Fatalf("read response: %v; close response: %v", readErr, closeErr)
 	}
-	if response.StatusCode != http.StatusOK || !strings.Contains(string(body), "Runs") {
+	if response.StatusCode != http.StatusOK || !strings.Contains(string(body), "Projects") {
 		t.Fatalf("GET /: status %d, body %q", response.StatusCode, body)
 	}
 	cancel()
-	<-runtime.done
+	<-runtime.instance.done
 	if _, err := os.Stat(socket); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("socket still exists after shutdown: %v", err)
 	}
@@ -69,7 +110,7 @@ func TestRuntimeUsesSelectedArbitraryPortAndShutsDown(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	response, err := http.Get("http://" + runtime.address + "/")
+	response, err := http.Get("http://" + runtime.instance.address + "/")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,8 +121,8 @@ func TestRuntimeUsesSelectedArbitraryPortAndShutsDown(t *testing.T) {
 		t.Fatalf("GET /: status %d", response.StatusCode)
 	}
 	cancel()
-	<-runtime.done
-	if conn, err := net.Dial("tcp", runtime.address); err == nil {
+	<-runtime.instance.done
+	if conn, err := net.Dial("tcp", runtime.instance.address); err == nil {
 		_ = conn.Close()
 		t.Fatal("TCP listener remained open after shutdown")
 	}
@@ -97,62 +138,5 @@ func TestRuntimeRunsWithoutWeb(t *testing.T) {
 		t.Fatal(err)
 	}
 	cancel()
-	<-runtime.done
-}
-
-func TestConversationWorkflowStartsInThisRuntimeAndReportsLaunchFailure(t *testing.T) {
-	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
-	startedBody := make(chan struct{})
-	finishBody := make(chan struct{})
-	wantWorktree := filepath.Join(t.TempDir(), "conversation-worktree")
-	reviewEntry := func(ctx context.Context, runtime *Runtime, worktree string, _ conversation.LaunchRequest) error {
-		if worktree != wantWorktree {
-			return errors.New("review received the wrong worktree")
-		}
-		return runtime.Run(ctx, conversation.WorkflowReview, nil, func(context.Context) error {
-			close(startedBody)
-			<-finishBody
-			return nil
-		})
-	}
-	implementEntry := func(context.Context, *Runtime, string, conversation.LaunchRequest) error {
-		return errors.New("implementation inputs were rejected")
-	}
-	runtime, err := NewRuntime(ctx, t.TempDir(), WithNoWeb(), WithConversationWorkflows(reviewEntry, implementEntry))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	launched, err := runtime.launchConversationWorkflow(wantWorktree, conversation.LaunchRequest{
-		Workflow: conversation.WorkflowReview, Goal: "Inspect it",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	<-startedBody
-	if !strings.HasSuffix(launched.ID, ".review") {
-		t.Fatalf("started run id = %q", launched.ID)
-	}
-	if _, live := runtime.registry.Live(launched.ID); !live {
-		t.Fatal("conversation run is not live in the server's observation registry")
-	}
-	close(finishBody)
-	if err := <-launched.Done; err != nil {
-		t.Fatal(err)
-	}
-	snapshot, err := runtime.registry.Snapshot(launched.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if snapshot.Run.Status != observation.StatusCompleted {
-		t.Fatalf("terminal run status = %q", snapshot.Run.Status)
-	}
-
-	failed, err := runtime.launchConversationWorkflow(wantWorktree, conversation.LaunchRequest{
-		Workflow: conversation.WorkflowImplement, Goal: "Change it", DefinitionOfDoneFile: "done.md",
-	})
-	if err == nil || !strings.Contains(err.Error(), "inputs were rejected") {
-		t.Fatalf("failed implementation launch = (%+v, %v)", failed, err)
-	}
+	<-runtime.instance.done
 }

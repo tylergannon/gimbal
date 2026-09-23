@@ -6,13 +6,13 @@ package pyramidsummary
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"os"
-	"os/signal"
 	"path/filepath"
 
 	"github.com/spf13/cobra"
 	"github.com/tylergannon/gimble"
-	"github.com/tylergannon/gimble/internal/binding"
 	"github.com/tylergannon/gimble/web"
 	"github.com/tylergannon/gimble/workflow"
 	"github.com/tylergannon/polytype"
@@ -288,9 +288,20 @@ var Graph = workflow.Graph{
 	},
 }
 
-// Command is gimble run pyramid-summary: Gimble's environment flag, a flag for each field of Params, a
-// model flag for each role PyramidSummary names with defaults supplied by the caller,
-// the web application's flags, and a run of PyramidSummary on the runtime.
+// Hosted is the entry PyramidSummary supplies to the persistent instance.
+func Hosted() web.WorkflowEntry {
+	return func(ctx context.Context, env gimble.Env, raw json.RawMessage) error {
+		var params Params
+		if err := json.Unmarshal(raw, &params); err != nil {
+			return err
+		}
+		return PyramidSummary(ctx, env, params)
+	}
+}
+
+// Command is gimble run pyramid-summary: a flag for each field of Params, a
+// model flag for each role PyramidSummary names, instance and project selection,
+// and optional waiting for the hosted run's terminal result.
 func Command(defaults map[gimble.WorkflowRole]string) *cobra.Command {
 	var params Params
 	var optLargestTokenBudget int
@@ -299,13 +310,14 @@ func Command(defaults map[gimble.WorkflowRole]string) *cobra.Command {
 	var pyramidPlanningModel string
 	var editorialReviewModel string
 	var workDir string
-	var port int
-	var uds string
-	var noWeb bool
+	var project string
+	var instanceDir string
+	var conversation string
+	var follow bool
 	cmd := &cobra.Command{
 		Use:   "pyramid-summary",
 		Short: "PyramidSummary writes and validates every derived compression of a largest document.",
-		Long:  "Package pyramidsummary compresses one validated research-backed document\ninto a pyramid that repeatedly halves its token budget until the next level\nwould be under 100 tokens. The largest budget defaults to 3200.\n\nThe largest document and its semantic index already exist when this workflow\nstarts. Six fixed author slots independently write up to six of the smallest\nderived levels in parallel. When a larger starting budget creates additional\nupper levels, a bounded Promise Loop writes those after the fixed fan-out.\nEvery author retains the original goal and index as aids for judging which\nknowledge matters, but research is over.\n\nOne editor then reads every level together. It checks factual fidelity,\nlegibility, useful progressive compression, and whether important ideas\nsurvive longer than secondary detail. Derived levels with material issues\nreceive one bounded repair wave followed by one final whole-pyramid review.\nA material defect in the supplied largest document or after the repair wave\nends the workflow honestly.\n\nModel defaults use Gemini 3.1 Pro at high effort for document authoring and\neditorial review, Gemini 3.8 Flash at medium effort for document\nsupervision, and Luna for pyramid planning. Because authoring runs in\nparallel across up to six slots, callers should inspect these displayed pins\nbefore launching a large pyramid and override them deliberately when needed.\n\nExample:\n\n\tgimble run pyramid-summary \\\n\t  --goal \"Explain passkeys to security-conscious product managers\" \\\n\t  --semantic-index ./passkeys-research/INDEX.md \\\n\t  --largest-document ./passkeys.md \\\n\t  --output-dir ./passkeys-pyramid",
+		Long:  "Package pyramidsummary compresses one validated research-backed document\ninto a pyramid that repeatedly halves its token budget until the next level\nwould be under 100 tokens. The largest budget defaults to 3200.\n\nThe largest document and its semantic index already exist when this workflow\nstarts. Six fixed author slots independently write up to six of the smallest\nderived levels in parallel. When a larger starting budget creates additional\nupper levels, a bounded Promise Loop writes those after the fixed fan-out.\nEvery author retains the original goal and index as aids for judging which\nknowledge matters, but research is over.\n\nOne editor then reads every level together. It checks factual fidelity,\nlegibility, useful progressive compression, and whether important ideas\nsurvive longer than secondary detail. Derived levels with material issues\nreceive one bounded repair wave followed by one final whole-pyramid review.\nA material defect in the supplied largest document or after the repair wave\nends the workflow honestly.\n\nModel defaults use Gemini 3.1 Pro at high effort for document authoring and\neditorial review, Gemini 3.8 Flash at medium effort for document\nsupervision, and Luna for pyramid planning. Because authoring runs in\nparallel across up to six slots, callers should inspect these displayed pins\nbefore launching a large pyramid and override them deliberately when needed.\n\nExample:\n\n\tgimble run pyramid-summary \\\n\t  --goal \"Explain passkeys to security-conscious product managers\" \\\n\t  --semantic-index ./passkeys-research/INDEX.md \\\n\t  --largest-document ./passkeys.md \\\n\t  --output-dir ./passkeys-pyramid" + "\n\nThe selected persistent instance owns this run. --project selects its admitted repository; --work-dir selects the execution directory independently. --instance-dir selects the instance state directory (or GIMBLE_INSTANCE_DIR, default .gimble). --follow waits for terminal success or failure; otherwise the run continues after this client exits. Each role flag chooses a model and optional effort. Executable lookup, PATH, and provider configuration come from the instance startup environment.",
 		Args:  cobra.NoArgs,
 	}
 	cmd.Flags().StringVar(&params.Goal, "goal", "", "Goal describes the audience, subject, and understanding every level must preserve. (required)")
@@ -317,7 +329,15 @@ func Command(defaults map[gimble.WorkflowRole]string) *cobra.Command {
 	_ = cmd.MarkFlagRequired("semantic-index")
 	_ = cmd.MarkFlagRequired("largest-document")
 	_ = cmd.MarkFlagRequired("output-dir")
-	cmd.Flags().StringVar(&workDir, "work-dir", ".", "the working directory for this run")
+	cmd.Flags().StringVar(&workDir, "work-dir", "", "execution directory (default: owning project)")
+	cmd.Flags().StringVar(&project, "project", ".", "admitted repository owning this run and its observation")
+	instanceDefault := os.Getenv("GIMBLE_INSTANCE_DIR")
+	if instanceDefault == "" {
+		instanceDefault = ".gimble"
+	}
+	cmd.Flags().StringVar(&instanceDir, "instance-dir", instanceDefault, "selected running instance state directory (default: GIMBLE_INSTANCE_DIR or .gimble)")
+	cmd.Flags().StringVar(&conversation, "conversation", "", "associate this run with a conversation in the owning project")
+	cmd.Flags().BoolVar(&follow, "follow", false, "wait for the hosted run's terminal result; without this flag the run survives client exit")
 	documentAuthoringModelDefault := defaults[gimble.WorkflowRole("document-authoring")]
 	if documentAuthoringModelDefault == "" {
 		cmd.Flags().StringVar(&documentAuthoringModel, "document-authoring", "", "the model for role document-authoring, as model or model:effort; OpenCode uses opencode/model or opencode/provider/model")
@@ -346,38 +366,53 @@ func Command(defaults map[gimble.WorkflowRole]string) *cobra.Command {
 	} else {
 		cmd.Flags().StringVar(&editorialReviewModel, "editorial-review", editorialReviewModelDefault, "advanced override for role editorial-review, as model or model:effort; OpenCode uses opencode/model or opencode/provider/model; omit this flag to use the displayed workflow default")
 	}
-	cmd.Flags().IntVar(&port, "port", 8080, "loopback TCP port for the web application")
-	cmd.Flags().StringVar(&uds, "uds", "", "Unix-domain socket for the web application instead of TCP")
-	cmd.Flags().BoolVar(&noWeb, "no-web", false, "run without the web application")
 	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
 		if cmd.Flags().Changed("largest-token-budget") {
 			params.LargestTokenBudget = polytype.Optional[int]{Present: true, Value: optLargestTokenBudget}
 		}
-		workDir, err := filepath.Abs(workDir)
+		project, err := filepath.Abs(project)
 		if err != nil {
 			return err
 		}
-		models, err := binding.Roles(map[gimble.WorkflowRole]string{gimble.WorkflowRole("document-authoring"): documentAuthoringModel, gimble.WorkflowRole("document-supervision"): documentSupervisionModel, gimble.WorkflowRole("pyramid-planning"): pyramidPlanningModel, gimble.WorkflowRole("editorial-review"): editorialReviewModel})
+		if workDir == "" {
+			workDir = project
+		}
+		workDir, err = filepath.Abs(workDir)
 		if err != nil {
 			return err
 		}
-		ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt)
-		defer stop()
-		var options []web.Option
-		switch {
-		case noWeb:
-			options = append(options, web.WithNoWeb())
-		case uds != "":
-			options = append(options, web.WithUDS(uds))
-		default:
-			options = append(options, web.WithPort(port))
+		values := map[string]any{
+			"Goal":            params.Goal,
+			"SemanticIndex":   params.SemanticIndex,
+			"LargestDocument": params.LargestDocument,
+			"OutputDir":       params.OutputDir,
 		}
-		runtime, err := web.NewRuntime(ctx, filepath.Join(workDir, ".gimble"), options...)
+		if params.LargestTokenBudget.Present {
+			values["LargestTokenBudget"] = params.LargestTokenBudget.Value
+		}
+		paramsJSON, err := json.Marshal(values)
 		if err != nil {
 			return err
 		}
-		env := gimble.Env{WorkDir: workDir}
-		return runtime.Run(ctx, "pyramid-summary", models, func(ctx context.Context) error { return PyramidSummary(ctx, env, params) })
+		admitted, err := web.Submit(cmd.Context(), instanceDir, project, web.Submission{
+			Name: "pyramid-summary", Params: paramsJSON, WorkDir: workDir, Conversation: conversation,
+			Models: map[gimble.WorkflowRole]string{gimble.WorkflowRole("document-authoring"): documentAuthoringModel, gimble.WorkflowRole("document-supervision"): documentSupervisionModel, gimble.WorkflowRole("pyramid-planning"): pyramidPlanningModel, gimble.WorkflowRole("editorial-review"): editorialReviewModel},
+		})
+		if err != nil {
+			return err
+		}
+		fmt.Fprintln(cmd.OutOrStdout(), admitted.ID)
+		if !follow {
+			return nil
+		}
+		result, err := web.Follow(cmd.Context(), instanceDir, project, admitted.ID)
+		if err != nil {
+			return err
+		}
+		if result.Status != "completed" {
+			return fmt.Errorf("run %s %s: %s", admitted.ID, result.Status, result.Error)
+		}
+		return nil
 	}
 	return cmd
 }

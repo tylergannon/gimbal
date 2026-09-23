@@ -65,7 +65,7 @@ func newSteerCommand() *cobra.Command {
 			return err
 		},
 	}
-	command.Flags().StringVar(&workDir, "work-dir", ".", "the working directory for this project")
+	command.Flags().StringVar(&workDir, "work-dir", ".", "repository directory owning this project's .gimble state")
 	command.Flags().StringVar(&session, "session", "", "session ID to steer")
 	command.Flags().StringVar(&loop, "loop", "", "loop scope ID whose planner should receive the message")
 	return command

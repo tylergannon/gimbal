@@ -18,12 +18,14 @@
     workflowName = "workflow",
     graphProblem = "missing",
     disconnectedFor = "42 s",
+	backHref = "/",
     onreconnect,
   }: {
     state: SmallState;
     workflowName?: string;
     graphProblem?: "missing" | "mismatch";
     disconnectedFor?: string;
+	backHref?: string;
     onreconnect?: () => void;
   } = $props();
 </script>
@@ -110,7 +112,7 @@
           <code>just build</code>.
         </span>
       </div>
-      <a class="back-link" href="/">Back to runs</a>
+	  <a class="back-link" href={backHref}>Back to runs</a>
     </Card.Content>
   {/if}
 </Card.Root>

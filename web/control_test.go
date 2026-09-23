@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"errors"
+	"path/filepath"
 	"testing"
 
 	"github.com/tylergannon/gimble"
@@ -86,7 +87,7 @@ func TestCancelRunPersistsACancelledRecord(t *testing.T) {
 		t.Fatalf("run error = %#v; want person kill of root scope", err)
 	}
 
-	snapshot, err := observation.NewRegistry(project).Snapshot(id)
+	snapshot, err := observation.NewRegistry(filepath.Join(project, ".gimble")).Snapshot(id)
 	if err != nil {
 		t.Fatal(err)
 	}

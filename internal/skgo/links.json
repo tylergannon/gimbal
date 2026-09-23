@@ -11,12 +11,20 @@
 			"target": "web/src/routes"
 		},
 		{
-			"link": "internal/skgo/links/onzggl3sn52xizltf5rw63twmvzhgylunfxw44y",
-			"target": "web/src/routes/conversations"
+			"link": "internal/skgo/links/onzggl3sn52xizltf5yhe33kmvrxi4zplnyhe33kmvrxixi",
+			"target": "web/src/routes/projects/[project]"
 		},
 		{
-			"link": "internal/skgo/links/onzggl3sn52xizltf5zhk3ttf5nxe5lojfcf2",
-			"target": "web/src/routes/runs/[runID]"
+			"link": "internal/skgo/links/onzggl3sn52xizltf5yhe33kmvrxi4zplnyhe33kmvrxixjpmnxw45tfojzwc5djn5xhg",
+			"target": "web/src/routes/projects/[project]/conversations"
+		},
+		{
+			"link": "internal/skgo/links/onzggl3sn52xizltf5yhe33kmvrxi4zplnyhe33kmvrxixjpmnxw45tfojzwc5djn5xhgl23mnxw45tfojzwc5djn5xesrc5",
+			"target": "web/src/routes/projects/[project]/conversations/[conversationID]"
+		},
+		{
+			"link": "internal/skgo/links/onzggl3sn52xizltf5yhe33kmvrxi4zplnyhe33kmvrxixjpoj2w44zplnzhk3sjiroq",
+			"target": "web/src/routes/projects/[project]/runs/[runID]"
 		}
 	]
 }

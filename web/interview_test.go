@@ -69,7 +69,7 @@ func startedRunID(t *testing.T, project string) string {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for {
-		entries, err := os.ReadDir(filepath.Join(project, "runs"))
+		entries, err := os.ReadDir(filepath.Join(project, ".gimble", "runs"))
 		if err == nil && len(entries) == 1 {
 			return entries[0].Name()
 		}

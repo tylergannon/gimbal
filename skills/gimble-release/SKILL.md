@@ -43,9 +43,11 @@ just build
 ```
 
 The current recipe prepares Go and frontend dependencies, runs generation,
-formats generated frontend output, builds Svelte, and builds `bin/gimble`.
-The binary embeds the web application: `go install ./cmd/gimble` alone does
-not prepare missing or stale frontend assets.
+formats generated frontend output, builds Svelte, checks that
+`web/build/skgo.manifest.json` exists, and builds `bin/gimble` with the web
+application embedded. Run `go install ./cmd/gimble` only after `just build` in
+the same checkout. A versioned `go install ...@version` skips the frontend
+build and cannot produce a working web-enabled CLI.
 
 Generators own generated files. Regenerate and inspect their diff rather than
 patching generated output by hand. Preserve Gimble-owned application code when
@@ -102,11 +104,11 @@ Keep each role's intended model tier. Check the rendered `gimble run` role
 flags, not only the JSON. Tests for aliases should cover resolution and
 overrides without fixing a moving shorthand to today's version.
 
-Before tagging a release, check that `go.mod` has no replacement that blocks
-versioned installation. Prove installation from a pushed commit with
-`go install github.com/tylergannon/gimble/cmd/gimble@<commit>`; after tagging,
-install the exact tag and inspect the installed CLI. A checkout install does not
-establish that the published module can be installed.
+For a release, check out the pushed commit and then the exact tag in a clean
+worktree. Run `just build` and start each resulting binary with its web listener;
+confirm it serves the page. Publish a binary only if it came from that complete
+build. The Go module remains installable as a library, but its versioned CLI
+install is not a supported distribution path.
 
 ## Merge and refresh the local installation
 
@@ -120,7 +122,7 @@ their maintained source before merging. After every feature or fix merges,
 reinstall both the CLI and the Gimble skills on this machine:
 
 1. Fast-forward the main checkout and build the merged source with `just build`.
-2. Install it with `go install ./cmd/gimble`.
+2. Install it with `go install ./cmd/gimble` from that built checkout.
 3. Reinstall the published skills, including their supporting references:
 
    ```sh

@@ -27,6 +27,13 @@ cd gimble
 just build
 ```
 
+`just build` generates the Go bindings, builds the skgo/SvelteKit app, checks
+for `web/build/skgo.manifest.json`, and compiles `bin/gimble` with the web app
+embedded. To install the built CLI on your Go executable path, run
+`go install ./cmd/gimble` from this checkout after `just build`. For a specific
+release, check out its tag before building. A versioned `go install ...@version`
+does not run the frontend build and cannot start Gimble's web listener.
+
 Gimble drives coding-agent harnesses you already have. Install and sign in to at least one of Codex, Claude Code, or Antigravity before running a workflow.
 
 <h2 id="run">Run a built-in workflow</h2>

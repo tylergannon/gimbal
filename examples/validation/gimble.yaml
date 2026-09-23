@@ -5,7 +5,6 @@ guides:
   - ../../skills/gimble-runs/SKILL.md
 output_dir: /tmp/gimble-user-testing/artifacts
 timeout: 1h
-# Omit issue_repo for a report-only rehearsal.
 issue_repo: tylergannon/gimble
 # playwright_cli: /absolute/path/to/playwright-cli
 workloads:

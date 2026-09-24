@@ -36,6 +36,20 @@ type jevPacket struct {
 	OmittedToolCalls int           `json:"omitted_tool_calls"`
 }
 
+func jevClipContext(text string, limit int) string {
+	if len(text) <= limit {
+		return strings.Clone(text)
+	}
+	const marker = " [... middle omitted] "
+	if limit <= len(marker) {
+		return clipText(text, limit)
+	}
+	keep := limit - len(marker)
+	head := strings.ToValidUTF8(text[:keep/2], "")
+	tail := strings.ToValidUTF8(text[len(text)-(keep-keep/2):], "")
+	return strings.Clone(head + marker + tail)
+}
+
 func toolInputPrefix(input json.RawMessage) (string, bool) {
 	text := string(input)
 	if utf8.RuneCountInString(text) <= 100 {
@@ -94,8 +108,8 @@ func (j *jevSupervision) observe(e AgentEvent, prompt string, supervisors []supe
 	j.seen[e.ID] = true
 	j.fallback = false
 	packet := j.packet
-	packet.Task = clipText(prompt, jevTaskBytes)
-	packet.Thinking = clipText(data.Text, jevThinkingBytes)
+	packet.Task = jevClipContext(prompt, jevTaskBytes)
+	packet.Thinking = jevClipContext(data.Text, jevThinkingBytes)
 	j.packet = jevPacket{}
 	for _, sup := range supervisors {
 		j.checks.Go(func() {

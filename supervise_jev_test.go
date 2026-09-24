@@ -21,6 +21,13 @@ func TestJevToolInputPrefix(t *testing.T) {
 	}
 }
 
+func TestJevClipContextKeepsTaskAndThinkingEnds(t *testing.T) {
+	clipped := jevClipContext("task start "+strings.Repeat("é", 100)+" final scope rule", 80)
+	if len(clipped) > 80 || !utf8.ValidString(clipped) || !strings.HasPrefix(clipped, "task start") || !strings.HasSuffix(clipped, "final scope rule") || !strings.Contains(clipped, "middle omitted") {
+		t.Errorf("context clip = %q (%d bytes)", clipped, len(clipped))
+	}
+}
+
 func TestJevSupervisionPacketAndCooldown(t *testing.T) {
 	provider := jevtest.New().On(jevtest.State("rendered task: keep the workflow simple"), jevtest.Yes(0.91))
 	client, err := jev.New(jev.WithProvider(provider), jev.WithModel("jev-1.13.0"))

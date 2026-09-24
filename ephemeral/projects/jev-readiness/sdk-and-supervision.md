@@ -24,16 +24,18 @@ For question design, use TypeSafe's [official agent skill](https://github.com/ty
 
 ## Best first use: frequent supervision screening
 
+The [draft message and cooldown contract](supervision-message-contract.md) specifies the proposed per-rule Jev request, the generative-supervisor handoff, and the two cooldowns.
+
 Today [`WithSupervisor`](../../../supervise.go) starts a generative supervisor look on a timer (three minutes by default). Each look reads a bounded recent transcript; an objection is sent as a free-text `Steer`. Jev can judge a smaller, named snapshot more often and decide **whether to call that supervisor**. It cannot write the situation-specific objection. The existing runtime owns the transcript buffer and steer lifecycle, so this screening belongs alongside that machinery if an experiment justifies integration.
 
-One screening snapshot should contain the worker's task and constraints, the newest meaningful transcript slice, and separately identified facts from code: command exit status, current changed paths, test results, elapsed time, and previous intervention. Ask several independent questions in one request, for example:
+Every provider-exposed completed reasoning message should trigger one separate Jev request per attached supervisor rule, using the bounded state and Choice question in the [message contract](supervision-message-contract.md). Candidate rules include:
 
 - Does the worker's latest plan conflict with an explicit task constraint?
 - Does its completion claim conflict with the observed tool or test result?
 - Is it repeating the same approach without new evidence, even if the words or commands differ?
 - Does a new tool result suggest the worker needs a diagnosis beyond a prewritten correction?
 
-Code should use exact facts directly. Jev should only answer the semantic parts. Its outputs are advisory features, not probabilities that the agent is out of bounds. In a later live design, a pulse around 15–30 seconds **when new evidence exists**, and event checks after meaningful tool results, are hypotheses to evaluate. Coalesce overlapping checks, cap concurrency and spend, discard results against an obsolete turn, and let the existing supervisor cadence handle API failures. Continue to supervise normally while Jev is in shadow mode.
+Code should use exact facts it actually observes and leave semantic judgments to Jev. Jev's output is an advisory screening distribution, not a calibrated probability that the agent is out of bounds. The proposed cooldowns gate live generative reviews and automatic steers, while Jev still checks every completed reasoning event. Cap concurrency and spend, discard results after the worker turn ends, and let the existing supervisor cadence handle API failures. Continue to supervise normally while Jev is in shadow mode.
 
 The first experiment is offline replay over saved Gimble turns with independently labeled moments requiring intervention, including healthy temporary failures and productive exploration. Compare exact Go signals, current cheap generative supervisor, and Jev questions at the same decision points. Measure false escalations per healthy run, recall of real intervention points, lead time, latency, and actual cost. Tune thresholds on one slice and assess on held-out runs; do not assume TypeSafe's confidence is calibrated for Gimble. Only then try live shadow judgments, then Jev-triggered generative review. Automatic steering would require separate evidence that a particular intervention is safe and helpful.
 
@@ -49,6 +51,6 @@ For early external examples, see [prior art](prior-art.md).
 
 Jev returns `Noul`, `Choice`, or `Score` judgments over text or JSON state. It does not generate prose or inspect images/audio/video directly. [Model documentation](https://docs.typesafe.ai/models) currently lists `jev-1.13.0`, $0.042 per million input tokens, free output, 64k total request tokens and 32k for state plus the longest question; published limits are dynamic. Those prices make a bounded screening loop plausible, but do not establish end-to-end savings because snapshot size, frequency, retries, and false escalations matter.
 
-For scale only: a 2,000-input-token probe every 15 seconds is 480,000 input tokens per active hour, about $0.020 at the published Jev price. Actual usage and latency must be measured from responses; the downstream supervisor calls may dominate total cost.
+Cost scales with completed reasoning events × attached rules × measured input tokens per request. The downstream generative reviews may dominate total cost, so count those as well as Jev requests.
 
 TypeSafe's own [jaggedness notes](https://docs.typesafe.ai/model-jaggedness/jev-1.13) warn about counting, arithmetic, distracting long state, indirection, and adversarial text. Treat the worker transcript as untrusted data, and never let a confident answer substitute for observed evidence. TypeSafe says customer requests are not used for training, while [zero data retention](https://docs.typesafe.ai/legal) is an enterprise offering; decide what proprietary source or transcript data may leave Gimble before a live rollout.

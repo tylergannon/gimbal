@@ -154,6 +154,9 @@ and a configured public artifact destination.
 Assign useful tasks rather than exhaustive feature checklists. Testers must never
 inspect the tested product's source. They capture captioned screenshots and report
 task success separately from usability; video is for optional human review.
+Install FFmpeg with libx264 before running it. `reports.json` points to each
+2× H.264 `video.mp4`, capped at 1280×720 and ready for `gimble upload-artifact`;
+the raw `video.webm` remains beside it.
 When testing Gimble by having it build another project, use the delegated run's
 own web listener for live UI/API monitoring. A standalone history viewer can
 retain stale snapshots of runs owned by another process.

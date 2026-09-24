@@ -99,9 +99,9 @@ func (h *testingHarness) RunTurn(ctx context.Context, id, prompt string, _ json.
 
 func TestUserTestingStages(t *testing.T) {
 	for _, tc := range []struct {
-		name                           string
-		n                              int
-		tester, debrief, visual, close bool
+		name                                   string
+		n                                      int
+		tester, debrief, visual, close, encode bool
 	}{
 		{name: "two parallel workloads", n: 2},
 		{name: "unused slots skip", n: 1},
@@ -110,11 +110,21 @@ func TestUserTestingStages(t *testing.T) {
 		{name: "tester failure still reaches triage", n: 2, tester: true},
 		{name: "visual failure still reaches triage", n: 2, visual: true},
 		{name: "cleanup failure reaches run outcome", n: 1, close: true},
+		{name: "video conversion failure reaches run outcome", n: 1, encode: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			s, input := suiteFixture(t, tc.n)
 			s.Timeout = "10s"
 			s.PlaywrightCLI = filepath.Join(filepath.Dir(input), "browser")
+			encoder := filepath.Join(filepath.Dir(input), "ffmpeg")
+			encoderBody := "#!/bin/sh\nprintf '%s\\n' \"$@\" > ffmpeg-args\nfor arg do if [ \"$previous\" = -i ]; then input=$arg; fi; previous=$arg; last=$arg; done\ncp \"$input\" \"$last\"\n"
+			if tc.encode {
+				encoderBody = "#!/bin/sh\necho encoding failed >&2\nexit 9\n"
+			}
+			if err := os.WriteFile(encoder, []byte(encoderBody), 0700); err != nil {
+				t.Fatal(err)
+			}
+			t.Setenv("PATH", filepath.Dir(input)+string(os.PathListSeparator)+os.Getenv("PATH"))
 			// Browser lifecycle only; agent calls and the workflow runtime are real.
 			if err := os.WriteFile(s.PlaywrightCLI, []byte("#!/bin/sh\nif [ \"$2\" = video-start ]; then printf video > \"$3\"; fi\n"), 0700); err != nil {
 				t.Fatal(err)
@@ -125,8 +135,11 @@ func TestUserTestingStages(t *testing.T) {
 			err := gimble.Run(gimble.Project(t.Context(), t.TempDir()), "user-testing", models, func(ctx context.Context) error {
 				return ValidateProduct(ctx, gimble.Env{WorkDir: filepath.Dir(input)}, Params{SuiteFile: input})
 			})
-			if (err != nil) != (tc.tester || tc.debrief || tc.visual || tc.close) {
+			if (err != nil) != (tc.tester || tc.debrief || tc.visual || tc.close || tc.encode) {
 				t.Fatalf("run error: %v", err)
+			}
+			if tc.encode && !strings.Contains(err.Error(), "video conversion") {
+				t.Fatalf("conversion failure missing from run: %v", err)
 			}
 			if tc.close {
 				if _, ok := errors.AsType[*gimble.CloseError](err); !ok {
@@ -171,6 +184,19 @@ func TestUserTestingStages(t *testing.T) {
 				t.Fatalf("reports = %+v", reports)
 			}
 			for i, r := range reports {
+				if !strings.HasSuffix(r.Video, "video.mp4") {
+					t.Fatalf("processed video missing from report: %+v", r)
+				}
+				if !tc.close && !tc.encode {
+					data, readErr := os.ReadFile(r.Video)
+					if readErr != nil || string(data) != "video" {
+						t.Fatalf("video conversion did not produce uploadable file: %q, %v", data, readErr)
+					}
+					args, readErr := os.ReadFile(filepath.Join(filepath.Dir(r.Video), "ffmpeg-args"))
+					if readErr != nil || !strings.Contains(string(args), "setpts=PTS/2,fps=25") || !strings.Contains(string(args), "+faststart") {
+						t.Fatalf("wrong video conversion: %s, %v", args, readErr)
+					}
+				}
 				if r.ElapsedSeconds <= 0 {
 					t.Fatal("elapsed time not measured")
 				}

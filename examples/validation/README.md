@@ -17,7 +17,7 @@ the workflow. `--follow` waits for the final issue-publication result.
 Before running, build/install the desired product version, prepare separate
 project-B workspaces, and save issue/task text locally. The example assignments
 expect `issue.md` and `change.md` in their respective workspaces. Choose unused
-ports and install `playwright-cli` and its browser. The observer's `--work-dir`
+ports and install `playwright-cli`, its browser, and FFmpeg with libx264. The observer's `--work-dir`
 should be separate from these test workspaces. Each workload can supply a
 foreground `start` command with a `ready` check, or point `url` at an existing
 instance. For a CLI-only product, supply the URL of a loopback terminal such as
@@ -47,7 +47,10 @@ Publishing requires authenticated `gh` and a configured public artifact destinat
 task permissions such as creating a PR in B belong explicitly in that workload's assignment.
 
 Results include each tester's Markdown report, ordered captioned screenshots,
-measured elapsed time, and a browser video for optional human review. Flash writes
+measured elapsed time, and a browser video for optional human review. The workflow
+keeps the raw `video.webm` and writes a 2× H.264 `video.mp4`, capped at 1280×720,
+to the path in `reports.json`. That MP4 can be published with `gimble upload-artifact`.
+Flash writes
 `visual-review.md`; triage writes `findings.md` with issue URLs or proposed issues.
 `reports.json` points to workload reports and records execution errors. A failed
 task is a useful user-testing finding. A failed agent turn or failed cleanup makes

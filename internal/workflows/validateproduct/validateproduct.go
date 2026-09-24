@@ -20,6 +20,8 @@
 // asks for its three favorite and least favorite aspects of UX and UI separately,
 // appended to user-report.md. Elapsed time covers the task, excluding this debrief.
 // Video records the browser for optional human review; agents do not analyze it.
+// After recording stops, ffmpeg makes a 2x H.264 MP4 capped at 1280x720 for
+// browser playback and upload with gimble upload-artifact.
 // Gemini Flash opens screenshots to check readability and claims, not to repeat the workload.
 // The final agent reads all reports, deduplicates findings against existing GitHub
 // issues, uploads supporting screenshots, and opens actionable issues in the
@@ -27,11 +29,13 @@
 // workflow execution errors; failed agent turns remain execution errors.
 //
 // Prerequisites: authenticated harnesses, playwright-cli and its installed browser,
+// ffmpeg with libx264,
 // authenticated gh, and a configured gimble upload-artifact destination.
 // playwright_cli can override the driver's executable path. timeout defaults
 // to 1h. All paths resolve from the suite file. Output is a unique
 // user-testing-* directory containing reports.json,
-// per-tester user-report.md, screenshots and video.webm, visual-review.md and
+// per-tester user-report.md, screenshots, raw video.webm and processed video.mp4,
+// visual-review.md and
 // findings.md. Elapsed time is measured by the workflow. The final command/run
 // status includes cleanup errors; files alone do not certify run completion.
 // Bounded browser cleanup runs outside cancellation; hard kills cannot guarantee it.
@@ -83,6 +87,10 @@ func ValidateProduct(ctx context.Context, env gimble.Env, params Params) (result
 	if err != nil {
 		return err
 	}
+	ffmpeg, err := exec.LookPath("ffmpeg")
+	if err != nil {
+		return fmt.Errorf("encode evaluator video: %w", err)
+	}
 	if err := os.MkdirAll(suite.OutputDir, 0755); err != nil {
 		return err
 	}
@@ -128,7 +136,7 @@ func ValidateProduct(ctx context.Context, env gimble.Env, params Params) (result
 	for i, w := range suite.Workloads {
 		dirs[i] = filepath.Join(output, fmt.Sprintf("tester%d", i+1))
 		names[i] = filepath.Base(output) + fmt.Sprintf("-%d", i+1)
-		reports[i] = workloadReport{Name: w.Name, Assignment: w.AssignmentFile, Report: filepath.Join(dirs[i], "user-report.md"), Video: filepath.Join(dirs[i], "video.webm"), Error: "not run"}
+		reports[i] = workloadReport{Name: w.Name, Assignment: w.AssignmentFile, Report: filepath.Join(dirs[i], "user-report.md"), Video: filepath.Join(dirs[i], "video.mp4"), Error: "not run"}
 	}
 	if err := writeJSON(reportsFile, reports); err != nil {
 		return err
@@ -152,7 +160,7 @@ func ValidateProduct(ctx context.Context, env gimble.Env, params Params) (result
 		}
 		opened[i], recording[i] = true, true
 		browser := shellQuote(driver) + " -s=" + shellQuote(names[i])
-		code, _, stderr, err := gimble.RunCommand(ctx, "record-browser", dirs[i], "zsh", "-c", browser+" open about:blank && "+browser+" video-start "+shellQuote(reports[i].Video)+" --cursor && "+browser+" goto "+shellQuote(w.URL))
+		code, _, stderr, err := gimble.RunCommand(ctx, "record-browser", dirs[i], "zsh", "-c", browser+" open about:blank && "+browser+" video-start "+shellQuote(filepath.Join(dirs[i], "video.webm"))+" --cursor && "+browser+" goto "+shellQuote(w.URL))
 		if err != nil || code != 0 {
 			return fmt.Errorf("%s browser: %w", w.Name, errors.Join(err, fmt.Errorf("exit %d: %s", code, stderr)))
 		}
@@ -219,14 +227,28 @@ func ValidateProduct(ctx context.Context, env gimble.Env, params Params) (result
 	})
 	groupErr := users.Wait()
 	recordingErr := closeBrowsers()
+	var videoErr error
+	for i := range reports {
+		if recordingErr != nil {
+			break
+		}
+		cmd := exec.CommandContext(ctx, ffmpeg, "-y", "-i", filepath.Join(dirs[i], "video.webm"),
+			"-vf", "setpts=PTS/2,fps=25,scale=w='min(1280,iw)':h='min(720,ih)':force_original_aspect_ratio=decrease:force_divisible_by=2",
+			"-an", "-c:v", "libx264", "-preset", "medium", "-crf", "23", "-pix_fmt", "yuv420p", "-movflags", "+faststart", reports[i].Video)
+		cmd.Dir = dirs[i]
+		log, err := cmd.CombinedOutput()
+		if err != nil {
+			videoErr = errors.Join(videoErr, fmt.Errorf("%s video conversion: %w: %s", reports[i].Name, err, log))
+		}
+	}
 	if err := writeJSON(reportsFile, reports); err != nil {
-		return errors.Join(groupErr, recordingErr, err)
+		return errors.Join(groupErr, recordingErr, videoErr, err)
 	}
 	if ctx.Err() != nil {
-		return errors.Join(ctx.Err(), groupErr, recordingErr, errors.Join(turns[:]...))
+		return errors.Join(ctx.Err(), groupErr, recordingErr, videoErr, errors.Join(turns[:]...))
 	}
 	gimble.Set(ctx, "workload reports", reportsFile)
-	gimble.Set(ctx, "execution errors", errorText(errors.Join(groupErr, recordingErr, errors.Join(turns[:]...))))
+	gimble.Set(ctx, "execution errors", errorText(errors.Join(groupErr, recordingErr, videoErr, errors.Join(turns[:]...))))
 	visual := gimble.NewSession(ctx, "product-visual-review", output)
 	visualText, visualErr := visual.Generate[gimble.Text](ctx, visualPrompt)
 	visualFile := filepath.Join(output, "visual-review.md")
@@ -237,7 +259,7 @@ func ValidateProduct(ctx context.Context, env gimble.Env, params Params) (result
 	triage := gimble.NewSession(ctx, "product-triage", output)
 	findings, triageErr := triage.Generate[gimble.Text](ctx, triagePrompt)
 	triageErr = errors.Join(triageErr, os.WriteFile(filepath.Join(output, "findings.md"), []byte(findings), 0644))
-	return errors.Join(groupErr, recordingErr, errors.Join(turns[:]...), visualErr, triageErr)
+	return errors.Join(groupErr, recordingErr, videoErr, errors.Join(turns[:]...), visualErr, triageErr)
 }
 
 func writeJSON(path string, value any) error {

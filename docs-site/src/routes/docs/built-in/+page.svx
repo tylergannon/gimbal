@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { resolve } from "$app/paths";
   import DocsPage from "#lib/components/DocsPage.svelte";
   import RunHelp from "#lib/snippets/RunHelp.svx";
   import ImplementDiagram from "#lib/generated/workflows/implement.svelte";
@@ -53,6 +54,14 @@ gimble run validate-product \
 [Read the workflow source](https://github.com/tylergannon/gimble/blob/main/internal/workflows/validateproduct/validateproduct.go).
 
 <ValidateProductDiagram />
+
+<figure class="mt-8">
+  <video controls playsinline preload="metadata" class="w-full rounded-xl border border-border" aria-label="A sped-up evaluator session navigating the Gimble web interface">
+    <source src={resolve("/videos/validate-product-demo.mp4")} type="video/mp4" />
+    Your browser does not support embedded video.
+  </video>
+  <figcaption class="text-muted-foreground mt-3 text-sm">Highlights from a real evaluator session: following a Gimble run and checking its result. Played at 2× speed.</figcaption>
+</figure>
 
 <h2 id="implement">implement</h2>
 

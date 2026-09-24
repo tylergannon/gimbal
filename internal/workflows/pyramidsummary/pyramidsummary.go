@@ -59,7 +59,7 @@ const (
 type Params struct {
 	// Goal describes the audience, subject, and understanding every level must preserve.
 	Goal string
-	// SemanticIndex is the existing index used to judge importance and factual fidelity.
+	// SemanticIndex points to the existing index used to find relevant evidence.
 	SemanticIndex string
 	// LargestDocument is the already-validated document within the configured largest token budget.
 	LargestDocument string
@@ -564,4 +564,4 @@ const compressionCoachPrompt = `The goal is the clearest standalone understandin
 
 const topPlannerCoachPrompt = `Dispatch only the exact extra top-level assignments listed in context, once each. Object to invented work, repeated levels, changed budgets or paths, or continued dispatch after the list is exhausted.`
 
-const reviewPyramidPrompt = `Read every pyramid document, the original goal, and the semantic index at their exact paths. Assess the complete pyramid together. Every level must be accurate, independently legible, within its measured budget, and meaningfully more compressed than the preceding level. Important knowledge should survive longer than secondary detail, and no level may contradict another. Report only material problems, not optional polish. Assign every material problem to each level that must change. Return OnlyNitpicks true with an empty Levels list only when the entire pyramid needs no further substantive work.`
+const reviewPyramidPrompt = `Read every pyramid document and the original goal at their exact paths. Use the semantic index to find relevant evidence, not as an exhaustive or authoritative list of sources. Before calling a claim fabricated or a source invalid, check the largest document, its cited primary sources, and any applicable repository instructions. An omission from the index alone proves neither. Apply repository rules to what they actually govern; the Gimble No Wrappers rule concerns workflow abstractions, not SDK dependencies. If available evidence cannot settle a factual or policy objection, state the uncertainty instead of asserting fabrication. Assess the complete pyramid together. Every level must be accurate, independently legible, within its measured budget, and meaningfully more compressed than the preceding level. Important knowledge should survive longer than secondary detail, and no level may contradict another. Report only material problems, not optional polish. Assign every material problem to each level that must change. Return OnlyNitpicks true with an empty Levels list only when the entire pyramid needs no further substantive work.`

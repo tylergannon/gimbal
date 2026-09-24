@@ -21,7 +21,7 @@ test("a nested string field's real newline survives as a line break, not literal
 
   const screen = await render(ToolCall, { part });
   await screen.getByRole("button", { name: /Edit/ }).click();
-  await expect.element(screen.getByText("edits", { exact: true })).toBeVisible();
+  await expect.element(screen.getByText("Edits", { exact: true })).toBeVisible();
   expect(document.body.textContent).not.toContain("line one\\nline two");
   expect(document.body.textContent).toContain("line one");
   expect(document.body.textContent).toContain("line two");

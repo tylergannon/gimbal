@@ -48,7 +48,7 @@ task permissions such as creating a PR in B belong explicitly in that workload's
 
 Results include each tester's Markdown report, ordered captioned screenshots,
 measured elapsed time, and a browser video for optional human review. The workflow
-keeps the raw `video.webm` and writes a 2× H.264 `video.mp4`, capped at 1280×720,
+keeps the raw `video.webm` and writes a 2.5× H.264 `video.mp4`, capped at 1280×720,
 to the path in `reports.json`. That MP4 can be published with `gimble upload-artifact`.
 Flash writes
 `visual-review.md`; triage writes `findings.md` with issue URLs or proposed issues.

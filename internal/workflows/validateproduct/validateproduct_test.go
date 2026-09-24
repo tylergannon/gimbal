@@ -201,7 +201,7 @@ func TestUserTestingStages(t *testing.T) {
 						t.Fatalf("video conversion did not produce uploadable file: %q, %v", data, readErr)
 					}
 					args, readErr := os.ReadFile(filepath.Join(filepath.Dir(r.Video), "ffmpeg-args"))
-					if readErr != nil || !strings.Contains(string(args), "setpts=PTS/2,fps=25") || !strings.Contains(string(args), "+faststart") {
+					if readErr != nil || !strings.Contains(string(args), "setpts=PTS/2.5,fps=25") || !strings.Contains(string(args), "+faststart") {
 						t.Fatalf("wrong video conversion: %s, %v", args, readErr)
 					}
 				}

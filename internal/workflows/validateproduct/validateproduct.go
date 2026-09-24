@@ -20,7 +20,7 @@
 // asks for its three favorite and least favorite aspects of UX and UI separately,
 // appended to user-report.md. Elapsed time covers the task, excluding this debrief.
 // Video records the browser for optional human review; agents do not analyze it.
-// After recording stops, ffmpeg makes a 2x H.264 MP4 capped at 1280x720 for
+// After recording stops, ffmpeg makes a 2.5x H.264 MP4 capped at 1280x720 for
 // browser playback and upload with gimble upload-artifact.
 // Gemini Flash opens screenshots to check readability and claims, not to repeat the workload.
 // The final agent reads all reports, deduplicates findings against existing GitHub
@@ -230,7 +230,7 @@ func ValidateProduct(ctx context.Context, env gimble.Env, params Params) (result
 	var videoErr error
 	for i := range reports {
 		cmd := exec.CommandContext(ctx, ffmpeg, "-y", "-i", filepath.Join(dirs[i], "video.webm"),
-			"-vf", "setpts=PTS/2,fps=25,scale=w='min(1280,iw)':h='min(720,ih)':force_original_aspect_ratio=decrease:force_divisible_by=2",
+			"-vf", "setpts=PTS/2.5,fps=25,scale=w='min(1280,iw)':h='min(720,ih)':force_original_aspect_ratio=decrease:force_divisible_by=2",
 			"-an", "-c:v", "libx264", "-preset", "medium", "-crf", "23", "-pix_fmt", "yuv420p", "-movflags", "+faststart", reports[i].Video)
 		cmd.Dir = dirs[i]
 		log, err := cmd.CombinedOutput()

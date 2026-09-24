@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { resolve } from "$app/paths";
+  import { asset, resolve } from "$app/paths";
   import InstallPrompt from "#lib/components/InstallPrompt.svelte";
   import Shot from "#lib/components/Shot.svelte";
   import AdapterCode from "#lib/snippets/AdapterCode.svx";
@@ -27,7 +27,7 @@
 
 <main class="overflow-x-clip">
   <!-- The poster: what it is, what is in the box, how to get it. -->
-  <section class="shell grid gap-8 pt-8 pb-8 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.25fr)] lg:items-center lg:gap-12 lg:pt-9">
+  <section class="shell grid grid-cols-1 gap-8 pt-8 pb-8 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.25fr)] lg:items-center lg:gap-12 lg:pt-9">
     <div>
       <p class="eyebrow mb-4">{site.category}</p>
       <h1 class="font-serif text-[clamp(2.4rem,4vw,3.5rem)] leading-[1.02] font-medium tracking-[-0.035em] text-balance">
@@ -52,8 +52,15 @@
       </div>
     </div>
 
-    <div class="lg:-mr-40">
-      <Shot src="shots/console.png" alt="The Gimble console showing a planner loop: a planner, a coding turn watched by two supervisors, checks, and a validator, with the selected turn's assignment and model calls on the right." label="gimble · build-frontend · recorded run" eager />
+    <div class="min-w-0">
+      <figure class="frame overflow-hidden">
+        <div class="frame-bar"><i></i><i></i><i></i><span>Gimble · real evaluator run</span></div>
+        <video controls playsinline preload="metadata" poster={asset("shots/evaluator-poster.png")} class="block aspect-video w-full bg-black" aria-label="An evaluator using Gimble to implement and test game persistence">
+          <source src={asset("videos/validate-product-demo.mp4")} type="video/mp4" />
+          Your browser does not support embedded video.
+        </video>
+        <figcaption class="text-muted-foreground px-3 py-2 text-xs">A real agent run, edited to 2.5× speed for a quick look.</figcaption>
+      </figure>
     </div>
   </section>
 
@@ -87,7 +94,7 @@
         <div class="frame-bar"><i></i><i></i><i></i><span>implementation.go · condensed</span></div>
         <LoopCode />
       </div>
-      <Shot src="shots/planner.png" alt="The console map of a planner loop: the planner at the top of the loop, a task scope holding the coding turn, its watchers, the commands, and the validator, with a return arrow back to the planner." label="a recorded run of the same shape" crop />
+      <Shot src="shots/planner.png" alt="The current console map of a planner loop, with the planner highlighted above a task scope, coding turn, watcher, check, and validator." label="a recorded implementation run" crop />
     </div>
     <a class="text-primary mt-6 inline-block text-sm font-medium" href={resolve("/docs/workflows")}>How workflows are written →</a>
   </section>
@@ -106,7 +113,7 @@
         </ul>
         <a class="text-primary mt-6 inline-block text-sm font-medium" href={resolve("/docs/console")}>The console →</a>
       </div>
-      <Shot src="shots/runs.png" alt="The runs list: four recorded runs with status, latest activity, latest instruction, total cost, elapsed time, sessions, and turns." />
+      <Shot src="shots/runs.png" alt="The current runs list filtered to two completed implementation runs, with their latest activity, cost, elapsed time, sessions, and turns." />
     </div>
   </section>
 

@@ -2,6 +2,7 @@
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import type { JSONObject } from '../../sessionstate/index.js';
 	import Payload from './Payload.svelte';
+	import StructuredValue from './StructuredValue.svelte';
 
 	let { part, maxHeight = 260 }: { part: JSONObject; maxHeight?: number } = $props();
 
@@ -15,13 +16,8 @@
 		'description'
 	] as const;
 
-	// A nested string field survives JSON.stringify with its newlines escaped
-	// to a literal backslash-n, which is valid JSON but unreadable in a pane
-	// meant for people to read. Un-escape those two characters back into a
-	// real line break for display; a top-level string value never passes
-	// through JSON.stringify at all; so its own newlines are already real.
 	const rowText = (value: unknown): string =>
-		typeof value === 'string' ? value : JSON.stringify(value, null, 2).replace(/\\n/g, '\n');
+		typeof value === 'string' ? value : JSON.stringify(value, null, 2);
 
 	const digestOf = (input: unknown): string => {
 		if (input === undefined || input === null) return '';
@@ -122,12 +118,9 @@
 			{#if inputEntries.length > 0}
 				<div class="input-block">
 					<div class="input-strip"><span class="label">input</span></div>
-					{#each inputEntries as [key, value] (key)}
-						<div class="kv-row">
-							<div class="kv-key">{key}</div>
-							<pre class="kv-value" style={`max-height: ${maxHeight}px`}>{rowText(value)}</pre>
-						</div>
-					{/each}
+					<div class="input-values" style={`max-height: ${maxHeight}px`}>
+						<StructuredValue value={part.state?.input} />
+					</div>
 				</div>
 			{:else if rawInputText}
 				<Payload label="input" text={rawInputText} {maxHeight} />
@@ -266,30 +259,7 @@
 		background: var(--surface);
 		border-bottom: 1px solid var(--map-line);
 	}
-	.kv-row {
-		min-width: 0;
-		padding: 6px 8px;
-	}
-	.kv-row + .kv-row {
-		border-top: 1px solid var(--border);
-	}
-	.kv-key {
-		margin-bottom: 4px;
-		color: var(--status-muted);
-		font-family: var(--font-mono);
-		font-size: 13px;
-	}
-	.kv-value {
-		overflow: auto;
-		min-width: 0;
-		margin: 0;
-		color: var(--code-foreground);
-		font-family: var(--font-mono);
-		font-size: 13px;
-		line-height: 1.5;
-		white-space: pre-wrap;
-		overflow-wrap: anywhere;
-	}
+	.input-values { min-width: 0; overflow: auto; }
 	.nested {
 		min-width: 0;
 		background: var(--surface);

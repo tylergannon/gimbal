@@ -308,7 +308,8 @@ test("a selected watcher distinguishes objections, no objections, and no recorde
   await expect
     .element(screen.getByRole("tab", { name: "Result" }))
     .toHaveAttribute("aria-selected", "true");
-  await expect.element(screen.getByText(/"objections": \[\]/)).toBeVisible();
+  await expect.element(screen.getByText("Objections", { exact: true })).toBeVisible();
+  await expect.element(screen.getByText("None", { exact: true })).toBeVisible();
 
   const objections = structuredClone(noObjections);
   const objectingTurn = objections.turns["implementation-scope-review.1/turn.3"];

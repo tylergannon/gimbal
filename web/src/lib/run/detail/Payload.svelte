@@ -3,6 +3,7 @@
 	import CheckIcon from '@lucide/svelte/icons/check';
 	import CopyIcon from '@lucide/svelte/icons/copy';
 	import WrapTextIcon from '@lucide/svelte/icons/wrap-text';
+	import StructuredValue from './StructuredValue.svelte';
 
 	const TRUNCATE_AT = 4000;
 	const PREVIEW_LEN = 2000;
@@ -22,9 +23,7 @@
 		wrap?: boolean;
 		tone?: 'error';
 		anchor?: 'top' | 'bottom';
-		/** Prose (a written result, not data): sans font at 14px instead of
-		 * mono, with the text's own newlines shown as real line breaks. JSON
-		 * and other structured payloads stay mono and pretty-printed. */
+		/** Written text uses sans type. Structured JSON is rendered as fields. */
 		prose?: boolean;
 	} = $props();
 
@@ -34,10 +33,20 @@
 	let wrapped = $state(untrack(() => wrap));
 	let expanded = $state(false);
 	let copied = $state(false);
+	let raw = $state(false);
 	let scroller: HTMLDivElement | undefined = $state();
+	const parsed = $derived.by(() => {
+		try {
+			return JSON.parse(text) as unknown;
+		} catch {
+			return undefined;
+		}
+	});
+	const structured = $derived(parsed !== null && typeof parsed === 'object');
+	const displayText = $derived(typeof parsed === 'string' ? parsed : text);
 
-	const truncated = $derived(text.length > TRUNCATE_AT);
-	const shown = $derived(truncated && !expanded ? text.slice(0, PREVIEW_LEN) : text);
+	const truncated = $derived(!structured && displayText.length > TRUNCATE_AT);
+	const shown = $derived(truncated && !expanded ? displayText.slice(0, PREVIEW_LEN) : displayText);
 
 	const formatSize = (bytes: number): string => {
 		if (bytes < 1024) return `${bytes} B`;
@@ -70,24 +79,31 @@
 		<button type="button" class="tool-btn" onclick={copy}>
 			{#if copied}<CheckIcon size={13} />Copied{:else}<CopyIcon size={13} />Copy{/if}
 		</button>
-		<button
-			type="button"
-			class="tool-btn"
-			class:active={wrapped}
-			aria-pressed={wrapped}
-			onclick={() => (wrapped = !wrapped)}
-		>
-			<WrapTextIcon size={13} />Wrap
-		</button>
+		{#if structured}
+			<button type="button" class="tool-btn" aria-pressed={raw} onclick={() => (raw = !raw)}>
+				{raw ? 'Readable' : 'View JSON'}
+			</button>
+		{/if}
+		{#if !structured || raw}
+			<button
+				type="button"
+				class="tool-btn"
+				class:active={wrapped}
+				aria-pressed={wrapped}
+				onclick={() => (wrapped = !wrapped)}
+			>
+				<WrapTextIcon size={13} />Wrap
+			</button>
+		{/if}
 	</div>
 	<div
 		class="scroller"
 		class:wrap={wrapped}
-		class:prose
+		class:prose={prose || typeof parsed === 'string'}
 		style={`max-height: ${maxHeight}px`}
 		bind:this={scroller}
 	>
-		<pre>{shown}</pre>
+		{#if structured && !raw}<StructuredValue value={parsed} />{:else}<pre>{shown}</pre>{/if}
 	</div>
 	{#if truncated && !expanded}
 		<button type="button" class="show-all" onclick={() => (expanded = true)}>

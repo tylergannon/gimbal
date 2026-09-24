@@ -17,6 +17,10 @@
 		(_, i) => `line ${i + 1}: reading web/src/lib/game.ts to trace tile placement`
 	).join('\n');
 	const unbreakable = 'x'.repeat(600);
+	const plannerResult = JSON.stringify({ tasks: [
+		{ name: 'Wire the browser to saved games', description: 'Load the complete saved board, turn, scores, racks, and bag.', definition_of_done: 'A shared game URL restores the same state.' },
+		{ name: 'Handle unknown games', description: 'Show a clear not found state without creating a new game.' }
+	] });
 
 	const { Story } = defineMeta({
 		title: 'Gimble/Run/Detail/Payload',
@@ -71,4 +75,8 @@
 	<div style="width: 448px;">
 		<Payload label="output" text={longText} anchor="bottom" />
 	</div>
+</Story>
+
+<Story name="Structured planner result" asChild>
+	<div style="width: 448px;"><Payload label="result" text={plannerResult} maxHeight={420} /></div>
 </Story>

@@ -40,8 +40,8 @@ gimble.Set(ctx, "repository", env.WorkDir)
 A key is set once per scope; revision is shadowing in a child scope. `WithScopeTemplate` reshapes the rendered context for one call, with a template that is itself a constant.
 
 <figure>
-  <Shot src="shots/context.png" alt="A task scope selected in the console, showing its assignment and the values written in it." label="a task scope, selected" />
-  <figcaption>A task scope in the console: its assignment and the values written in it, including captured command output.</figcaption>
+  <Shot src="shots/context.png" alt="An outcome scope selected in the current console, listing context set here and inherited from outer scopes." label="an outcome scope, selected" />
+  <figcaption>An outcome scope in the console: one value set here and four inherited from outer scopes.</figcaption>
 </figure>
 
 <h2 id="promise-loop">Promise loop</h2>
@@ -72,7 +72,7 @@ report, err := worker.Generate[gimble.Text](taskCtx, implementationPrompt,
 Supervision is advisory. It catches scope drift while it is cheap to correct, and it never gates completion. It attaches to a planner's turns too, and a supervisor can have supervisors.
 
 <figure>
-  <Shot src="shots/supervision.png" alt="A supervisor selected in the console." label="a watcher, selected" />
+  <Shot src="shots/supervision.png" alt="A watcher selected on the current console map, with its role and model visible." label="a watcher, selected" />
 </figure>
 
 <h2 id="graph">Statically mapped graph</h2>

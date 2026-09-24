@@ -26,10 +26,29 @@ what Gimble is, what is in the box, and how to get it, above the fold.
 - Built-in workflow diagrams are generated from their Go source into
   `src/lib/generated/workflows/`. The docs build uses Mermaid CLI to render
   their SVG assets before SvelteKit prerenders the generated components.
-- `static/shots/*.png` are captures of the real console serving a recorded
-  run, taken with Playwright at 1440x900, scale 2. `static/og.png` is the
-  1200x630 link card built from the same capture.
+- The five console images in `static/shots/` are captures of a real run,
+  taken with Playwright at 1440x900, scale 2. The home-page video has its own
+  poster in that directory. `static/og.png` is the 1200x630 link card built
+  from the same run.
 
 Still by hand, and meant to be generated: the `gimble run --help` listing in
 `RunHelp.svx`, the condensed workflow in `LoopCode.svx`, and the captures,
 which should come from a fixture run in `../e2e`.
+
+## Keeping the images current
+
+The workflow diagrams are generated from Go and checked by the docs CI. The
+five console images in `static/shots/` and the link card in `static/og.png`
+need a real run of the current web app. The UI PR author refreshes every
+affected capture in the same PR, then checks its page's caption and alt text
+against the new image. Capture at 1440×900 with device scale 2, using a run
+that actually exercises the feature shown. Do not substitute a mock page or
+an old finished run for live UI claims.
+
+Once a month, a maintainer reviews all five captures and the link card against
+the current app, even if no UI PR called for a refresh. Update any drift in a
+docs PR. Check the landing page and the affected docs pages at desktop and
+mobile widths, run `pnpm run check` and `pnpm run build` here, and inspect the
+deployed Pages site after merge. Keep the video on the home page
+in the same review: its source run, UI version, caption, and playback speed
+should still describe what viewers see.

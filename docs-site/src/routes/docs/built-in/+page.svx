@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { resolve } from "$app/paths";
   import DocsPage from "#lib/components/DocsPage.svelte";
   import RunHelp from "#lib/snippets/RunHelp.svx";
   import ImplementDiagram from "#lib/generated/workflows/implement.svelte";
@@ -47,31 +46,21 @@ Runs up to three prepared user workloads concurrently, records their browser ses
 
 ```sh
 gimble run validate-product \
-  --suite-file /abs/user-testing.yaml \
-  --no-web
+  --suite-file /abs/user-testing.yaml
 ```
 
 [Read the workflow source](https://github.com/tylergannon/gimble/blob/main/internal/workflows/validateproduct/validateproduct.go).
 
 <ValidateProductDiagram />
 
-<figure class="mt-8">
-  <video controls playsinline preload="metadata" class="w-full rounded-xl border border-border" aria-label="A sped-up evaluator session navigating the Gimble web interface">
-    <source src={resolve("/videos/validate-product-demo.mp4")} type="video/mp4" />
-    Your browser does not support embedded video.
-  </video>
-  <figcaption class="text-muted-foreground mt-3 text-sm">Highlights from a real evaluator session: following a Gimble run and checking its result. Played at 2× speed.</figcaption>
-</figure>
-
 <h2 id="implement">implement</h2>
 
-Fulfills a promise through a bounded planner loop. On each lap a planner picks the next assignment and gives it a definition of done; a fresh coding agent implements it under a scope coach; an optional command gathers evidence; a fresh independent validator judges the task and the overall promise. The loop exits when validation passes at 90–95% with only small gaps, and records those gaps instead of taking another lap. It never commits, pushes, merges, or edits the definition of done.
+Works through an ordered list of outcomes. For each outcome, a planner chooses a bounded assignment, a coding agent implements it under a scope coach, and an independent validator judges the result. It advances at 90–95% completion when only small gaps remain. It never commits, pushes, or merges.
 
 ```sh
 gimble run implement \
-  --promise "Ship the local issue without unrelated changes" \
-  --definition-of-done-file ./issue.md \
-  --max-tasks 8
+  --outcomes-file ./outcomes.json \
+  --max-tasks-per-outcome 3
 ```
 
 Primitives used: [promise loop](../primitives/#promise-loop), [supervision](../primitives/#supervision), [scoped context](../primitives/#context), [`Check`](../primitives/#evidence).

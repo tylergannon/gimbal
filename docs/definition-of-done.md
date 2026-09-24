@@ -61,8 +61,23 @@ the turn is started:
 res, err := coder.Generate[Result](ctx, task, gimble.WithSupervisor(taste, "don't let it over-engineer."))
 ```
 
-Every three minutes, or at its `WithInterval`, it looks at what the worker
-did since its last look and steers the worker with any objection. It
-never gates the result. A supervisor takes the same options as the turn
-it watches, so it can have supervisors of its own. See Supervisors in
-`ephemeral/research/api/API.md`.
+With `TYPESAFE_API_KEY` set, each completed thinking message exposed by the
+worker's provider sends a separate Jev check for each attached supervisor
+instruction. An attachment is one rule for routing; compound instructions
+remain one check until they are split at their workflow call sites. Jev
+receives the rendered task (up to 20 KiB), that thinking item
+(up to 8 KiB), and at most the first 100 characters of each of the last 24
+tool-call inputs. Truncation is marked, and Jev receives no tool results.
+A check above the provisional 0.65 review threshold asks one coding
+supervisor to inspect the packet and the local transcript. A successful look
+starts a one-minute review cooldown; a steer that lands starts a two-minute
+automatic-steering cooldown. Jev checks continue during both cooldowns.
+Provider-exposed reasoning may be only a summary; providers without a
+completed-thinking event, and failed Jev checks, use the timed look.
+
+Without the key, the supervisor looks every three minutes, or at its
+`WithInterval`, at recent activity. In either mode it steers the worker with
+any objection and never gates the result. A supervisor takes the same options
+as the turn it watches, so it can have supervisors of its own. Prompt quality
+and routing calibration are tracked in
+[issue #376](https://github.com/tylergannon/gimble/issues/376).

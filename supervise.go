@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -35,7 +36,11 @@ type supervisor struct {
 // planner's turn: a session of its own and an instruction saying what to
 // watch for. While the turn runs, the
 // supervisor looks at what the worker did since its last look, and each
-// objection it raises is steered into the turn. When the worker finishes,
+// objection it raises is steered into the turn. When TYPESAFE_API_KEY is set,
+// each completed provider-exposed thinking item is screened by Jev once per
+// attached supervisor; a likely concern starts a supervisor look. The timer
+// remains a fallback when no thinking item arrives or a Jev check fails.
+// When the worker finishes,
 // Generate cancels and joins its supervisors before returning the worker's
 // result and error. opts are the supervisor's: WithInterval for how often it
 // looks, and WithSupervisor for supervisors of its looks.
@@ -68,8 +73,9 @@ func WithScopeTemplate(tmpl string) AgentOption {
 	return func(o *options) { o.scopeTemplate = tmpl }
 }
 
-// WithInterval is how often a supervisor looks, given among its options to
-// WithSupervisor. The default is three minutes.
+// WithInterval is how often a supervisor looks in timed mode, given among its
+// options to WithSupervisor. The default is three minutes. With Jev enabled,
+// it sets the fallback interval when no completed thinking arrives or Jev fails.
 func WithInterval(every time.Duration) AgentOption {
 	return func(o *options) { o.every = every }
 }
@@ -100,7 +106,6 @@ const (
 
 // supervise is Generate with supervisors attached.
 func supervise[T Output](ctx context.Context, s *Session, prompt string, supervisors []supervisor, started *TurnStarted) (T, error) {
-	t := newTranscript(len(supervisors), supervisorRetentionBytes)
 	history := filepath.Join(runDir(ctx), "sessions", s.id+".jsonl")
 	for _, sup := range supervisors {
 		s.mu.Lock()
@@ -111,7 +116,14 @@ func supervise[T Output](ctx context.Context, s *Session, prompt string, supervi
 			scope.run.event(scope.key, s.id, turn, SuperviseAttached{Reviewer: sup.session.id, Worker: turn, Instruction: sup.instruction, Interval: o.every})
 		}
 	}
+	if os.Getenv("TYPESAFE_API_KEY") != "" {
+		return superviseWithJev[T](ctx, s, prompt, supervisors, started, history)
+	}
+	return superviseTimed[T](ctx, s, prompt, supervisors, started, history)
+}
 
+func superviseTimed[T Output](ctx context.Context, s *Session, prompt string, supervisors []supervisor, started *TurnStarted, history string) (T, error) {
+	t := newTranscript(len(supervisors), supervisorRetentionBytes)
 	// Each supervisor, on its own clock: look at what is new, steer on
 	// objection, stop when the turn ends. A look is a turn with the
 	// supervisor's own options, so it can be supervised in turn.

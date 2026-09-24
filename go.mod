@@ -17,6 +17,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/credentials v1.20.5
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.113.1
 	github.com/coder/websocket v1.8.13
+	github.com/kazz187/jev-sdk-go v0.2.0
 	github.com/oapi-codegen/runtime v1.2.0
 	github.com/oklog/ulid/v2 v2.1.2
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2

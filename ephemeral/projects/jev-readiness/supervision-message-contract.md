@@ -2,6 +2,16 @@
 
 2026-09-23. This is a proposed behavior contract, not an implementation or a calibrated policy.
 
+**Status, 2026-09-24:** This draft predates the first implementation and is no
+longer the current payload contract. The user chose the rendered worker task,
+the provider-exposed completed thinking item, and only the first 100 characters
+of each recent tool-call input; tool results are omitted. The implemented
+packet and prompts are in [`supervise_jev.go`](../../../supervise_jev.go), and
+the deeper prompt and calibration pass is
+[issue #376](https://github.com/tylergannon/gimble/issues/376). The rest of
+this file is retained as the prior design exploration, not implementation
+guidance.
+
 ## What Gimble sends today
 
 [`WithSupervisor`](../../../supervise.go) starts a separate generative session for each attachment and looks every three minutes by default. The first look contains the attachment's instruction (up to 8 KiB), the **fully rendered** worker prompt, including scope context (clipped to 16 KiB), and a recent transcript (up to 64 KiB for the whole look). Later looks omit the rule and task, relying on the supervisor session's history. Each retained activity item keeps its first 2,000 bytes. The activity includes text, tool calls/results, and inbox messages, but excludes `session.reasoning.ended`. The initial worker prompt can appear again as an inbox item. A transcript cursor advances when the look is built, before the supervisor call succeeds; a failed call can therefore lose that incremental view.

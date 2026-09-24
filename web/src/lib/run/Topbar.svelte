@@ -134,7 +134,7 @@
 <header class="topbar">
   <nav aria-label="Breadcrumb" class="breadcrumb">
 	<a href={`/projects/${page.params.project}`}>Runs</a><span aria-hidden="true">›</span><strong>{run.name}</strong
-    ><span aria-hidden="true">›</span><code>{run.id.split(".")[0]?.slice(-8) || run.id}</code
+    ><span class="run-separator" aria-hidden="true">›</span><code>{run.id.split(".")[0]?.slice(-8) || run.id}</code
     >{#if sessionName}<span aria-hidden="true">›</span><strong>{sessionName}</strong>{/if}
   </nav>
 
@@ -201,6 +201,7 @@
   </label>
   {#if !terminal}
     <div class="controls">
+      {#if !sessionName}
       <Button
         variant="outline"
         size="sm"
@@ -210,6 +211,7 @@
       >
         <StopIcon data-icon="inline-start" size={16} />{stopping ? "Stopping" : "Stop turn"}
       </Button>
+      {/if}
       <Button
         variant="outline"
         size="sm"
@@ -449,5 +451,28 @@
     .elapsed {
       display: none;
     }
+  }
+
+  @media (max-width: 600px) {
+    .topbar {
+      display: grid;
+      min-height: 0;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 6px 8px;
+      padding: 8px;
+    }
+    .breadcrumb { grid-column: 1; grid-row: 1; gap: 4px; overflow: hidden; font-size: 11px; }
+    .breadcrumb strong { max-width: 76px; font-size: 12px; }
+    .breadcrumb code { display: none; }
+    .breadcrumb .run-separator { display: none; }
+    .states { grid-column: 2; grid-row: 1; justify-content: flex-end; gap: 4px; }
+    .states :global([data-slot="badge"]) { padding-inline: 6px; font-size: 11px; }
+    .current { display: flex; grid-column: 1 / -1; grid-row: 2; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .controls { grid-column: 1; grid-row: 3; gap: 4px; }
+    .controls :global(button) { height: 32px; padding-inline: 8px; font-size: 12px; }
+    :global(.close-session) { grid-column: 2; grid-row: 3; }
+    .feedback { position: static; grid-column: 1 / -1; grid-row: 4; max-width: none; }
+    .recorded { grid-column: 1 / -1; grid-row: 2; }
+    .spacer, .search { display: none; }
   }
 </style>

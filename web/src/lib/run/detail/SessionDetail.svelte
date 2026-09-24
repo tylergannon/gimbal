@@ -42,6 +42,7 @@
 		live,
 		onsteer,
 		onstop,
+		showSteering = true,
 		onscope
 	}: {
 		snapshot: RunSnapshot;
@@ -53,6 +54,7 @@
 		live: boolean;
 		onsteer: (message: string) => Promise<ActionFeedback>;
 		onstop?: () => Promise<ActionFeedback>;
+		showSteering?: boolean;
 		onscope?: (scopeKey: string) => void;
 	} = $props();
 
@@ -203,11 +205,13 @@
 	{/if}
 </div>
 
-<SteerBox
-	onsteer={(message) => onsteer(message)}
-	onstop={() => onstop?.() ?? Promise.resolve({ ok: false, message: 'Stopping is unavailable.' })}
-	ended={ended || !live}
-/>
+{#if showSteering}
+	<SteerBox
+		onsteer={(message) => onsteer(message)}
+		onstop={() => onstop?.() ?? Promise.resolve({ ok: false, message: 'Stopping is unavailable.' })}
+		ended={ended || !live}
+	/>
+{/if}
 
 <style>
 	.panel-scroller {

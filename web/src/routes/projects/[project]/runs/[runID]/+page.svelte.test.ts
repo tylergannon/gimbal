@@ -2,6 +2,7 @@ import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 import { render } from "vitest-browser-svelte";
 import { implementInterviewFixture, planTripFixture } from "#lib/run/fixtures/index.js";
 import type { ObservationDelta, RunSnapshot } from "#lib/observation/index.js";
+import type { Graph } from "#lib/workflow/types.js";
 import Page from "./+page.svelte";
 
 vi.mock("$app/state", () => ({ page: { params: { project: "test-project" } } }));
@@ -53,7 +54,7 @@ afterEach(() => {
 });
 
 async function renderRunningPage(
-  fixture: typeof planTripFixture | typeof implementInterviewFixture = planTripFixture,
+  fixture: { graph: Graph; snapshot: RunSnapshot } = planTripFixture,
 ) {
   const snapshot = structuredClone(fixture.snapshot);
   const screen = await render(Page, {
@@ -62,6 +63,158 @@ async function renderRunningPage(
   await expect.poll(() => TestEventSource.instances.length).toBe(1);
   return { screen, snapshot, stream: TestEventSource.instances[0] };
 }
+
+function multiAgentSnapshot() {
+  const snapshot = structuredClone(planTripFixture.snapshot);
+  const sessions = Object.values(snapshot.sessions);
+  for (const [index, session] of sessions.entries()) {
+    const id = `${session.id}/turn.1`;
+    snapshot.turns[id] = {
+      run: snapshot.run.id,
+      id,
+      session: session.id,
+      scope: session.scope,
+      prompt: `Review active task ${index + 1}.`,
+      output_type: "text",
+      result: "",
+      error: "",
+      interrupted: false,
+      started: snapshot.run.started + index + 1,
+      ended: 0,
+      duration: 0,
+    };
+  }
+  const firstTurn = Object.values(snapshot.turns)[0];
+  const firstSession = snapshot.sessions[firstTurn.session];
+  snapshot.transcripts[firstTurn.id] = {
+    snapshot: {
+      state: {
+        info: {},
+        family: {},
+        active: {},
+        message: {
+          [firstSession.id]: [
+            {
+              id: "recorded-current-update",
+              type: "assistant",
+              content: [{ type: "text", text: "I compared the recorded lodging choices." }],
+            },
+          ],
+        },
+        pending: {},
+        permission: {},
+        form: {},
+      },
+    },
+    provenance: {},
+  };
+  return snapshot;
+}
+
+test("multiple running agents default to Watchboard and remain visible without a graph", async () => {
+  const snapshot = multiAgentSnapshot();
+  const screen = await render(Page, { data: { snapshot, graph: "" } });
+  await expect
+    .element(
+      screen
+        .getByRole("navigation", { name: "Run views" })
+        .getByRole("button", { name: "Watchboard" }),
+    )
+    .toHaveAttribute("aria-current", "page");
+  await expect
+    .element(screen.getByRole("button", { name: "Focus interviewer" }).first())
+    .toBeVisible();
+  await expect
+    .element(screen.getByRole("button", { name: "Focus interviewer" }).last())
+    .toBeVisible();
+  await expect.element(screen.getByText("I compared the recorded lodging choices.")).toBeVisible();
+  await expect.element(screen.getByText("No assistant prose recorded yet.")).toBeVisible();
+  expect(document.body.textContent).not.toContain("Review active task 1.");
+  await expect
+    .element(screen.getByText("Workflow map unavailable; running agents remain visible above."))
+    .toBeVisible();
+
+  await screen.getByRole("button", { name: "Focus interviewer" }).last().click();
+  await expect.element(screen.getByRole("region", { name: "Focus card" })).toBeVisible();
+  await expect
+    .element(screen.getByText("No assistant prose recorded for this turn yet."))
+    .toBeVisible();
+});
+
+test("one running agent defaults to Focus and manual view choice survives live snapshots", async () => {
+  const snapshot = multiAgentSnapshot();
+  const turns = Object.values(snapshot.turns);
+  delete snapshot.turns[turns[1].id];
+  const { screen, stream } = await renderRunningPage({ graph: planTripFixture.graph, snapshot });
+  const tabs = screen.getByRole("navigation", { name: "Run views" });
+  await expect
+    .element(tabs.getByRole("button", { name: "Focus" }))
+    .toHaveAttribute("aria-current", "page");
+  await tabs.getByRole("button", { name: "Map", exact: true }).click();
+  const replacement = structuredClone(snapshot);
+  replacement.position++;
+  replacement.turns[turns[1].id] = { ...turns[1], started: turns[1].started + 2 };
+  stream.send("snapshot", replacement);
+  await expect
+    .element(tabs.getByRole("button", { name: "Map", exact: true }))
+    .toHaveAttribute("aria-current", "page");
+});
+
+test("Focus gives a clear no-session state when the run has no agent sessions", async () => {
+  const snapshot = structuredClone(planTripFixture.snapshot);
+  snapshot.sessions = {};
+  snapshot.turns = {};
+  snapshot.transcripts = {};
+  const screen = await render(Page, {
+    data: { snapshot, graph: JSON.stringify(planTripFixture.graph) },
+  });
+  await screen.getByRole("button", { name: "Focus" }).click();
+  await expect.element(screen.getByRole("region", { name: "Focus has no session" })).toBeVisible();
+  await expect
+    .element(screen.getByRole("heading", { name: "No agent session selected" }))
+    .toBeVisible();
+  await expect
+    .element(screen.getByText("No agent sessions have been recorded in this run."))
+    .toBeVisible();
+});
+
+test("Watchboard non-agent map selection reveals the run Map detail", async () => {
+  const { screen } = await renderRunningPage(implementInterviewFixture);
+  await screen.getByRole("button", { name: "Watchboard" }).click();
+  await expect.element(screen.getByRole("region", { name: "Watchboard" })).toBeVisible();
+  await screen.getByRole("button", { name: "Select task-check" }).click();
+  await expect
+    .element(screen.getByRole("button", { name: "Map", exact: true }))
+    .toHaveAttribute("aria-current", "page");
+  await expect.element(screen.getByRole("heading", { name: "task-check" })).toBeVisible();
+});
+
+test("Map runtime selection rebinds across snapshots and clears when its row disappears", async () => {
+  const { screen, stream } = await renderRunningPage(implementInterviewFixture);
+  await screen.getByRole("button", { name: "Map", exact: true }).click();
+  await screen.getByRole("button", { name: "Select coding" }).click();
+  await expect.element(screen.getByRole("region", { name: "Focus card" })).toBeVisible();
+  await screen.getByRole("button", { name: "Map", exact: true }).click();
+  await expect
+    .element(screen.getByRole("button", { name: "Select coding", pressed: true }))
+    .toBeVisible();
+
+  const refreshed = structuredClone(implementInterviewFixture.snapshot);
+  refreshed.position++;
+  stream.send("snapshot", refreshed);
+  await expect
+    .element(screen.getByRole("button", { name: "Select coding", pressed: true }))
+    .toBeVisible();
+
+  const missing = structuredClone(refreshed);
+  missing.position++;
+  for (const id of Object.keys(missing.turns).filter((id) => id.startsWith("coding.1/")))
+    delete missing.turns[id];
+  stream.send("snapshot", missing);
+  await expect
+    .element(screen.getByRole("button", { name: "Select coding" }))
+    .toHaveAttribute("aria-pressed", "false");
+});
 
 test("a missing graph requires generation and a rebuilt serving binary", async () => {
   const snapshot = structuredClone(planTripFixture.snapshot);
@@ -121,6 +274,7 @@ test("topbar navigation reveals folded current activity and keeps map and detail
 
 test("search selects an old turn through a folded loop instance", async () => {
   const { screen } = await renderRunningPage(implementInterviewFixture);
+  await screen.getByRole("button", { name: "Map", exact: true }).click();
   await screen.getByRole("button", { name: "Fold implementation" }).click();
   await expect.element(screen.getByRole("button", { name: "Open implementation" })).toBeVisible();
 
@@ -137,12 +291,11 @@ test("search selects an old turn through a folded loop instance", async () => {
   await expect.element(screen.getByRole("heading", { name: "coding" })).toBeVisible();
 });
 
-test("selection survives same-run replacement and resets when its runtime disappears", async () => {
+test("Map agent selection opens Focus and remains selected through live snapshots", async () => {
   const { screen, snapshot } = await renderRunningPage(implementInterviewFixture);
+  await screen.getByRole("button", { name: "Map", exact: true }).click();
   await screen.getByRole("button", { name: "Select coding" }).click();
-  await expect
-    .element(screen.getByRole("button", { name: "Select coding", pressed: true }))
-    .toBeVisible();
+  await expect.element(screen.getByRole("region", { name: "Focus card" })).toBeVisible();
 
   const refreshed = structuredClone(snapshot);
   refreshed.position++;
@@ -150,10 +303,7 @@ test("selection survives same-run replacement and resets when its runtime disapp
   await screen.rerender({
     data: { snapshot: refreshed, graph: JSON.stringify(implementInterviewFixture.graph) },
   });
-  await expect
-    .element(screen.getByRole("button", { name: "Select coding", pressed: true }))
-    .toBeVisible();
-  expect(document.querySelector("aside .empty-selection")).toBeNull();
+  await expect.element(screen.getByRole("region", { name: "Focus card" })).toBeVisible();
 
   const missing = structuredClone(refreshed);
   missing.position++;
@@ -161,10 +311,7 @@ test("selection survives same-run replacement and resets when its runtime disapp
   await screen.rerender({
     data: { snapshot: missing, graph: JSON.stringify(implementInterviewFixture.graph) },
   });
-  await expect
-    .element(screen.getByRole("button", { name: "Select coding" }))
-    .toHaveAttribute("aria-pressed", "false");
-  expect(document.querySelector("aside .empty-selection")).not.toBeNull();
+  await expect.element(screen.getByRole("region", { name: "Focus card" })).toBeVisible();
 });
 
 test("live elapsed time advances without events and fixes at the recorded end", async () => {

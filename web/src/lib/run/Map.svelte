@@ -27,7 +27,8 @@
 </script>
 
 <script lang="ts">
-  import { tick } from "svelte";
+	import { onMount } from "svelte";
+	import { tick } from "svelte";
   import FitIcon from "@lucide/svelte/icons/focus";
   import MinusIcon from "@lucide/svelte/icons/minus";
   import PlusIcon from "@lucide/svelte/icons/plus";
@@ -74,7 +75,8 @@
   let zoom = $state(1);
   let now = $state(Date.now());
   let viewport: HTMLDivElement | undefined;
-  let dragging = $state(false);
+	let dragging = $state(false);
+	let autoFitted = false;
   let dragOrigin: { x: number; y: number; left: number; top: number } | undefined;
   let lastRevealRequest = 0;
   const running = $derived(snapshot.run.status === "running");
@@ -187,12 +189,14 @@
     const scope = snapshot.scopes[node.scopeKey];
     if (!scope) return;
     selectedKey = node.selectionKey;
-    onselect?.({
+    const selection: MapSelection = {
       kind: "node",
       scope,
       operation: node.operation,
       runtime: node.runtime,
-    });
+    };
+    onselect?.(selection);
+    if (node.operation.kind === "agent_call") onopen?.(selection);
   }
 
   function openNode(node: (typeof layout.nodes)[number]) {
@@ -223,20 +227,30 @@
   }
 
   function setZoom(next: number) {
-    zoom = Math.min(1.5, Math.max(0.5, Math.round(next * 10) / 10));
+    zoom = Math.min(1.5, Math.max(0.25, Math.round(next * 10) / 10));
   }
 
-  async function fitView() {
-    if (!viewport) return;
-    const next = Math.min(
+	async function fitView() {
+		if (!viewport) return;
+		autoFitted = true;
+		const next = Math.min(
       1,
       (viewport.clientWidth - 48) / layout.width,
       (viewport.clientHeight - 48) / layout.height,
     );
     setZoom(next);
     await tick();
-    viewport.scrollTo({ left: 0, top: 0, behavior: "smooth" });
-  }
+		if (viewport) viewport.scrollTo({ left: 0, top: 0, behavior: "smooth" });
+	}
+
+	onMount(() => {
+		const resizeObserver = new ResizeObserver(() => {
+			if (autoFitted || !viewport?.clientWidth || !viewport.clientHeight) return;
+			void fitView();
+		});
+		if (viewport) resizeObserver.observe(viewport);
+		return () => resizeObserver.disconnect();
+	});
 
   function startPan(event: PointerEvent) {
     if (

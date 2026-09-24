@@ -11,6 +11,7 @@
   import DetailPane, { type ActionFeedback } from "#lib/run/DetailPane.svelte";
   import Map, { type MapSelection } from "#lib/run/Map.svelte";
   import SessionPage from "#lib/run/detail/SessionPage.svelte";
+  import Watchboard from "#lib/run/Watchboard.svelte";
   import SmallStates from "#lib/run/SmallStates.svelte";
   import Topbar from "#lib/run/Topbar.svelte";
   import Workspace from "#lib/run/Workspace.svelte";
@@ -51,8 +52,20 @@
   let stopping = $state(false);
   let cancelling = $state(false);
   let controlFeedback = $state("");
-  // The session shown on its own in place of the map and pane.
-  let openSessionID = $state<string>();
+  type RunView = "map" | "watchboard" | "focus";
+  function initialView(snapshot: RunSnapshot): { view: RunView; sessionID?: string } {
+    const active = Object.values(snapshot.turns)
+      .filter((turn) => turn.ended === 0 && snapshot.sessions[turn.session])
+      .sort((left, right) => left.started - right.started);
+    const sessions = [...new Set(active.map((turn) => turn.session))];
+    return {
+      view: sessions.length === 1 ? "focus" : sessions.length > 1 ? "watchboard" : "map",
+      sessionID: sessions.length === 1 ? sessions[0] : undefined,
+    };
+  }
+  const entryView = untrack(() => initialView(data.snapshot));
+  let view = $state<RunView>(entryView.view);
+  let selectedSessionID = $state<string | undefined>(entryView.sessionID);
   let observedRunID = "";
   let revealSequence = 0;
 
@@ -76,6 +89,16 @@
       .filter((turn) => turn.ended === 0)
       .sort((left, right) => right.started - left.started)[0],
   );
+
+  const availableSessions = $derived.by(() => {
+    const latest = new globalThis.Map<string, number>();
+    for (const turn of Object.values(snapshot.turns)) {
+      latest.set(turn.session, Math.max(latest.get(turn.session) ?? 0, turn.started));
+    }
+    return Object.values(snapshot.sessions).sort(
+      (left, right) => (latest.get(right.id) ?? 0) - (latest.get(left.id) ?? 0),
+    );
+  });
   const waiting = $derived(
     Object.values(snapshot.interviews).filter((row) => row.status === "pending").length,
   );
@@ -90,14 +113,14 @@
     }).length,
   );
 
-  const openSessionName = $derived(openSessionID ? snapshot.sessions[openSessionID]?.name : undefined);
+  const openSessionName = $derived(view === "focus" && selectedSessionID ? snapshot.sessions[selectedSessionID]?.name : undefined);
 
   // The open session's agent call and its watchers, found from its latest
   // turn: the Source and Result tabs need them, as they do in the pane.
   const openSessionCall = $derived.by(() => {
-    if (!openSessionID || !graph || !graphMatches) return undefined;
+    if (!selectedSessionID || !graph || !graphMatches) return undefined;
     const latest = Object.values(snapshot.turns)
-      .filter((row) => row.session === openSessionID)
+      .filter((row) => row.session === selectedSessionID)
       .sort((left, right) => left.started - right.started)
       .at(-1);
     const found = latest ? mapSelectionForTurn(graph, snapshot, latest) : undefined;
@@ -107,11 +130,14 @@
 
   function openSession(next: RunSelection | undefined) {
     const id = selectionSessionID(next);
-    if (id) openSessionID = id;
+    if (id) {
+      selectedSessionID = id;
+      view = "focus";
+    }
   }
 
   function closeSession() {
-    openSessionID = undefined;
+    view = "map";
   }
 
   function isEditable(target: EventTarget | null) {
@@ -122,10 +148,10 @@
   function handleKeydown(event: KeyboardEvent) {
     if (cancelOpen || isEditable(event.target)) return;
     if (event.metaKey || event.ctrlKey || event.altKey) return;
-    if (event.key === "Escape" && openSessionID) {
+    if (event.key === "Escape" && view === "focus") {
       event.preventDefault();
       closeSession();
-    } else if (event.key === "o" && !openSessionID && selectionSessionID(selection)) {
+    } else if (event.key === "o" && view !== "focus" && selectionSessionID(selection)) {
       event.preventDefault();
       openSession(selection);
     }
@@ -144,7 +170,9 @@
       reveal = undefined;
       cancelOpen = false;
       controlFeedback = "";
-      openSessionID = undefined;
+      const nextEntry = initialView(next.snapshot());
+      view = nextEntry.view;
+      selectedSessionID = nextEntry.sessionID;
     }
     observedRunID = next.run.id;
   });
@@ -168,6 +196,15 @@
   function selectWithoutReveal(next: RunSelection) {
     selection = next;
     reveal = undefined;
+  }
+
+  function selectMapItem(next: MapSelection) {
+    selectWithoutReveal(next);
+    if (next.kind === "node" && next.operation.kind === "agent_call") {
+      openSession(next);
+    } else {
+      view = "map";
+    }
   }
 
   function clearSelection() {
@@ -348,10 +385,28 @@
     sessionName={openSessionName}
     onclosesession={closeSession}
   />
+  <nav class="view-tabs" aria-label="Run views">
+    {#each [{ id: "map", label: "Map" }, { id: "watchboard", label: "Watchboard" }, { id: "focus", label: "Focus" }] as item}
+      <button
+        type="button"
+        class:active={view === item.id}
+        aria-current={view === item.id ? "page" : undefined}
+        onclick={() => {
+          view = item.id as RunView;
+          if (view === "focus" && !selectedSessionID) {
+            selectedSessionID = Object.values(snapshot.turns)
+              .filter((turn) => snapshot.sessions[turn.session])
+              .sort((left, right) => left.started - right.started)
+              .at(-1)?.session;
+          }
+        }}
+      >{item.label}</button>
+    {/each}
+  </nav>
   <!-- Hidden, not unmounted, while a session is open, so the map keeps its
   scroll and expanded instances. -->
-  <div class={["workspace-slot", { hidden: Boolean(openSessionID) }]}>
-    <Workspace open={Boolean(selection) && !openSessionID} onclose={clearSelection}>
+  <div class={["workspace-slot", { hidden: view !== "map" }]}>
+    <Workspace open={Boolean(selection)} onclose={clearSelection}>
       {#snippet map()}
         {#if graph && graphMatches}
           <Map
@@ -359,7 +414,7 @@
             {snapshot}
             selected={asMapSelection(selection)}
             {reveal}
-            onselect={selectWithoutReveal}
+            onselect={selectMapItem}
             onopen={openSession}
           />
         {:else}
@@ -392,13 +447,25 @@
       {/snippet}
     </Workspace>
   </div>
-  {#if openSessionID}
+  {#if view === "watchboard"}
+    <div class="workspace-slot">
+      <Watchboard
+        {snapshot}
+        {graph}
+        {graphMatches}
+        {selectedSessionID}
+        onfocus={(id) => { selectedSessionID = id; view = "focus"; }}
+        onopenmap={() => (view = "map")}
+        onmapselect={selectMapItem}
+      />
+    </div>
+  {:else if view === "focus" && selectedSessionID}
     <div class="workspace-slot">
       <SessionPage
         {snapshot}
         {observation}
         {revision}
-        sessionID={openSessionID}
+        sessionID={selectedSessionID}
         definition={openSessionCall?.definition}
         watchers={openSessionCall?.watchers}
         onsteer={deliverSteer}
@@ -408,6 +475,24 @@
           selectScope(scopeKey);
         }}
       />
+    </div>
+  {:else if view === "focus"}
+    <div class="workspace-slot">
+      <section class="no-session" aria-label="Focus has no session">
+        <h1>No agent session selected</h1>
+        <p>Choose an agent session from this run to focus its recorded turns and live activity.</p>
+        {#if availableSessions.length}
+          <div class="session-options" aria-label="Available agent sessions">
+            {#each availableSessions as session (session.id)}
+              <button type="button" onclick={() => (selectedSessionID = session.id)}>
+                <strong>{session.name}</strong><span>{session.model}</span>
+              </button>
+            {/each}
+          </div>
+        {:else}
+          <p>No agent sessions have been recorded in this run.</p>
+        {/if}
+      </section>
     </div>
   {/if}
 </div>
@@ -468,11 +553,44 @@
     background: var(--background);
   }
 
+  .view-tabs {
+    display: flex;
+    flex: 0 0 auto;
+    gap: 4px;
+    padding: 6px 12px 0;
+    background: var(--background);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .view-tabs button {
+    padding: 7px 12px;
+    color: var(--status-muted);
+    font: inherit;
+    font-size: 12px;
+    background: transparent;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+  }
+
+  .view-tabs button:hover,
+  .view-tabs button.active { color: var(--foreground); }
+  .view-tabs button.active { border-bottom-color: var(--status-live); }
+
   .workspace-slot {
     display: flex;
     min-height: 0;
     flex: 1;
   }
+
+  .no-session { display: flex; width: min(100% - 32px, 560px); flex-direction: column; align-self: center; gap: 10px; margin: 24px auto; padding: 22px; background: var(--card); border: 1px solid var(--map-line); border-radius: 10px; }
+  .no-session h1, .no-session p { margin: 0; }
+  .no-session h1 { font-size: 16px; }
+  .no-session p { color: var(--status-muted); font-size: 13px; line-height: 1.5; }
+  .session-options { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+  .session-options button { display: flex; min-width: 150px; flex-direction: column; gap: 3px; padding: 9px 11px; color: var(--foreground); text-align: left; background: var(--background); border: 1px solid var(--map-line); border-radius: 7px; cursor: pointer; }
+  .session-options button:hover { border-color: var(--status-live); }
+  .session-options span { color: var(--status-muted); font: 11px var(--font-mono); }
 
   .workspace-slot.hidden {
     display: none;
@@ -489,5 +607,9 @@
 
   .remote-form {
     display: none;
+  }
+
+  @media (max-width: 600px) {
+    .view-tabs { padding-inline: 8px; }
   }
 </style>

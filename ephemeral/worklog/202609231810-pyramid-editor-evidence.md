@@ -1,0 +1,1 @@
+decision: The pyramid editor must treat a semantic index as navigation, then check consequential source and policy objections against the largest document, cited primary sources, and applicable repository instructions. Issue #373 showed that index omission alone can cause a false level-1 failure.

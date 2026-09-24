@@ -229,9 +229,6 @@ func ValidateProduct(ctx context.Context, env gimble.Env, params Params) (result
 	recordingErr := closeBrowsers()
 	var videoErr error
 	for i := range reports {
-		if recordingErr != nil {
-			break
-		}
 		cmd := exec.CommandContext(ctx, ffmpeg, "-y", "-i", filepath.Join(dirs[i], "video.webm"),
 			"-vf", "setpts=PTS/2,fps=25,scale=w='min(1280,iw)':h='min(720,ih)':force_original_aspect_ratio=decrease:force_divisible_by=2",
 			"-an", "-c:v", "libx264", "-preset", "medium", "-crf", "23", "-pix_fmt", "yuv420p", "-movflags", "+faststart", reports[i].Video)

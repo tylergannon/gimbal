@@ -99,9 +99,9 @@ func (h *testingHarness) RunTurn(ctx context.Context, id, prompt string, _ json.
 
 func TestUserTestingStages(t *testing.T) {
 	for _, tc := range []struct {
-		name                                   string
-		n                                      int
-		tester, debrief, visual, close, encode bool
+		name                                                 string
+		n                                                    int
+		tester, debrief, visual, close, browserClose, encode bool
 	}{
 		{name: "two parallel workloads", n: 2},
 		{name: "unused slots skip", n: 1},
@@ -110,6 +110,7 @@ func TestUserTestingStages(t *testing.T) {
 		{name: "tester failure still reaches triage", n: 2, tester: true},
 		{name: "visual failure still reaches triage", n: 2, visual: true},
 		{name: "cleanup failure reaches run outcome", n: 1, close: true},
+		{name: "one browser close failure preserves both videos", n: 2, browserClose: true},
 		{name: "video conversion failure reaches run outcome", n: 1, encode: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -126,7 +127,11 @@ func TestUserTestingStages(t *testing.T) {
 			}
 			t.Setenv("PATH", filepath.Dir(input)+string(os.PathListSeparator)+os.Getenv("PATH"))
 			// Browser lifecycle only; agent calls and the workflow runtime are real.
-			if err := os.WriteFile(s.PlaywrightCLI, []byte("#!/bin/sh\nif [ \"$2\" = video-start ]; then printf video > \"$3\"; fi\n"), 0700); err != nil {
+			browserBody := "#!/bin/sh\nif [ \"$2\" = video-start ]; then printf video > \"$3\"; fi\n"
+			if tc.browserClose {
+				browserBody += "if [ \"$2\" = close ]; then case \"$1\" in *-1) echo close failed >&2; exit 9;; esac; fi\n"
+			}
+			if err := os.WriteFile(s.PlaywrightCLI, []byte(browserBody), 0700); err != nil {
 				t.Fatal(err)
 			}
 			saveSuite(t, s, input)
@@ -135,8 +140,11 @@ func TestUserTestingStages(t *testing.T) {
 			err := gimble.Run(gimble.Project(t.Context(), t.TempDir()), "user-testing", models, func(ctx context.Context) error {
 				return ValidateProduct(ctx, gimble.Env{WorkDir: filepath.Dir(input)}, Params{SuiteFile: input})
 			})
-			if (err != nil) != (tc.tester || tc.debrief || tc.visual || tc.close || tc.encode) {
+			if (err != nil) != (tc.tester || tc.debrief || tc.visual || tc.close || tc.browserClose || tc.encode) {
 				t.Fatalf("run error: %v", err)
+			}
+			if tc.browserClose && !strings.Contains(err.Error(), "close failed") {
+				t.Fatalf("browser close failure missing from run: %v", err)
 			}
 			if tc.encode && !strings.Contains(err.Error(), "video conversion") {
 				t.Fatalf("conversion failure missing from run: %v", err)

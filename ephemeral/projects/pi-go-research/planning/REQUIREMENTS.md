@@ -16,11 +16,14 @@ start ordinary child processes; the agent itself does not.
 
 ## Scope: the Diffusion Router only
 
-Tyler, later the same day: port only what Pi needs to run coding sessions
-against the Diffusion Router (OpenAI-compatible Chat Completions). No other
-provider families, no OAuth, no PowerShell, no Windows. The target is Go code
-that can use the Router to do real work within hours, not full headless parity.
-PLAN.md's wider provider/OS scope is deferred, not part of this job.
+Tyler, later the same day: the only provider is the Diffusion Router
+(OpenAI-compatible Chat Completions). Cut other provider families, OAuth,
+PowerShell and Windows. Nothing else is cut. The headless engine keeps its
+events, durable session history, compaction and branch summaries, skills,
+prompt templates, system prompt assembly, settings, steering, fork and
+cancellation. Go code using the Router for real work is wanted as soon as
+possible, and that urgency does not shrink the engine. See the scope table in
+[HANDOFF.md](HANDOFF.md).
 
 ## The delivery workflow
 

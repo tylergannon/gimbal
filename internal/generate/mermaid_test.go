@@ -5,8 +5,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/tylergannon/gimble/internal/generate"
-	"github.com/tylergannon/gimble/workflow"
+	"github.com/tylergannon/gimbal/internal/generate"
+	"github.com/tylergannon/gimbal/workflow"
 )
 
 func TestMermaidGolden(t *testing.T) {

@@ -21,7 +21,7 @@
 	};
 
 	const { Story } = defineMeta({
-		title: 'Gimble/Run/Detail/Usage table',
+		title: 'Gimbal/Run/Detail/Usage table',
 		component: UsageTable,
 		tags: ['autodocs']
 	});

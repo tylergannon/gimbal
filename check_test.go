@@ -1,4 +1,4 @@
-package gimble
+package gimbal
 
 import (
 	"context"
@@ -63,7 +63,7 @@ func TestCheckReturnsExecutionErrorsAndRecordsThemAsErrors(t *testing.T) {
 	var checkErr error
 	var recorded ScopeValue
 	err := runTest(t, nil, func(ctx context.Context) error {
-		checkErr = Check(ctx, "missing", t.TempDir(), "gimble-no-such-command")
+		checkErr = Check(ctx, "missing", t.TempDir(), "gimbal-no-such-command")
 		recorded = scopeData(ctx).By["missing"]
 		return nil
 	})

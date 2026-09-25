@@ -6,11 +6,11 @@ the lines most useful to issue #284's narrow static-shape question.
 - Pulumi: `pulumi-parent.md:7-18` defines an explicit parent, an implicit root
   stack, and multiple nesting levels; `:106-118` shows the hierarchy as an
   indented tree. It is the clearest ownership precedent, but its lifecycle
-  inheritance is not a Gimble runtime requirement.
+  inheritance is not a Gimbal runtime requirement.
 - Kubernetes: `kubernetes-owner-references.md:9-31` separates owner/dependent
   membership from labels and stores the owner name plus UID in metadata. It is
   a precise identity/reference precedent, but its garbage-collection rules in
-  `:64-84` are deliberately outside the static Gimble graph.
+  `:64-84` are deliberately outside the static Gimbal graph.
 - GitHub Actions: `github-actions-docker-services.md:16-24` says services are
   configured per job and destroyed with the job; `:70-96` puts named services
   beside the job's steps and uses the configured label as the access name.

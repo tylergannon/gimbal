@@ -202,7 +202,7 @@
   });
 </script>
 
-<svelte:head><title>{snapshot.run.name} · Gimble</title></svelte:head>
+<svelte:head><title>{snapshot.run.name} · Gimbal</title></svelte:head>
 
 <div class="run-workspace">
   <Topbar

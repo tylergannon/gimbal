@@ -1,4 +1,4 @@
-// Package implementinterview builds and demonstrates Gimble issue 249.
+// Package implementinterview builds and demonstrates Gimbal issue 249.
 package implementinterview
 
 import (
@@ -8,17 +8,17 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/tylergannon/gimble"
+	"github.com/tylergannon/gimbal"
 )
 
 //go:generate go tool polytype --validate
-//go:generate go run github.com/tylergannon/gimble/internal/generate/gimblegen -entry ImplementInterview -name implement-interview
+//go:generate go run github.com/tylergannon/gimbal/internal/generate/gimbalgen -entry ImplementInterview -name implement-interview
 
 const (
-	roleAPIResearch               gimble.WorkflowRole = "api-research"
-	roleFrontendResearch          gimble.WorkflowRole = "frontend-research"
-	roleCoding                    gimble.WorkflowRole = "coding"
-	roleImplementationScopeReview gimble.WorkflowRole = "implementation-scope-review"
+	roleAPIResearch               gimbal.WorkflowRole = "api-research"
+	roleFrontendResearch          gimbal.WorkflowRole = "frontend-research"
+	roleCoding                    gimbal.WorkflowRole = "coding"
+	roleImplementationScopeReview gimbal.WorkflowRole = "implementation-scope-review"
 )
 
 // InterviewBuildParams are the local inputs and task bound for the build.
@@ -42,7 +42,7 @@ type Assessment struct {
 }
 
 // ImplementInterview researches, implements, and independently validates issue 249.
-func ImplementInterview(ctx context.Context, env gimble.Env, params InterviewBuildParams) error {
+func ImplementInterview(ctx context.Context, env gimbal.Env, params InterviewBuildParams) error {
 	if !filepath.IsAbs(params.RequirementsFile) || !filepath.IsAbs(params.ReferenceDir) {
 		return fmt.Errorf("requirements-file and reference-dir must be absolute paths")
 	}
@@ -56,32 +56,32 @@ func ImplementInterview(ctx context.Context, env gimble.Env, params InterviewBui
 		return fmt.Errorf("reference directory is not a directory: %s", params.ReferenceDir)
 	}
 
-	gimble.Set(ctx, "requirements-file", params.RequirementsFile)
-	gimble.Set(ctx, "reference-directory", params.ReferenceDir)
-	gimble.Set(ctx, "repository", env.WorkDir)
+	gimbal.Set(ctx, "requirements-file", params.RequirementsFile)
+	gimbal.Set(ctx, "reference-directory", params.ReferenceDir)
+	gimbal.Set(ctx, "repository", env.WorkDir)
 
-	recon := gimble.Group(ctx, "reconnaissance")
+	recon := gimbal.Group(ctx, "reconnaissance")
 	recon.Go("backend", func(ctx context.Context) error {
-		researcher := gimble.NewSession(ctx, roleAPIResearch, env.WorkDir)
-		_, err := researcher.Generate[gimble.Text](ctx, backendResearchPrompt)
+		researcher := gimbal.NewSession(ctx, roleAPIResearch, env.WorkDir)
+		_, err := researcher.Generate[gimbal.Text](ctx, backendResearchPrompt)
 		return err
 	})
 	recon.Go("frontend", func(ctx context.Context) error {
-		researcher := gimble.NewSession(ctx, roleFrontendResearch, env.WorkDir)
-		_, err := researcher.Generate[gimble.Text](ctx, frontendResearchPrompt)
+		researcher := gimbal.NewSession(ctx, roleFrontendResearch, env.WorkDir)
+		_, err := researcher.Generate[gimbal.Text](ctx, frontendResearchPrompt)
 		return err
 	})
 	if err := recon.Wait(); err != nil {
 		return err
 	}
 
-	planner := gimble.NewSession(ctx, gimble.RoleSprintPlanning, env.WorkDir)
-	coder := gimble.NewSession(ctx, roleCoding, env.WorkDir)
-	backendScope := gimble.NewSession(ctx, roleImplementationScopeReview, env.WorkDir)
-	architectureScope := gimble.NewSession(ctx, gimble.RoleArchitecturalCritique, env.WorkDir)
-	goal := "Implement exactly the locally saved Gimble issue 249 at " + params.RequirementsFile +
+	planner := gimbal.NewSession(ctx, gimbal.RoleSprintPlanning, env.WorkDir)
+	coder := gimbal.NewSession(ctx, roleCoding, env.WorkDir)
+	backendScope := gimbal.NewSession(ctx, roleImplementationScopeReview, env.WorkDir)
+	architectureScope := gimbal.NewSession(ctx, gimbal.RoleArchitecturalCritique, env.WorkDir)
+	goal := "Implement exactly the locally saved Gimbal issue 249 at " + params.RequirementsFile +
 		" and demonstrate its complete definition of done through the real running web interface."
-	loop := gimble.PromiseLoop(ctx, "implementation", goal, planner)
+	loop := gimbal.PromiseLoop(ctx, "implementation", goal, planner)
 
 	completed := false
 	exhausted := false
@@ -89,9 +89,9 @@ func ImplementInterview(ctx context.Context, env gimble.Env, params InterviewBui
 	tasksRun := 0
 	for taskCtx, task := range loop.Tasks {
 		tasksRun++
-		workerReport, err := coder.Generate[gimble.Text](taskCtx, codingPrompt,
-			gimble.WithSupervisor(backendScope, backendScopePrompt),
-			gimble.WithSupervisor(architectureScope, architectureScopePrompt),
+		workerReport, err := coder.Generate[gimbal.Text](taskCtx, codingPrompt,
+			gimbal.WithSupervisor(backendScope, backendScopePrompt),
+			gimbal.WithSupervisor(architectureScope, architectureScopePrompt),
 		)
 		if err != nil {
 			operationalErr = err
@@ -100,8 +100,8 @@ func ImplementInterview(ctx context.Context, env gimble.Env, params InterviewBui
 
 		taskCheckPassed := true
 		if command := strings.TrimSpace(task.Validation.Command); command != "" {
-			exit, stdout, stderr, err := gimble.RunCommand(taskCtx, "task-check", env.WorkDir, "sh", "-lc", command)
-			gimble.Set(taskCtx, "task check", commandResult(exit, stdout, stderr))
+			exit, stdout, stderr, err := gimbal.RunCommand(taskCtx, "task-check", env.WorkDir, "sh", "-lc", command)
+			gimbal.Set(taskCtx, "task check", commandResult(exit, stdout, stderr))
 			if err != nil {
 				operationalErr = err
 				break
@@ -109,35 +109,35 @@ func ImplementInterview(ctx context.Context, env gimble.Env, params InterviewBui
 			taskCheckPassed = exit == 0
 		}
 
-		buildExit, stdout, stderr, err := gimble.RunCommand(taskCtx, "build", env.WorkDir, "just", "build")
-		gimble.Set(taskCtx, "just build", commandResult(buildExit, stdout, stderr))
+		buildExit, stdout, stderr, err := gimbal.RunCommand(taskCtx, "build", env.WorkDir, "just", "build")
+		gimbal.Set(taskCtx, "just build", commandResult(buildExit, stdout, stderr))
 		if err != nil {
 			operationalErr = err
 			break
 		}
-		vetExit, stdout, stderr, err := gimble.RunCommand(taskCtx, "vet", env.WorkDir, "just", "vet")
-		gimble.Set(taskCtx, "just vet", commandResult(vetExit, stdout, stderr))
+		vetExit, stdout, stderr, err := gimbal.RunCommand(taskCtx, "vet", env.WorkDir, "just", "vet")
+		gimbal.Set(taskCtx, "just vet", commandResult(vetExit, stdout, stderr))
 		if err != nil {
 			operationalErr = err
 			break
 		}
-		testExit, stdout, stderr, err := gimble.RunCommand(taskCtx, "test", env.WorkDir, "just", "test")
-		gimble.Set(taskCtx, "just test", commandResult(testExit, stdout, stderr))
+		testExit, stdout, stderr, err := gimbal.RunCommand(taskCtx, "test", env.WorkDir, "just", "test")
+		gimbal.Set(taskCtx, "just test", commandResult(testExit, stdout, stderr))
 		if err != nil {
 			operationalErr = err
 			break
 		}
 
-		validator := gimble.NewSession(taskCtx, gimble.RoleQAOrchestration, env.WorkDir)
+		validator := gimbal.NewSession(taskCtx, gimbal.RoleQAOrchestration, env.WorkDir)
 		assessment, err := validator.Generate[Assessment](taskCtx, validationPrompt)
 		if err != nil {
 			operationalErr = err
 			break
 		}
-		gimble.SetJSON(taskCtx, "independent assessment", assessment)
-		gimble.Set(taskCtx, "worker report", string(workerReport))
+		gimbal.SetJSON(taskCtx, "independent assessment", assessment)
+		gimbal.Set(taskCtx, "worker report", string(workerReport))
 		checksPassed := taskCheckPassed && buildExit == 0 && vetExit == 0 && testExit == 0
-		gimble.Set(taskCtx, "deterministic checks passed", checksPassed)
+		gimbal.Set(taskCtx, "deterministic checks passed", checksPassed)
 		if checksPassed && assessment.Complete {
 			completed = true
 			break

@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-max_file_bytes=${GIMBLE_MAX_STAGED_FILE_BYTES:-1048576}
-max_total_bytes=${GIMBLE_MAX_STAGED_TOTAL_BYTES:-5242880}
-max_paths=${GIMBLE_MAX_STAGED_PATHS:-100}
-max_added_lines=${GIMBLE_MAX_STAGED_ADDED_LINES:-10000}
+max_file_bytes=${GIMBAL_MAX_STAGED_FILE_BYTES:-1048576}
+max_total_bytes=${GIMBAL_MAX_STAGED_TOTAL_BYTES:-5242880}
+max_paths=${GIMBAL_MAX_STAGED_PATHS:-100}
+max_added_lines=${GIMBAL_MAX_STAGED_ADDED_LINES:-10000}
 
 staged_paths=()
 while IFS= read -r -d '' path; do
@@ -22,7 +22,7 @@ largest_bytes=0
 largest_path=
 
 for path in "${staged_paths[@]}"; do
-	if [[ $path =~ (^|/)\.gimble/ ]] ||
+	if [[ $path =~ (^|/)\.gimbal/ ]] ||
 		[[ $path =~ ^ephemeral/attest/ ]] ||
 		[[ $path =~ ^ephemeral/(.*/)?(runs?|logs?|events|stages|sessions|commands|results?|screenshots?)/ ]] ||
 		[[ $path =~ ^ephemeral/.*/([^/]*-logs|logs-[^/]*|run-logs[^/]*)/ ]] ||
@@ -62,7 +62,7 @@ if ((${#ephemeral_code_paths[@]} > 0)); then
 	exit 1
 fi
 
-if [[ ${GIMBLE_ALLOW_LARGE_COMMIT:-} == 1 ]]; then
+if [[ ${GIMBAL_ALLOW_LARGE_COMMIT:-} == 1 ]]; then
 	exit 0
 fi
 
@@ -88,11 +88,11 @@ if ((largest_bytes > max_file_bytes)); then
 fi
 
 if ((${#violations[@]} > 0)); then
-	printf 'ERROR: staged change is too large for an ordinary Gimble commit.\n' >&2
+	printf 'ERROR: staged change is too large for an ordinary Gimbal commit.\n' >&2
 	printf 'This usually means generated output, run artifacts, or copied third-party code was staged.\n' >&2
 	printf 'Write and commit a summary; use a pinned submodule for substantial external source.\n' >&2
 	printf 'Limits exceeded:\n' >&2
 	printf '  %s\n' "${violations[@]}" >&2
-	printf 'If Tyler explicitly approved this exact large commit, retry with GIMBLE_ALLOW_LARGE_COMMIT=1.\n' >&2
+	printf 'If Tyler explicitly approved this exact large commit, retry with GIMBAL_ALLOW_LARGE_COMMIT=1.\n' >&2
 	exit 1
 fi

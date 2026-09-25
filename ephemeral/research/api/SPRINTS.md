@@ -1,4 +1,4 @@
-# Building Gimble: four sprints
+# Building Gimbal: four sprints
 
 The root package's Godoc defines the current public API. `API.md` beside this
 file is the design record behind it; this file records delivery order and
@@ -12,7 +12,7 @@ historical sprint scope.
 
 Sprint 1 is built by hand. Every sprint after it is built by `cmd/sprint`,
 the sprint workflow, written in Sprint 1 against the finished API and not
-rewritten after: from Sprint 2 on, building Gimble is a run of Gimble.
+rewritten after: from Sprint 2 on, building Gimbal is a run of Gimbal.
 
 Godoc is the API contract. `API.md` preserves the decisions and reasons. The
 reports beside it are done with.
@@ -27,13 +27,13 @@ rewritten against the new contract, not spliced.
 Done. `skgo new --build-tool=just` made `web/` (the SvelteKit app),
 `generated/` (`go generate ./...` writes it), `web/server.go` (the one
 `NewHandler`), `cmd/main.go` (the binary), `Justfile`, `e2e/`. The root
-package is `gimble`, the API; the page's Go imports it, so `Serve` lives
+package is `gimbal`, the API; the page's Go imports it, so `Serve` lives
 in `web`. `AGENTS.md` carries the rules. `just build` builds it and
-`./bin/gimble` serves the starter page.
+`./bin/gimbal` serves the starter page.
 
 ## Sprint 1: the API
 
-Ship: `go get github.com/tylergannon/gimble` and write any workflow in
+Ship: `go get github.com/tylergannon/gimbal` and write any workflow in
 `API.md`, against both harnesses, with nothing on disk and no page.
 
 - `HarnessAdapter`, from the legacy `harness/contract.go` without
@@ -118,7 +118,7 @@ agent can read while it runs and after.
   stops at the final event.
 
 Proof: Sprint 3 is built by `cmd/sprint`, and the run it leaves in
-`.gimble/runs/` is the first fixture the page replays.
+`.gimbal/runs/` is the first fixture the page replays.
 
 `API.md`: Observability (Events, Keys), Run (ids, the log).
 
@@ -127,7 +127,7 @@ Proof: Sprint 3 is built by `cmd/sprint`, and the run it leaves in
 Ship: open a browser and see every run in the project, live and past,
 drawn as the graph.
 
-- `web.NewRuntime` and `gimble.Start`. `cmd/main.go` becomes `cmd/sprint`:
+- `web.NewRuntime` and `gimbal.Start`. `cmd/main.go` becomes `cmd/sprint`:
   with an argument it runs; without, it serves and waits. The form for
   the sprint workflow beside its page, `skgo.Form(startSprint)`, controls
   named by `Input`'s fields. The starter routes go.

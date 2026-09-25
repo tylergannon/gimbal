@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tylergannon/gimble/internal/observation"
+	"github.com/tylergannon/gimbal/internal/observation"
 )
 
 // frame is one SSE frame: its event name and its data line.
@@ -58,7 +58,7 @@ func TestRunEventsStreamTheStore(t *testing.T) {
 		json.RawMessage(`{"seq":1,"time":"2026-09-13T00:00:00Z","scope":"","event":{"kind":"scope_began","name":"."}}`),
 		json.RawMessage(`{"seq":2,"time":"2026-09-13T00:00:00Z","scope":"lap.1","event":{"kind":"scope_began","name":"lap.1"}}`),
 		json.RawMessage(`{"seq":3,"time":"2026-09-13T00:00:01Z","scope":"lap.1","session":"writer","event":{"kind":"session_created","name":"writer","adapter":"fixture","model":"test-model","workdir":"/w"}}`),
-		json.RawMessage(`{"seq":4,"time":"2026-09-13T00:00:02Z","scope":"lap.1","session":"writer","turn":"turn-1","event":{"kind":"turn_started","prompt":"write","output_type":"gimble.Text"}}`),
+		json.RawMessage(`{"seq":4,"time":"2026-09-13T00:00:02Z","scope":"lap.1","session":"writer","turn":"turn-1","event":{"kind":"turn_started","prompt":"write","output_type":"gimbal.Text"}}`),
 	} {
 		if err := store.Lifecycle(record); err != nil {
 			t.Fatalf("fold %s: %v", record, err)

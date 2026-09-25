@@ -12,11 +12,11 @@ import (
 	"path/filepath"
 	"slices"
 
-	"github.com/tylergannon/gimble/workflow"
+	"github.com/tylergannon/gimbal/workflow"
 	"golang.org/x/tools/go/packages"
 )
 
-const gimblePath = "github.com/tylergannon/gimble"
+const gimbalPath = "github.com/tylergannon/gimbal"
 
 // Extract loads the package in dir and returns the graph of the workflow its
 // function entry writes, under the name name.

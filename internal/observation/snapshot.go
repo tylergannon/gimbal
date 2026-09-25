@@ -3,7 +3,7 @@ package observation
 import (
 	"encoding/json"
 
-	"github.com/tylergannon/gimble/internal/sessionstate"
+	"github.com/tylergannon/gimbal/internal/sessionstate"
 )
 
 // Run statuses. Only a lifecycle record sets one: a native part, step or

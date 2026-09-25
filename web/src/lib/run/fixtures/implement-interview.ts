@@ -679,7 +679,7 @@ const commandRow = (scope: string, name: string, offset: number, exitCode = 0): 
   name,
   command: name === "task-check" ? "sh" : "just",
   args: name === "task-check" ? ["-lc", "go test ./internal/observation/"] : [name],
-  workdir: "/workspace/gimble",
+  workdir: "/workspace/gimbal",
   exit_code: exitCode,
   stdout: exitCode === 0 ? "ok\n" : "",
   stderr: exitCode === 0 ? "" : "answered timestamp was still zero\n",

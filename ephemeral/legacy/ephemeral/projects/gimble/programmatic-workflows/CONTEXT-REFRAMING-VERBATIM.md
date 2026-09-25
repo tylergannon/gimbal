@@ -1,12 +1,12 @@
 # Selected text:
 
-## Selection 1: /Users/tyler/.codex/worktrees/0f95/gimble/docs/workflows-as-programs.md (lines 54-62)
+## Selection 1: /Users/tyler/.codex/worktrees/0f95/gimbal/docs/workflows-as-programs.md (lines 54-62)
 Working context will eventually grow too large to send in full with every
 request. At that point, information should spill onto disk, where the agent
 can find and inspect it as needed.
 
 This is a continuation of the semantic-index approach already explored in
-Gimble. The program's active context should be treated as a changing,
+Gimbal. The program's active context should be treated as a changing,
 evolving addition to the first or root node of the semantic index available
 to that agent. As execution advances, this entry point connects the agent's
 current work with the supporting information it can retrieve.

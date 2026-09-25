@@ -6,10 +6,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/tylergannon/gimble"
-	"github.com/tylergannon/gimble/internal/live"
-	"github.com/tylergannon/gimble/internal/observation"
-	routes "github.com/tylergannon/gimble/internal/skgo/links/onzggl3sn52xizlt"
+	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/internal/live"
+	"github.com/tylergannon/gimbal/internal/observation"
+	routes "github.com/tylergannon/gimbal/internal/skgo/links/onzggl3sn52xizlt"
 )
 
 type controlledRun struct {
@@ -43,7 +43,7 @@ func TestRunPageControlsReachTheLiveRun(t *testing.T) {
 	if err != nil || !stopped.Accepted || controlled.turn != "coder.1/turn.2" {
 		t.Fatalf("stop turn = %+v, %v; target = %q", stopped, err, controlled.turn)
 	}
-	var killed gimble.Killed
+	var killed gimbal.Killed
 	if !errors.As(controlled.cause, &killed) || killed.Target != controlled.turn || killed.By != "person" {
 		t.Fatalf("stop cause = %#v, want person kill of %q", controlled.cause, controlled.turn)
 	}
@@ -82,12 +82,12 @@ func TestCancelRunPersistsACancelledRecord(t *testing.T) {
 	if err != nil || !result.Accepted {
 		t.Fatalf("cancel run = %+v, %v; want accepted", result, err)
 	}
-	var killed gimble.Killed
+	var killed gimbal.Killed
 	if err := <-done; !errors.As(err, &killed) || killed.By != "person" || killed.Target != "" {
 		t.Fatalf("run error = %#v; want person kill of root scope", err)
 	}
 
-	snapshot, err := observation.NewRegistry(filepath.Join(project, ".gimble")).Snapshot(id)
+	snapshot, err := observation.NewRegistry(filepath.Join(project, ".gimbal")).Snapshot(id)
 	if err != nil {
 		t.Fatal(err)
 	}

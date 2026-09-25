@@ -29,12 +29,12 @@ Confidence-gated routing separates the predicted answer from permission to act: 
 ## Gotchas
 
 - The values 0.6 and 0.85 are illustrative voice-banking policy, not recommended universal thresholds.
-- A high confidence score does not establish that the question captures the right concept or that the model is calibrated on Gimble traces; both wording and empirical calibration need evaluation.
+- A high confidence score does not establish that the question captures the right concept or that the model is calibrated on Gimbal traces; both wording and empirical calibration need evaluation.
 - An automated coaching nudge and an irreversible workflow mutation have different stakes and therefore should not share a threshold merely because they use the same predicted label.
 
 ## Task recipes
 
-- **Gate Gimble interventions by consequence:** allow a low-stakes request for a status summary at a lower confidence; require stronger evidence for steering that changes scope or execution; route authority-sensitive or destructive actions to a human. Start at [confidence routing](https://docs.typesafe.ai/patterns/confidence-routing.md).
+- **Gate Gimbal interventions by consequence:** allow a low-stakes request for a status summary at a lower confidence; require stronger evidence for steering that changes scope or execution; route authority-sensitive or destructive actions to a human. Start at [confidence routing](https://docs.typesafe.ai/patterns/confidence-routing.md).
 - **Add a three-way policy:** below a global floor do nothing/escalate; in the middle ask a cheap generative supervisor or request confirmation; above an action-specific threshold perform the bounded intervention. The source analogue is [confidence routing](https://docs.typesafe.ai/patterns/confidence-routing.md).
 - **Tune safely:** label historical decisions by action class, sweep thresholds against false-action and missed-intervention costs, then keep the selected constants next to the questions for human review.
 

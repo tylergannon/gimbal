@@ -28,7 +28,7 @@ This cookbook classifies SEC filing text into one of 75 industry groups, then us
 
 - **Hierarchical diagnoses:** classify a run into a narrow coaching type (`repeat-without-new-evidence`, `tool-interface-confusion`) when sure; fall back to a broader intervention family (`needs-direction`, `needs-verification`) when unsure.
 - **Confidence controls specificity, not truth:** low confidence need not mean discard; it can select a safer coarser action.
-- **One semantic call, deterministic roll-up:** keep parent maps and intervention consequences in Gimble code.
+- **One semantic call, deterministic roll-up:** keep parent maps and intervention consequences in Gimbal code.
 - **Criteria-rich labels:** describe each supervision class in observable terms; short label names alone are insufficient.
 
 ## Gotchas and failure modes

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/tylergannon/gimble"
+	"github.com/tylergannon/gimbal"
 )
 
 // projector consumes Claude Code's raw JSON before the SDK parser. Stream
@@ -15,7 +15,7 @@ import (
 // are audit identity only, while nested message.id owns the step.
 type projector struct {
 	mu        sync.Mutex
-	emit      func(gimble.AgentEvent) error
+	emit      func(gimbal.AgentEvent) error
 	sessionID string
 	model     string
 
@@ -31,7 +31,7 @@ type projector struct {
 	toolMessages  map[string]string
 	nested        map[string][]map[string]any
 	usage         claudeUsage
-	report        map[string]gimble.Usage
+	report        map[string]gimbal.Usage
 	failureSeen   bool
 }
 
@@ -47,7 +47,7 @@ type claudeUsage struct {
 	input, outputTotal, reasoning, cacheRead, cacheWrite float64
 }
 
-func newProjector(sessionID, model string, emit func(gimble.AgentEvent) error) *projector {
+func newProjector(sessionID, model string, emit func(gimbal.AgentEvent) error) *projector {
 	return &projector{
 		emit: emit, sessionID: sessionID, model: model,
 		blocks: make(map[int]*blockState), pendingTools: make(map[string]bool), toolMessages: make(map[string]string), nested: make(map[string][]map[string]any),
@@ -60,7 +60,7 @@ func (p *projector) event(eventType string, data map[string]any, native any) err
 	if err != nil {
 		return err
 	}
-	event := gimble.AgentEvent{Type: eventType, Data: raw}
+	event := gimbal.AgentEvent{Type: eventType, Data: raw}
 	if native != nil {
 		event.NativeRef, err = json.Marshal(native)
 		if err != nil {
@@ -530,13 +530,13 @@ func (p *projector) nativeRef(envelope map[string]any, itemID string) map[string
 // continuations modelUsage is cumulative for the native process, so the latest
 // report already includes the waiting generations that preceded it.
 func (p *projector) result(envelope map[string]any) error {
-	report := make(map[string]gimble.Usage)
+	report := make(map[string]gimbal.Usage)
 	for model, raw := range object(envelope["modelUsage"]) {
 		entry := object(raw)
 		if entry == nil {
 			continue
 		}
-		report[model] = gimble.Usage{
+		report[model] = gimbal.Usage{
 			Cost: numberValue(entry["costUSD"]),
 			Tokens: claudeTokens(numberValue(entry["inputTokens"]), numberValue(entry["outputTokens"]),
 				numberValue(entry["thinkingTokens"]), numberValue(entry["cacheReadInputTokens"]),
@@ -548,7 +548,7 @@ func (p *projector) result(envelope map[string]any) error {
 		if usage != nil || envelope["total_cost_usd"] != nil {
 			var u claudeUsage
 			u.merge(usage)
-			report[p.model] = gimble.Usage{Cost: cost, Tokens: u.tokens()}
+			report[p.model] = gimbal.Usage{Cost: cost, Tokens: u.tokens()}
 		}
 	}
 	if len(report) > 0 {
@@ -566,7 +566,7 @@ func (p *projector) result(envelope map[string]any) error {
 
 // turnUsage is the harness's own report for the turn, or nil when the turn
 // ended without one.
-func (p *projector) turnUsage() map[string]gimble.Usage {
+func (p *projector) turnUsage() map[string]gimbal.Usage {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return p.report
@@ -577,8 +577,8 @@ func (p *projector) turnUsage() map[string]gimble.Usage {
 // with cache read and cache creation reported separately, so input passes
 // through unchanged; thinking tokens are a subset of the output tokens, so
 // the visible output is the output less the thinking.
-func claudeTokens(input, output, reasoning, cacheRead, cacheWrite float64) gimble.Tokens {
-	var tokens gimble.Tokens
+func claudeTokens(input, output, reasoning, cacheRead, cacheWrite float64) gimbal.Tokens {
+	var tokens gimbal.Tokens
 	tokens.Input = input
 	tokens.Output = max(0, output-reasoning)
 	tokens.Reasoning = reasoning
@@ -587,7 +587,7 @@ func claudeTokens(input, output, reasoning, cacheRead, cacheWrite float64) gimbl
 	return tokens
 }
 
-func (u claudeUsage) tokens() gimble.Tokens {
+func (u claudeUsage) tokens() gimbal.Tokens {
 	return claudeTokens(u.input, u.outputTotal, u.reasoning, u.cacheRead, u.cacheWrite)
 }
 

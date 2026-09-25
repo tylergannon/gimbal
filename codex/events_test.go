@@ -8,12 +8,12 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/tylergannon/gimble"
+	"github.com/tylergannon/gimbal"
 )
 
 func TestProjectorBindsRawResponseAndNormalizesTokens(t *testing.T) {
-	var events []gimble.AgentEvent
-	p := newProjector("thread-1", "turn-1", "gpt-test", func(event gimble.AgentEvent) error {
+	var events []gimbal.AgentEvent
+	p := newProjector("thread-1", "turn-1", "gpt-test", func(event gimbal.AgentEvent) error {
 		events = append(events, event)
 		return nil
 	})
@@ -55,8 +55,8 @@ func TestProjectorBindsRawResponseAndNormalizesTokens(t *testing.T) {
 }
 
 func TestProjectorWaitsForToolAndDistinguishesFailure(t *testing.T) {
-	var events []gimble.AgentEvent
-	p := newProjector("thread-1", "turn-1", "gpt-test", func(event gimble.AgentEvent) error { events = append(events, event); return nil })
+	var events []gimbal.AgentEvent
+	p := newProjector("thread-1", "turn-1", "gpt-test", func(event gimbal.AgentEvent) error { events = append(events, event); return nil })
 	mustProject(t, p.itemStarted(json.RawMessage(`{"item":{"id":"call-1","type":"commandExecution","command":"false","cwd":"/w"}}`)))
 	mustProject(t, p.rawResponseCompleted(json.RawMessage(`{"responseId":"resp_tool"}`)))
 	if slices.Contains(types(events), "session.step.ended") {
@@ -79,8 +79,8 @@ func TestProjectorWaitsForToolAndDistinguishesFailure(t *testing.T) {
 }
 
 func TestProjectorAttributesToolDeliveredAfterRawResponse(t *testing.T) {
-	var events []gimble.AgentEvent
-	p := newProjector("thread", "turn", "model", func(event gimble.AgentEvent) error {
+	var events []gimbal.AgentEvent
+	p := newProjector("thread", "turn", "model", func(event gimbal.AgentEvent) error {
 		events = append(events, event)
 		return nil
 	})
@@ -109,8 +109,8 @@ func TestProjectorAttributesToolDeliveredAfterRawResponse(t *testing.T) {
 }
 
 func TestProjectorAttributesSerialToolsFromRawResponseItems(t *testing.T) {
-	var events []gimble.AgentEvent
-	p := newProjector("thread", "turn", "model", func(event gimble.AgentEvent) error {
+	var events []gimbal.AgentEvent
+	p := newProjector("thread", "turn", "model", func(event gimbal.AgentEvent) error {
 		events = append(events, event)
 		return nil
 	})
@@ -153,8 +153,8 @@ func TestProjectorAttributesSerialToolsFromRawResponseItems(t *testing.T) {
 }
 
 func TestProjectorSeparatesToolFirstNextResponse(t *testing.T) {
-	var events []gimble.AgentEvent
-	p := newProjector("thread", "turn", "model", func(event gimble.AgentEvent) error {
+	var events []gimbal.AgentEvent
+	p := newProjector("thread", "turn", "model", func(event gimbal.AgentEvent) error {
 		events = append(events, event)
 		return nil
 	})
@@ -192,8 +192,8 @@ func TestProjectorSeparatesToolFirstNextResponse(t *testing.T) {
 }
 
 func TestProjectorCompletesTwoResponsesWithoutTokenUsage(t *testing.T) {
-	var events []gimble.AgentEvent
-	p := newProjector("thread", "turn", "model", func(event gimble.AgentEvent) error { events = append(events, event); return nil })
+	var events []gimbal.AgentEvent
+	p := newProjector("thread", "turn", "model", func(event gimbal.AgentEvent) error { events = append(events, event); return nil })
 	for i, response := range []string{"resp_one", "resp_two"} {
 		item := fmt.Sprintf("item-%d", i)
 		mustProject(t, p.itemStarted(json.RawMessage(fmt.Sprintf(`{"item":{"id":%q,"type":"agentMessage"}}`, item))))
@@ -220,8 +220,8 @@ func TestProjectorCompletesTwoResponsesWithoutTokenUsage(t *testing.T) {
 }
 
 func TestProjectorCompletesResumedTurnWithoutRawResponse(t *testing.T) {
-	var events []gimble.AgentEvent
-	p := newProjector("thread", "turn", "model", func(event gimble.AgentEvent) error {
+	var events []gimbal.AgentEvent
+	p := newProjector("thread", "turn", "model", func(event gimbal.AgentEvent) error {
 		events = append(events, event)
 		return nil
 	})
@@ -239,8 +239,8 @@ func TestProjectorCompletesResumedTurnWithoutRawResponse(t *testing.T) {
 // ephemeral/research/issue-149/codex/turn2-sameproc.jsonl, where total is the
 // process's running sum and last is that turn's one model call.
 func TestProjectorFillsStepFromRecordedTokenUsage(t *testing.T) {
-	var events []gimble.AgentEvent
-	p := newProjector("01a0988c-e92a-7be3-a0dd-98e708d1b6e5", "01a0988d-1c26-78b2-a0fc-5e97d2295747", "gpt-5.6-luna", func(event gimble.AgentEvent) error {
+	var events []gimbal.AgentEvent
+	p := newProjector("01a0988c-e92a-7be3-a0dd-98e708d1b6e5", "01a0988d-1c26-78b2-a0fc-5e97d2295747", "gpt-5.6-luna", func(event gimbal.AgentEvent) error {
 		events = append(events, event)
 		return nil
 	})
@@ -261,15 +261,15 @@ func TestProjectorFillsStepFromRecordedTokenUsage(t *testing.T) {
 
 func TestProjectorPropagatesCallbackError(t *testing.T) {
 	boom := errors.New("observer stopped")
-	p := newProjector("thread", "turn", "model", func(gimble.AgentEvent) error { return boom })
+	p := newProjector("thread", "turn", "model", func(gimbal.AgentEvent) error { return boom })
 	if err := p.itemStarted(json.RawMessage(`{"item":{"id":"one","type":"agentMessage"}}`)); !errors.Is(err, boom) {
 		t.Fatalf("callback error = %v, want %v", err, boom)
 	}
 }
 
 func TestProjectorRecordsNativeRetryAndTerminalError(t *testing.T) {
-	var events []gimble.AgentEvent
-	p := newProjector("thread", "turn", "model", func(event gimble.AgentEvent) error {
+	var events []gimbal.AgentEvent
+	p := newProjector("thread", "turn", "model", func(event gimbal.AgentEvent) error {
 		events = append(events, event)
 		return nil
 	})
@@ -302,8 +302,8 @@ func TestProjectorRecordsNativeRetryAndTerminalError(t *testing.T) {
 }
 
 func TestProjectorRecordsApprovalRequestAndFixedDecision(t *testing.T) {
-	var events []gimble.AgentEvent
-	p := newProjector("thread", "turn", "model", func(event gimble.AgentEvent) error {
+	var events []gimbal.AgentEvent
+	p := newProjector("thread", "turn", "model", func(event gimbal.AgentEvent) error {
 		events = append(events, event)
 		return nil
 	})
@@ -326,8 +326,8 @@ func TestProjectorRecordsApprovalRequestAndFixedDecision(t *testing.T) {
 }
 
 func TestProjectorKeepsNativeChildTranscriptInsideCollabTool(t *testing.T) {
-	var events []gimble.AgentEvent
-	parent := newProjector("parent", "parent-turn", "model", func(event gimble.AgentEvent) error {
+	var events []gimbal.AgentEvent
+	parent := newProjector("parent", "parent-turn", "model", func(event gimbal.AgentEvent) error {
 		events = append(events, event)
 		return nil
 	})
@@ -337,7 +337,7 @@ func TestProjectorKeepsNativeChildTranscriptInsideCollabTool(t *testing.T) {
 	if tool != "spawn" || !slices.Equal(children, []string{"child"}) {
 		t.Fatalf("child routing = tool %q children %v", tool, children)
 	}
-	child := newProjector("child", "child-turn", "model", func(event gimble.AgentEvent) error {
+	child := newProjector("child", "child-turn", "model", func(event gimbal.AgentEvent) error {
 		return parent.nestedEvent(tool, event)
 	})
 	mustProject(t, child.itemStarted(json.RawMessage(`{"threadId":"child","turnId":"child-turn","item":{"id":"child-message","type":"agentMessage"}}`)))
@@ -366,8 +366,8 @@ func TestProjectorKeepsNativeChildTranscriptInsideCollabTool(t *testing.T) {
 }
 
 func TestProjectorAcceptsChildEventsAfterCollabToolCompletes(t *testing.T) {
-	var events []gimble.AgentEvent
-	p := newProjector("parent", "turn", "model", func(event gimble.AgentEvent) error {
+	var events []gimbal.AgentEvent
+	p := newProjector("parent", "turn", "model", func(event gimbal.AgentEvent) error {
 		events = append(events, event)
 		return nil
 	})
@@ -376,7 +376,7 @@ func TestProjectorAcceptsChildEventsAfterCollabToolCompletes(t *testing.T) {
 	mustProject(t, p.rawResponseCompleted(json.RawMessage(`{"responseId":"response","usage":{}}`)))
 	_, _, err := p.itemCompleted(json.RawMessage(`{"item":{"id":"spawn","type":"collabAgentToolCall","tool":"spawnAgent","receiverThreadIds":["child"],"status":"completed"}}`))
 	mustProject(t, err)
-	mustProject(t, p.nestedEvent("spawn", gimble.AgentEvent{Type: "session.text.delta", Data: json.RawMessage(`{"delta":"late child"}`)}))
+	mustProject(t, p.nestedEvent("spawn", gimbal.AgentEvent{Type: "session.text.delta", Data: json.RawMessage(`{"delta":"late child"}`)}))
 
 	var progress map[string]any
 	decodeData(t, firstType(t, events, "session.tool.progress"), &progress)
@@ -386,15 +386,15 @@ func TestProjectorAcceptsChildEventsAfterCollabToolCompletes(t *testing.T) {
 }
 
 func TestNestedProgressEmitsOneEntryPerEvent(t *testing.T) {
-	var events []gimble.AgentEvent
-	p := newProjector("parent", "turn", "model", func(event gimble.AgentEvent) error {
+	var events []gimbal.AgentEvent
+	p := newProjector("parent", "turn", "model", func(event gimbal.AgentEvent) error {
 		events = append(events, event)
 		return nil
 	})
 	mustProject(t, p.itemStarted(json.RawMessage(`{"item":{"id":"spawn","type":"collabAgentToolCall","tool":"spawnAgent","receiverThreadIds":[],"status":"inProgress"}}`)))
 	events = nil
 	for i := range 1000 {
-		mustProject(t, p.nestedEvent("spawn", gimble.AgentEvent{Type: "session.text.delta", Data: json.RawMessage(fmt.Sprintf(`{"sequence":%d,"delta":"child"}`, i))}))
+		mustProject(t, p.nestedEvent("spawn", gimbal.AgentEvent{Type: "session.text.delta", Data: json.RawMessage(fmt.Sprintf(`{"sequence":%d,"delta":"child"}`, i))}))
 	}
 	if len(events) != 1000 {
 		t.Fatalf("nested progress event count = %d, want 1000", len(events))
@@ -432,7 +432,7 @@ func TestChildThreadRemainsOwnedByItsSpawnTool(t *testing.T) {
 	}
 }
 
-func types(events []gimble.AgentEvent) []string {
+func types(events []gimbal.AgentEvent) []string {
 	var out []string
 	for _, event := range events {
 		if event.Type != "" {
@@ -442,14 +442,14 @@ func types(events []gimble.AgentEvent) []string {
 	return out
 }
 
-func decodeData(t *testing.T, event gimble.AgentEvent, target any) {
+func decodeData(t *testing.T, event gimbal.AgentEvent, target any) {
 	t.Helper()
 	if err := json.Unmarshal(event.Data, target); err != nil {
 		t.Fatal(err)
 	}
 }
 
-func firstType(t *testing.T, events []gimble.AgentEvent, eventType string) gimble.AgentEvent {
+func firstType(t *testing.T, events []gimbal.AgentEvent, eventType string) gimbal.AgentEvent {
 	t.Helper()
 	for _, event := range events {
 		if event.Type == eventType {
@@ -457,10 +457,10 @@ func firstType(t *testing.T, events []gimble.AgentEvent, eventType string) gimbl
 		}
 	}
 	t.Fatalf("event %s not found", eventType)
-	return gimble.AgentEvent{}
+	return gimbal.AgentEvent{}
 }
 
-func countType(events []gimble.AgentEvent, eventType string) int {
+func countType(events []gimbal.AgentEvent, eventType string) int {
 	count := 0
 	for _, event := range events {
 		if event.Type == eventType {
@@ -480,8 +480,8 @@ func mustProject(t *testing.T, err error) {
 func jsonContains(raw json.RawMessage, text string) bool { return bytes.Contains(raw, []byte(text)) }
 
 func TestProjectorDropsOutputForAToolTheStepNoLongerHolds(t *testing.T) {
-	var events []gimble.AgentEvent
-	p := newProjector("thread-1", "turn-1", "gpt-test", func(event gimble.AgentEvent) error { events = append(events, event); return nil })
+	var events []gimbal.AgentEvent
+	p := newProjector("thread-1", "turn-1", "gpt-test", func(event gimbal.AgentEvent) error { events = append(events, event); return nil })
 	mustProject(t, p.itemStarted(json.RawMessage(`{"item":{"id":"call-1","type":"commandExecution","command":"go test ./...","cwd":"/w"}}`)))
 	_, _, err := p.itemCompleted(json.RawMessage(`{"item":{"id":"call-1","type":"commandExecution","status":"completed","aggregatedOutput":"ok"}}`))
 	mustProject(t, err)

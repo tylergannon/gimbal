@@ -4,11 +4,11 @@ package review
 import (
 	"context"
 
-	"github.com/tylergannon/gimble"
+	"github.com/tylergannon/gimbal"
 )
 
 //go:generate go tool polytype --validate
-//go:generate go run github.com/tylergannon/gimble/internal/generate/gimblegen -entry Review -name review -mermaid ../../../docs-site/src/lib/generated/workflows/review.mmd
+//go:generate go run github.com/tylergannon/gimbal/internal/generate/gimbalgen -entry Review -name review -mermaid ../../../docs-site/src/lib/generated/workflows/review.mmd
 
 // ReviewParams describes what to review.
 type ReviewParams struct {
@@ -23,14 +23,14 @@ type Result struct {
 }
 
 // Review asks one reviewer to inspect the repository read-only and record its findings.
-func Review(ctx context.Context, env gimble.Env, params ReviewParams) error {
-	gimble.Set(ctx, "goal", params.Goal)
-	reviewer := gimble.NewSession(ctx, gimble.RoleCodeReview, env.WorkDir)
+func Review(ctx context.Context, env gimbal.Env, params ReviewParams) error {
+	gimbal.Set(ctx, "goal", params.Goal)
+	reviewer := gimbal.NewSession(ctx, gimbal.RoleCodeReview, env.WorkDir)
 	result, err := reviewer.Generate[Result](ctx, reviewPrompt)
 	if err != nil {
 		return err
 	}
-	gimble.SetJSON(ctx, "result", result)
+	gimbal.SetJSON(ctx, "result", result)
 	return nil
 }
 

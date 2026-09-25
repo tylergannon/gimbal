@@ -1,4 +1,4 @@
-// Package codex implements Gimble's HarnessAdapter using Codex app-server.
+// Package codex implements Gimbal's HarnessAdapter using Codex app-server.
 package codex
 
 import (
@@ -12,8 +12,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/tylergannon/gimble/harness"
-	"github.com/tylergannon/gimble/harness/codex/schema"
+	"github.com/tylergannon/gimbal/harness"
+	"github.com/tylergannon/gimbal/harness/codex/schema"
 )
 
 const (
@@ -85,7 +85,7 @@ func (a *Adapter) CreateSession(model, workdir string) (string, error) {
 		"cwd":                workdir,
 		"approvalPolicy":     "never",
 		"sandbox":            "danger-full-access",
-		"serviceName":        "gimble",
+		"serviceName":        "gimbal",
 		"sessionStartSource": "startup",
 	})
 	if err != nil {
@@ -497,7 +497,7 @@ func waitCompaction(ctx context.Context, connection *connection, threadID string
 	}
 }
 
-// refuseServerRequest declines any interactive request; Gimble turns run
+// refuseServerRequest declines any interactive request; Gimbal turns run
 // with approvals disabled and never answer prompts.
 func refuseServerRequest(connection *connection, message rpcMessage) error {
 	result := map[string]any{"decision": "decline"}

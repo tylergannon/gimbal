@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This cookbook uses a larger proposer model to invent semantic questions, Jev to answer those questions across labeled free text, and CatBoost plus held-out evaluation to accept, revise, or drop features. For Gimble, this is the clearest published template for learning scalable supervision signals from examples of “this run needed this kind of coaching” without making Jev itself the policy learner.
+This cookbook uses a larger proposer model to invent semantic questions, Jev to answer those questions across labeled free text, and CatBoost plus held-out evaluation to accept, revise, or drop features. For Gimbal, this is the clearest published template for learning scalable supervision signals from examples of “this run needed this kind of coaching” without making Jev itself the policy learner.
 
 ## Key concepts and evidence
 

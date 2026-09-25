@@ -4,7 +4,7 @@
   import { implementInterviewFixture } from "./fixtures/index.js";
 
   const { Story } = defineMeta({
-    title: "Gimble/Run/Cancel guard",
+    title: "Gimbal/Run/Cancel guard",
     component: CancelGuard,
     parameters: { layout: "fullscreen" },
   });

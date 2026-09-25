@@ -1,6 +1,6 @@
 # Practical user testing
 
-`gimble run validate-product --suite-file /abs/suite.yaml --instance-dir /abs/instance --project /abs/project --follow`
+`gimbal run validate-product --suite-file /abs/suite.yaml --instance-dir /abs/instance --project /abs/project --follow`
 
 The fixed workflow has three tester slots (one to three workloads), one screenshot
 review, and one final triage turn. Each tester gets one follow-up in its existing
@@ -12,7 +12,7 @@ Product A is always tested through its public interface and user documentation;
 testers never inspect A's source. When A works on another project B, the tester
 can read B but should normally rely on A to do its job.
 
-Start a persistent Gimble instance that admits `/abs/project` before submitting
+Start a persistent Gimbal instance that admits `/abs/project` before submitting
 the workflow. `--follow` waits for the final issue-publication result.
 Before running, build/install the desired product version, prepare separate
 project-B workspaces, and save issue/task text locally. The example assignments
@@ -24,11 +24,11 @@ instance. For a CLI-only product, supply the URL of a loopback terminal such as
 GoTTY; its startup command can live in the workload's `start` field. Ordinary CLI
 output can also accompany a browser workload's screenshots.
 
-For Gimble workloads, launch the delegated workflow with its own `--port` and
+For Gimbal workloads, launch the delegated workflow with its own `--port` and
 have the tester navigate the recorded browser to that listener for live monitoring.
-A separately started Gimble server is useful for history, but can retain a stale
+A separately started Gimbal server is useful for history, but can retain a stale
 snapshot of a run owned by another process. The owning listener also serves
-`GET /api/runs/{runID}` and `/api/runs/{runID}/events`. Preserve `.gimble` when a
+`GET /api/runs/{runID}` and `/api/runs/{runID}/events`. Preserve `.gimbal` when a
 delegated scaffold operation copies files into the active project.
 
 Inputs are JSON or YAML; paths resolve from the suite file. `product` names A,
@@ -42,14 +42,14 @@ defaults to Gemini Flash and opens screenshots to check readability and captions
 `product-triage` defaults to GPT-6 Astra and combines findings. Their corresponding
 CLI flags can override models. Set `issue_repo` to the tested product's
 `owner/repository`; the final agent checks existing issues, uploads screenshots
-supporting new findings with `gimble upload-artifact`, and files actionable issues.
+supporting new findings with `gimbal upload-artifact`, and files actionable issues.
 Publishing requires authenticated `gh` and a configured public artifact destination;
 task permissions such as creating a PR in B belong explicitly in that workload's assignment.
 
 Results include each tester's Markdown report, ordered captioned screenshots,
 measured elapsed time, and a browser video for optional human review. The workflow
 keeps the raw `video.webm` and writes a 2.5× H.264 `video.mp4`, capped at 1280×720,
-to the path in `reports.json`. That MP4 can be published with `gimble upload-artifact`.
+to the path in `reports.json`. That MP4 can be published with `gimbal upload-artifact`.
 Flash writes
 `visual-review.md`; triage writes `findings.md` with issue URLs or proposed issues.
 `reports.json` points to workload reports and records execution errors. A failed

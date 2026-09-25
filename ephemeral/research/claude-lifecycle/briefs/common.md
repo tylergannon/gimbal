@@ -2,7 +2,7 @@
 
 ## Desired outcome
 
-Establish how Gimble can preserve Claude's background capabilities while
+Establish how Gimbal can preserve Claude's background capabilities while
 returning a structured result that represents the end of the assigned task.
 This is an investigation, not authorization to implement a product repair.
 Tyler wants a full accounting of the connected event stream when Claude
@@ -38,10 +38,10 @@ Answer these questions with explicit evidence and uncertainty:
 
 ## Local starting material
 
-Repository: /Users/tyler/.codex/worktrees/286c/gimble
-Issue: /Users/tyler/.codex/worktrees/286c/gimble/ephemeral/research/claude-lifecycle/issue-317.md
-Prior investigation: /Users/tyler/.codex/worktrees/286c/gimble/ephemeral/research/claude-lifecycle/317.md
-Temporary earlier probes and raw captures: /private/tmp/gimble-317-investigation/
+Repository: /Users/tyler/.codex/worktrees/286c/gimbal
+Issue: /Users/tyler/.codex/worktrees/286c/gimbal/ephemeral/research/claude-lifecycle/issue-317.md
+Prior investigation: /Users/tyler/.codex/worktrees/286c/gimbal/ephemeral/research/claude-lifecycle/317.md
+Temporary earlier probes and raw captures: /private/tmp/gimbal-317-investigation/
 Original native transcript: /Users/tyler/.claude/projects/-private-tmp-scrabbler-drag-drop-eval/deee5fb6-61a3-4c41-b827-d5033fa663ae.jsonl
 Pinned SDK: /Users/tyler/go/pkg/mod/github.com/tylergannon/claude-agent-sdk-go@v1.1.1-0.20260912021749-9a4ffeca77cc
 Relevant code: claude/claude.go, claude/events.go, harness.go, session.go,
@@ -55,7 +55,7 @@ Prior observations on CLI 2.1.270 / claude-haiku-4-5-20251001:
   and a correct later prompt answer under the same unchanged schema.
 - The current adapter closes its client per RunTurn. Closing after the first
   result and resuming produced an empty successful orphan-notification result
-  before the actual answer to the new prompt. Gimble consumed the empty result.
+  before the actual answer to the new prompt. Gimbal consumed the empty result.
 - Explicit TaskOutput(block=true) and disabling background tasks each avoided
   the finite-task symptom in bounded probes. Disabling background work is not
   the desired design: it would constrain Claude significantly.

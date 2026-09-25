@@ -5,11 +5,11 @@
 package review
 
 import (
-	"github.com/tylergannon/gimble"
-	"github.com/tylergannon/gimble/workflow"
+	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/workflow"
 )
 
-func init() { gimble.RegisterGraph(Graph) }
+func init() { gimbal.RegisterGraph(Graph) }
 
 // Graph is the shape of this workflow, read from the source of Review.
 var Graph = workflow.Graph{

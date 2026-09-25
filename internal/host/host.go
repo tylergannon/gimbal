@@ -14,11 +14,11 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/tylergannon/gimble"
-	"github.com/tylergannon/gimble/internal/binding"
-	"github.com/tylergannon/gimble/internal/conversation"
-	"github.com/tylergannon/gimble/internal/live"
-	"github.com/tylergannon/gimble/internal/observation"
+	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/internal/binding"
+	"github.com/tylergannon/gimbal/internal/conversation"
+	"github.com/tylergannon/gimbal/internal/live"
+	"github.com/tylergannon/gimbal/internal/observation"
 )
 
 type Owner struct {
@@ -69,34 +69,34 @@ func projectID(path string) string {
 
 func (o *Owner) AdmitProject(dir string) (*Project, error) {
 	if o == nil || o.ctx.Err() != nil {
-		return nil, errors.New("gimble: instance is closed")
+		return nil, errors.New("gimbal: instance is closed")
 	}
 	path, err := CanonicalProject(dir)
 	if err != nil {
 		return nil, err
 	}
-	state := filepath.Join(path, ".gimble")
+	state := filepath.Join(path, ".gimbal")
 	if err := os.MkdirAll(state, 0o755); err != nil {
 		return nil, err
 	}
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	if o.ctx.Err() != nil {
-		return nil, errors.New("gimble: instance is closed")
+		return nil, errors.New("gimbal: instance is closed")
 	}
 	if p := o.projects[path]; p != nil {
 		return p, nil
 	}
 	ownerLock, err := os.OpenFile(filepath.Join(state, "owner.lock"), os.O_CREATE|os.O_RDWR, 0o644)
 	if err != nil {
-		return nil, fmt.Errorf("gimble: claim project %s: %w", path, err)
+		return nil, fmt.Errorf("gimbal: claim project %s: %w", path, err)
 	}
 	if err := unix.Flock(int(ownerLock.Fd()), unix.LOCK_EX|unix.LOCK_NB); err != nil {
 		_ = ownerLock.Close()
 		if errors.Is(err, unix.EWOULDBLOCK) {
-			return nil, fmt.Errorf("gimble: project %s is already owned by another instance", path)
+			return nil, fmt.Errorf("gimbal: project %s is already owned by another instance", path)
 		}
-		return nil, fmt.Errorf("gimble: claim project %s: %w", path, err)
+		return nil, fmt.Errorf("gimbal: claim project %s: %w", path, err)
 	}
 	claimed := false
 	defer func() {
@@ -138,7 +138,7 @@ func (o *Owner) Project(path string) (*Project, error) {
 	defer o.mu.RUnlock()
 	p := o.projects[canonical]
 	if p == nil {
-		return nil, fmt.Errorf("gimble: project %s is not admitted", canonical)
+		return nil, fmt.Errorf("gimbal: project %s is not admitted", canonical)
 	}
 	return p, nil
 }
@@ -166,7 +166,7 @@ func (o *Owner) writeProjectDiscovery(project string) error {
 	if o.controlID == "" {
 		return nil
 	}
-	dir := filepath.Join(project, ".gimble", "control")
+	dir := filepath.Join(project, ".gimbal", "control")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
@@ -198,19 +198,19 @@ func (p *Project) RequestContext(ctx context.Context) context.Context {
 	return conversation.WithManager(ctx, p.conversations)
 }
 
-func (p *Project) Run(ctx context.Context, name string, models map[gimble.WorkflowRole]gimble.ModelBinding, body func(context.Context) error) (err error) {
+func (p *Project) Run(ctx context.Context, name string, models map[gimbal.WorkflowRole]gimbal.ModelBinding, body func(context.Context) error) (err error) {
 	if p == nil {
-		return errors.New("gimble: nil runtime")
+		return errors.New("gimbal: nil runtime")
 	}
 	if ctx == nil {
-		return errors.New("gimble: run context is nil")
+		return errors.New("gimbal: run context is nil")
 	}
 	if body == nil {
-		return errors.New("gimble: run body is nil")
+		return errors.New("gimbal: run body is nil")
 	}
 	defer func() {
 		if value := recover(); value != nil {
-			err = fmt.Errorf("gimble: hosted workflow panic: %v", value)
+			err = fmt.Errorf("gimbal: hosted workflow panic: %v", value)
 		}
 	}()
 	p.owner.mu.Lock()
@@ -236,7 +236,7 @@ func (p *Project) Run(ctx context.Context, name string, models map[gimble.Workfl
 		}
 	}
 	runCtx = live.WithHook(runCtx, hook)
-	err = gimble.Run(gimble.Project(runCtx, p.dir), name, models, body)
+	err = gimbal.Run(gimbal.Project(runCtx, p.dir), name, models, body)
 	if err == nil && context.Cause(runCtx) != nil {
 		return context.Cause(runCtx)
 	}
@@ -250,7 +250,7 @@ var ErrStopped = errors.New("instance stopped")
 
 // Start registers a server-owned run before returning its ID. The supplied
 // body is a concrete workflow call; request cancellation cannot end it.
-func (p *Project) Start(name, workdir, conversationID string, models map[gimble.WorkflowRole]gimble.ModelBinding, body func(context.Context) error) (string, error) {
+func (p *Project) Start(name, workdir, conversationID string, models map[gimbal.WorkflowRole]gimbal.ModelBinding, body func(context.Context) error) (string, error) {
 	if !filepath.IsAbs(workdir) {
 		return "", errors.New("work_dir must be absolute")
 	}
@@ -317,7 +317,7 @@ func (p *Project) KillScope(runID, scopeKey, by, reason string) error {
 	if err != nil {
 		return err
 	}
-	return run.CancelScope(scopeKey, gimble.Killed{Target: scopeKey, By: by, Reason: reason})
+	return run.CancelScope(scopeKey, gimbal.Killed{Target: scopeKey, By: by, Reason: reason})
 }
 
 func (p *Project) KillTurn(runID, turnID, by, reason string) error {
@@ -325,5 +325,5 @@ func (p *Project) KillTurn(runID, turnID, by, reason string) error {
 	if err != nil {
 		return err
 	}
-	return run.CancelTurn(turnID, gimble.Killed{Target: turnID, By: by, Reason: reason})
+	return run.CancelTurn(turnID, gimbal.Killed{Target: turnID, By: by, Reason: reason})
 }

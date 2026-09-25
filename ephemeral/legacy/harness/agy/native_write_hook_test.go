@@ -11,7 +11,7 @@ import (
 	"testing"
 )
 
-// runHookScript feeds payload to the real hook command (the one Gimble
+// runHookScript feeds payload to the real hook command (the one Gimbal
 // provisions into hooks.json) via `sh -c`, exactly as agy would invoke it,
 // and parses its stdout decision.
 func runHookScript(t *testing.T, payload string) (decision, reason string) {
@@ -187,7 +187,7 @@ func TestEnsureNativeWriteHookConcurrentProvisioningLosesNoUpdates(t *testing.T)
 	var wg sync.WaitGroup
 	errs := make(chan error, otherWriters+4)
 
-	// Simulate other concurrent writers (other Gimble processes / tools)
+	// Simulate other concurrent writers (other Gimbal processes / tools)
 	// each adding their own distinct top-level key via the same lock +
 	// atomic-rename discipline ensureNativeWriteHook uses, racing against
 	// several concurrent ensureNativeWriteHook calls.
@@ -245,8 +245,8 @@ func TestEnsureNativeWriteHookConcurrentProvisioningLosesNoUpdates(t *testing.T)
 	if err := json.Unmarshal(raw, &doc); err != nil {
 		t.Fatalf("hooks.json is not valid JSON after concurrent writers: %v (%s)", err, raw)
 	}
-	if _, ok := doc[gimbleHookName]; !ok {
-		t.Fatalf("gimble hook missing after concurrent provisioning: %s", raw)
+	if _, ok := doc[gimbalHookName]; !ok {
+		t.Fatalf("gimbal hook missing after concurrent provisioning: %s", raw)
 	}
 	for i := range otherWriters {
 		name := fmt.Sprintf("other-hook-%d", i)

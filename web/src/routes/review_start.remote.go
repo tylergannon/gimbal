@@ -6,8 +6,8 @@ import (
 	"context"
 	"strings"
 
-	"github.com/tylergannon/gimble"
-	"github.com/tylergannon/gimble/internal/workflows/review"
+	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/internal/workflows/review"
 	"github.com/tylergannon/polytype"
 	"github.com/tylergannon/skgo"
 )
@@ -26,10 +26,10 @@ func startReview(ctx context.Context, in StartReviewInput) (StartAccepted, error
 		return StartAccepted{}, skgo.Invalidf("goal", "Give goal.")
 	}
 	return startWorkflow(ctx, in.ProjectDir, in.WorkDir, in.Conversation, "review",
-		map[gimble.WorkflowRole]polytype.Optional[string]{
-			gimble.WorkflowRole("code-review"): in.RoleCodeReview,
+		map[gimbal.WorkflowRole]polytype.Optional[string]{
+			gimbal.WorkflowRole("code-review"): in.RoleCodeReview,
 		}, func(runCtx context.Context, workDir string) error {
-			return review.Review(runCtx, gimble.Env{WorkDir: workDir}, review.ReviewParams{
+			return review.Review(runCtx, gimbal.Env{WorkDir: workDir}, review.ReviewParams{
 				Goal: in.Goal,
 			})
 		})

@@ -1,4 +1,4 @@
-// Origin: /Users/tyler/.codex/worktrees/d798/gimble/internal/generate/source.go
+// Origin: /Users/tyler/.codex/worktrees/d798/gimbal/internal/generate/source.go
 // Revision: 40dc82947eed99202fd9cb1dd377b6a3c2abbccc
 // Date: 2026-09-23
 // Scope: Source function, parsing workflow entry, overlay mechanism, and output file writing.
@@ -16,10 +16,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/tylergannon/gimble/workflow"
+	"github.com/tylergannon/gimbal/workflow"
 )
 
-// Source writes the workflow entry's graph and Gimble run subcommand into one
+// Source writes the workflow entry's graph and Gimbal run subcommand into one
 // Go file. When mermaidOutput is not empty, it also writes the graph as Mermaid
 // source and a Svelte component that presents the SVG produced from it by the
 // documentation build.

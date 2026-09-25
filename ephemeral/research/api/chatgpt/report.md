@@ -9,7 +9,7 @@ I would build the small Go façade rather than adopt an existing agent framework
 The core model I recommend is:
 
 ```go
-package gimble
+package gimbal
 
 import (
 	"context"
@@ -85,15 +85,15 @@ Google ADK Go makes essentially the same architectural separation: its `Session`
 
 There are several mature or fast-moving Go projects nearby, but they solve different layers of the problem.
 
-| Project | Public primitive shape | Async / streaming shape | Higher-level orchestration | Relevance to Gimble |
+| Project | Public primitive shape | Async / streaming shape | Higher-level orchestration | Relevance to Gimbal |
 |---|---|---|---|---|
 | **Google ADK Go** | `Agent`, `Runner`, `Session`, `Event`; `Agent.Run(...) iter.Seq2[*session.Event,error]` | Standard Go iterator | Sequential, parallel and loop agents; subagents | Strong evidence for `iter.Seq2`, session/execution separation, and plain compositional agents. citeturn5view0turn6view0turn10view0 |
-| **CloudWeGo Eino** | Components, ADK agents, Runner, Graph | `runner.Query(...)`, iterator/event consumption | Compiled graphs/workflows, DeepAgent/subagents, interrupt/resume | Very capable Go-native *agent framework*, but it wants to own more of the inner agent architecture than Gimble does. citeturn3view0 |
+| **CloudWeGo Eino** | Components, ADK agents, Runner, Graph | `runner.Query(...)`, iterator/event consumption | Compiled graphs/workflows, DeepAgent/subagents, interrupt/resume | Very capable Go-native *agent framework*, but it wants to own more of the inner agent architecture than Gimbal does. citeturn3view0 |
 | **Firebase Genkit Go** | `Generate`, model responses, typed flows, chat | Synchronous return plus iterator-based streaming | Generic typed `Flow[In,Out,...]` | Excellent structured-output and typed-workflow precedent. citeturn17view2turn18view5turn18view6 |
 | **LangChainGo** | LLMs, agents, chains, tools, output parsers | Conventional synchronous generation APIs are prominent | Chains/agents | Useful prior art, but less specifically shaped around interactive coding-agent harness lifecycle. citeturn13view0 |
 | **A2A Go SDK** | `Task`, `Message`, `Artifact`, context IDs, task states | Blocking, immediate/fire-and-forget, streaming/subscription | Remote task continuation and lifecycle | Useful adjacent design, especially for durable/remotely addressable work; too heavy to make its `Task` semantics your local turn primitive. citeturn22search1turn22search2 |
 | **Temporal Go** | Workflow, Activity, Child Workflow, Future, Channel, Selector | Durable `Future.Get`, deterministic channels/selectors | Durable workflows | Relevant only when orchestration itself must survive crashes/restarts. Its Future is not evidence that ordinary Go agent calls need one. citeturn23view1turn24view0 |
-| **ACP** | Session, prompt turn, updates, stop reason, capabilities | Long-lived JSON-RPC request plus update notifications | Deliberately not a workflow engine | Very good backend protocol and vocabulary source; not broad enough to be the Gimble abstraction. citeturn20view0turn20view1 |
+| **ACP** | Session, prompt turn, updates, stop reason, capabilities | Long-lived JSON-RPC request plus update notifications | Deliberately not a workflow engine | Very good backend protocol and vocabulary source; not broad enough to be the Gimbal abstraction. citeturn20view0turn20view1 |
 
 ### Google ADK and Eino are the closest Go-native orchestration prior art
 
@@ -117,7 +117,7 @@ ADK also makes orchestration operators explicit but simple: `SequentialAgent`, `
 
 CloudWeGo's Eino has converged on similar concepts. It has Go-native components, an ADK layer for tool use, multi-agent coordination and interrupt/resume, and graph composition in which callers build nodes/edges, compile a graph, then invoke it. Its runner example consumes emitted events from an iterator rather than treating a terminal string as the only observable product. citeturn3view0
 
-These are valuable references, but I would **not use either as Gimble's core abstraction**. Both frameworks are designed to construct agents and their model/tool loops. Your unit of integration is different: Claude Code, Codex, Antigravity or an ACP agent arrives as an already-formed autonomous harness. Gimble should orchestrate those harnesses without pretending it owns their internal ReAct/tool/subagent loop. That is a narrower layer.
+These are valuable references, but I would **not use either as Gimbal's core abstraction**. Both frameworks are designed to construct agents and their model/tool loops. Your unit of integration is different: Claude Code, Codex, Antigravity or an ACP agent arrives as an already-formed autonomous harness. Gimbal should orchestrate those harnesses without pretending it owns their internal ReAct/tool/subagent loop. That is a narrower layer.
 
 ### Genkit's structured-output design is worth copying
 
@@ -133,11 +133,11 @@ for val, err := range genkit.GenerateDataStream[[]MenuItem](ctx, g, ...) {
 
 and its workflow API has concrete typed `Flow[In, Out, Stream]` values with synchronous `Run` and iterator-based `Stream`. citeturn17view2turn18view5turn18view6
 
-That suggests a useful pattern for Gimble: **keep the underlying turn/result non-generic and stable; layer typed helpers over it**.
+That suggests a useful pattern for Gimbal: **keep the underlying turn/result non-generic and stable; layer typed helpers over it**.
 
 ### A2A shows what a real Task abstraction implies
 
-A2A's Go SDK is useful precisely because it illustrates why I would *not* call Gimble's per-prompt object `Task`. A2A Tasks have IDs, persistent status, continuation, artifact production, cancellation and subscription. The current CLI can submit work with `--immediate`, get the task ID immediately, query it later, continue the same task, subscribe until terminal state, and enumerate tasks by status. citeturn22search1
+A2A's Go SDK is useful precisely because it illustrates why I would *not* call Gimbal's per-prompt object `Task`. A2A Tasks have IDs, persistent status, continuation, artifact production, cancellation and subscription. The current CLI can submit work with `--immediate`, get the task ID immediately, query it later, continue the same task, subscribe until terminal state, and enumerate tasks by status. citeturn22search1
 
 The Go implementation has itself moved toward standard iterators: its v1-era API change made an `AgentExecutor`'s `Execute` and `Cancel` return `iter.Seq2[a2a.Event,error]` instead of writing to a queue; the 2026 releases additionally introduced generic pull event queues and substantial task-store machinery. citeturn22search2
 
@@ -170,7 +170,7 @@ turn/completed
 
 Likewise, `turn/interrupt` takes both the thread and turn IDs and terminally changes the turn to `interrupted`. citeturn30view4
 
-The higher-level Codex SDK deliberately hides most of that lifecycle. It exposes a `Thread`; callers `await thread.run(...)`, call `run()` again for the next conversational turn, or resume an old thread ID. citeturn30view1turn30view2 For Gimble, the lower-level App Server is the more relevant precedent because you specifically want to preserve steering, events, interruption and other harness features.
+The higher-level Codex SDK deliberately hides most of that lifecycle. It exposes a `Thread`; callers `await thread.run(...)`, call `run()` again for the next conversational turn, or resume an old thread ID. citeturn30view1turn30view2 For Gimbal, the lower-level App Server is the more relevant precedent because you specifically want to preserve steering, events, interruption and other harness features.
 
 Codex App Server also illustrates why an escape hatch matters. In addition to basic threads/turns it exposes review mode, standalone sandboxed command execution, permission profiles, experimental dynamic tools, thread forks and persisted thread goals. Current thread goal APIs even carry an objective, status and token budget. citeturn30view4turn30view6 Trying to make every one of those concepts part of a common cross-agent interface would recreate the lowest-common-denominator problem you are trying to avoid.
 
@@ -178,7 +178,7 @@ Codex App Server also illustrates why an escape hatch matters. In addition to ba
 
 Claude's Python Agent SDK exposes a long-lived `ClaudeSDKClient`. A caller sends `query(...)`, consumes output through `receive_response()`, then calls `query(...)` again for the follow-up; the SDK explicitly describes the latter as continuing the same session context. citeturn30view8
 
-It also has `interrupt()`. Importantly, interruption does not magically discard the active invocation's output: already-produced messages and the terminal `ResultMessage` remain in the stream and must be drained before consuming the result of a subsequent query. citeturn30view7turn30view8 That is another argument for Gimble owning a **Turn object that continuously drains and associates events with the correct invocation**, rather than exposing a single session-wide raw message channel.
+It also has `interrupt()`. Importantly, interruption does not magically discard the active invocation's output: already-produced messages and the terminal `ResultMessage` remain in the stream and must be drained before consuming the result of a subsequent query. citeturn30view7turn30view8 That is another argument for Gimbal owning a **Turn object that continuously drains and associates events with the correct invocation**, rather than exposing a single session-wide raw message channel.
 
 Claude additionally supports session IDs, resumption, forking a resumed session, resuming from an earlier message and programmatically defined subagents. citeturn30view10 These should mostly stay adapter-specific or become optional session creation/resumption capabilities rather than inflating the primitive `Session` interface.
 
@@ -211,7 +211,7 @@ result, err := turn.Wait(ctx)
 
 An ACP adapter can implement that asynchronous Go surface by running the outstanding JSON-RPC `session/prompt` internally, feeding `session/update` into the turn's event collector, and settling the Turn when the response arrives.
 
-ACP cancellation is named `session/cancel` and identifies only the session, but semantically it cancels the current prompt turn and causes that outstanding prompt to terminate with the `cancelled` stop reason. citeturn21view0 A Gimble ACP adapter can therefore implement:
+ACP cancellation is named `session/cancel` and identifies only the session, but semantically it cancels the current prompt turn and causes that outstanding prompt to terminate with the `cancelled` stop reason. citeturn21view0 A Gimbal ACP adapter can therefore implement:
 
 ```go
 turn.Interrupt(ctx)
@@ -225,7 +225,7 @@ session/cancel
 
 without exposing the protocol's transport-level placement in the Go abstraction.
 
-There is, however, **no standardized in-flight `steer` gesture in ACP v1**. The specified flow allows cancellation while a turn is active and another `session/prompt` after it completes; the method inventory contains prompt, cancel, session loading, modes and related operations, but no equivalent to Codex `turn/steer`. citeturn20view1turn21view0 Making ACP the entire Gimble contract would therefore lose a meaningful Codex capability.
+There is, however, **no standardized in-flight `steer` gesture in ACP v1**. The specified flow allows cancellation while a turn is active and another `session/prompt` after it completes; the method inventory contains prompt, cancel, session loading, modes and related operations, but no equivalent to Codex `turn/steer`. citeturn20view1turn21view0 Making ACP the entire Gimbal contract would therefore lose a meaningful Codex capability.
 
 ACP itself anticipates this problem. Every protocol type can carry `_meta`; implementations may add underscore-prefixed extension methods and advertise custom capabilities during initialization. citeturn21view2 In other words, even ACP's designers do not claim that its standardized core should contain every agent-specific operation.
 
@@ -233,7 +233,7 @@ There is also currently no official Go ACP library listed by the ACP project: th
 
 My conclusion is therefore:
 
-> **Support ACP enthusiastically, but behind `gimble.Session`. Do not define `gimble.Session` to be “ACP in Go.”**
+> **Support ACP enthusiastically, but behind `gimbal.Session`. Do not define `gimbal.Session` to be “ACP in Go.”**
 
 ### Antigravity reinforces the orchestration/runtime distinction
 
@@ -241,7 +241,7 @@ Google Antigravity 2.0 now explicitly positions itself as a central command cent
 
 The current official SDK material describes `google-antigravity` as a **Python** library exposing the same agent runtime used by the CLI, with policies and lifecycle hooks configured in code. Google also exposes the Antigravity base agent through its managed Agent Platform/Interactions APIs. citeturn27search4turn27search3
 
-That makes Antigravity another good adapter target, but not evidence for importing its higher-level notions into Gimble. Antigravity's “project,” scheduled-task and multi-agent-manager concepts are a layer above the primitive “run one coding turn in one conversation” API.
+That makes Antigravity another good adapter target, but not evidence for importing its higher-level notions into Gimbal. Antigravity's “project,” scheduled-task and multi-agent-manager concepts are a layer above the primitive “run one coding turn in one conversation” API.
 
 ## Futures, channels, iterators, and turn handles
 
@@ -273,7 +273,7 @@ Temporal's Future is real and useful, but it exists inside a very different exec
 
 Critically, Temporal also replaces normal Go concurrency machinery with deterministic equivalents: workflow goroutines, workflow channels and workflow selectors must be used instead of ordinary goroutines/channels/select because workflow code must replay deterministically. citeturn23view1 So Temporal's Future is primarily evidence for **durable computation handles**, not evidence that a normal Go library should reinvent promises.
 
-A2A presents the other case where a handle matters: a Task may continue remotely after the submitting request, can be addressed by ID, retrieved, subscribed to and canceled later. citeturn22search1 If Gimble eventually adds a *durable orchestration* package, a `Task` or `Future` concept may make sense there. It does not need to pollute the low-level harness API.
+A2A presents the other case where a handle matters: a Task may continue remotely after the submitting request, can be addressed by ID, retrieved, subscribed to and canceled later. citeturn22search1 If Gimbal eventually adds a *durable orchestration* package, a `Task` or `Future` concept may make sense there. It does not need to pollute the low-level harness API.
 
 ### A result channel is too low-level
 
@@ -356,7 +356,7 @@ Putting `Wait()` on `Session` is substantially worse. A session spans multiple t
 
 ### Use contexts for waits and RPCs, not as the agent's only interrupt mechanism
 
-Go `Context` is designed to carry cancellation/deadlines across API boundaries, and derived cancellations propagate downward. citeturn18view2 It should therefore be present on all blocking Gimble operations.
+Go `Context` is designed to carry cancellation/deadlines across API boundaries, and derived cancellations propagate downward. citeturn18view2 It should therefore be present on all blocking Gimbal operations.
 
 But I would preserve `Interrupt` as a first-class semantic operation rather than saying “cancel the Context.” Coding harnesses give interruption additional meaning: Codex marks the turn `interrupted`, ACP returns the semantically meaningful `cancelled` stop reason, and Claude leaves the session usable for another query after interrupting and draining the prior result. citeturn30view4turn21view0turn30view8
 
@@ -414,7 +414,7 @@ and make output shape an option:
 turn, err := session.Prompt(
 	ctx,
 	"Review this change.",
-	gimble.WithOutputSchema(schema),
+	gimbal.WithOutputSchema(schema),
 )
 ```
 
@@ -426,7 +426,7 @@ type Review struct {
 	Issues   []string `json:"issues"`
 }
 
-review, result, err := gimble.RunAs[Review](
+review, result, err := gimbal.RunAs[Review](
 	ctx,
 	reviewer,
 	"Review the current working tree.",
@@ -450,13 +450,13 @@ For callers needing steering while waiting on structured output, the non-conveni
 turn, err := reviewer.Prompt(
 	ctx,
 	"Review this change.",
-	gimble.Output[Review](),
+	gimbal.Output[Review](),
 )
 if err != nil {
 	return err
 }
 
-if steerable, ok := turn.(gimble.Steerable); ok {
+if steerable, ok := turn.(gimbal.Steerable); ok {
 	err = steerable.Steer(ctx, "Pay special attention to transaction isolation.")
 	if err != nil {
 		return err
@@ -468,7 +468,7 @@ if err != nil {
 	return err
 }
 
-review, err := gimble.Decode[Review](result)
+review, err := gimbal.Decode[Review](result)
 ```
 
 ### `Steer`, `Compact`, resume and fork should be capabilities
@@ -514,7 +514,7 @@ type Forkable interface {
 The call site remains explicit:
 
 ```go
-steerer, ok := turn.(gimble.Steerable)
+steerer, ok := turn.(gimbal.Steerable)
 if !ok {
 	// choose a fallback strategy
 }
@@ -535,7 +535,7 @@ as the primary extension story. It turns the abstraction boundary into a type-as
 Instead, let adapter packages provide typed downcasts or richer views:
 
 ```go
-import "example.com/gimble/codex"
+import "example.com/gimbal/codex"
 
 cs, ok := codex.AsSession(session)
 if ok {
@@ -562,7 +562,7 @@ The useful common event vocabulary is larger than the useful common command voca
 
 ACP alone emits message chunks, thoughts, plans, tool-call lifecycle changes, mode changes, command changes and usage/cost updates. citeturn20view1turn21view0 Codex emits started/completed items, agent-message deltas and tool progress. citeturn30view3 ADK's runner similarly treats events as the main unit yielded by execution. citeturn6view0turn6view3
 
-I would therefore expect an eventual Gimble event family roughly like:
+I would therefore expect an eventual Gimbal event family roughly like:
 
 ```go
 type Event interface {
@@ -611,7 +611,7 @@ That asymmetry is healthy. Agent harnesses produce lots of interesting telemetry
 
 Google ADK publishes an explicit LoopAgent, but its implementation is conceptually simple: repeatedly run child agents sequentially until a maximum iteration count or an exit signal. citeturn12view0 Genkit takes another approach: higher-level workflows are ordinary generic Go functions wrapped as typed flows. citeturn18view5
 
-For Gimble, I would begin even lower-level:
+For Gimbal, I would begin even lower-level:
 
 ```go
 type Verdict struct {
@@ -621,18 +621,18 @@ type Verdict struct {
 
 func implement(
 	ctx context.Context,
-	coder gimble.Session,
-	reviewer gimble.Session,
+	coder gimbal.Session,
+	reviewer gimbal.Session,
 	requirement string,
 ) error {
 	prompt := requirement
 
 	for attempt := 0; attempt < 5; attempt++ {
-		if _, err := gimble.Run(ctx, coder, prompt); err != nil {
+		if _, err := gimbal.Run(ctx, coder, prompt); err != nil {
 			return err
 		}
 
-		verdict, _, err := gimble.RunAs[Verdict](
+		verdict, _, err := gimbal.RunAs[Verdict](
 			ctx,
 			reviewer,
 			"Validate the current working tree. "+
@@ -668,7 +668,7 @@ for _, candidate := range candidates {
 	candidate := candidate
 
 	g.Go(func() error {
-		_, err := gimble.Run(ctx, candidate, prompt)
+		_, err := gimbal.Run(ctx, candidate, prompt)
 		return err
 	})
 }
@@ -684,7 +684,7 @@ No agent-specific `ParallelGroup` primitive is required until you need graph int
 
 If you later want named reusable operators, Eino and ADK give good precedent for keeping them one layer above execution. Eino graphs support nodes/edges, compilation and invocation, while ADK exposes sequential/parallel/loop composition. citeturn3view0turn10view0
 
-A future `gimble/workflow` package could therefore contain constructs such as:
+A future `gimbal/workflow` package could therefore contain constructs such as:
 
 ```go
 type Step[I, O any] func(context.Context, I) (O, error)
@@ -708,13 +708,13 @@ That separation matters. A coding harness API describes **how to drive one agent
 
 ### Sprints and milestones should not be primitives
 
-I would not model `Sprint` or `Milestone` in Gimble.
+I would not model `Sprint` or `Milestone` in Gimbal.
 
 There is evidence that agent products find higher-level planning useful: ACP has structured plan updates, Codex App Server now exposes persisted thread goals, and Antigravity has explicit projects, scheduled tasks and multi-agent management. citeturn21view0turn30view6turn27search0
 
 But those concepts do not have stable common semantics. A plan may be merely agent telemetry; a Codex goal is persisted thread state; an Antigravity project groups workspace folders/settings. They are not the same abstraction. citeturn21view0turn30view6turn27search0
 
-At Gimble's layer:
+At Gimbal's layer:
 
 ```text
 milestone = application data
@@ -738,11 +738,11 @@ At that point the architecture should be:
 ```text
 Temporal Workflow
     |
-    +-- Activity: run Gimble coding turn
+    +-- Activity: run Gimbal coding turn
     |
     +-- Activity: run tests
     |
-    +-- Activity: run Gimble validation turn
+    +-- Activity: run Gimbal validation turn
     |
     +-- branch / loop / retry
 ```
@@ -750,7 +750,7 @@ Temporal Workflow
 rather than:
 
 ```text
-Gimble grows Futures
+Gimbal grows Futures
       grows persistent task stores
       grows workflow recovery
       grows deterministic replay
@@ -760,12 +760,12 @@ Gimble grows Futures
 
 The `Future` belongs to the durable workflow engine because the workflow engine can actually keep the promise.
 
-## Proposed Gimble API
+## Proposed Gimbal API
 
 Putting the research together, this is approximately where I would start.
 
 ```go
-package gimble
+package gimbal
 
 import (
 	"context"
@@ -827,7 +827,7 @@ if err != nil {
 	return err
 }
 
-if steerable, ok := turn.(gimble.Steerable); ok {
+if steerable, ok := turn.(gimbal.Steerable); ok {
 	err := steerable.Steer(
 		ctx,
 		"Ignore the integration suite for now; isolate the unit failure first.",
@@ -894,7 +894,7 @@ type Usage struct {
 }
 ```
 
-This follows the important ACP idea that semantic terminal states such as cancellation belong in the terminal result rather than being transport failures. ACP specifically requires a cancelled prompt to finish with a meaningful `cancelled` stop reason instead of surfacing the underlying abort as an arbitrary JSON-RPC error. citeturn21view0 Gimble should use `error` for inability to execute/communicate/interpret the operation and `StopReason` for a successfully observed agent termination.
+This follows the important ACP idea that semantic terminal states such as cancellation belong in the terminal result rather than being transport failures. ACP specifically requires a cancelled prompt to finish with a meaningful `cancelled` stop reason instead of surfacing the underlying abort as an arbitrary JSON-RPC error. citeturn21view0 Gimbal should use `error` for inability to execute/communicate/interpret the operation and `StopReason` for a successfully observed agent termination.
 
 For structured output:
 
@@ -938,7 +938,7 @@ func Run(
 Then straightforward programs look straightforward:
 
 ```go
-result, err := gimble.Run(ctx, session, "Fix the failing test.")
+result, err := gimbal.Run(ctx, session, "Fix the failing test.")
 if err != nil {
 	return err
 }
@@ -963,7 +963,7 @@ go func() {
 	}
 }()
 
-if steerable, ok := turn.(gimble.Steerable); ok {
+if steerable, ok := turn.(gimbal.Steerable); ok {
 	_ = steerable.Steer(ctx, "Preserve backward compatibility.")
 }
 
@@ -1056,7 +1056,7 @@ That is a small enough abstraction to remain Go-like, while still being strong e
 
 ## Sources
 
-The highest-weight sources for the Gimble API recommendation were Codex App Server, ACP Prompt Turn, Google ADK Go, Genkit Go, and Temporal/A2A. Comparing those five led to `Session → Turn`, with `Turn` as the domain-specific future/lifecycle handle instead of a generic `Future[T]`.
+The highest-weight sources for the Gimbal API recommendation were Codex App Server, ACP Prompt Turn, Google ADK Go, Genkit Go, and Temporal/A2A. Comparing those five led to `Session → Turn`, with `Turn` as the domain-specific future/lifecycle handle instead of a generic `Future[T]`.
 
 ### Coding-agent lifecycle / API shape
 
@@ -1066,7 +1066,7 @@ The highest-weight sources for the Gimble API recommendation were Codex App Serv
 
 ### ACP
 
-These led to the conclusion that ACP makes a good backend but should not define Gimble's whole abstraction.
+These led to the conclusion that ACP makes a good backend but should not define Gimbal's whole abstraction.
 
 - [Agent Client Protocol overview](https://agentclientprotocol.com/protocol/overview)
 - [ACP Prompt Turn specification](https://agentclientprotocol.com/protocol/v1/prompt-turn)
@@ -1088,7 +1088,7 @@ Source of the recommendation for a generic convenience such as `RunAs[T]` layere
 
 ### Tasks and durable orchestration
 
-Main evidence for distinguishing a Gimble Turn from a durable Task/Future.
+Main evidence for distinguishing a Gimbal Turn from a durable Task/Future.
 
 - [A2A Go SDK CLI/task API](https://github.com/a2aproject/a2a-go/blob/main/cmd/README.md)
 - [A2A Go SDK changelog / API evolution](https://github.com/a2aproject/a2a-go/blob/main/CHANGELOG.md)

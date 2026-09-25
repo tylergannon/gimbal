@@ -46,7 +46,7 @@ This leaf records the strongest directly agent-related cookbook result: Jev sugg
 
 ## Task recipes
 
-### Suggest a Gimble coaching tactic without taking over control
+### Suggest a Gimbal coaching tactic without taking over control
 
 1. Build a wide Choice over short tactic descriptions and independent Nouls asking whether any coaching is needed.
 2. Rerank the top few with full examples, exclusions, and prerequisites; add one absolute-fit Noul per tactic.
@@ -63,7 +63,7 @@ This leaf records the strongest directly agent-related cookbook result: Jev sugg
 
 ## Gaps
 
-- No evaluation on Gimble's skill roster, trace vocabulary, models, or multi-turn outcomes.
+- No evaluation on Gimbal's skill roster, trace vocabulary, models, or multi-turn outcomes.
 - No total cost/latency table for the two-stage 488-request skill experiment.
 - No confidence intervals, repeated-agent variance, or analysis of failures by skill frequency/category.
 - No proof that batching remains invariant for much larger batteries or near context limits.

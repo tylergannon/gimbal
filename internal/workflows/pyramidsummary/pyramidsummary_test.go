@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/tylergannon/gimble/workflow"
+	"github.com/tylergannon/gimbal/workflow"
 )
 
 func TestPyramidBudgets(t *testing.T) {

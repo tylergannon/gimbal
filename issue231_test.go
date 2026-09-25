@@ -1,4 +1,4 @@
-package gimble
+package gimbal
 
 import (
 	"context"
@@ -68,12 +68,12 @@ func TestWithScopeTemplateShapesTheScopeForOneCall(t *testing.T) {
 	}
 }
 
-// TestAScopeTemplateGimbleCannotUseIsTheError: the template is the
+// TestAScopeTemplateGimbalCannotUseIsTheError: the template is the
 // workflow's, so one that does not parse, and one that parses and cannot
 // render the scope, are both workflow errors, reported before any model is
-// called. Each template is named where it is passed: GIMBLE109 reports a
+// called. Each template is named where it is passed: GIMBAL109 reports a
 // call that reaches its template through a variable, including in a test.
-func TestAScopeTemplateGimbleCannotUseIsTheError(t *testing.T) {
+func TestAScopeTemplateGimbalCannotUseIsTheError(t *testing.T) {
 	turns := 0
 	f := &fake{answer: func(_ context.Context, _, _ string, _ json.RawMessage, _ func(AgentEvent) error) (string, error) {
 		turns++

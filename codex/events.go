@@ -7,7 +7,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/tylergannon/gimble"
+	"github.com/tylergannon/gimbal"
 )
 
 // projector turns the ordered app-server stream into OpenCode session events.
@@ -15,7 +15,7 @@ import (
 // one provisional native message key and binds that ID without renaming it.
 type projector struct {
 	mu        sync.Mutex
-	emit      func(gimble.AgentEvent) error
+	emit      func(gimbal.AgentEvent) error
 	sessionID string
 	turnID    string
 	model     string
@@ -67,7 +67,7 @@ type normalizedUsage struct {
 	input, output, reasoning, cacheRead, cacheWrite float64
 }
 
-func newProjector(sessionID, turnID, model string, emit func(gimble.AgentEvent) error) *projector {
+func newProjector(sessionID, turnID, model string, emit func(gimbal.AgentEvent) error) *projector {
 	return &projector{
 		emit: emit, sessionID: sessionID, turnID: turnID, model: model,
 		tools: make(map[string]*toolState), nestedTools: make(map[string]*nestedToolState), responseCalls: make(map[string]bool),
@@ -81,7 +81,7 @@ func (p *projector) event(eventType string, data map[string]any, native any) err
 	if err != nil {
 		return err
 	}
-	event := gimble.AgentEvent{Type: eventType, Data: raw}
+	event := gimbal.AgentEvent{Type: eventType, Data: raw}
 	if native != nil {
 		event.NativeRef, err = json.Marshal(native)
 		if err != nil {
@@ -394,7 +394,7 @@ func (p *projector) completePart(kind, id, text string, native any) error {
 // nestedEvent attaches one normalized event from a native child thread to the
 // collab tool that spawned it. The child projector is separate, so its steps,
 // text, tools, and usage can never mutate the parent's projector state.
-func (p *projector) nestedEvent(parentTool string, event gimble.AgentEvent) error {
+func (p *projector) nestedEvent(parentTool string, event gimbal.AgentEvent) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	state := p.nestedTools[parentTool]
@@ -544,7 +544,7 @@ func (p *projector) turnCompleted(params json.RawMessage) error {
 
 // harnessError projects the app-server's native error notification. A
 // retryable notification keeps the current step open because the app-server,
-// not Gimble, owns the retry. A terminal notification closes that step as a
+// not Gimbal, owns the retry. A terminal notification closes that step as a
 // failure before RunTurn returns the same native error to Generate.
 func (p *projector) harnessError(params json.RawMessage) (bool, error) {
 	p.mu.Lock()

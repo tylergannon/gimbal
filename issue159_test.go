@@ -1,4 +1,4 @@
-package gimble
+package gimbal
 
 import (
 	"context"
@@ -13,7 +13,7 @@ func caught(f func()) (v any) {
 }
 
 func TestSetMisusePanics(t *testing.T) {
-	if got := caught(func() { Set(t.Context(), "goal", "x") }); got != `gimble: set "goal": no scope in the ctx; it must come from gimble.Run` {
+	if got := caught(func() { Set(t.Context(), "goal", "x") }); got != `gimbal: set "goal": no scope in the ctx; it must come from gimbal.Run` {
 		t.Errorf("Set with no scope panicked with %v", got)
 	}
 	err := runTest(t, nil, func(ctx context.Context) error {
@@ -21,10 +21,10 @@ func TestSetMisusePanics(t *testing.T) {
 		err := Scope(ctx, "delivery", func(ctx context.Context) error {
 			ended = ctx
 			Set(ctx, "task", "first")
-			if got := caught(func() { Set(ctx, "task", "second") }); got != `gimble: "task" is already set in scope "delivery.1"` {
+			if got := caught(func() { Set(ctx, "task", "second") }); got != `gimbal: "task" is already set in scope "delivery.1"` {
 				t.Errorf("a second Set of a key panicked with %v", got)
 			}
-			if got := caught(func() { SetJSON(ctx, "task", review{}) }); got != `gimble: "task" is already set in scope "delivery.1"` {
+			if got := caught(func() { SetJSON(ctx, "task", review{}) }); got != `gimbal: "task" is already set in scope "delivery.1"` {
 				t.Errorf("SetJSON of a set key panicked with %v", got)
 			}
 			return nil
@@ -32,7 +32,7 @@ func TestSetMisusePanics(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		if got := caught(func() { Set(ended, "late", "x") }); got != `gimble: set "late" in scope "delivery.1" after it ended` {
+		if got := caught(func() { Set(ended, "late", "x") }); got != `gimbal: set "late" in scope "delivery.1" after it ended` {
 			t.Errorf("Set on an ended scope panicked with %v", got)
 		}
 		return nil

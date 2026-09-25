@@ -1,4 +1,4 @@
-# Source leaf: `ephemeral/projects/gimble/programmatic-workflows/DIRECTION-CLARIFICATION-VERBATIM.md`
+# Source leaf: `ephemeral/projects/gimbal/programmatic-workflows/DIRECTION-CLARIFICATION-VERBATIM.md`
 
 ## Purpose
 
@@ -8,13 +8,13 @@ retain graph legibility, and eventually learn from real runs.
 ## Key concepts
 
 - The direction reacts to how hard it is to design good workflows with the
-  Attractor pattern: `ephemeral/projects/gimble/programmatic-workflows/DIRECTION-CLARIFICATION-VERBATIM.md:1-9`.
+  Attractor pattern: `ephemeral/projects/gimbal/programmatic-workflows/DIRECTION-CLARIFICATION-VERBATIM.md:1-9`.
 - Analyze bad or costly runs through prompts, index quality, indexed data, and
-  steering messages: `ephemeral/projects/gimble/programmatic-workflows/DIRECTION-CLARIFICATION-VERBATIM.md:11-19`.
+  steering messages: `ephemeral/projects/gimbal/programmatic-workflows/DIRECTION-CLARIFICATION-VERBATIM.md:11-19`.
 - A good DAG's legibility is valuable even though it does not make successful
-  workflows easy: `ephemeral/projects/gimble/programmatic-workflows/DIRECTION-CLARIFICATION-VERBATIM.md:25-35`.
+  workflows easy: `ephemeral/projects/gimbal/programmatic-workflows/DIRECTION-CLARIFICATION-VERBATIM.md:25-35`.
 - Workflow source should read like pseudocode at page scale:
-  `ephemeral/projects/gimble/programmatic-workflows/DIRECTION-CLARIFICATION-VERBATIM.md:37-45`.
+  `ephemeral/projects/gimbal/programmatic-workflows/DIRECTION-CLARIFICATION-VERBATIM.md:37-45`.
 
 ## Retrieval recipes
 

@@ -14,10 +14,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tylergannon/gimble/internal/observation"
-	"github.com/tylergannon/gimble/internal/skgo/client"
-	forms "github.com/tylergannon/gimble/internal/skgo/links/onzggl3sn52xizlt"
-	"github.com/tylergannon/gimble/internal/workflows/validateproduct"
+	"github.com/tylergannon/gimbal/internal/observation"
+	"github.com/tylergannon/gimbal/internal/skgo/client"
+	forms "github.com/tylergannon/gimbal/internal/skgo/links/onzggl3sn52xizlt"
+	"github.com/tylergannon/gimbal/internal/workflows/validateproduct"
 	"github.com/tylergannon/polytype"
 	"github.com/tylergannon/skgo"
 )
@@ -50,7 +50,7 @@ func TestGeneratedStartsOnProductionListeners(t *testing.T) {
 		return (&net.Dialer{}).DialContext(ctx, "unix", selected.socket)
 	}}
 	defer transport.CloseIdleConnections()
-	uds := client.Client{BaseURL: "http://gimble", HTTPClient: &http.Client{Transport: transport}}
+	uds := client.Client{BaseURL: "http://gimbal", HTTPClient: &http.Client{Transport: transport}}
 	browser := client.Client{BaseURL: "http://" + instance.address}
 	for _, caller := range []struct {
 		name string
@@ -190,7 +190,7 @@ func TestGeneratedStartOnHeadlessControlListener(t *testing.T) {
 		return (&net.Dialer{}).DialContext(ctx, "unix", selected.socket)
 	}}
 	defer transport.CloseIdleConnections()
-	formsClient := client.Client{BaseURL: "http://gimble", HTTPClient: &http.Client{Transport: transport}}
+	formsClient := client.Client{BaseURL: "http://gimbal", HTTPClient: &http.Client{Transport: transport}}
 	accepted, err := formsClient.StartValidateProduct(ctx, forms.StartValidateProductInput{ProjectDir: project, SuiteFile: "missing-suite.json"})
 	if err != nil || accepted.RunID == "" || accepted.ProjectID == "" {
 		t.Fatalf("headless generated start = %+v, %v", accepted, err)
@@ -201,8 +201,8 @@ func TestGeneratedStartOnHeadlessControlListener(t *testing.T) {
 }
 
 func TestGeneratedStartOutlivesClientRequest(t *testing.T) {
-	if instanceDir := os.Getenv("GIMBLE_TEST_START_INSTANCE"); instanceDir != "" {
-		project := os.Getenv("GIMBLE_TEST_START_PROJECT")
+	if instanceDir := os.Getenv("GIMBAL_TEST_START_INSTANCE"); instanceDir != "" {
+		project := os.Getenv("GIMBAL_TEST_START_PROJECT")
 		selected, err := selectedInstance(context.Background(), instanceDir, project)
 		if err != nil {
 			t.Fatal(err)
@@ -211,7 +211,7 @@ func TestGeneratedStartOutlivesClientRequest(t *testing.T) {
 			return (&net.Dialer{}).DialContext(ctx, "unix", selected.socket)
 		}}
 		defer transport.CloseIdleConnections()
-		formsClient := client.Client{BaseURL: "http://gimble", HTTPClient: &http.Client{Transport: transport}}
+		formsClient := client.Client{BaseURL: "http://gimbal", HTTPClient: &http.Client{Transport: transport}}
 		cheap := polytype.Optional[string]{Present: true, Value: "gpt-5.6-luna"}
 		accepted, err := formsClient.StartValidateProduct(context.Background(), forms.StartValidateProductInput{
 			ProjectDir: project, SuiteFile: "suite.json",
@@ -251,7 +251,7 @@ func TestGeneratedStartOutlivesClientRequest(t *testing.T) {
 	}
 	t.Cleanup(func() { cancel(); instance.Wait() })
 	launch := exec.Command(os.Args[0], "-test.run=^TestGeneratedStartOutlivesClientRequest$")
-	launch.Env = append(os.Environ(), "GIMBLE_TEST_START_INSTANCE="+instanceDir, "GIMBLE_TEST_START_PROJECT="+project)
+	launch.Env = append(os.Environ(), "GIMBAL_TEST_START_INSTANCE="+instanceDir, "GIMBAL_TEST_START_PROJECT="+project)
 	output, err := launch.CombinedOutput()
 	if err != nil {
 		t.Fatalf("generated client process: %v: %s", err, output)

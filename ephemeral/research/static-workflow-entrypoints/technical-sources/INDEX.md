@@ -9,7 +9,7 @@ This index directs authors and implementing agents to primary source excerpts, a
 
 The evidence cache materializes primary sources and analytical clips gathered across isolated worktrees and pinned upstream references:
 
-- **Gimble Worktree** (`/Users/tyler/.codex/worktrees/d798/gimble`, commit `e161721c`): Host runtime (`web/runtime.go`, `web/control.go`), server assembly (`web/server.go`), code generators (`internal/generate/`), built-in workflows (`internal/workflows/`, `cmd/gimble/defaults.json`), project context (`web/src/project.go`), test harnesses (`web/*_test.go`, `e2e/`), and UI idioms (`ephemeral/research/svelte-idioms/`).
+- **Gimbal Worktree** (`/Users/tyler/.codex/worktrees/d798/gimbal`, commit `e161721c`): Host runtime (`web/runtime.go`, `web/control.go`), server assembly (`web/server.go`), code generators (`internal/generate/`), built-in workflows (`internal/workflows/`, `cmd/gimbal/defaults.json`), project context (`web/src/project.go`), test harnesses (`web/*_test.go`, `e2e/`), and UI idioms (`ephemeral/research/svelte-idioms/`).
 - **SKGO Worktree** (`/Users/tyler/.codex/worktrees/d798/skgo`, commit `fed929b`): Form decoding (`internal/formdata/decode.go`), remote form runtime (`remote_form.go`, `remote.go`), code generation (`internal/gen/emit.go`, `codecs.go`), and git history (`v0.5.0` to `fed929b`).
 - **Pinned SvelteKit Reference** (`/Users/tyler/src/skgo/ephemeral/inspiration/reference/kit@3.0.0-next.27/`): Client-side form runtime (`form.svelte.js`, `form-utils.js`, `shared.svelte.js`) and server remote functions (`server/remote.js`).
 - **Pinned Module Cache** (`/Users/tyler/go/pkg/mod/github.com/tylergannon/`): Pinned Polytype sources (`polytype@v1.0.3`, `v1.1.0`) covering `polytype.Optional[T]`, `devalue.Uneval`, and scalar validation codecs.
@@ -59,7 +59,7 @@ Follow these routes based on the specific implementation questions encountered w
 - **Destinations**:
   - Routing Analysis: [Topic 002 Index — Built-in Inventory & Examples](topic-002/INDEX.md#2-defining-the-static-list-of-the-five-stock-built-ins)
   - Architectural Clip: [Built-in Inventory and Example Runner Decoupling](topic-002/clips/codegen-bootstrapping.md#3-static-inventory-definition-and-example-decoupling)
-  - Key Sources: [cmd-gimble-workflows.go:20-52](topic-002/sources/cmd-gimble-workflows.go.txt), [cmd-examples-interview.go.txt](topic-002/sources/cmd-examples-interview.go.txt)
+  - Key Sources: [cmd-gimbal-workflows.go:20-52](topic-002/sources/cmd-gimbal-workflows.go.txt), [cmd-examples-interview.go.txt](topic-002/sources/cmd-examples-interview.go.txt)
 
 ---
 
@@ -84,10 +84,10 @@ Follow these routes based on the specific implementation questions encountered w
 - **Destinations**:
   - Routing Analysis: [Topic 004 Index — Go Client Architecture](topic-004/INDEX.md#1-client-api-signatures-type-declarations-and-package-structure)
   - Architectural Clip: [Client Transport & Cancellation Contract](topic-004/clips/client-transport-and-cancellation.md)
-  - Key Sources: [gimble-web-submit-and-control.txt](topic-004/sources/gimble-web-submit-and-control.txt), [gimble-implementation-plan-contract.txt](topic-004/sources/gimble-implementation-plan-contract.txt)
+  - Key Sources: [gimbal-web-submit-and-control.txt](topic-004/sources/gimbal-web-submit-and-control.txt), [gimbal-implementation-plan-contract.txt](topic-004/sources/gimbal-implementation-plan-contract.txt)
 
 #### Route 7: What differences exist between SKGO v0.5.0 and fed929b, and what release baseline is required?
-- **When to follow**: When checking what SKGO PR #152 changed (`internal/devalue` deletion) and determining the release tag needed before Gimble can pin it.
+- **When to follow**: When checking what SKGO PR #152 changed (`internal/devalue` deletion) and determining the release tag needed before Gimbal can pin it.
 - **Destinations**:
   - Routing Analysis: [Topic 004 Index — SKGO Baseline Delta](topic-004/INDEX.md#4-skgo-baseline-comparison-v050-vs-fed929b)
   - Architectural Clip: [SKGO Version Delta & Release Gate](topic-004/clips/client-transport-and-cancellation.md#4-skgo-baseline-evolution-and-minimum-release-baseline)
@@ -104,20 +104,20 @@ Follow these routes based on the specific implementation questions encountered w
   - Architectural Clip: [Form Scalar & Optional[T] Delegation](topic-005/clips/form-scalar-optional-delegation.md)
   - Key Sources: [skgo-form-decoding-source.txt:84-145, 173-228](topic-005/sources/skgo-form-decoding-source.txt), [polytype-optional-and-codecs-source.txt:14-22, 174-213](topic-005/sources/polytype-optional-and-codecs-source.txt)
 
-#### Route 9: How do nested struct paths and parameter shapes map to Gimble workflow inputs?
+#### Route 9: How do nested struct paths and parameter shapes map to Gimbal workflow inputs?
 - **When to follow**: When verifying parameter shapes across the five built-in workflows and determining how SvelteKit's dotted field paths (`params.goal`) bind to Go structs.
 - **Destinations**:
-  - Routing Analysis: [Topic 005 Index — Nested Parameter Shapes](topic-005/INDEX.md#3-how-does-polytype-handle-nested-struct-field-paths-in-standard-form-data-submissions-and-what-conventions-match-gimbles-workflow-parameter-shapes)
+  - Routing Analysis: [Topic 005 Index — Nested Parameter Shapes](topic-005/INDEX.md#3-how-does-polytype-handle-nested-struct-field-paths-in-standard-form-data-submissions-and-what-conventions-match-gimbals-workflow-parameter-shapes)
   - Architectural Clip: [Nested Structs and Parameter Shapes](topic-005/clips/nested-structs-parameter-shapes.md)
   - Key Sources: [sveltekit-form-utils-reference.txt:16-18, 83-113](topic-005/sources/sveltekit-form-utils-reference.txt), [skgo-form-decoding-source.txt:280-314](topic-005/sources/skgo-form-decoding-source.txt)
 
 #### Route 10: What are the 15 built-in roles, and how are overrides defined, defaulted, and validated on admission?
-- **When to follow**: When designing generated request structs with `Role<Name> polytype.Optional[string]` fields, auditing `cmd/gimble/defaults.json`, and resolving models via `binding.Roles`.
+- **When to follow**: When designing generated request structs with `Role<Name> polytype.Optional[string]` fields, auditing `cmd/gimbal/defaults.json`, and resolving models via `binding.Roles`.
 - **Destinations**:
-  - Routing Analysis: [Topic 006 Index — Role Model Schema & Validation](topic-006/INDEX.md#1-what-model-roles-are-declared-across-the-five-built-in-workflows-and-how-are-their-default-values-structured-in-cmdgimbledefaultsjson)
+  - Routing Analysis: [Topic 006 Index — Role Model Schema & Validation](topic-006/INDEX.md#1-what-model-roles-are-declared-across-the-five-built-in-workflows-and-how-are-their-default-values-structured-in-cmdgimbaldefaultsjson)
   - Architectural Clip: [Built-in Role Inventory & Defaults Schema](topic-006/clips/built-in-role-inventory-and-defaults.md)
   - Architectural Clip: [Server-Side Model Resolution & Fast Failure](topic-006/clips/server-side-model-resolution.md)
-  - Key Sources: [gimble-defaults-and-workflow-roles.txt](topic-006/sources/gimble-defaults-and-workflow-roles.txt), [gimble-model-resolution-and-binding.txt](topic-006/sources/gimble-model-resolution-and-binding.txt)
+  - Key Sources: [gimbal-defaults-and-workflow-roles.txt](topic-006/sources/gimbal-defaults-and-workflow-roles.txt), [gimbal-model-resolution-and-binding.txt](topic-006/sources/gimbal-model-resolution-and-binding.txt)
 
 ---
 
@@ -162,7 +162,7 @@ Follow these routes based on the specific implementation questions encountered w
   - Key Sources: [source-001-runtime-admission-lifecycle.md:417-471](topic-008/sources/source-001-runtime-admission-lifecycle.md), [source-002-control-submission-async-run.md:119-158](topic-008/sources/source-002-control-submission-async-run.md)
 
 #### Route 16: How does a single PID track concurrent runs across projects while maintaining endpoint isolation?
-- **When to follow**: When auditing `Instance.activeRuns sync.WaitGroup` vs project-isolated `.gimble` directories, live run tables, and control routes.
+- **When to follow**: When auditing `Instance.activeRuns sync.WaitGroup` vs project-isolated `.gimbal` directories, live run tables, and control routes.
 - **Destinations**:
   - Routing Analysis: [Topic 008 Index — Concurrency Tracking & Isolation](topic-008/INDEX.md#question-3-how-does-the-host-track-concurrent-active-runs-across-multiple-admitted-projects-under-a-single-pid-while-ensuring-isolation-of-project-scoped-observation-and-control-endpoints)
   - Key Sources: [source-001-runtime-admission-lifecycle.md:57-70](topic-008/sources/source-001-runtime-admission-lifecycle.md), [source-002-control-submission-async-run.md:335-361](topic-008/sources/source-002-control-submission-async-run.md), [source-004-project-ownership-isolation-tests.md:46-60](topic-008/sources/source-004-project-ownership-isolation-tests.md)
@@ -175,20 +175,20 @@ Follow these routes based on the specific implementation questions encountered w
 - **When to follow**: When setting up the route paths (`/start/[workflow]` vs `/projects/[project]/start/[workflow]`) conforming to path-based identity.
 - **Destinations**:
   - Routing Analysis: [Topic 009 Index — Route Hierarchy](topic-009/INDEX.md#q1-where-in-the-sveltekit-route-hierarchy-websrcroutes-should-the-start-forms-for-the-five-built-ins-be-mounted-to-align-with-existing-page-and-path-conventions)
-  - Key Sources: [gimble-route-hierarchy-and-middleware.md](topic-009/sources/gimble-route-hierarchy-and-middleware.md), [gimble-ui-conventions-and-dos-donts.md](topic-009/sources/gimble-ui-conventions-and-dos-donts.md)
+  - Key Sources: [gimbal-route-hierarchy-and-middleware.md](topic-009/sources/gimbal-route-hierarchy-and-middleware.md), [gimbal-ui-conventions-and-dos-donts.md](topic-009/sources/gimbal-ui-conventions-and-dos-donts.md)
 
 #### Route 18: How do start forms bind to skgo.Form, shadcn inputs, pending states, and field issues?
 - **When to follow**: When implementing SvelteKit 5 forms without hidden proxy forms (Rule #10), using `form.fields.<name>.as('text')` and `aria-invalid`.
 - **Destinations**:
   - Routing Analysis: [Topic 009 Index — Form Bindings & shadcn](topic-009/INDEX.md#q2-how-do-existing-forms-in-websrc-integrate-with-skgoform-bindings-to-display-pending-states-field-specific-validation-errors-and-server-failure-envelopes)
   - Architectural Clip: [Idiomatic SvelteKit Start Form Binding](topic-009/clips/skgo-form-binding-clip.md)
-  - Key Sources: [sveltekit-remote-form-runtime.md](topic-009/sources/sveltekit-remote-form-runtime.md), [gimble-ui-conventions-and-dos-donts.md](topic-009/sources/gimble-ui-conventions-and-dos-donts.md)
+  - Key Sources: [sveltekit-remote-form-runtime.md](topic-009/sources/sveltekit-remote-form-runtime.md), [gimbal-ui-conventions-and-dos-donts.md](topic-009/sources/gimbal-ui-conventions-and-dos-donts.md)
 
 #### Route 19: How should the UI present project directory selection and navigate upon run admission?
 - **When to follow**: When building the hybrid project selector (admitted dropdown vs custom input path) and wiring `goto()` to `/projects/[project]/runs/[runID]`.
 - **Destinations**:
   - Routing Analysis: [Topic 009 Index — Directory Selection & Navigation](topic-009/INDEX.md#q3-how-should-the-ui-structure-the-project-directory-input-choosing-existing-projects-vs-entering-new-paths-alongside-workflow-parameters-and-model-overrides-navigating-to-the-admitted-run-page-upon-completion)
-  - Key Sources: [gimble-route-hierarchy-and-middleware.md:4](topic-009/sources/gimble-route-hierarchy-and-middleware.md), [gimble-ui-conventions-and-dos-donts.md](topic-009/sources/gimble-ui-conventions-and-dos-donts.md)
+  - Key Sources: [gimbal-route-hierarchy-and-middleware.md:4](topic-009/sources/gimbal-route-hierarchy-and-middleware.md), [gimbal-ui-conventions-and-dos-donts.md](topic-009/sources/gimbal-ui-conventions-and-dos-donts.md)
 
 ---
 
@@ -197,9 +197,9 @@ Follow these routes based on the specific implementation questions encountered w
 #### Route 20: How should package tests and Playwright E2E test real HTTP/UDS round trips without mocks?
 - **When to follow**: When upgrading `just test` (package tests using generated client over HTTP/UDS) and adding `just e2e` scenarios for human start forms.
 - **Destinations**:
-  - Routing Analysis: [Topic 010 Index — Test Matrix](topic-010/INDEX.md#q1-how-should-existing-tests-in-gimble-just-test-just-e2e-be-updated-or-extended-to-exercise-both-browser-and-go-client-paths-against-the-same-remote-handler-without-mocks)
+  - Routing Analysis: [Topic 010 Index — Test Matrix](topic-010/INDEX.md#q1-how-should-existing-tests-in-gimbal-just-test-just-e2e-be-updated-or-extended-to-exercise-both-browser-and-go-client-paths-against-the-same-remote-handler-without-mocks)
   - Architectural Clip: [Comprehensive Non-Mock Test Matrix](topic-010/clips/test-matrix-clip.md)
-  - Key Sources: [gimble-test-matrix-and-e2e.md](topic-010/sources/gimble-test-matrix-and-e2e.md)
+  - Key Sources: [gimbal-test-matrix-and-e2e.md](topic-010/sources/gimbal-test-matrix-and-e2e.md)
 
 #### Route 21: How to perform live behavioral proof with cheap models and satisfy proof reporting rules?
 - **When to follow**: When running manual multi-project concurrency, disconnect survival, and invalid input checks with cheap models (`gpt-5.6-luna`, Haiku, Flash).
@@ -208,9 +208,9 @@ Follow these routes based on the specific implementation questions encountered w
   - Key Sources: [behavioral-proof-and-concurrency.md](topic-010/sources/behavioral-proof-and-concurrency.md)
 
 #### Route 22: What cross-repository git and Go module steps deliver the changes cleanly?
-- **When to follow**: When sequencing SKGO development, local branch integration with temporary `replace`, SKGO tagging, and Gimble module pinning.
+- **When to follow**: When sequencing SKGO development, local branch integration with temporary `replace`, SKGO tagging, and Gimbal module pinning.
 - **Destinations**:
-  - Routing Analysis: [Topic 010 Index — Cross-Repository Sequencing](topic-010/INDEX.md#q3-what-exact-cross-repository-workflow-local-branch-testing-skgo-release-tagging-gimble-module-pinning-and-post-install-validation-ensures-delivery-without-breaking-ci-or-leaving-local-replacements)
+  - Routing Analysis: [Topic 010 Index — Cross-Repository Sequencing](topic-010/INDEX.md#q3-what-exact-cross-repository-workflow-local-branch-testing-skgo-release-tagging-gimbal-module-pinning-and-post-install-validation-ensures-delivery-without-breaking-ci-or-leaving-local-replacements)
   - Key Sources: [cross-repo-sequencing-and-pinning.md](topic-010/sources/cross-repo-sequencing-and-pinning.md)
 
 ---
@@ -234,14 +234,14 @@ Both browser forms and Go CLI clients share the exact same binary wire protocol 
 - **Client-side reactive issues and shadcn `aria-invalid`**: [Topic 009 Clip](topic-009/clips/skgo-form-binding-clip.md)
 
 ### Theme C: Instance-Level Admission vs Project-Level Scoping
-Gimble operates as an instance daemon admitting arbitrary repositories on first use.
+Gimbal operates as an instance daemon admitting arbitrary repositories on first use.
 - **Separation of instance vs project runtime state**: [Topic 001 Clip](topic-001/clips/host-package-boundary.md)
 - **Instance-scoped start routing & middleware bypass**: [Topic 007 Clip](topic-007/clips/clip-project-middleware-bypass.md)
 - **Canonical project path deduplication & cross-process locking**: [Topic 008 Source 001](topic-008/sources/source-001-runtime-admission-lifecycle.md)
 - **UI hybrid project directory selector**: [Topic 009 Index](topic-009/INDEX.md#q3-how-should-the-ui-structure-the-project-directory-input-choosing-existing-projects-vs-entering-new-paths-alongside-workflow-parameters-and-model-overrides-navigating-to-the-admitted-run-page-upon-completion)
 
 ### Theme D: Static Build-Time Generation vs Dynamic Reflection
-Gimble eliminates runtime registries and generic submission maps in favor of statically checked code generation.
+Gimbal eliminates runtime registries and generic submission maps in favor of statically checked code generation.
 - **Removal of `web` imports from workflow packages**: [Topic 002 Clip](topic-002/clips/codegen-bootstrapping.md#1-workflow-package-decoupling)
 - **Static built-in inventory vs dynamic discovery**: [Topic 002 Clip](topic-002/clips/codegen-bootstrapping.md#3-static-inventory-definition-and-example-decoupling)
 - **Generated typed Go client functions**: [Topic 004 Clip](topic-004/clips/client-transport-and-cancellation.md#1-client-api-signatures-and-error-unmarshaling)
@@ -264,7 +264,7 @@ The following historical contradictions and implementation gaps must be guarded 
 2. **SvelteKit Hidden Proxy Forms Anti-Pattern**: Existing codebase code in `+page.svelte` used `<form aria-hidden="true">` proxy forms with manual `.fields.set()` calls. This directly violates Tyler's Rule #10 (`ephemeral/research/svelte-idioms/dos-and-donts.md`). All new start forms must use real `<form {...formRemote}>` bindings.
 3. **SKGO Form Decoding Gap**: Pinned SKGO `internal/formdata/decode.go` does not decode `polytype.Optional[T]`. This must be patched in SKGO to inspect struct types and check parsed key presence.
 4. **Missing SKGO Go Client Generator**: SKGO at `fed929b` deleted `internal/devalue` but does not yet generate typed Go Form client callers. This capability must be added in SKGO before tagging.
-5. **Decoupling Standalone Examples**: Standalone examples in `cmd/examples/` previously invoked generated commands that depended on stock host admission, causing runtime submission errors. They must be decoupled to invoke `gimble.Run` directly.
+5. **Decoupling Standalone Examples**: Standalone examples in `cmd/examples/` previously invoked generated commands that depended on stock host admission, causing runtime submission errors. They must be decoupled to invoke `gimbal.Run` directly.
 6. **No Local Module Replacements in Delivery**: The Definition of Done strictly forbids leaving `replace github.com/tylergannon/skgo => ...` in `go.mod`. The required SKGO changes must be landed and tagged upstream first.
 
 ---
@@ -276,13 +276,13 @@ These representative walks verify that an author can trace from an implementatio
 - **Walk 1: Go CLI Start Invocation via UDS to Detached Server Execution**
   1. Entrypoint: [Route 6: Go Client Architecture](#route-6-how-should-the-typed-go-client-be-generated-transported-over-udshttp-and-handle-cancellation)
   2. Intermediate Node: [Topic 004 Index](topic-004/INDEX.md#2-http-and-unix-domain-socket-uds-transport-configuration) & [Client Transport Clip](topic-004/clips/client-transport-and-cancellation.md)
-  3. Evidence Passage: [gimble-web-submit-and-control.txt](topic-004/sources/gimble-web-submit-and-control.txt) (lines 129-141: UDS `http.Transport` dialing).
+  3. Evidence Passage: [gimbal-web-submit-and-control.txt](topic-004/sources/gimbal-web-submit-and-control.txt) (lines 129-141: UDS `http.Transport` dialing).
   4. Cross-cutting jump: [Theme A: Decoupled Lifecycle](#theme-a-decoupled-lifecycle--transient-request-vs-long-lived-run) -> [Topic 008 Source 002](topic-008/sources/source-002-control-submission-async-run.md) (lines 119-158: `started` channel wait and background `p.Run(ctx)`).
 
 - **Walk 2: Browser Form Submission with Invalid Model Override**
   1. Entrypoint: [Route 10: Model Role Schema & Validation](#route-10-what-are-the-15-built-in-roles-and-how-are-overrides-defined-defaulted-and-validated-on-admission)
   2. Intermediate Node: [Topic 006 Index](topic-006/INDEX.md#3-how-does-the-server-resolve-and-validate-model-overrides-against-provider-configurations-in-the-startup-environment-prior-to-run-creation) & [Server-Side Resolution Clip](topic-006/clips/server-side-model-resolution.md)
-  3. Evidence Passage: [gimble-model-resolution-and-binding.txt](topic-006/sources/gimble-model-resolution-and-binding.txt) (lines 58-89: `binding.Roles` alias resolution and adapter validation).
+  3. Evidence Passage: [gimbal-model-resolution-and-binding.txt](topic-006/sources/gimbal-model-resolution-and-binding.txt) (lines 58-89: `binding.Roles` alias resolution and adapter validation).
   4. Cross-cutting jump: [Theme B: Wire Protocol Framing](#theme-b-wire-protocol-framing--error-envelopes) -> [Topic 003 Clip](topic-003/clips/wire-envelopes.md#2-response-serialization-under-devaluejson-wire-protocol) (HTTP 200 response with `{"type":"error", "error":{...}}` or field issues, creating no run on disk).
 
 - **Walk 3: Clean-Slate Generation Pipeline Sequencing**
@@ -300,12 +300,12 @@ Quick reference connecting all 10 topics to their assigned scope and local files
 | Topic | Directory | Questions Addressed | Key Leaf Files |
 | --- | --- | --- | --- |
 | **001: Workflow, Host, and Remote Handler Boundaries** | [`topic-001/INDEX.md`](topic-001/INDEX.md) | Concrete types to move, context key relocation, acyclic remote handler references | [host-package-boundary.md](topic-001/clips/host-package-boundary.md), [web-runtime.go.txt](topic-001/sources/web-runtime.go.txt), [web-server.go.txt](topic-001/sources/web-server.go.txt) |
-| **002: Code Generation and Built-in Bootstrapping** | [`topic-002/INDEX.md`](topic-002/INDEX.md) | Generator template changes, static built-in inventory, clean generation ordering, example decoupling | [codegen-bootstrapping.md](topic-002/clips/codegen-bootstrapping.md), [internal-generate-command.go.txt](topic-002/sources/internal-generate-command.go.txt), [cmd-gimble-workflows.go.txt](topic-002/sources/cmd-gimble-workflows.go.txt) |
+| **002: Code Generation and Built-in Bootstrapping** | [`topic-002/INDEX.md`](topic-002/INDEX.md) | Generator template changes, static built-in inventory, clean generation ordering, example decoupling | [codegen-bootstrapping.md](topic-002/clips/codegen-bootstrapping.md), [internal-generate-command.go.txt](topic-002/sources/internal-generate-command.go.txt), [cmd-gimbal-workflows.go.txt](topic-002/sources/cmd-gimbal-workflows.go.txt) |
 | **003: SvelteKit Enhanced Form Protocol and Wire Format** | [`topic-003/INDEX.md`](topic-003/INDEX.md) | Binary form encoding, HTTP 200 response serialization, validation-only side-effect suppression | [wire-envelopes.md](topic-003/clips/wire-envelopes.md), [sveltekit-client-form-protocol.txt](topic-003/sources/sveltekit-client-form-protocol.txt), [skgo-remote-form.txt](topic-003/sources/skgo-remote-form.txt) |
-| **004: Typed Go Client Generation and Transport** | [`topic-004/INDEX.md`](topic-004/INDEX.md) | Client API signatures, UDS/HTTP transport, cancellation vs run lifetime, SKGO diffs v0.5.0 vs fed929b | [client-transport-and-cancellation.md](topic-004/clips/client-transport-and-cancellation.md), [gimble-web-submit-and-control.txt](topic-004/sources/gimble-web-submit-and-control.txt), [skgo-git-diff-v0.5.0-fed929b.txt](topic-004/sources/skgo-git-diff-v0.5.0-fed929b.txt) |
+| **004: Typed Go Client Generation and Transport** | [`topic-004/INDEX.md`](topic-004/INDEX.md) | Client API signatures, UDS/HTTP transport, cancellation vs run lifetime, SKGO diffs v0.5.0 vs fed929b | [client-transport-and-cancellation.md](topic-004/clips/client-transport-and-cancellation.md), [gimbal-web-submit-and-control.txt](topic-004/sources/gimbal-web-submit-and-control.txt), [skgo-git-diff-v0.5.0-fed929b.txt](topic-004/sources/skgo-git-diff-v0.5.0-fed929b.txt) |
 | **005: Scalar and Optional Binding in SKGO Form Decoding** | [`topic-005/INDEX.md`](topic-005/INDEX.md) | Codec bypass, reflection delegation, Optional[T] presence vs omission, nested parameter paths | [form-scalar-optional-delegation.md](topic-005/clips/form-scalar-optional-delegation.md), [nested-structs-parameter-shapes.md](topic-005/clips/nested-structs-parameter-shapes.md), [skgo-form-decoding-source.txt](topic-005/sources/skgo-form-decoding-source.txt) |
-| **006: Workflow Role Model Schema and Server Resolution** | [`topic-006/INDEX.md`](topic-006/INDEX.md) | 15 built-in roles, defaults.json structure, override struct fields, admission model validation | [built-in-role-inventory-and-defaults.md](topic-006/clips/built-in-role-inventory-and-defaults.md), [server-side-model-resolution.md](topic-006/clips/server-side-model-resolution.md), [gimble-defaults-and-workflow-roles.txt](topic-006/sources/gimble-defaults-and-workflow-roles.txt) |
+| **006: Workflow Role Model Schema and Server Resolution** | [`topic-006/INDEX.md`](topic-006/INDEX.md) | 15 built-in roles, defaults.json structure, override struct fields, admission model validation | [built-in-role-inventory-and-defaults.md](topic-006/clips/built-in-role-inventory-and-defaults.md), [server-side-model-resolution.md](topic-006/clips/server-side-model-resolution.md), [gimbal-defaults-and-workflow-roles.txt](topic-006/sources/gimbal-defaults-and-workflow-roles.txt) |
 | **007: Instance-Scoped Routing and Multi-Listener Mounting** | [`topic-007/INDEX.md`](topic-007/INDEX.md) | Project middleware bypass, Origin/CSRF policy on UDS, headless `--no-web` pure Go remotes | [clip-project-middleware-bypass.md](topic-007/clips/clip-project-middleware-bypass.md), [clip-control-uds-and-headless-assembly.md](topic-007/clips/clip-control-uds-and-headless-assembly.md), [source-001-web-runtime-middleware.md](topic-007/sources/source-001-web-runtime-middleware.md) |
 | **008: Project Admission Concurrency and Run Lifetime** | [`topic-008/INDEX.md`](topic-008/INDEX.md) | Context hierarchy, canonical path resolution, `owner.lock` flock, multi-project PID isolation | [clip-context-hierarchy.md](topic-008/clips/clip-context-hierarchy.md), [source-001-runtime-admission-lifecycle.md](topic-008/sources/source-001-runtime-admission-lifecycle.md), [source-004-project-ownership-isolation-tests.md](topic-008/sources/source-004-project-ownership-isolation-tests.md) |
-| **009: SvelteKit Start Form UI Conventions** | [`topic-009/INDEX.md`](topic-009/INDEX.md) | Route mounting, Rule #10 no proxy forms, shadcn `aria-invalid`, hybrid directory selector, `goto` | [skgo-form-binding-clip.md](topic-009/clips/skgo-form-binding-clip.md), [sveltekit-remote-form-runtime.md](topic-009/sources/sveltekit-remote-form-runtime.md), [gimble-ui-conventions-and-dos-donts.md](topic-009/sources/gimble-ui-conventions-and-dos-donts.md) |
-| **010: Testing Matrix, Behavioral Proof, and Sequencing** | [`topic-010/INDEX.md`](topic-010/INDEX.md) | Package HTTP/UDS tests, Playwright BDD, cheap live model proof rules, SKGO release and pinning | [test-matrix-clip.md](topic-010/clips/test-matrix-clip.md), [gimble-test-matrix-and-e2e.md](topic-010/sources/gimble-test-matrix-and-e2e.md), [cross-repo-sequencing-and-pinning.md](topic-010/sources/cross-repo-sequencing-and-pinning.md) |
+| **009: SvelteKit Start Form UI Conventions** | [`topic-009/INDEX.md`](topic-009/INDEX.md) | Route mounting, Rule #10 no proxy forms, shadcn `aria-invalid`, hybrid directory selector, `goto` | [skgo-form-binding-clip.md](topic-009/clips/skgo-form-binding-clip.md), [sveltekit-remote-form-runtime.md](topic-009/sources/sveltekit-remote-form-runtime.md), [gimbal-ui-conventions-and-dos-donts.md](topic-009/sources/gimbal-ui-conventions-and-dos-donts.md) |
+| **010: Testing Matrix, Behavioral Proof, and Sequencing** | [`topic-010/INDEX.md`](topic-010/INDEX.md) | Package HTTP/UDS tests, Playwright BDD, cheap live model proof rules, SKGO release and pinning | [test-matrix-clip.md](topic-010/clips/test-matrix-clip.md), [gimbal-test-matrix-and-e2e.md](topic-010/sources/gimbal-test-matrix-and-e2e.md), [cross-repo-sequencing-and-pinning.md](topic-010/sources/cross-repo-sequencing-and-pinning.md) |

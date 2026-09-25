@@ -1,4 +1,4 @@
-package gimble
+package gimbal
 
 import (
 	"encoding/json"
@@ -14,7 +14,7 @@ import (
 type JSONText string
 
 // AgentEvent is one OpenCode session event. Adapters supply Type, Data,
-// Metadata, and NativeRef. Gimble assigns event identity and
+// Metadata, and NativeRef. Gimbal assigns event identity and
 // timestamps before it records or observes the event.
 type AgentEvent struct {
 	Type      string          `json:"type"`
@@ -26,7 +26,7 @@ type AgentEvent struct {
 }
 
 // LifecycleEvent is one typed change to a run's lifecycle. The interface is
-// sealed: Gimble produces the concrete variants defined here.
+// sealed: Gimbal produces the concrete variants defined here.
 type LifecycleEvent interface{ lifecycleEvent() }
 
 // RunStarted records the beginning of a workflow run.
@@ -243,7 +243,7 @@ type Killed struct {
 func (Killed) lifecycleEvent() {}
 
 func (k Killed) Error() string {
-	s := "gimble: " + k.Target + " was killed"
+	s := "gimbal: " + k.Target + " was killed"
 	if k.By != "" {
 		s += " by " + k.By
 	}

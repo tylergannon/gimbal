@@ -14,11 +14,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tylergannon/gimble/internal/host"
+	"github.com/tylergannon/gimbal/internal/host"
 
-	"github.com/tylergannon/gimble/internal/conversation"
-	"github.com/tylergannon/gimble/internal/observation"
-	generated "github.com/tylergannon/gimble/internal/skgo"
+	"github.com/tylergannon/gimbal/internal/conversation"
+	"github.com/tylergannon/gimbal/internal/observation"
+	generated "github.com/tylergannon/gimbal/internal/skgo"
 	"github.com/tylergannon/polytype/devalue"
 )
 
@@ -30,7 +30,7 @@ func TestInstanceOwnsEndpointsAndProjectsOwnState(t *testing.T) {
 	projectB := filepath.Join(base, "b")
 	projectC := filepath.Join(base, "c")
 	for _, project := range []string{projectA, projectB, projectC} {
-		if err := os.MkdirAll(filepath.Join(project, ".gimble", "conversations"), 0o755); err != nil {
+		if err := os.MkdirAll(filepath.Join(project, ".gimbal", "conversations"), 0o755); err != nil {
 			t.Fatal(err)
 		}
 		item := conversation.Conversation{ID: filepath.Base(project), Title: "Selected conversation " + filepath.Base(project)}
@@ -38,7 +38,7 @@ func TestInstanceOwnsEndpointsAndProjectsOwnState(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := os.WriteFile(filepath.Join(project, ".gimble", "conversations", item.ID+".json"), encoded, 0o644); err != nil {
+		if err := os.WriteFile(filepath.Join(project, ".gimbal", "conversations", item.ID+".json"), encoded, 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -82,7 +82,7 @@ func TestInstanceOwnsEndpointsAndProjectsOwnState(t *testing.T) {
 		t.Fatalf("instance control discovery: %v, %v", entries, err)
 	}
 	for _, project := range []string{projectA, projectB} {
-		if entries, err := filepath.Glob(filepath.Join(project, ".gimble", "control", "*.json")); err != nil || len(entries) != 1 {
+		if entries, err := filepath.Glob(filepath.Join(project, ".gimbal", "control", "*.json")); err != nil || len(entries) != 1 {
 			t.Fatalf("project discovery: %v, %v", entries, err)
 		}
 	}
@@ -418,8 +418,8 @@ func TestInstanceCreatesConversationsInEachProject(t *testing.T) {
 			t.Fatal(err)
 		}
 		gitForConversationPage(t, repo, "init", "-q")
-		gitForConversationPage(t, repo, "config", "user.email", "gimble-test@example.invalid")
-		gitForConversationPage(t, repo, "config", "user.name", "Gimble Test")
+		gitForConversationPage(t, repo, "config", "user.email", "gimbal-test@example.invalid")
+		gitForConversationPage(t, repo, "config", "user.name", "Gimbal Test")
 		gitForConversationPage(t, repo, "commit", "-qm", "initial", "--allow-empty")
 		p, err := i.Owner.AdmitProject(repo)
 		if err != nil {
@@ -461,7 +461,7 @@ func instanceSnapshotStatus(t *testing.T, i *Instance, project, runID string) in
 	if err != nil {
 		t.Fatal(err)
 	}
-	req.Header.Set("X-Gimble-Project", project)
+	req.Header.Set("X-Gimbal-Project", project)
 	response, err := client.Do(req)
 	if err != nil {
 		t.Fatal(err)
@@ -490,7 +490,7 @@ func instanceControlRuns(t *testing.T, i *Instance, project string) []observatio
 	if err != nil {
 		t.Fatal(err)
 	}
-	req.Header.Set("X-Gimble-Project", project)
+	req.Header.Set("X-Gimbal-Project", project)
 	response, err := client.Do(req)
 	if err != nil {
 		t.Fatal(err)
@@ -527,7 +527,7 @@ func instanceControlStatus(t *testing.T, i *Instance, project, runID string) int
 		t.Fatal(err)
 	}
 	if project != "" {
-		request.Header.Set("X-Gimble-Project", project)
+		request.Header.Set("X-Gimbal-Project", project)
 	}
 	response, err := client.Do(request)
 	if err != nil {

@@ -1,9 +1,9 @@
 # Research document: Claude background continuation contract
 
-Read /Users/tyler/.codex/worktrees/286c/gimble/ephemeral/research/claude-lifecycle/briefs/common.md
+Read /Users/tyler/.codex/worktrees/286c/gimbal/ephemeral/research/claude-lifecycle/briefs/common.md
 and the local issue and prior-investigation files it names.
 
-Collect and arrange evidence for a Gimble maintainer deciding how to support
+Collect and arrange evidence for a Gimbal maintainer deciding how to support
 Claude background tasks without mistaking a waiting result for assignment
 completion. This lane is documentary research; independent Sol and Terra agents
 are performing live probes. Do not launch additional native agent experiments.
@@ -40,9 +40,9 @@ not observable, say so and identify the minimum extra contract to investigate.
 Do not manufacture a definitive solution where evidence is absent.
 
 Keep all downloaded sources, indexes, and clips under:
-/private/tmp/gimble-317-literature/corpus/
+/private/tmp/gimbal-317-literature/corpus/
 The only repository file this workflow may create or revise is:
-/Users/tyler/.codex/worktrees/286c/gimble/ephemeral/research/claude-lifecycle/literature.md
+/Users/tyler/.codex/worktrees/286c/gimbal/ephemeral/research/claude-lifecycle/literature.md
 No application changes, git operations, additional worklogs, PRs, or issue posts.
 Other investigators are active: do not change their files. Produce a concise
 report within 6500 tokens; detailed source passages belong in the local corpus.
@@ -50,6 +50,6 @@ report within 6500 tokens; detailed source passages belong in the local corpus.
 ## Source audit during collection
 
 Before curation, authoring, or editorial acceptance, read
-/private/tmp/gimble-317-literature/verification/corrections.md and the fetched
+/private/tmp/gimbal-317-literature/verification/corrections.md and the fetched
 issue originals beside it. Correct outdated status and unsupported causal
 claims in the corpus; do not carry them into the report as current guarantees.

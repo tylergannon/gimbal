@@ -23,7 +23,7 @@
   <figcaption>A recorded implementation run. The coding turn is selected; its result and model summary are on the right.</figcaption>
 </figure>
 
-The local Gimble server serves the console and keeps each run's record on disk. Open the project in the browser to watch a live run or inspect one that has ended.
+The local Gimbal server serves the console and keeps each run's record on disk. Open the project in the browser to watch a live run or inspect one that has ended.
 
 <h2 id="map">The map</h2>
 
@@ -64,10 +64,10 @@ Current work first, then everything recorded for the project, with filters for a
 <h2 id="cli">The same thing from a terminal</h2>
 
 ```sh
-gimble runs                                    # runs in progress
-gimble watch RUN                               # snapshot, then follow
-gimble steer RUN "message" --session ID        # steer an agent turn
-gimble steer RUN "message" --loop SCOPE        # queue a message for a planner
+gimbal runs                                    # runs in progress
+gimbal watch RUN                               # snapshot, then follow
+gimbal steer RUN "message" --session ID        # steer an agent turn
+gimbal steer RUN "message" --loop SCOPE        # queue a message for a planner
 ```
 
 </DocsPage>

@@ -20,7 +20,7 @@ claims hold at 90 to 95 percent; small gaps are listed, not chased.
 
 ### Ground
 
-1. Storybook shows only Gimble stories. The generated demo under
+1. Storybook shows only Gimbal stories. The generated demo under
    `web/src/stories/` is gone.
 2. `web/src/app.css` carries the design's palette from
    `docs/design/specimens/tokens.css` for light and dark: the neutral scale,

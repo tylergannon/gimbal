@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	stateEnv       = "GIMBLE_OPENCODE_DIR"
+	stateEnv       = "GIMBAL_OPENCODE_DIR"
 	stateFileName  = "server.json"
 	lockFileName   = "server.lock"
 	serverLogName  = "server.log"
@@ -49,7 +49,7 @@ type serverState struct {
 }
 
 // DefaultStateDir returns the shared OpenCode state directory. The
-// GIMBLE_OPENCODE_DIR environment variable overrides ~/.gimble/opencode.
+// GIMBAL_OPENCODE_DIR environment variable overrides ~/.gimbal/opencode.
 func DefaultStateDir() (string, error) {
 	if configured := strings.TrimSpace(os.Getenv(stateEnv)); configured != "" {
 		return filepath.Abs(configured)
@@ -58,7 +58,7 @@ func DefaultStateDir() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("find home directory: %w", err)
 	}
-	return filepath.Join(home, ".gimble", "opencode"), nil
+	return filepath.Join(home, ".gimbal", "opencode"), nil
 }
 
 // StartServer starts the shared server or returns the healthy server already
@@ -204,7 +204,7 @@ func launchServer(stateDir string) (serverState, *exec.Cmd, error) {
 	cmd.Stdout = logFile
 	cmd.Stderr = logFile
 	cmd.Env = environmentWith(os.Environ(), map[string]string{
-		"OPENCODE_SERVER_USERNAME": "gimble",
+		"OPENCODE_SERVER_USERNAME": "gimbal",
 		"OPENCODE_SERVER_PASSWORD": password,
 	})
 	prepareServerProcess(cmd)
@@ -223,7 +223,7 @@ func launchServer(stateDir string) (serverState, *exec.Cmd, error) {
 		PID:          cmd.Process.Pid,
 		ProcessToken: token,
 		URL:          fmt.Sprintf("http://127.0.0.1:%d", port),
-		Username:     "gimble",
+		Username:     "gimbal",
 		Password:     password,
 	}, cmd, nil
 }

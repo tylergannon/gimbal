@@ -1,6 +1,6 @@
 # Source: Project Ownership, Path Aliasing, and Endpoint Isolation Tests
 
-- **Origin**: `/Users/tyler/.codex/worktrees/d798/gimble/web/project_ownership_test.go`, `/Users/tyler/.codex/worktrees/d798/gimble/web/control_ownership_test.go`, `/Users/tyler/.codex/worktrees/d798/gimble/web/instance_test.go`
+- **Origin**: `/Users/tyler/.codex/worktrees/d798/gimbal/web/project_ownership_test.go`, `/Users/tyler/.codex/worktrees/d798/gimbal/web/control_ownership_test.go`, `/Users/tyler/.codex/worktrees/d798/gimbal/web/instance_test.go`
 - **Commit**: `40dc82947eed99202fd9cb1dd377b6a3c2abbccc`
 - **Retrieval Date**: 2026-09-23
 - **Scope**: Behavioral tests proving canonical path resolution (symlinks, `..`), inter-process lock contention, run lifetime unwinding before lock release, and isolation of project-scoped observation and control endpoints.

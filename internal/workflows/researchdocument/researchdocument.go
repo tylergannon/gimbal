@@ -25,7 +25,7 @@
 //
 // Example:
 //
-//	gimble run research-document \
+//	gimbal run research-document \
 //	  --goal "Explain passkeys to security-conscious product managers" \
 //	  --research-dir ./passkeys-research \
 //	  --output ./passkeys.md \
@@ -41,20 +41,20 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/tylergannon/gimble"
+	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/polytype"
 )
 
 //go:generate go tool polytype --validate
-//go:generate go run github.com/tylergannon/gimble/internal/generate/gimblegen -entry ResearchDocument -name research-document -mermaid ../../../docs-site/src/lib/generated/workflows/research-document.mmd
+//go:generate go run github.com/tylergannon/gimbal/internal/generate/gimbalgen -entry ResearchDocument -name research-document -mermaid ../../../docs-site/src/lib/generated/workflows/research-document.mmd
 
 const (
-	roleResearchPlanning    gimble.WorkflowRole = "research-planning"
-	roleResearchIndexing    gimble.WorkflowRole = "research-indexing"
-	roleIndexCuration       gimble.WorkflowRole = "index-curation"
-	roleDocumentAuthoring   gimble.WorkflowRole = "document-authoring"
-	roleEditorialReview     gimble.WorkflowRole = "editorial-review"
-	roleDocumentSupervision gimble.WorkflowRole = "document-supervision"
+	roleResearchPlanning    gimbal.WorkflowRole = "research-planning"
+	roleResearchIndexing    gimbal.WorkflowRole = "research-indexing"
+	roleIndexCuration       gimbal.WorkflowRole = "index-curation"
+	roleDocumentAuthoring   gimbal.WorkflowRole = "document-authoring"
+	roleEditorialReview     gimbal.WorkflowRole = "editorial-review"
+	roleDocumentSupervision gimbal.WorkflowRole = "document-supervision"
 	defaultMinSources                           = 3
 	defaultEditorialRounds                      = 3
 )
@@ -108,7 +108,7 @@ type EditorialVerdict struct {
 }
 
 // ResearchDocument produces a research-backed document within a token budget.
-func ResearchDocument(ctx context.Context, env gimble.Env, params Params) error {
+func ResearchDocument(ctx context.Context, env gimbal.Env, params Params) error {
 	goal := strings.TrimSpace(params.Goal)
 	if goal == "" {
 		return fmt.Errorf("goal must not be blank")
@@ -151,16 +151,16 @@ func ResearchDocument(ctx context.Context, env gimble.Env, params Params) error 
 		return fmt.Errorf("create document directory: %w", err)
 	}
 
-	gimble.Set(ctx, "document goal", goal)
-	gimble.Set(ctx, "document path", documentPath)
-	gimble.Set(ctx, "semantic index path", indexPath)
-	gimble.Set(ctx, "research directory", researchDir)
-	gimble.Set(ctx, "document token budget", params.TokenBudget)
-	gimble.Set(ctx, "token counter executable", tokenCounter)
-	gimble.Set(ctx, "minimum sources per topic", minSources)
-	gimble.Set(ctx, "maximum editorial rounds", maxRounds)
+	gimbal.Set(ctx, "document goal", goal)
+	gimbal.Set(ctx, "document path", documentPath)
+	gimbal.Set(ctx, "semantic index path", indexPath)
+	gimbal.Set(ctx, "research directory", researchDir)
+	gimbal.Set(ctx, "document token budget", params.TokenBudget)
+	gimbal.Set(ctx, "token counter executable", tokenCounter)
+	gimbal.Set(ctx, "minimum sources per topic", minSources)
+	gimbal.Set(ctx, "maximum editorial rounds", maxRounds)
 
-	planner := gimble.NewSession(ctx, roleResearchPlanning, env.WorkDir)
+	planner := gimbal.NewSession(ctx, roleResearchPlanning, env.WorkDir)
 	plan, err := planner.Generate[ResearchPlan](ctx, planTopicsPrompt)
 	if err != nil {
 		return err
@@ -168,7 +168,7 @@ func ResearchDocument(ctx context.Context, env gimble.Env, params Params) error 
 	if len(plan.Groups) != 5 {
 		return fmt.Errorf("research planner returned %d topic groups, need exactly 5", len(plan.Groups))
 	}
-	gimble.SetJSON(ctx, "research plan", plan)
+	gimbal.SetJSON(ctx, "research plan", plan)
 
 	groupDirs := make([][]string, len(plan.Groups))
 	var topicIndexes []string
@@ -194,19 +194,19 @@ func ResearchDocument(ctx context.Context, env gimble.Env, params Params) error 
 		}
 	}
 
-	research := gimble.Group(ctx, "research")
+	research := gimbal.Group(ctx, "research")
 	research.Go("agent1", func(ctx context.Context) error {
-		gimble.SetJSON(ctx, "assigned topic group", plan.Groups[0])
-		gimble.Set(ctx, "topic directories", groupDirs[0])
-		gimble.Set(ctx, "minimum sources per assigned topic", minSources)
-		researcher := gimble.NewSession(ctx, roleResearchIndexing, env.WorkDir)
-		coach := gimble.NewSession(ctx, roleDocumentSupervision, env.WorkDir)
+		gimbal.SetJSON(ctx, "assigned topic group", plan.Groups[0])
+		gimbal.Set(ctx, "topic directories", groupDirs[0])
+		gimbal.Set(ctx, "minimum sources per assigned topic", minSources)
+		researcher := gimbal.NewSession(ctx, roleResearchIndexing, env.WorkDir)
+		coach := gimbal.NewSession(ctx, roleDocumentSupervision, env.WorkDir)
 		result, err := researcher.Generate[ResearchResult](ctx, researchTopicsPrompt,
-			gimble.WithSupervisor(coach, researchCoachPrompt))
+			gimbal.WithSupervisor(coach, researchCoachPrompt))
 		if err != nil {
 			return err
 		}
-		gimble.SetJSON(ctx, "research result", result)
+		gimbal.SetJSON(ctx, "research result", result)
 		for _, dir := range groupDirs[0] {
 			if err := verifyResearchFloor(dir, minSources); err != nil {
 				return err
@@ -215,17 +215,17 @@ func ResearchDocument(ctx context.Context, env gimble.Env, params Params) error 
 		return nil
 	})
 	research.Go("agent2", func(ctx context.Context) error {
-		gimble.SetJSON(ctx, "assigned topic group", plan.Groups[1])
-		gimble.Set(ctx, "topic directories", groupDirs[1])
-		gimble.Set(ctx, "minimum sources per assigned topic", minSources)
-		researcher := gimble.NewSession(ctx, roleResearchIndexing, env.WorkDir)
-		coach := gimble.NewSession(ctx, roleDocumentSupervision, env.WorkDir)
+		gimbal.SetJSON(ctx, "assigned topic group", plan.Groups[1])
+		gimbal.Set(ctx, "topic directories", groupDirs[1])
+		gimbal.Set(ctx, "minimum sources per assigned topic", minSources)
+		researcher := gimbal.NewSession(ctx, roleResearchIndexing, env.WorkDir)
+		coach := gimbal.NewSession(ctx, roleDocumentSupervision, env.WorkDir)
 		result, err := researcher.Generate[ResearchResult](ctx, researchTopicsPrompt,
-			gimble.WithSupervisor(coach, researchCoachPrompt))
+			gimbal.WithSupervisor(coach, researchCoachPrompt))
 		if err != nil {
 			return err
 		}
-		gimble.SetJSON(ctx, "research result", result)
+		gimbal.SetJSON(ctx, "research result", result)
 		for _, dir := range groupDirs[1] {
 			if err := verifyResearchFloor(dir, minSources); err != nil {
 				return err
@@ -234,17 +234,17 @@ func ResearchDocument(ctx context.Context, env gimble.Env, params Params) error 
 		return nil
 	})
 	research.Go("agent3", func(ctx context.Context) error {
-		gimble.SetJSON(ctx, "assigned topic group", plan.Groups[2])
-		gimble.Set(ctx, "topic directories", groupDirs[2])
-		gimble.Set(ctx, "minimum sources per assigned topic", minSources)
-		researcher := gimble.NewSession(ctx, roleResearchIndexing, env.WorkDir)
-		coach := gimble.NewSession(ctx, roleDocumentSupervision, env.WorkDir)
+		gimbal.SetJSON(ctx, "assigned topic group", plan.Groups[2])
+		gimbal.Set(ctx, "topic directories", groupDirs[2])
+		gimbal.Set(ctx, "minimum sources per assigned topic", minSources)
+		researcher := gimbal.NewSession(ctx, roleResearchIndexing, env.WorkDir)
+		coach := gimbal.NewSession(ctx, roleDocumentSupervision, env.WorkDir)
 		result, err := researcher.Generate[ResearchResult](ctx, researchTopicsPrompt,
-			gimble.WithSupervisor(coach, researchCoachPrompt))
+			gimbal.WithSupervisor(coach, researchCoachPrompt))
 		if err != nil {
 			return err
 		}
-		gimble.SetJSON(ctx, "research result", result)
+		gimbal.SetJSON(ctx, "research result", result)
 		for _, dir := range groupDirs[2] {
 			if err := verifyResearchFloor(dir, minSources); err != nil {
 				return err
@@ -253,17 +253,17 @@ func ResearchDocument(ctx context.Context, env gimble.Env, params Params) error 
 		return nil
 	})
 	research.Go("agent4", func(ctx context.Context) error {
-		gimble.SetJSON(ctx, "assigned topic group", plan.Groups[3])
-		gimble.Set(ctx, "topic directories", groupDirs[3])
-		gimble.Set(ctx, "minimum sources per assigned topic", minSources)
-		researcher := gimble.NewSession(ctx, roleResearchIndexing, env.WorkDir)
-		coach := gimble.NewSession(ctx, roleDocumentSupervision, env.WorkDir)
+		gimbal.SetJSON(ctx, "assigned topic group", plan.Groups[3])
+		gimbal.Set(ctx, "topic directories", groupDirs[3])
+		gimbal.Set(ctx, "minimum sources per assigned topic", minSources)
+		researcher := gimbal.NewSession(ctx, roleResearchIndexing, env.WorkDir)
+		coach := gimbal.NewSession(ctx, roleDocumentSupervision, env.WorkDir)
 		result, err := researcher.Generate[ResearchResult](ctx, researchTopicsPrompt,
-			gimble.WithSupervisor(coach, researchCoachPrompt))
+			gimbal.WithSupervisor(coach, researchCoachPrompt))
 		if err != nil {
 			return err
 		}
-		gimble.SetJSON(ctx, "research result", result)
+		gimbal.SetJSON(ctx, "research result", result)
 		for _, dir := range groupDirs[3] {
 			if err := verifyResearchFloor(dir, minSources); err != nil {
 				return err
@@ -272,17 +272,17 @@ func ResearchDocument(ctx context.Context, env gimble.Env, params Params) error 
 		return nil
 	})
 	research.Go("agent5", func(ctx context.Context) error {
-		gimble.SetJSON(ctx, "assigned topic group", plan.Groups[4])
-		gimble.Set(ctx, "topic directories", groupDirs[4])
-		gimble.Set(ctx, "minimum sources per assigned topic", minSources)
-		researcher := gimble.NewSession(ctx, roleResearchIndexing, env.WorkDir)
-		coach := gimble.NewSession(ctx, roleDocumentSupervision, env.WorkDir)
+		gimbal.SetJSON(ctx, "assigned topic group", plan.Groups[4])
+		gimbal.Set(ctx, "topic directories", groupDirs[4])
+		gimbal.Set(ctx, "minimum sources per assigned topic", minSources)
+		researcher := gimbal.NewSession(ctx, roleResearchIndexing, env.WorkDir)
+		coach := gimbal.NewSession(ctx, roleDocumentSupervision, env.WorkDir)
 		result, err := researcher.Generate[ResearchResult](ctx, researchTopicsPrompt,
-			gimble.WithSupervisor(coach, researchCoachPrompt))
+			gimbal.WithSupervisor(coach, researchCoachPrompt))
 		if err != nil {
 			return err
 		}
-		gimble.SetJSON(ctx, "research result", result)
+		gimbal.SetJSON(ctx, "research result", result)
 		for _, dir := range groupDirs[4] {
 			if err := verifyResearchFloor(dir, minSources); err != nil {
 				return err
@@ -293,34 +293,34 @@ func ResearchDocument(ctx context.Context, env gimble.Env, params Params) error 
 	if err := research.Wait(); err != nil {
 		return err
 	}
-	gimble.Set(ctx, "topic index paths", topicIndexes)
+	gimbal.Set(ctx, "topic index paths", topicIndexes)
 
-	curator := gimble.NewSession(ctx, roleIndexCuration, env.WorkDir)
-	indexCoach := gimble.NewSession(ctx, roleDocumentSupervision, env.WorkDir)
-	if _, err := curator.Generate[gimble.Text](ctx, buildIndexPrompt,
-		gimble.WithSupervisor(indexCoach, researchCoachPrompt)); err != nil {
+	curator := gimbal.NewSession(ctx, roleIndexCuration, env.WorkDir)
+	indexCoach := gimbal.NewSession(ctx, roleDocumentSupervision, env.WorkDir)
+	if _, err := curator.Generate[gimbal.Text](ctx, buildIndexPrompt,
+		gimbal.WithSupervisor(indexCoach, researchCoachPrompt)); err != nil {
 		return err
 	}
 	if err := requireNonemptyFile(indexPath); err != nil {
 		return fmt.Errorf("semantic index: %w", err)
 	}
 
-	author := gimble.NewSession(ctx, roleDocumentAuthoring, env.WorkDir)
-	compressionCoach := gimble.NewSession(ctx, roleDocumentSupervision, env.WorkDir)
-	if _, err := author.Generate[gimble.Text](ctx, writeDocumentPrompt,
-		gimble.WithSupervisor(compressionCoach, compressionCoachPrompt)); err != nil {
+	author := gimbal.NewSession(ctx, roleDocumentAuthoring, env.WorkDir)
+	compressionCoach := gimbal.NewSession(ctx, roleDocumentSupervision, env.WorkDir)
+	if _, err := author.Generate[gimbal.Text](ctx, writeDocumentPrompt,
+		gimbal.WithSupervisor(compressionCoach, compressionCoachPrompt)); err != nil {
 		return err
 	}
 	if err := requireNonemptyFile(documentPath); err != nil {
 		return fmt.Errorf("document: %w", err)
 	}
 
-	editor := gimble.NewSession(ctx, roleEditorialReview, env.WorkDir)
+	editor := gimbal.NewSession(ctx, roleEditorialReview, env.WorkDir)
 	for round := 1; round <= maxRounds; round++ {
 		accepted := false
-		err := gimble.Scope(ctx, "editorial-round", func(ctx context.Context) error {
-			gimble.Set(ctx, "editorial round", round)
-			exit, stdout, stderr, err := gimble.RunCommand(ctx, "count-tokens", env.WorkDir, tokenCounter, "count-tokens", documentPath)
+		err := gimbal.Scope(ctx, "editorial-round", func(ctx context.Context) error {
+			gimbal.Set(ctx, "editorial round", round)
+			exit, stdout, stderr, err := gimbal.RunCommand(ctx, "count-tokens", env.WorkDir, tokenCounter, "count-tokens", documentPath)
 			if err != nil {
 				return err
 			}
@@ -331,13 +331,13 @@ func ResearchDocument(ctx context.Context, env gimble.Env, params Params) error 
 			if err != nil {
 				return fmt.Errorf("parse document token count %q: %w", strings.TrimSpace(stdout), err)
 			}
-			gimble.Set(ctx, "document token count", tokens)
+			gimbal.Set(ctx, "document token count", tokens)
 
 			verdict, err := editor.Generate[EditorialVerdict](ctx, editorialPrompt)
 			if err != nil {
 				return err
 			}
-			gimble.SetJSON(ctx, "editorial verdict", verdict)
+			gimbal.SetJSON(ctx, "editorial verdict", verdict)
 			if tokens <= params.TokenBudget && verdict.OnlyNitpicks && len(verdict.MaterialIssues) == 0 && len(verdict.MissingTopics) == 0 {
 				accepted = true
 				return nil
@@ -353,30 +353,30 @@ func ResearchDocument(ctx context.Context, env gimble.Env, params Params) error 
 				}
 				gapIndex := filepath.Join(gapDir, "INDEX.md")
 				requiredSources := minSources * len(verdict.MissingTopics)
-				gimble.Set(ctx, "missing topics", verdict.MissingTopics)
-				gimble.Set(ctx, "gap research directory", gapDir)
-				gimble.Set(ctx, "gap research index path", gapIndex)
-				gimble.Set(ctx, "minimum gap source files", requiredSources)
+				gimbal.Set(ctx, "missing topics", verdict.MissingTopics)
+				gimbal.Set(ctx, "gap research directory", gapDir)
+				gimbal.Set(ctx, "gap research index path", gapIndex)
+				gimbal.Set(ctx, "minimum gap source files", requiredSources)
 
-				gapResearcher := gimble.NewSession(ctx, roleResearchIndexing, env.WorkDir)
-				gapCoach := gimble.NewSession(ctx, roleDocumentSupervision, env.WorkDir)
+				gapResearcher := gimbal.NewSession(ctx, roleResearchIndexing, env.WorkDir)
+				gapCoach := gimbal.NewSession(ctx, roleDocumentSupervision, env.WorkDir)
 				result, err := gapResearcher.Generate[ResearchResult](ctx, researchGapsPrompt,
-					gimble.WithSupervisor(gapCoach, researchCoachPrompt))
+					gimbal.WithSupervisor(gapCoach, researchCoachPrompt))
 				if err != nil {
 					return err
 				}
-				gimble.SetJSON(ctx, "gap research result", result)
+				gimbal.SetJSON(ctx, "gap research result", result)
 				if err := verifyResearchFloor(gapDir, requiredSources); err != nil {
 					return err
 				}
-				if _, err := curator.Generate[gimble.Text](ctx, updateIndexPrompt,
-					gimble.WithSupervisor(indexCoach, researchCoachPrompt)); err != nil {
+				if _, err := curator.Generate[gimbal.Text](ctx, updateIndexPrompt,
+					gimbal.WithSupervisor(indexCoach, researchCoachPrompt)); err != nil {
 					return err
 				}
 			}
 
-			if _, err := author.Generate[gimble.Text](ctx, reviseDocumentPrompt,
-				gimble.WithSupervisor(compressionCoach, compressionCoachPrompt)); err != nil {
+			if _, err := author.Generate[gimbal.Text](ctx, reviseDocumentPrompt,
+				gimbal.WithSupervisor(compressionCoach, compressionCoachPrompt)); err != nil {
 				return err
 			}
 			return requireNonemptyFile(documentPath)

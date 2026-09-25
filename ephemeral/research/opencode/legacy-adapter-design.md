@@ -1,20 +1,20 @@
 # Legacy OpenCode adapter: verified direction and open choices
 
-September 19, 2026. User direction: build against the legacy API, keep one shared OpenCode server across projects and runs, add `gimble opencode start|stop`, put configurable runtime state under `~/.gimble/` by default, and generate only needed types. Handwrite the small HTTP client and SSE handling. This note records source verification and questions before implementation; no adapter or process-management code has been written.
+September 19, 2026. User direction: build against the legacy API, keep one shared OpenCode server across projects and runs, add `gimbal opencode start|stop`, put configurable runtime state under `~/.gimbal/` by default, and generate only needed types. Handwrite the small HTTP client and SSE handling. This note records source verification and questions before implementation; no adapter or process-management code has been written.
 
 The three source audits target OpenCode 1.18.31, commit `014614d35b397775e5d397a490fc72368c894ec2`. They reused the exact generated OpenAPI and downloaded relevant pinned primary source. No model inference or server mutation was performed in this phase.
 
 ## Shared process and event routing
 
-Use one managed `opencode serve` process for the user across projects. Stock serve supports HTTP TCP, not a Unix socket CLI option. Bind loopback, retain its actual address and process identity in private state, and serialize start/stop across Gimble processes. Start is idempotent. This does not need a generic daemon framework. The same configured state directory must be used by all callers to discover the same server.
+Use one managed `opencode serve` process for the user across projects. Stock serve supports HTTP TCP, not a Unix socket CLI option. Bind loopback, retain its actual address and process identity in private state, and serialize start/stop across Gimbal processes. Start is idempotent. This does not need a generic daemon framework. The same configured state directory must be used by all callers to discover the same server.
 
 Every project request carries the correct absolute directory. `/event` is scoped to directory/workspace. `/global/event` is process-wide and wraps each legacy event in a location envelope. There is no legacy `/session/{sessionID}/event`; the similarly named `/api/session/{sessionID}/event` is the newer durable stream.
 
-One global SSE reader in each Gimble process can route by native session ID to the active turn callback. Independent Gimble processes may each have a subscription to the same OpenCode server; no cross-process event broker is needed. Gimble's existing callback wrapper already records events with the correct run, scope, session and turn. Normalize the selected native events before dispatch and ignore unrelated sessions; do not add another persistence layer.
+One global SSE reader in each Gimbal process can route by native session ID to the active turn callback. Independent Gimbal processes may each have a subscription to the same OpenCode server; no cross-process event broker is needed. Gimbal's existing callback wrapper already records events with the correct run, scope, session and turn. Normalize the selected native events before dispatch and ignore unrelated sessions; do not add another persistence layer.
 
 Closing a session releases its local routing/resources, not the shared process or project instance. OpenCode caches project instances; there is no observed idle eviction timer. Explicit server stop provides memory reclamation. `/instance/dispose` and `/global/dispose` are not substitutes for session cleanup or process stop.
 
-Sources: [server audit](../../../.gimble/research/opencode-legacy-design/server/findings.md), [event audit](../../../.gimble/research/opencode-legacy-design/events/findings.md), [Gimble callback](../../../session.go).
+Sources: [server audit](../../../.gimbal/research/opencode-legacy-design/server/findings.md), [event audit](../../../.gimbal/research/opencode-legacy-design/events/findings.md), [Gimbal callback](../../../session.go).
 
 ## Completion requires more than idle
 
@@ -40,18 +40,18 @@ A mechanical reference traversal of the five core nonstream session operations p
 
 Fork copies conversation data but does not inherit all model/agent/permission settings. Retain adapter settings and send model/variant on prompts; restore explicit permission rules if used. Legacy schema output uses the StructuredOutput tool and assistant `structured` field. Do not assume the exposed retryCount is implemented by the inspected prompt loop.
 
-Source: [minimal surface audit](../../../.gimble/research/opencode-legacy-design/surface/findings.md).
+Source: [minimal surface audit](../../../.gimbal/research/opencode-legacy-design/surface/findings.md).
 
 ## Steering and decisions still open
 
-Ordinary legacy prompt submission can join an active loop, but a finish race can instead start a new run or leave an input unconsumed. A promising boundary-delivery approach inserts the steer with `noReply:true`, which cannot itself start execution, then checks assistant-parent correlation. If the current run ends without consuming it, delete the unconsumed message before returning a dropped steer. This needs serialized local completion/steering, exclusive ownership of the native session, and live race proof. It adds only short message-create/delete calls. Immediate abort-and-continue inside the same Gimble RunTurn is another option, but interrupts native work.
+Ordinary legacy prompt submission can join an active loop, but a finish race can instead start a new run or leave an input unconsumed. A promising boundary-delivery approach inserts the steer with `noReply:true`, which cannot itself start execution, then checks assistant-parent correlation. If the current run ends without consuming it, delete the unconsumed message before returning a dropped steer. This needs serialized local completion/steering, exclusive ownership of the native session, and live race proof. It adds only short message-create/delete calls. Immediate abort-and-continue inside the same Gimbal RunTurn is another option, but interrupts native work.
 
 The user suggested newer API steering for legacy sessions. Two independent source traces found that both APIs share SessionTable, correcting any inference that different list results prove separate session identities. However, newer admission writes SessionInputTable, and newer prompt promotion writes SessionMessageTable. The legacy loop reads MessageTable/PartTable. Newer wake invokes a separate coordinator/runner; the inspected projector does not bridge its prompts into the legacy execution. Therefore newer `delivery:"steer"` is not a supported shortcut for this legacy adapter. An accepted session ID or prompt does not establish active-run interoperability. See the mixed-generation follow-up in both audits.
 
 Decisions and remaining verification:
 
-1. User selected automatic start on first use, with explicit `gimble opencode start` available for prewarming. Cleanup never starts or stops it.
-2. User selected explicit `gimble opencode stop` interrupting all active work. Affected runs report interruption.
+1. User selected automatic start on first use, with explicit `gimbal opencode start` available for prewarming. Cleanup never starts or stops it.
+2. User selected explicit `gimbal opencode stop` interrupting all active work. Affected runs report interruption.
 3. The user proposed newer-API steering instead of selecting boundary delivery or abort/continue. Source inspection rules out treating this as a supported bridge. Recommend proving legacy `noReply:true` boundary delivery before opting for interruption.
 4. Superseded by the user's latest instruction: build the easy two-connection version first, using a synchronous prompt POST for completion alongside the shared SSE stream. Record raw events and POST outcomes. A later Luna analysis can infer event-only semantics before discarding POST responses; do not make that transition without evidence.
 

@@ -22,7 +22,7 @@ existing contract gives the naming rules: `Service` and `RunCommand` take a
 constant `name`; `Check` uses its constant context key. Source is already
 module-relative file plus line. The API records that names are call-site
 constants and that `Check` keys are explicit rather than invented
-([gimble-api.md](sources/gimble-api.md#L972-L986)); the service implementation
+([gimbal-api.md](sources/gimbal-api.md#L972-L986)); the service implementation
 also calls the name the service's constant graph/run name
 ([service.go.txt](sources/service.go.txt#L23-L37)). A proposed representation must not
 rename these fields or replace source anchors with runtime IDs.
@@ -32,7 +32,7 @@ zsh, returns after start rather than readiness, and belongs to the current
 scope; readiness remains ordinary workflow code or `Check`. Enclosing-scope
 services span iterations, item-local services do not. Unexpected exit,
 SIGTERM/SIGKILL cleanup, output, and failure propagation are runtime behavior
-([gimble-api.md](sources/gimble-api.md#L988-L1010)); the original issue also
+([gimbal-api.md](sources/gimbal-api.md#L988-L1010)); the original issue also
 explicitly defers restarts, readiness frameworks, dependency graphs,
 persistent daemons, and launchd integration ([issue-276.md](sources/issue-276.md#L19-L39)).
 

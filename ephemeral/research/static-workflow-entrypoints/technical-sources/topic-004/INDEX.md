@@ -8,12 +8,12 @@ This topic defines the Go client contract for SKGO remote forms, covering typed 
 
 ### 1. Client API Signatures, Type Declarations, and Package Structure
 
-To eliminate duplicated SvelteKit wire protocol logic in Gimble, SKGO must generate typed Go client callers from the same remote form declarations used to generate TypeScript stubs and server handlers. ([skgo-gen-emit-and-codecs.txt](sources/skgo-gen-emit-and-codecs.txt), [gimble-implementation-plan-contract.txt](sources/gimble-implementation-plan-contract.txt))
+To eliminate duplicated SvelteKit wire protocol logic in Gimbal, SKGO must generate typed Go client callers from the same remote form declarations used to generate TypeScript stubs and server handlers. ([skgo-gen-emit-and-codecs.txt](sources/skgo-gen-emit-and-codecs.txt), [gimbal-implementation-plan-contract.txt](sources/gimbal-implementation-plan-contract.txt))
 
 - **Package Structure**:
   - The client generation logic belongs in SKGO's `internal/gen` (e.g. extending `emit.go` to write a client package or exported client methods).
   - The shared wire encoding and response decoding belong in SKGO's runtime (e.g., `skgo` or a subpackage like `skgo/client`).
-  - Gimble's CLI commands import the generated client package (e.g. `github.com/tylergannon/gimble/internal/skgo/client` or direct package bindings) and call typed functions.
+  - Gimbal's CLI commands import the generated client package (e.g. `github.com/tylergannon/gimbal/internal/skgo/client` or direct package bindings) and call typed functions.
 - **Type Declarations and Signatures**:
   - Generated client method:
     ```go
@@ -31,8 +31,8 @@ To eliminate duplicated SvelteKit wire protocol logic in Gimble, SKGO must gener
 
 ### 2. HTTP and Unix Domain Socket (UDS) Transport Configuration
 
-Gimble instances listen on a web port and a dedicated Unix Domain Socket at `<instance-dir>/control/<pid>.sock`.
-The generated client must accept a configured `http.RoundTripper` or `*http.Client` to communicate over either transport. ([gimble-web-submit-and-control.txt](sources/gimble-web-submit-and-control.txt), [client-transport-and-cancellation.md](clips/client-transport-and-cancellation.md))
+Gimbal instances listen on a web port and a dedicated Unix Domain Socket at `<instance-dir>/control/<pid>.sock`.
+The generated client must accept a configured `http.RoundTripper` or `*http.Client` to communicate over either transport. ([gimbal-web-submit-and-control.txt](sources/gimbal-web-submit-and-control.txt), [client-transport-and-cancellation.md](clips/client-transport-and-cancellation.md))
 
 - **UDS Configuration**:
   ```go
@@ -43,12 +43,12 @@ The generated client must accept a configured `http.RoundTripper` or `*http.Clie
   }
   client := &http.Client{Transport: transport}
   ```
-- **URL Convention**: When dialing via UDS, the host in the URL is synthetic (e.g., `http://gimble/_app/remote/...` or `http://localhost/...`), while the request path targets the remote function endpoint.
-- **Headers**: Client requests can include necessary headers (e.g. `X-Gimble-Project` where applicable) without fabricating browser-specific Origin or Referer headers.
+- **URL Convention**: When dialing via UDS, the host in the URL is synthetic (e.g., `http://gimbal/_app/remote/...` or `http://localhost/...`), while the request path targets the remote function endpoint.
+- **Headers**: Client requests can include necessary headers (e.g. `X-Gimbal-Project` where applicable) without fabricating browser-specific Origin or Referer headers.
 
 ### 3. Caller Context Cancellation and Server Run Lifetime
 
-The client must honor caller context cancellation during network wait without terminating work accepted by the server. ([gimble-web-submit-and-control.txt](sources/gimble-web-submit-and-control.txt), [gimble-implementation-plan-contract.txt](sources/gimble-implementation-plan-contract.txt), [client-transport-and-cancellation.md](clips/client-transport-and-cancellation.md))
+The client must honor caller context cancellation during network wait without terminating work accepted by the server. ([gimbal-web-submit-and-control.txt](sources/gimbal-web-submit-and-control.txt), [gimbal-implementation-plan-contract.txt](sources/gimbal-implementation-plan-contract.txt), [client-transport-and-cancellation.md](clips/client-transport-and-cancellation.md))
 
 - **Client Cancellation Behavior**:
   - The client makes the HTTP call using `http.NewRequestWithContext(ctx, http.MethodPost, url, body)`.
@@ -71,29 +71,29 @@ An inspection of SKGO commit history and diffs reveals significant evolution bet
 - **Missing Features in fed929b**:
   - Does **not** yet generate Go clients for remote Forms in `internal/gen`.
   - Does **not** yet fix form scalar/Optional binding in `internal/formdata/decode.go` (it still bypasses Polytype codecs and fails to bind scalars to `polytype.Optional[T]`).
-- **Minimum Release Baseline for Gimble**:
-  - Gimble cannot pin `v0.5.0` or `fed929b` directly.
+- **Minimum Release Baseline for Gimbal**:
+  - Gimbal cannot pin `v0.5.0` or `fed929b` directly.
   - SKGO must implement typed Go Form client generation, wire transport encoding/decoding, and Polytype-delegated form decoding on top of `fed929b`.
-  - A new release tag (e.g., `v0.7.0`) must be cut and published. Gimble can then update `go.mod` to pin this release, satisfying the Definition of Done requirement: "leave no local module replacement in the delivered build".
+  - A new release tag (e.g., `v0.7.0`) must be cut and published. Gimbal can then update `go.mod` to pin this release, satisfying the Definition of Done requirement: "leave no local module replacement in the delivered build".
 
 ## Actionable Constraints for Implementation
 
-1. **Configurable Transport**: SKGO client functions must accept an `http.RoundTripper` or `*http.Client` so Gimble can route over UDS or standard HTTP interchangeably.
+1. **Configurable Transport**: SKGO client functions must accept an `http.RoundTripper` or `*http.Client` so Gimbal can route over UDS or standard HTTP interchangeably.
 2. **Context Independence**: Aborting client network wait must unblock the CLI without canceling the server run.
 3. **No Retries**: The client must treat POST mutations as non-idempotent and refrain from automatic retries.
-4. **Cross-Repo Delivery Order**: SKGO must be updated and tagged first; Gimble updates its pin only after SKGO releases the required client generator and form decoder fixes.
+4. **Cross-Repo Delivery Order**: SKGO must be updated and tagged first; Gimbal updates its pin only after SKGO releases the required client generator and form decoder fixes.
 
 ## Questions Addressed
 
 - **API signature and package structure**: Documented typed client signatures, input/output reuse, error unmarshaling (`*skgo.Invalid` vs `*skgo.HTTPError`), and SKGO generator integration points.
-- **UDS transport configuration**: Provided exact Go `http.Transport` `DialContext` configuration for Gimble's control socket.
+- **UDS transport configuration**: Provided exact Go `http.Transport` `DialContext` configuration for Gimbal's control socket.
 - **Context cancellation propagation**: Clarified the boundary between network wait abortion and server run context independence.
-- **Differences and release baseline**: Cataloged git commits from `v0.5.0` through `v0.6.0` to `fed929b`, identified missing client generation and form binding capabilities, and defined the release baseline required for Gimble.
+- **Differences and release baseline**: Cataloged git commits from `v0.5.0` through `v0.6.0` to `fed929b`, identified missing client generation and form binding capabilities, and defined the release baseline required for Gimbal.
 
 ## Distinctions: Supported Facts vs Inference
 
 - **Supported Fact**: SKGO commit `fed929b` deleted `internal/devalue` in favor of `polytype/devalue.Uneval` and does not contain Go client generation.
-- **Supported Fact**: Gimble connects to its control socket via `http.Transport` with custom `DialContext` using `net.Dialer.DialContext(ctx, "unix", socketPath)`.
+- **Supported Fact**: Gimbal connects to its control socket via `http.Transport` with custom `DialContext` using `net.Dialer.DialContext(ctx, "unix", socketPath)`.
 - **Supported Fact**: Server workflow execution runs in a background goroutine using `run.Context`, decoupled from `r.Context()`.
 - **Inference**: A new minor release (e.g. `v0.7.0`) will be needed once client generation and form decoding fixes land in SKGO.
 

@@ -1,4 +1,4 @@
-// Package claude is Gimble's HarnessAdapter for Claude Code, through the
+// Package claude is Gimbal's HarnessAdapter for Claude Code, through the
 // Claude Agent SDK. Each turn launches Claude Code against the session id;
 // the conversation is Claude Code's to keep.
 package claude
@@ -17,7 +17,7 @@ import (
 	"time"
 
 	claudeagent "github.com/tylergannon/claude-agent-sdk-go"
-	"github.com/tylergannon/gimble"
+	"github.com/tylergannon/gimbal"
 )
 
 const controlTimeout = 5 * time.Second
@@ -67,11 +67,11 @@ type activeTurn struct {
 	emit   *projector
 }
 
-// New returns Gimble's Claude Code harness. It launches Claude Code when a
+// New returns Gimbal's Claude Code harness. It launches Claude Code when a
 // session first needs it. Its sessions start on the CLI's own tools and the
 // repository's configuration, not the user's, unless a workflow asks for the
 // user's with WithUserConfiguration.
-func New(options ...Option) gimble.HarnessAdapter {
+func New(options ...Option) gimbal.HarnessAdapter {
 	a := &adapter{sessions: make(map[string]*session)}
 	for _, option := range options {
 		option(a)
@@ -125,10 +125,10 @@ func (a *adapter) add(s *session) (string, error) {
 }
 
 // RunTurn runs one turn and blocks until it ends.
-func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema json.RawMessage, onEvent func(gimble.AgentEvent) error) (gimble.TurnResult, error) {
+func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema json.RawMessage, onEvent func(gimbal.AgentEvent) error) (gimbal.TurnResult, error) {
 	s, err := a.session(sessionID)
 	if err != nil {
-		return gimble.TurnResult{}, err
+		return gimbal.TurnResult{}, err
 	}
 	s.mu.Lock()
 	fresh, parent := s.fresh, s.parent
@@ -162,7 +162,7 @@ func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema 
 	}
 	nativeSchema, err := completionSchema(schema)
 	if err != nil {
-		return gimble.TurnResult{}, fmt.Errorf("claude: compose completion schema: %w", err)
+		return gimbal.TurnResult{}, fmt.Errorf("claude: compose completion schema: %w", err)
 	}
 	text := string(nativeSchema)
 	extra["json-schema"] = &text
@@ -186,12 +186,12 @@ func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema 
 	defer stop()
 	client, err := claudeagent.NewClient(options...)
 	if err != nil {
-		return gimble.TurnResult{}, fmt.Errorf("claude: %w", err)
+		return gimbal.TurnResult{}, fmt.Errorf("claude: %w", err)
 	}
 	defer func() { _ = client.Close() }()
 	stream, err := client.Stream(processCtx)
 	if err != nil {
-		return gimble.TurnResult{}, fmt.Errorf("claude: %w", err)
+		return gimbal.TurnResult{}, fmt.Errorf("claude: %w", err)
 	}
 	defer func() { _ = stream.Close() }()
 
@@ -199,18 +199,18 @@ func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema 
 	s.setActive(active)
 	defer s.setActive(nil)
 	if err := stream.Send(processCtx, prompt); err != nil {
-		return gimble.TurnResult{}, fmt.Errorf("claude: %w", err)
+		return gimbal.TurnResult{}, fmt.Errorf("claude: %w", err)
 	}
 
 	out, err := waitTurn(ctx, stream, nativeErrors, sessionID, s)
 	if ctx.Err() != nil {
-		return gimble.TurnResult{}, ctx.Err()
+		return gimbal.TurnResult{}, ctx.Err()
 	}
 	if err != nil {
-		return gimble.TurnResult{}, err
+		return gimbal.TurnResult{}, err
 	}
 	usage := project.turnUsage()
-	return gimble.TurnResult{Output: out, Usage: usage}, nil
+	return gimbal.TurnResult{Output: out, Usage: usage}, nil
 }
 
 // Steer sends message on the running turn's live SDK stream and reports
@@ -427,7 +427,7 @@ func completionSchema(schema json.RawMessage) (json.RawMessage, error) {
 	root, isObject := caller.(map[string]any)
 	defs := make(map[string]any)
 	var legacyDefinitions map[string]any
-	name := "__gimble_completion_value"
+	name := "__gimbal_completion_value"
 	if isObject {
 		if existing, ok := root["$defs"].(map[string]any); ok {
 			maps.Copy(defs, existing)
@@ -607,4 +607,4 @@ func fatalStderr(data string) error {
 	return nil
 }
 
-var _ gimble.HarnessAdapter = (*adapter)(nil)
+var _ gimbal.HarnessAdapter = (*adapter)(nil)

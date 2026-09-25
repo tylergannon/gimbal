@@ -6,8 +6,8 @@ import (
 
 	"github.com/tylergannon/skgo"
 
-	"github.com/tylergannon/gimble"
-	"github.com/tylergannon/gimble/internal/live"
+	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/internal/live"
 )
 
 // StopTurn identifies the running turn an operator intends to interrupt.
@@ -33,7 +33,7 @@ func stopTurn(ctx context.Context, arg StopTurn) (ControlAccepted, error) {
 	if err != nil {
 		return ControlAccepted{}, err
 	}
-	cause := gimble.Killed{Target: arg.Turn, By: "person", Reason: "stopped from the run workspace"}
+	cause := gimbal.Killed{Target: arg.Turn, By: "person", Reason: "stopped from the run workspace"}
 	if err := run.CancelTurn(arg.Turn, cause); err != nil {
 		return ControlAccepted{}, skgo.Errorf(http.StatusNotFound,
 			"Turn %s is no longer running in %s.", arg.Turn, arg.Run)
@@ -46,7 +46,7 @@ func cancelRun(ctx context.Context, arg CancelRun) (ControlAccepted, error) {
 	if err != nil {
 		return ControlAccepted{}, err
 	}
-	cause := gimble.Killed{Target: "", By: "person", Reason: "cancelled from the run workspace"}
+	cause := gimbal.Killed{Target: "", By: "person", Reason: "cancelled from the run workspace"}
 	if err := run.CancelScope("", cause); err != nil {
 		return ControlAccepted{}, skgo.Errorf(http.StatusNotFound,
 			"Run %s is no longer running.", arg.Run)

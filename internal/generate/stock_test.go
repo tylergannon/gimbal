@@ -6,7 +6,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/tylergannon/gimble/internal/generate"
+	"github.com/tylergannon/gimbal/internal/generate"
 )
 
 func TestStockRecoversMissingAndStaleOutput(t *testing.T) {
@@ -15,7 +15,7 @@ func TestStockRecoversMissingAndStaleOutput(t *testing.T) {
 		t.Fatal(err)
 	}
 	form := filepath.Join(root, "web", "src", "routes", "review_start.remote.go")
-	command := filepath.Join(root, "cmd", "gimble", "review_gen.go")
+	command := filepath.Join(root, "cmd", "gimbal", "review_gen.go")
 	firstForm, err := os.ReadFile(form)
 	if err != nil {
 		t.Fatal(err)

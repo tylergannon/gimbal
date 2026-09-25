@@ -1,6 +1,6 @@
 # Behavioral Proof Standards, Concurrency Verification, and Live Model Policy
 
-- **Origin**: `/Users/tyler/.codex/worktrees/d798/gimble`
+- **Origin**: `/Users/tyler/.codex/worktrees/d798/gimbal`
 - **Files**:
   - `AGENTS.md`
   - `ephemeral/research/static-workflow-entrypoints/definition-of-done.md`
@@ -81,8 +81,8 @@ flash. Record which model each observation used. Choose small valid inputs and
 isolated projects; do not operate on unrelated active runs to prove lifecycle
 behavior.
 
-SKGO's relevant checks and Gimble's required build, test, vet, formatting, and
-browser checks pass. In Gimble these are `just build`, `just test`, `just vet`,
+SKGO's relevant checks and Gimbal's required build, test, vet, formatting, and
+browser checks pass. In Gimbal these are `just build`, `just test`, `just vet`,
 `just fmt-check`, and `just e2e`. Inspect generated output and the actual
 rendered CLI help. These are correctness gates separate from behavioral proof.
 

@@ -1,4 +1,4 @@
-# Source leaf: `ephemeral/projects/gimble/programmatic-workflows/ACTIONS-AND-KNOWLEDGE-VERBATIM.md`
+# Source leaf: `ephemeral/projects/gimbal/programmatic-workflows/ACTIONS-AND-KNOWLEDGE-VERBATIM.md`
 
 ## Purpose
 
@@ -9,16 +9,16 @@ need to make research and semantic indexing part of difficult workflow design.
 
 - Static analysis may identify graph structure while an agent supplies useful
   layout and conceptual links for human understanding:
-  `ephemeral/projects/gimble/programmatic-workflows/ACTIONS-AND-KNOWLEDGE-VERBATIM.md:1-3`.
+  `ephemeral/projects/gimbal/programmatic-workflows/ACTIONS-AND-KNOWLEDGE-VERBATIM.md:1-3`.
 - Ordinary Go may reduce the number of primitive shapes; command, agent task,
   and supervisor/coach are the initial vocabulary:
-  `ephemeral/projects/gimble/programmatic-workflows/ACTIONS-AND-KNOWLEDGE-VERBATIM.md:5-21`.
+  `ephemeral/projects/gimbal/programmatic-workflows/ACTIONS-AND-KNOWLEDGE-VERBATIM.md:5-21`.
 - Coding, validation, indexing, and research may deserve recognizable roles;
   research and indexing are companions to coding and validation:
-  `ephemeral/projects/gimble/programmatic-workflows/ACTIONS-AND-KNOWLEDGE-VERBATIM.md:19-25`.
+  `ephemeral/projects/gimbal/programmatic-workflows/ACTIONS-AND-KNOWLEDGE-VERBATIM.md:19-25`.
 - Difficult workflow tasks should have broader context local and searchable so
   agents are not inventing or hunting for absent prior art:
-  `ephemeral/projects/gimble/programmatic-workflows/ACTIONS-AND-KNOWLEDGE-VERBATIM.md:23-25`.
+  `ephemeral/projects/gimbal/programmatic-workflows/ACTIONS-AND-KNOWLEDGE-VERBATIM.md:23-25`.
 
 ## Retrieval recipes
 

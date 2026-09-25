@@ -8,13 +8,13 @@ build:
     cd web && pnpm exec vp build
     test -s web/build/skgo.manifest.json
     cd web && zip -X -FS -qr build.zip build
-    go build -o bin/gimble ./cmd/gimble
+    go build -o bin/gimbal ./cmd/gimbal
 
 dev-web:
     cd web && ORIGIN='{{origin}}' pnpm exec vp dev --host 127.0.0.1 --port 5173 --strictPort
 
 dev-go:
-    GIMBLE_WEB_PROXY=http://127.0.0.1:5173 GIMBLE_WEB_ORIGIN='{{origin}}' go run ./cmd/gimble --port 8080
+    GIMBAL_WEB_PROXY=http://127.0.0.1:5173 GIMBAL_WEB_ORIGIN='{{origin}}' go run ./cmd/gimbal --port 8080
 
 e2e run="run":
     cd e2e && pnpm install
@@ -23,8 +23,8 @@ e2e run="run":
 
 vet:
     go vet ./...
-    go build -o bin/gimble ./cmd/gimble
-    ./bin/gimble lint ./...
+    go build -o bin/gimbal ./cmd/gimbal
+    ./bin/gimbal lint ./...
 
 test:
     go test -count=1 ./...

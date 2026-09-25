@@ -1,4 +1,4 @@
-package gimble
+package gimbal
 
 import (
 	"context"
@@ -157,7 +157,7 @@ func Check(ctx context.Context, key, workdir, command string, args ...string) er
 	}
 	raw, err := json.Marshal(result)
 	if err != nil {
-		return errors.Join(commandErr, commandRecordErr, fmt.Errorf("gimble: check %q: encode result: %w", key, err))
+		return errors.Join(commandErr, commandRecordErr, fmt.Errorf("gimbal: check %q: encode result: %w", key, err))
 	}
 	return errors.Join(commandErr, commandRecordErr, recordCheckResult(s, key, raw))
 }
@@ -166,25 +166,25 @@ func checkKeyAvailable(s *scope, key string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.ended {
-		return fmt.Errorf("gimble: check %q: scope %q ended", key, s.key)
+		return fmt.Errorf("gimbal: check %q: scope %q ended", key, s.key)
 	}
 	if _, ok := s.values[key]; ok {
-		return fmt.Errorf("gimble: check result %q is already recorded in scope %q", key, s.key)
+		return fmt.Errorf("gimbal: check result %q is already recorded in scope %q", key, s.key)
 	}
 	return nil
 }
 
 func recordCheckResult(s *scope, key string, raw []byte) error {
 	if s == nil {
-		return errors.New("gimble: check: no scope in the ctx; it must come from gimble.Run")
+		return errors.New("gimbal: check: no scope in the ctx; it must come from gimbal.Run")
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.ended {
-		return fmt.Errorf("gimble: check %q: scope %q ended", key, s.key)
+		return fmt.Errorf("gimbal: check %q: scope %q ended", key, s.key)
 	}
 	if _, ok := s.values[key]; ok {
-		return fmt.Errorf("gimble: check result %q is already recorded in scope %q", key, s.key)
+		return fmt.Errorf("gimbal: check result %q is already recorded in scope %q", key, s.key)
 	}
 	if s.values == nil {
 		s.values = make(map[string]*scopeValue)
@@ -192,13 +192,13 @@ func recordCheckResult(s *scope, key string, raw []byte) error {
 	value := &scopeValue{owner: s, raw: append([]byte(nil), raw...)}
 	if tokenCount("## "+key+"\n\n"+render(raw)) > contextEntryTokenLimit {
 		if err := s.spillValueLocked(key, value); err != nil {
-			return fmt.Errorf("gimble: check %q: record result: %w", key, err)
+			return fmt.Errorf("gimbal: check %q: record result: %w", key, err)
 		}
 	}
 	s.values[key] = value
 	s.keys = append(s.keys, key)
 	if err := s.run.eventResult(s.key, "", "", valueEvent(key, value)); err != nil {
-		return fmt.Errorf("gimble: check %q: record result: %w", key, err)
+		return fmt.Errorf("gimbal: check %q: record result: %w", key, err)
 	}
 	return nil
 }
@@ -228,7 +228,7 @@ func runCommand(ctx context.Context, s *scope, name, workdir, command string, ar
 		}
 	}
 	if captureErr != nil {
-		commandErr = fmt.Errorf("gimble: %s: capture output: %w", id, captureErr)
+		commandErr = fmt.Errorf("gimbal: %s: capture output: %w", id, captureErr)
 		s.run.recordFailure("capture command output "+id, captureErr)
 	}
 	ended.Error, ended.Duration = errString(commandErr), time.Since(start)
@@ -266,21 +266,21 @@ func runCapturedCommand(ctx context.Context, id, workdir, command string, args [
 		if cmd.ProcessState != nil {
 			ended.ExitCode = cmd.ProcessState.ExitCode()
 		}
-		err = fmt.Errorf("gimble: %s: capture output: %w", id, captureErr)
+		err = fmt.Errorf("gimbal: %s: capture output: %w", id, captureErr)
 	case killed.Load() || cmd.ProcessState == nil && errors.Is(startErr, ctx.Err()):
 		cause := context.Cause(ctx)
 		if cause != ctx.Err() {
 			cause = fmt.Errorf("%w: %w", ctx.Err(), cause)
 		}
-		err = fmt.Errorf("gimble: %s: %w", id, cause)
+		err = fmt.Errorf("gimbal: %s: %w", id, cause)
 		ended.Interrupted = true
 	case cmd.ProcessState == nil:
-		err = fmt.Errorf("gimble: %s: %w", id, startErr)
+		err = fmt.Errorf("gimbal: %s: %w", id, startErr)
 	default:
 		ended.ExitCode = cmd.ProcessState.ExitCode()
 		var exitErr *exec.ExitError
 		if runErr != nil && !errors.As(runErr, &exitErr) && !errors.Is(runErr, exec.ErrWaitDelay) {
-			err = fmt.Errorf("gimble: %s: %w", id, runErr)
+			err = fmt.Errorf("gimbal: %s: %w", id, runErr)
 		}
 	}
 	ended.Stdout, ended.Stderr = stdout, stderr

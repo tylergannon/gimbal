@@ -1,6 +1,6 @@
 # Upstream revision
 
-Gimble depends on the forked module:
+Gimbal depends on the forked module:
 
 ```text
 github.com/tylergannon/claude-agent-sdk-go

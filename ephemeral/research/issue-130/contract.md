@@ -1,8 +1,8 @@
 # Issue 130: current implementation contract
 
 Use OpenCode's native `session.*` event payload vocabulary for the supported
-Gimble observations. Do not add a parallel custom vocabulary or runtime schema
-validation of Gimble's own emitted events.
+Gimbal observations. Do not add a parallel custom vocabulary or runtime schema
+validation of Gimbal's own emitted events.
 
 ## Borrowed implementation
 
@@ -13,10 +13,10 @@ under `packages/schema/src/`. This newer revision has a native V2 UI; the older
 standalone V2 reducer and legacy projection are not interchangeable with it.
 The source is MIT, copyright 2025 opencode; retain its notices and source pin.
 
-Port the event-application behavior used by Gimble, including authoritative
+Port the event-application behavior used by Gimbal, including authoritative
 text/reasoning/tool finals. Preserve upstream handling of optional fields,
 message identity, and ordering. OpenCode's separate HTTP cache-refill/read
-orchestrator is not part of Gimble's observation reducer. The adapters serialize
+orchestrator is not part of Gimbal's observation reducer. The adapters serialize
 same-type content blocks; overlapping same-type starts retain upstream's known
 limitation, recorded by the oracle fixture.
 
@@ -27,7 +27,7 @@ counters, reducer checkpoint APIs, or read/settle transport frames.
 ## Producer and storage boundary
 
 Claude and Codex translate supported provider activity into native payloads.
-Gimble assigns event IDs, timestamps, and stable ascending message IDs while
+Gimbal assigns event IDs, timestamps, and stable ascending message IDs while
 preserving provider references on emitted records. Unmapped provider traffic is
 ignored. There is no separate native-audit log or unused durable aggregate
 sequence/version field.

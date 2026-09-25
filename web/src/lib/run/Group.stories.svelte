@@ -38,7 +38,7 @@
   }
 
   const { Story } = defineMeta({
-    title: "Gimble/Run/Group",
+    title: "Gimbal/Run/Group",
     component: Group,
     parameters: { layout: "centered" },
   });

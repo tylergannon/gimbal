@@ -12,17 +12,17 @@ To break the cyclic import chain (`web -> internal/skgo -> web/src/routes -> int
 
 ### Types Moving to Host Package
 - `host.Instance`: owns instance directory, control socket (`startControl`), active runs waitgroup, background shutdown coordination, and project runtime registry map (`map[string]*Runtime`).
-- `host.Runtime`: owns an admitted repository's canonical directory, state directory (`.gimble`), filesystem lock (`ownerLock *os.File`), live runs table (`*live.Runs`), observation registry (`*observation.Registry`), and conversation manager (`*conversation.Manager`).
+- `host.Runtime`: owns an admitted repository's canonical directory, state directory (`.gimbal`), filesystem lock (`ownerLock *os.File`), live runs table (`*live.Runs`), observation registry (`*observation.Registry`), and conversation manager (`*conversation.Manager`).
 - `host.ProjectChoice`: JSON model for admitted projects (`ID`, `Path`).
-- `host.controlDiscovery`: JSON discovery metadata written to `.gimble/control/<id>.json`.
+- `host.controlDiscovery`: JSON discovery metadata written to `.gimbal/control/<id>.json`.
 - `host.controlHandler`: HTTP handler serving `/control/runs`, `/control/steer`, `/control/steer-loop`.
 
 ### Lifecycle Functions Moving to Host Package
 - `NewInstance(ctx context.Context, instanceDir string, initialProjects []string, opts ...Option) (*Instance, error)`
 - `NewRuntime(ctx context.Context, projectDir string, opts ...Option) (*Runtime, error)`
-- `(i *Instance) AdmitProject(dir string) (*Runtime, error)`: handles canonicalization (`EvalSymlinks`), `.gimble` creation, `unix.Flock` on `ownerLock`, registry/runs/conversation initialization, and project discovery persistence.
+- `(i *Instance) AdmitProject(dir string) (*Runtime, error)`: handles canonicalization (`EvalSymlinks`), `.gimbal` creation, `unix.Flock` on `ownerLock`, registry/runs/conversation initialization, and project discovery persistence.
 - `canonicalProject(dir string) (string, error)` and `projectID(path string) string`.
-- `(r *Runtime) Run(ctx context.Context, name string, models map[gimble.WorkflowRole]gimble.ModelBinding, body func(context.Context) error) error`: handles panic containment (`recover`), active runs tracking, lifecycle context derivation from `instance.ctx`, and invocation of `gimble.Run`.
+- `(r *Runtime) Run(ctx context.Context, name string, models map[gimbal.WorkflowRole]gimbal.ModelBinding, body func(context.Context) error) error`: handles panic containment (`recover`), active runs tracking, lifecycle context derivation from `instance.ctx`, and invocation of `gimbal.Run`.
 - `(r *Runtime) Steer(...)`, `(r *Runtime) SteerLoop(...)`, `(r *Runtime) KillScope(...)`, `(r *Runtime) KillTurn(...)`.
 - `(r *Runtime) controlRuns() ([]observation.RunRow, error)`.
 - `(i *Instance) startControl() error` and `writeProjectDiscovery(project string) error`.
@@ -49,7 +49,7 @@ Relocation:
 
 Concrete remote handlers (e.g. `web/src/routes/review.remote.go` or `web/src/routes/start/*.remote.go`):
 1. Import `internal/host` directly (allowed because `internal/host` is strictly below `web`).
-2. Import the concrete workflow package directly (e.g. `github.com/tylergannon/gimble/internal/workflows/review`), which itself only imports `gimble` and `workflow`.
+2. Import the concrete workflow package directly (e.g. `github.com/tylergannon/gimbal/internal/workflows/review`), which itself only imports `gimbal` and `workflow`.
 3. In the remote handler:
    ```go
    func StartReview(ctx context.Context, req ReviewRequest) (AdmissionResult, error) {
@@ -60,7 +60,7 @@ Concrete remote handlers (e.g. `web/src/routes/review.remote.go` or `web/src/rou
        }
        // Validate models, workdir, conversation association...
        runID, err := p.StartRun(ctx, "review", models, func(runCtx context.Context) error {
-           return review.Review(runCtx, gimble.Env{WorkDir: req.WorkDir}, req.Params)
+           return review.Review(runCtx, gimbal.Env{WorkDir: req.WorkDir}, req.Params)
        })
        return AdmissionResult{ID: runID, Project: p.ID()}, err
    }

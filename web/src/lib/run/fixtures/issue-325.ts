@@ -389,9 +389,9 @@ const turns = {
 // ---------------------------------------------------------------------------
 
 const failingStdout =
-  "> gimble-web@0.0.1 test:task /workspace/gimble/web\n" +
+  "> gimbal-web@0.0.1 test:task /workspace/gimbal/web\n" +
   "> vitest run src/routes/+page.test.ts\n\n" +
-  " RUN  v2.1.4 /workspace/gimble/web\n\n" +
+  " RUN  v2.1.4 /workspace/gimbal/web\n\n" +
   " ✓ src/routes/+page.test.ts (9)\n" +
   "   ✓ rack renders seven tiles\n" +
   "   ✓ click-to-place fills the selected square\n" +
@@ -436,7 +436,7 @@ const commands = {
     name: "task-check",
     command: "sh",
     args: ["-lc", "pnpm exec vitest run src/routes/+page.test.ts"],
-    workdir: "/workspace/gimble/web",
+    workdir: "/workspace/gimbal/web",
     exit_code: 1,
     stdout: failingStdout,
     stderr: failingStderr,
@@ -596,7 +596,7 @@ const transcript1: Snapshot = {
                   {
                     type: "text",
                     text:
-                      " RUN  v2.1.4 /workspace/gimble/web\n\n ✓ src/routes/+page.test.ts (9)\n" +
+                      " RUN  v2.1.4 /workspace/gimbal/web\n\n ✓ src/routes/+page.test.ts (9)\n" +
                       "   ✓ rack renders seven tiles\n   ✓ click-to-place fills the selected square\n" +
                       "   ✓ drag from rack to empty square places the tile\n" +
                       "   ✓ drag to an occupied square snaps back\n   ✓ drag off the board snaps back\n" +
@@ -1100,7 +1100,7 @@ const transcript2: Snapshot = {
                   {
                     type: "text",
                     text:
-                      " RUN  v2.1.4 /workspace/gimble/web\n\n ✓ src/routes/+page.test.ts (9)\n" +
+                      " RUN  v2.1.4 /workspace/gimbal/web\n\n ✓ src/routes/+page.test.ts (9)\n" +
                       "   ✓ rack renders seven tiles\n   ✓ click-to-place fills the selected square\n" +
                       "   ✓ drag from rack to empty square places the tile\n" +
                       "   ✓ drag to an occupied square snaps back\n   ✓ drag off the board snaps back\n" +
@@ -1384,7 +1384,7 @@ if (runningTool) {
     content: [
       {
         type: "text",
-        text: " RUN  v2.1.4 /workspace/gimble/web\n\n Test Files  6 passed (6)\n      Tests  41 passed (41)\n   Duration  11.42s\n",
+        text: " RUN  v2.1.4 /workspace/gimbal/web\n\n Test Files  6 passed (6)\n      Tests  41 passed (41)\n   Duration  11.42s\n",
       },
     ],
   };
@@ -1397,7 +1397,7 @@ finishedTranscript2.state.active[nativeSession2] = "idle";
 const finishedCommand = finishedSnapshot.commands["implementation.1/task.1/task-check.1"]!;
 finishedCommand.exit_code = 0;
 finishedCommand.stdout =
-  " RUN  v2.1.4 /workspace/gimble/web\n\n ✓ src/routes/+page.test.ts (9)\n Test Files  1 passed (1)\n      Tests  9 passed (9)\n";
+  " RUN  v2.1.4 /workspace/gimbal/web\n\n ✓ src/routes/+page.test.ts (9)\n Test Files  1 passed (1)\n      Tests  9 passed (9)\n";
 finishedCommand.stderr = "";
 finishedCommand.ended = finishedCommand.started + 4_100;
 finishedCommand.duration = 4_100;

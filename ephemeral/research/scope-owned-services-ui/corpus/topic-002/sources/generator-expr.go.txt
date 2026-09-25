@@ -5,7 +5,7 @@ import (
 	"go/types"
 	"slices"
 
-	"github.com/tylergannon/gimble/workflow"
+	"github.com/tylergannon/gimbal/workflow"
 	"golang.org/x/tools/go/types/typeutil"
 )
 
@@ -19,7 +19,7 @@ func (e *extractor) exprs(node ast.Node, out *[]workflow.Operation, en scopeEnv)
 		switch n := n.(type) {
 		case *ast.FuncLit:
 			if e.holdsOperation(n.Body) {
-				e.diag(n.Pos(), "a function literal that is not a Scope or Go callback holding a Gimble call is not read")
+				e.diag(n.Pos(), "a function literal that is not a Scope or Go callback holding a Gimbal call is not read")
 			}
 			return false
 		case *ast.CallExpr:
@@ -49,8 +49,8 @@ func (e *extractor) value(expr ast.Expr, targets []ast.Expr, out *[]workflow.Ope
 // call reads one call. It reports whether the walk should keep descending
 // into the call's own parts.
 func (e *extractor) call(call *ast.CallExpr, targets []ast.Expr, out *[]workflow.Operation, en scopeEnv) bool {
-	if name, ok := e.gimbleCall(call); ok {
-		return e.gimbleOperation(name, call, targets, out, en)
+	if name, ok := e.gimbalCall(call); ok {
+		return e.gimbalOperation(name, call, targets, out, en)
 	}
 	callee := typeutil.StaticCallee(e.pkg.TypesInfo, call)
 	if callee == nil {
@@ -62,8 +62,8 @@ func (e *extractor) call(call *ast.CallExpr, targets []ast.Expr, out *[]workflow
 	if callee.Pkg() == e.pkg.Types {
 		return e.inline(callee, call, out, en)
 	}
-	if e.importsGimble(callee.Pkg()) {
-		e.diag(call.Pos(), "a call into %s, which imports Gimble, is not followed", callee.Pkg().Path())
+	if e.importsGimbal(callee.Pkg()) {
+		e.diag(call.Pos(), "a call into %s, which imports Gimbal, is not followed", callee.Pkg().Path())
 	}
 	return true
 }
@@ -125,10 +125,10 @@ func (e *extractor) bindParameters(decl *ast.FuncDecl, callee *types.Func, call 
 	}
 }
 
-// gimbleOperation reads one call on the Gimble package. It reports whether
+// gimbalOperation reads one call on the Gimbal package. It reports whether
 // the walk should keep descending into the call's own parts.
-func (e *extractor) gimbleOperation(name string, call *ast.CallExpr, targets []ast.Expr, out *[]workflow.Operation, en scopeEnv) bool {
-	e.nested(call.Pos(), "a Gimble call's arguments", plainArguments(name, call)...)
+func (e *extractor) gimbalOperation(name string, call *ast.CallExpr, targets []ast.Expr, out *[]workflow.Operation, en scopeEnv) bool {
+	e.nested(call.Pos(), "a Gimbal call's arguments", plainArguments(name, call)...)
 	switch name {
 	case "NewSession":
 		role, ok := e.constant(call, 1)
@@ -367,12 +367,12 @@ func (e *extractor) supervisors(call *ast.CallExpr, from int) []workflow.Supervi
 func (e *extractor) supervisor(option ast.Expr) (workflow.Supervisor, bool) {
 	call, ok := unparen(option).(*ast.CallExpr)
 	if !ok {
-		e.diag(option.Pos(), "an option that is not a Gimble option is not read")
+		e.diag(option.Pos(), "an option that is not a Gimbal option is not read")
 		return workflow.Supervisor{}, false
 	}
-	name, ok := e.gimbleCall(call)
+	name, ok := e.gimbalCall(call)
 	if !ok {
-		e.diag(option.Pos(), "an option that is not a Gimble option is not read")
+		e.diag(option.Pos(), "an option that is not a Gimbal option is not read")
 		return workflow.Supervisor{}, false
 	}
 	if name != "WithSupervisor" {

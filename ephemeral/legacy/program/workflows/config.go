@@ -1,5 +1,5 @@
 // Package workflows contains the small, directly runnable programs that
-// complement Gimble's shipped YAML workflow graphs. The programs deliberately
+// complement Gimbal's shipped YAML workflow graphs. The programs deliberately
 // express their control flow in Go; they do not interpret a graph at runtime.
 package workflows
 
@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/tylergannon/gimble/program"
+	"github.com/tylergannon/gimbal/program"
 )
 
 // SprintExecuteInput selects the sprint ledger and the agents used to work it.

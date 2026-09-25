@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/tylergannon/gimble/checklist"
+	"github.com/tylergannon/gimbal/checklist"
 )
 
 const testChecklist = `---

@@ -1,4 +1,4 @@
-# Gimble run interface — design handoff
+# Gimbal run interface — design handoff
 
 Prepared against `main` at `0908812` (PR #262). This is a design brief,
 not an implementation plan or a claim that the proposed interface exists.
@@ -6,7 +6,7 @@ not an implementation plan or a claim that the proposed interface exists.
 ## The assignment
 
 Design a coherent interface for finding runs, understanding what happened,
-and participating while agents work. Gimble workflows are ordinary Go;
+and participating while agents work. Gimbal workflows are ordinary Go;
 this interface observes and interacts with them, it does not author them.
 
 Tyler requested four capabilities:

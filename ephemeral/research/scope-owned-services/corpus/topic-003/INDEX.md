@@ -31,7 +31,7 @@ contain multiple process groups. ([Linux setpgid(2)](sources/linux-setpgid.2.htm
 The group boundary is deliberately narrow. A descendant that calls `setpgid()`
 or `setsid()` can leave it, so “all descendants” is not a portable promise.
 The supplied tool remains responsible for any processes it deliberately moves
-outside the group; Gimble can only report that its owned group was cleaned up
+outside the group; Gimbal can only report that its owned group was cleaned up
 or that cleanup remained uncertain.
 
 Shutdown should be bounded and status-bearing: send `SIGTERM`, wait for the

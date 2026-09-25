@@ -7,4 +7,4 @@ the task data and information conditions it operates on.
   concise original statement.
 - [Workflows as programs](../../sources/workflows-as-programs.md): consequences
   for reuse, evolving data, and evaluation.
-- [Gimble's direction](../../sources/direction.md): synthesized framing.
+- [Gimbal's direction](../../sources/direction.md): synthesized framing.

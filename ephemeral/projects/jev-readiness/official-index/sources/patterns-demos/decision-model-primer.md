@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This leaf records TypeSafe’s stated model philosophy: optimize a narrow decision model for calibrated, machine-consumable outputs rather than optimize a conversational model for preferred prose. It is useful when judging whether Jev belongs in a Gimble supervision path at all.
+This leaf records TypeSafe’s stated model philosophy: optimize a narrow decision model for calibrated, machine-consumable outputs rather than optimize a conversational model for preferred prose. It is useful when judging whether Jev belongs in a Gimbal supervision path at all.
 
 ## Key concepts
 
@@ -27,7 +27,7 @@ This leaf records TypeSafe’s stated model philosophy: optimize a narrow decisi
 
 ## Gotchas
 
-- Calibration must be measured on representative labeled data; the primer’s calibration explanation is a goal/contract, not evidence that a particular Gimble coaching classifier is calibrated on Gimble runs.
+- Calibration must be measured on representative labeled data; the primer’s calibration explanation is a goal/contract, not evidence that a particular Gimbal coaching classifier is calibrated on Gimbal runs.
 - A reported confidence or probability should not be treated as certainty for a single intervention. The workflow still needs consequences-aware routing and fallback.
 - The document makes product-positioning claims but does not provide benchmark data, training-set details, or supervision-specific evaluation results in this assigned source.
 

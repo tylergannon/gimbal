@@ -6,7 +6,7 @@ import (
 	"text/template"
 	"unicode"
 
-	"github.com/tylergannon/gimble/workflow"
+	"github.com/tylergannon/gimbal/workflow"
 )
 
 // clientCommandSource generates a Cobra command that calls the typed SKGO
@@ -40,7 +40,7 @@ func clientCommandSource(pkg, entry, name string, info entryInfo, graph workflow
 // role named like a flag every command has, or like each other; and a roles
 // entry for a role the workflow never creates a session for.
 func check(info entryInfo, graph workflow.Graph) error {
-	taken := map[string]string{"work-dir": "the Gimble environment", "project": "the Gimble environment", "instance-dir": "the Gimble instance", "follow": "the Gimble run", "help": "cobra"}
+	taken := map[string]string{"work-dir": "the Gimbal environment", "project": "the Gimbal environment", "instance-dir": "the Gimbal instance", "follow": "the Gimbal run", "help": "cobra"}
 	for _, f := range info.fields {
 		if by, ok := taken[f.flag]; ok {
 			return fmt.Errorf("generate: the parameter field %s would be --%s, which is %s's", f.name, f.flag, by)
@@ -101,30 +101,30 @@ import (
 	"path/filepath"
 
 	"github.com/spf13/cobra"
-	"github.com/tylergannon/gimble"
-	"github.com/tylergannon/gimble/internal/skgo/client"
-	routes "github.com/tylergannon/gimble/internal/skgo/links/onzggl3sn52xizlt"
-	"github.com/tylergannon/gimble/web"
+	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/internal/skgo/client"
+	routes "github.com/tylergannon/gimbal/internal/skgo/links/onzggl3sn52xizlt"
+	"github.com/tylergannon/gimbal/web"
 	"github.com/tylergannon/polytype"
 )
 
-// {{.Function}}Command is gimble run {{.Name}} and submits the matching Form remote.
-func {{.Function}}Command(defaults map[gimble.WorkflowRole]string) *cobra.Command {
+// {{.Function}}Command is gimbal run {{.Name}} and submits the matching Form remote.
+func {{.Function}}Command(defaults map[gimbal.WorkflowRole]string) *cobra.Command {
 {{ range .Fields}}{{if .Optional}}	var opt{{.Name}} {{.Kind}}
 {{ else}}	var value{{.Name}} {{.Kind}}
 {{ end}}{{end}}{{range .Roles}}	var {{.Ident}} string
 {{ end}}	var workDir, project, instanceDir, conversation string
 	var follow bool
-	cmd := &cobra.Command{Use: {{printf "%q" .Name}}, Short: {{printf "%q" .Summary}}, Long: {{printf "%q" .Long}} + "\n\nThe selected persistent instance owns this run. --project selects its admitted repository; --work-dir selects the execution directory independently. --instance-dir selects the instance state directory (or GIMBLE_INSTANCE_DIR, default .gimble). --follow waits for terminal success or failure; otherwise the run continues after this client exits. Each role flag chooses a model and optional effort. Executable lookup, PATH, and provider configuration come from the instance startup environment.", Args: cobra.NoArgs}
+	cmd := &cobra.Command{Use: {{printf "%q" .Name}}, Short: {{printf "%q" .Summary}}, Long: {{printf "%q" .Long}} + "\n\nThe selected persistent instance owns this run. --project selects its admitted repository; --work-dir selects the execution directory independently. --instance-dir selects the instance state directory (or GIMBAL_INSTANCE_DIR, default .gimbal). --follow waits for terminal success or failure; otherwise the run continues after this client exits. Each role flag chooses a model and optional effort. Executable lookup, PATH, and provider configuration come from the instance startup environment.", Args: cobra.NoArgs}
 {{ range .Fields}}	cmd.Flags().{{.Var}}({{.Target}}, {{printf "%q" .Flag}}, {{.Default}}, {{printf "%q" .Usage}})
 {{ end}}{{range .Fields}}{{if .Required}}	_ = cmd.MarkFlagRequired({{printf "%q" .Flag}})
 {{ end}}{{end}}	cmd.Flags().StringVar(&workDir, "work-dir", "", "execution directory (default: owning project)")
 	cmd.Flags().StringVar(&project, "project", ".", "repository owning this run and its observation; admitted on first start")
-	instanceDefault := os.Getenv("GIMBLE_INSTANCE_DIR"); if instanceDefault == "" { instanceDefault = ".gimble" }
-	cmd.Flags().StringVar(&instanceDir, "instance-dir", instanceDefault, "selected running instance state directory (default: GIMBLE_INSTANCE_DIR or .gimble)")
+	instanceDefault := os.Getenv("GIMBAL_INSTANCE_DIR"); if instanceDefault == "" { instanceDefault = ".gimbal" }
+	cmd.Flags().StringVar(&instanceDir, "instance-dir", instanceDefault, "selected running instance state directory (default: GIMBAL_INSTANCE_DIR or .gimbal)")
 	cmd.Flags().StringVar(&conversation, "conversation", "", "associate this run with a conversation in the owning project")
 	cmd.Flags().BoolVar(&follow, "follow", false, "wait for the hosted run's terminal result; without this flag the run survives client exit")
-{{ range .Roles}}	{{.Ident}}Default := defaults[gimble.WorkflowRole({{printf "%q" .Name}})]
+{{ range .Roles}}	{{.Ident}}Default := defaults[gimbal.WorkflowRole({{printf "%q" .Name}})]
 	if {{.Ident}}Default == "" {
 		cmd.Flags().StringVar(&{{.Ident}}, {{printf "%q" .Name}}, "", {{printf "%q" (printf "the model for role %s, as model or model:effort; OpenCode uses opencode/model or opencode/provider/model" .Name)}})
 		_ = cmd.MarkFlagRequired({{printf "%q" .Name}})

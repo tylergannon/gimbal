@@ -1,6 +1,6 @@
 //go:build darwin || linux
 
-package gimble
+package gimbal
 
 import (
 	"context"

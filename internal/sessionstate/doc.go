@@ -19,11 +19,11 @@
 //
 // # What this package is
 //
-// One ordered reduction of the native session events Gimble emits into the
+// One ordered reduction of the native session events Gimbal emits into the
 // state produced by the upstream client's event branches. Client cache reads
 // and promise completion behavior are outside this server-side projection.
 //
-// It holds no Gimble identity. Run, conversation and invocation identity
+// It holds no Gimbal identity. Run, conversation and invocation identity
 // live outside the native event; the caller dispatches to a projection
 // before applying a payload, so native IDs cannot collide across concurrent
 // invocations.

@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/tylergannon/gimble/internal/host"
-	"github.com/tylergannon/gimble/internal/observation"
+	"github.com/tylergannon/gimbal/internal/host"
+	"github.com/tylergannon/gimbal/internal/observation"
 )
 
 func TestRunsPageRendersEveryRunAndPendingInterview(t *testing.T) {
@@ -31,7 +31,7 @@ func TestRunsPageRendersEveryRunAndPendingInterview(t *testing.T) {
 		json.RawMessage(`{"seq":1,"time":"2026-09-18T12:00:00Z","scope":"","event":{"kind":"run_started","name":"plan-trip"}}`),
 		json.RawMessage(`{"seq":2,"time":"2026-09-18T12:00:01Z","scope":"","event":{"kind":"scope_began","name":"plan-trip","loop":false}}`),
 		json.RawMessage(`{"seq":3,"time":"2026-09-18T12:00:05Z","scope":"research.1","session":"researcher.1","event":{"kind":"session_created","name":"researcher","adapter":"fixture","model":"gpt-5.6-luna","effort":"low","workdir":"/work"}}`),
-		json.RawMessage(`{"seq":4,"time":"2026-09-18T12:00:06Z","scope":"research.1","session":"researcher.1","turn":"researcher.1/turn.1","event":{"kind":"turn_started","prompt":"Compare cabins using the traveler's latest preferences.","output_type":"gimble.Text"}}`),
+		json.RawMessage(`{"seq":4,"time":"2026-09-18T12:00:06Z","scope":"research.1","session":"researcher.1","turn":"researcher.1/turn.1","event":{"kind":"turn_started","prompt":"Compare cabins using the traveler's latest preferences.","output_type":"gimbal.Text"}}`),
 		json.RawMessage(`{"seq":5,"time":"2026-09-18T12:00:10Z","scope":"research.1/lodging.1","session":"researcher.1","event":{"kind":"interview_question_asked","name":"preferences","question_id":"question-1","question":"Would you trade reliable Wi-Fi for a secluded cabin?"}}`),
 		json.RawMessage(`{"seq":6,"time":"2026-09-18T12:00:20Z","scope":"research.1","session":"researcher.1","turn":"researcher.1/turn.1","event":{"kind":"turn_ended","result":"\"done\"","error":"","usage":[{"model":"gpt-5.6-luna","cost":0,"tokens":{"input":1000000,"output":100000,"reasoning":0,"cache":{"read":0,"write":0}}}],"duration":14000000000,"interrupted":false}}`),
 	} {

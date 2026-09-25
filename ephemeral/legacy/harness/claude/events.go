@@ -6,7 +6,7 @@ import (
 	"sync"
 
 	claudeagent "github.com/roasbeef/claude-agent-sdk-go"
-	"github.com/tylergannon/gimble/harness"
+	"github.com/tylergannon/gimbal/harness"
 )
 
 type eventProjector struct {

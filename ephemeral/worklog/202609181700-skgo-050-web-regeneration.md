@@ -1,8 +1,8 @@
 # skgo 0.5.0 web regeneration
 
-decision: Treat the skgo 0.5.0 generated `web/` directory as the new base, then restore Gimble-owned routes, components, remotes, and tests onto it; do not incrementally retrofit Storybook and Vitest into the old scaffold.
+decision: Treat the skgo 0.5.0 generated `web/` directory as the new base, then restore Gimbal-owned routes, components, remotes, and tests onto it; do not incrementally retrofit Storybook and Vitest into the old scaffold.
 
-decision: Preserve the official Svelte compiler and Svelte-aware checker compatibility split when reconciling dependencies; the generated scaffold supplies structure, Vitest, and Storybook, while existing Gimble behavior remains the invariant.
+decision: Preserve the official Svelte compiler and Svelte-aware checker compatibility split when reconciling dependencies; the generated scaffold supplies structure, Vitest, and Storybook, while existing Gimbal behavior remains the invariant.
 
 friction: skgo 0.5.0's minimal official Svelte scaffold has no Tailwind dependency, so shadcn-svelte 1.7.0 refuses to initialize even with the documented preset -> install Tailwind v4 and its Vite plugin, then run shadcn init.
 

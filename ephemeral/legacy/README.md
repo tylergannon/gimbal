@@ -1,8 +1,8 @@
 <div align="center">
 
-<img src="docs/assets/gimble-mascot.png" width="480" alt="Gimble, a friendly gyroscopic guide, points along a trail toward a goal">
+<img src="docs/assets/gimble-mascot.png" width="480" alt="Gimbal, a friendly gyroscopic guide, points along a trail toward a goal">
 
-# Gimble
+# Gimbal
 
 **Workflows for coding agents, written as ordinary Go.**
 
@@ -13,7 +13,7 @@
 
 ---
 
-Gimble is being rebuilt. The graph-definition engine, its CLI, MCP server,
+Gimbal is being rebuilt. The graph-definition engine, its CLI, MCP server,
 plugins, and editor were removed on 2026-09-10. What remains is the bare
 metal a Go-authored workflow needs:
 
@@ -24,10 +24,10 @@ metal a Go-authored workflow needs:
 | [`program/`](program) | `Loop` over a checklist, `Codergen[T]`, `Command`, `Validate` |
 | [`program/workflows/`](program/workflows) | `SprintExecute`, `ChapterLoop`, `DeliveryLoop` in ordinary Go control flow |
 | [`internal/modelalias/`](internal/modelalias) | Model aliases resolved to provider, native model ID, and effort |
-| [`cmd/gimble`](cmd/gimble) | `gimble ls`, `gimble run <workflow>`, and `gimble run-prompt` |
+| [`cmd/gimbal`](cmd/gimbal) | `gimbal ls`, `gimbal run <workflow>`, and `gimbal run-prompt` |
 
 The workflow shape is the one recorded in
-[POC-WORKFLOWS.md](ephemeral/projects/gimble/programmatic-workflows/POC-WORKFLOWS.md):
+[POC-WORKFLOWS.md](ephemeral/projects/gimbal/programmatic-workflows/POC-WORKFLOWS.md):
 
 ```go
 for iteration, err := range program.Loop(ctx, ledger, program.LoopOptions{
@@ -48,10 +48,10 @@ and repair. A chapter loop is a loop whose body runs a sprint loop.
 ## Run a workflow
 
 ```sh
-gimble ls
-gimble run sprint-execute --help
-gimble run sprint-execute --goal "Finish the planned sprints." \
-  --checklist docs/sprints/ledger.md --workdir . --logs .gimble/run
+gimbal ls
+gimbal run sprint-execute --help
+gimbal run sprint-execute --goal "Finish the planned sprints." \
+  --checklist docs/sprints/ledger.md --workdir . --logs .gimbal/run
 ```
 
 A workflow's flags are its input struct's fields. The run directory holds
@@ -63,7 +63,7 @@ This is a proof of concept. Interfaces change without compatibility.
 ## Run one prompt
 
 ```sh
-gimble run-prompt --workdir . "Explain the failing test."
+gimbal run-prompt --workdir . "Explain the failing test."
 ```
 
 `--output-schema` accepts exact JSON Schema and changes stdout to validated

@@ -1,4 +1,4 @@
-module github.com/tylergannon/gimble
+module github.com/tylergannon/gimbal
 
 go 1.27.1
 

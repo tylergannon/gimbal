@@ -1,4 +1,4 @@
-// Package program provides small Go primitives for composing Gimble programs.
+// Package program provides small Go primitives for composing Gimbal programs.
 package program
 
 import (
@@ -17,10 +17,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/tylergannon/gimble/harness"
-	"github.com/tylergannon/gimble/harness/agy"
-	"github.com/tylergannon/gimble/harness/claude"
-	"github.com/tylergannon/gimble/harness/codex"
+	"github.com/tylergannon/gimbal/harness"
+	"github.com/tylergannon/gimbal/harness/agy"
+	"github.com/tylergannon/gimbal/harness/claude"
+	"github.com/tylergannon/gimbal/harness/codex"
 )
 
 const (
@@ -31,7 +31,7 @@ const (
 )
 
 // Config initializes a Runtime. Adapters is keyed by harness name (codex,
-// claude, agy); leave it nil to use Gimble's native adapters.
+// claude, agy); leave it nil to use Gimbal's native adapters.
 type Config struct {
 	Workdir           string
 	RunDir            string
@@ -65,7 +65,7 @@ type CommandResult struct {
 }
 
 // NewRuntime prepares a program runtime and, unless Adapters is supplied,
-// constructs Gimble's native Codex, Claude, and agy adapters.
+// constructs Gimbal's native Codex, Claude, and agy adapters.
 func NewRuntime(config Config) (*Runtime, error) {
 	workdir := config.Workdir
 	if strings.TrimSpace(workdir) == "" {
@@ -84,7 +84,7 @@ func NewRuntime(config Config) (*Runtime, error) {
 	}
 	runDir := config.RunDir
 	if strings.TrimSpace(runDir) == "" {
-		runDir, err = os.MkdirTemp("", "gimble-program-")
+		runDir, err = os.MkdirTemp("", "gimbal-program-")
 	} else {
 		runDir, err = filepath.Abs(runDir)
 		if err == nil {

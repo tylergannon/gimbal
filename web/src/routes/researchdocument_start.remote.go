@@ -6,8 +6,8 @@ import (
 	"context"
 	"strings"
 
-	"github.com/tylergannon/gimble"
-	"github.com/tylergannon/gimble/internal/workflows/researchdocument"
+	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/internal/workflows/researchdocument"
 	"github.com/tylergannon/polytype"
 	"github.com/tylergannon/skgo"
 )
@@ -45,15 +45,15 @@ func startResearchDocument(ctx context.Context, in StartResearchDocumentInput) (
 		return StartAccepted{}, skgo.Invalidf("token_budget", "Give a positive token_budget.")
 	}
 	return startWorkflow(ctx, in.ProjectDir, in.WorkDir, in.Conversation, "research-document",
-		map[gimble.WorkflowRole]polytype.Optional[string]{
-			gimble.WorkflowRole("research-planning"):    in.RoleResearchPlanning,
-			gimble.WorkflowRole("research-indexing"):    in.RoleResearchIndexing,
-			gimble.WorkflowRole("document-supervision"): in.RoleDocumentSupervision,
-			gimble.WorkflowRole("index-curation"):       in.RoleIndexCuration,
-			gimble.WorkflowRole("document-authoring"):   in.RoleDocumentAuthoring,
-			gimble.WorkflowRole("editorial-review"):     in.RoleEditorialReview,
+		map[gimbal.WorkflowRole]polytype.Optional[string]{
+			gimbal.WorkflowRole("research-planning"):    in.RoleResearchPlanning,
+			gimbal.WorkflowRole("research-indexing"):    in.RoleResearchIndexing,
+			gimbal.WorkflowRole("document-supervision"): in.RoleDocumentSupervision,
+			gimbal.WorkflowRole("index-curation"):       in.RoleIndexCuration,
+			gimbal.WorkflowRole("document-authoring"):   in.RoleDocumentAuthoring,
+			gimbal.WorkflowRole("editorial-review"):     in.RoleEditorialReview,
 		}, func(runCtx context.Context, workDir string) error {
-			return researchdocument.ResearchDocument(runCtx, gimble.Env{WorkDir: workDir}, researchdocument.Params{
+			return researchdocument.ResearchDocument(runCtx, gimbal.Env{WorkDir: workDir}, researchdocument.Params{
 				Goal:               in.Goal,
 				ResearchDir:        in.ResearchDir,
 				Output:             in.Output,

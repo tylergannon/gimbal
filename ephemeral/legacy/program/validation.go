@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/bmatcuk/doublestar/v4"
-	"github.com/tylergannon/gimble/checklist"
+	"github.com/tylergannon/gimbal/checklist"
 )
 
 // Validation is the typed verdict shared by item validation and goal evaluation.

@@ -20,10 +20,10 @@
 </script>
 
 <svelte:head>
-  <title>Runs — Gimble</title>
+  <title>Runs — Gimbal</title>
   <meta
     name="description"
-    content="Every live and recorded agent workflow run in this Gimble project."
+    content="Every live and recorded agent workflow run in this Gimbal project."
   />
 </svelte:head>
 

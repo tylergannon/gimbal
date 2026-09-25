@@ -6,7 +6,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/tylergannon/gimble"
+	"github.com/tylergannon/gimbal"
 )
 
 type projector struct {
@@ -14,7 +14,7 @@ type projector struct {
 	sessionID string
 	provider  string
 	model     string
-	emit      func(gimble.AgentEvent) error
+	emit      func(gimbal.AgentEvent) error
 	steps     map[string]*projectedStep
 	parts     map[string]*projectedPart
 }
@@ -34,9 +34,9 @@ type projectedPart struct {
 	ended     bool
 }
 
-func newProjector(sessionID, provider, model string, emit func(gimble.AgentEvent) error) *projector {
+func newProjector(sessionID, provider, model string, emit func(gimbal.AgentEvent) error) *projector {
 	if emit == nil {
-		emit = func(gimble.AgentEvent) error { return nil }
+		emit = func(gimbal.AgentEvent) error { return nil }
 	}
 	return &projector{
 		sessionID: sessionID, provider: provider, model: model, emit: emit,
@@ -375,7 +375,7 @@ func (p *projector) emitEvent(eventType string, data map[string]any, native any)
 	if err != nil {
 		return err
 	}
-	return p.emit(gimble.AgentEvent{Type: eventType, Data: raw, NativeRef: ref})
+	return p.emit(gimbal.AgentEvent{Type: eventType, Data: raw, NativeRef: ref})
 }
 
 func (p *projector) ref(messageID, itemID, eventID string) map[string]any {

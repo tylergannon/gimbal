@@ -1,5 +1,5 @@
 // Package program provides small Go-native building blocks for authoring
-// Gimble programs.
+// Gimbal programs.
 package program
 
 import (
@@ -9,7 +9,7 @@ import (
 	"iter"
 	"strings"
 
-	"github.com/tylergannon/gimble/checklist"
+	"github.com/tylergannon/gimbal/checklist"
 )
 
 // LoopOptions supplies the program-specific work around a checklist loop.

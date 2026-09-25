@@ -8,12 +8,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/tylergannon/gimble"
+	"github.com/tylergannon/gimbal"
 )
 
 func TestRawProjectorUsesNestedMessageIDAndExactToolUseID(t *testing.T) {
-	var events []gimble.AgentEvent
-	p := newProjector("session-1", "claude-test", func(event gimble.AgentEvent) error { events = append(events, event); return nil })
+	var events []gimbal.AgentEvent
+	p := newProjector("session-1", "claude-test", func(event gimbal.AgentEvent) error { events = append(events, event); return nil })
 	fixtures := []string{
 		`{"type":"stream_event","uuid":"stream-envelope","session_id":"session-1","event":{"type":"message_start","message":{"id":"msg_native","model":"claude-native","usage":{"input_tokens":40,"cache_read_input_tokens":10,"cache_creation_input_tokens":5}}}}`,
 		`{"type":"stream_event","uuid":"stream-envelope","session_id":"session-1","event":{"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"toolu_actual","name":"Bash","input":{}}}}`,
@@ -58,8 +58,8 @@ func TestRawProjectorUsesNestedMessageIDAndExactToolUseID(t *testing.T) {
 }
 
 func TestRawProjectorRecordsUnknownToolResultWithoutFailingTurn(t *testing.T) {
-	var events []gimble.AgentEvent
-	p := newProjector("session", "model", func(event gimble.AgentEvent) error {
+	var events []gimbal.AgentEvent
+	p := newProjector("session", "model", func(event gimbal.AgentEvent) error {
 		events = append(events, event)
 		return nil
 	})
@@ -89,8 +89,8 @@ func TestRawProjectorRecordsUnknownToolResultWithoutFailingTurn(t *testing.T) {
 }
 
 func TestProjectionErrorRecordsGapAndDoesNotStopLaterEvents(t *testing.T) {
-	var events []gimble.AgentEvent
-	p := newProjector("session", "model", func(event gimble.AgentEvent) error {
+	var events []gimbal.AgentEvent
+	p := newProjector("session", "model", func(event gimbal.AgentEvent) error {
 		events = append(events, event)
 		return nil
 	})
@@ -108,8 +108,8 @@ func TestProjectionErrorRecordsGapAndDoesNotStopLaterEvents(t *testing.T) {
 }
 
 func TestRawProjectorStreamsTextAndZeroFillsAbsentUsage(t *testing.T) {
-	var events []gimble.AgentEvent
-	p := newProjector("session", "model", func(event gimble.AgentEvent) error { events = append(events, event); return nil })
+	var events []gimbal.AgentEvent
+	p := newProjector("session", "model", func(event gimbal.AgentEvent) error { events = append(events, event); return nil })
 	for _, fixture := range []string{
 		`{"type":"stream_event","uuid":"outer","event":{"type":"message_start","message":{"id":"nested","model":"model"}}}`,
 		`{"type":"stream_event","uuid":"outer","event":{"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}}`,
@@ -146,14 +146,14 @@ const resultFixture = `{"type":"result","subtype":"success","session_id":"sessio
 	`"num_turns":1,"is_error":false,"result":"Paris is the capital of France."}`
 
 func TestRawProjectorReportsTurnUsageFromResult(t *testing.T) {
-	var events []gimble.AgentEvent
-	p := newProjector("session", "haiku", func(event gimble.AgentEvent) error { events = append(events, event); return nil })
+	var events []gimbal.AgentEvent
+	p := newProjector("session", "haiku", func(event gimbal.AgentEvent) error { events = append(events, event); return nil })
 	mustRaw(t, p.raw(json.RawMessage(resultFixture)))
 	if len(events) != 0 {
 		t.Fatalf("result emitted events: %v", claudeTypes(events))
 	}
 
-	want := gimble.Usage{Cost: 0.0241153}
+	want := gimbal.Usage{Cost: 0.0241153}
 	want.Tokens.Input, want.Tokens.Output, want.Tokens.Reasoning = 10, 63, 118
 	want.Tokens.Cache.Read, want.Tokens.Cache.Write = 25183, 10341
 	got := p.turnUsage()
@@ -172,14 +172,14 @@ func TestRawProjectorReportsTurnUsageFromResult(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	p = newProjector("session", "haiku", func(gimble.AgentEvent) error { return nil })
+	p = newProjector("session", "haiku", func(gimbal.AgentEvent) error { return nil })
 	mustRaw(t, p.raw(raw))
 	if got := p.turnUsage(); len(got) != 1 || got["haiku"] != want {
 		t.Fatalf("fallback turn report = %#v, want one entry %#v", got, want)
 	}
 
 	// A turn that states nothing reports nothing.
-	p = newProjector("session", "haiku", func(gimble.AgentEvent) error { return nil })
+	p = newProjector("session", "haiku", func(gimbal.AgentEvent) error { return nil })
 	mustRaw(t, p.raw(json.RawMessage(`{"type":"result","subtype":"success","session_id":"session","result":"done"}`)))
 	if got := p.turnUsage(); got != nil {
 		t.Fatalf("turn report = %#v, want nil", got)
@@ -187,7 +187,7 @@ func TestRawProjectorReportsTurnUsageFromResult(t *testing.T) {
 }
 
 func TestRawProjectorKeepsCumulativeContinuationUsage(t *testing.T) {
-	p := newProjector("session", "haiku", func(gimble.AgentEvent) error { return nil })
+	p := newProjector("session", "haiku", func(gimbal.AgentEvent) error { return nil })
 	mustRaw(t, p.raw(json.RawMessage(resultFixture)))
 	var continuation map[string]any
 	if err := json.Unmarshal([]byte(resultFixture), &continuation); err != nil {
@@ -203,7 +203,7 @@ func TestRawProjectorKeepsCumulativeContinuationUsage(t *testing.T) {
 	}
 	mustRaw(t, p.raw(raw))
 
-	want := gimble.Usage{Cost: 0.031}
+	want := gimbal.Usage{Cost: 0.031}
 	want.Tokens.Input, want.Tokens.Output, want.Tokens.Reasoning = 18, 150, 150
 	want.Tokens.Cache.Read, want.Tokens.Cache.Write = 40000, 12000
 	got := p.turnUsage()
@@ -213,8 +213,8 @@ func TestRawProjectorKeepsCumulativeContinuationUsage(t *testing.T) {
 }
 
 func TestRawProjectorDistinguishesToolErrorAndGuardsSingleOpen(t *testing.T) {
-	var events []gimble.AgentEvent
-	p := newProjector("session", "model", func(event gimble.AgentEvent) error { events = append(events, event); return nil })
+	var events []gimbal.AgentEvent
+	p := newProjector("session", "model", func(event gimbal.AgentEvent) error { events = append(events, event); return nil })
 	mustRaw(t, p.raw(json.RawMessage(`{"type":"stream_event","event":{"type":"message_start","message":{"id":"nested","model":"model","usage":{}}}}`)))
 	mustRaw(t, p.raw(json.RawMessage(`{"type":"stream_event","event":{"type":"content_block_start","index":0,"content_block":{"type":"text"}}}`)))
 	if err := p.raw(json.RawMessage(`{"type":"stream_event","event":{"type":"content_block_start","index":1,"content_block":{"type":"text"}}}`)); err == nil {
@@ -222,7 +222,7 @@ func TestRawProjectorDistinguishesToolErrorAndGuardsSingleOpen(t *testing.T) {
 	}
 
 	events = nil
-	p = newProjector("session", "model", func(event gimble.AgentEvent) error { events = append(events, event); return nil })
+	p = newProjector("session", "model", func(event gimbal.AgentEvent) error { events = append(events, event); return nil })
 	for _, fixture := range []string{
 		`{"type":"stream_event","event":{"type":"message_start","message":{"id":"tool-message","model":"model","usage":{}}}}`,
 		`{"type":"stream_event","event":{"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"toolu_error","name":"Bash","input":{}}}}`,
@@ -238,15 +238,15 @@ func TestRawProjectorDistinguishesToolErrorAndGuardsSingleOpen(t *testing.T) {
 	}
 
 	boom := errors.New("observer stopped")
-	p = newProjector("session", "model", func(gimble.AgentEvent) error { return boom })
+	p = newProjector("session", "model", func(gimbal.AgentEvent) error { return boom })
 	if err := p.raw(json.RawMessage(`{"type":"stream_event","event":{"type":"message_start","message":{"id":"nested","model":"model"}}}`)); !errors.Is(err, boom) {
 		t.Fatalf("callback error = %v, want %v", err, boom)
 	}
 }
 
 func TestRawProjectorKeepsNestedTranscriptInsideParentTool(t *testing.T) {
-	var events []gimble.AgentEvent
-	p := newProjector("session", "model", func(event gimble.AgentEvent) error {
+	var events []gimbal.AgentEvent
+	p := newProjector("session", "model", func(event gimbal.AgentEvent) error {
 		events = append(events, event)
 		return nil
 	})
@@ -284,8 +284,8 @@ func TestRawProjectorKeepsNestedTranscriptInsideParentTool(t *testing.T) {
 }
 
 func TestRawProjectorAcceptsNestedTranscriptAfterAsyncToolCompletes(t *testing.T) {
-	var events []gimble.AgentEvent
-	p := newProjector("session", "model", func(event gimble.AgentEvent) error {
+	var events []gimbal.AgentEvent
+	p := newProjector("session", "model", func(event gimbal.AgentEvent) error {
 		events = append(events, event)
 		return nil
 	})
@@ -317,8 +317,8 @@ func TestRawProjectorAcceptsNestedTranscriptAfterAsyncToolCompletes(t *testing.T
 }
 
 func TestNestedProgressEmitsOneEntryPerEvent(t *testing.T) {
-	var events []gimble.AgentEvent
-	p := newProjector("session", "model", func(event gimble.AgentEvent) error {
+	var events []gimbal.AgentEvent
+	p := newProjector("session", "model", func(event gimbal.AgentEvent) error {
 		events = append(events, event)
 		return nil
 	})
@@ -354,8 +354,8 @@ func TestNestedProgressEmitsOneEntryPerEvent(t *testing.T) {
 }
 
 func TestRawProjectorRecordsRetryFailureAndPermissionDecision(t *testing.T) {
-	var events []gimble.AgentEvent
-	p := newProjector("session", "model", func(event gimble.AgentEvent) error {
+	var events []gimbal.AgentEvent
+	p := newProjector("session", "model", func(event gimbal.AgentEvent) error {
 		events = append(events, event)
 		return nil
 	})
@@ -384,7 +384,7 @@ func TestRawProjectorRecordsRetryFailureAndPermissionDecision(t *testing.T) {
 	}
 }
 
-func firstClaudeType(t *testing.T, events []gimble.AgentEvent, eventType string) gimble.AgentEvent {
+func firstClaudeType(t *testing.T, events []gimbal.AgentEvent, eventType string) gimbal.AgentEvent {
 	t.Helper()
 	for _, event := range events {
 		if event.Type == eventType {
@@ -392,10 +392,10 @@ func firstClaudeType(t *testing.T, events []gimble.AgentEvent, eventType string)
 		}
 	}
 	t.Fatalf("event %s not found", eventType)
-	return gimble.AgentEvent{}
+	return gimbal.AgentEvent{}
 }
 
-func countClaudeType(events []gimble.AgentEvent, eventType string) int {
+func countClaudeType(events []gimbal.AgentEvent, eventType string) int {
 	count := 0
 	for _, event := range events {
 		if event.Type == eventType {
@@ -405,7 +405,7 @@ func countClaudeType(events []gimble.AgentEvent, eventType string) int {
 	return count
 }
 
-func claudeTypes(events []gimble.AgentEvent) []string {
+func claudeTypes(events []gimbal.AgentEvent) []string {
 	var result []string
 	for _, event := range events {
 		if event.Type != "" {
@@ -415,7 +415,7 @@ func claudeTypes(events []gimble.AgentEvent) []string {
 	return result
 }
 
-func claudeData(t *testing.T, event gimble.AgentEvent, target any) {
+func claudeData(t *testing.T, event gimbal.AgentEvent, target any) {
 	t.Helper()
 	if err := json.Unmarshal(event.Data, target); err != nil {
 		t.Fatal(err)
@@ -430,8 +430,8 @@ func mustRaw(t *testing.T, err error) {
 }
 
 func TestRawProjectorKeepsTheTurnWhenToolInputIsNotJSON(t *testing.T) {
-	var events []gimble.AgentEvent
-	p := newProjector("session-1", "claude-test", func(event gimble.AgentEvent) error { events = append(events, event); return nil })
+	var events []gimbal.AgentEvent
+	p := newProjector("session-1", "claude-test", func(event gimbal.AgentEvent) error { events = append(events, event); return nil })
 	fixtures := []string{
 		`{"type":"stream_event","uuid":"e","session_id":"session-1","event":{"type":"message_start","message":{"id":"msg_native","model":"claude-native","usage":{"input_tokens":1}}}}`,
 		`{"type":"stream_event","uuid":"e","session_id":"session-1","event":{"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"toolu_bad","name":"Read","input":{}}}}`,
@@ -462,8 +462,8 @@ func TestRawProjectorKeepsTheTurnWhenToolInputIsNotJSON(t *testing.T) {
 // error code. It belongs on the failure record, not only in Claude Code's
 // own transcript.
 func TestRawProjectorRecordsTheCLIsExplanationOfAFailedTurn(t *testing.T) {
-	var events []gimble.AgentEvent
-	p := newProjector("session-1", "claude-test", func(event gimble.AgentEvent) error { events = append(events, event); return nil })
+	var events []gimbal.AgentEvent
+	p := newProjector("session-1", "claude-test", func(event gimbal.AgentEvent) error { events = append(events, event); return nil })
 	fixtures := []string{
 		`{"type":"stream_event","uuid":"e","session_id":"session-1","event":{"type":"message_start","message":{"id":"msg","model":"claude-test"}}}`,
 		`{"type":"assistant","uuid":"a","session_id":"session-1","request_id":"req_217","error":"invalid_request","message":{"id":"msg","role":"assistant","content":[{"type":"text","text":"Autocompact is thrashing: the context refilled\nto the limit within 3 turns of the previous compact."}]}}`,

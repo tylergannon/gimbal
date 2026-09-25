@@ -1,2 +1,2 @@
-correction: Gimble must not be described as a tool that works inside Codex; Codex and Claude Code are optional harnesses/environments Gimble can drive, and workflows can run anywhere Go runs.
-doc_bug: Public documentation and the starter web pages did not state Gimble's host-neutral identity clearly -> add explicit host-neutral wording to README, Godoc, and the website, and make the API design example provider list illustrative.
+correction: Gimbal must not be described as a tool that works inside Codex; Codex and Claude Code are optional harnesses/environments Gimbal can drive, and workflows can run anywhere Go runs.
+doc_bug: Public documentation and the starter web pages did not state Gimbal's host-neutral identity clearly -> add explicit host-neutral wording to README, Godoc, and the website, and make the API design example provider list illustrative.

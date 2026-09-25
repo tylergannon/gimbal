@@ -9,9 +9,9 @@ import (
 
 	"github.com/tylergannon/skgo"
 
-	"github.com/tylergannon/gimble"
-	"github.com/tylergannon/gimble/internal/observation"
-	hooks "github.com/tylergannon/gimble/web/src"
+	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/internal/observation"
+	hooks "github.com/tylergannon/gimbal/web/src"
 )
 
 // Data is what the page renders from. The snapshot crosses as the app's
@@ -54,7 +54,7 @@ func load(ctx context.Context) (Data, error) {
 		return Data{}, err
 	}
 	graphJSON := ""
-	if graph, ok := gimble.RegisteredGraph(snapshot.Run.Name); ok {
+	if graph, ok := gimbal.RegisteredGraph(snapshot.Run.Name); ok {
 		encodedGraph, err := json.Marshal(graph)
 		if err != nil {
 			return Data{}, err

@@ -1,6 +1,6 @@
 # Sprint 002 critique
 
-Read both drafts, intent, lifecycle research, adapter/session code, and the actual fixture at `/private/tmp/gimble-317-sprint/{main.go,run.py,claude-tap.py}`. No probes run. The supplied baseline—valid waiting returned around 10 seconds into a 20-second command, with call two correctly suppressed—demonstrates the original defect, not successful continuation.
+Read both drafts, intent, lifecycle research, adapter/session code, and the actual fixture at `/private/tmp/gimbal-317-sprint/{main.go,run.py,claude-tap.py}`. No probes run. The supplied baseline—valid waiting returned around 10 seconds into a 20-second command, with call two correctly suppressed—demonstrates the original defect, not successful continuation.
 
 1. **Claude: embedding T verbatim does not preserve reference semantics.** A valid standalone schema `{"$defs":{"X":{"type":"string"}},"$ref":"#/$defs/X"}` resolves against its document root. Placing it under `properties.value` leaves that reference pointing to the envelope root, where `$defs.X` does not exist. Recursive `$ref:"#"` likewise changes meaning. Unresolved item 4 is therefore a concrete correctness blocker, not merely uncertainty about native validator support. Specify reference-preserving composition and require a referenced/recursive T regression; the flat acceptance types cannot demonstrate this.
 

@@ -8,10 +8,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/tylergannon/gimble/internal/host"
-	generated "github.com/tylergannon/gimble/internal/skgo"
-	"github.com/tylergannon/gimble/internal/skgo/client"
-	forms "github.com/tylergannon/gimble/internal/skgo/links/onzggl3sn52xizlt"
+	"github.com/tylergannon/gimbal/internal/host"
+	generated "github.com/tylergannon/gimbal/internal/skgo"
+	"github.com/tylergannon/gimbal/internal/skgo/client"
+	forms "github.com/tylergannon/gimbal/internal/skgo/links/onzggl3sn52xizlt"
 	"github.com/tylergannon/polytype"
 	"github.com/tylergannon/skgo"
 )

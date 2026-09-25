@@ -3,7 +3,7 @@
 Historical source from `program/workflows/workflows.go` at
 `4906a98c44930763597ebe015d5b996c120bc1eb`, preserved without code changes.
 The `tractor` import path belongs to that pre-rename branch. This is an
-inspection copy of the unmerged POC, not code compiled by current Gimble.
+inspection copy of the unmerged POC, not code compiled by current Gimbal.
 See [POC recovery](POC-RECOVERY.md) for the full library and status.
 
 ```go

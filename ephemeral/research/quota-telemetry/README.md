@@ -3,7 +3,7 @@
 Collected 2026-09-13 at Tyler's request. Background for the "how much of my
 subscription did this run use" question, which is not in the Beta milestone
 (quota windows have no consumer yet; see `ephemeral/research/beta-milestone/README.md`
-on branch `claude/gimble-beta-milestone-a16ccf`, and issue #13, closed).
+on branch `claude/gimbal-beta-milestone-a16ccf`, and issue #13, closed).
 
 ## Files
 
@@ -35,6 +35,6 @@ is a design input until one claim is checked against the installed CLIs:
 | `agy -p "/quota" --output-format json` works headless | yes, since CLI 1.1.11 | no, slash commands do not render in `-p` |
 | Claude Code status line carries `rate_limits` | yes, documented for Pro/Max | not shipped; open feature requests |
 
-Both agree: the per-turn token usage Gimble already records is separate from
+Both agree: the per-turn token usage Gimbal already records is separate from
 quota consumption, and quota is a utilization fraction per window (5-hour and
 7-day), not a token count.

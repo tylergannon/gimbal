@@ -23,12 +23,12 @@ export default defineConfig({
 	webServer: process.env.BASE_URL
 		? undefined
 		: {
-				command: '../../../bin/gimble --port 0',
+				command: '../../../bin/gimbal --port 0',
 				cwd: fileURLToPath(new URL('fixtures/project', import.meta.url)),
-				env: { GIMBLE_WEB_PROXY: '', GIMBLE_WEB_ORIGIN: '' },
+				env: { GIMBAL_WEB_PROXY: '', GIMBAL_WEB_ORIGIN: '' },
 				wait: {
 					stderr:
-						/gimble: web application listening on 127\.0\.0\.1:(?<gimble_e2e_port>\d+) \(prod\)/
+						/gimbal: web application listening on 127\.0\.0\.1:(?<gimbal_e2e_port>\d+) \(prod\)/
 				},
 				gracefulShutdown: { signal: 'SIGINT', timeout: 5_000 }
 			},

@@ -16,6 +16,6 @@
 ## Source authority and status
 
 - **Edited synthesis:** `docs/direction.md` and `docs/workflows-as-programs.md`.
-- **Original wording:** `ephemeral/projects/gimble/programmatic-workflows/*-VERBATIM.md`.
+- **Original wording:** `ephemeral/projects/gimbal/programmatic-workflows/*-VERBATIM.md`.
 - **Current shipped contract:** the index's topic is future direction; use
   [status-and-contract](routes/status-and-contract/index.md) for the comparison and

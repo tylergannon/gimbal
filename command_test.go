@@ -1,4 +1,4 @@
-package gimble
+package gimbal
 
 import (
 	"context"
@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tylergannon/gimble/internal/observation"
+	"github.com/tylergannon/gimbal/internal/observation"
 )
 
 // TestRunCommandRecordsEachOutcome is issue 216 without a model: a command
@@ -45,7 +45,7 @@ func TestRunCommandRecordsEachOutcome(t *testing.T) {
 		}); err != nil {
 			return err
 		}
-		record("missing.1")(RunCommand(ctx, "missing", workdir, "gimble-no-such-command"))
+		record("missing.1")(RunCommand(ctx, "missing", workdir, "gimbal-no-such-command"))
 		cancelled, cancel := context.WithTimeout(ctx, 300*time.Millisecond)
 		defer cancel()
 		record("wait.1")(RunCommand(cancelled, "wait", workdir, "sh", "-c", "printf partial; exec sleep 30"))

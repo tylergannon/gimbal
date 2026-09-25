@@ -82,9 +82,9 @@ tolerance is roughly 50%; exact model matching is unnecessary. Count the whole
 render, including headings, references, and previews. These limits cover added
 scope context, not the provider's entire conversation history.
 
-For an ordinary Generate, T covers the scope context Gimble appends, not the
+For an ordinary Generate, T covers the scope context Gimbal appends, not the
 caller's prompt. For a planner turn, the same policy covers the dynamic context
-Gimble assembles for that turn, including visible scope values and the previous
+Gimbal assembles for that turn, including visible scope values and the previous
 task record. Fixed workflow/planner instructions and provider conversation
 history are outside this budget. This is not general context-window management.
 
@@ -194,7 +194,7 @@ uncovered behavioral seam requires them instead of expanding the matrix.
   with nearest-scope shadowing. Returning successfully or with an error from a
   child restores the parent's original rendered context and budget, and a
   sibling sees no child-only value. This holds for default and custom rendering.
-- The complete Gimble-added context render is at most T according to the common
+- The complete Gimbal-added context render is at most T according to the common
   o200k_base counter. A value over the per-entry ceiling and any value abbreviated
   to satisfy the aggregate ceiling has a labeled head/tail excerpt, omission
   marker, and usable absolute path. If references alone exceed T, a bounded

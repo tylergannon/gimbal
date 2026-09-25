@@ -1,6 +1,6 @@
-# Svelte / SvelteKit do's and don'ts for Gimble's web app
+# Svelte / SvelteKit do's and don'ts for Gimbal's web app
 
-Working copy. Once the rounds are done and the app is being fixed, this moves up into skgo (its `skills/` and `docs/`), where it can steer every skgo app, not just Gimble.
+Working copy. Once the rounds are done and the app is being fixed, this moves up into skgo (its `skills/` and `docs/`), where it can steer every skgo app, not just Gimbal.
 
 The rule: **if Svelte or SvelteKit has a high-level API or paradigm for it, use it.** Each entry is an anti-pattern seen in `web/` (main at `aeba1bf`, 2026-09-21), the replacement, the doc section that backs it (line numbers are in `svelte-idiomatic.txt`, this folder; see `docs-subset.md`), a grep signature for finding it mechanically, and the sites. "n/10" is how many of a round's ten reviewers raised it independently (entries 0–18 from round 1, 19–31 from round 2). Raw reports: `round-1/`, `round-2/` (kept locally, not committed: agent output). Doc line numbers: in `svelte-idiomatic.txt` the "declaration tags" section (`{let/const ...}`) was restored after line 2442 on 2026-09-21, so cited lines above 2442 are now 71 higher; the section headings are the stable reference.
 
@@ -36,7 +36,7 @@ new EventSource(`/api/runs/${id}/events?${query}`)
 Do: every page-to-server call is a remote function (skgo `query`, `query.live`, `form`, `command`) or a load. Remote functions give typed, validated arguments, transport of custom types, single-flight refreshes and reconnects; a bespoke endpoint gives none and invites a hand-built client (#2, #3).
 Doc: Remote functions, line 9115 onward (`query` 9150, `query.live` 9368, `form` 9429, `command` 10019).
 Grep (TS): `fetch\(`, `/api/`, `new EventSource`, `+server.ts`. Grep (Go): `HandleFunc\(`, `NewServeMux`, `"/api/`.
-Sites: `internal/observation/http.go:22-27` (`/api/runs/{runID}` and `/events`), wrapped around the app in `web/server.go:71,85,125`; consumed by `routes/runs/[runID]/+page.svelte:252`. Also consumed by the CLI (`cmd/gimble/runs.go:105`) and a second hand-built mux in `web/control.go:34-45` (`/control/runs`, `/control/steer`, `/control/steer-loop`, overlapping the `steer` remotes). A non-browser client may need a plain HTTP surface; that is a separate decision, but the browser must not use it.
+Sites: `internal/observation/http.go:22-27` (`/api/runs/{runID}` and `/events`), wrapped around the app in `web/server.go:71,85,125`; consumed by `routes/runs/[runID]/+page.svelte:252`. Also consumed by the CLI (`cmd/gimbal/runs.go:105`) and a second hand-built mux in `web/control.go:34-45` (`/control/runs`, `/control/steer`, `/control/steer-loop`, overlapping the `steer` remotes). A non-browser client may need a plain HTTP surface; that is a separate decision, but the browser must not use it.
 skgo should detect this: a route registered beside skgo's handlers that the app's own client code fetches.
 
 ## 1. Resource identity in a query string, plus forced reloads (10/10, high)

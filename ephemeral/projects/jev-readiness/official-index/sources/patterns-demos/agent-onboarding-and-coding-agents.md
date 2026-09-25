@@ -36,11 +36,11 @@ This leaf captures the official boundary between Jev and coding agents, the supp
 - Installing the same agent skill through multiple methods can produce duplicate copies; choose one method. [agent skill](https://docs.typesafe.ai/agent-skill.md)
 - A stale skill can cause an agent to invent request/response fields; update the skill and retry. [agent skill](https://docs.typesafe.ai/agent-skill.md)
 - The docs warn against universal confidence thresholds: if only the best option matters, use the maximum probability; if a statistical algorithm requires probabilities, do not substitute confidence. [agent skill](https://docs.typesafe.ai/agent-skill.md)
-- The SDK landing page lists Python and JavaScript/TypeScript, not Go. A Gimble integration would therefore begin with the language-neutral HTTP API unless a separate Go client is found. [sdk](https://docs.typesafe.ai/sdk.md)
+- The SDK landing page lists Python and JavaScript/TypeScript, not Go. A Gimbal integration would therefore begin with the language-neutral HTTP API unless a separate Go client is found. [sdk](https://docs.typesafe.ai/sdk.md)
 - These assigned pages do not document image input or vision support. Their concrete state examples are text; do not infer multimodality from JSON-structured questions or from the existence of image assets in the docs.
 
 ## Task recipes
 
-- **Find a first Gimble integration:** inspect one existing supervisor decision that currently asks a generative agent for a fixed label, scalar rubric, or boolean; define that decision as Choice/Score/Noul; keep the resulting branch and side effect in Go. Start at [coding agents](https://docs.typesafe.ai/introduction/coding-agents.md) and validate a representative sample in the Playground at [quickstart](https://docs.typesafe.ai/introduction/quickstart.md).
+- **Find a first Gimbal integration:** inspect one existing supervisor decision that currently asks a generative agent for a fixed label, scalar rubric, or boolean; define that decision as Choice/Score/Noul; keep the resulting branch and side effect in Go. Start at [coding agents](https://docs.typesafe.ai/introduction/coding-agents.md) and validate a representative sample in the Playground at [quickstart](https://docs.typesafe.ai/introduction/quickstart.md).
 - **Make the decision surface reviewable:** put question wording and risk thresholds together, add representative evaluation cases, and have the workflow code own every route. Start at [agent skill](https://docs.typesafe.ai/agent-skill.md).
 - **Prototype without an SDK dependency:** POST state, model, and named questions to `/v1/systemone`, then branch on named answer fields. Start at [quickstart](https://docs.typesafe.ai/introduction/quickstart.md).

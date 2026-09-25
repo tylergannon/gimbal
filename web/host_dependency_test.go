@@ -3,12 +3,12 @@ package web
 import (
 	"testing"
 
-	"github.com/tylergannon/gimble/internal/host"
-	"github.com/tylergannon/gimble/internal/workflows/implementation"
-	"github.com/tylergannon/gimble/internal/workflows/pyramidsummary"
-	"github.com/tylergannon/gimble/internal/workflows/researchdocument"
-	"github.com/tylergannon/gimble/internal/workflows/review"
-	"github.com/tylergannon/gimble/internal/workflows/validateproduct"
+	"github.com/tylergannon/gimbal/internal/host"
+	"github.com/tylergannon/gimbal/internal/workflows/implementation"
+	"github.com/tylergannon/gimbal/internal/workflows/pyramidsummary"
+	"github.com/tylergannon/gimbal/internal/workflows/researchdocument"
+	"github.com/tylergannon/gimbal/internal/workflows/review"
+	"github.com/tylergannon/gimbal/internal/workflows/validateproduct"
 )
 
 // This package assembles the generated routes. A workflow importing web would

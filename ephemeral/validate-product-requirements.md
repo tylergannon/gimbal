@@ -1,14 +1,14 @@
 # Product validation workflow: user intent
 
-The user wants a daily process that obtains the latest Gimble build, actually uses
+The user wants a daily process that obtains the latest Gimbal build, actually uses
 its features end to end, and records video. They proposed a built-in workflow whose
 JSON or YAML inputs describe the product's startup or existing endpoint and the
 features to verify. Support browser and CLI frontends. Project-specific details
-should be parameters; use Gimble as the first concrete example. Keep the design
+should be parameters; use Gimbal as the first concrete example. Keep the design
 simple and capable, using ordinary Go workflow code and existing service support.
 
 This implementation task is to write that workflow and ask for one adversarial
-review through `gimble run-prompt`, then bring the feedback to the user. No merge or
+review through `gimbal run-prompt`, then bring the feedback to the user. No merge or
 installation is requested in this step. Scheduling and obtaining a new build can
 be supplied externally or through the suite's prepare command; there is no request
 for a scheduler framework, product auto-repair, or a model evaluation framework.
@@ -21,7 +21,7 @@ recording need cleanup on success, failure, and ordinary cancellation. Hard kill
 and machine failure are acknowledged limitations.
 
 The earlier Opus feasibility pilot and its evidence are local at
-/private/tmp/gimble-opus-validation-artifacts/REPORT.md. That pilot is evidence for
+/private/tmp/gimbal-opus-validation-artifacts/REPORT.md. That pilot is evidence for
 the tools and lifecycle approach, not proof of this new workflow's correctness.
 
 Follow-up user request: fix both findings in

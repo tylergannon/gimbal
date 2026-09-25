@@ -1,7 +1,7 @@
-# Gimble API design record
+# Gimbal API design record
 
 This file preserves the decisions, rationale, and open questions that shaped
-Gimble. It is not the current public contract; the root package's Godoc and
+Gimbal. It is not the current public contract; the root package's Godoc and
 compiling examples define the API that exists.
 
 The rule: **as simple as possible.** Add a name only when a workflow that
@@ -38,7 +38,7 @@ type ModelBinding struct {
 // Generate runs one turn and blocks until it ends. T is a polytype-generated
 // type: its schema is sent with the prompt, and the result is validated
 // once, here, and decoded into T. A failed validation is an error. For
-// gimble.Text no schema is sent and the result is the final message. The
+// gimbal.Text no schema is sent and the result is the final message. The
 // options attach supervisors (see Supervisors).
 func (s *Session) Generate[T Output](ctx context.Context, prompt string, opts ...AgentOption) (T, error)
 
@@ -66,13 +66,13 @@ func (s *Session) Fork(ctx context.Context, name string) (*Session, error)
   method (Go 1.27 allows generic methods on concrete types, never on
   interfaces). Unit tests fake the `HarnessAdapter` underneath; proof comes
   from live runs.
-- Sessions are created with `gimble.NewSession(ctx, role, workdir)`. The run
+- Sessions are created with `gimbal.NewSession(ctx, role, workdir)`. The run
   is in the ctx, and so is the scope the session belongs to (see Scope), and
   the run holds the `ModelBinding` of every role. A workflow names roles and
   never a harness, a model, or an effort: it cares that the researcher reads
   code and the validator reviews, not which model does it. `Fork` continues
   its parent's conversation, so it runs on its parent's binding and is bound
-  to nothing of its own. `workdir` is a path. Gimble has no worktree
+  to nothing of its own. `workdir` is a path. Gimbal has no worktree
   primitive: a workflow that wants a candidate in its own worktree runs `git
   worktree add` at the top of the scope body, removes it in a `defer`, and
   hands the path to `NewSession`, so the worktree ends with the scope like
@@ -81,8 +81,8 @@ func (s *Session) Fork(ctx context.Context, name string) (*Session, error)
   ctx: a command builds the map with one flag per role, unrolled, so a role
   cannot be left out and a name the workflow never asks for is not a flag
   at all.
-- One method for every turn. A prose turn is `Generate[gimble.Text]`, a
-  polytype type Gimble ships, and for it the adapter sends no schema and
+- One method for every turn. A prose turn is `Generate[gimbal.Text]`, a
+  polytype type Gimbal ships, and for it the adapter sends no schema and
   returns the final message. This is where AI SDK 6 landed too: it
   deprecated `generateObject` and left one `generateText`, whose `output`
   setting decides whether the result is text or a validated object. The
@@ -142,7 +142,7 @@ lifetime that owns it, not from whoever triggered it.**
   ctx, cancel := context.WithCancel(root)
   defer context.AfterFunc(other, cancel)()
   ```
-- No Futures. No ACP; Gimble has its own agent drivers.
+- No Futures. No ACP; Gimbal has its own agent drivers.
 - Names (`Generate`, `NewSession`, `Output`) are placeholders.
 
 ## Scope
@@ -153,17 +153,17 @@ the workflow hands to agents. The ctx says which scope you are in; the run
 owns what is in it.
 
 ```go
-err := gimble.Scope(ctx, "sprint", func(ctx context.Context) error {
-	gimble.Set(ctx, "language", "go")                    // scalars
-	gimble.SetJSON(ctx, "research", research)            // polytype-generated types
-	lang, ok := gimble.Get[string](ctx, "language")      // nearest scope up the chain
-	r, ok := gimble.GetJSON[Research](ctx, "research")   // validated, then decoded
-	prompt := task.Description + "\n\n" + gimble.ScopeText(ctx) // the chain, rendered for a prompt
+err := gimbal.Scope(ctx, "sprint", func(ctx context.Context) error {
+	gimbal.Set(ctx, "language", "go")                    // scalars
+	gimbal.SetJSON(ctx, "research", research)            // polytype-generated types
+	lang, ok := gimbal.Get[string](ctx, "language")      // nearest scope up the chain
+	r, ok := gimbal.GetJSON[Research](ctx, "research")   // validated, then decoded
+	prompt := task.Description + "\n\n" + gimbal.ScopeText(ctx) // the chain, rendered for a prompt
 	// ...
 	return nil // the scope ends here: its sessions are closed, then its ctx is cancelled
 })
 
-g := gimble.Group(ctx, "bakeoff") // a concurrent scope
+g := gimbal.Group(ctx, "bakeoff") // a concurrent scope
 g.Go("attempt", func(ctx context.Context) error { /* ... */ return nil })
 err = g.Wait() // joins the goroutines, then ends the group's scope
 ```
@@ -181,14 +181,14 @@ Identity is in the ctx; data is in the run.
   since a cancelled ctx is only a signal; waiting is what bounds a
   lifetime, and `Wait` is where it happens.
 - `Group` is the concurrent scope, and it is explicit, the way `errgroup`
-  is. `g := gimble.Group(ctx, name)` opens it; `g.Go(name, fn)` starts a
+  is. `g := gimbal.Group(ctx, name)` opens it; `g.Go(name, fn)` starts a
   goroutine in a child scope of its own; `g.Wait()` joins them all and ends
   the group. The first error a goroutine returns cancels the group's ctx,
   interrupting the others' turns, and comes back from `Wait`; a goroutine
   whose failure must not stop its siblings returns nil and reports on a
   channel, as the bake-off below does. `g.Go` is the only way a workflow
   starts a goroutine; raw `go`, `sync.WaitGroup`, and `errgroup` are for
-  Gimble's own code. Explicit rather than a `Go` that finds its group
+  Gimbal's own code. Explicit rather than a `Go` that finds its group
   through the ctx, because then a helper cannot quietly attach goroutines
   to a caller's scope and the reader sees the join; Trio passes nurseries
   explicitly for the same reason. That every group is waited on every path
@@ -203,7 +203,7 @@ Identity is in the ctx; data is in the run.
   child (the priming turn is bounded by the child, the session by the
   parent), fork it later. A session created in a lap and wanted in the
   next lap is a smell; cross-lap state is made in the loop's scope, as the
-  coder is in the Loop example. There is no `Close` on `Session`; Gimble
+  coder is in the Loop example. There is no `Close` on `Session`; Gimbal
   calls it. Turns are bounded already: `Generate` blocks, and a
   goroutine's turn is bounded by its group's `Wait`.
 - What the rule forbids, and what to do instead. None of it loses
@@ -272,12 +272,12 @@ Identity is in the ctx; data is in the run.
 
 **Iterators own scopes.** A plain `for` body cannot end a scope per
 iteration, so a `Set` inside a plain loop hits set-once on the second
-pass. Gimble's iterators make the range body the scope's function: a fresh
+pass. Gimbal's iterators make the range body the scope's function: a fresh
 scope every iteration, ended when the body returns. `Loop` does this per
 task, and there is a trivial one for a fixed slice:
 
 ```go
-for ctx, prompt := range gimble.Each(ctx, "attempt", prompts) {
+for ctx, prompt := range gimbal.Each(ctx, "attempt", prompts) {
 	// ctx is a child scope named "attempt", ended when this body returns
 }
 ```
@@ -353,7 +353,7 @@ The process is a server first. One instance can admit multiple projects while
 holding a single web listener and control socket. Each returned Runtime owns
 only its project's registry, live controls, conversation manager, and files.
 The control discovery file is under `instanceDir/control/`; a control request
-selects an admitted project with `X-Gimble-Project: /absolute/project/path`.
+selects an admitted project with `X-Gimbal-Project: /absolute/project/path`.
 The browser selects a project through its path, and the CLI submits to the
 selected instance. A project is required for control requests.
 One instance may admit multiple projects. A canonical project has one active
@@ -363,7 +363,7 @@ read its existing history. Independently configured instances can host
 different projects concurrently.
 
 ```go
-instance, err := web.NewInstance(ctx, "/tmp/gimble-one", []string{"/work/a", "/work/b"}, web.WithPort(8080))
+instance, err := web.NewInstance(ctx, "/tmp/gimbal-one", []string{"/work/a", "/work/b"}, web.WithPort(8080))
 if err != nil { return err }
 projectA, err := instance.AdmitProject("/work/a")
 if err != nil { return err }
@@ -382,19 +382,19 @@ and call the body. When the body returns, the root scope ends like any other,
 sessions closed and ctx cancelled, the log gets its final event, and from
 then on the run is served the way every past run is: from its log.
 
-The supported hosted CLI path compiles a workflow package into the Gimble
+The supported hosted CLI path compiles a workflow package into the Gimbal
 checkout's binary. Its generated `Hosted()` is registered through
 `web.WithWorkflows`; its generated `Command()` submits the run to that same
 binary running as an instance. The instance owns live observation and controls,
-while the selected project's `.gimble` owns durable runs. The command cannot
+while the selected project's `.gimbal` owns durable runs. The command cannot
 transport an arbitrary Go closure. Generated command and graph code currently
-depends on Gimble's internal packages and web build, so this is not an
+depends on Gimbal's internal packages and web build, so this is not an
 external-module authoring promise. See README's "Run a workflow" for the
 build and registration steps.
 
 The following standalone Go composition is an alternative direct runtime API:
 
-`gimble.Run(gimble.Project(ctx, dir), ...)` is still available for a caller
+`gimbal.Run(gimbal.Project(ctx, dir), ...)` is still available for a caller
 that needs no web runtime. It executes in that caller's process and writes
 under the supplied `dir`; it does not join an instance's live registry. The
 CLI's `run-prompt` creates its own headless runtime and stores logs in a
@@ -405,7 +405,7 @@ contract. Neither provides a way to submit a closure to the hosted instance.
 
 ```go
 func sprint(ctx context.Context, in SprintInput) error {
-	gimble.SetJSON(ctx, "input", in) // the page shows it as the root scope's data
+	gimbal.SetJSON(ctx, "input", in) // the page shows it as the root scope's data
 	// ...
 	return nil
 }
@@ -431,7 +431,7 @@ func main() {
   under the person looking at it. A headless caller returns instead of
   waiting on the ctx.
 - `web.Instance` owns web assembly and endpoints; `web.Runtime` is an admitted
-  project. The root `gimble` package does not import web assembly. Workflow tests
+  project. The root `gimbal` package does not import web assembly. Workflow tests
   can still call `Project` and `Run` with fake adapters and no web listener.
 - A page can start runs through one form per workflow, typed with the
   workflow's own input. It is a `skgo.Form` beside the workflow's Svelte
@@ -439,7 +439,7 @@ func main() {
 
   ```go
   func startSprint(ctx context.Context, in SprintInput) (string, error) {
-  	return gimble.Start(ctx, "sprint", func(ctx context.Context) error { return sprint(ctx, in) })
+    return gimbal.Start(ctx, "sprint", func(ctx context.Context) error { return sprint(ctx, in) })
   }
 
   var _ = skgo.Form(startSprint)
@@ -460,7 +460,7 @@ func main() {
   without the `Run` call.
 - A run id is a timestamp and then the name, as in
   `20260910-140322.sprint`: sortable in a listing, readable in a URL,
-  unique enough for one machine. The runs directory is `.gimble/runs/` in
+  unique enough for one machine. The runs directory is `.gimbal/runs/` in
   the project being worked on, ignored by git.
 - A session id is the key of the scope that created it plus the session's
   name and ordinal there, as in `lap.3/coder.1` (see Events); the
@@ -495,10 +495,10 @@ directions:
 
 ## Concurrency: Scope and Group
 
-Gimble has no built-in tactics for running agents in parallel. There is no
+Gimbal has no built-in tactics for running agents in parallel. There is no
 `BakeOff`, no `Race`, no `Parallel`, no `FirstK`. The legacy tree has
 bake-off helpers and sketches; they are the pattern this section replaces.
-What Gimble has is `Group`, the only way a workflow starts goroutines, with
+What Gimbal has is `Group`, the only way a workflow starts goroutines, with
 `Wait` as the join. A workflow that needs a bake-off writes it out, like
 this, so the reader sees every decision: how many candidates, what counts
 as a finisher, when the losers stop.
@@ -508,7 +508,7 @@ as a finisher, when the losers stop.
 ```go
 var toaster Toaster
 var car Car
-g := gimble.Group(ctx, "build")
+g := gimbal.Group(ctx, "build")
 g.Go("toaster", func(ctx context.Context) (err error) { toaster, err = s1.Generate[Toaster](ctx, "make me a toaster"); return })
 g.Go("car", func(ctx context.Context) (err error) { car, err = s2.Generate[Car](ctx, "make me a car"); return })
 if err := g.Wait(); err != nil { // the first error cancelled the other turn
@@ -525,14 +525,14 @@ type outcome struct {
 }
 ctx, cancel := context.WithCancel(ctx) // to cut the losers before Wait
 defer cancel()
-g := gimble.Group(ctx, "bakeoff")
+g := gimbal.Group(ctx, "bakeoff")
 results := make(chan outcome, len(prompts)) // buffered: senders never block
 
 for _, prompt := range prompts {
 	g.Go("attempt", func(ctx context.Context) error {
 		// One session per turn in flight. They share the name: the name is the
 		// node, and the page stacks the instances under it.
-		s := gimble.NewSession(ctx, "candidate", workdir)
+		s := gimbal.NewSession(ctx, "candidate", workdir)
 		res, err := s.Generate[Result](ctx, prompt)
 		results <- outcome{res, err} // a failure travels on the channel,
 		return nil                   // because returning it would cancel every other candidate
@@ -583,7 +583,7 @@ assignment from the goal, current evidence, priorities, and dependencies. The
 workflow chooses and prepares the planner Session.
 
 ```go
-loop := gimble.PromiseLoop(ctx, "sprint", goal, planner)
+loop := gimbal.PromiseLoop(ctx, "sprint", goal, planner)
 for ctx, task := range loop.Tasks {
 	implement(ctx, coder, task)
 }
@@ -679,11 +679,11 @@ func WithInterval(every time.Duration) AgentOption
 ```
 
 ```go
-coder := gimble.NewSession(ctx, "coder", workdir)
-taste := gimble.NewSession(ctx, "taste", workdir)
+coder := gimbal.NewSession(ctx, "coder", workdir)
+taste := gimbal.NewSession(ctx, "taste", workdir)
 
-res, err := coder.Generate[Result](ctx, task.Description+"\n\n"+gimble.ScopeText(ctx),
-	gimble.WithSupervisor(taste, "don't let it over-engineer", gimble.WithInterval(time.Minute)),
+res, err := coder.Generate[Result](ctx, task.Description+"\n\n"+gimbal.ScopeText(ctx),
+	gimbal.WithSupervisor(taste, "don't let it over-engineer", gimbal.WithInterval(time.Minute)),
 )
 ```
 
@@ -799,12 +799,12 @@ graph takes a name where it is created, and everything that groups nodes is
 a scope:
 
 ```go
-err := gimble.Scope(ctx, "sprint", body)
-g := gimble.Group(ctx, "bakeoff")
+err := gimbal.Scope(ctx, "sprint", body)
+g := gimbal.Group(ctx, "bakeoff")
 g.Go("attempt", body)
-coder := gimble.NewSession(ctx, "coder", workdir)
+coder := gimbal.NewSession(ctx, "coder", workdir)
 validator, err := researcher.Fork(ctx, "validator")
-loop := gimble.PromiseLoop(ctx, "sprint", goal, planner)
+loop := gimbal.PromiseLoop(ctx, "sprint", goal, planner)
 ```
 
 - The name identifies the node, not the instance. Five bake-off candidates
@@ -833,7 +833,7 @@ loop := gimble.PromiseLoop(ctx, "sprint", goal, planner)
 **The runtime** writes to the log what happened, as the events listed
 below, and that is the whole live graph.
 
-**Events** are of two kinds. Lifecycle events are Gimble's own and go in
+**Events** are of two kinds. Lifecycle events are Gimbal's own and go in
 the run's log; the project log carries the run-level ones, which is the
 server-wide stream. Agent events are the harness's, one file per session
 under the run. Both kinds carry the same placement, and the placement is
@@ -878,7 +878,7 @@ Three relations are not prefixes, and they are fields on events that
 exist anyway, not new events: a forked session's parent; a supervisor
 attachment's reviewer session and worker turn; and a steer's source and
 target. Supervision is also the one concurrency inside a single scope:
-reviewer turns overlap the worker's, in Gimble's own code, marked by the
+reviewer turns overlap the worker's, in Gimbal's own code, marked by the
 attachment. Any other overlap inside one scope key is a bug.
 
 Lifecycle events, ours:
@@ -924,7 +924,7 @@ traces each ctx from the scope that made it to the calls that receive it.
 Constant keys add data edges: this scope writes `research`, that node's
 prompt reads it. The limitations are Go's existing ctx conventions: ctx
 travels as a parameter or a lexical capture, never in a struct; it is
-derived only through the `context.With` family and Gimble's own functions,
+derived only through the `context.With` family and Gimbal's own functions,
 so a `context.Background()` severs the chain; a call through an interface
 resolves to every implementation; and conditional scoping yields a set of
 possible scopes, not an error. The same analyzer hosts the lints under
@@ -1019,7 +1019,7 @@ That way we can locate `RunCommand` in static analysis etc."
 `Check` is the evidence-gathering form. Its key is an explicit context key,
 with the same compile-time-constant and one-write-per-scope rules as `Set` and
 `SetJSON`. A workflow that may run a check twice writes distinct call-site
-keys such as `tests.1` and `tests.2`; Gimble does not invent them. Each value
+keys such as `tests.1` and `tests.2`; Gimbal does not invent them. Each value
 contains the command, arguments, absolute working directory, exit code,
 stdout, stderr, and execution error, preserving both attempts.
 The normal scope rules apply: a following turn in that scope sees the values;
@@ -1082,7 +1082,7 @@ semantics.
 ## Still open
 
 - `Compact`. Open-minded. What is wanted is not the harness's in-place
-  compaction but Gimble's own: a chosen prompt that extracts a chosen
+  compaction but Gimbal's own: a chosen prompt that extracts a chosen
   shape of what the session knows. That program exists with today's
   primitives: `Generate[Handoff]` on the old session, `SetJSON` of the
   result in a scope, a new session whose first prompt carries

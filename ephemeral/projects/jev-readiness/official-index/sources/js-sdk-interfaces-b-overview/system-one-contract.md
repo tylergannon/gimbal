@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This leaf covers the typed boundary for one Jev evaluation: authored request, wire payload after model resolution, typed answer map, returned model identity, and token usage. It is the core contract for attaching Jev measurements to Gimble run state while preserving enough metadata to reproduce or audit a decision.
+This leaf covers the typed boundary for one Jev evaluation: authored request, wire payload after model resolution, typed answer map, returned model identity, and token usage. It is the core contract for attaching Jev measurements to Gimbal run state while preserving enough metadata to reproduce or audit a decision.
 
 ## Authored request
 

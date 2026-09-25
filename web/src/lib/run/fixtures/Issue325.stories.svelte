@@ -44,7 +44,7 @@
   }
 
   const { Story } = defineMeta({
-    title: "Gimble/Run/Issue 325 baseline",
+    title: "Gimbal/Run/Issue 325 baseline",
     component: DetailPane,
     parameters: { layout: "fullscreen" },
   });

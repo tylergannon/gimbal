@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Focused edited synthesis of the proposal to author Gimble workflows as Go
+Focused edited synthesis of the proposal to author Gimbal workflows as Go
 programs and organize each agent's objective, responsibility, and information
 path together.
 

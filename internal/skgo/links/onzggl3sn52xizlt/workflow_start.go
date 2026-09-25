@@ -6,10 +6,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/tylergannon/gimble"
-	"github.com/tylergannon/gimble/internal/binding"
-	"github.com/tylergannon/gimble/internal/builtin"
-	"github.com/tylergannon/gimble/internal/host"
+	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/internal/binding"
+	"github.com/tylergannon/gimbal/internal/builtin"
+	"github.com/tylergannon/gimbal/internal/host"
 	"github.com/tylergannon/polytype"
 	"github.com/tylergannon/skgo"
 )
@@ -22,7 +22,7 @@ type StartAccepted struct {
 
 // startWorkflow performs shared admission checks; the caller supplies its
 // concrete workflow body directly, with no executable selection at runtime.
-func startWorkflow(ctx context.Context, projectDir, workDir, conversation, name string, overrides map[gimble.WorkflowRole]polytype.Optional[string], body func(context.Context, string) error) (StartAccepted, error) {
+func startWorkflow(ctx context.Context, projectDir, workDir, conversation, name string, overrides map[gimbal.WorkflowRole]polytype.Optional[string], body func(context.Context, string) error) (StartAccepted, error) {
 	if strings.TrimSpace(projectDir) == "" {
 		return StartAccepted{}, skgo.Invalidf("project_dir", "Choose a project directory.")
 	}
@@ -33,7 +33,7 @@ func startWorkflow(ctx context.Context, projectDir, workDir, conversation, name 
 		return StartAccepted{}, skgo.Invalidf("work_dir", "Use an absolute work directory.")
 	}
 	defaults := builtin.Defaults()
-	specs := make(map[gimble.WorkflowRole]string, len(overrides))
+	specs := make(map[gimbal.WorkflowRole]string, len(overrides))
 	for role, override := range overrides {
 		spec := defaults[role]
 		if override.Present {

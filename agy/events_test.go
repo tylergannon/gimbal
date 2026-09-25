@@ -7,12 +7,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/tylergannon/gimble"
+	"github.com/tylergannon/gimbal"
 )
 
 func TestProjectorTranslatesResponseAndToolSteps(t *testing.T) {
-	var events []gimble.AgentEvent
-	p := newProjector("conversation-1", "gemini-test-low", func(event gimble.AgentEvent) error {
+	var events []gimbal.AgentEvent
+	p := newProjector("conversation-1", "gemini-test-low", func(event gimbal.AgentEvent) error {
 		events = append(events, event)
 		return nil
 	})
@@ -66,13 +66,13 @@ func TestProjectorTranslatesResponseAndToolSteps(t *testing.T) {
 
 func TestProjectorPropagatesCallbackAndProtocolErrors(t *testing.T) {
 	boom := errors.New("observer stopped")
-	p := newProjector("conversation-1", "model", func(gimble.AgentEvent) error { return boom })
+	p := newProjector("conversation-1", "model", func(gimbal.AgentEvent) error { return boom })
 	err := p.envelope(envelope{StepUpdate: &stepUpdate{ConversationID: "conversation-1", StepIndex: 1, StepType: "agent_response", State: "DONE"}})
 	if !errors.Is(err, boom) {
 		t.Fatalf("callback error = %v", err)
 	}
 
-	p = newProjector("conversation-1", "model", func(gimble.AgentEvent) error { return nil })
+	p = newProjector("conversation-1", "model", func(gimbal.AgentEvent) error { return nil })
 	p.setConversation("conversation-1")
 	err = p.envelope(envelope{StepUpdate: &stepUpdate{ConversationID: "other", StepIndex: 1, StepType: "agent_response", State: "DONE"}})
 	if err == nil {
@@ -81,8 +81,8 @@ func TestProjectorPropagatesCallbackAndProtocolErrors(t *testing.T) {
 }
 
 func TestProjectorPreservesNativeConversationIdentity(t *testing.T) {
-	var event gimble.AgentEvent
-	p := newProjector("adapter-session", "model", func(value gimble.AgentEvent) error {
+	var event gimbal.AgentEvent
+	p := newProjector("adapter-session", "model", func(value gimbal.AgentEvent) error {
 		event = value
 		return nil
 	})
@@ -106,8 +106,8 @@ func TestProjectorPreservesNativeConversationIdentity(t *testing.T) {
 }
 
 func TestProjectorSettlesStructuredFinishToolFromResult(t *testing.T) {
-	var events []gimble.AgentEvent
-	p := newProjector("adapter-session", "model", func(value gimble.AgentEvent) error {
+	var events []gimbal.AgentEvent
+	p := newProjector("adapter-session", "model", func(value gimbal.AgentEvent) error {
 		events = append(events, value)
 		return nil
 	})
@@ -129,8 +129,8 @@ func TestProjectorSettlesStructuredFinishToolFromResult(t *testing.T) {
 }
 
 func TestProjectorLeavesUnsettledNonFinishStepAsObservedAtResult(t *testing.T) {
-	var events []gimble.AgentEvent
-	p := newProjector("adapter-session", "model", func(event gimble.AgentEvent) error {
+	var events []gimbal.AgentEvent
+	p := newProjector("adapter-session", "model", func(event gimbal.AgentEvent) error {
 		events = append(events, event)
 		return nil
 	})
@@ -157,7 +157,7 @@ func TestScanStreamRejectsMalformedNDJSON(t *testing.T) {
 	}
 }
 
-func eventTypes(events []gimble.AgentEvent) []string {
+func eventTypes(events []gimbal.AgentEvent) []string {
 	out := make([]string, len(events))
 	for i, event := range events {
 		out[i] = event.Type

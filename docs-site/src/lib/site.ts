@@ -1,15 +1,15 @@
-// The one home for what the site says Gimble is. The landing page, the header,
+// The one home for what the site says Gimbal is. The landing page, the header,
 // the docs sidebar, and the link cards all read from here.
 
 export const site = {
-  name: "Gimble",
+  name: "Gimbal",
   origin: "https://tylergannon.github.io",
-  base: "https://tylergannon.github.io/gimble",
-  repo: "https://github.com/tylergannon/gimble",
+  base: "https://tylergannon.github.io/gimbal",
+  repo: "https://github.com/tylergannon/gimbal",
   category: "A Go runtime for multi-agent workflows",
   headline: "Agent workflows that read like pseudocode.",
   summary:
-    "Write the workflow as a plain Go function. Gimble gives it scoped context, planner loops, supervision, and a live console, on Codex, Claude Code, or your own harness.",
+    "Write the workflow as a plain Go function. Gimbal gives it scoped context, planner loops, supervision, and a live console, on Codex, Claude Code, or your own harness.",
 };
 
 export const features = [

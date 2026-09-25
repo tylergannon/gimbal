@@ -4,7 +4,7 @@ import (
 	"go/ast"
 	"go/token"
 
-	"github.com/tylergannon/gimble/workflow"
+	"github.com/tylergannon/gimbal/workflow"
 )
 
 // stmt walks one statement: its own expressions, in evaluation order, and
@@ -60,7 +60,7 @@ func (e *extractor) stmt(stmt ast.Stmt, out *[]workflow.Operation, en scopeEnv) 
 // an operation: what it holds would otherwise be lost silently.
 func (e *extractor) unread(stmt ast.Stmt, what string) {
 	if e.holdsOperation(stmt) {
-		e.diag(stmt.Pos(), "%s holding a Gimble call is not read", what)
+		e.diag(stmt.Pos(), "%s holding a Gimbal call is not read", what)
 	}
 }
 
@@ -309,7 +309,7 @@ func (e *extractor) isNilErrorOperands(value, nilExpr ast.Expr) bool {
 }
 
 // repeat records a Go loop that holds an operation. The loop creates no
-// Gimble scope; how many times it runs is the run's record.
+// Gimbal scope; how many times it runs is the run's record.
 func (e *extractor) repeat(stmt ast.Stmt, block *ast.BlockStmt, cond string, out *[]workflow.Operation, en scopeEnv) {
 	if !e.holdsOperation(block) {
 		return
@@ -319,7 +319,7 @@ func (e *extractor) repeat(stmt ast.Stmt, block *ast.BlockStmt, cond string, out
 	e.emit(out, workflow.Repeat{Source: e.at(stmt.Pos()), Cond: cond, Body: body})
 }
 
-// rangeStmt is a range over PromiseLoop.Tasks, gimble.Iterate, or an ordinary
+// rangeStmt is a range over PromiseLoop.Tasks, gimbal.Iterate, or an ordinary
 // Go range, which is a Repeat.
 func (e *extractor) rangeStmt(stmt *ast.RangeStmt, out *[]workflow.Operation, en scopeEnv) {
 	if _, ok := e.promiseTasksRange(stmt); ok {

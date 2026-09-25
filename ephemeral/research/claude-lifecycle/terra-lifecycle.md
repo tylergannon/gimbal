@@ -45,7 +45,7 @@ completion decisions; creating reader streams per `RunTurn` would race for
 that shared channel. This is source-derived, not a claim that the SDK provides
 durable reconnect.
 
-Current Gimble instead creates a client and stream inside every `RunTurn` and
+Current Gimbal instead creates a client and stream inside every `RunTurn` and
 defers both closes ([`claude/claude.go`](../../../claude/claude.go), `RunTurn`).
 It returns on the first successful `ResultMessage`; it therefore chooses
 per-turn transport/process teardown. Its `onEvent` callback is supplied only
@@ -59,7 +59,7 @@ leave the current goroutine alive.
 ## Live evidence: waiting is not assignment completion
 
 All probes used the authorized cheap model `claude-haiku-4-5-20251001` through
-Claude CLI `2.1.270`, in `/private/tmp/gimble-317-terra/`.
+Claude CLI `2.1.270`, in `/private/tmp/gimbal-317-terra/`.
 
 1. With one native stream and a fixed startup schema `{kind, value}`, a
    `sleep 9` Bash task ran in the background. Claude first returned successful
@@ -68,7 +68,7 @@ Claude CLI `2.1.270`, in `/private/tmp/gimble-317-terra/`.
    second successful result with `origin.kind: "task-notification"` and
    `{kind:"complete", value:"TERRA_DONE"}`. A subsequent user prompt still
    worked in the same session. See
-   `/private/tmp/gimble-317-terra/schema-late-notification/raw.jsonl` events
+   `/private/tmp/gimbal-317-terra/schema-late-notification/raw.jsonl` events
    51, 53-78, and 118.
 2. Earlier controlled capture demonstrates the destructive boundary: after a
    result that had launched `sleep 35`, closing the client and later starting a
@@ -76,19 +76,19 @@ Claude CLI `2.1.270`, in `/private/tmp/gimble-317-terra/`.
    "Background shell command didn't finish before the previous session ended",
    followed by a successful, empty task-notification result. The requested
    follow-up then ran separately. See
-   `/private/tmp/gimble-317-investigation/sdk-structured/raw-1.jsonl` and
+   `/private/tmp/gimbal-317-investigation/sdk-structured/raw-1.jsonl` and
    `raw-2.jsonl`. This proves neither lossless delivery nor survival across
    that close/resume path.
 3. A task that called `TaskOutput(block=true)` before ending produced a single
    non-notification successful result only after the task notification
    `status:"completed"`; see
-   `/private/tmp/gimble-317-investigation/sdk-wait/raw-1.jsonl`. That is a
+   `/private/tmp/gimbal-317-investigation/sdk-wait/raw-1.jsonl`. That is a
    useful in-turn workaround, not a general persistent-service policy.
 
 One loss-minimization option is for the listener to persist enough native
 identity before projection with a durable monotonic host sequence: native
 `session_id`, result UUID/index, notification task ID, and origin. This is a
-proposed host design, not an established Gimble API requirement; the repository
+proposed host design, not an established Gimbal API requirement; the repository
 has deliberately not adopted general raw retention. The listener must still
 associate a result with a submitted prompt only after its native evidence
 identifies it. `origin` distinguishes the demonstrated automatic completion
@@ -125,11 +125,11 @@ In a live CLI 2.1.270 process, I sent these native control requests in order:
    acknowledged success, but a request for plain text returned
    `{a:"CLEAR_THIRD"}`.
 
-See `/private/tmp/gimble-317-terra/control-schema/raw.jsonl`. A second probe
+See `/private/tmp/gimbal-317-terra/control-schema/raw.jsonl`. A second probe
 started a background task under A, received its ordinary waiting result, sent
 an acknowledged `initialize(jsonSchema=B)` while idle, then received the late
 notification result as `{a:"COMPLETE"}`. See
-`/private/tmp/gimble-317-terra/control-schema-notification/raw.jsonl`.
+`/private/tmp/gimbal-317-terra/control-schema-notification/raw.jsonl`.
 
 This establishes **no verified schema-switch or clear path on this CLI
 version**, including during the notification gap. It does not prove no future
@@ -140,7 +140,7 @@ cannot presently promise distinct native schemas for arbitrary successive
 One possible design direction, not demonstrated behavior or an implementation
 recommendation to adopt without product direction, is one stable native
 envelope such as `{assignmentID, phase: waiting|completed|failed, payload}`.
-Gimble could validate `payload` against each caller's T after receiving it.
+Gimbal could validate `payload` against each caller's T after receiving it.
 That preserves native validation of the envelope and works with a persistent
 process, but gives up native validation of the caller's exact T and still does
 not make `completed` truthful by itself. A fixed per-session result type or a
@@ -163,13 +163,13 @@ live tests before becoming contract promises.
 
 ## Evidence locations
 
-- Gimble current teardown/result handling: `claude/claude.go` (`RunTurn`,
+- Gimbal current teardown/result handling: `claude/claude.go` (`RunTurn`,
   `waitTurn`) and `session.go` (`turn`).
 - Pinned SDK stream/control/transport source:
   `/Users/tyler/go/pkg/mod/github.com/tylergannon/claude-agent-sdk-go@v1.1.1-0.20260912021749-9a4ffeca77cc/client.go`,
   `messages.go`, `protocol.go`, and `transport.go`.
 - New bounded probes and captures:
-  `/private/tmp/gimble-317-terra/schema_late_notification.py`,
+  `/private/tmp/gimbal-317-terra/schema_late_notification.py`,
   `control_schema.py`, `control_schema_notification.py`, and their sibling
   capture directories. All launched processes were terminated by their probe
   finally blocks.

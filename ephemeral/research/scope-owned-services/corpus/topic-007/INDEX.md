@@ -68,7 +68,7 @@ evidence for issue 276 after readiness: the shown code does not keep an
 unexpected-exit observer attached during the test command, and it has no
 explicit bounded SIGTERM-then-SIGKILL escalation in this layer. Its README also
 supports multiple servers and ordered startup, which is more orchestration
-than Gimble needs.
+than Gimbal needs.
 
 ## Comparison relevant to issue 276
 
@@ -77,7 +77,7 @@ unexpected disappearance observable; retain the service through the owning
 operation; run cleanup on success and failure; preserve command output; and
 use process-group cleanup with bounded graceful-to-forced escalation.
 
-Not transferable as a first Gimble contract: reusable pre-existing servers,
+Not transferable as a first Gimbal contract: reusable pre-existing servers,
 multiple-service sequencing, built-in URL/HTTP health-check policy, output
 regexes as a readiness framework, restart behavior, or cleanup of resources
 created by Docker/Overmind/etc. Those features either make ownership escape the

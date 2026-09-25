@@ -31,7 +31,7 @@
     "mean_leaf_depth": 1.91,
     "orphan_leaf_count": 0,
     "orphan_leaves": [],
-    "path": "/Users/tyler/.codex/worktrees/acfe/gimble/docs/semantic-index/programmatic-workflows",
+    "path": "/Users/tyler/.codex/worktrees/acfe/gimbal/docs/semantic-index/programmatic-workflows",
     "routing_density": 4.73,
     "routing_file_count": 11,
     "routing_files": [
@@ -90,6 +90,6 @@
       "[none]": 6
     },
     "file_count": 329,
-    "path": "/Users/tyler/.codex/worktrees/acfe/gimble"
+    "path": "/Users/tyler/.codex/worktrees/acfe/gimbal"
   }
 }

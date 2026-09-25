@@ -50,7 +50,7 @@ after both were already written and passing. They are left as they are, and
 `registry_test.go` is not written, pending the revision.
 
 decision: reading a finished run loads the six tables and does not fold its
-run log. The tables are the data model and Gimble reads them; the log is the
+run log. The tables are the data model and Gimbal reads them; the log is the
 transcript store and the source a rebuild reads. The session logs are still
 read on that path, for the transcript projections only: a turn that ended
 takes no usage from a step, and a model call the file already holds is
@@ -82,7 +82,7 @@ the snapshot holds none, which fails without the guard.
 
 fact: the two probe programs were stale in two ways, not one (review finding
 2). Their fake adapters lacked `Close`, and their `RunTurn` still returned
-`json.RawMessage` rather than `gimble.TurnResult`, so adding `Close` alone
+`json.RawMessage` rather than `gimbal.TurnResult`, so adding `Close` alone
 left `go vet ./...` red. Both signatures are now current and nothing else in
 those files changed.
 

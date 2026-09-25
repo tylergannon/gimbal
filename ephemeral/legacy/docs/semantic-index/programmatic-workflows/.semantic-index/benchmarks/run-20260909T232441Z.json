@@ -9,8 +9,8 @@
     "success_at_1": 1.0,
     "success_at_3": 1.0
   },
-  "evals_path": "/Users/tyler/.codex/worktrees/acfe/gimble/docs/semantic-index/programmatic-workflows/.semantic-index/evals.jsonl",
-  "index": "/Users/tyler/.codex/worktrees/acfe/gimble/docs/semantic-index/programmatic-workflows",
+  "evals_path": "/Users/tyler/.codex/worktrees/acfe/gimbal/docs/semantic-index/programmatic-workflows/.semantic-index/evals.jsonl",
+  "index": "/Users/tyler/.codex/worktrees/acfe/gimbal/docs/semantic-index/programmatic-workflows",
   "results": [
     {
       "citation_precision": 1.0,
@@ -179,7 +179,7 @@
       "id": "q010",
       "notes": "Important status boundary and current contract.",
       "path_length_to_first_hit": 0,
-      "query": "Which parts are direction rather than shipped Gimble behavior?",
+      "query": "Which parts are direction rather than shipped Gimbal behavior?",
       "route_found": true,
       "success_at_1": true,
       "success_at_3": true,

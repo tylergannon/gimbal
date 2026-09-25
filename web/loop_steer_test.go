@@ -13,9 +13,9 @@ import (
 
 	"github.com/tylergannon/skgo"
 
-	"github.com/tylergannon/gimble"
-	"github.com/tylergannon/gimble/internal/runlog"
-	routes "github.com/tylergannon/gimble/internal/skgo/links/onzggl3sn52xizlt"
+	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/internal/runlog"
+	routes "github.com/tylergannon/gimbal/internal/skgo/links/onzggl3sn52xizlt"
 )
 
 // planning answers a loop's planner: the first decision takes on the one
@@ -30,7 +30,7 @@ func (*planning) CreateSession(context.Context, string, string, string) (string,
 	return "native-planner", nil
 }
 
-func (p *planning) RunTurn(_ context.Context, _, prompt string, _ json.RawMessage, _ func(gimble.AgentEvent) error) (gimble.TurnResult, error) {
+func (p *planning) RunTurn(_ context.Context, _, prompt string, _ json.RawMessage, _ func(gimbal.AgentEvent) error) (gimbal.TurnResult, error) {
 	p.mu.Lock()
 	p.prompts = append(p.prompts, prompt)
 	first := len(p.prompts) == 1
@@ -46,7 +46,7 @@ func (p *planning) RunTurn(_ context.Context, _, prompt string, _ json.RawMessag
 		plan["next"] = 0
 	}
 	raw, err := json.Marshal(plan)
-	return gimble.TurnResult{Output: raw}, err
+	return gimbal.TurnResult{Output: raw}, err
 }
 
 func (*planning) Steer(context.Context, string, string) (bool, error) { return false, nil }
@@ -74,8 +74,8 @@ func TestIterateScopesHaveNoPlannerControls(t *testing.T) {
 	done := make(chan error, 1)
 	go func() {
 		done <- runtime.Run(ctx, "repeating", nil, func(ctx context.Context) error {
-			for ctx := range gimble.Iterate(ctx, "round", []string{"one"}) {
-				gimble.Set(ctx, "answer", "visible in this iteration")
+			for ctx := range gimbal.Iterate(ctx, "round", []string{"one"}) {
+				gimbal.Set(ctx, "answer", "visible in this iteration")
 				close(entered)
 				select {
 				case <-release:
@@ -134,9 +134,9 @@ func TestLoopFormReachesThePlannerOfALoop(t *testing.T) {
 	dispatched, sent := make(chan struct{}), make(chan struct{})
 	var runWG sync.WaitGroup
 	runWG.Go(func() {
-		_ = runtime.Run(ctx, "looping", map[gimble.WorkflowRole]gimble.ModelBinding{"planner": {Adapter: p, Model: "m"}}, func(ctx context.Context) error {
-			planner := gimble.NewSession(ctx, "planner", "/w")
-			loop := gimble.PromiseLoop(ctx, "sprint", "ship it", planner)
+		_ = runtime.Run(ctx, "looping", map[gimbal.WorkflowRole]gimbal.ModelBinding{"planner": {Adapter: p, Model: "m"}}, func(ctx context.Context) error {
+			planner := gimbal.NewSession(ctx, "planner", "/w")
+			loop := gimbal.PromiseLoop(ctx, "sprint", "ship it", planner)
 			for range loop.Tasks {
 				close(dispatched)
 				<-sent
@@ -149,7 +149,7 @@ func TestLoopFormReachesThePlannerOfALoop(t *testing.T) {
 	id := runID(t, project)
 
 	waiting, err := routes.Skgo_steerLoop(runtime.Context(), routes.LoopMessage{Run: id, Scope: "sprint.1", WrapUp: true})
-	if err != nil || waiting.Message != gimble.WrapUp {
+	if err != nil || waiting.Message != gimbal.WrapUp {
 		t.Fatalf("wrap up = %+v, %v; want the runtime's own wrap-up message", waiting, err)
 	}
 	if waiting, err := routes.Skgo_steerLoop(runtime.Context(), routes.LoopMessage{Run: id, Scope: "sprint.1", Message: "  and nothing after it  "}); err != nil || waiting.Message != "and nothing after it" {
@@ -170,12 +170,12 @@ func TestLoopFormReachesThePlannerOfALoop(t *testing.T) {
 	close(sent)
 	runWG.Wait()
 
-	if next := p.said(2); !strings.Contains(next, gimble.WrapUp) || !strings.Contains(next, "and nothing after it") {
+	if next := p.said(2); !strings.Contains(next, gimbal.WrapUp) || !strings.Contains(next, "and nothing after it") {
 		t.Fatalf("the planner was not told what the page sent:\n%s", next)
 	}
-	var steered []gimble.LifecycleRecord
-	if err := runlog.Read[gimble.LifecycleRecord](ctx, filepath.Join(project, ".gimble", "runs", id), func(record gimble.LifecycleRecord) error {
-		if _, ok := record.Event.(gimble.Steer); ok {
+	var steered []gimbal.LifecycleRecord
+	if err := runlog.Read[gimbal.LifecycleRecord](ctx, filepath.Join(project, ".gimbal", "runs", id), func(record gimbal.LifecycleRecord) error {
+		if _, ok := record.Event.(gimbal.Steer); ok {
 			steered = append(steered, record)
 		}
 		return nil
@@ -186,7 +186,7 @@ func TestLoopFormReachesThePlannerOfALoop(t *testing.T) {
 		t.Fatalf("Steer records = %+v, want two on the loop", steered)
 	}
 	for _, record := range steered {
-		steer := record.Event.(gimble.Steer)
+		steer := record.Event.(gimbal.Steer)
 		if record.Scope != "sprint.1" || steer.Target != "sprint.1" || steer.Source != "person" || !steer.Landed {
 			t.Errorf("Steer record = %+v %+v, want it landed on sprint.1 from the person", record, steer)
 		}

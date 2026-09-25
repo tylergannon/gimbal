@@ -35,7 +35,7 @@ This leaf captures how Jev narrows a large search space: direct line Choice plus
 
 ## Gotchas and failures
 
-- Re-ranking cannot repair first-stage recall. The cookbook's 100% top-30 recall was unusually favorable and should not be assumed for Gimble traces. [rerank_typesafe](https://docs.typesafe.ai/cookbooks/rerank_typesafe.md)
+- Re-ranking cannot repair first-stage recall. The cookbook's 100% top-30 recall was unusually favorable and should not be assumed for Gimbal traces. [rerank_typesafe](https://docs.typesafe.ai/cookbooks/rerank_typesafe.md)
 - Even after Jev re-ranking, CLERC top-1 was only 18%. This pattern is better for candidate ordering and escalation than unilateral evidence selection. [rerank_typesafe](https://docs.typesafe.ai/cookbooks/rerank_typesafe.md)
 - The semantic-find thresholds (`0.7` found, `0.35` absent) were chosen to separate four examples and explicitly require tuning on other documents. [semantic_find](https://docs.typesafe.ai/cookbooks/semantic_find.md)
 - Choice probability over line IDs is relative to the candidate set; changing chunking or adding distractors can change the distribution.

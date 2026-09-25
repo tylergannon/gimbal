@@ -9,14 +9,14 @@ import (
 
 	"github.com/tylergannon/skgo"
 
-	"github.com/tylergannon/gimble"
-	"github.com/tylergannon/gimble/internal/runlog"
+	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/internal/runlog"
 
 	// src/routes, reached through the link tree skgo generates: a route
 	// directory is named after the URL it serves, so that tree is its own
 	// module and Go reaches into it only through these links. links.json
 	// maps this one back to web/src/routes.
-	routes "github.com/tylergannon/gimble/internal/skgo/links/onzggl3sn52xizlt"
+	routes "github.com/tylergannon/gimbal/internal/skgo/links/onzggl3sn52xizlt"
 )
 
 // TestSteerFormReachesTheSessionAPersonIsWatching is the page half of #176:
@@ -41,10 +41,10 @@ func TestSteerFormReachesTheSessionAPersonIsWatching(t *testing.T) {
 	)
 	var runWG sync.WaitGroup
 	runWG.Go(func() {
-		_ = runtime.Run(ctx, "steering", map[gimble.WorkflowRole]gimble.ModelBinding{"coder": {Adapter: b, Model: "m"}}, func(ctx context.Context) error {
-			return gimble.Scope(ctx, "lap", func(ctx context.Context) error {
-				coder := gimble.NewSession(ctx, "coder", "/w")
-				_, err := coder.Generate[gimble.Text](ctx, "wait")
+		_ = runtime.Run(ctx, "steering", map[gimbal.WorkflowRole]gimbal.ModelBinding{"coder": {Adapter: b, Model: "m"}}, func(ctx context.Context) error {
+			return gimbal.Scope(ctx, "lap", func(ctx context.Context) error {
+				coder := gimbal.NewSession(ctx, "coder", "/w")
+				_, err := coder.Generate[gimbal.Text](ctx, "wait")
 				return err
 			})
 		})
@@ -66,9 +66,9 @@ func TestSteerFormReachesTheSessionAPersonIsWatching(t *testing.T) {
 	}
 	runWG.Wait()
 
-	var steered []gimble.LifecycleRecord
-	if err := runlog.Read[gimble.LifecycleRecord](ctx, filepath.Join(project, ".gimble", "runs", id), func(record gimble.LifecycleRecord) error {
-		if _, ok := record.Event.(gimble.Steer); ok {
+	var steered []gimbal.LifecycleRecord
+	if err := runlog.Read[gimbal.LifecycleRecord](ctx, filepath.Join(project, ".gimbal", "runs", id), func(record gimbal.LifecycleRecord) error {
+		if _, ok := record.Event.(gimbal.Steer); ok {
 			steered = append(steered, record)
 		}
 		return nil
@@ -78,7 +78,7 @@ func TestSteerFormReachesTheSessionAPersonIsWatching(t *testing.T) {
 	if len(steered) != 1 {
 		t.Fatalf("Steer records = %+v, want one", steered)
 	}
-	steer := steered[0].Event.(gimble.Steer)
+	steer := steered[0].Event.(gimbal.Steer)
 	// The message is recorded trimmed: what the form posts carries whatever
 	// whitespace the textarea held, and the agent is sent the words.
 	if steered[0].Scope != scope || steered[0].Session.Value != session || steered[0].Turn.Value != turn ||
@@ -101,10 +101,10 @@ func TestSteerFormRefusesWhatItCannotDeliver(t *testing.T) {
 	b := &blocking{}
 	var runWG sync.WaitGroup
 	runWG.Go(func() {
-		_ = runtime.Run(ctx, "steering", map[gimble.WorkflowRole]gimble.ModelBinding{"coder": {Adapter: b, Model: "m"}}, func(ctx context.Context) error {
-			return gimble.Scope(ctx, "lap", func(ctx context.Context) error {
-				coder := gimble.NewSession(ctx, "coder", "/w")
-				_, err := coder.Generate[gimble.Text](ctx, "wait")
+		_ = runtime.Run(ctx, "steering", map[gimbal.WorkflowRole]gimbal.ModelBinding{"coder": {Adapter: b, Model: "m"}}, func(ctx context.Context) error {
+			return gimbal.Scope(ctx, "lap", func(ctx context.Context) error {
+				coder := gimbal.NewSession(ctx, "coder", "/w")
+				_, err := coder.Generate[gimbal.Text](ctx, "wait")
 				return err
 			})
 		})

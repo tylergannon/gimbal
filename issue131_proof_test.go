@@ -1,4 +1,4 @@
-package gimble
+package gimbal
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/tylergannon/gimble/internal/runlog"
+	"github.com/tylergannon/gimbal/internal/runlog"
 )
 
 type issue131Adapter struct {

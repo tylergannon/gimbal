@@ -6,8 +6,8 @@ import (
 	"context"
 	"strings"
 
-	"github.com/tylergannon/gimble"
-	"github.com/tylergannon/gimble/internal/workflows/pyramidsummary"
+	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/internal/workflows/pyramidsummary"
 	"github.com/tylergannon/polytype"
 	"github.com/tylergannon/skgo"
 )
@@ -42,13 +42,13 @@ func startPyramidSummary(ctx context.Context, in StartPyramidSummaryInput) (Star
 		return StartAccepted{}, skgo.Invalidf("output_dir", "Give output_dir.")
 	}
 	return startWorkflow(ctx, in.ProjectDir, in.WorkDir, in.Conversation, "pyramid-summary",
-		map[gimble.WorkflowRole]polytype.Optional[string]{
-			gimble.WorkflowRole("document-authoring"):   in.RoleDocumentAuthoring,
-			gimble.WorkflowRole("document-supervision"): in.RoleDocumentSupervision,
-			gimble.WorkflowRole("pyramid-planning"):     in.RolePyramidPlanning,
-			gimble.WorkflowRole("editorial-review"):     in.RoleEditorialReview,
+		map[gimbal.WorkflowRole]polytype.Optional[string]{
+			gimbal.WorkflowRole("document-authoring"):   in.RoleDocumentAuthoring,
+			gimbal.WorkflowRole("document-supervision"): in.RoleDocumentSupervision,
+			gimbal.WorkflowRole("pyramid-planning"):     in.RolePyramidPlanning,
+			gimbal.WorkflowRole("editorial-review"):     in.RoleEditorialReview,
 		}, func(runCtx context.Context, workDir string) error {
-			return pyramidsummary.PyramidSummary(runCtx, gimble.Env{WorkDir: workDir}, pyramidsummary.Params{
+			return pyramidsummary.PyramidSummary(runCtx, gimbal.Env{WorkDir: workDir}, pyramidsummary.Params{
 				Goal:               in.Goal,
 				SemanticIndex:      in.SemanticIndex,
 				LargestDocument:    in.LargestDocument,

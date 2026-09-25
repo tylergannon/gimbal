@@ -1,0 +1,68 @@
+# Gimbal Transport and Control Sources
+Origin: /Users/tyler/.codex/worktrees/d798/gimbal/web/submit.go
+Origin: /Users/tyler/.codex/worktrees/d798/gimbal/web/control.go
+Origin: /Users/tyler/.codex/worktrees/d798/gimbal/web/runtime_control_test.go
+Version: Gimbal cde79c24 / e161721c
+Retrieval Date: 2026-09-23
+
+---
+
+### Excerpt 1: Gimbal UDS Client Configuration and Request Execution
+
+Location: `web/submit.go`, lines 129-141:
+
+```go
+func (c selectedClient) request(ctx context.Context, method, path string, body io.Reader) (*http.Response, error) {
+	request, err := http.NewRequestWithContext(ctx, method, "http://gimbal"+path, body)
+	if err != nil {
+		return nil, err
+	}
+	request.Header.Set("X-Gimbal-Project", c.project)
+	transport := &http.Transport{DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+		return (&net.Dialer{}).DialContext(ctx, "unix", c.socket)
+	}}
+	response, err := (&http.Client{Transport: transport}).Do(request)
+	transport.CloseIdleConnections()
+	return response, err
+}
+```
+
+---
+
+### Excerpt 2: Test Harness Control Socket Client
+
+Location: `web/runtime_control_test.go`, lines 126-130:
+
+```go
+func controlClient(socket string) *http.Client {
+	return &http.Client{Transport: &http.Transport{DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+		return (&net.Dialer{}).DialContext(ctx, "unix", socket)
+	}}}
+}
+```
+
+---
+
+### Excerpt 3: Server Execution in Independent Background Goroutine
+
+Location: `web/control.go`, lines 115-126:
+
+```go
+		run, err := project.registerRun(runID, request.Name, workDir, conversationID, prompt, request.RoleModels)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		go func() {
+			defer project.finishRun(run.ID)
+			env := run.Env(project.dir, workDir, request.RoleModels)
+			if err := workflow.Run(run.Context, env, request.Params); err != nil {
+				project.recordRunError(run.ID, err)
+			}
+		}()
+```
+
+Notice:
+- `workflow.Run` uses `run.Context` (derived from the project/server lifecycle), NOT `r.Context()`.
+- When the HTTP request completes and writes the response containing `runID`, `r.Context()` is canceled by the HTTP server, but `run.Context` is completely unaffected.
+- If the client caller cancels its network wait, `client.Do(req)` unblocks with `ctx.Err()`, but the client does NOT emit any cancellation RPC to the server. The server run continues to completion.

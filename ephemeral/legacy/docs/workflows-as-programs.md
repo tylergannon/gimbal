@@ -2,18 +2,18 @@
 
 Architectural direction stated by Tyler on 2026-09-08 and clarified on
 2026-09-09. This is an edited synthesis of
-[his original statement](../ephemeral/projects/gimble/programmatic-workflows/KEY-CLAIM-VERBATIM.md)
-and [his context-engineering clarification](../ephemeral/projects/gimble/programmatic-workflows/CONTEXT-REFRAMING-VERBATIM.md),
+[his original statement](../ephemeral/projects/gimbal/programmatic-workflows/KEY-CLAIM-VERBATIM.md)
+and [his context-engineering clarification](../ephemeral/projects/gimbal/programmatic-workflows/CONTEXT-REFRAMING-VERBATIM.md),
 each preserved separately with only the retired project name normalized.
-It describes the direction of Gimble's Go-program work; the context and
+It describes the direction of Gimbal's Go-program work; the context and
 indexing behavior described here is not yet implemented.
 
-The broader [Gimble direction](direction.md) places this work in the
+The broader [Gimbal direction](direction.md) places this work in the
 experience of authoring workflows, the legibility worth preserving from
 graphs, and the future ability to examine context choices through run
 telemetry.
 
-**Gimble should organize work and information together, so each agent has
+**Gimbal should organize work and information together, so each agent has
 a clear objective, a responsibility it can handle, and a direct path to the
 knowledge it needs. The workflow carries responsibilities we should not ask
 any one agent to carry in its head.**
@@ -26,7 +26,7 @@ participant needs to understand and discover along the way.
 ## Why author workflows as programs?
 
 DAG-style workflow definitions work well for very simple workflows. In
-practice, authoring Gimble's graph language proved genuinely difficult rather
+practice, authoring Gimbal's graph language proved genuinely difficult rather
 than easy as intended. Modeling workflow in general requires authors to
 reconstruct ordinary program structure through nodes, edges, routing fields,
 and graph-specific scoping rules. The art of agentic orchestration is changing
@@ -37,7 +37,7 @@ need, it tends toward becoming a pseudo-programming language, perhaps
 asymptotically.
 
 Our response is to author workflows directly as programs in a programming
-language. For Gimble, that language is Go. Loops, conditions, functions,
+language. For Gimbal, that language is Go. Loops, conditions, functions,
 composition, and concurrency can be expressed using the language itself.
 New orchestration shapes become new programs or ordinary reusable functions.
 
@@ -46,7 +46,7 @@ Go already provides goroutines, channels, selection, cancellation patterns,
 and ordinary lexical scope, making concurrent and asynchronous orchestration
 natural to express directly.
 
-This frees Gimble from many of the constraints of a graph-definition
+This frees Gimbal from many of the constraints of a graph-definition
 language. It also gives us a practical design metaphor: the functions and
 types we build should make orchestration feel natural to program. The
 workflow's algorithm should remain visible in its source, with input
@@ -189,14 +189,14 @@ arrangement against the same task and established validation.
 ## Implementation record
 
 The Go-program runtime is not present on `main`, but an existing unmerged
-POC is preserved. Start with the [recovery guide](../ephemeral/projects/gimble/programmatic-workflows/POC-RECOVERY.md)
+POC is preserved. Start with the [recovery guide](../ephemeral/projects/gimbal/programmatic-workflows/POC-RECOVERY.md)
 before designing a replacement. It locates the implemented `program` package:
 typed `Codergen[T]` calls, command execution, validation, and
 `Loop(...) iter.Seq2[Iteration, error]`. Its sprint, chapter, and delivery
 programs use ordinary Go control flow, with inputs and prompts separated
 from their algorithms.
 
-The earlier [concurrency sketches](../ephemeral/projects/gimble/programmatic-workflows/CONCURRENCY-SHAPES.md)
+The earlier [concurrency sketches](../ephemeral/projects/gimbal/programmatic-workflows/CONCURRENCY-SHAPES.md)
 express critique circles and bake-offs through ordinary goroutines/errgroup.
 That concurrency work, automatic scoped context, the task-oriented index
 entry point, and unified assembly of agent requests remain proposed behavior.
@@ -204,5 +204,5 @@ The examples currently use canned callbacks and symbolic workspaces while the
 argument shape and role direction remain illustrative.
 
 Until that refactor lands, the root README should continue to describe the
-graph engine that Gimble actually ships. Rewrite it when the implementation
+graph engine that Gimbal actually ships. Rewrite it when the implementation
 changes rather than presenting this direction as current behavior.

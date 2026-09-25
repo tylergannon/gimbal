@@ -79,8 +79,8 @@ result, so there is nothing to promote; see Failure cases.
 
 ## Temporary acceptance workflow
 
-Lives in `/private/tmp/gimble-317-acceptance/` with its logs; never committed.
-A Go program using real `gimble.Run`, one `NewSession` on
+Lives in `/private/tmp/gimbal-317-acceptance/` with its logs; never committed.
+A Go program using real `gimbal.Run`, one `NewSession` on
 `claude-haiku-4-5-20251001`, under a `context.WithTimeout` (about 5 minutes).
 
 1. The program mints two random tokens. `TOKEN_A` goes in prompt 1 only.
@@ -148,7 +148,7 @@ the marker exists. The root agent records that baseline.
    execution must not". Recommended: log it, let ctx bound it.
 4. **Does Claude's native validator accept an embedded arbitrary T schema**
    (`$defs`, `$ref` at a non-root path)? Assumed yes from probe A's envelope;
-   must be seen with one generated Gimble schema before building on it.
+   must be seen with one generated Gimbal schema before building on it.
 5. **Steers during waiting** produce extra results in the same process. The
    rules classify them by `state`, so no special case is planned; unverified.
 6. **Orderly close**: stdin close first, SIGTERM fallback, per

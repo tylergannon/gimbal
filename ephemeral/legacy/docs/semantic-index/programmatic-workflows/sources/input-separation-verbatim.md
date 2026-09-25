@@ -1,4 +1,4 @@
-# Source leaf: `ephemeral/projects/gimble/programmatic-workflows/INPUT-SEPARATION-VERBATIM.md`
+# Source leaf: `ephemeral/projects/gimbal/programmatic-workflows/INPUT-SEPARATION-VERBATIM.md`
 
 ## Purpose
 
@@ -9,7 +9,7 @@ distinct from the input data and information conditions supplied at startup.
 
 - Separate program shape from input data, including data that grows and an
   index whose quality and shape can evolve:
-  `ephemeral/projects/gimble/programmatic-workflows/INPUT-SEPARATION-VERBATIM.md:3-3`.
+  `ephemeral/projects/gimbal/programmatic-workflows/INPUT-SEPARATION-VERBATIM.md:3-3`.
 
 ## Retrieval recipes
 

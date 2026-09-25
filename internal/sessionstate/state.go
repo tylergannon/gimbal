@@ -11,7 +11,7 @@ import (
 
 // ProjectionState is the session slice of the upstream client store, using
 // the upstream keys. Every value is native JSON: this port reduces native
-// events and holds no Gimble identity.
+// events and holds no Gimbal identity.
 type ProjectionState struct {
 	Info       map[string]*Obj     `json:"info"`
 	Family     map[string][]string `json:"family"`

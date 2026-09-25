@@ -11,8 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/tylergannon/gimble"
-	"github.com/tylergannon/gimble/internal/observation"
+	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/internal/observation"
 )
 
 func TestDirectRunDoesNotJoinAnInstance(t *testing.T) {
@@ -34,8 +34,8 @@ func TestDirectRunDoesNotJoinAnInstance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := gimble.Run(gimble.Project(ctx, directProject), "direct", nil, func(ctx context.Context) error {
-		gimble.Set(ctx, "message", "direct-ok")
+	if err := gimbal.Run(gimbal.Project(ctx, directProject), "direct", nil, func(ctx context.Context) error {
+		gimbal.Set(ctx, "message", "direct-ok")
 		return nil
 	}); err != nil {
 		t.Fatal(err)
@@ -51,7 +51,7 @@ func TestDirectRunDoesNotJoinAnInstance(t *testing.T) {
 	if _, err := project.Registry().Snapshot(id); !errors.Is(err, observation.ErrNoRun) {
 		t.Fatalf("instance unexpectedly observed direct run: %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(hostedProject, ".gimble", "runs", id)); !errors.Is(err, os.ErrNotExist) {
+	if _, err := os.Stat(filepath.Join(hostedProject, ".gimbal", "runs", id)); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("direct run appeared in hosted project: %v", err)
 	}
 }
@@ -71,12 +71,12 @@ func TestRuntimeListenerOptionsConflict(t *testing.T) {
 
 func TestRuntimeServesWebApplicationOverUDSAndCleansUp(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
-	socketDir, err := os.MkdirTemp("/tmp", "gimble-")
+	socketDir, err := os.MkdirTemp("/tmp", "gimbal-")
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = os.RemoveAll(socketDir) })
-	socket := filepath.Join(socketDir, "gimble.sock")
+	socket := filepath.Join(socketDir, "gimbal.sock")
 	instance, _, err := newProject(ctx, t.TempDir(), WithUDS(socket))
 	if err != nil {
 		t.Fatal(err)
@@ -85,7 +85,7 @@ func TestRuntimeServesWebApplicationOverUDSAndCleansUp(t *testing.T) {
 		return (&net.Dialer{}).DialContext(ctx, "unix", socket)
 	}}}
 	defer client.CloseIdleConnections()
-	response, err := client.Get("http://gimble/")
+	response, err := client.Get("http://gimbal/")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -15,8 +15,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/tylergannon/gimble/internal/host"
-	"github.com/tylergannon/gimble/internal/observation"
+	"github.com/tylergannon/gimbal/internal/host"
+	"github.com/tylergannon/gimbal/internal/observation"
 )
 
 // controlDiscovery is the small file a local client finds below the instance
@@ -33,9 +33,9 @@ type controlHandler struct {
 }
 
 func (h controlHandler) project(r *http.Request) (*host.Project, error) {
-	name := r.Header.Get("X-Gimble-Project")
+	name := r.Header.Get("X-Gimbal-Project")
 	if name == "" {
-		return nil, errors.New("gimble: project is required")
+		return nil, errors.New("gimbal: project is required")
 	}
 	return h.instance.Owner.Project(name)
 }
@@ -126,12 +126,12 @@ func (h controlHandler) steerLoop(w http.ResponseWriter, r *http.Request) {
 func (i *Instance) startControl() error {
 	controlDir := filepath.Join(i.dir, "control")
 	if err := os.MkdirAll(controlDir, 0o755); err != nil {
-		return fmt.Errorf("gimble: control directory: %w", err)
+		return fmt.Errorf("gimbal: control directory: %w", err)
 	}
 
 	var rawID [4]byte
 	if _, err := rand.Read(rawID[:]); err != nil {
-		return fmt.Errorf("gimble: control identity: %w", err)
+		return fmt.Errorf("gimbal: control identity: %w", err)
 	}
 	identity := hex.EncodeToString(rawID[:])
 	socket := filepath.Join(i.dir, identity+".sock")
@@ -141,11 +141,11 @@ func (i *Instance) startControl() error {
 		// macOS limits the total Unix socket path length. A long temporary or
 		// checkout path cannot hold the socket itself, but its discovery file
 		// still lives under the project and points to this short fallback.
-		socket = filepath.Join("/tmp", "gimble-"+identity+".sock")
+		socket = filepath.Join("/tmp", "gimbal-"+identity+".sock")
 		listener, err = net.Listen("unix", socket)
 	}
 	if err != nil {
-		return fmt.Errorf("gimble: listen on control socket: %w", err)
+		return fmt.Errorf("gimbal: listen on control socket: %w", err)
 	}
 	info := controlDiscovery{PID: os.Getpid(), Socket: socket, Project: i.dir}
 	i.Owner.SetControl(identity, socket)
@@ -153,12 +153,12 @@ func (i *Instance) startControl() error {
 	if err != nil {
 		_ = listener.Close()
 		_ = os.Remove(socket)
-		return fmt.Errorf("gimble: encode control discovery: %w", err)
+		return fmt.Errorf("gimbal: encode control discovery: %w", err)
 	}
 	if err := os.WriteFile(discovery, encoded, 0o644); err != nil {
 		_ = listener.Close()
 		_ = os.Remove(socket)
-		return fmt.Errorf("gimble: write control discovery: %w", err)
+		return fmt.Errorf("gimbal: write control discovery: %w", err)
 	}
 
 	server := &http.Server{
@@ -172,7 +172,7 @@ func (i *Instance) startControl() error {
 	go func() {
 		defer close(serveDone)
 		if err := server.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			i.cancel(fmt.Errorf("gimble: serve control socket: %w", err))
+			i.cancel(fmt.Errorf("gimbal: serve control socket: %w", err))
 		}
 	}()
 	context.AfterFunc(i.ctx, func() {
@@ -183,7 +183,7 @@ func (i *Instance) startControl() error {
 		_ = os.Remove(discovery)
 		i.shutdown.Done()
 	})
-	log.Printf("gimble: control socket listening on %s", socket)
+	log.Printf("gimbal: control socket listening on %s", socket)
 	return nil
 }
 

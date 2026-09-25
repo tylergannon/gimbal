@@ -1,4 +1,4 @@
-package gimble
+package gimbal
 
 import (
 	"context"

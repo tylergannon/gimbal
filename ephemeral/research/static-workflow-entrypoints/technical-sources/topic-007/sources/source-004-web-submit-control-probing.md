@@ -1,6 +1,6 @@
 # Source: web/submit.go and web/control.go - Control Transport and Discovery Probing
 
-- **Origin**: `/Users/tyler/.codex/worktrees/d798/gimble/web/submit.go` and `/Users/tyler/.codex/worktrees/d798/gimble/web/control.go`
+- **Origin**: `/Users/tyler/.codex/worktrees/d798/gimbal/web/submit.go` and `/Users/tyler/.codex/worktrees/d798/gimbal/web/control.go`
 - **Commit**: `40dc82947eed99202fd9cb1dd377b6a3c2abbccc`
 - **Retrieval Date**: 2026-09-23
 - **Scope**: Discovery probing requiring admitted project (`selectedInstance`), UDS transport, and control socket dispatch (`controlMux`).
@@ -21,7 +21,7 @@ func selectedInstance(ctx context.Context, instanceDir, project string) (selecte
 	}
 	entries, err := os.ReadDir(filepath.Join(instanceDir, "control"))
 	if errors.Is(err, os.ErrNotExist) {
-		return selectedClient{}, fmt.Errorf("no running Gimble instance at %s; start gimble --instance-dir %s --project %s", instanceDir, instanceDir, project)
+		return selectedClient{}, fmt.Errorf("no running Gimbal instance at %s; start gimbal --instance-dir %s --project %s", instanceDir, instanceDir, project)
 	}
 	if err != nil {
 		return selectedClient{}, err
@@ -48,17 +48,17 @@ func selectedInstance(ctx context.Context, instanceDir, project string) (selecte
 		}
 	}
 	if len(clients) != 1 {
-		return selectedClient{}, fmt.Errorf("selected Gimble instance at %s has %d live endpoints admitting project %s; start or select one instance with --instance-dir", instanceDir, len(clients), project)
+		return selectedClient{}, fmt.Errorf("selected Gimbal instance at %s has %d live endpoints admitting project %s; start or select one instance with --instance-dir", instanceDir, len(clients), project)
 	}
 	return clients[0], nil
 }
 
 func (c selectedClient) request(ctx context.Context, method, path string, body io.Reader) (*http.Response, error) {
-	request, err := http.NewRequestWithContext(ctx, method, "http://gimble"+path, body)
+	request, err := http.NewRequestWithContext(ctx, method, "http://gimbal"+path, body)
 	if err != nil {
 		return nil, err
 	}
-	request.Header.Set("X-Gimble-Project", c.project)
+	request.Header.Set("X-Gimbal-Project", c.project)
 	transport := &http.Transport{DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
 		return (&net.Dialer{}).DialContext(ctx, "unix", c.socket)
 	}}
@@ -72,9 +72,9 @@ func (c selectedClient) request(ctx context.Context, method, path string, body i
 
 ```go
 func (h controlHandler) project(r *http.Request) (*Runtime, error) {
-	name := r.Header.Get("X-Gimble-Project")
+	name := r.Header.Get("X-Gimbal-Project")
 	if name == "" {
-		return nil, errors.New("gimble: project is required")
+		return nil, errors.New("gimbal: project is required")
 	}
 	path, err := canonicalProject(name)
 	if err != nil {
@@ -84,7 +84,7 @@ func (h controlHandler) project(r *http.Request) (*Runtime, error) {
 	defer h.instance.mu.RUnlock()
 	p := h.instance.projects[path]
 	if p == nil {
-		return nil, fmt.Errorf("gimble: project %s is not admitted", path)
+		return nil, fmt.Errorf("gimbal: project %s is not admitted", path)
 	}
 	return p, nil
 }

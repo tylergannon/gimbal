@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/tylergannon/gimble/checklist"
-	"github.com/tylergannon/gimble/harness"
+	"github.com/tylergannon/gimbal/checklist"
+	"github.com/tylergannon/gimbal/harness"
 )
 
 func TestCommandReturnsNonzeroExitAndCombinedOutputAsData(t *testing.T) {

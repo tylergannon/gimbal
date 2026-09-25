@@ -6,7 +6,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/tylergannon/gimble/harness"
+	"github.com/tylergannon/gimbal/harness"
 )
 
 type eventProjector struct {

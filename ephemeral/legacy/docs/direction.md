@@ -1,11 +1,11 @@
-# Gimble's direction
+# Gimbal's direction
 
 Product and architectural direction from Tyler's September 8–9, 2026
 discussions. This is an edited synthesis, with proposed design consequences
-identified below. [His broader direction statement](../ephemeral/projects/gimble/programmatic-workflows/DIRECTION-CLARIFICATION-VERBATIM.md),
-[his follow-up on diagrams, actions, and research/indexing](../ephemeral/projects/gimble/programmatic-workflows/ACTIONS-AND-KNOWLEDGE-VERBATIM.md),
-his [clarification of program shape versus input](../ephemeral/projects/gimble/programmatic-workflows/INPUT-SEPARATION-VERBATIM.md),
-and his [corrections to the first synthesis](../ephemeral/projects/gimble/programmatic-workflows/DIRECTION-CORRECTIONS-VERBATIM.md)
+identified below. [His broader direction statement](../ephemeral/projects/gimbal/programmatic-workflows/DIRECTION-CLARIFICATION-VERBATIM.md),
+[his follow-up on diagrams, actions, and research/indexing](../ephemeral/projects/gimbal/programmatic-workflows/ACTIONS-AND-KNOWLEDGE-VERBATIM.md),
+his [clarification of program shape versus input](../ephemeral/projects/gimbal/programmatic-workflows/INPUT-SEPARATION-VERBATIM.md),
+and his [corrections to the first synthesis](../ephemeral/projects/gimbal/programmatic-workflows/DIRECTION-CORRECTIONS-VERBATIM.md)
 are preserved separately, with only the retired project name normalized.
 This document guides the work ahead. The graph engine it contrasts with was
 retired on 2026-09-10; the Go-program runtime described here is being built in
@@ -13,14 +13,14 @@ retired on 2026-09-10; the Go-program runtime described here is being built in
 
 ## Learn from the experience of authoring workflows
 
-Gimble's next direction comes from Tyler's experience adapting and using
+Gimbal's next direction comes from Tyler's experience adapting and using
 StrongDM's Attractor pattern: expressing a workflow is difficult, and coding
 agents often lack the judgment needed to design a good one. A workflow can
 be structurally valid and easy to draw while giving an agent an unclear
 objective, too many responsibilities, or poor access to the information it
 needs.
 
-The response is to make Gimble a tool for designing, understanding, and
+The response is to make Gimbal a tool for designing, understanding, and
 improving how agents do work. Ordinary Go gives authors freedom to express
 new orchestration tactics. Context engineering guides how those tactics
 arrange objectives, information, responsibility, feedback, and attention.
@@ -67,7 +67,7 @@ requires both the method and the information conditions in which it ran.
 ## Curate dependable named workflows
 
 Tyler's September 9 clarification allows an additive Go library while the
-existing workflow language remains available. The [recovered Go POC](../ephemeral/projects/gimble/programmatic-workflows/POC-RECOVERY.md)
+existing workflow language remains available. The [recovered Go POC](../ephemeral/projects/gimbal/programmatic-workflows/POC-RECOVERY.md)
 already supplies a narrow implementation to extend; this is not a fresh
 start for the primitives or the ordinary-Go authoring shape.
 
@@ -81,7 +81,7 @@ and validate the argument. Workflow-defined role names such as `sswe`,
 `eng-mgr`, and `tester` express assignments instead of direct model arguments.
 
 The Go workflow examples preserve this clarification as a compact API sketch.
-See the [earlier concurrency sketches](../ephemeral/projects/gimble/programmatic-workflows/CONCURRENCY-SHAPES.md).
+See the [earlier concurrency sketches](../ephemeral/projects/gimbal/programmatic-workflows/CONCURRENCY-SHAPES.md).
 
 ## Preserve what good graphs give us
 
@@ -108,14 +108,14 @@ the intended level of detail, the reader should see the major stages,
 enclosing loops, continuation and exit conditions, validation, and any
 supervision or parallel work that defines the method.
 
-This is first an API-design ideal, not a claim about diagrams. Gimble's API
+This is first an API-design ideal, not a claim about diagrams. Gimbal's API
 should be developed by asking whether it lets authors state an orchestration
 method this clearly. A derived diagram can help explain the result, but it is
 secondary to source that already reads as an intelligible workflow.
 
 Function and type names, indirection, composition, and DRYness should be
 judged by their contribution to that understanding. The same standard should
-guide Gimble's library functions, examples, and workflow-authoring skills.
+guide Gimbal's library functions, examples, and workflow-authoring skills.
 Derive APIs from clear orchestration pseudocode, then examine whether the
 resulting Go preserves its meaning.
 
@@ -231,7 +231,7 @@ index-maintenance system a prerequisite for every task.
 
 ## Recovery from wayward execution remains an open problem
 
-Gimble should eventually help a workflow recognize that it has lost the point
+Gimbal should eventually help a workflow recognize that it has lost the point
 and steer back toward its declared goal. That is a desired capability, not a
 designed mechanism. There is no established "compass" abstraction or general
 self-correction method today.
@@ -334,7 +334,7 @@ Readable source aids authoring; context inspection aids understanding and
 steering; distributing responsibility can help individual agents while
 making the whole harder to follow. These are tradeoffs to examine in use.
 
-The [narrow Go POC](../ephemeral/projects/gimble/programmatic-workflows/POC-RECOVERY.md)
+The [narrow Go POC](../ephemeral/projects/gimbal/programmatic-workflows/POC-RECOVERY.md)
 establishes a starting point. This direction does not add
 static rendering, context diagnostics, comprehensive telemetry, or an eval
 platform to its first version. It gives the primitives, examples, and future

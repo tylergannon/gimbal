@@ -1,7 +1,7 @@
-package gimble_test
+package gimbal_test
 
 // The workflow shapes, one compiling Example each, named in
-// .agents/skills/gimble-workflows/SKILL.md. Each runs on a scripted fake
+// .agents/skills/gimbal-workflows/SKILL.md. Each runs on a scripted fake
 // harness so its output is fixed; a real workflow passes codex.New(),
 // claude.New(), or agy.New() where these pass a *script, and its prompts
 // name absolute paths in the repository it works on. Example (one turn),
@@ -17,8 +17,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/tylergannon/gimble"
-	"github.com/tylergannon/gimble/web"
+	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/web"
 )
 
 // script is the fake harness of the shape examples: answer is called with
@@ -42,16 +42,16 @@ func (s *script) CreateSession(context.Context, string, string, string) (string,
 	return fmt.Sprintf("native-%d", s.made), nil
 }
 
-func (s *script) RunTurn(ctx context.Context, _ string, prompt string, schema json.RawMessage, _ func(gimble.AgentEvent) error) (gimble.TurnResult, error) {
+func (s *script) RunTurn(ctx context.Context, _ string, prompt string, schema json.RawMessage, _ func(gimbal.AgentEvent) error) (gimbal.TurnResult, error) {
 	out, err := s.answer(ctx, prompt, schema)
 	if err != nil {
-		return gimble.TurnResult{}, err
+		return gimbal.TurnResult{}, err
 	}
 	if len(schema) == 0 {
 		raw, err := json.Marshal(out)
-		return gimble.TurnResult{Output: raw}, err
+		return gimbal.TurnResult{Output: raw}, err
 	}
-	return gimble.TurnResult{Output: json.RawMessage(out)}, nil
+	return gimbal.TurnResult{Output: json.RawMessage(out)}, nil
 }
 
 func (*script) Steer(context.Context, string, string) (bool, error) { return false, nil }
@@ -135,22 +135,22 @@ func Example_bakeOff() {
 	codex := says("Cache the parsed config on the loader and return it from Load.")
 	claude := says(`{"winner":2,"why":"It changes one file and keeps Load's signature."}`)
 
-	err := gimble.Run(ctx, "bakeoff", map[gimble.WorkflowRole]gimble.ModelBinding{"judge": {Adapter: claude, Model: "claude-haiku-4-5-20251001"}, "researcher": {Adapter: codex, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
-		gimble.Set(ctx, "repository", repo)
-		researcher := gimble.NewSession(ctx, "researcher", repo)
-		if _, err := researcher.Generate[gimble.Text](ctx, bakeOffResearchPrompt); err != nil {
+	err := gimbal.Run(ctx, "bakeoff", map[gimbal.WorkflowRole]gimbal.ModelBinding{"judge": {Adapter: claude, Model: "claude-haiku-4-5-20251001"}, "researcher": {Adapter: codex, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
+		gimbal.Set(ctx, "repository", repo)
+		researcher := gimbal.NewSession(ctx, "researcher", repo)
+		if _, err := researcher.Generate[gimbal.Text](ctx, bakeOffResearchPrompt); err != nil {
 			return err
 		}
 
-		proposals := make([]gimble.Text, 2)
-		group := gimble.Group(ctx, "candidates")
+		proposals := make([]gimbal.Text, 2)
+		group := gimbal.Group(ctx, "candidates")
 		for i := range proposals {
 			group.Go("candidate", func(ctx context.Context) error {
 				coder, err := researcher.Fork(ctx, "coder")
 				if err != nil {
 					return err
 				}
-				proposals[i], err = coder.Generate[gimble.Text](ctx, "Propose one way to make the loader read its config file once per process. Change nothing. Answer with the change in plain English, naming each file it touches.")
+				proposals[i], err = coder.Generate[gimbal.Text](ctx, "Propose one way to make the loader read its config file once per process. Change nothing. Answer with the change in plain English, naming each file it touches.")
 				return err
 			})
 		}
@@ -158,9 +158,9 @@ func Example_bakeOff() {
 			return err
 		}
 
-		gimble.Set(ctx, "candidate 1", string(proposals[0]))
-		gimble.Set(ctx, "candidate 2", string(proposals[1]))
-		judge := gimble.NewSession(ctx, "judge", repo)
+		gimbal.Set(ctx, "candidate 1", string(proposals[0]))
+		gimbal.Set(ctx, "candidate 2", string(proposals[1]))
+		judge := gimbal.NewSession(ctx, "judge", repo)
 		v, err := judge.Generate[verdict](ctx, bakeOffJudgePrompt)
 		if err != nil {
 			return err
@@ -200,16 +200,16 @@ func Example_critiqueRound() {
 		return `{"defects":[]}`, nil
 	}}
 
-	err := gimble.Run(ctx, "critique", map[gimble.WorkflowRole]gimble.ModelBinding{"critic": {Adapter: claude, Model: "claude-haiku-4-5-20251001"}, "writer": {Adapter: codex, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
-		gimble.Set(ctx, "notes file", note)
-		writer := gimble.NewSession(ctx, "writer", repo)
-		critic := gimble.NewSession(ctx, "critic", repo)
-		if _, err := writer.Generate[gimble.Text](ctx, critiqueDraftPrompt); err != nil {
+	err := gimbal.Run(ctx, "critique", map[gimbal.WorkflowRole]gimbal.ModelBinding{"critic": {Adapter: claude, Model: "claude-haiku-4-5-20251001"}, "writer": {Adapter: codex, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
+		gimbal.Set(ctx, "notes file", note)
+		writer := gimbal.NewSession(ctx, "writer", repo)
+		critic := gimbal.NewSession(ctx, "critic", repo)
+		if _, err := writer.Generate[gimbal.Text](ctx, critiqueDraftPrompt); err != nil {
 			return err
 		}
 		for round := 1; round <= 2; round++ {
 			var defects []string
-			err := gimble.Scope(ctx, "round", func(ctx context.Context) error {
+			err := gimbal.Scope(ctx, "round", func(ctx context.Context) error {
 				c, err := critic.Generate[critique](ctx, critiqueReviewPrompt)
 				if err != nil {
 					return err
@@ -218,8 +218,8 @@ func Example_critiqueRound() {
 				if len(defects) == 0 {
 					return nil
 				}
-				gimble.Set(ctx, "defects", defects)
-				_, err = writer.Generate[gimble.Text](ctx, critiqueFixPrompt)
+				gimbal.Set(ctx, "defects", defects)
+				_, err = writer.Generate[gimbal.Text](ctx, critiqueFixPrompt)
 				return err
 			})
 			if err != nil {
@@ -254,13 +254,13 @@ func Example_supervisedWorker() {
 	codex := says("Done: Parse in config/parse.go, one test in config/parse_test.go, uncommitted.")
 	claude := says(`{"objections":[]}`)
 
-	err := gimble.Run(ctx, "supervised", map[gimble.WorkflowRole]gimble.ModelBinding{"coder": {Adapter: codex, Model: "gpt-5.6-luna"}, "taste": {Adapter: claude, Model: "claude-haiku-4-5-20251001"}}, func(ctx context.Context) error {
-		gimble.Set(ctx, "repository", repo)
-		coder := gimble.NewSession(ctx, "coder", repo)
-		taste := gimble.NewSession(ctx, "taste", repo)
-		result, err := coder.Generate[gimble.Text](ctx,
+	err := gimbal.Run(ctx, "supervised", map[gimbal.WorkflowRole]gimbal.ModelBinding{"coder": {Adapter: codex, Model: "gpt-5.6-luna"}, "taste": {Adapter: claude, Model: "claude-haiku-4-5-20251001"}}, func(ctx context.Context) error {
+		gimbal.Set(ctx, "repository", repo)
+		coder := gimbal.NewSession(ctx, "coder", repo)
+		taste := gimbal.NewSession(ctx, "taste", repo)
+		result, err := coder.Generate[gimbal.Text](ctx,
 			supervisedWorkerPrompt,
-			gimble.WithSupervisor(taste, "Don't let it build what the task does not ask for, or break a rule in AGENTS.md. Object to nothing else.", gimble.WithInterval(2*time.Minute)),
+			gimbal.WithSupervisor(taste, "Don't let it build what the task does not ask for, or break a rule in AGENTS.md. Object to nothing else.", gimbal.WithInterval(2*time.Minute)),
 		)
 		if err != nil {
 			return err
@@ -297,28 +297,28 @@ func Example_loopWithPlanner() {
 		return `{"tasks":[],"next":null}`, nil
 	}}
 
-	err := gimble.Run(ctx, "loop", map[gimble.WorkflowRole]gimble.ModelBinding{"researcher": {Adapter: codex, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
-		gimble.Set(ctx, "repository", repo)
-		researcher := gimble.NewSession(ctx, "researcher", repo)
-		if _, err := researcher.Generate[gimble.Text](ctx, loopResearchPrompt); err != nil {
+	err := gimbal.Run(ctx, "loop", map[gimbal.WorkflowRole]gimbal.ModelBinding{"researcher": {Adapter: codex, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
+		gimbal.Set(ctx, "repository", repo)
+		researcher := gimbal.NewSession(ctx, "researcher", repo)
+		if _, err := researcher.Generate[gimbal.Text](ctx, loopResearchPrompt); err != nil {
 			return err
 		}
 		planner, err := researcher.Fork(ctx, "planner")
 		if err != nil {
 			return err
 		}
-		loop := gimble.PromiseLoop(ctx, "work", "The config loader in "+repo+" reads its file once per process, and a test shows it.", planner)
+		loop := gimbal.PromiseLoop(ctx, "work", "The config loader in "+repo+" reads its file once per process, and a test shows it.", planner)
 		for ctx, task := range loop.Tasks {
 			fmt.Println("task:", task.Name)
 			coder, err := researcher.Fork(ctx, "coder")
 			if err != nil {
 				return err
 			}
-			result, err := coder.Generate[gimble.Text](ctx, "Do the task in the scoped context below. Leave the work uncommitted. Answer with what changed and what you saw working.")
+			result, err := coder.Generate[gimbal.Text](ctx, "Do the task in the scoped context below. Leave the work uncommitted. Answer with what changed and what you saw working.")
 			if err != nil {
 				return err
 			}
-			gimble.Set(ctx, "result", string(result))
+			gimbal.Set(ctx, "result", string(result))
 		}
 		return loop.Err()
 	})
@@ -345,8 +345,8 @@ func Example_worktreePerCandidate() {
 	repo := repoDir()
 	codex := says("Done: the loader reads its file once; the test is in config/load_test.go.")
 
-	err := gimble.Run(ctx, "worktrees", map[gimble.WorkflowRole]gimble.ModelBinding{"coder": {Adapter: codex, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
-		group := gimble.Group(ctx, "candidates")
+	err := gimbal.Run(ctx, "worktrees", map[gimbal.WorkflowRole]gimbal.ModelBinding{"coder": {Adapter: codex, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
+		group := gimbal.Group(ctx, "candidates")
 		for i := range 2 {
 			group.Go("candidate", func(ctx context.Context) error {
 				dir, err := os.MkdirTemp("", "candidate-")
@@ -354,27 +354,27 @@ func Example_worktreePerCandidate() {
 					return err
 				}
 				defer func() { _ = os.RemoveAll(dir) }()
-				if code, _, stderr, err := gimble.RunCommand(ctx, "add-worktree", repo, "git", "worktree", "add", "--detach", dir); err != nil {
+				if code, _, stderr, err := gimbal.RunCommand(ctx, "add-worktree", repo, "git", "worktree", "add", "--detach", dir); err != nil {
 					return err
 				} else if code != 0 {
 					return fmt.Errorf("git worktree add exited %d: %s", code, stderr)
 				}
 				defer func() {
-					_, _, _, _ = gimble.RunCommand(context.WithoutCancel(ctx), "remove-worktree", repo, "git", "worktree", "remove", "--force", dir)
+					_, _, _, _ = gimbal.RunCommand(context.WithoutCancel(ctx), "remove-worktree", repo, "git", "worktree", "remove", "--force", dir)
 				}()
 
-				gimble.Set(ctx, "worktree", dir)
-				coder := gimble.NewSession(ctx, "coder", dir)
-				result, err := coder.Generate[gimble.Text](ctx, worktreeCandidatePrompt)
+				gimbal.Set(ctx, "worktree", dir)
+				coder := gimbal.NewSession(ctx, "coder", dir)
+				result, err := coder.Generate[gimbal.Text](ctx, worktreeCandidatePrompt)
 				if err != nil {
 					return err
 				}
-				if code, status, _, err := gimble.RunCommand(ctx, "status", repo, "git", "status", "--porcelain"); err != nil {
+				if code, status, _, err := gimbal.RunCommand(ctx, "status", repo, "git", "status", "--porcelain"); err != nil {
 					return err
 				} else if code != 0 || status != "" {
 					return fmt.Errorf("candidate %d wrote outside its worktree (git status exited %d):\n%s", i+1, code, status)
 				}
-				gimble.Set(ctx, "result", string(result))
+				gimbal.Set(ctx, "result", string(result))
 				return nil
 			})
 		}
@@ -397,28 +397,28 @@ func Example_validationCommand() {
 	codex := says("Done: Load caches the parsed config.")
 	check := "go test ./config/..."
 
-	err := gimble.Run(ctx, "validated", map[gimble.WorkflowRole]gimble.ModelBinding{"coder": {Adapter: codex, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
-		gimble.Set(ctx, "repository", repo)
-		gimble.Set(ctx, "check command", check)
-		coder := gimble.NewSession(ctx, "coder", repo)
+	err := gimbal.Run(ctx, "validated", map[gimbal.WorkflowRole]gimbal.ModelBinding{"coder": {Adapter: codex, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
+		gimbal.Set(ctx, "repository", repo)
+		gimbal.Set(ctx, "check command", check)
+		coder := gimbal.NewSession(ctx, "coder", repo)
 		var lastCheckOutput string
 		for try := 1; try <= 3; try++ {
-			err := gimble.Scope(ctx, "try", func(ctx context.Context) error {
+			err := gimbal.Scope(ctx, "try", func(ctx context.Context) error {
 				if lastCheckOutput != "" {
-					gimble.Set(ctx, "last check output", lastCheckOutput)
+					gimbal.Set(ctx, "last check output", lastCheckOutput)
 				}
-				_, err := coder.Generate[gimble.Text](ctx, validationCommandPrompt)
+				_, err := coder.Generate[gimbal.Text](ctx, validationCommandPrompt)
 				return err
 			})
 			if err != nil {
 				return err
 			}
-			code, stdout, stderr, err := gimble.RunCommand(ctx, "check", repo, "sh", "-c", check)
+			code, stdout, stderr, err := gimbal.RunCommand(ctx, "check", repo, "sh", "-c", check)
 			if err != nil {
 				return err
 			}
 			if code == 0 {
-				gimble.Set(ctx, "validated by", check)
+				gimbal.Set(ctx, "validated by", check)
 				return nil
 			}
 			lastCheckOutput = fmt.Sprintf("exit %d:\n\n%s%s", code, stdout, stderr)
@@ -431,7 +431,7 @@ func Example_validationCommand() {
 // runID is the id of the one run under project: the id the page shows,
 // which an operator holds instead of a pointer.
 func runID(project string) string {
-	entries, err := os.ReadDir(filepath.Join(project, ".gimble", "runs"))
+	entries, err := os.ReadDir(filepath.Join(project, ".gimbal", "runs"))
 	if err != nil || len(entries) != 1 {
 		panic(fmt.Sprintf("runs under %s: %v, %v", project, entries, err))
 	}
@@ -450,14 +450,14 @@ const killedTurnRecoveryPrompt = "Your last turn was stopped: who stopped it and
 // scope's sessions are closed, its Group siblings run on, and a Loop
 // records the task failed and shows the planner why.
 func Example_killedTurn() {
-	project, err := os.MkdirTemp("", "gimble-example-")
+	project, err := os.MkdirTemp("", "gimbal-example-")
 	if err != nil {
 		panic(err)
 	}
 	defer func() { _ = os.RemoveAll(project) }()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	instance, err := web.NewInstance(ctx, filepath.Join(project, ".gimble"), []string{project}, web.WithNoWeb())
+	instance, err := web.NewInstance(ctx, filepath.Join(project, ".gimbal"), []string{project}, web.WithNoWeb())
 	if err != nil {
 		panic(err)
 	}
@@ -485,26 +485,26 @@ func Example_killedTurn() {
 
 	var killErr error
 	var operator sync.WaitGroup
-	err = runtime.Run(ctx, "recover", map[gimble.WorkflowRole]gimble.ModelBinding{"coder": {Adapter: codex, Model: "gpt-5.6-luna"}, "planner": {Adapter: codex, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
+	err = runtime.Run(ctx, "recover", map[gimbal.WorkflowRole]gimbal.ModelBinding{"coder": {Adapter: codex, Model: "gpt-5.6-luna"}, "planner": {Adapter: codex, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
 		operator.Go(func() { // the operator, holding only ids from the page
 			<-coding
 			killErr = runtime.KillTurn(runID(project), "work.1/task.1/coder.1/turn.1", "tyler", "editing the wrong file")
 		})
-		planner := gimble.NewSession(ctx, "planner", repo)
-		loop := gimble.PromiseLoop(ctx, "work", "The config loader in "+repo+" reads its file once per process.", planner)
+		planner := gimbal.NewSession(ctx, "planner", repo)
+		loop := gimbal.PromiseLoop(ctx, "work", "The config loader in "+repo+" reads its file once per process.", planner)
 		for ctx, task := range loop.Tasks {
-			coder := gimble.NewSession(ctx, "coder", repo)
-			result, err := coder.Generate[gimble.Text](ctx, "Do the task in the scoped context below. Leave the work uncommitted. Answer with what changed.")
-			if kill, ok := errors.AsType[gimble.Killed](err); ok {
+			coder := gimbal.NewSession(ctx, "coder", repo)
+			result, err := coder.Generate[gimbal.Text](ctx, "Do the task in the scoped context below. Leave the work uncommitted. Answer with what changed.")
+			if kill, ok := errors.AsType[gimbal.Killed](err); ok {
 				fmt.Printf("%s: turn killed by %s: %s\n", task.Name, kill.By, kill.Reason)
-				gimble.Set(ctx, "kill by", kill.By)
-				gimble.Set(ctx, "kill reason", kill.Reason)
-				result, err = coder.Generate[gimble.Text](ctx, killedTurnRecoveryPrompt)
+				gimbal.Set(ctx, "kill by", kill.By)
+				gimbal.Set(ctx, "kill reason", kill.Reason)
+				result, err = coder.Generate[gimbal.Text](ctx, killedTurnRecoveryPrompt)
 			}
 			if err != nil {
 				return err
 			}
-			gimble.Set(ctx, "result", string(result))
+			gimbal.Set(ctx, "result", string(result))
 			fmt.Println(result)
 		}
 		return loop.Err()

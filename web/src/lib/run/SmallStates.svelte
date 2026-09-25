@@ -102,13 +102,13 @@
         <SearchXIcon size={16} />
         <span>
           Run <code>go generate ./...</code> from the module that owns <code>{workflowName}</code>.
-          Its generated file must call <code>gimble.RegisterGraph</code> for this workflow.
+          Its generated file must call <code>gimbal.RegisterGraph</code> for this workflow.
         </span>
       </div>
       <div class="missing-run">
         <TerminalIcon size={16} />
         <span>
-          Rebuild the serving binary and restart it. In the Gimble checkout, use
+          Rebuild the serving binary and restart it. In the Gimbal checkout, use
           <code>just build</code>.
         </span>
       </div>

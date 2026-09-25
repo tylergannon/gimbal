@@ -5,7 +5,7 @@ package fixture
 import (
 	"context"
 
-	"github.com/tylergannon/gimble"
+	"github.com/tylergannon/gimbal"
 )
 
 const (
@@ -16,25 +16,25 @@ const (
 )
 
 // Fixture is the entry function the tests extract.
-func Fixture(ctx context.Context, _ gimble.Env) error {
-	lead := gimble.NewSession(ctx, "lead", ".")
-	watcher := gimble.NewSession(ctx, "watcher", ".")
-	chief := gimble.NewSession(ctx, "chief", ".")
-	if _, err := lead.Generate[gimble.Text](ctx, workPrompt,
-		gimble.WithSupervisor(watcher, watchInstruction,
-			gimble.WithSupervisor(chief, chiefInstruction),
+func Fixture(ctx context.Context, _ gimbal.Env) error {
+	lead := gimbal.NewSession(ctx, "lead", ".")
+	watcher := gimbal.NewSession(ctx, "watcher", ".")
+	chief := gimbal.NewSession(ctx, "chief", ".")
+	if _, err := lead.Generate[gimbal.Text](ctx, workPrompt,
+		gimbal.WithSupervisor(watcher, watchInstruction,
+			gimbal.WithSupervisor(chief, chiefInstruction),
 		),
 	); err != nil {
 		return err
 	}
 
-	pair := gimble.Group(ctx, "pair")
+	pair := gimbal.Group(ctx, "pair")
 	pair.Go("left", func(ctx context.Context) error {
-		gimble.Set(ctx, "left", "one")
+		gimbal.Set(ctx, "left", "one")
 		return nil
 	})
 	pair.Go("right", func(ctx context.Context) error {
-		gimble.Set(ctx, "right", "two")
+		gimbal.Set(ctx, "right", "two")
 		return nil
 	})
 	if err := pair.Wait(); err != nil {
@@ -42,11 +42,11 @@ func Fixture(ctx context.Context, _ gimble.Env) error {
 	}
 
 	// A role the source does not spell out cannot be read.
-	nameless := gimble.NewSession(ctx, gimble.WorkflowRole(roleName()), ".")
+	nameless := gimbal.NewSession(ctx, gimbal.WorkflowRole(roleName()), ".")
 	_ = nameless
 
 	// A call through a function value cannot be read either.
-	speak := lead.Generate[gimble.Text]
+	speak := lead.Generate[gimbal.Text]
 	if _, err := speak(ctx, workPrompt); err != nil {
 		return err
 	}
@@ -56,26 +56,26 @@ func Fixture(ctx context.Context, _ gimble.Env) error {
 	if err := review(ctx, lead); err != nil {
 		return err
 	}
-	gimble.Set(ctx, "after", "three")
+	gimbal.Set(ctx, "after", "three")
 
 	// A session bound in a branch is gone at the join, so the call after it
 	// names no session the source declares.
-	var chosen *gimble.Session
+	var chosen *gimbal.Session
 	if roleName() == "reader" {
-		chosen = gimble.NewSession(ctx, "first", ".")
+		chosen = gimbal.NewSession(ctx, "first", ".")
 	} else {
-		chosen = gimble.NewSession(ctx, "second", ".")
+		chosen = gimbal.NewSession(ctx, "second", ".")
 	}
-	if _, err := chosen.Generate[gimble.Text](ctx, workPrompt); err != nil {
+	if _, err := chosen.Generate[gimbal.Text](ctx, workPrompt); err != nil {
 		return err
 	}
 
 	// A group is started in the body that declares it, so a Go inside a
 	// branch is not read.
-	held := gimble.Group(ctx, "held")
+	held := gimbal.Group(ctx, "held")
 	if roleName() == "reader" {
 		held.Go("nested", func(ctx context.Context) error {
-			gimble.Set(ctx, "nested", "six")
+			gimbal.Set(ctx, "nested", "six")
 			return nil
 		})
 	}
@@ -85,11 +85,11 @@ func Fixture(ctx context.Context, _ gimble.Env) error {
 
 	// A group reassigned after its declaration is not read, and neither is
 	// what is started on it afterwards.
-	one := gimble.Group(ctx, "one")
-	two := gimble.Group(ctx, "two")
+	one := gimbal.Group(ctx, "one")
+	two := gimbal.Group(ctx, "two")
 	one = two
 	one.Go("child", func(ctx context.Context) error {
-		gimble.Set(ctx, "child", "four")
+		gimbal.Set(ctx, "child", "four")
 		return nil
 	})
 	if err := two.Wait(); err != nil {
@@ -98,28 +98,28 @@ func Fixture(ctx context.Context, _ gimble.Env) error {
 
 	// A session reassigned inside a callback stays unread after it: the
 	// callback ran, so its old name would be a guess.
-	swapped := gimble.NewSession(ctx, "swapped", ".")
-	other := gimble.NewSession(ctx, "other", ".")
-	if err := gimble.Scope(ctx, "swap", func(ctx context.Context) error {
+	swapped := gimbal.NewSession(ctx, "swapped", ".")
+	other := gimbal.NewSession(ctx, "other", ".")
+	if err := gimbal.Scope(ctx, "swap", func(ctx context.Context) error {
 		swapped = other
 		return nil
 	}); err != nil {
 		return err
 	}
-	if _, err := swapped.Generate[gimble.Text](ctx, workPrompt); err != nil {
+	if _, err := swapped.Generate[gimbal.Text](ctx, workPrompt); err != nil {
 		return err
 	}
 
 	// A short declaration that reuses an identifier reassigns it too.
-	again := gimble.NewSession(ctx, "again", ".")
-	again, marker := gimble.NewSession(ctx, "once more", "."), true
+	again := gimbal.NewSession(ctx, "again", ".")
+	again, marker := gimbal.NewSession(ctx, "once more", "."), true
 	_ = marker
-	if _, err := again.Generate[gimble.Text](ctx, workPrompt); err != nil {
+	if _, err := again.Generate[gimbal.Text](ctx, workPrompt); err != nil {
 		return err
 	}
 
-	// A Gimble call written inside another call's arguments is not read.
-	_ = gimble.NewSession(ctx, "outer", workdirOf(gimble.NewSession(ctx, "inner", ".")))
+	// A Gimbal call written inside another call's arguments is not read.
+	_ = gimbal.NewSession(ctx, "outer", workdirOf(gimbal.NewSession(ctx, "inner", ".")))
 
 	// A callback is its own function, so its early return is shape even
 	// when the callback is written in a helper.
@@ -127,23 +127,23 @@ func Fixture(ctx context.Context, _ gimble.Env) error {
 }
 
 // SprintShape is a compact workflow used to exercise the main graph shapes.
-func SprintShape(ctx context.Context, _ gimble.Env) error {
-	researcher := gimble.NewSession(ctx, "researcher", ".")
+func SprintShape(ctx context.Context, _ gimbal.Env) error {
+	researcher := gimbal.NewSession(ctx, "researcher", ".")
 	planner, err := researcher.Fork(ctx, "planner")
 	if err != nil {
 		return err
 	}
-	plannerWatch := gimble.NewSession(ctx, "planner-watch", ".")
+	plannerWatch := gimbal.NewSession(ctx, "planner-watch", ".")
 	for round := 0; round < 1; round++ {
-		if err := gimble.Scope(ctx, "round", func(ctx context.Context) error {
-			if err := gimble.Service(ctx, "preview", ".", "exec sleep 30"); err != nil {
+		if err := gimbal.Scope(ctx, "round", func(ctx context.Context) error {
+			if err := gimbal.Service(ctx, "preview", ".", "exec sleep 30"); err != nil {
 				return err
 			}
-			if err := gimble.Check(ctx, "tests", ".", "go", "test", "./..."); err != nil {
+			if err := gimbal.Check(ctx, "tests", ".", "go", "test", "./..."); err != nil {
 				return err
 			}
-			loop := gimble.PromiseLoop(ctx, "sprint", "review the code", planner,
-				gimble.WithSupervisor(plannerWatch, watchInstruction),
+			loop := gimbal.PromiseLoop(ctx, "sprint", "review the code", planner,
+				gimbal.WithSupervisor(plannerWatch, watchInstruction),
 			)
 			for ctx, task := range loop.Tasks {
 				_ = task
@@ -151,11 +151,11 @@ func SprintShape(ctx context.Context, _ gimble.Env) error {
 				if err != nil {
 					return err
 				}
-				if _, err := coder.Generate[gimble.Text](ctx, workPrompt); err != nil {
+				if _, err := coder.Generate[gimbal.Text](ctx, workPrompt); err != nil {
 					return err
 				}
 				if ctx.Err() == nil {
-					_, _, _, err = gimble.RunCommand(ctx, "git", ".", "git", "status")
+					_, _, _, err = gimbal.RunCommand(ctx, "git", ".", "git", "status")
 					if err != nil {
 						return err
 					}
@@ -176,48 +176,48 @@ type WorkDirParams struct {
 	WorkDir string
 }
 
-// HasWorkDirParams is invalid because WorkDir belongs to gimble.Env.
-func HasWorkDirParams(ctx context.Context, _ gimble.Env, _ WorkDirParams) error { return nil }
+// HasWorkDirParams is invalid because WorkDir belongs to gimbal.Env.
+func HasWorkDirParams(ctx context.Context, _ gimbal.Env, _ WorkDirParams) error { return nil }
 
-func IterationShape(ctx context.Context, _ gimble.Env) error {
-	for ctx := range gimble.Iterate(ctx, "iteration", []string{"one", "two"}) {
-		session := gimble.NewSession(ctx, "reviewer", ".")
-		if _, err := session.Generate[gimble.Text](ctx, workPrompt); err != nil {
+func IterationShape(ctx context.Context, _ gimbal.Env) error {
+	for ctx := range gimbal.Iterate(ctx, "iteration", []string{"one", "two"}) {
+		session := gimbal.NewSession(ctx, "reviewer", ".")
+		if _, err := session.Generate[gimbal.Text](ctx, workPrompt); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func ServiceOwnershipShape(ctx context.Context, _ gimble.Env) error {
-	if err := gimble.Service(ctx, "root-db", ".", "exec sleep 30"); err != nil {
+func ServiceOwnershipShape(ctx context.Context, _ gimbal.Env) error {
+	if err := gimbal.Service(ctx, "root-db", ".", "exec sleep 30"); err != nil {
 		return err
 	}
-	if err := gimble.Scope(ctx, "backend", func(ctx context.Context) error {
-		if err := gimble.Service(ctx, "api", ".", "exec sleep 30"); err != nil {
+	if err := gimbal.Scope(ctx, "backend", func(ctx context.Context) error {
+		if err := gimbal.Service(ctx, "api", ".", "exec sleep 30"); err != nil {
 			return err
 		}
-		_, _, _, err := gimble.RunCommand(ctx, "build", ".", "go", "build", "./...")
+		_, _, _, err := gimbal.RunCommand(ctx, "build", ".", "go", "build", "./...")
 		return err
 	}); err != nil {
 		return err
 	}
-	for ctx := range gimble.Iterate(ctx, "iteration", []string{"one", "two"}) {
-		if err := gimble.Service(ctx, "fixture", ".", "exec sleep 30"); err != nil {
+	for ctx := range gimbal.Iterate(ctx, "iteration", []string{"one", "two"}) {
+		if err := gimbal.Service(ctx, "fixture", ".", "exec sleep 30"); err != nil {
 			return err
 		}
-		if err := gimble.Check(ctx, "tests", ".", "go", "test", "./..."); err != nil {
+		if err := gimbal.Check(ctx, "tests", ".", "go", "test", "./..."); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func PlannerReassignmentShape(ctx context.Context, _ gimble.Env) error {
-	planner := gimble.NewSession(ctx, "planner", ".")
-	loop := gimble.PromiseLoop(ctx, "tasks", "review the code", planner)
+func PlannerReassignmentShape(ctx context.Context, _ gimbal.Env) error {
+	planner := gimbal.NewSession(ctx, "planner", ".")
+	loop := gimbal.PromiseLoop(ctx, "tasks", "review the code", planner)
 	for ctx, task := range loop.Tasks {
-		planner = gimble.NewSession(ctx, "replacement", ".")
+		planner = gimbal.NewSession(ctx, "replacement", ".")
 		_ = task
 	}
 	return nil
@@ -225,29 +225,29 @@ func PlannerReassignmentShape(ctx context.Context, _ gimble.Env) error {
 
 // guarded scopes a body whose first branch returns before it writes anything.
 func guarded(ctx context.Context) error {
-	return gimble.Scope(ctx, "guarded", func(ctx context.Context) error {
+	return gimbal.Scope(ctx, "guarded", func(ctx context.Context) error {
 		if skipped(ctx) {
 			return nil
 		}
-		gimble.Set(ctx, "guarded", "five")
+		gimbal.Set(ctx, "guarded", "five")
 		return nil
 	})
 }
 
 func skipped(ctx context.Context) bool { return ctx.Err() != nil }
 
-func workdirOf(*gimble.Session) string { return "." }
+func workdirOf(*gimbal.Session) string { return "." }
 
 // review generates once and then returns early, after it has produced shape.
-func review(ctx context.Context, session *gimble.Session) error {
-	if _, err := session.Generate[gimble.Text](ctx, helperPrompt); err != nil {
+func review(ctx context.Context, session *gimbal.Session) error {
+	if _, err := session.Generate[gimbal.Text](ctx, helperPrompt); err != nil {
 		return err
 	}
 	passed := ctx.Err() == nil
 	if !passed {
 		return nil
 	}
-	gimble.Set(ctx, "review", "kept")
+	gimbal.Set(ctx, "review", "kept")
 	return nil
 }
 

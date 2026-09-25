@@ -1,6 +1,6 @@
 # The web app
 
-One Gimble instance serves one web application for its admitted projects' runs,
+One Gimbal instance serves one web application for its admitted projects' runs,
 live and past, drawn as the graph of agents that did the work, with a person at
 the page able to steer any of them. This file is what the design team and
 the coding agents share: the UI decisions that are made, the features, the
@@ -86,7 +86,7 @@ the join with the source. See Observability in
 
 | | Feature | Today on `main` |
 | --- | --- | --- |
-| F1 | **Runs list.** Every run under `.gimble/runs/`, live and past, pushed live. Name, status, started, duration, total cost. Filter by status and workflow; search by id. | bare |
+| F1 | **Runs list.** Every run under `.gimbal/runs/`, live and past, pushed live. Name, status, started, duration, total cost. Filter by status and workflow; search by id. | bare |
 | F2 | **Start a workflow.** One form per workflow, controls named by its Go input struct. The first is the sprint workflow. | designed, not built; deferred from the current CLI integration |
 | F3 | **The run graph.** Scopes as a tree from key prefixes on the run's wall clock. Instances of one node stack under one card. Overlapping siblings side by side. Sessions under the scope that created them; a turn where it ran. Two zoom levels. Connection state always visible. | flat list |
 | F4 | **Scope detail.** Name, key, began, ended, how it ended, its task, its values as `Generate` hands them to the agent, each planner decision. | bare |

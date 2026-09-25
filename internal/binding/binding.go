@@ -1,5 +1,5 @@
 // Package binding turns a model name written on a command line into the
-// gimble.ModelBinding a role runs on: the harness that serves that model,
+// gimbal.ModelBinding a role runs on: the harness that serves that model,
 // the provider-native model id, and the reasoning effort.
 package binding
 
@@ -9,28 +9,28 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/tylergannon/gimble"
-	"github.com/tylergannon/gimble/agy"
-	"github.com/tylergannon/gimble/claude"
-	"github.com/tylergannon/gimble/codex"
-	"github.com/tylergannon/gimble/internal/modelalias"
-	"github.com/tylergannon/gimble/opencode"
+	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/agy"
+	"github.com/tylergannon/gimbal/claude"
+	"github.com/tylergannon/gimbal/codex"
+	"github.com/tylergannon/gimbal/internal/modelalias"
+	"github.com/tylergannon/gimbal/opencode"
 )
 
 // Parse reads "model" or "model:effort", resolves the model through
 // modelalias, and binds it to the harness that serves it. Harnesses are made
 // once per call, so a caller binding several roles to one harness should
 // reuse the adapter rather than call Parse twice for it.
-func Parse(spec string) (gimble.ModelBinding, error) {
+func Parse(spec string) (gimbal.ModelBinding, error) {
 	resolved, err := resolve(spec)
 	if err != nil {
-		return gimble.ModelBinding{}, err
+		return gimbal.ModelBinding{}, err
 	}
 	adapter, err := Adapter(resolved.Harness)
 	if err != nil {
-		return gimble.ModelBinding{}, fmt.Errorf("model %q: %w", spec, err)
+		return gimbal.ModelBinding{}, fmt.Errorf("model %q: %w", spec, err)
 	}
-	return gimble.ModelBinding{Adapter: adapter, Model: resolved.Model, Effort: resolved.Effort}, nil
+	return gimbal.ModelBinding{Adapter: adapter, Model: resolved.Model, Effort: resolved.Effort}, nil
 }
 
 func resolve(spec string) (modelalias.ResolvedSelection, error) {
@@ -47,7 +47,7 @@ func resolve(spec string) (modelalias.ResolvedSelection, error) {
 }
 
 // Adapter is the harness of that name.
-func Adapter(harness string) (gimble.HarnessAdapter, error) {
+func Adapter(harness string) (gimbal.HarnessAdapter, error) {
 	switch harness {
 	case "agy":
 		return agy.New(), nil
@@ -65,10 +65,10 @@ func Adapter(harness string) (gimble.HarnessAdapter, error) {
 // Roles binds each role to the model its flag gave, sharing one binding
 // among the roles given the same model so one harness serves them. A role
 // given no model is an error naming its flag.
-func Roles(specs map[gimble.WorkflowRole]string) (map[gimble.WorkflowRole]gimble.ModelBinding, error) {
-	bound := map[string]gimble.ModelBinding{}
-	var sharedOpenCode gimble.HarnessAdapter
-	models := make(map[gimble.WorkflowRole]gimble.ModelBinding, len(specs))
+func Roles(specs map[gimbal.WorkflowRole]string) (map[gimbal.WorkflowRole]gimbal.ModelBinding, error) {
+	bound := map[string]gimbal.ModelBinding{}
+	var sharedOpenCode gimbal.HarnessAdapter
+	models := make(map[gimbal.WorkflowRole]gimbal.ModelBinding, len(specs))
 	for _, role := range slices.Sorted(maps.Keys(specs)) {
 		spec := specs[role]
 		if spec == "" {
@@ -79,7 +79,7 @@ func Roles(specs map[gimble.WorkflowRole]string) (map[gimble.WorkflowRole]gimble
 			if err != nil {
 				return nil, fmt.Errorf("--%s: %w", role, err)
 			}
-			var adapter gimble.HarnessAdapter
+			var adapter gimbal.HarnessAdapter
 			if resolved.Harness == "opencode" && sharedOpenCode != nil {
 				adapter = sharedOpenCode
 			} else {
@@ -91,7 +91,7 @@ func Roles(specs map[gimble.WorkflowRole]string) (map[gimble.WorkflowRole]gimble
 					sharedOpenCode = adapter
 				}
 			}
-			bound[spec] = gimble.ModelBinding{Adapter: adapter, Model: resolved.Model, Effort: resolved.Effort}
+			bound[spec] = gimbal.ModelBinding{Adapter: adapter, Model: resolved.Model, Effort: resolved.Effort}
 		}
 		models[role] = bound[spec]
 	}

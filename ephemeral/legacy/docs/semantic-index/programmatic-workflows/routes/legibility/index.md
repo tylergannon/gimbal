@@ -4,7 +4,7 @@ Use this route for what should survive the move away from graph-authored
 workflows: readable progression, pseudocode-like source, and helpful derived
 views.
 
-- [Gimble's direction](../../sources/direction.md): pseudocode/API ideal and
+- [Gimbal's direction](../../sources/direction.md): pseudocode/API ideal and
   the boundary between static, runtime, and conceptual views.
 - [Workflows as programs](../../sources/workflows-as-programs.md): source
   legibility and diagrams as secondary explanation.

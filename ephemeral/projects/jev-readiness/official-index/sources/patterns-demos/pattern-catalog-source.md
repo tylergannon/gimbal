@@ -22,7 +22,7 @@ This leaf indexes the official patterns landing page as a source artifact. Its c
 
 - Model judgment remains granular; control flow remains explicit in application code.
 - The four patterns combine naturally: fan out coaching signals, score several dimensions, gate by confidence, then route to code, a specialist agent, or a human.
-- Gimble’s likely leverage is a fast decision plane beside its observable Go workflow, not an opaque replacement for workflow logic.
+- Gimbal’s likely leverage is a fast decision plane beside its observable Go workflow, not an opaque replacement for workflow logic.
 
 ## Gotchas
 

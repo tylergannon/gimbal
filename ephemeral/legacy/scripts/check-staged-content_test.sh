@@ -31,18 +31,18 @@ expect_blocked() {
 
 small_repo=$(new_repo small)
 printf 'short authored summary\n' >"$small_repo/summary.md"
-mkdir -p "$small_repo/.gimble"
-printf 'exec go run ./cmd/server\n' >"$small_repo/.gimble/run"
+mkdir -p "$small_repo/.gimbal"
+printf 'exec go run ./cmd/server\n' >"$small_repo/.gimbal/run"
 git -C "$small_repo" add summary.md
-git -C "$small_repo" add .gimble/run
+git -C "$small_repo" add .gimbal/run
 (cd "$small_repo" && "$guard")
 
 run_repo=$(new_repo run-log)
-mkdir -p "$run_repo/.gimble/runs/abc"
-printf '{}\n' >"$run_repo/.gimble/runs/abc/timeline.jsonl"
-git -C "$run_repo" add -f .gimble/runs/abc/timeline.jsonl
+mkdir -p "$run_repo/.gimbal/runs/abc"
+printf '{}\n' >"$run_repo/.gimbal/runs/abc/timeline.jsonl"
+git -C "$run_repo" add -f .gimbal/runs/abc/timeline.jsonl
 expect_blocked "$run_repo" 'run logs must not be committed'
-if (cd "$run_repo" && GIMBLE_ALLOW_LARGE_COMMIT=1 "$guard" >/dev/null 2>&1); then
+if (cd "$run_repo" && GIMBAL_ALLOW_LARGE_COMMIT=1 "$guard" >/dev/null 2>&1); then
   printf 'large-commit override must not permit run logs\n' >&2
   exit 1
 fi
@@ -51,7 +51,7 @@ large_repo=$(new_repo large-file)
 dd if=/dev/zero of="$large_repo/copied-source.bin" bs=1048577 count=1 2>/dev/null
 git -C "$large_repo" add copied-source.bin
 expect_blocked "$large_repo" 'per-file limit'
-(cd "$large_repo" && GIMBLE_ALLOW_LARGE_COMMIT=1 "$guard")
+(cd "$large_repo" && GIMBAL_ALLOW_LARGE_COMMIT=1 "$guard")
 
 lines_repo=$(new_repo added-lines)
 mkdir -p "$lines_repo/third_party"

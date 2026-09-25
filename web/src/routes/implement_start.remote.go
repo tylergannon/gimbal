@@ -6,8 +6,8 @@ import (
 	"context"
 	"strings"
 
-	"github.com/tylergannon/gimble"
-	"github.com/tylergannon/gimble/internal/workflows/implementation"
+	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/internal/workflows/implementation"
 	"github.com/tylergannon/polytype"
 	"github.com/tylergannon/skgo"
 )
@@ -33,13 +33,13 @@ func startImplement(ctx context.Context, in StartImplementInput) (StartAccepted,
 		return StartAccepted{}, skgo.Invalidf("max_tasks_per_outcome", "Give a positive max_tasks_per_outcome.")
 	}
 	return startWorkflow(ctx, in.ProjectDir, in.WorkDir, in.Conversation, "implement",
-		map[gimble.WorkflowRole]polytype.Optional[string]{
-			gimble.WorkflowRole("sprint-planning"):        in.RoleSprintPlanning,
-			gimble.WorkflowRole("architectural-critique"): in.RoleArchitecturalCritique,
-			gimble.WorkflowRole("coding"):                 in.RoleCoding,
-			gimble.WorkflowRole("qa-orchestration"):       in.RoleQaOrchestration,
+		map[gimbal.WorkflowRole]polytype.Optional[string]{
+			gimbal.WorkflowRole("sprint-planning"):        in.RoleSprintPlanning,
+			gimbal.WorkflowRole("architectural-critique"): in.RoleArchitecturalCritique,
+			gimbal.WorkflowRole("coding"):                 in.RoleCoding,
+			gimbal.WorkflowRole("qa-orchestration"):       in.RoleQaOrchestration,
 		}, func(runCtx context.Context, workDir string) error {
-			return implementation.Implement(runCtx, gimble.Env{WorkDir: workDir}, implementation.Params{
+			return implementation.Implement(runCtx, gimbal.Env{WorkDir: workDir}, implementation.Params{
 				OutcomesFile:       in.OutcomesFile,
 				MaxTasksPerOutcome: in.MaxTasksPerOutcome,
 			})

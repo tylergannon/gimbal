@@ -1,4 +1,4 @@
-Okay so yeah I think this is amounting to an argument for how to re-engineer Gimble, away from a kind of dummy copy of strongdm's atgimble, into a full-on reaction to the experience of using that pattern and rubbing up against just how fucking hard it is to design a good workflow using it and -- worse yet -- the lack of intuition that coding agents seem to have on how to make a GOOD ONE.
+Okay so yeah I think this is amounting to an argument for how to re-engineer Gimbal, away from a kind of dummy copy of strongdm's atgimbal, into a full-on reaction to the experience of using that pattern and rubbing up against just how fucking hard it is to design a good workflow using it and -- worse yet -- the lack of intuition that coding agents seem to have on how to make a GOOD ONE.
 
 
 

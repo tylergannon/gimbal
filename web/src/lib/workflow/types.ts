@@ -74,7 +74,7 @@ export type Source = {
 };
 
 /**
- * Service is one gimble.Service declaration. The containing Graph, Scope, Iterate, PromiseLoop task, or GroupChild owns its lifetime. It is not an ordered operation; the command line and runtime process are the run's record.
+ * Service is one gimbal.Service declaration. The containing Graph, Scope, Iterate, PromiseLoop task, or GroupChild owns its lifetime. It is not an ordered operation; the command line and runtime process are the run's record.
  */
 export type Service = {
   /**
@@ -107,7 +107,7 @@ export type AgentCall = {
 };
 
 /**
- * Supervisor is one gimble.WithSupervisor on a call: a session watching the work and the constant it was told to watch for. Its own supervisors watch its look turns. How often it looks is a knob the run records, not shape.
+ * Supervisor is one gimbal.WithSupervisor on a call: a session watching the work and the constant it was told to watch for. Its own supervisors watch its look turns. How often it looks is a knob the run records, not shape.
  */
 export type Supervisor = {
   /**
@@ -122,7 +122,7 @@ export type Supervisor = {
 };
 
 /**
- * Command is one gimble.RunCommand or gimble.Check. Name is the constant name RunCommand gives it, or the constant context key Check gives it; the command line and its outcome are the run's record.
+ * Command is one gimbal.RunCommand or gimbal.Check. Name is the constant name RunCommand gives it, or the constant context key Check gives it; the command line and its outcome are the run's record.
  */
 export type Command = {
   /**
@@ -134,7 +134,7 @@ export type Command = {
 };
 
 /**
- * Condition is an if/else chain or a switch, recorded when one of its branches contains an operation or exits. A branch guarding nothing but error handling is not shape and does not appear. Branch order is source order and is not an execution order. A Condition creates no Gimble scope.
+ * Condition is an if/else chain or a switch, recorded when one of its branches contains an operation or exits. A branch guarding nothing but error handling is not shape and does not appear. Branch order is source order and is not an execution order. A Condition creates no Gimbal scope.
  */
 export type Condition = {
   /**
@@ -194,7 +194,7 @@ export type Branch = {
 };
 
 /**
- * Group is a gimble.Group call. Its children run concurrently; their order is source order and implies nothing about the order they finish in.
+ * Group is a gimbal.Group call. Its children run concurrently; their order is source order and implies nothing about the order they finish in.
  */
 export type Group = {
   /**
@@ -255,7 +255,7 @@ export type GroupChild = {
 };
 
 /**
- * Interview is one gimble.Interview. Session is the conversation conducting it; its questions, answers, and internal turns are runtime facts.
+ * Interview is one gimbal.Interview. Session is the conversation conducting it; its questions, answers, and internal turns are runtime facts.
  */
 export type Interview = {
   /**
@@ -369,7 +369,7 @@ export type PromiseLoop = {
 };
 
 /**
- * Repeat is a Go for or range statement whose body contains an operation, such as the sprint's rounds. Cond is the loop header as written. It creates no Gimble scope; how many times it runs is the run's record.
+ * Repeat is a Go for or range statement whose body contains an operation, such as the sprint's rounds. Cond is the loop header as written. It creates no Gimbal scope; how many times it runs is the run's record.
  */
 export type Repeat = {
   /**
@@ -416,7 +416,7 @@ export type Repeat = {
 };
 
 /**
- * Scope is a gimble.Scope call: a named body that owns the sessions declared in it and holds the values set in it.
+ * Scope is a gimbal.Scope call: a named body that owns the sessions declared in it and holds the values set in it.
  */
 export type Scope = {
   /**
@@ -464,7 +464,7 @@ export type Scope = {
 };
 
 /**
- * Session is one gimble.NewSession or Session.Fork, standing where the source creates it: the body containing it is the scope that owns the conversation, which is how the runtime names it too. Name is the role for NewSession and the fork's name for Fork. From is the name of the session this one forks, empty for NewSession. What it runs on is a run's binding and is not here.
+ * Session is one gimbal.NewSession or Session.Fork, standing where the source creates it: the body containing it is the scope that owns the conversation, which is how the runtime names it too. Name is the role for NewSession and the fork's name for Fork. From is the name of the session this one forks, empty for NewSession. What it runs on is a run's binding and is not here.
  */
 export type Session = {
   /**
@@ -477,7 +477,7 @@ export type Session = {
 };
 
 /**
- * Set is one gimble.Set or SetJSON: a key written into the containing scope. The order of these in a body is the order an agent reads them back. The value written is the run's, not the source's.
+ * Set is one gimbal.Set or SetJSON: a key written into the containing scope. The order of these in a body is the order an agent reads them back. The value written is the run's, not the source's.
  */
 export type Set = {
   /**

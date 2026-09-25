@@ -31,9 +31,9 @@ pre-commit:
             glob: "*.go"
             run: golangci-lint run ./...
 
-          - name: gimble-lint
+          - name: gimbal-lint
             glob: "*.go"
-            run: go run ./cmd/gimble lint ./...
+            run: go run ./cmd/gimbal lint ./...
 
     - name: go-test
       glob: "*.go"
@@ -60,5 +60,5 @@ pre-commit:
 
 pre-push:
   jobs:
-    - name: gimble-lint
-      run: go run ./cmd/gimble lint ./...
+    - name: gimbal-lint
+      run: go run ./cmd/gimbal lint ./...

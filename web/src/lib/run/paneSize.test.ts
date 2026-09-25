@@ -61,7 +61,7 @@ test("without storage (SSR) reads fall back to defaults and writes are silent", 
 test("readStoredWidth defaults when the stored value is invalid", () => {
   (globalThis as { localStorage: Storage }).localStorage =
     new MemoryStorage() as unknown as Storage;
-  localStorage.setItem("gimble.detail.width", "not-a-number");
+  localStorage.setItem("gimbal.detail.width", "not-a-number");
   assert.equal(readStoredWidth(), DEFAULT_WIDTH);
 });
 

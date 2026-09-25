@@ -1,5 +1,5 @@
 // Splits "what was this agent told" into the bare call-site prompt and the
-// scope values a workflow placed in context with gimble.Set(ctx, key,
+// scope values a workflow placed in context with gimbal.Set(ctx, key,
 // value). Pure functions only; no Svelte state lives here. See
 // ephemeral/design/issue-325-detail-view-proposal.md section 2(d).
 //

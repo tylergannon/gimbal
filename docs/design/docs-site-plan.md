@@ -33,7 +33,7 @@ The poster is one deliverable on three surfaces:
   it is, how to use it, and where the reference lives. A reader arrives by
   interest, not in sequence. The quickstart is the one ordered page.
 
-Why workflows are ordinary Go, and what Gimble refuses to do, lives on the
+Why workflows are ordinary Go, and what Gimbal refuses to do, lives on the
 About page for readers who stay.
 
 ## Visuals
@@ -66,7 +66,7 @@ Every fact has one home, and the site generates from it or links to it.
 - **Hand-written pages are few, and the definition of done covers them.** A
   change in behavior updates its page in the same PR. CI checks for stale
   generated files.
-- **A docs agent catches what slips through.** A scheduled Gimble workflow
+- **A docs agent catches what slips through.** A scheduled Gimbal workflow
   reads merged commits, finds pages that drifted, and proposes fixes.
 
 ## Before posting anywhere
@@ -90,6 +90,6 @@ Every fact has one home, and the site generates from it or links to it.
 
 ## Done
 
-Someone who sees the top of the page for five seconds can say what Gimble is
+Someone who sees the top of the page for five seconds can say what Gimbal is
 and name two things in the box. A merged API change cannot leave the site
 wrong without CI or the docs agent noticing.

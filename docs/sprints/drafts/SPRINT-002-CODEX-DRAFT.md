@@ -59,7 +59,7 @@ ordering. This contract does not promise exactly-once recovery after crashes.
 
 The root agent owns the actual fixture and baseline. Keep its source, generated
 types, project records, and raw captures under a fresh `/private/tmp` directory.
-Use this checkout through the temporary module, real `gimble.Run`, a Haiku
+Use this checkout through the temporary module, real `gimbal.Run`, a Haiku
 `ModelBinding` using `claude.New()`, exactly one `NewSession`, and sequential
 `session.Generate[First]` and `session.Generate[Second]` calls. Types implement
 the current `Output` contract and have incompatible required fields.

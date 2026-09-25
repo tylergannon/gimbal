@@ -4,7 +4,7 @@
 
 Form functions in SKGO are the only remote kind whose input argument bypasses Polytype's generated devalue codecs ([source](sources/skgo-form-decoding-source.txt):104-133). While queries and commands receive devalue payloads decoded by Polytype's generated strict decoders ([source](sources/skgo-form-decoding-source.txt):146-149), forms post `application/x-sveltekit-formdata` which SKGO decodes using reflection in `skgo.DecodeForm` and `internal/formdata/decode.go` ([source](sources/skgo-form-decoding-source.txt):84-97, 173-228).
 
-Because `formdata.Decode` only recognizes primitive Go kinds (`reflect.String`, `reflect.Int*`, `reflect.Bool`, `reflect.Slice`, `*devalue.Object`), it fails when assigning scalars to `polytype.Optional[T]`, which is a Go struct ([source](sources/polytype-optional-and-codecs-source.txt):14-22). To support Gimble's workflow inputs, `formdata.Decode` must recognize `polytype.Optional[T]`, unpack its presence, and delegate scalar decoding.
+Because `formdata.Decode` only recognizes primitive Go kinds (`reflect.String`, `reflect.Int*`, `reflect.Bool`, `reflect.Slice`, `*devalue.Object`), it fails when assigning scalars to `polytype.Optional[T]`, which is a Go struct ([source](sources/polytype-optional-and-codecs-source.txt):14-22). To support Gimbal's workflow inputs, `formdata.Decode` must recognize `polytype.Optional[T]`, unpack its presence, and delegate scalar decoding.
 
 Omitted form fields and explicitly supplied zero, false, or empty string values are distinguished cleanly by key presence in the parsed `*devalue.Object` ([source](sources/skgo-form-decoding-source.txt):280-314). Omitted fields never trigger assignment, preserving `Present: false`. Explicitly supplied zero values trigger assignment, populating `Value` and setting `Present: true`, which prevents `json:",omitzero"` from omitting them ([source](sources/polytype-optional-and-codecs-source.txt):20-22). Detailed mechanics are detailed in [form-scalar-optional-delegation.md](clips/form-scalar-optional-delegation.md) and [nested-structs-parameter-shapes.md](clips/nested-structs-parameter-shapes.md).
 
@@ -27,10 +27,10 @@ Omitted form fields and explicitly supplied zero, false, or empty string values 
 - **Preserving omitzero**: `Optional[T].IsZero()` reports `!o.Present` ([source](sources/polytype-optional-and-codecs-source.txt):20-22). When `Present == true`, `IsZero()` returns `false`, ensuring that explicitly supplied zero/false/empty values are retained during JSON serialization and not omitted.
 - **Empty text inputs for number controls**: Unset HTML number inputs send `""`, which SvelteKit's `coerce_form_value` ([source](sources/sveltekit-form-utils-reference.txt):68-73) and SKGO's `coerce` convert to `devalue.Undefined`. `decode.go:40` skips `devalue.Undefined`, leaving `Present == false` ([source](sources/skgo-form-decoding-source.txt):187-189).
 
-### 3. How does Polytype handle nested struct field paths in standard form data submissions, and what conventions match Gimble's workflow parameter shapes?
+### 3. How does Polytype handle nested struct field paths in standard form data submissions, and what conventions match Gimbal's workflow parameter shapes?
 - **Nested paths in SvelteKit/SKGO**: Controls named with dotted paths (e.g. `params.goal`) are split by `split_path` and converted into nested `*devalue.Object` trees by `setNested` ([source](sources/sveltekit-form-utils-reference.txt):16-18, 83-113).
 - **Struct decoding**: `assignObject` maps nested `*devalue.Object` values to matching struct fields by recursively calling `assign` on the nested struct field ([source](sources/skgo-form-decoding-source.txt):289-292). In Polytype's generated codecs, nested structs are decoded in place via `decodeObjectInto` ([source](sources/polytype-optional-and-codecs-source.txt):96-118).
-- **Gimble parameter conventions**: Across all five built-ins (`review`, `implement`, `validate-product`, `research-document`, `pyramid-summary`), all workflow parameters are flat scalar types (`string`, `int`, `polytype.Optional[int]`). Either flat request struct fields (`project`, `work_dir`, `conversation`, `goal`, `role_<name>`) or a single nested struct `params` (`params.goal`, `params.token_budget`) perfectly align with Polytype and SKGO conventions without requiring map or custom codec machinery.
+- **Gimbal parameter conventions**: Across all five built-ins (`review`, `implement`, `validate-product`, `research-document`, `pyramid-summary`), all workflow parameters are flat scalar types (`string`, `int`, `polytype.Optional[int]`). Either flat request struct fields (`project`, `work_dir`, `conversation`, `goal`, `role_<name>`) or a single nested struct `params` (`params.goal`, `params.token_budget`) perfectly align with Polytype and SKGO conventions without requiring map or custom codec machinery.
 
 ## Evidence Boundary / Unresolved
 
@@ -39,7 +39,7 @@ Omitted form fields and explicitly supplied zero, false, or empty string values 
   - Polytype requires `json:",omitzero"` on all `Optional[T]` fields (`internal/builder/typegrammar.go:726`).
   - SvelteKit converts empty numeric inputs to `undefined`, which is distinct on the wire from an explicit numeric `0`.
 - **Inference**:
-  - Updating `formdata.Decode` via reflection is cleaner and less invasive than generating full devalue decoders for forms, because forms can theoretically contain `File` inputs (though Gimble workflows do not).
+  - Updating `formdata.Decode` via reflection is cleaner and less invasive than generating full devalue decoders for forms, because forms can theoretically contain `File` inputs (though Gimbal workflows do not).
 - **Unresolved questions**:
   - Should workflow request structs keep parameters in an embedded `Params` struct (`params.goal`) or flatten all parameters to top-level fields alongside `project` and `work_dir`? Both work with SvelteKit's `split_path`, but flattening simplifies CLI flag mapping.
 

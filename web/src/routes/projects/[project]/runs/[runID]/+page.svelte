@@ -363,7 +363,7 @@
   });
 </script>
 
-<svelte:head><title>{snapshot.run.name} · Gimble</title></svelte:head>
+<svelte:head><title>{snapshot.run.name} · Gimbal</title></svelte:head>
 
 <svelte:window onkeydown={handleKeydown} />
 

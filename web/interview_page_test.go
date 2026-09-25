@@ -11,14 +11,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/tylergannon/gimble"
-	"github.com/tylergannon/gimble/internal/observation"
-	"github.com/tylergannon/gimble/workflow"
+	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/internal/observation"
+	"github.com/tylergannon/gimbal/workflow"
 )
 
 func TestRunPageKeepsInterviewHistoryAcrossQuestionsAndReload(t *testing.T) {
 	const workflowName = "interview-ssr-fixture"
-	gimble.RegisterGraph(workflow.Graph{
+	gimbal.RegisterGraph(workflow.Graph{
 		Name: workflowName,
 		Body: []workflow.Operation{
 			workflow.Scope{Name: "preferences", Body: []workflow.Operation{
@@ -49,11 +49,11 @@ func TestRunPageKeepsInterviewHistoryAcrossQuestionsAndReload(t *testing.T) {
 		json.RawMessage(`{"seq":1,"time":"2026-09-17T17:00:00Z","scope":"","event":{"kind":"run_started","name":"interview-ssr-fixture"}}`),
 		json.RawMessage(`{"seq":2,"time":"2026-09-17T17:00:01Z","scope":"preferences.1","event":{"kind":"scope_began","name":"preferences.1"}}`),
 		json.RawMessage(`{"seq":3,"time":"2026-09-17T17:00:02Z","scope":"preferences.1","session":"preferences.1/interviewer.1","event":{"kind":"session_created","name":"interviewer","adapter":"fixture","model":"test-model","workdir":"/w"}}`),
-		json.RawMessage(`{"seq":4,"time":"2026-09-17T17:00:03Z","scope":"preferences.1","session":"preferences.1/interviewer.1","turn":"preferences.1/interviewer.1/turn.1","event":{"kind":"turn_started","prompt":"first","output_type":"gimble.interviewDecision"}}`),
+		json.RawMessage(`{"seq":4,"time":"2026-09-17T17:00:03Z","scope":"preferences.1","session":"preferences.1/interviewer.1","turn":"preferences.1/interviewer.1/turn.1","event":{"kind":"turn_started","prompt":"first","output_type":"gimbal.interviewDecision"}}`),
 		json.RawMessage(`{"seq":5,"time":"2026-09-17T17:00:04Z","scope":"preferences.1","session":"preferences.1/interviewer.1","turn":"preferences.1/interviewer.1/turn.1","event":{"kind":"turn_ended","result":"{\"question\":\"Which color?\"}"}}`),
 		json.RawMessage(`{"seq":6,"time":"2026-09-17T17:00:05Z","scope":"preferences.1","session":"preferences.1/interviewer.1","event":{"kind":"interview_question_asked","name":"preferences","question_id":"question-1","question":"Which color?"}}`),
 		json.RawMessage(`{"seq":7,"time":"2026-09-17T17:00:06Z","scope":"preferences.1","session":"preferences.1/interviewer.1","event":{"kind":"interview_question_answered","question_id":"question-1","answer":"Blue"}}`),
-		json.RawMessage(`{"seq":8,"time":"2026-09-17T17:00:07Z","scope":"preferences.1","session":"preferences.1/interviewer.1","turn":"preferences.1/interviewer.1/turn.2","event":{"kind":"turn_started","prompt":"second","output_type":"gimble.interviewDecision"}}`),
+		json.RawMessage(`{"seq":8,"time":"2026-09-17T17:00:07Z","scope":"preferences.1","session":"preferences.1/interviewer.1","turn":"preferences.1/interviewer.1/turn.2","event":{"kind":"turn_started","prompt":"second","output_type":"gimbal.interviewDecision"}}`),
 	} {
 		if err := store.Lifecycle(record); err != nil {
 			t.Fatalf("fold %s: %v", record, err)

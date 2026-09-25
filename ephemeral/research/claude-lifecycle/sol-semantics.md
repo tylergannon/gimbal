@@ -3,9 +3,9 @@
 Observed 2026-09-20 with Claude Code 2.1.270, model
 `claude-haiku-4-5-20251001`, and the pinned Go SDK
 `github.com/tylergannon/claude-agent-sdk-go@v1.1.1-0.20260912021749-9a4ffeca77cc`.
-Raw captures and probe sources are under `/private/tmp/gimble-317-sol/`; earlier
+Raw captures and probe sources are under `/private/tmp/gimbal-317-sol/`; earlier
 captures used for the reconnect comparison are under
-`/private/tmp/gimble-317-investigation/`.
+`/private/tmp/gimbal-317-investigation/`.
 
 ## What a result ends
 
@@ -23,7 +23,7 @@ The observed forced-wait lifecycle was:
 
 1. one prompt launched three background commands;
 2. `background_tasks_changed` accumulated one, two, then three active tasks
-   (`/private/tmp/gimble-317-sol/raw.jsonl:43,46,55`);
+   (`/private/tmp/gimbal-317-sol/raw.jsonl:43,46,55`);
 3. Claude emitted a schema-valid waiting `result`, subtype `success`,
    `terminal_reason:"completed"`, `result_index:0` while all three remained
    active (`raw.jsonl:83`);
@@ -84,7 +84,7 @@ gets a separate full value (`raw.jsonl:178`). A reconnect exposes the sharp
 edge: after the old process was closed, resume emitted a stopped-task
 notification followed by an empty successful task-notification result with no
 `structured_output`, `terminal_reason`, or model turns before the newly queued
-prompt produced its schema-valid result (`/private/tmp/gimble-317-investigation/
+prompt produced its schema-valid result (`/private/tmp/gimbal-317-investigation/
 sdk-structured/raw-2.jsonl:1,4,28`). Thus a configured schema does not guarantee
 that every native result has structured output. The adapter currently rejects
 missing structured output only after it has already selected the first result
@@ -123,7 +123,7 @@ exactly-once recovery.
 
 ## Smallest supported solution
 
-Keep one client/process and one `Stream.Messages` consumer alive for the Gimble
+Keep one client/process and one `Stream.Messages` consumer alive for the Gimbal
 session rather than closing it after each result. Treat every native result as
 the end of a generation, record its origin/index/usage, and continue listening
 through the background-shell task notifications observed here. Serialize or

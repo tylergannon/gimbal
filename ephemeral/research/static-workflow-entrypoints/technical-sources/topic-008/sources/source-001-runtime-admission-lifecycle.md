@@ -1,6 +1,6 @@
 # Source: web/runtime.go - Project Admission, Canonicalization, and Run Context Lifecycle
 
-- **Origin**: `/Users/tyler/.codex/worktrees/d798/gimble/web/runtime.go`
+- **Origin**: `/Users/tyler/.codex/worktrees/d798/gimbal/web/runtime.go`
 - **Commit**: `40dc82947eed99202fd9cb1dd377b6a3c2abbccc`
 - **Retrieval Date**: 2026-09-23
 - **Scope**: Canonical path resolution, exclusive flock project admission, and the runtime context hierarchy in `Run`.
@@ -24,24 +24,24 @@ func projectID(path string) string {
 }
 
 // AdmitProject admits a repository once. Another instance cannot admit the
-// same canonical project until this instance ends. Its .gimble state and the
+// same canonical project until this instance ends. Its .gimbal state and the
 // execution workdirs supplied by workflows are separate from its identity.
 func (i *Instance) AdmitProject(dir string) (*Runtime, error) {
 	if i == nil || i.ctx.Err() != nil {
-		return nil, errors.New("gimble: instance is closed")
+		return nil, errors.New("gimbal: instance is closed")
 	}
 	path, err := canonicalProject(dir)
 	if err != nil {
 		return nil, err
 	}
-	state := filepath.Join(path, ".gimble")
+	state := filepath.Join(path, ".gimbal")
 	if err := os.MkdirAll(state, 0o755); err != nil {
 		return nil, err
 	}
 	i.mu.Lock()
 	defer i.mu.Unlock()
 	if i.ctx.Err() != nil {
-		return nil, errors.New("gimble: instance is closed")
+		return nil, errors.New("gimbal: instance is closed")
 	}
 	if p := i.projects[path]; p != nil {
 		return p, nil
@@ -50,14 +50,14 @@ func (i *Instance) AdmitProject(dir string) (*Runtime, error) {
 	// lock a different inode while another contender still holds the old one.
 	ownerLock, err := os.OpenFile(filepath.Join(state, "owner.lock"), os.O_CREATE|os.O_RDWR, 0o644)
 	if err != nil {
-		return nil, fmt.Errorf("gimble: claim project %s: %w", path, err)
+		return nil, fmt.Errorf("gimbal: claim project %s: %w", path, err)
 	}
 	if err := unix.Flock(int(ownerLock.Fd()), unix.LOCK_EX|unix.LOCK_NB); err != nil {
 		_ = ownerLock.Close()
 		if errors.Is(err, unix.EWOULDBLOCK) {
-			return nil, fmt.Errorf("gimble: project %s is already owned by another instance", path)
+			return nil, fmt.Errorf("gimbal: project %s is already owned by another instance", path)
 		}
-		return nil, fmt.Errorf("gimble: claim project %s: %w", path, err)
+		return nil, fmt.Errorf("gimbal: claim project %s: %w", path, err)
 	}
 	claimed := false
 	defer func() {
@@ -96,20 +96,20 @@ func (i *Instance) AdmitProject(dir string) (*Runtime, error) {
 // Run starts one workflow run and blocks until body returns. models binds
 // every role the workflow names. The run ends when either ctx or the runtime
 // context ends. A workflow panic is recorded as a failed run and returned as
-// an error; direct gimble.Run callers still receive the panic.
-func (r *Runtime) Run(ctx context.Context, name string, models map[gimble.WorkflowRole]gimble.ModelBinding, body func(context.Context) error) (err error) {
+// an error; direct gimbal.Run callers still receive the panic.
+func (r *Runtime) Run(ctx context.Context, name string, models map[gimbal.WorkflowRole]gimbal.ModelBinding, body func(context.Context) error) (err error) {
 	if r == nil {
-		return errors.New("gimble: nil runtime")
+		return errors.New("gimbal: nil runtime")
 	}
 	if ctx == nil {
-		return errors.New("gimble: run context is nil")
+		return errors.New("gimbal: run context is nil")
 	}
 	if body == nil {
-		return errors.New("gimble: run body is nil")
+		return errors.New("gimbal: run body is nil")
 	}
 	defer func() {
 		if value := recover(); value != nil {
-			err = fmt.Errorf("gimble: hosted workflow panic: %v", value)
+			err = fmt.Errorf("gimbal: hosted workflow panic: %v", value)
 		}
 	}()
 	r.instance.mu.Lock()
@@ -141,7 +141,7 @@ func (r *Runtime) Run(ctx context.Context, name string, models map[gimble.Workfl
 		}
 	}
 	runCtx = live.WithHook(runCtx, hook)
-	err = gimble.Run(gimble.Project(runCtx, r.dir), name, models, body)
+	err = gimbal.Run(gimbal.Project(runCtx, r.dir), name, models, body)
 	if err == nil && context.Cause(runCtx) != nil {
 		return context.Cause(runCtx)
 	}

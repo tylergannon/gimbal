@@ -11,12 +11,12 @@ same Session must use a different output format and succeed.
 ## Context and settled direction
 
 Read these local sources:
-- /Users/tyler/.codex/worktrees/286c/gimble/ephemeral/research/claude-lifecycle/generate-lifetime.md
-- /Users/tyler/.codex/worktrees/286c/gimble/ephemeral/research/claude-lifecycle/sol-semantics.md
-- /Users/tyler/.codex/worktrees/286c/gimble/ephemeral/research/claude-lifecycle/issue-317.md
-- /Users/tyler/.codex/worktrees/286c/gimble/docs/definition-of-done.md
-- /Users/tyler/.codex/worktrees/286c/gimble/claude/claude.go
-- /Users/tyler/.codex/worktrees/286c/gimble/session.go
+- /Users/tyler/.codex/worktrees/286c/gimbal/ephemeral/research/claude-lifecycle/generate-lifetime.md
+- /Users/tyler/.codex/worktrees/286c/gimbal/ephemeral/research/claude-lifecycle/sol-semantics.md
+- /Users/tyler/.codex/worktrees/286c/gimbal/ephemeral/research/claude-lifecycle/issue-317.md
+- /Users/tyler/.codex/worktrees/286c/gimbal/docs/definition-of-done.md
+- /Users/tyler/.codex/worktrees/286c/gimbal/claude/claude.go
+- /Users/tyler/.codex/worktrees/286c/gimbal/session.go
 
 A native success may mean waiting. Keep one native process alive through a
 logical Generate's intermediate answers and automatic continuations; close it
@@ -44,7 +44,7 @@ not implement or release the harness repair.
 
 ## Acceptance and constraints
 
-- Use real gimble.Run, one NewSession, and two sequential Generate calls with
+- Use real gimbal.Run, one NewSession, and two sequential Generate calls with
   incompatible structured output types. Live model is Claude Haiku.
 - First prompt causes native background Bash execution and an explicit waiting
   answer. Continue listening; native task completion wakes Claude without host

@@ -16,7 +16,7 @@ export type BrowserState = {
 
 export const test = base.extend<{ browserState: BrowserState }>({
   baseURL: async ({}, use) => {
-    await use(process.env.BASE_URL || `http://127.0.0.1:${process.env.GIMBLE_E2E_PORT}`);
+    await use(process.env.BASE_URL || `http://127.0.0.1:${process.env.GIMBAL_E2E_PORT}`);
   },
   browserState: [
     async ({ page }, use) => {
@@ -36,7 +36,7 @@ export const test = base.extend<{ browserState: BrowserState }>({
 
 const { Before, AfterStep } = createBdd(test);
 
-const projectRuns = fileURLToPath(new URL("../fixtures/project/.gimble/runs", import.meta.url));
+const projectRuns = fileURLToPath(new URL("../fixtures/project/.gimbal/runs", import.meta.url));
 
 Before(() => {
   if (!process.env.BASE_URL) setRunsFixture(true);

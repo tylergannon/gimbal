@@ -11,12 +11,12 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/tylergannon/gimble"
+	"github.com/tylergannon/gimbal"
 )
 
 func TestManagerRoutesAllProvidersAndKeepsConversationHistory(t *testing.T) {
 	repository := newRepository(t)
-	project := filepath.Join(repository, ".gimble")
+	project := filepath.Join(repository, ".gimbal")
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
@@ -26,10 +26,10 @@ func TestManagerRoutesAllProvidersAndKeepsConversationHistory(t *testing.T) {
 		"agy":    {sessions: make(map[string][]string)},
 	}
 	var routed []string
-	manager, err := New(ctx, project, func(provider string) (gimble.HarnessAdapter, error) {
+	manager, err := New(ctx, project, func(provider string) (gimbal.HarnessAdapter, error) {
 		routed = append(routed, provider)
 		return adapters[provider], nil
-	}, "/bin/gimble", "/instance", repository, nil)
+	}, "/bin/gimbal", "/instance", repository, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,10 +89,10 @@ func TestManagerRoutesAllProvidersAndKeepsConversationHistory(t *testing.T) {
 	}
 
 	manager.Close()
-	restarted, err := New(t.Context(), project, func(string) (gimble.HarnessAdapter, error) {
+	restarted, err := New(t.Context(), project, func(string) (gimbal.HarnessAdapter, error) {
 		t.Fatal("reading saved history should not create an adapter")
 		return nil, nil
-	}, "/bin/gimble", "/instance", repository, nil)
+	}, "/bin/gimbal", "/instance", repository, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,15 +110,15 @@ func TestManagerRoutesAllProvidersAndKeepsConversationHistory(t *testing.T) {
 
 func TestManagerResumesPersistentNativeSessionAfterRestart(t *testing.T) {
 	repository := newRepository(t)
-	project := filepath.Join(repository, ".gimble")
+	project := filepath.Join(repository, ".gimbal")
 	adapter := &persistentChatAdapter{sessions: make(map[string][]string)}
 	createdAdapters := 0
-	factory := func(string) (gimble.HarnessAdapter, error) {
+	factory := func(string) (gimbal.HarnessAdapter, error) {
 		createdAdapters++
 		return adapter, nil
 	}
 
-	first, err := New(t.Context(), project, factory, "/bin/gimble", "/instance", repository, nil)
+	first, err := New(t.Context(), project, factory, "/bin/gimbal", "/instance", repository, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -140,7 +140,7 @@ func TestManagerResumesPersistentNativeSessionAfterRestart(t *testing.T) {
 	}
 
 	createdBeforeRestart := createdAdapters
-	restarted, err := New(t.Context(), project, factory, "/bin/gimble", "/instance", repository, nil)
+	restarted, err := New(t.Context(), project, factory, "/bin/gimbal", "/instance", repository, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -168,9 +168,9 @@ func TestManagerResumesPersistentNativeSessionAfterRestart(t *testing.T) {
 
 func TestManagerRecordsCLIAssociationBesideOrdinaryChat(t *testing.T) {
 	repository := newRepository(t)
-	project := filepath.Join(repository, ".gimble")
+	project := filepath.Join(repository, ".gimbal")
 	adapter := &chatAdapter{sessions: make(map[string][]string)}
-	manager, err := New(t.Context(), project, func(string) (gimble.HarnessAdapter, error) { return adapter, nil }, "/bin/gimble", "/instance", repository, nil)
+	manager, err := New(t.Context(), project, func(string) (gimbal.HarnessAdapter, error) { return adapter, nil }, "/bin/gimbal", "/instance", repository, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -194,7 +194,7 @@ func TestManagerRecordsCLIAssociationBesideOrdinaryChat(t *testing.T) {
 	if got := adapter.prompts[0]; !strings.Contains(got, `--instance-dir "/instance"`) || !strings.Contains(got, `--project "`+repository+`"`) || !strings.Contains(got, `--conversation "`+item.ID+`"`) {
 		t.Fatalf("CLI instructions: %s", got)
 	}
-	restarted, err := New(t.Context(), project, func(string) (gimble.HarnessAdapter, error) { return adapter, nil }, "/bin/gimble", "/instance", repository, nil)
+	restarted, err := New(t.Context(), project, func(string) (gimbal.HarnessAdapter, error) { return adapter, nil }, "/bin/gimbal", "/instance", repository, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -222,7 +222,7 @@ func (a *chatAdapter) CreateSession(context.Context, string, string, string) (st
 	return id, nil
 }
 
-func (a *chatAdapter) RunTurn(_ context.Context, session, prompt string, _ json.RawMessage, _ func(gimble.AgentEvent) error) (gimble.TurnResult, error) {
+func (a *chatAdapter) RunTurn(_ context.Context, session, prompt string, _ json.RawMessage, _ func(gimbal.AgentEvent) error) (gimbal.TurnResult, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	history := a.sessions[session]
@@ -239,7 +239,7 @@ func (a *chatAdapter) RunTurn(_ context.Context, session, prompt string, _ json.
 		a.replies = a.replies[1:]
 	}
 	output, _ := json.Marshal(reply)
-	return gimble.TurnResult{Output: output}, nil
+	return gimbal.TurnResult{Output: output}, nil
 }
 
 func (*chatAdapter) Steer(context.Context, string, string) (bool, error) { return false, nil }
@@ -271,8 +271,8 @@ func newRepository(t *testing.T) string {
 	t.Helper()
 	repository := t.TempDir()
 	git(t, repository, "init", "-q")
-	git(t, repository, "config", "user.email", "gimble-test@example.invalid")
-	git(t, repository, "config", "user.name", "Gimble Test")
+	git(t, repository, "config", "user.email", "gimbal-test@example.invalid")
+	git(t, repository, "config", "user.name", "Gimbal Test")
 	if err := os.WriteFile(filepath.Join(repository, "README.md"), []byte("test\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}

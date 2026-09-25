@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tylergannon/gimble"
-	"github.com/tylergannon/gimble/workflow"
+	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/workflow"
 )
 
 type testSession struct {
@@ -46,7 +46,7 @@ func (h *testingHarness) Close(context.Context, string) error {
 	}
 	return nil
 }
-func (h *testingHarness) RunTurn(ctx context.Context, id, prompt string, _ json.RawMessage, _ func(gimble.AgentEvent) error) (gimble.TurnResult, error) {
+func (h *testingHarness) RunTurn(ctx context.Context, id, prompt string, _ json.RawMessage, _ func(gimbal.AgentEvent) error) (gimbal.TurnResult, error) {
 	h.mu.Lock()
 	s := h.sessions[id]
 	s.turns++
@@ -61,7 +61,7 @@ func (h *testingHarness) RunTurn(ctx context.Context, id, prompt string, _ json.
 			for len(h.arrivals) < h.want {
 				select {
 				case <-ctx.Done():
-					return gimble.TurnResult{}, ctx.Err()
+					return gimbal.TurnResult{}, ctx.Err()
 				case <-time.After(time.Millisecond):
 				}
 			}
@@ -73,28 +73,28 @@ func (h *testingHarness) RunTurn(ctx context.Context, id, prompt string, _ json.
 			h.mu.Unlock()
 		}
 		if failedTask {
-			return gimble.TurnResult{}, errors.New("tester unavailable")
+			return gimbal.TurnResult{}, errors.New("tester unavailable")
 		}
 		if s.turns == 2 {
 			if h.failDebrief && filepath.Base(s.dir) == "a" {
-				return gimble.TurnResult{}, errors.New("debrief unavailable")
+				return gimbal.TurnResult{}, errors.New("debrief unavailable")
 			}
 			raw, _ := json.Marshal("# UI/UX debrief\nConcrete preferences from the completed task.")
-			return gimble.TurnResult{Output: raw}, nil
+			return gimbal.TurnResult{Output: raw}, nil
 		}
 	} else {
 		h.mu.Lock()
 		finished := h.finished
 		h.mu.Unlock()
 		if finished != h.want {
-			return gimble.TurnResult{}, errors.New("review ran before all testers finished")
+			return gimbal.TurnResult{}, errors.New("review ran before all testers finished")
 		}
 		if s.role == "visual" && h.failVisual {
-			return gimble.TurnResult{}, errors.New("image tool unavailable")
+			return gimbal.TurnResult{}, errors.New("image tool unavailable")
 		}
 	}
 	raw, _ := json.Marshal("# " + s.role + " report\nObserved task outcome and limitations.")
-	return gimble.TurnResult{Output: raw}, nil
+	return gimbal.TurnResult{Output: raw}, nil
 }
 
 func TestUserTestingStages(t *testing.T) {
@@ -136,9 +136,9 @@ func TestUserTestingStages(t *testing.T) {
 			}
 			saveSuite(t, s, input)
 			h := &testingHarness{sessions: map[string]testSession{}, arrivals: make(chan struct{}, 3), want: tc.n, failTester: tc.tester, failDebrief: tc.debrief, failVisual: tc.visual, failClose: tc.close, prompts: map[string][]string{}}
-			models := map[gimble.WorkflowRole]gimble.ModelBinding{"product-operation": {Adapter: h, Model: "tester"}, "product-visual-review": {Adapter: h, Model: "visual"}, "product-triage": {Adapter: h, Model: "triage"}}
-			err := gimble.Run(gimble.Project(t.Context(), t.TempDir()), "user-testing", models, func(ctx context.Context) error {
-				return ValidateProduct(ctx, gimble.Env{WorkDir: filepath.Dir(input)}, Params{SuiteFile: input})
+			models := map[gimbal.WorkflowRole]gimbal.ModelBinding{"product-operation": {Adapter: h, Model: "tester"}, "product-visual-review": {Adapter: h, Model: "visual"}, "product-triage": {Adapter: h, Model: "triage"}}
+			err := gimbal.Run(gimbal.Project(t.Context(), t.TempDir()), "user-testing", models, func(ctx context.Context) error {
+				return ValidateProduct(ctx, gimbal.Env{WorkDir: filepath.Dir(input)}, Params{SuiteFile: input})
 			})
 			if (err != nil) != (tc.tester || tc.debrief || tc.visual || tc.close || tc.browserClose || tc.encode) {
 				t.Fatalf("run error: %v", err)
@@ -150,7 +150,7 @@ func TestUserTestingStages(t *testing.T) {
 				t.Fatalf("conversion failure missing from run: %v", err)
 			}
 			if tc.close {
-				if _, ok := errors.AsType[*gimble.CloseError](err); !ok {
+				if _, ok := errors.AsType[*gimbal.CloseError](err); !ok {
 					t.Fatalf("want CloseError: %v", err)
 				}
 			}
@@ -287,7 +287,7 @@ func TestScreenshotClaimsStayGrounded(t *testing.T) {
 	if !strings.Contains(triagePrompt, "screenshot review's corrections") || !strings.Contains(triagePrompt, "reference it found incorrect") {
 		t.Fatal("triage prompt does not preserve independent screenshot corrections")
 	}
-	if !strings.Contains(triagePrompt, "gimble upload-artifact") || !strings.Contains(triagePrompt, "hosted images") {
+	if !strings.Contains(triagePrompt, "gimbal upload-artifact") || !strings.Contains(triagePrompt, "hosted images") {
 		t.Fatal("triage prompt does not require online screenshot evidence for issues")
 	}
 }

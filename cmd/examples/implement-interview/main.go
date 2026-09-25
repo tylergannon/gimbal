@@ -9,9 +9,9 @@ import (
 	"os/signal"
 	"path/filepath"
 
-	"github.com/tylergannon/gimble"
-	"github.com/tylergannon/gimble/internal/binding"
-	"github.com/tylergannon/gimble/internal/workflows/implementinterview"
+	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/internal/binding"
+	"github.com/tylergannon/gimbal/internal/workflows/implementinterview"
 )
 
 func main() {
@@ -40,18 +40,18 @@ func main() {
 		}
 		workDir, err = filepath.Abs(workDir)
 		if err == nil {
-			var models map[gimble.WorkflowRole]gimble.ModelBinding
-			models, err = binding.Roles(map[gimble.WorkflowRole]string{
+			var models map[gimbal.WorkflowRole]gimbal.ModelBinding
+			models, err = binding.Roles(map[gimbal.WorkflowRole]string{
 				"api-research": *apiResearch, "frontend-research": *frontendResearch,
-				gimble.RoleSprintPlanning: *planning, "coding": *coding,
-				"implementation-scope-review": *scopeReview, gimble.RoleArchitecturalCritique: *architecture,
-				gimble.RoleQAOrchestration: *qa,
+				gimbal.RoleSprintPlanning: *planning, "coding": *coding,
+				"implementation-scope-review": *scopeReview, gimbal.RoleArchitecturalCritique: *architecture,
+				gimbal.RoleQAOrchestration: *qa,
 			})
 			if err == nil {
 				ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 				defer stop()
-				err = gimble.Run(gimble.Project(ctx, project), "implement-interview", models, func(ctx context.Context) error {
-					return implementinterview.ImplementInterview(ctx, gimble.Env{WorkDir: workDir}, implementinterview.InterviewBuildParams{
+				err = gimbal.Run(gimbal.Project(ctx, project), "implement-interview", models, func(ctx context.Context) error {
+					return implementinterview.ImplementInterview(ctx, gimbal.Env{WorkDir: workDir}, implementinterview.InterviewBuildParams{
 						RequirementsFile: *requirementsFile, ReferenceDir: *referenceDir, MaxTasks: *maxTasks,
 					})
 				})

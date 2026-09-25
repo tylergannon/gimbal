@@ -2,7 +2,7 @@
 
 Recovered and checked on 2026-09-09 after Tyler identified that a new proposal
 had missed the earlier implementation. Start here before designing another
-Go orchestration API. The shipped Gimble graph engine remains on `main`;
+Go orchestration API. The shipped Gimbal graph engine remains on `main`;
 the Go POC exists on a preserved, unmerged branch.
 
 ## Read in this order
@@ -32,7 +32,7 @@ and delivery. Input validation/dispatch, configuration/defaults, prompts,
 and typed step adapters are separate from the workflow algorithms.
 `tractor program schema <name>` and `tractor program run <name> --input ...`
 already formed a separate argument-schema/invocation path beside the graph
-CLI. These are commands in the historical POC, not current Gimble commands.
+CLI. These are commands in the historical POC, not current Gimbal commands.
 
 The POC is not complete graph-engine parity. Scoped automatic context,
 concurrent call ownership/isolation, supervisors, native-session continuity,
@@ -43,19 +43,19 @@ cancellation and invocation-identity problems to resolve before parallel use.
 
 ## Recover the complete source
 
-The verified backup is `/Users/tyler/src/gimble-history-backup-20260909.bundle`.
+The verified backup is `/Users/tyler/src/gimbal-history-backup-20260909.bundle`.
 Its `refs/heads/codex/programmatic-workflow-research` points to
 `4906a98c44930763597ebe015d5b996c120bc1eb`. This local backup is not a published
-Gimble branch; these Markdown copies keep the authoring examples available
+Gimbal branch; these Markdown copies keep the authoring examples available
 without it. The full source requires access to the backup.
 
 Clone into a separate inspection directory; do not import the old repository
-history or its research corpus into current Gimble:
+history or its research corpus into current Gimbal:
 
 ```sh
 git clone --single-branch --branch codex/programmatic-workflow-research \
-  /Users/tyler/src/gimble-history-backup-20260909.bundle \
-  /private/tmp/gimble-go-poc-inspection
+  /Users/tyler/src/gimbal-history-backup-20260909.bundle \
+  /private/tmp/gimbal-go-poc-inspection
 ```
 
 Relevant commits:

@@ -1,4 +1,4 @@
-# Gimble repository instructions
+# Gimbal repository instructions
 
 ## This is a proof of concept
 
@@ -10,7 +10,7 @@ old behavior behind an option," no migration notes. Delete what is replaced.
 If a change breaks something you were not asked to touch, open a GitHub issue
 describing the break and move on.
 
-## What Gimble is for
+## What Gimbal is for
 
 `docs/five-arts.md` names the five arts of orchestration this project exists to
 serve, and the tensions between them. Read it before proposing a feature.
@@ -18,13 +18,13 @@ serve, and the tensions between them. Read it before proposing a feature.
 ## The approved workflow shape
 
 Workflows are ordinary Go. The approved API is the recovered POC preserved at
-`ephemeral/projects/gimble/programmatic-workflows/POC-WORKFLOWS.md` and ported
+`ephemeral/projects/gimbal/programmatic-workflows/POC-WORKFLOWS.md` and ported
 into `program/`: `program.Loop`, `program.Codergen[T]`, `Runtime.Command`,
 `Runtime.Validate`. Sprints and chapters are both just `Loop`. Do not invent
 wrappers around these. Do not reintroduce a graph language, node types, or a
 context subsystem.
 
-The CLI is `gimble ls` and `gimble run <workflow> [flags]`. A workflow's flags
+The CLI is `gimbal ls` and `gimbal run <workflow> [flags]`. A workflow's flags
 are its input struct's fields. There is no JSON input file, schema command, or
 catalog.
 
@@ -59,5 +59,5 @@ Never commit inside one and never push from one. See `reference/README.md`.
   upstream commit.
 - `scripts/check-staged-content.sh` enforces the mechanical floor. Its large
   commit bypass is for an explicitly human-approved exception; agents must not
-  set `GIMBLE_ALLOW_LARGE_COMMIT=1` on their own. The run-log prohibition is
+  set `GIMBAL_ALLOW_LARGE_COMMIT=1` on their own. The run-log prohibition is
   not bypassable.

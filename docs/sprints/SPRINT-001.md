@@ -246,7 +246,7 @@ transcript sections stay below as the drill target.
 
 Files: `internal/observation/snapshot.go`, `store.go`, `usage.go`,
 `usage_test.go`, `checkpoint.go`, `store_test.go`; `event_persistence.go`;
-`run.go`; `gimble_test.go`.
+`run.go`; `gimbal_test.go`.
 
 1. `TurnInfo`, `Turns` on `RunSnapshot`, `Began`/`Ended` on `ScopeInfo`.
 2. `writeLifecycle` returns the record time; `run.event` passes it;
@@ -263,7 +263,7 @@ Files: `internal/observation/snapshot.go`, `store.go`, `usage.go`,
    any sibling; a turn's live step sums are replaced by its report; times
    and prompts survive `Close` and `loadCheckpoint`; a late subscriber's
    first snapshot already has them.
-6. `gimble_test.go`: after the fake attest run, `observation.json` scope
+6. `gimbal_test.go`: after the fake attest run, `observation.json` scope
    keys equal the `scope_began` keys in `run.jsonl`, every `turn_started`
    is in `turns` with its prompt, every ended is at or after its began,
    and every turn's usage equals its `turn_ended` record.
@@ -328,7 +328,7 @@ Checks, in order: `just build`, `go test -count=1 ./...`, `go vet ./...`,
 | `internal/observation/store_test.go` | placement, report replacement, times, late subscriber |
 | `event_persistence.go` | `writeLifecycle` returns the record time |
 | `run.go` | `observeLifecycle` fills turn entries and times |
-| `gimble_test.go` | checkpoint agrees with `run.jsonl` |
+| `gimbal_test.go` | checkpoint agrees with `run.jsonl` |
 | `web/src/lib/observation/index.ts` | `turns`, times, fold cases, step usage, per-turn revision |
 | `web/src/lib/observation/usage.ts`, `usage.test.ts` | new: `contains`, `rollup`, `total`; tests |
 | `web/src/lib/observation/index.test.ts` | fold cases, shared fixture |

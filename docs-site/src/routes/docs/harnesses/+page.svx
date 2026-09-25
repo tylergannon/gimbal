@@ -11,20 +11,20 @@
 
 <DocsPage
   title="Harnesses"
-  description="Gimble drives coding-agent harnesses. It does not replace them, and it is not a feature of any one of them."
+  description="Gimbal drives coding-agent harnesses. It does not replace them, and it is not a feature of any one of them."
   eyebrow="Feature"
   {headings}
 >
 
-A harness is the thing that actually runs an agent: its tools, its sandbox, its conversation store, its sign-in. Gimble sits above it and decides who is asked what, when, and with which context.
+A harness is the thing that actually runs an agent: its tools, its sandbox, its conversation store, its sign-in. Gimbal sits above it and decides who is asked what, when, and with which context.
 
 <h2 id="shipped">Adapters in the box</h2>
 
 | Package | Harness | How |
 | --- | --- | --- |
-| `gimble/codex` | Codex | Attaches to the machine's shared `codex app-server` daemon. |
-| `gimble/claude` | Claude Code | Through the Claude Agent SDK. |
-| `gimble/agy` | Google Antigravity | Through the `agy` print-mode CLI. |
+| `gimbal/codex` | Codex | Attaches to the machine's shared `codex app-server` daemon. |
+| `gimbal/claude` | Claude Code | Through the Claude Agent SDK. |
+| `gimbal/agy` | Google Antigravity | Through the `agy` print-mode CLI. |
 
 Your existing sign-in, configuration, and tools for each harness are what the agents run with.
 
@@ -33,7 +33,7 @@ Your existing sign-in, configuration, and tools for each harness are what the ag
 A `ModelBinding` is a harness adapter, a model, and an effort. A run binds every role its workflow names, so one run can put planning on one vendor and review on another:
 
 ```sh
-gimble run pyramid-summary ... \
+gimbal run pyramid-summary ... \
   --document-authoring gpt-5.6-sol:high \
   --editorial-review claude-opus-5:high
 ```

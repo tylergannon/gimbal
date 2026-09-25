@@ -1,4 +1,4 @@
-// Package gimble runs agent workflows written as ordinary Go, independently of
+// Package gimbal runs agent workflows written as ordinary Go, independently of
 // any particular agent host or coding-agent environment. A workflow can use
 // Codex, Claude Code, another harness, or an adapter supplied by its author.
 //
@@ -6,14 +6,14 @@
 // establish the root scope and durable record for one workflow run. A direct
 // Run executes in its caller's process and does not join a running web
 // instance. The supported hosted authoring path compiles a workflow and its
-// generated command into the Gimble checkout's binary; the command submits
+// generated command into the Gimbal checkout's binary; the command submits
 // to that running instance, which owns live observation. Keep independent
 // direct-run project state separate from a concurrently hosted project.
 //
 // Workflows use normal Go control flow. Scope names a bounded segment of work;
 // Group provides an observable form of errgroup-style concurrency; Iterate
 // scopes the items of a finite collection; PromiseLoop lets a planner select
-// tasks adaptively. Gimble supplies these runtime primitives, not named
+// tasks adaptively. Gimbal supplies these runtime primitives, not named
 // tactics: retries, critique rounds, bake-offs, and delivery methods remain
 // visible in the workflow that needs them.
 //
@@ -38,4 +38,4 @@
 // sessions and stops its services, Group.Wait joins its children, and
 // cancelling a run interrupts its agent work and services. See the package
 // examples for complete, compiling uses of runs and groups.
-package gimble
+package gimbal

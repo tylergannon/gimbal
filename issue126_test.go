@@ -1,4 +1,4 @@
-package gimble
+package gimbal
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tylergannon/gimble/internal/runlog"
+	"github.com/tylergannon/gimbal/internal/runlog"
 )
 
 func issue126RunDir(t *testing.T, project string) string {

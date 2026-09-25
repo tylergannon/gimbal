@@ -6,17 +6,17 @@
 
 - **L0:** A Claude `Generate` waits through an explicit intermediate response
   and native background-task wakeup before returning a validated final value;
-  a following call resumes the same Gimble Session under a different schema.
+  a following call resumes the same Gimbal Session under a different schema.
 - **L1:** The native process/reader lives for one adapter attempt through its
   waiting continuations, not for the Session; a private completion envelope
   separates `waiting` and `completed`; schema composition and result
   attribution remain sound; focused regressions and one real Haiku run prove
   the repair.
 - **L2:** Change only the private Claude adapter and focused tests. The
-  temporary acceptance fixture stays at `/private/tmp/gimble-317-sprint/`.
+  temporary acceptance fixture stays at `/private/tmp/gimbal-317-sprint/`.
   Evidence: [lifetime](../../ephemeral/research/claude-lifecycle/generate-lifetime.md),
   [native semantics](../../ephemeral/research/claude-lifecycle/sol-semantics.md).
-  Rerun it with `python3 /private/tmp/gimble-317-sprint/run.py`.
+  Rerun it with `python3 /private/tmp/gimbal-317-sprint/run.py`.
 
 ## Desired behavior and boundary
 
@@ -77,7 +77,7 @@ exactly-once or cross-crash guarantee is part of this sprint.
 ## Product completion evidence
 
 Keep the temporary two-call workflow outside the checkout and run it with
-Claude Haiku after the repair. It uses real `gimble.Run`, one `NewSession`, and
+Claude Haiku after the repair. It uses real `gimbal.Run`, one `NewSession`, and
 two sequential `Generate` calls. Call one launches exactly one finite native
 background Bash command, yields the explicit waiting declaration, and neither
 polls nor blocks on `TaskOutput`. After notification, it may read that
@@ -119,4 +119,4 @@ followed by requesting status supplies the bounded prompt-attribution barrier;
 earlier results cannot finish the submitted prompt. `Text` uses a string final
 payload, and malformed private output uses the existing validation retry.
 Legacy `dependencies` name-map handling remains a small follow-up in
-[issue 321](https://github.com/tylergannon/gimble/issues/321).
+[issue 321](https://github.com/tylergannon/gimbal/issues/321).

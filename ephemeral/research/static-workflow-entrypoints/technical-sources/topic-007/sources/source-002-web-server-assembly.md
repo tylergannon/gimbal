@@ -1,6 +1,6 @@
 # Source: web/server.go - Production Handler Assembly and Origin Checks
 
-- **Origin**: `/Users/tyler/.codex/worktrees/d798/gimble/web/server.go`
+- **Origin**: `/Users/tyler/.codex/worktrees/d798/gimbal/web/server.go`
 - **Commit**: `40dc82947eed99202fd9cb1dd377b6a3c2abbccc`
 - **Retrieval Date**: 2026-09-23
 - **Scope**: Production stack composition (`NewHandler`) and origin refusal middleware (`explainOriginRefusals`).
@@ -9,8 +9,8 @@
 
 ```go
 // NewHandler assembles the server. It is here, beside the embedded build and
-// not in package gimble, because the page's remote functions import gimble
-// and gimble cannot import the page. It exists so that there is exactly one
+// not in package gimbal, because the page's remote functions import gimbal
+// and gimbal cannot import the page. It exists so that there is exactly one
 // production stack: the binary in cmd and any test beside this file both call
 // NewHandler, and neither can be green over a composition the other does not
 // use.
@@ -25,8 +25,8 @@ import (
 
 	"github.com/tylergannon/skgo"
 
-	"github.com/tylergannon/gimble/internal/observation"
-	generated "github.com/tylergannon/gimble/internal/skgo"
+	"github.com/tylergannon/gimbal/internal/observation"
+	generated "github.com/tylergannon/gimbal/internal/skgo"
 )
 
 // NewHandler builds the server over the frontend build in dist. With a
@@ -130,9 +130,9 @@ func explainOriginRefusals(cfg skgo.RemoteConfig, next http.Handler) http.Handle
 		}
 		msg := "This app's origin is " + cfg.Origin + ", but the request came from " +
 			quoteOrigin(got) + ", so it was refused.\n\n" +
-			"Browse the app at " + cfg.Origin + ", or set GIMBLE_WEB_ORIGIN to the\n" +
-			"browser-visible origin when Gimble runs behind a reverse proxy.\n"
-		log.Printf("skgo: refused %s %s: Origin %s, want %s. Set GIMBLE_WEB_ORIGIN=%s behind a reverse proxy or browse the app at %s",
+			"Browse the app at " + cfg.Origin + ", or set GIMBAL_WEB_ORIGIN to the\n" +
+			"browser-visible origin when Gimbal runs behind a reverse proxy.\n"
+		log.Printf("skgo: refused %s %s: Origin %s, want %s. Set GIMBAL_WEB_ORIGIN=%s behind a reverse proxy or browse the app at %s",
 			r.Method, r.URL.Path, quoteOrigin(got), cfg.Origin, got, cfg.Origin)
 		http.Error(w, msg, http.StatusForbidden)
 	})

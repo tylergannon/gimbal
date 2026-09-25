@@ -1,6 +1,6 @@
 //go:build jsonschema
 
-package gimble
+package gimbal
 
 import (
 	"encoding/json"

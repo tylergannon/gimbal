@@ -120,12 +120,12 @@ not a harness-stated per-message cost and does not close #152.
   models.dev). Its `cost` block is `input`, `output`, `cache_read`,
   `cache_write` in USD per million tokens, plus `release_date` and
   `last_updated`. There is **no reasoning price**: providers bill reasoning
-  as output. Rows exist for every model Gimble has run:
+  as output. Rows exist for every model Gimbal has run:
   `claude-haiku-4-5-20251001` (1 / 5 / 0.1 / 1.25), `claude-fable-5-1`
   (10 / 50 / 0.25 / 12.5), `gpt-5.6-luna` (0.2 / 1.2 / 0.02 / 0.25, with a
   tier above 272k context), `gpt-5.6-sol` (4 / 20 / 0.4 / 5),
   `gemini-3.8-flash` (0.75 / 3.75 / 0.075, no cache write). Antigravity
-  reports `gemini-3.8-flash-low`: the effort suffix is Gimble's, the table
+  reports `gemini-3.8-flash-low`: the effort suffix is Gimbal's, the table
   key is `gemini-3.8-flash`, so the lookup has to strip it.
 - Release process: there is none. No tags on origin, no goreleaser, no
   release workflow; `.github/workflows/docs.yml` deploys docs only. "Deploy

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/tylergannon/gimble"
+	"github.com/tylergannon/gimbal"
 )
 
 type envelope struct {
@@ -68,7 +68,7 @@ type projector struct {
 	sessionID      string
 	conversationID string
 	model          string
-	emit           func(gimble.AgentEvent) error
+	emit           func(gimbal.AgentEvent) error
 	steps          map[int]*projectedStep
 }
 
@@ -86,9 +86,9 @@ type projectedStep struct {
 	textOpen, toolCalled, ended   bool
 }
 
-func newProjector(sessionID, model string, emit func(gimble.AgentEvent) error) *projector {
+func newProjector(sessionID, model string, emit func(gimbal.AgentEvent) error) *projector {
 	if emit == nil {
-		emit = func(gimble.AgentEvent) error { return nil }
+		emit = func(gimbal.AgentEvent) error { return nil }
 	}
 	return &projector{sessionID: sessionID, model: model, emit: emit, steps: make(map[int]*projectedStep)}
 }
@@ -289,7 +289,7 @@ func (p *projector) event(eventType string, data map[string]any, nativeRef map[s
 	if err != nil {
 		return err
 	}
-	return p.emit(gimble.AgentEvent{Type: eventType, Data: raw, NativeRef: ref})
+	return p.emit(gimbal.AgentEvent{Type: eventType, Data: raw, NativeRef: ref})
 }
 
 func (p *projector) ref(step *projectedStep) map[string]any {

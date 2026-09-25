@@ -16,10 +16,10 @@ import (
 )
 
 func TestProjectOwnershipAcrossProcesses(t *testing.T) {
-	if project := os.Getenv("GIMBLE_TEST_OWNED_PROJECT"); project != "" {
+	if project := os.Getenv("GIMBAL_TEST_OWNED_PROJECT"); project != "" {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		instance, err := NewInstance(ctx, os.Getenv("GIMBLE_TEST_INSTANCE_DIR"), nil, WithNoWeb())
+		instance, err := NewInstance(ctx, os.Getenv("GIMBAL_TEST_INSTANCE_DIR"), nil, WithNoWeb())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -50,7 +50,7 @@ func TestProjectOwnershipAcrossProcesses(t *testing.T) {
 		}
 	}
 	owner := exec.Command(os.Args[0], "-test.run=^TestProjectOwnershipAcrossProcesses$")
-	owner.Env = append(os.Environ(), "GIMBLE_TEST_OWNED_PROJECT="+projectA, "GIMBLE_TEST_INSTANCE_DIR="+filepath.Join(base, "owner"))
+	owner.Env = append(os.Environ(), "GIMBAL_TEST_OWNED_PROJECT="+projectA, "GIMBAL_TEST_INSTANCE_DIR="+filepath.Join(base, "owner"))
 	stdout, err := owner.StdoutPipe()
 	if err != nil {
 		t.Fatal(err)

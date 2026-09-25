@@ -1,14 +1,14 @@
 # Task-first routes
 
-## Which Go SDK should Gimble use?
+## Which Go SDK should Gimbal use?
 
 Start with the [seven-client comparison and live SDK smoke result](../sdk-and-supervision.md). TypeSafe does not publish a Go SDK; use this index for the official [HTTP API and model contract](sources/core-foundations/interface-capabilities.md), then inspect the selected Go SDK's source and tests before integration.
 
-## Can Jev supervise or coach Gimble agents?
+## Can Jev supervise or coach Gimbal agents?
 
 Start with [programmatic supervision](sources/core-foundations/programmatic-supervision.md), [decision primitives and confidence](sources/core-foundations/primitives-confidence.md), [tool routing and guardrails](sources/cookbooks-b/tool-routing-and-guardrails.md), and [cascades and bounded extraction](sources/cookbooks-b/cascades-and-bounded-extraction.md). For learned coaching signals, continue to [autoresearch feature discovery](sources/cookbooks-a/autoresearch_feature_discovery.md). For cheap multi-question evaluation, see [skill routing and batching](sources/cookbooks-b/skill-routing-and-batching.md) and [speculative fan-out](sources/patterns-demos/speculative-fan-out.md).
 
-Interpretation boundary: Jev can detect, classify, score, or select among predefined interventions. It cannot generate novel coaching text. Gimble code or a generative supervisor must own that step.
+Interpretation boundary: Jev can detect, classify, score, or select among predefined interventions. It cannot generate novel coaching text. Gimbal code or a generative supervisor must own that step.
 
 ## Does Jev support vision or other media?
 

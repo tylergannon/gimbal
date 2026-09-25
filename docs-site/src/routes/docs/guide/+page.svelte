@@ -3,9 +3,9 @@
 </script>
 
 <svelte:head>
-  <title>Moved · Gimble</title>
+  <title>Moved · Gimbal</title>
   <meta http-equiv="refresh" content={`0; url=${resolve("/docs/quickstart")}`} />
-  <link rel="canonical" href="https://tylergannon.github.io/gimble/docs/quickstart/" />
+  <link rel="canonical" href="https://tylergannon.github.io/gimbal/docs/quickstart/" />
 </svelte:head>
 
 <main class="shell py-24">

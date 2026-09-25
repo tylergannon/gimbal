@@ -14,7 +14,7 @@ Observed visually: a completed-status badge and run title dominate the header; s
 
 Documented interaction: the source says users can open current or past executions, inspect timeline/input/return values, and use the event-history table to inspect every event plus activity inputs/results. The tutorial also documents failure/retry scenarios. These are product claims from the source, not inferred from the pixels.
 
-Gimble borrow: make run status and identity persistent above every detail view; pair a compact overview timeline with a precise event list; retain stable tabs/locations for history, pending work, and metadata. This model is strong for historical review and repeated attempts. It does not itself provide a source-definition graph or a safe distinction between workflow topology and runtime instances, so Gimble should not copy the timeline as its map.
+Gimbal borrow: make run status and identity persistent above every detail view; pair a compact overview timeline with a precise event list; retain stable tabs/locations for history, pending work, and metadata. This model is strong for historical review and repeated attempts. It does not itself provide a source-definition graph or a safe distinction between workflow topology and runtime instances, so Gimbal should not copy the timeline as its map.
 
 Tradeoff: the dense metadata-and-tabs approach preserves context while drilling down, but the activity timeline is still a single execution’s chronological projection; parallel branches and repeated calls need explicit grouping/iteration labels rather than relying on the horizontal order.
 
@@ -30,9 +30,9 @@ Observed visually: the canvas lays out job cards left-to-right with curved depen
 
 Documented interaction: the source says the graph is real-time, lines mean dependencies, and selecting a job opens its log. The matrix grouping and control affordances are visible evidence; the source does not claim that the graph is a source-code map.
 
-Gimble borrow: use a fit-to-view graph as the run’s orientation layer; show status and duration directly on nodes; represent fan-out/matrix-like repetition as an expandable aggregate rather than flooding overview scale; connect graph selection to the corresponding detail/log location. Keep zoom controls and a “return to whole run” action obvious.
+Gimbal borrow: use a fit-to-view graph as the run’s orientation layer; show status and duration directly on nodes; represent fan-out/matrix-like repetition as an expandable aggregate rather than flooding overview scale; connect graph selection to the corresponding detail/log location. Keep zoom controls and a “return to whole run” action obvious.
 
-Tradeoff: a dependency graph makes concurrency legible at a glance, but it can imply a false total order if edge routing or left-to-right placement is read as chronology. Gimble should label edges as dependencies/containment and use runtime timestamps in the detail pane for actual order. Matrix aggregation is useful for many repeated instances, but selecting a specific iteration must remain possible.
+Tradeoff: a dependency graph makes concurrency legible at a glance, but it can imply a false total order if edge routing or left-to-right placement is read as chronology. Gimbal should label edges as dependencies/containment and use runtime timestamps in the detail pane for actual order. Matrix aggregation is useful for many repeated instances, but selecting a specific iteration must remain possible.
 
 ## 3. Jaeger — distributed trace waterfall and tree drilldown
 
@@ -46,11 +46,11 @@ Observed visually: the view has a service/operation tree at left and aligned hor
 
 Documented interaction: Jaeger describes trace detail as a way to find bottlenecks/root causes; its current feature docs say traces are DAGs rather than only trees and mention large-trace rendering, topology graphs, and a critical-path option. The exact collapse/zoom behavior is not asserted here unless visible in the asset or separately documented.
 
-Gimble borrow: use a synchronized hierarchy + time-axis detail for concurrency, latency, and repeated calls; allow a selected row/span to open a side/detail surface while preserving the global ruler; show counts/depth/total span-like summaries before drilling into hundreds of events. This is a useful history lens alongside, not instead of, a definition graph.
+Gimbal borrow: use a synchronized hierarchy + time-axis detail for concurrency, latency, and repeated calls; allow a selected row/span to open a side/detail surface while preserving the global ruler; show counts/depth/total span-like summaries before drilling into hundreds of events. This is a useful history lens alongside, not instead of, a definition graph.
 
-Tradeoff: waterfall density makes timing and overlap clear but becomes hard to navigate for very large histories; Jaeger’s own docs and issue history acknowledge scale concerns. Gimble should collapse/aggregate repeated iterations at overview scale, support keyboard or semantic navigation in addition to dragging, and avoid moving the user’s selection/viewport merely because live events arrive. A trace tree also encodes parentage, which is not automatically the same as Gimble’s scopes, sessions, supervisor links, or source call sites.
+Tradeoff: waterfall density makes timing and overlap clear but becomes hard to navigate for very large histories; Jaeger’s own docs and issue history acknowledge scale concerns. Gimbal should collapse/aggregate repeated iterations at overview scale, support keyboard or semantic navigation in addition to dragging, and avoid moving the user’s selection/viewport merely because live events arrive. A trace tree also encodes parentage, which is not automatically the same as Gimbal’s scopes, sessions, supervisor links, or source call sites.
 
-## Three design directions for Gimble
+## Three design directions for Gimbal
 
 1. **Execution dossier (Temporal-inspired):** run list → stable run header → tabs for history/pending/metadata → event rows and transcript detail. Best for historical review, interventions, and “what exactly happened?”
 2. **Topology canvas (GitHub Actions-inspired):** fit-to-view workflow/run map with status-bearing nodes, explicit dependency/containment edges, aggregate repeated branches, and graph-to-history selection. Best for finding parallel work and orienting in a large run.

@@ -1,4 +1,4 @@
-package gimble
+package gimbal
 
 import (
 	"context"
@@ -26,7 +26,7 @@ var errServiceShutdownTimeout = errors.New("service process group did not stop b
 //
 // A service is required for its scope's remaining lifetime. Any exit before
 // that scope starts shutting down, including exit zero, fails and cancels the
-// scope. When the scope ends or its ctx is cancelled, Gimble sends SIGTERM to
+// scope. When the scope ends or its ctx is cancelled, Gimbal sends SIGTERM to
 // the service's process group, waits five seconds, then sends SIGKILL and waits
 // at most five more seconds. This owns descendants which remain in that group;
 // a command must stay in the foreground and must not daemonize or escape it.
@@ -40,7 +40,7 @@ func Service(ctx context.Context, name, workdir, command string) error {
 		return err
 	}
 	if err := ctx.Err(); err != nil {
-		return fmt.Errorf("gimble: service %q: %w", name, err)
+		return fmt.Errorf("gimbal: service %q: %w", name, err)
 	}
 
 	scope.mu.Lock()
@@ -49,7 +49,7 @@ func Service(ctx context.Context, name, workdir, command string) error {
 	dir, _ := filepath.Abs(workdir)
 	started := CommandStarted{ID: id, Name: name, Command: "zsh", Args: []string{"-c", command}, Workdir: dir}
 	if err := scope.run.eventResult(scope.key, "", "", started); err != nil {
-		return fmt.Errorf("gimble: service %s: record start: %w", id, err)
+		return fmt.Errorf("gimbal: service %s: record start: %w", id, err)
 	}
 	logf("%s: service starting through zsh: %s", id, oneLine(command))
 	start := time.Now()
@@ -58,14 +58,14 @@ func Service(ctx context.Context, name, workdir, command string) error {
 	out, stdoutFile, err := openCommandCapture(scope.run, id, "stdout")
 	if err != nil {
 		scope.run.recordFailure("capture service output "+id, err)
-		return endServiceStartFailure(scope, start, ended, fmt.Errorf("gimble: service %s: capture output: %w", id, err))
+		return endServiceStartFailure(scope, start, ended, fmt.Errorf("gimbal: service %s: capture output: %w", id, err))
 	}
 	ended.StdoutFile = stdoutFile
 	errOut, stderrFile, err := openCommandCapture(scope.run, id, "stderr")
 	if err != nil {
 		_ = out.close()
 		scope.run.recordFailure("capture service output "+id, err)
-		return endServiceStartFailure(scope, start, ended, fmt.Errorf("gimble: service %s: capture output: %w", id, err))
+		return endServiceStartFailure(scope, start, ended, fmt.Errorf("gimbal: service %s: capture output: %w", id, err))
 	}
 	ended.StderrFile = stderrFile
 
@@ -76,12 +76,12 @@ func Service(ctx context.Context, name, workdir, command string) error {
 	if err := prepareServiceProcess(cmd); err != nil {
 		_ = out.close()
 		_ = errOut.close()
-		return endServiceStartFailure(scope, start, ended, fmt.Errorf("gimble: service %s: %w", id, err))
+		return endServiceStartFailure(scope, start, ended, fmt.Errorf("gimbal: service %s: %w", id, err))
 	}
 	if err := cmd.Start(); err != nil {
 		_ = out.close()
 		_ = errOut.close()
-		return endServiceStartFailure(scope, start, ended, fmt.Errorf("gimble: service %s: %w", id, err))
+		return endServiceStartFailure(scope, start, ended, fmt.Errorf("gimbal: service %s: %w", id, err))
 	}
 
 	service := &ownedService{
@@ -163,9 +163,9 @@ func (s *ownedService) wait() {
 	if stopping {
 		s.ended.Interrupted = true
 		if captureErr != nil {
-			serviceErr = fmt.Errorf("gimble: service %s: capture output: %w", s.id, captureErr)
+			serviceErr = fmt.Errorf("gimbal: service %s: capture output: %w", s.id, captureErr)
 		} else if errors.Is(waitErr, exec.ErrWaitDelay) {
-			serviceErr = fmt.Errorf("gimble: service %s: output remained open after its process exited: %w", s.id, waitErr)
+			serviceErr = fmt.Errorf("gimbal: service %s: output remained open after its process exited: %w", s.id, waitErr)
 		}
 	} else {
 		status := "without a process status"
@@ -174,7 +174,7 @@ func (s *ownedService) wait() {
 		} else if waitErr != nil {
 			status = waitErr.Error()
 		}
-		serviceErr = fmt.Errorf("gimble: required service %s exited unexpectedly: %s", s.id, status)
+		serviceErr = fmt.Errorf("gimbal: required service %s exited unexpectedly: %s", s.id, status)
 		if captureErr != nil {
 			serviceErr = errors.Join(serviceErr, fmt.Errorf("capture output: %w", captureErr))
 		}
@@ -218,7 +218,7 @@ func (s *ownedService) stop() error {
 		s.stopErr = errors.Join(s.stopErr, s.terminalErr)
 		s.mu.Unlock()
 		if s.stopErr != nil {
-			s.stopErr = fmt.Errorf("gimble: stop service %s: %w", s.id, s.stopErr)
+			s.stopErr = fmt.Errorf("gimbal: stop service %s: %w", s.id, s.stopErr)
 		}
 	})
 	return s.stopErr

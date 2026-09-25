@@ -34,6 +34,6 @@ This leaf captures the three runtime integration aliases exposed in the assigned
 ## Task recipes
 
 - **Instrument without changing semantics:** wrap fetch to record start/end, attempt correlation, status, and cancellation while forwarding the input and complete `RequestInit` and returning the original-compatible `Response`. Begin at [Fetch](https://docs.typesafe.ai/sdk/javascript/api/type-aliases/Fetch.md).
-- **Build transport fault tests:** inject a custom fetch that deterministically returns selected responses or throws connection/abort errors, then verify the SDK’s typed error route and Gimble fallback behavior.
+- **Build transport fault tests:** inject a custom fetch that deterministically returns selected responses or throws connection/abort errors, then verify the SDK’s typed error route and Gimbal fallback behavior.
 - **Choose production logging explicitly:** set one of the five allowed levels, use `off` where the SDK logger cannot meet redaction requirements, and emit separately controlled application metrics keyed by safe request/run identifiers. Start at [LogLevel](https://docs.typesafe.ai/sdk/javascript/api/type-aliases/LogLevel.md).
 

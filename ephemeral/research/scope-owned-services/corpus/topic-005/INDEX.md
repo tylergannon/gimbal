@@ -40,7 +40,7 @@ service whose disappearance must not be silent. Longer detail is in
 
 ## Evidence boundary / unresolved
 
-These sources do not choose Gimble's concrete status vocabulary, how to encode
+These sources do not choose Gimbal's concrete status vocabulary, how to encode
 an OS process exit versus a workflow error, or which cause wins when explicit
 scope cancellation races with an independently observed service exit. Those
 are still contract decisions; the evidence supports fail-fast ownership and

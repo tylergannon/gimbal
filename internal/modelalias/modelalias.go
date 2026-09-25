@@ -1,5 +1,5 @@
 // Package modelalias resolves CLI model names to provider-native model IDs
-// and the Gimble harness that serves them.
+// and the Gimbal harness that serves them.
 package modelalias
 
 import (

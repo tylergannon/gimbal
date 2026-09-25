@@ -13,10 +13,10 @@ import (
 	"golang.org/x/tools/go/types/typeutil"
 )
 
-// gimbleCall names the Gimble function or method a call resolves to.
-func (e *extractor) gimbleCall(call *ast.CallExpr) (string, bool) {
+// gimbalCall names the Gimbal function or method a call resolves to.
+func (e *extractor) gimbalCall(call *ast.CallExpr) (string, bool) {
 	callee := typeutil.Callee(e.pkg.TypesInfo, call)
-	if callee == nil || callee.Pkg() == nil || callee.Pkg().Path() != gimblePath {
+	if callee == nil || callee.Pkg() == nil || callee.Pkg().Path() != gimbalPath {
 		return "", false
 	}
 	return callee.Name(), true
@@ -26,17 +26,17 @@ func (e *extractor) gimbleCall(call *ast.CallExpr) (string, bool) {
 // PromiseLoop's Tasks iterator.
 func (e *extractor) promiseTasksRange(stmt *ast.RangeStmt) (*ast.SelectorExpr, bool) {
 	selector, ok := unparen(stmt.X).(*ast.SelectorExpr)
-	return selector, ok && selector.Sel.Name == "Tasks" && isGimbleTasks(e.pkg.TypesInfo, selector)
+	return selector, ok && selector.Sel.Name == "Tasks" && isGimbalTasks(e.pkg.TypesInfo, selector)
 }
 
-func isGimbleTasks(info *types.Info, selector *ast.SelectorExpr) bool {
+func isGimbalTasks(info *types.Info, selector *ast.SelectorExpr) bool {
 	selection := info.Selections[selector]
 	if selection != nil {
 		obj := selection.Obj()
-		return obj.Pkg() != nil && obj.Pkg().Path() == gimblePath && obj.Name() == "Tasks"
+		return obj.Pkg() != nil && obj.Pkg().Path() == gimbalPath && obj.Name() == "Tasks"
 	}
 	obj := info.Uses[selector.Sel]
-	return obj != nil && obj.Pkg() != nil && obj.Pkg().Path() == gimblePath && obj.Name() == "Tasks"
+	return obj != nil && obj.Pkg() != nil && obj.Pkg().Path() == gimbalPath && obj.Name() == "Tasks"
 }
 
 func (e *extractor) iterateRange(stmt *ast.RangeStmt) (*ast.CallExpr, bool) {
@@ -44,7 +44,7 @@ func (e *extractor) iterateRange(stmt *ast.RangeStmt) (*ast.CallExpr, bool) {
 	if !ok {
 		return nil, false
 	}
-	name, ok := e.gimbleCall(call)
+	name, ok := e.gimbalCall(call)
 	return call, ok && name == "Iterate"
 }
 
@@ -126,7 +126,7 @@ func isSessionType(t types.Type) bool {
 		t = pointer.Elem()
 	}
 	named, ok := t.(*types.Named)
-	return ok && named.Obj().Pkg() != nil && named.Obj().Pkg().Path() == gimblePath && named.Obj().Name() == "Session"
+	return ok && named.Obj().Pkg() != nil && named.Obj().Pkg().Path() == gimbalPath && named.Obj().Name() == "Session"
 }
 
 func takesContext(t types.Type) bool {
@@ -146,14 +146,14 @@ func takesContext(t types.Type) bool {
 	return false
 }
 
-// importsGimble reports whether another package of this module imports
-// Gimble, which makes a call into it something the extractor does not follow.
-func (e *extractor) importsGimble(pkg *types.Package) bool {
+// importsGimbal reports whether another package of this module imports
+// Gimbal, which makes a call into it something the extractor does not follow.
+func (e *extractor) importsGimbal(pkg *types.Package) bool {
 	if pkg == nil || e.modulePath == "" || !strings.HasPrefix(pkg.Path(), e.modulePath) {
 		return false
 	}
 	for _, imported := range pkg.Imports() {
-		if imported.Path() == gimblePath {
+		if imported.Path() == gimbalPath {
 			return true
 		}
 	}
@@ -161,7 +161,7 @@ func (e *extractor) importsGimble(pkg *types.Package) bool {
 }
 
 // holdsOperation reports whether a statement, or a same-package function it
-// calls statically, contains a Gimble operation.
+// calls statically, contains a Gimbal operation.
 func (e *extractor) holdsOperation(node ast.Node) bool {
 	if node == nil {
 		return false
@@ -173,11 +173,11 @@ func (e *extractor) holdsOperation(node ast.Node) bool {
 		}
 		switch n := n.(type) {
 		case *ast.SelectorExpr:
-			if n.Sel.Name == "Tasks" && isGimbleTasks(e.pkg.TypesInfo, n) {
+			if n.Sel.Name == "Tasks" && isGimbalTasks(e.pkg.TypesInfo, n) {
 				found = true
 			}
 		case *ast.CallExpr:
-			if name, ok := e.gimbleCall(n); ok && isOperation(name) {
+			if name, ok := e.gimbalCall(n); ok && isOperation(name) {
 				found = true
 				return false
 			}
@@ -285,12 +285,12 @@ func unparen(expr ast.Expr) ast.Expr {
 	}
 }
 
-// nested records a Gimble call written in an expression the rules do not
+// nested records a Gimbal call written in an expression the rules do not
 // read, once for the whole expression. The authoring rule is to simplify
 // such source, not to guess at what it does.
 func (e *extractor) nested(pos token.Pos, where string, nodes ...ast.Node) {
 	if slices.ContainsFunc(nodes, e.holdsOperation) {
-		e.diag(pos, "a Gimble call nested in %s is not read", where)
+		e.diag(pos, "a Gimbal call nested in %s is not read", where)
 		return
 	}
 }
@@ -303,7 +303,7 @@ func (e *extractor) unbind(targets []ast.Expr) {
 	}
 }
 
-// plainArguments are the arguments of a Gimble call that are neither a body
+// plainArguments are the arguments of a Gimbal call that are neither a body
 // nor an option: the ones whose own calls the rules do not read.
 func plainArguments(name string, call *ast.CallExpr) []ast.Node {
 	skip := -1

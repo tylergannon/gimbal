@@ -8,17 +8,17 @@ the unmerged POC, historical proof reports, and proposed follow-up work.
 ## Key concepts
 
 - Reading order and newer API correction:
-  `ephemeral/projects/gimble/programmatic-workflows/POC-RECOVERY.md:1-19`.
+  `ephemeral/projects/gimbal/programmatic-workflows/POC-RECOVERY.md:1-19`.
 - Implemented typed calls, commands, validation, iterator, Go workflows, and
   separate argument-schema CLI:
-  `ephemeral/projects/gimble/programmatic-workflows/POC-RECOVERY.md:21-34`.
+  `ephemeral/projects/gimbal/programmatic-workflows/POC-RECOVERY.md:21-34`.
 - POC limitations and subsequent roles/Polytype direction:
-  `ephemeral/projects/gimble/programmatic-workflows/POC-RECOVERY.md:36-42`.
+  `ephemeral/projects/gimbal/programmatic-workflows/POC-RECOVERY.md:36-42`.
 - Preserved branch, backup, exact revisions, recovery commands, and historical
   proof limitations:
-  `ephemeral/projects/gimble/programmatic-workflows/POC-RECOVERY.md:44-74`.
+  `ephemeral/projects/gimbal/programmatic-workflows/POC-RECOVERY.md:44-74`.
 - Established authoring requests and how to use the new sketches:
-  `ephemeral/projects/gimble/programmatic-workflows/POC-RECOVERY.md:76-83`.
+  `ephemeral/projects/gimbal/programmatic-workflows/POC-RECOVERY.md:76-83`.
 
 ## Retrieval recipes
 

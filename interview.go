@@ -1,4 +1,4 @@
-package gimble
+package gimbal
 
 import (
 	"context"
@@ -40,7 +40,7 @@ type interviewDecision struct {
 func Interview(ctx context.Context, name string, session *Session, purpose string) (InterviewTranscript, error) {
 	transcript := InterviewTranscript{Exchanges: []InterviewExchange{}}
 	if session == nil {
-		return transcript, errors.New("gimble: Interview requires a session")
+		return transcript, errors.New("gimbal: Interview requires a session")
 	}
 	scope, err := current(ctx)
 	if err != nil {
@@ -81,7 +81,7 @@ func Interview(ctx context.Context, name string, session *Session, purpose strin
 func interviewPrompt(purpose string, transcript InterviewTranscript, scopeContext string) string {
 	history, err := json.MarshalIndent(transcript, "", "  ")
 	if err != nil {
-		panic(fmt.Sprintf("gimble: encode interview transcript: %v", err))
+		panic(fmt.Sprintf("gimbal: encode interview transcript: %v", err))
 	}
 	prompt := fmt.Sprintf(`Conduct the interview for this purpose:
 

@@ -12,7 +12,7 @@ import (
 )
 
 // record lines. A fixture is the exact JSON a run log holds, because that is
-// what the store folds: live from gimble.Run, and again on replay.
+// what the store folds: live from gimbal.Run, and again on replay.
 func sessionCreated(scope, session, model string) json.RawMessage {
 	return json.RawMessage(`{"seq":1,"time":"2026-09-13T00:00:00Z","scope":"` + scope + `","session":"` + session +
 		`","event":{"kind":"session_created","name":"` + session + `","adapter":"fixture","model":"` + model + `","parent":"","workdir":"/w"}}`)
@@ -20,13 +20,13 @@ func sessionCreated(scope, session, model string) json.RawMessage {
 
 func turnStarted(scope, session, turn string) json.RawMessage {
 	return json.RawMessage(`{"seq":2,"time":"2026-09-13T00:00:01Z","scope":"` + scope + `","session":"` + session +
-		`","turn":"` + turn + `","event":{"kind":"turn_started","prompt":"hello","output_type":"gimble.Text"}}`)
+		`","turn":"` + turn + `","event":{"kind":"turn_started","prompt":"hello","output_type":"gimbal.Text"}}`)
 }
 
 func turnStartedWithContext(scope, session, turn string) json.RawMessage {
 	return json.RawMessage(`{"seq":2,"time":"2026-09-13T00:00:01Z","scope":"` + scope + `","session":"` + session +
 		`","turn":"` + turn + `","event":{"kind":"turn_started","prompt":"build","context":[` +
-		`{"key":"goal","scope":"","complete":true},{"key":"task","scope":"lap.1","complete":false}],"output_type":"gimble.Text"}}`)
+		`{"key":"goal","scope":"","complete":true},{"key":"task","scope":"lap.1","complete":false}],"output_type":"gimbal.Text"}}`)
 }
 
 // turnEnded is the harness's own report for one turn, as []ModelUsage.
@@ -144,7 +144,7 @@ func TestSubscriberJoiningAfterTurnStartedSeesThePrompt(t *testing.T) {
 		t.Fatalf("subscribe: %v", err)
 	}
 	defer sub.Close()
-	if got := snapshot.Turns["t1"]; got.Prompt != "hello" || got.Session != "s1" || got.OutputType != "gimble.Text" {
+	if got := snapshot.Turns["t1"]; got.Prompt != "hello" || got.Session != "s1" || got.OutputType != "gimbal.Text" {
 		t.Fatalf("first snapshot's turn = %+v", got)
 	}
 }
@@ -207,7 +207,7 @@ func TestPreContextTurnsTableStillOpens(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	old := `[{"run":"old-run","id":"t1","session":"s1","scope":"","prompt":"hello\n\n## goal\n\nship","output_type":"gimble.Text","result":"","error":"","interrupted":false,"started":1,"ended":0,"duration":0}]`
+	old := `[{"run":"old-run","id":"t1","session":"s1","scope":"","prompt":"hello\n\n## goal\n\nship","output_type":"gimbal.Text","result":"","error":"","interrupted":false,"started":1,"ended":0,"duration":0}]`
 	if err := os.WriteFile(filepath.Join(dir, "turns.json"), []byte(old), 0o644); err != nil {
 		t.Fatal(err)
 	}

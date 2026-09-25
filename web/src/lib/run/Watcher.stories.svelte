@@ -23,7 +23,7 @@
   const targetX = watched.x - 2;
 
   const { Story } = defineMeta({
-    title: "Gimble/Run/Watcher",
+    title: "Gimbal/Run/Watcher",
     component: Watcher,
     parameters: { layout: "centered" },
   });

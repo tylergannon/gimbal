@@ -1,9 +1,9 @@
-package gimble
+package gimbal
 
 import (
 	"testing"
 
-	"github.com/tylergannon/gimble/workflow"
+	"github.com/tylergannon/gimbal/workflow"
 )
 
 func TestRegisteredGraphReturnsCompiledWorkflow(t *testing.T) {

@@ -8,7 +8,7 @@
   } from "./fixtures/index.js";
 
   const { Story } = defineMeta({
-    title: "Gimble/Run/Map",
+    title: "Gimbal/Run/Map",
     component: Map,
     parameters: { layout: "fullscreen" },
   });

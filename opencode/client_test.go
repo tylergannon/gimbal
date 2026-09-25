@@ -183,7 +183,7 @@ func TestCancelledDiscoveryDoesNotStopExistingServer(t *testing.T) {
 		PID:          process.Process.Pid,
 		ProcessToken: token,
 		URL:          "http://127.0.0.1:1",
-		Username:     "gimble",
+		Username:     "gimbal",
 		Password:     "secret",
 	}
 	if err := writeServerState(stateDir, state); err != nil {

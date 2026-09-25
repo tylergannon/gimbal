@@ -6,7 +6,7 @@ Question: can the run page stop using the hand-rolled SSE endpoint (`internal/ob
 - A `query.live` yield is the WHOLE devalue-encoded value in one SSE frame; only byte-identical repeats are skipped (kit `server/remote-functions.js:109`, skgo `remote_live.go:113-124`).
 - Client replaces its value wholesale; `for await` is latest-wins under backpressure (kit `utils/shared-iterator.js:8-14`): intermediate frames can be dropped.
 - Reconnect re-runs the producer with the ORIGINAL argument; no Last-Event-ID; skgo runs no live queries during SSR.
-- One HTTP connection per distinct argument; Gimble's server is HTTP/1.1 (`web/runtime.go:196-238`), ~6 per origin. So: one live query per page.
+- One HTTP connection per distinct argument; Gimbal's server is HTTP/1.1 (`web/runtime.go:196-238`), ~6 per origin. So: one live query per page.
 
 ## Measurements (recorded runs; on-disk files are byte-identical to the wire)
 - Snapshot 6.8–17.2 MB; 9k–40k deltas, median ~700–900 B, max 1.2 MB; peaks 70–120 events/s.

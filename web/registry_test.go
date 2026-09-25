@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tylergannon/gimble"
-	"github.com/tylergannon/gimble/internal/runlog"
+	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/internal/runlog"
 )
 
 // blocking is a HarnessAdapter whose "wait" turns block until their ctx
@@ -33,7 +33,7 @@ func (b *blocking) CreateSession(ctx context.Context, model, effort, workdir str
 	return "native-" + string(rune('0'+b.made)), nil
 }
 
-func (b *blocking) RunTurn(ctx context.Context, session, prompt string, schema json.RawMessage, onEvent func(gimble.AgentEvent) error) (gimble.TurnResult, error) {
+func (b *blocking) RunTurn(ctx context.Context, session, prompt string, schema json.RawMessage, onEvent func(gimbal.AgentEvent) error) (gimbal.TurnResult, error) {
 	b.mu.Lock()
 	b.started++
 	b.running++
@@ -45,10 +45,10 @@ func (b *blocking) RunTurn(ctx context.Context, session, prompt string, schema j
 	}()
 	if prompt == "wait" {
 		<-ctx.Done()
-		return gimble.TurnResult{}, ctx.Err()
+		return gimbal.TurnResult{}, ctx.Err()
 	}
 	out, err := json.Marshal("ok")
-	return gimble.TurnResult{Output: out}, err
+	return gimbal.TurnResult{Output: out}, err
 }
 
 func (b *blocking) Steer(ctx context.Context, session, message string) (bool, error) {
@@ -89,7 +89,7 @@ func startedTurns(t *testing.T, b *blocking, n int) {
 // same id Run produced and the page shows.
 func runID(t *testing.T, project string) string {
 	t.Helper()
-	entries, err := os.ReadDir(filepath.Join(project, ".gimble", "runs"))
+	entries, err := os.ReadDir(filepath.Join(project, ".gimbal", "runs"))
 	if err != nil || len(entries) != 1 {
 		t.Fatalf("runs = %v, %v", entries, err)
 	}
@@ -118,11 +118,11 @@ func TestRuntimeReachesALiveRunByID(t *testing.T) {
 	var runErr error
 	var runWG sync.WaitGroup
 	runWG.Go(func() {
-		runErr = runtime.Run(ctx, "registry", map[gimble.WorkflowRole]gimble.ModelBinding{"coder": {Adapter: b, Model: "m"}}, func(ctx context.Context) error {
-			scopeErr = gimble.Scope(ctx, "lap", func(ctx context.Context) error {
-				coder := gimble.NewSession(ctx, "coder", "/w")
-				_, first = coder.Generate[gimble.Text](ctx, "wait")
-				_, second = coder.Generate[gimble.Text](ctx, "wait")
+		runErr = runtime.Run(ctx, "registry", map[gimbal.WorkflowRole]gimbal.ModelBinding{"coder": {Adapter: b, Model: "m"}}, func(ctx context.Context) error {
+			scopeErr = gimbal.Scope(ctx, "lap", func(ctx context.Context) error {
+				coder := gimbal.NewSession(ctx, "coder", "/w")
+				_, first = coder.Generate[gimbal.Text](ctx, "wait")
+				_, second = coder.Generate[gimbal.Text](ctx, "wait")
 				return second
 			})
 			return nil
@@ -161,9 +161,9 @@ func TestRuntimeReachesALiveRunByID(t *testing.T) {
 		t.Error("Steer of a finished run returned nil")
 	}
 
-	wantTurn := gimble.Killed{Target: turn, By: "tyler", Reason: "wrong file"}
-	wantScope := gimble.Killed{Target: scope, By: "tyler", Reason: "off the rails"}
-	var killed gimble.Killed
+	wantTurn := gimbal.Killed{Target: turn, By: "tyler", Reason: "wrong file"}
+	wantScope := gimbal.Killed{Target: scope, By: "tyler", Reason: "off the rails"}
+	var killed gimbal.Killed
 	if !errors.As(first, &killed) || killed != wantTurn {
 		t.Errorf("first Generate = %v, want the Killed cause %v", first, wantTurn)
 	}
@@ -180,13 +180,13 @@ func TestRuntimeReachesALiveRunByID(t *testing.T) {
 		t.Errorf("steers that reached the adapter = %q, want the one sent", steers)
 	}
 
-	var steered []gimble.LifecycleRecord
-	var kills []gimble.LifecycleRecord
-	if err := runlog.Read[gimble.LifecycleRecord](ctx, filepath.Join(project, ".gimble", "runs", id), func(record gimble.LifecycleRecord) error {
+	var steered []gimbal.LifecycleRecord
+	var kills []gimbal.LifecycleRecord
+	if err := runlog.Read[gimbal.LifecycleRecord](ctx, filepath.Join(project, ".gimbal", "runs", id), func(record gimbal.LifecycleRecord) error {
 		switch record.Event.(type) {
-		case gimble.Steer:
+		case gimbal.Steer:
 			steered = append(steered, record)
-		case gimble.Killed:
+		case gimbal.Killed:
 			kills = append(kills, record)
 		}
 		return nil
@@ -196,7 +196,7 @@ func TestRuntimeReachesALiveRunByID(t *testing.T) {
 	if len(steered) != 1 {
 		t.Fatalf("Steer records = %+v, want one", steered)
 	}
-	steer := steered[0].Event.(gimble.Steer)
+	steer := steered[0].Event.(gimbal.Steer)
 	if steered[0].Scope != scope || steered[0].Session.Value != session || steered[0].Turn.Value != turn || steer.Source != "person" || steer.Target != session || !steer.Landed || steer.Message != "look at the tests" {
 		t.Errorf("Steer record = %+v %+v, want Source person on %s", steered[0], steer, turn)
 	}

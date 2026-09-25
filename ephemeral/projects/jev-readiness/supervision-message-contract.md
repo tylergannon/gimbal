@@ -8,11 +8,11 @@ the provider-exposed completed thinking item, and only the first 100 characters
 of each recent tool-call input; tool results are omitted. The implemented
 packet and prompts are in [`supervise_jev.go`](../../../supervise_jev.go), and
 the deeper prompt and calibration pass is
-[issue #376](https://github.com/tylergannon/gimble/issues/376). The rest of
+[issue #376](https://github.com/tylergannon/gimbal/issues/376). The rest of
 this file is retained as the prior design exploration, not implementation
 guidance.
 
-## What Gimble sends today
+## What Gimbal sends today
 
 [`WithSupervisor`](../../../supervise.go) starts a separate generative session for each attachment and looks every three minutes by default. The first look contains the attachment's instruction (up to 8 KiB), the **fully rendered** worker prompt, including scope context (clipped to 16 KiB), and a recent transcript (up to 64 KiB for the whole look). Later looks omit the rule and task, relying on the supervisor session's history. Each retained activity item keeps its first 2,000 bytes. The activity includes text, tool calls/results, and inbox messages, but excludes `session.reasoning.ended`. The initial worker prompt can appear again as an inbox item. A transcript cursor advances when the look is built, before the supervisor call succeeds; a failed call can therefore lose that incremental view.
 
@@ -26,7 +26,7 @@ An event with empty exposed reasoning still gets the check; the empty field is e
 
 Enqueue the requests outside the synchronous adapter event callback so an HTTP call cannot stall the worker stream. Bound concurrency without coalescing completed messages. Queue overflow is an explicit failed check that invokes the timed fallback; it must not silently drop an event.
 
-Codex, Claude, and OpenCode currently emit this normalized event when they expose reasoning. Agy reports thinking-token usage but does not emit reasoning text or a completion event. Its existing timed supervisor remains until a comparable signal is available. An exposed reasoning summary is all that may be sent; Gimble cannot recover hidden model thinking.
+Codex, Claude, and OpenCode currently emit this normalized event when they expose reasoning. Agy reports thinking-token usage but does not emit reasoning text or a completion event. Its existing timed supervisor remains until a comparable signal is available. An exposed reasoning summary is all that may be sent; Gimbal cannot recover hidden model thinking.
 
 ## Exact Jev request, version 1
 
@@ -60,12 +60,12 @@ Send one request to `POST /v1/systemone`, pinned to `jev-1.13.0`, with one three
 }
 ```
 
-The example strings above describe field contents; no literal placeholder is sent. The rule text and criteria belong in the question. Request/event IDs and routing state stay local to Gimble. `review` probability is a screening score, **not** a calibrated probability of an actual violation. Keep the full Choice distribution, selected model, usage, rule ID, event ID, and decision in the run's observation record for replay and calibration.
+The example strings above describe field contents; no literal placeholder is sent. The rule text and criteria belong in the question. Request/event IDs and routing state stay local to Gimbal. `review` probability is a screening score, **not** a calibrated probability of an actual violation. Keep the full Choice distribution, selected model, usage, rule ID, event ID, and decision in the run's observation record for replay and calibration.
 
 Build the state from these inputs only:
 
 - **Task:** `TurnStarted.Prompt`, not the rendered prompt plus every scope value. Include the exact authoritative scope value or local file excerpt selected for this rule, with its source label. A path alone gives Jev no source content. If that authority is absent or clipped, mark it incomplete; code must not treat a `clear` answer as clearance for that rule.
-- **Authority selection:** a workflow author identifies the relevant rule text and local source when attaching the rule. Gimble cannot infer the right clauses reliably from an arbitrary path in the worker prompt.
+- **Authority selection:** a workflow author identifies the relevant rule text and local source when attaching the rule. Gimbal cannot infer the right clauses reliably from an arbitrary path in the worker prompt.
 - **Completed reasoning:** `session.reasoning.ended.data.text`, clearly labeled as provider-exposed reasoning or summary. Keep the whole text when it fits. For long text keep a head and tail plus omitted-byte count; do not quietly clip the decisive end.
 - **Recent observations:** complete text messages and paired tool calls/results after the preceding reasoning completion, newest first within a fixed budget. Preserve the tool name/input and result or error as separate data, and preserve event order and omission markers. Do not infer an exit code from a generic `session.tool.success`; only report a status that the event actually carries.
 - **Prior intervention:** the most recent landed automatic steer and its rule. The new thought may be the worker's reaction to it; Jev should see that context on every rule check.
@@ -89,4 +89,4 @@ The two durations are initial evaluation settings, not claims of optimal timing.
 
 Replay completed runs at each reasoning boundary using exactly the proposed packet. Label whether a supervisor needed to review, whether it found a real objection, and whether a landed steer changed subsequent worker behavior. Compare missed interventions, false live-agent calls per healthy run, alert timing, input tokens/cost, and duplicate steers against today's three-minute look. Then run shadow checks live before enabling Jev-triggered reviews. The review and steering cooldowns are tuned on held-out runs, separately by rule where evidence supports it.
 
-Relevant code: [`supervise.go`](../../../supervise.go), [`session.go`](../../../session.go), and the provider event projectors under `codex/`, `claude/`, `opencode/`, and `agy/`. TypeSafe's [API request shape](https://docs.typesafe.ai/api) and [state guidance](https://docs.typesafe.ai/concepts/state) support the structured JSON and Choice question; neither establishes this policy's accuracy for Gimble.
+Relevant code: [`supervise.go`](../../../supervise.go), [`session.go`](../../../session.go), and the provider event projectors under `codex/`, `claude/`, `opencode/`, and `agy/`. TypeSafe's [API request shape](https://docs.typesafe.ai/api) and [state guidance](https://docs.typesafe.ai/concepts/state) support the structured JSON and Choice question; neither establishes this policy's accuracy for Gimbal.

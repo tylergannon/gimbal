@@ -2,7 +2,7 @@
   let { data }: { data: { projects: { id: string; path: string }[] } } = $props();
 </script>
 
-<svelte:head><title>Projects — Gimble</title></svelte:head>
+<svelte:head><title>Projects — Gimbal</title></svelte:head>
 <section class="projects">
   <h1>Projects</h1>
   {#each data.projects as project (project.id)}

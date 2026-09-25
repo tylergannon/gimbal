@@ -3,7 +3,7 @@ package workflows
 import (
 	"fmt"
 
-	"github.com/tylergannon/gimble/program"
+	"github.com/tylergannon/gimbal/program"
 )
 
 const (

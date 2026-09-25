@@ -1,0 +1,62 @@
+# Gimbal Technical Contract: Implementation Plan and Definition of Done
+Origin: /Users/tyler/.codex/worktrees/d798/gimbal/ephemeral/research/static-workflow-entrypoints/implementation-plan.md
+Origin: /Users/tyler/.codex/worktrees/d798/gimbal/ephemeral/research/static-workflow-entrypoints/definition-of-done.md
+Version: 2026-09-23
+Retrieval Date: 2026-09-23
+
+---
+
+### Excerpt 1: SKGO Client Contract and Transport Requirements
+
+Location: `implementation-plan.md`, lines 74-107:
+
+```markdown
+## 2. Teach SKGO to generate Go clients for these remote Forms
+
+Implement this in an isolated SKGO worktree, following that repository's
+instructions. Gimbal currently pins SKGO v0.5.0; inspect the implementation
+checkout before changing it rather than assuming the pinned source is latest.
+
+SKGO should generate a typed Go call for each selected remote Form using the
+same declaration, endpoint identity, input type, and result type as its server
+and browser bindings. Shared transport code in SKGO owns the enhanced-form
+envelope and response decoding. Generated Gimbal commands must not contain
+private copies of the SvelteKit wire protocol.
+
+The client accepts the configured HTTP transport, so Gimbal can use its Unix
+socket. It returns the typed result or field/server errors, honors caller
+cancellation, and does not automatically retry a submitted mutation. Browser
+query refreshes and navigation do not need to be reproduced in Go.
+
+Support the scalar inputs these workflows need, including omitted Optional
+values and explicitly supplied zero, false, and empty values. Fix SKGO's form
+binding, which currently bypasses Polytype codecs and cannot assign a scalar
+to `Optional[T]`. Reuse the existing Polytype devalue support. Do not add
+general map support, reflection-based workflow discovery, or support for every
+remote kind as a prerequisite to launching workflows.
+
+Primary SKGO areas: `internal/gen/`, `remote_form.go`, `internal/formdata/`,
+and the new supported Go client transport. Verify the encoder against real
+SvelteKit-produced fixtures and the same handlers called by a browser, rather
+than relying only on an encoder/decoder round trip written together.
+
+Result: a generated Go client and a real browser form can call one SKGO Form
+and obtain equivalent admission results and field errors. Land and publish
+the needed SKGO change, then pin that version in Gimbal; leave no local module
+replacement in the delivered build.
+```
+
+---
+
+### Excerpt 2: Cancellation and Transport Error Behavior
+
+Location: `definition-of-done.md`, lines 46-52:
+
+```markdown
+- Admission errors are returned before any run is created. The browser shows
+  the relevant form issues; the CLI reports the error and exits unsuccessfully.
+  A remote error envelope is never mistaken for success because HTTP was 200.
+- Form validation-only requests cannot start a workflow. Cancelling a client
+  call stops its network wait; it does not cancel work already accepted by the
+  server. The client does not automatically retry a launch after a lost reply.
+```

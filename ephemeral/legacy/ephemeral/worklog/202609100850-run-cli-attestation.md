@@ -1,8 +1,8 @@
-# gimble run / gimble ls: live attestation
+# gimbal run / gimbal ls: live attestation
 
 Date: 2026-09-10. Agent: Claude Fable 5.1. Branch: `claude/run-cli`.
 
-I built `gimble ls` and `gimble run <workflow> [flags]` over the ported POC
+I built `gimbal ls` and `gimbal run <workflow> [flags]` over the ported POC
 `program/` package, then ran `sprint-execute` and `chapter-loop` for real
 against two scratch Go repositories with default models (implement
 gpt-5.6-terra, review gpt-5.6-sol, evaluate gpt-5.6-luna). Both exited 0 and

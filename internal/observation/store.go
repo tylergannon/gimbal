@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/tylergannon/gimble/internal/sessionstate"
+	"github.com/tylergannon/gimbal/internal/sessionstate"
 	"github.com/tylergannon/polytype"
 )
 

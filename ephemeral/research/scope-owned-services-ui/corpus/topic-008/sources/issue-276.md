@@ -4,7 +4,7 @@
 
 A workflow may need a development server or another supporting process while
 agents work and validate. It should be possible to declare that dependency in
-the scope that owns its lifetime, without making Gimble a general process
+the scope that owns its lifetime, without making Gimbal a general process
 orchestrator.
 
 ## Requested behavior
@@ -23,7 +23,7 @@ including cancellation.
 - A service must not intentionally outlive the global workflow scope.
 - Keep startup and runtime failures observable to the workflow.
 - Let the supplied command run Docker, Overmind, or another tool when the
-  caller needs more orchestration. Gimble does not manage those tools'
+  caller needs more orchestration. Gimbal does not manage those tools'
   external resources itself.
 
 No public API name or signature has been chosen for this feature.
@@ -38,7 +38,7 @@ orchestration-specific integrations.
 Direct scope-owned processes are the proposed starting point. launchd was
 considered because it provides restart and termination machinery, but a
 registered job has an independent lifetime and can remain after the
-registering Gimble process exits; it does not by itself solve scope ownership.
+registering Gimbal process exits; it does not by itself solve scope ownership.
 No launchd integration is requested.
 
 ## Open decision
@@ -50,7 +50,7 @@ disappear silently.
 
 ## Proof
 
-Run a real Gimble workflow with a foreground service and report what was
+Run a real Gimbal workflow with a foreground service and report what was
 observed:
 
 - The service is usable by work inside its owning scope.

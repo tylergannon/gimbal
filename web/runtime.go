@@ -16,8 +16,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/tylergannon/gimble/internal/host"
-	generated "github.com/tylergannon/gimble/internal/skgo"
+	"github.com/tylergannon/gimbal/internal/host"
+	generated "github.com/tylergannon/gimbal/internal/skgo"
 	"github.com/tylergannon/skgo"
 )
 
@@ -51,7 +51,7 @@ type config struct {
 func WithPort(port int) Option {
 	return func(c *config) error {
 		if port < 0 || port > 65535 {
-			return fmt.Errorf("gimble: invalid web port %d", port)
+			return fmt.Errorf("gimbal: invalid web port %d", port)
 		}
 		if err := c.selectListener("port"); err != nil {
 			return err
@@ -65,7 +65,7 @@ func WithPort(port int) Option {
 func WithUDS(path string) Option {
 	return func(c *config) error {
 		if strings.TrimSpace(path) == "" {
-			return errors.New("gimble: UDS path must not be blank")
+			return errors.New("gimbal: UDS path must not be blank")
 		}
 		if err := c.selectListener("UDS"); err != nil {
 			return err
@@ -89,7 +89,7 @@ func WithNoWeb() Option {
 
 func (c *config) selectListener(name string) error {
 	if c.explicit != "" {
-		return fmt.Errorf("gimble: runtime listener options %q and %q conflict", c.explicit, name)
+		return fmt.Errorf("gimbal: runtime listener options %q and %q conflict", c.explicit, name)
 	}
 	c.explicit = name
 	return nil
@@ -101,22 +101,22 @@ func (c *config) selectListener(name string) error {
 // The web application listens on loopback port 8080 unless configured otherwise.
 func NewInstance(ctx context.Context, instanceDir string, initialProjects []string, opts ...Option) (*Instance, error) {
 	if ctx == nil {
-		return nil, errors.New("gimble: runtime context is nil")
+		return nil, errors.New("gimbal: runtime context is nil")
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	dir, err := filepath.Abs(instanceDir)
 	if err != nil {
-		return nil, fmt.Errorf("gimble: instance directory: %w", err)
+		return nil, fmt.Errorf("gimbal: instance directory: %w", err)
 	}
 	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return nil, fmt.Errorf("gimble: instance directory: %w", err)
+		return nil, fmt.Errorf("gimbal: instance directory: %w", err)
 	}
 	cfg := config{network: "tcp", port: 8080}
 	for _, option := range opts {
 		if option == nil {
-			return nil, errors.New("gimble: nil runtime option")
+			return nil, errors.New("gimbal: nil runtime option")
 		}
 		if err := option(&cfg); err != nil {
 			return nil, err
@@ -134,7 +134,7 @@ func NewInstance(ctx context.Context, instanceDir string, initialProjects []stri
 	instance.startRemotes, err = skgo.NewRemotes(skgo.RemoteConfig{Transport: generated.Transport()}, starts...)
 	if err != nil {
 		cancel(err)
-		return nil, fmt.Errorf("gimble: assemble control remotes: %w", err)
+		return nil, fmt.Errorf("gimbal: assemble control remotes: %w", err)
 	}
 	instance.startPaths = make(map[string]bool, len(starts))
 	for _, remote := range starts {
@@ -172,27 +172,27 @@ func (i *Instance) startWeb(cfg config) error {
 	}
 	listener, err := net.Listen(cfg.network, address)
 	if err != nil {
-		return fmt.Errorf("gimble: listen on %s: %w", address, err)
+		return fmt.Errorf("gimbal: listen on %s: %w", address, err)
 	}
 	i.shutdown.Add(1)
 	origin := ""
 	if cfg.network == "tcp" {
 		origin = "http://" + listener.Addr().String()
 	}
-	if configured := os.Getenv("GIMBLE_WEB_ORIGIN"); configured != "" {
+	if configured := os.Getenv("GIMBAL_WEB_ORIGIN"); configured != "" {
 		origin = configured
 	}
 	dist, err := fs.Sub(Build, "build")
 	if err != nil {
 		_ = listener.Close()
 		i.shutdown.Done()
-		return fmt.Errorf("gimble: web application: %w", err)
+		return fmt.Errorf("gimbal: web application: %w", err)
 	}
-	handler, mode, err := NewHandler(dist, os.Getenv("GIMBLE_WEB_PROXY"), origin)
+	handler, mode, err := NewHandler(dist, os.Getenv("GIMBAL_WEB_PROXY"), origin)
 	if err != nil {
 		_ = listener.Close()
 		i.shutdown.Done()
-		return fmt.Errorf("gimble: assemble web application: %w", err)
+		return fmt.Errorf("gimbal: assemble web application: %w", err)
 	}
 	server := &http.Server{
 		Handler: i.projectRequest(handler),
@@ -205,7 +205,7 @@ func (i *Instance) startWeb(cfg config) error {
 	go func() {
 		defer close(serveDone)
 		if err := server.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			i.cancel(fmt.Errorf("gimble: serve web application: %w", err))
+			i.cancel(fmt.Errorf("gimbal: serve web application: %w", err))
 		}
 	}()
 	context.AfterFunc(i.ctx, func() {
@@ -216,7 +216,7 @@ func (i *Instance) startWeb(cfg config) error {
 		}
 		i.shutdown.Done()
 	})
-	log.Printf("gimble: web application listening on %s (%s)", listener.Addr(), mode)
+	log.Printf("gimbal: web application listening on %s (%s)", listener.Addr(), mode)
 	return nil
 }
 

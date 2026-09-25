@@ -1,4 +1,4 @@
-// Package runlog reads Gimble's persisted run records for the runtime and its
+// Package runlog reads Gimbal's persisted run records for the runtime and its
 // web application.
 package runlog
 

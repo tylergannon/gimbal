@@ -1,5 +1,5 @@
 ```sh
-$ gimble run --help
+$ gimbal run --help
 Available Commands:
   implement         Implement modifies a repository until its promise is independently demonstrated.
   pyramid-summary   PyramidSummary writes and validates every derived compression of a largest document.

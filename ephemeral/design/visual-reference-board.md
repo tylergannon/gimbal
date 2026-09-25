@@ -1,6 +1,6 @@
 # Visual references and concept directions
 
-These are reference images, not proposed Gimble screens. They are published
+These are reference images, not proposed Gimbal screens. They are published
 product screenshots inspected by the parent or Luna execution researcher;
 we did not exercise authenticated product sessions. An older screenshot is
 still a useful design precedent, not a guarantee of the product's latest UI.
@@ -32,7 +32,7 @@ correct resumption. [Source discussion](https://forum.langchain.com/t/langsmith-
 
 **Visible:** connected job cards, status/duration, grouped matrix jobs, and
 fit/zoom controls. **Borrow:** readable overview with a deliberate route to
-individual instances. **Do not borrow:** treating Gimble's source-order
+individual instances. **Do not borrow:** treating Gimbal's source-order
 relationships as identical to CI dependency edges.
 [Source and documented graph-to-log interaction](https://docs.github.com/en/actions/how-tos/monitor-workflows/use-the-visualization-graph).
 
@@ -44,7 +44,7 @@ relationships as identical to CI dependency edges.
 in-node controls over an image backdrop. **Borrow:** orientation across a
 spatial network. **Do not borrow:** editable wiring, dense control panels
 inside every node, or the busy backdrop. This is a useful counterexample
-as well as inspiration: Gimble observes code; it is not a node editor.
+as well as inspiration: Gimbal observes code; it is not a node editor.
 [Source manual](https://docs.blender.org/manual/en/latest/interface/controls/nodes/introduction.html).
 
 ### Airflow — human input at the selected task
@@ -56,7 +56,7 @@ graph overview controls, and that task's input form in the right-hand
 detail panel. **Borrow:** retain workflow location while answering a
 specific question. **Do not borrow:** generic approvals, task-state
 editing, or treating one waiting task as a paused run. The screenshot's
-older “Deferred” label is not a proposed Gimble status.
+older “Deferred” label is not a proposed Gimbal status.
 [Source tutorial](https://airflow.apache.org/docs/apache-airflow/stable/tutorial/hitl.html).
 
 ## B. History-first workspace
@@ -73,7 +73,7 @@ intimidating profiler that obscures the workflow's overall purpose.
 **Visible:** indented operations alongside bars on a shared time axis, with
 trace-level summary above. **Borrow:** overlap and duration stay readable
 while inspecting one instance. **Do not borrow:** equating trace parentage
-with all Gimble relations; session ownership, turn scope, and supervision
+with all Gimbal relations; session ownership, turn scope, and supervision
 are different relationships. [Source](https://www.jaegertracing.io/docs/1.76/).
 
 ### Chrome DevTools — an overview band above focused detail
@@ -94,7 +94,7 @@ semantics. [Source reference](https://developer.chrome.com/docs/devtools/perform
 with Aggregated/Expanded choices, branching, counts, and zoom controls.
 **Borrow:** the user can change representation without changing the work
 being inspected. **Do not borrow:** assume this runtime-derived graph is
-the same thing as Gimble's generated source graph.
+the same thing as Gimbal's generated source graph.
 [Source, including both images](https://langfuse.com/docs/observability/best-practices).
 Direct image navigation was blocked in our browser; the embedded images on
 the source page rendered and were inspected. This link may need that fallback.
@@ -125,7 +125,7 @@ the risk is reducing the product to a list of alerts and hiding structure.
 **Visible:** bold labels, contextual sublines, recency/age, compact trends,
 and small row indicators. **Borrow:** finding the item needing attention
 without opening every detail. **Do not borrow:** assignees, incident policy,
-unread persistence, or analytics as automatic new Gimble requirements.
+unread persistence, or analytics as automatic new Gimbal requirements.
 [Source changelog](https://sentry.io/changelog/issue-stream-ui-enhancements/).
 
 ### Temporal — stable run identity above a detailed execution history
@@ -164,7 +164,7 @@ Suggested small process:
 My initial hypothesis is graph plus a stable inspector/history surface,
 with a small attention entry point for interviews. It is a hypothesis to
 compare, not the handoff's mandated layout. In particular, a graph-only UI
-would be poor for reading the long conversations Gimble produces.
+would be poor for reading the long conversations Gimbal produces.
 
 The detailed research notes are optional appendices:
 `research-agent-interfaces.md`, `research-execution-interfaces.md`, and

@@ -193,6 +193,32 @@ func TestCompletionSchemaPreservesCallerReferences(t *testing.T) {
 	}
 }
 
+func TestCompletionSchemaScopesStateToCurrentPrompt(t *testing.T) {
+	composed, err := completionSchema(json.RawMessage(`{"type":"object"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var document struct {
+		Description string `json:"description"`
+		Properties  struct {
+			State struct {
+				Description string `json:"description"`
+			} `json:"state"`
+		} `json:"properties"`
+	}
+	if err := json.Unmarshal(composed, &document); err != nil {
+		t.Fatal(err)
+	}
+	for _, phrase := range []string{"current prompt", "selects work for another agent", "reports unmet requirements", "background tool task"} {
+		if !strings.Contains(document.Description, phrase) {
+			t.Errorf("completion contract omits %q: %s", phrase, document.Description)
+		}
+	}
+	if !strings.Contains(document.Properties.State.Description, "this prompt's requested response") {
+		t.Errorf("state contract does not describe the current response: %s", document.Properties.State.Description)
+	}
+}
+
 func TestCompletionSchemaPreservesNamedAnchors(t *testing.T) {
 	caller := json.RawMessage(`{
 		"$anchor":"node",

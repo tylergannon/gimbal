@@ -61,6 +61,19 @@ session close. Its state defaults to `~/.gimbal/opencode`, or
 it directly, and stop interrupts active work. Raw request/result/SSE captures
 are written to `<state-dir>/captures/`.
 
+For Pi with Diffusion Router, discover the model IDs available to the current
+key that support chat and tools:
+
+```sh
+curl -fsS https://router.diffusion.io/v1/models \
+  -H "Authorization: Bearer ${DIFFUSION_API_KEY}" |
+  jq -r '.data[] | select(.capabilities.openai_chat == true and .capabilities.tools == true) | .id'
+```
+
+Prefix a chosen open-weight ID with `pi/diffusion/` on a workflow role flag or
+`gimbal run-prompt --model`, for example `pi/diffusion/glm-5.3-flash`.
+Gimbal does not require models.dev to route these models.
+
 Another useful profile spends frontier capability on planning, then assigns
 low-risk, reversible, independently checkable background work to Terra or
 Sonnet. Prefer it when wall-clock time is cheap and the workflow has bounded

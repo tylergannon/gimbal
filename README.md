@@ -111,6 +111,14 @@ workflow role flag, for example `pi/diffusion/glm-5.3-flash`. Install Pi, put
 `pi` on `PATH`, and set `DIFFUSION_API_KEY`. Gimbal gives each Pi session its
 own temporary config and session directory; the key is passed through the
 child environment.
+List the chat models with tools available to your Router key, then prefix a
+chosen open-weight ID with `pi/diffusion/`:
+
+```sh
+curl -fsS https://router.diffusion.io/v1/models \
+  -H "Authorization: Bearer ${DIFFUSION_API_KEY}" |
+  jq -r '.data[] | select(.capabilities.openai_chat == true and .capabilities.tools == true) | .id'
+```
 
 Workflow roles name cognitive work, not positions in a workflow. Gimbal's
 prescribed `WorkflowRole` constants and their descriptions live together in

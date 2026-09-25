@@ -35,6 +35,16 @@ workflow role flag, for example `pi/diffusion/glm-5.3-flash`. Gimbal creates a
 separate temporary config and session directory for each session; reasoning
 effort is not supported for Pi models.
 
+To find model IDs available to your Router key that support chat and tools:
+
+```sh
+curl -fsS https://router.diffusion.io/v1/models \
+  -H "Authorization: Bearer ${DIFFUSION_API_KEY}" |
+  jq -r '.data[] | select(.capabilities.openai_chat == true and .capabilities.tools == true) | .id'
+```
+
+Prefix a chosen open-weight ID with `pi/diffusion/` when binding a role.
+
 <h2 id="binding">Binding roles to harnesses</h2>
 
 A `ModelBinding` is a harness adapter, a model, and an effort. A run binds every role its workflow names, so one run can put planning on one vendor and review on another:

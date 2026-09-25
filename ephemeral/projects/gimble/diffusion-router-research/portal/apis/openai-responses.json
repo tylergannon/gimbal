@@ -1,0 +1,47 @@
+{
+  "id": "openai-responses",
+  "group": "APIs",
+  "name": "OpenAI Responses",
+  "summary": "Use the Responses surface with any Responses-capable client.",
+  "status": "locally-tested",
+  "statusNote": "The Responses relay surface is exercised by Diffusion's transport test matrix.",
+  "lastReviewedAt": "2026-09-20",
+  "prerequisites": [
+    "A Diffusion Router API key from API keys.",
+    "curl or a Responses-capable SDK."
+  ],
+  "setup": [
+    {
+      "title": "Point the client at Diffusion",
+      "body": "Same environment as Chat Completions; the surface is selected by the path.",
+      "code": {
+        "language": "shell",
+        "text": "export OPENAI_BASE_URL=\"https://router.diffusion.io/v1\"\nexport OPENAI_API_KEY=\"$DIFFUSION_API_KEY\"\nexport DIFFUSION_API_KEY=\"dfr_v1_YOUR_DIFFUSION_KEY\""
+      }
+    }
+  ],
+  "restart": "Open a new terminal (or re-create your SDK client) so the environment is read.",
+  "verification": {
+    "title": "One curl exchange",
+    "body": "A 200 with a response body proves the surface end to end.",
+    "code": {
+      "language": "shell",
+      "text": "curl \"$OPENAI_BASE_URL/responses\" \\\n  -H \"Authorization: Bearer $DIFFUSION_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\"model\":\"deepseek-4.1-flash\",\"input\":\"Say ready.\"}'"
+    }
+  },
+  "troubleshooting": [
+    "401/403: check the key and tenant binding in API keys.",
+    "Streaming stalls: Diffusion relays SSE verbatim; check client proxy buffering."
+  ],
+  "removal": {
+    "title": "Unset the environment",
+    "body": "Remove the exports from your shell profile. Revoke the key in API keys if unused.",
+    "code": {
+      "language": "shell",
+      "text": "unset OPENAI_BASE_URL OPENAI_API_KEY DIFFUSION_API_KEY"
+    }
+  },
+  "rollback": [
+    "No files are modified; unsetting the variables returns the SDK to its default endpoint."
+  ]
+}

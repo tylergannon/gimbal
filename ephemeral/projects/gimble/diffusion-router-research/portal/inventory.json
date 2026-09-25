@@ -1,0 +1,86 @@
+[
+  {
+    "id": "pi",
+    "group": "Coding",
+    "name": "Pi",
+    "status": "beta",
+    "lastReviewedAt": "2026-09-20"
+  },
+  {
+    "id": "codex",
+    "group": "Coding",
+    "name": "Codex",
+    "status": "beta",
+    "lastReviewedAt": "2026-09-23"
+  },
+  {
+    "id": "claude-code",
+    "group": "Coding",
+    "name": "Claude Code",
+    "status": "beta",
+    "lastReviewedAt": "2026-09-20"
+  },
+  {
+    "id": "opencode",
+    "group": "Coding",
+    "name": "OpenCode",
+    "status": "beta",
+    "lastReviewedAt": "2026-09-20"
+  },
+  {
+    "id": "crush",
+    "group": "Coding",
+    "name": "Crush",
+    "status": "beta",
+    "lastReviewedAt": "2026-09-20"
+  },
+  {
+    "id": "copilot-cli",
+    "group": "Coding",
+    "name": "GitHub Copilot CLI",
+    "status": "beta",
+    "lastReviewedAt": "2026-09-20"
+  },
+  {
+    "id": "cursor",
+    "group": "Coding",
+    "name": "Cursor",
+    "status": "documented",
+    "lastReviewedAt": "2026-09-22"
+  },
+  {
+    "id": "openclaw",
+    "group": "Agents",
+    "name": "OpenClaw",
+    "status": "beta",
+    "lastReviewedAt": "2026-09-20"
+  },
+  {
+    "id": "hermes",
+    "group": "Agents",
+    "name": "Hermes",
+    "status": "documented",
+    "lastReviewedAt": "2026-09-20"
+  },
+  {
+    "id": "openai-chat-completions",
+    "group": "APIs",
+    "name": "OpenAI Chat Completions",
+    "status": "locally-tested",
+    "lastReviewedAt": "2026-09-20"
+  },
+  {
+    "id": "openai-responses",
+    "group": "APIs",
+    "name": "OpenAI Responses",
+    "status": "locally-tested",
+    "lastReviewedAt": "2026-09-20"
+  },
+  {
+    "id": "anthropic-messages",
+    "group": "APIs",
+    "name": "Anthropic Messages",
+    "status": "locally-tested",
+    "lastReviewedAt": "2026-09-20"
+  }
+]

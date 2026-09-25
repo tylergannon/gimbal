@@ -1,0 +1,47 @@
+{
+  "id": "anthropic-messages",
+  "group": "APIs",
+  "name": "Anthropic Messages",
+  "summary": "Use the Anthropic-compatible Messages surface with x-api-key or Bearer auth.",
+  "status": "locally-tested",
+  "statusNote": "The Messages relay surface is exercised by Diffusion's transport test matrix.",
+  "lastReviewedAt": "2026-09-20",
+  "prerequisites": [
+    "A Diffusion Router API key from API keys.",
+    "curl or any Anthropic SDK."
+  ],
+  "setup": [
+    {
+      "title": "Point Anthropic tooling at Diffusion",
+      "body": "The Anthropic-compatible base URL has no /v1 suffix; clients append their own paths.",
+      "code": {
+        "language": "shell",
+        "text": "export ANTHROPIC_BASE_URL=\"https://router.diffusion.io\"\nexport ANTHROPIC_API_KEY=\"$DIFFUSION_API_KEY\"\nexport DIFFUSION_API_KEY=\"dfr_v1_YOUR_DIFFUSION_KEY\""
+      }
+    }
+  ],
+  "restart": "Open a new terminal (or re-create your SDK client) so the environment is read.",
+  "verification": {
+    "title": "One curl exchange",
+    "body": "A 200 with a content block proves the surface end to end.",
+    "code": {
+      "language": "shell",
+      "text": "curl \"$ANTHROPIC_BASE_URL/v1/messages\" \\\n  -H \"x-api-key: $DIFFUSION_API_KEY\" \\\n  -H \"anthropic-version: 2023-06-01\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\"model\":\"deepseek-4.1-flash\",\"max_tokens\":16,\"messages\":[{\"role\":\"user\",\"content\":\"Say ready.\"}]}'"
+    }
+  },
+  "troubleshooting": [
+    "401/403: check the key and tenant binding in API keys.",
+    "Bearer also works on Messages; x-api-key matches the native Anthropic client."
+  ],
+  "removal": {
+    "title": "Unset the environment",
+    "body": "Remove the exports from your shell profile. Revoke the key in API keys if unused.",
+    "code": {
+      "language": "shell",
+      "text": "unset ANTHROPIC_BASE_URL ANTHROPIC_API_KEY DIFFUSION_API_KEY"
+    }
+  },
+  "rollback": [
+    "No files are modified; unsetting the variables returns the SDK to the Anthropic API."
+  ]
+}

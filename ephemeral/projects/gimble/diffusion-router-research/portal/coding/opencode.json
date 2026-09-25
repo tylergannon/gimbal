@@ -1,0 +1,58 @@
+{
+  "id": "opencode",
+  "group": "Coding",
+  "name": "OpenCode",
+  "summary": "Register Diffusion Router as an OpenCode provider with your Diffusion API key.",
+  "status": "beta",
+  "statusNote": "This guide registers Diffusion Router directly using OpenCode’s provider configuration and your Diffusion API key.",
+  "lastReviewedAt": "2026-09-20",
+  "prerequisites": [
+    "OpenCode installed and currently working.",
+    "A Diffusion Router API key from API keys."
+  ],
+  "setup": [
+    {
+      "title": "Merge the Diffusion provider",
+      "body": "Preserve existing providers and plugins; this block is additive.",
+      "code": {
+        "language": "json",
+        "path": "~/.config/opencode/opencode.json (merge)",
+        "text": "{\n  \"provider\": {\n    \"diffusion\": {\n      \"models\": {\n        \"deepseek-4.1-flash\": {}\n      }\n    }\n  },\n  \"providers\": {\n    \"diffusion\": {\n      \"npm\": \"@ai-sdk/openai-compatible\",\n      \"options\": {\n        \"baseURL\": \"https://router.diffusion.io/v1\",\n        \"apiKey\": \"{env:DIFFUSION_API_KEY}\"\n      }\n    }\n  }\n}"
+      }
+    },
+    {
+      "title": "Export your Diffusion key",
+      "body": "Add the export to your shell profile and open a new terminal.",
+      "code": {
+        "language": "shell",
+        "text": "export DIFFUSION_API_KEY=\"dfr_v1_YOUR_DIFFUSION_KEY\""
+      }
+    }
+  ],
+  "restart": "Restart OpenCode so the merged configuration and provider plugin load.",
+  "verification": {
+    "title": "Discover models through Diffusion",
+    "body": "The catalog lists the native upstream model IDs as served by Diffusion.",
+    "code": {
+      "language": "shell",
+      "text": "opencode models"
+    }
+  },
+  "troubleshooting": [
+    "401/403: check the key and tenant binding in API keys.",
+    "Provider missing after restart: confirm the JSON merged cleanly (no trailing commas, valid JSON).",
+    "Empty catalog: Diffusion reports discovery state on the Connect page; retry when it is fresh."
+  ],
+  "removal": {
+    "title": "Remove the Diffusion blocks",
+    "body": "Delete both the provider and models blocks you merged and unset the key. Revoke the key in API keys if unused.",
+    "code": {
+      "language": "shell",
+      "text": "unset DIFFUSION_API_KEY"
+    }
+  },
+  "rollback": [
+    "Restore ~/.config/opencode/opencode.json from your pre-edit copy.",
+    "Restart OpenCode; other providers and plugins are untouched."
+  ]
+}

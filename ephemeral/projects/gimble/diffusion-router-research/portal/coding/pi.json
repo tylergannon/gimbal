@@ -1,0 +1,67 @@
+{
+  "id": "pi",
+  "group": "Coding",
+  "name": "Pi",
+  "summary": "Configure Pi's custom OpenAI-compatible provider to talk to Diffusion Router with a Diffusion key.",
+  "status": "beta",
+  "statusNote": "Diffusion is qualifying the exact Pi release through Diffusion Router. Configure Pi directly with your Diffusion API key.",
+  "lastReviewedAt": "2026-09-20",
+  "prerequisites": [
+    "A Diffusion Router API key from API keys (create one if you have none).",
+    "Pi installed and working locally before any configuration change.",
+    "A model ID from the Connect catalog (for example deepseek-4.1-flash)."
+  ],
+  "setup": [
+    {
+      "title": "Add Diffusion as a custom provider",
+      "body": "Register an OpenAI-compatible provider that points at Diffusion Router. Use your Diffusion API key.",
+      "code": {
+        "language": "json",
+        "path": "~/.pi/agent/models.json (merge; preserve existing keys)",
+        "text": "{\n  \"providers\": {\n    \"diffusion\": {\n      \"baseUrl\": \"https://router.diffusion.io/v1\",\n      \"api\": \"openai-completions\",\n      \"apiKey\": \"$DIFFUSION_API_KEY\",\n      \"models\": [{ \"id\": \"deepseek-4.1-flash\" }]\n    }\n  }\n}"
+      }
+    },
+    {
+      "title": "Export your Diffusion key in your shell profile",
+      "body": "Add the export to ~/.zshrc or ~/.bashrc, then open a new terminal.",
+      "code": {
+        "language": "shell",
+        "text": "export DIFFUSION_API_KEY=\"dfr_v1_YOUR_DIFFUSION_KEY\""
+      }
+    },
+    {
+      "title": "Choose a model",
+      "body": "List models through Diffusion and select one. Model IDs are the native upstream IDs shown in the Connect catalog.",
+      "code": {
+        "language": "shell",
+        "text": "curl -H \"Authorization: Bearer $DIFFUSION_API_KEY\" https://router.diffusion.io/v1/models"
+      }
+    }
+  ],
+  "restart": "Fully quit Pi and start it again so the merged configuration is read.",
+  "verification": {
+    "title": "Send one headless prompt through Diffusion",
+    "body": "A completion proves the full path: Pi, Diffusion auth, relay, upstream.",
+    "code": {
+      "language": "shell",
+      "text": "pi -p --provider diffusion --model \"deepseek-4.1-flash\" \"Say ready in one word.\""
+    }
+  },
+  "troubleshooting": [
+    "401/403: the key is wrong, revoked, or your tenant's Diffusion Router access is suspended. Check API keys for key state and allocation.",
+    "Model missing: add its exact catalog ID to providers.diffusion.models in models.json, then reopen /model.",
+    "If your Pi build rejects the provider block, keep the block and tell Diffusion support your exact Pi version."
+  ],
+  "removal": {
+    "title": "Remove the Diffusion provider",
+    "body": "Delete the providers.diffusion block from the config file and unset the environment variable. Revoke the key in API keys when it is no longer used.",
+    "code": {
+      "language": "shell",
+      "text": "unset DIFFUSION_API_KEY"
+    }
+  },
+  "rollback": [
+    "Restore ~/.pi/agent/models.json from the copy you made before editing.",
+    "Restart Pi; previous providers are untouched because the guide only merges."
+  ]
+}

@@ -1,0 +1,47 @@
+{
+  "id": "cursor",
+  "group": "Coding",
+  "name": "Cursor",
+  "summary": "Point Cursor's desktop Chat and Agent at Diffusion Router with Cursor's own OpenAI base-URL override.",
+  "status": "documented",
+  "statusNote": "Cursor documents bring-your-own-key for desktop Chat and Agent only. Cursor sends these requests from its own servers, so your Diffusion key passes through Cursor. Tab, the Cursor CLI, and the Cursor SDK still use Cursor's models.",
+  "lastReviewedAt": "2026-09-22",
+  "prerequisites": [
+    "Cursor desktop installed and signed in.",
+    "A Diffusion Router API key from API keys. Use a dedicated key so you can revoke it independently.",
+    "A model ID from the Connect catalog (for example deepseek-4.1-flash)."
+  ],
+  "setup": [
+    {
+      "title": "Add the Diffusion model",
+      "body": "Open Cursor Settings, then Models. Add a custom model named deepseek-4.1-flash (or any catalog ID) and enable it."
+    },
+    {
+      "title": "Override the OpenAI base URL",
+      "body": "Under API Keys, paste your Diffusion key into the OpenAI API Key field, turn on Override OpenAI Base URL, and enter the base URL below. Verify the key when Cursor asks.",
+      "code": {
+        "language": "text",
+        "text": "https://router.diffusion.io/v1"
+      }
+    }
+  ],
+  "restart": "Open a new Chat so Cursor picks up the model and key.",
+  "verification": {
+    "title": "Send one prompt through Diffusion",
+    "body": "Select deepseek-4.1-flash in the model picker and send \"Say ready in one word.\" The request appears in Activity for your key."
+  },
+  "troubleshooting": [
+    "401/403 or verification fails: check the key and tenant binding in API keys, and confirm the base URL ends in /v1.",
+    "The override applies to every OpenAI model in Cursor; disable Cursor's built-in OpenAI models while it is on.",
+    "Model not found: the custom model name must exactly match a catalog ID.",
+    "Agent tool calling depends on the model; if Agent stalls, try Chat or another catalog model."
+  ],
+  "removal": {
+    "title": "Remove the Diffusion key",
+    "body": "Turn off Override OpenAI Base URL, clear the OpenAI API Key field, and delete the custom model. Revoke the key in API keys if unused."
+  },
+  "rollback": [
+    "Re-enable Cursor's built-in models in Settings, then Models.",
+    "No files are modified by this guide."
+  ]
+}

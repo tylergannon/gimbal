@@ -1,0 +1,58 @@
+{
+  "id": "hermes",
+  "group": "Agents",
+  "name": "Hermes",
+  "summary": "Add a Diffusion provider with the chat-completions transport.",
+  "status": "documented",
+  "statusNote": "Hermes's `hermes config set` rewrites YAML and drops comments; edit the file by hand instead. Generate examples from the live catalog, not static examples.",
+  "lastReviewedAt": "2026-09-20",
+  "prerequisites": [
+    "Hermes installed.",
+    "A Diffusion Router API key from API keys."
+  ],
+  "setup": [
+    {
+      "title": "Merge the Diffusion provider by hand",
+      "body": "Edit the YAML directly to preserve comments; do not use hermes config set.",
+      "code": {
+        "language": "yaml",
+        "path": "~/.hermes/config.yaml (merge; preserve comments)",
+        "text": "providers:\n  diffusion:\n    api:\n      base_url: \"https://router.diffusion.io/v1\"\n    key_env: \"DIFFUSION_API_KEY\"\n    transport: \"chat_completions\""
+      }
+    },
+    {
+      "title": "Export your Diffusion key",
+      "body": "Add the export to your shell profile and open a new terminal.",
+      "code": {
+        "language": "shell",
+        "text": "export DIFFUSION_API_KEY=\"dfr_v1_YOUR_DIFFUSION_KEY\""
+      }
+    }
+  ],
+  "restart": "Start a new Hermes session so the merged configuration is read.",
+  "verification": {
+    "title": "Select the Diffusion model",
+    "body": "Choose the custom provider model; --global persists the selection.",
+    "code": {
+      "language": "shell",
+      "text": "hermes model custom:diffusion:deepseek-4.1-flash --global"
+    }
+  },
+  "troubleshooting": [
+    "401/403: check the key and tenant binding in API keys.",
+    "Provider unknown: confirm the YAML indentation merged cleanly and Hermes was restarted.",
+    "Comments lost: you used hermes config set — restore your backup and edit by hand."
+  ],
+  "removal": {
+    "title": "Remove the Diffusion provider",
+    "body": "Delete the providers.diffusion block by hand and unset the key. Revoke the key in API keys if unused.",
+    "code": {
+      "language": "shell",
+      "text": "unset DIFFUSION_API_KEY"
+    }
+  },
+  "rollback": [
+    "Restore ~/.hermes/config.yaml from your pre-edit copy.",
+    "Run `hermes model` to reselect your previous default."
+  ]
+}

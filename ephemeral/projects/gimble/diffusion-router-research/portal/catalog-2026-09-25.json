@@ -1,0 +1,30 @@
+{
+  "models": [
+    "bge-rr-v2-m3",
+    "deepseek-4.1-flash",
+    "deepseek-4.1-flash-background",
+    "djev",
+    "emb-granite",
+    "emb-nomic-code",
+    "emb-nomic-moe",
+    "emb-qwen3",
+    "flux2-klein",
+    "glm-5.2-vision",
+    "glm-5.2-vision-background",
+    "glm-5.2-vision-flex",
+    "glm-5.3",
+    "glm-5.3-background",
+    "glm-5.3-flash",
+    "glm-5.3-flash-background",
+    "glm-5.3-vision",
+    "glm-5.3-vision-background",
+    "hidream-o1",
+    "kev-4b",
+    "qwen-image-2512",
+    "qwen-image-edit-2511"
+  ],
+  "state": "fresh",
+  "fetchedAt": "2026-09-25T17:52:30Z",
+  "ttlMs": 60000,
+  "source": "https://connect.diffusion.io/api/v1/lunaroute/catalog"
+}

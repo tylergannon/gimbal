@@ -1,0 +1,49 @@
+{
+  "id": "copilot-cli",
+  "group": "Coding",
+  "name": "GitHub Copilot CLI",
+  "summary": "Configure the Copilot CLI gateway to use Diffusion Router.",
+  "status": "beta",
+  "statusNote": "Beta integration. The Anthropic alternative carrier (x-api-key) is also documented.",
+  "lastReviewedAt": "2026-09-20",
+  "prerequisites": [
+    "GitHub Copilot CLI installed.",
+    "A Diffusion Router API key from API keys."
+  ],
+  "setup": [
+    {
+      "title": "Set the gateway environment",
+      "body": "Add these to your shell profile and open a new terminal.",
+      "code": {
+        "language": "shell",
+        "text": "export COPILOT_PROVIDER_TYPE=\"openai\"\nexport COPILOT_PROVIDER_BASE_URL=\"https://router.diffusion.io/v1\"\nexport COPILOT_PROVIDER_API_KEY=\"$DIFFUSION_API_KEY\"\nexport COPILOT_MODEL=\"deepseek-4.1-flash\"\nexport DIFFUSION_API_KEY=\"dfr_v1_YOUR_DIFFUSION_KEY\""
+      }
+    }
+  ],
+  "restart": "Open a new terminal so the Copilot CLI reads the new environment.",
+  "verification": {
+    "title": "Ask Copilot one question",
+    "body": "A completion proves the gateway is using Diffusion Router.",
+    "code": {
+      "language": "shell",
+      "text": "copilot"
+    }
+  },
+  "troubleshooting": [
+    "401/403: check the key and tenant binding in API keys.",
+    "Requests still hit github.com: unset the variables in the shell you launch from and retry.",
+    "Anthropic carrier alternative: set COPILOT_PROVIDER_TYPE=anthropic and COPILOT_PROVIDER_BASE_URL without /v1; the relay accepts x-api-key on /v1/messages."
+  ],
+  "removal": {
+    "title": "Unset the gateway environment",
+    "body": "Remove all five exports from your shell profile. Revoke the key in API keys if unused.",
+    "code": {
+      "language": "shell",
+      "text": "unset COPILOT_PROVIDER_TYPE COPILOT_PROVIDER_BASE_URL COPILOT_PROVIDER_API_KEY COPILOT_MODEL DIFFUSION_API_KEY"
+    }
+  },
+  "rollback": [
+    "Remove the exports — no files are modified by this guide.",
+    "Relaunch Copilot CLI to return to the default gateway."
+  ]
+}

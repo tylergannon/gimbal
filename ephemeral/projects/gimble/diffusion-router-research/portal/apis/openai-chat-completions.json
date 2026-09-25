@@ -1,0 +1,48 @@
+{
+  "id": "openai-chat-completions",
+  "group": "APIs",
+  "name": "OpenAI Chat Completions",
+  "summary": "Use any OpenAI SDK or plain HTTP against Diffusion Router.",
+  "status": "locally-tested",
+  "statusNote": "The Chat Completions relay surface is exercised by Diffusion's transport test matrix.",
+  "lastReviewedAt": "2026-09-20",
+  "prerequisites": [
+    "A Diffusion Router API key from API keys.",
+    "curl or any OpenAI SDK."
+  ],
+  "setup": [
+    {
+      "title": "Point OpenAI tooling at Diffusion",
+      "body": "The OpenAI-compatible base URL ends in /v1, exactly as SDKs expect.",
+      "code": {
+        "language": "shell",
+        "text": "export OPENAI_BASE_URL=\"https://router.diffusion.io/v1\"\nexport OPENAI_API_KEY=\"$DIFFUSION_API_KEY\"\nexport DIFFUSION_API_KEY=\"dfr_v1_YOUR_DIFFUSION_KEY\""
+      }
+    }
+  ],
+  "restart": "Open a new terminal (or re-create your SDK client) so the environment is read.",
+  "verification": {
+    "title": "One curl exchange",
+    "body": "A 200 with a completion body proves the whole path.",
+    "code": {
+      "language": "shell",
+      "text": "curl \"$OPENAI_BASE_URL/chat/completions\" \\\n  -H \"Authorization: Bearer $DIFFUSION_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\"model\":\"deepseek-4.1-flash\",\"messages\":[{\"role\":\"user\",\"content\":\"Say ready.\"}]}'"
+    }
+  },
+  "troubleshooting": [
+    "401/403: check the key and tenant binding in API keys.",
+    "413: request bodies are bounded; split very large payloads.",
+    "429: the upstream rate limit is forwarded with Retry-After — wait and retry; Diffusion never replays automatically."
+  ],
+  "removal": {
+    "title": "Unset the environment",
+    "body": "Remove the exports from your shell profile. Revoke the key in API keys if unused.",
+    "code": {
+      "language": "shell",
+      "text": "unset OPENAI_BASE_URL OPENAI_API_KEY DIFFUSION_API_KEY"
+    }
+  },
+  "rollback": [
+    "No files are modified; unsetting the variables returns the SDK to its default endpoint."
+  ]
+}

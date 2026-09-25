@@ -1,0 +1,58 @@
+{
+  "id": "openclaw",
+  "group": "Agents",
+  "name": "OpenClaw",
+  "summary": "Merge a Diffusion provider into the OpenClaw gateway configuration.",
+  "status": "beta",
+  "statusNote": "Preserve channels, plugins, and your existing default model; the merge mode keeps them intact.",
+  "lastReviewedAt": "2026-09-20",
+  "prerequisites": [
+    "OpenClaw installed with an existing working configuration.",
+    "A Diffusion Router API key from API keys."
+  ],
+  "setup": [
+    {
+      "title": "Merge the Diffusion provider",
+      "body": "The models.mode merge value keeps existing models; JSON5 comments are preserved when the file uses them.",
+      "code": {
+        "language": "json",
+        "path": "~/.openclaw/openclaw.json (merge; preserve JSON5 if present)",
+        "text": "{\n  \"models\": {\n    \"mode\": \"merge\",\n    \"providers\": {\n      \"diffusion\": {\n        \"baseUrl\": \"https://router.diffusion.io/v1\",\n        \"apiKey\": \"{env:DIFFUSION_API_KEY}\",\n        \"api\": \"openai-completions\",\n        \"models\": [\n          { \"id\": \"deepseek-4.1-flash\" }\n        ]\n      }\n    }\n  }\n}"
+      }
+    },
+    {
+      "title": "Export your Diffusion key",
+      "body": "Add the export to your shell profile and open a new terminal.",
+      "code": {
+        "language": "shell",
+        "text": "export DIFFUSION_API_KEY=\"dfr_v1_YOUR_DIFFUSION_KEY\""
+      }
+    }
+  ],
+  "restart": "Restart the OpenClaw gateway so the merged provider loads.",
+  "verification": {
+    "title": "List models through the gateway",
+    "body": "The Diffusion entry must appear next to your existing models.",
+    "code": {
+      "language": "shell",
+      "text": "openclaw models list"
+    }
+  },
+  "troubleshooting": [
+    "401/403: check the key and tenant binding in API keys.",
+    "Models missing: confirm mode is merge (not replace) and the JSON/JSON5 still parses.",
+    "Default model changed unexpectedly: set your previous default explicitly after merging."
+  ],
+  "removal": {
+    "title": "Remove the Diffusion provider",
+    "body": "Delete the models.providers.diffusion block and unset the key. Revoke the key in API keys if unused.",
+    "code": {
+      "language": "shell",
+      "text": "unset DIFFUSION_API_KEY"
+    }
+  },
+  "rollback": [
+    "Restore ~/.openclaw/openclaw.json from your pre-edit copy.",
+    "Restart the gateway; channels and plugins are untouched by this guide."
+  ]
+}

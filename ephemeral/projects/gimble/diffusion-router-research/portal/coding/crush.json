@@ -1,0 +1,57 @@
+{
+  "id": "crush",
+  "group": "Coding",
+  "name": "Crush",
+  "summary": "Add an openai-compat provider pointing at Diffusion Router.",
+  "status": "beta",
+  "statusNote": "Configure this client manually using the steps below.",
+  "lastReviewedAt": "2026-09-20",
+  "prerequisites": [
+    "Crush installed.",
+    "A Diffusion Router API key from API keys."
+  ],
+  "setup": [
+    {
+      "title": "Merge the Diffusion provider",
+      "body": "Preserve existing providers and your default model; this block is additive.",
+      "code": {
+        "language": "json",
+        "path": "~/.config/crush/crush.json (merge)",
+        "text": "{\n  \"providers\": {\n    \"diffusion\": {\n      \"type\": \"openai-compat\",\n      \"base_url\": \"https://router.diffusion.io/v1\",\n      \"api_key_env\": \"DIFFUSION_API_KEY\",\n      \"models\": [\n        { \"id\": \"deepseek-4.1-flash\", \"context_window\": 128000 }\n      ]\n    }\n  }\n}"
+      }
+    },
+    {
+      "title": "Export your Diffusion key",
+      "body": "Add the export to your shell profile and open a new terminal.",
+      "code": {
+        "language": "shell",
+        "text": "export DIFFUSION_API_KEY=\"dfr_v1_YOUR_DIFFUSION_KEY\""
+      }
+    }
+  ],
+  "restart": "Restart Crush or start a new session so the merged configuration is read.",
+  "verification": {
+    "title": "Select the Diffusion model",
+    "body": "Press Ctrl+L or run the model picker and choose the Diffusion entry.",
+    "code": {
+      "language": "shell",
+      "text": "crush"
+    }
+  },
+  "troubleshooting": [
+    "401/403: check the key and tenant binding in API keys.",
+    "Model missing from the picker: confirm the models array merged and the id matches the Connect catalog exactly."
+  ],
+  "removal": {
+    "title": "Remove the Diffusion provider",
+    "body": "Delete the providers.diffusion block and unset the key. Revoke the key in API keys if unused.",
+    "code": {
+      "language": "shell",
+      "text": "unset DIFFUSION_API_KEY"
+    }
+  },
+  "rollback": [
+    "Restore ~/.config/crush/crush.json from your pre-edit copy.",
+    "Restart Crush; your previous default provider is untouched."
+  ]
+}

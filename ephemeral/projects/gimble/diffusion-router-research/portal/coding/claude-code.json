@@ -1,0 +1,59 @@
+{
+  "id": "claude-code",
+  "group": "Coding",
+  "name": "Claude Code",
+  "summary": "Point Claude Code at Diffusion Router with environment variables; no subscription login is involved.",
+  "status": "beta",
+  "statusNote": "Bearer-token configuration avoids the subscription-login precedence issue. Non-Claude model IDs need explicit selection; Claude Code's native picker filters them.",
+  "lastReviewedAt": "2026-09-20",
+  "prerequisites": [
+    "Claude Code installed.",
+    "A Diffusion Router API key from API keys."
+  ],
+  "setup": [
+    {
+      "title": "Export your Diffusion key",
+      "body": "The auth token is your Diffusion API key.",
+      "code": {
+        "language": "shell",
+        "text": "export DIFFUSION_API_KEY=\"dfr_v1_YOUR_DIFFUSION_KEY\""
+      }
+    },
+    {
+      "title": "Set the Diffusion environment",
+      "body": "Add these to your shell profile and open a new terminal.",
+      "code": {
+        "language": "shell",
+        "text": "export ANTHROPIC_BASE_URL=\"https://router.diffusion.io\"\nexport ANTHROPIC_AUTH_TOKEN=\"$DIFFUSION_API_KEY\"\nexport ANTHROPIC_MODEL=\"deepseek-4.1-flash\"\nexport ANTHROPIC_DEFAULT_HAIKU_MODEL=\"deepseek-4.1-flash\"\nexport CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY=1"
+      }
+    }
+  ],
+  "restart": "Open a new terminal so Claude Code reads the new environment.",
+  "verification": {
+    "title": "Start Claude Code and send one prompt",
+    "body": "The Messages surface is used end to end.",
+    "code": {
+      "language": "shell",
+      "text": "claude"
+    }
+  },
+  "troubleshooting": [
+    "401/403: verify the key in API keys and your tenant's active binding.",
+    "Background-task model unavailable: set ANTHROPIC_DEFAULT_HAIKU_MODEL to a compatible catalog model. Gateway picker discovery is documented for Claude Code v2.1.129+, with non-Claude model names selected explicitly.",
+    "Model rejected: non-Claude IDs require explicit selection; pick one from the Connect catalog.",
+    "Subscription login takes precedence: confirm ANTHROPIC_AUTH_TOKEN is exported in the shell you launch from.",
+    "Unknown-model and Advisor warnings can be nonblocking; do not invent behavesAs mappings or context-window overrides. A 400 is a separate failure: verify Router accepts /v1/messages?beta=true and /v1/models?limit=1000."
+  ],
+  "removal": {
+    "title": "Unset the Diffusion environment",
+    "body": "Remove these exports from your shell profile and open a new terminal. Revoke the key in API keys if unused.",
+    "code": {
+      "language": "shell",
+      "text": "unset ANTHROPIC_BASE_URL ANTHROPIC_AUTH_TOKEN ANTHROPIC_MODEL ANTHROPIC_DEFAULT_HAIKU_MODEL CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY"
+    }
+  },
+  "rollback": [
+    "Remove the exports from your shell profile — no files are modified by this guide.",
+    "Relaunch Claude Code to return to the previous provider."
+  ]
+}

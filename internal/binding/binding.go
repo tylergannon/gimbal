@@ -15,6 +15,7 @@ import (
 	"github.com/tylergannon/gimbal/codex"
 	"github.com/tylergannon/gimbal/internal/modelalias"
 	"github.com/tylergannon/gimbal/opencode"
+	"github.com/tylergannon/gimbal/pi"
 )
 
 // Parse reads "model" or "model:effort", resolves the model through
@@ -57,6 +58,8 @@ func Adapter(harness string) (gimbal.HarnessAdapter, error) {
 		return codex.New(), nil
 	case "opencode":
 		return opencode.New(), nil
+	case "pi":
+		return pi.New(), nil
 	default:
 		return nil, fmt.Errorf("unknown harness %q", harness)
 	}

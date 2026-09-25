@@ -126,10 +126,10 @@ func {{.Function}}Command(defaults map[gimbal.WorkflowRole]string) *cobra.Comman
 	cmd.Flags().BoolVar(&follow, "follow", false, "wait for the hosted run's terminal result; without this flag the run survives client exit")
 {{ range .Roles}}	{{.Ident}}Default := defaults[gimbal.WorkflowRole({{printf "%q" .Name}})]
 	if {{.Ident}}Default == "" {
-		cmd.Flags().StringVar(&{{.Ident}}, {{printf "%q" .Name}}, "", {{printf "%q" (printf "the model for role %s, as model or model:effort; OpenCode uses opencode/model or opencode/provider/model" .Name)}})
+		cmd.Flags().StringVar(&{{.Ident}}, {{printf "%q" .Name}}, "", {{printf "%q" (printf "the model for role %s, as model or model:effort; Pi uses pi/diffusion/model-id; OpenCode uses opencode/model or opencode/provider/model" .Name)}})
 		_ = cmd.MarkFlagRequired({{printf "%q" .Name}})
 	} else {
-		cmd.Flags().StringVar(&{{.Ident}}, {{printf "%q" .Name}}, {{.Ident}}Default, {{printf "%q" (printf "advanced override for role %s, as model or model:effort; OpenCode uses opencode/model or opencode/provider/model; omit this flag to use the displayed workflow default" .Name)}})
+		cmd.Flags().StringVar(&{{.Ident}}, {{printf "%q" .Name}}, {{.Ident}}Default, {{printf "%q" (printf "advanced override for role %s, as model or model:effort; Pi uses pi/diffusion/model-id; OpenCode uses opencode/model or opencode/provider/model; omit this flag to use the displayed workflow default" .Name)}})
 	}
 {{ end}}	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
 		project, err := filepath.Abs(project); if err != nil { return err }

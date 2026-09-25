@@ -11,7 +11,7 @@ func TestGeneratedCLIUsesTypedFormClient(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := clientCommandSource("fixture", "Fixture", "fixture", info, graph)
-	for _, want := range []string{"client.Client{FormClient: formClient}", ".StartFixture(cmd.Context(), formInput)", "RoleLead:", "Changed(\"lead\")"} {
+	for _, want := range []string{"client.Client{FormClient: formClient}", ".StartFixture(cmd.Context(), formInput)", "RoleLead:", "Changed(\"lead\")", "pi/diffusion/model-id"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("generated CLI lacks %q", want)
 		}

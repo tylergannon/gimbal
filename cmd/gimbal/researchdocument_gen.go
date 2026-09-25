@@ -55,45 +55,45 @@ func researchdocumentCommand(defaults map[gimbal.WorkflowRole]string) *cobra.Com
 	cmd.Flags().BoolVar(&follow, "follow", false, "wait for the hosted run's terminal result; without this flag the run survives client exit")
 	researchPlanningModelDefault := defaults[gimbal.WorkflowRole("research-planning")]
 	if researchPlanningModelDefault == "" {
-		cmd.Flags().StringVar(&researchPlanningModel, "research-planning", "", "the model for role research-planning, as model or model:effort; OpenCode uses opencode/model or opencode/provider/model")
+		cmd.Flags().StringVar(&researchPlanningModel, "research-planning", "", "the model for role research-planning, as model or model:effort; Pi uses pi/diffusion/model-id; OpenCode uses opencode/model or opencode/provider/model")
 		_ = cmd.MarkFlagRequired("research-planning")
 	} else {
-		cmd.Flags().StringVar(&researchPlanningModel, "research-planning", researchPlanningModelDefault, "advanced override for role research-planning, as model or model:effort; OpenCode uses opencode/model or opencode/provider/model; omit this flag to use the displayed workflow default")
+		cmd.Flags().StringVar(&researchPlanningModel, "research-planning", researchPlanningModelDefault, "advanced override for role research-planning, as model or model:effort; Pi uses pi/diffusion/model-id; OpenCode uses opencode/model or opencode/provider/model; omit this flag to use the displayed workflow default")
 	}
 	researchIndexingModelDefault := defaults[gimbal.WorkflowRole("research-indexing")]
 	if researchIndexingModelDefault == "" {
-		cmd.Flags().StringVar(&researchIndexingModel, "research-indexing", "", "the model for role research-indexing, as model or model:effort; OpenCode uses opencode/model or opencode/provider/model")
+		cmd.Flags().StringVar(&researchIndexingModel, "research-indexing", "", "the model for role research-indexing, as model or model:effort; Pi uses pi/diffusion/model-id; OpenCode uses opencode/model or opencode/provider/model")
 		_ = cmd.MarkFlagRequired("research-indexing")
 	} else {
-		cmd.Flags().StringVar(&researchIndexingModel, "research-indexing", researchIndexingModelDefault, "advanced override for role research-indexing, as model or model:effort; OpenCode uses opencode/model or opencode/provider/model; omit this flag to use the displayed workflow default")
+		cmd.Flags().StringVar(&researchIndexingModel, "research-indexing", researchIndexingModelDefault, "advanced override for role research-indexing, as model or model:effort; Pi uses pi/diffusion/model-id; OpenCode uses opencode/model or opencode/provider/model; omit this flag to use the displayed workflow default")
 	}
 	documentSupervisionModelDefault := defaults[gimbal.WorkflowRole("document-supervision")]
 	if documentSupervisionModelDefault == "" {
-		cmd.Flags().StringVar(&documentSupervisionModel, "document-supervision", "", "the model for role document-supervision, as model or model:effort; OpenCode uses opencode/model or opencode/provider/model")
+		cmd.Flags().StringVar(&documentSupervisionModel, "document-supervision", "", "the model for role document-supervision, as model or model:effort; Pi uses pi/diffusion/model-id; OpenCode uses opencode/model or opencode/provider/model")
 		_ = cmd.MarkFlagRequired("document-supervision")
 	} else {
-		cmd.Flags().StringVar(&documentSupervisionModel, "document-supervision", documentSupervisionModelDefault, "advanced override for role document-supervision, as model or model:effort; OpenCode uses opencode/model or opencode/provider/model; omit this flag to use the displayed workflow default")
+		cmd.Flags().StringVar(&documentSupervisionModel, "document-supervision", documentSupervisionModelDefault, "advanced override for role document-supervision, as model or model:effort; Pi uses pi/diffusion/model-id; OpenCode uses opencode/model or opencode/provider/model; omit this flag to use the displayed workflow default")
 	}
 	indexCurationModelDefault := defaults[gimbal.WorkflowRole("index-curation")]
 	if indexCurationModelDefault == "" {
-		cmd.Flags().StringVar(&indexCurationModel, "index-curation", "", "the model for role index-curation, as model or model:effort; OpenCode uses opencode/model or opencode/provider/model")
+		cmd.Flags().StringVar(&indexCurationModel, "index-curation", "", "the model for role index-curation, as model or model:effort; Pi uses pi/diffusion/model-id; OpenCode uses opencode/model or opencode/provider/model")
 		_ = cmd.MarkFlagRequired("index-curation")
 	} else {
-		cmd.Flags().StringVar(&indexCurationModel, "index-curation", indexCurationModelDefault, "advanced override for role index-curation, as model or model:effort; OpenCode uses opencode/model or opencode/provider/model; omit this flag to use the displayed workflow default")
+		cmd.Flags().StringVar(&indexCurationModel, "index-curation", indexCurationModelDefault, "advanced override for role index-curation, as model or model:effort; Pi uses pi/diffusion/model-id; OpenCode uses opencode/model or opencode/provider/model; omit this flag to use the displayed workflow default")
 	}
 	documentAuthoringModelDefault := defaults[gimbal.WorkflowRole("document-authoring")]
 	if documentAuthoringModelDefault == "" {
-		cmd.Flags().StringVar(&documentAuthoringModel, "document-authoring", "", "the model for role document-authoring, as model or model:effort; OpenCode uses opencode/model or opencode/provider/model")
+		cmd.Flags().StringVar(&documentAuthoringModel, "document-authoring", "", "the model for role document-authoring, as model or model:effort; Pi uses pi/diffusion/model-id; OpenCode uses opencode/model or opencode/provider/model")
 		_ = cmd.MarkFlagRequired("document-authoring")
 	} else {
-		cmd.Flags().StringVar(&documentAuthoringModel, "document-authoring", documentAuthoringModelDefault, "advanced override for role document-authoring, as model or model:effort; OpenCode uses opencode/model or opencode/provider/model; omit this flag to use the displayed workflow default")
+		cmd.Flags().StringVar(&documentAuthoringModel, "document-authoring", documentAuthoringModelDefault, "advanced override for role document-authoring, as model or model:effort; Pi uses pi/diffusion/model-id; OpenCode uses opencode/model or opencode/provider/model; omit this flag to use the displayed workflow default")
 	}
 	editorialReviewModelDefault := defaults[gimbal.WorkflowRole("editorial-review")]
 	if editorialReviewModelDefault == "" {
-		cmd.Flags().StringVar(&editorialReviewModel, "editorial-review", "", "the model for role editorial-review, as model or model:effort; OpenCode uses opencode/model or opencode/provider/model")
+		cmd.Flags().StringVar(&editorialReviewModel, "editorial-review", "", "the model for role editorial-review, as model or model:effort; Pi uses pi/diffusion/model-id; OpenCode uses opencode/model or opencode/provider/model")
 		_ = cmd.MarkFlagRequired("editorial-review")
 	} else {
-		cmd.Flags().StringVar(&editorialReviewModel, "editorial-review", editorialReviewModelDefault, "advanced override for role editorial-review, as model or model:effort; OpenCode uses opencode/model or opencode/provider/model; omit this flag to use the displayed workflow default")
+		cmd.Flags().StringVar(&editorialReviewModel, "editorial-review", editorialReviewModelDefault, "advanced override for role editorial-review, as model or model:effort; Pi uses pi/diffusion/model-id; OpenCode uses opencode/model or opencode/provider/model; omit this flag to use the displayed workflow default")
 	}
 	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
 		project, err := filepath.Abs(project)

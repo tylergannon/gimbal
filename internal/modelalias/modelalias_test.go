@@ -20,6 +20,9 @@ func TestResolve(t *testing.T) {
 		{Selection{Name: "opencode/ling-3.0-flash-fin-free"}, "opencode", ""},
 		{Selection{Name: "opencode/gemini-model-name-low"}, "opencode", ""},
 		{Selection{Name: "opencode/openrouter/vendor/future-model", Effort: "medium", EffortPresent: true}, "opencode", "medium"},
+		{Selection{Name: "pi/diffusion/deepseek-4.1-flash"}, "pi", ""},
+		{Selection{Name: "pi/diffusion/glm-5.3"}, "pi", ""},
+		{Selection{Name: "pi/diffusion/glm-5.3-flash"}, "pi", ""},
 	}
 	for _, test := range tests {
 		got, err := Resolve(test.selection)
@@ -28,6 +31,9 @@ func TestResolve(t *testing.T) {
 		}
 		if got.Harness != test.harness || got.Effort != test.effort {
 			t.Fatalf("Resolve(%+v) = %+v", test.selection, got)
+		}
+		if strings.HasPrefix(test.selection.Name, "pi/diffusion/") && (got.Provider != "diffusion" || got.Model != strings.TrimPrefix(test.selection.Name, "pi/")) {
+			t.Fatalf("Pi route = %+v, want provider diffusion and native model %q", got, strings.TrimPrefix(test.selection.Name, "pi/"))
 		}
 	}
 }
@@ -46,6 +52,9 @@ func TestResolveRejectsInvalidSelections(t *testing.T) {
 		{Selection{Name: "opencode/"}, "expected opencode/<model-id>"},
 		{Selection{Name: "opencode/provider/"}, "expected opencode/<model-id>"},
 		{Selection{Name: "opencode/ling-3.0", Version: "1", VersionPresent: true}, "cannot also declare version"},
+		{Selection{Name: "pi/diffusion/"}, "expected pi/diffusion/<model-id>"},
+		{Selection{Name: "pi/diffusion//bad"}, "expected pi/diffusion/<model-id>"},
+		{Selection{Name: "pi/diffusion/deepseek-4.1-flash", Version: "1", VersionPresent: true}, "cannot also declare version"},
 	}
 	for _, test := range tests {
 		_, err := Resolve(test.selection)

@@ -51,31 +51,31 @@ func pyramidsummaryCommand(defaults map[gimbal.WorkflowRole]string) *cobra.Comma
 	cmd.Flags().BoolVar(&follow, "follow", false, "wait for the hosted run's terminal result; without this flag the run survives client exit")
 	documentAuthoringModelDefault := defaults[gimbal.WorkflowRole("document-authoring")]
 	if documentAuthoringModelDefault == "" {
-		cmd.Flags().StringVar(&documentAuthoringModel, "document-authoring", "", "the model for role document-authoring, as model or model:effort; OpenCode uses opencode/model or opencode/provider/model")
+		cmd.Flags().StringVar(&documentAuthoringModel, "document-authoring", "", "the model for role document-authoring, as model or model:effort; Pi uses pi/diffusion/model-id; OpenCode uses opencode/model or opencode/provider/model")
 		_ = cmd.MarkFlagRequired("document-authoring")
 	} else {
-		cmd.Flags().StringVar(&documentAuthoringModel, "document-authoring", documentAuthoringModelDefault, "advanced override for role document-authoring, as model or model:effort; OpenCode uses opencode/model or opencode/provider/model; omit this flag to use the displayed workflow default")
+		cmd.Flags().StringVar(&documentAuthoringModel, "document-authoring", documentAuthoringModelDefault, "advanced override for role document-authoring, as model or model:effort; Pi uses pi/diffusion/model-id; OpenCode uses opencode/model or opencode/provider/model; omit this flag to use the displayed workflow default")
 	}
 	documentSupervisionModelDefault := defaults[gimbal.WorkflowRole("document-supervision")]
 	if documentSupervisionModelDefault == "" {
-		cmd.Flags().StringVar(&documentSupervisionModel, "document-supervision", "", "the model for role document-supervision, as model or model:effort; OpenCode uses opencode/model or opencode/provider/model")
+		cmd.Flags().StringVar(&documentSupervisionModel, "document-supervision", "", "the model for role document-supervision, as model or model:effort; Pi uses pi/diffusion/model-id; OpenCode uses opencode/model or opencode/provider/model")
 		_ = cmd.MarkFlagRequired("document-supervision")
 	} else {
-		cmd.Flags().StringVar(&documentSupervisionModel, "document-supervision", documentSupervisionModelDefault, "advanced override for role document-supervision, as model or model:effort; OpenCode uses opencode/model or opencode/provider/model; omit this flag to use the displayed workflow default")
+		cmd.Flags().StringVar(&documentSupervisionModel, "document-supervision", documentSupervisionModelDefault, "advanced override for role document-supervision, as model or model:effort; Pi uses pi/diffusion/model-id; OpenCode uses opencode/model or opencode/provider/model; omit this flag to use the displayed workflow default")
 	}
 	pyramidPlanningModelDefault := defaults[gimbal.WorkflowRole("pyramid-planning")]
 	if pyramidPlanningModelDefault == "" {
-		cmd.Flags().StringVar(&pyramidPlanningModel, "pyramid-planning", "", "the model for role pyramid-planning, as model or model:effort; OpenCode uses opencode/model or opencode/provider/model")
+		cmd.Flags().StringVar(&pyramidPlanningModel, "pyramid-planning", "", "the model for role pyramid-planning, as model or model:effort; Pi uses pi/diffusion/model-id; OpenCode uses opencode/model or opencode/provider/model")
 		_ = cmd.MarkFlagRequired("pyramid-planning")
 	} else {
-		cmd.Flags().StringVar(&pyramidPlanningModel, "pyramid-planning", pyramidPlanningModelDefault, "advanced override for role pyramid-planning, as model or model:effort; OpenCode uses opencode/model or opencode/provider/model; omit this flag to use the displayed workflow default")
+		cmd.Flags().StringVar(&pyramidPlanningModel, "pyramid-planning", pyramidPlanningModelDefault, "advanced override for role pyramid-planning, as model or model:effort; Pi uses pi/diffusion/model-id; OpenCode uses opencode/model or opencode/provider/model; omit this flag to use the displayed workflow default")
 	}
 	editorialReviewModelDefault := defaults[gimbal.WorkflowRole("editorial-review")]
 	if editorialReviewModelDefault == "" {
-		cmd.Flags().StringVar(&editorialReviewModel, "editorial-review", "", "the model for role editorial-review, as model or model:effort; OpenCode uses opencode/model or opencode/provider/model")
+		cmd.Flags().StringVar(&editorialReviewModel, "editorial-review", "", "the model for role editorial-review, as model or model:effort; Pi uses pi/diffusion/model-id; OpenCode uses opencode/model or opencode/provider/model")
 		_ = cmd.MarkFlagRequired("editorial-review")
 	} else {
-		cmd.Flags().StringVar(&editorialReviewModel, "editorial-review", editorialReviewModelDefault, "advanced override for role editorial-review, as model or model:effort; OpenCode uses opencode/model or opencode/provider/model; omit this flag to use the displayed workflow default")
+		cmd.Flags().StringVar(&editorialReviewModel, "editorial-review", editorialReviewModelDefault, "advanced override for role editorial-review, as model or model:effort; Pi uses pi/diffusion/model-id; OpenCode uses opencode/model or opencode/provider/model; omit this flag to use the displayed workflow default")
 	}
 	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
 		project, err := filepath.Abs(project)

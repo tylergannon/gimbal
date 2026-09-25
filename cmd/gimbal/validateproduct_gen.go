@@ -39,24 +39,24 @@ func validateproductCommand(defaults map[gimbal.WorkflowRole]string) *cobra.Comm
 	cmd.Flags().BoolVar(&follow, "follow", false, "wait for the hosted run's terminal result; without this flag the run survives client exit")
 	productOperationModelDefault := defaults[gimbal.WorkflowRole("product-operation")]
 	if productOperationModelDefault == "" {
-		cmd.Flags().StringVar(&productOperationModel, "product-operation", "", "the model for role product-operation, as model or model:effort; OpenCode uses opencode/model or opencode/provider/model")
+		cmd.Flags().StringVar(&productOperationModel, "product-operation", "", "the model for role product-operation, as model or model:effort; Pi uses pi/diffusion/model-id; OpenCode uses opencode/model or opencode/provider/model")
 		_ = cmd.MarkFlagRequired("product-operation")
 	} else {
-		cmd.Flags().StringVar(&productOperationModel, "product-operation", productOperationModelDefault, "advanced override for role product-operation, as model or model:effort; OpenCode uses opencode/model or opencode/provider/model; omit this flag to use the displayed workflow default")
+		cmd.Flags().StringVar(&productOperationModel, "product-operation", productOperationModelDefault, "advanced override for role product-operation, as model or model:effort; Pi uses pi/diffusion/model-id; OpenCode uses opencode/model or opencode/provider/model; omit this flag to use the displayed workflow default")
 	}
 	productVisualReviewModelDefault := defaults[gimbal.WorkflowRole("product-visual-review")]
 	if productVisualReviewModelDefault == "" {
-		cmd.Flags().StringVar(&productVisualReviewModel, "product-visual-review", "", "the model for role product-visual-review, as model or model:effort; OpenCode uses opencode/model or opencode/provider/model")
+		cmd.Flags().StringVar(&productVisualReviewModel, "product-visual-review", "", "the model for role product-visual-review, as model or model:effort; Pi uses pi/diffusion/model-id; OpenCode uses opencode/model or opencode/provider/model")
 		_ = cmd.MarkFlagRequired("product-visual-review")
 	} else {
-		cmd.Flags().StringVar(&productVisualReviewModel, "product-visual-review", productVisualReviewModelDefault, "advanced override for role product-visual-review, as model or model:effort; OpenCode uses opencode/model or opencode/provider/model; omit this flag to use the displayed workflow default")
+		cmd.Flags().StringVar(&productVisualReviewModel, "product-visual-review", productVisualReviewModelDefault, "advanced override for role product-visual-review, as model or model:effort; Pi uses pi/diffusion/model-id; OpenCode uses opencode/model or opencode/provider/model; omit this flag to use the displayed workflow default")
 	}
 	productTriageModelDefault := defaults[gimbal.WorkflowRole("product-triage")]
 	if productTriageModelDefault == "" {
-		cmd.Flags().StringVar(&productTriageModel, "product-triage", "", "the model for role product-triage, as model or model:effort; OpenCode uses opencode/model or opencode/provider/model")
+		cmd.Flags().StringVar(&productTriageModel, "product-triage", "", "the model for role product-triage, as model or model:effort; Pi uses pi/diffusion/model-id; OpenCode uses opencode/model or opencode/provider/model")
 		_ = cmd.MarkFlagRequired("product-triage")
 	} else {
-		cmd.Flags().StringVar(&productTriageModel, "product-triage", productTriageModelDefault, "advanced override for role product-triage, as model or model:effort; OpenCode uses opencode/model or opencode/provider/model; omit this flag to use the displayed workflow default")
+		cmd.Flags().StringVar(&productTriageModel, "product-triage", productTriageModelDefault, "advanced override for role product-triage, as model or model:effort; Pi uses pi/diffusion/model-id; OpenCode uses opencode/model or opencode/provider/model; omit this flag to use the displayed workflow default")
 	}
 	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
 		project, err := filepath.Abs(project)

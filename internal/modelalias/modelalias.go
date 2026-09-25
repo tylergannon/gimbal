@@ -59,7 +59,7 @@ var families = map[string]map[string]model{
 	},
 }
 
-var harnesses = map[string]string{"openai": "codex", "anthropic": "claude", "gemini": "agy", "opencode": "opencode"}
+var harnesses = map[string]string{"openai": "codex", "anthropic": "claude", "gemini": "agy", "opencode": "opencode", "diffusion": "pi"}
 
 func Resolve(selection Selection) (ResolvedSelection, error) {
 	if strings.TrimSpace(selection.Name) == "" {
@@ -79,6 +79,16 @@ func Resolve(selection Selection) (ResolvedSelection, error) {
 	}
 
 	entry, known := aliases[selection.Name]
+	if after, ok := strings.CutPrefix(selection.Name, "pi/diffusion/"); ok {
+		if after == "" || strings.HasPrefix(after, "/") || strings.HasSuffix(after, "/") || strings.Contains(after, "//") {
+			return ResolvedSelection{}, fmt.Errorf("invalid Pi model name %q; expected pi/diffusion/<model-id>", selection.Name)
+		}
+		if selection.VersionPresent {
+			return ResolvedSelection{}, fmt.Errorf("pi model name %q already selects a model and cannot also declare version", selection.Name)
+		}
+		entry = model{alias: selection.Name, provider: "diffusion", native: "diffusion/" + after}
+		known = true
+	}
 	if after, ok := strings.CutPrefix(selection.Name, "opencode/"); ok {
 		modelID := after
 		if modelID == "" || strings.HasPrefix(modelID, "/") || strings.HasSuffix(modelID, "/") || strings.Contains(modelID, "//") {
@@ -115,7 +125,7 @@ func Resolve(selection Selection) (ResolvedSelection, error) {
 
 	effort := entry.effort
 	fixedEffort := ""
-	if entry.provider != "opencode" {
+	if entry.provider != "opencode" && entry.provider != "diffusion" {
 		fixedEffort = nativeEffort(entry.native)
 	}
 	if fixedEffort != "" {

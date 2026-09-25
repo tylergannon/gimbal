@@ -1,5 +1,7 @@
 # Pi harness and Diffusion Router: integration findings
 
+> **Current-code update (2026-09-25):** The Pi protocol/configuration probes below remain useful, but this file's Gimble contract table was written against the old `39462ce` checkout. The branch is now rebased on `origin/main` at `81dc3c8`. Use [CURRENT-CODE.md](CURRENT-CODE.md) for the active root Go contract. In particular, current `HarnessAdapter` has `CreateSession`, `RunTurn`, `Steer`, `Fork`, and `Close`; it does not have adapter `Interrupt` or `Compact` methods. Pi RPC `clone`, rather than its historical-message `fork`, is the first candidate for Gimble's current-session `Fork` behavior.
+
 Research date: 2026-09-25. Scope: the proposed Pi adapter for Gimbal's preserved Go `HarnessAdapter` contract. The current npm release tested was **`@earendil-works/pi-coding-agent` 0.87.1** in a disposable `/tmp` directory. The old `@mariozechner/pi-coding-agent` package is deprecated at 0.73.1; current [Pi installation docs](https://pi.dev/docs/latest/quickstart) use the new scope. No real Diffusion key, user Pi configuration, or Router inference was used. The local probe used a fake key and a localhost Chat Completions server. [Current package](https://www.npmjs.com/package/@earendil-works/pi-coding-agent), [old package](https://www.npmjs.com/package/@mariozechner/pi-coding-agent).
 
 ## Recommendation

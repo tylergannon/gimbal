@@ -1,3 +1,6 @@
 decision: Tyler wants skeptical primary-source research on existing Go Pi implementations and competitors, with ownership/copying or a substantial semantic port both viable; implementation is deferred until the research can inform the choice.
 decision: Structure prospective implementation around cohesive internal packages permitting 10–20 concurrent assignments where dependencies actually allow it; abundant agent capacity does not eliminate integration or qualification.
 correction: After launching the requested Gimbal research-document runs detached, stop polling and go idle. Do not turn research initiation into a claim of completed or accepted research.
+correction: Tyler later requested that the coordinator poll every few minutes so he does not have to babysit; monitored through all three terminal completions.
+friction: The port-plan report passed independent editorial review while retaining unsupported implementation-size and performance precision and an overbroad reflection/reuse rejection. Completed research needs frontier reconciliation against primary source before becoming an implementation contract.
+friction: The report author left a Python editing script under ephemeral despite the notes-only rule; moved it to external research scratch storage before committing the research outputs.

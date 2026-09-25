@@ -1,6 +1,6 @@
 # Native Go coding harness research
 
-Start with [BRIEF.md](BRIEF.md) and [SOURCES.md](SOURCES.md).
+Start with [REVIEW-STATUS.md](REVIEW-STATUS.md), [BRIEF.md](BRIEF.md), and [SOURCES.md](SOURCES.md).
 
 Three detached Gimbal research-document workflows produce independent reports and semantic indexes:
 

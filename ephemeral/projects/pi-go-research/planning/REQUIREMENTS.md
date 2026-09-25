@@ -14,6 +14,22 @@ through Pi. Each session is goroutines inside the Gimbal binary, called
 directly, never by shelling out to a CLI. Tool commands such as `bash` still
 start ordinary child processes; the agent itself does not.
 
+## Scope: the Diffusion Router only
+
+Tyler, later the same day: port only what Pi needs to run coding sessions
+against the Diffusion Router (OpenAI-compatible Chat Completions). No other
+provider families, no OAuth, no PowerShell, no Windows. The target is Go code
+that can use the Router to do real work within hours, not full headless parity.
+PLAN.md's wider provider/OS scope is deferred, not part of this job.
+
+## The delivery workflow
+
+A dedicated Gimbal workflow, `internal/workflows/piport`, shaped like the
+built-in implement workflow for each module, but fanning every ready module
+out at once under a `Group` instead of iterating over modules one after
+another. Integration afterwards stays serial. [WORKFLOW.md](WORKFLOW.md) is
+the design.
+
 ## How to port
 
 - **A near-straight copy.** Translate the pinned TypeScript module by module
@@ -34,9 +50,9 @@ start ordinary child processes; the agent itself does not.
   responsible for the result actually working. Final acceptance is what this
   session observes, not what workers report.
 - **Coders:** open-weight models through Gimbal's existing Pi harness on
-  `main` (`pi/diffusion/...`, merged in #392). Candidates are
-  `deepseek-4.1-flash` and `glm-5.3`; pick with a cheap head-to-head on a real
-  assignment, not by guess.
+  `main` (`pi/diffusion/...`, merged in #392). The top-level session picks the
+  model from the Router's actual catalog and current public coding
+  evidence. Tyler does not choose it.
 - **Planning and review, where needed:** Claude Sonnet.
 - **No Codex or ChatGPT roles** until OpenAI fixes the account.
 

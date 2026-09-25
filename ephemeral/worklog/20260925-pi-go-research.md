@@ -1,0 +1,3 @@
+decision: Tyler wants skeptical primary-source research on existing Go Pi implementations and competitors, with ownership/copying or a substantial semantic port both viable; implementation is deferred until the research can inform the choice.
+decision: Structure prospective implementation around cohesive internal packages permitting 10–20 concurrent assignments where dependencies actually allow it; abundant agent capacity does not eliminate integration or qualification.
+correction: After launching the requested Gimbal research-document runs detached, stop polling and go idle. Do not turn research initiation into a claim of completed or accepted research.

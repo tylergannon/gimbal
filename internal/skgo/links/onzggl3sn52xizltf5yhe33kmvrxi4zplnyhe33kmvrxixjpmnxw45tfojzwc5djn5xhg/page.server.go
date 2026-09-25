@@ -7,7 +7,7 @@ import (
 
 	"github.com/tylergannon/skgo"
 
-	"github.com/tylergannon/gimble/internal/conversation"
+	"github.com/tylergannon/gimbal/internal/conversation"
 )
 
 // ConversationsData is the complete saved list and selected transcript.

@@ -1,25 +1,25 @@
-# Gimble
+# Gimbal
 
-**Agent workflows that read like pseudocode.** Gimble is a Go runtime for
-multi-agent workflows: write the workflow as a plain Go function, and Gimble
+**Agent workflows that read like pseudocode.** Gimbal is a Go runtime for
+multi-agent workflows: write the workflow as a plain Go function, and Gimbal
 gives it scoped context, planner loops, supervision, and a live console, on
 Codex, Claude Code, Antigravity, OpenCode, or your own harness.
 
-[![The Gimble console showing a planner loop with a watched coding turn](docs-site/static/shots/console.png)](https://tylergannon.github.io/gimble/)
+[![The Gimbal console showing a planner loop with a watched coding turn](docs-site/static/shots/console.png)](https://tylergannon.github.io/gimbal/)
 
-- **[Live multi-agent console](https://tylergannon.github.io/gimble/docs/console/)** — watch every scope, turn, and command on one map; steer an agent, answer its questions, or stop it.
-- **[Workflows that read like pseudocode](https://tylergannon.github.io/gimble/docs/workflows/)** — the whole process is one Go function, with prompts visible at the call site.
-- **[Primitives for agent work](https://tylergannon.github.io/gimble/docs/primitives/)** — scoped context delivery, promise loops, supervision, and a graph read from your source.
-- **[Curated roles, bound to models](https://tylergannon.github.io/gimble/docs/roles/)** — workflows name kinds of cognitive work; a run binds each to a harness, model, and effort.
-- **[Built-in workflows](https://tylergannon.github.io/gimble/docs/built-in/)** — `implement`, `review`, `research-document`, and `pyramid-summary` from the command line.
-- **[Any harness](https://tylergannon.github.io/gimble/docs/harnesses/)** — Codex, Claude Code, Antigravity, and OpenCode adapters ship in the box; five methods add another.
+- **[Live multi-agent console](https://tylergannon.github.io/gimbal/docs/console/)** — watch every scope, turn, and command on one map; steer an agent, answer its questions, or stop it.
+- **[Workflows that read like pseudocode](https://tylergannon.github.io/gimbal/docs/workflows/)** — the whole process is one Go function, with prompts visible at the call site.
+- **[Primitives for agent work](https://tylergannon.github.io/gimbal/docs/primitives/)** — scoped context delivery, promise loops, supervision, and a graph read from your source.
+- **[Curated roles, bound to models](https://tylergannon.github.io/gimbal/docs/roles/)** — workflows name kinds of cognitive work; a run binds each to a harness, model, and effort.
+- **[Built-in workflows](https://tylergannon.github.io/gimbal/docs/built-in/)** — `implement`, `review`, `research-document`, and `pyramid-summary` from the command line.
+- **[Any harness](https://tylergannon.github.io/gimbal/docs/harnesses/)** — Codex, Claude Code, Antigravity, and OpenCode adapters ship in the box; five methods add another.
 
-Start with the [quickstart](https://tylergannon.github.io/gimble/docs/quickstart/).
+Start with the [quickstart](https://tylergannon.github.io/gimbal/docs/quickstart/).
 The public programming contract is the root package's Godoc and compiling
 examples:
 
 ```sh
-go doc -all github.com/tylergannon/gimble
+go doc -all github.com/tylergannon/gimbal
 ```
 
 The persistent instance starts the SvelteKit web application automatically.
@@ -34,14 +34,14 @@ pnpm 11, and just. From a source checkout:
 
 ```sh
 just build
-./bin/gimble
+./bin/gimbal
 ```
 
 `just build` runs Go generation and the skgo/SvelteKit production build before
 compiling the CLI. It checks for `web/build/skgo.manifest.json` and packages the
 web app into `web/build.zip`, which the binary embeds. To install from a checkout,
-run `go install ./cmd/gimble` after `just build`. Starting with v0.12.1, a
-versioned `go install github.com/tylergannon/gimble/cmd/gimble@<version>` uses
+run `go install ./cmd/gimbal` after `just build`. Starting with v0.12.1, a
+versioned `go install github.com/tylergannon/gimbal/cmd/gimbal@<version>` uses
 the packaged web app and needs no frontend build at install time.
 
 Then open http://127.0.0.1:8080. The page's heading, the Go version below it, and the
@@ -62,16 +62,16 @@ Start an instance, then use the same build of the binary to submit a workflow
 compiled into it:
 
 ```sh
-./bin/gimble --instance-dir /tmp/gimble-instance --project /absolute/project
-./bin/gimble run --help
-./bin/gimble run <workflow> --help
-./bin/gimble run review --instance-dir /tmp/gimble-instance --project /absolute/project --goal "Review the current changes" --follow
+./bin/gimbal --instance-dir /tmp/gimbal-instance --project /absolute/project
+./bin/gimbal run --help
+./bin/gimbal run <workflow> --help
+./bin/gimbal run review --instance-dir /tmp/gimbal-instance --project /absolute/project --goal "Review the current changes" --follow
 ```
 
 Run the first command in its own terminal. A start command admits its `--project`
 repository on first use, even if the instance did not open it at startup;
 `--instance-dir` holds instance control and discovery, separately from the
-project's `.gimble/runs` and conversation files. Repeat `--project` to admit
+project's `.gimbal/runs` and conversation files. Repeat `--project` to admit
 more repositories at startup. Each generated subcommand calls its workflow's
 typed SKGO Form endpoint, the same handler used by its generated browser binding.
 A project has one active instance owner; a
@@ -86,34 +86,34 @@ cannot run it.
 
 The binary includes the `implement`, `review`, `validate-product`,
 `research-document`, and `pyramid-summary` workflows. Each role's model defaults from
-`cmd/gimble/defaults.json`; pass the role's flag, such as `--code-review`, to
+`cmd/gimbal/defaults.json`; pass the role's flag, such as `--code-review`, to
 override it.
 
 Select the legacy OpenCode adapter with `opencode/<model-id>`, or name an
 explicit OpenCode provider with `opencode/<provider>/<model-id>`. The same
-forms work with `gimble run-prompt --model` and every workflow role-model flag:
+forms work with `gimbal run-prompt --model` and every workflow role-model flag:
 
 ```sh
-gimble run-prompt --model opencode/ling-3.0-flash-fin-free "Reply exactly OK"
-gimble run review --code-review opencode/opencode/ling-3.0-flash-fin-free --goal "Review the current changes."
+gimbal run-prompt --model opencode/ling-3.0-flash-fin-free "Reply exactly OK"
+gimbal run review --code-review opencode/opencode/ling-3.0-flash-fin-free --goal "Review the current changes."
 ```
 
 The shared server starts on first use and remains running when a session
-closes. `gimble opencode start` is idempotent; `gimble opencode stop` stops the
+closes. `gimbal opencode start` is idempotent; `gimbal opencode stop` stops the
 server and interrupts its active work. Runtime state defaults to
-`~/.gimble/opencode`; set `GIMBLE_OPENCODE_DIR` for another default or pass
+`~/.gimbal/opencode`; set `GIMBAL_OPENCODE_DIR` for another default or pass
 `--state-dir` to those lifecycle commands. Raw request, result, and SSE capture
 files are under `<state-dir>/captures/` for correlating native events with
 completed turns.
 
-Workflow roles name cognitive work, not positions in a workflow. Gimble's
+Workflow roles name cognitive work, not positions in a workflow. Gimbal's
 prescribed `WorkflowRole` constants and their descriptions live together in
 `roles.go`; applications may define additional typed constants when they need
 a role the catalog does not provide.
 
 `go generate ./...` regenerates workflow graphs, the stock Form handlers and
 CLI commands selected in `internal/builtin/workflows.go`, and the SKGO browser
-and Go bindings. `internal/generate/gimblegen` emits workflow graph metadata;
+and Go bindings. `internal/generate/gimbalgen` emits workflow graph metadata;
 `internal/generate/stockgen` emits the five built-in start entrypoints from one
 selection.
 
@@ -124,11 +124,11 @@ project, and restart that binary; missing or stale generated graph code is
 reported on the run page with those corrective steps instead of a graphless
 history view.
 
-The supported built-in authoring path is in this Gimble checkout. Add a package
+The supported built-in authoring path is in this Gimbal checkout. Add a package
 under `internal/workflows/`, using `internal/workflows/review/` as the small
 example. Give it an entry such as `func Name(ctx context.Context, env
-gimble.Env, params NameParams) error` and a `//go:generate` directive for
-`gimblegen`. For structured result types, add a `//go:build jsonschema` file
+gimbal.Env, params NameParams) error` and a `//go:generate` directive for
+`gimbalgen`. For structured result types, add a `//go:build jsonschema` file
 and Polytype generation as the review package does. Add the built-in to
 `internal/builtin/workflows.go`; `go generate ./...` produces its graph, typed
 Form handler, CLI command and Go client binding from that selection. The
@@ -136,14 +136,14 @@ handler calls the workflow directly and the CLI calls the matching generated
 SKGO client. Rebuild and restart the instance with that binary. The graph's
 registration comes from the generated file compiled into the instance.
 An unknown role is required on the command line when
-`cmd/gimble/defaults.json` has no default for it. The generator uses Gimble
+`cmd/gimbal/defaults.json` has no default for it. The generator uses Gimbal
 internal packages and the application web build; generation in arbitrary
 external Go modules and submitting an arbitrary closure are not supported
 hosted paths.
 
-Standalone `gimble.Run(gimble.Project(ctx, dir), ...)` executes in its caller's
+Standalone `gimbal.Run(gimbal.Project(ctx, dir), ...)` executes in its caller's
 process and writes durable state under `dir/runs`; it does not join a running
-instance's live registry or controls. `gimble run-prompt` runs its own headless
+instance's live registry or controls. `gimbal run-prompt` runs its own headless
 runtime in the CLI process. Its logs default to a temporary directory; `--logs`
 must name a fresh, empty directory. Both inherit the caller's environment,
 not the hosted instance's environment. Keep these directories separate from
@@ -157,22 +157,22 @@ when a planner chooses work adaptively; check `Err()` afterward.
 
 ## Lint workflows
 
-The distributed `gimble` binary also checks deterministic workflow authoring
+The distributed `gimbal` binary also checks deterministic workflow authoring
 mistakes:
 
 ```sh
-./bin/gimble lint ./...
-go vet -vettool="$(pwd)/bin/gimble" ./...
+./bin/gimbal lint ./...
+go vet -vettool="$(pwd)/bin/gimbal" ./...
 ```
 
 The second command is the direct Go vet-tool protocol path. A custom vet tool
 replaces Go's ordinary analyzers for that invocation, so `just vet` first runs
-ordinary `go vet ./...`, builds the same `bin/gimble`, and then runs
-`bin/gimble lint ./...`.
+ordinary `go vet ./...`, builds the same `bin/gimbal`, and then runs
+`bin/gimbal lint ./...`.
 
-Read the [lint rule reference](internal/gimblelint/rules.md) for the accepted
+Read the [lint rule reference](internal/gimballint/rules.md) for the accepted
 rules, diagnostics, rewrites, and analysis limits. The same text is printed by
-`gimble lint -help` and is available at [docs/lint-rules.md](docs/lint-rules.md).
+`gimbal lint -help` and is available at [docs/lint-rules.md](docs/lint-rules.md).
 
 The runtime derives the public origin from the TCP listener, including when
 port 0 selects an available port.
@@ -186,7 +186,7 @@ port 0 selects an available port.
 | `web/src/routes/*.remote.go` | server logic, colocated with the routes that call it |
 | `web/src/routes/**/server.go` | ordinary Go HTTP handlers for SvelteKit `+server.ts` routes |
 | `internal/skgo/` | skgo's generated Go implementation; never edited by hand |
-| `cmd/gimble/` | the binary |
+| `cmd/gimbal/` | the binary |
 | `web/server.go` | the one composition the binary and any test both use |
 
 Write a remote function by adding a Go function to a `*.remote.go` file beside
@@ -233,16 +233,16 @@ just build
 just e2e
 ```
 
-By default, Playwright starts `bin/gimble` with its embedded frontend on a free
+By default, Playwright starts `bin/gimbal` with its embedded frontend on a free
 port, waits for its listening address, and stops it after the suite. It uses the
 existing build, so rebuild after changes. To check a server you have already
 started, use `BASE_URL=http://127.0.0.1:8080 just e2e`; Playwright then leaves that
-server running. The scenarios need a recorded run in the project's `.gimble/runs/`;
+server running. The scenarios need a recorded run in the project's `.gimbal/runs/`;
 for a clean checkout, seed the existing test fixture first:
 
 ```sh
-mkdir -p .gimble/runs/e2e-cancelled
-cp internal/observation/testdata/cancelled-run.jsonl .gimble/runs/e2e-cancelled/run.jsonl
+mkdir -p .gimbal/runs/e2e-cancelled
+cp internal/observation/testdata/cancelled-run.jsonl .gimbal/runs/e2e-cancelled/run.jsonl
 ```
 
 Each outcome leaves a screenshot under `e2e/screenshots/` so a successful run can

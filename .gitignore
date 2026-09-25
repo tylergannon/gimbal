@@ -1,13 +1,13 @@
 .DS_Store
-/gimble
+/gimbal
 web/editor/node_modules
 web/editor/.svelte-kit
-.gimble/run/
-.gimble/runs/
-.gimble/issues/
-.gimble/project.jsonl
-.gimble/conversations/
-.gimble/conversation-worktrees/
+.gimbal/run/
+.gimbal/runs/
+.gimbal/issues/
+.gimbal/project.jsonl
+.gimbal/conversations/
+.gimbal/conversation-worktrees/
 
 # skgo app
 /bin/

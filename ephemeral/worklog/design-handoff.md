@@ -18,7 +18,7 @@ decision: Curated eight unique products into three interaction directions, dedup
 
 correction: Tyler supplied Gemini and Claude research as suggestions, explicitly not requirements. Checked a useful subset against primary sources and added only two targeted visual references; no feature expansion or layout decision follows from those reports.
 
-doc_bug: The Gemini report says Gimble only visualizes rather than executes workflows, conflates a waiting interview with a paused run, and recommends freezing live history. Preserve the actual execution/concurrency model in the handoff; other sessions can progress while one awaits input.
+doc_bug: The Gemini report says Gimbal only visualizes rather than executes workflows, conflates a waiting interview with a paused run, and recommends freezing live history. Preserve the actual execution/concurrency model in the handoff; other sessions can progress while one awaits input.
 
 decision: AWS's iteration selection and Airflow's selected-task input form sharpen existing design scenarios. Perfetto navigation and Temporal event grouping remain optional inspiration. Checkpoint replay, node bypassing, runtime diagnostics, transport changes, assignees, and arbitrary adoption thresholds were not accepted.
 

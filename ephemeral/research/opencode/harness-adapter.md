@@ -1,10 +1,10 @@
 # OpenCode harness adapter: CLI versus managed server
 
-Research for Gimble maintainers · 2026-09-19 · OpenCode **1.18.27**
+Research for Gimbal maintainers · 2026-09-19 · OpenCode **1.18.27**
 
 ## Decision
 
-**Prefer a Gimble-managed foreground OpenCode server, accessed through a small explicit Go HTTP/SSE client.** Direct `opencode run` loses capabilities central to `HarnessAdapter`: caller-supplied JSON Schema, a separate active-turn steering control, live native events, and replay. Attaching to an existing server preserves the HTTP capabilities but gives Gimble less authority over version, configuration, execution ownership, and cleanup.
+**Prefer a Gimbal-managed foreground OpenCode server, accessed through a small explicit Go HTTP/SSE client.** Direct `opencode run` loses capabilities central to `HarnessAdapter`: caller-supplied JSON Schema, a separate active-turn steering control, live native events, and replay. Attaching to an existing server preserves the HTTP capabilities but gives Gimbal less authority over version, configuration, execution ownership, and cleanup.
 
 This is a direction to validate, **not a demonstrated complete adapter mapping**. The installed server exposes two API generations with complementary capabilities:
 
@@ -28,7 +28,7 @@ This report was synthesized through the supplied semantic index and linked local
 
 The evidence ledger supplies at least three artifacts for each of the fifteen research topics. Three artifacts are not necessarily three independent experiments: generated types and OpenAPI often derive from the same implementation. No evidence count turns the explicit unknowns into facts.
 
-## 1. Research baseline and Gimble contract
+## 1. Research baseline and Gimbal contract
 
 ### Product, release, and build identity
 
@@ -46,17 +46,17 @@ The installed and pinned generated OpenAPI documents each contain 162 paths, wit
 
 The local contract is [harness.go][Harness], corroborated by [go doc -all .][Godoc], the session runtime, and existing adapters/tests. These are the actual acceptance boundaries:
 
-| Operation/data | Gimble requirement | OpenCode decision consequence |
+| Operation/data | Gimbal requirement | OpenCode decision consequence |
 | --- | --- | --- |
 | `CreateSession(ctx, model, effort, workdir)` | Reserve an adapter session ID. Native creation may be lazy. Bind model, requested effort, and workdir. | A returned OpenCode ID is only part of identity; retain server and location too. Empty effort leaves harness defaults. |
 | `RunTurn(ctx, sessionID, prompt, schema, onEvent)` | Block for one turn; forward events as they arrive; interrupt native execution on cancellation and return `ctx.Err()`. | Prompt admission, HTTP success, and session idle are different facts. Need native turn correlation and active cancellation. |
 | `TurnResult.Output` | With schema: raw structured JSON. Without schema: final message encoded as a JSON string. `Generate` validates/decodes. | JSONL events or JSON-looking prose do not satisfy schema input/output. |
-| `TurnResult.Usage` | Optional per-model map reporting this turn's usage/cost. Nil when no harness turn report; Gimble then accounts from step events. | Session cumulative totals are not a turn report; repeated settlement projections must not be added repeatedly. |
+| `TurnResult.Usage` | Optional per-model map reporting this turn's usage/cost. Nil when no harness turn report; Gimbal then accounts from step events. | Session cumulative totals are not a turn report; repeated settlement projections must not be added repeatedly. |
 | `Steer` | Report whether input landed in the running turn. No active turn or a finish race is `false,nil`; failure to reach harness is an error. | Native admission or promotion alone is not proof of landing. Boundary delivery within the same active `RunTurn` can qualify; mid-token interruption is not required. |
 | `Fork` | New native session containing conversation so far, independent afterward. | A later prompt on the same mutable ID is not a fork. |
 | `Close` | Idempotently release adapter-held process/subscription/map state when its owning scope ends. | Do not equate cleanup with deleting persisted conversation history. Stop a service only at its ownership scope. |
 
-`AgentEvent` supplies `Type`, `Data`, optional `Metadata`, and `NativeRef`; Gimble assigns event ID/timestamp. The runtime requires `Data` to be a JSON object with a native `sessionID`, rewrites it to a canonical Gimble ID, and canonicalizes relevant message identities. A valid `NativeRef` has a nonempty `provider`, a matching native session identity, and only these allowed fields:
+`AgentEvent` supplies `Type`, `Data`, optional `Metadata`, and `NativeRef`; Gimbal assigns event ID/timestamp. The runtime requires `Data` to be a JSON object with a native `sessionID`, rewrites it to a canonical Gimbal ID, and canonicalizes relevant message identities. A valid `NativeRef` has a nonempty `provider`, a matching native session identity, and only these allowed fields:
 
 ```text
 provider, sessionID, turnID, messageID, responseID, itemID,
@@ -71,7 +71,7 @@ Relevant precedents explain flexibility, not additional requirements:
 - **Claude:** local UUID, one process per turn, `--session-id` then `--resume`, deferred native fork via `--fork-session`, schema and effort per process. Live stream steering; bounded cancellation; final per-model usage. Session close forgets state once the turn process is gone. [Claude][Claude-tests]
 - **Antigravity:** lazy native conversation, resumable print process, schema-bearing output and explicit unsupported fork. Steer interrupts/resumes inside the active `RunTurn`; owns a process group and cleans lingering descendants. This demonstrates that landed steering need not be provider mid-token mutation. [Agy][Agy-tests]
 
-Normalized names such as `session.step.*` are Gimble vocabulary. They neither prove that OpenCode emits those names nor that an OpenCode adapter already exists. Model binding chooses harness/native model/effort; it does not make every provider's variant vocabulary interchangeable. [Binding][Harness][Session-runtime]
+Normalized names such as `session.step.*` are Gimbal vocabulary. They neither prove that OpenCode emits those names nor that an OpenCode adapter already exists. Model binding chooses harness/native model/effort; it does not make every provider's variant vocabulary interchangeable. [Binding][Harness][Session-runtime]
 
 ## 2. Direct CLI: convenient execution, insufficient adapter boundary
 
@@ -176,7 +176,7 @@ Unless marked otherwise, successful JSON responses are HTTP 200; no-content cont
 
 A legacy `Session` includes `id`, slug, project/directory, title, version, timestamps, and optional parent/workspace/model/agent/permission/cost/tokens fields. Model creation/reference uses `id`; prompt model selection uses `modelID`. These similarly named shapes are not interchangeable. [Routes][Legacy-group][Legacy-handler]
 
-The fork handler accepts an empty body or `{messageID}` and returns 200 `Session`; malformed input is 400, missing source session 404. The pinned implementation copies messages **before** the selected message, excluding that message. Omitted or unrecognized `messageID` copies all available messages. It allocates new message/part IDs and remaps assistant parent-message IDs; a cutoff is therefore not an inclusive transcript marker. Crucially, `createNext` in this path receives current instance directory/path, original workspace, fork title, and cloned metadata, but **no session `parentID`, model, agent, or permission**. The schema allows parent IDs, yet this fork implementation does not set one. Preserve Gimble's parent relationship separately and verify native settings after fork; issue every fork in the original directory. Do not infer model/permission inheritance or atomic snapshot behavior while the source session is running. [Legacy-handler][Session-publisher][Routes]
+The fork handler accepts an empty body or `{messageID}` and returns 200 `Session`; malformed input is 400, missing source session 404. The pinned implementation copies messages **before** the selected message, excluding that message. Omitted or unrecognized `messageID` copies all available messages. It allocates new message/part IDs and remaps assistant parent-message IDs; a cutoff is therefore not an inclusive transcript marker. Crucially, `createNext` in this path receives current instance directory/path, original workspace, fork title, and cloned metadata, but **no session `parentID`, model, agent, or permission**. The schema allows parent IDs, yet this fork implementation does not set one. Preserve Gimbal's parent relationship separately and verify native settings after fork; issue every fork in the original directory. Do not infer model/permission inheritance or atomic snapshot behavior while the source session is running. [Legacy-handler][Session-publisher][Routes]
 
 Legacy synchronous prompt uses an HTTP stream internally to deliver **one final JSON `{info,parts}` object**, after awaiting the prompt service. It is not SSE token streaming; concurrent events require a separate subscription. Handler-level prompt-service failures map to 400, while assistant errors may remain in the returned message. Message pagination requires `limit` when `before` is supplied, validates the opaque cursor, and returns `Link: ...; rel="next"` plus `X-Next-Cursor` when another page exists; omitted/zero limit takes the unpaginated path. [Legacy-handler][Routes]
 
@@ -246,11 +246,11 @@ The API declares 409 for prompt ID conflicts with existing durable records. The 
 
 ### Steering, concurrency, and control acknowledgments
 
-The pinned input store separates `promoteSteers` up to an execution cutoff from `promoteNextQueued` in input order. The per-session coordinator starts/joins one execution and coalesces wakes into follow-up work; different session keys can run concurrently. This establishes real admission and scheduling semantics. It does not establish that `promotedSeq` means the provider has consumed the input in the current Gimble turn. [Input-store][Coordinator][V2-handler]
+The pinned input store separates `promoteSteers` up to an execution cutoff from `promoteNextQueued` in input order. The per-session coordinator starts/joins one execution and coalesces wakes into follow-up work; different session keys can run concurrently. This establishes real admission and scheduling semantics. It does not establish that `promotedSeq` means the provider has consumed the input in the current Gimbal turn. [Input-store][Coordinator][V2-handler]
 
 A useful steering proof must associate the admitted ID, promotion/consumption, active execution, and resulting assistant behavior. Delivery at the next model/tool boundary **within the same active `RunTurn`** qualifies; delivery only in a later separately queued turn does not. Keeping a client method artificially blocked across an unrelated later turn is not proof of landing. An admission after a finish race must not leave an unintended future prompt while claiming `false,nil`; handling that race is an unresolved protocol-fit question. Legacy async prompt plus abort is not an established native steer operation.
 
-`wait` is session-idleness, not a final-answer response for one caller ID. Concurrent prompts can join/coalesce at the coordinator, so serializing one Gimble `RunTurn` per native session is the smallest sensible initial constraint. A 204 interrupt says that the serving process handled its own active execution; it neither reports landed steering nor proves cleanup of work owned by another OpenCode process. Attached mode still supports interruption when that same server process owns the turn—the ownership limit is not a blanket ban on remote cancellation. [Coordinator][V2-session][Harness]
+`wait` is session-idleness, not a final-answer response for one caller ID. Concurrent prompts can join/coalesce at the coordinator, so serializing one Gimbal `RunTurn` per native session is the smallest sensible initial constraint. A 204 interrupt says that the serving process handled its own active execution; it neither reports landed steering nor proves cleanup of work owned by another OpenCode process. Attached mode still supports interruption when that same server process owns the turn—the ownership limit is not a blanket ban on remote cancellation. [Coordinator][V2-session][Harness]
 
 ### Permission and question APIs
 
@@ -401,7 +401,7 @@ The outer event ID and inner permission ID are different identities. A reply to 
 
 ### Output and accounting authority
 
-An OpenCode session contains many inputs, assistant messages, model steps, and tools. The reviewed APIs supply no universal native turn ID equivalent to Gimble's whole `RunTurn`. Reconstruct its boundary from the submitted user/admission ID, assistant parentage or prompt/step sequence, active execution, and final projections. Do not substitute the latest event in the session or the largest timestamp.
+An OpenCode session contains many inputs, assistant messages, model steps, and tools. The reviewed APIs supply no universal native turn ID equivalent to Gimbal's whole `RunTurn`. Reconstruct its boundary from the submitted user/admission ID, assistant parentage or prompt/step sequence, active execution, and final projections. Do not substitute the latest event in the session or the largest timestamp.
 
 For plain text, ended/full text values or final text-part snapshots are the stable result; reasoning and synthetic/ignored text need their own treatment. For legacy schema output, the declared final assistant `structured` field is the candidate. A missing structured result is a failure/unsupported-path condition, not permission to silently return ordinary text. A successful synchronous HTTP response can contain an assistant error. [Routes][Legacy-handler][Harness]
 
@@ -440,7 +440,7 @@ Pinned schema, handlers, and event/coordinator source independently explain thes
 | Session reservation | Lazy implicit creation; ID obtained during invocation | Explicit native create; retain model/effort/location | Same API; also bind URL/auth/version/location |
 | `RunTurn` | One process and selected JSONL; no native final envelope | Legacy sync result or v2 admission plus correlated event/projection completion | Same protocol, with outside-writer and owner risks |
 | Schema output | No schema input flag; unsupported directly | Legacy format/assistant structured field; v2 lacks input schema | Same if version exposes it |
-| Live `AgentEvent` | Omits deltas, progress, controls, native IDs | Native live stream plus durable recovery; normalize to Gimble contract | Same streams; network/lifecycle controlled elsewhere |
+| Live `AgentEvent` | Omits deltas, progress, controls, native IDs | Native live stream plus durable recovery; normalize to Gimbal contract | Same streams; network/lifecycle controlled elsewhere |
 | `NativeRef` | Preserve available IDs only; cannot recover omissions | Allowed provider/session/message/item IDs; raw extras in Data/Metadata | Same restrictions |
 | Usage | Step-finish data, incomplete context; no native turn report | Unique step/assistant settlement; model-keyed per-turn projection still unproven | Same, cumulative session deltas especially unsafe |
 | `Steer` | No separate channel | V2 steer admission is promising; active-turn landing/race unresolved | Same semantics if serving process owns execution |
@@ -463,7 +463,7 @@ These are compatibility and behavioral gates, not an adapter architecture expans
 
 ### Small validation sequence
 
-No new inference is required to accept this research. Before implementing/releasing an adapter, use the following bounded observations in order; stop at a contract blocker instead of spending on later probes. Existing captures already support the startup/auth/empty-prompt baseline. Repeat only as needed for the exact implementation under test. Save any future probe output in the supplied `.gimble/research/opencode` area, not tracked research notes.
+No new inference is required to accept this research. Before implementing/releasing an adapter, use the following bounded observations in order; stop at a contract blocker instead of spending on later probes. Existing captures already support the startup/auth/empty-prompt baseline. Repeat only as needed for the exact implementation under test. Save any future probe output in the supplied `.gimbal/research/opencode` area, not tracked research notes.
 
 | Stage | Observation | Pass evidence that changes the decision |
 | --- | --- | --- |
@@ -471,7 +471,7 @@ No new inference is required to accept this research. Before implementing/releas
 | 2 · no model | Create sessions in two temporary directories; list/get/location/active checks; legacy get/fork of v2 session and reciprocal access | Exact directory/ID separation and concrete acceptance or rejection of the same native conversation across families; this is the first integration gate |
 | 3 · no model | Subscribe to live and durable routes, admit valid text with `resume:false`, read history after known sequence; resend caller ID before/after promotion where possible | Actual envelope/framing, admission `id`/event message ID correlation, cursor boundary, duplicate/conflict semantics; do not assume every stream sends connected |
 | 4 · cheapest model | One schema-bearing legacy turn with a tiny object schema; capture assistant result, live events, durable/projection settlement and usage | Schema-valid `info.structured`, truthful final error handling, provider/model identity, one-turn accounting; compare v2's different admission behavior without pretending it accepts the schema |
-| 5 · cheapest model | Continue same session, fork, then send distinct follow-ups | Stable parent continuation; new native fork containing prior context and independent subsequent histories; separately verified directory/model/variant and Gimble parent linkage |
+| 5 · cheapest model | Continue same session, fork, then send distinct follow-ups | Stable parent continuation; new native fork containing prior context and independent subsequent histories; separately verified directory/model/variant and Gimbal parent linkage |
 | 6 · cheapest model | Long enough tool/text turn, cancel context and interrupt; then close with cancellation already active | `RunTurn` returns `context.Canceled`, native activity ends, late settlement counted once, descendants actually exit; attached server remains alive after local close |
 | 7 · cheapest model | Steer during active execution and at a finish boundary; compare with explicit queue | Admitted/promoted input consumed within same active turn versus separate later turn; truthful landed/drop result and no unintended queued residue |
 | 8 · controlled controls/reconnect | Trigger one permission and one question; reply and race one with cancellation; drop SSE after known durable sequence and reconnect | Correct request ownership/answers, late-reply behavior, pending-list recovery, no duplicate output/usage; full settled output recovered despite missing live deltas |
@@ -480,12 +480,12 @@ Use no-model control creation where available before asking a model to trigger a
 
 ## Evidence ledger and local source map
 
-The report's 15 topics are covered below. Each row has at least three linked artifacts; shared schema evidence is intentionally reused instead of duplicating downloads. Original upstream links follow the ledger. All local references remain under the supplied research cache; Gimble snapshots originated at the workspace paths named in the brief. The index was the only research entry point.
+The report's 15 topics are covered below. Each row has at least three linked artifacts; shared schema evidence is intentionally reused instead of duplicating downloads. Original upstream links follow the ledger. All local references remain under the supplied research cache; Gimbal snapshots originated at the workspace paths named in the brief. The index was the only research entry point.
 
 | Research topic | Principal artifacts and evidence limits |
 | --- | --- |
 | 001 · identity | [Installed version][Version], [tag ref][Tag], [tag package][Package], [release metadata][Release], [health][Health]; no installed build SHA |
-| 002 · Gimble contract | [Harness][Harness], [Godoc][Godoc], [session runtime][Session-runtime], [Codex tests][Codex-tests]; adapters are precedent |
+| 002 · Gimbal contract | [Harness][Harness], [Godoc][Godoc], [session runtime][Session-runtime], [Codex tests][Codex-tests]; adapters are precedent |
 | 003 · CLI execution/output | [Help][Run-help], [pinned CLI][Run-source], [generated types][CLI-types], [empty-input status][CLI-empty]; no successful model capture |
 | 004 · continuation/config | [CLI][Run-source], [session schema][Session-schema], [config loader][Config], [variant logic][Variant], [moving docs][CLI-docs] |
 | 005 · CLI controls/ownership | [CLI][Run-source], [serve command][Serve-source], [SDK launcher][SDK-launcher], [help][Run-help]; signals/descendants unobserved |
@@ -504,79 +504,79 @@ Original sources: [OpenCode release](https://github.com/anomalyco/opencode/relea
 
 Go SDK originals: [pinned tree](https://github.com/anomalyco/opencode-sdk-go/tree/1f8f6faf2bec1f8c3e606df1af37f301da634914), [session.go](https://github.com/anomalyco/opencode-sdk-go/blob/1f8f6faf2bec1f8c3e606df1af37f301da634914/session.go), [event.go](https://github.com/anomalyco/opencode-sdk-go/blob/1f8f6faf2bec1f8c3e606df1af37f301da634914/event.go), [release v0.19.2](https://github.com/anomalyco/opencode-sdk-go/releases/tag/v0.19.2), [latest-release metadata endpoint](https://api.github.com/repos/anomalyco/opencode-sdk-go/releases/latest), [main-commit metadata endpoint](https://api.github.com/repos/anomalyco/opencode-sdk-go/commits/main). “Latest” describes the caller's saved check, not an ongoing freshness guarantee.
 
-[Version]: ../../../.gimble/research/opencode/topic-001/sources/installed-version.txt
-[Health]: ../../../.gimble/research/opencode/topic-001/sources/installed-server-health.json
-[Tag]: ../../../.gimble/research/opencode/topic-001/sources/upstream-tag-ref.txt
-[Package]: ../../../.gimble/research/opencode/topic-001/sources/tag-opencode-package.json
-[Release]: ../../../.gimble/research/opencode/topic-001/sources/release-v1.18.27.json
-[Version-source]: ../../../.gimble/research/opencode/topic-001/sources/tag-version-source.ts
-[Harness]: ../../../.gimble/research/opencode/topic-002/sources/harness.go
-[Godoc]: ../../../.gimble/research/opencode/topic-002/sources/go-doc-all.txt
-[Events]: ../../../.gimble/research/opencode/topic-002/sources/events.go
-[Session-runtime]: ../../../.gimble/research/opencode/topic-002/sources/session.go
-[Persistence]: ../../../.gimble/research/opencode/topic-002/sources/event-persistence.go
-[Binding]: ../../../.gimble/research/opencode/topic-002/sources/model-binding.go
-[Codex]: ../../../.gimble/research/opencode/topic-002/sources/codex-adapter.go
-[Codex-tests]: ../../../.gimble/research/opencode/topic-002/sources/codex-tests.go
-[Claude]: ../../../.gimble/research/opencode/topic-002/sources/claude-adapter.go
-[Claude-tests]: ../../../.gimble/research/opencode/topic-002/sources/claude-tests.go
-[Agy]: ../../../.gimble/research/opencode/topic-002/sources/antigravity-adapter.go
-[Agy-tests]: ../../../.gimble/research/opencode/topic-002/sources/antigravity-tests.go
-[Run-help]: ../../../.gimble/research/opencode/topic-003/sources/installed-opencode-run-help.txt
-[Run-source]: ../../../.gimble/research/opencode/topic-003/sources/upstream-v1.18.27-cli-run.ts
-[CLI-types]: ../../../.gimble/research/opencode/topic-003/sources/upstream-v1.18.27-generated-event-types.ts
-[CLI-docs]: ../../../.gimble/research/opencode/topic-003/sources/official-cli-docs.html
-[CLI-empty]: ../../../.gimble/research/opencode/topic-003/clips/run-format-json-no-message.status
-[CLI-empty-out]: ../../../.gimble/research/opencode/topic-003/clips/run-format-json-no-message.stdout
-[CLI-empty-err]: ../../../.gimble/research/opencode/topic-003/clips/run-format-json-no-message.stderr
-[Session-schema]: ../../../.gimble/research/opencode/topic-004/sources/upstream-v1.18.27-session-schema.ts
-[Config]: ../../../.gimble/research/opencode/topic-004/sources/upstream-v1.18.27-config.ts
-[Config-paths]: ../../../.gimble/research/opencode/topic-004/sources/upstream-v1.18.27-config-paths.ts
-[Variant]: ../../../.gimble/research/opencode/topic-004/sources/upstream-v1.18.27-variant-selection.ts
-[SDK-launcher]: ../../../.gimble/research/opencode/topic-005/sources/upstream-v1.18.27-sdk-server.ts
-[Serve-help]: ../../../.gimble/research/opencode/topic-006/sources/installed-serve-help.txt
-[Serve-source]: ../../../.gimble/research/opencode/topic-006/sources/serve.ts
-[Server-source]: ../../../.gimble/research/opencode/topic-006/sources/server.ts
-[Server-observation]: ../../../.gimble/research/opencode/topic-006/sources/installed-server-observation.txt
-[Auth-observation]: ../../../.gimble/research/opencode/topic-006/sources/installed-auth-observation.txt
-[Auth-source]: ../../../.gimble/research/opencode/topic-006/sources/release-authorization-middleware.ts
-[Server-docs]: ../../../.gimble/research/opencode/topic-006/sources/release-server-docs.mdx
-[Routes]: ../../../.gimble/research/opencode/topic-007/sources/release-sdk-openapi.json
-[Installed-schema]: ../../../.gimble/research/opencode/topic-007/sources/installed-openapi.json
-[Route-observation]: ../../../.gimble/research/opencode/topic-007/sources/installed-session-route-observation.txt
-[Legacy-group]: ../../../.gimble/research/opencode/topic-007/sources/release-session-group.ts
-[Legacy-handler]: ../../../.gimble/research/opencode/topic-007/sources/release-session-handler.ts
-[Provider-group]: ../../../.gimble/research/opencode/topic-007/sources/release-provider-group.ts
-[Config-group]: ../../../.gimble/research/opencode/topic-007/sources/release-config-group.ts
-[Location]: ../../../.gimble/research/opencode/topic-007/sources/release-location.ts
-[Session-location]: ../../../.gimble/research/opencode/topic-007/sources/release-v2-session-location.ts
-[V2-session]: ../../../.gimble/research/opencode/topic-008/sources/release-v2-session-group.ts
-[V2-handler]: ../../../.gimble/research/opencode/topic-008/sources/release-v2-session-handler.ts
-[Permission-group]: ../../../.gimble/research/opencode/topic-008/sources/release-permission-group.ts
-[Question-group]: ../../../.gimble/research/opencode/topic-008/sources/release-question-group.ts
-[Permission-handler]: ../../../.gimble/research/opencode/topic-008/sources/release-v2-permission-handler.ts
-[Question-handler]: ../../../.gimble/research/opencode/topic-008/sources/release-v2-question-handler.ts
-[Legacy-events]: ../../../.gimble/research/opencode/topic-009/sources/release-event-handler.ts
-[V2-events]: ../../../.gimble/research/opencode/topic-009/sources/release-v2-event-handler.ts
-[Permission-schema]: ../../../.gimble/research/opencode/topic-010/sources/upstream-schema-permission.ts
-[Session-publisher]: ../../../.gimble/research/opencode/topic-010/sources/upstream-session-implementation.ts
-[Retry]: ../../../.gimble/research/opencode/topic-011/sources/upstream-retry.ts
-[Issue-sse]: ../../../.gimble/research/opencode/topic-012/sources/issue-46733-sse.json
-[Issue-status]: ../../../.gimble/research/opencode/topic-012/sources/issue-30043-status.json
-[Event-schema]: ../../../.gimble/research/opencode/topic-014/sources/opencode-v1.18.27-session-event.ts
-[Event-api]: ../../../.gimble/research/opencode/topic-014/sources/opencode-v1.18.27-event-api.ts
-[Event-core]: ../../../.gimble/research/opencode/topic-014/sources/opencode-v1.18.27-event.ts
-[Input-store]: ../../../.gimble/research/opencode/topic-014/sources/opencode-v1.18.27-input.ts
-[Coordinator]: ../../../.gimble/research/opencode/topic-014/sources/opencode-v1.18.27-run-coordinator.ts
-[Issue-busy]: ../../../.gimble/research/opencode/topic-014/sources/issue-46842.json
-[Validation-plan]: ../../../.gimble/research/opencode/topic-015/INDEX.md
-[Serve-test]: ../../../.gimble/research/opencode/topic-015/sources/opencode-v1.18.27-serve-process.test.ts
-[Auth-test]: ../../../.gimble/research/opencode/topic-015/sources/opencode-v1.18.27-httpapi-authorization.test.ts
-[Go-ref]: ../../../.gimble/research/opencode/go-sdk-check/ref.txt
-[Go-release]: ../../../.gimble/research/opencode/go-sdk-check/latest-release.json
-[Go-commit]: ../../../.gimble/research/opencode/go-sdk-check/main-commit.json
-[Go-readme]: ../../../.gimble/research/opencode/go-sdk-check/README.md
-[Go-module]: ../../../.gimble/research/opencode/go-sdk-check/go.mod
-[Go-session]: ../../../.gimble/research/opencode/go-sdk-check/session.go
-[Go-event]: ../../../.gimble/research/opencode/go-sdk-check/event.go
-[Go-api]: ../../../.gimble/research/opencode/go-sdk-check/api.md
+[Version]: ../../../.gimbal/research/opencode/topic-001/sources/installed-version.txt
+[Health]: ../../../.gimbal/research/opencode/topic-001/sources/installed-server-health.json
+[Tag]: ../../../.gimbal/research/opencode/topic-001/sources/upstream-tag-ref.txt
+[Package]: ../../../.gimbal/research/opencode/topic-001/sources/tag-opencode-package.json
+[Release]: ../../../.gimbal/research/opencode/topic-001/sources/release-v1.18.27.json
+[Version-source]: ../../../.gimbal/research/opencode/topic-001/sources/tag-version-source.ts
+[Harness]: ../../../.gimbal/research/opencode/topic-002/sources/harness.go
+[Godoc]: ../../../.gimbal/research/opencode/topic-002/sources/go-doc-all.txt
+[Events]: ../../../.gimbal/research/opencode/topic-002/sources/events.go
+[Session-runtime]: ../../../.gimbal/research/opencode/topic-002/sources/session.go
+[Persistence]: ../../../.gimbal/research/opencode/topic-002/sources/event-persistence.go
+[Binding]: ../../../.gimbal/research/opencode/topic-002/sources/model-binding.go
+[Codex]: ../../../.gimbal/research/opencode/topic-002/sources/codex-adapter.go
+[Codex-tests]: ../../../.gimbal/research/opencode/topic-002/sources/codex-tests.go
+[Claude]: ../../../.gimbal/research/opencode/topic-002/sources/claude-adapter.go
+[Claude-tests]: ../../../.gimbal/research/opencode/topic-002/sources/claude-tests.go
+[Agy]: ../../../.gimbal/research/opencode/topic-002/sources/antigravity-adapter.go
+[Agy-tests]: ../../../.gimbal/research/opencode/topic-002/sources/antigravity-tests.go
+[Run-help]: ../../../.gimbal/research/opencode/topic-003/sources/installed-opencode-run-help.txt
+[Run-source]: ../../../.gimbal/research/opencode/topic-003/sources/upstream-v1.18.27-cli-run.ts
+[CLI-types]: ../../../.gimbal/research/opencode/topic-003/sources/upstream-v1.18.27-generated-event-types.ts
+[CLI-docs]: ../../../.gimbal/research/opencode/topic-003/sources/official-cli-docs.html
+[CLI-empty]: ../../../.gimbal/research/opencode/topic-003/clips/run-format-json-no-message.status
+[CLI-empty-out]: ../../../.gimbal/research/opencode/topic-003/clips/run-format-json-no-message.stdout
+[CLI-empty-err]: ../../../.gimbal/research/opencode/topic-003/clips/run-format-json-no-message.stderr
+[Session-schema]: ../../../.gimbal/research/opencode/topic-004/sources/upstream-v1.18.27-session-schema.ts
+[Config]: ../../../.gimbal/research/opencode/topic-004/sources/upstream-v1.18.27-config.ts
+[Config-paths]: ../../../.gimbal/research/opencode/topic-004/sources/upstream-v1.18.27-config-paths.ts
+[Variant]: ../../../.gimbal/research/opencode/topic-004/sources/upstream-v1.18.27-variant-selection.ts
+[SDK-launcher]: ../../../.gimbal/research/opencode/topic-005/sources/upstream-v1.18.27-sdk-server.ts
+[Serve-help]: ../../../.gimbal/research/opencode/topic-006/sources/installed-serve-help.txt
+[Serve-source]: ../../../.gimbal/research/opencode/topic-006/sources/serve.ts
+[Server-source]: ../../../.gimbal/research/opencode/topic-006/sources/server.ts
+[Server-observation]: ../../../.gimbal/research/opencode/topic-006/sources/installed-server-observation.txt
+[Auth-observation]: ../../../.gimbal/research/opencode/topic-006/sources/installed-auth-observation.txt
+[Auth-source]: ../../../.gimbal/research/opencode/topic-006/sources/release-authorization-middleware.ts
+[Server-docs]: ../../../.gimbal/research/opencode/topic-006/sources/release-server-docs.mdx
+[Routes]: ../../../.gimbal/research/opencode/topic-007/sources/release-sdk-openapi.json
+[Installed-schema]: ../../../.gimbal/research/opencode/topic-007/sources/installed-openapi.json
+[Route-observation]: ../../../.gimbal/research/opencode/topic-007/sources/installed-session-route-observation.txt
+[Legacy-group]: ../../../.gimbal/research/opencode/topic-007/sources/release-session-group.ts
+[Legacy-handler]: ../../../.gimbal/research/opencode/topic-007/sources/release-session-handler.ts
+[Provider-group]: ../../../.gimbal/research/opencode/topic-007/sources/release-provider-group.ts
+[Config-group]: ../../../.gimbal/research/opencode/topic-007/sources/release-config-group.ts
+[Location]: ../../../.gimbal/research/opencode/topic-007/sources/release-location.ts
+[Session-location]: ../../../.gimbal/research/opencode/topic-007/sources/release-v2-session-location.ts
+[V2-session]: ../../../.gimbal/research/opencode/topic-008/sources/release-v2-session-group.ts
+[V2-handler]: ../../../.gimbal/research/opencode/topic-008/sources/release-v2-session-handler.ts
+[Permission-group]: ../../../.gimbal/research/opencode/topic-008/sources/release-permission-group.ts
+[Question-group]: ../../../.gimbal/research/opencode/topic-008/sources/release-question-group.ts
+[Permission-handler]: ../../../.gimbal/research/opencode/topic-008/sources/release-v2-permission-handler.ts
+[Question-handler]: ../../../.gimbal/research/opencode/topic-008/sources/release-v2-question-handler.ts
+[Legacy-events]: ../../../.gimbal/research/opencode/topic-009/sources/release-event-handler.ts
+[V2-events]: ../../../.gimbal/research/opencode/topic-009/sources/release-v2-event-handler.ts
+[Permission-schema]: ../../../.gimbal/research/opencode/topic-010/sources/upstream-schema-permission.ts
+[Session-publisher]: ../../../.gimbal/research/opencode/topic-010/sources/upstream-session-implementation.ts
+[Retry]: ../../../.gimbal/research/opencode/topic-011/sources/upstream-retry.ts
+[Issue-sse]: ../../../.gimbal/research/opencode/topic-012/sources/issue-46733-sse.json
+[Issue-status]: ../../../.gimbal/research/opencode/topic-012/sources/issue-30043-status.json
+[Event-schema]: ../../../.gimbal/research/opencode/topic-014/sources/opencode-v1.18.27-session-event.ts
+[Event-api]: ../../../.gimbal/research/opencode/topic-014/sources/opencode-v1.18.27-event-api.ts
+[Event-core]: ../../../.gimbal/research/opencode/topic-014/sources/opencode-v1.18.27-event.ts
+[Input-store]: ../../../.gimbal/research/opencode/topic-014/sources/opencode-v1.18.27-input.ts
+[Coordinator]: ../../../.gimbal/research/opencode/topic-014/sources/opencode-v1.18.27-run-coordinator.ts
+[Issue-busy]: ../../../.gimbal/research/opencode/topic-014/sources/issue-46842.json
+[Validation-plan]: ../../../.gimbal/research/opencode/topic-015/INDEX.md
+[Serve-test]: ../../../.gimbal/research/opencode/topic-015/sources/opencode-v1.18.27-serve-process.test.ts
+[Auth-test]: ../../../.gimbal/research/opencode/topic-015/sources/opencode-v1.18.27-httpapi-authorization.test.ts
+[Go-ref]: ../../../.gimbal/research/opencode/go-sdk-check/ref.txt
+[Go-release]: ../../../.gimbal/research/opencode/go-sdk-check/latest-release.json
+[Go-commit]: ../../../.gimbal/research/opencode/go-sdk-check/main-commit.json
+[Go-readme]: ../../../.gimbal/research/opencode/go-sdk-check/README.md
+[Go-module]: ../../../.gimbal/research/opencode/go-sdk-check/go.mod
+[Go-session]: ../../../.gimbal/research/opencode/go-sdk-check/session.go
+[Go-event]: ../../../.gimbal/research/opencode/go-sdk-check/event.go
+[Go-api]: ../../../.gimbal/research/opencode/go-sdk-check/api.md

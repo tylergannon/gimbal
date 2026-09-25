@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"time"
 
-	pkg_onzggl3sn52xizlt "github.com/tylergannon/gimble/internal/skgo/links/onzggl3sn52xizlt"
+	pkg_onzggl3sn52xizlt "github.com/tylergannon/gimbal/internal/skgo/links/onzggl3sn52xizlt"
 	devalue "github.com/tylergannon/polytype/devalue"
 )
 

@@ -2,7 +2,7 @@
 
 ### 1. HTTP and Unix Domain Socket (UDS) Transport Architecture
 
-Gimble's control socket uses a local Unix Domain Socket (UDS) located at `<instance-dir>/control/<pid>.sock`.
+Gimbal's control socket uses a local Unix Domain Socket (UDS) located at `<instance-dir>/control/<pid>.sock`.
 To connect over UDS without external libraries, the client configures a standard `http.Transport` with a custom `DialContext`:
 
 ```go
@@ -15,8 +15,8 @@ func NewControlTransport(socketPath string) http.RoundTripper {
 }
 ```
 
-- When dialing over UDS, the host portion of the request URL is arbitrary (e.g. `http://gimble/_app/remote/...` or `http://localhost/...`).
-- Project admission requests supply the canonical project directory, which for instance-scoped start remotes is passed in the request body (or via `X-Gimble-Project` header on control endpoints).
+- When dialing over UDS, the host portion of the request URL is arbitrary (e.g. `http://gimbal/_app/remote/...` or `http://localhost/...`).
+- Project admission requests supply the canonical project directory, which for instance-scoped start remotes is passed in the request body (or via `X-Gimbal-Project` header on control endpoints).
 
 ---
 
@@ -44,4 +44,4 @@ When a CLI client calls a workflow-start remote:
 #### B. No Automatic Mutation Retry
 - An HTTP mutation (such as starting a workflow) must never be automatically retried upon connection drop or timeout.
 - Retrying a start request when a response was lost in flight would risk admitting and starting duplicate workflow runs.
-- If the CLI encounters a network error, it must report the failure to the user, who can inspect existing runs via `gimble runs` or the web UI.
+- If the CLI encounters a network error, it must report the failure to the user, who can inspect existing runs via `gimbal runs` or the web UI.

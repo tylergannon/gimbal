@@ -40,7 +40,7 @@ Task-focused reference for choosing the synchronous or asynchronous Python clien
 
 ## Task recipes
 
-### Embed Jev in an async Gimble-side supervision service
+### Embed Jev in an async Gimbal-side supervision service
 
 1. Construct one `AsyncTypeSafeClient` for the service lifetime, explicitly setting model, HTTP timeout, and retry policy.
 2. Enter it with `async with` (or guarantee `aclose()` at service shutdown); do not inject an HTTP client that another subsystem expects to remain open.

@@ -77,7 +77,7 @@ When('I follow the About link', async ({ page }) => {
 
 Then('About is visible without a document reload', async ({ page, browserState }) => {
 	await expect(page).toHaveURL(/\/about$/);
-	await expect(page.getByTestId('title')).toHaveText('About Gimble');
+	await expect(page.getByTestId('title')).toHaveText('About Gimbal');
 	expect(browserState.documents).toBe(1);
 	expect(browserState.pageErrors).toEqual([]);
 });
@@ -87,7 +87,7 @@ When('I load the About route directly', async ({ page }) => {
 });
 
 Then('About is visible in a new document', async ({ page, browserState }) => {
-	await expect(page.getByTestId('title')).toHaveText('About Gimble');
+	await expect(page.getByTestId('title')).toHaveText('About Gimbal');
 	expect(browserState.documents).toBe(2);
 	expect(browserState.pageErrors).toEqual([]);
 });

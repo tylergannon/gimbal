@@ -84,7 +84,7 @@
 </script>
 
 <svelte:head>
-  <title>Conversations — Gimble</title>
+  <title>Conversations — Gimbal</title>
   <meta
     name="description"
     content="Provider-selected agent conversations in real Git worktrees."

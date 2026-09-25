@@ -2,7 +2,7 @@
 
 ## Problem and impact
 
-A real `validate-product` run advanced past its evaluator while the evaluator was waiting for a background shell command. Claude's tool explicitly promised a completion notification. Opus returned a waiting message expecting to continue; Gimble's `Generate` returned that message as a successful completed turn. The immediately following same-session debrief returned an empty string with no error and no recorded assistant/tool activity. The workflow closed the browser, performed synthesis, and exited 0 while the delegated target workflow was still running.
+A real `validate-product` run advanced past its evaluator while the evaluator was waiting for a background shell command. Claude's tool explicitly promised a completion notification. Opus returned a waiting message expecting to continue; Gimbal's `Generate` returned that message as a successful completed turn. The immediately following same-session debrief returned an empty string with no error and no recorded assistant/tool activity. The workflow closed the browser, performed synthesis, and exited 0 while the delegated target workflow was still running.
 
 This interrupted a real implementation-to-PR user journey: no evaluator acceptance exercise, no PR, and no UX/UI debrief. Treat this as a significant provider/session lifecycle issue to investigate, not just an inadequate prompt. The precise fault boundary (Claude CLI/SDK, adapter stream handling, or workflow expectations) is not yet established.
 
@@ -10,7 +10,7 @@ This interrupted a real implementation-to-PR user journey: no evaluator acceptan
 
 2026-09-20, times below in America/Costa_Rica (UTC-6):
 
-1. **09:14:26** — Opus starts `gimble run implement` through Claude's shell tool with `run_in_background: true` and explores the run's live web UI.
+1. **09:14:26** — Opus starts `gimbal run implement` through Claude's shell tool with `run_in_background: true` and explores the run's live web UI.
 2. The shell tool returns a background task ID and output-file path, followed by:
    > You will be notified when it completes. To check interim output, use Read on that file path.
 3. **09:19:23** — Opus starts another background command waiting for coding completion. Its tool response makes the same notification promise.
@@ -29,7 +29,7 @@ No outer-agent steering, rescue, or restart occurred.
 
 ## Environment and evidence
 
-- Gimble build: `a41c8b7e6e2d4289dfcdf6c15c1fb99a75a22ee7`, unmodified installed build copied for the trial.
+- Gimbal build: `a41c8b7e6e2d4289dfcdf6c15c1fb99a75a22ee7`, unmodified installed build copied for the trial.
 - Evaluator: `claude-opus-5:high`; all four target implementation roles: `claude-sonnet-5:high`.
 - Screenshot reviewer: `gemini-3.8-flash-medium`; triage: `gpt-6-astra:high`.
 - Harness run: `01M2ZP2XFPPJKZT5B09RPHB0F8.validate-product`.
@@ -39,17 +39,17 @@ No outer-agent steering, rescue, or restart occurred.
 
 Local-only evidence on the reporter's machine (not hosted attachments):
 
-- Suite and assignment: `/private/tmp/gimble-drag-drop-eval/suite.json`, `/private/tmp/gimble-drag-drop-eval/assignment.md`.
-- Harness store: `/private/tmp/gimble-drag-drop-eval/observer/.gimble/runs/01M2ZP2XFPPJKZT5B09RPHB0F8.validate-product/` — `turns.json` contains both return values; `sessions/user-testing.1/tester1.1/product-operation.1.jsonl` contains the tool notification promises and normalized events.
-- Reports, 13 captioned screenshots and finalized video: `/private/tmp/gimble-drag-drop-eval/results/user-testing-2103216338/`.
-- Target store: `/private/tmp/scrabbler-drag-drop-eval/.gimble/runs/01M2ZP40HF2KA2A89563C0KET0.implement/`.
+- Suite and assignment: `/private/tmp/gimbal-drag-drop-eval/suite.json`, `/private/tmp/gimbal-drag-drop-eval/assignment.md`.
+- Harness store: `/private/tmp/gimbal-drag-drop-eval/observer/.gimbal/runs/01M2ZP2XFPPJKZT5B09RPHB0F8.validate-product/` — `turns.json` contains both return values; `sessions/user-testing.1/tester1.1/product-operation.1.jsonl` contains the tool notification promises and normalized events.
+- Reports, 13 captioned screenshots and finalized video: `/private/tmp/gimbal-drag-drop-eval/results/user-testing-2103216338/`.
+- Target store: `/private/tmp/scrabbler-drag-drop-eval/.gimbal/runs/01M2ZP40HF2KA2A89563C0KET0.implement/`.
 
 ## Investigation and expected behavior
 
 Establish the native provider contract before prescribing a repair:
 
 - Does Claude intentionally end a foreground turn while background tasks remain, and how are subsequent task notifications delivered and generation resumed in SDK/headless use?
-- Does Gimble consume, discard, or misassociate those notifications and result events? Explain the empty successful second `Generate`, including which native result belongs to which submitted prompt.
+- Does Gimbal consume, discard, or misassociate those notifications and result events? Explain the empty successful second `Generate`, including which native result belongs to which submitted prompt.
 - Compare Codex using the same minimal workload. In the reporter's current Codex desktop tool surface, a yielded `exec_command` returns a `session_id`; the agent retrieves completion via `write_stdin`. A fresh two-second shell probe confirmed that shape and returned no prose promise of automatic notification. This does **not** establish every Codex adapter behavior or prove that Codex lacks asynchronous events. Its app-server documents output notifications: https://learn.chatgpt.com/docs/app-server#command-execution . Transport notifications and automatic model resumption are separate questions.
 - Verify behavior for intentional long-lived service commands too; do not solve this by blindly waiting for every background process to exit.
 

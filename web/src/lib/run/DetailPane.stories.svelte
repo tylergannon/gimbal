@@ -36,13 +36,13 @@
   if (!commandScope || !commandRuntime || !scopeSelection || !loopSelection) {
     throw new Error("detail story selections are incomplete");
   }
-  commandRuntime.stdout = "built web application\n… 72 KiB omitted …\nbuilt bin/gimble\n";
+  commandRuntime.stdout = "built web application\n… 72 KiB omitted …\nbuilt bin/gimbal\n";
   commandRuntime.stderr = "warning: fixture uses a development source map\n";
   commandRuntime.stdout_file = "artifacts/commands/build.1/stdout.log";
   commandRuntime.stderr_file = "artifacts/commands/build.1/stderr.log";
 
   const { Story } = defineMeta({
-    title: "Gimble/Run/Detail pane",
+    title: "Gimbal/Run/Detail pane",
     component: DetailPane,
     parameters: { layout: "fullscreen" },
   });

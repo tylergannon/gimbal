@@ -3,7 +3,7 @@
 Use this route before treating the Go-program direction as implemented. It
 connects the proposal to the normative JSON graph specification.
 
-- [Gimble's direction](../../sources/direction.md): explicit scope and status
+- [Gimbal's direction](../../sources/direction.md): explicit scope and status
   of the proposal.
 - [Workflows as programs](../../sources/workflows-as-programs.md): implementation
   record saying the Go runtime is not on `main`.

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { Check, Copy } from "@lucide/svelte";
 
-  const command = "git clone https://github.com/tylergannon/gimble && cd gimble && just build";
+  const command = "git clone https://github.com/tylergannon/gimbal && cd gimbal && just build";
   let copied = $state(false);
 
   async function copy() {

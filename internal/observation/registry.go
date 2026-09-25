@@ -9,7 +9,7 @@ import (
 )
 
 // Registry is a project's runs: the one the web runtime puts in the context
-// it serves from. gimble.Run finds it there, so there is no global map, and a
+// it serves from. gimbal.Run finds it there, so there is no global map, and a
 // run started without the web runtime simply does not find one.
 //
 // A run stays in the map after it finishes, so it is answered from memory

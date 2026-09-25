@@ -39,5 +39,5 @@ This leaf isolates the HTTP failures most likely to be transient—429 and 5xx�
 
 - **Avoid retry multiplication:** configure retry policy in one layer, treat the surfaced `RateLimitError`/`InternalServerError` as exhausted under that layer, and permit any workflow-level retry only from a separately bounded budget. The post-retry contract is [TypeSafeClient](https://docs.typesafe.ai/sdk/javascript/api/classes/TypeSafeClient.md).
 - **Honor a usable server delay:** when workflow policy allows another attempt, schedule it no earlier than a valid `retryAfterMs`; otherwise use the documented retry-policy fallback rather than inventing an unbounded wait. Start at [RateLimitError](https://docs.typesafe.ai/sdk/javascript/api/classes/RateLimitError.md).
-- **Degrade supervision without hiding failure:** record status, request ID, retry hint, and fallback route; then skip intervention or invoke the configured generative/human lane according to the Gimble workflow’s risk policy.
+- **Degrade supervision without hiding failure:** record status, request ID, retry hint, and fallback route; then skip intervention or invoke the configured generative/human lane according to the Gimbal workflow’s risk policy.
 

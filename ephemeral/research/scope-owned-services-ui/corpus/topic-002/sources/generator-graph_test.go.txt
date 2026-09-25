@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/tylergannon/gimble/internal/generate"
-	"github.com/tylergannon/gimble/workflow"
+	"github.com/tylergannon/gimbal/internal/generate"
+	"github.com/tylergannon/gimbal/workflow"
 )
 
 // TestControlFlowGraph reads a compact workflow fixture and checks the main
@@ -196,7 +196,7 @@ func TestFixtureGraph(t *testing.T) {
 		t.Errorf("nothing is added to a group whose identifier was reassigned, got %+v", one.Children)
 	}
 
-	// A Gimble call inside another call's arguments is a diagnostic, not a node.
+	// A Gimbal call inside another call's arguments is a diagnostic, not a node.
 	if _, ok := find[workflow.Session](g.Body, func(s workflow.Session) bool { return s.Name == "inner" }); ok {
 		t.Error("a session created inside another call's arguments is a diagnostic, not a node")
 	}
@@ -226,7 +226,7 @@ func TestFixtureGraph(t *testing.T) {
 		"Go on a group declared outside this body is not read",
 		"a group reassigned after its declaration is not read",
 		"Go is called on something that is not a group",
-		"a Gimble call nested in a Gimble call's arguments is not read",
+		"a Gimbal call nested in a Gimbal call's arguments is not read",
 	}
 	if len(g.Diagnostics) != sites {
 		t.Fatalf("the fixture has %d diagnostics, want %d: %v", len(g.Diagnostics), sites, g.Diagnostics)
@@ -262,15 +262,15 @@ func TestSourceWritesTheWorkflowsPackage(t *testing.T) {
 	for _, want := range []string{
 		"//go:build !jsonschema",
 		"\npackage fixture\n",
-		"func init() { gimble.RegisterGraph(Graph) }",
+		"func init() { gimbal.RegisterGraph(Graph) }",
 		"var Graph = workflow.Graph{",
-		"func Command(defaults map[gimble.WorkflowRole]string) *cobra.Command {",
+		"func Command(defaults map[gimbal.WorkflowRole]string) *cobra.Command {",
 		`Use:   "fixture",`,
 		`cmd.Flags().StringVar(&workDir, "work-dir", ".", "the working directory for this run")`,
-		`leadModelDefault := defaults[gimble.WorkflowRole("lead")]`,
+		`leadModelDefault := defaults[gimbal.WorkflowRole("lead")]`,
 		`if leadModelDefault == "" {`,
 		`advanced override for role lead`,
-		`env := gimble.Env{WorkDir: workDir}`,
+		`env := gimbal.Env{WorkDir: workDir}`,
 		`return Fixture(ctx, env) })`,
 	} {
 		if !strings.Contains(string(written), want) {
@@ -313,7 +313,7 @@ func TestGeneratedCommandUsesCentralizedRoleDefaults(t *testing.T) {
 	if strings.Contains(text, "roles[") {
 		t.Fatalf("generated command still reads workflow roles")
 	}
-	for _, want := range []string{`leadModelDefault := defaults[gimble.WorkflowRole("lead")]`, `if leadModelDefault == ""`, `advanced override for role lead`, `omit this flag to use the displayed workflow default`, `gimble.WorkflowRole("lead"): leadModel`} {
+	for _, want := range []string{`leadModelDefault := defaults[gimbal.WorkflowRole("lead")]`, `if leadModelDefault == ""`, `advanced override for role lead`, `omit this flag to use the displayed workflow default`, `gimbal.WorkflowRole("lead"): leadModel`} {
 		if !strings.Contains(text, want) {
 			t.Errorf("generated command lacks %q", want)
 		}
@@ -322,14 +322,14 @@ func TestGeneratedCommandUsesCentralizedRoleDefaults(t *testing.T) {
 
 func TestGeneratedEntryRequiresEnv(t *testing.T) {
 	_, err := generate.Extract("testdata/fixture", "MissingEnv", "missing-env")
-	if err == nil || !strings.Contains(err.Error(), "second parameter is not gimble.Env") {
+	if err == nil || !strings.Contains(err.Error(), "second parameter is not gimbal.Env") {
 		t.Fatalf("Extract MissingEnv error = %v", err)
 	}
 }
 
 func TestWorkflowParamsCannotClaimWorkDir(t *testing.T) {
 	err := generate.Source("testdata/fixture", "HasWorkDirParams", "has-work-dir-params", filepath.Join(t.TempDir(), "workflow_gen.go"))
-	if err == nil || !strings.Contains(err.Error(), "parameter field WorkDir would be --work-dir, which is the Gimble environment's") {
+	if err == nil || !strings.Contains(err.Error(), "parameter field WorkDir would be --work-dir, which is the Gimbal environment's") {
 		t.Fatalf("Source HasWorkDirParams error = %v", err)
 	}
 }

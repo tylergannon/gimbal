@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/tylergannon/gimble/workflow"
+	"github.com/tylergannon/gimbal/workflow"
 )
 
 func TestVerifyResearchFloor(t *testing.T) {

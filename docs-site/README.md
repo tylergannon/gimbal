@@ -1,7 +1,7 @@
-# Gimble documentation site
+# Gimbal documentation site
 
 This standalone SvelteKit application builds the static documentation published
-to GitHub Pages. It is separate from the live Gimble application in `../web`.
+to GitHub Pages. It is separate from the live Gimbal application in `../web`.
 
 ```sh
 pnpm install
@@ -9,12 +9,12 @@ pnpm run check
 pnpm run build
 ```
 
-Set `BASE_PATH=/gimble` when building for the project Pages URL.
+Set `BASE_PATH=/gimbal` when building for the project Pages URL.
 
 ## How the site is put together
 
 The plan is `../docs/design/docs-site-plan.md`. The landing page is a poster:
-what Gimble is, what is in the box, and how to get it, above the fold.
+what Gimbal is, what is in the box, and how to get it, above the fold.
 
 - `src/lib/site.ts` is the one home for the headline, the feature list, the
   primitives, and the docs nav. The landing page, header, sidebar, and footer
@@ -31,7 +31,7 @@ what Gimble is, what is in the box, and how to get it, above the fold.
   poster in that directory. `static/og.png` is the 1200x630 link card built
   from the same run.
 
-Still by hand, and meant to be generated: the `gimble run --help` listing in
+Still by hand, and meant to be generated: the `gimbal run --help` listing in
 `RunHelp.svx`, the condensed workflow in `LoopCode.svx`, and the captures,
 which should come from a fixture run in `../e2e`.
 

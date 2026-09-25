@@ -15,7 +15,7 @@ To recreate this project with the same configuration:
 
 ```sh
 # recreate this project
-npx sv@1.0.0-next.7 create --template minimal --types ts --add vitest="usages:unit,component" @skgo/sv@0.5.0="starter:minimal+adapter:0.5.0+name:gimble" --no-download-check --no-install web
+npx sv@1.0.0-next.7 create --template minimal --types ts --add vitest="usages:unit,component" @skgo/sv@0.5.0="starter:minimal+adapter:0.5.0+name:gimbal" --no-download-check --no-install web
 ```
 
 ## Developing

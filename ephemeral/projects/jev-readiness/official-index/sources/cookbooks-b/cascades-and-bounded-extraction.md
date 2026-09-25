@@ -48,7 +48,7 @@ This leaf covers two ways to avoid asking Jev to generate values: select verbati
 ### Verify an agent claim before accepting completion
 
 1. Treat the agent's claimed result as the cheap extraction and collect the exact tool outputs/test evidence as source.
-2. Keep deterministic checks—exit codes, file existence, JSON schema, counts—in Gimble code.
+2. Keep deterministic checks—exit codes, file existence, JSON schema, counts—in Gimbal code.
 3. Ask per-claim Nouls for unsupported, off-target, incomplete, and contradicted evidence, framing “something is wrong” as true.
 4. Escalate if any material check crosses its calibrated threshold; do not average it with unrelated passing checks. Follow [sde_cascade](https://docs.typesafe.ai/cookbooks/sde_cascade.md).
 5. Send only flagged claims and evidence to an expensive reviewer.

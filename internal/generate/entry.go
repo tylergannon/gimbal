@@ -30,7 +30,7 @@ type field struct {
 }
 
 // describe reads the entry's signature, its doc, and its parameters' fields.
-// An entry takes a ctx, gimble.Env, and at most one workflow parameter struct
+// An entry takes a ctx, gimbal.Env, and at most one workflow parameter struct
 // from its own package.
 func describe(pkg *packages.Package, decl *ast.FuncDecl) (entryInfo, error) {
 	info := entryInfo{summary: (&doc.Package{}).Synopsis(decl.Doc.Text()), long: packageDoc(pkg)}
@@ -39,8 +39,8 @@ func describe(pkg *packages.Package, decl *ast.FuncDecl) (entryInfo, error) {
 		return info, fmt.Errorf("generate: %s has no type", decl.Name.Name)
 	}
 	params := fn.Type().(*types.Signature).Params()
-	if params.Len() < 2 || !isGimbleEnv(params.At(1).Type()) {
-		return info, fmt.Errorf("generate: %s's second parameter is not gimble.Env", decl.Name.Name)
+	if params.Len() < 2 || !isGimbalEnv(params.At(1).Type()) {
+		return info, fmt.Errorf("generate: %s's second parameter is not gimbal.Env", decl.Name.Name)
 	}
 	switch params.Len() {
 	case 2:
@@ -58,13 +58,13 @@ func describe(pkg *packages.Package, decl *ast.FuncDecl) (entryInfo, error) {
 		info.fields = fields
 		return info, nil
 	default:
-		return info, fmt.Errorf("generate: %s takes %d parameters; an entry takes a ctx, gimble.Env, and at most one parameter struct", decl.Name.Name, params.Len())
+		return info, fmt.Errorf("generate: %s takes %d parameters; an entry takes a ctx, gimbal.Env, and at most one parameter struct", decl.Name.Name, params.Len())
 	}
 }
 
-func isGimbleEnv(t types.Type) bool {
+func isGimbalEnv(t types.Type) bool {
 	named, ok := t.(*types.Named)
-	return ok && named.Obj().Pkg() != nil && named.Obj().Pkg().Path() == gimblePath && named.Obj().Name() == "Env"
+	return ok && named.Obj().Pkg() != nil && named.Obj().Pkg().Path() == gimbalPath && named.Obj().Name() == "Env"
 }
 
 func packageDoc(pkg *packages.Package) string {

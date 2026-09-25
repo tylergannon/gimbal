@@ -9,17 +9,17 @@ algorithms; the recovered POC was sequential.
 ## Key concepts
 
 - Tyler's pseudocode-first request and ordinary-Go starting point:
-  `ephemeral/projects/gimble/programmatic-workflows/CONCURRENCY-SHAPES.md:1-21`.
+  `ephemeral/projects/gimbal/programmatic-workflows/CONCURRENCY-SHAPES.md:1-21`.
 - Shared-proposal critique, adjudication, revision, and competing-draft variant:
-  `ephemeral/projects/gimble/programmatic-workflows/CONCURRENCY-SHAPES.md:23-74`.
+  `ephemeral/projects/gimbal/programmatic-workflows/CONCURRENCY-SHAPES.md:23-74`.
 - Isolated bake-off trials, failed candidates as data, joining, and explicit
   selection separate from integration:
-  `ephemeral/projects/gimble/programmatic-workflows/CONCURRENCY-SHAPES.md:76-115`.
+  `ephemeral/projects/gimbal/programmatic-workflows/CONCURRENCY-SHAPES.md:76-115`.
 - Scoped context, native call identity, workspace isolation, observation,
   and the POC's cancellation/serialization limitations:
-  `ephemeral/projects/gimble/programmatic-workflows/CONCURRENCY-SHAPES.md:117-136`.
+  `ephemeral/projects/gimbal/programmatic-workflows/CONCURRENCY-SHAPES.md:117-136`.
 - Historical comparison to Temporal/Genkit and the proposed next implementation:
-  `ephemeral/projects/gimble/programmatic-workflows/CONCURRENCY-SHAPES.md:138-172`.
+  `ephemeral/projects/gimbal/programmatic-workflows/CONCURRENCY-SHAPES.md:138-172`.
 
 ## Retrieval recipes
 

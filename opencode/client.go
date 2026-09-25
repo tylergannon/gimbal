@@ -1,4 +1,4 @@
-// Package opencode manages Gimble's shared OpenCode server and speaks the
+// Package opencode manages Gimbal's shared OpenCode server and speaks the
 // small legacy HTTP surface needed by the OpenCode harness.
 package opencode
 
@@ -56,7 +56,7 @@ type SessionModel struct {
 	Variant    *string `json:"variant,omitempty"`
 }
 
-// PromptInput is the text-only inline request body used by the Gimble adapter.
+// PromptInput is the text-only inline request body used by the Gimbal adapter.
 // OutputFormat and TextPartInput are generated from their upstream components.
 type PromptInput struct {
 	MessageID *string          `json:"messageID,omitempty"`

@@ -1,4 +1,4 @@
 correction: Dynamic fan-out is intentionally excluded to keep workflows simple and sane; use a fixed visible group and have planning partition work across its named lanes.
-correction: A document author should call `gimble count-tokens FILE` while editing instead of requiring an outer re-prompt loop solely to meet the token budget.
+correction: A document author should call `gimbal count-tokens FILE` while editing instead of requiring an outer re-prompt loop solely to meet the token budget.
 decision: Pyramid summaries halve a configurable largest token budget until the next level would be under 100 tokens; six fixed lanes handle the smallest derived levels and a Promise Loop handles any remaining upper derived levels.
 friction: Repeated full live workflow runs made validation needlessly slow after the orchestration behavior was already visible -> reserve additional live runs for material runtime uncertainty and use focused generation and package tests for subsequent prompt-only refinements.

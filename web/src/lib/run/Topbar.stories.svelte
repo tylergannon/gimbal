@@ -4,7 +4,7 @@
   import { implementInterviewFixture, mismatchedHistoryFixture } from "./fixtures/index.js";
 
   const { Story } = defineMeta({
-    title: "Gimble/Run/Topbar",
+    title: "Gimbal/Run/Topbar",
     component: Topbar,
     parameters: { layout: "fullscreen" },
   });

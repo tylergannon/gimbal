@@ -1,4 +1,4 @@
-package gimble
+package gimbal
 
 import (
 	"context"
@@ -61,7 +61,7 @@ func WithSupervisor(session *Session, instruction string, opts ...AgentOption) A
 // tmpl is the template's text, and like the prompt it must be readable from
 // the source: a compile-time string constant, or a variable the embed
 // directive fills from a file, which a long template reads better as.
-// GIMBLE109 checks that. Gimble parses each text once and keeps it; a
+// GIMBAL109 checks that. Gimbal parses each text once and keeps it; a
 // template that cannot be parsed or cannot render is the error Generate
 // returns, before any model is called.
 //
@@ -441,7 +441,7 @@ func (t *transcript) since(reader, maxBytes int) transcriptBatch {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if reader < 0 || reader >= len(t.readers) {
-		panic("gimble: invalid supervisor transcript reader")
+		panic("gimbal: invalid supervisor transcript reader")
 	}
 	cursor := t.readers[reader]
 	first := len(t.entries)
@@ -499,7 +499,7 @@ func (t *transcript) look(reader int, sup supervisor, prompt string, first bool,
 		b.WriteString(line)
 	}
 	if b.Len() > supervisorLookBytes {
-		panic("gimble: supervisor look exceeded its byte budget")
+		panic("gimbal: supervisor look exceeded its byte budget")
 	}
 	return b.String()
 }

@@ -3,7 +3,7 @@
 ## Entrypoint and scope
 
 This is the author-facing routing entry point for the local corpus supporting a
-narrow report on static, scope-owned services in Gimble. Read the synthesis
+narrow report on static, scope-owned services in Gimbal. Read the synthesis
 below first; follow the route links for evidence. Citations are local paths
 relative to this file. The corpus is eight topic indexes (`topic-001` through
 `topic-008`); those indexes route to copied primary documentation, source, and
@@ -18,7 +18,7 @@ The required fact is declaration ownership: the root graph body owns a root
 static service declaration in its reusable body, not one node per runtime item.
 Keep each constant call-site `Name` and `Source{File, Line}`. The current
 contract and exclusions are in [issue #284](topic-001/sources/issue-284.md#L9),
-the #276 boundary and API naming rules in [Gimble API evidence](topic-001/sources/gimble-api.md#L972),
+the #276 boundary and API naming rules in [Gimbal API evidence](topic-001/sources/gimbal-api.md#L972),
 and the lifetime distinction in [service tests](topic-001/sources/service_test.go.txt#L18).
 
 The minimal static shape supported by the evidence is a `Services []Service`
@@ -42,11 +42,11 @@ when evaluating containment, folding, accessibility, or responsive layout.
 
 These four are the recommended comparison set; do not expand it into a catalog.
 
-| Precedent | Ownership / nesting | Non-step signal and Gimble use |
+| Precedent | Ownership / nesting | Non-step signal and Gimbal use |
 |---|---|---|
 | [Pulumi parent](topic-007/sources/pulumi-parent.md#L7) | Explicit parent plus implicit root; arbitrary nested tree. | Borrow containment and stable author-facing paths; omit lifecycle inheritance. |
 | [Kubernetes owner references](topic-007/sources/kubernetes-owner-references.md#L9) | Explicit owner name/UID; dependents can nest or share an owner. | Ownership metadata is separate from steps; omit garbage collection/controllers. |
-| [GitHub Actions services](topic-007/sources/github-actions-docker-services.md#L16) | Named `services` belong to one job beside its steps. | Closest resource-collection layout; preserve Gimble’s source identity and no teardown semantics. |
+| [GitHub Actions services](topic-007/sources/github-actions-docker-services.md#L16) | Named `services` belong to one job beside its steps. | Closest resource-collection layout; preserve Gimbal’s source identity and no teardown semantics. |
 | [Docker Compose services](topic-007/sources/docker-compose-services.md#L8) | Named top-level service map. | Separate from commands; `depends_on` proves edges are optional and out of scope. |
 
 For details on the comparison and its five implementation risks, use
@@ -63,7 +63,7 @@ is useful only as a semantic contrast, not as a runtime model.
 - [Web rendering patterns](topic-006/INDEX.md): React Flow and Svelte Flow
   parent containment plus GitHub’s job/service distinction; retain the longer
   [web clip](topic-006/clips/web-rendering-evidence.md).
-- [Current Gimble seams](topic-002/INDEX.md): generated Go/TypeScript parity,
+- [Current Gimbal seams](topic-002/INDEX.md): generated Go/TypeScript parity,
   scope sheets, selection, and existing tests. Generated artifacts must be
   regenerated, not hand-edited.
 

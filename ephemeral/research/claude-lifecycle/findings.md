@@ -43,7 +43,7 @@ probe reported the task's failure, then returned a successful model result.
 The host needs the assignment's meaning to decide whether that failure is
 fatal, recoverable, expected, or irrelevant.
 
-Gimble currently ends the process at step 2. Its next call resumes conversation
+Gimbal currently ends the process at step 2. Its next call resumes conversation
 history in a new process. The observed new process emits a stopped/orphan-task
 notification and an empty successful notification-originated result before the
 actual prompt answer. Selecting the first result therefore both loses the
@@ -125,7 +125,7 @@ completion contract.
 Waiting and automatic resumption do not require changing the schema. One fixed
 schema can express waiting, completed, and failed for the entire assignment.
 The compatibility question arises only when successive Generate[T] calls in
-one Gimble session request different result types: today each call starts a
+one Gimbal session request different result types: today each call starts a
 new process configured for that type. A persistent process removes that
 implicit schema boundary.
 
@@ -146,7 +146,7 @@ stay alive across differently typed calls:
 
 - A fixed native schema for a session whose tasks genuinely share a result type.
 - One stable native envelope containing assignment identity, waiting/completed/
-  failed state, and a payload; Gimble validates the payload against the caller's
+  failed state, and a payload; Gimbal validates the payload against the caller's
   requested type. This retains native envelope validation but changes where the
   caller's exact type is enforced. Waiting/failure variants must not fabricate
   fields of a completed result.
@@ -165,7 +165,7 @@ tears down its transport. Closing stdin signals input exhaustion; it is not a
 way to tell Claude to wait. The transport's shutdown grace concerns the top-level
 process and is not a guarantee about every descendant.
 
-If delivery to an application/UI disconnects while Gimble still owns the native
+If delivery to an application/UI disconnects while Gimbal still owns the native
 process, keep consuming into the existing local store and replay what was
 actually retained to the downstream consumer. Exactly which additional native
 fields or events need retaining is an implementation decision; this does not
@@ -205,7 +205,7 @@ or compatibility across other Claude versions and models. The next useful
 experiment is a bounded prototype of the chosen completion and schema policy,
 including task failure, service survival, cancellation, and late notifications.
 
-The literature corpus is local at /private/tmp/gimble-317-literature/corpus/.
+The literature corpus is local at /private/tmp/gimbal-317-literature/corpus/.
 It contains synthesized source extracts and clips, not a complete mirror of the
 originals. Use the cited primary URLs and actual probe captures for exact text
 or wire-byte claims.

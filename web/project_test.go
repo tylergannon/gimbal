@@ -4,7 +4,7 @@ import (
 	"context"
 	"path/filepath"
 
-	"github.com/tylergannon/gimble/internal/host"
+	"github.com/tylergannon/gimbal/internal/host"
 )
 
 func newProject(ctx context.Context, dir string, opts ...Option) (*Instance, *host.Project, error) {
@@ -12,7 +12,7 @@ func newProject(ctx context.Context, dir string, opts ...Option) (*Instance, *ho
 	if err != nil {
 		return nil, nil, err
 	}
-	instance, err := NewInstance(ctx, filepath.Join(path, ".gimble"), []string{path}, opts...)
+	instance, err := NewInstance(ctx, filepath.Join(path, ".gimbal"), []string{path}, opts...)
 	if err != nil {
 		return nil, nil, err
 	}

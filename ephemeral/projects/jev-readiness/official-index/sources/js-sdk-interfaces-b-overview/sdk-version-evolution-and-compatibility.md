@@ -49,5 +49,5 @@ This leaf records the JavaScript SDK’s baseline runtime/package contract, publ
 
 1. **Audit an integration:** record installed package version, Node version, module mode, Score criteria shape, and generated-doc source tag before attributing runtime behavior to the docs.
 2. **Migrate v0.5.7 Score code:** replace integer-keyed criteria objects with explicit ordered arrays/sequences; add tests that assert level order, legend order, and expected-score interpretation.
-3. **Pin and probe:** pin an exact SDK version for reproducible Gimble experiments; run compile and mock-transport contract tests before upgrading.
+3. **Pin and probe:** pin an exact SDK version for reproducible Gimbal experiments; run compile and mock-transport contract tests before upgrading.
 4. **Separate compatibility axes:** test TypeScript source compatibility, emitted module loading (ESM/CJS), HTTP payload shape, and behavioral/model drift independently.

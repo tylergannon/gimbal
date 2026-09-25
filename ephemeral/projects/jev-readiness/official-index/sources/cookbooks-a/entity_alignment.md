@@ -42,6 +42,6 @@ This cookbook routes 450 candidate entity pairs using one three-level Jev `Score
 
 ## Task recipes
 
-1. **Three-level intervention score:** write observable criteria for `no coaching needed`, `ambiguous/collect more evidence`, and `coaching warranted`; round Jev Score to the corresponding route; keep intervention consequences in Gimble code.
+1. **Three-level intervention score:** write observable criteria for `no coaching needed`, `ambiguous/collect more evidence`, and `coaching warranted`; round Jev Score to the corresponding route; keep intervention consequences in Gimbal code.
 2. **Add diagnostic Nouls:** in the same request ask whether the run is making progress, repeating, ignoring evidence, blocked on external input, or violating scope; show these only to the curator/supervisor for middle cases.
 3. **Prove safety before automation:** label a representative run corpus, measure false-intervention and missed-intervention rates at both Score cut points, prioritize examples near the action boundary, and use Score confidence only as an additional review-priority signal after calibration.

@@ -54,8 +54,8 @@
 
     <div class="min-w-0">
       <figure class="frame overflow-hidden">
-        <div class="frame-bar"><i></i><i></i><i></i><span>Gimble · real evaluator run</span></div>
-        <video controls playsinline preload="metadata" poster={asset("shots/evaluator-poster.png")} class="block aspect-video w-full bg-black" aria-label="An evaluator using Gimble to implement and test game persistence">
+        <div class="frame-bar"><i></i><i></i><i></i><span>Gimbal · real evaluator run</span></div>
+        <video controls playsinline preload="metadata" poster={asset("shots/evaluator-poster.png")} class="block aspect-video w-full bg-black" aria-label="An evaluator using Gimbal to implement and test game persistence">
           <source src={asset("videos/validate-product-demo.mp4")} type="video/mp4" />
           Your browser does not support embedded video.
         </video>
@@ -156,7 +156,7 @@
       <div>
         <p class="eyebrow mb-4">Any harness</p>
         <h2 class="font-serif text-3xl leading-[1.08] font-medium tracking-[-0.03em]">Codex, Claude Code, Antigravity, or yours.</h2>
-        <p class="text-muted-foreground mt-4 leading-7">Gimble drives coding-agent harnesses; it does not replace them. An adapter is five methods, and one run can mix harnesses by role.</p>
+        <p class="text-muted-foreground mt-4 leading-7">Gimbal drives coding-agent harnesses; it does not replace them. An adapter is five methods, and one run can mix harnesses by role.</p>
         <div class="frame code mt-6">
           <div class="frame-bar"><i></i><i></i><i></i><span>harness.go</span></div>
           <AdapterCode />

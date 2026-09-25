@@ -43,12 +43,12 @@ This leaf covers two bounded control patterns: compiling natural-language reques
 
 ## Task recipes
 
-### Route a Gimble supervision intervention through a closed action set
+### Route a Gimbal supervision intervention through a closed action set
 
 1. Define ordinary actions such as `send_template`, `request_evidence`, `pause_for_user`, `escalate_reviewer`, and `do_nothing`.
 2. Derive Choice options from those names; use separate Nouls for whether intervention is warranted and whether optional parameters were actually present.
 3. Compute composite confidence as the weakest required judgment, and do not execute below a risk-adjusted threshold. Start from [function_calling](https://docs.typesafe.ai/cookbooks/function_calling.md).
-4. Validate exact parameter schemas, permissions, budgets, and side-effect safety in Gimble code before execution.
+4. Validate exact parameter schemas, permissions, budgets, and side-effect safety in Gimbal code before execution.
 
 ### Add two-sided supervision checks
 

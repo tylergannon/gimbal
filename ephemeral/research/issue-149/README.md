@@ -29,7 +29,7 @@ and validate the port against it. The files that matter:
   what each provider's raw usage means. `nonCachedInputTokens` is the fresh
   part of the prompt; `visibleOutputTokens` excludes reasoning.
 
-Gimble's ported reducers are `internal/sessionstate` (Go) and
+Gimbal's ported reducers are `internal/sessionstate` (Go) and
 `web/src/lib/sessionstate` (TS). Both already fold `session.usage.updated`
 into session info by setting `cost` and `tokens`.
 

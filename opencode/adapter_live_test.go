@@ -12,24 +12,24 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tylergannon/gimble"
+	"github.com/tylergannon/gimbal"
 )
 
 // TestLiveAdapterContract exercises the installed OpenCode legacy API through
 // the real adapter. It owns an isolated server state directory and workdirs.
 //
-//	GIMBLE_OPENCODE_LIVE=1 go test ./opencode -run TestLiveAdapterContract -v
+//	GIMBAL_OPENCODE_LIVE=1 go test ./opencode -run TestLiveAdapterContract -v
 func TestLiveAdapterContract(t *testing.T) {
-	if os.Getenv("GIMBLE_OPENCODE_LIVE") != "1" {
-		t.Skip("set GIMBLE_OPENCODE_LIVE=1 to exercise the installed OpenCode adapter")
+	if os.Getenv("GIMBAL_OPENCODE_LIVE") != "1" {
+		t.Skip("set GIMBAL_OPENCODE_LIVE=1 to exercise the installed OpenCode adapter")
 	}
-	model := strings.TrimSpace(os.Getenv("GIMBLE_OPENCODE_LIVE_MODEL"))
+	model := strings.TrimSpace(os.Getenv("GIMBAL_OPENCODE_LIVE_MODEL"))
 	if model == "" {
 		model = "ling-3.0-flash-fin-free"
 	}
 	t.Logf("OpenCode provider/model: opencode/%s", model)
 
-	stateDir := strings.TrimSpace(os.Getenv("GIMBLE_OPENCODE_LIVE_STATE_DIR"))
+	stateDir := strings.TrimSpace(os.Getenv("GIMBAL_OPENCODE_LIVE_STATE_DIR"))
 	if stateDir == "" {
 		stateDir = filepath.Join(t.TempDir(), "state")
 	} else {
@@ -114,7 +114,7 @@ func TestLiveAdapterContract(t *testing.T) {
 			wait.Go(func() {
 				ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 				defer cancel()
-				result, err := ad.RunTurn(ctx, sessions[index], "Reply exactly "+contents[index], nil, func(event gimble.AgentEvent) error {
+				result, err := ad.RunTurn(ctx, sessions[index], "Reply exactly "+contents[index], nil, func(event gimbal.AgentEvent) error {
 					var data struct {
 						SessionID string `json:"sessionID"`
 					}
@@ -157,7 +157,7 @@ func TestLiveAdapterContract(t *testing.T) {
 		defer func() { _ = ad.Close(context.Background(), steerSession) }()
 		started := make(chan struct{}, 1)
 		steered := make(chan struct {
-			result gimble.TurnResult
+			result gimbal.TurnResult
 			err    error
 		}, 1)
 		go func() {
@@ -165,7 +165,7 @@ func TestLiveAdapterContract(t *testing.T) {
 			defer cancel()
 			result, err := ad.RunTurn(ctx, steerSession, "Use the shell tool to run sleep 20, then reply TOO_LATE.", nil, toolStarted(started))
 			steered <- struct {
-				result gimble.TurnResult
+				result gimbal.TurnResult
 				err    error
 			}{result, err}
 		}()
@@ -234,7 +234,7 @@ func liveCreateSession(t *testing.T, ad *adapter, model, workdir string) string 
 	return id
 }
 
-func liveTurn(t *testing.T, ad *adapter, sessionID, prompt string, schema json.RawMessage, onEvent func(gimble.AgentEvent) error) gimble.TurnResult {
+func liveTurn(t *testing.T, ad *adapter, sessionID, prompt string, schema json.RawMessage, onEvent func(gimbal.AgentEvent) error) gimbal.TurnResult {
 	t.Helper()
 	ctx := liveContext(t)
 	result, err := ad.RunTurn(ctx, sessionID, prompt, schema, onEvent)
@@ -260,9 +260,9 @@ func decodeLiveText(t *testing.T, raw json.RawMessage) string {
 	return text
 }
 
-func toolStarted(signal chan<- struct{}) func(gimble.AgentEvent) error {
+func toolStarted(signal chan<- struct{}) func(gimbal.AgentEvent) error {
 	var once sync.Once
-	return func(event gimble.AgentEvent) error {
+	return func(event gimbal.AgentEvent) error {
 		if event.Type == "session.tool.called" {
 			once.Do(func() { signal <- struct{}{} })
 		}

@@ -1,12 +1,12 @@
 // Package builtin holds the build-time selection and default role models for
-// workflows shipped in the Gimble binary.
+// workflows shipped in the Gimbal binary.
 package builtin
 
 import (
 	_ "embed"
 	"encoding/json"
 
-	"github.com/tylergannon/gimble"
+	"github.com/tylergannon/gimbal"
 )
 
 type Workflow struct {
@@ -27,8 +27,8 @@ var Workflows = []Workflow{
 //go:embed defaults.json
 var defaultsJSON []byte
 
-func Defaults() map[gimble.WorkflowRole]string {
-	var defaults map[gimble.WorkflowRole]string
+func Defaults() map[gimbal.WorkflowRole]string {
+	var defaults map[gimbal.WorkflowRole]string
 	if err := json.Unmarshal(defaultsJSON, &defaults); err != nil {
 		panic(err)
 	}

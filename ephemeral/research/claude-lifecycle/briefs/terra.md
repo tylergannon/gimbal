@@ -1,6 +1,6 @@
 # Terra: persistent listening, recovery, and final structured output
 
-Read /Users/tyler/.codex/worktrees/286c/gimble/ephemeral/research/claude-lifecycle/briefs/common.md.
+Read /Users/tyler/.codex/worktrees/286c/gimbal/ephemeral/research/claude-lifecycle/briefs/common.md.
 
 Independently evaluate waiting versus authoritative completion, concentrating
 on session lifetime, continuation ownership, and recovering a final structured
@@ -17,8 +17,8 @@ failure, cancellation, scope teardown, and any current HarnessAdapter event
 callback constraints that materially limit the approach. No product edits.
 
 Write research notes to:
-/Users/tyler/.codex/worktrees/286c/gimble/ephemeral/research/claude-lifecycle/terra-lifecycle.md
-Use /private/tmp/gimble-317-terra/ for scratch programs, downloads, and captures.
+/Users/tyler/.codex/worktrees/286c/gimbal/ephemeral/research/claude-lifecycle/terra-lifecycle.md
+Use /private/tmp/gimbal-317-terra/ for scratch programs, downloads, and captures.
 
 Make your final answer state the smallest viable lifetime/completion contract,
 the data-loss boundaries, structured-result handling, concrete evidence, and

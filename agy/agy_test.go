@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tylergannon/gimble"
+	"github.com/tylergannon/gimbal"
 )
 
 func TestAdapterCreatesResumesStructuresAndTranslates(t *testing.T) {
@@ -28,8 +28,8 @@ func TestAdapterCreatesResumesStructuresAndTranslates(t *testing.T) {
 		t.Fatalf("adapter session ID = %q", sessionID)
 	}
 
-	var events []gimble.AgentEvent
-	raw, err := adapter.RunTurn(t.Context(), sessionID, "STRUCTURED", json.RawMessage(`{"type":"object"}`), func(event gimble.AgentEvent) error {
+	var events []gimbal.AgentEvent
+	raw, err := adapter.RunTurn(t.Context(), sessionID, "STRUCTURED", json.RawMessage(`{"type":"object"}`), func(event gimbal.AgentEvent) error {
 		events = append(events, event)
 		return nil
 	})
@@ -49,7 +49,7 @@ func TestAdapterCreatesResumesStructuresAndTranslates(t *testing.T) {
 	if nativeRef["sessionID"] != "conversation-test" {
 		t.Fatalf("native session provenance = %#v", nativeRef)
 	}
-	text, err := adapter.RunTurn(t.Context(), sessionID, "TEXT", nil, func(gimble.AgentEvent) error { return nil })
+	text, err := adapter.RunTurn(t.Context(), sessionID, "TEXT", nil, func(gimbal.AgentEvent) error { return nil })
 	if err != nil || string(text.Output) != `"OK"` {
 		t.Fatalf("text result=%s error=%v", text.Output, err)
 	}
@@ -74,10 +74,10 @@ func TestAdapterSteerInterruptsAndResumesInsideTurn(t *testing.T) {
 		t.Fatal(err)
 	}
 	done := make(chan struct{})
-	var raw gimble.TurnResult
+	var raw gimbal.TurnResult
 	var runErr error
 	go func() {
-		raw, runErr = adapter.RunTurn(context.Background(), sessionID, "WAIT", nil, func(gimble.AgentEvent) error { return nil })
+		raw, runErr = adapter.RunTurn(context.Background(), sessionID, "WAIT", nil, func(gimbal.AgentEvent) error { return nil })
 		close(done)
 	}()
 	waitInvocations(t, record, 1)
@@ -109,7 +109,7 @@ func TestAdapterCancellationAfterStdoutClosesStillInterruptsProcess(t *testing.T
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() {
-		_, err := adapter.RunTurn(ctx, sessionID, "CLOSE_STDOUT", nil, func(gimble.AgentEvent) error { return nil })
+		_, err := adapter.RunTurn(ctx, sessionID, "CLOSE_STDOUT", nil, func(gimbal.AgentEvent) error { return nil })
 		done <- err
 	}()
 	waitInvocations(t, record, 1)
@@ -133,7 +133,7 @@ func TestAdapterPropagatesObserverFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 	boom := errors.New("observer stopped")
-	_, err = adapter.RunTurn(t.Context(), sessionID, "TEXT", nil, func(gimble.AgentEvent) error { return boom })
+	_, err = adapter.RunTurn(t.Context(), sessionID, "TEXT", nil, func(gimbal.AgentEvent) error { return boom })
 	if !errors.Is(err, boom) {
 		t.Fatalf("RunTurn error = %v", err)
 	}
@@ -146,10 +146,10 @@ func TestAdapterTreatsResultAsTerminalWhenProcessStaysAlive(t *testing.T) {
 		t.Fatal(err)
 	}
 	done := make(chan struct{})
-	var result gimble.TurnResult
+	var result gimbal.TurnResult
 	var runErr error
 	go func() {
-		result, runErr = adapter.RunTurn(context.Background(), sessionID, "RESULT_THEN_WAIT", nil, func(gimble.AgentEvent) error { return nil })
+		result, runErr = adapter.RunTurn(context.Background(), sessionID, "RESULT_THEN_WAIT", nil, func(gimbal.AgentEvent) error { return nil })
 		close(done)
 	}()
 	select {
@@ -168,8 +168,8 @@ func TestAdapterAcceptsSuccessfulResultWithUnsettledToolObservation(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	var events []gimble.AgentEvent
-	result, err := adapter.RunTurn(t.Context(), sessionID, "UNSETTLED_TOOL", nil, func(event gimble.AgentEvent) error {
+	var events []gimbal.AgentEvent
+	result, err := adapter.RunTurn(t.Context(), sessionID, "UNSETTLED_TOOL", nil, func(event gimbal.AgentEvent) error {
 		events = append(events, event)
 		return nil
 	})
@@ -334,7 +334,7 @@ func TestEffortReachesTheProcess(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if _, err := adapter.RunTurn(t.Context(), sessionID, "hello", nil, func(gimble.AgentEvent) error { return nil }); err != nil {
+			if _, err := adapter.RunTurn(t.Context(), sessionID, "hello", nil, func(gimbal.AgentEvent) error { return nil }); err != nil {
 				t.Fatal(err)
 			}
 			invocations := readInvocations(t, record)

@@ -1,6 +1,6 @@
 # Source: web/control.go - Asynchronous Run Decoupling and Project Control Isolation
 
-- **Origin**: `/Users/tyler/.codex/worktrees/d798/gimble/web/control.go`
+- **Origin**: `/Users/tyler/.codex/worktrees/d798/gimbal/web/control.go`
 - **Commit**: `40dc82947eed99202fd9cb1dd377b6a3c2abbccc`
 - **Retrieval Date**: 2026-09-23
 - **Scope**: Submission goroutine spawning, `conversationRunStartedKey` synchronization, detached execution, and project-scoped run listing (`controlRuns`).
@@ -15,7 +15,7 @@
 	done := make(chan error, 1)
 	go func() {
 		done <- p.Run(ctx, request.Name, models, func(ctx context.Context) error {
-			return entry(ctx, gimble.Env{WorkDir: request.WorkDir}, request.Params)
+			return entry(ctx, gimbal.Env{WorkDir: request.WorkDir}, request.Params)
 		})
 	}()
 	var id string

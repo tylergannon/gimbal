@@ -1,4 +1,4 @@
-package gimble
+package gimbal
 
 import (
 	"encoding/json"
@@ -115,7 +115,7 @@ func (r *run) recordFailure(operation string, err error) {
 	r.errMu.Lock()
 	defer r.errMu.Unlock()
 	if r.recordErr == nil {
-		r.recordErr = fmt.Errorf("gimble: record: %s: %w", operation, err)
+		r.recordErr = fmt.Errorf("gimbal: record: %s: %w", operation, err)
 	}
 }
 

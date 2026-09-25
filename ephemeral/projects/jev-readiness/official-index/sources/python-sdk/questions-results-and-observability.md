@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Reference for translating supervision state and decision batteries into Python SDK inputs, consuming primitive-specific answers without conflating their meanings, and retaining model/usage/request metadata for Gimble evaluation and audit trails.
+Reference for translating supervision state and decision batteries into Python SDK inputs, consuming primitive-specific answers without conflating their meanings, and retaining model/usage/request metadata for Gimbal evaluation and audit trails.
 
 ## Key concepts
 
@@ -36,7 +36,7 @@ Reference for translating supervision state and decision batteries into Python S
 - A `Score` value is an expectation, not necessarily one of the rubric's integer indices. Code that casts it to an enum or integer changes its meaning. [[responses](https://docs.typesafe.ai/sdk/python/api/types/responses.md)]
 - Choice probabilities sum only approximately to 1; avoid exact floating-point equality checks. [[responses](https://docs.typesafe.ai/sdk/python/api/types/responses.md)]
 - Question instructions are optional in the Python models, and criteria descriptions may be `None`. Type validity therefore does not imply a sufficiently specified semantic question. [[questions](https://docs.typesafe.ai/sdk/python/api/types/questions.md)] [[questions](https://docs.typesafe.ai/sdk/python/api/types/questions.md)]
-- Typed response models are frozen. Build a separate Gimble decision/event object instead of trying to annotate the returned model in place. [[responses](https://docs.typesafe.ai/sdk/python/api/types/responses.md)]
+- Typed response models are frozen. Build a separate Gimbal decision/event object instead of trying to annotate the returned model in place. [[responses](https://docs.typesafe.ai/sdk/python/api/types/responses.md)]
 - Extra recognized-response fields are ignored and unknown answer kinds may be omitted from typed views; retaining raw response bytes is the only documented way to preserve the complete forward-version payload. [[usage](https://docs.typesafe.ai/sdk/python/usage.md)]
 
 ## Task recipes
@@ -48,7 +48,7 @@ Reference for translating supervision state and decision batteries into Python S
 3. Give every question a durable name suitable for metrics and specify descriptions for every ambiguous outcome/label/level.
 4. Record the whole answer distribution, not only the winner, so thresholds can later be recalibrated.
 
-### Convert a response into an auditable Gimble event
+### Convert a response into an auditable Gimbal event
 
 1. Iterate `result.answers` and branch on each answer's `type`; use filtered `nouls`, `choices`, and `scores` only for convenience.
 2. Preserve Noul probability or Choice/Score confidence plus distribution without normalizing them into an invented common confidence.

@@ -10,9 +10,9 @@ import (
 	"strconv"
 	"time"
 
-	pkg_conversation "github.com/tylergannon/gimble/internal/conversation"
-	pkg_onzggl3sn52xizlt "github.com/tylergannon/gimble/internal/skgo/links/onzggl3sn52xizlt"
-	pkg_src "github.com/tylergannon/gimble/web/src"
+	pkg_conversation "github.com/tylergannon/gimbal/internal/conversation"
+	pkg_onzggl3sn52xizlt "github.com/tylergannon/gimbal/internal/skgo/links/onzggl3sn52xizlt"
+	pkg_src "github.com/tylergannon/gimbal/web/src"
 	devalue "github.com/tylergannon/polytype/devalue"
 )
 

@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/tylergannon/gimble"
-	"github.com/tylergannon/gimble/internal/observation"
+	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/internal/observation"
 )
 
 func TestDirectRunStillPanicsAfterRecordingFailure(t *testing.T) {
@@ -20,7 +20,7 @@ func TestDirectRunStillPanicsAfterRecordingFailure(t *testing.T) {
 	}{
 		{"direct-root", "root exploded", func(context.Context) error { panic("root exploded") }},
 		{"direct-group", "child exploded", func(ctx context.Context) error {
-			group := gimble.Group(ctx, "children")
+			group := gimbal.Group(ctx, "children")
 			group.Go("child", func(context.Context) error { panic("child exploded") })
 			return group.Wait()
 		}},
@@ -28,7 +28,7 @@ func TestDirectRunStillPanicsAfterRecordingFailure(t *testing.T) {
 		var recovered any
 		func() {
 			defer func() { recovered = recover() }()
-			_ = gimble.Run(gimble.Project(t.Context(), project), tc.name, nil, tc.body)
+			_ = gimbal.Run(gimbal.Project(t.Context(), project), tc.name, nil, tc.body)
 		}()
 		if recovered == nil || !strings.Contains(fmt.Sprint(recovered), tc.panicText) {
 			t.Fatalf("direct %s panic = %v", tc.name, recovered)

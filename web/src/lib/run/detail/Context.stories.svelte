@@ -17,7 +17,7 @@
 	};
 
 	const { Story } = defineMeta({
-		title: 'Gimble/Run/Detail/Prompt and context',
+		title: 'Gimbal/Run/Detail/Prompt and context',
 		tags: ['autodocs']
 	});
 </script>

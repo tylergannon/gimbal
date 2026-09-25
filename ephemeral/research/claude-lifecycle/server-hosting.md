@@ -36,7 +36,7 @@ inspection of the distributed executable, not a live multi-session benchmark.
 
 Remote Control is documented for Claude web/mobile clients through Anthropic's
 backend. No supported local general-purpose session RPC interface usable as a
-Gimble replacement was established. The native `--sdk-url` validation explicitly
+Gimbal replacement was established. The native `--sdk-url` validation explicitly
 reserves that transport for Remote Control workers connecting to Anthropic's
 backend; do not assume it is a general local WebSocket endpoint.
 

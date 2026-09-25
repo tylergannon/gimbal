@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-// GIMBLE_CODEX_DEBUG_DIR enables a private JSONL file per connection. Each
+// GIMBAL_CODEX_DEBUG_DIR enables a private JSONL file per connection. Each
 // received WebSocket frame is recorded before decoding or routing, including
 // unknown and malformed messages. Data is a string so invalid JSON survives.
 // These files can contain sensitive prompts and tool output; keep them local.
@@ -18,21 +18,21 @@ type rawRecorder struct {
 }
 
 func openRawRecorder() *rawRecorder {
-	dir := os.Getenv("GIMBLE_CODEX_DEBUG_DIR")
+	dir := os.Getenv("GIMBAL_CODEX_DEBUG_DIR")
 	if dir == "" {
 		return nil
 	}
 	if err := os.MkdirAll(dir, 0o700); err != nil {
-		log.Printf("gimble: Codex debug capture unavailable: %v", err)
+		log.Printf("gimbal: Codex debug capture unavailable: %v", err)
 		return nil
 	}
 	file, err := os.CreateTemp(dir, "codex-*.jsonl")
 	if err != nil {
-		log.Printf("gimble: Codex debug capture unavailable: %v", err)
+		log.Printf("gimbal: Codex debug capture unavailable: %v", err)
 		return nil
 	}
 	path, _ := filepath.Abs(file.Name())
-	log.Printf("gimble: raw Codex events: %s (sensitive; do not commit)", path)
+	log.Printf("gimbal: raw Codex events: %s (sensitive; do not commit)", path)
 	return &rawRecorder{file: file}
 }
 
@@ -48,7 +48,7 @@ func (r *rawRecorder) record(data []byte) {
 		Data string    `json:"data"`
 	}{r.seq, time.Now().UTC(), string(data)})
 	if err != nil {
-		log.Printf("gimble: Codex debug capture stopped: %v", err)
+		log.Printf("gimbal: Codex debug capture stopped: %v", err)
 		r.close()
 	}
 }

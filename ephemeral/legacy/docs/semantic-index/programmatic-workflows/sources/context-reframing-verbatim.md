@@ -1,4 +1,4 @@
-# Source leaf: `ephemeral/projects/gimble/programmatic-workflows/CONTEXT-REFRAMING-VERBATIM.md`
+# Source leaf: `ephemeral/projects/gimbal/programmatic-workflows/CONTEXT-REFRAMING-VERBATIM.md`
 
 ## Purpose
 
@@ -9,13 +9,13 @@ on-disk concern.
 ## Key concepts
 
 - The framing begins from an evolving semantic-index entry point:
-  `ephemeral/projects/gimble/programmatic-workflows/CONTEXT-REFRAMING-VERBATIM.md:1-12`.
+  `ephemeral/projects/gimbal/programmatic-workflows/CONTEXT-REFRAMING-VERBATIM.md:1-12`.
 - Optimize the agent's objective clarity and rapid pathfinding to needed
-  information: `ephemeral/projects/gimble/programmatic-workflows/CONTEXT-REFRAMING-VERBATIM.md:14-32`.
+  information: `ephemeral/projects/gimbal/programmatic-workflows/CONTEXT-REFRAMING-VERBATIM.md:14-32`.
 - Unified context should include goal, rules, means, requirements, runtime
-  state, and searchable index material: `ephemeral/projects/gimble/programmatic-workflows/CONTEXT-REFRAMING-VERBATIM.md:49-61`.
+  state, and searchable index material: `ephemeral/projects/gimbal/programmatic-workflows/CONTEXT-REFRAMING-VERBATIM.md:49-61`.
 - Responsibility is intentionally divided across builders, checkers, and
-  supervisors across space and time: `ephemeral/projects/gimble/programmatic-workflows/CONTEXT-REFRAMING-VERBATIM.md:63-71`.
+  supervisors across space and time: `ephemeral/projects/gimbal/programmatic-workflows/CONTEXT-REFRAMING-VERBATIM.md:63-71`.
 
 ## Retrieval recipes
 

@@ -12,7 +12,7 @@ import (
 
 	jsonschema "github.com/santhosh-tekuri/jsonschema/v6"
 	claudeagent "github.com/tylergannon/claude-agent-sdk-go"
-	"github.com/tylergannon/gimble"
+	"github.com/tylergannon/gimbal"
 )
 
 type scriptedTurnStream struct {
@@ -98,7 +98,7 @@ func TestWaitTurnRejectsMissingTextPayload(t *testing.T) {
 	if json.Valid(out) {
 		t.Fatalf("missing payload became valid JSON %s", out)
 	}
-	if err := (gimble.Text("")).ValidateJSON(out); err == nil {
+	if err := (gimbal.Text("")).ValidateJSON(out); err == nil {
 		t.Fatal("missing payload became a successful empty Text")
 	}
 }
@@ -296,29 +296,29 @@ func (a *retryAdapter) Close(context.Context, string) error          { return ni
 func (a *retryAdapter) Steer(context.Context, string, string) (bool, error) {
 	return false, nil
 }
-func (a *retryAdapter) RunTurn(_ context.Context, _ string, prompt string, _ json.RawMessage, _ func(gimble.AgentEvent) error) (gimble.TurnResult, error) {
+func (a *retryAdapter) RunTurn(_ context.Context, _ string, prompt string, _ json.RawMessage, _ func(gimbal.AgentEvent) error) (gimbal.TurnResult, error) {
 	a.calls++
 	a.prompts = append(a.prompts, prompt)
 	if a.calls == 1 {
 		_, _, valid := completionValue(map[string]any{"state": "completed", "value": "wrong", "unexpected": true})
 		if valid {
-			return gimble.TurnResult{}, errors.New("malformed Claude envelope was accepted")
+			return gimbal.TurnResult{}, errors.New("malformed Claude envelope was accepted")
 		}
-		return gimble.TurnResult{Output: invalidCompletion}, nil
+		return gimbal.TurnResult{Output: invalidCompletion}, nil
 	}
-	return gimble.TurnResult{Output: json.RawMessage(`"recovered"`)}, nil
+	return gimbal.TurnResult{Output: json.RawMessage(`"recovered"`)}, nil
 }
 
 func TestMalformedCompletionUsesGenerateValidationRetry(t *testing.T) {
 	adapter := &retryAdapter{}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	ctx = gimble.Project(ctx, t.TempDir())
-	err := gimble.Run(ctx, "claude-completion-retry", map[gimble.WorkflowRole]gimble.ModelBinding{
+	ctx = gimbal.Project(ctx, t.TempDir())
+	err := gimbal.Run(ctx, "claude-completion-retry", map[gimbal.WorkflowRole]gimbal.ModelBinding{
 		"worker": {Adapter: adapter, Model: "test"},
 	}, func(ctx context.Context) error {
-		worker := gimble.NewSession(ctx, "worker", t.TempDir())
-		got, err := worker.Generate[gimble.Text](ctx, "answer")
+		worker := gimbal.NewSession(ctx, "worker", t.TempDir())
+		got, err := worker.Generate[gimbal.Text](ctx, "answer")
 		if err != nil {
 			return err
 		}

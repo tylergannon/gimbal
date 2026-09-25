@@ -30,7 +30,7 @@ const darwinOpenMax = 65536
 // only as a fallback after it fails.
 //
 // It never reports an error: a daemon that starts with the original,
-// smaller limit is still better than one gimble refused to start over a
+// smaller limit is still better than one gimbal refused to start over a
 // housekeeping call. connect() calls this unconditionally right before
 // `daemon start`; a daemon that is already running is never touched.
 func raiseFileDescriptorLimit() {

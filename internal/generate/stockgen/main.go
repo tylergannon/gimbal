@@ -4,7 +4,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/tylergannon/gimble/internal/generate"
+	"github.com/tylergannon/gimbal/internal/generate"
 )
 
 func main() {

@@ -8,14 +8,14 @@ so the index can reach actual code without relying on a temporary checkout.
 ## Key concepts
 
 - Historical revision, import path, and inspection-only status:
-  `ephemeral/projects/gimble/programmatic-workflows/POC-WORKFLOWS.md:1-7`.
+  `ephemeral/projects/gimbal/programmatic-workflows/POC-WORKFLOWS.md:1-7`.
 - Sprint entrypoint and ordinary nested chapter iteration:
-  `ephemeral/projects/gimble/programmatic-workflows/POC-WORKFLOWS.md:19-47`.
+  `ephemeral/projects/gimbal/programmatic-workflows/POC-WORKFLOWS.md:19-47`.
 - Delivery's plan, critique, update, then work-ledger sequence:
-  `ephemeral/projects/gimble/programmatic-workflows/POC-WORKFLOWS.md:49-65`.
+  `ephemeral/projects/gimbal/programmatic-workflows/POC-WORKFLOWS.md:49-65`.
 - `program.Loop` iterator, validation callback, and explicit material-defect
   repair/review loop:
-  `ephemeral/projects/gimble/programmatic-workflows/POC-WORKFLOWS.md:67-97`.
+  `ephemeral/projects/gimbal/programmatic-workflows/POC-WORKFLOWS.md:67-97`.
 
 ## Retrieval recipes
 

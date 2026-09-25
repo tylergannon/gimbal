@@ -18,7 +18,7 @@ type helperResult struct {
 }
 
 func TestOpenCodeProcessHelper(t *testing.T) {
-	if os.Getenv("GIMBLE_OPENCODE_TEST_HELPER") != "1" {
+	if os.Getenv("GIMBAL_OPENCODE_TEST_HELPER") != "1" {
 		return
 	}
 	args := os.Args
@@ -48,8 +48,8 @@ func TestOpenCodeProcessHelper(t *testing.T) {
 }
 
 func TestLiveSharedServerLifecycle(t *testing.T) {
-	if os.Getenv("GIMBLE_OPENCODE_LIVE") != "1" {
-		t.Skip("set GIMBLE_OPENCODE_LIVE=1 to exercise the installed OpenCode server")
+	if os.Getenv("GIMBAL_OPENCODE_LIVE") != "1" {
+		t.Skip("set GIMBAL_OPENCODE_LIVE=1 to exercise the installed OpenCode server")
 	}
 	if _, err := exec.LookPath("opencode"); err != nil {
 		t.Skip("opencode is not installed")
@@ -77,7 +77,7 @@ func TestLiveSharedServerLifecycle(t *testing.T) {
 	for index, workdir := range workdirs {
 		commands[index] = exec.Command(executable, "-test.run=^TestOpenCodeProcessHelper$", "--", stateDir, workdir)
 		commands[index].Dir = workdir
-		commands[index].Env = append(os.Environ(), "GIMBLE_OPENCODE_TEST_HELPER=1")
+		commands[index].Env = append(os.Environ(), "GIMBAL_OPENCODE_TEST_HELPER=1")
 		commands[index].Stdout = &outputs[index]
 		commands[index].Stderr = &errorsOutput[index]
 		if err := commands[index].Start(); err != nil {

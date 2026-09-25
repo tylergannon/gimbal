@@ -17,8 +17,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/tylergannon/gimble"
-	"github.com/tylergannon/gimble/internal/observation"
+	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/internal/observation"
 )
 
 const (
@@ -72,12 +72,12 @@ type NewConversation struct {
 	Model    string
 }
 
-// AdapterFactory resolves a provider name to its existing Gimble harness.
-type AdapterFactory func(string) (gimble.HarnessAdapter, error)
+// AdapterFactory resolves a provider name to its existing Gimbal harness.
+type AdapterFactory func(string) (gimbal.HarnessAdapter, error)
 
 type activeConversation struct {
 	turnMu  sync.Mutex
-	adapter gimble.HarnessAdapter
+	adapter gimbal.HarnessAdapter
 	session string
 	resume  bool
 }
@@ -201,7 +201,7 @@ func (m *Manager) Create(ctx context.Context, in NewConversation) (Conversation,
 	if err != nil {
 		return Conversation{}, fmt.Errorf("conversation: create id: %w", err)
 	}
-	branch := "gimble/conversation-" + id[:12]
+	branch := "gimbal/conversation-" + id[:12]
 	worktree := filepath.Join(m.projectDir, "conversation-worktrees", id)
 	if err := os.MkdirAll(filepath.Dir(worktree), 0o755); err != nil {
 		return Conversation{}, fmt.Errorf("conversation: create worktree directory: %w", err)
@@ -412,7 +412,7 @@ func (m *Manager) Send(id, text string) (Conversation, error) {
 		}
 	}
 	prompt := fmt.Sprintf(conversationPrompt, m.cli, m.instanceDir, m.project, worktree, id) + text
-	result, err := active.adapter.RunTurn(m.ctx, active.session, prompt, conversationReplySchema, func(gimble.AgentEvent) error { return nil })
+	result, err := active.adapter.RunTurn(m.ctx, active.session, prompt, conversationReplySchema, func(gimbal.AgentEvent) error { return nil })
 	if err != nil {
 		return m.fail(item, err)
 	}
@@ -584,9 +584,9 @@ type conversationReply struct {
 	Message string `json:"message"`
 }
 
-const conversationPrompt = `You are the agent in a Gimble conversation. Work in the conversation worktree and reply to the person's message.
+const conversationPrompt = `You are the agent in a Gimbal conversation. Work in the conversation worktree and reply to the person's message.
 
-For an ordinary chat request, answer without launching a workflow. When the person asks you to run a built-in workflow, invoke the ordinary Gimble CLI yourself. The executable is %q. Use its "run" help to choose the workflow and flags. Always pass --instance-dir %q, --project %q, --work-dir %q, and --conversation %q. The project owns observation and saved history; the worktree is only the execution directory. For a review use "run review --goal ...". For an implementation use "run implement --outcomes-file ..." with a local outcomes file. The CLI prints the accepted run ID. Do not infer acceptance from your own prose; report what the CLI actually said. You may omit --follow; the server records the run's terminal status independently.
+For an ordinary chat request, answer without launching a workflow. When the person asks you to run a built-in workflow, invoke the ordinary Gimbal CLI yourself. The executable is %q. Use its "run" help to choose the workflow and flags. Always pass --instance-dir %q, --project %q, --work-dir %q, and --conversation %q. The project owns observation and saved history; the worktree is only the execution directory. For a review use "run review --goal ...". For an implementation use "run implement --outcomes-file ..." with a local outcomes file. The CLI prints the accepted run ID. Do not infer acceptance from your own prose; report what the CLI actually said. You may omit --follow; the server records the run's terminal status independently.
 
 Return only the message requested by the schema.
 

@@ -120,7 +120,7 @@
   }
 
   const { Story } = defineMeta({
-    title: "Gimble/Run/Sheet",
+    title: "Gimbal/Run/Sheet",
     component: Sheet,
     parameters: { layout: "centered" },
   });

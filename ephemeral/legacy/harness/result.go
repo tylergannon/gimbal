@@ -10,7 +10,7 @@ import (
 	jsonschema "github.com/santhosh-tekuri/jsonschema/v6"
 )
 
-const outputSchemaURL = "urn:gimble:harness:output-schema"
+const outputSchemaURL = "urn:gimbal:harness:output-schema"
 
 // ResultValidator validates native harness output against one caller-supplied
 // JSON Schema.

@@ -23,7 +23,7 @@
 	] });
 
 	const { Story } = defineMeta({
-		title: 'Gimble/Run/Detail/Payload',
+		title: 'Gimbal/Run/Detail/Payload',
 		component: Payload,
 		tags: ['autodocs']
 	});

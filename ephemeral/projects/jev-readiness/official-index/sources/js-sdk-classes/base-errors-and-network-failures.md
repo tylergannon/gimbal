@@ -29,13 +29,13 @@ This leaf captures the non-HTTP-status side of the JavaScript SDK error hierarch
 ## Gotchas
 
 - Catching `APIConnectionError` also catches `APITimeoutError`; test the timeout subtype first when metrics or fallback policy differs.
-- Caller abort is not a server or connectivity fault. Treating it as retryable can revive work the owning Gimble run intentionally cancelled.
+- Caller abort is not a server or connectivity fault. Treating it as retryable can revive work the owning Gimbal run intentionally cancelled.
 - A response-body connection failure can occur after a request reached the server; although the Jev operation is decision-only, retry accounting should still distinguish it from pre-connect DNS/TLS failure.
 - These class pages do not specify retryability, retry counts, or whether the SDK wraps every platform `AbortError`; only the resulting SDK class meanings are documented.
 
 ## Task recipes
 
 - **Implement operational classification:** handle `APIUserAbortError` as expected cancellation; `APITimeoutError` as budget exhaustion; other `APIConnectionError` instances as delivery failures; `APIError` separately as an HTTP response. Start with the hierarchy at [TypeSafeError](https://docs.typesafe.ai/sdk/javascript/api/classes/TypeSafeError.md).
-- **Cancel with run ownership:** attach a Gimble run/node lifecycle `AbortSignal` to the call and suppress automated retry or escalation after an intentional abort. The documented cancellation class is [APIUserAbortError](https://docs.typesafe.ai/sdk/javascript/api/classes/APIUserAbortError.md).
+- **Cancel with run ownership:** attach a Gimbal run/node lifecycle `AbortSignal` to the call and suppress automated retry or escalation after an intentional abort. The documented cancellation class is [APIUserAbortError](https://docs.typesafe.ai/sdk/javascript/api/classes/APIUserAbortError.md).
 - **Measure timeout correctly:** record `timeoutMs` and attempt count separately; the client’s timeout is per attempt and `APITimeoutError` means the full body missed that boundary. Start at [APITimeoutError](https://docs.typesafe.ai/sdk/javascript/api/classes/APITimeoutError.md).
 

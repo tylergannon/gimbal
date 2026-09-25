@@ -1,4 +1,4 @@
-package gimble
+package gimbal
 
 //go:generate go run ./internal/rolerefgen
 

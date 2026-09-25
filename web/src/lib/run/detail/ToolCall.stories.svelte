@@ -92,7 +92,7 @@
 	};
 
 	const { Story } = defineMeta({
-		title: 'Gimble/Run/Detail/Tool call',
+		title: 'Gimbal/Run/Detail/Tool call',
 		component: ToolCall,
 		tags: ['autodocs']
 	});

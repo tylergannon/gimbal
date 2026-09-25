@@ -3,8 +3,8 @@ package workflows
 import (
 	"context"
 
-	"github.com/tylergannon/gimble/checklist"
-	"github.com/tylergannon/gimble/program"
+	"github.com/tylergannon/gimbal/checklist"
+	"github.com/tylergannon/gimbal/program"
 )
 
 type turnResult struct {

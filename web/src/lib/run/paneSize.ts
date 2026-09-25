@@ -6,8 +6,8 @@ export const MIN_WIDTH = 380;
 /** The map keeps at least this much width when the pane is not maximized. */
 export const MIN_MAP_WIDTH = 360;
 
-const WIDTH_KEY = "gimble.detail.width";
-const MAX_KEY = "gimble.detail.max";
+const WIDTH_KEY = "gimbal.detail.width";
+const MAX_KEY = "gimbal.detail.max";
 
 /** Clamp a candidate pane width to the drag range for the given viewport width. */
 export function clampWidth(width: number, viewport: number): number {

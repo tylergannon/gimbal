@@ -9,7 +9,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/tylergannon/gimble/internal/sessionstate"
+	"github.com/tylergannon/gimbal/internal/sessionstate"
 )
 
 const (

@@ -42,7 +42,7 @@ This leaf covers unsuccessful HTTP responses and the SDK subclasses for invalid 
 
 ## Task recipes
 
-- **Emit a safe structured incident:** record error subclass, numeric status, request ID when available, response content type, and a bounded/redacted representation of `body`; attach the Gimble run/node ID locally. Start at [APIError](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError.md).
+- **Emit a safe structured incident:** record error subclass, numeric status, request ID when available, response content type, and a bounded/redacted representation of `body`; attach the Gimbal run/node ID locally. Start at [APIError](https://docs.typesafe.ai/sdk/javascript/api/classes/APIError.md).
 - **Route operator guidance by subtype:** 401 → credential/authentication repair; 403 → account/permission repair; 400 or 422 → request/question validation; 404 → endpoint/model/resource configuration. The class semantics are at the status-specific bookmarks above.
 - **Preserve the error envelope through fallback:** when a generative supervisor replaces a failed Jev call, retain the Jev status/request ID with the fallback result so the system does not hide an upstream reliability incident.
 

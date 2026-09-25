@@ -1,7 +1,7 @@
 # Reference material
 
 Upstream projects mounted as submodules so their source text can be read and
-cited in place. Nothing here is built, tested, or imported by Gimble.
+cited in place. Nothing here is built, tested, or imported by Gimbal.
 
 ## Read-only by policy
 
@@ -12,7 +12,7 @@ upstream, in its own repository.
 Git cannot enforce this, so the policy is backed by two settings:
 
 - `.gitmodules` sets `ignore = dirty`, so scratch edits inside a reference tree
-  never show up in Gimble's status or diffs and cannot be staged by accident.
+  never show up in Gimbal's status or diffs and cannot be staged by accident.
 - Each clone points its push URL at a dead scheme, so `git push` from inside the
   submodule fails instead of reaching upstream.
 
@@ -38,5 +38,5 @@ git add reference/diffusion-skills
 
 - `diffusion-skills` — github.com/diffusioninc/skills. The df-* skill bundles
   for chapters, sprint planning and execution, promise loops, semantic indexes,
-  and the EasyLoop delivery workflows. Source material for Gimble's built-in
+  and the EasyLoop delivery workflows. Source material for Gimbal's built-in
   workflows.

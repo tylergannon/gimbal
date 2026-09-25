@@ -11,14 +11,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/tylergannon/gimble/internal/conversation"
+	"github.com/tylergannon/gimbal/internal/conversation"
 )
 
 func TestConversationPageRendersProviderAndRealWorktreeFacts(t *testing.T) {
 	repository := t.TempDir()
 	gitForConversationPage(t, repository, "init", "-q")
-	gitForConversationPage(t, repository, "config", "user.email", "gimble-test@example.invalid")
-	gitForConversationPage(t, repository, "config", "user.name", "Gimble Test")
+	gitForConversationPage(t, repository, "config", "user.email", "gimbal-test@example.invalid")
+	gitForConversationPage(t, repository, "config", "user.name", "Gimbal Test")
 	if err := os.WriteFile(filepath.Join(repository, "README.md"), []byte("test\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -74,22 +74,22 @@ func TestConversationPageRendersProviderAndRealWorktreeFacts(t *testing.T) {
 func TestConversationPageRendersLinkedWorkflowStatusAndSavedContext(t *testing.T) {
 	repository := t.TempDir()
 	gitForConversationPage(t, repository, "init", "-q")
-	gitForConversationPage(t, repository, "config", "user.email", "gimble-test@example.invalid")
-	gitForConversationPage(t, repository, "config", "user.name", "Gimble Test")
+	gitForConversationPage(t, repository, "config", "user.email", "gimbal-test@example.invalid")
+	gitForConversationPage(t, repository, "config", "user.name", "Gimbal Test")
 	if err := os.WriteFile(filepath.Join(repository, "README.md"), []byte("test\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	gitForConversationPage(t, repository, "add", "README.md")
 	gitForConversationPage(t, repository, "commit", "-qm", "initial")
 
-	project := filepath.Join(repository, ".gimble")
+	project := filepath.Join(repository, ".gimbal")
 	store := filepath.Join(project, "conversations")
 	if err := os.MkdirAll(store, 0o755); err != nil {
 		t.Fatal(err)
 	}
 	item := conversation.Conversation{
 		ID: "saved-conversation", Title: "Saved launch", Provider: "codex", Model: "gpt-5.6-luna",
-		Branch: "gimble/conversation-saved", Worktree: repository, Status: conversation.StatusIdle,
+		Branch: "gimbal/conversation-saved", Worktree: repository, Status: conversation.StatusIdle,
 		Messages: []conversation.Message{{Role: "user", Text: "Keep this context", Created: 1}},
 		Runs:     []conversation.Run{{ID: "01RUN.review", Workflow: "review", Status: conversation.RunStatusCompleted}},
 	}

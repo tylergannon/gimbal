@@ -32,7 +32,7 @@ This leaf captures the JavaScript SDK’s serializable value grammar and the nar
 
 ## Task recipes
 
-- **Encode a Gimble supervision snapshot:** use a plain JSON object with explicit fields for run status, current node, recent events, evidence state, and allowed actions; exclude live handles and cyclic runtime objects. Start at [EntryType](https://docs.typesafe.ai/sdk/javascript/api/type-aliases/EntryType.md).
+- **Encode a Gimbal supervision snapshot:** use a plain JSON object with explicit fields for run status, current node, recent events, evidence state, and allowed actions; exclude live handles and cyclic runtime objects. Start at [EntryType](https://docs.typesafe.ai/sdk/javascript/api/type-aliases/EntryType.md).
 - **Carry structured policy metadata:** put short machine-readable fields inside instruction/criterion objects when plain text loses important distinctions, keeping every nested value within `JsonValue`. Start at [JsonValue](https://docs.typesafe.ai/sdk/javascript/api/type-aliases/JsonValue.md).
 - **Validate at the boundary:** serialize representative snapshots during tests and reject unsupported JavaScript values before constructing the API request.
 

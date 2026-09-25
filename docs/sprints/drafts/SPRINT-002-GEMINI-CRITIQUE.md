@@ -1,6 +1,6 @@
 # Sprint 002 Critique: Claude Generate Waiting Lifecycle
 
-Critique of [SPRINT-002-CLAUDE-DRAFT.md](file:///Users/tyler/.codex/worktrees/286c/gimble/docs/sprints/drafts/SPRINT-002-CLAUDE-DRAFT.md) and [SPRINT-002-CODEX-DRAFT.md](file:///Users/tyler/.codex/worktrees/286c/gimble/docs/sprints/drafts/SPRINT-002-CODEX-DRAFT.md) against [SPRINT-002-INTENT.md](file:///Users/tyler/.codex/worktrees/286c/gimble/docs/sprints/drafts/SPRINT-002-INTENT.md) and the temporary fixture in `/private/tmp/gimble-317-sprint/` ([`main.go`](file:///private/tmp/gimble-317-sprint/main.go), [`run.py`](file:///private/tmp/gimble-317-sprint/run.py), [`claude-tap.py`](file:///private/tmp/gimble-317-sprint/claude-tap.py)).
+Critique of [SPRINT-002-CLAUDE-DRAFT.md](file:///Users/tyler/.codex/worktrees/286c/gimbal/docs/sprints/drafts/SPRINT-002-CLAUDE-DRAFT.md) and [SPRINT-002-CODEX-DRAFT.md](file:///Users/tyler/.codex/worktrees/286c/gimbal/docs/sprints/drafts/SPRINT-002-CODEX-DRAFT.md) against [SPRINT-002-INTENT.md](file:///Users/tyler/.codex/worktrees/286c/gimbal/docs/sprints/drafts/SPRINT-002-INTENT.md) and the temporary fixture in `/private/tmp/gimbal-317-sprint/` ([`main.go`](file:///private/tmp/gimbal-317-sprint/main.go), [`run.py`](file:///private/tmp/gimbal-317-sprint/run.py), [`claude-tap.py`](file:///private/tmp/gimbal-317-sprint/claude-tap.py)).
 
 The baseline reproduction confirmed the defect: `worker.Generate[Completion]` returned early on the first native result (`phase: "waiting"` at ~10s) before the 20s `slow.py` finished. Process termination followed immediately, preventing task completion and aborting before the second call.
 
@@ -8,7 +8,7 @@ The baseline reproduction confirmed the defect: `worker.Generate[Completion]` re
 
 ### 1. Witnessing Waiting and Intermediate Payloads
 
-- **Fixture divergence (Claude):** Claude’s draft invents an alternate fixture (`JobReport`/`TOKEN_A`/`TOKEN_B`, 45s sleep) asserting against "the Session's own event stream." In Gimble, `Session.Generate` is synchronous and blocks; `Session` has no public event subscription API. The actual fixture captures events out-of-band via `claude-tap.py` and asserts `waiting['received'] < completion['completed'] <= returned['time']`.
+- **Fixture divergence (Claude):** Claude’s draft invents an alternate fixture (`JobReport`/`TOKEN_A`/`TOKEN_B`, 45s sleep) asserting against "the Session's own event stream." In Gimbal, `Session.Generate` is synchronous and blocks; `Session` has no public event subscription API. The actual fixture captures events out-of-band via `claude-tap.py` and asserts `waiting['received'] < completion['completed'] <= returned['time']`.
 - **Missing waiting payload (Codex & Claude):** `run.py` requires `'WAITING_317' in json.dumps(first[res[0]])`. Codex specifies that waiting carries no value; with `additionalProperties: false`, Claude cannot output `WAITING_317` without violating the schema. Claude leaves `value` optional but typed as `T`. If omitted, `WAITING_317` is absent and the assertion fails; if included, it must conform to `T`'s schema (problematic when `T` requires other fields). The envelope must specify an explicit intermediate payload field (e.g. `"message": {"type": "string"}`) on `state: "waiting"`.
 
 ### 2. Schema References (`$defs` / `$ref`)

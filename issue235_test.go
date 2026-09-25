@@ -1,4 +1,4 @@
-package gimble
+package gimbal
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/tylergannon/gimble/internal/runlog"
+	"github.com/tylergannon/gimbal/internal/runlog"
 )
 
 const plannerRole = "planner"

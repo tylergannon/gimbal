@@ -11,7 +11,7 @@ This index routes questions about Jev 1.13 and TypeSafe's SDKs through summaries
 
 ## Route order
 
-1. Start with [TOPICS.md](TOPICS.md) for a Gimble-oriented question.
+1. Start with [TOPICS.md](TOPICS.md) for a Gimbal-oriented question.
 2. Open the smallest relevant source-family route:
    - [Foundations and official patterns](routes/foundations/README.md)
    - [Cookbooks and measured examples](routes/cookbooks/README.md)

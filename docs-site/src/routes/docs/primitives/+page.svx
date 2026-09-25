@@ -8,20 +8,20 @@
 
 <DocsPage
   title="Primitives"
-  description="Gimble supplies runtime primitives, not named tactics. Eight of them cover most multi-agent work."
+  description="Gimbal supplies runtime primitives, not named tactics. Eight of them cover most multi-agent work."
   eyebrow="Feature"
   {headings}
 >
 
-Signatures and edge cases live in Godoc: `go doc -all github.com/tylergannon/gimble`. This page says what each primitive is for.
+Signatures and edge cases live in Godoc: `go doc -all github.com/tylergannon/gimbal`. This page says what each primitive is for.
 
 <h2 id="scope">Scopes</h2>
 
 `Scope(ctx, name, body)` runs `body` in a named child scope. When `body` returns, the scope's services stop, its sessions close through their adapters, and its context is cancelled. A scope is the unit of ownership, of context, and of the map: every sheet in the console is one.
 
 ```go
-err := gimble.Scope(ctx, "research", func(ctx context.Context) error {
-	researcher := gimble.NewSession(ctx, roleResearch, env.WorkDir)
+err := gimbal.Scope(ctx, "research", func(ctx context.Context) error {
+	researcher := gimbal.NewSession(ctx, roleResearch, env.WorkDir)
 	// researcher is closed when this function returns
 	return nil
 })
@@ -32,8 +32,8 @@ err := gimble.Scope(ctx, "research", func(ctx context.Context) error {
 `Set` and `SetJSON` record a value in the current scope, once. `Generate` appends the scope's rendered context to the prompt, so every agent turn in that scope, and in its children, receives the facts without the workflow threading them through. Prompts stay constants; data stays data.
 
 ```go
-gimble.Set(ctx, "promise", promise)
-gimble.Set(ctx, "repository", env.WorkDir)
+gimbal.Set(ctx, "promise", promise)
+gimbal.Set(ctx, "repository", env.WorkDir)
 // every turn below this line is sent both values
 ```
 
@@ -49,7 +49,7 @@ A key is set once per scope; revision is shadowing in a child scope. `WithScopeT
 `PromiseLoop(ctx, name, goal, planner)` opens planner-directed dispatch toward a goal. The planner keeps a revisable backlog and selects each task from the evidence so far. You range over `loop.Tasks`; each task arrives with its own scope, a description, a definition of done, and optional validation. Check `loop.Err()` afterward.
 
 ```go
-loop := gimble.PromiseLoop(ctx, "implementation", promise, planner)
+loop := gimbal.PromiseLoop(ctx, "implementation", promise, planner)
 for taskCtx, task := range loop.Tasks {
 	// do the task, record what happened in taskCtx, break when done
 }
@@ -65,8 +65,8 @@ What the worker and validator record in the task's scope is what the planner see
 `WithSupervisor(session, instruction)` attaches a second agent to a running turn. While the worker works, the supervisor looks at what it did since the last look, and each objection is steered into the live turn. When the worker finishes, the supervisors are cancelled and joined before `Generate` returns.
 
 ```go
-report, err := worker.Generate[gimble.Text](taskCtx, implementationPrompt,
-	gimble.WithSupervisor(coach, scopePrompt, gimble.WithInterval(2*time.Minute)))
+report, err := worker.Generate[gimbal.Text](taskCtx, implementationPrompt,
+	gimbal.WithSupervisor(coach, scopePrompt, gimbal.WithInterval(2*time.Minute)))
 ```
 
 Supervision is advisory. It catches scope drift while it is cheap to correct, and it never gates completion. It attaches to a planner's turns too, and a supervisor can have supervisors.
@@ -86,7 +86,7 @@ At run time, events are joined to that graph by name. The console therefore show
 `Group` is errgroup-style concurrency whose branches are scopes: each `Go` gets a name, a lifetime, and a place on the map, and `Wait` joins them. `Iterate` yields each item of a finite slice with a fresh scope, in order, closing that item's sessions before the next.
 
 ```go
-group := gimble.Group(ctx, "drafts")
+group := gimbal.Group(ctx, "drafts")
 group.Go("draft", func(ctx context.Context) error { /* ... */ return nil })
 group.Go("draft", func(ctx context.Context) error { /* ... */ return nil })
 return group.Wait()
@@ -99,8 +99,8 @@ return group.Wait()
 `Service` starts a foreground command, such as a dev server, and makes the current scope own it. It stops when the scope ends. If it exits early, the scope fails.
 
 ```go
-gimble.Service(ctx, "dev-server", env.WorkDir, "pnpm dev")
-gimble.Check(ctx, "tests", env.WorkDir, "go", "test", "./...")
+gimbal.Service(ctx, "dev-server", env.WorkDir, "pnpm dev")
+gimbal.Check(ctx, "tests", env.WorkDir, "go", "test", "./...")
 ```
 
 <h2 id="interview">Interviews</h2>

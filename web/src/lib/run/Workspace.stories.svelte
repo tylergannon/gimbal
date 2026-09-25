@@ -22,7 +22,7 @@
   const observation = new RunObservation(issue325Fixture.snapshot);
 
   const { Story } = defineMeta({
-    title: "Gimble/Run/Workspace resize",
+    title: "Gimbal/Run/Workspace resize",
     component: Workspace,
     parameters: { layout: "fullscreen" },
   });

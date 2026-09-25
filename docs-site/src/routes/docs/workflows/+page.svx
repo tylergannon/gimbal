@@ -44,10 +44,10 @@ There is no workflow engine underneath. `range`, `break`, `if`, and `return` do 
 <h2 id="rules">What keeps it readable</h2>
 
 - **Prompts are compile-time constants** or embedded files. What an agent is sent is readable at the call site, never assembled somewhere else. Task data travels as scoped context.
-- **Workflows name roles, never models.** `gimble.RoleCodeReview` says what kind of thinking the step needs. A run binds it.
+- **Workflows name roles, never models.** `gimbal.RoleCodeReview` says what kind of thinking the step needs. A run binds it.
 - **Answers are typed.** `Generate[Result]` sends the struct's JSON Schema to the harness and validates what comes back. Field comments are instructions to the agent.
 - **Lifetimes follow `context.Context`.** Returning from a scope closes its sessions and stops its services. Cancelling the run interrupts the agents.
-- **`gimble lint`** catches authoring mistakes statically, standalone or as a `go vet` tool.
+- **`gimbal lint`** catches authoring mistakes statically, standalone or as a `go vet` tool.
 
 <h2 id="command">From function to command</h2>
 

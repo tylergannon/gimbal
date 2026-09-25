@@ -4,11 +4,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/tylergannon/gimble"
+	"github.com/tylergannon/gimbal"
 )
 
 func TestRolesShareABindingAndNameTheMissingFlag(t *testing.T) {
-	models, err := Roles(map[gimble.WorkflowRole]string{"coder": "gpt-5.6-luna", "planner": "gpt-5.6-luna", "reviewer": "claude-haiku-4-5-20251001"})
+	models, err := Roles(map[gimbal.WorkflowRole]string{"coder": "gpt-5.6-luna", "planner": "gpt-5.6-luna", "reviewer": "claude-haiku-4-5-20251001"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -18,13 +18,13 @@ func TestRolesShareABindingAndNameTheMissingFlag(t *testing.T) {
 	if models["reviewer"].Adapter == models["coder"].Adapter {
 		t.Error("a role on another model shares the first's harness")
 	}
-	if _, err := Roles(map[gimble.WorkflowRole]string{"coder": "gpt-5.6-luna", "planner": ""}); err == nil || !strings.Contains(err.Error(), "give --planner") {
+	if _, err := Roles(map[gimbal.WorkflowRole]string{"coder": "gpt-5.6-luna", "planner": ""}); err == nil || !strings.Contains(err.Error(), "give --planner") {
 		t.Errorf("err = %v, want the missing role named", err)
 	}
 }
 
 func TestRolesBindCurrentGeminiResearchModels(t *testing.T) {
-	models, err := Roles(map[gimble.WorkflowRole]string{
+	models, err := Roles(map[gimbal.WorkflowRole]string{
 		"research-indexing":  "gemini-3.8-flash-medium",
 		"document-authoring": "gemini-3.1-pro-high",
 	})
@@ -46,7 +46,7 @@ func TestParseBindsOpenCodeModelForms(t *testing.T) {
 	}{
 		{spec: "opencode/ling-3.0-flash-fin-free", model: "ling-3.0-flash-fin-free"},
 		{spec: "opencode/opencode/ling-3.0-flash-fin-free", model: "opencode/ling-3.0-flash-fin-free"},
-		{spec: "opencode/future-provider/model-outside-gimble-families:low", model: "future-provider/model-outside-gimble-families"},
+		{spec: "opencode/future-provider/model-outside-gimbal-families:low", model: "future-provider/model-outside-gimbal-families"},
 	}
 	for _, test := range tests {
 		binding, err := Parse(test.spec)
@@ -63,9 +63,9 @@ func TestParseBindsOpenCodeModelForms(t *testing.T) {
 }
 
 func TestRolesShareOpenCodeAdapterAcrossModels(t *testing.T) {
-	models, err := Roles(map[gimble.WorkflowRole]string{
+	models, err := Roles(map[gimbal.WorkflowRole]string{
 		"first":  "opencode/ling-3.0-flash-fin-free",
-		"second": "opencode/openrouter/model-outside-gimble-families",
+		"second": "opencode/openrouter/model-outside-gimbal-families",
 	})
 	if err != nil {
 		t.Fatal(err)

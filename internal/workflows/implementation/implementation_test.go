@@ -11,9 +11,9 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/tylergannon/gimble"
-	"github.com/tylergannon/gimble/internal/runlog"
-	"github.com/tylergannon/gimble/workflow"
+	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/internal/runlog"
+	"github.com/tylergannon/gimbal/workflow"
 )
 
 type implementationHarness struct {
@@ -37,20 +37,20 @@ func (*implementationHarness) Fork(context.Context, string) (string, error)     
 func (*implementationHarness) Steer(context.Context, string, string) (bool, error) { return false, nil }
 func (*implementationHarness) Close(context.Context, string) error                 { return nil }
 
-func (h *implementationHarness) RunTurn(_ context.Context, _ string, prompt string, schema json.RawMessage, _ func(gimble.AgentEvent) error) (gimble.TurnResult, error) {
+func (h *implementationHarness) RunTurn(_ context.Context, _ string, prompt string, schema json.RawMessage, _ func(gimbal.AgentEvent) error) (gimbal.TurnResult, error) {
 	switch {
 	case strings.Contains(prompt, "You plan the loop"):
 		h.mu.Lock()
 		h.plans++
 		h.prompts = append(h.prompts, prompt)
 		h.mu.Unlock()
-		return gimble.TurnResult{Output: json.RawMessage(`{"tasks":[{"name":"implement","description":"implement the next part of this outcome","definition_of_done":"the selected behavior is directly demonstrated","validation":{"command":"printf task-check-output","query":"Observe whether it works"}}],"next":0}`)}, nil
+		return gimbal.TurnResult{Output: json.RawMessage(`{"tasks":[{"name":"implement","description":"implement the next part of this outcome","definition_of_done":"the selected behavior is directly demonstrated","validation":{"command":"printf task-check-output","query":"Observe whether it works"}}],"next":0}`)}, nil
 	case strings.Contains(prompt, "Independently validate the selected task and current outcome"):
 		h.mu.Lock()
 		h.qaAttempts++
 		if h.qaAttempts <= h.qaFailures {
 			h.mu.Unlock()
-			return gimble.TurnResult{}, errors.New("claude: result for unknown tool_use_id toolu_test")
+			return gimbal.TurnResult{}, errors.New("claude: result for unknown tool_use_id toolu_test")
 		}
 		assessment := Assessment{ValidationPassed: true, Observed: "saw the outcome work", SmallGaps: []string{"optional polish"}}
 		if len(h.assessments) > 0 {
@@ -66,14 +66,14 @@ func (h *implementationHarness) RunTurn(_ context.Context, _ string, prompt stri
 		}
 		raw, err := json.Marshal(assessment)
 		if err != nil {
-			return gimble.TurnResult{}, err
+			return gimbal.TurnResult{}, err
 		}
-		return gimble.TurnResult{Output: raw}, nil
+		return gimbal.TurnResult{Output: raw}, nil
 	default:
 		if len(schema) == 0 {
-			return gimble.TurnResult{Output: json.RawMessage(`"implemented"`)}, nil
+			return gimbal.TurnResult{Output: json.RawMessage(`"implemented"`)}, nil
 		}
-		return gimble.TurnResult{Output: json.RawMessage(`"no objection"`)}, nil
+		return gimbal.TurnResult{Output: json.RawMessage(`"no objection"`)}, nil
 	}
 }
 
@@ -90,13 +90,13 @@ func TestImplementRecoversQAProtocolFailureAndRecordsEachAttempt(t *testing.T) {
 			h := &implementationHarness{qaFailures: test.qaFailures}
 			env, params := implementationParams(t, []string{"QA must validate the outcome"}, 1)
 			project := t.TempDir()
-			models := map[gimble.WorkflowRole]gimble.ModelBinding{
-				gimble.RoleSprintPlanning:        {Adapter: h, Model: "model"},
+			models := map[gimbal.WorkflowRole]gimbal.ModelBinding{
+				gimbal.RoleSprintPlanning:        {Adapter: h, Model: "model"},
 				roleCoding:                       {Adapter: h, Model: "model"},
-				gimble.RoleArchitecturalCritique: {Adapter: h, Model: "model"},
-				gimble.RoleQAOrchestration:       {Adapter: h, Model: "model"},
+				gimbal.RoleArchitecturalCritique: {Adapter: h, Model: "model"},
+				gimbal.RoleQAOrchestration:       {Adapter: h, Model: "model"},
 			}
-			err := gimble.Run(gimble.Project(t.Context(), project), "implementation-test", models,
+			err := gimbal.Run(gimbal.Project(t.Context(), project), "implementation-test", models,
 				func(ctx context.Context) error { return Implement(ctx, env, params) })
 			if test.wantSuccess && err != nil {
 				t.Fatal(err)
@@ -111,18 +111,18 @@ func TestImplementRecoversQAProtocolFailureAndRecordsEachAttempt(t *testing.T) {
 			if err != nil || len(runs) != 1 {
 				t.Fatalf("run directories = %v, error = %v", runs, err)
 			}
-			var qaTurns []gimble.TurnEnded
+			var qaTurns []gimbal.TurnEnded
 			var judgments, passedChecks int
-			if err := runlog.Read[gimble.LifecycleRecord](t.Context(), runs[0], func(record gimble.LifecycleRecord) error {
+			if err := runlog.Read[gimbal.LifecycleRecord](t.Context(), runs[0], func(record gimbal.LifecycleRecord) error {
 				if strings.Contains(record.Turn.Value, "/qa-orchestration.") {
-					if ended, ok := record.Event.(gimble.TurnEnded); ok {
+					if ended, ok := record.Event.(gimbal.TurnEnded); ok {
 						qaTurns = append(qaTurns, ended)
 					}
 				}
-				if set, ok := record.Event.(gimble.ValueSet); ok && set.Key == "independent assessment" {
+				if set, ok := record.Event.(gimbal.ValueSet); ok && set.Key == "independent assessment" {
 					judgments++
 				}
-				if check, ok := record.Event.(gimble.CommandEnded); ok && strings.Contains(check.Stdout, "task-check-output") && check.ExitCode == 0 {
+				if check, ok := record.Event.(gimbal.CommandEnded); ok && strings.Contains(check.Stdout, "task-check-output") && check.ExitCode == 0 {
 					passedChecks++
 				}
 				return nil
@@ -145,7 +145,7 @@ func TestImplementRecoversQAProtocolFailureAndRecordsEachAttempt(t *testing.T) {
 	}
 }
 
-func implementationParams(t *testing.T, outcomes []string, maxTasks int) (gimble.Env, Params) {
+func implementationParams(t *testing.T, outcomes []string, maxTasks int) (gimbal.Env, Params) {
 	t.Helper()
 	workDir := t.TempDir()
 	raw, err := json.Marshal(outcomes)
@@ -155,18 +155,18 @@ func implementationParams(t *testing.T, outcomes []string, maxTasks int) (gimble
 	if err := os.WriteFile(filepath.Join(workDir, "outcomes.json"), raw, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	return gimble.Env{WorkDir: workDir}, Params{OutcomesFile: "outcomes.json", MaxTasksPerOutcome: maxTasks}
+	return gimbal.Env{WorkDir: workDir}, Params{OutcomesFile: "outcomes.json", MaxTasksPerOutcome: maxTasks}
 }
 
-func runImplementation(t *testing.T, h *implementationHarness, env gimble.Env, params Params) error {
+func runImplementation(t *testing.T, h *implementationHarness, env gimbal.Env, params Params) error {
 	t.Helper()
-	models := map[gimble.WorkflowRole]gimble.ModelBinding{
-		gimble.RoleSprintPlanning:        {Adapter: h, Model: "model"},
+	models := map[gimbal.WorkflowRole]gimbal.ModelBinding{
+		gimbal.RoleSprintPlanning:        {Adapter: h, Model: "model"},
 		roleCoding:                       {Adapter: h, Model: "model"},
-		gimble.RoleArchitecturalCritique: {Adapter: h, Model: "model"},
-		gimble.RoleQAOrchestration:       {Adapter: h, Model: "model"},
+		gimbal.RoleArchitecturalCritique: {Adapter: h, Model: "model"},
+		gimbal.RoleQAOrchestration:       {Adapter: h, Model: "model"},
 	}
-	return gimble.Run(gimble.Project(t.Context(), t.TempDir()), "implementation-test", models,
+	return gimbal.Run(gimbal.Project(t.Context(), t.TempDir()), "implementation-test", models,
 		func(ctx context.Context) error { return Implement(ctx, env, params) })
 }
 

@@ -3,7 +3,7 @@
   import Pip from "./Pip.svelte";
 
   const { Story } = defineMeta({
-    title: "Gimble/Run/Pip",
+    title: "Gimbal/Run/Pip",
     component: Pip,
     parameters: {
       layout: "centered",

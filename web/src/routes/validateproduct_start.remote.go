@@ -6,8 +6,8 @@ import (
 	"context"
 	"strings"
 
-	"github.com/tylergannon/gimble"
-	"github.com/tylergannon/gimble/internal/workflows/validateproduct"
+	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/internal/workflows/validateproduct"
 	"github.com/tylergannon/polytype"
 	"github.com/tylergannon/skgo"
 )
@@ -28,12 +28,12 @@ func startValidateProduct(ctx context.Context, in StartValidateProductInput) (St
 		return StartAccepted{}, skgo.Invalidf("suite_file", "Give suite_file.")
 	}
 	return startWorkflow(ctx, in.ProjectDir, in.WorkDir, in.Conversation, "validate-product",
-		map[gimble.WorkflowRole]polytype.Optional[string]{
-			gimble.WorkflowRole("product-operation"):     in.RoleProductOperation,
-			gimble.WorkflowRole("product-visual-review"): in.RoleProductVisualReview,
-			gimble.WorkflowRole("product-triage"):        in.RoleProductTriage,
+		map[gimbal.WorkflowRole]polytype.Optional[string]{
+			gimbal.WorkflowRole("product-operation"):     in.RoleProductOperation,
+			gimbal.WorkflowRole("product-visual-review"): in.RoleProductVisualReview,
+			gimbal.WorkflowRole("product-triage"):        in.RoleProductTriage,
 		}, func(runCtx context.Context, workDir string) error {
-			return validateproduct.ValidateProduct(runCtx, gimble.Env{WorkDir: workDir}, validateproduct.Params{
+			return validateproduct.ValidateProduct(runCtx, gimbal.Env{WorkDir: workDir}, validateproduct.Params{
 				SuiteFile: in.SuiteFile,
 			})
 		})

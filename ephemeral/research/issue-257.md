@@ -21,4 +21,4 @@ This follows PR #246, which introduces the typed catalog and keeps each descript
 
 The output is a generated documentation-site page or data artifact using the site's existing composition and styling. It is clearly labeled generated and presents exactly the Go constant name, serialized role value, and description. The generator owns the complete output; there is no hand-maintained list or second source of truth. Focused tests cover ordering, extraction, values, missing/short/long descriptions, add/rename/remove behavior, and deterministic output. Proof is focused tests, two consecutive `go generate ./...` runs with a clean second run, the repository's normal docs/application build, and inspection of the rendered reference as a caller.
 
-Source: https://github.com/tylergannon/gimble/issues/257
+Source: https://github.com/tylergannon/gimbal/issues/257

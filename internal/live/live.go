@@ -1,4 +1,4 @@
-// Package live is the seam between gimble.Run and the web runtime. A run
+// Package live is the seam between gimbal.Run and the web runtime. A run
 // hands its Controller to whoever put a hook in the ctx, under the run's
 // id, for as long as the run is in progress; the runtime keeps those in a
 // table so an operator with only ids can steer a session or a loop's
@@ -85,7 +85,7 @@ func (t *Runs) InProgress(id string) (Controller, error) {
 	run := t.runs[id]
 	t.mu.Unlock()
 	if run == nil {
-		return nil, fmt.Errorf("gimble: no run %q in progress", id)
+		return nil, fmt.Errorf("gimbal: no run %q in progress", id)
 	}
 	return run, nil
 }

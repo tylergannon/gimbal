@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Edited product and architectural direction for Gimble, including the move to
+Edited product and architectural direction for Gimbal, including the move to
 Go-authored workflows, context engineering, indexing, legibility, roles,
 telemetry, and future views.
 

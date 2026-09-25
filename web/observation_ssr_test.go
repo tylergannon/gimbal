@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/tylergannon/gimble/internal/observation"
+	"github.com/tylergannon/gimbal/internal/observation"
 )
 
 // TestRunPageIsRenderedFromTheRunsObservation is the SSR boundary end to end:
@@ -42,7 +42,7 @@ func TestRunPageIsRenderedFromTheRunsObservation(t *testing.T) {
 	}
 	for _, record := range []json.RawMessage{
 		json.RawMessage(`{"seq":1,"time":"2026-09-13T00:00:00Z","scope":"","session":"writer","event":{"kind":"session_created","name":"writer","adapter":"fixture","model":"test-model","workdir":"/w"}}`),
-		json.RawMessage(`{"seq":2,"time":"2026-09-13T00:00:01Z","scope":"","session":"writer","turn":"turn-1","event":{"kind":"turn_started","prompt":"write","output_type":"gimble.Text"}}`),
+		json.RawMessage(`{"seq":2,"time":"2026-09-13T00:00:01Z","scope":"","session":"writer","turn":"turn-1","event":{"kind":"turn_started","prompt":"write","output_type":"gimbal.Text"}}`),
 	} {
 		if err := store.Lifecycle(record); err != nil {
 			t.Fatalf("fold %s: %v", record, err)
@@ -52,7 +52,7 @@ func TestRunPageIsRenderedFromTheRunsObservation(t *testing.T) {
 	for _, event := range []json.RawMessage{
 		json.RawMessage(`{"id":"evt1","type":"session.step.started","created":10,"data":{"sessionID":"ses_writer","assistantMessageID":"msg_writer","agent":"fixture","model":{"providerID":"fixture","id":"test-model"}}}`),
 		json.RawMessage(`{"id":"evt2","type":"session.text.started","created":11,"data":{"sessionID":"ses_writer","assistantMessageID":"msg_writer","ordinal":0}}`),
-		json.RawMessage(`{"id":"evt3","type":"session.text.ended","created":12,"data":{"sessionID":"ses_writer","assistantMessageID":"msg_writer","ordinal":0,"text":"hello from Gimble"}}`),
+		json.RawMessage(`{"id":"evt3","type":"session.text.ended","created":12,"data":{"sessionID":"ses_writer","assistantMessageID":"msg_writer","ordinal":0,"text":"hello from Gimbal"}}`),
 	} {
 		if err := store.Event(at, event, nil); err != nil {
 			t.Fatalf("observe event: %v", err)
@@ -74,7 +74,7 @@ func TestRunPageIsRenderedFromTheRunsObservation(t *testing.T) {
 		t.Fatalf("the rendered document carries no transported snapshot:\n%s", body)
 	}
 	// And what it carries is this run's actual observation, not an empty one.
-	for _, want := range []string{"run-1", "turn-1", "hello from Gimble", "test-model"} {
+	for _, want := range []string{"run-1", "turn-1", "hello from Gimbal", "test-model"} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("the rendered document does not mention %q:\n%s", want, body)
 		}

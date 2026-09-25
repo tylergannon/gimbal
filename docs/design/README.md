@@ -23,7 +23,7 @@ root element; set it to `dark` to see the dark theme.
 
 `milestone-1-storybook.md` and `milestone-2-app.md` are the claims a build
 run implements and demonstrates: first every component in Storybook, then
-the application on those components. `gimble run build-frontend` takes one
+the application on those components. `gimbal run build-frontend` takes one
 milestone file and commits each task with the repository's hooks running.
 
 ## The rules

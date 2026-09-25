@@ -3,7 +3,7 @@
 Use this route for distributed responsibility, research/coding/validation
 roles, five-arts tradeoffs, and learning from bad runs.
 
-- [Gimble's direction](../../sources/direction.md): action roles, telemetry, and
+- [Gimbal's direction](../../sources/direction.md): action roles, telemetry, and
   builder/supervisor/checker division.
 - [Context reframing, verbatim](../../sources/context-reframing-verbatim.md):
   why knowledge is divided across agents and time.

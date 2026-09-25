@@ -31,11 +31,11 @@ Intent routing uses Jev as a fast classifier in front of heterogeneous handlers.
 
 - The fixed intent labels must be exhaustive enough for the application or include a safe `other`/fallback route; the example relies on a confidence floor but does not show unknown-label evolution.
 - Complexity is a separate uncertain model judgment, so thresholding its value without checking its confidence can create false automation. The example explicitly checks both.
-- The 0.5 confidence threshold is illustrative and must be validated for each Gimble coaching route and cost of error.
+- The 0.5 confidence threshold is illustrative and must be validated for each Gimbal coaching route and cost of error.
 
 ## Task recipes
 
 - **Triage a possible supervision event:** classify `no_action`, `deterministic_check`, `agent_coaching`, and `human_authority`; ask a parallel complexity/risk score; route low-confidence or high-risk cases to a human. Start from [intent routing](https://docs.typesafe.ai/patterns/intent-routing.md).
-- **Load context only when needed:** use the selected coaching intent to invoke a specialist generative agent with the relevant Gimble semantic-index slice, leaving cheap/no-op and deterministic validation paths agent-free. The source analogue is [intent routing](https://docs.typesafe.ai/patterns/intent-routing.md).
+- **Load context only when needed:** use the selected coaching intent to invoke a specialist generative agent with the relevant Gimbal semantic-index slice, leaving cheap/no-op and deterministic validation paths agent-free. The source analogue is [intent routing](https://docs.typesafe.ai/patterns/intent-routing.md).
 - **Fail closed:** when intent or risk is uncertain, observe and escalate rather than steering automatically. Start at [intent routing](https://docs.typesafe.ai/patterns/intent-routing.md).
 

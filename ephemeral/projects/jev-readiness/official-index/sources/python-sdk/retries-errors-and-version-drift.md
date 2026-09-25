@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Operational reference for bounding Jev calls, classifying failures, choosing retry behavior, logging enough evidence for diagnosis, and protecting a Gimble supervision integration from rapid SDK contract changes.
+Operational reference for bounding Jev calls, classifying failures, choosing retry behavior, logging enough evidence for diagnosis, and protecting a Gimbal supervision integration from rapid SDK contract changes.
 
 ## Key concepts
 
@@ -46,7 +46,7 @@ Operational reference for bounding Jev calls, classifying failures, choosing ret
 
 1. Choose an HTTP operation timeout from the maximum acceptable single-attempt stall.
 2. Choose `max_retries` only for the failure classes where a delayed supervisory judgment remains useful.
-3. Set `RetryPolicy.timeout` below the Gimble checkpoint's overall deadline, allowing time for local action after Jev returns.
+3. Set `RetryPolicy.timeout` below the Gimbal checkpoint's overall deadline, allowing time for local action after Jev returns.
 4. Keep retry-header honoring for shared-service backpressure, but record latency and final exception class.
 5. For time-critical steering, consider `max_retries=0` and degrade to deterministic policy or human review instead of delivering stale coaching.
 

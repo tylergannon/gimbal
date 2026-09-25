@@ -7,7 +7,7 @@ import (
 
 	"github.com/tylergannon/skgo"
 
-	"github.com/tylergannon/gimble/internal/conversation"
+	"github.com/tylergannon/gimbal/internal/conversation"
 )
 
 // CreateConversation is the explicit provider and model selection for a new

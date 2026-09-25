@@ -1,6 +1,6 @@
 # Second slice: discuss, launch, monitor
 
-Read /private/tmp/gimble-conversation-workspace/ephemeral/conversation-prototype-goal.md and the existing conversation code. Complete the 85% prototype by letting the conversation agent launch useful Gimble workflow runs inside the same server and expose their status/links in the conversation UI.
+Read /private/tmp/gimbal-conversation-workspace/ephemeral/conversation-prototype-goal.md and the existing conversation code. Complete the 85% prototype by letting the conversation agent launch useful Gimbal workflow runs inside the same server and expose their status/links in the conversation UI.
 
 A person can ask their selected-provider conversation agent to start work. The agent can use existing built-in review and implementation workflows at minimum, directed at this conversation's worktree/branch. The server starts and owns the workflow, shares its observations/control with the existing run pages, and records the associated run id/link on the conversation. Run work outlives navigating away from the conversation; the UI lets the person open and monitor the run and return to the conversation. Existing ordinary chat, provider selection, history, and worktree association keep working. Use an honest running/error/completed state; do not claim a launch until it actually occurred.
 
@@ -8,7 +8,7 @@ Give the agent the small practical capability needed to request a launch; no sep
 
 Prioritize working frontend integration. A link and status beside the conversation is enough; do not build a new monitoring UI. User's 85% stopping point permits missing fancy chat formatting, native provider-session restoration after restart, run attachments, advanced workflow parameter editors, automatic follow-agent navigation, and multi-project. It does not permit a nonfunctional launch or broken chat/worktree association.
 
-Work only in /private/tmp/gimble-conversation-workspace on codex/conversation-workspace. You are not alone; manager handles commits, push, merge, installation and independent checks. Do not modify this DoD, the overall goal, or implementation workflow, and do not commit proof artifacts. No unnecessary abstraction or speculative race fixes.
+Work only in /private/tmp/gimbal-conversation-workspace on codex/conversation-workspace. You are not alone; manager handles commits, push, merge, installation and independent checks. Do not modify this DoD, the overall goal, or implementation workflow, and do not commit proof artifacts. No unnecessary abstraction or speculative race fixes.
 
 Proof: personally use the built browser to ask a cheap real conversation agent to start a real review (or similarly bounded existing run) in its worktree. Observe the linked run begin and complete in this same runtime's UI. Verify it used the associated worktree and that returning to the chat retains conversation context. Meaningful tests establish implementation workflow launch routing and failures too; no need for a costly recursive implement live run just for proof. Relevant build/vet/tests/format/e2e must pass. Independent validation checks observed functionality and stops once this prototype works, without demanding the last 15%.
 

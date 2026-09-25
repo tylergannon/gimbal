@@ -1,52 +1,52 @@
-package gimble_test
+package gimbal_test
 
 import (
 	"encoding/json"
 	"testing"
 	"time"
 
-	"github.com/tylergannon/gimble"
+	"github.com/tylergannon/gimbal"
 )
 
-func TestPublishedEventTypesAreUsableOutsideGimble(t *testing.T) {
-	lifecycle := []gimble.LifecycleEvent{
-		gimble.RunStarted{},
-		gimble.RunEnded{},
-		gimble.RunCancelled{},
-		gimble.ScopeBegan{},
-		gimble.ScopeEnded{},
-		gimble.PlannerDecision{},
-		gimble.ValueSet{},
-		gimble.SessionCreated{},
-		gimble.SessionClosed{},
-		gimble.TurnStarted{},
-		gimble.TurnEnded{Usage: []gimble.ModelUsage{}},
-		gimble.InterviewQuestionAsked{},
-		gimble.InterviewQuestionAnswered{},
-		gimble.SuperviseAttached{},
-		gimble.Steer{},
-		gimble.Killed{},
-		gimble.Complete{},
+func TestPublishedEventTypesAreUsableOutsideGimbal(t *testing.T) {
+	lifecycle := []gimbal.LifecycleEvent{
+		gimbal.RunStarted{},
+		gimbal.RunEnded{},
+		gimbal.RunCancelled{},
+		gimbal.ScopeBegan{},
+		gimbal.ScopeEnded{},
+		gimbal.PlannerDecision{},
+		gimbal.ValueSet{},
+		gimbal.SessionCreated{},
+		gimbal.SessionClosed{},
+		gimbal.TurnStarted{},
+		gimbal.TurnEnded{Usage: []gimbal.ModelUsage{}},
+		gimbal.InterviewQuestionAsked{},
+		gimbal.InterviewQuestionAnswered{},
+		gimbal.SuperviseAttached{},
+		gimbal.Steer{},
+		gimbal.Killed{},
+		gimbal.Complete{},
 	}
-	agent := gimble.AgentEvent{Type: "session.execution.started", ID: "evt_1", Created: 1, Data: json.RawMessage(`{"sessionID":"ses_1"}`)}
+	agent := gimbal.AgentEvent{Type: "session.execution.started", ID: "evt_1", Created: 1, Data: json.RawMessage(`{"sessionID":"ses_1"}`)}
 
-	lifecycleRaw, err := json.Marshal(gimble.LifecycleRecord{Seq: 1, Time: time.Now().UTC(), Event: lifecycle[0]})
+	lifecycleRaw, err := json.Marshal(gimbal.LifecycleRecord{Seq: 1, Time: time.Now().UTC(), Event: lifecycle[0]})
 	if err != nil {
 		t.Fatal(err)
 	}
-	var lifecycleRecord gimble.LifecycleRecord
+	var lifecycleRecord gimbal.LifecycleRecord
 	if err := json.Unmarshal(lifecycleRaw, &lifecycleRecord); err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := lifecycleRecord.Event.(gimble.RunStarted); !ok {
+	if _, ok := lifecycleRecord.Event.(gimbal.RunStarted); !ok {
 		t.Fatalf("decoded lifecycle event = %T", lifecycleRecord.Event)
 	}
 
-	agentRaw, err := json.Marshal(gimble.AgentRecord{Seq: 1, Time: time.Now().UTC(), Session: "coder.1", Turn: "coder.1/turn.1", Event: agent})
+	agentRaw, err := json.Marshal(gimbal.AgentRecord{Seq: 1, Time: time.Now().UTC(), Session: "coder.1", Turn: "coder.1/turn.1", Event: agent})
 	if err != nil {
 		t.Fatal(err)
 	}
-	var agentRecord gimble.AgentRecord
+	var agentRecord gimbal.AgentRecord
 	if err := json.Unmarshal(agentRaw, &agentRecord); err != nil {
 		t.Fatal(err)
 	}

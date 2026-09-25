@@ -1,6 +1,6 @@
 # Source: web/src/project.go - Context Keys and Helpers for Project Scoping
 
-- **Origin**: `/Users/tyler/.codex/worktrees/d798/gimble/web/src/project.go`
+- **Origin**: `/Users/tyler/.codex/worktrees/d798/gimbal/web/src/project.go`
 - **Commit**: `40dc82947eed99202fd9cb1dd377b6a3c2abbccc`
 - **Retrieval Date**: 2026-09-23
 - **Scope**: Complete implementation of project context keys, `WithProjectDir`, `ProjectDir`, `WithProjects`, and `Projects`.

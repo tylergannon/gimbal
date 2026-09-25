@@ -17,7 +17,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tylergannon/gimble"
+	"github.com/tylergannon/gimbal"
 )
 
 func TestAdapterContractAndRawCapture(t *testing.T) {
@@ -47,15 +47,15 @@ func TestAdapterContractAndRawCapture(t *testing.T) {
 	})
 
 	t.Run("text schema and continuation", func(t *testing.T) {
-		var events []gimble.AgentEvent
-		text, err := ad.RunTurn(t.Context(), one, "remember pear", nil, func(event gimble.AgentEvent) error {
+		var events []gimbal.AgentEvent
+		text, err := ad.RunTurn(t.Context(), one, "remember pear", nil, func(event gimbal.AgentEvent) error {
 			events = append(events, event)
 			return nil
 		})
 		if err != nil || string(text.Output) != `"remember pear"` {
 			t.Fatalf("text turn = (%s, %v)", text.Output, err)
 		}
-		continued, err := ad.RunTurn(t.Context(), one, "CONTINUE", nil, func(gimble.AgentEvent) error { return nil })
+		continued, err := ad.RunTurn(t.Context(), one, "CONTINUE", nil, func(gimbal.AgentEvent) error { return nil })
 		if err != nil || string(continued.Output) != `"pear"` {
 			t.Fatalf("continued turn = (%s, %v)", continued.Output, err)
 		}
@@ -67,7 +67,7 @@ func TestAdapterContractAndRawCapture(t *testing.T) {
 		}
 
 		schema := json.RawMessage(`{"type":"object","properties":{"answer":{"type":"string"}},"required":["answer"]}`)
-		structured, err := ad.RunTurn(t.Context(), one, "SCHEMA", schema, func(gimble.AgentEvent) error { return nil })
+		structured, err := ad.RunTurn(t.Context(), one, "SCHEMA", schema, func(gimbal.AgentEvent) error { return nil })
 		if err != nil || string(structured.Output) != `{"answer":"valid"}` {
 			t.Fatalf("schema turn = (%s, %v)", structured.Output, err)
 		}
@@ -81,7 +81,7 @@ func TestAdapterContractAndRawCapture(t *testing.T) {
 			id, prompt string
 		}{{one, "ONE"}, {two, "TWO"}} {
 			group.Go(func() {
-				_, runErr := ad.RunTurn(t.Context(), item.id, item.prompt, nil, func(event gimble.AgentEvent) error {
+				_, runErr := ad.RunTurn(t.Context(), item.id, item.prompt, nil, func(event gimbal.AgentEvent) error {
 					var data struct {
 						SessionID string `json:"sessionID"`
 					}
@@ -107,7 +107,7 @@ func TestAdapterContractAndRawCapture(t *testing.T) {
 		if err != nil || fork == one {
 			t.Fatalf("Fork() = (%q, %v)", fork, err)
 		}
-		forked, err := ad.RunTurn(t.Context(), fork, "CONTINUE", nil, func(gimble.AgentEvent) error { return nil })
+		forked, err := ad.RunTurn(t.Context(), fork, "CONTINUE", nil, func(gimbal.AgentEvent) error { return nil })
 		if err != nil || string(forked.Output) != `"pear"` {
 			t.Fatalf("fork continuation = (%s, %v)", forked.Output, err)
 		}
@@ -117,7 +117,7 @@ func TestAdapterContractAndRawCapture(t *testing.T) {
 		if err := ad.Close(t.Context(), one); err != nil {
 			t.Fatal(err)
 		}
-		stillUsable, err := ad.RunTurn(t.Context(), two, "STILL", nil, func(gimble.AgentEvent) error { return nil })
+		stillUsable, err := ad.RunTurn(t.Context(), two, "STILL", nil, func(gimbal.AgentEvent) error { return nil })
 		if err != nil || string(stillUsable.Output) != `"STILL"` {
 			t.Fatalf("other session after close = (%s, %v)", stillUsable.Output, err)
 		}
@@ -127,7 +127,7 @@ func TestAdapterContractAndRawCapture(t *testing.T) {
 		ad.mu.Lock()
 		capturePath := ad.capture.path
 		ad.mu.Unlock()
-		if _, err := ad.RunTurn(t.Context(), two, "UNKNOWN", nil, func(gimble.AgentEvent) error { return nil }); err != nil {
+		if _, err := ad.RunTurn(t.Context(), two, "UNKNOWN", nil, func(gimbal.AgentEvent) error { return nil }); err != nil {
 			t.Fatal(err)
 		}
 		deadline := time.Now().Add(2 * time.Second)
@@ -152,7 +152,7 @@ func TestAdapterContractAndRawCapture(t *testing.T) {
 
 	t.Run("observation failure does not overrule POST success", func(t *testing.T) {
 		observationErr := errors.New("recording unavailable")
-		result, err := ad.RunTurn(t.Context(), two, "GAP", nil, func(gimble.AgentEvent) error {
+		result, err := ad.RunTurn(t.Context(), two, "GAP", nil, func(gimbal.AgentEvent) error {
 			return observationErr
 		})
 		if err != nil || string(result.Output) != `"GAP"` {
@@ -177,13 +177,13 @@ func TestAdapterSteeringAndCancellationAbortActivePrompt(t *testing.T) {
 	t.Cleanup(func() { _ = ad.Close(context.Background(), sessionID) })
 
 	result := make(chan struct {
-		turn gimble.TurnResult
+		turn gimbal.TurnResult
 		err  error
 	}, 1)
 	go func() {
-		turn, runErr := ad.RunTurn(context.Background(), sessionID, "BLOCK", nil, func(gimble.AgentEvent) error { return nil })
+		turn, runErr := ad.RunTurn(context.Background(), sessionID, "BLOCK", nil, func(gimbal.AgentEvent) error { return nil })
 		result <- struct {
-			turn gimble.TurnResult
+			turn gimbal.TurnResult
 			err  error
 		}{turn, runErr}
 	}()
@@ -200,7 +200,7 @@ func TestAdapterSteeringAndCancellationAbortActivePrompt(t *testing.T) {
 	cancelCtx, cancel := context.WithCancel(context.Background())
 	cancelled := make(chan error, 1)
 	go func() {
-		_, runErr := ad.RunTurn(cancelCtx, sessionID, "WAIT", nil, func(gimble.AgentEvent) error { return nil })
+		_, runErr := ad.RunTurn(cancelCtx, sessionID, "WAIT", nil, func(gimbal.AgentEvent) error { return nil })
 		cancelled <- runErr
 	}()
 	fake.waitStarted(t, "WAIT")
@@ -236,12 +236,12 @@ func TestAdapterSteerWaitsForAbortSettlementBeforeContinuation(t *testing.T) {
 	t.Cleanup(func() { _ = ad.Close(context.Background(), sessionID) })
 
 	type runResult struct {
-		turn gimble.TurnResult
+		turn gimbal.TurnResult
 		err  error
 	}
 	runDone := make(chan runResult, 1)
 	go func() {
-		turn, runErr := ad.RunTurn(context.Background(), sessionID, "NATURAL", nil, func(gimble.AgentEvent) error { return nil })
+		turn, runErr := ad.RunTurn(context.Background(), sessionID, "NATURAL", nil, func(gimbal.AgentEvent) error { return nil })
 		runDone <- runResult{turn: turn, err: runErr}
 	}()
 	fake.waitStarted(t, "NATURAL")
@@ -615,7 +615,7 @@ func (f *fakeOpenCode) waitAborted(t *testing.T, sessionID string) {
 	}
 }
 
-func adapterEventTypes(events []gimble.AgentEvent) []string {
+func adapterEventTypes(events []gimbal.AgentEvent) []string {
 	types := make([]string, len(events))
 	for index, event := range events {
 		types[index] = event.Type

@@ -8,12 +8,12 @@ import (
 
 	"github.com/tylergannon/skgo"
 
-	skgo0 "github.com/tylergannon/gimble/internal/skgo/links/onzggl3sn52xizlt"
-	skgo1 "github.com/tylergannon/gimble/internal/skgo/links/onzggl3sn52xizltf5yhe33kmvrxi4zplnyhe33kmvrxixi"
-	skgo2 "github.com/tylergannon/gimble/internal/skgo/links/onzggl3sn52xizltf5yhe33kmvrxi4zplnyhe33kmvrxixjpmnxw45tfojzwc5djn5xhg"
-	skgo3 "github.com/tylergannon/gimble/internal/skgo/links/onzggl3sn52xizltf5yhe33kmvrxi4zplnyhe33kmvrxixjpmnxw45tfojzwc5djn5xhgl23mnxw45tfojzwc5djn5xesrc5"
-	skgo5 "github.com/tylergannon/gimble/internal/skgo/links/onzggl3sn52xizltf5yhe33kmvrxi4zplnyhe33kmvrxixjpoj2w44zplnzhk3sjiroq"
-	skgotp0 "github.com/tylergannon/gimble/web/src"
+	skgo0 "github.com/tylergannon/gimbal/internal/skgo/links/onzggl3sn52xizlt"
+	skgo1 "github.com/tylergannon/gimbal/internal/skgo/links/onzggl3sn52xizltf5yhe33kmvrxi4zplnyhe33kmvrxixi"
+	skgo2 "github.com/tylergannon/gimbal/internal/skgo/links/onzggl3sn52xizltf5yhe33kmvrxi4zplnyhe33kmvrxixjpmnxw45tfojzwc5djn5xhg"
+	skgo3 "github.com/tylergannon/gimbal/internal/skgo/links/onzggl3sn52xizltf5yhe33kmvrxi4zplnyhe33kmvrxixjpmnxw45tfojzwc5djn5xhgl23mnxw45tfojzwc5djn5xesrc5"
+	skgo5 "github.com/tylergannon/gimbal/internal/skgo/links/onzggl3sn52xizltf5yhe33kmvrxi4zplnyhe33kmvrxixjpoj2w44zplnzhk3sjiroq"
+	skgotp0 "github.com/tylergannon/gimbal/web/src"
 )
 
 // remote_cancelRun answers src/routes/control.remote.ts#cancelRun, a command.

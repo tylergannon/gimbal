@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to Gimble will be documented in this file.
+All notable changes to Gimbal will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
@@ -25,7 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- One Gimble instance can host multiple projects with separate live runs,
+- One Gimbal instance can host multiple projects with separate live runs,
   conversations, controls, and durable history. Multiple configured instances
   can coexist; one active instance owns a given project at a time.
 - Compiled workflow commands submit to the selected instance, with separate
@@ -47,9 +47,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Use the directly importable Claude SDK fork v1.1.1, removing the module
-  replacement that prevented installing Gimble from a published version.
+  replacement that prevented installing Gimbal from a published version.
 - Show Claude Opus 5.5 consistently in the built-in product workflow help and
-  installed Gimble instructions.
+  installed Gimbal instructions.
 
 ## [0.11.0] - 2026-09-22
 
@@ -100,8 +100,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Storybook stand-ins for remote functions, so the whole run page renders and
   can be driven without a server.
 
-- `gimble upload-artifact` support for Cloudflare R2 and AWS S3, with
-  user-wide configuration in `~/.gimble/config.json` and environment overrides.
+- `gimbal upload-artifact` support for Cloudflare R2 and AWS S3, with
+  user-wide configuration in `~/.gimbal/config.json` and environment overrides.
 - Practical product user-testing workflow with up to three parallel assignments,
   captioned screenshots and human-review videos, Gemini Flash visual review, and
   consolidated findings with optional GitHub issue creation. Testers use Opus 5
@@ -109,10 +109,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   aspects.
 - OpenCode legacy harness with explicit `opencode/model` and
   `opencode/provider/model` routing, one shared server managed by
-  `gimble opencode start|stop`, and raw event/request captures for diagnostics.
+  `gimbal opencode start|stop`, and raw event/request captures for diagnostics.
 
-[Unreleased]: https://github.com/tylergannon/gimble/compare/v0.12.1...main
-[0.12.1]: https://github.com/tylergannon/gimble/compare/v0.12.0...v0.12.1
-[0.12.0]: https://github.com/tylergannon/gimble/compare/v0.11.1...v0.12.0
-[0.11.1]: https://github.com/tylergannon/gimble/compare/v0.11.0...v0.11.1
-[0.11.0]: https://github.com/tylergannon/gimble/releases/tag/v0.11.0
+[Unreleased]: https://github.com/tylergannon/gimbal/compare/v0.12.1...main
+[0.12.1]: https://github.com/tylergannon/gimbal/compare/v0.12.0...v0.12.1
+[0.12.0]: https://github.com/tylergannon/gimbal/compare/v0.11.1...v0.12.0
+[0.11.1]: https://github.com/tylergannon/gimbal/compare/v0.11.0...v0.11.1
+[0.11.0]: https://github.com/tylergannon/gimbal/releases/tag/v0.11.0

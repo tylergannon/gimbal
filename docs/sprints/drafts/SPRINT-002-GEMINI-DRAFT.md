@@ -7,13 +7,13 @@
   - *Process Lifetime*: Scope native process lifetime to the logical `Generate` turn across intermediate waiting results and automatic wakeups; terminate cleanly upon completion.
   - *Completion Contract*: Distinguish non-terminal waiting from terminal completion using an explicit typed completion contract, as native fields (`subtype: success`, `terminal_reason: completed`) appear on both.
   - *Schema-Changing Resumption*: Reconnect via `--resume <sessionID>` on subsequent `Generate` calls, asserting context preservation and distinct output schemas without process leaks.
-- **L2**: Implementation in [`claude.go`](file:///Users/tyler/.codex/worktrees/286c/gimble/claude/claude.go) and [`session.go`](file:///Users/tyler/.codex/worktrees/286c/gimble/session.go); temporary acceptance workflow in `/private/tmp/gimble-317-acceptance/`; research in [`issue-317.md`](file:///Users/tyler/.codex/worktrees/286c/gimble/ephemeral/research/claude-lifecycle/issue-317.md), [`generate-lifetime.md`](file:///Users/tyler/.codex/worktrees/286c/gimble/ephemeral/research/claude-lifecycle/generate-lifetime.md), and [`sol-semantics.md`](file:///Users/tyler/.codex/worktrees/286c/gimble/ephemeral/research/claude-lifecycle/sol-semantics.md).
+- **L2**: Implementation in [`claude.go`](file:///Users/tyler/.codex/worktrees/286c/gimbal/claude/claude.go) and [`session.go`](file:///Users/tyler/.codex/worktrees/286c/gimbal/session.go); temporary acceptance workflow in `/private/tmp/gimbal-317-acceptance/`; research in [`issue-317.md`](file:///Users/tyler/.codex/worktrees/286c/gimbal/ephemeral/research/claude-lifecycle/issue-317.md), [`generate-lifetime.md`](file:///Users/tyler/.codex/worktrees/286c/gimbal/ephemeral/research/claude-lifecycle/generate-lifetime.md), and [`sol-semantics.md`](file:///Users/tyler/.codex/worktrees/286c/gimbal/ephemeral/research/claude-lifecycle/sol-semantics.md).
 
 ---
 
 ## 1. Outcome & Scope
 
-Fix [Issue 317](file:///Users/tyler/.codex/worktrees/286c/gimble/ephemeral/research/claude-lifecycle/issue-317.md): Gimble's Claude adapter terminates turns prematurely when Claude yields an intermediate waiting response while background commands execute. Closing the process tears down in-flight background tasks; subsequent turns resuming the session encounter empty orphan results or dead context.
+Fix [Issue 317](file:///Users/tyler/.codex/worktrees/286c/gimbal/ephemeral/research/claude-lifecycle/issue-317.md): Gimbal's Claude adapter terminates turns prematurely when Claude yields an intermediate waiting response while background commands execute. Closing the process tears down in-flight background tasks; subsequent turns resuming the session encounter empty orphan results or dead context.
 
 The repair ensures:
 1. `Generate` blocks through background task execution. Intermediate `waiting` results do not return to the caller or kill the client stream.
@@ -27,7 +27,7 @@ The repair ensures:
 
 ### Within Scope
 
-- **Adapter Wait Loop ([`claude.go`](file:///Users/tyler/.codex/worktrees/286c/gimble/claude/claude.go))**:
+- **Adapter Wait Loop ([`claude.go`](file:///Users/tyler/.codex/worktrees/286c/gimbal/claude/claude.go))**:
   - Refactor `waitTurn` to loop across incoming `claudeagent.Message` items until encountering a terminal completion message, an unrecoverable failure, or context cancellation.
   - When a `ResultMessage` arrives with a status indicating `waiting` (non-terminal state), record step usage and intermediate events via `projector`, but keep `stream` and `client` open.
   - Ingest `task_updated` and `task_notification` events. Consume the subsequent generation resulting from native wakeup (`origin.kind == "task-notification"`).
@@ -35,15 +35,15 @@ The repair ensures:
 - **Explicit Terminal Completion Contract**:
   - Native provider fields do not differentiate intermediate waiting from final completion (`subtype: success` and `terminal_reason: "completed"` appear on both).
   - Implement a concrete contract: structured generation prompts define or wrap the schema with execution state (`state: "waiting" | "completed"`). Intermediate yields with `state == "waiting"` keep the stream listener active; only `state == "completed"` satisfies `waitTurn`.
-- **Orderly Teardown & Resumption ([`claude.go`](file:///Users/tyler/.codex/worktrees/286c/gimble/claude/claude.go), [`session.go`](file:///Users/tyler/.codex/worktrees/286c/gimble/session.go))**:
+- **Orderly Teardown & Resumption ([`claude.go`](file:///Users/tyler/.codex/worktrees/286c/gimbal/claude/claude.go), [`session.go`](file:///Users/tyler/.codex/worktrees/286c/gimbal/session.go))**:
   - Once terminal completion occurs, `RunTurn` cleanly shuts down stdin and closes `stream`/`client`.
   - Ensure subsequent turns on the same `*Session` pass `--resume <sessionID>` and pass the new turn's `--json-schema` cleanly.
 - **Unit & Adapter Regression Tests**:
-  - Mock and stream-level unit tests in [`claude_test.go`](file:///Users/tyler/.codex/worktrees/286c/gimble/claude/claude_test.go) asserting waiting loops, notification arrival, error aborts, and clean exits.
+  - Mock and stream-level unit tests in [`claude_test.go`](file:///Users/tyler/.codex/worktrees/286c/gimbal/claude/claude_test.go) asserting waiting loops, notification arrival, error aborts, and clean exits.
 
 ### Out of Scope
 
-- No public API changes to `gimble.Session` or `gimble.Generate`.
+- No public API changes to `gimbal.Session` or `gimbal.Generate`.
 - No session-wide background daemon, persistent server process, or background service survival across sessions.
 - No general framework for arbitrary multi-agent coordination or custom polling loops.
 - No modifications to other provider adapters (e.g. Codex).
@@ -52,9 +52,9 @@ The repair ensures:
 
 ## 3. Temporary Acceptance Workflow
 
-Per [`SPRINT-002-INTENT.md`](file:///Users/tyler/.codex/worktrees/286c/gimble/docs/sprints/drafts/SPRINT-002-INTENT.md), an isolated acceptance script located at `/private/tmp/gimble-317-acceptance/main.go` verifies the fix against live Claude Haiku (`claude-haiku-4-5-20251001`):
+Per [`SPRINT-002-INTENT.md`](file:///Users/tyler/.codex/worktrees/286c/gimbal/docs/sprints/drafts/SPRINT-002-INTENT.md), an isolated acceptance script located at `/private/tmp/gimbal-317-acceptance/main.go` verifies the fix against live Claude Haiku (`claude-haiku-4-5-20251001`):
 
-1. **Setup**: Run via real `gimble.Run`. Create one `*Session` using `NewSession`.
+1. **Setup**: Run via real `gimbal.Run`. Create one `*Session` using `NewSession`.
 2. **Turn 1 (Background Wait & Wakeup)**:
    - Schema $T_1$: `{ "status": "waiting" | "completed", "computed_token": string }`.
    - Prompt provides canary $K$ (`CANARY-WAIT-9021`) and commands Haiku to launch a background bash job (`run_in_background: true`) sleeping 6 seconds before writing a computed hash $H$ to a temporary file.
@@ -76,7 +76,7 @@ Per [`SPRINT-002-INTENT.md`](file:///Users/tyler/.codex/worktrees/286c/gimble/do
 
 ## 4. Definition of Done
 
-Following [`definition-of-done.md`](file:///Users/tyler/.codex/worktrees/286c/gimble/docs/definition-of-done.md):
+Following [`definition-of-done.md`](file:///Users/tyler/.codex/worktrees/286c/gimbal/docs/definition-of-done.md):
 
 | Requirement | Verification Evidence |
 | :--- | :--- |

@@ -1,4 +1,4 @@
-package gimble
+package gimbal
 
 import (
 	"context"
@@ -51,7 +51,7 @@ func NewSession(ctx context.Context, role WorkflowRole, workdir string) *Session
 	}
 	binding, bound := scope.run.models[role]
 	if !bound {
-		panic(fmt.Sprintf("gimble: the run did not bind the role %q", role))
+		panic(fmt.Sprintf("gimbal: the run did not bind the role %q", role))
 	}
 	s.adapter, s.model, s.effort = binding.Adapter, binding.Model, binding.Effort
 	scope.adopt(s)
@@ -112,7 +112,7 @@ func scopedPrompt(ctx context.Context, prompt string, o options) (string, []Cont
 	}
 	var rendered strings.Builder
 	if err := shape.Execute(&rendered, scopeData(ctx)); err != nil {
-		return "", nil, fmt.Errorf("gimble: render the scope template: %w", err)
+		return "", nil, fmt.Errorf("gimbal: render the scope template: %w", err)
 	}
 	text := strings.TrimSpace(rendered.String())
 	if text == "" {
@@ -137,7 +137,7 @@ func scopeTemplate(text string) (*template.Template, error) {
 	}
 	parsed, err := template.New("scope").Parse(text)
 	if err != nil {
-		return nil, fmt.Errorf("gimble: parse the scope template: %w", err)
+		return nil, fmt.Errorf("gimbal: parse the scope template: %w", err)
 	}
 	scopeTemplates.Store(text, parsed)
 	return parsed, nil
@@ -156,7 +156,7 @@ func appendScopeText(ctx context.Context, prompt string) string {
 // dispatch runs one turn for opts, without touching prompt: the internal
 // callers that build a prompt at runtime (PromiseLoop's planner turn, a
 // supervisor's look) call this directly instead of the exported Generate,
-// so they are exempt from GIMBLE108's constant-prompt rule and are not
+// so they are exempt from GIMBAL108's constant-prompt rule and are not
 // given scope context a second time.
 func dispatch[T Output](ctx context.Context, s *Session, prompt string, opts []AgentOption) (T, error) {
 	return dispatchRecorded[T](ctx, s, prompt, opts, nil)
@@ -199,7 +199,7 @@ func generate[T Output](ctx context.Context, s *Session, prompt string, onEvent 
 			if err = json.Unmarshal(raw, &out); err == nil {
 				return out, nil
 			}
-			err = fmt.Errorf("gimble: %s: decode the result: %w: %w", s.id, errInvalidResult, err)
+			err = fmt.Errorf("gimbal: %s: decode the result: %w: %w", s.id, errInvalidResult, err)
 		} else if !errors.Is(err, errInvalidResult) {
 			// Projector gaps stay inside Claude's observer. This is a failure
 			// returned by Claude or its SDK after the native turn stopped.
@@ -209,13 +209,13 @@ func generate[T Output](ctx context.Context, s *Session, prompt string, onEvent 
 					logf("%s: provider/session error, retrying turn (%d of %d): %v", s.id, protocolFailures, protocolAttempts, err)
 					continue
 				}
-				return out, fmt.Errorf("gimble: %s: provider/session error after %d attempts: %w", s.id, protocolFailures, err)
+				return out, fmt.Errorf("gimbal: %s: provider/session error after %d attempts: %w", s.id, protocolFailures, err)
 			}
 			return out, err
 		}
 		invalidAttempts++
 		if invalidAttempts == generateAttempts {
-			return out, fmt.Errorf("gimble: %s: no valid result after %d attempts: %w", s.id, invalidAttempts, err)
+			return out, fmt.Errorf("gimbal: %s: no valid result after %d attempts: %w", s.id, invalidAttempts, err)
 		}
 		logf("%s: the result is invalid, so the model is asked again (%d of %d): %v", s.id, invalidAttempts, generateAttempts, err)
 		problem = err
@@ -248,7 +248,7 @@ func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessag
 	if native == "" {
 		id, err := s.adapter.CreateSession(ctx, s.model, s.effort, s.workdir)
 		if err != nil {
-			return nil, fmt.Errorf("gimble: %s: %w", s.id, err)
+			return nil, fmt.Errorf("gimbal: %s: %w", s.id, err)
 		}
 		s.mu.Lock()
 		s.native, native = id, id
@@ -298,14 +298,14 @@ func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessag
 	if err := wrapped(nativeEvent("session.inbox.enqueued", map[string]any{
 		"sessionID": native, "inboxID": inboxKey,
 		"item": map[string]any{"type": "user", "payload": map[string]any{"text": prompt}, "delivery": "queue"},
-	}, map[string]any{"provider": "gimble", "sessionID": native, "turnID": turnID, "messageID": inboxKey})); err != nil {
-		return nil, fmt.Errorf("gimble: %s: record prompt: %w", s.id, err)
+	}, map[string]any{"provider": "gimbal", "sessionID": native, "turnID": turnID, "messageID": inboxKey})); err != nil {
+		return nil, fmt.Errorf("gimbal: %s: record prompt: %w", s.id, err)
 	}
-	if err := wrapped(nativeEvent("session.inbox.delivered", map[string]any{"sessionID": native, "inboxID": inboxKey}, map[string]any{"provider": "gimble", "sessionID": native, "turnID": turnID, "messageID": inboxKey})); err != nil {
-		return nil, fmt.Errorf("gimble: %s: deliver prompt: %w", s.id, err)
+	if err := wrapped(nativeEvent("session.inbox.delivered", map[string]any{"sessionID": native, "inboxID": inboxKey}, map[string]any{"provider": "gimbal", "sessionID": native, "turnID": turnID, "messageID": inboxKey})); err != nil {
+		return nil, fmt.Errorf("gimbal: %s: deliver prompt: %w", s.id, err)
 	}
-	if err := wrapped(nativeEvent("session.execution.started", map[string]any{"sessionID": native}, map[string]any{"provider": "gimble", "sessionID": native, "turnID": turnID})); err != nil {
-		return nil, fmt.Errorf("gimble: %s: start execution: %w", s.id, err)
+	if err := wrapped(nativeEvent("session.execution.started", map[string]any{"sessionID": native}, map[string]any{"provider": "gimbal", "sessionID": native, "turnID": turnID})); err != nil {
+		return nil, fmt.Errorf("gimbal: %s: start execution: %w", s.id, err)
 	}
 	// The turn has its own ctx, reachable by turn id through the run's table
 	// while RunTurn runs, so an operator can end this one turn and leave the
@@ -356,7 +356,7 @@ func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessag
 		if steerSource(ctx) != "" || errors.As(stopped, &killed) {
 			reason = "user"
 		}
-		terminalErr := wrapped(nativeEvent("session.execution.interrupted", map[string]any{"sessionID": native, "reason": reason}, map[string]any{"provider": "gimble", "sessionID": native, "turnID": turnID}))
+		terminalErr := wrapped(nativeEvent("session.execution.interrupted", map[string]any{"sessionID": native, "reason": reason}, map[string]any{"provider": "gimbal", "sessionID": native, "turnID": turnID}))
 		err = errors.Join(stopped, terminalErr)
 		if scope != nil {
 			scope.run.event(scope.key, s.id, turnID, TurnEnded{Error: stopped.Error(), Usage: report, Duration: time.Since(start), Interrupted: true})
@@ -364,15 +364,15 @@ func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessag
 		return nil, err
 	}
 	if err != nil {
-		terminalErr := wrapped(nativeEvent("session.execution.failed", map[string]any{"sessionID": native, "error": map[string]any{"type": "provider", "message": err.Error()}}, map[string]any{"provider": "gimble", "sessionID": native, "turnID": turnID}))
+		terminalErr := wrapped(nativeEvent("session.execution.failed", map[string]any{"sessionID": native, "error": map[string]any{"type": "provider", "message": err.Error()}}, map[string]any{"provider": "gimbal", "sessionID": native, "turnID": turnID}))
 		err = errors.Join(err, terminalErr)
 		if scope != nil {
 			scope.run.event(scope.key, s.id, turnID, TurnEnded{Error: err.Error(), Usage: report, Duration: time.Since(start)})
 		}
-		return nil, fmt.Errorf("gimble: %s: %w", s.id, err)
+		return nil, fmt.Errorf("gimbal: %s: %w", s.id, err)
 	}
-	if terminalErr := wrapped(nativeEvent("session.execution.succeeded", map[string]any{"sessionID": native}, map[string]any{"provider": "gimble", "sessionID": native, "turnID": turnID})); terminalErr != nil {
-		return nil, fmt.Errorf("gimble: %s: complete execution: %w", s.id, terminalErr)
+	if terminalErr := wrapped(nativeEvent("session.execution.succeeded", map[string]any{"sessionID": native}, map[string]any{"provider": "gimbal", "sessionID": native, "turnID": turnID})); terminalErr != nil {
+		return nil, fmt.Errorf("gimbal: %s: complete execution: %w", s.id, terminalErr)
 	}
 	// The harness succeeded, so its native events stand; only the turn's own
 	// recorded outcome carries the validation failure.
@@ -381,7 +381,7 @@ func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessag
 			if scope != nil {
 				scope.run.event(scope.key, s.id, turnID, TurnEnded{Result: JSONText(result.Output), Error: err.Error(), Usage: report, Duration: time.Since(start)})
 			}
-			return nil, fmt.Errorf("gimble: %s: the result does not validate: %w: %w", s.id, errInvalidResult, err)
+			return nil, fmt.Errorf("gimbal: %s: the result does not validate: %w: %w", s.id, errInvalidResult, err)
 		}
 	}
 	if scope != nil {
@@ -429,7 +429,7 @@ func (s *Session) recordUsage(add Usage, native, turnID string, emit func(AgentE
 	s.mu.Unlock()
 	return emit(nativeEvent("session.usage.updated",
 		map[string]any{"sessionID": native, "cost": total.Cost, "tokens": total.Tokens},
-		map[string]any{"provider": "gimble", "sessionID": native, "turnID": turnID}))
+		map[string]any{"provider": "gimbal", "sessionID": native, "turnID": turnID}))
 }
 
 func nativeEvent(eventType string, data any, nativeRef any) AgentEvent {
@@ -445,24 +445,24 @@ func (s *Session) stampAgentEvent(event AgentEvent) (AgentEvent, error) {
 	defer s.mu.Unlock()
 	var data map[string]any
 	if err := json.Unmarshal(event.Data, &data); err != nil || data == nil {
-		return AgentEvent{}, fmt.Errorf("gimble: %s data is not an object", event.Type)
+		return AgentEvent{}, fmt.Errorf("gimbal: %s data is not an object", event.Type)
 	}
 	if s.canonicalSession == "" {
 		s.canonicalSession = "ses_" + base64.RawURLEncoding.EncodeToString([]byte(s.id))
 	}
 	nativeSession, _ := data["sessionID"].(string)
 	if nativeSession == "" {
-		return AgentEvent{}, fmt.Errorf("gimble: %s has no native sessionID", event.Type)
+		return AgentEvent{}, fmt.Errorf("gimbal: %s has no native sessionID", event.Type)
 	}
 	data["sessionID"] = s.canonicalSession
 	ref := make(map[string]any)
 	if len(event.NativeRef) > 0 {
 		if err := json.Unmarshal(event.NativeRef, &ref); err != nil {
-			return AgentEvent{}, fmt.Errorf("gimble: %s NativeRef is not a JSON object: %w", event.Type, err)
+			return AgentEvent{}, fmt.Errorf("gimbal: %s NativeRef is not a JSON object: %w", event.Type, err)
 		}
 	}
 	if ref == nil {
-		return AgentEvent{}, fmt.Errorf("gimble: %s NativeRef is not a JSON object", event.Type)
+		return AgentEvent{}, fmt.Errorf("gimbal: %s NativeRef is not a JSON object", event.Type)
 	}
 	allowedRef := map[string]bool{
 		"provider": true, "sessionID": true, "turnID": true, "messageID": true,
@@ -471,22 +471,22 @@ func (s *Session) stampAgentEvent(event AgentEvent) (AgentEvent, error) {
 	}
 	for key := range ref {
 		if !allowedRef[key] {
-			return AgentEvent{}, fmt.Errorf("gimble: %s NativeRef has unsupported field %q", event.Type, key)
+			return AgentEvent{}, fmt.Errorf("gimbal: %s NativeRef has unsupported field %q", event.Type, key)
 		}
 	}
 	if provider, _ := ref["provider"].(string); provider == "" {
-		return AgentEvent{}, fmt.Errorf("gimble: %s NativeRef has no provider", event.Type)
+		return AgentEvent{}, fmt.Errorf("gimbal: %s NativeRef has no provider", event.Type)
 	}
 	if _, exists := ref["sessionID"]; !exists {
 		ref["sessionID"] = nativeSession
 	} else if ref["sessionID"] != nativeSession {
-		return AgentEvent{}, fmt.Errorf("gimble: %s NativeRef sessionID does not match data", event.Type)
+		return AgentEvent{}, fmt.Errorf("gimbal: %s NativeRef sessionID does not match data", event.Type)
 	}
 	nextEventSeq := s.eventSeq + 1
 	for _, key := range []string{"assistantMessageID", "inboxID"} {
 		if nativeID, present := data[key].(string); present {
 			if nativeID == "" {
-				return AgentEvent{}, fmt.Errorf("gimble: %s has an empty %s", event.Type, key)
+				return AgentEvent{}, fmt.Errorf("gimbal: %s has an empty %s", event.Type, key)
 			}
 			canonical := s.messageIDLocked(nativeID, nextEventSeq)
 			data[key] = canonical
@@ -522,7 +522,7 @@ func bindMessageRef(eventType string, ref map[string]any, native, canonical stri
 	if _, exists := ref["messageID"]; !exists {
 		ref["messageID"] = native
 	} else if ref["messageID"] != native {
-		return fmt.Errorf("gimble: %s NativeRef messageID does not match data", eventType)
+		return fmt.Errorf("gimbal: %s NativeRef messageID does not match data", eventType)
 	}
 	ref["normalizedMessageID"] = canonical
 	return nil
@@ -532,11 +532,11 @@ func bindMessageRef(eventType string, ref map[string]any, native, canonical stri
 func (s *Session) usable() error {
 	switch {
 	case s.id == "":
-		return fmt.Errorf("gimble: session %q was not created in a run", s.name)
+		return fmt.Errorf("gimbal: session %q was not created in a run", s.name)
 	case s.closed:
-		return fmt.Errorf("gimble: session %s was used after its scope ended", s.id)
+		return fmt.Errorf("gimbal: session %s was used after its scope ended", s.id)
 	case s.running:
-		return fmt.Errorf("gimble: session %s is already running a turn", s.id)
+		return fmt.Errorf("gimbal: session %s is already running a turn", s.id)
 	}
 	return nil
 }
@@ -569,7 +569,7 @@ func (s *Session) Steer(ctx context.Context, message string) (landed bool, err e
 		if err := emit(nativeEvent("session.inbox.enqueued", map[string]any{
 			"sessionID": native, "inboxID": inboxKey,
 			"item": map[string]any{"type": "user", "payload": map[string]any{"text": message}, "delivery": "steer"},
-		}, map[string]any{"provider": "gimble", "sessionID": native, "turnID": turn, "messageID": inboxKey})); err != nil {
+		}, map[string]any{"provider": "gimbal", "sessionID": native, "turnID": turn, "messageID": inboxKey})); err != nil {
 			return false, err
 		}
 	}
@@ -589,7 +589,7 @@ func (s *Session) Steer(ctx context.Context, message string) (landed bool, err e
 		if !landed {
 			eventType = "session.inbox.cancelled"
 		}
-		emitErr := emit(nativeEvent(eventType, map[string]any{"sessionID": native, "inboxID": inboxKey}, map[string]any{"provider": "gimble", "sessionID": native, "turnID": turn, "messageID": inboxKey}))
+		emitErr := emit(nativeEvent(eventType, map[string]any{"sessionID": native, "inboxID": inboxKey}, map[string]any{"provider": "gimbal", "sessionID": native, "turnID": turn, "messageID": inboxKey}))
 		err = errors.Join(err, emitErr)
 	}
 	return landed, err
@@ -624,7 +624,7 @@ func (s *Session) Fork(ctx context.Context, name string) (*Session, error) {
 	fork := &Session{adapter: s.adapter, name: name, model: s.model, effort: s.effort, workdir: s.workdir}
 	if native != "" {
 		if fork.native, err = s.adapter.Fork(ctx, native); err != nil {
-			return nil, fmt.Errorf("gimble: fork %s: %w", s.id, err)
+			return nil, fmt.Errorf("gimbal: fork %s: %w", s.id, err)
 		}
 	}
 	scope.adopt(fork)

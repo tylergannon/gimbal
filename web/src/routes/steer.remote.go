@@ -8,8 +8,8 @@ import (
 
 	"github.com/tylergannon/skgo"
 
-	"github.com/tylergannon/gimble"
-	"github.com/tylergannon/gimble/internal/live"
+	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/internal/live"
 )
 
 // steerTimeout bounds one delivery. The adapters bound their own control
@@ -88,7 +88,7 @@ type Waiting struct {
 func steerLoop(ctx context.Context, arg LoopMessage) (Waiting, error) {
 	message := strings.TrimSpace(arg.Message)
 	if arg.WrapUp {
-		message = gimble.WrapUp
+		message = gimbal.WrapUp
 	}
 	if message == "" {
 		return Waiting{}, skgo.Invalidf("message", "Type a message before sending it.")

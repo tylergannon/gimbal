@@ -14,7 +14,7 @@ const config: StorybookConfig = {
   viteFinal: (config) => {
     config.plugins = [
       {
-        name: "gimble-mock-remotes",
+        name: "gimbal-mock-remotes",
         enforce: "pre",
         resolveId(source, importer) {
           if (!/\.remote(\.[jt]s)?$/.test(source) || importer?.startsWith(mocks)) return;

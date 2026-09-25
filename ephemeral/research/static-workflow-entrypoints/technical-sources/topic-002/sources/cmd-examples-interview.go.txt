@@ -1,5 +1,5 @@
-// Origin: /Users/tyler/.codex/worktrees/d798/gimble/cmd/examples/interview/main.go
-//         /Users/tyler/.codex/worktrees/d798/gimble/cmd/examples/implement-interview/main.go
+// Origin: /Users/tyler/.codex/worktrees/d798/gimbal/cmd/examples/interview/main.go
+//         /Users/tyler/.codex/worktrees/d798/gimbal/cmd/examples/implement-interview/main.go
 // Revision: 40dc82947eed99202fd9cb1dd377b6a3c2abbccc
 // Date: 2026-09-23
 // Scope: Standalone examples calling generated Command() on unadmitted/unregistered workflows.
@@ -12,12 +12,12 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/tylergannon/gimble"
-	interviewworkflow "github.com/tylergannon/gimble/internal/workflows/interview"
+	"github.com/tylergannon/gimbal"
+	interviewworkflow "github.com/tylergannon/gimbal/internal/workflows/interview"
 )
 
 func main() {
-	cmd := interviewworkflow.Command(map[gimble.WorkflowRole]string{
+	cmd := interviewworkflow.Command(map[gimbal.WorkflowRole]string{
 		"interviewer": "gpt-5.6-terra",
 	})
 	cmd.SilenceUsage = true
@@ -37,19 +37,19 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/tylergannon/gimble"
-	"github.com/tylergannon/gimble/internal/workflows/implementinterview"
+	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/internal/workflows/implementinterview"
 )
 
 func main() {
-	cmd := implementinterview.Command(map[gimble.WorkflowRole]string{
+	cmd := implementinterview.Command(map[gimbal.WorkflowRole]string{
 		"api-research":                   "gpt-5.6-terra:high",
 		"frontend-research":              "claude-sonnet-5:high",
-		gimble.RoleSprintPlanning:        "claude-opus-5-5:max",
+		gimbal.RoleSprintPlanning:        "claude-opus-5-5:max",
 		"coding":                         "gpt-6-sol:xhigh",
 		"implementation-scope-review":    "gpt-5.6-terra:high",
-		gimble.RoleArchitecturalCritique: "claude-sonnet-5:high",
-		gimble.RoleQAOrchestration:       "claude-opus-5-5:max",
+		gimbal.RoleArchitecturalCritique: "claude-sonnet-5:high",
+		gimbal.RoleQAOrchestration:       "claude-opus-5-5:max",
 	})
 	cmd.SilenceUsage = true
 	cmd.SilenceErrors = true

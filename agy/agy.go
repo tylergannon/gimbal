@@ -1,4 +1,4 @@
-// Package agy is Gimble's HarnessAdapter for Google Antigravity through the
+// Package agy is Gimbal's HarnessAdapter for Google Antigravity through the
 // agy print-mode CLI.
 package agy
 
@@ -19,7 +19,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/tylergannon/gimble"
+	"github.com/tylergannon/gimbal"
 )
 
 const (
@@ -75,9 +75,9 @@ type nativeResult struct {
 	structured     any
 }
 
-// New returns Gimble's Antigravity harness. It launches agy from PATH when a
+// New returns Gimbal's Antigravity harness. It launches agy from PATH when a
 // session first needs it.
-func New() gimble.HarnessAdapter {
+func New() gimbal.HarnessAdapter {
 	return newAdapter(config{binary: "agy"})
 }
 
@@ -87,7 +87,7 @@ func newAdapter(cfg config) *adapter {
 
 // CreateSession reserves an adapter session. The first visible user turn
 // starts the native Antigravity conversation, so no hidden model call escapes
-// Gimble's event and accounting record.
+// Gimbal's event and accounting record.
 func (a *adapter) CreateSession(ctx context.Context, model, effort, workdir string) (string, error) {
 	if strings.TrimSpace(model) == "" {
 		return "", errors.New("agy: model is blank")
@@ -109,10 +109,10 @@ func (a *adapter) CreateSession(ctx context.Context, model, effort, workdir stri
 // RunTurn runs one resumed agy print process and translates its NDJSON stream.
 // Antigravity states no cost and no per-model turn report, so TurnResult carries
 // no usage: the session accounts for the turn from its step events alone.
-func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema json.RawMessage, onEvent func(gimble.AgentEvent) error) (gimble.TurnResult, error) {
+func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema json.RawMessage, onEvent func(gimbal.AgentEvent) error) (gimbal.TurnResult, error) {
 	s, err := a.session(sessionID)
 	if err != nil {
-		return gimble.TurnResult{}, err
+		return gimbal.TurnResult{}, err
 	}
 	s.ops.Lock()
 	defer s.ops.Unlock()
@@ -127,20 +127,20 @@ func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema 
 	}
 	result, err := a.run(ctx, s, request)
 	if ctx.Err() != nil {
-		return gimble.TurnResult{}, ctx.Err()
+		return gimbal.TurnResult{}, ctx.Err()
 	}
 	if err != nil {
-		return gimble.TurnResult{}, err
+		return gimbal.TurnResult{}, err
 	}
 	if len(schema) == 0 {
 		out, err := json.Marshal(result.response)
-		return gimble.TurnResult{Output: out}, err
+		return gimbal.TurnResult{Output: out}, err
 	}
 	if result.structured == nil {
-		return gimble.TurnResult{}, errors.New("agy: the turn ended without structured_output")
+		return gimbal.TurnResult{}, errors.New("agy: the turn ended without structured_output")
 	}
 	out, err := json.Marshal(result.structured)
-	return gimble.TurnResult{Output: out}, err
+	return gimbal.TurnResult{Output: out}, err
 }
 
 // Steer interrupts the active print process. RunTurn resumes the same native
@@ -165,7 +165,7 @@ func (a *adapter) Steer(ctx context.Context, sessionID, message string) (bool, e
 	return true, nil
 }
 
-// Fork reports the native limitation instead of aliasing two Gimble sessions
+// Fork reports the native limitation instead of aliasing two Gimbal sessions
 // to one mutable Antigravity conversation. agy does not expose /fork in print
 // mode or provide another headless fork transport.
 func (a *adapter) Fork(ctx context.Context, sessionID string) (string, error) {
@@ -504,7 +504,7 @@ func existingDir(path string) (string, error) {
 	return absolute, nil
 }
 
-var _ gimble.HarnessAdapter = (*adapter)(nil)
+var _ gimbal.HarnessAdapter = (*adapter)(nil)
 
 // modelIncludesEffort reports whether a native model name already fixes the
 // reasoning effort, as gemini-3.8-flash-high does, so no --effort flag goes

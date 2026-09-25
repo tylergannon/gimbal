@@ -1,4 +1,4 @@
-package gimble
+package gimbal
 
 import (
 	"context"
@@ -19,7 +19,7 @@ type group struct {
 // Group opens an errgroup-shaped concurrent scope named name. Call its Go
 // method for each child, then return its Wait method's result:
 //
-//	group := gimble.Group(ctx, "candidates")
+//	group := gimbal.Group(ctx, "candidates")
 //	group.Go("candidate", first)
 //	group.Go("candidate", second)
 //	return group.Wait()
@@ -53,7 +53,7 @@ type panicError struct {
 }
 
 func (e *panicError) Error() string {
-	return fmt.Sprintf("gimble: panic: %v\n\n%s", e.value, e.stack)
+	return fmt.Sprintf("gimbal: panic: %v\n\n%s", e.value, e.stack)
 }
 
 // Go runs fn in a goroutine, in a child scope of the group named name. A

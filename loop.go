@@ -1,4 +1,4 @@
-package gimble
+package gimbal
 
 import (
 	"context"
@@ -87,7 +87,7 @@ func PromiseLoop(ctx context.Context, name, goal string, planner *Session, opts 
 // from validation and from fulfillment of the enclosing goal.
 func (l *promiseLoop) Tasks(yield func(context.Context, Task) bool) {
 	if l.planner == nil {
-		l.err = errors.New("gimble: PromiseLoop requires a planner session")
+		l.err = errors.New("gimbal: PromiseLoop requires a planner session")
 		return
 	}
 	parent, err := current(l.ctx)
@@ -109,7 +109,7 @@ func (l *promiseLoop) Tasks(yield func(context.Context, Task) bool) {
 		}()
 		dir := filepath.Join(loopScope.run.dir, "scopes", filepath.FromSlash(loopScope.key))
 		if err := os.MkdirAll(dir, 0o755); err != nil {
-			return fmt.Errorf("gimble: %w", err)
+			return fmt.Errorf("gimbal: %w", err)
 		}
 		file := filepath.Join(dir, "backlog.md")
 
@@ -118,7 +118,7 @@ func (l *promiseLoop) Tasks(yield func(context.Context, Task) bool) {
 		for {
 			backlogText, err := backlogJSON(l.goal, tasks)
 			if err != nil {
-				return fmt.Errorf("gimble: %w", err)
+				return fmt.Errorf("gimbal: %w", err)
 			}
 			// What an operator sent while the last task ran is read here,
 			// at the decision it was sent for, and recorded as landed
@@ -144,10 +144,10 @@ func (l *promiseLoop) Tasks(yield func(context.Context, Task) bool) {
 
 			revisedText, err := backlogJSON(l.goal, tasks)
 			if err != nil {
-				return fmt.Errorf("gimble: %w", err)
+				return fmt.Errorf("gimbal: %w", err)
 			}
 			if err := os.WriteFile(file, []byte("---\n"+string(revisedText)+"\n---\n"), 0o644); err != nil {
-				return fmt.Errorf("gimble: %w", err)
+				return fmt.Errorf("gimbal: %w", err)
 			}
 
 			if !p.Next.Present {
@@ -165,7 +165,7 @@ func (l *promiseLoop) Tasks(yield func(context.Context, Task) bool) {
 			if err := taskScope.do(taskCtx, func(ctx context.Context) error {
 				raw, err := json.Marshal(task)
 				if err != nil {
-					return fmt.Errorf("gimble: encode task: %w", err)
+					return fmt.Errorf("gimbal: encode task: %w", err)
 				}
 				store(ctx, "task", raw)
 				more = yield(ctx, task)

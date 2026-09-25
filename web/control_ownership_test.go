@@ -7,7 +7,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/tylergannon/gimble/internal/host"
+	"github.com/tylergannon/gimbal/internal/host"
 )
 
 func TestControlRunsBelongToThisProject(t *testing.T) {

@@ -19,24 +19,24 @@
 
 <DocsPage
   title="Built-in workflows"
-  description="Five workflows ship in the binary. Each is ordinary Gimble code you can read; its command and diagram are generated from the same source."
+  description="Five workflows ship in the binary. Each is ordinary Gimbal code you can read; its command and diagram are generated from the same source."
   eyebrow="Feature"
   {headings}
 >
 
 <RunHelp />
 
-`gimble run WORKFLOW --help` is the full invocation reference. The diagrams below are generated from the same `workflow.Graph` the live console uses. They show the workflow's calls, loops, scopes, and fan-out—not every value assignment, session declaration, or guard.
+`gimbal run WORKFLOW --help` is the full invocation reference. The diagrams below are generated from the same `workflow.Graph` the live console uses. They show the workflow's calls, loops, scopes, and fan-out—not every value assignment, session declaration, or guard.
 
 <h2 id="review">review</h2>
 
 One reviewer inspects a repository read-only and returns a list of concrete correctness findings. The whole workflow is about ten lines, which makes it the one to read first.
 
 ```sh
-gimble run review --goal "Find correctness bugs in the retry logic"
+gimbal run review --goal "Find correctness bugs in the retry logic"
 ```
 
-[Read the workflow source](https://github.com/tylergannon/gimble/blob/main/internal/workflows/review/review.go).
+[Read the workflow source](https://github.com/tylergannon/gimbal/blob/main/internal/workflows/review/review.go).
 
 <ReviewDiagram />
 
@@ -45,11 +45,11 @@ gimble run review --goal "Find correctness bugs in the retry logic"
 Runs up to three prepared user workloads concurrently, records their browser sessions, asks each tester for a structured UX debrief, checks the screenshots, and synthesizes actionable findings. It is practical user testing—not source review or an exhaustive feature checklist.
 
 ```sh
-gimble run validate-product \
+gimbal run validate-product \
   --suite-file /abs/user-testing.yaml
 ```
 
-[Read the workflow source](https://github.com/tylergannon/gimble/blob/main/internal/workflows/validateproduct/validateproduct.go).
+[Read the workflow source](https://github.com/tylergannon/gimbal/blob/main/internal/workflows/validateproduct/validateproduct.go).
 
 <ValidateProductDiagram />
 
@@ -58,14 +58,14 @@ gimble run validate-product \
 Works through an ordered list of outcomes. For each outcome, a planner chooses a bounded assignment, a coding agent implements it under a scope coach, and an independent validator judges the result. It advances at 90–95% completion when only small gaps remain. It never commits, pushes, or merges.
 
 ```sh
-gimble run implement \
+gimbal run implement \
   --outcomes-file ./outcomes.json \
   --max-tasks-per-outcome 3
 ```
 
 Primitives used: [promise loop](../primitives/#promise-loop), [supervision](../primitives/#supervision), [scoped context](../primitives/#context), [`Check`](../primitives/#evidence).
 
-[Read the workflow source](https://github.com/tylergannon/gimble/blob/main/internal/workflows/implementation/implementation.go).
+[Read the workflow source](https://github.com/tylergannon/gimbal/blob/main/internal/workflows/implementation/implementation.go).
 
 <ImplementDiagram />
 
@@ -74,14 +74,14 @@ Primitives used: [promise loop](../primitives/#promise-loop), [supervision](../p
 Researches a subject into a local semantic index, writes a document within a token budget, and revises it until an independent editor finds only nitpicks. A planner returns five groups of topics, one per parallel researcher; each leaves local source files and an index that cites them.
 
 ```sh
-gimble run research-document \
+gimbal run research-document \
   --goal "Explain passkeys to security-conscious product managers" \
   --research-dir ./passkeys-research \
   --output ./passkeys.md \
   --token-budget 4000
 ```
 
-[Read the workflow source](https://github.com/tylergannon/gimble/blob/main/internal/workflows/researchdocument/researchdocument.go).
+[Read the workflow source](https://github.com/tylergannon/gimbal/blob/main/internal/workflows/researchdocument/researchdocument.go).
 
 <ResearchDocumentDiagram />
 
@@ -90,7 +90,7 @@ gimble run research-document \
 Compresses one validated document into a pyramid of summaries, halving the token budget at each level until the next would be under 100 tokens. Six authors write levels in parallel; one editor then reads every level together for fidelity and useful compression. Roles can sit on different harnesses in the same run:
 
 ```sh
-gimble run pyramid-summary \
+gimbal run pyramid-summary \
   --goal "Explain passkeys to security-conscious product managers" \
   --semantic-index ./passkeys-research/INDEX.md \
   --largest-document ./passkeys.md \
@@ -99,7 +99,7 @@ gimble run pyramid-summary \
   --editorial-review claude-opus-5:high
 ```
 
-[Read the workflow source](https://github.com/tylergannon/gimble/blob/main/internal/workflows/pyramidsummary/pyramidsummary.go).
+[Read the workflow source](https://github.com/tylergannon/gimbal/blob/main/internal/workflows/pyramidsummary/pyramidsummary.go).
 
 <PyramidSummaryDiagram />
 
@@ -107,7 +107,7 @@ gimble run pyramid-summary \
 
 | Flag | Meaning |
 | --- | --- |
-| `--work-dir` | The project directory. Its `.gimble` holds the run. |
+| `--work-dir` | The project directory. Its `.gimbal` holds the run. |
 | `--ROLE` | One per role the workflow names, as `model` or `model:effort`. Defaults come from one shared file. |
 | `--port`, `--uds`, `--no-web` | Where the console listens, or that it should not. |
 

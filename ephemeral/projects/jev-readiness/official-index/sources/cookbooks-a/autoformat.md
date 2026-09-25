@@ -32,7 +32,7 @@ This cookbook recovers Markdown structure from stripped, hard-wrapped plain text
 
 ## Themes for continuous supervision
 
-- **Annotate, do not rewrite:** ask Jev whether a run fragment exhibits a coaching-relevant property; preserve the original event stream and let Gimble decide what to show or do.
+- **Annotate, do not rewrite:** ask Jev whether a run fragment exhibits a coaching-relevant property; preserve the original event stream and let Gimbal decide what to show or do.
 - **Stable object IDs:** label messages, tool calls, stalls, review findings, and plan revisions before asking batched questions.
 - **One state, many questions:** carry likely companion diagnostics in the same request, but ignore irrelevant answers downstream.
 - **Hybrid evidence:** deterministic facts such as exit status, elapsed time, file paths, and explicit error markers should bypass Jev; Jev should answer only semantic questions code cannot derive.
@@ -42,7 +42,7 @@ This cookbook recovers Markdown structure from stripped, hard-wrapped plain text
 - Vague category wording measures topic continuity instead of the operational fact. The “same paragraph” ablation is a direct warning against broad prompts such as “does this agent need help?”
 - Thresholds are corpus-specific. The `0.2/0.5/0.55` values are demonstrated on one memo, not calibrated defaults.
 - A winning label can still be weak (`0.43` type confidence). Always retain the full distribution for review and tuning.
-- Asking all companions cheaply is useful only when the state dominates request cost; validate that assumption for long Gimble traces and the deployed API.
+- Asking all companions cheaply is useful only when the state dominates request cost; validate that assumption for long Gimbal traces and the deployed API.
 - Published dollar cost is internally inconsistent (`$0.0003` computed versus `$0.0015` prose).
 
 ## Task recipes

@@ -73,6 +73,6 @@ concrete contract.
 - **Fixture cleanup.** `subprocess.run(timeout=220)` kills only `go run`, not the
   compiled binary, Claude, or `slow.py`. Kill a process group, or cleanup is
   unmet on the timeout path.
-- **Recall isolation.** `gimble.Project(ctx, dir)` and the session workdir are
+- **Recall isolation.** `gimbal.Project(ctx, dir)` and the session workdir are
   the same directory, so run records holding the token are agent-visible. The
   no-tools assert covers it; separate directories remove the question.

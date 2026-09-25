@@ -1,0 +1,57 @@
+// Origin: /Users/tyler/.codex/worktrees/d798/gimbal/cmd/gimbal/workflows.go
+// Revision: 40dc82947eed99202fd9cb1dd377b6a3c2abbccc
+// Date: 2026-09-23
+// Scope: Assembly of stock built-in workflows into Cobra run command and web option.
+
+package main
+
+import (
+	_ "embed"
+	"encoding/json"
+
+	"github.com/spf13/cobra"
+	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/internal/workflows/implementation"
+	"github.com/tylergannon/gimbal/internal/workflows/pyramidsummary"
+	"github.com/tylergannon/gimbal/internal/workflows/researchdocument"
+	"github.com/tylergannon/gimbal/internal/workflows/review"
+	"github.com/tylergannon/gimbal/internal/workflows/validateproduct"
+	"github.com/tylergannon/gimbal/web"
+)
+
+//go:embed defaults.json
+var workflowDefaultsJSON []byte
+
+func workflowDefaults() map[gimbal.WorkflowRole]string {
+	var defaults map[gimbal.WorkflowRole]string
+	if err := json.Unmarshal(workflowDefaultsJSON, &defaults); err != nil {
+		panic(err)
+	}
+	return defaults
+}
+
+// newRunCommand is gimbal run: the workflows built into this binary, each
+// the Command its package generated.
+func newRunCommand() *cobra.Command {
+	run := &cobra.Command{
+		Use:   "run",
+		Short: "Submit a compiled workflow to a running Gimbal instance",
+		Long:  "Submit a workflow compiled into both this CLI and the selected persistent instance. To add one, author it under internal/workflows/ in the Gimbal checkout, generate and build with just build, register its generated Command and Hosted entries in cmd/gimbal/workflows.go, and restart the serving binary. A CLI command does not transport a Go closure. The instance owns accepted runs after this client exits. Each workflow accepts --instance-dir (or GIMBAL_INSTANCE_DIR, default .gimbal), --project for the admitted owner, --work-dir for execution, and --follow for terminal success or failure. Model and effort flags select each role; executables, PATH, and provider configuration come from the instance startup environment.",
+	}
+	run.AddCommand(review.Command(workflowDefaults()))
+	run.AddCommand(validateproduct.Command(workflowDefaults()))
+	run.AddCommand(implementation.Command(workflowDefaults()))
+	run.AddCommand(researchdocument.Command(workflowDefaults()))
+	run.AddCommand(pyramidsummary.Command(workflowDefaults()))
+	return run
+}
+
+func builtInWorkflows() web.Option {
+	return web.WithWorkflows(map[string]web.WorkflowEntry{
+		"review":            review.Hosted(),
+		"validate-product":  validateproduct.Hosted(),
+		"implement":         implementation.Hosted(),
+		"research-document": researchdocument.Hosted(),
+		"pyramid-summary":   pyramidsummary.Hosted(),
+	})
+}

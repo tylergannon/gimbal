@@ -209,7 +209,7 @@ bottom dock steals exactly the axis the map needs.
   pane; the bar becomes `Activity · Prompt · Source`. One home per fact —
   the home simply moves with the size, it is never in two places.
 - **Persistence.** Width and maximized flag in `localStorage` under
-  `gimble.detail.width` and `gimble.detail.max`, one setting for the whole
+  `gimbal.detail.width` and `gimbal.detail.max`, one setting for the whole
   app, not per run. A stored width outside the current range clamps.
 - **Shortcuts.** `\` maximize/restore. `Esc` restores from maximized (and
   only then; it must not clear selection). `o` opens the session page. All

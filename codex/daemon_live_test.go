@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tylergannon/gimble"
+	"github.com/tylergannon/gimbal"
 )
 
 // TestRunTurnAfterRedialResumesThread proves finding 1's fix live: killing
@@ -24,7 +24,7 @@ import (
 // `codex app-server` daemon (never restarting it) using the cheap model
 // gpt-5.6-luna, so it only runs when explicitly requested:
 //
-//	GIMBLE_LIVE=1 go test ./codex -run TestRunTurnAfterRedialResumesThread -v
+//	GIMBAL_LIVE=1 go test ./codex -run TestRunTurnAfterRedialResumesThread -v
 //
 // Before the fix in adapter.conn/resumeThreads, the second turn below hangs
 // until the bounded context expires: turn/start succeeds on the redialed
@@ -33,15 +33,15 @@ import (
 // After the fix, the redial resumes every known thread before handing the
 // connection back, and the second turn returns text well within the bound.
 func TestRunTurnAfterRedialResumesThread(t *testing.T) {
-	if os.Getenv("GIMBLE_LIVE") != "1" {
-		t.Skip("set GIMBLE_LIVE=1 to run against the live codex app-server daemon")
+	if os.Getenv("GIMBAL_LIVE") != "1" {
+		t.Skip("set GIMBAL_LIVE=1 to run against the live codex app-server daemon")
 	}
 	ad, ok := New().(*adapter)
 	if !ok {
 		t.Fatalf("codex.New() did not return *adapter")
 	}
 
-	dir := os.Getenv("GIMBLE_LIVE_PROJECT")
+	dir := os.Getenv("GIMBAL_LIVE_PROJECT")
 	if dir == "" {
 		dir = t.TempDir()
 	} else if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -49,12 +49,12 @@ func TestRunTurnAfterRedialResumesThread(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
-	ctx = gimble.Project(ctx, dir)
+	ctx = gimbal.Project(ctx, dir)
 
-	err := gimble.Run(ctx, "daemon-live", map[gimble.WorkflowRole]gimble.ModelBinding{"live": {Adapter: ad, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
-		session := gimble.NewSession(ctx, "live", dir)
+	err := gimbal.Run(ctx, "daemon-live", map[gimbal.WorkflowRole]gimbal.ModelBinding{"live": {Adapter: ad, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
+		session := gimbal.NewSession(ctx, "live", dir)
 
-		first, err := session.Generate[gimble.Text](ctx, "Reply with exactly one word: one.")
+		first, err := session.Generate[gimbal.Text](ctx, "Reply with exactly one word: one.")
 		if err != nil {
 			return err
 		}
@@ -69,7 +69,7 @@ func TestRunTurnAfterRedialResumesThread(t *testing.T) {
 		// An ordinary second turn reuses the connection the first turn
 		// dialed: this is the one-connection contract, observed directly
 		// rather than inferred from process counts.
-		second, err := session.Generate[gimble.Text](ctx, "Reply with exactly one word: two.")
+		second, err := session.Generate[gimbal.Text](ctx, "Reply with exactly one word: two.")
 		if err != nil {
 			return err
 		}
@@ -86,7 +86,7 @@ func TestRunTurnAfterRedialResumesThread(t *testing.T) {
 		_ = conn.ws.CloseNow()
 		<-conn.readDone // wait for the reader to notice, so the next call redials deterministically
 
-		third, err := session.Generate[gimble.Text](ctx, "Use exactly one shell tool to run `printf CODEX_RECONNECT_TOOL_MARKER`, then answer exactly CODEX_RECONNECT_FINAL_MARKER.")
+		third, err := session.Generate[gimbal.Text](ctx, "Use exactly one shell tool to run `printf CODEX_RECONNECT_TOOL_MARKER`, then answer exactly CODEX_RECONNECT_FINAL_MARKER.")
 		if err != nil {
 			return err
 		}
@@ -127,19 +127,19 @@ func assertReconnectTranscript(t *testing.T, project string) {
 		AssistantMessageID string        `json:"assistantMessageID"`
 		Text               string        `json:"text"`
 		Content            []any         `json:"content"`
-		Tokens             gimble.Tokens `json:"tokens"`
+		Tokens             gimbal.Tokens `json:"tokens"`
 	}
 	type nativeRef struct {
 		ResponseID string `json:"responseID"`
 	}
 	rows := make(map[string]struct {
 		responseID string
-		tokens     gimble.Tokens
+		tokens     gimbal.Tokens
 	})
 	var toolMessageID, finalMessageID string
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
-		var record gimble.AgentRecord
+		var record gimbal.AgentRecord
 		if err := json.Unmarshal(scanner.Bytes(), &record); err != nil {
 			t.Fatal(err)
 		}
@@ -212,14 +212,14 @@ func (a *adapter) current() *connection {
 // there, but never stops or restarts the daemon. It creates a session,
 // runs one short turn, forks it without ever running a turn on the fork
 // (proving Close also releases a session whose only allocation was
-// thread/fork, not thread/start), and lets gimble.Run's root scope end.
+// thread/fork, not thread/start), and lets gimbal.Run's root scope end.
 // It talks to the machine's real shared `codex app-server` daemon, using
 // the cheap model gpt-5.6-luna, so it only runs when explicitly requested:
 //
-//	GIMBLE_LIVE=1 go test ./codex -run TestCloseArchivesThreadsWithoutTouchingTheDaemon -v
+//	GIMBAL_LIVE=1 go test ./codex -run TestCloseArchivesThreadsWithoutTouchingTheDaemon -v
 func TestCloseArchivesThreadsWithoutTouchingTheDaemon(t *testing.T) {
-	if os.Getenv("GIMBLE_LIVE") != "1" {
-		t.Skip("set GIMBLE_LIVE=1 to run against the live codex app-server daemon")
+	if os.Getenv("GIMBAL_LIVE") != "1" {
+		t.Skip("set GIMBAL_LIVE=1 to run against the live codex app-server daemon")
 	}
 
 	beforePID, err := managedDaemonPID()
@@ -242,11 +242,11 @@ func TestCloseArchivesThreadsWithoutTouchingTheDaemon(t *testing.T) {
 	dir := t.TempDir()
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
-	ctx = gimble.Project(ctx, dir)
+	ctx = gimbal.Project(ctx, dir)
 
-	err = gimble.Run(ctx, "daemon-close-live", map[gimble.WorkflowRole]gimble.ModelBinding{"live": {Adapter: ad, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
-		session := gimble.NewSession(ctx, "live", dir)
-		if _, err := session.Generate[gimble.Text](ctx, "Reply with exactly one word: proof."); err != nil {
+	err = gimbal.Run(ctx, "daemon-close-live", map[gimbal.WorkflowRole]gimbal.ModelBinding{"live": {Adapter: ad, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
+		session := gimbal.NewSession(ctx, "live", dir)
+		if _, err := session.Generate[gimbal.Text](ctx, "Reply with exactly one word: proof."); err != nil {
 			return err
 		}
 		// thread/fork subscribes the fork's thread immediately; forking
@@ -326,10 +326,10 @@ func TestCloseArchivesThreadsWithoutTouchingTheDaemon(t *testing.T) {
 // up) and archives through the new connection, so the thread is unloaded
 // from the daemon exactly as on the healthy path.
 //
-//	GIMBLE_LIVE=1 go test ./codex -run TestCloseArchivesThroughARedialedConnection -v
+//	GIMBAL_LIVE=1 go test ./codex -run TestCloseArchivesThroughARedialedConnection -v
 func TestCloseArchivesThroughARedialedConnection(t *testing.T) {
-	if os.Getenv("GIMBLE_LIVE") != "1" {
-		t.Skip("set GIMBLE_LIVE=1 to run against the live codex app-server daemon")
+	if os.Getenv("GIMBAL_LIVE") != "1" {
+		t.Skip("set GIMBAL_LIVE=1 to run against the live codex app-server daemon")
 	}
 	beforePID, err := managedDaemonPID()
 	if err != nil {
@@ -347,12 +347,12 @@ func TestCloseArchivesThroughARedialedConnection(t *testing.T) {
 	dir := t.TempDir()
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
-	ctx = gimble.Project(ctx, dir)
+	ctx = gimbal.Project(ctx, dir)
 
 	var dead *connection
-	err = gimble.Run(ctx, "daemon-close-redial-live", map[gimble.WorkflowRole]gimble.ModelBinding{"live": {Adapter: ad, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
-		session := gimble.NewSession(ctx, "live", dir)
-		if _, err := session.Generate[gimble.Text](ctx, "Reply with exactly one word: proof."); err != nil {
+	err = gimbal.Run(ctx, "daemon-close-redial-live", map[gimbal.WorkflowRole]gimbal.ModelBinding{"live": {Adapter: ad, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
+		session := gimbal.NewSession(ctx, "live", dir)
+		if _, err := session.Generate[gimbal.Text](ctx, "Reply with exactly one word: proof."); err != nil {
 			return err
 		}
 		dead = ad.current()
@@ -397,12 +397,12 @@ func TestCloseArchivesThroughARedialedConnection(t *testing.T) {
 // TestDetachedConversationResumesTheSameNativeThread is the live proof for
 // human-facing dashboard conversations: one adapter detaches without archive,
 // a fresh adapter resumes the exact thread id, and Codex retains context that
-// Gimble did not replay. The test archives its own thread after proving resume.
+// Gimbal did not replay. The test archives its own thread after proving resume.
 //
-//	GIMBLE_LIVE=1 go test ./codex -run TestDetachedConversationResumesTheSameNativeThread -v
+//	GIMBAL_LIVE=1 go test ./codex -run TestDetachedConversationResumesTheSameNativeThread -v
 func TestDetachedConversationResumesTheSameNativeThread(t *testing.T) {
-	if os.Getenv("GIMBLE_LIVE") != "1" {
-		t.Skip("set GIMBLE_LIVE=1 to run against the live codex app-server daemon")
+	if os.Getenv("GIMBAL_LIVE") != "1" {
+		t.Skip("set GIMBAL_LIVE=1 to run against the live codex app-server daemon")
 	}
 	workdir := t.TempDir()
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
@@ -414,7 +414,7 @@ func TestDetachedConversationResumesTheSameNativeThread(t *testing.T) {
 		t.Fatal(err)
 	}
 	token := "cobalt-7319"
-	if _, err := first.RunTurn(ctx, thread, "Remember the token "+token+". Reply only READY.", nil, func(gimble.AgentEvent) error { return nil }); err != nil {
+	if _, err := first.RunTurn(ctx, thread, "Remember the token "+token+". Reply only READY.", nil, func(gimbal.AgentEvent) error { return nil }); err != nil {
 		t.Fatal(err)
 	}
 	beforeSocket, running, err := daemonStatus(ctx)
@@ -434,7 +434,7 @@ func TestDetachedConversationResumesTheSameNativeThread(t *testing.T) {
 			t.Errorf("archive resumed test thread: %v", err)
 		}
 	}()
-	result, err := second.RunTurn(ctx, thread, "What token did I ask you to remember? Reply with only the token.", nil, func(gimble.AgentEvent) error { return nil })
+	result, err := second.RunTurn(ctx, thread, "What token did I ask you to remember? Reply with only the token.", nil, func(gimbal.AgentEvent) error { return nil })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -465,10 +465,10 @@ func TestDetachedConversationResumesTheSameNativeThread(t *testing.T) {
 // is archived out from under the adapter, as Codex Desktop or an earlier
 // Close would.
 //
-//	GIMBLE_LIVE=1 go test ./codex -run TestForkOfAnArchivedParentFailsWithoutAGhost -v
+//	GIMBAL_LIVE=1 go test ./codex -run TestForkOfAnArchivedParentFailsWithoutAGhost -v
 func TestForkOfAnArchivedParentFailsWithoutAGhost(t *testing.T) {
-	if os.Getenv("GIMBLE_LIVE") != "1" {
-		t.Skip("set GIMBLE_LIVE=1 to run against the live codex app-server daemon")
+	if os.Getenv("GIMBAL_LIVE") != "1" {
+		t.Skip("set GIMBAL_LIVE=1 to run against the live codex app-server daemon")
 	}
 	ad := New().(*adapter)
 	var mu sync.Mutex
@@ -481,7 +481,7 @@ func TestForkOfAnArchivedParentFailsWithoutAGhost(t *testing.T) {
 	dir := t.TempDir()
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
-	ctx = gimble.Project(ctx, dir)
+	ctx = gimbal.Project(ctx, dir)
 
 	// Every thread loaded in the daemon before the run. Afterwards the set
 	// must not have grown: a thread/fork issued against a still-archived
@@ -495,9 +495,9 @@ func TestForkOfAnArchivedParentFailsWithoutAGhost(t *testing.T) {
 	loadedBefore := loadedSet(t, probe)
 
 	var parent string
-	err = gimble.Run(ctx, "daemon-fork-archived-live", map[gimble.WorkflowRole]gimble.ModelBinding{"live": {Adapter: ad, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
-		session := gimble.NewSession(ctx, "live", dir)
-		if _, err := session.Generate[gimble.Text](ctx, "Reply with exactly one word: parent."); err != nil {
+	err = gimbal.Run(ctx, "daemon-fork-archived-live", map[gimbal.WorkflowRole]gimbal.ModelBinding{"live": {Adapter: ad, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
+		session := gimbal.NewSession(ctx, "live", dir)
+		if _, err := session.Generate[gimbal.Text](ctx, "Reply with exactly one word: parent."); err != nil {
 			return err
 		}
 		ad.mu.Lock()

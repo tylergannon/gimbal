@@ -24,8 +24,8 @@ Additional detail and package mapping is documented in [host-package-boundary.md
 ### 2. Context Keys and Types Currently in web/src/
 - **Supported facts**:
   - `web/src/project.go` defines `projectDirKey`, `projectsKey`, `ProjectChoice`, `WithProjects`, `Projects`, `WithProjectDir`, and `ProjectDir` in `package hooks` ([`sources/web-src-project.go.txt:5-35`](sources/web-src-project.go.txt)).
-  - `web/runtime.go` imports `hooks "github.com/tylergannon/gimble/web/src"` ([`sources/web-runtime.go.txt:29`](sources/web-runtime.go.txt)) to attach the project state directory (`.gimble`) and choice lists to request contexts ([`sources/web-runtime.go.txt:261,407`](sources/web-runtime.go.txt)).
-  - In `run.go:151-165`, `gimble.Run` requires `gimble.Project(ctx, dir)` which is defined independently in the root `gimble` package.
+  - `web/runtime.go` imports `hooks "github.com/tylergannon/gimbal/web/src"` ([`sources/web-runtime.go.txt:29`](sources/web-runtime.go.txt)) to attach the project state directory (`.gimbal`) and choice lists to request contexts ([`sources/web-runtime.go.txt:261,407`](sources/web-runtime.go.txt)).
+  - In `run.go:151-165`, `gimbal.Run` requires `gimbal.Project(ctx, dir)` which is defined independently in the root `gimbal` package.
 - **Inference**: `ProjectChoice` and the project directory context helpers must move from `web/src` into `internal/host`. Route loads in `web/src/routes/*.server.go` will import `internal/host` instead of `web/src` for project directory and choice inspection. Host ownership will no longer import `web/src`.
 
 ### 3. Concrete Remote Handlers Referencing Host Project Admission

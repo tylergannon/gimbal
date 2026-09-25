@@ -1,6 +1,6 @@
-# Gimble
+# Gimbal
 
-Gimble is a Go library for writing agent workflows as ordinary Go, with a
+Gimbal is a Go library for writing agent workflows as ordinary Go, with a
 web page that shows every run live. It restarted from an empty tree on
 2026-09-10. `ephemeral/legacy/` is the old code: inspiration, not the API.
 
@@ -11,7 +11,7 @@ it. Everything else is ordinary Go written in the workflow.
 
 ## Read first
 
-- `skills/gimble/SKILL.md`: authoring workflows, building and releasing Gimble,
+- `skills/gimbal/SKILL.md`: authoring workflows, building and releasing Gimbal,
   and using its workflows.
 
 - `go doc -all .`: the current public API and its behavioral contract.
@@ -77,11 +77,11 @@ source, and prompts are plain English: "Read and implement the issue in
   hand, never spliced by script.
 - No reflection and no `runtime.Caller` to recover a call site. Every node
   is named at its call site with a constant.
-- The layout: the API is the root package `gimble`. The page is a
+- The layout: the API is the root package `gimbal`. The page is a
   `tylergannon/skgo` app: `web/` is the SvelteKit app, Go beside its pages
   in `web/src/routes/*.remote.go`, `web/server.go` is the one `NewHandler`
   the binary and the tests share, `generated/` is written by `go generate
-  ./...` and never by hand, `cmd/gimble/` is the binary. `just build` builds all
+  ./...` and never by hand, `cmd/gimbal/` is the binary. `just build` builds all
   of it. `docs-site/` is the fully prerendered SvelteKit documentation site.
-  The page's Go imports `gimble`, so `gimble` never imports the page; that is
+  The page's Go imports `gimbal`, so `gimbal` never imports the page; that is
   why `Serve` is in package `web`.

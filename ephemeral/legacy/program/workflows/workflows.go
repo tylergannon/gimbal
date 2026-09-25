@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/tylergannon/gimble/program"
+	"github.com/tylergannon/gimbal/program"
 )
 
 // SprintExecute implements and reviews each sprint until its checks pass.

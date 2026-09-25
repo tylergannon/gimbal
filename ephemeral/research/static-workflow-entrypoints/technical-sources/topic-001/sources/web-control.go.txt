@@ -1,4 +1,4 @@
-// Origin: /Users/tyler/.codex/worktrees/d798/gimble/web/control.go
+// Origin: /Users/tyler/.codex/worktrees/d798/gimbal/web/control.go
 // Revision: 40dc82947eed99202fd9cb1dd377b6a3c2abbccc
 // Date: 2026-09-23
 // Scope: Control socket handling, legacy Submission / submit entrypoint, and control muxing.
@@ -20,9 +20,9 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/tylergannon/gimble"
-	"github.com/tylergannon/gimble/internal/binding"
-	"github.com/tylergannon/gimble/internal/observation"
+	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/internal/binding"
+	"github.com/tylergannon/gimbal/internal/observation"
 )
 
 // controlDiscovery is the small file a local client finds below the instance
@@ -39,9 +39,9 @@ type controlHandler struct {
 }
 
 func (h controlHandler) project(r *http.Request) (*Runtime, error) {
-	name := r.Header.Get("X-Gimble-Project")
+	name := r.Header.Get("X-Gimbal-Project")
 	if name == "" {
-		return nil, errors.New("gimble: project is required")
+		return nil, errors.New("gimbal: project is required")
 	}
 	path, err := canonicalProject(name)
 	if err != nil {
@@ -51,7 +51,7 @@ func (h controlHandler) project(r *http.Request) (*Runtime, error) {
 	defer h.instance.mu.RUnlock()
 	p := h.instance.projects[path]
 	if p == nil {
-		return nil, fmt.Errorf("gimble: project %s is not admitted", path)
+		return nil, fmt.Errorf("gimbal: project %s is not admitted", path)
 	}
 	return p, nil
 }
@@ -76,7 +76,7 @@ func (h controlHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 type Submission struct {
 	Name         string                         `json:"name"`
 	Params       json.RawMessage                `json:"params"`
-	Models       map[gimble.WorkflowRole]string `json:"models"`
+	Models       map[gimbal.WorkflowRole]string `json:"models"`
 	WorkDir      string                         `json:"work_dir"`
 	Conversation string                         `json:"conversation,omitempty"`
 }
@@ -126,7 +126,7 @@ func (h controlHandler) submit(w http.ResponseWriter, r *http.Request) {
 	done := make(chan error, 1)
 	go func() {
 		done <- p.Run(ctx, request.Name, models, func(ctx context.Context) error {
-			return entry(ctx, gimble.Env{WorkDir: request.WorkDir}, request.Params)
+			return entry(ctx, gimbal.Env{WorkDir: request.WorkDir}, request.Params)
 		})
 	}()
 	var id string

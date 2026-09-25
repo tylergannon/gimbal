@@ -24,7 +24,7 @@ each tied to a local current seam or precedent source.
 
 ## Compact comparison
 
-| Precedent | Ownership/nesting and identity | Non-step distinction | Fit for Gimble |
+| Precedent | Ownership/nesting and identity | Non-step distinction | Fit for Gimbal |
 | --- | --- | --- | --- |
 | Pulumi `parent` | Every resource has an explicit parent or implicit root stack; names and arbitrary nested parent/child levels are shown as a tree ([source](sources/pulumi-parent.md):7-18,106-118). | Parent hierarchy is separate from ordered update output. | Best ownership model; omit inherited lifecycle behavior. |
 | Kubernetes `ownerReferences` | A dependent stores owner name plus UID in metadata; membership is distinct from labels ([source](sources/kubernetes-owner-references.md):9-31). | Ownership is metadata, not a step sequence. | Good stable-reference precedent; omit garbage collection/finalizers. |

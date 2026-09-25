@@ -70,9 +70,9 @@ Date:   Wed Sep 11 12:00:00 2026 -0400
 
 ---
 
-### Excerpt 3: Gimble Dependency Pinning in go.mod
+### Excerpt 3: Gimbal Dependency Pinning in go.mod
 
-Location: `/Users/tyler/.codex/worktrees/d798/gimble/go.mod`
+Location: `/Users/tyler/.codex/worktrees/d798/gimbal/go.mod`
 
 ```text
 require (
@@ -82,10 +82,10 @@ require (
 ```
 
 Analysis:
-1. Gimble pins v0.5.0.
+1. Gimbal pins v0.5.0.
 2. In the skgo repository, v0.6.0 added `skgo new` installer choices.
 3. fed929b refactored skgo to delete internal/devalue (2,574 LOC removed) and use polytype/devalue.Uneval directly.
 4. Neither v0.5.0 nor fed929b currently contains:
    - Go client generation for remote Forms in `internal/gen`
    - Form decoding support for `polytype.Optional[T]` in `internal/formdata/decode.go`
-5. Therefore, a new release baseline (e.g. v0.7.0) containing client generation and form scalar/optional decoding must be cut before Gimble can pin it.
+5. Therefore, a new release baseline (e.g. v0.7.0) containing client generation and form scalar/optional decoding must be cut before Gimbal can pin it.

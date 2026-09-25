@@ -6,4 +6,4 @@
 // `./...` from ever descending here. The packages themselves are imported
 // through the generated link tree, and this module is never built.
 
-module github.com/tylergannon/gimble/web/src/routes
+module github.com/tylergannon/gimbal/web/src/routes

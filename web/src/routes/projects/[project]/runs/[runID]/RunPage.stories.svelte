@@ -20,7 +20,7 @@
   });
 
   const { Story } = defineMeta({
-    title: "Gimble/Run/Run page",
+    title: "Gimbal/Run/Run page",
     component: Page,
     parameters: { layout: "fullscreen" },
     beforeEach: () => resetRemotes(),

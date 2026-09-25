@@ -20,11 +20,11 @@
 </script>
 
 <svelte:head>
-  <title>{title} · Gimble</title>
+  <title>{title} · Gimbal</title>
   <meta name="description" content={description} />
   <link rel="canonical" href={canonical} />
   <meta property="og:type" content="website" />
-  <meta property="og:title" content={`${title} · Gimble`} />
+  <meta property="og:title" content={`${title} · Gimbal`} />
   <meta property="og:description" content={description} />
   <meta property="og:url" content={canonical} />
   <meta property="og:image" content={`${site.base}/og.png`} />

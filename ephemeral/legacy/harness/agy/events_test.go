@@ -3,8 +3,8 @@ package agy
 import (
 	"testing"
 
-	"github.com/tylergannon/gimble/harness"
-	"github.com/tylergannon/gimble/harness/agy/schema"
+	"github.com/tylergannon/gimbal/harness"
+	"github.com/tylergannon/gimbal/harness/agy/schema"
 )
 
 func TestEventProjectorCoalescesAndPairs(t *testing.T) {

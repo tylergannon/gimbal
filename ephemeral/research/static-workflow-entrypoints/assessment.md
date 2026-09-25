@@ -27,7 +27,7 @@ both clients is possible, but adds framework coupling without improving the
 workflow's static call chain. Do not introduce a second copy of validation,
 model binding, or run ownership in the adapters.
 
-This is a good architecture for Gimble's local, trusted, compiled Go workflows.
+This is a good architecture for Gimbal's local, trusted, compiled Go workflows.
 It keeps execution visible to the compiler and to readers, fits the existing
 generator, and retains one authoritative owner of live state. Its advantage is
 clarity and typed contracts, not dispatch performance: an HTTP router still
@@ -50,7 +50,7 @@ generated review command
 
 The relevant code is `internal/generate/command.go:121,207`,
 `web/submit.go:32`, `web/control.go:94`, and `web/runtime.go:67-78`.
-`cmd/gimble/workflows.go:44-51` manually assembles the executable registry.
+`cmd/gimbal/workflows.go:44-51` manually assembles the executable registry.
 Separate Cobra entrypoints therefore do not currently imply static server
 invocation. Generating several URLs that still call this dispatcher would not
 correct the architecture.
@@ -77,7 +77,7 @@ PR #362's description reports overlapping built-binary reviews in two projects
 using `gpt-5.6-luna:low`, one host PID, project-scoped pages, restart history,
 and active-run SIGINT cleanup. This assessment inspected that report and ran
 focused tests; it did not repeat those live provider runs. See
-[PR #362](https://github.com/tylergannon/gimble/pull/362).
+[PR #362](https://github.com/tylergannon/gimbal/pull/362).
 
 ## Dynamic-dispatch inventory
 
@@ -105,7 +105,7 @@ These other selections are appropriate and should remain:
 | Run/Group callbacks at concrete call sites | Establish lifecycle and concurrency for ordinary Go bodies. |
 
 `run-prompt` is a deliberate separate-process/headless path over a fresh log
-directory (`cmd/gimble/run_prompt.go:45,72-101`). Direct library `gimble.Run`
+directory (`cmd/gimbal/run_prompt.go:45,72-101`). Direct library `gimbal.Run`
 also remains standalone (`run.go:145-150`). Neither dynamically selects a
 workflow or silently takes over an admitted project's hosted execution.
 Retain these as explicitly separate library/tool modes unless the desired
@@ -135,7 +135,7 @@ the exact remote HTTP protocol is a separate choice:
 | Choice | Assessment |
 | --- | --- |
 | Generated JSON endpoint plus SKGO remote, both calling one typed admission function | Recommended. Small CLI protocol, explicit project selection, headless support, shared behavior. Browser stays on SKGO remotes. |
-| Generated Go client for the SKGO remote protocol | Feasible, but requires framework-owned client/endpoint metadata support and project context over the control socket. Prefer an SKGO feature if this is chosen, not copied protocol code in Gimble. |
+| Generated Go client for the SKGO remote protocol | Feasible, but requires framework-owned client/endpoint metadata support and project context over the control socket. Prefer an SKGO feature if this is chosen, not copied protocol code in Gimbal. |
 | Hand-maintained CLI imitation of SvelteKit browser requests | Avoid. It duplicates framework framing, endpoint IDs, error handling, and origin/referrer assumptions. |
 
 Pinned dependencies are SKGO v0.5.0 and Polytype v1.0.3 (`go.mod`). Relevant
@@ -236,7 +236,7 @@ external-module authoring contract that the current tooling cannot support.
    supplied project on first submission. Instance discovery must first prove
    the instance is alive independently of that project's admission.
 2. **Instance selection is separate from project selection.** The CLI uses
-   `GIMBLE_INSTANCE_DIR`, otherwise cwd-relative `.gimble`. An admitted
+   `GIMBAL_INSTANCE_DIR`, otherwise cwd-relative `.gimbal`. An admitted
    project's directory works because the host writes project-local discovery
    (`web/control.go:306-319`), but `--project /B` from an unrelated cwd does
    not itself select the host. A consistent configured instance directory
@@ -275,7 +275,7 @@ external-module authoring contract that the current tooling cannot support.
    failures. Cancellation is cooperative. This is an appropriate tradeoff for
    trusted local Go code, not an isolation boundary for untrusted plugins.
 10. **Persistent hosting changes operational assumptions.** Server shutdown
-    currently handles SIGINT but not SIGTERM (`cmd/gimble/main.go:231`), unlike
+    currently handles SIGINT but not SIGTERM (`cmd/gimbal/main.go:231`), unlike
     run-prompt. Also, completed observation stores never evict
     (`internal/observation/registry.go:15-18`). Address normal service shutdown
     directly; assess retention with measured long-lived use. Do not turn memory
@@ -310,7 +310,7 @@ If identical remote endpoints for CLI and browser are a firm product goal,
 choose that deliberately and implement supported Go remote clients/endpoint
 metadata in SKGO, plus headless mounting and explicit project context. That
 is a valid alternative with more framework work; it should not emerge as an
-accidental imitation of browser traffic in Gimble.
+accidental imitation of browser traffic in Gimbal.
 
 ## Verification and completion evidence
 
@@ -325,7 +325,7 @@ the current hosting behavior, not conformance to the proposed replacement.
 Current generator tests actually require `Hosted() web.WorkflowEntry` and
 generic `web.Submit` (`internal/generate/graph_test.go:323-325`). Change those
 expectations with the generator. There is also a stale lint callback index:
-`internal/gimblelint/analyzer.go:694-697` treats Run's callback as argument 2;
+`internal/gimballint/analyzer.go:694-697` treats Run's callback as argument 2;
 the current signature places it at 3 (`run.go:151`), and the test stub still
 models the old signature. Correct that narrow gap if lint is relied on, without
 building a whole-program architecture analyzer.

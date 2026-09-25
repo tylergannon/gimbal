@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tylergannon/gimble/harness"
+	"github.com/tylergannon/gimbal/harness"
 )
 
 var testSchema = json.RawMessage(`{
@@ -123,24 +123,24 @@ func TestAdapterPlainTextTurnOmitsOutputSchema(t *testing.T) {
 	}
 }
 
-func TestAdapterReadsGimbleRunDirAtProcessStart(t *testing.T) {
-	const runDir = "/tmp/gimble-run-for-codex"
+func TestAdapterReadsGimbalRunDirAtProcessStart(t *testing.T) {
+	const runDir = "/tmp/gimbal-run-for-codex"
 	logPath := t.TempDir() + "/protocol.jsonl"
 	adapter := newAdapter(processConfig{
 		command: os.Args[0],
 		args:    []string{"-test.run=TestCodexProtocolHelperProcess"},
 	})
 	defer adapter.Close()
-	t.Setenv("GIMBLE_CODEX_HELPER", "1")
-	t.Setenv("GIMBLE_CODEX_HELPER_LOG", logPath)
-	t.Setenv("GIMBLE_RUN_DIR", runDir)
+	t.Setenv("GIMBAL_CODEX_HELPER", "1")
+	t.Setenv("GIMBAL_CODEX_HELPER_LOG", logPath)
+	t.Setenv("GIMBAL_RUN_DIR", runDir)
 
 	if _, createErr := adapter.CreateSession("gpt-test", t.TempDir()); createErr != nil {
 		t.Fatal(createErr)
 	}
 	record := firstRecord(t, readProtocolLog(t, logPath), "thread/start")
 	if record.RunDir != runDir {
-		t.Fatalf("GIMBLE_RUN_DIR = %q, want %q", record.RunDir, runDir)
+		t.Fatalf("GIMBAL_RUN_DIR = %q, want %q", record.RunDir, runDir)
 	}
 }
 
@@ -309,8 +309,8 @@ func newProtocolTestAdapter(t *testing.T) (*Adapter, string) {
 		command: os.Args[0],
 		args:    []string{"-test.run=TestCodexProtocolHelperProcess"},
 		env: append(os.Environ(),
-			"GIMBLE_CODEX_HELPER=1",
-			"GIMBLE_CODEX_HELPER_LOG="+logPath,
+			"GIMBAL_CODEX_HELPER=1",
+			"GIMBAL_CODEX_HELPER_LOG="+logPath,
 		),
 	}
 	return newAdapter(config), logPath
@@ -513,10 +513,10 @@ func containsSubsequence(values, want []string) bool {
 }
 
 func TestCodexProtocolHelperProcess(t *testing.T) {
-	if os.Getenv("GIMBLE_CODEX_HELPER") != "1" {
+	if os.Getenv("GIMBAL_CODEX_HELPER") != "1" {
 		return
 	}
-	logPath := os.Getenv("GIMBLE_CODEX_HELPER_LOG")
+	logPath := os.Getenv("GIMBAL_CODEX_HELPER_LOG")
 	defer appendProtocolRecord(logPath, protocolRecord{PID: os.Getpid(), Method: "__exit__"})
 
 	scanner := bufio.NewScanner(os.Stdin)
@@ -533,7 +533,7 @@ func TestCodexProtocolHelperProcess(t *testing.T) {
 		}
 		appendProtocolRecord(logPath, protocolRecord{
 			PID: os.Getpid(), Method: request.Method, Params: request.Params,
-			RunDir: os.Getenv("GIMBLE_RUN_DIR"),
+			RunDir: os.Getenv("GIMBAL_RUN_DIR"),
 		})
 		if len(request.ID) == 0 {
 			continue

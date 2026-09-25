@@ -53,7 +53,7 @@ This leaf maps Jev's three output shapes to programmatic decisions and records t
 
 1. Use independent Nouls for observable failure conditions such as “Is the agent repeating an unsuccessful action?”, “Does the latest tool result contradict the agent's claim?”, and “Is required user authority missing?”; do not join them into one compound question. Start at [noul](https://docs.typesafe.ai/primitives/noul.md).
 2. Store each probability, then compose intervention policy in code. Use separate positive/negative thresholds and an uncertain band sent to a reviewer. Start at [noul](https://docs.typesafe.ai/primitives/noul.md).
-3. Tune thresholds by false-intervention versus missed-intervention cost on labeled Gimble runs, not by copying documentation examples. Start at [confidence](https://docs.typesafe.ai/confidence.md).
+3. Tune thresholds by false-intervention versus missed-intervention cost on labeled Gimbal runs, not by copying documentation examples. Start at [confidence](https://docs.typesafe.ai/confidence.md).
 
 ### Select the coaching mode
 

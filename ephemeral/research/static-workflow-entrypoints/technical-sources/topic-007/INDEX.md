@@ -39,14 +39,14 @@ This topic establishes the local evidence for request routing, middleware dispat
     If `rs.cfg.Origin` is non-empty and `Origin` does not match, SKGO returns HTTP 403 Forbidden (`{"message": "Cross-site remote requests are forbidden"}`). `web/server.go:explainOriginRefusals` wraps this check on the web listener with an advisory error message.
   - **Existing Control Code Has No Remote Assembly**: In `web/control.go:323-333`, `controlMux` mounts only internal observation and control routes; existing control code contains no SKGO remote assembly and does not set or pass `Origin`.
   - **SKGO Form Media Type & CSRF**: `skgo/remote_form.go:135-154` requires `POST` and checks `media := mediaType(r.Header.Get("Content-Type"))`. If `!isFormContentType(media)` or `media != formdata.ContentType`, it responds with HTTP 415 Unsupported Media Type.
-  - **SKGO Referer Policy**: SKGO itself enforces **no** Referer policy. The requirement for a Referer header exists solely in Gimble's `web/runtime.go:372` to resolve project identity for project-scoped browser interactions.
+  - **SKGO Referer Policy**: SKGO itself enforces **no** Referer policy. The requirement for a Referer header exists solely in Gimbal's `web/runtime.go:372` to resolve project identity for project-scoped browser interactions.
 - **Inference & Implementation Consequence**:
   - The new control remote assembly does **not** automatically receive an empty Origin from existing control code; configuring its Origin is an **implementation choice**:
     - The control listener assembly must be configured (e.g. with `RemoteConfig{Origin: ""}`) so local Go CLI clients connecting over the control UDS are not rejected by Origin validation and do not need to fabricate browser `Origin` headers.
     - Concurrently, the browser-facing web listener must retain its configured `Origin` (and `explainOriginRefusals`) to preserve CSRF protections against browser traffic.
   - Because start remotes are instance-scoped and supply `ProjectDir` directly in the form payload, the Go CLI client does not need to fabricate a browser `Referer` header.
 - **Contradictions & Unresolved Questions**:
-  - If the Go CLI client connects over loopback TCP to the browser listener (where `cfg.Origin` is set) rather than the control UDS, standard SKGO Origin enforcement would fail without an Origin header. The accepted plan explicitly designates the control UDS as the primary transport for the Go client ("The client accepts the configured HTTP transport, so Gimble can use its Unix socket").
+  - If the Go CLI client connects over loopback TCP to the browser listener (where `cfg.Origin` is set) rather than the control UDS, standard SKGO Origin enforcement would fail without an Origin header. The accepted plan explicitly designates the control UDS as the primary transport for the Go client ("The client accepts the configured HTTP transport, so Gimbal can use its Unix socket").
 
 ---
 

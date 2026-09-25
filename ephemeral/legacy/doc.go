@@ -1,2 +1,2 @@
-// Package gimble provides the Gimble Go module.
-package gimble
+// Package gimbal provides the Gimbal Go module.
+package gimbal

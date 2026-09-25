@@ -26,7 +26,7 @@ This leaf records supervision-relevant destinations advertised by the official `
 
 - Jev’s adjacent ecosystem already targets several components of an automated supervisor: skill selection, guardrails, evidence filtering, citation verification, staged escalation, and error-driven feature discovery.
 - The catalog points toward a cheap-first cascade: typed classification → deterministic validation or specialist agent → human/reasoning fallback.
-- A Gimble-specific system could learn from labeled intervention errors without handing routing ownership to the model.
+- A Gimbal-specific system could learn from labeled intervention errors without handing routing ownership to the model.
 
 ## Gotchas
 

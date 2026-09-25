@@ -10,11 +10,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/tylergannon/gimble/workflow"
+	"github.com/tylergannon/gimbal/workflow"
 )
 
-// Source writes the workflow entry's graph and Gimble run subcommand into one
-// Go file. The graph is registered from init; the command has Gimble's
+// Source writes the workflow entry's graph and Gimbal run subcommand into one
+// Go file. The graph is registered from init; the command has Gimbal's
 // environment flags, a flag for each workflow parameter, and a model flag for each
 // role the entry names.
 //

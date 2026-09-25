@@ -129,7 +129,7 @@ func connect(ctx context.Context, startDaemon bool) (*connection, error) {
 	initCtx, cancel := context.WithTimeout(ctx, requestTimeout)
 	defer cancel()
 	_, err = c.call(initCtx, "initialize", map[string]any{
-		"clientInfo":   map[string]any{"name": "gimble", "title": "Gimble", "version": "dev"},
+		"clientInfo":   map[string]any{"name": "gimbal", "title": "Gimbal", "version": "dev"},
 		"capabilities": map[string]any{"experimentalApi": true},
 	})
 	if err == nil {
@@ -185,7 +185,7 @@ func (c *connection) registerThread(threadID string) chan rpcMessage {
 }
 
 // routeThread sends a native child thread through its parent's active turn
-// channel. Child threads are owned by Codex's collab tool, not Gimble sessions.
+// channel. Child threads are owned by Codex's collab tool, not Gimbal sessions.
 func (c *connection) routeThread(threadID string, ch chan rpcMessage) {
 	c.threadsMu.Lock()
 	c.threads[threadID] = ch

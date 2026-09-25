@@ -6,7 +6,7 @@ Use these leaves for Jev's model contract, modalities, primitives, calibration s
 
 - [Interface, modalities, and operating envelope](../../sources/core-foundations/interface-capabilities.md)
 - [Decision primitives, probability, and confidence](../../sources/core-foundations/primitives-confidence.md)
-- [Programmatic supervision sensor for Gimble](../../sources/core-foundations/programmatic-supervision.md)
+- [Programmatic supervision sensor for Gimbal](../../sources/core-foundations/programmatic-supervision.md)
 
 ## Concepts, onboarding, patterns, and demos
 

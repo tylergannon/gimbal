@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/tylergannon/gimble"
+	"github.com/tylergannon/gimbal"
 )
 
 const controlTimeout = 5 * time.Second
@@ -65,9 +65,9 @@ type eventStream struct {
 	err    error
 }
 
-// New returns Gimble's legacy OpenCode harness. The first session starts or
+// New returns Gimbal's legacy OpenCode harness. The first session starts or
 // discovers the shared OpenCode server; closing sessions never stops it.
-func New() gimble.HarnessAdapter {
+func New() gimbal.HarnessAdapter {
 	return newAdapter(adapterConfig{})
 }
 
@@ -121,10 +121,10 @@ func (a *adapter) CreateSession(ctx context.Context, model, effort, workdir stri
 // RunTurn posts one authoritative synchronous prompt. The shared event stream
 // is diagnostic: stream or projection gaps are captured but cannot replace a
 // successful POST result with failure.
-func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema json.RawMessage, onEvent func(gimble.AgentEvent) error) (gimble.TurnResult, error) {
+func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema json.RawMessage, onEvent func(gimbal.AgentEvent) error) (gimbal.TurnResult, error) {
 	s, err := a.session(sessionID)
 	if err != nil {
-		return gimble.TurnResult{}, err
+		return gimbal.TurnResult{}, err
 	}
 	s.ops.Lock()
 	defer s.ops.Unlock()
@@ -132,7 +132,7 @@ func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema 
 	_ = a.ensureEvents(ctx, s.client)
 	requestID, err := captureID("req")
 	if err != nil {
-		return gimble.TurnResult{}, err
+		return gimbal.TurnResult{}, err
 	}
 	active := &activeTurn{
 		requestID: requestID,
@@ -157,7 +157,7 @@ func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema 
 	for {
 		input, err := promptInput(s, prompt, schema)
 		if err != nil {
-			return gimble.TurnResult{}, err
+			return gimbal.TurnResult{}, err
 		}
 		a.captureRecord(captureEntry{
 			Kind: "request", RequestID: requestID, SessionID: sessionID,
@@ -169,18 +169,18 @@ func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema 
 			Workdir: s.workdir, Operation: "prompt", Value: response, Error: errorText(promptErr),
 		})
 		if ctx.Err() != nil {
-			return gimble.TurnResult{}, ctx.Err()
+			return gimbal.TurnResult{}, ctx.Err()
 		}
 
 		next, err := takeSteer(ctx, s, active)
 		if err != nil {
-			return gimble.TurnResult{}, err
+			return gimbal.TurnResult{}, err
 		}
 		if next != nil {
 			prompt = next.message
 			requestID, err = captureID("req")
 			if err != nil {
-				return gimble.TurnResult{}, err
+				return gimbal.TurnResult{}, err
 			}
 			s.mu.Lock()
 			active.requestID = requestID
@@ -188,7 +188,7 @@ func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema 
 			continue
 		}
 		if promptErr != nil {
-			return gimble.TurnResult{}, promptErr
+			return gimbal.TurnResult{}, promptErr
 		}
 		active.finish(response)
 		return turnResult(response, schema)
@@ -221,7 +221,7 @@ func (a *adapter) prompt(ctx context.Context, s *adapterSession, sessionID strin
 }
 
 // Steer interrupts the native prompt and queues message for immediate
-// continuation inside the same Gimble turn. With no active turn it is dropped.
+// continuation inside the same Gimbal turn. With no active turn it is dropped.
 func (a *adapter) Steer(ctx context.Context, sessionID, message string) (bool, error) {
 	s, err := a.session(sessionID)
 	if err != nil {
@@ -262,7 +262,7 @@ func (a *adapter) Steer(ctx context.Context, sessionID, message string) (bool, e
 }
 
 // Fork copies the native conversation and retains the explicit model routing
-// Gimble applies on every subsequent prompt.
+// Gimbal applies on every subsequent prompt.
 func (a *adapter) Fork(ctx context.Context, sessionID string) (string, error) {
 	parent, err := a.session(sessionID)
 	if err != nil {
@@ -384,17 +384,17 @@ func promptInput(s *adapterSession, prompt string, schema json.RawMessage) (Prom
 	return input, nil
 }
 
-func turnResult(response PromptResponse, schema json.RawMessage) (gimble.TurnResult, error) {
+func turnResult(response PromptResponse, schema json.RawMessage) (gimbal.TurnResult, error) {
 	if response.Info.Error != nil {
 		raw, _ := json.Marshal(response.Info.Error)
-		return gimble.TurnResult{}, fmt.Errorf("opencode: turn failed: %s", raw)
+		return gimbal.TurnResult{}, fmt.Errorf("opencode: turn failed: %s", raw)
 	}
 	if len(schema) > 0 {
 		if response.Info.Structured == nil {
-			return gimble.TurnResult{}, errors.New("opencode: turn ended without structured output")
+			return gimbal.TurnResult{}, errors.New("opencode: turn ended without structured output")
 		}
 		output, err := json.Marshal(response.Info.Structured)
-		return gimble.TurnResult{Output: output}, err
+		return gimbal.TurnResult{Output: output}, err
 	}
 	var text strings.Builder
 	for _, part := range response.Parts {
@@ -415,7 +415,7 @@ func turnResult(response PromptResponse, schema json.RawMessage) (gimble.TurnRes
 		text.WriteString(value.Text)
 	}
 	output, err := json.Marshal(text.String())
-	return gimble.TurnResult{Output: output}, err
+	return gimbal.TurnResult{Output: output}, err
 }
 
 func splitModel(value string) (provider, model string, err error) {
@@ -509,4 +509,4 @@ func (active *activeTurn) finish(response PromptResponse) {
 	}
 }
 
-var _ gimble.HarnessAdapter = (*adapter)(nil)
+var _ gimbal.HarnessAdapter = (*adapter)(nil)

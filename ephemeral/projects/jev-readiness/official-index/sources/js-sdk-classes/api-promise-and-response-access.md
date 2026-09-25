@@ -37,7 +37,7 @@ This leaf describes the SDK’s promise wrapper and the ownership rules for pars
 
 ## Task recipes
 
-- **Correlate every supervision inference:** use `withResponse()` and record request ID, model/token usage from the parsed result, latency, and the Gimble run/node identifier together. Start at [APIPromise](https://docs.typesafe.ai/sdk/javascript/api/classes/APIPromise.md).
+- **Correlate every supervision inference:** use `withResponse()` and record request ID, model/token usage from the parsed result, latency, and the Gimbal run/node identifier together. Start at [APIPromise](https://docs.typesafe.ai/sdk/javascript/api/classes/APIPromise.md).
 - **Transform without losing transport metadata:** call `map()` to derive a smaller domain value, then use the returned `APIPromise<U>` for response-aware handling. Start at [APIPromise](https://docs.typesafe.ai/sdk/javascript/api/classes/APIPromise.md).
 - **Inspect a successful raw body:** select `asResponse()` once, read the caller-owned body once, and do not await the parsed result. Start at [APIPromise](https://docs.typesafe.ai/sdk/javascript/api/classes/APIPromise.md).
 

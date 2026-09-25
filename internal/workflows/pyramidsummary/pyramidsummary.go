@@ -24,7 +24,7 @@
 //
 // Example:
 //
-//	gimble run pyramid-summary \
+//	gimbal run pyramid-summary \
 //	  --goal "Explain passkeys to security-conscious product managers" \
 //	  --semantic-index ./passkeys-research/INDEX.md \
 //	  --largest-document ./passkeys.md \
@@ -39,18 +39,18 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/tylergannon/gimble"
+	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/polytype"
 )
 
 //go:generate go tool polytype --validate
-//go:generate go run github.com/tylergannon/gimble/internal/generate/gimblegen -entry PyramidSummary -name pyramid-summary -mermaid ../../../docs-site/src/lib/generated/workflows/pyramid-summary.mmd
+//go:generate go run github.com/tylergannon/gimbal/internal/generate/gimbalgen -entry PyramidSummary -name pyramid-summary -mermaid ../../../docs-site/src/lib/generated/workflows/pyramid-summary.mmd
 
 const (
-	roleDocumentAuthoring   gimble.WorkflowRole = "document-authoring"
-	roleEditorialReview     gimble.WorkflowRole = "editorial-review"
-	roleDocumentSupervision gimble.WorkflowRole = "document-supervision"
-	rolePyramidPlanning     gimble.WorkflowRole = "pyramid-planning"
+	roleDocumentAuthoring   gimbal.WorkflowRole = "document-authoring"
+	roleEditorialReview     gimbal.WorkflowRole = "editorial-review"
+	roleDocumentSupervision gimbal.WorkflowRole = "document-supervision"
+	rolePyramidPlanning     gimbal.WorkflowRole = "pyramid-planning"
 	defaultLargestBudget                        = 3200
 	minimumLevelBudget                          = 100
 )
@@ -88,7 +88,7 @@ type PyramidVerdict struct {
 }
 
 // PyramidSummary writes and validates every derived compression of a largest document.
-func PyramidSummary(ctx context.Context, env gimble.Env, params Params) error {
+func PyramidSummary(ctx context.Context, env gimbal.Env, params Params) error {
 	goal := strings.TrimSpace(params.Goal)
 	if goal == "" {
 		return fmt.Errorf("goal must not be blank")
@@ -139,13 +139,13 @@ func PyramidSummary(ctx context.Context, env gimble.Env, params Params) error {
 		documents[i] = path
 		budgetLabels[i] = fmt.Sprintf("level %d: %d", i+1, budget)
 	}
-	gimble.Set(ctx, "document goal", goal)
-	gimble.Set(ctx, "semantic index path", semanticIndex)
-	gimble.Set(ctx, "largest document path", largestDocument)
-	gimble.Set(ctx, "largest token budget", largestBudget)
-	gimble.Set(ctx, "pyramid document paths", documents)
-	gimble.Set(ctx, "pyramid token budgets", budgetLabels)
-	gimble.Set(ctx, "token counter executable", tokenCounter)
+	gimbal.Set(ctx, "document goal", goal)
+	gimbal.Set(ctx, "semantic index path", semanticIndex)
+	gimbal.Set(ctx, "largest document path", largestDocument)
+	gimbal.Set(ctx, "largest token budget", largestBudget)
+	gimbal.Set(ctx, "pyramid document paths", documents)
+	gimbal.Set(ctx, "pyramid token budgets", budgetLabels)
+	gimbal.Set(ctx, "token counter executable", tokenCounter)
 
 	largestCount, err := countPyramid(ctx, env.WorkDir, tokenCounter, documents[:1])
 	if err != nil {
@@ -161,18 +161,18 @@ func PyramidSummary(ctx context.Context, env gimble.Env, params Params) error {
 	copy(slots[:], parallelLevels)
 	extraTopLevels := levels[1:bottomStart]
 
-	compressions := gimble.Group(ctx, "compressions")
+	compressions := gimbal.Group(ctx, "compressions")
 	compressions.Go("summary1", func(ctx context.Context) error {
 		if slots[0].Level == 0 {
 			return nil
 		}
-		gimble.Set(ctx, "pyramid level", slots[0].Level)
-		gimble.Set(ctx, "target document path", slots[0].Path)
-		gimble.Set(ctx, "target token budget", slots[0].Budget)
-		author := gimble.NewSession(ctx, roleDocumentAuthoring, env.WorkDir)
-		coach := gimble.NewSession(ctx, roleDocumentSupervision, env.WorkDir)
-		if _, err := author.Generate[gimble.Text](ctx, writeLevelPrompt,
-			gimble.WithSupervisor(coach, compressionCoachPrompt)); err != nil {
+		gimbal.Set(ctx, "pyramid level", slots[0].Level)
+		gimbal.Set(ctx, "target document path", slots[0].Path)
+		gimbal.Set(ctx, "target token budget", slots[0].Budget)
+		author := gimbal.NewSession(ctx, roleDocumentAuthoring, env.WorkDir)
+		coach := gimbal.NewSession(ctx, roleDocumentSupervision, env.WorkDir)
+		if _, err := author.Generate[gimbal.Text](ctx, writeLevelPrompt,
+			gimbal.WithSupervisor(coach, compressionCoachPrompt)); err != nil {
 			return err
 		}
 		return requireNonemptyFile(slots[0].Path)
@@ -181,13 +181,13 @@ func PyramidSummary(ctx context.Context, env gimble.Env, params Params) error {
 		if slots[1].Level == 0 {
 			return nil
 		}
-		gimble.Set(ctx, "pyramid level", slots[1].Level)
-		gimble.Set(ctx, "target document path", slots[1].Path)
-		gimble.Set(ctx, "target token budget", slots[1].Budget)
-		author := gimble.NewSession(ctx, roleDocumentAuthoring, env.WorkDir)
-		coach := gimble.NewSession(ctx, roleDocumentSupervision, env.WorkDir)
-		if _, err := author.Generate[gimble.Text](ctx, writeLevelPrompt,
-			gimble.WithSupervisor(coach, compressionCoachPrompt)); err != nil {
+		gimbal.Set(ctx, "pyramid level", slots[1].Level)
+		gimbal.Set(ctx, "target document path", slots[1].Path)
+		gimbal.Set(ctx, "target token budget", slots[1].Budget)
+		author := gimbal.NewSession(ctx, roleDocumentAuthoring, env.WorkDir)
+		coach := gimbal.NewSession(ctx, roleDocumentSupervision, env.WorkDir)
+		if _, err := author.Generate[gimbal.Text](ctx, writeLevelPrompt,
+			gimbal.WithSupervisor(coach, compressionCoachPrompt)); err != nil {
 			return err
 		}
 		return requireNonemptyFile(slots[1].Path)
@@ -196,13 +196,13 @@ func PyramidSummary(ctx context.Context, env gimble.Env, params Params) error {
 		if slots[2].Level == 0 {
 			return nil
 		}
-		gimble.Set(ctx, "pyramid level", slots[2].Level)
-		gimble.Set(ctx, "target document path", slots[2].Path)
-		gimble.Set(ctx, "target token budget", slots[2].Budget)
-		author := gimble.NewSession(ctx, roleDocumentAuthoring, env.WorkDir)
-		coach := gimble.NewSession(ctx, roleDocumentSupervision, env.WorkDir)
-		if _, err := author.Generate[gimble.Text](ctx, writeLevelPrompt,
-			gimble.WithSupervisor(coach, compressionCoachPrompt)); err != nil {
+		gimbal.Set(ctx, "pyramid level", slots[2].Level)
+		gimbal.Set(ctx, "target document path", slots[2].Path)
+		gimbal.Set(ctx, "target token budget", slots[2].Budget)
+		author := gimbal.NewSession(ctx, roleDocumentAuthoring, env.WorkDir)
+		coach := gimbal.NewSession(ctx, roleDocumentSupervision, env.WorkDir)
+		if _, err := author.Generate[gimbal.Text](ctx, writeLevelPrompt,
+			gimbal.WithSupervisor(coach, compressionCoachPrompt)); err != nil {
 			return err
 		}
 		return requireNonemptyFile(slots[2].Path)
@@ -211,13 +211,13 @@ func PyramidSummary(ctx context.Context, env gimble.Env, params Params) error {
 		if slots[3].Level == 0 {
 			return nil
 		}
-		gimble.Set(ctx, "pyramid level", slots[3].Level)
-		gimble.Set(ctx, "target document path", slots[3].Path)
-		gimble.Set(ctx, "target token budget", slots[3].Budget)
-		author := gimble.NewSession(ctx, roleDocumentAuthoring, env.WorkDir)
-		coach := gimble.NewSession(ctx, roleDocumentSupervision, env.WorkDir)
-		if _, err := author.Generate[gimble.Text](ctx, writeLevelPrompt,
-			gimble.WithSupervisor(coach, compressionCoachPrompt)); err != nil {
+		gimbal.Set(ctx, "pyramid level", slots[3].Level)
+		gimbal.Set(ctx, "target document path", slots[3].Path)
+		gimbal.Set(ctx, "target token budget", slots[3].Budget)
+		author := gimbal.NewSession(ctx, roleDocumentAuthoring, env.WorkDir)
+		coach := gimbal.NewSession(ctx, roleDocumentSupervision, env.WorkDir)
+		if _, err := author.Generate[gimbal.Text](ctx, writeLevelPrompt,
+			gimbal.WithSupervisor(coach, compressionCoachPrompt)); err != nil {
 			return err
 		}
 		return requireNonemptyFile(slots[3].Path)
@@ -226,13 +226,13 @@ func PyramidSummary(ctx context.Context, env gimble.Env, params Params) error {
 		if slots[4].Level == 0 {
 			return nil
 		}
-		gimble.Set(ctx, "pyramid level", slots[4].Level)
-		gimble.Set(ctx, "target document path", slots[4].Path)
-		gimble.Set(ctx, "target token budget", slots[4].Budget)
-		author := gimble.NewSession(ctx, roleDocumentAuthoring, env.WorkDir)
-		coach := gimble.NewSession(ctx, roleDocumentSupervision, env.WorkDir)
-		if _, err := author.Generate[gimble.Text](ctx, writeLevelPrompt,
-			gimble.WithSupervisor(coach, compressionCoachPrompt)); err != nil {
+		gimbal.Set(ctx, "pyramid level", slots[4].Level)
+		gimbal.Set(ctx, "target document path", slots[4].Path)
+		gimbal.Set(ctx, "target token budget", slots[4].Budget)
+		author := gimbal.NewSession(ctx, roleDocumentAuthoring, env.WorkDir)
+		coach := gimbal.NewSession(ctx, roleDocumentSupervision, env.WorkDir)
+		if _, err := author.Generate[gimbal.Text](ctx, writeLevelPrompt,
+			gimbal.WithSupervisor(coach, compressionCoachPrompt)); err != nil {
 			return err
 		}
 		return requireNonemptyFile(slots[4].Path)
@@ -241,13 +241,13 @@ func PyramidSummary(ctx context.Context, env gimble.Env, params Params) error {
 		if slots[5].Level == 0 {
 			return nil
 		}
-		gimble.Set(ctx, "pyramid level", slots[5].Level)
-		gimble.Set(ctx, "target document path", slots[5].Path)
-		gimble.Set(ctx, "target token budget", slots[5].Budget)
-		author := gimble.NewSession(ctx, roleDocumentAuthoring, env.WorkDir)
-		coach := gimble.NewSession(ctx, roleDocumentSupervision, env.WorkDir)
-		if _, err := author.Generate[gimble.Text](ctx, writeLevelPrompt,
-			gimble.WithSupervisor(coach, compressionCoachPrompt)); err != nil {
+		gimbal.Set(ctx, "pyramid level", slots[5].Level)
+		gimbal.Set(ctx, "target document path", slots[5].Path)
+		gimbal.Set(ctx, "target token budget", slots[5].Budget)
+		author := gimbal.NewSession(ctx, roleDocumentAuthoring, env.WorkDir)
+		coach := gimbal.NewSession(ctx, roleDocumentSupervision, env.WorkDir)
+		if _, err := author.Generate[gimbal.Text](ctx, writeLevelPrompt,
+			gimbal.WithSupervisor(coach, compressionCoachPrompt)); err != nil {
 			return err
 		}
 		return requireNonemptyFile(slots[5].Path)
@@ -257,21 +257,21 @@ func PyramidSummary(ctx context.Context, env gimble.Env, params Params) error {
 	}
 
 	if len(extraTopLevels) > 0 {
-		gimble.Set(ctx, "extra top level assignments", levelAssignments(extraTopLevels, nil))
-		planner := gimble.NewSession(ctx, rolePyramidPlanning, env.WorkDir)
-		worker := gimble.NewSession(ctx, roleDocumentAuthoring, env.WorkDir)
-		plannerCoach := gimble.NewSession(ctx, roleDocumentSupervision, env.WorkDir)
-		workerCoach := gimble.NewSession(ctx, roleDocumentSupervision, env.WorkDir)
-		loop := gimble.PromiseLoop(ctx, "extra-top-levels", extraTopGoal, planner,
-			gimble.WithSupervisor(plannerCoach, topPlannerCoachPrompt))
+		gimbal.Set(ctx, "extra top level assignments", levelAssignments(extraTopLevels, nil))
+		planner := gimbal.NewSession(ctx, rolePyramidPlanning, env.WorkDir)
+		worker := gimbal.NewSession(ctx, roleDocumentAuthoring, env.WorkDir)
+		plannerCoach := gimbal.NewSession(ctx, roleDocumentSupervision, env.WorkDir)
+		workerCoach := gimbal.NewSession(ctx, roleDocumentSupervision, env.WorkDir)
+		loop := gimbal.PromiseLoop(ctx, "extra-top-levels", extraTopGoal, planner,
+			gimbal.WithSupervisor(plannerCoach, topPlannerCoachPrompt))
 		tasksRun := 0
 		for taskCtx := range loop.Tasks {
 			if tasksRun >= len(extraTopLevels) {
 				break
 			}
 			tasksRun++
-			if _, err := worker.Generate[gimble.Text](taskCtx, writeTopLevelPrompt,
-				gimble.WithSupervisor(workerCoach, compressionCoachPrompt)); err != nil {
+			if _, err := worker.Generate[gimbal.Text](taskCtx, writeTopLevelPrompt,
+				gimbal.WithSupervisor(workerCoach, compressionCoachPrompt)); err != nil {
 				return err
 			}
 		}
@@ -294,14 +294,14 @@ func PyramidSummary(ctx context.Context, env gimble.Env, params Params) error {
 			return fmt.Errorf("level %d has %d tokens, over its %d-token budget", i+1, count, budgets[i])
 		}
 	}
-	gimble.Set(ctx, "measured token counts", measuredCounts(counts, budgets))
+	gimbal.Set(ctx, "measured token counts", measuredCounts(counts, budgets))
 
-	editor := gimble.NewSession(ctx, roleEditorialReview, env.WorkDir)
+	editor := gimbal.NewSession(ctx, roleEditorialReview, env.WorkDir)
 	verdict, err := editor.Generate[PyramidVerdict](ctx, reviewPyramidPrompt)
 	if err != nil {
 		return err
 	}
-	gimble.SetJSON(ctx, "pyramid verdict", verdict)
+	gimbal.SetJSON(ctx, "pyramid verdict", verdict)
 	if verdict.OnlyNitpicks && len(verdict.Levels) == 0 {
 		return nil
 	}
@@ -317,89 +317,89 @@ func PyramidSummary(ctx context.Context, env gimble.Env, params Params) error {
 		return fmt.Errorf("editor rejected the pyramid without assigning a material issue to a level")
 	}
 
-	repair := gimble.Group(ctx, "repair")
+	repair := gimbal.Group(ctx, "repair")
 	repair.Go("summary1", func(ctx context.Context) error {
 		if slots[0].Level == 0 || len(repairIssues[slots[0].Level-1]) == 0 {
 			return nil
 		}
-		gimble.Set(ctx, "pyramid level", slots[0].Level)
-		gimble.Set(ctx, "target document path", slots[0].Path)
-		gimble.Set(ctx, "target token budget", slots[0].Budget)
-		gimble.Set(ctx, "material issues", repairIssues[slots[0].Level-1])
-		author := gimble.NewSession(ctx, roleDocumentAuthoring, env.WorkDir)
-		coach := gimble.NewSession(ctx, roleDocumentSupervision, env.WorkDir)
-		_, err := author.Generate[gimble.Text](ctx, reviseLevelPrompt,
-			gimble.WithSupervisor(coach, compressionCoachPrompt))
+		gimbal.Set(ctx, "pyramid level", slots[0].Level)
+		gimbal.Set(ctx, "target document path", slots[0].Path)
+		gimbal.Set(ctx, "target token budget", slots[0].Budget)
+		gimbal.Set(ctx, "material issues", repairIssues[slots[0].Level-1])
+		author := gimbal.NewSession(ctx, roleDocumentAuthoring, env.WorkDir)
+		coach := gimbal.NewSession(ctx, roleDocumentSupervision, env.WorkDir)
+		_, err := author.Generate[gimbal.Text](ctx, reviseLevelPrompt,
+			gimbal.WithSupervisor(coach, compressionCoachPrompt))
 		return err
 	})
 	repair.Go("summary2", func(ctx context.Context) error {
 		if slots[1].Level == 0 || len(repairIssues[slots[1].Level-1]) == 0 {
 			return nil
 		}
-		gimble.Set(ctx, "pyramid level", slots[1].Level)
-		gimble.Set(ctx, "target document path", slots[1].Path)
-		gimble.Set(ctx, "target token budget", slots[1].Budget)
-		gimble.Set(ctx, "material issues", repairIssues[slots[1].Level-1])
-		author := gimble.NewSession(ctx, roleDocumentAuthoring, env.WorkDir)
-		coach := gimble.NewSession(ctx, roleDocumentSupervision, env.WorkDir)
-		_, err := author.Generate[gimble.Text](ctx, reviseLevelPrompt,
-			gimble.WithSupervisor(coach, compressionCoachPrompt))
+		gimbal.Set(ctx, "pyramid level", slots[1].Level)
+		gimbal.Set(ctx, "target document path", slots[1].Path)
+		gimbal.Set(ctx, "target token budget", slots[1].Budget)
+		gimbal.Set(ctx, "material issues", repairIssues[slots[1].Level-1])
+		author := gimbal.NewSession(ctx, roleDocumentAuthoring, env.WorkDir)
+		coach := gimbal.NewSession(ctx, roleDocumentSupervision, env.WorkDir)
+		_, err := author.Generate[gimbal.Text](ctx, reviseLevelPrompt,
+			gimbal.WithSupervisor(coach, compressionCoachPrompt))
 		return err
 	})
 	repair.Go("summary3", func(ctx context.Context) error {
 		if slots[2].Level == 0 || len(repairIssues[slots[2].Level-1]) == 0 {
 			return nil
 		}
-		gimble.Set(ctx, "pyramid level", slots[2].Level)
-		gimble.Set(ctx, "target document path", slots[2].Path)
-		gimble.Set(ctx, "target token budget", slots[2].Budget)
-		gimble.Set(ctx, "material issues", repairIssues[slots[2].Level-1])
-		author := gimble.NewSession(ctx, roleDocumentAuthoring, env.WorkDir)
-		coach := gimble.NewSession(ctx, roleDocumentSupervision, env.WorkDir)
-		_, err := author.Generate[gimble.Text](ctx, reviseLevelPrompt,
-			gimble.WithSupervisor(coach, compressionCoachPrompt))
+		gimbal.Set(ctx, "pyramid level", slots[2].Level)
+		gimbal.Set(ctx, "target document path", slots[2].Path)
+		gimbal.Set(ctx, "target token budget", slots[2].Budget)
+		gimbal.Set(ctx, "material issues", repairIssues[slots[2].Level-1])
+		author := gimbal.NewSession(ctx, roleDocumentAuthoring, env.WorkDir)
+		coach := gimbal.NewSession(ctx, roleDocumentSupervision, env.WorkDir)
+		_, err := author.Generate[gimbal.Text](ctx, reviseLevelPrompt,
+			gimbal.WithSupervisor(coach, compressionCoachPrompt))
 		return err
 	})
 	repair.Go("summary4", func(ctx context.Context) error {
 		if slots[3].Level == 0 || len(repairIssues[slots[3].Level-1]) == 0 {
 			return nil
 		}
-		gimble.Set(ctx, "pyramid level", slots[3].Level)
-		gimble.Set(ctx, "target document path", slots[3].Path)
-		gimble.Set(ctx, "target token budget", slots[3].Budget)
-		gimble.Set(ctx, "material issues", repairIssues[slots[3].Level-1])
-		author := gimble.NewSession(ctx, roleDocumentAuthoring, env.WorkDir)
-		coach := gimble.NewSession(ctx, roleDocumentSupervision, env.WorkDir)
-		_, err := author.Generate[gimble.Text](ctx, reviseLevelPrompt,
-			gimble.WithSupervisor(coach, compressionCoachPrompt))
+		gimbal.Set(ctx, "pyramid level", slots[3].Level)
+		gimbal.Set(ctx, "target document path", slots[3].Path)
+		gimbal.Set(ctx, "target token budget", slots[3].Budget)
+		gimbal.Set(ctx, "material issues", repairIssues[slots[3].Level-1])
+		author := gimbal.NewSession(ctx, roleDocumentAuthoring, env.WorkDir)
+		coach := gimbal.NewSession(ctx, roleDocumentSupervision, env.WorkDir)
+		_, err := author.Generate[gimbal.Text](ctx, reviseLevelPrompt,
+			gimbal.WithSupervisor(coach, compressionCoachPrompt))
 		return err
 	})
 	repair.Go("summary5", func(ctx context.Context) error {
 		if slots[4].Level == 0 || len(repairIssues[slots[4].Level-1]) == 0 {
 			return nil
 		}
-		gimble.Set(ctx, "pyramid level", slots[4].Level)
-		gimble.Set(ctx, "target document path", slots[4].Path)
-		gimble.Set(ctx, "target token budget", slots[4].Budget)
-		gimble.Set(ctx, "material issues", repairIssues[slots[4].Level-1])
-		author := gimble.NewSession(ctx, roleDocumentAuthoring, env.WorkDir)
-		coach := gimble.NewSession(ctx, roleDocumentSupervision, env.WorkDir)
-		_, err := author.Generate[gimble.Text](ctx, reviseLevelPrompt,
-			gimble.WithSupervisor(coach, compressionCoachPrompt))
+		gimbal.Set(ctx, "pyramid level", slots[4].Level)
+		gimbal.Set(ctx, "target document path", slots[4].Path)
+		gimbal.Set(ctx, "target token budget", slots[4].Budget)
+		gimbal.Set(ctx, "material issues", repairIssues[slots[4].Level-1])
+		author := gimbal.NewSession(ctx, roleDocumentAuthoring, env.WorkDir)
+		coach := gimbal.NewSession(ctx, roleDocumentSupervision, env.WorkDir)
+		_, err := author.Generate[gimbal.Text](ctx, reviseLevelPrompt,
+			gimbal.WithSupervisor(coach, compressionCoachPrompt))
 		return err
 	})
 	repair.Go("summary6", func(ctx context.Context) error {
 		if slots[5].Level == 0 || len(repairIssues[slots[5].Level-1]) == 0 {
 			return nil
 		}
-		gimble.Set(ctx, "pyramid level", slots[5].Level)
-		gimble.Set(ctx, "target document path", slots[5].Path)
-		gimble.Set(ctx, "target token budget", slots[5].Budget)
-		gimble.Set(ctx, "material issues", repairIssues[slots[5].Level-1])
-		author := gimble.NewSession(ctx, roleDocumentAuthoring, env.WorkDir)
-		coach := gimble.NewSession(ctx, roleDocumentSupervision, env.WorkDir)
-		_, err := author.Generate[gimble.Text](ctx, reviseLevelPrompt,
-			gimble.WithSupervisor(coach, compressionCoachPrompt))
+		gimbal.Set(ctx, "pyramid level", slots[5].Level)
+		gimbal.Set(ctx, "target document path", slots[5].Path)
+		gimbal.Set(ctx, "target token budget", slots[5].Budget)
+		gimbal.Set(ctx, "material issues", repairIssues[slots[5].Level-1])
+		author := gimbal.NewSession(ctx, roleDocumentAuthoring, env.WorkDir)
+		coach := gimbal.NewSession(ctx, roleDocumentSupervision, env.WorkDir)
+		_, err := author.Generate[gimbal.Text](ctx, reviseLevelPrompt,
+			gimbal.WithSupervisor(coach, compressionCoachPrompt))
 		return err
 	})
 	if err := repair.Wait(); err != nil {
@@ -413,21 +413,21 @@ func PyramidSummary(ctx context.Context, env gimble.Env, params Params) error {
 		}
 	}
 	if len(extraTopRepairs) > 0 {
-		gimble.Set(ctx, "extra top level repairs", levelAssignments(extraTopRepairs, repairIssues))
-		planner := gimble.NewSession(ctx, rolePyramidPlanning, env.WorkDir)
-		worker := gimble.NewSession(ctx, roleDocumentAuthoring, env.WorkDir)
-		plannerCoach := gimble.NewSession(ctx, roleDocumentSupervision, env.WorkDir)
-		workerCoach := gimble.NewSession(ctx, roleDocumentSupervision, env.WorkDir)
-		loop := gimble.PromiseLoop(ctx, "repair-extra-top-levels", repairTopGoal, planner,
-			gimble.WithSupervisor(plannerCoach, topPlannerCoachPrompt))
+		gimbal.Set(ctx, "extra top level repairs", levelAssignments(extraTopRepairs, repairIssues))
+		planner := gimbal.NewSession(ctx, rolePyramidPlanning, env.WorkDir)
+		worker := gimbal.NewSession(ctx, roleDocumentAuthoring, env.WorkDir)
+		plannerCoach := gimbal.NewSession(ctx, roleDocumentSupervision, env.WorkDir)
+		workerCoach := gimbal.NewSession(ctx, roleDocumentSupervision, env.WorkDir)
+		loop := gimbal.PromiseLoop(ctx, "repair-extra-top-levels", repairTopGoal, planner,
+			gimbal.WithSupervisor(plannerCoach, topPlannerCoachPrompt))
 		tasksRun := 0
 		for taskCtx := range loop.Tasks {
 			if tasksRun >= len(extraTopRepairs) {
 				break
 			}
 			tasksRun++
-			if _, err := worker.Generate[gimble.Text](taskCtx, reviseTopLevelPrompt,
-				gimble.WithSupervisor(workerCoach, compressionCoachPrompt)); err != nil {
+			if _, err := worker.Generate[gimbal.Text](taskCtx, reviseTopLevelPrompt,
+				gimbal.WithSupervisor(workerCoach, compressionCoachPrompt)); err != nil {
 				return err
 			}
 		}
@@ -436,7 +436,7 @@ func PyramidSummary(ctx context.Context, env gimble.Env, params Params) error {
 		}
 	}
 
-	return gimble.Scope(ctx, "final-validation", func(ctx context.Context) error {
+	return gimbal.Scope(ctx, "final-validation", func(ctx context.Context) error {
 		counts, err := countPyramid(ctx, env.WorkDir, tokenCounter, documents)
 		if err != nil {
 			return err
@@ -446,12 +446,12 @@ func PyramidSummary(ctx context.Context, env gimble.Env, params Params) error {
 				return fmt.Errorf("level %d has %d tokens after repair, over its %d-token budget", i+1, count, budgets[i])
 			}
 		}
-		gimble.Set(ctx, "measured token counts", measuredCounts(counts, budgets))
+		gimbal.Set(ctx, "measured token counts", measuredCounts(counts, budgets))
 		finalVerdict, err := editor.Generate[PyramidVerdict](ctx, reviewPyramidPrompt)
 		if err != nil {
 			return err
 		}
-		gimble.SetJSON(ctx, "final pyramid verdict", finalVerdict)
+		gimbal.SetJSON(ctx, "final pyramid verdict", finalVerdict)
 		if finalVerdict.OnlyNitpicks && len(finalVerdict.Levels) == 0 {
 			return nil
 		}
@@ -462,7 +462,7 @@ func PyramidSummary(ctx context.Context, env gimble.Env, params Params) error {
 func countPyramid(ctx context.Context, workDir, executable string, documents []string) ([]int, error) {
 	counts := make([]int, len(documents))
 	for i, document := range documents {
-		exit, stdout, stderr, err := gimble.RunCommand(ctx, "count-tokens", workDir, executable, "count-tokens", document)
+		exit, stdout, stderr, err := gimbal.RunCommand(ctx, "count-tokens", workDir, executable, "count-tokens", document)
 		if err != nil {
 			return nil, err
 		}
@@ -564,4 +564,4 @@ const compressionCoachPrompt = `The goal is the clearest standalone understandin
 
 const topPlannerCoachPrompt = `Dispatch only the exact extra top-level assignments listed in context, once each. Object to invented work, repeated levels, changed budgets or paths, or continued dispatch after the list is exhausted.`
 
-const reviewPyramidPrompt = `Read every pyramid document and the original goal at their exact paths. Use the semantic index to find relevant evidence, not as an exhaustive or authoritative list of sources. Before calling a claim fabricated or a source invalid, check the largest document, its cited primary sources, and any applicable repository instructions. An omission from the index alone proves neither. Apply repository rules to what they actually govern; the Gimble No Wrappers rule concerns workflow abstractions, not SDK dependencies. If available evidence cannot settle a factual or policy objection, state the uncertainty instead of asserting fabrication. Assess the complete pyramid together. Every level must be accurate, independently legible, within its measured budget, and meaningfully more compressed than the preceding level. Important knowledge should survive longer than secondary detail, and no level may contradict another. Report only material problems, not optional polish. Assign every material problem to each level that must change. Return OnlyNitpicks true with an empty Levels list only when the entire pyramid needs no further substantive work.`
+const reviewPyramidPrompt = `Read every pyramid document and the original goal at their exact paths. Use the semantic index to find relevant evidence, not as an exhaustive or authoritative list of sources. Before calling a claim fabricated or a source invalid, check the largest document, its cited primary sources, and any applicable repository instructions. An omission from the index alone proves neither. Apply repository rules to what they actually govern; the Gimbal No Wrappers rule concerns workflow abstractions, not SDK dependencies. If available evidence cannot settle a factual or policy objection, state the uncertainty instead of asserting fabrication. Assess the complete pyramid together. Every level must be accurate, independently legible, within its measured budget, and meaningfully more compressed than the preceding level. Important knowledge should survive longer than secondary detail, and no level may contradict another. Report only material problems, not optional polish. Assign every material problem to each level that must change. Return OnlyNitpicks true with an empty Levels list only when the entire pyramid needs no further substantive work.`

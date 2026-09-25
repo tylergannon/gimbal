@@ -4,7 +4,7 @@
   import { runsListFixture } from "./fixtures/index.js";
 
   const { Story } = defineMeta({
-    title: "Gimble/Run/RunsList",
+    title: "Gimbal/Run/RunsList",
     component: RunsList,
     parameters: { layout: "fullscreen" },
   });
@@ -17,9 +17,9 @@
 <Story name="Recorded runs" asChild>
   <div class="story-page">
     <header class="project-bar">
-      <strong>Gimble</strong>
+      <strong>Gimbal</strong>
       <span>/</span>
-      <code>~/src/gimble</code>
+      <code>~/src/gimbal</code>
       <span class="spacer"></span>
       <span class="connected"><i></i>Connected · local runtime</span>
     </header>

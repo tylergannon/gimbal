@@ -6,7 +6,7 @@ import (
 
 	"github.com/tylergannon/skgo"
 
-	"github.com/tylergannon/gimble/internal/live"
+	"github.com/tylergannon/gimbal/internal/live"
 )
 
 // InterviewAnswer is what one pending question's form posts. The question ID

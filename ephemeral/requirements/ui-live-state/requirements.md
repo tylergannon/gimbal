@@ -1,11 +1,11 @@
 # Live run status, timing, and connection accuracy
 
 Implement the complete requirements in the two local issue files:
-- /Users/tyler/.codex/worktrees/803e/gimble/ephemeral/requirements/ui-live-state/271.md
-- /Users/tyler/.codex/worktrees/803e/gimble/ephemeral/requirements/ui-live-state/273.md
+- /Users/tyler/.codex/worktrees/803e/gimbal/ephemeral/requirements/ui-live-state/271.md
+- /Users/tyler/.codex/worktrees/803e/gimbal/ephemeral/requirements/ui-live-state/273.md
 
 This is the next UI bundle after #274 (isolated E2E server), already merged.
-The repository is /Users/tyler/.codex/worktrees/803e/gimble, branch codex/ui-live-state.
+The repository is /Users/tyler/.codex/worktrees/803e/gimbal, branch codex/ui-live-state.
 
 ## Required outcomes
 
@@ -23,4 +23,4 @@ Potential investigation points, not prescribed fixes: layout.ts and the folded S
 Do not modify these requirements, the implementation workflow, or weaken the fixed validation command. Do not commit, push, merge, install, or edit docs/. Parent agent owns delivery. Do not add proof programs or retain run output in tracked files. Use existing test infrastructure; temporary manual probes may stay outside the repository. Preserve the plan and other unrelated work.
 
 The fixed gate is: just build && just vet && just test && just fmt-check && just e2e ui-live-state.
-The parent seeds the existing cancelled-run fixture in ignored .gimble/runs for the current E2E prerequisites. E2E starts the fresh built binary on its own free port; the workflow's web server uses the installed pre-change binary and is for observing workflow progress, not validating the changed frontend.
+The parent seeds the existing cancelled-run fixture in ignored .gimbal/runs for the current E2E prerequisites. E2E starts the fresh built binary on its own free port; the workflow's web server uses the installed pre-change binary and is for observing workflow progress, not validating the changed frontend.

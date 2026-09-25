@@ -1,4 +1,4 @@
-package gimble
+package gimbal
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"testing"
 	"unicode/utf8"
 
-	"github.com/tylergannon/gimble/internal/observation"
+	"github.com/tylergannon/gimbal/internal/observation"
 )
 
 func TestFileBackedScopeValuesStayContainedAndReplay(t *testing.T) {
@@ -78,7 +78,7 @@ func TestFileBackedScopeValuesStayContainedAndReplay(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		if strings.HasPrefix(entry.Name(), ".gimble-artifact-") {
+		if strings.HasPrefix(entry.Name(), ".gimbal-artifact-") {
 			t.Errorf("atomic publication left temporary file %s", path)
 		}
 		return nil

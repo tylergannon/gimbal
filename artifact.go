@@ -1,4 +1,4 @@
-package gimble
+package gimbal
 
 import (
 	"context"
@@ -37,11 +37,11 @@ var contextTokenizer = sync.OnceValues(func() (tokenizer.Codec, error) {
 func tokenCount(text string) int {
 	codec, err := contextTokenizer()
 	if err != nil {
-		panic(fmt.Sprintf("gimble: initialize context tokenizer: %v", err))
+		panic(fmt.Sprintf("gimbal: initialize context tokenizer: %v", err))
 	}
 	count, err := codec.Count(text)
 	if err != nil {
-		panic(fmt.Sprintf("gimble: count context tokens: %v", err))
+		panic(fmt.Sprintf("gimbal: count context tokens: %v", err))
 	}
 	return count
 }
@@ -78,7 +78,7 @@ func (r *run) artifactName(relative string) (string, error) {
 	name := filepath.Join(root, filepath.FromSlash(relative))
 	rel, err := filepath.Rel(root, name)
 	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(rel) {
-		return "", fmt.Errorf("gimble: artifact path escapes run: %q", relative)
+		return "", fmt.Errorf("gimbal: artifact path escapes run: %q", relative)
 	}
 	return name, nil
 }
@@ -91,7 +91,7 @@ func (r *run) writeArtifact(relative string, data []byte) (artifactDescriptor, e
 	if err := os.MkdirAll(filepath.Dir(name), 0o755); err != nil {
 		return artifactDescriptor{}, err
 	}
-	temp, err := os.CreateTemp(filepath.Dir(name), ".gimble-artifact-*")
+	temp, err := os.CreateTemp(filepath.Dir(name), ".gimbal-artifact-*")
 	if err != nil {
 		return artifactDescriptor{}, err
 	}
@@ -235,7 +235,7 @@ func budgetRenderedText(ctx context.Context, kind, text string, limit int) (stri
 	}
 	desc, err := s.run.writeContentArtifact(kind, text)
 	if err != nil {
-		return "", fmt.Errorf("gimble: write %s artifact: %w", kind, err)
+		return "", fmt.Errorf("gimbal: write %s artifact: %w", kind, err)
 	}
 	return fitExcerpt(text, artifactAbsolute(s.run, desc), limit), nil
 }

@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tylergannon/gimble"
+	"github.com/tylergannon/gimbal"
 )
 
 func TestReadTurnProjectionMismatchDoesNotLoseNativeAnswer(t *testing.T) {
@@ -28,7 +28,7 @@ func TestReadTurnProjectionMismatchDoesNotLoseNativeAnswer(t *testing.T) {
 	} {
 		ch <- rpcMessage{Method: value.method, Params: json.RawMessage(`{"threadId":"thread","turnId":"turn",` + value.body + `}`)}
 	}
-	p := newProjector("thread", "turn", "model", func(gimble.AgentEvent) error { return nil })
+	p := newProjector("thread", "turn", "model", func(gimbal.AgentEvent) error { return nil })
 	answer, err := readTurn(ctx, conn, ch, "thread", "turn", p)
 	if err != nil || answer != "actual result" {
 		t.Fatalf("answer=%q, error=%v", answer, err)
@@ -41,7 +41,7 @@ func TestReadTurnStillReportsProviderAndSinkFailures(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 			defer cancel()
 			boom := errors.New("recording failed")
-			p := newProjector("thread", "turn", "model", func(gimble.AgentEvent) error {
+			p := newProjector("thread", "turn", "model", func(gimbal.AgentEvent) error {
 				if sink {
 					return boom
 				}
@@ -75,7 +75,7 @@ func TestReadTurnLateCompletionCannotReplaceFinalAnswer(t *testing.T) {
 			} {
 				ch <- rpcMessage{Method: value.method, Params: json.RawMessage(`{"threadId":"thread","turnId":"turn",` + value.body + `}`)}
 			}
-			p := newProjector("thread", "turn", "model", func(gimble.AgentEvent) error { return nil })
+			p := newProjector("thread", "turn", "model", func(gimbal.AgentEvent) error { return nil })
 			answer, err := readTurn(ctx, &connection{readDone: make(chan struct{})}, ch, "thread", "turn", p)
 			if err != nil || answer != "actual final" {
 				t.Fatalf("answer=%q, error=%v", answer, err)
@@ -87,8 +87,8 @@ func TestReadTurnLateCompletionCannotReplaceFinalAnswer(t *testing.T) {
 func TestContentItemsTolerateOverlapDuplicatesAndLateStarts(t *testing.T) {
 	for _, kind := range []string{"text", "reasoning"} {
 		t.Run(kind, func(t *testing.T) {
-			var events []gimble.AgentEvent
-			p := newProjector("thread", "turn", "model", func(e gimble.AgentEvent) error { events = append(events, e); return nil })
+			var events []gimbal.AgentEvent
+			p := newProjector("thread", "turn", "model", func(e gimbal.AgentEvent) error { events = append(events, e); return nil })
 			nativeKind := "reasoning"
 			delta := p.reasoningDelta
 			if kind == "text" {
@@ -139,8 +139,8 @@ func TestContentItemsTolerateOverlapDuplicatesAndLateStarts(t *testing.T) {
 }
 
 func TestTurnCompletionRetainsUnfinishedReasoning(t *testing.T) {
-	var events []gimble.AgentEvent
-	p := newProjector("thread", "turn", "model", func(e gimble.AgentEvent) error { events = append(events, e); return nil })
+	var events []gimbal.AgentEvent
+	p := newProjector("thread", "turn", "model", func(e gimbal.AgentEvent) error { events = append(events, e); return nil })
 	mustProject(t, p.reasoningDelta(json.RawMessage(`{"itemId":"abandoned","delta":"retained partial"}`)))
 	mustProject(t, p.itemStarted(json.RawMessage(`{"item":{"id":"replacement","type":"reasoning"}}`)))
 	_, _, err := p.itemCompleted(json.RawMessage(`{"item":{"id":"replacement","type":"reasoning","summary":["replacement complete"]}}`))

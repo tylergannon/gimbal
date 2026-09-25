@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tylergannon/gimble"
+	"github.com/tylergannon/gimbal"
 )
 
 func TestAdapterReleasesDescendantThatInheritedStdout(t *testing.T) {
@@ -22,7 +22,7 @@ func TestAdapterReleasesDescendantThatInheritedStdout(t *testing.T) {
 	}
 	done := make(chan error, 1)
 	go func() {
-		result, err := adapter.RunTurn(context.Background(), sessionID, "RESULT_WITH_DESCENDANT", nil, func(gimble.AgentEvent) error { return nil })
+		result, err := adapter.RunTurn(context.Background(), sessionID, "RESULT_WITH_DESCENDANT", nil, func(gimbal.AgentEvent) error { return nil })
 		if err == nil && string(result.Output) != `"OK"` {
 			err = &unexpectedResult{got: string(result.Output)}
 		}

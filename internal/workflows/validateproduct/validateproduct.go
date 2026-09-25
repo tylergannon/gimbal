@@ -12,7 +12,7 @@
 // product version before invocation. Existing targets are not stopped. A start
 // command requires ready, polled for at most 30 seconds. For a CLI-only product,
 // start a loopback terminal such as GoTTY and supply its URL. Testers may use shell
-// commands as ordinary users, including invoking Gimble to delegate work on B.
+// commands as ordinary users, including invoking Gimbal to delegate work on B.
 //
 // The three tester slots are explicit; unused slots do nothing. The caller assigns
 // workloads; no planner invents work or retries failures. Each tester saves ordered,
@@ -21,7 +21,7 @@
 // appended to user-report.md. Elapsed time covers the task, excluding this debrief.
 // Video records the browser for optional human review; agents do not analyze it.
 // After recording stops, ffmpeg makes a 2.5x H.264 MP4 capped at 1280x720 for
-// browser playback and upload with gimble upload-artifact.
+// browser playback and upload with gimbal upload-artifact.
 // Gemini Flash opens screenshots to check readability and claims, not to repeat the workload.
 // The final agent reads all reports, deduplicates findings against existing GitHub
 // issues, uploads supporting screenshots, and opens actionable issues in the
@@ -30,7 +30,7 @@
 //
 // Prerequisites: authenticated harnesses, playwright-cli and its installed browser,
 // ffmpeg with libx264,
-// authenticated gh, and a configured gimble upload-artifact destination.
+// authenticated gh, and a configured gimbal upload-artifact destination.
 // playwright_cli can override the driver's executable path. timeout defaults
 // to 1h. All paths resolve from the suite file. Output is a unique
 // user-testing-* directory containing reports.json,
@@ -45,7 +45,7 @@
 //
 // Example:
 //
-//	gimble run validate-product --suite-file /abs/user-testing.yaml --instance-dir /abs/instance --project /abs/project
+//	gimbal run validate-product --suite-file /abs/user-testing.yaml --instance-dir /abs/instance --project /abs/project
 package validateproduct
 
 import (
@@ -58,10 +58,10 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/tylergannon/gimble"
+	"github.com/tylergannon/gimbal"
 )
 
-//go:generate go run github.com/tylergannon/gimble/internal/generate/gimblegen -entry ValidateProduct -name validate-product -mermaid ../../../docs-site/src/lib/generated/workflows/validate-product.mmd
+//go:generate go run github.com/tylergannon/gimbal/internal/generate/gimbalgen -entry ValidateProduct -name validate-product -mermaid ../../../docs-site/src/lib/generated/workflows/validate-product.mmd
 
 type Params struct {
 	// SuiteFile names the JSON/YAML product, local workload assignments, and issue repository.
@@ -78,7 +78,7 @@ type workloadReport struct {
 }
 
 // ValidateProduct runs user workloads, checks their screenshots, and triages findings.
-func ValidateProduct(ctx context.Context, env gimble.Env, params Params) (resultErr error) {
+func ValidateProduct(ctx context.Context, env gimbal.Env, params Params) (resultErr error) {
 	suite, timeout, err := readSuite(absolute(env.WorkDir, params.SuiteFile))
 	if err != nil {
 		return err
@@ -146,13 +146,13 @@ func ValidateProduct(ctx context.Context, env gimble.Env, params Params) (result
 			return err
 		}
 		if w.Start != "" {
-			if err := gimble.Service(ctx, "product", w.Workdir, w.Start); err != nil {
+			if err := gimbal.Service(ctx, "product", w.Workdir, w.Start); err != nil {
 				return err
 			}
 		}
 		if w.Ready != "" {
 			ready, stop := context.WithTimeout(ctx, 30*time.Second)
-			code, _, stderr, err := gimble.RunCommand(ready, "readiness", w.Workdir, "zsh", "-c", "until ( "+w.Ready+"\n); do sleep 0.25; done")
+			code, _, stderr, err := gimbal.RunCommand(ready, "readiness", w.Workdir, "zsh", "-c", "until ( "+w.Ready+"\n); do sleep 0.25; done")
 			stop()
 			if err != nil || code != 0 {
 				return fmt.Errorf("%s readiness: %w", w.Name, errors.Join(err, fmt.Errorf("exit %d: %s", code, stderr)))
@@ -160,24 +160,24 @@ func ValidateProduct(ctx context.Context, env gimble.Env, params Params) (result
 		}
 		opened[i], recording[i] = true, true
 		browser := shellQuote(driver) + " -s=" + shellQuote(names[i])
-		code, _, stderr, err := gimble.RunCommand(ctx, "record-browser", dirs[i], "zsh", "-c", browser+" open about:blank && "+browser+" video-start "+shellQuote(filepath.Join(dirs[i], "video.webm"))+" --cursor && "+browser+" goto "+shellQuote(w.URL))
+		code, _, stderr, err := gimbal.RunCommand(ctx, "record-browser", dirs[i], "zsh", "-c", browser+" open about:blank && "+browser+" video-start "+shellQuote(filepath.Join(dirs[i], "video.webm"))+" --cursor && "+browser+" goto "+shellQuote(w.URL))
 		if err != nil || code != 0 {
 			return fmt.Errorf("%s browser: %w", w.Name, errors.Join(err, fmt.Errorf("exit %d: %s", code, stderr)))
 		}
 	}
-	gimble.Set(ctx, "product under test", suite.Product)
-	gimble.Set(ctx, "product user documentation", suite.Guides)
-	users := gimble.Group(ctx, "user-testing")
+	gimbal.Set(ctx, "product under test", suite.Product)
+	gimbal.Set(ctx, "product user documentation", suite.Guides)
+	users := gimbal.Group(ctx, "user-testing")
 	users.Go("tester1", func(ctx context.Context) error {
-		gimble.Set(ctx, "assignment file", suite.Workloads[0].AssignmentFile)
-		gimble.Set(ctx, "screenshots directory", dirs[0])
-		gimble.Set(ctx, "browser command", shellQuote(driver)+" -s="+shellQuote(names[0]))
-		tester := gimble.NewSession(ctx, "product-operation", suite.Workloads[0].Workdir)
+		gimbal.Set(ctx, "assignment file", suite.Workloads[0].AssignmentFile)
+		gimbal.Set(ctx, "screenshots directory", dirs[0])
+		gimbal.Set(ctx, "browser command", shellQuote(driver)+" -s="+shellQuote(names[0]))
+		tester := gimbal.NewSession(ctx, "product-operation", suite.Workloads[0].Workdir)
 		start := time.Now()
-		text, err := tester.Generate[gimble.Text](ctx, userPrompt)
+		text, err := tester.Generate[gimbal.Text](ctx, userPrompt)
 		reports[0].ElapsedSeconds = time.Since(start).Seconds()
 		if err == nil {
-			feedback, feedbackErr := tester.Generate[gimble.Text](ctx, experiencePrompt)
+			feedback, feedbackErr := tester.Generate[gimbal.Text](ctx, experiencePrompt)
 			text += "\n\n" + feedback
 			err = feedbackErr
 		}
@@ -189,15 +189,15 @@ func ValidateProduct(ctx context.Context, env gimble.Env, params Params) (result
 		if len(suite.Workloads) < 2 {
 			return nil
 		}
-		gimble.Set(ctx, "assignment file", suite.Workloads[1].AssignmentFile)
-		gimble.Set(ctx, "screenshots directory", dirs[1])
-		gimble.Set(ctx, "browser command", shellQuote(driver)+" -s="+shellQuote(names[1]))
-		tester := gimble.NewSession(ctx, "product-operation", suite.Workloads[1].Workdir)
+		gimbal.Set(ctx, "assignment file", suite.Workloads[1].AssignmentFile)
+		gimbal.Set(ctx, "screenshots directory", dirs[1])
+		gimbal.Set(ctx, "browser command", shellQuote(driver)+" -s="+shellQuote(names[1]))
+		tester := gimbal.NewSession(ctx, "product-operation", suite.Workloads[1].Workdir)
 		start := time.Now()
-		text, err := tester.Generate[gimble.Text](ctx, userPrompt)
+		text, err := tester.Generate[gimbal.Text](ctx, userPrompt)
 		reports[1].ElapsedSeconds = time.Since(start).Seconds()
 		if err == nil {
-			feedback, feedbackErr := tester.Generate[gimble.Text](ctx, experiencePrompt)
+			feedback, feedbackErr := tester.Generate[gimbal.Text](ctx, experiencePrompt)
 			text += "\n\n" + feedback
 			err = feedbackErr
 		}
@@ -209,15 +209,15 @@ func ValidateProduct(ctx context.Context, env gimble.Env, params Params) (result
 		if len(suite.Workloads) < 3 {
 			return nil
 		}
-		gimble.Set(ctx, "assignment file", suite.Workloads[2].AssignmentFile)
-		gimble.Set(ctx, "screenshots directory", dirs[2])
-		gimble.Set(ctx, "browser command", shellQuote(driver)+" -s="+shellQuote(names[2]))
-		tester := gimble.NewSession(ctx, "product-operation", suite.Workloads[2].Workdir)
+		gimbal.Set(ctx, "assignment file", suite.Workloads[2].AssignmentFile)
+		gimbal.Set(ctx, "screenshots directory", dirs[2])
+		gimbal.Set(ctx, "browser command", shellQuote(driver)+" -s="+shellQuote(names[2]))
+		tester := gimbal.NewSession(ctx, "product-operation", suite.Workloads[2].Workdir)
 		start := time.Now()
-		text, err := tester.Generate[gimble.Text](ctx, userPrompt)
+		text, err := tester.Generate[gimbal.Text](ctx, userPrompt)
 		reports[2].ElapsedSeconds = time.Since(start).Seconds()
 		if err == nil {
-			feedback, feedbackErr := tester.Generate[gimble.Text](ctx, experiencePrompt)
+			feedback, feedbackErr := tester.Generate[gimbal.Text](ctx, experiencePrompt)
 			text += "\n\n" + feedback
 			err = feedbackErr
 		}
@@ -244,17 +244,17 @@ func ValidateProduct(ctx context.Context, env gimble.Env, params Params) (result
 	if ctx.Err() != nil {
 		return errors.Join(ctx.Err(), groupErr, recordingErr, videoErr, errors.Join(turns[:]...))
 	}
-	gimble.Set(ctx, "workload reports", reportsFile)
-	gimble.Set(ctx, "execution errors", errorText(errors.Join(groupErr, recordingErr, videoErr, errors.Join(turns[:]...))))
-	visual := gimble.NewSession(ctx, "product-visual-review", output)
-	visualText, visualErr := visual.Generate[gimble.Text](ctx, visualPrompt)
+	gimbal.Set(ctx, "workload reports", reportsFile)
+	gimbal.Set(ctx, "execution errors", errorText(errors.Join(groupErr, recordingErr, videoErr, errors.Join(turns[:]...))))
+	visual := gimbal.NewSession(ctx, "product-visual-review", output)
+	visualText, visualErr := visual.Generate[gimbal.Text](ctx, visualPrompt)
 	visualFile := filepath.Join(output, "visual-review.md")
 	visualErr = errors.Join(visualErr, os.WriteFile(visualFile, []byte(visualText), 0644))
-	gimble.Set(ctx, "screenshot review", visualFile)
-	gimble.Set(ctx, "screenshot review error", errorText(visualErr))
-	gimble.Set(ctx, "issue repository", suite.IssueRepo)
-	triage := gimble.NewSession(ctx, "product-triage", output)
-	findings, triageErr := triage.Generate[gimble.Text](ctx, triagePrompt)
+	gimbal.Set(ctx, "screenshot review", visualFile)
+	gimbal.Set(ctx, "screenshot review error", errorText(visualErr))
+	gimbal.Set(ctx, "issue repository", suite.IssueRepo)
+	triage := gimbal.NewSession(ctx, "product-triage", output)
+	findings, triageErr := triage.Generate[gimbal.Text](ctx, triagePrompt)
 	triageErr = errors.Join(triageErr, os.WriteFile(filepath.Join(output, "findings.md"), []byte(findings), 0644))
 	return errors.Join(groupErr, recordingErr, videoErr, errors.Join(turns[:]...), visualErr, triageErr)
 }

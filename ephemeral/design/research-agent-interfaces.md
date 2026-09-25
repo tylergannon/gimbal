@@ -1,6 +1,6 @@
 # Agent orchestration and observability references
 
-Research date: 2026-09-17. Scope: three contrasting interfaces for Gimble's
+Research date: 2026-09-17. Scope: three contrasting interfaces for Gimbal's
 run discovery, history, live participation, and workflow-map work. The
 researcher initially had no browser rendering. The parent subsequently
 inspected the Studio screenshot and Langfuse's embedded trace/graph images
@@ -41,7 +41,7 @@ plus breakpoints that name both target node and before/after timing; these are
 clearer than a generic emergency button. The detail slider and collapse/expand affordances are good
 for large histories. Borrow the distinction between a graph definition and
 thread/run state. Do not copy Studio's state-editing/time-travel controls into
-Gimble unless they are separately authorized; Gimble currently needs review
+Gimbal unless they are separately authorized; Gimbal currently needs review
 and participation, not run forking.
 
 ## 2. Langfuse — trace tree plus session replay
@@ -72,10 +72,10 @@ cost fields remain inspectable.
 
 **Borrow / tradeoff.** Use a stable run/session spine and a nested tree for
 detail, while keeping the graph/map lightweight. The one-generation-per-call
-rule is a useful warning for Gimble loops: repeated calls need distinct
+rule is a useful warning for Gimbal loops: repeated calls need distinct
 runtime instances even when they share a call site/session. Session replay is
 helpful for historical context, but a replay metaphor could imply temporal
-playback; Gimble should present a static history with preserved context and
+playback; Gimbal should present a static history with preserved context and
 live-state badges instead.
 
 ## 3. Temporal Web UI — event timeline and live execution console
@@ -102,14 +102,14 @@ navigating away. The release changelog mentions scroll-to-bottom behavior,
 event-group styling, run-ID link navigation, and throttled refresh.
 
 **Borrow / tradeoff.** A compact event/timeline view is a strong complement
-to Gimble's graph: it preserves exact order, timestamps, and repeated events
+to Gimbal's graph: it preserves exact order, timestamps, and repeated events
 without pretending the source graph is the execution history. Live-follow
 should be an explicit mode with a clear jump-to-latest action; otherwise a
 new event can steal the user's selection while reading older context. Child
-workflow visibility is useful, but Gimble should preserve its distinction
+workflow visibility is useful, but Gimbal should preserve its distinction
 between supervisor links, sessions, call sites, and execution instances.
 
-## Three design directions for Gimble
+## Three design directions for Gimbal
 
 1. **Graph-first debugger (Studio):** overview map + selected-node state
    inspector, with explicit live breakpoint/interview affordance. Best for

@@ -1,6 +1,6 @@
 # Implementation plan: one remote entrypoint per compiled workflow
 
-Status: planned, not implemented. Based on Gimble `cde79c24` and the subsequent
+Status: planned, not implemented. Based on Gimbal `cde79c24` and the subsequent
 conversation with Tyler. Completion is defined in
 [definition-of-done.md](definition-of-done.md).
 
@@ -58,14 +58,14 @@ existing ownership, not a new workflow framework:
 
 | Responsibility | Location and allowed dependencies |
 | --- | --- |
-| Workflow bodies, parameters, and generated graphs | Existing workflow packages; depend on Gimble, without importing CLI code, generated remote bindings, or web assembly. |
-| Project admission, project/run context, run lifetime, and conversation association | An internal host package below web assembly; uses the existing Gimble, observation, live-control, and conversation machinery. It knows no built-in workflow implementations. |
+| Workflow bodies, parameters, and generated graphs | Existing workflow packages; depend on Gimbal, without importing CLI code, generated remote bindings, or web assembly. |
+| Project admission, project/run context, run lifetime, and conversation association | An internal host package below web assembly; uses the existing Gimbal, observation, live-control, and conversation machinery. It knows no built-in workflow implementations. |
 | Concrete remote handlers | Go beside the web routes; depend on workflow packages and host ownership. Each calls a particular workflow directly. |
 | Generated remote clients and Cobra commands | Application/client packages outside workflow-body packages; use the generated input/result contracts and SKGO transport. |
 | Listener and page assembly | `web/`, retaining `web/server.go` as the shared production handler assembly for binary and tests. Depends on host ownership and generated bindings. |
 
 Move the necessary context helpers out of `web/src` when lower-level ownership
-would otherwise import the web application. The root `gimble` package must
+would otherwise import the web application. The root `gimbal` package must
 continue to be independent of the host and web assembly. Update callers of
 moved code directly; do not leave compatibility aliases or forwarding layers.
 
@@ -75,7 +75,7 @@ name-to-function map, erased parameter callback, or workflow-specific methods
 on a host interface to break the import cycle.
 
 Primary changes: `internal/generate/command.go`, `internal/generate/source.go`,
-generated workflow files, `cmd/gimble/workflows.go`, and the ownership portions
+generated workflow files, `cmd/gimbal/workflows.go`, and the ownership portions
 of `web/runtime.go`, `web/control.go`, and `web/src/project.go`.
 
 Result: both a generated route and application assembly can import a workflow
@@ -84,16 +84,16 @@ without a cycle, and workflow bodies remain readable ordinary Go.
 ## 2. Teach SKGO to generate Go clients for these remote Forms
 
 Implement this in an isolated SKGO worktree, following that repository's
-instructions. Gimble currently pins SKGO v0.5.0; inspect the implementation
+instructions. Gimbal currently pins SKGO v0.5.0; inspect the implementation
 checkout before changing it rather than assuming the pinned source is latest.
 
 SKGO should generate a typed Go call for each selected remote Form using the
 same declaration, endpoint identity, input type, and result type as its server
 and browser bindings. Shared transport code in SKGO owns the enhanced-form
-envelope and response decoding. Generated Gimble commands must not contain
+envelope and response decoding. Generated Gimbal commands must not contain
 private copies of the SvelteKit wire protocol.
 
-The client accepts the configured HTTP transport, so Gimble can use its Unix
+The client accepts the configured HTTP transport, so Gimbal can use its Unix
 socket. It returns the typed result or field/server errors, honors caller
 cancellation, and does not automatically retry a submitted mutation. Browser
 query refreshes and navigation do not need to be reproduced in Go.
@@ -112,7 +112,7 @@ than relying only on an encoder/decoder round trip written together.
 
 Result: a generated Go client and a real browser form can call one SKGO Form
 and obtain equivalent admission results and field errors. Land and publish
-the needed SKGO change, then pin that version in Gimble; leave no local module
+the needed SKGO change, then pin that version in Gimbal; leave no local module
 replacement in the delivered build.
 
 ## 3. Generate concrete starts and admit projects on first use
@@ -129,7 +129,7 @@ putting a free-form model map on the wire; construct the existing binding map
 inside the server. Add the appropriate `json:",omitzero"` tags to Optional
 inputs. Preserve current meanings of omitted and explicitly supplied values.
 
-Use one source for role defaults, currently `cmd/gimble/defaults.json`, accessible
+Use one source for role defaults, currently `cmd/gimbal/defaults.json`, accessible
 to server admission, generated help, and the forms. A default or override must
 mean the same thing in either client. Keep provider/executable configuration
 in the server's startup environment.
@@ -201,7 +201,7 @@ additional workflow execution registry.
 Update generator tests to cover the actual typed call chain instead of requiring
 the old dispatcher. Generation must recover from missing/stale generated files
 and be reproducible from a clean checkout. Update README, rendered help, the
-maintained Gimble skills, and affected architecture/web documentation to describe
+maintained Gimbal skills, and affected architecture/web documentation to describe
 the implemented behavior. Remove design-record suggestions of a generic
 workflow union dispatcher where they conflict with this decision.
 
@@ -217,7 +217,7 @@ This plan includes the dependency correction, the required SKGO client/form
 work, shared remote starts, first-use project admission, and human start forms.
 It does not add runtime workflow definitions, plugin loading, a separate REST
 launch API, a general form-builder product, automatic server startup, mutation
-retry/deduplication, or a new scheduler. Existing standalone `gimble.Run` and
+retry/deduplication, or a new scheduler. Existing standalone `gimbal.Run` and
 `run-prompt` remain separate modes.
 
 The assessment's retention, SIGTERM, and lint-index observations are separate

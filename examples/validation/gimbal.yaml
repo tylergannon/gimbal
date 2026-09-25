@@ -1,0 +1,22 @@
+# Prepare distinct project-B worktrees and save each issue/task locally first.
+product: Gimbal
+# Public usage instructions are allowed; A's implementation source is not.
+guides:
+  - ../../skills/gimbal-runs/SKILL.md
+output_dir: /tmp/gimbal-user-testing/artifacts
+timeout: 1h
+issue_repo: tylergannon/gimbal
+# playwright_cli: /absolute/path/to/playwright-cli
+workloads:
+  - name: issue-to-pr
+    assignment_file: issue-to-pr.md
+    workdir: /tmp/gimbal-user-testing/project-b-implementation
+    start: gimbal --port 43827
+    ready: curl --fail --silent http://127.0.0.1:43827/ >/dev/null
+    url: http://127.0.0.1:43827
+  - name: review-a-change
+    assignment_file: review-a-change.md
+    workdir: /tmp/gimbal-user-testing/project-b-review
+    start: gimbal --port 43828
+    ready: curl --fail --silent http://127.0.0.1:43828/ >/dev/null
+    url: http://127.0.0.1:43828

@@ -1,4 +1,4 @@
-package gimble
+package gimbal
 
 import (
 	"bytes"
@@ -97,7 +97,7 @@ func current(ctx context.Context) (*scope, error) {
 	if s, _ := ctx.Value(scopeKey{}).(*scope); s != nil {
 		return s, nil
 	}
-	return nil, errors.New("gimble: no scope in the ctx; it must come from gimble.Run")
+	return nil, errors.New("gimbal: no scope in the ctx; it must come from gimbal.Run")
 }
 
 // next names the next child of s called name. The caller holds s.mu.
@@ -129,7 +129,7 @@ func (s *scope) adoptService(service *ownedService) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.ended {
-		return fmt.Errorf("gimble: service %q: scope %q ended", service.name, s.key)
+		return fmt.Errorf("gimbal: service %q: scope %q ended", service.name, s.key)
 	}
 	s.services = append(s.services, service)
 	return nil
@@ -273,7 +273,7 @@ func SetJSON[V Output](ctx context.Context, key string, value V) {
 func encode(key string, value any) []byte {
 	raw, err := json.Marshal(value)
 	if err != nil {
-		panic(fmt.Sprintf("gimble: set %q: %v", key, err))
+		panic(fmt.Sprintf("gimbal: set %q: %v", key, err))
 	}
 	return raw
 }
@@ -281,15 +281,15 @@ func encode(key string, value any) []byte {
 func store(ctx context.Context, key string, raw []byte) {
 	s, _ := ctx.Value(scopeKey{}).(*scope)
 	if s == nil {
-		panic(fmt.Sprintf("gimble: set %q: no scope in the ctx; it must come from gimble.Run", key))
+		panic(fmt.Sprintf("gimbal: set %q: no scope in the ctx; it must come from gimbal.Run", key))
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.ended {
-		panic(fmt.Sprintf("gimble: set %q in scope %q after it ended", key, s.key))
+		panic(fmt.Sprintf("gimbal: set %q in scope %q after it ended", key, s.key))
 	}
 	if _, ok := s.values[key]; ok {
-		panic(fmt.Sprintf("gimble: %q is already set in scope %q", key, s.key))
+		panic(fmt.Sprintf("gimbal: %q is already set in scope %q", key, s.key))
 	}
 	if s.values == nil {
 		s.values = make(map[string]*scopeValue)
@@ -297,7 +297,7 @@ func store(ctx context.Context, key string, raw []byte) {
 	value := &scopeValue{owner: s, raw: append([]byte(nil), raw...)}
 	if tokenCount("## "+key+"\n\n"+render(raw)) > contextEntryTokenLimit {
 		if err := s.spillValueLocked(key, value); err != nil {
-			panic(fmt.Sprintf("gimble: set %q: write artifact: %v", key, err))
+			panic(fmt.Sprintf("gimbal: set %q: write artifact: %v", key, err))
 		}
 	}
 	s.values[key] = value
@@ -376,7 +376,7 @@ func scopeData(ctx context.Context) ScopeData {
 	for _, visible := range visibleValues(ctx) {
 		raw, err := valueBytes(visible.value)
 		if err != nil {
-			panic(fmt.Sprintf("gimble: read scope value %q: %v", visible.key, err))
+			panic(fmt.Sprintf("gimbal: read scope value %q: %v", visible.key, err))
 		}
 		value := ScopeValue{Key: visible.key, Text: render(raw)}
 		if err := json.Unmarshal(raw, &value.Value); err != nil {
@@ -411,7 +411,7 @@ func scopeTextAndContext(ctx context.Context) (string, []ContextEntry) {
 	}
 	for _, item := range visible {
 		if err := item.owner.ensureArtifact(item.key, item.value); err != nil {
-			panic(fmt.Sprintf("gimble: render scope value %q: write artifact: %v", item.key, err))
+			panic(fmt.Sprintf("gimbal: render scope value %q: write artifact: %v", item.key, err))
 		}
 	}
 	low, high := 0, artifactPreviewBytes
@@ -436,7 +436,7 @@ func scopeTextAndContext(ctx context.Context) (string, []ContextEntry) {
 	}
 	desc, err := visible[0].owner.run.writeContentArtifact("scope-index", strings.TrimSpace(index.String()))
 	if err != nil {
-		panic(fmt.Sprintf("gimble: write scope index: %v", err))
+		panic(fmt.Sprintf("gimbal: write scope index: %v", err))
 	}
 	return fitExcerpt(index.String(), artifactAbsolute(visible[0].owner.run, desc), contextTokenLimit), defaultContextEntries(visible, nil)
 }
@@ -488,7 +488,7 @@ func defaultContextEntries(visible []visibleValue, sections []string) []ContextE
 		if sections != nil {
 			raw, err := valueBytes(item.value)
 			if err != nil {
-				panic(fmt.Sprintf("gimble: read scope value %q: %v", item.key, err))
+				panic(fmt.Sprintf("gimbal: read scope value %q: %v", item.key, err))
 			}
 			complete = sections[i] == "## "+item.key+"\n\n"+render(raw)
 		}
@@ -509,7 +509,7 @@ func templateContextEntries(ctx context.Context, contextText string) []ContextEn
 	for _, item := range visible {
 		raw, err := valueBytes(item.value)
 		if err != nil {
-			panic(fmt.Sprintf("gimble: read scope value %q: %v", item.key, err))
+			panic(fmt.Sprintf("gimbal: read scope value %q: %v", item.key, err))
 		}
 		body := render(raw)
 		complete := body != "" && strings.Contains(contextText, body)

@@ -13,8 +13,8 @@ import (
 
 	"github.com/tylergannon/skgo"
 
-	"github.com/tylergannon/gimble/internal/host"
-	"github.com/tylergannon/gimble/internal/observation"
+	"github.com/tylergannon/gimbal/internal/host"
+	"github.com/tylergannon/gimbal/internal/observation"
 )
 
 // RunItem is the one list row and the presentation text derived from its

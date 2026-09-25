@@ -3,7 +3,7 @@
   import SmallStates from "./SmallStates.svelte";
 
   const { Story } = defineMeta({
-    title: "Gimble/Run/SmallStates",
+    title: "Gimbal/Run/SmallStates",
     component: SmallStates,
     parameters: { layout: "fullscreen" },
   });

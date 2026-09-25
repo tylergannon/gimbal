@@ -1,6 +1,6 @@
 # Source: web/runtime.go - Request Middleware and Listener Lifecycle
 
-- **Origin**: `/Users/tyler/.codex/worktrees/d798/gimble/web/runtime.go`
+- **Origin**: `/Users/tyler/.codex/worktrees/d798/gimbal/web/runtime.go`
 - **Commit**: `40dc82947eed99202fd9cb1dd377b6a3c2abbccc`
 - **Retrieval Date**: 2026-09-23
 - **Scope**: Listener configuration options (`WithPort`, `WithUDS`, `WithNoWeb`), optional browser listener startup (`startWeb`), control UDS startup (`startControl`), and middleware filtering (`projectRequest`).
@@ -23,7 +23,7 @@ type config struct {
 func WithPort(port int) Option {
 	return func(c *config) error {
 		if port < 0 || port > 65535 {
-			return fmt.Errorf("gimble: invalid web port %d", port)
+			return fmt.Errorf("gimbal: invalid web port %d", port)
 		}
 		if err := c.selectListener("port"); err != nil {
 			return err
@@ -37,7 +37,7 @@ func WithPort(port int) Option {
 func WithUDS(path string) Option {
 	return func(c *config) error {
 		if strings.TrimSpace(path) == "" {
-			return errors.New("gimble: UDS path must not be blank")
+			return errors.New("gimbal: UDS path must not be blank")
 		}
 		if err := c.selectListener("UDS"); err != nil {
 			return err
@@ -66,12 +66,12 @@ func WithNoWeb() Option {
 func (i *Instance) startControl() error {
 	controlDir := filepath.Join(i.dir, "control")
 	if err := os.MkdirAll(controlDir, 0o755); err != nil {
-		return fmt.Errorf("gimble: control directory: %w", err)
+		return fmt.Errorf("gimbal: control directory: %w", err)
 	}
 
 	var rawID [4]byte
 	if _, err := rand.Read(rawID[:]); err != nil {
-		return fmt.Errorf("gimble: control identity: %w", err)
+		return fmt.Errorf("gimbal: control identity: %w", err)
 	}
 	identity := hex.EncodeToString(rawID[:])
 	i.controlID = identity
@@ -82,11 +82,11 @@ func (i *Instance) startControl() error {
 		// macOS limits the total Unix socket path length. A long temporary or
 		// checkout path cannot hold the socket itself, but its discovery file
 		// still lives under the project and points to this short fallback.
-		socket = filepath.Join("/tmp", "gimble-"+identity+".sock")
+		socket = filepath.Join("/tmp", "gimbal-"+identity+".sock")
 		listener, err = net.Listen("unix", socket)
 	}
 	if err != nil {
-		return fmt.Errorf("gimble: listen on control socket: %w", err)
+		return fmt.Errorf("gimbal: listen on control socket: %w", err)
 	}
 	info := controlDiscovery{PID: os.Getpid(), Socket: socket, Project: i.dir}
 	i.controlSocket = socket
@@ -94,12 +94,12 @@ func (i *Instance) startControl() error {
 	if err != nil {
 		_ = listener.Close()
 		_ = os.Remove(socket)
-		return fmt.Errorf("gimble: encode control discovery: %w", err)
+		return fmt.Errorf("gimbal: encode control discovery: %w", err)
 	}
 	if err := os.WriteFile(discovery, encoded, 0o644); err != nil {
 		_ = listener.Close()
 		_ = os.Remove(socket)
-		return fmt.Errorf("gimble: write control discovery: %w", err)
+		return fmt.Errorf("gimbal: write control discovery: %w", err)
 	}
 
 	server := &http.Server{
@@ -113,7 +113,7 @@ func (i *Instance) startControl() error {
 	go func() {
 		defer close(serveDone)
 		if err := server.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			i.cancel(fmt.Errorf("gimble: serve control socket: %w", err))
+			i.cancel(fmt.Errorf("gimbal: serve control socket: %w", err))
 		}
 	}()
 ...
@@ -129,27 +129,27 @@ func (i *Instance) startWeb(cfg config) error {
 	}
 	listener, err := net.Listen(cfg.network, address)
 	if err != nil {
-		return fmt.Errorf("gimble: listen on %s: %w", address, err)
+		return fmt.Errorf("gimbal: listen on %s: %w", address, err)
 	}
 	i.shutdown.Add(1)
 	origin := ""
 	if cfg.network == "tcp" {
 		origin = "http://" + listener.Addr().String()
 	}
-	if configured := os.Getenv("GIMBLE_WEB_ORIGIN"); configured != "" {
+	if configured := os.Getenv("GIMBAL_WEB_ORIGIN"); configured != "" {
 		origin = configured
 	}
 	dist, err := fs.Sub(Build, "build")
 	if err != nil {
 		_ = listener.Close()
 		i.shutdown.Done()
-		return fmt.Errorf("gimble: web application: %w", err)
+		return fmt.Errorf("gimbal: web application: %w", err)
 	}
-	handler, mode, err := NewHandler(dist, os.Getenv("GIMBLE_WEB_PROXY"), origin)
+	handler, mode, err := NewHandler(dist, os.Getenv("GIMBAL_WEB_PROXY"), origin)
 	if err != nil {
 		_ = listener.Close()
 		i.shutdown.Done()
-		return fmt.Errorf("gimble: assemble web application: %w", err)
+		return fmt.Errorf("gimbal: assemble web application: %w", err)
 	}
 	server := &http.Server{
 		Handler: i.projectRequest(handler),
@@ -162,7 +162,7 @@ func (i *Instance) startWeb(cfg config) error {
 	go func() {
 		defer close(serveDone)
 		if err := server.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			i.cancel(fmt.Errorf("gimble: serve web application: %w", err))
+			i.cancel(fmt.Errorf("gimbal: serve web application: %w", err))
 		}
 	}()
 	context.AfterFunc(i.ctx, func() {
@@ -173,7 +173,7 @@ func (i *Instance) startWeb(cfg config) error {
 		}
 		i.shutdown.Done()
 	})
-	log.Printf("gimble: web application listening on %s (%s)", listener.Addr(), mode)
+	log.Printf("gimbal: web application listening on %s (%s)", listener.Addr(), mode)
 	return nil
 }
 ```

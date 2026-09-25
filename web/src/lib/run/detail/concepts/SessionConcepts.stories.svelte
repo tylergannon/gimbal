@@ -21,7 +21,7 @@
 	};
 
 	const { Story } = defineMeta({
-		title: "Gimble/Run/Concepts/Session detail",
+		title: "Gimbal/Run/Concepts/Session detail",
 		parameters: { layout: "centered" },
 	});
 </script>

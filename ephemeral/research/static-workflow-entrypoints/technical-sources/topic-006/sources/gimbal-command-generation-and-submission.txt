@@ -1,0 +1,114 @@
+# Gimbal Command Generation and Submission Source Excerpts
+
+Origin: /Users/tyler/.codex/worktrees/d798/gimbal
+Date: 2026-09-23
+
+---
+## 1. internal/generate/command.go (lines 167-211)
+
+```go
+// In generated Command:
+// Model flags for each role:
+{{- range .Roles}}
+	{{.Ident}}Default := defaults[gimbal.WorkflowRole({{printf "%q" .Name}})]
+	if {{.Ident}}Default == "" {
+		cmd.Flags().StringVar(&{{.Ident}}, {{printf "%q" .Name}}, "", {{printf "%q" (printf "the model for role %s, as model or model:effort; OpenCode uses opencode/model or opencode/provider/model" .Name)}})
+		_ = cmd.MarkFlagRequired({{printf "%q" .Name}})
+	} else {
+		cmd.Flags().StringVar(&{{.Ident}}, {{printf "%q" .Name}}, {{.Ident}}Default, {{printf "%q" (printf "advanced override for role %s, as model or model:effort; OpenCode uses opencode/model or opencode/provider/model; omit this flag to use the displayed workflow default" .Name)}})
+	}
+{{- end}}
+
+// In generated RunE:
+		admitted, err := web.Submit(cmd.Context(), instanceDir, project, web.Submission{
+			Name: {{printf "%q" .Name}}, Params: paramsJSON, WorkDir: workDir, Conversation: conversation,
+			Models: map[gimbal.WorkflowRole]string{ {{range .Roles}}gimbal.WorkflowRole({{printf "%q" .Name}}): {{.Ident}}, {{end}}},
+		})
+```
+
+---
+## 2. web/control.go (lines 69-125)
+
+```go
+// Submission carries choices across the process boundary without binding a
+// harness in the client process. The instance resolves models and executables.
+type Submission struct {
+	Name         string                         `json:"name"`
+	Params       json.RawMessage                `json:"params"`
+	Models       map[gimbal.WorkflowRole]string `json:"models"`
+	WorkDir      string                         `json:"work_dir"`
+	Conversation string                         `json:"conversation,omitempty"`
+}
+
+type Admission struct {
+	ID string `json:"id"`
+}
+
+func (h controlHandler) submit(w http.ResponseWriter, r *http.Request) {
+	p, err := h.project(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	var request Submission
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	entry := h.instance.workflows[request.Name]
+	if entry == nil {
+		http.Error(w, "unknown built-in workflow "+request.Name, http.StatusBadRequest)
+		return
+	}
+	if !filepath.IsAbs(request.WorkDir) {
+		http.Error(w, "work_dir must be absolute", http.StatusBadRequest)
+		return
+	}
+	if info, err := os.Stat(request.WorkDir); err != nil || !info.IsDir() {
+		http.Error(w, "work_dir must be an existing directory", http.StatusBadRequest)
+		return
+	}
+	if request.Conversation != "" {
+		worktree, ok := p.conversations.Worktree(request.Conversation)
+		if !ok || worktree != request.WorkDir {
+			http.Error(w, "conversation does not belong to this project and worktree", http.StatusBadRequest)
+			return
+		}
+	}
+	models, err := binding.Roles(request.Models)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	started := make(chan string, 1)
+	ctx := context.WithValue(p.ctx, conversationRunStartedKey{}, func(id string) { started <- id })
+	done := make(chan error, 1)
+	go func() {
+		done <- p.Run(ctx, request.Name, models, func(ctx context.Context) error {
+			return entry(ctx, gimbal.Env{WorkDir: request.WorkDir}, request.Params)
+		})
+	}()
+```
+
+---
+## 3. implementation-plan.md (lines 115-136)
+
+```markdown
+The request contains the owning project directory, execution workdir,
+workflow-specific parameters, known role model choices, and optional
+conversation association. Generate fields for the actual roles instead of
+putting a free-form model map on the wire; construct the existing binding map
+inside the server. Add the appropriate `json:",omitzero"` tags to Optional
+inputs. Preserve current meanings of omitted and explicitly supplied values.
+
+Use one source for role defaults, currently `cmd/gimbal/defaults.json`, accessible
+to server admission, generated help, and the forms. A default or override must
+mean the same thing in either client. Keep provider/executable configuration
+in the server's startup environment.
+
+The handler decodes and validates inputs, finds or admits the canonical project,
+validates workdir/conversation ownership and model choices, and starts the
+concrete body under the project/server context. Reject admission errors before
+creating a run. Preserve workflow-internal validation that legitimately occurs
+during execution; transport work does not redefine each workflow's algorithm.
+```

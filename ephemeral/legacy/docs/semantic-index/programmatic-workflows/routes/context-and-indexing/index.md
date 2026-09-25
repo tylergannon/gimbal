@@ -9,5 +9,5 @@ research/indexing as part of workflow preparation.
   original unified-context argument and divided responsibility.
 - [Actions and knowledge, verbatim](../../sources/actions-and-knowledge-verbatim.md):
   local searchable context and research/indexing roles.
-- [Gimble's direction](../../sources/direction.md): integrated research and
+- [Gimbal's direction](../../sources/direction.md): integrated research and
   indexing proposal.

@@ -1,17 +1,17 @@
 # Technical handoff for shared workflow-start remotes
 
 Produce the implementation detail needed to execute the accepted plan in
-`/Users/tyler/.codex/worktrees/d798/gimble/ephemeral/research/static-workflow-entrypoints/implementation-plan.md`
+`/Users/tyler/.codex/worktrees/d798/gimbal/ephemeral/research/static-workflow-entrypoints/implementation-plan.md`
 and its adjacent `definition-of-done.md`. Read both first. The adjacent
 `assessment.md` is historical evidence; its separate REST recommendation was
 superseded. Do not reopen the agreed architecture.
 
 The implementation audience is the agents working in these isolated checkouts:
 
-- Gimble: `/Users/tyler/.codex/worktrees/d798/gimble`, starting at `e161721c`.
+- Gimbal: `/Users/tyler/.codex/worktrees/d798/gimbal`, starting at `e161721c`.
 - SKGO: `/Users/tyler/.codex/worktrees/d798/skgo`, starting at `fed929b`.
 - Pinned upstream sources: `/Users/tyler/src/skgo/ephemeral/inspiration/reference`.
-- Gimble's currently pinned SKGO and Polytype sources are in the Go module cache
+- Gimbal's currently pinned SKGO and Polytype sources are in the Go module cache
   under `/Users/tyler/go/pkg/mod/github.com/tylergannon/`.
 
 Resolve these five bounded areas from primary source:
@@ -25,7 +25,7 @@ Resolve these five bounded areas from primary source:
    identity, enhanced request bytes, typed result/field/error envelopes,
    HTTP-200 errors, validation-only requests, caller cancellation, UDS transport,
    and mutation retry behavior. Map the pinned Kit source and existing independent
-   golden fixtures. Identify the actual SKGO release baseline needed by Gimble.
+   golden fixtures. Identify the actual SKGO release baseline needed by Gimbal.
 3. Optional/scalar form binding, named/nested fields, fixed model roles and
    defaults: what existing Polytype machinery supports and what SKGO must change.
    Distinguish absence from explicit zero/false/empty. Do not invent a need for

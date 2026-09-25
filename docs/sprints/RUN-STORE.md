@@ -292,7 +292,7 @@ set. A write error is returned from `Lifecycle` or `Event` and reaches
 
 ### Opening a finished run
 
-The six files are the data model. Gimble reads them; the log is the
+The six files are the data model. Gimbal reads them; the log is the
 transcript store and the rebuild source. `internal/observation/replay.go`:
 
 ```go
@@ -420,7 +420,7 @@ Files: `internal/observation/rows.go` (new), `files.go` (new),
 `checkpoint.go`; `store_test.go`, `registry_test.go` (new), delete
 `usage_test.go` (folded into `store_test.go`);
 `internal/observation/testdata/issue-149/` (the saved run's `run.jsonl`
-and `sessions/`, not its `observation.json`); `run.go`; `gimble_test.go`;
+and `sessions/`, not its `observation.json`); `run.go`; `gimbal_test.go`;
 `web/src/routes/runs/[runID]/usage.remote.go` and the three generated
 files (deleted), `skgo_remotes_gen.go`, `web/skgo.remotes.json`,
 `internal/skgo/links/**` (regenerated); `web/observation_live_test.go`,
@@ -448,7 +448,7 @@ files (deleted), `skgo_remotes_gen.go`, `web/skgo.remotes.json`,
    opening `snapshot`, then a `totals` frame after a step end, and the
    stream closes on `Close`. `web/observation_ssr_test.go` feeds a
    `session_created` and a `turn_started` record as JSON lines and still
-   finds `run-1`, `turn-1`, `hello from Gimble`, `test-model` in the
+   finds `run-1`, `turn-1`, `hello from Gimbal`, `test-model` in the
    document.
 6. Tests. `store_test.go` fixtures become JSON record lines. Keep the
    subscription-boundary tests with `row`/`event` frames. New: a session
@@ -479,7 +479,7 @@ files (deleted), `skgo_remotes_gen.go`, `web/skgo.remotes.json`,
    `turn_usage.json` deleted, opening rebuilds all six from the logs; the
    registry serves a run that finished in-process without reopening (same
    store pointer) and a directory it never saw by opening once for two
-   `Snapshot` calls. `gimble_test.go`: `TestCancelledRunStaysCancelled` feeds the
+   `Snapshot` calls. `gimbal_test.go`: `TestCancelledRunStaysCancelled` feeds the
    fixture lines to `store.Lifecycle`; after a fake-adapter run the six
    files exist, no `observation.json`, and every `turn_started` in
    `run.jsonl` is a row in `turns.json` with its scope.
@@ -512,7 +512,7 @@ concurrent attempts in `compare`.
 1. Run it with the page open. While `compare.1` is going, record the
    header total and a session card total, then record them again after
    the run ends: they rose without a reload. After it ends,
-   `ls .gimble/runs/<id>/` shows `run.jsonl`, `sessions/`, and the six
+   `ls .gimbal/runs/<id>/` shows `run.jsonl`, `sessions/`, and the six
    table files, no `observation.json`.
 2. By hand, one `jq` call per scope, e.g. for `research.1`:
 
@@ -533,7 +533,7 @@ concurrent attempts in `compare`.
    binary, open `/runs/<id>`: the same header, scopes, cards, and
    transcripts, with the same numbers.
 4. Copy `internal/observation/testdata/issue-149/`'s `run.jsonl` and
-   `sessions/` to `.gimble/runs/20260912-205306.issue-149/`, open it: it
+   `sessions/` to `.gimbal/runs/20260912-205306.issue-149/`, open it: it
    renders, the six files appear beside the logs, and the header equals
    the sums in the Phase 1 registry test.
 5. The PR description says the configured and resolved model ids, the run
@@ -555,7 +555,7 @@ concurrent attempts in `compare`.
 | `internal/observation/store_test.go`, `registry_test.go` | as in Phase 1; `usage_test.go` folded in |
 | `internal/observation/testdata/issue-149/` | the saved run's logs |
 | `run.go` | `observeLifecycle` hands the record over and records the error |
-| `gimble_test.go` | fixture replay through `Lifecycle`; files after a run |
+| `gimbal_test.go` | fixture replay through `Lifecycle`; files after a run |
 | `web/src/routes/runs/[runID]/usage.remote.go`, `usage.remote.ts`, `types.ts`; `web/src/lib/skgo/observation/types.ts` | deleted |
 | `skgo_remotes_gen.go`, `web/skgo.remotes.json`, `internal/skgo/links/**` | regenerated |
 | `web/observation_live_test.go` | retargeted at the SSE endpoint |
@@ -570,7 +570,7 @@ Not changed: `events.go`, `event_persistence.go`, `session.go`,
 `scope.go`, `usage.go` (root), `jsonschema/`, the adapters,
 `internal/runlog/`, `internal/sessionstate/`, `web/src/lib/sessionstate/`,
 `web/server.go`, `page.server.go`, `hooks.go`, `hooks.ts`. No new
-exported name in package `gimble`.
+exported name in package `gimbal`.
 
 ## Definition of Done
 
@@ -658,10 +658,10 @@ machinery. Unit tests gate a phase; the proof is the live run.
 
 ## Open Questions
 
-1. **Resolved: Gimble reads its own table files.** The plan as first
+1. **Resolved: Gimbal reads its own table files.** The plan as first
    filed replayed the whole log on every open and wrote the files only as
    output, an answer taken on Tyler's behalf. Tyler rejected it: the
-   tables are the data model, and a store Gimble never reads is not one;
+   tables are the data model, and a store Gimbal never reads is not one;
    replaying also re-derives old runs' numbers through whatever the fold
    is today. The three lanes had conflated reading the session logs for
    transcripts (which stays) with re-deriving facts from the lifecycle
@@ -673,7 +673,7 @@ machinery. Unit tests gate a phase; the proof is the live run.
 3. **`model_calls` frame granularity.** The whole per-turn list is
    republished on each step end. Publishing one call keyed by message is
    the alternative if a turn with hundreds of calls ever appears.
-4. **`internal/runlog`.** The server no longer reads it; `gimble_test.go`
+4. **`internal/runlog`.** The server no longer reads it; `gimbal_test.go`
    still does. Left as is.
 5. **`session_closed`.** No column in `session`. If the tree wants a
    closed time, it is one column and one fold line.

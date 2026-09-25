@@ -10,13 +10,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tylergannon/gimble/internal/host"
+	"github.com/tylergannon/gimbal/internal/host"
 
 	"github.com/tylergannon/skgo"
 
-	"github.com/tylergannon/gimble"
-	"github.com/tylergannon/gimble/internal/observation"
-	routes "github.com/tylergannon/gimble/internal/skgo/links/onzggl3sn52xizlt"
+	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/internal/observation"
+	routes "github.com/tylergannon/gimbal/internal/skgo/links/onzggl3sn52xizlt"
 )
 
 type interviewing struct {
@@ -28,7 +28,7 @@ func (*interviewing) CreateSession(context.Context, string, string, string) (str
 	return "native-interviewer", nil
 }
 
-func (i *interviewing) RunTurn(context.Context, string, string, json.RawMessage, func(gimble.AgentEvent) error) (gimble.TurnResult, error) {
+func (i *interviewing) RunTurn(context.Context, string, string, json.RawMessage, func(gimbal.AgentEvent) error) (gimbal.TurnResult, error) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 	i.turns++
@@ -41,7 +41,7 @@ func (i *interviewing) RunTurn(context.Context, string, string, json.RawMessage,
 	default:
 		answer = `{"question":null}`
 	}
-	return gimble.TurnResult{Output: json.RawMessage(answer)}, nil
+	return gimbal.TurnResult{Output: json.RawMessage(answer)}, nil
 }
 
 func (*interviewing) Steer(context.Context, string, string) (bool, error) { return false, nil }
@@ -71,7 +71,7 @@ func startedRunID(t *testing.T, project string) string {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for {
-		entries, err := os.ReadDir(filepath.Join(project, ".gimble", "runs"))
+		entries, err := os.ReadDir(filepath.Join(project, ".gimbal", "runs"))
 		if err == nil && len(entries) == 1 {
 			return entries[0].Name()
 		}
@@ -91,14 +91,14 @@ func TestInterviewAnswerFormReachesTheWaitingInterview(t *testing.T) {
 		t.Fatal(err)
 	}
 	adapter := &interviewing{}
-	transcript := make(chan gimble.InterviewTranscript, 1)
+	transcript := make(chan gimbal.InterviewTranscript, 1)
 	var runErr error
 	var runWG sync.WaitGroup
 	runWG.Go(func() {
-		runErr = runtime.Run(ctx, "interview", map[gimble.WorkflowRole]gimble.ModelBinding{
+		runErr = runtime.Run(ctx, "interview", map[gimbal.WorkflowRole]gimbal.ModelBinding{
 			"interviewer": {Adapter: adapter, Model: "m"},
 		}, func(ctx context.Context) error {
-			got, err := gimble.Interview(ctx, "preferences", gimble.NewSession(ctx, "interviewer", "/w"), "Learn the person's preferences.")
+			got, err := gimbal.Interview(ctx, "preferences", gimbal.NewSession(ctx, "interviewer", "/w"), "Learn the person's preferences.")
 			transcript <- got
 			return err
 		})

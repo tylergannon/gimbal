@@ -21,7 +21,7 @@
 //
 // Example invocation:
 //
-//	gimble run implement --outcomes-file ./outcomes.json --max-tasks-per-outcome 3
+//	gimbal run implement --outcomes-file ./outcomes.json --max-tasks-per-outcome 3
 package implementation
 
 import (
@@ -32,13 +32,13 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/tylergannon/gimble"
+	"github.com/tylergannon/gimbal"
 )
 
 //go:generate go tool polytype --validate
-//go:generate go run github.com/tylergannon/gimble/internal/generate/gimblegen -entry Implement -name implement -mermaid ../../../docs-site/src/lib/generated/workflows/implement.mmd
+//go:generate go run github.com/tylergannon/gimbal/internal/generate/gimbalgen -entry Implement -name implement -mermaid ../../../docs-site/src/lib/generated/workflows/implement.mmd
 
-const roleCoding gimble.WorkflowRole = "coding"
+const roleCoding gimbal.WorkflowRole = "coding"
 
 // Params identify the ordered outcomes and the per-outcome task bound.
 type Params struct {
@@ -61,7 +61,7 @@ type Assessment struct {
 }
 
 // Implement works through supplied outcomes until each is demonstrated.
-func Implement(ctx context.Context, env gimble.Env, params Params) error {
+func Implement(ctx context.Context, env gimbal.Env, params Params) error {
 	if params.MaxTasksPerOutcome < 1 {
 		return fmt.Errorf("max-tasks-per-outcome must be at least 1")
 	}
@@ -86,51 +86,51 @@ func Implement(ctx context.Context, env gimble.Env, params Params) error {
 		}
 	}
 
-	gimble.Set(ctx, "outcomes file", outcomesFile)
-	gimble.Set(ctx, "repository", env.WorkDir)
-	gimble.Set(ctx, "maximum tasks per outcome", fmt.Sprint(params.MaxTasksPerOutcome))
-	gimble.Set(ctx, "completion rule", completionRule)
+	gimbal.Set(ctx, "outcomes file", outcomesFile)
+	gimbal.Set(ctx, "repository", env.WorkDir)
+	gimbal.Set(ctx, "maximum tasks per outcome", fmt.Sprint(params.MaxTasksPerOutcome))
+	gimbal.Set(ctx, "completion rule", completionRule)
 
 	outcomeNumber := 0
-	for outcomeCtx, outcome := range gimble.Iterate(ctx, "outcome", outcomes) {
+	for outcomeCtx, outcome := range gimbal.Iterate(ctx, "outcome", outcomes) {
 		outcomeNumber++
-		gimble.Set(outcomeCtx, "outcome", outcome)
-		planner := gimble.NewSession(outcomeCtx, gimble.RoleSprintPlanning, env.WorkDir)
-		plannerCoach := gimble.NewSession(outcomeCtx, gimble.RoleArchitecturalCritique, env.WorkDir)
-		loop := gimble.PromiseLoop(outcomeCtx, "implementation", outcome, planner,
-			gimble.WithSupervisor(plannerCoach, scopePrompt))
+		gimbal.Set(outcomeCtx, "outcome", outcome)
+		planner := gimbal.NewSession(outcomeCtx, gimbal.RoleSprintPlanning, env.WorkDir)
+		plannerCoach := gimbal.NewSession(outcomeCtx, gimbal.RoleArchitecturalCritique, env.WorkDir)
+		loop := gimbal.PromiseLoop(outcomeCtx, "implementation", outcome, planner,
+			gimbal.WithSupervisor(plannerCoach, scopePrompt))
 
 		completed := false
 		tasksRun := 0
 		var operationalErr error
 		for taskCtx, task := range loop.Tasks {
 			tasksRun++
-			worker := gimble.NewSession(taskCtx, roleCoding, env.WorkDir)
-			workerCoach := gimble.NewSession(taskCtx, gimble.RoleArchitecturalCritique, env.WorkDir)
-			workerReport, err := worker.Generate[gimble.Text](taskCtx, implementationPrompt,
-				gimble.WithSupervisor(workerCoach, scopePrompt))
+			worker := gimbal.NewSession(taskCtx, roleCoding, env.WorkDir)
+			workerCoach := gimbal.NewSession(taskCtx, gimbal.RoleArchitecturalCritique, env.WorkDir)
+			workerReport, err := worker.Generate[gimbal.Text](taskCtx, implementationPrompt,
+				gimbal.WithSupervisor(workerCoach, scopePrompt))
 			if err != nil {
 				operationalErr = err
 				break
 			}
-			gimble.Set(taskCtx, "worker report", string(workerReport))
+			gimbal.Set(taskCtx, "worker report", string(workerReport))
 
 			if command := strings.TrimSpace(task.Validation.Command); command != "" {
-				if err := gimble.Check(taskCtx, "task check", env.WorkDir, "sh", "-lc", command); err != nil {
+				if err := gimbal.Check(taskCtx, "task check", env.WorkDir, "sh", "-lc", command); err != nil {
 					operationalErr = err
 					break
 				}
 			}
 
-			validator := gimble.NewSession(taskCtx, gimble.RoleQAOrchestration, env.WorkDir)
-			validatorCoach := gimble.NewSession(taskCtx, gimble.RoleArchitecturalCritique, env.WorkDir)
+			validator := gimbal.NewSession(taskCtx, gimbal.RoleQAOrchestration, env.WorkDir)
+			validatorCoach := gimbal.NewSession(taskCtx, gimbal.RoleArchitecturalCritique, env.WorkDir)
 			assessment, err := validator.Generate[Assessment](taskCtx, validationPrompt,
-				gimble.WithSupervisor(validatorCoach, scopePrompt))
+				gimbal.WithSupervisor(validatorCoach, scopePrompt))
 			if err != nil {
 				operationalErr = err
 				break
 			}
-			gimble.SetJSON(taskCtx, "independent assessment", assessment)
+			gimbal.SetJSON(taskCtx, "independent assessment", assessment)
 			if assessment.ValidationPassed && len(assessment.SubstantialGaps) == 0 {
 				completed = true
 				break

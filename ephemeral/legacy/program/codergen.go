@@ -12,8 +12,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/tylergannon/gimble/harness"
-	"github.com/tylergannon/gimble/internal/modelalias"
+	"github.com/tylergannon/gimbal/harness"
+	"github.com/tylergannon/gimbal/internal/modelalias"
 )
 
 // CodergenRequest is one agent turn. With a JSONSchema the agent's result is

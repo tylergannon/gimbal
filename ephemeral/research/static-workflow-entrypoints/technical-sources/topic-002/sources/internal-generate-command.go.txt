@@ -1,4 +1,4 @@
-// Origin: /Users/tyler/.codex/worktrees/d798/gimble/internal/generate/command.go
+// Origin: /Users/tyler/.codex/worktrees/d798/gimbal/internal/generate/command.go
 // Revision: 40dc82947eed99202fd9cb1dd377b6a3c2abbccc
 // Date: 2026-09-23
 // Scope: Code generator template producing workflow_gen.go with Graph, Hosted adapter, and Cobra Command.
@@ -11,11 +11,11 @@ import (
 	"text/template"
 	"unicode"
 
-	"github.com/tylergannon/gimble/workflow"
+	"github.com/tylergannon/gimbal/workflow"
 )
 
 // source prints the workflow's generated file as Go: its graph, registered
-// from an init, and its gimble run subcommand, with Gimble's environment
+// from an init, and its gimbal run subcommand, with Gimbal's environment
 // flags, a flag for each workflow parameter, a model flag for each role the
 // graph names, the web application's flags, and a RunE that fills the
 // environment and parameters, sends the role choices to the selected instance,
@@ -73,30 +73,30 @@ import (
 	"path/filepath"
 
 	"github.com/spf13/cobra"
-	"github.com/tylergannon/gimble"
-	"github.com/tylergannon/gimble/web"
-	"github.com/tylergannon/gimble/workflow"
+	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/web"
+	"github.com/tylergannon/gimbal/workflow"
 {{- if .Optional}}
 	"github.com/tylergannon/polytype"
 {{- end}}
 )
 
-func init() { gimble.RegisterGraph(Graph) }
+func init() { gimbal.RegisterGraph(Graph) }
 
 {{.Graph}}
 // Hosted is the entry {{.Entry}} supplies to the persistent instance.
 func Hosted() web.WorkflowEntry {
-	return func(ctx context.Context, env gimble.Env, raw json.RawMessage) error {
+	return func(ctx context.Context, env gimbal.Env, raw json.RawMessage) error {
 		{{if .Params}}var params {{.Params}}
 		if err := json.Unmarshal(raw, &params); err != nil { return err }
 		return {{.Entry}}(ctx, env, params){{else}}return {{.Entry}}(ctx, env){{end}}
 	}
 }
 
-// Command is gimble run {{.Name}}: {{if .Params}}a flag for each field of {{.Params}}, {{end}}a
+// Command is gimbal run {{.Name}}: {{if .Params}}a flag for each field of {{.Params}}, {{end}}a
 // model flag for each role {{.Entry}} names, instance and project selection,
 // and optional waiting for the hosted run's terminal result.
-func Command(defaults map[gimble.WorkflowRole]string) *cobra.Command {
+func Command(defaults map[gimbal.WorkflowRole]string) *cobra.Command {
 {{- if .Params}}
 	var params {{.Params}}
 {{- end}}
@@ -114,7 +114,7 @@ func Command(defaults map[gimble.WorkflowRole]string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   {{printf "%q" .Name}},
 		Short: {{printf "%q" .Summary}},
-		Long:  {{printf "%q" .Long}} + "\n\nThe selected persistent instance owns this run. --project selects its admitted repository; --work-dir selects the execution directory independently. --instance-dir selects the instance state directory (or GIMBLE_INSTANCE_DIR, default .gimble). --follow waits for terminal success or failure; otherwise the run continues after this client exits. Each role flag chooses a model and optional effort. Executable lookup, PATH, and provider configuration come from the instance startup environment.",
+		Long:  {{printf "%q" .Long}} + "\n\nThe selected persistent instance owns this run. --project selects its admitted repository; --work-dir selects the execution directory independently. --instance-dir selects the instance state directory (or GIMBAL_INSTANCE_DIR, default .gimbal). --follow waits for terminal success or failure; otherwise the run continues after this client exits. Each role flag chooses a model and optional effort. Executable lookup, PATH, and provider configuration come from the instance startup environment.",
 		Args:  cobra.NoArgs,
 	}
 {{- range .Fields}}
@@ -125,13 +125,13 @@ func Command(defaults map[gimble.WorkflowRole]string) *cobra.Command {
 {{- end}}{{end}}
 	cmd.Flags().StringVar(&workDir, "work-dir", "", "execution directory (default: owning project)")
 	cmd.Flags().StringVar(&project, "project", ".", "admitted repository owning this run and its observation")
-	instanceDefault := os.Getenv("GIMBLE_INSTANCE_DIR")
-	if instanceDefault == "" { instanceDefault = ".gimble" }
-	cmd.Flags().StringVar(&instanceDir, "instance-dir", instanceDefault, "selected running instance state directory (default: GIMBLE_INSTANCE_DIR or .gimble)")
+	instanceDefault := os.Getenv("GIMBAL_INSTANCE_DIR")
+	if instanceDefault == "" { instanceDefault = ".gimbal" }
+	cmd.Flags().StringVar(&instanceDir, "instance-dir", instanceDefault, "selected running instance state directory (default: GIMBAL_INSTANCE_DIR or .gimbal)")
 	cmd.Flags().StringVar(&conversation, "conversation", "", "associate this run with a conversation in the owning project")
 	cmd.Flags().BoolVar(&follow, "follow", false, "wait for the hosted run's terminal result; without this flag the run survives client exit")
 {{- range .Roles}}
-	{{.Ident}}Default := defaults[gimble.WorkflowRole({{printf "%q" .Name}})]
+	{{.Ident}}Default := defaults[gimbal.WorkflowRole({{printf "%q" .Name}})]
 	if {{.Ident}}Default == "" {
 		cmd.Flags().StringVar(&{{.Ident}}, {{printf "%q" .Name}}, "", {{printf "%q" (printf "the model for role %s, as model or model:effort; OpenCode uses opencode/model or opencode/provider/model" .Name)}})
 		_ = cmd.MarkFlagRequired({{printf "%q" .Name}})
@@ -172,7 +172,7 @@ func Command(defaults map[gimble.WorkflowRole]string) *cobra.Command {
 		}
 		admitted, err := web.Submit(cmd.Context(), instanceDir, project, web.Submission{
 			Name: {{printf "%q" .Name}}, Params: paramsJSON, WorkDir: workDir, Conversation: conversation,
-			Models: map[gimble.WorkflowRole]string{ {{range .Roles}}gimble.WorkflowRole({{printf "%q" .Name}}): {{.Ident}}, {{end}}},
+			Models: map[gimbal.WorkflowRole]string{ {{range .Roles}}gimbal.WorkflowRole({{printf "%q" .Name}}): {{.Ident}}, {{end}}},
 		})
 		if err != nil { return err }
 		fmt.Fprintln(cmd.OutOrStdout(), admitted.ID)

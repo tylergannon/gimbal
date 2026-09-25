@@ -5,11 +5,11 @@ are working material and may be wrong. He said himself he is not sure the
 dimensions are right, so treat this as a live document rather than a settled
 one.
 
-These are the things Gimble is for. They are **competing** priorities, not a
+These are the things Gimbal is for. They are **competing** priorities, not a
 checklist — progress on one can cost another, and noticing that trade is part
 of the work.
 
-The later [Gimble direction](direction.md) applies these aims to ordinary
+The later [Gimbal direction](direction.md) applies these aims to ordinary
 Go workflow authoring, legibility, context engineering, and learning from
 actual runs. It preserves the tensions below.
 
@@ -61,7 +61,7 @@ They pull against each other, and that is the interesting part.
 
 ## Practice
 
-This deserves a regular, scheduled look — not only inward at Gimble, but
+This deserves a regular, scheduled look — not only inward at Gimbal, but
 outward at how others are answering the same questions. Model providers,
 agent frameworks, CI and release engineering, safety evaluation, and the
 ordinary discipline of testing all have prior art we are not reading.

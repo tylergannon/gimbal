@@ -44,7 +44,7 @@ This leaf captures the JavaScript SDK’s exported configuration environment nam
 ## Task recipes
 
 - **Validate deployment at startup:** require the API key source, validate the resolved base URL against an allowlist, make the model choice explicit for reproducible trials, and reject unsupported log-level values. Begin with [ENV](https://docs.typesafe.ai/sdk/javascript/api/variables/ENV.md).
-- **Attach operational provenance:** record SDK `VERSION`, effective non-secret base URL, requested model configuration, concrete response model, and Gimble run/node ID with each inference. The SDK version source is [VERSION](https://docs.typesafe.ai/sdk/javascript/api/variables/VERSION.md).
+- **Attach operational provenance:** record SDK `VERSION`, effective non-secret base URL, requested model configuration, concrete response model, and Gimbal run/node ID with each inference. The SDK version source is [VERSION](https://docs.typesafe.ai/sdk/javascript/api/variables/VERSION.md).
 - **Separate stable and exploratory runs:** pin an explicit model for calibration/evaluation runs; reserve `jev-latest` for deliberately rolling experiments and record every observed concrete model.
 - **Control logs independently of secrets:** set `TYPESAFE_LOG_LEVEL` explicitly or pass an overriding client option, keep SDK logging at the minimum necessary verbosity, and use application-owned redacted metrics for supervision observability. Start at [ENV](https://docs.typesafe.ai/sdk/javascript/api/variables/ENV.md).
 

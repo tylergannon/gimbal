@@ -1,7 +1,7 @@
-# Designing `gimble`: A Go Orchestration Library over Coding-Agent Harnesses
+# Designing `gimbal`: A Go Orchestration Library over Coding-Agent Harnesses
 
 ## TL;DR
-- **Drive harnesses over ACP; do not build your own abstraction over the Anthropic/OpenAI model SDKs, and do not expose ACP raw.** No existing Go library does what gimble wants (a multi-harness façade); the closest usable primitive is `coder/acp-go-sdk` (v0.13.5, Apache-2.0), a complete typed ACP client you should sit on top of. ACP's `_meta` fields, underscore-prefixed custom methods, and `Unstable*` method surface mean the "abstraction hides vendor features" fear is **largely unjustified for control/pass-through**, but **justified for first-class ergonomics** of vendor features.
+- **Drive harnesses over ACP; do not build your own abstraction over the Anthropic/OpenAI model SDKs, and do not expose ACP raw.** No existing Go library does what gimbal wants (a multi-harness façade); the closest usable primitive is `coder/acp-go-sdk` (v0.13.5, Apache-2.0), a complete typed ACP client you should sit on top of. ACP's `_meta` fields, underscore-prefixed custom methods, and `Unstable*` method surface mean the "abstraction hides vendor features" fear is **largely unjustified for control/pass-through**, but **justified for first-class ergonomics** of vendor features.
 - **On your API-shape questions: no Future object, no per-turn `Task` interface.** Model a turn as `iter.Seq2[Event, error]` (Go 1.23 range-over-func) returned from `Session.Prompt`, keep the session itself as the steer/interrupt handle, and use package-level generic functions for structured output (interface methods can never declare type parameters — not even in Go 1.27). Design B (a `Task` handle) is over-engineered: every real harness models steer/interrupt/compact as session/thread-scoped operations, not turn-scoped ones.
 - **Structured output, capability discovery, and the outer loop are where to invest.** Use optional interfaces + type assertion (the `http.Flusher` pattern) for vendor-specific features; own the outer coding→review→coding loop in plain Go; reach for Temporal only if you need durability.
 
@@ -31,7 +31,7 @@
       Run(ctx context.Context, input *AgentInput, options ...AgentRunOption) *AsyncIterator[*AgentEvent]
   }
   ```
-  Note the event-streaming shape: `Run` returns an `*AsyncIterator[*AgentEvent]` (a pre-`iter.Seq` custom iterator type). Collaboration primitives: Sequential/Parallel/Loop/Supervisor/Plan-Execute; a `Runner` with callbacks, interrupts, checkpoints. Closest existing precedent for what gimble's *event stream* should look like, though Eino targets in-process model ReAct loops, not external harness subprocesses.
+  Note the event-streaming shape: `Run` returns an `*AsyncIterator[*AgentEvent]` (a pre-`iter.Seq` custom iterator type). Collaboration primitives: Sequential/Parallel/Loop/Supervisor/Plan-Execute; a `Runner` with callbacks, interrupts, checkpoints. Closest existing precedent for what gimbal's *event stream* should look like, though Eino targets in-process model ReAct loops, not external harness subprocesses.
 - **LangChainGo** — LangChain port; chains/agents/tools over models. General-purpose, not harness-oriented.
 - **Genkit Go** (Firebase) — model orchestration, flows, tracing.
 - **swarmgo / go-agent / agno-go** — small/experimental; not authoritative.
@@ -42,12 +42,12 @@
   ```go
   func (r *MessageService) NewStreaming(ctx context.Context, body MessageNewParams, opts ...option.RequestOption) *ssestream.Stream[MessageStreamEventUnion]
   ```
-  Usage: `for stream.Next() { event := stream.Current(); message.Accumulate(event) }` then check `stream.Err()`. This is the **pre-`iter.Seq` "stateful cursor" pattern** (`Next()`/`Current()`/`Err()`), same shape as `sql.Rows` and `bufio.Scanner`. Known weakness to improve on: mid-stream errors surface as unstructured `fmt.Errorf("received error while streaming: …")` (issue #200). `Message.Accumulate(event)` folds streaming deltas into a complete `Message` — the accumulation pattern gimble should copy.
+  Usage: `for stream.Next() { event := stream.Current(); message.Accumulate(event) }` then check `stream.Err()`. This is the **pre-`iter.Seq` "stateful cursor" pattern** (`Next()`/`Current()`/`Err()`), same shape as `sql.Rows` and `bufio.Scanner`. Known weakness to improve on: mid-stream errors surface as unstructured `fmt.Errorf("received error while streaming: …")` (issue #200). `Message.Accumulate(event)` folds streaming deltas into a complete `Message` — the accumulation pattern gimbal should copy.
 - **openai-go** — same house style (stateful streaming cursors, params structs, union types).
 - **google genai Go SDK**, **Ollama Go bindings** — model-level.
 
 **MCP Go SDKs:**
-- **`github.com/modelcontextprotocol/go-sdk`** — the **official** MCP Go SDK, maintained in collaboration with Google. It has since shipped stable: v1.0.0 ("going forward we won't make breaking API changes"), reaching v1.2.0 by Dec 22, 2025 and v1.4.1+ in 2026. Packages: `mcp`, `jsonrpc`, `auth`, `oauthex`; uses `_meta` keys (e.g. `io.modelcontextprotocol/protocolVersion`). Use this if gimble needs to *host* MCP servers.
+- **`github.com/modelcontextprotocol/go-sdk`** — the **official** MCP Go SDK, maintained in collaboration with Google. It has since shipped stable: v1.0.0 ("going forward we won't make breaking API changes"), reaching v1.2.0 by Dec 22, 2025 and v1.4.1+ in 2026. Packages: `mcp`, `jsonrpc`, `auth`, `oauthex`; uses `_meta` keys (e.g. `io.modelcontextprotocol/protocolVersion`). Use this if gimbal needs to *host* MCP servers.
 - **`github.com/mark3labs/mcp-go`** (Ed Zynda) — popular unofficial predecessor that influenced the official design; still viable.
 
 **Unofficial Claude Code Go drivers (the "Go Claude Agent SDK") — crowded and immature:**
@@ -59,7 +59,7 @@
 None is official or dominant. **Do not adopt any as a dependency;** study `Roasbeef`'s and `severity1`'s shapes as references. Note the recurring split — a package-level `Query()` for one-shot and a stateful `Client` for interactive — which maps directly onto your Design A/B question.
 
 **ACP libraries in Go:**
-- **`github.com/coder/acp-go-sdk`** (v0.13.5, Apache-2.0, published Jun 2, 2026, imported-by 18) — the strongest option. Fully typed, generated from the official schema. Per its release notes it "Catches the SDK up to ACP schema 0.10.8 (from 0.6.3), adds first-class ACP extension methods… `ExtensionMethodHandler` plus `CallExtension`/`NotifyExtension`, and `Unstable*` types for in-development methods." The `ClientSideConnection` (what gimble *is*) exposes `Initialize`, `NewSession`, `LoadSession`, `ResumeSession`, `ListSessions`, `Prompt`, `Cancel`, `SetSessionMode`, `SetSessionConfigOption`, `Authenticate`, `Logout`, `CloseSession`, plus a large `Unstable*` surface (`UnstableForkSession`, `UnstableListProviders`/`UnstableSetProvider`, `UnstableConnectMcp`, NES methods) and `CallExtension`/`NotifyExtension`. Ships `example/claude-code`, `example/gemini`, `example/client`. Constructors: `NewClientSideConnection(client, stdin, stdout)`, helper builders `TextBlock`/`ImageBlock`/`ResourceBlock`, `Ptr[T]`.
+- **`github.com/coder/acp-go-sdk`** (v0.13.5, Apache-2.0, published Jun 2, 2026, imported-by 18) — the strongest option. Fully typed, generated from the official schema. Per its release notes it "Catches the SDK up to ACP schema 0.10.8 (from 0.6.3), adds first-class ACP extension methods… `ExtensionMethodHandler` plus `CallExtension`/`NotifyExtension`, and `Unstable*` types for in-development methods." The `ClientSideConnection` (what gimbal *is*) exposes `Initialize`, `NewSession`, `LoadSession`, `ResumeSession`, `ListSessions`, `Prompt`, `Cancel`, `SetSessionMode`, `SetSessionConfigOption`, `Authenticate`, `Logout`, `CloseSession`, plus a large `Unstable*` surface (`UnstableForkSession`, `UnstableListProviders`/`UnstableSetProvider`, `UnstableConnectMcp`, NES methods) and `CallExtension`/`NotifyExtension`. Ships `example/claude-code`, `example/gemini`, `example/client`. Constructors: `NewClientSideConnection(client, stdin, stdout)`, helper builders `TextBlock`/`ImageBlock`/`ResourceBlock`, `Ptr[T]`.
 - `ironpark/acp-go`, `a3tai/openclaw-go/acp` — other unofficial Go implementations; Coder's is the most complete.
 
 **Orchestration primitives worth stealing:**
@@ -105,7 +105,7 @@ for ev, err := range sess.Prompt(ctx, "refactor X") {
 
 This beats the alternatives: a Future forces `.Get()` and loses streaming; a raw `<-chan Event` leaks close/cancellation semantics onto the caller and can't carry a terminal error cleanly; a `Wait()`-able session forces buffering or out-of-band events. It matches Anthropic's own Go SDK philosophy (stream of typed union events) while upgrading from the older `Next()/Current()/Err()` cursor. **Caveat:** `iter.Seq2` is pull-driven by the caller's loop; a harness turn is push-driven (the subprocess emits whenever it wants). Run a goroutine reading the ACP `session/update` stream into an internal channel and yield from that within the iterator (bridge with `iter.Pull` only if you must drive two streams in lockstep). Keep stateful accumulation (final assistant message, `StopReason`) inside the `Session` so the caller reads `sess.LastResult()` after the loop — exactly as `Message.Accumulate` does. Put the stop reason on both the `TurnEnded` event and the session.
 
-**(b) Structured output → package-level generic function, not a method.** Go methods could not declare their own type parameters before Go 1.27 (the `method must have no type parameters` error), and even Go 1.27's generic-methods feature **still forbids type parameters on *interface* methods** (the compiler can't enumerate one method-set entry per possible instantiation). Since gimble's session is an interface, you **cannot** write `func (s Session) PromptJSON[T any](...) (T, error)` now or later. The correct workaround is the package-level generic function taking the session as its first argument — exactly how `math/rand/v2` had to expose a package-level generic draw, and how iterator libs expose `Map(s, f)` instead of `s.Map(f)`:
+**(b) Structured output → package-level generic function, not a method.** Go methods could not declare their own type parameters before Go 1.27 (the `method must have no type parameters` error), and even Go 1.27's generic-methods feature **still forbids type parameters on *interface* methods** (the compiler can't enumerate one method-set entry per possible instantiation). Since gimbal's session is an interface, you **cannot** write `func (s Session) PromptJSON[T any](...) (T, error)` now or later. The correct workaround is the package-level generic function taking the session as its first argument — exactly how `math/rand/v2` had to expose a package-level generic draw, and how iterator libs expose `Map(s, f)` instead of `s.Map(f)`:
 
 ```go
 func PromptJSON[T any](ctx context.Context, s Session, prompt string, schema *jsonschema.Schema) (T, error)
@@ -163,7 +163,7 @@ The Go-idiomatic rendering of "optional capabilities" is the **optional interfac
 ```go
 if sc, ok := sess.(Steerer); ok { _ = sc.Steer(ctx, "actually, use x/foo") }
 ```
-**Heed the known anti-pattern** (Merovius, "The trouble with optional interfaces"; Doxsey, "Fixing interface erasure in Go"): if gimble ever *wraps* a `Session` (middleware, tracing, retry), the wrapper silently drops the wrapped value's optional interfaces — the same bug that makes a wrapped `http.ResponseWriter` lose `Flush`/`Hijack`. Mitigations: keep the mandatory `Session` tiny; make optional methods safe to be absent (return typed `ErrUnsupported`); and because you *will* wrap (tracing + outer loop), **also expose an explicit `func Supports(s Session, cap Capability) bool` / `Capabilities()`** so discovery doesn't depend solely on interface transparency surviving wrapping.
+**Heed the known anti-pattern** (Merovius, "The trouble with optional interfaces"; Doxsey, "Fixing interface erasure in Go"): if gimbal ever *wraps* a `Session` (middleware, tracing, retry), the wrapper silently drops the wrapped value's optional interfaces — the same bug that makes a wrapped `http.ResponseWriter` lose `Flush`/`Hijack`. Mitigations: keep the mandatory `Session` tiny; make optional methods safe to be absent (return typed `ErrUnsupported`); and because you *will* wrap (tracing + outer loop), **also expose an explicit `func Supports(s Session, cap Capability) bool` / `Capabilities()`** so discovery doesn't depend solely on interface transparency surviving wrapping.
 
 ### PART 4 — Higher-level orchestration patterns
 
@@ -204,11 +204,11 @@ Termination is explicit: `maxIter`, cost/token budget, an approval predicate, or
 
 ### PART 5 — Synthesis: recommended API and build-vs-adopt verdict
 
-**Verdict: build gimble as a thin, opinionated multi-harness façade on top of `coder/acp-go-sdk`, driving harnesses over ACP where they speak it and via direct subprocess adapters where they don't (Claude Code today, Antigravity).** Do not adopt any existing Go library wholesale — none spans harnesses. Do not expose ACP types raw (they're an IDE-panel data model and will leak editor concepts into your API). Do not build on the unofficial Claude-Code Go SDKs (unmaintained, single-vendor). Prefer ACP over hand-rolling N subprocess protocols, because ACP already normalizes sessions/streaming/permissions/cancellation/files and gives you `_meta` + `_`-methods for vendor pass-through — the exact escape hatch that neutralizes your "abstraction hides features" concern *for control*. Accept that vendor *feature ergonomics* (subagents, skills, hooks, structured output) must be surfaced through optional interfaces and extension methods, harness-by-harness.
+**Verdict: build gimbal as a thin, opinionated multi-harness façade on top of `coder/acp-go-sdk`, driving harnesses over ACP where they speak it and via direct subprocess adapters where they don't (Claude Code today, Antigravity).** Do not adopt any existing Go library wholesale — none spans harnesses. Do not expose ACP types raw (they're an IDE-panel data model and will leak editor concepts into your API). Do not build on the unofficial Claude-Code Go SDKs (unmaintained, single-vendor). Prefer ACP over hand-rolling N subprocess protocols, because ACP already normalizes sessions/streaming/permissions/cancellation/files and gives you `_meta` + `_`-methods for vendor pass-through — the exact escape hatch that neutralizes your "abstraction hides features" concern *for control*. Accept that vendor *feature ergonomics* (subagents, skills, hooks, structured output) must be surfaced through optional interfaces and extension methods, harness-by-harness.
 
 Recommended package surface:
 ```go
-package gimble
+package gimbal
 
 // Construction: accept interfaces / functional options; return concrete structs.
 type Harness interface { // implemented by claudeHarness, codexHarness, geminiHarness…
@@ -254,7 +254,7 @@ func PromptJSON[T any](ctx context.Context, s Session, prompt string, schema *js
 func PromptInto(ctx context.Context, s Session, prompt string, dst any) error // Scan-style
 
 // Errors: typed sentinels + wrapping, for errors.Is/As.
-var ErrUnsupported = errors.New("gimble: capability not supported by harness")
+var ErrUnsupported = errors.New("gimbal: capability not supported by harness")
 type StopError struct{ Reason StopReason } // Reason ∈ {Refusal, MaxTokens, MaxTurnRequests}
 func (e *StopError) Error() string
 type PermissionDenied struct{ Tool string }
@@ -268,20 +268,20 @@ Rationale mapped to evidence:
 - **Capability discovery:** optional interfaces + `Supports()` to survive wrapping (§3d).
 - **Error handling:** typed `StopError`/`PermissionDenied`/`ErrUnsupported` with `errors.Is`/`As`; do **not** expose harness-specific error structs publicly (Cheney: assert behavior, not concrete error types).
 - **Context:** first arg everywhere; cancellation maps to ACP `session/cancel`; honor `ctx.Done()` in the reader goroutine.
-- **Outer loop, written by a user of gimble:**
+- **Outer loop, written by a user of gimbal:**
   ```go
-  coder := gimble.Claude().Open(ctx, gimble.WithCwd(repo))
-  reviewer := gimble.Codex().Open(ctx)
+  coder := gimbal.Claude().Open(ctx, gimbal.WithCwd(repo))
+  reviewer := gimbal.Codex().Open(ctx)
   for i := 0; i < maxIter; i++ {
       var diff string
       for ev, err := range coder.Prompt(ctx, task+lastReview) {
           if err != nil { return err }
-          if e, ok := ev.(gimble.ToolCallUpdate); ok && e.Diff != nil { diff += e.Diff.String() }
-          if e, ok := ev.(gimble.TurnEnded); ok && e.StopReason == gimble.StopRefusal {
-              return &gimble.StopError{Reason: e.StopReason}
+          if e, ok := ev.(gimbal.ToolCallUpdate); ok && e.Diff != nil { diff += e.Diff.String() }
+          if e, ok := ev.(gimbal.TurnEnded); ok && e.StopReason == gimbal.StopRefusal {
+              return &gimbal.StopError{Reason: e.StopReason}
           }
       }
-      verdict, err := gimble.PromptJSON[Review](ctx, reviewer, reviewPrompt(diff), reviewSchema)
+      verdict, err := gimbal.PromptJSON[Review](ctx, reviewer, reviewPrompt(diff), reviewSchema)
       if err != nil { return err }
       if verdict.Approved { break }
       lastReview = verdict.Notes
@@ -306,5 +306,5 @@ Rationale mapped to evidence:
 - **Mid-turn steering is thinly supported and thinly documented.** The strongest evidence (Codex `turn/steer`, non-steerable `review`/`compact` turns, exec-mode not supporting it) comes from app-server docs and issue threads, not a stable public spec; I could not locate a more authoritative source than app-server docs/issues. Verify against the Codex version you target.
 - **Antigravity via third-party tools may violate Google's ToS** (per Google's FAQ, surfaced in multiple adapter READMEs). Don't make it a supported path without legal review; note MCP-tool isolation for Antigravity subagents is reportedly broken.
 - **The `--acp` vs `--experimental-acp` flag for Gemini is genuinely ambiguous** across sources (repo docs now say `--acp`; many integration guides still use `--experimental-acp`); detect/support both.
-- **Explicit compaction as a portable API is essentially fictional today** — hooks (Claude), an app-server method (Codex), or automatic. Anything gimble exposes as `Compact()` is a backend-specific shim.
+- **Explicit compaction as a portable API is essentially fictional today** — hooks (Claude), an app-server method (Codex), or automatic. Anything gimbal exposes as `Compact()` is a backend-specific shim.
 - A few harness-internal details (exact Antigravity ACP method names, Codex app-server method stability) I could verify only at issue-tracker / adapter-README level; confirm against the edge/latest binaries you run.

@@ -27,7 +27,7 @@ type ResolvedSelection struct {
 	Harness  string
 }
 
-// Model is one maintained Gimble alias or version-bearing compatibility alias.
+// Model is one maintained Gimbal alias or version-bearing compatibility alias.
 type Model struct {
 	Alias         string
 	Provider      string

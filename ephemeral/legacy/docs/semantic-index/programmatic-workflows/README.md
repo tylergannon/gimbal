@@ -4,16 +4,16 @@ For the Go API, start with the [recovered POC workflow source](sources/poc-workf
 `program.Loop`, `Codergen[T]`, `Command`, `Validate`. That is the approved shape and it is
 ported into `program/`. The later stub sketches were removed on 2026-09-10.
 
-This is a compact routing tree for Gimble's writings about replacing the JSON
+This is a compact routing tree for Gimbal's writings about replacing the JSON
 workflow language with ordinary Go, while preserving workflow legibility and
 making context engineering a first-class concern.
 
 ## Scope and token cache
 
-The token cache is the local Gimble repository checkout. The indexed corpus is
+The token cache is the local Gimbal repository checkout. The indexed corpus is
 intentionally narrower: the two edited direction documents, the five-arts
 framing, and the six preserved source notes under
-`ephemeral/projects/gimble/programmatic-workflows/`. Citations are repository-
+`ephemeral/projects/gimbal/programmatic-workflows/`. Citations are repository-
 relative `path:line` anchors and should resolve from the repository root.
 
 This index is a navigation aid, not a claim that the proposed runtime exists.

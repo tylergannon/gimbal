@@ -163,7 +163,7 @@ const commands = {
     args: ["test", "./internal/observation"],
     workdir: ".",
     exit_code: 1,
-    stdout: "FAIL\tgimble/internal/observation\t0.398s\n",
+    stdout: "FAIL\tgimbal/internal/observation\t0.398s\n",
     stderr: "",
     stdout_file: "",
     stderr_file: "",
@@ -222,7 +222,7 @@ const commands = {
     exit_code: 1,
     stdout: "",
     stderr:
-      "--- FAIL: TestInterviewAnswer (0.02s)\n    rows_test.go:88: answered = 0, want > 0\nFAIL\nFAIL    gimble/internal/observation   0.412s\n",
+      "--- FAIL: TestInterviewAnswer (0.02s)\n    rows_test.go:88: answered = 0, want > 0\nFAIL\nFAIL    gimbal/internal/observation   0.412s\n",
     stdout_file: "",
     stderr_file: "",
     error: "",

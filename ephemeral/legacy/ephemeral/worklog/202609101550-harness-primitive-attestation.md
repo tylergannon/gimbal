@@ -27,8 +27,8 @@ against the exact schema before printing.
 ## Cancellation, run-prompt
 
 Prompt told the agent to run `sleep 240`. Once `pgrep` showed the `sleep 240`
-child, I sent SIGINT to the gimble process at 15:37:08. By 15:37:12 gimble had
-exited with `gimble: context canceled`, and neither `codex app-server --stdio`
+child, I sent SIGINT to the gimbal process at 15:37:08. By 15:37:12 gimbal had
+exited with `gimbal: context canceled`, and neither `codex app-server --stdio`
 nor `sleep 240` remained. That is the ctx path: `readTurn` returns on ctx,
 the adapter sends `turn/interrupt`, drains briefly, returns `ctx.Err()`.
 

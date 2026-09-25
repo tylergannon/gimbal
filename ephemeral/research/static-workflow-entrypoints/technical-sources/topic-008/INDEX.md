@@ -68,14 +68,14 @@ This topic establishes the local evidence for context hierarchies, decoupled asy
     - Every run initiated via `Runtime.Run` calls `r.instance.activeRuns.Add(1)` before starting, and `defer r.instance.activeRuns.Done()` upon termination (`web/runtime.go:442-444`).
     - During server shutdown (`web/runtime.go:286`), the instance calls `i.activeRuns.Wait()`, ensuring the server process remains alive until all runs across all projects have cleanly terminated.
   - **State Isolation Per Project**:
-    - Each admitted project has its own dedicated `Runtime` struct with an independent `.gimble` directory (`p.dir`), its own `observation.Registry` (`p.registry`), its own active run table (`p.runs = live.NewRuns()`), and its own `conversation.Manager` (`web/runtime.go:261-276`).
+    - Each admitted project has its own dedicated `Runtime` struct with an independent `.gimbal` directory (`p.dir`), its own `observation.Registry` (`p.registry`), its own active run table (`p.runs = live.NewRuns()`), and its own `conversation.Manager` (`web/runtime.go:261-276`).
     - Projects do not share live run tables or observation registries (`web/instance_test.go:66-68`).
   - **Endpoint Isolation on Web Listener**:
     - URLs are scoped by project ID: `/projects/<id>/...` where ID is `sha256(canonicalPath)[:16]`.
     - `projectRequest` (`web/runtime.go:398-403`) validates project IDs and attaches that project's specific request context (`p.requestContext`).
     - Requesting project A's runs under project B's URL prefix (e.g. `/projects/<b.id>/runs/<a.id>`) yields `404 Not Found` (`web/instance_test.go:174, 197-198`).
   - **Endpoint Isolation on Control Socket**:
-    - Requests on the control socket supply `X-Gimble-Project: <project-path>`.
+    - Requests on the control socket supply `X-Gimbal-Project: <project-path>`.
     - `controlHandler.project` (`web/control.go:36-52`) looks up the canonical project.
     - `controlRuns` (`web/control.go:335-361`) scans only `filepath.Join(r.dir, "runs")` and filters through `r.runs.InProgress(entry.Name())`.
     - `web/control_ownership_test.go:46-60` proves project A and project B report only their own active runs, with zero leakage across project boundaries.

@@ -3,7 +3,7 @@ package routes
 import (
 	"context"
 
-	"github.com/tylergannon/gimble/internal/host"
+	"github.com/tylergannon/gimbal/internal/host"
 	"github.com/tylergannon/skgo"
 )
 

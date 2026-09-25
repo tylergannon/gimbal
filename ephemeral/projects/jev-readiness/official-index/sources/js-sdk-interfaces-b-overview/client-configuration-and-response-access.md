@@ -46,7 +46,7 @@ This leaf covers environment/config precedence, model and transport defaults, br
 
 - `debug` logs request and response bodies without redaction. Supervision state can contain source code, user text, credentials embedded in documents, or sensitive operational data; do not enable debug casually.
 - Known credential headers are redacted, not necessarily every sensitive custom header. Review custom header names and logger handling.
-- `dangerouslyAllowBrowser` exposes the API key to page users. A browser-based Gimble view should call a server-side boundary, not instantiate this client with a secret.
+- `dangerouslyAllowBrowser` exposes the API key to page users. A browser-based Gimbal view should call a server-side boundary, not instantiate this client with a secret.
 - Default `jev-latest` can change behavior without a dependency update. Pin for reproducible experiments or store returned model and rerun stability gates.
 - The 10-second timeout is per attempt, not a total SLA; retries can extend wall time significantly.
 - `WithResponse.response` cannot be reparsed because its body is consumed. Read status and headers; use `data` for content.

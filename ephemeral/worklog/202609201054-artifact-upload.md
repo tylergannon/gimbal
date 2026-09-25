@@ -1,3 +1,3 @@
 correction: Live provider proof is R2 only because no AWS account exists; S3 behavior is established with focused adapter tests rather than an invented live claim.
 correction: Artifact responses should explicitly use inline content disposition; Markdown must not fall back to application/octet-stream because that prompts browsers to download it.
-decision: Artifact upload configuration is optionally read from ~/.gimble/config.json, with environment variables overriding file values and --provider overriding both. The file is scoped to uploadArtifact rather than becoming a general configuration framework.
+decision: Artifact upload configuration is optionally read from ~/.gimbal/config.json, with environment variables overriding file values and --provider overriding both. The file is scoped to uploadArtifact rather than becoming a general configuration framework.

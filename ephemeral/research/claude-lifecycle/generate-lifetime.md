@@ -16,7 +16,7 @@ differently typed call sites and avoids keeping processes alive merely because
 the Session object still exists.
 
 This revises the earlier recommendation to own the process for the entire
-Session lifetime. Gimble already starts/resumes and tears down a process per
+Session lifetime. Gimbal already starts/resumes and tears down a process per
 RunTurn; the principal missing behavior is keeping that invocation pending
 through a waiting result and correctly attributing the eventual terminal result.
 Generate's validation/retry handling may invoke multiple adapter turns; the
@@ -43,8 +43,8 @@ produced their expected answer without an intervening empty orphan result in
 these captures, after A's finite work had completed.
 
 Probe program and raw captures are outside the repository at
-/private/tmp/gimble-317-resume-schema/. This is direct native-CLI evidence, not
-an implemented Gimble fix or a claim about arbitrary crash durability.
+/private/tmp/gimbal-317-resume-schema/. This is direct native-CLI evidence, not
+an implemented Gimbal fix or a claim about arbitrary crash durability.
 
 ## What this solves and what it does not
 

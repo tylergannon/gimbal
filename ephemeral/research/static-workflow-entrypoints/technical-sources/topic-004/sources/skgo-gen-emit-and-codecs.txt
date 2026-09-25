@@ -49,7 +49,7 @@ Location: `internal/gen/codecs.go`, lines 80-94; `emit.go`, lines 508-540:
 
 In order to support typed Go Form clients:
 1. `internal/gen` needs to scan `kindForm` declarations and identify their input and output types.
-2. Rather than emitting private client protocol logic in Gimble, SKGO must emit typed client methods:
+2. Rather than emitting private client protocol logic in Gimbal, SKGO must emit typed client methods:
    `func (c *Client) <RemoteName>(ctx context.Context, in <InputType>) (<OutputType>, error)`
    or a package of client callers.
 3. The client calls a shared SKGO transport function (in `skgo` or `skgo/client`) that:

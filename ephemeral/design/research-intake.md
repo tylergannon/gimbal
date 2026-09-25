@@ -1,15 +1,15 @@
 # Supplemental research: what is worth carrying forward
 
 These two agent reports are idea sources, not requirements or authoritative
-descriptions of Gimble. They do not change the feature brief or select a
+descriptions of Gimbal. They do not change the feature brief or select a
 winning concept.
 
 ## Sources and assessment
 
 - [Gemini shared report](https://share.gemini.google/sOiIq8xW1nOr),
   “Architectural Interface Concepts for Agent Workflow Observability:
-  Designing Gimble.” Read in the rendered shared page; raw HTML downloaded
-  locally to `/private/tmp/gimble-design-gemini-share.html`. A direct
+  Designing Gimbal.” Read in the rendered shared page; raw HTML downloaded
+  locally to `/private/tmp/gimbal-design-gemini-share.html`. A direct
   HTML-to-Markdown conversion captured only the page shell, not the report.
   Its strongest additional lead is AWS Step Functions' execution browser.
   Its generated illustrations are concepts, not screenshots of real products.
@@ -28,7 +28,7 @@ is a design option or a correction, not an added acceptance criterion.
 AWS documents linked graph/table selection, nested iteration browsing,
 and a stable selected-step detail panel. Its screenshot shows individually
 expandable iterations with distinct outcomes and durations. This is a
-concrete answer to an existing Gimble design problem: selecting the second
+concrete answer to an existing Gimbal design problem: selecting the second
 execution of a repeated call without mistaking it for the definition node.
 Borrow the selection affordance, not AWS's state-machine semantics.
 [AWS execution details](https://docs.aws.amazon.com/step-functions/latest/dg/concepts-view-execution-details.html).
@@ -37,7 +37,7 @@ Borrow the selection affordance, not AWS's state-machine semantics.
 
 Airflow's published screenshot places a selected task's Required Action
 form beside the graph. Its documentation also describes links directly to
-the response UI. That reinforces Gimble's already-required task-local
+the response UI. That reinforces Gimbal's already-required task-local
 interview interaction; it does not justify adding approvals, assigned
 responders, paging, or a new global inbox.
 [Airflow HITL tutorial](https://airflow.apache.org/docs/apache-airflow/stable/tutorial/hitl.html).
@@ -62,8 +62,8 @@ aggregate flamegraphs, or a trace-query engine.
 
 ## Corrections and ideas not adopted
 
-- Gemini incorrectly describes Gimble as merely a visual layer that does
-  not execute workflows. Gimble runs the ordinary Go workflow; the web
+- Gemini incorrectly describes Gimbal as merely a visual layer that does
+  not execute workflows. Gimbal runs the ordinary Go workflow; the web
   interface observes and interacts with that run.
 - A pending interview does not mean the whole run is paused. Other agents
   can continue. Neither freeze the timeline nor relabel all work as waiting
@@ -74,7 +74,7 @@ aggregate flamegraphs, or a trace-query engine.
 - Checkpoint replay, editing arbitrary runtime state, bypassing nodes,
   goroutine/deadlock diagnostics, provenance tracing, cohort analytics,
   assignees, and notification systems remain outside this assignment.
-- Claims that Gimble needs WebSockets, a different backend, a particular
+- Claims that Gimbal needs WebSockets, a different backend, a particular
   canvas library, or a prescribed rendering implementation are not design
   requirements. The reports did not establish those engineering needs.
 - “Start with the inbox,” fixed split panes, and usage thresholds such as

@@ -3,7 +3,7 @@ package observation
 import (
 	"encoding/json"
 
-	"github.com/tylergannon/gimble/internal/sessionstate"
+	"github.com/tylergannon/gimbal/internal/sessionstate"
 )
 
 // field reads one string out of a decoded JSON object.

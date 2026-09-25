@@ -28,7 +28,7 @@
   }
 
   const { Story } = defineMeta({
-    title: "Gimble/Run/Node",
+    title: "Gimbal/Run/Node",
     component: Node,
     parameters: { layout: "centered" },
   });

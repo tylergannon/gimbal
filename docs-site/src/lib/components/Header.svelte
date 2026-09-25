@@ -14,11 +14,11 @@
 
 <header class="border-border/80 sticky top-0 z-50 border-b bg-[oklch(0.135_0.01_55/0.88)] backdrop-blur-xl">
   <div class="shell flex h-14 items-center justify-between gap-5">
-    <a class="group inline-flex items-center gap-3" href={resolve("/")} aria-label="Gimble home">
+    <a class="group inline-flex items-center gap-3" href={resolve("/")} aria-label="Gimbal home">
       <span class="border-primary/50 bg-primary/10 text-primary grid size-7 place-items-center rounded-md border">
         <img class="size-4" src={asset("favicon.svg")} alt="" />
       </span>
-      <span class="font-mono text-sm font-bold tracking-[0.16em] uppercase">Gimble</span>
+      <span class="font-mono text-sm font-bold tracking-[0.16em] uppercase">Gimbal</span>
     </a>
 
     <nav class="hidden items-center gap-6 md:flex" aria-label="Primary navigation">

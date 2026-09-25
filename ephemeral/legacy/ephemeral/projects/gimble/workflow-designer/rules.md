@@ -236,8 +236,8 @@ in the loop says so. This document follows that form.
 - No design or plan for the designer itself exists. The Sep 2 build was cut
   and nothing has replaced it. What to build next is Tyler's call.
 - Open: what survives the Sep 3 cut beyond the loop node, the checklist
-  package, frames, the lint rules, and Gimble ask and answer. Two of Tyler's
-  earlier decisions were never withdrawn: authoring is itself a Gimble run
+  package, frames, the lint rules, and Gimbal ask and answer. Two of Tyler's
+  earlier decisions were never withdrawn: authoring is itself a Gimbal run
   with a library of named workflows and an interview API; and a content
   library shipped inside the binary holds prompts, doctrine pages, and a
   models table, edited per release, with manual editing first. The Go package

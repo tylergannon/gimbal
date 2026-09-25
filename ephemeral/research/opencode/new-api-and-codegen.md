@@ -1,10 +1,10 @@
 # OpenCode newer API and generated Go client: decision research
 
-Research date: September 19, 2026. Target: OpenCode **1.18.31**, release commit `014614d35b397775e5d397a490fc72368c894ec2`. This report answers the follow-up to the [initial harness research](harness-adapter.md): whether the newer API can satisfy Gimble, which Go generators actually work on OpenCode's specification, and whether generated structs can be retained while building only the SDK methods ourselves.
+Research date: September 19, 2026. Target: OpenCode **1.18.31**, release commit `014614d35b397775e5d397a490fc72368c894ec2`. This report answers the follow-up to the [initial harness research](harness-adapter.md): whether the newer API can satisfy Gimbal, which Go generators actually work on OpenCode's specification, and whether generated structs can be retained while building only the SDK methods ourselves.
 
 ## Decision
 
-**Prefer the newer `/api` surface and stable oapi-codegen component models, with a small custom HTTP/SSE layer. Do not yet treat a complete new-API-only Gimble adapter as feasible without upstream capability work.** The code-generation problem has a promising bounded solution; the API functionality problem remains the larger risk.
+**Prefer the newer `/api` surface and stable oapi-codegen component models, with a small custom HTTP/SSE layer. Do not yet treat a complete new-API-only Gimbal adapter as feasible without upstream capability work.** The code-generation problem has a promising bounded solution; the API functionality problem remains the larger risk.
 
 The decisive generator experiment supports the user's previous approach. **oapi-codegen v2.8.0 generated a compiling, 477,364-byte model package from the 243 component schemas used by `/api`, with one naming annotation.** Actual newer `V2Event` and `SessionDurableEvent` payloads round-tripped, and typed `From`/`As` conversions worked. Removing operation paths avoids the broken response wrappers while preserving the reusable component models. This is not a complete SDK: inline request/response types, HTTP methods, SSE framing, and explicit union dispatch remain to be supplied. It is also not schema validation: unknown and missing tags survive because the generated unions preserve raw JSON. [Model trial][oapi-result], [independent evidence review][evidence-review], [actual model tests][model-tests].
 
@@ -29,35 +29,35 @@ The research used a freshly generated local OpenAPI document, current pinned gen
 | OpenAPI Generator Go target | `7.25.0`; npm launcher `2.41.0`; Temurin Java 21 |
 | Contiamo generator / libopenapi | `v0.19.0` / `v0.38.7` |
 
-The original CLI document is 1,061,286 bytes with SHA-256 `00502bd13e9c86f3ca9e765e99a57e06fa9f434ca16f2a714766d1444f8d37f3`. Retained generator outputs and logs live under `.gimble/research/opencode-next`; they are experimental cache, not proposed application code. The original input was preserved. All transformations described below produced separate files. [Input provenance][input-readme], [spec comparison][spec-provenance].
+The original CLI document is 1,061,286 bytes with SHA-256 `00502bd13e9c86f3ca9e765e99a57e06fa9f434ca16f2a714766d1444f8d37f3`. Retained generator outputs and logs live under `.gimbal/research/opencode-next`; they are experimental cache, not proposed application code. The original input was preserved. All transformations described below produced separate files. [Input provenance][input-readme], [spec comparison][spec-provenance].
 
 Some initial research summaries overstated passing outcomes or invented plausible route names. This report uses the final generated artifacts and reviews: `/api/version` and `/api/instance/dispose` do not exist; older passing oapi behavior logs do not establish the later failing full SDK; the alternative-generator size columns require the corrected audit. [Evidence review][evidence-review], [runtime review][runtime-review], [metrics][metrics].
 
-## 1. New API coverage against Gimble
+## 1. New API coverage against Gimbal
 
-Gimble's actual adapter contract reserves a session with `CreateSession(ctx, model, effort, workdir)`, runs a blocking `RunTurn(ctx, sessionID, prompt, schema, onEvent)`, steers the same active turn, forks a native session with the conversation so far, and closes owned resources idempotently. Model/effort are session-creation inputs; they are not additional `RunTurn` parameters. Cancellation must interrupt native work and return the caller's context error. [HarnessAdapter contract][gimble-contract].
+Gimbal's actual adapter contract reserves a session with `CreateSession(ctx, model, effort, workdir)`, runs a blocking `RunTurn(ctx, sessionID, prompt, schema, onEvent)`, steers the same active turn, forks a native session with the conversation so far, and closes owned resources idempotently. Model/effort are session-creation inputs; they are not additional `RunTurn` parameters. Cancellation must interrupt native work and return the caller's context error. [HarnessAdapter contract][gimbal-contract].
 
 “Observed” below means exercised against the installed server without inference. “Source-supported” means implementation exists in pinned source but was not demonstrated in a served model turn. “Missing” means the required public operation/input was absent from the inspected newer surface, not a prediction about future releases.
 
-| Gimble need | Newer API surface | Evidence and remaining limitation |
+| Gimbal need | Newer API surface | Evidence and remaining limitation |
 |---|---|---|
 | Reserve native session | `POST /api/session` | **Observed.** Accepts optional ID, agent, model, and location; returns session under `data`. |
 | Bind work directory | `location: {directory, workspaceID?}` | **Source-supported and observed location storage.** Explicit absolute directory avoids dependence on server cwd. |
-| Select model / reasoning effort | Creation `model: {providerID,id,variant?}`; `POST /api/session/{sessionID}/model` | **Source-supported.** Variant is available; Gimble effort-to-variant mapping is provider/model specific and unproven. |
+| Select model / reasoning effort | Creation `model: {providerID,id,variant?}`; `POST /api/session/{sessionID}/model` | **Source-supported.** Variant is available; Gimbal effort-to-variant mapping is provider/model specific and unproven. |
 | Select agent | Creation `agent`; `POST /api/session/{sessionID}/agent` | **Source-supported.** Switch publishes a durable event. Agent tool/runtime parity is separate. |
 | Continue a conversation | Prompt existing native ID; `context`, `message`, and history reads | **Durable storage observed; inference continuity unproven.** |
 | Admit a turn | `POST /api/session/{sessionID}/prompt` | **Observed with `resume:false`.** HTTP 200 acknowledges admission, not execution/completion. |
 | Run a coding turn to completion | Prompt defaults to waking execution; `/api/session/active`, event/history surfaces (resume is an internal service method, not a separate public route) | **Source-supported runner; served execution unproven.** Runner binding and tool registration require investigation. |
 | Blocking completion | `POST /api/session/{sessionID}/wait` | **Unavailable.** Explicit source failure and observed HTTP 503. Adapter must own completion detection if other execution works. |
 | Steer active turn | Prompt with `delivery:"steer"` | **Source-supported.** Runner promotes steers inside continuation loop. Admission alone cannot establish `landed=true`. |
-| Queue later turn | Prompt with `delivery:"queue"` | **Source-supported.** Outer loop promotes queue after current turn settles. This does not satisfy Gimble `Steer`. |
+| Queue later turn | Prompt with `delivery:"queue"` | **Source-supported.** Outer loop promotes queue after current turn settles. This does not satisfy Gimbal `Steer`. |
 | Cancel native work | `POST /api/session/{sessionID}/interrupt` | **Idle HTTP 204 observed.** Active model/tool interruption and settlement unproven. Closing HTTP/SSE alone is insufficient. |
 | Native fork with existing history | No `/api` fork/branch/clone or create-parent/context input | **Missing.** Context export, fresh prompt, and revert do not provide native independent branching. |
 | Caller JSON Schema output | No schema/format field in newer prompt input | **Missing.** Generated `OutputFormat` types do not imply a usable newer prompt capability. |
 | Live events and controls | `GET /api/event`; permission/question routes | **Transport observed; execution-dependent events source-supported.** Global live feed has no replay cursor. |
 | Durable events/recovery | `GET /api/session/{sessionID}/event?after=…`; `/history` | **Admission replay observed.** Durable records exclude transient deltas and controls. |
 | Native per-turn usage | `session.next.step.ended` tokens/cost | **Source-supported.** Aggregate unique steps belonging to the turn; session totals are cumulative. |
-| Release session resources | Cancel subscriptions, remove adapter state; owned process lifecycle separately | **Adapter responsibility.** Gimble `Close` does not require transcript deletion or a remote disposal endpoint. |
+| Release session resources | Cancel subscriptions, remove adapter state; owned process lifecycle separately | **Adapter responsibility.** Gimbal `Close` does not require transcript deletion or a remote disposal endpoint. |
 
 Sources for the matrix are the [exact newer specification][new-spec], [session service][session-core], [route handlers][session-handler], [runner][runner], [runtime transcript][runtime-probe], and [wiring audit][serve-wiring].
 
@@ -67,11 +67,11 @@ The request accepts `id?`, `prompt`, `delivery?`, and `resume?`. `prompt` contai
 
 The no-model probe established exact sequential duplicate handling: repeating the same ID and payload returned the original `admittedSeq`; changing text under the same ID returned 409. That supports retaining an explicit ID and exact request body across a retry. It does not prove all concurrent or lost-response cases safe. The service can call `execution.wake` after obtaining an admission, so “deduplication never wakes the runner” would overstate the implementation. Never retry an uncertain prompt with a fresh ID merely because the HTTP response was lost. [Observed duplicates][runtime-probe], [prompt implementation][session-core].
 
-Steering needs particular care. Gimble asks whether the message landed **in the active `RunTurn`**, including the race where that turn ends during delivery. The runner's steer/queue separation fits that intention: a steer may be consumed at the next provider/tool boundary within the active turn; mid-token interruption is not required. But HTTP admission is not enough to report success, and promotion into a newly started turn after a race is not the required outcome. The adapter will need correlation against its active turn and observed promotion/settlement. No live race test was performed. [Gimble contract][gimble-contract], [runner loop][runner].
+Steering needs particular care. Gimbal asks whether the message landed **in the active `RunTurn`**, including the race where that turn ends during delivery. The runner's steer/queue separation fits that intention: a steer may be consumed at the next provider/tool boundary within the active turn; mid-token interruption is not required. But HTTP admission is not enough to report success, and promotion into a newly started turn after a race is not the required outcome. The adapter will need correlation against its active turn and observed promotion/settlement. No live race test was performed. [Gimbal contract][gimbal-contract], [runner loop][runner].
 
 ### Native fork and schema output are genuine gaps
 
-The only fork route in the full specification is legacy `POST /session/{sessionID}/fork`. The newer create input has no parent, source-session, imported context, or event-log seed. Newer context/history routes export information; they do not import it into a new native session. Revert changes an existing conversation rather than producing a second independent one. Sending the exported transcript as prompt text loses native message/tool identity and is not Gimble's native fork contract. [Full spec][full-spec], [newer session service][session-core], [fork comparison][fork-comparison].
+The only fork route in the full specification is legacy `POST /session/{sessionID}/fork`. The newer create input has no parent, source-session, imported context, or event-log seed. Newer context/history routes export information; they do not import it into a new native session. Revert changes an existing conversation rather than producing a second independent one. Sending the exported transcript as prompt text loses native message/tool identity and is not Gimbal's native fork contract. [Full spec][full-spec], [newer session service][session-core], [fork comparison][fork-comparison].
 
 The legacy request supports `format: {type:"json_schema", schema, retryCount?}`. The newer `PromptInput` offers text/files/agents and no equivalent. A schema named `OutputFormat` being reachable through shared models is not evidence the newer prompt endpoint can use it. Likewise, requesting JSON in prose, validating after the fact, or inventing a synthetic output tool is not demonstrated native schema enforcement. The runner lists structured-output tool definitions among unfinished work; this investigation did not find a public newer operation that closes the gap. [Prompt schema][prompt-schema], [comparison][fork-comparison], [runner TODO and implementation][runner].
 
@@ -155,7 +155,7 @@ Configuration supports separate models/client/server generation, pruning control
 
 A final fair-scope trial ran experimental `v0.1.0` with no client/server flags against the **same 243-schema, zero-path input and naming annotation**. It generated one file, compiled, and passed the same newer known/unknown/missing-tag roundtrips and typed helper checks. It is therefore a viable model-layer alternative despite its failed full-SDK trials. [Final experiment][oapi-result], [experimental tests][exp-tests].
 
-Its 1,893,908 bytes and 63,390 lines are approximately four times the stable output's bytes and 4.4 times its lines. The extra output includes additional-property, form, and default-handling machinery. Both preserve raw permissive unions in this scope; the tests do not establish a compensating advantage for Gimble. Prefer stable v2.8.0 unless a specific required field behavior later justifies the larger experimental output. This corrects any inference that the experimental generator's full-client failure also means its reusable structs fail.
+Its 1,893,908 bytes and 63,390 lines are approximately four times the stable output's bytes and 4.4 times its lines. The extra output includes additional-property, form, and default-handling machinery. Both preserve raw permissive unions in this scope; the tests do not establish a compensating advantage for Gimbal. Prefer stable v2.8.0 unless a specific required field behavior later justifies the larger experimental output. This corrects any inference that the experimental generator's full-client failure also means its reusable structs fail.
 
 ### Ogen: smaller compiling output achieved by losing required coverage
 
@@ -187,51 +187,51 @@ The user's former proprietary implementation is unavailable and was not sought o
 
 **Live versus durable coverage.** Live `/api/event` is needed for text/reasoning/tool-input deltas and permission/question control events. Session durable replay carries admission, promotion, settled text/tool records, step usage, and other stored state. Use both if full live projection is required. Deduplicate records visible through both paths by stable native event identity or session sequence. Do not claim a cursor makes every event recoverable. The first report's event compendium remains useful, but the newer raw envelope is `{id,type,data,metadata?,durable?,location?}` rather than the legacy `{id,type,properties}` shape. [Newer event schemas][event-schema], [initial compendium](harness-adapter.md).
 
-**Turn output and usage.** `step.ended` exposes input/output/reasoning/cache usage and cost, but a step can be followed by tool continuation or steering. A terminal finish reason alone does not establish `RunTurn` completion. With `wait` unavailable, settlement must combine the owned prompt/assistant progression, durable history, outstanding tool/steer state, and active execution observation; it needs a real execution probe. Count unique step usage within that turn, not cumulative session totals or both live and replay copies. Preserve allowed Gimble `NativeRef` keys; store extra native metadata in `Data`/`Metadata`, not invented native-reference fields. [Runner][runner], [event schemas][event-schema], [Gimble contract][gimble-contract].
+**Turn output and usage.** `step.ended` exposes input/output/reasoning/cache usage and cost, but a step can be followed by tool continuation or steering. A terminal finish reason alone does not establish `RunTurn` completion. With `wait` unavailable, settlement must combine the owned prompt/assistant progression, durable history, outstanding tool/steer state, and active execution observation; it needs a real execution probe. Count unique step usage within that turn, not cumulative session totals or both live and replay copies. Preserve allowed Gimbal `NativeRef` keys; store extra native metadata in `Data`/`Metadata`, not invented native-reference fields. [Runner][runner], [event schemas][event-schema], [Gimbal contract][gimbal-contract].
 
-**Cancellation.** HTTP context cancellation stops the client request/stream, while server execution is detached. Gimble cancellation therefore requires a bounded explicit `/interrupt` call and cleanup in addition to closing the stream. Idle interruption succeeded; active provider and child-tool cancellation did not run. Avoid treating a 204 idle result as proof that an active tool process is stopped. [Execution coordinator][execution-source], [runtime probe][runtime-probe].
+**Cancellation.** HTTP context cancellation stops the client request/stream, while server execution is detached. Gimbal cancellation therefore requires a bounded explicit `/interrupt` call and cleanup in addition to closing the stream. Idle interruption succeeded; active provider and child-tool cancellation did not run. Avoid treating a 204 idle result as proof that an active tool process is stopped. [Execution coordinator][execution-source], [runtime probe][runtime-probe].
 
 **Authentication and lifecycle.** `OPENCODE_SERVER_PASSWORD` enables Basic auth; username defaults to `opencode`. Inject the header explicitly because OpenAPI omits the security scheme. (Server middleware also accepts an undocumented `?auth_token=` query parameter, though the `Authorization` header is strongly preferred to avoid credential leakage in logs). Keep ordinary request deadlines separate from a long-lived SSE total timeout. Manage a foreground loopback server as an owned process, poll `/api/health`, and use the binary's `--version` or observed `/global/health` for version information. There is no `/api/version` or `/api/instance/dispose`; shut down an owned process with signals. An attached server is a different ownership case and should not be terminated by closing one session. [Auth source][auth-source], [runtime review][runtime-review], [no-model lifecycle][runtime-probe].
 
 ## 5. Reproducing the successful model experiment
 
-These commands use the saved input and pinned local trial tool. They reproduce **components only**, not a complete SDK. Run from the Gimble worktree; the cache contains the exact scripts/configs and isolated model module. The named output file is experimental cache. [Trial instructions][oapi-result].
+These commands use the saved input and pinned local trial tool. They reproduce **components only**, not a complete SDK. Run from the Gimbal worktree; the cache contains the exact scripts/configs and isolated model module. The named output file is experimental cache. [Trial instructions][oapi-result].
 
 ```sh
-cd /Users/tyler/.codex/worktrees/c671/gimble
+cd /Users/tyler/.codex/worktrees/c671/gimbal
 
 # The original collection command (already completed successfully):
-opencode generate > .gimble/research/opencode-next/input/opencode-generate.json
+opencode generate > .gimbal/research/opencode-next/input/opencode-generate.json
 
 # The path-only shared subset retains all component schemas:
 jq '.paths |= with_entries(select(.key | startswith("/api/")))' \
-  .gimble/research/opencode-next/input/opencode-generate.json \
-  > .gimble/research/opencode-next/input/opencode-new-api.json
+  .gimbal/research/opencode-next/input/opencode-generate.json \
+  > .gimbal/research/opencode-next/input/opencode-new-api.json
 
 # Build the tested component closure, then add the sole naming annotation.
-ruby .gimble/research/opencode-next/trials/oapi/make-api-harness.rb \
-  .gimble/research/opencode-next/input/opencode-generate.json \
-  .gimble/research/opencode-next/trials/oapi/api-closure.json
+ruby .gimbal/research/opencode-next/trials/oapi/make-api-harness.rb \
+  .gimbal/research/opencode-next/input/opencode-generate.json \
+  .gimbal/research/opencode-next/trials/oapi/api-closure.json
 jq '.components.schemas["session.status"]["x-go-name"] = "SessionStatusEvent"' \
-  .gimble/research/opencode-next/trials/oapi/api-closure.json \
-  > .gimble/research/opencode-next/trials/oapi/api-closure-overlay.json
-ruby .gimble/research/opencode-next/trials/oapi/make-components-only.rb \
-  .gimble/research/opencode-next/trials/oapi/api-closure-overlay.json \
-  .gimble/research/opencode-next/trials/oapi/components-only.json
+  .gimbal/research/opencode-next/trials/oapi/api-closure.json \
+  > .gimbal/research/opencode-next/trials/oapi/api-closure-overlay.json
+ruby .gimbal/research/opencode-next/trials/oapi/make-components-only.rb \
+  .gimbal/research/opencode-next/trials/oapi/api-closure-overlay.json \
+  .gimbal/research/opencode-next/trials/oapi/components-only.json
 
-.gimble/research/opencode-next/trials/oapi/bin/stable/oapi-codegen \
-  -config .gimble/research/opencode-next/trials/oapi/stable-components-models.yaml \
-  -o .gimble/research/opencode-next/trials/oapi/stable-components-models/models.gen.go \
-  .gimble/research/opencode-next/trials/oapi/components-only.json
+.gimbal/research/opencode-next/trials/oapi/bin/stable/oapi-codegen \
+  -config .gimbal/research/opencode-next/trials/oapi/stable-components-models.yaml \
+  -o .gimbal/research/opencode-next/trials/oapi/stable-components-models/models.gen.go \
+  .gimbal/research/opencode-next/trials/oapi/components-only.json
 
-cd .gimble/research/opencode-next/trials/oapi/stable-components-models
+cd .gimbal/research/opencode-next/trials/oapi/stable-components-models
 go test -count=1 ./...
 ```
 
 To install that exact generator rather than use the retained binary:
 
 ```sh
-GOBIN=/Users/tyler/.codex/worktrees/c671/gimble/.gimble/research/opencode-next/trials/oapi/bin/stable \
+GOBIN=/Users/tyler/.codex/worktrees/c671/gimbal/.gimbal/research/opencode-next/trials/oapi/bin/stable \
   go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.8.0
 ```
 
@@ -253,49 +253,49 @@ The next useful experiment is a **small newer-API execution investigation**, del
 
 In parallel with that bounded investigation, the architectural decision can already be made: target `/api`, keep stable oapi-codegen's reusable component models, and reserve custom work for the method/inline-schema/SSE boundary. **Do not spend another long round forcing ogen or a monolithic OpenAPI Generator client to work before testing the upstream capability gate.** Neither alternative currently offers a demonstrated advantage for the needed event unions.
 
-Native fork and schema-constrained output still need explicit resolution with upstream or a deliberate change in supported Gimble behavior. The newer API is the preferred foundation because it has the desired durable input/control design, but preference is not proof of complete contract coverage. Until those gaps and served execution are resolved, the warranted deliverable is a viable client-generation approach plus a clear API blocker list, not a production-ready harness adapter.
+Native fork and schema-constrained output still need explicit resolution with upstream or a deliberate change in supported Gimbal behavior. The newer API is the preferred foundation because it has the desired durable input/control design, but preference is not proof of complete contract coverage. Until those gaps and served execution are resolved, the warranted deliverable is a viable client-generation approach plus a clear API blocker list, not a production-ready harness adapter.
 
 Finally, pin the supported OpenCode binary/spec and generator configuration together. On an upgrade, inspect path/operation/schema changes, regenerate the component package, compile, and exercise the few event/inline-schema contracts actually consumed. An unchanged published spec can coexist with runtime wiring changes; API comparison and a tiny live turn answer different questions. No OpenCode model inference was performed for this report, so the cheap live execution check remains the decisive unperformed proof.
 
-[input-readme]: ../../../.gimble/research/opencode-next/input/README.md
-[full-spec]: ../../../.gimble/research/opencode-next/input/opencode-generate.json
-[new-spec]: ../../../.gimble/research/opencode-next/input/opencode-new-api.json
-[server-doc]: ../../../.gimble/research/opencode-next/topic-003/sources/server-doc-1.18.31.json
-[spec-provenance]: ../../../.gimble/research/opencode-next/topic-003/sources/spec-diff-and-provenance.json
-[fidelity]: ../../../.gimble/research/opencode-next/topic-003/sources/spec-fidelity-analysis.json
-[runtime-source]: ../../../.gimble/research/opencode-next/topic-003/sources/runtime-source-excerpts.ts
-[gimble-contract]: ../../../.gimble/research/opencode-next/input/gimble-api.txt
-[session-core]: ../../../.gimble/research/opencode-next/topic-002/sources/opencode-v1.18.31-session-interface.ts
-[session-handler]: ../../../.gimble/research/opencode-next/topic-001/sources/opencode-v1.18.31-session-v2-handlers.ts
-[prompt-schema]: ../../../.gimble/research/opencode-next/topic-002/sources/opencode-v1.18.31-prompt-input-schema.ts
-[input-source]: ../../../.gimble/research/opencode-next/topic-001/sources/opencode-v1.18.31-session-input.ts
-[runner]: ../../../.gimble/research/opencode-next/topic-001/sources/opencode-v1.18.31-session-runner-llm.ts
-[event-schema]: ../../../.gimble/research/opencode-next/topic-009/sources/schema-session-event.ts
-[event-handler]: ../../../.gimble/research/opencode-next/topic-009/sources/server-event-handler.ts
-[fork-comparison]: ../../../.gimble/research/opencode-next/topic-002/sources/opencode-generate-fork-and-schema-comparison.json
-[dev-compare]: ../../../.gimble/research/opencode-next/topic-002/sources/upstream-dev-session-compare.json
-[serve-wiring]: ../../../.gimble/research/opencode-next/trials/ogen/SERVE-WIRING.md
-[serve-source]: ../../../.gimble/research/opencode-next/trials/ogen/packages_opencode_src_server_routes_instance_httpapi_server.ts
-[execution-source]: ../../../.gimble/research/opencode-next/trials/ogen/packages_core_src_session_execution_local.ts
-[tools-audit]: ../../../.gimble/research/opencode-next/trials/ogen/TOOL-COVERAGE.md
-[runtime-probe]: ../../../.gimble/research/opencode-next/topic-010/sources/no-model-lifecycle-probe.txt
-[wire-probe]: ../../../.gimble/research/opencode-next/topic-009/sources/sse-wire-and-turn-probe.txt
-[auth-source]: ../../../.gimble/research/opencode-next/topic-010/sources/server-auth-middleware.ts
-[runtime-review]: ../../../.gimble/research/opencode-next/trials/ogen/RUNTIME-REVIEW.md
-[evidence-review]: ../../../.gimble/research/opencode-next/trials/alternatives/EVIDENCE-REVIEW.md
-[metrics]: ../../../.gimble/research/opencode-next/trials/alternatives/QA-NOTES.md
-[oapi-result]: ../../../.gimble/research/opencode-next/trials/oapi/RESULT.md
-[oapi-compile]: ../../../.gimble/research/opencode-next/trials/oapi/stable-api-overlay/compile.log
-[ogen-result]: ../../../.gimble/research/opencode-next/trials/ogen/RESULT.md
-[ogen-models]: ../../../.gimble/research/opencode-next/trials/ogen/TYPES-ONLY.md
-[alternatives-result]: ../../../.gimble/research/opencode-next/trials/alternatives/RESULT.md
-[models-go]: ../../../.gimble/research/opencode-next/trials/oapi/stable-components-models/models.gen.go
-[model-tests]: ../../../.gimble/research/opencode-next/trials/oapi/stable-components-models/models_test.go
-[models-config]: ../../../.gimble/research/opencode-next/trials/oapi/stable-components-models.yaml
-[models-module]: ../../../.gimble/research/opencode-next/trials/oapi/stable-components-models/go.mod
-[components-transform]: ../../../.gimble/research/opencode-next/trials/oapi/make-components-only.rb
-[closure-manifest]: ../../../.gimble/research/opencode-next/topic-004/sources/closure-manifest.json
-[polymorphism]: ../../../.gimble/research/opencode-next/topic-004/clips/polymorphic-constructs-analysis.md
-[libopenapi-index]: ../../../.gimble/research/opencode-next/topic-007/INDEX.md
+[input-readme]: ../../../.gimbal/research/opencode-next/input/README.md
+[full-spec]: ../../../.gimbal/research/opencode-next/input/opencode-generate.json
+[new-spec]: ../../../.gimbal/research/opencode-next/input/opencode-new-api.json
+[server-doc]: ../../../.gimbal/research/opencode-next/topic-003/sources/server-doc-1.18.31.json
+[spec-provenance]: ../../../.gimbal/research/opencode-next/topic-003/sources/spec-diff-and-provenance.json
+[fidelity]: ../../../.gimbal/research/opencode-next/topic-003/sources/spec-fidelity-analysis.json
+[runtime-source]: ../../../.gimbal/research/opencode-next/topic-003/sources/runtime-source-excerpts.ts
+[gimbal-contract]: ../../../.gimbal/research/opencode-next/input/gimbal-api.txt
+[session-core]: ../../../.gimbal/research/opencode-next/topic-002/sources/opencode-v1.18.31-session-interface.ts
+[session-handler]: ../../../.gimbal/research/opencode-next/topic-001/sources/opencode-v1.18.31-session-v2-handlers.ts
+[prompt-schema]: ../../../.gimbal/research/opencode-next/topic-002/sources/opencode-v1.18.31-prompt-input-schema.ts
+[input-source]: ../../../.gimbal/research/opencode-next/topic-001/sources/opencode-v1.18.31-session-input.ts
+[runner]: ../../../.gimbal/research/opencode-next/topic-001/sources/opencode-v1.18.31-session-runner-llm.ts
+[event-schema]: ../../../.gimbal/research/opencode-next/topic-009/sources/schema-session-event.ts
+[event-handler]: ../../../.gimbal/research/opencode-next/topic-009/sources/server-event-handler.ts
+[fork-comparison]: ../../../.gimbal/research/opencode-next/topic-002/sources/opencode-generate-fork-and-schema-comparison.json
+[dev-compare]: ../../../.gimbal/research/opencode-next/topic-002/sources/upstream-dev-session-compare.json
+[serve-wiring]: ../../../.gimbal/research/opencode-next/trials/ogen/SERVE-WIRING.md
+[serve-source]: ../../../.gimbal/research/opencode-next/trials/ogen/packages_opencode_src_server_routes_instance_httpapi_server.ts
+[execution-source]: ../../../.gimbal/research/opencode-next/trials/ogen/packages_core_src_session_execution_local.ts
+[tools-audit]: ../../../.gimbal/research/opencode-next/trials/ogen/TOOL-COVERAGE.md
+[runtime-probe]: ../../../.gimbal/research/opencode-next/topic-010/sources/no-model-lifecycle-probe.txt
+[wire-probe]: ../../../.gimbal/research/opencode-next/topic-009/sources/sse-wire-and-turn-probe.txt
+[auth-source]: ../../../.gimbal/research/opencode-next/topic-010/sources/server-auth-middleware.ts
+[runtime-review]: ../../../.gimbal/research/opencode-next/trials/ogen/RUNTIME-REVIEW.md
+[evidence-review]: ../../../.gimbal/research/opencode-next/trials/alternatives/EVIDENCE-REVIEW.md
+[metrics]: ../../../.gimbal/research/opencode-next/trials/alternatives/QA-NOTES.md
+[oapi-result]: ../../../.gimbal/research/opencode-next/trials/oapi/RESULT.md
+[oapi-compile]: ../../../.gimbal/research/opencode-next/trials/oapi/stable-api-overlay/compile.log
+[ogen-result]: ../../../.gimbal/research/opencode-next/trials/ogen/RESULT.md
+[ogen-models]: ../../../.gimbal/research/opencode-next/trials/ogen/TYPES-ONLY.md
+[alternatives-result]: ../../../.gimbal/research/opencode-next/trials/alternatives/RESULT.md
+[models-go]: ../../../.gimbal/research/opencode-next/trials/oapi/stable-components-models/models.gen.go
+[model-tests]: ../../../.gimbal/research/opencode-next/trials/oapi/stable-components-models/models_test.go
+[models-config]: ../../../.gimbal/research/opencode-next/trials/oapi/stable-components-models.yaml
+[models-module]: ../../../.gimbal/research/opencode-next/trials/oapi/stable-components-models/go.mod
+[components-transform]: ../../../.gimbal/research/opencode-next/trials/oapi/make-components-only.rb
+[closure-manifest]: ../../../.gimbal/research/opencode-next/topic-004/sources/closure-manifest.json
+[polymorphism]: ../../../.gimbal/research/opencode-next/topic-004/clips/polymorphic-constructs-analysis.md
+[libopenapi-index]: ../../../.gimbal/research/opencode-next/topic-007/INDEX.md
 
-[exp-tests]: ../../../.gimble/research/opencode-next/trials/oapi/exp-components-models/models_test.go
+[exp-tests]: ../../../.gimbal/research/opencode-next/trials/oapi/exp-components-models/models_test.go

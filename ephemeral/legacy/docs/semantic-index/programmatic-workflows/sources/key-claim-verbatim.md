@@ -1,4 +1,4 @@
-# Source leaf: `ephemeral/projects/gimble/programmatic-workflows/KEY-CLAIM-VERBATIM.md`
+# Source leaf: `ephemeral/projects/gimbal/programmatic-workflows/KEY-CLAIM-VERBATIM.md`
 
 ## Purpose
 
@@ -8,12 +8,12 @@ definition with ordinary Go and treating context as runtime/index information.
 ## Key concepts
 
 - The graph language is acceptable for simple workflows but hard to generalize:
-  `ephemeral/projects/gimble/programmatic-workflows/KEY-CLAIM-VERBATIM.md:5-10`.
+  `ephemeral/projects/gimbal/programmatic-workflows/KEY-CLAIM-VERBATIM.md:5-10`.
 - The chosen reaction is to express workflow as a program, using Go as a
-  natural programming metaphor: `ephemeral/projects/gimble/programmatic-workflows/KEY-CLAIM-VERBATIM.md:9-16`.
+  natural programming metaphor: `ephemeral/projects/gimbal/programmatic-workflows/KEY-CLAIM-VERBATIM.md:9-16`.
 - Context should be treated like stack memory or in-context information, with
   a root semantic-index entry point and searchable ordinary files:
-  `ephemeral/projects/gimble/programmatic-workflows/KEY-CLAIM-VERBATIM.md:18-18`.
+  `ephemeral/projects/gimbal/programmatic-workflows/KEY-CLAIM-VERBATIM.md:18-18`.
 
 ## Retrieval recipes
 

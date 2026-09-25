@@ -1,3 +1,3 @@
-correction: Provider event streams are diagnostic evidence, not an execution gate. An active turn or an authoritative harness success must not fail because Gimble's projection expected stricter event ordering or lifecycle closure.
+correction: Provider event streams are diagnostic evidence, not an execution gate. An active turn or an authoritative harness success must not fail because Gimbal's projection expected stricter event ordering or lifecycle closure.
 decision: Fix issue 302 narrowly, then file a separate chore to find and remove other observation-coherence constraints; do not turn this repair into a codebase-wide audit.
 friction: The review brief named proof run IDs without their absolute temporary paths, so the reviewer searched too broadly for them -> future review handoffs should include exact local proof paths.

@@ -31,7 +31,7 @@ implemented and has been seen working.
 
 ## Execution and observation
 
-Observation may degrade; execution must not. Provider events, Gimble's
+Observation may degrade; execution must not. Provider events, Gimbal's
 projection of them, and the files and page built from that projection are
 diagnostic evidence. Missing, overlapping, duplicated, or unexpectedly ordered
 events do not cancel active work and do not replace a harness's authoritative
@@ -58,7 +58,7 @@ A supervisor is a session and an instruction, attached to one turn where
 the turn is started:
 
 ```go
-res, err := coder.Generate[Result](ctx, task, gimble.WithSupervisor(taste, "don't let it over-engineer."))
+res, err := coder.Generate[Result](ctx, task, gimbal.WithSupervisor(taste, "don't let it over-engineer."))
 ```
 
 With `TYPESAFE_API_KEY` set, each completed thinking message exposed by the
@@ -80,4 +80,4 @@ Without the key, the supervisor looks every three minutes, or at its
 any objection and never gates the result. A supervisor takes the same options
 as the turn it watches, so it can have supervisors of its own. Prompt quality
 and routing calibration are tracked in
-[issue #376](https://github.com/tylergannon/gimble/issues/376).
+[issue #376](https://github.com/tylergannon/gimbal/issues/376).

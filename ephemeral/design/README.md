@@ -1,4 +1,4 @@
-# Gimble design packet
+# Gimbal design packet
 
 For Claude Fable or a design team. This package prepares design exploration;
 it neither starts an implementation nor selects a final concept.
@@ -22,7 +22,7 @@ captions alone are not a substitute for visual references.
 
 ## Proposed message to Fable
 
-Design Gimble's interface for discovering runs, reviewing past work,
+Design Gimbal's interface for discovering runs, reviewing past work,
 interacting with active agents and interviews, and exploring a generated
 workflow map. Read the feature brief, graph/state examples, and visual
 reference board together. Include stop-turn and cancel-run controls.

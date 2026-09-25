@@ -1,7 +1,7 @@
 # Promises, dispatch, and completion
 
 Design and implementation record from the discussion of
-[issue #125](https://github.com/tylergannon/gimble/issues/125), 2026-09-11.
+[issue #125](https://github.com/tylergannon/gimbal/issues/125), 2026-09-11.
 This records the reasoning behind the shipped contract. Godoc and compiling
 examples define the public API.
 

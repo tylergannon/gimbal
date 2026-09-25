@@ -13,9 +13,9 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/tylergannon/gimble"
-	"github.com/tylergannon/gimble/internal/host"
-	"github.com/tylergannon/gimble/internal/observation"
+	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/internal/host"
+	"github.com/tylergannon/gimbal/internal/observation"
 )
 
 func TestRuntimeControlSocket(t *testing.T) {
@@ -27,7 +27,7 @@ func TestRuntimeControlSocket(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	discoveries, err := filepath.Glob(filepath.Join(project, ".gimble", "control", "*.json"))
+	discoveries, err := filepath.Glob(filepath.Join(project, ".gimbal", "control", "*.json"))
 	if err != nil || len(discoveries) != 1 {
 		t.Fatalf("control discovery files = %v, %v; want one", discoveries, err)
 	}
@@ -57,13 +57,13 @@ func TestRuntimeControlSocket(t *testing.T) {
 	b := &blocking{}
 	var runWG sync.WaitGroup
 	runWG.Go(func() {
-		_ = runtime.Run(ctx, "control", map[gimble.WorkflowRole]gimble.ModelBinding{
+		_ = runtime.Run(ctx, "control", map[gimbal.WorkflowRole]gimbal.ModelBinding{
 			"coder": {Adapter: b, Model: "m"},
 		}, func(ctx context.Context) error {
-			return gimble.Scope(ctx, "lap", func(ctx context.Context) error {
-				coder := gimble.NewSession(ctx, "coder", "/w")
-				gimble.NewSession(ctx, "coder", "/w") // An idle sibling session.
-				_, err := coder.Generate[gimble.Text](ctx, "wait")
+			return gimbal.Scope(ctx, "lap", func(ctx context.Context) error {
+				coder := gimbal.NewSession(ctx, "coder", "/w")
+				gimbal.NewSession(ctx, "coder", "/w") // An idle sibling session.
+				_, err := coder.Generate[gimbal.Text](ctx, "wait")
 				return err
 			})
 		})
@@ -79,7 +79,7 @@ func TestRuntimeControlSocket(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	request.Header.Set("X-Gimble-Project", project)
+	request.Header.Set("X-Gimbal-Project", project)
 	response, err := client.Do(request)
 	if err != nil {
 		t.Fatal(err)
@@ -136,7 +136,7 @@ func getRuns(t *testing.T, client *http.Client, project string) []observation.Ru
 	if err != nil {
 		t.Fatal(err)
 	}
-	request.Header.Set("X-Gimble-Project", project)
+	request.Header.Set("X-Gimbal-Project", project)
 	response, err := client.Do(request)
 	if err != nil {
 		t.Fatal(err)
@@ -163,7 +163,7 @@ func postJSON(t *testing.T, client *http.Client, project, path string, value any
 		t.Fatal(err)
 	}
 	request.Header.Set("Content-Type", "application/json")
-	request.Header.Set("X-Gimble-Project", project)
+	request.Header.Set("X-Gimbal-Project", project)
 	response, err := client.Do(request)
 	if err != nil {
 		t.Fatal(err)

@@ -1,4 +1,4 @@
-Feature: The Gimble application works through a browser
+Feature: The Gimbal application works through a browser
 
   These scenarios run against its development server and standalone production
   binary.

@@ -1,4 +1,4 @@
-// Package codex is Gimble's HarnessAdapter for Codex, through `codex
+// Package codex is Gimbal's HarnessAdapter for Codex, through `codex
 // app-server`. The adapter attaches to the machine's one shared app-server
 // daemon, starting it on first use if none is running. It never launches a
 // private app-server process, and it never stops or restarts the daemon,
@@ -8,7 +8,7 @@
 // descriptors are released from the shared daemon. An archived thread
 // cannot be used again through the adapter; see callThread for why.
 //
-// Set GIMBLE_CODEX_DEBUG_DIR to a local directory to record every received
+// Set GIMBAL_CODEX_DEBUG_DIR to a local directory to record every received
 // WebSocket frame, in receive order, before parsing. Each connection writes
 // its own private JSONL file. Captures can contain sensitive data and must
 // not be committed. Debug capture failures are reported without aborting work.
@@ -17,8 +17,8 @@
 // daemon), it raises its own soft RLIMIT_NOFILE to the hard limit first, so
 // the daemon inherits room for a wide Group instead of the 256 a default
 // macOS shell hands new processes; see raiseFileDescriptorLimit. That lever
-// only reaches a daemon Gimble starts. A daemon Codex Desktop's SSH
-// bootstrap starts inherits the login shell's limit instead, and Gimble has
+// only reaches a daemon Gimbal starts. A daemon Codex Desktop's SSH
+// bootstrap starts inherits the login shell's limit instead, and Gimbal has
 // no hook into that path: the operator's fix is a `ulimit -n 65536` in
 // `~/.zshenv`, which takes effect the next time that daemon starts.
 package codex
@@ -34,7 +34,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/tylergannon/gimble"
+	"github.com/tylergannon/gimbal"
 )
 
 const (
@@ -72,10 +72,10 @@ type activeTurn struct {
 	emit   *projector
 }
 
-// New returns Gimble's Codex harness. It attaches to the machine's shared
+// New returns Gimbal's Codex harness. It attaches to the machine's shared
 // `codex app-server` daemon on first use, starting it (idempotently) if it
 // is not already running.
-func New() gimble.HarnessAdapter {
+func New() gimbal.HarnessAdapter {
 	return &adapter{sessions: make(map[string]*session)}
 }
 
@@ -202,7 +202,7 @@ func (a *adapter) CreateSession(ctx context.Context, model, effort, workdir stri
 		"cwd":                   workdir,
 		"approvalPolicy":        "never",
 		"sandbox":               "danger-full-access",
-		"serviceName":           "gimble",
+		"serviceName":           "gimbal",
 		"experimentalRawEvents": true,
 	}, &session{model: model, effort: effort, workdir: workdir})
 }
@@ -253,14 +253,14 @@ func (a *adapter) thread(ctx context.Context, method string, params map[string]a
 // RunTurn runs one turn on the thread and blocks until it ends. The result
 // carries no usage: Codex states no cost and no per-model turn report beyond
 // the steps, so the session accounts for the turn from its step events.
-func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema json.RawMessage, onEvent func(gimble.AgentEvent) error) (gimble.TurnResult, error) {
+func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema json.RawMessage, onEvent func(gimbal.AgentEvent) error) (gimbal.TurnResult, error) {
 	s, err := a.session(sessionID)
 	if err != nil {
-		return gimble.TurnResult{}, err
+		return gimbal.TurnResult{}, err
 	}
 	conn, err := a.conn(ctx)
 	if err != nil {
-		return gimble.TurnResult{}, err
+		return gimbal.TurnResult{}, err
 	}
 	ch := conn.registerThread(sessionID)
 
@@ -283,13 +283,13 @@ func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema 
 	cancel()
 	if err != nil {
 		if ctx.Err() != nil {
-			return gimble.TurnResult{}, ctx.Err()
+			return gimbal.TurnResult{}, ctx.Err()
 		}
-		return gimble.TurnResult{}, err
+		return gimbal.TurnResult{}, err
 	}
 	turn, err := turnID(result)
 	if err != nil {
-		return gimble.TurnResult{}, err
+		return gimbal.TurnResult{}, err
 	}
 
 	active := &activeTurn{conn: conn, turnID: turn, emit: newProjector(sessionID, turn, s.model, onEvent)}
@@ -302,16 +302,16 @@ func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema 
 		drainCtx, drainCancel := context.WithTimeout(context.Background(), controlTimeout)
 		_, _ = readTurn(drainCtx, conn, ch, sessionID, turn, active.emit)
 		drainCancel()
-		return gimble.TurnResult{}, ctx.Err()
+		return gimbal.TurnResult{}, ctx.Err()
 	}
 	if err != nil {
-		return gimble.TurnResult{}, err
+		return gimbal.TurnResult{}, err
 	}
 	if len(schema) == 0 {
 		out, err := json.Marshal(text)
-		return gimble.TurnResult{Output: out}, err
+		return gimbal.TurnResult{Output: out}, err
 	}
-	return gimble.TurnResult{Output: json.RawMessage(strings.TrimSpace(text))}, nil
+	return gimbal.TurnResult{Output: json.RawMessage(strings.TrimSpace(text))}, nil
 }
 
 // ResumeSession restores a durable human-facing conversation to this adapter.
@@ -510,7 +510,7 @@ func readTurn(ctx context.Context, conn *connection, ch chan rpcMessage, threadI
 			key := messageThread + "\x00" + childTurn
 			project := childProjectors[key]
 			if project == nil {
-				project = newProjector(messageThread, childTurn, emit.model, func(event gimble.AgentEvent) error {
+				project = newProjector(messageThread, childTurn, emit.model, func(event gimbal.AgentEvent) error {
 					return emit.nestedEvent(parentTool, event)
 				})
 				childProjectors[key] = project
@@ -622,7 +622,7 @@ func projectNotification(message rpcMessage, emit *projector) error {
 	if _, ok := errors.AsType[*eventSinkError](err); ok {
 		return err
 	}
-	log.Printf("gimble: Codex projection warning (thread %s, turn %s, %s): %v; continuing", emit.sessionID, emit.turnID, message.Method, err)
+	log.Printf("gimbal: Codex projection warning (thread %s, turn %s, %s): %v; continuing", emit.sessionID, emit.turnID, message.Method, err)
 	return nil
 }
 
@@ -655,7 +655,7 @@ func projectChildNotification(message rpcMessage, emit *projector) error {
 	}
 }
 
-// refuse declines an interactive request; Gimble turns run with approvals
+// refuse declines an interactive request; Gimbal turns run with approvals
 // off and never answer prompts.
 func refuse(conn *connection, message rpcMessage, emit *projector) error {
 	result := map[string]any{"decision": "decline"}
@@ -773,4 +773,4 @@ func matches(raw json.RawMessage, threadID, turnID string) bool {
 	return envelope.Turn.ID == turnID
 }
 
-var _ gimble.HarnessAdapter = (*adapter)(nil)
+var _ gimbal.HarnessAdapter = (*adapter)(nil)

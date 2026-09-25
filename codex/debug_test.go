@@ -16,7 +16,7 @@ import (
 
 func TestRawCapturePrecedesParsingAndRouting(t *testing.T) {
 	dir := t.TempDir()
-	t.Setenv("GIMBLE_CODEX_DEBUG_DIR", dir)
+	t.Setenv("GIMBAL_CODEX_DEBUG_DIR", dir)
 	want := []string{` {"method":"unknown/event","params":{"threadId":"unregistered"}} `, `{"method":"another/event"}`, `not JSON`}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		ws, err := websocket.Accept(w, req, nil)
@@ -79,11 +79,11 @@ func TestRawCapturePrecedesParsingAndRouting(t *testing.T) {
 }
 
 func TestRawCaptureDisabledAndWriteFailureDoesNotAbort(t *testing.T) {
-	t.Setenv("GIMBLE_CODEX_DEBUG_DIR", "")
+	t.Setenv("GIMBAL_CODEX_DEBUG_DIR", "")
 	if recorder := openRawRecorder(); recorder != nil {
 		t.Fatal("capture enabled by default")
 	}
-	t.Setenv("GIMBLE_CODEX_DEBUG_DIR", t.TempDir())
+	t.Setenv("GIMBAL_CODEX_DEBUG_DIR", t.TempDir())
 	recorder := openRawRecorder()
 	if recorder == nil {
 		t.Fatal("capture did not open")

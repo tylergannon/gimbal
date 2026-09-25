@@ -16,7 +16,7 @@
   );
 
   const { Story } = defineMeta({
-    title: "Gimble/Run/Loop",
+    title: "Gimbal/Run/Loop",
     component: Loop,
     parameters: { layout: "centered" },
   });

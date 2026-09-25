@@ -4,12 +4,12 @@ package interview
 import (
 	"context"
 
-	"github.com/tylergannon/gimble"
+	"github.com/tylergannon/gimbal"
 )
 
-//go:generate go run github.com/tylergannon/gimble/internal/generate/gimblegen -entry Interview -name interview
+//go:generate go run github.com/tylergannon/gimbal/internal/generate/gimbalgen -entry Interview -name interview
 
-const interviewerRole gimble.WorkflowRole = "interviewer"
+const interviewerRole gimbal.WorkflowRole = "interviewer"
 
 // InterviewParams are the inputs to an interview about one topic.
 type InterviewParams struct {
@@ -18,14 +18,14 @@ type InterviewParams struct {
 }
 
 // Interview discovers the person's preferences related to a topic.
-func Interview(ctx context.Context, env gimble.Env, params InterviewParams) error {
-	gimble.Set(ctx, "topic", params.Topic)
-	interviewer := gimble.NewSession(ctx, interviewerRole, env.WorkDir)
-	transcript, err := gimble.Interview(ctx, "preferences", interviewer, interviewPurpose)
+func Interview(ctx context.Context, env gimbal.Env, params InterviewParams) error {
+	gimbal.Set(ctx, "topic", params.Topic)
+	interviewer := gimbal.NewSession(ctx, interviewerRole, env.WorkDir)
+	transcript, err := gimbal.Interview(ctx, "preferences", interviewer, interviewPurpose)
 	if err != nil {
 		return err
 	}
-	gimble.SetJSON(ctx, "preferences", transcript)
+	gimbal.SetJSON(ctx, "preferences", transcript)
 	return nil
 }
 

@@ -2,7 +2,7 @@
 
 correction: The prior task worktree was removed after merge; the user requested restoring it for the next UI bundle. Retain this restored worktree for the user.
 decision: Try the installed implement workflow on #271 and #273 together. Requirements are local and fixed, with a bounded four-assignment run and independent validation. The parent owns git delivery.
-doc_bug: skills/gimble-runs/SKILL.md still says review is the only current built-in; installed help at e0032af lists implement and research workflows. Use rendered help and source for invocation; repairing that documentation is outside this bundle.
+doc_bug: skills/gimbal-runs/SKILL.md still says review is the only current built-in; installed help at e0032af lists implement and research workflows. Use rendered help and source for invocation; repairing that documentation is outside this bundle.
 correction: Launching the implementation workflow is not sufficient monitoring. Stay with the run, inspect deterministic results and independent assessments, and steer concrete findings through the loop.
 friction: The E2E placeholder exclusion searched all detail-pane text, including agent transcripts that quote the test source. The live implement run triggered a false failure despite a selected agent heading. Assert against the empty-state element, preserving positive selection coverage.
 decision: Initial snapshot SSE tests do not cover joining at the current stream position with an empty suffix. The parent reproduced a two-second header timeout on that idle catch-up path and queued it to the planner.

@@ -10,7 +10,7 @@ and its [lifecycle implementation](sources/start-server-and-test-index.js#L31-L1
 
 Downloaded-source provenance: [Playwright web-server docs](https://playwright.dev/docs/test-webserver), [Playwright plugin source](https://github.com/microsoft/playwright/blob/main/packages/playwright/src/plugins/webServerPlugin.ts), [`start-server-and-test` README](https://github.com/bahmutov/start-server-and-test/blob/master/README.md), and [`start-server-and-test` source](https://github.com/bahmutov/start-server-and-test/blob/master/src/index.js).
 
-## Constraints to carry into a scope-owned Gimble service
+## Constraints to carry into a scope-owned Gimbal service
 
 1. **Ownership spans the whole scope.** Start the command before owned work,
    retain it while that work runs, and always close it on normal completion,
@@ -20,11 +20,11 @@ Downloaded-source provenance: [Playwright web-server docs](https://playwright.de
 2. **Required-service disappearance is failure.** Playwright races readiness
    against early exit and reports an error. `start-server-and-test` reports an
    unexpected close during startup, but removes that observer after readiness.
-   Gimble should preserve the stronger rule through the entire owning scope so
+   Gimbal should preserve the stronger rule through the entire owning scope so
    a required service cannot disappear silently.
 3. **Keep readiness ordinary and observable.** The tools show URL and output
    gates, but adopting their `wait-on`/regex frameworks would turn readiness
-   into a new health-check contract. Gimble should expose startup/runtime
+   into a new health-check contract. Gimbal should expose startup/runtime
    status and output so ordinary workflow checks can decide whether the service
    is usable.
 4. **Shutdown needs a bounded group-level policy.** Playwright's documented

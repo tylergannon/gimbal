@@ -1,4 +1,4 @@
-// Package claude implements Gimble's HarnessAdapter using Claude Code.
+// Package claude implements Gimbal's HarnessAdapter using Claude Code.
 package claude
 
 import (
@@ -17,7 +17,7 @@ import (
 	"time"
 
 	claudeagent "github.com/roasbeef/claude-agent-sdk-go"
-	"github.com/tylergannon/gimble/harness"
+	"github.com/tylergannon/gimbal/harness"
 )
 
 const (
@@ -310,7 +310,7 @@ func (a *Adapter) open(ctx context.Context, config nativeConfig) (nativeSession,
 		return nil, errors.New("claude adapter is closed")
 	}
 	config.stderr = a.stderr
-	for _, name := range []string{"GIMBLE_RUN_DIR", "GIMBLE_SERVICE_PORT"} {
+	for _, name := range []string{"GIMBAL_RUN_DIR", "GIMBAL_SERVICE_PORT"} {
 		if value, ok := os.LookupEnv(name); ok {
 			if config.env == nil {
 				config.env = make(map[string]string)

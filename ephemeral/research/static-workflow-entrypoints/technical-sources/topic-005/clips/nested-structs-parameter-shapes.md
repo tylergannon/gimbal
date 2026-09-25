@@ -1,4 +1,4 @@
-# Nested Struct Field Paths and Gimble Parameter Shapes
+# Nested Struct Field Paths and Gimbal Parameter Shapes
 
 ## Polytype and SKGO Form Nested Path Support
 
@@ -9,9 +9,9 @@ SvelteKit's form convention supports nested object paths on the wire:
 - In `internal/formdata/decode.go:188-191`, `assignObject` looks up struct fields matching wire names. If a struct field is itself a struct (e.g. `Params Params`), `assign` recurses into `assignObject` for that child struct.
 - In Polytype's generated devalue codecs (`polytype/devalue/codegen/decode.go:207-233`), nested struct fields are lowered into `decodeObjectInto` calls using selector chains on the parent value (e.g. `target.Params.Goal`).
 
-## Gimble's Workflow Parameter Shapes
+## Gimbal's Workflow Parameter Shapes
 
-Across the five stock built-in workflows in Gimble:
+Across the five stock built-in workflows in Gimbal:
 1. `review` (`internal/workflows/review/review.go`):
    - `Goal string`
 2. `implement` (`internal/workflows/implementation/implementation.go`):

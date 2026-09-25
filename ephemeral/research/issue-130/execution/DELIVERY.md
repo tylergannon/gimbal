@@ -6,7 +6,7 @@ original stress/edge-case gate.
 
 ## Current implementation after weight reduction
 
-- Native OpenCode event application for the events Gimble emits, with a Go port
+- Native OpenCode event application for the events Gimbal emits, with a Go port
   compared after every retained fixture prefix against recorded output from the
   untouched upstream JavaScript. Full OpenCode HTTP-cache/read orchestration is
   deliberately omitted; earlier full-conformance claims no longer apply.
@@ -37,7 +37,7 @@ original stress/edge-case gate.
   specifically inside assistant rows, not the echoed user prompt; screenshot inspected.
 
 Final live project (raw run/session records, browser state/frames and screenshot):
-`/var/folders/lt/09rsy64x65s_0fp2b8zq3n7m0000gn/T/gimble-live-codex-uqUJeg`
+`/var/folders/lt/09rsy64x65s_0fp2b8zq3n7m0000gn/T/gimbal-live-codex-uqUJeg`
 Run: `20260911-200303.observation-proof`.
 Screenshot: `final.png`. Browser evidence: `browser.json`.
 No provider reasoning text appeared in this live response; deterministic fixture
@@ -50,7 +50,7 @@ proved reasoning streaming. Live UI correctly shows unavailable cost, observed t
   the JSON snapshot and decodes to the exact object for SSR/browser; no dependency patch.
 - Embedded SSR engine lacked structuredClone. Plain-JSON fallback supplies that platform
   operation for SSR; browser keeps native implementation.
-- UI used Gimble placement ID to index native state; now uses native state keys.
+- UI used Gimbal placement ID to index native state; now uses native state keys.
 - Plain reducer mutation did not invalidate Svelte content for already-existing rows.
   Renderer now creates shallow render references on revision; canonical reducer unchanged.
 - Completed tool metadata duplicated final results; progress metadata renders only running.
@@ -77,7 +77,7 @@ proved reasoning streaming. Live UI correctly shows unavailable cost, observed t
 Exploratory reports and execution logs are local ignored working material.
 The selected contract, runnable proof, and this delivery summary are retained.
 
-Adapter follow-up: https://github.com/tylergannon/gimble/issues/135
+Adapter follow-up: https://github.com/tylergannon/gimbal/issues/135
 
 Runtime emitted-event schema validation and its embedded schema were removed
 at the user's direction. Root, Claude, and Codex tests pass after removal.
@@ -89,7 +89,7 @@ passes. Raw history 32,599 B; reduced state 4,525 B; SSR 6,631 B with 8.40 ms
 navigation; delta frames 694–734 B; partial delta batch visible in 20.57 ms.
 These are small two-session fixture measurements, not large-history/p95 claims.
 Proof-only instrumentation; no runtime telemetry was added. Artifacts:
-`/var/folders/lt/09rsy64x65s_0fp2b8zq3n7m0000gn/T/gimble-observation-proof-uKJuhy/measurements.json`
+`/var/folders/lt/09rsy64x65s_0fp2b8zq3n7m0000gn/T/gimbal-observation-proof-uKJuhy/measurements.json`
 and `final.png` in that directory. Final screenshot inspected by the parent agent.
 
 Round-2 follow-through: removed unused durability metadata and reference mapping,
@@ -98,11 +98,11 @@ dead reducer APIs/counters/invariant checker, and production synchronization hoo
 Live Claude production page passed with `claude-haiku-4-5-20251001`, run
 `20260911-210012.observation-proof`, 36 stream frames, visible tool and final
 markers. Artifacts:
-`/var/folders/lt/09rsy64x65s_0fp2b8zq3n7m0000gn/T/gimble-live-claude-ypqJN6`.
+`/var/folders/lt/09rsy64x65s_0fp2b8zq3n7m0000gn/T/gimbal-live-claude-ypqJN6`.
 This closes the earlier Claude live-attestation gap; resumed/forked Codex turns
 and precise tool-to-step attribution remain in #135. The browser proof now
 waits for the asserted content after terminal status before capturing evidence.
 
 Independent Claude Fable consensus completed after three rounds: round 3 outcome
 `only nitpicks remain`, with no material findings. Local review artifact:
-`ephemeral/reviews/issue-130-round-03.md`. No Gimble push or merge was performed.
+`ephemeral/reviews/issue-130-round-03.md`. No Gimbal push or merge was performed.

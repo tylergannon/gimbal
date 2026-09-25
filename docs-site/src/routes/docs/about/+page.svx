@@ -11,7 +11,7 @@
 </script>
 
 <DocsPage
-  title="About Gimble"
+  title="About Gimbal"
   description="The reasoning behind the design, for readers deciding whether it fits how they work."
   eyebrow="About"
   {headings}
@@ -21,7 +21,7 @@
 
 A multi-agent process is a program. It has lifetimes, ownership, concurrency, cancellation, and failure, and it needs someone to be able to read it six weeks later. Frameworks that express the process as configuration or a graph DSL give up the one tool that already handles all of that well: a programming language.
 
-Gimble keeps the process in Go and supplies only what Go does not have: agent sessions with owned lifetimes, context that reaches the agents in a scope, planner-directed loops, supervision of a live turn, and a record and a live view of all of it.
+Gimbal keeps the process in Go and supplies only what Go does not have: agent sessions with owned lifetimes, context that reaches the agents in a scope, planner-directed loops, supervision of a live turn, and a record and a live view of all of it.
 
 <h2 id="refuses">What it refuses to do</h2>
 
@@ -43,10 +43,10 @@ Gimble keeps the process in Go and supplies only what Go does not have: agent se
 
 <h2 id="attractor">Not an Attractor implementation</h2>
 
-Gimble is a reaction to the work around Attractor, not an implementation of it. It does not adopt Attractor as its architecture, product plan, or vocabulary. The lesson kept is simple: keep the workflow in code a person can read, and make the agent work observable.
+Gimbal is a reaction to the work around Attractor, not an implementation of it. It does not adopt Attractor as its architecture, product plan, or vocabulary. The lesson kept is simple: keep the workflow in code a person can read, and make the agent work observable.
 
 <h2 id="status">Status</h2>
 
-Gimble is young and moves quickly. The Go API, the console, three harness adapters, and five built-in workflows exist today. Authoring a new CLI workflow currently happens inside the Gimble checkout; the library itself is usable from any Go module. The programming contract is the Godoc: `go doc -all github.com/tylergannon/gimble`.
+Gimbal is young and moves quickly. The Go API, the console, three harness adapters, and five built-in workflows exist today. Authoring a new CLI workflow currently happens inside the Gimbal checkout; the library itself is usable from any Go module. The programming contract is the Godoc: `go doc -all github.com/tylergannon/gimbal`.
 
 </DocsPage>

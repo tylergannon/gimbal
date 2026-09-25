@@ -1,4 +1,4 @@
-package gimble
+package gimbal
 
 import (
 	"context"
@@ -14,9 +14,9 @@ import (
 	"sync"
 
 	"github.com/oklog/ulid/v2"
-	"github.com/tylergannon/gimble/internal/live"
-	"github.com/tylergannon/gimble/internal/observation"
-	"github.com/tylergannon/gimble/workflow"
+	"github.com/tylergannon/gimbal/internal/live"
+	"github.com/tylergannon/gimbal/internal/observation"
+	"github.com/tylergannon/gimbal/workflow"
 )
 
 type projectKey struct{}
@@ -51,7 +51,7 @@ var graphs = map[string]workflow.Graph{}
 // is a programming error and panics.
 func RegisterGraph(graph workflow.Graph) {
 	if _, ok := graphs[graph.Name]; ok {
-		panic(fmt.Sprintf("gimble: a graph named %q is already registered", graph.Name))
+		panic(fmt.Sprintf("gimbal: a graph named %q is already registered", graph.Name))
 	}
 	graphs[graph.Name] = graph
 }
@@ -97,7 +97,7 @@ func (e *CloseError) Error() string {
 	for i, err := range e.errs {
 		parts[i] = err.Error()
 	}
-	return "gimble: close: " + strings.Join(parts, "; ")
+	return "gimbal: close: " + strings.Join(parts, "; ")
 }
 
 func (e *CloseError) Unwrap() []error { return e.errs }
@@ -151,16 +151,16 @@ func (r *run) closeError() error {
 func Run(ctx context.Context, name string, models map[WorkflowRole]ModelBinding, body func(ctx context.Context) error) error {
 	project, _ := ctx.Value(projectKey{}).(string)
 	if project == "" {
-		return errors.New("gimble: Run needs gimble.Project in its ctx")
+		return errors.New("gimbal: Run needs gimbal.Project in its ctx")
 	}
 	project, err := filepath.Abs(project)
 	if err != nil {
-		return fmt.Errorf("gimble: %w", err)
+		return fmt.Errorf("gimbal: %w", err)
 	}
 	id := ulid.Make().String() + "." + name
 	dir := filepath.Join(project, "runs", id)
 	if err := os.MkdirAll(filepath.Dir(dir), 0o755); err != nil {
-		return fmt.Errorf("gimble: %w", err)
+		return fmt.Errorf("gimbal: %w", err)
 	}
 	// The run owns its observation store. With the web runtime in ctx it is
 	// registered there and the page can read it; without one the run still
@@ -170,12 +170,12 @@ func Run(ctx context.Context, name string, models map[WorkflowRole]ModelBinding,
 		return os.Mkdir(dir, 0o755)
 	})
 	if store == nil {
-		return fmt.Errorf("gimble: %w", storeErr)
+		return fmt.Errorf("gimbal: %w", storeErr)
 	}
 	w, err := newEventWriter(filepath.Join(dir, "run.jsonl"))
 	if err != nil {
 		_ = store.Close()
-		return fmt.Errorf("gimble: %w", err)
+		return fmt.Errorf("gimbal: %w", err)
 	}
 	r := &run{dir: dir, models: models, writer: w, sessions: make(map[string]*eventWriter), scopes: make(map[string]*scope), turns: make(map[string]context.CancelCauseFunc), interviews: make(map[string]*interviewWaiter)}
 	r.store = store
@@ -232,7 +232,7 @@ func Run(ctx context.Context, name string, models map[WorkflowRole]ModelBinding,
 func (r *run) root(ctx context.Context, name string, body func(ctx context.Context) error) error {
 	defer func() {
 		if v := recover(); v != nil {
-			_ = r.finish(name, fmt.Errorf("gimble: panic: %v", v))
+			_ = r.finish(name, fmt.Errorf("gimbal: panic: %v", v))
 			panic(v)
 		}
 	}()
@@ -352,7 +352,7 @@ func (r *run) AnswerInterview(questionID, answer string) error {
 	defer r.mu.Unlock()
 	waiter := r.interviews[questionID]
 	if waiter == nil {
-		return fmt.Errorf("gimble: no pending interview question %q", questionID)
+		return fmt.Errorf("gimbal: no pending interview question %q", questionID)
 	}
 	delete(r.interviews, questionID)
 	waiter.answer <- answer
@@ -372,13 +372,13 @@ func (r *run) Steer(ctx context.Context, sessionID, message string) (bool, error
 	s := r.scopes[key]
 	r.mu.Unlock()
 	if s == nil {
-		return false, fmt.Errorf("gimble: no live session %q", sessionID)
+		return false, fmt.Errorf("gimbal: no live session %q", sessionID)
 	}
 	s.mu.Lock()
 	i := slices.IndexFunc(s.sessions, func(session *Session) bool { return session.id == sessionID })
 	s.mu.Unlock()
 	if i < 0 {
-		return false, fmt.Errorf("gimble: no live session %q", sessionID)
+		return false, fmt.Errorf("gimbal: no live session %q", sessionID)
 	}
 	return s.sessions[i].Steer(withSteerSource(context.WithValue(ctx, scopeKey{}, s), "person"), message)
 }
@@ -393,10 +393,10 @@ func (r *run) SteerLoop(key, message string) error {
 	s := r.scopes[key]
 	r.mu.Unlock()
 	if s == nil || !s.loop {
-		return fmt.Errorf("gimble: no live loop %q", key)
+		return fmt.Errorf("gimbal: no live loop %q", key)
 	}
 	if !s.queueMessage(message) {
-		return fmt.Errorf("gimble: the loop %q has stopped dispatching", key)
+		return fmt.Errorf("gimbal: the loop %q has stopped dispatching", key)
 	}
 	logf("%s: a message is waiting for the planner's next decision: %s", key, oneLine(message))
 	return nil
@@ -414,7 +414,7 @@ func (r *run) CancelScope(key string, cause error) error {
 	}
 	r.mu.Unlock()
 	if s == nil {
-		return fmt.Errorf("gimble: no live scope %q", key)
+		return fmt.Errorf("gimbal: no live scope %q", key)
 	}
 	r.event(key, "", "", killedEvent(key, cause))
 	s.cancel(cause)
@@ -429,7 +429,7 @@ func (r *run) CancelTurn(id string, cause error) error {
 	cancel := r.turns[id]
 	r.mu.Unlock()
 	if cancel == nil {
-		return fmt.Errorf("gimble: no running turn %q", id)
+		return fmt.Errorf("gimbal: no running turn %q", id)
 	}
 	session := path.Dir(id) // ids are <scope key>/<session name.N>/turn.N
 	scope := path.Dir(session)
@@ -459,7 +459,7 @@ func errString(err error) string {
 
 // logf traces what the runtime does on stderr until the run log exists.
 func logf(format string, args ...any) {
-	log.Printf("gimble: "+format, args...)
+	log.Printf("gimbal: "+format, args...)
 }
 
 func orNone(err error) any {

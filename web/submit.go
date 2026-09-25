@@ -13,8 +13,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/tylergannon/gimble/internal/host"
-	"github.com/tylergannon/gimble/internal/observation"
+	"github.com/tylergannon/gimbal/internal/host"
+	"github.com/tylergannon/gimbal/internal/observation"
 	"github.com/tylergannon/skgo"
 )
 
@@ -62,7 +62,7 @@ func SelectedFormClient(ctx context.Context, instanceDir, project string) (skgo.
 	transport := &http.Transport{DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
 		return (&net.Dialer{}).DialContext(ctx, "unix", selected.socket)
 	}}
-	return skgo.FormClient{BaseURL: "http://gimble", HTTPClient: &http.Client{Transport: transport}}, nil
+	return skgo.FormClient{BaseURL: "http://gimbal", HTTPClient: &http.Client{Transport: transport}}, nil
 }
 
 type selectedClient struct {
@@ -80,7 +80,7 @@ func selectedInstance(ctx context.Context, instanceDir, project string) (selecte
 	}
 	entries, err := os.ReadDir(filepath.Join(instanceDir, "control"))
 	if errors.Is(err, os.ErrNotExist) {
-		return selectedClient{}, fmt.Errorf("no running Gimble instance at %s; start gimble --instance-dir %s --project %s", instanceDir, instanceDir, project)
+		return selectedClient{}, fmt.Errorf("no running Gimbal instance at %s; start gimbal --instance-dir %s --project %s", instanceDir, instanceDir, project)
 	}
 	if err != nil {
 		return selectedClient{}, err
@@ -107,17 +107,17 @@ func selectedInstance(ctx context.Context, instanceDir, project string) (selecte
 		}
 	}
 	if len(clients) != 1 {
-		return selectedClient{}, fmt.Errorf("selected Gimble instance at %s has %d live endpoints; start or select one instance with --instance-dir", instanceDir, len(clients))
+		return selectedClient{}, fmt.Errorf("selected Gimbal instance at %s has %d live endpoints; start or select one instance with --instance-dir", instanceDir, len(clients))
 	}
 	return clients[0], nil
 }
 
 func (c selectedClient) request(ctx context.Context, method, path string, body io.Reader) (*http.Response, error) {
-	request, err := http.NewRequestWithContext(ctx, method, "http://gimble"+path, body)
+	request, err := http.NewRequestWithContext(ctx, method, "http://gimbal"+path, body)
 	if err != nil {
 		return nil, err
 	}
-	request.Header.Set("X-Gimble-Project", c.project)
+	request.Header.Set("X-Gimbal-Project", c.project)
 	transport := &http.Transport{DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
 		return (&net.Dialer{}).DialContext(ctx, "unix", c.socket)
 	}}

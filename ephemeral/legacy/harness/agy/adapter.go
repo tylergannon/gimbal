@@ -1,4 +1,4 @@
-// Package agy implements Gimble's HarnessAdapter using Google Antigravity's
+// Package agy implements Gimbal's HarnessAdapter using Google Antigravity's
 // `agy` print-mode CLI.
 package agy
 
@@ -18,8 +18,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/tylergannon/gimble/harness"
-	"github.com/tylergannon/gimble/harness/agy/schema"
+	"github.com/tylergannon/gimbal/harness"
+	"github.com/tylergannon/gimbal/harness/agy/schema"
 )
 
 const (
@@ -592,7 +592,7 @@ func interruptProcess(active *activeTurn) {
 	}()
 }
 
-// ensureHook provisions, once per Adapter, the Gimble-owned PreToolUse hook
+// ensureHook provisions, once per Adapter, the Gimbal-owned PreToolUse hook
 // that blocks agy's native write tools from targeting workspace files with
 // ArtifactMetadata. See native_write_hook.go for the mechanism. It first
 // checks the installed agy meets minSupportedAgyVersion, the version the hook
@@ -613,7 +613,7 @@ func (a *Adapter) ensureHook() error {
 			home = resolved
 		}
 		if err := ensureNativeWriteHook(home); err != nil {
-			a.hookErr = fmt.Errorf("provision gimble agy native-write hook: %w", err)
+			a.hookErr = fmt.Errorf("provision gimbal agy native-write hook: %w", err)
 		}
 	})
 	return a.hookErr
@@ -627,7 +627,7 @@ func verifyAgyHookSupport(config runnerConfig) error {
 	cmd.Env = config.env
 	out, err := cmd.Output()
 	if err != nil {
-		return fmt.Errorf("verify agy version before provisioning the gimble-no-native-write PreToolUse hook: run %q --version: %w", config.binary, err)
+		return fmt.Errorf("verify agy version before provisioning the gimbal-no-native-write PreToolUse hook: run %q --version: %w", config.binary, err)
 	}
 	version := strings.TrimSpace(string(out))
 	ok, parseErr := agyVersionAtLeast(version, minSupportedAgyVersion)
@@ -635,13 +635,13 @@ func verifyAgyHookSupport(config runnerConfig) error {
 		return fmt.Errorf("agy --version reported %q, which could not be parsed as a dotted version to confirm PreToolUse hooks.json support (verified from agy %s onward; see harness/agy/native_write_hook.go)", version, minSupportedAgyVersion)
 	}
 	if !ok {
-		return fmt.Errorf("agy %s is older than %s, the minimum version verified to honor the PreToolUse hooks.json mechanism the gimble-no-native-write hook depends on; upgrade agy", version, minSupportedAgyVersion)
+		return fmt.Errorf("agy %s is older than %s, the minimum version verified to honor the PreToolUse hooks.json mechanism the gimbal-no-native-write hook depends on; upgrade agy", version, minSupportedAgyVersion)
 	}
 	return nil
 }
 
 func writeSchema(raw json.RawMessage) (string, error) {
-	file, err := os.CreateTemp("", "gimble-agy-schema-*.json")
+	file, err := os.CreateTemp("", "gimbal-agy-schema-*.json")
 	if err != nil {
 		return "", err
 	}

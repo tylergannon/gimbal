@@ -2,14 +2,14 @@
 
 Status: working path delivered locally, uncommitted. See execution/DELIVERY.md for demonstrated behavior and explicitly deferred original claims under the latest shipping-priority direction.
 
-Issue: [#130](https://github.com/tylergannon/gimble/issues/130).
+Issue: [#130](https://github.com/tylergannon/gimbal/issues/130).
 Planning base: f79a864903f1387ea9e3b55f098340a828c1a483.
 This is an unnumbered artifact, as requested. It does not create a sprint
 ledger, require an interview, or authorize a commit.
 
 ## Pyramid Index
 
-- **L0:** Make Gimble's session observation foundation correct and usable:
+- **L0:** Make Gimbal's session observation foundation correct and usable:
   native events reduce identically in Go and JavaScript, a snapshot contains
   everything needed to continue, and a real consumer survives reconnect.
 - **L1:**
@@ -28,7 +28,7 @@ ledger, require an interview, or authorize a commit.
 
 ## Overview
 
-**Done means a caller can feed real agent events into Gimble, obtain a
+**Done means a caller can feed real agent events into Gimbal, obtain a
 complete current snapshot without replaying history, subscribe to subsequent
 updates, and reconstruct the same state after reconnect. The implementation
 must demonstrate those properties through its actual consumer.**
@@ -242,7 +242,7 @@ performed by the implementers as they work.
 | --- | --- | --- | --- |
 | 1. Borrow and port session state | Pinned upstream oracle, adapted TypeScript and Go reducers, explicit effects, serializable/restorable state and shared fixtures | Manager resolves the remaining state/effect interfaces from existing research. One smaller worker owns TS extraction and oracle preparation; another owns the Go port. Both use the same fixtures and preserve native event shapes. | Schema validation, every-prefix three-way parity, independent semantic assertions, negative controls and every-cut restoration. |
 | 2. Connect runtime observation | Existing adapters feed the run-owned state store; consistent checkpoints and snapshot-first SSE work through the actual server | One worker owns Codex/Claude identity normalization and recorded fixtures; another owns runtime wiring, observation store, checkpoint/subscription and server endpoint. Their interface is the event placement/state contract from phase 1. | Native mapping and accounting, concurrent invocation isolation, atomic handoff, queue bounds, cancellation and absence of per-connection history replay. |
-| 3. Exercise the actual consumer | Minimal Svelte run view uses SSR and live snapshots, renders incremental state and recovers on reconnect | One worker owns the page, client lifecycle and production-path browser driver. A second can run live adapter and scale cases as soon as that path works. | Deterministic uninterrupted Gimble-to-browser demonstration, hydration/reset, cheap live runs and prescribed resource measurements. One final independent evidence review covers the complete sprint. |
+| 3. Exercise the actual consumer | Minimal Svelte run view uses SSR and live snapshots, renders incremental state and recovers on reconnect | One worker owns the page, client lifecycle and production-path browser driver. A second can run live adapter and scale cases as soon as that path works. | Deterministic uninterrupted Gimbal-to-browser demonstration, hydration/reset, cheap live runs and prescribed resource measurements. One final independent evidence review covers the complete sprint. |
 
 ### Why this fits agent sessions
 
@@ -319,7 +319,7 @@ from aggregate test counts, screenshots alone, or upstream research.
 | C06 | Atomic handoff | Barrier-driven events at registration, capture, serialization and first-write boundaries; assert actual frames and consumer state | Event absent from both snapshot and suffix, event applied twice, snapshot mutated after its declared cut |
 | C07 | Reset and SSR | Real server-rendered state with JavaScript initially disabled; hydrate then connect; disconnect during partial/pending work and reconnect; inject late old-generation callback/read reply | Hydration disagreement, delta accepted before snapshot, append-to-old-state reset, stale generation mutation, terminal status inferred from part completion |
 | C08 | Subscriber isolation | Stalled writer overflows configured byte/count bound while a second subscriber and producer advance; reconnect converges; cancellation releases owned resources | Unbounded queue, producer blocked on browser, silent delta loss, cancelled observation stopping the workflow |
-| C09 | Real consumer | One uninterrupted deterministic producer → actual Gimble normalization/store → production SSE → native EventSource → adapted reducer → Svelte DOM path | Fixture injection into browser/store, file replay masquerading as transport, separate backend and browser runs presented as end-to-end proof |
+| C09 | Real consumer | One uninterrupted deterministic producer → actual Gimbal normalization/store → production SSE → native EventSource → adapted reducer → Svelte DOM path | Fixture injection into browser/store, file replay masquerading as transport, separate backend and browser runs presented as end-to-end proof |
 | C10 | Live adapters | At least one ordinary tool-using successful run per existing adapter, plus controlled interruption on one; capture raw native events, normalized events, stream and rendered result | Simulated provider passed off as external integration, no visible consumer, false completion, lost tool/turn identity |
 | C11 | Cost and history independence | Prescribed scale workload, allocation/latency/wire report and instrumentation proving zero per-connection history reads | Full transcript sent per delta, whole history processed for each delta or connection, unbounded subscriber backlog |
 
@@ -351,7 +351,7 @@ value so a three-way no-op comparison cannot pass by itself.
 
 ### Minimal witnessed demonstration
 
-Use a deterministic fixture adapter at Gimble's existing harness boundary
+Use a deterministic fixture adapter at Gimbal's existing harness boundary
 to generate a known ordinary workflow. It must flow through production
 normalization, reduction, snapshot/SSE and the actual page. It emits
 reasoning/text fragments, executes a small harmless local tool, yields a
@@ -448,7 +448,7 @@ requires the user's authorization. No commits are authorized by this plan.
   build normally. Reuse the existing server composition.
 - The source-backed boundary in [contract.md](contract.md), the exact
   [port findings](port-contract.md) and local ignored runtime research (`ui-runtime.md`)
-  are prior art. None starts a Gimble acceptance claim as demonstrated.
+  are prior art. None starts a Gimbal acceptance claim as demonstrated.
 - Required session hydration data sources and exact extraction scope are
   decisions the manager settles at the start of phase 1. Record them in the
   event matrix before dependent implementation starts; this is not a

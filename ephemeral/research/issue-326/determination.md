@@ -2,7 +2,7 @@
 
 ## Determination
 
-Issue 326 is not evidence that the prescribed single-process Gimble viewer fails on an empty project. The retained first browser snapshot is a healthy `Empty project / No runs yet` page. The 500 appeared only after the validation assignment launched a second Gimble runtime on port 43841 while the standalone viewer on 43840 continued polling the same project directory. That topology violated the single-process model Tyler confirmed for this investigation.
+Issue 326 is not evidence that the prescribed single-process Gimbal viewer fails on an empty project. The retained first browser snapshot is a healthy `Empty project / No runs yet` page. The 500 appeared only after the validation assignment launched a second Gimbal runtime on port 43841 while the standalone viewer on 43840 continued polling the same project directory. That topology violated the single-process model Tyler confirmed for this investigation.
 
 The failure is nevertheless understandable from current source. Every two seconds, the viewer invalidates the runs page. A live run owned by the same runtime is served from its in-memory registry. A run owned by another process is absent from that registry, so the page reconstructs it from disk. That reconstruction is not a safe read of an active foreign writer:
 
@@ -15,6 +15,6 @@ This behavior was enabled deliberately by PR #283's foreign-run disk fallback an
 
 ## Recommended disposition
 
-Do not repair Issue 326 by making foreign active-run replay tolerant. That would preserve an invalid process model and risks hiding real corruption. Reframe the issue as a validation-topology defect, remove the two-listener guidance, and make one Gimble runtime own both workflow execution and live observation.
+Do not repair Issue 326 by making foreign active-run replay tolerant. That would preserve an invalid process model and risks hiding real corruption. Reframe the issue as a validation-topology defect, remove the two-listener guidance, and make one Gimbal runtime own both workflow execution and live observation.
 
 Before declaring the supported path race-free, run one focused reproduction: hold a single-process run after its directory and `run.jsonl` are published but before its observation store is registered, then request the runs page. Source inspection proves this narrow publication window exists. Issue 326 does not prove it fired, and normal post-registration requests bypass disk entirely. The result should decide whether initialization order also needs a small same-process fix. A separate dual-process reproduction is useful only as forensic confirmation of which unsupported race produced the historical 500.

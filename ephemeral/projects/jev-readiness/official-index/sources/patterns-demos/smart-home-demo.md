@@ -33,5 +33,5 @@ The only demo listed in the assigned official documentation shows a single TypeS
 
 ## Task recipes
 
-- **Continuously scan a Gimble run:** send one compact run-state snapshot with speculative questions such as “is the agent blocked?”, “is it repeating?”, “is the plan drifting?”, and “does this need human authority?”; let Go consume only answers relevant to the current run state. Start at [smart home](https://docs.typesafe.ai/demos/smart-home.md).
+- **Continuously scan a Gimbal run:** send one compact run-state snapshot with speculative questions such as “is the agent blocked?”, “is it repeating?”, “is the plan drifting?”, and “does this need human authority?”; let Go consume only answers relevant to the current run state. Start at [smart home](https://docs.typesafe.ai/demos/smart-home.md).
 - **Keep generation rare:** use a fixed decision to determine whether coaching is needed; invoke a generative supervisor only when the route requires composing a novel message. The architectural analogy is documented at [smart home](https://docs.typesafe.ai/demos/smart-home.md).

@@ -33,7 +33,7 @@ The detailed ordering notes are in
    sibling work; shutdown observation precedes the final cancelled outcome.
    An independently observed service failure may remain the primary cause only
    if it won the race before cancellation was established; the sources do not
-   define Gimble's exact precedence policy.
+   define Gimbal's exact precedence policy.
 4. **Final status:** status is final only after the child/service wait has
    completed. “Shutdown initiated” is an intermediate fact, not scope
    completion.
@@ -46,7 +46,7 @@ remains ordinary workflow work as issue 276 requires.
 The concurrency sources do not specify OS signal delivery, process-group
 membership, descendant cleanup, or a bounded SIGTERM/escalation timeout. The
 process-lifetime topics must settle those mechanics. They also do not settle
-the exact cancellation-versus-exit precedence or Gimble status labels. No
+the exact cancellation-versus-exit precedence or Gimbal status labels. No
 stronger claim is justified from this evidence.
 
 ## Downloaded primary sources

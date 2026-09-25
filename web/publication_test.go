@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tylergannon/gimble/internal/observation"
+	"github.com/tylergannon/gimbal/internal/observation"
 )
 
 func TestHostedRunPublicationBeforeDirectoryIsReadable(t *testing.T) {
@@ -43,11 +43,11 @@ func TestHostedRunPublicationBeforeDirectoryIsReadable(t *testing.T) {
 		return response
 	}
 
-	// Open uses the same directory callback as gimble.Run. Hold it after
+	// Open uses the same directory callback as gimbal.Run. Hold it after
 	// mkdir, when the list can discover the run but no observation table or
 	// run log exists yet. All three readers must use the published store.
 	const id = "publication-boundary"
-	dir := filepath.Join(project, ".gimble", "runs", id)
+	dir := filepath.Join(project, ".gimbal", "runs", id)
 	if err := os.MkdirAll(filepath.Dir(dir), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -146,7 +146,7 @@ func TestHostedRunPublicationBeforeDirectoryIsReadable(t *testing.T) {
 		})
 	}()
 	<-entered
-	entries, err := os.ReadDir(filepath.Join(project, ".gimble", "runs"))
+	entries, err := os.ReadDir(filepath.Join(project, ".gimbal", "runs"))
 	if err != nil {
 		t.Fatal(err)
 	}

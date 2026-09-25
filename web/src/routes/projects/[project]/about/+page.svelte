@@ -1,11 +1,11 @@
 <svelte:head>
-	<title>About Gimble</title>
+	<title>About Gimbal</title>
 </svelte:head>
 
 <article>
-	<h1 data-testid="title">About Gimble</h1>
+	<h1 data-testid="title">About Gimbal</h1>
 	<p class="lead">
-		Gimble is a small Go runtime for programs that ask agents to do work. It makes the
+		Gimbal is a small Go runtime for programs that ask agents to do work. It makes the
 		workflow visible in the code and keeps a record of each run.
 	</p>
 
@@ -14,7 +14,7 @@
 		<p>
 			Agent workflows still need ordinary program structure: a lifetime for each piece of work,
 			clear ownership of sessions and goroutines, cancellation that reaches the agent, and a way
-			to see what happened afterward. Gimble supplies those basics without taking over the rest
+			to see what happened afterward. Gimbal supplies those basics without taking over the rest
 			of the program.
 		</p>
 	</section>
@@ -32,7 +32,7 @@
 	<section aria-labelledby="attractor">
 		<h2 id="attractor">Not an Attractor implementation</h2>
 		<p>
-			Gimble is a reaction to the work around Attractor, not an implementation of it. It does not
+			Gimbal is a reaction to the work around Attractor, not an implementation of it. It does not
 			adopt Attractor as its architecture, product plan, or vocabulary. The useful lesson kept
 			here is simple: keep the workflow in code a person can read, and make the agent work
 			observable.
@@ -47,7 +47,7 @@
 			claims to provide today.
 		</p>
 		<p>
-			For the complete programming contract, use <code>go doc -all github.com/tylergannon/gimble</code>.
+			For the complete programming contract, use <code>go doc -all github.com/tylergannon/gimbal</code>.
 		</p>
 	</section>
 </article>

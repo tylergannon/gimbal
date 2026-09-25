@@ -11,7 +11,7 @@ who starts, cancels, and joins each goroutine on every exit path, and who receiv
 its result. Current Run, Group.Wait, and reader documentation already addresses
 parts of the issue; identify the remaining gaps before changing the contract.
 
-Keep Run and Generate blocking. Use Gimble Group for concurrent workflow work
+Keep Run and Generate blocking. Use Gimbal Group for concurrent workflow work
 and ordinary Go synchronization for external orchestration. Cancellation requests
 a stop; returning or joining establishes completion. Run's returned error remains
 authoritative for execution, including cleanup and recording failures. Reader
@@ -38,7 +38,7 @@ through `Group` and returns `Wait`; the body owns that join. External code that
 must inspect a live run starts `Run` in its own goroutine, records its one
 result in a variable, and calls its `sync.WaitGroup.Wait` before using it.
 That replaces `runDone <- Run(...)` and a later receive without adding a
-Gimble wrapper.
+Gimbal wrapper.
 
 `runlog.Read` is an observer, not a participant in execution. Its context
 only ends the reader; its returned error is reported separately and never

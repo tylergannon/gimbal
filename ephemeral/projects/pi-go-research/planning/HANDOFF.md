@@ -222,6 +222,25 @@ all ready modules at once under a `Group`, then serial integration.
 - **Roles for this job:** coder `pi/diffusion/<model>`; planner, validator and
   coach on Claude Sonnet. No Codex.
 
+## Before launching Pi coders (research, 2026-09-25)
+
+- **`pi` is not on PATH.** A working install (0.87.1) is at
+  `/Users/tyler/.local/share/gimbal-issue-386/pi/node_modules/.bin/pi`. The
+  running instance (`--instance-dir /Users/tyler/.local/share/gimbal-pi-research/instance`)
+  was started without it and without `DIFFUSION_API_KEY`. Adapters inherit the
+  server's environment, so restart the instance with both set.
+- **Every role in `implement` defaults to Codex.** Override all of them. Pi
+  rejects an effort suffix, so write `pi/diffusion/glm-5.3`, not
+  `pi/diffusion/glm-5.3:high`.
+- **One shared work dir is fine for the fan-out** because each module owns a
+  separate package subtree. Each module's check must test only its own
+  package (`go test ./internal/pi/<pkg>/...`), not `./...`.
+- **Module 18 implements** `HarnessAdapter` in `harness.go`:
+  `CreateSession`, `RunTurn`, `Steer`, `Fork`, `Close`. Native events need a
+  `sessionID` in `Data` and `provider` in `NativeRef`. Cutover touches
+  `internal/binding/binding.go`, `internal/modelalias/modelalias.go` and
+  `cmd/gimbal/run_prompt.go`.
+
 ## Go donor
 
 `/Users/tyler/.local/share/gimbal-pi-research/sources/sky-valley--pi`

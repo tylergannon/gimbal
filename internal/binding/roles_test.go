@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/pi"
 )
 
 func TestRolesShareABindingAndNameTheMissingFlag(t *testing.T) {
@@ -75,5 +76,28 @@ func TestRolesShareOpenCodeAdapterAcrossModels(t *testing.T) {
 	}
 	if models["first"].Model == models["second"].Model {
 		t.Error("distinct OpenCode model selections collapsed to one model")
+	}
+}
+
+func TestPiModelBindsForPromptAndRolesWithoutDefaultEffort(t *testing.T) {
+	binding, err := Parse("pi/diffusion/glm-5.3-flash")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := binding.Adapter.(*pi.Adapter); !ok {
+		t.Fatalf("adapter = %T, want *pi.Adapter", binding.Adapter)
+	}
+	if binding.Model != "diffusion/glm-5.3-flash" || binding.Effort != "" {
+		t.Fatalf("binding = model %q, effort %q", binding.Model, binding.Effort)
+	}
+	roles, err := Roles(map[gimbal.WorkflowRole]string{"coding": "pi/diffusion/glm-5.3-flash"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := roles["coding"]; got.Model != binding.Model || got.Effort != "" {
+		t.Fatalf("role binding = model %q, effort %q", got.Model, got.Effort)
+	}
+	if _, err := Parse("pi/diffusion/deepseek-4.1-flash:high"); err != nil {
+		t.Fatalf("explicit effort reaches Pi adapter for its clear unsupported-effort error: %v", err)
 	}
 }

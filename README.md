@@ -106,6 +106,12 @@ server and interrupts its active work. Runtime state defaults to
 files are under `<state-dir>/captures/` for correlating native events with
 completed turns.
 
+Use Pi with `pi/diffusion/<model-id>` in `gimbal run-prompt --model` or a
+workflow role flag, for example `pi/diffusion/glm-5.3-flash`. Install Pi, put
+`pi` on `PATH`, and set `DIFFUSION_API_KEY`. Gimbal gives each Pi session its
+own temporary config and session directory; the key is passed through the
+child environment.
+
 Workflow roles name cognitive work, not positions in a workflow. Gimbal's
 prescribed `WorkflowRole` constants and their descriptions live together in
 `roles.go`; applications may define additional typed constants when they need

@@ -25,8 +25,15 @@ A harness is the thing that actually runs an agent: its tools, its sandbox, its 
 | `gimbal/codex` | Codex | Attaches to the machine's shared `codex app-server` daemon. |
 | `gimbal/claude` | Claude Code | Through the Claude Agent SDK. |
 | `gimbal/agy` | Google Antigravity | Through the `agy` print-mode CLI. |
+| `gimbal/pi` | Pi with Diffusion Router | Through Pi's RPC mode, with Gimbal-owned config and session storage. |
 
 Your existing sign-in, configuration, and tools for each harness are what the agents run with.
+
+For Pi, install Pi and put `pi` on `PATH`, then set `DIFFUSION_API_KEY`.
+Select `pi/diffusion/<model-id>` with `gimbal run-prompt --model` or a
+workflow role flag, for example `pi/diffusion/glm-5.3-flash`. Gimbal creates a
+separate temporary config and session directory for each session; reasoning
+effort is not supported for Pi models.
 
 <h2 id="binding">Binding roles to harnesses</h2>
 

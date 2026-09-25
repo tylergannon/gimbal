@@ -22,6 +22,8 @@ func TestResolvePromptModelPrecedence(t *testing.T) {
 		{name: "explicit flash effort", caller: promptCallerCodex, options: runPromptOptions{model: "flash", effort: "low"}, harness: "agy"},
 		{name: "OpenCode default provider", caller: promptCallerNone, options: runPromptOptions{model: "opencode/ling-3.0-flash-fin-free"}, harness: "opencode"},
 		{name: "OpenCode explicit provider", caller: promptCallerNone, options: runPromptOptions{model: "opencode/opencode/ling-3.0-flash-fin-free"}, harness: "opencode"},
+		{name: "Pi Diffusion model", caller: promptCallerNone, options: runPromptOptions{model: "pi/diffusion/deepseek-4.1-flash"}, harness: "pi"},
+		{name: "Pi GLM model", caller: promptCallerNone, options: runPromptOptions{model: "pi/diffusion/glm-5.3-flash"}, harness: "pi"},
 		{name: "standalone requires model", caller: promptCallerNone, wantErr: true},
 	}
 	for _, test := range tests {
@@ -40,6 +42,20 @@ func TestResolvePromptModelPrecedence(t *testing.T) {
 				t.Fatalf("selection = %#v", got)
 			}
 		})
+	}
+}
+
+func TestRunPromptPiKeepsEffortBlankAndPreservesExplicitEffort(t *testing.T) {
+	resolved, err := resolvePromptModel(runPromptOptions{model: "pi/diffusion/deepseek-4.1-flash"}, promptCallerNone)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resolved.Provider != "diffusion" || resolved.Model != "diffusion/deepseek-4.1-flash" || resolved.Effort != "" {
+		t.Fatalf("resolved Pi selection = %+v", resolved)
+	}
+	resolved, err = resolvePromptModel(runPromptOptions{model: "pi/diffusion/deepseek-4.1-flash", effort: "high"}, promptCallerNone)
+	if err != nil || resolved.Effort != "high" {
+		t.Fatalf("explicit Pi effort resolved as %+v, error %v; expected adapter to reject it rather than default it", resolved, err)
 	}
 }
 

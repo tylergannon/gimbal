@@ -37,10 +37,10 @@ func reviewCommand(defaults map[gimbal.WorkflowRole]string) *cobra.Command {
 	cmd.Flags().BoolVar(&follow, "follow", false, "wait for the hosted run's terminal result; without this flag the run survives client exit")
 	codeReviewModelDefault := defaults[gimbal.WorkflowRole("code-review")]
 	if codeReviewModelDefault == "" {
-		cmd.Flags().StringVar(&codeReviewModel, "code-review", "", "the model for role code-review, as model or model:effort; OpenCode uses opencode/model or opencode/provider/model")
+		cmd.Flags().StringVar(&codeReviewModel, "code-review", "", "the model for role code-review, as model or model:effort; Pi uses pi/diffusion/model-id; OpenCode uses opencode/model or opencode/provider/model")
 		_ = cmd.MarkFlagRequired("code-review")
 	} else {
-		cmd.Flags().StringVar(&codeReviewModel, "code-review", codeReviewModelDefault, "advanced override for role code-review, as model or model:effort; OpenCode uses opencode/model or opencode/provider/model; omit this flag to use the displayed workflow default")
+		cmd.Flags().StringVar(&codeReviewModel, "code-review", codeReviewModelDefault, "advanced override for role code-review, as model or model:effort; Pi uses pi/diffusion/model-id; OpenCode uses opencode/model or opencode/provider/model; omit this flag to use the displayed workflow default")
 	}
 	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
 		project, err := filepath.Abs(project)

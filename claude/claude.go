@@ -453,11 +453,12 @@ func completionSchema(schema json.RawMessage) (json.RawMessage, error) {
 	defs[name] = caller
 	valueRef := map[string]any{"$ref": "#/$defs/" + name}
 	composed := map[string]any{
-		"type": "object",
+		"type":        "object",
+		"description": "Report the state of this response to the current prompt, not the larger workflow goal. Return completed with the requested value once this prompt's work is done, even when the value selects work for another agent or reports unmet requirements. Return waiting only when work needed to answer this same prompt is still running, such as a background tool task whose result you need; continue after its notification before returning completed.",
 		"properties": map[string]any{
 			"state": map[string]any{
 				"type": "string", "enum": []string{"waiting", "completed"},
-				"description": "Use waiting while required work is pending, then completed only when the whole assignment is done.",
+				"description": "Completion of this prompt's requested response: completed when its value is ready; waiting only for pending work needed to produce that value.",
 			},
 			"message": map[string]any{"type": "string", "description": "Required for waiting: a short witness of what remains pending. Omit when completed."},
 			"value":   valueRef,

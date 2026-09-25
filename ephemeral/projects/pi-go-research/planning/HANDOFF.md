@@ -63,7 +63,7 @@ Required for a working Router-backed loop:
 | TypeScript | Lines | Role |
 |---|---|---|
 | `C/src/core/sdk.ts` | 454 | builds Agent and AgentSession, registers tools |
-| `C/src/core/agent-session.ts` | 4023 | session lifecycle; much of its bulk is compaction, export, themes (drop) |
+| `C/src/core/agent-session.ts` | 4023 | session lifecycle, compaction, retry, fork; only its HTML export, theme and bug-report calls are dropped |
 | `C/src/core/messages.ts` | 196 | `convertToLlm`, history to LLM projection |
 | `A/src/agent.ts`, `A/src/agent-loop.ts`, `A/src/types.ts` | 613, 898, 500 | the established loop, queues, steering, tool scheduling |
 | `L/src/types.ts` | 1133 | model, message, usage types |
@@ -77,8 +77,8 @@ in-memory session. That was wrong. Tyler cut only other provider families,
 OAuth and PowerShell/Windows. Everything else in PLAN.md's headless engine
 stays, including events, durable session history, compaction and branch
 summaries, skills, prompt templates, system prompt assembly and settings.
-The table above lists only the core loop files. See the scope section below
-for the full set.
+The table above lists only the core loop files. See the scope section and
+the needed support files below for the full set.
 
 Router request facts from `openai-completions.ts`: `baseURL` comes from the
 provider config; `stream_options.include_usage = true`; `store = false`;
@@ -137,6 +137,48 @@ Keep every MODULES.md assignment except those Tyler cut:
 That leaves 16 assignments. Waves follow PLAN.md: 01 and 19 first. Then 02,
 09, 14 and 16. Then 03, 08, 10, 11, 12, 13 and 15 in parallel. Then 17, 18
 and 20.
+
+## Needed support files (audit, 2026-09-25)
+
+MODULES.md names the headline files per module but not the helpers they
+import. An import walk from `sdk.ts`, `agent-session.ts`,
+`agent-session-runtime.ts`, `agent.ts`, `agent-loop.ts`, `compaction.ts`,
+`session-manager.ts` and `tools/index.ts` found these unowned files that the
+headless engine calls at runtime. Each is added to the named module. A module
+that meets another needed import not listed here ports it too and says so in
+its report. It does not stub it.
+
+| Module | Added upstream files | Why they are needed |
+|---|---|---|
+| 01 | `C/src/core/defaults.ts`; `L/src/utils/text.ts`, `uuid.ts`; from `C/src/core/extensions/types.ts` only the shared types `ToolDefinition`, `ContextUsage` and the event payload types the session emits; type `SlashCommandInfo` from `slash-commands.ts` | default thinking level; `contentText`; `uuidv7` entry IDs; tools 10–12 return `ToolDefinition`, so it must exist before them |
+| 02 | `L/src/utils/event-stream.ts`, `retry.ts`, `abort.ts`, `error-body.ts`, `headers.ts`, `sanitize-unicode.ts`, `assistant-message-frame.ts`; `L/src/api/simple-options.ts` | the stream type every provider returns, `retryAssistantCall` and `isRetryableAssistantError` used by the session, request header and error handling |
+| 03 | `streamSimple`, `completeSimple`, `getModel` and `resetApiProviders` from `L/src/compat.ts`, dispatching only `openai-completions` | the session and compaction call these. Any other API name returns a clear "not available" error. No lazy-loader layer |
+| 08 | `C/src/core/model-registry.ts`, `model-resolver.ts` (`findInitialModel`), `provider-attribution.ts`, `auth-guidance.ts`, `settings-diagnostics.ts`, `C/src/config.ts` (agent and sessions directories, app name); `L/src/env-api-keys.ts`; `L/src/models.ts` (`clampThinkingLevel`, `getSupportedThinkingLevels`, `modelsAreEqual`, `calculateCost`) ; the settings half of `C/src/core/http-dispatcher.ts` (`httpIdleTimeout`, default 300 s, and `httpProxy`), which 03 applies to its `http.Client` | model selection, API key lookup such as `$DIFFUSION_API_KEY`, cost in usage events, where sessions and settings live |
+| 09 | `C/src/utils/paths.ts`, `sleep.ts` | path normalization used by settings, templates and history; retry backoff |
+| 12 | `C/src/core/bash-executor.ts` | the session's own bash execution path (`executeBashWithOperations`), separate from the bash tool |
+| 13 | `C/src/core/trust-manager.ts`, `project-trust.ts`, `source-info.ts`, `C/src/utils/frontmatter.ts`; `resolve()` and `resolveExtensionSources()` paths of `C/src/core/package-manager.ts` | **skills and prompt templates are discovered through `package-manager.resolve()`**: settings entries, auto-discovery under the agent and project dirs, and already-installed package paths. Project trust gates project resources. Install, update and remove are out |
+| 14 | `C/src/core/session-cwd.ts`, `session-export.ts` | reopening a session in its working directory; JSONL export of a session |
+| 15 | `L/src/utils/estimate.ts` | token estimates that decide when to compact |
+| 16 | `L/src/utils/validation.ts` | `validateToolArguments` before each tool call |
+| 17 | `C/src/core/agent-session-services.ts`, `usage-totals.ts`; `cleanupSessionResources` from `L/src/session-resources.ts`; the extension hook sites in `agent-session.ts` (65 references) kept as calls into an extension runner that has no extensions | service wiring, per-model usage totals, cleanup on close. Hooks run nothing and must never report that an extension ran |
+
+Already owned and confirmed: `L/src/utils/transcript.ts` (01),
+`L/src/utils/overflow.ts` (02), `C/src/utils/image-process.ts` and
+`tool-result-images.ts` (09), `C/src/utils/shell.ts` and `child-process.ts`
+(12).
+
+### Left out, each checked
+
+| File | Lines | Reason |
+|---|---|---|
+| `C/src/core/cache-warmer.ts` | 453 | Cost optimization that re-sends requests to keep a prompt cache warm. It only acts when the model config has a `promptCache` lifetime, and the Router config Gimbal writes has none, so it would never fire. Port it if the Router ever reports cache lifetimes |
+| `C/src/core/extensions/runner.ts`, `loader.ts`, `wrapper.ts`, `virtual-modules.ts`, jiti loaders | about 2300 | execute TypeScript extensions. PLAN.md excludes that. The hook sites stay (see 17) |
+| `C/src/core/event-bus.ts` | 33 | only passed to loaded extensions |
+| `install`, `update`, `remove` in `package-manager.ts`; `output-guard.ts` | most of 2730 | package installation, excluded by PLAN.md. `resolve()` is kept (see 13) |
+| `C/src/core/export-html/`, `modes/interactive/theme/` | large | HTML export and terminal themes; `agent-session.ts` uses the theme only to pick an HTML export theme |
+| `C/src/core/bug-report.ts` | 375 | interactive bug-report command |
+| `C/src/core/timings.ts` | 50 | startup profiling, no behavior |
+| `A/src/harness/`, `modes/`, `rpc/`, `experimental/` | large | newer experimental runtime, UIs and transports, excluded by PLAN.md |
 
 ## Writing the fan-out workflow (research, 2026-09-25)
 

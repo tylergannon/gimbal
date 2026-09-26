@@ -14,3 +14,17 @@ decision: Native session reopen is not Gimbal workflow restart; the current Harn
 correction: During recovery Tyler again called out overplanning and coordinator-written exhaustive tests. Give workers modules plus relevant upstream tests and integrate concrete results; do not turn every uncertainty into a prerequisite.
 correction: Claude continuation changed only planning notes. Preserve its user-directed Router-only scope; fix the incorrect offline-abort-test claim, shared-checkout advice, deprecated global-registry recommendation and resources/config wave order.
 decision: Router coding candidates include full GLM as well as Flash and background variants. DeepSeek completed the initial bounded port; GLM's terminated provider request is not a coding-quality failure. Tyler authorizes Luna coding and Sonnet validation fallback.
+
+## Native translation started
+
+DeepSeek Flash Background translated the model foundation and file helpers with
+ordinary package tests. An unused test helper tripped the normal commit lint;
+removed it, retained the candidate, and resumed only the remaining waves.
+Sonnet identified mutable tool schemas shared by AgentContext.Clone; fixed with
+one isolation regression. Its nil/empty serialization observation did not show
+a consequential failure and did not expand the task.
+
+The wire worker accidentally searched the entire filesystem for partial-json.
+Stopped that specific find process and steered it back to the pinned source and
+Go donor; translation resumed. Preserve completed work and repair concrete
+failures instead of restarting the port or adding orchestration machinery.

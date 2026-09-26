@@ -12,9 +12,9 @@ import (
 // ProviderDiffusion is the provider id of the Diffusion Router.
 const ProviderDiffusion model.ProviderId = "diffusion"
 
-// DefaultDiffusionBaseURL is the router origin used when no base URL is
+// DefaultDiffusionBaseURL is the router API base URL used when no base URL is
 // configured. It can be overridden with DIFFUSION_BASE_URL.
-const DefaultDiffusionBaseURL = "https://router.diffusion"
+const DefaultDiffusionBaseURL = "https://router.diffusion.io/v1"
 
 type routerModelList struct {
 	Data []routerModel `json:"data"`
@@ -93,11 +93,7 @@ func ParseRouterCatalog(content []byte, baseURL string) (*RouterCatalog, error) 
 // supported reports whether the port knows how to run the model. Embedding and
 // rerank models are outside the Diffusion Router chat scope.
 func (entry routerModel) supported() bool {
-	return entry.Capabilities["openai_chat"] ||
-		entry.Capabilities["anthropic_messages"] ||
-		entry.Capabilities["openai_responses"] ||
-		entry.Capabilities["image_generation"] ||
-		entry.Capabilities["systemone"]
+	return entry.Capabilities["openai_chat"] && entry.Capabilities["tools"]
 }
 
 func (entry routerModel) toModel(baseURL string) *model.Model {
@@ -115,14 +111,7 @@ func (entry routerModel) toModel(baseURL string) *model.Model {
 	if entry.Capabilities["vision"] {
 		converted.Input = append(converted.Input, "image")
 	}
-	if entry.Capabilities["image_generation"] {
-		converted.Type = model.ModelTypeImage
-		converted.Output = []string{"image"}
-	}
-	if entry.Capabilities["systemone"] {
-		converted.Type = model.ModelTypeClassifier
-	}
-	converted.Api = entry.api()
+	converted.Api = model.APIOpenAICompletions
 
 	if len(entry.ClientCompat.Pi) > 0 {
 		converted.Compat = append(json.RawMessage(nil), entry.ClientCompat.Pi...)
@@ -135,21 +124,6 @@ func (entry routerModel) toModel(baseURL string) *model.Model {
 		}
 	}
 	return converted
-}
-
-func (entry routerModel) api() model.Api {
-	switch {
-	case entry.Capabilities["openai_chat"]:
-		return model.APIOpenAICompletions
-	case entry.Capabilities["anthropic_messages"]:
-		return model.APIAnthropicMessages
-	case entry.Capabilities["openai_responses"]:
-		return model.APIOpenAIResponses
-	case entry.Capabilities["image_generation"]:
-		return model.APIOpenAICompletions
-	default:
-		return model.APIOpenAICompletions
-	}
 }
 
 // Get returns a model by id.

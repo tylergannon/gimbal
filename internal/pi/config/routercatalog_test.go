@@ -9,6 +9,8 @@ import (
 const routerCatalogJSON = `{
   "object": "list",
   "data": [
+    {"id": "chat-no-tools", "capabilities": {"openai_chat": true}},
+    {"id": "anthropic-only", "capabilities": {"anthropic_messages": true, "tools": true}},
     {"id": "emb-granite", "object": "model", "capabilities": {"embeddings": true}},
     {"id": "glm-5.3", "object": "model", "context_window": 524288, "max_output_tokens": 131072,
      "capabilities": {"openai_chat": true, "anthropic_messages": true, "reasoning": true, "tools": true, "vision": true},
@@ -23,8 +25,8 @@ func TestParseRouterCatalog(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(catalog.Models) != 2 {
-		t.Fatalf("models = %d; want 2", len(catalog.Models))
+	if len(catalog.Models) != 1 {
+		t.Fatalf("models = %d; want 1", len(catalog.Models))
 	}
 	glm, ok := catalog.Get("glm-5.3")
 	if !ok {
@@ -52,7 +54,7 @@ func TestParseRouterCatalog(t *testing.T) {
 	if len(catalog.ChatModels()) != 1 {
 		t.Fatalf("chat models = %+v", catalog.ChatModels())
 	}
-	if image, ok := catalog.Get("flux2-klein"); !ok || image.GetModelType() != model.ModelTypeImage {
-		t.Fatalf("image model = %+v", image)
+	if _, ok := catalog.Get("flux2-klein"); ok {
+		t.Fatal("image-only model admitted to the coding catalog")
 	}
 }

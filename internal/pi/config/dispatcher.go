@@ -4,10 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
+
+	"golang.org/x/net/http/httpproxy"
 )
 
 // DefaultHTTPIdleTimeoutMs is pi's default HTTP header/body idle timeout.
@@ -98,28 +100,12 @@ func FormatHTTPIdleTimeoutMs(timeoutMs int) string {
 	return fmt.Sprintf("%d sec", timeoutMs/1000)
 }
 
-// ApplyHTTPProxySettings sets HTTP_PROXY and HTTPS_PROXY from a configured
-// proxy URL, without overriding values already present in the environment.
-func ApplyHTTPProxySettings(httpProxy string) {
-	proxy := strings.TrimSpace(httpProxy)
-	if proxy == "" {
-		return
-	}
-	if os.Getenv("HTTP_PROXY") == "" {
-		_ = os.Setenv("HTTP_PROXY", proxy)
-	}
-	if os.Getenv("HTTPS_PROXY") == "" {
-		_ = os.Setenv("HTTPS_PROXY", proxy)
-	}
-}
-
 // HTTPClientOptions configures a Pi HTTP client.
 type HTTPClientOptions struct {
 	// IdleTimeoutMs bounds the wait for response headers and idle keep-alive
 	// connections. Zero disables the timeout.
 	IdleTimeoutMs int
-	// HTTPProxy is applied to the process environment through
-	// ApplyHTTPProxySettings before the transport reads it.
+	// HTTPProxy supplies a client-local default when the environment has no proxy.
 	HTTPProxy string
 	// Transport overrides the transport. When nil a proxied transport is used.
 	Transport http.RoundTripper
@@ -128,17 +114,22 @@ type HTTPClientOptions struct {
 // NewHTTPClient returns an HTTP client configured with pi's idle-timeout and
 // proxy behavior.
 func NewHTTPClient(options HTTPClientOptions) *http.Client {
-	if options.HTTPProxy != "" {
-		ApplyHTTPProxySettings(options.HTTPProxy)
-	}
 	client := &http.Client{}
 	if options.Transport != nil {
 		client.Transport = options.Transport
 		return client
 	}
+	proxyConfig := httpproxy.FromEnvironment()
+	if proxyConfig.HTTPProxy == "" {
+		proxyConfig.HTTPProxy = strings.TrimSpace(options.HTTPProxy)
+	}
+	if proxyConfig.HTTPSProxy == "" {
+		proxyConfig.HTTPSProxy = strings.TrimSpace(options.HTTPProxy)
+	}
+	proxy := proxyConfig.ProxyFunc()
 	timeout := time.Duration(options.IdleTimeoutMs) * time.Millisecond
 	transport := &http.Transport{
-		Proxy:                 http.ProxyFromEnvironment,
+		Proxy:                 func(req *http.Request) (*url.URL, error) { return proxy(req.URL) },
 		MaxIdleConns:          100,
 		IdleConnTimeout:       90 * time.Second,
 		TLSHandshakeTimeout:   10 * time.Second,

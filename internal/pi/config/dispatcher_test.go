@@ -1,6 +1,7 @@
 package config
 
 import (
+	"net/http"
 	"os"
 	"testing"
 )
@@ -42,25 +43,27 @@ func TestFormatHTTPIdleTimeoutMs(t *testing.T) {
 	}
 }
 
-func TestApplyHTTPProxySettings(t *testing.T) {
-	t.Setenv("HTTP_PROXY", "")
-	t.Setenv("HTTPS_PROXY", "")
-	ApplyHTTPProxySettings("http://127.0.0.1:7890")
-	if got := os.Getenv("HTTP_PROXY"); got != "http://127.0.0.1:7890" {
-		t.Fatalf("HTTP_PROXY = %q", got)
+func TestHTTPProxyIsClientLocal(t *testing.T) {
+	for _, name := range []string{"HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy", "NO_PROXY", "no_proxy"} {
+		t.Setenv(name, "")
 	}
-	if got := os.Getenv("HTTPS_PROXY"); got != "http://127.0.0.1:7890" {
-		t.Fatalf("HTTPS_PROXY = %q", got)
+	first := NewHTTPClient(HTTPClientOptions{HTTPProxy: "http://first:8080"})
+	second := NewHTTPClient(HTTPClientOptions{HTTPProxy: "http://second:8080"})
+	request, err := http.NewRequest(http.MethodGet, "https://router.diffusion.io/v1/models", nil)
+	if err != nil {
+		t.Fatal(err)
 	}
-
-	t.Setenv("HTTP_PROXY", "http://env-http:8080")
-	t.Setenv("HTTPS_PROXY", "http://env-https:8080")
-	ApplyHTTPProxySettings("http://settings:7890")
-	if got := os.Getenv("HTTP_PROXY"); got != "http://env-http:8080" {
-		t.Fatalf("HTTP_PROXY overridden: %q", got)
+	for _, tc := range []struct {
+		client *http.Client
+		want   string
+	}{{first, "http://first:8080"}, {second, "http://second:8080"}} {
+		got, err := tc.client.Transport.(*http.Transport).Proxy(request)
+		if err != nil || got == nil || got.String() != tc.want {
+			t.Fatalf("proxy = %v, %v; want %s", got, err, tc.want)
+		}
 	}
-	if got := os.Getenv("HTTPS_PROXY"); got != "http://env-https:8080" {
-		t.Fatalf("HTTPS_PROXY overridden: %q", got)
+	if os.Getenv("HTTP_PROXY") != "" || os.Getenv("HTTPS_PROXY") != "" {
+		t.Fatal("client changed process proxy")
 	}
 }
 

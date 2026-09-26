@@ -42,7 +42,7 @@ func runPrompt(args []string, stdout, stderr io.Writer, getenv func(string) stri
 	flags := flag.NewFlagSet("gimbal run-prompt", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	flags.Usage = func() {
-		_, _ = fmt.Fprintln(stderr, "Run one prompt in this process, separate from any hosted instance. Pi uses --model pi/diffusion/<model-id> (for example, pi/diffusion/glm-5.3-flash); put pi on PATH and set DIFFUSION_API_KEY. Gimbal owns Pi's config and session directory. Pi effort is unsupported. Logs use a temporary directory unless --logs names a fresh empty directory; keep it separate from projects admitted to an instance.")
+		_, _ = fmt.Fprintln(stderr, "Run one prompt in this process, separate from any hosted instance. Pi uses --model pi/diffusion/<model-id> (for example, pi/diffusion/deepseek-4.1-flash-background); set DIFFUSION_API_KEY. Pi runs natively inside Gimbal. Gimbal owns Pi's config and session directory. Pi effort is unsupported. Logs use a temporary directory unless --logs names a fresh empty directory; keep it separate from projects admitted to an instance.")
 		_, _ = fmt.Fprintln(stderr, "Usage of gimbal run-prompt:")
 		_, _ = fmt.Fprintln(stderr, "  gimbal run-prompt [flags] PROMPT")
 		flags.PrintDefaults()

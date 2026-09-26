@@ -44,7 +44,7 @@ import (
 )
 
 //go:generate go tool polytype --validate
-//go:generate go run github.com/tylergannon/gimbal/internal/generate/gimbalgen -entry PyramidSummary -name pyramid-summary -mermaid ../../../docs-site/src/lib/generated/workflows/pyramid-summary.mmd
+//go:generate go run github.com/tylergannon/gimbal/internal/generate/gimbalgen -entry PyramidSummary -name pyramid-summary
 
 const (
 	roleDocumentAuthoring   gimbal.WorkflowRole = "document-authoring"

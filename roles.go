@@ -1,7 +1,5 @@
 package gimbal
 
-//go:generate go run ./internal/rolerefgen
-
 // WorkflowRole names the cognitive work a session performs and selects its
 // model binding for a run. Applications may define additional typed constants.
 type WorkflowRole string

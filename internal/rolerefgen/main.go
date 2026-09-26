@@ -1,4 +1,4 @@
-// Command rolerefgen generates the documentation site's workflow-role reference.
+// Command rolerefgen generates a workflow-role reference at a requested path.
 package main
 
 import (
@@ -29,8 +29,11 @@ type role struct {
 
 func main() {
 	source := flag.String("source", "roles.go", "Go source containing WorkflowRole constants")
-	output := flag.String("output", "docs-site/src/routes/docs/roles/+page.svelte", "generated documentation page")
+	output := flag.String("output", "", "output path for the generated documentation page")
 	flag.Parse()
+	if *output == "" {
+		fatal(fmt.Errorf("-output is required"))
+	}
 
 	roles, err := extract(*source)
 	if err != nil {

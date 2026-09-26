@@ -203,6 +203,79 @@ func TestForkDropsUnfinishedToolBatch(t *testing.T) {
 	}
 }
 
+// TestForkPersistedChildKeepsUnfinishedBatchExcludedOnReopen proves the child
+// session file is a snapshot of the complete branch: reopening it before the
+// child's first message still excludes the unfinished tool batch, carries a
+// fresh id, and records the parent session.
+func TestForkPersistedChildKeepsUnfinishedBatchExcludedOnReopen(t *testing.T) {
+	cwd := t.TempDir()
+	sessionDir := filepath.Join(cwd, "sessions")
+	settings := config.NewInMemorySettingsManager(nil, config.CreateOptions{})
+	manager, err := history.Create(cwd, sessionDir, nil)
+	if err != nil {
+		t.Fatalf("create persisted session: %v", err)
+	}
+	builtAgent := agent.NewAgent(agent.AgentOptions{
+		InitialState: &model.AgentState{Model: testModel(), ThinkingLevel: model.ThinkingOff},
+		StreamFn:     doneStream(testAssistant("done", model.StopStop)),
+	})
+	parent, err := New(Config{Agent: builtAgent, SessionManager: manager, Settings: settings, Cwd: cwd})
+	if err != nil {
+		t.Fatalf("new parent: %v", err)
+	}
+	t.Cleanup(parent.Dispose)
+
+	now := time.Now().UnixMilli()
+	if _, err := manager.AppendMessage(model.UserMessage{Content: model.ContentList{model.TextContent{Text: "run both"}}, Timestamp: now}); err != nil {
+		t.Fatalf("append user: %v", err)
+	}
+	assistant := model.AssistantMessage{
+		Content: model.ContentList{
+			model.TextContent{Text: "calling"},
+			model.ToolCall{ID: "call-1", Name: "dummy", Arguments: map[string]any{}},
+			model.ToolCall{ID: "call-2", Name: "dummy", Arguments: map[string]any{}},
+		},
+		Api: testModel().Api, Provider: testModel().Provider, Model: testModel().ID,
+		StopReason: model.StopToolUse, Timestamp: now,
+	}
+	if _, err := manager.AppendMessage(assistant); err != nil {
+		t.Fatalf("append assistant: %v", err)
+	}
+	if _, err := manager.AppendMessage(model.ToolResultMessage{ToolCallID: "call-1", ToolName: "dummy", Content: model.ContentList{model.TextContent{Text: "one"}}, Timestamp: now}); err != nil {
+		t.Fatalf("append tool result: %v", err)
+	}
+	parent.RefreshContext()
+
+	parentBefore := rolesOf(parent.Messages())
+	child, err := parent.Fork(context.Background())
+	if err != nil {
+		t.Fatalf("fork: %v", err)
+	}
+	t.Cleanup(child.Dispose)
+	if child.SessionFile() == parent.SessionFile() {
+		t.Fatalf("child shares parent session file")
+	}
+
+	reopened, err := history.Open(child.SessionFile(), filepath.Dir(child.SessionFile()), "")
+	if err != nil {
+		t.Fatalf("reopen child: %v", err)
+	}
+	want := []model.Role{model.RoleSystem, model.RoleUser}
+	if got := rolesOf(reopened.BuildSessionProjection().Messages); !reflect.DeepEqual(got, want) {
+		t.Fatalf("reopened child roles = %v, want %v", got, want)
+	}
+	header := reopened.GetHeader()
+	if header == nil || header.ID == parent.SessionManager().GetSessionID() {
+		t.Fatalf("reopened child id = %v, want a fresh id", header)
+	}
+	if header.ParentSession != parent.SessionFile() {
+		t.Fatalf("reopened child parent = %q, want %q", header.ParentSession, parent.SessionFile())
+	}
+	if got := rolesOf(parent.Messages()); !reflect.DeepEqual(got, parentBefore) {
+		t.Fatalf("parent transcript changed by fork: %v -> %v", parentBefore, got)
+	}
+}
+
 func rolesOf(messages []model.AgentMessage) []model.Role {
 	roles := make([]model.Role, 0, len(messages))
 	for _, message := range messages {

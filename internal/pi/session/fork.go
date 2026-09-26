@@ -18,18 +18,12 @@ import (
 func (s *Session) Fork(ctx context.Context) (*Session, error) {
 	projection := s.sessionManager.BuildSessionProjection()
 	prefix := completePrefix(projection.Entries)
+	branch := branchThrough(s.sessionManager.GetBranch(), prefix)
 	prefixMessages := projectedMessages(prefix)
 
-	manager, err := s.forkManager()
+	manager, err := s.forkManager(branch)
 	if err != nil {
 		return nil, err
-	}
-	if len(prefix) < len(projection.Entries) {
-		if len(prefix) == 0 {
-			manager.ResetLeaf()
-		} else if err := manager.Branch(prefix[len(prefix)-1].SourceEntry.Base().ID); err != nil {
-			return nil, err
-		}
 	}
 
 	options := s.agent.Options()
@@ -65,14 +59,15 @@ func (s *Session) Fork(ctx context.Context) (*Session, error) {
 	return child, nil
 }
 
-// forkManager builds the child history manager. A persisted parent yields a
-// new persisted session file; an in-memory parent yields an in-memory manager.
-// Both adopt the parent's active branch and never touch the parent's manager.
-func (s *Session) forkManager() (*history.SessionManager, error) {
+// forkManager builds the child history manager from the selected branch. A
+// persisted parent yields a new persisted session file; an in-memory parent
+// yields an in-memory manager. Only the captured branch is written, so the
+// child's file is already trimmed to it and reopening the child cannot restore
+// entries the fork excluded. The parent's manager is never touched.
+func (s *Session) forkManager(entries []model.SessionEntry) (*history.SessionManager, error) {
 	if s.sessionManager.IsPersisted() && s.sessionManager.GetSessionFile() != "" {
-		return history.ForkFrom(s.sessionManager.GetSessionFile(), s.cwd, s.sessionManager.GetSessionDir(), nil)
+		return history.ForkFromEntries(s.sessionManager.GetSessionFile(), s.cwd, s.sessionManager.GetSessionDir(), entries, nil)
 	}
-	entries := model.CloneSessionEntries(s.sessionManager.GetBranch())
 	header := s.sessionManager.GetHeader()
 	var adopted *model.SessionHeader
 	if header != nil {
@@ -80,7 +75,26 @@ func (s *Session) forkManager() (*history.SessionManager, error) {
 		copyHeader.ID = ""
 		adopted = &copyHeader
 	}
-	return history.InMemory(s.cwd, nil, adopted, entries)
+	return history.InMemory(s.cwd, nil, adopted, model.CloneSessionEntries(entries))
+}
+
+// branchThrough returns the parent branch up to and including the last entry
+// the prefix kept. prefix entries are projection entries, so the cutoff is the
+// last retained source entry; when nothing was dropped the cutoff is the
+// branch leaf and the whole branch is returned. Keeping the raw branch up to
+// the cutoff preserves entries the projection omits, such as the pre-compaction
+// entries a compaction entry refers to.
+func branchThrough(branch []model.SessionEntry, prefix []model.ProjectedSessionEntry) []model.SessionEntry {
+	if len(prefix) == 0 {
+		return nil
+	}
+	cutoff := prefix[len(prefix)-1].SourceEntry.Base().ID
+	for i, entry := range branch {
+		if entry.Base().ID == cutoff {
+			return branch[:i+1]
+		}
+	}
+	return nil
 }
 
 // completePrefix drops a trailing assistant message whose tool calls do not all

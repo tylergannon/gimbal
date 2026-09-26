@@ -230,6 +230,58 @@ func ForkFrom(sourcePath, targetCwd, sessionDir string, options *NewSessionOptio
 	return Open(newSessionFile, dir, "")
 }
 
+// ForkFromEntries creates a new persisted session in sessionDir from entries
+// captured before a fork. It writes the entries in order with their parent
+// links re-chained, so the file holds exactly the selected branch rather than
+// the source file's whole tree. The new header carries a fresh id and records
+// parentSession as the session it was forked from. The source session is
+// neither read nor modified.
+func ForkFromEntries(parentSession, targetCwd, sessionDir string, entries []model.SessionEntry, options *NewSessionOptions) (*SessionManager, error) {
+	if sessionDir == "" {
+		return nil, errors.New("history: fork session: session directory is required")
+	}
+	dir := normalizePath(sessionDir)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return nil, err
+	}
+
+	newSessionID, err := sessionIDFor(options)
+	if err != nil {
+		return nil, err
+	}
+	timestamp := nowISO()
+	fileTimestamp := strings.NewReplacer(":", "-", ".", "-").Replace(timestamp)
+	newSessionFile := filepath.Join(dir, fileTimestamp+"_"+newSessionID+".jsonl")
+
+	newHeader := model.NewSessionHeader(newSessionID, timestamp, resolvePath(targetCwd))
+	if parentSession != "" {
+		newHeader.ParentSession = resolvePath(parentSession)
+	}
+	f, err := os.OpenFile(newSessionFile, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
+	if err != nil {
+		return nil, err
+	}
+	if err := writeJSONLine(f, newHeader); err != nil {
+		_ = f.Close()
+		return nil, err
+	}
+	var parentID *string
+	for _, entry := range entries {
+		clone := cloneEntryWithParent(entry, parentID)
+		if err := writeJSONLine(f, clone); err != nil {
+			_ = f.Close()
+			return nil, err
+		}
+		id := entry.Base().ID
+		parentID = &id
+	}
+	if err := f.Close(); err != nil {
+		return nil, err
+	}
+
+	return Open(newSessionFile, dir, "")
+}
+
 // FindByID returns the path of the session whose header id matches id.
 func FindByID(cwd, id, sessionDir string) (string, bool) {
 	if sessionDir == "" {

@@ -1,5 +1,0 @@
-{"type":"object",
-"description":"Assessment reports whether the integrated wave fulfills its supplied assignments.","properties":{
-"complete":{"type":"boolean"},
-"findings":{"type":"array","items":{"type":"string"}}
-},"required":["complete","findings"],"additionalProperties":false}

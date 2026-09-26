@@ -18,8 +18,6 @@ var (
 	Skgo_startImplement = startImplement
 	// Skgo_answerInterview is answerInterview, published as src/routes/interview.remote.ts#answerInterview.
 	Skgo_answerInterview = answerInterview
-	// Skgo_startPort is startPort, published as src/routes/piport_start.remote.ts#startPort.
-	Skgo_startPort = startPort
 	// Skgo_startPyramidSummary is startPyramidSummary, published as src/routes/pyramidsummary_start.remote.ts#startPyramidSummary.
 	Skgo_startPyramidSummary = startPyramidSummary
 	// Skgo_startResearchDocument is startResearchDocument, published as src/routes/researchdocument_start.remote.ts#startResearchDocument.
@@ -45,10 +43,6 @@ type (
 	SkgoArg_answerInterview = InterviewAnswer
 	// SkgoOut_answerInterview is the type answerInterview returns.
 	SkgoOut_answerInterview = InterviewAnswered
-	// SkgoArg_startPort is the type startPort takes.
-	SkgoArg_startPort = StartPortInput
-	// SkgoOut_startPort is the type startPort returns.
-	SkgoOut_startPort = StartAccepted
 	// SkgoArg_startPyramidSummary is the type startPyramidSummary takes.
 	SkgoArg_startPyramidSummary = StartPyramidSummaryInput
 	// SkgoOut_startPyramidSummary is the type startPyramidSummary returns.

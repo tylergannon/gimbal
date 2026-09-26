@@ -28,3 +28,17 @@ The wire worker accidentally searched the entire filesystem for partial-json.
 Stopped that specific find process and steered it back to the pinned source and
 Go donor; translation resumed. Preserve completed work and repair concrete
 failures instead of restarting the port or adding orchestration machinery.
+
+## Integration lessons
+
+Package translation tests can pass while assembly drops configuration. The
+session fork initially rebuilt an agent without its request options, and its
+history refresh undid the completed-prefix trim. Fixed those specific seams,
+including reopening the persisted child, instead of expanding the test plan.
+Review also caught a fresh-prompt overflow reset and empty-history compaction
+index guard. Adapter tests stalled on the default ten-minute Go timeout; a
+stack dump and a short focused timeout let the worker finish the repair.
+
+The final binding needed explicit Router catalog wiring despite the parser
+already existing in config. The one-off translation workflow is removed from
+the deliverable after completing its actual coding work.

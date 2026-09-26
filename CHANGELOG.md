@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- An owned Go Pi coding engine for Diffusion Router runs sessions inside Gimbal,
+  with native tools, history, compaction, steering, forks, and live model
+  metadata. It replaces the per-session Pi subprocess.
+
 - Generated commands for the five built-in workflows call their matching typed
   SKGO Form endpoints. A running instance admits a project on first start and
   owns accepted runs after the CLI exits. Visible workflow start forms remain

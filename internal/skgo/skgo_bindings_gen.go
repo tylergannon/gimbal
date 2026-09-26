@@ -176,24 +176,6 @@ func remote_answerInterview(ctx context.Context, call skgo.Call) (any, error) {
 	return EncodeRoot7(out)
 }
 
-// remote_startPort answers src/routes/piport_start.remote.ts#startPort, a form.
-//
-// A form's submission is assigned onto the handler's own argument type:
-// kit posts a form as binary form data, which can carry an uploaded File,
-// and a File is not a value polytype describes.
-// The result is encoded by EncodeRoot6, generated for its result type.
-func remote_startPort(ctx context.Context, call skgo.Call) (any, error) {
-	var in skgo0.SkgoArg_startPort
-	if err := skgo.DecodeForm(call.Arg, &in); err != nil {
-		return nil, err
-	}
-	out, err := skgo0.Skgo_startPort(ctx, in)
-	if err != nil {
-		return nil, err
-	}
-	return EncodeRoot6(out)
-}
-
 // remote_startPyramidSummary answers src/routes/pyramidsummary_start.remote.ts#startPyramidSummary, a form.
 //
 // A form's submission is assigned onto the handler's own argument type:
@@ -351,13 +333,6 @@ func Remotes() []*skgo.Remote {
 			Name:   "answerInterview",
 			Fn:     skgo0.Skgo_answerInterview,
 			Call:   remote_answerInterview,
-		}),
-		skgo.NewRemote(skgo.RemoteSpec{
-			Kind:   skgo.KindForm,
-			Module: "src/routes/piport_start.remote.ts",
-			Name:   "startPort",
-			Fn:     skgo0.Skgo_startPort,
-			Call:   remote_startPort,
 		}),
 		skgo.NewRemote(skgo.RemoteSpec{
 			Kind:   skgo.KindForm,

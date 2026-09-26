@@ -88,20 +88,6 @@ export type StartImplementInput = {
 };
 
 /**
- * StartPortInput is the flat typed request for the pi-port workflow.
- */
-export type StartPortInput = {
-  project_dir: string;
-  work_dir: string;
-  conversation: string;
-  assignments_file: string;
-  scratch_dir: string;
-  role_pi_port_coding?: string;
-  role_pi_port_scope?: string;
-  role_pi_port_review?: string;
-};
-
-/**
  * StartPyramidSummaryInput is the flat typed request for the pyramid-summary workflow.
  */
 export type StartPyramidSummaryInput = {

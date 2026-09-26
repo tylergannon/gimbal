@@ -107,10 +107,10 @@ files are under `<state-dir>/captures/` for correlating native events with
 completed turns.
 
 Use Pi with `pi/diffusion/<model-id>` in `gimbal run-prompt --model` or a
-workflow role flag, for example `pi/diffusion/glm-5.3-flash`. Install Pi, put
-`pi` on `PATH`, and set `DIFFUSION_API_KEY`. Gimbal gives each Pi session its
-own temporary config and session directory; the key is passed through the
-child environment.
+workflow role flag, for example `pi/diffusion/deepseek-4.1-flash-background`.
+Set `DIFFUSION_API_KEY` in the Gimbal server environment. The owned Go Pi
+engine runs inside Gimbal; no Pi, Bun, or Node installation is required for
+the harness. Shell tools still launch the commands requested by the agent.
 List the chat models with tools available to your Router key, then prefix a
 chosen open-weight ID with `pi/diffusion/`:
 

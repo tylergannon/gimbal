@@ -1,3 +1,6 @@
+// Package pi implements Gimbal's HarnessAdapter over the native, in-process
+// Pi session port. A session owns its own Pi agent, history and storage; no
+// subprocess is started.
 package pi
 
 import (
@@ -8,67 +11,73 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/internal/pi/config"
+	"github.com/tylergannon/gimbal/internal/pi/history"
+	"github.com/tylergannon/gimbal/internal/pi/model"
+	"github.com/tylergannon/gimbal/internal/pi/providers/openai"
+	"github.com/tylergannon/gimbal/internal/pi/session"
 )
 
-const provider = "diffusion"
+const providerName = string(config.ProviderDiffusion)
 
+// Config configures a native Pi adapter. The zero value uses the Diffusion
+// Router endpoint and the DIFFUSION_API_KEY environment variable.
+type Config struct {
+	Endpoint string
+	APIKey   func() string
+}
+
+// Adapter is the native, in-process Pi harness adapter.
 type Adapter struct {
 	mu       sync.Mutex
-	sessions map[string]*session
-	config   adapterConfig
+	sessions map[string]*sessionState
+	config   Config
 }
 
 var _ gimbal.HarnessAdapter = (*Adapter)(nil)
 
-type adapterConfig struct {
-	command  string
-	endpoint string
-	apiKey   func() string
+// New returns a Pi harness adapter.
+func New() gimbal.HarnessAdapter { return newAdapter(Config{}) }
+
+func newAdapter(cfg Config) *Adapter {
+	if cfg.Endpoint == "" {
+		cfg.Endpoint = config.DefaultDiffusionBaseURL
+	}
+	if cfg.APIKey == nil {
+		cfg.APIKey = func() string { return os.Getenv("DIFFUSION_API_KEY") }
+	}
+	return &Adapter{sessions: map[string]*sessionState{}, config: cfg}
 }
 
-type session struct {
+type sessionState struct {
 	id, nativeID, model, workdir string
-	dir, sessionDir              string
-	mu                           sync.Mutex
-	turnMu                       sync.Mutex
-	steerMu                      sync.Mutex
-	proc                         *process
-	active                       *turn
-	closed                       bool
+	root                         string
+	session                      *session.Session
+
+	mu      sync.Mutex
+	turnMu  sync.Mutex
+	steerMu sync.Mutex
+	active  *turn
+	closed  bool
 }
 
-// New returns a Pi RPC adapter. Each Gimbal session owns its Pi process,
-// configuration directory, and native session directory.
-func New() gimbal.HarnessAdapter { return newAdapter(adapterConfig{}) }
-
-func newAdapter(config adapterConfig) *Adapter {
-	if config.command == "" {
-		config.command = "pi"
-	}
-	if config.endpoint == "" {
-		config.endpoint = "https://router.diffusion.io/v1"
-	}
-	if config.apiKey == nil {
-		config.apiKey = func() string { return os.Getenv("DIFFUSION_API_KEY") }
-	}
-	return &Adapter{sessions: make(map[string]*session), config: config}
-}
-
-func (a *Adapter) CreateSession(ctx context.Context, model, effort, workdir string) (string, error) {
+// CreateSession reserves one native Pi session and starts its in-process
+// agent.
+func (a *Adapter) CreateSession(ctx context.Context, modelName, effort, workdir string) (string, error) {
 	if effort != "" {
 		return "", fmt.Errorf("pi: explicit effort %q is unsupported for this model", effort)
 	}
-	if strings.TrimSpace(model) == "" {
+	if strings.TrimSpace(modelName) == "" {
 		return "", errors.New("pi: model is required")
 	}
-	key := a.config.apiKey()
+	key := a.config.APIKey()
 	if key == "" {
 		return "", errors.New("pi: DIFFUSION_API_KEY is required")
 	}
@@ -77,28 +86,33 @@ func (a *Adapter) CreateSession(ctx context.Context, model, effort, workdir stri
 		return "", fmt.Errorf("pi: create session directory: %w", err)
 	}
 	cleanup := func() { _ = os.RemoveAll(root) }
-	if err := os.MkdirAll(filepath.Join(root, "agent"), 0700); err != nil {
-		cleanup()
-		return "", fmt.Errorf("pi: create agent directory: %w", err)
+	agentDir := filepath.Join(root, "agent")
+	sessionDir := filepath.Join(root, "sessions")
+	for _, dir := range []string{agentDir, sessionDir} {
+		if err := os.MkdirAll(dir, 0o700); err != nil {
+			cleanup()
+			return "", fmt.Errorf("pi: create session directory: %w", err)
+		}
 	}
-	sessionID, err := randomID()
+	selected, err := a.routerCatalogModel(ctx, modelID(modelName), key)
 	if err != nil {
 		cleanup()
 		return "", err
 	}
-	if err := writeConfig(filepath.Join(root, "agent", "models.json"), a.config.endpoint, modelID(model)); err != nil {
+	native, err := a.open(ctx, selected, workdir, agentDir, sessionDir, key)
+	if err != nil {
 		cleanup()
 		return "", err
 	}
-	s := &session{id: sessionID, nativeID: sessionID, model: model, workdir: workdir,
-		dir: filepath.Join(root, "agent"), sessionDir: filepath.Join(root, "sessions")}
-	if err := os.MkdirAll(s.sessionDir, 0700); err != nil {
-		cleanup()
-		return "", fmt.Errorf("pi: create native session directory: %w", err)
-	}
-	if err := s.start(ctx, a.config.command, key, false); err != nil {
+	sessionID, err := randomID()
+	if err != nil {
+		native.Dispose()
 		cleanup()
 		return "", err
+	}
+	s := &sessionState{
+		id: sessionID, nativeID: native.SessionID(), model: modelName,
+		workdir: workdir, root: root, session: native,
 	}
 	a.mu.Lock()
 	a.sessions[sessionID] = s
@@ -106,35 +120,109 @@ func (a *Adapter) CreateSession(ctx context.Context, model, effort, workdir stri
 	return sessionID, nil
 }
 
-func writeConfig(path, endpoint, id string) error {
-	entry := map[string]any{"id": id}
-	// These limits come from the Router's model list. New IDs use Pi's
-	// conservative defaults until their limits have been checked.
+// open builds one native session bound to the given directories.
+func (a *Adapter) open(ctx context.Context, selected *model.Model, workdir, agentDir, sessionDir, key string) (*session.Session, error) {
+	manager, err := history.Create(workdir, sessionDir, nil)
+	if err != nil {
+		return nil, fmt.Errorf("pi: create native session: %w", err)
+	}
+	result, err := session.Create(ctx, session.CreateOptions{
+		Cwd: workdir, AgentDir: agentDir,
+		SessionManager: manager,
+		Model:          selected,
+		StreamFn:       a.streamFn(key),
+		APIKey:         key,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("pi: create session: %w", err)
+	}
+	return result.Session, nil
+}
+
+// streamFn binds the adapter's key to every provider request while leaving
+// any caller-supplied options in place.
+func (a *Adapter) streamFn(key string) model.StreamFunction {
+	return func(ctx context.Context, m *model.Model, transcript model.TranscriptContext, options *model.SimpleStreamOptions) (model.AssistantMessageEventChannel, error) {
+		call := model.SimpleStreamOptions{}
+		if options != nil {
+			call = *options
+		}
+		if call.APIKey == "" {
+			call.APIKey = key
+		}
+		return openai.StreamSimple(ctx, m, transcript, &call)
+	}
+}
+
+// routerCatalogModel resolves one model id against the Diffusion Router's
+// authenticated /models catalog so the session uses the router's real context
+// and output limits, vision/reasoning flags, ThinkingLevelMap and Compat. An
+// id the router does not advertise keeps Pi's conservative built-in entry.
+func (a *Adapter) routerCatalogModel(ctx context.Context, id, key string) (*model.Model, error) {
+	catalogURL := strings.TrimRight(a.config.Endpoint, "/") + "/models"
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, catalogURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("pi: build model catalog request: %w", err)
+	}
+	request.Header.Set("Authorization", "Bearer "+key)
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		return nil, fmt.Errorf("pi: fetch model catalog: %w", err)
+	}
+	defer func() { _ = response.Body.Close() }()
+	if response.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("pi: fetch model catalog: %s", response.Status)
+	}
+	content, err := io.ReadAll(response.Body)
+	if err != nil {
+		return nil, fmt.Errorf("pi: read model catalog: %w", err)
+	}
+	catalog, err := config.ParseRouterCatalog(content, a.config.Endpoint)
+	if err != nil {
+		return nil, fmt.Errorf("pi: parse model catalog: %w", err)
+	}
+	if selected, ok := catalog.Get(id); ok {
+		return selected, nil
+	}
+	return defaultRouterModel(id, a.config.Endpoint), nil
+}
+
+// defaultRouterModel is the Pi entry for a router id the catalog does not
+// advertise. The limits match the ones Pi wrote into models.json before the
+// native port; new ids keep Pi's conservative defaults until their limits have
+// been checked.
+func defaultRouterModel(id, endpoint string) *model.Model {
+	m := &model.Model{
+		Type:     model.ModelTypeChat,
+		ID:       id,
+		Name:     id,
+		Api:      model.APIOpenAICompletions,
+		Provider: config.ProviderDiffusion,
+		BaseURL:  endpoint,
+	}
 	switch id {
 	case "deepseek-4.1-flash", "deepseek-4.1-flash-background":
-		entry["contextWindow"], entry["maxTokens"] = 1048576, 262144
+		m.ContextWindow, m.MaxTokens = 1048576, 262144
 	case "glm-5.3-flash", "glm-5.3-flash-background":
-		entry["contextWindow"], entry["maxTokens"] = 524288, 163840
+		m.ContextWindow, m.MaxTokens = 524288, 163840
 	case "glm-5.2-vision", "glm-5.2-vision-background", "glm-5.2-vision-flex",
 		"glm-5.3", "glm-5.3-background", "glm-5.3-vision", "glm-5.3-vision-background":
-		entry["contextWindow"], entry["maxTokens"] = 524288, 131072
+		m.ContextWindow, m.MaxTokens = 524288, 131072
 	}
-	if _, known := entry["contextWindow"]; known {
-		entry["input"] = []string{"text", "image"}
+	if m.ContextWindow > 0 {
+		m.Input = []string{"text", "image"}
 	}
-	data, err := json.Marshal(struct {
-		Providers map[string]any `json:"providers"`
-	}{map[string]any{provider: map[string]any{
-		"baseUrl": endpoint, "api": "openai-completions", "apiKey": "$DIFFUSION_API_KEY",
-		"models": []any{entry},
-	}}})
-	if err != nil {
-		return err
+	return m
+}
+
+func modelID(modelName string) string {
+	if before, after, found := strings.Cut(modelName, "/"); found {
+		if before == providerName {
+			return after
+		}
+		return modelName
 	}
-	if err := os.WriteFile(path, data, 0600); err != nil {
-		return fmt.Errorf("pi: write models config: %w", err)
-	}
-	return nil
+	return modelName
 }
 
 func randomID() (string, error) {
@@ -145,7 +233,7 @@ func randomID() (string, error) {
 	return hex.EncodeToString(raw[:]), nil
 }
 
-func (a *Adapter) session(id string) (*session, error) {
+func (a *Adapter) session(id string) (*sessionState, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	s := a.sessions[id]
@@ -155,6 +243,7 @@ func (a *Adapter) session(id string) (*session, error) {
 	return s, nil
 }
 
+// RunTurn runs one turn on the native session and blocks until it settles.
 func (a *Adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema json.RawMessage, onEvent func(gimbal.AgentEvent) error) (gimbal.TurnResult, error) {
 	s, err := a.session(sessionID)
 	if err != nil {
@@ -167,21 +256,12 @@ func (a *Adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema 
 		s.mu.Unlock()
 		return gimbal.TurnResult{}, fmt.Errorf("pi: session %q is closed", sessionID)
 	}
-	proc := s.proc
-	if proc == nil || proc.exited() {
-		if proc != nil {
-			proc.close()
-		}
-		if err := s.start(ctx, a.config.command, a.config.apiKey(), true); err != nil {
-			s.mu.Unlock()
-			return gimbal.TurnResult{}, err
-		}
-		proc = s.proc
-	}
+	native := s.session
 	s.mu.Unlock()
 	if err := ctx.Err(); err != nil {
 		return gimbal.TurnResult{}, err
 	}
+
 	message := prompt
 	if len(schema) > 0 {
 		var parsed any
@@ -191,52 +271,40 @@ func (a *Adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema 
 		raw, _ := json.MarshalIndent(parsed, "", "  ")
 		message += "\n\nReturn one JSON value matching this JSON Schema. Do not wrap it in Markdown fences.\n" + string(raw)
 	}
-	run := newTurn(sessionID, s.model, onEvent)
+
+	run := newTurn(sessionID, modelID(s.model), onEvent)
 	s.mu.Lock()
 	s.active = run
 	s.mu.Unlock()
-	proc.setTurn(run)
-	response, err := proc.command(ctx, map[string]any{"type": "prompt", "message": message})
-	if err != nil {
-		proc.setTurn(nil)
-		if ctx.Err() != nil {
-			a.cancelTurn(s, proc, run)
-			return gimbal.TurnResult{}, ctx.Err()
-		}
-		s.clearActive(run)
-		return gimbal.TurnResult{}, fmt.Errorf("pi: prompt: %w", err)
+	unsubscribe := native.Subscribe(run.record)
+	promptErr := native.Prompt(ctx, message, nil)
+	unsubscribe()
+	// A steer accepted at the settlement boundary must not spill into the
+	// next turn; the native session drains its queues here.
+	native.ClearQueue()
+	s.mu.Lock()
+	if s.active == run {
+		s.active = nil
 	}
-	if !response.Success {
-		proc.setTurn(nil)
-		s.clearActive(run)
-		return gimbal.TurnResult{}, fmt.Errorf("pi: prompt rejected: %s", response.Error)
-	}
-	select {
-	case <-run.settled:
-	case <-ctx.Done():
-		a.cancelTurn(s, proc, run)
+	s.mu.Unlock()
+
+	if ctx.Err() != nil {
 		return gimbal.TurnResult{}, ctx.Err()
-	case <-proc.done:
-		select {
-		case <-run.settled:
-			break
-		default:
-			s.clearActive(run)
-			return gimbal.TurnResult{}, fmt.Errorf("pi: child exited before agent_settled: %w", proc.waitError())
-		}
 	}
-	proc.setTurn(nil)
-	s.finishTurn(proc, run)
+	if promptErr != nil {
+		return gimbal.TurnResult{}, fmt.Errorf("pi: prompt: %w", promptErr)
+	}
 	if run.err != nil {
 		return gimbal.TurnResult{}, run.err
 	}
-	if run.final == nil {
+	final := run.finalMessage()
+	if final == nil {
 		return gimbal.TurnResult{}, errors.New("pi: agent_settled without a final assistant message")
 	}
-	if run.final.Error != "" || run.final.StopReason == "error" {
-		return gimbal.TurnResult{}, fmt.Errorf("pi: provider error: %s", run.final.Error)
+	if final.ErrorMessage != "" || final.StopReason == model.StopError {
+		return gimbal.TurnResult{}, fmt.Errorf("pi: provider error: %s", final.ErrorMessage)
 	}
-	text := assistantText(run.final.Content)
+	text := strings.TrimSpace(model.ContentText(final.Content))
 	if text == "" {
 		return gimbal.TurnResult{}, errors.New("pi: final assistant message has no text output")
 	}
@@ -249,17 +317,7 @@ func (a *Adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema 
 			return gimbal.TurnResult{}, errors.New("pi: final assistant output does not contain valid JSON")
 		}
 	}
-	return gimbal.TurnResult{Output: output, Usage: run.usage}, nil
-}
-
-func assistantText(content []contentBlock) string {
-	var b strings.Builder
-	for _, block := range content {
-		if block.Type == "text" {
-			b.WriteString(block.Text)
-		}
-	}
-	return strings.TrimSpace(b.String())
+	return gimbal.TurnResult{Output: output, Usage: run.usageReport()}, nil
 }
 
 func extractJSON(text string) string {
@@ -282,34 +340,8 @@ func extractJSON(text string) string {
 	return text
 }
 
-func (s *session) clearActive(run *turn) {
-	s.steerMu.Lock()
-	s.mu.Lock()
-	if s.active == run {
-		s.active = nil
-	}
-	s.mu.Unlock()
-	s.steerMu.Unlock()
-}
-
-func (s *session) finishTurn(proc *process, run *turn) {
-	s.steerMu.Lock()
-	// Pi can settle before a concurrently accepted steer is drained. Clear the
-	// native queue at this boundary so no message can spill into the next turn.
-	cleanup, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	answer, err := proc.command(cleanup, map[string]any{"type": "clear_queue"})
-	cancel()
-	if err != nil || !answer.Success {
-		s.discardProcess(proc)
-	}
-	s.mu.Lock()
-	if s.active == run {
-		s.active = nil
-	}
-	s.mu.Unlock()
-	s.steerMu.Unlock()
-}
-
+// Steer sends a message into the session's running turn and reports whether
+// it was consumed by that turn.
 func (a *Adapter) Steer(ctx context.Context, sessionID, message string) (bool, error) {
 	s, err := a.session(sessionID)
 	if err != nil {
@@ -318,58 +350,36 @@ func (a *Adapter) Steer(ctx context.Context, sessionID, message string) (bool, e
 	s.steerMu.Lock()
 	defer s.steerMu.Unlock()
 	s.mu.Lock()
-	run, proc := s.active, s.proc
-	closed := s.closed
-	s.mu.Unlock()
-	if closed {
+	if s.closed {
+		s.mu.Unlock()
 		return false, fmt.Errorf("pi: session %q is closed", sessionID)
 	}
-	if run == nil || proc == nil || proc.exited() {
+	run, native := s.active, s.session
+	s.mu.Unlock()
+	if run == nil || !native.IsStreaming() {
 		return false, nil
 	}
-	select {
-	case <-run.settled:
-		return false, nil
-	default:
-	}
-	answer, err := proc.command(ctx, map[string]any{"type": "steer", "message": message})
-	if err != nil {
-		select {
-		case <-run.settled:
-			return false, nil
-		default:
-		}
+	waiter := &steerWaiter{text: message, delivered: make(chan struct{})}
+	run.addWaiter(waiter)
+	defer run.removeWaiter(waiter)
+	if err := native.Steer(message); err != nil {
 		if ctx.Err() != nil {
 			return false, ctx.Err()
 		}
 		return false, fmt.Errorf("pi: steer: %w", err)
 	}
-	if !answer.Success {
-		return false, nil
-	}
 	select {
-	case <-run.settled:
-		cleanup, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		answer, clearErr := proc.command(cleanup, map[string]any{"type": "clear_queue"})
-		cancel()
-		if clearErr != nil || !answer.Success {
-			s.discardProcess(proc)
-		}
-		return false, nil
-	default:
+	case <-waiter.delivered:
 		return true, nil
+	case <-run.settled:
+		return false, nil
+	case <-ctx.Done():
+		return false, ctx.Err()
 	}
 }
 
-func (s *session) discardProcess(proc *process) {
-	proc.close()
-	s.mu.Lock()
-	if s.proc == proc {
-		s.proc = nil
-	}
-	s.mu.Unlock()
-}
-
+// Fork returns a new native session with an independent deep snapshot of the
+// conversation so far.
 func (a *Adapter) Fork(ctx context.Context, sessionID string) (string, error) {
 	parent, err := a.session(sessionID)
 	if err != nil {
@@ -382,145 +392,29 @@ func (a *Adapter) Fork(ctx context.Context, sessionID string) (string, error) {
 		parent.mu.Unlock()
 		return "", fmt.Errorf("pi: session %q is closed", sessionID)
 	}
-	proc := parent.proc
+	native := parent.session
 	parent.mu.Unlock()
-	if proc == nil || proc.exited() {
-		return "", errors.New("pi: cannot fork an unavailable session")
-	}
-	state, err := proc.command(ctx, map[string]any{"type": "get_state"})
-	if err != nil || !state.Success {
-		if err == nil {
-			err = fmt.Errorf("get_state rejected: %s", state.Error)
-		}
-		return "", fmt.Errorf("pi: read parent state: %w", err)
-	}
-	var native struct {
-		SessionFile string `json:"sessionFile"`
-		SessionID   string `json:"sessionId"`
-	}
-	if err := json.Unmarshal(state.Data, &native); err != nil || native.SessionFile == "" || native.SessionID == "" {
-		return "", errors.New("pi: parent state did not include native session identity")
+
+	child, err := native.Fork(ctx)
+	if err != nil {
+		return "", fmt.Errorf("pi: fork session: %w", err)
 	}
 	childID, err := randomID()
 	if err != nil {
+		child.Dispose()
 		return "", err
 	}
-	root, err := os.MkdirTemp("", "gimbal-pi-fork-")
-	if err != nil {
-		return "", fmt.Errorf("pi: create fork directory: %w", err)
+	s := &sessionState{
+		id: childID, nativeID: child.SessionID(), model: parent.model,
+		workdir: parent.workdir, session: child,
 	}
-	cleanup := func() { _ = os.RemoveAll(root) }
-	dir := filepath.Join(root, "agent")
-	childSessionDir := filepath.Join(root, "sessions")
-	if err := os.MkdirAll(dir, 0700); err != nil {
-		cleanup()
-		return "", fmt.Errorf("pi: create fork agent directory: %w", err)
-	}
-	if err := os.MkdirAll(childSessionDir, 0700); err != nil {
-		cleanup()
-		return "", fmt.Errorf("pi: create fork session directory: %w", err)
-	}
-	if err := writeConfig(filepath.Join(dir, "models.json"), a.config.endpoint, modelID(parent.model)); err != nil {
-		cleanup()
-		return "", err
-	}
-	copyPath := filepath.Join(childSessionDir, filepath.Base(native.SessionFile))
-	if err := copyFile(native.SessionFile, copyPath); err != nil {
-		cleanup()
-		return "", fmt.Errorf("pi: copy native session for fork: %w", err)
-	}
-	child := &session{id: childID, nativeID: native.SessionID, model: parent.model, workdir: parent.workdir, dir: dir, sessionDir: childSessionDir}
-	if err := child.start(ctx, a.config.command, a.config.apiKey(), true); err != nil {
-		cleanup()
-		return "", err
-	}
-	cloned, err := child.proc.command(ctx, map[string]any{"type": "clone"})
-	if err != nil || !cloned.Success {
-		child.proc.close()
-		cleanup()
-		if err == nil {
-			err = fmt.Errorf("clone rejected: %s", cloned.Error)
-		}
-		return "", fmt.Errorf("pi: clone parent conversation: %w", err)
-	}
-	if len(cloned.Data) > 0 {
-		var result struct {
-			Cancelled bool `json:"cancelled"`
-		}
-		_ = json.Unmarshal(cloned.Data, &result)
-		if result.Cancelled {
-			child.proc.close()
-			cleanup()
-			return "", errors.New("pi: clone was cancelled")
-		}
-	}
-	clonedState, err := child.proc.command(ctx, map[string]any{"type": "get_state"})
-	if err != nil || !clonedState.Success {
-		child.proc.close()
-		cleanup()
-		if err == nil {
-			err = fmt.Errorf("get_state rejected: %s", clonedState.Error)
-		}
-		return "", fmt.Errorf("pi: inspect cloned session: %w", err)
-	}
-	var childNative struct {
-		SessionID string `json:"sessionId"`
-	}
-	if err := json.Unmarshal(clonedState.Data, &childNative); err != nil || childNative.SessionID == "" {
-		child.proc.close()
-		cleanup()
-		return "", errors.New("pi: cloned state did not include native session identity")
-	}
-	child.nativeID = childNative.SessionID
 	a.mu.Lock()
-	a.sessions[childID] = child
+	a.sessions[childID] = s
 	a.mu.Unlock()
 	return childID, nil
 }
 
-func copyFile(from, to string) error {
-	input, err := os.Open(from)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = input.Close() }()
-	output, err := os.OpenFile(to, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
-	if err != nil {
-		return err
-	}
-	if _, err := io.Copy(output, input); err != nil {
-		_ = output.Close()
-		return err
-	}
-	return output.Close()
-}
-
-func (a *Adapter) cancelTurn(s *session, proc *process, run *turn) {
-	s.steerMu.Lock()
-	defer s.steerMu.Unlock()
-	cleanup, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	clear, clearErr := proc.command(cleanup, map[string]any{"type": "clear_queue"})
-	abort, abortErr := proc.command(cleanup, map[string]any{"type": "abort"})
-	settled := false
-	if clearErr == nil && clear.Success && abortErr == nil && abort.Success {
-		select {
-		case <-run.settled:
-			settled = true
-		case <-cleanup.Done():
-		}
-	}
-	cancel()
-	proc.setTurn(nil)
-	if clearErr != nil || !clear.Success || abortErr != nil || !abort.Success || !settled {
-		s.discardProcess(proc)
-	}
-	s.mu.Lock()
-	if s.active == run {
-		s.active = nil
-	}
-	s.mu.Unlock()
-}
-
+// Close releases the session. It is idempotent.
 func (a *Adapter) Close(ctx context.Context, sessionID string) error {
 	a.mu.Lock()
 	s := a.sessions[sessionID]
@@ -531,13 +425,15 @@ func (a *Adapter) Close(ctx context.Context, sessionID string) error {
 	}
 	s.mu.Lock()
 	s.closed = true
-	proc := s.proc
+	native := s.session
 	s.mu.Unlock()
-	if proc != nil {
-		proc.close()
+	if native != nil {
+		native.Dispose()
 	}
-	if err := os.RemoveAll(filepath.Dir(s.dir)); err != nil && ctx.Err() == nil {
-		return fmt.Errorf("pi: remove owned session directory: %w", err)
+	if s.root != "" {
+		if err := os.RemoveAll(s.root); err != nil && ctx.Err() == nil {
+			return fmt.Errorf("pi: remove owned session directory: %w", err)
+		}
 	}
 	return nil
 }

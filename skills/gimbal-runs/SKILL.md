@@ -71,8 +71,11 @@ curl -fsS https://router.diffusion.io/v1/models \
 ```
 
 Prefix a chosen open-weight ID with `pi/diffusion/` on a workflow role flag or
-`gimbal run-prompt --model`, for example `pi/diffusion/glm-5.3-flash`.
-Gimbal does not require models.dev to route these models.
+`gimbal run-prompt --model`, for example `pi/diffusion/deepseek-4.1-flash-background`.
+Gimbal does not require models.dev to route these models. Set
+`DIFFUSION_API_KEY` in the server environment. The Pi harness runs natively
+in the Gimbal process; it does not require a separate Pi, Bun, or Node
+installation. Shell tools still launch child commands.
 
 Another useful profile spends frontier capability on planning, then assigns
 low-risk, reversible, independently checkable background work to Terra or

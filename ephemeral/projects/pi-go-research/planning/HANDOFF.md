@@ -1,5 +1,7 @@
 # Handoff: start here
 
+**Recovery review:** read [RECOVERY-REVIEW.md](RECOVERY-REVIEW.md) for the source-checked corrections and current model qualification. The original branch history is preserved; the recovery worktree is `/Users/tyler/src/gimbal-pi-recovery` on `codex/pi-port-recovery`.
+
 Written 2026-09-25 by a Claude session that ran from the wrong repository
 (skgo-project) and handed the job to a fresh session in this worktree.
 Read [REQUIREMENTS.md](REQUIREMENTS.md) first: it is Tyler's direction and
@@ -11,38 +13,24 @@ overrides PLAN.md where they differ. Then read this file, then
 - Branch `codex/pi-go-research`, rebased onto `main` at `6dc64f83` (includes
   the Pi RPC harness from #392 and model discovery docs from #393). Pushed.
 - Nothing implemented yet. No workflow written yet.
-- ChatGPT/Codex is unusable on Tyler's Mac (server-side 401 naming an
-  `sk-svcacct` key; OpenAI's problem, not local config). No Codex roles.
-- Tyler will paste a temporary `DIFFUSION_API_KEY`. Keep it out of the
-  repository. He deletes it at the end of the day.
+- The earlier OpenAI outage has ended according to Tyler; the original outage diagnosis was not independently verified. The primary coordinator is back. Keep the intended Pi coders and Sonnet workflow review roles.
+- Tyler supplied a temporary Router key for this work. It is kept outside the repository in a mode-0600 local file. Never put its value into handoffs, logs or tracked files.
 - The untracked `corpus/` folders and `.gimbal/` run state in this worktree
   are not needed and are not to be committed.
 
 ## Coder model (research, 2026-09-25)
 
-The Router's catalog is not public: `GET https://router.diffusion.io/v1/models`
-without a key returns 401 / "request unavailable", and diffusion.io publishes
-no catalog. **First action once the key arrives:** list chat+tools models
-(command in `docs-site/src/routes/docs/harnesses/+page.svx`) and record the
-real IDs here. Tyler expects more than the IDs `pi/adapter.go` hardcodes,
-including a non-flash DeepSeek if one exists. Check for Kimi and Qwen too.
+Authenticated catalog checked during recovery: chat+tools includes `glm-5.3`,
+`glm-5.3-flash`, `glm-5.3-vision`, `glm-5.2-vision`,
+`deepseek-4.1-flash` and their advertised service variants. This key exposes
+no Kimi, Qwen chat model or non-Flash DeepSeek. Catalog limits and
+`client_compat.pi` are runtime facts, not inferred from Gimbal's hardcoded IDs.
 
-IDs known locally (context windows in `pi/adapter.go`): `deepseek-4.1-flash`
-(1M), `glm-5.3-flash`, `glm-5.3`, `glm-5.3-vision`, `glm-5.2-vision`
-(524K), each with `-background` variants. Only `deepseek-4.1-flash` has been
-exercised through Pi.
-
-Public 2026 evidence (mostly vendor-reported, not reproduced under one
-harness): GLM-5.3 is rated the top open-weight coder on several boards
-(FrontierSWE 78.1, Terminal-Bench 3.0 open-source best, Vals 95.4%).
-DeepSeek V4.1 Flash scores 90.6% on Terminal-Bench 2.1 and is very cheap.
-Kimi K3 is strong but reported to drop reasoning content across tool calls in
-long loops. Qwen3.8 ranks lower. Public V4.1 is flash-only; "V4 Pro" is the
-previous generation.
-
-Default: `glm-5.3` as primary coder, `deepseek-4.1-flash` as the cheap
-fallback, unless the live catalog shows something stronger. Confirm with one
-head-to-head on a real module before fanning out.
+GLM-5.3 and DeepSeek V4.1 Flash are credible candidates from their vendors'
+primary publications, but those benchmarks do not rank this Pi/Router setup.
+A same-module comparison through the merged Gimbal Pi harness is in progress;
+see RECOVERY-REVIEW.md for the observed outcome. Do not treat the old unsourced
+benchmark numbers as acceptance evidence or choose by a name containing Flash.
 
 ## Tyler's working expectations
 
@@ -84,18 +72,26 @@ Router request facts from `openai-completions.ts`: `baseURL` comes from the
 provider config; `stream_options.include_usage = true`; `store = false`;
 `max_completion_tokens` (not `max_tokens`) for an unknown host such as
 `router.diffusion.io`; `reasoning_effort` via the generic OpenAI-style branch;
-no host-specific quirks apply to the Router. Gimbal's current `pi/adapter.go`
+that is the generic source default, not the Router compatibility contract.
+The authenticated Router catalog explicitly supplies `client_compat.pi`,
+including `maxTokensField: max_tokens`, model-specific thinking formats and
+level mappings. The native port must apply those verified model settings.
+Gimbal's current `pi/adapter.go`
 writes exactly that provider shape and runs Node Pi over RPC; the Go port
 replaces that adapter.
 
-Upstream tests for the slice run offline with in-process fakes (no keys):
+The following are source test anchors, not verified offline coverage counts.
+In particular, `L/test/abort.test.ts` resolves credentials and calls live
+providers; many cases skip without keys. Translate its relevant behavior to
+controlled local streams for repeatable Go tests, and report actual executed
+versus skipped reference cases:
 
 | Test | Cases |
 |---|---|
 | `A/test/agent.test.ts` | 30 |
 | `A/test/agent-loop.test.ts` | 31 |
 | `L/test/openai-completions-retry.test.ts` | 3 |
-| `L/test/abort.test.ts` | 39 (local mock servers) |
+| `L/test/abort.test.ts` | credential-gated live provider cases; not local mocks |
 | `C/test/tools.test.ts` | 82 |
 | `C/test/path-utils.test.ts` | 13 |
 | `C/test/file-mutation-queue.test.ts` | 7 |
@@ -135,7 +131,8 @@ Keep every MODULES.md assignment except those Tyler cut:
 | 20 | integration | keep: `go.mod`, notices, cutover from the #392 RPC adapter, `cmd/pigo/` temporary CLI |
 
 That leaves 16 assignments. Waves follow PLAN.md: 01 and 19 first. Then 02,
-09, 14 and 16. Then 03, 08, 10, 11, 12, 13 and 15 in parallel. Then 17, 18
+09, 14 and 16. Then 03, 08, 10, 11, 12 and 15 in parallel; 13 follows its configuration
+dependency 08. Then 17, 18
 and 20.
 
 ## Needed support files (audit, 2026-09-25)
@@ -152,7 +149,7 @@ its report. It does not stub it.
 |---|---|---|
 | 01 | `C/src/core/defaults.ts`; `L/src/utils/text.ts`, `uuid.ts`; from `C/src/core/extensions/types.ts` only the shared types `ToolDefinition`, `ContextUsage` and the event payload types the session emits; type `SlashCommandInfo` from `slash-commands.ts` | default thinking level; `contentText`; `uuidv7` entry IDs; tools 10–12 return `ToolDefinition`, so it must exist before them |
 | 02 | `L/src/utils/event-stream.ts`, `retry.ts`, `abort.ts`, `error-body.ts`, `headers.ts`, `sanitize-unicode.ts`, `assistant-message-frame.ts`; `L/src/api/simple-options.ts` | the stream type every provider returns, `retryAssistantCall` and `isRetryableAssistantError` used by the session, request header and error handling |
-| 03 | `streamSimple`, `completeSimple`, `getModel` and `resetApiProviders` from `L/src/compat.ts`, dispatching only `openai-completions` | the session and compaction call these. Any other API name returns a clear "not available" error. No lazy-loader layer |
+| 03 | The stream/complete behavior used from `L/src/compat.ts`, limited to Chat Completions | Inject the Router provider explicitly. Do not reproduce the deprecated process-global registry or `resetApiProviders`: a reset by one embedded session must not change another. Model lookup belongs to 08 |
 | 08 | `C/src/core/model-registry.ts`, `model-resolver.ts` (`findInitialModel`), `provider-attribution.ts`, `auth-guidance.ts`, `settings-diagnostics.ts`, `C/src/config.ts` (agent and sessions directories, app name); `L/src/env-api-keys.ts`; `L/src/models.ts` (`clampThinkingLevel`, `getSupportedThinkingLevels`, `modelsAreEqual`, `calculateCost`) ; the settings half of `C/src/core/http-dispatcher.ts` (`httpIdleTimeout`, default 300 s, and `httpProxy`), which 03 applies to its `http.Client` | model selection, API key lookup such as `$DIFFUSION_API_KEY`, cost in usage events, where sessions and settings live |
 | 09 | `C/src/utils/paths.ts`, `sleep.ts` | path normalization used by settings, templates and history; retry backoff |
 | 12 | `C/src/core/bash-executor.ts` | the session's own bash execution path (`executeBashWithOperations`), separate from the bash tool |
@@ -232,9 +229,10 @@ all ready modules at once under a `Group`, then serial integration.
 - **Every role in `implement` defaults to Codex.** Override all of them. Pi
   rejects an effort suffix, so write `pi/diffusion/glm-5.3`, not
   `pi/diffusion/glm-5.3:high`.
-- **One shared work dir is fine for the fan-out** because each module owns a
-  separate package subtree. Each module's check must test only its own
-  package (`go test ./internal/pi/<pkg>/...`), not `./...`.
+- **Give each parallel worker an isolated worktree at the accepted baseline.**
+  Exclusive package ownership alone does not isolate build dependencies or Git
+  state. Run package checks in that worktree; integrate accepted commits
+  serially and run integrated checks before dependent workers start.
 - **Module 18 implements** `HarnessAdapter` in `harness.go`:
   `CreateSession`, `RunTurn`, `Steer`, `Fork`, `Close`. Native events need a
   `sessionID` in `Data` and `provider` in `NativeRef`. Cutover touches

@@ -10,6 +10,7 @@
 	import './researchdocument_start.remote';
 	import './pyramidsummary_start.remote';
 	import './validateproduct_start.remote';
+	import './piport_start.remote';
 
 	let { children } = $props();
 	const project = $derived(page.params.project);

@@ -44,11 +44,14 @@ the design.
   translated tests, the better.
 - **Where upstream has no test,** prove behavior by running the Go harness
   and the TypeScript Pi CLI repeatedly on the same prompts through the
-  Diffusion Router and comparing results.
+  Diffusion Router and comparing results. Supplement these live smoke tests with deterministic
+comparisons wherever possible: identical inputs and scripted provider/tool
+responses against the pinned TypeScript functions and the Go port. Different
+live model outputs alone neither prove nor disprove a port defect.
 
 ## Who does what
 
-- **Top-level session (Claude, this worktree):** owns the workflow, makes sure
+- **Top-level coordinating session:** owns the workflow, makes sure
   it runs the module assignments in parallel, integrates, and is personally
   responsible for the result actually working. Final acceptance is what this
   session observes, not what workers report.
@@ -57,7 +60,7 @@ the design.
   model from the Router's actual catalog and current public coding
   evidence. Tyler does not choose it.
 - **Planning and review, where needed:** Claude Sonnet.
-- **No Codex or ChatGPT roles** until OpenAI fixes the account.
+- The original **no Codex/ChatGPT roles** instruction applied during the outage. Tyler has now resumed this coordinating session. Pi coders and Sonnet planning/review remain the delivery configuration.
 
 ## Temporary CLI
 

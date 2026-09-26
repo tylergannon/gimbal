@@ -5,16 +5,16 @@ multi-agent workflows: write the workflow as a plain Go function, and Gimbal
 gives it scoped context, planner loops, supervision, and a live console, on
 Codex, Claude Code, Antigravity, OpenCode, or your own harness.
 
-[![The Gimbal console showing a planner loop with a watched coding turn](docs-site/static/shots/console.png)](https://tylergannon.github.io/gimbal/)
+[![The Gimbal console showing a planner loop with a watched coding turn](https://gimbal-view.fly.dev/shots/console.png)](https://gimbal-view.fly.dev/)
 
-- **[Live multi-agent console](https://tylergannon.github.io/gimbal/docs/console/)** — watch every scope, turn, and command on one map; steer an agent, answer its questions, or stop it.
-- **[Workflows that read like pseudocode](https://tylergannon.github.io/gimbal/docs/workflows/)** — the whole process is one Go function, with prompts visible at the call site.
-- **[Primitives for agent work](https://tylergannon.github.io/gimbal/docs/primitives/)** — scoped context delivery, promise loops, supervision, and a graph read from your source.
-- **[Curated roles, bound to models](https://tylergannon.github.io/gimbal/docs/roles/)** — workflows name kinds of cognitive work; a run binds each to a harness, model, and effort.
-- **[Built-in workflows](https://tylergannon.github.io/gimbal/docs/built-in/)** — `implement`, `review`, `research-document`, and `pyramid-summary` from the command line.
-- **[Any harness](https://tylergannon.github.io/gimbal/docs/harnesses/)** — Codex, Claude Code, Antigravity, and OpenCode adapters ship in the box; five methods add another.
+- **[Live multi-agent console](https://gimbal-view.fly.dev/docs/console/)** — watch every scope, turn, and command on one map; steer an agent, answer its questions, or stop it.
+- **[Workflows that read like pseudocode](https://gimbal-view.fly.dev/docs/workflows/)** — the whole process is one Go function, with prompts visible at the call site.
+- **[Primitives for agent work](https://gimbal-view.fly.dev/docs/primitives/)** — scoped context delivery, promise loops, supervision, and a graph read from your source.
+- **[Curated roles, bound to models](https://gimbal-view.fly.dev/docs/roles/)** — workflows name kinds of cognitive work; a run binds each to a harness, model, and effort.
+- **[Built-in workflows](https://gimbal-view.fly.dev/docs/built-in/)** — `implement`, `review`, `research-document`, and `pyramid-summary` from the command line.
+- **[Any harness](https://gimbal-view.fly.dev/docs/harnesses/)** — Codex, Claude Code, Antigravity, and OpenCode adapters ship in the box; five methods add another.
 
-Start with the [quickstart](https://tylergannon.github.io/gimbal/docs/quickstart/).
+Start with the [quickstart](https://gimbal-view.fly.dev/docs/quickstart/).
 The public programming contract is the root package's Godoc and compiling
 examples:
 

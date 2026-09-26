@@ -61,7 +61,7 @@ import (
 	"github.com/tylergannon/gimbal"
 )
 
-//go:generate go run github.com/tylergannon/gimbal/internal/generate/gimbalgen -entry ValidateProduct -name validate-product -mermaid ../../../docs-site/src/lib/generated/workflows/validate-product.mmd
+//go:generate go run github.com/tylergannon/gimbal/internal/generate/gimbalgen -entry ValidateProduct -name validate-product
 
 type Params struct {
 	// SuiteFile names the JSON/YAML product, local workload assignments, and issue repository.

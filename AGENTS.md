@@ -82,6 +82,7 @@ source, and prompts are plain English: "Read and implement the issue in
   in `web/src/routes/*.remote.go`, `web/server.go` is the one `NewHandler`
   the binary and the tests share, `generated/` is written by `go generate
   ./...` and never by hand, `cmd/gimbal/` is the binary. `just build` builds all
-  of it. `docs-site/` is the fully prerendered SvelteKit documentation site.
+  of it. The documentation and project readout live in
+  [Gimbal View](https://github.com/tylergannon/gimbal-view).
   The page's Go imports `gimbal`, so `gimbal` never imports the page; that is
   why `Serve` is in package `web`.

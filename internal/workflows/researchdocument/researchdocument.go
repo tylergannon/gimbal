@@ -46,7 +46,7 @@ import (
 )
 
 //go:generate go tool polytype --validate
-//go:generate go run github.com/tylergannon/gimbal/internal/generate/gimbalgen -entry ResearchDocument -name research-document -mermaid ../../../docs-site/src/lib/generated/workflows/research-document.mmd
+//go:generate go run github.com/tylergannon/gimbal/internal/generate/gimbalgen -entry ResearchDocument -name research-document
 
 const (
 	roleResearchPlanning    gimbal.WorkflowRole = "research-planning"

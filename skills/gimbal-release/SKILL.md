@@ -148,8 +148,8 @@ unrelated local configuration. Report when a new session is needed to load
 updated instructions.
 
 Local release needs no binary signing or scalable distribution system. The
-docs-site CI and scheduled model-catalog PR have their own scope; they do not
-imply a general CLI publishing pipeline.
+documentation site is maintained in Gimbal View. The scheduled model-catalog
+PR has its own scope; it does not imply a general CLI publishing pipeline.
 
 ## Report delivery
 

@@ -76,6 +76,7 @@ func TestPromptAfterPreviousCompletes(t *testing.T) {
 // controllableStream waits for release before finishing the first call and
 // records the transcript of the second.
 type controllableStream struct {
+	started    chan struct{}
 	release    chan struct{}
 	secondSeen chan string
 	mu         sync.Mutex
@@ -90,6 +91,9 @@ func (c *controllableStream) fn() model.StreamFunction {
 		c.mu.Unlock()
 		stream := wire.NewAssistantMessageEventStream()
 		if call == 1 {
+			if c.started != nil {
+				close(c.started)
+			}
 			stream.Push(model.AssistantMessageEvent{Type: model.EventStart, Partial: testAssistant("", model.StopPending)})
 			go func() {
 				select {
@@ -121,12 +125,16 @@ func (c *controllableStream) fn() model.StreamFunction {
 }
 
 func TestSteerIsDeliveredToNextModelCall(t *testing.T) {
-	control := &controllableStream{release: make(chan struct{}), secondSeen: make(chan string, 1)}
+	control := &controllableStream{started: make(chan struct{}), release: make(chan struct{}), secondSeen: make(chan string, 1)}
 	session := newTestSession(t, testSessionOptions{stream: control.fn()})
 
 	done := make(chan error, 1)
 	go func() { done <- session.Prompt(context.Background(), "First message", nil) }()
-	waitFor(t, session.IsStreaming)
+	select {
+	case <-control.started:
+	case <-time.After(3 * time.Second):
+		t.Fatal("first model call did not start")
+	}
 	if err := session.Steer("Steering message"); err != nil {
 		t.Fatalf("steer: %v", err)
 	}

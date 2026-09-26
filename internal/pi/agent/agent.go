@@ -188,6 +188,30 @@ func (a *Agent) State() model.AgentState {
 	return state
 }
 
+// Options returns the runtime configuration this agent was constructed with:
+// the provider stream, request options, API-key callback and hooks. Initial
+// state is not included, so a caller building an independent agent supplies
+// its own. Queues and conversation state are not shared.
+func (a *Agent) Options() AgentOptions {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return AgentOptions{
+		ConvertToLlm:        a.convertToLlm,
+		TransformContext:    a.transformContext,
+		StreamFn:            a.streamFn,
+		GetApiKey:           a.getApiKey,
+		SimpleStreamOptions: a.simpleOptions,
+		BeforeToolCall:      a.beforeToolCall,
+		AfterToolCall:       a.afterToolCall,
+		FinishTurn:          a.finishTurn,
+		PrepareRequest:      a.prepareRequest,
+		PrepareNextTurn:     a.prepareNextTurn,
+		SteeringMode:        a.steeringQueue.mode,
+		FollowUpMode:        a.followUpQueue.mode,
+		ToolExecution:       a.toolExecution,
+	}
+}
+
 // SetModel sets the active model for future turns.
 func (a *Agent) SetModel(m *model.Model) { a.mu.Lock(); a.state.Model = m; a.mu.Unlock() }
 

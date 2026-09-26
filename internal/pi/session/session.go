@@ -847,6 +847,9 @@ func (s *Session) handlePostAgentRun(ctx context.Context) (bool, error) {
 // forwards events.
 func (s *Session) handleAgentEvent(ctx context.Context, event model.AgentEvent) error {
 	if event.Type == model.EvMessageStart && event.Message != nil && event.Message.MessageRole() == model.RoleUser {
+		s.mu.Lock()
+		s.overflowAttempted = false
+		s.mu.Unlock()
 		s.clearDeliveredQueueEntry(event.Message)
 	}
 

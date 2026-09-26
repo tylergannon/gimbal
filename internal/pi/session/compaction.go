@@ -296,7 +296,7 @@ func (s *Session) Compact(ctx context.Context, customInstructions string) (*comp
 	preparation, ok := compact.PrepareCompaction(pathEntries, settings)
 	if !ok {
 		var err error
-		if last := pathEntries[len(pathEntries)-1]; last != nil && last.EntryType() == "compaction" {
+		if len(pathEntries) > 0 && pathEntries[len(pathEntries)-1] != nil && pathEntries[len(pathEntries)-1].EntryType() == "compaction" {
 			err = errors.New("Already compacted") //nolint:staticcheck // pi's exact error message
 		} else {
 			err = errors.New("Nothing to compact (session too small)") //nolint:staticcheck // pi's exact error message

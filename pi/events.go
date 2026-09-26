@@ -3,117 +3,164 @@ package pi
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
+	"slices"
 	"sync"
 
 	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/internal/pi/model"
+	"github.com/tylergannon/gimbal/internal/pi/session"
 )
 
+// turn projects one native run's events into Gimbal agent events and records
+// the final assistant message and normalized usage.
 type turn struct {
 	mu      sync.Mutex
 	session string
 	model   string
 	emit    func(gimbal.AgentEvent) error
-	settled chan struct{}
-	final   *assistantMessage
-	usage   map[string]gimbal.Usage
-	err     error
-	closed  bool
+
+	settled     chan struct{}
+	settledOnce sync.Once
+	final       *model.AssistantMessage
+	usage       map[string]gimbal.Usage
+	err         error
+	waiters     []*steerWaiter
 }
 
-type assistantMessage struct {
-	Role       string         `json:"role"`
-	Content    []contentBlock `json:"content"`
-	StopReason string         `json:"stopReason"`
-	Error      string         `json:"errorMessage"`
-	Provider   string         `json:"provider"`
-	Model      string         `json:"model"`
-	Usage      piUsage        `json:"usage"`
+// steerWaiter is one Steer call waiting for its message to be consumed.
+type steerWaiter struct {
+	text      string
+	delivered chan struct{}
+	once      sync.Once
 }
 
-type contentBlock struct {
-	Type string          `json:"type"`
-	Text string          `json:"text"`
-	ID   string          `json:"id"`
-	Name string          `json:"name"`
-	Args json.RawMessage `json:"arguments"`
+func newTurn(sessionID, modelName string, emit func(gimbal.AgentEvent) error) *turn {
+	return &turn{
+		session: sessionID,
+		model:   modelName,
+		emit:    emit,
+		settled: make(chan struct{}),
+		usage:   map[string]gimbal.Usage{},
+	}
 }
 
-type piUsage struct {
-	Input      float64 `json:"input"`
-	Output     float64 `json:"output"`
-	CacheRead  float64 `json:"cacheRead"`
-	CacheWrite float64 `json:"cacheWrite"`
-	Cost       struct {
-		Total float64 `json:"total"`
-	} `json:"cost"`
+// record consumes one session event. It always returns nil: an observer
+// failure never aborts the native run.
+func (t *turn) record(event session.Event) error {
+	switch event.Type {
+	case session.EventAgentSettled:
+		t.mu.Lock()
+		t.settledOnce.Do(func() { close(t.settled) })
+		t.mu.Unlock()
+		return nil
+	case session.EventQueueUpdate:
+		t.deliverQueued(event.Steering, event.FollowUp)
+		return nil
+	}
+	switch event.Agent.Type {
+	case model.EvMessageUpdate:
+		t.recordMessageUpdate(event.Agent)
+	case model.EvToolExecutionStart:
+		t.recordToolStart(event.Agent)
+	case model.EvToolExecutionEnd:
+		t.recordToolEnd(event.Agent)
+	case model.EvMessageEnd:
+		t.recordMessageEnd(event.Agent)
+	case model.EvAgentEnd:
+		t.recordAgentEnd(event.Agent)
+	}
+	return nil
 }
 
-func newTurn(sessionID, model string, emit func(gimbal.AgentEvent) error) *turn {
-	return &turn{session: sessionID, model: model, emit: emit, settled: make(chan struct{}), usage: make(map[string]gimbal.Usage)}
-}
-
-func (t *turn) record(record wireRecord) {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	if t.closed {
+func (t *turn) recordMessageUpdate(event model.AgentEvent) {
+	update := event.AssistantMessageEvent
+	if update == nil {
 		return
 	}
-	switch record.Type {
-	case "message_update":
-		var update struct {
-			Type      string `json:"type"`
-			Delta     string `json:"delta"`
-			ToolID    string `json:"id"`
-			ToolName  string `json:"toolName"`
-			ContentID int    `json:"contentIndex"`
+	switch update.Type {
+	case model.EventTextDelta:
+		t.emitEvent("session.text.delta", map[string]any{
+			"sessionID": t.session, "ordinal": update.ContentIndex, "delta": update.Delta,
+		})
+	case model.EventToolCallStart:
+		id, name := toolCallIdentity(update.Partial, update.ContentIndex)
+		t.emitEvent("session.tool.input.started", map[string]any{
+			"sessionID": t.session, "id": id, "name": name,
+		})
+	}
+}
+
+func toolCallIdentity(partial *model.AssistantMessage, index int) (string, string) {
+	if partial == nil || index < 0 || index >= len(partial.Content) {
+		return "", ""
+	}
+	if call, ok := partial.Content[index].(model.ToolCall); ok {
+		return call.ID, call.Name
+	}
+	return "", ""
+}
+
+func (t *turn) recordToolStart(event model.AgentEvent) {
+	input, _ := json.Marshal(event.Args)
+	t.emitEvent("session.tool.input.ended", map[string]any{
+		"sessionID": t.session, "id": event.ToolCallID, "text": string(input),
+	})
+	t.emitEvent("session.tool.called", map[string]any{
+		"sessionID": t.session, "id": event.ToolCallID, "name": event.ToolName,
+		"input": event.Args, "executed": true,
+	})
+}
+
+func (t *turn) recordToolEnd(event model.AgentEvent) {
+	if event.IsError {
+		t.emitEvent("session.tool.failed", map[string]any{
+			"sessionID": t.session, "id": event.ToolCallID, "name": event.ToolName, "error": event.Result,
+		})
+		return
+	}
+	t.emitEvent("session.tool.success", map[string]any{
+		"sessionID": t.session, "id": event.ToolCallID, "name": event.ToolName, "result": event.Result,
+	})
+}
+
+func (t *turn) recordMessageEnd(event model.AgentEvent) {
+	message, ok := assistantOf(event.Message)
+	if !ok {
+		return
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	clone := *message
+	t.final = &clone
+	modelName := message.Model
+	if modelName == "" {
+		modelName = t.model
+	}
+	t.usage[modelName] = addUsage(t.usage[modelName], normalizedUsage(message.Usage))
+}
+
+func (t *turn) recordAgentEnd(event model.AgentEvent) {
+	for _, message := range event.Messages {
+		assistant, ok := assistantOf(message)
+		if !ok || assistant.ErrorMessage == "" {
+			continue
 		}
-		_ = json.Unmarshal(record.Event, &update)
-		switch update.Type {
-		case "text_delta":
-			t.emitEvent("session.text.delta", map[string]any{"sessionID": t.session, "ordinal": update.ContentID, "delta": update.Delta})
-		case "toolcall_start":
-			t.emitEvent("session.tool.input.started", map[string]any{"sessionID": t.session, "id": update.ToolID, "name": update.ToolName})
-		}
-	case "tool_execution_start":
-		input, _ := json.Marshal(record.Args)
-		t.emitEvent("session.tool.input.ended", map[string]any{"sessionID": t.session, "id": record.ToolID, "text": string(input)})
-		t.emitEvent("session.tool.called", map[string]any{"sessionID": t.session, "id": record.ToolID, "name": record.ToolName, "input": record.Args, "executed": true})
-	case "tool_execution_end":
-		if record.IsError {
-			t.emitEvent("session.tool.failed", map[string]any{"sessionID": t.session, "id": record.ToolID, "name": record.ToolName, "error": record.Result})
-		} else {
-			t.emitEvent("session.tool.success", map[string]any{"sessionID": t.session, "id": record.ToolID, "name": record.ToolName, "result": record.Result})
-		}
-	case "message_end":
-		var message assistantMessage
-		if json.Unmarshal(record.Message, &message) != nil || message.Role != "assistant" {
-			return
-		}
-		copy := message
-		t.final = &copy
-		model := message.Model
-		if model == "" {
-			model = t.model
-		}
-		usage := gimbal.Usage{Cost: message.Usage.Cost.Total}
-		usage.Tokens.Input = message.Usage.Input
-		usage.Tokens.Output = message.Usage.Output
-		usage.Tokens.Cache.Read = message.Usage.CacheRead
-		usage.Tokens.Cache.Write = message.Usage.CacheWrite
-		t.usage[model] = addUsage(t.usage[model], usage)
-	case "agent_settled":
-		t.closed = true
-		close(t.settled)
-	case "agent_end":
-		var data struct {
-			Messages []assistantMessage `json:"messages"`
-		}
-		_ = json.Unmarshal(record.Message, &data)
-		for i := range data.Messages {
-			if data.Messages[i].Role == "assistant" && data.Messages[i].Error != "" {
-				t.err = fmt.Errorf("pi: provider error: %s", data.Messages[i].Error)
-			}
-		}
+		t.mu.Lock()
+		t.err = fmt.Errorf("pi: provider error: %s", assistant.ErrorMessage)
+		t.mu.Unlock()
+	}
+}
+
+func assistantOf(message model.AgentMessage) (*model.AssistantMessage, bool) {
+	switch value := message.(type) {
+	case model.AssistantMessage:
+		clone := value
+		return &clone, true
+	case *model.AssistantMessage:
+		return value, true
+	default:
+		return nil, false
 	}
 }
 
@@ -130,6 +177,66 @@ func (t *turn) emitEvent(kind string, data any) {
 		return
 	}
 	_ = t.emit(gimbal.AgentEvent{Type: kind, Data: payload, NativeRef: ref})
+}
+
+func (t *turn) addWaiter(waiter *steerWaiter) {
+	t.mu.Lock()
+	t.waiters = append(t.waiters, waiter)
+	t.mu.Unlock()
+}
+
+func (t *turn) removeWaiter(waiter *steerWaiter) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	for i, candidate := range t.waiters {
+		if candidate == waiter {
+			t.waiters = append(t.waiters[:i], t.waiters[i+1:]...)
+			return
+		}
+	}
+}
+
+// deliverQueued marks every waiter whose message has left the native queues.
+func (t *turn) deliverQueued(steering, followUp []string) {
+	pending := append(append([]string(nil), steering...), followUp...)
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	remaining := t.waiters[:0]
+	for _, waiter := range t.waiters {
+		if slices.Contains(pending, waiter.text) {
+			remaining = append(remaining, waiter)
+			continue
+		}
+		waiter.once.Do(func() { close(waiter.delivered) })
+	}
+	t.waiters = remaining
+}
+
+func (t *turn) finalMessage() *model.AssistantMessage {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.final
+}
+
+func (t *turn) usageReport() map[string]gimbal.Usage {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if len(t.usage) == 0 {
+		return nil
+	}
+	out := make(map[string]gimbal.Usage, len(t.usage))
+	maps.Copy(out, t.usage)
+	return out
+}
+
+func normalizedUsage(usage model.Usage) gimbal.Usage {
+	var tokens gimbal.Tokens
+	tokens.Input = float64(usage.Input)
+	tokens.Output = max(0, float64(usage.Output-usage.Reasoning))
+	tokens.Reasoning = float64(usage.Reasoning)
+	tokens.Cache.Read = float64(usage.CacheRead)
+	tokens.Cache.Write = float64(usage.CacheWrite)
+	return gimbal.Usage{Cost: usage.Cost.Total, Tokens: tokens}
 }
 
 func addUsage(a, b gimbal.Usage) gimbal.Usage {

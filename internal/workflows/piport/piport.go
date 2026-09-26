@@ -65,7 +65,7 @@ func Port(ctx context.Context, env gimbal.Env, params Params) error {
 	if err != nil {
 		return err
 	}
-	exit, status, stderr, err := gimbal.RunCommand(ctx, "initial-status", env.WorkDir, "git", "status", "--porcelain")
+	exit, status, stderr, err := gimbal.RunCommand(ctx, "initial-status", env.WorkDir, "git", "status", "--porcelain", "--", ".", ":(exclude).gimbal")
 	if err != nil {
 		return err
 	}

@@ -46,7 +46,7 @@ func TestPortIntegratesIsolatedWorkers(t *testing.T) {
 	}
 	adapter := &fakeAdapter{sessions: map[string]string{}}
 	bindings := map[gimbal.WorkflowRole]gimbal.ModelBinding{roleCoding: {Adapter: adapter, Model: "worker"}, roleReview: {Adapter: adapter, Model: "reviewer"}, roleScope: {Adapter: adapter, Model: "coach"}}
-	err := gimbal.Run(gimbal.Project(context.Background(), t.TempDir()), "pi-port", bindings, func(ctx context.Context) error {
+	err := gimbal.Run(gimbal.Project(context.Background(), filepath.Join(repo, ".gimbal")), "pi-port", bindings, func(ctx context.Context) error {
 		return Port(ctx, gimbal.Env{WorkDir: repo}, Params{AssignmentsFile: manifest, ScratchDir: t.TempDir()})
 	})
 	if err != nil {
@@ -57,7 +57,7 @@ func TestPortIntegratesIsolatedWorkers(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if got := strings.TrimSpace(git("status", "--porcelain")); got != "" {
+	if got := strings.TrimSpace(git("status", "--porcelain", "--", ".", ":(exclude).gimbal")); got != "" {
 		t.Fatalf("dirty integration: %s", got)
 	}
 	if got := strings.Count(strings.TrimSpace(git("log", "--format=%s")), "Port Pi module:"); got != 2 {

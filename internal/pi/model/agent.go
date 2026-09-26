@@ -228,6 +228,11 @@ func (c AgentContext) Clone() AgentContext {
 	out := c
 	out.Messages = CloneMessages(c.Messages)
 	out.Tools = append([]AgentTool(nil), c.Tools...)
+	for i := range out.Tools {
+		definition := c.Tools[i].AsTool().Clone()
+		out.Tools[i].Parameters = definition.Parameters
+		out.Tools[i].ConstrainedSampling = definition.ConstrainedSampling
+	}
 	return out
 }
 

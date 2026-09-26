@@ -2,6 +2,20 @@ package model
 
 import "testing"
 
+func TestCloneAgentContextToolIsolation(t *testing.T) {
+	original := AgentContext{Tools: []AgentTool{{
+		Name:                "read",
+		Parameters:          Object(Prop("path", &Schema{Type: "string"})),
+		ConstrainedSampling: &ConstrainedSamplingConfig{Type: ConstrainedSamplingJSONSchema},
+	}}}
+	clone := original.Clone()
+	clone.Tools[0].Parameters.Properties["path"].Type = "number"
+	clone.Tools[0].ConstrainedSampling.Type = ConstrainedSamplingGrammar
+	if original.Tools[0].Parameters.Properties["path"].Type != "string" || original.Tools[0].ConstrainedSampling.Type != ConstrainedSamplingJSONSchema {
+		t.Fatal("cloned context shares mutable tool definitions")
+	}
+}
+
 func TestCloneSessionEntryIsolation(t *testing.T) {
 	parent := "p1"
 	entry := NewSessionMessageEntry("e1", &parent, "2025-01-01T00:00:00Z", NewUserText("hello", 1))

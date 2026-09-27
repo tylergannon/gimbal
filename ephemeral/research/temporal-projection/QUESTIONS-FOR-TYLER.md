@@ -30,10 +30,10 @@ Each answer removes work. Recommended answer first.
    instance already owns `run.jsonl` and the page. (round1/infra F24-25,
    round2/r1-3)
 
-5. **Steer and supervision stay mid-turn, worker-hosted.** Option A. The
-   alternative (queue until next turn) silently changes `WithSupervisor`
-   from watcher to reviewer. Say if that narrowing is acceptable; it
-   removes the control listener. (round2/r1-3)
+5. **Steer and supervision stay mid-turn.** Supervisors on the orchestrator
+   unchanged; steer and cancel as activities on the run's queue (not
+   signals, not direct HTTP). The alternative (queue until next turn)
+   silently changes `WithSupervisor` from watcher to reviewer. (round2/r1-3, r1-6)
 
 6. **Fix the latent stock-workflow bugs first.** `validateproduct.go:122,232`
    raw `exec`; `os.Executable()` in `researchdocument` and `pyramidsummary`;

@@ -54,3 +54,19 @@ emitting what it emits today (graph, CLI, SKGO forms).
 
 A manifest of roles and adapters a workflow needs, derived from the
 registered graph, for pre-warming daemons or sizing a pod. Nice to have.
+
+## Steer is not a signal (Tyler's question)
+
+Signals, Updates, and Queries target a Workflow Execution. Temporal has no
+API that delivers into a running activity; the only inbound event is
+cancellation, at the next heartbeat (round1/temporal-go-sdk F5). Under
+Standalone Activities there is no workflow execution, so a signal has no
+target. Even with a workflow (Finalist 2, or the executor fallback), its
+handler can only schedule an activity on the session host. So in every
+shape the message ends as an activity that runs in the pod holding the
+turn. The Temporal-native steer is therefore `client.ExecuteActivity`
+("steer", session, message) on `run-<id>`; cancel is the same with the
+turn id, instant, not heartbeat-gated. This replaces r1-3's direct-HTTP
+Option A: same fidelity, no worker address registry, no NetworkPolicy
+ingress from the instance, one action per steer. Requires the worker's
+`MaxConcurrentActivityExecutionSize` above one (default 1000, r1-1 F1).

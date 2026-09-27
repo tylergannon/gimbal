@@ -44,7 +44,7 @@ See round2/r1-6.
 |---|---|---|
 | Activities with host pinning without a bespoke workflow | Eliminated | Standalone Activities: client-started, awaitable, heartbeat, cancel, retry, caller-chosen task queue, no event history. round2/r1-1 |
 | Session survival across pod death | Reduced (corrected after Tyler's challenge) | Session state is portable at turn boundaries: verified for Claude Code (one transcript file, resume by id, cwd-independent); designed-for in Codex source; Gimbal-owned for Pi. The blocker is adapter state roots, not harness formats. Checkpoint per turn, restore on any pod, lose at most the in-flight turn. round2/r1-2, r1-2b |
-| Steer and supervision across the boundary | Reduced | Run the whole `Generate` (supervisors included) inside the activity; steer, kill, interview go instance to worker over HTTP, not through Temporal. New surface: worker control listener, address registry, one NetworkPolicy rule. round2/r1-3 |
+| Steer and supervision across the boundary | Reduced | Supervisors stay on the orchestrator, fed by the streamed events. Steer and cancel are second activities on the run's queue, which only the run's pod polls, so they land in the process holding the turn. Not a signal: signals target workflows, and there is none. round2/r1-3, r1-6 |
 | Orchestrator restart mid-run | Deferred by evidence | Records suffice to memoize turns, commands, planner decisions, interviews; one hazard (`implementation.go` reads a file into `Iterate`); native session id not recorded. Today's guarantee is already "crash means restart", so pod-per-run first. round2/r1-4 |
 | Cost and history size | Eliminated | $0.07 per 20-turn run, about $20 per month at 300 runs; 1% of the history limit; heartbeats bill but never touch history. round2/r1-5 |
 | dst on Go 1.27 generic methods | Eliminated | Byte-for-byte round trip and a typed three-rule edit passed vet and ran. round2/r2-1 |
@@ -63,9 +63,10 @@ See round2/r1-6.
    activity in public.** Replit, Devin Outposts, Codex, Claude Code cloud
    all keep the control plane and the sandbox as two systems. Finalist 1
    follows that split; Finalist 2 is novel.
-3. **Steer needs a Gimbal-built side channel under any design.** Temporal
-   routes to a host, never into a running process ("there is no
-   functionality to send signal to an activity").
+3. **Steer is an activity, not a signal.** Temporal routes to a host, never
+   into a running process ("there is no functionality to send signal to an
+   activity"); a steer activity on the run's queue reaches the pod holding
+   the turn and calls the local adapter's Steer.
 4. **Namespace-per-project is the Kubernetes answer, not the Temporal
    answer.** Temporal's guidance is one namespace, task queues per tenant.
 5. **Three stock workflows carry latent bugs independent of this work.**

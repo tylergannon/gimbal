@@ -29,6 +29,15 @@ every site, continue-as-new re-threading of scope values, heartbeat-gated
 cancellation instead of instant `Killed`. Keep it as a later option: its
 activities are exactly Finalist 1's activities, so nothing is thrown away.
 
+## Reframed after review: injection, not codegen
+
+The projection is a second `HarnessAdapter` (plus one new commands seam)
+injected at `Run`, not generated code. The worker is generic and does not
+carry the workflow. Supervisors stay on the orchestrator unchanged. What
+remains beyond interface swaps: a mid-turn event transport, per-run state
+roots with turn-boundary checkpoints, path agreement, and four lint rules.
+See round2/r1-6.
+
 ## What the research settled
 
 | Risk | Outcome | Evidence |

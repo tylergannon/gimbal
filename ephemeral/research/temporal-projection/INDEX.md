@@ -27,6 +27,7 @@ Infra collapses to GitHub App install, a repo file, and Terraform.
 | How do I pin all of a run's work to one pod? | round2/r1-1 Findings 1, 3 (caller-chosen task queue); Finding 4 for why Sessions is worse (hostname-bound, `ErrSessionFailed`) |
 | Can a client await an hour-long activity, cancel it, retry it? | round2/r1-1 Finding 1; round1/temporal-go-sdk F3 |
 | What happens when a worker pod dies mid-turn, per harness? | round2/r1-2 per-adapter findings and placement table; "what a retry must do" |
+| Is this codegen or dependency injection? | round2/r1-6 (injection; what is not an interface swap) |
 | Can session state be checkpointed to a bucket and restored on another pod? | round2/r1-2b (yes; verified for Claude Code; per-harness table; turn-boundary granularity) |
 | Where does each harness keep its conversation on disk? | round2/r1-2 (Claude `~/.claude/projects/<cwd-key>/`, Codex `~/.codex/sessions/...` plus SQLite, agy `~/.gemini/`, OpenCode `opencode.db`, Pi `os.MkdirTemp`) |
 | How does Steer reach a running remote turn? | round2/r1-3 Option A; round1/temporal-go-sdk F5 ("no signal to an activity") |
@@ -153,6 +154,10 @@ Addendum after Tyler's challenge: Claude Code transcript moved between
 config dirs and resumed by id, cwd-independent, fork works; per-harness
 checkpoint table; design changes (per-run state roots, checkpoint at turn
 boundaries, EFS vs bucket).
+
+### round2/r1-6-injection-not-codegen.md
+Reframing: a second HarnessAdapter plus a commands seam, generic worker,
+supervisors orchestrator-side; the four pieces that are not swaps.
 
 ### round2/r1-3-steer-supervision-remote.md (426 lines)
 What one Generate runs, what Steer needs, what the page's controls call;

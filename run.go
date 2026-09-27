@@ -152,12 +152,22 @@ func (r *run) closeError() error {
 // supported contract. options configures run-owned resources such as an
 // ExecutionBackend. Hosted runs are submitted to an instance with a workflow
 // compiled into its binary.
-func Run(ctx context.Context, name string, models map[WorkflowRole]ModelBinding, body func(ctx context.Context) error, options ...RunOption) error {
+func Run(ctx context.Context, name string, models map[WorkflowRole]ModelBinding, body func(ctx context.Context) error, options ...RunOption) (err error) {
+	r := &run{models: models, sessions: make(map[string]*eventWriter), scopes: make(map[string]*scope), turns: make(map[string]context.CancelCauseFunc), interviews: make(map[string]*interviewWaiter)}
+	for _, option := range options {
+		option(r)
+	}
+	setupComplete := false
+	defer func() {
+		if !setupComplete {
+			err = errors.Join(err, r.closeExecutionBackend())
+		}
+	}()
 	project, _ := ctx.Value(projectKey{}).(string)
 	if project == "" {
 		return errors.New("gimbal: Run needs gimbal.Project in its ctx")
 	}
-	project, err := filepath.Abs(project)
+	project, err = filepath.Abs(project)
 	if err != nil {
 		return fmt.Errorf("gimbal: %w", err)
 	}
@@ -181,10 +191,8 @@ func Run(ctx context.Context, name string, models map[WorkflowRole]ModelBinding,
 		_ = store.Close()
 		return fmt.Errorf("gimbal: %w", err)
 	}
-	r := &run{dir: dir, models: models, writer: w, sessions: make(map[string]*eventWriter), scopes: make(map[string]*scope), turns: make(map[string]context.CancelCauseFunc), interviews: make(map[string]*interviewWaiter)}
-	for _, option := range options {
-		option(r)
-	}
+	r.dir = dir
+	r.writer = w
 	r.store = store
 	r.recordFailure("open observation", storeErr)
 	pw, pwErr := newEventWriter(filepath.Join(project, "project.jsonl"))
@@ -196,6 +204,7 @@ func Run(ctx context.Context, name string, models map[WorkflowRole]ModelBinding,
 	r.projectEvent(RunStarted{Name: name})
 	r.event("", "", "", RunStarted{Name: name})
 	logf("run %s started in %s", id, dir)
+	setupComplete = true
 	// With the web runtime in ctx the run is reachable by id for as long as
 	// its body runs: an operator with only ids can steer a session or kill
 	// a scope or a turn through it. It leaves the runtime's table as soon

@@ -42,15 +42,16 @@ const (
 )
 
 type Config struct {
-	DockerImage           string
-	TemporalAddress       string // host-side Temporal address
-	PostgresDSN           string // host-side Postgres DSN
-	WorkerTemporalAddress string
-	WorkerPostgresDSN     string
-	Mounts                []string
-	Roles                 map[gimbal.WorkflowRole]RoleBinding
-	SecretFiles           map[string]string
-	DockerExecutable      string
+	Environment           string                                      `json:"environment"`
+	DockerImage           string                                      `json:"docker_image"`
+	TemporalAddress       string                                      `json:"temporal_address"` // host-side Temporal address
+	PostgresDSN           string                                      `json:"postgres_dsn"`     // host-side Postgres DSN
+	WorkerTemporalAddress string                                      `json:"worker_temporal_address,omitempty"`
+	WorkerPostgresDSN     string                                      `json:"worker_postgres_dsn,omitempty"`
+	Mounts                []string                                    `json:"mounts,omitempty"`
+	Models                map[gimbal.WorkflowRole]gimbal.ModelBinding `json:"-"`
+	SecretFiles           map[string]string                           `json:"secret_files,omitempty"`
+	DockerExecutable      string                                      `json:"docker_executable,omitempty"`
 }
 
 type RoleBinding struct {
@@ -61,6 +62,7 @@ type RoleBinding struct {
 
 type Backend struct {
 	cfg          Config
+	roles        map[gimbal.WorkflowRole]RoleBinding
 	db           *pgxpool.Pool
 	temporal     client.Client
 	owner        string
@@ -124,8 +126,8 @@ type workerReadinessProbe interface {
 }
 
 func New(ctx context.Context, cfg Config) (*Backend, error) {
-	if cfg.DockerImage == "" || cfg.TemporalAddress == "" || cfg.PostgresDSN == "" {
-		return nil, errors.New("execution: Docker image, Temporal address, and Postgres DSN are required")
+	if cfg.Environment == "" || cfg.DockerImage == "" || cfg.TemporalAddress == "" || cfg.PostgresDSN == "" {
+		return nil, errors.New("execution: environment name, Docker image, Temporal address, and Postgres DSN are required")
 	}
 	if cfg.DockerExecutable == "" {
 		cfg.DockerExecutable = "docker"
@@ -133,10 +135,9 @@ func New(ctx context.Context, cfg Config) (*Backend, error) {
 	secrets := make(map[string]string, len(cfg.SecretFiles))
 	maps.Copy(secrets, cfg.SecretFiles)
 	cfg.SecretFiles = secrets
-	for role, binding := range cfg.Roles {
-		if binding.Harness != "codex" || binding.Model == "" {
-			return nil, fmt.Errorf("execution: role %q requires a Codex harness binding with a model", role)
-		}
+	roles, err := roleBindings(cfg.Models)
+	if err != nil {
+		return nil, err
 	}
 	for env := range cfg.SecretFiles {
 		if env != "OPENAI_API_KEY" {
@@ -158,6 +159,7 @@ func New(ctx context.Context, cfg Config) (*Backend, error) {
 			cfg.Mounts[i] = abs
 		}
 	}
+	cfg.Mounts = uniqueMounts(cfg.Mounts)
 	db, err := pgxpool.New(ctx, cfg.PostgresDSN)
 	if err != nil {
 		return nil, fmt.Errorf("execution: connect Postgres: %w", err)
@@ -199,7 +201,18 @@ func New(ctx context.Context, cfg Config) (*Backend, error) {
 		db.Close()
 		return nil, fmt.Errorf("execution: connect Temporal: %w", err)
 	}
-	return &Backend{cfg: cfg, db: db, temporal: temporal, owner: uuid.NewString(), environments: make(map[string]*Environment)}, nil
+	return &Backend{cfg: cfg, roles: roles, db: db, temporal: temporal, owner: uuid.NewString(), environments: make(map[string]*Environment)}, nil
+}
+
+func roleBindings(models map[gimbal.WorkflowRole]gimbal.ModelBinding) (map[gimbal.WorkflowRole]RoleBinding, error) {
+	roles := make(map[gimbal.WorkflowRole]RoleBinding, len(models))
+	for role, binding := range models {
+		if binding.Harness != "codex" || binding.Model == "" || binding.Adapter == nil {
+			return nil, fmt.Errorf("execution: role %q requires a model binding selected for the Codex harness", role)
+		}
+		roles[role] = RoleBinding{Harness: binding.Harness, Model: binding.Model, Effort: binding.Effort}
+	}
+	return roles, nil
 }
 
 func (b *Backend) Resolve(ctx context.Context, name string) (gimbal.ExecutionEnvironment, error) {
@@ -229,7 +242,7 @@ func (b *Backend) Resolve(ctx context.Context, name string) (gimbal.ExecutionEnv
 		secretPaths[env] = "/run/secrets/gimbal/" + env
 	}
 	row := bootstrap{Name: scopedName, Queue: queue, Owner: b.owner, Container: containerName, Mounts: b.cfg.Mounts,
-		Roles: b.cfg.Roles, Secrets: secretPaths,
+		Roles: b.roles, Secrets: secretPaths,
 		StateVolume: stateVolume}
 	workerConfig, _ := json.Marshal(struct {
 		Roles       map[gimbal.WorkflowRole]RoleBinding `json:"roles"`

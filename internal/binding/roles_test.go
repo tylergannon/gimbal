@@ -19,6 +19,9 @@ func TestRolesShareABindingAndNameTheMissingFlag(t *testing.T) {
 	if models["reviewer"].Adapter == models["coder"].Adapter {
 		t.Error("a role on another model shares the first's harness")
 	}
+	if models["coder"].Harness != "codex" || models["reviewer"].Harness != "claude" {
+		t.Errorf("resolved role harnesses = %q/%q, want codex/claude", models["coder"].Harness, models["reviewer"].Harness)
+	}
 	if _, err := Roles(map[gimbal.WorkflowRole]string{"coder": "gpt-5.6-luna", "planner": ""}); err == nil || !strings.Contains(err.Error(), "give --planner") {
 		t.Errorf("err = %v, want the missing role named", err)
 	}

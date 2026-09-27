@@ -31,7 +31,7 @@ func Parse(spec string) (gimbal.ModelBinding, error) {
 	if err != nil {
 		return gimbal.ModelBinding{}, fmt.Errorf("model %q: %w", spec, err)
 	}
-	return gimbal.ModelBinding{Adapter: adapter, Model: resolved.Model, Effort: resolved.Effort}, nil
+	return gimbal.ModelBinding{Adapter: adapter, Harness: resolved.Harness, Model: resolved.Model, Effort: resolved.Effort}, nil
 }
 
 func resolve(spec string) (modelalias.ResolvedSelection, error) {
@@ -94,7 +94,7 @@ func Roles(specs map[gimbal.WorkflowRole]string) (map[gimbal.WorkflowRole]gimbal
 					sharedOpenCode = adapter
 				}
 			}
-			bound[spec] = gimbal.ModelBinding{Adapter: adapter, Model: resolved.Model, Effort: resolved.Effort}
+			bound[spec] = gimbal.ModelBinding{Adapter: adapter, Harness: resolved.Harness, Model: resolved.Model, Effort: resolved.Effort}
 		}
 		models[role] = bound[spec]
 	}

@@ -163,3 +163,9 @@ vet and the full Go suite passed. The code now installs zsh and uses Docker
 preserves cleanup failure without a cancellation identity that Temporal would
 discard. No real Docker/Temporal service run was observed. Outcome 2 now plans
 the existing built-in workflow invocation/configuration path.
+
+## Hosted invocation correction
+
+friction: The outcome planner invented a no-new-CLI-flags restriction. Despite delivered owner steering authorizing a single execution-config file flag, the architectural supervisor told the coder to ignore that correction and the coder removed already-tested CLI wiring. The manager corrected coder, supervisor, planner, and QA directly. Updated task constraints must reach all active supervisors; otherwise they can repeatedly reverse authorized work.
+
+decision: Practical built-in invocation includes instance startup with an execution-config JSON file. An internal Go option used only in a test is insufficient. Workflow model choices supply worker role bindings; backend configuration owns infrastructure and secret-file references.

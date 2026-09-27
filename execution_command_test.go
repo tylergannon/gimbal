@@ -71,6 +71,17 @@ func TestRunCommandDispatchesThroughSelectedExecutionEnvironment(t *testing.T) {
 	}
 }
 
+func TestRunClosesExecutionBackendWhenProjectSetupFails(t *testing.T) {
+	backend := &commandTestBackend{env: &commandTestEnvironment{}}
+	err := Run(context.Background(), "missing-project", nil, func(context.Context) error { return nil }, WithExecution(backend))
+	if err == nil || !strings.Contains(err.Error(), "gimbal.Project") {
+		t.Fatalf("Run error = %v, want missing project setup failure", err)
+	}
+	if !backend.closed {
+		t.Fatal("Run did not close its backend after setup failed before options were previously applied")
+	}
+}
+
 func TestRemoteCaptureUsesGimbalOutputLimit(t *testing.T) {
 	project, workdir := t.TempDir(), t.TempDir()
 	env := &commandTestEnvironment{code: 0, output: strings.Repeat("x", commandOutputLimit*3)}

@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/codex"
 )
 
 func TestResolveWorkerReadinessIntegration(t *testing.T) {
@@ -28,7 +29,7 @@ func TestResolveWorkerReadinessIntegration(t *testing.T) {
 	name := "readiness-" + uuid.NewString()
 	workerDSN := "postgres://gimbal:gimbal@host.docker.internal:65534/gimbal?sslmode=disable&connect_timeout=2"
 
-	badConfig := Config{DockerImage: image, TemporalAddress: temporalAddress, PostgresDSN: postgresDSN, WorkerPostgresDSN: workerDSN, Mounts: []string{t.TempDir()}}
+	badConfig := Config{Environment: "readiness-bad", DockerImage: image, TemporalAddress: temporalAddress, PostgresDSN: postgresDSN, WorkerPostgresDSN: workerDSN, Mounts: []string{t.TempDir()}}
 	badBackend, err := New(context.Background(), badConfig)
 	if err != nil {
 		t.Fatal(err)
@@ -69,7 +70,7 @@ func TestResolveWorkerReadinessIntegration(t *testing.T) {
 	}
 
 	goodDir := t.TempDir()
-	goodConfig := Config{DockerImage: image, TemporalAddress: temporalAddress, PostgresDSN: postgresDSN,
+	goodConfig := Config{Environment: "readiness-good", DockerImage: image, TemporalAddress: temporalAddress, PostgresDSN: postgresDSN,
 		WorkerPostgresDSN: "postgres://gimbal:gimbal@host.docker.internal:5433/gimbal?sslmode=disable",
 		Mounts:            []string{goodDir}}
 	goodBackend, err := New(context.Background(), goodConfig)
@@ -109,10 +110,10 @@ func TestCodexSessionLifecycleIntegration(t *testing.T) {
 	workdir := t.TempDir()
 	secretFiles := map[string]string{"OPENAI_API_KEY": keyFile}
 	backend, err := New(context.Background(), Config{
-		DockerImage: image, TemporalAddress: temporalAddress, PostgresDSN: postgresDSN,
+		Environment: "codex-lifecycle", DockerImage: image, TemporalAddress: temporalAddress, PostgresDSN: postgresDSN,
 		WorkerPostgresDSN: "postgres://gimbal:gimbal@host.docker.internal:5433/gimbal?sslmode=disable",
-		Mounts:            []string{workdir}, Roles: map[gimbal.WorkflowRole]RoleBinding{
-			"coder": {Harness: "codex", Model: "gpt-5.6-luna", Effort: "low"},
+		Mounts:            []string{workdir}, Models: map[gimbal.WorkflowRole]gimbal.ModelBinding{
+			"coder": {Adapter: codex.New(), Harness: "codex", Model: "gpt-5.6-luna", Effort: "low"},
 		}, SecretFiles: secretFiles,
 	})
 	if err != nil {

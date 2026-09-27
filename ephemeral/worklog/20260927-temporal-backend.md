@@ -135,3 +135,31 @@ a harmless directory-not-empty cleanup error. No further cache cleanup needed.
 Docker metadata I/O errors persisted after disk recovery; restart approval is
 still pending. Continue independent services/CLI implementation and retain live
 qualification for the final integration pass.
+
+## Service seam review and next-pass observations
+
+Service work is active in run 01M3H3N5M29T0JX61PTEARAKCN.implement. The worker
+now needs actual process-start acknowledgement, not activity acceptance. A
+successful fast-command terminal result is also valid startup evidence.
+Temporal SDK 1.49.0 internal_task_pollers.go converts any returned error matching
+context.Canceled into cancellation; joining a cleanup error with cancellation
+therefore hides failed cleanup. Preserve cleanup failure as the terminal error.
+Docker --init supplies orphan reaping instead of adding a custom process reaper.
+
+For the requested second API pass, inspect two concrete seam issues: public
+ExecutionCommand carries capture paths as well as Start's output writers, and
+its empty-Workdir default claim does not match the backend's absolute-directory
+requirement. Also Run applies WithExecution only after project/store/log setup;
+an early setup failure can currently leave an already-constructed backend
+unclosed despite the stated ownership promise. Address lifecycle ownership
+when wiring hosted built-ins or during the simplification pass.
+
+Service task was independently accepted by Sonnet in
+01M3H3N5M29T0JX61PTEARAKCN.implement. It observed fake-environment scope cleanup
+and unexpected exit-zero cancellation, real host process descendant cleanup,
+fast-command startup acceptance, and terminal cleanup-error propagation. Build,
+vet and the full Go suite passed. The code now installs zsh and uses Docker
+--init, waits for startup heartbeat or an authoritative completed result, and
+preserves cleanup failure without a cancellation identity that Temporal would
+discard. No real Docker/Temporal service run was observed. Outcome 2 now plans
+the existing built-in workflow invocation/configuration path.

@@ -38,6 +38,7 @@ const harnessActivity = "gimbal.harness"
 const (
 	workerReadyTimeout  = 45 * time.Second
 	workerReadyInterval = 250 * time.Millisecond
+	commandStartTimeout = 30 * time.Second
 )
 
 type Config struct {
@@ -266,7 +267,7 @@ func environmentIdentity(owner, logicalName string) (name, queue, container, sta
 }
 
 func (b *Backend) startWorker(ctx context.Context, row bootstrap) error {
-	args := []string{"run", "-d", "--name", row.Container, "--add-host", "host.docker.internal:host-gateway",
+	args := []string{"run", "-d", "--init", "--name", row.Container, "--add-host", "host.docker.internal:host-gateway",
 		"-e", "GIMBAL_ENVIRONMENT=" + row.Name, "-e", "GIMBAL_WORKER_ID=" + row.Owner,
 		"-e", "GIMBAL_POSTGRES_DSN=" + b.cfg.WorkerPostgresDSN, "-e", "GIMBAL_TEMPORAL_ADDRESS=" + b.cfg.WorkerTemporalAddress,
 		"-e", "CODEX_HOME=/var/lib/gimbal/codex",
@@ -421,6 +422,9 @@ func (e *Environment) Start(ctx context.Context, command gimbal.ExecutionCommand
 		return nil, fmt.Errorf("execution: schedule command activity: %w", err)
 	}
 	p := &Process{ctx: ctx, handle: handle, workdir: command.Workdir, operation: command.Operation}
+	if err := p.awaitStarted(ctx); err != nil {
+		return nil, errors.Join(err, p.Stop())
+	}
 	return p, nil
 }
 
@@ -452,7 +456,51 @@ type Process struct {
 
 type activityHandle interface {
 	Get(context.Context, any) error
+	Describe(context.Context, client.DescribeActivityOptions) (*client.ActivityExecutionDescription, error)
 	Cancel(context.Context, client.CancelActivityOptions) error
+}
+
+func (p *Process) awaitStarted(ctx context.Context) error {
+	startCtx, cancel := context.WithTimeout(ctx, commandStartTimeout)
+	defer cancel()
+	ticker := time.NewTicker(25 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		description, err := p.handle.Describe(startCtx, client.DescribeActivityOptions{IncludeHeartbeatDetails: true})
+		if err != nil {
+			return fmt.Errorf("execution: observe command startup: %w", err)
+		}
+		var heartbeat commandHeartbeat
+		if description.HasHeartbeatDetails() && description.GetHeartbeatDetails(&heartbeat) == nil && heartbeat.State == commandStartedHeartbeat {
+			return nil
+		}
+		if activityStatusTerminal(description.Status) {
+			var result commandResult
+			resultErr := p.handle.Get(startCtx, &result)
+			if resultErr != nil {
+				return fmt.Errorf("execution: command ended before process startup was acknowledged: %w", resultErr)
+			}
+			// A successful activity result proves cmd.Start succeeded, even if a
+			// short command completed before its heartbeat became observable.
+			return nil
+		}
+		select {
+		case <-startCtx.Done():
+			return fmt.Errorf("execution: wait for command process startup: %w", startCtx.Err())
+		case <-ticker.C:
+		}
+	}
+}
+
+func activityStatusTerminal(status enums.ActivityExecutionStatus) bool {
+	switch status {
+	case enums.ACTIVITY_EXECUTION_STATUS_COMPLETED, enums.ACTIVITY_EXECUTION_STATUS_FAILED,
+		enums.ACTIVITY_EXECUTION_STATUS_CANCELED, enums.ACTIVITY_EXECUTION_STATUS_TERMINATED,
+		enums.ACTIVITY_EXECUTION_STATUS_TIMED_OUT:
+		return true
+	default:
+		return false
+	}
 }
 
 func (p *Process) Workdir() string { return p.workdir }
@@ -523,6 +571,12 @@ func (p *Process) Stop() error {
 			case <-time.After(10 * time.Second):
 				p.stopErr = errors.Join(p.cancelErr, errors.New("execution: stopped activity did not finish before timeout"))
 			}
+		}
+		p.mu.Lock()
+		waitErr := p.waitErr
+		p.mu.Unlock()
+		if !temporal.IsCanceledError(waitErr) && !errors.Is(waitErr, context.Canceled) && !errors.Is(waitErr, context.DeadlineExceeded) {
+			p.stopErr = errors.Join(p.stopErr, waitErr)
 		}
 	})
 	return errors.Join(p.stopErr, p.cancelErr)

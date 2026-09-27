@@ -23,6 +23,11 @@ import (
 )
 
 const codexStartupTimeout = 30 * time.Second
+const commandStartedHeartbeat = "started"
+
+type commandHeartbeat struct {
+	State string `json:"state"`
+}
 
 func RunWorker(ctx context.Context) error {
 	environment := os.Getenv("GIMBAL_ENVIRONMENT")
@@ -255,7 +260,12 @@ func runCommandActivity(ctx context.Context, db *pgxpool.Pool, in commandInput) 
 	cmd.Stdout, cmd.Stderr = out, errOut
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	runErr := cmd.Start()
+	var cleanupErr error
 	if runErr == nil {
+		heartbeat := commandHeartbeat{State: commandStartedHeartbeat}
+		if activity.IsActivity(ctx) {
+			activity.RecordHeartbeat(ctx, heartbeat)
+		}
 		heartbeatDone := make(chan struct{})
 		go func() {
 			ticker := time.NewTicker(3 * time.Second)
@@ -263,7 +273,9 @@ func runCommandActivity(ctx context.Context, db *pgxpool.Pool, in commandInput) 
 			for {
 				select {
 				case <-ticker.C:
-					activity.RecordHeartbeat(ctx, in.Operation)
+					if activity.IsActivity(ctx) {
+						activity.RecordHeartbeat(ctx, heartbeat)
+					}
 				case <-heartbeatDone:
 					return
 				}
@@ -274,30 +286,88 @@ func runCommandActivity(ctx context.Context, db *pgxpool.Pool, in commandInput) 
 		select {
 		case runErr = <-wait:
 		case <-ctx.Done():
-			_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM)
+			_ = signalCommandGroup(cmd.Process.Pid, syscall.SIGTERM)
 			select {
 			case runErr = <-wait:
 			case <-time.After(time.Second):
-				_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+				_ = signalCommandGroup(cmd.Process.Pid, syscall.SIGKILL)
 				runErr = <-wait
 			}
 		}
 		close(heartbeatDone)
+		cleanupErr = cleanupCommandGroup(cmd.Process.Pid)
 		if cmd.ProcessState != nil {
 			result.ExitCode = cmd.ProcessState.ExitCode()
 		}
-		if ctx.Err() != nil {
-			runErr = ctx.Err()
-		} else {
-			if _, ok := errors.AsType[*exec.ExitError](runErr); ok {
-				runErr = nil
-			}
-		}
+		runErr = commandActivityError(ctx, runErr, cleanupErr)
 	}
 	if closeErr := errors.Join(out.Close(), errOut.Close()); runErr == nil && closeErr != nil {
 		runErr = closeErr
 	}
 	return recordCommandEvent(db, in, result, runErr)
+}
+
+func commandActivityError(ctx context.Context, waitErr, cleanupErr error) error {
+	if ctx.Err() != nil {
+		if cleanupErr != nil {
+			// Temporal treats any error wrapping context.Canceled as cancellation
+			// and discards it, so keep a failed cleanup terminal and observable.
+			return cleanupErr
+		}
+		return ctx.Err()
+	}
+	if _, ok := errors.AsType[*exec.ExitError](waitErr); ok {
+		waitErr = nil
+	}
+	return errors.Join(waitErr, cleanupErr)
+}
+
+func signalCommandGroup(pid int, signal syscall.Signal) error {
+	err := syscall.Kill(-pid, signal)
+	if errors.Is(err, syscall.ESRCH) {
+		return nil
+	}
+	return err
+}
+
+func cleanupCommandGroup(pid int) error {
+	termErr := signalCommandGroup(pid, syscall.SIGTERM)
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		alive, err := commandGroupAlive(pid)
+		if err != nil {
+			return errors.Join(termErr, err)
+		}
+		if !alive {
+			return termErr
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	killErr := signalCommandGroup(pid, syscall.SIGKILL)
+	deadline = time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		alive, err := commandGroupAlive(pid)
+		if err != nil {
+			return errors.Join(termErr, killErr, err)
+		}
+		if !alive {
+			return errors.Join(termErr, killErr)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	return errors.Join(termErr, killErr, errors.New("worker command process group remains after SIGKILL"))
+}
+
+func commandGroupAlive(pid int) (bool, error) {
+	err := syscall.Kill(-pid, 0)
+	switch {
+	case err == nil:
+		return true, nil
+	case errors.Is(err, syscall.ESRCH):
+		return false, nil
+	default:
+		return true, err
+	}
 }
 
 func recordCommandEvent(db *pgxpool.Pool, in commandInput, result commandResult, runErr error) (commandResult, error) {

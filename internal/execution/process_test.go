@@ -81,6 +81,87 @@ func TestProcessStartupAcceptsFastCompletedCommandResult(t *testing.T) {
 	}
 }
 
+type unconfirmedCancelHandle struct{}
+
+func (unconfirmedCancelHandle) Get(ctx context.Context, _ any) error {
+	<-ctx.Done()
+	return ctx.Err()
+}
+func (unconfirmedCancelHandle) Describe(context.Context, client.DescribeActivityOptions) (*client.ActivityExecutionDescription, error) {
+	return nil, errors.New("unexpected Describe call")
+}
+func (unconfirmedCancelHandle) Cancel(context.Context, client.CancelActivityOptions) error {
+	return nil
+}
+
+type channelWriter chan string
+
+func (w channelWriter) Write(p []byte) (int, error) {
+	w <- string(append([]byte(nil), p...))
+	return len(p), nil
+}
+
+func TestUnconfirmedCancellationStopsOutputRelayBeforeWaitReturns(t *testing.T) {
+	previousTimeout := activityWaitTimeout
+	activityWaitTimeout = 20 * time.Millisecond
+	t.Cleanup(func() { activityWaitTimeout = previousTimeout })
+
+	path := filepath.Join(t.TempDir(), "stdout.log")
+	if err := os.WriteFile(path, []byte("live output"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	lateFile, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0o600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = lateFile.Close() })
+	output := make(channelWriter, 10000)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	p := &Process{
+		ctx: ctx, handle: unconfirmedCancelHandle{}, stdoutPath: path,
+		relayStop: make(chan struct{}), relayDone: make(chan error, 2), relayEnded: make(chan struct{}),
+	}
+	go func() { p.relayDone <- relayOutput(path, output, p.relayStop) }()
+	go func() { p.relayDone <- nil }()
+	producerStop, producerDone := make(chan struct{}), make(chan struct{})
+	go func() {
+		defer close(producerDone)
+		ticker := time.NewTicker(time.Millisecond)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-producerStop:
+				return
+			case <-ticker.C:
+				_, _ = lateFile.WriteString("x")
+			}
+		}
+	}()
+	_, err = p.Wait()
+	if err == nil || !strings.Contains(err.Error(), "cancellation was not confirmed") {
+		t.Fatalf("Wait() error=%v, want bounded unconfirmed-cancellation error", err)
+	}
+	select {
+	case got := <-output:
+		if got != "live output" {
+			t.Fatalf("relayed output=%q, want live output", got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("output relay did not drain before Wait returned")
+	}
+	deliveredAtReturn := len(output)
+	close(producerStop)
+	<-producerDone
+	if _, err := lateFile.WriteString("late output"); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(100 * time.Millisecond)
+	if len(output) != deliveredAtReturn {
+		t.Fatalf("relay wrote after Wait returned: output count %d -> %d", deliveredAtReturn, len(output))
+	}
+}
+
 func TestProcessWaitPreservesNonzeroExitAsCode(t *testing.T) {
 	h := &fakeActivityHandle{code: 9, cancelled: make(chan struct{})}
 	p := &Process{ctx: context.Background(), handle: h, workdir: "/tmp/project"}

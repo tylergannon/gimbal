@@ -8,6 +8,7 @@
 package execution
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -17,6 +18,7 @@ import (
 	"io"
 	"log"
 	"maps"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -41,6 +43,8 @@ const (
 	commandStartTimeout = 30 * time.Second
 )
 
+var activityWaitTimeout = 10 * time.Second
+
 type Config struct {
 	Environment           string                                      `json:"environment"`
 	DockerImage           string                                      `json:"docker_image"`
@@ -49,6 +53,7 @@ type Config struct {
 	WorkerTemporalAddress string                                      `json:"worker_temporal_address,omitempty"`
 	WorkerPostgresDSN     string                                      `json:"worker_postgres_dsn,omitempty"`
 	Mounts                []string                                    `json:"mounts,omitempty"`
+	ArtifactDir           string                                      `json:"-"`
 	Models                map[gimbal.WorkflowRole]gimbal.ModelBinding `json:"-"`
 	SecretFiles           map[string]string                           `json:"secret_files,omitempty"`
 	DockerExecutable      string                                      `json:"docker_executable,omitempty"`
@@ -160,6 +165,18 @@ func New(ctx context.Context, cfg Config) (*Backend, error) {
 		}
 	}
 	cfg.Mounts = uniqueMounts(cfg.Mounts)
+	if cfg.ArtifactDir != "" {
+		cfg.ArtifactDir, err = filepath.Abs(cfg.ArtifactDir)
+		if err != nil {
+			return nil, fmt.Errorf("execution: resolve artifact directory: %w", err)
+		}
+		cfg.ArtifactDir = filepath.Clean(cfg.ArtifactDir)
+	} else if len(cfg.Mounts) > 0 {
+		cfg.ArtifactDir = cfg.Mounts[0]
+	}
+	if cfg.ArtifactDir != "" && !mounted(cfg.Mounts, cfg.ArtifactDir) {
+		return nil, fmt.Errorf("execution: artifact directory %q is not in the configured mounts", cfg.ArtifactDir)
+	}
 	db, err := pgxpool.New(ctx, cfg.PostgresDSN)
 	if err != nil {
 		return nil, fmt.Errorf("execution: connect Postgres: %w", err)
@@ -422,23 +439,53 @@ func (e *Environment) Start(ctx context.Context, command gimbal.ExecutionCommand
 	if !mounted(e.bootstrap.Mounts, command.Workdir) {
 		return nil, fmt.Errorf("execution: workdir %q is not in the configured mounts", command.Workdir)
 	}
-	if !mounted(e.bootstrap.Mounts, command.StdoutPath) || !mounted(e.bootstrap.Mounts, command.StderrPath) {
-		return nil, errors.New("execution: command output files are outside the configured mounts")
-	}
-	input := commandInput{Environment: e.bootstrap.Name, Operation: command.Operation, Session: command.Session, Role: command.Role, Workdir: command.Workdir, Command: command.Command, Args: command.Args, StdoutPath: command.StdoutPath, StderrPath: command.StderrPath}
 	activityID := command.Operation
 	if activityID == "" {
 		return nil, errors.New("execution: command operation ID is required")
 	}
+	stdoutPath, stderrPath, err := e.capturePaths(command)
+	if err != nil {
+		return nil, err
+	}
+	input := commandInput{Environment: e.bootstrap.Name, Operation: command.Operation, Session: command.Session, Role: command.Role, Workdir: command.Workdir, Command: command.Command, Args: command.Args, StdoutPath: stdoutPath, StderrPath: stderrPath}
 	handle, err := e.backend.temporal.ExecuteActivity(ctx, client.StartActivityOptions{ID: activityID, TaskQueue: e.bootstrap.Queue, ScheduleToStartTimeout: 30 * time.Second, StartToCloseTimeout: 24 * time.Hour, HeartbeatTimeout: 15 * time.Second, RetryPolicy: &temporal.RetryPolicy{MaximumAttempts: 1}}, commandActivity, input)
 	if err != nil {
+		_ = errors.Join(os.Remove(stdoutPath), os.Remove(stderrPath))
 		return nil, fmt.Errorf("execution: schedule command activity: %w", err)
 	}
-	p := &Process{ctx: ctx, handle: handle, workdir: command.Workdir, operation: command.Operation}
+	p := &Process{ctx: ctx, handle: handle, workdir: command.Workdir, operation: command.Operation,
+		stdout: stdout, stderr: stderr, stdoutPath: stdoutPath, stderrPath: stderrPath,
+		relayStop: make(chan struct{}), relayDone: make(chan error, 2), relayEnded: make(chan struct{})}
+	go func() { p.relayDone <- relayOutput(stdoutPath, stdout, p.relayStop) }()
+	go func() { p.relayDone <- relayOutput(stderrPath, stderr, p.relayStop) }()
 	if err := p.awaitStarted(ctx); err != nil {
 		return nil, errors.Join(err, p.Stop())
 	}
 	return p, nil
+}
+
+func (e *Environment) capturePaths(command gimbal.ExecutionCommand) (string, string, error) {
+	root := e.backend.cfg.ArtifactDir
+	if root == "" || !mounted(e.bootstrap.Mounts, root) {
+		return "", "", errors.New("execution: no mounted artifact directory is available for output capture")
+	}
+	sum := sha256.Sum256([]byte(command.Operation))
+	dir := filepath.Join(root, ".gimbal-execution", "output", hex.EncodeToString(sum[:]))
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", "", fmt.Errorf("execution: create output capture directory: %w", err)
+	}
+	stdout, stderr := filepath.Join(dir, "stdout.log"), filepath.Join(dir, "stderr.log")
+	for _, path := range []string{stdout, stderr} {
+		file, err := os.OpenFile(path, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644)
+		if err != nil {
+			_ = errors.Join(os.Remove(stdout), os.Remove(stderr))
+			return "", "", fmt.Errorf("execution: prepare output capture: %w", err)
+		}
+		if err := file.Close(); err != nil {
+			return "", "", fmt.Errorf("execution: close output capture: %w", err)
+		}
+	}
+	return stdout, stderr, nil
 }
 
 func mounted(mounts []string, workdir string) bool {
@@ -456,8 +503,19 @@ type Process struct {
 	handle     activityHandle
 	workdir    string
 	operation  string
+	stdout     io.Writer
+	stderr     io.Writer
+	stdoutPath string
+	stderrPath string
+	relayStop  chan struct{}
+	relayDone  chan error
+	relayEnded chan struct{}
+	relayOnce  sync.Once
+	drainOnce  sync.Once
+	relayErr   error
 	mu         sync.Mutex
 	waitDone   chan struct{}
+	waitCancel context.CancelFunc
 	waited     bool
 	code       int
 	waitErr    error
@@ -525,8 +583,9 @@ func (p *Process) Wait() (int, error) {
 		p.requestCancel()
 		select {
 		case <-p.waitDone:
-		case <-time.After(10 * time.Second):
-			return -1, errors.Join(p.ctx.Err(), p.cancelErr, errors.New("execution: activity cancellation was not confirmed before timeout"))
+		case <-time.After(activityWaitTimeout):
+			relayErr := p.abortWait()
+			return -1, errors.Join(p.ctx.Err(), p.cancelErr, relayErr, errors.New("execution: activity cancellation was not confirmed before timeout"))
 		}
 	}
 	p.mu.Lock()
@@ -539,14 +598,20 @@ func (p *Process) ensureWait() <-chan struct{} {
 	defer p.mu.Unlock()
 	if p.waitDone == nil {
 		p.waitDone = make(chan struct{})
-		go p.collect()
+		ctx, cancel := context.WithCancel(context.Background())
+		p.waitCancel = cancel
+		go p.collect(ctx)
 	}
 	return p.waitDone
 }
 
-func (p *Process) collect() {
+func (p *Process) collect(ctx context.Context) {
 	var result commandResult
-	err := p.handle.Get(context.Background(), &result)
+	err := p.handle.Get(ctx, &result)
+	if p.relayStop != nil {
+		err = errors.Join(err, p.stopRelays())
+		_ = errors.Join(os.Remove(p.stdoutPath), os.Remove(p.stderrPath))
+	}
 	if result.RecordingError != "" {
 		log.Printf("gimbal: command event recording degraded for %s: %s", p.operation, result.RecordingError)
 	}
@@ -557,6 +622,98 @@ func (p *Process) collect() {
 	}
 	close(p.waitDone)
 	p.mu.Unlock()
+}
+
+func (p *Process) abortWait() error {
+	p.mu.Lock()
+	cancel := p.waitCancel
+	p.mu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+	return p.stopRelays()
+}
+
+func (p *Process) stopRelays() error {
+	if p.relayStop == nil {
+		return nil
+	}
+	p.relayOnce.Do(func() { close(p.relayStop) })
+	p.drainOnce.Do(func() {
+		go func() {
+			p.relayErr = errors.Join(<-p.relayDone, <-p.relayDone)
+			close(p.relayEnded)
+		}()
+	})
+	<-p.relayEnded
+	return p.relayErr
+}
+
+func relayOutput(path string, writer io.Writer, stop <-chan struct{}) error {
+	if writer == nil {
+		return nil
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		return fmt.Errorf("execution: open output spool: %w", err)
+	}
+	defer func() { _ = file.Close() }()
+	ticker := time.NewTicker(50 * time.Millisecond)
+	defer ticker.Stop()
+	buffer := make([]byte, 32<<10)
+	finishing := false
+	var finalSize int64
+	for {
+		if !finishing {
+			select {
+			case <-stop:
+				info, err := file.Stat()
+				if err != nil {
+					return fmt.Errorf("execution: inspect output spool: %w", err)
+				}
+				finalSize, finishing = info.Size(), true
+			default:
+			}
+		}
+		offset, err := file.Seek(0, io.SeekCurrent)
+		if err != nil {
+			return fmt.Errorf("execution: seek output spool: %w", err)
+		}
+		if finishing {
+			remaining := finalSize - offset
+			if remaining <= 0 {
+				return nil
+			}
+			if remaining < int64(len(buffer)) {
+				buffer = buffer[:remaining]
+			}
+		}
+		n, readErr := file.Read(buffer)
+		if n > 0 {
+			written, writeErr := io.Copy(writer, bytes.NewReader(buffer[:n]))
+			if writeErr != nil {
+				return fmt.Errorf("execution: relay command output: %w", writeErr)
+			}
+			if written != int64(n) {
+				return io.ErrShortWrite
+			}
+		}
+		if readErr != nil && !errors.Is(readErr, io.EOF) {
+			return fmt.Errorf("execution: read output spool: %w", readErr)
+		}
+		if n > 0 {
+			continue
+		}
+		if finishing {
+			return fmt.Errorf("execution: output spool ended before its final size: %w", io.ErrUnexpectedEOF)
+		}
+		select {
+		case <-stop:
+			// The next iteration snapshots the current spool length and drains
+			// only that finite prefix, even if the child ignores cancellation.
+		case <-ticker.C:
+		}
+	}
 }
 
 func (p *Process) requestCancel() {
@@ -581,8 +738,9 @@ func (p *Process) Stop() error {
 			waitDone := p.ensureWait()
 			select {
 			case <-waitDone:
-			case <-time.After(10 * time.Second):
-				p.stopErr = errors.Join(p.cancelErr, errors.New("execution: stopped activity did not finish before timeout"))
+			case <-time.After(activityWaitTimeout):
+				relayErr := p.abortWait()
+				p.stopErr = errors.Join(p.cancelErr, relayErr, errors.New("execution: stopped activity did not finish before timeout"))
 			}
 		}
 		p.mu.Lock()

@@ -155,6 +155,7 @@ func NewInstance(ctx context.Context, instanceDir string, initialProjects []stri
 				return nil, "", err
 			}
 			runConfig.Mounts = mounts
+			runConfig.ArtifactDir = artifacts
 			backend, err := execution.New(runCtx, runConfig)
 			if err != nil {
 				return nil, "", err

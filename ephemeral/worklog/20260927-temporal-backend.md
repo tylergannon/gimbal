@@ -169,3 +169,13 @@ the existing built-in workflow invocation/configuration path.
 friction: The outcome planner invented a no-new-CLI-flags restriction. Despite delivered owner steering authorizing a single execution-config file flag, the architectural supervisor told the coder to ignore that correction and the coder removed already-tested CLI wiring. The manager corrected coder, supervisor, planner, and QA directly. Updated task constraints must reach all active supervisors; otherwise they can repeatedly reverse authorized work.
 
 decision: Practical built-in invocation includes instance startup with an execution-config JSON file. An internal Go option used only in a test is insufficient. Workflow model choices supply worker role bindings; backend configuration owns infrastructure and secret-file references.
+
+## Second-pass portability boundary
+
+correction: Removing Start writers while retaining controller-local output paths would bake the Docker prototype shared-filesystem assumption into the public API. Keep output sinks at the public boundary; backend-private spooling/transport preserves portability. Preserve live service output and ensure no writes occur after Wait returns, including unconfirmed cancellation.
+
+friction: Readiness cleanup integration assertions still used pre-scoping logical environment/container names after environmentIdentity changed. Assertions against nonexistent old identities can pass vacuously; use the actual backend identity for bootstrap/container checks.
+
+friction: Hosted-integration checkpoint web-check failed while parallel frontend hooks installed dependencies; standalone check and full hook retry passed without source changes. The exact first failure was truncated, so dependency contention is only a hypothesis.
+
+friction: Follow-up implement run 01M3H7XJB8Q2FWJ2K4H78PZYYY failed terminally when the Sonnet planner repeatedly double-wrapped structured output. The plan itself was valid inside the rejected envelope. Manager extracted that bounded plan and continued via Gimbal run-prompt with Luna implementation then Sonnet independent validation; no runtime/schema changes were needed for this task.

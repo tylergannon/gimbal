@@ -226,7 +226,7 @@ func runCommand(ctx context.Context, s *scope, name, workdir, command string, ar
 		if captureErr == nil {
 			ended.StdoutFile = stdoutFile
 			if environmentName, ok := ctx.Value(environmentKey{}).(string); ok {
-				commandErr = runExecutionCommand(ctx, s, environmentName, id, workdir, command, args, out, errOut, &ended)
+				commandErr = runExecutionCommand(ctx, s, environmentName, id, dir, command, args, out, errOut, &ended)
 				ended.Stdout, captureErr = out.result(s.run.dir, ended.StdoutFile)
 				ended.Stderr, captureErr = capturePairError(captureErr, errOut, s.run.dir, ended.StderrFile)
 				if captureErr != nil {
@@ -274,7 +274,6 @@ func runExecutionCommand(ctx context.Context, s *scope, environmentName, id, wor
 	}
 	process, err := environment.Start(ctx, ExecutionCommand{
 		Operation: filepath.Base(s.run.dir) + "/" + id, Session: s.key, Role: path.Base(s.key), Workdir: workdir, Command: command, Args: append([]string(nil), args...),
-		StdoutPath: filepath.Join(s.run.dir, filepath.FromSlash(ended.StdoutFile)), StderrPath: filepath.Join(s.run.dir, filepath.FromSlash(ended.StderrFile)),
 	}, out, errOut)
 	if err != nil {
 		return fmt.Errorf("gimbal: command %s: start in environment %q: %w", id, environmentName, err)

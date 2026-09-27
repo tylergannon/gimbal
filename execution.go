@@ -21,17 +21,15 @@ type ExecutionEnvironment interface {
 	Start(context.Context, ExecutionCommand, io.Writer, io.Writer) (ExecutionProcess, error)
 }
 
-// ExecutionCommand names a process in an execution environment. An empty
-// Workdir selects that environment's configured working directory.
+// ExecutionCommand names a process in an execution environment. Workdir must
+// be an absolute path available in that environment.
 type ExecutionCommand struct {
-	Operation  string
-	Session    string
-	Role       string
-	StdoutPath string
-	StderrPath string
-	Workdir    string
-	Command    string
-	Args       []string
+	Operation string
+	Session   string
+	Role      string
+	Workdir   string
+	Command   string
+	Args      []string
 }
 
 // ExecutionProcess is a started command or resident service. Output is written

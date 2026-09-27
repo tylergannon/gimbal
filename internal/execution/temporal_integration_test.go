@@ -2,8 +2,6 @@ package execution
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"os"
 	"os/exec"
 	"strings"
@@ -34,8 +32,7 @@ func TestResolveWorkerReadinessIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	hash := sha256.Sum256([]byte(name))
-	failedContainer := "gimbal-worker-" + hex.EncodeToString(hash[:8]) + "-" + badBackend.owner[:8]
+	scopedName, _, failedContainer, _ := environmentIdentity(badBackend.owner, name)
 	started := time.Now()
 	_, resolveErr := badBackend.Resolve(context.Background(), name)
 	if resolveErr == nil || !strings.Contains(resolveErr.Error(), name) || !strings.Contains(resolveErr.Error(), "65534") {
@@ -58,7 +55,7 @@ func TestResolveWorkerReadinessIntegration(t *testing.T) {
 	}
 	defer db.Close()
 	var rows int
-	if err := db.QueryRow(checkCtx, `SELECT count(*) FROM gimbal_environments WHERE name=$1`, name).Scan(&rows); err != nil {
+	if err := db.QueryRow(checkCtx, `SELECT count(*) FROM gimbal_environments WHERE name=$1`, scopedName).Scan(&rows); err != nil {
 		t.Fatal(err)
 	}
 	if rows != 0 {

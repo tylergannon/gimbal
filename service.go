@@ -130,7 +130,6 @@ func startExecutionService(ctx context.Context, s *scope, environmentName, id, w
 	return environment.Start(ctx, ExecutionCommand{
 		Operation: filepath.Base(s.run.dir) + "/" + id, Session: s.key, Role: path.Base(s.key),
 		Workdir: workdir, Command: "zsh", Args: []string{"-c", command},
-		StdoutPath: filepath.Join(s.run.dir, filepath.FromSlash(ended.StdoutFile)), StderrPath: filepath.Join(s.run.dir, filepath.FromSlash(ended.StderrFile)),
 	}, out, errOut)
 }
 

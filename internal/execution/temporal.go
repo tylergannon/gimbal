@@ -26,11 +26,17 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/tylergannon/gimbal"
+	"go.temporal.io/api/enums/v1"
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/temporal"
 )
 
 const commandActivity = "gimbal.execute-command"
+
+const (
+	workerReadyTimeout  = 45 * time.Second
+	workerReadyInterval = 250 * time.Millisecond
+)
 
 type Config struct {
 	DockerImage           string
@@ -76,6 +82,10 @@ type commandInput struct {
 type commandResult struct {
 	ExitCode       int    `json:"exit_code"`
 	RecordingError string `json:"recording_error,omitempty"`
+}
+
+type workerReadinessProbe interface {
+	checkWorkerReady(context.Context, bootstrap) (bool, string, error)
 }
 
 func New(ctx context.Context, cfg Config) (*Backend, error) {
@@ -158,7 +168,9 @@ func (b *Backend) Resolve(ctx context.Context, name string) (gimbal.ExecutionEnv
 		return nil, fmt.Errorf("execution: persist bootstrap for %q: %w", name, err)
 	}
 	if err := b.startWorker(ctx, row); err != nil {
-		_, _ = b.db.Exec(context.Background(), `DELETE FROM gimbal_environments WHERE name=$1 AND owner_id=$2`, name, b.owner)
+		deleteCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		_, _ = b.db.Exec(deleteCtx, `DELETE FROM gimbal_environments WHERE name=$1 AND owner_id=$2`, name, b.owner)
+		cancel()
 		return nil, err
 	}
 	env := &Environment{backend: b, bootstrap: row}
@@ -180,9 +192,80 @@ func (b *Backend) startWorker(ctx context.Context, row bootstrap) error {
 	cmd := exec.CommandContext(ctx, b.cfg.DockerExecutable, args...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("execution: start worker container: %w: %s", err, strings.TrimSpace(string(output)))
+		return b.workerStartupFailure(row, fmt.Errorf("docker run failed: %w: %s", err, strings.TrimSpace(string(output))))
+	}
+	readyCtx, cancel := context.WithTimeout(ctx, workerReadyTimeout)
+	defer cancel()
+	if err := waitForWorkerReady(readyCtx, workerReadyInterval, b, row); err != nil {
+		return b.workerStartupFailure(row, err)
 	}
 	return nil
+}
+
+func (b *Backend) checkWorkerReady(ctx context.Context, row bootstrap) (bool, string, error) {
+	inspect := exec.CommandContext(ctx, b.cfg.DockerExecutable, "inspect", "--format", "{{.State.Status}}", row.Container)
+	state, err := inspect.CombinedOutput()
+	if err != nil {
+		return false, "", fmt.Errorf("inspect container: %w: %s", err, strings.TrimSpace(string(state)))
+	}
+	status := strings.TrimSpace(string(state))
+	if status != "running" {
+		return false, "", fmt.Errorf("container state is %q", status)
+	}
+	response, err := b.temporal.DescribeTaskQueue(ctx, row.Queue, enums.TASK_QUEUE_TYPE_ACTIVITY)
+	if err != nil {
+		return false, "container is running, but Temporal task queue lookup failed: " + err.Error(), nil
+	}
+	for _, poller := range response.GetPollers() {
+		if poller.GetIdentity() == row.Owner {
+			return true, "", nil
+		}
+	}
+	return false, "container is running, waiting for its Temporal activity poller", nil
+}
+
+func waitForWorkerReady(ctx context.Context, interval time.Duration, probe workerReadinessProbe, row bootstrap) error {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	lastStatus := "worker has not reported readiness"
+	for {
+		ready, status, err := probe.checkWorkerReady(ctx, row)
+		if status != "" {
+			lastStatus = status
+		}
+		if err != nil {
+			return fmt.Errorf("worker readiness check failed: %w", err)
+		}
+		if ready {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("worker readiness timed out after %s: %s: %w", workerReadyTimeout, lastStatus, ctx.Err())
+		case <-ticker.C:
+		}
+	}
+}
+
+func (b *Backend) workerStartupFailure(row bootstrap, cause error) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	logsCmd := exec.CommandContext(ctx, b.cfg.DockerExecutable, "logs", row.Container)
+	logs, logsErr := logsCmd.CombinedOutput()
+	removeCtx, cancelRemove := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancelRemove()
+	removeCmd := exec.CommandContext(removeCtx, b.cfg.DockerExecutable, "rm", "-f", row.Container)
+	removeOutput, removeErr := removeCmd.CombinedOutput()
+	message := fmt.Sprintf("execution: worker for environment %q failed to become ready: %v", row.Name, cause)
+	if len(strings.TrimSpace(string(logs))) > 0 {
+		message += "; docker logs: " + strings.TrimSpace(string(logs))
+	} else if logsErr != nil {
+		message += "; docker logs unavailable: " + logsErr.Error()
+	}
+	if removeErr != nil {
+		message += fmt.Sprintf("; remove container failed: %v: %s", removeErr, strings.TrimSpace(string(removeOutput)))
+	}
+	return errors.New(message)
 }
 
 func (b *Backend) Close() error {

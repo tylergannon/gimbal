@@ -46,7 +46,7 @@ func RunWorker(ctx context.Context) error {
 		return err
 	}
 	defer temporal.Close()
-	w := worker.New(temporal, row.Queue, worker.Options{MaxConcurrentActivityExecutionSize: 32})
+	w := worker.New(temporal, row.Queue, worker.Options{Identity: row.Owner, MaxConcurrentActivityExecutionSize: 32})
 	w.RegisterActivityWithOptions(func(ctx context.Context, in commandInput) (commandResult, error) {
 		return runCommandActivity(ctx, db, in)
 	}, activity.RegisterOptions{Name: commandActivity})

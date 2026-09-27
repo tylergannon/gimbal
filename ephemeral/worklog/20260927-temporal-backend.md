@@ -63,3 +63,18 @@ gimbal-command-worker:dockerfile-check (de37538473a9). It compiled the worker in
 golang:1.27.1-alpine and installed bash/git in alpine:3.22. This resolves the
 previous Dockerfile-build gap for checkpoint 0b0373c4. The image currently has
 only the command worker; provider CLI installation belongs to the next slice.
+
+## Readiness task and workflow handoff correction
+
+Sonnet independently confirmed the bad-worker startup now fails in under a
+second with environment-specific diagnostics, cleans its container/bootstrap
+row, and allows a healthy same-name retry through RunCommand. Build and existing
+Go tests passed. This completes readiness only.
+
+The built-in implement validator marked the broader outcome passed after only
+this first planner-selected readiness task, so the workflow advanced before
+harness support existed. Manager explicitly corrected outcome 2's planner:
+missing remote harnesses, role bootstrap, provider state/secrets and event
+streaming remain required. Future validation must assess the entire selected
+outcome, not only its first task. No completion claim is inherited from that
+incorrect outcome-level approval.

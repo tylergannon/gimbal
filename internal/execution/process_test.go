@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -116,4 +117,62 @@ func TestCommandActivityCancellationStopsOSProcess(t *testing.T) {
 	case <-time.After(4 * time.Second):
 		t.Fatal("activity did not stop its OS process after cancellation")
 	}
+}
+
+func TestWaitForWorkerReadyFailsImmediatelyWhenWorkerDies(t *testing.T) {
+	started := time.Now()
+	probe := &testWorkerReadinessProbe{results: []workerReadinessResult{{err: errors.New("container state is \"exited\"")}}}
+	err := waitForWorkerReady(context.Background(), time.Millisecond, probe, bootstrap{})
+	if err == nil || !strings.Contains(err.Error(), `container state is "exited"`) {
+		t.Fatalf("readiness error=%v, want exited container cause", err)
+	}
+	if elapsed := time.Since(started); elapsed > time.Second {
+		t.Fatalf("dead worker detection took %s, want immediate failure", elapsed)
+	}
+}
+
+func TestWaitForWorkerReadyWaitsForPollerThenSucceeds(t *testing.T) {
+	probe := &testWorkerReadinessProbe{results: []workerReadinessResult{
+		{status: "container is running, waiting for its Temporal activity poller"},
+		{status: "container is running, waiting for its Temporal activity poller"},
+		{ready: true},
+	}}
+	err := waitForWorkerReady(context.Background(), time.Millisecond, probe, bootstrap{})
+	if err != nil {
+		t.Fatalf("readiness check: %v", err)
+	}
+	if probe.calls != 3 {
+		t.Fatalf("readiness checks=%d, want 3", probe.calls)
+	}
+}
+
+func TestWaitForWorkerReadyHonorsBoundedContext(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancel()
+	probe := &testWorkerReadinessProbe{results: []workerReadinessResult{{status: "container is running, waiting for its Temporal activity poller"}}}
+	err := waitForWorkerReady(ctx, time.Millisecond, probe, bootstrap{})
+	if err == nil || !strings.Contains(err.Error(), "worker readiness timed out") {
+		t.Fatalf("readiness error=%v, want bounded timeout", err)
+	}
+}
+
+type workerReadinessResult struct {
+	ready  bool
+	status string
+	err    error
+}
+
+type testWorkerReadinessProbe struct {
+	results []workerReadinessResult
+	calls   int
+}
+
+func (p *testWorkerReadinessProbe) checkWorkerReady(context.Context, bootstrap) (bool, string, error) {
+	index := p.calls
+	p.calls++
+	if index >= len(p.results) {
+		index = len(p.results) - 1
+	}
+	result := p.results[index]
+	return result.ready, result.status, result.err
 }

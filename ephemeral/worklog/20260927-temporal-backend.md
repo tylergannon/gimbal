@@ -46,3 +46,20 @@ Dockerfile build remains unverified because of registry access, and a worker
 with a bad Postgres address can crash after docker run succeeds while the caller
 waits too long. The next worker/harness slice must add bounded actual readiness
 and a clear startup failure; successful Docker creation alone is insufficient.
+
+## Image-pull blocker narrowed
+
+After the first checkpoint, pulling golang:1.27.1-alpine succeeded with an empty,
+task-local Docker configuration and the explicit Docker Desktop Unix socket.
+The earlier failures therefore were not proof that Docker Hub was unavailable;
+the normal local credential-helper path was involved. The isolated public-pull
+configuration leaves the user's Docker settings and credentials untouched.
+A normal Dockerfile build is now being checked with that configuration.
+Next built-in implement run: 01M3GZ3PQ6DPHMWW7TF9AY4ZC2.implement (same
+Sonnet 5 planning/validation and GPT-6 Luna coding mapping).
+
+The checkpoint Dockerfile build completed successfully with the isolated config:
+gimbal-command-worker:dockerfile-check (de37538473a9). It compiled the worker in
+golang:1.27.1-alpine and installed bash/git in alpine:3.22. This resolves the
+previous Dockerfile-build gap for checkpoint 0b0373c4. The image currently has
+only the command worker; provider CLI installation belongs to the next slice.

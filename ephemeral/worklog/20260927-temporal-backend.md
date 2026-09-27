@@ -78,3 +78,15 @@ missing remote harnesses, role bootstrap, provider state/secrets and event
 streaming remain required. Future validation must assess the entire selected
 outcome, not only its first task. No completion claim is inherited from that
 incorrect outcome-level approval.
+
+## Environment-bound session seam
+
+Readiness checkpoint 2a6de3d8 passed the lint gate after replacing the probe
+callback with a private named-method interface. The session task now captures
+environment identity at NewSession, resolves the backend adapter lazily on first
+action, returns operational setup failures normally, preserves identity across
+forks, and rejects incompatible supervisor placement. Sonnet independently
+accepted those changes with fake-harness tests and passing build/Go/lint checks.
+No real remote harness session has been demonstrated yet; the backend Harness
+method remains nil until the next task. Explicit QA steering kept the overall
+outcome open so the remaining remote harness/service/invocation work proceeds.

@@ -65,3 +65,13 @@ its environment so the backend owns compatibility. For stock Claude/Codex,
 running the real adapter and agent process in the same container as the worktree
 is sufficient for this experiment; do not invent interception of every native
 agent tool or copy Attractor's read/write/grep/glob API without a concrete need.
+
+## Session failure semantics
+
+Preserve ordinary workflow error handling: container/database/network failures
+while resolving an environment are operational errors, returned from the action
+that needs it. They must not become NewSession panics merely by weakening its
+existing lazy-start contract. Defer remote setup to the existing native-session
+initialization/first action path where practical. Missing static role bindings
+may retain their existing programming-error behavior. Environment identity still
+needs to survive forks and permit clear supervisor compatibility checks.

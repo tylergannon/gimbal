@@ -34,7 +34,7 @@ activities are exactly Finalist 1's activities, so nothing is thrown away.
 | Risk | Outcome | Evidence |
 |---|---|---|
 | Activities with host pinning without a bespoke workflow | Eliminated | Standalone Activities: client-started, awaitable, heartbeat, cancel, retry, caller-chosen task queue, no event history. round2/r1-1 |
-| Session survival across pod death | Confirmed as a constraint | Codex, OpenCode, Pi are pinned to a live local process by Gimbal's adapters; Claude and agy resume from their own stores only if copied to the same path. Recovery is "retry the turn on the same pod". round2/r1-2 |
+| Session survival across pod death | Reduced (corrected after Tyler's challenge) | Session state is portable at turn boundaries: verified for Claude Code (one transcript file, resume by id, cwd-independent); designed-for in Codex source; Gimbal-owned for Pi. The blocker is adapter state roots, not harness formats. Checkpoint per turn, restore on any pod, lose at most the in-flight turn. round2/r1-2, r1-2b |
 | Steer and supervision across the boundary | Reduced | Run the whole `Generate` (supervisors included) inside the activity; steer, kill, interview go instance to worker over HTTP, not through Temporal. New surface: worker control listener, address registry, one NetworkPolicy rule. round2/r1-3 |
 | Orchestrator restart mid-run | Deferred by evidence | Records suffice to memoize turns, commands, planner decisions, interviews; one hazard (`implementation.go` reads a file into `Iterate`); native session id not recorded. Today's guarantee is already "crash means restart", so pod-per-run first. round2/r1-4 |
 | Cost and history size | Eliminated | $0.07 per 20-turn run, about $20 per month at 300 runs; 1% of the history limit; heartbeats bill but never touch history. round2/r1-5 |
@@ -46,9 +46,10 @@ activities are exactly Finalist 1's activities, so nothing is thrown away.
 ## Pushbacks
 
 1. **Durable replay of orchestration is the wrong prize.** Gimbal needs
-   host-pinned remote execution, scheduling, and a shared page. Sessions die
-   with their pod under every engine surveyed. Temporal supplies the first
-   two without asking Gimbal to become deterministic.
+   host-pinned remote execution, scheduling, and a shared page. Session
+   durability comes from Gimbal checkpointing harness state and workdir at
+   turn boundaries (r1-2b), which no engine does for it. Temporal supplies
+   the first two without asking Gimbal to become deterministic.
 2. **Nobody hosts a multi-hour steerable agent session inside a Temporal
    activity in public.** Replit, Devin Outposts, Codex, Claude Code cloud
    all keep the control plane and the sandbox as two systems. Finalist 1

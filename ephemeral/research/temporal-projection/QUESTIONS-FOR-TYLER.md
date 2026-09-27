@@ -19,8 +19,10 @@ Each answer removes work. Recommended answer first.
 3. **Unit of placement: pod per run.** All of a run's sessions, workdir,
    services, and supervisors on one pod, one task queue per run. Keeps
    today's semantics exactly (fork-in-same-workdir, `Service` scope,
-   `WalkDir` over agent output), and is the only placement every harness
-   fits today. Pod per session is the later refinement. (round2/r1-2)
+   `WalkDir` over agent output). With per-turn checkpoints of harness
+   state plus workdir delta, a replacement pod can continue a run; decide
+   whether the checkpoint store is a per-run EFS volume (no uploads) or a
+   bucket (cold, cheap, needs upload per turn). (round2/r1-2, r1-2b)
 
 4. **Orchestrator location: in the pod (step 0) then the shared instance
    (step 1).** Decides event transport: shared volume tailed by the

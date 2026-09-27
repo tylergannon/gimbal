@@ -1,0 +1,36 @@
+# Host Temporal for this compose stack: temporal server start-dev --ip 0.0.0.0
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: gimbal
+      POSTGRES_PASSWORD: gimbal
+      POSTGRES_DB: gimbal
+    ports:
+      - "5433:5432"
+    volumes:
+      - gimbal-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gimbal -d gimbal"]
+      interval: 2s
+      timeout: 2s
+      retries: 20
+
+  worker:
+    profiles: ["manual-worker"]
+    build:
+      context: .
+      dockerfile: Dockerfile.gimbal-worker
+    image: gimbal-command-worker:local
+    environment:
+      GIMBAL_ENVIRONMENT: ${GIMBAL_ENVIRONMENT:-manual}
+      GIMBAL_WORKER_ID: ${GIMBAL_WORKER_ID:-manual}
+      GIMBAL_POSTGRES_DSN: ${GIMBAL_WORKER_POSTGRES_DSN:-postgres://gimbal:gimbal@host.docker.internal:5433/gimbal?sslmode=disable}
+      GIMBAL_TEMPORAL_ADDRESS: ${GIMBAL_WORKER_TEMPORAL_ADDRESS:-host.docker.internal:7233}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ${GIMBAL_PROJECT_DIR:-.}:${GIMBAL_PROJECT_DIR:-.}
+
+volumes:
+  gimbal-postgres:

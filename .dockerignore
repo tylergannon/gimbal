@@ -1,0 +1,14 @@
+.git
+.gimbal
+ephemeral
+web
+**/node_modules
+**/.svelte-kit
+**/.cache
+**/cache
+bin
+build
+dist
+coverage
+*.log
+third_party/opencode/oracle/upstream

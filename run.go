@@ -65,21 +65,24 @@ func RegisteredGraph(name string) (workflow.Graph, bool) {
 }
 
 type run struct {
-	dir        string                        // <project>/runs/<id>
-	models     map[WorkflowRole]ModelBinding // what each role the workflow names runs on
-	writer     *eventWriter
-	project    *eventWriter
-	store      *observation.Store
-	mu         sync.Mutex
-	sessions   map[string]*eventWriter
-	scopes     map[string]*scope                  // live scopes by key, for cancelScope
-	turns      map[string]context.CancelCauseFunc // running turns by id, for cancelTurn
-	interviews map[string]*interviewWaiter        // questions waiting for a person's answer
-	rootCancel error                              // explicit cancellation of the root scope
-	errMu      sync.Mutex
-	recordErr  error
-	closeMu    sync.Mutex
-	closeErrs  []error
+	dir              string                        // <project>/runs/<id>
+	models           map[WorkflowRole]ModelBinding // what each role the workflow names runs on
+	writer           *eventWriter
+	project          *eventWriter
+	store            *observation.Store
+	mu               sync.Mutex
+	sessions         map[string]*eventWriter
+	scopes           map[string]*scope                  // live scopes by key, for cancelScope
+	turns            map[string]context.CancelCauseFunc // running turns by id, for cancelTurn
+	interviews       map[string]*interviewWaiter        // questions waiting for a person's answer
+	rootCancel       error                              // explicit cancellation of the root scope
+	errMu            sync.Mutex
+	recordErr        error
+	backend          ExecutionBackend
+	closeMu          sync.Mutex
+	closeErrs        []error
+	backendCloseOnce sync.Once
+	backendCloseErr  error
 }
 
 // CloseError aggregates every HarnessAdapter.Close failure a run's sessions
@@ -146,9 +149,10 @@ func (r *run) closeError() error {
 // writes its supplied project's durable files without joining a running web
 // instance or its live controls. Use a separate project directory from one
 // admitted to a concurrently running instance; shared-state use has no
-// supported contract. Hosted runs are submitted to an instance with a
-// workflow compiled into its binary.
-func Run(ctx context.Context, name string, models map[WorkflowRole]ModelBinding, body func(ctx context.Context) error) error {
+// supported contract. options configures run-owned resources such as an
+// ExecutionBackend. Hosted runs are submitted to an instance with a workflow
+// compiled into its binary.
+func Run(ctx context.Context, name string, models map[WorkflowRole]ModelBinding, body func(ctx context.Context) error, options ...RunOption) error {
 	project, _ := ctx.Value(projectKey{}).(string)
 	if project == "" {
 		return errors.New("gimbal: Run needs gimbal.Project in its ctx")
@@ -178,6 +182,9 @@ func Run(ctx context.Context, name string, models map[WorkflowRole]ModelBinding,
 		return fmt.Errorf("gimbal: %w", err)
 	}
 	r := &run{dir: dir, models: models, writer: w, sessions: make(map[string]*eventWriter), scopes: make(map[string]*scope), turns: make(map[string]context.CancelCauseFunc), interviews: make(map[string]*interviewWaiter)}
+	for _, option := range options {
+		option(r)
+	}
 	r.store = store
 	r.recordFailure("open observation", storeErr)
 	pw, pwErr := newEventWriter(filepath.Join(project, "project.jsonl"))
@@ -247,7 +254,7 @@ func (r *run) finish(name string, err error) error {
 	// session before body returned control here, so the aggregate close
 	// error is complete by now: RunEnded, the observation status, and
 	// Run's returned error all carry the same verdict.
-	err = errors.Join(err, r.closeError())
+	err = errors.Join(err, r.closeError(), r.closeExecutionBackend())
 	r.event("", "", "", RunEnded{Name: name, Error: errString(err)})
 	r.projectEvent(RunEnded{Name: name, Error: errString(err)})
 	// The store's tables are already on disk: closing it ends the page's
@@ -263,6 +270,15 @@ func (r *run) finish(name string, err error) error {
 	err = errors.Join(err, r.recordingError())
 	logf("run %s ended: %v", filepath.Base(r.dir), orNone(err))
 	return err
+}
+
+func (r *run) closeExecutionBackend() error {
+	r.backendCloseOnce.Do(func() {
+		if r.backend != nil {
+			r.backendCloseErr = r.backend.Close()
+		}
+	})
+	return r.backendCloseErr
 }
 
 // addScope and removeScope keep the run's table of live scopes: a scope is

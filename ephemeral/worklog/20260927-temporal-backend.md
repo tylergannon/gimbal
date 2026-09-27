@@ -90,3 +90,48 @@ accepted those changes with fake-harness tests and passing build/Go/lint checks.
 No real remote harness session has been demonstrated yet; the backend Harness
 method remains nil until the next task. Explicit QA steering kept the overall
 outcome open so the remaining remote harness/service/invocation work proceeds.
+
+## Disk exhaustion interrupted remote harness qualification
+
+The management process reported run 01M3GZ3PQ6DPHMWW7TF9AY4ZC2.implement
+terminal at 2026-09-27 03:13:43 local: no space left on device while writing the
+active coding session log. The saved turns file consequently still shows an
+active turn; it is stale. The instance itself (PID 82269) remains alive.
+Remote harness changes are uncommitted and not independently accepted.
+
+Before interruption, the provider-bearing image built with Codex 0.157.1.
+A real lifecycle probe exposed missing procps (BusyBox ps lacks lstart), then
+a need to start the Codex daemon during worker initialization. Both changes
+are in the worktree, but the final image rebuild/lifecycle probe did not finish.
+Do not treat those paths as passing. Earlier Go build/test passed before the
+last initialization edit.
+
+Host disk had only about 120 MB free; Docker metadata began returning I/O
+errors. Clearing regenerable Go build cache recovered space. Docker restart
+requires coordinating with the user because unrelated merge-herder-db-1 also
+runs there. No Docker reset/prune or unrelated data deletion is authorized.
+The next run must finish the harness, then services, built-in invocation, and
+the requested API simplification pass. Keep each outcome bounded so narrow
+task approval cannot silently skip a broader required outcome.
+
+## Auth startup corrected and independently checked
+
+Recovery run 01M3H2FQJYP6543Z2AZAMREVNN.implement completed its first bounded
+auth/daemon task. The coder traced Codex 0.157.1 app-server disabling environment
+API-key authentication; worker startup now calls codex login --with-api-key
+using stdin only when its persistent auth.json is absent, and bounds daemon
+startup to 30 seconds. Existing auth.json is retained. Sonnet independently
+observed real CLI login with a dummy key and idempotent daemon startup in
+temporary isolated homes, and reproduced package build/vet/tests (12 pass,
+2 Docker integration tests skipped). No authenticated provider turn was run.
+
+The full harness outcome remains unaccepted because its real container proxy
+lifecycle has not succeeded yet. Earlier command-only readiness did pass live;
+the recovery reviewer overstated that gap as all readiness having only skipped.
+The lifecycle test also needs an explicit key requirement or a deliberate dummy
+key before its next Docker run, since startup now correctly rejects absent auth.
+Host build-cache cleanup recovered roughly 55 GB; one concurrent writer caused
+a harmless directory-not-empty cleanup error. No further cache cleanup needed.
+Docker metadata I/O errors persisted after disk recovery; restart approval is
+still pending. Continue independent services/CLI implementation and retain live
+qualification for the final integration pass.

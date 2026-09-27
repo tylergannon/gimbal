@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"maps"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -32,6 +33,7 @@ import (
 )
 
 const commandActivity = "gimbal.execute-command"
+const harnessActivity = "gimbal.harness"
 
 const (
 	workerReadyTimeout  = 45 * time.Second
@@ -45,7 +47,15 @@ type Config struct {
 	WorkerTemporalAddress string
 	WorkerPostgresDSN     string
 	Mounts                []string
+	Roles                 map[gimbal.WorkflowRole]RoleBinding
+	SecretFiles           map[string]string
 	DockerExecutable      string
+}
+
+type RoleBinding struct {
+	Harness string `json:"harness"`
+	Model   string `json:"model"`
+	Effort  string `json:"effort,omitempty"`
 }
 
 type Backend struct {
@@ -60,11 +70,14 @@ type Backend struct {
 }
 
 type bootstrap struct {
-	Name      string   `json:"name"`
-	Queue     string   `json:"queue"`
-	Owner     string   `json:"owner"`
-	Container string   `json:"container"`
-	Mounts    []string `json:"mounts"`
+	Name        string                              `json:"name"`
+	Queue       string                              `json:"queue"`
+	Owner       string                              `json:"owner"`
+	Container   string                              `json:"container"`
+	Mounts      []string                            `json:"mounts"`
+	Roles       map[gimbal.WorkflowRole]RoleBinding `json:"roles"`
+	Secrets     map[string]string                   `json:"secrets"`
+	StateVolume string                              `json:"state_volume"`
 }
 
 type commandInput struct {
@@ -84,6 +97,27 @@ type commandResult struct {
 	RecordingError string `json:"recording_error,omitempty"`
 }
 
+type harnessInput struct {
+	Environment string          `json:"environment"`
+	Operation   string          `json:"operation"`
+	Role        string          `json:"role"`
+	Action      string          `json:"action"`
+	Session     string          `json:"session,omitempty"`
+	Model       string          `json:"model,omitempty"`
+	Effort      string          `json:"effort,omitempty"`
+	Workdir     string          `json:"workdir,omitempty"`
+	Prompt      string          `json:"prompt,omitempty"`
+	Schema      json.RawMessage `json:"schema,omitempty"`
+	Message     string          `json:"message,omitempty"`
+}
+
+type harnessResult struct {
+	Session        string            `json:"session,omitempty"`
+	Turn           gimbal.TurnResult `json:"turn"`
+	Landed         bool              `json:"landed,omitempty"`
+	RecordingError string            `json:"recording_error,omitempty"`
+}
+
 type workerReadinessProbe interface {
 	checkWorkerReady(context.Context, bootstrap) (bool, string, error)
 }
@@ -94,6 +128,19 @@ func New(ctx context.Context, cfg Config) (*Backend, error) {
 	}
 	if cfg.DockerExecutable == "" {
 		cfg.DockerExecutable = "docker"
+	}
+	secrets := make(map[string]string, len(cfg.SecretFiles))
+	maps.Copy(secrets, cfg.SecretFiles)
+	cfg.SecretFiles = secrets
+	for role, binding := range cfg.Roles {
+		if binding.Harness != "codex" || binding.Model == "" {
+			return nil, fmt.Errorf("execution: role %q requires a Codex harness binding with a model", role)
+		}
+	}
+	for env := range cfg.SecretFiles {
+		if env != "OPENAI_API_KEY" {
+			return nil, fmt.Errorf("execution: Codex secret reference %q is unsupported; use OPENAI_API_KEY", env)
+		}
 	}
 	if cfg.WorkerTemporalAddress == "" {
 		cfg.WorkerTemporalAddress = "host.docker.internal:7233"
@@ -125,6 +172,10 @@ func New(ctx context.Context, cfg Config) (*Backend, error) {
 		db.Close()
 		return nil, fmt.Errorf("execution: create bootstrap table: %w", err)
 	}
+	if _, err := db.Exec(ctx, `ALTER TABLE gimbal_environments ADD COLUMN IF NOT EXISTS worker_config jsonb NOT NULL DEFAULT '{}'`); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("execution: extend bootstrap table: %w", err)
+	}
 	if _, err := db.Exec(ctx, `CREATE TABLE IF NOT EXISTS gimbal_command_events (
 		id bigserial PRIMARY KEY, environment_name text NOT NULL, operation_id text NOT NULL,
 		session_id text NOT NULL, role text NOT NULL, command text NOT NULL, args jsonb NOT NULL,
@@ -133,6 +184,14 @@ func New(ctx context.Context, cfg Config) (*Backend, error) {
 	)`); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("execution: create event table: %w", err)
+	}
+	if _, err := db.Exec(ctx, `CREATE TABLE IF NOT EXISTS gimbal_harness_events (
+		id bigserial PRIMARY KEY, environment_name text NOT NULL, operation_id text NOT NULL,
+		session_id text NOT NULL, role text NOT NULL, event jsonb NOT NULL,
+		created_at timestamptz NOT NULL DEFAULT now()
+	)`); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("execution: create harness event table: %w", err)
 	}
 	temporal, err := client.Dial(client.Options{HostPort: cfg.TemporalAddress})
 	if err != nil {
@@ -154,22 +213,39 @@ func (b *Backend) Resolve(ctx context.Context, name string) (gimbal.ExecutionEnv
 	if env := b.environments[name]; env != nil {
 		return env, nil
 	}
-	hash := sha256.Sum256([]byte(name))
-	queue := "gimbal-env-" + hex.EncodeToString(hash[:12])
-	containerName := "gimbal-worker-" + hex.EncodeToString(hash[:8]) + "-" + b.owner[:8]
+	// A logical environment name is private to this backend/run. The database
+	// key and Temporal queue therefore cannot collide with another run that
+	// also selects (for example) "development".
+	scopedName, queue, containerName, stateVolume := environmentIdentity(b.owner, name)
 	mounts, _ := json.Marshal(b.cfg.Mounts)
-	row := bootstrap{Name: name, Queue: queue, Owner: b.owner, Container: containerName, Mounts: b.cfg.Mounts}
-	_, err := b.db.Exec(ctx, `INSERT INTO gimbal_environments(name,task_queue,owner_id,container_name,mounts) VALUES($1,$2,$3,$4,$5)`, name, queue, b.owner, containerName, mounts)
+	secretPaths := make(map[string]string, len(b.cfg.SecretFiles))
+	for env, hostPath := range b.cfg.SecretFiles {
+		abs, err := filepath.Abs(hostPath)
+		if err != nil {
+			return nil, fmt.Errorf("execution: resolve secret file for %s: %w", env, err)
+		}
+		b.cfg.SecretFiles[env] = abs
+		secretPaths[env] = "/run/secrets/gimbal/" + env
+	}
+	row := bootstrap{Name: scopedName, Queue: queue, Owner: b.owner, Container: containerName, Mounts: b.cfg.Mounts,
+		Roles: b.cfg.Roles, Secrets: secretPaths,
+		StateVolume: stateVolume}
+	workerConfig, _ := json.Marshal(struct {
+		Roles       map[gimbal.WorkflowRole]RoleBinding `json:"roles"`
+		Secrets     map[string]string                   `json:"secrets"`
+		StateVolume string                              `json:"state_volume"`
+	}{row.Roles, row.Secrets, row.StateVolume})
+	_, err := b.db.Exec(ctx, `INSERT INTO gimbal_environments(name,task_queue,owner_id,container_name,mounts,worker_config) VALUES($1,$2,$3,$4,$5,$6)`, scopedName, queue, b.owner, containerName, mounts, workerConfig)
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-			return nil, fmt.Errorf("execution: environment %q already has an owner", name)
+			return nil, fmt.Errorf("execution: environment %q already has an owner in this run", name)
 		}
 		return nil, fmt.Errorf("execution: persist bootstrap for %q: %w", name, err)
 	}
 	if err := b.startWorker(ctx, row); err != nil {
 		deleteCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		_, _ = b.db.Exec(deleteCtx, `DELETE FROM gimbal_environments WHERE name=$1 AND owner_id=$2`, name, b.owner)
+		_, _ = b.db.Exec(deleteCtx, `DELETE FROM gimbal_environments WHERE name=$1 AND owner_id=$2`, scopedName, b.owner)
 		cancel()
 		return nil, err
 	}
@@ -179,14 +255,27 @@ func (b *Backend) Resolve(ctx context.Context, name string) (gimbal.ExecutionEnv
 	return env, nil
 }
 
+func environmentIdentity(owner, logicalName string) (name, queue, container, stateVolume string) {
+	name = owner + ":" + logicalName
+	hash := sha256.Sum256([]byte(name))
+	encoded := hex.EncodeToString(hash[:])
+	queue = "gimbal-env-" + encoded[:24]
+	container = "gimbal-worker-" + encoded[:16] + "-" + owner[:8]
+	stateVolume = "gimbal-codex-" + owner[:12] + "-" + encoded[:8]
+	return
+}
+
 func (b *Backend) startWorker(ctx context.Context, row bootstrap) error {
-	mounts, _ := json.Marshal(row.Mounts)
 	args := []string{"run", "-d", "--name", row.Container, "--add-host", "host.docker.internal:host-gateway",
 		"-e", "GIMBAL_ENVIRONMENT=" + row.Name, "-e", "GIMBAL_WORKER_ID=" + row.Owner,
 		"-e", "GIMBAL_POSTGRES_DSN=" + b.cfg.WorkerPostgresDSN, "-e", "GIMBAL_TEMPORAL_ADDRESS=" + b.cfg.WorkerTemporalAddress,
-		"-e", "GIMBAL_MOUNTS=" + string(mounts)}
+		"-e", "CODEX_HOME=/var/lib/gimbal/codex",
+		"-v", row.StateVolume + ":/var/lib/gimbal/codex"}
 	for _, mount := range row.Mounts {
 		args = append(args, "-v", mount+":"+mount)
+	}
+	for env, hostPath := range b.cfg.SecretFiles {
+		args = append(args, "-v", hostPath+":"+row.Secrets[env]+":ro")
 	}
 	args = append(args, b.cfg.DockerImage, "worker")
 	cmd := exec.CommandContext(ctx, b.cfg.DockerExecutable, args...)
@@ -304,7 +393,13 @@ type Environment struct {
 	bootstrap bootstrap
 }
 
-func (*Environment) Harness(gimbal.WorkflowRole) gimbal.HarnessAdapter { return nil }
+func (e *Environment) Harness(role gimbal.WorkflowRole) gimbal.HarnessAdapter {
+	binding, ok := e.bootstrap.Roles[role]
+	if !ok || binding.Harness != "codex" || binding.Model == "" {
+		return nil
+	}
+	return &harnessProxy{environment: e, role: role, binding: binding}
+}
 
 func (e *Environment) Start(ctx context.Context, command gimbal.ExecutionCommand, stdout, stderr io.Writer) (gimbal.ExecutionProcess, error) {
 	if !filepath.IsAbs(command.Workdir) {

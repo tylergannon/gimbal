@@ -115,15 +115,20 @@ worker-image, or provider qualification.
   cancellation, and backend close ordering. Host-process tests exercise actual
   local child-process output and process-group cleanup. These use fake
   execution/harness adapters; they do not start Docker or Temporal.
-- The Codex proxy's live container create/close lifecycle and authenticated
-  model turns remain unverified. The live Docker/Temporal tests are skipped by
-  default and were not retried here.
+- After the authorized Docker Desktop restart, the worker image was rebuilt
+  from revision `d46fde9f`. Both live readiness/command-output and Codex
+  create/close lifecycle integration tests passed against Docker, Temporal, and
+  Postgres. The Codex test used a deliberately fake API key: a native thread was
+  created and closed and two lifecycle events were stored, without an
+  authenticated model turn. The readiness command exercised the revised private
+  output relay and returned `ready` with exit zero.
+- The Codex state volume remained after backend cleanup removed its worker. A
+  separate container mounted that volume, verified its dummy auth file, wrote a
+  marker, restarted, and verified the marker and unchanged auth bytes. This
+  demonstrates file retention, not OAuth refresh or native-session recovery.
 
-## Limits still requiring qualification
+## Remaining limits
 
-- The remote Codex proxy has not completed its live worker/container lifecycle
-  check because Docker Desktop metadata I/O errors remain unresolved. Do not
-  restart, reset, or prune Docker as part of this API change.
 - No authenticated model turn is established by Go tests or dummy-key login.
 - A worker process loss does not reconstruct the ordinary Go workflow stack or
   native adapter's in-memory session map. Persistent storage alone is not

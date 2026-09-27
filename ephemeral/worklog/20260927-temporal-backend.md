@@ -179,3 +179,13 @@ friction: Readiness cleanup integration assertions still used pre-scoping logica
 friction: Hosted-integration checkpoint web-check failed while parallel frontend hooks installed dependencies; standalone check and full hook retry passed without source changes. The exact first failure was truncated, so dependency contention is only a hypothesis.
 
 friction: Follow-up implement run 01M3H7XJB8Q2FWJ2K4H78PZYYY failed terminally when the Sonnet planner repeatedly double-wrapped structured output. The plan itself was valid inside the rejected envelope. Manager extracted that bounded plan and continued via Gimbal run-prompt with Luna implementation then Sonnet independent validation; no runtime/schema changes were needed for this task.
+
+## Docker recovery and current-image qualification
+
+correction: User authorized restarting Docker Desktop and terminating Merge Herder. Restart restored image access; merge-herder-db-1 and stale task probe/build containers were removed without deleting database volumes. Postgres and host Temporal started successfully.
+
+decision: Rebuilt worker image d899b5a804ca from d46fde9f. Live readiness/command-output and Codex create/close integration tests passed. A deliberately fake key isolates native session lifecycle from paid/authenticated provider execution. Two Codex lifecycle events reached Postgres; no authenticated model turn is claimed.
+
+decision: The retained Codex volume was mounted after worker removal, then a probe container restarted. Its marker and dummy auth file bytes survived unchanged. This is storage retention evidence only, not an OAuth refresh or transparent session-resume claim.
+
+decision: Independent Sonnet validation repeated both live integration tests successfully, confirmed the revised output relay returned the container command output, and checked that no worker containers or gimbal_environments rows remained after cleanup. Persistent state volumes and event history intentionally remained. This closes the Docker/Codex lifecycle qualification gap; authenticated model execution remains optional and untested.

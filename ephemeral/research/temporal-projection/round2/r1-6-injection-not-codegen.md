@@ -70,3 +70,31 @@ turn id, instant, not heartbeat-gated. This replaces r1-3's direct-HTTP
 Option A: same fidelity, no worker address registry, no NetworkPolicy
 ingress from the instance, one action per steer. Requires the worker's
 `MaxConcurrentActivityExecutionSize` above one (default 1000, r1-1 F1).
+
+## Two levels of steering (Tyler's refinement)
+
+1. **Supervisor steering** stays in the container, unchanged, if the unit
+   of remote work is a whole `Generate` including its supervisors. That
+   moves the activity boundary above the adapter: the seam is `Generate`'s
+   dispatch (`dispatchRecorded`, session.go:161-174), and the activity input
+   carries the supervisor roles' bindings, instructions, interval, and the
+   Jev key. Still injection; `supervise.go` runs byte-identical, no
+   cross-pod chatter during a turn. The alternative (supervisors on the
+   orchestrator fed by the streamed events, steering through the remote
+   adapter) is a pure adapter swap but costs two activity dispatches per
+   look. Recommendation: in-container.
+2. **External steering** (humans on the page, other agents via
+   `gimbal steer`) has two separable parts. Delivery into the running agent
+   is always the same last hop: something executing in the pod calls the
+   local `Session.Steer`; that is the steer activity on the run's queue,
+   and a signal can never do that hop itself. Entry is where a signal might
+   appear, and only if there is a workflow to target. Through the instance
+   (today's path) no signal is needed. A Temporal-native door (steer a run
+   without the Gimbal instance) needs the generic executor workflow per run
+   from r1-1 Finding 2, whose signal handler schedules the same steer
+   activity; it costs workflow bookkeeping and gives a durable, queryable
+   per-run entity that later memoized resume would want.
+
+Workflow files are untouched under every combination: injection points are
+the adapter per role at `Run`, the commands seam, and the turn-executor
+seam at `Generate`; external steering is the `live.Controller` path.

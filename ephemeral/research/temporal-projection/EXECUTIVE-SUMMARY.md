@@ -31,12 +31,16 @@ activities are exactly Finalist 1's activities, so nothing is thrown away.
 
 ## Reframed after review: injection, not codegen
 
-The projection is a second `HarnessAdapter` (plus one new commands seam)
-injected at `Run`, not generated code. The worker is generic and does not
-carry the workflow. Supervisors stay on the orchestrator unchanged. What
-remains beyond interface swaps: a mid-turn event transport, per-run state
-roots with turn-boundary checkpoints, path agreement, and four lint rules.
-See round2/r1-6.
+The projection is injection, not generated code: a turn executor at
+`Generate` (a whole Generate with its supervisors runs as one activity,
+so supervisors steer in-container unchanged), a remote `HarnessAdapter`
+whose Steer is a second activity on the run's queue for external steering,
+and one new commands seam, all bound at `Run`. The worker is generic and
+does not carry the workflow. What remains beyond interface swaps: a
+mid-turn event transport for the page, per-run state roots with
+turn-boundary checkpoints, path agreement, and four lint rules. A Temporal
+signal is only an optional extra entry door and needs an executor workflow
+per run. See round2/r1-6.
 
 ## What the research settled
 
@@ -44,7 +48,7 @@ See round2/r1-6.
 |---|---|---|
 | Activities with host pinning without a bespoke workflow | Eliminated | Standalone Activities: client-started, awaitable, heartbeat, cancel, retry, caller-chosen task queue, no event history. round2/r1-1 |
 | Session survival across pod death | Reduced (corrected after Tyler's challenge) | Session state is portable at turn boundaries: verified for Claude Code (one transcript file, resume by id, cwd-independent); designed-for in Codex source; Gimbal-owned for Pi. The blocker is adapter state roots, not harness formats. Checkpoint per turn, restore on any pod, lose at most the in-flight turn. round2/r1-2, r1-2b |
-| Steer and supervision across the boundary | Reduced | Supervisors stay on the orchestrator, fed by the streamed events. Steer and cancel are second activities on the run's queue, which only the run's pod polls, so they land in the process holding the turn. Not a signal: signals target workflows, and there is none. round2/r1-3, r1-6 |
+| Steer and supervision across the boundary | Reduced | Supervisors steer in-container, unchanged, because the activity is a whole Generate. External steer and cancel are second activities on the run's queue, which only the run's pod polls. A signal is an optional entry door needing an executor workflow. round2/r1-3, r1-6 |
 | Orchestrator restart mid-run | Deferred by evidence | Records suffice to memoize turns, commands, planner decisions, interviews; one hazard (`implementation.go` reads a file into `Iterate`); native session id not recorded. Today's guarantee is already "crash means restart", so pod-per-run first. round2/r1-4 |
 | Cost and history size | Eliminated | $0.07 per 20-turn run, about $20 per month at 300 runs; 1% of the history limit; heartbeats bill but never touch history. round2/r1-5 |
 | dst on Go 1.27 generic methods | Eliminated | Byte-for-byte round trip and a typed three-rule edit passed vet and ran. round2/r2-1 |

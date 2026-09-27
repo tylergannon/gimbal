@@ -30,10 +30,11 @@ Each answer removes work. Recommended answer first.
    instance already owns `run.jsonl` and the page. (round1/infra F24-25,
    round2/r1-3)
 
-5. **Steer and supervision stay mid-turn.** Supervisors on the orchestrator
-   unchanged; steer and cancel as activities on the run's queue (not
-   signals, not direct HTTP). The alternative (queue until next turn)
-   silently changes `WithSupervisor` from watcher to reviewer. (round2/r1-3, r1-6)
+5. **Two levels of steering.** Supervisors in-container, unchanged (the
+   activity is a whole Generate). External steer: instance-only entry
+   (Standalone Activities, simplest) or also a Temporal signal door (one
+   generic executor workflow per run, more bookkeeping, durable per-run
+   entity). Recommended: instance-only first. (round2/r1-3, r1-6)
 
 6. **Fix the latent stock-workflow bugs first.** `validateproduct.go:122,232`
    raw `exec`; `os.Executable()` in `researchdocument` and `pyramidsummary`;

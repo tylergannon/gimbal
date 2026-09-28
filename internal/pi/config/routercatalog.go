@@ -1,6 +1,7 @@
 package config
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"os"
@@ -20,14 +21,39 @@ type routerModelList struct {
 	Data []routerModel `json:"data"`
 }
 
+type routerCapabilities map[string]bool
+
+func (capabilities *routerCapabilities) UnmarshalJSON(data []byte) error {
+	data = bytes.TrimSpace(data)
+	switch {
+	case bytes.Equal(data, []byte("null")):
+		*capabilities = nil
+		return nil
+	case len(data) > 0 && data[0] == '{':
+		return json.Unmarshal(data, (*map[string]bool)(capabilities))
+	case len(data) > 0 && data[0] == '[':
+		var names []string
+		if err := json.Unmarshal(data, &names); err != nil {
+			return err
+		}
+		*capabilities = make(routerCapabilities, len(names))
+		for _, name := range names {
+			(*capabilities)[name] = true
+		}
+		return nil
+	default:
+		return errors.New("unsupported capabilities shape")
+	}
+}
+
 type routerModel struct {
-	ID              string          `json:"id"`
-	Object          string          `json:"object"`
-	Created         int64           `json:"created"`
-	OwnedBy         string          `json:"owned_by"`
-	ContextWindow   int             `json:"context_window"`
-	MaxOutputTokens int             `json:"max_output_tokens"`
-	Capabilities    map[string]bool `json:"capabilities"`
+	ID              string             `json:"id"`
+	Object          string             `json:"object"`
+	Created         int64              `json:"created"`
+	OwnedBy         string             `json:"owned_by"`
+	ContextWindow   int                `json:"context_window"`
+	MaxOutputTokens int                `json:"max_output_tokens"`
+	Capabilities    routerCapabilities `json:"capabilities"`
 	ClientCompat    struct {
 		Pi json.RawMessage `json:"pi"`
 	} `json:"client_compat"`
@@ -93,7 +119,7 @@ func ParseRouterCatalog(content []byte, baseURL string) (*RouterCatalog, error) 
 // supported reports whether the port knows how to run the model. Embedding and
 // rerank models are outside the Diffusion Router chat scope.
 func (entry routerModel) supported() bool {
-	return entry.Capabilities["openai_chat"] && entry.Capabilities["tools"]
+	return (entry.Capabilities["openai_chat"] || entry.Capabilities["chat"]) && entry.Capabilities["tools"]
 }
 
 func (entry routerModel) toModel(baseURL string) *model.Model {

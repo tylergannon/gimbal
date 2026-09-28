@@ -28,6 +28,12 @@ func main() {
 		singlechecker.Main(gimballint.Analyzer)
 		return
 	}
+	if needsSecrets(os.Args[1:]) {
+		if err := loadCommandSecrets(context.Background()); err != nil {
+			_, _ = fmt.Fprintln(os.Stderr, "gimbal:", err)
+			os.Exit(1)
+		}
+	}
 	if code := executeCLI(os.Args[1:], os.Stdout, os.Stderr, os.Getenv, defaultArtifactUploaders()); code != 0 {
 		os.Exit(code)
 	}

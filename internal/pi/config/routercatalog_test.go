@@ -10,6 +10,8 @@ const routerCatalogJSON = `{
   "object": "list",
   "data": [
     {"id": "chat-no-tools", "capabilities": {"openai_chat": true}},
+    {"id": "unrelated-array-entry", "capabilities": ["systemone"]},
+    {"id": "array-chat-no-tools", "capabilities": ["openai_chat"]},
     {"id": "anthropic-only", "capabilities": {"anthropic_messages": true, "tools": true}},
     {"id": "emb-granite", "object": "model", "capabilities": {"embeddings": true}},
     {"id": "glm-5.3", "object": "model", "context_window": 524288, "max_output_tokens": 131072,
@@ -56,5 +58,27 @@ func TestParseRouterCatalog(t *testing.T) {
 	}
 	if _, ok := catalog.Get("flux2-klein"); ok {
 		t.Fatal("image-only model admitted to the coding catalog")
+	}
+}
+
+func TestParseRouterCatalogArrayCapabilities(t *testing.T) {
+	content := []byte(`{"data":[
+		{"id":"unrelated-array-entry","capabilities":["systemone"]},
+		{"id":"array-chat","context_window":1000,"capabilities":["anthropic","json_schema","chat","responses","reasoning","tools","vision"]},
+		{"id":"array-systemone","capabilities":["systemone"]}
+	]}`)
+	catalog, err := ParseRouterCatalog(content, "https://router.test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(catalog.Models) != 1 {
+		t.Fatalf("chat model count = %d, want 1", len(catalog.Models))
+	}
+	chat, ok := catalog.Get("array-chat")
+	if !ok || !chat.Reasoning || len(chat.Input) != 2 || chat.ContextWindow != 1000 {
+		t.Fatalf("array-chat = %+v, found %t", chat, ok)
+	}
+	if _, ok := catalog.Get("array-systemone"); ok {
+		t.Fatal("non-chat model admitted")
 	}
 }

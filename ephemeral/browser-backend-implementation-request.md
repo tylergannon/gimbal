@@ -3,8 +3,8 @@ ephemeral/browser-implementation-design.md against
 ephemeral/browser-evaluator-build.md. Read repository instructions. You are
 not alone; preserve others' edits and accommodate their work.
 
-Own internal/execution source/tests, codex/codex.go and codex/codex_test.go for
-the accepted unconfirmed-interruption handling, required cmd/gimbal execution-config
+Own internal/execution source/tests, codex source/tests only for the accepted
+terminal-confirmation and unconfirmed-turn handling, required cmd/gimbal execution-config
 validation/tests, Dockerfile.gimbal-worker, docker-compose.temporal.yaml,
 justfile for the separate Linux worker build, and
 ephemeral/temporal-backend-api.md for exact startup configuration. Do not edit
@@ -15,7 +15,8 @@ live suite. No Gimbal binary belongs in the consumer image.
 
 Supply the configured Linux worker through a read-only startup mount and
 explicit entrypoint. Resolve the accepted cancellation/shutdown race with
-the smallest existing-mechanism change. Surface cleanup errors; no recovery,
+the smallest existing-mechanism change, including harnessProxy.request and
+Process.Stop as well as RunTurn/Wait. Surface cleanup errors; no recovery,
 generic environment framework or speculative worker protocol-version scheme.
 Keep existing credential behavior until the user chooses authentication; do
 not read or copy host login state or provision credentials.

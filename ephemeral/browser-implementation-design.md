@@ -1,8 +1,9 @@
 # Browser implementation design
 
 Minimal design for the fifteen claims in `browser-evaluator-build.md`, revised
-after `reviews/browser-design-round-01.md` (all five findings accepted) and the
-manager's shared-workdir finding. One connector (`playwright-cli` 0.1.21), one
+after `reviews/browser-design-round-01.md` through `browser-design-round-05.md`
+(all material findings accepted), and the manager's shared-workdir finding.
+One connector (`playwright-cli` 0.1.21), one
 harness (Codex), no resource registry. The only new public names are
 `NewBrowser`, `Browser` and `WithBrowser`. Backend packaging adds one config
 field, `worker_binary`. The consumer image stays external, as assigned.
@@ -20,7 +21,7 @@ func NewBrowser(ctx context.Context, name, workdir, video string) (*Browser, err
 // Browser is a live browser session owned by the scope that created it.
 type Browser struct {
     id, name, workdir, video string // id = scope.next(name)
-    session     string   // playwright-cli -s value: hex of sha256(runDir+"/"+id)[:12]
+    session     string   // first 12 bytes of SHA256(runDir(ctx)+"/"+id), encoded as 24 hex characters
     wrapper     string   // workdir + "/.gimbal-browser-" + session: one per handle
     environment string   // environment name from ctx at creation ("" = host)
     owner       *scope
@@ -41,43 +42,51 @@ and the agent navigates with `goto`. Connector details (the binary name,
 `browser.go` (claim 3).
 
 **One command per handle.** The wrapper path and the session both derive from
-the handle's unique id, so two browsers in one workdir each get their own
-wrapper, session and daemon. Nothing is shared or overwritten.
+the run directory and scope-local handle id: SHA256(runDir(ctx)+"/"+id),
+truncated to 12 bytes and encoded as 24 hex characters. Two browsers in one
+workdir, including two runs with the same scope path, get distinct sessions,
+wrappers and daemons. Test both cases.
 
 ## 2. Open and close, both bound to the environment
 
 Both run through the internal `runCommand(ctx, s, name, workdir, command,
-args)`. They resolve `s.run.backend.Resolve(ctx, environmentName(ctx))`
-exactly as `RunCommand` does, so they run in the creation ctx's environment.
+args)`. They use the existing environment resolution in `runCommand`, so they run
+in the creation ctx's environment.
 Hosted runs set `InEnvironment` on the root ctx, so this is the Docker worker.
 They are recorded as ordinary `CommandStarted`/`CommandEnded` records.
 
-**Open**, as the command `name+"-open"`, is `zsh -c <script> zsh <workdir>
+**Open**, as the command `name`, is `zsh -c <script> zsh
 <wrapper> <wrapper text> <session> <video>`. Values travel as positional
 arguments, so nothing is quoted into the script:
 
 ```sh
 set -e
-mkdir -p "$1"
-printf '%s' "$3" > "$2" && chmod +x "$2"
-playwright-cli -s="$4" open about:blank --idle-timeout=0
-[ -z "$5" ] || playwright-cli -s="$4" video-start "$5" --cursor
+printf '%s' "$2" > "$1" && chmod +x "$1"
+playwright-cli -s="$3" open about:blank --idle-timeout=0
+[ -z "$4" ] || playwright-cli -s="$3" video-start "$4" --cursor
 ```
 
 `--idle-timeout=0` disables playwright-cli's one-hour headless idle shutdown
 (probe README, "Runtime limitations"). The daemon then lives until the scope
 closes it or its container is removed, so the scope owns the lifetime (claim 4).
-The daemon is spawned detached and reparented to PID 1 (`docker run --init` is
-already the backend's command), so it survives the worker's process-group
-cleanup after `open` exits.
+The caller supplies an existing workdir, as validate-product already does.
+The daemon is spawned detached in its own session/process group, so it survives
+the worker's cleanup of the command's group. `docker run --init`, already used
+by the backend, reaps adopted children. Open and close both use the declared
+browser name: their distinct ordinals identify the commands, while the existing
+run page can bind both records to the browser's declared service.
 
-**The wrapper text** is built in Go with `shellQuote` for the workdir:
+**The wrapper text** is built in Go with private `browserShellQuote` (the existing test-only `shellQuote` stays unchanged) for the workdir:
 
 ```sh
 #!/bin/sh
 for arg in "$@"; do
   case $arg in
     -s|-s=*|--session|--session=*) echo "browser: the session is fixed" >&2; exit 2 ;;
+  esac
+done
+for arg in "$@"; do
+  case $arg in
     -*) ;;
     open|attach|detach|close|close-all|kill-all|delete-data|video-start|video-stop|install|install-browser)
       echo "browser: $arg belongs to the workflow, not the agent" >&2; exit 2 ;;
@@ -101,19 +110,20 @@ Order in `NewBrowser`:
 3. Build `b` and `owner.adoptBrowser(b)`, which errors if the scope is ending.
 4. Run open. A nonzero exit or error → `b.close()` immediately (bounded,
    uncancelled), mark it released, and return `nil, errors.Join(openErr,
-   closeErr)`. A partial startup is an error and leaves nothing running
-   (claim 6).
+   closeErr)`. Partial startup and incomplete cleanup are errors (claim 6);
+   failed cleanup must not be described as a confirmed release.
 
-**Close**, as the command `name+"-close"`, runs on
+**Close**, as the command `name`, runs on
 `context.WithTimeout(b.createCtx, 30*time.Second)`. The creation ctx has
 cancellation removed but keeps its values, so the environment binding and the
 scope key still hold. It calls `playwright-cli` directly, not the wrapper,
-which refuses these subcommands. The command is `zsh -c` in `workdir`:
+which refuses these subcommands. The command is
+`zsh -c <script> zsh <session> <video>` in `workdir`:
 
 ```sh
 rc=0
-if [ -n "$VIDEO" ]; then playwright-cli -s=S video-stop || rc=1; test -s "$VIDEO" || { echo "video missing or empty: $VIDEO" >&2; rc=1; }; fi
-playwright-cli -s=S close || rc=1
+if [ -n "$2" ]; then playwright-cli -s="$1" video-stop || rc=1; test -s "$2" || { echo "video missing or empty: $2" >&2; rc=1; }; fi
+playwright-cli -s="$1" close || rc=1
 exit $rc
 ```
 
@@ -140,12 +150,14 @@ below either stops it or says it did not.
 
 - **Temporal backend, unconfirmed cancellation** (`internal/execution`). In
   `harnessProxy.RunTurn`'s `ctx.Done()` branch, the cancellation is confirmed
-  only when the activity completes within the existing 10-second wait, with a
-  result or a Temporal cancellation (`temporal.IsCanceledError`). Include the
-  completion's error in the returned error; today it is dropped. Any other
-  outcome is unconfirmed: no completion in time, or a failure such as the Codex
-  adapter's unconfirmed interrupt below. Then the controller cannot reach the
-  turn any other way, so it takes the smallest action that stops it. It
+  when the activity completes within the confirmation wait with a result, a
+  Temporal cancellation, or an application failure other than the private
+  `turnUnconfirmedError` defined below. Preserve any completion error in the
+  returned error. No completion by the deadline, that private unconfirmed
+  failure, or a transport/server timeout without native confirmation is
+  unconfirmed. This same classification applies on both completion paths.
+  For an unconfirmed turn, the controller cannot reach it any other way, so it
+  takes the smallest action that stops it. It
   removes that environment's worker container with the bounded `docker rm -f`
   that `Backend.Close` already runs. Factor out that per-container removal,
   including the bootstrap-row delete, as `Backend.removeWorker(name)`. It
@@ -154,32 +166,83 @@ below either stops it or says it did not.
   `Process.Wait`'s unconfirmed branch (`temporal.go`, "activity cancellation
   was not confirmed") does the same, since an open or close command can be
   what was cancelled.
+  Apply the same bounded acknowledgement and environment-removal rule to
+  `harnessProxy.request` (create/fork/steer/close) and `Process.Stop`; an
+  unconfirmed timeout there must not leave the environment available for work.
+- **Confirmation timing.** Replace the independent 10-second literals with the
+  existing shared `activityWaitTimeout`, initialized to four times a shared
+  `activityHeartbeatTimeout` of 15 seconds. Use that heartbeat constant for
+  command and harness activities. The resulting 60 seconds covers the SDK's
+  maximum 12-second heartbeat throttle, an outstanding Codex turn/start request
+  (up to 30 seconds), interrupt (5 seconds), drain (10 seconds), and 3 seconds of
+  margin. This bounds exceptional acknowledgement delay; normal completion
+  returns immediately when confirmation arrives. Keep these timing assumptions
+  together in a comment; a provider stop-budget change requires updating this bound. Add a
+  real Temporal integration test with no model credentials: cancel a running
+  command activity after its first heartbeat, await confirmed termination,
+  then run another command in the same environment. It must remain usable.
+  Retain separate fault tests for genuinely unconfirmed cancellation/removal.
 - **After removal.** Removing the container ends the Codex daemon and its turn,
   the browser daemon, and every command in the environment. `Start`, `RunTurn`
   and harness requests on a removed `Environment` fail immediately with
   `execution: environment %q was removed after an unconfirmed cancellation`.
   The browser close that follows therefore fails with that error in the scope
   error. The browser ended with the container, its recording is lost, and the
-  error says both. Other work in the same environment also fails with errors
-  naming the removal. That is the cost of a worker that cannot confirm a
-  cancellation, and there is no restart. If `docker rm` itself fails, the
+  error says both. New work in the same environment also fails with errors
+  naming the removal. Already-running operations append that same removal
+  cause when their completion/timeout arrives, by checking the environment
+  state before returning; preserve their original failure too. That is the cost
+  of a worker that cannot confirm a cancellation, and there is no restart. If `docker rm` itself fails, the
   environment is still marked removed, so no more work is sent. The error says
   the worker may still be running, the container stays on `b.containers`, and
   `Backend.Close` tries to remove it again. Release is not claimed in that case.
-- **Codex adapter** (`codex/codex.go`, `RunTurn`'s cancel path). It sends
-  `turn/interrupt` and drains for `controlTimeout`, and today it ignores both
-  outcomes. Return `codex: turn <id> interruption was not confirmed`, not
-  wrapping `ctx.Err()`, when the interrupt call fails or the drain times out
-  before the turn's terminal notification. Otherwise return `ctx.Err()` as now.
-  Inside the worker, that error makes the activity fail rather than cancel, so
-  the proxy treats it as unconfirmed and removes the container. On the host
-  backend it is the turn's error (§10).
-- **Surfacing** (`session.go`, `generate`). When the turn was stopped, the line
-  `err = stopped` currently discards the adapter's error. Change it to
-  `err = errors.Join(stopped, err)` unless the adapter's error is nil or is
-  exactly `turnCtx.Err()`. The proxy returns a bare `ctx.Err()` for a confirmed
-  cancellation with no Cancel error, so a clean cancellation still reads as
-  before. `errors.Is(err, context.Canceled)` stays true.
+- **Codex adapter** (`codex/codex.go`). Have `readTurn` report whether it
+  consumed this turn's terminal notification, independently of `ctx.Err()`.
+  Keep that fact even when projecting that terminal event returns an error.
+  If the first read saw a terminal, return its result/error (or cancellation)
+  without interrupting or draining for a second copy of the event. If it
+  returned without a terminal for any reason, including an interactive request
+  refusal or projection failure with a live ctx, interrupt and drain using the
+  existing bounded control contexts. The only terminal is a matching
+  `turn/completed` for this turn. Give terminal draining an explicit private
+  10-second budget (separate from the 5-second control-RPC timeout).
+  Draining keeps consuming nonterminal error
+  notifications, declines interactive requests, and records projection errors
+  without stopping the drain, until that terminal, connection loss, or the
+  deadline. It must not reuse readTurn's early-return behavior for ordinary
+  messages. A terminal seen during drain confirms the stop even if the
+  interrupt RPC raced with completion. Return the original error after a
+  confirmed stop. An interrupt acknowledgement alone is not confirmation.
+  Check cancellation before sending turn/start. Once sent, await its
+  acknowledgement on a bounded 30-second context independent of the turn ctx.
+  If the turn ctx is then cancelled, use the acknowledged turn id to interrupt
+  and drain normally. A definite start rejection is an ordinary failure.
+  Transport loss, acknowledgement timeout or an invalid acknowledgement after
+  the request may have started a turn remains unconfirmed unless it can be
+  identified and stopped; never label that a clean cancellation.
+- **Unconfirmed error across the fixed activity boundary.** If neither read
+  sees a terminal, return a private Codex error type `turnUnconfirmedError`
+  whose text includes the turn and the failures, but which does not unwrap to
+  `context.Canceled`. Keep that concrete error intact through the worker.
+  Temporal's existing Go error conversion carries its type as the application
+  failure type `turnUnconfirmedError`. The Codex-only proxy recognizes that
+  exact wire error type with `errors.As` to Temporal's `ApplicationError` and
+  removes the environment on either completion path: cancelled ctx or live ctx.
+  All other completed provider errors remain ordinary confirmed failures.
+  This is one private error in the existing Codex activity contract, not a new
+  exported Gimbal API or a generic harness protocol. Test its real SDK failure
+  conversion and the proxy's treatment on both paths. On the host backend the
+  same unconfirmed error remains visible; it does not authorize killing a
+  shared host daemon.
+- **Surfacing** (`session.go`, `Session.turn`). Preserve the original adapter
+  error before either stopped-path assignment. At the final stopped return,
+  join it with the stop cause and terminal-event recording error; record this
+  same final joined text in `TurnEnded.Error`. Avoid adding a duplicate bare
+  `turnCtx.Err()` but retain any additional failure detail. The earlier
+  `err = stopped` and later `errors.Join(stopped, terminalErr)` must not erase
+  it. Test both the returned error and the emitted turn record. A confirmed
+  cancellation without additional failures still reads as before, and
+  `errors.Is(err, context.Canceled)` remains true.
 
 ## 3. WithBrowser: explicit, turn-scoped access
 
@@ -194,16 +257,19 @@ func dispatchRecorded[T Output](ctx context.Context, s *Session, prompt string, 
     ask, err := browserAccess(ctx, s, prompt, o.browsers) // prompt + "\n\n" + access block per browser
     if err != nil { ... }
     if len(o.supervisors) > 0 {
-        return supervise[T](ctx, s, ask, prompt, o.supervisors, started) // looks get prompt, worker gets ask
+        return supervise[T](ctx, s, ask, o.supervisors, started)
     }
     return generate[T](ctx, s, ask, nil, typeName, started)
 }
 ```
 
-`supervise`, `superviseTimed` and `superviseWithJev` take an extra `task
-string`, passed to `lookIntro` in place of the worker's ask. A supervisor
-sees the task without the browser block. It gets its own block only if its
-`WithSupervisor(..., WithBrowser(b))` options grant it.
+Keep the existing supervision signatures and transcript unchanged. Supervisors
+see the worker's task, browser instructions and browser commands as material to
+review. Those quoted grants belong to the worker; they are not the supervisor's
+own grant. The supervisor receives its own browser access block only when its
+`WithSupervisor(..., WithBrowser(b))` options provide it. No transcript filtering
+or separate task parameter is needed, and this is an instruction boundary,
+not a sandbox or a confidentiality claim.
 
 `browserAccess` checks each browser before any model call and returns an error:
 
@@ -216,17 +282,19 @@ The access block is a fixed constant, formatted with this handle's wrapper
 path and workdir:
 
 ```text
-You have a browser that is already open and recording for you. Drive it only
-with the command <wrapper>, for example `<wrapper> goto <url>`,
-`<wrapper> snapshot`, `<wrapper> click <ref>`,
-`<wrapper> screenshot --filename=<workdir>/<name>.png`. Save screenshots in
+You have a browser that is already open for you. Drive it only
+with the shell-quoted command <wrapper>, for example `<quoted-wrapper> goto <quoted-url>`,
+`<quoted-wrapper> snapshot`, `<quoted-wrapper> click <ref>`,
+`<quoted-wrapper> screenshot --filename=<quoted-screenshot-path>`. Save screenshots in
 <workdir>. The workflow opens, records and closes this browser; the command
 refuses open, close, video and session commands. Do not call playwright-cli
 directly.
 ```
 
-`TurnStarted.Prompt` stays the prompt as written. The browser's commands in
-the agent's activity are the record of its use.
+For `Generate`, `TurnStarted.Prompt` stays the workflow prompt as written. The existing
+`session.inbox.enqueued` record in `Session.turn` receives the actual final
+prompt, including browser instructions; preserve that existing path so the
+delivered instructions remain inspectable without changing the page.
 
 `PromiseLoop` passes its opts to `dispatch`, so a planner could be granted a
 browser. That falls out of the shared path and needs no code. `Interview`
@@ -262,6 +330,24 @@ the analyzer's `boundaries`: a `Scope` callback, a `Go` callback, or the body
 of a `range gimbal.Iterate(...)` loop. A browser-typed call result that is not
 bound belongs to the body containing the call.
 
+**Options that retain a handle.** A direct `WithBrowser(b)` result also carries
+b's owner even though its Go type is `AgentOption`. Propagate this ownership
+through local assignments/aliases and locally constructed `[]AgentOption`
+literals and `append` results. A Gimbal option constructor also carries the
+ownership of its browser-bearing arguments, including
+`WithSupervisor(reviewer, instruction, WithBrowser(b))` and a spread of locally
+tracked options into that call. Test both direct outer assignment and outer
+slice append of that result as errors, and its use within the owner as allowed.
+Such option aggregates are allowed within the
+owner body; outward assignment, capture, return across a local owning scope,
+or storage follows the same escape checks. Preserve known owner information
+through aliases instead of treating a fresh inner alias as a new resource.
+In particular, the review's `opts = append(opts, WithBrowser(b))` assignment
+from a child scope to an outer options slice must be diagnosed. This is local
+flow tracking, not general interprocedural closure analysis: document that
+opaque helper-produced AgentOptions and unknown container mutations are outside
+the static guarantee and remain subject to runtime owner checks.
+
 Reported:
 
 1. Assignment (`=`) of a browser value to a variable declared outside the
@@ -269,7 +355,9 @@ Reported:
    a package variable. Declaring it with `:=` or `var` in a body is fine.
 2. Storing a browser value into a field, index or map element, or through
    `*p`, sending it on a channel, passing it to `append`, or using it as a
-   composite-literal element or field.
+   composite-literal element or field. Locally tracked AgentOption aggregates
+   are the explicit exception described above: retain ownership on the aggregate
+   and diagnose escape, rather than rejecting safe local option assembly.
 3. Converting a browser value to an interface type, explicitly or implicitly:
    by assignment, as a call argument, in a return, or as a composite element.
    An escape through `any` would lose the type.
@@ -295,7 +383,8 @@ The review's example yields two diagnostics. `kept = b` is rule 1, because
 literal is rule 4, because `later` is declared outside it. Both go into
 testdata verbatim.
 
-Not supported, and documented in `rules.md`: reflection, `unsafe` and cgo.
+Not supported, and documented in `rules.md`: reflection, `unsafe`, cgo, and the
+opaque option-flow forms described above.
 The runtime owner check in §3 is the backstop. Add `"NewBrowser"` to
 `isWorkflowOperation`. Testdata goes in `testdata/src/browserchecks/` with one
 `// want` per reported form and unflagged cases for each allowed form. Stub
@@ -314,7 +403,8 @@ users.Go("tester1", func(ctx context.Context) error {
     gimbal.Set(ctx, "assignment file", suite.Workloads[0].AssignmentFile)
     gimbal.Set(ctx, "screenshots directory", dirs[0])
     gimbal.Set(ctx, "product URL", suite.Workloads[0].URL)
-    err := gimbal.Scope(ctx, "browser-session", func(ctx context.Context) error {
+    var taskErr error
+    scopeErr := gimbal.Scope(ctx, "browser-session", func(ctx context.Context) error {
         browser, err := gimbal.NewBrowser(ctx, "browser", dirs[0], filepath.Join(dirs[0], "video.webm"))
         if err != nil {
             return err
@@ -328,12 +418,17 @@ users.Go("tester1", func(ctx context.Context) error {
             text += "\n\n" + feedback
             err = feedbackErr
         }
-        return errors.Join(err, os.WriteFile(reports[0].Report, []byte(text), 0644))
+        taskErr = errors.Join(err, os.WriteFile(reports[0].Report, []byte(text), 0644))
+        return nil // retain the task failure separately from browser startup/cleanup
     })
     // The scope has ended: video-stop ran, the WebM is non-empty, the browser is closed.
-    if err == nil {
-        err = videoError(gimbal.RunCommand(ctx, "encode-video", dirs[0], "ffmpeg", ffmpegArgs(dirs[0], reports[0].Video)...))
+    var encodeErr error
+    if scopeErr == nil {
+        encodeCtx, stop := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Minute)
+        encodeErr = videoError(gimbal.RunCommand(encodeCtx, "encode-video", dirs[0], "ffmpeg", ffmpegArgs(dirs[0], reports[0].Video)...))
+        stop()
     }
+    err := errors.Join(taskErr, scopeErr, encodeErr)
     turns[0] = err
     reports[0].Error = errorText(err)
     return nil // one tester's failure never cancels its siblings
@@ -344,7 +439,16 @@ users.Go("tester1", func(ctx context.Context) error {
 and stderr into an error. Both are ordinary unexported helpers. Recording is
 finalized before processing (claim 14), because `Scope` returns only after
 `scope.end` has run `video-stop` and `test -s`. ffmpeg then runs in the
-environment, where the image's ffmpeg has libx264.
+environment, where the image's ffmpeg has libx264. This first evaluator slice bounds each
+encode at two minutes; unusually long or concurrent recordings can exceed that
+budget and return an encoding error while retaining the finalized WebM.
+Task failure, including confirmed cancellation, does not discard a successfully
+finalized recording: the task error is retained while bounded encoding runs
+outside cancellation. Browser startup/cleanup failure prevents processing and
+is reported. A removed environment cannot supply a finalized video, and its
+failure remains explicit. Keep the per-turn failure in its existing turn record
+and in the workload/run result even though the inner resource scope returns only
+its startup/cleanup failure.
 
 **Inputs visible to the agents.** Before the testers start, one command
 `check-inputs` runs in `output`:
@@ -363,6 +467,9 @@ Delete these:
 
 `userPrompt` loses its browser-command wording, because the access block
 supplies it. It tells the agent to `goto` the "product URL" value first.
+The screenshot directory also contains the connector's hidden wrapper and
+`.playwright-cli/` logs. Those are expected operational files, not screenshot
+evidence; visual review consumes the image files.
 
 **Report-only mode.** `issue_repo` becomes optional. It is validated with the
 same pattern only when it is non-empty. Then:
@@ -404,6 +511,8 @@ Tests:
   the failing tester's error is in the run outcome, and that the other two
   produced mp4s.
 - New case: report-only (no repo) never sends `triagePrompt`.
+- New cases: a failed turn and a confirmed cancelled turn still produce MP4
+  after successful recording finalization, while retaining their task errors.
 - New case: a guide outside the readable set fails at `check-inputs`.
 - The config test "missing repository" becomes "empty repository is
   report-only", and "malformed repository" still errors.
@@ -439,7 +548,7 @@ and the same checkout as the `gimbal` controller binary. The Justfile gets:
 
 ```just
 worker-binary out="bin/linux/gimbal-worker":
-    CGO_ENABLED=0 GOOS=linux GOARCH="$(docker version -f '{{{{.Server.Arch}}}}')" go build -o {{out}} ./cmd/gimbal-worker
+    CGO_ENABLED=0 GOOS=linux GOARCH="$(docker version -f '{{{{.Server.Arch}}')" go build -o {{out}} ./cmd/gimbal-worker
 ```
 
 `bin/` is already gitignored. The worker needs no web build.
@@ -472,9 +581,10 @@ doc comment and `ephemeral/temporal-backend-api.md` "Local startup" to use
 `secret_files: {"OPENAI_API_KEY": "<file>"}`, mounted read-only. Real
 authentication waits on the user's choice of that file. No host login state
 (`~/.codex`, browser profiles) is copied or mounted, and no new auth API is
-assumed. Without it the first Codex turn fails, and that is reported as seen.
-Browser open, recording and close still run, because the browser opens before
-the first turn.
+assumed. With Codex roles configured, missing credentials fail worker startup
+before it polls Temporal. No product service, browser or evaluation operation
+runs in that case. The external image-only probe is separate evidence and is
+not a pre-auth Docker/Temporal evaluator run.
 
 ## 8. Live configuration and invocation (claims 12, 13, 15)
 
@@ -556,6 +666,33 @@ All three role flags are required on this backend. The defaults (Claude Opus,
 Gemini Flash, GPT-6 Astra) are not all Codex bindings, and `execution.New`
 rejects any role that is not bound to Codex.
 
+**Bounded supervision exercise (claims 10-11).** Add the opt-in
+`TestSupervisedTurnIntegration` beside the existing real execution integration
+tests. It runs ordinary `gimbal.Run` with principal and supervisor sessions in
+the same configured environment/workdir, both using Codex `gpt-5.6-luna`, and
+the existing supervision API. Give the principal a bounded workspace task
+that remains active long enough for a look. The supervisor must inspect live
+activity/workspace data, return an objection, and the principal must receive
+that steering before finishing. Assert overlapping turns, shared environment
+and workspace, activity reaching the look, and landed steering; retain useful
+test diagnostics. This is a maintained integration test, not another product
+workflow or committed proof program. It uses the existing operator environment:
+
+```sh
+GIMBAL_EXECUTION_INTEGRATION=1 \
+GIMBAL_TEST_WORKER_IMAGE=gimbal-browser-evaluator:local \
+GIMBAL_TEST_WORKER_BINARY=/private/tmp/gimbal-browser-build.AfTh8P/gimbal-worker-linux-arm64 \
+GIMBAL_TEST_TEMPORAL_ADDRESS=127.0.0.1:7233 \
+GIMBAL_TEST_POSTGRES_DSN='postgres://gimbal:gimbal@127.0.0.1:5433/gimbal?sslmode=disable' \
+GIMBAL_TEST_OPENAI_API_KEY_FILE=/operator/chosen/key-file \
+go test ./internal/execution -run '^TestSupervisedTurnIntegration$' -count=1 -v
+```
+
+The key path is an operator input, not a supplied credential. Do not run this
+authenticated check until that input exists. The separate real-Temporal
+command cancellation test requires no model credentials and uses the same
+infrastructure environment without the key-file variable.
+
 ## 9. Claims map
 
 | # | Where it is met |
@@ -570,7 +707,7 @@ rejects any role that is not bound to Codex.
 | 8 | External probed image `gimbal-browser-evaluator:local` §7 |
 | 9 | Unchanged: Go runs on the controller; only commands and turns cross the backend |
 | 10 | Unchanged: worker and supervisor sessions share one environment and workdir (`validateSupervisorBindings`) |
-| 11 | Unchanged: supervise looks and steer; the browser block is not leaked to looks §3 |
+| 11 | Unchanged: supervise looks and steer; browser activity remains observable, with explicit per-agent grants §3 |
 | 12 | Scope context plus one mount covering inputs, workspace, run files and outputs; `check-inputs` §6, §8 |
 | 13 | Migrated validate-product on Docker/Temporal, report-only, invocation §8 |
 | 14 | `video-stop` + `test -s` before `close`, and `encode-video` after the scope §2, §6 |
@@ -591,32 +728,47 @@ same file.
   - an open failure closes the browser and returns an error;
   - close runs before services, and its error is in the scope error;
   - the environment, owner and released checks;
-  - the access block goes on the worker ask only, and a supervisor gets it only
-    through its own opts;
+  - an access block is appended by each agent's own options; supervisors also
+    observe the worker's instructions in their quoted task/transcript;
   - two browsers in one workdir get distinct wrappers and sessions;
   - the wrapper refuses lifecycle subcommands and `-s`;
   - open passes `--idle-timeout=0`.
 - `scope.go`: `browsers`, `adoptBrowser`, the `end` hook.
-- `supervise.go`: `options.browsers`, and the `task` parameter to `lookIntro`.
-- `supervise_jev.go`: pass the `task` parameter.
-- `session.go`: `dispatchRecorded`, and the joined adapter error in `generate`,
+- `supervise.go`: `options.browsers`; keep existing supervision signatures.
+- No `supervise_jev.go` signature change is needed.
+- `session.go`: `dispatchRecorded`, and the joined adapter error in `Session.turn`,
   with a test.
 - `doc.go`: one paragraph.
 - `internal/generate/expr.go`, `internal/generate/read.go`, and their tests.
 - `internal/gimballint/analyzer.go`, `rules.md`, `testdata/src/browserchecks/`,
-  and the testdata gimbal stub.
+  and the testdata gimbal stub. Include ownership propagation through
+  WithSupervisor options and spread option slices.
 
 **B: backend packaging and remote cancellation**
 
 - `internal/execution/temporal.go`: `WorkerBinary`, `startWorker`, readiness
   message, `removeWorker`, the removed-environment state, and `Process.Wait`'s
-  unconfirmed branch.
+  unconfirmed branch, `Process.Stop`, and shared cancellation/heartbeat timing.
 - `internal/execution/harness.go`: `RunTurn`'s confirmed/unconfirmed decision
-  and the removed-environment refusal.
+  plus `request` (create/fork/steer/close) and the removed-environment refusal.
 - `internal/execution/*_test.go`, including `temporal_integration_test.go`
   (required image and binary env). Test that an unconfirmed turn removes the
   container and that later operations are refused.
+  Also test confirmed cancellation against the real Temporal dev server without
+  a model, and verify a subsequent command still runs in the same environment.
+  Add `TestSupervisedTurnIntegration` for the separate authenticated exercise
+  described in §8; an unset credential must skip honestly, not count as proof.
 - `codex/codex.go` and `codex/codex_test.go`: the unconfirmed-interrupt error.
+  Cover the finish-versus-interrupt race: a terminal turn remains confirmed
+  when an interrupt reports that it already finished, and cancellation from
+  the first terminal event's callback must not await a second terminal.
+  Cover a nonterminal interactive refusal with a live ctx: interrupt/drain
+  must occur before return, with an unconfirmed error if no terminal follows.
+  Cover cancellation during turn/start: await its id, then interrupt/drain.
+  Cover a genuinely ambiguous start acknowledgement so it cannot silently
+  become a clean cancellation while native work may still run.
+  Cover error {willRetry:false} and interactive requests during drain followed
+  by turn/completed: these must remain confirmed and retain the environment.
 - `cmd/gimbal/main.go` and `cmd/gimbal/execution_config_test.go`: the
   `worker_binary` required field.
 - `Justfile` (`worker-binary`), delete `Dockerfile.gimbal-worker`, and remove
@@ -635,6 +787,9 @@ same file.
 
 - The wrapper guards the supplied command. It does not sandbox Codex, which
   runs `danger-full-access` and could call `playwright-cli` directly (§2, §3).
+  Browser-driving commands such as `tab-close` or `run-code` can also end a
+  page, and value-taking global flags can bypass the simple subcommand scan.
+  This is not a promise to police every browser action.
 - An unconfirmed cancellation on the Temporal backend ends the whole
   environment: other turns, commands and browsers in it fail with errors naming
   the removal. There is no restart.

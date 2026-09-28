@@ -32,3 +32,13 @@ finding: Authoritative starting HEAD remains 23c02f6 and tracked tree is clean. 
   not a completed Temporal activity or authenticated provider turn.
 - Shared-data config now mounts only the canonical evaluation directory;
   runtime credentials and the worker binary remain separate read-only inputs.
+
+## Design converged
+
+Round 07 reports only nits. Runtime design is accepted for implementation.
+Worker recipe executed successfully and produced a static Linux arm64 binary.
+Use browserShellQuote to avoid colliding with the existing test helper. The
+two-minute video encoding budget remains a documented limitation, with raw
+finalized WebM retained. Three disjoint Gimbal implementation assignments start
+now; evaluator migration follows the browser API. Authenticated proof still
+awaits the worker credential choice.

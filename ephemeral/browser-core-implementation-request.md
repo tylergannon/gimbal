@@ -15,8 +15,12 @@ WithBrowser, scope lifetime, correct shutdown/error propagation, and narrowly
 needed generator support. No generic resource framework or new public API
 beyond the accepted design. Use the tested connector facts in
 /tmp/gimbal-browser-build.AfTh8P/image/README.md. Test the important lifecycle,
-access, same-directory browser identity and error cases. Run focused Go tests
+access, same-directory browser identity including distinct runs at the same
+scope path, and error cases. Run focused Go tests
 for your changes. Do not claim the Docker evaluator proved from fakes.
+Quote command paths in the delivered shell instructions, including workdirs
+with spaces. Preserve adapter failure details in both Session.turn's returned
+error and its TurnEnded record, per the current design.
 
 Do not commit, launch agents, invoke Gimbal, or edit generated files by hand.
 The manager handles integration, regeneration, full review and live validation.

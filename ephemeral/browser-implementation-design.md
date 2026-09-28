@@ -61,7 +61,8 @@ arguments, so nothing is quoted into the script:
 
 ```sh
 set -e
-printf '%s' "$2" > "$1" && chmod +x "$1"
+printf '%s' "$2" > "$1"
+chmod +x "$1"
 playwright-cli -s="$3" open about:blank --idle-timeout=0
 [ -z "$4" ] || playwright-cli -s="$3" video-start "$4" --cursor
 ```

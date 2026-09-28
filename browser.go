@@ -20,7 +20,8 @@ const browserCloseTimeout = 30 * time.Second
 // idle shutdown disabled, and starts recording when a video path is given.
 // $1 wrapper path, $2 wrapper text, $3 session, $4 video or "".
 const browserOpenScript = `set -e
-printf '%s' "$2" > "$1" && chmod +x "$1"
+printf '%s' "$2" > "$1"
+chmod +x "$1"
 playwright-cli -s="$3" open about:blank --idle-timeout=0
 [ -z "$4" ] || playwright-cli -s="$3" video-start "$4" --cursor
 `

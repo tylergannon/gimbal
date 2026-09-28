@@ -330,7 +330,35 @@ func TestScreenshotClaimsStayGrounded(t *testing.T) {
 	if !strings.Contains(triagePrompt, "screenshot review's corrections") || !strings.Contains(triagePrompt, "reference it found incorrect") {
 		t.Fatal("triage prompt does not preserve independent screenshot corrections")
 	}
+	if !strings.Contains(reportPrompt, "screenshot review's corrections") || !strings.Contains(reportPrompt, "unsupported captions or incorrect references") {
+		t.Fatal("report-only prompt does not preserve independent screenshot corrections")
+	}
 	if !strings.Contains(triagePrompt, "gimbal upload-artifact") || !strings.Contains(triagePrompt, "hosted images") {
 		t.Fatal("triage prompt does not require online screenshot evidence for issues")
+	}
+}
+
+func TestUnreadableGuideStopsBeforeBrowserAndAgents(t *testing.T) {
+	s, input := suiteFixture(t, 1)
+	guide := filepath.Join(filepath.Dir(input), "guide.md")
+	if err := os.WriteFile(guide, []byte("Product instructions"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	s.Guides = []string{guide}
+	// Host validation sees the file; readiness removes it before the environment
+	// readability check. This exercises the actual shell check, not a fake result.
+	s.Workloads[0].Ready = "/bin/rm -- '" + strings.ReplaceAll(guide, "'", "'\"'\"'") + "'"
+	saveSuite(t, s, input)
+	bin := t.TempDir()
+	if err := os.WriteFile(filepath.Join(bin, "playwright-cli"), []byte("#!/bin/sh\necho unexpected browser invocation >&2\nexit 99\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("ZDOTDIR", t.TempDir())
+	err := gimbal.Run(gimbal.Project(t.Context(), t.TempDir()), "unreadable-input", nil, func(ctx context.Context) error {
+		return ValidateProduct(ctx, gimbal.Env{WorkDir: filepath.Dir(input)}, Params{SuiteFile: input})
+	})
+	if err == nil || !strings.Contains(err.Error(), "check evaluator inputs") || !strings.Contains(err.Error(), "not readable in the environment: "+guide) {
+		t.Fatalf("run error = %v, want the unreadable guide at check-inputs", err)
 	}
 }

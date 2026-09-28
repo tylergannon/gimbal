@@ -652,3 +652,15 @@ func TestWithBrowserGrantsAccessPerAgent(t *testing.T) {
 		t.Errorf("no transcript in %v records the prompt sent with its access", transcripts)
 	}
 }
+
+func TestBrowserOpenStopsIfWrapperCannotBeWritten(t *testing.T) {
+	log := fakePlaywright(t)
+	// A directory cannot be overwritten by printf, even when tests run as root.
+	cmd := exec.Command("zsh", "-c", browserOpenScript, "zsh", t.TempDir(), "wrapper", "session", "")
+	if output, err := cmd.CombinedOutput(); err == nil {
+		t.Fatalf("open succeeded without writing its wrapper: %s", output)
+	}
+	if calls := playwrightCalls(t, log); len(calls) != 0 {
+		t.Fatalf("browser started after wrapper write failed: %q", calls)
+	}
+}

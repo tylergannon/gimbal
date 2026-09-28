@@ -76,3 +76,23 @@ Authenticated supervision is explicitly unrun, pending a worker key file.
 Full application build, frontend unit/format checks and six browser regression
 cases passed. Runtime tests and backend race tests passed in the workers.
 Repository hooks and independent whole-implementation review follow.
+
+## Committed implementation and real entry-point attempt
+
+Implementation c0489014 passed the full commit hooks and was pushed. Controller
+and Linux worker were rebuilt from that revision. A real validate-product run
+with the prepared TodoMVC suite and all roles set to gpt-5.6-luna failed at worker
+readiness: the worker had neither Codex authentication nor an OPENAI_API_KEY
+secret. The command returned nonzero before the app service or browser could
+start. This confirms the credential blocker, not evaluation success. No credential
+was provisioned. Independent whole-implementation review is running via Gimbal.
+
+## Independent review
+
+The complete implementation review at c0489014 reported only nits. It included
+scratch-module lint cases, real host wrapper/browser use, Docker recording and
+encoding, and independently repeated no-model Temporal integration checks.
+Authenticated model execution remains unproved. Fixed the shell nit by making
+wrapper writing and chmod separate set-e commands, and added the missing
+readability and report-only screenshot-correction cases. Focused checks pass.
+The new startup test verifies that an unwritable wrapper cannot start a browser.

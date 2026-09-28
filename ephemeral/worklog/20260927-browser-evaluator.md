@@ -115,3 +115,18 @@ Docker-event observer. It cannot exclude interruption of another observer. The
 manager steered it to record and stop only owned PIDs; no such broad command was
 repeated. Worker containers and bootstrap rows were cleaned; native-state volumes
 remain intentionally retained under the existing backend contract.
+
+## Awaiting worker credentials
+
+The independent recheck passed the tightened real cancellation test and verified
+its controls: the old test accepted a missing PID, while the new test rejects
+missing PID data and an already-dead PID. Product runtime remains ced236d8;
+test correction is 3b7935f0. No material implementation finding remains.
+
+All work possible without credentials is complete. Authenticated supervisor
+concurrency/steering, agent access to scoped inputs/browser, and the full
+Docker/Temporal evaluator with final reports/media remain unproved. The worker
+API-key-file choice is still pending; the goal is not complete. This is the
+first goal turn at an impasse after finishing the independent work. Keep PR398
+draft. Stop the task Temporal dev server, preserve its database/artifacts and
+the pre-existing Postgres service. Do not copy host login state to unblock it.

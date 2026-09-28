@@ -24,6 +24,7 @@ type options struct {
 	supervisors   []supervisor
 	every         time.Duration
 	scopeTemplate string
+	browsers      []*Browser
 }
 
 type supervisor struct {

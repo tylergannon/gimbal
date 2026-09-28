@@ -48,7 +48,7 @@ func TestSuiteInputs(t *testing.T) {
 		{"shared workspace", func(s *Suite) { s.Workloads[1].Workdir = s.Workloads[0].Workdir }, "overlap"},
 		{"missing local issue", func(s *Suite) { s.Workloads[0].AssignmentFile = "missing.md" }, "local file"},
 		{"startup needs readiness", func(s *Suite) { s.Workloads[0].Start = "server" }, "readiness"},
-		{"missing repository", func(s *Suite) { s.IssueRepo = "" }, "issue_repo is required"},
+		{"report only", func(s *Suite) { s.IssueRepo = "" }, ""},
 		{"bad repository", func(s *Suite) { s.IssueRepo = "https://github.com/example/repo" }, "owner/repository"},
 		{"bad timeout", func(s *Suite) { s.Timeout = "0s" }, "positive duration"},
 	} {
@@ -66,7 +66,7 @@ func TestSuiteInputs(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if duration != time.Hour || got.PlaywrightCLI != "playwright-cli" {
+			if duration != time.Hour {
 				t.Fatalf("defaults: %+v %s", got, duration)
 			}
 		})

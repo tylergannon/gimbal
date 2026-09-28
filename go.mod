@@ -29,6 +29,7 @@ require (
 	github.com/tylergannon/claude-agent-sdk-go v1.1.1
 	github.com/tylergannon/polytype v1.1.0
 	github.com/tylergannon/skgo v0.7.0
+	go.temporal.io/api v1.63.5
 	go.temporal.io/sdk v1.49.0
 	golang.org/x/net v0.59.0
 	golang.org/x/sync v0.23.0
@@ -87,7 +88,6 @@ require (
 	github.com/stretchr/testify v1.11.1 // indirect
 	github.com/tylergannon/structtag v0.1.0 // indirect
 	github.com/vmware-labs/yaml-jsonpath v0.3.2 // indirect
-	go.temporal.io/api v1.63.5 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/mod v0.41.0 // indirect
 	golang.org/x/telemetry v0.0.0-20260908163034-4bcc4b2ee518 // indirect

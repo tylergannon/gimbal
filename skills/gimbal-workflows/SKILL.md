@@ -178,6 +178,15 @@ Gimbal records output and status but does not add restarts, health checks, or
 management of resources owned externally by Docker, Overmind, or similar
 tools.
 
+Use `NewBrowser(ctx, name, workdir, video)` to acquire a browser in the current
+execution environment; handle its returned error. The existing absolute workdir
+holds screenshots, and video is an absolute `.webm` path or empty. Give a turn
+access with `WithBrowser(browser)`. The browser survives turns until its owning
+scope ends, which finalizes recording and closes it. Process recorded video
+after that scope returns successfully. Supervisors need their own explicit
+`WithBrowser` grant to drive it. Keep handles and options within the owning
+scope; the linter checks supported escape forms.
+
 A validator examines the work and the legitimacy of its validation. A green
 build or test gate establishes only what it exercised. Claims about live
 workflows, external steering, or browser interactions require observing those

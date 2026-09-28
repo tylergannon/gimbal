@@ -42,3 +42,37 @@ two-minute video encoding budget remains a documented limitation, with raw
 finalized WebM retained. Three disjoint Gimbal implementation assignments start
 now; evaluator migration follows the browser API. Authenticated proof still
 awaits the worker credential choice.
+
+## Evaluator integration
+
+Manager owns validateproduct and maintained usage skills while the three Gimbal
+workers implement runtime/generator, linter and backend. The evaluator now uses
+browser scopes, environment encoding, remote-readable input checks and optional
+report-only synthesis. Focused tests cover cancellation retaining finalized
+video, task/debrief failure, sibling continuity and cleanup failure blocking only
+that tester's encoding. Local generator sees browser scopes and encode commands.
+
+A PATH-only fake playwright-cli was bypassed by host zsh startup files; the first
+runs accidentally invoked the installed browser CLI. Lifecycle close commands
+completed, but test marker assertions exposed the mismatch. Empty ZDOTDIR
+isolates the test shell and produces the intended fake lifecycle. This fact was
+steered to the browser worker. Do not interpret those accidental browser runs as
+Docker/Temporal evaluation proof.
+
+## Implementation convergence
+
+All three Gimbal implementation tracks completed. The manager rejected the
+linter's extra generic-parameter restriction: typed generic helpers preserve
+the instantiated browser type and are allowed; explicit conversion to any is
+still diagnosed. The correction ran through another bounded Gimbal assignment.
+Combined Gimbal lint passes. Removing PlaywrightCLI also required updating the
+web start-lifetime fixture and validation examples; readiness still blocks that
+fixture before any browser or model use.
+
+The backend worker reports real no-model readiness and command cancellation
+checks against task Docker/Temporal/Postgres. Confirmed cancellation retained
+the environment, and a follow-up command verified the sleep process had ended.
+Authenticated supervision is explicitly unrun, pending a worker key file.
+Full application build, frontend unit/format checks and six browser regression
+cases passed. Runtime tests and backend race tests passed in the workers.
+Repository hooks and independent whole-implementation review follow.

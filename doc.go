@@ -34,8 +34,15 @@
 // current scope own its lifetime. The run records each of them beside the
 // scope's turns.
 //
+// NewBrowser opens a browser in the ctx's environment, optionally recording
+// it, and makes the current scope own it: the browser outlives each turn and
+// is closed, its recording finished, when that scope ends. An agent drives it
+// only when a turn grants it with WithBrowser, which appends to that agent's
+// prompt the one command bound to this browser. A supervisor gets access only
+// through its own WithSupervisor options.
+//
 // Every operation follows context.Context. Returning from a scope closes its
-// sessions and stops its services, Group.Wait joins its children, and
+// browsers, stops its services and closes its sessions, Group.Wait joins its children, and
 // cancelling a run interrupts its agent work and services. See the package
 // examples for complete, compiling uses of runs and groups.
 package gimbal

@@ -179,13 +179,21 @@ func dispatch[T Output](ctx context.Context, s *Session, prompt string, opts []A
 
 // dispatchRecorded is dispatch with the TurnStarted view supplied by Generate.
 // A nil started preserves direct dispatch's current behavior: each actual ask,
-// including a validation retry, is recorded exactly as it is sent.
+// including a validation retry, is recorded exactly as it is sent. Each
+// browser in this agent's own options adds its access block to what is sent,
+// so a worker turn and a supervisor's look each get access only from their
+// own options.
 func dispatchRecorded[T Output](ctx context.Context, s *Session, prompt string, opts []AgentOption, started *TurnStarted) (T, error) {
-	if o := apply(opts); len(o.supervisors) > 0 {
-		return supervise[T](ctx, s, prompt, o.supervisors, started)
-	}
 	var out T
-	return generate[T](ctx, s, prompt, nil, fmt.Sprintf("%T", out), started)
+	o := apply(opts)
+	ask, err := browserAccess(ctx, s, prompt, o.browsers)
+	if err != nil {
+		return out, err
+	}
+	if len(o.supervisors) > 0 {
+		return supervise[T](ctx, s, ask, o.supervisors, started)
+	}
+	return generate[T](ctx, s, ask, nil, fmt.Sprintf("%T", out), started)
 }
 
 // errInvalidResult marks a turn whose harness succeeded but whose result did
@@ -340,11 +348,21 @@ func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessag
 	if scope != nil {
 		scope.run.removeTurn(turnID)
 	}
+	// What the adapter said about a stopped turn, such as an interrupt it
+	// could not confirm, is kept beside the stop cause. A bare copy of the
+	// ctx's own error adds nothing and is dropped.
+	adapterErr := err
+	if adapterErr != nil && turnCtx.Err() != nil && adapterErr.Error() == turnCtx.Err().Error() {
+		adapterErr = nil
+	}
 	stopped := context.Cause(turnCtx)
 	if stopped != nil && stopped != turnCtx.Err() {
 		// Keep errors.Is(err, context.Canceled) true for callers that only
 		// ask whether the turn was cancelled, and errors.As for the cause.
 		stopped = fmt.Errorf("%w: %w", turnCtx.Err(), stopped)
+	}
+	if adapterErr != nil && stopped != nil && adapterErr.Error() == stopped.Error() {
+		adapterErr = nil
 	}
 	cancelTurn(nil)
 	if stopped != nil {
@@ -375,9 +393,9 @@ func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessag
 			reason = "user"
 		}
 		terminalErr := wrapped(nativeEvent("session.execution.interrupted", map[string]any{"sessionID": native, "reason": reason}, map[string]any{"provider": "gimbal", "sessionID": native, "turnID": turnID}))
-		err = errors.Join(stopped, terminalErr)
+		err = errors.Join(stopped, adapterErr, terminalErr)
 		if scope != nil {
-			scope.run.event(scope.key, s.id, turnID, TurnEnded{Error: stopped.Error(), Usage: report, Duration: time.Since(start), Interrupted: true})
+			scope.run.event(scope.key, s.id, turnID, TurnEnded{Error: err.Error(), Usage: report, Duration: time.Since(start), Interrupted: true})
 		}
 		return nil, err
 	}

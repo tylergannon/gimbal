@@ -217,6 +217,16 @@ func (e *extractor) gimbalOperation(name string, call *ast.CallExpr, targets []a
 		e.emitService(workflow.Service{Source: e.at(call.Pos()), Name: service})
 		return false
 
+	case "NewBrowser":
+		// A browser is owned by its scope like a service, not ordered in it.
+		browser, ok := e.constant(call, 1)
+		if !ok {
+			e.diag(call.Pos(), "NewBrowser's name is not a constant, so the browser is not read")
+			return false
+		}
+		e.emitService(workflow.Service{Source: e.at(call.Pos()), Name: browser})
+		return false
+
 	case "Check":
 		key, ok := e.constant(call, 1)
 		if !ok {

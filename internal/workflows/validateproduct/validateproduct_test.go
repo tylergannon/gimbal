@@ -20,6 +20,7 @@ type testSession struct {
 	turns     int
 }
 type testingHarness struct {
+	cancel                                         context.CancelFunc
 	mu                                             sync.Mutex
 	sessions                                       map[string]testSession
 	arrivals                                       chan struct{}
@@ -55,6 +56,11 @@ func (h *testingHarness) RunTurn(ctx context.Context, id, prompt string, _ json.
 	h.prompts[s.role] = append(h.prompts[s.role], prompt)
 	h.mu.Unlock()
 	if s.role == "tester" {
+		if h.cancel != nil {
+			h.cancel()
+			<-ctx.Done()
+			return gimbal.TurnResult{}, ctx.Err()
+		}
 		if s.turns == 1 {
 			h.arrivals <- struct{}{}
 			// Neither tester can finish until both entered their turns: real fan-out.
@@ -99,26 +105,31 @@ func (h *testingHarness) RunTurn(ctx context.Context, id, prompt string, _ json.
 
 func TestUserTestingStages(t *testing.T) {
 	for _, tc := range []struct {
-		name                                                 string
-		n                                                    int
-		tester, debrief, visual, close, browserClose, encode bool
+		name                                                                     string
+		n                                                                        int
+		tester, debrief, visual, close, browserClose, encode, reportOnly, cancel bool
 	}{
 		{name: "two parallel workloads", n: 2},
 		{name: "unused slots skip", n: 1},
+		{name: "local reports without publication", n: 1, reportOnly: true},
+		{name: "cancellation finalizes and encodes recording", n: 1, cancel: true},
 		{name: "all three testers get a debrief", n: 3},
 		{name: "debrief failure preserves task report", n: 2, debrief: true},
 		{name: "tester failure still reaches triage", n: 2, tester: true},
 		{name: "visual failure still reaches triage", n: 2, visual: true},
 		{name: "cleanup failure reaches run outcome", n: 1, close: true},
-		{name: "one browser close failure preserves both videos", n: 2, browserClose: true},
+		{name: "browser close failure skips only its encode", n: 2, browserClose: true},
 		{name: "video conversion failure reaches run outcome", n: 1, encode: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			s, input := suiteFixture(t, tc.n)
 			s.Timeout = "10s"
-			s.PlaywrightCLI = filepath.Join(filepath.Dir(input), "browser")
+			browser := filepath.Join(filepath.Dir(input), "playwright-cli")
+			if tc.reportOnly {
+				s.IssueRepo = ""
+			}
 			encoder := filepath.Join(filepath.Dir(input), "ffmpeg")
-			encoderBody := "#!/bin/sh\nprintf '%s\\n' \"$@\" > ffmpeg-args\nfor arg do if [ \"$previous\" = -i ]; then input=$arg; fi; previous=$arg; last=$arg; done\ncp \"$input\" \"$last\"\n"
+			encoderBody := "#!/bin/sh\ntest -f browser-closed || exit 7\nprintf '%s\\n' \"$@\" > ffmpeg-args\nfor arg do if [ \"$previous\" = -i ]; then input=$arg; fi; previous=$arg; last=$arg; done\ncp \"$input\" \"$last\"\n"
 			if tc.encode {
 				encoderBody = "#!/bin/sh\necho encoding failed >&2\nexit 9\n"
 			}
@@ -126,21 +137,33 @@ func TestUserTestingStages(t *testing.T) {
 				t.Fatal(err)
 			}
 			t.Setenv("PATH", filepath.Dir(input)+string(os.PathListSeparator)+os.Getenv("PATH"))
+			t.Setenv("ZDOTDIR", t.TempDir())
 			// Browser lifecycle only; agent calls and the workflow runtime are real.
-			browserBody := "#!/bin/sh\nif [ \"$2\" = video-start ]; then printf video > \"$3\"; fi\n"
+			browserBody := `#!/bin/sh
+case "$2" in
+ video-start) printf '%s' "$3" > .video-path ;;
+ video-stop) printf video > "$(cat .video-path)" ;;
+ close) touch browser-closed ;;
+esac
+`
 			if tc.browserClose {
-				browserBody += "if [ \"$2\" = close ]; then case \"$1\" in *-1) echo close failed >&2; exit 9;; esac; fi\n"
+				browserBody = strings.Replace(browserBody, "close) touch browser-closed", `close) case "$PWD" in */tester1) echo close failed >&2; exit 9;; esac; touch browser-closed`, 1)
 			}
-			if err := os.WriteFile(s.PlaywrightCLI, []byte(browserBody), 0700); err != nil {
+			if err := os.WriteFile(browser, []byte(browserBody), 0700); err != nil {
 				t.Fatal(err)
 			}
 			saveSuite(t, s, input)
 			h := &testingHarness{sessions: map[string]testSession{}, arrivals: make(chan struct{}, 3), want: tc.n, failTester: tc.tester, failDebrief: tc.debrief, failVisual: tc.visual, failClose: tc.close, prompts: map[string][]string{}}
+			runCtx, cancel := context.WithCancel(t.Context())
+			t.Cleanup(cancel)
+			if tc.cancel {
+				h.cancel = cancel
+			}
 			models := map[gimbal.WorkflowRole]gimbal.ModelBinding{"product-operation": {Adapter: h, Model: "tester"}, "product-visual-review": {Adapter: h, Model: "visual"}, "product-triage": {Adapter: h, Model: "triage"}}
-			err := gimbal.Run(gimbal.Project(t.Context(), t.TempDir()), "user-testing", models, func(ctx context.Context) error {
+			err := gimbal.Run(gimbal.Project(runCtx, t.TempDir()), "user-testing", models, func(ctx context.Context) error {
 				return ValidateProduct(ctx, gimbal.Env{WorkDir: filepath.Dir(input)}, Params{SuiteFile: input})
 			})
-			if (err != nil) != (tc.tester || tc.debrief || tc.visual || tc.close || tc.browserClose || tc.encode) {
+			if (err != nil) != (tc.tester || tc.debrief || tc.visual || tc.close || tc.browserClose || tc.encode || tc.cancel) {
 				t.Fatalf("run error: %v", err)
 			}
 			if tc.browserClose && !strings.Contains(err.Error(), "close failed") {
@@ -155,10 +178,14 @@ func TestUserTestingStages(t *testing.T) {
 				}
 			}
 			testerCalls := tc.n * 2
-			if tc.tester {
+			if tc.tester || tc.cancel {
 				testerCalls--
 			}
-			if len(h.calls) != testerCalls+2 || h.calls[testerCalls] != "visual" || h.calls[testerCalls+1] != "triage" {
+			if tc.cancel {
+				if !errors.Is(err, context.Canceled) || len(h.calls) != 1 {
+					t.Fatalf("cancel outcome: %v, calls %v", err, h.calls)
+				}
+			} else if len(h.calls) != testerCalls+2 || h.calls[testerCalls] != "visual" || h.calls[testerCalls+1] != "triage" {
 				t.Fatalf("stage order: %v", h.calls)
 			}
 			for _, session := range h.sessions {
@@ -166,14 +193,18 @@ func TestUserTestingStages(t *testing.T) {
 					continue
 				}
 				want := 2
-				if tc.tester && filepath.Base(session.dir) == "a" {
+				if (tc.tester || tc.cancel) && filepath.Base(session.dir) == "a" {
 					want = 1
 				}
 				if session.turns != want {
 					t.Fatalf("session lost continuity: %+v", session)
 				}
 			}
-			if len(h.sessions) != tc.n+2 {
+			wantSessions := tc.n + 2
+			if tc.cancel {
+				wantSessions = 1
+			}
+			if len(h.sessions) != wantSessions {
 				t.Fatalf("unexpected extra sessions: %+v", h.sessions)
 			}
 			paths, _ := filepath.Glob(filepath.Join(s.OutputDir, "user-testing-*", "reports.json"))
@@ -195,7 +226,7 @@ func TestUserTestingStages(t *testing.T) {
 				if !strings.HasSuffix(r.Video, "video.mp4") {
 					t.Fatalf("processed video missing from report: %+v", r)
 				}
-				if !tc.close && !tc.encode {
+				if !tc.close && !tc.encode && (!tc.browserClose || i != 0) {
 					data, readErr := os.ReadFile(r.Video)
 					if readErr != nil || string(data) != "video" {
 						t.Fatalf("video conversion did not produce uploadable file: %q, %v", data, readErr)
@@ -205,23 +236,31 @@ func TestUserTestingStages(t *testing.T) {
 						t.Fatalf("wrong video conversion: %s, %v", args, readErr)
 					}
 				}
+				if tc.browserClose && i == 0 {
+					if _, err := os.Stat(r.Video); !errors.Is(err, os.ErrNotExist) {
+						t.Fatalf("encoded despite failed browser close: %v", err)
+					}
+				}
 				if r.ElapsedSeconds <= 0 {
 					t.Fatal("elapsed time not measured")
 				}
-				if (r.Error != "") != ((tc.tester || tc.debrief) && i == 0) {
+				if (r.Error != "") != (((tc.tester || tc.debrief || tc.browserClose || tc.cancel) && i == 0) || tc.encode) {
 					t.Fatalf("wrong execution error: %+v", r)
 				}
 				body, readErr := os.ReadFile(r.Report)
 				if readErr != nil {
 					t.Fatal(readErr)
 				}
-				if (!tc.tester || i != 0) && !strings.Contains(string(body), "# tester report") {
+				if (!tc.tester && !tc.cancel || i != 0) && !strings.Contains(string(body), "# tester report") {
 					t.Fatal("lost original task report")
 				}
-				wantDebrief := !tc.tester && !tc.debrief || i != 0
+				wantDebrief := !tc.tester && !tc.debrief && !tc.cancel || i != 0
 				if strings.Contains(string(body), "# UI/UX debrief") != wantDebrief {
 					t.Fatalf("wrong debrief content: %s", body)
 				}
+			}
+			if tc.cancel {
+				return
 			}
 			for _, file := range []string{"visual-review.md", "findings.md"} {
 				if _, err := os.Stat(filepath.Join(filepath.Dir(paths[0]), file)); err != nil {
@@ -242,8 +281,12 @@ func TestUserTestingStages(t *testing.T) {
 			if tc.visual && !strings.Contains(h.prompts["triage"][0], "image tool unavailable") {
 				t.Fatal("triage lost visual-review failure")
 			}
-			if !strings.Contains(h.prompts["triage"][0], "example/product-a") {
-				t.Fatal("triage lost the required issue destination")
+			if tc.reportOnly {
+				if !strings.HasPrefix(h.prompts["triage"][0], reportPrompt) {
+					t.Fatal("report-only run received the publishing prompt")
+				}
+			} else if !strings.HasPrefix(h.prompts["triage"][0], triagePrompt) || !strings.Contains(h.prompts["triage"][0], "example/product-a") {
+				t.Fatal("triage lost the publishing instruction or issue destination")
 			}
 		})
 	}

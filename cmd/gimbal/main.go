@@ -239,8 +239,8 @@ func (f *serverFlags) options() ([]web.Option, error) {
 	if err := json.Unmarshal(data, &backend); err != nil {
 		return nil, fmt.Errorf("decode execution config %q: %w", f.executionConfig, err)
 	}
-	if backend.Environment == "" || backend.DockerImage == "" || backend.TemporalAddress == "" || backend.PostgresDSN == "" {
-		return nil, errors.New("execution config requires environment, docker_image, temporal_address, and postgres_dsn")
+	if backend.Environment == "" || backend.DockerImage == "" || backend.WorkerBinary == "" || backend.TemporalAddress == "" || backend.PostgresDSN == "" {
+		return nil, errors.New("execution config requires environment, docker_image, worker_binary, temporal_address, and postgres_dsn")
 	}
 	options = append(options, web.WithExecutionBackend(backend))
 	return options, nil

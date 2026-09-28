@@ -1,10 +1,12 @@
 // Package execution implements Gimbal's first command backend slice. For a
 // local run, start Temporal on the host with `temporal server start-dev --ip
 // 0.0.0.0`, start Postgres with `docker compose -f
-// docker-compose.temporal.yaml up -d postgres`, and build the worker image with
-// `docker build -f Dockerfile.gimbal-worker -t gimbal-command-worker:local .`.
-// New takes the host addresses; WorkerTemporalAddress and WorkerPostgresDSN
-// override them for addresses reachable from Docker.
+// docker-compose.temporal.yaml up -d postgres`, and build the Linux worker
+// from this checkout with `just worker-binary`. The Docker image is the
+// consumer's own: it carries the tools commands and Codex need, and never the
+// worker, which each container runs read-only from WorkerBinary. New takes the
+// host addresses; WorkerTemporalAddress and WorkerPostgresDSN override them
+// for addresses reachable from Docker.
 package execution
 
 import (
@@ -21,6 +23,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -43,11 +46,29 @@ const (
 	commandStartTimeout = 30 * time.Second
 )
 
-var activityWaitTimeout = 10 * time.Second
+// An activity acknowledges cancellation through its heartbeat, so the wait
+// for that acknowledgement is bounded by these timing assumptions together:
+// the SDK throttles heartbeats to at most 12 seconds (80% of the 15-second
+// heartbeat timeout), a Codex turn/start acknowledgement can take up to 30
+// seconds, its interrupt 5, and its terminal drain 10. That is 57 seconds,
+// with 3 seconds of margin. A change to a provider's stop budget must update
+// this bound. Normal completion returns as soon as confirmation arrives.
+const activityHeartbeatTimeout = 15 * time.Second
+
+var activityWaitTimeout = 4 * activityHeartbeatTimeout
+
+// codexTurnUnconfirmed is the application failure type Temporal gives the
+// Codex adapter's private error for a turn it could not confirm stopped.
+const codexTurnUnconfirmed = "turnUnconfirmedError"
+
+// workerPath is where every worker container runs the configured worker
+// binary, mounted read-only.
+const workerPath = "/opt/gimbal/gimbal-worker"
 
 type Config struct {
 	Environment           string                                      `json:"environment"`
 	DockerImage           string                                      `json:"docker_image"`
+	WorkerBinary          string                                      `json:"worker_binary"`    // absolute host path to a static Linux gimbal-worker
 	TemporalAddress       string                                      `json:"temporal_address"` // host-side Temporal address
 	PostgresDSN           string                                      `json:"postgres_dsn"`     // host-side Postgres DSN
 	WorkerTemporalAddress string                                      `json:"worker_temporal_address,omitempty"`
@@ -133,6 +154,9 @@ type workerReadinessProbe interface {
 func New(ctx context.Context, cfg Config) (*Backend, error) {
 	if cfg.Environment == "" || cfg.DockerImage == "" || cfg.TemporalAddress == "" || cfg.PostgresDSN == "" {
 		return nil, errors.New("execution: environment name, Docker image, Temporal address, and Postgres DSN are required")
+	}
+	if err := checkWorkerBinary(cfg.WorkerBinary); err != nil {
+		return nil, err
 	}
 	if cfg.DockerExecutable == "" {
 		cfg.DockerExecutable = "docker"
@@ -221,6 +245,28 @@ func New(ctx context.Context, cfg Config) (*Backend, error) {
 	return &Backend{cfg: cfg, roles: roles, db: db, temporal: temporal, owner: uuid.NewString(), environments: make(map[string]*Environment)}, nil
 }
 
+// checkWorkerBinary validates worker_binary as it is. Whether it runs in the
+// image is proven by the worker's readiness, not by a version check.
+func checkWorkerBinary(path string) error {
+	if path == "" {
+		return errors.New("execution: worker_binary is required: the absolute host path to a Linux gimbal-worker")
+	}
+	if !filepath.IsAbs(path) {
+		return fmt.Errorf("execution: worker_binary %q must be an absolute path", path)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return fmt.Errorf("execution: worker_binary: %w", err)
+	}
+	if !info.Mode().IsRegular() {
+		return fmt.Errorf("execution: worker_binary %q is not a regular file", path)
+	}
+	if info.Mode().Perm()&0o111 == 0 {
+		return fmt.Errorf("execution: worker_binary %q is not executable", path)
+	}
+	return nil
+}
+
 func roleBindings(models map[gimbal.WorkflowRole]gimbal.ModelBinding) (map[gimbal.WorkflowRole]RoleBinding, error) {
 	roles := make(map[gimbal.WorkflowRole]RoleBinding, len(models))
 	for role, binding := range models {
@@ -280,7 +326,7 @@ func (b *Backend) Resolve(ctx context.Context, name string) (gimbal.ExecutionEnv
 		cancel()
 		return nil, err
 	}
-	env := &Environment{backend: b, bootstrap: row}
+	env := &Environment{backend: b, name: name, bootstrap: row}
 	b.environments[name] = env
 	b.containers = append(b.containers, containerName)
 	return env, nil
@@ -301,7 +347,8 @@ func (b *Backend) startWorker(ctx context.Context, row bootstrap) error {
 		"-e", "GIMBAL_ENVIRONMENT=" + row.Name, "-e", "GIMBAL_WORKER_ID=" + row.Owner,
 		"-e", "GIMBAL_POSTGRES_DSN=" + b.cfg.WorkerPostgresDSN, "-e", "GIMBAL_TEMPORAL_ADDRESS=" + b.cfg.WorkerTemporalAddress,
 		"-e", "CODEX_HOME=/var/lib/gimbal/codex",
-		"-v", row.StateVolume + ":/var/lib/gimbal/codex"}
+		"-v", row.StateVolume + ":/var/lib/gimbal/codex",
+		"-v", b.cfg.WorkerBinary + ":" + workerPath + ":ro", "--entrypoint", workerPath}
 	for _, mount := range row.Mounts {
 		args = append(args, "-v", mount+":"+mount)
 	}
@@ -376,7 +423,7 @@ func (b *Backend) workerStartupFailure(row bootstrap, cause error) error {
 	defer cancelRemove()
 	removeCmd := exec.CommandContext(removeCtx, b.cfg.DockerExecutable, "rm", "-f", row.Container)
 	removeOutput, removeErr := removeCmd.CombinedOutput()
-	message := fmt.Sprintf("execution: worker for environment %q failed to become ready: %v", row.Name, cause)
+	message := fmt.Sprintf("execution: worker for environment %q (worker_binary %q in image %q) failed to become ready: %v", row.Name, b.cfg.WorkerBinary, b.cfg.DockerImage, cause)
 	if len(strings.TrimSpace(string(logs))) > 0 {
 		message += "; docker logs: " + strings.TrimSpace(string(logs))
 	} else if logsErr != nil {
@@ -399,19 +446,8 @@ func (b *Backend) Close() error {
 	b.mu.Unlock()
 	var errs []error
 	for _, name := range containers {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		cmd := exec.CommandContext(ctx, b.cfg.DockerExecutable, "rm", "-f", name)
-		if output, err := cmd.CombinedOutput(); err != nil {
-			errs = append(errs, fmt.Errorf("remove worker %s: %w: %s", name, err, strings.TrimSpace(string(output))))
-			cancel()
-			continue
-		}
-		cancel()
-		deleteCtx, cancelDelete := context.WithTimeout(context.Background(), 2*time.Second)
-		_, err := b.db.Exec(deleteCtx, `DELETE FROM gimbal_environments WHERE container_name=$1 AND owner_id=$2`, name, b.owner)
-		cancelDelete()
-		if err != nil {
-			errs = append(errs, fmt.Errorf("remove bootstrap for worker %s: %w", name, err))
+		if _, err := b.removeWorker(name); err != nil {
+			errs = append(errs, err)
 		}
 	}
 	b.temporal.Close()
@@ -419,9 +455,99 @@ func (b *Backend) Close() error {
 	return errors.Join(errs...)
 }
 
+// removeWorker removes one worker container and then its bootstrap row. gone
+// reports whether the container itself was removed.
+func (b *Backend) removeWorker(name string) (gone bool, err error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	cmd := exec.CommandContext(ctx, b.cfg.DockerExecutable, "rm", "-f", name)
+	output, err := cmd.CombinedOutput()
+	cancel()
+	if err != nil {
+		return false, fmt.Errorf("remove worker %s: %w: %s", name, err, strings.TrimSpace(string(output)))
+	}
+	deleteCtx, cancelDelete := context.WithTimeout(context.Background(), 2*time.Second)
+	_, err = b.db.Exec(deleteCtx, `DELETE FROM gimbal_environments WHERE container_name=$1 AND owner_id=$2`, name, b.owner)
+	cancelDelete()
+	if err != nil {
+		return true, fmt.Errorf("remove bootstrap for worker %s: %w", name, err)
+	}
+	return true, nil
+}
+
 type Environment struct {
 	backend   *Backend
+	name      string
 	bootstrap bootstrap
+
+	mu      sync.Mutex
+	removed error // why no more work may run here; nil while the environment is usable
+}
+
+// remove ends the environment after work in it could not be confirmed
+// stopped. The controller cannot reach that work any other way, so it removes
+// the worker container, which ends every turn, command and browser in it.
+// There is no restart: the environment refuses all later work. If the
+// container cannot be removed it stays listed for Backend.Close, and the
+// error says the worker may still be running. remove returns the removal,
+// the same error every later operation reports.
+func (e *Environment) remove() error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.removed != nil {
+		return e.removed
+	}
+	e.removed = fmt.Errorf("execution: environment %q was removed after an unconfirmed cancellation", e.name)
+	b := e.backend
+	gone, err := b.removeWorker(e.bootstrap.Container)
+	switch {
+	case !gone:
+		e.removed = fmt.Errorf("%w; its worker may still be running: %w", e.removed, err)
+	case err != nil:
+		e.removed = fmt.Errorf("%w: %w", e.removed, err)
+	default:
+		b.mu.Lock()
+		b.containers = slices.DeleteFunc(b.containers, func(name string) bool { return name == e.bootstrap.Container })
+		b.mu.Unlock()
+	}
+	return e.removed
+}
+
+// removal is the error that ended the environment, or nil. A removal in
+// progress is waited for, so no work starts while the worker is going away.
+func (e *Environment) removal() error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.removed
+}
+
+// finish adds the removal to a failed operation's error, preserving the
+// original failure. An operation that reached a real result keeps it.
+func (e *Environment) finish(err error) error {
+	if err == nil {
+		return nil
+	}
+	if removed := e.removal(); removed != nil && !errors.Is(err, removed) {
+		return errors.Join(err, removed)
+	}
+	return err
+}
+
+// activityUnconfirmed reports whether a completed activity leaves its work
+// possibly still running. A result, a Temporal cancellation or an application
+// failure is the worker's own confirmation that the work ended, except the
+// Codex adapter's failure for a turn it could not stop. A timeout or a
+// transport failure is no confirmation at all.
+func activityUnconfirmed(err error) bool {
+	if err == nil || temporal.IsCanceledError(err) {
+		return false
+	}
+	if _, ok := errors.AsType[*temporal.TimeoutError](err); ok {
+		return true
+	}
+	if app, ok := errors.AsType[*temporal.ApplicationError](err); ok {
+		return app.Type() == codexTurnUnconfirmed
+	}
+	return true
 }
 
 func (e *Environment) Harness(role gimbal.WorkflowRole) gimbal.HarnessAdapter {
@@ -433,6 +559,9 @@ func (e *Environment) Harness(role gimbal.WorkflowRole) gimbal.HarnessAdapter {
 }
 
 func (e *Environment) Start(ctx context.Context, command gimbal.ExecutionCommand, stdout, stderr io.Writer) (gimbal.ExecutionProcess, error) {
+	if err := e.removal(); err != nil {
+		return nil, err
+	}
 	if !filepath.IsAbs(command.Workdir) {
 		return nil, fmt.Errorf("execution: command workdir must be absolute: %q", command.Workdir)
 	}
@@ -448,12 +577,12 @@ func (e *Environment) Start(ctx context.Context, command gimbal.ExecutionCommand
 		return nil, err
 	}
 	input := commandInput{Environment: e.bootstrap.Name, Operation: command.Operation, Session: command.Session, Role: command.Role, Workdir: command.Workdir, Command: command.Command, Args: command.Args, StdoutPath: stdoutPath, StderrPath: stderrPath}
-	handle, err := e.backend.temporal.ExecuteActivity(ctx, client.StartActivityOptions{ID: activityID, TaskQueue: e.bootstrap.Queue, ScheduleToStartTimeout: 30 * time.Second, StartToCloseTimeout: 24 * time.Hour, HeartbeatTimeout: 15 * time.Second, RetryPolicy: &temporal.RetryPolicy{MaximumAttempts: 1}}, commandActivity, input)
+	handle, err := e.backend.schedule(ctx, activityID, e.bootstrap.Queue, commandActivity, input)
 	if err != nil {
 		_ = errors.Join(os.Remove(stdoutPath), os.Remove(stderrPath))
 		return nil, fmt.Errorf("execution: schedule command activity: %w", err)
 	}
-	p := &Process{ctx: ctx, handle: handle, workdir: command.Workdir, operation: command.Operation,
+	p := &Process{ctx: ctx, environment: e, handle: handle, workdir: command.Workdir, operation: command.Operation,
 		stdout: stdout, stderr: stderr, stdoutPath: stdoutPath, stderrPath: stderrPath,
 		relayStop: make(chan struct{}), relayDone: make(chan error, 2), relayEnded: make(chan struct{})}
 	go func() { p.relayDone <- relayOutput(stdoutPath, stdout, p.relayStop) }()
@@ -462,6 +591,21 @@ func (e *Environment) Start(ctx context.Context, command gimbal.ExecutionCommand
 		return nil, errors.Join(err, p.Stop())
 	}
 	return p, nil
+}
+
+// schedule starts an activity once ctx is known to be live. The request itself
+// is not cancelled, so a cancellation cannot leave it unknown whether the
+// activity exists: once scheduled, the caller owns cancelling it.
+func (b *Backend) schedule(ctx context.Context, id, queue, activityType string, input any) (client.ActivityHandle, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	scheduleCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), commandStartTimeout)
+	defer cancel()
+	return b.temporal.ExecuteActivity(scheduleCtx, client.StartActivityOptions{
+		ID: id, TaskQueue: queue, ScheduleToStartTimeout: 30 * time.Second, StartToCloseTimeout: 24 * time.Hour,
+		HeartbeatTimeout: activityHeartbeatTimeout, RetryPolicy: &temporal.RetryPolicy{MaximumAttempts: 1},
+	}, activityType, input)
 }
 
 func (e *Environment) capturePaths(command gimbal.ExecutionCommand) (string, string, error) {
@@ -499,30 +643,32 @@ func mounted(mounts []string, workdir string) bool {
 }
 
 type Process struct {
-	ctx        context.Context
-	handle     activityHandle
-	workdir    string
-	operation  string
-	stdout     io.Writer
-	stderr     io.Writer
-	stdoutPath string
-	stderrPath string
-	relayStop  chan struct{}
-	relayDone  chan error
-	relayEnded chan struct{}
-	relayOnce  sync.Once
-	drainOnce  sync.Once
-	relayErr   error
-	mu         sync.Mutex
-	waitDone   chan struct{}
-	waitCancel context.CancelFunc
-	waited     bool
-	code       int
-	waitErr    error
-	cancelOnce sync.Once
-	cancelErr  error
-	stopOnce   sync.Once
-	stopErr    error
+	ctx         context.Context
+	environment *Environment
+	handle      activityHandle
+	workdir     string
+	operation   string
+	stdout      io.Writer
+	stderr      io.Writer
+	stdoutPath  string
+	stderrPath  string
+	relayStop   chan struct{}
+	relayDone   chan error
+	relayEnded  chan struct{}
+	relayOnce   sync.Once
+	drainOnce   sync.Once
+	relayErr    error
+	mu          sync.Mutex
+	waitDone    chan struct{}
+	waitCancel  context.CancelFunc
+	waited      bool
+	code        int
+	waitErr     error
+	unconfirmed bool
+	cancelOnce  sync.Once
+	cancelErr   error
+	stopOnce    sync.Once
+	stopErr     error
 }
 
 type activityHandle interface {
@@ -585,12 +731,16 @@ func (p *Process) Wait() (int, error) {
 		case <-p.waitDone:
 		case <-time.After(activityWaitTimeout):
 			relayErr := p.abortWait()
-			return -1, errors.Join(p.ctx.Err(), p.cancelErr, relayErr, errors.New("execution: activity cancellation was not confirmed before timeout"))
+			return -1, errors.Join(p.ctx.Err(), p.cancelErr, relayErr, errors.New("execution: activity cancellation was not confirmed before timeout"), p.environment.remove())
 		}
 	}
 	p.mu.Lock()
-	defer p.mu.Unlock()
-	return p.code, errors.Join(p.waitErr, p.ctx.Err(), p.cancelErr)
+	code, err, unconfirmed := p.code, errors.Join(p.waitErr, p.ctx.Err(), p.cancelErr), p.unconfirmed
+	p.mu.Unlock()
+	if unconfirmed {
+		err = errors.Join(err, p.environment.remove())
+	}
+	return code, p.environment.finish(err)
 }
 
 func (p *Process) ensureWait() <-chan struct{} {
@@ -607,7 +757,8 @@ func (p *Process) ensureWait() <-chan struct{} {
 
 func (p *Process) collect(ctx context.Context) {
 	var result commandResult
-	err := p.handle.Get(ctx, &result)
+	getErr := p.handle.Get(ctx, &result)
+	err := getErr
 	if p.relayStop != nil {
 		err = errors.Join(err, p.stopRelays())
 		_ = errors.Join(os.Remove(p.stdoutPath), os.Remove(p.stderrPath))
@@ -617,6 +768,7 @@ func (p *Process) collect(ctx context.Context) {
 	}
 	p.mu.Lock()
 	p.code, p.waitErr, p.waited = result.ExitCode, err, true
+	p.unconfirmed = activityUnconfirmed(getErr)
 	if err != nil {
 		p.code = -1
 	}
@@ -738,11 +890,18 @@ func (p *Process) Stop() error {
 			waitDone := p.ensureWait()
 			select {
 			case <-waitDone:
+				p.mu.Lock()
+				unconfirmed := p.unconfirmed
+				p.mu.Unlock()
+				if unconfirmed {
+					p.stopErr = p.environment.remove()
+				}
 			case <-time.After(activityWaitTimeout):
 				relayErr := p.abortWait()
-				p.stopErr = errors.Join(p.cancelErr, relayErr, errors.New("execution: stopped activity did not finish before timeout"))
+				p.stopErr = errors.Join(p.cancelErr, relayErr, errors.New("execution: stopped activity did not finish before timeout"), p.environment.remove())
 			}
 		}
+		// A Wait that already returned reported any unconfirmed completion.
 		p.mu.Lock()
 		waitErr := p.waitErr
 		p.mu.Unlock()
@@ -750,5 +909,5 @@ func (p *Process) Stop() error {
 			p.stopErr = errors.Join(p.stopErr, waitErr)
 		}
 	})
-	return errors.Join(p.stopErr, p.cancelErr)
+	return p.environment.finish(errors.Join(p.stopErr, p.cancelErr))
 }

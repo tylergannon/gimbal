@@ -16,21 +16,5 @@ services:
       timeout: 2s
       retries: 20
 
-  worker:
-    profiles: ["manual-worker"]
-    build:
-      context: .
-      dockerfile: Dockerfile.gimbal-worker
-    image: gimbal-command-worker:local
-    environment:
-      GIMBAL_ENVIRONMENT: ${GIMBAL_ENVIRONMENT:-manual}
-      GIMBAL_WORKER_ID: ${GIMBAL_WORKER_ID:-manual}
-      GIMBAL_POSTGRES_DSN: ${GIMBAL_WORKER_POSTGRES_DSN:-postgres://gimbal:gimbal@host.docker.internal:5433/gimbal?sslmode=disable}
-      GIMBAL_TEMPORAL_ADDRESS: ${GIMBAL_WORKER_TEMPORAL_ADDRESS:-host.docker.internal:7233}
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    volumes:
-      - ${GIMBAL_PROJECT_DIR:-.}:${GIMBAL_PROJECT_DIR:-.}
-
 volumes:
   gimbal-postgres:

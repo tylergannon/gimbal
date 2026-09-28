@@ -213,6 +213,35 @@ func ServiceOwnershipShape(ctx context.Context, _ gimbal.Env) error {
 	return nil
 }
 
+// BrowserShape opens a browser in a scope and grants it to a worker and its
+// supervisor.
+func BrowserShape(ctx context.Context, _ gimbal.Env) error {
+	return gimbal.Scope(ctx, "browser-session", func(ctx context.Context) error {
+		browser, err := gimbal.NewBrowser(ctx, "browser", "/tmp/shots", "/tmp/shots/video.webm")
+		if err != nil {
+			return err
+		}
+		tester := gimbal.NewSession(ctx, "tester", ".")
+		watch := gimbal.NewSession(ctx, "watch", ".")
+		_, err = tester.Generate[gimbal.Text](ctx, workPrompt, gimbal.WithBrowser(browser), gimbal.WithSupervisor(watch, watchInstruction, gimbal.WithBrowser(browser)))
+		return err
+	})
+}
+
+// UnreadBrowserShape holds the two browser sites the rules do not read: a
+// name that is not a constant, and a function literal whose only Gimbal call
+// is NewBrowser.
+func UnreadBrowserShape(ctx context.Context, _ gimbal.Env) error {
+	if _, err := gimbal.NewBrowser(ctx, roleName(), "/tmp", ""); err != nil {
+		return err
+	}
+	open := func() error {
+		_, err := gimbal.NewBrowser(ctx, "late", "/tmp", "")
+		return err
+	}
+	return open()
+}
+
 func PlannerReassignmentShape(ctx context.Context, _ gimbal.Env) error {
 	planner := gimbal.NewSession(ctx, "planner", ".")
 	loop := gimbal.PromiseLoop(ctx, "tasks", "review the code", planner)

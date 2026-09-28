@@ -114,6 +114,54 @@ func TestServicesBelongToTheirDeclaringScopes(t *testing.T) {
 	}
 }
 
+func TestBrowserBelongsToItsScope(t *testing.T) {
+	g, err := generate.Extract("testdata/fixture", "BrowserShape", "browsers")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(g.Diagnostics) != 0 {
+		t.Fatalf("browser diagnostics = %v", g.Diagnostics)
+	}
+	session, ok := find[workflow.Scope](g.Body, func(scope workflow.Scope) bool { return scope.Name == "browser-session" })
+	if !ok {
+		t.Fatal("the browser-session scope is missing")
+	}
+	assertServices(t, "browser-session", session.Services, "browser")
+	assertServices(t, "root", g.Services)
+	if _, ok := find[workflow.Command](g.Body, func(command workflow.Command) bool { return command.Name == "browser" }); ok {
+		t.Error("the browser was also emitted as an ordered command")
+	}
+	call, ok := find[workflow.AgentCall](session.Body, func(call workflow.AgentCall) bool { return call.Session == "tester" })
+	if !ok {
+		t.Fatal("the tester's call is missing")
+	}
+	if len(call.Supervisors) != 1 || call.Supervisors[0].Session != "watch" {
+		t.Errorf("WithBrowser beside WithSupervisor changed the supervisors: %+v", call.Supervisors)
+	}
+}
+
+func TestUnreadBrowserSites(t *testing.T) {
+	g, err := generate.Extract("testdata/fixture", "UnreadBrowserShape", "browsers")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{
+		"NewBrowser's name is not a constant",
+		"a function literal that is not a Scope or Go callback holding a Gimbal call is not read",
+	}
+	if len(g.Diagnostics) != len(want) {
+		t.Fatalf("diagnostics = %v, want %d", g.Diagnostics, len(want))
+	}
+	for i, message := range want {
+		if !strings.Contains(g.Diagnostics[i].Message, message) {
+			t.Errorf("diagnostic %d = %q, want %q", i, g.Diagnostics[i].Message, message)
+		}
+	}
+	if len(g.Services) != 0 {
+		t.Errorf("an unread browser became a service: %+v", g.Services)
+	}
+}
+
 func assertServices(t *testing.T, owner string, services []workflow.Service, names ...string) {
 	t.Helper()
 	if len(services) != len(names) {

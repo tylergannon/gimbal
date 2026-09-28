@@ -65,3 +65,22 @@ func WithSupervisor(*Session, string, ...AgentOption) AgentOption {
 func WithScopeTemplate(string) AgentOption {
 	return func() {}
 }
+
+// Browser stands in for gimbal.Browser: GIMBAL110 tracks every value whose
+// type holds a *Browser.
+type Browser struct{ name string }
+
+// NewBrowser stands in for gimbal.NewBrowser.
+func NewBrowser(_ context.Context, name, _, _ string) (*Browser, error) {
+	return &Browser{name: name}, nil
+}
+
+// WithBrowser stands in for gimbal.WithBrowser: its option carries the
+// browser's owner.
+func WithBrowser(*Browser) AgentOption {
+	return func() {}
+}
+
+// Text and Env stand in for gimbal.Text and gimbal.Env.
+type Text string
+type Env struct{}

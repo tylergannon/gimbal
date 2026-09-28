@@ -234,7 +234,7 @@ func TestGeneratedStartOutlivesClientRequest(t *testing.T) {
 		t.Fatal(err)
 	}
 	suite := validateproduct.Suite{
-		Product: "test", OutputDir: "output", PlaywrightCLI: "true", IssueRepo: "example/example", Timeout: "10s",
+		Product: "test", OutputDir: "output", IssueRepo: "example/example", Timeout: "10s",
 		Workloads: []validateproduct.Workload{{Name: "waiting", AssignmentFile: "assignment.txt", Workdir: project, URL: "http://localhost", Ready: "false"}},
 	}
 	data, err := json.Marshal(suite)

@@ -200,6 +200,93 @@ Gimbal parses the text once per template and keeps it, so the parse is not
 repeated per turn. A template that cannot be parsed, or that cannot render
 the scope, is the error `Generate` returns, before any model is called.
 
+## GIMBAL110: a browser stays in its scope
+
+`GIMBAL110-BROWSER/ESCAPE` reports a `*gimbal.Browser` that can outlive the
+scope that created it. The scope releases the browser when it ends, so keep
+the browser in that scope's body and pass it to calls or to `WithBrowser`.
+
+A browser value is any expression whose type is, or contains,
+`*gimbal.Browser`: through a pointer, slice, array, map, channel, struct field
+or function result. Where it came from does not matter: `NewBrowser`, a
+helper's result, a parameter or an alias are all tracked. Its owner body is
+the body that declares it: a function body, or the body of an `Iterate` or
+`PromiseLoop.Tasks` range. A result that is not bound belongs to the body
+containing the call, and a local alias keeps the owner of the value it
+copies.
+
+An option also carries a browser. `WithBrowser(b)` has b's owner, and so does
+any Gimbal option constructor given a browser or a carrying option, such as
+`WithSupervisor(reviewer, instruction, WithBrowser(b))` or
+`WithSupervisor(reviewer, instruction, opts...)`. Local aliases, `[]AgentOption`
+literals, `append`, and element stores into a local option slice keep that
+owner. Assembling options inside the owner body is allowed; the escape rules
+below apply to them as they do to the browser.
+
+Reported:
+
+1. Assigning it with `=` to a variable declared outside its owner body: an
+   outer local, a captured variable, a named result, or a package variable.
+2. Storing it in a field, an index or map element, a map key, or through
+   `*p`; sending it on a channel; passing it to `append`; or using it as an
+   element or field of a composite literal. An option slice literal or
+   `append` of options is the exception above.
+3. Converting it to an interface, explicitly or implicitly: by assignment, as
+   a call argument, in a return, or as a composite element. Past `any` its
+   type is lost.
+4. A function literal that references a tracked variable declared outside
+   it, unless the literal is a `Scope` callback, or the `Go` callback of a
+   group whose `gimbal.Group` call is in the variable's owner body or a body
+   nested in it. A deferred or stored closure, a callback to another API, and
+   `Go` on a group from an outer body are reported.
+5. Any reference inside a raw `go` statement.
+6. A package-level variable, or a struct field declared in the analyzed
+   package, whose type contains `*gimbal.Browser`.
+7. Returning it from inside the `Iterate` or `PromiseLoop.Tasks` range body
+   that owns it.
+
+```go
+var kept *gimbal.Browser
+later := gimbal.Group(ctx, "later")
+var opts []gimbal.AgentOption
+err := gimbal.Scope(ctx, "owner", func(ctx context.Context) error {
+	b, err := openBrowser(ctx, dir)
+	if err != nil {
+		return err
+	}
+	// Reported: each outlives the owner scope.
+	kept = b
+	opts = append(opts, gimbal.WithSupervisor(reviewer, "watch", gimbal.WithBrowser(b)))
+	later.Go("use", func(ctx context.Context) error {
+		_, err := session.Generate[gimbal.Text](ctx, prompt, gimbal.WithBrowser(b))
+		return err
+	})
+
+	// Allowed: the browser and its options stay in the owner body.
+	local := []gimbal.AgentOption{gimbal.WithBrowser(b)}
+	local = append(local, gimbal.WithSupervisor(reviewer, "watch", gimbal.WithBrowser(b)))
+	users := gimbal.Group(ctx, "users")
+	users.Go("user", func(ctx context.Context) error {
+		_, err := session.Generate[gimbal.Text](ctx, prompt, local...)
+		return err
+	})
+	return users.Wait()
+})
+```
+
+Allowed: declaring it with `:=` or `var`, `_ =`, passing it to a parameter of
+its own type, `WithBrowser(b)`, the captures in rule 4, and returning it from
+a function. A returned browser is bound in the caller, and the rules apply
+there. The package `github.com/tylergannon/gimbal` itself is not checked: it
+is the runtime that keeps and releases browsers.
+
+The check is local and flow-insensitive. It does not follow values through
+helpers or containers. An `AgentOption` a helper returns, or one passed in as
+a parameter, is opaque, so `opt = browserOption(b)` is not reported; nor is a
+browser reached through an unknown container, reflection, `unsafe` or cgo.
+These remain subject to the runtime check that a browser is used only in its
+own scope or one nested in it.
+
 ## Limits and runtime backstop
 
 This is a source-level, report-only analyzer. It checks the patterns above in
@@ -207,5 +294,6 @@ the packages it analyzes; it does not prove all possible runtime control flow,
 indirect dispatch, or goroutine lifetime. In particular, GIMBAL101 only
 follows direct package-local helper calls from a recognized workflow domain,
 and its worker signature test is the presence of a `context.Context`
-parameter. Runtime misuse checks remain the backstop for states static analysis
+parameter. GIMBAL110 tracks browser ownership only through the local forms it
+names. Runtime misuse checks remain the backstop for states static analysis
 cannot establish.

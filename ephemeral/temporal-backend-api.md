@@ -67,35 +67,61 @@ Gimbal workflow / Run
 
 These commands start local infrastructure and the hosted runtime; provider
 secret files are operator supplied and must exist at the configured paths.
-Run the foreground services in separate terminals:
+The Docker image is the consumer's own, built outside this repository: it
+carries the tools that commands and Codex need, and no Gimbal binary. The
+backend runs the Linux worker built from this checkout in every container,
+mounted read-only at `/opt/gimbal/gimbal-worker` and started as the entrypoint
+with the `worker` argument. Run the foreground services in separate terminals,
+from the worktree root:
 
 ```sh
 # Terminal 1: stays in the foreground
 temporal server start-dev --ip 0.0.0.0
 # Terminal 2: Postgres runs in the background
 docker compose -f docker-compose.temporal.yaml up -d postgres
-# Build once; the backend starts the worker image on demand.
-docker build -f Dockerfile.gimbal-worker -t gimbal-command-worker:local .
+# The controller, and the worker for the Docker server's architecture,
+# both from this checkout.
+just build
+just worker-binary /absolute/path/gimbal-worker
 ```
 
-Create a private config file, adjusting the host paths and secret file:
+Create a private config file, adjusting the host paths and secret file.
+`docker_image` is the consumer image (for example the browser evaluator's
+`gimbal-browser-evaluator:local`). `worker_binary` is an absolute path to the
+static Linux worker built above; startup refuses a missing, relative,
+non-regular, or non-executable file, and a worker that never becomes ready
+fails naming it, the image, and the container's logs. `mounts` are the host
+directories shared with every container at the same path; the first is also
+where command output is captured.
 
 ```sh
 cat > /tmp/gimbal-execution.json <<'JSON'
 {
   "environment": "local",
-  "docker_image": "gimbal-command-worker:local",
+  "docker_image": "gimbal-browser-evaluator:local",
+  "worker_binary": "/absolute/path/gimbal-worker",
   "temporal_address": "127.0.0.1:7233",
   "worker_temporal_address": "host.docker.internal:7233",
   "postgres_dsn": "postgres://gimbal:gimbal@127.0.0.1:5433/gimbal?sslmode=disable",
   "worker_postgres_dsn": "postgres://gimbal:gimbal@host.docker.internal:5433/gimbal?sslmode=disable",
+  "mounts": ["/absolute/path/project"],
   "secret_files": {"OPENAI_API_KEY": "/absolute/path/openai-api-key"}
 }
 JSON
 chmod 600 /tmp/gimbal-execution.json
 # Terminal 3: hosted Gimbal runtime stays in the foreground.
-go run ./cmd/gimbal --execution-config /tmp/gimbal-execution.json
+./bin/gimbal --execution-config /tmp/gimbal-execution.json --project /absolute/path/project
 ```
+
+`environment`, `docker_image`, `worker_binary`, `temporal_address`, and
+`postgres_dsn` are required. `secret_files` is needed only for Codex roles;
+without it their worker fails startup before polling Temporal.
+
+A cancelled command or harness operation waits a bounded time for the worker
+to confirm it stopped. Without that confirmation the backend removes the
+container and its bootstrap row, and the environment refuses further work;
+any removal failure is part of the returned error, and a container that could
+not be removed stays for `Close`.
 
 For real hosted runs, select a built-in workflow and its model bindings in the
 web app. Do not treat a passing fake-environment test as Docker, Temporal,

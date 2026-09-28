@@ -1,0 +1,6 @@
+{"type":"object",
+"properties":{
+"file":{"type":"string"},
+"task":{"type":"string"},
+"test":{"type":"string"}
+},"required":["file","task","test"],"additionalProperties":false}

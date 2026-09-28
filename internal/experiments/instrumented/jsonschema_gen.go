@@ -22,8 +22,9 @@ func __gen_jsonschema_panic(fname string, err error) {
 
 // Compiled JSON schemas for validation, initialized once at startup.
 var (
-	__gen_jsonschema_compiled_Checks *jsonschema.Schema
-	__gen_jsonschema_compiled_Report *jsonschema.Schema
+	__gen_jsonschema_compiled_Checks     *jsonschema.Schema
+	__gen_jsonschema_compiled_Report     *jsonschema.Schema
+	__gen_jsonschema_compiled_Assignment *jsonschema.Schema
 )
 
 func init() {
@@ -53,6 +54,11 @@ func init() {
 		var __zero Report
 		__gen_jsonschema_compiled_Report = compile("Report", __zero.Schema())
 	}
+
+	{
+		var __zero Assignment
+		__gen_jsonschema_compiled_Assignment = compile("Assignment", __zero.Schema())
+	}
 }
 
 func (Checks) Schema() json.RawMessage {
@@ -66,6 +72,15 @@ func (Checks) Schema() json.RawMessage {
 
 func (Report) Schema() json.RawMessage {
 	const fileName = "jsonschema/Report.json"
+	data, err := __gen_jsonschema_fs.ReadFile(fileName)
+	if err != nil {
+		__gen_jsonschema_panic(fileName, err)
+	}
+	return data
+}
+
+func (Assignment) Schema() json.RawMessage {
+	const fileName = "jsonschema/Assignment.json"
 	data, err := __gen_jsonschema_fs.ReadFile(fileName)
 	if err != nil {
 		__gen_jsonschema_panic(fileName, err)
@@ -89,4 +104,13 @@ func (Report) ValidateJSON(data []byte) error {
 		return err
 	}
 	return __gen_jsonschema_compiled_Report.Validate(inst)
+}
+
+// ValidateJSON validates the given JSON bytes against the schema for Assignment.
+func (Assignment) ValidateJSON(data []byte) error {
+	inst, err := jsonschema.UnmarshalJSON(bytes.NewReader(data))
+	if err != nil {
+		return err
+	}
+	return __gen_jsonschema_compiled_Assignment.Validate(inst)
 }

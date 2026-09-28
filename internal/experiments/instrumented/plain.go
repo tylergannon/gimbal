@@ -13,8 +13,8 @@ import (
 
 const coder gimbal.WorkflowRole = "coder"
 const coach gimbal.WorkflowRole = "coach"
-const reportPrompt = "Inspect the task and actual check result supplied in context. Read marker.txt in your working directory to confirm that the earlier command's filesystem changes remain available. Return a concise report of the evidence. Make no changes."
-const coachPrompt = "Check that the report's conclusions follow from the available evidence."
+const repairPrompt = "Fix the defect described in assignment. Read the assigned source and its tests, edit only the assigned source file, and run the assigned test. Other agents share this directory: do not edit their files, tests, or go.mod. Use the previous iteration's checks as context. Return a concise summary and the name of the file you changed."
+const coachPrompt = "Keep the worker within its assigned file and requested fix. Object to edits of tests, other workers' files, or unrelated functionality."
 
 type Params struct{ Task string }
 type Checks struct {
@@ -24,24 +24,67 @@ type Checks struct {
 }
 type Report struct {
 	Summary string `json:"summary"`
-	Marker  string `json:"marker"`
+	File    string `json:"file"`
+}
+type Assignment struct {
+	File string `json:"file"`
+	Task string `json:"task"`
+	Test string `json:"test"`
+}
+type Pair struct {
+	Number      int
+	Left, Right Assignment
+	Test        string
 }
 
-// Plain is the ordinary source counterpart; Temporal does not execute this body.
+var pairs = []Pair{
+	{1, Assignment{"add.go", "Add must add two integers.", "TestAdd"}, Assignment{"multiply.go", "Multiply must multiply two integers.", "TestMultiply"}, "TestAdd|TestMultiply"},
+	{2, Assignment{"reverse.go", "Reverse must reverse Unicode characters, not bytes.", "TestReverse"}, Assignment{"clamp.go", "Clamp must return the nearest bound for values outside [low, high].", "TestClamp"}, "TestReverse|TestClamp"},
+}
+
+// Plain is ordinary Gimbal source; Temporal executes its handwritten counterpart.
 func Plain(ctx context.Context, env gimbal.Env, in Params) error {
 	gimbal.Set(ctx, "task", in.Task)
-	return gimbal.Scope(ctx, "review", func(ctx context.Context) error {
-		principal := gimbal.NewSession(ctx, coder, env.WorkDir)
-		supervisor := gimbal.NewSession(ctx, coach, env.WorkDir)
-		code, stdout, stderr, err := gimbal.RunCommand(ctx, "tests", env.WorkDir, "sh", "-c", "printf 'workspace-preserved\\n' > marker.txt; cat marker.txt")
+	if err := prepareFixture(env.WorkDir); err != nil {
+		return err
+	}
+	previous := Checks{}
+	for ctx, pair := range gimbal.Iterate(ctx, "pairs", pairs) {
+		gimbal.Set(ctx, "iteration", fmt.Sprint(pair.Number))
+		gimbal.SetJSON(ctx, "previous", previous)
+		group := gimbal.Group(ctx, "fixes")
+		group.Go("left", func(ctx context.Context) error {
+			gimbal.SetJSON(ctx, "assignment", pair.Left)
+			principal := gimbal.NewSession(ctx, coder, env.WorkDir)
+			supervisor := gimbal.NewSession(ctx, coach, env.WorkDir)
+			_, err := principal.Generate[Report](ctx, repairPrompt, gimbal.WithSupervisor(supervisor, coachPrompt))
+			return err
+		})
+		group.Go("right", func(ctx context.Context) error {
+			gimbal.SetJSON(ctx, "assignment", pair.Right)
+			principal := gimbal.NewSession(ctx, coder, env.WorkDir)
+			supervisor := gimbal.NewSession(ctx, coach, env.WorkDir)
+			_, err := principal.Generate[Report](ctx, repairPrompt, gimbal.WithSupervisor(supervisor, coachPrompt))
+			return err
+		})
+		if err := group.Wait(); err != nil {
+			return err
+		}
+		code, stdout, stderr, err := gimbal.RunCommand(ctx, "tests", env.WorkDir, "go", "test", "-count=1", "-run", pair.Test, "./...")
 		if err != nil {
 			return err
 		}
+		previous = Checks{code, stdout, stderr}
 		if code != 0 {
-			return fmt.Errorf("checks exited %d: %s", code, stderr)
+			return fmt.Errorf("iteration checks exited %d: %s%s", code, stdout, stderr)
 		}
-		gimbal.SetJSON(ctx, "checks", Checks{code, stdout, stderr})
-		_, err = principal.Generate[Report](ctx, reportPrompt, gimbal.WithSupervisor(supervisor, coachPrompt))
+	}
+	code, stdout, stderr, err := gimbal.RunCommand(ctx, "final-tests", env.WorkDir, "go", "test", "-count=1", "./...")
+	if err != nil {
 		return err
-	})
+	}
+	if code != 0 {
+		return fmt.Errorf("final checks exited %d: %s%s", code, stdout, stderr)
+	}
+	return ctx.Err()
 }

@@ -5,21 +5,38 @@ compiler. **There is no transformer here yet.** `plain.go` is the ordinary
 Gimbal source counterpart. The existing Gimbal generator reads it to produce
 the UI graph; `workflow.go` is the hand-written Temporal orchestration.
 
-Temporal dispatches named activities in order: provision one container,
-initialize its Gimbal run, run the command, generate a typed report, finish the
-Gimbal run, then release the container. The complete effective task/check data
-travels inline. The principal and supervisor execute together inside Generate.
-There is no generic action interpreter or whole-workflow activity.
+The specimen prepares a small Go project with four independent defects. Two
+iterations each schedule two concurrent Claude Haiku repairs, join the branches,
+run the pair's tests, and pass the check result into the next iteration. A final
+suite checks the combined workspace. Each principal has a Pi supervisor.
 
-One prepared image serves the control/workflow worker and the activity worker.
-The control worker owns Docker provisioning; the activity worker owns one live
-Gimbal scope, sessions, event writer and existing web UI. Files persist in a
-host bind mount. Temporal replay executes no Gimbal recording calls. Activities
-have no automatic retries; native-session recovery is outside this specimen.
+Temporal owns the ordinary loop, activity futures, joins and error propagation.
+The activity worker retains the Gimbal root and iteration scopes between calls.
+Each repair uses a child of the existing Gimbal Group, preserving its cancellation
+and session cleanup semantics. IterationTests joins that group before running
+checks; EndIteration closes the frame before the next one opens. There is no
+whole-workflow activity or generic action interpreter. `pairs` and the explicit
+control flow in `workflow.go` correspond to the ordinary source in `plain.go`.
 
-Supervision uses existing Gimbal Jev-only code, without changing its behavior.
-Successful supervisory feedback is deliberately not an acceptance gate for
-this experiment. The completed Jev migration on main owns supervision behavior.
+Both branches run in **one activity container and one shared workspace**. Their
+assignments name different source files; isolation is by instruction, not a
+filesystem sandbox. Fan-in joins work and collects reports; it does not merge
+Git branches. Failed work can leave partial edits. Files persist across iterations
+and container cleanup in a host bind mount. One prepared image serves both the
+control worker and activity worker, with Go and both agent harnesses installed.
+The existing filesystem event store and web UI remain the observer/control path.
+
+Supervision uses existing Jev-only code without changing its behavior. The opt-in
+integration test below supplies controlled positive Jev HTTP responses, but uses
+real Claude events and a real Pi supervisor through the normal supervision path.
+It checks the principal context, transcript reference and valid review response;
+an empty objections list is acceptable. It does not prove organic detection or
+corrective feedback. Normal workflow runs use the real Jev service.
+
+Temporal replay executes no Gimbal recording calls. Automatic activity retries,
+worker restart recovery, isolated worktrees, distributed fan-out, adaptive loops,
+and a source transformer are outside this specimen. This revision replaces the
+straight-line specimen; replay old straight-line histories with the old revision.
 
 ## Build
 
@@ -64,7 +81,7 @@ docker run -d --name gimbal-instrumented-control --init \
   --env CLAUDE_CODE_OAUTH_TOKEN --env ANTHROPIC_API_KEY \
   --env DIFFUSION_API_KEY --env TYPESAFE_API_KEY \
   gimbal-instrumented:local -mode control -temporal host.docker.internal:7233
-bin/instrumented -task 'Verify the marker and command evidence.'
+bin/instrumented -task 'Repair the four assigned defects, preserving tests.'
 ```
 
 The control worker prints each activity container's loopback UI URL and host
@@ -104,7 +121,25 @@ temporal workflow show --workflow-id WORKFLOW_ID --output json > /tmp/history.js
 SPECIMEN_HISTORY=/tmp/history.json go test ./internal/experiments/instrumented -run TestRecordedHistoryReplay
 ```
 
-Tests cover ordering, inline command output, error/cancellation cleanup, and
-cross-origin control rejection. Replay checks a separately supplied real
-history. They do not establish successful supervision or browser legibility;
-those claims require their own observed behavior.
+Tests cover actual parallel scheduling, ordering, carried check results, sibling
+cancellation after failure, hosted scope cleanup on root cancellation, and
+cross-origin control rejection. Replay checks a separately supplied real history.
+Browser legibility and live control claims require observing the real run.
+
+The optional paid supervision integration test can run inside the same prepared
+image. Build the test executable for the Docker host architecture, then mount it:
+
+```sh
+CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go test -c -o /tmp/instrumented.test ./internal/experiments/instrumented
+docker run --rm --init --user 1000:1000 \
+  --env HOME=/tmp/agent-home --env SPECIMEN_LIVE_TEST=1 \
+  --env CLAUDE_CODE_OAUTH_TOKEN --env ANTHROPIC_API_KEY --env DIFFUSION_API_KEY \
+  --mount type=bind,src=/tmp/instrumented.test,dst=/tmp/instrumented.test,readonly \
+  --entrypoint /tmp/instrumented.test gimbal-instrumented:local \
+  -test.run TestLiveControlledSupervision -test.v -test.timeout 3m
+```
+
+This is explicitly a controlled routing check in a separate test container using
+the activity image. It substitutes no production behavior and requires no
+production supervision switch. Its local Jev HTTP stub receives real principal
+events; both agent harnesses contact their actual providers.

@@ -1,5 +1,5 @@
 {"type":"object",
 "properties":{
 "summary":{"type":"string"},
-"marker":{"type":"string"}
-},"required":["summary","marker"],"additionalProperties":false}
+"file":{"type":"string"}
+},"required":["summary","file"],"additionalProperties":false}

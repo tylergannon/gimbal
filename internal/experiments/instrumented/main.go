@@ -35,7 +35,7 @@ func run() error {
 	mode := flag.String("mode", "start", "start, control, activities, or view")
 	address := flag.String("temporal", "127.0.0.1:7233", "Temporal server address")
 	queue := flag.String("queue", controlQueue, "activity worker queue")
-	task := flag.String("task", "Verify command evidence and workspace continuity.", "small, non-sensitive task context")
+	task := flag.String("task", "Repair the four assigned defects, keeping each change within its assigned file.", "small, non-sensitive task context")
 	projectPath := flag.String("project", "", "completed specimen workspace to view")
 	flag.Parse()
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -71,7 +71,7 @@ func run() error {
 			return err
 		}
 		fmt.Printf("Temporal workflow: %s\n", run.GetID())
-		var report Report
+		var report Outcome
 		err = run.Get(ctx, &report)
 		if ctx.Err() != nil {
 			cancelCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -141,7 +141,7 @@ func run() error {
 			}
 		}()
 		defer func() { _ = server.Close() }()
-		w := worker.New(c, *queue, worker.Options{MaxConcurrentActivityExecutionSize: 1, MaxHeartbeatThrottleInterval: time.Second, DefaultHeartbeatThrottleInterval: time.Second})
+		w := worker.New(c, *queue, worker.Options{MaxConcurrentActivityExecutionSize: 4, MaxHeartbeatThrottleInterval: time.Second, DefaultHeartbeatThrottleInterval: time.Second})
 		w.RegisterActivity(a)
 		if err := w.Start(); err != nil {
 			return err

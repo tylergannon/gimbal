@@ -327,7 +327,13 @@ func (s *scope) spillValueLocked(key string, value *scopeValue) error {
 		text = render(value.raw)
 	}
 	relative := filepath.ToSlash(filepath.Join("values", encodedPath(s.key), encodedComponent(key)+extension))
-	desc, err := s.run.writeArtifact(relative, data)
+	var desc artifactDescriptor
+	var err error
+	if s.run.contextStore != nil {
+		desc, err = s.run.writeCompiledArtifact(data, format, text)
+	} else {
+		desc, err = s.run.writeArtifact(relative, data)
+	}
 	if err != nil {
 		return err
 	}
@@ -470,6 +476,9 @@ type visibleValue struct {
 }
 
 func visibleValues(ctx context.Context) []visibleValue {
+	if values, ok := ctx.Value(compiledContextKey{}).(compiledContext); ok {
+		return values.values
+	}
 	seen := map[string]bool{}
 	var values []visibleValue
 	for s, _ := ctx.Value(scopeKey{}).(*scope); s != nil; s = s.parent {
@@ -497,7 +506,14 @@ func defaultContextEntries(visible []visibleValue, sections []string) []ContextE
 			if err != nil {
 				panic(fmt.Sprintf("gimbal: read scope value %q: %v", item.key, err))
 			}
-			complete = sections[i] == "## "+item.key+"\n\n"+render(raw)
+			full := "## " + item.key + "\n\n" + render(raw)
+			complete = sections[i] == full
+			if item.value.artifact != nil {
+				complete = complete || sections[i] == full+"\n\nComplete value: "+artifactAbsolute(item.owner.run, *item.value.artifact)
+				if item.value.artifact.format == "json" {
+					complete = complete || sections[i] == "## "+item.key+"\n\nJSON value (complete file referenced below):\n\n"+render(raw)+"\n\nComplete value: "+artifactAbsolute(item.owner.run, *item.value.artifact)
+				}
+			}
 		}
 		entries = append(entries, ContextEntry{Key: item.key, Scope: item.owner.key, Complete: complete})
 	}
@@ -544,14 +560,19 @@ func renderVisible(values []visibleValue, bodyBytes int) []string {
 			path := artifactAbsolute(item.owner.run, desc)
 			prefix := ""
 			if desc.format == "json" {
-				prefix = "JSON excerpt (the complete JSON is in the referenced file):\n\n"
+				prefix = "JSON value (complete file referenced below):\n\n"
 			}
 			maxBytes := artifactPreviewBytes
 			if bodyBytes >= 0 {
 				maxBytes = bodyBytes
 			}
 			allowed := contextEntryTokenLimit - tokenCount("## "+item.key+"\n\n"+prefix)
-			text = prefix + fitExcerptBytes(desc.preview, path, allowed, maxBytes)
+			text = prefix + fitExcerptBytes(desc.preview, path, allowed-tokenCount("\n\nComplete value: "+path), maxBytes)
+			// A pre-truncated preview may itself fit. Its complete-value path
+			// must still survive, including for supplied summaries.
+			if !strings.Contains(text, "Complete value: "+path) {
+				text += "\n\nComplete value: " + path
+			}
 		}
 		sections = append(sections, "## "+item.key+"\n\n"+text)
 	}

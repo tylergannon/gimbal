@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/tylergannon/gimbal/internal/compiledscope"
 	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/testsuite"
 	"go.temporal.io/sdk/worker"
@@ -36,15 +37,15 @@ func TestLoopParallelJoinAndCleanup(t *testing.T) {
 				record("provision")
 				return Environment{Queue: "specimen"}, nil
 			})
-			register("Initialize", func(_ context.Context, d Data) error {
+			register("Initialize", func(_ context.Context, d Data) (compiledscope.Snapshot, error) {
 				if d.Task != "root task" {
 					t.Error("root context lost")
 				}
 				record("init")
-				return nil
+				return "root", nil
 			})
 			register("Prepare", func(context.Context) error { record("prepare"); return nil })
-			register("SetIteration", func(_ context.Context, id string, d IterationData) error {
+			register("SetIteration", func(_ context.Context, id string, ref compiledscope.Snapshot, d IterationData) (compiledscope.Snapshot, error) {
 				mu.Lock()
 				defer mu.Unlock()
 				if active != 0 {
@@ -53,13 +54,16 @@ func TestLoopParallelJoinAndCleanup(t *testing.T) {
 				iteration++
 				arrived = 0
 				barrier = make(chan struct{})
-				if d.Pair.Number != iteration || (iteration == 2 && d.Previous.Stdout != "checks-1") {
+				if d.Pair.Number != iteration || (iteration == 2 && d.Previous.Context != "checks-1") {
 					t.Errorf("lost iteration context: %+v", d)
 				}
 				order = append(order, fmt.Sprintf("begin-%d", iteration))
-				return nil
+				if ref != "root" {
+					t.Error("parent snapshot leaked")
+				}
+				return "iteration", nil
 			})
-			branch := func(ctx context.Context, id string, a Assignment) (Report, error) {
+			branch := func(ctx context.Context, id string, ref compiledscope.Snapshot) (Report, error) {
 				mu.Lock()
 				active++
 				arrived++
@@ -74,7 +78,7 @@ func TestLoopParallelJoinAndCleanup(t *testing.T) {
 				case <-ctx.Done():
 					return Report{}, ctx.Err()
 				}
-				if mode == "failure" && a.File == "add.go" {
+				if mode == "failure" && ref == "add.go" {
 					return Report{}, errors.New("branch failed")
 				}
 				if mode != "success" {
@@ -89,10 +93,26 @@ func TestLoopParallelJoinAndCleanup(t *testing.T) {
 						}
 					}
 				}
-				return Report{File: a.File}, nil
+				return Report{File: string(ref)}, nil
 			}
-			register("SetOuterContext", func(context.Context, string) error { return nil })
-			register("SetInnerContext", func(context.Context, string) error { return nil })
+			register("SetOuterContext", func(_ context.Context, _ string, ref compiledscope.Snapshot) (compiledscope.Snapshot, error) {
+				if ref != "iteration" {
+					t.Error("outer inheritance")
+				}
+				return "outer", nil
+			})
+			register("SetInnerContext", func(_ context.Context, _ string, ref compiledscope.Snapshot) (compiledscope.Snapshot, error) {
+				if ref != "outer" {
+					t.Error("inner inheritance")
+				}
+				return "inner", nil
+			})
+			register("SetAssignment", func(_ context.Context, _ string, ref compiledscope.Snapshot, a Assignment) (compiledscope.Snapshot, error) {
+				if ref != "inner" {
+					t.Error("sibling leaked")
+				}
+				return compiledscope.Snapshot(a.File), nil
+			})
 			register("Repair", branch)
 			register("EnterScope", func(_ context.Context, in ScopeInput) error {
 				mu.Lock()
@@ -111,14 +131,17 @@ func TestLoopParallelJoinAndCleanup(t *testing.T) {
 				openScopes[in.ID] = in.Parent
 				return nil
 			})
-			register("IterationTests", func(_ context.Context, id string, d IterationData) (Checks, error) {
+			register("IterationTests", func(_ context.Context, id string, ref compiledscope.Snapshot, d IterationData) (ChecksResult, error) {
 				mu.Lock()
 				defer mu.Unlock()
 				if active != 0 {
 					t.Error("test ran before join")
 				}
 				order = append(order, fmt.Sprintf("test-%d", iteration))
-				return Checks{Stdout: fmt.Sprintf("checks-%d", iteration)}, nil
+				if ref != "iteration" {
+					t.Error("child context leaked after cleanup")
+				}
+				return ChecksResult{Context: compiledscope.Snapshot(fmt.Sprintf("checks-%d", iteration))}, nil
 			})
 			register("ExitScope", func(_ context.Context, id, reason string) error {
 				mu.Lock()
@@ -134,7 +157,13 @@ func TestLoopParallelJoinAndCleanup(t *testing.T) {
 				}
 				return nil
 			})
-			register("FinalTests", func(context.Context) (Checks, error) { record("final"); return Checks{Stdout: "all pass"}, nil })
+			register("FinalTests", func(_ context.Context, ref compiledscope.Snapshot) (ChecksResult, error) {
+				if ref != "root" {
+					t.Error("iteration leaked")
+				}
+				record("final")
+				return ChecksResult{Context: "all pass"}, nil
+			})
 			register("Finish", func(_ context.Context, reason string) error {
 				// The SDK test environment resolves cancellation before the mock
 				// goroutine exits. Mirror the real Finish's local join here.
@@ -178,7 +207,7 @@ func TestLoopParallelJoinAndCleanup(t *testing.T) {
 				if err := env.GetWorkflowResult(&out); err != nil {
 					t.Fatal(err)
 				}
-				if len(out.Reports) != 4 || len(out.Iterations) != 2 || out.Final.Stdout != "all pass" {
+				if len(out.Reports) != 4 || len(out.Iterations) != 2 || out.Final.Context != "all pass" {
 					t.Fatalf("outcome=%+v", out)
 				}
 			}

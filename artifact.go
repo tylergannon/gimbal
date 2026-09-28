@@ -25,6 +25,7 @@ const (
 
 type artifactDescriptor struct {
 	file    string
+	local   string // consumer-local materialization; never serialized in a snapshot
 	size    int64
 	format  string
 	preview string
@@ -128,6 +129,9 @@ func (r *run) writeArtifact(relative string, data []byte) (artifactDescriptor, e
 }
 
 func (r *run) writeContentArtifact(kind, text string) (artifactDescriptor, error) {
+	if r.contextStore != nil {
+		return r.writeCompiledArtifact([]byte(text), "text", text)
+	}
 	digest := sha256.Sum256([]byte(text))
 	relative := filepath.ToSlash(filepath.Join("context", encodedComponent(kind), fmt.Sprintf("%x.txt", digest[:12])))
 	name, err := r.artifactName(relative)
@@ -165,8 +169,7 @@ func (r *run) openArtifact(relative string) (*os.File, string, error) {
 }
 
 func (r *run) readArtifact(desc artifactDescriptor) ([]byte, error) {
-	name := filepath.Join(r.dir, filepath.FromSlash(desc.file))
-	return os.ReadFile(name)
+	return os.ReadFile(artifactAbsolute(r, desc))
 }
 
 func preview(text string) string {
@@ -222,6 +225,9 @@ func fitExcerptBytes(text, absolutePath string, maxTokens, maxBytes int) string 
 }
 
 func artifactAbsolute(r *run, desc artifactDescriptor) string {
+	if desc.local != "" {
+		return desc.local
+	}
 	return filepath.Join(r.dir, filepath.FromSlash(desc.file))
 }
 

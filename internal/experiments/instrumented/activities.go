@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sync"
@@ -22,6 +23,7 @@ import (
 type Activities struct {
 	project *host.Project
 	workdir string
+	store   compiledscope.Store
 	mu      sync.Mutex
 	scopes  map[string]*scopeFrame
 }
@@ -37,23 +39,22 @@ type scopeFrame struct {
 
 type ScopeInput struct{ ID, Parent, Name string }
 
-func (a *Activities) Initialize(_ context.Context, data Data) error {
+func (a *Activities) Initialize(_ context.Context, data Data) (compiledscope.Snapshot, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if a.scopes != nil {
-		return errors.New("specimen already initialized")
+		return "", errors.New("specimen already initialized")
 	}
 	root, finish, err := a.project.OpenCompiledRun(a.project.Context(), "instrumented", map[gimbal.WorkflowRole]gimbal.ModelBinding{
 		coder: {Adapter: claude.New(), Model: "claude-haiku-4-5"},
 		coach: {Adapter: pi.New(), Model: "diffusion/deepseek-4.1-flash"},
 	})
 	if err != nil {
-		return err
+		return "", err
 	}
 	root, cancel := context.WithCancel(root)
 	a.scopes = map[string]*scopeFrame{"": {ctx: root, cancel: cancel, finish: finish}}
-	gimbal.Set(root, "task", data.Task)
-	return nil
+	return compiledscope.WriteContext(root, a.store, "", contextEntry("task", data.Task))
 }
 
 func (a *Activities) EnterScope(_ context.Context, in ScopeInput) error {
@@ -171,49 +172,61 @@ func (a *Activities) Prepare(ctx context.Context) error {
 	return prepareFixture(a.workdir)
 }
 
-func (a *Activities) SetIteration(ctx context.Context, id string, data IterationData) error {
+// Each generated context write is an activity. Values are published here,
+// never embedded as multi-megabyte Temporal activity results.
+func contextEntry(key string, value any) compiledscope.Entry {
+	raw, err := json.Marshal(value)
+	if err != nil {
+		panic(err)
+	}
+	return compiledscope.Entry{Key: key, Value: raw}
+}
+func (a *Activities) write(ctx context.Context, id string, base compiledscope.Snapshot, entries ...compiledscope.Entry) (compiledscope.Snapshot, error) {
 	scoped, release, err := a.operation(ctx, id)
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer release()
-	gimbal.Set(scoped, "iteration", fmt.Sprint(data.Pair.Number))
-	gimbal.SetJSON(scoped, "previous", data.Previous)
-	gimbal.Set(scoped, "layer", "iteration-layer")
-	return nil
+	return compiledscope.WriteContext(scoped, a.store, base, entries...)
 }
-
-// These activities keep the authored Set operations in the worker. Only small
-// values are exercised; they do not define a context-spill transport protocol.
-func (a *Activities) SetOuterContext(ctx context.Context, id string) error {
+func (a *Activities) input(ctx context.Context, id string, ref compiledscope.Snapshot) (context.Context, func(), error) {
 	scoped, release, err := a.operation(ctx, id)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
-	defer release()
-	gimbal.Set(scoped, "layer", "outer-layer")
-	gimbal.Set(scoped, "inherited", "outer-inherited")
-	return nil
-}
-
-func (a *Activities) SetInnerContext(ctx context.Context, id string) error {
-	scoped, release, err := a.operation(ctx, id)
+	bound, err := compiledscope.BindContext(scoped, a.store, ref)
 	if err != nil {
-		return err
+		release()
+		return nil, nil, err
 	}
-	defer release()
-	gimbal.Set(scoped, "layer", "inner-layer")
-	gimbal.Set(scoped, "child-only", "inner-private")
-	return nil
+	return bound, release, nil
 }
-
-func (a *Activities) Repair(ctx context.Context, id string, assignment Assignment) (out Report, err error) {
-	scoped, release, err := a.operation(ctx, id)
+func (a *Activities) SetIteration(ctx context.Context, id string, base compiledscope.Snapshot, data IterationData) (compiledscope.Snapshot, error) {
+	previous := contextEntry("previous", Checks{})
+	if data.Previous.Context != "" {
+		entries, err := a.store.Load(data.Previous.Context)
+		if err != nil {
+			return "", err
+		}
+		previous = entries[0]
+	}
+	return a.write(ctx, id, base, contextEntry("iteration", fmt.Sprint(data.Pair.Number)), previous, contextEntry("layer", "iteration-layer"))
+}
+func (a *Activities) SetOuterContext(ctx context.Context, id string, base compiledscope.Snapshot) (compiledscope.Snapshot, error) {
+	return a.write(ctx, id, base, contextEntry("layer", "outer-layer"), contextEntry("inherited", "outer-inherited"), contextEntry("reference", referenceMaterial()), contextEntry("support-a", supportMaterial("a")), contextEntry("support-b", supportMaterial("b")), contextEntry("support-c", supportMaterial("c")), contextEntry("support-d", supportMaterial("d")), contextEntry("support-e", supportMaterial("e")))
+}
+func (a *Activities) SetInnerContext(ctx context.Context, id string, base compiledscope.Snapshot) (compiledscope.Snapshot, error) {
+	return a.write(ctx, id, base, contextEntry("layer", "inner-layer"), contextEntry("child-only", "inner-private"))
+}
+func (a *Activities) SetAssignment(ctx context.Context, id string, base compiledscope.Snapshot, assignment Assignment) (compiledscope.Snapshot, error) {
+	return a.write(ctx, id, base, contextEntry("assignment", assignment))
+}
+func (a *Activities) Repair(ctx context.Context, id string, ref compiledscope.Snapshot) (out Report, err error) {
+	scoped, release, err := a.input(ctx, id, ref)
 	if err != nil {
 		return out, err
 	}
 	defer release()
-	gimbal.SetJSON(scoped, "assignment", assignment)
 	principal := gimbal.NewSession(scoped, coder, a.workdir)
 	supervisor := gimbal.NewSession(scoped, coach, a.workdir)
 	out, err = principal.Generate[Report](scoped, repairPrompt, gimbal.WithSupervisor(supervisor, coachPrompt))
@@ -222,32 +235,30 @@ func (a *Activities) Repair(ctx context.Context, id string, assignment Assignmen
 	}
 	return
 }
-
-func (a *Activities) IterationTests(ctx context.Context, id string, data IterationData) (Checks, error) {
-	scoped, release, err := a.operation(ctx, id)
+func (a *Activities) IterationTests(ctx context.Context, id string, ref compiledscope.Snapshot, data IterationData) (ChecksResult, error) {
+	scoped, release, err := a.input(ctx, id, ref)
 	if err != nil {
-		return Checks{}, err
+		return ChecksResult{}, err
 	}
 	defer release()
 	code, stdout, stderr, err := gimbal.RunCommand(scoped, "tests", a.workdir, "go", "test", "-count=1", "-run", data.Pair.Test, "./...")
-	return checked(code, stdout, stderr, err)
+	return a.checked(code, stdout, stderr, err)
 }
-
-func (a *Activities) FinalTests(ctx context.Context) (Checks, error) {
-	scoped, release, err := a.operation(ctx, "")
+func (a *Activities) FinalTests(ctx context.Context, ref compiledscope.Snapshot) (ChecksResult, error) {
+	scoped, release, err := a.input(ctx, "", ref)
 	if err != nil {
-		return Checks{}, err
+		return ChecksResult{}, err
 	}
 	defer release()
 	code, stdout, stderr, err := gimbal.RunCommand(scoped, "final-tests", a.workdir, "go", "test", "-count=1", "./...")
-	return checked(code, stdout, stderr, err)
+	return a.checked(code, stdout, stderr, err)
 }
-
-func checked(code int, stdout, stderr string, err error) (Checks, error) {
+func (a *Activities) checked(code int, stdout, stderr string, err error) (ChecksResult, error) {
 	if err == nil && code != 0 {
-		err = fmt.Errorf("checks exited %d: %s%s", code, stdout, stderr)
+		err = fmt.Errorf("checks exited %d", code)
 	}
-	return Checks{code, stdout, stderr}, err
+	ref, storeErr := a.store.Extend("", contextEntry("previous", Checks{code, stdout, stderr}))
+	return ChecksResult{ExitCode: code, Context: ref}, errors.Join(err, storeErr)
 }
 
 func (a *Activities) Finish(ctx context.Context, reason string) error {

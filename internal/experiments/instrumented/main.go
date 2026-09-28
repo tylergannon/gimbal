@@ -19,6 +19,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/tylergannon/gimbal/internal/compiledscope"
 	"github.com/tylergannon/gimbal/web"
 	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/client"
@@ -94,15 +95,19 @@ func run() error {
 		<-ctx.Done()
 		return nil
 	case "activities":
-		instance, err := web.NewInstance(ctx, "/tmp/instrumented-instance", []string{"/workspace"}, web.WithPort(8081))
+		workspace, contextDir := os.Getenv("SPECIMEN_WORKSPACE"), os.Getenv("SPECIMEN_CONTEXT")
+		if !filepath.IsAbs(workspace) || !filepath.IsAbs(contextDir) {
+			return errors.New("activity worker requires absolute workspace and context paths")
+		}
+		instance, err := web.NewInstance(ctx, "/tmp/instrumented-instance", []string{workspace}, web.WithPort(8081))
 		if err != nil {
 			return err
 		}
-		project, err := instance.Owner.Project("/workspace")
+		project, err := instance.Owner.Project(workspace)
 		if err != nil {
 			return err
 		}
-		a := &Activities{project: project, workdir: "/workspace"}
+		a := &Activities{project: project, workdir: workspace, store: compiledscope.Store{Root: contextDir}}
 		target, _ := url.Parse("http://127.0.0.1:8081")
 		proxy := &httputil.ReverseProxy{Rewrite: func(r *httputil.ProxyRequest) {
 			r.SetURL(target)
@@ -170,7 +175,15 @@ func ProvisionEnvironment(ctx context.Context) (Environment, error) {
 	if root == "" || !filepath.IsAbs(root) {
 		return Environment{}, errors.New("SPECIMEN_STATE_ROOT must be an absolute host path, mounted at the same path in the control worker")
 	}
-	dir := filepath.Join(root, name)
+	runDir := filepath.Join(root, name)
+	dir := filepath.Join(runDir, "workspace")
+	contextDir := filepath.Join(runDir, "context")
+	if err := os.MkdirAll(contextDir, 0777); err != nil {
+		return Environment{}, err
+	}
+	if err := os.Chmod(contextDir, 0777); err != nil {
+		return Environment{}, err
+	}
 	if err := os.MkdirAll(dir, 0777); err != nil {
 		return Environment{}, err
 	}
@@ -178,7 +191,7 @@ func ProvisionEnvironment(ctx context.Context) (Environment, error) {
 		return Environment{}, err
 	}
 	// Configuration names only: credential values never enter activity arguments.
-	args := []string{"run", "-d", "--name", name, "--init", "--user", "1000:1000", "--publish", "127.0.0.1::8080", "--mount", "type=bind,src=" + dir + ",dst=/workspace", "--env", "HOME=/tmp/agent-home", "--env", "CLAUDE_CODE_OAUTH_TOKEN", "--env", "ANTHROPIC_API_KEY", "--env", "DIFFUSION_API_KEY", "--env", "TYPESAFE_API_KEY", "--env", "SPECIMEN_WORKFLOW_ID=" + activity.GetInfo(ctx).WorkflowExecution.ID, "--entrypoint", "/usr/local/bin/instrumented", image, "-mode", "activities", "-queue", name, "-temporal", "host.docker.internal:7233"}
+	args := []string{"run", "-d", "--name", name, "--init", "--user", "1000:1000", "--publish", "127.0.0.1::8080", "--mount", "type=bind,src=" + dir + ",dst=" + dir, "--mount", "type=bind,src=" + contextDir + ",dst=" + contextDir, "--env", "SPECIMEN_WORKSPACE=" + dir, "--env", "SPECIMEN_CONTEXT=" + contextDir, "--env", "HOME=/tmp/agent-home", "--env", "CLAUDE_CODE_OAUTH_TOKEN", "--env", "ANTHROPIC_API_KEY", "--env", "DIFFUSION_API_KEY", "--env", "TYPESAFE_API_KEY", "--env", "SPECIMEN_WORKFLOW_ID=" + activity.GetInfo(ctx).WorkflowExecution.ID, "--entrypoint", "/usr/local/bin/instrumented", image, "-mode", "activities", "-queue", name, "-temporal", "host.docker.internal:7233"}
 	output, err := exec.CommandContext(ctx, "docker", args...).CombinedOutput()
 	if err != nil {
 		return Environment{}, fmt.Errorf("start activity container: %w: %s", err, output)

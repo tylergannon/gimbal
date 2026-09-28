@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/tylergannon/gimbal/internal/compiledscope"
 	"github.com/tylergannon/gimbal/internal/host"
 	"go.temporal.io/sdk/testsuite"
 )
@@ -23,7 +25,7 @@ func TestRootCancellationClosesExplicitScopesExactlyOnce(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	a := &Activities{project: project, workdir: dir}
+	a := &Activities{project: project, workdir: dir, store: compiledscope.Store{Root: t.TempDir()}}
 	var suite testsuite.WorkflowTestSuite
 	env := suite.NewTestActivityEnvironment()
 	env.RegisterActivity(a)
@@ -101,5 +103,36 @@ func TestRootCancellationClosesExplicitScopesExactlyOnce(t *testing.T) {
 		if ends[scope] != 1 {
 			t.Errorf("%s ended %d times", scope, ends[scope])
 		}
+	}
+}
+
+func TestLargeChecksAreStoredAtProducingBoundary(t *testing.T) {
+	a := Activities{store: compiledscope.Store{Root: t.TempDir()}}
+	stdout := strings.Repeat("test output\n", 200000)
+	out, err := a.checked(0, stdout, "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload, err := json.Marshal(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(payload) > 200 {
+		t.Fatal("large output escaped into activity result")
+	}
+	entries, err := a.store.Load(out.Context)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := a.store.Value(entries[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	var restored Checks
+	if err := json.Unmarshal(raw, &restored); err != nil {
+		t.Fatal(err)
+	}
+	if restored.Stdout != stdout {
+		t.Fatal("stored checks lost output")
 	}
 }

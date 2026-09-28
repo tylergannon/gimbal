@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/tylergannon/gimbal/internal/compiledscope"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 )
@@ -18,17 +19,20 @@ type Environment struct {
 	URL   string
 }
 
-// Data initializes root context; iteration and assignment inputs travel inline
-// at their respective scope boundaries.
+// Generated control flow carries immutable context references, not live scopes.
 type Data struct{ Task string }
 type IterationData struct {
 	Pair     Pair
-	Previous Checks
+	Previous ChecksResult
+}
+type ChecksResult struct {
+	ExitCode int
+	Context  compiledscope.Snapshot
 }
 type Outcome struct {
 	Reports    []Report
-	Iterations []Checks
-	Final      Checks
+	Iterations []ChecksResult
+	Final      ChecksResult
 }
 
 func ReviewWorkflow(ctx workflow.Context, in Input) (out Outcome, err error) {
@@ -59,13 +63,14 @@ func ReviewWorkflow(ctx workflow.Context, in Input) (out Outcome, err error) {
 		cleanup := cleanupContext(activityCtx)
 		err = errors.Join(err, workflow.ExecuteActivity(cleanup, "Finish", errorText(err)).Get(cleanup, nil))
 	}()
-	if err = workflow.ExecuteActivity(activityCtx, "Initialize", Data(in)).Get(wait, nil); err != nil {
+	var root compiledscope.Snapshot
+	if err = workflow.ExecuteActivity(activityCtx, "Initialize", Data(in)).Get(wait, &root); err != nil {
 		return
 	}
 	if err = workflow.ExecuteActivity(activityCtx, "Prepare").Get(wait, nil); err != nil {
 		return
 	}
-	previous := Checks{}
+	previous := ChecksResult{}
 	for _, pair := range pairs {
 		// One function-return boundary per authored Iterate scope. Its defer runs
 		// before the next iteration, including failure and cancellation paths.
@@ -79,7 +84,8 @@ func ReviewWorkflow(ctx workflow.Context, in Input) (out Outcome, err error) {
 				return
 			}
 			data := IterationData{Pair: pair, Previous: previous}
-			if err = workflow.ExecuteActivity(activityCtx, "SetIteration", iterationID, data).Get(wait, nil); err != nil {
+			iteration := root
+			if err = workflow.ExecuteActivity(activityCtx, "SetIteration", iterationID, iteration, data).Get(wait, &iteration); err != nil {
 				return
 			}
 			if err = func() (err error) { // authored Scope("context")
@@ -91,7 +97,8 @@ func ReviewWorkflow(ctx workflow.Context, in Input) (out Outcome, err error) {
 				if err = workflow.ExecuteActivity(activityCtx, "EnterScope", ScopeInput{outerID, iterationID, "context"}).Get(wait, nil); err != nil {
 					return
 				}
-				if err = workflow.ExecuteActivity(activityCtx, "SetOuterContext", outerID).Get(wait, nil); err != nil {
+				outer := iteration
+				if err = workflow.ExecuteActivity(activityCtx, "SetOuterContext", outerID, outer).Get(wait, &outer); err != nil {
 					return
 				}
 				return func() (err error) { // authored Scope("details")
@@ -103,7 +110,8 @@ func ReviewWorkflow(ctx workflow.Context, in Input) (out Outcome, err error) {
 					if err = workflow.ExecuteActivity(activityCtx, "EnterScope", ScopeInput{innerID, outerID, "details"}).Get(wait, nil); err != nil {
 						return
 					}
-					if err = workflow.ExecuteActivity(activityCtx, "SetInnerContext", innerID).Get(wait, nil); err != nil {
+					inner := outer
+					if err = workflow.ExecuteActivity(activityCtx, "SetInnerContext", innerID, inner).Get(wait, &inner); err != nil {
 						return
 					}
 					if err = func() (err error) { // authored Group / Wait boundary
@@ -131,7 +139,11 @@ func ReviewWorkflow(ctx workflow.Context, in Input) (out Outcome, err error) {
 								if err = workflow.ExecuteActivity(branch, "EnterScope", ScopeInput{id, groupID, "left"}).Get(wait, nil); err != nil {
 									return
 								}
-								err = workflow.ExecuteActivity(branch, "Repair", id, pair.Left).Get(wait, &report)
+								snapshot := inner
+								if err = workflow.ExecuteActivity(branch, "SetAssignment", id, snapshot, pair.Left).Get(wait, &snapshot); err != nil {
+									return
+								}
+								err = workflow.ExecuteActivity(branch, "Repair", id, snapshot).Get(wait, &report)
 								return
 							}()
 							leftDone.Set(report, branchErr)
@@ -148,7 +160,11 @@ func ReviewWorkflow(ctx workflow.Context, in Input) (out Outcome, err error) {
 								if err = workflow.ExecuteActivity(branch, "EnterScope", ScopeInput{id, groupID, "right"}).Get(wait, nil); err != nil {
 									return
 								}
-								err = workflow.ExecuteActivity(branch, "Repair", id, pair.Right).Get(wait, &report)
+								snapshot := inner
+								if err = workflow.ExecuteActivity(branch, "SetAssignment", id, snapshot, pair.Right).Get(wait, &snapshot); err != nil {
+									return
+								}
+								err = workflow.ExecuteActivity(branch, "Repair", id, snapshot).Get(wait, &report)
 								return
 							}()
 							rightDone.Set(report, branchErr)
@@ -184,7 +200,7 @@ func ReviewWorkflow(ctx workflow.Context, in Input) (out Outcome, err error) {
 			}(); err != nil {
 				return
 			}
-			if err = workflow.ExecuteActivity(activityCtx, "IterationTests", iterationID, data).Get(wait, &previous); err != nil {
+			if err = workflow.ExecuteActivity(activityCtx, "IterationTests", iterationID, iteration, data).Get(wait, &previous); err != nil {
 				return
 			}
 			out.Iterations = append(out.Iterations, previous)
@@ -193,7 +209,7 @@ func ReviewWorkflow(ctx workflow.Context, in Input) (out Outcome, err error) {
 			return
 		}
 	}
-	err = workflow.ExecuteActivity(activityCtx, "FinalTests").Get(wait, &out.Final)
+	err = workflow.ExecuteActivity(activityCtx, "FinalTests", root).Get(wait, &out.Final)
 	if err == nil {
 		err = ctx.Err()
 	}

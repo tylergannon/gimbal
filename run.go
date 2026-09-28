@@ -14,6 +14,7 @@ import (
 	"sync"
 
 	"github.com/oklog/ulid/v2"
+	"github.com/tylergannon/gimbal/internal/compiledscope"
 	"github.com/tylergannon/gimbal/internal/live"
 	"github.com/tylergannon/gimbal/internal/observation"
 	"github.com/tylergannon/gimbal/workflow"
@@ -65,21 +66,22 @@ func RegisteredGraph(name string) (workflow.Graph, bool) {
 }
 
 type run struct {
-	dir        string                        // <project>/runs/<id>
-	models     map[WorkflowRole]ModelBinding // what each role the workflow names runs on
-	writer     *eventWriter
-	project    *eventWriter
-	store      *observation.Store
-	mu         sync.Mutex
-	sessions   map[string]*eventWriter
-	scopes     map[string]*scope                  // live scopes by key, for cancelScope
-	turns      map[string]context.CancelCauseFunc // running turns by id, for cancelTurn
-	interviews map[string]*interviewWaiter        // questions waiting for a person's answer
-	rootCancel error                              // explicit cancellation of the root scope
-	errMu      sync.Mutex
-	recordErr  error
-	closeMu    sync.Mutex
-	closeErrs  []error
+	contextStore *compiledscope.Store          // private compiler specimen; external run storage
+	dir          string                        // <project>/runs/<id>
+	models       map[WorkflowRole]ModelBinding // what each role the workflow names runs on
+	writer       *eventWriter
+	project      *eventWriter
+	store        *observation.Store
+	mu           sync.Mutex
+	sessions     map[string]*eventWriter
+	scopes       map[string]*scope                  // live scopes by key, for cancelScope
+	turns        map[string]context.CancelCauseFunc // running turns by id, for cancelTurn
+	interviews   map[string]*interviewWaiter        // questions waiting for a person's answer
+	rootCancel   error                              // explicit cancellation of the root scope
+	errMu        sync.Mutex
+	recordErr    error
+	closeMu      sync.Mutex
+	closeErrs    []error
 }
 
 // CloseError aggregates every HarnessAdapter.Close failure a run's sessions

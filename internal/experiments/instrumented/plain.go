@@ -4,6 +4,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/tylergannon/gimbal"
 )
@@ -13,7 +14,7 @@ import (
 
 const coder gimbal.WorkflowRole = "coder"
 const coach gimbal.WorkflowRole = "coach"
-const repairPrompt = "Fix the defect described in assignment. Read the assigned source and its tests, edit only the assigned source file, and run the assigned test. Other agents share this directory: do not edit their files, tests, or go.mod. Use the previous iteration's checks as context. Return a concise summary and the name of the file you changed."
+const repairPrompt = "Read the complete reference context file, find the line beginning CONTEXT_RECEIPT= in its middle, and return its value as receipt. Fix the defect described in assignment. Read the assigned source and its tests, edit only the assigned source file, and run the assigned test. Other agents share this directory: do not edit their files, tests, or go.mod. Use the previous iteration's checks as context. Return a concise summary and the name of the file you changed."
 const coachPrompt = "Keep the worker within its assigned file and requested fix. Object to edits of tests, other workers' files, or unrelated functionality."
 
 type Params struct{ Task string }
@@ -25,6 +26,7 @@ type Checks struct {
 type Report struct {
 	Summary string `json:"summary"`
 	File    string `json:"file"`
+	Receipt string `json:"receipt"`
 }
 type Assignment struct {
 	File string `json:"file"`
@@ -56,6 +58,12 @@ func Plain(ctx context.Context, env gimbal.Env, in Params) error {
 		if err := gimbal.Scope(ctx, "context", func(ctx context.Context) error {
 			gimbal.Set(ctx, "layer", "outer-layer")
 			gimbal.Set(ctx, "inherited", "outer-inherited")
+			gimbal.Set(ctx, "reference", referenceMaterial())
+			gimbal.Set(ctx, "support-a", supportMaterial("a"))
+			gimbal.Set(ctx, "support-b", supportMaterial("b"))
+			gimbal.Set(ctx, "support-c", supportMaterial("c"))
+			gimbal.Set(ctx, "support-d", supportMaterial("d"))
+			gimbal.Set(ctx, "support-e", supportMaterial("e"))
 			return gimbal.Scope(ctx, "details", func(ctx context.Context) error {
 				gimbal.Set(ctx, "layer", "inner-layer")
 				gimbal.Set(ctx, "child-only", "inner-private")
@@ -96,4 +104,13 @@ func Plain(ctx context.Context, env gimbal.Env, in Params) error {
 		return fmt.Errorf("final checks exited %d: %s%s", code, stdout, stderr)
 	}
 	return ctx.Err()
+}
+
+// Prepared context exercises transport and prompt budgeting without introducing
+// another workflow branch or making agents synthesize megabytes of data.
+func referenceMaterial() string {
+	return strings.Repeat("Reference padding; no implementation instructions here.\n", 12000) + "CONTEXT_RECEIPT=middle-of-external-context-42\n" + strings.Repeat("Reference padding; no implementation instructions here.\n", 12000)
+}
+func supportMaterial(name string) string {
+	return strings.Repeat("Supporting context "+name+"; retain complete data outside the prompt.\n", 1000)
 }

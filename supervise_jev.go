@@ -180,7 +180,18 @@ func (j *jevSupervision) check(probeCtx, reviewCtx context.Context, worker *Sess
 		fmt.Fprintf(&look, "%d earlier tool calls omitted.\n", packet.OmittedToolCalls)
 	}
 	fmt.Fprintf(&look, "\nJev review probability: %.3f (provisional threshold %.2f).\n", score.P, jevReviewThreshold)
-	result, err := dispatch[review](withSteerSource(reviewCtx, sup.session.id), sup.session, look.String(), sup.opts)
+	ask := look.String()
+	var started *TurnStarted
+	if _, ok := reviewCtx.Value(compiledContextKey{}).(compiledContext); ok {
+		var entries []ContextEntry
+		ask, entries, err = scopedPrompt(reviewCtx, ask, options{})
+		if err != nil {
+			logf("%s: resolve supervisor context: %v", sup.session.id, err)
+			return
+		}
+		started = &TurnStarted{Prompt: look.String(), Context: optionalContext(entries)}
+	}
+	result, err := dispatchRecorded[review](withSteerSource(reviewCtx, sup.session.id), sup.session, ask, sup.opts, started)
 	if err != nil {
 		if reviewCtx.Err() == nil {
 			logf("%s: Jev-triggered review by %s failed: %v", worker.id, sup.session.id, err)

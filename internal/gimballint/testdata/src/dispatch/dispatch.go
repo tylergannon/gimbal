@@ -107,3 +107,31 @@ func fixedGroupPerIteration(ctx context.Context, items []string) error {
 	}
 	return nil
 }
+
+func groupInForInitializer(ctx context.Context, more func() bool) {
+	for group := gimbal.Group(ctx, "workers"); more(); {
+		group.Go("worker", implement) // want `GIMBAL110-SIMPLE-WORKFLOWS/NO-DYNAMIC-GROUP-CHILDREN`
+	}
+}
+
+func aliasOfOuterGroup(ctx context.Context, items []string) error {
+	group := gimbal.Group(ctx, "workers")
+	for range items {
+		alias := group
+		alias.Go("worker", implement) // want `GIMBAL110-SIMPLE-WORKFLOWS/NO-DYNAMIC-GROUP-CHILDREN`
+	}
+	return group.Wait()
+}
+
+func aliasOfIterationGroup(ctx context.Context, items []string) error {
+	for range items {
+		group := gimbal.Group(ctx, "workers")
+		alias := group
+		alias.Go("left", implement)
+		alias.Go("right", review)
+		if err := group.Wait(); err != nil {
+			return err
+		}
+	}
+	return nil
+}

@@ -210,8 +210,10 @@ loop is rejected; write its children explicitly. Dynamic dispatch is a future
 feature, not implied by ordinary Go syntax being executable.
 
 A group created inside an iteration with explicit children remains allowed:
-each iteration repeats a fixed authored shape. This syntax check does not trace
-aliases or helper calls to infer group ownership across function boundaries.
+each iteration repeats a fixed authored shape. The check follows single-assignment aliases to the source-visible group
+construction. A group in a `for` initializer is created only once and is
+rejected. Unknown or reassigned receivers within a loop are rejected
+conservatively. It does not infer group ownership across helper boundaries.
 
 ## Limits and runtime backstop
 

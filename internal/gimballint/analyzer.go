@@ -18,15 +18,16 @@ import (
 )
 
 const (
-	dynamicWorkers = "[GIMBAL101-SIMPLE-WORKFLOWS/NO-DYNAMIC-WORKERS]: Workflow control flow must be visible in the source. Call worker functions directly in an if or switch instead of selecting a function dynamically."
-	constantKey    = "[GIMBAL102-SIMPLE-WORKFLOWS/CONSTANT-CONTEXT-KEY]: Context keys must be compile-time constants so a workflow's recorded fields are explicit in its source. Use a named constant or string literal; keep changing data in the value."
-	duplicateKey   = "[GIMBAL103-SET-MISUSE/DUPLICATE-KEY]: This scope can set the same context key more than once. Use one write per key in each scope."
-	wrongContext   = "[GIMBAL104-SET-MISUSE/WRONG-CONTEXT]: A context write must use the context parameter of this child scope."
-	unjoinedGo     = "[GIMBAL105-SET-MISUSE/UNJOINED-GOROUTINE]: A context write in a raw goroutine can outlive its scope. Use Group."
-	reservedTask   = "[GIMBAL106-SET-MISUSE/RESERVED-TASK-KEY]: The task key belongs to PromiseLoop.Tasks and cannot be set by the task body."
-	noScopeContext = "[GIMBAL107-SET-MISUSE/CONTEXT-NOT-FROM-SCOPE]: A context write needs a context supplied by a Gimbal scope, not context.Background or context.TODO."
-	constantPrompt = "[GIMBAL108-SIMPLE-WORKFLOWS/CONSTANT-PROMPT]: Generate's prompt and WithSupervisor's instruction must be compile-time string constants, so a workflow's prompt is readable from its source. Put the run's data into the scope with Set or SetJSON instead; Generate appends it to the prompt."
-	constantShape  = "[GIMBAL109-SIMPLE-WORKFLOWS/CONSTANT-SCOPE-TEMPLATE]: WithScopeTemplate's template must be a compile-time string constant, or a variable of this package declared with //go:embed, so what the agent is sent is readable from the source."
+	dynamicGroupChildren = "[GIMBAL110-SIMPLE-WORKFLOWS/NO-DYNAMIC-GROUP-CHILDREN]: Adding children to an outer group from a loop is unsupported dynamic dispatch. Declare each parallel child explicitly; a group inside an iteration may retain a fixed authored shape."
+	dynamicWorkers       = "[GIMBAL101-SIMPLE-WORKFLOWS/NO-DYNAMIC-WORKERS]: Workflow control flow must be visible in the source. Call worker functions directly in an if or switch instead of selecting a function dynamically."
+	constantKey          = "[GIMBAL102-SIMPLE-WORKFLOWS/CONSTANT-CONTEXT-KEY]: Context keys must be compile-time constants so a workflow's recorded fields are explicit in its source. Use a named constant or string literal; keep changing data in the value."
+	duplicateKey         = "[GIMBAL103-SET-MISUSE/DUPLICATE-KEY]: This scope can set the same context key more than once. Use one write per key in each scope."
+	wrongContext         = "[GIMBAL104-SET-MISUSE/WRONG-CONTEXT]: A context write must use the context parameter of this child scope."
+	unjoinedGo           = "[GIMBAL105-SET-MISUSE/UNJOINED-GOROUTINE]: A context write in a raw goroutine can outlive its scope. Use Group."
+	reservedTask         = "[GIMBAL106-SET-MISUSE/RESERVED-TASK-KEY]: The task key belongs to PromiseLoop.Tasks and cannot be set by the task body."
+	noScopeContext       = "[GIMBAL107-SET-MISUSE/CONTEXT-NOT-FROM-SCOPE]: A context write needs a context supplied by a Gimbal scope, not context.Background or context.TODO."
+	constantPrompt       = "[GIMBAL108-SIMPLE-WORKFLOWS/CONSTANT-PROMPT]: Generate's prompt and WithSupervisor's instruction must be compile-time string constants, so a workflow's prompt is readable from its source. Put the run's data into the scope with Set or SetJSON instead; Generate appends it to the prompt."
+	constantShape        = "[GIMBAL109-SIMPLE-WORKFLOWS/CONSTANT-SCOPE-TEMPLATE]: WithScopeTemplate's template must be a compile-time string constant, or a variable of this package declared with //go:embed, so what the agent is sent is readable from the source."
 )
 
 // cmdPath is exempt from GIMBAL108: cmd/gimbal/run_prompt.go runs a prompt given on
@@ -87,6 +88,49 @@ func run(pass *analysis.Pass) (any, error) {
 // Adding children to an outer group from a loop is runtime-sized dispatch.
 // A group created within each iteration can still have a fixed authored shape.
 func reportRepeatedGroupChildren(pass *analysis.Pass, si *syntaxInfo) {
+	// Resolve simple aliases to their actual construction, not their declaration.
+	// A for initializer executes only once and is outside the repeated body.
+	bindings := make(map[types.Object][]ast.Expr)
+	for _, file := range pass.Files {
+		ast.Inspect(file, func(n ast.Node) bool {
+			switch n := n.(type) {
+			case *ast.AssignStmt:
+				if len(n.Lhs) == len(n.Rhs) {
+					for i, lhs := range n.Lhs {
+						if obj := identObject(pass, lhs); obj != nil {
+							bindings[obj] = append(bindings[obj], n.Rhs[i])
+						}
+					}
+				}
+			case *ast.ValueSpec:
+				if len(n.Names) == len(n.Values) {
+					for i, name := range n.Names {
+						if obj := identObject(pass, name); obj != nil {
+							bindings[obj] = append(bindings[obj], n.Values[i])
+						}
+					}
+				}
+			}
+			return true
+		})
+	}
+	origin := func(expr ast.Expr) token.Pos {
+		seen := make(map[types.Object]bool)
+		for {
+			if call, ok := unparen(expr).(*ast.CallExpr); ok {
+				if name, ok := gimbalCall(pass, call); ok && name == "Group" {
+					return call.Pos()
+				}
+				return token.NoPos
+			}
+			obj := identObject(pass, expr)
+			if obj == nil || seen[obj] || len(bindings[obj]) != 1 {
+				return token.NoPos
+			}
+			seen[obj] = true
+			expr = bindings[obj][0]
+		}
+	}
 	for _, file := range pass.Files {
 		ast.Inspect(file, func(n ast.Node) bool {
 			call, ok := n.(*ast.CallExpr)
@@ -101,14 +145,19 @@ func reportRepeatedGroupChildren(pass *analysis.Pass, si *syntaxInfo) {
 			if !ok {
 				return true
 			}
-			receiver := identObject(pass, sel.X)
+			created := origin(sel.X)
 			for parent := si.parents[call]; parent != nil; parent = si.parents[parent] {
-				switch parent.(type) {
+				switch parent := parent.(type) {
 				case *ast.FuncDecl, *ast.FuncLit:
 					return true
-				case *ast.ForStmt, *ast.RangeStmt:
-					if receiver == nil || receiver.Pos() < parent.Pos() || receiver.Pos() > parent.End() {
-						pass.Reportf(call.Pos(), "[GIMBAL110-SIMPLE-WORKFLOWS/NO-DYNAMIC-GROUP-CHILDREN]: Adding children to an outer group from a loop is unsupported dynamic dispatch. Declare each parallel child explicitly; a group inside an iteration may retain a fixed authored shape.")
+				case *ast.ForStmt:
+					if created < parent.Body.Pos() || created > parent.Body.End() {
+						pass.Reportf(call.Pos(), dynamicGroupChildren)
+						return true
+					}
+				case *ast.RangeStmt:
+					if created < parent.Body.Pos() || created > parent.Body.End() {
+						pass.Reportf(call.Pos(), dynamicGroupChildren)
 						return true
 					}
 				}

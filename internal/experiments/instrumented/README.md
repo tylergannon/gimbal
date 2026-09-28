@@ -11,12 +11,14 @@ run the pair's tests, and pass the check result into the next iteration. A final
 suite checks the combined workspace. Each principal has a Pi supervisor.
 
 Temporal owns the ordinary loop, activity futures, joins and error propagation.
-The activity worker retains the Gimbal root and iteration scopes between calls.
-Each repair uses a child of the existing Gimbal Group, preserving its cancellation
-and session cleanup semantics. IterationTests joins that group before running
-checks; EndIteration closes the frame before the next one opens. There is no
-whole-workflow activity or generic action interpreter. `pairs` and the explicit
-control flow in `workflow.go` correspond to the ordinary source in `plain.go`.
+Each generated scope has an immediately invoked function and an awaited cleanup
+activity in its defer. Branch futures settle after branch cleanup; the group
+joins both before closing, and each iteration closes before the next starts.
+The activity worker retains keyed scope/resource records, with no suspended
+Run/Scope callbacks, current-iteration field, or worker-side Group. Its operation
+leases prevent cleanup from closing resources still in use. An internal bridge
+shares the ordinary runtime's entry/cleanup implementation; it is not a new
+workflow-author API. There is no whole-workflow activity or generic interpreter.
 
 Both branches run in **one activity container and one shared workspace**. Their
 assignments name different source files; isolation is by instruction, not a
@@ -35,8 +37,8 @@ corrective feedback. Normal workflow runs use the real Jev service.
 
 Temporal replay executes no Gimbal recording calls. Automatic activity retries,
 worker restart recovery, isolated worktrees, distributed fan-out, adaptive loops,
-and a source transformer are outside this specimen. This revision replaces the
-straight-line specimen; replay old straight-line histories with the old revision.
+and a source transformer are outside this specimen. This revision changes activity history; replay earlier histories with their
+original revision. Live worker recovery remains unimplemented.
 
 ## Build
 

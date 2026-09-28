@@ -16,6 +16,7 @@ import (
 
 	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/internal/binding"
+	"github.com/tylergannon/gimbal/internal/compiledscope"
 	"github.com/tylergannon/gimbal/internal/conversation"
 	"github.com/tylergannon/gimbal/internal/live"
 	"github.com/tylergannon/gimbal/internal/observation"
@@ -241,6 +242,37 @@ func (p *Project) Run(ctx context.Context, name string, models map[gimbal.Workfl
 		return context.Cause(runCtx)
 	}
 	return err
+}
+
+// OpenCompiledRun is the experiment's explicit counterpart to Run. The caller
+// must close it after joining all activities and closing child scopes. Owner
+// shutdown cancels its context and waits for that close, as it does for Run.
+func (p *Project) OpenCompiledRun(ctx context.Context, name string, models map[gimbal.WorkflowRole]gimbal.ModelBinding) (context.Context, func(error) error, error) {
+	p.owner.mu.Lock()
+	if err := p.owner.ctx.Err(); err != nil {
+		p.owner.mu.Unlock()
+		return nil, nil, err
+	}
+	p.owner.activeRuns.Add(1)
+	p.owner.mu.Unlock()
+	runCtx, cancel := context.WithCancelCause(ctx)
+	stop := context.AfterFunc(p.owner.ctx, func() { cancel(context.Cause(p.owner.ctx)) })
+	release := func() { stop(); cancel(nil); p.owner.activeRuns.Done() }
+	runCtx = observation.WithRegistry(runCtx, p.registry)
+	runCtx = live.WithRuns(runCtx, p.runs)
+	runCtx = live.WithHook(runCtx, p.runs.Hook)
+	root, finish, err := compiledscope.OpenRun(gimbal.Project(runCtx, p.dir), name, models)
+	if err != nil {
+		release()
+		return nil, nil, err
+	}
+	return root, func(err error) error {
+		defer release()
+		if err == nil {
+			err = context.Cause(runCtx)
+		}
+		return finish(err)
+	}, nil
 }
 
 type runStartedKey struct{}

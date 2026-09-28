@@ -150,21 +150,43 @@ func (r *run) closeError() error {
 // supported contract. Hosted runs are submitted to an instance with a
 // workflow compiled into its binary.
 func Run(ctx context.Context, name string, models map[WorkflowRole]ModelBinding, body func(ctx context.Context) error) error {
+	r, release, err := beginRun(ctx, name, models)
+	if err != nil {
+		return err
+	}
+	err = func() error {
+		defer release()
+		return r.root(ctx, name, body)
+	}()
+	// A panic that a Group child recovered comes back as the body's error
+	// and is raised again here, after the same terminal records a panic in
+	// the body itself gets: misuse anywhere means one thing, a complete
+	// run.jsonl and a dead process.
+	if escaped, ok := errors.AsType[*panicError](err); ok {
+		_ = r.finish(name, err)
+		panic(escaped)
+	}
+	return r.complete(ctx, name, err)
+}
+
+// beginRun allocates the existing run recorder/control owner without invoking
+// a workflow body. The compiler experiment owns the matching completion.
+func beginRun(ctx context.Context, name string, models map[WorkflowRole]ModelBinding) (*run, func(), error) {
 	if strings.TrimSpace(os.Getenv("TYPESAFE_API_KEY")) == "" {
-		return errors.New("gimbal: TYPESAFE_API_KEY is required for Jev supervision; set it before starting Gimbal")
+		return nil, nil, errors.New("gimbal: TYPESAFE_API_KEY is required for Jev supervision; set it before starting Gimbal")
 	}
 	project, _ := ctx.Value(projectKey{}).(string)
 	if project == "" {
-		return errors.New("gimbal: Run needs gimbal.Project in its ctx")
+		return nil, nil, errors.New("gimbal: Run needs gimbal.Project in its ctx")
 	}
 	project, err := filepath.Abs(project)
 	if err != nil {
-		return fmt.Errorf("gimbal: %w", err)
+		return nil, nil, fmt.Errorf("gimbal: %w", err)
 	}
 	id := ulid.Make().String() + "." + name
 	dir := filepath.Join(project, "runs", id)
 	if err := os.MkdirAll(filepath.Dir(dir), 0o755); err != nil {
-		return fmt.Errorf("gimbal: %w", err)
+		return nil, nil, fmt.Errorf("gimbal: %w", err)
 	}
 	// The run owns its observation store. With the web runtime in ctx it is
 	// registered there and the page can read it; without one the run still
@@ -174,12 +196,12 @@ func Run(ctx context.Context, name string, models map[WorkflowRole]ModelBinding,
 		return os.Mkdir(dir, 0o755)
 	})
 	if store == nil {
-		return fmt.Errorf("gimbal: %w", storeErr)
+		return nil, nil, fmt.Errorf("gimbal: %w", storeErr)
 	}
 	w, err := newEventWriter(filepath.Join(dir, "run.jsonl"))
 	if err != nil {
 		_ = store.Close()
-		return fmt.Errorf("gimbal: %w", err)
+		return nil, nil, fmt.Errorf("gimbal: %w", err)
 	}
 	r := &run{dir: dir, models: models, writer: w, sessions: make(map[string]*eventWriter), scopes: make(map[string]*scope), turns: make(map[string]context.CancelCauseFunc), interviews: make(map[string]*interviewWaiter)}
 	r.store = store
@@ -201,18 +223,10 @@ func Run(ctx context.Context, name string, models map[WorkflowRole]ModelBinding,
 	if hook := live.FromContext(ctx); hook != nil {
 		release = hook(id, r)
 	}
-	err = func() error {
-		defer release()
-		return r.root(ctx, name, body)
-	}()
-	// A panic that a Group child recovered comes back as the body's error
-	// and is raised again here, after the same terminal records a panic in
-	// the body itself gets: misuse anywhere means one thing, a complete
-	// run.jsonl and a dead process.
-	if escaped, ok := errors.AsType[*panicError](err); ok {
-		_ = r.finish(name, err)
-		panic(escaped)
-	}
+	return r, release, nil
+}
+
+func (r *run) complete(ctx context.Context, name string, err error) error {
 	if ctx.Err() != nil {
 		cancelled := RunCancelled{Name: name, Source: steerSource(ctx), Error: ctx.Err().Error()}
 		r.event("", "", "", cancelled)

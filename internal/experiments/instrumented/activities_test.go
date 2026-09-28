@@ -12,7 +12,7 @@ import (
 	"go.temporal.io/sdk/testsuite"
 )
 
-func TestRootCancellationJoinsGroupExactlyOnce(t *testing.T) {
+func TestRootCancellationClosesExplicitScopesExactlyOnce(t *testing.T) {
 	t.Setenv("TYPESAFE_API_KEY", "test-key")
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
@@ -30,24 +30,49 @@ func TestRootCancellationJoinsGroupExactlyOnce(t *testing.T) {
 	if _, err := env.ExecuteActivity(a.Initialize, Data{Task: "cancel group"}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := env.ExecuteActivity(a.BeginIteration, IterationData{Pair: pairs[0]}); err != nil {
+	for _, in := range []ScopeInput{
+		{"pairs.1", "", "pairs"},
+		{"pairs.1/fixes.1", "pairs.1", "fixes"},
+		{"pairs.1/fixes.1/left.1", "pairs.1/fixes.1", "left"},
+		{"pairs.1/fixes.1/right.1", "pairs.1/fixes.1", "right"},
+	} {
+		if _, err := env.ExecuteActivity(a.EnterScope, in); err != nil {
+			t.Fatal(err)
+		}
+	}
+	left, releaseLeft, err := a.operation(t.Context(), "pairs.1/fixes.1/left.1")
+	if err != nil {
 		t.Fatal(err)
 	}
-	started := make(chan struct{}, 2)
-	a.iteration.group.Go("left", func(ctx context.Context) error { started <- struct{}{}; <-ctx.Done(); return ctx.Err() })
-	a.iteration.group.Go("right", func(ctx context.Context) error { started <- struct{}{}; <-ctx.Done(); return ctx.Err() })
-	<-started
-	<-started
-	done := make(chan struct{})
-	go func() { defer close(done); _, _ = env.ExecuteActivity(a.IterationTests, IterationData{Pair: pairs[0]}) }()
+	right, releaseRight, err := a.operation(t.Context(), "pairs.1/fixes.1/right.1")
+	if err != nil {
+		t.Fatal(err)
+	}
 	cancel()
+	for _, branch := range []context.Context{left, right} {
+		select {
+		case <-branch.Done():
+		case <-time.After(time.Second):
+			t.Fatal("branch not cancelled")
+		}
+	}
+	// Closing a branch must wait for its active operation, even after cancellation.
+	done := make(chan error, 1)
+	go func() { done <- a.ExitScope(t.Context(), "pairs.1/fixes.1/left.1", "cancelled") }()
 	select {
 	case <-done:
-	case <-time.After(5 * time.Second):
-		t.Fatal("group didn't join")
+		t.Fatal("scope closed before activity joined")
+	case <-time.After(20 * time.Millisecond):
 	}
-	if _, err := env.ExecuteActivity(a.Finish, "cancelled"); err != nil {
+	releaseLeft()
+	if err := <-done; err != nil {
 		t.Fatal(err)
+	}
+	releaseRight()
+	for _, id := range []string{"pairs.1/fixes.1/right.1", "pairs.1/fixes.1", "pairs.1", ""} {
+		if err := a.ExitScope(t.Context(), id, "cancelled"); err != nil {
+			t.Fatal(err)
+		}
 	}
 	paths, err := filepath.Glob(filepath.Join(project.Dir(), "runs", "*", "run.jsonl"))
 	if err != nil || len(paths) != 1 {

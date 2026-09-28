@@ -43,7 +43,7 @@ func TestLoopParallelJoinAndCleanup(t *testing.T) {
 				return nil
 			})
 			register("Prepare", func(context.Context) error { record("prepare"); return nil })
-			register("BeginIteration", func(_ context.Context, d IterationData) error {
+			register("SetIteration", func(_ context.Context, id string, d IterationData) error {
 				mu.Lock()
 				defer mu.Unlock()
 				if active != 0 {
@@ -58,7 +58,7 @@ func TestLoopParallelJoinAndCleanup(t *testing.T) {
 				order = append(order, fmt.Sprintf("begin-%d", iteration))
 				return nil
 			})
-			branch := func(ctx context.Context, a Assignment) (Report, error) {
+			branch := func(ctx context.Context, id string, a Assignment) (Report, error) {
 				mu.Lock()
 				active++
 				arrived++
@@ -90,9 +90,9 @@ func TestLoopParallelJoinAndCleanup(t *testing.T) {
 				}
 				return Report{File: a.File}, nil
 			}
-			register("FixLeft", branch)
-			register("FixRight", branch)
-			register("IterationTests", func(_ context.Context, d IterationData) (Checks, error) {
+			register("Repair", branch)
+			register("EnterScope", func(context.Context, ScopeInput) error { return nil })
+			register("IterationTests", func(_ context.Context, id string, d IterationData) (Checks, error) {
 				mu.Lock()
 				defer mu.Unlock()
 				if active != 0 {
@@ -101,7 +101,12 @@ func TestLoopParallelJoinAndCleanup(t *testing.T) {
 				order = append(order, fmt.Sprintf("test-%d", iteration))
 				return Checks{Stdout: fmt.Sprintf("checks-%d", iteration)}, nil
 			})
-			register("EndIteration", func(context.Context) error { record("end"); return nil })
+			register("ExitScope", func(_ context.Context, id, reason string) error {
+				if !strings.Contains(id, "/") {
+					record("end")
+				}
+				return nil
+			})
 			register("FinalTests", func(context.Context) (Checks, error) { record("final"); return Checks{Stdout: "all pass"}, nil })
 			register("Finish", func(_ context.Context, reason string) error {
 				// The SDK test environment resolves cancellation before the mock
@@ -131,7 +136,7 @@ func TestLoopParallelJoinAndCleanup(t *testing.T) {
 				t.Fatalf("result: %v", env.GetWorkflowError())
 			}
 			got := strings.Join(order, ",")
-			want := "provision,init,prepare,begin-1,finish,release"
+			want := "provision,init,prepare,begin-1,end,finish,release"
 			if mode == "success" {
 				want = "provision,init,prepare,begin-1,test-1,end,begin-2,test-2,end,final,finish,release"
 			}

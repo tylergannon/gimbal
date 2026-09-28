@@ -155,14 +155,7 @@ func (s *scope) failService(err error) {
 // do runs body as the scope: it begins when body is called and ends when
 // body returns.
 func (s *scope) do(ctx context.Context, body func(context.Context) error) (err error) {
-	ctx, s.cancel = context.WithCancelCause(context.WithValue(ctx, scopeKey{}, s))
-	s.ctx = ctx
-	s.run.addScope(s)
-	e := ScopeBegan{Name: path.Base(s.key), Loop: s.loop}
-	if task, ok := ctx.Value(taskKey{}).(Task); ok {
-		e.Task = optionalTask(task)
-	}
-	s.run.event(s.key, "", "", e)
+	ctx = s.begin(ctx)
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			_ = s.end()
@@ -171,6 +164,20 @@ func (s *scope) do(ctx context.Context, body func(context.Context) error) (err e
 		err = s.finish(err)
 	}()
 	return body(ctx)
+}
+
+// begin and finish are also used by the internal compiler-output experiment.
+// Callers must join owned work before finishing; neither operation schedules it.
+func (s *scope) begin(ctx context.Context) context.Context {
+	ctx, s.cancel = context.WithCancelCause(context.WithValue(ctx, scopeKey{}, s))
+	s.ctx = ctx
+	s.run.addScope(s)
+	e := ScopeBegan{Name: path.Base(s.key), Loop: s.loop}
+	if task, ok := ctx.Value(taskKey{}).(Task); ok {
+		e.Task = optionalTask(task)
+	}
+	s.run.event(s.key, "", "", e)
+	return ctx
 }
 
 // finish stops the scope's services, closes its sessions, cancels its ctx,

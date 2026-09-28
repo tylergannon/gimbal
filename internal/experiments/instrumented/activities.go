@@ -9,98 +9,92 @@ import (
 
 	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/claude"
+	"github.com/tylergannon/gimbal/internal/compiledscope"
 	"github.com/tylergannon/gimbal/internal/host"
 	"github.com/tylergannon/gimbal/pi"
 	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/temporal"
 )
 
-// Activities retains local runtime ownership across Temporal activity calls.
-// It does not choose the iteration, launch branches, or advance the workflow.
-// The experiment deliberately has no activity retries or worker recovery.
+// Activities owns worker-local resources, never workflow scheduling. Every
+// frame is explicitly opened/closed by generated lexical code. No callback or
+// goroutine waits between activities to keep a scope alive.
 type Activities struct {
-	busy      sync.WaitGroup
-	closing   bool
-	project   *host.Project
-	workdir   string
-	mu        sync.Mutex
-	root      context.Context
-	iteration *iteration
-	finish    chan error
-	ended     chan struct{}
-	runErr    error
+	project *host.Project
+	workdir string
+	mu      sync.Mutex
+	scopes  map[string]*scopeFrame
 }
 
-type iteration struct {
-	ctx   context.Context
-	group interface {
-		Go(string, func(context.Context) error)
-		Wait() error
-	}
-	finish chan error
-	ended  chan struct{}
-	err    error
-	joined bool
+type scopeFrame struct {
+	parent  string
+	ctx     context.Context
+	cancel  context.CancelFunc
+	finish  func(error) error
+	busy    sync.WaitGroup
+	closing bool
 }
 
-func (a *Activities) Initialize(ctx context.Context, data Data) error {
+type ScopeInput struct{ ID, Parent, Name string }
+
+func (a *Activities) Initialize(_ context.Context, data Data) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if a.finish != nil {
+	if a.scopes != nil {
 		return errors.New("specimen already initialized")
 	}
-	a.finish, a.ended = make(chan error, 1), make(chan struct{})
-	ready := make(chan struct{})
-	go func() {
-		a.runErr = a.project.Run(a.project.Context(), "instrumented", map[gimbal.WorkflowRole]gimbal.ModelBinding{
-			coder: {Adapter: claude.New(), Model: "claude-haiku-4-5"},
-			coach: {Adapter: pi.New(), Model: "diffusion/deepseek-4.1-flash"},
-		}, func(root context.Context) error {
-			gimbal.Set(root, "task", data.Task)
-			a.root = root
-			close(ready)
-			var result error
-			select {
-			case result = <-a.finish:
-			case <-root.Done():
-				result = root.Err()
-			}
-			a.mu.Lock()
-			a.closing = true
-			a.mu.Unlock()
-			a.busy.Wait()
-			if a.iteration != nil {
-				a.iteration.finish <- result
-				<-a.iteration.ended
-				result = errors.Join(result, a.iteration.err)
-			}
-			return result
-		})
-		close(a.ended)
-	}()
-	select {
-	case <-ready:
-		return nil
-	case <-a.ended:
-		return a.runErr
-	case <-ctx.Done():
-		return ctx.Err()
+	root, finish, err := a.project.OpenCompiledRun(a.project.Context(), "instrumented", map[gimbal.WorkflowRole]gimbal.ModelBinding{
+		coder: {Adapter: claude.New(), Model: "claude-haiku-4-5"},
+		coach: {Adapter: pi.New(), Model: "diffusion/deepseek-4.1-flash"},
+	})
+	if err != nil {
+		return err
 	}
+	root, cancel := context.WithCancel(root)
+	a.scopes = map[string]*scopeFrame{"": {ctx: root, cancel: cancel, finish: finish}}
+	gimbal.Set(root, "task", data.Task)
+	return nil
 }
 
-// operation binds cancellation and heartbeats to this activity, without making
-// the Initialize activity's short-lived context own the whole Gimbal run.
-func (a *Activities) operation(ctx, parent context.Context) (context.Context, func(), error) {
+func (a *Activities) EnterScope(_ context.Context, in ScopeInput) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if parent == nil || a.closing {
-		return nil, nil, errors.New("specimen scope unavailable")
+	parent := a.scopes[in.Parent]
+	if parent == nil || parent.closing {
+		return fmt.Errorf("parent scope %q unavailable", in.Parent)
 	}
-	if err := parent.Err(); err != nil {
+	if err := parent.ctx.Err(); err != nil {
+		return err
+	}
+	if _, exists := a.scopes[in.ID]; exists || in.ID == "" {
+		return fmt.Errorf("scope %q already exists", in.ID)
+	}
+	ctx, cancel := context.WithCancel(parent.ctx)
+	child, finish, err := compiledscope.OpenScope(ctx, in.Name)
+	if err != nil {
+		cancel()
+		return err
+	}
+	a.scopes[in.ID] = &scopeFrame{parent: in.Parent, ctx: child, cancel: cancel, finish: finish}
+	return nil
+}
+
+// operation leases a scope only for this activity. ExitScope prevents new
+// leases, cancels existing ones and joins them before resource cleanup.
+func (a *Activities) operation(ctx context.Context, id string) (context.Context, func(), error) {
+	a.mu.Lock()
+	frame := a.scopes[id]
+	if frame == nil || frame.closing {
+		a.mu.Unlock()
+		return nil, nil, fmt.Errorf("scope %q unavailable", id)
+	}
+	if err := frame.ctx.Err(); err != nil {
+		a.mu.Unlock()
 		return nil, nil, err
 	}
-	a.busy.Add(1)
-	scoped, cancel := context.WithCancel(parent)
+	frame.busy.Add(1)
+	a.mu.Unlock()
+	scoped, cancel := context.WithCancel(frame.ctx)
 	stop := context.AfterFunc(ctx, cancel)
 	done := make(chan struct{})
 	go func() {
@@ -116,11 +110,60 @@ func (a *Activities) operation(ctx, parent context.Context) (context.Context, fu
 			}
 		}
 	}()
-	return scoped, func() { stop(); cancel(); <-done; a.busy.Done() }, nil
+	return scoped, func() { stop(); cancel(); <-done; frame.busy.Done() }, nil
+}
+
+func (a *Activities) ExitScope(_ context.Context, id, reason string) error {
+	a.mu.Lock()
+	frame := a.scopes[id]
+	if frame == nil {
+		a.mu.Unlock()
+		return nil
+	}
+	if frame.closing {
+		a.mu.Unlock()
+		return fmt.Errorf("scope %q already closing", id)
+	}
+	// The workflow owns nesting: a parent cannot conceal an unclosed child.
+	for key, child := range a.scopes {
+		if key != "" && child.parent == id {
+			a.mu.Unlock()
+			return fmt.Errorf("scope %q still owns child %q", id, key)
+		}
+	}
+	frame.closing = true
+	a.mu.Unlock()
+	frame.cancel()
+	frame.busy.Wait()
+	var cause error
+	if reason != "" {
+		cause = errors.New(reason)
+	}
+	err := frame.finish(cause)
+	a.mu.Lock()
+	delete(a.scopes, id)
+	a.mu.Unlock()
+	// The body error already travels through the workflow. Return cleanup errors
+	// separately, retaining the full outcome in the scope's terminal record.
+	return withoutCause(err, cause)
+}
+
+func withoutCause(err, cause error) error {
+	if err == nil || err == cause {
+		return nil
+	}
+	if many, ok := err.(interface{ Unwrap() []error }); ok {
+		var remaining []error
+		for _, child := range many.Unwrap() {
+			remaining = append(remaining, withoutCause(child, cause))
+		}
+		return errors.Join(remaining...)
+	}
+	return err
 }
 
 func (a *Activities) Prepare(ctx context.Context) error {
-	_, release, err := a.operation(ctx, a.root)
+	_, release, err := a.operation(ctx, "")
 	if err != nil {
 		return err
 	}
@@ -128,125 +171,45 @@ func (a *Activities) Prepare(ctx context.Context) error {
 	return prepareFixture(a.workdir)
 }
 
-func (a *Activities) BeginIteration(ctx context.Context, data IterationData) error {
-	_, release, err := a.operation(ctx, a.root)
+func (a *Activities) SetIteration(ctx context.Context, id string, data IterationData) error {
+	scoped, release, err := a.operation(ctx, id)
 	if err != nil {
 		return err
 	}
 	defer release()
-	if a.iteration != nil {
-		return errors.New("previous iteration still open")
-	}
-	it := &iteration{finish: make(chan error, 1), ended: make(chan struct{})}
-	ready := make(chan struct{})
-	a.iteration = it
-	go func() {
-		it.err = gimbal.Scope(a.root, "pairs", func(scope context.Context) error {
-			it.ctx = scope
-			gimbal.Set(scope, "iteration", fmt.Sprint(data.Pair.Number))
-			gimbal.SetJSON(scope, "previous", data.Previous)
-			it.group = gimbal.Group(scope, "fixes")
-			close(ready)
-			// Only the owner tears down this frame. Root cancellation first
-			// joins active activities, then sends finish; otherwise it could
-			// race IterationTests into a second Group.Wait.
-			result := <-it.finish
-			if !it.joined {
-				result = errors.Join(result, it.group.Wait())
-			}
-			return result
-		})
-		close(it.ended)
-	}()
-	select {
-	case <-ready:
-		return nil
-	case <-it.ended:
-		return it.err
-	case <-ctx.Done():
-		return ctx.Err()
-	}
+	gimbal.Set(scoped, "iteration", fmt.Sprint(data.Pair.Number))
+	gimbal.SetJSON(scoped, "previous", data.Previous)
+	return nil
 }
 
-func (a *Activities) FixLeft(ctx context.Context, assignment Assignment) (Report, error) {
-	var out Report
-	done := make(chan error, 1)
-	a.iteration.group.Go("left", func(scope context.Context) error {
-		var err error
-		out, err = a.repair(ctx, scope, assignment)
-		done <- err
-		return err
-	})
-	return waitRepair(done, &out)
-}
-
-func (a *Activities) FixRight(ctx context.Context, assignment Assignment) (Report, error) {
-	var out Report
-	done := make(chan error, 1)
-	a.iteration.group.Go("right", func(scope context.Context) error {
-		var err error
-		out, err = a.repair(ctx, scope, assignment)
-		done <- err
-		return err
-	})
-	return waitRepair(done, &out)
-}
-
-func waitRepair(done <-chan error, out *Report) (Report, error) {
-	err := <-done
-	// Keep the operator-killed exception recognizable across the Temporal boundary.
-	if _, ok := errors.AsType[gimbal.Killed](err); ok {
-		err = temporal.NewNonRetryableApplicationError(err.Error(), "Killed", err)
-	}
-	return *out, err
-}
-
-func (a *Activities) repair(ctx, scope context.Context, assignment Assignment) (Report, error) {
-	scoped, release, err := a.operation(ctx, scope)
+func (a *Activities) Repair(ctx context.Context, id string, assignment Assignment) (out Report, err error) {
+	scoped, release, err := a.operation(ctx, id)
 	if err != nil {
-		return Report{}, err
+		return out, err
 	}
 	defer release()
 	gimbal.SetJSON(scoped, "assignment", assignment)
 	principal := gimbal.NewSession(scoped, coder, a.workdir)
 	supervisor := gimbal.NewSession(scoped, coach, a.workdir)
-	return principal.Generate[Report](scoped, repairPrompt, gimbal.WithSupervisor(supervisor, coachPrompt))
+	out, err = principal.Generate[Report](scoped, repairPrompt, gimbal.WithSupervisor(supervisor, coachPrompt))
+	if _, ok := errors.AsType[gimbal.Killed](err); ok {
+		err = temporal.NewNonRetryableApplicationError(err.Error(), "Killed", err)
+	}
+	return
 }
 
-func (a *Activities) IterationTests(ctx context.Context, data IterationData) (Checks, error) {
-	scoped, release, err := a.operation(ctx, a.iteration.ctx)
+func (a *Activities) IterationTests(ctx context.Context, id string, data IterationData) (Checks, error) {
+	scoped, release, err := a.operation(ctx, id)
 	if err != nil {
 		return Checks{}, err
 	}
 	defer release()
-	err = a.iteration.group.Wait()
-	a.iteration.joined = true
-	if err != nil {
-		return Checks{}, err
-	}
 	code, stdout, stderr, err := gimbal.RunCommand(scoped, "tests", a.workdir, "go", "test", "-count=1", "-run", data.Pair.Test, "./...")
 	return checked(code, stdout, stderr, err)
 }
 
-func (a *Activities) EndIteration(ctx context.Context) error {
-	_, release, err := a.operation(ctx, a.root)
-	if err != nil {
-		return err
-	}
-	defer release()
-	it := a.iteration
-	it.finish <- nil
-	select {
-	case <-it.ended:
-		a.iteration = nil
-		return it.err
-	case <-ctx.Done():
-		return ctx.Err()
-	}
-}
-
 func (a *Activities) FinalTests(ctx context.Context) (Checks, error) {
-	scoped, release, err := a.operation(ctx, a.root)
+	scoped, release, err := a.operation(ctx, "")
 	if err != nil {
 		return Checks{}, err
 	}
@@ -263,27 +226,5 @@ func checked(code int, stdout, stderr string, err error) (Checks, error) {
 }
 
 func (a *Activities) Finish(ctx context.Context, reason string) error {
-	a.mu.Lock()
-	finish, ended := a.finish, a.ended
-	a.mu.Unlock()
-	if finish == nil {
-		return nil
-	}
-	var result error
-	if reason != "" {
-		result = errors.New(reason)
-	}
-	select {
-	case finish <- result:
-	case <-ended:
-	}
-	select {
-	case <-ended:
-		if reason == "" {
-			return a.runErr
-		}
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
-	}
+	return a.ExitScope(ctx, "", reason)
 }

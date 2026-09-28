@@ -36,6 +36,11 @@ workflow's source or the user rather than guessing at its authority.
 
 ## Start a run
 
+Gimbal requires `TYPESAFE_API_KEY` in the instance startup environment and for
+headless `run-prompt` calls. A missing or blank key prevents startup. There is
+no timed-supervision mode or fallback. Help and commands that only contact an
+already running instance do not need a local TypeSafe key.
+
 ```sh
 gimbal run review --work-dir /abs/project --no-web --goal "Review the parser changes for correctness; report concrete findings with evidence."
 ```

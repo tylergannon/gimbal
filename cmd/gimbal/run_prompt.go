@@ -42,7 +42,7 @@ func runPrompt(args []string, stdout, stderr io.Writer, getenv func(string) stri
 	flags := flag.NewFlagSet("gimbal run-prompt", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	flags.Usage = func() {
-		_, _ = fmt.Fprintln(stderr, "Run one prompt in this process, separate from any hosted instance. Pi uses --model pi/diffusion/<model-id> (for example, pi/diffusion/deepseek-4.1-flash-background); set DIFFUSION_API_KEY. Pi runs natively inside Gimbal. Gimbal owns Pi's config and session directory. Pi effort is unsupported. Logs use a temporary directory unless --logs names a fresh empty directory; keep it separate from projects admitted to an instance.")
+		_, _ = fmt.Fprintln(stderr, "Run one prompt in this process, separate from any hosted instance. TYPESAFE_API_KEY is required for Gimbal startup. Pi uses --model pi/diffusion/<model-id> (for example, pi/diffusion/deepseek-4.1-flash-background); set DIFFUSION_API_KEY. Pi runs natively inside Gimbal. Gimbal owns Pi's config and session directory. Pi effort is unsupported. Logs use a temporary directory unless --logs names a fresh empty directory; keep it separate from projects admitted to an instance.")
 		_, _ = fmt.Fprintln(stderr, "Usage of gimbal run-prompt:")
 		_, _ = fmt.Fprintln(stderr, "  gimbal run-prompt [flags] PROMPT")
 		flags.PrintDefaults()
@@ -60,6 +60,9 @@ func runPrompt(args []string, stdout, stderr io.Writer, getenv func(string) stri
 	}
 	if flags.NArg() != 1 {
 		return errors.New("run-prompt requires exactly one PROMPT argument")
+	}
+	if strings.TrimSpace(getenv("TYPESAFE_API_KEY")) == "" {
+		return errors.New("TYPESAFE_API_KEY is required for Jev supervision; set it before starting Gimbal")
 	}
 	selection, err := resolvePromptModel(options, detectPromptCaller(getenv))
 	if err != nil {

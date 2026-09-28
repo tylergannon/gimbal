@@ -3,9 +3,13 @@ package gimbal
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 	"unicode/utf8"
 
@@ -86,8 +90,8 @@ func TestJevSupervisionPacketAndCooldown(t *testing.T) {
 		a := NewSession(ctx, "rule_a", ".")
 		b := NewSession(ctx, "rule_b", ".")
 		out, err := superviseWithJevClient[Text](ctx, worker, "rendered task: keep the workflow simple", []supervisor{
-			{session: a, instruction: "no plugin system", opts: []AgentOption{WithInterval(time.Hour)}},
-			{session: b, instruction: "keep code small", opts: []AgentOption{WithInterval(time.Hour)}},
+			{session: a, instruction: "no plugin system"},
+			{session: b, instruction: "keep code small"},
 		}, nil, "/tmp/worker-transcript.jsonl", client)
 		if out != "done" {
 			t.Errorf("worker result = %q", out)
@@ -141,53 +145,91 @@ func TestJevSupervisionPacketAndCooldown(t *testing.T) {
 	}
 }
 
-func TestJevSupervisionUsesTimerWithoutReasoningEvent(t *testing.T) {
-	provider := jevtest.New()
-	client, err := jev.New(jev.WithProvider(provider))
-	if err != nil {
-		t.Fatal(err)
-	}
-	adapter := &fake{}
-	adapter.answer = func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(AgentEvent) error) (string, error) {
-		if session != "native-1" {
-			if strings.Contains(prompt, "plugin system") {
-				return `{"objections":["remove the plugin system"]}`, nil
-			}
-			return `{"objections":[]}`, nil
+// stubJev exercises the real HTTP client without external credentials or calls.
+func stubJev(t *testing.T) {
+	t.Helper()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Questions map[string]json.RawMessage `json:"questions"`
 		}
-		if err := emit(fakeAgentEvent("session.tool.success", session, "message-1", map[string]any{"id": "call-1", "content": "plugin system"})); err != nil {
-			return "", err
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Error(err)
+			w.WriteHeader(400)
+			return
 		}
-		deadline := time.After(time.Second)
-		for {
-			adapter.mu.Lock()
-			landed := len(adapter.steers) > 0
-			adapter.mu.Unlock()
-			if landed {
-				return "done", nil
-			}
-			select {
-			case <-deadline:
-				return "", context.DeadlineExceeded
-			case <-time.After(time.Millisecond):
-			}
+		answers := make(map[string]any)
+		for key := range req.Questions {
+			answers[key] = map[string]any{"type": "noul", "noul": 0.91}
 		}
-	}
-	err = runTest(t, bind(adapter, "fake", "worker", "supervisor"), func(ctx context.Context) error {
+		_ = json.NewEncoder(w).Encode(map[string]any{"model": "jev-1.13.0", "answers": answers, "usage": map[string]int{"input_tokens": 1, "output_tokens": 1}})
+	}))
+	t.Cleanup(server.Close)
+	t.Setenv("TYPESAFE_API_KEY", "test-key")
+	t.Setenv("TYPESAFE_BASE_URL", server.URL)
+}
+
+func TestSuperviseRequiresTypeSafeKeyBeforeWorkerTurn(t *testing.T) {
+	workerRan := false
+	adapter := &fake{answer: func(context.Context, string, string, json.RawMessage, func(AgentEvent) error) (string, error) {
+		workerRan = true
+		return "done", nil
+	}}
+	err := runTest(t, bind(adapter, "fake", "worker", "coach"), func(ctx context.Context) error {
+		t.Setenv("TYPESAFE_API_KEY", "")
 		worker := NewSession(ctx, "worker", ".")
-		sup := NewSession(ctx, "supervisor", ".")
-		_, err := superviseWithJevClient[Text](ctx, worker, "do the task", []supervisor{{session: sup, instruction: "no plugin system", opts: []AgentOption{WithInterval(5 * time.Millisecond)}}}, nil, "/tmp/worker.jsonl", client)
+		coach := NewSession(ctx, "coach", ".")
+		_, err := worker.Generate[Text](ctx, "work", WithSupervisor(coach, "stay in scope"))
 		return err
 	})
-	if err != nil {
-		t.Fatal(err)
+	if !errors.Is(err, jev.ErrNoAPIKey) || workerRan {
+		t.Fatalf("error=%v worker ran=%t", err, workerRan)
 	}
-	if len(provider.Calls()) != 0 {
-		t.Errorf("Jev calls = %d without a reasoning event", len(provider.Calls()))
-	}
-	adapter.mu.Lock()
-	defer adapter.mu.Unlock()
-	if len(adapter.steers) != 1 {
-		t.Errorf("timed fallback steers = %q", adapter.steers)
+}
+
+func TestJevDoesNotFallBackToTimedReviews(t *testing.T) {
+	for _, thinking := range []bool{false, true} {
+		name := "no completed thinking"
+		if thinking {
+			name = "failed Jev check"
+		}
+		t.Run(name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				provider := jevtest.New().On(jevtest.Any(), jevtest.Fail(errors.New("Jev unavailable")))
+				client, err := jev.New(jev.WithProvider(provider))
+				if err != nil {
+					t.Fatal(err)
+				}
+				reviews := 0
+				adapter := &fake{answer: func(ctx context.Context, session, prompt string, _ json.RawMessage, emit func(AgentEvent) error) (string, error) {
+					if session != "native-1" {
+						reviews++
+						return `{"objections":[]}`, nil
+					}
+					_ = emit(fakeAgentEvent("session.tool.success", session, "message-1", map[string]any{"id": "call-1", "content": "plugin system"}))
+					if thinking {
+						_ = emit(fakeAgentEvent("session.reasoning.ended", session, "message-1", map[string]any{"text": "I will build a plugin system"}))
+					}
+					// Advance past the old default interval without a real four-minute wait.
+					time.Sleep(4 * time.Minute)
+					return "done", nil
+				}}
+				err = runTest(t, bind(adapter, "fake", "worker", "coach"), func(ctx context.Context) error {
+					worker := NewSession(ctx, "worker", ".")
+					coach := NewSession(ctx, "coach", ".")
+					out, err := superviseWithJevClient[Text](ctx, worker, "work", []supervisor{{session: coach, instruction: "no plugins"}}, nil, "/tmp/worker.jsonl", client)
+					if out != "done" {
+						t.Errorf("worker result=%q", out)
+					}
+					return err
+				})
+				wantChecks := 0
+				if thinking {
+					wantChecks = 1
+				}
+				if err != nil || reviews != 0 || len(provider.Calls()) != wantChecks {
+					t.Fatalf("error=%v reviews=%d checks=%d", err, reviews, len(provider.Calls()))
+				}
+			})
+		})
 	}
 }

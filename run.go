@@ -128,7 +128,8 @@ func (r *run) closeError() error {
 	return &CloseError{errs: append([]error(nil), r.closeErrs...)}
 }
 
-// Run starts one run of a workflow and blocks until the body returns. models
+// Run starts one run of a workflow and blocks until the body returns.
+// TYPESAFE_API_KEY must be set before starting a run. models
 // binds every role the workflow names to the harness, model, and reasoning
 // effort it runs on; a role the workflow names and models leaves out is a
 // programming error and panics where the session is created.
@@ -149,6 +150,9 @@ func (r *run) closeError() error {
 // supported contract. Hosted runs are submitted to an instance with a
 // workflow compiled into its binary.
 func Run(ctx context.Context, name string, models map[WorkflowRole]ModelBinding, body func(ctx context.Context) error) error {
+	if strings.TrimSpace(os.Getenv("TYPESAFE_API_KEY")) == "" {
+		return errors.New("gimbal: TYPESAFE_API_KEY is required for Jev supervision; set it before starting Gimbal")
+	}
 	project, _ := ctx.Value(projectKey{}).(string)
 	if project == "" {
 		return errors.New("gimbal: Run needs gimbal.Project in its ctx")

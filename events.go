@@ -210,10 +210,9 @@ func (CommandEnded) lifecycleEvent() {}
 
 // SuperviseAttached records a reviewer attached to a worker turn.
 type SuperviseAttached struct {
-	Reviewer    string        `json:"reviewer"`
-	Worker      string        `json:"worker"`
-	Instruction string        `json:"instruction"`
-	Interval    time.Duration `json:"interval"`
+	Reviewer    string `json:"reviewer"`
+	Worker      string `json:"worker"`
+	Instruction string `json:"instruction"`
 }
 
 func (SuperviseAttached) lifecycleEvent() {}

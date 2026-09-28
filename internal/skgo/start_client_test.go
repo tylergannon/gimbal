@@ -17,6 +17,7 @@ import (
 )
 
 func TestGeneratedStartClientsReachConcreteHandlers(t *testing.T) {
+	t.Setenv("TYPESAFE_API_KEY", "test-key")
 	ctx := t.Context()
 	owner := host.New(ctx, filepath.Join(t.TempDir(), "instance"))
 	t.Cleanup(owner.Close)

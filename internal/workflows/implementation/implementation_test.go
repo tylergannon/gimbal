@@ -78,6 +78,7 @@ func (h *implementationHarness) RunTurn(_ context.Context, _ string, prompt stri
 }
 
 func TestImplementRecoversQAProtocolFailureAndRecordsEachAttempt(t *testing.T) {
+	t.Setenv("TYPESAFE_API_KEY", "test-key")
 	for _, test := range []struct {
 		name        string
 		qaFailures  int
@@ -171,6 +172,7 @@ func runImplementation(t *testing.T, h *implementationHarness, env gimbal.Env, p
 }
 
 func TestImplementAdvancesThroughOutcomesInOrderWithoutExtraPlanning(t *testing.T) {
+	t.Setenv("TYPESAFE_API_KEY", "test-key")
 	h := &implementationHarness{assessments: []Assessment{
 		{ValidationPassed: true, Observed: "first works", SmallGaps: []string{"polish"}},
 		{ValidationPassed: true, Observed: "second works"},
@@ -188,6 +190,7 @@ func TestImplementAdvancesThroughOutcomesInOrderWithoutExtraPlanning(t *testing.
 }
 
 func TestImplementReplansInsideOutcomeAndStopsBeforeLaterOutcomeOnFailure(t *testing.T) {
+	t.Setenv("TYPESAFE_API_KEY", "test-key")
 	h := &implementationHarness{assessments: []Assessment{
 		{ValidationPassed: true, Observed: "first works"},
 		{ValidationPassed: false, Observed: "second incomplete", SubstantialGaps: []string{"still missing"}},
@@ -212,6 +215,7 @@ func TestImplementReplansInsideOutcomeAndStopsBeforeLaterOutcomeOnFailure(t *tes
 }
 
 func TestImplementDoesNotAdvanceOnContradictoryValidation(t *testing.T) {
+	t.Setenv("TYPESAFE_API_KEY", "test-key")
 	h := &implementationHarness{assessments: []Assessment{
 		{ValidationPassed: true, Observed: "partial", SubstantialGaps: []string{"project B controls are broken"}},
 		{ValidationPassed: true, Observed: "both projects work"},
@@ -230,6 +234,7 @@ func TestImplementDoesNotAdvanceOnContradictoryValidation(t *testing.T) {
 }
 
 func TestImplementRejectsEmptyOutcomesBeforeStartingAgents(t *testing.T) {
+	t.Setenv("TYPESAFE_API_KEY", "test-key")
 	env, params := implementationParams(t, []string{"First", " "}, 2)
 	h := &implementationHarness{}
 	if err := runImplementation(t, h, env, params); err == nil || !strings.Contains(err.Error(), "outcome 2 is blank") {

@@ -103,7 +103,7 @@ func TestLifecycleEventUnionRoundTripsEveryVariant(t *testing.T) {
 		{"interview_question_answered", InterviewQuestionAnswered{QuestionID: "question-1", Answer: "It must work."}},
 		{"command_started", CommandStarted{ID: "lap.1/check.1", Name: "check", Command: "go", Args: []string{"test", "./..."}, Workdir: "/work"}},
 		{"command_ended", CommandEnded{ID: "lap.1/check.1", ExitCode: 1, Stdout: "FAIL", Stderr: "", StdoutFile: "artifacts/commands/x-bGFwLjE/x-Y2hlY2suMQ/stdout.log", Duration: time.Second}},
-		{"supervise_attached", SuperviseAttached{Reviewer: "reviewer.1", Worker: "worker.1/turn.1", Instruction: "watch", Interval: time.Minute}},
+		{"supervise_attached", SuperviseAttached{Reviewer: "reviewer.1", Worker: "worker.1/turn.1", Instruction: "watch"}},
 		{"steer", Steer{Target: "worker.1", Source: "reviewer.1", Message: "fix it", Landed: true}},
 		{"killed", Killed{Target: "worker.1/turn.1", By: "operator", Reason: "off the rails"}},
 		{"complete", Complete{}},

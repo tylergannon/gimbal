@@ -30,7 +30,13 @@ only.
 ## Build and run
 
 This project uses Justfile for its build commands. It requires Go 1.27, Node 24,
-pnpm 11, and just. From a source checkout:
+pnpm 11, and just. Set `TYPESAFE_API_KEY` in the environment before starting
+Gimbal. Instance startup, `run-prompt`, and standalone `gimbal.Run` refuse a
+missing or blank key. Jev screens completed exposed thinking for attached
+supervisors; timed supervision and `WithInterval` have been removed. Providers
+without completed thinking events do not trigger automatic reviews.
+
+From a source checkout:
 
 ```sh
 just build

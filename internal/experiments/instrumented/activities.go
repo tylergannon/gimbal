@@ -54,7 +54,11 @@ func (a *Activities) Initialize(_ context.Context, data Data) (compiledscope.Sna
 	}
 	root, cancel := context.WithCancel(root)
 	a.scopes = map[string]*scopeFrame{"": {ctx: root, cancel: cancel, finish: finish}}
-	return compiledscope.WriteContext(root, a.store, "", contextEntry("task", data.Task))
+	entries, err := a.store.Load(data.Context)
+	if err != nil {
+		return "", err
+	}
+	return compiledscope.WriteContext(root, a.store, "", entries...)
 }
 
 func (a *Activities) EnterScope(_ context.Context, in ScopeInput) error {

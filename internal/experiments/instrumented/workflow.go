@@ -12,7 +12,7 @@ import (
 
 const controlQueue = "instrumented-control"
 
-type Input struct{ Task string }
+type Input struct{ Context compiledscope.Snapshot }
 type Environment struct {
 	Name  string
 	Queue string
@@ -20,7 +20,7 @@ type Environment struct {
 }
 
 // Generated control flow carries immutable context references, not live scopes.
-type Data struct{ Task string }
+type Data struct{ Context compiledscope.Snapshot }
 type IterationData struct {
 	Pair     Pair
 	Previous ChecksResult

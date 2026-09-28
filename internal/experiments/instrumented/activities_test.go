@@ -29,7 +29,11 @@ func TestRootCancellationClosesExplicitScopesExactlyOnce(t *testing.T) {
 	var suite testsuite.WorkflowTestSuite
 	env := suite.NewTestActivityEnvironment()
 	env.RegisterActivity(a)
-	if _, err := env.ExecuteActivity(a.Initialize, Data{Task: "cancel group"}); err != nil {
+	input, err := a.store.Extend("", contextEntry("task", "cancel group"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := env.ExecuteActivity(a.Initialize, Data{Context: input}); err != nil {
 		t.Fatal(err)
 	}
 	for _, in := range []ScopeInput{
@@ -134,5 +138,38 @@ func TestLargeChecksAreStoredAtProducingBoundary(t *testing.T) {
 	}
 	if restored.Stdout != stdout {
 		t.Fatal("stored checks lost output")
+	}
+}
+
+func TestInitialTaskIsStoredBeforeWorkflowSubmission(t *testing.T) {
+	root := t.TempDir()
+	task := strings.Repeat("initial task input ", 200000)
+	input, err := prepareInput(root, "large-input", task)
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload, err := json.Marshal(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(payload) > 100 {
+		t.Fatal("task escaped into workflow payload")
+	}
+	// Use the worker-side path computation, with no live producer objects.
+	store := compiledscope.Store{Root: filepath.Join(root, environmentID("large-input"), "context")}
+	entries, err := store.Load(input.Context)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := store.Value(entries[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got string
+	if err := json.Unmarshal(raw, &got); err != nil {
+		t.Fatal(err)
+	}
+	if got != task {
+		t.Fatal("initial task lost contents")
 	}
 }

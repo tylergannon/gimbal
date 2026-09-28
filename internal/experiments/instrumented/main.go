@@ -67,7 +67,11 @@ func run() error {
 	switch *mode {
 	case "start":
 		id := fmt.Sprintf("instrumented-%d", time.Now().UnixMilli())
-		run, err := c.ExecuteWorkflow(ctx, client.StartWorkflowOptions{ID: id, TaskQueue: controlQueue}, ReviewWorkflow, Input{Task: *task})
+		input, err := prepareInput(stateRoot(), id, *task)
+		if err != nil {
+			return err
+		}
+		run, err := c.ExecuteWorkflow(ctx, client.StartWorkflowOptions{ID: id, TaskQueue: controlQueue}, ReviewWorkflow, input)
 		if err != nil {
 			return err
 		}
@@ -161,8 +165,40 @@ func run() error {
 }
 
 func environmentName(ctx context.Context) string {
-	sum := sha256.Sum256([]byte(activity.GetInfo(ctx).WorkflowExecution.ID))
+	return environmentID(activity.GetInfo(ctx).WorkflowExecution.ID)
+}
+
+func environmentID(workflowID string) string {
+	sum := sha256.Sum256([]byte(workflowID))
 	return fmt.Sprintf("gimbal-specimen-%x", sum[:8])
+}
+func stateRoot() string {
+	if root := os.Getenv("SPECIMEN_STATE_ROOT"); root != "" {
+		return root
+	}
+	return "/tmp/gimbal-instrumented-state"
+}
+
+// Submission is another producing boundary. Even the initial task reaches
+// Temporal by reference, without changing the ordinary workflow's parameters.
+func prepareInput(root, id, task string) (Input, error) {
+	if !filepath.IsAbs(root) {
+		return Input{}, errors.New("SPECIMEN_STATE_ROOT must be absolute")
+	}
+	store := compiledscope.Store{Root: filepath.Join(root, environmentID(id), "context")}
+	// Host submission and the container's unprivileged worker both publish into
+	// this retained run store. Object files are separately published read-only.
+	for _, sub := range []string{"", "snapshots", "blobs", "materialized"} {
+		path := filepath.Join(store.Root, sub)
+		if err := os.MkdirAll(path, 0777); err != nil {
+			return Input{}, err
+		}
+		if err := os.Chmod(path, 0777); err != nil {
+			return Input{}, err
+		}
+	}
+	ref, err := store.Extend("", contextEntry("task", task))
+	return Input{Context: ref}, err
 }
 
 func ProvisionEnvironment(ctx context.Context) (Environment, error) {

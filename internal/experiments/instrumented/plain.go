@@ -14,7 +14,7 @@ import (
 
 const coder gimbal.WorkflowRole = "coder"
 const coach gimbal.WorkflowRole = "coach"
-const repairPrompt = "Read the complete reference context file, find the line beginning CONTEXT_RECEIPT= in its middle, and return its value as receipt. Fix the defect described in assignment. Read the assigned source and its tests, edit only the assigned source file, and run the assigned test. Other agents share this directory: do not edit their files, tests, or go.mod. Use the previous iteration's checks as context. Return a concise summary and the name of the file you changed."
+const repairPrompt = "Read the Complete value file belonging to the context key named reference. Run grep to find its line beginning CONTEXT_RECEIPT=, and return the text after the equals sign as receipt. Fix the defect described in assignment. Read the assigned source and its tests, edit only the assigned source file, and run the assigned test. Other agents share this directory: do not edit their files, tests, or go.mod. Use the previous iteration's checks as context. Return a concise summary and the name of the file you changed."
 const coachPrompt = "Keep the worker within its assigned file and requested fix. Object to edits of tests, other workers' files, or unrelated functionality."
 
 type Params struct{ Task string }

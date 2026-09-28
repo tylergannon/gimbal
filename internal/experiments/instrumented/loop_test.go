@@ -38,7 +38,7 @@ func TestLoopParallelJoinAndCleanup(t *testing.T) {
 				return Environment{Queue: "specimen"}, nil
 			})
 			register("Initialize", func(_ context.Context, d Data) (compiledscope.Snapshot, error) {
-				if d.Task != "root task" {
+				if d.Context != "root task" {
 					t.Error("root context lost")
 				}
 				record("init")
@@ -190,7 +190,7 @@ func TestLoopParallelJoinAndCleanup(t *testing.T) {
 				return nil
 			})
 			register("ReleaseEnvironment", func(context.Context) error { record("release"); return nil })
-			env.ExecuteWorkflow(ReviewWorkflow, Input{Task: "root task"})
+			env.ExecuteWorkflow(ReviewWorkflow, Input{Context: "root task"})
 			if (env.GetWorkflowError() != nil) != (mode != "success") {
 				t.Fatalf("result: %v", env.GetWorkflowError())
 			}

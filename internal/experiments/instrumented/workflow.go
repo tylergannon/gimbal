@@ -82,76 +82,105 @@ func ReviewWorkflow(ctx workflow.Context, in Input) (out Outcome, err error) {
 			if err = workflow.ExecuteActivity(activityCtx, "SetIteration", iterationID, data).Get(wait, nil); err != nil {
 				return
 			}
-			if err = func() (err error) { // authored Group / Wait boundary
-				groupID := iterationID + "/fixes.1"
+			if err = func() (err error) { // authored Scope("context")
+				outerID := iterationID + "/context.1"
 				defer func() {
 					cleanup := cleanupContext(activityCtx)
-					err = errors.Join(err, workflow.ExecuteActivity(cleanup, "ExitScope", groupID, errorText(err)).Get(cleanup, nil))
+					err = errors.Join(err, workflow.ExecuteActivity(cleanup, "ExitScope", outerID, errorText(err)).Get(cleanup, nil))
 				}()
-				if err = workflow.ExecuteActivity(activityCtx, "EnterScope", ScopeInput{groupID, iterationID, "fixes"}).Get(wait, nil); err != nil {
+				if err = workflow.ExecuteActivity(activityCtx, "EnterScope", ScopeInput{outerID, iterationID, "context"}).Get(wait, nil); err != nil {
 					return
 				}
-				branches, cancel := workflow.WithCancel(activityCtx)
-				defer cancel()
-				left, leftDone := workflow.NewFuture(ctx)
-				right, rightDone := workflow.NewFuture(ctx)
-				workflow.Go(branches, func(branch workflow.Context) {
-					wait, _ := workflow.NewDisconnectedContext(branch)
-					var report Report
-					branchErr := func() (err error) { // authored group.Go("left")
-						id := groupID + "/left.1"
+				if err = workflow.ExecuteActivity(activityCtx, "SetOuterContext", outerID).Get(wait, nil); err != nil {
+					return
+				}
+				return func() (err error) { // authored Scope("details")
+					innerID := outerID + "/details.1"
+					defer func() {
+						cleanup := cleanupContext(activityCtx)
+						err = errors.Join(err, workflow.ExecuteActivity(cleanup, "ExitScope", innerID, errorText(err)).Get(cleanup, nil))
+					}()
+					if err = workflow.ExecuteActivity(activityCtx, "EnterScope", ScopeInput{innerID, outerID, "details"}).Get(wait, nil); err != nil {
+						return
+					}
+					if err = workflow.ExecuteActivity(activityCtx, "SetInnerContext", innerID).Get(wait, nil); err != nil {
+						return
+					}
+					if err = func() (err error) { // authored Group / Wait boundary
+						groupID := innerID + "/fixes.1"
 						defer func() {
-							cleanup := cleanupContext(branch)
-							err = errors.Join(err, workflow.ExecuteActivity(cleanup, "ExitScope", id, errorText(err)).Get(cleanup, nil))
+							cleanup := cleanupContext(activityCtx)
+							err = errors.Join(err, workflow.ExecuteActivity(cleanup, "ExitScope", groupID, errorText(err)).Get(cleanup, nil))
 						}()
-						if err = workflow.ExecuteActivity(branch, "EnterScope", ScopeInput{id, groupID, "left"}).Get(wait, nil); err != nil {
+						if err = workflow.ExecuteActivity(activityCtx, "EnterScope", ScopeInput{groupID, innerID, "fixes"}).Get(wait, nil); err != nil {
 							return
 						}
-						err = workflow.ExecuteActivity(branch, "Repair", id, pair.Left).Get(wait, &report)
-						return
-					}()
-					leftDone.Set(report, branchErr)
-				})
-				workflow.Go(branches, func(branch workflow.Context) {
-					wait, _ := workflow.NewDisconnectedContext(branch)
-					var report Report
-					branchErr := func() (err error) { // authored group.Go("right")
-						id := groupID + "/right.1"
-						defer func() {
-							cleanup := cleanupContext(branch)
-							err = errors.Join(err, workflow.ExecuteActivity(cleanup, "ExitScope", id, errorText(err)).Get(cleanup, nil))
-						}()
-						if err = workflow.ExecuteActivity(branch, "EnterScope", ScopeInput{id, groupID, "right"}).Get(wait, nil); err != nil {
-							return
+						branches, cancel := workflow.WithCancel(activityCtx)
+						defer cancel()
+						left, leftDone := workflow.NewFuture(ctx)
+						right, rightDone := workflow.NewFuture(ctx)
+						workflow.Go(branches, func(branch workflow.Context) {
+							wait, _ := workflow.NewDisconnectedContext(branch)
+							var report Report
+							branchErr := func() (err error) { // authored group.Go("left")
+								id := groupID + "/left.1"
+								defer func() {
+									cleanup := cleanupContext(branch)
+									err = errors.Join(err, workflow.ExecuteActivity(cleanup, "ExitScope", id, errorText(err)).Get(cleanup, nil))
+								}()
+								if err = workflow.ExecuteActivity(branch, "EnterScope", ScopeInput{id, groupID, "left"}).Get(wait, nil); err != nil {
+									return
+								}
+								err = workflow.ExecuteActivity(branch, "Repair", id, pair.Left).Get(wait, &report)
+								return
+							}()
+							leftDone.Set(report, branchErr)
+						})
+						workflow.Go(branches, func(branch workflow.Context) {
+							wait, _ := workflow.NewDisconnectedContext(branch)
+							var report Report
+							branchErr := func() (err error) { // authored group.Go("right")
+								id := groupID + "/right.1"
+								defer func() {
+									cleanup := cleanupContext(branch)
+									err = errors.Join(err, workflow.ExecuteActivity(cleanup, "ExitScope", id, errorText(err)).Get(cleanup, nil))
+								}()
+								if err = workflow.ExecuteActivity(branch, "EnterScope", ScopeInput{id, groupID, "right"}).Get(wait, nil); err != nil {
+									return
+								}
+								err = workflow.ExecuteActivity(branch, "Repair", id, pair.Right).Get(wait, &report)
+								return
+							}()
+							rightDone.Set(report, branchErr)
+						})
+						var reports [2]Report
+						selector := workflow.NewSelector(ctx)
+						join, _ := workflow.NewDisconnectedContext(ctx)
+						for i, future := range []workflow.Future{left, right} {
+							selector.AddFuture(future, func(f workflow.Future) {
+								e := f.Get(join, &reports[i])
+								if e != nil {
+									if err == nil {
+										err = e
+									} // Gimbal Group returns the first failure.
+									application, killed := errors.AsType[*temporal.ApplicationError](e)
+									if !killed || application.Type() != "Killed" {
+										cancel()
+									}
+								}
+							})
 						}
-						err = workflow.ExecuteActivity(branch, "Repair", id, pair.Right).Get(wait, &report)
-						return
-					}()
-					rightDone.Set(report, branchErr)
-				})
-				var reports [2]Report
-				selector := workflow.NewSelector(ctx)
-				join, _ := workflow.NewDisconnectedContext(ctx)
-				for i, future := range []workflow.Future{left, right} {
-					selector.AddFuture(future, func(f workflow.Future) {
-						e := f.Get(join, &reports[i])
-						if e != nil {
-							if err == nil {
-								err = e
-							} // Gimbal Group returns the first failure.
-							application, killed := errors.AsType[*temporal.ApplicationError](e)
-							if !killed || application.Type() != "Killed" {
-								cancel()
-							}
+						selector.Select(join)
+						selector.Select(join)
+						if err == nil {
+							out.Reports = append(out.Reports, reports[:]...)
 						}
-					})
-				}
-				selector.Select(join)
-				selector.Select(join)
-				if err == nil {
-					out.Reports = append(out.Reports, reports[:]...)
-				}
-				return
+						return
+					}(); err != nil {
+						return
+					}
+					return
+				}()
 			}(); err != nil {
 				return
 			}

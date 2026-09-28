@@ -179,6 +179,31 @@ func (a *Activities) SetIteration(ctx context.Context, id string, data Iteration
 	defer release()
 	gimbal.Set(scoped, "iteration", fmt.Sprint(data.Pair.Number))
 	gimbal.SetJSON(scoped, "previous", data.Previous)
+	gimbal.Set(scoped, "layer", "iteration-layer")
+	return nil
+}
+
+// These activities keep the authored Set operations in the worker. Only small
+// values are exercised; they do not define a context-spill transport protocol.
+func (a *Activities) SetOuterContext(ctx context.Context, id string) error {
+	scoped, release, err := a.operation(ctx, id)
+	if err != nil {
+		return err
+	}
+	defer release()
+	gimbal.Set(scoped, "layer", "outer-layer")
+	gimbal.Set(scoped, "inherited", "outer-inherited")
+	return nil
+}
+
+func (a *Activities) SetInnerContext(ctx context.Context, id string) error {
+	scoped, release, err := a.operation(ctx, id)
+	if err != nil {
+		return err
+	}
+	defer release()
+	gimbal.Set(scoped, "layer", "inner-layer")
+	gimbal.Set(scoped, "child-only", "inner-private")
 	return nil
 }
 

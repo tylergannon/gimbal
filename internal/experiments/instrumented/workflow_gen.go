@@ -21,32 +21,41 @@ var Graph = workflow.Graph{
 		workflow.Iterate{Source: workflow.Source{File: "internal/experiments/instrumented/plain.go", Line: 52}, Name: "pairs", Services: []workflow.Service{}, Body: []workflow.Operation{
 			workflow.Set{Source: workflow.Source{File: "internal/experiments/instrumented/plain.go", Line: 53}, Key: "iteration"},
 			workflow.Set{Source: workflow.Source{File: "internal/experiments/instrumented/plain.go", Line: 54}, Key: "previous"},
-			workflow.Group{Source: workflow.Source{File: "internal/experiments/instrumented/plain.go", Line: 55}, Name: "fixes", Children: []workflow.GroupChild{
-				{Source: workflow.Source{File: "internal/experiments/instrumented/plain.go", Line: 56}, Name: "left", Services: []workflow.Service{}, Body: []workflow.Operation{
-					workflow.Set{Source: workflow.Source{File: "internal/experiments/instrumented/plain.go", Line: 57}, Key: "assignment"},
-					workflow.Session{Source: workflow.Source{File: "internal/experiments/instrumented/plain.go", Line: 58}, Name: "coder", From: ""},
-					workflow.Session{Source: workflow.Source{File: "internal/experiments/instrumented/plain.go", Line: 59}, Name: "coach", From: ""},
-					workflow.AgentCall{Source: workflow.Source{File: "internal/experiments/instrumented/plain.go", Line: 60}, Session: "coder", Role: "coder", Prompt: "Fix the defect described in assignment. Read the assigned source and its tests, edit only the assigned source file, and run the assigned test. Other agents share this directory: do not edit their files, tests, or go.mod. Use the previous iteration's checks as context. Return a concise summary and the name of the file you changed.", Supervisors: []workflow.Supervisor{
-						{Source: workflow.Source{File: "internal/experiments/instrumented/plain.go", Line: 60}, Session: "coach", Role: "coach", Instruction: "Keep the worker within its assigned file and requested fix. Object to edits of tests, other workers' files, or unrelated functionality."},
-					}},
-				}},
-				{Source: workflow.Source{File: "internal/experiments/instrumented/plain.go", Line: 63}, Name: "right", Services: []workflow.Service{}, Body: []workflow.Operation{
-					workflow.Set{Source: workflow.Source{File: "internal/experiments/instrumented/plain.go", Line: 64}, Key: "assignment"},
-					workflow.Session{Source: workflow.Source{File: "internal/experiments/instrumented/plain.go", Line: 65}, Name: "coder", From: ""},
-					workflow.Session{Source: workflow.Source{File: "internal/experiments/instrumented/plain.go", Line: 66}, Name: "coach", From: ""},
-					workflow.AgentCall{Source: workflow.Source{File: "internal/experiments/instrumented/plain.go", Line: 67}, Session: "coder", Role: "coder", Prompt: "Fix the defect described in assignment. Read the assigned source and its tests, edit only the assigned source file, and run the assigned test. Other agents share this directory: do not edit their files, tests, or go.mod. Use the previous iteration's checks as context. Return a concise summary and the name of the file you changed.", Supervisors: []workflow.Supervisor{
-						{Source: workflow.Source{File: "internal/experiments/instrumented/plain.go", Line: 67}, Session: "coach", Role: "coach", Instruction: "Keep the worker within its assigned file and requested fix. Object to edits of tests, other workers' files, or unrelated functionality."},
+			workflow.Set{Source: workflow.Source{File: "internal/experiments/instrumented/plain.go", Line: 55}, Key: "layer"},
+			workflow.Scope{Source: workflow.Source{File: "internal/experiments/instrumented/plain.go", Line: 56}, Name: "context", Services: []workflow.Service{}, Body: []workflow.Operation{
+				workflow.Set{Source: workflow.Source{File: "internal/experiments/instrumented/plain.go", Line: 57}, Key: "layer"},
+				workflow.Set{Source: workflow.Source{File: "internal/experiments/instrumented/plain.go", Line: 58}, Key: "inherited"},
+				workflow.Scope{Source: workflow.Source{File: "internal/experiments/instrumented/plain.go", Line: 59}, Name: "details", Services: []workflow.Service{}, Body: []workflow.Operation{
+					workflow.Set{Source: workflow.Source{File: "internal/experiments/instrumented/plain.go", Line: 60}, Key: "layer"},
+					workflow.Set{Source: workflow.Source{File: "internal/experiments/instrumented/plain.go", Line: 61}, Key: "child-only"},
+					workflow.Group{Source: workflow.Source{File: "internal/experiments/instrumented/plain.go", Line: 62}, Name: "fixes", Children: []workflow.GroupChild{
+						{Source: workflow.Source{File: "internal/experiments/instrumented/plain.go", Line: 63}, Name: "left", Services: []workflow.Service{}, Body: []workflow.Operation{
+							workflow.Set{Source: workflow.Source{File: "internal/experiments/instrumented/plain.go", Line: 64}, Key: "assignment"},
+							workflow.Session{Source: workflow.Source{File: "internal/experiments/instrumented/plain.go", Line: 65}, Name: "coder", From: ""},
+							workflow.Session{Source: workflow.Source{File: "internal/experiments/instrumented/plain.go", Line: 66}, Name: "coach", From: ""},
+							workflow.AgentCall{Source: workflow.Source{File: "internal/experiments/instrumented/plain.go", Line: 67}, Session: "coder", Role: "coder", Prompt: "Fix the defect described in assignment. Read the assigned source and its tests, edit only the assigned source file, and run the assigned test. Other agents share this directory: do not edit their files, tests, or go.mod. Use the previous iteration's checks as context. Return a concise summary and the name of the file you changed.", Supervisors: []workflow.Supervisor{
+								{Source: workflow.Source{File: "internal/experiments/instrumented/plain.go", Line: 67}, Session: "coach", Role: "coach", Instruction: "Keep the worker within its assigned file and requested fix. Object to edits of tests, other workers' files, or unrelated functionality."},
+							}},
+						}},
+						{Source: workflow.Source{File: "internal/experiments/instrumented/plain.go", Line: 70}, Name: "right", Services: []workflow.Service{}, Body: []workflow.Operation{
+							workflow.Set{Source: workflow.Source{File: "internal/experiments/instrumented/plain.go", Line: 71}, Key: "assignment"},
+							workflow.Session{Source: workflow.Source{File: "internal/experiments/instrumented/plain.go", Line: 72}, Name: "coder", From: ""},
+							workflow.Session{Source: workflow.Source{File: "internal/experiments/instrumented/plain.go", Line: 73}, Name: "coach", From: ""},
+							workflow.AgentCall{Source: workflow.Source{File: "internal/experiments/instrumented/plain.go", Line: 74}, Session: "coder", Role: "coder", Prompt: "Fix the defect described in assignment. Read the assigned source and its tests, edit only the assigned source file, and run the assigned test. Other agents share this directory: do not edit their files, tests, or go.mod. Use the previous iteration's checks as context. Return a concise summary and the name of the file you changed.", Supervisors: []workflow.Supervisor{
+								{Source: workflow.Source{File: "internal/experiments/instrumented/plain.go", Line: 74}, Session: "coach", Role: "coach", Instruction: "Keep the worker within its assigned file and requested fix. Object to edits of tests, other workers' files, or unrelated functionality."},
+							}},
+						}},
 					}},
 				}},
 			}},
-			workflow.Command{Source: workflow.Source{File: "internal/experiments/instrumented/plain.go", Line: 73}, Name: "tests"},
-			workflow.Condition{Source: workflow.Source{File: "internal/experiments/instrumented/plain.go", Line: 78}, Branches: []workflow.Branch{
-				{Source: workflow.Source{File: "internal/experiments/instrumented/plain.go", Line: 78}, Case: "code != 0", Exits: true, Body: []workflow.Operation{}},
+			workflow.Command{Source: workflow.Source{File: "internal/experiments/instrumented/plain.go", Line: 82}, Name: "tests"},
+			workflow.Condition{Source: workflow.Source{File: "internal/experiments/instrumented/plain.go", Line: 87}, Branches: []workflow.Branch{
+				{Source: workflow.Source{File: "internal/experiments/instrumented/plain.go", Line: 87}, Case: "code != 0", Exits: true, Body: []workflow.Operation{}},
 			}},
 		}},
-		workflow.Command{Source: workflow.Source{File: "internal/experiments/instrumented/plain.go", Line: 82}, Name: "final-tests"},
-		workflow.Condition{Source: workflow.Source{File: "internal/experiments/instrumented/plain.go", Line: 86}, Branches: []workflow.Branch{
-			{Source: workflow.Source{File: "internal/experiments/instrumented/plain.go", Line: 86}, Case: "code != 0", Exits: true, Body: []workflow.Operation{}},
+		workflow.Command{Source: workflow.Source{File: "internal/experiments/instrumented/plain.go", Line: 91}, Name: "final-tests"},
+		workflow.Condition{Source: workflow.Source{File: "internal/experiments/instrumented/plain.go", Line: 95}, Branches: []workflow.Branch{
+			{Source: workflow.Source{File: "internal/experiments/instrumented/plain.go", Line: 95}, Case: "code != 0", Exits: true, Body: []workflow.Operation{}},
 		}},
 	},
 }

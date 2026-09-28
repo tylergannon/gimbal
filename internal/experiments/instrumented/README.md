@@ -9,6 +9,10 @@ The specimen prepares a small Go project with four independent defects. Two
 iterations each schedule two concurrent Claude Haiku repairs, join the branches,
 run the pair's tests, and pass the check result into the next iteration. A final
 suite checks the combined workspace. Each principal has a Pi supervisor.
+Each iteration also enters `context` and then `details` scopes around the group:
+`layer` is shadowed at each level, `inherited` comes from the outer scope, and
+`child-only` is confined to the inner scope. Tests resume at iteration scope only
+after both added scopes close. The agent task itself is unchanged.
 
 Temporal owns the ordinary loop, activity futures, joins and error propagation.
 Each generated scope has an immediately invoked function and an awaited cleanup
@@ -36,7 +40,7 @@ an empty objections list is acceptable. It does not prove organic detection or
 corrective feedback. Normal workflow runs use the real Jev service.
 
 Temporal replay executes no Gimbal recording calls. Automatic activity retries,
-worker restart recovery, isolated worktrees, distributed fan-out, adaptive loops,
+worker restart recovery, context-spill transport, isolated worktrees, distributed fan-out, adaptive loops,
 and a source transformer are outside this specimen. This revision changes activity history; replay earlier histories with their
 original revision. Live worker recovery remains unimplemented.
 
@@ -125,7 +129,11 @@ SPECIMEN_HISTORY=/tmp/history.json go test ./internal/experiments/instrumented -
 
 Tests cover actual parallel scheduling, ordering, carried check results, sibling
 cancellation after failure, hosted scope cleanup on root cancellation, and
-cross-origin control rejection. Replay checks a separately supplied real history.
+cross-origin control rejection. The root package's compiled-scope tests exercise
+parent-owned session reuse, inherited values, shadowing, restoration after child
+exit, and cleanup errors through the same internal bridge, using a test adapter.
+The live coding specimen creates sessions in the branch scopes; it does not prove
+real-provider session reuse across activities. Replay checks a separately supplied real history.
 Browser legibility and live control claims require observing the real run.
 
 The optional paid supervision integration test can run inside the same prepared
@@ -145,3 +153,9 @@ This is explicitly a controlled routing check in a separate test container using
 the activity image. It substitutes no production behavior and requires no
 production supervision switch. Its local Jev HTTP stub receives real principal
 events; both agent harnesses contact their actual providers.
+
+Context writes still call Gimbal Set/SetJSON inside activities. This preserves
+existing worker-local behavior but leaves the original complete-effective-context
+payload requirement unresolved: operations still inherit data from worker-owned
+ancestors. The small nested example does not settle artifact paths, bounded
+payloads, or recovery of context after worker loss.

@@ -52,22 +52,31 @@ func Plain(ctx context.Context, env gimbal.Env, in Params) error {
 	for ctx, pair := range gimbal.Iterate(ctx, "pairs", pairs) {
 		gimbal.Set(ctx, "iteration", fmt.Sprint(pair.Number))
 		gimbal.SetJSON(ctx, "previous", previous)
-		group := gimbal.Group(ctx, "fixes")
-		group.Go("left", func(ctx context.Context) error {
-			gimbal.SetJSON(ctx, "assignment", pair.Left)
-			principal := gimbal.NewSession(ctx, coder, env.WorkDir)
-			supervisor := gimbal.NewSession(ctx, coach, env.WorkDir)
-			_, err := principal.Generate[Report](ctx, repairPrompt, gimbal.WithSupervisor(supervisor, coachPrompt))
-			return err
-		})
-		group.Go("right", func(ctx context.Context) error {
-			gimbal.SetJSON(ctx, "assignment", pair.Right)
-			principal := gimbal.NewSession(ctx, coder, env.WorkDir)
-			supervisor := gimbal.NewSession(ctx, coach, env.WorkDir)
-			_, err := principal.Generate[Report](ctx, repairPrompt, gimbal.WithSupervisor(supervisor, coachPrompt))
-			return err
-		})
-		if err := group.Wait(); err != nil {
+		gimbal.Set(ctx, "layer", "iteration-layer")
+		if err := gimbal.Scope(ctx, "context", func(ctx context.Context) error {
+			gimbal.Set(ctx, "layer", "outer-layer")
+			gimbal.Set(ctx, "inherited", "outer-inherited")
+			return gimbal.Scope(ctx, "details", func(ctx context.Context) error {
+				gimbal.Set(ctx, "layer", "inner-layer")
+				gimbal.Set(ctx, "child-only", "inner-private")
+				group := gimbal.Group(ctx, "fixes")
+				group.Go("left", func(ctx context.Context) error {
+					gimbal.SetJSON(ctx, "assignment", pair.Left)
+					principal := gimbal.NewSession(ctx, coder, env.WorkDir)
+					supervisor := gimbal.NewSession(ctx, coach, env.WorkDir)
+					_, err := principal.Generate[Report](ctx, repairPrompt, gimbal.WithSupervisor(supervisor, coachPrompt))
+					return err
+				})
+				group.Go("right", func(ctx context.Context) error {
+					gimbal.SetJSON(ctx, "assignment", pair.Right)
+					principal := gimbal.NewSession(ctx, coder, env.WorkDir)
+					supervisor := gimbal.NewSession(ctx, coach, env.WorkDir)
+					_, err := principal.Generate[Report](ctx, repairPrompt, gimbal.WithSupervisor(supervisor, coachPrompt))
+					return err
+				})
+				return group.Wait()
+			})
+		}); err != nil {
 			return err
 		}
 		code, stdout, stderr, err := gimbal.RunCommand(ctx, "tests", env.WorkDir, "go", "test", "-count=1", "-run", pair.Test, "./...")

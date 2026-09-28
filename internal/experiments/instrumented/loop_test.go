@@ -17,7 +17,7 @@ import (
 // The barrier would deadlock if the workflow serialized the branches. Failure
 // must drain both before Finish/Release, not just schedule them.
 func TestLoopParallelJoinAndCleanup(t *testing.T) {
-	for _, mode := range []string{"success", "failure"} {
+	for _, mode := range []string{"success", "failure", "entry-failure"} {
 		t.Run(mode, func(t *testing.T) {
 			var suite testsuite.WorkflowTestSuite
 			env := suite.NewTestWorkflowEnvironment()
@@ -25,6 +25,7 @@ func TestLoopParallelJoinAndCleanup(t *testing.T) {
 			env.SetWorkerOptions(worker.Options{MaxHeartbeatThrottleInterval: 10 * time.Millisecond, DefaultHeartbeatThrottleInterval: 10 * time.Millisecond})
 			var mu sync.Mutex
 			var order []string
+			openScopes := map[string]string{}
 			active := 0
 			iteration := 0
 			arrived := 0
@@ -90,8 +91,26 @@ func TestLoopParallelJoinAndCleanup(t *testing.T) {
 				}
 				return Report{File: a.File}, nil
 			}
+			register("SetOuterContext", func(context.Context, string) error { return nil })
+			register("SetInnerContext", func(context.Context, string) error { return nil })
 			register("Repair", branch)
-			register("EnterScope", func(context.Context, ScopeInput) error { return nil })
+			register("EnterScope", func(_ context.Context, in ScopeInput) error {
+				mu.Lock()
+				defer mu.Unlock()
+				if mode == "entry-failure" && in.Name == "details" {
+					return errors.New("scope entry failed")
+				}
+				if in.Parent != "" {
+					if _, ok := openScopes[in.Parent]; !ok {
+						t.Errorf("missing parent %s", in.Parent)
+					}
+				}
+				if _, ok := openScopes[in.ID]; ok {
+					t.Errorf("scope entered twice: %s", in.ID)
+				}
+				openScopes[in.ID] = in.Parent
+				return nil
+			})
 			register("IterationTests", func(_ context.Context, id string, d IterationData) (Checks, error) {
 				mu.Lock()
 				defer mu.Unlock()
@@ -102,8 +121,16 @@ func TestLoopParallelJoinAndCleanup(t *testing.T) {
 				return Checks{Stdout: fmt.Sprintf("checks-%d", iteration)}, nil
 			})
 			register("ExitScope", func(_ context.Context, id, reason string) error {
+				mu.Lock()
+				defer mu.Unlock()
+				for child, parent := range openScopes {
+					if parent == id {
+						t.Errorf("closed %s before child %s", id, child)
+					}
+				}
+				delete(openScopes, id)
 				if !strings.Contains(id, "/") {
-					record("end")
+					order = append(order, "end")
 				}
 				return nil
 			})
@@ -126,6 +153,9 @@ func TestLoopParallelJoinAndCleanup(t *testing.T) {
 				defer mu.Unlock()
 				if (reason != "") != (mode != "success") {
 					t.Errorf("reason=%q", reason)
+				}
+				if len(openScopes) != 0 {
+					t.Errorf("root closed with scopes still open: %v", openScopes)
 				}
 				order = append(order, "finish")
 				return nil

@@ -135,9 +135,8 @@
 "kind":{"type":"string","const":"supervise_attached"},
 "reviewer":{"type":"string"},
 "worker":{"type":"string"},
-"instruction":{"type":"string"},
-"interval":{"type":"integer","description":"A Duration represents the elapsed time between two instants as an int64 nanosecond count. The representation limits the largest representable duration to approximately 290 years."}
-},"required":["kind","reviewer","worker","instruction","interval"],"additionalProperties":false},
+"instruction":{"type":"string"}
+},"required":["kind","reviewer","worker","instruction"],"additionalProperties":false},
 {"type":"object",
 "description":"TurnEnded records the result and accounting for one agent turn. Usage is what the turn spent, per model: the harness's own turn report when it stated one, and otherwise the turn's step events summed under the session's model.","properties":{
 "kind":{"type":"string","const":"turn_ended"},

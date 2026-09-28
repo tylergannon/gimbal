@@ -106,6 +106,9 @@ func NewInstance(ctx context.Context, instanceDir string, initialProjects []stri
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	if strings.TrimSpace(os.Getenv("TYPESAFE_API_KEY")) == "" {
+		return nil, errors.New("gimbal: TYPESAFE_API_KEY is required for Jev supervision; set it before starting Gimbal")
+	}
 	dir, err := filepath.Abs(instanceDir)
 	if err != nil {
 		return nil, fmt.Errorf("gimbal: instance directory: %w", err)

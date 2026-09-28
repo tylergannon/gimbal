@@ -113,6 +113,7 @@ application and waits. Repeat --project to admit multiple repositories to one
 instance. Each repository keeps its runs and conversations under .gimbal.
 An active project has one instance owner. A second instance refuses that
 project, including a path alias; it can admit the project after the owner exits.
+TYPESAFE_API_KEY is required in the instance startup environment for Jev supervision.
 Separate instances can host different projects with distinct instance
 directories and web endpoints.
 gimbal lint [packages] checks workflow authoring rules, standalone or as a go

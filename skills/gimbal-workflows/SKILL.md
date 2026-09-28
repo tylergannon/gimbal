@@ -143,8 +143,10 @@ actual failing unit test.
 
 Coaching is advisory and never gates completion. Put essential constraints in
 the initial assignment too: a short turn can finish before its coach looks.
-Choose a review cadence suited to the work; excessive coaching can cost more
-than the task. Observe whether an objection changed behavior instead of
+Set `TYPESAFE_API_KEY` before starting a standalone run or hosted instance.
+Jev screens completed exposed thinking for attached supervisors; there is no
+timed cadence or fallback. Providers without those events do not trigger
+automatic reviews. Observe whether an objection changed behavior instead of
 treating attachment or message delivery as proof of useful supervision.
 
 ## Validate behavior and assess completion

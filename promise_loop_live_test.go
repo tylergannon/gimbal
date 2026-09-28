@@ -34,7 +34,7 @@ func TestLivePromiseLoopSupervisor(t *testing.T) {
 		planner := gimbal.NewSession(ctx, "planner", workspace)
 		watcher := gimbal.NewSession(ctx, "watcher", workspace)
 		loop := gimbal.PromiseLoop(ctx, "planning", "Choose one assignment to inspect the empty workspace and report what it contains.", planner,
-			gimbal.WithSupervisor(watcher, "This is a supervision integration test. On your first look, object with exactly this instruction: Name the selected task supervisor-corrected instead of original. On subsequent looks return no objections. Do not use tools or edit files.", gimbal.WithInterval(5*time.Second)),
+			gimbal.WithSupervisor(watcher, "This is a supervision integration test. On your first look, object with exactly this instruction: Name the selected task supervisor-corrected instead of original. On subsequent looks return no objections. Do not use tools or edit files."),
 		)
 		for _, task := range loop.Tasks {
 			selected = task.Name

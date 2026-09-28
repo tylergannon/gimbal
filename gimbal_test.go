@@ -693,13 +693,15 @@ func TestFork(t *testing.T) {
 }
 
 func TestSupervise(t *testing.T) {
-	var workerTurns, looks, toolResults int
+	stubJev(t)
+	var workerTurns, looks int
 	f := &fake{}
 	f.answer = func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(AgentEvent) error) (string, error) {
 		if session == "native-1" { // the worker, which runs until the supervisor's steer lands
 			workerTurns++
 			_ = emit(fakeAgentEvent("session.tool.called", session, "message-1", map[string]any{"id": "1", "input": map[string]any{"command": "make plugins"}, "executed": true}))
 			_ = emit(fakeAgentEvent("session.tool.success", session, "message-1", map[string]any{"id": "1", "content": []any{map[string]any{"type": "text", "text": "built a plugin system"}}, "executed": true}))
+			_ = emit(fakeAgentEvent("session.reasoning.ended", session, "message-1", map[string]any{"text": "built a plugin system"}))
 			for range 200 {
 				f.mu.Lock()
 				n := len(f.steers)
@@ -713,7 +715,6 @@ func TestSupervise(t *testing.T) {
 		}
 		f.mu.Lock() // the supervisor
 		looks++
-		toolResults += strings.Count(prompt, "[tool result]")
 		f.mu.Unlock()
 		if strings.Contains(prompt, "built a plugin system") {
 			return `{"objections": ["remove the plugin system"]}`, nil
@@ -723,7 +724,7 @@ func TestSupervise(t *testing.T) {
 	err := runTest(t, bind(f, "m", "coder", "taste"), func(ctx context.Context) error {
 		worker := NewSession(ctx, "coder", "/w")
 		supervisor := NewSession(ctx, "taste", "/w")
-		res, err := worker.Generate[Text](ctx, "build it", WithSupervisor(supervisor, "no plugin systems", WithInterval(10*time.Millisecond)))
+		res, err := worker.Generate[Text](ctx, "build it", WithSupervisor(supervisor, "no plugin systems"))
 		if res != "done" {
 			t.Errorf("result %q", res)
 		}
@@ -735,13 +736,14 @@ func TestSupervise(t *testing.T) {
 	if len(f.steers) == 0 || !strings.Contains(f.steers[0], "remove the plugin system") {
 		t.Errorf("steers: %q", f.steers)
 	}
-	// A steer is a new event and can cause another look before the worker exits.
-	if workerTurns != 1 || toolResults != 1 {
-		t.Errorf("worker turns=%d, looks=%d, tool results seen=%d; want one worker turn and its tool result seen once", workerTurns, looks, toolResults)
+	// The completed reasoning triggers one review during the active worker turn.
+	if workerTurns != 1 || looks != 1 {
+		t.Errorf("worker turns=%d, looks=%d; want one of each", workerTurns, looks)
 	}
 }
 
 func TestSuperviseASupervisor(t *testing.T) {
+	stubJev(t)
 	f := &fake{}
 	steered := func(text string) bool {
 		for range 400 {
@@ -759,10 +761,11 @@ func TestSuperviseASupervisor(t *testing.T) {
 		switch {
 		case session == "native-1": // the worker, until its supervisor objects
 			_ = emit(fakeAgentEvent("session.tool.success", session, "message-1", map[string]any{"id": "1", "content": []any{map[string]any{"type": "text", "text": "built a plugin system"}}, "executed": true}))
+			_ = emit(fakeAgentEvent("session.reasoning.ended", session, "message-1", map[string]any{"text": "built a plugin system"}))
 			steered("remove the plugin system")
 			return "done", nil
 		case session == "native-2" && strings.Contains(prompt, "no plugin systems"): // the supervisor's first look, until its own supervisor objects
-			_ = emit(fakeAgentEvent("session.text.ended", session, "message-1", map[string]any{"ordinal": 0, "text": "I object to the variable names"}))
+			_ = emit(fakeAgentEvent("session.reasoning.ended", session, "message-1", map[string]any{"text": "I object to the variable names"}))
 			if !steered("object only to plugin systems") {
 				return `{"objections": []}`, nil
 			}
@@ -777,8 +780,7 @@ func TestSuperviseASupervisor(t *testing.T) {
 		supervisor := NewSession(ctx, "taste", "/w")
 		lead := NewSession(ctx, "lead", "/w")
 		_, err := worker.Generate[Text](ctx, "build it", WithSupervisor(supervisor, "no plugin systems",
-			WithInterval(10*time.Millisecond),
-			WithSupervisor(lead, "no nitpicking", WithInterval(10*time.Millisecond)),
+			WithSupervisor(lead, "no nitpicking"),
 		))
 		return err
 	})
@@ -791,6 +793,7 @@ func TestSuperviseASupervisor(t *testing.T) {
 }
 
 func TestSuperviseCancelsAndJoinsLook(t *testing.T) {
+	stubJev(t)
 	workerFailure := errors.New("worker failed")
 	for _, workerErr := range []error{nil, workerFailure} {
 		name := "success"
@@ -804,6 +807,7 @@ func TestSuperviseCancelsAndJoinsLook(t *testing.T) {
 			joined := false
 			f := &fake{answer: func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(AgentEvent) error) (string, error) {
 				if prompt == "work" {
+					_ = emit(fakeAgentEvent("session.reasoning.ended", session, "message-1", map[string]any{"text": "inspect my work"}))
 					select {
 					case <-looking:
 						return "done", workerErr
@@ -819,7 +823,7 @@ func TestSuperviseCancelsAndJoinsLook(t *testing.T) {
 			err := Run(Project(ctx, t.TempDir()), "join", bind(f, "m", "reviewer", "worker"), func(ctx context.Context) error {
 				worker := NewSession(ctx, "worker", ".")
 				reviewer := NewSession(ctx, "reviewer", ".")
-				result, err := worker.Generate[Text](ctx, "work", WithSupervisor(reviewer, "watch", WithInterval(time.Millisecond)))
+				result, err := worker.Generate[Text](ctx, "work", WithSupervisor(reviewer, "watch"))
 				if !joined {
 					t.Error("Generate returned before the supervisor exited")
 				}
@@ -918,6 +922,7 @@ func TestLoopCarriesStructuredTaskAndFeedback(t *testing.T) {
 }
 
 func TestPromiseLoopSupervisesEachPlanningDecision(t *testing.T) {
+	stubJev(t)
 	const instruction = "Keep each planning decision within the goal."
 	var plannerCalls int
 	var supervisorPrompts []string
@@ -938,6 +943,7 @@ func TestPromiseLoopSupervisesEachPlanningDecision(t *testing.T) {
 			})); err != nil {
 				return "", err
 			}
+			_ = emit(fakeAgentEvent("session.reasoning.ended", session, "message-1", map[string]any{"text": "planner evidence: " + decision}))
 			for range 500 {
 				f.mu.Lock()
 				steered := slices.ContainsFunc(f.steers, func(message string) bool {
@@ -990,7 +996,7 @@ func TestPromiseLoopSupervisesEachPlanningDecision(t *testing.T) {
 		planner := NewSession(ctx, "planner", t.TempDir())
 		watcher := NewSession(ctx, "planner-watch", t.TempDir())
 		loop := PromiseLoop(ctx, "sprint", "ship it", planner,
-			WithSupervisor(watcher, instruction, WithInterval(time.Millisecond)),
+			WithSupervisor(watcher, instruction),
 		)
 		for range loop.Tasks {
 		}
@@ -1017,7 +1023,7 @@ func TestPromiseLoopSupervisesEachPlanningDecision(t *testing.T) {
 		case SuperviseAttached:
 			if event.Reviewer == "planner-watch.1" && strings.HasPrefix(event.Worker, "planner.1/turn.") {
 				attached++
-				if event.Instruction != instruction || event.Interval != time.Millisecond {
+				if event.Instruction != instruction {
 					t.Errorf("planner supervision = %+v", event)
 				}
 			}
@@ -1203,6 +1209,7 @@ func TestLoopEndsTaskScopeOnCancellation(t *testing.T) {
 }
 
 func TestAttestEventFixture(t *testing.T) {
+	stubJev(t)
 	project := t.TempDir()
 	looking := make(chan struct{})
 	f := &fake{}
@@ -1214,6 +1221,7 @@ func TestAttestEventFixture(t *testing.T) {
 			return "", ctx.Err()
 		}
 		if strings.HasPrefix(prompt, "build") {
+			_ = emit(fakeAgentEvent("session.reasoning.ended", session, "message-1", map[string]any{"text": "inspect my work"}))
 			_ = emit(fakeAgentEvent("session.tool.called", session, "message-1", map[string]any{"id": "call-1", "input": map[string]any{"command": "test"}, "executed": true}))
 			_ = emit(fakeAgentEvent("session.tool.success", session, "message-1", map[string]any{"id": "call-1", "content": []any{map[string]any{"type": "text", "text": "ok"}}, "executed": true}))
 			for {
@@ -1250,7 +1258,7 @@ func TestAttestEventFixture(t *testing.T) {
 			reviewer := NewSession(ctx, "reviewer", project)
 			turns := Group(ctx, "build")
 			turns.Go("worker", func(ctx context.Context) error {
-				_, err := worker.Generate[Text](ctx, "build", WithSupervisor(reviewer, "watch", WithInterval(time.Millisecond)))
+				_, err := worker.Generate[Text](ctx, "build", WithSupervisor(reviewer, "watch"))
 				return err
 			})
 			turns.Go("steer", func(ctx context.Context) error {

@@ -336,6 +336,7 @@ func (a *retryAdapter) RunTurn(_ context.Context, _ string, prompt string, _ jso
 }
 
 func TestMalformedCompletionUsesGenerateValidationRetry(t *testing.T) {
+	t.Setenv("TYPESAFE_API_KEY", "test-key")
 	adapter := &retryAdapter{}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

@@ -98,6 +98,7 @@ func (h *testingHarness) RunTurn(ctx context.Context, id, prompt string, _ json.
 }
 
 func TestUserTestingStages(t *testing.T) {
+	t.Setenv("TYPESAFE_API_KEY", "test-key")
 	for _, tc := range []struct {
 		name                                                 string
 		n                                                    int

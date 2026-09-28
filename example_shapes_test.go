@@ -15,7 +15,6 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
-	"time"
 
 	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/web"
@@ -260,7 +259,7 @@ func Example_supervisedWorker() {
 		taste := gimbal.NewSession(ctx, "taste", repo)
 		result, err := coder.Generate[gimbal.Text](ctx,
 			supervisedWorkerPrompt,
-			gimbal.WithSupervisor(taste, "Don't let it build what the task does not ask for, or break a rule in AGENTS.md. Object to nothing else.", gimbal.WithInterval(2*time.Minute)),
+			gimbal.WithSupervisor(taste, "Don't let it build what the task does not ask for, or break a rule in AGENTS.md. Object to nothing else."),
 		)
 		if err != nil {
 			return err

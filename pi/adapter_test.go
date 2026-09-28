@@ -461,6 +461,7 @@ func TestCloseIsIdempotent(t *testing.T) {
 }
 
 func TestSchemaCandidateFeedsGimbalValidation(t *testing.T) {
+	t.Setenv("TYPESAFE_API_KEY", "test-key")
 	var requests atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if serveRouterModels(w, r) {

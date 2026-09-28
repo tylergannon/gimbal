@@ -96,3 +96,22 @@ Authenticated model execution remains unproved. Fixed the shell nit by making
 wrapper writing and chmod separate set-e commands, and added the missing
 readability and report-only screenshot-correction cases. Focused checks pass.
 The new startup test verifies that an unwritable wrapper cannot start a browser.
+
+## Independent validation outcome
+
+The fresh validator independently reproduced the credential gate, passed the
+no-model integration checks, and exercised TodoMVC through the actual browser
+scripts in the prepared image, including screenshot inspection and video
+encoding. These script probes are not an authenticated Gimbal evaluation.
+
+The validator found that the cancellation assertion could accept a missing PID
+file. The test now waits for a nonempty, numeric PID and confirms the process is
+alive through a second command in the same worker before cancellation. The
+post-cancellation command also rejects missing or invalid PID data. The tightened
+real Docker/Temporal test passes. Runtime code is unchanged from ced236d8.
+
+Operational correction: the validator used a broad pkill pattern to stop its
+Docker-event observer. It cannot exclude interruption of another observer. The
+manager steered it to record and stop only owned PIDs; no such broad command was
+repeated. Worker containers and bootstrap rows were cleaned; native-state volumes
+remain intentionally retained under the existing backend contract.

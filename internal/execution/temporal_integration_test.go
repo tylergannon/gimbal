@@ -190,6 +190,20 @@ func TestCommandCancellationIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// The started heartbeat can precede the shell writing its PID. Prove a
+	// real process is alive before cancelling, rather than treating a missing
+	// PID file as proof that cancellation stopped it.
+	probeCtx, stopProbe := context.WithTimeout(t.Context(), 10*time.Second)
+	defer stopProbe()
+	probe, err := environment.Start(probeCtx, gimbal.ExecutionCommand{Operation: uuid.NewString(), Workdir: workdir,
+		Command: "sh", Args: []string{"-c", `until test -s sleeper.pid; do sleep 0.05; done; pid=$(cat sleeper.pid) || exit 1; case "$pid" in ''|*[!0-9]*) exit 1;; esac; kill -0 "$pid"`}}, nil, nil)
+	if err != nil {
+		t.Fatalf("probe running process: %v", err)
+	}
+	if code, err := probe.Wait(); code != 0 || err != nil {
+		t.Fatalf("process was not alive before cancellation: exit %d, %v", code, err)
+	}
+	stopProbe()
 	cancel()
 	began := time.Now()
 	_, waitErr := process.Wait()
@@ -200,7 +214,7 @@ func TestCommandCancellationIntegration(t *testing.T) {
 
 	var stdout, stderr strings.Builder
 	next, err := environment.Start(context.Background(), gimbal.ExecutionCommand{Operation: uuid.NewString(), Workdir: workdir,
-		Command: "sh", Args: []string{"-c", `if kill -0 "$(cat sleeper.pid)" 2>/dev/null; then echo "sleeper still running"; exit 1; fi; printf after`}}, &stdout, &stderr)
+		Command: "sh", Args: []string{"-c", `pid=$(cat sleeper.pid) || exit 1; case "$pid" in ''|*[!0-9]*) echo "invalid sleeper PID"; exit 1;; esac; if kill -0 "$pid" 2>/dev/null; then echo "sleeper still running"; exit 1; fi; printf after`}}, &stdout, &stderr)
 	if err != nil {
 		t.Fatalf("Start after a confirmed cancellation: %v", err)
 	}

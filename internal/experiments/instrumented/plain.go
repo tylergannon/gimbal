@@ -4,7 +4,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/tylergannon/gimbal"
 )
@@ -42,7 +41,7 @@ func Plain(ctx context.Context, env gimbal.Env, in Params) error {
 			return fmt.Errorf("checks exited %d: %s", code, stderr)
 		}
 		gimbal.SetJSON(ctx, "checks", Checks{code, stdout, stderr})
-		_, err = principal.Generate[Report](ctx, reportPrompt, gimbal.WithSupervisor(supervisor, coachPrompt, gimbal.WithInterval(10*time.Second)))
+		_, err = principal.Generate[Report](ctx, reportPrompt, gimbal.WithSupervisor(supervisor, coachPrompt))
 		return err
 	})
 }

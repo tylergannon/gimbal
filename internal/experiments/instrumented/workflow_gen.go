@@ -14,20 +14,20 @@ func init() { gimbal.RegisterGraph(Graph) }
 // Graph is the shape of this workflow, read from the source of Plain.
 var Graph = workflow.Graph{
 	Name:     "instrumented",
-	Source:   workflow.Source{File: "internal/experiments/instrumented/plain.go", Line: 32},
+	Source:   workflow.Source{File: "internal/experiments/instrumented/plain.go", Line: 31},
 	Services: []workflow.Service{},
 	Body: []workflow.Operation{
-		workflow.Set{Source: workflow.Source{File: "internal/experiments/instrumented/plain.go", Line: 33}, Key: "task"},
-		workflow.Scope{Source: workflow.Source{File: "internal/experiments/instrumented/plain.go", Line: 34}, Name: "review", Services: []workflow.Service{}, Body: []workflow.Operation{
-			workflow.Session{Source: workflow.Source{File: "internal/experiments/instrumented/plain.go", Line: 35}, Name: "coder", From: ""},
-			workflow.Session{Source: workflow.Source{File: "internal/experiments/instrumented/plain.go", Line: 36}, Name: "coach", From: ""},
-			workflow.Command{Source: workflow.Source{File: "internal/experiments/instrumented/plain.go", Line: 37}, Name: "tests"},
-			workflow.Condition{Source: workflow.Source{File: "internal/experiments/instrumented/plain.go", Line: 41}, Branches: []workflow.Branch{
-				{Source: workflow.Source{File: "internal/experiments/instrumented/plain.go", Line: 41}, Case: "code != 0", Exits: true, Body: []workflow.Operation{}},
+		workflow.Set{Source: workflow.Source{File: "internal/experiments/instrumented/plain.go", Line: 32}, Key: "task"},
+		workflow.Scope{Source: workflow.Source{File: "internal/experiments/instrumented/plain.go", Line: 33}, Name: "review", Services: []workflow.Service{}, Body: []workflow.Operation{
+			workflow.Session{Source: workflow.Source{File: "internal/experiments/instrumented/plain.go", Line: 34}, Name: "coder", From: ""},
+			workflow.Session{Source: workflow.Source{File: "internal/experiments/instrumented/plain.go", Line: 35}, Name: "coach", From: ""},
+			workflow.Command{Source: workflow.Source{File: "internal/experiments/instrumented/plain.go", Line: 36}, Name: "tests"},
+			workflow.Condition{Source: workflow.Source{File: "internal/experiments/instrumented/plain.go", Line: 40}, Branches: []workflow.Branch{
+				{Source: workflow.Source{File: "internal/experiments/instrumented/plain.go", Line: 40}, Case: "code != 0", Exits: true, Body: []workflow.Operation{}},
 			}},
-			workflow.Set{Source: workflow.Source{File: "internal/experiments/instrumented/plain.go", Line: 44}, Key: "checks"},
-			workflow.AgentCall{Source: workflow.Source{File: "internal/experiments/instrumented/plain.go", Line: 45}, Session: "coder", Role: "coder", Prompt: "Inspect the task and actual check result supplied in context. Read marker.txt in your working directory to confirm that the earlier command's filesystem changes remain available. Return a concise report of the evidence. Make no changes.", Supervisors: []workflow.Supervisor{
-				{Source: workflow.Source{File: "internal/experiments/instrumented/plain.go", Line: 45}, Session: "coach", Role: "coach", Instruction: "Check that the report's conclusions follow from the available evidence."},
+			workflow.Set{Source: workflow.Source{File: "internal/experiments/instrumented/plain.go", Line: 43}, Key: "checks"},
+			workflow.AgentCall{Source: workflow.Source{File: "internal/experiments/instrumented/plain.go", Line: 44}, Session: "coder", Role: "coder", Prompt: "Inspect the task and actual check result supplied in context. Read marker.txt in your working directory to confirm that the earlier command's filesystem changes remain available. Return a concise report of the evidence. Make no changes.", Supervisors: []workflow.Supervisor{
+				{Source: workflow.Source{File: "internal/experiments/instrumented/plain.go", Line: 44}, Session: "coach", Role: "coach", Instruction: "Check that the report's conclusions follow from the available evidence."},
 			}},
 		}},
 	},

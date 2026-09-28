@@ -142,6 +142,7 @@ func TestCancellationStillFinishesAndReleases(t *testing.T) {
 }
 
 func TestActivitiesKeepOneRuntimeAndWorkspace(t *testing.T) {
+	t.Setenv("TYPESAFE_API_KEY", "test-key")
 	ctx := t.Context()
 	dir := t.TempDir()
 	owner := host.New(ctx, t.TempDir())

@@ -17,9 +17,9 @@ Gimbal scope, sessions, event writer and existing web UI. Files persist in a
 host bind mount. Temporal replay executes no Gimbal recording calls. Activities
 have no automatic retries; native-session recovery is outside this specimen.
 
-Supervision uses existing Gimbal code, without changing timer/Jev behavior.
+Supervision uses existing Gimbal Jev-only code, without changing its behavior.
 Successful supervisory feedback is deliberately not an acceptance gate for
-this experiment. The parallel Jev migration owns supervision changes.
+this experiment. The completed Jev migration on main owns supervision behavior.
 
 ## Build
 
@@ -48,11 +48,10 @@ Start a self-hosted development Temporal server:
 temporal server start-dev --ip 0.0.0.0 --port 7233 --ui-port 8233
 ```
 
-Supply `CLAUDE_CODE_OAUTH_TOKEN` (or `ANTHROPIC_API_KEY`) and
-`DIFFUSION_API_KEY` in the control worker's environment. For this machine the
-Doppler `gimbal/dev_personal` config supplies Claude and spells the Diffusion
-key `DIFUSION_API_KEY`; map that spelling at bootstrap. Neither credentials nor
-provider state belong in workflow input, history, source, or Git.
+Supply `CLAUDE_CODE_OAUTH_TOKEN` (or `ANTHROPIC_API_KEY`),
+`DIFFUSION_API_KEY`, and `TYPESAFE_API_KEY` in the control worker's environment.
+This machine's Doppler `gimbal/dev_personal` config supplies all three. Neither
+credentials nor provider state belong in workflow input, history, source, or Git.
 
 With the credentials already in the calling process environment:
 
@@ -62,7 +61,8 @@ docker run -d --name gimbal-instrumented-control --init \
   --mount type=bind,src=/var/run/docker.sock,dst=/var/run/docker.sock \
   --mount type=bind,src=/tmp/gimbal-instrumented-state,dst=/tmp/gimbal-instrumented-state \
   --env SPECIMEN_STATE_ROOT=/tmp/gimbal-instrumented-state \
-  --env CLAUDE_CODE_OAUTH_TOKEN --env ANTHROPIC_API_KEY --env DIFFUSION_API_KEY \
+  --env CLAUDE_CODE_OAUTH_TOKEN --env ANTHROPIC_API_KEY \
+  --env DIFFUSION_API_KEY --env TYPESAFE_API_KEY \
   gimbal-instrumented:local -mode control -temporal host.docker.internal:7233
 bin/instrumented -task 'Verify the marker and command evidence.'
 ```
@@ -79,7 +79,7 @@ The worker image is deliberately tied to one run and removed at completion.
 Its live URL then disappears. To inspect persisted history afterward:
 
 ```sh
-bin/instrumented -mode view -project /tmp/gimbal-instrumented-state/CONTAINER_NAME
+doppler run --project gimbal --config dev_personal -- bin/instrumented -mode view -project /tmp/gimbal-instrumented-state/CONTAINER_NAME
 ```
 
 This reuses the existing Gimbal UI on `http://127.0.0.1:8082`. Only open completed

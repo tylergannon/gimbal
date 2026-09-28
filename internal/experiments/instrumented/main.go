@@ -178,7 +178,7 @@ func ProvisionEnvironment(ctx context.Context) (Environment, error) {
 		return Environment{}, err
 	}
 	// Configuration names only: credential values never enter activity arguments.
-	args := []string{"run", "-d", "--name", name, "--init", "--user", "1000:1000", "--publish", "127.0.0.1::8080", "--mount", "type=bind,src=" + dir + ",dst=/workspace", "--env", "HOME=/tmp/agent-home", "--env", "CLAUDE_CODE_OAUTH_TOKEN", "--env", "ANTHROPIC_API_KEY", "--env", "DIFFUSION_API_KEY", "--env", "SPECIMEN_WORKFLOW_ID=" + activity.GetInfo(ctx).WorkflowExecution.ID, "--entrypoint", "/usr/local/bin/instrumented", image, "-mode", "activities", "-queue", name, "-temporal", "host.docker.internal:7233"}
+	args := []string{"run", "-d", "--name", name, "--init", "--user", "1000:1000", "--publish", "127.0.0.1::8080", "--mount", "type=bind,src=" + dir + ",dst=/workspace", "--env", "HOME=/tmp/agent-home", "--env", "CLAUDE_CODE_OAUTH_TOKEN", "--env", "ANTHROPIC_API_KEY", "--env", "DIFFUSION_API_KEY", "--env", "TYPESAFE_API_KEY", "--env", "SPECIMEN_WORKFLOW_ID=" + activity.GetInfo(ctx).WorkflowExecution.ID, "--entrypoint", "/usr/local/bin/instrumented", image, "-mode", "activities", "-queue", name, "-temporal", "host.docker.internal:7233"}
 	output, err := exec.CommandContext(ctx, "docker", args...).CombinedOutput()
 	if err != nil {
 		return Environment{}, fmt.Errorf("start activity container: %w: %s", err, output)

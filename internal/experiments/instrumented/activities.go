@@ -122,7 +122,7 @@ func (a *Activities) Review_GenerateReport(ctx context.Context, data Data) (Repo
 	}
 	defer release()
 	gimbal.SetJSON(scoped, "checks", data.Checks)
-	return a.principal.Generate[Report](scoped, reportPrompt, gimbal.WithSupervisor(a.supervisor, coachPrompt, gimbal.WithInterval(10*time.Second)))
+	return a.principal.Generate[Report](scoped, reportPrompt, gimbal.WithSupervisor(a.supervisor, coachPrompt))
 }
 
 func (a *Activities) Finish(ctx context.Context, reason string) error {

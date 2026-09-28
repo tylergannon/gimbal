@@ -22,7 +22,13 @@ func TestRecordedHistoryReplay(t *testing.T) {
 	if path == "" {
 		t.Skip("no recorded history supplied")
 	}
-	replayer := worker.NewWorkflowReplayer()
+	replayer, err := worker.NewWorkflowReplayerWithOptions(worker.WorkflowReplayerOptions{DataConverter: dataConverter(stateRoot())})
+	if err != nil {
+		t.Fatal(err)
+	}
+	replayer.RegisterWorkflow(ContinuityWorkflow)
+	replayer.RegisterWorkflow(FanoutWorkflow)
+	replayer.RegisterWorkflow(PlanningWorkflow)
 	replayer.RegisterWorkflow(ReviewWorkflow)
 	if err := replayer.ReplayWorkflowHistoryFromJSONFile(nil, path); err != nil {
 		t.Fatal(err)

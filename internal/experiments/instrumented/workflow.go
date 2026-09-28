@@ -20,7 +20,10 @@ type Environment struct {
 }
 
 // Generated control flow carries immutable context references, not live scopes.
-type Data struct{ Context compiledscope.Snapshot }
+type Data struct {
+	Context compiledscope.Snapshot
+	Name    string
+}
 type IterationData struct {
 	Pair     Pair
 	Previous ChecksResult
@@ -64,7 +67,7 @@ func ReviewWorkflow(ctx workflow.Context, in Input) (out Outcome, err error) {
 		err = errors.Join(err, workflow.ExecuteActivity(cleanup, "Finish", errorText(err)).Get(cleanup, nil))
 	}()
 	var root compiledscope.Snapshot
-	if err = workflow.ExecuteActivity(activityCtx, "Initialize", Data(in)).Get(wait, &root); err != nil {
+	if err = workflow.ExecuteActivity(activityCtx, "Initialize", Data{Context: in.Context}).Get(wait, &root); err != nil {
 		return
 	}
 	if err = workflow.ExecuteActivity(activityCtx, "Prepare").Get(wait, nil); err != nil {

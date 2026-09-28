@@ -21,6 +21,7 @@ import (
 // frame is explicitly opened/closed by generated lexical code. No callback or
 // goroutine waits between activities to keep a scope alive.
 type Activities struct {
+	models  map[gimbal.WorkflowRole]gimbal.ModelBinding
 	project *host.Project
 	workdir string
 	store   compiledscope.Store
@@ -29,12 +30,13 @@ type Activities struct {
 }
 
 type scopeFrame struct {
-	parent  string
-	ctx     context.Context
-	cancel  context.CancelFunc
-	finish  func(error) error
-	busy    sync.WaitGroup
-	closing bool
+	sessions map[string]*gimbal.Session
+	parent   string
+	ctx      context.Context
+	cancel   context.CancelFunc
+	finish   func(error) error
+	busy     sync.WaitGroup
+	closing  bool
 }
 
 type ScopeInput struct{ ID, Parent, Name string }
@@ -45,10 +47,15 @@ func (a *Activities) Initialize(_ context.Context, data Data) (compiledscope.Sna
 	if a.scopes != nil {
 		return "", errors.New("specimen already initialized")
 	}
-	root, finish, err := a.project.OpenCompiledRun(a.project.Context(), "instrumented", map[gimbal.WorkflowRole]gimbal.ModelBinding{
-		coder: {Adapter: claude.New(), Model: "claude-haiku-4-5"},
-		coach: {Adapter: pi.New(), Model: "diffusion/deepseek-4.1-flash"},
-	})
+	name := data.Name
+	if name == "" {
+		name = "instrumented"
+	}
+	models := a.models
+	if models == nil {
+		models = map[gimbal.WorkflowRole]gimbal.ModelBinding{coder: {Adapter: claude.New(), Model: "claude-haiku-4-5"}, coach: {Adapter: pi.New(), Model: "diffusion/deepseek-4.1-flash"}}
+	}
+	root, finish, err := a.project.OpenCompiledRun(a.project.Context(), name, models)
 	if err != nil {
 		return "", err
 	}
@@ -62,6 +69,9 @@ func (a *Activities) Initialize(_ context.Context, data Data) (compiledscope.Sna
 }
 
 func (a *Activities) EnterScope(_ context.Context, in ScopeInput) error {
+	return a.enterScope(in, compiledscope.OpenScope)
+}
+func (a *Activities) enterScope(in ScopeInput, open func(context.Context, string) (context.Context, func(error) error, error)) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	parent := a.scopes[in.Parent]
@@ -75,7 +85,7 @@ func (a *Activities) EnterScope(_ context.Context, in ScopeInput) error {
 		return fmt.Errorf("scope %q already exists", in.ID)
 	}
 	ctx, cancel := context.WithCancel(parent.ctx)
-	child, finish, err := compiledscope.OpenScope(ctx, in.Name)
+	child, finish, err := open(ctx, in.Name)
 	if err != nil {
 		cancel()
 		return err
@@ -267,4 +277,16 @@ func (a *Activities) checked(code int, stdout, stderr string, err error) (Checks
 
 func (a *Activities) Finish(ctx context.Context, reason string) error {
 	return a.ExitScope(ctx, "", reason)
+}
+
+func (a *Activities) FinishCancelled(ctx context.Context, reason string) error {
+	a.mu.Lock()
+	frame := a.scopes[""]
+	a.mu.Unlock()
+	if frame != nil {
+		if err := compiledscope.CancelRun(frame.ctx); err != nil {
+			return err
+		}
+	}
+	return a.Finish(ctx, reason)
 }

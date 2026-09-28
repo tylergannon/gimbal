@@ -20,6 +20,8 @@ import (
 	"time"
 
 	"github.com/tylergannon/gimbal/internal/compiledscope"
+	"github.com/tylergannon/gimbal/internal/experiments/instrumented/fanout"
+	"github.com/tylergannon/gimbal/internal/observation"
 	"github.com/tylergannon/gimbal/web"
 	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/client"
@@ -33,6 +35,8 @@ func main() {
 }
 
 func run() error {
+	example := flag.String("workflow", "instrumented", "instrumented, continuity, fanout, or planning")
+	itemsJSON := flag.String("items-json", `[{"File":"one.txt","Receipt":"duplicate","Delay":8},{"File":"two.txt","Receipt":"duplicate","Delay":4}]`, "assignments for the two authored fanout branches as JSON")
 	mode := flag.String("mode", "start", "start, control, activities, or view")
 	address := flag.String("temporal", "127.0.0.1:7233", "Temporal server address")
 	queue := flag.String("queue", controlQueue, "activity worker queue")
@@ -50,7 +54,7 @@ func run() error {
 			return err
 		}
 		defer func() { _ = os.RemoveAll(instanceDir) }()
-		instance, err := web.NewInstance(ctx, instanceDir, []string{*projectPath}, web.WithPort(8082))
+		instance, err := web.NewInstance(ctx, instanceDir, append([]string{*projectPath}, flag.Args()...), web.WithPort(8082))
 		if err != nil {
 			return err
 		}
@@ -59,24 +63,45 @@ func run() error {
 		<-ctx.Done()
 		return nil
 	}
-	c, err := client.Dial(client.Options{HostPort: *address})
+	c, err := client.Dial(client.Options{HostPort: *address, DataConverter: dataConverter(stateRoot())})
 	if err != nil {
 		return err
 	}
 	defer c.Close()
 	switch *mode {
 	case "start":
-		id := fmt.Sprintf("instrumented-%d", time.Now().UnixMilli())
+		id := fmt.Sprintf("%s-%d", *example, time.Now().UnixMilli())
 		input, err := prepareInput(stateRoot(), id, *task)
 		if err != nil {
 			return err
 		}
-		run, err := c.ExecuteWorkflow(ctx, client.StartWorkflowOptions{ID: id, TaskQueue: controlQueue}, ReviewWorkflow, input)
+		var entry any = ReviewWorkflow
+		var argument any = input
+		switch *example {
+		case "instrumented":
+		case "continuity":
+			entry = ContinuityWorkflow
+		case "planning":
+			entry = PlanningWorkflow
+		case "fanout":
+			var items []fanout.Work
+			if err = json.Unmarshal([]byte(*itemsJSON), &items); err != nil {
+				return err
+			}
+			entry = FanoutWorkflow
+			if len(items) != 2 {
+				return errors.New("fanout requires exactly two assignments for its authored branches")
+			}
+			argument = fanoutInput{Input: input, Items: [2]fanout.Work(items)}
+		default:
+			return fmt.Errorf("unknown workflow %q", *example)
+		}
+		run, err := c.ExecuteWorkflow(ctx, client.StartWorkflowOptions{ID: id, TaskQueue: controlQueue}, entry, argument)
 		if err != nil {
 			return err
 		}
 		fmt.Printf("Temporal workflow: %s\n", run.GetID())
-		var report Outcome
+		var report json.RawMessage
 		err = run.Get(ctx, &report)
 		if ctx.Err() != nil {
 			cancelCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -90,6 +115,9 @@ func run() error {
 	case "control":
 		w := worker.New(c, controlQueue, worker.Options{})
 		w.RegisterWorkflow(ReviewWorkflow)
+		w.RegisterWorkflow(ContinuityWorkflow)
+		w.RegisterWorkflow(FanoutWorkflow)
+		w.RegisterWorkflow(PlanningWorkflow)
 		w.RegisterActivity(ProvisionEnvironment)
 		w.RegisterActivity(ReleaseEnvironment)
 		if err := w.Start(); err != nil {
@@ -227,7 +255,7 @@ func ProvisionEnvironment(ctx context.Context) (Environment, error) {
 		return Environment{}, err
 	}
 	// Configuration names only: credential values never enter activity arguments.
-	args := []string{"run", "-d", "--name", name, "--init", "--user", "1000:1000", "--publish", "127.0.0.1::8080", "--mount", "type=bind,src=" + dir + ",dst=" + dir, "--mount", "type=bind,src=" + contextDir + ",dst=" + contextDir, "--env", "SPECIMEN_WORKSPACE=" + dir, "--env", "SPECIMEN_CONTEXT=" + contextDir, "--env", "HOME=/tmp/agent-home", "--env", "CLAUDE_CODE_OAUTH_TOKEN", "--env", "ANTHROPIC_API_KEY", "--env", "DIFFUSION_API_KEY", "--env", "TYPESAFE_API_KEY", "--env", "SPECIMEN_WORKFLOW_ID=" + activity.GetInfo(ctx).WorkflowExecution.ID, "--entrypoint", "/usr/local/bin/instrumented", image, "-mode", "activities", "-queue", name, "-temporal", "host.docker.internal:7233"}
+	args := []string{"run", "-d", "--name", name, "--init", "--user", "1000:1000", "--publish", "127.0.0.1::8080", "--mount", "type=bind,src=" + dir + ",dst=" + dir, "--mount", "type=bind,src=" + contextDir + ",dst=" + contextDir, "--env", "SPECIMEN_STATE_ROOT=" + root, "--env", "SPECIMEN_WORKSPACE=" + dir, "--env", "SPECIMEN_CONTEXT=" + contextDir, "--env", "HOME=/tmp/agent-home", "--env", "CLAUDE_CODE_OAUTH_TOKEN", "--env", "ANTHROPIC_API_KEY", "--env", "DIFFUSION_API_KEY", "--env", "TYPESAFE_API_KEY", "--env", "SPECIMEN_WORKFLOW_ID=" + activity.GetInfo(ctx).WorkflowExecution.ID, "--entrypoint", "/usr/local/bin/instrumented", image, "-mode", "activities", "-queue", name, "-temporal", "host.docker.internal:7233"}
 	output, err := exec.CommandContext(ctx, "docker", args...).CombinedOutput()
 	if err != nil {
 		return Environment{}, fmt.Errorf("start activity container: %w: %s", err, output)
@@ -248,6 +276,17 @@ func ReleaseEnvironment(ctx context.Context) error {
 	output, err := exec.CommandContext(ctx, "docker", "rm", "-f", name).CombinedOutput()
 	if err != nil && !strings.Contains(string(output), "No such container") {
 		return fmt.Errorf("remove activity container: %w: %s", err, output)
+	}
+	// The container is gone: the control worker is now the sole authority
+	// able to settle an interrupted record. Never invent resource-close events.
+	runs, err := filepath.Glob(filepath.Join(stateRoot(), name, "workspace", ".gimbal", "runs", "*"))
+	if err != nil {
+		return err
+	}
+	for _, dir := range runs {
+		if err = observation.RecordTerminated(dir, "Orchestrator: activity worker stopped without a terminal run record; worker-local cleanup is unconfirmed."); err != nil {
+			return err
+		}
 	}
 	return nil
 }

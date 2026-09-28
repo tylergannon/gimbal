@@ -84,3 +84,26 @@ func workflow(ctx context.Context, kind string) error {
 		return helper(ctx)
 	})
 }
+
+func repeatedGroupChildren(ctx context.Context, items []string) error {
+	group := gimbal.Group(ctx, "workers")
+	for range items {
+		group.Go("worker", implement) // want `GIMBAL110-SIMPLE-WORKFLOWS/NO-DYNAMIC-GROUP-CHILDREN`
+	}
+	for i := 0; i < 2; i++ {
+		group.Go("worker", implement) // want `GIMBAL110-SIMPLE-WORKFLOWS/NO-DYNAMIC-GROUP-CHILDREN`
+	}
+	return group.Wait()
+}
+
+func fixedGroupPerIteration(ctx context.Context, items []string) error {
+	for range items {
+		group := gimbal.Group(ctx, "workers")
+		group.Go("left", implement)
+		group.Go("right", review)
+		if err := group.Wait(); err != nil {
+			return err
+		}
+	}
+	return nil
+}

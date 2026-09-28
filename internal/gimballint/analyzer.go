@@ -79,8 +79,43 @@ func run(pass *analysis.Pass) (any, error) {
 	reportSetSyntax(pass, info)
 	reportPromptSyntax(pass)
 	reportDynamicWorkers(pass, info)
+	reportRepeatedGroupChildren(pass, info)
 	reportDuplicates(pass, pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA))
 	return nil, nil
+}
+
+// Adding children to an outer group from a loop is runtime-sized dispatch.
+// A group created within each iteration can still have a fixed authored shape.
+func reportRepeatedGroupChildren(pass *analysis.Pass, si *syntaxInfo) {
+	for _, file := range pass.Files {
+		ast.Inspect(file, func(n ast.Node) bool {
+			call, ok := n.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			name, ok := gimbalCall(pass, call)
+			if !ok || name != "Go" {
+				return true
+			}
+			sel, ok := call.Fun.(*ast.SelectorExpr)
+			if !ok {
+				return true
+			}
+			receiver := identObject(pass, sel.X)
+			for parent := si.parents[call]; parent != nil; parent = si.parents[parent] {
+				switch parent.(type) {
+				case *ast.FuncDecl, *ast.FuncLit:
+					return true
+				case *ast.ForStmt, *ast.RangeStmt:
+					if receiver == nil || receiver.Pos() < parent.Pos() || receiver.Pos() > parent.End() {
+						pass.Reportf(call.Pos(), "[GIMBAL110-SIMPLE-WORKFLOWS/NO-DYNAMIC-GROUP-CHILDREN]: Adding children to an outer group from a loop is unsupported dynamic dispatch. Declare each parallel child explicitly; a group inside an iteration may retain a fixed authored shape.")
+						return true
+					}
+				}
+			}
+			return true
+		})
+	}
 }
 
 func indexSyntax(pass *analysis.Pass, in *inspector.Inspector) *syntaxInfo {

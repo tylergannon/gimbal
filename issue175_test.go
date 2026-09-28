@@ -196,12 +196,18 @@ func TestGroupKilledChildLeavesItsSiblingsRunning(t *testing.T) {
 	err := runTest(t, bind(f, "m", "candidate"), func(ctx context.Context) error {
 		r, _ := current(ctx)
 		g := Group(ctx, "bakeoff")
-		for i := range 3 {
-			g.Go("attempt", func(ctx context.Context) error {
-				results[i], errs[i] = NewSession(ctx, "candidate", "/w").Generate[Text](ctx, "go")
-				return errs[i]
-			})
-		}
+		g.Go("attempt", func(ctx context.Context) error {
+			results[0], errs[0] = NewSession(ctx, "candidate", "/w").Generate[Text](ctx, "go")
+			return errs[0]
+		})
+		g.Go("attempt", func(ctx context.Context) error {
+			results[1], errs[1] = NewSession(ctx, "candidate", "/w").Generate[Text](ctx, "go")
+			return errs[1]
+		})
+		g.Go("attempt", func(ctx context.Context) error {
+			results[2], errs[2] = NewSession(ctx, "candidate", "/w").Generate[Text](ctx, "go")
+			return errs[2]
+		})
 		runningTurns(t, f, 3)
 		killErr = r.run.CancelScope("bakeoff.1/attempt.1", kill)
 		runningTurns(t, f, 2) // the killed turn left; the other two are still inside RunTurn

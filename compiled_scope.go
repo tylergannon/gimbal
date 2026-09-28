@@ -10,6 +10,13 @@ import (
 // Keep this experimental seam internal: ordinary workflows still use Run and
 // Scope. Both paths share the same entry, resource cleanup and event recording.
 func init() {
+	compiledscope.CancelRun = func(ctx context.Context) error {
+		s, err := current(ctx)
+		if err != nil {
+			return err
+		}
+		return s.run.CancelScope("", context.Canceled)
+	}
 	compiledscope.OpenRun = func(ctx context.Context, name string, bindings any) (context.Context, func(error) error, error) {
 		models, ok := bindings.(map[WorkflowRole]ModelBinding)
 		if !ok {

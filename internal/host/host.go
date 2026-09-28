@@ -22,14 +22,19 @@ import (
 )
 
 type Owner struct {
-	ctx        context.Context
-	dir        string
-	mu         sync.RWMutex
-	projects   map[string]*Project
-	activeRuns sync.WaitGroup
-	controlID  string
-	socket     string
+	ctx              context.Context
+	dir              string
+	mu               sync.RWMutex
+	projects         map[string]*Project
+	activeRuns       sync.WaitGroup
+	controlID        string
+	socket           string
+	executionFactory ExecutionBackendFactory
 }
+
+// ExecutionBackendFactory creates the backend owned by one hosted run and
+// returns the environment name that the run must select.
+type ExecutionBackendFactory func(context.Context, string, string, string, map[gimbal.WorkflowRole]gimbal.ModelBinding) (gimbal.ExecutionBackend, string, error)
 
 type Project struct {
 	owner         *Owner
@@ -52,6 +57,16 @@ func (o *Owner) SetControl(id, socket string) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	o.controlID, o.socket = id, socket
+}
+
+// SetExecutionBackendFactory routes every hosted workflow through a
+// per-run execution backend. The factory receives the admitted project,
+// selected execution workdir, project artifact directory, and authoritative
+// role models for that workflow.
+func (o *Owner) SetExecutionBackendFactory(factory ExecutionBackendFactory) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.executionFactory = factory
 }
 
 func CanonicalProject(dir string) (string, error) {
@@ -236,7 +251,29 @@ func (p *Project) Run(ctx context.Context, name string, models map[gimbal.Workfl
 		}
 	}
 	runCtx = live.WithHook(runCtx, hook)
-	err = gimbal.Run(gimbal.Project(runCtx, p.dir), name, models, body)
+	var options []gimbal.RunOption
+	p.owner.mu.RLock()
+	factory := p.owner.executionFactory
+	p.owner.mu.RUnlock()
+	if factory != nil {
+		workdir := p.project
+		if selected, ok := ctx.Value(workDirKey{}).(string); ok && selected != "" {
+			workdir = selected
+		}
+		backend, environment, setupErr := factory(runCtx, p.project, workdir, p.dir, models)
+		if setupErr != nil {
+			return setupErr
+		}
+		if backend == nil || environment == "" {
+			if backend != nil {
+				_ = backend.Close()
+			}
+			return errors.New("gimbal: execution backend factory returned an incomplete configuration")
+		}
+		runCtx = gimbal.InEnvironment(runCtx, environment)
+		options = append(options, gimbal.WithExecution(backend))
+	}
+	err = gimbal.Run(gimbal.Project(runCtx, p.dir), name, models, body, options...)
 	if err == nil && context.Cause(runCtx) != nil {
 		return context.Cause(runCtx)
 	}
@@ -244,6 +281,7 @@ func (p *Project) Run(ctx context.Context, name string, models map[gimbal.Workfl
 }
 
 type runStartedKey struct{}
+type workDirKey struct{}
 
 var ErrStartFailed = errors.New("run could not start")
 var ErrStopped = errors.New("instance stopped")
@@ -265,6 +303,7 @@ func (p *Project) Start(name, workdir, conversationID string, models map[gimbal.
 	}
 	started := make(chan string, 1)
 	ctx := context.WithValue(p.ctx, runStartedKey{}, func(id string) { started <- id })
+	ctx = context.WithValue(ctx, workDirKey{}, workdir)
 	done := make(chan error, 1)
 	go func() { done <- p.Run(ctx, name, models, body) }()
 	var id string

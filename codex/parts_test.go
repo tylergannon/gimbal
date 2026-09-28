@@ -29,9 +29,9 @@ func TestReadTurnProjectionMismatchDoesNotLoseNativeAnswer(t *testing.T) {
 		ch <- rpcMessage{Method: value.method, Params: json.RawMessage(`{"threadId":"thread","turnId":"turn",` + value.body + `}`)}
 	}
 	p := newProjector("thread", "turn", "model", func(gimbal.AgentEvent) error { return nil })
-	answer, err := readTurn(ctx, conn, ch, "thread", "turn", p)
-	if err != nil || answer != "actual result" {
-		t.Fatalf("answer=%q, error=%v", answer, err)
+	answer, terminal, err := readTurn(ctx, conn, ch, "thread", "turn", p)
+	if err != nil || !terminal || answer != "actual result" {
+		t.Fatalf("answer=%q, terminal=%v, error=%v", answer, terminal, err)
 	}
 }
 
@@ -49,7 +49,10 @@ func TestReadTurnStillReportsProviderAndSinkFailures(t *testing.T) {
 			})
 			ch := make(chan rpcMessage, 1)
 			ch <- rpcMessage{Method: "error", Params: json.RawMessage(`{"threadId":"thread","turnId":"turn","error":{"message":"provider failed"},"willRetry":false}`)}
-			_, err := readTurn(ctx, &connection{readDone: make(chan struct{})}, ch, "thread", "turn", p)
+			_, terminal, err := readTurn(ctx, &connection{readDone: make(chan struct{})}, ch, "thread", "turn", p)
+			if terminal {
+				t.Fatal("an error notification was reported as the turn's terminal")
+			}
 			if sink && !errors.Is(err, boom) {
 				t.Fatalf("sink error lost: %v", err)
 			}
@@ -76,9 +79,9 @@ func TestReadTurnLateCompletionCannotReplaceFinalAnswer(t *testing.T) {
 				ch <- rpcMessage{Method: value.method, Params: json.RawMessage(`{"threadId":"thread","turnId":"turn",` + value.body + `}`)}
 			}
 			p := newProjector("thread", "turn", "model", func(gimbal.AgentEvent) error { return nil })
-			answer, err := readTurn(ctx, &connection{readDone: make(chan struct{})}, ch, "thread", "turn", p)
-			if err != nil || answer != "actual final" {
-				t.Fatalf("answer=%q, error=%v", answer, err)
+			answer, terminal, err := readTurn(ctx, &connection{readDone: make(chan struct{})}, ch, "thread", "turn", p)
+			if err != nil || !terminal || answer != "actual final" {
+				t.Fatalf("answer=%q, terminal=%v, error=%v", answer, terminal, err)
 			}
 		})
 	}

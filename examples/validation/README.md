@@ -13,11 +13,12 @@ testers never inspect A's source. When A works on another project B, the tester
 can read B but should normally rely on A to do its job.
 
 Start a persistent Gimbal instance that admits `/abs/project` before submitting
-the workflow. `--follow` waits for the final issue-publication result.
+the workflow. `--follow` waits for final synthesis and any requested issue publication.
 Before running, build/install the desired product version, prepare separate
 project-B workspaces, and save issue/task text locally. The example assignments
 expect `issue.md` and `change.md` in their respective workspaces. Choose unused
-ports and install `playwright-cli`, its browser, and FFmpeg with libx264. The observer's `--work-dir`
+ports and prepare `zsh`, `playwright-cli` with its configured browser, and FFmpeg
+with libx264 in the execution environment. The observer's `--work-dir`
 should be separate from these test workspaces. Each workload can supply a
 foreground `start` command with a `ready` check, or point `url` at an existing
 instance. For a CLI-only product, supply the URL of a loopback terminal such as
@@ -34,13 +35,14 @@ delegated scaffold operation copies files into the active project.
 Inputs are JSON or YAML; paths resolve from the suite file. `product` names A,
 `guides` lists public local usage documents, `workloads` supplies the assignments,
 and `output_dir` receives a unique run directory. `timeout` defaults to one hour.
-`playwright_cli` optionally overrides the browser executable. Workspaces must not
-overlap; shared external services/accounts should also be isolated by the caller.
+Workspaces must not overlap; shared external services/accounts should also be isolated by the caller.
 
 The tester role `product-operation` defaults to Claude Opus 5.5. `product-visual-review`
 defaults to Gemini Flash and opens screenshots to check readability and captions.
 `product-triage` defaults to GPT-6 Astra and combines findings. Their corresponding
-CLI flags can override models. Set `issue_repo` to the tested product's
+CLI flags can override models. Docker/Temporal currently requires Codex models
+for all three roles. Omit `issue_repo` to produce local reports without publishing.
+Set `issue_repo` to the tested product's
 `owner/repository`; the final agent checks existing issues, uploads screenshots
 supporting new findings with `gimbal upload-artifact`, and files actionable issues.
 Publishing requires authenticated `gh` and a configured public artifact destination;
@@ -49,7 +51,10 @@ task permissions such as creating a PR in B belong explicitly in that workload's
 Results include each tester's Markdown report, ordered captioned screenshots,
 measured elapsed time, and a browser video for optional human review. The workflow
 keeps the raw `video.webm` and writes a 2.5× H.264 `video.mp4`, capped at 1280×720,
-to the path in `reports.json`. That MP4 can be published with `gimbal upload-artifact`.
+to the path in `reports.json`. Each tester owns a browser scope; recording is
+finalized before encoding runs in the same execution environment. Encoding has a
+two-minute budget, and failure retains the raw WebM. That MP4 can be published
+with `gimbal upload-artifact`.
 Flash writes
 `visual-review.md`; triage writes `findings.md` with issue URLs or proposed issues.
 `reports.json` points to workload reports and records execution errors. A failed

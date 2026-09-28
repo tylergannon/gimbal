@@ -4,7 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -42,6 +45,12 @@ func Service(ctx context.Context, name, workdir, command string) error {
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("gimbal: service %q: %w", name, err)
 	}
+	if workdir != "" {
+		workdir, err = filepath.Abs(workdir)
+		if err != nil {
+			return fmt.Errorf("gimbal: service %q: resolve workdir: %w", name, err)
+		}
+	}
 
 	scope.mu.Lock()
 	id := scope.next(name)
@@ -69,23 +78,27 @@ func Service(ctx context.Context, name, workdir, command string) error {
 	}
 	ended.StderrFile = stderrFile
 
-	cmd := exec.Command("zsh", "-c", command)
-	cmd.Dir = workdir
-	cmd.Stdout, cmd.Stderr = out, errOut
-	cmd.WaitDelay = commandWaitDelay
-	if err := prepareServiceProcess(cmd); err != nil {
-		_ = out.close()
-		_ = errOut.close()
-		return endServiceStartFailure(scope, start, ended, fmt.Errorf("gimbal: service %s: %w", id, err))
+	var cmd *exec.Cmd
+	var process ExecutionProcess
+	if environmentName, ok := ctx.Value(environmentKey{}).(string); ok {
+		process, err = startExecutionService(ctx, scope, environmentName, id, workdir, command, out, errOut, &ended)
+	} else {
+		cmd = exec.Command("zsh", "-c", command)
+		cmd.Dir = workdir
+		cmd.Stdout, cmd.Stderr = out, errOut
+		cmd.WaitDelay = commandWaitDelay
+		if err = prepareServiceProcess(cmd); err == nil {
+			err = cmd.Start()
+		}
 	}
-	if err := cmd.Start(); err != nil {
+	if err != nil {
 		_ = out.close()
 		_ = errOut.close()
 		return endServiceStartFailure(scope, start, ended, fmt.Errorf("gimbal: service %s: %w", id, err))
 	}
 
 	service := &ownedService{
-		scope: scope, ctx: scope.ctx, id: id, name: name, cmd: cmd,
+		scope: scope, ctx: scope.ctx, id: id, name: name, cmd: cmd, process: process,
 		out: out, errOut: errOut, ended: ended, startedAt: start,
 		done: make(chan struct{}),
 	}
@@ -99,6 +112,27 @@ func Service(ctx context.Context, name, workdir, command string) error {
 	return nil
 }
 
+func startExecutionService(ctx context.Context, s *scope, environmentName, id, workdir, command string, out, errOut io.Writer, ended *CommandEnded) (ExecutionProcess, error) {
+	backend := s.run.backend
+	if backend == nil {
+		return nil, fmt.Errorf("environment %q selected without an execution backend", environmentName)
+	}
+	environment, err := backend.Resolve(ctx, environmentName)
+	if err != nil {
+		return nil, fmt.Errorf("resolve environment %q: %w", environmentName, err)
+	}
+	if workdir == "" {
+		workdir, err = os.Getwd()
+		if err != nil {
+			return nil, fmt.Errorf("resolve current workdir: %w", err)
+		}
+	}
+	return environment.Start(ctx, ExecutionCommand{
+		Operation: filepath.Base(s.run.dir) + "/" + id, Session: s.key, Role: path.Base(s.key),
+		Workdir: workdir, Command: "zsh", Args: []string{"-c", command},
+	}, out, errOut)
+}
+
 func endServiceStartFailure(scope *scope, start time.Time, ended CommandEnded, serviceErr error) error {
 	ended.Error = serviceErr.Error()
 	ended.Duration = time.Since(start)
@@ -108,14 +142,15 @@ func endServiceStartFailure(scope *scope, start time.Time, ended CommandEnded, s
 }
 
 type ownedService struct {
-	scope  *scope
-	ctx    context.Context
-	id     string
-	name   string
-	cmd    *exec.Cmd
-	out    *commandCapture
-	errOut *commandCapture
-	ended  CommandEnded
+	scope   *scope
+	ctx     context.Context
+	id      string
+	name    string
+	cmd     *exec.Cmd
+	process ExecutionProcess
+	out     *commandCapture
+	errOut  *commandCapture
+	ended   CommandEnded
 
 	startedAt time.Time
 	done      chan struct{}
@@ -143,7 +178,13 @@ func (s *ownedService) stopWhenCancelled() {
 }
 
 func (s *ownedService) wait() {
-	waitErr := s.cmd.Wait()
+	var waitErr error
+	var exitCode int
+	if s.process != nil {
+		exitCode, waitErr = s.process.Wait()
+	} else {
+		waitErr = s.cmd.Wait()
+	}
 	captureErr := errors.Join(s.out.close(), s.errOut.close())
 	stdout, stdoutErr := s.out.result(s.scope.run.dir, s.ended.StdoutFile)
 	stderr, stderrErr := s.errOut.result(s.scope.run.dir, s.ended.StderrFile)
@@ -156,7 +197,9 @@ func (s *ownedService) wait() {
 	stopping := s.stopping
 	s.ended.Stdout, s.ended.Stderr = stdout, stderr
 	s.ended.Duration = time.Since(s.startedAt)
-	if s.cmd.ProcessState != nil {
+	if s.process != nil {
+		s.ended.ExitCode = exitCode
+	} else if s.cmd.ProcessState != nil {
 		s.ended.ExitCode = s.cmd.ProcessState.ExitCode()
 	}
 	var serviceErr error
@@ -169,7 +212,9 @@ func (s *ownedService) wait() {
 		}
 	} else {
 		status := "without a process status"
-		if s.cmd.ProcessState != nil {
+		if s.process != nil {
+			status = fmt.Sprintf("exit code %d", exitCode)
+		} else if s.cmd.ProcessState != nil {
 			status = s.cmd.ProcessState.String()
 		} else if waitErr != nil {
 			status = waitErr.Error()
@@ -202,6 +247,16 @@ func (s *ownedService) wait() {
 func (s *ownedService) stop() error {
 	s.stopOnce.Do(func() {
 		s.beginStop()
+		if s.process != nil {
+			s.stopErr = errors.Join(s.process.Stop(), s.awaitDone())
+			s.mu.Lock()
+			s.stopErr = errors.Join(s.stopErr, s.terminalErr)
+			s.mu.Unlock()
+			if s.stopErr != nil {
+				s.stopErr = fmt.Errorf("gimbal: stop service %s: %w", s.id, s.stopErr)
+			}
+			return
+		}
 		termErr := terminateServiceGroup(s.cmd.Process.Pid)
 		waitErr := s.awaitBoundary(serviceShutdownGrace)
 		if waitErr != nil {
@@ -222,6 +277,15 @@ func (s *ownedService) stop() error {
 		}
 	})
 	return s.stopErr
+}
+
+func (s *ownedService) awaitDone() error {
+	select {
+	case <-s.done:
+		return nil
+	case <-time.After(10 * time.Second):
+		return errors.New("gimbal: remote service did not finish after Stop")
+	}
 }
 
 func (s *ownedService) awaitBoundary(timeout time.Duration) error {

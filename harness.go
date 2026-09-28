@@ -44,6 +44,10 @@ type HarnessAdapter interface {
 // names; the workflow itself names only the role.
 type ModelBinding struct {
 	Adapter HarnessAdapter
+	// Harness identifies the provider implementation selected with Model.
+	// Built-in model binding sets it alongside Adapter so an execution backend
+	// can derive its worker configuration from this same role binding.
+	Harness string
 	Model   string
 	// Effort is the reasoning effort, empty to leave it to the harness.
 	Effort string

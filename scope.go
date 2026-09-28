@@ -44,6 +44,7 @@ type scope struct {
 	values      map[string]*scopeValue
 	sessions    []*Session
 	services    []*ownedService
+	browsers    []*Browser
 	serviceErr  error
 	ended       bool
 	dispatching bool     // the loop's body is running, so its planner can still be reached
@@ -135,6 +136,19 @@ func (s *scope) adoptService(service *ownedService) error {
 	return nil
 }
 
+// adoptBrowser names browser as the next child of s called its name and
+// makes it belong to s, which closes it when s ends.
+func (s *scope) adoptBrowser(browser *Browser) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.ended {
+		return fmt.Errorf("gimbal: browser %q: scope %q ended", browser.name, s.key)
+	}
+	browser.id = s.next(browser.name)
+	s.browsers = append(s.browsers, browser)
+	return nil
+}
+
 // failService records the first required service that disappeared and
 // cancels the scope so work which follows its ctx starts unwinding.
 func (s *scope) failService(err error) {
@@ -173,11 +187,12 @@ func (s *scope) do(ctx context.Context, body func(context.Context) error) (err e
 	return body(ctx)
 }
 
-// finish stops the scope's services, closes its sessions, cancels its ctx,
-// records its result, and returns its body's result joined with any required
-// service failure or incomplete service cleanup.
+// finish closes the scope's browsers, stops its services, closes its
+// sessions, cancels its ctx, records its result, and returns its body's
+// result joined with any required service failure or incomplete browser or
+// service cleanup.
 func (s *scope) finish(bodyErr error) error {
-	serviceCleanupErr := s.end()
+	cleanupErr := s.end()
 	s.mu.Lock()
 	serviceErr := s.serviceErr
 	s.mu.Unlock()
@@ -186,18 +201,20 @@ func (s *scope) finish(bodyErr error) error {
 	} else {
 		bodyErr = errors.Join(bodyErr, serviceErr)
 	}
-	err := errors.Join(bodyErr, serviceCleanupErr)
+	err := errors.Join(bodyErr, cleanupErr)
 	s.run.event(s.key, "", "", ScopeEnded{Error: errString(err)})
 	return err
 }
 
-// end stops the scope's services, closes its sessions, then cancels its ctx.
-// Each service is marked as intentionally stopping before any signal is sent,
-// so a concurrent exit is classified by whichever lifecycle transition won.
-// Service cleanup failures are returned because the scope owns that process.
-// Each session is
-// marked closed before its adapter is asked to release it, so no Generate
-// can enter while cleanup runs. A session with no native id had nothing
+// end closes the scope's browsers, stops its services, closes its sessions,
+// then cancels its ctx. Browsers close first, while the services they drive
+// are still up, so each recording is finalized against a live application.
+// Each service is marked as intentionally stopping before any signal is
+// sent, so a concurrent exit is classified by whichever lifecycle transition
+// won. Browser close and service cleanup failures are returned because the
+// scope owns those processes. Each session is marked closed before its
+// adapter is asked to release it, so no Generate can enter while cleanup
+// runs. A session with no native id had nothing
 // allocated by its adapter and gets no Close call, only its SessionClosed
 // event. Close runs on a timeout ctx independent of the run's own, so a
 // cancelled run still releases every native session. A Close failure never
@@ -209,16 +226,24 @@ func (s *scope) end() error {
 	s.run.removeScope(s)
 	s.mu.Lock()
 	s.ended = true
+	browsers := append([]*Browser(nil), s.browsers...)
+	s.mu.Unlock()
+	var cleanupErrs []error
+	for _, browser := range browsers {
+		if err := browser.close(); err != nil {
+			cleanupErrs = append(cleanupErrs, err)
+		}
+	}
+	s.mu.Lock()
 	services := append([]*ownedService(nil), s.services...)
 	for _, service := range services {
 		service.beginStop()
 	}
 	sessions := s.sessions
 	s.mu.Unlock()
-	var serviceErrs []error
 	for _, service := range services {
 		if err := service.stop(); err != nil {
-			serviceErrs = append(serviceErrs, err)
+			cleanupErrs = append(cleanupErrs, err)
 		}
 	}
 	for _, session := range sessions {
@@ -238,15 +263,16 @@ func (s *scope) end() error {
 		s.run.event(s.key, session.id, "", SessionClosed{Error: errString(closeErr)})
 	}
 	s.cancel(nil)
-	return errors.Join(serviceErrs...)
+	return errors.Join(cleanupErrs...)
 }
 
 // Scope runs body in a child scope named name, and returns its error. The
-// scope ends when body returns: each service it started is stopped, each
-// session it created is closed through its adapter's Close, then its ctx is
-// cancelled. A service failure enters the scope's error. A session Close
-// failure is recorded, not returned here: it instead surfaces from the run's
-// own aggregate cleanup error.
+// scope ends when body returns: each browser it opened is closed, each
+// service it started is stopped, each session it created is closed through
+// its adapter's Close, then its ctx is cancelled. A browser or service
+// failure enters the scope's error. A session Close failure is recorded, not
+// returned here: it instead surfaces from the run's own aggregate cleanup
+// error.
 func Scope(ctx context.Context, name string, body func(ctx context.Context) error) error {
 	parent, err := current(ctx)
 	if err != nil {

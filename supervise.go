@@ -24,6 +24,7 @@ type options struct {
 	supervisors   []supervisor
 	every         time.Duration
 	scopeTemplate string
+	browsers      []*Browser
 }
 
 type supervisor struct {
@@ -106,6 +107,10 @@ const (
 
 // supervise is Generate with supervisors attached.
 func supervise[T Output](ctx context.Context, s *Session, prompt string, supervisors []supervisor, started *TurnStarted) (T, error) {
+	if err := validateSupervisorBindings(s, supervisors); err != nil {
+		var out T
+		return out, err
+	}
 	history := filepath.Join(runDir(ctx), "sessions", s.id+".jsonl")
 	for _, sup := range supervisors {
 		s.mu.Lock()
@@ -120,6 +125,19 @@ func supervise[T Output](ctx context.Context, s *Session, prompt string, supervi
 		return superviseWithJev[T](ctx, s, prompt, supervisors, started, history)
 	}
 	return superviseTimed[T](ctx, s, prompt, supervisors, started, history)
+}
+
+func validateSupervisorBindings(worker *Session, supervisors []supervisor) error {
+	for _, sup := range supervisors {
+		if sup.session == nil {
+			return fmt.Errorf("gimbal: session role %q in environment %q has a nil supervisor session", worker.name, worker.environment)
+		}
+		workspaceMismatch := (worker.environmentBound || sup.session.environmentBound) && filepath.Clean(worker.workdir) != filepath.Clean(sup.session.workdir)
+		if worker.environmentBound != sup.session.environmentBound || worker.environment != sup.session.environment || workspaceMismatch {
+			return fmt.Errorf("gimbal: supervisor role %q is bound to environment %q and workdir %q, but session role %q is bound to environment %q and workdir %q", sup.session.name, sup.session.environment, sup.session.workdir, worker.name, worker.environment, worker.workdir)
+		}
+	}
+	return nil
 }
 
 func superviseTimed[T Output](ctx context.Context, s *Session, prompt string, supervisors []supervisor, started *TurnStarted, history string) (T, error) {

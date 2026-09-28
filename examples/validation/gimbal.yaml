@@ -5,8 +5,8 @@ guides:
   - ../../skills/gimbal-runs/SKILL.md
 output_dir: /tmp/gimbal-user-testing/artifacts
 timeout: 1h
+# Omit issue_repo for local reports without publication.
 issue_repo: tylergannon/gimbal
-# playwright_cli: /absolute/path/to/playwright-cli
 workloads:
   - name: issue-to-pr
     assignment_file: issue-to-pr.md

@@ -79,6 +79,7 @@ func run(pass *analysis.Pass) (any, error) {
 	reportSetSyntax(pass, info)
 	reportPromptSyntax(pass)
 	reportDynamicWorkers(pass, info)
+	reportBrowserEscapes(pass, info)
 	reportDuplicates(pass, pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA))
 	return nil, nil
 }
@@ -684,7 +685,7 @@ func isSetCall(pass *analysis.Pass, call *ast.CallExpr) bool {
 
 func isWorkflowOperation(name string) bool {
 	switch name {
-	case "Run", "Scope", "Group", "Go", "PromiseLoop", "Tasks", "Iterate", "NewSession", "Fork", "Generate", "Interview", "Set", "SetJSON", "Check", "Service":
+	case "Run", "Scope", "Group", "Go", "PromiseLoop", "Tasks", "Iterate", "NewSession", "Fork", "Generate", "Interview", "Set", "SetJSON", "Check", "Service", "NewBrowser":
 		return true
 	default:
 		return false

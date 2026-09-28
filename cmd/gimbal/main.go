@@ -16,6 +16,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+	"github.com/tylergannon/gimbal/internal/execution"
 	"github.com/tylergannon/gimbal/internal/gimballint"
 	"github.com/tylergannon/gimbal/opencode"
 	"github.com/tylergannon/gimbal/web"
@@ -71,7 +72,7 @@ func isOrdinaryCLI(args []string) bool {
 	}
 	for _, arg := range args {
 		switch arg {
-		case "-h", "--help", "-port", "--port", "-uds", "--uds", "-no-web", "--no-web":
+		case "-h", "--help", "-port", "--port", "-uds", "--uds", "-no-web", "--no-web", "--execution-config":
 			return true
 		}
 	}
@@ -200,11 +201,12 @@ under the selected state directory's captures/ subdirectory.`,
 
 // serverFlags shape the web application of every command that runs one.
 type serverFlags struct {
-	port        int
-	uds         string
-	noWeb       bool
-	projects    []string
-	instanceDir string
+	port            int
+	uds             string
+	noWeb           bool
+	projects        []string
+	instanceDir     string
+	executionConfig string
 }
 
 func (f *serverFlags) bind(fs *pflag.FlagSet) {
@@ -213,24 +215,45 @@ func (f *serverFlags) bind(fs *pflag.FlagSet) {
 	fs.BoolVar(&f.noWeb, "no-web", false, "run without the web application")
 	fs.StringArrayVar(&f.projects, "project", nil, "repository directory to admit (repeat for multiple projects; default: current directory)")
 	fs.StringVar(&f.instanceDir, "instance-dir", ".gimbal", "state directory for this persistent instance (default .gimbal)")
+	fs.StringVar(&f.executionConfig, "execution-config", "", "JSON configuration for a named Docker/Temporal backend used by hosted workflows")
 }
 
-func (f *serverFlags) options() []web.Option {
+func (f *serverFlags) options() ([]web.Option, error) {
+	var options []web.Option
 	switch {
 	case f.noWeb:
-		return []web.Option{web.WithNoWeb()}
+		options = append(options, web.WithNoWeb())
 	case f.uds != "":
-		return []web.Option{web.WithUDS(f.uds)}
+		options = append(options, web.WithUDS(f.uds))
 	default:
-		return []web.Option{web.WithPort(f.port)}
+		options = append(options, web.WithPort(f.port))
 	}
+	if f.executionConfig == "" {
+		return options, nil
+	}
+	data, err := os.ReadFile(f.executionConfig)
+	if err != nil {
+		return nil, fmt.Errorf("read execution config %q: %w", f.executionConfig, err)
+	}
+	var backend execution.Config
+	if err := json.Unmarshal(data, &backend); err != nil {
+		return nil, fmt.Errorf("decode execution config %q: %w", f.executionConfig, err)
+	}
+	if backend.Environment == "" || backend.DockerImage == "" || backend.WorkerBinary == "" || backend.TemporalAddress == "" || backend.PostgresDSN == "" {
+		return nil, errors.New("execution config requires environment, docker_image, worker_binary, temporal_address, and postgres_dsn")
+	}
+	options = append(options, web.WithExecutionBackend(backend))
+	return options, nil
 }
 
 // serve runs one instance over the selected repositories until interrupted.
 func serve(ctx context.Context, server serverFlags) error {
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt)
 	defer stop()
-	options := server.options()
+	options, err := server.options()
+	if err != nil {
+		return err
+	}
 	projects := server.projects
 	if len(projects) == 0 {
 		projects = []string{"."}

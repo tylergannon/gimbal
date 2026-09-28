@@ -9,5 +9,5 @@ import (
 func TestAnalyzer(t *testing.T) {
 	t.Parallel()
 	testdata := analysistest.TestData()
-	analysistest.Run(t, testdata, Analyzer, "setchecks", "dispatch", "ordinary", "promptchecks", "github.com/tylergannon/gimbal/cmd/gimbal")
+	analysistest.Run(t, testdata, Analyzer, "setchecks", "dispatch", "ordinary", "promptchecks", "browserchecks", "github.com/tylergannon/gimbal/cmd/gimbal")
 }

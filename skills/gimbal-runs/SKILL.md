@@ -152,10 +152,10 @@ project's policy for retaining or sharing evidence.
 
 `gimbal run validate-product --suite-file /abs/suite.yaml --instance-dir /abs/instance --project /abs/project --follow`
 runs one to three caller-assigned workloads with Opus 5.5, reviews their
-screenshots with Gemini Flash, and synthesizes findings. The suite requires
-`issue_repo` for the tested product. The final agent checks for duplicates,
-uploads supporting screenshots
-with `gimbal upload-artifact`, and publishes supported findings there. After each
+screenshots with Gemini Flash, and synthesizes findings. Omit `issue_repo` for
+local reports without publication. When it is set, the final agent checks for
+duplicates, uploads supporting screenshots with `gimbal upload-artifact`, and
+publishes supported findings in that repository. After each
 workload, the same tester session
 answers one follow-up: its three favorite and three least favorite aspects of UX
 and UI separately, with concrete examples. The debrief is appended to the task
@@ -163,14 +163,18 @@ report; elapsed workload time excludes it. Supply the product, local assignment
 files, isolated workspaces, startup/readiness commands or existing URLs, and an
 output directory. Start the selected instance; the workflow command admits
 `/abs/project` on its first start when it was not admitted at startup.
-`--follow` waits for triage and issue publication. The command's help describes the
+`--follow` waits for synthesis and any requested issue publication. The command's help describes the
 JSON/YAML input and model overrides. Publishing requires authenticated `gh`
 and a configured public artifact destination.
 
 Assign useful tasks rather than exhaustive feature checklists. Testers must never
 inspect the tested product's source. They capture captioned screenshots and report
 task success separately from usability; video is for optional human review.
-Install FFmpeg with libx264 before running it. `reports.json` points to each
+The execution environment needs `zsh`, `playwright-cli` with its configured
+browser, and FFmpeg with libx264. Each tester owns a scoped browser; recording
+finishes before encoding starts in that environment. Docker/Temporal currently
+requires all three roles to use Codex models, supplied with their override flags.
+`reports.json` points to each
 2.5× H.264 `video.mp4`, capped at 1280×720 and ready for `gimbal upload-artifact`;
 the raw `video.webm` remains beside it.
 When testing Gimbal by having it build another project, use the delegated run's

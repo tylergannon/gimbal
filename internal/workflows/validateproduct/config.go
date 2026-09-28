@@ -17,13 +17,12 @@ import (
 // Suite describes the product and up to three independent user workloads.
 // Paths are relative to the suite file, not the observing project's directory.
 type Suite struct {
-	Product       string     `json:"product" yaml:"product"`
-	Guides        []string   `json:"guides" yaml:"guides"`
-	Workloads     []Workload `json:"workloads" yaml:"workloads"`
-	OutputDir     string     `json:"output_dir" yaml:"output_dir"`
-	Timeout       string     `json:"timeout" yaml:"timeout"`
-	PlaywrightCLI string     `json:"playwright_cli" yaml:"playwright_cli"`
-	IssueRepo     string     `json:"issue_repo" yaml:"issue_repo"`
+	Product   string     `json:"product" yaml:"product"`
+	Guides    []string   `json:"guides" yaml:"guides"`
+	Workloads []Workload `json:"workloads" yaml:"workloads"`
+	OutputDir string     `json:"output_dir" yaml:"output_dir"`
+	Timeout   string     `json:"timeout" yaml:"timeout"`
+	IssueRepo string     `json:"issue_repo" yaml:"issue_repo"`
 }
 
 type Workload struct {
@@ -55,12 +54,6 @@ func readSuite(name string) (Suite, time.Duration, error) {
 	}
 	base := filepath.Dir(name)
 	suite.OutputDir = absolute(base, suite.OutputDir)
-	if suite.PlaywrightCLI == "" {
-		suite.PlaywrightCLI = "playwright-cli"
-	}
-	if strings.ContainsRune(suite.PlaywrightCLI, filepath.Separator) {
-		suite.PlaywrightCLI = absolute(base, suite.PlaywrightCLI)
-	}
 	if suite.Timeout == "" {
 		suite.Timeout = "1h"
 	}
@@ -68,8 +61,8 @@ func readSuite(name string) (Suite, time.Duration, error) {
 	if err != nil || timeout <= 0 {
 		return suite, 0, fmt.Errorf("timeout must be a positive duration")
 	}
-	if !regexp.MustCompile(`^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$`).MatchString(suite.IssueRepo) {
-		return suite, 0, fmt.Errorf("issue_repo is required as owner/repository")
+	if suite.IssueRepo != "" && !regexp.MustCompile(`^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$`).MatchString(suite.IssueRepo) {
+		return suite, 0, fmt.Errorf("issue_repo must be owner/repository when supplied")
 	}
 	files := make([]string, 0, len(suite.Guides)+len(suite.Workloads))
 	for i, path := range suite.Guides {
@@ -124,4 +117,3 @@ func absolute(base, path string) string {
 	}
 	return filepath.Join(base, path)
 }
-func shellQuote(value string) string { return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'" }

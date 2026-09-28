@@ -10,6 +10,9 @@ build:
     cd web && zip -X -FS -qr build.zip build
     go build -o bin/gimbal ./cmd/gimbal
 
+worker-binary out="bin/linux/gimbal-worker":
+    CGO_ENABLED=0 GOOS=linux GOARCH="$(docker version -f '{{{{.Server.Arch}}')" go build -o {{out}} ./cmd/gimbal-worker
+
 dev-web:
     cd web && ORIGIN='{{origin}}' pnpm exec vp dev --host 127.0.0.1 --port 5173 --strictPort
 

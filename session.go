@@ -15,12 +15,16 @@ import (
 // Session is one agent conversation on one harness, in one workdir. It
 // belongs to the scope that created it and is closed when that scope ends.
 type Session struct {
-	adapter HarnessAdapter
-	name    string
-	model   string
-	effort  string
-	workdir string
-	id      string // the creating scope's key, then name.ordinal, as in lap.3/coder.1
+	adapter             HarnessAdapter
+	backend             ExecutionBackend
+	name                string
+	model               string
+	effort              string
+	workdir             string
+	environment         string
+	environmentBound    bool
+	environmentResolved bool
+	id                  string // the creating scope's key, then name.ordinal, as in lap.3/coder.1
 
 	mu      sync.Mutex
 	native  string // the harness's session id, made on the first turn
@@ -38,10 +42,11 @@ type Session struct {
 
 // NewSession creates a session in the scope the ctx is in, for the role of
 // that name. The role says what the session does; what it runs on is the
-// binding the run was started with. It cannot fail: the agent process
-// starts on the first turn. A role the run did not bind is a programming
-// error and panics, naming the role. A session created outside Run cannot
-// generate turns or be forked.
+// binding the run was started with. The agent process starts on the first
+// turn. A role the run did not bind is a programming error and panics, naming
+// the role. When InEnvironment is set, the backend supplies the role's
+// adapter on the first turn; operational resolution failures are returned by
+// Generate. A session created outside Run cannot generate turns or be forked.
 func NewSession(ctx context.Context, role WorkflowRole, workdir string) *Session {
 	name := string(role)
 	s := &Session{name: name, workdir: workdir}
@@ -54,8 +59,18 @@ func NewSession(ctx context.Context, role WorkflowRole, workdir string) *Session
 		panic(fmt.Sprintf("gimbal: the run did not bind the role %q", role))
 	}
 	s.adapter, s.model, s.effort = binding.Adapter, binding.Model, binding.Effort
+	if environmentName, selected := ctx.Value(environmentKey{}).(string); selected {
+		s.adapter = nil
+		s.backend = scope.run.backend
+		s.environment = environmentName
+		s.environmentBound = true
+	}
 	scope.adopt(s)
-	scope.run.event(scope.key, s.id, "", SessionCreated{Name: name, Adapter: fmt.Sprintf("%T", s.adapter), Model: s.model, Effort: s.effort, Workdir: workdir})
+	adapterName := fmt.Sprintf("%T", s.adapter)
+	if s.environmentBound {
+		adapterName = fmt.Sprintf("environment %q", s.environment)
+	}
+	scope.run.event(scope.key, s.id, "", SessionCreated{Name: name, Adapter: adapterName, Model: s.model, Effort: s.effort, Workdir: workdir})
 	return s
 }
 
@@ -164,13 +179,21 @@ func dispatch[T Output](ctx context.Context, s *Session, prompt string, opts []A
 
 // dispatchRecorded is dispatch with the TurnStarted view supplied by Generate.
 // A nil started preserves direct dispatch's current behavior: each actual ask,
-// including a validation retry, is recorded exactly as it is sent.
+// including a validation retry, is recorded exactly as it is sent. Each
+// browser in this agent's own options adds its access block to what is sent,
+// so a worker turn and a supervisor's look each get access only from their
+// own options.
 func dispatchRecorded[T Output](ctx context.Context, s *Session, prompt string, opts []AgentOption, started *TurnStarted) (T, error) {
-	if o := apply(opts); len(o.supervisors) > 0 {
-		return supervise[T](ctx, s, prompt, o.supervisors, started)
-	}
 	var out T
-	return generate[T](ctx, s, prompt, nil, fmt.Sprintf("%T", out), started)
+	o := apply(opts)
+	ask, err := browserAccess(ctx, s, prompt, o.browsers)
+	if err != nil {
+		return out, err
+	}
+	if len(o.supervisors) > 0 {
+		return supervise[T](ctx, s, ask, o.supervisors, started)
+	}
+	return generate[T](ctx, s, ask, nil, fmt.Sprintf("%T", out), started)
 }
 
 // errInvalidResult marks a turn whose harness succeeded but whose result did
@@ -246,6 +269,9 @@ func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessag
 	}()
 
 	if native == "" {
+		if err := s.resolveAdapter(ctx); err != nil {
+			return nil, fmt.Errorf("gimbal: %s: %w", s.id, err)
+		}
 		id, err := s.adapter.CreateSession(ctx, s.model, s.effort, s.workdir)
 		if err != nil {
 			return nil, fmt.Errorf("gimbal: %s: %w", s.id, err)
@@ -322,11 +348,21 @@ func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessag
 	if scope != nil {
 		scope.run.removeTurn(turnID)
 	}
+	// What the adapter said about a stopped turn, such as an interrupt it
+	// could not confirm, is kept beside the stop cause. A bare copy of the
+	// ctx's own error adds nothing and is dropped.
+	adapterErr := err
+	if adapterErr != nil && turnCtx.Err() != nil && adapterErr.Error() == turnCtx.Err().Error() {
+		adapterErr = nil
+	}
 	stopped := context.Cause(turnCtx)
 	if stopped != nil && stopped != turnCtx.Err() {
 		// Keep errors.Is(err, context.Canceled) true for callers that only
 		// ask whether the turn was cancelled, and errors.As for the cause.
 		stopped = fmt.Errorf("%w: %w", turnCtx.Err(), stopped)
+	}
+	if adapterErr != nil && stopped != nil && adapterErr.Error() == stopped.Error() {
+		adapterErr = nil
 	}
 	cancelTurn(nil)
 	if stopped != nil {
@@ -357,9 +393,9 @@ func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessag
 			reason = "user"
 		}
 		terminalErr := wrapped(nativeEvent("session.execution.interrupted", map[string]any{"sessionID": native, "reason": reason}, map[string]any{"provider": "gimbal", "sessionID": native, "turnID": turnID}))
-		err = errors.Join(stopped, terminalErr)
+		err = errors.Join(stopped, adapterErr, terminalErr)
 		if scope != nil {
-			scope.run.event(scope.key, s.id, turnID, TurnEnded{Error: stopped.Error(), Usage: report, Duration: time.Since(start), Interrupted: true})
+			scope.run.event(scope.key, s.id, turnID, TurnEnded{Error: err.Error(), Usage: report, Duration: time.Since(start), Interrupted: true})
 		}
 		return nil, err
 	}
@@ -388,6 +424,35 @@ func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessag
 		scope.run.event(scope.key, s.id, turnID, TurnEnded{Result: JSONText(result.Output), Usage: report, Duration: time.Since(start)})
 	}
 	return result.Output, nil
+}
+
+func (s *Session) resolveAdapter(ctx context.Context) error {
+	s.mu.Lock()
+	if !s.environmentBound || s.environmentResolved {
+		s.mu.Unlock()
+		return nil
+	}
+	backend, name, role := s.backend, s.environment, s.name
+	s.mu.Unlock()
+	if backend == nil {
+		return fmt.Errorf("session role %q: environment %q selected without an execution backend", role, name)
+	}
+	environment, err := backend.Resolve(ctx, name)
+	if err != nil {
+		return fmt.Errorf("session role %q: resolve environment %q: %w", role, name, err)
+	}
+	if environment == nil {
+		return fmt.Errorf("session role %q: resolve environment %q returned no environment", role, name)
+	}
+	adapter := environment.Harness(WorkflowRole(role))
+	if adapter == nil {
+		return fmt.Errorf("session role %q: environment %q has no compatible harness adapter", role, name)
+	}
+	s.mu.Lock()
+	s.adapter = adapter
+	s.environmentResolved = true
+	s.mu.Unlock()
+	return nil
 }
 
 // stepUsage reads the usage a step event carries. A step that ended always
@@ -621,7 +686,7 @@ func (s *Session) Fork(ctx context.Context, name string) (*Session, error) {
 	if err != nil {
 		return nil, err
 	}
-	fork := &Session{adapter: s.adapter, name: name, model: s.model, effort: s.effort, workdir: s.workdir}
+	fork := &Session{adapter: s.adapter, backend: s.backend, name: name, model: s.model, effort: s.effort, workdir: s.workdir, environment: s.environment, environmentBound: s.environmentBound, environmentResolved: s.environmentResolved}
 	if native != "" {
 		if fork.native, err = s.adapter.Fork(ctx, native); err != nil {
 			return nil, fmt.Errorf("gimbal: fork %s: %w", s.id, err)

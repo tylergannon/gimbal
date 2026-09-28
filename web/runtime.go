@@ -16,6 +16,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/internal/execution"
 	"github.com/tylergannon/gimbal/internal/host"
 	generated "github.com/tylergannon/gimbal/internal/skgo"
 	"github.com/tylergannon/skgo"
@@ -40,10 +42,11 @@ type Instance struct {
 type Option func(*config) error
 
 type config struct {
-	network  string
-	port     int
-	uds      string
-	explicit string
+	network   string
+	port      int
+	uds       string
+	explicit  string
+	execution *execution.Config
 }
 
 // WithPort serves the web application on the given loopback TCP port. Port 0
@@ -87,6 +90,22 @@ func WithNoWeb() Option {
 	}
 }
 
+// WithExecutionBackend configures hosted workflow runs to use a named Docker
+// and Temporal environment. Each run derives worker role bindings from the
+// same model bindings submitted for its built-in workflow.
+func WithExecutionBackend(backend execution.Config) Option {
+	return func(c *config) error {
+		if c.execution != nil {
+			return errors.New("gimbal: execution backend is already configured")
+		}
+		if strings.TrimSpace(backend.Environment) == "" {
+			return errors.New("gimbal: execution environment name must not be blank")
+		}
+		c.execution = &backend
+		return nil
+	}
+}
+
 func (c *config) selectListener(name string) error {
 	if c.explicit != "" {
 		return fmt.Errorf("gimbal: runtime listener options %q and %q conflict", c.explicit, name)
@@ -125,6 +144,24 @@ func NewInstance(ctx context.Context, instanceDir string, initialProjects []stri
 	runtimeCtx, cancel := context.WithCancelCause(ctx)
 	instance := &Instance{
 		ctx: runtimeCtx, cancel: cancel, dir: dir, done: make(chan struct{}), Owner: host.New(runtimeCtx, dir),
+	}
+	if cfg.execution != nil {
+		backendConfig := *cfg.execution
+		instance.Owner.SetExecutionBackendFactory(func(runCtx context.Context, project, workdir, artifacts string, models map[gimbal.WorkflowRole]gimbal.ModelBinding) (gimbal.ExecutionBackend, string, error) {
+			runConfig := backendConfig
+			runConfig.Models = models
+			mounts, err := execution.WorktreeMounts(project, workdir, artifacts, backendConfig.Mounts...)
+			if err != nil {
+				return nil, "", err
+			}
+			runConfig.Mounts = mounts
+			runConfig.ArtifactDir = artifacts
+			backend, err := execution.New(runCtx, runConfig)
+			if err != nil {
+				return nil, "", err
+			}
+			return backend, runConfig.Environment, nil
+		})
 	}
 	starts, err := stockStartRemotes()
 	if err != nil {

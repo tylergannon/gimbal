@@ -40,7 +40,25 @@ import (
 const (
 	requestTimeout = 30 * time.Second
 	controlTimeout = 5 * time.Second
+	drainTimeout   = 10 * time.Second
 )
+
+// turnUnconfirmedError is a turn that may still be running: Gimbal asked it
+// to stop and never saw it end. It deliberately does not unwrap, so it is
+// never mistaken for a clean cancellation. Its type name crosses a Temporal
+// activity boundary as the failure type, which the execution backend reads.
+type turnUnconfirmedError struct {
+	thread, turn string
+	err          error
+}
+
+func (e *turnUnconfirmedError) Error() string {
+	turn := e.turn
+	if turn == "" {
+		turn = "(unacknowledged)"
+	}
+	return fmt.Sprintf("codex: turn %s in thread %s was not confirmed stopped: %v", turn, e.thread, e.err)
+}
 
 // adapter runs Codex sessions against the machine's shared app-server
 // daemon over one shared connection, dialed lazily on first use.
@@ -278,31 +296,41 @@ func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema 
 	if len(schema) > 0 {
 		params["outputSchema"] = schema
 	}
-	startCtx, cancel := context.WithTimeout(ctx, requestTimeout)
-	result, err := conn.call(startCtx, "turn/start", params)
-	cancel()
-	if err != nil {
-		if ctx.Err() != nil {
-			return gimbal.TurnResult{}, ctx.Err()
-		}
+	if err := ctx.Err(); err != nil {
 		return gimbal.TurnResult{}, err
 	}
-	turn, err := turnID(result)
-	if err != nil {
+	// Once sent, turn/start may start a turn whatever ctx does, so its
+	// acknowledgement is awaited on its own bound: the turn id is what stops it.
+	startCtx, cancel := context.WithTimeout(context.Background(), requestTimeout)
+	result, err := conn.call(startCtx, "turn/start", params)
+	cancel()
+	if _, rejected := errors.AsType[*rpcError](err); rejected {
 		return gimbal.TurnResult{}, err
+	}
+	turn := ""
+	if err == nil {
+		turn, err = turnID(result)
+	}
+	if err != nil {
+		return gimbal.TurnResult{}, &turnUnconfirmedError{thread: sessionID, err: fmt.Errorf("turn/start: %w", errors.Join(err, ctx.Err()))}
 	}
 
 	active := &activeTurn{conn: conn, turnID: turn, emit: newProjector(sessionID, turn, s.model, onEvent)}
 	s.setActive(active)
 	defer s.setActive(nil)
 
-	text, err := readTurn(ctx, conn, ch, sessionID, turn, active.emit)
+	text, terminal, err := readTurn(ctx, conn, ch, sessionID, turn, active.emit)
+	if !terminal {
+		// Whatever ended the read, the turn may still be running. Only its
+		// own terminal notification shows that it stopped.
+		interruptErr := interrupt(conn, sessionID, turn)
+		if drainErr := drainTurn(conn, ch, sessionID, turn, active.emit); drainErr != nil {
+			return gimbal.TurnResult{}, &turnUnconfirmedError{thread: sessionID, turn: turn, err: errors.Join(err, interruptErr, drainErr)}
+		}
+		return gimbal.TurnResult{}, err
+	}
 	if ctx.Err() != nil {
-		interrupt(conn, sessionID, turn)
-		drainCtx, drainCancel := context.WithTimeout(context.Background(), controlTimeout)
-		_, _ = readTurn(drainCtx, conn, ch, sessionID, turn, active.emit)
-		drainCancel()
-		return gimbal.TurnResult{}, ctx.Err()
+		return gimbal.TurnResult{}, errors.Join(ctx.Err(), err)
 	}
 	if err != nil {
 		return gimbal.TurnResult{}, err
@@ -475,10 +503,39 @@ func (s *session) getActive() *activeTurn {
 	return s.active
 }
 
-func interrupt(conn *connection, threadID, turnID string) {
+func interrupt(conn *connection, threadID, turnID string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), controlTimeout)
 	defer cancel()
-	_, _ = conn.call(ctx, "turn/interrupt", map[string]any{"threadId": threadID, "turnId": turnID})
+	_, err := conn.call(ctx, "turn/interrupt", map[string]any{"threadId": threadID, "turnId": turnID})
+	return err
+}
+
+// drainTurn consumes the turn's notifications until its terminal
+// turn/completed, which confirms it stopped. Nothing else ends the drain
+// early: errors and projection failures are logged, and interactive requests
+// are declined. It fails on connection loss or after drainTimeout.
+func drainTurn(conn *connection, ch chan rpcMessage, threadID, turnID string, emit *projector) error {
+	ctx, cancel := context.WithTimeout(context.Background(), drainTimeout)
+	defer cancel()
+	for {
+		message, err := conn.next(ctx, ch)
+		if err != nil {
+			return fmt.Errorf("drain: %w", err)
+		}
+		if len(message.ID) > 0 && message.Method != "" {
+			log.Printf("gimbal: Codex turn %s stopping: %v", turnID, refuse(conn, message, emit))
+			continue
+		}
+		if !matches(message.Params, threadID, turnID) {
+			continue
+		}
+		if err := projectNotification(message, emit); err != nil {
+			log.Printf("gimbal: Codex turn %s stopping: %v", turnID, err)
+		}
+		if message.Method == "turn/completed" {
+			return nil
+		}
+	}
 }
 
 func input(text string) []map[string]any {
@@ -486,8 +543,10 @@ func input(text string) []map[string]any {
 }
 
 // readTurn consumes notifications from the thread's routed channel until
-// the turn completes and returns the agent's final message.
-func readTurn(ctx context.Context, conn *connection, ch chan rpcMessage, threadID, turnID string, emit *projector) (string, error) {
+// the turn completes and returns the agent's final message. terminal reports
+// whether it consumed the turn's turn/completed, whatever else went wrong:
+// without it the turn may still be running.
+func readTurn(ctx context.Context, conn *connection, ch chan rpcMessage, threadID, turnID string, emit *projector) (text string, terminal bool, err error) {
 	var final string
 	textOrder := make(map[string]int)
 	finalOrder := 0
@@ -502,7 +561,7 @@ func readTurn(ctx context.Context, conn *connection, ch chan rpcMessage, threadI
 	for {
 		message, err := conn.next(ctx, ch)
 		if err != nil {
-			return "", err
+			return "", false, err
 		}
 		messageThread := messageThreadID(message.Params)
 		if parentTool, child := childParents[messageThread]; child && messageThread != threadID {
@@ -516,15 +575,15 @@ func readTurn(ctx context.Context, conn *connection, ch chan rpcMessage, threadI
 				childProjectors[key] = project
 			}
 			if len(message.ID) > 0 && message.Method != "" {
-				return "", refuse(conn, message, project)
+				return "", false, refuse(conn, message, project)
 			}
 			if err := projectNotification(message, project); err != nil {
-				return "", err
+				return "", false, err
 			}
 			continue
 		}
 		if len(message.ID) > 0 && message.Method != "" {
-			return "", refuse(conn, message, emit)
+			return "", false, refuse(conn, message, emit)
 		}
 		if !matches(message.Params, threadID, turnID) {
 			continue
@@ -537,7 +596,7 @@ func readTurn(ctx context.Context, conn *connection, ch chan rpcMessage, threadI
 			}
 		}
 		if err := projectNotification(message, emit); err != nil {
-			return "", err
+			return "", message.Method == "turn/completed", err
 		}
 		switch message.Method {
 		case "item/started":
@@ -561,18 +620,18 @@ func readTurn(ctx context.Context, conn *connection, ch chan rpcMessage, threadI
 			switch status {
 			case "completed":
 				if strings.TrimSpace(final) == "" {
-					return "", errors.New("codex: the turn completed without a final message")
+					return "", true, errors.New("codex: the turn completed without a final message")
 				}
-				return final, nil
+				return final, true, nil
 			case "interrupted":
-				return "", errors.New("codex: the turn was interrupted")
+				return "", true, errors.New("codex: the turn was interrupted")
 			case "failed":
 				if failure == "" {
 					failure = "the turn failed"
 				}
-				return "", errors.New("codex: " + failure)
+				return "", true, errors.New("codex: " + failure)
 			default:
-				return "", fmt.Errorf("codex: the turn ended with status %q", status)
+				return "", true, fmt.Errorf("codex: the turn ended with status %q", status)
 			}
 		case "error":
 			var notice struct {
@@ -580,7 +639,7 @@ func readTurn(ctx context.Context, conn *connection, ch chan rpcMessage, threadI
 			}
 			_ = json.Unmarshal(message.Params, &notice)
 			if !notice.WillRetry {
-				return "", errorNotification(message.Params)
+				return "", false, errorNotification(message.Params)
 			}
 		}
 	}

@@ -6,10 +6,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -222,6 +224,128 @@ func TestServiceEscalatesToTheWholeProcessGroup(t *testing.T) {
 			t.Fatalf("child pid %d still exists after group escalation: %v", childPID, err)
 		}
 		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+type serviceExecutionBackend struct {
+	env    *serviceExecutionEnvironment
+	closed bool
+}
+
+func (b *serviceExecutionBackend) Resolve(context.Context, string) (ExecutionEnvironment, error) {
+	return b.env, nil
+}
+func (b *serviceExecutionBackend) Close() error { b.closed = true; return nil }
+
+type serviceExecutionEnvironment struct {
+	command ExecutionCommand
+	process *serviceExecutionProcess
+}
+
+func (e *serviceExecutionEnvironment) Harness(WorkflowRole) HarnessAdapter { return nil }
+func (e *serviceExecutionEnvironment) Start(_ context.Context, command ExecutionCommand, _, _ io.Writer) (ExecutionProcess, error) {
+	e.command = command
+	return e.process, nil
+}
+
+type serviceExecutionProcess struct {
+	mu       sync.Mutex
+	done     chan struct{}
+	code     int
+	waitErr  error
+	stopCall int
+}
+
+func newServiceExecutionProcess() *serviceExecutionProcess {
+	return &serviceExecutionProcess{done: make(chan struct{})}
+}
+func (*serviceExecutionProcess) Workdir() string { return "/remote/workdir" }
+func (p *serviceExecutionProcess) Wait() (int, error) {
+	<-p.done
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.code, p.waitErr
+}
+func (p *serviceExecutionProcess) Stop() error {
+	p.mu.Lock()
+	p.stopCall++
+	select {
+	case <-p.done:
+	default:
+		p.code = 0
+		close(p.done)
+	}
+	p.mu.Unlock()
+	return nil
+}
+func (p *serviceExecutionProcess) exit(code int, err error) {
+	p.mu.Lock()
+	p.code, p.waitErr = code, err
+	close(p.done)
+	p.mu.Unlock()
+}
+
+func TestRemoteServiceStartsInEnvironmentAndScopeEndStopsIt(t *testing.T) {
+	project, workdir := t.TempDir(), t.TempDir()
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	relativeWorkdir, err := filepath.Rel(cwd, workdir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	process := newServiceExecutionProcess()
+	env := &serviceExecutionEnvironment{process: process}
+	backend := &serviceExecutionBackend{env: env}
+	var runPath string
+	err = Run(Project(t.Context(), project), "remote-service", nil, func(ctx context.Context) error {
+		runPath = runDir(ctx)
+		return Scope(InEnvironment(ctx, "named"), "service-scope", func(ctx context.Context) error {
+			return Service(ctx, "server", relativeWorkdir, "sleep 30")
+		})
+	}, WithExecution(backend))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if env.command.Command != "zsh" || len(env.command.Args) != 2 || env.command.Args[0] != "-c" || env.command.Args[1] != "sleep 30" || env.command.Workdir != workdir {
+		t.Fatalf("remote service command = %+v", env.command)
+	}
+	if process.stopCall != 1 || !backend.closed {
+		t.Fatalf("scope/run cleanup: Stop calls=%d, backend closed=%v", process.stopCall, backend.closed)
+	}
+	row := find(commandRows(t, runPath), "service-scope.1/server.1")
+	if !row.Interrupted || row.ExitCode != 0 || row.Error != "" {
+		t.Fatalf("remote service row = %+v, want intentional clean shutdown", row)
+	}
+}
+
+func TestUnexpectedRemoteServiceExitZeroFailsAndCancelsScope(t *testing.T) {
+	project := t.TempDir()
+	process := newServiceExecutionProcess()
+	backend := &serviceExecutionBackend{env: &serviceExecutionEnvironment{process: process}}
+	var cancelled error
+	var runPath string
+	err := Run(Project(t.Context(), project), "remote-service-exit", nil, func(ctx context.Context) error {
+		runPath = runDir(ctx)
+		ctx = InEnvironment(ctx, "named")
+		if err := Service(ctx, "server", "", "exit 0"); err != nil {
+			return err
+		}
+		go process.exit(0, nil)
+		<-ctx.Done()
+		cancelled = context.Cause(ctx)
+		return ctx.Err()
+	}, WithExecution(backend))
+	if err == nil || !strings.Contains(err.Error(), "required service server.1 exited unexpectedly") {
+		t.Fatalf("run error=%v, want unexpected remote service exit", err)
+	}
+	if cancelled == nil || !strings.Contains(cancelled.Error(), "required service server.1 exited unexpectedly") {
+		t.Fatalf("scope cancellation cause=%v, want unexpected remote service exit", cancelled)
+	}
+	row := find(commandRows(t, runPath), "server.1")
+	if row.ExitCode != 0 || row.Interrupted || row.Error == "" {
+		t.Fatalf("unexpected remote service row = %+v", row)
 	}
 }
 

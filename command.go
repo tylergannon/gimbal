@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -58,6 +59,9 @@ func (c *commandCapture) result(runDir, relative string) (string, error) {
 		return "", writeErr
 	}
 	name := filepath.Join(runDir, filepath.FromSlash(relative))
+	if info, err := os.Stat(name); err == nil && info.Size() > size {
+		size = info.Size()
+	}
 	if size <= commandOutputLimit {
 		raw, err := os.ReadFile(name)
 		return string(raw), err
@@ -221,7 +225,17 @@ func runCommand(ctx context.Context, s *scope, name, workdir, command string, ar
 		errOut, ended.StderrFile, captureErr = openCommandCapture(s.run, id, "stderr")
 		if captureErr == nil {
 			ended.StdoutFile = stdoutFile
-			_, _, commandErr = runCapturedCommand(ctx, id, workdir, command, args, s.run, out, errOut, &ended)
+			if environmentName, ok := ctx.Value(environmentKey{}).(string); ok {
+				commandErr = runExecutionCommand(ctx, s, environmentName, id, dir, command, args, out, errOut, &ended)
+				ended.Stdout, captureErr = out.result(s.run.dir, ended.StdoutFile)
+				ended.Stderr, captureErr = capturePairError(captureErr, errOut, s.run.dir, ended.StderrFile)
+				if captureErr != nil {
+					commandErr = errors.Join(commandErr, fmt.Errorf("gimbal: %s: capture output: %w", id, captureErr))
+					s.run.recordFailure("capture command output "+id, captureErr)
+				}
+			} else {
+				_, _, commandErr = runCapturedCommand(ctx, id, workdir, command, args, s.run, out, errOut, &ended)
+			}
 		} else {
 			_ = out.close()
 			ended.StdoutFile = stdoutFile
@@ -235,6 +249,39 @@ func runCommand(ctx context.Context, s *scope, name, workdir, command string, ar
 	endRecordErr := s.run.eventResult(s.key, "", "", ended)
 	logf("%s: command ended after %s: exit %d: %v", id, ended.Duration.Round(time.Millisecond), ended.ExitCode, orNone(commandErr))
 	return started, ended, commandErr, errors.Join(startRecordErr, endRecordErr)
+}
+
+func capturePairError(first error, capture *commandCapture, runDir, relative string) (string, error) {
+	value, err := capture.result(runDir, relative)
+	return value, errors.Join(first, err)
+}
+
+func runExecutionCommand(ctx context.Context, s *scope, environmentName, id, workdir, command string, args []string, out, errOut *commandCapture, ended *CommandEnded) (commandErr error) {
+	defer func() { commandErr = errors.Join(commandErr, out.close(), errOut.close()) }()
+	backend := s.run.backend
+	if backend == nil {
+		return fmt.Errorf("gimbal: command %s: environment %q selected without an execution backend", id, environmentName)
+	}
+	environment, err := backend.Resolve(ctx, environmentName)
+	if err != nil {
+		return fmt.Errorf("gimbal: command %s: resolve environment %q: %w", id, environmentName, err)
+	}
+	if workdir == "" {
+		workdir, err = os.Getwd()
+		if err != nil {
+			return fmt.Errorf("gimbal: command %s: resolve current workdir: %w", id, err)
+		}
+	}
+	process, err := environment.Start(ctx, ExecutionCommand{
+		Operation: filepath.Base(s.run.dir) + "/" + id, Session: s.key, Role: path.Base(s.key), Workdir: workdir, Command: command, Args: append([]string(nil), args...),
+	}, out, errOut)
+	if err != nil {
+		return fmt.Errorf("gimbal: command %s: start in environment %q: %w", id, environmentName, err)
+	}
+	code, waitErr := process.Wait()
+	stopErr := process.Stop()
+	ended.ExitCode = code
+	return errors.Join(waitErr, stopErr)
 }
 
 func runCapturedCommand(ctx context.Context, id, workdir, command string, args []string, r *run, out, errOut *commandCapture, ended *CommandEnded) (stdout, stderr string, err error) {

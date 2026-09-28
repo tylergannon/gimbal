@@ -124,8 +124,9 @@ func TestEffortMustBeBlankAndModelIDIsBound(t *testing.T) {
 const routerCatalogJSON = `{
   "object": "list",
   "data": [
+    {"id": "djev", "capabilities": ["systemone"]},
     {"id": "deepseek-4.1-flash", "object": "model", "context_window": 1048576, "max_output_tokens": 262144,
-     "capabilities": {"openai_chat": true, "reasoning": true, "tools": true, "vision": true},
+     "capabilities": ["anthropic", "json_schema", "chat", "responses", "reasoning", "tools", "vision"],
      "client_compat": {"pi": {"maxTokensField": "max_tokens", "supportsReasoningEffort": true, "thinkingFormat": "deepseek",
        "thinkingLevelMap": {"high": "high", "off": "none"}}}},
     {"id": "glm-5.3-flash", "object": "model", "context_window": 524288, "max_output_tokens": 163840,

@@ -3,7 +3,7 @@ module example.com/temporal-consumer
 go 1.27.1
 
 require (
-	github.com/tylergannon/gimbal v0.0.0
+	github.com/tylergannon/gimbal v0.12.2-0.20260929211000-7788f5e9a1ea
 	go.temporal.io/sdk v1.49.0
 	golang.org/x/tools v0.50.0
 )

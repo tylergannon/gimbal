@@ -22,20 +22,19 @@ local Gimbal replacement in this module's `go.mod`; outside the checkout, remove
 that replacement and require the published Gimbal revision providing these APIs.
 The module includes its own dependencies and generated files.
 
-To detach a copied example from this checkout and pin it to a pushed Gimbal
-revision that includes this API, run these commands in the copied module. Replace
-`GIMBAL_REVISION` with that revision's full commit hash (not an unpushed local
-commit):
+The example pins published revision `7788f5e9a1ea` as
+`v0.12.2-0.20260929211000-7788f5e9a1ea`. To detach a copied example from
+this checkout, run these commands in the copied module:
 
 ```sh
 go mod edit -dropreplace=github.com/tylergannon/gimbal
-go get github.com/tylergannon/gimbal@GIMBAL_REVISION
 go mod tidy
 go generate ./...
 go test ./...
 ```
 
-The resulting `go.mod` records the exact pseudo-version. Do not use an older
+To adopt a newer pushed revision, use `go get github.com/tylergannon/gimbal@COMMIT`
+and regenerate. The resulting `go.mod` records its exact pseudo-version. Do not use an older
 released version that lacks the compiler/runtime surface. Discover its public
 contracts directly from the selected module version:
 

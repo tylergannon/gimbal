@@ -89,6 +89,8 @@ github.com/tiktoken-go/tokenizer v0.8.1 h1:4obDoB6/dhdBt9xMweX4nww5cjdOq/nYF4ecw
 github.com/tiktoken-go/tokenizer v0.8.1/go.mod h1:eLA0t6nGvn9mDc7gt90qt7pMat+gE9ViqwQ6l9B+tA4=
 github.com/tylergannon/claude-agent-sdk-go v1.1.1 h1:udcv5Jg8p9TVLOwBHoeG8JWEOFgQL+VUqzzKauwoFfs=
 github.com/tylergannon/claude-agent-sdk-go v1.1.1/go.mod h1:k8RYkcYnEX7j4sNivRsRnkNwUzrnBV6F8Ovc2dzbbBU=
+github.com/tylergannon/gimbal v0.12.2-0.20260929211000-7788f5e9a1ea h1:XVPF1hs3jjz12MQyYR7qwE1yuRmkJ8V6K2F4QGvcaAc=
+github.com/tylergannon/gimbal v0.12.2-0.20260929211000-7788f5e9a1ea/go.mod h1:8SsAtcuGaidi1CfRAgtPJfNg4M1PDaEHCeWrZpN12Go=
 github.com/tylergannon/polytype v1.1.0 h1:tKkhW5b0yb8wFNAWYPSPY5WawZRvz3ou1HDxb2DLo4A=
 github.com/tylergannon/polytype v1.1.0/go.mod h1:Y35uUigmOAa0TGHwEWxkGqg8YHm7Xs4SxS+tOWF2QKQ=
 github.com/tylergannon/skgo v0.7.0 h1:KWwdxXxg90fZEq9x2A4jzqyxdWgHtnH+djrFWYVEO1c=

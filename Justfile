@@ -39,5 +39,6 @@ fmt:
 fmt-check:
     cd web && pnpm exec vp fmt --check
 
-prices:
-    go run ./internal/observation/modelpricesgen
+# Refresh generated prices, aliases and Diffusion limits; needs DIFFUSION_API_KEY.
+models:
+    go run ./internal/modelcatalog

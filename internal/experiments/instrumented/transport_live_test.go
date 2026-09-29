@@ -33,14 +33,17 @@ func largeResultWorkflow(ctx workflow.Context) (out Report, err error) {
 	if err = workflow.ExecuteActivity(ctx, "NewParent").Get(ctx, &parent); err != nil {
 		return
 	}
-	var result generateResult
+	var result responseResult
 	if err = workflow.ExecuteActivity(ctx, "ContinuityGenerate1", operationInput{"", snapshot, parent}).Get(ctx, &result); err != nil {
 		return
 	}
 	if err = result.Err(); err != nil {
 		return
 	}
-	out = result.Value
+	out, err = compiledscope.Consume[Report](result.Value, result.Err())
+	if err != nil {
+		return
+	}
 	// The authored consumer can index, compare, transform and hand off the full
 	// typed value without knowing it was externalized by the transport.
 	if len(out.Summary) != 3_300_000 || out.Summary[1_650_000:1_650_011] != "whole-value" {
@@ -63,7 +66,7 @@ func TestLiveLargeTypedResult(t *testing.T) {
 		t.Skip("requires running Temporal; no provider calls")
 	}
 	root := t.TempDir()
-	c, err := client.Dial(client.Options{DataConverter: dataConverter(root)})
+	c, err := client.Dial(client.Options{HostPort: os.Getenv("SPECIMEN_TEMPORAL_ADDRESS"), DataConverter: dataConverter(root)})
 	if err != nil {
 		t.Fatal(err)
 	}

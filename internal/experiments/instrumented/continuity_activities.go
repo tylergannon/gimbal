@@ -62,6 +62,7 @@ func (r operationResult[T]) Err() error {
 }
 
 type generateResult = operationResult[Report]
+type responseResult = operationResult[[]byte]
 
 func (a *Activities) NewParent(ctx context.Context) (sessionHandle, error) {
 	return a.newSession(ctx, "", "parent")

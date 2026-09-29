@@ -83,7 +83,7 @@ func TestSourceVariations(t *testing.T) {
 	path := filepath.Join(base, "planning/plain.go")
 	original := read(t, path)
 	// The actual documented entry point must recreate both missing targets.
-	for _, name := range []string{"continuity", "planning"} {
+	for _, name := range []string{"continuity", "planning", "results"} {
 		if err := os.Remove(filepath.Join(base, name+"_temporal_gen.go")); err != nil {
 			t.Fatal(err)
 		}

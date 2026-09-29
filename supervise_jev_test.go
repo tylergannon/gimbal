@@ -89,11 +89,11 @@ func TestJevSupervisionPacketAndCooldown(t *testing.T) {
 		worker := NewSession(ctx, "worker", ".")
 		a := NewSession(ctx, "rule_a", ".")
 		b := NewSession(ctx, "rule_b", ".")
-		out, err := superviseWithJevClient[Text](ctx, worker, "rendered task: keep the workflow simple", []supervisor{
+		out, err := superviseWithJevClient(ctx, worker, "rendered task: keep the workflow simple", []supervisor{
 			{session: a, instruction: "no plugin system"},
 			{session: b, instruction: "keep code small"},
-		}, nil, "/tmp/worker-transcript.jsonl", client)
-		if out != "done" {
+		}, nil, "/tmp/worker-transcript.jsonl", client, Text(""))
+		if string(out) != `"done"` {
 			t.Errorf("worker result = %q", out)
 		}
 		return err
@@ -216,8 +216,8 @@ func TestJevDoesNotFallBackToTimedReviews(t *testing.T) {
 				err = runTest(t, bind(adapter, "fake", "worker", "coach"), func(ctx context.Context) error {
 					worker := NewSession(ctx, "worker", ".")
 					coach := NewSession(ctx, "coach", ".")
-					out, err := superviseWithJevClient[Text](ctx, worker, "work", []supervisor{{session: coach, instruction: "no plugins"}}, nil, "/tmp/worker.jsonl", client)
-					if out != "done" {
+					out, err := superviseWithJevClient(ctx, worker, "work", []supervisor{{session: coach, instruction: "no plugins"}}, nil, "/tmp/worker.jsonl", client, Text(""))
+					if string(out) != `"done"` {
 						t.Errorf("worker result=%q", out)
 					}
 					return err

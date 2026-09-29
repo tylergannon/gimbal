@@ -6,7 +6,8 @@ syntax, Go types and bindings; it does not read visualization graphs or saved
 handwritten answers. Generated `*_temporal_gen.go` files contain the workflows,
 one activity method per agent/command/planner site, and workflow registration.
 The activity worker registers these methods through its existing Activities
-registration. Fixed fanout remains handwritten and outside this generator.
+registration. Fixed fanout remains handwritten and outside this generator. The generated
+`resulttypes.Results` test specimen exercises Polytype enum/union results.
 
 Run from the repository root:
 
@@ -15,7 +16,7 @@ go generate ./internal/experiments/instrumented/...
 go test ./internal/temporalgen ./internal/experiments/instrumented ./internal/compiledscope ./internal/observation
 ```
 
-Deleting the two `*_temporal_gen.go` files before generation is supported. The
+Deleting the generated `*_temporal_gen.go` files before generation is supported. The
 entry command for one input is `go run ./internal/temporalgen/temporalgen -dir
 ./internal/experiments/instrumented/planning -entry Planning -name planning
 -output ./internal/experiments/instrumented/planning_temporal_gen.go` (on one line).
@@ -56,10 +57,57 @@ function/closure expressions outside Scope, goroutines, arbitrary loops, named
 task range values, break/continue, panic/recover/defer, services, groups and
 unsupported options receive source-located diagnostics. Named fractional/complex
 constants are rejected; typed string/integer/boolean constants preserve their
-Go types. Custom formatting/JSON callbacks and opaque interface containers in replayed
-value expressions are rejected, as is variadic helper expansion; the standard time.Duration scalar formatter is admitted. Schema and
-validation methods execute in the activity's Generate. This is a bounded
+Go types. Arbitrary formatting/JSON callbacks and opaque interface containers in
+replayed value expressions are rejected, as is variadic helper expansion; the
+standard time.Duration scalar formatter is admitted. Polytype-owned generated JSON
+methods are admitted, including known sealed-union variants. This is a bounded
 compiler, not an effect analyzer for general Go.
+
+## Shared Generate boundary
+
+The activity calls the shared Gimbal operation to render context, run the agent,
+validate, re-ask within the existing limit, supervise and record. It returns
+accepted bytes in the supported failure envelope. The generated workflow calls
+the shared typed consumer before authored field access. Temporal never marshals
+a business result just to transport it from this activity. Large byte envelopes
+still use the retained immutable payload store.
+
+The compiler requires Polytype-generated schema/validation methods (or Gimbal
+Text). It loads Polytype's resolved type grammar, then admits strings, booleans,
+string enums, objects, supported pointer/slice operands, and sealed unions with
+generated owner codecs. Field mappings and configured discriminators come from
+Polytype. Case-folded discriminator/variant-field collisions are diagnosed because
+Go decoding treats those names as equivalent. Arbitrary decode hooks, including nested variant
+hooks, are diagnosed. The exact Polytype generated-file header identifies owned
+methods; this assumes generated inputs have not been manually tampered with.
+
+Numeric result fields are currently diagnosed: Polytype v1.1.0's schema validator
+can accept out-of-range integers and integer-valued decimal/exponent notation
+that the Go decoder rejects. This narrows the earlier prototype's acceptance.
+Improving that Polytype contract is follow-up work, not a controller retry loop.
+Arrays, maps, presence wrappers, provided field schemas, recursion, root pointers
+and unsupported JSON tag mappings are also outside this result slice. Other authored numeric values/command results
+are unchanged.
+
+Shared acceptance checks JSON syntax, Unicode and unique object names before
+schema validation. Duplicate names can otherwise make map-based schema validation
+accept bytes that a typed decoder rejects. The local Generate API remains broader:
+it composes the same operation and decoder, including typed consumption during
+acceptance to retain decode-error re-asks and partial-value/error behavior.
+Compiled admission makes that extra consumption unnecessary in the activity.
+
+`TestPolytypeResponseCorrespondence` executes both paths through valid nested
+codecs, invalid values, duplicate names, bounded re-asks, exhaustion and mutation
+after capture. `TestResultContractDiagnostics` checks rejected shapes/hooks and
+stable deletion/regeneration. With an isolated dev server, run:
+
+```sh
+SPECIMEN_TEMPORAL_ADDRESS=127.0.0.1:17233 go test ./internal/experiments/instrumented -run '^TestLiveGeneratedResponseReplay$' -count=1 -v
+```
+
+This runs the generated result workflow with deterministic agent responses,
+stops its workers, and replays the recorded history twice. It exercises a real
+Temporal server; it does not call a paid provider or inspect the UI.
 
 Failed generation replaces the target file with an explicit build failure marker;
 stale output cannot be mistaken for a successful translation. Fix source and

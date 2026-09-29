@@ -73,168 +73,172 @@ func ContinuityWorkflow(ctx workflow.Context, in Input) (retErr error) {
 	}
 	parentv5 := v3
 	// plain.go:22: Generate
-	var v6 operationResult[continuity.Report]
-	if v7 := workflow.ExecuteActivity(ops, "ContinuityGenerate1", operationInput{Scope: "", Context: root, Session: parentv5}).Get(wait, &v6); v7 != nil {
-		return v7
+	var v6 operationResult[[]byte]
+	if v9 := workflow.ExecuteActivity(ops, "ContinuityGenerate1", operationInput{Scope: "", Context: root, Session: parentv5}).Get(wait, &v6); v9 != nil {
+		return v9
 	}
-	decisionv8, errv9 := v6.Value, v6.Err()
+	v7, v8 := compiledscope.Consume[continuity.Report](v6.Value, v6.Err())
+	decisionv10, errv11 := v7, v8
 	{
-		if errv9 != nil {
-			var v10 error = errv9
-			return v10
+		if errv11 != nil {
+			var v12 error = errv11
+			return v12
 		}
 	}
 	{
-		if decisionv8.Summary == "edit" {
+		if decisionv10.Summary == "edit" {
 			// plain.go:27: Scope
-			v11 := func() (scopeErr error) {
-				v12 := nextScope("", "child")
+			v13 := func() (scopeErr error) {
+				v14 := nextScope("", "child")
 				defer func() {
 					cleanup := cleanupContext(ops)
-					scopeErr = errors.Join(scopeErr, workflow.ExecuteActivity(cleanup, "ExitScope", v12, errorText(scopeErr)).Get(cleanup, nil))
+					scopeErr = errors.Join(scopeErr, workflow.ExecuteActivity(cleanup, "ExitScope", v14, errorText(scopeErr)).Get(cleanup, nil))
 				}()
-				if v14 := workflow.ExecuteActivity(ops, "EnterScope", ScopeInput{v12, "", "child"}).Get(wait, nil); v14 != nil {
-					return v14
-				}
-				v13 := root
-				_ = v13
-				// plain.go:28: Set
-				v15 := "layer"
-				if v16 := workflow.ExecuteActivity(ops, "SetValue", v12, v13, contextEntry(v15, "child")).Get(wait, &v13); v16 != nil {
+				if v16 := workflow.ExecuteActivity(ops, "EnterScope", ScopeInput{v14, "", "child"}).Get(wait, nil); v16 != nil {
 					return v16
 				}
-				// plain.go:29: Generate
-				var v17 operationResult[continuity.Report]
-				if v18 := workflow.ExecuteActivity(ops, "ContinuityGenerate2", operationInput{Scope: v12, Context: v13, Session: parentv5}).Get(wait, &v17); v18 != nil {
+				v15 := root
+				_ = v15
+				// plain.go:28: Set
+				v17 := "layer"
+				if v18 := workflow.ExecuteActivity(ops, "SetValue", v14, v15, contextEntry(v17, "child")).Get(wait, &v15); v18 != nil {
 					return v18
 				}
-				childv19, errv20 := v17.Value, v17.Err()
+				// plain.go:29: Generate
+				var v19 operationResult[[]byte]
+				if v22 := workflow.ExecuteActivity(ops, "ContinuityGenerate2", operationInput{Scope: v14, Context: v15, Session: parentv5}).Get(wait, &v19); v22 != nil {
+					return v22
+				}
+				v20, v21 := compiledscope.Consume[continuity.Report](v19.Value, v19.Err())
+				childv23, errv24 := v20, v21
 				{
-					if errv20 != nil {
-						var v21 error = errv20
-						return v21
+					if errv24 != nil {
+						var v25 error = errv24
+						return v25
 					}
 				}
 				// plain.go:33: SetJSON
-				v22 := "result"
-				if v23 := workflow.ExecuteActivity(ops, "SetValue", v12, v13, contextEntry(v22, childv19)).Get(wait, &v13); v23 != nil {
-					return v23
+				v26 := "result"
+				if v27 := workflow.ExecuteActivity(ops, "SetValue", v14, v15, contextEntry(v26, childv23)).Get(wait, &v15); v27 != nil {
+					return v27
 				}
 				// plain.go:34: Fork
-				var v24 operationResult[sessionHandle]
-				if v25 := workflow.ExecuteActivity(ops, "OpenFork", operationInput{Scope: v12, Context: v13, Session: parentv5}, "fork").Get(wait, &v24); v25 != nil {
-					return v25
+				var v28 operationResult[sessionHandle]
+				if v29 := workflow.ExecuteActivity(ops, "OpenFork", operationInput{Scope: v14, Context: v15, Session: parentv5}, "fork").Get(wait, &v28); v29 != nil {
+					return v29
 				}
-				forkv26, errv20 := v24.Value, v24.Err()
+				forkv30, errv24 := v28.Value, v28.Err()
 				{
-					if errv20 != nil {
-						var v27 error = errv20
-						return v27
+					if errv24 != nil {
+						var v31 error = errv24
+						return v31
 					}
 				}
 				// plain.go:38: Generate
-				var v28 operationResult[continuity.Report]
-				if v29 := workflow.ExecuteActivity(ops, "ContinuityGenerate3", operationInput{Scope: v12, Context: v13, Session: forkv26}).Get(wait, &v28); v29 != nil {
-					return v29
+				var v32 operationResult[[]byte]
+				if v35 := workflow.ExecuteActivity(ops, "ContinuityGenerate3", operationInput{Scope: v14, Context: v15, Session: forkv30}).Get(wait, &v32); v35 != nil {
+					return v35
 				}
-				_, errv20 = v28.Value, v28.Err()
-				var v30 error = errv20
-				return v30
+				v33, v34 := compiledscope.Consume[continuity.Report](v32.Value, v32.Err())
+				_, errv24 = v33, v34
+				var v36 error = errv24
+				return v36
 			}()
-			errv9 = v11
+			errv11 = v13
 			{
-				if errv9 != nil {
-					var v31 error = errv9
-					return v31
+				if errv11 != nil {
+					var v37 error = errv11
+					return v37
 				}
 			}
 		}
 	}
 	// plain.go:45: RunCommand
-	v33 := "diagnostic"
-	var v32 commandResult
-	if v34 := workflow.ExecuteActivity(ops, "ContinuityRunCommand1", operationInput{Scope: "", Context: root, Session: sessionHandle{}}, v33, workdir, "sh", []string{"-c", "printf observed; printf diagnostic >&2; exit 7"}).Get(wait, &v32); v34 != nil {
-		return v34
+	v39 := "diagnostic"
+	var v38 commandResult
+	if v40 := workflow.ExecuteActivity(ops, "ContinuityRunCommand1", operationInput{Scope: "", Context: root, Session: sessionHandle{}}, v39, workdir, "sh", []string{"-c", "printf observed; printf diagnostic >&2; exit 7"}).Get(wait, &v38); v40 != nil {
+		return v40
 	}
-	codev35, stdoutv36, stderrv37, errv9 := v32.ExitCode, v32.Stdout, v32.Stderr, v32.Err()
+	codev41, stdoutv42, stderrv43, errv11 := v38.ExitCode, v38.Stdout, v38.Stderr, v38.Err()
 	{
-		if errv9 != nil {
-			var v38 error = errv9
-			return v38
+		if errv11 != nil {
+			var v44 error = errv11
+			return v44
 		}
 	}
 	// plain.go:49: SetJSON
-	v39 := "diagnostic"
-	if v40 := workflow.ExecuteActivity(ops, "SetValue", "", root, contextEntry(v39, continuity.Checks{ExitCode: codev35, Stdout: stdoutv36, Stderr: stderrv37})).Get(wait, &root); v40 != nil {
-		return v40
+	v45 := "diagnostic"
+	if v46 := workflow.ExecuteActivity(ops, "SetValue", "", root, contextEntry(v45, continuity.Checks{ExitCode: codev41, Stdout: stdoutv42, Stderr: stderrv43})).Get(wait, &root); v46 != nil {
+		return v46
 	}
 	{
-		if codev35 == 7 {
+		if codev41 == 7 {
 			{
 				// plain.go:51: RunCommand
-				v42 := "recovery"
-				var v41 commandResult
-				if v43 := workflow.ExecuteActivity(ops, "ContinuityRunCommand2", operationInput{Scope: "", Context: root, Session: sessionHandle{}}, v42, workdir, "sh", []string{"-c", "printf recovered > recovery.txt"}).Get(wait, &v41); v43 != nil {
-					return v43
+				v48 := "recovery"
+				var v47 commandResult
+				if v49 := workflow.ExecuteActivity(ops, "ContinuityRunCommand2", operationInput{Scope: "", Context: root, Session: sessionHandle{}}, v48, workdir, "sh", []string{"-c", "printf recovered > recovery.txt"}).Get(wait, &v47); v49 != nil {
+					return v49
 				}
-				_, _, _, errv9 = v41.ExitCode, v41.Stdout, v41.Stderr, v41.Err()
-				if errv9 != nil {
-					var v44 error = errv9
-					return v44
+				_, _, _, errv11 = v47.ExitCode, v47.Stdout, v47.Stderr, v47.Err()
+				if errv11 != nil {
+					var v50 error = errv11
+					return v50
 				}
 			}
 		}
 	}
 	// plain.go:55: Generate
-	var v45 operationResult[continuity.Report]
-	if v46 := workflow.ExecuteActivity(ops, "ContinuityGenerate4", operationInput{Scope: "", Context: root, Session: parentv5}).Get(wait, &v45); v46 != nil {
-		return v46
+	var v51 operationResult[[]byte]
+	if v54 := workflow.ExecuteActivity(ops, "ContinuityGenerate4", operationInput{Scope: "", Context: root, Session: parentv5}).Get(wait, &v51); v54 != nil {
+		return v54
 	}
-	finalv47, errv9 := v45.Value, v45.Err()
+	v52, v53 := compiledscope.Consume[continuity.Report](v51.Value, v51.Err())
+	finalv55, errv11 := v52, v53
 	{
-		if errv9 != nil {
-			var v48 error = errv9
-			return v48
+		if errv11 != nil {
+			var v56 error = errv11
+			return v56
 		}
 	}
 	{
-		if (finalv47.Receipt != "amber-17") || (finalv47.Summary != "parent") {
-			var v49 error = fmt.Errorf("continuation mismatch: %+v", finalv47)
-			return v49
+		if (finalv55.Receipt != "amber-17") || (finalv55.Summary != "parent") {
+			var v57 error = fmt.Errorf("continuation mismatch: %+v", finalv55)
+			return v57
 		}
 	}
-	var v50 error = nil
-	return v50
+	var v58 error = nil
+	return v58
 }
 func registerContinuity(reg interface{ RegisterWorkflow(any) }) {
 	reg.RegisterWorkflow(ContinuityWorkflow)
 }
-func (a *Activities) ContinuityGenerate1(ctx context.Context, in operationInput) (operationResult[continuity.Report], error) {
+func (a *Activities) ContinuityGenerate1(ctx context.Context, in operationInput) (operationResult[[]byte], error) {
 	scoped, session, release, err := a.turnInput(ctx, in)
 	if err != nil {
-		return operationResult[continuity.Report]{}, err
+		return operationResult[[]byte]{}, err
 	}
 	defer release()
-	value, err := session.Generate[continuity.Report](scoped, "Remember amber-17 as our conversation token. Return exactly this object: {\"summary\":\"edit\",\"file\":\"continuity.txt\",\"receipt\":\"amber-17\"}. Do not edit files yet.")
-	return operationResult[continuity.Report]{value, failure(err)}, nil
+	value, err := compiledscope.Generate[continuity.Report](scoped, session, "Remember amber-17 as our conversation token. Return exactly this object: {\"summary\":\"edit\",\"file\":\"continuity.txt\",\"receipt\":\"amber-17\"}. Do not edit files yet.")
+	return operationResult[[]byte]{value, failure(err)}, nil
 }
-func (a *Activities) ContinuityGenerate2(ctx context.Context, in operationInput) (operationResult[continuity.Report], error) {
+func (a *Activities) ContinuityGenerate2(ctx context.Context, in operationInput) (operationResult[[]byte], error) {
 	scoped, session, release, err := a.turnInput(ctx, in)
 	if err != nil {
-		return operationResult[continuity.Report]{}, err
+		return operationResult[[]byte]{}, err
 	}
 	defer release()
-	value, err := session.Generate[continuity.Report](scoped, "Recall our conversation token as receipt. Write that token to continuity.txt. Return summary as the single word in the current layer context value, without explanation, and file continuity.txt.")
-	return operationResult[continuity.Report]{value, failure(err)}, nil
+	value, err := compiledscope.Generate[continuity.Report](scoped, session, "Recall our conversation token as receipt. Write that token to continuity.txt. Return summary as the single word in the current layer context value, without explanation, and file continuity.txt.")
+	return operationResult[[]byte]{value, failure(err)}, nil
 }
-func (a *Activities) ContinuityGenerate3(ctx context.Context, in operationInput) (operationResult[continuity.Report], error) {
+func (a *Activities) ContinuityGenerate3(ctx context.Context, in operationInput) (operationResult[[]byte], error) {
 	scoped, session, release, err := a.turnInput(ctx, in)
 	if err != nil {
-		return operationResult[continuity.Report]{}, err
+		return operationResult[[]byte]{}, err
 	}
 	defer release()
-	value, err := session.Generate[continuity.Report](scoped, "Recall the conversation token we had before this turn as receipt. Then remember violet-29 as the new token in this conversation only. Do not edit any files. Return summary violet-29 and file continuity.txt, without extra explanation.")
-	return operationResult[continuity.Report]{value, failure(err)}, nil
+	value, err := compiledscope.Generate[continuity.Report](scoped, session, "Recall the conversation token we had before this turn as receipt. Then remember violet-29 as the new token in this conversation only. Do not edit any files. Return summary violet-29 and file continuity.txt, without extra explanation.")
+	return operationResult[[]byte]{value, failure(err)}, nil
 }
 func (a *Activities) ContinuityRunCommand1(ctx context.Context, in operationInput, name, dir, command string, args []string) (commandResult, error) {
 	return a.commandAt(ctx, in, name, dir, command, args...)
@@ -242,12 +246,12 @@ func (a *Activities) ContinuityRunCommand1(ctx context.Context, in operationInpu
 func (a *Activities) ContinuityRunCommand2(ctx context.Context, in operationInput, name, dir, command string, args []string) (commandResult, error) {
 	return a.commandAt(ctx, in, name, dir, command, args...)
 }
-func (a *Activities) ContinuityGenerate4(ctx context.Context, in operationInput) (operationResult[continuity.Report], error) {
+func (a *Activities) ContinuityGenerate4(ctx context.Context, in operationInput) (operationResult[[]byte], error) {
 	scoped, session, release, err := a.turnInput(ctx, in)
 	if err != nil {
-		return operationResult[continuity.Report]{}, err
+		return operationResult[[]byte]{}, err
 	}
 	defer release()
-	value, err := session.Generate[continuity.Report](scoped, "Recall our conversation token as receipt. Read continuity.txt and report its filename. Return summary as the single word in the current layer context value, without extra explanation.")
-	return operationResult[continuity.Report]{value, failure(err)}, nil
+	value, err := compiledscope.Generate[continuity.Report](scoped, session, "Recall our conversation token as receipt. Read continuity.txt and report its filename. Return summary as the single word in the current layer context value, without extra explanation.")
+	return operationResult[[]byte]{value, failure(err)}, nil
 }

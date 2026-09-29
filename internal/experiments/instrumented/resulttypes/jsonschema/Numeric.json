@@ -1,0 +1,4 @@
+{"type":"object",
+"description":"Numeric demonstrates the pinned schema/Go decoder gap; it is deliberately outside the compiled result contract until Polytype guarantees that boundary.","properties":{
+"count":{"type":"integer"}
+},"required":["count"],"additionalProperties":false}

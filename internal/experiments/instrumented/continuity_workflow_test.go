@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"slices"
 	"strings"
@@ -39,27 +40,27 @@ func TestContinuityWorkflowBranchesAndFullResults(t *testing.T) {
 			reg("OpenSession", func(context.Context, string, string, gimbal.WorkflowRole, string) (sessionHandle, error) {
 				return sessionHandle{ID: "parent"}, nil
 			})
-			reg("ContinuityGenerate1", func(context.Context, operationInput) (generateResult, error) {
+			reg("ContinuityGenerate1", func(context.Context, operationInput) (responseResult, error) {
 				record("remember")
 				if mode == "agent-error" {
-					return generateResult{Failure: failure(errors.New("provider unavailable"))}, nil
+					return responseResult{Failure: failure(errors.New("provider unavailable"))}, nil
 				}
-				return generateResult{Value: Report{Summary: mode, Receipt: "amber-17", File: "continuity.txt"}}, nil
+				return reportResult(Report{Summary: mode, Receipt: "amber-17", File: "continuity.txt"}), nil
 			})
-			reg("ContinuityGenerate2", func(_ context.Context, in operationInput) (generateResult, error) {
+			reg("ContinuityGenerate2", func(_ context.Context, in operationInput) (responseResult, error) {
 				record("edit")
 				if in.Session.Owner != "" || in.Scope != "child.1" {
 					t.Error("ownership changed")
 				}
-				return generateResult{Value: Report{Summary: "child", Receipt: "amber-17"}}, nil
+				return reportResult(Report{Summary: "child", Receipt: "amber-17"}), nil
 			})
 			reg("OpenFork", func(context.Context, operationInput, string) (operationResult[sessionHandle], error) {
 				record("fork")
 				return operationResult[sessionHandle]{Value: sessionHandle{Owner: "child.1", ID: "fork"}}, nil
 			})
-			reg("ContinuityGenerate3", func(context.Context, operationInput) (generateResult, error) {
+			reg("ContinuityGenerate3", func(context.Context, operationInput) (responseResult, error) {
 				record("diverge")
-				return generateResult{Value: Report{Receipt: "violet-29"}}, nil
+				return reportResult(Report{Receipt: "violet-29"}), nil
 			})
 			reg("ContinuityRunCommand1", func(context.Context, operationInput, string, string, string, []string) (commandResult, error) {
 				record("diagnostic")
@@ -69,12 +70,12 @@ func TestContinuityWorkflowBranchesAndFullResults(t *testing.T) {
 				record("recover")
 				return commandResult{}, nil
 			})
-			reg("ContinuityGenerate4", func(_ context.Context, in operationInput) (generateResult, error) {
+			reg("ContinuityGenerate4", func(_ context.Context, in operationInput) (responseResult, error) {
 				record("resume")
 				if in.Session.ID != "parent" || in.Scope != "" || strings.Contains(string(in.Context), "child") {
 					t.Error("parent not restored")
 				}
-				return generateResult{Value: Report{Receipt: "amber-17", Summary: "parent"}}, nil
+				return reportResult(Report{Receipt: "amber-17", Summary: "parent"}), nil
 			})
 			e.ExecuteWorkflow(ContinuityWorkflow, Input{})
 			if (e.GetWorkflowError() != nil) != (mode == "agent-error") {
@@ -92,4 +93,9 @@ func TestContinuityWorkflowBranchesAndFullResults(t *testing.T) {
 			}
 		})
 	}
+}
+
+func reportResult(value Report) responseResult {
+	raw, err := json.Marshal(value)
+	return responseResult{Value: raw, Failure: failure(err)}
 }

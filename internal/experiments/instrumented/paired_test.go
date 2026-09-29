@@ -231,7 +231,7 @@ func runPairSide(t *testing.T, name, mode string, target bool) pairedRun {
 			t.Errorf("agent failure escaped operation result: %v", activityErr)
 			return
 		}
-		var result generateResult
+		var result responseResult
 		if err := encoded.Get(&result); err != nil {
 			t.Error(err)
 			return

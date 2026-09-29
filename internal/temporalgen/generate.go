@@ -128,6 +128,7 @@ type emitter struct {
 	loops         map[types.Object]*loop
 	counts        map[string]int
 	serial        int
+	results       map[types.Type]bool
 }
 
 func (e *emitter) fail(n ast.Node, msg string) error {
@@ -342,10 +343,13 @@ func (e *emitter) valueMethods(n ast.Expr, mode string) error {
 		for _, methods := range methodSets {
 			for method := range methods.Methods() {
 				m := method.Obj()
-				dangerous := mode == "json" && (m.Name() == "MarshalJSON" || m.Name() == "MarshalText" || m.Name() == "IsZero") || mode == "format" && (m.Name() == "String" || m.Name() == "Format" || m.Name() == "Error")
+				dangerous := mode == "json" && (m.Name() == "MarshalJSON" || m.Name() == "UnmarshalJSON" || m.Name() == "MarshalText" || m.Name() == "UnmarshalText" || m.Name() == "IsZero") || mode == "format" && (m.Name() == "String" || m.Name() == "Format" || m.Name() == "Error")
 
 				// time.Duration's standard scalar formatter is deterministic.
 				if m.Pkg() != nil && m.Pkg().Path() == "time" && types.TypeString(t, nil) == "time.Duration" {
+					continue
+				}
+				if dangerous && mode == "json" && e.polytypeMethod(m.(*types.Func)) {
 					continue
 				}
 				if dangerous {
@@ -359,6 +363,16 @@ func (e *emitter) valueMethods(n ast.Expr, mode string) error {
 			// only its value is serialized as an authored result.
 			return visit(u.At(0).Type())
 		case *types.Interface:
+			if mode == "json" {
+				if variants := sealedVariants(t); len(variants) > 0 {
+					for _, variant := range variants {
+						if err := visit(variant); err != nil {
+							return err
+						}
+					}
+					return nil
+				}
+			}
 			return e.fail(n, "opaque interface values cannot be checked for implicit "+mode+" effects")
 		case *types.Map:
 			if err := visit(u.Key()); err != nil {
@@ -600,19 +614,23 @@ func (e *emitter) operation(a *ast.AssignStmt, c *ast.CallExpr, s scope) error {
 		if named, ok := tuple.At(0).Type().(*types.Named); ok && !named.Obj().Exported() {
 			return e.fail(c, "Generate result type must be exported")
 		}
+		if err := e.resultContract(c, tuple.At(0).Type()); err != nil {
+			return err
+		}
 		typ := e.typ(tuple.At(0).Type())
 		name := e.site("Generate")
-		fmt.Fprintf(&e.activities, `func(a *Activities) %s(ctx context.Context, in operationInput) (operationResult[%s], error) {
+		fmt.Fprintf(&e.activities, `func(a *Activities) %s(ctx context.Context, in operationInput) (operationResult[[]byte], error) {
  scoped, session, release, err := a.turnInput(ctx,in)
- if err != nil { return operationResult[%s]{},err }; defer release()
- value, err := session.Generate[%s](scoped,%s)
- return operationResult[%s]{value,failure(err)},nil
+ if err != nil { return operationResult[[]byte]{},err }; defer release()
+ value, err := compiledscope.Generate[%s](scoped,session,%s)
+ return operationResult[[]byte]{value,failure(err)},nil
  }
-`, name, typ, typ, typ, prompt, typ)
-		result := e.fresh()
-		e.line("var %s operationResult[%s]", result, typ)
+`, name, typ, prompt)
+		result, value, operationErr := e.fresh(), e.fresh(), e.fresh()
+		e.line("var %s operationResult[[]byte]", result)
 		e.activity(s, name, []string{e.input(s, session)}, result)
-		return e.bind(a, []string{result + ".Value", result + ".Err()"})
+		e.line("%s,%s := compiledscope.Consume[%s](%s.Value,%s.Err())", value, operationErr, typ, result, result)
+		return e.bind(a, []string{value, operationErr})
 	case "Fork":
 		if len(c.Args) != 2 {
 			return e.fail(c, "Fork options unsupported")

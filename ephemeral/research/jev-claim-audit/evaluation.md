@@ -53,7 +53,7 @@ denominators so thresholds can be revised deliberately rather than silently.
 
 `research-eval` reads a local candidate configuration and optionally an
 alternative suite. Default candidates allow independent research/index assignments of Gemini Flash, OpenAI Luna and Terra, and Claude Haiku and Sonnet through their native providers for collection/topic indexing and
-combined-index curation. Other research roles retain the production defaults so attribution is meaningful; `--fixed-model` explicitly selects a different pipeline and the report records that choice. The planner defaults to Opus 5.5, the reader to Luna 5.6, and the assessor to Sol. Resolved role bindings are recorded with each child run. Before optimization, the assessor evaluates three known-good and three version-confused index samples in separate sessions using the same assessment prompt. The label is withheld from its prompt and directory name. Raw false-positive and false-negative counts are reported; any error stops optimization. This small repeated sanity check does not establish exhaustive judge accuracy or eliminate model-family bias.
+combined-index curation. Other research roles retain the production defaults so attribution is meaningful; `--fixed-model` explicitly selects a different pipeline and the report records that choice. The planner defaults to Opus 5.5, the reader to Claude Haiku, and the assessor to Claude Sonnet. The latter two avoid the local Codex app-server startup failure seen during the pilot; Luna and Terra remain candidate options when that provider is available. Resolved role bindings are recorded with each child run. Before optimization, the assessor evaluates one known-good and one version-confused index sample in separate sessions using the same assessment prompt. The label is withheld from its prompt and directory name. Raw false-positive and false-negative counts are reported; any error stops optimization. This small sanity check does not establish exhaustive judge accuracy or eliminate model-family bias.
 
 A PromiseLoop chooses the next candidate and whether a new combination is
 worth trying, from the supplied finite allowlist. Code validates the selection,
@@ -66,13 +66,13 @@ reasoning. A model or authentication failure is visible, not a silent fallback.
 
 Fixed-source trials copy the originals once into the corpus’s shared `sources/` directory. Topic indexes link to those originals rather than multiplying identical source copies across all five researchers.
 
-The bundled suite has two development cases and a separate holdout. Every candidate dispatch runs all development cases. Selection requires at least two repeats of every development case; the default ten-round budget samples controlled role swaps from the 25 allowed combinations and reserves repeats for promising choices; it does not exhaust the Cartesian product. Reports expose trial counts, final quality-pass rate, first-audit cleanliness rate, and quality-pass-with-at-most-one-repair rate, with failures in their denominators. Require quality
+The bundled suite has two development cases and a separate holdout. Every candidate dispatch runs all development cases. Selection requires one complete passing trial of every development case. The default three-round budget samples a cheap baseline and controlled role swaps from the 25 allowed combinations. The planner stops once a baseline and a controlled comparison produce an eligible choice; there are no mandatory repeats or exhaustive provider coverage. Reports expose trial counts, final quality-pass rate, first-audit cleanliness rate, and quality-pass-with-at-most-one-repair rate, with failures in their denominators. Require quality
 success and at most one audit repair per trial on average, then minimize cost
 among eligible candidates; show first-pass cleanliness and the tradeoff rather
 than averaging quality away. The first bounded
 experiment is exploratory and cannot establish a population success rate.
 
-At the default limits, ten rounds × two cases × fifteen minutes allows up to five hours of development research alone, plus calibration, planning, assessments, retrieval checks, cleanup, and a holdout trial. It is a bounded research budget, not a quick smoke test. Use a smaller allowlist and round budget for pipeline checks; such checks need not produce an eligible winner.
+At the default limits, three rounds × two cases × sixty minutes bounds development research at six hours, plus calibration, planning, assessments, retrieval checks, cleanup, and one holdout trial. Successful comparisons can stop earlier. A real Sonnet curation trial exceeded the former fifteen-minute timeout. The result is a provisional choice for these fixed-source cases, not a reliability estimate or a broad model ranking.
 
 After development selection, freeze the chosen candidate and evaluate the
 held-out case without returning its scores to the optimizer. A holdout failure

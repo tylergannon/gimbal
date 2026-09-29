@@ -91,7 +91,6 @@ func TestSelectionIncludesFailuresAndUnknownCost(t *testing.T) {
 	s := suite{Cases: []researchCase{{ID: "dev", Split: "development"}, {ID: "hold", Split: "holdout"}}}
 	pass := score{Passed: true}
 	trials := []trialResult{{Candidate: candidates[0], Case: "dev", Split: "development", Quality: pass, CostKnown: true, CostUSD: .1}, {Candidate: candidates[0], Case: "dev", Split: "development", Error: "failed"}, {Candidate: candidates[1], Case: "dev", Split: "development", Quality: pass, CostKnown: true, CostUSD: .5, AuditRepairPasses: 1}, {Candidate: candidates[2], Case: "dev", Split: "development", Quality: pass, CostKnown: false, CostUSD: 0}}
-	trials = append(trials, trials[2])
 	best, ok := bestCandidate(candidates, trials, s)
 	if !ok || best.ID != "reliable" {
 		t.Fatalf("selected %+v %v", best, ok)
@@ -177,19 +176,19 @@ func TestToolUseAndMissingUsageAreNotFreeSuccess(t *testing.T) {
 	}
 }
 
-func TestSelectionNeedsRepeatsAndReportsFailures(t *testing.T) {
+func TestSelectionNeedsEveryDevelopmentCaseAndReportsFailures(t *testing.T) {
 	c := candidate{ID: "one"}
 	s := suite{Cases: []researchCase{{ID: "a", Split: "development"}, {ID: "b", Split: "development"}}}
 	a := trialResult{Candidate: c, Case: "a", Split: "development", Quality: score{Passed: true}, CostKnown: true, InitialAuditClean: true}
 	b := a
 	b.Case = "b"
-	trials := []trialResult{a, b}
+	trials := []trialResult{a}
 	if _, ok := bestCandidate([]candidate{c}, trials, s); ok {
-		t.Fatal("single observations selected")
+		t.Fatal("missing development case selected")
 	}
-	trials = append(trials, a, b)
+	trials = append(trials, b)
 	if _, ok := bestCandidate([]candidate{c}, trials, s); !ok {
-		t.Fatal("repeated complete cases not eligible")
+		t.Fatal("one passing trial per development case not eligible")
 	}
 	failed := a
 	failed.Quality.Passed = false
@@ -197,7 +196,7 @@ func TestSelectionNeedsRepeatsAndReportsFailures(t *testing.T) {
 	failed.Error = "provider failure"
 	trials = append(trials, failed)
 	summary := summarizeCandidates([]candidate{c}, trials)[0]
-	if summary.Trials != 5 || summary.Passed != 4 || summary.PassRate != 0.8 || summary.InitialAuditCleanRate != 0.8 {
+	if summary.Trials != 3 || summary.Passed != 2 || summary.PassRate != 2.0/3 || summary.InitialAuditCleanRate != 2.0/3 {
 		t.Fatalf("%+v", summary)
 	}
 	if _, ok := bestCandidate([]candidate{c}, trials, s); ok {

@@ -115,3 +115,7 @@ finding: Invalid extraction records can consume repair rounds before the first c
 constraint: Tyler added Terra and Sonnet and asked for independent researcher/curator comparisons. Allow the five native models in either role, sample one-role swaps rather than exhaustively running all 25 pairs, and expose role-level cost, usage and summed turn duration. Frozen-source synthesis is not evidence of web-discovery quality.
 
 finding: Go panics exit 2, so that code cannot uniquely identify malformed curator records. Use EX_DATAERR (65) for repairable records; runtime crashes remain fatal infrastructure failures. A multiline occurrence also needs a guarded same-line prefix before locating source-link boundaries.
+
+correction: Tyler now forbids perfecting the benchmark and needs a usable workflow release soon. Keep one good and one bad assessor sanity case, one passing development trial per case, and a small default comparison. Qualify any selected model assignment as provisional.
+
+finding: A live Haiku research/Sonnet curation run completed exhaustive Jev checks of 110 claims (5,995 pairs) and surfaced an attributed 45/60-second conflict. Most failed source checks are broad claims that something is undocumented; the curator is being steered to retain supported facts and the attributed conflict. A Sol evaluator run failed during repeated assessor calibration with the host error application network permission revoked; this is an infrastructure failure, not a research-quality result.

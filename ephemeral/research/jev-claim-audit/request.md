@@ -91,3 +91,9 @@ Tyler: "okay maybe the Diffusion Router will turn out to be too slow for our pur
 Tyler: "Yeah, let's add Tara from ChatGPT as well as Claude Sonnet. Also, I think there are a couple of different roles in this that we should be mixing and matching in this eval process because, right? Like there's the guy who goes and does the research and downloads information from the internet, and then there is also the guy who actually builds and balances the semantic index. And I'm not sure where the weights are on this, but I imagine that one of those jobs is harder than the other in terms of the amount of work that needs to be done, and one of them is harder than the other in terms of the cognitive load to make the judgments needed in order to balance the index, or something like that."
 
 'Tara' is interpreted as the installed OpenAI Terra family. Research and index model bindings are independently variable; source acquisition and index judgment workload should not be conflated.
+
+# Release priority
+
+Tyler: "I kind of need to get a new release of this workflow sometime soon so that I can use it. ... you are forbidden from perfecting this benchmark, and your instruction is to, for the time being, just use some kind of easy-to-work comparison so that we land on a set of model assignments that are going to get us a reasonable, viable outcome when we run this workflow. We can think more about perfection in our benchmarking another time."
+
+Finish a small fixed-source comparison and release the usable research workflow. Broader web-discovery benchmarking, exhaustive combinations, and statistical repetition are deferred.

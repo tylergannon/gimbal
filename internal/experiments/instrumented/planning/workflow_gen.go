@@ -14,15 +14,15 @@ func init() { gimbal.RegisterGraph(Graph) }
 // Graph is the shape of this workflow, read from the source of Planning.
 var Graph = workflow.Graph{
 	Name:     "planning",
-	Source:   workflow.Source{File: "internal/experiments/instrumented/planning/plain.go", Line: 14},
+	Source:   workflow.Source{File: "internal/experiments/instrumented/planning/plain.go", Line: 15},
 	Services: []workflow.Service{},
 	Body: []workflow.Operation{
-		workflow.Session{Source: workflow.Source{File: "internal/experiments/instrumented/planning/plain.go", Line: 15}, Name: "coder", From: ""},
-		workflow.PromiseLoop{Source: workflow.Source{File: "internal/experiments/instrumented/planning/plain.go", Line: 16}, Name: "plan", Planner: "coder", Services: []workflow.Service{}, Body: []workflow.Operation{
-			workflow.Session{Source: workflow.Source{File: "internal/experiments/instrumented/planning/plain.go", Line: 18}, Name: "coder", From: ""},
-			workflow.AgentCall{Source: workflow.Source{File: "internal/experiments/instrumented/planning/plain.go", Line: 19}, Session: "coder", Role: "coder", Prompt: "Perform the assignment in task. Edit only planned.txt. Return a concise summary, file planned.txt, and receipt done."},
-			workflow.Set{Source: workflow.Source{File: "internal/experiments/instrumented/planning/plain.go", Line: 23}, Key: "result"},
-			workflow.Command{Source: workflow.Source{File: "internal/experiments/instrumented/planning/plain.go", Line: 24}, Name: "check"},
+		workflow.Session{Source: workflow.Source{File: "internal/experiments/instrumented/planning/plain.go", Line: 16}, Name: "coder", From: ""},
+		workflow.PromiseLoop{Source: workflow.Source{File: "internal/experiments/instrumented/planning/plain.go", Line: 17}, Name: "plan", Planner: "coder", Services: []workflow.Service{}, Body: []workflow.Operation{
+			workflow.Session{Source: workflow.Source{File: "internal/experiments/instrumented/planning/plain.go", Line: 19}, Name: "coder", From: ""},
+			workflow.AgentCall{Source: workflow.Source{File: "internal/experiments/instrumented/planning/plain.go", Line: 20}, Session: "coder", Role: "coder", Prompt: "Perform the assignment in task. Edit only planned.txt. Return a concise summary, file planned.txt, and receipt done."},
+			workflow.Set{Source: workflow.Source{File: "internal/experiments/instrumented/planning/plain.go", Line: 24}, Key: "result"},
+			workflow.Command{Source: workflow.Source{File: "internal/experiments/instrumented/planning/plain.go", Line: 25}, Name: "check"},
 		}},
 	},
 }

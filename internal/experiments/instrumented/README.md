@@ -1,11 +1,12 @@
 # Handwritten Temporal compiler targets
 
 These are source/output examples, not a source compiler. Authored Go stays in
-`plain.go`, `continuity/plain.go`, `fanout/plain.go`, and `planning/plain.go`.
+`continuity/plain.go`, `fanout/plain.go`, and `planning/plain.go`.
 Their generated Gimbal graphs power the UI; the Temporal counterparts are
-handwritten. The original four-defect repair remains a historical baseline.
-The three newer examples address results/session continuity, two explicitly authored parallel branches,
-and explicit planner/Check expansion.
+handwritten. The examples address results/session continuity, two explicitly
+authored parallel branches, and explicit planner/Check expansion. The default
+is continuity. The retired four-defect repair example and its dedicated tests
+were removed; its historical evidence and replay require revision `b5aeff81`.
 
 Each Generate source site has a separate named activity. Temporal owns the Go
 conditions, loops, futures, and joins. Worker scopes own sessions and processes;

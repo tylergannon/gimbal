@@ -14,7 +14,6 @@ import (
 	"github.com/tylergannon/gimbal/internal/host"
 	"github.com/tylergannon/gimbal/pi"
 	"go.temporal.io/sdk/activity"
-	"go.temporal.io/sdk/temporal"
 )
 
 // Activities owns worker-local resources, never workflow scheduling. Every
@@ -49,7 +48,7 @@ func (a *Activities) Initialize(_ context.Context, data Data) (compiledscope.Sna
 	}
 	name := data.Name
 	if name == "" {
-		name = "instrumented"
+		name = "continuity"
 	}
 	models := a.models
 	if models == nil {
@@ -177,15 +176,6 @@ func withoutCause(err, cause error) error {
 	return err
 }
 
-func (a *Activities) Prepare(ctx context.Context) error {
-	_, release, err := a.operation(ctx, "")
-	if err != nil {
-		return err
-	}
-	defer release()
-	return prepareFixture(a.workdir)
-}
-
 // Each generated context write is an activity. Values are published here,
 // never embedded as multi-megabyte Temporal activity results.
 func contextEntry(key string, value any) compiledscope.Entry {
@@ -215,66 +205,6 @@ func (a *Activities) input(ctx context.Context, id string, ref compiledscope.Sna
 	}
 	return bound, release, nil
 }
-func (a *Activities) SetIteration(ctx context.Context, id string, base compiledscope.Snapshot, data IterationData) (compiledscope.Snapshot, error) {
-	previous := contextEntry("previous", Checks{})
-	if data.Previous.Context != "" {
-		entries, err := a.store.Load(data.Previous.Context)
-		if err != nil {
-			return "", err
-		}
-		previous = entries[0]
-	}
-	return a.write(ctx, id, base, contextEntry("iteration", fmt.Sprint(data.Pair.Number)), previous, contextEntry("layer", "iteration-layer"))
-}
-func (a *Activities) SetOuterContext(ctx context.Context, id string, base compiledscope.Snapshot) (compiledscope.Snapshot, error) {
-	return a.write(ctx, id, base, contextEntry("layer", "outer-layer"), contextEntry("inherited", "outer-inherited"), contextEntry("reference", referenceMaterial()), contextEntry("support-a", supportMaterial("a")), contextEntry("support-b", supportMaterial("b")), contextEntry("support-c", supportMaterial("c")), contextEntry("support-d", supportMaterial("d")), contextEntry("support-e", supportMaterial("e")))
-}
-func (a *Activities) SetInnerContext(ctx context.Context, id string, base compiledscope.Snapshot) (compiledscope.Snapshot, error) {
-	return a.write(ctx, id, base, contextEntry("layer", "inner-layer"), contextEntry("child-only", "inner-private"))
-}
-func (a *Activities) SetAssignment(ctx context.Context, id string, base compiledscope.Snapshot, assignment Assignment) (compiledscope.Snapshot, error) {
-	return a.write(ctx, id, base, contextEntry("assignment", assignment))
-}
-func (a *Activities) Repair(ctx context.Context, id string, ref compiledscope.Snapshot) (out Report, err error) {
-	scoped, release, err := a.input(ctx, id, ref)
-	if err != nil {
-		return out, err
-	}
-	defer release()
-	principal := gimbal.NewSession(scoped, coder, a.workdir)
-	supervisor := gimbal.NewSession(scoped, coach, a.workdir)
-	out, err = principal.Generate[Report](scoped, repairPrompt, gimbal.WithSupervisor(supervisor, coachPrompt))
-	if _, ok := errors.AsType[gimbal.Killed](err); ok {
-		err = temporal.NewNonRetryableApplicationError(err.Error(), "Killed", err)
-	}
-	return
-}
-func (a *Activities) IterationTests(ctx context.Context, id string, ref compiledscope.Snapshot, data IterationData) (ChecksResult, error) {
-	scoped, release, err := a.input(ctx, id, ref)
-	if err != nil {
-		return ChecksResult{}, err
-	}
-	defer release()
-	code, stdout, stderr, err := gimbal.RunCommand(scoped, "tests", a.workdir, "go", "test", "-count=1", "-run", data.Pair.Test, "./...")
-	return a.checked(code, stdout, stderr, err)
-}
-func (a *Activities) FinalTests(ctx context.Context, ref compiledscope.Snapshot) (ChecksResult, error) {
-	scoped, release, err := a.input(ctx, "", ref)
-	if err != nil {
-		return ChecksResult{}, err
-	}
-	defer release()
-	code, stdout, stderr, err := gimbal.RunCommand(scoped, "final-tests", a.workdir, "go", "test", "-count=1", "./...")
-	return a.checked(code, stdout, stderr, err)
-}
-func (a *Activities) checked(code int, stdout, stderr string, err error) (ChecksResult, error) {
-	if err == nil && code != 0 {
-		err = fmt.Errorf("checks exited %d", code)
-	}
-	ref, storeErr := a.store.Extend("", contextEntry("previous", Checks{code, stdout, stderr}))
-	return ChecksResult{ExitCode: code, Context: ref}, errors.Join(err, storeErr)
-}
-
 func (a *Activities) Finish(ctx context.Context, reason string) error {
 	return a.ExitScope(ctx, "", reason)
 }

@@ -1,3 +1,0 @@
-module specimen
-
-go 1.23

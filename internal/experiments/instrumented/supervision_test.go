@@ -167,3 +167,8 @@ func (a *observedReviewer) RunTurn(ctx context.Context, id, prompt string, schem
 	}
 	return out, err
 }
+
+// Large input for the independent supervisor overflow test.
+func referenceMaterial() string {
+	return strings.Repeat("Reference padding; no implementation instructions here.\n", 12000) + "CONTEXT_RECEIPT=middle-of-external-context-42\n" + strings.Repeat("Reference padding; no implementation instructions here.\n", 12000)
+}

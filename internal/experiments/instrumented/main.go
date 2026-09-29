@@ -35,12 +35,12 @@ func main() {
 }
 
 func run() error {
-	example := flag.String("workflow", "instrumented", "instrumented, continuity, fanout, or planning")
+	example := flag.String("workflow", "continuity", "continuity, fanout, or planning")
 	itemsJSON := flag.String("items-json", `[{"File":"one.txt","Receipt":"duplicate","Delay":8},{"File":"two.txt","Receipt":"duplicate","Delay":4}]`, "assignments for the two authored fanout branches as JSON")
 	mode := flag.String("mode", "start", "start, control, activities, or view")
 	address := flag.String("temporal", "127.0.0.1:7233", "Temporal server address")
 	queue := flag.String("queue", controlQueue, "activity worker queue")
-	task := flag.String("task", "Repair the four assigned defects, keeping each change within its assigned file.", "small, non-sensitive task context")
+	task := flag.String("task", "Continue a conversation across scoped work.", "small, non-sensitive task context")
 	projectPath := flag.String("project", "", "completed specimen workspace to view")
 	flag.Parse()
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -75,10 +75,9 @@ func run() error {
 		if err != nil {
 			return err
 		}
-		var entry any = ReviewWorkflow
+		var entry any
 		var argument any = input
 		switch *example {
-		case "instrumented":
 		case "continuity":
 			entry = ContinuityWorkflow
 		case "planning":
@@ -114,7 +113,6 @@ func run() error {
 		return json.NewEncoder(os.Stdout).Encode(report)
 	case "control":
 		w := worker.New(c, controlQueue, worker.Options{})
-		w.RegisterWorkflow(ReviewWorkflow)
 		w.RegisterWorkflow(ContinuityWorkflow)
 		w.RegisterWorkflow(FanoutWorkflow)
 		w.RegisterWorkflow(PlanningWorkflow)

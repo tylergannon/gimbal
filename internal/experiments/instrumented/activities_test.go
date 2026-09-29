@@ -110,37 +110,6 @@ func TestRootCancellationClosesExplicitScopesExactlyOnce(t *testing.T) {
 	}
 }
 
-func TestLargeChecksAreStoredAtProducingBoundary(t *testing.T) {
-	a := Activities{store: compiledscope.Store{Root: t.TempDir()}}
-	stdout := strings.Repeat("test output\n", 200000)
-	out, err := a.checked(0, stdout, "", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	payload, err := json.Marshal(out)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(payload) > 200 {
-		t.Fatal("large output escaped into activity result")
-	}
-	entries, err := a.store.Load(out.Context)
-	if err != nil {
-		t.Fatal(err)
-	}
-	raw, err := a.store.Value(entries[0])
-	if err != nil {
-		t.Fatal(err)
-	}
-	var restored Checks
-	if err := json.Unmarshal(raw, &restored); err != nil {
-		t.Fatal(err)
-	}
-	if restored.Stdout != stdout {
-		t.Fatal("stored checks lost output")
-	}
-}
-
 func TestInitialTaskIsStoredBeforeWorkflowSubmission(t *testing.T) {
 	root := t.TempDir()
 	task := strings.Repeat("initial task input ", 200000)

@@ -105,7 +105,7 @@ func ContinuityWorkflow(ctx workflow.Context, in Input) (out continuityOutcome, 
 		return
 	}
 	d := out.Diagnostic
-	if err = workflow.ExecuteActivity(ops, "SetValue", "", root, contextEntry("diagnostic", Checks{d.ExitCode, d.Stdout, d.Stderr})).Get(wait, &root); err != nil {
+	if err = workflow.ExecuteActivity(ops, "SetValue", "", root, contextEntry("diagnostic", Checks{ExitCode: d.ExitCode, Stdout: d.Stdout, Stderr: d.Stderr})).Get(wait, &root); err != nil {
 		return
 	}
 	if d.ExitCode == 7 {

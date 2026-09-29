@@ -28,7 +28,7 @@ not a claim that historical design documents describe the current runtime.
 
 | File | Lines / symbol | Relevance |
 | --- | --- | --- |
-| [researchdocument.go](../../../internal/workflows/researchdocument/researchdocument.go) | 298–313 | Initial curation then immediate authoring: initial audit belongs here. |
+| [researchdocument.go](../../../internal/workflows/researchdocument/researchdocument.go) | 61, 126–132, 298–313 | Default three editorial rounds and `maxRounds` validation; initial curation then immediate authoring, where the bounded audit/repair stage belongs. |
 | [researchdocument.go](../../../internal/workflows/researchdocument/researchdocument.go) | 342–381 | Gap collection, curation, and revision: repeat audit belongs here. |
 | [researchdocument.go](../../../internal/workflows/researchdocument/researchdocument.go) | 405–438 | Existing source-count and nonempty-file checks do not verify claims. |
 | [researchdocument.go](../../../internal/workflows/researchdocument/researchdocument.go) | 441–465 | Research, curation, author, and editor instructions currently rely on prose guidance. |
@@ -55,6 +55,39 @@ The installed dependency source is available at
 `/Users/tyler/go/pkg/mod/github.com/kazz187/jev-sdk-go@v0.2.0/`.
 Its `wire.go`, `client.go`, and `retry.go` expose structured responses, model
 selection, and retry support. The proposal does not require another SDK.
+
+## Algorithm and exploratory evidence
+
+- [Mathematical analysis](mathematical-analysis.md): exact-oracle pair coverage,
+  the hidden-single-edge lower bound, and globally retained witness marking in
+  O(m² + N log K) requests. These are mathematical assumptions and proofs, not
+  measurements of Jev fidelity.
+- [Scope-owned-services corpus](../scope-owned-services/corpus/INDEX.md): the
+  existing research index with source-linked claims about process lifetime and
+  platform qualifications, suitable for selecting realistic evaluation cases. Topic-001's local
+  originals include `sources/go-os-exec-exec.go.txt` and
+  `sources/go-os-exec-exec_test.go.txt`. Some other routes lack local source
+  directories; chosen references must be resolved to originals before labeling.
+  Existing claims and clips are evaluation candidates, not ground truth.
+- Exploratory Jev 1.13 calls tried source checks, individual pairs, group screens
+  at 5/10/20/40 claims, and shared-state packed pair questions. Repetitive
+  synthetic group examples produced expected top labels, but differently
+  measured limits remained ambiguous or falsely conflicting, including with
+  focused follow-ups and packed questions. They establish request feasibility
+  and a known limitation, not corpus-level accuracy or a pruning threshold.
+  No raw run output is part of this research note.
+- A whole-corpus feasibility request sent all 21 non-source Markdown documents
+  from that corpus, preserving their full text and relative paths. Jev accepted
+  the packet at 15,736 input tokens. This demonstrates that this raw index and
+  clip packet fits; it does not establish complete atomic extraction, the size
+  of the eventual claim records, source truth, or contradiction recall. The
+  proposal compares its cost with a clearly hypothetical 300-claim pair pass.
+
+The proposal owns the starting five-claim packing choice, estimated token
+margins, incremental extraction, bounded resume/repair, and evidence-backed
+reviewed-resolution semantics. These are proposed operating decisions, not
+vendor guarantees. The whole-index screen is an optional research direction;
+there is no group-calibration implementation program in the baseline.
 
 ## Boundaries of this research
 

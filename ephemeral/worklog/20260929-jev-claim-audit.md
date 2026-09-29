@@ -22,3 +22,52 @@ claiming live Jev access is unavailable; never display credential values.
 
 decision: Keep downloaded official sources in the local cache and operational
 probe output outside Git. Commit only the research proposal and source catalog.
+
+correction: Tyler asks about better-than-quadratic search and proposes screening
+small groups for coherence before locating conflicts. A separate judgment or
+stored edge for every pair was an assistant design choice, not a requirement.
+
+decision: Evaluate bounded group and cross-group screens, with recursive
+localization. Internally clean batches can conflict with one another. Fixed
+batch sizes reduce request constants but do not establish O(n log n) global
+coverage for unstructured claims; calibrated negative screens are required
+before pruning.
+
+decision: At Tyler's request, Sol independently proves the bounded-oracle
+algorithm while Claude Fable reviews the full proposal. Keep the exact-oracle
+proof separate from empirical confidence in Jev judgments.
+
+finding: Retaining a witness per conflicting claim permits an exact-oracle
+O(m² + N log K) marking algorithm; the clean-input bounded-query lower bound
+still holds. Never discard a marked endpoint from comparisons with unmarked
+claims, and never treat an unresolved marker as a confirmed witness.
+
+correction: Running a recursive group-screen tree while refusing all negative
+pruning only adds overhead. Use packed explicit pair questions as the initial
+fallback and name the empirical evidence required before activating pruning.
+
+correction: Tyler explicitly questions recombination across separate batches.
+The hidden-single-edge bound applies to arbitrary overlapping/adaptive batches,
+not just fixed partitions. Packed questions reduce transport overhead; they
+do not make unrestricted pairwise contradiction checking subquadratic.
+
+finding: A Jev false conflict needs a source-backed reviewed-compatible
+resolution; retaining every false positive as an unresolved dispute would
+misrepresent supported facts. Preserve the raw judgment and evidence for review.
+
+finding: Preserve extracted claim records for unchanged block/context digests.
+Re-extracting the entire index can churn IDs and invalidate correct judgments
+and dispositions on every repair pass.
+
+decision: Keep group search as researched optional optimization, including
+Tyler's whole-index-fit idea. Do not turn that exploration into a large
+calibration-program requirement for the initial packed-pair command.
+
+finding: Measure the existing corpus before calling whole-index screening hard.
+Its full index/clip text fits one real Jev request; successful transport and a
+negative model judgment still do not demonstrate contradiction recall. Keep
+that distinction separate from the eventual atomic inventory's unknown size.
+
+finding: A proposed retry exit code must survive the CLI startup path. The
+current unconditional Doppler resolution can fail before the auditor starts;
+the command needs an explicit inherited-key path and typed exit mapping.

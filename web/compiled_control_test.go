@@ -10,12 +10,14 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/internal/compiledscope"
 	"github.com/tylergannon/gimbal/internal/host"
+	"github.com/tylergannon/gimbal/internal/live"
 	"github.com/tylergannon/gimbal/internal/observation"
 	routes "github.com/tylergannon/gimbal/internal/skgo/links/onzggl3sn52xizlt"
 	"github.com/tylergannon/gimbal/workflow"
@@ -330,5 +332,139 @@ func TestCompiledStoreConfigurationIsRequiredAndUnique(t *testing.T) {
 	}
 	if _, err := host.WithContextStore(ctx, project, store, t.TempDir()); err == nil {
 		t.Fatal("duplicate context store accepted")
+	}
+}
+
+func TestCompiledRunThatEndsDuringControlReturnsNotFound(t *testing.T) {
+	p, _ := compiledProject(t)
+	var deliveries atomic.Int32
+	_, finish, err := p.OpenCompiledRun(t.Context(), "hosted-cancellation-test", nil, "", t.TempDir(), host.CompiledControls{CancelRun: func(context.Context, gimbal.Killed) error { deliveries.Add(1); return nil }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := startedRunID(t, p.Path())
+	controller, err := p.Runs().InProgress(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	end, done := make(chan struct{}), make(chan struct{})
+	finishResult := make(chan error, 1)
+	go func() { <-end; finishResult <- finish(nil); close(done) }()
+	runs := live.NewRuns()
+	release := runs.Hook(id, &endingLocalRun{Controller: controller, end: end, done: done})
+	defer release()
+	accepted, err := routes.Skgo_cancelRun(live.WithRuns(p.Context(), runs), routes.CancelRun{Run: id})
+	status, ok := errors.AsType[*skgo.HTTPError](err)
+	if accepted.Accepted || !ok || status.Status != http.StatusNotFound || status.Message != "Run "+id+" is no longer running." {
+		t.Fatalf("hosted end race: accepted=%+v error=%v; want local404", accepted, err)
+	}
+	if err := <-finishResult; err != nil {
+		t.Fatal(err)
+	}
+	if deliveries.Load() != 0 {
+		t.Fatalf("ended run delivered %d cancellations", deliveries.Load())
+	}
+	snapshot, err := p.Registry().Snapshot(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(snapshot.Run.Cancellation.Value.Deliveries) != 0 {
+		t.Fatal("ended run recorded a delivery")
+	}
+}
+
+func TestCompiledCancellationAlreadyInProgress(t *testing.T) {
+	p, _ := compiledProject(t)
+	entered, releaseDelivery := make(chan struct{}), make(chan struct{})
+	var deliveries atomic.Int32
+	_, finish, err := p.OpenCompiledRun(t.Context(), "hosted-cancellation-test", nil, "", t.TempDir(), host.CompiledControls{CancelRun: func(context.Context, gimbal.Killed) error {
+		deliveries.Add(1)
+		close(entered)
+		<-releaseDelivery
+		return nil
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := startedRunID(t, p.Path())
+	first := make(chan error, 1)
+	go func() { _, err := routes.Skgo_cancelRun(p.Context(), routes.CancelRun{Run: id}); first <- err }()
+	<-entered
+	accepted, err := routes.Skgo_cancelRun(p.Context(), routes.CancelRun{Run: id})
+	close(releaseDelivery)
+	firstErr := <-first
+	_ = finish(context.Canceled)
+	assertCancellationBusy(t, id, accepted, err)
+	if firstErr != nil {
+		t.Fatalf("first cancellation: %v", firstErr)
+	}
+	if deliveries.Load() != 1 {
+		t.Fatalf("busy request started extra delivery: %d", deliveries.Load())
+	}
+	snapshot, err := p.Registry().Snapshot(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(snapshot.Run.Cancellation.Value.Deliveries) != 1 {
+		t.Fatalf("busy request recorded extra delivery: %+v", snapshot.Run.Cancellation.Value.Deliveries)
+	}
+}
+
+type closingControlAdapter struct {
+	blocking
+	entered chan struct{}
+	release chan struct{}
+}
+
+func (a *closingControlAdapter) Close(ctx context.Context, _ string) error {
+	close(a.entered)
+	select {
+	case <-a.release:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func TestCompiledCancellationWhileFinishing(t *testing.T) {
+	p, _ := compiledProject(t)
+	adapter := &closingControlAdapter{entered: make(chan struct{}), release: make(chan struct{})}
+	var deliveries atomic.Int32
+	root, finish, err := p.OpenCompiledRun(t.Context(), "hosted-cancellation-test", map[gimbal.WorkflowRole]gimbal.ModelBinding{"coder": {Adapter: adapter, Model: "m"}}, "", t.TempDir(), host.CompiledControls{CancelRun: func(context.Context, gimbal.Killed) error { deliveries.Add(1); return nil }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	session := gimbal.NewSession(root, "coder", t.TempDir())
+	if _, err := session.Generate[gimbal.Text](root, "complete"); err != nil {
+		t.Fatal(err)
+	}
+	id := startedRunID(t, p.Path())
+	finished := make(chan error, 1)
+	go func() { finished <- finish(nil) }()
+	<-adapter.entered
+	accepted, err := routes.Skgo_cancelRun(p.Context(), routes.CancelRun{Run: id})
+	close(adapter.release)
+	finishErr := <-finished
+	assertCancellationBusy(t, id, accepted, err)
+	if finishErr != nil {
+		t.Fatalf("finish: %v", finishErr)
+	}
+	if deliveries.Load() != 0 {
+		t.Fatalf("finishing run delivered %d cancellations", deliveries.Load())
+	}
+	snapshot, err := p.Registry().Snapshot(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(snapshot.Run.Cancellation.Value.Deliveries) != 0 {
+		t.Fatal("finishing run recorded a delivery")
+	}
+}
+
+func assertCancellationBusy(t *testing.T, id string, accepted routes.ControlAccepted, err error) {
+	t.Helper()
+	status, ok := errors.AsType[*skgo.HTTPError](err)
+	if accepted.Accepted || !ok || status.Status != http.StatusConflict || status.Message != "Run "+id+" is cancelling or finishing; check its current status." {
+		t.Fatalf("busy cancellation: accepted=%+v error=%v", accepted, err)
 	}
 }

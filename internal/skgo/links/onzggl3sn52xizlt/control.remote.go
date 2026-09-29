@@ -8,7 +8,6 @@ import (
 	"github.com/tylergannon/skgo"
 
 	"github.com/tylergannon/gimbal"
-	"github.com/tylergannon/gimbal/internal/host"
 	"github.com/tylergannon/gimbal/internal/live"
 )
 
@@ -50,9 +49,13 @@ func cancelRun(ctx context.Context, arg CancelRun) (ControlAccepted, error) {
 	}
 	cause := gimbal.Killed{Target: "", By: "person", Reason: "cancelled from the run workspace"}
 	if err := run.CancelScope("", cause); err != nil {
-		if _, ok := errors.AsType[*host.CancellationDeliveryError](err); ok {
+		if _, delivery := errors.AsType[*live.CancellationDeliveryError](err); delivery {
 			return ControlAccepted{}, skgo.Errorf(http.StatusConflict,
 				"Cancellation delivery for run %s: %v. Check the recorded local stop and backend delivery status.", arg.Run, err)
+		}
+		if errors.Is(err, live.ErrCancellationInProgress) {
+			return ControlAccepted{}, skgo.Errorf(http.StatusConflict,
+				"Run %s is cancelling or finishing; check its current status.", arg.Run)
 		}
 		return ControlAccepted{}, skgo.Errorf(http.StatusNotFound, "Run %s is no longer running.", arg.Run)
 	}

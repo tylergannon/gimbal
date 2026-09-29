@@ -50,13 +50,6 @@ func WithContextStore(ctx context.Context, project string, store *compiledscope.
 	return context.WithValue(ctx, contextStoresKey{}, stores), nil
 }
 
-// CancellationDeliveryError distinguishes a hosted cancellation request failure
-// from a local scope that ended before an operator control reached it.
-type CancellationDeliveryError struct{ Err error }
-
-func (e *CancellationDeliveryError) Error() string { return e.Err.Error() }
-func (e *CancellationDeliveryError) Unwrap() error { return e.Err }
-
 type compiledController struct {
 	live.Controller
 	controls CompiledControls
@@ -76,8 +69,5 @@ func (c *compiledController) CancelScope(key string, cause error) error {
 	if !ok {
 		killed = gimbal.Killed{Reason: cause.Error()}
 	}
-	if err := runtime.CancelHostedRun(killed, c.controls.CancelRun, c.controls.DeliveryTimeout); err != nil {
-		return &CancellationDeliveryError{Err: err}
-	}
-	return nil
+	return runtime.CancelHostedRun(killed, c.controls.CancelRun, c.controls.DeliveryTimeout)
 }

@@ -463,7 +463,7 @@ func (r *run) cancelScopeLocked(key string, cause error) error {
 // backend attempt has its own deadline and cannot prevent the local stop.
 func (r *run) CancelHostedRun(cause Killed, deliver func(context.Context, Killed) error, timeout time.Duration) error {
 	if !r.cancelDeliveryMu.TryLock() {
-		return fmt.Errorf("gimbal: cancellation delivery is already in progress")
+		return live.ErrCancellationInProgress
 	}
 	defer r.cancelDeliveryMu.Unlock()
 	r.mu.Lock()
@@ -496,7 +496,10 @@ func (r *run) CancelHostedRun(cause Killed, deliver func(context.Context, Killed
 	r.rootReservation = nil
 	localErr := r.cancelScopeLocked("", reserved)
 	r.mu.Unlock()
-	return errors.Join(deliveryErr, localErr)
+	if deliveryErr != nil {
+		return errors.Join(&live.CancellationDeliveryError{Err: deliveryErr}, localErr)
+	}
+	return localErr
 }
 
 // CancelTurn cancels the running turn id with cause. Only that turn ends:

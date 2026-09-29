@@ -34,6 +34,13 @@ their operations, carries immutable feedback and decides when to stop. No
 whole-loop activity is used. Loop/task entry emits the corresponding metadata
 before the scope begins, so the UI sees the correct kind and assignment.
 
+The planning pair records the worker result as `implementation`, then mutates
+its receipt and records that separately. A conditional `review` write shadows a
+parent value only when the worker returns summary `reviewed`. Feedback selects
+that key only after its write completes; a skipped branch must not include the
+inherited parent value as task-local evidence. These source edits exercise the
+translation obligations without changing the planner's `tasks`/`next` schema.
+
 Activity retries are disabled. A control-worker restart can replay against a
 surviving activity worker. A dead activity container causes bounded failure;
 after confirming container removal the control worker settles the run record
@@ -90,6 +97,21 @@ The viewer listens on port 8082. Stop it before opening the same project from
 another owner. Stop/remove the dedicated control worker when finished.
 
 ## Checks
+
+`TestPairedWorkflows` executes the actual authored continuity/planning functions
+through Project.Run and their handwritten targets through Temporal's test
+scheduler with real activities. Both use the same deterministic response rules,
+real commands and isolated temporary workspaces. It compares prompts, supported
+errors, operation/resource order and semantic event fields after removing clocks,
+durations and usage and normalizing workspace paths. It also asserts expected
+activity names and branch outcomes independently of the comparison.
+
+`TestPairedCheckFailureRecording` compares implicit records after missing-command
+and active process cancellation, including the record returned by the producing
+activity. `TestInfrastructureFailureStopsBeforeAuthoredOperations` checks the
+workflow's handling of failed provisioning. These checks use no paid provider or
+Docker container and do not establish fresh live UI or backend-operation proof.
+
 
 ```sh
 go test ./internal/experiments/instrumented ./internal/compiledscope ./internal/observation

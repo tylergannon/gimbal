@@ -17,12 +17,19 @@ var Graph = workflow.Graph{
 	Source:   workflow.Source{File: "internal/experiments/instrumented/planning/plain.go", Line: 15},
 	Services: []workflow.Service{},
 	Body: []workflow.Operation{
-		workflow.Session{Source: workflow.Source{File: "internal/experiments/instrumented/planning/plain.go", Line: 16}, Name: "coder", From: ""},
-		workflow.PromiseLoop{Source: workflow.Source{File: "internal/experiments/instrumented/planning/plain.go", Line: 17}, Name: "plan", Planner: "coder", Services: []workflow.Service{}, Body: []workflow.Operation{
-			workflow.Session{Source: workflow.Source{File: "internal/experiments/instrumented/planning/plain.go", Line: 19}, Name: "coder", From: ""},
-			workflow.AgentCall{Source: workflow.Source{File: "internal/experiments/instrumented/planning/plain.go", Line: 20}, Session: "coder", Role: "coder", Prompt: "Perform the assignment in task. Edit only planned.txt. Return a concise summary, file planned.txt, and receipt done."},
-			workflow.Set{Source: workflow.Source{File: "internal/experiments/instrumented/planning/plain.go", Line: 24}, Key: "result"},
-			workflow.Command{Source: workflow.Source{File: "internal/experiments/instrumented/planning/plain.go", Line: 25}, Name: "check"},
+		workflow.Set{Source: workflow.Source{File: "internal/experiments/instrumented/planning/plain.go", Line: 16}, Key: "review"},
+		workflow.Session{Source: workflow.Source{File: "internal/experiments/instrumented/planning/plain.go", Line: 17}, Name: "coder", From: ""},
+		workflow.PromiseLoop{Source: workflow.Source{File: "internal/experiments/instrumented/planning/plain.go", Line: 18}, Name: "plan", Planner: "coder", Services: []workflow.Service{}, Body: []workflow.Operation{
+			workflow.Session{Source: workflow.Source{File: "internal/experiments/instrumented/planning/plain.go", Line: 20}, Name: "coder", From: ""},
+			workflow.AgentCall{Source: workflow.Source{File: "internal/experiments/instrumented/planning/plain.go", Line: 21}, Session: "coder", Role: "coder", Prompt: "Perform the assignment in task. Edit only planned.txt. Return a concise summary, file planned.txt, and receipt done."},
+			workflow.Set{Source: workflow.Source{File: "internal/experiments/instrumented/planning/plain.go", Line: 25}, Key: "implementation"},
+			workflow.Set{Source: workflow.Source{File: "internal/experiments/instrumented/planning/plain.go", Line: 27}, Key: "receipt"},
+			workflow.Condition{Source: workflow.Source{File: "internal/experiments/instrumented/planning/plain.go", Line: 28}, Branches: []workflow.Branch{
+				{Source: workflow.Source{File: "internal/experiments/instrumented/planning/plain.go", Line: 28}, Case: "result.Summary == \"reviewed\"", Exits: false, Body: []workflow.Operation{
+					workflow.Set{Source: workflow.Source{File: "internal/experiments/instrumented/planning/plain.go", Line: 29}, Key: "review"},
+				}},
+			}},
+			workflow.Command{Source: workflow.Source{File: "internal/experiments/instrumented/planning/plain.go", Line: 31}, Name: "check"},
 		}},
 	},
 }

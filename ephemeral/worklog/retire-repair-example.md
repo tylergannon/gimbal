@@ -29,3 +29,12 @@ friction: One full-suite hook attempt failed the untouched Antigravity adapter's
 successful-result/unsettled-tool test with a closed stdout pipe. An immediate
 isolated agy package rerun passed. Do not describe this intermittent observation
 as repaired by the compiler-example removal; investigate separately if repeated.
+
+
+## Paired proof follow-up
+
+decision: Tyler authorized the 18-claim continuity/planning comparison and reuse of focused existing evidence. Reuse this task worktree so the retired workflow stays absent; no compiler/public API work added.
+correction: An unconditional union of feedback keys is insufficient for conditional shadowing. The new paired test failed when the skipped review write selected the inherited parent value. The target now adds review only after that branch writes successfully.
+correction: The source Check clones arguments using append to nil; the target retained an empty non-nil slice, producing [] rather than null in the missing-command record. Match source capture/encoding.
+friction: Native app artifact inventory hung; existing task worktrees were inspected directly and reused instead of creating another worktree.
+friction: Temporal serializes a final errors.Join as an ApplicationError. Check supported infrastructure identity at the authored caller boundary inside the workflow, before external serialization; do not imply arbitrary client-side concrete error preservation.

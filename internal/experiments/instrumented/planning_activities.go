@@ -96,7 +96,7 @@ func (a *Activities) check(ctx context.Context, in operationInput, key, command 
 	}
 	defer release()
 	code, out, stderr, commandErr := gimbal.RunCommand(scoped, key, a.workdir, command, args...)
-	record := checkRecord{command, args, a.workdir, code, out, stderr, errorText(commandErr)}
+	record := checkRecord{command, append([]string(nil), args...), a.workdir, code, out, stderr, errorText(commandErr)}
 	// Keep the producing lease until both command and its implicit Set finish.
 	// Context publication is independent of a cancelled process context.
 	ref, recordErr := compiledscope.WriteContext(scoped, a.store, in.Context, contextEntry(key, record))

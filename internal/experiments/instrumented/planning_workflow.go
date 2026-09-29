@@ -47,6 +47,9 @@ func PlanningWorkflow(ctx workflow.Context, in Input) (out planningOutcome, err 
 	if err = workflow.ExecuteActivity(ops, "Initialize", Data{Context: in.Context, Name: "planning"}).Get(wait, &root); err != nil {
 		return
 	}
+	if err = workflow.ExecuteActivity(ops, "SetValue", "", root, contextEntry("review", "parent")).Get(wait, &root); err != nil {
+		return
+	}
 	var planner sessionHandle
 	if err = workflow.ExecuteActivity(ops, "NewParent").Get(wait, &planner); err != nil {
 		return
@@ -88,6 +91,8 @@ func PlanningWorkflow(ctx workflow.Context, in Input) (out planningOutcome, err 
 			return
 		}
 		snapshot := root
+		// Track executed writes, not the static union of keys a branch may write.
+		localKeys := []string{"task", "implementation", "receipt", "check"}
 		err = workflow.ExecuteActivity(ops, "SetValue", id, snapshot, contextEntry("task", task)).Get(wait, &snapshot)
 		var session sessionHandle
 		if err == nil {
@@ -101,7 +106,17 @@ func PlanningWorkflow(ctx workflow.Context, in Input) (out planningOutcome, err 
 			err = result.Err()
 		}
 		if err == nil {
-			err = workflow.ExecuteActivity(ops, "SetValue", id, snapshot, contextEntry("result", result.Value)).Get(wait, &snapshot)
+			err = workflow.ExecuteActivity(ops, "SetValue", id, snapshot, contextEntry("implementation", result.Value)).Get(wait, &snapshot)
+		}
+		if err == nil {
+			result.Value.Receipt = "recorded:" + result.Value.Receipt
+			err = workflow.ExecuteActivity(ops, "SetValue", id, snapshot, contextEntry("receipt", result.Value.Receipt)).Get(wait, &snapshot)
+		}
+		if err == nil && result.Value.Summary == "reviewed" {
+			err = workflow.ExecuteActivity(ops, "SetValue", id, snapshot, contextEntry("review", "task")).Get(wait, &snapshot)
+			if err == nil {
+				localKeys = append(localKeys, "review")
+			}
 		}
 		var check checkResult
 		if err == nil {
@@ -112,7 +127,7 @@ func PlanningWorkflow(ctx workflow.Context, in Input) (out planningOutcome, err 
 			}
 		}
 		if err == nil {
-			err = workflow.ExecuteActivity(ops, "TaskFeedback", operationInput{id, snapshot, session}, []string{"task", "result", "check"}).Get(wait, &out.Feedback)
+			err = workflow.ExecuteActivity(ops, "TaskFeedback", operationInput{id, snapshot, session}, localKeys).Get(wait, &out.Feedback)
 		}
 		// Explicit iterator exit: no synthetic function boundary around its body.
 		// A source body return is not an error returned to the iterator callback.

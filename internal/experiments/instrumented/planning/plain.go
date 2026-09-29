@@ -13,6 +13,7 @@ const WorkPrompt = "Perform the assignment in task. Edit only planned.txt. Retur
 
 // Planning hands command evidence back to a continuing planner.
 func Planning(ctx context.Context, env gimbal.Env) error {
+	gimbal.Set(ctx, "review", "parent")
 	planner := gimbal.NewSession(ctx, "coder", env.WorkDir)
 	loop := gimbal.PromiseLoop(ctx, "plan", Goal, planner)
 	for ctx, _ := range loop.Tasks {
@@ -21,7 +22,12 @@ func Planning(ctx context.Context, env gimbal.Env) error {
 		if err != nil {
 			return err
 		}
-		gimbal.SetJSON(ctx, "result", result)
+		gimbal.SetJSON(ctx, "implementation", result)
+		result.Receipt = "recorded:" + result.Receipt
+		gimbal.Set(ctx, "receipt", result.Receipt)
+		if result.Summary == "reviewed" {
+			gimbal.Set(ctx, "review", "task")
+		}
 		if err = gimbal.Check(ctx, "check", env.WorkDir, "sh", "-c", "test \"$(cat planned.txt)\" = done"); err != nil {
 			return err
 		}

@@ -20,7 +20,7 @@ func TestBundledSuiteEvidence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(s.Cases) < 3 {
+	if len(s.Cases) < 2 {
 		t.Fatalf("cases=%d", len(s.Cases))
 	}
 	for _, c := range s.Cases {
@@ -96,8 +96,8 @@ func TestSelectionIncludesFailuresAndUnknownCost(t *testing.T) {
 		t.Fatalf("selected %+v %v", best, ok)
 	}
 	trials[2].AuditRepairPasses = 2
-	if _, ok := bestCandidate(candidates, trials, s); ok {
-		t.Fatal("two-repair candidate eligible")
+	if best, ok := bestCandidate(candidates, trials, s); !ok || best.ID != "reliable" {
+		t.Fatalf("correct two-repair candidate should remain eligible: %+v %v", best, ok)
 	}
 }
 

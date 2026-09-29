@@ -66,13 +66,13 @@ reasoning. A model or authentication failure is visible, not a silent fallback.
 
 Fixed-source trials copy the originals once into the corpus’s shared `sources/` directory. Topic indexes link to those originals rather than multiplying identical source copies across all five researchers.
 
-The bundled suite has two development cases and a separate holdout. Every candidate dispatch runs all development cases. Selection requires one complete passing trial of every development case. The default three-round budget samples a cheap baseline and controlled role swaps from the 25 allowed combinations. The planner stops once a baseline and a controlled comparison produce an eligible choice; there are no mandatory repeats or exhaustive provider coverage. Reports expose trial counts, final quality-pass rate, first-audit cleanliness rate, and quality-pass-with-at-most-one-repair rate, with failures in their denominators. Require quality
-success and at most one audit repair per trial on average, then minimize cost
-among eligible candidates; show first-pass cleanliness and the tradeoff rather
+The bundled practical suite has one five-source Atlas development case and a separate five-source Cedar holdout. Every candidate dispatch runs all development cases. Selection requires one complete passing trial of every development case. The default three-round budget samples a cheap baseline and controlled role swaps from the 25 allowed combinations. The planner stops once a baseline and a controlled comparison produce an eligible choice; there are no mandatory repeats or exhaustive provider coverage. Reports expose trial counts, final quality-pass rate, first-audit cleanliness rate, and quality-pass-with-at-most-one-repair rate, with failures in their denominators. Require quality
+success, then minimize cost among eligible candidates, using fewer repairs to
+break a cost tie; show first-pass cleanliness and the one-repair tradeoff rather
 than averaging quality away. The first bounded
 experiment is exploratory and cannot establish a population success rate.
 
-At the default limits, three rounds × two cases × sixty minutes bounds development research at six hours, plus calibration, planning, assessments, retrieval checks, cleanup, and one holdout trial. Successful comparisons can stop earlier. A real Sonnet curation trial exceeded the former fifteen-minute timeout. The result is a provisional choice for these fixed-source cases, not a reliability estimate or a broad model ranking.
+At the default limits, three rounds × one case × sixty minutes bounds development research at three hours, plus calibration, planning, assessments, retrieval checks, cleanup, and one holdout trial. Successful comparisons can stop earlier. Assessor, reader and answer-judge requests have separate deadlines so an unresponsive provider cannot stall the comparison indefinitely. A real Sonnet curation trial exceeded the former fifteen-minute research timeout. The result is a provisional choice for these fixed-source cases, not a reliability estimate or a broad model ranking.
 
 After development selection, freeze the chosen candidate and evaluate the
 held-out case without returning its scores to the optimizer. A holdout failure

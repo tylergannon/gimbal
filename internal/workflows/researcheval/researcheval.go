@@ -369,7 +369,9 @@ func ResearchEval(ctx context.Context, env gimbal.Env, params Params) error {
 				gimbal.Set(caseCtx, "trial document", document)
 				gimbal.Set(caseCtx, "trial corpus", corpus)
 				assessor := gimbal.NewSession(caseCtx, "research-eval-assessment", env.WorkDir)
-				quality, assessErr := assessor.Generate[Quality](caseCtx, qualityPrompt, gimbal.WithScopeTemplate(assessmentContext))
+				assessCtx, endAssess := context.WithTimeout(caseCtx, 5*time.Minute)
+				quality, assessErr := assessor.Generate[Quality](assessCtx, qualityPrompt, gimbal.WithScopeTemplate(assessmentContext))
+				endAssess()
 				if err := os.Remove(goldPath); err != nil {
 					return err
 				}
@@ -405,7 +407,9 @@ func ResearchEval(ctx context.Context, env gimbal.Env, params Params) error {
 							gimbal.Set(stepCtx, "question", q.Question)
 							gimbal.Set(stepCtx, "read passages", jsonText(read))
 							gimbal.Set(stepCtx, "remaining file reads", 6-queryResult.Reads)
-							step, err := reader.Generate[ReaderStep](stepCtx, readerPrompt, gimbal.WithScopeTemplate(readerContext))
+							readCtx, endRead := context.WithTimeout(stepCtx, 2*time.Minute)
+							step, err := reader.Generate[ReaderStep](readCtx, readerPrompt, gimbal.WithScopeTemplate(readerContext))
+							endRead()
 							if err != nil {
 								queryResult.Error = err.Error()
 								break
@@ -466,7 +470,9 @@ func ResearchEval(ctx context.Context, env gimbal.Env, params Params) error {
 						gimbal.Set(queryCtx, "reader answer", jsonText(answer))
 						gimbal.Set(queryCtx, "retrieved passages", jsonText(read))
 						judge := gimbal.NewSession(queryCtx, "research-eval-assessment", env.WorkDir)
-						judgment, err := judge.Generate[AnswerGrade](queryCtx, answerPrompt, gimbal.WithScopeTemplate(answerContext))
+						judgeCtx, endJudge := context.WithTimeout(queryCtx, 2*time.Minute)
+						judgment, err := judge.Generate[AnswerGrade](judgeCtx, answerPrompt, gimbal.WithScopeTemplate(answerContext))
+						endJudge()
 						if err != nil {
 							queryResult.Error = err.Error()
 						}
@@ -537,7 +543,7 @@ func ResearchEval(ctx context.Context, env gimbal.Env, params Params) error {
 }
 
 const plannerRules = `Use task.Name exactly equal to an allowed candidate ID, or select. Include each name only once in the current backlog. Research_model controls source collection and topic indexing; index_model controls combined-index curation, claim extraction and repair. Start with a cheap baseline, then compare a small number of combinations changing one role while holding the other fixed. Terra and Sonnet are available for testing whether stronger indexing pays for itself. Use per-role usage, summed turn time, audit repairs and independent quality to identify where additional model capability helps; tokens and time measure workload, not cognitive difficulty by themselves. Each candidate dispatch runs all development cases. One complete passing trial per development case is sufficient for eligibility; failed attempts remain visible and cannot be ignored. Use the default three-round budget for a practical comparison, not exhaustive provider coverage or mandatory repeats. Once a baseline and a controlled comparison have produced an eligible choice, dispatch select rather than spending the remaining budget. Actual quality and price measurements determine eligibility; never treat a provider failure as proof of bad reasoning. Code freezes the cheapest eligible candidate and performs one withheld evaluation. Results are provisional evidence for these fixed-source cases, not a population success rate. End by dispatching select, not an empty backlog. The final holdout is never a tuning target. Do not use tools, edit files, change thresholds or answers, or claim success without the code's holdout result. First-pass audit cleanliness, one-repair cleanliness and final independent correctness are separate measures.`
-const qualityPrompt = `Read the assessment gold, original sources, trial document, and semantic index including its topic indexes and clips. Independently assess every required gold fact in both document and index: preserve units, versions, conditions, attribution and unresolved source disagreements. Read the original evidence, not the operational audit's conclusions. Count factual assertions in the document and generated index prose/clips, excluding copied original sources from the index assertion count, and list unsupported or contradicted assertions, missing consequential qualifications, and hidden source disagreements. A fact is index-covered only when a reader can find it or its precise evidence through INDEX.md links. Return exactly one grade for every gold fact ID with reasons. Do not edit files. Do not treat a Jev pass as independent proof.`
+const qualityPrompt = `Read the assessment gold, original sources, trial document, and semantic index including its topic indexes and clips. Independently assess every required gold fact in both document and index: preserve units, versions, conditions, attribution and unresolved source disagreements. Read the original evidence, not the operational audit's conclusions. Count factual assertions in the document and generated index prose/clips, excluding copied original sources from the index assertion count. List substantive unsupported or contradicted subject claims, missing consequential qualifications, and hidden source disagreements; exclude navigation labels and wording that adds no factual assertion. A fact is index-covered only when a reader can find it or its precise evidence through INDEX.md links. Return exactly one grade for every gold fact ID with reasons. Do not edit files. Do not treat a Jev pass as independent proof.`
 const readerPrompt = `Answer the question using only the supplied read passages. Do not call tools or access files yourself. Begin at INDEX.md and request up to two paths per turn in Paths to navigate links into original sources. Paths may be relative to the corpus or absolute links inside it. The workflow supplies those files subject to six total reads and 18000 bytes. When ready, return no Paths, your answer and exact quotes from original files already read, with their relative paths. Summaries are navigation aids, not original citations. Preserve version, unit and time scope. Report both sides of an unresolved disagreement. If the supplied corpus does not establish the answer, abstain without invented facts or citations. You have at most four turns.`
 const answerPrompt = `Independently compare the reader answer with the query gold and retrieved original passages. Correct requires every part of the question, correct scope and relationships, and explicit unresolved disagreement where appropriate; merely containing the expected numbers is insufficient. For an unanswerable query, justified abstention is correct. Grounded means every factual part follows from the cited original evidence; an appropriate abstention needs no citation. Do not edit files or use the operational audit as proof.`
 const assessmentContext = `{{range .Values}}{{if or (eq .Key "assessment gold") (eq .Key "original source directory") (eq .Key "trial document") (eq .Key "trial corpus")}}{{.Key}}: {{.Value}}
@@ -655,9 +661,6 @@ func bestCandidate(list []candidate, trials []trialResult, s suite) (candidate, 
 		}
 		cost /= float64(count)
 		repairs /= float64(count)
-		if repairs > 1 {
-			continue
-		}
 		if !found || cost < bestCost || (cost == bestCost && repairs < bestRepairs) {
 			best, bestCost, bestRepairs, found = c, cost, repairs, true
 		}

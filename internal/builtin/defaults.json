@@ -12,7 +12,7 @@
   "research-eval-reading": "claude-haiku-4-5",
   "research-eval-assessment": "claude-sonnet-5-5",
   "research-indexing": "gemini-3.8-flash-medium",
-  "index-curation": "gemini-3.8-flash-medium",
+  "index-curation": "claude-sonnet-5-5",
   "document-authoring": "gemini-3.1-pro-high",
   "editorial-review": "gemini-3.1-pro-high",
   "document-supervision": "gemini-3.8-flash-medium",

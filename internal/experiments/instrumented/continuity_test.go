@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -34,10 +35,16 @@ func TestPayloadStoreRoundTripAndCorruption(t *testing.T) {
 	if got != want {
 		t.Fatal("typed result changed")
 	}
-	files, err := filepath.Glob(filepath.Join(root, environmentID("large-result"), "context", "blobs", "*"))
-	if err != nil || len(files) != 1 {
-		t.Fatal(files, err)
+	var ref payloadRef
+	if err = json.Unmarshal(payload.Data, &ref); err != nil {
+		t.Fatal(err)
 	}
+	store := compiledscope.Store{Root: filepath.Join(root, ref.Run, "context")}
+	entries, err := store.Load(t.Context(), ref.Snapshot)
+	if err != nil || len(entries) != 1 || entries[0].File == "" {
+		t.Fatalf("payload manifest: %+v %v", entries, err)
+	}
+	files := []string{filepath.Join(store.Root, "objects", entries[0].File)}
 	if err = os.Chmod(files[0], 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -131,11 +138,11 @@ func TestSetCapturesExactLargeInteger(t *testing.T) {
 	if err = encoded.Get(&snapshot); err != nil {
 		t.Fatal(err)
 	}
-	entries, err := a.store.Load(snapshot)
+	entries, err := a.store.Load(t.Context(), snapshot)
 	if err != nil {
 		t.Fatal(err)
 	}
-	raw, err := a.store.Value(entries[0])
+	raw, err := a.store.Value(t.Context(), entries[0])
 	if err != nil {
 		t.Fatal(err)
 	}

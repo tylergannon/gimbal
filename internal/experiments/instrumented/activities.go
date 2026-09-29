@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
+	"path/filepath"
+	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -17,15 +19,22 @@ import (
 )
 
 // Activities owns worker-local resources, never workflow scheduling. Every
-// frame is explicitly opened/closed by generated lexical code. No callback or
-// goroutine waits between activities to keep a scope alive.
+// frame is explicitly opened/closed by generated lexical code. The root
+// cancellation watcher drains resources if the controller becomes unavailable;
+// it does not execute workflow control flow.
 type Activities struct {
-	models  map[gimbal.WorkflowRole]gimbal.ModelBinding
-	project *host.Project
-	workdir string
-	store   compiledscope.Store
-	mu      sync.Mutex
-	scopes  map[string]*scopeFrame
+	models    map[gimbal.WorkflowRole]gimbal.ModelBinding
+	project   *host.Project
+	controls  host.CompiledControls
+	workdir   string
+	store     compiledscope.Store
+	mu        sync.Mutex
+	scopes    map[string]*scopeFrame
+	completed map[string]*scopeFrame
+	draining  bool
+	drainErr  error
+	drainOnce sync.Once
+	drainDone chan struct{}
 }
 
 type scopeFrame struct {
@@ -36,6 +45,8 @@ type scopeFrame struct {
 	finish   func(error) error
 	busy     sync.WaitGroup
 	closing  bool
+	done     chan struct{}
+	outcome  error
 }
 
 type ScopeInput struct{ ID, Parent, Name string }
@@ -54,17 +65,30 @@ func (a *Activities) Initialize(_ context.Context, data Data) (compiledscope.Sna
 	if models == nil {
 		models = map[gimbal.WorkflowRole]gimbal.ModelBinding{coder: {Adapter: claude.New(), Model: "claude-haiku-4-5"}, coach: {Adapter: pi.New(), Model: "diffusion/deepseek-4.1-flash"}}
 	}
-	root, finish, err := a.project.OpenCompiledRun(a.project.Context(), name, models)
+	localDir := a.store.LocalDir
+	if localDir == "" {
+		localDir = filepath.Join(a.store.Root, "materialized")
+	}
+	root, finish, err := a.project.OpenCompiledRun(a.project.Context(), name, models, data.Context, localDir, a.controls)
 	if err != nil {
 		return "", err
 	}
 	root, cancel := context.WithCancel(root)
-	a.scopes = map[string]*scopeFrame{"": {ctx: root, cancel: cancel, finish: finish}}
-	entries, err := a.store.Load(data.Context)
-	if err != nil {
-		return "", err
-	}
-	return compiledscope.WriteContext(root, a.store, "", entries...)
+	a.scopes = map[string]*scopeFrame{"": {ctx: root, cancel: cancel, finish: finish, done: make(chan struct{})}}
+	a.completed = make(map[string]*scopeFrame)
+	a.drainDone = make(chan struct{})
+
+	go func() {
+		<-root.Done()
+		a.mu.Lock()
+		frame := a.scopes[""]
+		closing := frame == nil || frame.closing
+		a.mu.Unlock()
+		if !closing {
+			a.drain(context.Cause(root))
+		}
+	}()
+	return data.Context, nil
 }
 
 func (a *Activities) EnterScope(_ context.Context, in ScopeInput) error {
@@ -74,7 +98,7 @@ func (a *Activities) enterScope(in ScopeInput, open func(context.Context, string
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	parent := a.scopes[in.Parent]
-	if parent == nil || parent.closing {
+	if a.draining || parent == nil || parent.closing {
 		return fmt.Errorf("parent scope %q unavailable", in.Parent)
 	}
 	if err := parent.ctx.Err(); err != nil {
@@ -89,7 +113,7 @@ func (a *Activities) enterScope(in ScopeInput, open func(context.Context, string
 		cancel()
 		return err
 	}
-	a.scopes[in.ID] = &scopeFrame{parent: in.Parent, ctx: child, cancel: cancel, finish: finish}
+	a.scopes[in.ID] = &scopeFrame{parent: in.Parent, ctx: child, cancel: cancel, finish: finish, done: make(chan struct{})}
 	return nil
 }
 
@@ -98,7 +122,7 @@ func (a *Activities) enterScope(in ScopeInput, open func(context.Context, string
 func (a *Activities) operation(ctx context.Context, id string) (context.Context, func(), error) {
 	a.mu.Lock()
 	frame := a.scopes[id]
-	if frame == nil || frame.closing {
+	if a.draining || frame == nil || frame.closing {
 		a.mu.Unlock()
 		return nil, nil, fmt.Errorf("scope %q unavailable", id)
 	}
@@ -128,17 +152,32 @@ func (a *Activities) operation(ctx context.Context, id string) (context.Context,
 }
 
 func (a *Activities) ExitScope(_ context.Context, id, reason string) error {
+	var cause error
+	if reason != "" {
+		cause = errors.New(reason)
+	}
+	return a.closeScope(id, cause)
+}
+
+// The worker owns each finish invocation. Controller cleanup and a local
+// cancellation drain join the same close and receive its recorded outcome.
+func (a *Activities) closeScope(id string, cause error) error {
 	a.mu.Lock()
 	frame := a.scopes[id]
 	if frame == nil {
+		completed := a.completed[id]
 		a.mu.Unlock()
+		if completed != nil {
+			<-completed.done
+			return completed.outcome
+		}
 		return nil
 	}
 	if frame.closing {
 		a.mu.Unlock()
-		return fmt.Errorf("scope %q already closing", id)
+		<-frame.done
+		return frame.outcome
 	}
-	// The workflow owns nesting: a parent cannot conceal an unclosed child.
 	for key, child := range a.scopes {
 		if key != "" && child.parent == id {
 			a.mu.Unlock()
@@ -146,20 +185,50 @@ func (a *Activities) ExitScope(_ context.Context, id, reason string) error {
 		}
 	}
 	frame.closing = true
+	bodyErr := cause
+	if id == "" {
+		bodyErr = errors.Join(cause, a.drainErr)
+	}
 	a.mu.Unlock()
 	frame.cancel()
 	frame.busy.Wait()
-	var cause error
-	if reason != "" {
-		cause = errors.New(reason)
-	}
-	err := frame.finish(cause)
+	err := frame.finish(bodyErr)
 	a.mu.Lock()
+	frame.outcome = withoutCause(err, cause)
 	delete(a.scopes, id)
+	a.completed[id] = frame
+	close(frame.done)
 	a.mu.Unlock()
-	// The body error already travels through the workflow. Return cleanup errors
-	// separately, retaining the full outcome in the scope's terminal record.
-	return withoutCause(err, cause)
+	return frame.outcome
+}
+
+// Root cancellation must retire local resources even when the controller is
+// unavailable. Stop admissions before taking the leaf-to-root close order.
+func (a *Activities) drain(cause error) {
+	a.drainOnce.Do(func() {
+		a.mu.Lock()
+		a.draining = true
+		ids := make([]string, 0, len(a.scopes))
+		for id, frame := range a.scopes {
+			ids = append(ids, id)
+			frame.cancel()
+		}
+		a.mu.Unlock()
+		sort.Slice(ids, func(i, j int) bool {
+			return strings.Count(ids[i], "/") > strings.Count(ids[j], "/") ||
+				strings.Count(ids[i], "/") == strings.Count(ids[j], "/") && len(ids[i]) > len(ids[j])
+		})
+		for _, id := range ids {
+			err := a.closeScope(id, cause)
+			if id != "" && err != nil {
+				a.mu.Lock()
+				a.drainErr = errors.Join(a.drainErr, err)
+				a.mu.Unlock()
+			}
+		}
+		close(a.drainDone)
+	})
+	<-a.drainDone
 }
 
 func withoutCause(err, cause error) error {
@@ -179,11 +248,11 @@ func withoutCause(err, cause error) error {
 // Each generated context write is an activity. Values are published here,
 // never embedded as multi-megabyte Temporal activity results.
 func contextEntry(key string, value any) compiledscope.Entry {
-	raw, err := json.Marshal(value)
+	entry, err := compiledscope.Encode(key, value)
 	if err != nil {
 		panic(err)
 	}
-	return compiledscope.Entry{Key: key, Value: raw}
+	return entry
 }
 func (a *Activities) write(ctx context.Context, id string, base compiledscope.Snapshot, entries ...compiledscope.Entry) (compiledscope.Snapshot, error) {
 	scoped, release, err := a.operation(ctx, id)
@@ -191,21 +260,18 @@ func (a *Activities) write(ctx context.Context, id string, base compiledscope.Sn
 		return "", err
 	}
 	defer release()
-	return compiledscope.WriteContext(scoped, a.store, base, entries...)
-}
-func (a *Activities) input(ctx context.Context, id string, ref compiledscope.Snapshot) (context.Context, func(), error) {
-	scoped, release, err := a.operation(ctx, id)
-	if err != nil {
-		return nil, nil, err
-	}
-	bound, err := compiledscope.BindContext(scoped, a.store, ref)
-	if err != nil {
-		release()
-		return nil, nil, err
-	}
-	return bound, release, nil
+	return compiledscope.WriteContext(scoped, base, entries...)
 }
 func (a *Activities) Finish(ctx context.Context, reason string) error {
+	a.mu.Lock()
+	frame, draining := a.scopes[""], a.draining
+	cancelled := frame != nil && !frame.closing && frame.ctx.Err() != nil
+	a.mu.Unlock()
+	if cancelled {
+		a.drain(context.Cause(frame.ctx))
+	} else if draining {
+		<-a.drainDone
+	}
 	return a.ExitScope(ctx, "", reason)
 }
 
@@ -214,9 +280,12 @@ func (a *Activities) FinishCancelled(ctx context.Context, reason string) error {
 	frame := a.scopes[""]
 	a.mu.Unlock()
 	if frame != nil {
-		if err := compiledscope.CancelRun(frame.ctx); err != nil {
+		// The runtime retains the first effective cause, including a console request.
+		if err := compiledscope.CancelRun(frame.ctx); err != nil && frame.ctx.Err() == nil {
 			return err
 		}
+		<-frame.ctx.Done()
+		a.drain(context.Cause(frame.ctx))
 	}
 	return a.Finish(ctx, reason)
 }

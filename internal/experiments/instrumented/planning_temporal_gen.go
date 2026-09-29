@@ -10,6 +10,7 @@ import (
 	gimbal "github.com/tylergannon/gimbal"
 	compiledscope "github.com/tylergannon/gimbal/internal/compiledscope"
 	continuity "github.com/tylergannon/gimbal/internal/experiments/instrumented/continuity"
+	_ "github.com/tylergannon/gimbal/internal/experiments/instrumented/planning"
 	temporal "go.temporal.io/sdk/temporal"
 	workflow "go.temporal.io/sdk/workflow"
 )
@@ -107,95 +108,85 @@ func PlanningWorkflow(ctx workflow.Context, in Input) (retErr error) {
 			break
 		}
 		v15 := nextScope(v6, "task")
-		if v18 := workflow.ExecuteActivity(ops, "EnterTaskScope", ScopeInput{v15, v6, "task"}, v12[*v14.Value.Next]).Get(wait, nil); v18 != nil {
-			return v18
+		var v16 compiledscope.Snapshot
+		if v17 := workflow.ExecuteActivity(ops, "EnterTaskScope", ScopeInput{v15, v6, "task"}, root, v12[*v14.Value.Next]).Get(wait, &v16); v17 != nil {
+			return v17
 		}
-		v16 := root
-		v17 := []string{}
-		if v19 := workflow.ExecuteActivity(ops, "SetValue", v15, v16, contextEntry("task", v12[*v14.Value.Next])).Get(wait, &v16); v19 != nil {
+		// plain.go:20: NewSession
+		var v18 sessionHandle
+		if v19 := workflow.ExecuteActivity(ops, "OpenSession", v15, "PlanningSession2", gimbal.WorkflowRole("coder"), workdir).Get(wait, &v18); v19 != nil {
 			v19 = errors.Join(v19, workflow.ExecuteActivity(cleanupContext(ops), "ExitScope", v15, "").Get(cleanupContext(ops), nil))
 			return v19
 		}
-		v17 = append(v17, "task")
-		// plain.go:20: NewSession
-		var v20 sessionHandle
-		if v21 := workflow.ExecuteActivity(ops, "OpenSession", v15, "PlanningSession2", gimbal.WorkflowRole("coder"), workdir).Get(wait, &v20); v21 != nil {
-			v21 = errors.Join(v21, workflow.ExecuteActivity(cleanupContext(ops), "ExitScope", v15, "").Get(cleanupContext(ops), nil))
-			return v21
-		}
-		workerv22 := v20
+		workerv20 := v18
 		// plain.go:21: Generate
-		var v23 operationResult[[]byte]
-		if v26 := workflow.ExecuteActivity(ops, "PlanningGenerate1", operationInput{Scope: v15, Context: v16, Session: workerv22}).Get(wait, &v23); v26 != nil {
-			v26 = errors.Join(v26, workflow.ExecuteActivity(cleanupContext(ops), "ExitScope", v15, "").Get(cleanupContext(ops), nil))
-			return v26
+		var v21 operationResult[[]byte]
+		if v24 := workflow.ExecuteActivity(ops, "PlanningGenerate1", operationInput{Scope: v15, Context: v16, Session: workerv20}).Get(wait, &v21); v24 != nil {
+			v24 = errors.Join(v24, workflow.ExecuteActivity(cleanupContext(ops), "ExitScope", v15, "").Get(cleanupContext(ops), nil))
+			return v24
 		}
-		v24, v25 := compiledscope.Consume[continuity.Report](v23.Value, v23.Err())
-		resultv27, errv28 := v24, v25
+		v22, v23 := compiledscope.Consume[continuity.Report](v21.Value, v21.Err())
+		resultv25, errv26 := v22, v23
 		{
-			if errv28 != nil {
-				var v29 error = errv28
-				v29 = errors.Join(v29, workflow.ExecuteActivity(cleanupContext(ops), "ExitScope", v15, "").Get(cleanupContext(ops), nil))
-				return v29
+			if errv26 != nil {
+				var v27 error = errv26
+				v27 = errors.Join(v27, workflow.ExecuteActivity(cleanupContext(ops), "ExitScope", v15, "").Get(cleanupContext(ops), nil))
+				return v27
 			}
 		}
 		// plain.go:25: SetJSON
-		v30 := "implementation"
-		if v31 := workflow.ExecuteActivity(ops, "SetValue", v15, v16, contextEntry(v30, resultv27)).Get(wait, &v16); v31 != nil {
+		v28 := "implementation"
+		if v29 := workflow.ExecuteActivity(ops, "SetValue", v15, v16, contextEntry(v28, resultv25)).Get(wait, &v16); v29 != nil {
+			v29 = errors.Join(v29, workflow.ExecuteActivity(cleanupContext(ops), "ExitScope", v15, "").Get(cleanupContext(ops), nil))
+			return v29
+		}
+		resultv25.Receipt = ("recorded:" + resultv25.Receipt)
+		// plain.go:27: Set
+		v30 := "receipt"
+		if v31 := workflow.ExecuteActivity(ops, "SetValue", v15, v16, contextEntry(v30, resultv25.Receipt)).Get(wait, &v16); v31 != nil {
 			v31 = errors.Join(v31, workflow.ExecuteActivity(cleanupContext(ops), "ExitScope", v15, "").Get(cleanupContext(ops), nil))
 			return v31
 		}
-		v17 = append(v17, v30)
-		resultv27.Receipt = ("recorded:" + resultv27.Receipt)
-		// plain.go:27: Set
-		v32 := "receipt"
-		if v33 := workflow.ExecuteActivity(ops, "SetValue", v15, v16, contextEntry(v32, resultv27.Receipt)).Get(wait, &v16); v33 != nil {
-			v33 = errors.Join(v33, workflow.ExecuteActivity(cleanupContext(ops), "ExitScope", v15, "").Get(cleanupContext(ops), nil))
-			return v33
-		}
-		v17 = append(v17, v32)
 		{
-			if resultv27.Summary == "reviewed" {
+			if resultv25.Summary == "reviewed" {
 				// plain.go:29: Set
-				v34 := "review"
-				if v35 := workflow.ExecuteActivity(ops, "SetValue", v15, v16, contextEntry(v34, "task")).Get(wait, &v16); v35 != nil {
-					v35 = errors.Join(v35, workflow.ExecuteActivity(cleanupContext(ops), "ExitScope", v15, "").Get(cleanupContext(ops), nil))
-					return v35
+				v32 := "review"
+				if v33 := workflow.ExecuteActivity(ops, "SetValue", v15, v16, contextEntry(v32, "task")).Get(wait, &v16); v33 != nil {
+					v33 = errors.Join(v33, workflow.ExecuteActivity(cleanupContext(ops), "ExitScope", v15, "").Get(cleanupContext(ops), nil))
+					return v33
 				}
-				v17 = append(v17, v34)
 			}
 		}
 		{
 			// plain.go:31: Check
-			v37 := "check"
-			var v36 checkResult
-			if v38 := workflow.ExecuteActivity(ops, "PlanningCheck1", operationInput{Scope: v15, Context: v16, Session: sessionHandle{}}, v37, workdir, "sh", []string{"-c", "test \"$(cat planned.txt)\" = done"}).Get(wait, &v36); v38 != nil {
-				v38 = errors.Join(v38, workflow.ExecuteActivity(cleanupContext(ops), "ExitScope", v15, "").Get(cleanupContext(ops), nil))
-				return v38
+			v35 := "check"
+			var v34 checkResult
+			if v36 := workflow.ExecuteActivity(ops, "PlanningCheck1", operationInput{Scope: v15, Context: v16, Session: sessionHandle{}}, v35, workdir, "sh", []string{"-c", "test \"$(cat planned.txt)\" = done"}).Get(wait, &v34); v36 != nil {
+				v36 = errors.Join(v36, workflow.ExecuteActivity(cleanupContext(ops), "ExitScope", v15, "").Get(cleanupContext(ops), nil))
+				return v36
 			}
-			v16 = v36.Context
-			v17 = append(v17, v37)
-			errv28 = v36.Err()
-			if errv28 != nil {
-				var v39 error = errv28
-				v39 = errors.Join(v39, workflow.ExecuteActivity(cleanupContext(ops), "ExitScope", v15, "").Get(cleanupContext(ops), nil))
-				return v39
+			v16 = v34.Context
+			errv26 = v34.Err()
+			if errv26 != nil {
+				var v37 error = errv26
+				v37 = errors.Join(v37, workflow.ExecuteActivity(cleanupContext(ops), "ExitScope", v15, "").Get(cleanupContext(ops), nil))
+				return v37
 			}
 		}
-		if v40 := workflow.ExecuteActivity(ops, "TaskFeedback", operationInput{Scope: v15, Context: v16, Session: sessionHandle{}}, v17).Get(wait, &v13); v40 != nil {
-			v40 = errors.Join(v40, workflow.ExecuteActivity(cleanupContext(ops), "ExitScope", v15, "").Get(cleanupContext(ops), nil))
-			return v40
+		if v38 := workflow.ExecuteActivity(ops, "TaskFeedback", v15).Get(wait, &v13); v38 != nil {
+			v38 = errors.Join(v38, workflow.ExecuteActivity(cleanupContext(ops), "ExitScope", v15, "").Get(cleanupContext(ops), nil))
+			return v38
 		}
-		var v41 error
-		v41 = errors.Join(v41, workflow.ExecuteActivity(cleanupContext(ops), "ExitScope", v15, "").Get(cleanupContext(ops), nil))
-		if v41 != nil {
-			return v41
+		var v39 error
+		v39 = errors.Join(v39, workflow.ExecuteActivity(cleanupContext(ops), "ExitScope", v15, "").Get(cleanupContext(ops), nil))
+		if v39 != nil {
+			return v39
 		}
 	}
 	v10 = false
 	v9 = errors.Join(v9, workflow.ExecuteActivity(cleanupContext(ops), "ExitScope", v6, errorText(v9)).Get(cleanupContext(ops), nil))
-	var v42 error = v9
-	return v42
+	var v40 error = v9
+	return v40
 }
 func registerPlanning(reg interface{ RegisterWorkflow(any) }) { reg.RegisterWorkflow(PlanningWorkflow) }
 func (a *Activities) PlanningPlan1(ctx context.Context, in operationInput, name, goal string, tasks []gimbal.Task, previous string) (planResult, error) {
@@ -207,7 +198,7 @@ func (a *Activities) PlanningGenerate1(ctx context.Context, in operationInput) (
 		return operationResult[[]byte]{}, err
 	}
 	defer release()
-	value, err := compiledscope.Generate[continuity.Report](scoped, session, "Perform the assignment in task. Edit only planned.txt. Return a concise summary, file planned.txt, and receipt done.")
+	value, err := compiledscope.Generate[continuity.Report](scoped, session, in.Context, "Perform the assignment in task. Edit only planned.txt. Return a concise summary, file planned.txt, and receipt done.")
 	return operationResult[[]byte]{value, failure(err)}, nil
 }
 func (a *Activities) PlanningCheck1(ctx context.Context, in operationInput, name, dir, command string, args []string) (checkResult, error) {

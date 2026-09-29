@@ -13,6 +13,7 @@ import (
 	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/internal/compiledscope"
 	"github.com/tylergannon/gimbal/internal/host"
+	graph "github.com/tylergannon/gimbal/workflow"
 	"go.temporal.io/sdk/testsuite"
 )
 
@@ -21,19 +22,26 @@ func newTestActivities(t *testing.T) *Activities {
 	t.Setenv("TYPESAFE_API_KEY", "test-key")
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
+	dir := t.TempDir()
+	a := &Activities{workdir: dir, store: compiledscope.Store{Root: t.TempDir()}, controls: host.CompiledControls{CancelRun: func(context.Context, gimbal.Killed) error { return nil }}}
+	a.store.LocalDir = filepath.Join(a.store.Root, "materialized")
+	ctx, err := host.WithContextStore(ctx, dir, &a.store, t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
 	owner := host.New(ctx, t.TempDir())
 	t.Cleanup(owner.Close)
-	dir := t.TempDir()
 	project, err := owner.AdmitProject(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	a := &Activities{project: project, workdir: dir, store: compiledscope.Store{Root: t.TempDir()}}
+	a.project = project
 
 	return a
 }
 func testActivities(t *testing.T, name string) *Activities {
 	a := newTestActivities(t)
+	registerTestGraph(name)
 	var s testsuite.WorkflowTestSuite
 	e := s.NewTestActivityEnvironment()
 	e.RegisterActivity(a)
@@ -161,5 +169,14 @@ func TestRecordedTurnsRetainValidationAttempts(t *testing.T) {
 	var result Report
 	if err := json.Unmarshal([]byte(turns[1].result), &result); err != nil || result.Summary != "valid" {
 		t.Fatalf("validated result %+v: %v", result, err)
+	}
+}
+
+// Synthetic workflows used by operation tests still satisfy hosted entry's
+// graph-registration contract. Real specimen graph registrations come from
+// their authored packages and are not replaced here.
+func registerTestGraph(name string) {
+	if _, ok := gimbal.RegisteredGraph(name); !ok {
+		gimbal.RegisterGraph(graph.Graph{Name: name})
 	}
 }

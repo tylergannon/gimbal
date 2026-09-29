@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"path/filepath"
@@ -52,7 +53,7 @@ func (c fileCodec) Encode(in []*commonpb.Payload) ([]*commonpb.Payload, error) {
 			return nil, err
 		}
 		s := compiledscope.Store{Root: filepath.Join(c.Root, c.Run, "context")}
-		ref, err := s.Extend("", compiledscope.Entry{Key: "payload", Value: raw})
+		ref, err := s.Extend(context.Background(), "", compiledscope.Entry{Key: "payload", Value: raw})
 		if err != nil {
 			return nil, err
 		}
@@ -79,14 +80,14 @@ func (c fileCodec) Decode(in []*commonpb.Payload) ([]*commonpb.Payload, error) {
 			return nil, fmt.Errorf("invalid payload run")
 		}
 		s := compiledscope.Store{Root: filepath.Join(c.Root, ref.Run, "context")}
-		entries, err := s.Load(ref.Snapshot)
+		entries, err := s.Load(context.Background(), ref.Snapshot)
 		if err != nil {
 			return nil, err
 		}
 		if len(entries) != 1 || entries[0].Key != "payload" {
 			return nil, fmt.Errorf("invalid payload manifest")
 		}
-		raw, err := s.Value(entries[0])
+		raw, err := s.Value(context.Background(), entries[0])
 		if err != nil {
 			return nil, err
 		}

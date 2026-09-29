@@ -262,6 +262,7 @@ func TestBodyAndSessionCleanupFailuresBothSurvive(t *testing.T) {
 	var suite testsuite.WorkflowTestSuite
 	e := suite.NewTestActivityEnvironment()
 	e.RegisterActivity(a)
+	registerTestGraph("cleanup-failure")
 	if _, err := e.ExecuteActivity(a.Initialize, Data{Name: "cleanup-failure"}); err != nil {
 		t.Fatal(err)
 	}

@@ -219,7 +219,7 @@ func (a *Activities) ContinuityGenerate1(ctx context.Context, in operationInput)
 		return operationResult[[]byte]{}, err
 	}
 	defer release()
-	value, err := compiledscope.Generate[continuity.Report](scoped, session, "Remember amber-17 as our conversation token. Return exactly this object: {\"summary\":\"edit\",\"file\":\"continuity.txt\",\"receipt\":\"amber-17\"}. Do not edit files yet.")
+	value, err := compiledscope.Generate[continuity.Report](scoped, session, in.Context, "Remember amber-17 as our conversation token. Return exactly this object: {\"summary\":\"edit\",\"file\":\"continuity.txt\",\"receipt\":\"amber-17\"}. Do not edit files yet.")
 	return operationResult[[]byte]{value, failure(err)}, nil
 }
 func (a *Activities) ContinuityGenerate2(ctx context.Context, in operationInput) (operationResult[[]byte], error) {
@@ -228,7 +228,7 @@ func (a *Activities) ContinuityGenerate2(ctx context.Context, in operationInput)
 		return operationResult[[]byte]{}, err
 	}
 	defer release()
-	value, err := compiledscope.Generate[continuity.Report](scoped, session, "Recall our conversation token as receipt. Write that token to continuity.txt. Return summary as the single word in the current layer context value, without explanation, and file continuity.txt.")
+	value, err := compiledscope.Generate[continuity.Report](scoped, session, in.Context, "Recall our conversation token as receipt. Write that token to continuity.txt. Return summary as the single word in the current layer context value, without explanation, and file continuity.txt.")
 	return operationResult[[]byte]{value, failure(err)}, nil
 }
 func (a *Activities) ContinuityGenerate3(ctx context.Context, in operationInput) (operationResult[[]byte], error) {
@@ -237,7 +237,7 @@ func (a *Activities) ContinuityGenerate3(ctx context.Context, in operationInput)
 		return operationResult[[]byte]{}, err
 	}
 	defer release()
-	value, err := compiledscope.Generate[continuity.Report](scoped, session, "Recall the conversation token we had before this turn as receipt. Then remember violet-29 as the new token in this conversation only. Do not edit any files. Return summary violet-29 and file continuity.txt, without extra explanation.")
+	value, err := compiledscope.Generate[continuity.Report](scoped, session, in.Context, "Recall the conversation token we had before this turn as receipt. Then remember violet-29 as the new token in this conversation only. Do not edit any files. Return summary violet-29 and file continuity.txt, without extra explanation.")
 	return operationResult[[]byte]{value, failure(err)}, nil
 }
 func (a *Activities) ContinuityRunCommand1(ctx context.Context, in operationInput, name, dir, command string, args []string) (commandResult, error) {
@@ -252,6 +252,6 @@ func (a *Activities) ContinuityGenerate4(ctx context.Context, in operationInput)
 		return operationResult[[]byte]{}, err
 	}
 	defer release()
-	value, err := compiledscope.Generate[continuity.Report](scoped, session, "Recall our conversation token as receipt. Read continuity.txt and report its filename. Return summary as the single word in the current layer context value, without extra explanation.")
+	value, err := compiledscope.Generate[continuity.Report](scoped, session, in.Context, "Recall our conversation token as receipt. Read continuity.txt and report its filename. Return summary as the single word in the current layer context value, without extra explanation.")
 	return operationResult[[]byte]{value, failure(err)}, nil
 }

@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/oklog/ulid/v2"
 	"github.com/tylergannon/gimbal/internal/compiledscope"
@@ -66,22 +67,24 @@ func RegisteredGraph(name string) (workflow.Graph, bool) {
 }
 
 type run struct {
-	contextStore *compiledscope.Store          // private compiler specimen; external run storage
-	dir          string                        // <project>/runs/<id>
-	models       map[WorkflowRole]ModelBinding // what each role the workflow names runs on
-	writer       *eventWriter
-	project      *eventWriter
-	store        *observation.Store
-	mu           sync.Mutex
-	sessions     map[string]*eventWriter
-	scopes       map[string]*scope                  // live scopes by key, for cancelScope
-	turns        map[string]context.CancelCauseFunc // running turns by id, for cancelTurn
-	interviews   map[string]*interviewWaiter        // questions waiting for a person's answer
-	rootCancel   error                              // explicit cancellation of the root scope
-	errMu        sync.Mutex
-	recordErr    error
-	closeMu      sync.Mutex
-	closeErrs    []error
+	contextStore     *compiledscope.Store          // private compiler specimen; external run storage
+	dir              string                        // <project>/runs/<id>
+	models           map[WorkflowRole]ModelBinding // what each role the workflow names runs on
+	writer           *eventWriter
+	project          *eventWriter
+	store            *observation.Store
+	mu               sync.Mutex
+	sessions         map[string]*eventWriter
+	scopes           map[string]*scope                  // live scopes by key, for cancelScope
+	turns            map[string]context.CancelCauseFunc // running turns by id, for cancelTurn
+	interviews       map[string]*interviewWaiter        // questions waiting for a person's answer
+	cancelDeliveryMu sync.Mutex
+	rootReservation  error
+	rootCancel       error // explicit cancellation of the root scope
+	errMu            sync.Mutex
+	recordErr        error
+	closeMu          sync.Mutex
+	closeErrs        []error
 }
 
 // CloseError aggregates every HarnessAdapter.Close failure a run's sessions
@@ -229,16 +232,16 @@ func beginRun(ctx context.Context, name string, models map[WorkflowRole]ModelBin
 }
 
 func (r *run) complete(ctx context.Context, name string, err error) error {
-	if ctx.Err() != nil {
-		cancelled := RunCancelled{Name: name, Source: steerSource(ctx), Error: ctx.Err().Error()}
-		r.event("", "", "", cancelled)
-		r.projectEvent(cancelled)
-	} else if cause := r.rootCancellation(); cause != nil {
+	if cause := r.rootCancellation(); cause != nil {
 		source := ""
 		if killed, ok := errors.AsType[Killed](cause); ok {
 			source = killed.By
 		}
 		cancelled := RunCancelled{Name: name, Source: source, Error: cause.Error()}
+		r.event("", "", "", cancelled)
+		r.projectEvent(cancelled)
+	} else if ctx.Err() != nil {
+		cancelled := RunCancelled{Name: name, Source: steerSource(ctx), Error: ctx.Err().Error()}
 		r.event("", "", "", cancelled)
 		r.projectEvent(cancelled)
 	}
@@ -428,17 +431,72 @@ func (r *run) SteerLoop(key, message string) error {
 // or already ended key is an error.
 func (r *run) CancelScope(key string, cause error) error {
 	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.cancelScopeLocked(key, cause)
+}
+
+func (r *run) cancelScopeLocked(key string, cause error) error {
 	s := r.scopes[key]
-	if s != nil && key == "" && r.rootCancel == nil {
-		r.rootCancel = cause
-	}
-	r.mu.Unlock()
 	if s == nil {
 		return fmt.Errorf("gimbal: no live scope %q", key)
+	}
+	if key == "" {
+		// A backend notification racing delivery must not lose the operator's
+		// attribution or finish the recorder before the delivery observation.
+		if r.rootReservation != nil {
+			return nil
+		}
+		if r.rootCancel != nil {
+			return nil
+		}
+		if cause == nil {
+			cause = context.Canceled
+		}
+		r.rootCancel = cause
 	}
 	r.event(key, "", "", killedEvent(key, cause))
 	s.cancel(cause)
 	return nil
+}
+
+// CancelHostedRun is used only by the private hosted compiler adapter. The
+// backend attempt has its own deadline and cannot prevent the local stop.
+func (r *run) CancelHostedRun(cause Killed, deliver func(context.Context, Killed) error, timeout time.Duration) error {
+	if !r.cancelDeliveryMu.TryLock() {
+		return fmt.Errorf("gimbal: cancellation delivery is already in progress")
+	}
+	defer r.cancelDeliveryMu.Unlock()
+	r.mu.Lock()
+	if r.scopes[""] == nil {
+		r.mu.Unlock()
+		return fmt.Errorf("gimbal: run has ended")
+	}
+	reserved := error(cause)
+	if r.rootCancel != nil {
+		reserved = r.rootCancel
+	}
+	r.rootReservation = reserved
+	r.mu.Unlock()
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	result := make(chan error, 1)
+	go func() { result <- deliver(ctx, killedEvent("", reserved)) }()
+	var deliveryErr error
+	select {
+	case deliveryErr = <-result:
+	case <-ctx.Done():
+		deliveryErr = ctx.Err()
+	}
+	status := "accepted"
+	if deliveryErr != nil {
+		status = "unconfirmed"
+	}
+	r.event("", "", "", CancellationDelivery{Status: status, Error: errString(deliveryErr)})
+	r.mu.Lock()
+	r.rootReservation = nil
+	localErr := r.cancelScopeLocked("", reserved)
+	r.mu.Unlock()
+	return errors.Join(deliveryErr, localErr)
 }
 
 // CancelTurn cancels the running turn id with cause. Only that turn ends:

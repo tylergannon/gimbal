@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"golang.org/x/sys/unix"
 
@@ -42,6 +43,8 @@ type Project struct {
 	registry      *observation.Registry
 	conversations *conversation.Manager
 	ownerLock     *os.File
+	contextStore  *compiledscope.Store
+	contextCache  string
 }
 
 func New(ctx context.Context, instanceDir string) *Owner {
@@ -119,8 +122,11 @@ func (o *Owner) AdmitProject(dir string) (*Project, error) {
 	if err != nil {
 		return nil, err
 	}
-	p.ctx = conversation.WithManager(projectCtx, conversations)
+	if configured := contextStores(o.ctx)[path]; configured.store != nil {
+		p.contextStore, p.contextCache = configured.store, configured.cacheDir
+	}
 	p.conversations = conversations
+	p.ctx = p.RequestContext(conversation.WithManager(projectCtx, conversations))
 	if err := o.writeProjectDiscovery(path); err != nil {
 		conversations.Close()
 		return nil, err
@@ -196,6 +202,20 @@ func (p *Project) RequestContext(ctx context.Context) context.Context {
 	ctx = WithProjectDir(ctx, p.dir)
 	ctx = observation.WithRegistry(ctx, p.registry)
 	ctx = live.WithRuns(ctx, p.runs)
+	if p.contextStore != nil {
+		ctx = observation.WithContextArtifacts(ctx, func(id string) ([]byte, error) {
+			data, err := p.contextStore.ReadObject(ctx, id)
+			if err != nil {
+				return nil, err
+			}
+			store := *p.contextStore
+			store.LocalDir = p.contextCache
+			if _, err := store.MaterializeText(id, data); err != nil {
+				return nil, err
+			}
+			return data, nil
+		})
+	}
 	return conversation.WithManager(ctx, p.conversations)
 }
 
@@ -247,7 +267,29 @@ func (p *Project) Run(ctx context.Context, name string, models map[gimbal.Workfl
 // OpenCompiledRun is the experiment's explicit counterpart to Run. The caller
 // must close it after joining all activities and closing child scopes. Owner
 // shutdown cancels its context and waits for that close, as it does for Run.
-func (p *Project) OpenCompiledRun(ctx context.Context, name string, models map[gimbal.WorkflowRole]gimbal.ModelBinding) (context.Context, func(error) error, error) {
+func (p *Project) OpenCompiledRun(ctx context.Context, name string, models map[gimbal.WorkflowRole]gimbal.ModelBinding, initial compiledscope.Snapshot, localDir string, controls CompiledControls) (context.Context, func(error) error, error) {
+	if p == nil || ctx == nil {
+		return nil, nil, errors.New("gimbal: hosted run requires a project and context")
+	}
+	if p.contextStore == nil {
+		return nil, nil, errors.New("gimbal: compiled run requires project context-store configuration at host startup")
+	}
+	if !filepath.IsAbs(localDir) {
+		return nil, nil, errors.New("gimbal: worker context materialization directory must be absolute")
+	}
+	if controls.CancelRun == nil {
+		return nil, nil, errors.New("gimbal: compiled run requires a backend cancellation callback")
+	}
+	if controls.DeliveryTimeout < 0 {
+		return nil, nil, errors.New("gimbal: cancellation delivery timeout cannot be negative")
+	}
+	if controls.DeliveryTimeout == 0 {
+		controls.DeliveryTimeout = 5 * time.Second
+	}
+	if _, ok := gimbal.RegisteredGraph(name); !ok {
+		return nil, nil, fmt.Errorf("gimbal: compiled workflow %q has no registered graph; import its authored graph package in the serving binary", name)
+	}
+
 	p.owner.mu.Lock()
 	if err := p.owner.ctx.Err(); err != nil {
 		p.owner.mu.Unlock()
@@ -260,18 +302,33 @@ func (p *Project) OpenCompiledRun(ctx context.Context, name string, models map[g
 	release := func() { stop(); cancel(nil); p.owner.activeRuns.Done() }
 	runCtx = observation.WithRegistry(runCtx, p.registry)
 	runCtx = live.WithRuns(runCtx, p.runs)
-	runCtx = live.WithHook(runCtx, p.runs.Hook)
+	finished := make(chan struct{})
+	runCtx = live.WithHook(runCtx, func(id string, controller live.Controller) func() {
+		unhook := p.runs.Hook(id, &compiledController{Controller: controller, controls: controls})
+		return func() { unhook(); close(finished) }
+	})
 	root, finish, err := compiledscope.OpenRun(gimbal.Project(runCtx, p.dir), name, models)
 	if err != nil {
 		release()
 		return nil, nil, err
 	}
+	if err := compiledscope.InitializeContext(root, *p.contextStore, localDir, initial); err != nil {
+		ended := finish(err)
+		release()
+		return nil, nil, errors.Join(err, ended)
+	}
+	var released sync.Once
 	return root, func(err error) error {
-		defer release()
 		if err == nil {
 			err = context.Cause(runCtx)
 		}
-		return finish(err)
+		result := finish(err)
+		select {
+		case <-finished:
+			released.Do(release)
+		default: // A rejected close (for example an open child) still owns the run.
+		}
+		return result
 	}, nil
 }
 

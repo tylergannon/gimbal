@@ -36,12 +36,13 @@ func (u Usage) add(other Usage) Usage {
 
 // RunRow is the run itself. Times are Unix ms, as every time in a row is.
 type RunRow struct {
-	ID      string `json:"id"`
-	Name    string `json:"name"`
-	Status  string `json:"status"`
-	Error   string `json:"error"`
-	Started int64  `json:"started"`
-	Ended   int64  `json:"ended"`
+	ID           string                               `json:"id"`
+	Name         string                               `json:"name"`
+	Status       string                               `json:"status"`
+	Error        string                               `json:"error"`
+	Started      int64                                `json:"started"`
+	Ended        int64                                `json:"ended"`
+	Cancellation polytype.Optional[CancellationState] `json:"cancellation,omitzero"`
 }
 
 // Decision is one planner decision, kept as the record's sequence and the
@@ -190,4 +191,19 @@ type ModelCallRow struct {
 	Tokens
 	Started int64 `json:"started"`
 	Ended   int64 `json:"ended"`
+}
+
+// CancellationState keeps delivery history and the independent local cleanup
+// outcome visible in both live and retained run snapshots.
+type CancellationState struct {
+	By           string                `json:"by"`
+	Reason       string                `json:"reason"`
+	Cleanup      string                `json:"cleanup"`
+	CleanupError string                `json:"cleanup_error"`
+	Deliveries   []CancellationAttempt `json:"deliveries"`
+}
+type CancellationAttempt struct {
+	At     int64  `json:"at"`
+	Status string `json:"status"`
+	Error  string `json:"error"`
 }

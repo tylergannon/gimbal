@@ -18,6 +18,7 @@ import (
 // Session is one agent conversation on one harness, in one workdir. It
 // belongs to the scope that created it and is closed when that scope ends.
 type Session struct {
+	owner   *scope
 	adapter HarnessAdapter
 	name    string
 	model   string
@@ -125,7 +126,7 @@ func (o *decodedOutput[T]) outputName() string { return fmt.Sprintf("%T", *o.val
 func scopedPrompt(ctx context.Context, prompt string, o options) (string, []ContextEntry, error) {
 	if snapshot, ok := ctx.Value(compiledContextKey{}).(compiledContext); ok {
 		var err error
-		ctx, err = bindCompiledContext(ctx, snapshot.store, snapshot.ref)
+		ctx, err = bindCompiledContext(ctx, snapshot.ref)
 		if err != nil {
 			return "", nil, err
 		}
@@ -210,6 +211,9 @@ func dispatchRecorded[T Output](ctx context.Context, s *Session, prompt string, 
 }
 
 func dispatchResponse(ctx context.Context, s *Session, prompt string, opts []AgentOption, started *TurnStarted, output Output) ([]byte, error) {
+	if err := s.reachable(ctx); err != nil {
+		return nil, err
+	}
 	if o := apply(opts); len(o.supervisors) > 0 {
 		return supervise(ctx, s, prompt, o.supervisors, started, output)
 	}
@@ -662,6 +666,9 @@ func steerSource(ctx context.Context) string {
 // conversation, so it runs on its parent's binding and the run binds
 // nothing for it. The two sessions are independent after that.
 func (s *Session) Fork(ctx context.Context, name string) (*Session, error) {
+	if err := s.reachable(ctx); err != nil {
+		return nil, err
+	}
 	scope, err := current(ctx)
 	if err != nil {
 		return nil, err
@@ -691,4 +698,28 @@ func oneLine(text string) string {
 		return text[:160] + "..."
 	}
 	return text
+}
+
+// reachable enforces semantic ownership independently of a consumer handle table.
+func (s *Session) reachable(ctx context.Context) error {
+	active, err := current(ctx)
+	if err != nil {
+		return err
+	}
+	if s == nil {
+		return fmt.Errorf("gimbal: nil session")
+	}
+	s.mu.Lock()
+	owner := s.owner
+	closed := s.closed
+	s.mu.Unlock()
+	if closed {
+		return fmt.Errorf("gimbal: session %s was used after its scope ended", s.id)
+	}
+	for scope := active; scope != nil; scope = scope.parent {
+		if scope == owner {
+			return nil
+		}
+	}
+	return fmt.Errorf("gimbal: session %q is not reachable from scope %q", s.name, active.key)
 }

@@ -3,7 +3,6 @@ package gimbal
 import (
 	"context"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -13,97 +12,131 @@ import (
 type compiledContextKey struct{}
 type compiledContext struct {
 	values []visibleValue
-	store  compiledscope.Store
 	ref    compiledscope.Snapshot
 }
 
-func init() {
-	compiledscope.WriteContext = writeCompiledContext
-	compiledscope.BindContext = bindCompiledContext
+func (compiledRuntime) WriteContext(ctx context.Context, base compiledscope.Snapshot, writes ...compiledscope.Entry) (compiledscope.Snapshot, error) {
+	return writeCompiledContext(ctx, base, writes...)
 }
-
-func writeCompiledContext(ctx context.Context, store compiledscope.Store, base compiledscope.Snapshot, writes ...compiledscope.Entry) (compiledscope.Snapshot, error) {
+func (compiledRuntime) BindContext(ctx context.Context, ref compiledscope.Snapshot) (context.Context, error) {
+	return bindCompiledContext(ctx, ref)
+}
+func (compiledRuntime) InitializeContext(ctx context.Context, store compiledscope.Store, localDir string, initial compiledscope.Snapshot) error {
 	s, err := current(ctx)
 	if err != nil {
-		return "", err
+		return err
 	}
+	store.LocalDir = localDir
 	if err := configureCompiledStore(s.run, store); err != nil {
-		return "", err
+		return err
 	}
-	ref, err := store.Extend(base, writes...)
+	entries, err := store.Load(ctx, initial)
 	if err != nil {
-		return "", err
+		return err
 	}
-	entries, err := store.Load(ref)
+	if len(entries) == 0 {
+		return nil
+	}
+	// Install initial values as run observations; the caller already retains the
+	// immutable input reference, so initialization does not return another one.
+	_, err = writeCompiledContext(ctx, "", entries...)
+	return err
+}
+func writeCompiledContext(ctx context.Context, base compiledscope.Snapshot, writes ...compiledscope.Entry) (compiledscope.Snapshot, error) {
+	s, err := current(ctx)
 	if err != nil {
-		return "", err
+		return base, err
+	}
+	store, err := compiledStore(s.run)
+	if err != nil {
+		return base, err
+	}
+	// Reject all duplicate local writes before publishing any of them.
+	s.mu.Lock()
+	seen := map[string]bool{}
+	for _, write := range writes {
+		if _, exists := s.values[write.Key]; exists || seen[write.Key] || s.ended {
+			s.mu.Unlock()
+			return base, fmt.Errorf("compiled context key %q already set or scope ended", write.Key)
+		}
+		seen[write.Key] = true
+	}
+	s.mu.Unlock()
+	// Immutable publication and materialization can block on consumer storage.
+	// No scope state is held while those operations run.
+	ref, err := store.Extend(ctx, base, writes...)
+	if err != nil {
+		return base, err
+	}
+	entries, err := store.Load(ctx, ref)
+	if err != nil {
+		return base, err
+	}
+	values := map[string]*scopeValue{}
+	for _, entry := range entries {
+		if !seen[entry.Key] {
+			continue
+		}
+		value, err := compiledValue(ctx, s, store, entry)
+		if err != nil {
+			return base, err
+		}
+		values[entry.Key] = value
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	// A competing write or finish may have completed while storage was busy.
+	for _, write := range writes {
+		if _, exists := s.values[write.Key]; exists || s.ended {
+			return base, fmt.Errorf("compiled context key %q already set or scope ended", write.Key)
+		}
+	}
+	if s.values == nil {
+		s.values = map[string]*scopeValue{}
 	}
 	for _, write := range writes {
-		for _, e := range entries {
-			if e.Key != write.Key {
-				continue
-			}
-			value, err := compiledValue(s, store, e)
-			if err != nil {
-				return "", err
-			}
-			s.mu.Lock()
-			if _, exists := s.values[e.Key]; exists || s.ended {
-				s.mu.Unlock()
-				return "", fmt.Errorf("compiled context key %q already set or scope ended", e.Key)
-			}
-			if s.values == nil {
-				s.values = map[string]*scopeValue{}
-			}
-			s.keys = append(s.keys, e.Key)
-			s.values[e.Key] = value
-			s.mu.Unlock()
-			s.run.event(s.key, "", "", valueEvent(e.Key, value))
-		}
+		value := values[write.Key]
+		s.keys = append(s.keys, write.Key)
+		s.values[write.Key] = value
+		s.run.event(s.key, "", "", valueEvent(write.Key, value))
 	}
 	return ref, nil
 }
-
 func configureCompiledStore(r *run, store compiledscope.Store) error {
-	// Installed before the first operation. Subsequent activities use the same
-	// run store; scope/session ownership remains independent of context storage.
 	r.mu.Lock()
-	if r.contextStore == nil {
-		// The specimen mounts the same run-directory layout on host and worker.
-		// UI artifact references resolve through this relative observation link.
-		rel, linkErr := filepath.Rel(r.dir, store.Root)
-		if linkErr == nil {
-			linkErr = os.Symlink(rel, filepath.Join(r.dir, "context"))
-		}
-		if linkErr != nil {
-			r.mu.Unlock()
-			return linkErr
-		}
-		copy := store
-		r.contextStore = &copy
+	defer r.mu.Unlock()
+	if r.contextStore != nil {
+		return fmt.Errorf("compiled context store already configured")
 	}
-	mismatch := r.contextStore.Root != store.Root
-	r.mu.Unlock()
-	if mismatch {
-		return fmt.Errorf("compiled context store changed within run")
+	if store.LocalDir == "" && store.Root == "" {
+		return fmt.Errorf("compiled context requires a local materialization directory")
 	}
-
+	r.contextStore = &store
 	return nil
 }
 
-func compiledValue(owner *scope, store compiledscope.Store, e compiledscope.Entry) (*scopeValue, error) {
-	raw, err := store.Value(e)
+func compiledStore(r *run) (compiledscope.Store, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.contextStore == nil {
+		return compiledscope.Store{}, fmt.Errorf("compiled context store is not configured")
+	}
+	return *r.contextStore, nil
+}
+
+func compiledValue(ctx context.Context, owner *scope, store compiledscope.Store, e compiledscope.Entry) (*scopeValue, error) {
+	raw, err := store.Value(ctx, e)
 	if err != nil {
 		return nil, err
 	}
 	value := &scopeValue{owner: owner, raw: raw}
 	if e.File != "" {
-		path, err := store.Materialize(e)
+		path, err := store.Materialize(ctx, e)
 		if err != nil {
 			return nil, err
 		}
 		text := render(raw)
-		desc := artifactDescriptor{file: "context/materialized/" + e.File, local: path, format: e.Format, preview: preview(text), size: int64(len(raw))}
+		desc := artifactDescriptor{file: "context/objects/" + e.File, local: path, format: e.Format, preview: preview(text), size: int64(len(raw))}
 		if e.Format == "text" {
 			desc.size = int64(len(text))
 		}
@@ -121,15 +154,16 @@ func compiledValue(owner *scope, store compiledscope.Store, e compiledscope.Entr
 	return value, nil
 }
 
-func bindCompiledContext(ctx context.Context, store compiledscope.Store, ref compiledscope.Snapshot) (context.Context, error) {
+func bindCompiledContext(ctx context.Context, ref compiledscope.Snapshot) (context.Context, error) {
 	s, err := current(ctx)
 	if err != nil {
 		return nil, err
 	}
-	if err := configureCompiledStore(s.run, store); err != nil {
+	store, err := compiledStore(s.run)
+	if err != nil {
 		return nil, err
 	}
-	entries, err := store.Load(ref)
+	entries, err := store.Load(ctx, ref)
 	if err != nil {
 		return nil, err
 	}
@@ -148,21 +182,21 @@ func bindCompiledContext(ctx context.Context, store compiledscope.Store, ref com
 	values := make([]visibleValue, 0, len(entries))
 	for _, e := range entries {
 		owner := &scope{run: s.run, key: origins[e.Key]}
-		value, err := compiledValue(owner, store, e)
+		value, err := compiledValue(ctx, owner, store, e)
 		if err != nil {
 			return nil, err
 		}
 		values = append(values, visibleValue{owner: owner, key: e.Key, value: value})
 	}
-	return context.WithValue(ctx, compiledContextKey{}, compiledContext{values: values, store: store, ref: ref}), nil
+	return context.WithValue(ctx, compiledContextKey{}, compiledContext{values: values, ref: ref}), nil
 }
 
 func (r *run) writeCompiledArtifact(data []byte, format, text string) (artifactDescriptor, error) {
-	id, path, err := r.contextStore.Text(string(data))
+	id, path, err := r.contextStore.Text(context.Background(), string(data))
 	if err != nil {
 		return artifactDescriptor{}, err
 	}
-	return artifactDescriptor{file: filepath.ToSlash(filepath.Join("context", "materialized", id)), local: path, size: int64(len(data)), format: format, preview: preview(text)}, nil
+	return artifactDescriptor{file: filepath.ToSlash(filepath.Join("context", "objects", id)), local: path, size: int64(len(data)), format: format, preview: preview(text)}, nil
 }
 
 // Templates may deliberately select just one value. Keep that presentation,

@@ -51,9 +51,16 @@ func TestCompiledGenerateTransportsBeforeConsumption(t *testing.T) {
 		return `{"value":"original"}`, nil
 	}}
 	err := runTest(t, bind(f, "fake", "coder"), func(ctx context.Context) error {
-		Set(ctx, "context", "retained")
+		store := compiledscope.Store{Root: t.TempDir()}
+		if err := compiledscope.InitializeContext(ctx, store, "", ""); err != nil {
+			return err
+		}
+		input, err := compiledscope.WriteContext(ctx, "", compiledscope.Entry{Key: "context", Value: json.RawMessage(`"retained"`)})
+		if err != nil {
+			return err
+		}
 		s := NewSession(ctx, "coder", ".")
-		raw, err := compiledscope.Generate[decodeWitness](ctx, s, "Return a value.")
+		raw, err := compiledscope.Generate[decodeWitness](ctx, s, input, "Return a value.")
 		if err != nil {
 			return err
 		}

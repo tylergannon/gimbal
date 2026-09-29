@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/internal/compiledscope"
 	"github.com/tylergannon/gimbal/internal/experiments/instrumented/continuity"
 	"github.com/tylergannon/gimbal/internal/experiments/instrumented/planning"
 	"go.temporal.io/sdk/activity"
@@ -382,6 +383,7 @@ func TestPairedCheckFailureRecording(t *testing.T) {
 					var suite testsuite.WorkflowTestSuite
 					e := suite.NewTestActivityEnvironment()
 					e.RegisterActivity(a)
+					registerTestGraph("check-pair")
 					if _, err := e.ExecuteActivity(a.Initialize, Data{Name: "check-pair"}); err != nil {
 						t.Fatal(err)
 					}
@@ -403,7 +405,7 @@ func TestPairedCheckFailureRecording(t *testing.T) {
 						t.Fatal(err)
 					}
 					commandErr = out.Err()
-					entries, err := a.store.Load(out.Context)
+					entries, err := a.store.Load(t.Context(), out.Context)
 					if err != nil || len(entries) != 1 || entries[0].Key != "check" {
 						t.Fatalf("record missing at activity return: %v %v", entries, err)
 					}
@@ -423,7 +425,7 @@ func TestPairedCheckFailureRecording(t *testing.T) {
 					t.Fatal(err)
 				}
 				raw := snapshot.Scopes[""].Values["check"].Value
-				var record checkRecord
+				var record compiledscope.CheckResult
 				if err := json.Unmarshal(raw, &record); err != nil {
 					t.Fatal(err)
 				}

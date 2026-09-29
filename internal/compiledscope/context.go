@@ -2,6 +2,7 @@ package compiledscope
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -20,7 +21,41 @@ type Entry struct {
 	File   string          `json:"file,omitempty"`
 	Format string          `json:"format,omitempty"`
 }
-type Store struct{ Root string }
+
+// Objects publishes complete immutable objects. Store computes and checks identities.
+type Objects interface {
+	Put(context.Context, string, []byte) error
+	Get(context.Context, string) ([]byte, error)
+}
+
+// Store separates immutable object access from agent-visible materialization.
+// Root selects the built-in filesystem store; Objects selects another backend.
+type Store struct {
+	Root     string
+	Objects  Objects
+	LocalDir string
+}
+
+type FileObjects struct{ Root string }
+
+func (s Store) objects() Objects {
+	if s.Objects != nil {
+		return s.Objects
+	}
+	return FileObjects{Root: filepath.Join(s.Root, "objects")}
+}
+func (s Store) localDir() string {
+	if s.LocalDir != "" {
+		return s.LocalDir
+	}
+	return filepath.Join(s.Root, "materialized")
+}
+
+// Encode captures a value at its authored write boundary using Go JSON methods.
+func Encode(key string, value any) (Entry, error) {
+	raw, err := json.Marshal(value)
+	return Entry{Key: key, Value: raw}, err
+}
 
 func objectID(data []byte) string { return fmt.Sprintf("%x", sha256.Sum256(data)) }
 func validID(id string) bool {
@@ -28,44 +63,66 @@ func validID(id string) bool {
 	return err == nil && len(b) == sha256.Size
 }
 
-// publish links a fully written object into its immutable name. Interrupted
-// publication may leave unreachable blobs, never a partly readable manifest.
-func (s Store) publish(kind string, data []byte) (string, error) {
-	id := objectID(data)
-	dir := filepath.Join(s.Root, kind)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return "", err
+// Put links a complete file into its immutable name without replacing old bytes.
+func (f FileObjects) Put(ctx context.Context, id string, data []byte) error {
+	if err := ctx.Err(); err != nil {
+		return err
 	}
-	f, err := os.CreateTemp(dir, ".publish-")
+	if !validID(id) {
+		return fmt.Errorf("invalid object identity %q", id)
+	}
+	if err := os.MkdirAll(f.Root, 0755); err != nil {
+		return err
+	}
+	tmp, err := os.CreateTemp(f.Root, ".publish-")
 	if err != nil {
+		return err
+	}
+	defer func() { _ = tmp.Close(); _ = os.Remove(tmp.Name()) }()
+	if _, err = tmp.Write(data); err != nil {
+		return err
+	}
+	if err = tmp.Chmod(0444); err != nil {
+		return err
+	}
+	if err = tmp.Sync(); err != nil {
+		return err
+	}
+	if err = tmp.Close(); err != nil {
+		return err
+	}
+	if err = os.Link(tmp.Name(), filepath.Join(f.Root, id)); err != nil && !os.IsExist(err) {
+		return err
+	}
+	return nil
+}
+func (f FileObjects) Get(ctx context.Context, id string) ([]byte, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if !validID(id) {
+		return nil, fmt.Errorf("invalid object identity %q", id)
+	}
+	return os.ReadFile(filepath.Join(f.Root, id))
+}
+func (s Store) publish(ctx context.Context, kind string, data []byte) (string, error) {
+	id := objectID(data)
+	if err := s.objects().Put(ctx, id, data); err != nil {
 		return "", err
 	}
-	defer func() { _ = f.Close(); _ = os.Remove(f.Name()) }()
-	if _, err = f.Write(data); err != nil {
-		return "", err
-	}
-	if err = f.Chmod(0444); err != nil {
-		return "", err
-	}
-	if err = f.Sync(); err != nil {
-		return "", err
-	}
-	if err = f.Close(); err != nil {
-		return "", err
-	}
-	if err = os.Link(f.Name(), filepath.Join(dir, id)); err != nil && !os.IsExist(err) {
-		return "", err
-	}
-	if _, err = s.read(kind, id); err != nil {
+	if _, err := s.read(ctx, kind, id); err != nil {
 		return "", err
 	}
 	return id, nil
 }
-func (s Store) read(kind, id string) ([]byte, error) {
+func (s Store) ReadObject(ctx context.Context, id string) ([]byte, error) {
+	return s.read(ctx, "object", id)
+}
+func (s Store) read(ctx context.Context, kind, id string) ([]byte, error) {
 	if !validID(id) {
 		return nil, fmt.Errorf("invalid context %s reference %q", kind, id)
 	}
-	b, err := os.ReadFile(filepath.Join(s.Root, kind, id))
+	b, err := s.objects().Get(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("read context %s %s: %w", kind, id, err)
 	}
@@ -74,11 +131,11 @@ func (s Store) read(kind, id string) ([]byte, error) {
 	}
 	return b, nil
 }
-func (s Store) Load(ref Snapshot) ([]Entry, error) {
+func (s Store) Load(ctx context.Context, ref Snapshot) ([]Entry, error) {
 	if ref == "" {
 		return nil, nil
 	} // only the initial, empty context
-	b, err := s.read("snapshots", string(ref))
+	b, err := s.read(ctx, "snapshots", string(ref))
 	if err != nil {
 		return nil, err
 	}
@@ -92,20 +149,20 @@ func (s Store) Load(ref Snapshot) ([]Entry, error) {
 			return nil, fmt.Errorf("duplicate context key %q", e.Key)
 		}
 		seen[e.Key] = true
-		if _, err = s.Value(e); err != nil {
+		if _, err = s.Value(ctx, e); err != nil {
 			return nil, err
 		}
 	}
 	return entries, nil
 }
-func (s Store) Value(e Entry) (json.RawMessage, error) {
+func (s Store) Value(ctx context.Context, e Entry) (json.RawMessage, error) {
 	if e.File == "" {
 		if !json.Valid(e.Value) {
 			return nil, fmt.Errorf("invalid context value %q", e.Key)
 		}
 		return e.Value, nil
 	}
-	b, err := s.read("blobs", e.File)
+	b, err := s.read(ctx, "blobs", e.File)
 	if err != nil {
 		return nil, err
 	}
@@ -125,13 +182,13 @@ func (s Store) Value(e Entry) (json.RawMessage, error) {
 // Extend resolves shadowing now. Large values are published at the producing
 // activity boundary; only this result reference crosses orchestration history.
 // The inline threshold is a storage choice, never an accepted-size limit.
-func (s Store) Extend(base Snapshot, writes ...Entry) (Snapshot, error) {
-	entries, err := s.Load(base)
+func (s Store) Extend(ctx context.Context, base Snapshot, writes ...Entry) (Snapshot, error) {
+	entries, err := s.Load(ctx, base)
 	if err != nil {
 		return "", err
 	}
 	for _, e := range writes {
-		raw, err := s.Value(e)
+		raw, err := s.Value(ctx, e)
 		if err != nil {
 			return "", err
 		}
@@ -143,7 +200,7 @@ func (s Store) Extend(base Snapshot, writes ...Entry) (Snapshot, error) {
 				data = []byte(scalar)
 				e.Format = "text"
 			}
-			e.File, err = s.publish("blobs", data)
+			e.File, err = s.publish(ctx, "blobs", data)
 			if err != nil {
 				return "", err
 			}
@@ -156,14 +213,14 @@ func (s Store) Extend(base Snapshot, writes ...Entry) (Snapshot, error) {
 	if err != nil {
 		return "", err
 	}
-	id, err := s.publish("snapshots", b)
+	id, err := s.publish(ctx, "snapshots", b)
 	return Snapshot(id), err
 }
 
 // Materialize makes a consumer-local copy, separate from immutable backing
 // objects. Each dispatch repairs changed copies before advertising their paths.
-func (s Store) Materialize(e Entry) (string, error) {
-	b, err := s.read("blobs", e.File)
+func (s Store) Materialize(ctx context.Context, e Entry) (string, error) {
+	b, err := s.read(ctx, "blobs", e.File)
 	if err != nil {
 		return "", err
 	}
@@ -173,7 +230,7 @@ func (s Store) MaterializeText(id string, b []byte) (string, error) {
 	if !validID(id) || objectID(b) != id {
 		return "", fmt.Errorf("invalid context materialization")
 	}
-	dir := filepath.Join(s.Root, "materialized")
+	dir := s.localDir()
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return "", err
 	}
@@ -200,8 +257,8 @@ func (s Store) MaterializeText(id string, b []byte) (string, error) {
 	}
 	return name, nil
 }
-func (s Store) Text(text string) (string, string, error) {
-	id, err := s.publish("blobs", []byte(text))
+func (s Store) Text(ctx context.Context, text string) (string, string, error) {
+	id, err := s.publish(ctx, "blobs", []byte(text))
 	if err != nil {
 		return "", "", err
 	}

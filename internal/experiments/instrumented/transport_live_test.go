@@ -72,6 +72,7 @@ func TestLiveLargeTypedResult(t *testing.T) {
 	}
 	defer c.Close()
 	id := fmt.Sprintf("large-result-%d", time.Now().UnixMilli())
+	registerTestGraph("large-result")
 	a := newTestActivities(t)
 	a.store = compiledscope.Store{Root: filepath.Join(root, environmentID(id), "context")}
 	want := Report{Summary: strings.Repeat("whole-value", 300000), File: "large", Receipt: "tail"}
@@ -80,11 +81,11 @@ func TestLiveLargeTypedResult(t *testing.T) {
 	w.RegisterWorkflow(largeResultWorkflow)
 	w.RegisterActivity(a)
 	w.RegisterActivityWithOptions(func(_ context.Context, snapshot compiledscope.Snapshot) (int, error) {
-		entries, err := a.store.Load(snapshot)
+		entries, err := a.store.Load(t.Context(), snapshot)
 		if err != nil {
 			return 0, err
 		}
-		raw, err := a.store.Value(entries[0])
+		raw, err := a.store.Value(t.Context(), entries[0])
 		if err != nil {
 			return 0, err
 		}

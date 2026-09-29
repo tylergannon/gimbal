@@ -123,14 +123,14 @@ func TestCheckRecordsCancelledCommandBeforeReturning(t *testing.T) {
 	if result.Failure == nil || result.Failure.Kind != "cancelled" {
 		t.Fatalf("%+v", result)
 	}
-	entries, err := a.store.Load(result.Context)
+	entries, err := a.store.Load(t.Context(), result.Context)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(entries) != 1 || entries[0].Key != "check" {
 		t.Fatal(entries)
 	}
-	raw, err := a.store.Value(entries[0])
+	raw, err := a.store.Value(t.Context(), entries[0])
 	if err != nil {
 		t.Fatal(err)
 	}

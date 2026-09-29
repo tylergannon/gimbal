@@ -13,13 +13,14 @@ type Output interface {
 	ValidateJSON([]byte) error
 }
 
-// GenerateResponse is installed by Gimbal. It performs the same scoped agent
-// operation as local Generate; target code supplies only scheduling and transport.
-var GenerateResponse func(context.Context, any, string, Output) ([]byte, error)
-
-func Generate[T Output](ctx context.Context, session any, prompt string) ([]byte, error) {
+// Generate consumes an explicit immutable snapshot at the operation boundary.
+func Generate[T Output](ctx context.Context, session any, input Snapshot, prompt string) ([]byte, error) {
 	var output T
-	return GenerateResponse(ctx, session, prompt, output)
+	r, err := runtime(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return r.GenerateResponse(ctx, session, input, prompt, output)
 }
 
 // DecodeInto invokes Polytype-generated JSON methods where the type has them,

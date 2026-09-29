@@ -1,0 +1,1 @@
+correction: Explicit compiled finish owns the open-child and duplicate-finish refusal. Applying that refusal to shared local scope.finish broke Scope's established body-return cancellation contract, replaced the body error, and left parent/root scopes registered. Keep shared cleanup unconditional; serialize and validate compiled finish before invoking it.

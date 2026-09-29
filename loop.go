@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/tylergannon/polytype"
@@ -101,67 +99,36 @@ func (l *promiseLoop) Tasks(yield func(context.Context, Task) bool) {
 		// A message an operator sent but the planner never read is
 		// recorded as dropped, so every message has one record saying
 		// whether it reached a decision.
-		defer func() {
-			for _, message := range loopScope.endDispatch() {
-				loopScope.run.event(loopScope.key, "", "", Steer{Target: loopScope.key, Source: "person", Message: message})
-				logf("%s: a message was dropped, dispatch ended first: %s", loopScope.key, oneLine(message))
-			}
-		}()
-		dir := filepath.Join(loopScope.run.dir, "scopes", filepath.FromSlash(loopScope.key))
-		if err := os.MkdirAll(dir, 0o755); err != nil {
-			return fmt.Errorf("gimbal: %w", err)
+		defer func() { _ = endLoop(ctx) }()
+
+		if err := prepareLoop(loopScope); err != nil {
+			return err
 		}
-		file := filepath.Join(dir, "backlog.md")
 
 		tasks := []Task{}
 		var previous string
 		for {
-			backlogText, err := backlogJSON(l.goal, tasks)
-			if err != nil {
-				return fmt.Errorf("gimbal: %w", err)
-			}
-			// What an operator sent while the last task ran is read here,
-			// at the decision it was sent for, and recorded as landed
-			// because the planner is about to see it.
-			messages := loopScope.takeMessages()
-			for _, message := range messages {
-				loopScope.run.event(loopScope.key, "", "", Steer{Target: loopScope.key, Source: "person", Message: message, Landed: true})
-				logf("%s: a message reached the planner: %s", loopScope.key, oneLine(message))
-			}
-			prompt, err := planPrompt(ctx, l.name, l.planner.workdir, string(backlogText), scopeText(ctx), previous, messages)
+			p, err := planNext(ctx, l.planner, l.goal, tasks, previous, l.opts)
 			if err != nil {
 				return err
 			}
-			a, err := dispatch[answer](ctx, l.planner, prompt, l.opts)
-			if err != nil {
-				return err
-			}
-			p := a.plan
 			tasks = p.Tasks
 			if tasks == nil {
 				tasks = []Task{}
 			}
-
-			revisedText, err := backlogJSON(l.goal, tasks)
-			if err != nil {
-				return fmt.Errorf("gimbal: %w", err)
-			}
-			if err := os.WriteFile(file, []byte("---\n"+string(revisedText)+"\n---\n"), 0o644); err != nil {
-				return fmt.Errorf("gimbal: %w", err)
+			if err = recordPlan(ctx, l.goal, p); err != nil {
+				return err
 			}
 
 			if !p.Next.Present {
-				loopScope.run.event(loopScope.key, "", "", PlannerDecision{})
 				logf("%s: the planner ended dispatch", loopScope.key)
 				return nil
 			}
 
 			task := tasks[p.Next.Value]
 			logf("%s: task: %s", loopScope.key, oneLine(task.Name))
-			loopScope.run.event(loopScope.key, "", "", PlannerDecision{Task: optionalTask(task)})
 			more := true
-			taskScope := loopScope.child("task")
-			taskCtx := context.WithValue(ctx, taskKey{}, task)
+			taskScope, taskCtx := prepareTask(loopScope, ctx, "task", task)
 			if err := taskScope.do(taskCtx, func(ctx context.Context) error {
 				raw, err := json.Marshal(task)
 				if err != nil {

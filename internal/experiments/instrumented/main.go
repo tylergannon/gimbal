@@ -19,8 +19,10 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/internal/compiledscope"
 	"github.com/tylergannon/gimbal/internal/experiments/instrumented/fanout"
+	"github.com/tylergannon/gimbal/internal/host"
 	"github.com/tylergannon/gimbal/internal/observation"
 	"github.com/tylergannon/gimbal/web"
 	"go.temporal.io/sdk/activity"
@@ -54,7 +56,16 @@ func run() error {
 			return err
 		}
 		defer func() { _ = os.RemoveAll(instanceDir) }()
-		instance, err := web.NewInstance(ctx, instanceDir, append([]string{*projectPath}, flag.Args()...), web.WithPort(8082))
+		projects := append([]string{*projectPath}, flag.Args()...)
+		viewCtx := ctx
+		for _, project := range projects {
+			store := &compiledscope.Store{Root: filepath.Join(filepath.Dir(project), "context")}
+			viewCtx, err = host.WithContextStore(viewCtx, project, store, filepath.Join(project, ".gimbal", "context-cache"))
+			if err != nil {
+				return err
+			}
+		}
+		instance, err := web.NewInstance(viewCtx, instanceDir, projects, web.WithPort(8082))
 		if err != nil {
 			return err
 		}
@@ -129,7 +140,12 @@ func run() error {
 		if !filepath.IsAbs(workspace) || !filepath.IsAbs(contextDir) {
 			return errors.New("activity worker requires absolute workspace and context paths")
 		}
-		instance, err := web.NewInstance(ctx, "/tmp/instrumented-instance", []string{workspace}, web.WithPort(8081))
+		store := compiledscope.Store{Root: contextDir, LocalDir: filepath.Join(contextDir, "materialized")}
+		hostCtx, err := host.WithContextStore(ctx, workspace, &store, filepath.Join(workspace, ".gimbal", "context-cache"))
+		if err != nil {
+			return err
+		}
+		instance, err := web.NewInstance(hostCtx, "/tmp/instrumented-instance", []string{workspace}, web.WithPort(8081))
 		if err != nil {
 			return err
 		}
@@ -137,7 +153,11 @@ func run() error {
 		if err != nil {
 			return err
 		}
-		a := &Activities{project: project, workdir: workspace, store: compiledscope.Store{Root: contextDir}}
+		a := &Activities{project: project, workdir: workspace, store: store, controls: host.CompiledControls{
+			CancelRun: func(ctx context.Context, _ gimbal.Killed) error {
+				return c.CancelWorkflow(ctx, os.Getenv("SPECIMEN_WORKFLOW_ID"), "")
+			},
+		}}
 		target, _ := url.Parse("http://127.0.0.1:8081")
 		proxy := &httputil.ReverseProxy{Rewrite: func(r *httputil.ProxyRequest) {
 			r.SetURL(target)
@@ -214,7 +234,7 @@ func prepareInput(root, id, task string) (Input, error) {
 	store := compiledscope.Store{Root: filepath.Join(root, environmentID(id), "context")}
 	// Host submission and the container's unprivileged worker both publish into
 	// this retained run store. Object files are separately published read-only.
-	for _, sub := range []string{"", "snapshots", "blobs", "materialized"} {
+	for _, sub := range []string{"", "objects", "materialized"} {
 		path := filepath.Join(store.Root, sub)
 		if err := os.MkdirAll(path, 0777); err != nil {
 			return Input{}, err
@@ -223,7 +243,7 @@ func prepareInput(root, id, task string) (Input, error) {
 			return Input{}, err
 		}
 	}
-	ref, err := store.Extend("", contextEntry("task", task))
+	ref, err := store.Extend(context.Background(), "", contextEntry("task", task))
 	return Input{Context: ref}, err
 }
 

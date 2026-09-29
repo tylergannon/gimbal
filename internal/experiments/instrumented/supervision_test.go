@@ -60,25 +60,28 @@ func TestLiveControlledSupervision(t *testing.T) {
 		coder: {Adapter: claude.New(), Model: "claude-haiku-4-5"}, coach: {Adapter: reviewer, Model: "diffusion/deepseek-4.1-flash"},
 	}, func(ctx context.Context) error {
 		store := compiledscope.Store{Root: filepath.Join(t.TempDir(), "context")}
-		ref, err := store.Extend("", contextEntry("task", "BRANCH_CONTEXT_42: inspect evidence without changing it"), contextEntry("reference", referenceMaterial()))
+		if err := compiledscope.InitializeContext(ctx, store, "", ""); err != nil {
+			return err
+		}
+		ref, err := store.Extend(t.Context(), "", contextEntry("task", "BRANCH_CONTEXT_42: inspect evidence without changing it"), contextEntry("reference", referenceMaterial()))
 		if err != nil {
 			return err
 		}
-		entries, err := store.Load(ref)
+		entries, err := store.Load(t.Context(), ref)
 		if err != nil {
 			return err
 		}
 		// Exercise value-plus-file representation with a supplied short summary.
 		entries[1].Value = contextEntry("reference", "Reference data; the receipt is in the middle of the complete file.").Value
-		ref, err = compiledscope.WriteContext(ctx, store, "", entries...)
+		ref, err = compiledscope.WriteContext(ctx, "", entries...)
 		if err != nil {
 			return err
 		}
-		reviewer.contextFile, err = store.Materialize(entries[1])
+		reviewer.contextFile, err = store.Materialize(t.Context(), entries[1])
 		if err != nil {
 			return err
 		}
-		ctx, err = compiledscope.BindContext(ctx, store, ref)
+		ctx, err = compiledscope.BindContext(ctx, ref)
 		if err != nil {
 			return err
 		}

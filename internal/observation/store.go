@@ -190,6 +190,10 @@ type record struct {
 	Turn    string    `json:"turn"`
 	Event   struct {
 		Kind        string          `json:"kind"`
+		Status      string          `json:"status"`
+		By          string          `json:"by"`
+		Reason      string          `json:"reason"`
+		Target      string          `json:"target"`
 		Name        string          `json:"name"`
 		Adapter     string          `json:"adapter"`
 		Model       string          `json:"model"`
@@ -262,6 +266,34 @@ func (s *Store) Lifecycle(raw json.RawMessage) error {
 	case "run_started":
 		s.run.Name, s.run.Status, s.run.Started = rec.Event.Name, StatusRunning, at
 		changed = append(changed, change{tableRun, ""})
+	case "cancellation_cleanup":
+		if !s.run.Cancellation.Present {
+			s.run.Cancellation.Present = true
+			s.run.Cancellation.Value.Deliveries = []CancellationAttempt{}
+		}
+		s.run.Cancellation.Value.Cleanup = "completed"
+		s.run.Cancellation.Value.CleanupError = rec.Event.Error
+		if rec.Event.Error != "" {
+			s.run.Cancellation.Value.Cleanup = "unconfirmed"
+		}
+		changed = append(changed, change{tableRun, ""})
+	case "cancellation_delivery":
+		if !s.run.Cancellation.Present {
+			s.run.Cancellation.Present = true
+			s.run.Cancellation.Value.Deliveries = []CancellationAttempt{}
+		}
+		s.run.Cancellation.Value.Deliveries = append(s.run.Cancellation.Value.Deliveries, CancellationAttempt{At: at, Status: rec.Event.Status, Error: rec.Event.Error})
+		changed = append(changed, change{tableRun, ""})
+	case "killed":
+		if rec.Scope == "" && rec.Turn == "" && rec.Event.Target == "" {
+			if !s.run.Cancellation.Present {
+				s.run.Cancellation.Present = true
+				s.run.Cancellation.Value.Deliveries = []CancellationAttempt{}
+			}
+			s.run.Cancellation.Value.By, s.run.Cancellation.Value.Reason = rec.Event.By, rec.Event.Reason
+			s.run.Cancellation.Value.Cleanup = "pending"
+			changed = append(changed, change{tableRun, ""})
+		}
 	case "run_ended":
 		// A cancelled run that then reports its body's error stays cancelled:
 		// cancellation is the terminal fact, not a second outcome.
@@ -723,7 +755,7 @@ func (s *Store) snapshotLocked() RunSnapshot {
 	out := RunSnapshot{
 		Stream:      s.stream,
 		Position:    s.position,
-		Run:         s.run,
+		Run:         cloneRun(s.run),
 		Scopes:      make(map[string]ScopeRow, len(s.scopes)),
 		Sessions:    make(map[string]SessionRow, len(s.sessions)),
 		Interviews:  make(map[string]InterviewRow, len(s.interviews)),
@@ -810,4 +842,9 @@ func mustMarshal(value any) json.RawMessage {
 		panic(fmt.Errorf("observation: encode frame: %w", err))
 	}
 	return raw
+}
+
+func cloneRun(row RunRow) RunRow {
+	row.Cancellation.Value.Deliveries = append([]CancellationAttempt{}, row.Cancellation.Value.Deliveries...)
+	return row
 }

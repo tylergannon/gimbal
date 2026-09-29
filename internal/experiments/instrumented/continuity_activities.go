@@ -92,28 +92,18 @@ func (a *Activities) OpenSession(ctx context.Context, owner, id string, role gim
 func (a *Activities) session(in operationInput) (*gimbal.Session, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	// The creating scope must be this operation's scope or an ancestor.
-	for id := in.Scope; ; {
-		f := a.scopes[id]
-		if f == nil || f.closing {
-			break
+	// Handle resolution is consumer-owned. Gimbal checks whether the resolved
+	// session is reachable from the operation's actual scope.
+	if f := a.scopes[in.Session.Owner]; f != nil && !f.closing {
+		if session := f.sessions[in.Session.ID]; session != nil {
+			return session, nil
 		}
-		if id == in.Session.Owner {
-			s := f.sessions[in.Session.ID]
-			if s == nil {
-				break
-			}
-			return s, nil
-		}
-		if id == "" {
-			break
-		}
-		id = f.parent
 	}
+
 	return nil, fmt.Errorf("session %s is unavailable in scope %s", in.Session.ID, in.Scope)
 }
 func (a *Activities) turnInput(ctx context.Context, in operationInput) (context.Context, *gimbal.Session, func(), error) {
-	scoped, release, err := a.input(ctx, in.Scope, in.Context)
+	scoped, release, err := a.operation(ctx, in.Scope)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -151,7 +141,7 @@ func (a *Activities) command(ctx context.Context, in operationInput, name, comma
 	return a.commandAt(ctx, in, name, a.workdir, command, args...)
 }
 func (a *Activities) commandAt(ctx context.Context, in operationInput, name, dir, command string, args ...string) (commandResult, error) {
-	scoped, release, err := a.input(ctx, in.Scope, in.Context)
+	scoped, release, err := a.operation(ctx, in.Scope)
 	if err != nil {
 		return commandResult{}, err
 	}

@@ -18,7 +18,10 @@ func TestCompiledSnapshotRenderingIndependentOfLiveAncestors(t *testing.T) {
 		return compiledscope.Entry{Key: k, Value: b}
 	}
 	err := Run(Project(t.Context(), t.TempDir()), "snapshots", nil, func(ctx context.Context) error {
-		root, err := compiledscope.WriteContext(ctx, store, "", entry("layer", "parent"), entry("empty", ""))
+		if err := compiledscope.InitializeContext(ctx, store, store.LocalDir, ""); err != nil {
+			return err
+		}
+		root, err := compiledscope.WriteContext(ctx, "", entry("layer", "parent"), entry("empty", ""))
 		if err != nil {
 			return err
 		}
@@ -28,11 +31,11 @@ func TestCompiledSnapshotRenderingIndependentOfLiveAncestors(t *testing.T) {
 			for _, k := range []string{"a", "b", "c", "d", "e", "f"} {
 				writes = append(writes, entry(k, strings.Repeat("support "+k+" ", 3000)))
 			}
-			childRef, err = compiledscope.WriteContext(child, store, root, writes...)
+			childRef, err = compiledscope.WriteContext(child, root, writes...)
 			if err != nil {
 				return err
 			}
-			bound, err := compiledscope.BindContext(child, store, childRef)
+			bound, err := compiledscope.BindContext(child, childRef)
 			if err != nil {
 				return err
 			}
@@ -77,14 +80,14 @@ func TestCompiledSnapshotRenderingIndependentOfLiveAncestors(t *testing.T) {
 		s.values = nil
 		s.keys = nil
 		s.mu.Unlock()
-		bound, err := compiledscope.BindContext(ctx, store, childRef)
+		bound, err := compiledscope.BindContext(ctx, childRef)
 		if err != nil {
 			return err
 		}
 		if got := scopeData(bound).By["layer"].Text; got != "child" {
 			t.Fatalf("child lost after cleanup: %s", got)
 		}
-		bound, err = compiledscope.BindContext(ctx, store, root)
+		bound, err = compiledscope.BindContext(ctx, root)
 		if err != nil {
 			return err
 		}
@@ -112,12 +115,15 @@ func TestCompiledTemplateRetainsOmittedInputsAndJSONCompleteness(t *testing.T) {
 	t.Setenv("TYPESAFE_API_KEY", "test-key")
 	store := compiledscope.Store{Root: t.TempDir()}
 	raw, _ := json.Marshal(map[string]string{"text": strings.Repeat("a", 5000)})
-	ref, err := store.Extend("", compiledscope.Entry{Key: "json", Value: raw}, compiledscope.Entry{Key: "empty", Value: json.RawMessage(`""`)})
+	ref, err := store.Extend(t.Context(), "", compiledscope.Entry{Key: "json", Value: raw}, compiledscope.Entry{Key: "empty", Value: json.RawMessage(`""`)})
 	if err != nil {
 		t.Fatal(err)
 	}
 	err = Run(Project(t.Context(), t.TempDir()), "template-snapshot", nil, func(ctx context.Context) error {
-		ctx, err = compiledscope.BindContext(ctx, store, ref)
+		if err := compiledscope.InitializeContext(ctx, store, store.LocalDir, ""); err != nil {
+			return err
+		}
+		ctx, err = compiledscope.BindContext(ctx, ref)
 		if err != nil {
 			return err
 		}

@@ -107,6 +107,6 @@ func (a *Activities) ResultsGenerate1(ctx context.Context, in operationInput) (o
 		return operationResult[[]byte]{}, err
 	}
 	defer release()
-	value, err := compiledscope.Generate[resulttypes.Result](scoped, session, "Return a ready result with a receipt and outcome.")
+	value, err := compiledscope.Generate[resulttypes.Result](scoped, session, in.Context, "Return a ready result with a receipt and outcome.")
 	return operationResult[[]byte]{value, failure(err)}, nil
 }

@@ -7,6 +7,7 @@
   import { Button } from "#lib/components/ui/button/index.js";
   import { Input } from "#lib/components/ui/input/index.js";
   import type { ConnectionState, RunRow, TurnRow } from "../observation/index.js";
+  import CancellationStatus from "./CancellationStatus.svelte";
   import Pip from "./Pip.svelte";
   import type { RunNavigationItem } from "./selection.js";
 
@@ -141,8 +142,11 @@
   <div class="states">
     <Badge variant={statusVariant} class="status">
       {#if run.status === "running"}<Pip state="running" />{/if}
-      {run.status[0].toUpperCase() + run.status.slice(1)}
+      {run.cancellation?.cleanup === "pending" ? "Cancelling" : run.status[0].toUpperCase() + run.status.slice(1)}
     </Badge>
+    {#if run.cancellation}
+      <CancellationStatus cancellation={run.cancellation} />
+    {/if}
     {#if !terminal}
       {#if connection === "disconnected"}
         <Badge variant="outline" class="disconnected">
@@ -219,7 +223,7 @@
         disabled={cancelling}
         onclick={oncancel}
       >
-        <XIcon data-icon="inline-start" size={16} />{cancelling ? "Cancelling" : "Cancel run"}
+        <XIcon data-icon="inline-start" size={16} />{cancelling ? "Cancelling" : run.cancellation?.deliveries?.at(-1)?.status === "unconfirmed" ? "Retry backend cancellation" : "Cancel run"}
       </Button>
     </div>
   {:else}

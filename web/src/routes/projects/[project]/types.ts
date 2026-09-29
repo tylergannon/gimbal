@@ -24,4 +24,22 @@ export type RunRow = {
   error: string;
   started: number;
   ended: number;
+  cancellation?: CancellationState;
+};
+
+/**
+ * CancellationState keeps delivery history and the independent local cleanup outcome visible in both live and retained run snapshots.
+ */
+export type CancellationState = {
+  by: string;
+  reason: string;
+  cleanup: string;
+  cleanup_error: string;
+  deliveries: Array<CancellationAttempt>;
+};
+
+export type CancellationAttempt = {
+  at: number;
+  status: string;
+  error: string;
 };

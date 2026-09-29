@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/tylergannon/gimbal/internal/compiledscope"
 )
 
 // closeTimeout bounds one adapter's Close call, on a context independent of
@@ -32,12 +34,14 @@ type taskKey struct{}
 type scope struct {
 	run    *run
 	parent *scope
+	name   string
 	key    string                  // names with ordinals from the root, as in lap.3/bakeoff.1/attempt.2; "" for the root
 	ctx    context.Context         // canonical lifetime context for work owned by this scope
 	cancel context.CancelCauseFunc // ends the scope's ctx; run.cancelScope reaches it by key
 
 	loop bool // a PromiseLoop's own scope, which takes messages for its planner
 
+	finishMu    sync.Mutex
 	mu          sync.Mutex
 	ordinals    map[string]int // the last ordinal given to each child scope and session name
 	keys        []string       // in the order they were set
@@ -95,6 +99,12 @@ func (s *scope) endDispatch() []string {
 
 func current(ctx context.Context) (*scope, error) {
 	if s, _ := ctx.Value(scopeKey{}).(*scope); s != nil {
+		s.mu.Lock()
+		ended := s.ended
+		s.mu.Unlock()
+		if ended {
+			return nil, fmt.Errorf("gimbal: scope ended: %q", s.key)
+		}
 		return s, nil
 	}
 	return nil, errors.New("gimbal: no scope in the ctx; it must come from gimbal.Run")
@@ -112,13 +122,14 @@ func (s *scope) next(name string) string {
 func (s *scope) child(name string) *scope {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return &scope{run: s.run, parent: s, key: s.next(name)}
+	return &scope{run: s.run, parent: s, name: name, key: s.next(name)}
 }
 
 // adopt makes session belong to s, which closes it when s ends.
 func (s *scope) adopt(session *Session) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	session.owner = s
 	session.id = s.next(session.name)
 	session.closed = s.ended
 	s.sessions = append(s.sessions, session)
@@ -167,8 +178,9 @@ func (s *scope) do(ctx context.Context, body func(context.Context) error) (err e
 }
 
 // begin and finish are also used by the internal compiler-output experiment.
-// Callers must join owned work before finishing; neither operation schedules it.
+// Its explicit finish calls check lifetime legality before calling finish.
 func (s *scope) begin(ctx context.Context) context.Context {
+	ctx = compiledscope.WithRuntime(ctx, compiledRuntime{})
 	ctx, s.cancel = context.WithCancelCause(context.WithValue(ctx, scopeKey{}, s))
 	s.ctx = ctx
 	s.run.addScope(s)
@@ -195,6 +207,9 @@ func (s *scope) finish(bodyErr error) error {
 	}
 	err := errors.Join(bodyErr, serviceCleanupErr)
 	s.run.event(s.key, "", "", ScopeEnded{Error: errString(err)})
+	if s.key == "" && s.run.rootCancellation() != nil {
+		s.run.event("", "", "", CancellationCleanup{Error: errString(errors.Join(serviceCleanupErr, s.run.closeError()))})
+	}
 	return err
 }
 
@@ -278,11 +293,11 @@ func SetJSON[V Output](ctx context.Context, key string, value V) {
 }
 
 func encode(key string, value any) []byte {
-	raw, err := json.Marshal(value)
+	entry, err := compiledscope.Encode(key, value)
 	if err != nil {
 		panic(fmt.Sprintf("gimbal: set %q: %v", key, err))
 	}
-	return raw
+	return entry.Value
 }
 
 func store(ctx context.Context, key string, raw []byte) {

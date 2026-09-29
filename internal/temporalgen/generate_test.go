@@ -176,6 +176,7 @@ func TestUnsupportedSourceInvalidatesOutput(t *testing.T) {
 	original := string(read(t, path))
 	out := filepath.Join(base, "planning_temporal_gen.go")
 	cases := []struct{ name, body, want string }{
+		{"private_constant", `gimbal.Set(ctx,"private",privateValue)`, "constant type privateType is private"},
 		{"package_value", `gimbal.Set(ctx,"argv",os.Args)`, "unsupported imported package value"},
 		{"scope_parameter", `gimbal.Scope(ctx,"empty",func(context.Context)error{return nil})`, "Scope callback must name"},
 		{"context_value", `_ = fmt.Errorf("%T",ctx)`, "context values are supported only"},
@@ -194,6 +195,9 @@ func TestUnsupportedSourceInvalidatesOutput(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			source := strings.Replace(original, `gimbal.Set(ctx, "review", "parent")`, tc.body+"\n gimbal.Set(ctx,\"review\",\"parent\")", 1)
+			if tc.name == "private_constant" {
+				source += "\ntype privateType string\nconst privateValue privateType = \"secret\"\n"
+			}
 			if tc.name == "dynamic_prompt" {
 				source = strings.Replace(source, `(ctx, WorkPrompt)`, `(ctx, prompt)`, 1)
 			}
@@ -249,5 +253,43 @@ func(Unsafe)String()string{return "user callback"}
 	write(t, path, []byte(original))
 	if err := temporalgen.Source(filepath.Join(base, "planning"), "Planning", "planning", out); err != nil {
 		t.Fatal(fmt.Errorf("repair regeneration: %w", err))
+	}
+}
+
+// TestProductionGraphRegistration checks the production dependency closure;
+// imports added only by paired tests cannot make this pass.
+func TestProductionGraphRegistration(t *testing.T) {
+	root := moduleCopy(t)
+	base := filepath.Join(root, "internal/experiments/instrumented")
+	for _, tc := range []struct{ dir, entry, name string }{
+		{"continuity", "Continuity", "continuity"},
+		{"planning", "Planning", "planning"},
+		{"resulttypes", "Results", "results"},
+	} {
+		if err := temporalgen.Source(filepath.Join(base, tc.dir), tc.entry, tc.name, filepath.Join(base, tc.name+"_temporal_gen.go")); err != nil {
+			t.Fatal(err)
+		}
+	}
+	cmd := exec.CommandContext(t.Context(), "go", "list", "-deps", "./internal/experiments/instrumented")
+	cmd.Dir = root
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("production dependencies: %v\n%s", err, out)
+	}
+	for _, pkg := range []string{"continuity", "planning", "resulttypes"} {
+		if !strings.Contains(string(out), "github.com/tylergannon/gimbal/internal/experiments/instrumented/"+pkg+"\n") {
+			t.Fatalf("production binary omits authored graph package %s", pkg)
+		}
+		graph := string(read(t, filepath.Join(base, pkg, "workflow_gen.go")))
+		if !strings.Contains(graph, "gimbal.RegisterGraph(Graph)") {
+			t.Fatalf("%s omits graph registration", pkg)
+		}
+	}
+	planning := string(read(t, filepath.Join(base, "planning_temporal_gen.go")))
+	if !strings.Contains(planning, `_ "github.com/tylergannon/gimbal/internal/experiments/instrumented/planning"`) {
+		t.Fatal("type-free authored package needs registration import")
+	}
+	if strings.Contains(planning, `contextEntry("task"`) || strings.Contains(planning, "[]string{}") {
+		t.Fatal("task initialization or predicted feedback keys remain in emitted orchestration")
 	}
 }

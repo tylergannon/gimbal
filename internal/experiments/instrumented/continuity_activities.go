@@ -7,14 +7,14 @@ import (
 	"path/filepath"
 
 	"github.com/tylergannon/gimbal"
-	"github.com/tylergannon/gimbal/internal/compiledscope"
+	"github.com/tylergannon/gimbal/contextdata"
 )
 
 // Handles refer to resources owned by a worker scope, never a transient activity.
 type sessionHandle struct{ Owner, ID string }
 type operationInput struct {
 	Scope   string
-	Context compiledscope.Snapshot
+	Context contextdata.Snapshot
 	Session sessionHandle
 }
 type operationFailure struct{ Kind, Message string }
@@ -134,7 +134,7 @@ func (a *Activities) OpenFork(ctx context.Context, in operationInput, name strin
 	f.sessions[id] = fork
 	return operationResult[sessionHandle]{Value: sessionHandle{in.Scope, id}}, nil
 }
-func (a *Activities) SetValue(ctx context.Context, id string, base compiledscope.Snapshot, entry compiledscope.Entry) (compiledscope.Snapshot, error) {
+func (a *Activities) SetValue(ctx context.Context, id string, base contextdata.Snapshot, entry contextdata.Entry) (contextdata.Snapshot, error) {
 	return a.write(ctx, id, base, entry)
 }
 func (a *Activities) command(ctx context.Context, in operationInput, name, command string, args ...string) (commandResult, error) {

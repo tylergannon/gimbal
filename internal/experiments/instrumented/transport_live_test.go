@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/tylergannon/gimbal"
-	"github.com/tylergannon/gimbal/internal/compiledscope"
+	"github.com/tylergannon/gimbal/contextdata"
 	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/temporal"
@@ -25,7 +25,7 @@ func largeResultWorkflow(ctx workflow.Context) (out Report, err error) {
 		cleanup := cleanupContext(ctx)
 		_ = workflow.ExecuteActivity(cleanup, "Finish", errorText(err)).Get(cleanup, nil)
 	}()
-	var snapshot compiledscope.Snapshot
+	var snapshot contextdata.Snapshot
 	if err = workflow.ExecuteActivity(ctx, "Initialize", Data{Name: "large-result"}).Get(ctx, &snapshot); err != nil {
 		return
 	}
@@ -40,7 +40,7 @@ func largeResultWorkflow(ctx workflow.Context) (out Report, err error) {
 	if err = result.Err(); err != nil {
 		return
 	}
-	out, err = compiledscope.Consume[Report](result.Value, result.Err())
+	out, err = gimbal.ConsumeResponse[Report](result.Value, result.Err())
 	if err != nil {
 		return
 	}
@@ -74,13 +74,13 @@ func TestLiveLargeTypedResult(t *testing.T) {
 	id := fmt.Sprintf("large-result-%d", time.Now().UnixMilli())
 	registerTestGraph("large-result")
 	a := newTestActivities(t)
-	a.store = compiledscope.Store{Root: filepath.Join(root, environmentID(id), "context")}
+	a.store = contextdata.Store{Root: filepath.Join(root, environmentID(id), "context")}
 	want := Report{Summary: strings.Repeat("whole-value", 300000), File: "large", Receipt: "tail"}
 	a.models = map[gimbal.WorkflowRole]gimbal.ModelBinding{coder: {Model: "deterministic-large-result", Adapter: &specimenAdapter{turn: func(context.Context, string, string) (any, error) { return want, nil }}}}
 	w := worker.New(c, id, worker.Options{})
 	w.RegisterWorkflow(largeResultWorkflow)
 	w.RegisterActivity(a)
-	w.RegisterActivityWithOptions(func(_ context.Context, snapshot compiledscope.Snapshot) (int, error) {
+	w.RegisterActivityWithOptions(func(_ context.Context, snapshot contextdata.Snapshot) (int, error) {
 		entries, err := a.store.Load(t.Context(), snapshot)
 		if err != nil {
 			return 0, err

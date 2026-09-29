@@ -16,8 +16,8 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/contextdata"
 	"github.com/tylergannon/gimbal/internal/binding"
-	"github.com/tylergannon/gimbal/internal/compiledscope"
 	"github.com/tylergannon/gimbal/internal/conversation"
 	"github.com/tylergannon/gimbal/internal/live"
 	"github.com/tylergannon/gimbal/internal/observation"
@@ -43,7 +43,7 @@ type Project struct {
 	registry      *observation.Registry
 	conversations *conversation.Manager
 	ownerLock     *os.File
-	contextStore  *compiledscope.Store
+	contextStore  *contextdata.Store
 	contextCache  string
 }
 
@@ -264,10 +264,10 @@ func (p *Project) Run(ctx context.Context, name string, models map[gimbal.Workfl
 	return err
 }
 
-// OpenCompiledRun is the experiment's explicit counterpart to Run. The caller
+// OpenCompiledRun attaches compiled execution to this project. The caller
 // must close it after joining all activities and closing child scopes. Owner
 // shutdown cancels its context and waits for that close, as it does for Run.
-func (p *Project) OpenCompiledRun(ctx context.Context, name string, models map[gimbal.WorkflowRole]gimbal.ModelBinding, initial compiledscope.Snapshot, localDir string, controls CompiledControls) (context.Context, func(error) error, error) {
+func (p *Project) OpenCompiledRun(ctx context.Context, name string, models map[gimbal.WorkflowRole]gimbal.ModelBinding, initial contextdata.Snapshot, localDir string, controls CompiledControls) (context.Context, func(error) error, error) {
 	if p == nil || ctx == nil {
 		return nil, nil, errors.New("gimbal: hosted run requires a project and context")
 	}
@@ -307,15 +307,10 @@ func (p *Project) OpenCompiledRun(ctx context.Context, name string, models map[g
 		unhook := p.runs.Hook(id, &compiledController{Controller: controller, controls: controls})
 		return func() { unhook(); close(finished) }
 	})
-	root, finish, err := compiledscope.OpenRun(gimbal.Project(runCtx, p.dir), name, models)
+	root, finish, err := gimbal.OpenRun(gimbal.Project(runCtx, p.dir), name, models, initial, gimbal.ContextAccess{Store: p.contextStore, LocalDir: localDir})
 	if err != nil {
 		release()
 		return nil, nil, err
-	}
-	if err := compiledscope.InitializeContext(root, *p.contextStore, localDir, initial); err != nil {
-		ended := finish(err)
-		release()
-		return nil, nil, errors.Join(err, ended)
 	}
 	var released sync.Once
 	return root, func(err error) error {

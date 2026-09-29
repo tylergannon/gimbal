@@ -2,61 +2,75 @@ package gimbal
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 
-	"github.com/tylergannon/gimbal/internal/compiledscope"
+	"github.com/tylergannon/gimbal/contextdata"
 )
 
-// Keep this experimental seam internal: ordinary workflows still use Run and
-// Scope. Both paths share the same entry, resource cleanup and event recording.
-func init() {
-	compiledscope.OpenRun = func(ctx context.Context, name string, bindings any) (context.Context, func(error) error, error) {
-		models, ok := bindings.(map[WorkflowRole]ModelBinding)
-		if !ok {
-			return nil, nil, fmt.Errorf("gimbal: invalid compiled run bindings %T", bindings)
-		}
-		r, release, err := beginRun(ctx, name, models)
-		if err != nil {
-			return nil, nil, err
-		}
-		root := &scope{run: r}
-		var finishMu sync.Mutex
-		return root.begin(ctx), func(err error) error {
-			finishMu.Lock()
-			defer finishMu.Unlock()
-			root.mu.Lock()
-			wasEnded := root.ended
-			root.mu.Unlock()
-			if wasEnded {
-				return fmt.Errorf("gimbal: run already ended")
-			}
-			r.cancelDeliveryMu.Lock()
-			defer r.cancelDeliveryMu.Unlock()
-			err = root.finishCompiled(err)
-			root.mu.Lock()
-			ended := root.ended
-			root.mu.Unlock()
-			if !ended {
-				return err
-			}
-			release()
-			return r.complete(ctx, name, err)
-		}, nil
-	}
+// ContextAccess supplies immutable input storage and its agent-visible local cache.
+// Store is copied at entry; LocalDir selects a separate cache for this run owner.
+type ContextAccess struct {
+	Store    *contextdata.Store
+	LocalDir string
 }
 
-type compiledRuntime struct{}
+// OpenRun opens a process-local runtime for a consumer-owned scheduler.
+// Initial input is verified and recorded before a live context is returned.
+// The owner must join its work and finish child scopes before finishing the run,
+// exactly once. The returned finish does not make scheduler retries idempotent.
+func OpenRun(ctx context.Context, name string, models map[WorkflowRole]ModelBinding, initial contextdata.Snapshot, access ContextAccess) (context.Context, func(error) error, error) {
+	if access.Store == nil {
+		return nil, nil, fmt.Errorf("gimbal: compiled context store is required")
+	}
+	r, release, err := beginRun(ctx, name, models)
+	if err != nil {
+		return nil, nil, err
+	}
+	root := &scope{run: r}
+	scoped := root.begin(ctx)
+	var finishMu sync.Mutex
+	finish := func(err error) error {
+		finishMu.Lock()
+		defer finishMu.Unlock()
+		root.mu.Lock()
+		wasEnded := root.ended
+		root.mu.Unlock()
+		if wasEnded {
+			return fmt.Errorf("gimbal: run already ended")
+		}
+		r.cancelDeliveryMu.Lock()
+		defer r.cancelDeliveryMu.Unlock()
+		err = root.finishCompiled(err)
+		root.mu.Lock()
+		ended := root.ended
+		root.mu.Unlock()
+		if !ended {
+			return err
+		}
+		release()
+		return r.complete(ctx, name, err)
+	}
+	if err = initializeCompiledContext(scoped, *access.Store, access.LocalDir, initial); err != nil {
+		return nil, nil, errors.Join(err, finish(err))
+	}
+	return scoped, finish, nil
+}
 
-func (compiledRuntime) CancelRun(ctx context.Context) error {
+// CancelRun cancels the root using its first effective cause and records one kill.
+// It rejects ended runs. Calling finish remains the runtime owner's responsibility.
+func CancelRun(ctx context.Context, cause error) error {
 	s, err := current(ctx)
 	if err != nil {
 		return err
 	}
-	return s.run.CancelScope("", context.Canceled)
+	return s.run.CancelScope("", cause)
 }
 
-func (compiledRuntime) OpenScope(ctx context.Context, name string) (context.Context, func(error) error, error) {
+// OpenScope opens a lexical child scope. Finish it after joining its work and
+// closing its children, before resuming the parent.
+func OpenScope(ctx context.Context, name string) (context.Context, func(error) error, error) {
 	parent, err := current(ctx)
 	if err != nil {
 		return nil, nil, err

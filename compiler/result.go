@@ -1,4 +1,4 @@
-// Package compiler holds private, revisable checks shared by compiler consumers.
+// Package compiler provides shared semantic checks and graph generation for consumer compilers.
 package compiler
 
 import (

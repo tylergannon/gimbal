@@ -6,22 +6,21 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/tylergannon/gimbal/internal/compiledscope"
+	"github.com/tylergannon/gimbal/contextdata"
 )
 
 type compiledContextKey struct{}
 type compiledContext struct {
 	values []visibleValue
-	ref    compiledscope.Snapshot
+	ref    contextdata.Snapshot
 }
 
-func (compiledRuntime) WriteContext(ctx context.Context, base compiledscope.Snapshot, writes ...compiledscope.Entry) (compiledscope.Snapshot, error) {
+// WriteContext publishes immutable scoped writes and records them for observers.
+// Only the caller's lexical snapshot advances; inherited references remain valid.
+func WriteContext(ctx context.Context, base contextdata.Snapshot, writes ...contextdata.Entry) (contextdata.Snapshot, error) {
 	return writeCompiledContext(ctx, base, writes...)
 }
-func (compiledRuntime) BindContext(ctx context.Context, ref compiledscope.Snapshot) (context.Context, error) {
-	return bindCompiledContext(ctx, ref)
-}
-func (compiledRuntime) InitializeContext(ctx context.Context, store compiledscope.Store, localDir string, initial compiledscope.Snapshot) error {
+func initializeCompiledContext(ctx context.Context, store contextdata.Store, localDir string, initial contextdata.Snapshot) error {
 	s, err := current(ctx)
 	if err != nil {
 		return err
@@ -42,7 +41,7 @@ func (compiledRuntime) InitializeContext(ctx context.Context, store compiledscop
 	_, err = writeCompiledContext(ctx, "", entries...)
 	return err
 }
-func writeCompiledContext(ctx context.Context, base compiledscope.Snapshot, writes ...compiledscope.Entry) (compiledscope.Snapshot, error) {
+func writeCompiledContext(ctx context.Context, base contextdata.Snapshot, writes ...contextdata.Entry) (contextdata.Snapshot, error) {
 	s, err := current(ctx)
 	if err != nil {
 		return base, err
@@ -102,7 +101,7 @@ func writeCompiledContext(ctx context.Context, base compiledscope.Snapshot, writ
 	}
 	return ref, nil
 }
-func configureCompiledStore(r *run, store compiledscope.Store) error {
+func configureCompiledStore(r *run, store contextdata.Store) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.contextStore != nil {
@@ -115,16 +114,16 @@ func configureCompiledStore(r *run, store compiledscope.Store) error {
 	return nil
 }
 
-func compiledStore(r *run) (compiledscope.Store, error) {
+func compiledStore(r *run) (contextdata.Store, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.contextStore == nil {
-		return compiledscope.Store{}, fmt.Errorf("compiled context store is not configured")
+		return contextdata.Store{}, fmt.Errorf("compiled context store is not configured")
 	}
 	return *r.contextStore, nil
 }
 
-func compiledValue(ctx context.Context, owner *scope, store compiledscope.Store, e compiledscope.Entry) (*scopeValue, error) {
+func compiledValue(ctx context.Context, owner *scope, store contextdata.Store, e contextdata.Entry) (*scopeValue, error) {
 	raw, err := store.Value(ctx, e)
 	if err != nil {
 		return nil, err
@@ -154,7 +153,7 @@ func compiledValue(ctx context.Context, owner *scope, store compiledscope.Store,
 	return value, nil
 }
 
-func bindCompiledContext(ctx context.Context, ref compiledscope.Snapshot) (context.Context, error) {
+func bindCompiledContext(ctx context.Context, ref contextdata.Snapshot) (context.Context, error) {
 	s, err := current(ctx)
 	if err != nil {
 		return nil, err

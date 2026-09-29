@@ -1,4 +1,9 @@
-package compiledscope
+// Package contextdata captures scoped values as immutable content-addressed
+// snapshots. Objects supplies physical storage; Store verifies identities,
+// resolves lexical shadowing and materializes complete values for local agents.
+// Retain objects for as long as retained runs refer to them. Content addressing
+// supplies integrity, not access control or confidentiality.
+package contextdata
 
 import (
 	"bytes"
@@ -15,6 +20,9 @@ import (
 // Snapshot names a complete immutable manifest within this run's store.
 // Neither it nor its entries contain producer-local paths or scope provenance.
 type Snapshot string
+
+// Entry is one encoded scoped value. File references a complete immutable object;
+// Value may carry a supplied summary when File is present.
 type Entry struct {
 	Key    string          `json:"key"`
 	Value  json.RawMessage `json:"value,omitempty"`
@@ -22,7 +30,9 @@ type Entry struct {
 	Format string          `json:"format,omitempty"`
 }
 
-// Objects publishes complete immutable objects. Store computes and checks identities.
+// Objects publishes complete immutable objects atomically or returns an error.
+// Existing identities must retain their original bytes. Store computes and
+// verifies identities and publishes referenced content before its manifest.
 type Objects interface {
 	Put(context.Context, string, []byte) error
 	Get(context.Context, string) ([]byte, error)
@@ -36,6 +46,7 @@ type Store struct {
 	LocalDir string
 }
 
+// FileObjects stores immutable objects as files directly beneath Root.
 type FileObjects struct{ Root string }
 
 func (s Store) objects() Objects {
@@ -96,6 +107,8 @@ func (f FileObjects) Put(ctx context.Context, id string, data []byte) error {
 	}
 	return nil
 }
+
+// Get reads an immutable object by its content identity.
 func (f FileObjects) Get(ctx context.Context, id string) ([]byte, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -115,6 +128,8 @@ func (s Store) publish(ctx context.Context, kind string, data []byte) (string, e
 	}
 	return id, nil
 }
+
+// ReadObject reads and verifies a content-addressed object.
 func (s Store) ReadObject(ctx context.Context, id string) ([]byte, error) {
 	return s.read(ctx, "object", id)
 }
@@ -131,6 +146,9 @@ func (s Store) read(ctx context.Context, kind, id string) ([]byte, error) {
 	}
 	return b, nil
 }
+
+// Load verifies a snapshot and every referenced complete value. An empty
+// reference means empty input; missing or damaged objects return an error.
 func (s Store) Load(ctx context.Context, ref Snapshot) ([]Entry, error) {
 	if ref == "" {
 		return nil, nil
@@ -155,6 +173,8 @@ func (s Store) Load(ctx context.Context, ref Snapshot) ([]Entry, error) {
 	}
 	return entries, nil
 }
+
+// Value resolves the complete JSON value of an entry, including file contents.
 func (s Store) Value(ctx context.Context, e Entry) (json.RawMessage, error) {
 	if e.File == "" {
 		if !json.Valid(e.Value) {
@@ -226,6 +246,8 @@ func (s Store) Materialize(ctx context.Context, e Entry) (string, error) {
 	}
 	return s.MaterializeText(e.File, b)
 }
+
+// MaterializeText verifies and repairs a local copy of an already identified object.
 func (s Store) MaterializeText(id string, b []byte) (string, error) {
 	if !validID(id) || objectID(b) != id {
 		return "", fmt.Errorf("invalid context materialization")
@@ -257,6 +279,8 @@ func (s Store) MaterializeText(id string, b []byte) (string, error) {
 	}
 	return name, nil
 }
+
+// Text publishes and materializes text, returning its object ID and local path.
 func (s Store) Text(ctx context.Context, text string) (string, string, error) {
 	id, err := s.publish(ctx, "blobs", []byte(text))
 	if err != nil {

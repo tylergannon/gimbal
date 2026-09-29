@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tylergannon/gimbal/internal/compiledscope"
+	"github.com/tylergannon/gimbal/contextdata"
 )
 
 func TestLocalScopeEarlyReturnCancelsOpenChild(t *testing.T) {
@@ -59,19 +59,19 @@ func TestLocalScopeEarlyReturnCancelsOpenChild(t *testing.T) {
 
 func TestCompiledLoopAndTaskFinishRequireClosedChildren(t *testing.T) {
 	err := runTest(t, nil, func(ctx context.Context) error {
-		if err := compiledscope.InitializeContext(ctx, compiledscope.Store{Root: t.TempDir()}, t.TempDir(), ""); err != nil {
+		if err := initializeCompiledContext(ctx, contextdata.Store{Root: t.TempDir()}, t.TempDir(), ""); err != nil {
 			return err
 		}
-		loop, finishLoop, err := compiledscope.OpenLoop(ctx, "loop")
+		loop, finishLoop, err := OpenLoop(ctx, "loop")
 		if err != nil {
 			return err
 		}
-		raw := []byte(`{"name":"work","description":"do work","definition_of_done":"done","validation":{"command":"","query":""}}`)
-		task, _, finishTask, err := compiledscope.OpenTask(loop, "task", raw, "")
+		raw := Task{Name: "work", Description: "do work", DefinitionOfDone: "done"}
+		task, _, finishTask, err := OpenTask(loop, "task", raw, "")
 		if err != nil {
 			return err
 		}
-		child, finishChild, err := compiledscope.OpenScope(task, "child")
+		child, finishChild, err := OpenScope(task, "child")
 		if err != nil {
 			return err
 		}

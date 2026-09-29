@@ -14,7 +14,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/tylergannon/gimbal/internal/compiledscope"
+	"github.com/tylergannon/gimbal/contextdata"
 )
 
 const commandOutputLimit = 64 << 10
@@ -144,30 +144,48 @@ func Check(ctx context.Context, key, workdir, command string, args ...string) er
 	return errors.Join(commandErr, err, recordCheckResult(s, key, raw))
 }
 
-// executeCheck constructs the record from the exact command observations for
-// both local and compiled Check, including resolved paths and execution errors.
-func executeCheck(ctx context.Context, s *scope, key, workdir, command string, args []string) (compiledscope.CheckResult, error) {
-	started, ended, commandErr, recordErr := runCommand(ctx, s, key, workdir, command, args)
-	return compiledscope.CheckResult{Command: started.Command, Args: append([]string(nil), started.Args...), Workdir: started.Workdir, ExitCode: ended.ExitCode, Stdout: ended.Stdout, Stderr: ended.Stderr, Error: ended.Error}, errors.Join(commandErr, recordErr)
+// CheckContext executes and records the same canonical evidence as Check.
+// On execution failure it returns the updated snapshot when recording succeeds;
+// publication failure preserves base and returns an error.
+func CheckContext(ctx context.Context, base contextdata.Snapshot, key, dir, command string, args ...string) (contextdata.Snapshot, error) {
+	ref, _, err := checkCompiledContext(ctx, base, key, dir, command, args...)
+	return ref, err
 }
 
-func (compiledRuntime) CheckContext(ctx context.Context, base compiledscope.Snapshot, key, dir, command string, args ...string) (compiledscope.Snapshot, compiledscope.CheckResult, error) {
+type checkResult struct {
+	Command  string   `json:"command"`
+	Args     []string `json:"args"`
+	Workdir  string   `json:"workdir"`
+	ExitCode int      `json:"exit_code"`
+	Stdout   string   `json:"stdout"`
+	Stderr   string   `json:"stderr"`
+	Error    string   `json:"error,omitempty"`
+}
+
+// executeCheck constructs the record from the exact command observations for
+// both local and compiled Check, including resolved paths and execution errors.
+func executeCheck(ctx context.Context, s *scope, key, workdir, command string, args []string) (checkResult, error) {
+	started, ended, commandErr, recordErr := runCommand(ctx, s, key, workdir, command, args)
+	return checkResult{Command: started.Command, Args: append([]string(nil), started.Args...), Workdir: started.Workdir, ExitCode: ended.ExitCode, Stdout: ended.Stdout, Stderr: ended.Stderr, Error: ended.Error}, errors.Join(commandErr, recordErr)
+}
+
+func checkCompiledContext(ctx context.Context, base contextdata.Snapshot, key, dir, command string, args ...string) (contextdata.Snapshot, checkResult, error) {
 	s, err := current(ctx)
 	if err != nil {
-		return base, compiledscope.CheckResult{}, err
+		return base, checkResult{}, err
 	}
 	if err = checkKeyAvailable(s, key); err != nil {
-		return base, compiledscope.CheckResult{}, err
+		return base, checkResult{}, err
 	}
 	store, err := compiledStore(s.run)
 	if err != nil {
-		return base, compiledscope.CheckResult{}, err
+		return base, checkResult{}, err
 	}
 	if _, err = store.Load(context.WithoutCancel(ctx), base); err != nil {
-		return base, compiledscope.CheckResult{}, err
+		return base, checkResult{}, err
 	}
 	result, commandErr := executeCheck(ctx, s, key, dir, command, args)
-	entry, encodeErr := compiledscope.Encode(key, result)
+	entry, encodeErr := contextdata.Encode(key, result)
 	if encodeErr != nil {
 		return base, result, errors.Join(commandErr, encodeErr)
 	}

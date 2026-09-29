@@ -5,8 +5,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/tylergannon/gimbal/internal/temporalgen"
 )
 
 func TestResultContractDiagnostics(t *testing.T) {
@@ -37,7 +35,7 @@ func TestResultContractDiagnostics(t *testing.T) {
  }
  ` + tc.extra
 			write(t, path, []byte(source))
-			err := temporalgen.Source(dir, "Results", "results", output)
+			err := emitSource(dir, "Results", "results", output)
 			if err == nil || !strings.Contains(err.Error(), tc.want) || !strings.Contains(err.Error(), "plain.go:") {
 				t.Fatalf("diagnostic=%v want %s", err, tc.want)
 			}
@@ -47,17 +45,17 @@ func TestResultContractDiagnostics(t *testing.T) {
 		})
 	}
 	write(t, path, []byte(original))
-	if err := temporalgen.Source(dir, "Results", "results", output); err != nil {
+	if err := emitSource(dir, "Results", "results", output); err != nil {
 		t.Fatal(err)
 	}
 	generated := string(read(t, output))
-	if !strings.Contains(generated, "compiledscope.Generate[resulttypes.Result]") || !strings.Contains(generated, "compiledscope.Consume[resulttypes.Result]") || strings.Contains(generated, "operationResult[resulttypes.Result]") {
+	if !strings.Contains(generated, "session.GenerateResponse[resulttypes.Result]") || !strings.Contains(generated, "gimbal.ConsumeResponse[resulttypes.Result]") || strings.Contains(generated, "operationResult[resulttypes.Result]") {
 		t.Fatal("generated result did not cross as bytes")
 	}
 	if err := os.Remove(output); err != nil {
 		t.Fatal(err)
 	}
-	if err := temporalgen.Source(dir, "Results", "results", output); err != nil {
+	if err := emitSource(dir, "Results", "results", output); err != nil {
 		t.Fatal(err)
 	}
 	if string(read(t, output)) != generated {

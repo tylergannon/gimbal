@@ -7,17 +7,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tylergannon/gimbal/internal/compiledscope"
+	"github.com/tylergannon/gimbal/contextdata"
 )
 
 func TestCompiledStoreConfiguredOnce(t *testing.T) {
 	err := runTest(t, nil, func(ctx context.Context) error {
-		first := compiledscope.Store{Objects: uncomparableObjects{compiledscope.FileObjects{Root: t.TempDir()}, nil}, LocalDir: t.TempDir()}
-		if err := compiledscope.InitializeContext(ctx, first, first.LocalDir, ""); err != nil {
+		first := contextdata.Store{Objects: uncomparableObjects{contextdata.FileObjects{Root: t.TempDir()}, nil}, LocalDir: t.TempDir()}
+		if err := initializeCompiledContext(ctx, first, first.LocalDir, ""); err != nil {
 			return err
 		}
-		second := compiledscope.Store{Objects: compiledscope.FileObjects{Root: t.TempDir()}, LocalDir: t.TempDir()}
-		if err := compiledscope.InitializeContext(ctx, second, second.LocalDir, ""); err == nil {
+		second := contextdata.Store{Objects: contextdata.FileObjects{Root: t.TempDir()}, LocalDir: t.TempDir()}
+		if err := initializeCompiledContext(ctx, second, second.LocalDir, ""); err == nil {
 			t.Error("run accepted replacement object backend and materialization directory")
 		}
 		return nil
@@ -28,11 +28,11 @@ func TestCompiledStoreConfiguredOnce(t *testing.T) {
 }
 
 type uncomparableObjects struct {
-	compiledscope.Objects
+	contextdata.Objects
 	unused []byte
 }
 type stalledObjects struct {
-	compiledscope.Objects
+	contextdata.Objects
 	entered chan struct{}
 	release chan struct{}
 }
@@ -44,15 +44,15 @@ func (s *stalledObjects) Put(ctx context.Context, id string, b []byte) error {
 }
 
 func TestCompiledContextPublicationDoesNotLockScope(t *testing.T) {
-	objects := &stalledObjects{Objects: compiledscope.FileObjects{Root: t.TempDir()}, entered: make(chan struct{}), release: make(chan struct{})}
-	store := compiledscope.Store{Objects: objects, LocalDir: t.TempDir()}
+	objects := &stalledObjects{Objects: contextdata.FileObjects{Root: t.TempDir()}, entered: make(chan struct{}), release: make(chan struct{})}
+	store := contextdata.Store{Objects: objects, LocalDir: t.TempDir()}
 	err := runTest(t, nil, func(ctx context.Context) error {
-		if err := compiledscope.InitializeContext(ctx, store, store.LocalDir, ""); err != nil {
+		if err := initializeCompiledContext(ctx, store, store.LocalDir, ""); err != nil {
 			return err
 		}
 		completed := make(chan error, 1)
 		go func() {
-			_, err := compiledscope.WriteContext(ctx, "", compiledscope.Entry{Key: "remote", Value: json.RawMessage(`"value"`)})
+			_, err := WriteContext(ctx, "", contextdata.Entry{Key: "remote", Value: json.RawMessage(`"value"`)})
 			completed <- err
 		}()
 		<-objects.entered
@@ -73,14 +73,14 @@ func TestCompiledContextPublicationDoesNotLockScope(t *testing.T) {
 }
 
 func TestCompiledCanceledCheckPublishesEvidence(t *testing.T) {
-	store := compiledscope.Store{Root: t.TempDir()}
+	store := contextdata.Store{Root: t.TempDir()}
 	err := runTest(t, nil, func(ctx context.Context) error {
-		if err := compiledscope.InitializeContext(ctx, store, store.LocalDir, ""); err != nil {
+		if err := initializeCompiledContext(ctx, store, store.LocalDir, ""); err != nil {
 			return err
 		}
 		canceled, cancel := context.WithCancel(ctx)
 		cancel()
-		ref, record, err := compiledscope.CheckContext(canceled, "", "canceled", ".", "sh", "-c", "echo not-run")
+		ref, record, err := checkCompiledContext(canceled, "", "canceled", ".", "sh", "-c", "echo not-run")
 		if !errors.Is(err, context.Canceled) || ref == "" || record.Error == "" {
 			t.Fatalf("ref=%q record=%+v err=%v", ref, record, err)
 		}
@@ -101,19 +101,19 @@ func TestCompiledCanceledCheckPublishesEvidence(t *testing.T) {
 func TestCompiledContextPublicationRechecksState(t *testing.T) {
 	for _, concurrent := range []string{"duplicate", "finish"} {
 		t.Run(concurrent, func(t *testing.T) {
-			objects := &stalledObjects{Objects: compiledscope.FileObjects{Root: t.TempDir()}, entered: make(chan struct{}), release: make(chan struct{})}
-			store := compiledscope.Store{Objects: objects, LocalDir: t.TempDir()}
+			objects := &stalledObjects{Objects: contextdata.FileObjects{Root: t.TempDir()}, entered: make(chan struct{}), release: make(chan struct{})}
+			store := contextdata.Store{Objects: objects, LocalDir: t.TempDir()}
 			err := runTest(t, nil, func(ctx context.Context) error {
-				if err := compiledscope.InitializeContext(ctx, store, store.LocalDir, ""); err != nil {
+				if err := initializeCompiledContext(ctx, store, store.LocalDir, ""); err != nil {
 					return err
 				}
-				child, finish, err := compiledscope.OpenScope(ctx, "child")
+				child, finish, err := OpenScope(ctx, "child")
 				if err != nil {
 					return err
 				}
 				completed := make(chan error, 1)
 				go func() {
-					ref, err := compiledscope.WriteContext(child, "", compiledscope.Entry{Key: "remote", Value: json.RawMessage(`"value"`)})
+					ref, err := WriteContext(child, "", contextdata.Entry{Key: "remote", Value: json.RawMessage(`"value"`)})
 					if ref != "" {
 						t.Error("rejected write exposed snapshot")
 					}
@@ -154,7 +154,7 @@ func TestCompiledContextPublicationRechecksState(t *testing.T) {
 }
 
 type cancelableObjects struct {
-	compiledscope.Objects
+	contextdata.Objects
 	entered chan struct{}
 	release chan struct{}
 }
@@ -169,18 +169,18 @@ func (s cancelableObjects) Put(ctx context.Context, id string, b []byte) error {
 	}
 }
 func TestCompiledContextPublicationHonorsCancellation(t *testing.T) {
-	objects := cancelableObjects{Objects: compiledscope.FileObjects{Root: t.TempDir()}, entered: make(chan struct{}), release: make(chan struct{})}
+	objects := cancelableObjects{Objects: contextdata.FileObjects{Root: t.TempDir()}, entered: make(chan struct{}), release: make(chan struct{})}
 	defer close(objects.release)
-	store := compiledscope.Store{Objects: objects, LocalDir: t.TempDir()}
+	store := contextdata.Store{Objects: objects, LocalDir: t.TempDir()}
 	err := runTest(t, nil, func(ctx context.Context) error {
-		if err := compiledscope.InitializeContext(ctx, store, store.LocalDir, ""); err != nil {
+		if err := initializeCompiledContext(ctx, store, store.LocalDir, ""); err != nil {
 			return err
 		}
 		writing, cancel := context.WithCancel(ctx)
 		defer cancel()
 		completed := make(chan error, 1)
 		go func() {
-			_, err := compiledscope.WriteContext(writing, "", compiledscope.Entry{Key: "remote", Value: json.RawMessage(`"value"`)})
+			_, err := WriteContext(writing, "", contextdata.Entry{Key: "remote", Value: json.RawMessage(`"value"`)})
 			completed <- err
 		}()
 		<-objects.entered

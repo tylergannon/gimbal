@@ -3,13 +3,13 @@ package main
 import (
 	"time"
 
-	"github.com/tylergannon/gimbal/internal/compiledscope"
+	"github.com/tylergannon/gimbal/contextdata"
 	"go.temporal.io/sdk/workflow"
 )
 
 const controlQueue = "instrumented-control"
 
-type Input struct{ Context compiledscope.Snapshot }
+type Input struct{ Context contextdata.Snapshot }
 type Environment struct {
 	Name  string
 	Queue string
@@ -18,7 +18,7 @@ type Environment struct {
 
 // Generated control flow carries immutable context references, not live scopes.
 type Data struct {
-	Context compiledscope.Snapshot
+	Context contextdata.Snapshot
 	Name    string
 }
 

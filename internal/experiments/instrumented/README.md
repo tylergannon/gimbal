@@ -1,7 +1,7 @@
 # Experimental Temporal compiler target
 
 Continuity and planning are generated from ordinary authored Go in
-`continuity/plain.go` and `planning/plain.go`. `internal/temporalgen` reads their
+`continuity/plain.go` and `planning/plain.go`. The consumer emitter in `examples/temporal/internal/temporalgen` reads their
 syntax, Go types and bindings; it does not read visualization graphs or saved
 handwritten answers. Generated `*_temporal_gen.go` files contain the workflows,
 one activity method per agent/command/planner site, and workflow registration.
@@ -13,13 +13,13 @@ Run from the repository root:
 
 ```sh
 go generate ./internal/experiments/instrumented/...
-go test ./internal/temporalgen ./internal/experiments/instrumented ./internal/compiledscope ./internal/observation
+go test ./internal/temporalgen ./internal/experiments/instrumented ./contextdata ./internal/observation
 ```
 
 Deleting the generated `*_temporal_gen.go` files before generation is supported. The
-entry command for one input is `go run ./internal/temporalgen/temporalgen -dir
-./internal/experiments/instrumented/planning -entry Planning -name planning
--output ./internal/experiments/instrumented/planning_temporal_gen.go` (on one line).
+entry command for one input is `go -C examples/temporal run ./cmd/generate -dir
+../../internal/experiments/instrumented/planning -entry Planning -name planning
+-output ../../internal/experiments/instrumented/planning_temporal_gen.go` (on one line).
 The source packages separately generate the graphs used by the UI. Neither
 compiler consumes the other's output. The default executable workflow remains
 continuity. The retired repair example requires historical revision b5aeff81.
@@ -234,7 +234,7 @@ Docker container and do not establish fresh live UI or backend-operation proof.
 
 
 ```sh
-go test ./internal/experiments/instrumented ./internal/compiledscope ./internal/observation
+go test ./internal/experiments/instrumented ./contextdata ./internal/observation
 go test -race ./internal/experiments/instrumented
 SPECIMEN_LIVE_TRANSPORT=1 go test ./internal/experiments/instrumented -run TestLiveLargeTypedResult -v
 SPECIMEN_LIVE_WORKFLOW=1 go test ./internal/experiments/instrumented -run 'TestLive(Continuity|Fanout|Planning)$' -v

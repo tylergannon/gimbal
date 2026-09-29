@@ -7,35 +7,35 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/tylergannon/gimbal/internal/compiledscope"
+	"github.com/tylergannon/gimbal/contextdata"
 )
 
 func TestCompiledSnapshotRenderingIndependentOfLiveAncestors(t *testing.T) {
 	t.Setenv("TYPESAFE_API_KEY", "test-key")
-	store := compiledscope.Store{Root: t.TempDir()}
-	entry := func(k, v string) compiledscope.Entry {
+	store := contextdata.Store{Root: t.TempDir()}
+	entry := func(k, v string) contextdata.Entry {
 		b, _ := json.Marshal(v)
-		return compiledscope.Entry{Key: k, Value: b}
+		return contextdata.Entry{Key: k, Value: b}
 	}
 	err := Run(Project(t.Context(), t.TempDir()), "snapshots", nil, func(ctx context.Context) error {
-		if err := compiledscope.InitializeContext(ctx, store, store.LocalDir, ""); err != nil {
+		if err := initializeCompiledContext(ctx, store, store.LocalDir, ""); err != nil {
 			return err
 		}
-		root, err := compiledscope.WriteContext(ctx, "", entry("layer", "parent"), entry("empty", ""))
+		root, err := WriteContext(ctx, "", entry("layer", "parent"), entry("empty", ""))
 		if err != nil {
 			return err
 		}
-		var childRef compiledscope.Snapshot
+		var childRef contextdata.Snapshot
 		err = Scope(ctx, "child", func(child context.Context) error {
-			writes := []compiledscope.Entry{entry("layer", "child"), entry("large", strings.Repeat("large value ", 150000))}
+			writes := []contextdata.Entry{entry("layer", "child"), entry("large", strings.Repeat("large value ", 150000))}
 			for _, k := range []string{"a", "b", "c", "d", "e", "f"} {
 				writes = append(writes, entry(k, strings.Repeat("support "+k+" ", 3000)))
 			}
-			childRef, err = compiledscope.WriteContext(child, root, writes...)
+			childRef, err = WriteContext(child, root, writes...)
 			if err != nil {
 				return err
 			}
-			bound, err := compiledscope.BindContext(child, childRef)
+			bound, err := bindCompiledContext(child, childRef)
 			if err != nil {
 				return err
 			}
@@ -80,14 +80,14 @@ func TestCompiledSnapshotRenderingIndependentOfLiveAncestors(t *testing.T) {
 		s.values = nil
 		s.keys = nil
 		s.mu.Unlock()
-		bound, err := compiledscope.BindContext(ctx, childRef)
+		bound, err := bindCompiledContext(ctx, childRef)
 		if err != nil {
 			return err
 		}
 		if got := scopeData(bound).By["layer"].Text; got != "child" {
 			t.Fatalf("child lost after cleanup: %s", got)
 		}
-		bound, err = compiledscope.BindContext(ctx, root)
+		bound, err = bindCompiledContext(ctx, root)
 		if err != nil {
 			return err
 		}
@@ -113,17 +113,17 @@ func TestCompiledSnapshotRenderingIndependentOfLiveAncestors(t *testing.T) {
 
 func TestCompiledTemplateRetainsOmittedInputsAndJSONCompleteness(t *testing.T) {
 	t.Setenv("TYPESAFE_API_KEY", "test-key")
-	store := compiledscope.Store{Root: t.TempDir()}
+	store := contextdata.Store{Root: t.TempDir()}
 	raw, _ := json.Marshal(map[string]string{"text": strings.Repeat("a", 5000)})
-	ref, err := store.Extend(t.Context(), "", compiledscope.Entry{Key: "json", Value: raw}, compiledscope.Entry{Key: "empty", Value: json.RawMessage(`""`)})
+	ref, err := store.Extend(t.Context(), "", contextdata.Entry{Key: "json", Value: raw}, contextdata.Entry{Key: "empty", Value: json.RawMessage(`""`)})
 	if err != nil {
 		t.Fatal(err)
 	}
 	err = Run(Project(t.Context(), t.TempDir()), "template-snapshot", nil, func(ctx context.Context) error {
-		if err := compiledscope.InitializeContext(ctx, store, store.LocalDir, ""); err != nil {
+		if err := initializeCompiledContext(ctx, store, store.LocalDir, ""); err != nil {
 			return err
 		}
-		ctx, err = compiledscope.BindContext(ctx, ref)
+		ctx, err = bindCompiledContext(ctx, ref)
 		if err != nil {
 			return err
 		}

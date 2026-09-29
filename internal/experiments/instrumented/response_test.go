@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/tylergannon/gimbal"
-	"github.com/tylergannon/gimbal/internal/compiledscope"
+	"github.com/tylergannon/gimbal/contextdata"
 	"github.com/tylergannon/gimbal/internal/experiments/instrumented/resulttypes"
 	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/client"
@@ -87,12 +87,12 @@ func TestPolytypeResponseCorrespondence(t *testing.T) {
 						if !bytes.Equal(response.Value, []byte(tc.accepted)) {
 							t.Errorf("accepted bytes changed: %s", response.Value)
 						}
-						first, err := compiledscope.Consume[resulttypes.Result](response.Value, response.Err())
+						first, err := gimbal.ConsumeResponse[resulttypes.Result](response.Value, response.Err())
 						if err != nil {
 							t.Error(err)
 							return
 						}
-						second, err := compiledscope.Consume[resulttypes.Result](response.Value, nil)
+						second, err := gimbal.ConsumeResponse[resulttypes.Result](response.Value, nil)
 						if err != nil || !reflect.DeepEqual(first, second) {
 							t.Error("repeated consumption differs")
 						}
@@ -187,7 +187,7 @@ func TestPolytypeSchemaDecoderGap(t *testing.T) {
 	if err := (derived{}).ValidateJSON([]byte(acceptedResult)); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := compiledscope.Consume[derived]([]byte(acceptedResult), nil); err == nil {
+	if _, err := gimbal.ConsumeResponse[derived]([]byte(acceptedResult), nil); err == nil {
 		t.Fatal("promoted schema does not describe the outer result")
 	}
 
@@ -195,7 +195,7 @@ func TestPolytypeSchemaDecoderGap(t *testing.T) {
 	if err := (resulttypes.CollisionResult{}).ValidateJSON(raw); err != nil {
 		t.Fatalf("pinned discriminator behavior changed: %v", err)
 	}
-	if _, err := compiledscope.Consume[resulttypes.CollisionResult](raw, nil); err == nil {
+	if _, err := gimbal.ConsumeResponse[resulttypes.CollisionResult](raw, nil); err == nil {
 		t.Fatal("expected case-folded discriminator decode failure")
 	}
 
@@ -203,7 +203,7 @@ func TestPolytypeSchemaDecoderGap(t *testing.T) {
 		if err := (resulttypes.Numeric{}).ValidateJSON([]byte(raw)); err != nil {
 			t.Fatalf("pinned schema behavior changed: %v", err)
 		}
-		if _, err := compiledscope.Consume[resulttypes.Numeric]([]byte(raw), nil); err == nil {
+		if _, err := gimbal.ConsumeResponse[resulttypes.Numeric]([]byte(raw), nil); err == nil {
 			t.Fatalf("expected decoder constraint for %s", raw)
 		}
 	}
@@ -224,7 +224,7 @@ func TestLiveGeneratedResponseReplay(t *testing.T) {
 	defer c.Close()
 	id := fmt.Sprintf("response-replay-%d", time.Now().UnixNano())
 	a := newTestActivities(t)
-	a.store = compiledscope.Store{Root: filepath.Join(root, environmentID(id), "context")}
+	a.store = contextdata.Store{Root: filepath.Join(root, environmentID(id), "context")}
 	attempts := 0
 	a.models = map[gimbal.WorkflowRole]gimbal.ModelBinding{coder: {Model: "deterministic", Adapter: &specimenAdapter{turn: func(context.Context, string, string) (any, error) {
 		attempts++

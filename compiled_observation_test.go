@@ -8,13 +8,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/tylergannon/gimbal/internal/compiledscope"
+	"github.com/tylergannon/gimbal/contextdata"
 )
 
 func TestCompiledObservationFailureDoesNotStopExecution(t *testing.T) {
 	for _, operation := range []string{"record plan", "write context"} {
 		t.Run(operation, func(t *testing.T) {
-			store := compiledscope.Store{Root: t.TempDir()}
+			store := contextdata.Store{Root: t.TempDir()}
 			turns := 0
 			adapter := &fake{answer: func(_ context.Context, _, prompt string, _ json.RawMessage, _ func(AgentEvent) error) (string, error) {
 				turns++
@@ -25,11 +25,11 @@ func TestCompiledObservationFailureDoesNotStopExecution(t *testing.T) {
 			}}
 			var bodyErr, recordingErr error
 			err := runTest(t, bind(adapter, "fake", "worker"), func(ctx context.Context) error {
-				if err := compiledscope.InitializeContext(ctx, store, store.LocalDir, ""); err != nil {
+				if err := initializeCompiledContext(ctx, store, store.LocalDir, ""); err != nil {
 					return err
 				}
 				bodyErr = func() error {
-					loop, finish, err := compiledscope.OpenLoop(ctx, "loop")
+					loop, finish, err := OpenLoop(ctx, "loop")
 					if err != nil {
 						return err
 					}
@@ -38,19 +38,19 @@ func TestCompiledObservationFailureDoesNotStopExecution(t *testing.T) {
 					if err := s.run.writer.file.Close(); err != nil {
 						return err
 					}
-					var input compiledscope.Snapshot
+					var input contextdata.Snapshot
 					switch operation {
 					case "record plan":
-						err = compiledscope.RecordPlan(loop, "goal", []byte(`{"tasks":[]}`))
+						err = RecordPlan(loop, "goal", Plan{Tasks: []Task{}})
 					case "write context":
-						input, err = compiledscope.WriteContext(loop, "", compiledscope.Entry{Key: "input", Value: json.RawMessage(`"accepted input"`)})
+						input, err = WriteContext(loop, "", contextdata.Entry{Key: "input", Value: json.RawMessage(`"accepted input"`)})
 					}
 					if err != nil {
 						return err
 					}
 					recordingErr = s.run.recordingError()
 					session := NewSession(loop, "worker", ".")
-					raw, err := compiledscope.Generate[Text](loop, session, input, "Continue the work.")
+					raw, err := session.GenerateResponse[Text](loop, input, "Continue the work.")
 					if err == nil && string(raw) != `"completed"` {
 						t.Errorf("authoritative result = %s", raw)
 					}

@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/tylergannon/gimbal/internal/compiledscope"
+	"github.com/tylergannon/gimbal/contextdata"
 )
 
 // closeTimeout bounds one adapter's Close call, on a context independent of
@@ -177,10 +177,9 @@ func (s *scope) do(ctx context.Context, body func(context.Context) error) (err e
 	return body(ctx)
 }
 
-// begin and finish are also used by the internal compiler-output experiment.
+// begin and finish are also used by consumer-owned compiled workflows.
 // Its explicit finish calls check lifetime legality before calling finish.
 func (s *scope) begin(ctx context.Context) context.Context {
-	ctx = compiledscope.WithRuntime(ctx, compiledRuntime{})
 	ctx, s.cancel = context.WithCancelCause(context.WithValue(ctx, scopeKey{}, s))
 	s.ctx = ctx
 	s.run.addScope(s)
@@ -293,7 +292,7 @@ func SetJSON[V Output](ctx context.Context, key string, value V) {
 }
 
 func encode(key string, value any) []byte {
-	entry, err := compiledscope.Encode(key, value)
+	entry, err := contextdata.Encode(key, value)
 	if err != nil {
 		panic(fmt.Sprintf("gimbal: set %q: %v", key, err))
 	}

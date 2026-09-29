@@ -4,7 +4,7 @@ import (
 	"go/ast"
 	"go/types"
 
-	"github.com/tylergannon/gimbal/internal/compiler"
+	"github.com/tylergannon/gimbal/compiler"
 )
 
 func (e *emitter) resultContract(site ast.Node, result types.Type) error {

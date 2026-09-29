@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/tylergannon/gimbal"
-	"github.com/tylergannon/gimbal/internal/compiledscope"
+	"github.com/tylergannon/gimbal/contextdata"
 	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/testsuite"
 )
@@ -26,13 +26,13 @@ func TestContinuityWorkflowBranchesAndFullResults(t *testing.T) {
 			reg := func(name string, fn any) { e.RegisterActivityWithOptions(fn, activity.RegisterOptions{Name: name}) }
 			reg("ProvisionEnvironment", func(context.Context) (Environment, error) { return Environment{Queue: "test"}, nil })
 			reg("ReleaseEnvironment", func(context.Context) error { record("release"); return nil })
-			reg("Initialize", func(context.Context, Data) (compiledscope.Snapshot, error) { return "root", nil })
+			reg("Initialize", func(context.Context, Data) (contextdata.Snapshot, error) { return "root", nil })
 			reg("Finish", func(context.Context, string) error { record("finish"); return nil })
-			reg("SetValue", func(_ context.Context, id string, ref compiledscope.Snapshot, entry compiledscope.Entry) (compiledscope.Snapshot, error) {
+			reg("SetValue", func(_ context.Context, id string, ref contextdata.Snapshot, entry contextdata.Entry) (contextdata.Snapshot, error) {
 				if id == "" && strings.Contains(string(ref), "child") {
 					t.Error("child leaked")
 				}
-				return compiledscope.Snapshot(string(ref) + "/" + entry.Key + "/" + id), nil
+				return contextdata.Snapshot(string(ref) + "/" + entry.Key + "/" + id), nil
 			})
 			reg("EnterScope", func(context.Context, ScopeInput) error { record("enter"); return nil })
 			reg("ExitScope", func(context.Context, string, string) error { record("exit"); return nil })

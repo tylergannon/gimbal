@@ -28,6 +28,7 @@ vet:
 
 test:
     go test -count=1 ./...
+    go -C examples/temporal test -count=1 ./...
     cd web && pnpm test
 
 storybook:
@@ -39,5 +40,6 @@ fmt:
 fmt-check:
     cd web && pnpm exec vp fmt --check
 
-prices:
-    go run ./internal/observation/modelpricesgen
+# Refresh generated prices, aliases and Diffusion limits; needs DIFFUSION_API_KEY.
+models:
+    go run ./internal/modelcatalog

@@ -12,7 +12,6 @@ import (
 	"testing"
 
 	"github.com/tylergannon/gimbal/internal/generate"
-	"github.com/tylergannon/gimbal/internal/temporalgen"
 )
 
 // Copy a disposable module so source mutations never race with other checks or
@@ -240,7 +239,7 @@ func(Unsafe)String()string{return "user callback"}
 			}
 			write(t, path, []byte(source))
 			write(t, out, []byte("package main\n// stale answer\n"))
-			err := temporalgen.Source(filepath.Join(base, "planning"), "Planning", "planning", out)
+			err := emitSource(filepath.Join(base, "planning"), "Planning", "planning", out)
 			if err == nil || !strings.Contains(err.Error(), tc.want) || !regexp.MustCompile(`plain.go:\d+:\d+:`).MatchString(err.Error()) {
 				t.Fatalf("diagnostic: %v, want %s", err, tc.want)
 			}
@@ -251,7 +250,7 @@ func(Unsafe)String()string{return "user callback"}
 		})
 	}
 	write(t, path, []byte(original))
-	if err := temporalgen.Source(filepath.Join(base, "planning"), "Planning", "planning", out); err != nil {
+	if err := emitSource(filepath.Join(base, "planning"), "Planning", "planning", out); err != nil {
 		t.Fatal(fmt.Errorf("repair regeneration: %w", err))
 	}
 }
@@ -266,7 +265,7 @@ func TestProductionGraphRegistration(t *testing.T) {
 		{"planning", "Planning", "planning"},
 		{"resulttypes", "Results", "results"},
 	} {
-		if err := temporalgen.Source(filepath.Join(base, tc.dir), tc.entry, tc.name, filepath.Join(base, tc.name+"_temporal_gen.go")); err != nil {
+		if err := emitSource(filepath.Join(base, tc.dir), tc.entry, tc.name, filepath.Join(base, tc.name+"_temporal_gen.go")); err != nil {
 			t.Fatal(err)
 		}
 	}

@@ -8,7 +8,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/tylergannon/gimbal/internal/compiledscope"
+	"github.com/tylergannon/gimbal/contextdata"
 )
 
 type decodeWitness struct {
@@ -51,23 +51,23 @@ func TestCompiledGenerateTransportsBeforeConsumption(t *testing.T) {
 		return `{"value":"original"}`, nil
 	}}
 	err := runTest(t, bind(f, "fake", "coder"), func(ctx context.Context) error {
-		store := compiledscope.Store{Root: t.TempDir()}
-		if err := compiledscope.InitializeContext(ctx, store, "", ""); err != nil {
+		store := contextdata.Store{Root: t.TempDir()}
+		if err := initializeCompiledContext(ctx, store, "", ""); err != nil {
 			return err
 		}
-		input, err := compiledscope.WriteContext(ctx, "", compiledscope.Entry{Key: "context", Value: json.RawMessage(`"retained"`)})
+		input, err := WriteContext(ctx, "", contextdata.Entry{Key: "context", Value: json.RawMessage(`"retained"`)})
 		if err != nil {
 			return err
 		}
 		s := NewSession(ctx, "coder", ".")
-		raw, err := compiledscope.Generate[decodeWitness](ctx, s, input, "Return a value.")
+		raw, err := s.GenerateResponse[decodeWitness](ctx, input, "Return a value.")
 		if err != nil {
 			return err
 		}
 		if witnessDecodes.Load() != 0 || string(raw) != `{"value":"original"}` {
 			t.Fatal("activity materialized or changed the result")
 		}
-		got, err := compiledscope.Consume[decodeWitness](raw, nil)
+		got, err := ConsumeResponse[decodeWitness](raw, nil)
 		if err != nil || got.Value != "original:decoded" || witnessDecodes.Load() != 1 {
 			t.Fatalf("consume=%+v %v, calls=%d", got, err, witnessDecodes.Load())
 		}

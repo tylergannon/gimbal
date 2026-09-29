@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Public compiler integration for typed agent operations, immutable context,
+  scope/task lifetimes, graph generation and hosted whole-run cancellation.
+  A separate Temporal consumer module demonstrates generation, execution and
+  maintenance through those public packages.
+
+- Model aliases stay current with the latest models. `just models` and the daily
+  refresh job now also read the Diffusion Router catalog and regenerate the
+  aliases `haiku`, `sonnet`, `opus`, `fable`, `luna`, `terra`, `sol`, `astra`,
+  `deepseek-flash`, `glm`, `glm-flash`, and `glm-vision`, each pointing at its
+  newest version (Claude Sonnet 5.5 included). The refresh job can also be run
+  manually and needs the `DOPPLER_TOKEN` repository secret.
+
 - An owned Go Pi coding engine for Diffusion Router runs sessions inside Gimbal,
   with native tools, history, compaction, steering, forks, and live model
   metadata. It replaces the per-session Pi subprocess.

@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/tylergannon/gimbal"
-	"github.com/tylergannon/gimbal/internal/compiledscope"
+	"github.com/tylergannon/gimbal/contextdata"
 	"github.com/tylergannon/gimbal/internal/host"
 	"github.com/tylergannon/gimbal/internal/live"
 	"github.com/tylergannon/gimbal/internal/observation"
@@ -26,28 +26,27 @@ import (
 
 func init() { gimbal.RegisterGraph(workflow.Graph{Name: "hosted-cancellation-test"}) }
 
-func compiledProject(t *testing.T) (*host.Project, *compiledscope.Store) {
+func compiledProject(t *testing.T) (*Instance, *host.Project, *contextdata.Store) {
 	t.Helper()
 	ctx, cancel := context.WithCancel(t.Context())
-	store := &compiledscope.Store{Root: t.TempDir()}
+	store := &contextdata.Store{Root: t.TempDir()}
 	project := t.TempDir()
-	ctx, err := host.WithContextStore(ctx, project, store, t.TempDir())
+	instance, err := NewInstance(ctx, t.TempDir(), []string{project}, WithNoWeb(), WithContextStore(project, store, t.TempDir()))
 	if err != nil {
 		t.Fatal(err)
 	}
-	owner := host.New(ctx, t.TempDir())
-	p, err := owner.AdmitProject(project)
+	t.Cleanup(func() { cancel(); instance.Wait() })
+	p, err := instance.Owner.Project(project)
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { cancel(); owner.Close() })
-	return p, store
+	return instance, p, store
 }
 
 func TestCompiledConsoleCancellationDelivery(t *testing.T) {
 	for _, mode := range []string{"accepted-race", "unavailable-retry", "timeout"} {
 		t.Run(mode, func(t *testing.T) {
-			p, _ := compiledProject(t)
+			instance, p, _ := compiledProject(t)
 			var root context.Context
 			calls := 0
 			release := make(chan struct{})
@@ -58,7 +57,7 @@ func TestCompiledConsoleCancellationDelivery(t *testing.T) {
 				calls++
 				switch mode {
 				case "accepted-race":
-					if err := compiledscope.CancelRun(root); err != nil {
+					if err := gimbal.CancelRun(root, context.Canceled); err != nil {
 						t.Error(err)
 					}
 					// Backend notification must not race finish ahead of the delivery record.
@@ -76,7 +75,7 @@ func TestCompiledConsoleCancellationDelivery(t *testing.T) {
 			}
 			var finish func(error) error
 			var err error
-			root, finish, err = p.OpenCompiledRun(t.Context(), "hosted-cancellation-test", nil, "", t.TempDir(), host.CompiledControls{CancelRun: callback, DeliveryTimeout: 20 * time.Millisecond})
+			root, finish, err = instance.OpenCompiledRun(t.Context(), p.Path(), "hosted-cancellation-test", nil, "", t.TempDir(), CompiledControls{CancelRun: callback, DeliveryTimeout: 20 * time.Millisecond})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -127,7 +126,7 @@ func TestCompiledConsoleCancellationDelivery(t *testing.T) {
 					t.Fatalf("delivery retry: %+v %v calls=%d", result, err, calls)
 				}
 			}
-			if err := compiledscope.CancelRun(root); err != nil {
+			if err := gimbal.CancelRun(root, context.Canceled); err != nil {
 				t.Fatal(err)
 			}
 			_ = finish(context.Canceled)
@@ -172,23 +171,23 @@ func TestCompiledConsoleCancellationDelivery(t *testing.T) {
 }
 
 func TestCompiledHostedEntryRequirements(t *testing.T) {
-	p, _ := compiledProject(t)
-	callback := host.CompiledControls{CancelRun: func(context.Context, gimbal.Killed) error { return nil }}
-	if _, _, err := p.OpenCompiledRun(t.Context(), "missing-compiled-graph", nil, "", t.TempDir(), callback); err == nil || !strings.Contains(err.Error(), "registered graph") {
+	instance, p, _ := compiledProject(t)
+	callback := CompiledControls{CancelRun: func(context.Context, gimbal.Killed) error { return nil }}
+	if _, _, err := instance.OpenCompiledRun(t.Context(), p.Path(), "missing-compiled-graph", nil, "", t.TempDir(), callback); err == nil || !strings.Contains(err.Error(), "registered graph") {
 		t.Fatalf("missing graph: %v", err)
 	}
-	if _, _, err := p.OpenCompiledRun(t.Context(), "hosted-cancellation-test", nil, "", t.TempDir(), host.CompiledControls{}); err == nil || !strings.Contains(err.Error(), "callback") {
+	if _, _, err := instance.OpenCompiledRun(t.Context(), p.Path(), "hosted-cancellation-test", nil, "", t.TempDir(), CompiledControls{}); err == nil || !strings.Contains(err.Error(), "callback") {
 		t.Fatalf("missing callback: %v", err)
 	}
 	callback.DeliveryTimeout = -time.Second
-	if _, _, err := p.OpenCompiledRun(t.Context(), "hosted-cancellation-test", nil, "", t.TempDir(), callback); err == nil {
+	if _, _, err := instance.OpenCompiledRun(t.Context(), p.Path(), "hosted-cancellation-test", nil, "", t.TempDir(), callback); err == nil {
 		t.Fatal("negative timeout accepted")
 	}
 }
 
 func TestCompiledBackendCancellationHasNoOperatorDelivery(t *testing.T) {
-	p, _ := compiledProject(t)
-	root, finish, err := p.OpenCompiledRun(t.Context(), "hosted-cancellation-test", nil, "", t.TempDir(), host.CompiledControls{CancelRun: func(context.Context, gimbal.Killed) error {
+	instance, p, _ := compiledProject(t)
+	root, finish, err := instance.OpenCompiledRun(t.Context(), p.Path(), "hosted-cancellation-test", nil, "", t.TempDir(), CompiledControls{CancelRun: func(context.Context, gimbal.Killed) error {
 		t.Error("backend notification invoked console delivery")
 		return nil
 	}})
@@ -196,7 +195,7 @@ func TestCompiledBackendCancellationHasNoOperatorDelivery(t *testing.T) {
 		t.Fatal(err)
 	}
 	id := startedRunID(t, p.Path())
-	if err := compiledscope.CancelRun(root); err != nil {
+	if err := gimbal.CancelRun(root, context.Canceled); err != nil {
 		t.Fatal(err)
 	}
 	_ = finish(context.Canceled)
@@ -211,23 +210,24 @@ func TestCompiledBackendCancellationHasNoOperatorDelivery(t *testing.T) {
 
 func TestCompiledContextArtifactSurvivesHostRestart(t *testing.T) {
 	project := t.TempDir()
-	store := &compiledscope.Store{Root: t.TempDir()}
+	store := &contextdata.Store{Root: t.TempDir()}
 	text := strings.Repeat("retained complete value\n", 4096)
 	raw, _ := json.Marshal(text)
-	initial, err := store.Extend(t.Context(), "", compiledscope.Entry{Key: "large", Value: raw})
+	initial, err := store.Extend(t.Context(), "", contextdata.Entry{Key: "large", Value: raw})
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx, err := host.WithContextStore(t.Context(), project, store, t.TempDir())
+	ctx, cancel := context.WithCancel(t.Context())
+	instance, err := NewInstance(ctx, t.TempDir(), []string{project}, WithNoWeb(), WithContextStore(project, store, t.TempDir()))
 	if err != nil {
 		t.Fatal(err)
 	}
-	owner := host.New(ctx, t.TempDir())
-	p, err := owner.AdmitProject(project)
+	t.Cleanup(func() { cancel(); instance.Wait() })
+	p, err := instance.Owner.Project(project)
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, finish, err := p.OpenCompiledRun(t.Context(), "hosted-cancellation-test", nil, initial, t.TempDir(), host.CompiledControls{CancelRun: func(context.Context, gimbal.Killed) error { return nil }})
+	_, finish, err := instance.OpenCompiledRun(t.Context(), p.Path(), "hosted-cancellation-test", nil, initial, t.TempDir(), CompiledControls{CancelRun: func(context.Context, gimbal.Killed) error { return nil }})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -243,17 +243,18 @@ func TestCompiledContextArtifactSurvivesHostRestart(t *testing.T) {
 	if artifact == nil {
 		t.Fatal("large initial value has no retained artifact")
 	}
-	owner.Close()
+	cancel()
+	instance.Wait()
 	// Fresh owner and fresh host cache: neither live worker materializations nor
 	// a run-directory symlink can be required to resolve the recorded reference.
 	cache := t.TempDir()
-	ctx, err = host.WithContextStore(t.Context(), project, store, cache)
+	restartedCtx, stopRestarted := context.WithCancel(t.Context())
+	restarted, err := NewInstance(restartedCtx, t.TempDir(), []string{project}, WithNoWeb(), WithContextStore(project, store, cache))
 	if err != nil {
 		t.Fatal(err)
 	}
-	restarted := host.New(ctx, t.TempDir())
-	defer restarted.Close()
-	p, err = restarted.AdmitProject(project)
+	t.Cleanup(func() { stopRestarted(); restarted.Wait() })
+	p, err = restarted.Owner.Project(project)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -281,10 +282,10 @@ func TestCompiledContextArtifactSurvivesHostRestart(t *testing.T) {
 }
 
 func TestCompiledFinishWaitsForDeliveryObservation(t *testing.T) {
-	p, _ := compiledProject(t)
+	instance, p, _ := compiledProject(t)
 	deliveryEntered := make(chan struct{})
 	acknowledge := make(chan struct{})
-	root, finish, err := p.OpenCompiledRun(t.Context(), "hosted-cancellation-test", nil, "", t.TempDir(), host.CompiledControls{CancelRun: func(context.Context, gimbal.Killed) error { close(deliveryEntered); <-acknowledge; return nil }})
+	root, finish, err := instance.OpenCompiledRun(t.Context(), p.Path(), "hosted-cancellation-test", nil, "", t.TempDir(), CompiledControls{CancelRun: func(context.Context, gimbal.Killed) error { close(deliveryEntered); <-acknowledge; return nil }})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -292,7 +293,7 @@ func TestCompiledFinishWaitsForDeliveryObservation(t *testing.T) {
 	commandDone := make(chan error, 1)
 	go func() { _, err := routes.Skgo_cancelRun(p.Context(), routes.CancelRun{Run: id}); commandDone <- err }()
 	<-deliveryEntered
-	if err := compiledscope.CancelRun(root); err != nil {
+	if err := gimbal.CancelRun(root, context.Canceled); err != nil {
 		t.Fatal(err)
 	}
 	finishDone := make(chan error, 1)
@@ -316,29 +317,31 @@ func TestCompiledFinishWaitsForDeliveryObservation(t *testing.T) {
 
 func TestCompiledStoreConfigurationIsRequiredAndUnique(t *testing.T) {
 	project := t.TempDir()
-	owner := host.New(t.Context(), t.TempDir())
-	defer owner.Close()
-	p, err := owner.AdmitProject(project)
+	ctx, cancel := context.WithCancel(t.Context())
+	instance, err := NewInstance(ctx, t.TempDir(), []string{project}, WithNoWeb())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := p.OpenCompiledRun(t.Context(), "hosted-cancellation-test", nil, "", t.TempDir(), host.CompiledControls{CancelRun: func(context.Context, gimbal.Killed) error { return nil }}); err == nil || !strings.Contains(err.Error(), "context-store") {
+	t.Cleanup(func() { cancel(); instance.Wait() })
+	if _, _, err := instance.OpenCompiledRun(t.Context(), project, "hosted-cancellation-test", nil, "", t.TempDir(), CompiledControls{CancelRun: func(context.Context, gimbal.Killed) error { return nil }}); err == nil || !strings.Contains(err.Error(), "context-store") {
 		t.Fatalf("missing store: %v", err)
 	}
-	store := &compiledscope.Store{Root: t.TempDir()}
-	ctx, err := host.WithContextStore(t.Context(), project, store, t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := host.WithContextStore(ctx, project, store, t.TempDir()); err == nil {
-		t.Fatal("duplicate context store accepted")
+	store := &contextdata.Store{Root: t.TempDir()}
+	for _, options := range [][]Option{
+		{WithContextStore(project, store, t.TempDir()), WithContextStore(project, store, t.TempDir())},
+		{WithContextStore(project, nil, t.TempDir())},
+		{WithContextStore(project, store, "relative-cache")},
+	} {
+		if _, err := NewInstance(t.Context(), t.TempDir(), nil, append(options, WithNoWeb())...); err == nil {
+			t.Fatal("invalid context store configuration accepted")
+		}
 	}
 }
 
 func TestCompiledRunThatEndsDuringControlReturnsNotFound(t *testing.T) {
-	p, _ := compiledProject(t)
+	instance, p, _ := compiledProject(t)
 	var deliveries atomic.Int32
-	_, finish, err := p.OpenCompiledRun(t.Context(), "hosted-cancellation-test", nil, "", t.TempDir(), host.CompiledControls{CancelRun: func(context.Context, gimbal.Killed) error { deliveries.Add(1); return nil }})
+	_, finish, err := instance.OpenCompiledRun(t.Context(), p.Path(), "hosted-cancellation-test", nil, "", t.TempDir(), CompiledControls{CancelRun: func(context.Context, gimbal.Killed) error { deliveries.Add(1); return nil }})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -374,10 +377,10 @@ func TestCompiledRunThatEndsDuringControlReturnsNotFound(t *testing.T) {
 }
 
 func TestCompiledCancellationAlreadyInProgress(t *testing.T) {
-	p, _ := compiledProject(t)
+	instance, p, _ := compiledProject(t)
 	entered, releaseDelivery := make(chan struct{}), make(chan struct{})
 	var deliveries atomic.Int32
-	_, finish, err := p.OpenCompiledRun(t.Context(), "hosted-cancellation-test", nil, "", t.TempDir(), host.CompiledControls{CancelRun: func(context.Context, gimbal.Killed) error {
+	_, finish, err := instance.OpenCompiledRun(t.Context(), p.Path(), "hosted-cancellation-test", nil, "", t.TempDir(), CompiledControls{CancelRun: func(context.Context, gimbal.Killed) error {
 		deliveries.Add(1)
 		close(entered)
 		<-releaseDelivery
@@ -427,10 +430,10 @@ func (a *closingControlAdapter) Close(ctx context.Context, _ string) error {
 }
 
 func TestCompiledCancellationWhileFinishing(t *testing.T) {
-	p, _ := compiledProject(t)
+	instance, p, _ := compiledProject(t)
 	adapter := &closingControlAdapter{entered: make(chan struct{}), release: make(chan struct{})}
 	var deliveries atomic.Int32
-	root, finish, err := p.OpenCompiledRun(t.Context(), "hosted-cancellation-test", map[gimbal.WorkflowRole]gimbal.ModelBinding{"coder": {Adapter: adapter, Model: "m"}}, "", t.TempDir(), host.CompiledControls{CancelRun: func(context.Context, gimbal.Killed) error { deliveries.Add(1); return nil }})
+	root, finish, err := instance.OpenCompiledRun(t.Context(), p.Path(), "hosted-cancellation-test", map[gimbal.WorkflowRole]gimbal.ModelBinding{"coder": {Adapter: adapter, Model: "m"}}, "", t.TempDir(), CompiledControls{CancelRun: func(context.Context, gimbal.Killed) error { deliveries.Add(1); return nil }})
 	if err != nil {
 		t.Fatal(err)
 	}

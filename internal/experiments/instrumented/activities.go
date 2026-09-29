@@ -12,7 +12,7 @@ import (
 
 	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/claude"
-	"github.com/tylergannon/gimbal/internal/compiledscope"
+	"github.com/tylergannon/gimbal/contextdata"
 	"github.com/tylergannon/gimbal/internal/host"
 	"github.com/tylergannon/gimbal/pi"
 	"go.temporal.io/sdk/activity"
@@ -27,7 +27,7 @@ type Activities struct {
 	project   *host.Project
 	controls  host.CompiledControls
 	workdir   string
-	store     compiledscope.Store
+	store     contextdata.Store
 	mu        sync.Mutex
 	scopes    map[string]*scopeFrame
 	completed map[string]*scopeFrame
@@ -51,7 +51,7 @@ type scopeFrame struct {
 
 type ScopeInput struct{ ID, Parent, Name string }
 
-func (a *Activities) Initialize(_ context.Context, data Data) (compiledscope.Snapshot, error) {
+func (a *Activities) Initialize(_ context.Context, data Data) (contextdata.Snapshot, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if a.scopes != nil {
@@ -92,7 +92,7 @@ func (a *Activities) Initialize(_ context.Context, data Data) (compiledscope.Sna
 }
 
 func (a *Activities) EnterScope(_ context.Context, in ScopeInput) error {
-	return a.enterScope(in, compiledscope.OpenScope)
+	return a.enterScope(in, gimbal.OpenScope)
 }
 func (a *Activities) enterScope(in ScopeInput, open func(context.Context, string) (context.Context, func(error) error, error)) error {
 	a.mu.Lock()
@@ -247,20 +247,20 @@ func withoutCause(err, cause error) error {
 
 // Each generated context write is an activity. Values are published here,
 // never embedded as multi-megabyte Temporal activity results.
-func contextEntry(key string, value any) compiledscope.Entry {
-	entry, err := compiledscope.Encode(key, value)
+func contextEntry(key string, value any) contextdata.Entry {
+	entry, err := contextdata.Encode(key, value)
 	if err != nil {
 		panic(err)
 	}
 	return entry
 }
-func (a *Activities) write(ctx context.Context, id string, base compiledscope.Snapshot, entries ...compiledscope.Entry) (compiledscope.Snapshot, error) {
+func (a *Activities) write(ctx context.Context, id string, base contextdata.Snapshot, entries ...contextdata.Entry) (contextdata.Snapshot, error) {
 	scoped, release, err := a.operation(ctx, id)
 	if err != nil {
 		return "", err
 	}
 	defer release()
-	return compiledscope.WriteContext(scoped, base, entries...)
+	return gimbal.WriteContext(scoped, base, entries...)
 }
 func (a *Activities) Finish(ctx context.Context, reason string) error {
 	a.mu.Lock()
@@ -281,7 +281,7 @@ func (a *Activities) FinishCancelled(ctx context.Context, reason string) error {
 	a.mu.Unlock()
 	if frame != nil {
 		// The runtime retains the first effective cause, including a console request.
-		if err := compiledscope.CancelRun(frame.ctx); err != nil && frame.ctx.Err() == nil {
+		if err := gimbal.CancelRun(frame.ctx, context.Canceled); err != nil && frame.ctx.Err() == nil {
 			return err
 		}
 		<-frame.ctx.Done()

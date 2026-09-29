@@ -11,7 +11,7 @@ import (
 	"github.com/tylergannon/gimbal/internal/experiments/instrumented/planning"
 
 	"github.com/tylergannon/gimbal"
-	"github.com/tylergannon/gimbal/internal/compiledscope"
+	"github.com/tylergannon/gimbal/contextdata"
 	"github.com/tylergannon/gimbal/internal/host"
 	graph "github.com/tylergannon/gimbal/workflow"
 	"go.temporal.io/sdk/testsuite"
@@ -23,7 +23,7 @@ func newTestActivities(t *testing.T) *Activities {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	dir := t.TempDir()
-	a := &Activities{workdir: dir, store: compiledscope.Store{Root: t.TempDir()}, controls: host.CompiledControls{CancelRun: func(context.Context, gimbal.Killed) error { return nil }}}
+	a := &Activities{workdir: dir, store: contextdata.Store{Root: t.TempDir()}, controls: host.CompiledControls{CancelRun: func(context.Context, gimbal.Killed) error { return nil }}}
 	a.store.LocalDir = filepath.Join(a.store.Root, "materialized")
 	ctx, err := host.WithContextStore(ctx, dir, &a.store, t.TempDir())
 	if err != nil {

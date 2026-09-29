@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/tylergannon/gimbal/internal/compiledscope"
+	"github.com/tylergannon/gimbal/contextdata"
 	"github.com/tylergannon/gimbal/internal/experiments/instrumented/fanout"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
@@ -64,7 +64,7 @@ func FanoutWorkflow(ctx workflow.Context, in fanoutInput) (out [2]Report, err er
 		}
 		err = errors.Join(err, workflow.ExecuteActivity(cleanup, finish, errorText(err)).Get(cleanup, nil))
 	}()
-	var root compiledscope.Snapshot
+	var root contextdata.Snapshot
 	if err = workflow.ExecuteActivity(ops, "Initialize", Data{Context: in.Context, Name: "fanout"}).Get(wait, &root); err != nil {
 		return
 	}

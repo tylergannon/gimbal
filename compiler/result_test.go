@@ -4,12 +4,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/tylergannon/gimbal/internal/compiler"
+	"github.com/tylergannon/gimbal/compiler"
 	"golang.org/x/tools/go/packages"
 )
 
 func TestCheckSplitResponse(t *testing.T) {
-	pkgs, err := packages.Load(&packages.Config{Dir: "../experiments/instrumented/resulttypes", Mode: packages.NeedName | packages.NeedFiles | packages.NeedCompiledGoFiles | packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo | packages.NeedImports | packages.NeedDeps}, ".")
+	pkgs, err := packages.Load(&packages.Config{Dir: "../internal/experiments/instrumented/resulttypes", Mode: packages.NeedName | packages.NeedFiles | packages.NeedCompiledGoFiles | packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo | packages.NeedImports | packages.NeedDeps}, ".")
 	if err != nil || len(pkgs) != 1 {
 		t.Fatalf("load: %v", err)
 	}

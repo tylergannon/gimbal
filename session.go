@@ -11,8 +11,6 @@ import (
 	"sync"
 	"text/template"
 	"time"
-
-	"github.com/tylergannon/gimbal/internal/compiledscope"
 )
 
 // Session is one agent conversation on one harness, in one workdir. It
@@ -115,7 +113,7 @@ func (o *decodedOutput[T]) ValidateJSON(raw []byte) error {
 	if err := (*o.value).ValidateJSON(raw); err != nil {
 		return err
 	}
-	return compiledscope.DecodeInto(raw, o.value)
+	return json.Unmarshal(raw, o.value)
 }
 func (o *decodedOutput[T]) outputName() string { return fmt.Sprintf("%T", *o.value) }
 

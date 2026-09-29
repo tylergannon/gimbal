@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/tylergannon/gimbal/internal/compiledscope"
+	"github.com/tylergannon/gimbal/contextdata"
 	commonpb "go.temporal.io/api/common/v1"
 	"go.temporal.io/sdk/converter"
 	"google.golang.org/protobuf/proto"
@@ -19,7 +19,7 @@ import (
 type fileCodec struct{ Root, Run string }
 type payloadRef struct {
 	Run      string
-	Snapshot compiledscope.Snapshot
+	Snapshot contextdata.Snapshot
 }
 
 func dataConverter(root string) converter.DataConverter {
@@ -52,8 +52,8 @@ func (c fileCodec) Encode(in []*commonpb.Payload) ([]*commonpb.Payload, error) {
 		if err != nil {
 			return nil, err
 		}
-		s := compiledscope.Store{Root: filepath.Join(c.Root, c.Run, "context")}
-		ref, err := s.Extend(context.Background(), "", compiledscope.Entry{Key: "payload", Value: raw})
+		s := contextdata.Store{Root: filepath.Join(c.Root, c.Run, "context")}
+		ref, err := s.Extend(context.Background(), "", contextdata.Entry{Key: "payload", Value: raw})
 		if err != nil {
 			return nil, err
 		}
@@ -79,7 +79,7 @@ func (c fileCodec) Decode(in []*commonpb.Payload) ([]*commonpb.Payload, error) {
 		if filepath.Base(ref.Run) != ref.Run || len(ref.Run) != len("gimbal-specimen-")+16 {
 			return nil, fmt.Errorf("invalid payload run")
 		}
-		s := compiledscope.Store{Root: filepath.Join(c.Root, ref.Run, "context")}
+		s := contextdata.Store{Root: filepath.Join(c.Root, ref.Run, "context")}
 		entries, err := s.Load(context.Background(), ref.Snapshot)
 		if err != nil {
 			return nil, err

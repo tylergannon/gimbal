@@ -12,8 +12,8 @@ import (
 // provides the real methods.
 func (review) Schema() json.RawMessage              { panic("not implemented") }
 func (review) ValidateJSON(_ []byte) error          { panic("not implemented") }
-func (plan) Schema() json.RawMessage                { panic("not implemented") }
-func (plan) ValidateJSON(_ []byte) error            { panic("not implemented") }
+func (Plan) Schema() json.RawMessage                { panic("not implemented") }
+func (Plan) ValidateJSON(_ []byte) error            { panic("not implemented") }
 func (InterviewTranscript) Schema() json.RawMessage { panic("not implemented") }
 func (InterviewTranscript) ValidateJSON(_ []byte) error {
 	panic("not implemented")
@@ -27,7 +27,7 @@ func (LifecycleRecord) ValidateJSON(_ []byte) error { panic("not implemented") }
 
 var (
 	_ = polytype.Declare(review.Schema)
-	_ = polytype.Declare(plan.Schema)
+	_ = polytype.Declare(Plan.Schema)
 	_ = polytype.Declare(InterviewTranscript.Schema)
 	_ = polytype.Declare(interviewDecision.Schema)
 	_ = polytype.Declare(LifecycleRecord.Schema)

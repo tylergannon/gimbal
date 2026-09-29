@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tylergannon/gimbal/internal/compiledscope"
+	"github.com/tylergannon/gimbal/contextdata"
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/converter"
 	"go.temporal.io/sdk/testsuite"
@@ -39,7 +39,7 @@ func TestPayloadStoreRoundTripAndCorruption(t *testing.T) {
 	if err = json.Unmarshal(payload.Data, &ref); err != nil {
 		t.Fatal(err)
 	}
-	store := compiledscope.Store{Root: filepath.Join(root, ref.Run, "context")}
+	store := contextdata.Store{Root: filepath.Join(root, ref.Run, "context")}
 	entries, err := store.Load(t.Context(), ref.Snapshot)
 	if err != nil || len(entries) != 1 || entries[0].File == "" {
 		t.Fatalf("payload manifest: %+v %v", entries, err)
@@ -130,11 +130,11 @@ func TestSetCapturesExactLargeInteger(t *testing.T) {
 	e := suite.NewTestActivityEnvironment()
 	e.RegisterActivity(a)
 	value := struct{ Number int64 }{9007199254740993}
-	encoded, err := e.ExecuteActivity(a.SetValue, "", compiledscope.Snapshot(""), contextEntry("precise", value))
+	encoded, err := e.ExecuteActivity(a.SetValue, "", contextdata.Snapshot(""), contextEntry("precise", value))
 	if err != nil {
 		t.Fatal(err)
 	}
-	var snapshot compiledscope.Snapshot
+	var snapshot contextdata.Snapshot
 	if err = encoded.Get(&snapshot); err != nil {
 		t.Fatal(err)
 	}

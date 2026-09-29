@@ -30,9 +30,9 @@ type Task struct {
 	} `json:"validation"`
 }
 
-// plan is the planner's whole answer for one dispatch: the revised backlog
+// Plan is the planner's whole answer for one dispatch: the revised backlog
 // and the index of the next task, or null to end dispatch.
-type plan struct {
+type Plan struct {
 	Tasks []Task                 `json:"tasks"`
 	Next  polytype.Nullable[int] `json:"next"`
 }
@@ -40,13 +40,13 @@ type plan struct {
 // answer is the planner's plan with its content checks attached to the
 // schema check, so one Generate re-ask covers an inconsistent plan as well
 // as a wrong-shaped one.
-type answer struct{ plan }
+type answer struct{ Plan }
 
 func (a answer) ValidateJSON(raw []byte) error {
-	if err := a.plan.ValidateJSON(raw); err != nil {
+	if err := a.Plan.ValidateJSON(raw); err != nil {
 		return err
 	}
-	var p plan
+	var p Plan
 	if err := json.Unmarshal(raw, &p); err != nil {
 		return err
 	}
@@ -181,7 +181,7 @@ func backlogJSON(goal string, tasks []Task) ([]byte, error) {
 
 // validatePlan checks a plan's content: every task must be well-formed, no
 // two tasks may share a name, and a present Next must index into Tasks.
-func validatePlan(p plan) error {
+func validatePlan(p Plan) error {
 	seen := make(map[string]bool, len(p.Tasks))
 	for i, task := range p.Tasks {
 		if err := validateTask(task); err != nil {

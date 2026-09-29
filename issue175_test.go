@@ -250,7 +250,7 @@ func TestLoopKilledTaskIsAFailedTaskNotABrokenLoop(t *testing.T) {
 		plans = append(plans, prompt)
 		n := len(plans)
 		mu.Unlock()
-		p := plan{Tasks: []Task{task}}
+		p := Plan{Tasks: []Task{task}}
 		if n <= 2 {
 			p.Next = polytype.Nullable[int]{Present: true, Value: 0}
 		}

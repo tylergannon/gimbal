@@ -20,7 +20,7 @@ import (
 	"time"
 
 	"github.com/tylergannon/gimbal"
-	"github.com/tylergannon/gimbal/internal/compiledscope"
+	"github.com/tylergannon/gimbal/contextdata"
 	"github.com/tylergannon/gimbal/internal/experiments/instrumented/fanout"
 	"github.com/tylergannon/gimbal/internal/host"
 	"github.com/tylergannon/gimbal/internal/observation"
@@ -59,7 +59,7 @@ func run() error {
 		projects := append([]string{*projectPath}, flag.Args()...)
 		viewCtx := ctx
 		for _, project := range projects {
-			store := &compiledscope.Store{Root: filepath.Join(filepath.Dir(project), "context")}
+			store := &contextdata.Store{Root: filepath.Join(filepath.Dir(project), "context")}
 			viewCtx, err = host.WithContextStore(viewCtx, project, store, filepath.Join(project, ".gimbal", "context-cache"))
 			if err != nil {
 				return err
@@ -140,7 +140,7 @@ func run() error {
 		if !filepath.IsAbs(workspace) || !filepath.IsAbs(contextDir) {
 			return errors.New("activity worker requires absolute workspace and context paths")
 		}
-		store := compiledscope.Store{Root: contextDir, LocalDir: filepath.Join(contextDir, "materialized")}
+		store := contextdata.Store{Root: contextDir, LocalDir: filepath.Join(contextDir, "materialized")}
 		hostCtx, err := host.WithContextStore(ctx, workspace, &store, filepath.Join(workspace, ".gimbal", "context-cache"))
 		if err != nil {
 			return err
@@ -231,7 +231,7 @@ func prepareInput(root, id, task string) (Input, error) {
 	if !filepath.IsAbs(root) {
 		return Input{}, errors.New("SPECIMEN_STATE_ROOT must be absolute")
 	}
-	store := compiledscope.Store{Root: filepath.Join(root, environmentID(id), "context")}
+	store := contextdata.Store{Root: filepath.Join(root, environmentID(id), "context")}
 	// Host submission and the container's unprivileged worker both publish into
 	// this retained run store. Object files are separately published read-only.
 	for _, sub := range []string{"", "objects", "materialized"} {

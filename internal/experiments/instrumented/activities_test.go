@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/tylergannon/gimbal"
-	"github.com/tylergannon/gimbal/internal/compiledscope"
+	"github.com/tylergannon/gimbal/contextdata"
 	"github.com/tylergannon/gimbal/internal/host"
 	"go.temporal.io/sdk/testsuite"
 )
@@ -21,7 +21,7 @@ func TestRootCancellationClosesExplicitScopesExactlyOnce(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	dir := t.TempDir()
-	a := &Activities{workdir: dir, store: compiledscope.Store{Root: t.TempDir()}, controls: host.CompiledControls{CancelRun: func(context.Context, gimbal.Killed) error { return nil }}}
+	a := &Activities{workdir: dir, store: contextdata.Store{Root: t.TempDir()}, controls: host.CompiledControls{CancelRun: func(context.Context, gimbal.Killed) error { return nil }}}
 	a.store.LocalDir = filepath.Join(a.store.Root, "materialized")
 	ctx, err := host.WithContextStore(ctx, dir, &a.store, t.TempDir())
 	if err != nil {
@@ -140,7 +140,7 @@ func TestInitialTaskIsStoredBeforeWorkflowSubmission(t *testing.T) {
 		t.Fatal("task escaped into workflow payload")
 	}
 	// Use the worker-side path computation, with no live producer objects.
-	store := compiledscope.Store{Root: filepath.Join(root, environmentID("large-input"), "context")}
+	store := contextdata.Store{Root: filepath.Join(root, environmentID("large-input"), "context")}
 	entries, err := store.Load(t.Context(), input.Context)
 	if err != nil {
 		t.Fatal(err)
@@ -187,7 +187,7 @@ func TestCancellationDrainRetainsCleanupFailureForLateController(t *testing.T) {
 	a.mu.Lock()
 	root := a.scopes[""].ctx
 	a.mu.Unlock()
-	if err = compiledscope.CancelRun(root); err != nil {
+	if err = gimbal.CancelRun(root, context.Canceled); err != nil {
 		t.Fatal(err)
 	}
 	select {

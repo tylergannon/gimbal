@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/oklog/ulid/v2"
-	"github.com/tylergannon/gimbal/internal/compiledscope"
+	"github.com/tylergannon/gimbal/contextdata"
 	"github.com/tylergannon/gimbal/internal/live"
 	"github.com/tylergannon/gimbal/internal/observation"
 	"github.com/tylergannon/gimbal/workflow"
@@ -67,7 +67,7 @@ func RegisteredGraph(name string) (workflow.Graph, bool) {
 }
 
 type run struct {
-	contextStore     *compiledscope.Store          // private compiler specimen; external run storage
+	contextStore     *contextdata.Store            // consumer-supplied immutable context storage
 	dir              string                        // <project>/runs/<id>
 	models           map[WorkflowRole]ModelBinding // what each role the workflow names runs on
 	writer           *eventWriter

@@ -36,14 +36,15 @@ type Instance struct {
 	startPaths   map[string]bool
 }
 
-// Option configures the instance's web listener.
+// Option configures the instance and its web listener.
 type Option func(*config) error
 
 type config struct {
-	network  string
-	port     int
-	uds      string
-	explicit string
+	network       string
+	port          int
+	uds           string
+	explicit      string
+	contextStores []contextStoreOption
 }
 
 // WithPort serves the web application on the given loopback TCP port. Port 0
@@ -122,6 +123,12 @@ func NewInstance(ctx context.Context, instanceDir string, initialProjects []stri
 			return nil, errors.New("gimbal: nil runtime option")
 		}
 		if err := option(&cfg); err != nil {
+			return nil, err
+		}
+	}
+	for _, configured := range cfg.contextStores {
+		ctx, err = host.WithContextStore(ctx, configured.project, configured.store, configured.cacheDir)
+		if err != nil {
 			return nil, err
 		}
 	}

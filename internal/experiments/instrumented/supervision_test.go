@@ -14,7 +14,7 @@ import (
 
 	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/claude"
-	"github.com/tylergannon/gimbal/internal/compiledscope"
+	"github.com/tylergannon/gimbal/contextdata"
 	"github.com/tylergannon/gimbal/pi"
 )
 
@@ -56,13 +56,14 @@ func TestLiveControlledSupervision(t *testing.T) {
 	reviewer := &observedReviewer{HarnessAdapter: pi.New(), doneFile: filepath.Join(dir, "review-complete")}
 	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
 	defer cancel()
-	err := gimbal.Run(gimbal.Project(ctx, filepath.Join(dir, "logs")), "controlled-supervision", map[gimbal.WorkflowRole]gimbal.ModelBinding{
+	store := contextdata.Store{Root: filepath.Join(t.TempDir(), "context")}
+	root, finish, err := gimbal.OpenRun(gimbal.Project(ctx, filepath.Join(dir, "logs")), "controlled-supervision", map[gimbal.WorkflowRole]gimbal.ModelBinding{
 		coder: {Adapter: claude.New(), Model: "claude-haiku-4-5"}, coach: {Adapter: reviewer, Model: "diffusion/deepseek-4.1-flash"},
-	}, func(ctx context.Context) error {
-		store := compiledscope.Store{Root: filepath.Join(t.TempDir(), "context")}
-		if err := compiledscope.InitializeContext(ctx, store, "", ""); err != nil {
-			return err
-		}
+	}, "", gimbal.ContextAccess{Store: &store})
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = func(ctx context.Context) error {
 		ref, err := store.Extend(t.Context(), "", contextEntry("task", "BRANCH_CONTEXT_42: inspect evidence without changing it"), contextEntry("reference", referenceMaterial()))
 		if err != nil {
 			return err
@@ -73,7 +74,7 @@ func TestLiveControlledSupervision(t *testing.T) {
 		}
 		// Exercise value-plus-file representation with a supplied short summary.
 		entries[1].Value = contextEntry("reference", "Reference data; the receipt is in the middle of the complete file.").Value
-		ref, err = compiledscope.WriteContext(ctx, "", entries...)
+		ref, err = gimbal.WriteContext(ctx, "", entries...)
 		if err != nil {
 			return err
 		}
@@ -81,19 +82,16 @@ func TestLiveControlledSupervision(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		ctx, err = compiledscope.BindContext(ctx, ref)
-		if err != nil {
-			return err
-		}
 		principal := gimbal.NewSession(ctx, coder, dir)
 		supervisor := gimbal.NewSession(ctx, coach, dir)
-		result, err := principal.Generate[gimbal.Text](ctx, "Read the complete reference context file and find the CONTEXT_RECEIPT line in its middle. Read evidence.txt. Then run a shell command that waits up to 90 seconds for review-complete to exist (checking once a second). Another process creates it; do not create or modify any files yourself. After it appears, report the evidence string and the value from CONTEXT_RECEIPT.", gimbal.WithSupervisor(supervisor, "The reference file must contain a line beginning CONTEXT_RECEIPT=. Verify this now by running grep against the reference context Complete value file path. Return an empty objections list immediately if that line exists. This review concerns only that file; the worker is allowed to read and wait. Do not wait for the worker to finish or investigate its wait progress. Make no edits."))
+		raw, err := principal.GenerateResponse[gimbal.Text](ctx, ref, "Read the complete reference context file and find the CONTEXT_RECEIPT line in its middle. Read evidence.txt. Then run a shell command that waits up to 90 seconds for review-complete to exist (checking once a second). Another process creates it; do not create or modify any files yourself. After it appears, report the evidence string and the value from CONTEXT_RECEIPT.", gimbal.WithSupervisor(supervisor, "The reference file must contain a line beginning CONTEXT_RECEIPT=. Verify this now by running grep against the reference context Complete value file path. Return an empty objections list immediately if that line exists. This review concerns only that file; the worker is allowed to read and wait. Do not wait for the worker to finish or investigate its wait progress. Make no edits."))
+		result, err := gimbal.ConsumeResponse[gimbal.Text](raw, err)
 		if err == nil && !strings.Contains(string(result), "middle-of-external-context-42") {
 			t.Error("principal did not retrieve middle of overflow file")
 		}
 		return err
-	})
-	if err != nil {
+	}(root)
+	if err = finish(err); err != nil {
 		t.Fatal(err)
 	}
 	mu.Lock()

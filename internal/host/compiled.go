@@ -8,17 +8,17 @@ import (
 	"time"
 
 	"github.com/tylergannon/gimbal"
-	"github.com/tylergannon/gimbal/internal/compiledscope"
+	"github.com/tylergannon/gimbal/contextdata"
 	"github.com/tylergannon/gimbal/internal/live"
 )
 
-// These compiler seams remain private and revisable during Stage 2.
+// CompiledControls carries the public web entry controls to the runtime.
 type CompiledControls struct {
 	CancelRun       func(context.Context, gimbal.Killed) error
 	DeliveryTimeout time.Duration
 }
 type contextStoreConfig struct {
-	store    *compiledscope.Store
+	store    *contextdata.Store
 	cacheDir string
 }
 type contextStoresKey struct{}
@@ -30,7 +30,7 @@ func contextStores(ctx context.Context) map[string]contextStoreConfig {
 
 // WithContextStore supplies host access at startup, including retained runs
 // served after a restart. Worker materialization is configured at run entry.
-func WithContextStore(ctx context.Context, project string, store *compiledscope.Store, cacheDir string) (context.Context, error) {
+func WithContextStore(ctx context.Context, project string, store *contextdata.Store, cacheDir string) (context.Context, error) {
 	if ctx == nil || store == nil {
 		return nil, fmt.Errorf("gimbal: context store requires context and store")
 	}

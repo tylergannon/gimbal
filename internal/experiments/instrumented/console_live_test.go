@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/tylergannon/gimbal"
-	"github.com/tylergannon/gimbal/internal/compiledscope"
+	"github.com/tylergannon/gimbal/contextdata"
 	"github.com/tylergannon/gimbal/internal/host"
 	"github.com/tylergannon/gimbal/internal/observation"
 	routes "github.com/tylergannon/gimbal/internal/skgo/links/onzggl3sn52xizlt"
@@ -44,7 +44,7 @@ func TestLiveCompiledConsoleCancellation(t *testing.T) {
 			if err := os.MkdirAll(projectDir, 0755); err != nil {
 				t.Fatal(err)
 			}
-			store := compiledscope.Store{Root: filepath.Join(root, "context"), LocalDir: filepath.Join(root, "worker-materialized")}
+			store := contextdata.Store{Root: filepath.Join(root, "context"), LocalDir: filepath.Join(root, "worker-materialized")}
 			hostCtx, err := host.WithContextStore(ctx, projectDir, &store, filepath.Join(root, "host-cache"))
 			if err != nil {
 				t.Fatal(err)

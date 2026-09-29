@@ -2,17 +2,17 @@ package gimbal
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
-	"github.com/tylergannon/gimbal/internal/compiledscope"
+	"github.com/tylergannon/gimbal/contextdata"
 )
 
-func (compiledRuntime) OpenLoop(ctx context.Context, name string) (context.Context, func(error) error, error) {
+// OpenLoop opens a planner scope. Its finish records undelivered steering.
+func OpenLoop(ctx context.Context, name string) (context.Context, func(error) error, error) {
 	parent, err := current(ctx)
 	if err != nil {
 		return nil, nil, err
@@ -36,7 +36,10 @@ func (compiledRuntime) OpenLoop(ctx context.Context, name string) (context.Conte
 func prepareLoop(s *scope) error {
 	return os.MkdirAll(filepath.Join(s.run.dir, "scopes", filepath.FromSlash(s.key)), 0755)
 }
-func (compiledRuntime) OpenTask(ctx context.Context, name string, raw []byte, base compiledscope.Snapshot) (context.Context, compiledscope.Snapshot, func(error) error, error) {
+
+// OpenTask opens a task scope and records its task input in a child snapshot.
+// Initialization failure closes the partial scope and returns no live handle.
+func OpenTask(ctx context.Context, name string, task Task, base contextdata.Snapshot) (context.Context, contextdata.Snapshot, func(error) error, error) {
 	parent, err := current(ctx)
 	if err != nil {
 		return nil, base, nil, err
@@ -44,17 +47,13 @@ func (compiledRuntime) OpenTask(ctx context.Context, name string, raw []byte, ba
 	if !parent.loop {
 		return nil, base, nil, fmt.Errorf("gimbal: task requires loop scope")
 	}
-	var task Task
-	if err = json.Unmarshal(raw, &task); err != nil {
-		return nil, base, nil, err
-	}
 	if err = validateTask(task); err != nil {
 		return nil, base, nil, err
 	}
 	child, taskCtx := prepareTask(parent, ctx, name, task)
 	scoped := child.begin(taskCtx)
-	entry, err := compiledscope.Encode("task", task)
-	var ref compiledscope.Snapshot
+	entry, err := contextdata.Encode("task", task)
+	var ref contextdata.Snapshot
 	if err == nil {
 		ref, err = writeCompiledContext(scoped, base, entry)
 	}
@@ -77,25 +76,24 @@ func endLoop(ctx context.Context) error {
 	}
 	return nil
 }
-func (compiledRuntime) EndLoop(ctx context.Context) error { return endLoop(ctx) }
 
-func planNext(ctx context.Context, planner *Session, goal string, tasks []Task, previous string, opts []AgentOption) (plan, error) {
+func planNext(ctx context.Context, planner *Session, goal string, tasks []Task, previous string, opts []AgentOption) (Plan, error) {
 	s, err := current(ctx)
 	if err != nil {
-		return plan{}, err
+		return Plan{}, err
 	}
 	if !s.loop {
-		return plan{}, fmt.Errorf("gimbal: planner dispatch requires loop scope")
+		return Plan{}, fmt.Errorf("gimbal: planner dispatch requires loop scope")
 	}
 	if planner == nil {
-		return plan{}, fmt.Errorf("gimbal: planner session is nil")
+		return Plan{}, fmt.Errorf("gimbal: planner session is nil")
 	}
 	if err = planner.reachable(ctx); err != nil {
-		return plan{}, err
+		return Plan{}, err
 	}
 	backlog, err := backlogJSON(goal, tasks)
 	if err != nil {
-		return plan{}, err
+		return Plan{}, err
 	}
 	messages := s.takeMessages()
 	for _, message := range messages {
@@ -104,33 +102,23 @@ func planNext(ctx context.Context, planner *Session, goal string, tasks []Task, 
 	}
 	prompt, err := planPrompt(ctx, s.name, planner.workdir, string(backlog), scopeText(ctx), previous, messages)
 	if err != nil {
-		return plan{}, err
+		return Plan{}, err
 	}
 	result, err := dispatch[answer](ctx, planner, prompt, opts)
-	return result.plan, err
+	return result.Plan, err
 }
-func (compiledRuntime) Plan(ctx context.Context, resource any, input compiledscope.Snapshot, goal string, tasksJSON []byte, previous string) ([]byte, error) {
-	planner, ok := resource.(*Session)
-	if !ok {
-		return nil, fmt.Errorf("invalid planner session")
-	}
-	var tasks []Task
-	if len(tasksJSON) > 0 {
-		if err := json.Unmarshal(tasksJSON, &tasks); err != nil {
-			return nil, err
-		}
-	}
+
+// PlanNext performs one planner dispatch using the explicit loop snapshot.
+// RecordPlan validates and records its decision separately; the consumer schedules
+// repetition and task bodies. Previous is task-local feedback, not inherited input.
+func PlanNext(ctx context.Context, input contextdata.Snapshot, planner *Session, goal string, tasks []Task, previous string, opts ...AgentOption) (Plan, error) {
 	bound, err := bindCompiledContext(ctx, input)
 	if err != nil {
-		return nil, err
+		return Plan{}, err
 	}
-	p, err := planNext(bound, planner, goal, tasks, previous, nil)
-	if err != nil {
-		return nil, err
-	}
-	return json.Marshal(p)
+	return planNext(bound, planner, goal, tasks, previous, opts)
 }
-func recordPlan(ctx context.Context, goal string, p plan) error {
+func recordPlan(ctx context.Context, goal string, p Plan) error {
 	s, err := current(ctx)
 	if err != nil {
 		return err
@@ -159,14 +147,15 @@ func recordPlan(ctx context.Context, goal string, p plan) error {
 	s.run.event(s.key, "", "", decision)
 	return nil
 }
-func (compiledRuntime) RecordPlan(ctx context.Context, goal string, raw []byte) error {
-	var p plan
-	if err := json.Unmarshal(raw, &p); err != nil {
-		return err
-	}
+
+// RecordPlan validates a planner decision and records the revised backlog.
+func RecordPlan(ctx context.Context, goal string, p Plan) error {
 	return recordPlan(ctx, goal, p)
 }
-func (compiledRuntime) TaskFeedback(ctx context.Context) (string, error) {
+
+// TaskFeedback renders the task's actually recorded local writes before cleanup.
+// Its file references belong to this owner's execution environment.
+func TaskFeedback(ctx context.Context) (string, error) {
 	s, err := current(ctx)
 	if err != nil {
 		return "", err

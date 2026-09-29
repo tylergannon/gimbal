@@ -29,7 +29,7 @@ func __polytype_marshal(value any) ([]byte, error) {
 // Compiled JSON schemas for validation, initialized once at startup.
 var (
 	__gen_jsonschema_compiled_review              *jsonschema.Schema
-	__gen_jsonschema_compiled_plan                *jsonschema.Schema
+	__gen_jsonschema_compiled_Plan                *jsonschema.Schema
 	__gen_jsonschema_compiled_InterviewTranscript *jsonschema.Schema
 	__gen_jsonschema_compiled_interviewDecision   *jsonschema.Schema
 	__gen_jsonschema_compiled_LifecycleRecord     *jsonschema.Schema
@@ -59,8 +59,8 @@ func init() {
 	}
 
 	{
-		var __zero plan
-		__gen_jsonschema_compiled_plan = compile("plan", __zero.Schema())
+		var __zero Plan
+		__gen_jsonschema_compiled_Plan = compile("Plan", __zero.Schema())
 	}
 
 	{
@@ -88,8 +88,8 @@ func (review) Schema() json.RawMessage {
 	return data
 }
 
-func (plan) Schema() json.RawMessage {
-	const fileName = "jsonschema/plan.json"
+func (Plan) Schema() json.RawMessage {
+	const fileName = "jsonschema/Plan.json"
 	data, err := __gen_jsonschema_fs.ReadFile(fileName)
 	if err != nil {
 		__gen_jsonschema_panic(fileName, err)
@@ -133,13 +133,13 @@ func (review) ValidateJSON(data []byte) error {
 	return __gen_jsonschema_compiled_review.Validate(inst)
 }
 
-// ValidateJSON validates the given JSON bytes against the schema for plan.
-func (plan) ValidateJSON(data []byte) error {
+// ValidateJSON validates the given JSON bytes against the schema for Plan.
+func (Plan) ValidateJSON(data []byte) error {
 	inst, err := jsonschema.UnmarshalJSON(bytes.NewReader(data))
 	if err != nil {
 		return err
 	}
-	return __gen_jsonschema_compiled_plan.Validate(inst)
+	return __gen_jsonschema_compiled_Plan.Validate(inst)
 }
 
 // ValidateJSON validates the given JSON bytes against the schema for InterviewTranscript.

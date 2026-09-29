@@ -6,7 +6,7 @@ import (
 	"log"
 	"path/filepath"
 
-	"github.com/tylergannon/gimbal/internal/temporalgen"
+	"example.com/temporal-consumer/internal/temporalgen"
 )
 
 func main() {

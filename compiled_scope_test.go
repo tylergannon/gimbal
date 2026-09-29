@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/tylergannon/gimbal/internal/compiledscope"
+	"github.com/tylergannon/gimbal/contextdata"
 )
 
 // Exercise the same scope seam used by worker activities, including a parent
@@ -25,7 +25,7 @@ func TestCompiledScopeLayeringAndResourceOwnership(t *testing.T) {
 				return "done", nil
 			}}
 			project := t.TempDir()
-			root, finish, err := compiledscope.OpenRun(Project(t.Context(), project), "nested", bind(adapter, "m", "worker"))
+			root, finish, err := OpenRun(Project(t.Context(), project), "nested", bind(adapter, "m", "worker"), "", ContextAccess{Store: &contextdata.Store{Root: t.TempDir()}})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -38,7 +38,7 @@ func TestCompiledScopeLayeringAndResourceOwnership(t *testing.T) {
 				}
 			}
 			generate(root)
-			outer, closeOuter, err := compiledscope.OpenScope(root, "context")
+			outer, closeOuter, err := OpenScope(root, "context")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -46,7 +46,7 @@ func TestCompiledScopeLayeringAndResourceOwnership(t *testing.T) {
 			Set(outer, "inherited", "outer-inherited")
 			generate(outer)
 			innerParent, cancel := context.WithCancel(outer)
-			inner, closeInner, err := compiledscope.OpenScope(innerParent, "details")
+			inner, closeInner, err := OpenScope(innerParent, "details")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -131,7 +131,7 @@ func TestCompiledRunPreservesCleanupFailure(t *testing.T) {
 	adapter := &fake{answer: func(context.Context, string, string, json.RawMessage, func(AgentEvent) error) (string, error) {
 		return "done", nil
 	}, closeErr: func(string) error { return closeErr }}
-	root, finish, err := compiledscope.OpenRun(Project(t.Context(), t.TempDir()), "cleanup", bind(adapter, "m", "worker"))
+	root, finish, err := OpenRun(Project(t.Context(), t.TempDir()), "cleanup", bind(adapter, "m", "worker"), "", ContextAccess{Store: &contextdata.Store{Root: t.TempDir()}})
 	if err != nil {
 		t.Fatal(err)
 	}

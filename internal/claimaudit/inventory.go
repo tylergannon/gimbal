@@ -15,6 +15,9 @@ import (
 
 const StateDir = ".semantic-index"
 
+const inlineAuditStart = "<!-- gimbal-audit-inline:start -->"
+const inlineAuditEnd = "<!-- gimbal-audit-inline:end -->"
+
 type Block struct {
 	ID      string `json:"id"`
 	File    string `json:"file"`
@@ -65,6 +68,18 @@ func markFree(s string) string {
 	for _, line := range lines {
 		if strings.HasPrefix(line, "<!-- gimbal-audit ") || strings.HasPrefix(line, "> **Gimbal audit: ") {
 			continue
+		}
+		for {
+			start := strings.Index(line, inlineAuditStart)
+			if start < 0 {
+				break
+			}
+			end := strings.Index(line[start+len(inlineAuditStart):], inlineAuditEnd)
+			if end < 0 {
+				break
+			}
+			end += start + len(inlineAuditStart) + len(inlineAuditEnd)
+			line = line[:start] + line[end:]
 		}
 		out = append(out, line)
 	}

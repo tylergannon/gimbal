@@ -144,6 +144,12 @@ func TestToolUseAndMissingUsageAreNotFreeSuccess(t *testing.T) {
 	if containsTool(map[string]any{"type": "text", "text": "tool"}) {
 		t.Fatal("plain text called a tool")
 	}
+	if containsTool(map[string]any{"type": "tool", "name": "StructuredOutput"}) {
+		t.Fatal("native structured completion called an out-of-protocol read")
+	}
+	if !containsTool([]any{map[string]any{"type": "tool", "name": "StructuredOutput"}, map[string]any{"type": "tool", "name": "Read"}}) {
+		t.Fatal("structured completion hid an actual tool")
+	}
 	if _, known := researchCost(observation.RunSnapshot{}); known {
 		t.Fatal("absent usage priced as free")
 	}

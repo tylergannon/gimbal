@@ -819,7 +819,9 @@ func containsTool(v any) bool {
 	switch x := v.(type) {
 	case map[string]any:
 		if x["type"] == "tool" || x["type"] == "tool-invocation" {
-			return true
+			// Claude emits the structured return value as this native tool.
+			// It completes the turn without reading anything outside the protocol.
+			return x["name"] != "StructuredOutput"
 		}
 		for _, child := range x {
 			if containsTool(child) {

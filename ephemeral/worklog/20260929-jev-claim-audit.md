@@ -103,3 +103,7 @@ finding: Exact occurrence validation caught a curator normalizing Markdown insid
 finding: Preparation must not silently remove malformed claim anchors while retaining unchanged blocks. Preserve unknown anchors for explicit repair; when one known occurrence changes, retain the unchanged occurrences of that claim. Otherwise a failed repair can erase a claim without requesting extraction for its remaining block.
 
 finding: A duplicate reader path consumes no additional read. Apply the read-count limit after duplicate detection so a repeated INDEX.md at the boundary does not falsely fail retrieval.
+
+finding: Claude exposes its structured completion as a StructuredOutput tool in the normalized transcript. This is not an out-of-protocol retrieval; exempt that exact native completion event while retaining rejection of file, shell and other reader tool use. The observed planner transcript exposed this before reader scoring.
+
+finding: Marker-free digests intentionally ignore generated audit annotations, so they cannot alone detect an editor removing those annotations. Bind completion to the rendered index digest as well, and verify it at final acceptance. Mark exact occurrences inline, including table cells, while preserving marker-free source text across preparation.

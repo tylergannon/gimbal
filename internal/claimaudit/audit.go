@@ -441,7 +441,7 @@ func Audit(ctx context.Context, dir string, client *jev.Client, pass int) (Compl
 				return remaining(classify(err))
 			}
 			out.Metrics.SourceChecks++
-			if j.Label != "supports" && c.Kind != "recommendation" {
+			if j.Label != "supports" {
 				sourceFinding[c.ID] = true
 				repair[c.ID] = true
 				unresolved[c.ID] = true
@@ -453,7 +453,7 @@ func Audit(ctx context.Context, dir string, client *jev.Client, pass int) (Compl
 			if err != nil {
 				return remaining(classify(err))
 			}
-			if j.Label != "supports" && c.Kind != "recommendation" {
+			if j.Label != "supports" {
 				sourceFinding[c.ID] = true
 				repair[c.ID] = true
 				unresolved[c.ID] = true
@@ -563,6 +563,13 @@ func Audit(ctx context.Context, dir string, client *jev.Client, pass int) (Compl
 	if out.Metrics.PairsAnswered != out.Metrics.PairsTotal {
 		return remaining(fmt.Errorf("pair coverage incomplete: %d/%d", out.Metrics.PairsAnswered, out.Metrics.PairsTotal))
 	}
+	for _, c := range claims {
+		if sourceFinding[c.ID] {
+			if _, ok := claimEvidence(dir, c); ok {
+				candidates["source:"+c.ID] = ReviewCandidate{Kind: "source", ID: c.ID, Digest: dispositionDigest(c, blocks, inv.Sources)}
+			}
+		}
+	}
 	candidateList := make([]ReviewCandidate, 0, len(candidates))
 	for _, c := range candidates {
 		candidateList = append(candidateList, c)
@@ -575,7 +582,7 @@ func Audit(ctx context.Context, dir string, client *jev.Client, pass int) (Compl
 	}
 	dispositions := map[string]string{}
 	for _, c := range claims {
-		if sourceFinding[c.ID] || len(pairFinding[c.ID]) > 0 {
+		if len(pairFinding[c.ID]) > 0 {
 			dispositions[c.ID] = dispositionDigest(c, blocks, inv.Sources)
 		}
 	}
@@ -598,6 +605,16 @@ func Audit(ctx context.Context, dir string, client *jev.Client, pass int) (Compl
 			delete(repair, review.ID)
 			continue
 		}
+		if review.Kind == "source" && review.Decision == "reviewed-source-supported" {
+			if _, ok := claimEvidence(dir, byID(claims, review.ID)); !ok {
+				continue
+			}
+			appliedReviews[review.Kind+":"+review.ID+":"+review.Digest] = true
+			delete(sourceFinding, review.ID)
+			delete(repair, review.ID)
+			delete(unresolved, review.ID)
+			continue
+		}
 		if review.Kind == "pair" && review.Decision == "reviewed-compatible" {
 			ids := strings.Split(review.ID, "/")
 			if len(ids) != 2 {
@@ -617,11 +634,10 @@ func Audit(ctx context.Context, dir string, client *jev.Client, pass int) (Compl
 		}
 	}
 	for _, c := range claims {
-		if (c.Disposition == "retain-unresolved" || c.Disposition == "exclude-from-factual-use") && c.DispositionDigest == dispositionDigest(c, blocks, inv.Sources) {
-			delete(repair, c.ID)
+		if !sourceFinding[c.ID] && (c.Disposition == "retain-unresolved" || c.Disposition == "exclude-from-factual-use") && c.DispositionDigest == dispositionDigest(c, blocks, inv.Sources) {
 			for _, other := range pairFinding[c.ID] {
 				otherClaim := byID(claims, other)
-				if (otherClaim.Disposition == "retain-unresolved" || otherClaim.Disposition == "exclude-from-factual-use") && otherClaim.DispositionDigest == dispositionDigest(otherClaim, blocks, inv.Sources) {
+				if !sourceFinding[other] && (otherClaim.Disposition == "retain-unresolved" || otherClaim.Disposition == "exclude-from-factual-use") && otherClaim.DispositionDigest == dispositionDigest(otherClaim, blocks, inv.Sources) {
 					a, b := c.ID, other
 					if a > b {
 						a, b = b, a

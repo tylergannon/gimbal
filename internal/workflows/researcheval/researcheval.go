@@ -199,7 +199,7 @@ func ResearchEval(ctx context.Context, env gimbal.Env, params Params) error {
 	if err := verifyProject(env.WorkDir, registry); err != nil {
 		return err
 	}
-	result := report{Suite: s.Name, FixedModel: fixed, Trials: []trialResult{}, PriceBasis: priceBasis, Limitation: "Provisional result from a small controlled-source comparison; model judgments and catalog-price proxies, not open-web quality or a population success rate. First-pass audit cleanliness is distinct from independent correctness. Full-run price covers recorded agent and claim-audit usage; automatic supervisor Jev checks are not metered here. Candidate selection uses only priced research and index roles plus claim-audit input; unpriced fixed roles remain unknown in full-run price."}
+	result := report{Suite: s.Name, FixedModel: fixed, Trials: []trialResult{}, PriceBasis: priceBasis, Limitation: "Provisional result from a small controlled-source comparison; model judgments and catalog-price proxies, not open-web quality or a population success rate. First-pass audit cleanliness is distinct from independent correctness. The one-repair goal is reported, not an eligibility cutoff. Full-run price covers recorded agent and claim-audit usage; automatic supervisor Jev checks are not metered here. Candidate selection uses only priced research and index roles plus claim-audit input; unpriced fixed roles remain unknown in full-run price. Downstream turns and time appear by role and may differ between candidates."}
 	if err := writeJSON(filepath.Join(output, "report.json"), result); err != nil {
 		return err
 	}
@@ -830,7 +830,7 @@ func readerTelemetry(before, after observation.RunSnapshot) error {
 		data, _ := json.Marshal(transcript.Snapshot)
 		var tree any
 		_ = json.Unmarshal(data, &tree)
-		if containsTool(tree) {
+		if containsTool(tree, after.Sessions[turn.Session].Adapter) {
 			return fmt.Errorf("reader used tools outside the measured navigation protocol")
 		}
 	}
@@ -839,21 +839,21 @@ func readerTelemetry(before, after observation.RunSnapshot) error {
 	}
 	return nil
 }
-func containsTool(v any) bool {
+func containsTool(v any, adapter string) bool {
 	switch x := v.(type) {
 	case map[string]any:
 		if x["type"] == "tool" || x["type"] == "tool-invocation" {
 			// Claude's StructuredOutput and agy's finish return the typed
 			// result; neither reads a file outside the measured protocol.
-			return x["name"] != "StructuredOutput" && x["name"] != "finish"
+			return !(adapter == "*claude.adapter" && x["name"] == "StructuredOutput" || adapter == "*agy.adapter" && x["name"] == "finish")
 		}
 		for _, child := range x {
-			if containsTool(child) {
+			if containsTool(child, adapter) {
 				return true
 			}
 		}
 	case []any:
-		if slices.ContainsFunc(x, containsTool) {
+		if slices.ContainsFunc(x, func(child any) bool { return containsTool(child, adapter) }) {
 			return true
 		}
 	}
@@ -885,6 +885,7 @@ type candidateSummary struct {
 	PassRate              float64 `json:"quality_pass_rate"`
 	InitialAuditCleanRate float64 `json:"initial_audit_clean_rate"`
 	AtMostOneRepairRate   float64 `json:"quality_pass_with_at_most_one_repair_rate"`
+	MeanRepairPasses      float64 `json:"mean_repair_passes"`
 	MeanUSD               float64 `json:"mean_usd"`
 	CostKnown             bool    `json:"cost_known"`
 	MeanComparableUSD     float64 `json:"mean_comparable_usd"`
@@ -910,13 +911,14 @@ func summarizeCandidates(candidates []candidate, trials []trialResult) []candida
 				row.InitialAuditClean++
 			}
 			row.MeanUSD += t.CostUSD
+			row.MeanRepairPasses += float64(t.AuditRepairPasses)
 			row.CostKnown = row.CostKnown && t.CostKnown
 			row.MeanComparableUSD += t.ComparableCostUSD
 			row.ComparableCostKnown = row.ComparableCostKnown && t.ComparableCostKnown
 		}
 		if row.Trials > 0 {
 			n := float64(row.Trials)
-			row.PassRate, row.InitialAuditCleanRate, row.AtMostOneRepairRate, row.MeanUSD, row.MeanComparableUSD = float64(row.Passed)/n, float64(row.InitialAuditClean)/n, float64(row.AtMostOneRepair)/n, row.MeanUSD/n, row.MeanComparableUSD/n
+			row.PassRate, row.InitialAuditCleanRate, row.AtMostOneRepairRate, row.MeanRepairPasses, row.MeanUSD, row.MeanComparableUSD = float64(row.Passed)/n, float64(row.InitialAuditClean)/n, float64(row.AtMostOneRepair)/n, row.MeanRepairPasses/n, row.MeanUSD/n, row.MeanComparableUSD/n
 		} else {
 			row.CostKnown = false
 			row.ComparableCostKnown = false

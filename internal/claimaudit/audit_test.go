@@ -201,6 +201,24 @@ func TestUnsupportedInferenceBlocksAuthoring(t *testing.T) {
 	if result.AuthoringAllowed || result.Metrics.SourceFindings != 1 {
 		t.Fatalf("unsupported inference escaped source gate: %+v", result)
 	}
+	claim.Disposition = "exclude-from-factual-use"
+	claim.DispositionDigest = dispositionDigest(claim, nil, inv.Sources)
+	if err := writeClaims(dir, []Claim{claim}); err != nil {
+		t.Fatal(err)
+	}
+	result, err = Audit(context.Background(), dir, client, 1)
+	if err != nil || result.AuthoringAllowed {
+		t.Fatalf("disposition excused unsupported inference: %+v %v", result, err)
+	}
+	claim.Kind = "recommendation"
+	claim.DispositionDigest = dispositionDigest(claim, nil, inv.Sources)
+	if err := writeClaims(dir, []Claim{claim}); err != nil {
+		t.Fatal(err)
+	}
+	result, err = Audit(context.Background(), dir, client, 2)
+	if err != nil || result.AuthoringAllowed {
+		t.Fatalf("recommendation label excused unsupported assertion: %+v %v", result, err)
+	}
 }
 
 func TestSnapshotChangeBlocksCompletion(t *testing.T) {
@@ -353,7 +371,7 @@ func TestTransientResumeKeepsCompletedExtraction(t *testing.T) {
 	}
 }
 
-func TestSourceDispositionRequiresCurrentDigest(t *testing.T) {
+func TestUncitedClaimCannotBeDispositioned(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "INDEX.md"), []byte("An uncited assertion.\n"), 0o644); err != nil {
 		t.Fatal(err)
@@ -400,7 +418,10 @@ func TestSourceDispositionRequiresCurrentDigest(t *testing.T) {
 	if err := json.Unmarshal(data, &candidates); err != nil {
 		t.Fatal(err)
 	}
-	c.DispositionDigest = candidates[c.ID]
+	if candidates[c.ID] != "" {
+		t.Fatal("uncited claim offered a disposition")
+	}
+	c.DispositionDigest = dispositionDigest(c, nil, inv.Sources)
 	if err := writeClaims(dir, []Claim{c}); err != nil {
 		t.Fatal(err)
 	}
@@ -408,8 +429,62 @@ func TestSourceDispositionRequiresCurrentDigest(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !valid.AuthoringAllowed || len(valid.Unresolved) != 1 {
-		t.Fatalf("valid exclusion rejected: %+v", valid)
+	if valid.AuthoringAllowed || len(valid.RepairRequired) != 1 {
+		t.Fatalf("uncited claim was excused by disposition: %+v", valid)
+	}
+}
+
+func TestIndependentSourceReviewClearsFalseAlarm(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "sources"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	for name, body := range map[string]string{"INDEX.md": "The limit is 12 KiB.\n", "sources/limit.md": "# Limit\nThe limit is 12 KiB.\n"} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	inv, err := Prepare(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := Claim{ID: "limit", Text: "The limit is 12 KiB.", Kind: "fact", Occurrences: []Occurrence{{BlockID: inv.Blocks[0].ID, Text: "The limit is 12 KiB."}}, References: []Reference{{Path: "sources/limit.md", StartLine: 2, EndLine: 2, Quote: "The limit is 12 KiB."}}}
+	if err := writeClaims(dir, []Claim{c}); err != nil {
+		t.Fatal(err)
+	}
+	client, err := jev.New(jev.WithProvider(jev.ProviderFunc(func(_ context.Context, req *jev.Request) (*jev.Response, error) {
+		label := "uncertain"
+		if state, ok := req.State.(map[string]any); ok && state["block"] != nil {
+			label = "complete"
+		}
+		return &jev.Response{Model: model, Answers: map[string]jev.RawAnswer{"verdict": {Type: jev.KindChoice, Choice: &label, Probabilities: map[string]float64{label: 1}}}}, nil
+	})))
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, err := Audit(context.Background(), dir, client, 0)
+	if err != nil || first.AuthoringAllowed {
+		t.Fatalf("false alarm passed without review: %+v %v", first, err)
+	}
+	var candidates []ReviewCandidate
+	data, err := os.ReadFile(statePath(dir, "review-candidates.json"))
+	if err != nil || json.Unmarshal(data, &candidates) != nil {
+		t.Fatalf("candidates: %s %v", data, err)
+	}
+	if len(candidates) != 1 || candidates[0].Kind != "source" {
+		t.Fatalf("source review unavailable: %+v", candidates)
+	}
+	review := ReviewDecision{Kind: "source", ID: c.ID, Digest: candidates[0].Digest, Decision: "reviewed-source-supported", Rationale: "sources/limit.md line 2 states the full limit and unit."}
+	line, err := json.Marshal(review)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(statePath(dir, "reviews.jsonl"), append(line, '\n'), 0644); err != nil {
+		t.Fatal(err)
+	}
+	second, err := Audit(context.Background(), dir, client, 1)
+	if err != nil || !second.AuthoringAllowed {
+		t.Fatalf("supported claim not cleared by independent review: %+v %v", second, err)
 	}
 }
 

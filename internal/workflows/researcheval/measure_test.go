@@ -99,6 +99,9 @@ func TestSelectionIncludesFailuresAndUnknownCost(t *testing.T) {
 	if best, ok := bestCandidate(candidates, trials, s); !ok || best.ID != "reliable" {
 		t.Fatalf("correct two-repair candidate should remain eligible: %+v %v", best, ok)
 	}
+	if summary := summarizeCandidates(candidates, trials)[1]; summary.MeanRepairPasses != 2 || summary.AtMostOneRepair != 0 {
+		t.Fatalf("repair target not reported: %+v", summary)
+	}
 }
 
 func TestReaderContextWithholdsGoldAndOtherCases(t *testing.T) {
@@ -159,23 +162,26 @@ func TestAuditAccountingIncludesRepairsBeforeFirstCompletion(t *testing.T) {
 }
 
 func TestToolUseAndMissingUsageAreNotFreeSuccess(t *testing.T) {
-	if !containsTool(map[string]any{"parts": []any{map[string]any{"type": "tool", "name": "read"}}}) {
+	if !containsTool(map[string]any{"parts": []any{map[string]any{"type": "tool", "name": "read"}}}, "*agy.adapter") {
 		t.Fatal("tool hidden")
 	}
-	if containsTool(map[string]any{"type": "text", "text": "tool"}) {
+	if containsTool(map[string]any{"type": "text", "text": "tool"}, "*agy.adapter") {
 		t.Fatal("plain text called a tool")
 	}
-	if containsTool(map[string]any{"type": "tool", "name": "StructuredOutput"}) {
+	if containsTool(map[string]any{"type": "tool", "name": "StructuredOutput"}, "*claude.adapter") {
 		t.Fatal("native structured completion called an out-of-protocol read")
 	}
-	if containsTool(map[string]any{"type": "tool", "name": "finish"}) {
+	if containsTool(map[string]any{"type": "tool", "name": "finish"}, "*agy.adapter") {
 		t.Fatal("agy structured completion called an out-of-protocol read")
 	}
-	if !containsTool([]any{map[string]any{"type": "tool", "name": "StructuredOutput"}, map[string]any{"type": "tool", "name": "Read"}}) {
+	if !containsTool([]any{map[string]any{"type": "tool", "name": "StructuredOutput"}, map[string]any{"type": "tool", "name": "Read"}}, "*claude.adapter") {
 		t.Fatal("structured completion hid an actual tool")
 	}
-	if !containsTool([]any{map[string]any{"type": "tool", "name": "finish"}, map[string]any{"type": "tool", "name": "shell"}}) {
+	if !containsTool([]any{map[string]any{"type": "tool", "name": "finish"}, map[string]any{"type": "tool", "name": "shell"}}, "*agy.adapter") {
 		t.Fatal("agy completion hid an actual tool")
+	}
+	if !containsTool(map[string]any{"type": "tool", "name": "finish"}, "*claude.adapter") {
+		t.Fatal("a different adapter's finish call escaped telemetry")
 	}
 	if _, known := researchCost(observation.RunSnapshot{}); known {
 		t.Fatal("absent usage priced as free")

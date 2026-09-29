@@ -9,7 +9,7 @@
   "qa-orchestration": "gpt-6-sol:high",
   "research-planning": "gemini-3.8-flash-medium",
   "research-eval-planning": "claude-opus-5-5:high",
-  "research-eval-reading": "claude-haiku-4-5",
+  "research-eval-reading": "gemini-3.8-flash-medium",
   "research-eval-assessment": "claude-sonnet-5-5",
   "research-indexing": "gemini-3.8-flash-medium",
   "index-curation": "claude-sonnet-5-5",

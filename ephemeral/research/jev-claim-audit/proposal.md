@@ -441,17 +441,18 @@ The command writes `.semantic-index/completion.json` with these fields:
 | `unresolved` | IDs of retained unresolved claims and pairs, including those already dispositioned. |
 | `authoring_allowed` | `complete && coverage_complete && len(repair_required) == 0`, recomputed by code. |
 
-Findings have a curator-selected disposition, validated against the current
-claim digest: `repair`, `retain-unresolved`, `exclude-from-factual-use`, or a
-source-backed `reviewed-compatible` resolution.
+Pair findings have a curator-selected disposition, validated against the current
+claim and source digest: `retain-unresolved` or `exclude-from-factual-use`.
 `retain-unresolved` keeps the original assertion, evidence, and visible audit
 qualification; it authorizes describing the dispute, not asserting the claim
 as settled. `exclude-from-factual-use` retains the finding/marker but prohibits
-using the assertion as a factual premise. Both remove the finding from
-`repair_required` when the required occurrence markers exist. They do not
-convert source or conflict verdicts into passes. Genuine or unresolved
-extraction omissions/distortions and invalid occurrence mapping cannot be
-dispositioned away.
+using the assertion as a factual premise. When both sourced claims carry a
+current disposition, the pair leaves `repair_required`; it remains unresolved.
+Source findings require repair, or an independent editor's
+`reviewed-source-supported` decision against every valid cited original.
+Uncited and invalid-reference claims cannot be reviewed or dispositioned away.
+Genuine or unresolved extraction omissions/distortions and invalid occurrence
+mapping cannot be dispositioned away.
 
 For a suspected false extraction alarm, the curator may propose
 `reviewed-extraction-complete`, citing the original block, its enclosing context,

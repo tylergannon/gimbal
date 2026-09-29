@@ -17,6 +17,7 @@ func TestResultContractDiagnostics(t *testing.T) {
 	output := filepath.Join(dir, "..", "results_temporal_gen.go")
 	for _, tc := range []struct{ name, typ, extra, want string }{
 		{"discriminator_collision", "CollisionResult", "", "union discriminator collides case-insensitively"},
+		{"promoted_schema", "Derived", "type Derived struct { Result; Receipt bool `json:\"receipt\"` }", "embedded Generate result fields are unsupported"},
 		{"numeric", "Numeric", "", "validator that guarantees Go decoder range"},
 		{"root_decode", "Result", `func (*Result) UnmarshalJSON([]byte) error { return nil }`, "unsupported implicit json method: UnmarshalJSON"},
 		{"variant_decode", "Result", `func (*Success) UnmarshalJSON([]byte) error { return nil }`, "unsupported implicit json method: UnmarshalJSON"},

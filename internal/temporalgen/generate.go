@@ -326,6 +326,10 @@ func (e *emitter) constant(n ast.Node, c *types.Const) (string, error) {
 // Formatting and JSON encoding can invoke user methods without an explicit
 // call expression. Do not smuggle those effects into replayed orchestration.
 func (e *emitter) valueMethods(n ast.Expr, mode string) error {
+	result := mode == "result"
+	if result {
+		mode = "json"
+	}
 	seen := map[types.Type]bool{}
 	var visit func(types.Type) error
 	visit = func(t types.Type) error {
@@ -381,6 +385,9 @@ func (e *emitter) valueMethods(n ast.Expr, mode string) error {
 			return visit(u.Elem())
 		case *types.Struct:
 			for field := range u.Fields() {
+				if result && field.Embedded() {
+					return e.fail(n, "embedded Generate result fields are unsupported: schema and codec methods can be promoted from a different type")
+				}
 				if err := visit(field.Type()); err != nil {
 					return err
 				}
@@ -592,7 +599,7 @@ func (e *emitter) operation(a *ast.AssignStmt, c *ast.CallExpr, s scope) error {
 		e.activity(s, "OpenSession", []string{s.id, strconv.Quote(id), "gimbal.WorkflowRole(" + args[0] + ")", args[1]}, result)
 		return e.bind(a, []string{result})
 	case "Generate":
-		if err := e.valueMethods(c, "json"); err != nil {
+		if err := e.valueMethods(c, "result"); err != nil {
 			return err
 		}
 		if len(c.Args) != 2 {

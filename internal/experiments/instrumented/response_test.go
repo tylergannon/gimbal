@@ -180,6 +180,17 @@ func TestPolytypeResponseCorrespondence(t *testing.T) {
 }
 
 func TestPolytypeSchemaDecoderGap(t *testing.T) {
+	type derived struct {
+		resulttypes.Result
+		Receipt bool `json:"receipt"`
+	}
+	if err := (derived{}).ValidateJSON([]byte(acceptedResult)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := compiledscope.Consume[derived]([]byte(acceptedResult), nil); err == nil {
+		t.Fatal("promoted schema does not describe the outer result")
+	}
+
 	raw := []byte(`{"outcome":{"type":"Collision","TYPE":true}}`)
 	if err := (resulttypes.CollisionResult{}).ValidateJSON(raw); err != nil {
 		t.Fatalf("pinned discriminator behavior changed: %v", err)

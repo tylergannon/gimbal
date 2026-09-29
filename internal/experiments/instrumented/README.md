@@ -80,12 +80,14 @@ Polytype. Case-folded discriminator/variant-field collisions are diagnosed becau
 Go decoding treats those names as equivalent. Arbitrary decode hooks, including nested variant
 hooks, are diagnosed. The exact Polytype generated-file header identifies owned
 methods; this assumes generated inputs have not been manually tampered with.
+Embedding is diagnosed throughout result shapes because it can promote a schema
+or codec belonging to a different type.
 
 Numeric result fields are currently diagnosed: Polytype v1.1.0's schema validator
 can accept out-of-range integers and integer-valued decimal/exponent notation
 that the Go decoder rejects. This narrows the earlier prototype's acceptance.
 Improving that Polytype contract is follow-up work, not a controller retry loop.
-Arrays, maps, presence wrappers, provided field schemas, recursion, root pointers
+Arrays, maps, embedding, presence wrappers, provided field schemas, recursion, root pointers
 and unsupported JSON tag mappings are also outside this result slice. Other authored numeric values/command results
 are unchanged.
 

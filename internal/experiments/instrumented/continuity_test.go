@@ -53,7 +53,7 @@ func TestNonzeroCommandIsData(t *testing.T) {
 	var suite testsuite.WorkflowTestSuite
 	e := suite.NewTestActivityEnvironment()
 	e.RegisterActivity(a)
-	result, err := e.ExecuteActivity(a.Diagnostic, operationInput{})
+	result, err := e.ExecuteActivity(a.ContinuityRunCommand1, operationInput{}, "diagnostic", a.workdir, "sh", []string{"-c", "printf observed; printf diagnostic >&2; exit 7"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,12 +101,8 @@ func TestLiveContinuity(t *testing.T) {
 		defer stop()
 		_ = c.CancelWorkflow(cleanup, id, run.GetRunID())
 	}()
-	var out continuityOutcome
-	if err = run.Get(ctx, &out); err != nil {
+	if err = run.Get(ctx, nil); err != nil {
 		t.Fatal(err)
-	}
-	if out.Decision.Summary != "edit" || out.Child.Summary != "child" || out.Child.Receipt != "amber-17" || out.Fork.Receipt != "amber-17" || out.Fork.Summary != "violet-29" || out.Final.Receipt != "amber-17" || out.Final.Summary != "parent" {
-		t.Fatalf("bad continuation: %+v", out)
 	}
 	dir := filepath.Join(stateRoot(), environmentID(id), "workspace")
 	b, err := os.ReadFile(filepath.Join(dir, "continuity.txt"))
@@ -117,7 +113,7 @@ func TestLiveContinuity(t *testing.T) {
 	if err != nil || string(b) != "recovered" {
 		t.Fatalf("recovery=%q %v", b, err)
 	}
-	t.Logf("continuation, fork independence, context restoration, nonzero recovery: %+v; workspace %s", out, dir)
+	t.Logf("authored continuation validation and workspace effects completed; workspace %s", dir)
 }
 
 func TestSetCapturesExactLargeInteger(t *testing.T) {

@@ -273,7 +273,7 @@ func TestBodyAndSessionCleanupFailuresBothSurvive(t *testing.T) {
 	if err = encoded.Get(&handle); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = e.ExecuteActivity(a.Remember, operationInput{Session: handle}); err != nil {
+	if _, err = e.ExecuteActivity(a.ContinuityGenerate1, operationInput{Session: handle}); err != nil {
 		t.Fatal(err)
 	}
 	_, err = e.ExecuteActivity(a.Finish, "body failed")

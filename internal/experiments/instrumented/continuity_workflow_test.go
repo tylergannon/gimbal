@@ -8,6 +8,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/internal/compiledscope"
 	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/testsuite"
@@ -34,38 +35,41 @@ func TestContinuityWorkflowBranchesAndFullResults(t *testing.T) {
 			})
 			reg("EnterScope", func(context.Context, ScopeInput) error { record("enter"); return nil })
 			reg("ExitScope", func(context.Context, string, string) error { record("exit"); return nil })
-			reg("NewParent", func(context.Context) (sessionHandle, error) { return sessionHandle{ID: "parent"}, nil })
-			reg("Remember", func(context.Context, operationInput) (generateResult, error) {
+			reg("WorkDir", func(context.Context) (string, error) { return "test", nil })
+			reg("OpenSession", func(context.Context, string, string, gimbal.WorkflowRole, string) (sessionHandle, error) {
+				return sessionHandle{ID: "parent"}, nil
+			})
+			reg("ContinuityGenerate1", func(context.Context, operationInput) (generateResult, error) {
 				record("remember")
 				if mode == "agent-error" {
 					return generateResult{Failure: failure(errors.New("provider unavailable"))}, nil
 				}
 				return generateResult{Value: Report{Summary: mode, Receipt: "amber-17", File: "continuity.txt"}}, nil
 			})
-			reg("Edit", func(_ context.Context, in operationInput) (generateResult, error) {
+			reg("ContinuityGenerate2", func(_ context.Context, in operationInput) (generateResult, error) {
 				record("edit")
 				if in.Session.Owner != "" || in.Scope != "child.1" {
 					t.Error("ownership changed")
 				}
 				return generateResult{Value: Report{Summary: "child", Receipt: "amber-17"}}, nil
 			})
-			reg("ForkSession", func(context.Context, operationInput) (sessionHandle, error) {
+			reg("OpenFork", func(context.Context, operationInput, string) (operationResult[sessionHandle], error) {
 				record("fork")
-				return sessionHandle{Owner: "child.1", ID: "fork"}, nil
+				return operationResult[sessionHandle]{Value: sessionHandle{Owner: "child.1", ID: "fork"}}, nil
 			})
-			reg("Diverge", func(context.Context, operationInput) (generateResult, error) {
+			reg("ContinuityGenerate3", func(context.Context, operationInput) (generateResult, error) {
 				record("diverge")
 				return generateResult{Value: Report{Receipt: "violet-29"}}, nil
 			})
-			reg("Diagnostic", func(context.Context, operationInput) (commandResult, error) {
+			reg("ContinuityRunCommand1", func(context.Context, operationInput, string, string, string, []string) (commandResult, error) {
 				record("diagnostic")
 				return commandResult{ExitCode: 7, Stdout: "observed", Stderr: "diagnostic"}, nil
 			})
-			reg("Recover", func(context.Context, operationInput) (commandResult, error) {
+			reg("ContinuityRunCommand2", func(context.Context, operationInput, string, string, string, []string) (commandResult, error) {
 				record("recover")
 				return commandResult{}, nil
 			})
-			reg("Resume", func(_ context.Context, in operationInput) (generateResult, error) {
+			reg("ContinuityGenerate4", func(_ context.Context, in operationInput) (generateResult, error) {
 				record("resume")
 				if in.Session.ID != "parent" || in.Scope != "" || strings.Contains(string(in.Context), "child") {
 					t.Error("parent not restored")

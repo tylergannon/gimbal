@@ -8,7 +8,6 @@ import (
 
 	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/internal/compiledscope"
-	"github.com/tylergannon/gimbal/internal/experiments/instrumented/continuity"
 )
 
 // Handles refer to resources owned by a worker scope, never a transient activity.
@@ -50,22 +49,28 @@ func (r commandResult) Err() error {
 	return r.Failure
 }
 
-type generateResult struct {
-	Value   Report
+type operationResult[T any] struct {
+	Value   T
 	Failure *operationFailure
 }
 
-func (r generateResult) Err() error {
+func (r operationResult[T]) Err() error {
 	if r.Failure == nil {
 		return nil
 	}
 	return r.Failure
 }
 
+type generateResult = operationResult[Report]
+
 func (a *Activities) NewParent(ctx context.Context) (sessionHandle, error) {
 	return a.newSession(ctx, "", "parent")
 }
 func (a *Activities) newSession(ctx context.Context, owner, id string) (sessionHandle, error) {
+	return a.OpenSession(ctx, owner, id, coder, a.workdir)
+}
+func (a *Activities) WorkDir(context.Context) (string, error) { return a.workdir, nil }
+func (a *Activities) OpenSession(ctx context.Context, owner, id string, role gimbal.WorkflowRole, workdir string) (sessionHandle, error) {
 	scoped, release, err := a.operation(ctx, owner)
 	if err != nil {
 		return sessionHandle{}, err
@@ -80,7 +85,7 @@ func (a *Activities) newSession(ctx context.Context, owner, id string) (sessionH
 	if f.sessions[id] != nil {
 		return sessionHandle{}, fmt.Errorf("duplicate session %s", id)
 	}
-	f.sessions[id] = gimbal.NewSession(scoped, coder, a.workdir)
+	f.sessions[id] = gimbal.NewSession(scoped, role, workdir)
 	return sessionHandle{owner, id}, nil
 }
 func (a *Activities) session(in operationInput) (*gimbal.Session, error) {
@@ -118,55 +123,15 @@ func (a *Activities) turnInput(ctx context.Context, in operationInput) (context.
 	}
 	return scoped, session, release, nil
 }
-func (a *Activities) Remember(ctx context.Context, in operationInput) (generateResult, error) {
+func (a *Activities) OpenFork(ctx context.Context, in operationInput, name string) (operationResult[sessionHandle], error) {
 	scoped, session, release, err := a.turnInput(ctx, in)
 	if err != nil {
-		return generateResult{}, err
+		return operationResult[sessionHandle]{}, err
 	}
 	defer release()
-	value, err := session.Generate[Report](scoped, continuity.RememberPrompt)
-	return generateResult{value, failure(err)}, nil
-}
-func (a *Activities) Edit(ctx context.Context, in operationInput) (generateResult, error) {
-	scoped, session, release, err := a.turnInput(ctx, in)
+	fork, err := session.Fork(scoped, name)
 	if err != nil {
-		return generateResult{}, err
-	}
-	defer release()
-	value, err := session.Generate[Report](scoped, continuity.EditPrompt)
-	return generateResult{value, failure(err)}, nil
-}
-func (a *Activities) Diverge(ctx context.Context, in operationInput) (generateResult, error) {
-	scoped, session, release, err := a.turnInput(ctx, in)
-	if err != nil {
-		return generateResult{}, err
-	}
-	defer release()
-	value, err := session.Generate[Report](scoped, continuity.ForkPrompt)
-	return generateResult{value, failure(err)}, nil
-}
-func (a *Activities) Resume(ctx context.Context, in operationInput) (generateResult, error) {
-	scoped, session, release, err := a.turnInput(ctx, in)
-	if err != nil {
-		return generateResult{}, err
-	}
-	defer release()
-	value, err := session.Generate[Report](scoped, continuity.ResumePrompt)
-	return generateResult{value, failure(err)}, nil
-}
-func (a *Activities) ForkSession(ctx context.Context, in operationInput) (sessionHandle, error) {
-	scoped, release, err := a.input(ctx, in.Scope, in.Context)
-	if err != nil {
-		return sessionHandle{}, err
-	}
-	defer release()
-	s, err := a.session(in)
-	if err != nil {
-		return sessionHandle{}, err
-	}
-	fork, err := s.Fork(scoped, "fork")
-	if err != nil {
-		return sessionHandle{}, err
+		return operationResult[sessionHandle]{Failure: failure(err)}, nil
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -174,26 +139,24 @@ func (a *Activities) ForkSession(ctx context.Context, in operationInput) (sessio
 	if f.sessions == nil {
 		f.sessions = map[string]*gimbal.Session{}
 	}
-	f.sessions["fork"] = fork
-	return sessionHandle{in.Scope, "fork"}, nil
+	id := fmt.Sprintf("fork-%d", len(f.sessions)+1)
+	f.sessions[id] = fork
+	return operationResult[sessionHandle]{Value: sessionHandle{in.Scope, id}}, nil
 }
 func (a *Activities) SetValue(ctx context.Context, id string, base compiledscope.Snapshot, entry compiledscope.Entry) (compiledscope.Snapshot, error) {
 	return a.write(ctx, id, base, entry)
 }
 func (a *Activities) command(ctx context.Context, in operationInput, name, command string, args ...string) (commandResult, error) {
+	return a.commandAt(ctx, in, name, a.workdir, command, args...)
+}
+func (a *Activities) commandAt(ctx context.Context, in operationInput, name, dir, command string, args ...string) (commandResult, error) {
 	scoped, release, err := a.input(ctx, in.Scope, in.Context)
 	if err != nil {
 		return commandResult{}, err
 	}
 	defer release()
-	code, out, stderr, err := gimbal.RunCommand(scoped, name, a.workdir, command, args...)
+	code, out, stderr, err := gimbal.RunCommand(scoped, name, dir, command, args...)
 	return commandResult{code, out, stderr, failure(err)}, nil
-}
-func (a *Activities) Diagnostic(ctx context.Context, in operationInput) (commandResult, error) {
-	return a.command(ctx, in, "diagnostic", "sh", "-c", "printf observed; printf diagnostic >&2; exit 7")
-}
-func (a *Activities) Recover(ctx context.Context, in operationInput) (commandResult, error) {
-	return a.command(ctx, in, "recovery", "sh", "-c", "printf recovered > recovery.txt")
 }
 func (a *Activities) MissingCommand(ctx context.Context, in operationInput) (commandResult, error) {
 	return a.command(ctx, in, "missing", filepath.Join(a.workdir, "does-not-exist"))

@@ -34,7 +34,7 @@ func largeResultWorkflow(ctx workflow.Context) (out Report, err error) {
 		return
 	}
 	var result generateResult
-	if err = workflow.ExecuteActivity(ctx, "Remember", operationInput{"", snapshot, parent}).Get(ctx, &result); err != nil {
+	if err = workflow.ExecuteActivity(ctx, "ContinuityGenerate1", operationInput{"", snapshot, parent}).Get(ctx, &result); err != nil {
 		return
 	}
 	if err = result.Err(); err != nil {

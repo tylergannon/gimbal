@@ -49,7 +49,7 @@ func init() {
 		}
 		return nil
 	}
-	compiledscope.Plan = func(ctx context.Context, resource any, goal, workdir string, tasksJSON []byte, previous string) ([]byte, error) {
+	compiledscope.Plan = func(ctx context.Context, resource any, name, goal string, tasksJSON []byte, previous string) ([]byte, error) {
 		s, err := current(ctx)
 		if err != nil {
 			return nil, err
@@ -73,7 +73,7 @@ func init() {
 			s.run.event(s.key, "", "", Steer{Target: s.key, Source: "person", Message: message, Landed: true})
 		}
 		// Reuse the runtime's prompt construction, budgets and validated plan type.
-		prompt, err := planPrompt(ctx, "plan", workdir, string(backlog), scopeText(ctx), previous, messages)
+		prompt, err := planPrompt(ctx, name, planner.workdir, string(backlog), scopeText(ctx), previous, messages)
 		if err != nil {
 			return nil, err
 		}

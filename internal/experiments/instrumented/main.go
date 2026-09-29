@@ -113,9 +113,9 @@ func run() error {
 		return json.NewEncoder(os.Stdout).Encode(report)
 	case "control":
 		w := worker.New(c, controlQueue, worker.Options{})
-		w.RegisterWorkflow(ContinuityWorkflow)
+		registerContinuity(w)
 		w.RegisterWorkflow(FanoutWorkflow)
-		w.RegisterWorkflow(PlanningWorkflow)
+		registerPlanning(w)
 		w.RegisterActivity(ProvisionEnvironment)
 		w.RegisterActivity(ReleaseEnvironment)
 		if err := w.Start(); err != nil {

@@ -8,7 +8,6 @@ import (
 
 	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/internal/compiledscope"
-	"github.com/tylergannon/gimbal/internal/experiments/instrumented/planning"
 )
 
 type planValue struct {
@@ -38,7 +37,7 @@ func (a *Activities) EnterTaskScope(_ context.Context, in ScopeInput, task gimba
 		return compiledscope.OpenTask(ctx, name, raw)
 	})
 }
-func (a *Activities) Plan(ctx context.Context, in operationInput, tasks []gimbal.Task, previous string) (planResult, error) {
+func (a *Activities) plan(ctx context.Context, in operationInput, name, goal string, tasks []gimbal.Task, previous string) (planResult, error) {
 	scoped, release, err := a.input(ctx, in.Scope, in.Context)
 	if err != nil {
 		return planResult{}, err
@@ -52,14 +51,14 @@ func (a *Activities) Plan(ctx context.Context, in operationInput, tasks []gimbal
 	if err != nil {
 		return planResult{}, err
 	}
-	answer, err := compiledscope.Plan(scoped, session, planning.Goal, a.workdir, raw, previous)
+	answer, err := compiledscope.Plan(scoped, session, name, goal, raw, previous)
 	var out planValue
 	if err == nil {
 		err = json.Unmarshal(answer, &out)
 	}
 	return planResult{out, failure(err)}, nil
 }
-func (a *Activities) RecordPlan(ctx context.Context, id string, p planValue) error {
+func (a *Activities) RecordPlan(ctx context.Context, id, goal string, p planValue) error {
 	scoped, release, err := a.operation(ctx, id)
 	if err != nil {
 		return err
@@ -69,16 +68,7 @@ func (a *Activities) RecordPlan(ctx context.Context, id string, p planValue) err
 	if err != nil {
 		return err
 	}
-	return compiledscope.RecordPlan(scoped, planning.Goal, raw)
-}
-func (a *Activities) TaskTurn(ctx context.Context, in operationInput) (generateResult, error) {
-	scoped, session, release, err := a.turnInput(ctx, in)
-	if err != nil {
-		return generateResult{}, err
-	}
-	defer release()
-	value, err := session.Generate[Report](scoped, planning.WorkPrompt)
-	return generateResult{value, failure(err)}, nil
+	return compiledscope.RecordPlan(scoped, goal, raw)
 }
 
 type checkResult struct {
@@ -86,17 +76,17 @@ type checkResult struct {
 	Context compiledscope.Snapshot
 }
 
-func (a *Activities) TaskCheck(ctx context.Context, in operationInput) (checkResult, error) {
-	return a.check(ctx, in, "check", "sh", "-c", "test \"$(cat planned.txt)\" = done")
-}
 func (a *Activities) check(ctx context.Context, in operationInput, key, command string, args ...string) (checkResult, error) {
+	return a.checkAt(ctx, in, key, a.workdir, command, args...)
+}
+func (a *Activities) checkAt(ctx context.Context, in operationInput, key, dir, command string, args ...string) (checkResult, error) {
 	scoped, release, err := a.input(ctx, in.Scope, in.Context)
 	if err != nil {
 		return checkResult{}, err
 	}
 	defer release()
-	code, out, stderr, commandErr := gimbal.RunCommand(scoped, key, a.workdir, command, args...)
-	record := checkRecord{command, append([]string(nil), args...), a.workdir, code, out, stderr, errorText(commandErr)}
+	code, out, stderr, commandErr := gimbal.RunCommand(scoped, key, dir, command, args...)
+	record := checkRecord{command, append([]string(nil), args...), dir, code, out, stderr, errorText(commandErr)}
 	// Keep the producing lease until both command and its implicit Set finish.
 	// Context publication is independent of a cancelled process context.
 	ref, recordErr := compiledscope.WriteContext(scoped, a.store, in.Context, contextEntry(key, record))

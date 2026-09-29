@@ -55,9 +55,16 @@ func runPairSide(t *testing.T, name, mode string, target bool) pairedRun {
 	a := newTestActivities(t)
 	adapter := &pairedAdapter{tokens: map[string]string{}}
 	decisions, workers := 0, 0
+	variation := os.Getenv("GIMBAL_GENERATION_CASE")
+	resultKey := "implementation"
+	if variation == "rename" {
+		resultKey = "delivery"
+	}
 	adapter.turn = func(_ context.Context, id, prompt string) (any, error) {
 		var operation string
 		switch {
+		case strings.Contains(prompt, "EXTRA SOURCE TURN"):
+			operation = "extra"
 		case strings.Contains(prompt, continuity.RememberPrompt):
 			operation = "remember"
 		case strings.Contains(prompt, continuity.EditPrompt):
@@ -88,6 +95,8 @@ func runPairSide(t *testing.T, name, mode string, target bool) pairedRun {
 			}
 		}
 		switch operation {
+		case "extra":
+			return Report{Summary: "extra", Receipt: "done"}, nil
 		case "remember":
 			adapter.tokens[id] = "amber-17"
 			decision := "edit"
@@ -136,18 +145,31 @@ func runPairSide(t *testing.T, name, mode string, target bool) pairedRun {
 			_, scoped, _ := strings.Cut(prompt, "Scoped context:\n\n")
 			scoped, _, _ = strings.Cut(scoped, "Previous task record:")
 			scoped, _, _ = strings.Cut(scoped, "Backlog now:")
-			if !strings.Contains(scoped, "## review\n\nparent") || strings.Contains(scoped, "## implementation") || strings.Contains(scoped, "## receipt") || strings.Contains(scoped, "## task") {
+			if !strings.Contains(scoped, "## review\n\nparent") || strings.Contains(scoped, "## "+resultKey) || strings.Contains(scoped, "## receipt") || strings.Contains(scoped, "## task") {
 				t.Error("task locals promoted to planner current context")
 			}
 			if decisions > 1 {
 				_, feedback, ok := strings.Cut(prompt, "Previous task record")
-				if !ok || !strings.Contains(feedback, "## implementation") || strings.Contains(feedback, "## result") || !strings.Contains(feedback, "## receipt\n\nrecorded:done") {
+				if !ok || !strings.Contains(feedback, "## "+resultKey) || strings.Contains(feedback, "## result") || !strings.Contains(feedback, "## receipt\n\nrecorded:done") {
 					t.Error("renamed/additional feedback lost")
 				}
-				if decisions == 2 && !strings.Contains(feedback, "## review\n\ntask") {
+				if variation == "rename" && strings.Contains(feedback, "## implementation") {
+					t.Error("obsolete feedback key retained")
+				}
+				if variation == "additional" && !strings.Contains(feedback, "## proof_note\n\nadditional evidence") {
+					t.Error("added local write missing")
+				}
+				if variation == "command" && !strings.Contains(feedback, `"stdout": "source-check"`) {
+					t.Error("changed command evidence missing")
+				}
+				shadowed := decisions == 2
+				if variation == "conditional" {
+					shadowed = decisions == 3
+				}
+				if shadowed && !strings.Contains(feedback, "## review\n\ntask") {
 					t.Error("executed shadow missing")
 				}
-				if decisions == 3 && strings.Contains(feedback, "## review") {
+				if !shadowed && strings.Contains(feedback, "## review") {
 					t.Error("unwritten inherited value presented as task-local")
 				}
 				if !strings.Contains(prompt, "Previous task record") || !strings.Contains(prompt, `"exit_code": 0`) || !strings.Contains(prompt, `"receipt": "done"`) {
@@ -160,6 +182,9 @@ func runPairSide(t *testing.T, name, mode string, target bool) pairedRun {
 			i := 0
 			return planValue{Tasks: []gimbal.Task{{Name: fmt.Sprintf("task-%d", decisions), Description: "Write planned.txt containing done", DefinitionOfDone: "file contains done"}}, Next: &i}, nil
 		case "work":
+			if variation == "prompt" && !strings.Contains(prompt, "Changed by source.") {
+				t.Error("changed prompt missing")
+			}
 			workers++
 			if !strings.Contains(prompt, fmt.Sprintf("task-%d", workers)) {
 				t.Error("wrong selected assignment")
@@ -199,7 +224,7 @@ func runPairSide(t *testing.T, name, mode string, target bool) pairedRun {
 		return nil
 	}, activity.RegisterOptions{Name: "ReleaseEnvironment"})
 	e.SetOnActivityCompletedListener(func(info *activity.Info, encoded converter.EncodedValue, activityErr error) {
-		if info.ActivityType.Name != "Remember" && info.ActivityType.Name != "TaskTurn" {
+		if info.ActivityType.Name != "ContinuityGenerate1" && info.ActivityType.Name != "PlanningGenerate1" {
 			return
 		}
 		if activityErr != nil {
@@ -280,31 +305,35 @@ func normalizedPrompts(r pairedRun) []string {
 
 func assertPairedOperations(t *testing.T, name, mode string, r pairedRun) {
 	t.Helper()
-	want := []string{"Remember", "Edit", "Diverge", "Diagnostic", "Recover", "Resume"}
+	want := []string{"ContinuityGenerate1", "ContinuityGenerate2", "ContinuityGenerate3", "ContinuityRunCommand1", "ContinuityRunCommand2", "ContinuityGenerate4"}
 	trace := []string{"remember:1", "edit:1", "fork:1:2", "diverge:2", "close:2", "resume:1", "close:1"}
 	if mode == "skip" {
-		want = []string{"Remember", "Diagnostic", "Recover", "Resume"}
+		want = []string{"ContinuityGenerate1", "ContinuityRunCommand1", "ContinuityRunCommand2", "ContinuityGenerate4"}
 		trace = []string{"remember:1", "resume:1", "close:1"}
 	}
 	if name == "planning" {
-		want = []string{"Plan", "TaskTurn", "TaskCheck", "Plan", "TaskTurn", "TaskCheck", "Plan"}
+		want = []string{"PlanningPlan1", "PlanningGenerate1", "PlanningCheck1", "PlanningPlan1", "PlanningGenerate1", "PlanningCheck1", "PlanningPlan1"}
 		trace = []string{"plan:1", "work:2", "close:2", "plan:1", "work:3", "close:3", "plan:1", "close:1"}
 		if mode == "stop" || mode == "planner-failure" {
-			want = []string{"Plan"}
+			want = []string{"PlanningPlan1"}
 			trace = []string{"plan:1", "close:1"}
 		}
 	}
 	if mode == "failure" || mode == "cancelled" || mode == "deadline" {
-		want = []string{"Remember"}
+		want = []string{"ContinuityGenerate1"}
 		trace = []string{"remember:1", "close:1"}
 		if name == "planning" {
-			want = []string{"Plan", "TaskTurn"}
+			want = []string{"PlanningPlan1", "PlanningGenerate1"}
 			trace = []string{"plan:1", "work:2", "close:2", "close:1"}
 		}
 	}
+	if name == "planning" && os.Getenv("GIMBAL_GENERATION_CASE") == "generate" && (mode == "success" || mode == "cleanup-failure") {
+		want = []string{"PlanningPlan1", "PlanningGenerate1", "PlanningCheck1", "PlanningGenerate2", "PlanningPlan1", "PlanningGenerate1", "PlanningCheck1", "PlanningGenerate2", "PlanningPlan1"}
+		trace = []string{"plan:1", "work:2", "extra:2", "close:2", "plan:1", "work:3", "extra:3", "close:3", "plan:1", "close:1"}
+	}
 	var operations []string
 	for _, a := range r.activities {
-		if slices.Contains([]string{"Remember", "Edit", "Diverge", "Diagnostic", "Recover", "Resume", "Plan", "TaskTurn", "TaskCheck"}, a) {
+		if slices.Contains([]string{"ContinuityGenerate1", "ContinuityGenerate2", "ContinuityGenerate3", "ContinuityRunCommand1", "ContinuityRunCommand2", "ContinuityGenerate4", "PlanningPlan1", "PlanningGenerate1", "PlanningGenerate2", "PlanningCheck1"}, a) {
 			operations = append(operations, a)
 		}
 	}
@@ -414,9 +443,9 @@ func TestInfrastructureFailureStopsBeforeAuthoredOperations(t *testing.T) {
 			e.ExecuteWorkflow(func(ctx workflow.Context) error {
 				var err error
 				if name == "continuity" {
-					_, err = ContinuityWorkflow(ctx, Input{})
+					err = ContinuityWorkflow(ctx, Input{})
 				} else {
-					_, err = PlanningWorkflow(ctx, Input{})
+					err = PlanningWorkflow(ctx, Input{})
 				}
 				// Test the authored caller's error boundary, before Temporal
 				// serializes the final joined error for an external client.

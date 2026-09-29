@@ -8,6 +8,6 @@ import (
 const coder gimbal.WorkflowRole = "coder"
 const coach gimbal.WorkflowRole = "coach"
 
-// Handwritten output uses the same result types as the authored source.
+// Shared tests and the handwritten fanout use the authored result types.
 type Report = continuity.Report
 type Checks = continuity.Checks

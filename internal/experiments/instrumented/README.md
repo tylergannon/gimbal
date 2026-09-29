@@ -1,19 +1,74 @@
-# Handwritten Temporal compiler targets
+# Experimental Temporal compiler target
 
-These are source/output examples, not a source compiler. Authored Go stays in
-`continuity/plain.go`, `fanout/plain.go`, and `planning/plain.go`.
-Their generated Gimbal graphs power the UI; the Temporal counterparts are
-handwritten. The examples address results/session continuity, two explicitly
-authored parallel branches, and explicit planner/Check expansion. The default
-is continuity. The retired four-defect repair example and its dedicated tests
-were removed; its historical evidence and replay require revision `b5aeff81`.
+Continuity and planning are generated from ordinary authored Go in
+`continuity/plain.go` and `planning/plain.go`. `internal/temporalgen` reads their
+syntax, Go types and bindings; it does not read visualization graphs or saved
+handwritten answers. Generated `*_temporal_gen.go` files contain the workflows,
+one activity method per agent/command/planner site, and workflow registration.
+The activity worker registers these methods through its existing Activities
+registration. Fixed fanout remains handwritten and outside this generator.
+
+Run from the repository root:
+
+```sh
+go generate ./internal/experiments/instrumented/...
+go test ./internal/temporalgen ./internal/experiments/instrumented ./internal/compiledscope ./internal/observation
+```
+
+Deleting the two `*_temporal_gen.go` files before generation is supported. The
+entry command for one input is `go run ./internal/temporalgen/temporalgen -dir
+./internal/experiments/instrumented/planning -entry Planning -name planning
+-output ./internal/experiments/instrumented/planning_temporal_gen.go` (on one line).
+The source packages separately generate the graphs used by the UI. Neither
+compiler consumes the other's output. The default executable workflow remains
+continuity. The retired repair example requires historical revision b5aeff81.
+
+## Bounded source surface
+
+Entries have `(context.Context, gimbal.Env) error` signatures. Supported constructs
+are local assignments, exported typed results and struct fields/literals, scalar
+constants, comparisons and arithmetic, if/else (including operation initializers),
+explicit error returns, Set/SetJSON, NewSession, Generate, Fork, RunCommand, Check,
+inline Scope callbacks with named context parameters, and one Tasks range per
+root-level PromiseLoop binding. The task range currently declares its context
+and discards its Task value. Generate and PromiseLoop options are not supported.
+
+Go binding objects identify locals, sessions, imports and Gimbal calls; spelling
+is not semantic. Source local names remain recognizable in generated variables.
+Operation arguments are evaluated in workflow order and passed as activity
+parameters. Each write encodes its value before the next mutation. Completed
+local writes append their keys in generated task control flow, so conditional
+writes and newly authored entries require no separate feedback configuration.
+Check records its implicit write inside its producing activity, including failure.
+
+Scopes keep their real callback boundary. Task bodies use explicit awaited exit
+on normal completion and return, without an artificial callback. Loop entry
+occurs at iteration, and cleanup completes before code following the range.
+The generated entries return the source's error; earlier handwritten observation
+structs are no longer their return contract. Inspect events for results.
+
+The admitted ordinary helper is fmt.Errorf. Arbitrary helpers, imported mutable
+package values, context values outside recognized lexical operation arguments,
+function/closure expressions outside Scope, goroutines, arbitrary loops, named
+task range values, break/continue, panic/recover/defer, services, groups and
+unsupported options receive source-located diagnostics. Named fractional/complex
+constants are rejected; typed string/integer/boolean constants preserve their
+Go types. Custom formatting/JSON callbacks and opaque interface containers in replayed
+value expressions are rejected, as is variadic helper expansion; the standard time.Duration scalar formatter is admitted. Schema and
+validation methods execute in the activity's Generate. This is a bounded
+compiler, not an effect analyzer for general Go.
+
+Failed generation replaces the target file with an explicit build failure marker;
+stale output cannot be mistaken for a successful translation. Fix source and
+regenerate to recover. Identical inputs produce stable formatted output.
 
 Each Generate source site has a separate named activity. Temporal owns the Go
 conditions, loops, futures, and joins. Worker scopes own sessions and processes;
 activities lease them temporarily. Scope callbacks retain their authored
 function boundary. The planner's task iteration uses explicit awaited cleanup.
-Small source/target tests cover normal, return, helper-return, labeled and
-unlabeled break/continue, caught errors and combined body/cleanup failure.
+The paired tests cover generated scope/task returns and cleanup. Separate
+handwritten lowering tests cover helper-return and labeled/unlabeled exits; those
+support backend semantics, not claims that this compiler translates those exits.
 
 One prepared image serves one control worker and one activity container per run.
 Branches share a workspace; file ownership is an instruction, not enforcement.
@@ -98,8 +153,20 @@ another owner. Stop/remove the dedicated control worker when finished.
 
 ## Checks
 
+`TestSourceVariations` copies a disposable module, deletes and regenerates both
+targets, and executes the paired comparison. With generator/backend fixed it
+separately renames a context key, adds a write, reverses conditional shadowing,
+changes a prompt, changes a command, adds another Generate, renames the loop, and
+renames local/import bindings and adds an empty Scope. Each case executes all thirteen paired scenarios,
+independently regenerates its source graph, and verifies repeatable generation.
+Reverting the edits reproduces baseline output and execution. Expectations change
+only through test case inputs; no output/activity/key-list edits are made.
+`TestUnsupportedSourceInvalidatesOutput` checks source-located diagnostics,
+invalidates old output and verifies recovery after fixing source.
+
+
 `TestPairedWorkflows` executes the actual authored continuity/planning functions
-through Project.Run and their handwritten targets through Temporal's test
+through Project.Run and their generated targets through Temporal's test
 scheduler with real activities. Both use the same deterministic response rules,
 real commands and isolated temporary workspaces. It compares prompts, supported
 errors, operation/resource order and semantic event fields after removing clocks,
@@ -137,6 +204,6 @@ temporal workflow show --workflow-id WORKFLOW_ID --output json > /tmp/history.js
 SPECIMEN_HISTORY=/tmp/history.json go test ./internal/experiments/instrumented -run TestRecordedHistoryReplay
 ```
 
-Do not replay older histories against changed handwritten scheduling. Evidence,
+Do not replay older histories against changed generated or handwritten scheduling. Evidence,
 accepted promises and contract details live in Gimbal View's
 `ephemeral/static-reassessment/`; passing tests alone do not certify UI legibility.

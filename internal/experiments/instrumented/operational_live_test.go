@@ -100,9 +100,9 @@ func TestLiveOperationalBoundary(t *testing.T) {
 				t.Fatal(err)
 			}
 			t.Logf("workflow %s", id)
-			target := "Edit"
+			target := "ContinuityGenerate2"
 			if mode == "control-restart" {
-				target = "Remember"
+				target = "ContinuityGenerate1"
 			}
 			waitActivity(t, ctx, c, id, target, false)
 			started := time.Now()
@@ -112,7 +112,7 @@ func TestLiveOperationalBoundary(t *testing.T) {
 					t.Fatalf("stop: %s %v", b, err)
 				}
 				defer func() { _ = exec.Command("docker", "start", "gimbal-instrumented-control").Run() }()
-				waitActivity(t, ctx, c, id, "Remember", true)
+				waitActivity(t, ctx, c, id, "ContinuityGenerate1", true)
 				// That result is durable while no workflow worker exists to schedule Edit.
 				if b, err := exec.CommandContext(ctx, "docker", "start", "gimbal-instrumented-control").CombinedOutput(); err != nil {
 					t.Fatalf("restart: %s %v", b, err)
@@ -126,13 +126,9 @@ func TestLiveOperationalBoundary(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			var out continuityOutcome
-			err = run.Get(ctx, &out)
+			err = run.Get(ctx, nil)
 			if (err != nil) != (mode != "control-restart") {
-				t.Fatalf("outcome %+v %v", out, err)
-			}
-			if mode == "control-restart" && (out.Final.Receipt != "amber-17" || out.Final.Summary != "parent") {
-				t.Fatal(out)
+				t.Fatalf("outcome %v", err)
 			}
 			h, herr := recordedHistory(ctx, c, id)
 			if herr != nil {
@@ -140,7 +136,7 @@ func TestLiveOperationalBoundary(t *testing.T) {
 			}
 			remembers := 0
 			for _, event := range h.Events {
-				if a := event.GetActivityTaskScheduledEventAttributes(); a != nil && a.ActivityType.Name == "Remember" {
+				if a := event.GetActivityTaskScheduledEventAttributes(); a != nil && a.ActivityType.Name == "ContinuityGenerate1" {
 					remembers++
 				}
 			}

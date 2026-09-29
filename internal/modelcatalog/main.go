@@ -117,7 +117,7 @@ func main() {
 	router := flag.String("router-url", diffusionURL, "Diffusion Router model catalog URL")
 	flag.Parse()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Minute)
 	defer cancel()
 	key := strings.TrimSpace(os.Getenv("DIFFUSION_API_KEY"))
 	if key == "" {
@@ -173,10 +173,11 @@ func fatal(err error) {
 	os.Exit(1)
 }
 
-// fetch retries a few times: the Diffusion Router answers 502 intermittently.
+// fetch retries: the Diffusion Router is slow and answers 502 after 30s on
+// roughly one call in four.
 func fetch(ctx context.Context, url, bearer string) ([]byte, error) {
 	var err error
-	for attempt := range 4 {
+	for attempt := range 10 {
 		var raw []byte
 		if raw, err = fetchOnce(ctx, url, bearer); err == nil {
 			return raw, nil
@@ -184,7 +185,7 @@ func fetch(ctx context.Context, url, bearer string) ([]byte, error) {
 		select {
 		case <-ctx.Done():
 			return nil, err
-		case <-time.After(time.Duration(attempt+1) * 5 * time.Second):
+		case <-time.After(time.Duration(min(attempt+1, 4)) * 5 * time.Second):
 		}
 	}
 	return nil, err

@@ -18,15 +18,17 @@
 // usage is never treated as free. Reader/assessor/planner overhead is separate.
 //
 // CandidatesFile optionally names a JSON array of {id,research_model,index_model}.
-// It is an allowlist; defaults cover Flash, DeepSeek Flash, GLM Flash, Luna,
-// Haiku, and two mixed research/Haiku-curation combinations. Other research roles use their production defaults; FixedModel can override
+// It is an allowlist; defaults allow independent research/index combinations
+// of Gemini Flash, OpenAI Luna and Terra, and Claude Haiku and Sonnet through
+// their native providers. The planner samples controlled role swaps within the
+// round budget; it does not exhaust all combinations. Other research roles use their production defaults; FixedModel can override
 // them. Role flags independently pin the evaluation planner,
 // reader and assessor. An unavailable provider is a recorded failed trial.
 //
 // Example:
 //
 //	gimbal run research-eval --project /path/project --work-dir /path/project \
-//	  --output-dir /tmp/research-eval-1 --max-trials 14
+//	  --output-dir /tmp/research-eval-1 --max-trials 10
 package researcheval
 
 import (
@@ -56,7 +58,7 @@ type Params struct {
 	CandidatesFile polytype.Optional[string]
 	// SuiteDir optionally names a directory with suite.json and original source files.
 	SuiteDir polytype.Optional[string]
-	// MaxTrials bounds development rounds across all cases; default fourteen. Selection needs two repeats of every development case.
+	// MaxTrials bounds development rounds across all cases; default ten. Selection needs two repeats of every development case.
 	MaxTrials polytype.Optional[int]
 	// TrialMinutes bounds each research trial; default fifteen minutes.
 	TrialMinutes polytype.Optional[int]
@@ -73,22 +75,23 @@ type candidate struct {
 }
 
 type trialResult struct {
-	Candidate           candidate    `json:"candidate"`
-	Case                string       `json:"case"`
-	Split               string       `json:"split"`
-	RunID               string       `json:"run_id"`
-	Directory           string       `json:"directory"`
-	OriginalDirectory   string       `json:"original_directory"`
-	Seconds             float64      `json:"seconds"`
-	CostUSD             float64      `json:"cost_usd"`
-	CostKnown           bool         `json:"cost_known"`
-	Audit               auditSummary `json:"audit"`
-	InitialAuditClean   bool         `json:"initial_audit_clean"`
-	OneRepairAuditClean bool         `json:"one_repair_audit_clean"`
-	AuditRepairPasses   int          `json:"audit_repair_passes"`
-	JevInputTokens      int64        `json:"jev_input_tokens"`
-	Quality             score        `json:"quality"`
-	Error               string       `json:"error,omitempty"`
+	Candidate           candidate         `json:"candidate"`
+	Case                string            `json:"case"`
+	Split               string            `json:"split"`
+	RunID               string            `json:"run_id"`
+	Directory           string            `json:"directory"`
+	OriginalDirectory   string            `json:"original_directory"`
+	Seconds             float64           `json:"seconds"`
+	CostUSD             float64           `json:"cost_usd"`
+	CostKnown           bool              `json:"cost_known"`
+	Roles               []roleMeasurement `json:"roles"`
+	Audit               auditSummary      `json:"audit"`
+	InitialAuditClean   bool              `json:"initial_audit_clean"`
+	OneRepairAuditClean bool              `json:"one_repair_audit_clean"`
+	AuditRepairPasses   int               `json:"audit_repair_passes"`
+	JevInputTokens      int64             `json:"jev_input_tokens"`
+	Quality             score             `json:"quality"`
+	Error               string            `json:"error,omitempty"`
 }
 
 type auditSummary struct {
@@ -130,7 +133,7 @@ func ResearchEval(ctx context.Context, env gimbal.Env, params Params) error {
 	if registry == nil || controls == nil {
 		return fmt.Errorf("research-eval requires a hosted run")
 	}
-	maxTrials, minutes, fixed := 14, 15, ""
+	maxTrials, minutes, fixed := 10, 15, ""
 	if params.MaxTrials.Present {
 		maxTrials = params.MaxTrials.Value
 	}
@@ -339,6 +342,7 @@ func ResearchEval(ctx context.Context, env gimbal.Env, params Params) error {
 					row.Error = runErr.Error()
 				}
 				row.CostUSD, row.CostKnown = researchCost(snapshot)
+				row.Roles = roleMeasurements(snapshot)
 			}
 			if raw, readErr := os.ReadFile(filepath.Join(corpus, ".semantic-index", "completion.json")); readErr == nil {
 				if err := json.Unmarshal(raw, &row.Audit); err != nil {
@@ -532,7 +536,7 @@ func ResearchEval(ctx context.Context, env gimbal.Env, params Params) error {
 	return nil
 }
 
-const plannerRules = `Use task.Name exactly equal to an allowed candidate ID, or select. Include each name only once in the current backlog; repeat a candidate by selecting that same name in a later plan, not by adding duplicate names. Cover the candidate families before repeating promising combinations, within the trial limit. A candidate needs at least two complete repetitions of every development case to be eligible. Each candidate dispatch runs all development cases. Failed trials remain in its denominator. Use reported counts and rates, not a one-off success, to choose repeats. Actual quality and price measurements determine eligibility; never treat a provider failure as proof of bad reasoning. End exploration by dispatching select, not an empty backlog: code freezes the cheapest eligible candidate and performs the withheld evaluation. The final holdout is never a tuning target. Do not use tools, edit any files, change thresholds or answers, or claim success without the code's holdout result. First-pass audit cleanliness, one-repair cleanliness and final independent correctness are separate measures.`
+const plannerRules = `Use task.Name exactly equal to an allowed candidate ID, or select. Include each name only once in the current backlog; repeat a candidate by selecting that same name in a later plan, not by adding duplicate names. Research_model controls source collection and topic indexing; index_model controls combined-index curation, claim extraction and repair. Start with a cheap baseline, then make controlled comparisons changing one role while holding the other fixed. Include Terra and Sonnet when testing whether stronger indexing pays for itself. Use per-role usage, summed turn time, audit repairs and independent quality to identify where additional model capability helps; tokens and time measure workload, not cognitive difficulty by themselves. Explore the three native provider families within the budget and reserve rounds to repeat promising combinations. Do not exhaust the Cartesian product. A candidate needs at least two complete repetitions of every development case to be eligible. Each candidate dispatch runs all development cases. Failed trials remain in its denominator. Use reported counts and rates, not a one-off success, to choose repeats. Actual quality and price measurements determine eligibility; never treat a provider failure as proof of bad reasoning. End exploration by dispatching select, not an empty backlog: code freezes the cheapest eligible candidate and performs the withheld evaluation. The final holdout is never a tuning target. Do not use tools, edit any files, change thresholds or answers, or claim success without the code's holdout result. First-pass audit cleanliness, one-repair cleanliness and final independent correctness are separate measures.`
 const qualityPrompt = `Read the assessment gold, original sources, trial document, and semantic index including its topic indexes and clips. Independently assess every required gold fact in both document and index: preserve units, versions, conditions, attribution and unresolved source disagreements. Read the original evidence, not the operational audit's conclusions. Count factual assertions in the document and generated index prose/clips, excluding copied original sources from the index assertion count, and list unsupported or contradicted assertions, missing consequential qualifications, and hidden source disagreements. A fact is index-covered only when a reader can find it or its precise evidence through INDEX.md links. Return exactly one grade for every gold fact ID with reasons. Do not edit files. Do not treat a Jev pass as independent proof.`
 const readerPrompt = `Answer the question using only the supplied read passages. Do not call tools or access files yourself. Begin at INDEX.md and request up to two paths per turn in Paths to navigate links into original sources. Paths may be relative to the corpus or absolute links inside it. The workflow supplies those files subject to six total reads and 18000 bytes. When ready, return no Paths, your answer and exact quotes from original files already read, with their relative paths. Summaries are navigation aids, not original citations. Preserve version, unit and time scope. Report both sides of an unresolved disagreement. If the supplied corpus does not establish the answer, abstain without invented facts or citations. You have at most four turns.`
 const answerPrompt = `Independently compare the reader answer with the query gold and retrieved original passages. Correct requires every part of the question, correct scope and relationships, and explicit unresolved disagreement where appropriate; merely containing the expected numbers is insufficient. For an unanswerable query, justified abstention is correct. Grounded means every factual part follows from the cited original evidence; an appropriate abstention needs no citation. Do not edit files or use the operational audit as proof.`
@@ -575,7 +579,20 @@ func materializeSuite(dir string) error {
 	})
 }
 func loadCandidates(root string, file polytype.Optional[string]) ([]candidate, error) {
-	list := []candidate{{"flash", "gemini-3.8-flash-medium", "gemini-3.8-flash-medium"}, {"deepseek", "deepseek-flash", "deepseek-flash"}, {"glm", "glm-flash", "glm-flash"}, {"luna", "luna-5.6", "luna-5.6"}, {"haiku", "haiku", "haiku"}, {"deepseek-haiku", "deepseek-flash", "haiku"}, {"glm-haiku", "glm-flash", "haiku"}}
+	models := []struct{ id, model string }{
+		{"flash", "gemini-3.8-flash-medium"}, {"luna", "gpt-5.6-luna"},
+		{"terra", "gpt-5.6-terra"}, {"haiku", "claude-haiku-4-5"}, {"sonnet", "claude-sonnet-5-5"},
+	}
+	var list []candidate
+	for _, research := range models {
+		for _, index := range models {
+			id := research.id
+			if research.id != index.id {
+				id += "-" + index.id
+			}
+			list = append(list, candidate{id, research.model, index.model})
+		}
+	}
 	if file.Present {
 		path, err := absoluteFrom(root, file.Value)
 		if err != nil {
@@ -694,52 +711,28 @@ func waitResearch(ctx context.Context, registry *observation.Registry, controls 
 	}
 }
 func researchCost(snapshot observation.RunSnapshot) (float64, bool) {
-	total := snapshot.Totals.Scopes[""]
 	var cost float64
-	known := true
-	for model, usage := range total.ByModel {
-		part, priced := observation.TotalCost(observation.Total{ByModel: map[string]observation.Usage{model: usage}})
-		if !priced {
-			// These two benchmark candidates are absent from the generated
-			// catalog. Use published base-price proxies, never a router invoice.
-			part, priced = candidatePrice(model, usage.Tokens)
-		}
-		cost += part
-		known = known && priced
-	}
-	if len(total.ByModel) == 0 {
-		return cost, false
-	}
+	known := len(snapshot.Turns) > 0
 	for id := range snapshot.Turns {
 		if len(snapshot.TurnUsage[id]) == 0 {
-			return cost, false
+			known = false
+		}
+		for model, usage := range snapshot.TurnUsage[id] {
+			part, priced := observation.TotalCost(observation.Total{ByModel: map[string]observation.Usage{model: usage}})
+			cost += part
+			known = known && priced
 		}
 	}
 	return cost, known
 }
 
-const priceBasis = "Catalog prices or harness-stated cost; missing-catalog candidates use published USD/M-token base prices verified 2026-09-29: DeepSeek V4.1 Flash 0.30 input, 0.006 cached input, 1.20 output (peak proxy; https://api-docs.deepseek.com/quick_start/pricing/); GLM 5.3 Flash 0.15 input, 0.03 cached input, 0.50 output (https://docs.z.ai/guides/overview/pricing). These proxies do not establish Diffusion router charges, subscription invoices, or DeepSeek off-peak discounts. Unspecified cache-write usage is unknown."
+const priceBasis = "Catalog prices or harness-stated cost. These are usage-price proxies, not subscription invoices. Unpriced models or absent usage remain unknown."
 
-func candidatePrice(model string, tokens observation.Tokens) (float64, bool) {
-	if tokens.CacheWrite != 0 {
-		return 0, false
-	}
-	var input, cached, output float64
-	switch model {
-	case "deepseek-4.1-flash":
-		input, cached, output = 0.30, 0.006, 1.20
-	case "glm-5.3-flash":
-		input, cached, output = 0.15, 0.03, 0.50
-	default:
-		return 0, false
-	}
-	return (tokens.Input*input + tokens.CacheRead*cached + (tokens.Output+tokens.Reasoning)*output) / 1_000_000, true
-}
 func auditHistory(corpus string) (bool, bool, int, int64) {
 	paths, _ := filepath.Glob(filepath.Join(corpus, ".semantic-index", "history", "*-pass-*.json"))
 	first, one := false, false
 	var tokens int64
-	repairs := 0
+	phaseRepairs := map[string]int{}
 	for _, path := range paths {
 		b, err := os.ReadFile(path)
 		if err != nil {
@@ -750,9 +743,8 @@ func auditHistory(corpus string) (bool, bool, int, int64) {
 			continue
 		}
 		tokens += a.Metrics.InputTokens
-		if a.Metrics.RepairPass > 0 {
-			repairs++
-		}
+		phase, _, _ := strings.Cut(filepath.Base(path), "-pass-")
+		phaseRepairs[phase] = max(phaseRepairs[phase], a.Metrics.RepairPass)
 		if !strings.HasPrefix(filepath.Base(path), "initial-pass-") {
 			continue
 		}
@@ -763,6 +755,10 @@ func auditHistory(corpus string) (bool, bool, int, int64) {
 		if a.Metrics.RepairPass <= 1 {
 			one = one || clean
 		}
+	}
+	repairs := 0
+	for _, passes := range phaseRepairs {
+		repairs += passes
 	}
 	return first, one, repairs, tokens
 }

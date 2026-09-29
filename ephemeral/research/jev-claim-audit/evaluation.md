@@ -21,6 +21,8 @@ the produced document/index with the originals and gold facts. The optimizer
 receives measured development results, not held-out answers. Each trial uses an independently named temporary working directory containing only that case’s sources. The bundled answer key is loaded into memory and removed from disk before trials; per-case assessor keys are written outside trial directories only after research ends and removed immediately after assessment. Completed trials are moved into the report directory before the next trial starts, outside the next worker’s temporary neighborhood; original paths remain recorded for interpreting native logs. Earlier outputs and the report are not in the trial directory tree. This is experimental blinding,
 not a security sandbox against a malicious agent.
 
+The research binding collects sources and builds topic indexes. The index binding curates the combined index, extracts auditable claims, and repairs it. Compare one role at a time from a common baseline to attribute changes. Per-role reports retain model usage, cost and summed turn seconds, including parallel turns; this is workload, not elapsed wall time or a direct measure of cognitive difficulty. Infer the value of stronger judgment from fewer errors/repairs and better independent query results. Fixed-source cases do not measure web discovery or download performance.
+
 Keep these axes separate:
 
 | Measure | Definition |
@@ -50,8 +52,7 @@ denominators so thresholds can be revised deliberately rather than silently.
 ## The Gimbal workflow
 
 `research-eval` reads a local candidate configuration and optionally an
-alternative suite. Default candidate combinations cover Gemini Flash,
-DeepSeek Flash, GLM Flash, Luna, and Haiku for collection/topic indexing and
+alternative suite. Default candidates allow independent research/index assignments of Gemini Flash, OpenAI Luna and Terra, and Claude Haiku and Sonnet through their native providers for collection/topic indexing and
 combined-index curation. Other research roles retain the production defaults so attribution is meaningful; `--fixed-model` explicitly selects a different pipeline and the report records that choice. The planner defaults to Opus 5.5, the reader to Luna 5.6, and the assessor to Sol. Resolved role bindings are recorded with each child run. Before optimization, the assessor evaluates three known-good and three version-confused index samples in separate sessions using the same assessment prompt. The label is withheld from its prompt and directory name. Raw false-positive and false-negative counts are reported; any error stops optimization. This small repeated sanity check does not establish exhaustive judge accuracy or eliminate model-family bias.
 
 A PromiseLoop chooses the next candidate and whether a new combination is
@@ -65,13 +66,13 @@ reasoning. A model or authentication failure is visible, not a silent fallback.
 
 Fixed-source trials copy the originals once into the corpus’s shared `sources/` directory. Topic indexes link to those originals rather than multiplying identical source copies across all five researchers.
 
-The bundled suite has two development cases and a separate holdout. Every candidate dispatch runs all development cases. Selection requires at least two repeats of every development case; the default fourteen-round budget permits two repeats of all seven combinations. Reports expose trial counts, final quality-pass rate, first-audit cleanliness rate, and quality-pass-with-at-most-one-repair rate, with failures in their denominators. Require quality
+The bundled suite has two development cases and a separate holdout. Every candidate dispatch runs all development cases. Selection requires at least two repeats of every development case; the default ten-round budget samples controlled role swaps from the 25 allowed combinations and reserves repeats for promising choices; it does not exhaust the Cartesian product. Reports expose trial counts, final quality-pass rate, first-audit cleanliness rate, and quality-pass-with-at-most-one-repair rate, with failures in their denominators. Require quality
 success and at most one audit repair per trial on average, then minimize cost
 among eligible candidates; show first-pass cleanliness and the tradeoff rather
 than averaging quality away. The first bounded
 experiment is exploratory and cannot establish a population success rate.
 
-At the default limits, fourteen rounds × two cases × fifteen minutes allows up to seven hours of development research alone, plus calibration, planning, assessments, retrieval checks, cleanup, and a holdout trial. It is a bounded research budget, not a quick smoke test. Use a smaller allowlist and round budget for pipeline checks; such checks need not produce an eligible winner.
+At the default limits, ten rounds × two cases × fifteen minutes allows up to five hours of development research alone, plus calibration, planning, assessments, retrieval checks, cleanup, and a holdout trial. It is a bounded research budget, not a quick smoke test. Use a smaller allowlist and round budget for pipeline checks; such checks need not produce an eligible winner.
 
 After development selection, freeze the chosen candidate and evaluate the
 held-out case without returning its scores to the optimizer. A holdout failure
@@ -106,9 +107,11 @@ This workflow adopts those distinctions, not their benchmark scores or claimed
 statistical guarantees. A small local suite must be supplemented by real,
 independently labeled research tasks before choosing organization-wide defaults.
 
-## Price proxies
+## Provider scope and price proxies
 
-The report records its price basis. When the generated catalog lacks the two router candidates, use vendor list-price proxies verified on 2026-09-29: [DeepSeek V4.1 Flash](https://api-docs.deepseek.com/quick_start/pricing/) at peak USD 0.30 input / 0.006 cached input / 1.20 output per million tokens, and [GLM 5.3 Flash](https://docs.z.ai/guides/overview/pricing) at USD 0.15 / 0.03 / 0.50. These are published base-price comparisons, not observed Diffusion charges or subscription invoices. DeepSeek off-peak discounts are not assumed. Unknown models or unspecified cache-write usage remain unpriced.
+The active experiment is limited to Gemini, OpenAI and Claude. Tyler deferred GLM and DeepSeek after a router-backed GLM extraction turn produced no claim records before the trial deadline. That observation does not establish whether deferred routing, provider throughput or another cause was responsible. Custom candidate files can later revisit other providers; they are not part of the current default comparison.
+
+The report uses catalog prices or harness-stated cost. These are usage-price comparisons, not subscription invoices. Unknown prices and absent usage remain unpriced; there is no special router-price fallback.
 
 The operational extraction judge has a separate labeled live regression in `internal/claimaudit/extraction_live_test.go` (`GIMBAL_LIVE=1`, existing `TYPESAFE_API_KEY`). It distinguishes pure index metadata from subject facts, including facts embedded in routes, and tests missing qualifications, negation and partial coverage. This protects the extraction contract without treating a small calibration set as a recall guarantee.
 

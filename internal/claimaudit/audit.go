@@ -177,7 +177,7 @@ func (e *TransientError) Error() string { return e.Err.Error() }
 func (e *TransientError) Unwrap() error { return e.Err }
 
 // ClaimsError identifies curator output that needs repair, not a transport retry.
-// Command callers map it to exit 2 and preserve the invalid records for repair.
+// Command callers map it to exit 65 and preserve the invalid records for repair.
 type ClaimsError struct{ Err error }
 
 func (e *ClaimsError) Error() string { return e.Err.Error() }
@@ -1047,6 +1047,33 @@ func auditInsertionPosition(block string, start, end int) int {
 	lineEnd := len(block)
 	if next := strings.IndexByte(block[end:], '\n'); next >= 0 {
 		lineEnd = end + next
+	}
+	// A claim copied from a Markdown link label must be annotated after the
+	// source link. An audit link inside the label would break the source link.
+	if start >= lineStart {
+		if open := strings.LastIndexByte(block[lineStart:start], '['); open >= 0 {
+			open += lineStart
+			if !strings.Contains(block[open+1:start], "]") {
+				if close := strings.Index(block[end:lineEnd], "]("); close >= 0 {
+					depth := 1
+					for i := end + close + 2; i < lineEnd; i++ {
+						if block[i] == '\\' {
+							i++
+							continue
+						}
+						switch block[i] {
+						case '(':
+							depth++
+						case ')':
+							depth--
+							if depth == 0 {
+								return i + 1
+							}
+						}
+					}
+				}
+			}
+		}
 	}
 	if strings.Contains(block[lineStart:lineEnd], "|") {
 		for end > start && block[end-1] == '|' {

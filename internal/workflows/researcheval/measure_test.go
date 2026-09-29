@@ -137,6 +137,28 @@ func TestAuditAccountingSumsPassesWithoutChargingCachedJudgments(t *testing.T) {
 	}
 }
 
+func TestAuditAccountingIncludesRepairsBeforeFirstCompletion(t *testing.T) {
+	corpus := t.TempDir()
+	dir := filepath.Join(corpus, ".semantic-index", "history")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// Invalid records can consume repair passes before an audit completes.
+	initial := auditSummary{Complete: true, CoverageComplete: true, AuthoringAllowed: true}
+	initial.Metrics.RepairPass = 2
+	gap := initial
+	gap.Metrics.RepairPass = 1
+	for name, a := range map[string]auditSummary{"initial-pass-02.json": initial, "gap-1-pass-01.json": gap} {
+		if err := writeJSON(filepath.Join(dir, name), a); err != nil {
+			t.Fatal(err)
+		}
+	}
+	first, one, repairs, _ := auditHistory(corpus)
+	if first || one || repairs != 3 {
+		t.Fatalf("first=%v one=%v repairs=%d", first, one, repairs)
+	}
+}
+
 func TestToolUseAndMissingUsageAreNotFreeSuccess(t *testing.T) {
 	if !containsTool(map[string]any{"parts": []any{map[string]any{"type": "tool", "name": "read"}}}) {
 		t.Fatal("tool hidden")
@@ -152,23 +174,6 @@ func TestToolUseAndMissingUsageAreNotFreeSuccess(t *testing.T) {
 	}
 	if _, known := researchCost(observation.RunSnapshot{}); known {
 		t.Fatal("absent usage priced as free")
-	}
-}
-
-func TestCandidatePriceDoesNotMakeUnknownUsageFree(t *testing.T) {
-	tokens := observation.Tokens{Input: 1_000_000, CacheRead: 1_000_000, Output: 500_000, Reasoning: 500_000}
-	for model, want := range map[string]float64{"deepseek-4.1-flash": 1.506, "glm-5.3-flash": 0.68} {
-		cost, known := candidatePrice(model, tokens)
-		if !known || cost < want-0.000001 || cost > want+0.000001 {
-			t.Fatalf("%s: cost=%v known=%v", model, cost, known)
-		}
-	}
-	if _, known := candidatePrice("unknown", tokens); known {
-		t.Fatal("unknown model priced")
-	}
-	tokens.CacheWrite = 1
-	if _, known := candidatePrice("glm-5.3-flash", tokens); known {
-		t.Fatal("unspecified cache-write price treated as free")
 	}
 }
 

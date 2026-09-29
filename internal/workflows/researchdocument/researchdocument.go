@@ -334,9 +334,10 @@ func ResearchDocument(ctx context.Context, env gimbal.Env, params Params) error 
 		return fmt.Errorf("semantic index: %w", err)
 	}
 	auditPath := filepath.Join(researchDir, claimaudit.StateDir, "AUDIT.md")
+	inventoryPath := filepath.Join(researchDir, claimaudit.StateDir, "inventory.json")
 	claimsPath := filepath.Join(researchDir, claimaudit.StateDir, "claims.jsonl")
 	gimbal.Set(ctx, "claim audit path", auditPath)
-	gimbal.Set(ctx, "claim inventory path", filepath.Join(researchDir, claimaudit.StateDir, "inventory.json"))
+	gimbal.Set(ctx, "claim inventory path", inventoryPath)
 	gimbal.Set(ctx, "claim records path", claimsPath)
 	gimbal.Set(ctx, "claim review candidates path", filepath.Join(researchDir, claimaudit.StateDir, "review-candidates.json"))
 	gimbal.Set(ctx, "claim reviews path", filepath.Join(researchDir, claimaudit.StateDir, "reviews.jsonl"))
@@ -350,22 +351,32 @@ func ResearchDocument(ctx context.Context, env gimbal.Env, params Params) error 
 			if err != nil {
 				return err
 			}
-			if exit == 2 {
+			if exit == 65 {
 				extractionError = strings.TrimSpace(stderr)
 				return nil
 			}
 			if exit != 0 {
 				return fmt.Errorf("prepare claim audit: %s", strings.TrimSpace(stderr))
 			}
-			if _, err := curator.Generate[gimbal.Text](ctx, extractClaimsPrompt, gimbal.WithScopeTemplate(extractClaimsContext)); err != nil {
-				return err
+			inventoryData, err := os.ReadFile(inventoryPath)
+			if err != nil {
+				return fmt.Errorf("read prepared claim inventory: %w", err)
+			}
+			var inventory claimaudit.Inventory
+			if err := json.Unmarshal(inventoryData, &inventory); err != nil {
+				return fmt.Errorf("decode prepared claim inventory: %w", err)
+			}
+			if len(inventory.Extract) > 0 {
+				if _, err := curator.Generate[gimbal.Text](ctx, extractClaimsPrompt, gimbal.WithScopeTemplate(extractClaimsContext)); err != nil {
+					return err
+				}
 			}
 			for attempt := 1; attempt <= 3; attempt++ {
 				exit, _, stderr, err = gimbal.RunCommand(ctx, "audit-index", env.WorkDir, tokenCounter, "audit-index", "--research-dir", researchDir, "--repair-pass", strconv.Itoa(repair))
 				if err != nil {
 					return err
 				}
-				if exit == 2 {
+				if exit == 65 {
 					extractionError = strings.TrimSpace(stderr)
 					return nil
 				}
@@ -499,22 +510,32 @@ func ResearchDocument(ctx context.Context, env gimbal.Env, params Params) error 
 						if err != nil {
 							return err
 						}
-						if exit == 2 {
+						if exit == 65 {
 							extractionError = strings.TrimSpace(stderr)
 							return nil
 						}
 						if exit != 0 {
 							return fmt.Errorf("prepare gap audit: %s", strings.TrimSpace(stderr))
 						}
-						if _, err := curator.Generate[gimbal.Text](ctx, extractClaimsPrompt, gimbal.WithScopeTemplate(extractClaimsContext)); err != nil {
-							return err
+						inventoryData, err := os.ReadFile(inventoryPath)
+						if err != nil {
+							return fmt.Errorf("read prepared gap claim inventory: %w", err)
+						}
+						var inventory claimaudit.Inventory
+						if err := json.Unmarshal(inventoryData, &inventory); err != nil {
+							return fmt.Errorf("decode prepared gap claim inventory: %w", err)
+						}
+						if len(inventory.Extract) > 0 {
+							if _, err := curator.Generate[gimbal.Text](ctx, extractClaimsPrompt, gimbal.WithScopeTemplate(extractClaimsContext)); err != nil {
+								return err
+							}
 						}
 						for attempt := 1; attempt <= 3; attempt++ {
 							exit, _, stderr, err = gimbal.RunCommand(ctx, "audit-gap-index", env.WorkDir, tokenCounter, "audit-index", "--research-dir", researchDir, "--repair-pass", strconv.Itoa(repair))
 							if err != nil {
 								return err
 							}
-							if exit == 2 {
+							if exit == 65 {
 								extractionError = strings.TrimSpace(stderr)
 								return nil
 							}

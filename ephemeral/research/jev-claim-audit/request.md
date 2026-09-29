@@ -83,3 +83,11 @@ only loops once etc etc.
 but you ned to determine a WAY TO MEASURE it first. So, while Sol builds in that
 correctness check and loop, you can work on how to evaluate it and probably
 create a loop eval workflow."
+
+# Provider and role scope update
+
+Tyler: "okay maybe the Diffusion Router will turn out to be too slow for our purposes right now. That's a 'deferred execution' router for most of the models, I think. We need to get moving so let's just work with the big three providers gemini, openai, claude for now and not get hung up on GLM / DeepSeek"
+
+Tyler: "Yeah, let's add Tara from ChatGPT as well as Claude Sonnet. Also, I think there are a couple of different roles in this that we should be mixing and matching in this eval process because, right? Like there's the guy who goes and does the research and downloads information from the internet, and then there is also the guy who actually builds and balances the semantic index. And I'm not sure where the weights are on this, but I imagine that one of those jobs is harder than the other in terms of the amount of work that needs to be done, and one of them is harder than the other in terms of the cognitive load to make the judgments needed in order to balance the index, or something like that."
+
+'Tara' is interpreted as the installed OpenAI Terra family. Research and index model bindings are independently variable; source acquisition and index judgment workload should not be conflated.

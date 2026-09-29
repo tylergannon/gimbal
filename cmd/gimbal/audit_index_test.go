@@ -35,7 +35,7 @@ func TestAuditIndexReturnsRepairableClaimErrors(t *testing.T) {
 			}
 			var out, stderr bytes.Buffer
 			code := executeCLI([]string{"audit-index", "--research-dir", dir}, &out, &stderr, os.Getenv, defaultArtifactUploaders())
-			if code != 2 {
+			if code != 65 {
 				t.Fatalf("exit=%d stderr=%s", code, stderr.String())
 			}
 			if !strings.Contains(stderr.String(), map[bool]string{true: "claims.jsonl", false: "invalid occurrence"}[malformed]) {

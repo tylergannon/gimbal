@@ -107,3 +107,11 @@ finding: A duplicate reader path consumes no additional read. Apply the read-cou
 finding: Claude exposes its structured completion as a StructuredOutput tool in the normalized transcript. This is not an out-of-protocol retrieval; exempt that exact native completion event while retaining rejection of file, shell and other reader tool use. The observed planner transcript exposed this before reader scoring.
 
 finding: Marker-free digests intentionally ignore generated audit annotations, so they cannot alone detect an editor removing those annotations. Bind completion to the rendered index digest as well, and verify it at final acceptance. Mark exact occurrences inline, including table cells, while preserving marker-free source text across preparation.
+
+constraint: Tyler deferred GLM and DeepSeek to keep the experiment moving. Active/default candidates now use native Gemini, OpenAI and Claude only. Keep earlier router timeouts as incomplete observations, not a causal diagnosis or model-quality verdict.
+
+finding: Invalid extraction records can consume repair rounds before the first completed audit is saved. Count the highest repair-pass number in each initial/gap phase, rather than counting only saved nonzero-pass audits, so two repairs cannot be reported as one.
+
+constraint: Tyler added Terra and Sonnet and asked for independent researcher/curator comparisons. Allow the five native models in either role, sample one-role swaps rather than exhaustively running all 25 pairs, and expose role-level cost, usage and summed turn duration. Frozen-source synthesis is not evidence of web-discovery quality.
+
+finding: Go panics exit 2, so that code cannot uniquely identify malformed curator records. Use EX_DATAERR (65) for repairable records; runtime crashes remain fatal infrastructure failures. A multiline occurrence also needs a guarded same-line prefix before locating source-link boundaries.

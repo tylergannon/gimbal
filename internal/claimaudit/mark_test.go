@@ -138,3 +138,78 @@ func TestAuditMarksEachTableAndParagraphOccurrenceStably(t *testing.T) {
 		t.Fatalf("removed audit markers passed final gate: %v", err)
 	}
 }
+
+func TestMarkKeepsSourceLinkOutsideAuditLink(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "sources"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	original := "| Metric | Evidence |\n| --- | --- |\n| Limit | [The limit is 12 KiB.](sources/a.md) |\n\n[The limit is 12 KiB.](sources/a.md)\n"
+	if err := os.WriteFile(filepath.Join(dir, "INDEX.md"), []byte(original), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "sources", "a.md"), []byte("The limit is 12 KiB.\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	inv, err := Prepare(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	claim := Claim{ID: "limit", Text: "The limit is 12 KiB.", Kind: "fact", Occurrences: []Occurrence{
+		{BlockID: inv.Blocks[0].ID, Text: "The limit is 12 KiB."},
+		{BlockID: inv.Blocks[1].ID, Text: "The limit is 12 KiB."},
+	}}
+	if err := mark(dir, inv, []Claim{claim}, map[string]bool{"limit": true}, nil, nil, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	marked, err := os.ReadFile(filepath.Join(dir, "INDEX.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Count(string(marked), "](sources/a.md)"+inlineAuditStart) != 2 {
+		t.Fatalf("audit link broke original source links: %s", marked)
+	}
+	if markFree(string(marked)) != original {
+		t.Fatalf("marker removal changed source links: %s", markFree(string(marked)))
+	}
+	prepared, err := Prepare(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(prepared.Extract) != 0 {
+		t.Fatalf("markers changed extraction inventory: %v", prepared.Extract)
+	}
+}
+
+func TestMarkMultilineTableOccurrence(t *testing.T) {
+	dir := t.TempDir()
+	original := "| Limit | Evidence |\n| --- | --- |\n| 12 KiB | [source](sources/a.md) |\n"
+	if err := os.WriteFile(filepath.Join(dir, "INDEX.md"), []byte(original), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	inv, err := Prepare(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	claim := Claim{ID: "table", Text: "The limit is 12 KiB.", Occurrences: []Occurrence{{BlockID: inv.Blocks[0].ID, Text: inv.Blocks[0].Text}}}
+	if err := mark(dir, inv, []Claim{claim}, map[string]bool{"table": true}, nil, nil, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	marked, err := os.ReadFile(filepath.Join(dir, "INDEX.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(marked), inlineAuditStart) || !strings.Contains(string(marked), inlineAuditEnd+" |") {
+		t.Fatalf("full-table occurrence was not marked inside the final cell: %s", marked)
+	}
+	if markFree(string(marked)) != original {
+		t.Fatalf("full-table marker changed original text: %s", markFree(string(marked)))
+	}
+	prepared, err := Prepare(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(prepared.Extract) != 0 {
+		t.Fatalf("full-table marker changed extraction inventory: %v", prepared.Extract)
+	}
+}

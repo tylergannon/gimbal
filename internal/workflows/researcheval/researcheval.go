@@ -416,14 +416,18 @@ func ResearchEval(ctx context.Context, env gimbal.Env, params Params) error {
 							}
 							for _, name := range step.Paths {
 								path, err := readerPath(corpus, name)
-								if err != nil || queryResult.Reads >= 6 {
-									queryResult.Error = "invalid path or read budget exceeded"
+								if err != nil {
+									queryResult.Error = "invalid path"
 									break
 								}
 								key, _ := filepath.Rel(corpus, path)
 								key = filepath.ToSlash(key)
 								if _, exists := read[key]; exists {
 									continue
+								}
+								if queryResult.Reads >= 6 {
+									queryResult.Error = "read budget exceeded"
+									break
 								}
 								resolved, err := filepath.EvalSymlinks(path)
 								if err != nil || !inside(corpus, resolved) {

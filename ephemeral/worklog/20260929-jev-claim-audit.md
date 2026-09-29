@@ -99,3 +99,7 @@ finding: Extraction and coverage judgment disagreed about index metadata. The ex
 finding: Listing every compatible pair in the author-facing audit report makes the context quadratic even after API batching improves execution time. Keep the complete raw journal, show findings in the report, and annotate only claims needing qualification in the semantic index.
 
 finding: Exact occurrence validation caught a curator normalizing Markdown inside occurrence text. That is repairable model output, not a transport failure or a reason to skip the audit. Give it a distinct CLI exit, preserve the invalid file, and route the validation error through the existing bounded curator repair loop.
+
+finding: Preparation must not silently remove malformed claim anchors while retaining unchanged blocks. Preserve unknown anchors for explicit repair; when one known occurrence changes, retain the unchanged occurrences of that claim. Otherwise a failed repair can erase a claim without requesting extraction for its remaining block.
+
+finding: A duplicate reader path consumes no additional read. Apply the read-count limit after duplicate detection so a repeated INDEX.md at the boundary does not falsely fail retrieval.

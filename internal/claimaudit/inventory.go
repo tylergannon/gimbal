@@ -188,19 +188,23 @@ func Prepare(dir string) (Inventory, error) {
 	if err != nil && !os.IsNotExist(err) {
 		return inv, err
 	}
-	valid := map[string]bool{}
+	current := map[string]string{}
 	for _, b := range inv.Blocks {
-		valid[b.ID] = true
+		current[b.ID] = b.Digest
 	}
 	kept := claims[:0]
 	for _, c := range claims {
-		keep := true
+		occurrences := c.Occurrences[:0]
 		for _, o := range c.Occurrences {
-			if !valid[o.BlockID] || old[o.BlockID] == "" || old[o.BlockID] != blockDigest(inv.Blocks, o.BlockID) {
-				keep = false
+			if previousDigest, known := old[o.BlockID]; known && previousDigest != current[o.BlockID] {
+				// A previously inventoried block changed or disappeared. Unknown
+				// anchors stay visible so validation can request curator repair.
+				continue
 			}
+			occurrences = append(occurrences, o)
 		}
-		if keep {
+		if len(occurrences) > 0 || len(c.Occurrences) == 0 {
+			c.Occurrences = occurrences
 			kept = append(kept, c)
 		}
 	}
@@ -222,15 +226,6 @@ func revision(inv Inventory, claims []Claim) string {
 		Claims  []Claim
 	}{inv.Blocks, inv.Files, inv.Sources, claims})
 	return digest(b)
-}
-
-func blockDigest(blocks []Block, id string) string {
-	for _, b := range blocks {
-		if b.ID == id {
-			return b.Digest
-		}
-	}
-	return ""
 }
 
 func ReadClaims(dir string) ([]Claim, error) {

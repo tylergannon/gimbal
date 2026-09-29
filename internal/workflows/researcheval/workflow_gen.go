@@ -84,30 +84,30 @@ var Graph = workflow.Graph{
 										workflow.Condition{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 413}, Branches: []workflow.Branch{
 											{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 413}, Case: "len(step.Paths) > 2", Exits: true, Body: []workflow.Operation{}},
 										}},
-										workflow.Condition{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 442}, Branches: []workflow.Branch{
-											{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 442}, Case: "queryResult.Error != \"\"", Exits: true, Body: []workflow.Operation{}},
+										workflow.Condition{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 446}, Branches: []workflow.Branch{
+											{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 446}, Case: "queryResult.Error != \"\"", Exits: true, Body: []workflow.Operation{}},
 										}},
 									}},
-									workflow.Set{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 457}, Key: "query gold"},
-									workflow.Set{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 458}, Key: "reader answer"},
-									workflow.Set{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 459}, Key: "retrieved passages"},
-									workflow.Session{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 460}, Name: "research-eval-assessment", From: ""},
-									workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 461}, Session: "research-eval-assessment", Role: "research-eval-assessment", Prompt: "Independently compare the reader answer with the query gold and retrieved original passages. Correct requires every part of the question, correct scope and relationships, and explicit unresolved disagreement where appropriate; merely containing the expected numbers is insufficient. For an unanswerable query, justified abstention is correct. Grounded means every factual part follows from the cited original evidence; an appropriate abstention needs no citation. Do not edit files or use the operational audit as proof."},
-									workflow.Set{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 474}, Key: "query score"},
+									workflow.Set{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 461}, Key: "query gold"},
+									workflow.Set{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 462}, Key: "reader answer"},
+									workflow.Set{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 463}, Key: "retrieved passages"},
+									workflow.Session{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 464}, Name: "research-eval-assessment", From: ""},
+									workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 465}, Session: "research-eval-assessment", Role: "research-eval-assessment", Prompt: "Independently compare the reader answer with the query gold and retrieved original passages. Correct requires every part of the question, correct scope and relationships, and explicit unresolved disagreement where appropriate; merely containing the expected numbers is insufficient. For an unanswerable query, justified abstention is correct. Grounded means every factual part follows from the cited original evidence; an appropriate abstention needs no citation. Do not edit files or use the operational audit as proof."},
+									workflow.Set{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 478}, Key: "query score"},
 								}},
 							}},
 						}},
 					}},
 				}},
-				workflow.Set{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 499}, Key: "trial measurement"},
+				workflow.Set{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 503}, Key: "trial measurement"},
 			}},
-			workflow.Set{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 504}, Key: "development measurements"},
-			workflow.Condition{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 505}, Branches: []workflow.Branch{
-				{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 505}, Case: "phase == \"holdout\"", Exits: true, Body: []workflow.Operation{}},
+			workflow.Set{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 508}, Key: "development measurements"},
+			workflow.Condition{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 509}, Branches: []workflow.Branch{
+				{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 509}, Case: "phase == \"holdout\"", Exits: true, Body: []workflow.Operation{}},
 			}},
 		}},
-		workflow.Condition{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 525}, Branches: []workflow.Branch{
-			{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 525}, Case: "!result.Fulfilled", Exits: true, Body: []workflow.Operation{}},
+		workflow.Condition{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 529}, Branches: []workflow.Branch{
+			{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 529}, Case: "!result.Fulfilled", Exits: true, Body: []workflow.Operation{}},
 		}},
 	},
 }

@@ -248,7 +248,7 @@ func ReadClaims(dir string) ([]Claim, error) {
 		}
 		var c Claim
 		if err := json.Unmarshal(s.Bytes(), &c); err != nil {
-			return nil, fmt.Errorf("claims.jsonl line %d: %w", len(out)+1, err)
+			return nil, &ClaimsError{Err: fmt.Errorf("claims.jsonl line %d: %w", len(out)+1, err)}
 		}
 		out = append(out, c)
 	}

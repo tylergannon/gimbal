@@ -93,3 +93,9 @@ rates, and report the limited sample rather than claiming a population rate.
 finding: Fixed local corpora copied into every topic inflate extraction and pair checks. Keep one source directory and route all topic indexes to it. The whole-index token proxy should be measured on deduplicated scoped claims.
 
 finding: A completed exhaustive audit can still be unusable for authoring because extraction coverage and source dispositions remain unresolved. Keep transport/comparison completion distinct from authoring permission and independent correctness.
+
+finding: Extraction and coverage judgment disagreed about index metadata. The extractor excluded layout/navigation descriptions, while Jev counted those descriptions as omitted factual claims. Align the coverage question with the subject-claim contract, retain embedded factual premises, and include the question in the cache digest so changed instructions are re-evaluated. The labeled live regression covers metadata, factual routes, omitted qualifiers, negation, and partial extraction.
+
+finding: Listing every compatible pair in the author-facing audit report makes the context quadratic even after API batching improves execution time. Keep the complete raw journal, show findings in the report, and annotate only claims needing qualification in the semantic index.
+
+finding: Exact occurrence validation caught a curator normalizing Markdown inside occurrence text. That is repairable model output, not a transport failure or a reason to skip the audit. Give it a distinct CLI exit, preserve the invalid file, and route the validation error through the existing bounded curator repair loop.

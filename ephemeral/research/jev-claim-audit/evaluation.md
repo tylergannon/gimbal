@@ -109,3 +109,7 @@ independently labeled research tasks before choosing organization-wide defaults.
 ## Price proxies
 
 The report records its price basis. When the generated catalog lacks the two router candidates, use vendor list-price proxies verified on 2026-09-29: [DeepSeek V4.1 Flash](https://api-docs.deepseek.com/quick_start/pricing/) at peak USD 0.30 input / 0.006 cached input / 1.20 output per million tokens, and [GLM 5.3 Flash](https://docs.z.ai/guides/overview/pricing) at USD 0.15 / 0.03 / 0.50. These are published base-price comparisons, not observed Diffusion charges or subscription invoices. DeepSeek off-peak discounts are not assumed. Unknown models or unspecified cache-write usage remain unpriced.
+
+The operational extraction judge has a separate labeled live regression in `internal/claimaudit/extraction_live_test.go` (`GIMBAL_LIVE=1`, existing `TYPESAFE_API_KEY`). It distinguishes pure index metadata from subject facts, including facts embedded in routes, and tests missing qualifications, negation and partial coverage. This protects the extraction contract without treating a small calibration set as a recall guarantee.
+
+Trial relocation assumes the parent remains alive through cancellation and cleanup. A killed host can leave old temporary work and stale run records; those artifacts are not successful or blinded completed trials.

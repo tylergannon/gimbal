@@ -49,6 +49,10 @@ func executeCLI(args []string, stdout, stderr io.Writer, getenv func(string) str
 			_, _ = fmt.Fprintln(stderr, "gimbal:", err)
 			return 75
 		}
+		if _, ok := errors.AsType[*claimaudit.ClaimsError](err); ok {
+			_, _ = fmt.Fprintln(stderr, "gimbal:", err)
+			return 2
+		}
 		_, _ = fmt.Fprintln(stderr, "gimbal:", err)
 		return 1
 	}

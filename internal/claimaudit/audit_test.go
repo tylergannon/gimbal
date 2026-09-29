@@ -82,6 +82,20 @@ func TestAuditMarksBothEndsAndResumesAnswers(t *testing.T) {
 	if strings.Count(string(data), "disputed by") != 2 {
 		t.Fatalf("missing both markers: %s", data)
 	}
+	if strings.Contains(string(data), "c3 source-supported") {
+		t.Fatal("unrelated supported claim adds noise to the index")
+	}
+	report, err := os.ReadFile(statePath(dir, "AUDIT.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(report), "pair:c1/c2: contradiction") || strings.Contains(string(report), "pair:c1/c3: compatible") {
+		t.Fatalf("summary must retain findings without dumping successful pair checks: %s", report)
+	}
+	judgments, err := readJudgments(dir)
+	if err != nil || len(judgments) < 6 {
+		t.Fatalf("raw judgments lost: count=%d error=%v", len(judgments), err)
+	}
 	before := requests
 	second, err := Audit(context.Background(), dir, client, 0)
 	if err != nil {

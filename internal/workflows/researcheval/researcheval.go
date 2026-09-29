@@ -886,6 +886,8 @@ type candidateSummary struct {
 	InitialAuditCleanRate float64 `json:"initial_audit_clean_rate"`
 	AtMostOneRepairRate   float64 `json:"quality_pass_with_at_most_one_repair_rate"`
 	MeanRepairPasses      float64 `json:"mean_repair_passes"`
+	MeanDownstreamTurns   float64 `json:"mean_downstream_turns"`
+	MeanDownstreamSeconds float64 `json:"mean_downstream_turn_seconds"`
 	MeanUSD               float64 `json:"mean_usd"`
 	CostKnown             bool    `json:"cost_known"`
 	MeanComparableUSD     float64 `json:"mean_comparable_usd"`
@@ -912,13 +914,19 @@ func summarizeCandidates(candidates []candidate, trials []trialResult) []candida
 			}
 			row.MeanUSD += t.CostUSD
 			row.MeanRepairPasses += float64(t.AuditRepairPasses)
+			for _, role := range t.Roles {
+				if role.Role == "document-authoring" || role.Role == "editorial-review" || role.Role == "document-supervision" {
+					row.MeanDownstreamTurns += float64(role.Turns)
+					row.MeanDownstreamSeconds += role.SumTurnSeconds
+				}
+			}
 			row.CostKnown = row.CostKnown && t.CostKnown
 			row.MeanComparableUSD += t.ComparableCostUSD
 			row.ComparableCostKnown = row.ComparableCostKnown && t.ComparableCostKnown
 		}
 		if row.Trials > 0 {
 			n := float64(row.Trials)
-			row.PassRate, row.InitialAuditCleanRate, row.AtMostOneRepairRate, row.MeanRepairPasses, row.MeanUSD, row.MeanComparableUSD = float64(row.Passed)/n, float64(row.InitialAuditClean)/n, float64(row.AtMostOneRepair)/n, row.MeanRepairPasses/n, row.MeanUSD/n, row.MeanComparableUSD/n
+			row.PassRate, row.InitialAuditCleanRate, row.AtMostOneRepairRate, row.MeanRepairPasses, row.MeanDownstreamTurns, row.MeanDownstreamSeconds, row.MeanUSD, row.MeanComparableUSD = float64(row.Passed)/n, float64(row.InitialAuditClean)/n, float64(row.AtMostOneRepair)/n, row.MeanRepairPasses/n, row.MeanDownstreamTurns/n, row.MeanDownstreamSeconds/n, row.MeanUSD/n, row.MeanComparableUSD/n
 		} else {
 			row.CostKnown = false
 			row.ComparableCostKnown = false

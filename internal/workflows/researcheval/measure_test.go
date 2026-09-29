@@ -96,10 +96,11 @@ func TestSelectionIncludesFailuresAndUnknownCost(t *testing.T) {
 		t.Fatalf("selected %+v %v", best, ok)
 	}
 	trials[2].AuditRepairPasses = 2
+	trials[2].Roles = []roleMeasurement{{Role: "editorial-review", Turns: 3, SumTurnSeconds: 14}, {Role: "document-authoring", Turns: 1, SumTurnSeconds: 6}, {Role: "research-planning", Turns: 1, SumTurnSeconds: 4}}
 	if best, ok := bestCandidate(candidates, trials, s); !ok || best.ID != "reliable" {
 		t.Fatalf("correct two-repair candidate should remain eligible: %+v %v", best, ok)
 	}
-	if summary := summarizeCandidates(candidates, trials)[1]; summary.MeanRepairPasses != 2 || summary.AtMostOneRepair != 0 {
+	if summary := summarizeCandidates(candidates, trials)[1]; summary.MeanRepairPasses != 2 || summary.AtMostOneRepair != 0 || summary.MeanDownstreamTurns != 4 || summary.MeanDownstreamSeconds != 20 {
 		t.Fatalf("repair target not reported: %+v", summary)
 	}
 }

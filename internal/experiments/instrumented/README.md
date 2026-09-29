@@ -27,7 +27,7 @@ continuity. The retired repair example requires historical revision b5aeff81.
 
 Entries have `(context.Context, gimbal.Env) error` signatures. Supported constructs
 are local assignments, exported typed results and struct fields/literals, scalar
-constants, comparisons and arithmetic, if/else (including operation initializers),
+literals and package constants, comparisons and arithmetic, if/else (including operation initializers),
 explicit error returns, Set/SetJSON, NewSession, Generate, Fork, RunCommand, Check,
 inline Scope callbacks with named context parameters, and one Tasks range per
 root-level PromiseLoop binding. The task range currently declares its context
@@ -48,7 +48,9 @@ occurs at iteration, and cleanup completes before code following the range.
 The generated entries return the source's error; earlier handwritten observation
 structs are no longer their return contract. Inspect events for results.
 
-The admitted ordinary helper is fmt.Errorf. Arbitrary helpers, imported mutable
+The admitted ordinary helper is fmt.Errorf with concrete data values. Opaque
+interface arguments (including error wrapping) and data constructors that could
+hide custom formatting/JSON behavior are outside this slice. Arbitrary helpers, imported mutable
 package values, context values outside recognized lexical operation arguments,
 function/closure expressions outside Scope, goroutines, arbitrary loops, named
 task range values, break/continue, panic/recover/defer, services, groups and

@@ -10,6 +10,7 @@ import (
 
 	"github.com/tylergannon/gimbal/internal/experiments/instrumented/planning"
 
+	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/internal/compiledscope"
 	"github.com/tylergannon/gimbal/internal/host"
 	"go.temporal.io/sdk/testsuite"
@@ -49,7 +50,10 @@ func testActivities(t *testing.T, name string) *Activities {
 
 // Observe source-authored results from the durable turn records rather than
 // adding observation-only return fields to a generated workflow's contract.
-type recordedTurn struct{ prompt, result string }
+type recordedTurn struct {
+	prompt, result, err string
+	completed           bool
+}
 
 func recordedTurns(t *testing.T, project string) []recordedTurn {
 	t.Helper()
@@ -66,7 +70,7 @@ func recordedTurns(t *testing.T, project string) []recordedTurn {
 	for line := range strings.SplitSeq(strings.TrimSpace(string(data)), "\n") {
 		var record struct {
 			Scope, Session, Turn string
-			Event                struct{ Kind, Prompt, Result string }
+			Event                struct{ Kind, Prompt, Result, Error string }
 		}
 		if err := json.Unmarshal([]byte(line), &record); err != nil {
 			t.Fatal(err)
@@ -82,13 +86,20 @@ func recordedTurns(t *testing.T, project string) []recordedTurn {
 				t.Fatal("result without started turn")
 			}
 			turns[index].result = record.Event.Result
+			turns[index].err = record.Event.Error
+			turns[index].completed = true
 		}
 	}
 	return turns
 }
 func assertContinuityRecords(t *testing.T, project string) {
 	t.Helper()
-	turns := recordedTurns(t, project)
+	var turns []recordedTurn
+	for _, turn := range recordedTurns(t, project) {
+		if turn.completed && turn.err == "" {
+			turns = append(turns, turn)
+		}
+	}
 	if len(turns) != 4 {
 		t.Fatalf("continuity turns=%d want 4", len(turns))
 	}
@@ -106,6 +117,9 @@ func assertPlanningRecords(t *testing.T, project string) (decisions, tasks int) 
 	t.Helper()
 	var finalPrompt string
 	for _, turn := range recordedTurns(t, project) {
+		if !turn.completed || turn.err != "" {
+			continue
+		}
 		if strings.Contains(turn.prompt, "You plan the loop") {
 			decisions++
 			finalPrompt = turn.prompt
@@ -119,4 +133,33 @@ func assertPlanningRecords(t *testing.T, project string) (decisions, tasks int) 
 		t.Fatalf("planning decisions=%d tasks=%d; command feedback missing=%v", decisions, tasks, !strings.Contains(finalPrompt, "exit_code"))
 	}
 	return
+}
+
+func TestRecordedTurnsRetainValidationAttempts(t *testing.T) {
+	a := newTestActivities(t)
+	attempts := 0
+	adapter := &specimenAdapter{turn: func(context.Context, string, string) (any, error) {
+		attempts++
+		if attempts == 1 {
+			return map[string]any{"summary": 123}, nil
+		}
+		return Report{Summary: "valid", File: "report.txt", Receipt: "done"}, nil
+	}}
+	a.models = map[gimbal.WorkflowRole]gimbal.ModelBinding{coder: {Adapter: adapter, Model: "deterministic"}}
+	err := a.project.Run(t.Context(), "record-retry", a.models, func(ctx context.Context) error {
+		session := gimbal.NewSession(ctx, coder, a.workdir)
+		_, err := session.Generate[Report](ctx, "Return a valid report.")
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	turns := recordedTurns(t, a.project.Dir())
+	if len(turns) != 2 || !turns[0].completed || turns[0].err == "" || !turns[1].completed || turns[1].err != "" {
+		t.Fatalf("attempt records: %+v", turns)
+	}
+	var result Report
+	if err := json.Unmarshal([]byte(turns[1].result), &result); err != nil || result.Summary != "valid" {
+		t.Fatalf("validated result %+v: %v", result, err)
+	}
 }

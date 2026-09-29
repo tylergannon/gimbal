@@ -179,8 +179,10 @@ func TestUnsupportedSourceInvalidatesOutput(t *testing.T) {
 		{"package_value", `gimbal.Set(ctx,"argv",os.Args)`, "unsupported imported package value"},
 		{"scope_parameter", `gimbal.Scope(ctx,"empty",func(context.Context)error{return nil})`, "Scope callback must name"},
 		{"context_value", `_ = fmt.Errorf("%T",ctx)`, "context values are supported only"},
+		{"error_format", `_ = fmt.Errorf("%w",fmt.Errorf("nested"))`, "unsupported implicit format method: Error"},
 		{"fmt_variadic", `_ = fmt.Errorf("%s", []any{"a"}...)`, "variadic helper expansion"},
 		{"opaque_format", `_ = fmt.Errorf("%v", []any{Unsafe{}})`, "opaque interface values"},
+		{"error_json", `gimbal.SetJSON(ctx,"unsafe",UnsafeRecord{Problem:Unsafe{}})`, "opaque interface values"},
 		{"pointer_json", `gimbal.SetJSON(ctx,"unsafe",UnsafeList{1})`, "unsupported implicit json method"},
 		{"implicit_format", `_ = fmt.Errorf("%v",Unsafe{})`, "unsupported implicit format method"},
 		{"dynamic_prompt", `prompt := WorkPrompt`, "Generate prompt must be a compile-time string constant"},
@@ -194,6 +196,17 @@ func TestUnsupportedSourceInvalidatesOutput(t *testing.T) {
 			source := strings.Replace(original, `gimbal.Set(ctx, "review", "parent")`, tc.body+"\n gimbal.Set(ctx,\"review\",\"parent\")", 1)
 			if tc.name == "dynamic_prompt" {
 				source = strings.Replace(source, `(ctx, WorkPrompt)`, `(ctx, prompt)`, 1)
+			}
+			if tc.name == "error_json" {
+				source = strings.Replace(source, `"context"`, `"context";"encoding/json"`, 1)
+				source += `
+type Unsafe struct{}
+func(Unsafe)Error()string{return "unsafe"}
+func(Unsafe)MarshalJSON()([]byte,error){return []byte("1"),nil}
+type UnsafeRecord struct{Problem error}
+func(UnsafeRecord)Schema()json.RawMessage{return nil}
+func(UnsafeRecord)ValidateJSON([]byte)error{return nil}
+`
 			}
 			if tc.name == "pointer_json" {
 				source = strings.Replace(source, `"context"`, `"context";"encoding/json"`, 1)
@@ -212,7 +225,7 @@ func(Unsafe)String()string{return "user callback"}
 `
 				source = strings.Replace(source, `"context"`, `"context";"fmt"`, 1)
 			}
-			if tc.name == "context_value" || tc.name == "fmt_variadic" {
+			if tc.name == "context_value" || tc.name == "fmt_variadic" || tc.name == "error_format" {
 				source = strings.Replace(source, `"context"`, `"context";"fmt"`, 1)
 			}
 			if tc.name == "package_value" {

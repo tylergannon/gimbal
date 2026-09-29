@@ -248,6 +248,12 @@ func (e *emitter) expr(x ast.Expr) (string, error) {
 		a, err := e.expr(v.X)
 		return "(" + a + ")", err
 	case *ast.CompositeLit:
+		if err := e.valueMethods(v, "json"); err != nil {
+			return "", err
+		}
+		if err := e.valueMethods(v, "format"); err != nil {
+			return "", err
+		}
 		if named, ok := e.pkg.TypesInfo.TypeOf(v).(*types.Named); ok && !named.Obj().Exported() {
 			return "", e.fail(v, "value types must be exported from the authored package")
 		}
@@ -337,10 +343,7 @@ func (e *emitter) valueMethods(n ast.Expr, mode string) error {
 			for method := range methods.Methods() {
 				m := method.Obj()
 				dangerous := mode == "json" && (m.Name() == "MarshalJSON" || m.Name() == "MarshalText" || m.Name() == "IsZero") || mode == "format" && (m.Name() == "String" || m.Name() == "Format" || m.Name() == "Error")
-				// The operation error interface contains target-owned classified errors.
-				if _, ok := t.Underlying().(*types.Interface); ok && types.Identical(t, types.Universe.Lookup("error").Type()) {
-					continue
-				}
+
 				// time.Duration's standard scalar formatter is deterministic.
 				if m.Pkg() != nil && m.Pkg().Path() == "time" && types.TypeString(t, nil) == "time.Duration" {
 					continue
@@ -352,15 +355,11 @@ func (e *emitter) valueMethods(n ast.Expr, mode string) error {
 		}
 		switch u := t.Underlying().(type) {
 		case *types.Tuple:
-			for v := range u.Variables() {
-				if err := visit(v.Type()); err != nil {
-					return err
-				}
-			}
+			// Generate's Go error is converted to the explicit failure envelope;
+			// only its value is serialized as an authored result.
+			return visit(u.At(0).Type())
 		case *types.Interface:
-			if !types.Identical(t, types.Universe.Lookup("error").Type()) {
-				return e.fail(n, "opaque interface values cannot be checked for implicit "+mode+" effects")
-			}
+			return e.fail(n, "opaque interface values cannot be checked for implicit "+mode+" effects")
 		case *types.Map:
 			if err := visit(u.Key()); err != nil {
 				return err

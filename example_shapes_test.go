@@ -143,16 +143,22 @@ func Example_bakeOff() {
 
 		proposals := make([]gimbal.Text, 2)
 		group := gimbal.Group(ctx, "candidates")
-		for i := range proposals {
-			group.Go("candidate", func(ctx context.Context) error {
-				coder, err := researcher.Fork(ctx, "coder")
-				if err != nil {
-					return err
-				}
-				proposals[i], err = coder.Generate[gimbal.Text](ctx, "Propose one way to make the loader read its config file once per process. Change nothing. Answer with the change in plain English, naming each file it touches.")
+		group.Go("candidate", func(ctx context.Context) error {
+			coder, err := researcher.Fork(ctx, "coder")
+			if err != nil {
 				return err
-			})
-		}
+			}
+			proposals[0], err = coder.Generate[gimbal.Text](ctx, "Propose one way to make the loader read its config file once per process. Change nothing. Answer with the change in plain English, naming each file it touches.")
+			return err
+		})
+		group.Go("candidate", func(ctx context.Context) error {
+			coder, err := researcher.Fork(ctx, "coder")
+			if err != nil {
+				return err
+			}
+			proposals[1], err = coder.Generate[gimbal.Text](ctx, "Propose one way to make the loader read its config file once per process. Change nothing. Answer with the change in plain English, naming each file it touches.")
+			return err
+		})
 		if err := group.Wait(); err != nil {
 			return err
 		}
@@ -346,37 +352,64 @@ func Example_worktreePerCandidate() {
 
 	err := gimbal.Run(ctx, "worktrees", map[gimbal.WorkflowRole]gimbal.ModelBinding{"coder": {Adapter: codex, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
 		group := gimbal.Group(ctx, "candidates")
-		for i := range 2 {
-			group.Go("candidate", func(ctx context.Context) error {
-				dir, err := os.MkdirTemp("", "candidate-")
-				if err != nil {
-					return err
-				}
-				defer func() { _ = os.RemoveAll(dir) }()
-				if code, _, stderr, err := gimbal.RunCommand(ctx, "add-worktree", repo, "git", "worktree", "add", "--detach", dir); err != nil {
-					return err
-				} else if code != 0 {
-					return fmt.Errorf("git worktree add exited %d: %s", code, stderr)
-				}
-				defer func() {
-					_, _, _, _ = gimbal.RunCommand(context.WithoutCancel(ctx), "remove-worktree", repo, "git", "worktree", "remove", "--force", dir)
-				}()
+		group.Go("candidate", func(ctx context.Context) error {
+			dir, err := os.MkdirTemp("", "candidate-")
+			if err != nil {
+				return err
+			}
+			defer func() { _ = os.RemoveAll(dir) }()
+			if code, _, stderr, err := gimbal.RunCommand(ctx, "add-worktree", repo, "git", "worktree", "add", "--detach", dir); err != nil {
+				return err
+			} else if code != 0 {
+				return fmt.Errorf("git worktree add exited %d: %s", code, stderr)
+			}
+			defer func() {
+				_, _, _, _ = gimbal.RunCommand(context.WithoutCancel(ctx), "remove-worktree", repo, "git", "worktree", "remove", "--force", dir)
+			}()
 
-				gimbal.Set(ctx, "worktree", dir)
-				coder := gimbal.NewSession(ctx, "coder", dir)
-				result, err := coder.Generate[gimbal.Text](ctx, worktreeCandidatePrompt)
-				if err != nil {
-					return err
-				}
-				if code, status, _, err := gimbal.RunCommand(ctx, "status", repo, "git", "status", "--porcelain"); err != nil {
-					return err
-				} else if code != 0 || status != "" {
-					return fmt.Errorf("candidate %d wrote outside its worktree (git status exited %d):\n%s", i+1, code, status)
-				}
-				gimbal.Set(ctx, "result", string(result))
-				return nil
-			})
-		}
+			gimbal.Set(ctx, "worktree", dir)
+			coder := gimbal.NewSession(ctx, "coder", dir)
+			result, err := coder.Generate[gimbal.Text](ctx, worktreeCandidatePrompt)
+			if err != nil {
+				return err
+			}
+			if code, status, _, err := gimbal.RunCommand(ctx, "status", repo, "git", "status", "--porcelain"); err != nil {
+				return err
+			} else if code != 0 || status != "" {
+				return fmt.Errorf("candidate %d wrote outside its worktree (git status exited %d):\n%s", 1, code, status)
+			}
+			gimbal.Set(ctx, "result", string(result))
+			return nil
+		})
+		group.Go("candidate", func(ctx context.Context) error {
+			dir, err := os.MkdirTemp("", "candidate-")
+			if err != nil {
+				return err
+			}
+			defer func() { _ = os.RemoveAll(dir) }()
+			if code, _, stderr, err := gimbal.RunCommand(ctx, "add-worktree", repo, "git", "worktree", "add", "--detach", dir); err != nil {
+				return err
+			} else if code != 0 {
+				return fmt.Errorf("git worktree add exited %d: %s", code, stderr)
+			}
+			defer func() {
+				_, _, _, _ = gimbal.RunCommand(context.WithoutCancel(ctx), "remove-worktree", repo, "git", "worktree", "remove", "--force", dir)
+			}()
+
+			gimbal.Set(ctx, "worktree", dir)
+			coder := gimbal.NewSession(ctx, "coder", dir)
+			result, err := coder.Generate[gimbal.Text](ctx, worktreeCandidatePrompt)
+			if err != nil {
+				return err
+			}
+			if code, status, _, err := gimbal.RunCommand(ctx, "status", repo, "git", "status", "--porcelain"); err != nil {
+				return err
+			} else if code != 0 || status != "" {
+				return fmt.Errorf("candidate %d wrote outside its worktree (git status exited %d):\n%s", 2, code, status)
+			}
+			gimbal.Set(ctx, "result", string(result))
+			return nil
+		})
 		return group.Wait()
 	})
 	fmt.Println(err)

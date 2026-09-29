@@ -285,3 +285,21 @@ type AgentRecord struct {
 	Event     AgentEvent      `json:"event"`
 	NativeRef json.RawMessage `json:"native_ref,omitempty"`
 }
+
+// CancellationDelivery records a hosted backend cancellation request separately
+// from the local stop. Accepted means the backend accepted the request, not
+// that backend cleanup has completed.
+type CancellationDelivery struct {
+	Status string `json:"status"`
+	Error  string `json:"error"`
+}
+
+func (CancellationDelivery) lifecycleEvent() {}
+
+// CancellationCleanup reports the local owner's completed cleanup attempt.
+// An error is retained separately from the cancellation/body error.
+type CancellationCleanup struct {
+	Error string `json:"error"`
+}
+
+func (CancellationCleanup) lifecycleEvent() {}

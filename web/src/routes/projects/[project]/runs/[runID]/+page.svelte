@@ -304,8 +304,9 @@
         ? "Cancellation accepted. Waiting for the run record to update."
         : "The run did not accept cancellation.";
       if (result.accepted) cancelOpen = false;
-    } catch (error) {
-      controlFeedback = error instanceof Error ? error.message : String(error);
+    } catch {
+      controlFeedback = "The cancellation request could not be confirmed. Check the run's current status.";
+      cancelOpen = false;
     } finally {
       cancelling = false;
     }

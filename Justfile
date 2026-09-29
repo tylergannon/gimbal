@@ -28,6 +28,7 @@ vet:
 
 test:
     go test -count=1 ./...
+    go -C examples/temporal test -count=1 ./...
     cd web && pnpm test
 
 storybook:

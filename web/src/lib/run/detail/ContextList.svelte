@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { page } from '$app/state';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import type { ContextRow } from './contextOf.js';
 	import { valueSize, valueText } from './contextOf.js';
@@ -61,7 +62,9 @@
 					<span class="badge">excerpt sent</span>
 				{/if}
 				{#if row.value.artifact}
-					<span class="badge">artifact</span>
+					{#if row.value.artifact.file.startsWith('context/objects/') && page.params.project && page.params.runID}
+            <a class="badge" target="_blank" rel="noreferrer" href={`/projects/${page.params.project}/api/runs/${page.params.runID}/artifacts/${row.value.artifact.file.slice('context/objects/'.length)}`}>Open complete value</a>
+          {:else}<span class="badge">artifact</span>{/if}
 				{/if}
 			</div>
 			{#if open}

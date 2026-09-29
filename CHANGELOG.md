@@ -16,6 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `research-eval` compares researcher and index-curator models independently on
   fixed sources, measuring factual grounding, index retrieval, repairs, time,
   and recorded cost before a provisional holdout choice.
+- Public compiler integration for typed agent operations, immutable context,
+  scope/task lifetimes, graph generation and hosted whole-run cancellation.
+  A separate Temporal consumer module demonstrates generation, execution and
+  maintenance through those public packages.
 
 - Model aliases stay current with the latest models. `just models` and the daily
   refresh job now also read the Diffusion Router catalog and regenerate the

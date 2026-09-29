@@ -1,5 +1,5 @@
 {"type":"object",
-"description":"plan is the planner's whole answer for one dispatch: the revised backlog and the index of the next task, or null to end dispatch.","properties":{
+"description":"Plan is the planner's whole answer for one dispatch: the revised backlog and the index of the next task, or null to end dispatch.","properties":{
 "tasks":{"type":"array","items":{"type":"object",
 "description":"Task is one assignment selected by a PromiseLoop planner.","properties":{
 "name":{"type":"string","description":"Name is a short label for recognizing the work."},

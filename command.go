@@ -13,6 +13,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/tylergannon/gimbal/contextdata"
 )
 
 const commandOutputLimit = 64 << 10
@@ -137,29 +139,59 @@ func Check(ctx context.Context, key, workdir, command string, args ...string) er
 	if err := checkKeyAvailable(s, key); err != nil {
 		return err
 	}
-	started, ended, commandErr, commandRecordErr := runCommand(ctx, s, key, workdir, command, args)
-	result := struct {
-		Command  string   `json:"command"`
-		Args     []string `json:"args"`
-		Workdir  string   `json:"workdir"`
-		ExitCode int      `json:"exit_code"`
-		Stdout   string   `json:"stdout"`
-		Stderr   string   `json:"stderr"`
-		Error    string   `json:"error,omitempty"`
-	}{
-		Command:  started.Command,
-		Args:     append([]string(nil), started.Args...),
-		Workdir:  started.Workdir,
-		ExitCode: ended.ExitCode,
-		Stdout:   ended.Stdout,
-		Stderr:   ended.Stderr,
-		Error:    ended.Error,
-	}
+	result, commandErr := executeCheck(ctx, s, key, workdir, command, args)
 	raw, err := json.Marshal(result)
+	return errors.Join(commandErr, err, recordCheckResult(s, key, raw))
+}
+
+// CheckContext executes and records the same canonical evidence as Check.
+// On execution failure it returns the updated snapshot when recording succeeds;
+// publication failure preserves base and returns an error.
+func CheckContext(ctx context.Context, base contextdata.Snapshot, key, dir, command string, args ...string) (contextdata.Snapshot, error) {
+	ref, _, err := checkCompiledContext(ctx, base, key, dir, command, args...)
+	return ref, err
+}
+
+type checkResult struct {
+	Command  string   `json:"command"`
+	Args     []string `json:"args"`
+	Workdir  string   `json:"workdir"`
+	ExitCode int      `json:"exit_code"`
+	Stdout   string   `json:"stdout"`
+	Stderr   string   `json:"stderr"`
+	Error    string   `json:"error,omitempty"`
+}
+
+// executeCheck constructs the record from the exact command observations for
+// both local and compiled Check, including resolved paths and execution errors.
+func executeCheck(ctx context.Context, s *scope, key, workdir, command string, args []string) (checkResult, error) {
+	started, ended, commandErr, recordErr := runCommand(ctx, s, key, workdir, command, args)
+	return checkResult{Command: started.Command, Args: append([]string(nil), started.Args...), Workdir: started.Workdir, ExitCode: ended.ExitCode, Stdout: ended.Stdout, Stderr: ended.Stderr, Error: ended.Error}, errors.Join(commandErr, recordErr)
+}
+
+func checkCompiledContext(ctx context.Context, base contextdata.Snapshot, key, dir, command string, args ...string) (contextdata.Snapshot, checkResult, error) {
+	s, err := current(ctx)
 	if err != nil {
-		return errors.Join(commandErr, commandRecordErr, fmt.Errorf("gimbal: check %q: encode result: %w", key, err))
+		return base, checkResult{}, err
 	}
-	return errors.Join(commandErr, commandRecordErr, recordCheckResult(s, key, raw))
+	if err = checkKeyAvailable(s, key); err != nil {
+		return base, checkResult{}, err
+	}
+	store, err := compiledStore(s.run)
+	if err != nil {
+		return base, checkResult{}, err
+	}
+	if _, err = store.Load(context.WithoutCancel(ctx), base); err != nil {
+		return base, checkResult{}, err
+	}
+	result, commandErr := executeCheck(ctx, s, key, dir, command, args)
+	entry, encodeErr := contextdata.Encode(key, result)
+	if encodeErr != nil {
+		return base, result, errors.Join(commandErr, encodeErr)
+	}
+	// Preserve the command failure record even when its execution context was canceled.
+	ref, recordErr := writeCompiledContext(context.WithoutCancel(ctx), base, entry)
+	return ref, result, errors.Join(commandErr, recordErr)
 }
 
 func checkKeyAvailable(s *scope, key string) error {

@@ -7,9 +7,20 @@ package live
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 )
+
+// CancellationDeliveryError reports an actual backend delivery error or timeout.
+// Lifecycle rejection before delivery is not a delivery failure.
+type CancellationDeliveryError struct{ Err error }
+
+func (e *CancellationDeliveryError) Error() string { return e.Err.Error() }
+func (e *CancellationDeliveryError) Unwrap() error { return e.Err }
+
+// ErrCancellationInProgress means the hosted cancellation/finish lock is held.
+var ErrCancellationInProgress = errors.New("gimbal: run is cancelling or finishing")
 
 // Controller is the face of one run in progress. The session, scope, and
 // turn ids are the ones the run log carries: lap.3/coder.1 for a session,

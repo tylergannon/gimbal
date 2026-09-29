@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"encoding/json/jsontext"
 	"errors"
 	"fmt"
 	"strings"
@@ -15,6 +16,7 @@ import (
 // Session is one agent conversation on one harness, in one workdir. It
 // belongs to the scope that created it and is closed when that scope ends.
 type Session struct {
+	owner   *scope
 	adapter HarnessAdapter
 	name    string
 	model   string
@@ -85,20 +87,48 @@ func (Text) ValidateJSON(raw []byte) error {
 // and WithScopeTemplate renders the scope's context for this call in place of
 // the runtime's own rendering.
 func (s *Session) Generate[T Output](ctx context.Context, prompt string, opts ...AgentOption) (T, error) {
-	ask, context, err := scopedPrompt(ctx, prompt, apply(opts))
-	if err != nil {
-		var out T
-		return out, err
-	}
-	started := &TurnStarted{Prompt: prompt, Context: optionalContext(context)}
-	return dispatchRecorded[T](ctx, s, ask, opts, started)
+	var out T
+	accepted := decodedOutput[T]{value: &out}
+	_, err := s.generateResponse(ctx, prompt, &accepted, opts)
+	return out, err
 }
+
+// generateResponse is the shared scoped operation. A compiled caller supplies the
+// admitted Polytype output contract and transports the accepted bytes. The local
+// API additionally consumes T during acceptance so its wider Output contract keeps
+// decode-error re-asks and partial-value/error behavior.
+func (s *Session) generateResponse(ctx context.Context, prompt string, output Output, opts []AgentOption) ([]byte, error) {
+	ask, entries, err := scopedPrompt(ctx, prompt, apply(opts))
+	if err != nil {
+		return nil, err
+	}
+	started := &TurnStarted{Prompt: prompt, Context: optionalContext(entries)}
+	return dispatchResponse(ctx, s, ask, opts, started, output)
+}
+
+type decodedOutput[T Output] struct{ value *T }
+
+func (o *decodedOutput[T]) Schema() json.RawMessage { return (*o.value).Schema() }
+func (o *decodedOutput[T]) ValidateJSON(raw []byte) error {
+	if err := (*o.value).ValidateJSON(raw); err != nil {
+		return err
+	}
+	return json.Unmarshal(raw, o.value)
+}
+func (o *decodedOutput[T]) outputName() string { return fmt.Sprintf("%T", *o.value) }
 
 // scopedPrompt is what Generate sends: prompt with the ctx scope's context
 // appended as prompt + "\n\n" + context, rendered the runtime's way or, when
 // the call gave a template, through it. A scope that holds no values, and a
 // template that renders to nothing, leave prompt as it is.
 func scopedPrompt(ctx context.Context, prompt string, o options) (string, []ContextEntry, error) {
+	if snapshot, ok := ctx.Value(compiledContextKey{}).(compiledContext); ok {
+		var err error
+		ctx, err = bindCompiledContext(ctx, snapshot.ref)
+		if err != nil {
+			return "", nil, err
+		}
+	}
 	if o.scopeTemplate == "" {
 		text, entries := scopeTextAndContext(ctx)
 		if text == "" {
@@ -115,6 +145,13 @@ func scopedPrompt(ctx context.Context, prompt string, o options) (string, []Cont
 		return "", nil, fmt.Errorf("gimbal: render the scope template: %w", err)
 	}
 	text := strings.TrimSpace(rendered.String())
+	if _, ok := ctx.Value(compiledContextKey{}).(compiledContext); ok {
+		text, err = compiledTemplateContext(ctx, text)
+		if err != nil {
+			return "", nil, err
+		}
+		return prompt + "\n\n" + text, templateContextEntries(ctx, text), nil
+	}
 	if text == "" {
 		return prompt, templateContextEntries(ctx, text), nil
 	}
@@ -166,11 +203,19 @@ func dispatch[T Output](ctx context.Context, s *Session, prompt string, opts []A
 // A nil started preserves direct dispatch's current behavior: each actual ask,
 // including a validation retry, is recorded exactly as it is sent.
 func dispatchRecorded[T Output](ctx context.Context, s *Session, prompt string, opts []AgentOption, started *TurnStarted) (T, error) {
-	if o := apply(opts); len(o.supervisors) > 0 {
-		return supervise[T](ctx, s, prompt, o.supervisors, started)
-	}
 	var out T
-	return generate[T](ctx, s, prompt, nil, fmt.Sprintf("%T", out), started)
+	_, err := dispatchResponse(ctx, s, prompt, opts, started, &decodedOutput[T]{value: &out})
+	return out, err
+}
+
+func dispatchResponse(ctx context.Context, s *Session, prompt string, opts []AgentOption, started *TurnStarted, output Output) ([]byte, error) {
+	if err := s.reachable(ctx); err != nil {
+		return nil, err
+	}
+	if o := apply(opts); len(o.supervisors) > 0 {
+		return supervise(ctx, s, prompt, o.supervisors, started, output)
+	}
+	return generateResponse(ctx, s, prompt, nil, started, output)
 }
 
 // errInvalidResult marks a turn whose harness succeeded but whose result did
@@ -182,8 +227,11 @@ var errInvalidResult = errors.New("invalid result")
 const generateAttempts = 3
 const protocolAttempts = 2
 
-func generate[T Output](ctx context.Context, s *Session, prompt string, onEvent func(AgentEvent) error, outputType string, started *TurnStarted) (T, error) {
-	var out T
+func generateResponse(ctx context.Context, s *Session, prompt string, onEvent func(AgentEvent) error, started *TurnStarted, output Output) ([]byte, error) {
+	outputType := fmt.Sprintf("%T", output)
+	if named, ok := output.(interface{ outputName() string }); ok {
+		outputType = named.outputName()
+	}
 	var problem error
 	invalidAttempts, protocolFailures := 0, 0
 	for {
@@ -194,13 +242,19 @@ func generate[T Output](ctx context.Context, s *Session, prompt string, onEvent 
 		if protocolFailures > 0 {
 			ask += "\n\nThe previous turn stopped with a provider/session error. Inspect the work already done and continue this task."
 		}
-		raw, err := s.turn(ctx, ask, out.Schema(), onEvent, outputType, out.ValidateJSON, started)
-		if err == nil {
-			if err = json.Unmarshal(raw, &out); err == nil {
-				return out, nil
+		raw, err := s.turn(ctx, ask, output.Schema(), onEvent, outputType, func(raw []byte) error {
+			// Schema validators decode objects to maps; repeated names can hide
+			// an earlier value that a typed decoder would reject. Check syntax
+			// without constructing T before applying the output contract.
+			if !jsontext.Value(raw).IsValid() {
+				return fmt.Errorf("response must be one JSON value with unique object names and valid UTF-8")
 			}
-			err = fmt.Errorf("gimbal: %s: decode the result: %w: %w", s.id, errInvalidResult, err)
-		} else if !errors.Is(err, errInvalidResult) {
+			return output.ValidateJSON(raw)
+		}, started)
+		if err == nil {
+			return raw, nil
+		}
+		if !errors.Is(err, errInvalidResult) {
 			// Projector gaps stay inside Claude's observer. This is a failure
 			// returned by Claude or its SDK after the native turn stopped.
 			if strings.Contains(err.Error(), "claude:") && strings.Contains(err.Error(), "unknown tool_use_id") {
@@ -209,13 +263,13 @@ func generate[T Output](ctx context.Context, s *Session, prompt string, onEvent 
 					logf("%s: provider/session error, retrying turn (%d of %d): %v", s.id, protocolFailures, protocolAttempts, err)
 					continue
 				}
-				return out, fmt.Errorf("gimbal: %s: provider/session error after %d attempts: %w", s.id, protocolFailures, err)
+				return nil, fmt.Errorf("gimbal: %s: provider/session error after %d attempts: %w", s.id, protocolFailures, err)
 			}
-			return out, err
+			return nil, err
 		}
 		invalidAttempts++
 		if invalidAttempts == generateAttempts {
-			return out, fmt.Errorf("gimbal: %s: no valid result after %d attempts: %w", s.id, invalidAttempts, err)
+			return nil, fmt.Errorf("gimbal: %s: no valid result after %d attempts: %w", s.id, invalidAttempts, err)
 		}
 		logf("%s: the result is invalid, so the model is asked again (%d of %d): %v", s.id, invalidAttempts, generateAttempts, err)
 		problem = err
@@ -610,6 +664,9 @@ func steerSource(ctx context.Context) string {
 // conversation, so it runs on its parent's binding and the run binds
 // nothing for it. The two sessions are independent after that.
 func (s *Session) Fork(ctx context.Context, name string) (*Session, error) {
+	if err := s.reachable(ctx); err != nil {
+		return nil, err
+	}
 	scope, err := current(ctx)
 	if err != nil {
 		return nil, err
@@ -639,4 +696,28 @@ func oneLine(text string) string {
 		return text[:160] + "..."
 	}
 	return text
+}
+
+// reachable enforces semantic ownership independently of a consumer handle table.
+func (s *Session) reachable(ctx context.Context) error {
+	active, err := current(ctx)
+	if err != nil {
+		return err
+	}
+	if s == nil {
+		return fmt.Errorf("gimbal: nil session")
+	}
+	s.mu.Lock()
+	owner := s.owner
+	closed := s.closed
+	s.mu.Unlock()
+	if closed {
+		return fmt.Errorf("gimbal: session %s was used after its scope ended", s.id)
+	}
+	for scope := active; scope != nil; scope = scope.parent {
+		if scope == owner {
+			return nil
+		}
+	}
+	return fmt.Errorf("gimbal: session %q is not reachable from scope %q", s.name, active.key)
 }

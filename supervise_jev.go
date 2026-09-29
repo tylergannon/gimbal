@@ -180,7 +180,18 @@ func (j *jevSupervision) check(probeCtx, reviewCtx context.Context, worker *Sess
 		fmt.Fprintf(&look, "%d earlier tool calls omitted.\n", packet.OmittedToolCalls)
 	}
 	fmt.Fprintf(&look, "\nJev review probability: %.3f (provisional threshold %.2f).\n", score.P, jevReviewThreshold)
-	result, err := dispatch[review](withSteerSource(reviewCtx, sup.session.id), sup.session, look.String(), sup.opts)
+	ask := look.String()
+	var started *TurnStarted
+	if _, ok := reviewCtx.Value(compiledContextKey{}).(compiledContext); ok {
+		var entries []ContextEntry
+		ask, entries, err = scopedPrompt(reviewCtx, ask, options{})
+		if err != nil {
+			logf("%s: resolve supervisor context: %v", sup.session.id, err)
+			return
+		}
+		started = &TurnStarted{Prompt: look.String(), Context: optionalContext(entries)}
+	}
+	result, err := dispatchRecorded[review](withSteerSource(reviewCtx, sup.session.id), sup.session, ask, sup.opts, started)
 	if err != nil {
 		if reviewCtx.Err() == nil {
 			logf("%s: Jev-triggered review by %s failed: %v", worker.id, sup.session.id, err)
@@ -205,24 +216,21 @@ func (j *jevSupervision) check(probeCtx, reviewCtx context.Context, worker *Sess
 	}
 }
 
-func superviseWithJev[T Output](ctx context.Context, worker *Session, prompt string, supervisors []supervisor, started *TurnStarted, history string) (T, error) {
+func superviseWithJev(ctx context.Context, worker *Session, prompt string, supervisors []supervisor, started *TurnStarted, history string, output Output) ([]byte, error) {
 	client, err := jev.New(jev.WithModel("jev-1.13.0"), jev.WithTimeout(5*time.Second), jev.WithMaxRetries(0))
 	if err != nil {
-		var out T
-		return out, fmt.Errorf("gimbal: Jev supervision: %w", err)
+		return nil, fmt.Errorf("gimbal: Jev supervision: %w", err)
 	}
-	return superviseWithJevClient[T](ctx, worker, prompt, supervisors, started, history, client)
+	return superviseWithJevClient(ctx, worker, prompt, supervisors, started, history, client, output)
 }
 
-func superviseWithJevClient[T Output](ctx context.Context, worker *Session, prompt string, supervisors []supervisor, started *TurnStarted, history string, client *jev.Client) (T, error) {
+func superviseWithJevClient(ctx context.Context, worker *Session, prompt string, supervisors []supervisor, started *TurnStarted, history string, client *jev.Client, output Output) ([]byte, error) {
 	reviewCtx, cancelReviews := context.WithCancel(ctx)
 	j := &jevSupervision{seen: make(map[string]bool), active: true}
-	var out T
-	var err error
-	out, err = generate[T](ctx, worker, prompt, func(e AgentEvent) error {
+	out, err := generateResponse(ctx, worker, prompt, func(e AgentEvent) error {
 		j.observe(e, prompt, supervisors, client, ctx, reviewCtx, worker, history)
 		return nil
-	}, fmt.Sprintf("%T", out), started)
+	}, started, output)
 	j.mu.Lock()
 	j.active = false
 	j.mu.Unlock()

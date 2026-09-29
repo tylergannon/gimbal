@@ -26,6 +26,10 @@ func Extract(dir, entry, name string) (workflow.Graph, error) {
 }
 
 func extract(dir, entry, name string, overlay map[string][]byte) (workflow.Graph, entryInfo, error) {
+	return extractSource(dir, entry, name, overlay, true)
+}
+
+func extractSource(dir, entry, name string, overlay map[string][]byte, commandMetadata bool) (workflow.Graph, entryInfo, error) {
 	config := &packages.Config{
 		Mode: packages.NeedName | packages.NeedFiles | packages.NeedCompiledGoFiles |
 			packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo |
@@ -48,9 +52,12 @@ func extract(dir, entry, name string, overlay map[string][]byte) (workflow.Graph
 	if decl == nil || decl.Body == nil {
 		return workflow.Graph{}, entryInfo{}, fmt.Errorf("generate: %s has no function %s with a body", pkg.PkgPath, entry)
 	}
-	info, err := describe(pkg, decl)
-	if err != nil {
-		return workflow.Graph{}, entryInfo{}, err
+	var info entryInfo
+	if commandMetadata {
+		info, err = describe(pkg, decl)
+		if err != nil {
+			return workflow.Graph{}, entryInfo{}, err
+		}
 	}
 	module, modulePath := "", ""
 	if pkg.Module != nil {

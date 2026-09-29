@@ -6,6 +6,17 @@
 "session":{"type":"string"},
 "turn":{"type":"string"},
 "event":{"anyOf":[{"type":"object",
+"description":"CancellationCleanup reports the local owner's completed cleanup attempt. An error is retained separately from the cancellation/body error.","properties":{
+"kind":{"type":"string","const":"cancellation_cleanup"},
+"error":{"type":"string"}
+},"required":["kind","error"],"additionalProperties":false},
+{"type":"object",
+"description":"CancellationDelivery records a hosted backend cancellation request separately from the local stop. Accepted means the backend accepted the request, not that backend cleanup has completed.","properties":{
+"kind":{"type":"string","const":"cancellation_delivery"},
+"status":{"type":"string"},
+"error":{"type":"string"}
+},"required":["kind","status","error"],"additionalProperties":false},
+{"type":"object",
 "description":"CommandEnded records how the command ID ended. A command that ran has its exit code and no error. One that could not start has exit code -1 and the error, and one its ctx cancelled has both and Interrupted as well. Stdout and Stderr are exact for a small stream. Past the size a return keeps they are bounded head/tail excerpts with an omission marker and an absolute path. StdoutFile and StderrFile are run-relative paths to the complete streams; every command that starts has both files while it runs.","properties":{
 "kind":{"type":"string","const":"command_ended"},
 "id":{"type":"string"},

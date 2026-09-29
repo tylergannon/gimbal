@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/tylergannon/gimbal/contextdata"
 )
 
 // closeTimeout bounds one adapter's Close call, on a context independent of
@@ -32,12 +34,14 @@ type taskKey struct{}
 type scope struct {
 	run    *run
 	parent *scope
+	name   string
 	key    string                  // names with ordinals from the root, as in lap.3/bakeoff.1/attempt.2; "" for the root
 	ctx    context.Context         // canonical lifetime context for work owned by this scope
 	cancel context.CancelCauseFunc // ends the scope's ctx; run.cancelScope reaches it by key
 
 	loop bool // a PromiseLoop's own scope, which takes messages for its planner
 
+	finishMu    sync.Mutex
 	mu          sync.Mutex
 	ordinals    map[string]int // the last ordinal given to each child scope and session name
 	keys        []string       // in the order they were set
@@ -95,6 +99,12 @@ func (s *scope) endDispatch() []string {
 
 func current(ctx context.Context) (*scope, error) {
 	if s, _ := ctx.Value(scopeKey{}).(*scope); s != nil {
+		s.mu.Lock()
+		ended := s.ended
+		s.mu.Unlock()
+		if ended {
+			return nil, fmt.Errorf("gimbal: scope ended: %q", s.key)
+		}
 		return s, nil
 	}
 	return nil, errors.New("gimbal: no scope in the ctx; it must come from gimbal.Run")
@@ -112,13 +122,14 @@ func (s *scope) next(name string) string {
 func (s *scope) child(name string) *scope {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return &scope{run: s.run, parent: s, key: s.next(name)}
+	return &scope{run: s.run, parent: s, name: name, key: s.next(name)}
 }
 
 // adopt makes session belong to s, which closes it when s ends.
 func (s *scope) adopt(session *Session) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	session.owner = s
 	session.id = s.next(session.name)
 	session.closed = s.ended
 	s.sessions = append(s.sessions, session)
@@ -155,14 +166,7 @@ func (s *scope) failService(err error) {
 // do runs body as the scope: it begins when body is called and ends when
 // body returns.
 func (s *scope) do(ctx context.Context, body func(context.Context) error) (err error) {
-	ctx, s.cancel = context.WithCancelCause(context.WithValue(ctx, scopeKey{}, s))
-	s.ctx = ctx
-	s.run.addScope(s)
-	e := ScopeBegan{Name: path.Base(s.key), Loop: s.loop}
-	if task, ok := ctx.Value(taskKey{}).(Task); ok {
-		e.Task = optionalTask(task)
-	}
-	s.run.event(s.key, "", "", e)
+	ctx = s.begin(ctx)
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			_ = s.end()
@@ -171,6 +175,20 @@ func (s *scope) do(ctx context.Context, body func(context.Context) error) (err e
 		err = s.finish(err)
 	}()
 	return body(ctx)
+}
+
+// begin and finish are also used by consumer-owned compiled workflows.
+// Its explicit finish calls check lifetime legality before calling finish.
+func (s *scope) begin(ctx context.Context) context.Context {
+	ctx, s.cancel = context.WithCancelCause(context.WithValue(ctx, scopeKey{}, s))
+	s.ctx = ctx
+	s.run.addScope(s)
+	e := ScopeBegan{Name: path.Base(s.key), Loop: s.loop}
+	if task, ok := ctx.Value(taskKey{}).(Task); ok {
+		e.Task = optionalTask(task)
+	}
+	s.run.event(s.key, "", "", e)
+	return ctx
 }
 
 // finish stops the scope's services, closes its sessions, cancels its ctx,
@@ -188,6 +206,9 @@ func (s *scope) finish(bodyErr error) error {
 	}
 	err := errors.Join(bodyErr, serviceCleanupErr)
 	s.run.event(s.key, "", "", ScopeEnded{Error: errString(err)})
+	if s.key == "" && s.run.rootCancellation() != nil {
+		s.run.event("", "", "", CancellationCleanup{Error: errString(errors.Join(serviceCleanupErr, s.run.closeError()))})
+	}
 	return err
 }
 
@@ -271,11 +292,11 @@ func SetJSON[V Output](ctx context.Context, key string, value V) {
 }
 
 func encode(key string, value any) []byte {
-	raw, err := json.Marshal(value)
+	entry, err := contextdata.Encode(key, value)
 	if err != nil {
 		panic(fmt.Sprintf("gimbal: set %q: %v", key, err))
 	}
-	return raw
+	return entry.Value
 }
 
 func store(ctx context.Context, key string, raw []byte) {
@@ -320,7 +341,13 @@ func (s *scope) spillValueLocked(key string, value *scopeValue) error {
 		text = render(value.raw)
 	}
 	relative := filepath.ToSlash(filepath.Join("values", encodedPath(s.key), encodedComponent(key)+extension))
-	desc, err := s.run.writeArtifact(relative, data)
+	var desc artifactDescriptor
+	var err error
+	if s.run.contextStore != nil {
+		desc, err = s.run.writeCompiledArtifact(data, format, text)
+	} else {
+		desc, err = s.run.writeArtifact(relative, data)
+	}
 	if err != nil {
 		return err
 	}
@@ -463,6 +490,9 @@ type visibleValue struct {
 }
 
 func visibleValues(ctx context.Context) []visibleValue {
+	if values, ok := ctx.Value(compiledContextKey{}).(compiledContext); ok {
+		return values.values
+	}
 	seen := map[string]bool{}
 	var values []visibleValue
 	for s, _ := ctx.Value(scopeKey{}).(*scope); s != nil; s = s.parent {
@@ -490,7 +520,14 @@ func defaultContextEntries(visible []visibleValue, sections []string) []ContextE
 			if err != nil {
 				panic(fmt.Sprintf("gimbal: read scope value %q: %v", item.key, err))
 			}
-			complete = sections[i] == "## "+item.key+"\n\n"+render(raw)
+			full := "## " + item.key + "\n\n" + render(raw)
+			complete = sections[i] == full
+			if item.value.artifact != nil {
+				complete = complete || sections[i] == full+"\n\nComplete value: "+artifactAbsolute(item.owner.run, *item.value.artifact)
+				if item.value.artifact.format == "json" {
+					complete = complete || sections[i] == "## "+item.key+"\n\nJSON value (complete file referenced below):\n\n"+render(raw)+"\n\nComplete value: "+artifactAbsolute(item.owner.run, *item.value.artifact)
+				}
+			}
 		}
 		entries = append(entries, ContextEntry{Key: item.key, Scope: item.owner.key, Complete: complete})
 	}
@@ -537,14 +574,19 @@ func renderVisible(values []visibleValue, bodyBytes int) []string {
 			path := artifactAbsolute(item.owner.run, desc)
 			prefix := ""
 			if desc.format == "json" {
-				prefix = "JSON excerpt (the complete JSON is in the referenced file):\n\n"
+				prefix = "JSON value (complete file referenced below):\n\n"
 			}
 			maxBytes := artifactPreviewBytes
 			if bodyBytes >= 0 {
 				maxBytes = bodyBytes
 			}
 			allowed := contextEntryTokenLimit - tokenCount("## "+item.key+"\n\n"+prefix)
-			text = prefix + fitExcerptBytes(desc.preview, path, allowed, maxBytes)
+			text = prefix + fitExcerptBytes(desc.preview, path, allowed-tokenCount("\n\nComplete value: "+path), maxBytes)
+			// A pre-truncated preview may itself fit. Its complete-value path
+			// must still survive, including for supplied summaries.
+			if !strings.Contains(text, "Complete value: "+path) {
+				text += "\n\nComplete value: " + path
+			}
 		}
 		sections = append(sections, "## "+item.key+"\n\n"+text)
 	}

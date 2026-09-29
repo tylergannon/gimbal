@@ -849,10 +849,10 @@ func TestLoopCarriesStructuredTaskAndFeedback(t *testing.T) {
 	f := &fake{answer: func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(AgentEvent) error) (string, error) {
 		prompts = append(prompts, prompt)
 		if len(prompts) == 1 {
-			raw, err := json.Marshal(plan{Tasks: []Task{task}, Next: polytype.Nullable[int]{Present: true, Value: 0}})
+			raw, err := json.Marshal(Plan{Tasks: []Task{task}, Next: polytype.Nullable[int]{Present: true, Value: 0}})
 			return string(raw), err
 		}
-		raw, err := json.Marshal(plan{Tasks: []Task{}, Next: polytype.Nullable[int]{}})
+		raw, err := json.Marshal(Plan{Tasks: []Task{}, Next: polytype.Nullable[int]{}})
 		return string(raw), err
 	}}
 	project := t.TempDir()
@@ -968,10 +968,10 @@ func TestPromiseLoopSupervisesEachPlanningDecision(t *testing.T) {
 				return "", errors.New("planner was not steered")
 			}
 			if plannerCalls == 1 {
-				raw, err := json.Marshal(plan{Tasks: []Task{{Name: "Inspect", Description: "Inspect the current behavior.", DefinitionOfDone: "The behavior is known."}}, Next: polytype.Nullable[int]{Present: true}})
+				raw, err := json.Marshal(Plan{Tasks: []Task{{Name: "Inspect", Description: "Inspect the current behavior.", DefinitionOfDone: "The behavior is known."}}, Next: polytype.Nullable[int]{Present: true}})
 				return string(raw), err
 			}
-			raw, err := json.Marshal(plan{Tasks: []Task{}, Next: polytype.Nullable[int]{}})
+			raw, err := json.Marshal(Plan{Tasks: []Task{}, Next: polytype.Nullable[int]{}})
 			return string(raw), err
 
 		case "native-2":
@@ -1043,13 +1043,13 @@ func TestPromiseLoopSupervisesEachPlanningDecision(t *testing.T) {
 
 func TestLoopReasksAfterInvalidPlan(t *testing.T) {
 	task := Task{Name: "Build", Description: "Make it build.", DefinitionOfDone: "It builds."}
-	good, err := json.Marshal(plan{Tasks: []Task{task}, Next: polytype.Nullable[int]{Present: true, Value: 0}})
+	good, err := json.Marshal(Plan{Tasks: []Task{task}, Next: polytype.Nullable[int]{Present: true, Value: 0}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	blank, _ := json.Marshal(plan{Tasks: []Task{{Name: "Build", DefinitionOfDone: "It builds."}}, Next: polytype.Nullable[int]{Present: true, Value: 0}})
-	outOfRange, _ := json.Marshal(plan{Tasks: []Task{task}, Next: polytype.Nullable[int]{Present: true, Value: 3}})
-	duplicate, _ := json.Marshal(plan{Tasks: []Task{task, task}, Next: polytype.Nullable[int]{Present: true, Value: 0}})
+	blank, _ := json.Marshal(Plan{Tasks: []Task{{Name: "Build", DefinitionOfDone: "It builds."}}, Next: polytype.Nullable[int]{Present: true, Value: 0}})
+	outOfRange, _ := json.Marshal(Plan{Tasks: []Task{task}, Next: polytype.Nullable[int]{Present: true, Value: 3}})
+	duplicate, _ := json.Marshal(Plan{Tasks: []Task{task, task}, Next: polytype.Nullable[int]{Present: true, Value: 0}})
 	for _, test := range []struct {
 		name   string
 		bad    string
@@ -1147,7 +1147,7 @@ func TestLoopReasksAfterInvalidPlan(t *testing.T) {
 func TestLoopEndsTaskScopeOnBreak(t *testing.T) {
 	task := Task{Name: "Inspect", Description: "Establish the current behavior.", DefinitionOfDone: "The behavior is recorded."}
 	f := &fake{answer: func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(AgentEvent) error) (string, error) {
-		raw, err := json.Marshal(plan{Tasks: []Task{task}, Next: polytype.Nullable[int]{Present: true, Value: 0}})
+		raw, err := json.Marshal(Plan{Tasks: []Task{task}, Next: polytype.Nullable[int]{Present: true, Value: 0}})
 		return string(raw), err
 	}}
 	var taskCtx context.Context
@@ -1179,7 +1179,7 @@ func TestLoopEndsTaskScopeOnBreak(t *testing.T) {
 func TestLoopEndsTaskScopeOnCancellation(t *testing.T) {
 	task := Task{Name: "Wait", Description: "Observe cancellation while work is active.", DefinitionOfDone: "The active task stops with its parent."}
 	f := &fake{answer: func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(AgentEvent) error) (string, error) {
-		raw, err := json.Marshal(plan{Tasks: []Task{task}, Next: polytype.Nullable[int]{Present: true, Value: 0}})
+		raw, err := json.Marshal(Plan{Tasks: []Task{task}, Next: polytype.Nullable[int]{Present: true, Value: 0}})
 		return string(raw), err
 	}}
 	ctx, cancel := context.WithCancel(t.Context())

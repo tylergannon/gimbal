@@ -80,7 +80,7 @@ type review struct {
 }
 
 // supervise is Generate with supervisors attached.
-func supervise[T Output](ctx context.Context, s *Session, prompt string, supervisors []supervisor, started *TurnStarted) (T, error) {
+func supervise(ctx context.Context, s *Session, prompt string, supervisors []supervisor, started *TurnStarted, output Output) ([]byte, error) {
 	history := filepath.Join(runDir(ctx), "sessions", s.id+".jsonl")
 	for _, sup := range supervisors {
 		s.mu.Lock()
@@ -90,7 +90,7 @@ func supervise[T Output](ctx context.Context, s *Session, prompt string, supervi
 			scope.run.event(scope.key, s.id, turn, SuperviseAttached{Reviewer: sup.session.id, Worker: turn, Instruction: sup.instruction})
 		}
 	}
-	return superviseWithJev[T](ctx, s, prompt, supervisors, started, history)
+	return superviseWithJev(ctx, s, prompt, supervisors, started, history, output)
 }
 
 // clipText returns an owned string no larger than limit. Owning the clipped

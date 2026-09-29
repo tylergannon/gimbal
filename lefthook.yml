@@ -39,6 +39,10 @@ pre-commit:
       glob: "*.go"
       run: env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE -u GIT_PREFIX go test ./...
 
+    - name: consumer-test
+      glob: "*.go"
+      run: env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE -u GIT_PREFIX go -C examples/temporal test ./...
+
     - name: web
       group:
         parallel: true

@@ -51,12 +51,14 @@ func TestRunCommandRecordsEachOutcome(t *testing.T) {
 		record("wait.1")(RunCommand(cancelled, "wait", workdir, "sh", "-c", "printf partial; exec sleep 30"))
 
 		group := Group(ctx, "attempts")
-		for _, script := range []string{"exit 1", "exit 0"} {
-			group.Go("attempt", func(ctx context.Context) error {
-				_, _, _, err := RunCommand(ctx, "check", workdir, "sh", "-c", script)
-				return err
-			})
-		}
+		group.Go("attempt", func(ctx context.Context) error {
+			_, _, _, err := RunCommand(ctx, "check", workdir, "sh", "-c", "exit 1")
+			return err
+		})
+		group.Go("attempt", func(ctx context.Context) error {
+			_, _, _, err := RunCommand(ctx, "check", workdir, "sh", "-c", "exit 0")
+			return err
+		})
 		return group.Wait()
 	}); err != nil {
 		t.Fatal(err)

@@ -156,10 +156,9 @@ handler calls the workflow directly and the CLI calls the matching generated
 SKGO client. Rebuild and restart the instance with that binary. The graph's
 registration comes from the generated file compiled into the instance.
 An unknown role is required on the command line when
-`cmd/gimbal/defaults.json` has no default for it. The generator uses Gimbal
-internal packages and the application web build; generation in arbitrary
-external Go modules and submitting an arbitrary closure are not supported
-hosted paths.
+`cmd/gimbal/defaults.json` has no default for it. The stock generator uses Gimbal internal packages and the application web build.
+Consumer-owned compilers use the separate public integration described below;
+submitting an arbitrary closure to an existing instance remains unsupported.
 
 Standalone `gimbal.Run(gimbal.Project(ctx, dir), ...)` executes in its caller's
 process and writes durable state under `dir/runs`; it does not join a running
@@ -174,6 +173,20 @@ runs, even while an instance happens to be running elsewhere.
 Use `Iterate(ctx, name, items)` to give each item in a finite slice its own
 scope. Use `PromiseLoop(ctx, name, goal, planner)` and range over its `Tasks`
 when a planner chooses work adaptively; check `Err()` afterward.
+
+## Consumer-owned compilers
+
+The [Temporal consumer example](examples/temporal/README.md) is a separate Go
+module. It shows authored Go, consumer-owned emitted orchestration, and integration
+through Gimbal's public runtime, `contextdata`, `compiler`, and `web` packages.
+Its guide covers generation, running the console, cancellation, and maintaining
+the workflow after a source edit. The example defines its own bounded source
+surface and backend policy.
+
+Gimbal owns agent execution, context semantics, lifecycle observations, and the
+console. The consumer owns scheduling, worker handles, transport, deployment,
+and its emitter. `compiler.GenerateGraph` derives the displayed graph from the
+authored source independently of backend lowering.
 
 ## Lint workflows
 

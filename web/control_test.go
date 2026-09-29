@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"errors"
+	"net/http"
 	"path/filepath"
 	"testing"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/tylergannon/gimbal/internal/live"
 	"github.com/tylergannon/gimbal/internal/observation"
 	routes "github.com/tylergannon/gimbal/internal/skgo/links/onzggl3sn52xizlt"
+	"github.com/tylergannon/skgo"
 )
 
 type controlledRun struct {
@@ -93,5 +95,54 @@ func TestCancelRunPersistsACancelledRecord(t *testing.T) {
 	}
 	if snapshot.Run.Status != observation.StatusCancelled {
 		t.Fatalf("reloaded run status = %q, want %q", snapshot.Run.Status, observation.StatusCancelled)
+	}
+}
+
+// End the real local run after the route has found its controller but before
+// CancelScope reaches it, making the normal end-versus-click race deterministic.
+type endingLocalRun struct {
+	live.Controller
+	end  chan<- struct{}
+	done <-chan struct{}
+}
+
+func (r *endingLocalRun) CancelScope(scope string, cause error) error {
+	close(r.end)
+	<-r.done
+	return r.Controller.CancelScope(scope, cause)
+}
+
+func TestCancelRunThatEndsDuringControlReturnsLocalNotFound(t *testing.T) {
+	runs := live.NewRuns()
+	started := make(chan string, 1)
+	entered := make(chan struct{})
+	end := make(chan struct{})
+	done := make(chan struct{})
+	result := make(chan error, 1)
+	ctx := live.WithHook(gimbal.Project(t.Context(), t.TempDir()), func(id string, controller live.Controller) func() {
+		release := runs.Hook(id, &endingLocalRun{Controller: controller, end: end, done: done})
+		started <- id
+		return release
+	})
+	go func() {
+		result <- gimbal.Run(ctx, "local-end-race", nil, func(context.Context) error {
+			close(entered)
+			<-end
+			return nil
+		})
+		close(done)
+	}()
+	id := <-started
+	<-entered
+	accepted, err := routes.Skgo_cancelRun(live.WithRuns(t.Context(), runs), routes.CancelRun{Run: id})
+	var status *skgo.HTTPError
+	if accepted.Accepted || !errors.As(err, &status) || status.Status != http.StatusNotFound {
+		t.Fatalf("local end race: accepted=%+v error=%v; want 404", accepted, err)
+	}
+	if want := "Run " + id + " is no longer running."; status.Message != want {
+		t.Fatalf("local end race message = %q; want %q", status.Message, want)
+	}
+	if err := <-result; err != nil {
+		t.Fatalf("local run: %v", err)
 	}
 }

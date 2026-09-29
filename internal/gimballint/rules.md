@@ -200,6 +200,21 @@ Gimbal parses the text once per template and keeps it, so the parse is not
 repeated per turn. A template that cannot be parsed, or that cannot render
 the scope, is the error `Generate` returns, before any model is called.
 
+## GIMBAL110: no runtime-sized group dispatch
+
+`GIMBAL110-SIMPLE-WORKFLOWS/NO-DYNAMIC-GROUP-CHILDREN` reports a `Group.Go`
+inside a loop when the group was declared outside that loop. Parallel children
+must be explicitly authored at design time. Runtime data may change their
+inputs, but may not add an arbitrary number of children. Even a small constant
+loop is rejected; write its children explicitly. Dynamic dispatch is a future
+feature, not implied by ordinary Go syntax being executable.
+
+A group created inside an iteration with explicit children remains allowed:
+each iteration repeats a fixed authored shape. The check follows single-assignment aliases to the source-visible group
+construction. A group in a `for` initializer is created only once and is
+rejected. Unknown or reassigned receivers within a loop are rejected
+conservatively. It does not infer group ownership across helper boundaries.
+
 ## Limits and runtime backstop
 
 This is a source-level, report-only analyzer. It checks the patterns above in

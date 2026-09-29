@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { RunSnapshot, TurnRow } from '../../observation/index.js';
 	import ContextList from './ContextList.svelte';
-	import { barePrompt, turnContext, valueSize } from './contextOf.js';
+	import { barePrompt, turnContext } from './contextOf.js';
 	import Payload from './Payload.svelte';
 
 	let {
@@ -17,10 +17,6 @@
 	const context = $derived(turnContext(snapshot, turn));
 	const prompt = $derived(barePrompt(turn, snapshot));
 
-	const tokens = $derived(
-		Math.round(context.rows.reduce((total, row) => total + valueSize(row.value), 0) / 4),
-	);
-	const formatTokens = (count: number): string => `about ${count.toLocaleString()} tokens`;
 </script>
 
 <div class="prompt-and-context">
@@ -31,7 +27,10 @@
 	<section>
 		<div class="heading">Context sent</div>
 		<p class="summary">
-			{context.rows.length} value{context.rows.length === 1 ? '' : 's'} · {formatTokens(tokens)}
+			{context.rows.length} value{context.rows.length === 1 ? '' : 's'}
+			{#if context.rows.some((row) => row.complete === false)}
+				· some not included in full
+			{/if}
 		</p>
 		{#if !context.recorded}
 			<p class="note">

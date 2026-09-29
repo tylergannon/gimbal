@@ -1,0 +1,6 @@
+{"type":"object",
+"properties":{
+"exit_code":{"type":"integer"},
+"stdout":{"type":"string"},
+"stderr":{"type":"string"}
+},"required":["exit_code","stdout","stderr"],"additionalProperties":false}

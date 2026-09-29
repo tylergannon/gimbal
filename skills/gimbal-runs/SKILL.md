@@ -34,6 +34,16 @@ Workflow help should explain purpose, inputs, outputs or changes, completion
 expectations, and limits. If a material part is missing, resolve it from the
 workflow's source or the user rather than guessing at its authority.
 
+For a research document, inspect `gimbal run research-document --help`. Supply
+the goal, a local research directory, an output path, and a document token
+budget. `--source-dir` uses fixed local originals; omit it for web collection.
+The workflow writes a semantic `INDEX.md`, records every extracted claim and
+Jev source/pair finding under `<research-dir>/.semantic-index/`, and repairs or
+qualifies findings before document acceptance. The separate
+`gimbal run research-eval --help` command compares researcher and index-curator
+model assignments on fixed sources. Its winner is provisional for that suite;
+the report distinguishes factual correctness, retrieval, repair, and cost.
+
 ## Start a run
 
 Gimbal requires `TYPESAFE_API_KEY` in the instance startup environment and for

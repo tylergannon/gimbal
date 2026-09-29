@@ -59,9 +59,9 @@ The user accepted that limitation and suggested a bounded-input fast path:
 Evaluate that possibility without confusing context-window fit with judgment
 fidelity or replacing the original per-claim source verification requirement.
 
-The current proposal is [proposal.md](proposal.md); its source map is
-[sources.md](sources.md). This work changes research notes, not the workflow
-implementation. Repository instructions remain applicable.
+The proposal is [proposal.md](proposal.md); its source map is
+[sources.md](sources.md). The follow-up implementation adds the compiled
+claim audit and research evaluation workflow. Repository instructions remain applicable.
 # Implementation and evaluation follow-up
 
 Tyler: "let's have `Sol` make that a factor in the research workflow(s).

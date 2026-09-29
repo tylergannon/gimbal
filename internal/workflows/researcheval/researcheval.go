@@ -319,7 +319,7 @@ func ResearchEval(ctx context.Context, env gimbal.Env, params Params) error {
 				return err
 			}
 			row := trialResult{Candidate: choice, Case: c.ID, Split: phase, Directory: dir}
-			args := []string{"run", "research-document", "--project", env.WorkDir, "--work-dir", dir, "--goal", c.Goal, "--source-dir", sourceDir, "--research-dir", corpus, "--output", document, "--token-budget", "1800", "--min-sources-per-topic", "1", "--max-editorial-rounds", "2", "--research-indexing", choice.ResearchModel, "--index-curation", choice.IndexModel}
+			args := []string{"run", "research-document", "--project", env.WorkDir, "--work-dir", dir, "--goal", c.Goal, "--source-dir", sourceDir, "--research-dir", corpus, "--output", document, "--token-budget", "1800", "--min-sources-per-topic", "1", "--max-editorial-rounds", "3", "--research-indexing", choice.ResearchModel, "--index-curation", choice.IndexModel}
 			if fixed != "" {
 				args = append(args, "--research-planning", fixed, "--document-authoring", fixed, "--editorial-review", fixed, "--document-supervision", fixed)
 			}

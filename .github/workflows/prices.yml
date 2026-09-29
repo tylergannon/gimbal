@@ -61,12 +61,15 @@ jobs:
             echo "model prices are already current"
             exit 0
           fi
-          generated="$(printf '%s\n' internal/modelalias/aliases_gen.go internal/observation/model_prices_gen.go pi/diffusion_models_gen.go)"
-          if [[ "$changed" != "$generated" ]]; then
-            echo "generator changed files outside its generated target:" >&2
-            printf '%s\n' "$changed" >&2
-            exit 1
-          fi
+          while IFS= read -r file; do
+            case "$file" in
+              internal/modelalias/aliases_gen.go|internal/observation/model_prices_gen.go|pi/diffusion_models_gen.go) ;;
+              *)
+                echo "generator changed a file outside its generated targets: $file" >&2
+                exit 1
+                ;;
+            esac
+          done <<< "$changed"
 
           branch="automation/model-catalog-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           git switch -c "$branch"

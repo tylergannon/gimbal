@@ -10,6 +10,31 @@ import (
 	jev "github.com/kazz187/jev-sdk-go"
 )
 
+func TestExtractionFindingShowsBlockAndExistingClaims(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, StateDir), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	block := Block{ID: "b1", File: "INDEX.md", Line: 1, Text: "The bulletin is dated March 3. The notices conflict."}
+	if err := os.WriteFile(filepath.Join(dir, block.File), []byte(block.Text+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	claims := []Claim{{ID: "c1", Text: "The bulletin is dated March 3.", Occurrences: []Occurrence{{BlockID: "b1", Text: "The bulletin is dated March 3."}}}}
+	findings := map[string]Judgment{"extract:b1": {Task: "extract:b1", Label: "omitted_or_distorted"}}
+	if err := mark(dir, Inventory{Blocks: []Block{block}}, claims, nil, nil, findings, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(dir, StateDir, "AUDIT.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"Block INDEX.md:1:", "The notices conflict.", "Extracted: c1: The bulletin is dated March 3."} {
+		if !strings.Contains(string(data), want) {
+			t.Fatalf("audit omits %q: %s", want, data)
+		}
+	}
+}
+
 func TestAuditMarksEachTableAndParagraphOccurrenceStably(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(dir, "sources"), 0o755); err != nil {

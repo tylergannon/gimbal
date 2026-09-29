@@ -914,11 +914,15 @@ func claimEvidence(dir string, c Claim) ([]string, bool) {
 func mark(dir string, inv Inventory, claims []Claim, source map[string]bool, pairs map[string][]string, judgments map[string]Judgment, reviews []ReviewDecision, appliedReviews map[string]bool) error {
 	type occurrenceNote struct{ text, label string }
 	byBlock := map[string][]occurrenceNote{}
+	claimsByBlock := map[string][]string{}
 	blocksByID := map[string]Block{}
 	for _, b := range inv.Blocks {
 		blocksByID[b.ID] = b
 	}
 	for _, c := range claims {
+		for _, o := range c.Occurrences {
+			claimsByBlock[o.BlockID] = append(claimsByBlock[o.BlockID], c.ID+": "+c.Text)
+		}
 		if !source[c.ID] && len(pairs[c.ID]) == 0 && c.Kind != "inference" && c.Kind != "recommendation" {
 			continue
 		}
@@ -966,6 +970,14 @@ func mark(dir string, inv Inventory, claims []Claim, source map[string]bool, pai
 	report.WriteString("## Jev findings\n\nAll verdicts, including successful checks, are retained in audit.jsonl.\n\n")
 	for _, j := range ordered {
 		fmt.Fprintf(&report, "- %s: %s (confidence %.3f; distribution %v; %s)\n", j.Task, j.Label, j.Confidence, j.Probabilities, j.Reason)
+		if id, ok := strings.CutPrefix(j.Task, "extract:"); ok {
+			if block, exists := blocksByID[id]; exists {
+				fmt.Fprintf(&report, "  - Block %s:%d: %q\n", block.File, block.Line, block.Text)
+				for _, claim := range claimsByBlock[id] {
+					fmt.Fprintf(&report, "  - Extracted: %s\n", claim)
+				}
+			}
+		}
 	}
 	report.WriteString("\n## Independent review decisions\n\n")
 	for _, r := range reviews {

@@ -305,7 +305,7 @@
         : "The run did not accept cancellation.";
       if (result.accepted) cancelOpen = false;
     } catch {
-      controlFeedback = "The cancellation request could not be confirmed. Check backend delivery and local cleanup status.";
+      controlFeedback = "The cancellation request could not be confirmed. Check the run's current status.";
       cancelOpen = false;
     } finally {
       cancelling = false;

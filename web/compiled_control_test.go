@@ -19,6 +19,7 @@ import (
 	"github.com/tylergannon/gimbal/internal/observation"
 	routes "github.com/tylergannon/gimbal/internal/skgo/links/onzggl3sn52xizlt"
 	"github.com/tylergannon/gimbal/workflow"
+	"github.com/tylergannon/skgo"
 )
 
 func init() { gimbal.RegisterGraph(workflow.Graph{Name: "hosted-cancellation-test"}) }
@@ -87,8 +88,14 @@ func TestCompiledConsoleCancellationDelivery(t *testing.T) {
 			if mode == "accepted-race" && (err != nil || !accepted.Accepted) {
 				t.Fatalf("command: %+v %v", accepted, err)
 			}
-			if mode != "accepted-race" && err == nil {
-				t.Fatal("delivery failure was acknowledged as success")
+			if mode != "accepted-race" {
+				var status *skgo.HTTPError
+				if accepted.Accepted || !errors.As(err, &status) || status.Status != http.StatusConflict {
+					t.Fatalf("hosted delivery failure: accepted=%+v error=%v; want 409", accepted, err)
+				}
+				if !strings.Contains(status.Message, "Cancellation delivery for run "+id) || !strings.Contains(status.Message, "backend delivery status") {
+					t.Fatalf("hosted delivery message = %q", status.Message)
+				}
 			}
 			if mode == "timeout" {
 				close(release)

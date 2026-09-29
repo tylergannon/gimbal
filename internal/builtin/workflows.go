@@ -20,6 +20,7 @@ var Workflows = []Workflow{
 	{Package: "review", Entry: "Review", Name: "review", Command: "review_gen.go"},
 	{Package: "implementation", Entry: "Implement", Name: "implement", Command: "implementation_gen.go"},
 	{Package: "researchdocument", Entry: "ResearchDocument", Name: "research-document", Command: "researchdocument_gen.go"},
+	{Package: "researcheval", Entry: "ResearchEval", Name: "research-eval", Command: "researcheval_gen.go"},
 	{Package: "pyramidsummary", Entry: "PyramidSummary", Name: "pyramid-summary", Command: "pyramidsummary_gen.go"},
 	{Package: "validateproduct", Entry: "ValidateProduct", Name: "validate-product", Command: "validateproduct_gen.go"},
 }

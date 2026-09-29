@@ -71,3 +71,25 @@ that distinction separate from the eventual atomic inventory's unknown size.
 finding: A proposed retry exit code must survive the CLI startup path. The
 current unconditional Doppler resolution can fail before the auditor starts;
 the command needs an explicit inherited-key path and typed exit mapping.
+
+finding: The hosted workflow generator rejects nested gimbal.Run and helper
+packages hiding workflow calls. The eval therefore submits research-document
+through a short RunCommand, retains its accepted ID, and observes/cancels the
+hosted child using the existing registry and live controller.
+
+correction: A retrieval benchmark with five tiny source files and six allowed
+reads permits complete-corpus dumping. The reader budget must actually bind;
+keep original-evidence recall separate from answer correctness.
+
+finding: Run live before trusting a model comparison. The first Flash pilot
+followed the inherited token-counter executable into Gimbal code and tried
+later audit work before producing topic indexes. Correct cwd alone does not
+prevent irrelevant paths in a broad scope template from derailing collection.
+
+correction: One observation per candidate cannot establish usual behavior.
+Require repeated development cases for selection, retain failures in measured
+rates, and report the limited sample rather than claiming a population rate.
+
+finding: Fixed local corpora copied into every topic inflate extraction and pair checks. Keep one source directory and route all topic indexes to it. The whole-index token proxy should be measured on deduplicated scoped claims.
+
+finding: A completed exhaustive audit can still be unusable for authoring because extraction coverage and source dispositions remain unresolved. Keep transport/comparison completion distinct from authoring permission and independent correctness.

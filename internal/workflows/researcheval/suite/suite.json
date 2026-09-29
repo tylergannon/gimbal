@@ -1,0 +1,601 @@
+{
+  "name": "scoped-research-v1",
+  "cases": [
+    {
+      "id": "courier",
+      "split": "development",
+      "goal": "Explain the fictional Courier service to an engineer migrating from v1 to v2: capacity limits and units, retention, delivery behavior, retry handling, regional availability, and unsettled documentation. Distinguish versions and dates, cite originals, and explicitly identify missing information.",
+      "sources": "courier/sources",
+      "facts": [
+        {
+          "id": "messages",
+          "statement": "Version 2 permits at most 80 messages per request.",
+          "evidence": [
+            {
+              "source": "limits.md",
+              "quote": "A v2 request may contain at most 80 messages."
+            }
+          ]
+        },
+        {
+          "id": "body",
+          "statement": "Each v2 message has a 12 KiB body cap; a whole request has a separate 256 KiB aggregate cap.",
+          "evidence": [
+            {
+              "source": "limits.md",
+              "quote": "Each message may contain at most 12 KiB of body data."
+            },
+            {
+              "source": "limits.md",
+              "quote": "The aggregate body data in one request may not exceed 256 KiB."
+            }
+          ]
+        },
+        {
+          "id": "old",
+          "statement": "The v1 endpoint permits 20 messages per request.",
+          "evidence": [
+            {
+              "source": "migration.md",
+              "quote": "The old v1 endpoint permits 20 messages per request."
+            }
+          ]
+        },
+        {
+          "id": "retention",
+          "statement": "Retention is 9 days in v2 and 3 days in v1, measured from acceptance.",
+          "evidence": [
+            {
+              "source": "migration.md",
+              "quote": "In v2, accepted messages are retained for 9 days. In v1, accepted messages are retained for 3 days."
+            },
+            {
+              "source": "migration.md",
+              "quote": "Retention starts at acceptance, not the first delivery attempt."
+            }
+          ]
+        },
+        {
+          "id": "delivery",
+          "statement": "Version 2 is at-least-once and consumers may receive duplicates.",
+          "evidence": [
+            {
+              "source": "delivery.md",
+              "quote": "Courier v2 provides at-least-once delivery."
+            }
+          ]
+        },
+        {
+          "id": "retry",
+          "statement": "HTTP 429 retries must wait for Retry-After.",
+          "evidence": [
+            {
+              "source": "delivery.md",
+              "quote": "On HTTP 429, wait for the Retry-After value before retrying."
+            }
+          ]
+        },
+        {
+          "id": "regions",
+          "statement": "As of March 3 2026 v2 is available in North and West; South is still v1.",
+          "evidence": [
+            {
+              "source": "regions.md",
+              "quote": "As of this bulletin, v2 is available in North and West. South remains on v1."
+            }
+          ]
+        },
+        {
+          "id": "dispute",
+          "statement": "The v2 visibility default is disputed: quick-start 45 seconds, operations runbook 60 seconds; unresolved.",
+          "evidence": [
+            {
+              "source": "operations.md",
+              "quote": "The v2 quick-start says the default visibility timeout is 45 seconds. The v2 operations runbook says the default visibility timeout is 60 seconds."
+            },
+            {
+              "source": "operations.md",
+              "quote": "The discrepancy is unresolved; this note supplies no authority rule for selecting one value."
+            }
+          ]
+        }
+      ],
+      "queries": [
+        {
+          "id": "caps",
+          "question": "For Courier v2, give the per-message body cap and aggregate request-body cap. Are these the same limit?",
+          "answerable": true,
+          "answer_terms": [
+            [
+              "12 KiB",
+              "12 kibibytes"
+            ],
+            [
+              "256 KiB",
+              "256 kibibytes"
+            ]
+          ],
+          "evidence": [
+            {
+              "source": "limits.md",
+              "quote": "Each message may contain at most 12 KiB of body data."
+            },
+            {
+              "source": "limits.md",
+              "quote": "The aggregate body data in one request may not exceed 256 KiB."
+            }
+          ]
+        },
+        {
+          "id": "migration",
+          "question": "What changes in request message count and retention when moving from Courier v1 to v2?",
+          "answerable": true,
+          "answer_terms": [
+            [
+              "20"
+            ],
+            [
+              "80"
+            ],
+            [
+              "3 days"
+            ],
+            [
+              "9 days"
+            ]
+          ],
+          "evidence": [
+            {
+              "source": "limits.md",
+              "quote": "A v2 request may contain at most 80 messages."
+            },
+            {
+              "source": "migration.md",
+              "quote": "The old v1 endpoint permits 20 messages per request."
+            },
+            {
+              "source": "migration.md",
+              "quote": "In v2, accepted messages are retained for 9 days. In v1, accepted messages are retained for 3 days."
+            }
+          ]
+        },
+        {
+          "id": "where",
+          "question": "As of March 3, 2026, can a new v2 queue use West or South?",
+          "answerable": true,
+          "answer_terms": [
+            [
+              "West"
+            ],
+            [
+              "South"
+            ],
+            [
+              "v1",
+              "version 1"
+            ]
+          ],
+          "evidence": [
+            {
+              "source": "regions.md",
+              "quote": "As of this bulletin, v2 is available in North and West. South remains on v1."
+            }
+          ]
+        },
+        {
+          "id": "timeout",
+          "question": "What is the default Courier v2 visibility timeout?",
+          "answerable": true,
+          "answer_terms": [
+            [
+              "45"
+            ],
+            [
+              "60"
+            ],
+            [
+              "unresolved",
+              "disagree",
+              "conflict",
+              "discrepancy"
+            ]
+          ],
+          "evidence": [
+            {
+              "source": "operations.md",
+              "quote": "The v2 quick-start says the default visibility timeout is 45 seconds. The v2 operations runbook says the default visibility timeout is 60 seconds."
+            }
+          ]
+        },
+        {
+          "id": "price",
+          "question": "What is the monthly price of Courier v2?",
+          "answerable": false,
+          "answer_terms": [],
+          "evidence": []
+        }
+      ]
+    },
+    {
+      "id": "library",
+      "split": "development",
+      "goal": "Explain current Morrow Tool Library borrowing and workshop access to a new member as of May 2026. Cover eligibility, simultaneous tool limits, loan periods and conditional renewals, after-hours check-in, and unsettled Saturday collection hours. Distinguish current public rules from retired policies, staff services and event examples. Cite original evidence and identify unknown details.",
+      "sources": "library/sources",
+      "facts": [
+        {
+          "id": "eligibility",
+          "statement": "Take-home borrowing needs current membership and age 18 or older; supervised workshops admit age 16 or older without granting borrowing eligibility.",
+          "evidence": [
+            {
+              "source": "membership-current.md",
+              "quote": "Borrowing take-home tools requires a current member aged 18 or older."
+            },
+            {
+              "source": "workshop-participation.md",
+              "quote": "Supervised workshops admit participants aged 16 or older."
+            }
+          ]
+        },
+        {
+          "id": "loan",
+          "statement": "The current simultaneous holding limit is 3 tools and each loan lasts 7 calendar days from checkout.",
+          "evidence": [
+            {
+              "source": "loans-current.md",
+              "quote": "A member may hold at most 3 take-home tools simultaneously."
+            },
+            {
+              "source": "loans-current.md",
+              "quote": "Each take-home loan lasts 7 calendar days from checkout."
+            }
+          ]
+        },
+        {
+          "id": "renewal",
+          "statement": "Only one renewal of 3 additional calendar days is allowed, conditional on no reservation.",
+          "evidence": [
+            {
+              "source": "renewals-current.md",
+              "quote": "A take-home loan may be renewed once for 3 additional calendar days, but only if nobody has reserved the tool."
+            }
+          ]
+        },
+        {
+          "id": "return",
+          "statement": "After-hours deposits are checked in on the next opening day, not at deposit time.",
+          "evidence": [
+            {
+              "source": "return-desk.md",
+              "quote": "Tools left in the after-hours return box are checked in on the next opening day."
+            }
+          ]
+        },
+        {
+          "id": "dispute",
+          "statement": "Current Saturday collection notices conflict between 09:00 and 10:00 with no authority rule; unresolved.",
+          "evidence": [
+            {
+              "source": "saturday-counter.md",
+              "quote": "This current notice says Saturday tool collection opens at 09:00."
+            },
+            {
+              "source": "saturday-calendar.md",
+              "quote": "This current calendar says Saturday tool collection opens at 10:00."
+            },
+            {
+              "source": "saturday-calendar.md",
+              "quote": "The conflict with the current counter notice is unresolved; neither source is designated authoritative."
+            }
+          ]
+        }
+      ],
+      "queries": [
+        {
+          "id": "eligibility",
+          "question": "Can a 17-year-old workshop participant take a tool home, and what separate eligibility rules apply?",
+          "answerable": true,
+          "answer_terms": [
+            [
+              "18"
+            ],
+            [
+              "16"
+            ],
+            [
+              "member",
+              "membership"
+            ]
+          ],
+          "evidence": [
+            {
+              "source": "membership-current.md",
+              "quote": "Borrowing take-home tools requires a current member aged 18 or older."
+            },
+            {
+              "source": "workshop-participation.md",
+              "quote": "Supervised workshops admit participants aged 16 or older."
+            }
+          ]
+        },
+        {
+          "id": "loan-return",
+          "question": "Under the current rules, what is the take-home loan period, when is one renewal allowed and for how long, and when are after-hours deposits checked in?",
+          "answerable": true,
+          "answer_terms": [
+            [
+              "7 calendar days",
+              "7 days"
+            ],
+            [
+              "3 additional calendar days",
+              "3 calendar days",
+              "3 days"
+            ],
+            [
+              "reserv"
+            ],
+            [
+              "next opening day"
+            ]
+          ],
+          "evidence": [
+            {
+              "source": "loans-current.md",
+              "quote": "Each take-home loan lasts 7 calendar days from checkout."
+            },
+            {
+              "source": "renewals-current.md",
+              "quote": "A take-home loan may be renewed once for 3 additional calendar days, but only if nobody has reserved the tool."
+            },
+            {
+              "source": "return-desk.md",
+              "quote": "Tools left in the after-hours return box are checked in on the next opening day."
+            }
+          ]
+        },
+        {
+          "id": "saturday",
+          "question": "When does public Saturday tool collection open? Explain any unsettled evidence.",
+          "answerable": true,
+          "answer_terms": [
+            [
+              "09:00",
+              "9:00"
+            ],
+            [
+              "10:00"
+            ],
+            [
+              "unresolved",
+              "conflict",
+              "disagree"
+            ]
+          ],
+          "evidence": [
+            {
+              "source": "saturday-counter.md",
+              "quote": "This current notice says Saturday tool collection opens at 09:00."
+            },
+            {
+              "source": "saturday-calendar.md",
+              "quote": "This current calendar says Saturday tool collection opens at 10:00."
+            },
+            {
+              "source": "saturday-calendar.md",
+              "quote": "The conflict with the current counter notice is unresolved; neither source is designated authoritative."
+            }
+          ]
+        },
+        {
+          "id": "price",
+          "question": "What is the monthly membership subscription price?",
+          "answerable": false,
+          "answer_terms": [],
+          "evidence": []
+        }
+      ]
+    },
+    {
+      "id": "archive",
+      "split": "holdout",
+      "goal": "Explain the fictional Tern Archive visitor and research services, preserving date, building, ticket, and unit distinctions. Cover access, group visits, scanning, requested-material timing, and unsettled notices. Use original evidence and identify what remains unknown.",
+      "sources": "archive/sources",
+      "facts": [
+        {
+          "id": "age",
+          "statement": "Reading Hall admission is age 16 or older; Exhibition Wing admits all ages.",
+          "evidence": [
+            {
+              "source": "admission.md",
+              "quote": "The Reading Hall admits visitors aged 16 or older. The Exhibition Wing admits all ages."
+            }
+          ]
+        },
+        {
+          "id": "card",
+          "statement": "Reading Hall requires a free researcher card; Exhibition Wing does not.",
+          "evidence": [
+            {
+              "source": "admission.md",
+              "quote": "Reading Hall entry requires a free researcher card. Exhibition Wing entry does not require a researcher card."
+            }
+          ]
+        },
+        {
+          "id": "group",
+          "statement": "Group visits allow at most 14 people and last 50 minutes.",
+          "evidence": [
+            {
+              "source": "groups.md",
+              "quote": "A group booking may include at most 14 visitors. Each booked tour lasts 50 minutes."
+            }
+          ]
+        },
+        {
+          "id": "booking",
+          "statement": "Group bookings need at least 6 calendar days notice.",
+          "evidence": [
+            {
+              "source": "groups.md",
+              "quote": "Groups must book at least 6 calendar days before arrival."
+            }
+          ]
+        },
+        {
+          "id": "scans",
+          "statement": "A self-service scan job is capped at 30 pages and 90 MiB aggregate output.",
+          "evidence": [
+            {
+              "source": "scans.md",
+              "quote": "One scan job may include at most 30 pages. The maximum output size of a scan job is 90 MiB."
+            }
+          ]
+        },
+        {
+          "id": "delivery",
+          "statement": "Before 11:00 normally gives same-day 15:00 delivery; at or after 11:00 gives next opening day.",
+          "evidence": [
+            {
+              "source": "requests.md",
+              "quote": "Material requested before 11:00 is normally delivered by 15:00 the same day. Requests placed at or after 11:00 are normally delivered the next opening day."
+            }
+          ]
+        },
+        {
+          "id": "boxes",
+          "statement": "At most 4 boxes can be held simultaneously; there is no stated daily request cap.",
+          "evidence": [
+            {
+              "source": "requests.md",
+              "quote": "A researcher may hold at most 4 boxes at a desk simultaneously."
+            },
+            {
+              "source": "requests.md",
+              "quote": "The document gives no upper bound on the total number of boxes requested over an entire day."
+            }
+          ]
+        },
+        {
+          "id": "dispute",
+          "statement": "Saturday Reading Hall opening is disputed between reception 09:30 and hall notice 10:00, unresolved.",
+          "evidence": [
+            {
+              "source": "notices.md",
+              "quote": "The reception notice says 09:30. The Reading Hall notice says 10:00."
+            },
+            {
+              "source": "notices.md",
+              "quote": "The disagreement has not been resolved."
+            }
+          ]
+        }
+      ],
+      "queries": [
+        {
+          "id": "access",
+          "question": "Can a 12-year-old visit the Reading Hall or Exhibition Wing, and where is a researcher card required?",
+          "answerable": true,
+          "answer_terms": [
+            [
+              "16"
+            ],
+            [
+              "Reading Hall"
+            ],
+            [
+              "Exhibition Wing"
+            ]
+          ],
+          "evidence": [
+            {
+              "source": "admission.md",
+              "quote": "The Reading Hall admits visitors aged 16 or older. The Exhibition Wing admits all ages."
+            },
+            {
+              "source": "admission.md",
+              "quote": "Reading Hall entry requires a free researcher card. Exhibition Wing entry does not require a researcher card."
+            }
+          ]
+        },
+        {
+          "id": "scans",
+          "question": "Give the self-service scan job page and output-size caps.",
+          "answerable": true,
+          "answer_terms": [
+            [
+              "30"
+            ],
+            [
+              "90 MiB",
+              "90 mebibytes"
+            ]
+          ],
+          "evidence": [
+            {
+              "source": "scans.md",
+              "quote": "One scan job may include at most 30 pages. The maximum output size of a scan job is 90 MiB."
+            }
+          ]
+        },
+        {
+          "id": "planning",
+          "question": "How many calendar days ahead must a 14-person group book, and when would boxes requested at 10:00 normally arrive?",
+          "answerable": true,
+          "answer_terms": [
+            [
+              "6"
+            ],
+            [
+              "15:00",
+              "3 pm",
+              "3 p.m."
+            ]
+          ],
+          "evidence": [
+            {
+              "source": "groups.md",
+              "quote": "Groups must book at least 6 calendar days before arrival."
+            },
+            {
+              "source": "requests.md",
+              "quote": "Material requested before 11:00 is normally delivered by 15:00 the same day."
+            }
+          ]
+        },
+        {
+          "id": "saturday",
+          "question": "At what time does the Reading Hall open on Saturday?",
+          "answerable": true,
+          "answer_terms": [
+            [
+              "09:30",
+              "9:30"
+            ],
+            [
+              "10:00"
+            ],
+            [
+              "unresolved",
+              "disagree",
+              "conflict",
+              "not been resolved"
+            ]
+          ],
+          "evidence": [
+            {
+              "source": "notices.md",
+              "quote": "The reception notice says 09:30. The Reading Hall notice says 10:00."
+            }
+          ]
+        },
+        {
+          "id": "parking",
+          "question": "How many parking spaces does Tern Archive have?",
+          "answerable": false,
+          "answer_terms": [],
+          "evidence": []
+        }
+      ]
+    }
+  ]
+}

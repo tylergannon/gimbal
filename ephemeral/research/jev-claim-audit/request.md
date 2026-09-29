@@ -62,3 +62,24 @@ fidelity or replacing the original per-claim source verification requirement.
 The current proposal is [proposal.md](proposal.md); its source map is
 [sources.md](sources.md). This work changes research notes, not the workflow
 implementation. Repository instructions remain applicable.
+# Implementation and evaluation follow-up
+
+Tyler: "let's have `Sol` make that a factor in the research workflow(s).
+
+Once complete, let's come up with an eval for research, and try to optimize it
+a little bit based on the quality of the research, correctness of the semantic
+index, and quality (queryability) of the semantic index.
+
+This should be a gimbal workflow in and of itself --> come up with a measure,
+and then try using maybe Opus 5.5 as the planner in a promise loop on this
+evaluation, trying gemini models, deepseek, glm, and maybe luna / haiku, as the
+research and indexing models etc.
+
+Goal should be to find an economical solution that lends to success. We can
+self-heal by looping on incorrect claims and such, but ideally we'd get
+something that usually doesn't have to loop bc it tends to be correct, or that
+only loops once etc etc.
+
+but you ned to determine a WAY TO MEASURE it first. So, while Sol builds in that
+correctness check and loop, you can work on how to evaluate it and probably
+create a loop eval workflow."

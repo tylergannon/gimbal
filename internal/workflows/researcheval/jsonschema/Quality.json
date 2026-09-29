@@ -1,0 +1,16 @@
+{"type":"object",
+"description":"Quality is an independent judgment, not the operational Jev verdict.","properties":{
+"facts":{"type":"array","items":{"type":"object",
+"description":"FactGrade binds the assessor's semantic judgment to one fixed gold fact.","properties":{
+"id":{"type":"string"},
+"document_covered":{"type":"boolean"},
+"index_covered":{"type":"boolean"},
+"reason":{"type":"string"}
+},"required":["id","document_covered","index_covered","reason"],"additionalProperties":false}},
+"document_assertions":{"type":"integer"},
+"index_assertions":{"type":"integer"},
+"unsupported_document_claims":{"type":"array","items":{"type":"string"}},
+"unsupported_index_claims":{"type":"array","items":{"type":"string"}},
+"hidden_disagreements":{"type":"array","items":{"type":"string"}},
+"evidence":{"type":"string"}
+},"required":["facts","document_assertions","index_assertions","unsupported_document_claims","unsupported_index_claims","hidden_disagreements","evidence"],"additionalProperties":false}

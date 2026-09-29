@@ -19,6 +19,7 @@ type StartResearchDocumentInput struct {
 	Conversation            string                    `json:"conversation"`
 	Goal                    string                    `json:"goal"`
 	ResearchDir             string                    `json:"research_dir"`
+	SourceDir               polytype.Optional[string] `json:"source_dir,omitzero"`
 	Output                  string                    `json:"output"`
 	TokenBudget             int                       `json:"token_budget"`
 	MinSourcesPerTopic      polytype.Optional[int]    `json:"min_sources_per_topic,omitzero"`
@@ -27,8 +28,8 @@ type StartResearchDocumentInput struct {
 	RoleResearchIndexing    polytype.Optional[string] `json:"role_research_indexing,omitzero"`
 	RoleDocumentSupervision polytype.Optional[string] `json:"role_document_supervision,omitzero"`
 	RoleIndexCuration       polytype.Optional[string] `json:"role_index_curation,omitzero"`
-	RoleDocumentAuthoring   polytype.Optional[string] `json:"role_document_authoring,omitzero"`
 	RoleEditorialReview     polytype.Optional[string] `json:"role_editorial_review,omitzero"`
+	RoleDocumentAuthoring   polytype.Optional[string] `json:"role_document_authoring,omitzero"`
 }
 
 func startResearchDocument(ctx context.Context, in StartResearchDocumentInput) (StartAccepted, error) {
@@ -50,12 +51,13 @@ func startResearchDocument(ctx context.Context, in StartResearchDocumentInput) (
 			gimbal.WorkflowRole("research-indexing"):    in.RoleResearchIndexing,
 			gimbal.WorkflowRole("document-supervision"): in.RoleDocumentSupervision,
 			gimbal.WorkflowRole("index-curation"):       in.RoleIndexCuration,
-			gimbal.WorkflowRole("document-authoring"):   in.RoleDocumentAuthoring,
 			gimbal.WorkflowRole("editorial-review"):     in.RoleEditorialReview,
+			gimbal.WorkflowRole("document-authoring"):   in.RoleDocumentAuthoring,
 		}, func(runCtx context.Context, workDir string) error {
 			return researchdocument.ResearchDocument(runCtx, gimbal.Env{WorkDir: workDir}, researchdocument.Params{
 				Goal:               in.Goal,
 				ResearchDir:        in.ResearchDir,
+				SourceDir:          in.SourceDir,
 				Output:             in.Output,
 				TokenBudget:        in.TokenBudget,
 				MinSourcesPerTopic: in.MinSourcesPerTopic,

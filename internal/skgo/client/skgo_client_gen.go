@@ -32,22 +32,27 @@ func (c Client) StartResearchDocument(ctx context.Context, in skgo0.SkgoArg_star
 	return skgo.SubmitForm(ctx, c.FormClient, "1ssbzb/startResearchDocument", in, DecodeRoot3)
 }
 
+// StartResearchEval submits src/routes/researcheval_start.remote.ts#startResearchEval once.
+func (c Client) StartResearchEval(ctx context.Context, in skgo0.SkgoArg_startResearchEval) (skgo0.SkgoOut_startResearchEval, error) {
+	return skgo.SubmitForm(ctx, c.FormClient, "lebvg6/startResearchEval", in, DecodeRoot4)
+}
+
 // StartReview submits src/routes/review_start.remote.ts#startReview once.
 func (c Client) StartReview(ctx context.Context, in skgo0.SkgoArg_startReview) (skgo0.SkgoOut_startReview, error) {
-	return skgo.SubmitForm(ctx, c.FormClient, "1q7zkrv/startReview", in, DecodeRoot4)
+	return skgo.SubmitForm(ctx, c.FormClient, "1q7zkrv/startReview", in, DecodeRoot5)
 }
 
 // Steer submits src/routes/steer.remote.ts#steer once.
 func (c Client) Steer(ctx context.Context, in skgo0.SkgoArg_steer) (skgo0.SkgoOut_steer, error) {
-	return skgo.SubmitForm(ctx, c.FormClient, "x7ussb/steer", in, DecodeRoot5)
+	return skgo.SubmitForm(ctx, c.FormClient, "x7ussb/steer", in, DecodeRoot6)
 }
 
 // SteerLoop submits src/routes/steer.remote.ts#steerLoop once.
 func (c Client) SteerLoop(ctx context.Context, in skgo0.SkgoArg_steerLoop) (skgo0.SkgoOut_steerLoop, error) {
-	return skgo.SubmitForm(ctx, c.FormClient, "x7ussb/steerLoop", in, DecodeRoot6)
+	return skgo.SubmitForm(ctx, c.FormClient, "x7ussb/steerLoop", in, DecodeRoot7)
 }
 
 // StartValidateProduct submits src/routes/validateproduct_start.remote.ts#startValidateProduct once.
 func (c Client) StartValidateProduct(ctx context.Context, in skgo0.SkgoArg_startValidateProduct) (skgo0.SkgoOut_startValidateProduct, error) {
-	return skgo.SubmitForm(ctx, c.FormClient, "4zat0c/startValidateProduct", in, DecodeRoot7)
+	return skgo.SubmitForm(ctx, c.FormClient, "4zat0c/startValidateProduct", in, DecodeRoot8)
 }

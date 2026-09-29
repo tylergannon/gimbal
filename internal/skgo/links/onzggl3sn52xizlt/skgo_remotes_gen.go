@@ -22,6 +22,8 @@ var (
 	Skgo_startPyramidSummary = startPyramidSummary
 	// Skgo_startResearchDocument is startResearchDocument, published as src/routes/researchdocument_start.remote.ts#startResearchDocument.
 	Skgo_startResearchDocument = startResearchDocument
+	// Skgo_startResearchEval is startResearchEval, published as src/routes/researcheval_start.remote.ts#startResearchEval.
+	Skgo_startResearchEval = startResearchEval
 	// Skgo_startReview is startReview, published as src/routes/review_start.remote.ts#startReview.
 	Skgo_startReview = startReview
 	// Skgo_steer is steer, published as src/routes/steer.remote.ts#steer.
@@ -51,6 +53,10 @@ type (
 	SkgoArg_startResearchDocument = StartResearchDocumentInput
 	// SkgoOut_startResearchDocument is the type startResearchDocument returns.
 	SkgoOut_startResearchDocument = StartAccepted
+	// SkgoArg_startResearchEval is the type startResearchEval takes.
+	SkgoArg_startResearchEval = StartResearchEvalInput
+	// SkgoOut_startResearchEval is the type startResearchEval returns.
+	SkgoOut_startResearchEval = StartAccepted
 	// SkgoArg_startReview is the type startReview takes.
 	SkgoArg_startReview = StartReviewInput
 	// SkgoOut_startReview is the type startReview returns.

@@ -8,6 +8,7 @@
 	import './review_start.remote';
 	import './implement_start.remote';
 	import './researchdocument_start.remote';
+	import './researcheval_start.remote';
 	import './pyramidsummary_start.remote';
 	import './validateproduct_start.remote';
 

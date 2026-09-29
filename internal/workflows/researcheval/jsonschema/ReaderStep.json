@@ -1,0 +1,11 @@
+{"type":"object",
+"description":"ReaderStep requests explicit files or returns an answer using already read evidence.","properties":{
+"paths":{"type":"array","items":{"type":"string"}},
+"answer":{"type":"string"},
+"abstain":{"type":"boolean"},
+"citations":{"type":"array","items":{"type":"object",
+"properties":{
+"path":{"type":"string"},
+"quote":{"type":"string"}
+},"required":["path","quote"],"additionalProperties":false}}
+},"required":["paths","answer","abstain","citations"],"additionalProperties":false}

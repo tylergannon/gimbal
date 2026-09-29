@@ -27,6 +27,8 @@ func needsSecrets(args []string) bool {
 	switch args[0] {
 	case "runs", "watch", "steer", "count-tokens":
 		return false
+	case "audit-index":
+		return false
 	case "opencode":
 		return len(args) > 1 && args[1] == "start"
 	default:
@@ -100,7 +102,7 @@ func fetchDopplerSecrets(ctx context.Context, client *http.Client, endpoint, tok
 	}
 	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("fetch Doppler secrets: HTTP %d", response.StatusCode)
+		return nil, &httpStatusError{Code: response.StatusCode}
 	}
 	var secrets map[string]string
 	if err := json.NewDecoder(io.LimitReader(response.Body, 10<<20)).Decode(&secrets); err != nil {
@@ -110,4 +112,10 @@ func fetchDopplerSecrets(ctx context.Context, client *http.Client, endpoint, tok
 		return nil, fmt.Errorf("decode Doppler secrets: expected an object")
 	}
 	return secrets, nil
+}
+
+type httpStatusError struct{ Code int }
+
+func (e *httpStatusError) Error() string {
+	return fmt.Sprintf("fetch Doppler secrets: HTTP %d", e.Code)
 }

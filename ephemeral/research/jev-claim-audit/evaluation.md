@@ -1,0 +1,111 @@
+# Measuring economical research
+
+The objective is useful, evidence-backed research and a queryable semantic
+index with few repairs, at low total cost. A cheaper run is not a success if
+it omits the difficult facts, hides disagreements, or cannot answer questions.
+
+## Fixed measure before optimization
+
+Start with a small controlled local-source suite. Each case has a research
+goal, original documents, required facts with exact supporting passages, and
+questions with expected evidence and answers. Include different time/version
+scopes, different measurement units, cross-source answers, genuine source
+disagreement, and an unanswerable question. These authored fictional sources
+give us inspectable ground truth. They do not establish live-web research
+quality or broad domain generalization.
+
+Research and indexing roles see only the goal and source directory. A fixed
+reader sees the question and generated index, with a bounded passage budget;
+it does not receive expected answers. A fixed independent assessor compares
+the produced document/index with the originals and gold facts. The optimizer
+receives measured development results, not held-out answers. Each trial uses an independently named temporary working directory containing only that case’s sources. The bundled answer key is loaded into memory and removed from disk before trials; per-case assessor keys are written outside trial directories only after research ends and removed immediately after assessment. Completed trials are moved into the report directory before the next trial starts, outside the next worker’s temporary neighborhood; original paths remain recorded for interpreting native logs. Earlier outputs and the report are not in the trial directory tree. This is experimental blinding,
+not a security sandbox against a malicious agent.
+
+Keep these axes separate:
+
+| Measure | Definition |
+| --- | --- |
+| Research coverage | Required facts correctly represented with their qualifications / required facts. |
+| Research correctness | Supported factual assertions / factual assertions assessed, with unsupported and contradicted counts visible. |
+| Index coverage | Required facts correctly represented or reachable from the index / required facts. |
+| Index correctness | Supported index assertions / index assertions assessed; missing qualifications and unmarked source disagreement count as defects. |
+| Query success | Correct answer or justified abstention, with valid supporting original-source passages, within the fixed returned-passage budget. |
+| Evidence recall | Required evidence passages found / required passages; unknown-answer questions scored separately. |
+| Whole-index size | Serialized claim/coherence packet bytes and o200k token proxy; a 24k proxy margin identifies possible single-request experiments, not proof of Jev token fit or contradiction recall. Exhaustive pair coverage remains active. |
+| Repairs | Initial, after one repair, and final audit outcomes; count repair passes rather than hiding them in the final score. |
+| Economy | Catalog-priced research usage plus Jev usage, elapsed time, and cost per successful trial. Missing usage is unknown, never zero. Evaluation/planner overhead is reported separately from production research cost. Automatic supervisor Jev checks are not metered by the existing observation API and are excluded from this proxy. |
+
+Gold comparisons are independent of the operational Jev audit. Otherwise the
+optimizer could win by exploiting Jev's own mistakes. Exact quotes and source
+paths are checked by code; semantic coverage and support remain judgments,
+whose evidence and limitations are retained. Empty documents/indexes do not
+receive perfect precision. Failed and incomplete trials stay in denominators.
+
+The first quality threshold is conservative: all required facts covered, no
+assessor-reported unsupported/contradicted factual assertions or hidden source
+conflicts, and every query successful. It is a starting operating criterion,
+not an empirically calibrated universal score. Report raw numerators and
+denominators so thresholds can be revised deliberately rather than silently.
+
+## The Gimbal workflow
+
+`research-eval` reads a local candidate configuration and optionally an
+alternative suite. Default candidate combinations cover Gemini Flash,
+DeepSeek Flash, GLM Flash, Luna, and Haiku for collection/topic indexing and
+combined-index curation. Other research roles retain the production defaults so attribution is meaningful; `--fixed-model` explicitly selects a different pipeline and the report records that choice. The planner defaults to Opus 5.5, the reader to Luna 5.6, and the assessor to Sol. Resolved role bindings are recorded with each child run. Before optimization, the assessor evaluates three known-good and three version-confused index samples in separate sessions using the same assessment prompt. The label is withheld from its prompt and directory name. Raw false-positive and false-negative counts are reported; any error stops optimization. This small repeated sanity check does not establish exhaustive judge accuracy or eliminate model-family bias.
+
+A PromiseLoop chooses the next candidate and whether a new combination is
+worth trying, from the supplied finite allowlist. Code validates the selection,
+runs the real `research-document` workflow in a fresh directory with those
+bindings and frozen local sources, evaluates the output, and sends actual
+measurements back. It never lets a planner rewrite the suite, gold answers,
+scoring code, or quality threshold. Bound the number of trials and per-trial
+time, and retain errors as failed attempts rather than evidence of poor model
+reasoning. A model or authentication failure is visible, not a silent fallback.
+
+Fixed-source trials copy the originals once into the corpus’s shared `sources/` directory. Topic indexes link to those originals rather than multiplying identical source copies across all five researchers.
+
+The bundled suite has two development cases and a separate holdout. Every candidate dispatch runs all development cases. Selection requires at least two repeats of every development case; the default fourteen-round budget permits two repeats of all seven combinations. Reports expose trial counts, final quality-pass rate, first-audit cleanliness rate, and quality-pass-with-at-most-one-repair rate, with failures in their denominators. Require quality
+success and at most one audit repair per trial on average, then minimize cost
+among eligible candidates; show first-pass cleanliness and the tradeoff rather
+than averaging quality away. The first bounded
+experiment is exploratory and cannot establish a population success rate.
+
+At the default limits, fourteen rounds × two cases × fifteen minutes allows up to seven hours of development research alone, plus calibration, planning, assessments, retrieval checks, cleanup, and a holdout trial. It is a bounded research budget, not a quick smoke test. Use a smaller allowlist and round budget for pipeline checks; such checks need not produce an eligible winner.
+
+After development selection, freeze the chosen candidate and evaluate the
+held-out case without returning its scores to the optimizer. A holdout failure
+means the promise is unfulfilled; it must not trigger tuning on that same
+holdout. Ended dispatch or an exhausted budget is not a successful evaluation.
+
+Each trial submits the compiled `research-document` workflow to the same hosted
+project through a short CLI RunCommand, with separate output/work directories
+and explicit model bindings. The parent observes the accepted run ID through
+its existing registry, cancels it through the live controller on timeout, and
+waits for terminal cleanup. The short submission waits for its accepted ID
+even if the parent cancels meanwhile. An ambiguous submission failure remains
+an operational error, not proof that no child started. Nested `gimbal.Run` is
+explicitly unsupported by the current generator; killing a standalone research
+process would bypass provider cleanup.
+
+Queryability uses a code-owned navigation protocol: a fixed reader starts with
+INDEX.md, requests at most two paths per turn, and gets at most six files and
+18,000 bytes across four turns. It must cite exact original passages it read.
+Observed out-of-protocol tool use or absent telemetry invalidates the query.
+Each bundled corpus contains more source files than the reader can fetch. Required evidence is spread across sources, so the reader must use the index to choose within its budget. This constrains recursive grep and unrestricted corpus dumping; costs and failures stay visible. The semantic assessor checks meaning
+in addition to the deterministic passage and answer-term checks.
+
+## Research basis and limits
+
+[ALCE](https://arxiv.org/abs/2305.14627) separates factual correctness from
+citation quality. [ARES](https://arxiv.org/abs/2311.09476) separates retrieval
+relevance, answer relevance, and faithfulness, and explicitly addresses judge
+error with labeled evidence. [BEIR](https://arxiv.org/abs/2104.08663) motivates
+testing retrieval across different tasks rather than trusting a single domain.
+This workflow adopts those distinctions, not their benchmark scores or claimed
+statistical guarantees. A small local suite must be supplemented by real,
+independently labeled research tasks before choosing organization-wide defaults.
+
+## Price proxies
+
+The report records its price basis. When the generated catalog lacks the two router candidates, use vendor list-price proxies verified on 2026-09-29: [DeepSeek V4.1 Flash](https://api-docs.deepseek.com/quick_start/pricing/) at peak USD 0.30 input / 0.006 cached input / 1.20 output per million tokens, and [GLM 5.3 Flash](https://docs.z.ai/guides/overview/pricing) at USD 0.15 / 0.03 / 0.50. These are published base-price comparisons, not observed Diffusion charges or subscription invoices. DeepSeek off-peak discounts are not assumed. Unknown models or unspecified cache-write usage remain unpriced.

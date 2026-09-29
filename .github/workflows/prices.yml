@@ -1,4 +1,4 @@
-name: Refresh model prices
+name: Refresh model catalog
 
 on:
   schedule:
@@ -25,8 +25,23 @@ jobs:
         with:
           go-version: "1.27.1"
       - uses: taiki-e/install-action@just
-      - name: Refresh generated prices
-        run: just prices
+      - name: Read the Diffusion API key from Doppler
+        env:
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$DOPPLER_TOKEN" ]]; then
+            echo "repository secret DOPPLER_TOKEN is not set; add a Doppler service token for the config holding DIFFUSION_API_KEY" >&2
+            exit 1
+          fi
+          key="$(curl --fail --silent --show-error \
+            -H "Authorization: Bearer $DOPPLER_TOKEN" \
+            "https://api.doppler.com/v3/configs/config/secrets/download?format=json" |
+            jq -er '.DIFFUSION_API_KEY')"
+          echo "::add-mask::$key"
+          echo "DIFFUSION_API_KEY=$key" >> "$GITHUB_ENV"
+      - name: Refresh generated models, aliases, and prices
+        run: just models
       - name: Open catalog refresh for model review
         shell: bash
         env:
@@ -45,7 +60,8 @@ jobs:
             echo "model prices are already current"
             exit 0
           fi
-          if [[ "$changed" != "internal/observation/model_prices_gen.go" ]]; then
+          generated="$(printf '%s\n' internal/modelalias/aliases_gen.go internal/observation/model_prices_gen.go pi/diffusion_models_gen.go)"
+          if [[ "$changed" != "$generated" ]]; then
             echo "generator changed files outside its generated target:" >&2
             printf '%s\n' "$changed" >&2
             exit 1
@@ -55,14 +71,14 @@ jobs:
           git switch -c "$branch"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -- internal/observation/model_prices_gen.go
-          git commit -m "chore: refresh model prices"
+          git add -- internal/modelalias/aliases_gen.go internal/observation/model_prices_gen.go pi/diffusion_models_gen.go
+          git commit -m "chore: refresh model catalog"
           git push origin "$branch"
 
           cat > /tmp/model-catalog-pr.md <<'EOF'
-          Scheduled models.dev refresh. The commit updates the generated model-price table.
+          Scheduled refresh from models.dev and the Diffusion Router. The commit regenerates the model-price table, the model aliases (haiku, sonnet, opus, fable, luna, terra, sol, astra, gpt, deepseek-flash, glm, glm-flash, glm-vision), and the Diffusion model limits. Each unversioned alias already points at the newest version in the catalog.
 
-          Before merging, inspect added and removed model IDs. When a newer model changes a family, update the default shorthand and explicit versions in `internal/modelalias/modelalias.go`, every affected built-in role in `cmd/gimbal/defaults.json`, other configured defaults, and rendered workflow help or skills. Preserve each role's intended model tier. Do not add assertions that pin a moving shorthand to one version.
+          Before merging, inspect added and removed model IDs. Review the built-in role defaults in `internal/builtin/defaults.json` and other configured defaults, help, and skills: they name explicit models and do not follow an alias. Preserve each role's intended model tier. Do not add assertions that pin a moving shorthand to one version.
 
           Follow the model-catalog review in `skills/gimbal-release/SKILL.md`. Publish a release only after the complete model change is merged and checked; verify a published-commit install before tagging and an exact-tag install afterward, each with its web listener running.
           EOF

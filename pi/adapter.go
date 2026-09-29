@@ -188,9 +188,8 @@ func (a *Adapter) routerCatalogModel(ctx context.Context, id, key string) (*mode
 }
 
 // defaultRouterModel is the Pi entry for a router id the catalog does not
-// advertise. The limits match the ones Pi wrote into models.json before the
-// native port; new ids keep Pi's conservative defaults until their limits have
-// been checked.
+// advertise. Limits come from the last generated router catalog
+// (`just models`); other ids keep Pi's conservative defaults.
 func defaultRouterModel(id, endpoint string) *model.Model {
 	m := &model.Model{
 		Type:     model.ModelTypeChat,
@@ -200,19 +199,20 @@ func defaultRouterModel(id, endpoint string) *model.Model {
 		Provider: config.ProviderDiffusion,
 		BaseURL:  endpoint,
 	}
-	switch id {
-	case "deepseek-4.1-flash", "deepseek-4.1-flash-background":
-		m.ContextWindow, m.MaxTokens = 1048576, 262144
-	case "glm-5.3-flash", "glm-5.3-flash-background":
-		m.ContextWindow, m.MaxTokens = 524288, 163840
-	case "glm-5.2-vision", "glm-5.2-vision-background", "glm-5.2-vision-flex",
-		"glm-5.3", "glm-5.3-background", "glm-5.3-vision", "glm-5.3-vision-background":
-		m.ContextWindow, m.MaxTokens = 524288, 131072
-	}
-	if m.ContextWindow > 0 {
-		m.Input = []string{"text", "image"}
+	if limit, ok := diffusionLimits[id]; ok {
+		m.ContextWindow, m.MaxTokens = limit.contextWindow, limit.maxTokens
+		m.Input = []string{"text"}
+		if limit.vision {
+			m.Input = append(m.Input, "image")
+		}
 	}
 	return m
+}
+
+// diffusionLimit is one router model's generated limits.
+type diffusionLimit struct {
+	contextWindow, maxTokens int
+	vision                   bool
 }
 
 func modelID(modelName string) string {

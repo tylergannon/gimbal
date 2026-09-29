@@ -23,7 +23,7 @@ func main() {
 	apiResearch := flag.String("api-research", "gpt-5.6-terra:high", "model for API research")
 	frontendResearch := flag.String("frontend-research", "claude-sonnet-5:high", "model for frontend research")
 	planning := flag.String("sprint-planning", "claude-opus-5-5:max", "model for sprint planning")
-	coding := flag.String("coding", "gpt-6-sol:xhigh", "model for coding")
+	coding := flag.String("coding", "gpt-6.1-sol:xhigh", "model for coding")
 	scopeReview := flag.String("implementation-scope-review", "gpt-5.6-terra:high", "model for implementation scope review")
 	architecture := flag.String("architectural-critique", "claude-sonnet-5:high", "model for architectural critique")
 	qa := flag.String("qa-orchestration", "claude-opus-5-5:max", "model for QA orchestration")

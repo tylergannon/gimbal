@@ -90,7 +90,7 @@ func TestSelectionIncludesFailuresAndUnknownCost(t *testing.T) {
 	candidates := []candidate{{ID: "cheap"}, {ID: "reliable"}, {ID: "unknown"}}
 	s := suite{Cases: []researchCase{{ID: "dev", Split: "development"}, {ID: "hold", Split: "holdout"}}}
 	pass := score{Passed: true}
-	trials := []trialResult{{Candidate: candidates[0], Case: "dev", Split: "development", Quality: pass, CostKnown: true, CostUSD: .1}, {Candidate: candidates[0], Case: "dev", Split: "development", Error: "failed"}, {Candidate: candidates[1], Case: "dev", Split: "development", Quality: pass, CostKnown: true, CostUSD: .5, AuditRepairPasses: 1}, {Candidate: candidates[2], Case: "dev", Split: "development", Quality: pass, CostKnown: false, CostUSD: 0}}
+	trials := []trialResult{{Candidate: candidates[0], Case: "dev", Split: "development", Quality: pass, ComparableCostKnown: true, ComparableCostUSD: .1}, {Candidate: candidates[0], Case: "dev", Split: "development", Error: "failed"}, {Candidate: candidates[1], Case: "dev", Split: "development", Quality: pass, ComparableCostKnown: true, ComparableCostUSD: .5, AuditRepairPasses: 1}, {Candidate: candidates[2], Case: "dev", Split: "development", Quality: pass, ComparableCostKnown: false, ComparableCostUSD: 0}}
 	best, ok := bestCandidate(candidates, trials, s)
 	if !ok || best.ID != "reliable" {
 		t.Fatalf("selected %+v %v", best, ok)
@@ -168,18 +168,48 @@ func TestToolUseAndMissingUsageAreNotFreeSuccess(t *testing.T) {
 	if containsTool(map[string]any{"type": "tool", "name": "StructuredOutput"}) {
 		t.Fatal("native structured completion called an out-of-protocol read")
 	}
+	if containsTool(map[string]any{"type": "tool", "name": "finish"}) {
+		t.Fatal("agy structured completion called an out-of-protocol read")
+	}
 	if !containsTool([]any{map[string]any{"type": "tool", "name": "StructuredOutput"}, map[string]any{"type": "tool", "name": "Read"}}) {
 		t.Fatal("structured completion hid an actual tool")
+	}
+	if !containsTool([]any{map[string]any{"type": "tool", "name": "finish"}, map[string]any{"type": "tool", "name": "shell"}}) {
+		t.Fatal("agy completion hid an actual tool")
 	}
 	if _, known := researchCost(observation.RunSnapshot{}); known {
 		t.Fatal("absent usage priced as free")
 	}
 }
 
+func TestComparableCostExcludesUnpricedFixedRoles(t *testing.T) {
+	roles := []roleMeasurement{
+		{Role: "research-indexing", Turns: 1, CostUSD: .20, CostKnown: true},
+		{Role: "index-curation", Turns: 2, CostUSD: .30, CostKnown: true},
+		{Role: "document-authoring", Turns: 1, CostKnown: false},
+	}
+	cost, known := comparableCost(roles, 1_000_000, true)
+	if !known || cost < .5419 || cost > .5421 {
+		t.Fatalf("comparable cost %f known=%v", cost, known)
+	}
+	if _, known := comparableCost(roles[:1], 1_000_000, true); known {
+		t.Fatal("missing curator usage treated as free")
+	}
+	if _, known := comparableCost(roles, 1_000_000, false); known {
+		t.Fatal("incomplete Jev audit treated as priced")
+	}
+	c := candidate{ID: "viable"}
+	s := suite{Cases: []researchCase{{ID: "dev", Split: "development"}}}
+	trial := trialResult{Candidate: c, Case: "dev", Split: "development", Quality: score{Passed: true}, CostKnown: false, ComparableCostKnown: true, ComparableCostUSD: cost}
+	if _, ok := bestCandidate([]candidate{c}, []trialResult{trial}, s); !ok {
+		t.Fatal("unknown fixed-role cost prevented comparison")
+	}
+}
+
 func TestSelectionNeedsEveryDevelopmentCaseAndReportsFailures(t *testing.T) {
 	c := candidate{ID: "one"}
 	s := suite{Cases: []researchCase{{ID: "a", Split: "development"}, {ID: "b", Split: "development"}}}
-	a := trialResult{Candidate: c, Case: "a", Split: "development", Quality: score{Passed: true}, CostKnown: true, InitialAuditClean: true}
+	a := trialResult{Candidate: c, Case: "a", Split: "development", Quality: score{Passed: true}, ComparableCostKnown: true, InitialAuditClean: true}
 	b := a
 	b.Case = "b"
 	trials := []trialResult{a}

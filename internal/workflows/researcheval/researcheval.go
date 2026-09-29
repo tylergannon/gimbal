@@ -15,15 +15,19 @@
 // The report in OutputDir names isolated trial directories and raw assessments.
 // Existing output directories are refused so another evaluation cannot be reused
 // accidentally. Costs are catalog proxies, not subscription invoices; unknown
-// usage is never treated as free. Reader/assessor/planner overhead is separate.
+// usage is never treated as free. Candidate ranking compares priced research and
+// index roles plus Jev claim-audit input. The report keeps full-run cost separate
+// and marks it unknown when any fixed role lacks pricing. Evaluation overhead
+// from the reader, assessor and planner is reported separately.
 //
 // CandidatesFile optionally names a JSON array of {id,research_model,index_model}.
 // It is an allowlist; defaults allow independent research/index combinations
 // of Gemini Flash, OpenAI Luna and Terra, and Claude Haiku and Sonnet through
 // their native providers. The planner samples controlled role swaps within the
-// round budget; it does not exhaust all combinations. Other research roles use their production defaults; FixedModel can override
-// them. Role flags independently pin the evaluation planner,
-// reader and assessor. An unavailable provider is a recorded failed trial.
+// round budget; it does not exhaust all combinations. Other research roles use
+// their production defaults; FixedModel can override them. Role flags pin the
+// evaluation planner, reader and assessor. An unavailable provider is a recorded
+// failed trial.
 //
 // Example:
 //
@@ -84,6 +88,8 @@ type trialResult struct {
 	Seconds             float64           `json:"seconds"`
 	CostUSD             float64           `json:"cost_usd"`
 	CostKnown           bool              `json:"cost_known"`
+	ComparableCostUSD   float64           `json:"comparable_cost_usd"`
+	ComparableCostKnown bool              `json:"comparable_cost_known"`
 	Roles               []roleMeasurement `json:"roles"`
 	Audit               auditSummary      `json:"audit"`
 	InitialAuditClean   bool              `json:"initial_audit_clean"`
@@ -193,7 +199,7 @@ func ResearchEval(ctx context.Context, env gimbal.Env, params Params) error {
 	if err := verifyProject(env.WorkDir, registry); err != nil {
 		return err
 	}
-	result := report{Suite: s.Name, FixedModel: fixed, Trials: []trialResult{}, PriceBasis: priceBasis, Limitation: "Provisional result from a small controlled-source comparison; model judgments and catalog-price proxies, not open-web quality or a population success rate. First-pass audit cleanliness is distinct from independent correctness. Price covers recorded agent and claim-audit usage; automatic supervisor Jev checks are not metered here."}
+	result := report{Suite: s.Name, FixedModel: fixed, Trials: []trialResult{}, PriceBasis: priceBasis, Limitation: "Provisional result from a small controlled-source comparison; model judgments and catalog-price proxies, not open-web quality or a population success rate. First-pass audit cleanliness is distinct from independent correctness. Full-run price covers recorded agent and claim-audit usage; automatic supervisor Jev checks are not metered here. Candidate selection uses only priced research and index roles plus claim-audit input; unpriced fixed roles remain unknown in full-run price."}
 	if err := writeJSON(filepath.Join(output, "report.json"), result); err != nil {
 		return err
 	}
@@ -359,6 +365,7 @@ func ResearchEval(ctx context.Context, env gimbal.Env, params Params) error {
 				row.CostKnown = false
 			}
 			row.CostUSD += float64(row.JevInputTokens) * 0.042 / 1_000_000
+			row.ComparableCostUSD, row.ComparableCostKnown = comparableCost(row.Roles, row.JevInputTokens, row.Audit.Complete)
 			if row.Error == "" {
 				goldPath := filepath.Join(privateDir, fmt.Sprintf("assessment-gold-%03d-%s.json", trialCount, c.ID))
 				if err := writeJSON(goldPath, c); err != nil {
@@ -647,8 +654,8 @@ func bestCandidate(list []candidate, trials []trialResult, s suite) (candidate, 
 			}
 			count++
 			seen[t.Case]++
-			eligible = eligible && t.Quality.Passed && t.CostKnown && t.Error == ""
-			cost += t.CostUSD
+			eligible = eligible && t.Quality.Passed && t.ComparableCostKnown && t.Error == ""
+			cost += t.ComparableCostUSD
 			repairs += float64(t.AuditRepairPasses)
 		}
 		for _, rc := range s.Cases {
@@ -729,7 +736,25 @@ func researchCost(snapshot observation.RunSnapshot) (float64, bool) {
 	return cost, known
 }
 
-const priceBasis = "Catalog prices or harness-stated cost. These are usage-price proxies, not subscription invoices. Unpriced models or absent usage remain unknown."
+const priceBasis = "Catalog prices or harness-stated cost. These are usage-price proxies, not subscription invoices. Unpriced models or absent usage remain unknown. Comparable cost is research-indexing plus index-curation plus Jev claim-audit input; fixed-role and assessment costs are excluded from candidate ranking."
+
+// Only the research and index roles vary between candidates. Report the full
+// run cost separately, but select using the known cost of the roles being
+// compared plus Jev input. An unpriced fixed author must not make a priced
+// research comparison impossible.
+func comparableCost(roles []roleMeasurement, jevInputTokens int64, auditComplete bool) (float64, bool) {
+	cost, known := float64(jevInputTokens)*0.042/1_000_000, auditComplete
+	seen := map[string]bool{}
+	for _, role := range roles {
+		if role.Role != "research-indexing" && role.Role != "index-curation" {
+			continue
+		}
+		seen[role.Role] = true
+		cost += role.CostUSD
+		known = known && role.CostKnown
+	}
+	return cost, known && seen["research-indexing"] && seen["index-curation"]
+}
 
 func auditHistory(corpus string) (bool, bool, int, int64) {
 	paths, _ := filepath.Glob(filepath.Join(corpus, ".semantic-index", "history", "*-pass-*.json"))
@@ -818,9 +843,9 @@ func containsTool(v any) bool {
 	switch x := v.(type) {
 	case map[string]any:
 		if x["type"] == "tool" || x["type"] == "tool-invocation" {
-			// Claude emits the structured return value as this native tool.
-			// It completes the turn without reading anything outside the protocol.
-			return x["name"] != "StructuredOutput"
+			// Claude's StructuredOutput and agy's finish return the typed
+			// result; neither reads a file outside the measured protocol.
+			return x["name"] != "StructuredOutput" && x["name"] != "finish"
 		}
 		for _, child := range x {
 			if containsTool(child) {
@@ -862,12 +887,14 @@ type candidateSummary struct {
 	AtMostOneRepairRate   float64 `json:"quality_pass_with_at_most_one_repair_rate"`
 	MeanUSD               float64 `json:"mean_usd"`
 	CostKnown             bool    `json:"cost_known"`
+	MeanComparableUSD     float64 `json:"mean_comparable_usd"`
+	ComparableCostKnown   bool    `json:"comparable_cost_known"`
 }
 
 func summarizeCandidates(candidates []candidate, trials []trialResult) []candidateSummary {
 	var result []candidateSummary
 	for _, c := range candidates {
-		row := candidateSummary{ID: c.ID, CostKnown: true}
+		row := candidateSummary{ID: c.ID, CostKnown: true, ComparableCostKnown: true}
 		for _, t := range trials {
 			if t.Candidate.ID != c.ID || t.Split != "development" {
 				continue
@@ -884,12 +911,15 @@ func summarizeCandidates(candidates []candidate, trials []trialResult) []candida
 			}
 			row.MeanUSD += t.CostUSD
 			row.CostKnown = row.CostKnown && t.CostKnown
+			row.MeanComparableUSD += t.ComparableCostUSD
+			row.ComparableCostKnown = row.ComparableCostKnown && t.ComparableCostKnown
 		}
 		if row.Trials > 0 {
 			n := float64(row.Trials)
-			row.PassRate, row.InitialAuditCleanRate, row.AtMostOneRepairRate, row.MeanUSD = float64(row.Passed)/n, float64(row.InitialAuditClean)/n, float64(row.AtMostOneRepair)/n, row.MeanUSD/n
+			row.PassRate, row.InitialAuditCleanRate, row.AtMostOneRepairRate, row.MeanUSD, row.MeanComparableUSD = float64(row.Passed)/n, float64(row.InitialAuditClean)/n, float64(row.AtMostOneRepair)/n, row.MeanUSD/n, row.MeanComparableUSD/n
 		} else {
 			row.CostKnown = false
+			row.ComparableCostKnown = false
 		}
 		result = append(result, row)
 	}

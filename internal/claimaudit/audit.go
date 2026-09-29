@@ -441,7 +441,7 @@ func Audit(ctx context.Context, dir string, client *jev.Client, pass int) (Compl
 				return remaining(classify(err))
 			}
 			out.Metrics.SourceChecks++
-			if j.Label != "supports" && c.Kind != "inference" && c.Kind != "recommendation" {
+			if j.Label != "supports" && c.Kind != "recommendation" {
 				sourceFinding[c.ID] = true
 				repair[c.ID] = true
 				unresolved[c.ID] = true
@@ -453,7 +453,7 @@ func Audit(ctx context.Context, dir string, client *jev.Client, pass int) (Compl
 			if err != nil {
 				return remaining(classify(err))
 			}
-			if j.Label != "supports" && c.Kind != "inference" && c.Kind != "recommendation" {
+			if j.Label != "supports" && c.Kind != "recommendation" {
 				sourceFinding[c.ID] = true
 				repair[c.ID] = true
 				unresolved[c.ID] = true
@@ -714,8 +714,12 @@ func claimSignature(c Claim, blocks map[string]Block) string {
 	}
 	return reviewDigest(c.ID, c.Text, c.Scope, c.Kind, c.References, anchors)
 }
-func dispositionDigest(c Claim, blocks map[string]Block, sources map[string]string) string {
-	return reviewDigest(claimSignature(c, blocks), sources)
+func dispositionDigest(c Claim, _ map[string]Block, sources map[string]string) string {
+	// The disposition applies to the stated claim and its exact evidence,
+	// not every unrelated sentence in the containing index block. Otherwise
+	// routine repairs elsewhere in that block silently invalidate a genuine
+	// unresolved conflict on every pass.
+	return reviewDigest(c.ID, c.Text, c.Scope, c.Kind, c.Occurrences, c.References, sources)
 }
 func pairCacheKey(id string, a, b Claim, blocks map[string]Block) string {
 	return "pair:" + id + ":" + digest([]byte(claimSignature(a, blocks)+claimSignature(b, blocks)+model+"v1"))

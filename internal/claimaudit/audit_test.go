@@ -159,6 +159,50 @@ func TestAuditMarksBothEndsAndResumesAnswers(t *testing.T) {
 	}
 }
 
+func TestUnsupportedInferenceBlocksAuthoring(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "sources"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "INDEX.md"), []byte("Consumers must deduplicate messages.\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "sources", "delivery.md"), []byte("Consumers may receive duplicates.\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	inv, err := Prepare(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	claim := Claim{ID: "inference", Text: "Consumers must deduplicate messages.", Kind: "inference", Occurrences: []Occurrence{{BlockID: inv.Blocks[0].ID, Text: inv.Blocks[0].Text}}, References: []Reference{{Path: "sources/delivery.md", StartLine: 1, EndLine: 1}}}
+	if err := writeClaims(dir, []Claim{claim}); err != nil {
+		t.Fatal(err)
+	}
+	client, err := jev.New(jev.WithProvider(jev.ProviderFunc(func(_ context.Context, req *jev.Request) (*jev.Response, error) {
+		answers := map[string]jev.RawAnswer{}
+		for name := range req.Questions {
+			label := "not-established"
+			if state, ok := req.State.(map[string]any); ok {
+				if _, isBlock := state["block"]; isBlock {
+					label = "complete"
+				}
+			}
+			answers[name] = jev.RawAnswer{Type: jev.KindChoice, Choice: &label, Probabilities: map[string]float64{label: 1}}
+		}
+		return &jev.Response{Model: model, Answers: answers}, nil
+	})))
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := Audit(context.Background(), dir, client, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.AuthoringAllowed || result.Metrics.SourceFindings != 1 {
+		t.Fatalf("unsupported inference escaped source gate: %+v", result)
+	}
+}
+
 func TestSnapshotChangeBlocksCompletion(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "INDEX.md"), []byte("Fact one.\n"), 0o644); err != nil {
@@ -366,6 +410,24 @@ func TestSourceDispositionRequiresCurrentDigest(t *testing.T) {
 	}
 	if !valid.AuthoringAllowed || len(valid.Unresolved) != 1 {
 		t.Fatalf("valid exclusion rejected: %+v", valid)
+	}
+}
+
+func TestDispositionSurvivesUnrelatedBlockRepair(t *testing.T) {
+	c := Claim{ID: "one", Text: "The notice says 45 seconds.", Scope: "v2 notice", Kind: "fact", Occurrences: []Occurrence{{BlockID: "block", Text: "The notice says 45 seconds."}}, References: []Reference{{Path: "sources/notice.md", StartLine: 2, EndLine: 2, Quote: "45 seconds"}}}
+	sources := map[string]string{"sources/notice.md": "A heading\nThe notice says 45 seconds.\n"}
+	first := dispositionDigest(c, map[string]Block{"block": {Digest: "before"}}, sources)
+	if first != dispositionDigest(c, map[string]Block{"block": {Digest: "after unrelated edit"}}, sources) {
+		t.Fatal("unrelated block text invalidated a current disposition")
+	}
+	c.Text = "The default is 45 seconds."
+	if first == dispositionDigest(c, nil, sources) {
+		t.Fatal("changed claim retained disposition")
+	}
+	c.Text = "The notice says 45 seconds."
+	sources["sources/notice.md"] = "A heading\nThe notice says 60 seconds.\n"
+	if first == dispositionDigest(c, nil, sources) {
+		t.Fatal("changed original retained disposition")
 	}
 }
 

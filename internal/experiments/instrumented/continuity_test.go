@@ -105,6 +105,7 @@ func TestLiveContinuity(t *testing.T) {
 		t.Fatal(err)
 	}
 	dir := filepath.Join(stateRoot(), environmentID(id), "workspace")
+	assertContinuityRecords(t, filepath.Join(dir, ".gimbal"))
 	b, err := os.ReadFile(filepath.Join(dir, "continuity.txt"))
 	if err != nil || strings.TrimSpace(string(b)) != "amber-17" {
 		t.Fatalf("edit=%q %v", b, err)

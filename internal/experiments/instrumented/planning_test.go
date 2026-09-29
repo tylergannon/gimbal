@@ -60,8 +60,11 @@ func TestPlannerExpansionFeedbackAndValidation(t *testing.T) {
 			if (e.GetWorkflowError() != nil) != (mode != "success") {
 				t.Fatal(e.GetWorkflowError())
 			}
-			if mode == "success" && decisions != 3 {
-				t.Fatalf("decisions=%d", decisions)
+			if mode == "success" {
+				plans, tasks := assertPlanningRecords(t, a.project.Dir())
+				if plans != 3 || tasks != 2 || decisions != 3 {
+					t.Fatalf("decisions=%d recorded=%d tasks=%d", decisions, plans, tasks)
+				}
 			}
 		})
 	}
@@ -94,7 +97,8 @@ func TestLivePlanning(t *testing.T) {
 	if err != nil || strings.TrimSpace(string(b)) != "done" {
 		t.Fatalf("%q %v", b, err)
 	}
-	t.Log("planning completed and file effect verified; inspect recorded events for feedback")
+	plans, tasks := assertPlanningRecords(t, filepath.Join(stateRoot(), environmentID(id), "workspace", ".gimbal"))
+	t.Logf("separate planner decisions %d, completed tasks %d; recorded command feedback retained", plans, tasks)
 }
 
 func TestCheckRecordsCancelledCommandBeforeReturning(t *testing.T) {

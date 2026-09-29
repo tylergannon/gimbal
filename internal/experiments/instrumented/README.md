@@ -36,7 +36,8 @@ and discards its Task value. Generate and PromiseLoop options are not supported.
 Go binding objects identify locals, sessions, imports and Gimbal calls; spelling
 is not semantic. Source local names remain recognizable in generated variables.
 Operation arguments are evaluated in workflow order and passed as activity
-parameters. Each write encodes its value before the next mutation. Completed
+parameters. Generate prompts follow the existing constant-prompt rule and are
+emitted directly into their per-site activities; dynamic prompts are rejected. Each write encodes its value before the next mutation. Completed
 local writes append their keys in generated task control flow, so conditional
 writes and newly authored entries require no separate feedback configuration.
 Check records its implicit write inside its producing activity, including failure.

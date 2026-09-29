@@ -147,6 +147,9 @@ func TestLiveOperationalBoundary(t *testing.T) {
 				t.Fatal("worker loss exceeded failure bound")
 			}
 			project := filepath.Join(stateRoot(), environmentID(id), "workspace", ".gimbal")
+			if mode == "control-restart" {
+				assertContinuityRecords(t, project)
+			}
 			runs, _ := filepath.Glob(filepath.Join(project, "runs", "*"))
 			if len(runs) != 1 {
 				t.Fatal(runs)

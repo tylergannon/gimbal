@@ -283,6 +283,18 @@ func TestPairedWorkflows(t *testing.T) {
 					t.Errorf("prompts differ:\nsource %q\ntarget %q", normalizedPrompts(source), normalizedPrompts(target))
 				}
 				assertPairedOperations(t, name, mode, target)
+				if mode == "success" {
+					for _, r := range []pairedRun{source, target} {
+						if name == "continuity" {
+							assertContinuityRecords(t, r.a.project.Dir())
+						} else {
+							plans, tasks := assertPlanningRecords(t, r.a.project.Dir())
+							if plans != 3 || tasks != 2 {
+								t.Fatalf("recorded plans=%d tasks=%d", plans, tasks)
+							}
+						}
+					}
+				}
 				if errors.Is(source.err, context.Canceled) != (mode == "cancelled") || errors.Is(source.err, context.DeadlineExceeded) != (mode == "deadline") {
 					t.Errorf("source error classification: %v", source.err)
 				}

@@ -97,3 +97,7 @@ Tyler: "Yeah, let's add Tara from ChatGPT as well as Claude Sonnet. Also, I thin
 Tyler: "I kind of need to get a new release of this workflow sometime soon so that I can use it. ... you are forbidden from perfecting this benchmark, and your instruction is to, for the time being, just use some kind of easy-to-work comparison so that we land on a set of model assignments that are going to get us a reasonable, viable outcome when we run this workflow. We can think more about perfection in our benchmarking another time."
 
 Finish a small fixed-source comparison and release the usable research workflow. Broader web-discovery benchmarking, exhaustive combinations, and statistical repetition are deferred.
+
+# Real research recalibration
+
+Tyler stopped the repeated synthetic benchmark cycle and asked to recalibrate the process. The concrete assignment is now: "Research REAL SHIT. Like go and research 'contemporary methods for building a priority queue using Jev, including adjacent topics'." Run actual web collection, assess useful coverage, source support and index queries, and retain a provisional bounded comparison rather than perfecting a synthetic benchmark.

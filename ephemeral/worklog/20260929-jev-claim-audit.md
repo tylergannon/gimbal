@@ -139,3 +139,7 @@ finding: The independent editor called the genuine 45/60-second disagreement com
 finding: The completed practical comparison exposed a release blocker: an extraction false alarm survives every curator rewrite because independent review sees a changed block. Review the stable current audit first, immediately apply decisions with a cached audit, and let the curator act only on remaining repair IDs. The final permitted pass still needs this review opportunity; skip the editor entirely when no review candidates exist.
 
 finding: Stable-snapshot review worked, but the editor applied a broader extraction standard than the Jev question: it demanded records for citation instructions and routing metadata, and authored a document during audit review. Align review to subject assertions, including embedded factual premises, and render only local audit paths so the document task cannot bleed into this turn.
+
+correction: Repeated synthetic fixture retries became an expanding release gate despite the user's explicit prohibition on perfecting the benchmark. The user stopped that process and assigned real web research on contemporary priority queues using Jev and adjacent methods. Assess a useful actual document and practical retrieval, not success on another fictional corpus.
+
+finding: A review-only editor created a helper script inside the audited corpus, correctly triggering snapshot mutation rejection. Keep helper scripts outside that corpus or use inline commands; do not relax snapshot validation.

@@ -37,6 +37,10 @@ workflow's source or the user rather than guessing at its authority.
 For a research document, inspect `gimbal run research-document --help`. Supply
 the goal, a local research directory, an output path, and a document token
 budget. `--source-dir` uses fixed local originals; omit it for web collection.
+Research artifacts contain factual source information only: faithful summaries,
+neutral routes, verbatim clips, and a compressed factual document. The goal sets
+the subject and scope; it does not authorize opinions, recommendations,
+deductions, or proposed designs. Conflicting source accounts remain attributed.
 The workflow writes a semantic `INDEX.md`, records every extracted claim and
 Jev source/pair finding under `<research-dir>/.semantic-index/`, and repairs or
 qualifies findings before document acceptance. The separate

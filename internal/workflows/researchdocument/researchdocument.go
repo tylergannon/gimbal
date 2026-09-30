@@ -115,9 +115,14 @@ type ResearchResult struct {
 
 // EditorialVerdict distinguishes material document failures from optional polish.
 type EditorialVerdict struct {
-	OnlyNitpicks   bool     `json:"only_nitpicks"`
+	// Summary records observations from the source checks and retrieval walks.
+	Summary string `json:"summary"`
+	// OnlyNitpicks is true when no material defects remain.
+	OnlyNitpicks bool `json:"only_nitpicks"`
+	// MaterialIssues contains only concrete defects requiring repair, never successful checks.
 	MaterialIssues []string `json:"material_issues"`
-	MissingTopics  []string `json:"missing_topics"`
+	// MissingTopics names required factual coverage that needs additional evidence.
+	MissingTopics []string `json:"missing_topics"`
 }
 
 // ResearchDocument produces a factual research document within a token budget.
@@ -653,7 +658,7 @@ const researchTopicsPrompt = factualResearchContract + `
 
 Collect original evidence for every assigned topic. The topic directories align with the topics in the same order. Read and write only your assigned topic directories and original source material; generated research reports and Gimbal run records are outside your assignment. In fixed source mode, use only the shared fixed originals directory and reference its files without copying them into topics; do not browse or add sources. In web mode, download at least the required number of useful originals into each topic's sources directory. Preserve original source text, origin, version or retrieval date, and precise source locations. Use the supplied UTC timestamp for retrieval metadata.
 
-Write a compact INDEX.md for each assigned topic: neutral routes and short faithful source summaries with Markdown links to original source passages using #L10-L20 line spans. Link local originals directly, not clips or other summaries as factual evidence. Keep it to a few hundred words, with the information needed to understand the sources and navigate them. Clips contain verbatim excerpts with provenance and exact source locations, not authored explanations or designs; create them only when they help retrieval. Preserve source qualifications and conflicting accounts. Leave unanswered questions open. Check local citations, then return the files and questions addressed. Your assignment ends with these topic indexes; the curator writes the root INDEX.md.`
+Write a compact INDEX.md for each assigned topic: neutral routes and short faithful source summaries with Markdown links to original source passages using #L10-L20 line spans and relative POSIX paths, not file:// URLs. Link local originals directly, not clips or other summaries as factual evidence. Keep it to a few hundred words, with the information needed to understand the sources and navigate them. Clips contain verbatim excerpts with provenance and exact source locations, not authored explanations or designs; create them only when they help retrieval. Preserve source qualifications and conflicting accounts. Leave unanswered questions open. Check local citations, then return the files and questions addressed. Your assignment ends with these topic indexes; the curator writes the root INDEX.md.`
 
 const researchGapsPrompt = factualResearchContract + `
 
@@ -661,7 +666,7 @@ Collect original evidence for the missing factual topics in the gap research sou
 
 const buildIndexPrompt = factualResearchContract + `
 
-Build a compact semantic routing tree at the exact semantic index path using the topic indexes and local originals. Organize routes by reader questions and source-documented topics, not researcher assignments. Each route briefly explains when to follow it and links to a topic index or precise original passage. Keep detailed source summaries in the leaves instead of repeating them in the root. Keep the root at most 500 words.
+Build a compact semantic routing tree at the exact semantic index path using the topic indexes and local originals. Organize routes by reader questions and source-documented topics, not researcher assignments. Each route briefly explains when to follow it and links to a topic index or precise original passage. The root contains scope, citation conventions, and short routes only; detailed facts and techniques stay in the leaves. Keep the root at most 500 words.
 
 Explain the corpus scope, source locations, and citation conventions. Preserve working source summaries and verbatim clips; correct any authored opinions, deductions, advice, or designs by replacing them with faithful source information or removing them. Preserve original source files. Link to conflicting source accounts and unanswered questions without inventing resolutions or claims about absent documentation. Check links and walk representative routes from entrypoint to original evidence. Report checks in your response, not index prose. Stop when a reader can find the relevant information through a small number of clear choices.`
 
@@ -731,11 +736,11 @@ const reviewIndexPrompt = factualResearchContract + `
 
 Independently validate the semantic index. Choose three to five reader questions covering the main routes, including a qualification-sensitive fact or conflicting measurements when present. Follow each route to original passages and surrounding sections; compare the relevant summaries with that evidence. Check that attribution, versions, conditions, uncertainty, and conflicting source measurements survive compression. Interpret retrieval dates using the supplied UTC timestamp; a timezone difference from the client date is not a defect. Clips, if present, must be verbatim. A citation to another summary does not establish a fact.
 
-Use at most five file reads per retrieval route. Check that the sampled routes reach useful evidence, routing prose stays compact, and citations name precise local passages. This is a focused retrieval and source-fidelity check, not an exhaustive review of the corpus. Do not edit files. Set OnlyNitpicks only when the source checks and retrieval walks succeed and the supplied structural defects are empty. MaterialIssues must name concrete files, assertions, source spans, or broken routes to repair. MissingTopics is only for required factual coverage absent from the index despite available evidence; an open research question is allowed. Do not request analysis, preferred designs, extra research, or optional polish.`
+Use at most five file reads per retrieval route. Check that the sampled routes reach useful evidence, routing prose stays compact, and citations name precise local passages. This is a focused retrieval and source-fidelity check, not an exhaustive review of the corpus. On a recheck, focus on the previously reported repairs and failed routes instead of widening the review. Do not edit files. Put successful route and source observations in Summary, and only defects requiring repair in MaterialIssues. Set OnlyNitpicks only when the source checks and retrieval walks succeed and the supplied structural defects are empty. MaterialIssues must name concrete files, assertions, source spans, or broken routes to repair. MissingTopics is only for required factual coverage absent from the index despite available evidence; an open research question is allowed. Do not request analysis, preferred designs, extra research, or optional polish.`
 
 const repairIndexPrompt = factualResearchContract + `
 
-Repair the supplied index verdict and structural defects using existing original sources. Correct misleading summaries and citation targets, restore necessary qualifications and visible source disagreements, and fix broken or long routes. Keep the root at most 500 words; put detailed factual summaries in the leaves. Preserve original sources. Do not add evidence-free absence claims or fill open questions by inference. Return the affected paths and concrete repairs; the independent reader will check again.`
+Repair the supplied index verdict and structural defects using existing original sources. Read the source passages named in each finding. When they do not establish an assertion, delete that assertion; softening it, narrowing it to the corpus, or relabeling it as an application concern does not supply evidence. Preserve an unanswered reader question as a question instead. Correct misleading summaries and citation targets, restore necessary qualifications and visible source disagreements, and fix broken or long routes. Keep the root at most 500 words; put detailed factual summaries in the leaves. Preserve original sources. Do not add evidence-free absence claims or fill open questions by inference. Return the affected paths and concrete repairs; the independent reader will check again.`
 
 func verifyIndex(researchDir string, topicIndexes []string) error {
 	root := filepath.Join(researchDir, "INDEX.md")

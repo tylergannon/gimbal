@@ -19,3 +19,5 @@ correction: Preserving the existing orchestration was an unjustified constraint.
 finding: The live trial's all-pairs audit diverted work from source fidelity and retrieval. Remove claim extraction, pairwise auditing, their CLI/package, and eval accounting; retain factual collection, compact routing, a few independent source checks, targeted repair, and document compression.
 
 finding: Focused source review produced useful qualification and citation corrections, but mistook UTC retrieval dates for future dates relative to the client calendar. Supply the actual UTC research timestamp to collection and index review rather than treating an unspecified timezone difference as a defect.
+
+finding: Haiku repaired many source-fidelity defects but repeatedly softened unsupported absence/design assertions rather than deleting them. Make that repair distinction explicit, give positive reader observations a Summary field separate from MaterialIssues, and recheck existing findings without expanding the review. Reuse downloaded originals for the next clean-index trial with Luna curation.

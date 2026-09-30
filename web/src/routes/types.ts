@@ -114,6 +114,7 @@ export type StartResearchDocumentInput = {
   conversation: string;
   goal: string;
   research_dir: string;
+  source_dir?: string;
   output: string;
   token_budget: number;
   min_sources_per_topic?: number;
@@ -122,8 +123,27 @@ export type StartResearchDocumentInput = {
   role_research_indexing?: string;
   role_document_supervision?: string;
   role_index_curation?: string;
-  role_document_authoring?: string;
   role_editorial_review?: string;
+  role_document_authoring?: string;
+};
+
+/**
+ * StartResearchEvalInput is the flat typed request for the research-eval workflow.
+ */
+export type StartResearchEvalInput = {
+  project_dir: string;
+  work_dir: string;
+  conversation: string;
+  output_dir: string;
+  candidates_file?: string;
+  suite_dir?: string;
+  max_trials?: number;
+  trial_minutes?: number;
+  fixed_model?: string;
+  research_instance?: string;
+  role_research_eval_assessment?: string;
+  role_research_eval_planning?: string;
+  role_research_eval_reading?: string;
 };
 
 /**

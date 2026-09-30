@@ -11,6 +11,7 @@ func addStockCommands(run *cobra.Command, defaults map[gimbal.WorkflowRole]strin
 	run.AddCommand(reviewCommand(defaults))
 	run.AddCommand(implementationCommand(defaults))
 	run.AddCommand(researchdocumentCommand(defaults))
+	run.AddCommand(researchevalCommand(defaults))
 	run.AddCommand(pyramidsummaryCommand(defaults))
 	run.AddCommand(validateproductCommand(defaults))
 }

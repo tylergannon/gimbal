@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `research-document` checks extracted semantic-index claims against local source
+  passages with Jev, checks cross-claim contradictions, marks findings in the
+  index, and requires a bounded repair before writing or accepting the document.
+  A compiled `audit-index` command performs the check through `RunCommand`.
+- `research-eval` compares researcher and index-curator models independently on
+  fixed sources, measuring factual grounding, index retrieval, repairs, time,
+  and recorded cost before a provisional holdout choice.
 - Public compiler integration for typed agent operations, immutable context,
   scope/task lifetimes, graph generation and hosted whole-run cancellation.
   A separate Temporal consumer module demonstrates generation, execution and

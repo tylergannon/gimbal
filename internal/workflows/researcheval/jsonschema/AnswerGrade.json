@@ -1,0 +1,6 @@
+{"type":"object",
+"description":"AnswerGrade checks meaning independently of literal answer-term coverage.","properties":{
+"correct":{"type":"boolean"},
+"grounded":{"type":"boolean"},
+"reason":{"type":"string"}
+},"required":["correct","grounded","reason"],"additionalProperties":false}

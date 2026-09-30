@@ -1,0 +1,259 @@
+{
+  "name": "practical-model-comparison",
+  "cases": [
+    {
+      "id": "atlas",
+      "split": "development",
+      "goal": "Explain Atlas Queue v2 using only the supplied sources. Cover request capacity, retention start, delivery and HTTP 429 retries, regional availability as of March 3 2026, and the unresolved visibility-default notices. Cite original evidence in a concise document.",
+      "sources": "atlas/sources",
+      "facts": [
+        {
+          "id": "capacity",
+          "statement": "v2 accepts at most 80 messages per request.",
+          "evidence": [
+            {
+              "source": "capacity.md",
+              "quote": "each request can contain at most 80 messages"
+            }
+          ]
+        },
+        {
+          "id": "retention",
+          "statement": "v2 retains accepted messages for 9 days from acceptance.",
+          "evidence": [
+            {
+              "source": "retention.md",
+              "quote": "retains accepted messages for 9 days"
+            }
+          ]
+        },
+        {
+          "id": "delivery",
+          "statement": "v2 delivers at least once and 429 retries wait for Retry-After.",
+          "evidence": [
+            {
+              "source": "delivery.md",
+              "quote": "delivers at least once"
+            },
+            {
+              "source": "delivery.md",
+              "quote": "clients must wait for Retry-After before retrying"
+            }
+          ]
+        },
+        {
+          "id": "regions",
+          "statement": "As of March 3 2026 v2 is in North and West and South is v1.",
+          "evidence": [
+            {
+              "source": "regions.md",
+              "quote": "v2 is available in North and West. South remains on v1"
+            }
+          ]
+        },
+        {
+          "id": "visibility",
+          "statement": "v2 visibility defaults conflict between 45 and 60 seconds with no priority.",
+          "evidence": [
+            {
+              "source": "visibility.md",
+              "quote": "quick-start says the default visibility timeout is 45 seconds, while the operations runbook says 60 seconds"
+            },
+            {
+              "source": "visibility.md",
+              "quote": "The conflict is unresolved and neither notice has priority"
+            }
+          ]
+        }
+      ],
+      "queries": [
+        {
+          "id": "capacity",
+          "question": "What is the Atlas Queue v2 message-count limit per request?",
+          "answerable": true,
+          "answer_terms": [
+            [
+              "80"
+            ]
+          ],
+          "evidence": [
+            {
+              "source": "capacity.md",
+              "quote": "each request can contain at most 80 messages"
+            }
+          ]
+        },
+        {
+          "id": "visibility",
+          "question": "What is the default v2 visibility timeout? Explain unsettled evidence.",
+          "answerable": true,
+          "answer_terms": [
+            [
+              "45"
+            ],
+            [
+              "60"
+            ],
+            [
+              "unresolved",
+              "conflict",
+              "disagree"
+            ]
+          ],
+          "evidence": [
+            {
+              "source": "visibility.md",
+              "quote": "quick-start says the default visibility timeout is 45 seconds, while the operations runbook says 60 seconds"
+            }
+          ]
+        },
+        {
+          "id": "price",
+          "question": "What is the monthly price of Atlas Queue v2?",
+          "answerable": false,
+          "answer_terms": [],
+          "evidence": []
+        }
+      ]
+    },
+    {
+      "id": "cedar",
+      "split": "holdout",
+      "goal": "Explain current Cedar Tool Library rules to a new member. Cover borrowing and workshop eligibility, simultaneous tool and loan limits, conditional renewal, after-hours check-in, and the unresolved Saturday collection opening. Cite original evidence and distinguish the two Saturday notices.",
+      "sources": "cedar/sources",
+      "facts": [
+        {
+          "id": "eligibility",
+          "statement": "Take-home borrowing requires membership and age 18; workshops admit age 16.",
+          "evidence": [
+            {
+              "source": "membership.md",
+              "quote": "Current Cedar Tool Library members aged 18 or older may borrow take-home tools"
+            },
+            {
+              "source": "membership.md",
+              "quote": "Supervised workshops admit participants aged 16 or older"
+            }
+          ]
+        },
+        {
+          "id": "loan",
+          "statement": "A member may hold 3 tools and each loan lasts 7 calendar days.",
+          "evidence": [
+            {
+              "source": "loans.md",
+              "quote": "at most 3 take-home tools at once"
+            },
+            {
+              "source": "loans.md",
+              "quote": "Each loan lasts 7 calendar days from checkout"
+            }
+          ]
+        },
+        {
+          "id": "renewal",
+          "statement": "One 3-day renewal is allowed only with no reservation.",
+          "evidence": [
+            {
+              "source": "renewals.md",
+              "quote": "renewed once for 3 additional calendar days, but only if nobody has reserved the tool"
+            }
+          ]
+        },
+        {
+          "id": "return",
+          "statement": "After-hours returns are checked in the next opening day.",
+          "evidence": [
+            {
+              "source": "returns.md",
+              "quote": "checked in on the next opening day, not at deposit time"
+            }
+          ]
+        },
+        {
+          "id": "hours",
+          "statement": "Saturday collection notices conflict between 09:00 and 10:00, unresolved.",
+          "evidence": [
+            {
+              "source": "saturday.md",
+              "quote": "counter notice says Saturday tool collection opens at 09:00"
+            },
+            {
+              "source": "saturday.md",
+              "quote": "calendar says it opens at 10:00"
+            },
+            {
+              "source": "saturday.md",
+              "quote": "this conflict remains unresolved"
+            }
+          ]
+        }
+      ],
+      "queries": [
+        {
+          "id": "renewal",
+          "question": "How long is a Cedar loan and when can it be renewed, for how long?",
+          "answerable": true,
+          "answer_terms": [
+            [
+              "7 calendar days",
+              "7 days"
+            ],
+            [
+              "3 additional calendar days",
+              "3 days"
+            ],
+            [
+              "reserv"
+            ]
+          ],
+          "evidence": [
+            {
+              "source": "loans.md",
+              "quote": "Each loan lasts 7 calendar days from checkout"
+            },
+            {
+              "source": "renewals.md",
+              "quote": "renewed once for 3 additional calendar days, but only if nobody has reserved the tool"
+            }
+          ]
+        },
+        {
+          "id": "saturday",
+          "question": "When does Saturday tool collection open?",
+          "answerable": true,
+          "answer_terms": [
+            [
+              "09:00"
+            ],
+            [
+              "10:00"
+            ],
+            [
+              "unresolved",
+              "conflict",
+              "disagree"
+            ]
+          ],
+          "evidence": [
+            {
+              "source": "saturday.md",
+              "quote": "counter notice says Saturday tool collection opens at 09:00"
+            },
+            {
+              "source": "saturday.md",
+              "quote": "calendar says it opens at 10:00"
+            }
+          ]
+        },
+        {
+          "id": "fee",
+          "question": "What is the monthly membership fee?",
+          "answerable": false,
+          "answer_terms": [],
+          "evidence": []
+        }
+      ]
+    }
+  ]
+}

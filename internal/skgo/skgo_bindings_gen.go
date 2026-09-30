@@ -212,6 +212,24 @@ func remote_startResearchDocument(ctx context.Context, call skgo.Call) (any, err
 	return EncodeRoot6(out)
 }
 
+// remote_startResearchEval answers src/routes/researcheval_start.remote.ts#startResearchEval, a form.
+//
+// A form's submission is assigned onto the handler's own argument type:
+// kit posts a form as binary form data, which can carry an uploaded File,
+// and a File is not a value polytype describes.
+// The result is encoded by EncodeRoot6, generated for its result type.
+func remote_startResearchEval(ctx context.Context, call skgo.Call) (any, error) {
+	var in skgo0.SkgoArg_startResearchEval
+	if err := skgo.DecodeForm(call.Arg, &in); err != nil {
+		return nil, err
+	}
+	out, err := skgo0.Skgo_startResearchEval(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return EncodeRoot6(out)
+}
+
 // remote_startReview answers src/routes/review_start.remote.ts#startReview, a form.
 //
 // A form's submission is assigned onto the handler's own argument type:
@@ -347,6 +365,13 @@ func Remotes() []*skgo.Remote {
 			Name:   "startResearchDocument",
 			Fn:     skgo0.Skgo_startResearchDocument,
 			Call:   remote_startResearchDocument,
+		}),
+		skgo.NewRemote(skgo.RemoteSpec{
+			Kind:   skgo.KindForm,
+			Module: "src/routes/researcheval_start.remote.ts",
+			Name:   "startResearchEval",
+			Fn:     skgo0.Skgo_startResearchEval,
+			Call:   remote_startResearchEval,
 		}),
 		skgo.NewRemote(skgo.RemoteSpec{
 			Kind:   skgo.KindForm,

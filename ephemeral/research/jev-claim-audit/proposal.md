@@ -483,6 +483,12 @@ rule above and do not gain factual status from it.
 A reviewer may prioritize consequential claims while leaving the rest visible;
 neither a repair limit nor a long list authorizes silent dismissal.
 
+Review a blocked completed audit before the curator changes its index blocks.
+Immediately rerun the cached audit to apply the decisions, then give the curator
+only the remaining repair IDs. An empty candidate list skips the editor turn.
+The final allowed pass still gets this review opportunity before failing; a
+review without a curator rewrite does not increment the repair count.
+
 One curator/editor turn may address multiple findings. Where cause and evidence
 are identical, a shared rationale may resolve an explicitly enumerated set of
 pairs; each pair must still carry its own claim/context/evidence bindings and

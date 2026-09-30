@@ -405,6 +405,50 @@ func ResearchDocument(ctx context.Context, env gimbal.Env, params Params) error 
 				}
 				time.Sleep(time.Duration(attempt) * time.Second)
 			}
+			if !allowed {
+				candidateData, err := os.ReadFile(filepath.Join(researchDir, claimaudit.StateDir, "review-candidates.json"))
+				if err != nil {
+					return fmt.Errorf("read claim review candidates: %w", err)
+				}
+				var candidates []claimaudit.ReviewCandidate
+				if err := json.Unmarshal(candidateData, &candidates); err != nil {
+					return fmt.Errorf("decode claim review candidates: %w", err)
+				}
+				if len(candidates) == 0 {
+					return nil
+				}
+				if _, err := editor.Generate[gimbal.Text](ctx, auditReviewPrompt); err != nil {
+					return err
+				}
+				for attempt := 1; attempt <= 3; attempt++ {
+					exit, _, stderr, err = gimbal.RunCommand(ctx, "audit-index-reviewed", env.WorkDir, tokenCounter, "audit-index", "--research-dir", researchDir, "--repair-pass", strconv.Itoa(repair))
+					if err != nil {
+						return err
+					}
+					if exit == 65 {
+						extractionError = strings.TrimSpace(stderr)
+						return nil
+					}
+					completion, readErr := claimaudit.ReadCompletion(researchDir)
+					if readErr != nil {
+						return fmt.Errorf("read claim audit completion: %w", readErr)
+					}
+					if exit == 0 && completion.Complete {
+						allowed = completion.AuthoringAllowed
+						if err := saveAuditPass(researchDir, "initial", repair, completion); err != nil {
+							return err
+						}
+						break
+					}
+					if exit != 75 || completion.Complete {
+						return fmt.Errorf("claim audit failed: exit %d: %s", exit, strings.TrimSpace(stderr))
+					}
+					if attempt == 3 {
+						return fmt.Errorf("reviewed claim audit transient retries exhausted")
+					}
+					time.Sleep(time.Duration(attempt) * time.Second)
+				}
+			}
 			return nil
 		})
 		if err != nil {
@@ -427,9 +471,6 @@ func ResearchDocument(ctx context.Context, env gimbal.Env, params Params) error 
 			continue
 		}
 		if _, err := curator.Generate[gimbal.Text](ctx, repairClaimsPrompt); err != nil {
-			return err
-		}
-		if _, err := editor.Generate[gimbal.Text](ctx, auditReviewPrompt); err != nil {
 			return err
 		}
 	}
@@ -564,6 +605,50 @@ func ResearchDocument(ctx context.Context, env gimbal.Env, params Params) error 
 							}
 							time.Sleep(time.Duration(attempt) * time.Second)
 						}
+						if !allowed {
+							candidateData, err := os.ReadFile(filepath.Join(researchDir, claimaudit.StateDir, "review-candidates.json"))
+							if err != nil {
+								return fmt.Errorf("read claim review candidates: %w", err)
+							}
+							var candidates []claimaudit.ReviewCandidate
+							if err := json.Unmarshal(candidateData, &candidates); err != nil {
+								return fmt.Errorf("decode claim review candidates: %w", err)
+							}
+							if len(candidates) == 0 {
+								return nil
+							}
+							if _, err := editor.Generate[gimbal.Text](ctx, auditReviewPrompt); err != nil {
+								return err
+							}
+							for attempt := 1; attempt <= 3; attempt++ {
+								exit, _, stderr, err = gimbal.RunCommand(ctx, "audit-gap-index-reviewed", env.WorkDir, tokenCounter, "audit-index", "--research-dir", researchDir, "--repair-pass", strconv.Itoa(repair))
+								if err != nil {
+									return err
+								}
+								if exit == 65 {
+									extractionError = strings.TrimSpace(stderr)
+									return nil
+								}
+								completion, readErr := claimaudit.ReadCompletion(researchDir)
+								if readErr != nil {
+									return fmt.Errorf("read gap audit completion: %w", readErr)
+								}
+								if exit == 0 && completion.Complete {
+									allowed = completion.AuthoringAllowed
+									if err := saveAuditPass(researchDir, fmt.Sprintf("gap-%02d", round), repair, completion); err != nil {
+										return err
+									}
+									break
+								}
+								if exit != 75 || completion.Complete {
+									return fmt.Errorf("gap audit failed: exit %d: %s", exit, strings.TrimSpace(stderr))
+								}
+								if attempt == 3 {
+									return fmt.Errorf("reviewed gap audit transient retries exhausted")
+								}
+								time.Sleep(time.Duration(attempt) * time.Second)
+							}
+						}
 						return nil
 					})
 					if err != nil {
@@ -586,9 +671,6 @@ func ResearchDocument(ctx context.Context, env gimbal.Env, params Params) error 
 						continue
 					}
 					if _, err := curator.Generate[gimbal.Text](ctx, repairClaimsPrompt); err != nil {
-						return err
-					}
-					if _, err := editor.Generate[gimbal.Text](ctx, auditReviewPrompt); err != nil {
 						return err
 					}
 				}
@@ -734,9 +816,9 @@ const extractClaimsContext = `## claim inventory path
 ## research directory
 {{(index .By "research directory").Text}}`
 
-const repairClaimsPrompt = `Read the current findings in .semantic-index/AUDIT.md, completion.json, inventory.json, claims.jsonl, disposition-candidates.json, and the original source passages cited by findings. The full audit.jsonl is a record of all checks; consult individual task records there when needed. For each extraction finding, account for every subject fact in its whole block, including repeated claims: add exact occurrences or correct unsupported prose. Repair bad references and unsupported assertions in the index, preserving genuine source disagreements visibly. Remove broad claims that the corpus does not document something when the cited passage cannot establish that absence; keep the question open without inventing a fact. Address several related findings in this turn when possible. A true unresolved pair finding may be kept with disposition retain-unresolved or exclude-from-factual-use on each affected claim; copy that claim's exact digest from disposition-candidates.json into disposition_digest. Keep its original assertion and evidence, and do not call it settled. Source findings require a repair or independent editor review; a disposition cannot clear them. Do not dismiss a Jev false alarm yourself: leave it marked for independent editor review. Keep claim records matched to exact index occurrences; the next prepare step will assign changed blocks. Stop after concrete repairs and explain what remains unresolved.`
+const repairClaimsPrompt = `Read the refreshed .semantic-index/AUDIT.md and completion.json after independent review, along with reviews.jsonl, inventory.json, claims.jsonl, disposition-candidates.json, and the original source passages cited by remaining findings. Repair only findings that remain in completion.json repair_required; do not rewrite reviewed blocks merely because their raw Jev verdict remains in audit.jsonl. The full audit.jsonl is a record of all checks; consult individual task records there when needed. For each extraction finding, account for every subject fact in its whole block, including repeated claims: add exact occurrences or correct unsupported prose. Repair bad references and unsupported assertions in the index, preserving genuine source disagreements visibly. Keep factual topic prose close to the original wording and qualification verbs: do not strengthen a documented constraint or promise into a mechanism or runtime-enforcement assertion, and do not add absence assertions. Remove broad claims that the corpus does not document something when the cited passage cannot establish that absence; keep the question open without inventing a fact. Address several related findings in this turn when possible. A true unresolved pair finding may be kept with disposition retain-unresolved or exclude-from-factual-use on each affected claim; copy that claim's exact digest from disposition-candidates.json into disposition_digest. Keep its original assertion and evidence, and do not call it settled. Source findings require a repair or independent editor review; a disposition cannot clear them. Do not dismiss a Jev false alarm yourself: leave it marked for independent editor review. Keep claim records matched to exact index occurrences; the next prepare step will assign changed blocks. Stop after concrete repairs and explain what remains unresolved.`
 
-const auditReviewPrompt = `Independently inspect the current claim audit findings that the curator suspects are false alarms. Read review-candidates.json, inventory.json, claims.jsonl, AUDIT.md, and the original local source passages for every affected claim. Never use a review to clear a confirmed contradiction: retain both conflicting claims visibly or repair them. Source contradicts verdicts require repair, not an override. For a source candidate, check every cited original passage and the full claim with its qualifiers; only when those passages establish it may you append kind "source", exact candidate id and digest, decision "reviewed-source-supported", and a concrete rationale naming the supporting spans. Read both claims of each proposed pair. Read each affected original index block and all its extracted records for an extraction candidate, including an empty record set. Only when evidence establishes that both assertions coexist may you append a JSON line to reviews.jsonl with kind "pair", exact candidate id and digest, decision "reviewed-compatible", and a concrete rationale naming both source spans. Only when every assertion and qualifier in an extraction block is covered may you append kind "extraction", exact candidate id and digest, decision "reviewed-extraction-complete", and a rationale naming the inspected block and complete record set. Preserve prior review lines. Do not approve an uncertain case, infer transitive compatibility, or clear all pairs from a representative. The raw Jev verdict remains visible regardless of your review. Return a brief account of decisions and unresolved findings.`
+const auditReviewPrompt = `Independently inspect the current claim audit review candidates before the curator changes the index. Append decisions only to reviews.jsonl; leave index blocks, claims, inventory, and originals unchanged so the workflow can apply your decisions to this snapshot. Read review-candidates.json, inventory.json, claims.jsonl, AUDIT.md, and the original local source passages for every affected claim. Never use a review to clear a confirmed contradiction: retain both conflicting claims visibly or repair them. Source contradicts verdicts require repair, not an override. For a source candidate, check every cited original passage and the full claim with its qualifiers; only when those passages establish it may you append kind "source", exact candidate id and digest, decision "reviewed-source-supported", and a concrete rationale naming the supporting spans. Read both claims of each proposed pair. Read each affected original index block and all its extracted records for an extraction candidate, including an empty record set. Only when evidence establishes that both assertions coexist may you append a JSON line to reviews.jsonl with kind "pair", exact candidate id and digest, decision "reviewed-compatible", and a concrete rationale naming both source spans. Only when every assertion and qualifier in an extraction block is covered may you append kind "extraction", exact candidate id and digest, decision "reviewed-extraction-complete", and a rationale naming the inspected block and complete record set. Preserve prior review lines. Do not approve an uncertain case, infer transitive compatibility, or clear all pairs from a representative. The raw Jev verdict remains visible regardless of your review. Return a brief account of decisions and unresolved findings.`
 
 const planContext = `## document goal
 {{(index .By "document goal").Text}}
@@ -800,11 +882,11 @@ const indexContext = `## document goal
 
 const planTopicsPrompt = `Plan the research needed for the document goal in exactly five coherent groups, one per parallel researcher, with at least one topic per group. Give each topic specific, neutral questions about what remains unknown. Preserve the caller's settled requirements; do not turn them into open questions or assume a preferred solution. Keep assignments distinct and proportional to the requested document, rather than planning comprehensive coverage of the field.`
 
-const researchTopicsPrompt = `Collect original evidence for every assigned topic. The topic directories align with the topics in the same order. When source mode is fixed, use only the shared fixed originals directory; link to its files with paths relative to each index instead of copying them into topics; do not browse or add sources. When source mode is web, download at least the required number of useful originals into each topic's sources directory. Preserve origin, version or retrieval date, and precise source locations. Keep interpretation separate from source text.
+const researchTopicsPrompt = `Collect original evidence for every assigned topic. The topic directories align with the topics in the same order. When source mode is fixed, use only the shared fixed originals directory; link to its files with paths relative to each index instead of copying them into topics; do not browse or add sources. When source mode is web, download at least the required number of useful originals into each topic's sources directory. Preserve origin, version or retrieval date, and precise source locations. Keep interpretation separate from source text. Preserve original qualification verbs when summarizing constraints or promises; do not strengthen them into mechanisms or runtime-enforcement assertions.
 
 Write a compact INDEX.md for each assigned topic that routes its questions to local originals. Keep each topic index to a few hundred words of routes and short source annotations, with precise citation bookmarks; make each factual sentence traceable to an original passage and omit effects the passage does not state; put indispensable longer annotations or excerpts in clips and link them. In fixed source mode, short originals already live in sources; do not copy or paraphrase them into clips unless a clip adds indispensable annotation. Keep supported facts, source disagreements, and unanswered questions; omit operational implications unless the goal requests them and the source establishes them. Phrase unanswered questions as questions, rather than asserting that a source or the whole corpus omits an answer. Do not replace evidence with a report or speculative implementation. Check the local citations, then return the files and questions addressed. Your assignment ends with these topic indexes. The workflow combines and audits them after all researchers finish; do not run audit-index or work on the root INDEX.md.`
 
-const researchGapsPrompt = `Collect original evidence for the editor's missing topics in the gap research sources directory, meeting the required minimum per topic. When source mode is fixed, use only the shared fixed originals directory; reference those files without copying them into the gap directory; do not browse or add sources. Otherwise collect needed original sources. Preserve source text or faithful excerpts with origin, version or retrieval date, and precise locations; keep your interpretation separate. Write a compact INDEX.md at the exact gap research index path, routing each gap to local evidence and any indispensable longer clips. Distinguish supported answers from contradictions and unresolved questions. Check the citations and return what you actually researched. The workflow audits after this research turn; do not run audit-index.`
+const researchGapsPrompt = `Collect original evidence for the editor's missing topics in the gap research sources directory, meeting the required minimum per topic. When source mode is fixed, use only the shared fixed originals directory; reference those files without copying them into the gap directory; do not browse or add sources. Otherwise collect needed original sources. Preserve source text or faithful excerpts with origin, version or retrieval date, and precise locations; keep your interpretation separate. Write a compact INDEX.md at the exact gap research index path, routing each gap to local evidence and any indispensable longer clips. Distinguish supported answers from contradictions and unresolved questions. Preserve original qualification verbs when summarizing constraints or promises; do not strengthen them into mechanisms or runtime-enforcement assertions. Check the citations and return what you actually researched. The workflow audits after this research turn; do not run audit-index.`
 
 const researchCoachPrompt = `Keep the work proportional to the document goal. Check that original evidence remains distinct from interpretation, research questions preserve the caller's requirements, and index notes provide short routes to useful citations. Steer away from unsupported conclusions, repeated summaries, and speculative implementation. The research floor is a minimum; file counts alone do not establish sufficient evidence.`
 
@@ -812,9 +894,9 @@ const compressionCoachPrompt = `Help the author convey the most important suppor
 
 const buildIndexPrompt = `Build a compact semantic routing tree at the exact semantic index path, using the topic indexes and their local evidence. The source cache holds the evidence; the index helps an author decide where to look. Organize routes by likely author questions and cross-cutting themes, not by researcher assignment. For each route, briefly explain when to follow it and link to the relevant topic, annotated leaf, or precise source passage. Keep detailed knowledge in those destinations instead of repeating their summaries in the root. Do not put self-assessments of the index, its link checks, or the completeness of the corpus in index prose; report checks in your response. Aim for at most 500 words in the root so readers retain room for original evidence. Once saved and checked, return its path and a brief result.
 
-Explain the corpus scope, source locations, citation conventions, unanswered questions, and known conflicts. Do not turn an unanswered question into a claim about what a source or the whole corpus omits. Preserve original source files. Check that links resolve and walk representative routes from the entrypoint to supporting evidence. Stop when the author can find the needed evidence through a small number of clear choices; a nonempty index or a file count alone is not evidence of useful retrieval.`
+Explain the corpus scope, source locations, citation conventions, unanswered questions, and known conflicts. Do not turn an unanswered question into a claim about what a source or the whole corpus omits. Preserve original source files. Preserve original qualification verbs when summarizing constraints or promises; do not strengthen them into mechanisms or runtime-enforcement assertions. Check that links resolve and walk representative routes from the entrypoint to supporting evidence. Stop when the author can find the needed evidence through a small number of clear choices; a nonempty index or a file count alone is not evidence of useful retrieval.`
 
-const updateIndexPrompt = `Integrate the gap research into the semantic index's existing routes. Add or repair links to the relevant evidence, update unresolved questions and conflicts, and preserve working routes. Keep the entrypoint compact and original sources unchanged. Check the affected paths from entrypoint to evidence; stop when they support repairing the document.`
+const updateIndexPrompt = `Integrate the gap research into the semantic index's existing routes. Add or repair links to the relevant evidence, update unresolved questions and conflicts, and preserve working routes. Keep the entrypoint compact and original sources unchanged. Preserve original qualification verbs when summarizing constraints or promises; do not strengthen them into mechanisms or runtime-enforcement assertions. Check the affected paths from entrypoint to evidence; stop when they support repairing the document.`
 
 const writeDocumentPrompt = `Write the requested document at the exact document path. Read the claim audit path first. Start research retrieval at the semantic index and follow its routes to relevant original sources and annotated clips. Use the index to locate evidence, not as a substitute for it. A source verdict and an inter-claim conflict are separate dimensions. Treat marked unresolved claims as attributed or uncertain, never as settled factual premises. Ground factual claims in source passages, distinguish recommendations from facts, and preserve uncertainty where evidence is missing or conflicting. Do not add a mechanism, timing word, consequence, or status that the original passage does not state, even when the addition seems familiar. Do not carry an index inference into the document unless the original evidence establishes it and the goal needs it. Do not independently expand the research or redesign the index; make any material evidence gaps clear for the editor.
 

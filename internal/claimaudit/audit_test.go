@@ -117,6 +117,40 @@ func auditPairReview(t *testing.T, confirmed bool) {
 	if requests != before || second.Metrics.PairsAnswered != 3 {
 		t.Fatalf("resume requests=%d before=%d summary=%+v", requests, before, second)
 	}
+	if first.Metrics.InputTokens == 0 || first.Metrics.RequestCount == 0 {
+		t.Fatalf("fixture incurred no Jev usage: %+v", first.Metrics)
+	}
+	if second.Metrics.InputTokens != first.Metrics.InputTokens || second.Metrics.RequestCount != first.Metrics.RequestCount {
+		t.Fatalf("cached completed audit lost incurred usage: first=%+v second=%+v", first.Metrics, second.Metrics)
+	}
+	begun, err := Begin(dir, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if begun.Metrics.InputTokens != first.Metrics.InputTokens || begun.Metrics.RequestCount != first.Metrics.RequestCount {
+		t.Fatalf("Begin lost completed pass usage: %+v", begun)
+	}
+	replayed, err := Audit(context.Background(), dir, client, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if requests != before || replayed.Metrics.InputTokens != first.Metrics.InputTokens || replayed.Metrics.RequestCount != first.Metrics.RequestCount {
+		t.Fatalf("completed Begin/Audit replay reset or double counted usage: requests=%d before=%d first=%+v replayed=%+v", requests, before, first.Metrics, replayed.Metrics)
+	}
+	next, err := Begin(dir, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if next.Metrics.InputTokens != 0 || next.Metrics.RequestCount != 0 {
+		t.Fatalf("new repair pass retained prior usage: %+v", next)
+	}
+	next, err = Audit(context.Background(), dir, client, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if requests != before || next.Metrics.InputTokens != 0 || next.Metrics.RequestCount != 0 {
+		t.Fatalf("new cached repair pass incurred phantom usage: requests=%d before=%d completion=%+v", requests, before, next)
+	}
 	var candidates []ReviewCandidate
 	candidateData, err := os.ReadFile(statePath(dir, "review-candidates.json"))
 	if err != nil {

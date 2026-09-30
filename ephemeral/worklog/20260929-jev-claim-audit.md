@@ -135,3 +135,5 @@ finding: Candidate research/index prices omit fixed-role work whose workload may
 friction: An application restart killed the detached benchmark server mid-turn, leaving its on-disk run marked running. Verify the live listener and process before diagnosing a long model call; stale observation files are not active work.
 
 finding: The independent editor called the genuine 45/60-second disagreement compatible. A review must not erase a confirmed contradiction: keep pair disputes visible with explicit dispositions, and require repair for source contradicts verdicts. Bind uncertain-pair reviews to their two claims, anchors and exact original evidence so unrelated index repairs do not stale valid reviews.
+
+finding: The completed practical comparison exposed a release blocker: an extraction false alarm survives every curator rewrite because independent review sees a changed block. Review the stable current audit first, immediately apply decisions with a cached audit, and let the curator act only on remaining repair IDs. The final permitted pass still needs this review opportunity; skip the editor entirely when no review candidates exist.

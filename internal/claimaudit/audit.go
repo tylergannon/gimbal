@@ -277,7 +277,7 @@ func Begin(dir string, pass int) (Completion, error) {
 		return out, err
 	}
 	out = Completion{Revision: revision(inv, claims), CoverageMode: "pairwise", Metrics: Metrics{Blocks: len(inv.Blocks), Claims: len(claims), PairsTotal: len(claims) * (len(claims) - 1) / 2, RepairPass: pass}}
-	if prior, err := ReadCompletion(dir); err == nil && !prior.Complete && prior.Revision == out.Revision && prior.Metrics.RepairPass == pass {
+	if prior, err := ReadCompletion(dir); err == nil && prior.Revision == out.Revision && prior.Metrics.RepairPass == pass {
 		out.Metrics.RequestCount = prior.Metrics.RequestCount
 		out.Metrics.InputTokens = prior.Metrics.InputTokens
 		out.Metrics.ElapsedMillis = prior.Metrics.ElapsedMillis
@@ -301,7 +301,7 @@ func Audit(ctx context.Context, dir string, client *jev.Client, pass int) (Compl
 		return out, err
 	}
 	out = Completion{Revision: revision(inv, claims), CoverageMode: "pairwise", Metrics: Metrics{Blocks: len(inv.Blocks), Claims: len(claims), PairsTotal: len(claims) * (len(claims) - 1) / 2, RepairPass: pass}}
-	if prior, err := ReadCompletion(dir); err == nil && !prior.Complete && prior.Revision == out.Revision && prior.Metrics.RepairPass == pass {
+	if prior, err := ReadCompletion(dir); err == nil && prior.Revision == out.Revision && prior.Metrics.RepairPass == pass {
 		out.Metrics.RequestCount = prior.Metrics.RequestCount
 		out.Metrics.InputTokens = prior.Metrics.InputTokens
 		out.Metrics.ElapsedMillis = prior.Metrics.ElapsedMillis

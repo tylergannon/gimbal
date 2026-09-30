@@ -46,10 +46,11 @@ the report distinguishes factual correctness, retrieval, repair, and cost.
 
 ## Start a run
 
-Gimbal requires `TYPESAFE_API_KEY` in the instance startup environment and for
-headless `run-prompt` calls. A missing or blank key prevents startup. There is
-no timed-supervision mode or fallback. Help and commands that only contact an
-already running instance do not need a local TypeSafe key.
+Gimbal requires `TYPESAFE_API_KEY` only when a workflow uses
+`WithSupervisor` for Jev supervision. `run-prompt`, workflows without Jev, and
+instance startup work without that key. A supervised workflow reports a clear
+error when it reaches Jev supervision without the key. Help and commands that
+only contact an already running instance do not need a local TypeSafe key.
 
 ```sh
 gimbal run review --work-dir /abs/project --no-web --goal "Review the parser changes for correctness; report concrete findings with evidence."

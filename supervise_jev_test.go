@@ -168,7 +168,7 @@ func stubJev(t *testing.T) {
 	t.Setenv("TYPESAFE_BASE_URL", server.URL)
 }
 
-func TestSuperviseRequiresTypeSafeKeyBeforeWorkerTurn(t *testing.T) {
+func TestSuperviseWithoutTypeSafeKeyFailsBeforeWorkerTurn(t *testing.T) {
 	workerRan := false
 	adapter := &fake{answer: func(context.Context, string, string, json.RawMessage, func(AgentEvent) error) (string, error) {
 		workerRan = true
@@ -181,7 +181,7 @@ func TestSuperviseRequiresTypeSafeKeyBeforeWorkerTurn(t *testing.T) {
 		_, err := worker.Generate[Text](ctx, "work", WithSupervisor(coach, "stay in scope"))
 		return err
 	})
-	if !errors.Is(err, jev.ErrNoAPIKey) || workerRan {
+	if err == nil || !strings.Contains(err.Error(), "TYPESAFE_API_KEY is required when using WithSupervisor") || workerRan {
 		t.Fatalf("error=%v worker ran=%t", err, workerRan)
 	}
 }
@@ -231,5 +231,13 @@ func TestJevDoesNotFallBackToTimedReviews(t *testing.T) {
 				}
 			})
 		})
+	}
+}
+
+func TestJevSupervisionRequiresTypeSafeKeyAtUse(t *testing.T) {
+	t.Setenv("TYPESAFE_API_KEY", " 	\n")
+	_, err := superviseWithJev(t.Context(), nil, "task", nil, nil, "", Text(""))
+	if err == nil || !strings.Contains(err.Error(), "TYPESAFE_API_KEY is required when using WithSupervisor") {
+		t.Fatalf("error = %v", err)
 	}
 }

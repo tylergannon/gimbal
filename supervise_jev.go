@@ -3,7 +3,9 @@ package gimbal
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -217,6 +219,9 @@ func (j *jevSupervision) check(probeCtx, reviewCtx context.Context, worker *Sess
 }
 
 func superviseWithJev(ctx context.Context, worker *Session, prompt string, supervisors []supervisor, started *TurnStarted, history string, output Output) ([]byte, error) {
+	if strings.TrimSpace(os.Getenv("TYPESAFE_API_KEY")) == "" {
+		return nil, errors.New("gimbal: TYPESAFE_API_KEY is required when using WithSupervisor; set it in the Gimbal process environment")
+	}
 	client, err := jev.New(jev.WithModel("jev-1.13.0"), jev.WithTimeout(5*time.Second), jev.WithMaxRetries(0))
 	if err != nil {
 		return nil, fmt.Errorf("gimbal: Jev supervision: %w", err)

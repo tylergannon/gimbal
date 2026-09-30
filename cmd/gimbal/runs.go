@@ -112,12 +112,7 @@ func watchRun(ctx context.Context, output io.Writer, workDir, runID string) erro
 	if response.StatusCode != http.StatusOK {
 		return fmt.Errorf("watch %s: runtime returned %s", runID, response.Status)
 	}
-	err = streamObservation(output, response.Body)
-	// Runtime shutdown can close the stream before HTTP reports cancellation.
-	if err != nil && ctx.Err() != nil {
-		return context.Cause(ctx)
-	}
-	return err
+	return streamObservation(output, response.Body)
 }
 
 func findRun(ctx context.Context, workDir, runID string) (runtimeClient, bool, error) {

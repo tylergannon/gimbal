@@ -101,3 +101,11 @@ Finish a small fixed-source comparison and release the usable research workflow.
 # Real research recalibration
 
 Tyler stopped the repeated synthetic benchmark cycle and asked to recalibrate the process. The concrete assignment is now: "Research REAL SHIT. Like go and research 'contemporary methods for building a priority queue using Jev, including adjacent topics'." Run actual web collection, assess useful coverage, source support and index queries, and retain a provisional bounded comparison rather than perfecting a synthetic benchmark.
+
+# Housekeeping contract and merge handoff
+
+Tyler: "The whole idea of the research + semantic index is to pull hard info from the internet and then index it. There should be no interpretation, no wandering, no creativity, nothing. It's a PURE housekeeping mission."
+
+Collection, source excerpts, and semantic indexes must preserve original information and provenance and provide neutral routes; they must not invent engineering explanations, deductions, or proposed designs. This correction has not yet been implemented in the current prompts.
+
+Tyler then stopped further work and requested: "actually just set up and merge a PR. You didn't change anything other than this workflow, right?" Merge the existing research-related work as a handoff, without representing the interrupted real run or pending prompt correction as completed validation.

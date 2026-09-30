@@ -213,7 +213,7 @@ func auditPairReview(t *testing.T, confirmed bool) {
 		if err != nil || strings.Count(string(marked), "disputed by") != 2 {
 			t.Fatalf("confirmed contradiction lost markers: %s %v", marked, err)
 		}
-		for i := 0; i < 2; i++ {
+		for i := range 2 {
 			claims[i].Disposition = "retain-unresolved"
 			claims[i].DispositionDigest = dispositionDigest(claims[i], nil, inv.Sources)
 		}

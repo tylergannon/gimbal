@@ -146,3 +146,6 @@ finding: A review-only editor created a helper script inside the audited corpus,
 
 
 finding: The first actual web research gathered useful official Jev material and adjacent papers, but repeated source copies and expansive topic/clip prose made claim extraction expensive before the audit began. An independent reader found relevant routes yet promoted engineering proposals and qualified experimental results into stronger facts. Measure useful source-grounded answers separately from file count and audit completion; concise evidence-preserving indexes are an economic requirement, not cosmetic compression.
+
+
+correction: Tyler defines research and indexing as pure evidence housekeeping, with no interpretation or creative synthesis. The existing prompts have not yet been corrected to that contract. Tyler requested merging the current work and handing correctness work to a clean session. Stop the real-run host and orphan auditor, remove the unrelated watch-cancellation change, and report incomplete real-run validation and remaining review findings honestly.

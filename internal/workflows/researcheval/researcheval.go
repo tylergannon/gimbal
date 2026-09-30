@@ -845,7 +845,7 @@ func containsTool(v any, adapter string) bool {
 		if x["type"] == "tool" || x["type"] == "tool-invocation" {
 			// Claude's StructuredOutput and agy's finish return the typed
 			// result; neither reads a file outside the measured protocol.
-			return !(adapter == "*claude.adapter" && x["name"] == "StructuredOutput" || adapter == "*agy.adapter" && x["name"] == "finish")
+			return (adapter != "*claude.adapter" || x["name"] != "StructuredOutput") && (adapter != "*agy.adapter" || x["name"] != "finish")
 		}
 		for _, child := range x {
 			if containsTool(child, adapter) {

@@ -16,6 +16,16 @@ import (
 )
 
 func TestAuditMarksBothEndsAndResumesAnswers(t *testing.T) {
+	for _, confirmed := range []bool{false, true} {
+		name := "uncertain-review"
+		if confirmed {
+			name = "confirmed-contradiction"
+		}
+		t.Run(name, func(t *testing.T) { auditPairReview(t, confirmed) })
+	}
+}
+
+func auditPairReview(t *testing.T, confirmed bool) {
 	dir := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(dir, "topic-001", "sources"), 0o755); err != nil {
 		t.Fatal(err)
@@ -54,7 +64,10 @@ func TestAuditMarksBothEndsAndResumesAnswers(t *testing.T) {
 				if _, ok := state["block"]; ok {
 					label = "complete"
 				} else if _, ok := state["left_claim"]; ok {
-					label = "contradiction"
+					label = "uncertain"
+					if confirmed {
+						label = "contradiction"
+					}
 				}
 			case "c1/c2":
 				label = "contradiction"
@@ -72,7 +85,7 @@ func TestAuditMarksBothEndsAndResumesAnswers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !first.Complete || first.AuthoringAllowed || first.Metrics.PairsAnswered != 3 || first.Metrics.PairFindings != 1 {
+	if !first.Complete || first.AuthoringAllowed == confirmed || first.Metrics.PairsAnswered != 3 || first.Metrics.PairFindings != 1 {
 		t.Fatalf("completion=%+v", first)
 	}
 	data, err := os.ReadFile(filepath.Join(dir, "INDEX.md"))
@@ -118,7 +131,14 @@ func TestAuditMarksBothEndsAndResumesAnswers(t *testing.T) {
 			pair = candidate
 		}
 	}
-	if pair.ID != "c1/c2" {
+	if confirmed {
+		if pair.ID != "" {
+			t.Fatalf("confirmed contradiction offered editor review: %+v", pair)
+		}
+		left, _ := claimEvidence(dir, claims[0])
+		right, _ := claimEvidence(dir, claims[1])
+		pair = ReviewCandidate{Kind: "pair", ID: "c1/c2", Digest: pairReviewDigest(claims[0], claims[1], left, right)}
+	} else if pair.ID != "c1/c2" {
 		t.Fatalf("pair candidate=%+v", pair)
 	}
 	review := ReviewDecision{Kind: "pair", ID: pair.ID, Digest: pair.Digest, Decision: "reviewed-compatible", Rationale: "Independent editor inspected both original spans and determined their scopes differ."}
@@ -129,9 +149,52 @@ func TestAuditMarksBothEndsAndResumesAnswers(t *testing.T) {
 	if err := os.WriteFile(statePath(dir, "reviews.jsonl"), append(line, '\n'), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	if !confirmed {
+		index, err := os.ReadFile(filepath.Join(dir, "INDEX.md"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "INDEX.md"), []byte(strings.ReplaceAll(string(index), "Beta is unrelated.", "Beta is still unrelated.")), 0644); err != nil {
+			t.Fatal(err)
+		}
+		updated, err := Prepare(dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		claims[2].Text = "Beta is still unrelated."
+		claims[2].Occurrences = []Occurrence{{BlockID: updated.Blocks[2].ID, Text: claims[2].Text}}
+		if err := writeClaims(dir, claims); err != nil {
+			t.Fatal(err)
+		}
+	}
 	reviewed, err := Audit(context.Background(), dir, client, 1)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if confirmed {
+		if reviewed.AuthoringAllowed || len(reviewed.Unresolved) != 1 || len(reviewed.RepairRequired) != 1 {
+			t.Fatalf("editor erased confirmed contradiction: %+v", reviewed)
+		}
+		marked, err := os.ReadFile(filepath.Join(dir, "INDEX.md"))
+		if err != nil || strings.Count(string(marked), "disputed by") != 2 {
+			t.Fatalf("confirmed contradiction lost markers: %s %v", marked, err)
+		}
+		for i := 0; i < 2; i++ {
+			claims[i].Disposition = "retain-unresolved"
+			claims[i].DispositionDigest = dispositionDigest(claims[i], nil, inv.Sources)
+		}
+		if err := writeClaims(dir, claims); err != nil {
+			t.Fatal(err)
+		}
+		retained, err := Audit(context.Background(), dir, client, 2)
+		if err != nil || !retained.AuthoringAllowed || len(retained.Unresolved) != 1 {
+			t.Fatalf("retained contradiction blocked authoring or disappeared: %+v %v", retained, err)
+		}
+		marked, err = os.ReadFile(filepath.Join(dir, "INDEX.md"))
+		if err != nil || strings.Count(string(marked), "disputed by") != 2 {
+			t.Fatalf("retained contradiction lost markers: %s %v", marked, err)
+		}
+		return
 	}
 	if !reviewed.AuthoringAllowed {
 		t.Fatalf("valid reviewed decision did not clear false pair: %+v", reviewed)
@@ -154,7 +217,7 @@ func TestAuditMarksBothEndsAndResumesAnswers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if stale.AuthoringAllowed {
+	if len(stale.Unresolved) != 1 {
 		t.Fatalf("stale review survived changed source: %+v", stale)
 	}
 }
@@ -435,6 +498,12 @@ func TestUncitedClaimCannotBeDispositioned(t *testing.T) {
 }
 
 func TestIndependentSourceReviewClearsFalseAlarm(t *testing.T) {
+	for _, verdict := range []string{"uncertain", "source-contradicts", "aggregate-contradicts"} {
+		t.Run(verdict, func(t *testing.T) { auditSourceReview(t, verdict) })
+	}
+}
+
+func auditSourceReview(t *testing.T, verdict string) {
 	dir := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(dir, "sources"), 0755); err != nil {
 		t.Fatal(err)
@@ -449,11 +518,21 @@ func TestIndependentSourceReviewClearsFalseAlarm(t *testing.T) {
 		t.Fatal(err)
 	}
 	c := Claim{ID: "limit", Text: "The limit is 12 KiB.", Kind: "fact", Occurrences: []Occurrence{{BlockID: inv.Blocks[0].ID, Text: "The limit is 12 KiB."}}, References: []Reference{{Path: "sources/limit.md", StartLine: 2, EndLine: 2, Quote: "The limit is 12 KiB."}}}
+	if verdict == "aggregate-contradicts" {
+		c.References = append(c.References, c.References[0])
+	}
 	if err := writeClaims(dir, []Claim{c}); err != nil {
 		t.Fatal(err)
 	}
 	client, err := jev.New(jev.WithProvider(jev.ProviderFunc(func(_ context.Context, req *jev.Request) (*jev.Response, error) {
 		label := "uncertain"
+		state, _ := req.State.(map[string]any)
+		if verdict == "source-contradicts" || (verdict == "aggregate-contradicts" && state["reference"] == nil) {
+			label = "contradicts"
+		}
+		if verdict == "aggregate-contradicts" && state["reference"] != nil {
+			label = "supports"
+		}
 		if state, ok := req.State.(map[string]any); ok && state["block"] != nil {
 			label = "complete"
 		}
@@ -470,6 +549,34 @@ func TestIndependentSourceReviewClearsFalseAlarm(t *testing.T) {
 	data, err := os.ReadFile(statePath(dir, "review-candidates.json"))
 	if err != nil || json.Unmarshal(data, &candidates) != nil {
 		t.Fatalf("candidates: %s %v", data, err)
+	}
+	if verdict != "uncertain" {
+		if len(candidates) != 0 {
+			t.Fatalf("contradicted source offered editor override: %+v", candidates)
+		}
+		// Even a correctly hashed, affirmative editorial override cannot clear it.
+		review := ReviewDecision{Kind: "source", ID: c.ID, Digest: dispositionDigest(c, nil, inv.Sources), Decision: "reviewed-source-supported", Rationale: "Editor claims this is supported."}
+		line, err := json.Marshal(review)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(statePath(dir, "reviews.jsonl"), append(line, '\n'), 0644); err != nil {
+			t.Fatal(err)
+		}
+		c.Disposition = "retain-unresolved"
+		c.DispositionDigest = dispositionDigest(c, nil, inv.Sources)
+		if err := writeClaims(dir, []Claim{c}); err != nil {
+			t.Fatal(err)
+		}
+		second, err := Audit(context.Background(), dir, client, 1)
+		if err != nil || second.AuthoringAllowed || second.Metrics.SourceFindings != 1 || len(second.Unresolved) != 1 || len(second.RepairRequired) != 1 {
+			t.Fatalf("editor/disposition cleared contradicted source: %+v %v", second, err)
+		}
+		marked, err := os.ReadFile(filepath.Join(dir, "INDEX.md"))
+		if err != nil || !strings.Contains(string(marked), "source-unresolved") {
+			t.Fatalf("source finding lost marker: %s %v", marked, err)
+		}
+		return
 	}
 	if len(candidates) != 1 || candidates[0].Kind != "source" {
 		t.Fatalf("source review unavailable: %+v", candidates)
@@ -526,5 +633,30 @@ func TestSharedOriginalsAreSourcesNotIndexBlocks(t *testing.T) {
 	}
 	if _, err := readReference(dir, Reference{Path: "sources/manual/INDEX.md", StartLine: 1, EndLine: 1, Quote: "Original fact."}); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestPairReviewDigestTracksEvidenceAndAnchors(t *testing.T) {
+	a := Claim{ID: "a", Text: "45 seconds", Occurrences: []Occurrence{{BlockID: "block", Text: "45 seconds"}}}
+	b := Claim{ID: "b", Text: "60 seconds", Occurrences: []Occurrence{{BlockID: "other", Text: "60 seconds"}}}
+	left, right := []string{"Notice: 45 seconds"}, []string{"Runbook: 60 seconds"}
+	original := pairReviewDigest(a, b, left, right)
+	a.Disposition, a.DispositionDigest = "retain-unresolved", "disposition"
+	if original != pairReviewDigest(a, b, left, right) {
+		t.Fatal("disposition invalidated review")
+	}
+	a.Occurrences[0].Text = "changed anchor"
+	if original == pairReviewDigest(a, b, left, right) {
+		t.Fatal("changed anchor retained review")
+	}
+	a.Occurrences[0].Text = "45 seconds"
+	b.Text = "90 seconds"
+	if original == pairReviewDigest(a, b, left, right) {
+		t.Fatal("changed claim retained review")
+	}
+	b.Text = "60 seconds"
+	right[0] = "Runbook: 90 seconds"
+	if original == pairReviewDigest(a, b, left, right) {
+		t.Fatal("changed original retained review")
 	}
 }

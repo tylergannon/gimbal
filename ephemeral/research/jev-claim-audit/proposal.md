@@ -448,9 +448,11 @@ qualification; it authorizes describing the dispute, not asserting the claim
 as settled. `exclude-from-factual-use` retains the finding/marker but prohibits
 using the assertion as a factual premise. When both sourced claims carry a
 current disposition, the pair leaves `repair_required`; it remains unresolved.
-Source findings require repair, or an independent editor's
-`reviewed-source-supported` decision against every valid cited original.
-Uncited and invalid-reference claims cannot be reviewed or dispositioned away.
+Source findings require repair. A non-contradicting source false alarm can also
+receive an independent editor's `reviewed-source-supported` decision against
+every valid cited original. A Jev `contradicts` judgment cannot be cleared by
+that review. Uncited and invalid-reference claims cannot be reviewed or
+dispositioned away.
 Genuine or unresolved extraction omissions/distortions and invalid occurrence
 mapping cannot be dispositioned away.
 
@@ -489,7 +491,7 @@ clear all pairs of a claim from one representative, infer compatibility
 transitively, or apply a dismissal to unlisted pairs. Findings without an actual
 review decision stay marked; batching review is not a blanket approval.
 
-For a suspected false conflict, the curator may propose `reviewed-compatible`
+For an uncertain suspected false conflict, the curator may propose `reviewed-compatible`
 with the original passages for **both** claims and why the assertions coexist.
 Before authoring, instantiate the existing editor role for this independent
 assessment from original evidence; the curator cannot dismiss its own finding. If the
@@ -501,7 +503,10 @@ dispute markers and repair requirement, preserving other active disputes and
 source-check findings. If the editor disagrees or cannot resolve scope, retain
 the unresolved finding. Changed claims, context, evidence, anchors, or governing
 policy invalidate the resolution and restore the finding pending fresh assessment.
-Correct facts can then be used without presenting a rejected model false positive
+Confirmed contradictions cannot be cleared by a compatible review; retain both
+endpoints visibly or repair the claims. The review digest covers the two claims,
+their exact occurrences and evidence, so an unrelated block edit does not
+invalidate it. Correct facts can then be used without presenting a rejected model false positive
 as a real dispute.
 
 Only deterministic, auditor-owned qualification/disposition annotations are

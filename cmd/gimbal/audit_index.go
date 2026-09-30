@@ -23,7 +23,7 @@ func newAuditIndexCommand(stdout io.Writer) *cobra.Command {
 The curator writes .semantic-index/claims.jsonl using inventory.json. The normal
 invocation checks extraction, each original citation, and every pair with Jev;
 it writes audit.jsonl, AUDIT.md, and completion.json. A complete audit may
-contain findings and require research repair before authoring. Exit 2 asks the
+contain findings and require research repair before authoring. Exit 65 asks the
 curator to repair invalid claim records; exit 75 permits a transport retry. Completion also
 reports an o200k_base proxy for a whole-index Jev packet; this diagnostic is
 not a Jev token count and does not skip the exhaustive pair pass.

@@ -133,3 +133,5 @@ finding: Independent assessment caught familiar operational implications and ass
 finding: Candidate research/index prices omit fixed-role work whose workload may change. Keep that limited price proxy explicit and show downstream turns and time beside it rather than describing it as full-run economics.
 
 friction: An application restart killed the detached benchmark server mid-turn, leaving its on-disk run marked running. Verify the live listener and process before diagnosing a long model call; stale observation files are not active work.
+
+finding: The independent editor called the genuine 45/60-second disagreement compatible. A review must not erase a confirmed contradiction: keep pair disputes visible with explicit dispositions, and require repair for source contradicts verdicts. Bind uncertain-pair reviews to their two claims, anchors and exact original evidence so unrelated index repairs do not stale valid reviews.

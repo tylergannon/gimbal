@@ -392,6 +392,8 @@ func Audit(ctx context.Context, dir string, client *jev.Client, pass int) (Compl
 	repair := map[string]bool{}
 	unresolved := map[string]bool{}
 	sourceFinding := map[string]bool{}
+	sourceContradiction := map[string]bool{}
+	pairContradiction := map[string]bool{}
 	pairFinding := map[string][]string{}
 	extractionFinding := map[string]bool{}
 	candidates := map[string]ReviewCandidate{}
@@ -441,6 +443,9 @@ func Audit(ctx context.Context, dir string, client *jev.Client, pass int) (Compl
 				return remaining(classify(err))
 			}
 			out.Metrics.SourceChecks++
+			if j.Label == "contradicts" {
+				sourceContradiction[c.ID] = true
+			}
 			if j.Label != "supports" {
 				sourceFinding[c.ID] = true
 				repair[c.ID] = true
@@ -452,6 +457,9 @@ func Audit(ctx context.Context, dir string, client *jev.Client, pass int) (Compl
 			j, err := judge("aggregate:"+c.ID, "aggregate", claimSignature(c, blocks)+strings.Join(evidence, "\x00")+reviewDigest(inv.Sources), map[string]any{"claim": c.Text, "scope": c.Scope, "evidence": evidence}, q)
 			if err != nil {
 				return remaining(classify(err))
+			}
+			if j.Label == "contradicts" {
+				sourceContradiction[c.ID] = true
 			}
 			if j.Label != "supports" {
 				sourceFinding[c.ID] = true
@@ -550,8 +558,11 @@ func Audit(ctx context.Context, dir string, client *jev.Client, pass int) (Compl
 				pairFinding[p.b.ID] = append(pairFinding[p.b.ID], p.a.ID)
 				out.Metrics.PairFindings++
 				unresolved[p.key] = true
-				candidates["pair:"+p.key] = ReviewCandidate{Kind: "pair", ID: p.key, Digest: reviewDigest(p.a, p.b, inv.Sources, blocks)}
+				if relation == "uncertain" {
+					candidates["pair:"+p.key] = ReviewCandidate{Kind: "pair", ID: p.key, Digest: pairReviewDigest(p.a, p.b, leftEvidence, rightEvidence)}
+				}
 				if relation == "contradiction" {
+					pairContradiction[p.key] = true
 					repair[p.key] = true
 				}
 			}
@@ -565,7 +576,7 @@ func Audit(ctx context.Context, dir string, client *jev.Client, pass int) (Compl
 	}
 	for _, c := range claims {
 		if sourceFinding[c.ID] {
-			if _, ok := claimEvidence(dir, c); ok {
+			if _, ok := claimEvidence(dir, c); ok && !sourceContradiction[c.ID] {
 				candidates["source:"+c.ID] = ReviewCandidate{Kind: "source", ID: c.ID, Digest: dispositionDigest(c, blocks, inv.Sources)}
 			}
 		}
@@ -605,7 +616,7 @@ func Audit(ctx context.Context, dir string, client *jev.Client, pass int) (Compl
 			delete(repair, review.ID)
 			continue
 		}
-		if review.Kind == "source" && review.Decision == "reviewed-source-supported" {
+		if review.Kind == "source" && review.Decision == "reviewed-source-supported" && !sourceContradiction[review.ID] {
 			if _, ok := claimEvidence(dir, byID(claims, review.ID)); !ok {
 				continue
 			}
@@ -615,7 +626,7 @@ func Audit(ctx context.Context, dir string, client *jev.Client, pass int) (Compl
 			delete(unresolved, review.ID)
 			continue
 		}
-		if review.Kind == "pair" && review.Decision == "reviewed-compatible" {
+		if review.Kind == "pair" && review.Decision == "reviewed-compatible" && !pairContradiction[review.ID] {
 			ids := strings.Split(review.ID, "/")
 			if len(ids) != 2 {
 				continue
@@ -736,6 +747,14 @@ func dispositionDigest(c Claim, _ map[string]Block, sources map[string]string) s
 	// routine repairs elsewhere in that block silently invalidate a genuine
 	// unresolved conflict on every pass.
 	return reviewDigest(c.ID, c.Text, c.Scope, c.Kind, c.Occurrences, c.References, sources)
+}
+
+// Pair reviews follow the claims, exact originals and occurrence anchors. Edits
+// elsewhere in the index and disposition choices do not alter their evidence.
+func pairReviewDigest(a, b Claim, leftEvidence, rightEvidence []string) string {
+	a.Disposition, a.DispositionDigest = "", ""
+	b.Disposition, b.DispositionDigest = "", ""
+	return reviewDigest(a, b, leftEvidence, rightEvidence)
 }
 func pairCacheKey(id string, a, b Claim, blocks map[string]Block) string {
 	return "pair:" + id + ":" + digest([]byte(claimSignature(a, blocks)+claimSignature(b, blocks)+model+"v1"))

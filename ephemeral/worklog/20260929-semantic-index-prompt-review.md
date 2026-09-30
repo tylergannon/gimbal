@@ -17,3 +17,5 @@ finding: Neutral question wording can still presuppose undocumented implementati
 correction: Preserving the existing orchestration was an unjustified constraint. Tyler explicitly authorizes replacing it to produce good semantic indexes and forbids exhaustive audits and proof machinery. Jev is optional, useful only for focused checks serving the result.
 
 finding: The live trial's all-pairs audit diverted work from source fidelity and retrieval. Remove claim extraction, pairwise auditing, their CLI/package, and eval accounting; retain factual collection, compact routing, a few independent source checks, targeted repair, and document compression.
+
+finding: Focused source review produced useful qualification and citation corrections, but mistook UTC retrieval dates for future dates relative to the client calendar. Supply the actual UTC research timestamp to collection and index review rather than treating an unspecified timezone difference as a defect.

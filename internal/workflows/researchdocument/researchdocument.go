@@ -51,6 +51,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/polytype"
@@ -180,6 +181,7 @@ func ResearchDocument(ctx context.Context, env gimbal.Env, params Params) error 
 	gimbal.Set(ctx, "document path", documentPath)
 	gimbal.Set(ctx, "semantic index path", indexPath)
 	gimbal.Set(ctx, "research directory", researchDir)
+	gimbal.Set(ctx, "research timestamp UTC", time.Now().UTC().Format(time.RFC3339))
 	sourceMode := "web"
 	if sourceDir != "" {
 		sourceMode = "fixed"
@@ -602,7 +604,10 @@ const researchContext = `## document goal
 {{(index .By "topic directories").Text}}
 
 ## minimum sources per assigned topic
-{{(index .By "minimum sources per assigned topic").Text}}`
+{{(index .By "minimum sources per assigned topic").Text}}
+
+## research timestamp UTC
+{{(index .By "research timestamp UTC").Text}}`
 
 const gapResearchContext = `## document goal
 {{(index .By "document goal").Text}}
@@ -623,7 +628,10 @@ const gapResearchContext = `## document goal
 {{(index .By "gap research index path").Text}}
 
 ## minimum gap source files
-{{(index .By "minimum gap source files").Text}}`
+{{(index .By "minimum gap source files").Text}}
+
+## research timestamp UTC
+{{(index .By "research timestamp UTC").Text}}`
 
 const indexContext = `## document goal
 {{(index .By "document goal").Text}}
@@ -643,7 +651,7 @@ Plan factual research for the supplied subject and scope in exactly five coheren
 
 const researchTopicsPrompt = factualResearchContract + `
 
-Collect original evidence for every assigned topic. The topic directories align with the topics in the same order. Read and write only your assigned topic directories and original source material; generated research reports and Gimbal run records are outside your assignment. In fixed source mode, use only the shared fixed originals directory and reference its files without copying them into topics; do not browse or add sources. In web mode, download at least the required number of useful originals into each topic's sources directory. Preserve original source text, origin, version or retrieval date, and precise source locations.
+Collect original evidence for every assigned topic. The topic directories align with the topics in the same order. Read and write only your assigned topic directories and original source material; generated research reports and Gimbal run records are outside your assignment. In fixed source mode, use only the shared fixed originals directory and reference its files without copying them into topics; do not browse or add sources. In web mode, download at least the required number of useful originals into each topic's sources directory. Preserve original source text, origin, version or retrieval date, and precise source locations. Use the supplied UTC timestamp for retrieval metadata.
 
 Write a compact INDEX.md for each assigned topic: neutral routes and short faithful source summaries with Markdown links to original source passages using #L10-L20 line spans. Link local originals directly, not clips or other summaries as factual evidence. Keep it to a few hundred words, with the information needed to understand the sources and navigate them. Clips contain verbatim excerpts with provenance and exact source locations, not authored explanations or designs; create them only when they help retrieval. Preserve source qualifications and conflicting accounts. Leave unanswered questions open. Check local citations, then return the files and questions addressed. Your assignment ends with these topic indexes; the curator writes the root INDEX.md.`
 
@@ -690,7 +698,10 @@ const indexReviewContext = `## research goal
 {{(index .By "index structure problems").Text}}
 
 {{with index .By "index verdict"}}## previous index verdict
-{{.Text}}{{end}}`
+{{.Text}}{{end}}
+
+## research timestamp UTC
+{{(index .By "research timestamp UTC").Text}}`
 
 const documentContext = `## research goal
 {{(index .By "document goal").Text}}
@@ -718,7 +729,7 @@ const documentContext = `## research goal
 
 const reviewIndexPrompt = factualResearchContract + `
 
-Independently validate the semantic index. Choose three to five reader questions covering the main routes, including a qualification-sensitive fact or conflicting measurements when present. Follow each route to original passages and surrounding sections; compare the relevant summaries with that evidence. Check that attribution, versions, conditions, uncertainty, and conflicting source measurements survive compression. Clips, if present, must be verbatim. A citation to another summary does not establish a fact.
+Independently validate the semantic index. Choose three to five reader questions covering the main routes, including a qualification-sensitive fact or conflicting measurements when present. Follow each route to original passages and surrounding sections; compare the relevant summaries with that evidence. Check that attribution, versions, conditions, uncertainty, and conflicting source measurements survive compression. Interpret retrieval dates using the supplied UTC timestamp; a timezone difference from the client date is not a defect. Clips, if present, must be verbatim. A citation to another summary does not establish a fact.
 
 Use at most five file reads per retrieval route. Check that the sampled routes reach useful evidence, routing prose stays compact, and citations name precise local passages. This is a focused retrieval and source-fidelity check, not an exhaustive review of the corpus. Do not edit files. Set OnlyNitpicks only when the source checks and retrieval walks succeed and the supplied structural defects are empty. MaterialIssues must name concrete files, assertions, source spans, or broken routes to repair. MissingTopics is only for required factual coverage absent from the index despite available evidence; an open research question is allowed. Do not request analysis, preferred designs, extra research, or optional polish.`
 

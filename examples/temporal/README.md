@@ -60,10 +60,9 @@ go test ./...
 TYPESAFE_API_KEY=demo-unused go run . -state /tmp/gimbal-temporal-example -port 8084 -keep-open
 ```
 
-Gimbal currently requires a nonempty `TYPESAFE_API_KEY` at startup even when
-no supervisor is selected. The demo commands use an explicitly unused placeholder;
-this workflow makes no Jev supervision calls. For real supervision use a valid
-configured key.
+Gimbal requires a nonempty `TYPESAFE_API_KEY` only when a workflow uses
+`WithSupervisor` for Jev supervision. This workflow makes no Jev supervision
+calls. For real supervision, use a valid configured key.
 
 Open the printed Gimbal console URL, normally <http://127.0.0.1:8084>. Open the
 project and its `delivery` run. The graph shows the `coder` agent turn,

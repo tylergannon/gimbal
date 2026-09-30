@@ -16,24 +16,17 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func TestCLIRequiresTypeSafeKeyForStartup(t *testing.T) {
+func TestRunPromptValidatesModelWithoutTypeSafeKey(t *testing.T) {
 	t.Setenv("TYPESAFE_API_KEY", "")
-	for _, mode := range []string{"server", "run-prompt"} {
-		t.Run(mode, func(t *testing.T) {
-			state := filepath.Join(t.TempDir(), "state")
-			args := []string{"--no-web", "--instance-dir", state}
-			if mode == "run-prompt" {
-				args = []string{"run-prompt", "--model", "gpt-5.6-luna", "--logs", state, "hello"}
-			}
-			var out, stderr bytes.Buffer
-			code := executeCLI(args, &out, &stderr, os.Getenv, defaultArtifactUploaders())
-			if code != 1 || !strings.Contains(stderr.String(), "TYPESAFE_API_KEY is required") {
-				t.Fatalf("exit=%d stderr=%s", code, &stderr)
-			}
-			if _, err := os.Stat(state); !os.IsNotExist(err) {
-				t.Fatalf("startup created state without a key: %v", err)
-			}
-		})
+	state := filepath.Join(t.TempDir(), "state")
+	args := []string{"run-prompt", "--model", "gpt-5.6-luna", "--logs", state, "--workdir", filepath.Join(t.TempDir(), "missing"), "hello"}
+	var out, stderr bytes.Buffer
+	code := executeCLI(args, &out, &stderr, os.Getenv, defaultArtifactUploaders())
+	if code != 1 || strings.Contains(stderr.String(), "TYPESAFE_API_KEY is required") || !strings.Contains(stderr.String(), "workdir") {
+		t.Fatalf("exit=%d stderr=%s", code, &stderr)
+	}
+	if _, err := os.Stat(state); !os.IsNotExist(err) {
+		t.Fatalf("unexpected state directory: %v", err)
 	}
 }
 

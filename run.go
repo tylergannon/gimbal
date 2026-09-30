@@ -134,8 +134,8 @@ func (r *run) closeError() error {
 }
 
 // Run starts one run of a workflow and blocks until the body returns.
-// TYPESAFE_API_KEY must be set before starting a run. models
-// binds every role the workflow names to the harness, model, and reasoning
+// A TypeSafe key is required only when the workflow uses WithSupervisor.
+// models binds every role the workflow names to the harness, model, and reasoning
 // effort it runs on; a role the workflow names and models leaves out is a
 // programming error and panics where the session is created.
 // The run's ctx derives from the caller's, so main can put a deadline on it.
@@ -177,9 +177,6 @@ func Run(ctx context.Context, name string, models map[WorkflowRole]ModelBinding,
 // beginRun allocates the existing run recorder/control owner without invoking
 // a workflow body. The compiler experiment owns the matching completion.
 func beginRun(ctx context.Context, name string, models map[WorkflowRole]ModelBinding) (*run, func(), error) {
-	if strings.TrimSpace(os.Getenv("TYPESAFE_API_KEY")) == "" {
-		return nil, nil, errors.New("gimbal: TYPESAFE_API_KEY is required for Jev supervision; set it before starting Gimbal")
-	}
 	project, _ := ctx.Value(projectKey{}).(string)
 	if project == "" {
 		return nil, nil, errors.New("gimbal: Run needs gimbal.Project in its ctx")

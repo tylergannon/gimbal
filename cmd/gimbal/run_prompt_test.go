@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
+	"flag"
 	"os"
 	"path/filepath"
 	"strings"
@@ -125,5 +127,17 @@ func TestWriteRunPromptLogsNamesTheCompletedRun(t *testing.T) {
 	}
 	if got, want := stderr.String(), "Logs: "+runDir+"\n"; got != want {
 		t.Fatalf("stderr = %q, want %q", got, want)
+	}
+}
+
+func TestRunPromptHelpDoesNotRequireTypeSafeKey(t *testing.T) {
+	t.Setenv("TYPESAFE_API_KEY", "")
+	var stdout, stderr bytes.Buffer
+	err := runPrompt([]string{"--help"}, &stdout, &stderr, os.Getenv)
+	if err != nil && !errors.Is(err, flag.ErrHelp) {
+		t.Fatal(err)
+	}
+	if !strings.Contains(stderr.String(), "only for Jev supervision") {
+		t.Fatalf("help = %q", stderr.String())
 	}
 }

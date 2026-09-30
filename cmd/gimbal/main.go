@@ -16,7 +16,6 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
-	"github.com/tylergannon/gimbal/internal/claimaudit"
 	"github.com/tylergannon/gimbal/internal/gimballint"
 	"github.com/tylergannon/gimbal/opencode"
 	"github.com/tylergannon/gimbal/web"
@@ -45,14 +44,6 @@ func executeCLI(args []string, stdout, stderr io.Writer, getenv func(string) str
 		if errors.Is(err, flag.ErrHelp) {
 			return 0
 		}
-		if _, ok := errors.AsType[*claimaudit.TransientError](err); ok {
-			_, _ = fmt.Fprintln(stderr, "gimbal:", err)
-			return 75
-		}
-		if _, ok := errors.AsType[*claimaudit.ClaimsError](err); ok {
-			_, _ = fmt.Fprintln(stderr, "gimbal:", err)
-			return 65
-		}
 		_, _ = fmt.Fprintln(stderr, "gimbal:", err)
 		return 1
 	}
@@ -80,7 +71,7 @@ func routeAnalysis(args []string) ([]string, bool) {
 func isOrdinaryCLI(args []string) bool {
 	if len(args) > 0 {
 		switch args[0] {
-		case "run-prompt", "run", "runs", "watch", "steer", "count-tokens", "audit-index", "opencode", "upload-artifact":
+		case "run-prompt", "run", "runs", "watch", "steer", "count-tokens", "opencode", "upload-artifact":
 			return true
 		}
 	}
@@ -150,7 +141,7 @@ vet tool.`,
 		DisableFlagParsing: true,
 		RunE:               func(_ *cobra.Command, args []string) error { return runPrompt(args, stdout, stderr, getenv) },
 	})
-	root.AddCommand(newRunsCommand(), newWatchCommand(), newSteerCommand(), newCountTokensCommand(), newAuditIndexCommand(stdout), newOpenCodeCommand(stdout, getenv))
+	root.AddCommand(newRunsCommand(), newWatchCommand(), newSteerCommand(), newCountTokensCommand(), newOpenCodeCommand(stdout, getenv))
 	return root
 }
 

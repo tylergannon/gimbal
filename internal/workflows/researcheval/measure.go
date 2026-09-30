@@ -54,7 +54,7 @@ type FactGrade struct {
 	Reason          string `json:"reason"`
 }
 
-// Quality is an independent judgment, not the operational Jev verdict.
+// Quality assesses factual compression and retrieval against original evidence.
 type Quality struct {
 	Facts                     []FactGrade `json:"facts"`
 	DocumentAssertions        int         `json:"document_assertions"`

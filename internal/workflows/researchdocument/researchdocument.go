@@ -22,14 +22,13 @@
 // and the editor reports only nitpicks, or returns an error after the editorial
 // round limit.
 //
-// Before authoring, Jev checks extraction coverage, each claim's original
-// source evidence and every claim pair. Findings are marked in the index;
-// bounded repair and independent review must clear the authoring gate.
-// Genuine source disagreements remain visible rather than being settled.
+// Before authoring, an independent reader checks the index summaries against
+// original passages and walks its routes. Concrete defects go back to the
+// curator for bounded repair. The checks are focused source comparisons and retrieval walks.
 //
 // Model defaults deliberately put broad collection on Gemini Flash, combined
 // index curation on Claude Sonnet 5.5, and factual compression on Gemini Pro.
-// Research planning, parallel research and indexing, and supervision use
+// Research planning and parallel research and indexing use
 // Gemini 3.8 Flash at medium effort.
 // Document authoring and independent editorial review use Gemini 3.1 Pro at
 // high effort. The displayed role flags can still replace an individual pin.
@@ -45,7 +44,6 @@ package researchdocument
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"io/fs"
@@ -53,10 +51,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/tylergannon/gimbal"
-	"github.com/tylergannon/gimbal/internal/claimaudit"
 	"github.com/tylergannon/polytype"
 )
 
@@ -64,14 +60,13 @@ import (
 //go:generate go run github.com/tylergannon/gimbal/internal/generate/gimbalgen -entry ResearchDocument -name research-document
 
 const (
-	roleResearchPlanning    gimbal.WorkflowRole = "research-planning"
-	roleResearchIndexing    gimbal.WorkflowRole = "research-indexing"
-	roleIndexCuration       gimbal.WorkflowRole = "index-curation"
-	roleDocumentAuthoring   gimbal.WorkflowRole = "document-authoring"
-	roleEditorialReview     gimbal.WorkflowRole = "editorial-review"
-	roleDocumentSupervision gimbal.WorkflowRole = "document-supervision"
-	defaultMinSources                           = 3
-	defaultEditorialRounds                      = 3
+	roleResearchPlanning   gimbal.WorkflowRole = "research-planning"
+	roleResearchIndexing   gimbal.WorkflowRole = "research-indexing"
+	roleIndexCuration      gimbal.WorkflowRole = "index-curation"
+	roleDocumentAuthoring  gimbal.WorkflowRole = "document-authoring"
+	roleEditorialReview    gimbal.WorkflowRole = "editorial-review"
+	defaultMinSources                          = 3
+	defaultEditorialRounds                     = 3
 )
 
 // Params are the document goal, local outputs, and finite work limits.
@@ -88,7 +83,7 @@ type Params struct {
 	TokenBudget int
 	// MinSourcesPerTopic overrides the default minimum of three useful local source files per planned topic.
 	MinSourcesPerTopic polytype.Optional[int]
-	// MaxEditorialRounds overrides the default limit of three editorial passes.
+	// MaxEditorialRounds bounds index and document review passes separately; default three.
 	MaxEditorialRounds polytype.Optional[int]
 }
 
@@ -240,9 +235,8 @@ func ResearchDocument(ctx context.Context, env gimbal.Env, params Params) error 
 		gimbal.Set(ctx, "topic directories", groupDirs[0])
 		gimbal.Set(ctx, "minimum sources per assigned topic", minSources)
 		researcher := gimbal.NewSession(ctx, roleResearchIndexing, researchDir)
-		coach := gimbal.NewSession(ctx, roleDocumentSupervision, researchDir)
 		result, err := researcher.Generate[ResearchResult](ctx, researchTopicsPrompt,
-			gimbal.WithScopeTemplate(researchContext), gimbal.WithSupervisor(coach, researchCoachPrompt))
+			gimbal.WithScopeTemplate(researchContext))
 		if err != nil {
 			return err
 		}
@@ -259,9 +253,8 @@ func ResearchDocument(ctx context.Context, env gimbal.Env, params Params) error 
 		gimbal.Set(ctx, "topic directories", groupDirs[1])
 		gimbal.Set(ctx, "minimum sources per assigned topic", minSources)
 		researcher := gimbal.NewSession(ctx, roleResearchIndexing, researchDir)
-		coach := gimbal.NewSession(ctx, roleDocumentSupervision, researchDir)
 		result, err := researcher.Generate[ResearchResult](ctx, researchTopicsPrompt,
-			gimbal.WithScopeTemplate(researchContext), gimbal.WithSupervisor(coach, researchCoachPrompt))
+			gimbal.WithScopeTemplate(researchContext))
 		if err != nil {
 			return err
 		}
@@ -278,9 +271,8 @@ func ResearchDocument(ctx context.Context, env gimbal.Env, params Params) error 
 		gimbal.Set(ctx, "topic directories", groupDirs[2])
 		gimbal.Set(ctx, "minimum sources per assigned topic", minSources)
 		researcher := gimbal.NewSession(ctx, roleResearchIndexing, researchDir)
-		coach := gimbal.NewSession(ctx, roleDocumentSupervision, researchDir)
 		result, err := researcher.Generate[ResearchResult](ctx, researchTopicsPrompt,
-			gimbal.WithScopeTemplate(researchContext), gimbal.WithSupervisor(coach, researchCoachPrompt))
+			gimbal.WithScopeTemplate(researchContext))
 		if err != nil {
 			return err
 		}
@@ -297,9 +289,8 @@ func ResearchDocument(ctx context.Context, env gimbal.Env, params Params) error 
 		gimbal.Set(ctx, "topic directories", groupDirs[3])
 		gimbal.Set(ctx, "minimum sources per assigned topic", minSources)
 		researcher := gimbal.NewSession(ctx, roleResearchIndexing, researchDir)
-		coach := gimbal.NewSession(ctx, roleDocumentSupervision, researchDir)
 		result, err := researcher.Generate[ResearchResult](ctx, researchTopicsPrompt,
-			gimbal.WithScopeTemplate(researchContext), gimbal.WithSupervisor(coach, researchCoachPrompt))
+			gimbal.WithScopeTemplate(researchContext))
 		if err != nil {
 			return err
 		}
@@ -316,9 +307,8 @@ func ResearchDocument(ctx context.Context, env gimbal.Env, params Params) error 
 		gimbal.Set(ctx, "topic directories", groupDirs[4])
 		gimbal.Set(ctx, "minimum sources per assigned topic", minSources)
 		researcher := gimbal.NewSession(ctx, roleResearchIndexing, researchDir)
-		coach := gimbal.NewSession(ctx, roleDocumentSupervision, researchDir)
 		result, err := researcher.Generate[ResearchResult](ctx, researchTopicsPrompt,
-			gimbal.WithScopeTemplate(researchContext), gimbal.WithSupervisor(coach, researchCoachPrompt))
+			gimbal.WithScopeTemplate(researchContext))
 		if err != nil {
 			return err
 		}
@@ -336,157 +326,48 @@ func ResearchDocument(ctx context.Context, env gimbal.Env, params Params) error 
 	gimbal.Set(ctx, "topic index paths", topicIndexes)
 
 	curator := gimbal.NewSession(ctx, roleIndexCuration, researchDir)
-	indexCoach := gimbal.NewSession(ctx, roleDocumentSupervision, researchDir)
 	if _, err := curator.Generate[gimbal.Text](ctx, buildIndexPrompt,
-		gimbal.WithScopeTemplate(indexContext), gimbal.WithSupervisor(indexCoach, researchCoachPrompt)); err != nil {
+		gimbal.WithScopeTemplate(indexContext)); err != nil {
 		return err
 	}
 	if err := requireNonemptyFile(indexPath); err != nil {
 		return fmt.Errorf("semantic index: %w", err)
 	}
-	auditPath := filepath.Join(researchDir, claimaudit.StateDir, "AUDIT.md")
-	inventoryPath := filepath.Join(researchDir, claimaudit.StateDir, "inventory.json")
-	claimsPath := filepath.Join(researchDir, claimaudit.StateDir, "claims.jsonl")
-	gimbal.Set(ctx, "claim audit path", auditPath)
-	gimbal.Set(ctx, "claim inventory path", inventoryPath)
-	gimbal.Set(ctx, "claim records path", claimsPath)
-	gimbal.Set(ctx, "claim review candidates path", filepath.Join(researchDir, claimaudit.StateDir, "review-candidates.json"))
-	gimbal.Set(ctx, "claim reviews path", filepath.Join(researchDir, claimaudit.StateDir, "reviews.jsonl"))
 	editor := gimbal.NewSession(ctx, roleEditorialReview, researchDir)
-	for repair := 0; ; repair++ {
-		allowed := false
-		var extractionError string
-		err := gimbal.Scope(ctx, "initial-claim-audit", func(ctx context.Context) error {
-			gimbal.Set(ctx, "audit repair pass", repair)
-			exit, _, stderr, err := gimbal.RunCommand(ctx, "prepare-audit", env.WorkDir, tokenCounter, "audit-index", "--prepare", "--research-dir", researchDir)
+	indexAccepted := false
+	for round := 1; round <= maxRounds; round++ {
+		err := gimbal.Scope(ctx, "index-review", func(ctx context.Context) error {
+			structureError := ""
+			if err := verifyIndex(researchDir, topicIndexes); err != nil {
+				structureError = err.Error()
+			}
+			gimbal.Set(ctx, "index structure problems", structureError)
+			verdict, err := editor.Generate[EditorialVerdict](ctx, reviewIndexPrompt, gimbal.WithScopeTemplate(indexReviewContext))
 			if err != nil {
 				return err
 			}
-			if exit == 65 {
-				extractionError = strings.TrimSpace(stderr)
+			gimbal.SetJSON(ctx, "index verdict", verdict)
+			if structureError == "" && verdict.OnlyNitpicks && len(verdict.MaterialIssues) == 0 && len(verdict.MissingTopics) == 0 {
+				indexAccepted = true
 				return nil
 			}
-			if exit != 0 {
-				return fmt.Errorf("prepare claim audit: %s", strings.TrimSpace(stderr))
+			if round == maxRounds {
+				return fmt.Errorf("index still has material defects after %d reviews: %s; %v; %v", maxRounds, structureError, verdict.MaterialIssues, verdict.MissingTopics)
 			}
-			inventoryData, err := os.ReadFile(inventoryPath)
-			if err != nil {
-				return fmt.Errorf("read prepared claim inventory: %w", err)
-			}
-			var inventory claimaudit.Inventory
-			if err := json.Unmarshal(inventoryData, &inventory); err != nil {
-				return fmt.Errorf("decode prepared claim inventory: %w", err)
-			}
-			if len(inventory.Extract) > 0 {
-				if _, err := curator.Generate[gimbal.Text](ctx, extractClaimsPrompt, gimbal.WithScopeTemplate(extractClaimsContext)); err != nil {
-					return err
-				}
-			}
-			for attempt := 1; attempt <= 3; attempt++ {
-				exit, _, stderr, err = gimbal.RunCommand(ctx, "audit-index", env.WorkDir, tokenCounter, "audit-index", "--research-dir", researchDir, "--repair-pass", strconv.Itoa(repair))
-				if err != nil {
-					return err
-				}
-				if exit == 65 {
-					extractionError = strings.TrimSpace(stderr)
-					return nil
-				}
-				completion, readErr := claimaudit.ReadCompletion(researchDir)
-				if readErr != nil {
-					return fmt.Errorf("read claim audit completion: %w", readErr)
-				}
-				if exit == 0 && completion.Complete {
-					allowed = completion.AuthoringAllowed
-					if err := saveAuditPass(researchDir, "initial", repair, completion); err != nil {
-						return err
-					}
-					break
-				}
-				if exit != 75 || completion.Complete {
-					return fmt.Errorf("claim audit failed: exit %d: %s", exit, strings.TrimSpace(stderr))
-				}
-				if attempt == 3 {
-					return fmt.Errorf("claim audit transient retries exhausted")
-				}
-				time.Sleep(time.Duration(attempt) * time.Second)
-			}
-			if !allowed {
-				candidateData, err := os.ReadFile(filepath.Join(researchDir, claimaudit.StateDir, "review-candidates.json"))
-				if err != nil {
-					return fmt.Errorf("read claim review candidates: %w", err)
-				}
-				var candidates []claimaudit.ReviewCandidate
-				if err := json.Unmarshal(candidateData, &candidates); err != nil {
-					return fmt.Errorf("decode claim review candidates: %w", err)
-				}
-				if len(candidates) == 0 {
-					return nil
-				}
-				if _, err := editor.Generate[gimbal.Text](ctx, auditReviewPrompt, gimbal.WithScopeTemplate(auditReviewContext)); err != nil {
-					return err
-				}
-				for attempt := 1; attempt <= 3; attempt++ {
-					exit, _, stderr, err = gimbal.RunCommand(ctx, "audit-index-reviewed", env.WorkDir, tokenCounter, "audit-index", "--research-dir", researchDir, "--repair-pass", strconv.Itoa(repair))
-					if err != nil {
-						return err
-					}
-					if exit == 65 {
-						extractionError = strings.TrimSpace(stderr)
-						return nil
-					}
-					completion, readErr := claimaudit.ReadCompletion(researchDir)
-					if readErr != nil {
-						return fmt.Errorf("read claim audit completion: %w", readErr)
-					}
-					if exit == 0 && completion.Complete {
-						allowed = completion.AuthoringAllowed
-						if err := saveAuditPass(researchDir, "initial", repair, completion); err != nil {
-							return err
-						}
-						break
-					}
-					if exit != 75 || completion.Complete {
-						return fmt.Errorf("claim audit failed: exit %d: %s", exit, strings.TrimSpace(stderr))
-					}
-					if attempt == 3 {
-						return fmt.Errorf("reviewed claim audit transient retries exhausted")
-					}
-					time.Sleep(time.Duration(attempt) * time.Second)
-				}
-			}
-			return nil
+			_, err = curator.Generate[gimbal.Text](ctx, repairIndexPrompt, gimbal.WithScopeTemplate(indexReviewContext))
+			return err
 		})
 		if err != nil {
 			return err
 		}
-		if allowed {
+		if indexAccepted {
 			break
 		}
-		if repair == maxRounds {
-			return fmt.Errorf("claim audit repair limit reached after %d curator turns", maxRounds)
-		}
-		if extractionError != "" {
-			if err := gimbal.Scope(ctx, "repair-claim-records", func(ctx context.Context) error {
-				gimbal.Set(ctx, "claim extraction error", extractionError)
-				_, err := curator.Generate[gimbal.Text](ctx, repairInvalidClaimsPrompt, gimbal.WithScopeTemplate(invalidClaimsContext))
-				return err
-			}); err != nil {
-				return err
-			}
-			continue
-		}
-		if _, err := curator.Generate[gimbal.Text](ctx, repairClaimsPrompt); err != nil {
-			return err
-		}
-	}
-	if err := claimaudit.VerifyCurrent(researchDir); err != nil {
-		return fmt.Errorf("claim audit before authoring: %w", err)
 	}
 
 	author := gimbal.NewSession(ctx, roleDocumentAuthoring, researchDir)
-	compressionCoach := gimbal.NewSession(ctx, roleDocumentSupervision, researchDir)
 	if _, err := author.Generate[gimbal.Text](ctx, writeDocumentPrompt,
-		gimbal.WithSupervisor(compressionCoach, compressionCoachPrompt)); err != nil {
+		gimbal.WithScopeTemplate(documentContext)); err != nil {
 		return err
 	}
 	if err := requireNonemptyFile(documentPath); err != nil {
@@ -510,15 +391,12 @@ func ResearchDocument(ctx context.Context, env gimbal.Env, params Params) error 
 			}
 			gimbal.Set(ctx, "document token count", tokens)
 
-			verdict, err := editor.Generate[EditorialVerdict](ctx, editorialPrompt)
+			verdict, err := editor.Generate[EditorialVerdict](ctx, editorialPrompt, gimbal.WithScopeTemplate(documentContext))
 			if err != nil {
 				return err
 			}
 			gimbal.SetJSON(ctx, "editorial verdict", verdict)
 			if tokens <= params.TokenBudget && verdict.OnlyNitpicks && len(verdict.MaterialIssues) == 0 && len(verdict.MissingTopics) == 0 {
-				if err := claimaudit.VerifyCurrent(researchDir); err != nil {
-					return fmt.Errorf("claim audit changed before final acceptance: %w", err)
-				}
 				accepted = true
 				return nil
 			}
@@ -539,9 +417,8 @@ func ResearchDocument(ctx context.Context, env gimbal.Env, params Params) error 
 				gimbal.Set(ctx, "minimum gap source files", requiredSources)
 
 				gapResearcher := gimbal.NewSession(ctx, roleResearchIndexing, researchDir)
-				gapCoach := gimbal.NewSession(ctx, roleDocumentSupervision, researchDir)
 				result, err := gapResearcher.Generate[ResearchResult](ctx, researchGapsPrompt,
-					gimbal.WithScopeTemplate(gapResearchContext), gimbal.WithSupervisor(gapCoach, researchCoachPrompt))
+					gimbal.WithScopeTemplate(gapResearchContext))
 				if err != nil {
 					return err
 				}
@@ -549,140 +426,44 @@ func ResearchDocument(ctx context.Context, env gimbal.Env, params Params) error 
 				if err := verifyResearchFloor(gapDir, sharedSources, requiredSources); err != nil {
 					return err
 				}
-				if _, err := curator.Generate[gimbal.Text](ctx, updateIndexPrompt,
-					gimbal.WithSupervisor(indexCoach, researchCoachPrompt)); err != nil {
+				if _, err := curator.Generate[gimbal.Text](ctx, updateIndexPrompt); err != nil {
 					return err
 				}
-				for repair := 0; ; repair++ {
-					allowed := false
-					var extractionError string
-					err := gimbal.Scope(ctx, "gap-claim-audit", func(ctx context.Context) error {
-						gimbal.Set(ctx, "audit repair pass", repair)
-						exit, _, stderr, err := gimbal.RunCommand(ctx, "prepare-gap-audit", env.WorkDir, tokenCounter, "audit-index", "--prepare", "--research-dir", researchDir)
+				for review := 1; review <= maxRounds; review++ {
+					gapAccepted := false
+					err := gimbal.Scope(ctx, "gap-index-review", func(ctx context.Context) error {
+						structureError := ""
+						if err := verifyIndex(researchDir, append(topicIndexes, gapIndex)); err != nil {
+							structureError = err.Error()
+						}
+						gimbal.Set(ctx, "index structure problems", structureError)
+						verdict, err := editor.Generate[EditorialVerdict](ctx, reviewIndexPrompt, gimbal.WithScopeTemplate(indexReviewContext))
 						if err != nil {
 							return err
 						}
-						if exit == 65 {
-							extractionError = strings.TrimSpace(stderr)
+						gimbal.SetJSON(ctx, "index verdict", verdict)
+						if structureError == "" && verdict.OnlyNitpicks && len(verdict.MaterialIssues) == 0 && len(verdict.MissingTopics) == 0 {
+							gapAccepted = true
 							return nil
 						}
-						if exit != 0 {
-							return fmt.Errorf("prepare gap audit: %s", strings.TrimSpace(stderr))
+						if review == maxRounds {
+							return fmt.Errorf("gap index still has material defects: %s; %v; %v", structureError, verdict.MaterialIssues, verdict.MissingTopics)
 						}
-						inventoryData, err := os.ReadFile(inventoryPath)
-						if err != nil {
-							return fmt.Errorf("read prepared gap claim inventory: %w", err)
-						}
-						var inventory claimaudit.Inventory
-						if err := json.Unmarshal(inventoryData, &inventory); err != nil {
-							return fmt.Errorf("decode prepared gap claim inventory: %w", err)
-						}
-						if len(inventory.Extract) > 0 {
-							if _, err := curator.Generate[gimbal.Text](ctx, extractClaimsPrompt, gimbal.WithScopeTemplate(extractClaimsContext)); err != nil {
-								return err
-							}
-						}
-						for attempt := 1; attempt <= 3; attempt++ {
-							exit, _, stderr, err = gimbal.RunCommand(ctx, "audit-gap-index", env.WorkDir, tokenCounter, "audit-index", "--research-dir", researchDir, "--repair-pass", strconv.Itoa(repair))
-							if err != nil {
-								return err
-							}
-							if exit == 65 {
-								extractionError = strings.TrimSpace(stderr)
-								return nil
-							}
-							completion, readErr := claimaudit.ReadCompletion(researchDir)
-							if readErr != nil {
-								return fmt.Errorf("read gap audit completion: %w", readErr)
-							}
-							if exit == 0 && completion.Complete {
-								allowed = completion.AuthoringAllowed
-								if err := saveAuditPass(researchDir, fmt.Sprintf("gap-%02d", round), repair, completion); err != nil {
-									return err
-								}
-								break
-							}
-							if exit != 75 || completion.Complete {
-								return fmt.Errorf("gap audit failed: exit %d: %s", exit, strings.TrimSpace(stderr))
-							}
-							if attempt == 3 {
-								return fmt.Errorf("gap audit transient retries exhausted")
-							}
-							time.Sleep(time.Duration(attempt) * time.Second)
-						}
-						if !allowed {
-							candidateData, err := os.ReadFile(filepath.Join(researchDir, claimaudit.StateDir, "review-candidates.json"))
-							if err != nil {
-								return fmt.Errorf("read claim review candidates: %w", err)
-							}
-							var candidates []claimaudit.ReviewCandidate
-							if err := json.Unmarshal(candidateData, &candidates); err != nil {
-								return fmt.Errorf("decode claim review candidates: %w", err)
-							}
-							if len(candidates) == 0 {
-								return nil
-							}
-							if _, err := editor.Generate[gimbal.Text](ctx, auditReviewPrompt, gimbal.WithScopeTemplate(auditReviewContext)); err != nil {
-								return err
-							}
-							for attempt := 1; attempt <= 3; attempt++ {
-								exit, _, stderr, err = gimbal.RunCommand(ctx, "audit-gap-index-reviewed", env.WorkDir, tokenCounter, "audit-index", "--research-dir", researchDir, "--repair-pass", strconv.Itoa(repair))
-								if err != nil {
-									return err
-								}
-								if exit == 65 {
-									extractionError = strings.TrimSpace(stderr)
-									return nil
-								}
-								completion, readErr := claimaudit.ReadCompletion(researchDir)
-								if readErr != nil {
-									return fmt.Errorf("read gap audit completion: %w", readErr)
-								}
-								if exit == 0 && completion.Complete {
-									allowed = completion.AuthoringAllowed
-									if err := saveAuditPass(researchDir, fmt.Sprintf("gap-%02d", round), repair, completion); err != nil {
-										return err
-									}
-									break
-								}
-								if exit != 75 || completion.Complete {
-									return fmt.Errorf("gap audit failed: exit %d: %s", exit, strings.TrimSpace(stderr))
-								}
-								if attempt == 3 {
-									return fmt.Errorf("reviewed gap audit transient retries exhausted")
-								}
-								time.Sleep(time.Duration(attempt) * time.Second)
-							}
-						}
-						return nil
+						_, err = curator.Generate[gimbal.Text](ctx, repairIndexPrompt, gimbal.WithScopeTemplate(indexReviewContext))
+						return err
 					})
 					if err != nil {
 						return err
 					}
-					if allowed {
+					if gapAccepted {
 						break
 					}
-					if repair == maxRounds {
-						return fmt.Errorf("gap audit repair limit reached")
-					}
-					if extractionError != "" {
-						if err := gimbal.Scope(ctx, "repair-gap-claim-records", func(ctx context.Context) error {
-							gimbal.Set(ctx, "claim extraction error", extractionError)
-							_, err := curator.Generate[gimbal.Text](ctx, repairInvalidClaimsPrompt, gimbal.WithScopeTemplate(invalidClaimsContext))
-							return err
-						}); err != nil {
-							return err
-						}
-						continue
-					}
-					if _, err := curator.Generate[gimbal.Text](ctx, repairClaimsPrompt); err != nil {
-						return err
-					}
 				}
+
 			}
 
 			if _, err := author.Generate[gimbal.Text](ctx, reviseDocumentPrompt,
-				gimbal.WithSupervisor(compressionCoach, compressionCoachPrompt)); err != nil {
+				gimbal.WithScopeTemplate(documentContext)); err != nil {
 				return err
 			}
 			return requireNonemptyFile(documentPath)
@@ -794,62 +575,7 @@ func copyOriginals(sourceDir, target string) error {
 	})
 }
 
-func saveAuditPass(researchDir, stage string, pass int, completion claimaudit.Completion) error {
-	path := filepath.Join(researchDir, claimaudit.StateDir, "history")
-	if err := os.MkdirAll(path, 0o755); err != nil {
-		return err
-	}
-	data, err := json.MarshalIndent(completion, "", "  ")
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(filepath.Join(path, fmt.Sprintf("%s-pass-%02d.json", stage, pass)), append(data, '\n'), 0o644)
-}
-
 const factualResearchContract = `The research artifacts contain factual source information only. The source cache holds downloaded originals or mechanically extracted source text, one identifiable URL or document per file, with precise provenance. Never put model-authored reconstructions or combined summaries in the source cache; summaries belong in index leaves. Select, organize, summarize, and compress what sources state, preserving attribution, scope, qualifications, and uncertainty. Every substantive statement must faithfully summarize identifiable source material. Grouping and links help readers understand and navigate it. Do not add opinions, recommendations, deductions, proposed designs, or judgments about which approach is better, even if the goal asks for them. Report conflicting source accounts with their citations without settling or reconciling them.`
-
-const extractClaimsPrompt = factualResearchContract + `
-
-Your task is to write claim records for the prepared research index. Read only the inventory and local research files named in context; the Gimbal codebase, skills, design notes, and audit-index command are outside this task. The workflow runs the audit after you finish.
-
-Read inventory.json and cover every block ID in its extract list. Extract every independently assessable factual assertion and qualifier from root and topic index prose, clips, tables, and factual premises embedded in navigation. Treat pure routing, questions, and descriptions of the index's layout as having no factual claims, but inspect them; a mixed navigation block still needs records for its subject facts. Represent a repeated assertion once with all its exact occurrences when scope, time, version, modality, negation, units, and attribution are the same. Keep distinct or opposing assertions separate; never merge away a source disagreement.
-
-Write claims.jsonl as JSON Lines with id, text, scope, kind, occurrences [{block_id,text}], references [{path,start_line,end_line,quote}]. Each occurrence text must be copied verbatim from its block, preserving Markdown and punctuation; put the normalized assertion in the claim text field, not in the occurrence. References are relative to the research directory, point only into original sources directories, and name exact original source lines. Preserve records for unchanged blocks. Claim IDs must be unique. Check JSON syntax and coverage of every assigned block, then stop.`
-
-const extractClaimsContext = `## claim inventory path
-{{(index .By "claim inventory path").Text}}
-
-## claim records path
-{{(index .By "claim records path").Text}}
-
-## research directory
-{{(index .By "research directory").Text}}`
-
-const repairClaimsPrompt = factualResearchContract + `
-
-Read the refreshed .semantic-index/AUDIT.md and completion.json after independent review, along with reviews.jsonl, inventory.json, claims.jsonl, disposition-candidates.json, and the original source passages cited by remaining findings. Repair only findings that remain in completion.json repair_required; do not rewrite reviewed blocks merely because their raw Jev verdict remains in audit.jsonl. The full audit.jsonl is a record of all checks; consult individual task records there when needed. For each extraction finding, account for every subject fact in its whole block, including repeated claims: add exact occurrences or correct unsupported prose. Repair bad references and unsupported assertions in the index, preserving genuine source disagreements visibly. Keep factual topic prose close to the original wording and qualification verbs: do not strengthen a documented constraint or promise into a mechanism or runtime-enforcement assertion, and do not add absence assertions. Remove broad claims that the corpus does not document something when the cited passage cannot establish that absence; keep the question open without inventing a fact. Address several related findings in this turn when possible. A true unresolved pair finding may be kept with disposition retain-unresolved or exclude-from-factual-use on each affected claim; copy that claim's exact digest from disposition-candidates.json into disposition_digest. Keep its original assertion and evidence, and do not call it settled. Source findings require a repair or independent editor review; a disposition cannot clear them. Do not dismiss a Jev false alarm yourself: leave it marked for independent editor review. Keep claim records matched to exact index occurrences; the next prepare step will assign changed blocks. Stop after concrete repairs and explain what remains unresolved.`
-
-const auditReviewPrompt = factualResearchContract + `
-
-Independently inspect the current claim audit review candidates before the curator changes the index. This turn reviews the audit only; do not author or revise a document. Append decisions only to reviews.jsonl. Do not create helper scripts or temporary files anywhere in the research directory; run inline commands or keep temporary helpers outside that directory. Leave index blocks, claims, inventory, and originals unchanged so the workflow can apply your decisions to this snapshot. Read review-candidates.json, inventory.json, claims.jsonl, AUDIT.md, and the original local source passages for every affected claim. Never use a review to clear a confirmed contradiction: retain both conflicting claims visibly or repair them. Source contradicts verdicts require repair, not an override. For a source candidate, check every cited original passage and the full claim with its qualifiers; only when those passages establish it may you append kind "source", exact candidate id and digest, decision "reviewed-source-supported", and a concrete rationale naming the supporting spans. Read both claims of each proposed pair. Read each affected original index block and all its extracted records for an extraction candidate, including an empty record set. Only when evidence establishes that both assertions coexist may you append a JSON line to reviews.jsonl with kind "pair", exact candidate id and digest, decision "reviewed-compatible", and a concrete rationale naming both source spans. For extraction completeness, require every factual assertion about the researched subject, preserving qualifiers, scope, and negation, including subject facts embedded in headings, link labels, routing prose, and factual premises embedded in navigation. Exclude questions, pure routing, headings that only organize the index, and statements solely about index layout, files, citation conventions, or navigation. Ignore citation and writing instructions; they do not require claim records. An empty record set is complete for a block containing only that metadata, instructions, or questions. A routing sentence that also asserts a subject fact still needs a matching claim. Only when those subject assertions and qualifiers are covered may you append kind "extraction", exact candidate id and digest, decision "reviewed-extraction-complete", and a rationale naming the inspected block and complete record set. Preserve prior review lines. Do not approve an uncertain case, infer transitive compatibility, or clear all pairs from a representative. The raw Jev verdict remains visible regardless of your review. Return a brief account of decisions and unresolved findings.`
-
-const auditReviewContext = `## research directory
-{{(index .By "research directory").Text}}
-
-## claim audit path
-{{(index .By "claim audit path").Text}}
-
-## claim inventory path
-{{(index .By "claim inventory path").Text}}
-
-## claim records path
-{{(index .By "claim records path").Text}}
-
-## claim review candidates path
-{{(index .By "claim review candidates path").Text}}
-
-## claim reviews path
-{{(index .By "claim reviews path").Text}}`
 
 const planContext = `## document goal
 {{(index .By "document goal").Text}}
@@ -919,23 +645,15 @@ const researchTopicsPrompt = factualResearchContract + `
 
 Collect original evidence for every assigned topic. The topic directories align with the topics in the same order. Read and write only your assigned topic directories and original source material; generated research reports and Gimbal run records are outside your assignment. In fixed source mode, use only the shared fixed originals directory and reference its files without copying them into topics; do not browse or add sources. In web mode, download at least the required number of useful originals into each topic's sources directory. Preserve original source text, origin, version or retrieval date, and precise source locations.
 
-Write a compact INDEX.md for each assigned topic: neutral routes and short faithful source summaries with precise citation bookmarks. Keep it to a few hundred words, with the information needed to understand the sources and navigate them. Clips contain verbatim excerpts with provenance and exact source locations, not authored explanations or designs; create them only when they help retrieval. Preserve source qualifications and conflicting accounts. Leave unanswered questions open. Check local citations, then return the files and questions addressed. Your assignment ends with these topic indexes; do not run audit-index or work on the root INDEX.md.`
+Write a compact INDEX.md for each assigned topic: neutral routes and short faithful source summaries with Markdown links to original source passages using #L10-L20 line spans. Link local originals directly, not clips or other summaries as factual evidence. Keep it to a few hundred words, with the information needed to understand the sources and navigate them. Clips contain verbatim excerpts with provenance and exact source locations, not authored explanations or designs; create them only when they help retrieval. Preserve source qualifications and conflicting accounts. Leave unanswered questions open. Check local citations, then return the files and questions addressed. Your assignment ends with these topic indexes; the curator writes the root INDEX.md.`
 
 const researchGapsPrompt = factualResearchContract + `
 
-Collect original evidence for the missing factual topics in the gap research sources directory, meeting the required minimum per topic. In fixed source mode, use only the shared fixed originals directory and reference its files without copying them; do not browse or add sources. Otherwise collect needed original sources with origin, version or retrieval date, and precise source locations. Write a compact INDEX.md at the exact gap research index path with neutral routes, faithful source summaries, and citations. Any clips must be verbatim excerpts with provenance. Preserve qualifications, conflicting accounts, and open questions. Check citations and return what you actually researched; do not run audit-index.`
-
-const researchCoachPrompt = factualResearchContract + `
-
-Keep collection and indexing proportional to the requested subject and scope. Check faithful source summaries, verbatim clips, precise citations, and useful neutral routes. Steer away from authored interpretation, advice, designs, or conclusions beyond the sources. Source counts alone do not establish coverage.`
-
-const compressionCoachPrompt = factualResearchContract + `
-
-Help compress the source information within the measured token budget. Remove repetition and secondary detail while preserving source meaning, attribution, consequential uncertainty, and qualifications. Keep citations usable. Steer away from added interpretation, advice, and designs.`
+Collect original evidence for the missing factual topics in the gap research sources directory, meeting the required minimum per topic. In fixed source mode, use only the shared fixed originals directory and reference its files without copying them; do not browse or add sources. Otherwise collect needed original sources with origin, version or retrieval date, and precise source locations. Write a compact INDEX.md at the exact gap research index path with neutral routes, faithful source summaries, and citations. Any clips must be verbatim excerpts with provenance. Preserve qualifications, conflicting accounts, and open questions. Check citations and return what you actually researched.`
 
 const buildIndexPrompt = factualResearchContract + `
 
-Build a compact semantic routing tree at the exact semantic index path using the topic indexes and local originals. Organize routes by reader questions and source-documented topics, not researcher assignments. Each route briefly explains when to follow it and links to a topic index or precise original passage. Keep detailed source summaries in the leaves instead of repeating them in the root. Aim for at most 500 words in the root.
+Build a compact semantic routing tree at the exact semantic index path using the topic indexes and local originals. Organize routes by reader questions and source-documented topics, not researcher assignments. Each route briefly explains when to follow it and links to a topic index or precise original passage. Keep detailed source summaries in the leaves instead of repeating them in the root. Keep the root at most 500 words.
 
 Explain the corpus scope, source locations, and citation conventions. Preserve working source summaries and verbatim clips; correct any authored opinions, deductions, advice, or designs by replacing them with faithful source information or removing them. Preserve original source files. Link to conflicting source accounts and unanswered questions without inventing resolutions or claims about absent documentation. Check links and walk representative routes from entrypoint to original evidence. Report checks in your response, not index prose. Stop when a reader can find the relevant information through a small number of clear choices.`
 
@@ -945,25 +663,85 @@ Integrate gap research into the existing semantic routes. Add or repair links to
 
 const writeDocumentPrompt = factualResearchContract + `
 
-Write a factual research document at the exact document path. Read the claim audit path, then start retrieval at the semantic index and follow its routes to original passages. The document organizes and compresses source information about the requested subject; it is not an analysis or design proposal. Use the index for navigation, not as a substitute for original evidence. Preserve attribution, source qualifications, versions, experimental conditions, and conflicting accounts. Treat marked unresolved claims as attributed or uncertain. State open questions when evidence is missing. Do not independently expand the research or redesign the index; identify material factual coverage gaps for the editor.
+Write a factual research document at the exact document path. Start retrieval at the semantic index and follow its routes to original passages. The document organizes and compresses source information about the requested subject; it is not an analysis or design proposal. Use the index for navigation, not as a substitute for original evidence. Preserve attribution, source qualifications, versions, experimental conditions, and conflicting accounts. State open questions when evidence is missing. Do not independently expand the research or redesign the index; identify material factual coverage gaps for the editor.
 
 Prioritize the requested subject and audience while keeping citations usable. Run the supplied token counter executable with "count-tokens" and the document path. Compress repetition and secondary detail until the measured count is within budget without changing source meaning or certainty.`
 
 const editorialPrompt = factualResearchContract + `
 
-Check the document for faithful factual compression of the requested subject within the token budget. Read the claim audit path and locate original evidence through the semantic index. Trace substantive statements to their source passages and check attribution, scope, qualifications, uncertainty, and conflicting accounts. Agreement with an index summary alone is not verification. Model-authored opinions, recommendations, deductions, designs, and reconciliation of source conflicts are defects, including when separately labeled or requested by the goal.
+Check the document for faithful factual compression of the requested subject within the token budget. Locate original evidence through the semantic index. Trace substantive statements to their source passages and check attribution, scope, qualifications, uncertainty, and conflicting accounts. Agreement with an index summary alone is not verification. Model-authored opinions, recommendations, deductions, designs, and reconciliation of source conflicts are defects, including when separately labeled or requested by the goal.
 
 Set OnlyNitpicks only when no added interpretation, unsupported or misleading statement, missing requested factual coverage, broken citation, or loss of meaning through compression warrants revision. Put defects repairable from existing evidence in MaterialIssues. Put requested factual topics requiring additional evidence in MissingTopics. An explicitly open question or faithfully preserved source disagreement is not itself a defect. Do not demand preferred approaches, new conclusions, optional polish, or broader research.`
 
 const reviseDocumentPrompt = factualResearchContract + `
 
-Revise the factual document using the editorial verdict, measured token count, semantic index, and claim audit path. Follow affected routes to original evidence. Repair source fidelity and citation defects; remove authored interpretation, advice, deductions, and designs rather than relabeling them. Preserve requested factual coverage, source qualifications, conflicting accounts, and open questions. Remove repetition and secondary detail before weakening necessary qualifications. Run the supplied token counter executable with "count-tokens" and the document path until the measured count is within budget.`
+Revise the factual document using the editorial verdict, measured token count, and semantic index. Follow affected routes to original evidence. Repair source fidelity and citation defects; remove authored interpretation, advice, deductions, and designs rather than relabeling them. Preserve requested factual coverage, source qualifications, conflicting accounts, and open questions. Remove repetition and secondary detail before weakening necessary qualifications. Run the supplied token counter executable with "count-tokens" and the document path until the measured count is within budget.`
 
-const repairInvalidClaimsPrompt = factualResearchContract + `
+const indexReviewContext = `## research goal
+{{(index .By "document goal").Text}}
 
-Repair claims.jsonl using the exact validation error, inventory blocks and local research files. Occurrence text must be copied verbatim from its identified block, including Markdown; the normalized assertion belongs in the claim's text field. Repair invalid JSON, IDs, occurrence anchors or other reported record defects without dropping factual assertions. Preserve unchanged valid records. Check every record against the inventory and return a brief result. The workflow will validate and audit again.`
+## research directory
+{{(index .By "research directory").Text}}
 
-const invalidClaimsContext = extractClaimsContext + `
+## entrypoint
+{{(index .By "semantic index path").Text}}
 
-## claim extraction error
-{{(index .By "claim extraction error").Text}}`
+## structural defects
+{{(index .By "index structure problems").Text}}
+
+{{with index .By "index verdict"}}## previous index verdict
+{{.Text}}{{end}}`
+
+const documentContext = `## research goal
+{{(index .By "document goal").Text}}
+
+## research directory
+{{(index .By "research directory").Text}}
+
+## entrypoint
+{{(index .By "semantic index path").Text}}
+
+## output document
+{{(index .By "document path").Text}}
+
+## token budget
+{{(index .By "document token budget").Text}}
+
+## token counter executable
+{{(index .By "token counter executable").Text}}
+
+{{with index .By "document token count"}}## measured document tokens
+{{.Text}}{{end}}
+
+{{with index .By "editorial verdict"}}## editorial verdict
+{{.Text}}{{end}}`
+
+const reviewIndexPrompt = factualResearchContract + `
+
+Independently validate the semantic index. Choose three to five reader questions covering the main routes, including a qualification-sensitive fact or conflicting measurements when present. Follow each route to original passages and surrounding sections; compare the relevant summaries with that evidence. Check that attribution, versions, conditions, uncertainty, and conflicting source measurements survive compression. Clips, if present, must be verbatim. A citation to another summary does not establish a fact.
+
+Use at most five file reads per retrieval route. Check that the sampled routes reach useful evidence, routing prose stays compact, and citations name precise local passages. This is a focused retrieval and source-fidelity check, not an exhaustive review of the corpus. Do not edit files. Set OnlyNitpicks only when the source checks and retrieval walks succeed and the supplied structural defects are empty. MaterialIssues must name concrete files, assertions, source spans, or broken routes to repair. MissingTopics is only for required factual coverage absent from the index despite available evidence; an open research question is allowed. Do not request analysis, preferred designs, extra research, or optional polish.`
+
+const repairIndexPrompt = factualResearchContract + `
+
+Repair the supplied index verdict and structural defects using existing original sources. Correct misleading summaries and citation targets, restore necessary qualifications and visible source disagreements, and fix broken or long routes. Keep the root at most 500 words; put detailed factual summaries in the leaves. Preserve original sources. Do not add evidence-free absence claims or fill open questions by inference. Return the affected paths and concrete repairs; the independent reader will check again.`
+
+func verifyIndex(researchDir string, topicIndexes []string) error {
+	root := filepath.Join(researchDir, "INDEX.md")
+	if err := requireNonemptyFile(root); err != nil {
+		return err
+	}
+	b, err := os.ReadFile(root)
+	if err != nil {
+		return err
+	}
+	if words := len(strings.Fields(string(b))); words > 500 {
+		return fmt.Errorf("root INDEX.md has %d words; keep it at most 500 by moving details to leaves", words)
+	}
+	for _, path := range topicIndexes {
+		if err := requireNonemptyFile(path); err != nil {
+			return err
+		}
+	}
+	return nil
+}

@@ -2,7 +2,7 @@
 // fixed local-source benchmark, independent assessment, and bounded index queries.
 //
 // An Opus planner selects candidate IDs in a PromiseLoop. Code runs the real
-// research-document workflow, reports quality, audit repairs, usage and cost,
+// research-document workflow, reports quality, retrieval, usage and cost,
 // and freezes the cheapest quality-eligible candidate before a held-out case.
 // The planner cannot change the measure or see holdout feedback before selection.
 // Success means both development and holdout passed; an ended loop is not proof.
@@ -16,7 +16,7 @@
 // Existing output directories are refused so another evaluation cannot be reused
 // accidentally. Costs are catalog proxies, not subscription invoices; unknown
 // usage is never treated as free. Candidate ranking compares priced research and
-// index roles plus Jev claim-audit input. The report keeps full-run cost separate
+// index roles. The report keeps full-run cost separate
 // and marks it unknown when any fixed role lacks pricing. Evaluation overhead
 // from the reader, assessor and planner is reported separately.
 //
@@ -66,7 +66,7 @@ type Params struct {
 	MaxTrials polytype.Optional[int]
 	// TrialMinutes bounds each research trial; default sixty minutes.
 	TrialMinutes polytype.Optional[int]
-	// FixedModel optionally overrides the production defaults for planning, authoring, review and supervision.
+	// FixedModel optionally overrides the production defaults for planning, authoring and review.
 	FixedModel polytype.Optional[string]
 	// ResearchInstance selects the same instance state directory as the parent invocation.
 	ResearchInstance polytype.Optional[string]
@@ -91,31 +91,8 @@ type trialResult struct {
 	ComparableCostUSD   float64           `json:"comparable_cost_usd"`
 	ComparableCostKnown bool              `json:"comparable_cost_known"`
 	Roles               []roleMeasurement `json:"roles"`
-	Audit               auditSummary      `json:"audit"`
-	InitialAuditClean   bool              `json:"initial_audit_clean"`
-	OneRepairAuditClean bool              `json:"one_repair_audit_clean"`
-	AuditRepairPasses   int               `json:"audit_repair_passes"`
-	JevInputTokens      int64             `json:"jev_input_tokens"`
 	Quality             score             `json:"quality"`
 	Error               string            `json:"error,omitempty"`
-}
-
-type auditSummary struct {
-	Complete         bool `json:"complete"`
-	CoverageComplete bool `json:"coverage_complete"`
-	AuthoringAllowed bool `json:"authoring_allowed"`
-	Metrics          struct {
-		Claims                  int   `json:"claims"`
-		SourceFindings          int   `json:"source_findings"`
-		PairFindings            int   `json:"pair_findings"`
-		ExtractionFindings      int   `json:"extraction_findings"`
-		InputTokens             int64 `json:"input_tokens"`
-		RequestCount            int   `json:"request_count"`
-		WholeIndexO200kTokens   int   `json:"whole_index_o200k_tokens"`
-		WholeIndexUnder24kProxy bool  `json:"whole_index_under_24k_proxy"`
-		WholeIndexJevTested     bool  `json:"whole_index_jev_tested"`
-		RepairPass              int   `json:"repair_pass"`
-	} `json:"metrics"`
 }
 
 type report struct {
@@ -199,7 +176,7 @@ func ResearchEval(ctx context.Context, env gimbal.Env, params Params) error {
 	if err := verifyProject(env.WorkDir, registry); err != nil {
 		return err
 	}
-	result := report{Suite: s.Name, FixedModel: fixed, Trials: []trialResult{}, PriceBasis: priceBasis, Limitation: "Provisional result from a small controlled-source comparison; model judgments and catalog-price proxies, not open-web quality or a population success rate. First-pass audit cleanliness is distinct from independent correctness. The one-repair goal is reported, not an eligibility cutoff. Full-run price covers recorded agent and claim-audit usage; automatic supervisor Jev checks are not metered here. Candidate selection uses only priced research and index roles plus claim-audit input; unpriced fixed roles remain unknown in full-run price. Downstream turns and time appear by role and may differ between candidates."}
+	result := report{Suite: s.Name, FixedModel: fixed, Trials: []trialResult{}, PriceBasis: priceBasis, Limitation: "Provisional result from a small controlled-source comparison; model judgments and catalog-price proxies, not open-web quality or a population success rate. Candidate selection uses only priced research and index roles; unpriced fixed roles remain unknown in full-run price. Downstream turns and time appear by role and may differ between candidates."}
 	if err := writeJSON(filepath.Join(output, "report.json"), result); err != nil {
 		return err
 	}
@@ -282,7 +259,7 @@ func ResearchEval(ctx context.Context, env gimbal.Env, params Params) error {
 		return err
 	}
 	planner := gimbal.NewSession(ctx, "research-eval-planning", env.WorkDir)
-	loop := gimbal.PromiseLoop(ctx, "optimize-research", "Find an economical research/indexing combination that passes the fixed quality measure with few audit repairs. Select only supplied candidate IDs; finish by dispatching select for the frozen holdout check.", planner)
+	loop := gimbal.PromiseLoop(ctx, "optimize-research", "Find an economical research/indexing combination that passes the fixed quality measure. Select only supplied candidate IDs; finish by dispatching select for the frozen holdout check.", planner)
 	trialCount, heldout := 0, false
 	for taskCtx, task := range loop.Tasks {
 		phase := "development"
@@ -327,7 +304,7 @@ func ResearchEval(ctx context.Context, env gimbal.Env, params Params) error {
 			row := trialResult{Candidate: choice, Case: c.ID, Split: phase, Directory: dir}
 			args := []string{"run", "research-document", "--project", env.WorkDir, "--work-dir", dir, "--goal", c.Goal, "--source-dir", sourceDir, "--research-dir", corpus, "--output", document, "--token-budget", "1800", "--min-sources-per-topic", "1", "--max-editorial-rounds", "3", "--research-indexing", choice.ResearchModel, "--index-curation", choice.IndexModel}
 			if fixed != "" {
-				args = append(args, "--research-planning", fixed, "--document-authoring", fixed, "--editorial-review", fixed, "--document-supervision", fixed)
+				args = append(args, "--research-planning", fixed, "--document-authoring", fixed, "--editorial-review", fixed)
 			}
 			if params.ResearchInstance.Present {
 				args = append(args, "--instance-dir", params.ResearchInstance.Value)
@@ -350,22 +327,7 @@ func ResearchEval(ctx context.Context, env gimbal.Env, params Params) error {
 				row.CostUSD, row.CostKnown = researchCost(snapshot)
 				row.Roles = roleMeasurements(snapshot)
 			}
-			if raw, readErr := os.ReadFile(filepath.Join(corpus, ".semantic-index", "completion.json")); readErr == nil {
-				if err := json.Unmarshal(raw, &row.Audit); err != nil {
-					row.Error = "invalid audit summary: " + err.Error()
-				}
-			} else {
-				row.CostKnown = false
-			}
-			row.InitialAuditClean, row.OneRepairAuditClean, row.AuditRepairPasses, row.JevInputTokens = auditHistory(corpus)
-			if !row.Audit.Complete {
-				// Completed passes alone are archived; retain current partial
-				// usage but do not call an interrupted request's price known.
-				row.JevInputTokens += row.Audit.Metrics.InputTokens
-				row.CostKnown = false
-			}
-			row.CostUSD += float64(row.JevInputTokens) * 0.042 / 1_000_000
-			row.ComparableCostUSD, row.ComparableCostKnown = comparableCost(row.Roles, row.JevInputTokens, row.Audit.Complete)
+			row.ComparableCostUSD, row.ComparableCostKnown = comparableCost(row.Roles)
 			if row.Error == "" {
 				goldPath := filepath.Join(privateDir, fmt.Sprintf("assessment-gold-%03d-%s.json", trialCount, c.ID))
 				if err := writeJSON(goldPath, c); err != nil {
@@ -501,7 +463,7 @@ func ResearchEval(ctx context.Context, env gimbal.Env, params Params) error {
 				}
 			}
 			row.Seconds = time.Since(started).Seconds()
-			row.Quality.Passed = row.Quality.Passed && row.Error == "" && row.Audit.Complete && row.Audit.CoverageComplete && row.Audit.AuthoringAllowed
+			row.Quality.Passed = row.Quality.Passed && row.Error == ""
 			// Move finished evidence out of the next worker's temporary
 			// neighborhood. Preserve bytes; native logs retain original paths.
 			archive := filepath.Join(output, "trials", fmt.Sprintf("trial-%03d-%s", trialCount, c.ID))
@@ -549,10 +511,10 @@ func ResearchEval(ctx context.Context, env gimbal.Env, params Params) error {
 	return nil
 }
 
-const plannerRules = `Use task.Name exactly equal to an allowed candidate ID, or select. Include each name only once in the current backlog. Research_model controls source collection and topic indexing; index_model controls combined-index curation, claim extraction and repair. Start with a cheap baseline, then compare a small number of combinations changing one role while holding the other fixed. Terra and Sonnet are available for testing whether stronger indexing pays for itself. Use per-role usage, summed turn time, audit repairs and independent quality to identify where additional model capability helps; tokens and time measure workload, not cognitive difficulty by themselves. Each candidate dispatch runs all development cases. One complete passing trial per development case is sufficient for eligibility; failed attempts remain visible and cannot be ignored. Use the default three-round budget for a practical comparison, not exhaustive provider coverage or mandatory repeats. Once a baseline and a controlled comparison have produced an eligible choice, dispatch select rather than spending the remaining budget. Actual quality and price measurements determine eligibility; never treat a provider failure as proof of bad reasoning. Code freezes the cheapest eligible candidate and performs one withheld evaluation. Results are provisional evidence for these fixed-source cases, not a population success rate. End by dispatching select, not an empty backlog. The final holdout is never a tuning target. Do not use tools, edit files, change thresholds or answers, or claim success without the code's holdout result. First-pass audit cleanliness, one-repair cleanliness and final independent correctness are separate measures.`
-const qualityPrompt = `Read the assessment gold, original sources, trial document, and semantic index including its topic indexes and clips. Independently assess every required gold fact in both document and index: preserve units, versions, conditions, attribution and unresolved source disagreements. Read the original evidence, not the operational audit's conclusions. Count substantive assertions in the document and generated index prose/clips, including model-authored recommendations and designs but excluding copied original sources from the index assertion count. Model-authored opinions, recommendations, deductions, proposed designs, and reconciliation of conflicting sources are unauthorized additions: list them in UnsupportedDocumentClaims or UnsupportedIndexClaims even when plausible or separately labeled. Faithful summaries of source-documented techniques are permitted; adding a proposed technique or judging which is better is not. Clips must be verbatim excerpts with provenance; list authored clip interpretation as an unauthorized addition. List substantive unsupported or contradicted subject claims, missing consequential qualifications, and hidden source disagreements; exclude navigation labels and wording that adds no factual assertion. A fact is index-covered only when a reader can find it or its precise evidence through INDEX.md links. Return exactly one grade for every gold fact ID with reasons. Do not edit files. Do not treat a Jev pass as independent proof.`
+const plannerRules = `Use task.Name exactly equal to an allowed candidate ID, or select. Include each name only once in the current backlog. Research_model controls source collection and topic indexing; index_model controls combined-index curation and repair. Start with a cheap baseline, then compare a small number of combinations changing one role while holding the other fixed. Terra and Sonnet are available for testing whether stronger indexing pays for itself. Use per-role usage, summed turn time, retrieval and independent quality to identify where additional model capability helps; tokens and time measure workload, not cognitive difficulty by themselves. Each candidate dispatch runs all development cases. One complete passing trial per development case is sufficient for eligibility; failed attempts remain visible and cannot be ignored. Use the default three-round budget for a practical comparison, not exhaustive provider coverage or mandatory repeats. Once a baseline and a controlled comparison have produced an eligible choice, dispatch select rather than spending the remaining budget. Actual quality and price measurements determine eligibility; never treat a provider failure as proof of bad reasoning. Code freezes the cheapest eligible candidate and performs one withheld evaluation. Results are provisional evidence for these fixed-source cases, not a population success rate. End by dispatching select, not an empty backlog. The final holdout is never a tuning target. Do not use tools, edit files, change thresholds or answers, or claim success without the code's holdout result.`
+const qualityPrompt = `Read the assessment gold, original sources, trial document, and semantic index including its topic indexes and clips. Independently assess every required gold fact in both document and index: preserve units, versions, conditions, attribution and unresolved source disagreements. Read the original evidence directly. Count substantive assertions in the document and generated index prose/clips, including model-authored recommendations and designs but excluding copied original sources from the index assertion count. Model-authored opinions, recommendations, deductions, proposed designs, and reconciliation of conflicting sources are unauthorized additions: list them in UnsupportedDocumentClaims or UnsupportedIndexClaims even when plausible or separately labeled. Faithful summaries of source-documented techniques are permitted; adding a proposed technique or judging which is better is not. Clips must be verbatim excerpts with provenance; list authored clip interpretation as an unauthorized addition. List substantive unsupported or contradicted subject claims, missing consequential qualifications, and hidden source disagreements; exclude navigation labels and wording that adds no factual assertion. A fact is index-covered only when a reader can find it or its precise evidence through INDEX.md links. Return exactly one grade for every gold fact ID with reasons. Do not edit files.`
 const readerPrompt = `Answer the question using only the supplied read passages. Do not call tools or access files yourself. Begin at INDEX.md and request up to two paths per turn in Paths to navigate links into original sources. Paths may be relative to the corpus or absolute links inside it. The workflow supplies those files subject to six total reads and 18000 bytes. When ready, return no Paths, your answer and exact quotes from original files already read, with their relative paths. Summaries are navigation aids, not original citations. Preserve version, unit and time scope. Report both sides of an unresolved disagreement. If the supplied corpus does not establish the answer, abstain without invented facts or citations. You have at most four turns.`
-const answerPrompt = `Independently compare the reader answer with the query gold and retrieved original passages. Correct requires every part of the question, correct scope and relationships, and explicit unresolved disagreement where appropriate; merely containing the expected numbers is insufficient. For an unanswerable query, justified abstention is correct. Grounded means every factual part follows from the cited original evidence; an appropriate abstention needs no citation. Do not edit files or use the operational audit as proof.`
+const answerPrompt = `Independently compare the reader answer with the query gold and retrieved original passages. Correct requires every part of the question, correct scope and relationships, and explicit unresolved disagreement where appropriate; merely containing the expected numbers is insufficient. For an unanswerable query, justified abstention is correct. Grounded means every factual part follows from the cited original evidence; an appropriate abstention needs no citation. Do not edit files.`
 const assessmentContext = `{{range .Values}}{{if or (eq .Key "assessment gold") (eq .Key "original source directory") (eq .Key "trial document") (eq .Key "trial corpus")}}{{.Key}}: {{.Value}}
 {{end}}{{end}}`
 const readerContext = `{{range .Values}}{{if or (eq .Key "question") (eq .Key "read passages") (eq .Key "remaining file reads")}}{{.Key}}: {{.Value}}
@@ -642,11 +604,10 @@ func candidateByID(list []candidate, id string) (candidate, bool) {
 func bestCandidate(list []candidate, trials []trialResult, s suite) (candidate, bool) {
 	var best candidate
 	bestCost := 0.0
-	bestRepairs := 0.0
 	found := false
 	for _, c := range list {
 		seen := map[string]int{}
-		cost, repairs, count := 0.0, 0.0, 0
+		cost, count := 0.0, 0
 		eligible := true
 		for _, t := range trials {
 			if t.Split != "development" || t.Candidate.ID != c.ID {
@@ -656,7 +617,6 @@ func bestCandidate(list []candidate, trials []trialResult, s suite) (candidate, 
 			seen[t.Case]++
 			eligible = eligible && t.Quality.Passed && t.ComparableCostKnown && t.Error == ""
 			cost += t.ComparableCostUSD
-			repairs += float64(t.AuditRepairPasses)
 		}
 		for _, rc := range s.Cases {
 			if rc.Split == "development" && seen[rc.ID] < 1 {
@@ -667,9 +627,8 @@ func bestCandidate(list []candidate, trials []trialResult, s suite) (candidate, 
 			continue
 		}
 		cost /= float64(count)
-		repairs /= float64(count)
-		if !found || cost < bestCost || (cost == bestCost && repairs < bestRepairs) {
-			best, bestCost, bestRepairs, found = c, cost, repairs, true
+		if !found || cost < bestCost {
+			best, bestCost, found = c, cost, true
 		}
 	}
 	return best, found
@@ -736,14 +695,14 @@ func researchCost(snapshot observation.RunSnapshot) (float64, bool) {
 	return cost, known
 }
 
-const priceBasis = "Catalog prices or harness-stated cost. These are usage-price proxies, not subscription invoices. Unpriced models or absent usage remain unknown. Comparable cost is research-indexing plus index-curation plus Jev claim-audit input; fixed-role and assessment costs are excluded from candidate ranking."
+const priceBasis = "Catalog prices or harness-stated cost. These are usage-price proxies, not subscription invoices. Unpriced models or absent usage remain unknown. Comparable cost is research-indexing plus index-curation; fixed-role and assessment costs are excluded from candidate ranking."
 
 // Only the research and index roles vary between candidates. Report the full
 // run cost separately, but select using the known cost of the roles being
-// compared plus Jev input. An unpriced fixed author must not make a priced
+// compared. An unpriced fixed author must not make a priced
 // research comparison impossible.
-func comparableCost(roles []roleMeasurement, jevInputTokens int64, auditComplete bool) (float64, bool) {
-	cost, known := float64(jevInputTokens)*0.042/1_000_000, auditComplete
+func comparableCost(roles []roleMeasurement) (float64, bool) {
+	cost, known := 0.0, true
 	seen := map[string]bool{}
 	for _, role := range roles {
 		if role.Role != "research-indexing" && role.Role != "index-curation" {
@@ -754,41 +713,6 @@ func comparableCost(roles []roleMeasurement, jevInputTokens int64, auditComplete
 		known = known && role.CostKnown
 	}
 	return cost, known && seen["research-indexing"] && seen["index-curation"]
-}
-
-func auditHistory(corpus string) (bool, bool, int, int64) {
-	paths, _ := filepath.Glob(filepath.Join(corpus, ".semantic-index", "history", "*-pass-*.json"))
-	first, one := false, false
-	var tokens int64
-	phaseRepairs := map[string]int{}
-	for _, path := range paths {
-		b, err := os.ReadFile(path)
-		if err != nil {
-			continue
-		}
-		var a auditSummary
-		if json.Unmarshal(b, &a) != nil {
-			continue
-		}
-		tokens += a.Metrics.InputTokens
-		phase, _, _ := strings.Cut(filepath.Base(path), "-pass-")
-		phaseRepairs[phase] = max(phaseRepairs[phase], a.Metrics.RepairPass)
-		if !strings.HasPrefix(filepath.Base(path), "initial-pass-") {
-			continue
-		}
-		clean := a.Complete && a.CoverageComplete && a.AuthoringAllowed && a.Metrics.SourceFindings == 0 && a.Metrics.PairFindings == 0 && a.Metrics.ExtractionFindings == 0
-		if a.Metrics.RepairPass == 0 {
-			first = clean
-		}
-		if a.Metrics.RepairPass <= 1 {
-			one = one || clean
-		}
-	}
-	repairs := 0
-	for _, passes := range phaseRepairs {
-		repairs += passes
-	}
-	return first, one, repairs, tokens
 }
 
 func reportRun(dir string, registry *observation.Registry, reportPath string) (string, error) {
@@ -880,12 +804,7 @@ type candidateSummary struct {
 	ID                    string  `json:"id"`
 	Trials                int     `json:"trials"`
 	Passed                int     `json:"quality_passes"`
-	InitialAuditClean     int     `json:"initial_audit_clean"`
-	AtMostOneRepair       int     `json:"quality_passes_with_at_most_one_repair"`
 	PassRate              float64 `json:"quality_pass_rate"`
-	InitialAuditCleanRate float64 `json:"initial_audit_clean_rate"`
-	AtMostOneRepairRate   float64 `json:"quality_pass_with_at_most_one_repair_rate"`
-	MeanRepairPasses      float64 `json:"mean_repair_passes"`
 	MeanDownstreamTurns   float64 `json:"mean_downstream_turns"`
 	MeanDownstreamSeconds float64 `json:"mean_downstream_turn_seconds"`
 	MeanUSD               float64 `json:"mean_usd"`
@@ -905,17 +824,10 @@ func summarizeCandidates(candidates []candidate, trials []trialResult) []candida
 			row.Trials++
 			if t.Quality.Passed {
 				row.Passed++
-				if t.AuditRepairPasses <= 1 {
-					row.AtMostOneRepair++
-				}
-			}
-			if t.InitialAuditClean {
-				row.InitialAuditClean++
 			}
 			row.MeanUSD += t.CostUSD
-			row.MeanRepairPasses += float64(t.AuditRepairPasses)
 			for _, role := range t.Roles {
-				if role.Role == "document-authoring" || role.Role == "editorial-review" || role.Role == "document-supervision" {
+				if role.Role == "document-authoring" || role.Role == "editorial-review" {
 					row.MeanDownstreamTurns += float64(role.Turns)
 					row.MeanDownstreamSeconds += role.SumTurnSeconds
 				}
@@ -926,7 +838,7 @@ func summarizeCandidates(candidates []candidate, trials []trialResult) []candida
 		}
 		if row.Trials > 0 {
 			n := float64(row.Trials)
-			row.PassRate, row.InitialAuditCleanRate, row.AtMostOneRepairRate, row.MeanRepairPasses, row.MeanDownstreamTurns, row.MeanDownstreamSeconds, row.MeanUSD, row.MeanComparableUSD = float64(row.Passed)/n, float64(row.InitialAuditClean)/n, float64(row.AtMostOneRepair)/n, row.MeanRepairPasses/n, row.MeanDownstreamTurns/n, row.MeanDownstreamSeconds/n, row.MeanUSD/n, row.MeanComparableUSD/n
+			row.PassRate, row.MeanDownstreamTurns, row.MeanDownstreamSeconds, row.MeanUSD, row.MeanComparableUSD = float64(row.Passed)/n, row.MeanDownstreamTurns/n, row.MeanDownstreamSeconds/n, row.MeanUSD/n, row.MeanComparableUSD/n
 		} else {
 			row.CostKnown = false
 			row.ComparableCostKnown = false

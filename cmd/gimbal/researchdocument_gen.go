@@ -28,20 +28,19 @@ func researchdocumentCommand(defaults map[gimbal.WorkflowRole]string) *cobra.Com
 	var optMaxEditorialRounds int
 	var researchPlanningModel string
 	var researchIndexingModel string
-	var documentSupervisionModel string
 	var indexCurationModel string
 	var editorialReviewModel string
 	var documentAuthoringModel string
 	var workDir, project, instanceDir, conversation string
 	var follow bool
-	cmd := &cobra.Command{Use: "research-document", Short: "ResearchDocument produces a factual research document within a token budget.", Long: "Package researchdocument collects source information into a local semantic\nindex and compresses it into a factual document within a token budget.\n\nThe planner returns exactly five coherent groups of adjacent or related\ntopics, one for each explicitly named parallel researcher. Each topic must\npreserve at least the requested number of useful local sources, distinguish\noriginals and their provenance, and address each question or mark it\nunresolved. Topic indexes and a compact combined index route reader questions\nto precise source passages and verbatim excerpts. The index is a means\nto finding evidence for the document, not a second report.\n\nCollection, indexing, and document writing select, organize, summarize, and\ncompress what sources state. They do not add opinions, recommendations,\ndeductions, proposed designs, or judgments about which approach is better.\nSource attribution, qualifications, and conflicting accounts remain visible.\nThe caller's goal sets the subject and scope, not permission to add analysis.\n\nThe author uses the combined semantic index as its entry point to the corpus.\nAn editorial pass checks consequential claims against original evidence,\nalong with the document goal and token budget. Material omissions trigger\ntargeted research and index repair before another revision. The workflow succeeds when the document is within budget\nand the editor reports only nitpicks, or returns an error after the editorial\nround limit.\n\nBefore authoring, Jev checks extraction coverage, each claim's original\nsource evidence and every claim pair. Findings are marked in the index;\nbounded repair and independent review must clear the authoring gate.\nGenuine source disagreements remain visible rather than being settled.\n\nModel defaults deliberately put broad collection on Gemini Flash, combined\nindex curation on Claude Sonnet 5.5, and factual compression on Gemini Pro.\nResearch planning, parallel research and indexing, and supervision use\nGemini 3.8 Flash at medium effort.\nDocument authoring and independent editorial review use Gemini 3.1 Pro at\nhigh effort. The displayed role flags can still replace an individual pin.\n\nExample:\n\n\tgimbal run research-document \\\n\t  --goal \"Explain passkeys to security-conscious product managers\" \\\n\t  --research-dir ./passkeys-research \\\n\t  --output ./passkeys.md \\\n\t  --token-budget 4000" + "\n\nThe selected persistent instance owns this run. --project selects its admitted repository; --work-dir selects the execution directory independently. --instance-dir selects the instance state directory (or GIMBAL_INSTANCE_DIR, default .gimbal). --follow waits for terminal success or failure; otherwise the run continues after this client exits. Each role flag chooses a model and optional effort. Executable lookup, PATH, and provider configuration come from the instance startup environment.", Args: cobra.NoArgs}
+	cmd := &cobra.Command{Use: "research-document", Short: "ResearchDocument produces a factual research document within a token budget.", Long: "Package researchdocument collects source information into a local semantic\nindex and compresses it into a factual document within a token budget.\n\nThe planner returns exactly five coherent groups of adjacent or related\ntopics, one for each explicitly named parallel researcher. Each topic must\npreserve at least the requested number of useful local sources, distinguish\noriginals and their provenance, and address each question or mark it\nunresolved. Topic indexes and a compact combined index route reader questions\nto precise source passages and verbatim excerpts. The index is a means\nto finding evidence for the document, not a second report.\n\nCollection, indexing, and document writing select, organize, summarize, and\ncompress what sources state. They do not add opinions, recommendations,\ndeductions, proposed designs, or judgments about which approach is better.\nSource attribution, qualifications, and conflicting accounts remain visible.\nThe caller's goal sets the subject and scope, not permission to add analysis.\n\nThe author uses the combined semantic index as its entry point to the corpus.\nAn editorial pass checks consequential claims against original evidence,\nalong with the document goal and token budget. Material omissions trigger\ntargeted research and index repair before another revision. The workflow succeeds when the document is within budget\nand the editor reports only nitpicks, or returns an error after the editorial\nround limit.\n\nBefore authoring, an independent reader checks the index summaries against\noriginal passages and walks its routes. Concrete defects go back to the\ncurator for bounded repair. The checks are focused source comparisons and retrieval walks.\n\nModel defaults deliberately put broad collection on Gemini Flash, combined\nindex curation on Claude Sonnet 5.5, and factual compression on Gemini Pro.\nResearch planning and parallel research and indexing use\nGemini 3.8 Flash at medium effort.\nDocument authoring and independent editorial review use Gemini 3.1 Pro at\nhigh effort. The displayed role flags can still replace an individual pin.\n\nExample:\n\n\tgimbal run research-document \\\n\t  --goal \"Explain passkeys to security-conscious product managers\" \\\n\t  --research-dir ./passkeys-research \\\n\t  --output ./passkeys.md \\\n\t  --token-budget 4000" + "\n\nThe selected persistent instance owns this run. --project selects its admitted repository; --work-dir selects the execution directory independently. --instance-dir selects the instance state directory (or GIMBAL_INSTANCE_DIR, default .gimbal). --follow waits for terminal success or failure; otherwise the run continues after this client exits. Each role flag chooses a model and optional effort. Executable lookup, PATH, and provider configuration come from the instance startup environment.", Args: cobra.NoArgs}
 	cmd.Flags().StringVar(&valueGoal, "goal", "", "Goal describes the subject, scope, and audience for factual research; it does not authorize recommendations or designs. (required)")
 	cmd.Flags().StringVar(&valueResearchDir, "research-dir", "", "ResearchDir receives downloaded sources, clips, topic indexes, and the combined INDEX.md. (required)")
 	cmd.Flags().StringVar(&optSourceDir, "source-dir", "", "SourceDir optionally supplies a fixed local corpus; researchers index these originals without web discovery.")
 	cmd.Flags().StringVar(&valueOutput, "output", "", "Output is the document file the author creates or revises. (required)")
 	cmd.Flags().IntVar(&valueTokenBudget, "token-budget", 0, "TokenBudget is the maximum o200k_base token count accepted for the document. (required)")
 	cmd.Flags().IntVar(&optMinSourcesPerTopic, "min-sources-per-topic", 0, "MinSourcesPerTopic overrides the default minimum of three useful local source files per planned topic.")
-	cmd.Flags().IntVar(&optMaxEditorialRounds, "max-editorial-rounds", 0, "MaxEditorialRounds overrides the default limit of three editorial passes.")
+	cmd.Flags().IntVar(&optMaxEditorialRounds, "max-editorial-rounds", 0, "MaxEditorialRounds bounds index and document review passes separately; default three.")
 	_ = cmd.MarkFlagRequired("goal")
 	_ = cmd.MarkFlagRequired("research-dir")
 	_ = cmd.MarkFlagRequired("output")
@@ -68,13 +67,6 @@ func researchdocumentCommand(defaults map[gimbal.WorkflowRole]string) *cobra.Com
 		_ = cmd.MarkFlagRequired("research-indexing")
 	} else {
 		cmd.Flags().StringVar(&researchIndexingModel, "research-indexing", researchIndexingModelDefault, "advanced override for role research-indexing, as model or model:effort; Pi uses pi/diffusion/model-id; OpenCode uses opencode/model or opencode/provider/model; omit this flag to use the displayed workflow default")
-	}
-	documentSupervisionModelDefault := defaults[gimbal.WorkflowRole("document-supervision")]
-	if documentSupervisionModelDefault == "" {
-		cmd.Flags().StringVar(&documentSupervisionModel, "document-supervision", "", "the model for role document-supervision, as model or model:effort; Pi uses pi/diffusion/model-id; OpenCode uses opencode/model or opencode/provider/model")
-		_ = cmd.MarkFlagRequired("document-supervision")
-	} else {
-		cmd.Flags().StringVar(&documentSupervisionModel, "document-supervision", documentSupervisionModelDefault, "advanced override for role document-supervision, as model or model:effort; Pi uses pi/diffusion/model-id; OpenCode uses opencode/model or opencode/provider/model; omit this flag to use the displayed workflow default")
 	}
 	indexCurationModelDefault := defaults[gimbal.WorkflowRole("index-curation")]
 	if indexCurationModelDefault == "" {
@@ -110,19 +102,18 @@ func researchdocumentCommand(defaults map[gimbal.WorkflowRole]string) *cobra.Com
 			return err
 		}
 		formInput := routes.StartResearchDocumentInput{ProjectDir: project, WorkDir: workDir, Conversation: conversation,
-			Goal:                    valueGoal,
-			ResearchDir:             valueResearchDir,
-			SourceDir:               polytype.Optional[string]{Present: cmd.Flags().Changed("source-dir"), Value: optSourceDir},
-			Output:                  valueOutput,
-			TokenBudget:             valueTokenBudget,
-			MinSourcesPerTopic:      polytype.Optional[int]{Present: cmd.Flags().Changed("min-sources-per-topic"), Value: optMinSourcesPerTopic},
-			MaxEditorialRounds:      polytype.Optional[int]{Present: cmd.Flags().Changed("max-editorial-rounds"), Value: optMaxEditorialRounds},
-			RoleResearchPlanning:    polytype.Optional[string]{Present: cmd.Flags().Changed("research-planning"), Value: researchPlanningModel},
-			RoleResearchIndexing:    polytype.Optional[string]{Present: cmd.Flags().Changed("research-indexing"), Value: researchIndexingModel},
-			RoleDocumentSupervision: polytype.Optional[string]{Present: cmd.Flags().Changed("document-supervision"), Value: documentSupervisionModel},
-			RoleIndexCuration:       polytype.Optional[string]{Present: cmd.Flags().Changed("index-curation"), Value: indexCurationModel},
-			RoleEditorialReview:     polytype.Optional[string]{Present: cmd.Flags().Changed("editorial-review"), Value: editorialReviewModel},
-			RoleDocumentAuthoring:   polytype.Optional[string]{Present: cmd.Flags().Changed("document-authoring"), Value: documentAuthoringModel},
+			Goal:                  valueGoal,
+			ResearchDir:           valueResearchDir,
+			SourceDir:             polytype.Optional[string]{Present: cmd.Flags().Changed("source-dir"), Value: optSourceDir},
+			Output:                valueOutput,
+			TokenBudget:           valueTokenBudget,
+			MinSourcesPerTopic:    polytype.Optional[int]{Present: cmd.Flags().Changed("min-sources-per-topic"), Value: optMinSourcesPerTopic},
+			MaxEditorialRounds:    polytype.Optional[int]{Present: cmd.Flags().Changed("max-editorial-rounds"), Value: optMaxEditorialRounds},
+			RoleResearchPlanning:  polytype.Optional[string]{Present: cmd.Flags().Changed("research-planning"), Value: researchPlanningModel},
+			RoleResearchIndexing:  polytype.Optional[string]{Present: cmd.Flags().Changed("research-indexing"), Value: researchIndexingModel},
+			RoleIndexCuration:     polytype.Optional[string]{Present: cmd.Flags().Changed("index-curation"), Value: indexCurationModel},
+			RoleEditorialReview:   polytype.Optional[string]{Present: cmd.Flags().Changed("editorial-review"), Value: editorialReviewModel},
+			RoleDocumentAuthoring: polytype.Optional[string]{Present: cmd.Flags().Changed("document-authoring"), Value: documentAuthoringModel},
 		}
 		formClient, err := web.SelectedFormClient(cmd.Context(), instanceDir, project)
 		if err != nil {

@@ -10,7 +10,7 @@ import (
 	"github.com/tylergannon/gimbal/workflow"
 )
 
-func TestResearchStageTemplatesRenderWithoutAuditContext(t *testing.T) {
+func TestResearchStageTemplatesWithOnlyResearchContext(t *testing.T) {
 	type value struct{ Text string }
 	data := struct{ By map[string]value }{By: map[string]value{
 		"document goal": {"goal"}, "source mode": {"fixed"}, "minimum sources per topic": {"1"},
@@ -27,7 +27,7 @@ func TestResearchStageTemplatesRenderWithoutAuditContext(t *testing.T) {
 		if err := tmpl.Execute(&rendered, data); err != nil {
 			t.Fatalf("%s render: %v", name, err)
 		}
-		if strings.Contains(rendered.String(), "token counter") || strings.Contains(rendered.String(), "audit-index") {
+		if strings.Contains(rendered.String(), "token counter") {
 			t.Fatalf("%s leaks later-stage tools: %s", name, rendered.String())
 		}
 	}
@@ -87,31 +87,29 @@ func TestGeneratedGraphHasTheResearchFanout(t *testing.T) {
 	t.Fatal("generated graph has no research group")
 }
 
-func TestAuditReviewContextContainsOnlyLocalAuditPaths(t *testing.T) {
-	type value struct{ Text string }
-	data := struct{ By map[string]value }{By: map[string]value{
-		"research directory":           {"/tmp/research"},
-		"claim audit path":             {"/tmp/research/.semantic-index/AUDIT.md"},
-		"claim inventory path":         {"/tmp/research/.semantic-index/inventory.json"},
-		"claim records path":           {"/tmp/research/.semantic-index/claims.jsonl"},
-		"claim review candidates path": {"/tmp/research/.semantic-index/review-candidates.json"},
-		"claim reviews path":           {"/tmp/research/.semantic-index/reviews.jsonl"},
-		"document goal":                {"DO NOT LEAK GOAL"}, "document path": {"DO NOT LEAK OUTPUT"},
-	}}
-	tmpl, err := template.New("review").Option("missingkey=error").Parse(auditReviewContext)
-	if err != nil {
+func TestVerifyIndexKeepsRootCompact(t *testing.T) {
+	dir := t.TempDir()
+	root := filepath.Join(dir, "INDEX.md")
+	if err := os.WriteFile(root, []byte(strings.Repeat("word ", 501)), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	var rendered strings.Builder
-	if err := tmpl.Execute(&rendered, data); err != nil {
+	if err := verifyIndex(dir, nil); err == nil {
+		t.Fatal("oversized root accepted")
+	}
+	if err := os.WriteFile(root, []byte("[Topic](topic/INDEX.md)"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(rendered.String(), "DO NOT LEAK") {
-		t.Fatalf("review context exposes authoring task: %s", rendered.String())
+	leaf := filepath.Join(dir, "topic", "INDEX.md")
+	if err := verifyIndex(dir, []string{leaf}); err == nil {
+		t.Fatal("missing leaf accepted")
 	}
-	for _, filename := range []string{"AUDIT.md", "inventory.json", "claims.jsonl", "review-candidates.json", "reviews.jsonl"} {
-		if !strings.Contains(rendered.String(), filename) {
-			t.Errorf("missing review input %s", filename)
-		}
+	if err := os.Mkdir(filepath.Dir(leaf), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(leaf, []byte("Source summary and citation."), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := verifyIndex(dir, []string{leaf}); err != nil {
+		t.Fatal(err)
 	}
 }

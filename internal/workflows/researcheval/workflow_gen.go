@@ -14,100 +14,100 @@ func init() { gimbal.RegisterGraph(Graph) }
 // Graph is the shape of this workflow, read from the source of ResearchEval.
 var Graph = workflow.Graph{
 	Name:     "research-eval",
-	Source:   workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 137},
+	Source:   workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 114},
 	Services: []workflow.Service{},
 	Body: []workflow.Operation{
-		workflow.Condition{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 139}, Branches: []workflow.Branch{
-			{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 139}, Case: "registry == nil || controls == nil", Exits: true, Body: []workflow.Operation{}},
+		workflow.Condition{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 116}, Branches: []workflow.Branch{
+			{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 116}, Case: "registry == nil || controls == nil", Exits: true, Body: []workflow.Operation{}},
 		}},
-		workflow.Condition{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 152}, Branches: []workflow.Branch{
-			{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 152}, Case: "maxTrials < 1 || minutes < 1 || (params.FixedModel.Present && strings.TrimSpace(fixed) == \"\")", Exits: true, Body: []workflow.Operation{}},
+		workflow.Condition{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 129}, Branches: []workflow.Branch{
+			{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 129}, Case: "maxTrials < 1 || minutes < 1 || (params.FixedModel.Present && strings.TrimSpace(fixed) == \"\")", Exits: true, Body: []workflow.Operation{}},
 		}},
-		workflow.Condition{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 159}, Branches: []workflow.Branch{
-			{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 159}, Case: "_, err := os.Stat(output); !os.IsNotExist(err)", Exits: true, Body: []workflow.Operation{}},
+		workflow.Condition{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 136}, Branches: []workflow.Branch{
+			{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 136}, Case: "_, err := os.Stat(output); !os.IsNotExist(err)", Exits: true, Body: []workflow.Operation{}},
 		}},
-		workflow.Condition{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 171}, Branches: []workflow.Branch{
-			{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 171}, Case: "params.SuiteDir.Present", Exits: false, Body: []workflow.Operation{}},
-			{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 176}, Case: "err := materializeSuite(suiteDir); err != nil", Exits: true, Body: []workflow.Operation{}},
+		workflow.Condition{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 148}, Branches: []workflow.Branch{
+			{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 148}, Case: "params.SuiteDir.Present", Exits: false, Body: []workflow.Operation{}},
+			{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 153}, Case: "err := materializeSuite(suiteDir); err != nil", Exits: true, Body: []workflow.Operation{}},
 		}},
-		workflow.Set{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 206}, Key: "candidate allowlist"},
-		workflow.Set{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 207}, Key: "maximum development trials"},
-		workflow.Set{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 208}, Key: "evaluation rules"},
-		workflow.Set{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 209}, Key: "evaluation report"},
-		workflow.Iterate{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 227}, Name: "calibrate-assessor", Services: []workflow.Service{}, Body: []workflow.Operation{
-			workflow.Set{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 249}, Key: "assessment gold"},
-			workflow.Set{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 250}, Key: "original source directory"},
-			workflow.Set{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 251}, Key: "trial document"},
-			workflow.Set{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 252}, Key: "trial corpus"},
-			workflow.Session{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 253}, Name: "research-eval-assessment", From: ""},
-			workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 254}, Session: "research-eval-assessment", Role: "research-eval-assessment", Prompt: "Read the assessment gold, original sources, trial document, and semantic index including its topic indexes and clips. Independently assess every required gold fact in both document and index: preserve units, versions, conditions, attribution and unresolved source disagreements. Read the original evidence, not the operational audit's conclusions. Count substantive assertions in the document and generated index prose/clips, including model-authored recommendations and designs but excluding copied original sources from the index assertion count. Model-authored opinions, recommendations, deductions, proposed designs, and reconciliation of conflicting sources are unauthorized additions: list them in UnsupportedDocumentClaims or UnsupportedIndexClaims even when plausible or separately labeled. Faithful summaries of source-documented techniques are permitted; adding a proposed technique or judging which is better is not. Clips must be verbatim excerpts with provenance; list authored clip interpretation as an unauthorized addition. List substantive unsupported or contradicted subject claims, missing consequential qualifications, and hidden source disagreements; exclude navigation labels and wording that adds no factual assertion. A fact is index-covered only when a reader can find it or its precise evidence through INDEX.md links. Return exactly one grade for every gold fact ID with reasons. Do not edit files. Do not treat a Jev pass as independent proof."},
+		workflow.Set{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 183}, Key: "candidate allowlist"},
+		workflow.Set{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 184}, Key: "maximum development trials"},
+		workflow.Set{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 185}, Key: "evaluation rules"},
+		workflow.Set{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 186}, Key: "evaluation report"},
+		workflow.Iterate{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 204}, Name: "calibrate-assessor", Services: []workflow.Service{}, Body: []workflow.Operation{
+			workflow.Set{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 226}, Key: "assessment gold"},
+			workflow.Set{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 227}, Key: "original source directory"},
+			workflow.Set{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 228}, Key: "trial document"},
+			workflow.Set{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 229}, Key: "trial corpus"},
+			workflow.Session{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 230}, Name: "research-eval-assessment", From: ""},
+			workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 231}, Session: "research-eval-assessment", Role: "research-eval-assessment", Prompt: "Read the assessment gold, original sources, trial document, and semantic index including its topic indexes and clips. Independently assess every required gold fact in both document and index: preserve units, versions, conditions, attribution and unresolved source disagreements. Read the original evidence directly. Count substantive assertions in the document and generated index prose/clips, including model-authored recommendations and designs but excluding copied original sources from the index assertion count. Model-authored opinions, recommendations, deductions, proposed designs, and reconciliation of conflicting sources are unauthorized additions: list them in UnsupportedDocumentClaims or UnsupportedIndexClaims even when plausible or separately labeled. Faithful summaries of source-documented techniques are permitted; adding a proposed technique or judging which is better is not. Clips must be verbatim excerpts with provenance; list authored clip interpretation as an unauthorized addition. List substantive unsupported or contradicted subject claims, missing consequential qualifications, and hidden source disagreements; exclude navigation labels and wording that adds no factual assertion. A fact is index-covered only when a reader can find it or its precise evidence through INDEX.md links. Return exactly one grade for every gold fact ID with reasons. Do not edit files."},
 		}},
-		workflow.Condition{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 277}, Branches: []workflow.Branch{
-			{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 277}, Case: "result.Calibration.FalseNegatives != 0 || result.Calibration.FalsePositives != 0", Exits: true, Body: []workflow.Operation{}},
+		workflow.Condition{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 254}, Branches: []workflow.Branch{
+			{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 254}, Case: "result.Calibration.FalseNegatives != 0 || result.Calibration.FalsePositives != 0", Exits: true, Body: []workflow.Operation{}},
 		}},
-		workflow.Session{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 284}, Name: "research-eval-planning", From: ""},
-		workflow.PromiseLoop{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 285}, Name: "optimize-research", Planner: "research-eval-planning", Services: []workflow.Service{}, Body: []workflow.Operation{
-			workflow.Condition{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 290}, Branches: []workflow.Branch{
-				{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 290}, Case: "task.Name == \"select\" || trialCount >= maxTrials", Exits: false, Body: []workflow.Operation{
-					workflow.Condition{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 293}, Branches: []workflow.Branch{
-						{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 293}, Case: "!ok", Exits: true, Body: []workflow.Operation{}},
+		workflow.Session{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 261}, Name: "research-eval-planning", From: ""},
+		workflow.PromiseLoop{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 262}, Name: "optimize-research", Planner: "research-eval-planning", Services: []workflow.Service{}, Body: []workflow.Operation{
+			workflow.Condition{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 267}, Branches: []workflow.Branch{
+				{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 267}, Case: "task.Name == \"select\" || trialCount >= maxTrials", Exits: false, Body: []workflow.Operation{
+					workflow.Condition{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 270}, Branches: []workflow.Branch{
+						{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 270}, Case: "!ok", Exits: true, Body: []workflow.Operation{}},
 					}},
 				}},
-				{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 297}, Case: "!ok", Exits: true, Body: []workflow.Operation{}},
+				{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 274}, Case: "!ok", Exits: true, Body: []workflow.Operation{}},
 			}},
-			workflow.Iterate{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 307}, Name: "case", Services: []workflow.Service{}, Body: []workflow.Operation{
-				workflow.Command{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 338}, Name: "start-research"},
-				workflow.Condition{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 369}, Branches: []workflow.Branch{
-					{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 369}, Case: "row.Error == \"\"", Exits: false, Body: []workflow.Operation{
-						workflow.Set{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 374}, Key: "assessment gold"},
-						workflow.Set{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 375}, Key: "original source directory"},
-						workflow.Set{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 376}, Key: "trial document"},
-						workflow.Set{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 377}, Key: "trial corpus"},
-						workflow.Session{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 378}, Name: "research-eval-assessment", From: ""},
-						workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 380}, Session: "research-eval-assessment", Role: "research-eval-assessment", Prompt: "Read the assessment gold, original sources, trial document, and semantic index including its topic indexes and clips. Independently assess every required gold fact in both document and index: preserve units, versions, conditions, attribution and unresolved source disagreements. Read the original evidence, not the operational audit's conclusions. Count substantive assertions in the document and generated index prose/clips, including model-authored recommendations and designs but excluding copied original sources from the index assertion count. Model-authored opinions, recommendations, deductions, proposed designs, and reconciliation of conflicting sources are unauthorized additions: list them in UnsupportedDocumentClaims or UnsupportedIndexClaims even when plausible or separately labeled. Faithful summaries of source-documented techniques are permitted; adding a proposed technique or judging which is better is not. Clips must be verbatim excerpts with provenance; list authored clip interpretation as an unauthorized addition. List substantive unsupported or contradicted subject claims, missing consequential qualifications, and hidden source disagreements; exclude navigation labels and wording that adds no factual assertion. A fact is index-covered only when a reader can find it or its precise evidence through INDEX.md links. Return exactly one grade for every gold fact ID with reasons. Do not edit files. Do not treat a Jev pass as independent proof."},
-						workflow.Condition{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 385}, Branches: []workflow.Branch{
-							{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 385}, Case: "assessErr != nil", Exits: false, Body: []workflow.Operation{}},
-							{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 387}, Case: "", Exits: false, Body: []workflow.Operation{
-								workflow.Iterate{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 392}, Name: "query", Services: []workflow.Service{}, Body: []workflow.Operation{
-									workflow.Session{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 408}, Name: "research-eval-reading", From: ""},
-									workflow.Iterate{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 410}, Name: "navigate", Services: []workflow.Service{}, Body: []workflow.Operation{
-										workflow.Condition{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 411}, Branches: []workflow.Branch{
-											{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 411}, Case: "queryResult.Error != \"\"", Exits: true, Body: []workflow.Operation{}},
+			workflow.Iterate{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 284}, Name: "case", Services: []workflow.Service{}, Body: []workflow.Operation{
+				workflow.Command{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 315}, Name: "start-research"},
+				workflow.Condition{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 331}, Branches: []workflow.Branch{
+					{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 331}, Case: "row.Error == \"\"", Exits: false, Body: []workflow.Operation{
+						workflow.Set{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 336}, Key: "assessment gold"},
+						workflow.Set{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 337}, Key: "original source directory"},
+						workflow.Set{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 338}, Key: "trial document"},
+						workflow.Set{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 339}, Key: "trial corpus"},
+						workflow.Session{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 340}, Name: "research-eval-assessment", From: ""},
+						workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 342}, Session: "research-eval-assessment", Role: "research-eval-assessment", Prompt: "Read the assessment gold, original sources, trial document, and semantic index including its topic indexes and clips. Independently assess every required gold fact in both document and index: preserve units, versions, conditions, attribution and unresolved source disagreements. Read the original evidence directly. Count substantive assertions in the document and generated index prose/clips, including model-authored recommendations and designs but excluding copied original sources from the index assertion count. Model-authored opinions, recommendations, deductions, proposed designs, and reconciliation of conflicting sources are unauthorized additions: list them in UnsupportedDocumentClaims or UnsupportedIndexClaims even when plausible or separately labeled. Faithful summaries of source-documented techniques are permitted; adding a proposed technique or judging which is better is not. Clips must be verbatim excerpts with provenance; list authored clip interpretation as an unauthorized addition. List substantive unsupported or contradicted subject claims, missing consequential qualifications, and hidden source disagreements; exclude navigation labels and wording that adds no factual assertion. A fact is index-covered only when a reader can find it or its precise evidence through INDEX.md links. Return exactly one grade for every gold fact ID with reasons. Do not edit files."},
+						workflow.Condition{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 347}, Branches: []workflow.Branch{
+							{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 347}, Case: "assessErr != nil", Exits: false, Body: []workflow.Operation{}},
+							{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 349}, Case: "", Exits: false, Body: []workflow.Operation{
+								workflow.Iterate{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 354}, Name: "query", Services: []workflow.Service{}, Body: []workflow.Operation{
+									workflow.Session{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 370}, Name: "research-eval-reading", From: ""},
+									workflow.Iterate{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 372}, Name: "navigate", Services: []workflow.Service{}, Body: []workflow.Operation{
+										workflow.Condition{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 373}, Branches: []workflow.Branch{
+											{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 373}, Case: "queryResult.Error != \"\"", Exits: true, Body: []workflow.Operation{}},
 										}},
-										workflow.Set{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 414}, Key: "question"},
-										workflow.Set{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 415}, Key: "read passages"},
-										workflow.Set{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 416}, Key: "remaining file reads"},
-										workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 418}, Session: "research-eval-reading", Role: "research-eval-reading", Prompt: "Answer the question using only the supplied read passages. Do not call tools or access files yourself. Begin at INDEX.md and request up to two paths per turn in Paths to navigate links into original sources. Paths may be relative to the corpus or absolute links inside it. The workflow supplies those files subject to six total reads and 18000 bytes. When ready, return no Paths, your answer and exact quotes from original files already read, with their relative paths. Summaries are navigation aids, not original citations. Preserve version, unit and time scope. Report both sides of an unresolved disagreement. If the supplied corpus does not establish the answer, abstain without invented facts or citations. You have at most four turns."},
-										workflow.Condition{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 424}, Branches: []workflow.Branch{
-											{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 424}, Case: "len(step.Paths) == 0", Exits: true, Body: []workflow.Operation{}},
+										workflow.Set{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 376}, Key: "question"},
+										workflow.Set{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 377}, Key: "read passages"},
+										workflow.Set{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 378}, Key: "remaining file reads"},
+										workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 380}, Session: "research-eval-reading", Role: "research-eval-reading", Prompt: "Answer the question using only the supplied read passages. Do not call tools or access files yourself. Begin at INDEX.md and request up to two paths per turn in Paths to navigate links into original sources. Paths may be relative to the corpus or absolute links inside it. The workflow supplies those files subject to six total reads and 18000 bytes. When ready, return no Paths, your answer and exact quotes from original files already read, with their relative paths. Summaries are navigation aids, not original citations. Preserve version, unit and time scope. Report both sides of an unresolved disagreement. If the supplied corpus does not establish the answer, abstain without invented facts or citations. You have at most four turns."},
+										workflow.Condition{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 386}, Branches: []workflow.Branch{
+											{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 386}, Case: "len(step.Paths) == 0", Exits: true, Body: []workflow.Operation{}},
 										}},
-										workflow.Condition{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 428}, Branches: []workflow.Branch{
-											{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 428}, Case: "len(step.Paths) > 2", Exits: true, Body: []workflow.Operation{}},
+										workflow.Condition{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 390}, Branches: []workflow.Branch{
+											{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 390}, Case: "len(step.Paths) > 2", Exits: true, Body: []workflow.Operation{}},
 										}},
-										workflow.Condition{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 461}, Branches: []workflow.Branch{
-											{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 461}, Case: "queryResult.Error != \"\"", Exits: true, Body: []workflow.Operation{}},
+										workflow.Condition{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 423}, Branches: []workflow.Branch{
+											{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 423}, Case: "queryResult.Error != \"\"", Exits: true, Body: []workflow.Operation{}},
 										}},
 									}},
-									workflow.Set{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 476}, Key: "query gold"},
-									workflow.Set{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 477}, Key: "reader answer"},
-									workflow.Set{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 478}, Key: "retrieved passages"},
-									workflow.Session{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 479}, Name: "research-eval-assessment", From: ""},
-									workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 481}, Session: "research-eval-assessment", Role: "research-eval-assessment", Prompt: "Independently compare the reader answer with the query gold and retrieved original passages. Correct requires every part of the question, correct scope and relationships, and explicit unresolved disagreement where appropriate; merely containing the expected numbers is insufficient. For an unanswerable query, justified abstention is correct. Grounded means every factual part follows from the cited original evidence; an appropriate abstention needs no citation. Do not edit files or use the operational audit as proof."},
-									workflow.Set{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 495}, Key: "query score"},
+									workflow.Set{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 438}, Key: "query gold"},
+									workflow.Set{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 439}, Key: "reader answer"},
+									workflow.Set{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 440}, Key: "retrieved passages"},
+									workflow.Session{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 441}, Name: "research-eval-assessment", From: ""},
+									workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 443}, Session: "research-eval-assessment", Role: "research-eval-assessment", Prompt: "Independently compare the reader answer with the query gold and retrieved original passages. Correct requires every part of the question, correct scope and relationships, and explicit unresolved disagreement where appropriate; merely containing the expected numbers is insufficient. For an unanswerable query, justified abstention is correct. Grounded means every factual part follows from the cited original evidence; an appropriate abstention needs no citation. Do not edit files."},
+									workflow.Set{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 457}, Key: "query score"},
 								}},
 							}},
 						}},
 					}},
 				}},
-				workflow.Set{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 520}, Key: "trial measurement"},
+				workflow.Set{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 482}, Key: "trial measurement"},
 			}},
-			workflow.Set{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 525}, Key: "development measurements"},
-			workflow.Condition{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 526}, Branches: []workflow.Branch{
-				{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 526}, Case: "phase == \"holdout\"", Exits: true, Body: []workflow.Operation{}},
+			workflow.Set{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 487}, Key: "development measurements"},
+			workflow.Condition{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 488}, Branches: []workflow.Branch{
+				{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 488}, Case: "phase == \"holdout\"", Exits: true, Body: []workflow.Operation{}},
 			}},
 		}},
-		workflow.Condition{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 546}, Branches: []workflow.Branch{
-			{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 546}, Case: "!result.Fulfilled", Exits: true, Body: []workflow.Operation{}},
+		workflow.Condition{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 508}, Branches: []workflow.Branch{
+			{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 508}, Case: "!result.Fulfilled", Exits: true, Body: []workflow.Operation{}},
 		}},
 	},
 }

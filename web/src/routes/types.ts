@@ -121,7 +121,6 @@ export type StartResearchDocumentInput = {
   max_editorial_rounds?: number;
   role_research_planning?: string;
   role_research_indexing?: string;
-  role_document_supervision?: string;
   role_index_curation?: string;
   role_editorial_review?: string;
   role_document_authoring?: string;

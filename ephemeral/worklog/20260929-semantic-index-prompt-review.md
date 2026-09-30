@@ -13,3 +13,7 @@ decision: The requested live experiment uses a fresh project and the exact topic
 finding: The first collection attempt saved a model-authored combined integration summary as an original, with broad site URLs. Stop before auditing that cache. The source-cache contract must explicitly require downloaded originals or mechanically extracted text from one identifiable URL/document; authored summaries belong only in index leaves.
 
 finding: Neutral question wording can still presuppose undocumented implementations and capabilities. State that planning must not assume those exist. Collection also needs a boundary excluding generated research reports and Gimbal run records from its evidence.
+
+correction: Preserving the existing orchestration was an unjustified constraint. Tyler explicitly authorizes replacing it to produce good semantic indexes and forbids exhaustive audits and proof machinery. Jev is optional, useful only for focused checks serving the result.
+
+finding: The live trial's all-pairs audit diverted work from source fidelity and retrieval. Remove claim extraction, pairwise auditing, their CLI/package, and eval accounting; retain factual collection, compact routing, a few independent source checks, targeted repair, and document compression.

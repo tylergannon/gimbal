@@ -27,8 +27,6 @@ func needsSecrets(args []string) bool {
 	switch args[0] {
 	case "runs", "watch", "steer", "count-tokens":
 		return false
-	case "audit-index":
-		return false
 	case "opencode":
 		return len(args) > 1 && args[1] == "start"
 	default:

@@ -14,22 +14,21 @@ import (
 
 // StartResearchDocumentInput is the flat typed request for the research-document workflow.
 type StartResearchDocumentInput struct {
-	ProjectDir              string                    `json:"project_dir"`
-	WorkDir                 string                    `json:"work_dir"`
-	Conversation            string                    `json:"conversation"`
-	Goal                    string                    `json:"goal"`
-	ResearchDir             string                    `json:"research_dir"`
-	SourceDir               polytype.Optional[string] `json:"source_dir,omitzero"`
-	Output                  string                    `json:"output"`
-	TokenBudget             int                       `json:"token_budget"`
-	MinSourcesPerTopic      polytype.Optional[int]    `json:"min_sources_per_topic,omitzero"`
-	MaxEditorialRounds      polytype.Optional[int]    `json:"max_editorial_rounds,omitzero"`
-	RoleResearchPlanning    polytype.Optional[string] `json:"role_research_planning,omitzero"`
-	RoleResearchIndexing    polytype.Optional[string] `json:"role_research_indexing,omitzero"`
-	RoleDocumentSupervision polytype.Optional[string] `json:"role_document_supervision,omitzero"`
-	RoleIndexCuration       polytype.Optional[string] `json:"role_index_curation,omitzero"`
-	RoleEditorialReview     polytype.Optional[string] `json:"role_editorial_review,omitzero"`
-	RoleDocumentAuthoring   polytype.Optional[string] `json:"role_document_authoring,omitzero"`
+	ProjectDir            string                    `json:"project_dir"`
+	WorkDir               string                    `json:"work_dir"`
+	Conversation          string                    `json:"conversation"`
+	Goal                  string                    `json:"goal"`
+	ResearchDir           string                    `json:"research_dir"`
+	SourceDir             polytype.Optional[string] `json:"source_dir,omitzero"`
+	Output                string                    `json:"output"`
+	TokenBudget           int                       `json:"token_budget"`
+	MinSourcesPerTopic    polytype.Optional[int]    `json:"min_sources_per_topic,omitzero"`
+	MaxEditorialRounds    polytype.Optional[int]    `json:"max_editorial_rounds,omitzero"`
+	RoleResearchPlanning  polytype.Optional[string] `json:"role_research_planning,omitzero"`
+	RoleResearchIndexing  polytype.Optional[string] `json:"role_research_indexing,omitzero"`
+	RoleIndexCuration     polytype.Optional[string] `json:"role_index_curation,omitzero"`
+	RoleEditorialReview   polytype.Optional[string] `json:"role_editorial_review,omitzero"`
+	RoleDocumentAuthoring polytype.Optional[string] `json:"role_document_authoring,omitzero"`
 }
 
 func startResearchDocument(ctx context.Context, in StartResearchDocumentInput) (StartAccepted, error) {
@@ -47,12 +46,11 @@ func startResearchDocument(ctx context.Context, in StartResearchDocumentInput) (
 	}
 	return startWorkflow(ctx, in.ProjectDir, in.WorkDir, in.Conversation, "research-document",
 		map[gimbal.WorkflowRole]polytype.Optional[string]{
-			gimbal.WorkflowRole("research-planning"):    in.RoleResearchPlanning,
-			gimbal.WorkflowRole("research-indexing"):    in.RoleResearchIndexing,
-			gimbal.WorkflowRole("document-supervision"): in.RoleDocumentSupervision,
-			gimbal.WorkflowRole("index-curation"):       in.RoleIndexCuration,
-			gimbal.WorkflowRole("editorial-review"):     in.RoleEditorialReview,
-			gimbal.WorkflowRole("document-authoring"):   in.RoleDocumentAuthoring,
+			gimbal.WorkflowRole("research-planning"):  in.RoleResearchPlanning,
+			gimbal.WorkflowRole("research-indexing"):  in.RoleResearchIndexing,
+			gimbal.WorkflowRole("index-curation"):     in.RoleIndexCuration,
+			gimbal.WorkflowRole("editorial-review"):   in.RoleEditorialReview,
+			gimbal.WorkflowRole("document-authoring"): in.RoleDocumentAuthoring,
 		}, func(runCtx context.Context, workDir string) error {
 			return researchdocument.ResearchDocument(runCtx, gimbal.Env{WorkDir: workDir}, researchdocument.Params{
 				Goal:               in.Goal,

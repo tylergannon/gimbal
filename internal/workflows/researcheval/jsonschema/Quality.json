@@ -1,5 +1,5 @@
 {"type":"object",
-"description":"Quality is an independent judgment, not the operational Jev verdict.","properties":{
+"description":"Quality assesses factual compression and retrieval against original evidence.","properties":{
 "facts":{"type":"array","items":{"type":"object",
 "description":"FactGrade binds the assessor's semantic judgment to one fixed gold fact.","properties":{
 "id":{"type":"string"},

@@ -569,6 +569,9 @@ func (e *emitter) operation(a *ast.AssignStmt, c *ast.CallExpr, s scope) error {
 	if kind == "" {
 		return e.fail(c, "unsupported helper/effect; no Gimbal operation lowering")
 	}
+	if kind == "Generate" && a == nil {
+		return e.fail(c, "Generate results cannot be discarded by a bare call; assign them explicitly")
+	}
 	pos := e.pkg.Fset.Position(c.Pos())
 	e.line("// %s:%d: %s", filepath.Base(pos.Filename), pos.Line, kind)
 	if len(c.Args) == 0 || e.obj(c.Args[0]) != s.ctx {

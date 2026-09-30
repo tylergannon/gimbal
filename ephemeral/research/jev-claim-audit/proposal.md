@@ -484,7 +484,7 @@ A reviewer may prioritize consequential claims while leaving the rest visible;
 neither a repair limit nor a long list authorizes silent dismissal.
 
 Review a blocked completed audit before the curator changes its index blocks.
-Immediately rerun the cached audit to apply the decisions, then give the curator
+Use the same subject-assertion extraction standard in Jev and independent review: pure index metadata and writing instructions require no records, while embedded subject facts still do. Give the reviewer only local audit paths and prohibit document authoring in that turn. Immediately rerun the cached audit to apply the decisions, then give the curator
 only the remaining repair IDs. An empty candidate list skips the editor turn.
 The final allowed pass still gets this review opportunity before failing; a
 review without a curator rewrite does not increment the repair count.

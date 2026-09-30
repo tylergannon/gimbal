@@ -86,3 +86,32 @@ func TestGeneratedGraphHasTheResearchFanout(t *testing.T) {
 	}
 	t.Fatal("generated graph has no research group")
 }
+
+func TestAuditReviewContextContainsOnlyLocalAuditPaths(t *testing.T) {
+	type value struct{ Text string }
+	data := struct{ By map[string]value }{By: map[string]value{
+		"research directory":           {"/tmp/research"},
+		"claim audit path":             {"/tmp/research/.semantic-index/AUDIT.md"},
+		"claim inventory path":         {"/tmp/research/.semantic-index/inventory.json"},
+		"claim records path":           {"/tmp/research/.semantic-index/claims.jsonl"},
+		"claim review candidates path": {"/tmp/research/.semantic-index/review-candidates.json"},
+		"claim reviews path":           {"/tmp/research/.semantic-index/reviews.jsonl"},
+		"document goal":                {"DO NOT LEAK GOAL"}, "document path": {"DO NOT LEAK OUTPUT"},
+	}}
+	tmpl, err := template.New("review").Option("missingkey=error").Parse(auditReviewContext)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var rendered strings.Builder
+	if err := tmpl.Execute(&rendered, data); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(rendered.String(), "DO NOT LEAK") {
+		t.Fatalf("review context exposes authoring task: %s", rendered.String())
+	}
+	for _, filename := range []string{"AUDIT.md", "inventory.json", "claims.jsonl", "review-candidates.json", "reviews.jsonl"} {
+		if !strings.Contains(rendered.String(), filename) {
+			t.Errorf("missing review input %s", filename)
+		}
+	}
+}

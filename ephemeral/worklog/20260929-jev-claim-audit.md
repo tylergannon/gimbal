@@ -143,3 +143,6 @@ finding: Stable-snapshot review worked, but the editor applied a broader extract
 correction: Repeated synthetic fixture retries became an expanding release gate despite the user's explicit prohibition on perfecting the benchmark. The user stopped that process and assigned real web research on contemporary priority queues using Jev and adjacent methods. Assess a useful actual document and practical retrieval, not success on another fictional corpus.
 
 finding: A review-only editor created a helper script inside the audited corpus, correctly triggering snapshot mutation rejection. Keep helper scripts outside that corpus or use inline commands; do not relax snapshot validation.
+
+
+finding: The first actual web research gathered useful official Jev material and adjacent papers, but repeated source copies and expansive topic/clip prose made claim extraction expensive before the audit began. An independent reader found relevant routes yet promoted engineering proposals and qualified experimental results into stronger facts. Measure useful source-grounded answers separately from file count and audit completion; concise evidence-preserving indexes are an economic requirement, not cosmetic compression.

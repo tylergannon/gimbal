@@ -9,3 +9,7 @@ finding: The current research-eval rubric checks supported facts and retrieval b
 decision: Apply one factual-artifact contract across planning, collection, curation, document writing, coaches, audit repair, and review. Clips are verbatim excerpts; curation removes authored interpretation from leaves rather than routing readers to it. Keep existing orchestration and audit mechanics within this prompt correction.
 
 decision: The requested live experiment uses a fresh project and the exact topic supplied by Tyler, without importing the prior assignment's synthesis instructions. Use Gemini Flash for planning, collection, and coaching, Haiku for curation, and Luna for writing and review.
+
+finding: The first collection attempt saved a model-authored combined integration summary as an original, with broad site URLs. Stop before auditing that cache. The source-cache contract must explicitly require downloaded originals or mechanically extracted text from one identifiable URL/document; authored summaries belong only in index leaves.
+
+finding: Neutral question wording can still presuppose undocumented implementations and capabilities. State that planning must not assume those exist. Collection also needs a boundary excluding generated research reports and Gimbal run records from its evidence.

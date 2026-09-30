@@ -123,3 +123,13 @@ finding: A live Haiku research/Sonnet curation run completed exhaustive Jev chec
 finding: Two small fixed-source Atlas runs reached document authoring with full pair coverage and the 45/60-second source disagreement visible. Flash research plus Sonnet curation needed two repairs and ended with zero source and extraction findings; Haiku research plus the same curator also needed two repairs but retained two disputed source findings. This is evidence for a provisional Flash/Sonnet default, not a general success rate or web-discovery ranking.
 
 finding: A practical evaluation's first child completed, but its Haiku reader call remained active for over twenty minutes without a report row. Bound assessment, reader, and answer-judge calls independently; a stalled model request must become a recorded failed observation instead of blocking the PromiseLoop indefinitely. Retry the fixed-source eval with Gemini Flash as the reader to separate the benchmark result from the Claude CLI stall.
+
+finding: A retained disagreement must be bound to its claim, exact anchors and original evidence, not the entire containing block. Otherwise an unrelated prose repair invalidates both dispositions and spends every repair round rediscovering the same conflict.
+
+finding: A curator's disposition is not evidence that a source finding is false. Check every claim kind, retain uncited and invalid-reference failures, and allow an independent editor to review only current, valid original passages. Relabelling an unsupported assertion as inference or recommendation cannot make it source-supported.
+
+finding: Independent assessment caught familiar operational implications and assertions about missing documentation after an operational audit passed. Phrase missing details as open questions and require source wording for consequences, timing and mechanisms; a model's domain familiarity is not collected evidence.
+
+finding: Candidate research/index prices omit fixed-role work whose workload may change. Keep that limited price proxy explicit and show downstream turns and time beside it rather than describing it as full-run economics.
+
+friction: An application restart killed the detached benchmark server mid-turn, leaving its on-disk run marked running. Verify the live listener and process before diagnosing a long model call; stale observation files are not active work.

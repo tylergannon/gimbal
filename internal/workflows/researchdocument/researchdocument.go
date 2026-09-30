@@ -17,9 +17,15 @@
 // and the editor reports only nitpicks, or returns an error after the editorial
 // round limit.
 //
-// Model defaults deliberately put broad collection on Gemini Flash and report
-// synthesis on Gemini Pro. Research planning, parallel research and indexing,
-// index curation, and supervision use Gemini 3.8 Flash at medium effort.
+// Before authoring, Jev checks extraction coverage, each claim's original
+// source evidence and every claim pair. Findings are marked in the index;
+// bounded repair and independent review must clear the authoring gate.
+// Genuine source disagreements remain visible rather than being settled.
+//
+// Model defaults deliberately put broad collection on Gemini Flash, combined
+// index curation on Claude Sonnet 5.5, and report synthesis on Gemini Pro.
+// Research planning, parallel research and indexing, and supervision use
+// Gemini 3.8 Flash at medium effort.
 // Document authoring and independent editorial review use Gemini 3.1 Pro at
 // high effort. The displayed role flags can still replace an individual pin.
 //

@@ -84,7 +84,23 @@ func SprintPlan(ctx context.Context, env gimbal.Env, brief string) (Sprint, erro
 	}
 	gimbal.SetJSON(ctx, "review", review)
 	if len(review.Findings) != 0 {
-		return Sprint{}, fmt.Errorf("sprint review: %v", review.Findings)
+		plan, err = planner.Generate[Sprint](ctx, "Revise the plan against the original brief and the recorded review. Keep it bounded and proposed. Give explicit observable criteria; distinguish the simple local baseline from the multitier trial.")
+		if err != nil {
+			return plan, err
+		}
+		if err := ValidateSprint(plan); err != nil {
+			return plan, err
+		}
+		gimbal.SetJSON(ctx, "revised", plan)
+		finalReviewer := gimbal.NewSession(ctx, gimbal.RoleCodeReview, env.WorkDir)
+		finalReview, err := finalReviewer.Generate[Review](ctx, "Review only the revised plan against the original brief. Inspect whether the earlier findings are resolved, without expanding the assignment. Return concrete material findings or an empty findings list. Make no changes.")
+		if err != nil {
+			return plan, err
+		}
+		gimbal.SetJSON(ctx, "final-review", finalReview)
+		if len(finalReview.Findings) != 0 {
+			return plan, fmt.Errorf("sprint review after one revision: %v", finalReview.Findings)
+		}
 	}
 	return plan, nil
 }

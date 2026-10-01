@@ -1,0 +1,9 @@
+{"type":"object",
+"description":"Index is a compact question-driven map, not a vector database.","properties":{
+"routes":{"type":"array","items":{"type":"object",
+"description":"Route connects a reader's question to evidence in the supplied corpus.","properties":{
+"question":{"type":"string"},
+"sources":{"type":"array","items":{"type":"string"}},
+"answer":{"type":"string"}
+},"required":["question","sources","answer"],"additionalProperties":false}}
+},"required":["routes"],"additionalProperties":false}

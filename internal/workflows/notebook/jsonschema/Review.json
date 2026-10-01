@@ -1,0 +1,4 @@
+{"type":"object",
+"description":"Review is an independent assessment against the original fixture.","properties":{
+"findings":{"type":"array","items":{"type":"string"}}
+},"required":["findings"],"additionalProperties":false}

@@ -1,0 +1,4 @@
+decision: Reject bare Temporal consumer `Session.Generate` expression statements at the emitter call site; `Source` already adds a source-located diagnostic and invalidates stale output on errors.
+proof: `TestBareGenerateInvalidatesOutput` reproduced the bug before the change (generation returned nil), then passed after the rejection. `go generate ./...`, `go build .`, and `go test ./...` passed in `examples/temporal`.
+friction: The sandbox cannot write the host Go build cache; approved host execution was needed. The first escalated Go test session lost transport during dependency downloads, but retrying after executor recovery completed successfully.
+lesson: Exact ancestry of the old compiler tip does not establish whether its work reached main. PR #409 was superseded by squash-merged PR #411; inspect PR discussion and successor history before reporting missing integration.

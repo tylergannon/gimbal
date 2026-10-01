@@ -1,0 +1,11 @@
+{"type":"object",
+"description":"Sprint is an ordered plan for the supplied goal and constraints.","properties":{
+"goal":{"type":"string"},
+"tasks":{"type":"array","items":{"type":"object",
+"description":"Task is a bounded delivery outcome with dependencies and acceptance evidence.","properties":{
+"id":{"type":"string"},
+"outcome":{"type":"string"},
+"depends_on":{"type":"array","items":{"type":"string"}},
+"acceptance":{"type":"string"}
+},"required":["id","outcome","depends_on","acceptance"],"additionalProperties":false}}
+},"required":["goal","tasks"],"additionalProperties":false}

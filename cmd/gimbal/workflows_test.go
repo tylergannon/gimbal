@@ -102,7 +102,7 @@ func TestResearchDocumentHelpShowsLimitsAndModelDefaults(t *testing.T) {
 			t.Errorf("run research-document --help lacks %s:\n%s", flag, help)
 		}
 	}
-	for _, text := range []string{"broad collection on Gemini Flash", "synthesis on Gemini Pro", "Gemini 3.8 Flash", "Gemini 3.1 Pro"} {
+	for _, text := range []string{"broad collection on Gemini Flash", "factual compression on Gemini Pro", "Gemini 3.8 Flash", "Gemini 3.1 Pro"} {
 		if !strings.Contains(help, text) {
 			t.Errorf("run research-document --help lacks model-selection guidance %q:\n%s", text, help)
 		}

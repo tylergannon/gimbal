@@ -2,7 +2,6 @@ package researcheval
 
 import (
 	"bytes"
-	"os"
 	"path/filepath"
 	"testing"
 	"text/template"
@@ -90,18 +89,17 @@ func TestSelectionIncludesFailuresAndUnknownCost(t *testing.T) {
 	candidates := []candidate{{ID: "cheap"}, {ID: "reliable"}, {ID: "unknown"}}
 	s := suite{Cases: []researchCase{{ID: "dev", Split: "development"}, {ID: "hold", Split: "holdout"}}}
 	pass := score{Passed: true}
-	trials := []trialResult{{Candidate: candidates[0], Case: "dev", Split: "development", Quality: pass, ComparableCostKnown: true, ComparableCostUSD: .1}, {Candidate: candidates[0], Case: "dev", Split: "development", Error: "failed"}, {Candidate: candidates[1], Case: "dev", Split: "development", Quality: pass, ComparableCostKnown: true, ComparableCostUSD: .5, AuditRepairPasses: 1}, {Candidate: candidates[2], Case: "dev", Split: "development", Quality: pass, ComparableCostKnown: false, ComparableCostUSD: 0}}
+	trials := []trialResult{{Candidate: candidates[0], Case: "dev", Split: "development", Quality: pass, ComparableCostKnown: true, ComparableCostUSD: .1}, {Candidate: candidates[0], Case: "dev", Split: "development", Error: "failed"}, {Candidate: candidates[1], Case: "dev", Split: "development", Quality: pass, ComparableCostKnown: true, ComparableCostUSD: .5}, {Candidate: candidates[2], Case: "dev", Split: "development", Quality: pass, ComparableCostKnown: false, ComparableCostUSD: 0}}
 	best, ok := bestCandidate(candidates, trials, s)
 	if !ok || best.ID != "reliable" {
 		t.Fatalf("selected %+v %v", best, ok)
 	}
-	trials[2].AuditRepairPasses = 2
 	trials[2].Roles = []roleMeasurement{{Role: "editorial-review", Turns: 3, SumTurnSeconds: 14}, {Role: "document-authoring", Turns: 1, SumTurnSeconds: 6}, {Role: "research-planning", Turns: 1, SumTurnSeconds: 4}}
 	if best, ok := bestCandidate(candidates, trials, s); !ok || best.ID != "reliable" {
-		t.Fatalf("correct two-repair candidate should remain eligible: %+v %v", best, ok)
+		t.Fatalf("correct candidate should remain eligible: %+v %v", best, ok)
 	}
-	if summary := summarizeCandidates(candidates, trials)[1]; summary.MeanRepairPasses != 2 || summary.AtMostOneRepair != 0 || summary.MeanDownstreamTurns != 4 || summary.MeanDownstreamSeconds != 20 {
-		t.Fatalf("repair target not reported: %+v", summary)
+	if summary := summarizeCandidates(candidates, trials)[1]; summary.MeanDownstreamTurns != 4 || summary.MeanDownstreamSeconds != 20 {
+		t.Fatalf("downstream work not reported: %+v", summary)
 	}
 }
 
@@ -113,52 +111,6 @@ func TestReaderContextWithholdsGoldAndOtherCases(t *testing.T) {
 	}
 	if bytes.Contains(rendered.Bytes(), []byte("SECRET")) || !bytes.Contains(rendered.Bytes(), []byte("visible question")) {
 		t.Fatal(rendered.String())
-	}
-}
-
-func TestAuditAccountingSumsPassesWithoutChargingCachedJudgments(t *testing.T) {
-	corpus := t.TempDir()
-	dir := filepath.Join(corpus, ".semantic-index", "history")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	first := auditSummary{Complete: true, CoverageComplete: true, AuthoringAllowed: true}
-	first.Metrics.InputTokens = 100
-	first.Metrics.PairFindings = 1
-	second := auditSummary{Complete: true, CoverageComplete: true, AuthoringAllowed: true}
-	second.Metrics.InputTokens = 20
-	second.Metrics.RepairPass = 1
-	gap := auditSummary{Complete: true, CoverageComplete: true, AuthoringAllowed: true}
-	for name, a := range map[string]auditSummary{"initial-pass-00.json": first, "initial-pass-01.json": second, "gap-1-pass-00.json": gap} {
-		if err := writeJSON(filepath.Join(dir, name), a); err != nil {
-			t.Fatal(err)
-		}
-	}
-	clean, one, repairs, tokens := auditHistory(corpus)
-	if clean || !one || repairs != 1 || tokens != 120 {
-		t.Fatalf("%v %v %d %d", clean, one, repairs, tokens)
-	}
-}
-
-func TestAuditAccountingIncludesRepairsBeforeFirstCompletion(t *testing.T) {
-	corpus := t.TempDir()
-	dir := filepath.Join(corpus, ".semantic-index", "history")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	// Invalid records can consume repair passes before an audit completes.
-	initial := auditSummary{Complete: true, CoverageComplete: true, AuthoringAllowed: true}
-	initial.Metrics.RepairPass = 2
-	gap := initial
-	gap.Metrics.RepairPass = 1
-	for name, a := range map[string]auditSummary{"initial-pass-02.json": initial, "gap-1-pass-01.json": gap} {
-		if err := writeJSON(filepath.Join(dir, name), a); err != nil {
-			t.Fatal(err)
-		}
-	}
-	first, one, repairs, _ := auditHistory(corpus)
-	if first || one || repairs != 3 {
-		t.Fatalf("first=%v one=%v repairs=%d", first, one, repairs)
 	}
 }
 
@@ -195,15 +147,12 @@ func TestComparableCostExcludesUnpricedFixedRoles(t *testing.T) {
 		{Role: "index-curation", Turns: 2, CostUSD: .30, CostKnown: true},
 		{Role: "document-authoring", Turns: 1, CostKnown: false},
 	}
-	cost, known := comparableCost(roles, 1_000_000, true)
-	if !known || cost < .5419 || cost > .5421 {
+	cost, known := comparableCost(roles)
+	if !known || cost < .4999 || cost > .5001 {
 		t.Fatalf("comparable cost %f known=%v", cost, known)
 	}
-	if _, known := comparableCost(roles[:1], 1_000_000, true); known {
+	if _, known := comparableCost(roles[:1]); known {
 		t.Fatal("missing curator usage treated as free")
-	}
-	if _, known := comparableCost(roles, 1_000_000, false); known {
-		t.Fatal("incomplete Jev audit treated as priced")
 	}
 	c := candidate{ID: "viable"}
 	s := suite{Cases: []researchCase{{ID: "dev", Split: "development"}}}
@@ -216,7 +165,7 @@ func TestComparableCostExcludesUnpricedFixedRoles(t *testing.T) {
 func TestSelectionNeedsEveryDevelopmentCaseAndReportsFailures(t *testing.T) {
 	c := candidate{ID: "one"}
 	s := suite{Cases: []researchCase{{ID: "a", Split: "development"}, {ID: "b", Split: "development"}}}
-	a := trialResult{Candidate: c, Case: "a", Split: "development", Quality: score{Passed: true}, ComparableCostKnown: true, InitialAuditClean: true}
+	a := trialResult{Candidate: c, Case: "a", Split: "development", Quality: score{Passed: true}, ComparableCostKnown: true}
 	b := a
 	b.Case = "b"
 	trials := []trialResult{a}
@@ -229,11 +178,10 @@ func TestSelectionNeedsEveryDevelopmentCaseAndReportsFailures(t *testing.T) {
 	}
 	failed := a
 	failed.Quality.Passed = false
-	failed.InitialAuditClean = false
 	failed.Error = "provider failure"
 	trials = append(trials, failed)
 	summary := summarizeCandidates([]candidate{c}, trials)[0]
-	if summary.Trials != 3 || summary.Passed != 2 || summary.PassRate != 2.0/3 || summary.InitialAuditCleanRate != 2.0/3 {
+	if summary.Trials != 3 || summary.Passed != 2 || summary.PassRate != 2.0/3 {
 		t.Fatalf("%+v", summary)
 	}
 	if _, ok := bestCandidate([]candidate{c}, trials, s); ok {

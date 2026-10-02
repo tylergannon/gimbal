@@ -1,6 +1,7 @@
 {"type":"object",
 "description":"EditorialVerdict distinguishes material document failures from optional polish.","properties":{
-"only_nitpicks":{"type":"boolean"},
-"material_issues":{"type":"array","items":{"type":"string"}},
-"missing_topics":{"type":"array","items":{"type":"string"}}
-},"required":["only_nitpicks","material_issues","missing_topics"],"additionalProperties":false}
+"summary":{"type":"string","description":"Summary records observations from the source checks and retrieval walks."},
+"only_nitpicks":{"type":"boolean","description":"OnlyNitpicks is true when no material defects remain."},
+"material_issues":{"type":"array","description":"MaterialIssues contains only concrete defects requiring repair, never successful checks.","items":{"type":"string"}},
+"missing_topics":{"type":"array","description":"MissingTopics names required factual coverage that needs additional evidence.","items":{"type":"string"}}
+},"required":["summary","only_nitpicks","material_issues","missing_topics"],"additionalProperties":false}

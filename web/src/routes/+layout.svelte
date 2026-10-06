@@ -6,6 +6,7 @@
 	// Keep compiled start remotes in Kit's manifest until their visible forms
 	// import them from the start pages.
 	import './review_start.remote';
+	import './sprintplan_start.remote';
 	import './implement_start.remote';
 	import './researchdocument_start.remote';
 	import './researcheval_start.remote';

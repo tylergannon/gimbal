@@ -48,7 +48,7 @@ func TestGeneratedCLIClientReachesUnknownProjectAndFollowReportsFailure(t *testi
 
 func TestRunListsTheWorkflowsBuiltIn(t *testing.T) {
 	help := helpOf(t)
-	for _, name := range []string{"implement", "pyramid-summary", "research-document", "review", "validate-product"} {
+	for _, name := range []string{"sprint-plan", "implement", "pyramid-summary", "research-document", "review", "validate-product"} {
 		if !strings.Contains(help, "\n  "+name+" ") {
 			t.Errorf("run --help does not list %s:\n%s", name, help)
 		}

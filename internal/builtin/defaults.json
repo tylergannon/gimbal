@@ -1,4 +1,5 @@
 {
+  "bulk-map-reduce": "gemini-3.8-flash-medium",
   "product-operation": "claude-opus-5-5:high",
   "product-visual-review": "gemini-3.8-flash-medium",
   "product-triage": "gpt-6-astra:high",

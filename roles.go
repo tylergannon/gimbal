@@ -1,7 +1,10 @@
 package gimbal
 
 // WorkflowRole names the cognitive work a session performs and selects its
-// model binding for a run. Applications may define additional typed constants.
+// model binding for a run. Workflows must reuse the established constants below.
+// Do not invent roles for a workflow, participant, or provider: shared roles let
+// model assignments evolve across workflows. Changes to the catalog are deliberate
+// product decisions, not a side effect of authoring a workflow.
 type WorkflowRole string
 
 const (

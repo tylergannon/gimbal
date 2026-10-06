@@ -465,7 +465,11 @@ func (f *fakeOpenCode) prompt(response http.ResponseWriter, request *http.Reques
 		f.active[sessionID] = wait
 		f.mu.Unlock()
 		f.started <- prompt
-		<-wait
+		select {
+		case <-wait:
+		case <-request.Context().Done():
+			return
+		}
 		f.writePromptResponse(response, sessionID, "msg_aborted", "", nil, map[string]any{
 			"name": "MessageAbortedError", "data": map[string]any{"message": "aborted"},
 		})
@@ -621,4 +625,23 @@ func adapterEventTypes(events []gimbal.AgentEvent) []string {
 		types[index] = event.Type
 	}
 	return types
+}
+
+// A cancelled client can leave a fake prompt waiting even after the adapter
+// finishes. The handler must release httptest.Server.Close on disconnect.
+func TestFakePromptStopsWhenRequestCancelled(t *testing.T) {
+	fake := newFakeOpenCode(t)
+	fake.sessions["fixture"] = &fakeSession{directory: t.TempDir()}
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	request := httptest.NewRequest("POST", "/session/fixture/message", strings.NewReader(`{"parts":[{"type":"text","text":"WAIT"}]}`)).WithContext(ctx)
+	done := make(chan struct{})
+	go func() { defer close(done); fake.prompt(httptest.NewRecorder(), request, "fixture") }()
+	fake.waitStarted(t, "WAIT")
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("fake prompt retained a cancelled HTTP request")
+	}
 }

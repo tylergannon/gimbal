@@ -17,6 +17,7 @@ type Workflow struct {
 }
 
 var Workflows = []Workflow{
+	{Package: "sprintplan", Entry: "SprintPlan", Name: "sprint-plan", Command: "sprintplan_gen.go"},
 	{Package: "review", Entry: "Review", Name: "review", Command: "review_gen.go"},
 	{Package: "implementation", Entry: "Implement", Name: "implement", Command: "implementation_gen.go"},
 	{Package: "researchdocument", Entry: "ResearchDocument", Name: "research-document", Command: "researchdocument_gen.go"},
@@ -25,6 +26,11 @@ var Workflows = []Workflow{
 	{Package: "validateproduct", Entry: "ValidateProduct", Name: "validate-product", Command: "validateproduct_gen.go"},
 }
 
+// defaults.json assigns models to the established roles in roles.go. It is not
+// a place to invent workflow- or provider-specific roles. Existing noncatalog
+// entries require migration; do not copy that pattern into new workflows.
+// Track that work at https://github.com/tylergannon/gimbal-view/issues/14.
+//
 //go:embed defaults.json
 var defaultsJSON []byte
 

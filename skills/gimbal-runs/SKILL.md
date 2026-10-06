@@ -44,6 +44,15 @@ qualifies findings before document acceptance. The separate
 model assignments on fixed sources. Its winner is provisional for that suite;
 the report distinguishes factual correctness, retrieval, repair, and cost.
 
+For sprint planning, inspect `gimbal run sprint-plan --help`. Supply a local
+intent file and a new sprint directory under `ephemeral/sprints/`. The intent
+names the stakeholder outcome, boundaries, acceptance evidence, and useful
+reference paths. The workflow gathers project information and prior art into
+an indexed working set, then produces three drafts, cross-critiques, and a
+proposed `plan.md` with references for implementation. Review unresolved
+stakeholder decisions before execution; planning completion does not establish
+that the outcome has been delivered.
+
 ## Start a run
 
 Gimbal requires `TYPESAFE_API_KEY` only when a workflow uses

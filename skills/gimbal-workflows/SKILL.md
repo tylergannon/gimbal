@@ -59,6 +59,12 @@ parallel attempts, critique, or adaptive implementation should fit together.
 
 ## Give roles clear responsibilities
 
+Use the established role constants in `roles.go`. Branch names identify
+participants; roles identify reusable kinds of work; run bindings choose models.
+Do not add workflow- or provider-specific roles to `internal/builtin/defaults.json`
+to obtain another model assignment. Catalog changes require an explicit product
+decision so model assignments remain reusable across workflows.
+
 A researcher establishes facts and useful source locations. A planner chooses
 the next assignment. A worker performs it. A validator inspects the result and
 whether the evidence establishes acceptance. A supervisor coaches an active

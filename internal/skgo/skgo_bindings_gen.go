@@ -248,6 +248,24 @@ func remote_startReview(ctx context.Context, call skgo.Call) (any, error) {
 	return EncodeRoot6(out)
 }
 
+// remote_startSprintPlan answers src/routes/sprintplan_start.remote.ts#startSprintPlan, a form.
+//
+// A form's submission is assigned onto the handler's own argument type:
+// kit posts a form as binary form data, which can carry an uploaded File,
+// and a File is not a value polytype describes.
+// The result is encoded by EncodeRoot6, generated for its result type.
+func remote_startSprintPlan(ctx context.Context, call skgo.Call) (any, error) {
+	var in skgo0.SkgoArg_startSprintPlan
+	if err := skgo.DecodeForm(call.Arg, &in); err != nil {
+		return nil, err
+	}
+	out, err := skgo0.Skgo_startSprintPlan(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return EncodeRoot6(out)
+}
+
 // remote_steer answers src/routes/steer.remote.ts#steer, a form.
 //
 // A form's submission is assigned onto the handler's own argument type:
@@ -379,6 +397,13 @@ func Remotes() []*skgo.Remote {
 			Name:   "startReview",
 			Fn:     skgo0.Skgo_startReview,
 			Call:   remote_startReview,
+		}),
+		skgo.NewRemote(skgo.RemoteSpec{
+			Kind:   skgo.KindForm,
+			Module: "src/routes/sprintplan_start.remote.ts",
+			Name:   "startSprintPlan",
+			Fn:     skgo0.Skgo_startSprintPlan,
+			Call:   remote_startSprintPlan,
 		}),
 		skgo.NewRemote(skgo.RemoteSpec{
 			Kind:   skgo.KindForm,

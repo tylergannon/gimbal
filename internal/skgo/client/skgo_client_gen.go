@@ -41,17 +41,22 @@ func (c Client) StartReview(ctx context.Context, in skgo0.SkgoArg_startReview) (
 	return skgo.SubmitForm(ctx, c.FormClient, "1q7zkrv/startReview", in, DecodeRoot5)
 }
 
+// StartSprintPlan submits src/routes/sprintplan_start.remote.ts#startSprintPlan once.
+func (c Client) StartSprintPlan(ctx context.Context, in skgo0.SkgoArg_startSprintPlan) (skgo0.SkgoOut_startSprintPlan, error) {
+	return skgo.SubmitForm(ctx, c.FormClient, "7gf0ao/startSprintPlan", in, DecodeRoot6)
+}
+
 // Steer submits src/routes/steer.remote.ts#steer once.
 func (c Client) Steer(ctx context.Context, in skgo0.SkgoArg_steer) (skgo0.SkgoOut_steer, error) {
-	return skgo.SubmitForm(ctx, c.FormClient, "x7ussb/steer", in, DecodeRoot6)
+	return skgo.SubmitForm(ctx, c.FormClient, "x7ussb/steer", in, DecodeRoot7)
 }
 
 // SteerLoop submits src/routes/steer.remote.ts#steerLoop once.
 func (c Client) SteerLoop(ctx context.Context, in skgo0.SkgoArg_steerLoop) (skgo0.SkgoOut_steerLoop, error) {
-	return skgo.SubmitForm(ctx, c.FormClient, "x7ussb/steerLoop", in, DecodeRoot7)
+	return skgo.SubmitForm(ctx, c.FormClient, "x7ussb/steerLoop", in, DecodeRoot8)
 }
 
 // StartValidateProduct submits src/routes/validateproduct_start.remote.ts#startValidateProduct once.
 func (c Client) StartValidateProduct(ctx context.Context, in skgo0.SkgoArg_startValidateProduct) (skgo0.SkgoOut_startValidateProduct, error) {
-	return skgo.SubmitForm(ctx, c.FormClient, "4zat0c/startValidateProduct", in, DecodeRoot8)
+	return skgo.SubmitForm(ctx, c.FormClient, "4zat0c/startValidateProduct", in, DecodeRoot9)
 }

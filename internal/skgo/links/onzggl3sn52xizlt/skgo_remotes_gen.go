@@ -26,6 +26,8 @@ var (
 	Skgo_startResearchEval = startResearchEval
 	// Skgo_startReview is startReview, published as src/routes/review_start.remote.ts#startReview.
 	Skgo_startReview = startReview
+	// Skgo_startSprintPlan is startSprintPlan, published as src/routes/sprintplan_start.remote.ts#startSprintPlan.
+	Skgo_startSprintPlan = startSprintPlan
 	// Skgo_steer is steer, published as src/routes/steer.remote.ts#steer.
 	Skgo_steer = steer
 	// Skgo_steerLoop is steerLoop, published as src/routes/steer.remote.ts#steerLoop.
@@ -61,6 +63,10 @@ type (
 	SkgoArg_startReview = StartReviewInput
 	// SkgoOut_startReview is the type startReview returns.
 	SkgoOut_startReview = StartAccepted
+	// SkgoArg_startSprintPlan is the type startSprintPlan takes.
+	SkgoArg_startSprintPlan = StartSprintPlanInput
+	// SkgoOut_startSprintPlan is the type startSprintPlan returns.
+	SkgoOut_startSprintPlan = StartAccepted
 	// SkgoArg_steer is the type steer takes.
 	SkgoArg_steer = Steer
 	// SkgoOut_steer is the type steer returns.

@@ -14,17 +14,13 @@ import (
 
 // StartSprintPlanInput is the flat typed request for the sprint-plan workflow.
 type StartSprintPlanInput struct {
-	ProjectDir           string                    `json:"project_dir"`
-	WorkDir              string                    `json:"work_dir"`
-	Conversation         string                    `json:"conversation"`
-	Intent               string                    `json:"intent"`
-	SprintDir            string                    `json:"sprint_dir"`
-	RoleResearchIndexing polytype.Optional[string] `json:"role_research_indexing,omitzero"`
-	RoleIndexCuration    polytype.Optional[string] `json:"role_index_curation,omitzero"`
-	RoleSprintPlanClaude polytype.Optional[string] `json:"role_sprint_plan_claude,omitzero"`
-	RoleSprintPlanCodex  polytype.Optional[string] `json:"role_sprint_plan_codex,omitzero"`
-	RoleSprintPlanGemini polytype.Optional[string] `json:"role_sprint_plan_gemini,omitzero"`
-	RoleSprintPlanning   polytype.Optional[string] `json:"role_sprint_planning,omitzero"`
+	ProjectDir         string                    `json:"project_dir"`
+	WorkDir            string                    `json:"work_dir"`
+	Conversation       string                    `json:"conversation"`
+	Intent             string                    `json:"intent"`
+	SprintDir          string                    `json:"sprint_dir"`
+	RoleBulkMapReduce  polytype.Optional[string] `json:"role_bulk_map_reduce,omitzero"`
+	RoleSprintPlanning polytype.Optional[string] `json:"role_sprint_planning,omitzero"`
 }
 
 func startSprintPlan(ctx context.Context, in StartSprintPlanInput) (StartAccepted, error) {
@@ -36,12 +32,8 @@ func startSprintPlan(ctx context.Context, in StartSprintPlanInput) (StartAccepte
 	}
 	return startWorkflow(ctx, in.ProjectDir, in.WorkDir, in.Conversation, "sprint-plan",
 		map[gimbal.WorkflowRole]polytype.Optional[string]{
-			gimbal.WorkflowRole("research-indexing"):  in.RoleResearchIndexing,
-			gimbal.WorkflowRole("index-curation"):     in.RoleIndexCuration,
-			gimbal.WorkflowRole("sprint-plan-claude"): in.RoleSprintPlanClaude,
-			gimbal.WorkflowRole("sprint-plan-codex"):  in.RoleSprintPlanCodex,
-			gimbal.WorkflowRole("sprint-plan-gemini"): in.RoleSprintPlanGemini,
-			gimbal.WorkflowRole("sprint-planning"):    in.RoleSprintPlanning,
+			gimbal.WorkflowRole("bulk-map-reduce"): in.RoleBulkMapReduce,
+			gimbal.WorkflowRole("sprint-planning"): in.RoleSprintPlanning,
 		}, func(runCtx context.Context, workDir string) error {
 			return sprintplan.SprintPlan(runCtx, gimbal.Env{WorkDir: workDir}, sprintplan.Params{
 				Intent:    in.Intent,

@@ -21,15 +21,11 @@ import (
 func sprintplanCommand(defaults map[gimbal.WorkflowRole]string) *cobra.Command {
 	var valueIntent string
 	var valueSprintDir string
-	var researchIndexingModel string
-	var indexCurationModel string
-	var sprintPlanClaudeModel string
-	var sprintPlanCodexModel string
-	var sprintPlanGeminiModel string
+	var bulkMapReduceModel string
 	var sprintPlanningModel string
 	var workDir, project, instanceDir, conversation string
 	var follow bool
-	cmd := &cobra.Command{Use: "sprint-plan", Short: "SprintPlan prepares an indexed working set and a reference-backed implementation plan.", Long: "Package sprintplan turns an accepted value proposition into a proposed plan\nsupported by a local, indexed working set. Supply an intent file naming the\nstakeholder, desired outcome, boundaries, and observable success. Include\npaths to useful local references or existing indexes in that file. Relative\nreference paths are interpreted from the project directory.\n\nProject and prior-art research run together, followed by index curation,\nthree independent drafts, cross-critiques, and synthesis. Researchers collect\ninformation without recommending a solution. Project sources stay in place;\nexternal material is collected locally when useful. Research follows the\nintent's source restrictions, with no fixed source count or local/web mode.\n\nA new sprint directory receives intent.md, working-set/INDEX.md and its\nsources, draft/ and critique/ documents, and plan.md. Existing sprint\ndirectories are refused. Success means these planning artifacts exist, not\nthat the stakeholder outcome has been implemented or validated. Unresolved\nstakeholder choices remain explicit in the plan for human review.\n\nThe three planning lanes default to Claude, Codex, and Gemini; role flags can\noverride them. Planning reads project sources without changing them. Only\nresearch and synthesis maintain the working set; parallel planners return\ndiscoveries in their own documents.\n\nExample:\n\n\tgimbal run sprint-plan --intent ./intent.md --sprint-dir ./ephemeral/sprints/export" + "\n\nThe selected persistent instance owns this run. --project selects its admitted repository; --work-dir selects the execution directory independently. --instance-dir selects the instance state directory (or GIMBAL_INSTANCE_DIR, default .gimbal). --follow waits for terminal success or failure; otherwise the run continues after this client exits. Each role flag chooses a model and optional effort. Executable lookup, PATH, and provider configuration come from the instance startup environment.", Args: cobra.NoArgs}
+	cmd := &cobra.Command{Use: "sprint-plan", Short: "SprintPlan prepares an indexed working set and a reference-backed implementation plan.", Long: "Package sprintplan turns an accepted value proposition into a proposed plan\nsupported by a local, indexed working set. Supply an intent file naming the\nstakeholder, desired outcome, boundaries, and observable success. Include\npaths to useful local references or existing indexes in that file. Relative\nreference paths are interpreted from the project directory.\n\nProject and prior-art research run together, followed by index curation,\nthree independent drafts, cross-critiques, and synthesis. Researchers collect\ninformation without recommending a solution. Project sources stay in place;\nexternal material is collected locally when useful. Research follows the\nintent's source restrictions, with no fixed source count or local/web mode.\n\nA new sprint directory receives intent.md, working-set/INDEX.md and its\nsources, draft/ and critique/ documents, and plan.md. Existing sprint\ndirectories are refused. Success means these planning artifacts exist, not\nthat the stakeholder outcome has been implemented or validated. Unresolved\nstakeholder choices remain explicit in the plan for human review.\n\nThe three planning lanes are independent sessions sharing RoleSprintPlanning.\nRole flags assign models across all sessions using each established role.\nPlanning reads project sources without changing them. Only research and\nsynthesis maintain the working set; parallel planners return discoveries in\ntheir own documents.\n\nExample:\n\n\tgimbal run sprint-plan --intent ./intent.md --sprint-dir ./ephemeral/sprints/export" + "\n\nThe selected persistent instance owns this run. --project selects its admitted repository; --work-dir selects the execution directory independently. --instance-dir selects the instance state directory (or GIMBAL_INSTANCE_DIR, default .gimbal). --follow waits for terminal success or failure; otherwise the run continues after this client exits. Each role flag chooses a model and optional effort. Executable lookup, PATH, and provider configuration come from the instance startup environment.", Args: cobra.NoArgs}
 	cmd.Flags().StringVar(&valueIntent, "intent", "", "Intent is a local file describing who benefits, the outcome, boundaries, success evidence, and useful reference paths. (required)")
 	cmd.Flags().StringVar(&valueSprintDir, "sprint-dir", "", "SprintDir is a new directory for the intent, indexed working set, drafts, critiques, and proposed plan. (required)")
 	_ = cmd.MarkFlagRequired("intent")
@@ -43,40 +39,12 @@ func sprintplanCommand(defaults map[gimbal.WorkflowRole]string) *cobra.Command {
 	cmd.Flags().StringVar(&instanceDir, "instance-dir", instanceDefault, "selected running instance state directory (default: GIMBAL_INSTANCE_DIR or .gimbal)")
 	cmd.Flags().StringVar(&conversation, "conversation", "", "associate this run with a conversation in the owning project")
 	cmd.Flags().BoolVar(&follow, "follow", false, "wait for the hosted run's terminal result; without this flag the run survives client exit")
-	researchIndexingModelDefault := defaults[gimbal.WorkflowRole("research-indexing")]
-	if researchIndexingModelDefault == "" {
-		cmd.Flags().StringVar(&researchIndexingModel, "research-indexing", "", "the model for role research-indexing, as model or model:effort; Pi uses pi/diffusion/model-id; OpenCode uses opencode/model or opencode/provider/model")
-		_ = cmd.MarkFlagRequired("research-indexing")
+	bulkMapReduceModelDefault := defaults[gimbal.WorkflowRole("bulk-map-reduce")]
+	if bulkMapReduceModelDefault == "" {
+		cmd.Flags().StringVar(&bulkMapReduceModel, "bulk-map-reduce", "", "the model for role bulk-map-reduce, as model or model:effort; Pi uses pi/diffusion/model-id; OpenCode uses opencode/model or opencode/provider/model")
+		_ = cmd.MarkFlagRequired("bulk-map-reduce")
 	} else {
-		cmd.Flags().StringVar(&researchIndexingModel, "research-indexing", researchIndexingModelDefault, "advanced override for role research-indexing, as model or model:effort; Pi uses pi/diffusion/model-id; OpenCode uses opencode/model or opencode/provider/model; omit this flag to use the displayed workflow default")
-	}
-	indexCurationModelDefault := defaults[gimbal.WorkflowRole("index-curation")]
-	if indexCurationModelDefault == "" {
-		cmd.Flags().StringVar(&indexCurationModel, "index-curation", "", "the model for role index-curation, as model or model:effort; Pi uses pi/diffusion/model-id; OpenCode uses opencode/model or opencode/provider/model")
-		_ = cmd.MarkFlagRequired("index-curation")
-	} else {
-		cmd.Flags().StringVar(&indexCurationModel, "index-curation", indexCurationModelDefault, "advanced override for role index-curation, as model or model:effort; Pi uses pi/diffusion/model-id; OpenCode uses opencode/model or opencode/provider/model; omit this flag to use the displayed workflow default")
-	}
-	sprintPlanClaudeModelDefault := defaults[gimbal.WorkflowRole("sprint-plan-claude")]
-	if sprintPlanClaudeModelDefault == "" {
-		cmd.Flags().StringVar(&sprintPlanClaudeModel, "sprint-plan-claude", "", "the model for role sprint-plan-claude, as model or model:effort; Pi uses pi/diffusion/model-id; OpenCode uses opencode/model or opencode/provider/model")
-		_ = cmd.MarkFlagRequired("sprint-plan-claude")
-	} else {
-		cmd.Flags().StringVar(&sprintPlanClaudeModel, "sprint-plan-claude", sprintPlanClaudeModelDefault, "advanced override for role sprint-plan-claude, as model or model:effort; Pi uses pi/diffusion/model-id; OpenCode uses opencode/model or opencode/provider/model; omit this flag to use the displayed workflow default")
-	}
-	sprintPlanCodexModelDefault := defaults[gimbal.WorkflowRole("sprint-plan-codex")]
-	if sprintPlanCodexModelDefault == "" {
-		cmd.Flags().StringVar(&sprintPlanCodexModel, "sprint-plan-codex", "", "the model for role sprint-plan-codex, as model or model:effort; Pi uses pi/diffusion/model-id; OpenCode uses opencode/model or opencode/provider/model")
-		_ = cmd.MarkFlagRequired("sprint-plan-codex")
-	} else {
-		cmd.Flags().StringVar(&sprintPlanCodexModel, "sprint-plan-codex", sprintPlanCodexModelDefault, "advanced override for role sprint-plan-codex, as model or model:effort; Pi uses pi/diffusion/model-id; OpenCode uses opencode/model or opencode/provider/model; omit this flag to use the displayed workflow default")
-	}
-	sprintPlanGeminiModelDefault := defaults[gimbal.WorkflowRole("sprint-plan-gemini")]
-	if sprintPlanGeminiModelDefault == "" {
-		cmd.Flags().StringVar(&sprintPlanGeminiModel, "sprint-plan-gemini", "", "the model for role sprint-plan-gemini, as model or model:effort; Pi uses pi/diffusion/model-id; OpenCode uses opencode/model or opencode/provider/model")
-		_ = cmd.MarkFlagRequired("sprint-plan-gemini")
-	} else {
-		cmd.Flags().StringVar(&sprintPlanGeminiModel, "sprint-plan-gemini", sprintPlanGeminiModelDefault, "advanced override for role sprint-plan-gemini, as model or model:effort; Pi uses pi/diffusion/model-id; OpenCode uses opencode/model or opencode/provider/model; omit this flag to use the displayed workflow default")
+		cmd.Flags().StringVar(&bulkMapReduceModel, "bulk-map-reduce", bulkMapReduceModelDefault, "advanced override for role bulk-map-reduce, as model or model:effort; Pi uses pi/diffusion/model-id; OpenCode uses opencode/model or opencode/provider/model; omit this flag to use the displayed workflow default")
 	}
 	sprintPlanningModelDefault := defaults[gimbal.WorkflowRole("sprint-planning")]
 	if sprintPlanningModelDefault == "" {
@@ -98,14 +66,10 @@ func sprintplanCommand(defaults map[gimbal.WorkflowRole]string) *cobra.Command {
 			return err
 		}
 		formInput := routes.StartSprintPlanInput{ProjectDir: project, WorkDir: workDir, Conversation: conversation,
-			Intent:               valueIntent,
-			SprintDir:            valueSprintDir,
-			RoleResearchIndexing: polytype.Optional[string]{Present: cmd.Flags().Changed("research-indexing"), Value: researchIndexingModel},
-			RoleIndexCuration:    polytype.Optional[string]{Present: cmd.Flags().Changed("index-curation"), Value: indexCurationModel},
-			RoleSprintPlanClaude: polytype.Optional[string]{Present: cmd.Flags().Changed("sprint-plan-claude"), Value: sprintPlanClaudeModel},
-			RoleSprintPlanCodex:  polytype.Optional[string]{Present: cmd.Flags().Changed("sprint-plan-codex"), Value: sprintPlanCodexModel},
-			RoleSprintPlanGemini: polytype.Optional[string]{Present: cmd.Flags().Changed("sprint-plan-gemini"), Value: sprintPlanGeminiModel},
-			RoleSprintPlanning:   polytype.Optional[string]{Present: cmd.Flags().Changed("sprint-planning"), Value: sprintPlanningModel},
+			Intent:             valueIntent,
+			SprintDir:          valueSprintDir,
+			RoleBulkMapReduce:  polytype.Optional[string]{Present: cmd.Flags().Changed("bulk-map-reduce"), Value: bulkMapReduceModel},
+			RoleSprintPlanning: polytype.Optional[string]{Present: cmd.Flags().Changed("sprint-planning"), Value: sprintPlanningModel},
 		}
 		formClient, err := web.SelectedFormClient(cmd.Context(), instanceDir, project)
 		if err != nil {

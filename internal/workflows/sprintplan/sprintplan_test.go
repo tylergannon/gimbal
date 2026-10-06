@@ -39,26 +39,35 @@ func (a *handoffHarness) RunTurn(ctx context.Context, id, prompt string, _ json.
 	a.mu.Lock()
 	role := a.models[id]
 	a.mu.Unlock()
-	if role == a.fail {
-		return gimbal.TurnResult{}, fmt.Errorf("fixture failure in %s", role)
+	match := regexp.MustCompile(`(?m)^## (?:document path|root index path|plan path)\n\n([^\n]+)`).FindAllStringSubmatch(prompt, -1)
+	if len(match) == 0 {
+		return gimbal.TurnResult{}, fmt.Errorf("no output path in %s prompt", role)
+	}
+	path := match[len(match)-1][1]
+	rel, err := filepath.Rel(a.dir, path)
+	if err != nil {
+		return gimbal.TurnResult{}, err
+	}
+	if rel == a.fail {
+		return gimbal.TurnResult{}, fmt.Errorf("fixture failure at %s", rel)
 	}
 	stage, count := "", 0
 	var required []string
-	switch role {
-	case "research-indexing":
-		stage, count = "research", 2
-	case "index-curation":
+	switch {
+	case rel == "working-set/INDEX.md":
 		required = []string{"working-set/project/INDEX.md", "working-set/prior-art/INDEX.md"}
-	case "sprint-planning":
-		for _, lane := range []string{"claude", "codex", "gemini"} {
+	case strings.HasPrefix(rel, "working-set/"):
+		stage, count = "research", 2
+	case rel == "plan.md":
+		for _, lane := range []string{"first", "second", "third"} {
 			required = append(required, "draft/"+lane+".md", "critique/"+lane+".md")
 		}
 	default:
 		stage, count = "draft", 3
 		required = []string{"working-set/INDEX.md"}
-		if strings.Contains(prompt, "\ncritique\n") {
+		if strings.HasPrefix(rel, "critique/") {
 			stage = "critique"
-			for _, lane := range []string{"claude", "codex", "gemini"} {
+			for _, lane := range []string{"first", "second", "third"} {
 				required = append(required, "draft/"+lane+".md")
 			}
 		}
@@ -82,11 +91,6 @@ func (a *handoffHarness) RunTurn(ctx context.Context, id, prompt string, _ json.
 			return gimbal.TurnResult{}, ctx.Err()
 		}
 	}
-	match := regexp.MustCompile(`(?m)^## (?:document path|root index path|plan path)\n\n([^\n]+)`).FindAllStringSubmatch(prompt, -1)
-	if len(match) == 0 {
-		return gimbal.TurnResult{}, fmt.Errorf("no output path in %s prompt", role)
-	}
-	path := match[len(match)-1][1]
 	if err := os.WriteFile(path, []byte("# "+role+" "+stage+"\n\nProposed work; see the original intent and local evidence."), 0o644); err != nil {
 		return gimbal.TurnResult{}, err
 	}
@@ -100,16 +104,16 @@ func (*handoffHarness) Fork(context.Context, string) (string, error) {
 func (*handoffHarness) Close(context.Context, string) error { return nil }
 
 func TestSprintHandoffsAndFailure(t *testing.T) {
-	for _, failedRole := range []string{"", "research-indexing", "sprint-plan-codex"} {
-		t.Run("failure="+failedRole, func(t *testing.T) {
+	for _, failedArtifact := range []string{"", "working-set/project/INDEX.md", "draft/second.md"} {
+		t.Run("failure="+failedArtifact, func(t *testing.T) {
 			project := t.TempDir()
 			if err := os.WriteFile(filepath.Join(project, "intent.md"), []byte("Users can export their records. Verify a complete export."), 0o644); err != nil {
 				t.Fatal(err)
 			}
 			dir := filepath.Join(project, "ephemeral", "sprints", "export")
-			a := &handoffHarness{dir: dir, fail: failedRole, models: map[string]string{}, arrivals: map[string]int{}, barriers: map[string]chan struct{}{"research": make(chan struct{}), "draft": make(chan struct{}), "critique": make(chan struct{})}}
+			a := &handoffHarness{dir: dir, fail: failedArtifact, models: map[string]string{}, arrivals: map[string]int{}, barriers: map[string]chan struct{}{"research": make(chan struct{}), "draft": make(chan struct{}), "critique": make(chan struct{})}}
 			bindings := map[gimbal.WorkflowRole]gimbal.ModelBinding{}
-			for _, role := range []gimbal.WorkflowRole{"research-indexing", "index-curation", "sprint-plan-claude", "sprint-plan-codex", "sprint-plan-gemini", gimbal.RoleSprintPlanning} {
+			for _, role := range []gimbal.WorkflowRole{gimbal.RoleBulkMapReduce, gimbal.RoleSprintPlanning} {
 				bindings[role] = gimbal.ModelBinding{Adapter: a, Model: string(role)}
 			}
 			ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
@@ -117,7 +121,7 @@ func TestSprintHandoffsAndFailure(t *testing.T) {
 			err := gimbal.Run(gimbal.Project(ctx, project), "sprint-plan", bindings, func(ctx context.Context) error {
 				return SprintPlan(ctx, gimbal.Env{WorkDir: project}, Params{Intent: "intent.md", SprintDir: "ephemeral/sprints/export"})
 			})
-			if failedRole != "" {
+			if failedArtifact != "" {
 				if err == nil || !strings.Contains(err.Error(), "fixture failure") {
 					t.Fatalf("want branch failure, got %v", err)
 				}

@@ -14,57 +14,57 @@ func init() { gimbal.RegisterGraph(Graph) }
 // Graph is the shape of this workflow, read from the source of SprintPlan.
 var Graph = workflow.Graph{
 	Name:     "sprint-plan",
-	Source:   workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 47},
+	Source:   workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 48},
 	Services: []workflow.Service{},
 	Body: []workflow.Operation{
-		workflow.Set{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 52}, Key: "intent file"},
-		workflow.Set{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 53}, Key: "working set"},
-		workflow.Set{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 54}, Key: "project directory"},
-		workflow.Set{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 55}, Key: "planning rules"},
-		workflow.Set{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 57}, Key: "document output"},
-		workflow.Group{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 59}, Name: "research", Children: []workflow.GroupChild{
-			{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 60}, Name: "project", Services: []workflow.Service{}, Body: []workflow.Operation{
-				workflow.Set{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 61}, Key: "document path"},
-				workflow.Session{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 62}, Name: "research-indexing", From: ""},
-				workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 63}, Session: "research-indexing", Role: "research-indexing", Prompt: "Locate project code, tests, documentation, and existing knowledge that might help realize the intent. Omit your own opinions and solution judgments. Write a compact index at the document path, routing questions to precise local source references for later decisions. Include adjacent material when potentially useful. Reference existing files in place; preserve qualifications, disagreements, and open questions."},
+		workflow.Set{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 53}, Key: "intent file"},
+		workflow.Set{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 54}, Key: "working set"},
+		workflow.Set{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 55}, Key: "project directory"},
+		workflow.Set{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 56}, Key: "planning rules"},
+		workflow.Set{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 58}, Key: "document output"},
+		workflow.Group{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 60}, Name: "research", Children: []workflow.GroupChild{
+			{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 61}, Name: "project", Services: []workflow.Service{}, Body: []workflow.Operation{
+				workflow.Set{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 62}, Key: "document path"},
+				workflow.Session{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 63}, Name: "bulk-map-reduce", From: ""},
+				workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 64}, Session: "bulk-map-reduce", Role: "bulk-map-reduce", Prompt: "Locate project code, tests, documentation, and existing knowledge that might help realize the intent. Omit your own opinions and solution judgments. Write a compact index at the document path, routing questions to precise local source references for later decisions. Include adjacent material when potentially useful. Reference existing files in place; preserve qualifications, disagreements, and open questions."},
 			}},
-			{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 66}, Name: "prior-art", Services: []workflow.Service{}, Body: []workflow.Operation{
-				workflow.Set{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 67}, Key: "collection directory"},
-				workflow.Set{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 68}, Key: "document path"},
-				workflow.Session{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 69}, Name: "research-indexing", From: ""},
-				workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 70}, Session: "research-indexing", Role: "research-indexing", Prompt: "Locate prior art, examples, and reference material that might help realize the intent, including adjacent approaches. Follow supplied local references and source restrictions; discover additional sources when useful. Save collected originals or faithful excerpts with provenance in the collection directory. Omit your own opinions and solution judgments. Write a compact index at the document path with precise local references, qualifications, and unresolved questions for later planning."},
-			}},
-		}},
-		workflow.Set{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 76}, Key: "root index path"},
-		workflow.Session{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 77}, Name: "index-curation", From: ""},
-		workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 78}, Session: "index-curation", Role: "index-curation", Prompt: "Read both research indexes and check their cited local sources. Write a compact index at the root index path organized around likely planning and implementation questions, linking to those indexes and original material. Explain where to look without recommending a solution. Preserve uncertainty and disagreements; a little extra relevant material is useful. Verify representative routes reach useful evidence."},
-		workflow.Iterate{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 83}, Name: "planning", Services: []workflow.Service{}, Body: []workflow.Operation{
-			workflow.Set{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 84}, Key: "phase"},
-			workflow.Set{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 85}, Key: "draft directory"},
-			workflow.Group{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 87}, Name: "plans", Children: []workflow.GroupChild{
-				{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 88}, Name: "claude", Services: []workflow.Service{}, Body: []workflow.Operation{
-					workflow.Set{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 89}, Key: "lane"},
-					workflow.Set{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 90}, Key: "document path"},
-					workflow.Session{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 91}, Name: "sprint-plan-claude", From: ""},
-					workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 92}, Session: "sprint-plan-claude", Role: "sprint-plan-claude", Prompt: "Read the intent and retrieve relevant evidence through INDEX.md in the supplied working set. In draft phase, independently propose ordered implementation work with useful source references, reuse opportunities, dependencies, and observable acceptance; do not read other drafts. In critique phase, read the other two lanes' drafts and assess them against the intent and original evidence for missed value, unnecessary invention, and weak acceptance. Write your document at the document path, including discoveries and unresolved decisions. Leave the working set and other lanes' documents unchanged."},
-				}},
-				{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 95}, Name: "codex", Services: []workflow.Service{}, Body: []workflow.Operation{
-					workflow.Set{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 96}, Key: "lane"},
-					workflow.Set{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 97}, Key: "document path"},
-					workflow.Session{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 98}, Name: "sprint-plan-codex", From: ""},
-					workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 99}, Session: "sprint-plan-codex", Role: "sprint-plan-codex", Prompt: "Read the intent and retrieve relevant evidence through INDEX.md in the supplied working set. In draft phase, independently propose ordered implementation work with useful source references, reuse opportunities, dependencies, and observable acceptance; do not read other drafts. In critique phase, read the other two lanes' drafts and assess them against the intent and original evidence for missed value, unnecessary invention, and weak acceptance. Write your document at the document path, including discoveries and unresolved decisions. Leave the working set and other lanes' documents unchanged."},
-				}},
-				{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 102}, Name: "gemini", Services: []workflow.Service{}, Body: []workflow.Operation{
-					workflow.Set{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 103}, Key: "lane"},
-					workflow.Set{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 104}, Key: "document path"},
-					workflow.Session{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 105}, Name: "sprint-plan-gemini", From: ""},
-					workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 106}, Session: "sprint-plan-gemini", Role: "sprint-plan-gemini", Prompt: "Read the intent and retrieve relevant evidence through INDEX.md in the supplied working set. In draft phase, independently propose ordered implementation work with useful source references, reuse opportunities, dependencies, and observable acceptance; do not read other drafts. In critique phase, read the other two lanes' drafts and assess them against the intent and original evidence for missed value, unnecessary invention, and weak acceptance. Write your document at the document path, including discoveries and unresolved decisions. Leave the working set and other lanes' documents unchanged."},
-				}},
+			{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 67}, Name: "prior-art", Services: []workflow.Service{}, Body: []workflow.Operation{
+				workflow.Set{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 68}, Key: "collection directory"},
+				workflow.Set{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 69}, Key: "document path"},
+				workflow.Session{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 70}, Name: "bulk-map-reduce", From: ""},
+				workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 71}, Session: "bulk-map-reduce", Role: "bulk-map-reduce", Prompt: "Locate prior art, examples, and reference material that might help realize the intent, including adjacent approaches. Follow supplied local references and source restrictions; discover additional sources when useful. Save collected originals or faithful excerpts with provenance in the collection directory. Omit your own opinions and solution judgments. Write a compact index at the document path with precise local references, qualifications, and unresolved questions for later planning."},
 			}},
 		}},
-		workflow.Set{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 113}, Key: "sprint directory"},
-		workflow.Set{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 114}, Key: "plan path"},
-		workflow.Session{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 115}, Name: "sprint-planning", From: ""},
-		workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 116}, Session: "sprint-planning", Role: "sprint-planning", Prompt: "Read the intent, working set, all drafts, and all critiques. Synthesize the simplest sound route to the stakeholder outcome. Write a proposed plan at the plan path with ordered work, dependencies, relevant local references and reuse opportunities, observable acceptance, consequential choices, and unresolved decisions. Incorporate source-supported discoveries and corrections into the working set, keeping recommendations in the plan. Make the handoff usable by a fresh implementation agent; do not implement or claim completion."},
+		workflow.Set{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 77}, Key: "root index path"},
+		workflow.Session{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 78}, Name: "bulk-map-reduce", From: ""},
+		workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 79}, Session: "bulk-map-reduce", Role: "bulk-map-reduce", Prompt: "Read both research indexes and check their cited local sources. Write a compact index at the root index path organized around likely planning and implementation questions, linking to those indexes and original material. Explain where to look without recommending a solution. Preserve uncertainty and disagreements; a little extra relevant material is useful. Verify representative routes reach useful evidence."},
+		workflow.Iterate{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 85}, Name: "planning", Services: []workflow.Service{}, Body: []workflow.Operation{
+			workflow.Set{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 86}, Key: "phase"},
+			workflow.Set{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 87}, Key: "draft directory"},
+			workflow.Group{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 89}, Name: "plans", Children: []workflow.GroupChild{
+				{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 90}, Name: "first", Services: []workflow.Service{}, Body: []workflow.Operation{
+					workflow.Set{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 91}, Key: "lane"},
+					workflow.Set{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 92}, Key: "document path"},
+					workflow.Session{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 93}, Name: "sprint-planning", From: ""},
+					workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 94}, Session: "sprint-planning", Role: "sprint-planning", Prompt: "Read the intent and retrieve relevant evidence through INDEX.md in the supplied working set. In draft phase, independently propose ordered implementation work with useful source references, reuse opportunities, dependencies, and observable acceptance; do not read other drafts. In critique phase, read the other two lanes' drafts and assess them against the intent and original evidence for missed value, unnecessary invention, and weak acceptance. Write your document at the document path, including discoveries and unresolved decisions. Leave the working set and other lanes' documents unchanged."},
+				}},
+				{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 97}, Name: "second", Services: []workflow.Service{}, Body: []workflow.Operation{
+					workflow.Set{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 98}, Key: "lane"},
+					workflow.Set{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 99}, Key: "document path"},
+					workflow.Session{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 100}, Name: "sprint-planning", From: ""},
+					workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 101}, Session: "sprint-planning", Role: "sprint-planning", Prompt: "Read the intent and retrieve relevant evidence through INDEX.md in the supplied working set. In draft phase, independently propose ordered implementation work with useful source references, reuse opportunities, dependencies, and observable acceptance; do not read other drafts. In critique phase, read the other two lanes' drafts and assess them against the intent and original evidence for missed value, unnecessary invention, and weak acceptance. Write your document at the document path, including discoveries and unresolved decisions. Leave the working set and other lanes' documents unchanged."},
+				}},
+				{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 104}, Name: "third", Services: []workflow.Service{}, Body: []workflow.Operation{
+					workflow.Set{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 105}, Key: "lane"},
+					workflow.Set{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 106}, Key: "document path"},
+					workflow.Session{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 107}, Name: "sprint-planning", From: ""},
+					workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 108}, Session: "sprint-planning", Role: "sprint-planning", Prompt: "Read the intent and retrieve relevant evidence through INDEX.md in the supplied working set. In draft phase, independently propose ordered implementation work with useful source references, reuse opportunities, dependencies, and observable acceptance; do not read other drafts. In critique phase, read the other two lanes' drafts and assess them against the intent and original evidence for missed value, unnecessary invention, and weak acceptance. Write your document at the document path, including discoveries and unresolved decisions. Leave the working set and other lanes' documents unchanged."},
+				}},
+			}},
+		}},
+		workflow.Set{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 115}, Key: "sprint directory"},
+		workflow.Set{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 116}, Key: "plan path"},
+		workflow.Session{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 117}, Name: "sprint-planning", From: ""},
+		workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 118}, Session: "sprint-planning", Role: "sprint-planning", Prompt: "Read the intent, working set, all drafts, and all critiques. Synthesize the simplest sound route to the stakeholder outcome. Write a proposed plan at the plan path with ordered work, dependencies, relevant local references and reuse opportunities, observable acceptance, consequential choices, and unresolved decisions. Incorporate source-supported discoveries and corrections into the working set, keeping recommendations in the plan. Make the handoff usable by a fresh implementation agent; do not implement or claim completion."},
 	},
 }

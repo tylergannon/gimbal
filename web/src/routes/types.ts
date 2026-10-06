@@ -166,11 +166,7 @@ export type StartSprintPlanInput = {
   conversation: string;
   intent: string;
   sprint_dir: string;
-  role_research_indexing?: string;
-  role_index_curation?: string;
-  role_sprint_plan_claude?: string;
-  role_sprint_plan_codex?: string;
-  role_sprint_plan_gemini?: string;
+  role_bulk_map_reduce?: string;
   role_sprint_planning?: string;
 };
 

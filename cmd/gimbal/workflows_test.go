@@ -194,12 +194,17 @@ func TestValidateProductHelp(t *testing.T) {
 
 func TestSprintPlanHelpExplainsLocalHandoff(t *testing.T) {
 	help := helpOf(t, "sprint-plan")
+	for _, flag := range []string{"--sprint-plan-claude", "--sprint-plan-codex", "--sprint-plan-gemini", "--research-indexing", "--index-curation"} {
+		if strings.Contains(help, flag) {
+			t.Errorf("workflow-specific role leaked into help: %s", flag)
+		}
+	}
 	for _, flag := range []string{"--intent string", "--sprint-dir string"} {
 		if !strings.Contains(help, flag) || !strings.Contains(lineWith(help, flag), "(required)") {
 			t.Errorf("missing required %s", flag)
 		}
 	}
-	for _, text := range []string{"stakeholder", "working-set/INDEX.md", "cross-critiques", "Existing sprint", "not", "human review", "--sprint-plan-claude", "--sprint-plan-codex", "--sprint-plan-gemini"} {
+	for _, text := range []string{"stakeholder", "working-set/INDEX.md", "cross-critiques", "Existing sprint", "not", "human review", "--bulk-map-reduce", "--sprint-planning"} {
 		if !strings.Contains(help, text) {
 			t.Errorf("sprint-plan help missing %q", text)
 		}

@@ -5,8 +5,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
-	"github.com/tylergannon/gimbal"
 )
 
 // prepare keeps filesystem setup out of the workflow's sequence of agent work.
@@ -47,13 +45,17 @@ func prepare(workdir string, params Params) (string, error) {
 	return dir, os.WriteFile(filepath.Join(dir, "intent.md"), body, 0o644)
 }
 
-// save never publishes a failed turn or an empty document as a completed artifact.
-func save(path string, text gimbal.Text, turnErr error) error {
+// checkArtifact checks the file the agent authored, never its status message.
+func checkArtifact(path string, turnErr error) error {
 	if turnErr != nil {
 		return turnErr
 	}
-	if strings.TrimSpace(string(text)) == "" {
+	body, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("read artifact: %w", err)
+	}
+	if len(strings.TrimSpace(string(body))) == 0 {
 		return fmt.Errorf("empty artifact: %s", path)
 	}
-	return os.WriteFile(path, []byte(string(text)+"\n"), 0o644)
+	return nil
 }

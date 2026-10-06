@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"testing"
@@ -81,7 +82,15 @@ func (a *handoffHarness) RunTurn(ctx context.Context, id, prompt string, _ json.
 			return gimbal.TurnResult{}, ctx.Err()
 		}
 	}
-	raw, _ := json.Marshal("# " + role + " " + stage + "\n\nProposed work; see the original intent and local evidence.")
+	match := regexp.MustCompile(`(?m)^## (?:document path|root index path|plan path)\n\n([^\n]+)`).FindAllStringSubmatch(prompt, -1)
+	if len(match) == 0 {
+		return gimbal.TurnResult{}, fmt.Errorf("no output path in %s prompt", role)
+	}
+	path := match[len(match)-1][1]
+	if err := os.WriteFile(path, []byte("# "+role+" "+stage+"\n\nProposed work; see the original intent and local evidence."), 0o644); err != nil {
+		return gimbal.TurnResult{}, err
+	}
+	raw, _ := json.Marshal("Document saved.")
 	return gimbal.TurnResult{Output: raw}, nil
 }
 func (*handoffHarness) Steer(context.Context, string, string) (bool, error) { return false, nil }
@@ -139,15 +148,19 @@ func TestEmptyInputsAndOutputsDoNotBecomeArtifacts(t *testing.T) {
 		t.Fatal("accepted empty input")
 	}
 	path := filepath.Join(dir, "plan.md")
-	if err := save(path, "  ", nil); err == nil {
+	if err := checkArtifact(path, nil); err == nil {
+		t.Fatal("accepted absent plan")
+	}
+	if err := os.WriteFile(path, []byte("  "), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := checkArtifact(path, nil); err == nil {
 		t.Fatal("accepted empty plan")
 	}
-	if err := save(path, "partial", fmt.Errorf("interrupted")); err == nil {
+	if err := checkArtifact(path, fmt.Errorf("interrupted")); err == nil {
 		t.Fatal("accepted failed turn")
 	}
-	if _, err := os.Stat(path); !os.IsNotExist(err) {
-		t.Fatalf("invalid output published: %v", err)
-	}
+
 }
 
 func TestGraphShowsResearchAndBothPlanningPhases(t *testing.T) {

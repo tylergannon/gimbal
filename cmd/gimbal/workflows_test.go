@@ -48,7 +48,7 @@ func TestGeneratedCLIClientReachesUnknownProjectAndFollowReportsFailure(t *testi
 
 func TestRunListsTheWorkflowsBuiltIn(t *testing.T) {
 	help := helpOf(t)
-	for _, name := range []string{"implement", "pyramid-summary", "research-document", "review", "validate-product"} {
+	for _, name := range []string{"sprint-plan", "implement", "pyramid-summary", "research-document", "review", "validate-product"} {
 		if !strings.Contains(help, "\n  "+name+" ") {
 			t.Errorf("run --help does not list %s:\n%s", name, help)
 		}
@@ -188,6 +188,20 @@ func TestValidateProductHelp(t *testing.T) {
 	for _, text := range []string{"one to three workloads", "implementation source", "issue_repo", "human review"} {
 		if !strings.Contains(help, text) {
 			t.Fatalf("missing %s", text)
+		}
+	}
+}
+
+func TestSprintPlanHelpExplainsLocalHandoff(t *testing.T) {
+	help := helpOf(t, "sprint-plan")
+	for _, flag := range []string{"--intent string", "--sprint-dir string"} {
+		if !strings.Contains(help, flag) || !strings.Contains(lineWith(help, flag), "(required)") {
+			t.Errorf("missing required %s", flag)
+		}
+	}
+	for _, text := range []string{"stakeholder", "working-set/INDEX.md", "cross-critiques", "Existing sprint", "not", "human review", "--sprint-plan-claude", "--sprint-plan-codex", "--sprint-plan-gemini"} {
+		if !strings.Contains(help, text) {
+			t.Errorf("sprint-plan help missing %q", text)
 		}
 	}
 }

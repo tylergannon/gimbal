@@ -158,6 +158,23 @@ export type StartReviewInput = {
 };
 
 /**
+ * StartSprintPlanInput is the flat typed request for the sprint-plan workflow.
+ */
+export type StartSprintPlanInput = {
+  project_dir: string;
+  work_dir: string;
+  conversation: string;
+  intent: string;
+  sprint_dir: string;
+  role_research_indexing?: string;
+  role_index_curation?: string;
+  role_sprint_plan_claude?: string;
+  role_sprint_plan_codex?: string;
+  role_sprint_plan_gemini?: string;
+  role_sprint_planning?: string;
+};
+
+/**
  * StartValidateProductInput is the flat typed request for the validate-product workflow.
  */
 export type StartValidateProductInput = {

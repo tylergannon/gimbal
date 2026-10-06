@@ -1,0 +1,8 @@
+# Sprint planning workflow
+
+intent: User requested implementation and a reviewable PR after settling value-first planning. Workflow code should read like half to one page of pseudocode, with short inline prompts. Build personally; do not delegate implementation or merge the PR.
+decision: Copy research-document's collection/indexing shape with two complementary research branches (project and prior art), then index, three independent drafts, cross-critiques, and synthesis. Existing sources stay in place; external material can be collected locally. No fixed source count or run-wide local/web restriction.
+correction: Researchers gather potentially relevant and adjacent information without opinions or solution judgments. Later planners decide how to use it. The working set exists to reduce rediscovery and invention, not to be a report.
+decision: Keep all orchestration and prompts inside SprintPlan; file helpers only prepare paths and publish nonempty successful responses. A new sprint directory prevents stale drafts from being reused as fresh output. The plan is proposed and carries unresolved stakeholder decisions; completion does not certify implementation or value.
+friction: Adding a built-in generates an SKGo start remote that must also be imported by the app layout; otherwise the adapter rejects the generated-but-uncompiled remote. Added the import alongside existing start remotes.
+friction: The first live curator wrote INDEX.md itself and returned a status summary; saving the response then overwrote its index. Added one shared output instruction: return the complete Markdown document, not a status summary; the workflow owns publication. Cancelled that trial and started a fresh sprint directory after rebuilding.

@@ -135,6 +135,12 @@ func (a *adapter) resumeThreads(ctx context.Context, conn *connection) error {
 	maps.Copy(sessions, a.sessions)
 	a.mu.Unlock()
 	for id, s := range sessions {
+		s.mu.Lock()
+		closing := s.closing
+		s.mu.Unlock()
+		if closing {
+			continue
+		} // cleanup only needs archive, never resume
 		conn.registerThread(id) // subscribe locally before the resume response can emit notifications
 		result, err := callThread(ctx, conn, "thread/resume", map[string]any{
 			"threadId":              id,
@@ -145,12 +151,6 @@ func (a *adapter) resumeThreads(ctx context.Context, conn *connection) error {
 			"excludeTurns":          true,
 		})
 		if err != nil {
-			s.mu.Lock()
-			closing := s.closing
-			s.mu.Unlock()
-			if closing && errors.Is(err, errThreadArchived) {
-				continue
-			}
 			return fmt.Errorf("codex: resume thread %s: %w", id, err)
 		}
 		resumed, err := threadID(result)
@@ -540,13 +540,12 @@ func input(text string) []map[string]any {
 // readTurn consumes notifications from the thread's routed channel until
 // the turn completes and returns the agent's final message.
 func readTurn(ctx context.Context, conn *connection, ch chan rpcMessage, threadID, turnID string, emit *projector) (string, error) {
-	return readTurnFrom(ctx, conn, ch, threadID, turnID, emit, "")
+	return readTurnFrom(ctx, conn, ch, threadID, turnID, emit, "", false)
 }
 
-func readTurnFrom(ctx context.Context, conn *connection, ch chan rpcMessage, threadID, turnID string, emit *projector, final string) (string, error) {
+func readTurnFrom(ctx context.Context, conn *connection, ch chan rpcMessage, threadID, turnID string, emit *projector, final string, finalPhase bool) (string, error) {
 	textOrder := make(map[string]int)
 	finalOrder := 0
-	finalPhase := false
 	childParents := make(map[string]string)
 	childProjectors := make(map[string]*projector)
 	defer func() {

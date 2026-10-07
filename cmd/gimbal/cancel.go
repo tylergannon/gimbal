@@ -17,7 +17,7 @@ func newCancelCommand() *cobra.Command {
 	var workDir string
 	command := &cobra.Command{
 		Use: "cancel RUN", Short: "Cancel an owned run or retry its pending remote cleanup",
-		Long:    "Cancel a run through its owning instance. A terminal run with failed remote cleanup retains stop control while that instance is alive; cancel retries cleanup of the exact owned sessions without restarting the assignment. Accepted means the request was delivered. Observe the run for cancellation and cleanup results; an unreachable backend leaves cleanup pending. The original workflow error remains in history.",
+		Long:    "Cancel a run through its owning instance. A terminal run with failed remote cleanup retains stop control while that instance is alive; cancel retries cleanup of the exact owned sessions without restarting the assignment. Accepted means the request was delivered. For an active run, observe its cancellation results. For a terminal cleanup retry, errors are returned by this command and success releases retained control; an unreachable backend leaves cleanup pending. The original workflow error remains in history.",
 		Example: "  gimbal cancel RUN_ID --work-dir /abs/project",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {

@@ -163,7 +163,8 @@ func (a *adapter) recoverTurn(ctx context.Context, s *session, id, prompt string
 				// History can contain the final item while completion is still pending.
 				// Seed the reader from authoritative items without replaying transcript
 				// events, tools or usage that were already observed.
-				answer, readErr := readTurnFrom(ctx, conn, conn.registerThread(id), id, turn, active.emit, turnAnswer(current))
+				seed, final := nativeAnswer(current)
+				answer, readErr := readTurnFrom(ctx, conn, conn.registerThread(id), id, turn, active.emit, seed, final)
 				if !isTransportError(readErr) {
 					batchCancel()
 					return answer, readErr
@@ -208,8 +209,8 @@ func (a *adapter) recoverTurn(ctx context.Context, s *session, id, prompt string
 				cause = startErr
 			default:
 				cause = fmt.Errorf("codex: cannot safely continue thread %s turn %s (thread %s, turn %s); inspect partial work and confirm all prior operations have ceased before resuming", id, turn, snapshot.Status.Type, current.Status)
-				// An ambiguous/interrupt state will not improve through blind retries.
-				attempt = reconnectAttempts
+				// Native status can lag persisted turn history. Re-read within the
+				// existing bounded budget; reconciliation does not repeat work.
 			}
 		}
 		batchCancel()
@@ -288,8 +289,11 @@ func newTurns(before, after threadSnapshot, prompt string) []nativeTurn {
 }
 
 func turnAnswer(turn nativeTurn) string {
-	var answer string
-	final := false
+	answer, _ := nativeAnswer(turn)
+	return answer
+}
+
+func nativeAnswer(turn nativeTurn) (answer string, final bool) {
 	for _, raw := range turn.Items {
 		var item struct {
 			Type  string `json:"type"`
@@ -304,7 +308,7 @@ func turnAnswer(turn nativeTurn) string {
 			final = item.Phase == "final_answer"
 		}
 	}
-	return answer
+	return answer, final
 }
 
 func turnPrompt(params map[string]any) string {

@@ -27,6 +27,7 @@ type recoveryDaemon struct {
 	threads                                                         map[string]*fakeThread
 	sockets                                                         []*websocket.Conn
 	mode                                                            string
+	fullReads                                                       int
 	coding, validations, planning, starts, effects, dials, archives int
 	outage                                                          bool
 	effectFile                                                      string
@@ -70,6 +71,11 @@ func newRecoveryDaemon(t *testing.T, mode string) (*adapter, *recoveryDaemon) {
 			disconnect, finish := false, false
 			d.mu.Lock()
 			thread := d.threads[id]
+			if thread != nil && thread.status == "broken" && (message.Method == "thread/read" || message.Method == "thread/resume") {
+				d.mu.Unlock()
+				_ = fakeSend(ws, map[string]any{"id": message.ID, "error": map[string]any{"code": -32600, "message": "native rollout unavailable"}})
+				continue
+			}
 			switch message.Method {
 			case "initialize":
 			case "thread/start":
@@ -79,10 +85,6 @@ func newRecoveryDaemon(t *testing.T, mode string) (*adapter, *recoveryDaemon) {
 				result = map[string]any{"thread": map[string]any{"id": id}}
 			case "thread/read":
 				result = map[string]any{"thread": map[string]any{"id": id, "path": "/sessions/owned.jsonl", "status": map[string]string{"type": thread.status}, "turns": []nativeTurn{}}}
-				if thread.finish {
-					finish = true
-					thread.finish = false
-				}
 			case "thread/turns/list":
 				turns := append([]nativeTurn(nil), thread.turns...)
 				if p["itemsView"] == "notLoaded" {
@@ -91,6 +93,13 @@ func newRecoveryDaemon(t *testing.T, mode string) (*adapter, *recoveryDaemon) {
 					}
 				}
 				result = map[string]any{"data": turns, "nextCursor": nil}
+				if p["itemsView"] == "full" {
+					d.fullReads++
+					if thread.finish {
+						finish = true
+						thread.finish = false
+					}
+				}
 			case "thread/resume":
 				result = map[string]any{"thread": map[string]any{"id": id, "status": map[string]string{"type": thread.status}, "turns": thread.turns}}
 			case "turn/start":
@@ -121,6 +130,9 @@ func newRecoveryDaemon(t *testing.T, mode string) (*adapter, *recoveryDaemon) {
 						disconnect = true
 						switch d.mode {
 						case "survive":
+							thread.finish = true
+						case "status-lag":
+							thread.status = "idle"
 							thread.finish = true
 						case "restart", "restart-stale":
 							thread.turns[len(thread.turns)-1].Status = "interrupted"
@@ -240,7 +252,7 @@ func (d *recoveryDaemon) finish(ws *websocket.Conn, id string) {
 }
 
 func TestImplementRecoversActiveCodexTurnWithoutReplayingOutcomes(t *testing.T) {
-	for _, mode := range []string{"survive", "completed", "ack", "restart", "restart-stale", "outage"} {
+	for _, mode := range []string{"survive", "status-lag", "completed", "ack", "restart", "restart-stale", "outage"} {
 		t.Run(mode, func(t *testing.T) {
 			ad, d := newRecoveryDaemon(t, mode)
 			ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
@@ -279,8 +291,11 @@ func TestImplementRecoversActiveCodexTurnWithoutReplayingOutcomes(t *testing.T) 
 				t.Fatal(err)
 			}
 			d.mu.Lock()
-			coding, qa, plans, effects := d.coding, d.validations, d.planning, d.effects
+			coding, qa, plans, effects, fullReads := d.coding, d.validations, d.planning, d.effects, d.fullReads
 			d.mu.Unlock()
+			if mode == "status-lag" && fullReads < 2 {
+				t.Fatalf("lagging state was not re-read: %d", fullReads)
+			}
 			wantCoding := 3
 			if strings.HasPrefix(mode, "restart") {
 				wantCoding = 4
@@ -395,5 +410,52 @@ func TestNormalTurnSnapshotOmitsPriorToolOutput(t *testing.T) {
 	}
 	if len(before.Turns) != 1 || before.Turns[0].ID == "" || len(before.Turns[0].Items) != 0 {
 		t.Fatalf("pre-start ids = %+v", before)
+	}
+}
+
+func TestClosingUnresumableSessionDoesNotBlockHealthyRedial(t *testing.T) {
+	ad, d := newRecoveryDaemon(t, "survive")
+	bad, err := ad.CreateSession(t.Context(), "coding", "", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	good, err := ad.CreateSession(t.Context(), "coding", "", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	cancelled, cancel := context.WithCancel(t.Context())
+	cancel()
+	if err := ad.Close(cancelled, bad); err == nil {
+		t.Fatal("expected retained cleanup failure")
+	}
+	d.mu.Lock()
+	d.threads[bad].status = "broken"
+	d.mu.Unlock()
+	dead := ad.current()
+	_ = dead.ws.CloseNow()
+	<-dead.readDone
+	if _, err := ad.RunTurn(t.Context(), good, "first", nil, func(gimbal.AgentEvent) error { return nil }); err != nil {
+		t.Fatalf("healthy turn = %v", err)
+	}
+	if err := ad.Close(t.Context(), bad); err != nil {
+		t.Fatalf("cleanup retry = %v", err)
+	}
+	ad.mu.Lock()
+	_, retained := ad.sessions[bad]
+	ad.mu.Unlock()
+	if retained {
+		t.Fatal("successful archive retained failed thread")
+	}
+}
+
+func TestRecoveredFinalAnswerIsNotReplacedByCommentary(t *testing.T) {
+	conn := &connection{readDone: make(chan struct{})}
+	ch := make(chan rpcMessage, 2)
+	ch <- rpcMessage{Method: "item/completed", Params: json.RawMessage(mustEncode(map[string]any{"threadId": "thread-1", "turnId": "turn-1", "item": map[string]any{"id": "commentary", "type": "agentMessage", "phase": "commentary", "text": "late progress"}}))}
+	ch <- rpcMessage{Method: "turn/completed", Params: json.RawMessage(mustEncode(map[string]any{"threadId": "thread-1", "turn": map[string]any{"id": "turn-1", "status": "completed"}}))}
+	seed, final := nativeAnswer(nativeTurn{Items: []json.RawMessage{json.RawMessage(`{"type":"agentMessage","phase":"final_answer","text":"native final"}`)}})
+	answer, err := readTurnFrom(t.Context(), conn, ch, "thread-1", "turn-1", newProjector("thread-1", "turn-1", "coding", func(gimbal.AgentEvent) error { return nil }), seed, final)
+	if err != nil || answer != "native final" {
+		t.Fatalf("answer = %q, %v", answer, err)
 	}
 }

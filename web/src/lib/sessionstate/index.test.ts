@@ -253,3 +253,29 @@ describe("session event projection", () => {
     });
   });
 });
+
+test("connection recovery is visible before an assistant response and replaces its own notice", () => {
+  const p = new SessionProjection();
+  const event = (state: string) => ({
+    id: `evt_${state}`,
+    created: 1,
+    type: "session.connection",
+    data: {
+      sessionID: "s",
+      assistantMessageID: "connection",
+      state,
+      message:
+        state === "paused" ? "Inspect existing work, then send resume or cancel." : "Reconnecting",
+      attempt: 3,
+    },
+  });
+  p.apply(event("recovering"));
+  p.apply(event("paused"));
+  const restored = SessionProjection.restore(p.snapshot());
+  assert.equal(restored.viewState().message.s.length, 1);
+  assert.equal(restored.viewState().message.s[0].state, "paused");
+  assert.match(restored.viewState().message.s[0].message, /resume or cancel/);
+  restored.apply(event("recovered"));
+  assert.equal(restored.viewState().message.s.length, 1);
+  assert.equal(restored.viewState().message.s[0].state, "recovered");
+});

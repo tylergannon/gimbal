@@ -295,6 +295,13 @@ func (p *Projection) Apply(event *Obj) {
 	case "session.reasoning.ended":
 		p.reasoningEnded(event)
 
+	case "session.connection":
+		p.upsertMessage(sessionID, obj(
+			"id", assistantID, "type", "connection",
+			"state", cloneValue(d.Get("state")), "message", cloneValue(d.Get("message")),
+			"attempt", cloneValue(d.Get("attempt")), "time", obj("created", created),
+		))
+
 	case "session.retry.scheduled":
 		p.editAssistant(sessionID, assistantID, func(a *Obj) {
 			a.Set("retry", obj("attempt", d.Get("attempt"), "at", d.Get("at"), "error", cloneValue(d.Get("error"))))

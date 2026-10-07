@@ -39,6 +39,17 @@ successful result with failure. Preserve what was actually observed and expose
 the gap rather than inventing a settlement or enforcing one the provider did
 not promise.
 
+Adapters own connection maintenance, reconnection, and reconciliation with
+native operation state. They make bounded, observable, responsible best-effort
+attempts to complete the requested turn and fulfill the adapter contract. A lost
+response is not evidence that an operation never happened. Recovery preserves
+session identity and completed work, avoids blind replay or concurrent replacement,
+and respects cancellation. If automatic continuation is unsafe or its budget
+expires, retain an explicit recoverable state or return an actionable error.
+Unverified remote cleanup remains owned and retryable; local termination does
+not establish remote cessation. Workflows own task policy and independent
+validation, rather than transport repair.
+
 Execution still fails when its authority says it failed: the harness cannot be
 started or reached, the provider returns failure, the caller cancels, no
 terminal result arrives, or a required result is absent or invalid.

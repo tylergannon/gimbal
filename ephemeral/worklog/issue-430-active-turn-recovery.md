@@ -11,3 +11,17 @@ decision: Keep bounded automatic recovery inside the Codex adapter so the existi
 friction: Close deletes ownership before archive, and the current dead-connection test requires that deletion. Retained cancellation and retryable cleanup need coordinated changes with issue 422, including replacement of that test's incorrect expectation. Shared-daemon restart and unrelated-thread control remain outside this repair.
 
 decision: The existing Claude unknown-tool retry sends a new follow-up; broadening it to Codex EOF would permit duplicate execution. Recover native state first. Prove preservation of tool effects, no concurrent replacement, one task validation, and no replay of accepted outcomes across active-turn loss, lost completion, durable-history restart, persistent outage, and cancellation.
+
+correction: Tyler authorized implementation and clarified that adapters own connection maintenance, reconnection and responsible best-effort turn completion. Put the contract in HarnessAdapter Godoc and the canonical Gimbal View promises, without claiming every adapter is already proven to meet it.
+
+decision: Bounded automatic reconciliation stays inside the original RunTurn. Ambiguous interruption or exhausted retries pauses that same call; the existing session steer accepts resume as an explicit adapter control. Cancellation returns its original cause, while failed Close retains ownership and a terminal hosted run retains its cleanup controller. The cancel CLI reaches that controller without dispatching another assignment. Host-process restart is outside same-call recovery.
+
+friction: Live daemon protocol rejects full-history thread/read. Read thread metadata and explicitly page thread/turns/list; a brand-new thread is not materialized until its first user message. The generated shape alone did not establish usable history.
+
+decision: The approved diagnosis plan explicitly included preserving recovery and stop control after cleanup failure and coordinating ownership with 422. Terminal cleanup control is necessary to make retained adapter ownership actionable; this is not a claim that every part of 422 is completed. Make that ownership explicit in the internal live Controller contract so compiled hosted runs inherit it.
+
+correction: Independent review identified cancellation amplification through shared writes, inadequate transient retry spacing, stale native turn status after restart, and confirmed stopped-daemon cleanup. Use bounded connection writes independently of one caller, retry at 0/10/30 seconds within a minute, allow only operator-confirmed continuation on an idle thread even with stale turn status, and accept verified stopped-daemon cessation. Connection refusal while running remains pending.
+
+decision: Round-02 performance finding is valid: pre-start reconciliation only needs native turn IDs. Request notLoaded item views on the healthy path; fetch full durable items during recovery.
+
+disposition: Round-02 proposal to time out the paused state is not required behavior. Issue 430 explicitly asks to retain recoverable same-run state with a supported resume action when automatic continuation is unsafe. Automatic attempts stop, a stable actionable paused notice is emitted, and cancellation remains available; callers can bound lifetime with their own context deadline. Returning from Generate after an arbitrary timeout unwinds the Go workflow, removing that same-stack resume path. Keep the documented human-controlled pause; do not introduce workflow replay.

@@ -102,7 +102,11 @@ func connect(ctx context.Context, startDaemon bool) (*connection, error) {
 			if time.Now().After(deadline) {
 				return nil, fmt.Errorf("codex: app-server daemon did not come up within 10s")
 			}
-			time.Sleep(100 * time.Millisecond)
+			select {
+			case <-time.After(100 * time.Millisecond):
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			}
 		}
 	}
 
@@ -270,6 +274,9 @@ func messageThreadID(raw json.RawMessage) string {
 }
 
 func (c *connection) call(ctx context.Context, method string, params any) (json.RawMessage, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	id := c.nextID.Add(1)
 	response := make(chan rpcMessage, 1)
 	c.pendMu.Lock()
@@ -280,7 +287,7 @@ func (c *connection) call(ctx context.Context, method string, params any) (json.
 		delete(c.pending, id)
 		c.pendMu.Unlock()
 	}()
-	if err := c.send(map[string]any{"id": id, "method": method, "params": params}); err != nil {
+	if err := c.sendContext(ctx, map[string]any{"id": id, "method": method, "params": params}); err != nil {
 		return nil, err
 	}
 	select {
@@ -301,13 +308,32 @@ func (c *connection) respond(message rpcMessage, result any) error {
 }
 
 func (c *connection) send(value any) error {
+	ctx, cancel := context.WithTimeout(context.Background(), controlTimeout)
+	defer cancel()
+	return c.sendContext(ctx, value)
+}
+
+func (c *connection) sendContext(ctx context.Context, value any) error {
 	encoded, err := json.Marshal(value)
 	if err != nil {
 		return err
 	}
 	c.writeMu.Lock()
 	defer c.writeMu.Unlock()
-	return c.ws.Write(context.Background(), websocket.MessageText, encoded)
+	// Cancellation of one caller must not retire the socket shared by other
+	// turns. Once writing begins, complete the frame under a bounded connection
+	// deadline; the call still observes its own cancellation while awaiting reply.
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	writeCtx, cancel := context.WithTimeout(context.Background(), controlTimeout)
+	defer cancel()
+	if err := c.ws.Write(writeCtx, websocket.MessageText, encoded); err != nil {
+		c.finishRead(err)
+		_ = c.ws.CloseNow()
+		return c.exitError()
+	}
+	return nil
 }
 
 // next returns the next notification or server request for threadID.
@@ -322,8 +348,17 @@ func (c *connection) next(ctx context.Context, ch chan rpcMessage) (rpcMessage, 
 	}
 }
 
+type transportError struct{ error }
+
+func (e *transportError) Unwrap() error { return e.error }
+
+func isTransportError(err error) bool {
+	_, ok := errors.AsType[*transportError](err)
+	return ok
+}
+
 func (c *connection) exitError() error {
-	return fmt.Errorf("codex: app-server connection closed: %w", c.readErr)
+	return &transportError{fmt.Errorf("codex: app-server connection closed: %w", c.readErr)}
 }
 
 // dead reports whether the connection's reader has already failed: the

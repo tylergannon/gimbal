@@ -254,6 +254,12 @@ func (s *scope) end() error {
 			cancel()
 			if closeErr != nil {
 				s.run.recordCloseFailure(session.id, closeErr)
+				s.run.closeMu.Lock()
+				if s.run.pendingClose == nil {
+					s.run.pendingClose = make(map[string]*Session)
+				}
+				s.run.pendingClose[session.id] = session
+				s.run.closeMu.Unlock()
 			}
 		}
 		s.run.event(s.key, session.id, "", SessionClosed{Error: errString(closeErr)})

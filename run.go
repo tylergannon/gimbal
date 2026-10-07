@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"maps"
 	"os"
 	"path"
 	"path/filepath"
@@ -85,6 +86,8 @@ type run struct {
 	recordErr        error
 	closeMu          sync.Mutex
 	closeErrs        []error
+	pendingClose     map[string]*Session
+	cleanupMu        sync.Mutex
 }
 
 // CloseError aggregates every HarnessAdapter.Close failure a run's sessions
@@ -428,8 +431,49 @@ func (r *run) SteerLoop(key, message string) error {
 // or already ended key is an error.
 func (r *run) CancelScope(key string, cause error) error {
 	r.mu.Lock()
+	ended := r.scopes[""] == nil
+	if key == "" && ended {
+		r.mu.Unlock()
+		return r.retryCleanup()
+	}
 	defer r.mu.Unlock()
 	return r.cancelScopeLocked(key, cause)
+}
+
+// CleanupPending is the internal live table's retained-ownership check. A
+// terminal workflow with failed remote cleanup remains reachable for stop.
+func (r *run) CleanupPending() bool {
+	r.closeMu.Lock()
+	defer r.closeMu.Unlock()
+	return len(r.pendingClose) != 0
+}
+
+func (r *run) retryCleanup() error {
+	r.cleanupMu.Lock()
+	defer r.cleanupMu.Unlock()
+	r.closeMu.Lock()
+	pending := make(map[string]*Session, len(r.pendingClose))
+	maps.Copy(pending, r.pendingClose)
+	r.closeMu.Unlock()
+	if len(pending) == 0 {
+		return errors.New("gimbal: run has ended and has no pending cleanup")
+	}
+	var failures []error
+	for id, session := range pending {
+		ctx, cancel := context.WithTimeout(context.Background(), closeTimeout)
+		err := session.adapter.Close(ctx, session.native)
+		cancel()
+		if err != nil {
+			failures = append(failures, fmt.Errorf("%s: %w", id, err))
+			continue
+		}
+		r.closeMu.Lock()
+		delete(r.pendingClose, id)
+		r.closeMu.Unlock()
+	}
+	// The original terminal error remains in history. This stop request reports
+	// its own current delivery result and never invokes the workflow again.
+	return errors.Join(failures...)
 }
 
 func (r *run) cancelScopeLocked(key string, cause error) error {
@@ -466,7 +510,7 @@ func (r *run) CancelHostedRun(cause Killed, deliver func(context.Context, Killed
 	r.mu.Lock()
 	if r.scopes[""] == nil {
 		r.mu.Unlock()
-		return fmt.Errorf("gimbal: run has ended")
+		return r.retryCleanup()
 	}
 	reserved := error(cause)
 	if r.rootCancel != nil {

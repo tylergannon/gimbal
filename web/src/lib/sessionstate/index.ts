@@ -251,6 +251,20 @@ export class SessionProjection {
       case "session.reasoning.ended":
         this.reasoningEnded(event);
         break;
+      case "session.connection": {
+        const existing = this.messageIndex.get(sid)?.get(d.assistantMessageID);
+        const notice = {
+          id: d.assistantMessageID,
+          type: "connection",
+          state: d.state,
+          message: d.message,
+          attempt: d.attempt,
+          time: { created: event.created },
+        };
+        if (existing) Object.assign(existing, notice);
+        else this.insert(sid, notice);
+        break;
+      }
       case "session.retry.scheduled":
         this.editAssistant(sid, d.assistantMessageID, (a) => {
           a.retry = { attempt: d.attempt, at: d.at, error: clone(d.error) };

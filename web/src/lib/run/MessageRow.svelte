@@ -14,7 +14,7 @@
 			...(message.content ? { content: message.content.map((part: JSONObject) => ({ ...part, ...(part.state ? { state: { ...part.state } } : {}) })) } : {})
 		};
 	});
-	const status = $derived(pending?.delivery ?? (row.error ? 'failed' : row.time?.completed ? 'completed' : 'running'));
+	const status = $derived(row.type === 'connection' ? row.state : pending?.delivery ?? (row.error ? 'failed' : row.time?.completed ? 'completed' : 'running'));
 	// Quiet mode drops an assistant message straight to its tool rows when it
 	// carries no text or reasoning of its own — no "Assistant / completed"
 	// card is worth a whole article for a message that is only tool calls.
@@ -63,6 +63,8 @@
 				{#if row.retry}<p class="warning">Retry scheduled{row.retry.attempt ? ` · attempt ${row.retry.attempt}` : ''}: {text(row.retry.error)}</p>{/if}
 				{#if row.error}<p class="error">{text(row.error)}</p>{/if}
 				{#if !quiet}<footer>{usageText(usageOf(row))}</footer>{/if}
+			{:else if row.type === 'connection'}
+				<p class="prose">{row.message}</p>
 			{:else if row.text !== undefined}
 				<p class="prose">{row.text}</p>
 			{:else if row.type === 'shell'}

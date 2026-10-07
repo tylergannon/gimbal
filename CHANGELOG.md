@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Codex reconciles active turns after connection loss with bounded retries and
+  same-run operator resume, preserving completed work and native identity.
+  Failed remote cleanup retains stop control; `gimbal cancel` retries it.
+  The adapter contract now explicitly owns connection maintenance and
+  responsible best-effort completion of requested turns.
+
 ### Added
 
 - `research-document` checks extracted semantic-index claims against local source

@@ -471,3 +471,47 @@ func assertCancellationBusy(t *testing.T, id string, accepted routes.ControlAcce
 		t.Fatalf("busy cancellation: accepted=%+v error=%v", accepted, err)
 	}
 }
+
+type retainedCompiledAdapter struct {
+	blocking
+	ready  bool
+	closes int
+}
+
+func (a *retainedCompiledAdapter) Close(context.Context, string) error {
+	a.closes++
+	if !a.ready {
+		return errors.New("native cleanup pending")
+	}
+	return nil
+}
+
+func TestCompiledRunRetainsTerminalCleanupControl(t *testing.T) {
+	instance, p, _ := compiledProject(t)
+	adapter := &retainedCompiledAdapter{}
+	var deliveries int
+	root, finish, err := instance.OpenCompiledRun(t.Context(), p.Path(), "hosted-cancellation-test", map[gimbal.WorkflowRole]gimbal.ModelBinding{"coder": {Adapter: adapter, Model: "m"}}, "", t.TempDir(), CompiledControls{CancelRun: func(context.Context, gimbal.Killed) error { deliveries++; return nil }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := gimbal.NewSession(root, "coder", t.TempDir()).Generate[gimbal.Text](root, "complete"); err != nil {
+		t.Fatal(err)
+	}
+	id := startedRunID(t, p.Path())
+	if err := finish(errors.New("original failure")); err == nil {
+		t.Fatal("unconfirmed cleanup reported success")
+	}
+	if err := p.KillScope(id, "", "person", "retry cleanup"); err == nil || !strings.Contains(err.Error(), "native cleanup pending") {
+		t.Fatalf("pending cleanup = %v", err)
+	}
+	adapter.ready = true
+	if err := p.KillScope(id, "", "person", "retry cleanup"); err != nil {
+		t.Fatal(err)
+	}
+	if err := p.KillScope(id, "", "person", "retry cleanup"); err == nil {
+		t.Fatal("cleaned run still advertised")
+	}
+	if adapter.closes != 3 || deliveries != 0 {
+		t.Fatalf("closes=%d replacement deliveries=%d", adapter.closes, deliveries)
+	}
+}

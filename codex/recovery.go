@@ -241,7 +241,10 @@ func (active *activeTurn) notice(state string, attempt int, err error) error {
 	active.mu.Lock()
 	conn := active.conn
 	active.mu.Unlock()
-	dropped := conn.queueDrops(conn.registerThread(active.emit.sessionID))
+	conn.threadsMu.Lock()
+	ch := conn.threads[active.emit.sessionID]
+	conn.threadsMu.Unlock()
+	dropped := conn.takeQueueDrops(ch)
 	if dropped > 0 {
 		message += fmt.Sprintf("; %d queued display notifications discarded; tool and usage details may be incomplete", dropped)
 	}

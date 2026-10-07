@@ -53,6 +53,13 @@ func TestNotificationBacklogPreservesRPCAndTerminalAnswer(t *testing.T) {
 	if err != nil || answer != "native final" {
 		t.Fatalf("native answer = %q, %v", answer, err)
 	}
+	conn.dispatch(rpcMessage{Method: "item/completed", Params: json.RawMessage(`{"threadId":"thread-1","turnId":"turn-2","item":{"id":"final-2","type":"agentMessage","phase":"final_answer","text":"clean second turn"}}`)})
+	conn.dispatch(rpcMessage{Method: "turn/completed", Params: json.RawMessage(`{"threadId":"thread-1","turn":{"id":"turn-2","status":"completed"}}`)})
+	gap = false
+	answer, err = readTurn(t.Context(), conn, ch, "thread-1", "turn-2", newProjector("thread-1", "turn-2", "coding", func(event gimbal.AgentEvent) error { gap = gap || event.Type == "session.connection"; return nil }))
+	if err != nil || answer != "clean second turn" || gap {
+		t.Fatalf("second answer=%q err=%v stale gap=%v", answer, err, gap)
+	}
 }
 
 func TestControlBacklogRetiresForNativeReconciliation(t *testing.T) {

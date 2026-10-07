@@ -560,17 +560,17 @@ func readTurnFrom(ctx context.Context, conn *connection, ch chan rpcMessage, thr
 		if err != nil {
 			return "", err
 		}
-		if dropped := conn.queueDrops(ch); dropped > reportedDrops {
+		if dropped := conn.takeQueueDrops(ch); dropped > 0 {
+			reportedDrops += dropped
 			emit.mu.Lock()
 			gapErr := emit.event("session.connection", map[string]any{
-				"assistantMessageID": "connection.gap." + turnID, "state": "gap", "dropped": dropped,
-				"message": fmt.Sprintf("Codex discarded %d queued display notifications. Tool and usage details may be incomplete; the native turn result remains authoritative.", dropped),
+				"assistantMessageID": "connection.gap." + turnID, "state": "gap", "dropped": reportedDrops,
+				"message": fmt.Sprintf("Codex discarded %d queued display notifications. Tool and usage details may be incomplete; the native turn result remains authoritative.", reportedDrops),
 			}, map[string]any{"provider": "codex", "sessionID": threadID, "turnID": turnID})
 			emit.mu.Unlock()
 			if gapErr != nil {
 				return "", gapErr
 			}
-			reportedDrops = dropped
 		}
 		messageThread := messageThreadID(message.Params)
 		if parentTool, child := childParents[messageThread]; child && messageThread != threadID {

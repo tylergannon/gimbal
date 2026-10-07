@@ -343,14 +343,14 @@ func (c *connection) noteDropped(threadID string, queue *threadQueue) {
 
 }
 
-func (c *connection) queueDrops(ch chan rpcMessage) uint64 {
+func (c *connection) takeQueueDrops(ch chan rpcMessage) uint64 {
 	c.threadsMu.Lock()
 	queue := c.queues[ch]
 	c.threadsMu.Unlock()
 	if queue == nil {
 		return 0
 	}
-	return queue.dropped.Load()
+	return queue.dropped.Swap(0)
 }
 
 func messageThreadID(raw json.RawMessage) string {

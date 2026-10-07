@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/tylergannon/gimbal/internal/skgo/params"
+
 	"github.com/tylergannon/gimbal/internal/host"
 
 	"github.com/tylergannon/skgo"
@@ -106,7 +108,7 @@ func TestInterviewAnswerFormReachesTheWaitingInterview(t *testing.T) {
 
 	id := startedRunID(t, project)
 	first := pendingQuestion(t, runtime, id, "")
-	answered, err := routes.Skgo_answerInterview(runtime.Context(), routes.InterviewAnswer{
+	answered, err := routes.Skgo_answerInterview(runtime.Context(), params.RequestEvent{}, routes.InterviewAnswer{
 		Run: id, QuestionID: first.QuestionID, Answer: "Blue",
 	})
 	if err != nil || !answered.Accepted {
@@ -114,14 +116,14 @@ func TestInterviewAnswerFormReachesTheWaitingInterview(t *testing.T) {
 	}
 
 	var status *skgo.HTTPError
-	if _, err := routes.Skgo_answerInterview(runtime.Context(), routes.InterviewAnswer{
+	if _, err := routes.Skgo_answerInterview(runtime.Context(), params.RequestEvent{}, routes.InterviewAnswer{
 		Run: id, QuestionID: first.QuestionID, Answer: "duplicate",
 	}); !errors.As(err, &status) || status.Status != 404 {
 		t.Fatalf("stale answer = %v, want 404", err)
 	}
 
 	second := pendingQuestion(t, runtime, id, first.QuestionID)
-	answered, err = routes.Skgo_answerInterview(runtime.Context(), routes.InterviewAnswer{
+	answered, err = routes.Skgo_answerInterview(runtime.Context(), params.RequestEvent{}, routes.InterviewAnswer{
 		Run: id, QuestionID: second.QuestionID, Answer: "",
 	})
 	if err != nil || !answered.Accepted {

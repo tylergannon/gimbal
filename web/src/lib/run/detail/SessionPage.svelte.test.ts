@@ -95,7 +95,7 @@ test("Focus browses recorded assistant moments, returns live, and flips the same
   await screen.getByRole("button", { name: "Return to live" }).click();
   await expect.element(card.getByText("Latest recorded answer.", { exact: true })).toBeVisible();
 
-  await screen.getByRole("button", { name: "Prompt & context" }).click();
+  await screen.getByRole("button", { name: /Prompt & context/ }).click();
   await expect.element(screen.getByRole("region", { name: "Prompt and context" })).toBeVisible();
   await expect
     .element(

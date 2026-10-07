@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/tylergannon/gimbal/internal/skgo/params"
+
 	"github.com/tylergannon/skgo"
 
 	"github.com/tylergannon/gimbal/internal/live"
@@ -24,7 +26,7 @@ type InterviewAnswered struct {
 
 // answerInterview carries one person's answer from the run page to the live
 // interview. An empty answer is valid: it tells the interview to end normally.
-func answerInterview(ctx context.Context, arg InterviewAnswer) (InterviewAnswered, error) {
+func answerInterview(ctx context.Context, _ params.RequestEvent, arg InterviewAnswer) (InterviewAnswered, error) {
 	runs := live.RunsFrom(ctx)
 	if runs == nil {
 		return InterviewAnswered{}, skgo.Errorf(http.StatusInternalServerError,

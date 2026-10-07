@@ -1,12 +1,24 @@
 allowBuilds:
   esbuild: true
 catalog:
-  vite: npm:@voidzero-dev/vite-plus-core@0.3.1
-  vitest: 4.1.11
-  vite-plus: 0.3.1
-  "@vitest/browser-playwright": 4.1.11
+  vite: npm:@voidzero-dev/vite-plus-core@1.1.0
+  vitest: 5.0.3
+  vite-plus: 1.1.0
+  "@vitest/browser-playwright": 5.0.3
 minimumReleaseAgeExclude:
-  - "@skgo/sveltekit-adapter@0.5.0"
+  - "@skgo/sveltekit-adapter@0.22.0"
+  - "@voidzero-dev/vite-plus-core@1.1.0"
+  - "vite-plus@1.1.0"
+  - "@voidzero-dev/vite-plus-darwin-arm64@1.1.0"
+  - "@voidzero-dev/vite-plus-darwin-x64@1.1.0"
+  - "@voidzero-dev/vite-plus-linux-arm64-gnu@1.1.0"
+  - "@voidzero-dev/vite-plus-linux-arm64-musl@1.1.0"
+  - "@voidzero-dev/vite-plus-linux-x64-gnu@1.1.0"
+  - "@voidzero-dev/vite-plus-linux-x64-musl@1.1.0"
+  - "@voidzero-dev/vite-plus-win32-arm64-msvc@1.1.0"
+  - "@voidzero-dev/vite-plus-win32-x64-msvc@1.1.0"
+  - playwright-core@1.64.0
+  - playwright@1.64.0
 overrides:
   vite@*: "catalog:"
   vitest@*: "catalog:"

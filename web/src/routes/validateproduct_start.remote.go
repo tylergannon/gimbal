@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/internal/skgo/params"
 	"github.com/tylergannon/gimbal/internal/workflows/validateproduct"
 	"github.com/tylergannon/polytype"
 	"github.com/tylergannon/skgo"
@@ -23,7 +24,7 @@ type StartValidateProductInput struct {
 	RoleProductTriage       polytype.Optional[string] `json:"role_product_triage,omitzero"`
 }
 
-func startValidateProduct(ctx context.Context, in StartValidateProductInput) (StartAccepted, error) {
+func startValidateProduct(ctx context.Context, _ params.RequestEvent, in StartValidateProductInput) (StartAccepted, error) {
 	if strings.TrimSpace(in.SuiteFile) == "" {
 		return StartAccepted{}, skgo.Invalidf("suite_file", "Give suite_file.")
 	}

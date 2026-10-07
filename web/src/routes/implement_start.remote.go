@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/internal/skgo/params"
 	"github.com/tylergannon/gimbal/internal/workflows/implementation"
 	"github.com/tylergannon/polytype"
 	"github.com/tylergannon/skgo"
@@ -25,7 +26,7 @@ type StartImplementInput struct {
 	RoleQaOrchestration       polytype.Optional[string] `json:"role_qa_orchestration,omitzero"`
 }
 
-func startImplement(ctx context.Context, in StartImplementInput) (StartAccepted, error) {
+func startImplement(ctx context.Context, _ params.RequestEvent, in StartImplementInput) (StartAccepted, error) {
 	if strings.TrimSpace(in.OutcomesFile) == "" {
 		return StartAccepted{}, skgo.Invalidf("outcomes_file", "Give outcomes_file.")
 	}

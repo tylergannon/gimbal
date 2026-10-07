@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/tylergannon/gimbal/internal/skgo/params"
+
 	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/internal/live"
 	"github.com/tylergannon/gimbal/internal/observation"
@@ -42,7 +44,7 @@ func TestRunPageControlsReachTheLiveRun(t *testing.T) {
 	defer release()
 	ctx := live.WithRuns(t.Context(), runs)
 
-	stopped, err := routes.Skgo_stopTurn(ctx, routes.StopTurn{Run: "run.1", Turn: "coder.1/turn.2"})
+	stopped, err := routes.Skgo_stopTurn(ctx, params.RequestEvent{}, routes.StopTurn{Run: "run.1", Turn: "coder.1/turn.2"})
 	if err != nil || !stopped.Accepted || controlled.turn != "coder.1/turn.2" {
 		t.Fatalf("stop turn = %+v, %v; target = %q", stopped, err, controlled.turn)
 	}
@@ -51,7 +53,7 @@ func TestRunPageControlsReachTheLiveRun(t *testing.T) {
 		t.Fatalf("stop cause = %#v, want person kill of %q", controlled.cause, controlled.turn)
 	}
 
-	cancelled, err := routes.Skgo_cancelRun(ctx, routes.CancelRun{Run: "run.1"})
+	cancelled, err := routes.Skgo_cancelRun(ctx, params.RequestEvent{}, routes.CancelRun{Run: "run.1"})
 	if err != nil || !cancelled.Accepted || controlled.scope != "" {
 		t.Fatalf("cancel run = %+v, %v; scope = %q", cancelled, err, controlled.scope)
 	}
@@ -81,7 +83,7 @@ func TestCancelRunPersistsACancelledRecord(t *testing.T) {
 	<-entered
 	id := startedRunID(t, project)
 
-	result, err := routes.Skgo_cancelRun(runtime.Context(), routes.CancelRun{Run: id})
+	result, err := routes.Skgo_cancelRun(runtime.Context(), params.RequestEvent{}, routes.CancelRun{Run: id})
 	if err != nil || !result.Accepted {
 		t.Fatalf("cancel run = %+v, %v; want accepted", result, err)
 	}
@@ -135,7 +137,7 @@ func TestCancelRunThatEndsDuringControlReturnsLocalNotFound(t *testing.T) {
 	}()
 	id := <-started
 	<-entered
-	accepted, err := routes.Skgo_cancelRun(live.WithRuns(t.Context(), runs), routes.CancelRun{Run: id})
+	accepted, err := routes.Skgo_cancelRun(live.WithRuns(t.Context(), runs), params.RequestEvent{}, routes.CancelRun{Run: id})
 	var status *skgo.HTTPError
 	if accepted.Accepted || !errors.As(err, &status) || status.Status != http.StatusNotFound {
 		t.Fatalf("local end race: accepted=%+v error=%v; want 404", accepted, err)

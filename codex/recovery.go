@@ -238,6 +238,13 @@ func (a *adapter) recoverTurn(ctx context.Context, s *session, id, prompt string
 
 func (active *activeTurn) notice(state string, attempt int, err error) error {
 	message := "Codex connection " + state
+	active.mu.Lock()
+	conn := active.conn
+	active.mu.Unlock()
+	dropped := conn.queueDrops(conn.registerThread(active.emit.sessionID))
+	if dropped > 0 {
+		message += fmt.Sprintf("; %d queued display notifications discarded; tool and usage details may be incomplete", dropped)
+	}
 	if err != nil {
 		message += ": " + err.Error()
 	}
@@ -245,7 +252,7 @@ func (active *activeTurn) notice(state string, attempt int, err error) error {
 	defer active.emit.mu.Unlock()
 	return active.emit.event("session.connection", map[string]any{
 		"assistantMessageID": active.noticeID, "attempt": attempt, "maxAttempts": reconnectAttempts,
-		"state": state, "message": message,
+		"state": state, "message": message, "dropped": dropped,
 	}, map[string]any{"provider": "codex", "sessionID": active.emit.sessionID, "turnID": active.emit.turnID, "messageID": active.noticeID})
 }
 

@@ -546,6 +546,7 @@ func readTurn(ctx context.Context, conn *connection, ch chan rpcMessage, threadI
 
 func readTurnFrom(ctx context.Context, conn *connection, ch chan rpcMessage, threadID, turnID string, emit *projector, final string, finalPhase bool) (string, error) {
 	textOrder := make(map[string]int)
+	var reportedDrops uint64
 	finalOrder := 0
 	childParents := make(map[string]string)
 	childProjectors := make(map[string]*projector)
@@ -558,6 +559,18 @@ func readTurnFrom(ctx context.Context, conn *connection, ch chan rpcMessage, thr
 		message, err := conn.next(ctx, ch)
 		if err != nil {
 			return "", err
+		}
+		if dropped := conn.queueDrops(ch); dropped > reportedDrops {
+			emit.mu.Lock()
+			gapErr := emit.event("session.connection", map[string]any{
+				"assistantMessageID": "connection.gap." + turnID, "state": "gap", "dropped": dropped,
+				"message": fmt.Sprintf("Codex discarded %d queued display notifications. Tool and usage details may be incomplete; the native turn result remains authoritative.", dropped),
+			}, map[string]any{"provider": "codex", "sessionID": threadID, "turnID": turnID})
+			emit.mu.Unlock()
+			if gapErr != nil {
+				return "", gapErr
+			}
+			reportedDrops = dropped
 		}
 		messageThread := messageThreadID(message.Params)
 		if parentTool, child := childParents[messageThread]; child && messageThread != threadID {

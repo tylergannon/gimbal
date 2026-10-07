@@ -48,8 +48,9 @@ type connection struct {
 // One reader and a bounded FIFO shared by native parent/child routes. The
 // lock lets overflow discard display frames without reordering control frames.
 type threadQueue struct {
-	mu    sync.Mutex
-	ready chan struct{}
+	mu      sync.Mutex
+	ready   chan struct{}
+	dropped atomic.Uint64
 }
 
 type rpcMessage struct {
@@ -309,11 +310,7 @@ func (c *connection) dispatch(message rpcMessage) {
 	discarded := false
 	for range cap(ch) {
 		older := <-ch // the queue lock excludes its consumer
-		critical := len(older.ID) > 0 || older.Method == "turn/completed"
-		if older.Method == "item/completed" {
-			item, ok := decodeItem(older.Params)
-			critical = critical || (ok && item.kind == "agentMessage")
-		}
+		critical := len(older.ID) > 0 || older.Method == "turn/completed" || older.Method == "item/completed" || older.Method == "rawResponse/completed"
 		if !discarded && !critical {
 			discarded = true
 			continue
@@ -322,7 +319,7 @@ func (c *connection) dispatch(message rpcMessage) {
 	}
 	if discarded {
 		buffered = append(buffered, message)
-		c.noteDropped(threadID)
+		c.noteDropped(threadID, queue)
 	}
 	for _, kept := range buffered {
 		ch <- kept
@@ -337,12 +334,23 @@ func (c *connection) dispatch(message rpcMessage) {
 	}
 }
 
-func (c *connection) noteDropped(threadID string) {
+func (c *connection) noteDropped(threadID string, queue *threadQueue) {
+	queue.dropped.Add(1)
 	n := c.droppedNotifications.Add(1)
 	if n == 1 || n&(n-1) == 0 {
 		log.Printf("codex: notification backlog on thread %s; discarded older display events (%d total); native results remain authoritative", threadID, n)
 	}
 
+}
+
+func (c *connection) queueDrops(ch chan rpcMessage) uint64 {
+	c.threadsMu.Lock()
+	queue := c.queues[ch]
+	c.threadsMu.Unlock()
+	if queue == nil {
+		return 0
+	}
+	return queue.dropped.Load()
 }
 
 func messageThreadID(raw json.RawMessage) string {

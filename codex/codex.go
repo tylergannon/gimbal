@@ -435,6 +435,7 @@ func (a *adapter) Steer(ctx context.Context, sessionID, message string) (bool, e
 		}
 		select {
 		case active.resume <- struct{}{}:
+			active.paused = false // one confirmation per pause, even before consumption
 		default:
 		}
 		active.mu.Unlock()

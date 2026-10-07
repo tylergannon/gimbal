@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net"
 	"net/http"
 	"os/exec"
@@ -25,9 +26,10 @@ const readLimit = 64 << 20
 // app-server` daemon, spoken to in JSON-RPC. Every session and turn shares
 // it: the daemon, not this process, keeps the threads loaded.
 type connection struct {
-	ws     *websocket.Conn
-	nextID atomic.Int64
-	debug  *rawRecorder
+	ws                   *websocket.Conn
+	nextID               atomic.Int64
+	droppedNotifications atomic.Uint64
+	debug                *rawRecorder
 
 	writeMu sync.Mutex
 
@@ -36,10 +38,18 @@ type connection struct {
 
 	threadsMu sync.Mutex
 	threads   map[string]chan rpcMessage
+	queues    map[chan rpcMessage]*threadQueue
 
 	readDone chan struct{}
 	readOnce sync.Once
 	readErr  error
+}
+
+// One reader and a bounded FIFO shared by native parent/child routes. The
+// lock lets overflow discard display frames without reordering control frames.
+type threadQueue struct {
+	mu    sync.Mutex
+	ready chan struct{}
 }
 
 type rpcMessage struct {
@@ -185,6 +195,10 @@ func (c *connection) registerThread(threadID string) chan rpcMessage {
 	}
 	ch := make(chan rpcMessage, 512)
 	c.threads[threadID] = ch
+	if c.queues == nil {
+		c.queues = make(map[chan rpcMessage]*threadQueue)
+	}
+	c.queues[ch] = &threadQueue{ready: make(chan struct{}, 1)}
 	return ch
 }
 
@@ -203,7 +217,14 @@ func (c *connection) routeThread(threadID string, ch chan rpcMessage) {
 func (c *connection) unregisterThread(threadID string) {
 	c.threadsMu.Lock()
 	defer c.threadsMu.Unlock()
+	ch := c.threads[threadID]
 	delete(c.threads, threadID)
+	for _, routed := range c.threads {
+		if routed == ch {
+			return
+		}
+	}
+	delete(c.queues, ch)
 }
 
 func (c *connection) read() {
@@ -253,14 +274,75 @@ func (c *connection) dispatch(message rpcMessage) {
 	}
 	c.threadsMu.Lock()
 	ch := c.threads[threadID]
+	queue := c.queues[ch]
 	c.threadsMu.Unlock()
 	if ch == nil {
 		return
 	}
+	if queue != nil {
+		queue.mu.Lock()
+		defer queue.mu.Unlock()
+		defer func() {
+			select {
+			case queue.ready <- struct{}{}:
+			default:
+			}
+		}()
+	}
 	select {
 	case ch <- message:
+		return
 	case <-c.readDone:
+		return
+	default:
 	}
+	// Do not leave the shared RPC reader blocked behind a paused turn. Evict
+	// one display frame, preserving the FIFO order of every retained message.
+	if queue == nil {
+		c.finishRead(errors.New("codex: unrouted notification backlog"))
+		if c.ws != nil {
+			_ = c.ws.CloseNow()
+		}
+		return
+	}
+	buffered := make([]rpcMessage, 0, cap(ch))
+	discarded := false
+	for range cap(ch) {
+		older := <-ch // the queue lock excludes its consumer
+		critical := len(older.ID) > 0 || older.Method == "turn/completed"
+		if older.Method == "item/completed" {
+			item, ok := decodeItem(older.Params)
+			critical = critical || (ok && item.kind == "agentMessage")
+		}
+		if !discarded && !critical {
+			discarded = true
+			continue
+		}
+		buffered = append(buffered, older)
+	}
+	if discarded {
+		buffered = append(buffered, message)
+		c.noteDropped(threadID)
+	}
+	for _, kept := range buffered {
+		ch <- kept
+	}
+	if !discarded {
+		// A queue containing only answers, terminal signals and interactive
+		// requests cannot be discarded safely. Recover from native history.
+		c.finishRead(errors.New("codex: control notification backlog; reconnect and reconcile"))
+		if c.ws != nil {
+			_ = c.ws.CloseNow()
+		}
+	}
+}
+
+func (c *connection) noteDropped(threadID string) {
+	n := c.droppedNotifications.Add(1)
+	if n == 1 || n&(n-1) == 0 {
+		log.Printf("codex: notification backlog on thread %s; discarded older display events (%d total); native results remain authoritative", threadID, n)
+	}
+
 }
 
 func messageThreadID(raw json.RawMessage) string {
@@ -338,6 +420,37 @@ func (c *connection) sendContext(ctx context.Context, value any) error {
 
 // next returns the next notification or server request for threadID.
 func (c *connection) next(ctx context.Context, ch chan rpcMessage) (rpcMessage, error) {
+	c.threadsMu.Lock()
+	queue := c.queues[ch]
+	c.threadsMu.Unlock()
+	if queue != nil {
+		for {
+			if err := ctx.Err(); err != nil {
+				return rpcMessage{}, err
+			}
+			select {
+			case <-c.readDone:
+				return rpcMessage{}, c.exitError()
+			default:
+			}
+			queue.mu.Lock()
+			select {
+			case message := <-ch:
+				queue.mu.Unlock()
+				return message, nil
+			default:
+				queue.mu.Unlock()
+			}
+			select {
+			case <-queue.ready:
+			case <-c.readDone:
+				return rpcMessage{}, c.exitError()
+			case <-ctx.Done():
+				return rpcMessage{}, ctx.Err()
+			}
+		}
+	}
+	// A route may already have been removed during cleanup.
 	select {
 	case message := <-ch:
 		return message, nil

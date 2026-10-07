@@ -22,6 +22,8 @@ examples:
 go doc -all github.com/tylergannon/gimbal
 ```
 
+Adapters own connection maintenance and reconnection. They make bounded, observable, responsible best-effort attempts to finish each requested turn, reconciling native state before continuing so a lost response does not duplicate work. Cancellation remains cancellation, and failed remote cleanup retains stop control. The workflow owns task policy and independent validation.
+
 The persistent instance starts the SvelteKit web application automatically.
 It listens on loopback port 8080 by default; `web.WithPort`, `web.WithUDS`, and
 `web.WithNoWeb` select another listener shape. Node is a build-time dependency

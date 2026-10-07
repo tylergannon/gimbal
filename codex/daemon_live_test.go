@@ -614,3 +614,76 @@ func managedDaemonPID() (string, error) {
 	}
 	return "", fmt.Errorf("no managed daemon process found in:\n%s", out)
 }
+
+// Socket loss during an active tool uses the shared daemon without stopping or
+// restarting it. The file effect precedes loss and must occur exactly once.
+func TestActiveTurnReconnectPreservesToolEffectLive(t *testing.T) {
+	if os.Getenv("GIMBAL_LIVE") != "1" {
+		t.Skip("set GIMBAL_LIVE=1; uses gpt-5.6-luna")
+	}
+	ad := New().(*adapter)
+	dir := t.TempDir()
+	effect := filepath.Join(dir, "effect.txt")
+	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Minute)
+	defer cancel()
+	dropped := make(chan error, 1)
+	go func() {
+		for {
+			raw, err := os.ReadFile(effect)
+			if err == nil && len(raw) > 0 {
+				conn := ad.current()
+				if conn == nil {
+					dropped <- errors.New("no active connection")
+					return
+				}
+				dropped <- conn.ws.CloseNow()
+				return
+			}
+			select {
+			case <-ctx.Done():
+				dropped <- ctx.Err()
+				return
+			case <-time.After(20 * time.Millisecond):
+			}
+		}
+	}()
+	validations := 0
+	err := gimbal.Run(gimbal.Project(ctx, dir), "active-reconnect-live", map[gimbal.WorkflowRole]gimbal.ModelBinding{"coding": {Adapter: ad, Model: "gpt-5.6-luna"}, "qa": {Adapter: ad, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
+		for taskCtx, stage := range gimbal.Iterate(ctx, "outcome", []string{"first", "second", "third"}) {
+			gimbal.Set(taskCtx, "stage", stage)
+			gimbal.Set(taskCtx, "effect file", effect)
+			worker := gimbal.NewSession(taskCtx, "coding", dir)
+			report, err := worker.Generate[gimbal.Text](taskCtx, "For first and third stages, reply with the stage name and no tools. For the second stage, run one shell command that appends exactly one line EFFECT to the supplied effect file, then sleeps 8 seconds before exiting. Do not run that command again. After it finishes, reply exactly SECOND_COMPLETE.")
+			if err != nil {
+				return err
+			}
+			if stage == "second" && strings.TrimSpace(string(report)) != "SECOND_COMPLETE" {
+				return fmt.Errorf("second answer=%q", report)
+			}
+			qa := gimbal.NewSession(taskCtx, "qa", dir)
+			answer, err := qa.Generate[gimbal.Text](taskCtx, "Independently check the supplied stage. For the second stage, use a shell tool to read the effect file and confirm it contains exactly one line EFFECT. For other stages no tool is necessary. Reply exactly ACCEPTED if the stage is valid, otherwise FAILED.")
+			if err != nil {
+				return err
+			}
+			if strings.TrimSpace(string(answer)) != "ACCEPTED" {
+				return fmt.Errorf("validation=%q", answer)
+			}
+			validations++
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := <-dropped; err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(effect)
+	if err != nil || string(raw) != "EFFECT\n" {
+		t.Fatalf("effect=%q,%v", raw, err)
+	}
+	if validations != 3 {
+		t.Fatalf("validations=%d", validations)
+	}
+	t.Log("gpt-5.6-luna: active tool socket loss recovered; effect occurred once; each of three outcomes independently validated once")
+}

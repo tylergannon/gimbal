@@ -24,6 +24,7 @@ func (*controlledRun) AnswerInterview(string, string) error { return nil }
 func (*controlledRun) Steer(context.Context, string, string) (bool, error) {
 	return false, nil
 }
+func (*controlledRun) CleanupPending() bool           { return false }
 func (*controlledRun) SteerLoop(string, string) error { return nil }
 func (r *controlledRun) CancelTurn(turn string, cause error) error {
 	r.turn, r.cause = turn, cause

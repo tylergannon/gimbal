@@ -46,6 +46,8 @@ func (h controlHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.runs(w, r)
 	case r.Method == http.MethodPost && r.URL.Path == "/control/steer":
 		h.steer(w, r)
+	case r.Method == http.MethodPost && r.URL.Path == "/control/cancel":
+		h.cancel(w, r)
 	case r.Method == http.MethodPost && r.URL.Path == "/control/steer-loop":
 		h.steerLoop(w, r)
 	default:
@@ -121,6 +123,30 @@ func (h controlHandler) steerLoop(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(struct {
 		Queued bool `json:"queued"`
 	}{Queued: true})
+}
+
+// cancel also reaches a terminal run whose owned remote cleanup is pending.
+func (h controlHandler) cancel(w http.ResponseWriter, r *http.Request) {
+	var request struct {
+		Run string `json:"run"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	p, err := h.project(r)
+	if err != nil || p == nil {
+		http.Error(w, "project is not admitted", http.StatusNotFound)
+		return
+	}
+	if err := p.KillScope(request.Run, "", "person", "cancelled through the control socket"); err != nil {
+		http.Error(w, err.Error(), http.StatusConflict)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(struct {
+		Accepted bool `json:"accepted"`
+	}{true})
 }
 
 func (i *Instance) startControl() error {

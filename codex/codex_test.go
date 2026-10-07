@@ -22,14 +22,11 @@ func TestCloseIsIdempotentForAnUnknownSession(t *testing.T) {
 	}
 }
 
-// TestCloseOnADeadConnectionDropsLocalRoutingState: when the shared
-// connection's reader has already failed, Close must still release
-// everything the adapter holds locally (the session entry and the thread's
-// routing channel on that connection) before it tries to reach the daemon.
-// The cleanup context here is already cancelled, so the redial cannot
-// succeed: Close must then report the archive it could not do rather than
-// return nil, and the local state must be gone regardless.
-func TestCloseOnADeadConnectionDropsLocalRoutingState(t *testing.T) {
+// TestCloseOnADeadConnectionRetainsOwnership: when the shared
+// connection's reader has already failed and archive cannot be delivered,
+// Close reports the failure and retains the session and routing ownership.
+// A later cleanup attempt must still reach the exact native thread.
+func TestCloseOnADeadConnectionRetainsOwnership(t *testing.T) {
 	ad := New().(*adapter)
 	conn := &connection{threads: make(map[string]chan rpcMessage), readDone: make(chan struct{})}
 	conn.registerThread("thread-1")
@@ -42,14 +39,14 @@ func TestCloseOnADeadConnectionDropsLocalRoutingState(t *testing.T) {
 	if err := ad.Close(ctx, "thread-1"); err == nil {
 		t.Fatal("Close = nil, want an error: the archive could not run on a cancelled cleanup context")
 	}
-	if n := len(ad.sessions); n != 0 {
-		t.Fatalf("sessions after Close = %d, want 0", n)
+	if n := len(ad.sessions); n != 1 {
+		t.Fatalf("sessions after failed Close = %d, want retained ownership", n)
 	}
 	conn.threadsMu.Lock()
 	n := len(conn.threads)
 	conn.threadsMu.Unlock()
-	if n != 0 {
-		t.Fatalf("connection threads after Close = %d, want 0", n)
+	if n != 1 {
+		t.Fatalf("connection threads after failed Close = %d, want 1", n)
 	}
 }
 
@@ -77,10 +74,10 @@ func TestCloseNeverStartsAStoppedDaemon(t *testing.T) {
 	ad.sessions["thread-1"] = &session{}
 
 	if err := ad.Close(context.Background(), "thread-1"); err != nil {
-		t.Fatalf("Close = %v, want nil: a stopped daemon holds nothing to release", err)
+		t.Fatalf("Close = %v, want nil for confirmed stopped daemon", err)
 	}
 	if n := len(ad.sessions); n != 0 {
-		t.Fatalf("sessions after Close = %d, want 0", n)
+		t.Fatalf("sessions after Close = %d, want zero", n)
 	}
 	recorded, _ := os.ReadFile(calls)
 	if !strings.Contains(string(recorded), "daemon version") {

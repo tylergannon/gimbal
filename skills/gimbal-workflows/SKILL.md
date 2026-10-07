@@ -13,6 +13,13 @@ source. Aim for the clarity of a page of pseudocode. Research, bake-offs,
 critique, retries, worktrees, and delivery are tactics written inline with
 ordinary Go and Gimbal's primitives.
 
+Adapters own transport maintenance and native-state reconciliation, with
+bounded, observable, responsible best-effort completion of each requested turn.
+Do not add workflow retries around connection loss: a lost reply does not prove
+an operation never happened. Workflows own task policy and independent validation;
+adapter recovery must retain session identity, avoid duplicate work, preserve
+cancellation, and keep unverified remote cleanup retryable.
+
 Use Godoc for the current API. For an existing command, use
 [Use Gimbal](../gimbal-runs/SKILL.md); for building and installing the application,
 use [Build and release](../gimbal-release/SKILL.md).

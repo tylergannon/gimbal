@@ -165,6 +165,26 @@ than accepting the worker's account as proof.
 Saved records remain in `/abs/project/.gimbal/runs/RUN_ID/`. To inspect history
 in the browser, run `gimbal --port 0` from the project directory. Live `watch`
 needs a running owner; viewing saved history does not revive its sessions.
+Codex actively reconciles a lost connection with up to three attempts within
+one minute. A surviving native turn is reattached; a completed result is read
+from history. If the daemon remains unavailable or safe continuation is unclear,
+the same call, run and task stay paused while the owning instance is alive.
+The transcript's connection notice explains the cause. After inspecting existing
+work and confirming that prior operations have ceased, request another bounded
+reconciliation batch with:
+
+```sh
+gimbal steer RUN_ID --work-dir /abs/project --session SESSION_ID resume
+```
+
+This is an adapter recovery control when that Codex session is paused; it does
+not establish native delivery or task completion. The adapter checks history
+again before reattaching or starting a same-thread continuation. It never replays
+accepted outcomes. Cancel instead with `gimbal cancel RUN_ID --work-dir /abs/project`.
+That command also retries pending remote cleanup of a terminal run. Failed cleanup
+retains stop control in the owning instance; it does not prove the worker stopped.
+An instance restart does not restore a Go workflow's stack or its live controls.
+
 Gimbal has no generic resume command. Repository promise helpers may define
 their own resumable state, schedules, and badges; those are separate
 capabilities.

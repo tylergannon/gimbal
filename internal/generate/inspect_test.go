@@ -195,8 +195,23 @@ func TestUnknownContextDoesNotAssertLexicalScope(t *testing.T) {
 	}
 	p := inspectGraph(g, "Inspect", d)
 	call := callsIn(p.Body)[0]
-	if len(p.Diagnostics) != 1 || call.Detail.ContextKnown || len(call.Context) != 0 || !strings.Contains(call.Note, "unresolved") {
+	if len(p.Diagnostics) != 1 || call.Detail.ContextKnown || len(call.Context) != 0 || !strings.Contains(call.Note, "not known") {
 		t.Fatalf("unknown context was claimed known: %+v, gaps=%v", call, p.Diagnostics)
+	}
+}
+
+func TestInspectionSingleCaseSwitches(t *testing.T) {
+	d := &inspectionData{}
+	g, _, err := extractInspected("testdata/inspection", "Switches", "switches", nil, false, d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := inspectGraph(g, "Switches", d)
+	if len(p.Body) != 4 || p.Body[1].BranchLabels[0] != `mode == "review"` || p.Body[2].BranchLabels[0] != `mode == "stop"` || p.Body[2].Control.Actions[0] != "return nil" {
+		t.Fatalf("switches lost predicates or actions: %+v", p.Body)
+	}
+	if p.Body[0].Context == nil {
+		t.Fatal("known empty context serialized as unknown")
 	}
 }
 
@@ -211,5 +226,49 @@ func TestCustomSerializationRemainsGoShape(t *testing.T) {
 	shape := contextKey(t, callsIn(p.Body)[0], "brief").Shape
 	if !shape.GoOnly || !strings.Contains(shape.Note, "MarshalJSON") || shape.Fields[0].Name != "Product" || len(shape.Fields) != 3 {
 		t.Fatalf("custom serialized fields incorrectly asserted: %+v", shape)
+	}
+}
+
+func TestInspectionPreservesServiceControlFlow(t *testing.T) {
+	file, _ := filepath.Abs("testdata/inspection/fixture.go")
+	source, err := os.ReadFile(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	modified := string(source) + `
+func ServiceFlow(ctx context.Context, start bool) error {
+	if !start { return nil }
+	if start { _ = gimbal.Service(ctx, "product", ".", "serve") }
+	return nil
+}
+`
+	overlay := map[string][]byte{file: []byte(modified)}
+	d := &inspectionData{}
+	g, _, err := extractInspected("testdata/inspection", "ServiceFlow", "services", overlay, false, d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := inspectGraph(g, "ServiceFlow", d)
+	if len(p.Body) != 2 {
+		t.Fatalf("body=%+v", p.Body)
+	}
+	guard := p.Body[0]
+	if guard.Control == nil || !strings.Contains(guard.Control.Code, "if !start") || len(guard.Control.Actions) != 1 || guard.Control.Actions[0] != "return nil" {
+		t.Fatalf("guard lost exact source: %+v", guard.Control)
+	}
+	condition := p.Body[1]
+	if condition.Kind != "Condition" || condition.BranchLabels[0] != "start" || len(condition.Children[0]) != 1 {
+		t.Fatalf("service condition=%+v", condition)
+	}
+	service := condition.Children[0][0]
+	if service.Kind != "Service" || service.Label != "product" || service.Detail.Expression != `gimbal.Service(ctx, "product", ".", "serve")` {
+		t.Fatalf("service=%+v", service)
+	}
+	normal, _, err := extractInspected("testdata/inspection", "ServiceFlow", "services", overlay, false, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(normal.Services) != 1 || len(normal.Body) != 1 {
+		t.Fatalf("normal graph changed: %+v", normal)
 	}
 }

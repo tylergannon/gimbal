@@ -227,6 +227,21 @@ func (e *extractor) gimbalOperation(name string, call *ast.CallExpr, targets []a
 			return false
 		}
 		e.emitService(workflow.Service{Source: e.at(call.Pos()), Name: service})
+		if e.inspection != nil {
+			// Keep ordered service sites in the private inspector projection.
+			// The normal graph still owns services as scope declarations.
+			marker := &workflow.Command{Source: e.at(call.Pos()), Name: service}
+			if e.inspection.Services == nil {
+				e.inspection.Services = map[*workflow.Command]callInspection{}
+			}
+			d := callInspection{Kind: "Service", Expression: text(e.pkg.Fset, call)}
+			if len(call.Args) > 0 {
+				d.ContextExpression = text(e.pkg.Fset, call.Args[0])
+				d.ContextKnown = e.inspectionContext != nil && e.object(call.Args[0]) == e.inspectionContext
+			}
+			e.inspection.Services[marker] = d
+			e.emit(out, marker)
+		}
 		return false
 
 	case "Check":

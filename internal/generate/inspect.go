@@ -19,9 +19,39 @@ import (
 // Inspection is a sidecar to the existing graph extraction. Runtime graphs and
 // their generated codecs do not need source expressions or context projections.
 type inspectionData struct {
-	Module string                               `json:"module"`
-	Calls  map[workflow.Source][]callInspection `json:"-"`
+	Module   string                               `json:"module"`
+	Calls    map[workflow.Source][]callInspection `json:"-"`
+	Controls map[controlKey][]*controlInspection
+	Services map[*workflow.Command]callInspection
 }
+type controlKey struct {
+	Source workflow.Source
+	Kind   string
+}
+type controlInspection struct {
+	Code    string   `json:"code"`
+	Actions []string `json:"actions,omitempty"`
+	key     controlKey
+}
+
+func (e *extractor) inspectControl(kind string, node ast.Node) *controlInspection {
+	if e.inspection == nil {
+		return nil
+	}
+	if e.inspection.Controls == nil {
+		e.inspection.Controls = map[controlKey][]*controlInspection{}
+	}
+	key := controlKey{Source: e.at(node.Pos()), Kind: kind}
+	info := &controlInspection{Code: text(e.pkg.Fset, node), key: key}
+	e.inspection.Controls[key] = append(e.inspection.Controls[key], info)
+	return info
+}
+func (e *extractor) discardControl(info *controlInspection) {
+	if info != nil {
+		e.inspection.Controls[info.key] = slices.DeleteFunc(e.inspection.Controls[info.key], func(x *controlInspection) bool { return x == info })
+	}
+}
+
 type callInspection struct {
 	Kind              string      `json:"kind"`
 	Expression        string      `json:"expression"`
@@ -221,20 +251,21 @@ type contextField struct {
 	Shadowed []string    `json:"shadowed,omitempty"`
 }
 type viewNode struct {
-	ID           string          `json:"id"`
-	Kind         string          `json:"kind"`
-	Label        string          `json:"label"`
-	Source       workflow.Source `json:"source"`
-	Scope        string          `json:"scope"`
-	Session      string          `json:"session,omitempty"`
-	From         string          `json:"from,omitempty"`
-	Prompt       string          `json:"prompt,omitempty"`
-	Detail       *callInspection `json:"detail,omitempty"`
-	Context      []contextField  `json:"context"`
-	Children     [][]*viewNode   `json:"children,omitempty"`
-	BranchLabels []string        `json:"branchLabels,omitempty"`
-	BranchExits  []bool          `json:"branchExits,omitempty"`
-	Note         string          `json:"note,omitempty"`
+	ID           string             `json:"id"`
+	Kind         string             `json:"kind"`
+	Label        string             `json:"label"`
+	Source       workflow.Source    `json:"source"`
+	Scope        string             `json:"scope"`
+	Session      string             `json:"session,omitempty"`
+	From         string             `json:"from,omitempty"`
+	Prompt       string             `json:"prompt,omitempty"`
+	Detail       *callInspection    `json:"detail,omitempty"`
+	Control      *controlInspection `json:"control,omitempty"`
+	Context      []contextField     `json:"context"`
+	Children     [][]*viewNode      `json:"children,omitempty"`
+	BranchLabels []string           `json:"branchLabels,omitempty"`
+	BranchExits  []bool             `json:"branchExits,omitempty"`
+	Note         string             `json:"note,omitempty"`
 }
 type sourcePage struct {
 	Name        string                `json:"name"`
@@ -245,9 +276,23 @@ type sourcePage struct {
 	Diagnostics []workflow.Diagnostic `json:"diagnostics"`
 }
 type pageBuilder struct {
-	details *inspectionData
-	cursors map[workflow.Source]int
-	next    int
+	details        *inspectionData
+	cursors        map[workflow.Source]int
+	controlCursors map[controlKey]int
+	next           int
+}
+
+func (b *pageBuilder) takeControl(kind string, src workflow.Source) *controlInspection {
+	if b.controlCursors == nil {
+		b.controlCursors = map[controlKey]int{}
+	}
+	key := controlKey{Source: src, Kind: kind}
+	i := b.controlCursors[key]
+	b.controlCursors[key]++
+	if i >= len(b.details.Controls[key]) {
+		return nil
+	}
+	return b.details.Controls[key][i]
 }
 
 func inspectGraph(g workflow.Graph, entry string, d *inspectionData) sourcePage {
@@ -315,7 +360,7 @@ func mergeContexts(paths [][]contextField) []contextField {
 	return out
 }
 func (b *pageBuilder) body(ops []workflow.Operation, initial []contextField, scope, when string) ([]*viewNode, []contextField) {
-	ctx := slices.Clone(initial)
+	ctx := append([]contextField{}, initial...)
 	nodes := []*viewNode{}
 	for _, op := range ops {
 		var n *viewNode
@@ -360,9 +405,15 @@ func (b *pageBuilder) body(ops []workflow.Operation, initial []contextField, sco
 			n = b.node(kind, op.Name, scope, op.Source, ctx)
 			n.From = op.From
 			n.Session = op.Name
+		case *workflow.Command:
+			// Pointer markers exist only in inspector extraction, preserving a
+			// service's source position without changing the runtime graph model.
+			d := b.details.Services[op]
+			n = b.node("Service", op.Name, scope, op.Source, ctx)
+			n.Detail = &d
 		case workflow.Command:
 			n = b.node("Command", op.Name, scope, op.Source, ctx)
-			n.Note = "Command effects and runtime-provided context are not projected here."
+			n.Note = "Runs a command. Any context it writes is not shown here."
 		case workflow.Interview:
 			n = b.node("Interview", op.Name, scope, op.Source, ctx)
 			n.Session = op.Session
@@ -383,6 +434,7 @@ func (b *pageBuilder) body(ops []workflow.Operation, initial []contextField, sco
 			}
 		case workflow.Condition:
 			n = b.node("Condition", "if / switch", scope, op.Source, ctx)
+			n.Control = b.takeControl("Condition", op.Source)
 			paths := [][]contextField{}
 			hasDefault := false
 			previous := []string{}
@@ -411,26 +463,27 @@ func (b *pageBuilder) body(ops []workflow.Operation, initial []contextField, sco
 			ctx = mergeContexts(paths)
 		case workflow.Repeat:
 			n = b.node("Repeat", op.Cond, scope, op.Source, ctx)
+			n.Control = b.takeControl("Repeat", op.Source)
 			child, next := b.body(op.Body, ctx, scope, conditionText(when, "loop body: "+op.Cond))
 			n.Children = [][]*viewNode{child}
-			n.Note = "Source body template. Iteration count and loop-carried effects are unresolved."
+			n.Note = "Repeats this body. The number of iterations is decided when the workflow runs."
 			ctx = mergeContexts([][]contextField{ctx, next})
 		case workflow.Iterate:
 			n = b.node("Iterate", op.Name, scope, op.Source, ctx)
 			child, _ := b.body(op.Body, ctx, scope+"/"+op.Name, when)
 			n.Children = [][]*viewNode{child}
-			n.Note = "Source body template; each runtime item has a fresh child scope."
+			n.Note = "Runs this body for each item, in its own scope."
 		case workflow.PromiseLoop:
 			n = b.node("PromiseLoop", op.Name, scope, op.Source, ctx)
 			n.Session = op.Planner
 			child, _ := b.body(op.Body, ctx, scope+"/"+op.Name+"/task", when)
 			n.Children = [][]*viewNode{child}
-			n.Note = "Source task body template. Runtime task context and planner feedback are not projected."
+			n.Note = "Runs this body for each task chosen by the planner. Task data and planner feedback are known when the workflow runs."
 		}
 		if n != nil {
 			if n.Detail != nil && !n.Detail.ContextKnown {
 				n.Context = nil
-				n.Note = "Context aliasing is unresolved for this expression; no scope context is asserted here."
+				n.Note = "Uses a different context value, so the context visible here is not known."
 			}
 			nodes = append(nodes, n)
 		}

@@ -53,3 +53,17 @@ func Inspect(ctx context.Context, prompt string, conditional bool, key string) e
 	_, _ = s.Generate[gimbal.Text](ctx, prompt+"!")
 	return nil
 }
+
+func Switches(ctx context.Context, mode string) error {
+	s := gimbal.NewSession(ctx, "reviewer", ".")
+	switch mode {
+	case "review":
+		_, _ = s.Generate[gimbal.Text](ctx, initialPrompt)
+	}
+	switch mode {
+	case "stop":
+		return nil
+	}
+	_, _ = s.Generate[gimbal.Text](ctx, initialPrompt)
+	return nil
+}

@@ -159,6 +159,7 @@ func (e *extractor) reassigned(lhs ast.Expr) {
 
 // ifChain records one if/else chain as a single Condition.
 func (e *extractor) ifChain(stmt *ast.IfStmt, out *[]workflow.Operation, en scopeEnv) {
+	inspection := e.inspectControl("Condition", stmt)
 	var branches []branch
 	current := stmt
 	for current != nil {
@@ -176,7 +177,9 @@ func (e *extractor) ifChain(stmt *ast.IfStmt, out *[]workflow.Operation, en scop
 			current = nil
 		}
 	}
-	e.condition(stmt.Pos(), branches, out, en)
+	if !e.condition(stmt.Pos(), branches, out, en, inspection) {
+		e.discardControl(inspection)
+	}
 }
 
 // ifCase is the branch's condition as written: "init; cond" when the if has
@@ -192,6 +195,7 @@ func (e *extractor) ifCase(stmt *ast.IfStmt) string {
 // switchStmt records one switch as a single Condition. A tagged switch's
 // case reads as the comparison it stands for.
 func (e *extractor) switchStmt(stmt *ast.SwitchStmt, out *[]workflow.Operation, en scopeEnv) {
+	inspection := e.inspectControl("Condition", stmt)
 	var branches []branch
 	for _, clause := range stmt.Body.List {
 		c, ok := clause.(*ast.CaseClause)
@@ -208,15 +212,18 @@ func (e *extractor) switchStmt(stmt *ast.SwitchStmt, out *[]workflow.Operation, 
 		}
 		branches = append(branches, e.branch(label, c.Pos(), c.Body, nil, en))
 	}
-	e.condition(stmt.Pos(), branches, out, en)
+	if !e.condition(stmt.Pos(), branches, out, en, inspection) {
+		e.discardControl(inspection)
+	}
 }
 
 // branch is one alternative and the expression that guards it, which the
 // error-handling rule reads.
 type branch struct {
-	node workflow.Branch
-	cond ast.Expr
-	pos  token.Pos
+	node     workflow.Branch
+	cond     ast.Expr
+	pos      token.Pos
+	exitCode string
 }
 
 func (e *extractor) branch(label string, pos token.Pos, stmts []ast.Stmt, cond ast.Expr, en scopeEnv) branch {
@@ -224,10 +231,15 @@ func (e *extractor) branch(label string, pos token.Pos, stmts []ast.Stmt, cond a
 	e.scoped(func() {
 		e.block(stmts, &body, scopeEnv{blockTail: en.blockTail, callTail: en.callTail, inHelper: en.inHelper})
 	})
+	exitCode := ""
+	if exits(stmts) {
+		exitCode = text(e.pkg.Fset, stmts[len(stmts)-1])
+	}
 	return branch{
-		node: workflow.Branch{Source: e.at(pos), Case: label, Exits: exits(stmts), Body: body},
-		cond: cond,
-		pos:  pos,
+		node:     workflow.Branch{Source: e.at(pos), Case: label, Exits: exits(stmts), Body: body},
+		cond:     cond,
+		pos:      pos,
+		exitCode: exitCode,
 	}
 }
 
@@ -248,7 +260,7 @@ func exits(stmts []ast.Stmt) bool {
 
 // condition decides whether a Condition is shape at all, and records it when
 // it is. Error handling is not shape; nor is a guard a helper opens with.
-func (e *extractor) condition(pos token.Pos, branches []branch, out *[]workflow.Operation, en scopeEnv) {
+func (e *extractor) condition(pos token.Pos, branches []branch, out *[]workflow.Operation, en scopeEnv, inspection *controlInspection) bool {
 	holdsOperation := false
 	for _, b := range branches {
 		if len(b.node.Body) > 0 {
@@ -256,7 +268,7 @@ func (e *extractor) condition(pos token.Pos, branches []branch, out *[]workflow.
 		}
 	}
 	if !holdsOperation && e.allErrorTests(branches) {
-		return
+		return false
 	}
 	emitted := e.emitted()
 	kept := make([]workflow.Branch, 0, len(branches))
@@ -269,6 +281,9 @@ func (e *extractor) condition(pos token.Pos, branches []branch, out *[]workflow.
 			e.diag(b.pos, "this return ends only the helper it is written in, not the body the helper was inlined into")
 		}
 		kept = append(kept, b.node)
+		if inspection != nil {
+			inspection.Actions = append(inspection.Actions, b.exitCode)
+		}
 	}
 	recorded := false
 	for _, b := range kept {
@@ -277,9 +292,10 @@ func (e *extractor) condition(pos token.Pos, branches []branch, out *[]workflow.
 		}
 	}
 	if !recorded {
-		return
+		return false
 	}
 	e.emit(out, workflow.Condition{Source: e.at(pos), Branches: kept})
+	return true
 }
 
 // allErrorTests reports whether every branch that has a condition tests an
@@ -325,6 +341,7 @@ func (e *extractor) repeat(stmt ast.Stmt, block *ast.BlockStmt, cond string, out
 	if !e.holdsOperation(block) {
 		return
 	}
+	e.inspectControl("Repeat", stmt)
 	body := []workflow.Operation{}
 	e.body(block.List, &body, en)
 	e.emit(out, workflow.Repeat{Source: e.at(stmt.Pos()), Cond: cond, Body: body})

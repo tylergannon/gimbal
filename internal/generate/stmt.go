@@ -67,6 +67,11 @@ func (e *extractor) unread(stmt ast.Stmt, what string) {
 // assign walks an assignment, binding what its right-hand side produces to
 // the identifiers on its left.
 func (e *extractor) assign(stmt *ast.AssignStmt, out *[]workflow.Operation, en scopeEnv) {
+	preservesContext := false
+	if e.inspection != nil && len(stmt.Rhs) == 1 && len(stmt.Lhs) > 0 && e.object(stmt.Lhs[0]) == e.inspectionContext {
+		preservesContext = e.preservesInspectionContext(stmt.Rhs[0])
+	}
+	previousContext := e.inspectionContext
 	for i, rhs := range stmt.Rhs {
 		targets := stmt.Lhs
 		if len(stmt.Rhs) == len(stmt.Lhs) {
@@ -78,6 +83,9 @@ func (e *extractor) assign(stmt *ast.AssignStmt, out *[]workflow.Operation, en s
 		if stmt.Tok == token.ASSIGN || e.redeclares(lhs) {
 			e.reassigned(lhs)
 		}
+	}
+	if preservesContext {
+		e.inspectionContext = previousContext
 	}
 }
 
@@ -125,6 +133,9 @@ func (e *extractor) reassigned(lhs ast.Expr) {
 	obj := e.object(lhs)
 	if obj == nil {
 		return
+	}
+	if e.inspection != nil && obj == e.inspectionContext {
+		e.inspectionContext = nil
 	}
 	what := ""
 	if _, ok := e.session[obj]; ok {
@@ -335,6 +346,8 @@ func (e *extractor) rangeStmt(stmt *ast.RangeStmt, out *[]workflow.Operation, en
 }
 
 func (e *extractor) promiseTasksRangeBody(stmt *ast.RangeStmt, out *[]workflow.Operation, en scopeEnv) {
+	restoreContext := e.inspectionRangeContext(stmt)
+	defer restoreContext()
 	selector, _ := e.promiseTasksRange(stmt)
 	obj := e.object(selector.X)
 	ref := e.loop[obj]
@@ -357,6 +370,8 @@ func (e *extractor) promiseTasksRangeBody(stmt *ast.RangeStmt, out *[]workflow.O
 }
 
 func (e *extractor) iterateRangeBody(stmt *ast.RangeStmt, call *ast.CallExpr, out *[]workflow.Operation, en scopeEnv) {
+	restoreContext := e.inspectionRangeContext(stmt)
+	defer restoreContext()
 	name, ok := e.constant(call, 1)
 	if !ok {
 		e.diag(call.Pos(), "Iterate's scope name is not a constant, so the iteration is not read")

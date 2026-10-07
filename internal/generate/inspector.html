@@ -1,0 +1,1096 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Gimbal · Workflow source</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --paper: #fafbf9;
+        --surface: #fff;
+        --ink: #22302a;
+        --muted: #627068;
+        --line: #d8e0d9;
+        --wash: #f0f4ef;
+        --accent: #65509a;
+        --tint: #eee8f8;
+        --amber: #9b6a21;
+        --node-width: 180px;
+        font:
+          14px/1.5 -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          sans-serif;
+        color: var(--ink);
+        background: var(--paper);
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+      }
+      button,
+      select {
+        font: inherit;
+        color: inherit;
+      }
+      button {
+        cursor: pointer;
+      }
+      button:focus-visible,
+      summary:focus-visible,
+      select:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 3px;
+      }
+      button:hover {
+        background: var(--wash);
+      }
+      .appbar {
+        height: 54px;
+        border-bottom: 1px solid var(--line);
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 0 24px;
+        background: var(--surface);
+      }
+      .brand {
+        font-weight: 650;
+        letter-spacing: 0.02em;
+      }
+      .brand-mark {
+        color: var(--accent);
+        font-size: 24px;
+      }
+      .crumb {
+        color: var(--muted);
+      }
+      .mode {
+        margin-left: auto;
+        font-size: 10px;
+        letter-spacing: 0.13em;
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        padding: 4px 7px;
+        color: var(--muted);
+      }
+      .pagehead {
+        padding: 22px 26px 18px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 20px;
+      }
+      h1 {
+        font-size: 24px;
+        letter-spacing: -0.025em;
+        margin: 0 0 4px;
+        font-weight: 600;
+      }
+      .subtitle {
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .jump {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 12px;
+        min-width: 0;
+      }
+      select {
+        max-width: 260px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 8px;
+        background: var(--surface);
+      }
+      .workspace {
+        height: calc(100vh - 152px);
+        display: grid;
+        grid-template-columns: minmax(0, 1.6fr) minmax(370px, 1fr);
+        border-top: 1px solid var(--line);
+      }
+      .map-pane {
+        min-width: 0;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        border-right: 1px solid var(--line);
+      }
+      .map-toolbar {
+        height: 48px;
+        flex: none;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 0 20px;
+        border-bottom: 1px solid var(--line);
+        color: var(--muted);
+        font-size: 11px;
+      }
+      .legend {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+      }
+      .dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--accent);
+      }
+      .dot.write {
+        background: #56856a;
+      }
+      .dot.flow {
+        background: #a19b8e;
+      }
+      .map-scroll {
+        min-height: 0;
+        overflow: auto;
+        flex: 1;
+        scroll-behavior: smooth;
+        position: relative;
+      }
+      .map {
+        position: relative;
+        min-width: 100%;
+        width: max-content;
+        padding: 28px 28px 50px;
+      }
+      .graph-body {
+        position: relative;
+        z-index: 1;
+      }
+      .connections {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        overflow: visible;
+      }
+      .connections path {
+        fill: none;
+        stroke: #b0bcb2;
+        stroke-width: 1.4;
+      }
+      .connections path.bypass {
+        stroke-dasharray: 4 4;
+      }
+      .sequence {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 22px;
+        min-width: var(--node-width);
+      }
+      .step {
+        width: var(--node-width);
+        position: relative;
+      }
+      .node {
+        display: block;
+        width: var(--node-width);
+        min-height: 45px;
+        padding: 9px 12px;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        text-align: left;
+        background: var(--surface);
+        box-shadow: 0 2px 3px #26312808;
+        position: relative;
+        z-index: 2;
+      }
+      .node strong {
+        display: block;
+        font-size: 12px;
+        font-weight: 550;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .node small {
+        display: block;
+        color: var(--muted);
+        font-size: 10px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .node .op {
+        font-size: 9px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+      }
+      .node[data-kind="Generate"] {
+        border-left: 3px solid var(--accent);
+        min-height: 66px;
+      }
+      .node[data-kind="Set"],
+      .node[data-kind="SetJSON"] {
+        border-left: 3px solid #7ca08a;
+        min-height: 42px;
+        padding-top: 6px;
+        padding-bottom: 6px;
+      }
+      .node[aria-pressed="true"] {
+        border-color: var(--accent);
+        background: var(--tint);
+        box-shadow: 0 0 0 2px #65509a18;
+      }
+      .node.origin {
+        box-shadow: 0 0 0 2px #a8c8b2;
+      }
+      .block {
+        width: max-content;
+        min-width: calc(var(--node-width) + 20px);
+        padding: 12px 12px 14px;
+        background: #f0f4ef80;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        position: relative;
+        z-index: 1;
+      }
+      .block > .node {
+        margin: 0 auto;
+        background: var(--paper);
+      }
+      .lanes {
+        display: flex;
+        gap: 16px;
+        justify-content: center;
+        padding-top: 24px;
+      }
+      .lane {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 18px;
+        min-width: var(--node-width);
+      }
+      .branch {
+        max-width: var(--node-width);
+        padding: 4px 8px;
+        font:
+          10px/1.4 ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          monospace;
+        background: var(--paper);
+        border: 1px solid var(--line);
+        border-radius: 5px;
+        overflow-wrap: anywhere;
+        z-index: 2;
+      }
+      .exit {
+        font-size: 10px;
+        color: var(--muted);
+        padding: 2px 8px;
+        border: 1px dashed var(--line);
+        border-radius: 4px;
+        background: var(--paper);
+        z-index: 2;
+      }
+      .join {
+        height: 7px;
+        width: 7px;
+        border: 1px solid #a5b2a7;
+        border-radius: 50%;
+        margin: 24px auto 0;
+        background: var(--paper);
+        position: relative;
+        z-index: 2;
+      }
+      .empty {
+        font-size: 11px;
+        color: var(--muted);
+        background: var(--paper);
+        padding: 5px 10px;
+        border-radius: 5px;
+      }
+      .block[data-kind="Condition"] {
+        background: #f6f3ee70;
+      }
+      .block[data-kind="Repeat"],
+      .block[data-kind="Iterate"],
+      .block[data-kind="PromiseLoop"] {
+        border-style: dashed;
+      }
+      .inspection {
+        min-height: 0;
+        overflow: auto;
+        background: var(--surface);
+        padding: 23px 24px 40px;
+      }
+      .eyebrow {
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: var(--muted);
+        margin-bottom: 5px;
+      }
+      .inspection h2 {
+        font-size: 19px;
+        font-weight: 600;
+        line-height: 1.35;
+        margin: 0 0 9px;
+        overflow-wrap: anywhere;
+      }
+      .location {
+        font:
+          11px/1.6 ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          monospace;
+        color: var(--muted);
+        overflow-wrap: anywhere;
+      }
+      .scope {
+        font-size: 11px;
+        color: var(--muted);
+        margin: 6px 0 16px;
+      }
+      .scope strong {
+        color: var(--ink);
+        font-weight: 500;
+      }
+      .section {
+        border-top: 1px solid var(--line);
+        margin-top: 20px;
+        padding-top: 15px;
+      }
+      .section-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 8px;
+      }
+      .section h3 {
+        font-size: 12px;
+        font-weight: 600;
+        margin: 0;
+      }
+      .badge {
+        font-size: 10px;
+        color: var(--muted);
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        padding: 2px 6px;
+      }
+      .prompt {
+        font-size: 13px;
+        line-height: 1.75;
+        white-space: pre-wrap;
+        max-height: 180px;
+        overflow: auto;
+        margin: 10px 0 0;
+        border-left: 2px solid var(--accent);
+        padding-left: 13px;
+      }
+      .hint {
+        font-size: 11px;
+        color: var(--muted);
+        margin: 8px 0 10px;
+      }
+      .warning {
+        font-size: 11px;
+        color: var(--amber);
+        padding: 9px 11px;
+        background: #fbf5e8;
+        border: 1px solid #eadbbc;
+        border-radius: 6px;
+        margin: 10px 0;
+      }
+      .code {
+        font:
+          11px/1.7 ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          monospace;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+        background: var(--wash);
+        padding: 12px;
+        border-radius: 6px;
+        margin: 8px 0;
+      }
+      .shape {
+        font:
+          11px/1.9 ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          monospace;
+        overflow-wrap: anywhere;
+      }
+      .shape .brace {
+        color: #98a599;
+      }
+      .shape details {
+        padding-left: 14px;
+      }
+      .shape summary {
+        cursor: pointer;
+        list-style-position: outside;
+      }
+      .shape .leaf {
+        padding-left: 14px;
+      }
+      .key {
+        color: #546757;
+      }
+      .type {
+        color: var(--accent);
+      }
+      .shape .shape-note {
+        font:
+          10px/1.5 -apple-system,
+          sans-serif;
+        color: var(--amber);
+        margin: 4px 0 7px;
+        padding-left: 14px;
+      }
+      .origin-row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 6px;
+        font:
+          10px/1.5 -apple-system,
+          sans-serif;
+        margin: 3px 0 8px;
+        color: var(--muted);
+      }
+      .origin-link {
+        border: 0;
+        background: transparent;
+        color: var(--accent);
+        padding: 0;
+        text-decoration: underline;
+        text-underline-offset: 2px;
+        font: inherit;
+      }
+      .status {
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        padding: 0 4px;
+      }
+      .context-entry {
+        padding: 5px 0;
+        border-bottom: 1px solid #edf1ec;
+      }
+      .details {
+        font-size: 11px;
+        color: var(--muted);
+        margin-top: 20px;
+      }
+      .details summary {
+        cursor: pointer;
+      }
+      .details ul {
+        padding-left: 18px;
+      }
+      .details li {
+        margin: 8px 0;
+      }
+      .copy {
+        font-size: 10px;
+        background: transparent;
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        padding: 3px 6px;
+      }
+      .foot {
+        margin-top: 25px;
+        font-size: 10px;
+        color: var(--muted);
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          color-scheme: dark;
+          --paper: #191d1c;
+          --surface: #232827;
+          --ink: #edf2ed;
+          --muted: #acb8b0;
+          --line: #465149;
+          --wash: #2b342e;
+          --accent: #c9b7ef;
+          --tint: #393048;
+          --amber: #d4b57c;
+        }
+        .block {
+          background: #2b342e70;
+        }
+        .block[data-kind="Condition"] {
+          background: #3d352640;
+        }
+        .context-entry {
+          border-color: var(--line);
+        }
+        .key {
+          color: #b2c9ba;
+        }
+        .warning {
+          background: #3d3526;
+          border-color: #615234;
+        }
+      }
+      @media (max-width: 850px) {
+        .workspace {
+          grid-template-columns: minmax(0, 1fr) minmax(320px, 0.9fr);
+        }
+        .pagehead {
+          padding: 16px;
+        }
+        .appbar {
+          padding: 0 16px;
+        }
+        .inspection {
+          padding: 18px 16px;
+        }
+        .jump label {
+          display: none;
+        }
+        .map {
+          padding: 20px;
+        }
+        .workspace {
+          height: calc(100vh - 140px);
+        }
+      }
+      @media (max-width: 640px) {
+        .workspace {
+          height: auto;
+          grid-template-columns: 1fr;
+        }
+        .map-pane {
+          height: 52vh;
+          border-right: 0;
+          border-bottom: 1px solid var(--line);
+        }
+        .inspection {
+          overflow: visible;
+        }
+        .pagehead {
+          flex-wrap: wrap;
+        }
+        .jump {
+          width: 100%;
+        }
+        .map-toolbar {
+          gap: 12px;
+        }
+        .mode {
+          font-size: 8px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="appbar">
+      <span class="brand-mark">◈</span><span class="brand">Gimbal</span
+      ><span class="crumb">/ Workflow design</span
+      ><span class="mode">SOURCE VIEW</span>
+    </header>
+    <div class="pagehead">
+      <div>
+        <h1 id="title"></h1>
+        <div class="subtitle" id="subtitle"></div>
+      </div>
+      <div class="jump">
+        <label for="jump">Inspect a call</label
+        ><select id="jump"></select>
+      </div>
+    </div>
+    <main class="workspace">
+      <section class="map-pane" aria-label="Workflow graph">
+        <div class="map-toolbar">
+          <span class="legend"><i class="dot"></i>Generate</span
+          ><span class="legend"><i class="dot write"></i>Context write</span
+          ><span class="legend"><i class="dot flow"></i>Source structure</span
+          ><span style="margin-left: auto">Click a step to inspect</span>
+        </div>
+        <div class="map-scroll" id="map-scroll">
+          <div class="map" id="map">
+            <svg class="connections" id="connections" aria-hidden="true"></svg>
+            <div class="graph-body" id="graph-body"></div>
+          </div>
+        </div>
+      </section>
+      <aside
+        class="inspection"
+        id="inspection"
+        aria-label="Selected step"
+      ></aside>
+    </main>
+    <script id="source-data" type="application/json">
+      "SOURCE_DATA_PLACEHOLDER"
+    </script>
+    <script>
+      "use strict";
+      const data = JSON.parse(
+        document.getElementById("source-data").textContent,
+      );
+      const byId = new Map(),
+        elements = new Map();
+      const el = (tag, cls, txt) => {
+        const e = document.createElement(tag);
+        if (cls) e.className = cls;
+        if (txt !== undefined) e.textContent = txt;
+        return e;
+      };
+      const text = (parent, tag, cls, txt) => {
+        const e = el(tag, cls, txt);
+        parent.append(e);
+        return e;
+      };
+      document.title = "Gimbal · " + data.name;
+      document.getElementById("title").textContent = data.name;
+      document.getElementById("subtitle").textContent =
+        data.entry + " · " + data.source.file + " · static source reflection";
+      function nodeButton(n) {
+        byId.set(n.id, n);
+        const b = el("button", "node");
+        b.dataset.id = n.id;
+        b.dataset.kind = n.kind;
+        b.setAttribute("aria-pressed", "false");
+        b.title = n.label + " · " + n.source.file + ":" + n.source.line;
+        text(b, "span", "op", n.kind);
+        text(b, "strong", "", n.label || n.kind);
+        if (n.kind === "Generate")
+          text(
+            b,
+            "small",
+            "",
+            n.session + " · " + n.scope.split("/").slice(-1)[0],
+          );
+        b.onclick = () => select(n.id);
+        elements.set(n.id, b);
+        return b;
+      }
+      function renderSequence(nodes) {
+        const seq = el("div", "sequence");
+        for (const n of nodes) {
+          let wrap;
+          if (n.children) {
+            wrap = el("div", "block");
+            wrap.dataset.kind = n.kind;
+            wrap.dataset.id = n.id;
+            wrap.append(nodeButton(n));
+            const lanes = el("div", "lanes");
+            n.children.forEach((body, i) => {
+              const lane = el("div", "lane");
+              if (n.branchLabels && n.kind === "Condition")
+                text(lane, "div", "branch", n.branchLabels[i]);
+              if (body.length) lane.append(renderSequence(body));
+              else text(lane, "div", "empty", "No extracted operations");
+              if (n.branchExits && n.branchExits[i])
+                text(lane, "div", "exit", "Exits this body");
+              lanes.append(lane);
+            });
+            wrap.append(lanes, el("div", "join"));
+          } else {
+            wrap = el("div", "step");
+            wrap.dataset.id = n.id;
+            wrap.append(nodeButton(n));
+          }
+          seq.append(wrap);
+        }
+        return seq;
+      }
+      document.getElementById("graph-body").append(renderSequence(data.body));
+      const jump = document.getElementById("jump");
+      for (const n of byId.values()) {
+        if (n.kind === "Generate") {
+          const o = el(
+            "option",
+            "",
+            n.scope.replace("root/", "") + " · " + n.label,
+          );
+          o.value = n.id;
+          jump.append(o);
+        }
+      }
+      jump.onchange = () => {
+        select(jump.value);
+        reveal(jump.value);
+      };
+      // Recursive series/parallel layout: CSS measures subgraphs; connect their entry
+      // and exit ports. Geometry is recomputed on resize, never on selection.
+      function drawEdges() {
+        const map = document.getElementById("map"),
+          svg = document.getElementById("connections"),
+          base = map.getBoundingClientRect();
+        svg.replaceChildren();
+        svg.setAttribute("width", map.offsetWidth);
+        svg.setAttribute("height", map.offsetHeight);
+        const point = (e, bottom) => {
+          const r = e.getBoundingClientRect();
+          return {
+            x: r.left - base.left + r.width / 2,
+            y: (bottom ? r.bottom : r.top) - base.top,
+          };
+        };
+        function edge(a, b, cls) {
+          const p = document.createElementNS(
+            "http://www.w3.org/2000/svg",
+            "path",
+          );
+          const mid = (a.y + b.y) / 2;
+          p.setAttribute(
+            "d",
+            "M " + a.x + " " + a.y + " V " + mid + " H " + b.x + " V " + b.y,
+          );
+          if (cls) p.setAttribute("class", cls);
+          svg.append(p);
+        }
+        function entry(w) {
+          return w.querySelector(":scope > .node");
+        }
+        function end(w) {
+          return w.querySelector(":scope > .join") || entry(w);
+        }
+        for (const seq of map.querySelectorAll(".sequence")) {
+          const ws = [...seq.children];
+          for (let i = 1; i < ws.length; i++)
+            edge(point(end(ws[i - 1]), true), point(entry(ws[i]), false));
+        }
+        for (const block of map.querySelectorAll(".block")) {
+          const head = entry(block),
+            join = block.querySelector(":scope > .join"),
+            n = byId.get(block.dataset.id);
+          for (const [i, lane] of [
+            ...block.querySelector(":scope > .lanes").children,
+          ].entries()) {
+            const label = lane.querySelector(":scope > .branch"),
+              seq = lane.querySelector(":scope > .sequence"),
+              empty = lane.querySelector(":scope > .empty");
+            let first = seq ? entry(seq.firstElementChild) : empty;
+            if (label) {
+              edge(point(head, true), point(label, false));
+              edge(point(label, true), point(first, false));
+            } else edge(point(head, true), point(first, false));
+            const last = seq ? end(seq.lastElementChild) : empty;
+            const exit = lane.querySelector(":scope > .exit");
+            if (exit) edge(point(last, true), point(exit, false));
+            else edge(point(last, true), point(join, false));
+          }
+          if (
+            n.kind === "Condition" &&
+            !n.branchLabels.includes("else / default")
+          ) {
+            const r = block.getBoundingClientRect(),
+              a = point(head, true),
+              b = point(join, false),
+              p = document.createElementNS(
+                "http://www.w3.org/2000/svg",
+                "path",
+              ),
+              x = r.right - base.left - 5;
+            p.setAttribute(
+              "d",
+              "M " +
+                a.x +
+                " " +
+                a.y +
+                " V " +
+                (a.y + 9) +
+                " H " +
+                x +
+                " V " +
+                (b.y - 10) +
+                " H " +
+                b.x +
+                " V " +
+                b.y,
+            );
+            p.setAttribute("class", "bypass");
+            svg.append(p);
+          }
+        }
+      }
+      function section(parent, title, badge) {
+        const s = el("section", "section"),
+          h = el("div", "section-head");
+        text(h, "h3", "", title);
+        if (badge) text(h, "span", "badge", badge);
+        s.append(h);
+        parent.append(s);
+        return s;
+      }
+      function shape(parent, s, key, open = false) {
+        if (!s) {
+          text(parent, "div", "shape-note", "Shape unavailable");
+          return;
+        }
+        const prefix = key === undefined ? "" : JSON.stringify(key) + ": ";
+        if (
+          s.kind === "object" ||
+          s.kind === "array" ||
+          s.kind === "pointer" ||
+          s.kind === "map"
+        ) {
+          const d = el("details");
+          d.open = open;
+          const summary = el("summary");
+          text(summary, "span", "key", prefix);
+          text(
+            summary,
+            "span",
+            "type",
+            s.kind === "object" && s.type.startsWith("struct{")
+              ? "object"
+              : s.type,
+          );
+          text(
+            summary,
+            "span",
+            "brace",
+            s.kind === "pointer" ? " (" : s.kind === "array" ? " [" : " {",
+          );
+          d.append(summary);
+          if (s.fields)
+            for (const f of s.fields) {
+              shape(d, f.shape, f.name, false);
+              if (f.tag && s.goOnly)
+                text(d, "div", "shape-note", "JSON tag: " + f.tag);
+              if (f.optional)
+                text(
+                  d,
+                  "div",
+                  "shape-note",
+                  JSON.stringify(f.name) +
+                    " may be omitted (" +
+                    (f.tag || "JSON tag") +
+                    ")",
+                );
+            }
+          if (s.element)
+            shape(d, s.element, s.kind === "map" ? "<key>" : undefined, false);
+          text(
+            d,
+            "div",
+            "brace",
+            s.kind === "pointer" ? ")" : s.kind === "array" ? "]" : "}",
+          );
+          parent.append(d);
+        } else {
+          const row = el("div", "leaf");
+          text(row, "span", "key", prefix);
+          text(
+            row,
+            "span",
+            "type",
+            s.type + (s.kind === "reference" ? " ↩" : ""),
+          );
+          parent.append(row);
+        }
+        if (s.note) text(parent, "div", "shape-note", s.note);
+      }
+      function reveal(id) {
+        const b = elements.get(id);
+        if (b)
+          b.scrollIntoView({
+            behavior: "instant",
+            block: "center",
+            inline: "center",
+          });
+      }
+      function origin(parent, id, label) {
+        const n = byId.get(id);
+        const b = text(
+          parent,
+          "button",
+          "origin-link",
+          label || n.kind + " · line " + n.source.line,
+        );
+        b.onclick = () => {
+          select(id);
+          reveal(id);
+        };
+      }
+      function select(id) {
+        const n = byId.get(id);
+        if (!n) return;
+        for (const [key, b] of elements) {
+          b.setAttribute("aria-pressed", String(key === id));
+          b.classList.remove("origin");
+        }
+        for (const f of n.context || [])
+          elements.get(f.write)?.classList.add("origin");
+        if (n.kind === "Generate") jump.value = id;
+        const panel = document.getElementById("inspection");
+        panel.replaceChildren();
+        panel.scrollTop = 0;
+        text(panel, "div", "eyebrow", n.kind + " · source inspection");
+        text(panel, "h2", "", n.label || n.kind);
+        text(panel, "div", "location", n.source.file + ":" + n.source.line);
+        const scope = text(panel, "div", "scope", "Scope  ");
+        text(scope, "strong", "", n.scope);
+        if (n.session) text(scope, "span", "", "  · Session " + n.session);
+        if (n.from) text(panel, "div", "hint", "Fork from " + n.from);
+        if (n.note) text(panel, "div", "warning", n.note);
+        if (n.kind === "Generate") {
+          const s = section(
+            panel,
+            "Prompt",
+            n.detail?.promptKnown ? "Constant text" : "Source expression",
+          );
+          text(s, "div", "location", n.detail?.promptExpression || "");
+          text(
+            s,
+            "div",
+            n.detail?.promptKnown ? "prompt" : "code",
+            n.detail?.promptKnown
+              ? n.prompt
+              : n.detail?.promptExpression || "Unavailable",
+          );
+          if (!n.detail?.promptKnown)
+            text(
+              s,
+              "div",
+              "hint",
+              "Computed by Go. This expression is retained; its runtime result is unresolved.",
+            );
+        }
+        if (n.kind === "Set" || n.kind === "SetJSON") {
+          const s = section(panel, "Context write", n.kind);
+          text(
+            s,
+            "div",
+            "hint",
+            n.detail?.keyKnown
+              ? "Exact key: " + JSON.stringify(n.label)
+              : "Key expression; runtime key unresolved.",
+          );
+          text(s, "pre", "code", n.detail?.valueExpression || "");
+          const tree = el("div", "shape");
+          shape(tree, n.detail?.shape, n.label, true);
+          s.append(tree);
+        }
+        const ctx = section(
+          panel,
+          n.kind === "Set" || n.kind === "SetJSON"
+            ? "Context after this write"
+            : "Context visible here",
+          "Shape",
+        );
+        text(
+          ctx,
+          "div",
+          "hint",
+          "Nested static shape. Typed placeholders are not runtime values.",
+        );
+        if (data.diagnostics.length)
+          text(
+            ctx,
+            "div",
+            "warning",
+            "Analysis has " +
+              data.diagnostics.length +
+              " gaps. Additional context effects may be unresolved; inspect the notes below.",
+          );
+        if ((n.context || []).some((f) => f.dynamic))
+          text(
+            ctx,
+            "div",
+            "warning",
+            "A dynamic key can shadow another entry at runtime. These entries are potential shapes.",
+          );
+        const tree = el("div", "shape");
+        text(tree, "div", "brace", "{");
+        for (const f of n.context || []) {
+          const item = el("div", "context-entry");
+          shape(item, f.shape, f.dynamic ? "[" + f.key + "]" : f.key, true);
+          const row = el("div", "origin-row");
+          text(
+            row,
+            "span",
+            "status",
+            f.scope === n.scope ? "local" : "inherited",
+          );
+          if (f.shadowed?.length) text(row, "span", "status", "shadows parent");
+          if (f.optional) text(row, "span", "status", "conditional");
+          if (n.context.filter((x) => x.key === f.key).length > 1)
+            text(row, "span", "status", "alternative");
+          origin(row, f.write);
+          item.append(row);
+          if (f.when) text(item, "div", "shape-note", "Path: " + f.when);
+          if (f.shadowed?.length) {
+            const shadow = el("div", "origin-row");
+            text(shadow, "span", "", "Replaces: ");
+            for (const id of f.shadowed) origin(shadow, id);
+            item.append(shadow);
+          }
+          tree.append(item);
+        }
+        text(tree, "div", "brace", "}");
+        ctx.append(tree);
+        if (!n.context?.length)
+          text(
+            ctx,
+            "div",
+            "hint",
+            n.detail && !n.detail.contextKnown
+              ? "Context shape unresolved for this expression."
+              : "No Set / SetJSON writes extracted before this step.",
+          );
+        const source = section(panel, "Go source", "line " + n.source.line);
+        if (n.detail) {
+          text(source, "pre", "code", n.detail.expression);
+          text(
+            source,
+            "div",
+            "hint",
+            "Context expression: " + n.detail.contextExpression,
+          );
+        }
+        text(
+          source,
+          "div",
+          "location",
+          data.module + "/" + n.source.file + ":" + n.source.line,
+        );
+        if (data.diagnostics.length) {
+          const notes = el("details", "details");
+          text(
+            notes,
+            "summary",
+            "",
+            "Analysis notes (" + data.diagnostics.length + ")",
+          );
+          const ul = el("ul");
+          for (const d of data.diagnostics)
+            text(
+              ul,
+              "li",
+              "",
+              d.source.file + ":" + d.source.line + " — " + d.message,
+            );
+          notes.append(ul);
+          panel.append(notes);
+        }
+        text(
+          panel,
+          "div",
+          "foot",
+          "Review this source, request a code change, then regenerate the page.",
+        );
+      }
+      requestAnimationFrame(() => {
+        drawEdges();
+        const first = [...byId.values()].find((n) => n.kind === "Generate");
+        if (first) {
+          select(first.id);
+          reveal(first.id);
+        } else if (byId.size) select(byId.keys().next().value);
+      });
+      new ResizeObserver(drawEdges).observe(
+        document.getElementById("graph-body"),
+      );
+    </script>
+  </body>
+</html>

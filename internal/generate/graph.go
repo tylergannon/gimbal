@@ -30,6 +30,10 @@ func extract(dir, entry, name string, overlay map[string][]byte) (workflow.Graph
 }
 
 func extractSource(dir, entry, name string, overlay map[string][]byte, commandMetadata bool) (workflow.Graph, entryInfo, error) {
+	return extractInspected(dir, entry, name, overlay, commandMetadata, nil)
+}
+
+func extractInspected(dir, entry, name string, overlay map[string][]byte, commandMetadata bool, inspection *inspectionData) (workflow.Graph, entryInfo, error) {
 	config := &packages.Config{
 		Mode: packages.NeedName | packages.NeedFiles | packages.NeedCompiledGoFiles |
 			packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo |
@@ -64,6 +68,7 @@ func extractSource(dir, entry, name string, overlay map[string][]byte, commandMe
 		module, modulePath = pkg.Module.Dir, pkg.Module.Path
 	}
 	e := &extractor{
+		inspection: inspection,
 		pkg:        pkg,
 		module:     module,
 		modulePath: modulePath,
@@ -72,6 +77,10 @@ func extractSource(dir, entry, name string, overlay map[string][]byte, commandMe
 		loop:       make(map[types.Object]*nodeRef),
 		hasOp:      make(map[*types.Func]bool),
 		dead:       make(map[types.Object]bool),
+	}
+	if inspection != nil {
+		inspection.Module = module
+		e.inspectionContext = e.contextParameter(decl.Type)
 	}
 	body := []workflow.Operation{}
 	services := []workflow.Service{}
@@ -109,13 +118,15 @@ type scopeEnv struct {
 type helperState struct{ emitted bool }
 
 type extractor struct {
-	pkg         *packages.Package
-	module      string
-	modulePath  string
-	diagnostics []workflow.Diagnostic
-	session     map[types.Object]binding
-	group       map[types.Object]*nodeRef
-	loop        map[types.Object]*nodeRef
+	inspection        *inspectionData
+	inspectionContext types.Object
+	pkg               *packages.Package
+	module            string
+	modulePath        string
+	diagnostics       []workflow.Diagnostic
+	session           map[types.Object]binding
+	group             map[types.Object]*nodeRef
+	loop              map[types.Object]*nodeRef
 	// dead holds every identifier a reassignment made unreadable; a scoped
 	// walk's restore does not bring one back.
 	dead     map[types.Object]bool

@@ -15,7 +15,8 @@ import (
 	"github.com/tylergannon/gimbal/workflow"
 )
 
-// Source writes the workflow entry's graph into its package.
+// Source writes the workflow entry's graph into its package, or, for a .html
+// output, a standalone interactive source viewer without command generation.
 // When mermaidOutput is not empty, it also writes the graph as Mermaid
 // source and a Svelte component that presents the SVG produced from it by the
 // documentation build.
@@ -24,6 +25,9 @@ import (
 // read, so one that no longer compiles against the source as it now stands
 // does not stop the next generation.
 func Source(dir, entry, name, output, mermaidOutput string) error {
+	if filepath.Ext(output) == ".html" {
+		return sourceHTML(dir, entry, name, output)
+	}
 	return source(dir, entry, name, output, mermaidOutput, true)
 }
 

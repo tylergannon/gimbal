@@ -96,6 +96,7 @@ import (
 	"strings"
 
 	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/internal/skgo/params"
 	"github.com/tylergannon/gimbal/internal/workflows/{{.Package}}"
 	"github.com/tylergannon/polytype"
 	"github.com/tylergannon/skgo"
@@ -114,7 +115,7 @@ type {{.Input}} struct {
 {{- end}}
 }
 
-func {{.Handler}}(ctx context.Context, in {{.Input}}) (StartAccepted, error) {
+func {{.Handler}}(ctx context.Context, _ params.RequestEvent, in {{.Input}}) (StartAccepted, error) {
 {{- range .Fields}}{{if .RequiredString}}
 	if strings.TrimSpace(in.{{.Name}}) == "" { return StartAccepted{}, skgo.Invalidf("{{.JSON}}", "Give {{.JSON}}.") }
 {{- else if .RequiredInt}}

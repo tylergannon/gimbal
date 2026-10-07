@@ -6,15 +6,15 @@
 		"test": "bddgen && playwright test"
 	},
 	"devDependencies": {
-		"@playwright/test": "1.63.0",
-		"@types/node": "22.20.1",
+		"@playwright/test": "1.64.0",
+		"@types/node": "26.6.4",
 		"playwright-bdd": "9.2.1",
-		"typescript": "6.0.3"
+		"typescript": "7.0.2"
 	},
 	"devEngines": {
 		"packageManager": {
 			"name": "pnpm",
-			"version": "11.25.0",
+			"version": "12.10.1",
 			"onFail": "download"
 		}
 	}

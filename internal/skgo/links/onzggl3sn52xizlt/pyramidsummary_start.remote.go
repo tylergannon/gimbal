@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/internal/skgo/params"
 	"github.com/tylergannon/gimbal/internal/workflows/pyramidsummary"
 	"github.com/tylergannon/polytype"
 	"github.com/tylergannon/skgo"
@@ -28,7 +29,7 @@ type StartPyramidSummaryInput struct {
 	RoleEditorialReview     polytype.Optional[string] `json:"role_editorial_review,omitzero"`
 }
 
-func startPyramidSummary(ctx context.Context, in StartPyramidSummaryInput) (StartAccepted, error) {
+func startPyramidSummary(ctx context.Context, _ params.RequestEvent, in StartPyramidSummaryInput) (StartAccepted, error) {
 	if strings.TrimSpace(in.Goal) == "" {
 		return StartAccepted{}, skgo.Invalidf("goal", "Give goal.")
 	}

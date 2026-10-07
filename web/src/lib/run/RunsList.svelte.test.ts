@@ -15,16 +15,16 @@ test("cards show observation-derived facts and open the selected run", async () 
   const card = screen.getByRole("button", {
     name: "Open plan-trip 01M2RWXNFFYQA4HHQWMQ252CYF",
   });
-  await expect.element(card).toHaveTextContent("Running");
-  await expect.element(card).toHaveTextContent("Latest activity");
-  await expect.element(card).toHaveTextContent("40 s");
-  await expect.element(card).toHaveTextContent("$0.32");
-  await expect.element(card).toHaveTextContent("12m 40s");
-  await expect.element(card).toHaveTextContent("Sessions3");
-  await expect.element(card).toHaveTextContent("Turns7");
+  await expect.element(card).toMatchTextContent("Running");
+  await expect.element(card).toMatchTextContent("Latest activity");
+  await expect.element(card).toMatchTextContent("40 s");
+  await expect.element(card).toMatchTextContent("$0.32");
+  await expect.element(card).toMatchTextContent("12m 40s");
+  await expect.element(card).toMatchTextContent("Sessions3");
+  await expect.element(card).toMatchTextContent("Turns7");
   await expect
     .element(card)
-    .toHaveTextContent("Compare the available cabins and ask about the tradeoffs that matter.");
+    .toMatchTextContent("Compare the available cabins and ask about the tradeoffs that matter.");
 
   await card.click();
   expect(opened).toEqual(["01M2RWXNFFYQA4HHQWMQ252CYF"]);
@@ -85,10 +85,10 @@ test("filters, search, attention access, and refreshed card data stay useful", a
   const refreshedCard = screen.getByRole("button", {
     name: "Open plan-trip 01M2RWXNFFYQA4HHQWMQ252CYF",
   });
-  await expect.element(refreshedCard).toHaveTextContent("5 s");
-  await expect.element(refreshedCard).toHaveTextContent("$0.44");
-  await expect.element(refreshedCard).toHaveTextContent("Turns8");
+  await expect.element(refreshedCard).toMatchTextContent("5 s");
+  await expect.element(refreshedCard).toMatchTextContent("$0.44");
+  await expect.element(refreshedCard).toMatchTextContent("Turns8");
   await expect
     .element(refreshedCard)
-    .toHaveTextContent("Use the newly answered preference to rank the final options.");
+    .toMatchTextContent("Use the newly answered preference to rank the final options.");
 });

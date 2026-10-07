@@ -22,5 +22,10 @@
     "src/routes/projects/[project]/conversations/[conversationID]/+page.server.ts",
     "src/routes/projects/[project]/runs/[runID]/+page.server.ts"
   ],
-  "endpoints": {}
+  "actions": [],
+  "endpoints": {},
+  "prerender": {
+    "root": "..",
+    "package": "./internal/skgo/prerender"
+  }
 }

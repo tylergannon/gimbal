@@ -2,7 +2,6 @@
 package runid
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -28,20 +27,17 @@ type Data struct {
 // with. It reads the same registry, through the same context, that the JSON
 // endpoint and the event stream read: there is one observation of a run in
 // this process, and this is a rendering of it rather than a second source.
-func load(ctx context.Context) (Data, error) {
-	event := skgo.EventFrom(ctx)
-	if request := event.Request(); request != nil {
-		// The instance attaches the admitted project's registry to the
-		// request context, which an SSR render also carries.
-		ctx = request.Context()
-	}
+func load(event PageRequestEvent) (Data, error) {
+	// The instance attaches the admitted project's registry to the
+	// request context, which an SSR render also carries.
+	ctx := event.Context()
 	registry := observation.FromContext(ctx)
 	if registry == nil {
 		return Data{}, skgo.Errorf(http.StatusInternalServerError,
 			"This server has no observation registry in its context, so no run can be read.")
 	}
 
-	runID := event.Param("runID")
+	runID := event.Params.RunID()
 	snapshot, err := registry.Snapshot(runID)
 	if errors.Is(err, observation.ErrNoRun) {
 		return Data{}, skgo.Errorf(http.StatusNotFound, "There is no run %s in this project.", runID)

@@ -63,6 +63,15 @@ func NewHandler(dist fs.FS, proxy, origin string) (http.Handler, string, error) 
 	remoteCfg := manifest.RemoteConfig(origin)
 	loadCfg := manifest.LoadConfig(origin)
 	endpointCfg := manifest.EndpointConfig(origin)
+	handleCfg := manifest.HandleConfig()
+	handleCfg.Origin = origin
+	handleCfg.Matchers = generated.Matchers()
+	loadCfg.Matchers = generated.Matchers()
+	endpointCfg.Matchers = generated.Matchers()
+	var bound http.Handler
+	internal := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		bound.ServeHTTP(w, r)
+	})
 
 	mode := "prod"
 	var pages http.Handler
@@ -87,14 +96,18 @@ func NewHandler(dist fs.FS, proxy, origin string) (http.Handler, string, error) 
 		loadCfg.Version = ""
 		loadCfg.Dev = true
 		endpointCfg.Dev = true
+		handleCfg.Dev = true
+		handleCfg.Version = ""
 		mode = "dev"
 		build = func(loads *skgo.Loads, remotes *skgo.Remotes) (http.Handler, error) {
 			ssr, err := skgo.NewDevSSR(dist, manifest, loads, remotes, proxy, skgo.SSROptions{
-				Fetch: observation.Routes(endpoints.Intercept(http.NotFoundHandler())),
+				Fetch: internal,
 			})
 			if err != nil {
 				return nil, err
 			}
+			endpoints.SetErrorTemplate(ssr.ErrorTemplate())
+			handleCfg.ErrorTemplate = ssr.ErrorTemplate()
 			return skgo.NewDevPages(target, manifest, ssr, log.Printf, endpoints), nil
 		}
 	} else {
@@ -104,11 +117,13 @@ func NewHandler(dist fs.FS, proxy, origin string) (http.Handler, string, error) 
 		// both of them exist.
 		build = func(loads *skgo.Loads, remotes *skgo.Remotes) (http.Handler, error) {
 			ssr, err := skgo.NewSSR(dist, manifest, loads, remotes, skgo.SSROptions{
-				Fetch: observation.Routes(endpoints.Intercept(http.NotFoundHandler())),
+				Fetch: internal,
 			})
 			if err != nil {
 				return nil, err
 			}
+			endpoints.SetErrorTemplate(ssr.ErrorTemplate())
+			handleCfg.ErrorTemplate = ssr.ErrorTemplate()
 			return skgo.NewStaticHandler(dist, skgo.WithSSR(ssr))
 		}
 	}
@@ -144,8 +159,11 @@ func NewHandler(dist fs.FS, proxy, origin string) (http.Handler, string, error) 
 	// They are also the SSR renderer's fetch host above, so a page rendered
 	// in this process reaches the same snapshot over the same route the
 	// browser uses, without a second composition to keep in step.
-	return observation.Routes(explainOriginRefusals(remoteCfg,
-		loads.Intercept(remotes.Intercept(endpoints.Intercept(pages))))), mode, nil
+	handleCfg.Loads = loads
+	handleCfg.Static = skgo.ServedAsFile(pages)
+	bound = observation.Routes(explainOriginRefusals(remoteCfg,
+		generated.RequestBoundary(handleCfg, loads.Intercept(remotes.Intercept(endpoints.Intercept(pages))))))
+	return skgo.FetchConfig{Origin: origin, Base: manifest.Base, Handler: internal, Prerendered: manifest.Prerendered}.Intercept(bound), mode, nil
 }
 
 // explainOriginRefusals turns the one failure a new app is most likely to hit

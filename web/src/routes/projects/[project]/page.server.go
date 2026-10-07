@@ -2,7 +2,6 @@
 package routes
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"os"
@@ -38,11 +37,8 @@ type RunsData struct {
 	Now       int64                      `json:"now"`
 }
 
-func load(ctx context.Context) (RunsData, error) {
-	event := skgo.EventFrom(ctx)
-	if request := event.Request(); request != nil {
-		ctx = request.Context()
-	}
+func load(event PageRequestEvent) (RunsData, error) {
+	ctx := event.Context()
 	registry := observation.FromContext(ctx)
 	projectDir := host.ProjectDir(ctx)
 	if registry == nil || projectDir == "" {

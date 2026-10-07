@@ -2,7 +2,6 @@
 package conversations
 
 import (
-	"context"
 	"net/http"
 
 	"github.com/tylergannon/skgo"
@@ -16,11 +15,8 @@ type ConversationsData struct {
 	Selected conversation.Conversation   `json:"selected"`
 }
 
-func Load(ctx context.Context) (ConversationsData, error) {
-	event := skgo.EventFrom(ctx)
-	if request := event.Request(); request != nil {
-		ctx = request.Context()
-	}
+func Load(event PageRequestEvent) (ConversationsData, error) {
+	ctx := event.Context()
 	manager := conversation.FromContext(ctx)
 	if manager == nil {
 		return ConversationsData{}, skgo.Errorf(http.StatusInternalServerError,
@@ -28,12 +24,8 @@ func Load(ctx context.Context) (ConversationsData, error) {
 	}
 	items := manager.List()
 	data := ConversationsData{Items: items, Selected: conversation.Conversation{Messages: []conversation.Message{}}}
-	selected := event.Param("conversationID")
-	if selected == "" && len(items) > 0 {
-		selected = items[0].ID
-	}
-	if item, ok := manager.Get(selected); ok {
-		data.Selected = item
+	if len(items) > 0 {
+		data.Selected = items[0]
 	}
 	return data, nil
 }

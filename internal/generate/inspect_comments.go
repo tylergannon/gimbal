@@ -8,6 +8,7 @@ import (
 type diagramAnnotation struct {
 	owner, fallback    controlKey
 	title, description string
+	trueLabel          string
 }
 
 // Plain comments immediately above a statement describe that statement. Go's
@@ -29,8 +30,20 @@ func (e *extractor) inspectDiagramComments() {
 				if lines[0] == "" {
 					continue
 				}
-				a := diagramAnnotation{title: lines[0], description: strings.TrimSpace(strings.Join(lines[1:], "\n"))}
+				a := diagramAnnotation{title: lines[0]}
+				var description []string
+				_, isIf := stmt.(*ast.IfStmt)
+				for _, line := range lines[1:] {
+					if value, ok := strings.CutPrefix(line, "When true:"); ok && isIf {
+						a.trueLabel = strings.TrimSpace(value)
+					} else {
+						description = append(description, line)
+					}
+				}
+				a.description = strings.TrimSpace(strings.Join(description, "\n"))
 				switch stmt.(type) {
+				case *ast.CaseClause:
+					a.owner = controlKey{Source: e.at(stmt.Pos()), Kind: "Branch"}
 				case *ast.IfStmt, *ast.SwitchStmt, *ast.TypeSwitchStmt:
 					a.owner = controlKey{Source: e.at(stmt.Pos()), Kind: "Condition"}
 				case *ast.ForStmt, *ast.RangeStmt:
@@ -70,11 +83,17 @@ func (e *extractor) inspectDiagramComments() {
 
 func applyDiagramAnnotations(nodes []*viewNode, annotations []diagramAnnotation) {
 	bySource := map[controlKey][]*viewNode{}
+	branchesBySource := map[controlKey][]*branchInspection{}
 	var index func([]*viewNode)
 	index = func(nodes []*viewNode) {
 		for _, n := range nodes {
 			key := controlKey{Source: n.Source, Kind: n.Kind}
 			bySource[key] = append(bySource[key], n)
+			for i := range n.Branches {
+				br := &n.Branches[i]
+				key := controlKey{Source: br.Source, Kind: "Branch"}
+				branchesBySource[key] = append(branchesBySource[key], br)
+			}
 			for _, child := range n.Children {
 				index(child)
 			}
@@ -82,6 +101,14 @@ func applyDiagramAnnotations(nodes []*viewNode, annotations []diagramAnnotation)
 	}
 	index(nodes)
 	for _, a := range annotations {
+		if a.owner.Kind == "Condition" || a.owner.Kind == "Branch" {
+			for _, br := range branchesBySource[controlKey{Source: a.owner.Source, Kind: "Branch"}] {
+				br.Title, br.Description, br.Label = a.title, a.description, a.trueLabel
+			}
+		}
+		if a.owner.Kind == "Branch" {
+			continue
+		}
 		owners := bySource[a.owner]
 		// An omitted error-handling guard lends its comment to its initializer
 		// operation. A real condition keeps the comment, never duplicating it.

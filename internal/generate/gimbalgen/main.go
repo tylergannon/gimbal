@@ -26,7 +26,7 @@ func run(args []string) error {
 	entry := flags.String("entry", "", "the workflow's entry function")
 	dir := flags.String("dir", ".", "Go package directory to analyze; the workflow is never executed")
 	name := flags.String("name", "", "the workflow's name, which is also the run's name")
-	output := flags.String("o", "workflow_gen.go", "output: .go graph registration, or standalone .html source viewer (does not execute the workflow)")
+	output := flags.String("o", "workflow_gen.go", "output: .go graph registration, .html source viewer, or .json inspection data (inspection does not execute the workflow)")
 	mermaid := flags.String("mermaid", "", "optional .mmd file for the workflow diagram")
 	if err := flags.Parse(args); err != nil {
 		return err

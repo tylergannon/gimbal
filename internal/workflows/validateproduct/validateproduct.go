@@ -147,22 +147,35 @@ func ValidateProduct(ctx context.Context, env gimbal.Env, params Params) (result
 		if err := os.MkdirAll(dirs[i], 0755); err != nil {
 			return err
 		}
+		// Start command?
+		// Start the product only when this workload provides a command.
+		// When true: Command provided
 		if w.Start != "" {
+			// Start the product
 			if err := gimbal.Service(ctx, "product", w.Workdir, w.Start); err != nil {
 				return err
 			}
 		}
+		// Readiness check?
+		// Wait for the product when this workload provides a readiness check.
+		// When true: Check provided
 		if w.Ready != "" {
 			ready, stop := context.WithTimeout(ctx, 30*time.Second)
+			// Wait until ready
 			code, _, stderr, err := gimbal.RunCommand(ready, "readiness", w.Workdir, "zsh", "-c", "until ( "+w.Ready+"\n); do sleep 0.25; done")
 			stop()
+			// Readiness check failed?
+			// When true: Check failed
 			if err != nil || code != 0 {
 				return fmt.Errorf("%s readiness: %w", w.Name, errors.Join(err, fmt.Errorf("exit %d: %s", code, stderr)))
 			}
 		}
 		opened[i], recording[i] = true, true
 		browser := shellQuote(driver) + " -s=" + shellQuote(names[i])
+		// Open and record the browser
 		code, _, stderr, err := gimbal.RunCommand(ctx, "record-browser", dirs[i], "zsh", "-c", browser+" open about:blank && "+browser+" video-start "+shellQuote(filepath.Join(dirs[i], "video.webm"))+" --cursor && "+browser+" goto "+shellQuote(w.URL))
+		// Browser setup failed?
+		// When true: Setup failed
 		if err != nil || code != 0 {
 			return fmt.Errorf("%s browser: %w", w.Name, errors.Join(err, fmt.Errorf("exit %d: %s", code, stderr)))
 		}

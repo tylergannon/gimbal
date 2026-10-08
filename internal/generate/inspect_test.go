@@ -371,3 +371,55 @@ func Comments(ctx context.Context, flag bool) error {
 		t.Fatalf("branch ownership: %+v", n)
 	}
 }
+
+func TestInspectionJSONBranchAnnotations(t *testing.T) {
+	output := filepath.Join(t.TempDir(), "routing.json")
+	if err := Source("testdata/inspection", "Routing", "routing", output, ""); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var page sourcePage
+	if err := json.Unmarshal(data, &page); err != nil {
+		t.Fatal(err)
+	}
+	if page.Name != "routing" || page.Entry != "Routing" || len(page.Diagnostics) != 0 {
+		t.Fatalf("unexpected inspection: %+v", page)
+	}
+	var conditions []*viewNode
+	for _, node := range page.Body {
+		if node.Kind == "Condition" {
+			conditions = append(conditions, node)
+		}
+	}
+	if len(conditions) != 2 {
+		t.Fatalf("conditions=%d", len(conditions))
+	}
+	chain, choice := conditions[0], conditions[1]
+	if chain.Control.Kind != "if" || len(chain.Branches) != 3 || len(chain.Children) != 3 {
+		t.Fatalf("if chain=%+v", chain)
+	}
+	if chain.Branches[0].Label != "Command provided" || chain.Branches[0].Code != `start != ""` || strings.Contains(chain.Description, "When true:") {
+		t.Fatalf("first branch metadata=%+v", chain.Branches[0])
+	}
+	if chain.Branches[1].Title != "Existing product supplied?" || chain.Branches[1].Label != "Product location provided" || chain.Branches[1].Code != `existing != ""` {
+		t.Fatalf("else-if metadata=%+v", chain.Branches[1])
+	}
+	if !chain.Branches[2].Default || chain.Branches[2].Label != "" || chain.Branches[2].Title != "" {
+		t.Fatalf("else invented caption=%+v", chain.Branches[2])
+	}
+	if choice.Control.Kind != "switch" || len(choice.Branches) != 3 || choice.Branches[0].Title != "Visual review" || choice.Branches[1].Title != "Functional review" || !choice.Branches[2].Default {
+		t.Fatalf("switch metadata=%+v", choice.Branches)
+	}
+	if choice.Children[0][0].Title != "Review each screen" || choice.Children[1][0].Title != "Independent checks" {
+		t.Fatal("case caption replaced its first operation title")
+	}
+	if len(chain.Children[0]) != 2 || chain.Children[0][1].Kind != "Repeat" || chain.Children[1][0].Kind != "Scope" || chain.Children[2][0].Kind != "Scope" {
+		t.Fatalf("branch nesting not retained: %+v", chain.Children)
+	}
+	if chain.Children[0][1].Title != "Check the started product" || chain.Children[1][0].Title != "Inspect the existing product" || chain.Children[2][0].Title != "Review the setup instructions" {
+		t.Fatal("container comments not retained")
+	}
+}

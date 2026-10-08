@@ -30,6 +30,7 @@ type controlKey struct {
 	Kind   string
 }
 type controlInspection struct {
+	Kind    string   `json:"kind,omitempty"`
 	Code    string   `json:"code"`
 	Actions []string `json:"actions,omitempty"`
 	key     controlKey
@@ -44,6 +45,12 @@ func (e *extractor) inspectControl(kind string, node ast.Node) *controlInspectio
 	}
 	key := controlKey{Source: e.at(node.Pos()), Kind: kind}
 	info := &controlInspection{Code: text(e.pkg.Fset, node), key: key}
+	switch node.(type) {
+	case *ast.IfStmt:
+		info.Kind = "if"
+	case *ast.SwitchStmt, *ast.TypeSwitchStmt:
+		info.Kind = "switch"
+	}
 	e.inspection.Controls[key] = append(e.inspection.Controls[key], info)
 	return info
 }
@@ -251,6 +258,15 @@ type contextField struct {
 	Optional bool        `json:"optional,omitempty"`
 	Shadowed []string    `json:"shadowed,omitempty"`
 }
+type branchInspection struct {
+	Label       string          `json:"label,omitempty"`
+	Code        string          `json:"code"`
+	Source      workflow.Source `json:"source"`
+	Title       string          `json:"title,omitempty"`
+	Description string          `json:"description,omitempty"`
+	Default     bool            `json:"default,omitempty"`
+}
+
 type viewNode struct {
 	Title        string             `json:"title,omitempty"`
 	Description  string             `json:"description,omitempty"`
@@ -266,6 +282,7 @@ type viewNode struct {
 	Control      *controlInspection `json:"control,omitempty"`
 	Context      []contextField     `json:"context"`
 	Children     [][]*viewNode      `json:"children,omitempty"`
+	Branches     []branchInspection `json:"branches,omitempty"`
 	BranchLabels []string           `json:"branchLabels,omitempty"`
 	BranchExits  []bool             `json:"branchExits,omitempty"`
 	Note         string             `json:"note,omitempty"`
@@ -443,6 +460,7 @@ func (b *pageBuilder) body(ops []workflow.Operation, initial []contextField, sco
 			hasDefault := false
 			previous := []string{}
 			for _, br := range op.Branches {
+				n.Branches = append(n.Branches, branchInspection{Code: br.Case, Source: br.Source, Default: br.Case == ""})
 				label := br.Case
 				cond := label
 				if label == "" {
@@ -495,7 +513,7 @@ func (b *pageBuilder) body(ops []workflow.Operation, initial []contextField, sco
 	return nodes, ctx
 }
 
-func sourceHTML(dir, entry, name, output string) error {
+func sourceInspection(dir, entry, name, output string) error {
 	d := &inspectionData{}
 	g, _, err := extractInspected(dir, entry, name, nil, false, d)
 	if err != nil {
@@ -506,7 +524,10 @@ func sourceHTML(dir, entry, name, output string) error {
 	if err != nil {
 		return err
 	}
-	page := strings.Replace(inspectorHTML, `"SOURCE_DATA_PLACEHOLDER"`, string(data), 1)
+	page := string(data) + "\n"
+	if filepath.Ext(output) == ".html" {
+		page = strings.Replace(inspectorHTML, `"SOURCE_DATA_PLACEHOLDER"`, string(data), 1)
+	}
 	if !filepath.IsAbs(output) {
 		output = filepath.Join(dir, output)
 	}

@@ -76,17 +76,24 @@
         min-width: 0; min-height: 0; overflow: auto; position: relative;
         border-right: 1px solid var(--line);
       }
-      .breadcrumbs {
-        display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
-        padding: 12px 24px; min-height: 44px;
-        position: sticky; top: 0; z-index: 4; background: var(--surface);
-      }
-      .breadcrumbs button {
-        border: 0; padding: 2px 0; background: transparent;
-        color: var(--accent); font-size: 14px; text-decoration: underline;
-        text-underline-offset: 3px;
-      }
-      .breadcrumbs button[aria-current] { color: var(--ink); text-decoration: none; }
+      .map-caption { padding: 12px 24px; min-height: 44px; }
+      .map-scroll { overflow-anchor: none; }
+      .container-body[hidden] { display: none; }
+      .scope, .write-group { width: min(var(--node-width), 100%); position: relative; }
+      .scope.is-open { width: 100%; max-width: 520px; outline: 1px solid var(--muted); border-radius: 4px; padding: 0 4px 6px; }
+      .scope.is-open > .node { border-color: transparent; }
+      .scope.is-open > .node[data-control] .node-label { white-space: normal; font: 13px/1.4 var(--mono); overflow-wrap: anywhere; }
+      .single-body { padding-top: 16px; }
+      .scope .lanes { gap: 8px; padding-top: 16px; }
+      .scope .lane.through { flex-basis: 28px; }
+      .scope .node { padding-inline: 7px; gap: 6px; }
+      .write-group { border: 1px solid var(--muted); border-radius: 4px; background: var(--surface); z-index: 2; }
+      .write-group > .node { border: 0; }
+      .write-row { display: flex; align-items: baseline; gap: 8px; width: 100%; text-align: left; padding: 8px 10px; border: 0; border-top: 1px solid var(--line); background: var(--surface); font-size: 13px; overflow-wrap: anywhere; }
+      .write-row:hover { background: var(--wash); }
+      .write-row small { margin-left: auto; color: var(--muted); font-size: 11px; }
+      .write-row[aria-pressed="true"] { background: var(--tint); box-shadow: inset 3px 0 var(--accent); }
+      .write-row:focus-visible { position: relative; z-index: 3; }
       .map { position: relative; width: 100%; padding: 4px 20px 28px; }
       .graph-body { position: relative; }
       .connections { position: absolute; inset: 0; pointer-events: none; overflow: visible; z-index: 1; }
@@ -109,6 +116,7 @@
       .node-icon svg { display: block; width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
       .node-tail { margin-left: auto; font-size: 17px; line-height: 1; }
       .write-count { font-size: 12px; margin-left: auto; color: var(--muted); }
+      .write-group .node-tail { margin-left: 0; }
       .node[data-kind="Generate"] { border: 1px solid var(--ink); border-left: 4px solid var(--accent); min-height: 42px; }
       .node[data-kind="Generate"] .node-label { font-weight: 650; }
       .node[data-kind="NewSession"], .node[data-kind="Command"], .node[data-kind="Service"] {
@@ -119,12 +127,15 @@
       .node:focus-visible { outline: 3px solid #ffdd00; outline-offset: 1px; box-shadow: 0 0 0 1px var(--ink); }
       .node.origin { border-color: var(--accent); }
       .block {
-        width: 100%; min-width: 0; max-width: 760px;
+        width: 100%; min-width: 0; max-width: var(--parallel-width, 760px);
         padding: 0 12px 8px; position: relative; margin-inline: auto;
       }
+      .block:not(.is-open) { width: min(var(--node-width), 100%); padding: 0; }
+      .block:has(> .container-body > .lanes > .lane > .sequence > .scope.is-open) { max-width: 100%; }
       .block > .node { margin: 0 auto; width: min(var(--node-width), 100%); }
       .lanes { display: flex; gap: 24px; justify-content: center; padding-top: 24px; }
       .lane { display: flex; flex-direction: column; align-items: center; gap: 14px; min-width: 0; flex: 1; }
+      .lane:has(> .sequence > .scope.is-open) { flex: 2; }
       .lane.through { flex: 0 0 52px; }
       .branch, .action {
         position: relative; z-index: 2; background: var(--surface);
@@ -140,14 +151,7 @@
         border-radius: 5px; box-shadow: 0 4px 16px #0002;
       }
       .peek[hidden] { display: none; }
-      .peek h3 { font-size: 14px; margin: 0 0 8px; }
       .peek pre { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font: 13px/1.5 var(--mono); }
-      .peek button {
-        display: flex; width: 100%; gap: 16px; align-items: baseline; text-align: left;
-        border: 0; border-top: 1px solid var(--line); background: var(--surface); padding: 9px 4px;
-      }
-      .peek button:hover { background: var(--wash); color: var(--accent); }
-      .peek button small { margin-left: auto; color: var(--muted); }
       .inspection {
         min-height: 0;
         overflow: auto;
@@ -402,7 +406,7 @@
     </header>
     <main class="workspace">
       <section class="map-scroll" id="map-scroll" aria-label="Workflow graph">
-        <nav class="breadcrumbs" id="breadcrumbs" aria-label="Workflow location"></nav>
+        <div class="map-caption">Workflow</div>
         <div class="map" id="map">
           <svg class="connections" id="connections" aria-hidden="true"></svg>
           <div class="graph-body" id="graph-body"></div>
@@ -493,10 +497,9 @@
         }
       }
       index(data.body);
-      let scopeId = null;
-      const positions = new Map();
+      const containers = new Map(), writeContainers = new Map();
       const peek = document.getElementById("peek");
-      let peekAnchor, peekTimer, hideTimer, peekPinned = false;
+      let peekAnchor, peekTimer, hideTimer;
       const isWrite = (n) => n.kind === "Set" || n.kind === "SetJSON";
       const mapLabel = (n) => n.writes ? "Set" : n.control ? (isGuard(n) ? "If · " + (action(n, 0).split(/\W/)[0] || "exit") : kindName(n)) : title(n);
       const icons = {
@@ -519,10 +522,8 @@
       function closePeek() {
         clearTimeout(peekTimer); clearTimeout(hideTimer);
         peekAnchor?.removeAttribute("aria-describedby");
-        if (peekAnchor?.hasAttribute("aria-expanded")) peekAnchor.setAttribute("aria-expanded", "false");
         peek.hidden = true;
         peekAnchor = null;
-        peekPinned = false;
       }
       function placePeek(b) {
         peekAnchor = b;
@@ -534,27 +535,14 @@
         peek.style.top = Math.max(12, Math.min(r.top, innerHeight - height - 12)) + "px";
       }
       function showPeek(b, n) {
+        if (b.classList.contains("node") && containers.get(n.id)?.body.hidden === false) return;
         clearTimeout(peekTimer); clearTimeout(hideTimer);
         if (peekAnchor === b && !peek.hidden) return;
         closePeek();
         peek.replaceChildren();
-        if (n.writes) {
-          peek.setAttribute("role", "region");
-          peek.setAttribute("aria-label", "Set operations");
-          const kinds = new Set(n.writes.map(w => w.kind));
-          text(peek, "h3", "", (kinds.size === 1 ? n.writes[0].kind : "Set") + " operations");
-          for (const w of n.writes) {
-            const row = text(peek, "button", "", title(w));
-            if (kinds.size > 1) text(row, "small", "", w.kind);
-            row.onclick = () => { b.focus({preventScroll: true}); closePeek(); select(w.id); };
-          }
-          b.setAttribute("aria-expanded", "true");
-        } else {
-          b.setAttribute("aria-describedby", "peek");
-          peek.setAttribute("role", "tooltip");
-          peek.removeAttribute("aria-label");
-          text(peek, "pre", "", n.control ? headline(n) : kindName(n) + " · " + title(n));
-        }
+        b.setAttribute("aria-describedby", "peek");
+        peek.setAttribute("role", "tooltip");
+        text(peek, "pre", "", n.control ? headline(n) : kindName(n) + " · " + title(n));
         placePeek(b);
       }
       function attachPeek(b, n) {
@@ -563,13 +551,13 @@
           peekTimer = setTimeout(() => showPeek(b, n), 350);
         };
         b.onmouseleave = () => { clearTimeout(peekTimer); hidePeekLater(); };
-        if (!n.writes) b.onfocus = () => showPeek(b, n);
+        b.onfocus = () => showPeek(b, n);
         b.onblur = hidePeekLater;
       }
       function hidePeekLater() {
         clearTimeout(hideTimer);
         hideTimer = setTimeout(() => {
-          if (!peekPinned && !peek.contains(document.activeElement) && document.activeElement !== peekAnchor) closePeek();
+          if (!peek.contains(document.activeElement) && document.activeElement !== peekAnchor) closePeek();
         }, 200);
       }
       peek.onmouseenter = () => clearTimeout(hideTimer);
@@ -585,33 +573,74 @@
         const b = el("button", "node");
         b.dataset.id = n.id;
         b.dataset.kind = n.kind;
+        if (n.control) b.dataset.control = "";
         b.setAttribute("aria-pressed", "false");
         b.append(icon(n.writes ? "Set" : n.kind));
         text(b, "span", "node-label", mapLabel(n));
-        const opens = n.children && n.kind !== "Group" && !isGuard(n) && n.id !== scopeId;
-        if (n.writes) {
-          b.dataset.members = n.writes.map(w => w.id).join(" ");
-          b.setAttribute("aria-label", "Set operations (" + n.writes.length + ")");
+        const expandable = n.writes || (n.children && !isGuard(n));
+        const label = mapLabel(n);
+        b.setAttribute("aria-label", n.writes ? "Set operations (" + n.writes.length + ")" : label.startsWith(kindName(n)) ? label : kindName(n) + " · " + label);
+        if (n.writes) text(b, "span", "write-count", String(n.writes.length));
+        else elements.set(n.id, b);
+        if (expandable) {
           b.setAttribute("aria-expanded", "false");
-          b.setAttribute("aria-controls", "peek");
-          text(b, "span", "write-count", String(n.writes.length));
-          for (const w of n.writes) elements.set(w.id, b);
-          b.onclick = () => {
-            if (peekAnchor === b && !peek.hidden && peekPinned) { closePeek(); return; }
-            showPeek(b, n);
-            peekPinned = true;
-            peek.querySelector("button")?.focus();
-          };
-        } else {
-          elements.set(n.id, b);
-          const label = mapLabel(n);
-          b.setAttribute("aria-label", (label.startsWith(kindName(n)) ? label : kindName(n) + " · " + label) + (opens ? ", open" : ""));
-          if (opens) text(b, "span", "node-tail", "›").setAttribute("aria-hidden", "true");
-          b.onclick = () => { closePeek(); opens ? openScope(n.id) : select(n.id); };
-        }
-        if (n.control || n.writes) attachPeek(b, n);
-        else b.title = kindName(n);
+          b.setAttribute("aria-controls", "children-" + n.id);
+          text(b, "span", "node-tail", "›").setAttribute("aria-hidden", "true");
+          b.onclick = () => toggleExpanded(n.id);
+        } else b.onclick = () => { closePeek(); select(n.id); };
+        if (n.control) attachPeek(b, n);
+        else b.title = kindName(n) + " · " + title(n);
         return b;
+      }
+      function registerContainer(n, wrap, body) {
+        body.id = "children-" + n.id;
+        const button = wrap.querySelector(":scope > .node");
+        containers.set(n.id, {n, wrap, body, button, label: button.getAttribute("aria-label")});
+        setExpanded(n.id, n.kind === "Group");
+      }
+      function setExpanded(id, open) {
+        const c = containers.get(id);
+        if (!c) return;
+        c.body.hidden = !open;
+        c.wrap.classList.toggle("is-open", open);
+        c.button.setAttribute("aria-expanded", String(open));
+        c.button.setAttribute("aria-label", open && c.n.control ? headline(c.n) : c.label);
+        c.button.querySelector(".node-tail").textContent = open ? "⌄" : "›";
+        c.button.querySelector(".node-label").textContent = open && c.n.control ? headline(c.n) : open && c.n.writes?.every(w => w.kind === "SetJSON") ? "SetJSON" : mapLabel(c.n);
+      }
+      function toggleExpanded(id) {
+        closePeek();
+        const c = containers.get(id), scroll = document.getElementById("map-scroll");
+        const top = c.button.getBoundingClientRect().top;
+        setExpanded(id, c.body.hidden);
+        scroll.scrollTop += c.button.getBoundingClientRect().top - top;
+        drawEdges();
+      }
+      function ensureVisible(id) {
+        const ancestors = [];
+        for (let n = parents.get(id); n; n = parents.get(n.id)) ancestors.unshift(n);
+        for (const n of ancestors) setExpanded(n.id, true);
+        if (writeContainers.has(id)) setExpanded(writeContainers.get(id), true);
+        drawEdges();
+      }
+      function renderWrites(n) {
+        const wrap = el("div", "write-group");
+        wrap.dataset.id = n.id;
+        wrap.append(nodeButton(n));
+        const body = el("div", "container-body");
+        const mixed = new Set(n.writes.map(w => w.kind)).size > 1;
+        for (const w of n.writes) {
+          const row = text(body, "button", "write-row", title(w));
+          row.dataset.id = w.id;
+          row.setAttribute("aria-pressed", "false");
+          if (mixed) text(row, "small", "", w.kind);
+          row.onclick = () => select(w.id);
+          elements.set(w.id, row);
+          writeContainers.set(w.id, n.id);
+        }
+        wrap.append(body);
+        registerContainer(n, wrap, body);
+        return wrap;
       }
       function grouped(nodes) {
         const result = [];
@@ -624,15 +653,18 @@
         return result;
       }
       function renderParallel(n) {
-        const wrap = el("div", "block");
+        const wrap = el("div", n.kind === "Group" ? "block" : "scope");
         wrap.dataset.id = n.id;
         wrap.append(nodeButton(n));
+        const body = el("div", "container-body");
         const lanes = el("div", "lanes");
         const cond = n.kind === "Condition";
         const fullLanes = n.children.filter(body => body.length).length;
         const laneCount = n.children.length + (cond && !n.branchLabels.some(isElse) ? 1 : 0);
         const extraWidth = (laneCount - fullLanes) * 52 + (laneCount - 1) * 24 + 24;
-        wrap.style.maxWidth = `max(calc(var(--node-width) + 24px), calc(var(--node-width) * ${fullLanes} + ${extraWidth}px))`;
+        const width = `max(calc(var(--node-width) + 24px), calc(var(--node-width) * ${fullLanes} + ${extraWidth}px))`;
+        if (n.kind === "Group") wrap.style.setProperty("--parallel-width", width);
+        else wrap.style.maxWidth = width;
         n.children.forEach((body, i) => {
           const lane = el("div", "lane" + (body.length ? "" : " through"));
           if (cond) {
@@ -651,15 +683,28 @@
           text(lane, "span", "branch", kindName(n) === "Switch" ? "Default" : "No");
           lanes.append(lane);
         }
-        wrap.append(lanes, el("div", "join"));
+        body.append(lanes, el("div", "join"));
+        wrap.append(body);
+        registerContainer(n, wrap, body);
         return wrap;
       }
       function renderSequence(nodes) {
         const seq = el("div", "sequence");
         for (const n of grouped(nodes)) {
           let wrap;
-          if (n.kind === "Group") wrap = renderParallel(n);
-          else {
+          if (n.writes) wrap = renderWrites(n);
+          else if (n.children && !isGuard(n)) {
+            if (n.kind === "Group" || n.kind === "Condition" || n.children.length > 1) wrap = renderParallel(n);
+            else {
+              wrap = el("div", "scope");
+              wrap.dataset.id = n.id;
+              wrap.append(nodeButton(n));
+              const body = el("div", "container-body single-body");
+              body.append(renderSequence(n.children[0]), el("div", "join"));
+              wrap.append(body);
+              registerContainer(n, wrap, body);
+            }
+          } else {
             wrap = el("div", "step");
             wrap.dataset.id = n.id;
             wrap.append(nodeButton(n));
@@ -668,42 +713,10 @@
         }
         return seq;
       }
-      function renderMap(id = null) {
-        closePeek();
-        const scroll = document.getElementById("map-scroll");
-        positions.set(scopeId, {top: scroll.scrollTop, left: scroll.scrollLeft});
-        scopeId = id;
-        elements.clear();
-        const root = document.getElementById("graph-body"), n = byId.get(id);
-        root.replaceChildren();
-        if (!n) root.append(renderSequence(data.body));
-        else if (n.kind === "Condition" || n.children.length > 1) root.append(renderParallel(n));
-        else root.append(renderSequence(n.children[0]));
-        const crumbs = document.getElementById("breadcrumbs");
-        crumbs.replaceChildren();
-        const path = [];
-        for (let ancestor = n; ancestor; ancestor = parents.get(ancestor.id)) path.unshift(ancestor);
-        const home = text(crumbs, "button", "", "Workflow");
-        home.onclick = () => openScope(null);
-        if (!n) home.setAttribute("aria-current", "page");
-        for (const ancestor of path) {
-          text(crumbs, "span", "", "/").setAttribute("aria-hidden", "true");
-          const b = text(crumbs, "button", "", ancestor === n && n.control ? headline(n) : mapLabel(ancestor));
-          if (ancestor === n) b.setAttribute("aria-current", "page");
-          b.onclick = () => ancestor === n ? select(n.id) : openScope(ancestor.id);
-          if (ancestor !== n && ancestor.control) attachPeek(b, ancestor);
-        }
-        const position = positions.get(id);
-        scroll.scrollTop = position?.top || 0;
-        scroll.scrollLeft = position?.left || 0;
-        requestAnimationFrame(drawEdges);
-      }
-      function openScope(id) { renderMap(id); overview(); }
-      renderMap();
+      document.getElementById("graph-body").append(renderSequence(data.body));
 
       // Series/parallel layout: CSS measures the subgraphs; edges connect their
-      // entry and exit points. Geometry is recomputed on resize, never on
-      // selection.
+      // entry and exit points. Recompute after disclosure changes and resizing.
       function drawEdges() {
         const map = document.getElementById("map"),
           svg = document.getElementById("connections"),
@@ -730,16 +743,27 @@
           svg.append(p);
         }
         const entry = (w) => w.querySelector(":scope > .node");
-        const end = (w) => w.querySelector(":scope > .join") || entry(w);
+        const end = (w) => w.classList.contains("write-group") ? w : w.querySelector(":scope > .container-body:not([hidden]) > .join") || entry(w);
         for (const seq of map.querySelectorAll(".sequence")) {
+          if (!seq.getClientRects().length) continue;
           const ws = [...seq.children];
           for (let i = 1; i < ws.length; i++)
             edge(point(end(ws[i - 1]), true), point(entry(ws[i]), false));
         }
-        for (const block of map.querySelectorAll(".block")) {
-          const head = entry(block),
-            join = block.querySelector(":scope > .join");
-          for (const lane of block.querySelector(":scope > .lanes").children) {
+        for (const block of map.querySelectorAll(".block, .scope")) {
+          const body = block.querySelector(":scope > .container-body");
+          if (body.hidden || !body.getClientRects().length) continue;
+          const head = entry(block), join = body.querySelector(":scope > .join");
+          const lanes = body.querySelector(":scope > .lanes");
+          if (!lanes) {
+            const sequence = body.querySelector(":scope > .sequence");
+            if (sequence.children.length) {
+              edge(point(head, true), point(entry(sequence.firstElementChild), false));
+              edge(point(end(sequence.lastElementChild), true), point(join, false));
+            }
+            continue;
+          }
+          for (const lane of lanes.children) {
             let prev = head;
             for (const c of lane.children) {
               if (c.classList.contains("sequence")) {
@@ -898,7 +922,7 @@
         document.body.classList.add("has-selection");
         const n = byId.get(id);
         if (!n) return;
-        if (!elements.has(id) && scopeId !== id) renderMap(parents.get(id)?.id || null);
+        ensureVisible(id);
         pressed(id);
         for (const f of n.context || [])
           elements.get(f.write)?.classList.add("origin");

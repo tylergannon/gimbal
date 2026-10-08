@@ -26,7 +26,7 @@ require (
 	github.com/tiktoken-go/tokenizer v0.8.1
 	github.com/tylergannon/claude-agent-sdk-go v1.1.1
 	github.com/tylergannon/polytype v1.4.0
-	github.com/tylergannon/skgo v0.22.0
+	github.com/tylergannon/skgo v0.22.1
 	go.temporal.io/api v1.63.6
 	go.temporal.io/sdk v1.49.0
 	golang.org/x/net v0.59.0

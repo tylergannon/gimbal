@@ -35,7 +35,7 @@ require (
 	github.com/tiktoken-go/tokenizer v0.8.1 // indirect
 	github.com/tylergannon/claude-agent-sdk-go v1.1.1 // indirect
 	github.com/tylergannon/polytype v1.4.0 // indirect
-	github.com/tylergannon/skgo v0.22.0 // indirect
+	github.com/tylergannon/skgo v0.22.1 // indirect
 	github.com/tylergannon/structtag v0.1.0 // indirect
 	go.temporal.io/api v1.63.6 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect

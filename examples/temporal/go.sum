@@ -81,8 +81,8 @@ github.com/tylergannon/claude-agent-sdk-go v1.1.1 h1:udcv5Jg8p9TVLOwBHoeG8JWEOFg
 github.com/tylergannon/claude-agent-sdk-go v1.1.1/go.mod h1:k8RYkcYnEX7j4sNivRsRnkNwUzrnBV6F8Ovc2dzbbBU=
 github.com/tylergannon/polytype v1.4.0 h1:JX2Y+xAB61Jd9lJuM8Yv1CqsYS3JbCTHjFDjpif3lYE=
 github.com/tylergannon/polytype v1.4.0/go.mod h1:Y35uUigmOAa0TGHwEWxkGqg8YHm7Xs4SxS+tOWF2QKQ=
-github.com/tylergannon/skgo v0.22.0 h1:F+jfxvbt794LUlQQnw0vCUAemvdG7S/cj9ZzlR6ava8=
-github.com/tylergannon/skgo v0.22.0/go.mod h1:LB4UPjs4+DCjn7glAs0BC8KOjOv8oldkaWUenZpHv8c=
+github.com/tylergannon/skgo v0.22.1 h1:6nA1nVCaUstCyB2KmgNht4rUIxTpyD2unwEJIddvMbs=
+github.com/tylergannon/skgo v0.22.1/go.mod h1:LB4UPjs4+DCjn7glAs0BC8KOjOv8oldkaWUenZpHv8c=
 github.com/tylergannon/structtag v0.1.0 h1:Vn4ZEemGUtAfw9ddEtHQILKnIWqSWCSpciFTNPh1gcY=
 github.com/tylergannon/structtag v0.1.0/go.mod h1:Rjgg4hJfebaKNeyqoLh4n+zKhfVBdMyc7nBHIlQsVw0=
 github.com/yuin/goldmark v1.1.27/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=

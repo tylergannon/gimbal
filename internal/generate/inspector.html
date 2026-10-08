@@ -7,24 +7,24 @@
     <style>
       :root {
         color-scheme: light;
-        --paper: #fafbf9;
+        /* GOV.UK functional colours: black text, white paper, blue interaction,
+           yellow/black focus. Keep connecting lines as dark as the text. */
+        --paper: #ffffff;
         --surface: #fff;
-        --ink: #22302a;
-        --muted: #5b6861;
-        --line: #d8e0d9;
-        --wash: #f0f4ef;
-        --fill: #f0f4ef99;
-        --fill-cond: #f6f3ee99;
-        --accent: #5d4a8f;
-        --tint: #eee8f8;
-        --write: #3f7052;
-        --write-line: #7ca08a;
-        --edge: #6f7f73;
-        --amber: #7f5412;
-        --amber-bg: #fbf5e8;
-        --amber-line: #eadbbc;
-        --key: #4a5c4d;
-        --node-width: 180px;
+        --ink: #0b0c0c;
+        --muted: #484949;
+        --line: #cecece;
+        --wash: #f4f8fb;
+        --accent: #1a65a6;
+        --tint: #f4f8fb;
+        --write: #0b0c0c;
+        --write-line: #484949;
+        --edge: #0b0c0c;
+        --amber: #7a3c1c;
+        --amber-bg: #fffdf2;
+        --amber-line: #806f00;
+        --key: #0b0c0c;
+        --node-width: 224px;
         --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
         font:
           14px/1.5 -apple-system,
@@ -33,28 +33,6 @@
           sans-serif;
         color: var(--ink);
         background: var(--paper);
-      }
-      @media (prefers-color-scheme: dark) {
-        :root {
-          color-scheme: dark;
-          --paper: #191d1c;
-          --surface: #232827;
-          --ink: #edf2ed;
-          --muted: #acb8b0;
-          --line: #465149;
-          --wash: #2b342e;
-          --fill: #2b342e80;
-          --fill-cond: #3d352650;
-          --accent: #c9b7ef;
-          --tint: #393048;
-          --write: #9cc8ac;
-          --write-line: #6f9a7f;
-          --edge: #96a69a;
-          --amber: #d4b57c;
-          --amber-bg: #3d3526;
-          --amber-line: #615234;
-          --key: #b2c9ba;
-        }
       }
       * {
         box-sizing: border-box;
@@ -74,243 +52,102 @@
         cursor: pointer;
       }
       button:focus-visible,
-      summary:focus-visible {
-        outline: 2px solid var(--accent);
-        outline-offset: 3px;
+      summary:focus-visible,
+      input:focus-visible {
+        outline: 3px solid #ffdd00;
+        outline-offset: 1px;
+        box-shadow: 0 0 0 1px var(--ink);
       }
       code {
         font: 12px/1.6 var(--mono);
       }
       .pagehead {
-        padding: 16px 24px 14px;
-        display: flex;
-        justify-content: space-between;
-        align-items: baseline;
-        gap: 20px;
+        padding: 12px 24px;
         border-bottom: 1px solid var(--line);
         background: var(--surface);
       }
-      h1 {
-        font-size: 22px;
-        letter-spacing: -0.02em;
-        margin: 0;
-        font-weight: 600;
-      }
-      .subtitle {
-        color: var(--muted);
-        font-size: 12px;
-        margin-top: 2px;
-      }
-      .legend {
-        display: flex;
-        align-items: center;
-        gap: 14px;
-        color: var(--muted);
-        font-size: 12px;
-        white-space: nowrap;
-      }
-      .legend span {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-      }
-      .dot {
-        width: 8px;
-        height: 8px;
-        border-radius: 50%;
-        background: var(--accent);
-      }
-      .dot.write {
-        background: var(--write);
-      }
-      .dot.flow {
-        background: var(--edge);
-      }
+      h1 { font-size: 20px; margin: 0; font-weight: 650; }
       .workspace {
         min-height: 0;
         display: grid;
-        grid-template-columns: minmax(0, 1fr) clamp(360px, 30vw, 440px);
+        grid-template-columns: minmax(0, 1fr) clamp(340px, 30vw, 440px);
       }
       .map-scroll {
-        min-width: 0;
-        min-height: 0;
-        overflow: auto;
-        position: relative;
+        min-width: 0; min-height: 0; overflow: auto; position: relative;
         border-right: 1px solid var(--line);
       }
-      @media (prefers-reduced-motion: no-preference) {
-        .map-scroll {
-          scroll-behavior: smooth;
-        }
+      .breadcrumbs {
+        display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+        padding: 12px 24px; min-height: 44px;
+        position: sticky; top: 0; z-index: 4; background: var(--surface);
       }
-      .map {
-        position: relative;
-        min-width: 100%;
-        width: max-content;
-        padding: 28px 16px 60px;
+      .breadcrumbs button {
+        border: 0; padding: 2px 0; background: transparent;
+        color: var(--accent); font-size: 14px; text-decoration: underline;
+        text-underline-offset: 3px;
       }
-      .graph-body {
-        position: relative;
-      }
-      .connections {
-        position: absolute;
-        inset: 0;
-        pointer-events: none;
-        overflow: visible;
-        z-index: 1;
-      }
-      .connections path {
-        fill: none;
-        stroke: var(--edge);
-        stroke-width: 1.6;
-      }
+      .breadcrumbs button[aria-current] { color: var(--ink); text-decoration: none; }
+      .map { position: relative; width: 100%; padding: 4px 20px 28px; }
+      .graph-body { position: relative; }
+      .connections { position: absolute; inset: 0; pointer-events: none; overflow: visible; z-index: 1; }
+      .connections path { fill: none; stroke: var(--edge); stroke-width: 2; }
       .sequence {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 22px;
-        min-width: var(--node-width);
+        display: flex; flex-direction: column; align-items: center;
+        gap: 16px; min-width: 0; width: 100%;
       }
-      .step {
-        width: var(--node-width);
-        position: relative;
-      }
+      .step { width: min(var(--node-width), 100%); position: relative; }
       .node {
-        display: block;
-        width: var(--node-width);
-        min-height: 46px;
-        padding: 8px 12px 9px;
-        border: 1px solid var(--line);
-        border-radius: 7px;
-        text-align: left;
-        background: var(--surface);
-        box-shadow: 0 2px 3px #26312808;
-        position: relative;
-        z-index: 2;
+        display: flex; align-items: center; gap: 9px;
+        width: 100%; min-height: 34px; padding: 6px 10px;
+        border: 1px solid var(--muted); border-radius: 4px;
+        text-align: left; background: var(--surface);
+        position: relative; z-index: 2;
       }
-      .node:hover {
-        background: var(--wash);
+      .node:hover { border-color: var(--accent); background: var(--wash); }
+      .node-label { font-size: 14px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .node-icon { flex: 0 0 18px; width: 18px; height: 18px; }
+      .node-icon svg { display: block; width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+      .node-tail { margin-left: auto; font-size: 17px; line-height: 1; }
+      .write-count { font-size: 12px; margin-left: auto; color: var(--muted); }
+      .node[data-kind="Generate"] { border: 1px solid var(--ink); border-left: 4px solid var(--accent); min-height: 42px; }
+      .node[data-kind="Generate"] .node-label { font-weight: 650; }
+      .node[data-kind="NewSession"], .node[data-kind="Command"], .node[data-kind="Service"] {
+        border-color: transparent; border-radius: 0; justify-content: center;
       }
-      .node strong {
-        display: block;
-        font-size: 13px;
-        font-weight: 550;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-      .node[data-kind="Set"] strong,
-      .node[data-kind="SetJSON"] strong {
-        white-space: normal;
-        overflow-wrap: anywhere;
-      }
-      .node small {
-        display: block;
-        color: var(--muted);
-        font-size: 11px;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-      .node .op {
-        display: block;
-        font-size: 10px;
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-        color: var(--muted);
-        margin-bottom: 1px;
-      }
-      .node .code,
-      .node small.code {
-        font: 12px/1.45 var(--mono);
-      }
-      .node[data-kind="Generate"] {
-        border-left: 3px solid var(--accent);
-      }
-      .node[data-kind="Set"],
-      .node[data-kind="SetJSON"] {
-        border-left: 3px solid var(--write-line);
-      }
-      .node[data-control] strong {
-        white-space: normal;
-        overflow-wrap: anywhere;
-        font: 12px/1.45 var(--mono);
-        font-weight: 500;
-      }
-      .node[aria-pressed="true"] {
-        border-color: var(--accent);
-        background: var(--tint);
-        box-shadow: 0 0 0 2px #65509a30;
-      }
-      .node.origin {
-        box-shadow: 0 0 0 2px var(--write-line);
-      }
+      .node[data-kind="NewSession"]:hover, .node[data-kind="Command"]:hover, .node[data-kind="Service"]:hover { border-color: var(--accent); }
+      .node[aria-pressed="true"] { outline: 2px solid var(--accent); outline-offset: 1px; background: var(--tint); }
+      .node:focus-visible { outline: 3px solid #ffdd00; outline-offset: 1px; box-shadow: 0 0 0 1px var(--ink); }
+      .node.origin { border-color: var(--accent); }
       .block {
-        width: max-content;
-        min-width: calc(var(--node-width) + 20px);
-        padding: 10px 10px 12px;
-        background: var(--fill);
-        border: 1px solid var(--line);
-        border-radius: 10px;
-        position: relative;
+        width: 100%; min-width: 0; max-width: 760px;
+        padding: 0 12px 8px; position: relative; margin-inline: auto;
       }
-      .block[data-kind="Condition"] {
-        background: var(--fill-cond);
+      .block > .node { margin: 0 auto; width: min(var(--node-width), 100%); }
+      .lanes { display: flex; gap: 24px; justify-content: center; padding-top: 24px; }
+      .lane { display: flex; flex-direction: column; align-items: center; gap: 14px; min-width: 0; flex: 1; }
+      .lane.through { flex: 0 0 52px; }
+      .branch, .action {
+        position: relative; z-index: 2; background: var(--surface);
+        font-size: 13px; line-height: 1.4; padding: 2px 6px;
       }
-      .block[data-kind="Repeat"],
-      .block[data-kind="Iterate"],
-      .block[data-kind="PromiseLoop"] {
-        border-style: dashed;
+      .branch { border: 0; text-decoration: underline; text-underline-offset: 3px; }
+      .action { color: var(--ink); }
+      .join { height: 0; width: 2px; margin: 18px auto 0; }
+      .map-hint { margin: 0; color: var(--muted); font-size: 14px; max-width: 27ch; }
+      .peek {
+        position: fixed; z-index: 20; width: max-content; max-width: min(420px, calc(100vw - 24px));
+        padding: 12px; background: var(--surface); border: 2px solid var(--ink);
+        border-radius: 5px; box-shadow: 0 4px 16px #0002;
       }
-      .block > .node {
-        margin: 0 auto;
+      .peek[hidden] { display: none; }
+      .peek h3 { font-size: 14px; margin: 0 0 8px; }
+      .peek pre { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font: 13px/1.5 var(--mono); }
+      .peek button {
+        display: flex; width: 100%; gap: 16px; align-items: baseline; text-align: left;
+        border: 0; border-top: 1px solid var(--line); background: var(--surface); padding: 9px 4px;
       }
-      .lanes {
-        display: flex;
-        gap: 12px;
-        justify-content: center;
-        padding-top: 24px;
-      }
-      .lane {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 18px;
-        min-width: var(--node-width);
-      }
-      .lane.through {
-        min-width: 0;
-      }
-      .lane.through > .branch {
-        font-family: inherit;
-        padding-inline: 3px;
-      }
-      .branch,
-      .action {
-        max-width: var(--node-width);
-        padding: 4px 9px;
-        font: 11px/1.45 var(--mono);
-        background: var(--surface);
-        border: 1px solid var(--line);
-        border-radius: 5px;
-        overflow-wrap: anywhere;
-        position: relative;
-        z-index: 2;
-      }
-      .action {
-        border-style: dashed;
-        color: var(--muted);
-      }
-      .join {
-        height: 8px;
-        width: 8px;
-        border: 1.6px solid var(--edge);
-        border-radius: 50%;
-        margin: 22px auto 0;
-        background: var(--paper);
-        position: relative;
-        z-index: 2;
-      }
+      .peek button:hover { background: var(--wash); color: var(--accent); }
+      .peek button small { margin-left: auto; color: var(--muted); }
       .inspection {
         min-height: 0;
         overflow: auto;
@@ -326,8 +163,6 @@
       }
       .eyebrow {
         font-size: 11px;
-        text-transform: uppercase;
-        letter-spacing: 0.1em;
         color: var(--muted);
       }
       .back {
@@ -549,56 +384,25 @@
       .details li {
         margin: 8px 0;
       }
-      @media (max-width: 850px) {
-        .workspace {
-          grid-template-columns: minmax(0, 1fr) minmax(320px, 0.9fr);
-        }
-        .pagehead {
-          padding: 14px 16px;
-        }
-        .inspection {
-          padding: 16px;
-        }
-        .map {
-          padding: 20px;
-        }
-      }
-      @media (max-width: 640px) {
-        body {
-          height: auto;
-          display: block;
-        }
-        .workspace {
-          grid-template-columns: 1fr;
-        }
-        .map-scroll {
-          height: 52vh;
-          border-right: 0;
-          border-bottom: 1px solid var(--line);
-        }
-        .inspection {
-          overflow: visible;
-        }
-        .pagehead {
-          flex-wrap: wrap;
-        }
+      @media (max-width: 900px) {
+        .pagehead { padding: 12px 16px; }
+        .workspace { grid-template-columns: minmax(0, 1fr); }
+        .map-scroll { border-right: 0; }
+        .map { padding: 4px 16px 20px; }
+        .inspection { display: none; padding: 16px; }
+        body.has-selection .workspace { grid-template-rows: minmax(220px, 45vh) minmax(0, 1fr); }
+        body.has-selection .inspection { display: block; }
+        body.has-selection .map-scroll { border-bottom: 1px solid var(--line); }
       }
     </style>
   </head>
   <body>
     <header class="pagehead">
-      <div>
-        <h1 id="title"></h1>
-        <div class="subtitle" id="subtitle"></div>
-      </div>
-      <div class="legend" aria-label="Legend">
-        <span><i class="dot"></i>Generate</span>
-        <span><i class="dot write"></i>Context write</span>
-        <span><i class="dot flow"></i>Flow</span>
-      </div>
+      <h1 id="title"></h1>
     </header>
     <main class="workspace">
       <section class="map-scroll" id="map-scroll" aria-label="Workflow graph">
+        <nav class="breadcrumbs" id="breadcrumbs" aria-label="Workflow location"></nav>
         <div class="map" id="map">
           <svg class="connections" id="connections" aria-hidden="true"></svg>
           <div class="graph-body" id="graph-body"></div>
@@ -610,6 +414,7 @@
         aria-label="Selected step"
       ></aside>
     </main>
+    <div class="peek" id="peek" hidden></div>
     <script id="source-data" type="application/json">
       "SOURCE_DATA_PLACEHOLDER"
     </script>
@@ -679,57 +484,182 @@
 
       document.title = "Gimbal · " + data.name;
       document.getElementById("title").textContent = data.name;
-      document.getElementById("subtitle").textContent =
-        data.entry + " · " + data.source.file;
+      const parents = new Map();
+      function index(nodes, parent = null) {
+        for (const n of nodes) {
+          byId.set(n.id, n);
+          parents.set(n.id, parent);
+          for (const body of n.children || []) index(body, n);
+        }
+      }
+      index(data.body);
+      let scopeId = null;
+      const positions = new Map();
+      const peek = document.getElementById("peek");
+      let peekAnchor, peekTimer, hideTimer, peekPinned = false;
+      const isWrite = (n) => n.kind === "Set" || n.kind === "SetJSON";
+      const mapLabel = (n) => n.writes ? "Set" : n.control ? (isGuard(n) ? "If · " + (action(n, 0).split(/\W/)[0] || "exit") : kindName(n)) : title(n);
+      const icons = {
+        Generate: '<path d="M3 3h14v10H8l-4 4v-4H3z"/><path d="M7 7h6M7 10h3"/>',
+        Set: '<path d="m3 6 7-3 7 3-7 3zM3 10l7 3 7-3M3 14l7 3 7-3"/>',
+        Condition: '<path d="m10 2 8 8-8 8-8-8z"/>',
+        Repeat: '<path d="M16 7a6 6 0 1 0 0 6M16 3v4h-4"/>',
+        Group: '<path d="M10 2v5M4 12V7h12v5M4 16v2M10 7v11M16 16v2"/>',
+        Go: '<path d="M4 3v7h11M11 6l4 4-4 4"/>',
+        NewSession: '<rect x="3" y="3" width="14" height="14" rx="7"/><path d="M10 6v8M6 10h8"/>',
+        Command: '<rect x="2" y="3" width="16" height="14" rx="2"/><path d="m5 7 3 3-3 3M11 13h4"/>',
+        Service: '<rect x="3" y="3" width="14" height="6" rx="1"/><rect x="3" y="11" width="14" height="6" rx="1"/><path d="M6 6h1M6 14h1"/>',
+      };
+      function icon(kind) {
+        const span = el("span", "node-icon");
+        span.setAttribute("aria-hidden", "true");
+        span.innerHTML = '<svg viewBox="0 0 20 20">' + (icons[kind] || icons.Command) + '</svg>';
+        return span;
+      }
+      function closePeek() {
+        clearTimeout(peekTimer); clearTimeout(hideTimer);
+        peekAnchor?.removeAttribute("aria-describedby");
+        if (peekAnchor?.hasAttribute("aria-expanded")) peekAnchor.setAttribute("aria-expanded", "false");
+        peek.hidden = true;
+        peekAnchor = null;
+        peekPinned = false;
+      }
+      function placePeek(b) {
+        peekAnchor = b;
+        peek.hidden = false;
+        const r = b.getBoundingClientRect();
+        const width = peek.offsetWidth, height = peek.offsetHeight;
+        const right = r.right + 10;
+        peek.style.left = Math.max(12, Math.min(right + width <= innerWidth - 12 ? right : r.left - width - 10, innerWidth - width - 12)) + "px";
+        peek.style.top = Math.max(12, Math.min(r.top, innerHeight - height - 12)) + "px";
+      }
+      function showPeek(b, n) {
+        clearTimeout(peekTimer); clearTimeout(hideTimer);
+        if (peekAnchor === b && !peek.hidden) return;
+        closePeek();
+        peek.replaceChildren();
+        if (n.writes) {
+          peek.setAttribute("role", "region");
+          peek.setAttribute("aria-label", "Set operations");
+          const kinds = new Set(n.writes.map(w => w.kind));
+          text(peek, "h3", "", (kinds.size === 1 ? n.writes[0].kind : "Set") + " operations");
+          for (const w of n.writes) {
+            const row = text(peek, "button", "", title(w));
+            if (kinds.size > 1) text(row, "small", "", w.kind);
+            row.onclick = () => { b.focus({preventScroll: true}); closePeek(); select(w.id); };
+          }
+          b.setAttribute("aria-expanded", "true");
+        } else {
+          b.setAttribute("aria-describedby", "peek");
+          peek.setAttribute("role", "tooltip");
+          peek.removeAttribute("aria-label");
+          text(peek, "pre", "", n.control ? headline(n) : kindName(n) + " · " + title(n));
+        }
+        placePeek(b);
+      }
+      function attachPeek(b, n) {
+        b.onmouseenter = () => {
+          clearTimeout(hideTimer);
+          peekTimer = setTimeout(() => showPeek(b, n), 350);
+        };
+        b.onmouseleave = () => { clearTimeout(peekTimer); hidePeekLater(); };
+        if (!n.writes) b.onfocus = () => showPeek(b, n);
+        b.onblur = hidePeekLater;
+      }
+      function hidePeekLater() {
+        clearTimeout(hideTimer);
+        hideTimer = setTimeout(() => {
+          if (!peekPinned && !peek.contains(document.activeElement) && document.activeElement !== peekAnchor) closePeek();
+        }, 200);
+      }
+      peek.onmouseenter = () => clearTimeout(hideTimer);
+      peek.onmouseleave = hidePeekLater;
+      peek.onfocusin = () => clearTimeout(hideTimer);
+      peek.onfocusout = (e) => { if (!peek.contains(e.relatedTarget)) closePeek(); };
+      document.addEventListener("pointerdown", (e) => {
+        if (!peek.contains(e.target) && !peekAnchor?.contains(e.target)) closePeek();
+      });
+      document.getElementById("map-scroll").addEventListener("scroll", closePeek);
 
       function nodeButton(n) {
-        byId.set(n.id, n);
         const b = el("button", "node");
         b.dataset.id = n.id;
         b.dataset.kind = n.kind;
-        if (n.control) b.dataset.control = "";
         b.setAttribute("aria-pressed", "false");
-        b.title = title(n) + " · " + n.source.file + ":" + n.source.line;
-        text(b, "span", "op", kindName(n));
-        text(b, "strong", dynamicKey(n) ? "code" : "", title(n));
-        if (n.kind === "Generate") text(b, "small", "", n.session);
-        if (isGuard(n))
-          text(b, "small", "code", action(n, 0) || "leaves");
-        b.onclick = () => select(n.id);
-        elements.set(n.id, b);
+        b.append(icon(n.writes ? "Set" : n.kind));
+        text(b, "span", "node-label", mapLabel(n));
+        const opens = n.children && n.kind !== "Group" && !isGuard(n) && n.id !== scopeId;
+        if (n.writes) {
+          b.dataset.members = n.writes.map(w => w.id).join(" ");
+          b.setAttribute("aria-label", "Set operations (" + n.writes.length + ")");
+          b.setAttribute("aria-expanded", "false");
+          b.setAttribute("aria-controls", "peek");
+          text(b, "span", "write-count", String(n.writes.length));
+          for (const w of n.writes) elements.set(w.id, b);
+          b.onclick = () => {
+            if (peekAnchor === b && !peek.hidden && peekPinned) { closePeek(); return; }
+            showPeek(b, n);
+            peekPinned = true;
+            peek.querySelector("button")?.focus();
+          };
+        } else {
+          elements.set(n.id, b);
+          const label = mapLabel(n);
+          b.setAttribute("aria-label", (label.startsWith(kindName(n)) ? label : kindName(n) + " · " + label) + (opens ? ", open" : ""));
+          if (opens) text(b, "span", "node-tail", "›").setAttribute("aria-hidden", "true");
+          b.onclick = () => { closePeek(); opens ? openScope(n.id) : select(n.id); };
+        }
+        if (n.control || n.writes) attachPeek(b, n);
+        else b.title = kindName(n);
         return b;
+      }
+      function grouped(nodes) {
+        const result = [];
+        for (let i = 0; i < nodes.length; i++) {
+          if (!isWrite(nodes[i])) { result.push(nodes[i]); continue; }
+          const writes = [nodes[i]];
+          while (i + 1 < nodes.length && isWrite(nodes[i + 1])) writes.push(nodes[++i]);
+          result.push({...writes[0], id: "writes-" + writes[0].id, label: "Set", writes});
+        }
+        return result;
+      }
+      function renderParallel(n) {
+        const wrap = el("div", "block");
+        wrap.dataset.id = n.id;
+        wrap.append(nodeButton(n));
+        const lanes = el("div", "lanes");
+        const cond = n.kind === "Condition";
+        const fullLanes = n.children.filter(body => body.length).length;
+        const laneCount = n.children.length + (cond && !n.branchLabels.some(isElse) ? 1 : 0);
+        const extraWidth = (laneCount - fullLanes) * 52 + (laneCount - 1) * 24 + 24;
+        wrap.style.maxWidth = `max(calc(var(--node-width) + 24px), calc(var(--node-width) * ${fullLanes} + ${extraWidth}px))`;
+        n.children.forEach((body, i) => {
+          const lane = el("div", "lane" + (body.length ? "" : " through"));
+          if (cond) {
+            const label = n.branchLabels[i];
+            const short = isElse(label) ? (kindName(n) === "Switch" ? "Default" : "No") : kindName(n) === "Switch" ? "Case " + (i + 1) : n.branchLabels.filter(label => !isElse(label)).length > 1 ? "Branch " + (i + 1) : "Yes";
+            const b = text(lane, "button", "branch", short);
+            b.onclick = () => select(n.id);
+            attachPeek(b, {...n, control: {code: label}});
+          }
+          if (body.length) lane.append(renderSequence(body));
+          if (n.branchExits?.[i]) text(lane, "div", "action", (action(n, i).split(/\W/)[0] || "exit") + " ↗");
+          lanes.append(lane);
+        });
+        if (cond && !n.branchLabels.some(isElse)) {
+          const lane = el("div", "lane through");
+          text(lane, "span", "branch", kindName(n) === "Switch" ? "Default" : "No");
+          lanes.append(lane);
+        }
+        wrap.append(lanes, el("div", "join"));
+        return wrap;
       }
       function renderSequence(nodes) {
         const seq = el("div", "sequence");
-        for (const n of nodes) {
+        for (const n of grouped(nodes)) {
           let wrap;
-          if (n.children && !isGuard(n)) {
-            wrap = el("div", "block");
-            wrap.dataset.kind = n.kind;
-            wrap.dataset.id = n.id;
-            wrap.append(nodeButton(n));
-            const lanes = el("div", "lanes");
-            const cond = n.kind === "Condition";
-            const labelled = cond && (n.children.length > 1 || kindName(n) === "Switch");
-            n.children.forEach((body, i) => {
-              const lane = el("div", "lane");
-              if (!body.length) lane.classList.add("through");
-              if (labelled) {
-                const l = n.branchLabels[i];
-                text(lane, "div", "branch", isElse(l) ? otherwise(n) : l);
-              }
-              if (body.length) lane.append(renderSequence(body));
-              if (n.branchExits?.[i])
-                text(lane, "div", "action", action(n, i) || "leaves");
-              lanes.append(lane);
-            });
-            if (cond && !n.branchLabels.some(isElse)) {
-              const lane = el("div", "lane through");
-              text(lane, "div", "branch", otherwise(n));
-              lanes.append(lane);
-            }
-            wrap.append(lanes, el("div", "join"));
-          } else {
+          if (n.kind === "Group") wrap = renderParallel(n);
+          else {
             wrap = el("div", "step");
             wrap.dataset.id = n.id;
             wrap.append(nodeButton(n));
@@ -738,7 +668,38 @@
         }
         return seq;
       }
-      document.getElementById("graph-body").append(renderSequence(data.body));
+      function renderMap(id = null) {
+        closePeek();
+        const scroll = document.getElementById("map-scroll");
+        positions.set(scopeId, {top: scroll.scrollTop, left: scroll.scrollLeft});
+        scopeId = id;
+        elements.clear();
+        const root = document.getElementById("graph-body"), n = byId.get(id);
+        root.replaceChildren();
+        if (!n) root.append(renderSequence(data.body));
+        else if (n.kind === "Condition" || n.children.length > 1) root.append(renderParallel(n));
+        else root.append(renderSequence(n.children[0]));
+        const crumbs = document.getElementById("breadcrumbs");
+        crumbs.replaceChildren();
+        const path = [];
+        for (let ancestor = n; ancestor; ancestor = parents.get(ancestor.id)) path.unshift(ancestor);
+        const home = text(crumbs, "button", "", "Workflow");
+        home.onclick = () => openScope(null);
+        if (!n) home.setAttribute("aria-current", "page");
+        for (const ancestor of path) {
+          text(crumbs, "span", "", "/").setAttribute("aria-hidden", "true");
+          const b = text(crumbs, "button", "", ancestor === n && n.control ? headline(n) : mapLabel(ancestor));
+          if (ancestor === n) b.setAttribute("aria-current", "page");
+          b.onclick = () => ancestor === n ? select(n.id) : openScope(ancestor.id);
+          if (ancestor !== n && ancestor.control) attachPeek(b, ancestor);
+        }
+        const position = positions.get(id);
+        scroll.scrollTop = position?.top || 0;
+        scroll.scrollLeft = position?.left || 0;
+        requestAnimationFrame(drawEdges);
+      }
+      function openScope(id) { renderMap(id); overview(); }
+      renderMap();
 
       // Series/parallel layout: CSS measures the subgraphs; edges connect their
       // entry and exit points. Geometry is recomputed on resize, never on
@@ -899,8 +860,9 @@
         };
       }
       function pressed(id) {
-        for (const [key, b] of elements) {
-          b.setAttribute("aria-pressed", String(key === id));
+        for (const b of new Set(elements.values())) {
+          const ids = b.dataset.members?.split(" ") || [b.dataset.id];
+          b.setAttribute("aria-pressed", String(ids.includes(id)));
           b.classList.remove("origin");
         }
       }
@@ -924,45 +886,19 @@
         d.append(ul);
         panel.append(d);
       }
-      // The overview: the workflow's Generate calls in source order, which is
-      // also the page's table of contents.
       function overview() {
+        document.body.classList.remove("has-selection");
         pressed(null);
         const panel = document.getElementById("inspection");
         panel.replaceChildren();
         panel.scrollTop = 0;
-        text(panel, "div", "eyebrow", "Workflow");
-        text(panel, "h2", "", data.name);
-        const meta = text(panel, "div", "meta");
-        text(meta, "span", "", data.entry);
-        text(meta, "code", "", data.source.file + ":" + data.source.line);
-        const calls = [...byId.values()].filter((n) => n.kind === "Generate");
-        const s = section(
-          panel,
-          "Generate calls",
-          calls.length + " in source order",
-        );
-        text(
-          s,
-          "div",
-          "hint",
-          "Select a step on the graph, or a call here, to read its prompt and the context it can see.",
-        );
-        const ul = el("ul", "steps");
-        for (const n of calls) {
-          const li = el("li");
-          origin(li, n.id, n.label);
-          const where =
-            n.session + (leaf(n.scope) === "root" ? "" : " · " + leaf(n.scope));
-          text(li, "small", "", where);
-          ul.append(li);
-        }
-        s.append(ul);
-        notes(panel);
+        text(panel, "p", "map-hint", "Select a step to read its prompt or context.");
       }
       function select(id) {
+        document.body.classList.add("has-selection");
         const n = byId.get(id);
         if (!n) return;
+        if (!elements.has(id) && scopeId !== id) renderMap(parents.get(id)?.id || null);
         pressed(id);
         for (const f of n.context || [])
           elements.get(f.write)?.classList.add("origin");
@@ -971,7 +907,7 @@
         panel.scrollTop = 0;
         const top = el("div", "panel-top");
         text(top, "div", "eyebrow", kindName(n));
-        const back = text(top, "button", "back", "All steps");
+        const back = text(top, "button", "back", "Close");
         back.onclick = overview;
         panel.append(top);
         text(panel, "h2", n.control || dynamicKey(n) ? "code" : "", title(n));
@@ -1077,7 +1013,7 @@
           const tree = el("div", "shape");
           for (const f of n.context) {
             const item = el("div", "context-entry");
-            shape(item, f.shape, f.dynamic ? "[" + f.key + "]" : f.key, true);
+            shape(item, f.shape, f.dynamic ? "[" + f.key + "]" : f.key, false);
             const row = el("div", "origin-row");
             if (f.scope !== n.scope)
               text(row, "span", "status", "inherited");
@@ -1103,7 +1039,9 @@
             text(ctx, "div", "hint", "Nothing has been written to context yet.");
         }
         const code = n.control?.code || n.detail?.expression;
-        const source = section(panel, "Go source");
+        const source = el("details", "details");
+        text(source, "summary", "", "Go source");
+        panel.append(source);
         if (code) text(source, "pre", "code", code);
         text(
           source,
@@ -1114,7 +1052,14 @@
         notes(panel);
       }
       document.addEventListener("keydown", (e) => {
-        if (e.key === "Escape") overview();
+        if (e.key === "Escape") {
+          if (!peek.hidden) {
+            const anchor = peekAnchor;
+            closePeek();
+            anchor?.focus({preventScroll: true});
+            closePeek();
+          } else overview();
+        }
       });
       requestAnimationFrame(() => {
         drawEdges();

@@ -80,6 +80,7 @@ func extractInspected(dir, entry, name string, overlay map[string][]byte, comman
 	}
 	if inspection != nil {
 		inspection.Module = module
+		e.inspectDiagramComments()
 		e.inspectionContext = e.contextParameter(decl.Type)
 	}
 	body := []workflow.Operation{}

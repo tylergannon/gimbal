@@ -141,6 +141,8 @@ func ValidateProduct(ctx context.Context, env gimbal.Env, params Params) (result
 	if err := writeJSON(reportsFile, reports); err != nil {
 		return err
 	}
+	// Prepare the browsers
+	// Start each product and open a recorded browser for its assigned workload.
 	for i, w := range suite.Workloads {
 		if err := os.MkdirAll(dirs[i], 0755); err != nil {
 			return err
@@ -165,18 +167,30 @@ func ValidateProduct(ctx context.Context, env gimbal.Env, params Params) (result
 			return fmt.Errorf("%s browser: %w", w.Name, errors.Join(err, fmt.Errorf("exit %d: %s", code, stderr)))
 		}
 	}
+	// Product brief
+	// Give every tester the same description of the product under review.
 	gimbal.Set(ctx, "product under test", suite.Product)
 	gimbal.Set(ctx, "product user documentation", suite.Guides)
+	// Test in parallel
+	// Each tester follows its own assignment in a separate browser.
 	users := gimbal.Group(ctx, "user-testing")
+	// Tester 1
+	// Follow workload 1 and report the experience of using the product.
 	users.Go("tester1", func(ctx context.Context) error {
 		gimbal.Set(ctx, "assignment file", suite.Workloads[0].AssignmentFile)
 		gimbal.Set(ctx, "screenshots directory", dirs[0])
 		gimbal.Set(ctx, "browser command", shellQuote(driver)+" -s="+shellQuote(names[0]))
 		tester := gimbal.NewSession(ctx, "product-operation", suite.Workloads[0].Workdir)
 		start := time.Now()
+		// Try the assigned task
+		// Use the product in the browser and record what happens.
 		text, err := tester.Generate[gimbal.Text](ctx, userPrompt)
 		reports[0].ElapsedSeconds = time.Since(start).Seconds()
+		// If the tester responded
+		// Collect feedback when the task turn returns without an error.
 		if err == nil {
+			// Describe the experience
+			// Explain what was clear, confusing, or difficult during the task.
 			feedback, feedbackErr := tester.Generate[gimbal.Text](ctx, experiencePrompt)
 			text += "\n\n" + feedback
 			err = feedbackErr
@@ -185,6 +199,8 @@ func ValidateProduct(ctx context.Context, env gimbal.Env, params Params) (result
 		reports[0].Error = errorText(turns[0])
 		return nil
 	})
+	// Tester 2
+	// Follow workload 2 and report the experience of using the product.
 	users.Go("tester2", func(ctx context.Context) error {
 		if len(suite.Workloads) < 2 {
 			return nil
@@ -194,9 +210,15 @@ func ValidateProduct(ctx context.Context, env gimbal.Env, params Params) (result
 		gimbal.Set(ctx, "browser command", shellQuote(driver)+" -s="+shellQuote(names[1]))
 		tester := gimbal.NewSession(ctx, "product-operation", suite.Workloads[1].Workdir)
 		start := time.Now()
+		// Try the assigned task
+		// Use the product in the browser and record what happens.
 		text, err := tester.Generate[gimbal.Text](ctx, userPrompt)
 		reports[1].ElapsedSeconds = time.Since(start).Seconds()
+		// If the tester responded
+		// Collect feedback when the task turn returns without an error.
 		if err == nil {
+			// Describe the experience
+			// Explain what was clear, confusing, or difficult during the task.
 			feedback, feedbackErr := tester.Generate[gimbal.Text](ctx, experiencePrompt)
 			text += "\n\n" + feedback
 			err = feedbackErr
@@ -205,6 +227,8 @@ func ValidateProduct(ctx context.Context, env gimbal.Env, params Params) (result
 		reports[1].Error = errorText(turns[1])
 		return nil
 	})
+	// Tester 3
+	// Follow workload 3 and report the experience of using the product.
 	users.Go("tester3", func(ctx context.Context) error {
 		if len(suite.Workloads) < 3 {
 			return nil
@@ -214,9 +238,15 @@ func ValidateProduct(ctx context.Context, env gimbal.Env, params Params) (result
 		gimbal.Set(ctx, "browser command", shellQuote(driver)+" -s="+shellQuote(names[2]))
 		tester := gimbal.NewSession(ctx, "product-operation", suite.Workloads[2].Workdir)
 		start := time.Now()
+		// Try the assigned task
+		// Use the product in the browser and record what happens.
 		text, err := tester.Generate[gimbal.Text](ctx, userPrompt)
 		reports[2].ElapsedSeconds = time.Since(start).Seconds()
+		// If the tester responded
+		// Collect feedback when the task turn returns without an error.
 		if err == nil {
+			// Describe the experience
+			// Explain what was clear, confusing, or difficult during the task.
 			feedback, feedbackErr := tester.Generate[gimbal.Text](ctx, experiencePrompt)
 			text += "\n\n" + feedback
 			err = feedbackErr
@@ -247,6 +277,8 @@ func ValidateProduct(ctx context.Context, env gimbal.Env, params Params) (result
 	gimbal.Set(ctx, "workload reports", reportsFile)
 	gimbal.Set(ctx, "execution errors", errorText(errors.Join(groupErr, recordingErr, videoErr, errors.Join(turns[:]...))))
 	visual := gimbal.NewSession(ctx, "product-visual-review", output)
+	// Review the screenshots
+	// Inspect the captured screens for visual and usability problems.
 	visualText, visualErr := visual.Generate[gimbal.Text](ctx, visualPrompt)
 	visualFile := filepath.Join(output, "visual-review.md")
 	visualErr = errors.Join(visualErr, os.WriteFile(visualFile, []byte(visualText), 0644))
@@ -254,6 +286,8 @@ func ValidateProduct(ctx context.Context, env gimbal.Env, params Params) (result
 	gimbal.Set(ctx, "screenshot review error", errorText(visualErr))
 	gimbal.Set(ctx, "issue repository", suite.IssueRepo)
 	triage := gimbal.NewSession(ctx, "product-triage", output)
+	// Triage the findings
+	// Combine tester reports and visual review into actionable findings.
 	findings, triageErr := triage.Generate[gimbal.Text](ctx, triagePrompt)
 	triageErr = errors.Join(triageErr, os.WriteFile(filepath.Join(output, "findings.md"), []byte(findings), 0644))
 	return errors.Join(groupErr, recordingErr, videoErr, errors.Join(turns[:]...), visualErr, triageErr)

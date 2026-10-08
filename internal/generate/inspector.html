@@ -119,6 +119,9 @@
       .write-group .node-tail { margin-left: 0; }
       .node[data-kind="Generate"] { border: 1px solid var(--ink); border-left: 4px solid var(--accent); min-height: 42px; }
       .node[data-kind="Generate"] .node-label { font-weight: 650; }
+      .node[data-kind="Generate"] .node-icon, .node[data-kind="NewSession"] .node-icon, .node[data-kind="Fork"] .node-icon { color: #1a65a6; }
+      .node[data-kind="Set"] .node-icon, .node[data-kind="SetJSON"] .node-icon { color: #106165; }
+      .node[data-kind="Condition"] .node-icon, .node[data-kind="Repeat"] .node-icon, .node[data-kind="Iterate"] .node-icon, .node[data-kind="PromiseLoop"] .node-icon, .node[data-kind="Group"] .node-icon, .node[data-kind="Go"] .node-icon { color: #54319f; }
       .node[data-kind="NewSession"], .node[data-kind="Command"], .node[data-kind="Service"] {
         border-color: transparent; border-radius: 0; justify-content: center;
       }
@@ -151,6 +154,8 @@
         border-radius: 5px; box-shadow: 0 4px 16px #0002;
       }
       .peek[hidden] { display: none; }
+      .description { white-space: pre-line; line-height: 1.5; }
+      .peek .description { margin: 6px 0; }
       .peek pre { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font: 13px/1.5 var(--mono); }
       .inspection {
         min-height: 0;
@@ -388,6 +393,11 @@
       .details li {
         margin: 8px 0;
       }
+      @media (max-width: 600px) {
+        .map { padding-inline: 12px; }
+        .block { padding-inline: 4px; }
+        .lanes { gap: 8px; }
+      }
       @media (max-width: 900px) {
         .pagehead { padding: 12px 16px; }
         .workspace { grid-template-columns: minmax(0, 1fr); }
@@ -471,6 +481,7 @@
         n.detail &&
         !n.detail.keyKnown;
       const title = (n) => {
+        if (n.title) return n.title;
         if (n.control) return headline(n);
         if (dynamicKey(n)) return "[" + n.detail.keyExpression + "]";
         return n.label || n.kind;
@@ -501,7 +512,7 @@
       const peek = document.getElementById("peek");
       let peekAnchor, peekTimer, hideTimer;
       const isWrite = (n) => n.kind === "Set" || n.kind === "SetJSON";
-      const mapLabel = (n) => n.writes ? "Set" : n.control ? (isGuard(n) ? "If · " + (action(n, 0).split(/\W/)[0] || "exit") : kindName(n)) : title(n);
+      const mapLabel = (n) => n.writes ? "Set" : n.title ? n.title : n.control ? (isGuard(n) ? "If · " + (action(n, 0).split(/\W/)[0] || "exit") : kindName(n)) : title(n);
       const icons = {
         Generate: '<path d="M3 3h14v10H8l-4 4v-4H3z"/><path d="M7 7h6M7 10h3"/>',
         Set: '<path d="m3 6 7-3 7 3-7 3zM3 10l7 3 7-3M3 14l7 3 7-3"/>',
@@ -527,22 +538,39 @@
       }
       function placePeek(b) {
         peekAnchor = b;
+        peek.style.maxHeight = "";
+        peek.style.overflowY = "auto";
         peek.hidden = false;
         const r = b.getBoundingClientRect();
         const width = peek.offsetWidth, height = peek.offsetHeight;
-        const right = r.right + 10;
-        peek.style.left = Math.max(12, Math.min(right + width <= innerWidth - 12 ? right : r.left - width - 10, innerWidth - width - 12)) + "px";
-        peek.style.top = Math.max(12, Math.min(r.top, innerHeight - height - 12)) + "px";
+        const gap = 10, edge = 12;
+        const right = r.right + gap, left = r.left - width - gap;
+        if (right + width <= innerWidth - edge || left >= edge) {
+          peek.style.left = (right + width <= innerWidth - edge ? right : left) + "px";
+          peek.style.maxHeight = (innerHeight - edge * 2) + "px";
+          peek.style.top = Math.max(edge, Math.min(r.top, innerHeight - peek.offsetHeight - edge)) + "px";
+        } else {
+          const below = Math.max(0, innerHeight - r.bottom - gap - edge);
+          const above = Math.max(0, r.top - gap - edge);
+          const useBelow = below >= height || below >= above;
+          peek.style.maxHeight = (useBelow ? below : above) + "px";
+          peek.style.left = Math.max(edge, Math.min(r.left, innerWidth - width - edge)) + "px";
+          peek.style.top = (useBelow ? r.bottom + gap : r.top - gap - peek.offsetHeight) + "px";
+        }
       }
       function showPeek(b, n) {
-        if (b.classList.contains("node") && containers.get(n.id)?.body.hidden === false) return;
+        if (!n.description && !n.title && b.classList.contains("node") && containers.get(n.id)?.body.hidden === false) return;
         clearTimeout(peekTimer); clearTimeout(hideTimer);
         if (peekAnchor === b && !peek.hidden) return;
         closePeek();
         peek.replaceChildren();
         b.setAttribute("aria-describedby", "peek");
         peek.setAttribute("role", "tooltip");
-        text(peek, "pre", "", n.control ? headline(n) : kindName(n) + " · " + title(n));
+        if (n.title) text(peek, "strong", "", n.title);
+        if (n.description) text(peek, "div", "description", n.description);
+        if (n.title && isWrite(n)) text(peek, "div", "description", "Context key: " + (dynamicKey(n) ? n.detail.keyExpression : n.label));
+        if (n.control) text(peek, "pre", "", headline(n));
+        else if (!n.title && !n.description) text(peek, "pre", "", kindName(n) + " · " + title(n));
         placePeek(b);
       }
       function attachPeek(b, n) {
@@ -568,12 +596,13 @@
         if (!peek.contains(e.target) && !peekAnchor?.contains(e.target)) closePeek();
       });
       document.getElementById("map-scroll").addEventListener("scroll", closePeek);
+      window.addEventListener("resize", closePeek);
 
       function nodeButton(n) {
         const b = el("button", "node");
         b.dataset.id = n.id;
         b.dataset.kind = n.kind;
-        if (n.control) b.dataset.control = "";
+        if (n.control && !n.title) b.dataset.control = "";
         b.setAttribute("aria-pressed", "false");
         b.append(icon(n.writes ? "Set" : n.kind));
         text(b, "span", "node-label", mapLabel(n));
@@ -588,7 +617,7 @@
           text(b, "span", "node-tail", "›").setAttribute("aria-hidden", "true");
           b.onclick = () => toggleExpanded(n.id);
         } else b.onclick = () => { closePeek(); select(n.id); };
-        if (n.control) attachPeek(b, n);
+        if (n.control || n.title || n.description) attachPeek(b, n);
         else b.title = kindName(n) + " · " + title(n);
         return b;
       }
@@ -604,15 +633,16 @@
         c.body.hidden = !open;
         c.wrap.classList.toggle("is-open", open);
         c.button.setAttribute("aria-expanded", String(open));
-        c.button.setAttribute("aria-label", open && c.n.control ? headline(c.n) : c.label);
+        c.button.setAttribute("aria-label", open && c.n.control && !c.n.title ? headline(c.n) : c.label);
         c.button.querySelector(".node-tail").textContent = open ? "⌄" : "›";
-        c.button.querySelector(".node-label").textContent = open && c.n.control ? headline(c.n) : open && c.n.writes?.every(w => w.kind === "SetJSON") ? "SetJSON" : mapLabel(c.n);
+        c.button.querySelector(".node-label").textContent = open && c.n.control && !c.n.title ? headline(c.n) : open && c.n.writes?.every(w => w.kind === "SetJSON") ? "SetJSON" : mapLabel(c.n);
       }
       function toggleExpanded(id) {
         closePeek();
         const c = containers.get(id), scroll = document.getElementById("map-scroll");
         const top = c.button.getBoundingClientRect().top;
         setExpanded(id, c.body.hidden);
+        if (!c.body.hidden && !c.n.writes && (c.n.title || c.n.description)) select(id);
         scroll.scrollTop += c.button.getBoundingClientRect().top - top;
         drawEdges();
       }
@@ -634,7 +664,8 @@
           row.dataset.id = w.id;
           row.setAttribute("aria-pressed", "false");
           if (mixed) text(row, "small", "", w.kind);
-          row.onclick = () => select(w.id);
+          row.onclick = () => { closePeek(); select(w.id); };
+          if (w.title || w.description) attachPeek(row, w);
           elements.set(w.id, row);
           writeContainers.set(w.id, n.id);
         }
@@ -648,7 +679,7 @@
           if (!isWrite(nodes[i])) { result.push(nodes[i]); continue; }
           const writes = [nodes[i]];
           while (i + 1 < nodes.length && isWrite(nodes[i + 1])) writes.push(nodes[++i]);
-          result.push({...writes[0], id: "writes-" + writes[0].id, label: "Set", writes});
+          result.push({...writes[0], id: "writes-" + writes[0].id, label: "Set", title: "", description: "", writes});
         }
         return result;
       }
@@ -672,7 +703,7 @@
             const short = isElse(label) ? (kindName(n) === "Switch" ? "Default" : "No") : kindName(n) === "Switch" ? "Case " + (i + 1) : n.branchLabels.filter(label => !isElse(label)).length > 1 ? "Branch " + (i + 1) : "Yes";
             const b = text(lane, "button", "branch", short);
             b.onclick = () => select(n.id);
-            attachPeek(b, {...n, control: {code: label}});
+            attachPeek(b, {...n, title: "", description: "", control: {code: label}});
           }
           if (body.length) lane.append(renderSequence(body));
           if (n.branchExits?.[i]) text(lane, "div", "action", (action(n, i).split(/\W/)[0] || "exit") + " ↗");
@@ -934,9 +965,11 @@
         const back = text(top, "button", "back", "Close");
         back.onclick = overview;
         panel.append(top);
-        text(panel, "h2", n.control || dynamicKey(n) ? "code" : "", title(n));
+        text(panel, "h2", !n.title && (n.control || dynamicKey(n)) ? "code" : "", title(n));
+        if (n.description) text(panel, "p", "description", n.description);
         const meta = text(panel, "div", "meta");
         text(meta, "code", "", basename(n.source.file) + ":" + n.source.line);
+        if (n.title && isWrite(n)) text(meta, "span", "", "Context key: " + (dynamicKey(n) ? n.detail.keyExpression : n.label));
         if (n.session) text(meta, "span", "", "Session " + n.session);
         if (n.from) text(meta, "span", "", "Fork of " + n.from);
         if (n.scope !== "root") text(meta, "span", "", "In " + n.scope);

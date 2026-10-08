@@ -272,3 +272,102 @@ func ServiceFlow(ctx context.Context, start bool) error {
 		t.Fatalf("normal graph changed: %+v", normal)
 	}
 }
+
+func TestDiagramCommentOwnership(t *testing.T) {
+	file, _ := filepath.Abs("testdata/inspection/fixture.go")
+	source, err := os.ReadFile(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	source = append(source, []byte(`
+func Comments(ctx context.Context, flag bool) error {
+	// Product brief
+	// A nested description.
+	// Another line.
+	gimbal.Set(ctx, "brief", "value")
+	// Detached prose
+
+	gimbal.Set(ctx, "detached", true)
+	gimbal.Set(ctx, "trailing", true) // Not the next title
+	gimbal.Set(ctx, "after-trailing", true)
+	// Start the reviewer
+	s := gimbal.NewSession(ctx, "reviewer", ".")
+	// Review the product
+	// Read the supplied context.
+	_, _ = s.Generate[gimbal.Text](ctx, initialPrompt)
+	// Optional review
+	// Only review when requested.
+	if flag {
+		gimbal.Set(ctx, "unannotated-child", true)
+		// Child review
+		_, _ = s.Generate[gimbal.Text](ctx, initialPrompt)
+	}
+	// Start the product
+	// The ordinary error guard does not become a separate diagram node.
+	if err := gimbal.Service(ctx, "product", ".", "serve"); err != nil { return err }
+	// When the service starts
+	if err := gimbal.Service(ctx, "second-product", ".", "serve"); err == nil {
+		gimbal.Set(ctx, "service-started", true)
+	}
+	// Parallel review
+	group := gimbal.Group(ctx, "parallel")
+	// First reviewer
+	// Works independently.
+	group.Go("left", func(ctx context.Context) error {
+		_, _ = s.Generate[gimbal.Text](ctx, initialPrompt)
+		return nil
+	})
+	// Repeat review
+	for i := 0; i < 2; i++ {
+		_, _ = s.Generate[gimbal.Text](ctx, initialPrompt)
+	}
+	// Switch mode
+	switch flag {
+	case true:
+		gimbal.Set(ctx, "switch-child", true)
+	}
+	return group.Wait()
+}
+`)...)
+	d := &inspectionData{}
+	g, _, err := extractInspected("testdata/inspection", "Comments", "comments", map[string][]byte{file: source}, false, d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(g.Diagnostics) != 0 {
+		t.Fatalf("diagnostics: %v", g.Diagnostics)
+	}
+	p := inspectGraph(g, "Comments", d)
+	byTitle := map[string]*viewNode{}
+	var visit func([]*viewNode)
+	visit = func(nodes []*viewNode) {
+		for _, n := range nodes {
+			if n.Title != "" {
+				if byTitle[n.Title] != nil {
+					t.Errorf("duplicate annotation %q", n.Title)
+				}
+				byTitle[n.Title] = n
+			}
+			for _, child := range n.Children {
+				visit(child)
+			}
+		}
+	}
+	visit(p.Body)
+	want := map[string]string{"Product brief": "Set", "Start the reviewer": "NewSession", "Review the product": "Generate", "Optional review": "Condition", "Child review": "Generate", "Start the product": "Service", "Parallel review": "Group", "When the service starts": "Condition", "First reviewer": "Go", "Repeat review": "Repeat", "Switch mode": "Condition"}
+	if len(byTitle) != len(want) {
+		t.Fatalf("titles=%v", byTitle)
+	}
+	for title, kind := range want {
+		n := byTitle[title]
+		if n == nil || n.Kind != kind {
+			t.Errorf("%q owner=%+v, want %s", title, n, kind)
+		}
+	}
+	if n := byTitle["Product brief"]; n.Description != "A nested description.\nAnother line." || n.Label != "brief" || n.Context[0].Key != "brief" {
+		t.Fatalf("comment changed semantic data: %+v", n)
+	}
+	if n := byTitle["First reviewer"]; n.Children[0][0].Title != "" || n.Description != "Works independently." {
+		t.Fatalf("branch ownership: %+v", n)
+	}
+}

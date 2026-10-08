@@ -19,10 +19,11 @@ import (
 // Inspection is a sidecar to the existing graph extraction. Runtime graphs and
 // their generated codecs do not need source expressions or context projections.
 type inspectionData struct {
-	Module   string                               `json:"module"`
-	Calls    map[workflow.Source][]callInspection `json:"-"`
-	Controls map[controlKey][]*controlInspection
-	Services map[*workflow.Command]callInspection
+	Annotations []diagramAnnotation
+	Module      string                               `json:"module"`
+	Calls       map[workflow.Source][]callInspection `json:"-"`
+	Controls    map[controlKey][]*controlInspection
+	Services    map[*workflow.Command]callInspection
 }
 type controlKey struct {
 	Source workflow.Source
@@ -251,6 +252,8 @@ type contextField struct {
 	Shadowed []string    `json:"shadowed,omitempty"`
 }
 type viewNode struct {
+	Title        string             `json:"title,omitempty"`
+	Description  string             `json:"description,omitempty"`
 	ID           string             `json:"id"`
 	Kind         string             `json:"kind"`
 	Label        string             `json:"label"`
@@ -298,6 +301,7 @@ func (b *pageBuilder) takeControl(kind string, src workflow.Source) *controlInsp
 func inspectGraph(g workflow.Graph, entry string, d *inspectionData) sourcePage {
 	b := pageBuilder{details: d, cursors: map[workflow.Source]int{}}
 	body, _ := b.body(g.Body, nil, "root", "")
+	applyDiagramAnnotations(body, d.Annotations)
 	p := sourcePage{Name: g.Name, Entry: entry, Module: d.Module, Source: g.Source, Body: body, Diagnostics: append([]workflow.Diagnostic{}, g.Diagnostics...)}
 	return p
 }

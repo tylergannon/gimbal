@@ -74,13 +74,30 @@ func TestAdapterSteerInterruptsAndResumesInsideTurn(t *testing.T) {
 		t.Fatal(err)
 	}
 	done := make(chan struct{})
+	ready := make(chan struct{}, 1)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
 	var raw gimbal.TurnResult
 	var runErr error
 	go func() {
-		raw, runErr = adapter.RunTurn(context.Background(), sessionID, "WAIT", nil, func(gimbal.AgentEvent) error { return nil })
+		raw, runErr = adapter.RunTurn(ctx, sessionID, "WAIT", nil, func(event gimbal.AgentEvent) error {
+			if event.Type == "session.step.started" {
+				select {
+				case ready <- struct{}{}:
+				default:
+				}
+			}
+			return nil
+		})
 		close(done)
 	}()
-	waitInvocations(t, record, 1)
+	// Process launch does not establish that the adapter consumed init. Steer
+	// only after its observer sees activity in the initialized conversation.
+	select {
+	case <-ready:
+	case <-time.After(5 * time.Second):
+		t.Fatal("did not observe the initialized turn")
+	}
 	if landed, err := adapter.Steer(t.Context(), sessionID, "STEER"); err != nil || !landed {
 		t.Fatal(err)
 	}
@@ -217,6 +234,9 @@ func TestAgyHelperProcess(t *testing.T) {
 	if prompt == "WAIT" {
 		interrupt := make(chan os.Signal, 1)
 		signal.Notify(interrupt, os.Interrupt)
+		writeEnvelope(map[string]any{"event": "step_update", "step_update": map[string]any{
+			"conversation_id": conversation, "step_index": 1, "state": "ACTIVE", "step_type": "agent_response",
+		}})
 		<-interrupt
 		os.Exit(130)
 	}

@@ -13,3 +13,7 @@ proof: Observed actual dev SSR and hydration at port 8770 plus shipped binary at
 review: Independent validator checked current request/event composition and the narrow frontend fixes; no material findings. That was source review, not independent live UI proof. Current live observations above are the direct proof.
 
 merge: Reconcile origin/main b6e2c07 (#433/#434) without rolling back its unrelated Go/frontend/e2e dependency upgrades or frontend test API fixes. Keep SKGo v0.26.1, Polytype v1.5.0, standalone devalue, and the source viewer. Consolidate empty request state in internal/app rather than retaining duplicate internal/webapp; preserve main's origin diagnostic guard placement. Regenerate bindings and rebuild the embedded archive from the combined source before final checks.
+
+friction: Reconciled full Go suite exposed an existing agy steering-test race: invocation recording precedes consuming native init, so steering could legitimately precede knowing the conversation ID. Package plus ten focused reruns passed. Replace that test's launch-only synchronization with an observed initialized agent step; register helper signal handling before publishing that step. Keep same-conversation assertion and production code unchanged.
+
+proof: All other packages in the full Go suite passed. With initialized-step synchronization, agy package, 30 focused steering-test repetitions, and go vet pass. Temporal consumer and 115 frontend tests pass separately after the original aggregate recipe stopped at the agy failure.

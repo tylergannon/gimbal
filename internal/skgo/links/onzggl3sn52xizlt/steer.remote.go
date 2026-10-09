@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/tylergannon/gimbal/internal/app"
+	"github.com/tylergannon/gimbal/internal/skgo/params"
 	"github.com/tylergannon/skgo"
 
 	"github.com/tylergannon/gimbal"
@@ -36,7 +38,7 @@ type Sent struct {
 // page. It is the page's half of #176: the run log records the message with
 // Source "person" exactly as Runtime.Steer does, because this reaches the
 // same run through the same table.
-func steer(ctx context.Context, arg Steer) (Sent, error) {
+func steer(ctx context.Context, event app.RequestEvent[params.Params], arg Steer) (Sent, error) {
 	message := strings.TrimSpace(arg.Message)
 	if message == "" {
 		return Sent{}, skgo.Invalidf("message", "Type a message before sending it.")
@@ -85,7 +87,7 @@ type Waiting struct {
 // steerLoop holds one message for a loop's planner, as the person watching
 // the page. It is #235's half of the page: the loop records the message
 // when the planner reads it, and as dropped if dispatch ends first.
-func steerLoop(ctx context.Context, arg LoopMessage) (Waiting, error) {
+func steerLoop(ctx context.Context, event app.RequestEvent[params.Params], arg LoopMessage) (Waiting, error) {
 	message := strings.TrimSpace(arg.Message)
 	if arg.WrapUp {
 		message = gimbal.WrapUp

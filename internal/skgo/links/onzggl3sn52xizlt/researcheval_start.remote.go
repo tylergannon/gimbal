@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/internal/app"
+	"github.com/tylergannon/gimbal/internal/skgo/params"
 	"github.com/tylergannon/gimbal/internal/workflows/researcheval"
 	"github.com/tylergannon/polytype"
 	"github.com/tylergannon/skgo"
@@ -29,7 +31,7 @@ type StartResearchEvalInput struct {
 	RoleResearchEvalReading    polytype.Optional[string] `json:"role_research_eval_reading,omitzero"`
 }
 
-func startResearchEval(ctx context.Context, in StartResearchEvalInput) (StartAccepted, error) {
+func startResearchEval(ctx context.Context, event app.RequestEvent[params.Params], in StartResearchEvalInput) (StartAccepted, error) {
 	if strings.TrimSpace(in.OutputDir) == "" {
 		return StartAccepted{}, skgo.Invalidf("output_dir", "Give output_dir.")
 	}

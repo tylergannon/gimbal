@@ -1,5 +1,4 @@
-import ELK from "elkjs/lib/elk.bundled.js";
-import type { ElkExtendedEdge, ElkNode, ElkPort } from "elkjs/lib/elk-api";
+import type { ELK, ElkExtendedEdge, ElkNode, ElkPort } from "elkjs/lib/elk-api";
 import type {
   Point,
   SourcePage,
@@ -9,7 +8,8 @@ import type {
   WorkflowNode,
 } from "./types";
 
-const elk = new ELK();
+// Layout starts after mount. ELK's CommonJS bundle needs the browser loader.
+let engine: Promise<ELK> | undefined;
 const BOX_WIDTH = 204;
 const BOX_HEIGHT = 40;
 const DIAMOND_WIDTH = 204;
@@ -358,6 +358,9 @@ export async function layoutWorkflow(
     return { entry: first.entry, exit: hasContinuation ? merge.exit : undefined };
   }
   sequence(graph, page.body, "workflow");
+  const elk = await (engine ??= import("elkjs/lib/elk.bundled.js").then(
+    ({ default: ELK }) => new ELK(),
+  ));
   const result = await elk.layout(graph);
   const nodes: WorkflowNode[] = [];
   const edges: WorkflowEdge[] = [];

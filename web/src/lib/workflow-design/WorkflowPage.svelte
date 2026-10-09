@@ -4,7 +4,7 @@
  import {afterNavigate,goto} from '$app/navigation';
  import {page as route} from '$app/state';
  import '@xyflow/svelte/dist/style.css';
- import type WorkflowCanvas from './WorkflowCanvas.svelte';
+ import WorkflowCanvas from './WorkflowCanvas.svelte';
  import Guide from './Guide.svelte';
  import StartWorkflow from './generated/StartWorkflow.svelte';
  import {decodeView,encodeView,normalizeView,type ViewState} from './view-state';
@@ -21,7 +21,6 @@
  let panel=$derived(view.panel ?? 'workflow');
  let disconnected=$state(false);
  let viewer=$state<WorkflowCanvas>();
- let Renderer=$state<typeof WorkflowCanvas>();
  function navigatePanel(event:MouseEvent,item:typeof panels[number]){
   if(event.button===0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey){event.preventDefault();void goto(panelURL(item),{shallow:true})}
  }
@@ -54,16 +53,14 @@
  afterNavigate(()=>{void applyURL()});
  function restoreHistory(){const url=new URL(window.location.href);if(url.pathname===visibleURL.pathname)void applyURL(url)}
  onMount(()=>{
-  let active=true;
-  void import('./WorkflowCanvas.svelte').then(module=>{if(active)Renderer=module.default});
-  if(!dev)return()=>{active=false};
+  if(!dev)return;
   const update=(next:Snapshot & {name:string})=>{if(next.name===initial.name)void accept(next)};
   const offline=()=>{disconnected=true};const reconnect=()=>{void refresh()};
   import.meta.hot?.on('workflow:source',update);
   import.meta.hot?.on('vite:ws:disconnect',offline);
   import.meta.hot?.on('vite:ws:connect',reconnect);
   void refresh();
-  return()=>{active=false;import.meta.hot?.off('workflow:source',update);import.meta.hot?.off('vite:ws:disconnect',offline);import.meta.hot?.off('vite:ws:connect',reconnect)};
+  return()=>{import.meta.hot?.off('workflow:source',update);import.meta.hot?.off('vite:ws:disconnect',offline);import.meta.hot?.off('vite:ws:connect',reconnect)};
  });
 </script>
 <svelte:window onpopstate={restoreHistory}/>
@@ -78,7 +75,7 @@
  {:else if snapshot.status==='updating'}<p class="source-status" role="status">Updating from source…</p>{/if}
  {#if current.diagnostics?.length}<details class="source-status"><summary>Some source could not be represented ({current.diagnostics.length})</summary>{#each current.diagnostics as diagnostic}<p>{diagnostic.message}</p>{/each}</details>{/if}
  <div class="diagram workflow-viewer" hidden={panel!=='workflow'}>
-  {#if Renderer}<Renderer bind:this={viewer} page={current} initialView={view} oncommit={commit}/>{:else}<p class="loading" role="status">Preparing workflow…</p>{/if}
+  <WorkflowCanvas bind:this={viewer} page={current} initialView={view} oncommit={commit}/>
  </div>
  {#if panel==='guide'}<div class="reading"><Guide page={current}/></div>
  {:else if panel==='run'}<div class="reading"><h2>Run {current.name}</h2><StartWorkflow name={initial.name} guide={current.guide!}/></div>{/if}

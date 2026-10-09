@@ -119,6 +119,8 @@ import (
 	"github.com/tylergannon/gimbal/internal/workflows/{{.Package}}"
 	"github.com/tylergannon/polytype"
 	"github.com/tylergannon/skgo"
+ "github.com/tylergannon/gimbal/internal/app"
+ "github.com/tylergannon/gimbal/internal/skgo/params"
 )
 
 // {{.Input}} is the flat typed request for the {{.Name}} workflow.
@@ -134,7 +136,7 @@ type {{.Input}} struct {
 {{- end}}
 }
 
-func {{.Handler}}(ctx context.Context, in {{.Input}}) (StartAccepted, error) {
+func {{.Handler}}(ctx context.Context, event app.RequestEvent[params.Params], in {{.Input}}) (StartAccepted, error) {
 {{- range .Fields}}{{if .RequiredString}}
 	if strings.TrimSpace(in.{{.Name}}) == "" { return StartAccepted{}, skgo.Invalidf("{{.JSON}}", "Give {{.JSON}}.") }
 {{- else if .RequiredInt}}

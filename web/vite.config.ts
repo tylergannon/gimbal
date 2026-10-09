@@ -1,4 +1,3 @@
-import { engineSyntax } from "./dev/engine-syntax.mjs";
 import { workflowSource } from "./dev/source-plugin.mjs";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig, lazyPlugins } from "vite-plus";
@@ -6,7 +5,13 @@ import { playwright } from "vite-plus/test/browser-playwright";
 import adapter from "@skgo/sveltekit-adapter";
 import { sveltekit } from "@sveltejs/kit/vite";
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
+  // Dependencies use this Node convention even in SKGo's neutral JS engine.
+  define: {
+    "process.env.NODE_ENV": JSON.stringify(
+      process.env.NODE_ENV ?? (command === "serve" ? "development" : "production"),
+    ),
+  },
   fmt: {},
   lint: {
     jsPlugins: [{ name: "vite-plus", specifier: "vite-plus/oxlint-plugin" }],
@@ -27,7 +32,6 @@ export default defineConfig({
       experimental: { remoteFunctions: true },
       paths: { origin: process.env.ORIGIN ?? "http://127.0.0.1:8080" },
     }),
-    engineSyntax(),
   ]),
   test: {
     projects: [
@@ -57,4 +61,4 @@ export default defineConfig({
       },
     ],
   },
-});
+}));

@@ -2,6 +2,29 @@
 
 package routes
 
+import (
+	appstate "github.com/tylergannon/gimbal/internal/app"
+	skgo "github.com/tylergannon/skgo"
+)
+
+// RouteParams stores converted values; only accessors record load dependencies.
+type RouteParams struct {
+	event *skgo.Event
+}
+type PageRequestEvent = skgo.RequestEvent[RouteParams, appstate.Locals]
+
+func SkgoPageRequestEvent(event *skgo.Event) PageRequestEvent {
+	return PageRequestEvent{Event: event, Locals: appstate.LocalsFrom(event.Request().Context()), Params: skgoRouteParams(event)}
+}
+func skgoRouteParams(event *skgo.Event) RouteParams {
+	p := RouteParams{event: event}
+
+	return p
+}
+func SkgoParamMatchers() map[string]skgo.ParamMatcher {
+	return map[string]skgo.ParamMatcher{}
+}
+
 // The functions this package declares, published under names the generated
 // bindings package can spell. Each is the function itself and not a wrapper:
 // skgo.Refresh finds a query by the code pointer of the function it names.

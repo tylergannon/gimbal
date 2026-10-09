@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/internal/app"
+	"github.com/tylergannon/gimbal/internal/skgo/params"
 	"github.com/tylergannon/gimbal/internal/workflows/researchdocument"
 	"github.com/tylergannon/polytype"
 	"github.com/tylergannon/skgo"
@@ -32,7 +34,7 @@ type StartResearchDocumentInput struct {
 	RoleDocumentAuthoring   polytype.Optional[string] `json:"role_document_authoring,omitzero"`
 }
 
-func startResearchDocument(ctx context.Context, in StartResearchDocumentInput) (StartAccepted, error) {
+func startResearchDocument(ctx context.Context, event app.RequestEvent[params.Params], in StartResearchDocumentInput) (StartAccepted, error) {
 	if strings.TrimSpace(in.Goal) == "" {
 		return StartAccepted{}, skgo.Invalidf("goal", "Give goal.")
 	}

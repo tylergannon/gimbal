@@ -63,7 +63,8 @@ try {
     await done(launch("just", ["build"]));
   }
   if (!stopping) {
-    await done(launch("go", ["generate", "./internal/skgo"]));
+    // SKGo refreshes its projected types; restore the separately generated graph types afterward.
+    await done(launch("go", ["generate", "./internal/skgo", "./workflow"]));
     temp = await mkdtemp(path.join(os.tmpdir(), "gimbal-dev-"));
     const binary = path.join(temp, "gimbal");
     await done(launch("go", ["build", "-o", binary, "./cmd/gimbal"]));

@@ -23,5 +23,33 @@
     "src/routes/projects/[project]/runs/[runID]/+page.server.ts",
     "src/routes/workflows/[workflow]/+page.server.ts"
   ],
-  "endpoints": {}
+  "actions": [],
+  "endpoints": {},
+  "prerender": {
+    "root": "..",
+    "package": "./internal/skgo/prerender"
+  },
+  "build": {
+    "src/hooks.server.ts": {
+      "hook": true
+    },
+    "src/routes/+page.server.ts": {
+      "source": "src/routes/page.server.go"
+    },
+    "src/routes/projects/[project]/+page.server.ts": {
+      "source": "src/routes/projects/[project]/page.server.go"
+    },
+    "src/routes/projects/[project]/conversations/+page.server.ts": {
+      "source": "src/routes/projects/[project]/conversations/page.server.go"
+    },
+    "src/routes/projects/[project]/conversations/[conversationID]/+page.server.ts": {
+      "source": "src/routes/projects/[project]/conversations/[conversationID]/page.server.go"
+    },
+    "src/routes/projects/[project]/runs/[runID]/+page.server.ts": {
+      "source": "src/routes/projects/[project]/runs/[runID]/page.server.go"
+    },
+    "src/routes/workflows/[workflow]/+page.server.ts": {
+      "source": "src/routes/workflows/[workflow]/page.server.go"
+    }
+  }
 }

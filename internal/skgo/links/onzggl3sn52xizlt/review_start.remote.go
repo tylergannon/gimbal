@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/internal/app"
+	"github.com/tylergannon/gimbal/internal/skgo/params"
 	"github.com/tylergannon/gimbal/internal/workflows/review"
 	"github.com/tylergannon/polytype"
 	"github.com/tylergannon/skgo"
@@ -21,7 +23,7 @@ type StartReviewInput struct {
 	RoleCodeReview polytype.Optional[string] `json:"role_code_review,omitzero"`
 }
 
-func startReview(ctx context.Context, in StartReviewInput) (StartAccepted, error) {
+func startReview(ctx context.Context, event app.RequestEvent[params.Params], in StartReviewInput) (StartAccepted, error) {
 	if strings.TrimSpace(in.Goal) == "" {
 		return StartAccepted{}, skgo.Invalidf("goal", "Give goal.")
 	}

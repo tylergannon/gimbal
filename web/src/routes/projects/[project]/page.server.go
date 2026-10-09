@@ -2,7 +2,6 @@
 package routes
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"os"
@@ -38,8 +37,8 @@ type RunsData struct {
 	Now       int64                      `json:"now"`
 }
 
-func load(ctx context.Context) (RunsData, error) {
-	event := skgo.EventFrom(ctx)
+func load(event PageRequestEvent) (RunsData, error) {
+	ctx := event.Context()
 	if request := event.Request(); request != nil {
 		ctx = request.Context()
 	}

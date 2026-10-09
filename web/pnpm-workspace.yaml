@@ -6,7 +6,7 @@ catalog:
   vite-plus: 0.3.1
   "@vitest/browser-playwright": 4.1.11
 minimumReleaseAgeExclude:
-  - "@skgo/sveltekit-adapter@0.5.0"
+  - "@skgo/sveltekit-adapter@0.22.1"
 overrides:
   vite@*: "catalog:"
   vitest@*: "catalog:"

@@ -30,7 +30,7 @@ func TestShippedWorkflowPages(t *testing.T) {
 				response := httptest.NewRecorder()
 				handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/workflows/"+workflow.Name+"?v=1&panel="+panel, nil))
 				if response.Code != http.StatusOK {
-					t.Fatalf("status %d: %s", response.Code, response.Body.String())
+					t.Fatalf("status %d: %s", response.Code, response.Body.String()[:min(response.Body.Len(), 1200)])
 				}
 				for _, text := range []string{workflow.Name, "Workflow views"} {
 					if !strings.Contains(response.Body.String(), text) {

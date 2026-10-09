@@ -4,17 +4,17 @@ package params
 
 import (
 	fmt "fmt"
+	appstate "github.com/tylergannon/gimbal/internal/app"
+	skgo "github.com/tylergannon/skgo"
 	http "net/http"
 	reflect "reflect"
-
-	appstate "github.com/tylergannon/gimbal/internal/webapp"
-	skgo "github.com/tylergannon/skgo"
 )
 
 type Params struct {
 	value_636f6e766572736174696f6e4944 Key_ConversationID_K636f6e766572736174696f6e4944
 	value_70726f6a656374               Key_Project
 	value_72756e4944                   Key_RunID_K72756e4944
+	value_776f726b666c6f77             Key_Workflow
 }
 
 type RequestEvent = skgo.RequestEvent[Params, appstate.Locals]
@@ -73,6 +73,14 @@ type RunID_K72756e4944Param_String struct{ Value string }
 
 func (RunID_K72756e4944Param_String) skgoParam_72756e4944() {}
 
+type Key_Workflow interface{ skgoParam_776f726b666c6f77() }
+
+func (p Params) Workflow() Key_Workflow { return p.value_776f726b666c6f77 }
+
+type WorkflowParam_String struct{ Value string }
+
+func (WorkflowParam_String) skgoParam_776f726b666c6f77() {}
+
 // SkgoCallerRoutes describes every constructor generated from Kit's route metadata.
 func SkgoCallerRoutes() skgo.CallerRoutes {
 	return skgo.CallerRoutes{
@@ -90,6 +98,8 @@ func SkgoCallerRoutes() skgo.CallerRoutes {
 		"/projects/[project]/runs/[runID]": {Params: []skgo.ManifestParam{{Name: "project", Matcher: "", Optional: false, Rest: false, Chained: false}, {Name: "runID", Matcher: "", Optional: false, Rest: false, Chained: false}}, NewParams: func(values map[string]any) (any, error) {
 			return SkgoParams("/projects/[project]/runs/[runID]", values)
 		}},
+		"/workflows":            {Params: []skgo.ManifestParam{}, NewParams: func(values map[string]any) (any, error) { return SkgoParams("/workflows", values) }},
+		"/workflows/[workflow]": {Params: []skgo.ManifestParam{{Name: "workflow", Matcher: "", Optional: false, Rest: false, Chained: false}}, NewParams: func(values map[string]any) (any, error) { return SkgoParams("/workflows/[workflow]", values) }},
 	}
 }
 
@@ -167,6 +177,15 @@ func SkgoParams(routeID string, values map[string]any) (Params, error) {
 				return Params{}, fmt.Errorf("skgo: caller /projects/[project]/runs/[runID] param runID: %w", err)
 			}
 			p.value_72756e4944 = RunID_K72756e4944Param_String{Value: value}
+		}
+	case "/workflows":
+	case "/workflows/[workflow]":
+		if raw, present := values["workflow"]; present {
+			value, err := skgoSharedValue[string](raw)
+			if err != nil {
+				return Params{}, fmt.Errorf("skgo: caller /workflows/[workflow] param workflow: %w", err)
+			}
+			p.value_776f726b666c6f77 = WorkflowParam_String{Value: value}
 		}
 	default:
 		if routeID != "" {

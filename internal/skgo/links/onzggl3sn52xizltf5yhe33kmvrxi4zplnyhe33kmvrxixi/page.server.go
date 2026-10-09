@@ -39,6 +39,9 @@ type RunsData struct {
 
 func load(event PageRequestEvent) (RunsData, error) {
 	ctx := event.Context()
+	if request := event.Request(); request != nil {
+		ctx = request.Context()
+	}
 	registry := observation.FromContext(ctx)
 	projectDir := host.ProjectDir(ctx)
 	if registry == nil || projectDir == "" {

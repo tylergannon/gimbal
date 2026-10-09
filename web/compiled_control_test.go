@@ -14,14 +14,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tylergannon/gimbal/internal/skgo/params"
-
 	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/contextdata"
+	"github.com/tylergannon/gimbal/internal/app"
 	"github.com/tylergannon/gimbal/internal/host"
 	"github.com/tylergannon/gimbal/internal/live"
 	"github.com/tylergannon/gimbal/internal/observation"
 	routes "github.com/tylergannon/gimbal/internal/skgo/links/onzggl3sn52xizlt"
+	"github.com/tylergannon/gimbal/internal/skgo/params"
 	"github.com/tylergannon/gimbal/workflow"
 	"github.com/tylergannon/skgo"
 )
@@ -87,7 +87,7 @@ func TestCompiledConsoleCancellationDelivery(t *testing.T) {
 			go func() { close(active); <-root.Done(); close(drained) }()
 			<-active
 			started := time.Now()
-			accepted, err := routes.Skgo_cancelRun(p.Context(), params.RequestEvent{}, routes.CancelRun{Run: id})
+			accepted, err := routes.Skgo_cancelRun(p.Context(), app.RequestEvent[params.Params]{}, routes.CancelRun{Run: id})
 			if mode == "accepted-race" && (err != nil || !accepted.Accepted) {
 				t.Fatalf("command: %+v %v", accepted, err)
 			}
@@ -123,7 +123,7 @@ func TestCompiledConsoleCancellationDelivery(t *testing.T) {
 				t.Fatalf("cleanup before finish = %+v", pending.Run)
 			}
 			if mode == "unavailable-retry" {
-				result, err := routes.Skgo_cancelRun(p.Context(), params.RequestEvent{}, routes.CancelRun{Run: id})
+				result, err := routes.Skgo_cancelRun(p.Context(), app.RequestEvent[params.Params]{}, routes.CancelRun{Run: id})
 				if err != nil || !result.Accepted || calls != 2 {
 					t.Fatalf("delivery retry: %+v %v calls=%d", result, err, calls)
 				}
@@ -294,7 +294,7 @@ func TestCompiledFinishWaitsForDeliveryObservation(t *testing.T) {
 	id := startedRunID(t, p.Path())
 	commandDone := make(chan error, 1)
 	go func() {
-		_, err := routes.Skgo_cancelRun(p.Context(), params.RequestEvent{}, routes.CancelRun{Run: id})
+		_, err := routes.Skgo_cancelRun(p.Context(), app.RequestEvent[params.Params]{}, routes.CancelRun{Run: id})
 		commandDone <- err
 	}()
 	<-deliveryEntered
@@ -361,7 +361,7 @@ func TestCompiledRunThatEndsDuringControlReturnsNotFound(t *testing.T) {
 	runs := live.NewRuns()
 	release := runs.Hook(id, &endingLocalRun{Controller: controller, end: end, done: done})
 	defer release()
-	accepted, err := routes.Skgo_cancelRun(live.WithRuns(p.Context(), runs), params.RequestEvent{}, routes.CancelRun{Run: id})
+	accepted, err := routes.Skgo_cancelRun(live.WithRuns(p.Context(), runs), app.RequestEvent[params.Params]{}, routes.CancelRun{Run: id})
 	status, ok := errors.AsType[*skgo.HTTPError](err)
 	if accepted.Accepted || !ok || status.Status != http.StatusNotFound || status.Message != "Run "+id+" is no longer running." {
 		t.Fatalf("hosted end race: accepted=%+v error=%v; want local404", accepted, err)
@@ -397,11 +397,11 @@ func TestCompiledCancellationAlreadyInProgress(t *testing.T) {
 	id := startedRunID(t, p.Path())
 	first := make(chan error, 1)
 	go func() {
-		_, err := routes.Skgo_cancelRun(p.Context(), params.RequestEvent{}, routes.CancelRun{Run: id})
+		_, err := routes.Skgo_cancelRun(p.Context(), app.RequestEvent[params.Params]{}, routes.CancelRun{Run: id})
 		first <- err
 	}()
 	<-entered
-	accepted, err := routes.Skgo_cancelRun(p.Context(), params.RequestEvent{}, routes.CancelRun{Run: id})
+	accepted, err := routes.Skgo_cancelRun(p.Context(), app.RequestEvent[params.Params]{}, routes.CancelRun{Run: id})
 	close(releaseDelivery)
 	firstErr := <-first
 	_ = finish(context.Canceled)
@@ -453,7 +453,7 @@ func TestCompiledCancellationWhileFinishing(t *testing.T) {
 	finished := make(chan error, 1)
 	go func() { finished <- finish(nil) }()
 	<-adapter.entered
-	accepted, err := routes.Skgo_cancelRun(p.Context(), params.RequestEvent{}, routes.CancelRun{Run: id})
+	accepted, err := routes.Skgo_cancelRun(p.Context(), app.RequestEvent[params.Params]{}, routes.CancelRun{Run: id})
 	close(adapter.release)
 	finishErr := <-finished
 	assertCancellationBusy(t, id, accepted, err)

@@ -57,11 +57,10 @@ greeting counter all come from `web/src/routes/hello.remote.go` — the
 `hello.remote.ts` beside it is generated and every one of its bodies throws, so
 anything that renders is proof that Go answered.
 
-For development, build once and run these in separate terminals:
+For development, use one command to start the Go application and Vite:
 
 ```sh
-just dev-web
-just dev-go
+just dev
 ```
 
 ## Run a workflow
@@ -242,12 +241,32 @@ runtime context ends, and headless workflows use `web.WithNoWeb`.
 
 ## Development
 
-`just build` once, then two terminals:
+Start the application and frontend together:
 
 ```sh
-just dev-web   # vite, on 127.0.0.1:5173
-just dev-go    # the Go server, rendering from vite's modules
+just dev
 ```
+
+Open `http://127.0.0.1:8080/workflows`. Every registered built-in has a page
+with a source diagram, a guide generated from its Go documentation, and a typed
+Run form. Inspection never starts a workflow. Select a step for its prompt,
+context shape and source; expand scopes and consecutive context writes in place.
+
+During development, edits to workflow Go source and its local dependencies
+refresh the diagram, guide and parameter descriptions together. Invalid source
+keeps the last successful version with an error indication. Svelte changes use
+Vite HMR. Selection, independent expansions, inspector disclosures, active view
+and camera are URL state, so reloads and shareable links preserve supported
+choices. Removed or changed source identifiers default without migration.
+
+`just dev` generates bindings and builds the backend; on a fresh checkout it
+also builds the initial frontend archive. Stop it with Ctrl-C. Set
+`GIMBAL_DEV_PORT` and `GIMBAL_DEV_VITE_PORT` to change the default ports 8080
+and 5173. Restart after extractor changes; regenerate and restart after changes
+to callable Go signatures. Source watching reflects code, not execution values.
+Installed builds use embedded workflow snapshots and need no source checkout or
+Go compiler to show these pages. `just dev-web` and `just dev-go` remain available
+for running the two processes separately.
 
 `#lib` is a Node subpath import (`package.json` → `imports`), and TypeScript
 resolves those without probing for extensions: write `#lib/model.ts`, not

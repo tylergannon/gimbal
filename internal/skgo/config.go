@@ -6,5 +6,5 @@
 package skgo
 
 //go:generate go run github.com/tylergannon/gimbal/internal/generate/stockgen ../..
-//go:generate go tool skgo generate --web ../../web --locals-package github.com/tylergannon/gimbal/internal/webapp
+//go:generate go tool skgo generate --web ../../web --locals-package github.com/tylergannon/gimbal/internal/app
 //go:generate go tool polytype --target ../observation --typescript ../../web/src/lib/skgo/observation

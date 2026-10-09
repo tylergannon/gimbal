@@ -26,6 +26,21 @@ use [Build and release](../gimbal-release/SKILL.md).
 
 ## Define the outcome and its proof
 
+Review built-in workflow source with the human at `/workflows/<name>` in the
+Gimbal application. In a checkout, `just dev` starts the live application:
+workflow edits refresh its diagram, prompt and nested context inspection, guide
+and parameter descriptions. The human can share a URL with selected and expanded
+objects while the agent edits their Go source. Invalid edits retain the last
+successful view; changed or removed identifiers reset without guessing.
+The installed application shows its shipped snapshot. Reading a page does not
+run it; the Run view explicitly invokes the compiled workflow.
+
+Use an immediately preceding doc comment to give an operation, scope or
+condition a human-readable title on its first line and a description on later
+lines. `When true: Command provided` labels the positive condition edge;
+case comments label switch edges. Preserve static source truth: do not invent
+runtime values or interpret unlabeled operations as agent intentions.
+
 State what the workflow should accomplish, its scope, and what someone must
 observe to know it worked. Give agents outcomes and useful verified facts;
 leave their approach open unless a particular method is a requirement. A plan

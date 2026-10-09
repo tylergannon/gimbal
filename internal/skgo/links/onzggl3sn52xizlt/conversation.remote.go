@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/tylergannon/gimbal/internal/app"
 	"github.com/tylergannon/gimbal/internal/skgo/params"
-
 	"github.com/tylergannon/skgo"
 
 	"github.com/tylergannon/gimbal/internal/conversation"
@@ -26,7 +26,7 @@ type SendConversationMessage struct {
 	Message      string `json:"message"`
 }
 
-func createConversation(ctx context.Context, _ params.RequestEvent, arg CreateConversation) (conversation.Conversation, error) {
+func createConversation(ctx context.Context, event app.RequestEvent[params.Params], arg CreateConversation) (conversation.Conversation, error) {
 	manager := conversation.FromContext(ctx)
 	if manager == nil {
 		return conversation.Conversation{}, skgo.Errorf(http.StatusInternalServerError,
@@ -44,7 +44,7 @@ func createConversation(ctx context.Context, _ params.RequestEvent, arg CreateCo
 	return item, nil
 }
 
-func sendConversationMessage(ctx context.Context, _ params.RequestEvent, arg SendConversationMessage) (conversation.Conversation, error) {
+func sendConversationMessage(ctx context.Context, event app.RequestEvent[params.Params], arg SendConversationMessage) (conversation.Conversation, error) {
 	manager := conversation.FromContext(ctx)
 	if manager == nil {
 		return conversation.Conversation{}, skgo.Errorf(http.StatusInternalServerError,

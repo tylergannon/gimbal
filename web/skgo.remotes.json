@@ -20,7 +20,8 @@
     "src/routes/projects/[project]/+page.server.ts",
     "src/routes/projects/[project]/conversations/+page.server.ts",
     "src/routes/projects/[project]/conversations/[conversationID]/+page.server.ts",
-    "src/routes/projects/[project]/runs/[runID]/+page.server.ts"
+    "src/routes/projects/[project]/runs/[runID]/+page.server.ts",
+    "src/routes/workflows/[workflow]/+page.server.ts"
   ],
   "actions": [],
   "endpoints": {},
@@ -46,6 +47,9 @@
     },
     "src/routes/projects/[project]/runs/[runID]/+page.server.ts": {
       "source": "src/routes/projects/[project]/runs/[runID]/page.server.go"
+    },
+    "src/routes/workflows/[workflow]/+page.server.ts": {
+      "source": "src/routes/workflows/[workflow]/page.server.go"
     }
   }
 }

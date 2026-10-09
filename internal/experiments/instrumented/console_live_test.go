@@ -10,13 +10,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tylergannon/gimbal/internal/skgo/params"
-
 	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/contextdata"
+	"github.com/tylergannon/gimbal/internal/app"
 	"github.com/tylergannon/gimbal/internal/host"
 	"github.com/tylergannon/gimbal/internal/observation"
 	routes "github.com/tylergannon/gimbal/internal/skgo/links/onzggl3sn52xizlt"
+	"github.com/tylergannon/gimbal/internal/skgo/params"
 	"github.com/tylergannon/gimbal/web"
 	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/client"
@@ -129,7 +129,7 @@ func TestLiveCompiledConsoleCancellation(t *testing.T) {
 			if portText != "" {
 				t.Logf("BROWSER http://127.0.0.1:%s project=%s run=%s mode=%s", portText, projectDir, runID, mode)
 			} else {
-				result, commandErr := routes.Skgo_cancelRun(project.Context(), params.RequestEvent{}, routes.CancelRun{Run: runID})
+				result, commandErr := routes.Skgo_cancelRun(project.Context(), app.RequestEvent[params.Params]{}, routes.CancelRun{Run: runID})
 				if mode != "timeout" && (commandErr != nil || !result.Accepted) {
 					t.Fatalf("cancel: %+v %v", result, commandErr)
 				}

@@ -1,0 +1,56 @@
+.workflow-viewer {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #0b0c0c;
+  background: #fff;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+.workflow-viewer *,
+.workflow-viewer *::before,
+.workflow-viewer *::after {
+  box-sizing: border-box;
+}
+.workflow-viewer button,
+.workflow-viewer input {
+  font: inherit;
+  color: inherit;
+}
+.workflow-viewer button:focus-visible,
+.workflow-viewer input:focus-visible,
+.workflow-viewer summary:focus-visible {
+  outline: 3px solid #0b0c0c;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 5px #ffdd00;
+}
+.workflow-viewer button {
+  touch-action: manipulation;
+}
+.workflow-viewer .svelte-flow {
+  --xy-background-color: #fff;
+  --xy-edge-stroke: #0b0c0c;
+  --xy-node-boxshadow-hover: none;
+  --xy-node-boxshadow-selected: none;
+}
+.workflow-viewer .svelte-flow__node-workflow {
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+.workflow-viewer .svelte-flow__edge-labels {
+  z-index: 1;
+}
+.workflow-viewer .svelte-flow__pane {
+  cursor: grab;
+}
+.workflow-viewer .svelte-flow__pane:active {
+  cursor: grabbing;
+}
+.workflow-viewer .sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}

@@ -1,0 +1,37 @@
+[
+  {
+    "dir": "./internal/workflows/sprintplan",
+    "entry": "SprintPlan",
+    "name": "sprint-plan"
+  },
+  {
+    "dir": "./internal/workflows/review",
+    "entry": "Review",
+    "name": "review"
+  },
+  {
+    "dir": "./internal/workflows/implementation",
+    "entry": "Implement",
+    "name": "implement"
+  },
+  {
+    "dir": "./internal/workflows/researchdocument",
+    "entry": "ResearchDocument",
+    "name": "research-document"
+  },
+  {
+    "dir": "./internal/workflows/researcheval",
+    "entry": "ResearchEval",
+    "name": "research-eval"
+  },
+  {
+    "dir": "./internal/workflows/pyramidsummary",
+    "entry": "PyramidSummary",
+    "name": "pyramid-summary"
+  },
+  {
+    "dir": "./internal/workflows/validateproduct",
+    "entry": "ValidateProduct",
+    "name": "validate-product"
+  }
+]

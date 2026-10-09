@@ -1,0 +1,3624 @@
+{
+  "guide": {
+    "summary": "SprintPlan prepares an indexed working set and a reference-backed implementation plan.",
+    "prose": "Package sprintplan turns an accepted value proposition into a proposed plan\nsupported by a local, indexed working set. Supply an intent file naming the\nstakeholder, desired outcome, boundaries, and observable success. Include\npaths to useful local references or existing indexes in that file. Relative\nreference paths are interpreted from the project directory.\n\nProject and prior-art research run together, followed by index curation,\nthree independent drafts, cross-critiques, and synthesis. Researchers collect\ninformation without recommending a solution. Project sources stay in place;\nexternal material is collected locally when useful. Research follows the\nintent's source restrictions, with no fixed source count or local/web mode.\n\nA new sprint directory receives intent.md, working-set/INDEX.md and its\nsources, draft/ and critique/ documents, and plan.md. Existing sprint\ndirectories are refused. Success means these planning artifacts exist, not\nthat the stakeholder outcome has been implemented or validated. Unresolved\nstakeholder choices remain explicit in the plan for human review.\n\nThe three planning lanes are independent sessions sharing RoleSprintPlanning.\nRole flags assign models across all sessions using each established role.\nPlanning reads project sources without changing them. Only research and\nsynthesis maintain the working set; parallel planners return discoveries in\ntheir own documents.\n\nExample:\n\n\tgimbal run sprint-plan --intent ./intent.md --sprint-dir ./ephemeral/sprints/export",
+    "parameters": [
+      {
+        "name": "Intent",
+        "flag": "intent",
+        "kind": "string",
+        "description": "Intent is a local file describing who benefits, the outcome, boundaries, success evidence, and useful reference paths.",
+        "required": true
+      },
+      {
+        "name": "SprintDir",
+        "flag": "sprint-dir",
+        "kind": "string",
+        "description": "SprintDir is a new directory for the intent, indexed working set, drafts, critiques, and proposed plan.",
+        "required": true
+      }
+    ],
+    "roles": [
+      {
+        "name": "bulk-map-reduce",
+        "default": "gemini-3.8-flash-medium"
+      },
+      {
+        "name": "sprint-planning",
+        "default": "gpt-6-astra:high"
+      }
+    ],
+    "invocation": "gimbal run sprint-plan --intent ./intent.md --sprint-dir ./ephemeral/sprints/export",
+    "snapshot": "e74e8e8b570d05216a8477b22df72a8f1408b834fdc3c5b3cb255d965f3eec78"
+  },
+  "name": "sprint-plan",
+  "entry": "SprintPlan",
+  "module": "",
+  "source": {
+    "file": "internal/workflows/sprintplan/sprintplan.go",
+    "line": 48
+  },
+  "body": [
+    {
+      "key": "pd3c073599b4b66ff",
+      "id": "n1",
+      "kind": "Set",
+      "label": "intent file",
+      "source": {
+        "file": "internal/workflows/sprintplan/sprintplan.go",
+        "line": 53
+      },
+      "scope": "root",
+      "detail": {
+        "kind": "Set",
+        "expression": "gimbal.Set(ctx, \"intent file\", filepath.Join(dir, \"intent.md\"))",
+        "promptKnown": false,
+        "keyExpression": "\"intent file\"",
+        "keyKnown": true,
+        "valueExpression": "filepath.Join(dir, \"intent.md\")",
+        "contextExpression": "ctx",
+        "contextKnown": true,
+        "shape": {
+          "type": "string",
+          "kind": "scalar"
+        }
+      },
+      "context": [
+        {
+          "key": "intent file",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n1",
+          "scope": "root"
+        }
+      ]
+    },
+    {
+      "key": "p1393387a44971604",
+      "id": "n2",
+      "kind": "Set",
+      "label": "working set",
+      "source": {
+        "file": "internal/workflows/sprintplan/sprintplan.go",
+        "line": 54
+      },
+      "scope": "root",
+      "detail": {
+        "kind": "Set",
+        "expression": "gimbal.Set(ctx, \"working set\", filepath.Join(dir, \"working-set\"))",
+        "promptKnown": false,
+        "keyExpression": "\"working set\"",
+        "keyKnown": true,
+        "valueExpression": "filepath.Join(dir, \"working-set\")",
+        "contextExpression": "ctx",
+        "contextKnown": true,
+        "shape": {
+          "type": "string",
+          "kind": "scalar"
+        }
+      },
+      "context": [
+        {
+          "key": "intent file",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n1",
+          "scope": "root"
+        },
+        {
+          "key": "working set",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n2",
+          "scope": "root"
+        }
+      ]
+    },
+    {
+      "key": "pb99e244651426c7c",
+      "id": "n3",
+      "kind": "Set",
+      "label": "project directory",
+      "source": {
+        "file": "internal/workflows/sprintplan/sprintplan.go",
+        "line": 55
+      },
+      "scope": "root",
+      "detail": {
+        "kind": "Set",
+        "expression": "gimbal.Set(ctx, \"project directory\", env.WorkDir)",
+        "promptKnown": false,
+        "keyExpression": "\"project directory\"",
+        "keyKnown": true,
+        "valueExpression": "env.WorkDir",
+        "contextExpression": "ctx",
+        "contextKnown": true,
+        "shape": {
+          "type": "string",
+          "kind": "scalar"
+        }
+      },
+      "context": [
+        {
+          "key": "intent file",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n1",
+          "scope": "root"
+        },
+        {
+          "key": "working set",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n2",
+          "scope": "root"
+        },
+        {
+          "key": "project directory",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n3",
+          "scope": "root"
+        }
+      ]
+    },
+    {
+      "key": "pe3899cf5cd955811",
+      "id": "n4",
+      "kind": "Set",
+      "label": "planning rules",
+      "source": {
+        "file": "internal/workflows/sprintplan/sprintplan.go",
+        "line": 56
+      },
+      "scope": "root",
+      "detail": {
+        "kind": "Set",
+        "expression": "gimbal.Set(ctx, \"planning rules\", \"Read the intent first. Keep its stakeholder outcome authoritative. Read project instructions; leave project sources unchanged. Resolve relative references from the project directory; use absolute local citations and original evidence. Preserve uncertainty and surface missing stakeholder decisions rather than inventing them.\")",
+        "promptKnown": false,
+        "keyExpression": "\"planning rules\"",
+        "keyKnown": true,
+        "valueExpression": "\"Read the intent first. Keep its stakeholder outcome authoritative. Read project instructions; leave project sources unchanged. Resolve relative references from the project directory; use absolute local citations and original evidence. Preserve uncertainty and surface missing stakeholder decisions rather than inventing them.\"",
+        "contextExpression": "ctx",
+        "contextKnown": true,
+        "shape": {
+          "type": "string",
+          "kind": "scalar"
+        }
+      },
+      "context": [
+        {
+          "key": "intent file",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n1",
+          "scope": "root"
+        },
+        {
+          "key": "working set",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n2",
+          "scope": "root"
+        },
+        {
+          "key": "project directory",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n3",
+          "scope": "root"
+        },
+        {
+          "key": "planning rules",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n4",
+          "scope": "root"
+        }
+      ]
+    },
+    {
+      "key": "p52f8fa8d83e9b681",
+      "id": "n5",
+      "kind": "Set",
+      "label": "document output",
+      "source": {
+        "file": "internal/workflows/sprintplan/sprintplan.go",
+        "line": 58
+      },
+      "scope": "root",
+      "detail": {
+        "kind": "Set",
+        "expression": "gimbal.Set(ctx, \"document output\", \"Write the requested Markdown document at its supplied path. Return a short summary; the workflow checks the file and does not save your response over it.\")",
+        "promptKnown": false,
+        "keyExpression": "\"document output\"",
+        "keyKnown": true,
+        "valueExpression": "\"Write the requested Markdown document at its supplied path. Return a short summary; the workflow checks the file and does not save your response over it.\"",
+        "contextExpression": "ctx",
+        "contextKnown": true,
+        "shape": {
+          "type": "string",
+          "kind": "scalar"
+        }
+      },
+      "context": [
+        {
+          "key": "intent file",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n1",
+          "scope": "root"
+        },
+        {
+          "key": "working set",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n2",
+          "scope": "root"
+        },
+        {
+          "key": "project directory",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n3",
+          "scope": "root"
+        },
+        {
+          "key": "planning rules",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n4",
+          "scope": "root"
+        },
+        {
+          "key": "document output",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n5",
+          "scope": "root"
+        }
+      ]
+    },
+    {
+      "key": "pe67d69deb08f0d3c",
+      "id": "n6",
+      "kind": "Group",
+      "label": "research",
+      "source": {
+        "file": "internal/workflows/sprintplan/sprintplan.go",
+        "line": 60
+      },
+      "scope": "root",
+      "context": [
+        {
+          "key": "intent file",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n1",
+          "scope": "root"
+        },
+        {
+          "key": "working set",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n2",
+          "scope": "root"
+        },
+        {
+          "key": "project directory",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n3",
+          "scope": "root"
+        },
+        {
+          "key": "planning rules",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n4",
+          "scope": "root"
+        },
+        {
+          "key": "document output",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n5",
+          "scope": "root"
+        }
+      ],
+      "children": [
+        [
+          {
+            "key": "p2164484d44349f47",
+            "id": "n10",
+            "kind": "Go",
+            "label": "project",
+            "source": {
+              "file": "internal/workflows/sprintplan/sprintplan.go",
+              "line": 61
+            },
+            "scope": "root/research/project",
+            "context": [
+              {
+                "key": "intent file",
+                "shape": {
+                  "type": "string",
+                  "kind": "scalar"
+                },
+                "write": "n1",
+                "scope": "root"
+              },
+              {
+                "key": "working set",
+                "shape": {
+                  "type": "string",
+                  "kind": "scalar"
+                },
+                "write": "n2",
+                "scope": "root"
+              },
+              {
+                "key": "project directory",
+                "shape": {
+                  "type": "string",
+                  "kind": "scalar"
+                },
+                "write": "n3",
+                "scope": "root"
+              },
+              {
+                "key": "planning rules",
+                "shape": {
+                  "type": "string",
+                  "kind": "scalar"
+                },
+                "write": "n4",
+                "scope": "root"
+              },
+              {
+                "key": "document output",
+                "shape": {
+                  "type": "string",
+                  "kind": "scalar"
+                },
+                "write": "n5",
+                "scope": "root"
+              }
+            ],
+            "children": [
+              [
+                {
+                  "key": "pcc1a559f5a439038",
+                  "id": "n7",
+                  "kind": "Set",
+                  "label": "document path",
+                  "source": {
+                    "file": "internal/workflows/sprintplan/sprintplan.go",
+                    "line": 62
+                  },
+                  "scope": "root/research/project",
+                  "detail": {
+                    "kind": "Set",
+                    "expression": "gimbal.Set(ctx, \"document path\", filepath.Join(dir, \"working-set\", \"project\", \"INDEX.md\"))",
+                    "promptKnown": false,
+                    "keyExpression": "\"document path\"",
+                    "keyKnown": true,
+                    "valueExpression": "filepath.Join(dir, \"working-set\", \"project\", \"INDEX.md\")",
+                    "contextExpression": "ctx",
+                    "contextKnown": true,
+                    "shape": {
+                      "type": "string",
+                      "kind": "scalar"
+                    }
+                  },
+                  "context": [
+                    {
+                      "key": "intent file",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n1",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "working set",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n2",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "project directory",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n3",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "planning rules",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n4",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "document output",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n5",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "document path",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n7",
+                      "scope": "root/research/project"
+                    }
+                  ]
+                },
+                {
+                  "key": "p114b101e784593fb",
+                  "id": "n8",
+                  "kind": "NewSession",
+                  "label": "bulk-map-reduce",
+                  "source": {
+                    "file": "internal/workflows/sprintplan/sprintplan.go",
+                    "line": 63
+                  },
+                  "scope": "root/research/project",
+                  "session": "bulk-map-reduce",
+                  "context": [
+                    {
+                      "key": "intent file",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n1",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "working set",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n2",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "project directory",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n3",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "planning rules",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n4",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "document output",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n5",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "document path",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n7",
+                      "scope": "root/research/project"
+                    }
+                  ]
+                },
+                {
+                  "key": "p17da2631f92ab934",
+                  "id": "n9",
+                  "kind": "Generate",
+                  "label": "`Locate project code, tests, documentation, and existing knowledge that might help realize the intent. Omit your own opinions and solution judgments. Write a compact index at the document path, routing questions to precise local source references for later decisions. Include adjacent material when potentially useful. Reference existing files in place; preserve qualifications, disagreements, and open questions.`",
+                  "source": {
+                    "file": "internal/workflows/sprintplan/sprintplan.go",
+                    "line": 64
+                  },
+                  "scope": "root/research/project",
+                  "session": "bulk-map-reduce",
+                  "prompt": "Locate project code, tests, documentation, and existing knowledge that might help realize the intent. Omit your own opinions and solution judgments. Write a compact index at the document path, routing questions to precise local source references for later decisions. Include adjacent material when potentially useful. Reference existing files in place; preserve qualifications, disagreements, and open questions.",
+                  "detail": {
+                    "kind": "Generate",
+                    "expression": "reader.Generate[gimbal.Text](ctx, `Locate project code, tests, documentation, and existing knowledge that might help realize the intent. Omit your own opinions and solution judgments. Write a compact index at the document path, routing questions to precise local source references for later decisions. Include adjacent material when potentially useful. Reference existing files in place; preserve qualifications, disagreements, and open questions.`)",
+                    "promptExpression": "`Locate project code, tests, documentation, and existing knowledge that might help realize the intent. Omit your own opinions and solution judgments. Write a compact index at the document path, routing questions to precise local source references for later decisions. Include adjacent material when potentially useful. Reference existing files in place; preserve qualifications, disagreements, and open questions.`",
+                    "promptKnown": true,
+                    "keyKnown": false,
+                    "contextExpression": "ctx",
+                    "contextKnown": true
+                  },
+                  "context": [
+                    {
+                      "key": "intent file",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n1",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "working set",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n2",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "project directory",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n3",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "planning rules",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n4",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "document output",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n5",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "document path",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n7",
+                      "scope": "root/research/project"
+                    }
+                  ]
+                }
+              ]
+            ]
+          }
+        ],
+        [
+          {
+            "key": "pf096be41448064f2",
+            "id": "n15",
+            "kind": "Go",
+            "label": "prior-art",
+            "source": {
+              "file": "internal/workflows/sprintplan/sprintplan.go",
+              "line": 67
+            },
+            "scope": "root/research/prior-art",
+            "context": [
+              {
+                "key": "intent file",
+                "shape": {
+                  "type": "string",
+                  "kind": "scalar"
+                },
+                "write": "n1",
+                "scope": "root"
+              },
+              {
+                "key": "working set",
+                "shape": {
+                  "type": "string",
+                  "kind": "scalar"
+                },
+                "write": "n2",
+                "scope": "root"
+              },
+              {
+                "key": "project directory",
+                "shape": {
+                  "type": "string",
+                  "kind": "scalar"
+                },
+                "write": "n3",
+                "scope": "root"
+              },
+              {
+                "key": "planning rules",
+                "shape": {
+                  "type": "string",
+                  "kind": "scalar"
+                },
+                "write": "n4",
+                "scope": "root"
+              },
+              {
+                "key": "document output",
+                "shape": {
+                  "type": "string",
+                  "kind": "scalar"
+                },
+                "write": "n5",
+                "scope": "root"
+              }
+            ],
+            "children": [
+              [
+                {
+                  "key": "p4c70f1240528f8dc",
+                  "id": "n11",
+                  "kind": "Set",
+                  "label": "collection directory",
+                  "source": {
+                    "file": "internal/workflows/sprintplan/sprintplan.go",
+                    "line": 68
+                  },
+                  "scope": "root/research/prior-art",
+                  "detail": {
+                    "kind": "Set",
+                    "expression": "gimbal.Set(ctx, \"collection directory\", filepath.Join(dir, \"working-set\", \"prior-art\"))",
+                    "promptKnown": false,
+                    "keyExpression": "\"collection directory\"",
+                    "keyKnown": true,
+                    "valueExpression": "filepath.Join(dir, \"working-set\", \"prior-art\")",
+                    "contextExpression": "ctx",
+                    "contextKnown": true,
+                    "shape": {
+                      "type": "string",
+                      "kind": "scalar"
+                    }
+                  },
+                  "context": [
+                    {
+                      "key": "intent file",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n1",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "working set",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n2",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "project directory",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n3",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "planning rules",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n4",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "document output",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n5",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "collection directory",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n11",
+                      "scope": "root/research/prior-art"
+                    }
+                  ]
+                },
+                {
+                  "key": "pa8604515c8bc62f0",
+                  "id": "n12",
+                  "kind": "Set",
+                  "label": "document path",
+                  "source": {
+                    "file": "internal/workflows/sprintplan/sprintplan.go",
+                    "line": 69
+                  },
+                  "scope": "root/research/prior-art",
+                  "detail": {
+                    "kind": "Set",
+                    "expression": "gimbal.Set(ctx, \"document path\", filepath.Join(dir, \"working-set\", \"prior-art\", \"INDEX.md\"))",
+                    "promptKnown": false,
+                    "keyExpression": "\"document path\"",
+                    "keyKnown": true,
+                    "valueExpression": "filepath.Join(dir, \"working-set\", \"prior-art\", \"INDEX.md\")",
+                    "contextExpression": "ctx",
+                    "contextKnown": true,
+                    "shape": {
+                      "type": "string",
+                      "kind": "scalar"
+                    }
+                  },
+                  "context": [
+                    {
+                      "key": "intent file",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n1",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "working set",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n2",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "project directory",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n3",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "planning rules",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n4",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "document output",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n5",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "collection directory",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n11",
+                      "scope": "root/research/prior-art"
+                    },
+                    {
+                      "key": "document path",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n12",
+                      "scope": "root/research/prior-art"
+                    }
+                  ]
+                },
+                {
+                  "key": "pae2a2dd8201edcbd",
+                  "id": "n13",
+                  "kind": "NewSession",
+                  "label": "bulk-map-reduce",
+                  "source": {
+                    "file": "internal/workflows/sprintplan/sprintplan.go",
+                    "line": 70
+                  },
+                  "scope": "root/research/prior-art",
+                  "session": "bulk-map-reduce",
+                  "context": [
+                    {
+                      "key": "intent file",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n1",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "working set",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n2",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "project directory",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n3",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "planning rules",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n4",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "document output",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n5",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "collection directory",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n11",
+                      "scope": "root/research/prior-art"
+                    },
+                    {
+                      "key": "document path",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n12",
+                      "scope": "root/research/prior-art"
+                    }
+                  ]
+                },
+                {
+                  "key": "p1a403abdc3a90b55",
+                  "id": "n14",
+                  "kind": "Generate",
+                  "label": "`Locate prior art, examples, and reference material that might help realize the intent, including adjacent approaches. Follow supplied local references and source restrictions; discover additional sources when useful. Save collected originals or faithful excerpts with provenance in the collection directory. Omit your own opinions and solution judgments. Write a compact index at the document path with precise local references, qualifications, and unresolved questions for later planning.`",
+                  "source": {
+                    "file": "internal/workflows/sprintplan/sprintplan.go",
+                    "line": 71
+                  },
+                  "scope": "root/research/prior-art",
+                  "session": "bulk-map-reduce",
+                  "prompt": "Locate prior art, examples, and reference material that might help realize the intent, including adjacent approaches. Follow supplied local references and source restrictions; discover additional sources when useful. Save collected originals or faithful excerpts with provenance in the collection directory. Omit your own opinions and solution judgments. Write a compact index at the document path with precise local references, qualifications, and unresolved questions for later planning.",
+                  "detail": {
+                    "kind": "Generate",
+                    "expression": "reader.Generate[gimbal.Text](ctx, `Locate prior art, examples, and reference material that might help realize the intent, including adjacent approaches. Follow supplied local references and source restrictions; discover additional sources when useful. Save collected originals or faithful excerpts with provenance in the collection directory. Omit your own opinions and solution judgments. Write a compact index at the document path with precise local references, qualifications, and unresolved questions for later planning.`)",
+                    "promptExpression": "`Locate prior art, examples, and reference material that might help realize the intent, including adjacent approaches. Follow supplied local references and source restrictions; discover additional sources when useful. Save collected originals or faithful excerpts with provenance in the collection directory. Omit your own opinions and solution judgments. Write a compact index at the document path with precise local references, qualifications, and unresolved questions for later planning.`",
+                    "promptKnown": true,
+                    "keyKnown": false,
+                    "contextExpression": "ctx",
+                    "contextKnown": true
+                  },
+                  "context": [
+                    {
+                      "key": "intent file",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n1",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "working set",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n2",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "project directory",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n3",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "planning rules",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n4",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "document output",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n5",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "collection directory",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n11",
+                      "scope": "root/research/prior-art"
+                    },
+                    {
+                      "key": "document path",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n12",
+                      "scope": "root/research/prior-art"
+                    }
+                  ]
+                }
+              ]
+            ]
+          }
+        ]
+      ],
+      "branchLabels": [
+        "project",
+        "prior-art"
+      ],
+      "note": "Children run concurrently in separate scopes. Child context does not merge at the join."
+    },
+    {
+      "key": "p2b0088cb7c36b810",
+      "id": "n16",
+      "kind": "Set",
+      "label": "root index path",
+      "source": {
+        "file": "internal/workflows/sprintplan/sprintplan.go",
+        "line": 77
+      },
+      "scope": "root",
+      "detail": {
+        "kind": "Set",
+        "expression": "gimbal.Set(ctx, \"root index path\", filepath.Join(dir, \"working-set\", \"INDEX.md\"))",
+        "promptKnown": false,
+        "keyExpression": "\"root index path\"",
+        "keyKnown": true,
+        "valueExpression": "filepath.Join(dir, \"working-set\", \"INDEX.md\")",
+        "contextExpression": "ctx",
+        "contextKnown": true,
+        "shape": {
+          "type": "string",
+          "kind": "scalar"
+        }
+      },
+      "context": [
+        {
+          "key": "intent file",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n1",
+          "scope": "root"
+        },
+        {
+          "key": "working set",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n2",
+          "scope": "root"
+        },
+        {
+          "key": "project directory",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n3",
+          "scope": "root"
+        },
+        {
+          "key": "planning rules",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n4",
+          "scope": "root"
+        },
+        {
+          "key": "document output",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n5",
+          "scope": "root"
+        },
+        {
+          "key": "root index path",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n16",
+          "scope": "root"
+        }
+      ]
+    },
+    {
+      "key": "pc78b91aba78589a4",
+      "id": "n17",
+      "kind": "NewSession",
+      "label": "bulk-map-reduce",
+      "source": {
+        "file": "internal/workflows/sprintplan/sprintplan.go",
+        "line": 78
+      },
+      "scope": "root",
+      "session": "bulk-map-reduce",
+      "context": [
+        {
+          "key": "intent file",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n1",
+          "scope": "root"
+        },
+        {
+          "key": "working set",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n2",
+          "scope": "root"
+        },
+        {
+          "key": "project directory",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n3",
+          "scope": "root"
+        },
+        {
+          "key": "planning rules",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n4",
+          "scope": "root"
+        },
+        {
+          "key": "document output",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n5",
+          "scope": "root"
+        },
+        {
+          "key": "root index path",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n16",
+          "scope": "root"
+        }
+      ]
+    },
+    {
+      "key": "p5101c31ad36f1e49",
+      "id": "n18",
+      "kind": "Generate",
+      "label": "`Read both research indexes and check their cited local sources. Write a compact index at the root index path organized around likely planning and implementation questions, linking to those indexes and original material. Explain where to look without recommending a solution. Preserve uncertainty and disagreements; a little extra relevant material is useful. Verify representative routes reach useful evidence.`",
+      "source": {
+        "file": "internal/workflows/sprintplan/sprintplan.go",
+        "line": 79
+      },
+      "scope": "root",
+      "session": "bulk-map-reduce",
+      "prompt": "Read both research indexes and check their cited local sources. Write a compact index at the root index path organized around likely planning and implementation questions, linking to those indexes and original material. Explain where to look without recommending a solution. Preserve uncertainty and disagreements; a little extra relevant material is useful. Verify representative routes reach useful evidence.",
+      "detail": {
+        "kind": "Generate",
+        "expression": "curator.Generate[gimbal.Text](ctx, `Read both research indexes and check their cited local sources. Write a compact index at the root index path organized around likely planning and implementation questions, linking to those indexes and original material. Explain where to look without recommending a solution. Preserve uncertainty and disagreements; a little extra relevant material is useful. Verify representative routes reach useful evidence.`)",
+        "promptExpression": "`Read both research indexes and check their cited local sources. Write a compact index at the root index path organized around likely planning and implementation questions, linking to those indexes and original material. Explain where to look without recommending a solution. Preserve uncertainty and disagreements; a little extra relevant material is useful. Verify representative routes reach useful evidence.`",
+        "promptKnown": true,
+        "keyKnown": false,
+        "contextExpression": "ctx",
+        "contextKnown": true
+      },
+      "context": [
+        {
+          "key": "intent file",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n1",
+          "scope": "root"
+        },
+        {
+          "key": "working set",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n2",
+          "scope": "root"
+        },
+        {
+          "key": "project directory",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n3",
+          "scope": "root"
+        },
+        {
+          "key": "planning rules",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n4",
+          "scope": "root"
+        },
+        {
+          "key": "document output",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n5",
+          "scope": "root"
+        },
+        {
+          "key": "root index path",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n16",
+          "scope": "root"
+        }
+      ]
+    },
+    {
+      "key": "p88fe945863c862bb",
+      "title": "Branches identify participants; roles come from roles.go, never providers or workflow names.",
+      "id": "n19",
+      "kind": "Iterate",
+      "label": "planning",
+      "source": {
+        "file": "internal/workflows/sprintplan/sprintplan.go",
+        "line": 85
+      },
+      "scope": "root",
+      "context": [
+        {
+          "key": "intent file",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n1",
+          "scope": "root"
+        },
+        {
+          "key": "working set",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n2",
+          "scope": "root"
+        },
+        {
+          "key": "project directory",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n3",
+          "scope": "root"
+        },
+        {
+          "key": "planning rules",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n4",
+          "scope": "root"
+        },
+        {
+          "key": "document output",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n5",
+          "scope": "root"
+        },
+        {
+          "key": "root index path",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n16",
+          "scope": "root"
+        }
+      ],
+      "children": [
+        [
+          {
+            "key": "pd098357c1ba5d5ba",
+            "id": "n20",
+            "kind": "Set",
+            "label": "phase",
+            "source": {
+              "file": "internal/workflows/sprintplan/sprintplan.go",
+              "line": 86
+            },
+            "scope": "root/planning",
+            "detail": {
+              "kind": "Set",
+              "expression": "gimbal.Set(ctx, \"phase\", phase)",
+              "promptKnown": false,
+              "keyExpression": "\"phase\"",
+              "keyKnown": true,
+              "valueExpression": "phase",
+              "contextExpression": "ctx",
+              "contextKnown": true,
+              "shape": {
+                "type": "string",
+                "kind": "scalar"
+              }
+            },
+            "context": [
+              {
+                "key": "intent file",
+                "shape": {
+                  "type": "string",
+                  "kind": "scalar"
+                },
+                "write": "n1",
+                "scope": "root"
+              },
+              {
+                "key": "working set",
+                "shape": {
+                  "type": "string",
+                  "kind": "scalar"
+                },
+                "write": "n2",
+                "scope": "root"
+              },
+              {
+                "key": "project directory",
+                "shape": {
+                  "type": "string",
+                  "kind": "scalar"
+                },
+                "write": "n3",
+                "scope": "root"
+              },
+              {
+                "key": "planning rules",
+                "shape": {
+                  "type": "string",
+                  "kind": "scalar"
+                },
+                "write": "n4",
+                "scope": "root"
+              },
+              {
+                "key": "document output",
+                "shape": {
+                  "type": "string",
+                  "kind": "scalar"
+                },
+                "write": "n5",
+                "scope": "root"
+              },
+              {
+                "key": "root index path",
+                "shape": {
+                  "type": "string",
+                  "kind": "scalar"
+                },
+                "write": "n16",
+                "scope": "root"
+              },
+              {
+                "key": "phase",
+                "shape": {
+                  "type": "string",
+                  "kind": "scalar"
+                },
+                "write": "n20",
+                "scope": "root/planning"
+              }
+            ]
+          },
+          {
+            "key": "pf68d3d9a0e022cc5",
+            "id": "n21",
+            "kind": "Set",
+            "label": "draft directory",
+            "source": {
+              "file": "internal/workflows/sprintplan/sprintplan.go",
+              "line": 87
+            },
+            "scope": "root/planning",
+            "detail": {
+              "kind": "Set",
+              "expression": "gimbal.Set(ctx, \"draft directory\", filepath.Join(dir, \"draft\"))",
+              "promptKnown": false,
+              "keyExpression": "\"draft directory\"",
+              "keyKnown": true,
+              "valueExpression": "filepath.Join(dir, \"draft\")",
+              "contextExpression": "ctx",
+              "contextKnown": true,
+              "shape": {
+                "type": "string",
+                "kind": "scalar"
+              }
+            },
+            "context": [
+              {
+                "key": "intent file",
+                "shape": {
+                  "type": "string",
+                  "kind": "scalar"
+                },
+                "write": "n1",
+                "scope": "root"
+              },
+              {
+                "key": "working set",
+                "shape": {
+                  "type": "string",
+                  "kind": "scalar"
+                },
+                "write": "n2",
+                "scope": "root"
+              },
+              {
+                "key": "project directory",
+                "shape": {
+                  "type": "string",
+                  "kind": "scalar"
+                },
+                "write": "n3",
+                "scope": "root"
+              },
+              {
+                "key": "planning rules",
+                "shape": {
+                  "type": "string",
+                  "kind": "scalar"
+                },
+                "write": "n4",
+                "scope": "root"
+              },
+              {
+                "key": "document output",
+                "shape": {
+                  "type": "string",
+                  "kind": "scalar"
+                },
+                "write": "n5",
+                "scope": "root"
+              },
+              {
+                "key": "root index path",
+                "shape": {
+                  "type": "string",
+                  "kind": "scalar"
+                },
+                "write": "n16",
+                "scope": "root"
+              },
+              {
+                "key": "phase",
+                "shape": {
+                  "type": "string",
+                  "kind": "scalar"
+                },
+                "write": "n20",
+                "scope": "root/planning"
+              },
+              {
+                "key": "draft directory",
+                "shape": {
+                  "type": "string",
+                  "kind": "scalar"
+                },
+                "write": "n21",
+                "scope": "root/planning"
+              }
+            ]
+          },
+          {
+            "key": "p443dd70b29a5c769",
+            "id": "n22",
+            "kind": "Group",
+            "label": "plans",
+            "source": {
+              "file": "internal/workflows/sprintplan/sprintplan.go",
+              "line": 89
+            },
+            "scope": "root/planning",
+            "context": [
+              {
+                "key": "intent file",
+                "shape": {
+                  "type": "string",
+                  "kind": "scalar"
+                },
+                "write": "n1",
+                "scope": "root"
+              },
+              {
+                "key": "working set",
+                "shape": {
+                  "type": "string",
+                  "kind": "scalar"
+                },
+                "write": "n2",
+                "scope": "root"
+              },
+              {
+                "key": "project directory",
+                "shape": {
+                  "type": "string",
+                  "kind": "scalar"
+                },
+                "write": "n3",
+                "scope": "root"
+              },
+              {
+                "key": "planning rules",
+                "shape": {
+                  "type": "string",
+                  "kind": "scalar"
+                },
+                "write": "n4",
+                "scope": "root"
+              },
+              {
+                "key": "document output",
+                "shape": {
+                  "type": "string",
+                  "kind": "scalar"
+                },
+                "write": "n5",
+                "scope": "root"
+              },
+              {
+                "key": "root index path",
+                "shape": {
+                  "type": "string",
+                  "kind": "scalar"
+                },
+                "write": "n16",
+                "scope": "root"
+              },
+              {
+                "key": "phase",
+                "shape": {
+                  "type": "string",
+                  "kind": "scalar"
+                },
+                "write": "n20",
+                "scope": "root/planning"
+              },
+              {
+                "key": "draft directory",
+                "shape": {
+                  "type": "string",
+                  "kind": "scalar"
+                },
+                "write": "n21",
+                "scope": "root/planning"
+              }
+            ],
+            "children": [
+              [
+                {
+                  "key": "p8c20e7106af847f9",
+                  "id": "n27",
+                  "kind": "Go",
+                  "label": "first",
+                  "source": {
+                    "file": "internal/workflows/sprintplan/sprintplan.go",
+                    "line": 90
+                  },
+                  "scope": "root/planning/plans/first",
+                  "context": [
+                    {
+                      "key": "intent file",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n1",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "working set",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n2",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "project directory",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n3",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "planning rules",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n4",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "document output",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n5",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "root index path",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n16",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "phase",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n20",
+                      "scope": "root/planning"
+                    },
+                    {
+                      "key": "draft directory",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n21",
+                      "scope": "root/planning"
+                    }
+                  ],
+                  "children": [
+                    [
+                      {
+                        "key": "p0b9e8cf85cc7a5d1",
+                        "id": "n23",
+                        "kind": "Set",
+                        "label": "lane",
+                        "source": {
+                          "file": "internal/workflows/sprintplan/sprintplan.go",
+                          "line": 91
+                        },
+                        "scope": "root/planning/plans/first",
+                        "detail": {
+                          "kind": "Set",
+                          "expression": "gimbal.Set(ctx, \"lane\", \"first\")",
+                          "promptKnown": false,
+                          "keyExpression": "\"lane\"",
+                          "keyKnown": true,
+                          "valueExpression": "\"first\"",
+                          "contextExpression": "ctx",
+                          "contextKnown": true,
+                          "shape": {
+                            "type": "string",
+                            "kind": "scalar"
+                          }
+                        },
+                        "context": [
+                          {
+                            "key": "intent file",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n1",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "working set",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n2",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "project directory",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n3",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "planning rules",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n4",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "document output",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n5",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "root index path",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n16",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "phase",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n20",
+                            "scope": "root/planning"
+                          },
+                          {
+                            "key": "draft directory",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n21",
+                            "scope": "root/planning"
+                          },
+                          {
+                            "key": "lane",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n23",
+                            "scope": "root/planning/plans/first"
+                          }
+                        ]
+                      },
+                      {
+                        "key": "p6c52067fec68ab34",
+                        "id": "n24",
+                        "kind": "Set",
+                        "label": "document path",
+                        "source": {
+                          "file": "internal/workflows/sprintplan/sprintplan.go",
+                          "line": 92
+                        },
+                        "scope": "root/planning/plans/first",
+                        "detail": {
+                          "kind": "Set",
+                          "expression": "gimbal.Set(ctx, \"document path\", filepath.Join(dir, phase, \"first.md\"))",
+                          "promptKnown": false,
+                          "keyExpression": "\"document path\"",
+                          "keyKnown": true,
+                          "valueExpression": "filepath.Join(dir, phase, \"first.md\")",
+                          "contextExpression": "ctx",
+                          "contextKnown": true,
+                          "shape": {
+                            "type": "string",
+                            "kind": "scalar"
+                          }
+                        },
+                        "context": [
+                          {
+                            "key": "intent file",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n1",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "working set",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n2",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "project directory",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n3",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "planning rules",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n4",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "document output",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n5",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "root index path",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n16",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "phase",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n20",
+                            "scope": "root/planning"
+                          },
+                          {
+                            "key": "draft directory",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n21",
+                            "scope": "root/planning"
+                          },
+                          {
+                            "key": "lane",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n23",
+                            "scope": "root/planning/plans/first"
+                          },
+                          {
+                            "key": "document path",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n24",
+                            "scope": "root/planning/plans/first"
+                          }
+                        ]
+                      },
+                      {
+                        "key": "p571f2b53cb7495f9",
+                        "id": "n25",
+                        "kind": "NewSession",
+                        "label": "sprint-planning",
+                        "source": {
+                          "file": "internal/workflows/sprintplan/sprintplan.go",
+                          "line": 93
+                        },
+                        "scope": "root/planning/plans/first",
+                        "session": "sprint-planning",
+                        "context": [
+                          {
+                            "key": "intent file",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n1",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "working set",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n2",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "project directory",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n3",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "planning rules",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n4",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "document output",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n5",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "root index path",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n16",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "phase",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n20",
+                            "scope": "root/planning"
+                          },
+                          {
+                            "key": "draft directory",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n21",
+                            "scope": "root/planning"
+                          },
+                          {
+                            "key": "lane",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n23",
+                            "scope": "root/planning/plans/first"
+                          },
+                          {
+                            "key": "document path",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n24",
+                            "scope": "root/planning/plans/first"
+                          }
+                        ]
+                      },
+                      {
+                        "key": "p4b6264a6a4f3f94c",
+                        "id": "n26",
+                        "kind": "Generate",
+                        "label": "instruction",
+                        "source": {
+                          "file": "internal/workflows/sprintplan/sprintplan.go",
+                          "line": 94
+                        },
+                        "scope": "root/planning/plans/first",
+                        "session": "sprint-planning",
+                        "prompt": "Read the intent and retrieve relevant evidence through INDEX.md in the supplied working set. In draft phase, independently propose ordered implementation work with useful source references, reuse opportunities, dependencies, and observable acceptance; do not read other drafts. In critique phase, read the other two lanes' drafts and assess them against the intent and original evidence for missed value, unnecessary invention, and weak acceptance. Write your document at the document path, including discoveries and unresolved decisions. Leave the working set and other lanes' documents unchanged.",
+                        "detail": {
+                          "kind": "Generate",
+                          "expression": "planner.Generate[gimbal.Text](ctx, instruction)",
+                          "promptExpression": "instruction",
+                          "promptKnown": true,
+                          "keyKnown": false,
+                          "contextExpression": "ctx",
+                          "contextKnown": true
+                        },
+                        "context": [
+                          {
+                            "key": "intent file",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n1",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "working set",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n2",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "project directory",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n3",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "planning rules",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n4",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "document output",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n5",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "root index path",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n16",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "phase",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n20",
+                            "scope": "root/planning"
+                          },
+                          {
+                            "key": "draft directory",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n21",
+                            "scope": "root/planning"
+                          },
+                          {
+                            "key": "lane",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n23",
+                            "scope": "root/planning/plans/first"
+                          },
+                          {
+                            "key": "document path",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n24",
+                            "scope": "root/planning/plans/first"
+                          }
+                        ]
+                      }
+                    ]
+                  ]
+                }
+              ],
+              [
+                {
+                  "key": "p57f1f4d6ac512bc4",
+                  "id": "n32",
+                  "kind": "Go",
+                  "label": "second",
+                  "source": {
+                    "file": "internal/workflows/sprintplan/sprintplan.go",
+                    "line": 97
+                  },
+                  "scope": "root/planning/plans/second",
+                  "context": [
+                    {
+                      "key": "intent file",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n1",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "working set",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n2",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "project directory",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n3",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "planning rules",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n4",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "document output",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n5",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "root index path",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n16",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "phase",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n20",
+                      "scope": "root/planning"
+                    },
+                    {
+                      "key": "draft directory",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n21",
+                      "scope": "root/planning"
+                    }
+                  ],
+                  "children": [
+                    [
+                      {
+                        "key": "pc3d20194f2fe7068",
+                        "id": "n28",
+                        "kind": "Set",
+                        "label": "lane",
+                        "source": {
+                          "file": "internal/workflows/sprintplan/sprintplan.go",
+                          "line": 98
+                        },
+                        "scope": "root/planning/plans/second",
+                        "detail": {
+                          "kind": "Set",
+                          "expression": "gimbal.Set(ctx, \"lane\", \"second\")",
+                          "promptKnown": false,
+                          "keyExpression": "\"lane\"",
+                          "keyKnown": true,
+                          "valueExpression": "\"second\"",
+                          "contextExpression": "ctx",
+                          "contextKnown": true,
+                          "shape": {
+                            "type": "string",
+                            "kind": "scalar"
+                          }
+                        },
+                        "context": [
+                          {
+                            "key": "intent file",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n1",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "working set",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n2",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "project directory",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n3",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "planning rules",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n4",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "document output",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n5",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "root index path",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n16",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "phase",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n20",
+                            "scope": "root/planning"
+                          },
+                          {
+                            "key": "draft directory",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n21",
+                            "scope": "root/planning"
+                          },
+                          {
+                            "key": "lane",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n28",
+                            "scope": "root/planning/plans/second"
+                          }
+                        ]
+                      },
+                      {
+                        "key": "p5769564676035bb5",
+                        "id": "n29",
+                        "kind": "Set",
+                        "label": "document path",
+                        "source": {
+                          "file": "internal/workflows/sprintplan/sprintplan.go",
+                          "line": 99
+                        },
+                        "scope": "root/planning/plans/second",
+                        "detail": {
+                          "kind": "Set",
+                          "expression": "gimbal.Set(ctx, \"document path\", filepath.Join(dir, phase, \"second.md\"))",
+                          "promptKnown": false,
+                          "keyExpression": "\"document path\"",
+                          "keyKnown": true,
+                          "valueExpression": "filepath.Join(dir, phase, \"second.md\")",
+                          "contextExpression": "ctx",
+                          "contextKnown": true,
+                          "shape": {
+                            "type": "string",
+                            "kind": "scalar"
+                          }
+                        },
+                        "context": [
+                          {
+                            "key": "intent file",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n1",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "working set",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n2",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "project directory",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n3",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "planning rules",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n4",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "document output",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n5",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "root index path",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n16",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "phase",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n20",
+                            "scope": "root/planning"
+                          },
+                          {
+                            "key": "draft directory",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n21",
+                            "scope": "root/planning"
+                          },
+                          {
+                            "key": "lane",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n28",
+                            "scope": "root/planning/plans/second"
+                          },
+                          {
+                            "key": "document path",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n29",
+                            "scope": "root/planning/plans/second"
+                          }
+                        ]
+                      },
+                      {
+                        "key": "p81b79cdcf39a00ee",
+                        "id": "n30",
+                        "kind": "NewSession",
+                        "label": "sprint-planning",
+                        "source": {
+                          "file": "internal/workflows/sprintplan/sprintplan.go",
+                          "line": 100
+                        },
+                        "scope": "root/planning/plans/second",
+                        "session": "sprint-planning",
+                        "context": [
+                          {
+                            "key": "intent file",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n1",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "working set",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n2",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "project directory",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n3",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "planning rules",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n4",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "document output",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n5",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "root index path",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n16",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "phase",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n20",
+                            "scope": "root/planning"
+                          },
+                          {
+                            "key": "draft directory",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n21",
+                            "scope": "root/planning"
+                          },
+                          {
+                            "key": "lane",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n28",
+                            "scope": "root/planning/plans/second"
+                          },
+                          {
+                            "key": "document path",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n29",
+                            "scope": "root/planning/plans/second"
+                          }
+                        ]
+                      },
+                      {
+                        "key": "p78b8d71677116b52",
+                        "id": "n31",
+                        "kind": "Generate",
+                        "label": "instruction",
+                        "source": {
+                          "file": "internal/workflows/sprintplan/sprintplan.go",
+                          "line": 101
+                        },
+                        "scope": "root/planning/plans/second",
+                        "session": "sprint-planning",
+                        "prompt": "Read the intent and retrieve relevant evidence through INDEX.md in the supplied working set. In draft phase, independently propose ordered implementation work with useful source references, reuse opportunities, dependencies, and observable acceptance; do not read other drafts. In critique phase, read the other two lanes' drafts and assess them against the intent and original evidence for missed value, unnecessary invention, and weak acceptance. Write your document at the document path, including discoveries and unresolved decisions. Leave the working set and other lanes' documents unchanged.",
+                        "detail": {
+                          "kind": "Generate",
+                          "expression": "planner.Generate[gimbal.Text](ctx, instruction)",
+                          "promptExpression": "instruction",
+                          "promptKnown": true,
+                          "keyKnown": false,
+                          "contextExpression": "ctx",
+                          "contextKnown": true
+                        },
+                        "context": [
+                          {
+                            "key": "intent file",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n1",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "working set",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n2",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "project directory",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n3",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "planning rules",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n4",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "document output",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n5",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "root index path",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n16",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "phase",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n20",
+                            "scope": "root/planning"
+                          },
+                          {
+                            "key": "draft directory",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n21",
+                            "scope": "root/planning"
+                          },
+                          {
+                            "key": "lane",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n28",
+                            "scope": "root/planning/plans/second"
+                          },
+                          {
+                            "key": "document path",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n29",
+                            "scope": "root/planning/plans/second"
+                          }
+                        ]
+                      }
+                    ]
+                  ]
+                }
+              ],
+              [
+                {
+                  "key": "p5a66190a77ab883d",
+                  "id": "n37",
+                  "kind": "Go",
+                  "label": "third",
+                  "source": {
+                    "file": "internal/workflows/sprintplan/sprintplan.go",
+                    "line": 104
+                  },
+                  "scope": "root/planning/plans/third",
+                  "context": [
+                    {
+                      "key": "intent file",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n1",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "working set",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n2",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "project directory",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n3",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "planning rules",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n4",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "document output",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n5",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "root index path",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n16",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "phase",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n20",
+                      "scope": "root/planning"
+                    },
+                    {
+                      "key": "draft directory",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n21",
+                      "scope": "root/planning"
+                    }
+                  ],
+                  "children": [
+                    [
+                      {
+                        "key": "p289296ba330bfb52",
+                        "id": "n33",
+                        "kind": "Set",
+                        "label": "lane",
+                        "source": {
+                          "file": "internal/workflows/sprintplan/sprintplan.go",
+                          "line": 105
+                        },
+                        "scope": "root/planning/plans/third",
+                        "detail": {
+                          "kind": "Set",
+                          "expression": "gimbal.Set(ctx, \"lane\", \"third\")",
+                          "promptKnown": false,
+                          "keyExpression": "\"lane\"",
+                          "keyKnown": true,
+                          "valueExpression": "\"third\"",
+                          "contextExpression": "ctx",
+                          "contextKnown": true,
+                          "shape": {
+                            "type": "string",
+                            "kind": "scalar"
+                          }
+                        },
+                        "context": [
+                          {
+                            "key": "intent file",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n1",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "working set",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n2",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "project directory",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n3",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "planning rules",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n4",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "document output",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n5",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "root index path",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n16",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "phase",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n20",
+                            "scope": "root/planning"
+                          },
+                          {
+                            "key": "draft directory",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n21",
+                            "scope": "root/planning"
+                          },
+                          {
+                            "key": "lane",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n33",
+                            "scope": "root/planning/plans/third"
+                          }
+                        ]
+                      },
+                      {
+                        "key": "p2276d1f97a2fd062",
+                        "id": "n34",
+                        "kind": "Set",
+                        "label": "document path",
+                        "source": {
+                          "file": "internal/workflows/sprintplan/sprintplan.go",
+                          "line": 106
+                        },
+                        "scope": "root/planning/plans/third",
+                        "detail": {
+                          "kind": "Set",
+                          "expression": "gimbal.Set(ctx, \"document path\", filepath.Join(dir, phase, \"third.md\"))",
+                          "promptKnown": false,
+                          "keyExpression": "\"document path\"",
+                          "keyKnown": true,
+                          "valueExpression": "filepath.Join(dir, phase, \"third.md\")",
+                          "contextExpression": "ctx",
+                          "contextKnown": true,
+                          "shape": {
+                            "type": "string",
+                            "kind": "scalar"
+                          }
+                        },
+                        "context": [
+                          {
+                            "key": "intent file",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n1",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "working set",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n2",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "project directory",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n3",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "planning rules",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n4",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "document output",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n5",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "root index path",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n16",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "phase",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n20",
+                            "scope": "root/planning"
+                          },
+                          {
+                            "key": "draft directory",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n21",
+                            "scope": "root/planning"
+                          },
+                          {
+                            "key": "lane",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n33",
+                            "scope": "root/planning/plans/third"
+                          },
+                          {
+                            "key": "document path",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n34",
+                            "scope": "root/planning/plans/third"
+                          }
+                        ]
+                      },
+                      {
+                        "key": "paeb17c85eaa52314",
+                        "id": "n35",
+                        "kind": "NewSession",
+                        "label": "sprint-planning",
+                        "source": {
+                          "file": "internal/workflows/sprintplan/sprintplan.go",
+                          "line": 107
+                        },
+                        "scope": "root/planning/plans/third",
+                        "session": "sprint-planning",
+                        "context": [
+                          {
+                            "key": "intent file",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n1",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "working set",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n2",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "project directory",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n3",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "planning rules",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n4",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "document output",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n5",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "root index path",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n16",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "phase",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n20",
+                            "scope": "root/planning"
+                          },
+                          {
+                            "key": "draft directory",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n21",
+                            "scope": "root/planning"
+                          },
+                          {
+                            "key": "lane",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n33",
+                            "scope": "root/planning/plans/third"
+                          },
+                          {
+                            "key": "document path",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n34",
+                            "scope": "root/planning/plans/third"
+                          }
+                        ]
+                      },
+                      {
+                        "key": "p64f63c8afdf6db0f",
+                        "id": "n36",
+                        "kind": "Generate",
+                        "label": "instruction",
+                        "source": {
+                          "file": "internal/workflows/sprintplan/sprintplan.go",
+                          "line": 108
+                        },
+                        "scope": "root/planning/plans/third",
+                        "session": "sprint-planning",
+                        "prompt": "Read the intent and retrieve relevant evidence through INDEX.md in the supplied working set. In draft phase, independently propose ordered implementation work with useful source references, reuse opportunities, dependencies, and observable acceptance; do not read other drafts. In critique phase, read the other two lanes' drafts and assess them against the intent and original evidence for missed value, unnecessary invention, and weak acceptance. Write your document at the document path, including discoveries and unresolved decisions. Leave the working set and other lanes' documents unchanged.",
+                        "detail": {
+                          "kind": "Generate",
+                          "expression": "planner.Generate[gimbal.Text](ctx, instruction)",
+                          "promptExpression": "instruction",
+                          "promptKnown": true,
+                          "keyKnown": false,
+                          "contextExpression": "ctx",
+                          "contextKnown": true
+                        },
+                        "context": [
+                          {
+                            "key": "intent file",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n1",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "working set",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n2",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "project directory",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n3",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "planning rules",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n4",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "document output",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n5",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "root index path",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n16",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "phase",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n20",
+                            "scope": "root/planning"
+                          },
+                          {
+                            "key": "draft directory",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n21",
+                            "scope": "root/planning"
+                          },
+                          {
+                            "key": "lane",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n33",
+                            "scope": "root/planning/plans/third"
+                          },
+                          {
+                            "key": "document path",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n34",
+                            "scope": "root/planning/plans/third"
+                          }
+                        ]
+                      }
+                    ]
+                  ]
+                }
+              ]
+            ],
+            "branchLabels": [
+              "first",
+              "second",
+              "third"
+            ],
+            "note": "Children run concurrently in separate scopes. Child context does not merge at the join."
+          }
+        ]
+      ],
+      "note": "Runs this body for each item, in its own scope."
+    },
+    {
+      "key": "p461d854c51cc707e",
+      "id": "n38",
+      "kind": "Set",
+      "label": "sprint directory",
+      "source": {
+        "file": "internal/workflows/sprintplan/sprintplan.go",
+        "line": 115
+      },
+      "scope": "root",
+      "detail": {
+        "kind": "Set",
+        "expression": "gimbal.Set(ctx, \"sprint directory\", dir)",
+        "promptKnown": false,
+        "keyExpression": "\"sprint directory\"",
+        "keyKnown": true,
+        "valueExpression": "dir",
+        "contextExpression": "ctx",
+        "contextKnown": true,
+        "shape": {
+          "type": "string",
+          "kind": "scalar"
+        }
+      },
+      "context": [
+        {
+          "key": "intent file",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n1",
+          "scope": "root"
+        },
+        {
+          "key": "working set",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n2",
+          "scope": "root"
+        },
+        {
+          "key": "project directory",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n3",
+          "scope": "root"
+        },
+        {
+          "key": "planning rules",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n4",
+          "scope": "root"
+        },
+        {
+          "key": "document output",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n5",
+          "scope": "root"
+        },
+        {
+          "key": "root index path",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n16",
+          "scope": "root"
+        },
+        {
+          "key": "sprint directory",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n38",
+          "scope": "root"
+        }
+      ]
+    },
+    {
+      "key": "pd388b19c8cfcb113",
+      "id": "n39",
+      "kind": "Set",
+      "label": "plan path",
+      "source": {
+        "file": "internal/workflows/sprintplan/sprintplan.go",
+        "line": 116
+      },
+      "scope": "root",
+      "detail": {
+        "kind": "Set",
+        "expression": "gimbal.Set(ctx, \"plan path\", filepath.Join(dir, \"plan.md\"))",
+        "promptKnown": false,
+        "keyExpression": "\"plan path\"",
+        "keyKnown": true,
+        "valueExpression": "filepath.Join(dir, \"plan.md\")",
+        "contextExpression": "ctx",
+        "contextKnown": true,
+        "shape": {
+          "type": "string",
+          "kind": "scalar"
+        }
+      },
+      "context": [
+        {
+          "key": "intent file",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n1",
+          "scope": "root"
+        },
+        {
+          "key": "working set",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n2",
+          "scope": "root"
+        },
+        {
+          "key": "project directory",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n3",
+          "scope": "root"
+        },
+        {
+          "key": "planning rules",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n4",
+          "scope": "root"
+        },
+        {
+          "key": "document output",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n5",
+          "scope": "root"
+        },
+        {
+          "key": "root index path",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n16",
+          "scope": "root"
+        },
+        {
+          "key": "sprint directory",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n38",
+          "scope": "root"
+        },
+        {
+          "key": "plan path",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n39",
+          "scope": "root"
+        }
+      ]
+    },
+    {
+      "key": "p17377cc2c425ced5",
+      "id": "n40",
+      "kind": "NewSession",
+      "label": "sprint-planning",
+      "source": {
+        "file": "internal/workflows/sprintplan/sprintplan.go",
+        "line": 117
+      },
+      "scope": "root",
+      "session": "sprint-planning",
+      "context": [
+        {
+          "key": "intent file",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n1",
+          "scope": "root"
+        },
+        {
+          "key": "working set",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n2",
+          "scope": "root"
+        },
+        {
+          "key": "project directory",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n3",
+          "scope": "root"
+        },
+        {
+          "key": "planning rules",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n4",
+          "scope": "root"
+        },
+        {
+          "key": "document output",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n5",
+          "scope": "root"
+        },
+        {
+          "key": "root index path",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n16",
+          "scope": "root"
+        },
+        {
+          "key": "sprint directory",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n38",
+          "scope": "root"
+        },
+        {
+          "key": "plan path",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n39",
+          "scope": "root"
+        }
+      ]
+    },
+    {
+      "key": "pa655ba6c6123ceb3",
+      "id": "n41",
+      "kind": "Generate",
+      "label": "`Read the intent, working set, all drafts, and all critiques. Synthesize the simplest sound route to the stakeholder outcome. Write a proposed plan at the plan path with ordered work, dependencies, relevant local references and reuse opportunities, observable acceptance, consequential choices, and unresolved decisions. Incorporate source-supported discoveries and corrections into the working set, keeping recommendations in the plan. Make the handoff usable by a fresh implementation agent; do not implement or claim completion.`",
+      "source": {
+        "file": "internal/workflows/sprintplan/sprintplan.go",
+        "line": 118
+      },
+      "scope": "root",
+      "session": "sprint-planning",
+      "prompt": "Read the intent, working set, all drafts, and all critiques. Synthesize the simplest sound route to the stakeholder outcome. Write a proposed plan at the plan path with ordered work, dependencies, relevant local references and reuse opportunities, observable acceptance, consequential choices, and unresolved decisions. Incorporate source-supported discoveries and corrections into the working set, keeping recommendations in the plan. Make the handoff usable by a fresh implementation agent; do not implement or claim completion.",
+      "detail": {
+        "kind": "Generate",
+        "expression": "synthesizer.Generate[gimbal.Text](ctx, `Read the intent, working set, all drafts, and all critiques. Synthesize the simplest sound route to the stakeholder outcome. Write a proposed plan at the plan path with ordered work, dependencies, relevant local references and reuse opportunities, observable acceptance, consequential choices, and unresolved decisions. Incorporate source-supported discoveries and corrections into the working set, keeping recommendations in the plan. Make the handoff usable by a fresh implementation agent; do not implement or claim completion.`)",
+        "promptExpression": "`Read the intent, working set, all drafts, and all critiques. Synthesize the simplest sound route to the stakeholder outcome. Write a proposed plan at the plan path with ordered work, dependencies, relevant local references and reuse opportunities, observable acceptance, consequential choices, and unresolved decisions. Incorporate source-supported discoveries and corrections into the working set, keeping recommendations in the plan. Make the handoff usable by a fresh implementation agent; do not implement or claim completion.`",
+        "promptKnown": true,
+        "keyKnown": false,
+        "contextExpression": "ctx",
+        "contextKnown": true
+      },
+      "context": [
+        {
+          "key": "intent file",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n1",
+          "scope": "root"
+        },
+        {
+          "key": "working set",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n2",
+          "scope": "root"
+        },
+        {
+          "key": "project directory",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n3",
+          "scope": "root"
+        },
+        {
+          "key": "planning rules",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n4",
+          "scope": "root"
+        },
+        {
+          "key": "document output",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n5",
+          "scope": "root"
+        },
+        {
+          "key": "root index path",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n16",
+          "scope": "root"
+        },
+        {
+          "key": "sprint directory",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n38",
+          "scope": "root"
+        },
+        {
+          "key": "plan path",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n39",
+          "scope": "root"
+        }
+      ]
+    }
+  ],
+  "diagnostics": []
+}

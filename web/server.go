@@ -63,15 +63,13 @@ func NewHandler(dist fs.FS, proxy, origin string) (http.Handler, string, error) 
 	remoteCfg := manifest.RemoteConfig(origin)
 	loadCfg := manifest.LoadConfig(origin)
 	endpointCfg := manifest.EndpointConfig(origin)
+	loadCfg.Matchers = generated.Matchers()
+	endpointCfg.Matchers = generated.Matchers()
 	handleCfg := manifest.HandleConfig()
 	handleCfg.Origin = origin
 	handleCfg.Matchers = generated.Matchers()
-	loadCfg.Matchers = generated.Matchers()
-	endpointCfg.Matchers = generated.Matchers()
 	var bound http.Handler
-	internal := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		bound.ServeHTTP(w, r)
-	})
+	internal := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { bound.ServeHTTP(w, r) })
 
 	mode := "prod"
 	var pages http.Handler

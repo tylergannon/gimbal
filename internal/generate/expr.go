@@ -84,6 +84,17 @@ func (e *extractor) inline(callee *types.Func, call *ast.CallExpr, out *[]workfl
 		e.exprs(arg, out, en)
 	}
 	e.bindParameters(decl, callee, call)
+	previousContext := e.inspectionContext
+	if e.inspection != nil {
+		e.inspectionContext = nil
+		for i, param := range signatureParameters(decl.Type) {
+			obj := e.pkg.TypesInfo.Defs[param]
+			if isContextObject(obj) && i < len(call.Args) && e.object(call.Args[i]) == previousContext {
+				e.inspectionContext = obj
+			}
+		}
+		defer func() { e.inspectionContext = previousContext }()
+	}
 	e.stack = append(e.stack, callee)
 	e.helpers = append(e.helpers, &helperState{})
 	e.block(decl.Body.List, out, scopeEnv{blockTail: en.blockTail, callTail: en.blockTail, inHelper: true})
@@ -169,10 +180,11 @@ func (e *extractor) gimbalOperation(name string, call *ast.CallExpr, targets []a
 			return false
 		}
 		prompt, ok := e.constant(call, 1)
-		if !ok {
+		if !ok && e.inspection == nil {
 			e.diag(call.Pos(), "Generate's prompt is not a constant, so the call is not read")
 			return false
 		}
+		e.inspectCall(name, call)
 		e.emit(out, workflow.AgentCall{
 			Source:      e.at(call.Pos()),
 			Session:     speaker.name,
@@ -215,6 +227,21 @@ func (e *extractor) gimbalOperation(name string, call *ast.CallExpr, targets []a
 			return false
 		}
 		e.emitService(workflow.Service{Source: e.at(call.Pos()), Name: service})
+		if e.inspection != nil {
+			// Keep ordered service sites in the private inspector projection.
+			// The normal graph still owns services as scope declarations.
+			marker := &workflow.Command{Source: e.at(call.Pos()), Name: service}
+			if e.inspection.Services == nil {
+				e.inspection.Services = map[*workflow.Command]callInspection{}
+			}
+			d := callInspection{Kind: "Service", Expression: text(e.pkg.Fset, call)}
+			if len(call.Args) > 0 {
+				d.ContextExpression = text(e.pkg.Fset, call.Args[0])
+				d.ContextKnown = e.inspectionContext != nil && e.object(call.Args[0]) == e.inspectionContext
+			}
+			e.inspection.Services[marker] = d
+			e.emit(out, marker)
+		}
 		return false
 
 	case "Check":
@@ -223,15 +250,19 @@ func (e *extractor) gimbalOperation(name string, call *ast.CallExpr, targets []a
 			e.diag(call.Pos(), "Check's context key is not a constant, so the command is not read")
 			return false
 		}
+		if e.inspection != nil {
+			e.diag(call.Pos(), "Check writes command evidence under key %q; that runtime-provided context shape is not projected", key)
+		}
 		e.emit(out, workflow.Command{Source: e.at(call.Pos()), Name: key})
 		return false
 
 	case "Set", "SetJSON":
 		key, ok := e.constant(call, 1)
-		if !ok {
+		if !ok && e.inspection == nil {
 			e.diag(call.Pos(), "the context key is not a constant, so what is written here is not read")
 			return false
 		}
+		e.inspectCall(name, call)
 		e.emit(out, workflow.Set{Source: e.at(call.Pos()), Key: key})
 		return false
 
@@ -323,13 +354,17 @@ func (e *extractor) callback(call *ast.CallExpr, index int) ([]workflow.Operatio
 	body := []workflow.Operation{}
 	services := []workflow.Service{}
 	previous := e.services
+	previousContext := e.inspectionContext
 	e.services = &services
-	defer func() { e.services = previous }()
+	defer func() { e.services = previous; e.inspectionContext = previousContext }()
 	if index >= len(call.Args) {
 		return body, services
 	}
 	switch fn := unparen(call.Args[index]).(type) {
 	case *ast.FuncLit:
+		if e.inspection != nil {
+			e.inspectionContext = e.contextParameter(fn.Type)
+		}
 		e.callbackBody(fn.Body.List, &body)
 	default:
 		callee, _ := e.pkg.TypesInfo.Uses[identOf(fn)].(*types.Func)
@@ -341,6 +376,9 @@ func (e *extractor) callback(call *ast.CallExpr, index int) ([]workflow.Operatio
 		if decl == nil || decl.Body == nil {
 			e.diag(call.Args[index].Pos(), "the body is not a function of this package with a body, so it is not read")
 			return body, services
+		}
+		if e.inspection != nil {
+			e.inspectionContext = e.contextParameter(decl.Type)
 		}
 		if slices.Contains(e.stack, callee) {
 			e.diag(call.Args[index].Pos(), "%s calls itself, and a recursive body is not read", callee.Name())

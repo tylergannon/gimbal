@@ -17,6 +17,9 @@ type ConversationsData struct {
 
 func Load(event PageRequestEvent) (ConversationsData, error) {
 	ctx := event.Context()
+	if request := event.Request(); request != nil {
+		ctx = request.Context()
+	}
 	manager := conversation.FromContext(ctx)
 	if manager == nil {
 		return ConversationsData{}, skgo.Errorf(http.StatusInternalServerError,

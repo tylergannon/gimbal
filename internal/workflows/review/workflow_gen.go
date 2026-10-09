@@ -14,12 +14,12 @@ func init() { gimbal.RegisterGraph(Graph) }
 // Graph is the shape of this workflow, read from the source of Review.
 var Graph = workflow.Graph{
 	Name:     "review",
-	Source:   workflow.Source{File: "internal/workflows/review/review.go", Line: 26},
+	Source:   workflow.Source{File: "internal/workflows/review/review.go", Line: 43},
 	Services: []workflow.Service{},
 	Body: []workflow.Operation{
-		workflow.Set{Source: workflow.Source{File: "internal/workflows/review/review.go", Line: 27}, Key: "goal"},
-		workflow.Session{Source: workflow.Source{File: "internal/workflows/review/review.go", Line: 28}, Name: "code-review", From: ""},
-		workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/review/review.go", Line: 29}, Session: "code-review", Role: "code-review", Prompt: "Read the code in your working directory. Assess the goal given below. Report concrete correctness issues; return an empty findings list when there are none. Make no changes."},
-		workflow.Set{Source: workflow.Source{File: "internal/workflows/review/review.go", Line: 33}, Key: "result"},
+		workflow.Set{Source: workflow.Source{File: "internal/workflows/review/review.go", Line: 44}, Key: "goal"},
+		workflow.Session{Source: workflow.Source{File: "internal/workflows/review/review.go", Line: 45}, Name: "code-review", From: ""},
+		workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/review/review.go", Line: 46}, Session: "code-review", Role: "code-review", Prompt: "Read the code in your working directory. Assess the goal given below. Report concrete correctness issues; return an empty findings list when there are none. Make no changes."},
+		workflow.Set{Source: workflow.Source{File: "internal/workflows/review/review.go", Line: 50}, Key: "result"},
 	},
 }

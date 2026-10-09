@@ -6,14 +6,13 @@ import (
 	context "context"
 	json "encoding/json"
 	fmt "fmt"
+	devalue "github.com/tylergannon/devalue/v5"
+	skgo0 "github.com/tylergannon/gimbal/internal/skgo/links/onzggl3sn52xizlt"
+	skgo "github.com/tylergannon/skgo"
 	math "math"
 	slices "slices"
 	strconv "strconv"
 	time "time"
-
-	skgo0 "github.com/tylergannon/gimbal/internal/skgo/links/onzggl3sn52xizlt"
-	devalue "github.com/tylergannon/polytype/devalue"
-	skgo "github.com/tylergannon/skgo"
 )
 
 // Client uses the same enhanced Form endpoint as the browser.

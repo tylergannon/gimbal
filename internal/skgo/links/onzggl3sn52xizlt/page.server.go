@@ -11,6 +11,9 @@ type ProjectsData struct {
 
 func load(event PageRequestEvent) (ProjectsData, error) {
 	ctx := event.Context()
+	if request := event.Request(); request != nil {
+		ctx = request.Context()
+	}
 	return ProjectsData{Projects: host.Projects(ctx)}, nil
 }
 

@@ -17,6 +17,9 @@ type ConversationsData struct {
 
 func Load(event PageRequestEvent) (ConversationsData, error) {
 	ctx := event.Context()
+	if request := event.Request(); request != nil {
+		ctx = request.Context()
+	}
 	manager := conversation.FromContext(ctx)
 	if manager == nil {
 		return ConversationsData{}, skgo.Errorf(http.StatusInternalServerError,
@@ -24,8 +27,12 @@ func Load(event PageRequestEvent) (ConversationsData, error) {
 	}
 	items := manager.List()
 	data := ConversationsData{Items: items, Selected: conversation.Conversation{Messages: []conversation.Message{}}}
-	if len(items) > 0 {
-		data.Selected = items[0]
+	selected := ""
+	if selected == "" && len(items) > 0 {
+		selected = items[0].ID
+	}
+	if item, ok := manager.Get(selected); ok {
+		data.Selected = item
 	}
 	return data, nil
 }

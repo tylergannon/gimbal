@@ -16,10 +16,10 @@ import (
 
 	"github.com/tylergannon/gimbal/internal/host"
 
+	"github.com/tylergannon/devalue/v5"
 	"github.com/tylergannon/gimbal/internal/conversation"
 	"github.com/tylergannon/gimbal/internal/observation"
 	generated "github.com/tylergannon/gimbal/internal/skgo"
-	"github.com/tylergannon/polytype/devalue"
 )
 
 func TestInstanceOwnsEndpointsAndProjectsOwnState(t *testing.T) {

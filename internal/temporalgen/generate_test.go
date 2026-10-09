@@ -33,7 +33,7 @@ func moduleCopy(t *testing.T) string {
 		}
 		if d.IsDir() {
 			switch d.Name() {
-			case ".git", ".agents", ".claude", "node_modules", "bin", "ephemeral":
+			case ".git", ".agents", ".claude", ".gimbal", "node_modules", "bin", "ephemeral":
 				return filepath.SkipDir
 			}
 			return os.MkdirAll(filepath.Join(dest, rel), 0755)

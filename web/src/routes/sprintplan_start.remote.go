@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/internal/app"
 	"github.com/tylergannon/gimbal/internal/skgo/params"
 	"github.com/tylergannon/gimbal/internal/workflows/sprintplan"
 	"github.com/tylergannon/polytype"
@@ -24,7 +25,7 @@ type StartSprintPlanInput struct {
 	RoleSprintPlanning polytype.Optional[string] `json:"role_sprint_planning,omitzero"`
 }
 
-func startSprintPlan(ctx context.Context, _ params.RequestEvent, in StartSprintPlanInput) (StartAccepted, error) {
+func startSprintPlan(ctx context.Context, event app.RequestEvent[params.Params], in StartSprintPlanInput) (StartAccepted, error) {
 	if strings.TrimSpace(in.Intent) == "" {
 		return StartAccepted{}, skgo.Invalidf("intent", "Give intent.")
 	}

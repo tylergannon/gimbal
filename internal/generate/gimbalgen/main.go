@@ -24,8 +24,9 @@ func run(args []string) error {
 	flags := flag.NewFlagSet("gimbalgen", flag.ContinueOnError)
 	flags.SetOutput(os.Stderr)
 	entry := flags.String("entry", "", "the workflow's entry function")
+	dir := flags.String("dir", ".", "Go package directory to analyze; the workflow is never executed")
 	name := flags.String("name", "", "the workflow's name, which is also the run's name")
-	output := flags.String("o", "workflow_gen.go", "the file to write")
+	output := flags.String("o", "workflow_gen.go", "output: .go graph registration, .html source viewer, or .json inspection data (inspection does not execute the workflow)")
 	mermaid := flags.String("mermaid", "", "optional .mmd file for the workflow diagram")
 	if err := flags.Parse(args); err != nil {
 		return err
@@ -36,5 +37,5 @@ func run(args []string) error {
 	if *entry == "" || *name == "" {
 		return errors.New("-entry and -name are required")
 	}
-	return generate.Source(".", *entry, *name, *output, *mermaid)
+	return generate.Source(*dir, *entry, *name, *output, *mermaid)
 }

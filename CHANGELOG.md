@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Workflow design pages with source-authored labels, expandable diagrams, prompt
+  and context inspection, usage guides, and run forms. URL state preserves
+  inspection across reloads; the development server reflects Go source edits live.
+
 - `research-document` checks extracted semantic-index claims against local source
   passages with Jev, checks cross-claim contradictions, marks findings in the
   index, and requires a bounded repair before writing or accepting the document.

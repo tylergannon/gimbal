@@ -28,9 +28,12 @@ type Data struct {
 // endpoint and the event stream read: there is one observation of a run in
 // this process, and this is a rendering of it rather than a second source.
 func load(event PageRequestEvent) (Data, error) {
-	// The instance attaches the admitted project's registry to the
-	// request context, which an SSR render also carries.
 	ctx := event.Context()
+	if request := event.Request(); request != nil {
+		// The instance attaches the admitted project's registry to the
+		// request context, which an SSR render also carries.
+		ctx = request.Context()
+	}
 	registry := observation.FromContext(ctx)
 	if registry == nil {
 		return Data{}, skgo.Errorf(http.StatusInternalServerError,

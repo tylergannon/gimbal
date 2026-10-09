@@ -5,8 +5,8 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/tylergannon/gimbal/internal/app"
 	"github.com/tylergannon/gimbal/internal/skgo/params"
-
 	"github.com/tylergannon/skgo"
 
 	"github.com/tylergannon/gimbal"
@@ -31,7 +31,7 @@ type ControlAccepted struct {
 	Accepted bool `json:"accepted"`
 }
 
-func stopTurn(ctx context.Context, _ params.RequestEvent, arg StopTurn) (ControlAccepted, error) {
+func stopTurn(ctx context.Context, event app.RequestEvent[params.Params], arg StopTurn) (ControlAccepted, error) {
 	run, err := liveRun(ctx, arg.Run)
 	if err != nil {
 		return ControlAccepted{}, err
@@ -44,7 +44,7 @@ func stopTurn(ctx context.Context, _ params.RequestEvent, arg StopTurn) (Control
 	return ControlAccepted{Accepted: true}, nil
 }
 
-func cancelRun(ctx context.Context, _ params.RequestEvent, arg CancelRun) (ControlAccepted, error) {
+func cancelRun(ctx context.Context, event app.RequestEvent[params.Params], arg CancelRun) (ControlAccepted, error) {
 	run, err := liveRun(ctx, arg.Run)
 	if err != nil {
 		return ControlAccepted{}, err

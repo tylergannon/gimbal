@@ -3,7 +3,7 @@
 package runid
 
 import (
-	appstate "github.com/tylergannon/gimbal/internal/webapp"
+	appstate "github.com/tylergannon/gimbal/internal/app"
 	skgo "github.com/tylergannon/skgo"
 )
 

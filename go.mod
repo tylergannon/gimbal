@@ -25,8 +25,9 @@ require (
 	github.com/spf13/pflag v1.0.10
 	github.com/tiktoken-go/tokenizer v0.8.1
 	github.com/tylergannon/claude-agent-sdk-go v1.1.1
-	github.com/tylergannon/polytype v1.4.0
-	github.com/tylergannon/skgo v0.22.1
+	github.com/tylergannon/devalue/v5 v5.0.0
+	github.com/tylergannon/polytype v1.5.0
+	github.com/tylergannon/skgo v0.26.1
 	go.temporal.io/api v1.63.6
 	go.temporal.io/sdk v1.49.0
 	golang.org/x/net v0.59.0
@@ -56,7 +57,7 @@ require (
 	github.com/aws/smithy-go v1.28.4 // indirect
 	github.com/dave/dst v0.28.0 // indirect
 	github.com/dlclark/regexp2/v2 v2.8.3 // indirect
-	github.com/dop251/goja v0.0.0-20261007200356-e2ea74d3d210 // indirect
+	github.com/dop251/goja v0.0.0-20261008222547-e9f698900731 // indirect
 	github.com/dop251/goja_nodejs v0.0.0-20260918173711-b481721df8a2 // indirect
 	github.com/dprotaso/go-yit v0.0.0-20220510233725-9ba8df137936 // indirect
 	github.com/facebookgo/clock v0.0.0-20150410010913-600d898af40a // indirect

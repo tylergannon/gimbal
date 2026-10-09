@@ -6,7 +6,7 @@
 
 ## Build and publish
 
-A project's `.gimbal/workflows.json` lists workflow entry packages. Proposed `gimbal workflows refresh` runs the source analysis and `go build`, publishes the executable and sidecar command/design metadata under `.gimbal/builds/<build>/`, then atomically updates a current-build pointer. CLI and server read the same pointer. Edits take effect on refresh; a failed refresh leaves the last successful bundle selected.
+A project's `.gimbal/workflows.json` lists workflow entry packages. Proposed `gimbal workflows refresh` runs source analysis, generates the runner main package in `generated/gimbal-runner/` in the project, builds it with `go build`, publishes the executable and sidecar command/design metadata under `.gimbal/builds/<build>/`, then atomically updates a current-build pointer. CLI and server read the same pointer. Edits take effect on refresh; a failed refresh leaves the last successful bundle selected.
 
 The CLI constructs commands from metadata, preserving useful flags, help, validation, and role choices. The runner validates inputs again. The server uses its common frontend to render project-specific forms and designs. Prebuilt bundles can use this boundary without requiring a local compiler; their distribution is a later choice.
 
@@ -20,6 +20,6 @@ Keep `RegisterGraph`/`RegisteredGraph` local to the project runner. Replace the 
 
 Revise `Run`/`OpenRun` to accept assigned identity and directory for hosted execution. Direct library calls continue allocating their own identity and running in-process. The current unsupported-sharing caveat becomes explicit ownership of mutable run files, with immutable context objects shared as described in [storage](storage-and-remote.md).
 
-Hosted runners stop writing `project.jsonl`; the server maintains its project index from run events. Update the package and `Run` Godoc statements that currently require hosted workflows to be compiled into the Gimbal serving binary. These are intended changes to the present contract, not claims that this architecture already exists.
+All runs stop writing the unused `project.jsonl`; the server maintains its project index from run events. Update the corresponding `LifecycleRecord.Seq` documentation; per-run and per-session sequence meanings stay intact. Update the package and `Run` Godoc statements that currently require hosted workflows to be compiled into the Gimbal serving binary. These are intended changes to the present contract, not claims that this architecture already exists.
 
 Current anchors: [entry analysis](../../../../internal/generate/entry.go), [workflow page generation](../../../../internal/generate/workflow_page.go), [hosted execution](../../../../internal/host/host.go).

@@ -28,4 +28,4 @@ The source audit baseline is `37f8e3a9`; the [saved issue](../issue.json) descri
 
 ## Review status
 
-Claude Fable 5.1 reviewed the earlier two-page proposal through [round 06](../../../reviews/20261009-issue-439-round-06.md), ending with `only nitpicks remain`. This topic tree supersedes that edition and adds the user's explicit durable ownership and cancel-all requirement. Review of the revised tree is pending; the earlier outcome does not ratify new text automatically.
+Claude Fable 5.1 reviewed the complete revised tree through [round 09](../../../reviews/20261009-issue-439-round-09.md), with the outcome **only nitpicks remain** and no material findings. The final clarifications name close-on-exec for the lifetime-lock descriptor, include that file in the ownership table, and define synced journal publication. Consensus is complete for this design; runtime behavior and memory savings remain to be demonstrated during implementation.

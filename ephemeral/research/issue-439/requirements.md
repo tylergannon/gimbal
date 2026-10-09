@@ -13,3 +13,5 @@ Follow-up question: should the website itself be a plugin loaded only in server 
 Latest user clarification: the server must durably know every workflow run it started, including through restart, so it can kill one run or all its runs without filtering process listings. Independent processes must not become unmanaged.
 
 Document preference: for this human-agent collaboration, provide a navigable pyramid with a TL;DR and topic-level drill-down; the PDF is rejected as the collaboration format.
+
+The user also proposed having runners stream events into a directory for the central server to read, then recalled the separate-compute requirement. Compare that local simplification with a transport boundary without discarding the durable journal.

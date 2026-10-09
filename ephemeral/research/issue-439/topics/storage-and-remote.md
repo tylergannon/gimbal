@@ -9,7 +9,7 @@
 | Owner | Durable material |
 | --- | --- |
 | Server instance | Ownership records, stop intent, run index, received event prefixes, saved build/design metadata. |
-| Runner | `events.jsonl`, existing run/session logs, `runner.json`, and stdout/stderr in its assigned run directory. |
+| Runner | `events.jsonl`, existing run/session logs, `runner.json`, the launcher-created `process.lock` handed to the runner, and stdout/stderr in its assigned run directory. |
 | Shared immutable context store | Content-addressed values referenced by local runs. Mutable materialization caches stay local to their consumers. |
 
 The server's received journal is at `projects/<project>/runs/<run>/events.jsonl` under its instance directory, beside the [ownership record](ownership.md#record-ownership-before-launch). This archive is distinct from the runner's source journal. Server restart replays its own prefix and retrieves any missing suffix. Retained ownership is not inferred from either journal's last status.

@@ -16,11 +16,17 @@ Browser / CLI → server → runner: controls and artifact reads
 
 The runner owns workflow execution, typed results, active sessions, recording, and cleanup. The server reduces observations and serves browser snapshots plus SSE. Browser connections and IPC request contexts do not own the workflow lifetime.
 
+## Why not just tail a directory?
+
+That is a good local alternative: the required journal already exists, server downtime is harmless, and direct reads remove an IPC hop and a second local copy. At tens of runs, polling offsets or watching files is practical. Readers still need complete-record boundaries, restart cursors, and reconciliation when notifications are missed; files alone provide neither controls nor liveness.
+
+The tradeoff is location. A remote machine's directory is not readable by the central server without a shared filesystem or a transfer service. Keep the journal as the runner's durable source and expose it through the resumable subscription. This spends one stream per run to give local and eventual remote execution the same observation boundary. Direct file reads remain useful for importing finished local runs; no separate live transport optimization is needed now.
+
 ## Recording and replay
 
 Every `Run`, hosted or direct, writes `events.jsonl`: existing lifecycle and agent payloads, placement and native references, and a monotonic journal position. `run.jsonl` and session logs retain their human-readable records and existing per-log `Seq` meanings. This deliberately duplicates recording on disk to supply a single ordered replay source without retaining historical UI state inside the runner.
 
-One writer orders complete records. `GET events` reads after a supplied position and transitions to waiting for new records without a replay/live gap. Readers use bounded buffers; a slow or disconnected observer cannot hold up agent execution or grow an unbounded queue. Heartbeats expose connection loss when the workflow itself is idle.
+One writer orders complete records. Publication follows a successful file sync, not merely a buffered write; bounded batches may share one sync, so this does not require a sync per token. Subscribers see only the synced prefix. `GET events` reads after a supplied position and transitions to waiting for new records without a replay/live gap. Readers use bounded buffers; a slow or disconnected observer cannot hold up agent execution or grow an unbounded queue. Heartbeats expose connection loss when the workflow itself is idle.
 
 The server persists its received prefix before advancing its cursor, then reduces it. Reconnect ignores repeated positions and exposes gaps. Runner journal positions and browser projection cursors are distinct. A fresh projection can replay its journal; compaction can wait until replay cost justifies it. After local runner exit, import any missing suffix directly from its retained journal.
 
@@ -30,7 +36,7 @@ Loss of connectivity means unreachable, not completed. Failure to write the auth
 
 | Request | Meaning |
 | --- | --- |
-| Identity/status | Verify run, launch, build, and protocol identity; report execution and cleanup state. |
+| Identity/status | Verify persistent owner, run, launch, build, and protocol identity; report execution and cleanup state. |
 | Session steer / turn interrupt | Address current IDs and retain landed, dropped, and error distinctions. |
 | Loop steer / interview answer | Queue planner input or answer the exact pending question ID. |
 | Run cancellation | Stop the run and retry owned cleanup; return acceptance separately from cessation. |

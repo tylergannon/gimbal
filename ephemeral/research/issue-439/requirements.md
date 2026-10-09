@@ -7,3 +7,5 @@ The main question is the most elegant and idiomatic data interchange between ong
 Additional user requirements: separate processes and sockets should leave open running workflows on other machines or in containers; individual workflow processes should load minimal material and should not load the entire web application.
 
 Issue snapshot: issue.json beside this file. Repository instructions and current public Godoc remain authoritative. Initial workflow authoring/discovery must not be gated on seamless application upgrades.
+
+Follow-up question: should the website itself be a plugin loaded only in server mode, or is there a simpler way to keep satellite invocations lean? Evaluate that choice in the proposal.

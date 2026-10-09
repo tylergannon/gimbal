@@ -4,6 +4,10 @@
 
 **One logical run, one accountable backend, however many execution sites.** Gimbal defines the observable meaning of ownership, controls, and events. The backend owns scheduling, transport, storage, and deployment. Use its existing scheduler and resource controls; this proposal does not require a new supervisor service or message broker.
 
+## Place individual tasks, not only whole runs
+
+A single workflow must support Linux and macOS tasks, including remote Claude or ChatGPT computer-use sessions. The backend owns capability matching and session/desktop assignment; the server preserves and displays those identities and routes controls. See [execution placement](execution-placement.md) for task requirements, desktop exclusivity, session continuity, and the evidence required of backend authors.
+
 ## Own everything the run starts
 
 The server persists the backend's durable execution identity before admitting work. The backend must recover the execution units belonging to that identity after a controller restart. Track resources before they can begin work, or use the scheduler's durable admission identity; losing a launch acknowledgment must not make work anonymous.

@@ -2,7 +2,7 @@
 
 [Back to TL;DR](../proposal.md)
 
-**The first implementation must demonstrate small local runners that remain known and controllable through a server restart.** Remote deployment and mixed-version upgrades are separate follow-up work.
+**The first implementation must demonstrate small local runners that remain known and controllable through a server restart.** That local slice is not the full target: mixed Linux/macOS tasks and remote computer-use sessions are required backend capabilities. They need the separate live evidence described in [execution placement](execution-placement.md#what-backend-authors-must-demonstrate). Mixed-version upgrades remain later work.
 
 ## What must be demonstrated
 

@@ -29,3 +29,5 @@ The source audit baseline is `37f8e3a9`; the [saved issue](../issue.json) descri
 ## Review status
 
 Claude Fable 5.1 reviewed the complete revised tree through [round 09](../../../reviews/20261009-issue-439-round-09.md), with the outcome **only nitpicks remain** and no material findings. The final clarifications name close-on-exec for the lifetime-lock descriptor, include that file in the ownership table, and define synced journal publication. Consensus is complete for this design; runtime behavior and memory savings remain to be demonstrated during implementation.
+
+A subsequent [fresh application architecture review](../application-review.md), requested by the user, found the architecture idiomatic and its seams mostly sound, but raised three material findings: foreign-owner discovery when the instance directory changes, the gap between cooperative cancellation and force-stop including child cleanup, and overlapping durable recordings. These are open design decisions; the prior consensus result does not resolve this new assessment.

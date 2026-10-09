@@ -15,3 +15,5 @@ Latest user clarification: the server must durably know every workflow run it st
 Document preference: for this human-agent collaboration, provide a navigable pyramid with a TL;DR and topic-level drill-down; the PDF is rejected as the collaboration format.
 
 The user also proposed having runners stream events into a directory for the central server to read, then recalled the separate-compute requirement. Compare that local simplification with a transport boundary without discarding the durable journal.
+
+Latest annotations require one active server per state/run directory, with another server refusing concurrent access. Account for compiled distributed backends: each participating execution site must have run-owned subprocess lifetime management, and event-history design must not assume a common filesystem or one local process. Provide backend-author guidance and use targeted linters where appropriate; behavioral claims still require tests.

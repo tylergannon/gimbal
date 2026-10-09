@@ -2,7 +2,7 @@
 
 [Back to TL;DR](../proposal.md)
 
-**The server opens a stream; the runner sends events as they happen.** Use HTTP over Unix sockets locally, newline-delimited JSON for events, and ordinary request/reply HTTP for controls. Tens of runs do not justify a broker.
+**The server opens a stream; the run's backend sends events as they happen.** A local runner implements that backend endpoint directly; a compiled distributed backend presents the same logical run boundary. Use HTTP over Unix sockets locally, newline-delimited JSON for events, and ordinary request/reply HTTP for controls. Tens of runs do not justify a broker.
 
 ## Why this direction
 
@@ -18,17 +18,17 @@ The runner owns workflow execution, typed results, active sessions, recording, a
 
 ## Why not just tail a directory?
 
-That is a good local alternative: the required journal already exists, server downtime is harmless, and direct reads remove an IPC hop and a second local copy. At tens of runs, polling offsets or watching files is practical. Readers still need complete-record boundaries, restart cursors, and reconciliation when notifications are missed; files alone provide neither controls nor liveness.
+That is a good local alternative: the required journal already exists, server downtime is harmless, and direct reads remove an IPC hop. Referencing that same journal also avoids a second byte copy. At tens of runs, polling offsets or watching files is practical. Readers still need complete-record boundaries, restart cursors, and reconciliation when notifications are missed; files alone provide neither controls nor liveness.
 
 The tradeoff is location. A remote machine's directory is not readable by the central server without a shared filesystem or a transfer service. Keep the journal as the runner's durable source and expose it through the resumable subscription. This spends one stream per run to give local and eventual remote execution the same observation boundary. Direct file reads remain useful for importing finished local runs; no separate live transport optimization is needed now.
 
 ## Recording and replay
 
-Every `Run`, hosted or direct, writes `events.jsonl`: existing lifecycle and agent payloads, placement and native references, and a monotonic journal position. `run.jsonl` and session logs retain their human-readable records and existing per-log `Seq` meanings. This deliberately duplicates recording on disk to supply a single ordered replay source without retaining historical UI state inside the runner.
+Each logical run has one authoritative Gimbal event history with lifecycle and agent payloads, placement and native references, and a resumable position. The local backend stores it as `events.jsonl`, replacing overlapping `run.jsonl` and session recording authorities; human/session views are derived from it. A distributed backend provides the same history through its run endpoint, using storage appropriate to that backend. Workers on separate machines do not append to a shared JSONL file. The [backend contract](backend-contract.md) states the collection, retry, and ordering requirements.
 
-One writer orders complete records. Publication follows a successful file sync, not merely a buffered write; bounded batches may share one sync, so this does not require a sync per token. Subscribers see only the synced prefix. `GET events` reads after a supplied position and transitions to waiting for new records without a replay/live gap. Readers use bounded buffers; a slow or disconnected observer cannot hold up agent execution or grow an unbounded queue. Heartbeats expose connection loss when the workflow itself is idle.
+One logical append authority assigns positions to complete records. The local file implementation publishes after successful sync; bounded batches may share one sync. A distributed implementation publishes after its durable commit. Subscribers see only committed records. `GET events` reads after a supplied position and transitions to waiting for new records without a replay/live gap. Readers use bounded buffers; a slow or disconnected observer cannot hold up agent execution or grow an unbounded queue. Heartbeats expose connection loss when the workflow itself is idle.
 
-The server persists its received prefix before advancing its cursor, then reduces it. Reconnect ignores repeated positions and exposes gaps. Runner journal positions and browser projection cursors are distinct. A fresh projection can replay its journal; compaction can wait until replay cost justifies it. After local runner exit, import any missing suffix directly from its retained journal.
+The server reduces committed events. It can reference the authoritative journal when it has access to the same storage; otherwise it persists a replica of the received prefix before advancing its cursor. This is a storage choice behind the same stream contract, not a distinction in workflow semantics. Reconnect ignores repeated positions and exposes gaps. Runner journal positions and browser projection cursors are distinct. A fresh projection can replay its journal; compaction can wait until replay cost justifies it. After local runner exit, import any missing suffix directly from its retained journal.
 
 Loss of connectivity means unreachable, not completed. Failure to write the authoritative journal retains the public `Run` recording-error verdict. Failure of the server's UI projection is reported separately from execution.
 

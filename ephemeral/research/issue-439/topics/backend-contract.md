@@ -1,0 +1,35 @@
+# Backend ownership and event history
+
+[Back to TL;DR](../proposal.md)
+
+**One logical run, one accountable backend, however many execution sites.** Gimbal defines the observable meaning of ownership, controls, and events. The backend owns scheduling, transport, storage, and deployment. Use its existing scheduler and resource controls; this proposal does not require a new supervisor service or message broker.
+
+## Own everything the run starts
+
+The server persists the backend's durable execution identity before admitting work. The backend must recover the execution units belonging to that identity after a controller restart. Track resources before they can begin work, or use the scheduler's durable admission identity; losing a launch acknowledgment must not make work anonymous.
+
+On each participating machine/container, run-owned work has a local lifetime owner and an enforceable termination boundary. A parent process is useful, but ancestry alone does not guarantee descendants stop when it dies. Dedicated containers, existing scheduler jobs, or process groups with enforced no-escape behavior can provide containment. Shared backend workers may host many runs; stopping one run must target its owned work, not kill the shared worker and unrelated runs.
+
+Whole-run cancellation stops new admissions and retries, then cancels/drains active work across every site. Force-stop uses the execution platform to terminate run-owned units even when their workflow processes cannot answer. The backend reports acceptance separately from confirmed cessation and names unresolved units. A network partition remains unresolved until platform evidence establishes cessation. Local process-group kill is one implementation of this contract, never its distributed definition.
+
+The current compiled control seam already distinguishes bounded cancellation delivery from local drain (`web/compiled.go`, `Run.CancelHostedRun`). Preserve that distinction while moving control out of the web process. Restart recovery and platform force-stop need explicit backend support beyond that existing callback.
+
+## Present one logical history
+
+The backend collects events from its execution sites into one authoritative Gimbal history per run. It assigns stable replay positions at durable append. These positions express recorded order; they do not pretend to be wall-clock order across machines. Events retain their execution/task/attempt identities so retries are not confused with prior attempts.
+
+For retried event delivery, preserve a producer-incarnation identity and sequence until durable acknowledgment; the collector deduplicates retransmission. If disconnected execution continues, its unacknowledged events must survive locally or in backend storage. Storage failure must become an explicit recording failure, not silent loss. Reuse native backend delivery/storage guarantees where they satisfy these claims. Do not introduce a second distributed log merely because the backend already has a durable history.
+
+The server consumes the same resumable stream and run controls regardless of deployment. Workers never need access to the server's state directory. UI projections and server replicas can be rebuilt from the authoritative history; retention must preserve that history until required transfer completes.
+
+## Guidance and validation
+
+Backend-author documentation must show how its actual execution units implement these claims. Keep automated checks beside the backend they check:
+
+- A second server cannot acquire the same directory; a crashed server does not require lock-file deletion.
+- After controller restart, every admitted execution unit remains associated with its run.
+- Cancel/force-stop reaches work on two execution sites, prevents later retries, and leaves unrelated runs alive. Suspend or crash a worker during this test; inspect real descendants/resources.
+- A disconnected site remains pending, rather than producing a false “stopped” result.
+- Event retransmission and reconnection produce no duplicate logical events or missing acknowledged events; replay yields the same UI state as live consumption.
+
+Use compiler checks or linters for properties visible in generated source: required ownership identity, required control bindings, and forbidden raw spawn paths where the backend defines an approved launch path. A linter cannot establish process containment, crash recovery, or distributed cessation; those require backend-specific integration tests and an observed run. Add lint rules only when the backend exposes a concrete enforceable pattern, not a generic framework in anticipation.

@@ -259,6 +259,7 @@ type contextField struct {
 	Shadowed []string    `json:"shadowed,omitempty"`
 }
 type branchInspection struct {
+	Key         string          `json:"key,omitempty"`
 	Label       string          `json:"label,omitempty"`
 	Code        string          `json:"code"`
 	Source      workflow.Source `json:"source"`
@@ -268,6 +269,7 @@ type branchInspection struct {
 }
 
 type viewNode struct {
+	Key          string             `json:"key,omitempty"`
 	Title        string             `json:"title,omitempty"`
 	Description  string             `json:"description,omitempty"`
 	ID           string             `json:"id"`
@@ -319,6 +321,7 @@ func inspectGraph(g workflow.Graph, entry string, d *inspectionData) sourcePage 
 	b := pageBuilder{details: d, cursors: map[workflow.Source]int{}}
 	body, _ := b.body(g.Body, nil, "root", "")
 	applyDiagramAnnotations(body, d.Annotations)
+	assignPresentationKeys(body)
 	p := sourcePage{Name: g.Name, Entry: entry, Module: d.Module, Source: g.Source, Body: body, Diagnostics: append([]workflow.Diagnostic{}, g.Diagnostics...)}
 	return p
 }

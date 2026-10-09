@@ -1,17 +1,20 @@
 <script lang="ts">
   import Shape from './Shape.svelte';
   import type { ValueShape } from './types';
-  let {name,shape,optional=false,goTypes=false}: {name:string;shape:ValueShape;optional?:boolean;goTypes?:boolean}=$props();
+  let {name,shape,path,openPaths=[],ondetail,optional=false,goTypes=false}: {
+    name:string;shape:ValueShape;path:string;openPaths?:string[];ondetail:(path:string,open:boolean)=>void;optional?:boolean;goTypes?:boolean
+  }=$props();
+  const escapePath=(name:string)=>name.replaceAll('~','~0').replaceAll('/','~1');
   let resolved=$derived(shape.kind==='pointer' && shape.element ? shape.element : shape);
   let fields=$derived(resolved.fields ?? (resolved.kind==='array' ? resolved.element?.fields : undefined));
   let type=$derived(goTypes ? shape.type : resolved.kind==='array' ? '[]' : resolved.kind==='struct' || fields ? '{…}' : resolved.kind==='reference' ? '↩' : resolved.kind==='map' ? '{…}' : /^(u?int|float|complex)/.test(resolved.type) ? 'number' : resolved.type==='bool' ? 'boolean' : resolved.type==='string' ? 'string' : resolved.kind==='unknown' ? '?' : resolved.type);
 </script>
 {#if fields?.length || resolved.element && resolved.kind==='array'}
-  <details>
-    <summary><span class="key">{name}</span>{#if optional}<span class="optional" title="May be absent">?</span>{/if}<span class="type">{type}</span></summary>
+  <details open={openPaths.includes(path)}>
+    <summary onclick={(event)=>{event.preventDefault();ondetail(path,!openPaths.includes(path))}}><span class="key">{name}</span>{#if optional}<span class="optional" title="May be absent">?</span>{/if}<span class="type">{type}</span></summary>
     <div class="children">
-      {#if fields?.length}{#each fields as field}<Shape name={field.name} shape={field.shape} optional={field.optional} {goTypes}/>{/each}
-      {:else if resolved.element}<Shape name="item" shape={resolved.element} {goTypes}/>{/if}
+      {#if fields?.length}{#each fields as field (field.name)}<Shape name={field.name} shape={field.shape} optional={field.optional} {goTypes} path={path+'/'+escapePath(field.name)} {openPaths} {ondetail}/>{/each}
+      {:else if resolved.element}<Shape name="item" shape={resolved.element} {goTypes} path={path+'/item'} {openPaths} {ondetail}/>{/if}
     </div>
   </details>
 {:else}

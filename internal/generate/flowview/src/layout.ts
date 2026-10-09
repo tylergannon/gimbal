@@ -161,7 +161,7 @@ export async function layoutWorkflow(page: SourcePage, expanded: Set<string>, me
     const decision = (id: string, index: number): Fragment => {
       const branch = metadata[index];
       const sourceNode = index === 0 ? n : {
-        ...n, title: branch?.title, description: branch?.description,
+        ...n, id, key: branch?.key, title: branch?.title, description: branch?.description,
         source: branch?.source || n.source,
         control: { kind: 'if', code: branch?.code || labels[index] || '' },
       };

@@ -1,8 +1,12 @@
 <script lang="ts">
   import Shape from './Shape.svelte';
   import type { ViewNode } from './types';
-  let {node,onclose}: {node:ViewNode;onclose:()=>void}=$props();
-  let goTypes=$state(false);
+  let {node,onclose,goTypes,ontypes,openPaths,ondetail}: {
+    node:ViewNode;onclose:()=>void;goTypes:boolean;ontypes:(value:boolean)=>void;
+    openPaths:string[];ondetail:(path:string,open:boolean)=>void;
+  }=$props();
+  const escapePath=(name:string)=>name.replaceAll('~','~0').replaceAll('/','~1');
+  function toggle(event:MouseEvent,path:string){event.preventDefault();ondetail(path,!openPaths.includes(path));}
   const kinds:Record<string,string>={Generate:'Prompt',NewSession:'Session',Set:'Context',SetJSON:'Context',Condition:'Decision',Repeat:'Loop',Group:'Parallel work',Go:'Branch',Command:'Command',Service:'Service',Scope:'Scope'};
 </script>
 <aside aria-label="Step details">
@@ -14,16 +18,16 @@
   {/if}
   {#if node.kind==='Set' || node.kind==='SetJSON'}
     <section><h3>{node.detail?.keyKnown ? node.label : node.detail?.keyExpression}</h3>
-    {#if node.detail?.shape}<Shape name="value" shape={node.detail.shape} {goTypes}/>{/if}
-    <details class="source"><summary>Value expression</summary><pre>{node.detail?.valueExpression}</pre></details></section>
+    {#if node.detail?.shape}<Shape name="value" shape={node.detail.shape} {goTypes} path="/shape" {openPaths} {ondetail}/>{/if}
+    <details class="source" open={openPaths.includes('/value')}><summary onclick={(e)=>toggle(e,'/value')}>Value expression</summary><pre>{node.detail?.valueExpression}</pre></details></section>
   {/if}
   {#if node.context?.length && node.kind!=='Set' && node.kind!=='SetJSON'}
-    <section><div class="section-head"><h3>Context shape</h3><label><input type="checkbox" bind:checked={goTypes}/> Go types</label></div>
-      {#each node.context as field}{#if field.shape}<Shape name={field.key} shape={field.shape} optional={field.optional} {goTypes}/>{/if}{/each}
+    <section><div class="section-head"><h3>Context shape</h3><label><input type="checkbox" checked={goTypes} onchange={(e)=>ontypes(e.currentTarget.checked)}/> Go types</label></div>
+      {#each node.context as field (field.key)}{#if field.shape}<Shape name={field.key} shape={field.shape} optional={field.optional} {goTypes} path={'/context/'+escapePath(field.key)} {openPaths} {ondetail}/>{/if}{/each}
     </section>
   {:else if node.kind==='Generate'}<p class="empty">No context set before this step.</p>{/if}
   {#if node.note}<p class="description">{node.note}</p>{/if}
-  <details class="source"><summary>Go source <span>{node.source?.file?.split('/').at(-1)}:{node.source?.line}</span></summary><pre>{node.control?.code || node.detail?.expression || node.label}</pre></details>
+  <details class="source" open={openPaths.includes('/source')}><summary onclick={(e)=>toggle(e,'/source')}>Go source <span>{node.source?.file?.split('/').at(-1)}:{node.source?.line}</span></summary><pre>{node.control?.code || node.detail?.expression || node.label}</pre></details>
 </aside>
 <style>
 aside{height:100%;overflow:auto;box-sizing:border-box;padding:18px 22px 28px;background:#fff;border-left:1px solid #b1b4b6}

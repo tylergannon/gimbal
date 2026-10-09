@@ -7,95 +7,138 @@
   import Inspector from './Inspector.svelte';
   import Peek from './Peek.svelte';
   import { layoutWorkflow } from './layout';
+  import { indexSource, normalizeView, type ViewState } from './view-state';
   import type { SourcePage, ViewNode, WorkflowNode, WorkflowEdge } from './types';
-  let {page}: {page:SourcePage}=$props();
+
+  let {page, initialView, oncommit}: {
+    page:SourcePage; initialView?:ViewState;
+    oncommit?:(view:ViewState, replace:boolean)=>Promise<void>;
+  }=$props();
+  let source:SourcePage;
+  let view=$state.raw<ViewState>({open:[],details:[],types:false});
   let nodes=$state.raw<WorkflowNode[]>([]);
   let edges=$state.raw<WorkflowEdge[]>([]);
-  let expanded=new Set<string>();
   let selected=$state<ViewNode>();
   let peek=$state<{node:ViewNode;rect:DOMRect}>();
   let error=$state('');
   let busy=$state(false);
   let canvas:HTMLDivElement;
   let revision=0;
-  const textCanvas = document.createElement("canvas");
-  const textContext = textCanvas.getContext("2d")!;
-  textContext.font = "550 15px system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif";
+  let renderedSource:SourcePage | undefined;
+  let renderedOpen='';
+  let pendingAnchor:{id:string;point:{x:number;y:number};camera:{x:number;y:number;zoom:number}} | undefined;
+  let restoring=false;
+  const textCanvas=document.createElement('canvas');
+  const textContext=textCanvas.getContext('2d')!;
+  textContext.font='550 15px system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif';
   const flow=useSvelteFlow<WorkflowNode,WorkflowEdge>();
   const nodeTypes={workflow:WorkflowNodeComponent,junction:Junction};
   const edgeTypes={routed:RoutedEdge};
+
   function position(id:string,list:WorkflowNode[]) {
-    const n=list.find(n=>n.id===id);
-    if (!n) return;
-    let x=n.position.x+n.data.width/2,y=n.position.y+20;
-    let parent=n.parentId;
+    const n=list.find(n=>n.id===id); if(!n)return;
+    let x=n.position.x+n.data.width/2,y=n.position.y+20,parent=n.parentId;
     while(parent){const p=list.find(n=>n.id===parent);if(!p)break;x+=p.position.x;y+=p.position.y;parent=p.parentId;}
     return {x,y};
   }
-  async function updateSelection(node?:ViewNode) {
-    selected=node;peek=undefined;
-    nodes=nodes.map(n=>({...n,data:{...n.data,chosen:!!node && (n.data.sourceNode?.id===node.id || !!n.data.members?.some(m=>m.id===node.id)), selectedId:node?.id}}));
-    if(node){
-      await tick();
-      const target=nodes.find(n=>n.data.sourceNode?.id===node.id || n.data.members?.some(m=>m.id===node.id));
-      const point=target && position(target.id,nodes);
-      if(point && target){
-        const view=flow.getViewport();
-        const screenX=point.x*view.zoom+view.x;
-        const margin=Math.min(canvas.clientWidth/2,target.data.width*view.zoom/2+24);
-        const wanted=Math.max(margin,Math.min(canvas.clientWidth-margin,screenX));
-        if(wanted!==screenX)await flow.setViewport({...view,x:view.x+wanted-screenX});
-      }
-    }
+  async function commit(next:ViewState,replace=true) {
+    const valid=normalizeView(next,source);
+    if(oncommit) await oncommit(valid,replace);
+    else await show(source,valid);
+  }
+  function choose(node?:ViewNode) {
+    peek=undefined;
+    return commit({...view,selected:node?.key,details:[]},false);
+  }
+  function decorate(list:WorkflowNode[]) {
+    return list.map(n=>({...n,selectable:false,focusable:false,data:{...n.data,
+      chosen:!!selected && (selected.key===n.data.sourceNode?.key || !!n.data.members?.some(m=>m.key===selected?.key)),
+      selectedId:selected?.id,onactivate:activate,onselect:choose,
+      onpeek:(id:string,rect:DOMRect)=>{const n=nodes.find(n=>n.id===id);const source=n?.data.sourceNode;if(source && !n?.data.members)peek={node:{...source,title:source.title || n?.data.label},rect}},
+      onunpeek:()=>peek=undefined}}));
   }
   async function activate(id:string) {
     if(busy)return;
     const n=nodes.find(n=>n.id===id);if(!n)return;
     peek=undefined;
     if(n.data.expandable){
-      const before=position(id,nodes),viewport=flow.getViewport();
-      if(expanded.has(id))expanded.delete(id);else expanded.add(id);
-      await relayout();
-      const after=position(id,nodes);
-      if(before&&after)await flow.setViewport({...viewport,x:viewport.x+(before.x-after.x)*viewport.zoom,y:viewport.y+(before.y-after.y)*viewport.zoom});
-    } else if(n.data.sourceNode) updateSelection(n.data.sourceNode);
+      const index=indexSource(source);
+      const key=[...index.expansionIDs].find(([,graphID])=>graphID===id)?.[0];
+      if(!key)return;
+      const point=position(id,nodes);
+      if(point)pendingAnchor={id,point,camera:flow.getViewport()};
+      const open=view.open.includes(key)?view.open.filter(k=>k!==key):[...view.open,key];
+      await commit({...view,open});
+    } else if(n.data.sourceNode) await choose(n.data.sourceNode);
   }
-  async function relayout(){
-    const current=++revision;busy=true;
-    try{
-      const result=await layoutWorkflow(page,expanded,(label)=>textContext.measureText(label).width);
+  // Kit calls this after navigation or a fresh source snapshot. It is also the
+  // standalone renderer's entry point. URL commits happen only in event handlers.
+  export async function show(nextPage:SourcePage,next:ViewState) {
+    const current=++revision;
+    source=nextPage;
+    view=normalizeView(next,nextPage);
+    const index=indexSource(nextPage);
+    selected=view.selected?index.selected.get(view.selected):undefined;
+    peek=undefined;
+    const openKey=view.open.join('|');
+    if(renderedSource===nextPage && renderedOpen===openKey){
+      nodes=decorate(nodes);busy=false;
+      await tick();
+      await restoreCamera();
+      return;
+    }
+    busy=true;
+    try {
+      const expanded=new Set(view.open.map(k=>index.expansionIDs.get(k)).filter((k):k is string=>!!k));
+      const result=await layoutWorkflow(nextPage,expanded,label=>textContext.measureText(label).width);
       if(current!==revision)return;
-      nodes=result.nodes.map(n=>({...n,selectable:false,focusable:false,data:{...n.data,chosen:!!selected && (selected.id===n.data.sourceNode?.id || !!n.data.members?.some(m=>m.id===selected?.id)), selectedId:selected?.id,onactivate:activate,onselect: updateSelection,onpeek:(id:string,rect:DOMRect)=>{const n=nodes.find(n=>n.id===id);const source=n?.data.sourceNode;if(source && !n?.data.members)peek={node:{...source,title:source.title || n?.data.label},rect}},onunpeek:()=>peek=undefined}}));
+      nodes=decorate(result.nodes);
       const headerMasks=nodes.filter(n=>n.data.kind==='container').map(n=>{
         const p=position(n.id,nodes)!;
         return {x:p.x-n.data.width/2+1,y:p.y-19,width:n.data.width-2,height:38};
       });
       edges=result.edges.map(e=>({...e,data:{...e.data!,headerMasks}}));
+      renderedSource=nextPage;renderedOpen=openKey;error='';
+      document.title=nextPage.name+' · Workflow';
       await tick();
+      const anchor=pendingAnchor;pendingAnchor=undefined;
+      const after=anchor && position(anchor.id,nodes);
+      if(anchor && after){
+        const camera={...anchor.camera,x:anchor.camera.x+(anchor.point.x-after.x)*anchor.camera.zoom,y:anchor.camera.y+(anchor.point.y-after.y)*anchor.camera.zoom};
+        await commit({...view,camera});
+      }else await restoreCamera();
     }catch(e){error=String(e)}finally{if(current===revision)busy=false}
   }
-  function top(){
-    peek=undefined;
+  function topCamera(){
     const roots=nodes.filter(n=>!n.parentId);
-    if(!roots.length)return;
+    if(!roots.length)return {x:0,y:0,zoom:1};
     const left=Math.min(...roots.map(n=>n.position.x)),right=Math.max(...roots.map(n=>n.position.x+n.data.width));
-    flow.setViewport({x:(canvas.clientWidth-(right-left))/2-left,y:24-Math.min(...roots.map(n=>n.position.y)),zoom:1});
+    return {x:(canvas.clientWidth-(right-left))/2-left,y:24-Math.min(...roots.map(n=>n.position.y)),zoom:1};
   }
-  async function fit(){peek=undefined;await flow.fitView({padding:0.1,maxZoom:1,minZoom:.35,duration:150});}
-  onMount(()=>{document.title=page.name+' · Workflow';relayout();return()=>{revision++}});
+  async function restoreCamera(){
+    restoring=true;
+    try{await flow.setViewport(view.camera ?? topCamera())}finally{restoring=false}
+  }
+  async function fit(){
+    peek=undefined;restoring=true;
+    try{await flow.fitView({padding:.1,maxZoom:1,minZoom:.35});await commit({...view,camera:flow.getViewport()})}finally{restoring=false}
+  }
+  function detail(path:string,open:boolean){
+    commit({...view,details:open?[...view.details,path]:view.details.filter(p=>p!==path)});
+  }
+  onMount(()=>{show(page,initialView ?? {open:[],details:[],types:false});return()=>{revision++}});
 </script>
-<svelte:window onkeydown={(e)=>{if(e.key==='Escape'){peek=undefined;updateSelection()}}}/>
+<svelte:window onkeydown={(e)=>{if(e.key==='Escape'){peek=undefined;choose()}}}/>
 <div class="viewer">
-  <header class="toolbar"><h1>{page.name}</h1><div class="tools"><button onclick={top}>100%</button><button onclick={fit}>Fit view</button></div></header>
+  <header class="toolbar"><h1>{page.name}</h1><div class="tools"><button onclick={()=>commit({...view,camera:topCamera()})}>100%</button><button onclick={fit}>Fit view</button></div></header>
   <div class="workspace" class:inspecting={!!selected}>
     <div class="canvas" bind:this={canvas}>
       {#if error}<p role="alert">{error}</p>{/if}
       {#if nodes.length}
-        <SvelteFlow bind:nodes bind:edges {nodeTypes} {edgeTypes} nodesDraggable={false} nodesConnectable={false} elementsSelectable={false} nodesFocusable={false} edgesFocusable={false} zoomOnScroll={false} panOnScroll={true} minZoom={.35} maxZoom={1.8} oninit={top} onmovestart={()=>peek=undefined} preventScrolling={true} deleteKey={null}>
-        </SvelteFlow>
+        <SvelteFlow bind:nodes bind:edges {nodeTypes} {edgeTypes} nodesDraggable={false} nodesConnectable={false} elementsSelectable={false} nodesFocusable={false} edgesFocusable={false} zoomOnScroll={false} panOnScroll={true} minZoom={.35} maxZoom={1.8} oninit={restoreCamera} onmovestart={()=>peek=undefined} onmoveend={(event)=>{if(event && !busy && !restoring)commit({...view,camera:flow.getViewport()})}} preventScrolling={true} deleteKey={null} />
       {:else if !error}<p class="loading">Preparing workflow…</p>{/if}
     </div>
-    {#if selected}<div class="inspector"><Inspector node={selected} onclose={()=>updateSelection()}/></div>{/if}
+    {#if selected}<div class="inspector"><Inspector node={selected} onclose={()=>choose()} goTypes={view.types} ontypes={(types)=>commit({...view,types})} openPaths={view.details} ondetail={detail}/></div>{/if}
   </div>
   {#if peek}<Peek node={peek.node} rect={peek.rect}/>{/if}
 </div>

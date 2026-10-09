@@ -4,9 +4,11 @@
   "type": "module",
   "scripts": {
     "build": "vite build",
-    "check": "svelte-check --tsconfig ./tsconfig.json",
+    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "page": "node page.mjs",
-    "test": "node --test src/layout.test.mjs"
+    "test": "node --test src/*.test.mjs",
+    "dev": "vite --config vite.dev.config.ts",
+    "test:dev": "node --test dev/source-plugin.test.mjs"
   },
   "dependencies": {
     "@xyflow/svelte": "1.7.0",
@@ -14,10 +16,11 @@
     "svelte": "5.57.2"
   },
   "devDependencies": {
+    "@sveltejs/kit": "3.0.1",
     "@sveltejs/vite-plugin-svelte": "7.3.1",
-    "vite": "8.3.3",
-    "vite-plugin-singlefile": "2.3.3",
     "svelte-check": "4.7.6",
-    "typescript": "6.0.3"
+    "typescript": "6.0.3",
+    "vite": "8.3.3",
+    "vite-plugin-singlefile": "2.3.3"
   }
 }

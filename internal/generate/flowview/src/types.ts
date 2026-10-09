@@ -14,7 +14,7 @@ export interface ContextField {
   when?: string; optional?: boolean; shadowed?: string[];
 }
 export interface ViewNode {
-  id: string; kind: string; label: string; title?: string; description?: string;
+  id: string; key?: string; kind: string; label: string; title?: string; description?: string;
   source: Source; scope: string; session?: string; from?: string; prompt?: string;
   detail?: {
     kind: string; expression: string; promptExpression?: string; promptKnown: boolean;
@@ -22,7 +22,7 @@ export interface ViewNode {
     contextExpression?: string; contextKnown: boolean; shape?: ValueShape;
   };
   control?: { code: string; kind?: string; actions?: string[] };
-  branches?: { code: string; source: Source; title?: string; description?: string; label?: string; default?: boolean }[];
+  branches?: { key?: string; code: string; source: Source; title?: string; description?: string; label?: string; default?: boolean }[];
   context: ContextField[];
   children?: ViewNode[][];
   branchLabels?: string[];

@@ -15,6 +15,7 @@ Each topic starts with its own short answer, then gives the mechanics and reason
 - [Lean runners](topics/lean-runners.md) — separate executables, memory, and why the website needs no plugin.
 - [Workflow discovery](topics/workflow-discovery.md) — project builds, CLI commands, and the design associated with each run.
 - [Execution placement](topics/execution-placement.md) — mixed Linux/macOS tasks, remote computer use, and session ownership.
+- [Computer-use authorization research](computer-use/findings.md) — verified desktop bridge checks, public-source boundaries, and what a LaunchAgent does not establish.
 - [Backend contract](topics/backend-contract.md) — distributed ownership, termination, event history, and backend validation.
 - [Storage and remote execution](topics/storage-and-remote.md) — file ownership, artifacts, containers, and network reachability.
 - [Delivery and review](topics/delivery-and-review.md) — the first implementation boundary, evidence to gather, and review status.

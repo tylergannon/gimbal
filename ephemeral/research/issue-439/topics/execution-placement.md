@@ -30,6 +30,8 @@ Apple distinguishes a user-context LaunchAgent from a system-context LaunchDaemo
 
 The acceptance check is a remotely submitted task, launched through this exact worker path, that performs a real capture and input action through the selected provider session. Test locked operation separately when promised, plus reconnection and cancellation. Advertise the capability only after that path works; installation and permission checkboxes are insufficient. Worker supervision may restart the worker, but must reconcile admitted run identities rather than blindly relaunch uncertain desktop actions.
 
+**Subsequent source/binary research narrows this candidate:** the installed Codex desktop bridge requires a caller descended from the desktop process, plus code-signing checks. A sibling LaunchAgent does not satisfy that rule merely by inhabiting the GUI session. Native capture has additional authorization whose full conditions remain unknown; the observed bridge rejection is not a proven cause of `cgWindowNotFound`. Keep worker placement separate from the still-unproven provider submission interface. See [the evidence and exact scope](../computer-use/findings.md) and [the independent public-source trace](../computer-use/public-source-report.md).
+
 ## Cross-machine handoff and builds
 
 Pass inputs and outputs as existing typed values and referenced artifacts; materialize them on the selected worker. A path on Linux has no implied meaning on macOS. Associate executable variants with one workflow source/build identity and the correct OS/architecture, whether built on the destination or supplied as artifacts. One workflow bundle need not mean one executable usable on every machine.

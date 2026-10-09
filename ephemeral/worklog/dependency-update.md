@@ -1,0 +1,6 @@
+decision: Upgrade SK Go and its npm adapter together to v0.22.0; its consolidated skgo_gen.go output does not clean legacy generated filenames. Remove legacy generator-owned Go files before regeneration.
+friction: VitePlus latest updates honor release-age filtering and selected adapter 0.19.0 against Go 0.22.0. Pin the matching adapter and current VitePlus pair with exact-version release-age exceptions.
+friction: TypeScript 7.0.2 removes the API SvelteKit sync reads, and Kit 3.0.1 plus svelte-check 4.7.6 declare TypeScript 6 peers. Keep the latest supported 6.0.3.
+friction: Latest go-yit switches to yaml/v4 while yaml-jsonpath 0.3.2 still accepts yaml.v3 Nodes, breaking oapi-codegen compilation. Retain the yaml-jsonpath-compatible go-yit revision.
+friction: Go temporal generator tests copy the entire checkout and fail on a running browser fixture Unix socket. Run browser servers and repository-copy tests sequentially; stop fixture servers before the full Go suite.
+friction: Vitest 5 defaults text content and accessible-name matching to exact strings. Use toMatchTextContent for existing substring content checks and a regex for partial accessible-name matching; retain every expected UI fragment and keep application code unchanged.

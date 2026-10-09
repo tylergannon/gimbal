@@ -159,8 +159,8 @@ func NewHandler(dist fs.FS, proxy, origin string) (http.Handler, string, error) 
 	// browser uses, without a second composition to keep in step.
 	handleCfg.Loads = loads
 	handleCfg.Static = skgo.ServedAsFile(pages)
-	bound = observation.Routes(generated.RequestBoundary(handleCfg, explainOriginRefusals(remoteCfg,
-		loads.Intercept(remotes.Intercept(endpoints.Intercept(pages))))))
+	bound = observation.Routes(explainOriginRefusals(remoteCfg,
+		generated.RequestBoundary(handleCfg, loads.Intercept(remotes.Intercept(endpoints.Intercept(pages))))))
 	return skgo.FetchConfig{Origin: origin, Base: manifest.Base, Handler: internal, Prerendered: manifest.Prerendered}.Intercept(bound), mode, nil
 }
 

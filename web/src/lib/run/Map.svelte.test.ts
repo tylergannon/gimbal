@@ -25,7 +25,7 @@ test("pointer and keyboard instance selection replace the rendered runtime facts
   ).not.toBeNull();
   await expect
     .element(screen.getByRole("button", { name: "Select task-check" }))
-    .toHaveTextContent("exit 1");
+    .toMatchTextContent("exit 1");
   expect(selections.at(-1)?.kind).toBe("instance");
 
   await trigger.click();
@@ -33,7 +33,7 @@ test("pointer and keyboard instance selection replace the rendered runtime facts
   await expect.element(trigger).toHaveTextContent("task 3 of 3");
   await expect
     .element(screen.getByRole("button", { name: "Select task-check" }))
-    .toHaveTextContent("not started");
+    .toMatchTextContent("not started");
 
   const refreshed = structuredClone(implementInterviewFixture.snapshot);
   refreshed.turns["coding.1/turn.3"].ended = refreshed.turns["coding.1/turn.3"].started + 120_000;
@@ -65,7 +65,7 @@ test("instance selection works when runtime scope names include ordinals", async
   expect(document.querySelector('[data-scope="implementation.1/task.2"]')).not.toBeNull();
   await expect
     .element(screen.getByRole("button", { name: "Select task-check" }))
-    .toHaveTextContent("exit 1");
+    .toMatchTextContent("exit 1");
 });
 
 test("nodes, watchers, and sheets report selection and folded summaries stay truthful", async () => {

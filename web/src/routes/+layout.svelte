@@ -20,7 +20,7 @@
 </script>
 
 <svelte:head><link rel="icon" href={favicon} /></svelte:head>
-<nav class="site-nav"><a href="/">Projects</a>{#if project}<a href={`${root}/conversations`}>Conversations</a><a href={root}>Runs</a><a href={`${root}/about`}>About</a>{/if}</nav>
+<nav class="site-nav"><a href="/">Projects</a><a href="/workflows">Workflows</a>{#if project}<a href={`${root}/conversations`}>Conversations</a><a href={root}>Runs</a><a href={`${root}/about`}>About</a>{/if}</nav>
 <main>
 	{#if loadingRuns}
 		<div class="runs-page"><RunsLoading /></div>
@@ -39,6 +39,7 @@
 
 	nav {
 		display: flex;
+		flex-wrap: wrap;
 		gap: 1.25rem;
 		padding: 0.9rem 2rem;
 		border-bottom: 1px solid var(--map-line);

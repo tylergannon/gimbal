@@ -1,3 +1,5 @@
+import { engineSyntax } from "./dev/engine-syntax.mjs";
+import { workflowSource } from "./dev/source-plugin.mjs";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig, lazyPlugins } from "vite-plus";
 import { playwright } from "vite-plus/test/browser-playwright";
@@ -12,6 +14,7 @@ export default defineConfig({
     options: { typeAware: true, typeCheck: true },
   },
   plugins: lazyPlugins(() => [
+    workflowSource(),
     tailwindcss(),
     sveltekit({
       compilerOptions: {
@@ -24,6 +27,7 @@ export default defineConfig({
       experimental: { remoteFunctions: true },
       paths: { origin: process.env.ORIGIN ?? "http://127.0.0.1:8080" },
     }),
+    engineSyntax(),
   ]),
   test: {
     projects: [

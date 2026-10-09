@@ -1,0 +1,63 @@
+.workflow-start-form {
+  max-width: 42rem;
+  color: #0b0c0c;
+  font-size: 15px;
+}
+.workflow-start-form p {
+  margin: 0 0 20px;
+  line-height: 1.5;
+}
+.workflow-start-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin: 18px 0;
+  font-weight: 600;
+}
+.workflow-start-form .hint {
+  font-size: 13px;
+  font-weight: 400;
+  color: #484949;
+}
+.workflow-start-form input {
+  font: inherit;
+  padding: 8px 10px;
+  min-height: 38px;
+  border: 1px solid #747c82;
+  border-radius: 4px;
+  background: white;
+  color: #0b0c0c;
+}
+.workflow-start-form input[type="checkbox"] {
+  align-self: start;
+  min-height: 22px;
+  width: 22px;
+}
+.workflow-start-form button {
+  background: #165a91;
+  color: white;
+  padding: 9px 16px;
+  border: 0;
+  border-radius: 4px;
+  font: inherit;
+  cursor: pointer;
+  margin-top: 18px;
+}
+.workflow-start-form button:disabled {
+  opacity: 0.65;
+}
+.workflow-start-form summary {
+  cursor: pointer;
+  margin-top: 22px;
+}
+.workflow-start-form .errors {
+  color: #792510;
+  margin: 16px 0;
+}
+.workflow-start-form input:focus-visible,
+.workflow-start-form button:focus-visible,
+.workflow-start-form summary:focus-visible {
+  outline: 3px solid #0b0c0c;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 5px #ffdd00;
+}

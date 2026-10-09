@@ -1,0 +1,1832 @@
+{
+  "guide": {
+    "summary": "Implement works through supplied outcomes until each is demonstrated.",
+    "prose": "Package implementation works through an ordered list of outcomes. Each\noutcome has its own bounded PromiseLoop and independent validation; there is\nno planner deciding which outcome comes next.\n\nThe caller supplies a local JSON file containing an array of outcome\nstrings. The workflow takes them in file order. Within an outcome, a planner\nmay choose another task only when validation finds a substantial gap. A\npassing judgment at 90–95% with only small gaps advances immediately to the\nnext outcome. An incomplete outcome stops the run; later outcomes do not\nstart.\n\nScope supervisors watch the planner, coder, and validator for unnecessary\ncomplexity, gold-plating, and work outside the selected outcome. They steer\nbut never gate completion. The workflow changes the working tree but does\nnot commit, push, merge, deploy, or edit the outcomes file. Checks gather\nevidence; the independent validator judges whether the behavior was seen.\n\nExample outcomes.json:\n\n\t[\"The CLI starts work in the selected instance\", \"The page observes that work live\"]\n\nExample invocation:\n\n\tgimbal run implement --outcomes-file ./outcomes.json --max-tasks-per-outcome 3",
+    "parameters": [
+      {
+        "name": "OutcomesFile",
+        "flag": "outcomes-file",
+        "kind": "string",
+        "description": "OutcomesFile is a local JSON array of outcome strings, in execution order.",
+        "required": true
+      },
+      {
+        "name": "MaxTasksPerOutcome",
+        "flag": "max-tasks-per-outcome",
+        "kind": "int",
+        "description": "MaxTasksPerOutcome bounds planner assignments for each outcome.",
+        "required": true
+      }
+    ],
+    "roles": [
+      {
+        "name": "sprint-planning",
+        "default": "gpt-6-astra:high"
+      },
+      {
+        "name": "architectural-critique",
+        "default": "gpt-6-astra:medium"
+      },
+      {
+        "name": "coding",
+        "default": "gpt-6.1-sol:high"
+      },
+      {
+        "name": "qa-orchestration",
+        "default": "gpt-6.1-sol:high"
+      }
+    ],
+    "invocation": "gimbal run implement --outcomes-file ./outcomes.json --max-tasks-per-outcome 3",
+    "snapshot": "b413356f8c9d8402387bd80e3824db78dde24f56eece24fb1aab9274f920102f"
+  },
+  "name": "implement",
+  "entry": "Implement",
+  "module": "",
+  "source": {
+    "file": "internal/workflows/implementation/implementation.go",
+    "line": 64
+  },
+  "body": [
+    {
+      "key": "p5c9d965edd48c4ad",
+      "id": "n1",
+      "kind": "Condition",
+      "label": "if / switch",
+      "source": {
+        "file": "internal/workflows/implementation/implementation.go",
+        "line": 65
+      },
+      "scope": "root",
+      "control": {
+        "kind": "if",
+        "code": "if params.MaxTasksPerOutcome \u003c 1 {\n\treturn fmt.Errorf(\"max-tasks-per-outcome must be at least 1\")\n}",
+        "actions": [
+          "return fmt.Errorf(\"max-tasks-per-outcome must be at least 1\")"
+        ]
+      },
+      "context": [],
+      "children": [
+        []
+      ],
+      "branches": [
+        {
+          "key": "p892982ca6c100387",
+          "code": "params.MaxTasksPerOutcome \u003c 1",
+          "source": {
+            "file": "internal/workflows/implementation/implementation.go",
+            "line": 65
+          }
+        }
+      ],
+      "branchLabels": [
+        "params.MaxTasksPerOutcome \u003c 1"
+      ],
+      "branchExits": [
+        true
+      ]
+    },
+    {
+      "key": "pd7d088e7040654fe",
+      "id": "n2",
+      "kind": "Condition",
+      "label": "if / switch",
+      "source": {
+        "file": "internal/workflows/implementation/implementation.go",
+        "line": 80
+      },
+      "scope": "root",
+      "control": {
+        "kind": "if",
+        "code": "if len(outcomes) == 0 {\n\treturn fmt.Errorf(\"outcomes file must contain at least one outcome\")\n}",
+        "actions": [
+          "return fmt.Errorf(\"outcomes file must contain at least one outcome\")"
+        ]
+      },
+      "context": [],
+      "children": [
+        []
+      ],
+      "branches": [
+        {
+          "key": "pf6be1687c0bdb729",
+          "code": "len(outcomes) == 0",
+          "source": {
+            "file": "internal/workflows/implementation/implementation.go",
+            "line": 80
+          }
+        }
+      ],
+      "branchLabels": [
+        "len(outcomes) == 0"
+      ],
+      "branchExits": [
+        true
+      ]
+    },
+    {
+      "key": "p245642508f4de97b",
+      "id": "n3",
+      "kind": "Set",
+      "label": "outcomes file",
+      "source": {
+        "file": "internal/workflows/implementation/implementation.go",
+        "line": 89
+      },
+      "scope": "root",
+      "detail": {
+        "kind": "Set",
+        "expression": "gimbal.Set(ctx, \"outcomes file\", outcomesFile)",
+        "promptKnown": false,
+        "keyExpression": "\"outcomes file\"",
+        "keyKnown": true,
+        "valueExpression": "outcomesFile",
+        "contextExpression": "ctx",
+        "contextKnown": true,
+        "shape": {
+          "type": "string",
+          "kind": "scalar"
+        }
+      },
+      "context": [
+        {
+          "key": "outcomes file",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n3",
+          "scope": "root"
+        }
+      ]
+    },
+    {
+      "key": "pae21c2439f6c11ab",
+      "id": "n4",
+      "kind": "Set",
+      "label": "repository",
+      "source": {
+        "file": "internal/workflows/implementation/implementation.go",
+        "line": 90
+      },
+      "scope": "root",
+      "detail": {
+        "kind": "Set",
+        "expression": "gimbal.Set(ctx, \"repository\", env.WorkDir)",
+        "promptKnown": false,
+        "keyExpression": "\"repository\"",
+        "keyKnown": true,
+        "valueExpression": "env.WorkDir",
+        "contextExpression": "ctx",
+        "contextKnown": true,
+        "shape": {
+          "type": "string",
+          "kind": "scalar"
+        }
+      },
+      "context": [
+        {
+          "key": "outcomes file",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n3",
+          "scope": "root"
+        },
+        {
+          "key": "repository",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n4",
+          "scope": "root"
+        }
+      ]
+    },
+    {
+      "key": "pcc3cf00aed385996",
+      "id": "n5",
+      "kind": "Set",
+      "label": "maximum tasks per outcome",
+      "source": {
+        "file": "internal/workflows/implementation/implementation.go",
+        "line": 91
+      },
+      "scope": "root",
+      "detail": {
+        "kind": "Set",
+        "expression": "gimbal.Set(ctx, \"maximum tasks per outcome\", fmt.Sprint(params.MaxTasksPerOutcome))",
+        "promptKnown": false,
+        "keyExpression": "\"maximum tasks per outcome\"",
+        "keyKnown": true,
+        "valueExpression": "fmt.Sprint(params.MaxTasksPerOutcome)",
+        "contextExpression": "ctx",
+        "contextKnown": true,
+        "shape": {
+          "type": "string",
+          "kind": "scalar"
+        }
+      },
+      "context": [
+        {
+          "key": "outcomes file",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n3",
+          "scope": "root"
+        },
+        {
+          "key": "repository",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n4",
+          "scope": "root"
+        },
+        {
+          "key": "maximum tasks per outcome",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n5",
+          "scope": "root"
+        }
+      ]
+    },
+    {
+      "key": "p2bede96e9dfc6751",
+      "id": "n6",
+      "kind": "Set",
+      "label": "completion rule",
+      "source": {
+        "file": "internal/workflows/implementation/implementation.go",
+        "line": 92
+      },
+      "scope": "root",
+      "detail": {
+        "kind": "Set",
+        "expression": "gimbal.Set(ctx, \"completion rule\", completionRule)",
+        "promptKnown": false,
+        "keyExpression": "\"completion rule\"",
+        "keyKnown": true,
+        "valueExpression": "completionRule",
+        "contextExpression": "ctx",
+        "contextKnown": true,
+        "shape": {
+          "type": "string",
+          "kind": "scalar"
+        }
+      },
+      "context": [
+        {
+          "key": "outcomes file",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n3",
+          "scope": "root"
+        },
+        {
+          "key": "repository",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n4",
+          "scope": "root"
+        },
+        {
+          "key": "maximum tasks per outcome",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n5",
+          "scope": "root"
+        },
+        {
+          "key": "completion rule",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n6",
+          "scope": "root"
+        }
+      ]
+    },
+    {
+      "key": "p090690d56ed02991",
+      "id": "n7",
+      "kind": "Iterate",
+      "label": "outcome",
+      "source": {
+        "file": "internal/workflows/implementation/implementation.go",
+        "line": 95
+      },
+      "scope": "root",
+      "context": [
+        {
+          "key": "outcomes file",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n3",
+          "scope": "root"
+        },
+        {
+          "key": "repository",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n4",
+          "scope": "root"
+        },
+        {
+          "key": "maximum tasks per outcome",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n5",
+          "scope": "root"
+        },
+        {
+          "key": "completion rule",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n6",
+          "scope": "root"
+        }
+      ],
+      "children": [
+        [
+          {
+            "key": "p3600fb9e962db127",
+            "id": "n8",
+            "kind": "Set",
+            "label": "outcome",
+            "source": {
+              "file": "internal/workflows/implementation/implementation.go",
+              "line": 97
+            },
+            "scope": "root/outcome",
+            "detail": {
+              "kind": "Set",
+              "expression": "gimbal.Set(outcomeCtx, \"outcome\", outcome)",
+              "promptKnown": false,
+              "keyExpression": "\"outcome\"",
+              "keyKnown": true,
+              "valueExpression": "outcome",
+              "contextExpression": "outcomeCtx",
+              "contextKnown": true,
+              "shape": {
+                "type": "string",
+                "kind": "scalar"
+              }
+            },
+            "context": [
+              {
+                "key": "outcomes file",
+                "shape": {
+                  "type": "string",
+                  "kind": "scalar"
+                },
+                "write": "n3",
+                "scope": "root"
+              },
+              {
+                "key": "repository",
+                "shape": {
+                  "type": "string",
+                  "kind": "scalar"
+                },
+                "write": "n4",
+                "scope": "root"
+              },
+              {
+                "key": "maximum tasks per outcome",
+                "shape": {
+                  "type": "string",
+                  "kind": "scalar"
+                },
+                "write": "n5",
+                "scope": "root"
+              },
+              {
+                "key": "completion rule",
+                "shape": {
+                  "type": "string",
+                  "kind": "scalar"
+                },
+                "write": "n6",
+                "scope": "root"
+              },
+              {
+                "key": "outcome",
+                "shape": {
+                  "type": "string",
+                  "kind": "scalar"
+                },
+                "write": "n8",
+                "scope": "root/outcome"
+              }
+            ]
+          },
+          {
+            "key": "p83dd2818647f7446",
+            "id": "n9",
+            "kind": "NewSession",
+            "label": "sprint-planning",
+            "source": {
+              "file": "internal/workflows/implementation/implementation.go",
+              "line": 98
+            },
+            "scope": "root/outcome",
+            "session": "sprint-planning",
+            "context": [
+              {
+                "key": "outcomes file",
+                "shape": {
+                  "type": "string",
+                  "kind": "scalar"
+                },
+                "write": "n3",
+                "scope": "root"
+              },
+              {
+                "key": "repository",
+                "shape": {
+                  "type": "string",
+                  "kind": "scalar"
+                },
+                "write": "n4",
+                "scope": "root"
+              },
+              {
+                "key": "maximum tasks per outcome",
+                "shape": {
+                  "type": "string",
+                  "kind": "scalar"
+                },
+                "write": "n5",
+                "scope": "root"
+              },
+              {
+                "key": "completion rule",
+                "shape": {
+                  "type": "string",
+                  "kind": "scalar"
+                },
+                "write": "n6",
+                "scope": "root"
+              },
+              {
+                "key": "outcome",
+                "shape": {
+                  "type": "string",
+                  "kind": "scalar"
+                },
+                "write": "n8",
+                "scope": "root/outcome"
+              }
+            ]
+          },
+          {
+            "key": "p5d7c578286b3862d",
+            "id": "n10",
+            "kind": "NewSession",
+            "label": "architectural-critique",
+            "source": {
+              "file": "internal/workflows/implementation/implementation.go",
+              "line": 99
+            },
+            "scope": "root/outcome",
+            "session": "architectural-critique",
+            "context": [
+              {
+                "key": "outcomes file",
+                "shape": {
+                  "type": "string",
+                  "kind": "scalar"
+                },
+                "write": "n3",
+                "scope": "root"
+              },
+              {
+                "key": "repository",
+                "shape": {
+                  "type": "string",
+                  "kind": "scalar"
+                },
+                "write": "n4",
+                "scope": "root"
+              },
+              {
+                "key": "maximum tasks per outcome",
+                "shape": {
+                  "type": "string",
+                  "kind": "scalar"
+                },
+                "write": "n5",
+                "scope": "root"
+              },
+              {
+                "key": "completion rule",
+                "shape": {
+                  "type": "string",
+                  "kind": "scalar"
+                },
+                "write": "n6",
+                "scope": "root"
+              },
+              {
+                "key": "outcome",
+                "shape": {
+                  "type": "string",
+                  "kind": "scalar"
+                },
+                "write": "n8",
+                "scope": "root/outcome"
+              }
+            ]
+          },
+          {
+            "key": "p9f7fdd07a3286172",
+            "id": "n11",
+            "kind": "PromiseLoop",
+            "label": "implementation",
+            "source": {
+              "file": "internal/workflows/implementation/implementation.go",
+              "line": 100
+            },
+            "scope": "root/outcome",
+            "session": "sprint-planning",
+            "context": [
+              {
+                "key": "outcomes file",
+                "shape": {
+                  "type": "string",
+                  "kind": "scalar"
+                },
+                "write": "n3",
+                "scope": "root"
+              },
+              {
+                "key": "repository",
+                "shape": {
+                  "type": "string",
+                  "kind": "scalar"
+                },
+                "write": "n4",
+                "scope": "root"
+              },
+              {
+                "key": "maximum tasks per outcome",
+                "shape": {
+                  "type": "string",
+                  "kind": "scalar"
+                },
+                "write": "n5",
+                "scope": "root"
+              },
+              {
+                "key": "completion rule",
+                "shape": {
+                  "type": "string",
+                  "kind": "scalar"
+                },
+                "write": "n6",
+                "scope": "root"
+              },
+              {
+                "key": "outcome",
+                "shape": {
+                  "type": "string",
+                  "kind": "scalar"
+                },
+                "write": "n8",
+                "scope": "root/outcome"
+              }
+            ],
+            "children": [
+              [
+                {
+                  "key": "pca96eac9ff0940ed",
+                  "id": "n12",
+                  "kind": "NewSession",
+                  "label": "coding",
+                  "source": {
+                    "file": "internal/workflows/implementation/implementation.go",
+                    "line": 108
+                  },
+                  "scope": "root/outcome/implementation/task",
+                  "session": "coding",
+                  "context": [
+                    {
+                      "key": "outcomes file",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n3",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "repository",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n4",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "maximum tasks per outcome",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n5",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "completion rule",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n6",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "outcome",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n8",
+                      "scope": "root/outcome"
+                    }
+                  ]
+                },
+                {
+                  "key": "p163479754832e96e",
+                  "id": "n13",
+                  "kind": "NewSession",
+                  "label": "architectural-critique",
+                  "source": {
+                    "file": "internal/workflows/implementation/implementation.go",
+                    "line": 109
+                  },
+                  "scope": "root/outcome/implementation/task",
+                  "session": "architectural-critique",
+                  "context": [
+                    {
+                      "key": "outcomes file",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n3",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "repository",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n4",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "maximum tasks per outcome",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n5",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "completion rule",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n6",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "outcome",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n8",
+                      "scope": "root/outcome"
+                    }
+                  ]
+                },
+                {
+                  "key": "pf1fc3fcedc74a8d0",
+                  "id": "n14",
+                  "kind": "Generate",
+                  "label": "implementationPrompt",
+                  "source": {
+                    "file": "internal/workflows/implementation/implementation.go",
+                    "line": 110
+                  },
+                  "scope": "root/outcome/implementation/task",
+                  "session": "coding",
+                  "prompt": "Read the selected outcome and task with its definition of done. Implement only that task in the repository and gather useful evidence. Do not edit the outcomes file or this workflow; do not commit, push, merge, deploy, or add proof scripts or run output. Preserve unrelated work. Report what changed and what you personally observed.",
+                  "detail": {
+                    "kind": "Generate",
+                    "expression": "worker.Generate[gimbal.Text](taskCtx, implementationPrompt,\n\tgimbal.WithSupervisor(workerCoach, scopePrompt))",
+                    "promptExpression": "implementationPrompt",
+                    "promptKnown": true,
+                    "keyKnown": false,
+                    "contextExpression": "taskCtx",
+                    "contextKnown": true
+                  },
+                  "context": [
+                    {
+                      "key": "outcomes file",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n3",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "repository",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n4",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "maximum tasks per outcome",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n5",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "completion rule",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n6",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "outcome",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n8",
+                      "scope": "root/outcome"
+                    }
+                  ]
+                },
+                {
+                  "key": "pc6562dfc424d8313",
+                  "id": "n15",
+                  "kind": "Set",
+                  "label": "worker report",
+                  "source": {
+                    "file": "internal/workflows/implementation/implementation.go",
+                    "line": 116
+                  },
+                  "scope": "root/outcome/implementation/task",
+                  "detail": {
+                    "kind": "Set",
+                    "expression": "gimbal.Set(taskCtx, \"worker report\", string(workerReport))",
+                    "promptKnown": false,
+                    "keyExpression": "\"worker report\"",
+                    "keyKnown": true,
+                    "valueExpression": "string(workerReport)",
+                    "contextExpression": "taskCtx",
+                    "contextKnown": true,
+                    "shape": {
+                      "type": "string",
+                      "kind": "scalar"
+                    }
+                  },
+                  "context": [
+                    {
+                      "key": "outcomes file",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n3",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "repository",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n4",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "maximum tasks per outcome",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n5",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "completion rule",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n6",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "outcome",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n8",
+                      "scope": "root/outcome"
+                    },
+                    {
+                      "key": "worker report",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n15",
+                      "scope": "root/outcome/implementation/task"
+                    }
+                  ]
+                },
+                {
+                  "key": "p3aca9946ee404b40",
+                  "id": "n16",
+                  "kind": "Condition",
+                  "label": "if / switch",
+                  "source": {
+                    "file": "internal/workflows/implementation/implementation.go",
+                    "line": 118
+                  },
+                  "scope": "root/outcome/implementation/task",
+                  "control": {
+                    "kind": "if",
+                    "code": "if command := strings.TrimSpace(task.Validation.Command); command != \"\" {\n\tif err := gimbal.Check(taskCtx, \"task check\", env.WorkDir, \"sh\", \"-lc\", command); err != nil {\n\t\toperationalErr = err\n\t\tbreak\n\t}\n}",
+                    "actions": [
+                      ""
+                    ]
+                  },
+                  "context": [
+                    {
+                      "key": "outcomes file",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n3",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "repository",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n4",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "maximum tasks per outcome",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n5",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "completion rule",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n6",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "outcome",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n8",
+                      "scope": "root/outcome"
+                    },
+                    {
+                      "key": "worker report",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n15",
+                      "scope": "root/outcome/implementation/task"
+                    }
+                  ],
+                  "children": [
+                    [
+                      {
+                        "key": "p3d4b8d9f101cfa41",
+                        "id": "n17",
+                        "kind": "Command",
+                        "label": "task check",
+                        "source": {
+                          "file": "internal/workflows/implementation/implementation.go",
+                          "line": 119
+                        },
+                        "scope": "root/outcome/implementation/task",
+                        "context": [
+                          {
+                            "key": "outcomes file",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n3",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "repository",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n4",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "maximum tasks per outcome",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n5",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "completion rule",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n6",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "outcome",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n8",
+                            "scope": "root/outcome"
+                          },
+                          {
+                            "key": "worker report",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n15",
+                            "scope": "root/outcome/implementation/task"
+                          }
+                        ],
+                        "note": "Runs a command. Any context it writes is not shown here."
+                      }
+                    ]
+                  ],
+                  "branches": [
+                    {
+                      "key": "p5e5eb6c09325f7cd",
+                      "code": "command := strings.TrimSpace(task.Validation.Command); command != \"\"",
+                      "source": {
+                        "file": "internal/workflows/implementation/implementation.go",
+                        "line": 118
+                      }
+                    }
+                  ],
+                  "branchLabels": [
+                    "command := strings.TrimSpace(task.Validation.Command); command != \"\""
+                  ],
+                  "branchExits": [
+                    false
+                  ]
+                },
+                {
+                  "key": "pf97fd9e3e6e8315c",
+                  "id": "n18",
+                  "kind": "NewSession",
+                  "label": "qa-orchestration",
+                  "source": {
+                    "file": "internal/workflows/implementation/implementation.go",
+                    "line": 125
+                  },
+                  "scope": "root/outcome/implementation/task",
+                  "session": "qa-orchestration",
+                  "context": [
+                    {
+                      "key": "outcomes file",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n3",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "repository",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n4",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "maximum tasks per outcome",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n5",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "completion rule",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n6",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "outcome",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n8",
+                      "scope": "root/outcome"
+                    },
+                    {
+                      "key": "worker report",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n15",
+                      "scope": "root/outcome/implementation/task"
+                    }
+                  ]
+                },
+                {
+                  "key": "p2e23f4d921a72ed4",
+                  "id": "n19",
+                  "kind": "NewSession",
+                  "label": "architectural-critique",
+                  "source": {
+                    "file": "internal/workflows/implementation/implementation.go",
+                    "line": 126
+                  },
+                  "scope": "root/outcome/implementation/task",
+                  "session": "architectural-critique",
+                  "context": [
+                    {
+                      "key": "outcomes file",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n3",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "repository",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n4",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "maximum tasks per outcome",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n5",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "completion rule",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n6",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "outcome",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n8",
+                      "scope": "root/outcome"
+                    },
+                    {
+                      "key": "worker report",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n15",
+                      "scope": "root/outcome/implementation/task"
+                    }
+                  ]
+                },
+                {
+                  "key": "pd09cad709ae3f2ba",
+                  "id": "n20",
+                  "kind": "Generate",
+                  "label": "validationPrompt",
+                  "source": {
+                    "file": "internal/workflows/implementation/implementation.go",
+                    "line": 127
+                  },
+                  "scope": "root/outcome/implementation/task",
+                  "session": "qa-orchestration",
+                  "prompt": "Independently validate the selected task and current outcome. Inspect the repository and recorded evidence, then personally observe behavior that checks alone do not establish. Make no source changes and do not treat the worker report as proof. ValidationPassed is true when the outcome holds at 90–95% with no substantial gap. List optional polish in SmallGaps; list only genuinely unmet requirements or invalid evidence in SubstantialGaps. Do not demand 100% or work from later outcomes.",
+                  "detail": {
+                    "kind": "Generate",
+                    "expression": "validator.Generate[Assessment](taskCtx, validationPrompt,\n\tgimbal.WithSupervisor(validatorCoach, scopePrompt))",
+                    "promptExpression": "validationPrompt",
+                    "promptKnown": true,
+                    "keyKnown": false,
+                    "contextExpression": "taskCtx",
+                    "contextKnown": true
+                  },
+                  "context": [
+                    {
+                      "key": "outcomes file",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n3",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "repository",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n4",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "maximum tasks per outcome",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n5",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "completion rule",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n6",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "outcome",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n8",
+                      "scope": "root/outcome"
+                    },
+                    {
+                      "key": "worker report",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n15",
+                      "scope": "root/outcome/implementation/task"
+                    }
+                  ]
+                },
+                {
+                  "key": "p48cf6d6776516842",
+                  "id": "n21",
+                  "kind": "SetJSON",
+                  "label": "independent assessment",
+                  "source": {
+                    "file": "internal/workflows/implementation/implementation.go",
+                    "line": 133
+                  },
+                  "scope": "root/outcome/implementation/task",
+                  "detail": {
+                    "kind": "SetJSON",
+                    "expression": "gimbal.SetJSON(taskCtx, \"independent assessment\", assessment)",
+                    "promptKnown": false,
+                    "keyExpression": "\"independent assessment\"",
+                    "keyKnown": true,
+                    "valueExpression": "assessment",
+                    "contextExpression": "taskCtx",
+                    "contextKnown": true,
+                    "shape": {
+                      "type": "implementation.Assessment",
+                      "kind": "object",
+                      "fields": [
+                        {
+                          "name": "validation_passed",
+                          "shape": {
+                            "type": "bool",
+                            "kind": "scalar"
+                          },
+                          "tag": "validation_passed"
+                        },
+                        {
+                          "name": "observed",
+                          "shape": {
+                            "type": "string",
+                            "kind": "scalar"
+                          },
+                          "tag": "observed"
+                        },
+                        {
+                          "name": "substantial_gaps",
+                          "shape": {
+                            "type": "[]string",
+                            "kind": "array",
+                            "element": {
+                              "type": "string",
+                              "kind": "scalar"
+                            }
+                          },
+                          "tag": "substantial_gaps"
+                        },
+                        {
+                          "name": "small_gaps",
+                          "shape": {
+                            "type": "[]string",
+                            "kind": "array",
+                            "element": {
+                              "type": "string",
+                              "kind": "scalar"
+                            }
+                          },
+                          "tag": "small_gaps"
+                        }
+                      ]
+                    }
+                  },
+                  "context": [
+                    {
+                      "key": "outcomes file",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n3",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "repository",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n4",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "maximum tasks per outcome",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n5",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "completion rule",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n6",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "outcome",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n8",
+                      "scope": "root/outcome"
+                    },
+                    {
+                      "key": "worker report",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n15",
+                      "scope": "root/outcome/implementation/task"
+                    },
+                    {
+                      "key": "independent assessment",
+                      "shape": {
+                        "type": "implementation.Assessment",
+                        "kind": "object",
+                        "fields": [
+                          {
+                            "name": "validation_passed",
+                            "shape": {
+                              "type": "bool",
+                              "kind": "scalar"
+                            },
+                            "tag": "validation_passed"
+                          },
+                          {
+                            "name": "observed",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "tag": "observed"
+                          },
+                          {
+                            "name": "substantial_gaps",
+                            "shape": {
+                              "type": "[]string",
+                              "kind": "array",
+                              "element": {
+                                "type": "string",
+                                "kind": "scalar"
+                              }
+                            },
+                            "tag": "substantial_gaps"
+                          },
+                          {
+                            "name": "small_gaps",
+                            "shape": {
+                              "type": "[]string",
+                              "kind": "array",
+                              "element": {
+                                "type": "string",
+                                "kind": "scalar"
+                              }
+                            },
+                            "tag": "small_gaps"
+                          }
+                        ]
+                      },
+                      "write": "n21",
+                      "scope": "root/outcome/implementation/task"
+                    }
+                  ]
+                },
+                {
+                  "key": "p8f498fadd697a6ce",
+                  "id": "n22",
+                  "kind": "Condition",
+                  "label": "if / switch",
+                  "source": {
+                    "file": "internal/workflows/implementation/implementation.go",
+                    "line": 134
+                  },
+                  "scope": "root/outcome/implementation/task",
+                  "control": {
+                    "kind": "if",
+                    "code": "if assessment.ValidationPassed \u0026\u0026 len(assessment.SubstantialGaps) == 0 {\n\tcompleted = true\n\tbreak\n}",
+                    "actions": [
+                      "break"
+                    ]
+                  },
+                  "context": [
+                    {
+                      "key": "outcomes file",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n3",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "repository",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n4",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "maximum tasks per outcome",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n5",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "completion rule",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n6",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "outcome",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n8",
+                      "scope": "root/outcome"
+                    },
+                    {
+                      "key": "worker report",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n15",
+                      "scope": "root/outcome/implementation/task"
+                    },
+                    {
+                      "key": "independent assessment",
+                      "shape": {
+                        "type": "implementation.Assessment",
+                        "kind": "object",
+                        "fields": [
+                          {
+                            "name": "validation_passed",
+                            "shape": {
+                              "type": "bool",
+                              "kind": "scalar"
+                            },
+                            "tag": "validation_passed"
+                          },
+                          {
+                            "name": "observed",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "tag": "observed"
+                          },
+                          {
+                            "name": "substantial_gaps",
+                            "shape": {
+                              "type": "[]string",
+                              "kind": "array",
+                              "element": {
+                                "type": "string",
+                                "kind": "scalar"
+                              }
+                            },
+                            "tag": "substantial_gaps"
+                          },
+                          {
+                            "name": "small_gaps",
+                            "shape": {
+                              "type": "[]string",
+                              "kind": "array",
+                              "element": {
+                                "type": "string",
+                                "kind": "scalar"
+                              }
+                            },
+                            "tag": "small_gaps"
+                          }
+                        ]
+                      },
+                      "write": "n21",
+                      "scope": "root/outcome/implementation/task"
+                    }
+                  ],
+                  "children": [
+                    []
+                  ],
+                  "branches": [
+                    {
+                      "key": "p7c9396db11dc44b2",
+                      "code": "assessment.ValidationPassed \u0026\u0026 len(assessment.SubstantialGaps) == 0",
+                      "source": {
+                        "file": "internal/workflows/implementation/implementation.go",
+                        "line": 134
+                      }
+                    }
+                  ],
+                  "branchLabels": [
+                    "assessment.ValidationPassed \u0026\u0026 len(assessment.SubstantialGaps) == 0"
+                  ],
+                  "branchExits": [
+                    true
+                  ]
+                },
+                {
+                  "key": "p8c25bca02f7e2505",
+                  "id": "n23",
+                  "kind": "Condition",
+                  "label": "if / switch",
+                  "source": {
+                    "file": "internal/workflows/implementation/implementation.go",
+                    "line": 138
+                  },
+                  "scope": "root/outcome/implementation/task",
+                  "control": {
+                    "kind": "if",
+                    "code": "if tasksRun \u003e= params.MaxTasksPerOutcome {\n\tbreak\n}",
+                    "actions": [
+                      "break"
+                    ]
+                  },
+                  "context": [
+                    {
+                      "key": "outcomes file",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n3",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "repository",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n4",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "maximum tasks per outcome",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n5",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "completion rule",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n6",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "outcome",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n8",
+                      "scope": "root/outcome"
+                    },
+                    {
+                      "key": "worker report",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n15",
+                      "scope": "root/outcome/implementation/task"
+                    },
+                    {
+                      "key": "independent assessment",
+                      "shape": {
+                        "type": "implementation.Assessment",
+                        "kind": "object",
+                        "fields": [
+                          {
+                            "name": "validation_passed",
+                            "shape": {
+                              "type": "bool",
+                              "kind": "scalar"
+                            },
+                            "tag": "validation_passed"
+                          },
+                          {
+                            "name": "observed",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "tag": "observed"
+                          },
+                          {
+                            "name": "substantial_gaps",
+                            "shape": {
+                              "type": "[]string",
+                              "kind": "array",
+                              "element": {
+                                "type": "string",
+                                "kind": "scalar"
+                              }
+                            },
+                            "tag": "substantial_gaps"
+                          },
+                          {
+                            "name": "small_gaps",
+                            "shape": {
+                              "type": "[]string",
+                              "kind": "array",
+                              "element": {
+                                "type": "string",
+                                "kind": "scalar"
+                              }
+                            },
+                            "tag": "small_gaps"
+                          }
+                        ]
+                      },
+                      "write": "n21",
+                      "scope": "root/outcome/implementation/task"
+                    }
+                  ],
+                  "children": [
+                    []
+                  ],
+                  "branches": [
+                    {
+                      "key": "pf4161e09abf7cb4b",
+                      "code": "tasksRun \u003e= params.MaxTasksPerOutcome",
+                      "source": {
+                        "file": "internal/workflows/implementation/implementation.go",
+                        "line": 138
+                      }
+                    }
+                  ],
+                  "branchLabels": [
+                    "tasksRun \u003e= params.MaxTasksPerOutcome"
+                  ],
+                  "branchExits": [
+                    true
+                  ]
+                }
+              ]
+            ],
+            "note": "Runs this body for each task chosen by the planner. Task data and planner feedback are known when the workflow runs."
+          },
+          {
+            "key": "pf9cf9bd22b637fea",
+            "id": "n24",
+            "kind": "Condition",
+            "label": "if / switch",
+            "source": {
+              "file": "internal/workflows/implementation/implementation.go",
+              "line": 148
+            },
+            "scope": "root/outcome",
+            "control": {
+              "kind": "if",
+              "code": "if !completed {\n\treturn fmt.Errorf(\"outcome %d incomplete after %d tasks\", outcomeNumber, tasksRun)\n}",
+              "actions": [
+                "return fmt.Errorf(\"outcome %d incomplete after %d tasks\", outcomeNumber, tasksRun)"
+              ]
+            },
+            "context": [
+              {
+                "key": "outcomes file",
+                "shape": {
+                  "type": "string",
+                  "kind": "scalar"
+                },
+                "write": "n3",
+                "scope": "root"
+              },
+              {
+                "key": "repository",
+                "shape": {
+                  "type": "string",
+                  "kind": "scalar"
+                },
+                "write": "n4",
+                "scope": "root"
+              },
+              {
+                "key": "maximum tasks per outcome",
+                "shape": {
+                  "type": "string",
+                  "kind": "scalar"
+                },
+                "write": "n5",
+                "scope": "root"
+              },
+              {
+                "key": "completion rule",
+                "shape": {
+                  "type": "string",
+                  "kind": "scalar"
+                },
+                "write": "n6",
+                "scope": "root"
+              },
+              {
+                "key": "outcome",
+                "shape": {
+                  "type": "string",
+                  "kind": "scalar"
+                },
+                "write": "n8",
+                "scope": "root/outcome"
+              }
+            ],
+            "children": [
+              []
+            ],
+            "branches": [
+              {
+                "key": "pdeac656ca58805cc",
+                "code": "!completed",
+                "source": {
+                  "file": "internal/workflows/implementation/implementation.go",
+                  "line": 148
+                }
+              }
+            ],
+            "branchLabels": [
+              "!completed"
+            ],
+            "branchExits": [
+              true
+            ]
+          }
+        ]
+      ],
+      "note": "Runs this body for each item, in its own scope."
+    }
+  ],
+  "diagnostics": [
+    {
+      "source": {
+        "file": "internal/workflows/implementation/implementation.go",
+        "line": 119
+      },
+      "message": "Check writes command evidence under key \"task check\"; that runtime-provided context shape is not projected"
+    }
+  ]
+}

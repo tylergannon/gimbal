@@ -20,7 +20,8 @@
     "src/routes/projects/[project]/+page.server.ts",
     "src/routes/projects/[project]/conversations/+page.server.ts",
     "src/routes/projects/[project]/conversations/[conversationID]/+page.server.ts",
-    "src/routes/projects/[project]/runs/[runID]/+page.server.ts"
+    "src/routes/projects/[project]/runs/[runID]/+page.server.ts",
+    "src/routes/workflows/[workflow]/+page.server.ts"
   ],
   "endpoints": {}
 }

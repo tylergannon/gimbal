@@ -12,15 +12,11 @@
     "verbatimModuleSyntax": true,
     "types": [
       "svelte",
-      "vite/client",
-      "$app/types"
+      "vite/client"
     ]
   },
   "include": [
     "src",
-    "dev",
-    "*.ts",
-    "*.js"
-  ],
-  "extends": "$app/tsconfig"
+    "*.ts"
+  ]
 }

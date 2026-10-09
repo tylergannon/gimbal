@@ -1,0 +1,198 @@
+{
+  "guide": {
+    "summary": "Review asks one reviewer to inspect the repository read-only and record its findings.",
+    "prose": "Package review is a small read-only code review workflow.\n\nUse it to assess a bounded correctness question about an existing repository\nbefore making changes or accepting an implementation. The goal tells the\nreviewer which behavior or files to assess; the working directory supplies\nthe repository to inspect. It does not edit code or create issues or pull requests.\n\nStart a Gimbal instance and authenticate the configured agent harness before\ninvoking the workflow. The Run view lets you choose the review model explicitly.\n\nThe reviewer returns a list of concrete findings, saved as result in the\nworkflow context. An empty list means the reviewer found no correctness issues\nwithin the stated goal. A completed run means the review was recorded, not that\nits findings were resolved. A failed agent turn fails the workflow.\n\nExample:\n\n\tgimbal run review --project /abs/project --goal \"Review the current changes\"",
+    "parameters": [
+      {
+        "name": "Goal",
+        "flag": "goal",
+        "kind": "string",
+        "description": "Goal says what the review should assess.",
+        "required": true
+      }
+    ],
+    "roles": [
+      {
+        "name": "code-review",
+        "default": "gpt-6-luna"
+      }
+    ],
+    "invocation": "gimbal run review --project /abs/project --goal \"Review the current changes\"",
+    "snapshot": "2cceb311893febbe8daf22b4a0c1fe3cc713bfa14835060eb4223213eecd0201"
+  },
+  "name": "review",
+  "entry": "Review",
+  "module": "",
+  "source": {
+    "file": "internal/workflows/review/review.go",
+    "line": 43
+  },
+  "body": [
+    {
+      "key": "p971d979800a25bc4",
+      "id": "n1",
+      "kind": "Set",
+      "label": "goal",
+      "source": {
+        "file": "internal/workflows/review/review.go",
+        "line": 44
+      },
+      "scope": "root",
+      "detail": {
+        "kind": "Set",
+        "expression": "gimbal.Set(ctx, \"goal\", params.Goal)",
+        "promptKnown": false,
+        "keyExpression": "\"goal\"",
+        "keyKnown": true,
+        "valueExpression": "params.Goal",
+        "contextExpression": "ctx",
+        "contextKnown": true,
+        "shape": {
+          "type": "string",
+          "kind": "scalar"
+        }
+      },
+      "context": [
+        {
+          "key": "goal",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n1",
+          "scope": "root"
+        }
+      ]
+    },
+    {
+      "key": "p85505a6cca183ebe",
+      "id": "n2",
+      "kind": "NewSession",
+      "label": "code-review",
+      "source": {
+        "file": "internal/workflows/review/review.go",
+        "line": 45
+      },
+      "scope": "root",
+      "session": "code-review",
+      "context": [
+        {
+          "key": "goal",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n1",
+          "scope": "root"
+        }
+      ]
+    },
+    {
+      "key": "p378af8243a1eff11",
+      "id": "n3",
+      "kind": "Generate",
+      "label": "reviewPrompt",
+      "source": {
+        "file": "internal/workflows/review/review.go",
+        "line": 46
+      },
+      "scope": "root",
+      "session": "code-review",
+      "prompt": "Read the code in your working directory. Assess the goal given below. Report concrete correctness issues; return an empty findings list when there are none. Make no changes.",
+      "detail": {
+        "kind": "Generate",
+        "expression": "reviewer.Generate[Result](ctx, reviewPrompt)",
+        "promptExpression": "reviewPrompt",
+        "promptKnown": true,
+        "keyKnown": false,
+        "contextExpression": "ctx",
+        "contextKnown": true
+      },
+      "context": [
+        {
+          "key": "goal",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n1",
+          "scope": "root"
+        }
+      ]
+    },
+    {
+      "key": "p9087a792862409ff",
+      "id": "n4",
+      "kind": "SetJSON",
+      "label": "result",
+      "source": {
+        "file": "internal/workflows/review/review.go",
+        "line": 50
+      },
+      "scope": "root",
+      "detail": {
+        "kind": "SetJSON",
+        "expression": "gimbal.SetJSON(ctx, \"result\", result)",
+        "promptKnown": false,
+        "keyExpression": "\"result\"",
+        "keyKnown": true,
+        "valueExpression": "result",
+        "contextExpression": "ctx",
+        "contextKnown": true,
+        "shape": {
+          "type": "review.Result",
+          "kind": "object",
+          "fields": [
+            {
+              "name": "findings",
+              "shape": {
+                "type": "[]string",
+                "kind": "array",
+                "element": {
+                  "type": "string",
+                  "kind": "scalar"
+                }
+              },
+              "tag": "findings"
+            }
+          ]
+        }
+      },
+      "context": [
+        {
+          "key": "goal",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n1",
+          "scope": "root"
+        },
+        {
+          "key": "result",
+          "shape": {
+            "type": "review.Result",
+            "kind": "object",
+            "fields": [
+              {
+                "name": "findings",
+                "shape": {
+                  "type": "[]string",
+                  "kind": "array",
+                  "element": {
+                    "type": "string",
+                    "kind": "scalar"
+                  }
+                },
+                "tag": "findings"
+              }
+            ]
+          },
+          "write": "n4",
+          "scope": "root"
+        }
+      ]
+    }
+  ],
+  "diagnostics": []
+}

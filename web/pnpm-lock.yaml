@@ -199,7 +199,7 @@ importers:
         version: 0.5.0(@sveltejs/kit@3.0.0-next.27(@sveltejs/vite-plugin-svelte@7.3.0(@voidzero-dev/vite-plus-core@0.3.1(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(typescript@6.0.3))(svelte@5.57.0))(@voidzero-dev/vite-plus-core@0.3.1(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(typescript@6.0.3))(svelte@5.57.0)(typescript@6.0.3))
       '@storybook/addon-svelte-csf':
         specifier: latest
-        version: 5.1.3(@storybook/svelte@10.6.0(storybook@10.6.0(react@19.3.0)(vite-plus@0.3.1(@types/node@22.20.1)(@vitest/browser-playwright@4.1.11)(esbuild@0.28.2)(jiti@2.7.0)(svelte@5.57.0)(typescript@6.0.3)))(svelte@5.57.0))(@sveltejs/vite-plugin-svelte@7.3.0(@voidzero-dev/vite-plus-core@0.3.1(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(typescript@6.0.3))(svelte@5.57.0))(@voidzero-dev/vite-plus-core@0.3.1(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(typescript@6.0.3))(storybook@10.6.0(react@19.3.0)(vite-plus@0.3.1(@types/node@22.20.1)(@vitest/browser-playwright@4.1.11)(esbuild@0.28.2)(jiti@2.7.0)(svelte@5.57.0)(typescript@6.0.3)))(svelte@5.57.0)
+        version: 5.1.5(@storybook/svelte@10.6.0(storybook@10.6.0(react@19.3.0)(vite-plus@0.3.1(@types/node@22.20.1)(@vitest/browser-playwright@4.1.11)(esbuild@0.28.2)(jiti@2.7.0)(svelte@5.57.0)(typescript@6.0.3)))(svelte@5.57.0))(@sveltejs/vite-plugin-svelte@7.3.0(@voidzero-dev/vite-plus-core@0.3.1(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(typescript@6.0.3))(svelte@5.57.0))(@voidzero-dev/vite-plus-core@0.3.1(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(typescript@6.0.3))(storybook@10.6.0(react@19.3.0)(vite-plus@0.3.1(@types/node@22.20.1)(@vitest/browser-playwright@4.1.11)(esbuild@0.28.2)(jiti@2.7.0)(svelte@5.57.0)(typescript@6.0.3)))(svelte@5.57.0)
       '@storybook/addon-themes':
         specifier: ^10.6.0
         version: 10.6.0(storybook@10.6.0(react@19.3.0)(vite-plus@0.3.1(@types/node@22.20.1)(@vitest/browser-playwright@4.1.11)(esbuild@0.28.2)(jiti@2.7.0)(svelte@5.57.0)(typescript@6.0.3)))
@@ -221,12 +221,18 @@ importers:
       '@vitest/browser-playwright':
         specifier: 'catalog:'
         version: 4.1.11(@voidzero-dev/vite-plus-core@0.3.1(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(typescript@6.0.3))(playwright@1.63.0)(vitest@4.1.11)
+      '@xyflow/svelte':
+        specifier: 1.7.0
+        version: 1.7.0(svelte@5.57.0)
       bits-ui:
         specifier: ^2.19.2
         version: 2.19.2(@internationalized/date@3.12.4)(@sveltejs/kit@3.0.0-next.27(@sveltejs/vite-plugin-svelte@7.3.0(@voidzero-dev/vite-plus-core@0.3.1(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(typescript@6.0.3))(svelte@5.57.0))(@voidzero-dev/vite-plus-core@0.3.1(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(typescript@6.0.3))(svelte@5.57.0)(typescript@6.0.3))(svelte@5.57.0)
       cn:
         specifier: ^0.3.0
         version: 0.3.0
+      elkjs:
+        specifier: 0.12.0
+        version: 0.12.0
       playwright:
         specifier: ^1.60.0
         version: 1.63.0
@@ -1036,8 +1042,8 @@ packages:
   '@standard-schema/spec@1.1.0':
     resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
 
-  '@storybook/addon-svelte-csf@5.1.3':
-    resolution: {integrity: sha512-WD9bVaimpxwRE+f89vBMvw3pWKe8xDUW4jHeZbVPB0zSpH+7Ad/rFQ1oiAklswiVYwF/NXvnC7SZ4V+UXhngLg==}
+  '@storybook/addon-svelte-csf@5.1.5':
+    resolution: {integrity: sha512-lYc9tyFIowXtd/hlapngtGhw6YUZMSU5KezHqJl84lRkahsNtmtqHl/mJjRRJG2ZQIWgw6xBUi4PvVvTxPwqzQ==}
     peerDependencies:
       '@storybook/svelte': ^0.0.0-0 || ^8.2.0 || ^9.0.0 || ^9.1.0-0 || ^10.0.0-0 || ^10.1.0-0 || ^10.2.0-0 || ^10.3.0-0 || ^10.4.0-0 || ^10.5.0-0 || ^10.6.0-0 || ^11.0.0-0
       '@sveltejs/vite-plugin-svelte': ^4.0.0 || ^5.0.0 || ^6.0.0 || ^7.0.0
@@ -1087,6 +1093,11 @@ packages:
       storybook: ^10.6.0
       svelte: ^5.0.0
       vite: ^5.0.0 || ^6.0.0 || ^7.0.0 || ^8.0.0
+
+  '@svelte-put/shortcut@4.2.0':
+    resolution: {integrity: sha512-hqNLo4yEc++SLgAkZUvuwMxIAsii9qjQtTuzfcYVf3xRxa+0HFcfaWFK7LdU3l+15s9SYVNbPB0qQj9CHFqSuw==}
+    peerDependencies:
+      svelte: ^5.1.0
 
   '@sveltejs/acorn-typescript@1.0.13':
     resolution: {integrity: sha512-wgKggnhZVL9Bfx1OaKKTrYY9BFRk6C8UAkQNUcIv1+llzYrIqy+RZm5HPKzn0NpEBvTVhTqB4kQyllZywsRBRQ==}
@@ -1245,6 +1256,24 @@ packages:
 
   '@types/chai@5.2.3':
     resolution: {integrity: sha512-Mw558oeA9fFbv65/y4mHtXDs9bPnFMZAL/jxdPFUpOHHIXX91mcgEHbS5Lahr+pwZFR8A7GQleRWeI6cGFC2UA==}
+
+  '@types/d3-color@3.1.3':
+    resolution: {integrity: sha512-iO90scth9WAbmgv7ogoq57O9YpKmFBbmoEoCHDB2xMBY0+/KVrqAaCDyCE16dUspeOvIxFFRI+0sEtqDqy2b4A==}
+
+  '@types/d3-drag@3.0.7':
+    resolution: {integrity: sha512-HE3jVKlzU9AaMazNufooRJ5ZpWmLIoc90A37WU2JMmeq28w1FQqCZswHZ3xR+SuxYftzHq6WU6KJHvqxKzTxxQ==}
+
+  '@types/d3-interpolate@3.0.4':
+    resolution: {integrity: sha512-mgLPETlrpVV1YRJIglr4Ez47g7Yxjl1lj7YKsiMCb27VJH9W8NVM6Bb9d8kkpG/uAQS5AmbA48q2IAolKKo1MA==}
+
+  '@types/d3-selection@3.0.12':
+    resolution: {integrity: sha512-Qe/KWYhEiIIxGs7HrAAjMfShxKldx19SJtr5zu53f3afPsdZNz7HHtdTLXo/kqeiWNXVycI24kSnfzBYkTzpgw==}
+
+  '@types/d3-transition@3.0.9':
+    resolution: {integrity: sha512-uZS5shfxzO3rGlu0cC3bjmMFKsXv+SmZZcgp0KD22ts4uGXp5EVYGzu/0YdwZeKmddhcAccYtREJKkPfXkZuCg==}
+
+  '@types/d3-zoom@3.0.9':
+    resolution: {integrity: sha512-0sE1406XBYJGiqD3AusTl9ZqC//2mIXix51tbom25gDCA8ri4xnSZg28CaSE8Srl6FClqABUKfsn0qghgdepMA==}
 
   '@types/deep-eql@4.0.2':
     resolution: {integrity: sha512-c9h9dVVMigMPc4bwTvC5dxqtqJZwQPePsWjPlpSOnojbor6pGqdk541lfA7AqFQr5pB1BRdq0juY9db81BwyFw==}
@@ -1423,6 +1452,14 @@ packages:
 
   '@webcontainer/env@1.1.1':
     resolution: {integrity: sha512-6aN99yL695Hi9SuIk1oC88l9o0gmxL1nGWWQ/kNy81HigJ0FoaoTXpytCj6ItzgyCEwA9kF1wixsTuv5cjsgng==}
+
+  '@xyflow/svelte@1.7.0':
+    resolution: {integrity: sha512-Q80coEUlaf/x20dMtTZYd5VinJrkqr8H5sS2zp7rFS6RmHF8JB5akV6Qy5mvIb23tWfHPS3hMovbbzN6u/4ppw==}
+    peerDependencies:
+      svelte: ^5.25.0
+
+  '@xyflow/system@0.0.83':
+    resolution: {integrity: sha512-a//eDjez3WZF47aaPTfVUDD0OINOq+WVwBZCRTqG+m0a5euX8EwlJ4jMY1Wxz0Ocj4xOeekJ70V22Pq0ll8RJw==}
 
   '@yuku-codegen/binding-android-arm64@0.9.5':
     resolution: {integrity: sha512-jrOY5WM+AaAqkv51fHP1x28ifto4WgcZVzodLUyMU1jMWn5Sq+VciRdk/n8E0Ey5w4p4cWWE+m5GfXWOYh7Kzw==}
@@ -1641,6 +1678,44 @@ packages:
   css.escape@1.5.1:
     resolution: {integrity: sha512-YUifsXXuknHlUsmlgyY0PKzgPOr7/FjCePfHNt0jxm83wHZi44VDMQ7/fGNkjY3/jV1MC+1CmZbaHzugyeRtpg==}
 
+  d3-color@3.1.0:
+    resolution: {integrity: sha512-zg/chbXyeBtMQ1LbD/WSoW2DpC3I0mpmPdW+ynRTj/x2DAWYrIY7qeZIHidozwV24m4iavr15lNwIwLxRmOxhA==}
+    engines: {node: '>=12'}
+
+  d3-dispatch@3.0.1:
+    resolution: {integrity: sha512-rzUyPU/S7rwUflMyLc1ETDeBj0NRuHKKAcvukozwhshr6g6c5d8zh4c2gQjY2bZ0dXeGLWc1PF174P2tVvKhfg==}
+    engines: {node: '>=12'}
+
+  d3-drag@3.0.0:
+    resolution: {integrity: sha512-pWbUJLdETVA8lQNJecMxoXfH6x+mO2UQo8rSmZ+QqxcbyA3hfeprFgIT//HW2nlHChWeIIMwS2Fq+gEARkhTkg==}
+    engines: {node: '>=12'}
+
+  d3-ease@3.0.1:
+    resolution: {integrity: sha512-wR/XK3D3XcLIZwpbvQwQ5fK+8Ykds1ip7A2Txe0yxncXSdq1L9skcG7blcedkOX+ZcgxGAmLX1FrRGbADwzi0w==}
+    engines: {node: '>=12'}
+
+  d3-interpolate@3.0.1:
+    resolution: {integrity: sha512-3bYs1rOD33uo8aqJfKP3JWPAibgw8Zm2+L9vBKEHJ2Rg+viTR7o5Mmv5mZcieN+FRYaAOWX5SJATX6k1PWz72g==}
+    engines: {node: '>=12'}
+
+  d3-selection@3.0.0:
+    resolution: {integrity: sha512-fmTRWbNMmsmWq6xJV8D19U/gw/bwrHfNXxrIN+HfZgnzqTHp9jOmKMhsTUjXOJnZOdZY9Q28y4yebKzqDKlxlQ==}
+    engines: {node: '>=12'}
+
+  d3-timer@3.0.1:
+    resolution: {integrity: sha512-ndfJ/JxxMd3nw31uyKoY2naivF+r29V+Lc0svZxe1JvvIRmi8hUsrMvdOwgS1o6uBHmiz91geQ0ylPP0aj1VUA==}
+    engines: {node: '>=12'}
+
+  d3-transition@3.0.1:
+    resolution: {integrity: sha512-ApKvfjsSR6tg06xrL434C0WydLr7JewBB3V+/39RMHsaXTOG0zmt/OAXeng5M5LBm0ojmxJrpomQVZ1aPvBL4w==}
+    engines: {node: '>=12'}
+    peerDependencies:
+      d3-selection: 2 - 3
+
+  d3-zoom@3.0.0:
+    resolution: {integrity: sha512-b8AmV3kfQaqWAuacbPuNbL6vahnOJflOhexLzMMNLga62+/nh0JzvJ0aO/5a5MVgUFGS7Hu1P9P03o3fJkDCyw==}
+    engines: {node: '>=12'}
+
   dedent-js@1.0.1:
     resolution: {integrity: sha512-OUepMozQULMLUmhxS95Vudo0jb0UchLimi3+pQ2plj61Fcy8axbP9hbiD4Sz6DPqn6XG3kfmziVfQ1rSys5AJQ==}
 
@@ -1688,6 +1763,9 @@ packages:
 
   dom-accessibility-api@0.6.3:
     resolution: {integrity: sha512-7ZgogeTnjuHbo+ct10G9Ffp0mif17idi0IyWNVA/wcwcm7NPOD/WEHVP3n7n3MhXqxoIYm8d6MuZohYWIZ4T3w==}
+
+  elkjs@0.12.0:
+    resolution: {integrity: sha512-YZcKynxVxYoKIOEpywEPwCFdg+BTbxQRNf3pbwdDCvc8O3kQD8bmIwSxKU1eOTVc4Xo+VG9Te+575mlfvOrhEQ==}
 
   enhanced-resolve@5.25.1:
     resolution: {integrity: sha512-nGXts5znJzmWPu+mIE9izCOzdg63oJca2mDzGWWTth7sr4aCToKcoyFVBQwN75Ij5Pf6p510EwkTqViTRzDV+w==}
@@ -2827,7 +2905,7 @@ snapshots:
 
   '@standard-schema/spec@1.1.0': {}
 
-  '@storybook/addon-svelte-csf@5.1.3(@storybook/svelte@10.6.0(storybook@10.6.0(react@19.3.0)(vite-plus@0.3.1(@types/node@22.20.1)(@vitest/browser-playwright@4.1.11)(esbuild@0.28.2)(jiti@2.7.0)(svelte@5.57.0)(typescript@6.0.3)))(svelte@5.57.0))(@sveltejs/vite-plugin-svelte@7.3.0(@voidzero-dev/vite-plus-core@0.3.1(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(typescript@6.0.3))(svelte@5.57.0))(@voidzero-dev/vite-plus-core@0.3.1(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(typescript@6.0.3))(storybook@10.6.0(react@19.3.0)(vite-plus@0.3.1(@types/node@22.20.1)(@vitest/browser-playwright@4.1.11)(esbuild@0.28.2)(jiti@2.7.0)(svelte@5.57.0)(typescript@6.0.3)))(svelte@5.57.0)':
+  '@storybook/addon-svelte-csf@5.1.5(@storybook/svelte@10.6.0(storybook@10.6.0(react@19.3.0)(vite-plus@0.3.1(@types/node@22.20.1)(@vitest/browser-playwright@4.1.11)(esbuild@0.28.2)(jiti@2.7.0)(svelte@5.57.0)(typescript@6.0.3)))(svelte@5.57.0))(@sveltejs/vite-plugin-svelte@7.3.0(@voidzero-dev/vite-plus-core@0.3.1(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(typescript@6.0.3))(svelte@5.57.0))(@voidzero-dev/vite-plus-core@0.3.1(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(typescript@6.0.3))(storybook@10.6.0(react@19.3.0)(vite-plus@0.3.1(@types/node@22.20.1)(@vitest/browser-playwright@4.1.11)(esbuild@0.28.2)(jiti@2.7.0)(svelte@5.57.0)(typescript@6.0.3)))(svelte@5.57.0)':
     dependencies:
       '@storybook/csf': 0.1.13
       '@storybook/svelte': 10.6.0(storybook@10.6.0(react@19.3.0)(vite-plus@0.3.1(@types/node@22.20.1)(@vitest/browser-playwright@4.1.11)(esbuild@0.28.2)(jiti@2.7.0)(svelte@5.57.0)(typescript@6.0.3)))(svelte@5.57.0)
@@ -2894,6 +2972,10 @@ snapshots:
       vite: '@voidzero-dev/vite-plus-core@0.3.1(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(typescript@6.0.3)'
     transitivePeerDependencies:
       - '@sveltejs/vite-plugin-svelte'
+
+  '@svelte-put/shortcut@4.2.0(svelte@5.57.0)':
+    dependencies:
+      svelte: 5.57.0
 
   '@sveltejs/acorn-typescript@1.0.13(acorn@8.18.0)':
     dependencies:
@@ -3037,6 +3119,27 @@ snapshots:
     dependencies:
       '@types/deep-eql': 4.0.2
       assertion-error: 2.0.1
+
+  '@types/d3-color@3.1.3': {}
+
+  '@types/d3-drag@3.0.7':
+    dependencies:
+      '@types/d3-selection': 3.0.12
+
+  '@types/d3-interpolate@3.0.4':
+    dependencies:
+      '@types/d3-color': 3.1.3
+
+  '@types/d3-selection@3.0.12': {}
+
+  '@types/d3-transition@3.0.9':
+    dependencies:
+      '@types/d3-selection': 3.0.12
+
+  '@types/d3-zoom@3.0.9':
+    dependencies:
+      '@types/d3-interpolate': 3.0.4
+      '@types/d3-selection': 3.0.12
 
   '@types/deep-eql@4.0.2': {}
 
@@ -3200,6 +3303,24 @@ snapshots:
 
   '@webcontainer/env@1.1.1': {}
 
+  '@xyflow/svelte@1.7.0(svelte@5.57.0)':
+    dependencies:
+      '@svelte-put/shortcut': 4.2.0(svelte@5.57.0)
+      '@xyflow/system': 0.0.83
+      svelte: 5.57.0
+
+  '@xyflow/system@0.0.83':
+    dependencies:
+      '@types/d3-drag': 3.0.7
+      '@types/d3-interpolate': 3.0.4
+      '@types/d3-selection': 3.0.12
+      '@types/d3-transition': 3.0.9
+      '@types/d3-zoom': 3.0.9
+      d3-drag: 3.0.0
+      d3-interpolate: 3.0.1
+      d3-selection: 3.0.0
+      d3-zoom: 3.0.0
+
   '@yuku-codegen/binding-android-arm64@0.9.5':
     optional: true
 
@@ -3339,6 +3460,42 @@ snapshots:
 
   css.escape@1.5.1: {}
 
+  d3-color@3.1.0: {}
+
+  d3-dispatch@3.0.1: {}
+
+  d3-drag@3.0.0:
+    dependencies:
+      d3-dispatch: 3.0.1
+      d3-selection: 3.0.0
+
+  d3-ease@3.0.1: {}
+
+  d3-interpolate@3.0.1:
+    dependencies:
+      d3-color: 3.1.0
+
+  d3-selection@3.0.0: {}
+
+  d3-timer@3.0.1: {}
+
+  d3-transition@3.0.1(d3-selection@3.0.0):
+    dependencies:
+      d3-color: 3.1.0
+      d3-dispatch: 3.0.1
+      d3-ease: 3.0.1
+      d3-interpolate: 3.0.1
+      d3-selection: 3.0.0
+      d3-timer: 3.0.1
+
+  d3-zoom@3.0.0:
+    dependencies:
+      d3-dispatch: 3.0.1
+      d3-drag: 3.0.0
+      d3-interpolate: 3.0.1
+      d3-selection: 3.0.0
+      d3-transition: 3.0.1(d3-selection@3.0.0)
+
   dedent-js@1.0.1: {}
 
   dedent@1.7.2: {}
@@ -3365,6 +3522,8 @@ snapshots:
   dom-accessibility-api@0.5.16: {}
 
   dom-accessibility-api@0.6.3: {}
+
+  elkjs@0.12.0: {}
 
   enhanced-resolve@5.25.1:
     dependencies:

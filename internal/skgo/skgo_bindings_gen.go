@@ -9,10 +9,11 @@ import (
 	"github.com/tylergannon/skgo"
 
 	skgo0 "github.com/tylergannon/gimbal/internal/skgo/links/onzggl3sn52xizlt"
-	skgo1 "github.com/tylergannon/gimbal/internal/skgo/links/onzggl3sn52xizltf5yhe33kmvrxi4zplnyhe33kmvrxixi"
-	skgo2 "github.com/tylergannon/gimbal/internal/skgo/links/onzggl3sn52xizltf5yhe33kmvrxi4zplnyhe33kmvrxixjpmnxw45tfojzwc5djn5xhg"
-	skgo3 "github.com/tylergannon/gimbal/internal/skgo/links/onzggl3sn52xizltf5yhe33kmvrxi4zplnyhe33kmvrxixjpmnxw45tfojzwc5djn5xhgl23mnxw45tfojzwc5djn5xesrc5"
-	skgo5 "github.com/tylergannon/gimbal/internal/skgo/links/onzggl3sn52xizltf5yhe33kmvrxi4zplnyhe33kmvrxixjpoj2w44zplnzhk3sjiroq"
+	skgo1 "github.com/tylergannon/gimbal/internal/skgo/links/onzggl3sn52xizltf53w64tlmzwg653tf5nxo33snntgy33xlu"
+	skgo2 "github.com/tylergannon/gimbal/internal/skgo/links/onzggl3sn52xizltf5yhe33kmvrxi4zplnyhe33kmvrxixi"
+	skgo3 "github.com/tylergannon/gimbal/internal/skgo/links/onzggl3sn52xizltf5yhe33kmvrxi4zplnyhe33kmvrxixjpmnxw45tfojzwc5djn5xhg"
+	skgo4 "github.com/tylergannon/gimbal/internal/skgo/links/onzggl3sn52xizltf5yhe33kmvrxi4zplnyhe33kmvrxixjpmnxw45tfojzwc5djn5xhgl23mnxw45tfojzwc5djn5xesrc5"
+	skgo6 "github.com/tylergannon/gimbal/internal/skgo/links/onzggl3sn52xizltf5yhe33kmvrxi4zplnyhe33kmvrxixjpoj2w44zplnzhk3sjiroq"
 	skgotp0 "github.com/tylergannon/gimbal/web/src"
 )
 
@@ -444,7 +445,7 @@ func load_page(ctx context.Context) (any, error) {
 // hold a skgo.Deferred, and `Promise<T>` is not a projection of any Go
 // type, so the value is encoded where a promise can still be recognised.
 func load_projects_project_page(ctx context.Context) (any, error) {
-	return skgo1.Skgo_load(ctx)
+	return skgo2.Skgo_load(ctx)
 }
 
 // load_projects_project_conversations_page answers src/routes/projects/[project]/conversations/+page.server.ts.
@@ -453,7 +454,7 @@ func load_projects_project_page(ctx context.Context) (any, error) {
 // hold a skgo.Deferred, and `Promise<T>` is not a projection of any Go
 // type, so the value is encoded where a promise can still be recognised.
 func load_projects_project_conversations_page(ctx context.Context) (any, error) {
-	return skgo2.Skgo_Load(ctx)
+	return skgo3.Skgo_Load(ctx)
 }
 
 // load_projects_project_conversations_conversationID_page answers src/routes/projects/[project]/conversations/[conversationID]/+page.server.ts.
@@ -462,7 +463,7 @@ func load_projects_project_conversations_page(ctx context.Context) (any, error) 
 // hold a skgo.Deferred, and `Promise<T>` is not a projection of any Go
 // type, so the value is encoded where a promise can still be recognised.
 func load_projects_project_conversations_conversationID_page(ctx context.Context) (any, error) {
-	return skgo3.Skgo_Load(ctx)
+	return skgo4.Skgo_Load(ctx)
 }
 
 // load_projects_project_runs_runID_page answers src/routes/projects/[project]/runs/[runID]/+page.server.ts.
@@ -471,7 +472,16 @@ func load_projects_project_conversations_conversationID_page(ctx context.Context
 // hold a skgo.Deferred, and `Promise<T>` is not a projection of any Go
 // type, so the value is encoded where a promise can still be recognised.
 func load_projects_project_runs_runID_page(ctx context.Context) (any, error) {
-	return skgo5.Skgo_load(ctx)
+	return skgo6.Skgo_load(ctx)
+}
+
+// load_workflows_workflow_page answers src/routes/workflows/[workflow]/+page.server.ts.
+//
+// A load's result is the one value no generated encoder produces: it may
+// hold a skgo.Deferred, and `Promise<T>` is not a projection of any Go
+// type, so the value is encoded where a promise can still be recognised.
+func load_workflows_workflow_page(ctx context.Context) (any, error) {
+	return skgo1.Skgo_load(ctx)
 }
 
 // Loads returns every server load declared in the app, ready to hand to
@@ -483,6 +493,7 @@ func Loads() []*skgo.ServerLoad {
 		skgo.NewServerLoad(skgo.LoadSpec{Module: "src/routes/projects/[project]/conversations/+page.server.ts", Run: load_projects_project_conversations_page}),
 		skgo.NewServerLoad(skgo.LoadSpec{Module: "src/routes/projects/[project]/conversations/[conversationID]/+page.server.ts", Run: load_projects_project_conversations_conversationID_page}),
 		skgo.NewServerLoad(skgo.LoadSpec{Module: "src/routes/projects/[project]/runs/[runID]/+page.server.ts", Run: load_projects_project_runs_runID_page}),
+		skgo.NewServerLoad(skgo.LoadSpec{Module: "src/routes/workflows/[workflow]/+page.server.ts", Run: load_workflows_workflow_page}),
 	}
 }
 

@@ -290,6 +290,7 @@ type viewNode struct {
 	Note         string             `json:"note,omitempty"`
 }
 type sourcePage struct {
+	Guide       *workflowGuide        `json:"guide,omitempty"`
 	Name        string                `json:"name"`
 	Entry       string                `json:"entry"`
 	Module      string                `json:"module"`
@@ -518,11 +519,18 @@ func (b *pageBuilder) body(ops []workflow.Operation, initial []contextField, sco
 
 func sourceInspection(dir, entry, name, output string) error {
 	d := &inspectionData{}
-	g, _, err := extractInspected(dir, entry, name, nil, false, d)
+	withGuide := strings.HasSuffix(output, ".page.json")
+	g, info, err := extractInspected(dir, entry, name, nil, withGuide, d)
 	if err != nil {
 		return err
 	}
 	p := inspectGraph(g, entry, d)
+	if withGuide {
+		p, err = pageGuide(p, info, g.Roles(), nil)
+		if err != nil {
+			return err
+		}
+	}
 	data, err := json.Marshal(p)
 	if err != nil {
 		return err

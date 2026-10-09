@@ -1,0 +1,2864 @@
+{
+  "guide": {
+    "summary": "ValidateProduct runs user workloads, checks their screenshots, and triages findings.",
+    "prose": "Package validateproduct runs practical user testing: up to three independent\nworkloads in parallel, one screenshot review, then one synthesis/issue-triage\nturn. It is a focus group, not an exhaustive feature checklist or source review.\nTesters never inspect the implementation source of the product under test (A).\nIf A does work on a second project (B), B's source is permitted but the tester\nshould normally rely on A to do that work.\n\nSupply a JSON/YAML suite with product, guides (local user-documentation files),\noutput_dir, and one to three workloads. Each workload has name, assignment_file\n(local task/issue text and allowed actions), an existing isolated workdir, url,\nand optional foreground start and ready shell commands. Prepare/build the desired\nproduct version before invocation. Existing targets are not stopped. A start\ncommand requires ready, polled for at most 30 seconds. For a CLI-only product,\nstart a loopback terminal such as GoTTY and supply its URL. Testers may use shell\ncommands as ordinary users, including invoking Gimbal to delegate work on B.\n\nThe three tester slots are explicit; unused slots do nothing. The caller assigns\nworkloads; no planner invents work or retries failures. Each tester saves ordered,\ncaptioned screenshots and reports task outcome. One follow-up on the same session\nasks for its three favorite and least favorite aspects of UX and UI separately,\nappended to user-report.md. Elapsed time covers the task, excluding this debrief.\nVideo records the browser for optional human review; agents do not analyze it.\nAfter recording stops, ffmpeg makes a 2.5x H.264 MP4 capped at 1280x720 for\nbrowser playback and upload with gimbal upload-artifact.\nGemini Flash opens screenshots to check readability and claims, not to repeat the workload.\nThe final agent reads all reports, deduplicates findings against existing GitHub\nissues, uploads supporting screenshots, and opens actionable issues in the\nrequired issue_repo (owner/repository). Product defects are findings, not\nworkflow execution errors; failed agent turns remain execution errors.\n\nPrerequisites: authenticated harnesses, playwright-cli and its installed browser,\nffmpeg with libx264,\nauthenticated gh, and a configured gimbal upload-artifact destination.\nplaywright_cli can override the driver's executable path. timeout defaults\nto 1h. All paths resolve from the suite file. Output is a unique\nuser-testing-* directory containing reports.json,\nper-tester user-report.md, screenshots, raw video.webm and processed video.mp4,\nvisual-review.md and\nfindings.md. Elapsed time is measured by the workflow. The final command/run\nstatus includes cleanup errors; files alone do not certify run completion.\nBounded browser cleanup runs outside cancellation; hard kills cannot guarantee it.\n\nRoles: product-operation defaults to Claude Opus 5.5, product-visual-review to\nGemini Flash, and product-triage to GPT-6 Astra. Each has its model override flag.\n\nExample:\n\n\tgimbal run validate-product --suite-file /abs/user-testing.yaml --instance-dir /abs/instance --project /abs/project",
+    "parameters": [
+      {
+        "name": "SuiteFile",
+        "flag": "suite-file",
+        "kind": "string",
+        "description": "SuiteFile names the JSON/YAML product, local workload assignments, and issue repository.",
+        "required": true
+      }
+    ],
+    "roles": [
+      {
+        "name": "product-operation",
+        "default": "claude-opus-5-5:high"
+      },
+      {
+        "name": "product-visual-review",
+        "default": "gemini-3.8-flash-medium"
+      },
+      {
+        "name": "product-triage",
+        "default": "gpt-6-astra:high"
+      }
+    ],
+    "invocation": "gimbal run validate-product --suite-file /abs/user-testing.yaml --instance-dir /abs/instance --project /abs/project",
+    "snapshot": "4e6979a58a247cde34d367953ba80b93bb39e40399981d741f92a67984c5d596"
+  },
+  "name": "validate-product",
+  "entry": "ValidateProduct",
+  "module": "",
+  "source": {
+    "file": "internal/workflows/validateproduct/validateproduct.go",
+    "line": 81
+  },
+  "body": [
+    {
+      "key": "pb0261fe7e9cb0839",
+      "title": "Prepare the browsers",
+      "description": "Start each product and open a recorded browser for its assigned workload.",
+      "id": "n1",
+      "kind": "Repeat",
+      "label": "i, w := range suite.Workloads",
+      "source": {
+        "file": "internal/workflows/validateproduct/validateproduct.go",
+        "line": 146
+      },
+      "scope": "root",
+      "control": {
+        "code": "for i, w := range suite.Workloads {\n\tif err := os.MkdirAll(dirs[i], 0755); err != nil {\n\t\treturn err\n\t}\n\n\tif w.Start != \"\" {\n\n\t\tif err := gimbal.Service(ctx, \"product\", w.Workdir, w.Start); err != nil {\n\t\t\treturn err\n\t\t}\n\t}\n\n\tif w.Ready != \"\" {\n\t\tready, stop := context.WithTimeout(ctx, 30*time.Second)\n\n\t\tcode, _, stderr, err := gimbal.RunCommand(ready, \"readiness\", w.Workdir, \"zsh\", \"-c\", \"until ( \"+w.Ready+\"\\n); do sleep 0.25; done\")\n\t\tstop()\n\n\t\tif err != nil || code != 0 {\n\t\t\treturn fmt.Errorf(\"%s readiness: %w\", w.Name, errors.Join(err, fmt.Errorf(\"exit %d: %s\", code, stderr)))\n\t\t}\n\t}\n\topened[i], recording[i] = true, true\n\tbrowser := shellQuote(driver) + \" -s=\" + shellQuote(names[i])\n\n\tcode, _, stderr, err := gimbal.RunCommand(ctx, \"record-browser\", dirs[i], \"zsh\", \"-c\", browser+\" open about:blank \u0026\u0026 \"+browser+\" video-start \"+shellQuote(filepath.Join(dirs[i], \"video.webm\"))+\" --cursor \u0026\u0026 \"+browser+\" goto \"+shellQuote(w.URL))\n\n\tif err != nil || code != 0 {\n\t\treturn fmt.Errorf(\"%s browser: %w\", w.Name, errors.Join(err, fmt.Errorf(\"exit %d: %s\", code, stderr)))\n\t}\n}"
+      },
+      "context": [],
+      "children": [
+        [
+          {
+            "key": "p1fac8ed77b6cf9d0",
+            "title": "Start command?",
+            "description": "Start the product only when this workload provides a command.",
+            "id": "n2",
+            "kind": "Condition",
+            "label": "if / switch",
+            "source": {
+              "file": "internal/workflows/validateproduct/validateproduct.go",
+              "line": 153
+            },
+            "scope": "root",
+            "control": {
+              "kind": "if",
+              "code": "if w.Start != \"\" {\n\n\tif err := gimbal.Service(ctx, \"product\", w.Workdir, w.Start); err != nil {\n\t\treturn err\n\t}\n}",
+              "actions": [
+                ""
+              ]
+            },
+            "context": [],
+            "children": [
+              [
+                {
+                  "key": "p24681c4efe3a49dd",
+                  "title": "Start the product",
+                  "id": "n3",
+                  "kind": "Service",
+                  "label": "product",
+                  "source": {
+                    "file": "internal/workflows/validateproduct/validateproduct.go",
+                    "line": 155
+                  },
+                  "scope": "root",
+                  "detail": {
+                    "kind": "Service",
+                    "expression": "gimbal.Service(ctx, \"product\", w.Workdir, w.Start)",
+                    "promptKnown": false,
+                    "keyKnown": false,
+                    "contextExpression": "ctx",
+                    "contextKnown": true
+                  },
+                  "context": []
+                }
+              ]
+            ],
+            "branches": [
+              {
+                "key": "p78fa11bbb62744b1",
+                "label": "Command provided",
+                "code": "w.Start != \"\"",
+                "source": {
+                  "file": "internal/workflows/validateproduct/validateproduct.go",
+                  "line": 153
+                },
+                "title": "Start command?",
+                "description": "Start the product only when this workload provides a command."
+              }
+            ],
+            "branchLabels": [
+              "w.Start != \"\""
+            ],
+            "branchExits": [
+              false
+            ]
+          },
+          {
+            "key": "pbf11d57b7d0b2667",
+            "title": "Readiness check?",
+            "description": "Wait for the product when this workload provides a readiness check.",
+            "id": "n4",
+            "kind": "Condition",
+            "label": "if / switch",
+            "source": {
+              "file": "internal/workflows/validateproduct/validateproduct.go",
+              "line": 162
+            },
+            "scope": "root",
+            "control": {
+              "kind": "if",
+              "code": "if w.Ready != \"\" {\n\tready, stop := context.WithTimeout(ctx, 30*time.Second)\n\n\tcode, _, stderr, err := gimbal.RunCommand(ready, \"readiness\", w.Workdir, \"zsh\", \"-c\", \"until ( \"+w.Ready+\"\\n); do sleep 0.25; done\")\n\tstop()\n\n\tif err != nil || code != 0 {\n\t\treturn fmt.Errorf(\"%s readiness: %w\", w.Name, errors.Join(err, fmt.Errorf(\"exit %d: %s\", code, stderr)))\n\t}\n}",
+              "actions": [
+                ""
+              ]
+            },
+            "context": [],
+            "children": [
+              [
+                {
+                  "key": "p323482ee9db11af7",
+                  "title": "Wait until ready",
+                  "id": "n5",
+                  "kind": "Command",
+                  "label": "readiness",
+                  "source": {
+                    "file": "internal/workflows/validateproduct/validateproduct.go",
+                    "line": 165
+                  },
+                  "scope": "root",
+                  "context": [],
+                  "note": "Runs a command. Any context it writes is not shown here."
+                },
+                {
+                  "key": "p0e6c96954fc55a99",
+                  "title": "Readiness check failed?",
+                  "id": "n6",
+                  "kind": "Condition",
+                  "label": "if / switch",
+                  "source": {
+                    "file": "internal/workflows/validateproduct/validateproduct.go",
+                    "line": 169
+                  },
+                  "scope": "root",
+                  "control": {
+                    "kind": "if",
+                    "code": "if err != nil || code != 0 {\n\treturn fmt.Errorf(\"%s readiness: %w\", w.Name, errors.Join(err, fmt.Errorf(\"exit %d: %s\", code, stderr)))\n}",
+                    "actions": [
+                      "return fmt.Errorf(\"%s readiness: %w\", w.Name, errors.Join(err, fmt.Errorf(\"exit %d: %s\", code, stderr)))"
+                    ]
+                  },
+                  "context": [],
+                  "children": [
+                    []
+                  ],
+                  "branches": [
+                    {
+                      "key": "p2af361abacece023",
+                      "label": "Check failed",
+                      "code": "err != nil || code != 0",
+                      "source": {
+                        "file": "internal/workflows/validateproduct/validateproduct.go",
+                        "line": 169
+                      },
+                      "title": "Readiness check failed?"
+                    }
+                  ],
+                  "branchLabels": [
+                    "err != nil || code != 0"
+                  ],
+                  "branchExits": [
+                    true
+                  ]
+                }
+              ]
+            ],
+            "branches": [
+              {
+                "key": "p3fc815685cefb529",
+                "label": "Check provided",
+                "code": "w.Ready != \"\"",
+                "source": {
+                  "file": "internal/workflows/validateproduct/validateproduct.go",
+                  "line": 162
+                },
+                "title": "Readiness check?",
+                "description": "Wait for the product when this workload provides a readiness check."
+              }
+            ],
+            "branchLabels": [
+              "w.Ready != \"\""
+            ],
+            "branchExits": [
+              false
+            ]
+          },
+          {
+            "key": "p0cf70e58c05abb02",
+            "title": "Open and record the browser",
+            "id": "n7",
+            "kind": "Command",
+            "label": "record-browser",
+            "source": {
+              "file": "internal/workflows/validateproduct/validateproduct.go",
+              "line": 176
+            },
+            "scope": "root",
+            "context": [],
+            "note": "Runs a command. Any context it writes is not shown here."
+          },
+          {
+            "key": "p204f90374fe2a4de",
+            "title": "Browser setup failed?",
+            "id": "n8",
+            "kind": "Condition",
+            "label": "if / switch",
+            "source": {
+              "file": "internal/workflows/validateproduct/validateproduct.go",
+              "line": 179
+            },
+            "scope": "root",
+            "control": {
+              "kind": "if",
+              "code": "if err != nil || code != 0 {\n\treturn fmt.Errorf(\"%s browser: %w\", w.Name, errors.Join(err, fmt.Errorf(\"exit %d: %s\", code, stderr)))\n}",
+              "actions": [
+                "return fmt.Errorf(\"%s browser: %w\", w.Name, errors.Join(err, fmt.Errorf(\"exit %d: %s\", code, stderr)))"
+              ]
+            },
+            "context": [],
+            "children": [
+              []
+            ],
+            "branches": [
+              {
+                "key": "pb39753b8ba15825f",
+                "label": "Setup failed",
+                "code": "err != nil || code != 0",
+                "source": {
+                  "file": "internal/workflows/validateproduct/validateproduct.go",
+                  "line": 179
+                },
+                "title": "Browser setup failed?"
+              }
+            ],
+            "branchLabels": [
+              "err != nil || code != 0"
+            ],
+            "branchExits": [
+              true
+            ]
+          }
+        ]
+      ],
+      "note": "Repeats this body. The number of iterations is decided when the workflow runs."
+    },
+    {
+      "key": "p30f8af3e943f207d",
+      "title": "Product brief",
+      "description": "Give every tester the same description of the product under review.",
+      "id": "n9",
+      "kind": "Set",
+      "label": "product under test",
+      "source": {
+        "file": "internal/workflows/validateproduct/validateproduct.go",
+        "line": 185
+      },
+      "scope": "root",
+      "detail": {
+        "kind": "Set",
+        "expression": "gimbal.Set(ctx, \"product under test\", suite.Product)",
+        "promptKnown": false,
+        "keyExpression": "\"product under test\"",
+        "keyKnown": true,
+        "valueExpression": "suite.Product",
+        "contextExpression": "ctx",
+        "contextKnown": true,
+        "shape": {
+          "type": "string",
+          "kind": "scalar"
+        }
+      },
+      "context": [
+        {
+          "key": "product under test",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n9",
+          "scope": "root"
+        }
+      ]
+    },
+    {
+      "key": "p1e52e254aeffe6b4",
+      "id": "n10",
+      "kind": "Set",
+      "label": "product user documentation",
+      "source": {
+        "file": "internal/workflows/validateproduct/validateproduct.go",
+        "line": 186
+      },
+      "scope": "root",
+      "detail": {
+        "kind": "Set",
+        "expression": "gimbal.Set(ctx, \"product user documentation\", suite.Guides)",
+        "promptKnown": false,
+        "keyExpression": "\"product user documentation\"",
+        "keyKnown": true,
+        "valueExpression": "suite.Guides",
+        "contextExpression": "ctx",
+        "contextKnown": true,
+        "shape": {
+          "type": "[]string",
+          "kind": "array",
+          "element": {
+            "type": "string",
+            "kind": "scalar"
+          }
+        }
+      },
+      "context": [
+        {
+          "key": "product under test",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n9",
+          "scope": "root"
+        },
+        {
+          "key": "product user documentation",
+          "shape": {
+            "type": "[]string",
+            "kind": "array",
+            "element": {
+              "type": "string",
+              "kind": "scalar"
+            }
+          },
+          "write": "n10",
+          "scope": "root"
+        }
+      ]
+    },
+    {
+      "key": "pc1e4992b503024c7",
+      "title": "Test in parallel",
+      "description": "Each tester follows its own assignment in a separate browser.",
+      "id": "n11",
+      "kind": "Group",
+      "label": "user-testing",
+      "source": {
+        "file": "internal/workflows/validateproduct/validateproduct.go",
+        "line": 189
+      },
+      "scope": "root",
+      "context": [
+        {
+          "key": "product under test",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n9",
+          "scope": "root"
+        },
+        {
+          "key": "product user documentation",
+          "shape": {
+            "type": "[]string",
+            "kind": "array",
+            "element": {
+              "type": "string",
+              "kind": "scalar"
+            }
+          },
+          "write": "n10",
+          "scope": "root"
+        }
+      ],
+      "children": [
+        [
+          {
+            "key": "pcefddbf386dc7665",
+            "title": "Tester 1",
+            "description": "Follow workload 1 and report the experience of using the product.",
+            "id": "n19",
+            "kind": "Go",
+            "label": "tester1",
+            "source": {
+              "file": "internal/workflows/validateproduct/validateproduct.go",
+              "line": 192
+            },
+            "scope": "root/user-testing/tester1",
+            "context": [
+              {
+                "key": "product under test",
+                "shape": {
+                  "type": "string",
+                  "kind": "scalar"
+                },
+                "write": "n9",
+                "scope": "root"
+              },
+              {
+                "key": "product user documentation",
+                "shape": {
+                  "type": "[]string",
+                  "kind": "array",
+                  "element": {
+                    "type": "string",
+                    "kind": "scalar"
+                  }
+                },
+                "write": "n10",
+                "scope": "root"
+              }
+            ],
+            "children": [
+              [
+                {
+                  "key": "pb5b7a4b37ef0cbdd",
+                  "id": "n12",
+                  "kind": "Set",
+                  "label": "assignment file",
+                  "source": {
+                    "file": "internal/workflows/validateproduct/validateproduct.go",
+                    "line": 193
+                  },
+                  "scope": "root/user-testing/tester1",
+                  "detail": {
+                    "kind": "Set",
+                    "expression": "gimbal.Set(ctx, \"assignment file\", suite.Workloads[0].AssignmentFile)",
+                    "promptKnown": false,
+                    "keyExpression": "\"assignment file\"",
+                    "keyKnown": true,
+                    "valueExpression": "suite.Workloads[0].AssignmentFile",
+                    "contextExpression": "ctx",
+                    "contextKnown": true,
+                    "shape": {
+                      "type": "string",
+                      "kind": "scalar"
+                    }
+                  },
+                  "context": [
+                    {
+                      "key": "product under test",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n9",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "product user documentation",
+                      "shape": {
+                        "type": "[]string",
+                        "kind": "array",
+                        "element": {
+                          "type": "string",
+                          "kind": "scalar"
+                        }
+                      },
+                      "write": "n10",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "assignment file",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n12",
+                      "scope": "root/user-testing/tester1"
+                    }
+                  ]
+                },
+                {
+                  "key": "p7c1301c162000830",
+                  "id": "n13",
+                  "kind": "Set",
+                  "label": "screenshots directory",
+                  "source": {
+                    "file": "internal/workflows/validateproduct/validateproduct.go",
+                    "line": 194
+                  },
+                  "scope": "root/user-testing/tester1",
+                  "detail": {
+                    "kind": "Set",
+                    "expression": "gimbal.Set(ctx, \"screenshots directory\", dirs[0])",
+                    "promptKnown": false,
+                    "keyExpression": "\"screenshots directory\"",
+                    "keyKnown": true,
+                    "valueExpression": "dirs[0]",
+                    "contextExpression": "ctx",
+                    "contextKnown": true,
+                    "shape": {
+                      "type": "string",
+                      "kind": "scalar"
+                    }
+                  },
+                  "context": [
+                    {
+                      "key": "product under test",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n9",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "product user documentation",
+                      "shape": {
+                        "type": "[]string",
+                        "kind": "array",
+                        "element": {
+                          "type": "string",
+                          "kind": "scalar"
+                        }
+                      },
+                      "write": "n10",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "assignment file",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n12",
+                      "scope": "root/user-testing/tester1"
+                    },
+                    {
+                      "key": "screenshots directory",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n13",
+                      "scope": "root/user-testing/tester1"
+                    }
+                  ]
+                },
+                {
+                  "key": "p3bb68e3657b3bd0b",
+                  "id": "n14",
+                  "kind": "Set",
+                  "label": "browser command",
+                  "source": {
+                    "file": "internal/workflows/validateproduct/validateproduct.go",
+                    "line": 195
+                  },
+                  "scope": "root/user-testing/tester1",
+                  "detail": {
+                    "kind": "Set",
+                    "expression": "gimbal.Set(ctx, \"browser command\", shellQuote(driver)+\" -s=\"+shellQuote(names[0]))",
+                    "promptKnown": false,
+                    "keyExpression": "\"browser command\"",
+                    "keyKnown": true,
+                    "valueExpression": "shellQuote(driver) + \" -s=\" + shellQuote(names[0])",
+                    "contextExpression": "ctx",
+                    "contextKnown": true,
+                    "shape": {
+                      "type": "string",
+                      "kind": "scalar"
+                    }
+                  },
+                  "context": [
+                    {
+                      "key": "product under test",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n9",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "product user documentation",
+                      "shape": {
+                        "type": "[]string",
+                        "kind": "array",
+                        "element": {
+                          "type": "string",
+                          "kind": "scalar"
+                        }
+                      },
+                      "write": "n10",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "assignment file",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n12",
+                      "scope": "root/user-testing/tester1"
+                    },
+                    {
+                      "key": "screenshots directory",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n13",
+                      "scope": "root/user-testing/tester1"
+                    },
+                    {
+                      "key": "browser command",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n14",
+                      "scope": "root/user-testing/tester1"
+                    }
+                  ]
+                },
+                {
+                  "key": "pd4b64b1e9b6e0d1a",
+                  "id": "n15",
+                  "kind": "NewSession",
+                  "label": "product-operation",
+                  "source": {
+                    "file": "internal/workflows/validateproduct/validateproduct.go",
+                    "line": 196
+                  },
+                  "scope": "root/user-testing/tester1",
+                  "session": "product-operation",
+                  "context": [
+                    {
+                      "key": "product under test",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n9",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "product user documentation",
+                      "shape": {
+                        "type": "[]string",
+                        "kind": "array",
+                        "element": {
+                          "type": "string",
+                          "kind": "scalar"
+                        }
+                      },
+                      "write": "n10",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "assignment file",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n12",
+                      "scope": "root/user-testing/tester1"
+                    },
+                    {
+                      "key": "screenshots directory",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n13",
+                      "scope": "root/user-testing/tester1"
+                    },
+                    {
+                      "key": "browser command",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n14",
+                      "scope": "root/user-testing/tester1"
+                    }
+                  ]
+                },
+                {
+                  "key": "p2d8d5a4a481b0efc",
+                  "title": "Try the assigned task",
+                  "description": "Use the product in the browser and record what happens.",
+                  "id": "n16",
+                  "kind": "Generate",
+                  "label": "userPrompt",
+                  "source": {
+                    "file": "internal/workflows/validateproduct/validateproduct.go",
+                    "line": 200
+                  },
+                  "scope": "root/user-testing/tester1",
+                  "session": "product-operation",
+                  "prompt": "Read your local assignment and the relevant product user documentation. Test the product as a neutral member of a software engineering team evaluating it for real use. Carry out the practical task through the product, using it for the heavy lifting. Monitor progress through its web interface; explore relevant controls naturally and note what helps or hinders you. Pay attention to the overall experience of using A, including what feels clear, helpful, confusing, or frustrating; completing work in B is only part of this evaluation. Follow the assignment's permitted actions and definition of task completion.\nNever inspect the source code of the product under test (A). Ignore accidentally encountered A source in your analysis. If the task involves another project B, its source is permitted but should normally be unnecessary for you: rely on A to perform that work. Public product skills and user documentation are allowed. Do not repair A or hide failures by retrying until they disappear.\nUse the supplied browser command and its existing recorded session. Navigate with the goto command, including when visiting project B; calling open again replaces the browser and loses the recording. The workflow owns recording and shutdown; video is for human review. Take screenshots at meaningful moments, including important screens, controls, working interactions and failures. Save them in the screenshots directory with sequential names and a caption for each. After saving a screenshot, open that exact image with your image-viewing tool before writing or citing its caption. Describe only what is visibly supported in that saved image, name visible errors, and use its exact path when referring to it. If relevant content is off-screen, capture it separately or narrow the claim. Retain useful CLI output and exit statuses there too; empty output is legitimate.\nReturn a Markdown user report: whether the task was completed and its concrete output (for example a PR), blockers and bugs, incorrect/missing/illegible/out-of-place information. Keep task success and the overall UI/UX experience distinct; a short follow-up will ask for your preferences. Include the ordered screenshot paths and captions, describing visible evidence rather than browser transcript, memory, or inference. The workflow records elapsed time and saves your response; do not edit other testers' files or workflow reports.",
+                  "detail": {
+                    "kind": "Generate",
+                    "expression": "tester.Generate[gimbal.Text](ctx, userPrompt)",
+                    "promptExpression": "userPrompt",
+                    "promptKnown": true,
+                    "keyKnown": false,
+                    "contextExpression": "ctx",
+                    "contextKnown": true
+                  },
+                  "context": [
+                    {
+                      "key": "product under test",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n9",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "product user documentation",
+                      "shape": {
+                        "type": "[]string",
+                        "kind": "array",
+                        "element": {
+                          "type": "string",
+                          "kind": "scalar"
+                        }
+                      },
+                      "write": "n10",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "assignment file",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n12",
+                      "scope": "root/user-testing/tester1"
+                    },
+                    {
+                      "key": "screenshots directory",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n13",
+                      "scope": "root/user-testing/tester1"
+                    },
+                    {
+                      "key": "browser command",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n14",
+                      "scope": "root/user-testing/tester1"
+                    }
+                  ]
+                },
+                {
+                  "key": "pe330bb80a345bb90",
+                  "title": "If the tester responded",
+                  "description": "Collect feedback when the task turn returns without an error.",
+                  "id": "n17",
+                  "kind": "Condition",
+                  "label": "if / switch",
+                  "source": {
+                    "file": "internal/workflows/validateproduct/validateproduct.go",
+                    "line": 204
+                  },
+                  "scope": "root/user-testing/tester1",
+                  "control": {
+                    "kind": "if",
+                    "code": "if err == nil {\n\n\tfeedback, feedbackErr := tester.Generate[gimbal.Text](ctx, experiencePrompt)\n\ttext += \"\\n\\n\" + feedback\n\terr = feedbackErr\n}",
+                    "actions": [
+                      ""
+                    ]
+                  },
+                  "context": [
+                    {
+                      "key": "product under test",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n9",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "product user documentation",
+                      "shape": {
+                        "type": "[]string",
+                        "kind": "array",
+                        "element": {
+                          "type": "string",
+                          "kind": "scalar"
+                        }
+                      },
+                      "write": "n10",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "assignment file",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n12",
+                      "scope": "root/user-testing/tester1"
+                    },
+                    {
+                      "key": "screenshots directory",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n13",
+                      "scope": "root/user-testing/tester1"
+                    },
+                    {
+                      "key": "browser command",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n14",
+                      "scope": "root/user-testing/tester1"
+                    }
+                  ],
+                  "children": [
+                    [
+                      {
+                        "key": "pd1a07d232b56c05d",
+                        "title": "Describe the experience",
+                        "description": "Explain what was clear, confusing, or difficult during the task.",
+                        "id": "n18",
+                        "kind": "Generate",
+                        "label": "experiencePrompt",
+                        "source": {
+                          "file": "internal/workflows/validateproduct/validateproduct.go",
+                          "line": 207
+                        },
+                        "scope": "root/user-testing/tester1",
+                        "session": "product-operation",
+                        "prompt": "Reflect on the product under test (A) you just used, using this session's interactions and screenshots. Give a brief overall assessment, then four ranked lists: your three favorite and three least favorite aspects of the user experience (UX), and your three favorite and three least favorite aspects of the user interface (UI).\nFor UX, consider how well the task flowed: discoverability, effort, progress feedback, control, and recovery. For UI, consider presentation: layout, navigation, controls, readability, and visual hierarchy. For each item, describe a concrete moment or screen, why it helped or hindered you, and cite an existing screenshot when relevant. Before citing one, reopen that exact image; use its exact path and claim only what it visibly supports. Distinguish a preference from a defect. If you observed fewer than three meaningful items in a category, say so instead of inventing or padding it.\nReturn only this UI/UX debrief in Markdown; it will be appended to your earlier task report. Discuss A, not the quality of downstream project B. Do not restart the task, perform more browser interactions, inspect source, or create issues.",
+                        "detail": {
+                          "kind": "Generate",
+                          "expression": "tester.Generate[gimbal.Text](ctx, experiencePrompt)",
+                          "promptExpression": "experiencePrompt",
+                          "promptKnown": true,
+                          "keyKnown": false,
+                          "contextExpression": "ctx",
+                          "contextKnown": true
+                        },
+                        "context": [
+                          {
+                            "key": "product under test",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n9",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "product user documentation",
+                            "shape": {
+                              "type": "[]string",
+                              "kind": "array",
+                              "element": {
+                                "type": "string",
+                                "kind": "scalar"
+                              }
+                            },
+                            "write": "n10",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "assignment file",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n12",
+                            "scope": "root/user-testing/tester1"
+                          },
+                          {
+                            "key": "screenshots directory",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n13",
+                            "scope": "root/user-testing/tester1"
+                          },
+                          {
+                            "key": "browser command",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n14",
+                            "scope": "root/user-testing/tester1"
+                          }
+                        ]
+                      }
+                    ]
+                  ],
+                  "branches": [
+                    {
+                      "key": "p909bd3d0d6539965",
+                      "code": "err == nil",
+                      "source": {
+                        "file": "internal/workflows/validateproduct/validateproduct.go",
+                        "line": 204
+                      },
+                      "title": "If the tester responded",
+                      "description": "Collect feedback when the task turn returns without an error."
+                    }
+                  ],
+                  "branchLabels": [
+                    "err == nil"
+                  ],
+                  "branchExits": [
+                    false
+                  ]
+                }
+              ]
+            ]
+          }
+        ],
+        [
+          {
+            "key": "pd406ce467db122b8",
+            "title": "Tester 2",
+            "description": "Follow workload 2 and report the experience of using the product.",
+            "id": "n28",
+            "kind": "Go",
+            "label": "tester2",
+            "source": {
+              "file": "internal/workflows/validateproduct/validateproduct.go",
+              "line": 217
+            },
+            "scope": "root/user-testing/tester2",
+            "context": [
+              {
+                "key": "product under test",
+                "shape": {
+                  "type": "string",
+                  "kind": "scalar"
+                },
+                "write": "n9",
+                "scope": "root"
+              },
+              {
+                "key": "product user documentation",
+                "shape": {
+                  "type": "[]string",
+                  "kind": "array",
+                  "element": {
+                    "type": "string",
+                    "kind": "scalar"
+                  }
+                },
+                "write": "n10",
+                "scope": "root"
+              }
+            ],
+            "children": [
+              [
+                {
+                  "key": "pa692a2d7b5f03ff1",
+                  "id": "n20",
+                  "kind": "Condition",
+                  "label": "if / switch",
+                  "source": {
+                    "file": "internal/workflows/validateproduct/validateproduct.go",
+                    "line": 218
+                  },
+                  "scope": "root/user-testing/tester2",
+                  "control": {
+                    "kind": "if",
+                    "code": "if len(suite.Workloads) \u003c 2 {\n\treturn nil\n}",
+                    "actions": [
+                      "return nil"
+                    ]
+                  },
+                  "context": [
+                    {
+                      "key": "product under test",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n9",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "product user documentation",
+                      "shape": {
+                        "type": "[]string",
+                        "kind": "array",
+                        "element": {
+                          "type": "string",
+                          "kind": "scalar"
+                        }
+                      },
+                      "write": "n10",
+                      "scope": "root"
+                    }
+                  ],
+                  "children": [
+                    []
+                  ],
+                  "branches": [
+                    {
+                      "key": "p3f959eecc7c0c742",
+                      "code": "len(suite.Workloads) \u003c 2",
+                      "source": {
+                        "file": "internal/workflows/validateproduct/validateproduct.go",
+                        "line": 218
+                      }
+                    }
+                  ],
+                  "branchLabels": [
+                    "len(suite.Workloads) \u003c 2"
+                  ],
+                  "branchExits": [
+                    true
+                  ]
+                },
+                {
+                  "key": "p48a5c1ad7e1fe549",
+                  "id": "n21",
+                  "kind": "Set",
+                  "label": "assignment file",
+                  "source": {
+                    "file": "internal/workflows/validateproduct/validateproduct.go",
+                    "line": 221
+                  },
+                  "scope": "root/user-testing/tester2",
+                  "detail": {
+                    "kind": "Set",
+                    "expression": "gimbal.Set(ctx, \"assignment file\", suite.Workloads[1].AssignmentFile)",
+                    "promptKnown": false,
+                    "keyExpression": "\"assignment file\"",
+                    "keyKnown": true,
+                    "valueExpression": "suite.Workloads[1].AssignmentFile",
+                    "contextExpression": "ctx",
+                    "contextKnown": true,
+                    "shape": {
+                      "type": "string",
+                      "kind": "scalar"
+                    }
+                  },
+                  "context": [
+                    {
+                      "key": "product under test",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n9",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "product user documentation",
+                      "shape": {
+                        "type": "[]string",
+                        "kind": "array",
+                        "element": {
+                          "type": "string",
+                          "kind": "scalar"
+                        }
+                      },
+                      "write": "n10",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "assignment file",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n21",
+                      "scope": "root/user-testing/tester2"
+                    }
+                  ]
+                },
+                {
+                  "key": "pc0d40af8eb7e0125",
+                  "id": "n22",
+                  "kind": "Set",
+                  "label": "screenshots directory",
+                  "source": {
+                    "file": "internal/workflows/validateproduct/validateproduct.go",
+                    "line": 222
+                  },
+                  "scope": "root/user-testing/tester2",
+                  "detail": {
+                    "kind": "Set",
+                    "expression": "gimbal.Set(ctx, \"screenshots directory\", dirs[1])",
+                    "promptKnown": false,
+                    "keyExpression": "\"screenshots directory\"",
+                    "keyKnown": true,
+                    "valueExpression": "dirs[1]",
+                    "contextExpression": "ctx",
+                    "contextKnown": true,
+                    "shape": {
+                      "type": "string",
+                      "kind": "scalar"
+                    }
+                  },
+                  "context": [
+                    {
+                      "key": "product under test",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n9",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "product user documentation",
+                      "shape": {
+                        "type": "[]string",
+                        "kind": "array",
+                        "element": {
+                          "type": "string",
+                          "kind": "scalar"
+                        }
+                      },
+                      "write": "n10",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "assignment file",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n21",
+                      "scope": "root/user-testing/tester2"
+                    },
+                    {
+                      "key": "screenshots directory",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n22",
+                      "scope": "root/user-testing/tester2"
+                    }
+                  ]
+                },
+                {
+                  "key": "p492f240c96571685",
+                  "id": "n23",
+                  "kind": "Set",
+                  "label": "browser command",
+                  "source": {
+                    "file": "internal/workflows/validateproduct/validateproduct.go",
+                    "line": 223
+                  },
+                  "scope": "root/user-testing/tester2",
+                  "detail": {
+                    "kind": "Set",
+                    "expression": "gimbal.Set(ctx, \"browser command\", shellQuote(driver)+\" -s=\"+shellQuote(names[1]))",
+                    "promptKnown": false,
+                    "keyExpression": "\"browser command\"",
+                    "keyKnown": true,
+                    "valueExpression": "shellQuote(driver) + \" -s=\" + shellQuote(names[1])",
+                    "contextExpression": "ctx",
+                    "contextKnown": true,
+                    "shape": {
+                      "type": "string",
+                      "kind": "scalar"
+                    }
+                  },
+                  "context": [
+                    {
+                      "key": "product under test",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n9",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "product user documentation",
+                      "shape": {
+                        "type": "[]string",
+                        "kind": "array",
+                        "element": {
+                          "type": "string",
+                          "kind": "scalar"
+                        }
+                      },
+                      "write": "n10",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "assignment file",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n21",
+                      "scope": "root/user-testing/tester2"
+                    },
+                    {
+                      "key": "screenshots directory",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n22",
+                      "scope": "root/user-testing/tester2"
+                    },
+                    {
+                      "key": "browser command",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n23",
+                      "scope": "root/user-testing/tester2"
+                    }
+                  ]
+                },
+                {
+                  "key": "p339af8b65dc6f49d",
+                  "id": "n24",
+                  "kind": "NewSession",
+                  "label": "product-operation",
+                  "source": {
+                    "file": "internal/workflows/validateproduct/validateproduct.go",
+                    "line": 224
+                  },
+                  "scope": "root/user-testing/tester2",
+                  "session": "product-operation",
+                  "context": [
+                    {
+                      "key": "product under test",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n9",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "product user documentation",
+                      "shape": {
+                        "type": "[]string",
+                        "kind": "array",
+                        "element": {
+                          "type": "string",
+                          "kind": "scalar"
+                        }
+                      },
+                      "write": "n10",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "assignment file",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n21",
+                      "scope": "root/user-testing/tester2"
+                    },
+                    {
+                      "key": "screenshots directory",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n22",
+                      "scope": "root/user-testing/tester2"
+                    },
+                    {
+                      "key": "browser command",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n23",
+                      "scope": "root/user-testing/tester2"
+                    }
+                  ]
+                },
+                {
+                  "key": "p825c1a280104d26c",
+                  "title": "Try the assigned task",
+                  "description": "Use the product in the browser and record what happens.",
+                  "id": "n25",
+                  "kind": "Generate",
+                  "label": "userPrompt",
+                  "source": {
+                    "file": "internal/workflows/validateproduct/validateproduct.go",
+                    "line": 228
+                  },
+                  "scope": "root/user-testing/tester2",
+                  "session": "product-operation",
+                  "prompt": "Read your local assignment and the relevant product user documentation. Test the product as a neutral member of a software engineering team evaluating it for real use. Carry out the practical task through the product, using it for the heavy lifting. Monitor progress through its web interface; explore relevant controls naturally and note what helps or hinders you. Pay attention to the overall experience of using A, including what feels clear, helpful, confusing, or frustrating; completing work in B is only part of this evaluation. Follow the assignment's permitted actions and definition of task completion.\nNever inspect the source code of the product under test (A). Ignore accidentally encountered A source in your analysis. If the task involves another project B, its source is permitted but should normally be unnecessary for you: rely on A to perform that work. Public product skills and user documentation are allowed. Do not repair A or hide failures by retrying until they disappear.\nUse the supplied browser command and its existing recorded session. Navigate with the goto command, including when visiting project B; calling open again replaces the browser and loses the recording. The workflow owns recording and shutdown; video is for human review. Take screenshots at meaningful moments, including important screens, controls, working interactions and failures. Save them in the screenshots directory with sequential names and a caption for each. After saving a screenshot, open that exact image with your image-viewing tool before writing or citing its caption. Describe only what is visibly supported in that saved image, name visible errors, and use its exact path when referring to it. If relevant content is off-screen, capture it separately or narrow the claim. Retain useful CLI output and exit statuses there too; empty output is legitimate.\nReturn a Markdown user report: whether the task was completed and its concrete output (for example a PR), blockers and bugs, incorrect/missing/illegible/out-of-place information. Keep task success and the overall UI/UX experience distinct; a short follow-up will ask for your preferences. Include the ordered screenshot paths and captions, describing visible evidence rather than browser transcript, memory, or inference. The workflow records elapsed time and saves your response; do not edit other testers' files or workflow reports.",
+                  "detail": {
+                    "kind": "Generate",
+                    "expression": "tester.Generate[gimbal.Text](ctx, userPrompt)",
+                    "promptExpression": "userPrompt",
+                    "promptKnown": true,
+                    "keyKnown": false,
+                    "contextExpression": "ctx",
+                    "contextKnown": true
+                  },
+                  "context": [
+                    {
+                      "key": "product under test",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n9",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "product user documentation",
+                      "shape": {
+                        "type": "[]string",
+                        "kind": "array",
+                        "element": {
+                          "type": "string",
+                          "kind": "scalar"
+                        }
+                      },
+                      "write": "n10",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "assignment file",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n21",
+                      "scope": "root/user-testing/tester2"
+                    },
+                    {
+                      "key": "screenshots directory",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n22",
+                      "scope": "root/user-testing/tester2"
+                    },
+                    {
+                      "key": "browser command",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n23",
+                      "scope": "root/user-testing/tester2"
+                    }
+                  ]
+                },
+                {
+                  "key": "pda63a61f83b6077d",
+                  "title": "If the tester responded",
+                  "description": "Collect feedback when the task turn returns without an error.",
+                  "id": "n26",
+                  "kind": "Condition",
+                  "label": "if / switch",
+                  "source": {
+                    "file": "internal/workflows/validateproduct/validateproduct.go",
+                    "line": 232
+                  },
+                  "scope": "root/user-testing/tester2",
+                  "control": {
+                    "kind": "if",
+                    "code": "if err == nil {\n\n\tfeedback, feedbackErr := tester.Generate[gimbal.Text](ctx, experiencePrompt)\n\ttext += \"\\n\\n\" + feedback\n\terr = feedbackErr\n}",
+                    "actions": [
+                      ""
+                    ]
+                  },
+                  "context": [
+                    {
+                      "key": "product under test",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n9",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "product user documentation",
+                      "shape": {
+                        "type": "[]string",
+                        "kind": "array",
+                        "element": {
+                          "type": "string",
+                          "kind": "scalar"
+                        }
+                      },
+                      "write": "n10",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "assignment file",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n21",
+                      "scope": "root/user-testing/tester2"
+                    },
+                    {
+                      "key": "screenshots directory",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n22",
+                      "scope": "root/user-testing/tester2"
+                    },
+                    {
+                      "key": "browser command",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n23",
+                      "scope": "root/user-testing/tester2"
+                    }
+                  ],
+                  "children": [
+                    [
+                      {
+                        "key": "p8cbe5556d3dc31b3",
+                        "title": "Describe the experience",
+                        "description": "Explain what was clear, confusing, or difficult during the task.",
+                        "id": "n27",
+                        "kind": "Generate",
+                        "label": "experiencePrompt",
+                        "source": {
+                          "file": "internal/workflows/validateproduct/validateproduct.go",
+                          "line": 235
+                        },
+                        "scope": "root/user-testing/tester2",
+                        "session": "product-operation",
+                        "prompt": "Reflect on the product under test (A) you just used, using this session's interactions and screenshots. Give a brief overall assessment, then four ranked lists: your three favorite and three least favorite aspects of the user experience (UX), and your three favorite and three least favorite aspects of the user interface (UI).\nFor UX, consider how well the task flowed: discoverability, effort, progress feedback, control, and recovery. For UI, consider presentation: layout, navigation, controls, readability, and visual hierarchy. For each item, describe a concrete moment or screen, why it helped or hindered you, and cite an existing screenshot when relevant. Before citing one, reopen that exact image; use its exact path and claim only what it visibly supports. Distinguish a preference from a defect. If you observed fewer than three meaningful items in a category, say so instead of inventing or padding it.\nReturn only this UI/UX debrief in Markdown; it will be appended to your earlier task report. Discuss A, not the quality of downstream project B. Do not restart the task, perform more browser interactions, inspect source, or create issues.",
+                        "detail": {
+                          "kind": "Generate",
+                          "expression": "tester.Generate[gimbal.Text](ctx, experiencePrompt)",
+                          "promptExpression": "experiencePrompt",
+                          "promptKnown": true,
+                          "keyKnown": false,
+                          "contextExpression": "ctx",
+                          "contextKnown": true
+                        },
+                        "context": [
+                          {
+                            "key": "product under test",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n9",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "product user documentation",
+                            "shape": {
+                              "type": "[]string",
+                              "kind": "array",
+                              "element": {
+                                "type": "string",
+                                "kind": "scalar"
+                              }
+                            },
+                            "write": "n10",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "assignment file",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n21",
+                            "scope": "root/user-testing/tester2"
+                          },
+                          {
+                            "key": "screenshots directory",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n22",
+                            "scope": "root/user-testing/tester2"
+                          },
+                          {
+                            "key": "browser command",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n23",
+                            "scope": "root/user-testing/tester2"
+                          }
+                        ]
+                      }
+                    ]
+                  ],
+                  "branches": [
+                    {
+                      "key": "pe16446b60f7b6010",
+                      "code": "err == nil",
+                      "source": {
+                        "file": "internal/workflows/validateproduct/validateproduct.go",
+                        "line": 232
+                      },
+                      "title": "If the tester responded",
+                      "description": "Collect feedback when the task turn returns without an error."
+                    }
+                  ],
+                  "branchLabels": [
+                    "err == nil"
+                  ],
+                  "branchExits": [
+                    false
+                  ]
+                }
+              ]
+            ]
+          }
+        ],
+        [
+          {
+            "key": "p8705ddffa3bf7ef6",
+            "title": "Tester 3",
+            "description": "Follow workload 3 and report the experience of using the product.",
+            "id": "n37",
+            "kind": "Go",
+            "label": "tester3",
+            "source": {
+              "file": "internal/workflows/validateproduct/validateproduct.go",
+              "line": 245
+            },
+            "scope": "root/user-testing/tester3",
+            "context": [
+              {
+                "key": "product under test",
+                "shape": {
+                  "type": "string",
+                  "kind": "scalar"
+                },
+                "write": "n9",
+                "scope": "root"
+              },
+              {
+                "key": "product user documentation",
+                "shape": {
+                  "type": "[]string",
+                  "kind": "array",
+                  "element": {
+                    "type": "string",
+                    "kind": "scalar"
+                  }
+                },
+                "write": "n10",
+                "scope": "root"
+              }
+            ],
+            "children": [
+              [
+                {
+                  "key": "p2c58707e9b8c3537",
+                  "id": "n29",
+                  "kind": "Condition",
+                  "label": "if / switch",
+                  "source": {
+                    "file": "internal/workflows/validateproduct/validateproduct.go",
+                    "line": 246
+                  },
+                  "scope": "root/user-testing/tester3",
+                  "control": {
+                    "kind": "if",
+                    "code": "if len(suite.Workloads) \u003c 3 {\n\treturn nil\n}",
+                    "actions": [
+                      "return nil"
+                    ]
+                  },
+                  "context": [
+                    {
+                      "key": "product under test",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n9",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "product user documentation",
+                      "shape": {
+                        "type": "[]string",
+                        "kind": "array",
+                        "element": {
+                          "type": "string",
+                          "kind": "scalar"
+                        }
+                      },
+                      "write": "n10",
+                      "scope": "root"
+                    }
+                  ],
+                  "children": [
+                    []
+                  ],
+                  "branches": [
+                    {
+                      "key": "p24f4a5066404984c",
+                      "code": "len(suite.Workloads) \u003c 3",
+                      "source": {
+                        "file": "internal/workflows/validateproduct/validateproduct.go",
+                        "line": 246
+                      }
+                    }
+                  ],
+                  "branchLabels": [
+                    "len(suite.Workloads) \u003c 3"
+                  ],
+                  "branchExits": [
+                    true
+                  ]
+                },
+                {
+                  "key": "pe21dc97793c3e937",
+                  "id": "n30",
+                  "kind": "Set",
+                  "label": "assignment file",
+                  "source": {
+                    "file": "internal/workflows/validateproduct/validateproduct.go",
+                    "line": 249
+                  },
+                  "scope": "root/user-testing/tester3",
+                  "detail": {
+                    "kind": "Set",
+                    "expression": "gimbal.Set(ctx, \"assignment file\", suite.Workloads[2].AssignmentFile)",
+                    "promptKnown": false,
+                    "keyExpression": "\"assignment file\"",
+                    "keyKnown": true,
+                    "valueExpression": "suite.Workloads[2].AssignmentFile",
+                    "contextExpression": "ctx",
+                    "contextKnown": true,
+                    "shape": {
+                      "type": "string",
+                      "kind": "scalar"
+                    }
+                  },
+                  "context": [
+                    {
+                      "key": "product under test",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n9",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "product user documentation",
+                      "shape": {
+                        "type": "[]string",
+                        "kind": "array",
+                        "element": {
+                          "type": "string",
+                          "kind": "scalar"
+                        }
+                      },
+                      "write": "n10",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "assignment file",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n30",
+                      "scope": "root/user-testing/tester3"
+                    }
+                  ]
+                },
+                {
+                  "key": "pbd7359485d375e4c",
+                  "id": "n31",
+                  "kind": "Set",
+                  "label": "screenshots directory",
+                  "source": {
+                    "file": "internal/workflows/validateproduct/validateproduct.go",
+                    "line": 250
+                  },
+                  "scope": "root/user-testing/tester3",
+                  "detail": {
+                    "kind": "Set",
+                    "expression": "gimbal.Set(ctx, \"screenshots directory\", dirs[2])",
+                    "promptKnown": false,
+                    "keyExpression": "\"screenshots directory\"",
+                    "keyKnown": true,
+                    "valueExpression": "dirs[2]",
+                    "contextExpression": "ctx",
+                    "contextKnown": true,
+                    "shape": {
+                      "type": "string",
+                      "kind": "scalar"
+                    }
+                  },
+                  "context": [
+                    {
+                      "key": "product under test",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n9",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "product user documentation",
+                      "shape": {
+                        "type": "[]string",
+                        "kind": "array",
+                        "element": {
+                          "type": "string",
+                          "kind": "scalar"
+                        }
+                      },
+                      "write": "n10",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "assignment file",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n30",
+                      "scope": "root/user-testing/tester3"
+                    },
+                    {
+                      "key": "screenshots directory",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n31",
+                      "scope": "root/user-testing/tester3"
+                    }
+                  ]
+                },
+                {
+                  "key": "p954f1a0e53a3feb8",
+                  "id": "n32",
+                  "kind": "Set",
+                  "label": "browser command",
+                  "source": {
+                    "file": "internal/workflows/validateproduct/validateproduct.go",
+                    "line": 251
+                  },
+                  "scope": "root/user-testing/tester3",
+                  "detail": {
+                    "kind": "Set",
+                    "expression": "gimbal.Set(ctx, \"browser command\", shellQuote(driver)+\" -s=\"+shellQuote(names[2]))",
+                    "promptKnown": false,
+                    "keyExpression": "\"browser command\"",
+                    "keyKnown": true,
+                    "valueExpression": "shellQuote(driver) + \" -s=\" + shellQuote(names[2])",
+                    "contextExpression": "ctx",
+                    "contextKnown": true,
+                    "shape": {
+                      "type": "string",
+                      "kind": "scalar"
+                    }
+                  },
+                  "context": [
+                    {
+                      "key": "product under test",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n9",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "product user documentation",
+                      "shape": {
+                        "type": "[]string",
+                        "kind": "array",
+                        "element": {
+                          "type": "string",
+                          "kind": "scalar"
+                        }
+                      },
+                      "write": "n10",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "assignment file",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n30",
+                      "scope": "root/user-testing/tester3"
+                    },
+                    {
+                      "key": "screenshots directory",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n31",
+                      "scope": "root/user-testing/tester3"
+                    },
+                    {
+                      "key": "browser command",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n32",
+                      "scope": "root/user-testing/tester3"
+                    }
+                  ]
+                },
+                {
+                  "key": "p0270c6b2c995e8fc",
+                  "id": "n33",
+                  "kind": "NewSession",
+                  "label": "product-operation",
+                  "source": {
+                    "file": "internal/workflows/validateproduct/validateproduct.go",
+                    "line": 252
+                  },
+                  "scope": "root/user-testing/tester3",
+                  "session": "product-operation",
+                  "context": [
+                    {
+                      "key": "product under test",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n9",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "product user documentation",
+                      "shape": {
+                        "type": "[]string",
+                        "kind": "array",
+                        "element": {
+                          "type": "string",
+                          "kind": "scalar"
+                        }
+                      },
+                      "write": "n10",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "assignment file",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n30",
+                      "scope": "root/user-testing/tester3"
+                    },
+                    {
+                      "key": "screenshots directory",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n31",
+                      "scope": "root/user-testing/tester3"
+                    },
+                    {
+                      "key": "browser command",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n32",
+                      "scope": "root/user-testing/tester3"
+                    }
+                  ]
+                },
+                {
+                  "key": "p01bdbfc3a3ed8f1e",
+                  "title": "Try the assigned task",
+                  "description": "Use the product in the browser and record what happens.",
+                  "id": "n34",
+                  "kind": "Generate",
+                  "label": "userPrompt",
+                  "source": {
+                    "file": "internal/workflows/validateproduct/validateproduct.go",
+                    "line": 256
+                  },
+                  "scope": "root/user-testing/tester3",
+                  "session": "product-operation",
+                  "prompt": "Read your local assignment and the relevant product user documentation. Test the product as a neutral member of a software engineering team evaluating it for real use. Carry out the practical task through the product, using it for the heavy lifting. Monitor progress through its web interface; explore relevant controls naturally and note what helps or hinders you. Pay attention to the overall experience of using A, including what feels clear, helpful, confusing, or frustrating; completing work in B is only part of this evaluation. Follow the assignment's permitted actions and definition of task completion.\nNever inspect the source code of the product under test (A). Ignore accidentally encountered A source in your analysis. If the task involves another project B, its source is permitted but should normally be unnecessary for you: rely on A to perform that work. Public product skills and user documentation are allowed. Do not repair A or hide failures by retrying until they disappear.\nUse the supplied browser command and its existing recorded session. Navigate with the goto command, including when visiting project B; calling open again replaces the browser and loses the recording. The workflow owns recording and shutdown; video is for human review. Take screenshots at meaningful moments, including important screens, controls, working interactions and failures. Save them in the screenshots directory with sequential names and a caption for each. After saving a screenshot, open that exact image with your image-viewing tool before writing or citing its caption. Describe only what is visibly supported in that saved image, name visible errors, and use its exact path when referring to it. If relevant content is off-screen, capture it separately or narrow the claim. Retain useful CLI output and exit statuses there too; empty output is legitimate.\nReturn a Markdown user report: whether the task was completed and its concrete output (for example a PR), blockers and bugs, incorrect/missing/illegible/out-of-place information. Keep task success and the overall UI/UX experience distinct; a short follow-up will ask for your preferences. Include the ordered screenshot paths and captions, describing visible evidence rather than browser transcript, memory, or inference. The workflow records elapsed time and saves your response; do not edit other testers' files or workflow reports.",
+                  "detail": {
+                    "kind": "Generate",
+                    "expression": "tester.Generate[gimbal.Text](ctx, userPrompt)",
+                    "promptExpression": "userPrompt",
+                    "promptKnown": true,
+                    "keyKnown": false,
+                    "contextExpression": "ctx",
+                    "contextKnown": true
+                  },
+                  "context": [
+                    {
+                      "key": "product under test",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n9",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "product user documentation",
+                      "shape": {
+                        "type": "[]string",
+                        "kind": "array",
+                        "element": {
+                          "type": "string",
+                          "kind": "scalar"
+                        }
+                      },
+                      "write": "n10",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "assignment file",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n30",
+                      "scope": "root/user-testing/tester3"
+                    },
+                    {
+                      "key": "screenshots directory",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n31",
+                      "scope": "root/user-testing/tester3"
+                    },
+                    {
+                      "key": "browser command",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n32",
+                      "scope": "root/user-testing/tester3"
+                    }
+                  ]
+                },
+                {
+                  "key": "p3a31a607e3275798",
+                  "title": "If the tester responded",
+                  "description": "Collect feedback when the task turn returns without an error.",
+                  "id": "n35",
+                  "kind": "Condition",
+                  "label": "if / switch",
+                  "source": {
+                    "file": "internal/workflows/validateproduct/validateproduct.go",
+                    "line": 260
+                  },
+                  "scope": "root/user-testing/tester3",
+                  "control": {
+                    "kind": "if",
+                    "code": "if err == nil {\n\n\tfeedback, feedbackErr := tester.Generate[gimbal.Text](ctx, experiencePrompt)\n\ttext += \"\\n\\n\" + feedback\n\terr = feedbackErr\n}",
+                    "actions": [
+                      ""
+                    ]
+                  },
+                  "context": [
+                    {
+                      "key": "product under test",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n9",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "product user documentation",
+                      "shape": {
+                        "type": "[]string",
+                        "kind": "array",
+                        "element": {
+                          "type": "string",
+                          "kind": "scalar"
+                        }
+                      },
+                      "write": "n10",
+                      "scope": "root"
+                    },
+                    {
+                      "key": "assignment file",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n30",
+                      "scope": "root/user-testing/tester3"
+                    },
+                    {
+                      "key": "screenshots directory",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n31",
+                      "scope": "root/user-testing/tester3"
+                    },
+                    {
+                      "key": "browser command",
+                      "shape": {
+                        "type": "string",
+                        "kind": "scalar"
+                      },
+                      "write": "n32",
+                      "scope": "root/user-testing/tester3"
+                    }
+                  ],
+                  "children": [
+                    [
+                      {
+                        "key": "p4390c3b277188800",
+                        "title": "Describe the experience",
+                        "description": "Explain what was clear, confusing, or difficult during the task.",
+                        "id": "n36",
+                        "kind": "Generate",
+                        "label": "experiencePrompt",
+                        "source": {
+                          "file": "internal/workflows/validateproduct/validateproduct.go",
+                          "line": 263
+                        },
+                        "scope": "root/user-testing/tester3",
+                        "session": "product-operation",
+                        "prompt": "Reflect on the product under test (A) you just used, using this session's interactions and screenshots. Give a brief overall assessment, then four ranked lists: your three favorite and three least favorite aspects of the user experience (UX), and your three favorite and three least favorite aspects of the user interface (UI).\nFor UX, consider how well the task flowed: discoverability, effort, progress feedback, control, and recovery. For UI, consider presentation: layout, navigation, controls, readability, and visual hierarchy. For each item, describe a concrete moment or screen, why it helped or hindered you, and cite an existing screenshot when relevant. Before citing one, reopen that exact image; use its exact path and claim only what it visibly supports. Distinguish a preference from a defect. If you observed fewer than three meaningful items in a category, say so instead of inventing or padding it.\nReturn only this UI/UX debrief in Markdown; it will be appended to your earlier task report. Discuss A, not the quality of downstream project B. Do not restart the task, perform more browser interactions, inspect source, or create issues.",
+                        "detail": {
+                          "kind": "Generate",
+                          "expression": "tester.Generate[gimbal.Text](ctx, experiencePrompt)",
+                          "promptExpression": "experiencePrompt",
+                          "promptKnown": true,
+                          "keyKnown": false,
+                          "contextExpression": "ctx",
+                          "contextKnown": true
+                        },
+                        "context": [
+                          {
+                            "key": "product under test",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n9",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "product user documentation",
+                            "shape": {
+                              "type": "[]string",
+                              "kind": "array",
+                              "element": {
+                                "type": "string",
+                                "kind": "scalar"
+                              }
+                            },
+                            "write": "n10",
+                            "scope": "root"
+                          },
+                          {
+                            "key": "assignment file",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n30",
+                            "scope": "root/user-testing/tester3"
+                          },
+                          {
+                            "key": "screenshots directory",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n31",
+                            "scope": "root/user-testing/tester3"
+                          },
+                          {
+                            "key": "browser command",
+                            "shape": {
+                              "type": "string",
+                              "kind": "scalar"
+                            },
+                            "write": "n32",
+                            "scope": "root/user-testing/tester3"
+                          }
+                        ]
+                      }
+                    ]
+                  ],
+                  "branches": [
+                    {
+                      "key": "p2802f1a0f2427900",
+                      "code": "err == nil",
+                      "source": {
+                        "file": "internal/workflows/validateproduct/validateproduct.go",
+                        "line": 260
+                      },
+                      "title": "If the tester responded",
+                      "description": "Collect feedback when the task turn returns without an error."
+                    }
+                  ],
+                  "branchLabels": [
+                    "err == nil"
+                  ],
+                  "branchExits": [
+                    false
+                  ]
+                }
+              ]
+            ]
+          }
+        ]
+      ],
+      "branchLabels": [
+        "tester1",
+        "tester2",
+        "tester3"
+      ],
+      "note": "Children run concurrently in separate scopes. Child context does not merge at the join."
+    },
+    {
+      "key": "p8951ccc4d188e87d",
+      "id": "n38",
+      "kind": "Set",
+      "label": "workload reports",
+      "source": {
+        "file": "internal/workflows/validateproduct/validateproduct.go",
+        "line": 290
+      },
+      "scope": "root",
+      "detail": {
+        "kind": "Set",
+        "expression": "gimbal.Set(ctx, \"workload reports\", reportsFile)",
+        "promptKnown": false,
+        "keyExpression": "\"workload reports\"",
+        "keyKnown": true,
+        "valueExpression": "reportsFile",
+        "contextExpression": "ctx",
+        "contextKnown": true,
+        "shape": {
+          "type": "string",
+          "kind": "scalar"
+        }
+      },
+      "context": [
+        {
+          "key": "product under test",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n9",
+          "scope": "root"
+        },
+        {
+          "key": "product user documentation",
+          "shape": {
+            "type": "[]string",
+            "kind": "array",
+            "element": {
+              "type": "string",
+              "kind": "scalar"
+            }
+          },
+          "write": "n10",
+          "scope": "root"
+        },
+        {
+          "key": "workload reports",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n38",
+          "scope": "root"
+        }
+      ]
+    },
+    {
+      "key": "p20b88890876da025",
+      "id": "n39",
+      "kind": "Set",
+      "label": "execution errors",
+      "source": {
+        "file": "internal/workflows/validateproduct/validateproduct.go",
+        "line": 291
+      },
+      "scope": "root",
+      "detail": {
+        "kind": "Set",
+        "expression": "gimbal.Set(ctx, \"execution errors\", errorText(errors.Join(groupErr, recordingErr, videoErr, errors.Join(turns[:]...))))",
+        "promptKnown": false,
+        "keyExpression": "\"execution errors\"",
+        "keyKnown": true,
+        "valueExpression": "errorText(errors.Join(groupErr, recordingErr, videoErr, errors.Join(turns[:]...)))",
+        "contextExpression": "ctx",
+        "contextKnown": true,
+        "shape": {
+          "type": "string",
+          "kind": "scalar"
+        }
+      },
+      "context": [
+        {
+          "key": "product under test",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n9",
+          "scope": "root"
+        },
+        {
+          "key": "product user documentation",
+          "shape": {
+            "type": "[]string",
+            "kind": "array",
+            "element": {
+              "type": "string",
+              "kind": "scalar"
+            }
+          },
+          "write": "n10",
+          "scope": "root"
+        },
+        {
+          "key": "workload reports",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n38",
+          "scope": "root"
+        },
+        {
+          "key": "execution errors",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n39",
+          "scope": "root"
+        }
+      ]
+    },
+    {
+      "key": "p40dfeed11edd14e7",
+      "id": "n40",
+      "kind": "NewSession",
+      "label": "product-visual-review",
+      "source": {
+        "file": "internal/workflows/validateproduct/validateproduct.go",
+        "line": 292
+      },
+      "scope": "root",
+      "session": "product-visual-review",
+      "context": [
+        {
+          "key": "product under test",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n9",
+          "scope": "root"
+        },
+        {
+          "key": "product user documentation",
+          "shape": {
+            "type": "[]string",
+            "kind": "array",
+            "element": {
+              "type": "string",
+              "kind": "scalar"
+            }
+          },
+          "write": "n10",
+          "scope": "root"
+        },
+        {
+          "key": "workload reports",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n38",
+          "scope": "root"
+        },
+        {
+          "key": "execution errors",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n39",
+          "scope": "root"
+        }
+      ]
+    },
+    {
+      "key": "pe6e68afd247bc141",
+      "title": "Review the screenshots",
+      "description": "Inspect the captured screens for visual and usability problems.",
+      "id": "n41",
+      "kind": "Generate",
+      "label": "visualPrompt",
+      "source": {
+        "file": "internal/workflows/validateproduct/validateproduct.go",
+        "line": 295
+      },
+      "scope": "root",
+      "session": "product-visual-review",
+      "prompt": "Read the workload manifest and each available user report. Open the actual screenshot images with your image-viewing tool; filenames and captions alone are not visual evidence. Inspect the important result screens and reported problem screens, plus a representative selection of the rest. Assess whether the interface is readable and usable and whether each inspected image supports its caption. Do not watch or sample videos or repeat the user tasks.\nReturn a Markdown visual review listing exactly which images you viewed, visible problems, caption mismatches, and anything you could not verify. If you cannot open images, report that limitation instead of claiming a visual review. Screenshots do not establish hidden behavior or end-to-end task success. Do not inspect A's source, edit original evidence, operate the product, or publish issues.",
+      "detail": {
+        "kind": "Generate",
+        "expression": "visual.Generate[gimbal.Text](ctx, visualPrompt)",
+        "promptExpression": "visualPrompt",
+        "promptKnown": true,
+        "keyKnown": false,
+        "contextExpression": "ctx",
+        "contextKnown": true
+      },
+      "context": [
+        {
+          "key": "product under test",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n9",
+          "scope": "root"
+        },
+        {
+          "key": "product user documentation",
+          "shape": {
+            "type": "[]string",
+            "kind": "array",
+            "element": {
+              "type": "string",
+              "kind": "scalar"
+            }
+          },
+          "write": "n10",
+          "scope": "root"
+        },
+        {
+          "key": "workload reports",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n38",
+          "scope": "root"
+        },
+        {
+          "key": "execution errors",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n39",
+          "scope": "root"
+        }
+      ]
+    },
+    {
+      "key": "p1746799defc7b9cf",
+      "id": "n42",
+      "kind": "Set",
+      "label": "screenshot review",
+      "source": {
+        "file": "internal/workflows/validateproduct/validateproduct.go",
+        "line": 298
+      },
+      "scope": "root",
+      "detail": {
+        "kind": "Set",
+        "expression": "gimbal.Set(ctx, \"screenshot review\", visualFile)",
+        "promptKnown": false,
+        "keyExpression": "\"screenshot review\"",
+        "keyKnown": true,
+        "valueExpression": "visualFile",
+        "contextExpression": "ctx",
+        "contextKnown": true,
+        "shape": {
+          "type": "string",
+          "kind": "scalar"
+        }
+      },
+      "context": [
+        {
+          "key": "product under test",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n9",
+          "scope": "root"
+        },
+        {
+          "key": "product user documentation",
+          "shape": {
+            "type": "[]string",
+            "kind": "array",
+            "element": {
+              "type": "string",
+              "kind": "scalar"
+            }
+          },
+          "write": "n10",
+          "scope": "root"
+        },
+        {
+          "key": "workload reports",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n38",
+          "scope": "root"
+        },
+        {
+          "key": "execution errors",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n39",
+          "scope": "root"
+        },
+        {
+          "key": "screenshot review",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n42",
+          "scope": "root"
+        }
+      ]
+    },
+    {
+      "key": "pbd1581cd536f922c",
+      "id": "n43",
+      "kind": "Set",
+      "label": "screenshot review error",
+      "source": {
+        "file": "internal/workflows/validateproduct/validateproduct.go",
+        "line": 299
+      },
+      "scope": "root",
+      "detail": {
+        "kind": "Set",
+        "expression": "gimbal.Set(ctx, \"screenshot review error\", errorText(visualErr))",
+        "promptKnown": false,
+        "keyExpression": "\"screenshot review error\"",
+        "keyKnown": true,
+        "valueExpression": "errorText(visualErr)",
+        "contextExpression": "ctx",
+        "contextKnown": true,
+        "shape": {
+          "type": "string",
+          "kind": "scalar"
+        }
+      },
+      "context": [
+        {
+          "key": "product under test",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n9",
+          "scope": "root"
+        },
+        {
+          "key": "product user documentation",
+          "shape": {
+            "type": "[]string",
+            "kind": "array",
+            "element": {
+              "type": "string",
+              "kind": "scalar"
+            }
+          },
+          "write": "n10",
+          "scope": "root"
+        },
+        {
+          "key": "workload reports",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n38",
+          "scope": "root"
+        },
+        {
+          "key": "execution errors",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n39",
+          "scope": "root"
+        },
+        {
+          "key": "screenshot review",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n42",
+          "scope": "root"
+        },
+        {
+          "key": "screenshot review error",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n43",
+          "scope": "root"
+        }
+      ]
+    },
+    {
+      "key": "p8f62a03e3f6b2885",
+      "id": "n44",
+      "kind": "Set",
+      "label": "issue repository",
+      "source": {
+        "file": "internal/workflows/validateproduct/validateproduct.go",
+        "line": 300
+      },
+      "scope": "root",
+      "detail": {
+        "kind": "Set",
+        "expression": "gimbal.Set(ctx, \"issue repository\", suite.IssueRepo)",
+        "promptKnown": false,
+        "keyExpression": "\"issue repository\"",
+        "keyKnown": true,
+        "valueExpression": "suite.IssueRepo",
+        "contextExpression": "ctx",
+        "contextKnown": true,
+        "shape": {
+          "type": "string",
+          "kind": "scalar"
+        }
+      },
+      "context": [
+        {
+          "key": "product under test",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n9",
+          "scope": "root"
+        },
+        {
+          "key": "product user documentation",
+          "shape": {
+            "type": "[]string",
+            "kind": "array",
+            "element": {
+              "type": "string",
+              "kind": "scalar"
+            }
+          },
+          "write": "n10",
+          "scope": "root"
+        },
+        {
+          "key": "workload reports",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n38",
+          "scope": "root"
+        },
+        {
+          "key": "execution errors",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n39",
+          "scope": "root"
+        },
+        {
+          "key": "screenshot review",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n42",
+          "scope": "root"
+        },
+        {
+          "key": "screenshot review error",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n43",
+          "scope": "root"
+        },
+        {
+          "key": "issue repository",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n44",
+          "scope": "root"
+        }
+      ]
+    },
+    {
+      "key": "p5f7ab372ee25acd3",
+      "id": "n45",
+      "kind": "NewSession",
+      "label": "product-triage",
+      "source": {
+        "file": "internal/workflows/validateproduct/validateproduct.go",
+        "line": 301
+      },
+      "scope": "root",
+      "session": "product-triage",
+      "context": [
+        {
+          "key": "product under test",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n9",
+          "scope": "root"
+        },
+        {
+          "key": "product user documentation",
+          "shape": {
+            "type": "[]string",
+            "kind": "array",
+            "element": {
+              "type": "string",
+              "kind": "scalar"
+            }
+          },
+          "write": "n10",
+          "scope": "root"
+        },
+        {
+          "key": "workload reports",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n38",
+          "scope": "root"
+        },
+        {
+          "key": "execution errors",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n39",
+          "scope": "root"
+        },
+        {
+          "key": "screenshot review",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n42",
+          "scope": "root"
+        },
+        {
+          "key": "screenshot review error",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n43",
+          "scope": "root"
+        },
+        {
+          "key": "issue repository",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n44",
+          "scope": "root"
+        }
+      ]
+    },
+    {
+      "key": "p561d0a6e1a7eef3e",
+      "title": "Triage the findings",
+      "description": "Combine tester reports and visual review into actionable findings.",
+      "id": "n46",
+      "kind": "Generate",
+      "label": "triagePrompt",
+      "source": {
+        "file": "internal/workflows/validateproduct/validateproduct.go",
+        "line": 304
+      },
+      "scope": "root",
+      "session": "product-triage",
+      "prompt": "Read all workload reports, measured durations, execution errors, and the screenshot review. Produce a concise assessment of practical task completion and the overall UI/UX experience. Include what users liked as well as the main frustrations from their debriefs; keep UX and UI feedback distinct. Reconcile contradictions without inventing facts; separate observed defects, UX complaints, and unverified suspicions. For visual claims and screenshot references, use the screenshot review's corrections instead of repeating a caption it found unsupported or a reference it found incorrect. Never inspect the tested product's source. Avoid turning preferences or missing evidence into confirmed bugs.\nUse gh to inspect existing issues in the issue repository and create only new, actionable issues supported by these observations. Group duplicate findings. File only findings that belong to the tested product in that repository; keep defects in a downstream workload project B as report-only notes unless its own issue destination was explicitly supplied. For each new issue, explain the workload, observed versus expected behavior, user impact, and reproduction context. Reopen the exact supporting screenshots and check that each visible claim is supported. Upload those screenshots with gimbal upload-artifact, verify the public URLs, and include the hosted images in the issue body. If a claim cannot be supported by the screenshots, qualify it or leave it in the local report. Use a local body file for multiline issue text. Do not publish an issue with local-only screenshot links or invent hosted URLs. If an upload or GitHub publication fails, report the failure clearly. Do not modify the product or post speculative issues to satisfy a quota.\nReturn a Markdown findings report with task outcomes and elapsed times, the most consequential usability problems, evidence limitations, and the URLs of issues created or relevant existing issues. Report publication failures explicitly; do not claim an issue was created without a successful tool result.",
+      "detail": {
+        "kind": "Generate",
+        "expression": "triage.Generate[gimbal.Text](ctx, triagePrompt)",
+        "promptExpression": "triagePrompt",
+        "promptKnown": true,
+        "keyKnown": false,
+        "contextExpression": "ctx",
+        "contextKnown": true
+      },
+      "context": [
+        {
+          "key": "product under test",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n9",
+          "scope": "root"
+        },
+        {
+          "key": "product user documentation",
+          "shape": {
+            "type": "[]string",
+            "kind": "array",
+            "element": {
+              "type": "string",
+              "kind": "scalar"
+            }
+          },
+          "write": "n10",
+          "scope": "root"
+        },
+        {
+          "key": "workload reports",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n38",
+          "scope": "root"
+        },
+        {
+          "key": "execution errors",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n39",
+          "scope": "root"
+        },
+        {
+          "key": "screenshot review",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n42",
+          "scope": "root"
+        },
+        {
+          "key": "screenshot review error",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n43",
+          "scope": "root"
+        },
+        {
+          "key": "issue repository",
+          "shape": {
+            "type": "string",
+            "kind": "scalar"
+          },
+          "write": "n44",
+          "scope": "root"
+        }
+      ]
+    }
+  ],
+  "diagnostics": []
+}

@@ -2,7 +2,7 @@
 
 [Back to TL;DR](../proposal.md)
 
-**The server opens a stream; the run's backend sends events as they happen.** A local runner implements that backend endpoint directly; a compiled distributed backend presents the same logical run boundary. Use HTTP over Unix sockets locally, newline-delimited JSON for events, and ordinary request/reply HTTP for controls. Tens of runs do not justify a broker.
+**The server opens a stream; the run's backend sends events as they happen.** A local runner implements that endpoint directly and may itself drive a runtime execution backend with remote environments; a compiled distributed consumer can present the same logical run boundary. Neither choice requires compiling ordinary workflow control just to use remote workers. Use HTTP over Unix sockets locally, newline-delimited JSON for events, and ordinary request/reply HTTP for controls. Tens of runs do not justify a broker.
 
 ## Why this direction
 

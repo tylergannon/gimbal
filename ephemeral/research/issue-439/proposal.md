@@ -6,7 +6,7 @@
 
 **The server connects; the backend streams.** Use HTTP over Unix sockets locally: one resumable event subscription per run, with ordinary request/reply controls. The backend owns one authoritative logical history; the server builds the UI from it. At tens of concurrent runs, neither a broker nor polling every control socket is needed. A tunnel or authenticated HTTPS can carry the same boundary remotely; shared directories are not required.
 
-**A workflow can mix Linux tasks and macOS desktop tasks.** The workflow selects a role; ordinary Go role bindings select a backend adapter configured for the required worker. Placement and provider integration belong to the backend. For Codex desktop work, the recommended arrangement is a desktop-launched Gimbal MCP worker: Gimbal submits the task, and Codex creates the native session. The owning agent can remain idle. Build the web application into the server executable and omit it from project runners; a web plugin would add complexity without making this boundary better.
+**A workflow can mix Linux tasks and macOS desktop tasks.** The active runtime backend work selects a named execution environment; roles choose the agent within it. Ordinary Go control stays in the lean runner while backend workers execute commands and turns. Placement and provider integration belong to the backend. For Codex desktop work, the recommended arrangement is a desktop-launched Gimbal MCP worker: Gimbal submits the task, and Codex creates the native session. The owning agent can remain idle. Build the web application into the server executable and omit it from project runners; a web plugin would add complexity without making this boundary better.
 
 ## What is now established
 

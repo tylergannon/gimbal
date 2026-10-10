@@ -18,7 +18,7 @@ The launcher supplies context-store and cache paths so the runner constructs `Co
 
 ## Other machines and containers
 
-Compiled distributed execution follows the [backend contract](backend-contract.md). A runner process, JSONL file, or common filesystem is an implementation choice, not the public definition of a run.
+Runtime remote environments and optional compiled distributed execution follow the [backend contract](backend-contract.md). A runner process, JSONL file, or common filesystem is an implementation choice, not the public definition of a run.
 
 Remote runners use their own object storage and agent-visible materialization paths. Artifact requests transfer referenced objects into the server archive; a path on the runner is not a path the server can open.
 

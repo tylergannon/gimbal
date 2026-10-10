@@ -10,6 +10,10 @@ There are several distinct gates: exposing the tool to the task, authorizing acc
 
 **Design consequence:** keep the resident macOS worker as a backend option, but require a demonstrated provider integration before advertising computer-use capability. A supported way to submit work into a provider-owned desktop session could satisfy this boundary; we have not established such a submission interface for Gimbal. No extra Gimbal service or permission abstraction is justified by this finding.
 
+## Subsequent session-control research
+
+A [Codex, Claude Fable, and agy investigation](session-control/assessment.md) examines the harness-to-desktop direction specifically. The first live attachment check found private stdio connections and a refused connection at the documented public socket path. A first-party plugin-to-desktop bridge exists, but third-party admission and retained native Computer Use remain unproved. The earlier ancestry finding must not be enlarged into a claim that all third-party plugin scripts are rejected: the check concerns process and binary identity.
+
 ## 1. When is the tool exposed?
 
 The public Codex source controls plugin loading, per-thread plugin selection, MCP server enablement, tool visibility, and action review. Installed/enabled is necessary in those paths, but is not a native permission grant. The independent [public-source report](public-source-report.md) pins every finding to revision `07757f448f2d3cf475d0f328732c1c277bce8aa1`.

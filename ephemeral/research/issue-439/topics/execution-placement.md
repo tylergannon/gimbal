@@ -32,6 +32,10 @@ The acceptance check is a remotely submitted task, launched through this exact w
 
 **Subsequent source/binary research narrows this candidate:** the installed Codex desktop bridge requires a caller descended from the desktop process, plus code-signing checks. A sibling LaunchAgent does not satisfy that rule merely by inhabiting the GUI session. Native capture has additional authorization whose full conditions remain unknown; the observed bridge rejection is not a proven cause of `cgWindowNotFound`. Keep worker placement separate from the still-unproven provider submission interface. See [the evidence and exact scope](../computer-use/findings.md) and [the independent public-source trace](../computer-use/public-source-report.md).
 
+## Provider submission is the first integration risk
+
+The desired direction is **Gimbal harness → provider desktop session**, potentially through a desktop-installed Gimbal plugin. An already-running agent polling a queue is not the assumed design. Public app-server control exists, but the inspected desktop had no usable public listener; its first-party plugin uses a different private bridge. Test external session initiation with retained Computer Use before building the backend around either route. The [multi-harness assessment](../computer-use/session-control/assessment.md) separates source findings, live observations, and the remaining experiment.
+
 ## Cross-machine handoff and builds
 
 Pass inputs and outputs as existing typed values and referenced artifacts; materialize them on the selected worker. A path on Linux has no implied meaning on macOS. Associate executable variants with one workflow source/build identity and the correct OS/architecture, whether built on the destination or supplied as artifacts. One workflow bundle need not mean one executable usable on every machine.

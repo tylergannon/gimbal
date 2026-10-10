@@ -1,0 +1,14 @@
+#!/bin/sh
+set -eu
+
+if [ -z "${CODEX_MCP_NODE_PATH:-}" ] || [ ! -x "$CODEX_MCP_NODE_PATH" ]; then
+  printf '%s\n' 'Gimbal desktop worker needs CODEX_MCP_NODE_PATH pointing to the executable Node runtime supplied by Codex desktop. Enable this MCP server in a local desktop task, or supply that absolute runtime path for a stdio check.' >&2
+  exit 127
+fi
+case "$CODEX_MCP_NODE_PATH" in
+  /*) ;;
+  *) printf '%s\n' 'CODEX_MCP_NODE_PATH must be an absolute executable path.' >&2; exit 127 ;;
+esac
+
+plugin_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd -P)
+exec "$CODEX_MCP_NODE_PATH" "$plugin_dir/server.mjs" "$@"

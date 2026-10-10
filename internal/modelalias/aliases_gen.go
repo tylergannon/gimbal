@@ -14,6 +14,7 @@ var generatedFamilies = []familyVersion{
 	{family: "gpt", provider: "openai", version: "6", native: "gpt-6-sol"},
 	{family: "gpt", provider: "openai", version: "6.1", native: "gpt-6.1-sol"},
 	{family: "haiku", provider: "anthropic", version: "4.5", native: "claude-haiku-4-5"},
+	{family: "haiku", provider: "anthropic", version: "5.5", native: "claude-haiku-5-5"},
 	{family: "luna", provider: "openai", version: "5.6", native: "gpt-5.6-luna"},
 	{family: "luna", provider: "openai", version: "6", native: "gpt-6-luna"},
 	{family: "opus", provider: "anthropic", version: "4.5", native: "claude-opus-4-5"},

@@ -62,7 +62,9 @@ error when it reaches Jev supervision without the key. Help and commands that
 only contact an already running instance do not need a local TypeSafe key.
 
 ```sh
-gimbal run review --work-dir /abs/project --no-web --goal "Review the parser changes for correctness; report concrete findings with evidence."
+gimbal --instance-dir /abs/instance --port 8080
+# In another shell:
+gimbal run review --instance-dir /abs/instance --project /abs/project --input '{"goal":"Review the parser changes for correctness; report concrete findings with evidence."}'
 ```
 
 Use an absolute project path. Do not pass role-model flags by default: the
@@ -110,11 +112,11 @@ assignment. The plan is not proof, so keep independent validation appropriate
 to the risk. Do not assume the workflow retries provider, harness, or execution
 errors; only an explicit retry path does that.
 
-The workflow command remains running until its work finishes. Keep that process
-alive while watching or steering from another shell. `--no-web` disables the
-browser listener while retaining local control and records. Omit it for the
-browser experience; `--port 0` selects an available port. `--uds` serves the
-web listener through a Unix socket when needed.
+The command returns the run ID after the independent run process starts. Use
+`--follow` to wait for its outcome. The run continues when the command exits or
+the daemon stops. Restart the daemon with the same instance directory to resume
+observation and control of its admitted projects. The daemon's `--port 0`
+selects an available browser port; `--uds` serves through a Unix socket.
 
 ## Find the run and observe its work
 
@@ -229,7 +231,7 @@ Codex, Claude, or agy/Gemini when creating a conversation; Gimbal creates its
 worktree and branch. Ask the agent to start a review or implementation, then
 open the linked run to monitor it in the same server. Implementation needs a
 local definition-of-done file in the conversation's worktree. Keep the server
-running while a turn or workflow is active. After a restart, saved Codex
+running while a conversation turn is active. Launched workflows run independently. After a restart, saved Codex
 conversations resume their native thread on the next message. Saved Claude and
 agy/Gemini conversations remain readable history and cannot continue yet.
 

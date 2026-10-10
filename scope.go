@@ -12,8 +12,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/tylergannon/gimbal/contextdata"
 )
 
 // closeTimeout bounds one adapter's Close call, on a context independent of
@@ -41,7 +39,6 @@ type scope struct {
 
 	loop bool // a PromiseLoop's own scope, which takes messages for its planner
 
-	finishMu    sync.Mutex
 	mu          sync.Mutex
 	ordinals    map[string]int // the last ordinal given to each child scope and session name
 	keys        []string       // in the order they were set
@@ -177,7 +174,6 @@ func (s *scope) do(ctx context.Context, body func(context.Context) error) (err e
 	return body(ctx)
 }
 
-// begin and finish are also used by consumer-owned compiled workflows.
 // Its explicit finish calls check lifetime legality before calling finish.
 func (s *scope) begin(ctx context.Context) context.Context {
 	ctx, s.cancel = context.WithCancelCause(context.WithValue(ctx, scopeKey{}, s))
@@ -298,11 +294,11 @@ func SetJSON[V Output](ctx context.Context, key string, value V) {
 }
 
 func encode(key string, value any) []byte {
-	entry, err := contextdata.Encode(key, value)
+	raw, err := json.Marshal(value)
 	if err != nil {
 		panic(fmt.Sprintf("gimbal: set %q: %v", key, err))
 	}
-	return entry.Value
+	return raw
 }
 
 func store(ctx context.Context, key string, raw []byte) {
@@ -347,13 +343,7 @@ func (s *scope) spillValueLocked(key string, value *scopeValue) error {
 		text = render(value.raw)
 	}
 	relative := filepath.ToSlash(filepath.Join("values", encodedPath(s.key), encodedComponent(key)+extension))
-	var desc artifactDescriptor
-	var err error
-	if s.run.contextStore != nil {
-		desc, err = s.run.writeCompiledArtifact(data, format, text)
-	} else {
-		desc, err = s.run.writeArtifact(relative, data)
-	}
+	desc, err := s.run.writeArtifact(relative, data)
 	if err != nil {
 		return err
 	}
@@ -496,9 +486,6 @@ type visibleValue struct {
 }
 
 func visibleValues(ctx context.Context) []visibleValue {
-	if values, ok := ctx.Value(compiledContextKey{}).(compiledContext); ok {
-		return values.values
-	}
 	seen := map[string]bool{}
 	var values []visibleValue
 	for s, _ := ctx.Value(scopeKey{}).(*scope); s != nil; s = s.parent {

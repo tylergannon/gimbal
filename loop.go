@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/tylergannon/polytype"
@@ -244,4 +246,84 @@ func planPrompt(ctx context.Context, name, workdir, backlogText, scoped, previou
 	b.WriteString(dynamicText)
 	b.WriteString("Return the full revised task list in `tasks` and the index of the chosen task in `next`, or `next: null` to end dispatch; that does not certify that the goal is fulfilled.")
 	return b.String(), nil
+}
+
+func prepareLoop(s *scope) error {
+	return os.MkdirAll(filepath.Join(s.run.dir, "scopes", filepath.FromSlash(s.key)), 0755)
+}
+
+func prepareTask(parent *scope, ctx context.Context, name string, task Task) (*scope, context.Context) {
+	return parent.child(name), context.WithValue(ctx, taskKey{}, task)
+}
+func endLoop(ctx context.Context) error {
+	s, err := current(ctx)
+	if err != nil {
+		return err
+	}
+	for _, message := range s.endDispatch() {
+		s.run.event(s.key, "", "", Steer{Target: s.key, Source: "person", Message: message})
+		logf("%s: a message was dropped, dispatch ended first: %s", s.key, oneLine(message))
+	}
+	return nil
+}
+
+func planNext(ctx context.Context, planner *Session, goal string, tasks []Task, previous string, opts []AgentOption) (Plan, error) {
+	s, err := current(ctx)
+	if err != nil {
+		return Plan{}, err
+	}
+	if !s.loop {
+		return Plan{}, fmt.Errorf("gimbal: planner dispatch requires loop scope")
+	}
+	if planner == nil {
+		return Plan{}, fmt.Errorf("gimbal: planner session is nil")
+	}
+	if err = planner.reachable(ctx); err != nil {
+		return Plan{}, err
+	}
+	backlog, err := backlogJSON(goal, tasks)
+	if err != nil {
+		return Plan{}, err
+	}
+	messages := s.takeMessages()
+	for _, message := range messages {
+		s.run.event(s.key, "", "", Steer{Target: s.key, Source: "person", Message: message, Landed: true})
+		logf("%s: a message reached the planner: %s", s.key, oneLine(message))
+	}
+	prompt, err := planPrompt(ctx, s.name, planner.workdir, string(backlog), scopeText(ctx), previous, messages)
+	if err != nil {
+		return Plan{}, err
+	}
+	result, err := dispatch[answer](ctx, planner, prompt, opts)
+	return result.Plan, err
+}
+
+func recordPlan(ctx context.Context, goal string, p Plan) error {
+	s, err := current(ctx)
+	if err != nil {
+		return err
+	}
+	if !s.loop {
+		return fmt.Errorf("gimbal: record plan requires loop scope")
+	}
+	if err = validatePlan(p); err != nil {
+		return err
+	}
+	if p.Tasks == nil {
+		p.Tasks = []Task{}
+	}
+	backlog, err := backlogJSON(goal, p.Tasks)
+	if err != nil {
+		return err
+	}
+	file := filepath.Join(s.run.dir, "scopes", filepath.FromSlash(s.key), "backlog.md")
+	if err = os.WriteFile(file, []byte("---\n"+string(backlog)+"\n---\n"), 0644); err != nil {
+		return err
+	}
+	decision := PlannerDecision{}
+	if p.Next.Present {
+		decision.Task = optionalTask(p.Tasks[p.Next.Value])
+	}
+	s.run.event(s.key, "", "", decision)
+	return nil
 }

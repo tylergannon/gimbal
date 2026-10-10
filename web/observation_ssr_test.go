@@ -131,9 +131,8 @@ func TestRunPageRequiresGenerationWhenTheGraphIsUnavailable(t *testing.T) {
 	body := recorder.Body.String()
 	for _, want := range []string{
 		"Workflow graph required",
-		"No generated graph is registered for looping",
-		"go generate ./...",
-		"just build",
+		"No workflow graph was saved for looping",
+		"Restarting the server cannot replace it.",
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("the graph guidance does not contain %q:\n%s", want, body)

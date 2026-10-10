@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/internal/host"
 	"github.com/tylergannon/gimbal/internal/observation"
 	"github.com/tylergannon/gimbal/workflow"
 )
@@ -39,6 +40,11 @@ func TestRunPageKeepsInterviewHistoryAcrossQuestionsAndReload(t *testing.T) {
 	registry := observation.NewRegistry(project)
 	runDir := filepath.Join(project, "runs", "run-interview")
 	if err := os.MkdirAll(runDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	graph, _ := gimbal.RegisteredGraph(workflowName)
+	graphData, _ := json.Marshal(graph)
+	if err := os.WriteFile(filepath.Join(runDir, "graph.json"), graphData, 0644); err != nil {
 		t.Fatal(err)
 	}
 	store, err := observation.Open(registry, "run-interview", workflowName, runDir)
@@ -77,7 +83,7 @@ func TestRunPageKeepsInterviewHistoryAcrossQuestionsAndReload(t *testing.T) {
 
 	render := func() string {
 		request := httptest.NewRequest(http.MethodGet, "/projects/test/runs/run-interview", nil)
-		request = request.WithContext(observation.WithRegistry(request.Context(), registry))
+		request = request.WithContext(observation.WithRegistry(host.WithProjectDir(request.Context(), project), registry))
 		recorder := httptest.NewRecorder()
 		handler.ServeHTTP(recorder, request)
 		if recorder.Code != http.StatusOK {

@@ -77,6 +77,12 @@ export function setRunsFixture(populated: boolean): void {
   if (!populated) return;
   const runDir = join(projectRuns, "fixture-failed");
   mkdirSync(runDir, { recursive: true });
+  writeFileSync(join(runDir, "graph.json"), JSON.stringify({
+    name: "implement", source: { file: "fixture.go", line: 1 }, services: [],
+    body: [{ kind: "iterate", file: "fixture.go", line: 2, name: "outcome", services: [],
+      body: [{ kind: "promise_loop", file: "fixture.go", line: 3, name: "implementation", planner: "implementation-planning", supervisors: [], services: [], body: [] }]
+    }]
+  }));
   const tables = {
     run: [
       {

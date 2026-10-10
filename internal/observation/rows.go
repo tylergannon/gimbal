@@ -196,14 +196,8 @@ type ModelCallRow struct {
 // CancellationState keeps delivery history and the independent local cleanup
 // outcome visible in both live and retained run snapshots.
 type CancellationState struct {
-	By           string                `json:"by"`
-	Reason       string                `json:"reason"`
-	Cleanup      string                `json:"cleanup"`
-	CleanupError string                `json:"cleanup_error"`
-	Deliveries   []CancellationAttempt `json:"deliveries"`
-}
-type CancellationAttempt struct {
-	At     int64  `json:"at"`
-	Status string `json:"status"`
-	Error  string `json:"error"`
+	By           string `json:"by"`
+	Reason       string `json:"reason"`
+	Cleanup      string `json:"cleanup"`
+	CleanupError string `json:"cleanup_error"`
 }

@@ -25,7 +25,7 @@ func TestShippedWorkflowPages(t *testing.T) {
 		t.Fatalf("expected shipped application, got %s", mode)
 	}
 	for _, workflow := range builtin.Workflows {
-		for _, panel := range []string{"workflow", "guide", "run"} {
+		for _, panel := range []string{"workflow", "guide"} {
 			t.Run(workflow.Name+"/"+panel, func(t *testing.T) {
 				response := httptest.NewRecorder()
 				handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/workflows/"+workflow.Name+"?v=1&panel="+panel, nil))
@@ -36,9 +36,6 @@ func TestShippedWorkflowPages(t *testing.T) {
 					if !strings.Contains(response.Body.String(), text) {
 						t.Fatalf("page missing %q", text)
 					}
-				}
-				if panel == "run" && !strings.Contains(response.Body.String(), "Start workflow") {
-					t.Fatal("missing visible start form")
 				}
 			})
 		}

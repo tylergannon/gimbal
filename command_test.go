@@ -123,9 +123,9 @@ func TestRunCommandRecordsEachOutcome(t *testing.T) {
 
 	// The same facts, however the finished run is read again: from its
 	// durable snapshot, from its tables, and rebuilt from its log. Each read
-	// writes the snapshot it read, so each drops that too.
+	// is read-only; the removed snapshot stays absent.
 	id := filepath.Base(dir)
-	for _, drop := range [][]string{nil, {"observation.json", "observation-deltas.jsonl"}, {"observation.json", "commands.json"}} {
+	for _, drop := range [][]string{nil, {"observation.json", "observation-deltas.jsonl"}, {"commands.json"}} {
 		for _, name := range drop {
 			if err := os.Remove(filepath.Join(dir, name)); err != nil {
 				t.Fatal(err)
@@ -144,8 +144,8 @@ func TestRunCommandRecordsEachOutcome(t *testing.T) {
 			}
 		}
 	}
-	if rebuilt := commandRows(t, dir); !reflect.DeepEqual(rebuilt, rows) {
-		t.Errorf("the rebuilt commands.json = %+v, want %+v", rebuilt, rows)
+	if _, err := os.Stat(filepath.Join(dir, "commands.json")); !os.IsNotExist(err) {
+		t.Fatalf("read-only replay rewrote commands.json: %v", err)
 	}
 }
 

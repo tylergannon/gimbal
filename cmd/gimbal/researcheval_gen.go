@@ -5,16 +5,15 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 
 	"github.com/spf13/cobra"
 	"github.com/tylergannon/gimbal"
-	"github.com/tylergannon/gimbal/internal/skgo/client"
-	routes "github.com/tylergannon/gimbal/internal/skgo/links/onzggl3sn52xizlt"
+	"github.com/tylergannon/gimbal/internal/invocation"
 	"github.com/tylergannon/gimbal/web"
-	"github.com/tylergannon/polytype"
 )
 
 // researchevalCommand is gimbal run research-eval and submits the matching Form remote.
@@ -29,9 +28,9 @@ func researchevalCommand(defaults map[gimbal.WorkflowRole]string) *cobra.Command
 	var researchEvalAssessmentModel string
 	var researchEvalPlanningModel string
 	var researchEvalReadingModel string
-	var workDir, project, instanceDir, conversation string
+	var workDir, project, instanceDir, conversation, input string
 	var follow bool
-	cmd := &cobra.Command{Use: "research-eval", Short: "ResearchEval measures research candidates and checks a frozen choice on holdout.", Long: "Package researcheval compares economical research/indexing models using a\nfixed local-source benchmark, independent assessment, and bounded index queries.\n\nAn Opus planner selects candidate IDs in a PromiseLoop. Code runs the real\nresearch-document workflow, reports quality, audit repairs, usage and cost,\nand freezes the cheapest quality-eligible candidate before a held-out case.\nThe planner cannot change the measure or see holdout feedback before selection.\nSuccess means both development and holdout passed; an ended loop is not proof.\nThe small fictional suite measures source-grounded synthesis and navigation,\nnot open-web discovery or a statistically established model success rate.\n\nRun in a hosted project, with --work-dir equal to --project. ResearchInstance\nmust select the same instance as the parent (omit it for the normal default).\nChild research runs are hosted normally and cancelled/joined on parent timeout.\nThe report in OutputDir names isolated trial directories and raw assessments.\nExisting output directories are refused so another evaluation cannot be reused\naccidentally. Costs are catalog proxies, not subscription invoices; unknown\nusage is never treated as free. Candidate ranking compares priced research and\nindex roles plus Jev claim-audit input. The report keeps full-run cost separate\nand marks it unknown when any fixed role lacks pricing. Evaluation overhead\nfrom the reader, assessor and planner is reported separately.\n\nCandidatesFile optionally names a JSON array of {id,research_model,index_model}.\nIt is an allowlist; defaults allow independent research/index combinations\nof Gemini Flash, OpenAI Luna and Terra, and Claude Haiku and Sonnet through\ntheir native providers. The planner samples controlled role swaps within the\nround budget; it does not exhaust all combinations. Other research roles use\ntheir production defaults; FixedModel can override them. Role flags pin the\nevaluation planner, reader and assessor. An unavailable provider is a recorded\nfailed trial.\n\nExample:\n\n\tgimbal run research-eval --project /path/project --work-dir /path/project \\\n\t  --output-dir /tmp/research-eval-1 --max-trials 3" + "\n\nThe selected persistent instance owns this run. --project selects its admitted repository; --work-dir selects the execution directory independently. --instance-dir selects the instance state directory (or GIMBAL_INSTANCE_DIR, default .gimbal). --follow waits for terminal success or failure; otherwise the run continues after this client exits. Each role flag chooses a model and optional effort. Executable lookup, PATH, and provider configuration come from the instance startup environment.", Args: cobra.NoArgs}
+	cmd := &cobra.Command{Use: "research-eval", Short: "ResearchEval measures research candidates and checks a frozen choice on holdout.", Long: "Package researcheval compares economical research/indexing models using a\nfixed local-source benchmark, independent assessment, and bounded index queries.\n\nAn Opus planner selects candidate IDs in a PromiseLoop. Code runs the real\nresearch-document workflow, reports quality, audit repairs, usage and cost,\nand freezes the cheapest quality-eligible candidate before a held-out case.\nThe planner cannot change the measure or see holdout feedback before selection.\nSuccess means both development and holdout passed; an ended loop is not proof.\nThe small fictional suite measures source-grounded synthesis and navigation,\nnot open-web discovery or a statistically established model success rate.\n\nRun in a hosted project, with --work-dir equal to --project. ResearchInstance\nmust select the same instance as the parent (omit it for the normal default).\nChild research runs are hosted normally and cancelled/joined on parent timeout.\nThe report in OutputDir names isolated trial directories and raw assessments.\nExisting output directories are refused so another evaluation cannot be reused\naccidentally. Costs are catalog proxies, not subscription invoices; unknown\nusage is never treated as free. Candidate ranking compares priced research and\nindex roles plus Jev claim-audit input. The report keeps full-run cost separate\nand marks it unknown when any fixed role lacks pricing. Evaluation overhead\nfrom the reader, assessor and planner is reported separately.\n\nCandidatesFile optionally names a JSON array of {id,research_model,index_model}.\nIt is an allowlist; defaults allow independent research/index combinations\nof Gemini Flash, OpenAI Luna and Terra, and Claude Haiku and Sonnet through\ntheir native providers. The planner samples controlled role swaps within the\nround budget; it does not exhaust all combinations. Other research roles use\ntheir production defaults; FixedModel can override them. Role flags pin the\nevaluation planner, reader and assessor. An unavailable provider is a recorded\nfailed trial.\n\nExample:\n\n\tgimbal run research-eval --project /path/project --work-dir /path/project \\\n\t  --output-dir /tmp/research-eval-1 --max-trials 3" + "\n\nThe selected instance launches this run in an independent process that survives daemon shutdown and restart. --project selects its admitted repository; --work-dir selects the execution directory independently. --instance-dir selects the instance state directory (or GIMBAL_INSTANCE_DIR, default .gimbal). --follow waits for terminal success or failure; otherwise the run continues after this client exits. Each role flag chooses a model and optional effort. Executable lookup, PATH, and provider configuration come from the instance startup environment.", Args: cobra.NoArgs}
 	cmd.Flags().StringVar(&valueOutputDir, "output-dir", "", "OutputDir is a new directory for report.json; it names isolated trial outputs. (required)")
 	cmd.Flags().StringVar(&optCandidatesFile, "candidates-file", "", "CandidatesFile optionally replaces the bundled model-combination allowlist.")
 	cmd.Flags().StringVar(&optSuiteDir, "suite-dir", "", "SuiteDir optionally names a directory with suite.json and original source files.")
@@ -39,7 +38,7 @@ func researchevalCommand(defaults map[gimbal.WorkflowRole]string) *cobra.Command
 	cmd.Flags().IntVar(&optTrialMinutes, "trial-minutes", 0, "TrialMinutes bounds each research trial; default sixty minutes.")
 	cmd.Flags().StringVar(&optFixedModel, "fixed-model", "", "FixedModel optionally overrides the production defaults for planning, authoring, review and supervision.")
 	cmd.Flags().StringVar(&optResearchInstance, "research-instance", "", "ResearchInstance selects the same instance state directory as the parent invocation.")
-	_ = cmd.MarkFlagRequired("output-dir")
+	cmd.Flags().StringVar(&input, "input", "", "workflow parameters as a JSON object; cannot be combined with parameter flags")
 	cmd.Flags().StringVar(&workDir, "work-dir", "", "execution directory (default: owning project)")
 	cmd.Flags().StringVar(&project, "project", ".", "repository owning this run and its observation; admitted on first start")
 	instanceDefault := os.Getenv("GIMBAL_INSTANCE_DIR")
@@ -48,7 +47,7 @@ func researchevalCommand(defaults map[gimbal.WorkflowRole]string) *cobra.Command
 	}
 	cmd.Flags().StringVar(&instanceDir, "instance-dir", instanceDefault, "selected running instance state directory (default: GIMBAL_INSTANCE_DIR or .gimbal)")
 	cmd.Flags().StringVar(&conversation, "conversation", "", "associate this run with a conversation in the owning project")
-	cmd.Flags().BoolVar(&follow, "follow", false, "wait for the hosted run's terminal result; without this flag the run survives client exit")
+	cmd.Flags().BoolVar(&follow, "follow", false, "wait for the run's terminal result; without this flag the run survives client exit")
 	researchEvalAssessmentModelDefault := defaults[gimbal.WorkflowRole("research-eval-assessment")]
 	if researchEvalAssessmentModelDefault == "" {
 		cmd.Flags().StringVar(&researchEvalAssessmentModel, "research-eval-assessment", "", "the model for role research-eval-assessment, as model or model:effort; Pi uses pi/diffusion/model-id; OpenCode uses opencode/model or opencode/provider/model")
@@ -82,25 +81,64 @@ func researchevalCommand(defaults map[gimbal.WorkflowRole]string) *cobra.Command
 		if err != nil {
 			return err
 		}
-		formInput := routes.StartResearchEvalInput{ProjectDir: project, WorkDir: workDir, Conversation: conversation,
-			OutputDir:                  valueOutputDir,
-			CandidatesFile:             polytype.Optional[string]{Present: cmd.Flags().Changed("candidates-file"), Value: optCandidatesFile},
-			SuiteDir:                   polytype.Optional[string]{Present: cmd.Flags().Changed("suite-dir"), Value: optSuiteDir},
-			MaxTrials:                  polytype.Optional[int]{Present: cmd.Flags().Changed("max-trials"), Value: optMaxTrials},
-			TrialMinutes:               polytype.Optional[int]{Present: cmd.Flags().Changed("trial-minutes"), Value: optTrialMinutes},
-			FixedModel:                 polytype.Optional[string]{Present: cmd.Flags().Changed("fixed-model"), Value: optFixedModel},
-			ResearchInstance:           polytype.Optional[string]{Present: cmd.Flags().Changed("research-instance"), Value: optResearchInstance},
-			RoleResearchEvalAssessment: polytype.Optional[string]{Present: cmd.Flags().Changed("research-eval-assessment"), Value: researchEvalAssessmentModel},
-			RoleResearchEvalPlanning:   polytype.Optional[string]{Present: cmd.Flags().Changed("research-eval-planning"), Value: researchEvalPlanningModel},
-			RoleResearchEvalReading:    polytype.Optional[string]{Present: cmd.Flags().Changed("research-eval-reading"), Value: researchEvalReadingModel},
+		values := map[string]any{}
+
+		if cmd.Flags().Changed("output-dir") {
+			values["output_dir"] = valueOutputDir
 		}
-		formClient, err := web.SelectedFormClient(cmd.Context(), instanceDir, project)
-		if err != nil {
+
+		if cmd.Flags().Changed("candidates-file") {
+			values["candidates_file"] = optCandidatesFile
+		}
+
+		if cmd.Flags().Changed("suite-dir") {
+			values["suite_dir"] = optSuiteDir
+		}
+
+		if cmd.Flags().Changed("max-trials") {
+			values["max_trials"] = optMaxTrials
+		}
+
+		if cmd.Flags().Changed("trial-minutes") {
+			values["trial_minutes"] = optTrialMinutes
+		}
+
+		if cmd.Flags().Changed("fixed-model") {
+			values["fixed_model"] = optFixedModel
+		}
+
+		if cmd.Flags().Changed("research-instance") {
+			values["research_instance"] = optResearchInstance
+		}
+
+		if input != "" && len(values) != 0 {
+			return fmt.Errorf("--input cannot be combined with parameter flags")
+		}
+		raw := json.RawMessage(input)
+		if input == "" {
+			raw, _ = json.Marshal(values)
+		}
+		roles := map[gimbal.WorkflowRole]string{}
+
+		if cmd.Flags().Changed("research-eval-assessment") {
+			roles[gimbal.WorkflowRole("research-eval-assessment")] = researchEvalAssessmentModel
+		}
+
+		if cmd.Flags().Changed("research-eval-planning") {
+			roles[gimbal.WorkflowRole("research-eval-planning")] = researchEvalPlanningModel
+		}
+
+		if cmd.Flags().Changed("research-eval-reading") {
+			roles[gimbal.WorkflowRole("research-eval-reading")] = researchEvalReadingModel
+		}
+
+		request := invocation.Request{Workflow: "research-eval", Input: raw, Project: project, WorkDir: workDir, Conversation: conversation, Roles: roles}
+		if _, _, err := invocation.Prepare(request); err != nil {
 			return err
 		}
-		accepted, err := (client.Client{FormClient: formClient}).StartResearchEval(cmd.Context(), formInput)
+		accepted, err := web.Start(cmd.Context(), instanceDir, request)
 		if err != nil {
-			return fmt.Errorf("start research-eval: %w", err)
+			return err
 		}
 		fmt.Fprintln(cmd.OutOrStdout(), accepted.RunID)
 		if !follow {

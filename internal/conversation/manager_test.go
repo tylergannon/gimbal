@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/internal/observation"
 )
 
 func TestManagerRoutesAllProvidersAndKeepsConversationHistory(t *testing.T) {
@@ -289,4 +290,38 @@ func git(t *testing.T, dir string, args ...string) string {
 		t.Fatalf("git %s: %v: %s", strings.Join(args, " "), err, output)
 	}
 	return strings.TrimSpace(string(output))
+}
+
+func TestConversationRefreshFollowsExternalRun(t *testing.T) {
+	state := t.TempDir()
+	dir := filepath.Join(state, "runs", "child")
+	writer, err := observation.Open(nil, "child", "review", dir, func() error { return os.MkdirAll(dir, 0755) })
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = writer.Close() }()
+	if err := os.MkdirAll(filepath.Join(state, "conversations"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	manager := &Manager{projectDir: state, registry: observation.NewRegistry(state)}
+	item := &Conversation{ID: "chat", Runs: []Run{{ID: "child", Workflow: "review", Status: RunStatusRunning}}}
+	manager.refresh(item)
+	if item.Runs[0].Status != RunStatusRunning {
+		t.Fatal("running child settled early")
+	}
+	if err := writer.Lifecycle([]byte(`{"seq":1,"time":"2026-10-10T10:00:00Z","scope":"","event":{"kind":"run_ended","name":"review"}}`)); err != nil {
+		t.Fatal(err)
+	}
+	manager.refresh(item)
+	if item.Runs[0].Status != RunStatusCompleted {
+		t.Fatal("conversation did not catch up")
+	}
+	raw, err := os.ReadFile(filepath.Join(state, "conversations", "chat.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var saved Conversation
+	if err := json.Unmarshal(raw, &saved); err != nil || saved.Runs[0].Status != RunStatusCompleted {
+		t.Fatalf("saved conversation: %s, %v", raw, err)
+	}
 }

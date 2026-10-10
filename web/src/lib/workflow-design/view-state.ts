@@ -1,7 +1,7 @@
 import type { SourcePage, ValueShape, ViewNode } from "./types";
 
 export interface ViewState {
-  panel?: "guide" | "run";
+  panel?: "guide";
   selected?: string;
   open: string[];
   details: string[];
@@ -198,7 +198,7 @@ export function normalizeView(state: ViewState, page: SourcePage): ViewState {
     details.add(path);
   }
   return {
-    ...(state.panel === "guide" || state.panel === "run" ? { panel: state.panel } : {}),
+    ...(state.panel === "guide" ? { panel: state.panel } : {}),
     ...(selectedValues ? { selected: selectedValues } : {}),
     open: [...new Set((state.open || []).filter((key) => index.open.has(key)))].sort(),
     details: [...details].sort(),
@@ -232,9 +232,8 @@ export function decodeView(search: URLSearchParams, page: SourcePage): ViewState
   }
   const selectedValues = [...new Set(search.getAll("selected"))];
   const state: ViewState = {
-    ...(search.getAll("panel").length === 1 &&
-    (search.get("panel") === "guide" || search.get("panel") === "run")
-      ? { panel: search.get("panel") as "guide" | "run" }
+    ...(search.getAll("panel").length === 1 && search.get("panel") === "guide"
+      ? { panel: search.get("panel") as "guide" }
       : {}),
     ...(selectedValues.length === 1 ? { selected: selectedValues[0] } : {}),
     open: search.getAll("open"),
@@ -248,7 +247,7 @@ export function decodeView(search: URLSearchParams, page: SourcePage): ViewState
 export function encodeView(state: ViewState): URLSearchParams {
   const search = new URLSearchParams();
   search.set("v", VERSION);
-  if (state.panel === "guide" || state.panel === "run") search.set("panel", state.panel);
+  if (state.panel === "guide") search.set("panel", state.panel);
   if (typeof state.selected === "string" && state.selected.length)
     search.set("selected", state.selected);
   for (const key of [...new Set(state.open || [])].filter(Boolean).sort())

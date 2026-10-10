@@ -1,7 +1,7 @@
 {
   "guide": {
     "summary": "Review asks one reviewer to inspect the repository read-only and record its findings.",
-    "prose": "Package review is a small read-only code review workflow.\n\nUse it to assess a bounded correctness question about an existing repository\nbefore making changes or accepting an implementation. The goal tells the\nreviewer which behavior or files to assess; the working directory supplies\nthe repository to inspect. It does not edit code or create issues or pull requests.\n\nStart a Gimbal instance and authenticate the configured agent harness before\ninvoking the workflow. The Run view lets you choose the review model explicitly.\n\nThe reviewer returns a list of concrete findings, saved as result in the\nworkflow context. An empty list means the reviewer found no correctness issues\nwithin the stated goal. A completed run means the review was recorded, not that\nits findings were resolved. A failed agent turn fails the workflow.\n\nExample:\n\n\tgimbal run review --project /abs/project --goal \"Review the current changes\"",
+    "prose": "Package review is a small read-only code review workflow.\n\nUse it to assess a bounded correctness question about an existing repository\nbefore making changes or accepting an implementation. The goal tells the\nreviewer which behavior or files to assess; the working directory supplies\nthe repository to inspect. It does not edit code or create issues or pull requests.\n\nStart a Gimbal instance and authenticate the configured agent harness before\ninvoking the workflow. The --code-review flag selects the review model explicitly.\n\nThe reviewer returns a list of concrete findings, saved as result in the\nworkflow context. An empty list means the reviewer found no correctness issues\nwithin the stated goal. A completed run means the review was recorded, not that\nits findings were resolved. A failed agent turn fails the workflow.\n\nExample:\n\n\tgimbal run review --project /abs/project --goal \"Review the current changes\"",
     "parameters": [
       {
         "name": "Goal",
@@ -18,7 +18,7 @@
       }
     ],
     "invocation": "gimbal run review --project /abs/project --goal \"Review the current changes\"",
-    "snapshot": "2cceb311893febbe8daf22b4a0c1fe3cc713bfa14835060eb4223213eecd0201"
+    "snapshot": "4bb69fef75b1decfa519b7a10bfb44ec6d957fff15bfcfbd18fb2418127a372d"
   },
   "name": "review",
   "entry": "Review",

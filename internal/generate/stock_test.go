@@ -1,9 +1,11 @@
 package generate_test
 
 import (
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/tylergannon/gimbal/internal/generate"
@@ -14,7 +16,37 @@ func TestStockRecoversMissingAndStaleOutput(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	form := filepath.Join(root, "web", "src", "routes", "review_start.remote.go")
+	source := root
+	root = t.TempDir()
+	if err := filepath.WalkDir(source, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(source, path)
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() {
+			if strings.HasPrefix(entry.Name(), ".") || entry.Name() == "node_modules" || entry.Name() == "ephemeral" || entry.Name() == "bin" {
+				return filepath.SkipDir
+			}
+			return os.MkdirAll(filepath.Join(root, rel), 0755)
+		}
+		if !entry.Type().IsRegular() {
+			return nil
+		}
+		if !strings.HasSuffix(path, ".go") && !strings.HasSuffix(path, ".json") && !strings.HasSuffix(path, ".txt") && !strings.HasSuffix(path, ".md") && entry.Name() != "go.mod" && entry.Name() != "go.sum" {
+			return nil
+		}
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		return os.WriteFile(filepath.Join(root, rel), raw, 0644)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	form := filepath.Join(root, "internal", "invocation", "review_gen.go")
 	command := filepath.Join(root, "cmd", "gimbal", "review_gen.go")
 	firstForm, err := os.ReadFile(form)
 	if err != nil {

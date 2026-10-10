@@ -14,7 +14,7 @@ import (
 func clientCommandSource(pkg, entry, name string, info entryInfo, graph workflow.Graph) string {
 	data := commandData{Package: pkg, Name: name, Entry: entry, Params: info.params, Summary: info.summary, Long: info.long, Ref: identifier(pkg), Function: identifier(pkg)}
 	for _, f := range info.fields {
-		cf := parameterField{Name: f.name, Flag: f.flag, Kind: f.kind, Optional: f.optional, Usage: f.doc}
+		cf := parameterField{Name: f.name, Flag: f.flag, JSON: strings.ReplaceAll(f.flag, "-", "_"), Kind: f.kind, Optional: f.optional, Usage: f.doc}
 		cf.Var, cf.Default = map[string]string{"string": "StringVar", "int": "IntVar", "bool": "BoolVar"}[f.kind], map[string]string{"string": `""`, "int": "0", "bool": "false"}[f.kind]
 		cf.Target = "&value" + f.name
 		if f.optional {
@@ -40,7 +40,7 @@ func clientCommandSource(pkg, entry, name string, info entryInfo, graph workflow
 // role named like a flag every command has, or like each other; and a roles
 // entry for a role the workflow never creates a session for.
 func check(info entryInfo, graph workflow.Graph) error {
-	taken := map[string]string{"work-dir": "the Gimbal environment", "project": "the Gimbal environment", "instance-dir": "the Gimbal instance", "follow": "the Gimbal run", "help": "cobra"}
+	taken := map[string]string{"work-dir": "the Gimbal environment", "project": "the Gimbal environment", "instance-dir": "the Gimbal instance", "follow": "the Gimbal run", "help": "cobra", "input": "JSON input", "conversation": "conversation association"}
 	for _, f := range info.fields {
 		if by, ok := taken[f.flag]; ok {
 			return fmt.Errorf("generate: the parameter field %s would be --%s, which is %s's", f.name, f.flag, by)
@@ -83,8 +83,8 @@ type commandData struct {
 }
 
 type parameterField struct {
-	Name, Flag, Kind, Var, Target, Default, Usage string
-	Optional, Required                            bool
+	Name, Flag, JSON, Kind, Var, Target, Default, Usage string
+	Optional, Required                                  bool
 }
 
 type commandRole struct{ Name, Ident, Field string }
@@ -96,16 +96,15 @@ var clientCommandTemplate = template.Must(template.New("client-command").Parse(`
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 
 	"github.com/spf13/cobra"
 	"github.com/tylergannon/gimbal"
-	"github.com/tylergannon/gimbal/internal/skgo/client"
-	routes "github.com/tylergannon/gimbal/internal/skgo/links/onzggl3sn52xizlt"
+	"github.com/tylergannon/gimbal/internal/invocation"
 	"github.com/tylergannon/gimbal/web"
-	"github.com/tylergannon/polytype"
 )
 
 // {{.Function}}Command is gimbal run {{.Name}} and submits the matching Form remote.
@@ -113,17 +112,17 @@ func {{.Function}}Command(defaults map[gimbal.WorkflowRole]string) *cobra.Comman
 {{ range .Fields}}{{if .Optional}}	var opt{{.Name}} {{.Kind}}
 {{ else}}	var value{{.Name}} {{.Kind}}
 {{ end}}{{end}}{{range .Roles}}	var {{.Ident}} string
-{{ end}}	var workDir, project, instanceDir, conversation string
+{{ end}}	var workDir, project, instanceDir, conversation, input string
 	var follow bool
-	cmd := &cobra.Command{Use: {{printf "%q" .Name}}, Short: {{printf "%q" .Summary}}, Long: {{printf "%q" .Long}} + "\n\nThe selected persistent instance owns this run. --project selects its admitted repository; --work-dir selects the execution directory independently. --instance-dir selects the instance state directory (or GIMBAL_INSTANCE_DIR, default .gimbal). --follow waits for terminal success or failure; otherwise the run continues after this client exits. Each role flag chooses a model and optional effort. Executable lookup, PATH, and provider configuration come from the instance startup environment.", Args: cobra.NoArgs}
+	cmd := &cobra.Command{Use: {{printf "%q" .Name}}, Short: {{printf "%q" .Summary}}, Long: {{printf "%q" .Long}} + "\n\nThe selected instance launches this run in an independent process that survives daemon shutdown and restart. --project selects its admitted repository; --work-dir selects the execution directory independently. --instance-dir selects the instance state directory (or GIMBAL_INSTANCE_DIR, default .gimbal). --follow waits for terminal success or failure; otherwise the run continues after this client exits. Each role flag chooses a model and optional effort. Executable lookup, PATH, and provider configuration come from the instance startup environment.", Args: cobra.NoArgs}
 {{ range .Fields}}	cmd.Flags().{{.Var}}({{.Target}}, {{printf "%q" .Flag}}, {{.Default}}, {{printf "%q" .Usage}})
-{{ end}}{{range .Fields}}{{if .Required}}	_ = cmd.MarkFlagRequired({{printf "%q" .Flag}})
-{{ end}}{{end}}	cmd.Flags().StringVar(&workDir, "work-dir", "", "execution directory (default: owning project)")
+{{ end}}	cmd.Flags().StringVar(&input, "input", "", "workflow parameters as a JSON object; cannot be combined with parameter flags")
+	cmd.Flags().StringVar(&workDir, "work-dir", "", "execution directory (default: owning project)")
 	cmd.Flags().StringVar(&project, "project", ".", "repository owning this run and its observation; admitted on first start")
 	instanceDefault := os.Getenv("GIMBAL_INSTANCE_DIR"); if instanceDefault == "" { instanceDefault = ".gimbal" }
 	cmd.Flags().StringVar(&instanceDir, "instance-dir", instanceDefault, "selected running instance state directory (default: GIMBAL_INSTANCE_DIR or .gimbal)")
 	cmd.Flags().StringVar(&conversation, "conversation", "", "associate this run with a conversation in the owning project")
-	cmd.Flags().BoolVar(&follow, "follow", false, "wait for the hosted run's terminal result; without this flag the run survives client exit")
+	cmd.Flags().BoolVar(&follow, "follow", false, "wait for the run's terminal result; without this flag the run survives client exit")
 {{ range .Roles}}	{{.Ident}}Default := defaults[gimbal.WorkflowRole({{printf "%q" .Name}})]
 	if {{.Ident}}Default == "" {
 		cmd.Flags().StringVar(&{{.Ident}}, {{printf "%q" .Name}}, "", {{printf "%q" (printf "the model for role %s, as model or model:effort; Pi uses pi/diffusion/model-id; OpenCode uses opencode/model or opencode/provider/model" .Name)}})
@@ -134,12 +133,20 @@ func {{.Function}}Command(defaults map[gimbal.WorkflowRole]string) *cobra.Comman
 {{ end}}	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
 		project, err := filepath.Abs(project); if err != nil { return err }
 		if workDir == "" { workDir = project }; workDir, err = filepath.Abs(workDir); if err != nil { return err }
-		formInput := routes.Start{{.Entry}}Input{ProjectDir: project, WorkDir: workDir, Conversation: conversation,
-{{ range .Fields}}			{{.Name}}: {{if .Optional}}polytype.Optional[{{.Kind}}]{Present: cmd.Flags().Changed({{printf "%q" .Flag}}), Value: opt{{.Name}}}{{else}}value{{.Name}}{{end}},
-{{ end}}{{range .Roles}}			Role{{.Field}}: polytype.Optional[string]{Present: cmd.Flags().Changed({{printf "%q" .Name}}), Value: {{.Ident}}},
-{{ end}}		}
-		formClient, err := web.SelectedFormClient(cmd.Context(), instanceDir, project); if err != nil { return err }
-		accepted, err := (client.Client{FormClient: formClient}).Start{{.Entry}}(cmd.Context(), formInput); if err != nil { return fmt.Errorf("start {{.Name}}: %w", err) }
+        values := map[string]any{}
+{{range .Fields}}
+        if cmd.Flags().Changed({{printf "%q" .Flag}}) { values[{{printf "%q" .JSON}}] = {{if .Optional}}opt{{else}}value{{end}}{{.Name}} }
+{{end}}
+        if input != "" && len(values) != 0 { return fmt.Errorf("--input cannot be combined with parameter flags") }
+        raw := json.RawMessage(input)
+        if input == "" { raw, _ = json.Marshal(values) }
+        roles := map[gimbal.WorkflowRole]string{}
+{{range .Roles}}
+        if cmd.Flags().Changed({{printf "%q" .Name}}) { roles[gimbal.WorkflowRole({{printf "%q" .Name}})] = {{.Ident}} }
+{{end}}
+        request := invocation.Request{Workflow: {{printf "%q" .Name}}, Input: raw, Project: project, WorkDir: workDir, Conversation: conversation, Roles: roles}
+        if _,_,err := invocation.Prepare(request); err != nil {return err}
+        accepted, err := web.Start(cmd.Context(), instanceDir, request); if err != nil { return err }
 		fmt.Fprintln(cmd.OutOrStdout(), accepted.RunID)
 		if !follow { return nil }
 		result, err := web.Follow(cmd.Context(), instanceDir, project, accepted.RunID); if err != nil { return err }

@@ -129,9 +129,6 @@ func (r *run) writeArtifact(relative string, data []byte) (artifactDescriptor, e
 }
 
 func (r *run) writeContentArtifact(kind, text string) (artifactDescriptor, error) {
-	if r.contextStore != nil {
-		return r.writeCompiledArtifact([]byte(text), "text", text)
-	}
 	digest := sha256.Sum256([]byte(text))
 	relative := filepath.ToSlash(filepath.Join("context", encodedComponent(kind), fmt.Sprintf("%x.txt", digest[:12])))
 	name, err := r.artifactName(relative)

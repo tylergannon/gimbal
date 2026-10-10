@@ -5,16 +5,15 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 
 	"github.com/spf13/cobra"
 	"github.com/tylergannon/gimbal"
-	"github.com/tylergannon/gimbal/internal/skgo/client"
-	routes "github.com/tylergannon/gimbal/internal/skgo/links/onzggl3sn52xizlt"
+	"github.com/tylergannon/gimbal/internal/invocation"
 	"github.com/tylergannon/gimbal/web"
-	"github.com/tylergannon/polytype"
 )
 
 // validateproductCommand is gimbal run validate-product and submits the matching Form remote.
@@ -23,11 +22,11 @@ func validateproductCommand(defaults map[gimbal.WorkflowRole]string) *cobra.Comm
 	var productOperationModel string
 	var productVisualReviewModel string
 	var productTriageModel string
-	var workDir, project, instanceDir, conversation string
+	var workDir, project, instanceDir, conversation, input string
 	var follow bool
-	cmd := &cobra.Command{Use: "validate-product", Short: "ValidateProduct runs user workloads, checks their screenshots, and triages findings.", Long: "Package validateproduct runs practical user testing: up to three independent\nworkloads in parallel, one screenshot review, then one synthesis/issue-triage\nturn. It is a focus group, not an exhaustive feature checklist or source review.\nTesters never inspect the implementation source of the product under test (A).\nIf A does work on a second project (B), B's source is permitted but the tester\nshould normally rely on A to do that work.\n\nSupply a JSON/YAML suite with product, guides (local user-documentation files),\noutput_dir, and one to three workloads. Each workload has name, assignment_file\n(local task/issue text and allowed actions), an existing isolated workdir, url,\nand optional foreground start and ready shell commands. Prepare/build the desired\nproduct version before invocation. Existing targets are not stopped. A start\ncommand requires ready, polled for at most 30 seconds. For a CLI-only product,\nstart a loopback terminal such as GoTTY and supply its URL. Testers may use shell\ncommands as ordinary users, including invoking Gimbal to delegate work on B.\n\nThe three tester slots are explicit; unused slots do nothing. The caller assigns\nworkloads; no planner invents work or retries failures. Each tester saves ordered,\ncaptioned screenshots and reports task outcome. One follow-up on the same session\nasks for its three favorite and least favorite aspects of UX and UI separately,\nappended to user-report.md. Elapsed time covers the task, excluding this debrief.\nVideo records the browser for optional human review; agents do not analyze it.\nAfter recording stops, ffmpeg makes a 2.5x H.264 MP4 capped at 1280x720 for\nbrowser playback and upload with gimbal upload-artifact.\nGemini Flash opens screenshots to check readability and claims, not to repeat the workload.\nThe final agent reads all reports, deduplicates findings against existing GitHub\nissues, uploads supporting screenshots, and opens actionable issues in the\nrequired issue_repo (owner/repository). Product defects are findings, not\nworkflow execution errors; failed agent turns remain execution errors.\n\nPrerequisites: authenticated harnesses, playwright-cli and its installed browser,\nffmpeg with libx264,\nauthenticated gh, and a configured gimbal upload-artifact destination.\nplaywright_cli can override the driver's executable path. timeout defaults\nto 1h. All paths resolve from the suite file. Output is a unique\nuser-testing-* directory containing reports.json,\nper-tester user-report.md, screenshots, raw video.webm and processed video.mp4,\nvisual-review.md and\nfindings.md. Elapsed time is measured by the workflow. The final command/run\nstatus includes cleanup errors; files alone do not certify run completion.\nBounded browser cleanup runs outside cancellation; hard kills cannot guarantee it.\n\nRoles: product-operation defaults to Claude Opus 5.5, product-visual-review to\nGemini Flash, and product-triage to GPT-6 Astra. Each has its model override flag.\n\nExample:\n\n\tgimbal run validate-product --suite-file /abs/user-testing.yaml --instance-dir /abs/instance --project /abs/project" + "\n\nThe selected persistent instance owns this run. --project selects its admitted repository; --work-dir selects the execution directory independently. --instance-dir selects the instance state directory (or GIMBAL_INSTANCE_DIR, default .gimbal). --follow waits for terminal success or failure; otherwise the run continues after this client exits. Each role flag chooses a model and optional effort. Executable lookup, PATH, and provider configuration come from the instance startup environment.", Args: cobra.NoArgs}
+	cmd := &cobra.Command{Use: "validate-product", Short: "ValidateProduct runs user workloads, checks their screenshots, and triages findings.", Long: "Package validateproduct runs practical user testing: up to three independent\nworkloads in parallel, one screenshot review, then one synthesis/issue-triage\nturn. It is a focus group, not an exhaustive feature checklist or source review.\nTesters never inspect the implementation source of the product under test (A).\nIf A does work on a second project (B), B's source is permitted but the tester\nshould normally rely on A to do that work.\n\nSupply a JSON/YAML suite with product, guides (local user-documentation files),\noutput_dir, and one to three workloads. Each workload has name, assignment_file\n(local task/issue text and allowed actions), an existing isolated workdir, url,\nand optional foreground start and ready shell commands. Prepare/build the desired\nproduct version before invocation. Existing targets are not stopped. A start\ncommand requires ready, polled for at most 30 seconds. For a CLI-only product,\nstart a loopback terminal such as GoTTY and supply its URL. Testers may use shell\ncommands as ordinary users, including invoking Gimbal to delegate work on B.\n\nThe three tester slots are explicit; unused slots do nothing. The caller assigns\nworkloads; no planner invents work or retries failures. Each tester saves ordered,\ncaptioned screenshots and reports task outcome. One follow-up on the same session\nasks for its three favorite and least favorite aspects of UX and UI separately,\nappended to user-report.md. Elapsed time covers the task, excluding this debrief.\nVideo records the browser for optional human review; agents do not analyze it.\nAfter recording stops, ffmpeg makes a 2.5x H.264 MP4 capped at 1280x720 for\nbrowser playback and upload with gimbal upload-artifact.\nGemini Flash opens screenshots to check readability and claims, not to repeat the workload.\nThe final agent reads all reports, deduplicates findings against existing GitHub\nissues, uploads supporting screenshots, and opens actionable issues in the\nrequired issue_repo (owner/repository). Product defects are findings, not\nworkflow execution errors; failed agent turns remain execution errors.\n\nPrerequisites: authenticated harnesses, playwright-cli and its installed browser,\nffmpeg with libx264,\nauthenticated gh, and a configured gimbal upload-artifact destination.\nplaywright_cli can override the driver's executable path. timeout defaults\nto 1h. All paths resolve from the suite file. Output is a unique\nuser-testing-* directory containing reports.json,\nper-tester user-report.md, screenshots, raw video.webm and processed video.mp4,\nvisual-review.md and\nfindings.md. Elapsed time is measured by the workflow. The final command/run\nstatus includes cleanup errors; files alone do not certify run completion.\nBounded browser cleanup runs outside cancellation; hard kills cannot guarantee it.\n\nRoles: product-operation defaults to Claude Opus 5.5, product-visual-review to\nGemini Flash, and product-triage to GPT-6 Astra. Each has its model override flag.\n\nExample:\n\n\tgimbal run validate-product --suite-file /abs/user-testing.yaml --instance-dir /abs/instance --project /abs/project" + "\n\nThe selected instance launches this run in an independent process that survives daemon shutdown and restart. --project selects its admitted repository; --work-dir selects the execution directory independently. --instance-dir selects the instance state directory (or GIMBAL_INSTANCE_DIR, default .gimbal). --follow waits for terminal success or failure; otherwise the run continues after this client exits. Each role flag chooses a model and optional effort. Executable lookup, PATH, and provider configuration come from the instance startup environment.", Args: cobra.NoArgs}
 	cmd.Flags().StringVar(&valueSuiteFile, "suite-file", "", "SuiteFile names the JSON/YAML product, local workload assignments, and issue repository. (required)")
-	_ = cmd.MarkFlagRequired("suite-file")
+	cmd.Flags().StringVar(&input, "input", "", "workflow parameters as a JSON object; cannot be combined with parameter flags")
 	cmd.Flags().StringVar(&workDir, "work-dir", "", "execution directory (default: owning project)")
 	cmd.Flags().StringVar(&project, "project", ".", "repository owning this run and its observation; admitted on first start")
 	instanceDefault := os.Getenv("GIMBAL_INSTANCE_DIR")
@@ -36,7 +35,7 @@ func validateproductCommand(defaults map[gimbal.WorkflowRole]string) *cobra.Comm
 	}
 	cmd.Flags().StringVar(&instanceDir, "instance-dir", instanceDefault, "selected running instance state directory (default: GIMBAL_INSTANCE_DIR or .gimbal)")
 	cmd.Flags().StringVar(&conversation, "conversation", "", "associate this run with a conversation in the owning project")
-	cmd.Flags().BoolVar(&follow, "follow", false, "wait for the hosted run's terminal result; without this flag the run survives client exit")
+	cmd.Flags().BoolVar(&follow, "follow", false, "wait for the run's terminal result; without this flag the run survives client exit")
 	productOperationModelDefault := defaults[gimbal.WorkflowRole("product-operation")]
 	if productOperationModelDefault == "" {
 		cmd.Flags().StringVar(&productOperationModel, "product-operation", "", "the model for role product-operation, as model or model:effort; Pi uses pi/diffusion/model-id; OpenCode uses opencode/model or opencode/provider/model")
@@ -70,19 +69,40 @@ func validateproductCommand(defaults map[gimbal.WorkflowRole]string) *cobra.Comm
 		if err != nil {
 			return err
 		}
-		formInput := routes.StartValidateProductInput{ProjectDir: project, WorkDir: workDir, Conversation: conversation,
-			SuiteFile:               valueSuiteFile,
-			RoleProductOperation:    polytype.Optional[string]{Present: cmd.Flags().Changed("product-operation"), Value: productOperationModel},
-			RoleProductVisualReview: polytype.Optional[string]{Present: cmd.Flags().Changed("product-visual-review"), Value: productVisualReviewModel},
-			RoleProductTriage:       polytype.Optional[string]{Present: cmd.Flags().Changed("product-triage"), Value: productTriageModel},
+		values := map[string]any{}
+
+		if cmd.Flags().Changed("suite-file") {
+			values["suite_file"] = valueSuiteFile
 		}
-		formClient, err := web.SelectedFormClient(cmd.Context(), instanceDir, project)
-		if err != nil {
+
+		if input != "" && len(values) != 0 {
+			return fmt.Errorf("--input cannot be combined with parameter flags")
+		}
+		raw := json.RawMessage(input)
+		if input == "" {
+			raw, _ = json.Marshal(values)
+		}
+		roles := map[gimbal.WorkflowRole]string{}
+
+		if cmd.Flags().Changed("product-operation") {
+			roles[gimbal.WorkflowRole("product-operation")] = productOperationModel
+		}
+
+		if cmd.Flags().Changed("product-visual-review") {
+			roles[gimbal.WorkflowRole("product-visual-review")] = productVisualReviewModel
+		}
+
+		if cmd.Flags().Changed("product-triage") {
+			roles[gimbal.WorkflowRole("product-triage")] = productTriageModel
+		}
+
+		request := invocation.Request{Workflow: "validate-product", Input: raw, Project: project, WorkDir: workDir, Conversation: conversation, Roles: roles}
+		if _, _, err := invocation.Prepare(request); err != nil {
 			return err
 		}
-		accepted, err := (client.Client{FormClient: formClient}).StartValidateProduct(cmd.Context(), formInput)
+		accepted, err := web.Start(cmd.Context(), instanceDir, request)
 		if err != nil {
-			return fmt.Errorf("start validate-product: %w", err)
+			return err
 		}
 		fmt.Fprintln(cmd.OutOrStdout(), accepted.RunID)
 		if !follow {

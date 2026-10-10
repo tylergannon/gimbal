@@ -37,7 +37,6 @@ export type RunRow = {
     reason: string;
     cleanup: "" | "pending" | "completed" | "unconfirmed";
     cleanup_error?: string;
-    deliveries: { at: number; status: "accepted" | "unconfirmed"; error?: string }[];
   };
 };
 /** One planner decision: the record's sequence and the event's own words. */

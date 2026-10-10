@@ -7,7 +7,6 @@
 package web
 
 import (
-	"fmt"
 	"io/fs"
 	"log"
 	"net/http"
@@ -16,30 +15,9 @@ import (
 
 	"github.com/tylergannon/skgo"
 
-	"github.com/tylergannon/gimbal/internal/builtin"
 	"github.com/tylergannon/gimbal/internal/observation"
 	generated "github.com/tylergannon/gimbal/internal/skgo"
 )
-
-// stockStartRemotes selects the compiled Form entrypoints by the same
-// build-time workflow list used to generate their declarations.
-func stockStartRemotes() ([]*skgo.Remote, error) {
-	available := make(map[string]*skgo.Remote)
-	for _, remote := range generated.Remotes() {
-		available[remote.Module()+"#"+remote.Name()] = remote
-	}
-	starts := make([]*skgo.Remote, 0, len(builtin.Workflows))
-	for _, workflow := range builtin.Workflows {
-		module := "src/routes/" + strings.ReplaceAll(workflow.Name, "-", "") + "_start.remote.ts"
-		key := module + "#start" + workflow.Entry
-		remote := available[key]
-		if remote == nil || remote.Kind() != skgo.KindForm {
-			return nil, fmt.Errorf("gimbal: generated start Form %s is missing", key)
-		}
-		starts = append(starts, remote)
-	}
-	return starts, nil
-}
 
 // NewHandler builds the server over the frontend build in dist. With a
 // non-empty proxy it renders pages from a running `vp dev` server; otherwise it

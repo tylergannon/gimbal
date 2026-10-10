@@ -82,7 +82,8 @@ type Store struct {
 	sinceSave   int
 	// noWrite suppresses the per-fold file writes. Opening a run sets it: the
 	// files are its input, and a rebuild writes them once at the end.
-	noWrite bool
+	noWrite  bool
+	external bool
 	// fromTables says the facts came from the eight files. A finished run's
 	// tables are its accounting, so the session logs read afterwards are only
 	// transcripts: a step in them accounts for nothing.
@@ -148,7 +149,10 @@ func Open(registry *Registry, id, name, dir string, createDir ...func() error) (
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s, s.writeAllTablesLocked()
+	if err := s.writeAllTablesLocked(); err != nil {
+		return s, err
+	}
+	return s, s.saveSnapshotLocked()
 }
 
 // ID is the run's id.
@@ -269,7 +273,6 @@ func (s *Store) Lifecycle(raw json.RawMessage) error {
 	case "cancellation_cleanup":
 		if !s.run.Cancellation.Present {
 			s.run.Cancellation.Present = true
-			s.run.Cancellation.Value.Deliveries = []CancellationAttempt{}
 		}
 		s.run.Cancellation.Value.Cleanup = "completed"
 		s.run.Cancellation.Value.CleanupError = rec.Event.Error
@@ -277,18 +280,10 @@ func (s *Store) Lifecycle(raw json.RawMessage) error {
 			s.run.Cancellation.Value.Cleanup = "unconfirmed"
 		}
 		changed = append(changed, change{tableRun, ""})
-	case "cancellation_delivery":
-		if !s.run.Cancellation.Present {
-			s.run.Cancellation.Present = true
-			s.run.Cancellation.Value.Deliveries = []CancellationAttempt{}
-		}
-		s.run.Cancellation.Value.Deliveries = append(s.run.Cancellation.Value.Deliveries, CancellationAttempt{At: at, Status: rec.Event.Status, Error: rec.Event.Error})
-		changed = append(changed, change{tableRun, ""})
 	case "killed":
 		if rec.Scope == "" && rec.Turn == "" && rec.Event.Target == "" {
 			if !s.run.Cancellation.Present {
 				s.run.Cancellation.Present = true
-				s.run.Cancellation.Value.Deliveries = []CancellationAttempt{}
 			}
 			s.run.Cancellation.Value.By, s.run.Cancellation.Value.Reason = rec.Event.By, rec.Event.Reason
 			s.run.Cancellation.Value.Cleanup = "pending"
@@ -845,6 +840,5 @@ func mustMarshal(value any) json.RawMessage {
 }
 
 func cloneRun(row RunRow) RunRow {
-	row.Cancellation.Value.Deliveries = append([]CancellationAttempt{}, row.Cancellation.Value.Deliveries...)
 	return row
 }

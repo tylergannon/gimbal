@@ -137,8 +137,8 @@ func staticShape(t types.Type, seen map[types.Type]bool) *valueShape {
 	// A custom marshaler makes the Go fields useful but does not establish JSON.
 	for _, candidate := range []types.Type{t, types.NewPointer(t)} {
 		methods := types.NewMethodSet(candidate)
-		for i := 0; i < methods.Len(); i++ {
-			n := methods.At(i).Obj().Name()
+		for method := range methods.Methods() {
+			n := method.Obj().Name()
 			if n == "MarshalJSON" || n == "MarshalText" {
 				s.GoOnly = true
 				s.Note = "Go shape only: custom " + n + " serialization is unresolved."

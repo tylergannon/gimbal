@@ -21,7 +21,7 @@ const maxLogLine = 8 << 20
 //
 // An unfinished log is served as far as it goes, with the run's status as the
 // last record left it. Nothing is followed and no agent process is resumed.
-func open(registry *Registry, id, dir string) (*Store, error) {
+func open(registry *Registry, id, dir string, readOnly ...bool) (*Store, error) {
 	if s, ok, err := loadDurable(registry, id, dir); ok || err != nil {
 		return s, err
 	}
@@ -74,7 +74,7 @@ func open(registry *Registry, id, dir string) (*Store, error) {
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.noWrite = false
+	s.noWrite = len(readOnly) != 0 && readOnly[0]
 	if rebuild {
 		if err := s.writeAllTablesLocked(); err != nil {
 			return nil, err

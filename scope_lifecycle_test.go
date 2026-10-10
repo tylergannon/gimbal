@@ -5,8 +5,6 @@ import (
 	"errors"
 	"testing"
 	"time"
-
-	"github.com/tylergannon/gimbal/contextdata"
 )
 
 func TestLocalScopeEarlyReturnCancelsOpenChild(t *testing.T) {
@@ -54,50 +52,5 @@ func TestLocalScopeEarlyReturnCancelsOpenChild(t *testing.T) {
 	root.run.mu.Unlock()
 	if !ended || root.ctx.Err() == nil || remaining != 0 {
 		t.Errorf("run leaked scopes: ended=%v cancellation=%v remaining=%d", ended, root.ctx.Err(), remaining)
-	}
-}
-
-func TestCompiledLoopAndTaskFinishRequireClosedChildren(t *testing.T) {
-	err := runTest(t, nil, func(ctx context.Context) error {
-		if err := initializeCompiledContext(ctx, contextdata.Store{Root: t.TempDir()}, t.TempDir(), ""); err != nil {
-			return err
-		}
-		loop, finishLoop, err := OpenLoop(ctx, "loop")
-		if err != nil {
-			return err
-		}
-		raw := Task{Name: "work", Description: "do work", DefinitionOfDone: "done"}
-		task, _, finishTask, err := OpenTask(loop, "task", raw, "")
-		if err != nil {
-			return err
-		}
-		child, finishChild, err := OpenScope(task, "child")
-		if err != nil {
-			return err
-		}
-		for _, finish := range []func(error) error{finishTask, finishLoop} {
-			if err := finish(nil); err == nil {
-				t.Error("compiled finish accepted an open child")
-			}
-		}
-		if task.Err() != nil || loop.Err() != nil || child.Err() != nil {
-			t.Error("refused finish cancelled active work")
-		}
-		loopScope, _ := current(loop)
-		if !loopScope.queueMessage("still dispatching") {
-			t.Error("refused loop finish ended dispatch")
-		}
-		for _, finish := range []func(error) error{finishChild, finishTask, finishLoop} {
-			if err := finish(nil); err != nil {
-				return err
-			}
-			if err := finish(nil); err == nil {
-				t.Error("duplicate compiled finish accepted")
-			}
-		}
-		return nil
-	})
-	if err != nil {
-		t.Fatal(err)
 	}
 }

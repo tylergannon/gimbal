@@ -6,7 +6,7 @@
 // the repository to inspect. It does not edit code or create issues or pull requests.
 //
 // Start a Gimbal instance and authenticate the configured agent harness before
-// invoking the workflow. The Run view lets you choose the review model explicitly.
+// invoking the workflow. The --code-review flag selects the review model explicitly.
 //
 // The reviewer returns a list of concrete findings, saved as result in the
 // workflow context. An empty list means the reviewer found no correctness issues

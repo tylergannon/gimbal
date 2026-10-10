@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"os"
+	"path/filepath"
 
 	"github.com/tylergannon/skgo"
 
-	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/internal/host"
 	"github.com/tylergannon/gimbal/internal/observation"
 	hooks "github.com/tylergannon/gimbal/web/src"
 )
@@ -17,9 +19,7 @@ import (
 // transported type, so the component receives the observation itself.
 type Data struct {
 	Snapshot hooks.RunSnapshot `json:"snapshot"`
-	// Graph is the registered workflow graph's own JSON. It is empty when this
-	// binary has no graph under the run's workflow name; the page then tells the
-	// developer to regenerate the workflow and rebuild the serving binary.
+	// Graph is the workflow graph saved by this run, independent of the daemon build.
 	Graph string `json:"graph"`
 }
 
@@ -53,12 +53,11 @@ func load(event PageRequestEvent) (Data, error) {
 		return Data{}, err
 	}
 	graphJSON := ""
-	if graph, ok := gimbal.RegisteredGraph(snapshot.Run.Name); ok {
-		encodedGraph, err := json.Marshal(graph)
-		if err != nil {
-			return Data{}, err
-		}
-		graphJSON = string(encodedGraph)
+	raw, err := os.ReadFile(filepath.Join(host.ProjectDir(ctx), "runs", runID, "graph.json"))
+	if err == nil {
+		graphJSON = string(raw)
+	} else if !os.IsNotExist(err) {
+		return Data{}, err
 	}
 	return Data{Snapshot: hooks.RunSnapshot{JSON: string(encoded)}, Graph: graphJSON}, nil
 }

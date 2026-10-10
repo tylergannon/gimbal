@@ -28,10 +28,10 @@ func findNode(nodes []*viewNode, label string) *viewNode {
 
 func TestPresentationKeysDeterministicAndIndependentOfLayoutIDs(t *testing.T) {
 	body := []workflow.Operation{
-		workflow.Set{Source: workflow.Source{File: "fixture.go", Line: 10}, Key: "target"},
-		workflow.Condition{Source: workflow.Source{File: "fixture.go", Line: 20}, Branches: []workflow.Branch{
-			{Source: workflow.Source{File: "fixture.go", Line: 21}, Case: "ready", Body: []workflow.Operation{
-				workflow.Set{Source: workflow.Source{File: "fixture.go", Line: 22}, Key: "nested"},
+		workflow.Set{File: "fixture.go", Line: 10, Key: "target"},
+		workflow.Condition{File: "fixture.go", Line: 20, Branches: []workflow.Branch{
+			{File: "fixture.go", Line: 21, Case: "ready", Body: []workflow.Operation{
+				workflow.Set{File: "fixture.go", Line: 22, Key: "nested"},
 			}},
 		}},
 	}
@@ -56,7 +56,7 @@ func TestPresentationKeysDeterministicAndIndependentOfLayoutIDs(t *testing.T) {
 	}
 
 	withInsertion := keyedFixture(append([]workflow.Operation{
-		workflow.Set{Source: workflow.Source{File: "fixture.go", Line: 2}, Key: "inserted"},
+		workflow.Set{File: "fixture.go", Line: 2, Key: "inserted"},
 	}, body...))
 	insertedTarget := findNode(withInsertion.Body, "target")
 	if insertedTarget.Key != targetA.Key {
@@ -69,7 +69,7 @@ func TestPresentationKeysDeterministicAndIndependentOfLayoutIDs(t *testing.T) {
 
 func TestChangedOrDeletedPresentationSiteDoesNotReuseKey(t *testing.T) {
 	original := keyedFixture([]workflow.Operation{
-		workflow.Set{Source: workflow.Source{File: "fixture.go", Line: 10}, Key: "old"},
+		workflow.Set{File: "fixture.go", Line: 10, Key: "old"},
 	})
 	old := findNode(original.Body, "old")
 	if old == nil || old.Key == "" {
@@ -77,7 +77,7 @@ func TestChangedOrDeletedPresentationSiteDoesNotReuseKey(t *testing.T) {
 	}
 
 	changed := keyedFixture([]workflow.Operation{
-		workflow.Set{Source: workflow.Source{File: "fixture.go", Line: 10}, Key: "new"},
+		workflow.Set{File: "fixture.go", Line: 10, Key: "new"},
 	})
 	newNode := findNode(changed.Body, "new")
 	if newNode == nil || newNode.Key == "" || newNode.Key == old.Key {

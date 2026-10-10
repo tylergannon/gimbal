@@ -216,16 +216,14 @@ test("Map runtime selection rebinds across snapshots and clears when its row dis
     .toHaveAttribute("aria-pressed", "false");
 });
 
-test("a missing graph requires generation and a rebuilt serving binary", async () => {
+test("a missing saved graph reports the missing run data", async () => {
   const snapshot = structuredClone(planTripFixture.snapshot);
   const screen = await render(Page, { data: { snapshot, graph: "" } });
 
   await expect.element(screen.getByText("Workflow graph required", { exact: true })).toBeVisible();
   await expect
-    .element(screen.getByText(`No generated graph is registered for ${snapshot.run.name}`))
+    .element(screen.getByText(`No workflow graph was saved for ${snapshot.run.name}`))
     .toBeVisible();
-  await expect.element(screen.getByText("go generate ./...", { exact: true })).toBeVisible();
-  await expect.element(screen.getByText("just build", { exact: true })).toBeVisible();
   await expect
     .element(screen.getByRole("link", { name: "Back to runs" }))
     .toHaveAttribute("href", "/projects/test-project");
@@ -233,19 +231,19 @@ test("a missing graph requires generation and a rebuilt serving binary", async (
   expect(document.querySelector('[aria-label$="workflow map"]')).toBeNull();
 });
 
-test("an incompatible registered graph requires regeneration and rebuild", async () => {
+test("an incompatible saved graph reports the mismatch", async () => {
   const snapshot = structuredClone(planTripFixture.snapshot);
   const screen = await render(Page, {
     data: { snapshot, graph: JSON.stringify(implementInterviewFixture.graph) },
   });
 
   await expect
-    .element(screen.getByText("The registered graph does not match this run", { exact: true }))
+    .element(screen.getByText("The saved graph does not match this run", { exact: true }))
     .toBeVisible();
   await expect
     .element(
       screen.getByText(
-        "Regenerate the workflow, then rebuild and restart the binary serving this project.",
+        "The graph must come from this run. Restarting the server cannot replace it.",
         { exact: true },
       ),
     )

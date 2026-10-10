@@ -5,16 +5,15 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 
 	"github.com/spf13/cobra"
 	"github.com/tylergannon/gimbal"
-	"github.com/tylergannon/gimbal/internal/skgo/client"
-	routes "github.com/tylergannon/gimbal/internal/skgo/links/onzggl3sn52xizlt"
+	"github.com/tylergannon/gimbal/internal/invocation"
 	"github.com/tylergannon/gimbal/web"
-	"github.com/tylergannon/polytype"
 )
 
 // implementationCommand is gimbal run implement and submits the matching Form remote.
@@ -25,13 +24,12 @@ func implementationCommand(defaults map[gimbal.WorkflowRole]string) *cobra.Comma
 	var architecturalCritiqueModel string
 	var codingModel string
 	var qaOrchestrationModel string
-	var workDir, project, instanceDir, conversation string
+	var workDir, project, instanceDir, conversation, input string
 	var follow bool
-	cmd := &cobra.Command{Use: "implement", Short: "Implement works through supplied outcomes until each is demonstrated.", Long: "Package implementation works through an ordered list of outcomes. Each\noutcome has its own bounded PromiseLoop and independent validation; there is\nno planner deciding which outcome comes next.\n\nThe caller supplies a local JSON file containing an array of outcome\nstrings. The workflow takes them in file order. Within an outcome, a planner\nmay choose another task only when validation finds a substantial gap. A\npassing judgment at 90–95% with only small gaps advances immediately to the\nnext outcome. An incomplete outcome stops the run; later outcomes do not\nstart.\n\nScope supervisors watch the planner, coder, and validator for unnecessary\ncomplexity, gold-plating, and work outside the selected outcome. They steer\nbut never gate completion. The workflow changes the working tree but does\nnot commit, push, merge, deploy, or edit the outcomes file. Checks gather\nevidence; the independent validator judges whether the behavior was seen.\n\nExample outcomes.json:\n\n\t[\"The CLI starts work in the selected instance\", \"The page observes that work live\"]\n\nExample invocation:\n\n\tgimbal run implement --outcomes-file ./outcomes.json --max-tasks-per-outcome 3" + "\n\nThe selected persistent instance owns this run. --project selects its admitted repository; --work-dir selects the execution directory independently. --instance-dir selects the instance state directory (or GIMBAL_INSTANCE_DIR, default .gimbal). --follow waits for terminal success or failure; otherwise the run continues after this client exits. Each role flag chooses a model and optional effort. Executable lookup, PATH, and provider configuration come from the instance startup environment.", Args: cobra.NoArgs}
+	cmd := &cobra.Command{Use: "implement", Short: "Implement works through supplied outcomes until each is demonstrated.", Long: "Package implementation works through an ordered list of outcomes. Each\noutcome has its own bounded PromiseLoop and independent validation; there is\nno planner deciding which outcome comes next.\n\nThe caller supplies a local JSON file containing an array of outcome\nstrings. The workflow takes them in file order. Within an outcome, a planner\nmay choose another task only when validation finds a substantial gap. A\npassing judgment at 90–95% with only small gaps advances immediately to the\nnext outcome. An incomplete outcome stops the run; later outcomes do not\nstart.\n\nScope supervisors watch the planner, coder, and validator for unnecessary\ncomplexity, gold-plating, and work outside the selected outcome. They steer\nbut never gate completion. The workflow changes the working tree but does\nnot commit, push, merge, deploy, or edit the outcomes file. Checks gather\nevidence; the independent validator judges whether the behavior was seen.\n\nExample outcomes.json:\n\n\t[\"The CLI starts work in the selected instance\", \"The page observes that work live\"]\n\nExample invocation:\n\n\tgimbal run implement --outcomes-file ./outcomes.json --max-tasks-per-outcome 3" + "\n\nThe selected instance launches this run in an independent process that survives daemon shutdown and restart. --project selects its admitted repository; --work-dir selects the execution directory independently. --instance-dir selects the instance state directory (or GIMBAL_INSTANCE_DIR, default .gimbal). --follow waits for terminal success or failure; otherwise the run continues after this client exits. Each role flag chooses a model and optional effort. Executable lookup, PATH, and provider configuration come from the instance startup environment.", Args: cobra.NoArgs}
 	cmd.Flags().StringVar(&valueOutcomesFile, "outcomes-file", "", "OutcomesFile is a local JSON array of outcome strings, in execution order. (required)")
 	cmd.Flags().IntVar(&valueMaxTasksPerOutcome, "max-tasks-per-outcome", 0, "MaxTasksPerOutcome bounds planner assignments for each outcome. (required)")
-	_ = cmd.MarkFlagRequired("outcomes-file")
-	_ = cmd.MarkFlagRequired("max-tasks-per-outcome")
+	cmd.Flags().StringVar(&input, "input", "", "workflow parameters as a JSON object; cannot be combined with parameter flags")
 	cmd.Flags().StringVar(&workDir, "work-dir", "", "execution directory (default: owning project)")
 	cmd.Flags().StringVar(&project, "project", ".", "repository owning this run and its observation; admitted on first start")
 	instanceDefault := os.Getenv("GIMBAL_INSTANCE_DIR")
@@ -40,7 +38,7 @@ func implementationCommand(defaults map[gimbal.WorkflowRole]string) *cobra.Comma
 	}
 	cmd.Flags().StringVar(&instanceDir, "instance-dir", instanceDefault, "selected running instance state directory (default: GIMBAL_INSTANCE_DIR or .gimbal)")
 	cmd.Flags().StringVar(&conversation, "conversation", "", "associate this run with a conversation in the owning project")
-	cmd.Flags().BoolVar(&follow, "follow", false, "wait for the hosted run's terminal result; without this flag the run survives client exit")
+	cmd.Flags().BoolVar(&follow, "follow", false, "wait for the run's terminal result; without this flag the run survives client exit")
 	sprintPlanningModelDefault := defaults[gimbal.WorkflowRole("sprint-planning")]
 	if sprintPlanningModelDefault == "" {
 		cmd.Flags().StringVar(&sprintPlanningModel, "sprint-planning", "", "the model for role sprint-planning, as model or model:effort; Pi uses pi/diffusion/model-id; OpenCode uses opencode/model or opencode/provider/model")
@@ -81,21 +79,48 @@ func implementationCommand(defaults map[gimbal.WorkflowRole]string) *cobra.Comma
 		if err != nil {
 			return err
 		}
-		formInput := routes.StartImplementInput{ProjectDir: project, WorkDir: workDir, Conversation: conversation,
-			OutcomesFile:              valueOutcomesFile,
-			MaxTasksPerOutcome:        valueMaxTasksPerOutcome,
-			RoleSprintPlanning:        polytype.Optional[string]{Present: cmd.Flags().Changed("sprint-planning"), Value: sprintPlanningModel},
-			RoleArchitecturalCritique: polytype.Optional[string]{Present: cmd.Flags().Changed("architectural-critique"), Value: architecturalCritiqueModel},
-			RoleCoding:                polytype.Optional[string]{Present: cmd.Flags().Changed("coding"), Value: codingModel},
-			RoleQaOrchestration:       polytype.Optional[string]{Present: cmd.Flags().Changed("qa-orchestration"), Value: qaOrchestrationModel},
+		values := map[string]any{}
+
+		if cmd.Flags().Changed("outcomes-file") {
+			values["outcomes_file"] = valueOutcomesFile
 		}
-		formClient, err := web.SelectedFormClient(cmd.Context(), instanceDir, project)
-		if err != nil {
+
+		if cmd.Flags().Changed("max-tasks-per-outcome") {
+			values["max_tasks_per_outcome"] = valueMaxTasksPerOutcome
+		}
+
+		if input != "" && len(values) != 0 {
+			return fmt.Errorf("--input cannot be combined with parameter flags")
+		}
+		raw := json.RawMessage(input)
+		if input == "" {
+			raw, _ = json.Marshal(values)
+		}
+		roles := map[gimbal.WorkflowRole]string{}
+
+		if cmd.Flags().Changed("sprint-planning") {
+			roles[gimbal.WorkflowRole("sprint-planning")] = sprintPlanningModel
+		}
+
+		if cmd.Flags().Changed("architectural-critique") {
+			roles[gimbal.WorkflowRole("architectural-critique")] = architecturalCritiqueModel
+		}
+
+		if cmd.Flags().Changed("coding") {
+			roles[gimbal.WorkflowRole("coding")] = codingModel
+		}
+
+		if cmd.Flags().Changed("qa-orchestration") {
+			roles[gimbal.WorkflowRole("qa-orchestration")] = qaOrchestrationModel
+		}
+
+		request := invocation.Request{Workflow: "implement", Input: raw, Project: project, WorkDir: workDir, Conversation: conversation, Roles: roles}
+		if _, _, err := invocation.Prepare(request); err != nil {
 			return err
 		}
-		accepted, err := (client.Client{FormClient: formClient}).StartImplement(cmd.Context(), formInput)
+		accepted, err := web.Start(cmd.Context(), instanceDir, request)
 		if err != nil {
-			return fmt.Errorf("start implement: %w", err)
+			return err
 		}
 		fmt.Fprintln(cmd.OutOrStdout(), accepted.RunID)
 		if !follow {

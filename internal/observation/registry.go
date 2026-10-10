@@ -67,6 +67,9 @@ func (r *Registry) Live(id string) (*Store, bool) {
 	if r == nil {
 		return nil, false
 	}
+	if _, err := r.Snapshot(id); err != nil {
+		return nil, false
+	}
 	r.mu.RLock()
 	store, ok := r.runs[id]
 	r.mu.RUnlock()
@@ -81,8 +84,8 @@ var ErrNoRun = errors.New("observation: no such run")
 
 // Snapshot returns a run's complete observation: from its store while that
 // run is in the map, whether it is going or finished, and otherwise by
-// replaying its logs once. The replay happens under the registry lock, so two
-// requests for the same unseen run replay it once between them.
+// reading durable state. External stores follow the writer's journal on each
+// call. The registry lock serializes initialization and refresh.
 func (r *Registry) Snapshot(id string) (RunSnapshot, error) {
 	if r == nil {
 		return RunSnapshot{}, ErrNoRun
@@ -90,17 +93,29 @@ func (r *Registry) Snapshot(id string) (RunSnapshot, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if store, ok := r.runs[id]; ok {
+		if store.external {
+			if err := store.refresh(); err != nil {
+				return RunSnapshot{}, err
+			}
+		}
 		return store.Snapshot(), nil
 	}
 	dir, err := r.runDir(id)
 	if err != nil {
 		return RunSnapshot{}, err
 	}
-	store, err := open(r, id, dir)
+	store, err := open(r, id, dir, true)
 	if err != nil {
 		return RunSnapshot{}, err
 	}
+	store.external, store.noWrite = true, true
+	store.closed = store.run.Status != StatusRunning
 	r.runs[id] = store
+	if store.external {
+		if err := store.refresh(); err != nil {
+			return RunSnapshot{}, err
+		}
+	}
 	return store.Snapshot(), nil
 }
 

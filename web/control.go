@@ -16,6 +16,7 @@ import (
 	"strings"
 
 	"github.com/tylergannon/gimbal/internal/host"
+	"github.com/tylergannon/gimbal/internal/invocation"
 	"github.com/tylergannon/gimbal/internal/observation"
 )
 
@@ -220,8 +221,31 @@ func controlMux(i *Instance) http.Handler {
 			w.WriteHeader(http.StatusOK)
 			return
 		}
-		if i.startPaths[r.URL.Path] {
-			i.startRemotes.ServeHTTP(w, r)
+		if r.Method == http.MethodPost && r.URL.Path == "/control/start" {
+			var request invocation.Request
+			if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+				http.Error(w, err.Error(), 400)
+				return
+			}
+			if _, _, err := invocation.Prepare(request); err != nil {
+				http.Error(w, err.Error(), 400)
+				return
+			}
+			if !filepath.IsAbs(request.Project) {
+				http.Error(w, "project must be absolute", 400)
+				return
+			}
+			p, err := i.Owner.AdmitProject(request.Project)
+			if err != nil {
+				http.Error(w, err.Error(), 400)
+				return
+			}
+			id, err := p.Start(request)
+			if err != nil {
+				http.Error(w, err.Error(), 400)
+				return
+			}
+			_ = json.NewEncoder(w).Encode(invocation.Accepted{RunID: id})
 			return
 		}
 		p, err := h.project(r)

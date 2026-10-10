@@ -710,10 +710,11 @@ func waitResearch(ctx context.Context, registry *observation.Registry, controls 
 		}
 		if ctx.Err() != nil && !cancelled {
 			controller, err := controls.InProgress(id)
-			if err == nil {
-				if err := controller.CancelScope("", context.Cause(ctx)); err != nil {
-					return snapshot, err
-				}
+			if err != nil {
+				return snapshot, fmt.Errorf("cancel research %s: %w", id, err)
+			}
+			if err := controller.CancelScope("", context.Cause(ctx)); err != nil {
+				return snapshot, err
 			}
 			cancelled = true
 		}

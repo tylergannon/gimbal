@@ -2,7 +2,6 @@ package routes
 
 import (
 	"context"
-	"errors"
 	"net/http"
 
 	"github.com/tylergannon/gimbal/internal/app"
@@ -51,15 +50,7 @@ func cancelRun(ctx context.Context, event app.RequestEvent[params.Params], arg C
 	}
 	cause := gimbal.Killed{Target: "", By: "person", Reason: "cancelled from the run workspace"}
 	if err := run.CancelScope("", cause); err != nil {
-		if _, delivery := errors.AsType[*live.CancellationDeliveryError](err); delivery {
-			return ControlAccepted{}, skgo.Errorf(http.StatusConflict,
-				"Cancellation delivery for run %s: %v. Check the recorded local stop and backend delivery status.", arg.Run, err)
-		}
-		if errors.Is(err, live.ErrCancellationInProgress) {
-			return ControlAccepted{}, skgo.Errorf(http.StatusConflict,
-				"Run %s is cancelling or finishing; check its current status.", arg.Run)
-		}
-		return ControlAccepted{}, skgo.Errorf(http.StatusNotFound, "Run %s is no longer running.", arg.Run)
+		return ControlAccepted{}, skgo.Errorf(http.StatusNotFound, "Run %s: %v", arg.Run, err)
 	}
 	return ControlAccepted{Accepted: true}, nil
 }

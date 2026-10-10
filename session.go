@@ -93,10 +93,6 @@ func (s *Session) Generate[T Output](ctx context.Context, prompt string, opts ..
 	return out, err
 }
 
-// generateResponse is the shared scoped operation. A compiled caller supplies the
-// admitted Polytype output contract and transports the accepted bytes. The local
-// API additionally consumes T during acceptance so its wider Output contract keeps
-// decode-error re-asks and partial-value/error behavior.
 func (s *Session) generateResponse(ctx context.Context, prompt string, output Output, opts []AgentOption) ([]byte, error) {
 	ask, entries, err := scopedPrompt(ctx, prompt, apply(opts))
 	if err != nil {
@@ -122,13 +118,6 @@ func (o *decodedOutput[T]) outputName() string { return fmt.Sprintf("%T", *o.val
 // the call gave a template, through it. A scope that holds no values, and a
 // template that renders to nothing, leave prompt as it is.
 func scopedPrompt(ctx context.Context, prompt string, o options) (string, []ContextEntry, error) {
-	if snapshot, ok := ctx.Value(compiledContextKey{}).(compiledContext); ok {
-		var err error
-		ctx, err = bindCompiledContext(ctx, snapshot.ref)
-		if err != nil {
-			return "", nil, err
-		}
-	}
 	if o.scopeTemplate == "" {
 		text, entries := scopeTextAndContext(ctx)
 		if text == "" {
@@ -145,13 +134,6 @@ func scopedPrompt(ctx context.Context, prompt string, o options) (string, []Cont
 		return "", nil, fmt.Errorf("gimbal: render the scope template: %w", err)
 	}
 	text := strings.TrimSpace(rendered.String())
-	if _, ok := ctx.Value(compiledContextKey{}).(compiledContext); ok {
-		text, err = compiledTemplateContext(ctx, text)
-		if err != nil {
-			return "", nil, err
-		}
-		return prompt + "\n\n" + text, templateContextEntries(ctx, text), nil
-	}
 	if text == "" {
 		return prompt, templateContextEntries(ctx, text), nil
 	}

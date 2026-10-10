@@ -72,28 +72,32 @@ compiled into it:
 ./bin/gimbal --instance-dir /tmp/gimbal-instance --project /absolute/project
 ./bin/gimbal run --help
 ./bin/gimbal run <workflow> --help
-./bin/gimbal run review --instance-dir /tmp/gimbal-instance --project /absolute/project --goal "Review the current changes" --follow
+./bin/gimbal run review --instance-dir /tmp/gimbal-instance --project /absolute/project --input '{"goal":"Review the current changes"}' --follow
 ```
 
 Run the first command in its own terminal. A start command admits its `--project`
 repository on first use, even if the instance did not open it at startup;
 `--instance-dir` holds instance control and discovery, separately from the
 project's `.gimbal/runs` and conversation files. Repeat `--project` to admit
-more repositories at startup. Each generated subcommand calls its workflow's
-typed SKGO Form endpoint, the same handler used by its generated browser binding.
+more repositories at startup. Generated subcommands submit JSON to the daemon.
+Use `--input` for a JSON parameter object, or the named parameter flags. Role
+flags select models; omitted optional parameters retain workflow defaults.
 A project has one active instance owner; a
 second instance refuses it, including through a path alias. Different projects
 can run on independently configured instances, and a project can reopen after
 its owner exits. `--work-dir` controls execution independently of the owning
 project and defaults to that project. `--follow` waits for the
-terminal result. The instance executes the compiled body, owns live controls,
-and uses its startup PATH, executables, and provider configuration. The CLI
+terminal result. Each run executes ordinary Go in an independent child process
+using the daemon startup PATH, executables, and provider configuration. Stopping
+or restarting the daemon leaves runs executing; reopen the project to observe,
+steer, or cancel the same run. The UI observes and controls runs; start them
+through the CLI. The CLI
 does not send or execute a Go closure. A server build without that workflow
 cannot run it.
 
 The binary includes the `implement`, `review`, `validate-product`,
 `research-document`, and `pyramid-summary` workflows. Each role's model defaults from
-`cmd/gimbal/defaults.json`; pass the role's flag, such as `--code-review`, to
+`internal/builtin/defaults.json`; pass the role's flag, such as `--code-review`, to
 override it.
 
 Select the legacy OpenCode adapter with `opencode/<model-id>`, or name an
@@ -132,18 +136,16 @@ prescribed `WorkflowRole` constants and their descriptions live together in
 `roles.go`; applications may define additional typed constants when they need
 a role the catalog does not provide.
 
-`go generate ./...` regenerates workflow graphs, the stock Form handlers and
+`go generate ./...` regenerates workflow graphs, the stock JSON input adapters and
 CLI commands selected in `internal/builtin/workflows.go`, and the SKGO browser
 and Go bindings. `internal/generate/gimbalgen` emits workflow graph metadata;
-`internal/generate/stockgen` emits the five built-in start entrypoints from one
+`internal/generate/stockgen` emits the built-in start entrypoints from one
 selection.
 
-The generated file also registers the workflow graph under the run's workflow
-name. The run page requires that graph to match the recorded structure. After
-changing a workflow's shape, regenerate it, rebuild the binary that serves the
-project, and restart that binary; missing or stale generated graph code is
-reported on the run page with those corrective steps instead of a graphless
-history view.
+The generated file registers the workflow graph under the run's workflow name.
+Each run saves that graph with its own state. A later daemon build reads the saved
+graph, so it cannot change the structure displayed for an existing run. Regenerate
+and rebuild after changing a workflow's shape, before starting a new run.
 
 The supported built-in authoring path is in this Gimbal checkout. Add a package
 under `internal/workflows/`, using `internal/workflows/review/` as the small
@@ -152,14 +154,12 @@ gimbal.Env, params NameParams) error` and a `//go:generate` directive for
 `gimbalgen`. For structured result types, add a `//go:build jsonschema` file
 and Polytype generation as the review package does. Add the built-in to
 `internal/builtin/workflows.go`; `go generate ./...` produces its graph, typed
-Form handler, CLI command and Go client binding from that selection. The
-handler calls the workflow directly and the CLI calls the matching generated
-SKGO client. Rebuild and restart the instance with that binary. The graph's
-registration comes from the generated file compiled into the instance.
+JSON input adapter and CLI command from that selection. The child calls the
+workflow through that adapter. Rebuild and restart the instance with that binary.
+Each run saves its own graph for subsequent display.
 An unknown role is required on the command line when
-`cmd/gimbal/defaults.json` has no default for it. The stock generator uses Gimbal internal packages and the application web build.
-Consumer-owned compilers use the separate public integration described below;
-submitting an arbitrary closure to an existing instance remains unsupported.
+`internal/builtin/defaults.json` has no default for it. The stock generator uses Gimbal internal packages and the application web build.
+Submitting an arbitrary closure to an existing instance remains unsupported.
 
 Standalone `gimbal.Run(gimbal.Project(ctx, dir), ...)` executes in its caller's
 process and writes durable state under `dir/runs`; it does not join a running
@@ -174,20 +174,6 @@ runs, even while an instance happens to be running elsewhere.
 Use `Iterate(ctx, name, items)` to give each item in a finite slice its own
 scope. Use `PromiseLoop(ctx, name, goal, planner)` and range over its `Tasks`
 when a planner chooses work adaptively; check `Err()` afterward.
-
-## Consumer-owned compilers
-
-The [Temporal consumer example](examples/temporal/README.md) is a separate Go
-module. It shows authored Go, consumer-owned emitted orchestration, and integration
-through Gimbal's public runtime, `contextdata`, `compiler`, and `web` packages.
-Its guide covers generation, running the console, cancellation, and maintaining
-the workflow after a source edit. The example defines its own bounded source
-surface and backend policy.
-
-Gimbal owns agent execution, context semantics, lifecycle observations, and the
-console. The consumer owns scheduling, worker handles, transport, deployment,
-and its emitter. `compiler.GenerateGraph` derives the displayed graph from the
-authored source independently of backend lowering.
 
 ## Lint workflows
 

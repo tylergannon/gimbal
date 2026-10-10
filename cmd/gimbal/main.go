@@ -18,12 +18,29 @@ import (
 	"github.com/spf13/pflag"
 	"github.com/tylergannon/gimbal/internal/claimaudit"
 	"github.com/tylergannon/gimbal/internal/gimballint"
+	"github.com/tylergannon/gimbal/internal/invocation"
+	"github.com/tylergannon/gimbal/internal/runner"
 	"github.com/tylergannon/gimbal/opencode"
 	"github.com/tylergannon/gimbal/web"
 	"golang.org/x/tools/go/analysis/singlechecker"
 )
 
 func main() {
+	if len(os.Args) == 2 && os.Args[1] == "run-process" {
+		startup := os.NewFile(3, "startup")
+		defer func() { _ = startup.Close() }()
+		var request invocation.Request
+		if err := json.NewDecoder(os.Stdin).Decode(&request); err != nil {
+			_ = json.NewEncoder(startup).Encode(runner.Response{Error: err.Error()})
+			return
+		}
+		if err := runner.Run(request, startup); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	if analysisArgs, ok := routeAnalysis(os.Args[1:]); ok {
 		os.Args = append([]string{os.Args[0]}, analysisArgs...)
 		singlechecker.Main(gimballint.Analyzer)

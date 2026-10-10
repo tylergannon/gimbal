@@ -223,7 +223,7 @@
         disabled={cancelling}
         onclick={oncancel}
       >
-        <XIcon data-icon="inline-start" size={16} />{cancelling ? "Cancelling" : run.cancellation?.deliveries?.at(-1)?.status === "unconfirmed" ? "Retry backend cancellation" : "Cancel run"}
+        <XIcon data-icon="inline-start" size={16} />{cancelling ? "Cancelling" : "Cancel run"}
       </Button>
     </div>
   {:else}

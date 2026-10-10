@@ -22,6 +22,11 @@ func RecordTerminated(dir, reason string) error {
 	if s.run.Status != StatusRunning {
 		return nil
 	}
+	// The writer is stopped. Remove an incomplete durable tail before appending
+	// the terminal transaction, retaining every complete transaction we loaded.
+	if err := os.Truncate(filepath.Join(dir, deltaFile), s.journalEnd); err != nil && !os.IsNotExist(err) {
+		return err
+	}
 	f, err := os.OpenFile(filepath.Join(dir, "run.jsonl"), os.O_RDWR, 0)
 	if err != nil {
 		return err

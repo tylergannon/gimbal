@@ -1,6 +1,7 @@
 package web
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -14,8 +15,8 @@ import (
 	"time"
 
 	"github.com/tylergannon/gimbal/internal/host"
+	"github.com/tylergannon/gimbal/internal/invocation"
 	"github.com/tylergannon/gimbal/internal/observation"
-	"github.com/tylergannon/skgo"
 )
 
 // Follow waits for the selected instance's project-scoped terminal run row.
@@ -52,17 +53,28 @@ func Follow(ctx context.Context, instanceDir, project, id string) (observation.R
 	}
 }
 
-// SelectedFormClient connects generated SKGO clients to the selected instance's
-// control socket. Start Forms carry their project path in their typed input.
-func SelectedFormClient(ctx context.Context, instanceDir, project string) (skgo.FormClient, error) {
-	selected, err := selectedInstance(ctx, instanceDir, project)
+// Start submits pure Go invocation data through the daemon's control socket.
+func Start(ctx context.Context, instanceDir string, request invocation.Request) (invocation.Accepted, error) {
+	client, err := selectedInstance(ctx, instanceDir, request.Project)
 	if err != nil {
-		return skgo.FormClient{}, err
+		return invocation.Accepted{}, err
 	}
-	transport := &http.Transport{DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
-		return (&net.Dialer{}).DialContext(ctx, "unix", selected.socket)
-	}}
-	return skgo.FormClient{BaseURL: "http://gimbal", HTTPClient: &http.Client{Transport: transport}}, nil
+	raw, err := json.Marshal(request)
+	if err != nil {
+		return invocation.Accepted{}, err
+	}
+	response, err := client.request(ctx, http.MethodPost, "/control/start", bytes.NewReader(raw))
+	if err != nil {
+		return invocation.Accepted{}, err
+	}
+	defer func() { _ = response.Body.Close() }()
+	if response.StatusCode != http.StatusOK {
+		message, _ := io.ReadAll(response.Body)
+		return invocation.Accepted{}, fmt.Errorf("start %s: %s", request.Workflow, message)
+	}
+	var result invocation.Accepted
+	err = json.NewDecoder(response.Body).Decode(&result)
+	return result, err
 }
 
 type selectedClient struct {

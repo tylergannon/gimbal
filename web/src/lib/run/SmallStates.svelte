@@ -4,7 +4,6 @@
 
 <script lang="ts">
   import CircleAlertIcon from "@lucide/svelte/icons/circle-alert";
-  import SearchXIcon from "@lucide/svelte/icons/search-x";
   import TerminalIcon from "@lucide/svelte/icons/terminal";
   import WifiOffIcon from "@lucide/svelte/icons/wifi-off";
   import { Badge } from "#lib/components/ui/badge/index.js";
@@ -82,7 +81,7 @@
   {:else}
     <Card.Header>
       <Card.Title>Workflow graph required</Card.Title>
-      <Card.Description>This run cannot be mapped by the workflow graph compiled into this server.</Card.Description>
+      <Card.Description>This run has no usable saved workflow graph.</Card.Description>
     </Card.Header>
     <Card.Content class="no-graph-state">
       <div class="message" role="status">
@@ -90,27 +89,13 @@
         <div>
           <strong>
             {graphProblem === "mismatch"
-              ? "The registered graph does not match this run"
-              : `No generated graph is registered for ${workflowName}`}
+              ? "The saved graph does not match this run"
+              : `No workflow graph was saved for ${workflowName}`}
           </strong>
           <span>
-            Regenerate the workflow, then rebuild and restart the binary serving this project.
+            The graph must come from this run. Restarting the server cannot replace it.
           </span>
         </div>
-      </div>
-      <div class="missing-run">
-        <SearchXIcon size={16} />
-        <span>
-          Run <code>go generate ./...</code> from the module that owns <code>{workflowName}</code>.
-          Its generated file must call <code>gimbal.RegisterGraph</code> for this workflow.
-        </span>
-      </div>
-      <div class="missing-run">
-        <TerminalIcon size={16} />
-        <span>
-          Rebuild the serving binary and restart it. In the Gimbal checkout, use
-          <code>just build</code>.
-        </span>
       </div>
 	  <a class="back-link" href={backHref}>Back to runs</a>
     </Card.Content>
@@ -172,8 +157,7 @@
   }
 
   .loading-line,
-  .badges,
-  .missing-run {
+  .badges {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -239,8 +223,7 @@
     gap: 2px;
   }
 
-  .message span,
-  .missing-run {
+  .message span {
     color: var(--status-muted);
   }
 
@@ -263,19 +246,4 @@
     border-radius: 6px;
   }
 
-  .missing-run {
-    align-items: flex-start;
-    font-size: 13px;
-    line-height: 20px;
-  }
-
-  .missing-run :global(svg) {
-    flex-shrink: 0;
-    margin-top: 2px;
-  }
-
-  code {
-    color: var(--foreground);
-    font-family: var(--font-mono);
-  }
 </style>

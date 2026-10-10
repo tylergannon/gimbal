@@ -118,7 +118,7 @@ func TestRunHelpShowsTheInputsAndTheRoles(t *testing.T) {
 			t.Errorf("run review --help lacks %s:\n%s", flag, help)
 		}
 	}
-	for _, phrase := range []string{"persistent instance", "client exits", "instance startup environment", "optional effort"} {
+	for _, phrase := range []string{"independent process", "client exits", "instance startup environment", "optional effort"} {
 		if !strings.Contains(help, phrase) {
 			t.Errorf("run review --help lacks %q", phrase)
 		}
@@ -138,7 +138,7 @@ func TestRunHelpShowsTheInputsAndTheRoles(t *testing.T) {
 func TestRunRefusesAMissingInput(t *testing.T) {
 	var out, errOut bytes.Buffer
 	err := run([]string{"run", "review", "--code-review", "model"}, &out, &errOut, os.Getenv)
-	if err == nil || !strings.Contains(err.Error(), `"goal"`) {
+	if err == nil || !strings.Contains(err.Error(), `goal`) {
 		t.Errorf("run review without --goal = %v, want the required flag named", err)
 	}
 }

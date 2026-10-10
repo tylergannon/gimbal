@@ -94,22 +94,24 @@ func loadDurable(registry *Registry, id, dir string) (*Store, bool, error) {
 	if _, err := f.Seek(saved.Offset, io.SeekStart); err != nil {
 		return nil, false, err
 	}
-	scanner := bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, 0, 64<<10), maxLogLine)
-	for scanner.Scan() {
-		line := append([]byte(nil), scanner.Bytes()...)
+	reader := bufio.NewReader(f)
+	for {
+		line, err := reader.ReadBytes('\n')
+		if err == io.EOF {
+			break
+		} // An incomplete transaction is not durable.
+		if err != nil {
+			return nil, false, err
+		}
 		var delta Delta
 		if err := json.Unmarshal(line, &delta); err != nil {
 			break
-		} // interrupted tail was never durable
+		}
 		if delta.Stream != s.stream || delta.Position != s.position+1 {
 			return nil, false, fmt.Errorf("observation: non-contiguous durable delta at %d", delta.Position)
 		}
 		s.applyDeltaLocked(delta)
-		s.journalEnd += int64(len(line) + 1)
-	}
-	if err := scanner.Err(); err != nil {
-		return nil, false, err
+		s.journalEnd += int64(len(line))
 	}
 	s.noWrite = false
 	s.closed = true

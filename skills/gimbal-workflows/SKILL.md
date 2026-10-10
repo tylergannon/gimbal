@@ -33,7 +33,7 @@ and parameter descriptions. The human can share a URL with selected and expanded
 objects while the agent edits their Go source. Invalid edits retain the last
 successful view; changed or removed identifiers reset without guessing.
 The installed application shows its shipped snapshot. Reading a page does not
-run it; the Run view explicitly invokes the compiled workflow.
+run it; invoke the workflow with `gimbal run <name>`.
 
 Use an immediately preceding doc comment to give an operation, scope or
 condition a human-readable title on its first line and a description on later
@@ -225,14 +225,15 @@ an entry taking `context.Context`, `gimbal.Env`, and optionally one package-loca
 parameter struct; a `//go:generate` directive for `gimbalgen`; and Polytype
 generation when the workflow has structured result types. Add its metadata to
 `internal/builtin/workflows.go`. `go generate ./...` uses that one stock
-selection to emit the graph, workflow-specific SKGO Form handler, CLI command,
-and generated Go client binding. The handler calls the concrete workflow and
-the CLI command calls its matching SKGO client against the same remote identity.
-Run `just build` from the checkout, then restart the serving binary and invoke
-the same build's `gimbal run <name>` against that instance. The instance admits
-the project on first start and owns the run after the CLI exits. A command does
-not send a Go closure, and a different or older server binary cannot run a
-newly compiled workflow. Generation remains checkout-internal.
+selection to emit the graph, JSON invocation adapter, CLI command, and workflow
+page descriptors. The CLI accepts parameter flags or a JSON object through
+`--input`. The selected daemon validates the request and admits the project,
+then launches an independent process from its own binary. That child establishes
+its run and controller before the CLI returns the run ID. Use `--follow` to
+wait for completion. Daemon shutdown or restart does not stop the child; the
+restarted daemon discovers its observations and controls from the project state.
+Run `just build` and restart the serving binary before invoking a newly built
+workflow. Generation remains checkout-internal.
 
 Standalone `gimbal.Run(gimbal.Project(ctx, dir), ...)` runs in its caller's
 process, writes under `dir/runs`, and does not attach to a running instance.
@@ -252,12 +253,10 @@ package documentation for long help, and parameter field comments for flag
 help. Put the detailed explanation and examples in package documentation;
 extra paragraphs only in the function comment do not become long help.
 
-The run UI requires the generated graph that matches the recorded workflow.
-Keep the workflow's `go:generate` directive, run generation after changing its
-shape, and compile the generated file into the binary that serves the run. The
-generated `init` registers the graph under the workflow's run name. A missing
-or structurally stale graph is an authoring/build error: regenerate, rebuild,
-and restart the serving binary rather than relying on a graphless run view.
+A run saves its registered graph with its durable state when it starts. The run
+UI reads that saved graph, so a daemon restart or later workflow build does not
+change the graph of an existing run. Keep the workflow's `go:generate`
+directive and regenerate after changing its shape.
 
 Inspect the generated workflow list and detailed help after changing the
 comments. A graph or output schema does not replace caller documentation.

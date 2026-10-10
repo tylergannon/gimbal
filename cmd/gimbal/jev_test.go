@@ -9,6 +9,10 @@ import (
 )
 
 func TestMain(m *testing.M) {
+	if len(os.Args) == 2 && os.Args[1] == "run-process" {
+		main()
+		os.Exit(0)
+	}
 	// CLI tests that start instances use fake harnesses.
 	if os.Getenv("GIMBAL_LIVE") != "1" {
 		_ = os.Setenv("TYPESAFE_API_KEY", "test-key")

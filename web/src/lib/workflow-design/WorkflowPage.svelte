@@ -6,14 +6,13 @@
  import '@xyflow/svelte/dist/style.css';
  import WorkflowCanvas from './WorkflowCanvas.svelte';
  import Guide from './Guide.svelte';
- import StartWorkflow from './generated/StartWorkflow.svelte';
  import {decodeView,encodeView,normalizeView,type ViewState} from './view-state';
  import type {SourcePage} from './types';
  import './viewer.css';
  type Snapshot={page?:SourcePage;revision:number;status:'ready'|'updating'|'error';error?:string};
  let {initial}:{initial:SourcePage}=$props();
  const first=untrack(()=>initial);
- const panels=['workflow','guide','run'] as const;
+ const panels=['workflow','guide'] as const;
  let snapshot=$state.raw<Snapshot>({page:first,revision:0,status:'ready'});
  let current=$derived(snapshot.page ?? initial);
  let visibleURL=$derived(route.shallow?.url ?? route.url);
@@ -24,7 +23,7 @@
  function navigatePanel(event:MouseEvent,item:typeof panels[number]){
   if(event.button===0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey){event.preventDefault();void goto(panelURL(item),{shallow:true})}
  }
- function panelURL(next:'workflow'|'guide'|'run'){
+ function panelURL(next:'workflow'|'guide'){
   const url=new URL(visibleURL.href);url.search=encodeView({...view,panel:next==='workflow'?undefined:next}).toString();return url.pathname+url.search;
  }
  async function applyURL(requestedURL=new URL(visibleURL.href)){
@@ -78,7 +77,7 @@
   <WorkflowCanvas bind:this={viewer} page={current} initialView={view} oncommit={commit}/>
  </div>
  {#if panel==='guide'}<div class="reading"><Guide page={current}/></div>
- {:else if panel==='run'}<div class="reading"><h2>Run {current.name}</h2><StartWorkflow name={initial.name} guide={current.guide!}/></div>{/if}
+ {/if}
 </section>
 <style>
  .workflow-page{display:flex;flex-direction:column;height:calc(100dvh - 54px);min-height:420px;color:#0b0c0c;background:#fff}

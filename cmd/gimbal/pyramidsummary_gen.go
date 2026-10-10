@@ -5,16 +5,15 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 
 	"github.com/spf13/cobra"
 	"github.com/tylergannon/gimbal"
-	"github.com/tylergannon/gimbal/internal/skgo/client"
-	routes "github.com/tylergannon/gimbal/internal/skgo/links/onzggl3sn52xizlt"
+	"github.com/tylergannon/gimbal/internal/invocation"
 	"github.com/tylergannon/gimbal/web"
-	"github.com/tylergannon/polytype"
 )
 
 // pyramidsummaryCommand is gimbal run pyramid-summary and submits the matching Form remote.
@@ -28,18 +27,15 @@ func pyramidsummaryCommand(defaults map[gimbal.WorkflowRole]string) *cobra.Comma
 	var documentSupervisionModel string
 	var pyramidPlanningModel string
 	var editorialReviewModel string
-	var workDir, project, instanceDir, conversation string
+	var workDir, project, instanceDir, conversation, input string
 	var follow bool
-	cmd := &cobra.Command{Use: "pyramid-summary", Short: "PyramidSummary writes and validates every derived compression of a largest document.", Long: "Package pyramidsummary compresses one validated research-backed document\ninto a pyramid that repeatedly halves its token budget until the next level\nwould be under 100 tokens. The largest budget defaults to 3200.\n\nThe largest document and its semantic index already exist when this workflow\nstarts. Six fixed author slots independently write up to six of the smallest\nderived levels in parallel. When a larger starting budget creates additional\nupper levels, a bounded Promise Loop writes those after the fixed fan-out.\nEvery author retains the original goal and index as aids for judging which\nknowledge matters, but research is over.\n\nOne editor then reads every level together. It checks factual fidelity,\nlegibility, useful progressive compression, and whether important ideas\nsurvive longer than secondary detail. Derived levels with material issues\nreceive one bounded repair wave followed by one final whole-pyramid review.\nA material defect in the supplied largest document or after the repair wave\nends the workflow honestly.\n\nModel defaults use Gemini 3.1 Pro at high effort for document authoring and\neditorial review, Gemini 3.8 Flash at medium effort for document\nsupervision, and Luna for pyramid planning. Because authoring runs in\nparallel across up to six slots, callers should inspect these displayed pins\nbefore launching a large pyramid and override them deliberately when needed.\n\nExample:\n\n\tgimbal run pyramid-summary \\\n\t  --goal \"Explain passkeys to security-conscious product managers\" \\\n\t  --semantic-index ./passkeys-research/INDEX.md \\\n\t  --largest-document ./passkeys.md \\\n\t  --output-dir ./passkeys-pyramid" + "\n\nThe selected persistent instance owns this run. --project selects its admitted repository; --work-dir selects the execution directory independently. --instance-dir selects the instance state directory (or GIMBAL_INSTANCE_DIR, default .gimbal). --follow waits for terminal success or failure; otherwise the run continues after this client exits. Each role flag chooses a model and optional effort. Executable lookup, PATH, and provider configuration come from the instance startup environment.", Args: cobra.NoArgs}
+	cmd := &cobra.Command{Use: "pyramid-summary", Short: "PyramidSummary writes and validates every derived compression of a largest document.", Long: "Package pyramidsummary compresses one validated research-backed document\ninto a pyramid that repeatedly halves its token budget until the next level\nwould be under 100 tokens. The largest budget defaults to 3200.\n\nThe largest document and its semantic index already exist when this workflow\nstarts. Six fixed author slots independently write up to six of the smallest\nderived levels in parallel. When a larger starting budget creates additional\nupper levels, a bounded Promise Loop writes those after the fixed fan-out.\nEvery author retains the original goal and index as aids for judging which\nknowledge matters, but research is over.\n\nOne editor then reads every level together. It checks factual fidelity,\nlegibility, useful progressive compression, and whether important ideas\nsurvive longer than secondary detail. Derived levels with material issues\nreceive one bounded repair wave followed by one final whole-pyramid review.\nA material defect in the supplied largest document or after the repair wave\nends the workflow honestly.\n\nModel defaults use Gemini 3.1 Pro at high effort for document authoring and\neditorial review, Gemini 3.8 Flash at medium effort for document\nsupervision, and Luna for pyramid planning. Because authoring runs in\nparallel across up to six slots, callers should inspect these displayed pins\nbefore launching a large pyramid and override them deliberately when needed.\n\nExample:\n\n\tgimbal run pyramid-summary \\\n\t  --goal \"Explain passkeys to security-conscious product managers\" \\\n\t  --semantic-index ./passkeys-research/INDEX.md \\\n\t  --largest-document ./passkeys.md \\\n\t  --output-dir ./passkeys-pyramid" + "\n\nThe selected instance launches this run in an independent process that survives daemon shutdown and restart. --project selects its admitted repository; --work-dir selects the execution directory independently. --instance-dir selects the instance state directory (or GIMBAL_INSTANCE_DIR, default .gimbal). --follow waits for terminal success or failure; otherwise the run continues after this client exits. Each role flag chooses a model and optional effort. Executable lookup, PATH, and provider configuration come from the instance startup environment.", Args: cobra.NoArgs}
 	cmd.Flags().StringVar(&valueGoal, "goal", "", "Goal describes the audience, subject, and understanding every level must preserve. (required)")
 	cmd.Flags().StringVar(&valueSemanticIndex, "semantic-index", "", "SemanticIndex points to the existing index used to find relevant evidence. (required)")
 	cmd.Flags().StringVar(&valueLargestDocument, "largest-document", "", "LargestDocument is the already-validated document within the configured largest token budget. (required)")
 	cmd.Flags().StringVar(&valueOutputDir, "output-dir", "", "OutputDir receives one Markdown file per derived token budget. (required)")
 	cmd.Flags().IntVar(&optLargestTokenBudget, "largest-token-budget", 0, "LargestTokenBudget overrides the default starting budget of 3200 tokens.")
-	_ = cmd.MarkFlagRequired("goal")
-	_ = cmd.MarkFlagRequired("semantic-index")
-	_ = cmd.MarkFlagRequired("largest-document")
-	_ = cmd.MarkFlagRequired("output-dir")
+	cmd.Flags().StringVar(&input, "input", "", "workflow parameters as a JSON object; cannot be combined with parameter flags")
 	cmd.Flags().StringVar(&workDir, "work-dir", "", "execution directory (default: owning project)")
 	cmd.Flags().StringVar(&project, "project", ".", "repository owning this run and its observation; admitted on first start")
 	instanceDefault := os.Getenv("GIMBAL_INSTANCE_DIR")
@@ -48,7 +44,7 @@ func pyramidsummaryCommand(defaults map[gimbal.WorkflowRole]string) *cobra.Comma
 	}
 	cmd.Flags().StringVar(&instanceDir, "instance-dir", instanceDefault, "selected running instance state directory (default: GIMBAL_INSTANCE_DIR or .gimbal)")
 	cmd.Flags().StringVar(&conversation, "conversation", "", "associate this run with a conversation in the owning project")
-	cmd.Flags().BoolVar(&follow, "follow", false, "wait for the hosted run's terminal result; without this flag the run survives client exit")
+	cmd.Flags().BoolVar(&follow, "follow", false, "wait for the run's terminal result; without this flag the run survives client exit")
 	documentAuthoringModelDefault := defaults[gimbal.WorkflowRole("document-authoring")]
 	if documentAuthoringModelDefault == "" {
 		cmd.Flags().StringVar(&documentAuthoringModel, "document-authoring", "", "the model for role document-authoring, as model or model:effort; Pi uses pi/diffusion/model-id; OpenCode uses opencode/model or opencode/provider/model")
@@ -89,24 +85,60 @@ func pyramidsummaryCommand(defaults map[gimbal.WorkflowRole]string) *cobra.Comma
 		if err != nil {
 			return err
 		}
-		formInput := routes.StartPyramidSummaryInput{ProjectDir: project, WorkDir: workDir, Conversation: conversation,
-			Goal:                    valueGoal,
-			SemanticIndex:           valueSemanticIndex,
-			LargestDocument:         valueLargestDocument,
-			OutputDir:               valueOutputDir,
-			LargestTokenBudget:      polytype.Optional[int]{Present: cmd.Flags().Changed("largest-token-budget"), Value: optLargestTokenBudget},
-			RoleDocumentAuthoring:   polytype.Optional[string]{Present: cmd.Flags().Changed("document-authoring"), Value: documentAuthoringModel},
-			RoleDocumentSupervision: polytype.Optional[string]{Present: cmd.Flags().Changed("document-supervision"), Value: documentSupervisionModel},
-			RolePyramidPlanning:     polytype.Optional[string]{Present: cmd.Flags().Changed("pyramid-planning"), Value: pyramidPlanningModel},
-			RoleEditorialReview:     polytype.Optional[string]{Present: cmd.Flags().Changed("editorial-review"), Value: editorialReviewModel},
+		values := map[string]any{}
+
+		if cmd.Flags().Changed("goal") {
+			values["goal"] = valueGoal
 		}
-		formClient, err := web.SelectedFormClient(cmd.Context(), instanceDir, project)
-		if err != nil {
+
+		if cmd.Flags().Changed("semantic-index") {
+			values["semantic_index"] = valueSemanticIndex
+		}
+
+		if cmd.Flags().Changed("largest-document") {
+			values["largest_document"] = valueLargestDocument
+		}
+
+		if cmd.Flags().Changed("output-dir") {
+			values["output_dir"] = valueOutputDir
+		}
+
+		if cmd.Flags().Changed("largest-token-budget") {
+			values["largest_token_budget"] = optLargestTokenBudget
+		}
+
+		if input != "" && len(values) != 0 {
+			return fmt.Errorf("--input cannot be combined with parameter flags")
+		}
+		raw := json.RawMessage(input)
+		if input == "" {
+			raw, _ = json.Marshal(values)
+		}
+		roles := map[gimbal.WorkflowRole]string{}
+
+		if cmd.Flags().Changed("document-authoring") {
+			roles[gimbal.WorkflowRole("document-authoring")] = documentAuthoringModel
+		}
+
+		if cmd.Flags().Changed("document-supervision") {
+			roles[gimbal.WorkflowRole("document-supervision")] = documentSupervisionModel
+		}
+
+		if cmd.Flags().Changed("pyramid-planning") {
+			roles[gimbal.WorkflowRole("pyramid-planning")] = pyramidPlanningModel
+		}
+
+		if cmd.Flags().Changed("editorial-review") {
+			roles[gimbal.WorkflowRole("editorial-review")] = editorialReviewModel
+		}
+
+		request := invocation.Request{Workflow: "pyramid-summary", Input: raw, Project: project, WorkDir: workDir, Conversation: conversation, Roles: roles}
+		if _, _, err := invocation.Prepare(request); err != nil {
 			return err
 		}
-		accepted, err := (client.Client{FormClient: formClient}).StartPyramidSummary(cmd.Context(), formInput)
+		accepted, err := web.Start(cmd.Context(), instanceDir, request)
 		if err != nil {
-			return fmt.Errorf("start pyramid-summary: %w", err)
+			return err
 		}
 		fmt.Fprintln(cmd.OutOrStdout(), accepted.RunID)
 		if !follow {

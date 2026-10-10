@@ -2,6 +2,7 @@
 package host
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -9,18 +10,20 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sync"
-	"time"
+	"syscall"
 
 	"golang.org/x/sys/unix"
 
 	"github.com/tylergannon/gimbal"
-	"github.com/tylergannon/gimbal/contextdata"
 	"github.com/tylergannon/gimbal/internal/binding"
 	"github.com/tylergannon/gimbal/internal/conversation"
+	"github.com/tylergannon/gimbal/internal/invocation"
 	"github.com/tylergannon/gimbal/internal/live"
 	"github.com/tylergannon/gimbal/internal/observation"
+	"github.com/tylergannon/gimbal/internal/runner"
 )
 
 type Owner struct {
@@ -43,8 +46,6 @@ type Project struct {
 	registry      *observation.Registry
 	conversations *conversation.Manager
 	ownerLock     *os.File
-	contextStore  *contextdata.Store
-	contextCache  string
 }
 
 func New(ctx context.Context, instanceDir string) *Owner {
@@ -112,6 +113,7 @@ func (o *Owner) AdmitProject(dir string) (*Project, error) {
 	registry := observation.NewRegistry(state)
 	projectCtx = observation.WithRegistry(projectCtx, registry)
 	runs := live.NewRuns()
+	runs.Resolve = func(id string) (live.Controller, error) { return runner.Connect(state, id) }
 	projectCtx = live.WithRuns(projectCtx, runs)
 	p := &Project{owner: o, ctx: projectCtx, project: path, id: projectID(path), dir: state, runs: runs, registry: registry, ownerLock: ownerLock}
 	cli, err := os.Executable()
@@ -121,9 +123,6 @@ func (o *Owner) AdmitProject(dir string) (*Project, error) {
 	conversations, err := conversation.New(projectCtx, state, binding.Adapter, cli, o.dir, path, registry)
 	if err != nil {
 		return nil, err
-	}
-	if configured := contextStores(o.ctx)[path]; configured.store != nil {
-		p.contextStore, p.contextCache = configured.store, configured.cacheDir
 	}
 	p.conversations = conversations
 	p.ctx = p.RequestContext(conversation.WithManager(projectCtx, conversations))
@@ -202,20 +201,6 @@ func (p *Project) RequestContext(ctx context.Context) context.Context {
 	ctx = WithProjectDir(ctx, p.dir)
 	ctx = observation.WithRegistry(ctx, p.registry)
 	ctx = live.WithRuns(ctx, p.runs)
-	if p.contextStore != nil {
-		ctx = observation.WithContextArtifacts(ctx, func(id string) ([]byte, error) {
-			data, err := p.contextStore.ReadObject(ctx, id)
-			if err != nil {
-				return nil, err
-			}
-			store := *p.contextStore
-			store.LocalDir = p.contextCache
-			if _, err := store.MaterializeText(id, data); err != nil {
-				return nil, err
-			}
-			return data, nil
-		})
-	}
 	return conversation.WithManager(ctx, p.conversations)
 }
 
@@ -248,15 +233,7 @@ func (p *Project) Run(ctx context.Context, name string, models map[gimbal.Workfl
 	defer cancel(nil)
 	runCtx = observation.WithRegistry(runCtx, p.registry)
 	runCtx = live.WithRuns(runCtx, p.runs)
-	hook := p.runs.Hook
-	if started, _ := ctx.Value(runStartedKey{}).(func(string)); started != nil {
-		hook = func(id string, run live.Controller) func() {
-			release := p.runs.Hook(id, run)
-			started(id)
-			return release
-		}
-	}
-	runCtx = live.WithHook(runCtx, hook)
+	runCtx = live.WithHook(runCtx, p.runs.Hook)
 	err = gimbal.Run(gimbal.Project(runCtx, p.dir), name, models, body)
 	if err == nil && context.Cause(runCtx) != nil {
 		return context.Cause(runCtx)
@@ -264,120 +241,69 @@ func (p *Project) Run(ctx context.Context, name string, models map[gimbal.Workfl
 	return err
 }
 
-// OpenCompiledRun attaches compiled execution to this project. The caller
-// must close it after joining all activities and closing child scopes. Owner
-// shutdown cancels its context and waits for that close, as it does for Run.
-func (p *Project) OpenCompiledRun(ctx context.Context, name string, models map[gimbal.WorkflowRole]gimbal.ModelBinding, initial contextdata.Snapshot, localDir string, controls CompiledControls) (context.Context, func(error) error, error) {
-	if p == nil || ctx == nil {
-		return nil, nil, errors.New("gimbal: hosted run requires a project and context")
+// Start validates before admitting execution, then receives the child's run ID.
+func (p *Project) Start(request invocation.Request) (string, error) {
+	if p.owner.ctx.Err() != nil {
+		return "", context.Cause(p.owner.ctx)
 	}
-	if p.contextStore == nil {
-		return nil, nil, errors.New("gimbal: compiled run requires project context-store configuration at host startup")
+	request.Project = p.project
+	if request.WorkDir == "" {
+		request.WorkDir = p.project
 	}
-	if !filepath.IsAbs(localDir) {
-		return nil, nil, errors.New("gimbal: worker context materialization directory must be absolute")
-	}
-	if controls.CancelRun == nil {
-		return nil, nil, errors.New("gimbal: compiled run requires a backend cancellation callback")
-	}
-	if controls.DeliveryTimeout < 0 {
-		return nil, nil, errors.New("gimbal: cancellation delivery timeout cannot be negative")
-	}
-	if controls.DeliveryTimeout == 0 {
-		controls.DeliveryTimeout = 5 * time.Second
-	}
-	if _, ok := gimbal.RegisteredGraph(name); !ok {
-		return nil, nil, fmt.Errorf("gimbal: compiled workflow %q has no registered graph; import its authored graph package in the serving binary", name)
-	}
-
-	p.owner.mu.Lock()
-	if err := p.owner.ctx.Err(); err != nil {
-		p.owner.mu.Unlock()
-		return nil, nil, err
-	}
-	p.owner.activeRuns.Add(1)
-	p.owner.mu.Unlock()
-	runCtx, cancel := context.WithCancelCause(ctx)
-	stop := context.AfterFunc(p.owner.ctx, func() { cancel(context.Cause(p.owner.ctx)) })
-	release := func() { stop(); cancel(nil); p.owner.activeRuns.Done() }
-	runCtx = observation.WithRegistry(runCtx, p.registry)
-	runCtx = live.WithRuns(runCtx, p.runs)
-	finished := make(chan struct{})
-	runCtx = live.WithHook(runCtx, func(id string, controller live.Controller) func() {
-		unhook := p.runs.Hook(id, &compiledController{Controller: controller, controls: controls})
-		return func() { unhook(); close(finished) }
-	})
-	root, finish, err := gimbal.OpenRun(gimbal.Project(runCtx, p.dir), name, models, initial, gimbal.ContextAccess{Store: p.contextStore, LocalDir: localDir})
-	if err != nil {
-		release()
-		return nil, nil, err
-	}
-	var released sync.Once
-	return root, func(err error) error {
-		if err == nil {
-			err = context.Cause(runCtx)
-		}
-		result := finish(err)
-		select {
-		case <-finished:
-			released.Do(release)
-		default: // A rejected close (for example an open child) still owns the run.
-		}
-		return result
-	}, nil
-}
-
-type runStartedKey struct{}
-
-var ErrStartFailed = errors.New("run could not start")
-var ErrStopped = errors.New("instance stopped")
-
-// Start registers a server-owned run before returning its ID. The supplied
-// body is a concrete workflow call; request cancellation cannot end it.
-func (p *Project) Start(name, workdir, conversationID string, models map[gimbal.WorkflowRole]gimbal.ModelBinding, body func(context.Context) error) (string, error) {
-	if !filepath.IsAbs(workdir) {
+	if !filepath.IsAbs(request.WorkDir) {
 		return "", errors.New("work_dir must be absolute")
 	}
-	if info, err := os.Stat(workdir); err != nil || !info.IsDir() {
+	if info, err := os.Stat(request.WorkDir); err != nil || !info.IsDir() {
 		return "", errors.New("work_dir must be an existing directory")
 	}
-	if conversationID != "" {
-		worktree, ok := p.conversations.Worktree(conversationID)
-		if !ok || worktree != workdir {
+	if request.Conversation != "" {
+		worktree, ok := p.conversations.Worktree(request.Conversation)
+		if !ok || worktree != request.WorkDir {
 			return "", errors.New("conversation does not belong to this project and worktree")
 		}
 	}
-	started := make(chan string, 1)
-	ctx := context.WithValue(p.ctx, runStartedKey{}, func(id string) { started <- id })
-	done := make(chan error, 1)
-	go func() { done <- p.Run(ctx, name, models, body) }()
-	var id string
-	finished := false
-	select {
-	case id = <-started:
-	case err := <-done:
-		finished = true
-		select {
-		case id = <-started:
-		default:
-		}
-		if id == "" {
-			return "", fmt.Errorf("%w: %v", ErrStartFailed, err)
-		}
-	case <-p.ctx.Done():
-		return "", ErrStopped
+	if _, _, err := invocation.Prepare(request); err != nil {
+		return "", err
 	}
-	if conversationID != "" {
-		if err := p.conversations.Associate(conversationID, id, name, workdir); err != nil {
-			return "", fmt.Errorf("%w: %v", ErrStartFailed, err)
-		}
-		if finished {
-			p.conversations.RefreshRun(id)
-		} else {
-			go func() { <-done; p.conversations.RefreshRun(id) }()
+	executable, err := os.Executable()
+	if err != nil {
+		return "", err
+	}
+	input, err := json.Marshal(request)
+	if err != nil {
+		return "", err
+	}
+	read, write, err := os.Pipe()
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = read.Close() }()
+	defer func() { _ = write.Close() }()
+	child := exec.Command(executable, "run-process")
+	child.Stdin = bytes.NewReader(input)
+	child.ExtraFiles = []*os.File{write}
+	child.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	if err := child.Start(); err != nil {
+		return "", err
+	}
+	_ = write.Close()
+	go func() { _ = child.Wait() }()
+	var response runner.Response
+	if err := json.NewDecoder(read).Decode(&response); err != nil {
+		return "", fmt.Errorf("start runner: %w", err)
+	}
+	if response.Error != "" {
+		return "", errors.New(response.Error)
+	}
+	if response.RunID == "" {
+		return "", errors.New("runner returned no run ID")
+	}
+	if request.Conversation != "" {
+		if err := p.conversations.Associate(request.Conversation, response.RunID, request.Workflow, request.WorkDir); err != nil {
+			return "", err
 		}
 	}
-	return id, nil
+	return response.RunID, nil
 }
 
 func (p *Project) Steer(ctx context.Context, runID, sessionID, message string) (bool, error) {

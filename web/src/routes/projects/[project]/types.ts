@@ -35,11 +35,4 @@ export type CancellationState = {
   reason: string;
   cleanup: string;
   cleanup_error: string;
-  deliveries: Array<CancellationAttempt>;
-};
-
-export type CancellationAttempt = {
-  at: number;
-  status: string;
-  error: string;
 };

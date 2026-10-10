@@ -114,8 +114,14 @@ func serveEvents(w http.ResponseWriter, r *http.Request) {
 		// A finished run has a complete snapshot and no suffix.
 		return
 	}
+	ticker := time.NewTicker(200 * time.Millisecond)
+	defer ticker.Stop()
 	for {
 		select {
+		case <-ticker.C:
+			if _, err := registry.Snapshot(runID); err != nil {
+				return
+			}
 		case <-r.Context().Done():
 			return
 		case <-sub.Done():

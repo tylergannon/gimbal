@@ -7,20 +7,9 @@ package live
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync"
 )
-
-// CancellationDeliveryError reports an actual backend delivery error or timeout.
-// Lifecycle rejection before delivery is not a delivery failure.
-type CancellationDeliveryError struct{ Err error }
-
-func (e *CancellationDeliveryError) Error() string { return e.Err.Error() }
-func (e *CancellationDeliveryError) Unwrap() error { return e.Err }
-
-// ErrCancellationInProgress means the hosted cancellation/finish lock is held.
-var ErrCancellationInProgress = errors.New("gimbal: run is cancelling or finishing")
 
 // Controller is the face of one run in progress. The session, scope, and
 // turn ids are the ones the run log carries: lap.3/coder.1 for a session,
@@ -70,6 +59,7 @@ func FromContext(ctx context.Context) Hook {
 // own methods and the page's remote functions reach one table rather than
 // each holding a view of the runs.
 type Runs struct {
+	Resolve  func(string) (Controller, error)
 	mu       sync.Mutex
 	runs     map[string]Controller
 	retained map[string]bool
@@ -111,6 +101,9 @@ func (t *Runs) InProgress(id string) (Controller, error) {
 	}
 	t.mu.Unlock()
 	if run == nil {
+		if t.Resolve != nil {
+			return t.Resolve(id)
+		}
 		return nil, fmt.Errorf("gimbal: no run %q in progress", id)
 	}
 	return run, nil

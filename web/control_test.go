@@ -142,7 +142,7 @@ func TestCancelRunThatEndsDuringControlReturnsLocalNotFound(t *testing.T) {
 	if accepted.Accepted || !errors.As(err, &status) || status.Status != http.StatusNotFound {
 		t.Fatalf("local end race: accepted=%+v error=%v; want 404", accepted, err)
 	}
-	if want := "Run " + id + " is no longer running."; status.Message != want {
+	if want := "Run " + id + ": gimbal: run has ended and has no pending cleanup"; status.Message != want {
 		t.Fatalf("local end race message = %q; want %q", status.Message, want)
 	}
 	if err := <-result; err != nil {

@@ -6,7 +6,7 @@
 
 ## Build and publish
 
-A project's `.gimbal/workflows.json` lists workflow entry packages. Proposed `gimbal workflows refresh` runs source analysis, generates the runner main package in `generated/gimbal-runner/` in the project, builds it with `go build`, publishes the executable and sidecar command/design metadata under `.gimbal/builds/<build>/`, then atomically updates a current-build pointer. CLI and server read the same pointer. Edits take effect on refresh; a failed refresh leaves the last successful bundle selected.
+A project's `.gimbal/workflows.json` lists workflow entry packages. Proposed `gimbal workflows refresh` runs source analysis, generates the runner main package in `generated/gimbal-runner/` in the project, builds it with `go build`, publishes the executable and sidecar command/design metadata under `.gimbal/builds/<build>/`, then atomically updates a current-build pointer. Backend build metadata declares the linked client's recovery-contract ID; hosted admission checks exact support in the configured server recovery controller before any work. The project runner never loads that server plugin. CLI and server read the same pointer. Edits take effect on refresh; a failed refresh leaves the last successful bundle selected.
 
 If a backend deploys project code to execution sites, it may publish OS/architecture variants under the same workflow build identity or compile there. Generic command/agent workers do not require a workflow binary. Preserve named environment and role requirements through runtime dispatch, or through compiled metadata when a consumer chooses compilation; see [execution placement](execution-placement.md). A local `go build` does not demonstrate mixed-platform execution.
 

@@ -21,3 +21,5 @@ Latest annotations require one active server per state/run directory, with anoth
 The same workflow must support tasks on Linux and tasks on macOS. Remotely invoked Gimbal agent tasks must be able to use computer use through Claude or ChatGPT sessions. The design must represent task-level execution requirements and remote session ownership, even when scheduling and integration are implemented by consumer-owned backends rather than the central server. This is a required target capability, not only whole-workflow remote placement.
 
 The user suggested a macOS backend using a launchd-managed resident parent to launch run tasks with the desktop access unavailable to an earlier SSH-origin task. Treat it as a concrete candidate backend and consult the earlier investigation; do not assume launchd or elevated privileges alone fix provider/session authorization.
+
+- Automated native computer-use tasks must run without per-run approval prompts. Explicit one-time worker/app provisioning is separate; a successful interactive test does not prove unattended operation.

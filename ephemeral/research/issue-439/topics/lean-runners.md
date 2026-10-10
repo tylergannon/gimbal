@@ -6,7 +6,9 @@
 
 ## What gets linked
 
-The project entry point links its workflow code, Gimbal execution runtime, required adapters, recorder, and small HTTP control handler. It excludes `web`, skgo, frontend assets, the built-in workflow catalog, and the source analyzer. Typed `Generate[T]` schemas and validation stay with the project executable.
+The project entry point links its workflow code, Gimbal execution runtime, required adapters and selected execution-backend support, recorder, and small HTTP control handler. It excludes `web`, skgo, frontend assets, the built-in workflow catalog, and the source analyzer. Typed `Generate[T]` schemas and validation stay with the project executable.
+
+The runner links or loads the selected backend execution client. The server loads that installed backend plugin's recovery client when needed; it does not statically link every provider or load project workflow code to recover a run. Backend artifact/configuration selection belongs to instance deployment, which passes the selected configuration to the hosted runner and retains the matching artifact for ongoing control. This backend extension is distinct from turning the website into a plugin; it is a proposed integration contract, not an already implemented loader.
 
 A server-mode flag changes runtime behavior; it does not exclude linked packages or their initialization. Separate builds make the exclusion explicit. Go plugins add toolchain and shared-dependency matching constraints, described in the [official documentation](https://pkg.go.dev/plugin).
 

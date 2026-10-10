@@ -1,0 +1,8 @@
+{
+  "name": "gimbal-codex-desktop",
+  "version": "0.1.0",
+  "description": "Bind a local Gimbal worker to an open Codex desktop task. Experimental private desktop bridge.",
+  "author": { "name": "Gimbal" },
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json"
+}

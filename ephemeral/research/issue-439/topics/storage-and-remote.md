@@ -9,7 +9,7 @@
 | Owner | Durable material |
 | --- | --- |
 | Server instance | Ownership records, stop intent, run index, received event prefixes, saved build/design metadata. |
-| Backend execution | Authoritative event history and artifact objects. The local implementation uses `events.jsonl`, `runner.json`, the launcher-created `process.lock`, and stdout/stderr in its assigned run directory. |
+| Backend execution | Authoritative event history and artifact objects. The local implementation uses `events.jsonl`, `runner.json`, the launcher-created `process.lock`, durable execution-unit registrations plus an admission/stop lock, and stdout/stderr in its assigned run directory. |
 | Shared immutable context store | Content-addressed values referenced by local runs. Mutable materialization caches stay local to their consumers. |
 
 When a replica is needed, the server stores it at `projects/<project>/runs/<run>/events.jsonl` under its instance directory, beside the [ownership record](ownership.md#record-ownership-before-launch). When the authoritative journal is directly accessible, retain a reference instead of a second byte copy. Server restart replays the available committed prefix and retrieves the missing suffix through the backend. Retained ownership is not inferred from a journal's last status. UI snapshots and deltas are rebuildable projections, not additional event authorities.

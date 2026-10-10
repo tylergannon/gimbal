@@ -6,13 +6,13 @@
 
 ## Place individual tasks, not only whole runs
 
-A single workflow must support Linux and macOS tasks, including remote Claude or ChatGPT computer-use sessions. The backend owns capability matching and session/desktop assignment; the server preserves and displays those identities and routes controls. See [execution placement](execution-placement.md) for task requirements, desktop exclusivity, session continuity, and the evidence required of backend authors.
+A single workflow must support Linux and macOS tasks, including remote Claude or ChatGPT computer-use sessions. The workflow selects a `WorkflowRole`; ordinary project Go binds that role to a configured adapter, and a compiler maps the role to its queue/worker. Reject missing desktop mappings. The backend owns capability matching and session/desktop assignment; the server preserves and displays those identities and routes controls. See [execution placement](execution-placement.md) for task requirements, desktop exclusivity, session continuity, and the evidence required of backend authors.
 
 ## Own everything the run starts
 
 The server persists the backend's durable execution identity before admitting work. The backend must recover the execution units belonging to that identity after a controller restart. Track resources before they can begin work, or use the scheduler's durable admission identity; losing a launch acknowledgment must not make work anonymous.
 
-On each participating machine/container, run-owned work has a local lifetime owner and an enforceable termination boundary. A parent process is useful, but ancestry alone does not guarantee descendants stop when it dies. Dedicated containers, existing scheduler jobs, or process groups with enforced no-escape behavior can provide containment. Shared backend workers may host many runs; stopping one run must target its owned work, not kill the shared worker and unrelated runs.
+On each participating machine/container, run-owned work has a local lifetime owner and an enforceable termination boundary. A parent process is useful, but ancestry alone does not guarantee descendants stop when it dies. Dedicated containers and scheduler jobs can supply platform containment. The local backend instead keeps per-unit process groups behind a durable registration/start gate, with an explicit no-unregistered-detachment contract; it does not claim kernel containment of arbitrary code. See [the local force-stop decision](ownership.md#local-force-stop-has-a-concrete-execution-boundary). Shared backend workers may host many runs; stopping one run must target its owned work, not kill the shared worker and unrelated runs.
 
 Whole-run cancellation stops new admissions and retries, then cancels/drains active work across every site. Force-stop uses the execution platform to terminate run-owned units even when their workflow processes cannot answer. The backend reports acceptance separately from confirmed cessation and names unresolved units. A network partition remains unresolved until platform evidence establishes cessation. Local process-group kill is one implementation of this contract, never its distributed definition.
 

@@ -6,7 +6,7 @@
 
 **The server connects; the backend streams.** Use HTTP over Unix sockets locally: one resumable event subscription per run, with ordinary request/reply controls. The backend owns one authoritative logical history; the server builds the UI from it. At tens of concurrent runs, neither a broker nor polling every control socket is needed. A tunnel or authenticated HTTPS can carry the same boundary remotely; shared directories are not required.
 
-**A workflow can mix Linux tasks and macOS desktop tasks.** Placement and provider integration belong to the backend. For Codex desktop work, the recommended arrangement is a desktop-launched Gimbal MCP worker: Gimbal submits the task, and Codex creates the native session. The owning agent can remain idle. Build the web application into the server executable and omit it from project runners; a web plugin would add complexity without making this boundary better.
+**A workflow can mix Linux tasks and macOS desktop tasks.** The workflow selects a role; ordinary Go role bindings select a backend adapter configured for the required worker. Placement and provider integration belong to the backend. For Codex desktop work, the recommended arrangement is a desktop-launched Gimbal MCP worker: Gimbal submits the task, and Codex creates the native session. The owning agent can remain idle. Build the web application into the server executable and omit it from project runners; a web plugin would add complexity without making this boundary better.
 
 ## What is now established
 
@@ -21,10 +21,10 @@ The worker uses a private desktop bridge and requires its owner task to remain l
 | Two servers or a crashed server's lock file | Hold an OS lock for the lifetime of one canonical state directory; leave its file in place. | Second startup refuses; crash releases the lock. |
 | Forgotten or duplicated runs after restart | Persist identity before launch and reconcile that identity; retain stop intent. | The same admitted runs remain listed and cancellable. |
 | Lost events, replay races, or redundant recordings | One backend-owned history with durable positions and resumable delivery; derive UI views. | Reconnect yields the same projection as uninterrupted observation. |
-| Distributed cancellation leaves work alive | Backend tracks its scheduler jobs, containers, processes, and provider sessions by run. | Cancel stops scheduling and reaches owned work on every site; uncertainty stays visible. |
+| Distributed cancellation leaves work alive | Backend tracks jobs and native sessions; local commands wait behind durable group registration before starting. | Cancel stops scheduling and reaches owned work on every site; uncertainty stays visible. |
 | Runners retain the entire website and transcript UI | Separate builds and move historical projection into the server. | Runner dependencies exclude web/skgo; history does not grow its projection heap. |
-| Native sessions prompt or depend on private interfaces | Provision worker/apps once; isolate the provider adapter and check its actual path after updates. | Fresh permitted tasks succeed unattended; missing access fails explicitly. |
-| Two tasks compete for one desktop | Reserve that desktop for one controlling task; reconnect by session identity. | No second controller or blind replay after a lost reply. |
+| Native sessions prompt or depend on private interfaces | Provision worker/apps once; isolate the provider adapter and check its actual path after updates. | Fresh Chrome tasks passed; test each additional app before claiming it. Missing access fails explicitly. |
+| Two tasks compete or a desktop owner disappears | Reserve the desktop; rebind the owner, or explicitly hand its ledger to a replacement under an exclusive worker lock. | Retain the same native tasks and stop intents; no second controller or blind replay. |
 
 ## Drill down
 

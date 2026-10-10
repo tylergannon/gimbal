@@ -37,4 +37,4 @@ The worker uses a private desktop bridge and requires its owner task to remain l
 - [Storage and remote execution](topics/storage-and-remote.md) — artifact transfer, retention, and transport reachability.
 - [Delivery and review](topics/delivery-and-review.md) — the next bounded implementation and current review status.
 
-This is the editable proposal for [issue 439](https://github.com/tylergannon/gimbal/issues/439), including the subsequent [requirements](requirements.md). These are proposed application boundaries; the local desktop worker is the one implemented slice described here. Fresh Claude Fable review of this revision is pending.
+This is the editable proposal for [issue 439](https://github.com/tylergannon/gimbal/issues/439), including the subsequent [requirements](requirements.md). These are proposed application boundaries; the local desktop worker is the one implemented slice described here. Claude Fable 5.1 [finished-state round 11](../../reviews/20261009-issue-439-finished-state-round-11.md) reviewed `5c49b017` and returned **only nitpicks remain**, with no material findings. This is design consensus, not implementation approval or runtime proof.

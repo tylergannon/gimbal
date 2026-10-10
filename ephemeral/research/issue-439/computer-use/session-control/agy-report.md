@@ -4,7 +4,7 @@
 - **Model**: Gemini 3.8 Flash (High)
 - **Session ID**: d1a2d5b4-7271-4d41-b7c8-0bd0b8f7f92d
 - **Date**: 2026-10-09 (Capture timestamps recorded with UTC offset -06:00)
-- **Assignment**: [/Users/tyler/.codex/worktrees/issue-439-proposal/gimbal/ephemeral/research/issue-439/computer-use/session-control/agy-request.md](/Users/tyler/.codex/worktrees/issue-439-proposal/gimbal/ephemeral/research/issue-439/computer-use/session-control/agy-request.md)
+- **Assignment**: [Assignment](agy-request.md)
 - **Raw Cache**: [/Users/tyler/Documents/Codex/2026-10-09/gimbal-session-control-research/agy](/Users/tyler/Documents/Codex/2026-10-09/gimbal-session-control-research/agy)
 - **Manifest**: [/Users/tyler/Documents/Codex/2026-10-09/gimbal-session-control-research/agy/manifest.json](/Users/tyler/Documents/Codex/2026-10-09/gimbal-session-control-research/agy/manifest.json)
 - **Preserved v1 Report**: [/Users/tyler/Documents/Codex/2026-10-09/gimbal-session-control-research/agy/report-v1-unvalidated.md](/Users/tyler/Documents/Codex/2026-10-09/gimbal-session-control-research/agy/report-v1-unvalidated.md)

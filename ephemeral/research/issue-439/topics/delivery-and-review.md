@@ -2,7 +2,7 @@
 
 [Back to TL;DR](../proposal.md)
 
-**The first implementation must demonstrate small local runners that remain known and controllable through a server restart.** That local slice is not the full target: mixed Linux/macOS tasks and remote computer-use sessions are required backend capabilities. They need the separate live evidence described in [execution placement](execution-placement.md#what-backend-authors-must-demonstrate). Mixed-version upgrades remain later work.
+**The first implementation must demonstrate small local runners that remain known and controllable through a server restart.** That local slice is not the full target: mixed Linux/macOS tasks and remote computer-use sessions are required backend capabilities. They need the separate live evidence described in [execution placement](execution-placement.md#what-remains-to-demonstrate). Mixed-version upgrades remain later work.
 
 ## What must be demonstrated
 
@@ -16,7 +16,7 @@ These are observations to make during implementation, not results already achiev
 
 ## Current sources
 
-The source audit baseline is `37f8e3a9`; the [saved issue](../issue.json) describes the current in-process boundary. Relevant contracts and implementation include:
+The original source audit baseline is `37f8e3a9`; the [saved issue](../issue.json) describes the in-process boundary. The proposal now also includes the merged desktop worker at `1c3eb84c94c5cce42a7f78018ca51e285e789dc1`, whose [implemented scope](../computer-use/session-control/implemented-worker.md) is narrower than a Gimbal backend. Relevant contracts and implementation include:
 
 - [Project admission and hosted starts](../../../../internal/host/host.go)
 - [Run and recording](../../../../run.go)
@@ -26,10 +26,14 @@ The source audit baseline is `37f8e3a9`; the [saved issue](../issue.json) descri
 - [Context objects](../../../../contextdata/context.go)
 - [Definition of done](../../../../docs/definition-of-done.md)
 
+## Implemented evidence and remaining delivery
+
+The user separately authorized and received the local Codex desktop worker in [PR #440](https://github.com/tylergannon/gimbal/pull/440). Fresh native sessions with prior app provisioning, external initiation with an idle owner, active messaging, and bounded archive-and-stop are demonstrated. The local worker received implementation review; that acceptance does not ratify this whole proposal or prove remote execution.
+
+Continue with the small local-runner split and durable server ownership above. The compiled/backend seam must preserve task placement and run identities now, without making the central server implement a scheduler. The subsequent mixed-platform slice must connect the actual backend to the desktop adapter, deliver artifacts, and establish remote ownership, exclusive desktop use, observation, and cancellation. This keeps required remote behavior visible without making unbuilt infrastructure a prerequisite for project workflow discovery.
+
 ## Review status
 
-Claude Fable 5.1 reviewed the complete revised tree through [round 09](../../../reviews/20261009-issue-439-round-09.md), with the outcome **only nitpicks remain** and no material findings. The final clarifications name close-on-exec for the lifetime-lock descriptor, include that file in the ownership table, and define synced journal publication. Consensus is complete for this design; runtime behavior and memory savings remain to be demonstrated during implementation.
+Claude Fable 5.1 [round 09](../../../reviews/20261009-issue-439-round-09.md) returned **only nitpicks remain** for an earlier design. A subsequent [application architecture review](../application-review.md) identified foreign-owner discovery, force-stop/child ownership, and overlapping durable recordings. The current ownership and backend pages resolve those as explicit design decisions, with focused validation claims.
 
-A subsequent [fresh application architecture review](../application-review.md), requested by the user, found the architecture idiomatic and its seams mostly sound, but raised three material findings: foreign-owner discovery when the instance directory changes, the gap between cooperative cancellation and force-stop including child cleanup, and overlapping durable recordings. These are open design decisions; the prior consensus result does not resolve this new assessment.
-
-The user's subsequent annotations are incorporated in the directory-lock rule and new [backend contract](backend-contract.md), with corresponding ownership and history changes. This revision has not received a fresh Fable review. It defines distributed obligations without claiming a distributed backend has demonstrated them.
+User requirements then added distributed execution, mixed Linux/macOS tasks, and unattended native provider sessions. The local desktop implementation now supplies bounded runtime evidence for that provider path. **This integrated proposal revision is pending fresh Claude Fable review.** Earlier consensus and the worker's implementation acceptance do not establish consensus for the revised application architecture.

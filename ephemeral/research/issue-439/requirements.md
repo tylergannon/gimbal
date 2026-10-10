@@ -1,6 +1,6 @@
 # Authoritative request
 
-Read issue 439 and think about design. The initial two-page request is superseded by the later request for an editable pyramid: TL;DR with links to drill down on each topic, not a PDF. Use the consensus and request-adversarial-review skills to obtain independent Claude Fable review and resolve material findings. This is design work, not implementation.
+Read issue 439 and think about design. The initial two-page request is superseded by the later request for an editable pyramid: TL;DR with links to drill down on each topic, not a PDF. Use the consensus and request-adversarial-review skills to obtain independent Claude Fable review and resolve material findings. The user subsequently authorized a scoped implementation to prove unattended desktop-native sessions; that local Codex worker is merged in PR #440. The current request returns to analysis and the proposal. It does not authorize implementing the rest of issue 439.
 
 The main question is the most elegant and idiomatic data interchange between ongoing workflow runs and the central server: whether the server pulls from each control socket or runs push. Expected concurrency is tens of runs per computer, not hundreds. Anticipate important IPC needs without overdesigning.
 

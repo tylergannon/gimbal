@@ -8,7 +8,7 @@
 
 **The first live check found no usable public app-server attachment point in this running desktop.** Its two Codex children used private stdio connections; neither exposed a TCP listener or named public app-server socket. The documented socket path existed but refused a connect-only attempt. No RPC was sent. This result applies to desktop `26.1007.21159`, build `20052`, as inspected on October 9; it does not prove attachment impossible in every configuration. [Live observations and exact scope](live-attachment.md).
 
-**The subsequent live spike proved ordinary MCP initiation.** A desktop-launched custom MCP adapter accepted an external request while its owner task was idle, created a desktop task, and returned its result. Separately, a script-created task used real native macOS capture/input; external active steering and archive-and-stop also worked. The native attempt entered an approval wait, so the required **zero per-run prompts** behavior remains unproved. Marketplace packaging, actual remote ingress, and the combined fresh-task native path were not tested. [Live results, provisioning, and limits](live-spike.md).
+**The later implementation resolved the fresh-session native question for the tested app.** PR #440's ordinary desktop-launched MCP worker created two fresh native Chrome tasks with no observed per-run approval, using legitimate persistent app permission. Its owner remained idle between external requests. The earlier [live spike](live-spike.md) encountered temporary consent; its remaining acceptance check is now satisfied for this bounded path. [Implemented worker, evidence, and remaining limits](implemented-worker.md).
 
 ## What each route actually establishes
 
@@ -16,7 +16,7 @@
 | --- | --- | --- |
 | Attach to public app-server | Explicit Unix/WebSocket clients can start/resume threads, submit/steer turns, receive events, and interrupt turns. | A reachable listener belonging to this desktop, plus its native tool setup on externally created threads. Current listener check failed. |
 | Start another app-server / SDK | Programmatic session control in a process the caller starts. | Desktop ownership and working native Computer Use; sharing history storage does not establish either. |
-| Desktop-launched custom MCP adapter | Ordinary project MCP received genuine context, stayed available while its owner was idle, and accepted external create/read requests through the private desktop bridge. | Packaged plugin startup/restart behavior, remote ingress, and a fresh native task with no per-run prompt. |
+| Desktop-launched custom MCP adapter | Ordinary project MCP received genuine context, stayed available while its owner was idle, and accepted external create/read requests through the private desktop bridge. | Packaged marketplace startup/reload, automatic restart recovery, remote ingress, and full Gimbal adapter semantics. Fresh native no-prompt operation is now demonstrated for persistently approved Chrome. |
 | Supported remote desktop clients | Official remote-access documentation describes use of host Computer Use and plugins. | A documented arbitrary Gimbal client API for that same route. |
 | Deep link / `codex app` | UI handoff to the desktop; traced routing includes composer prefill. | Demonstrated unattended submission and a session lifecycle API. |
 
@@ -32,11 +32,9 @@ The bridge authenticates process ancestry and signing identity. A standalone SSH
 
 This separates two questions: can a desktop-launched adapter receive a remote Gimbal request, and can it legitimately dispatch that request through the provider’s session manager? Plugin packaging addresses deployment; the second question needs an actual supported contract or a deliberately accepted private integration. No controller agent should be inserted merely because that contract is currently unknown.
 
-## The smallest useful next experiment
+## What to validate next
 
-The live spike established initiation, native actions, active steering, and termination in bounded checks. The remaining acceptance check combines the ordinary MCP adapter with a fresh task against a properly provisioned native app, completing capture/input with **no per-run approval**. One-time supported worker provisioning is distinct from silently approving a runtime request. Keep it on a disposable target and preserve the user’s existing sessions. This is one backend integration spike, not a new Gimbal subsystem.
-
-If the provider offers a public desktop attachment mode, test that first. Otherwise establish whether its plugin API actually permits this direction of control before building a Gimbal adapter around the private bridge. Success must use the intended authorization contract and task identity. A plugin-created task that lacks native tools, or a tool-call cancellation that leaves its created task running, does not satisfy the experiment.
+The [implemented worker](implemented-worker.md) passed the fresh-task native check twice using the ordinary MCP path. Keep its private interface isolated; do not reopen public attachment research as a prerequisite for every next step. The remaining backend work is to establish remote ingress, durable run/task/session association, exclusive desktop use, and the Gimbal adapter contract. These are narrow integration obligations, not a new server plugin or scheduler system.
 
 The source distinction on cancellation matters: the MCP bridge’s `tools/cancel` aborts a pending tool call; it does not by itself prove cancellation of a task that call created. Public `turn/interrupt` targets an active turn and has its own completion behavior. The backend must demonstrate the latter outcome through whichever interface it actually uses. [Bridge source](/Users/tyler/Documents/Codex/2026-10-09/gimbal-session-control-research/validation/codex-app-tools-server.mjs:24873); [public interrupt implementation](/Users/tyler/Documents/Codex/2026-10-09/gimbal-session-control-research/codex/public/codex-rs/app-server/src/request_processors/turn_processor.rs:1619).
 
@@ -44,7 +42,7 @@ The source distinction on cancellation matters: the MCP bridge’s `tools/cancel
 
 Keep task placement and provider session integration inside the backend. A macOS worker can receive remote requests, but it must invoke a demonstrated provider integration; launching a CLI under launchd is insufficient evidence. The server stores the backend’s run/task/session identities and controls logical ownership without needing to understand Codex’s private IPC. An attached provider desktop is shared infrastructure, so whole-run cancellation must interrupt run-owned sessions rather than kill the user’s desktop application.
 
-The mixed Linux/macOS requirement remains firm. Its implementation should wait only on the narrow provider-control experiment, not on a general scheduler, new server plugin system, or permission framework. Claude’s native Computer Use needs its own integration evidence; a Claude model researching Codex does not prove Claude desktop integration.
+The mixed Linux/macOS requirement remains firm. The provider-control experiment now supports continuing its implementation; no general scheduler, new server plugin system, or permission framework is required. Claude’s native Computer Use needs its own integration evidence; a Claude model researching Codex does not prove Claude desktop integration.
 
 ## How the research was adjudicated
 

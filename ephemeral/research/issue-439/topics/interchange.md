@@ -37,7 +37,7 @@ Loss of connectivity means unreachable, not completed. Failure to write the auth
 | Request | Meaning |
 | --- | --- |
 | Identity/status | Verify persistent owner, run, launch, build, and protocol identity; report execution and cleanup state. |
-| Session steer / turn interrupt | Address current IDs and retain landed, dropped, and error distinctions. |
+| Session steer / turn interrupt | Address current IDs and retain landed, dropped, error, and unavailable distinctions. Expose a control only when the selected provider can honor its meaning. |
 | Loop steer / interview answer | Queue planner input or answer the exact pending question ID. |
 | Run cancellation | Stop the run and retry owned cleanup; return acceptance separately from cessation. |
 | Artifact read | Retrieve objects referenced by that run. |
@@ -45,3 +45,5 @@ Loss of connectivity means unreachable, not completed. Failure to write the auth
 The IPC handler accepts a command ID, calls the existing controller, and records a `control_result` journal envelope containing the ID and returned outcome/error. Public lifecycle payloads and adapter signatures need not acquire this transport detail.
 
 After an ambiguous timeout, match the command ID to its recorded result; absence means unknown. Do not automatically replay steers or answers. Cancellation is different: its [durable stop intent](ownership.md#cancel-one-or-all) remains pending until cessation is established and can safely drive the existing cancellation/cleanup retries. This needs a persistent stop flag, not a general command queue.
+
+The experimental Codex desktop worker does not yet implement this event/control contract: its `read` returns a bounded recent view, `message` does not confirm a landed steer, and archive-and-stop cancels a task rather than interrupting a turn while preserving its session. The backend integration must preserve those distinctions; do not advertise unsupported controls or substitute recent history for the authoritative journal. [Current worker boundary](../computer-use/session-control/implemented-worker.md#remaining-architecture-obligations).

@@ -2,6 +2,8 @@
 
 [Assessment](assessment.md) · [Proposal](../../proposal.md)
 
+**Historical first spike.** The later [implemented worker](implemented-worker.md) completed the fresh ordinary-MCP native path twice without observed per-run approval against persistently approved Chrome. The unproved statements below describe this earlier experiment, whose fixture lacked persistent permission.
+
 **An ordinary desktop-launched MCP adapter can accept an external request and create a desktop-owned Codex task while its owning agent is idle. No polling controller agent was involved. Separately, a task created through the same desktop bridge performed real native macOS capture, typing, and clicking.** These are substantial reductions in risk, but the combined unattended backend is not yet proven: native app access entered `waitingOnApproval`, and the fixture did not have a persistent app approval afterward.
 
 The bounded experiment ran on October 9, 2026, local time, using desktop build 20052. No desktop restart, signing changes, network exposure, or global auto-approval was used. Scripts, source copies, screenshots, and raw observations are retained in the external [spike cache](/Users/tyler/Documents/Codex/2026-10-09/gimbal-session-control-research/spike/manifest.json).

@@ -5,6 +5,7 @@ import (
 	"go/ast"
 	"go/doc"
 	"go/types"
+	"strconv"
 	"strings"
 	"unicode"
 
@@ -25,8 +26,8 @@ type entryInfo struct {
 // name, whether the value is a string, an int, or a bool, whether the field
 // is a polytype.Optional the flag sets only when given, and its doc.
 type field struct {
-	name, flag, kind, doc string
-	optional              bool
+	name, flag, kind, doc, json string
+	optional                    bool
 }
 
 // describe reads the entry's signature, its doc, and its parameters' fields.
@@ -96,6 +97,9 @@ func paramFields(pkg *packages.Package, typeName string) ([]field, error) {
 	}
 	var fields []field
 	for _, f := range structType.Fields.List {
+		if len(f.Names) == 0 {
+			return nil, fmt.Errorf("generate: %s has an embedded field; supported inputs have named string/int/bool/optional fields", typeName)
+		}
 		for _, ident := range f.Names {
 			if !ident.IsExported() {
 				continue
@@ -104,7 +108,26 @@ func paramFields(pkg *packages.Package, typeName string) ([]field, error) {
 			if err != nil {
 				return nil, fmt.Errorf("generate: %s.%s: %w", typeName, ident.Name, err)
 			}
-			fields = append(fields, field{name: ident.Name, flag: kebab(ident.Name), kind: kind, optional: optional, doc: strings.TrimSpace(f.Doc.Text())})
+			jsonName := strings.ReplaceAll(kebab(ident.Name), "-", "_")
+			if f.Tag != nil {
+				tag, err := strconv.Unquote(f.Tag.Value)
+				if err != nil {
+					return nil, err
+				}
+				if _, after, ok := strings.Cut(tag, "json:"); ok {
+					value, err := strconv.Unquote(strings.Fields(after)[0])
+					if err == nil {
+						name, _, _ := strings.Cut(value, ",")
+						if name == "-" {
+							return nil, fmt.Errorf("generate: %s.%s is excluded from JSON", typeName, ident.Name)
+						}
+						if name != "" {
+							jsonName = name
+						}
+					}
+				}
+			}
+			fields = append(fields, field{json: jsonName, name: ident.Name, flag: kebab(ident.Name), kind: kind, optional: optional, doc: strings.TrimSpace(f.Doc.Text())})
 		}
 	}
 	return fields, nil

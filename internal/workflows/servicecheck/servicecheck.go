@@ -6,7 +6,7 @@
 // and zsh must be available in the selected task environment. The workflow
 // creates service-address and agent-result.txt there. Task adds instructions to
 // the agent; it can ask for a longer operation when observing live controls.
-// Select an authenticated model with --devops-tasks; there is no default.
+// The default devops-tasks model is gpt-5.6-luna; --devops-tasks overrides it.
 // Success means the HTTP response matched the agent's file and the service was
 // unreachable after scope exit, not that any wider application was validated.
 //

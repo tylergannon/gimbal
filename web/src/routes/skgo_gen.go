@@ -39,6 +39,8 @@ var (
 	Skgo_sendConversationMessage = sendConversationMessage
 	// Skgo_answerInterview is answerInterview, published as src/routes/interview.remote.ts#answerInterview.
 	Skgo_answerInterview = answerInterview
+	// Skgo_launchWorkflow is launchWorkflow, published as src/routes/launch.remote.ts#launchWorkflow.
+	Skgo_launchWorkflow = launchWorkflow
 	// Skgo_steer is steer, published as src/routes/steer.remote.ts#steer.
 	Skgo_steer = steer
 	// Skgo_steerLoop is steerLoop, published as src/routes/steer.remote.ts#steerLoop.
@@ -52,6 +54,10 @@ type (
 	SkgoArg_answerInterview = InterviewAnswer
 	// SkgoOut_answerInterview is the type answerInterview returns.
 	SkgoOut_answerInterview = InterviewAnswered
+	// SkgoArg_launchWorkflow is the type launchWorkflow takes.
+	SkgoArg_launchWorkflow = LaunchWorkflow
+	// SkgoOut_launchWorkflow is the type launchWorkflow returns.
+	SkgoOut_launchWorkflow = LaunchAccepted
 	// SkgoArg_steer is the type steer takes.
 	SkgoArg_steer = Steer
 	// SkgoOut_steer is the type steer returns.

@@ -2,11 +2,15 @@ package runner
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/backend"
 
 	"github.com/tylergannon/gimbal/internal/effects"
 	"github.com/tylergannon/gimbal/internal/observation"
@@ -17,8 +21,8 @@ import (
 // evidence that the workflow can no longer release its remote resources.
 func CleanupExited(state, id string) (bool, error) {
 	dir := filepath.Join(state, "runs", id)
-	endpoint, err := os.ReadFile(filepath.Join(dir, "task-owner"))
-	if errors.Is(err, os.ErrNotExist) {
+	connection, endpoint, err := taskConnection(state, id)
+	if errors.Is(err, os.ErrNotExist) || (err == nil && endpoint == "" && connection.Execution == nil) {
 		return false, nil
 	}
 	if err != nil {
@@ -34,14 +38,15 @@ func CleanupExited(state, id string) (bool, error) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 11*time.Second)
 	defer cancel()
+	ctx = effects.WithConnection(ctx, connection)
 	var owned effects.State
-	if e := effects.Call(ctx, string(endpoint), "state", effects.Scope{Run: id}, &owned); e == nil && owned.Pending == 0 {
+	if e := effects.Call(ctx, endpoint, "state", effects.Scope{Run: id}, &owned); e == nil && owned.Pending == 0 {
 		if err := observation.RecordTerminated(dir, "workflow process exited; remote resources are released"); err != nil {
 			return false, err
 		}
 		return true, observation.RecordCleanup(dir, nil)
 	}
-	cleanupErr := effects.Cleanup(ctx, string(endpoint), id, "")
+	cleanupErr := effects.Cleanup(ctx, endpoint, id, "")
 	if err := observation.RecordTerminated(dir, "workflow process exited; remote scope cleanup was requested"); err != nil {
 		return false, err
 	}
@@ -62,4 +67,24 @@ func orphanCall(ctx context.Context, endpoint, run string, op operation) (bool, 
 	default:
 		return false, fmt.Errorf("workflow process is unavailable; scope cleanup remains reachable")
 	}
+}
+
+func taskConnection(state, id string) (backend.Connection, string, error) {
+	dir := filepath.Join(state, "runs", id)
+	raw, err := os.ReadFile(filepath.Join(dir, "task-route"))
+	if err == nil {
+		var route backend.Route
+		if err := json.Unmarshal(raw, &route); err != nil {
+			return backend.Connection{}, "", err
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		connection, err := gimbal.DefaultRegistry.Connect(ctx, route)
+		return connection, "", err
+	}
+	if !errors.Is(err, os.ErrNotExist) {
+		return backend.Connection{}, "", err
+	}
+	endpoint, err := os.ReadFile(filepath.Join(dir, "task-owner"))
+	return backend.Connection{}, string(endpoint), err
 }

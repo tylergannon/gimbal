@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/internal/host"
 	"github.com/tylergannon/gimbal/internal/invocation"
 	"github.com/tylergannon/gimbal/internal/observation"
@@ -136,4 +137,23 @@ func (c selectedClient) request(ctx context.Context, method, path string, body i
 	response, err := (&http.Client{Transport: transport}).Do(request)
 	transport.CloseIdleConnections()
 	return response, err
+}
+
+// WorkflowCatalog fetches the selected central's runtime catalog. It loads no plugins.
+func WorkflowCatalog(ctx context.Context, instanceDir, project string) ([]gimbal.WorkflowDescription, error) {
+	client, err := selectedInstance(ctx, instanceDir, project)
+	if err != nil {
+		return nil, err
+	}
+	response, err := client.request(ctx, http.MethodGet, "/control/workflows", nil)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = response.Body.Close() }()
+	if response.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("workflow catalog: %s", response.Status)
+	}
+	var catalog []gimbal.WorkflowDescription
+	err = json.NewDecoder(response.Body).Decode(&catalog)
+	return catalog, err
 }

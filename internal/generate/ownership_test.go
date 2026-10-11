@@ -37,8 +37,8 @@ func Flow(ctx context.Context,env gimbal.Env, params Params)error{gimbal.Set(ctx
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(first), "gimbal.RegisterGraph(Graph)") {
-		t.Fatal("no registration")
+	if strings.Contains(string(first), "gimbal.RegisterGraph(Graph)") {
+		t.Fatal("graph generated a second registration authority")
 	}
 	if err := run("other"); err == nil || !strings.Contains(err.Error(), "refusing to overwrite") {
 		t.Fatalf("other workflow ownership: %v", err)

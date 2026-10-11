@@ -92,7 +92,7 @@ func TestNeedsSecrets(t *testing.T) {
 		want bool
 	}{
 		{nil, true},
-		{[]string{"run", "implementation"}, true},
+		{[]string{"run", "implementation"}, false},
 		{[]string{"run-prompt", "--model", "pi/diffusion/deepseek-4.1-flash", "hello"}, true},
 		{[]string{"upload-artifact", "proof.png"}, true},
 		{[]string{"runs"}, false},

@@ -4,13 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/tylergannon/gimbal/backend"
 
 	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/internal/effects"
@@ -127,15 +128,7 @@ func TestTurnSurvivesReaderDisconnectAndCanBeSteeredAndStopped(t *testing.T) {
 func processRequest(t *testing.T, run, scope, id, script string, service bool) effects.Process {
 	t.Helper()
 	dir := t.TempDir()
-	out := filepath.Join(dir, "stdout")
-	stderr := filepath.Join(dir, "stderr")
-	if err := os.WriteFile(out, nil, 0600); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(stderr, nil, 0600); err != nil {
-		t.Fatal(err)
-	}
-	return effects.Process{Run: run, Scope: scope, Task: id, Command: "sh", Args: []string{"-c", script}, Workdir: dir, Stdout: out, Stderr: stderr, Service: service}
+	return effects.Process{Run: run, Scope: scope, Task: id, Command: "sh", Args: []string{"-c", script}, Workdir: dir, Service: service}
 }
 func TestProcessMeaningAndScopedAntiClaim(t *testing.T) {
 	d := New()
@@ -155,8 +148,12 @@ func TestProcessMeaningAndScopedAntiClaim(t *testing.T) {
 	if err := json.Unmarshal(raw, &result); err != nil {
 		t.Fatal(err)
 	}
-	out, _ := os.ReadFile(command.Stdout)
-	stderr, _ := os.ReadFile(command.Stderr)
+	outFile, _ := (backend.HTTP{Endpoint: server.URL}).ReadBytes(ctx, backend.Artifact{Owner: command.Owner, Name: "stdout"})
+	out, _ := io.ReadAll(outFile)
+	_ = outFile.Close()
+	errFile, _ := (backend.HTTP{Endpoint: server.URL}).ReadBytes(ctx, backend.Artifact{Owner: command.Owner, Name: "stderr"})
+	stderr, _ := io.ReadAll(errFile)
+	_ = errFile.Close()
 	if result.ExitCode != 7 || result.Error != "" || string(out) != "out" || string(stderr) != "err" {
 		t.Fatal(result, string(out), string(stderr))
 	}

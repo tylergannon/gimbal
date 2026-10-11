@@ -121,7 +121,12 @@ func (a *adapter) CreateSession(ctx context.Context, model, effort, workdir stri
 // RunTurn posts one authoritative synchronous prompt. The shared event stream
 // is diagnostic: stream or projection gaps are captured but cannot replace a
 // successful POST result with failure.
-func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema json.RawMessage, onEvent func(gimbal.AgentEvent) error) (gimbal.TurnResult, error) {
+func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema json.RawMessage, onEvent func(gimbal.AgentEvent) error) (resultOut gimbal.TurnResult, resultErr error) {
+	defer func() {
+		if resultErr == nil {
+			resultErr = gimbal.ValidateTurnResult(schema, resultOut)
+		}
+	}()
 	s, err := a.session(sessionID)
 	if err != nil {
 		return gimbal.TurnResult{}, err
@@ -391,7 +396,7 @@ func turnResult(response PromptResponse, schema json.RawMessage) (gimbal.TurnRes
 	}
 	if len(schema) > 0 {
 		if response.Info.Structured == nil {
-			return gimbal.TurnResult{}, errors.New("opencode: turn ended without structured output")
+			return gimbal.TurnResult{}, fmt.Errorf("opencode: turn ended without structured output: %w", gimbal.ErrInvalidOutput)
 		}
 		output, err := json.Marshal(response.Info.Structured)
 		return gimbal.TurnResult{Output: output}, err

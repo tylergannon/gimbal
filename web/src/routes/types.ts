@@ -39,6 +39,30 @@ export type InterviewAnswered = {
   accepted: boolean;
 };
 
+export type LaunchAccepted = {
+  run_id: string;
+  project_id: string;
+};
+
+export type LaunchWorkflow = {
+  workflow: string;
+  project: string;
+  workdir: string;
+  inputs: Array<LaunchField>;
+  roles: Array<LaunchRole>;
+};
+
+export type LaunchField = {
+  name: string;
+  value: string;
+  include: boolean;
+};
+
+export type LaunchRole = {
+  name: string;
+  value: string;
+};
+
 /**
  * LoopMessage is what the loop card's forms post: which loop of which run, and either what the person typed at its planner or the wrap-up instruction, whose text is the runtime's own so the page never spells it.
  */

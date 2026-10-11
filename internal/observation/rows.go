@@ -36,13 +36,15 @@ func (u Usage) add(other Usage) Usage {
 
 // RunRow is the run itself. Times are Unix ms, as every time in a row is.
 type RunRow struct {
-	ID           string                               `json:"id"`
-	Name         string                               `json:"name"`
-	Status       string                               `json:"status"`
-	Error        string                               `json:"error"`
-	Started      int64                                `json:"started"`
-	Ended        int64                                `json:"ended"`
-	Cancellation polytype.Optional[CancellationState] `json:"cancellation,omitzero"`
+	WorkflowEnvironment string                               `json:"workflow_environment"`
+	TaskEnvironment     string                               `json:"task_environment"`
+	ID                  string                               `json:"id"`
+	Name                string                               `json:"name"`
+	Status              string                               `json:"status"`
+	Error               string                               `json:"error"`
+	Started             int64                                `json:"started"`
+	Ended               int64                                `json:"ended"`
+	Cancellation        polytype.Optional[CancellationState] `json:"cancellation,omitzero"`
 }
 
 // Decision is one planner decision, kept as the record's sequence and the
@@ -129,19 +131,21 @@ type ContextEntry struct {
 // turn's tokens are charged to. Context identifies the scope values sent with
 // Prompt, without copying their bodies. Result is the recorded JSON text.
 type TurnRow struct {
-	Run         string                            `json:"run"`
-	ID          string                            `json:"id"`
-	Session     string                            `json:"session"`
-	Scope       string                            `json:"scope"`
-	Prompt      string                            `json:"prompt"`
-	Context     polytype.Optional[[]ContextEntry] `json:"context,omitzero"`
-	OutputType  string                            `json:"output_type"`
-	Result      string                            `json:"result"`
-	Error       string                            `json:"error"`
-	Interrupted bool                              `json:"interrupted"`
-	Started     int64                             `json:"started"`
-	Ended       int64                             `json:"ended"`
-	Duration    int64                             `json:"duration"`
+	EventsUnavailable bool                              `json:"events_unavailable"`
+	ObservationError  string                            `json:"observation_error"`
+	Run               string                            `json:"run"`
+	ID                string                            `json:"id"`
+	Session           string                            `json:"session"`
+	Scope             string                            `json:"scope"`
+	Prompt            string                            `json:"prompt"`
+	Context           polytype.Optional[[]ContextEntry] `json:"context,omitzero"`
+	OutputType        string                            `json:"output_type"`
+	Result            string                            `json:"result"`
+	Error             string                            `json:"error"`
+	Interrupted       bool                              `json:"interrupted"`
+	Started           int64                             `json:"started"`
+	Ended             int64                             `json:"ended"`
+	Duration          int64                             `json:"duration"`
 }
 
 // TurnUsageRow is what one model spent in one turn. It is the only table

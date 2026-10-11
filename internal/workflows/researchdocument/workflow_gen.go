@@ -5,11 +5,8 @@
 package researchdocument
 
 import (
-	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/workflow"
 )
-
-func init() { gimbal.RegisterGraph(Graph) }
 
 // Graph is the shape of this workflow, read from the source of ResearchDocument.
 var Graph = workflow.Graph{

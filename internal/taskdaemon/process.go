@@ -24,27 +24,30 @@ func (d *Daemon) process(req effects.Process) error {
 	if d.tasks[id] != nil {
 		return errors.New("command already started; read its result")
 	}
-	out, err := os.OpenFile(req.Stdout, os.O_WRONLY|os.O_TRUNC, 0600)
+	out, err := os.CreateTemp("", "gimbal-command-out-*")
 	if err != nil {
 		return err
 	}
-	stderr, err := os.OpenFile(req.Stderr, os.O_WRONLY|os.O_TRUNC, 0600)
+	stderr, err := os.CreateTemp("", "gimbal-command-err-*")
 	if err != nil {
 		_ = out.Close()
+		_ = os.Remove(out.Name())
 		return err
 	}
 	cmd := exec.Command(req.Command, req.Args...)
-	cmd.Dir = req.Workdir
+	cmd.Dir = d.workdir(req.Workdir)
 	cmd.Stdout = out
 	cmd.Stderr = stderr
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	if err := cmd.Start(); err != nil {
 		_ = out.Close()
 		_ = stderr.Close()
+		_ = os.Remove(out.Name())
+		_ = os.Remove(stderr.Name())
 		return err
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	t := &task{owner: req.Owner, cancel: cancel, done: make(chan struct{})}
+	t := &task{owner: req.Owner, cancel: cancel, done: make(chan struct{}), captures: map[string]string{"stdout": out.Name(), "stderr": stderr.Name()}}
 	var stopMu sync.Mutex
 	t.stop = func(ctx context.Context) error {
 		stopMu.Lock()
@@ -99,6 +102,9 @@ func (d *Daemon) process(req effects.Process) error {
 		}
 		t.mu.Lock()
 		t.result, _ = json.Marshal(result)
+		t.mu.Unlock()
+		t.mu.Lock()
+		t.completed = time.Now()
 		t.mu.Unlock()
 		close(t.done)
 	}()

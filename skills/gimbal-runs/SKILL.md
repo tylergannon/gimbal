@@ -21,8 +21,9 @@ gimbal run --help
 gimbal run review --help
 ```
 
-Installed help tells you what is available and which inputs and model flags
-it accepts. The presence of a `df-*` skill does not make it a Gimbal command.
+Workflow help comes from the selected running central catalog. Use
+`--instance-dir /abs/instance` when it is outside the current directory.
+It tells you which registered workflows, inputs and model defaults are available. The presence of a `df-*` skill does not make it a Gimbal command.
 
 Establish the goal, target project, permitted changes, and what would
 demonstrate a useful result. A supplied chapter or sprint can provide context;
@@ -66,6 +67,28 @@ gimbal --instance-dir /abs/instance --port 8080
 # In another shell:
 gimbal run review --instance-dir /abs/instance --project /abs/project --input '{"goal":"Review the parser changes for correctness; report concrete findings with evidence."}'
 ```
+
+Central and workflow daemons discover native plugins at startup through repeated
+`--plugin-dir DIR`. Deploy matching plugin builds to each environment and restart
+after rebuilding the project plugin. The CLI and frontend need no rebuild to
+accept its changed input contract. Control commands and generation do not load
+local plugin files.
+
+Supply `--input` as a JSON object or `@/abs/input.json`, or use the catalog's
+parameter flags. The shared browser Run form presents those same fields; check
+Include to submit an optional empty, zero or false value. Input errors name the
+visible field before a run is admitted.
+
+By default central launches a local independent runner. For remote placement,
+select `--workflow-endpoint URL --workflow-project /abs/project-at-A` and
+`--work-dir /abs/workdir-at-A`, independently of central's `--project` directory.
+Select `--task-endpoint URL` for tasks at B. `--workflow-route` and `--task-route`
+accept JSON or `@file` with backend `name`, `configuration` and `environment`
+for registered backend implementations. Provision the repository and workspace
+at each environment; plugin paths are configured locally at each daemon.
+Central retains run routes so restarting central can reopen active runs without
+resubmitting them. A disconnected observation channel is a gap, not proof that
+the work stopped or failed.
 
 Use an absolute project path. Do not pass role-model flags by default: the
 workflow's displayed defaults are its intended role configuration, and a
@@ -120,7 +143,7 @@ selects an available browser port; `--uds` serves through a Unix socket.
 
 Use `--task-endpoint` to execute agents, commands, and scope-owned services in a
 selected local or Docker daemon. See [task environments](references/task-environments.md)
-for provisioning, shared paths, lifecycle limits, and the `service-check` exercise.
+for provisioning, transferred artifacts, service-networking limits, and the `service-check` exercise.
 
 ## Find the run and observe its work
 

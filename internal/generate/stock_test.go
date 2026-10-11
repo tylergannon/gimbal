@@ -52,13 +52,9 @@ func TestStockRecoversMissingAndStaleOutput(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	firstCommand, err := os.ReadFile(command)
-	if err != nil {
-		t.Fatal(err)
-	}
+
 	t.Cleanup(func() {
 		_ = os.WriteFile(form, firstForm, 0o644)
-		_ = os.WriteFile(command, firstCommand, 0o644)
 	})
 	if err := os.Remove(form); err != nil {
 		t.Fatal(err)
@@ -73,19 +69,17 @@ func TestStockRecoversMissingAndStaleOutput(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	commandAgain, err := os.ReadFile(command)
-	if err != nil {
-		t.Fatal(err)
+	if _, err := os.Stat(command); !os.IsNotExist(err) {
+		t.Fatal("obsolete static command survived generation")
 	}
-	if !slices.Equal(firstForm, formAgain) || !slices.Equal(firstCommand, commandAgain) {
+	if !slices.Equal(firstForm, formAgain) {
 		t.Fatal("stock generation did not restore original form and command bytes")
 	}
 	if err := generate.Stock(root); err != nil {
 		t.Fatal(err)
 	}
 	formSecond, _ := os.ReadFile(form)
-	commandSecond, _ := os.ReadFile(command)
-	if !slices.Equal(formAgain, formSecond) || !slices.Equal(commandAgain, commandSecond) {
+	if !slices.Equal(formAgain, formSecond) {
 		t.Fatal("second stock generation changed output")
 	}
 }

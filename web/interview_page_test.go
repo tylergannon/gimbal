@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/fs"
@@ -19,7 +20,7 @@ import (
 
 func TestRunPageKeepsInterviewHistoryAcrossQuestionsAndReload(t *testing.T) {
 	const workflowName = "interview-ssr-fixture"
-	gimbal.RegisterGraph(workflow.Graph{
+	graph := workflow.Graph{
 		Name: workflowName,
 		Body: []workflow.Operation{
 			workflow.Scope{Name: "preferences", Body: []workflow.Operation{
@@ -27,7 +28,12 @@ func TestRunPageKeepsInterviewHistoryAcrossQuestionsAndReload(t *testing.T) {
 				workflow.Interview{Name: "preferences", Session: "interviewer"},
 			}},
 		},
-	})
+	}
+	if err := gimbal.DefaultRegistry.RegisterWorkflow(gimbal.WorkflowDefinition{Name: workflowName, InputSchema: json.RawMessage(`{"type":"object"}`), Roles: map[gimbal.WorkflowRole]string{"interviewer": "haiku"}, Graph: graph, Prepare: func(json.RawMessage) (gimbal.Invocation, error) {
+		return func(context.Context, gimbal.Env) error { return nil }, nil
+	}}); err != nil {
+		t.Fatal(err)
+	}
 	dist, err := fs.Sub(Build, "build")
 	if err != nil {
 		t.Fatal(err)
@@ -42,7 +48,7 @@ func TestRunPageKeepsInterviewHistoryAcrossQuestionsAndReload(t *testing.T) {
 	if err := os.MkdirAll(runDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	graph, _ := gimbal.RegisteredGraph(workflowName)
+	graph, _ = gimbal.RegisteredGraph(workflowName)
 	graphData, _ := json.Marshal(graph)
 	if err := os.WriteFile(filepath.Join(runDir, "graph.json"), graphData, 0644); err != nil {
 		t.Fatal(err)

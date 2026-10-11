@@ -109,7 +109,12 @@ func (a *adapter) CreateSession(ctx context.Context, model, effort, workdir stri
 // RunTurn runs one resumed agy print process and translates its NDJSON stream.
 // Antigravity states no cost and no per-model turn report, so TurnResult carries
 // no usage: the session accounts for the turn from its step events alone.
-func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema json.RawMessage, onEvent func(gimbal.AgentEvent) error) (gimbal.TurnResult, error) {
+func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema json.RawMessage, onEvent func(gimbal.AgentEvent) error) (resultOut gimbal.TurnResult, resultErr error) {
+	defer func() {
+		if resultErr == nil {
+			resultErr = gimbal.ValidateTurnResult(schema, resultOut)
+		}
+	}()
 	s, err := a.session(sessionID)
 	if err != nil {
 		return gimbal.TurnResult{}, err
@@ -137,7 +142,7 @@ func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema 
 		return gimbal.TurnResult{Output: out}, err
 	}
 	if result.structured == nil {
-		return gimbal.TurnResult{}, errors.New("agy: the turn ended without structured_output")
+		return gimbal.TurnResult{}, fmt.Errorf("agy: the turn ended without structured_output: %w", gimbal.ErrInvalidOutput)
 	}
 	out, err := json.Marshal(result.structured)
 	return gimbal.TurnResult{Output: out}, err

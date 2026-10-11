@@ -257,8 +257,8 @@ func TestNativeSessionRunTurnWithFakeCompletions(t *testing.T) {
 
 	schema := json.RawMessage(`{"type":"object","properties":{"answer":{"type":"string"}},"required":["answer"]}`)
 	candidate, err := a.RunTurn(context.Background(), sessionID, "Return an answer", schema, nil)
-	if err != nil {
-		t.Fatal(err)
+	if !errors.Is(err, gimbal.ErrInvalidOutput) {
+		t.Fatalf("invalid native output error = %v", err)
 	}
 	if string(candidate.Output) != `{"wrong":"no"}` {
 		t.Fatalf("candidate schema output = %s", candidate.Output)

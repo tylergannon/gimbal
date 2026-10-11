@@ -4,12 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/tylergannon/gimbal/backend"
 	"github.com/tylergannon/gimbal/internal/effects"
 )
 
@@ -281,4 +284,74 @@ func (s *ownedService) awaitBoundary(timeout time.Duration) error {
 			return errors.Join(fmt.Errorf("%w: %s", errServiceShutdownTimeout, strings.Join(parts, "; ")), observationErr)
 		}
 	}
+}
+
+// FulfillService starts a scope-owned foreground TCP service and returns its
+// consumer-reachable URL. Local execution returns loopback in the workflow
+// environment; remote execution requires an explicitly supplied topology.
+func FulfillService(ctx context.Context, name, workdir, command string, port int, consumer string) (string, error) {
+	s, err := current(ctx)
+	if err != nil {
+		return "", err
+	}
+	endpoint := effects.Endpoint(ctx)
+	if endpoint == "" {
+		if port < 1 || port > 65535 {
+			return "", fmt.Errorf("invalid service TCP port")
+		}
+		address := net.JoinHostPort("127.0.0.1", strconv.Itoa(port))
+		probe, err := net.Listen("tcp", address)
+		if err != nil {
+			return "", fmt.Errorf("service port unavailable: %w", err)
+		}
+		_ = probe.Close()
+		if err := Service(ctx, name, workdir, command); err != nil {
+			return "", err
+		}
+		return "http://" + address, nil
+	}
+	s.mu.Lock()
+	id := s.next(name)
+	s.mu.Unlock()
+	started := time.Now()
+	if err = s.run.eventResult(s.key, "", "", CommandStarted{ID: id, Name: name, Command: "zsh", Args: []string{"-c", command}, Workdir: workdir}); err != nil {
+		return "", err
+	}
+	out, stdoutName, err := openCommandCapture(s.run, id, "stdout")
+	if err != nil {
+		return "", err
+	}
+	stderr, stderrName, err := openCommandCapture(s.run, id, "stderr")
+	if err != nil {
+		_ = out.close()
+		return "", err
+	}
+	ended := CommandEnded{ID: id, ExitCode: -1, StdoutFile: stdoutName, StderrFile: stderrName}
+	address, err := executionFor(ctx).Service(ctx, backend.Service{Owner: effectOwner(s, id), Workdir: workdir, Command: "zsh", Args: []string{"-c", command}, Service: true, Port: port, Consumer: consumer})
+	if err != nil {
+		_ = out.close()
+		_ = stderr.close()
+		return "", endServiceStartFailure(s, started, ended, err)
+	}
+	owned := &ownedService{scope: s, ctx: s.ctx, id: id, name: name, done: make(chan struct{}), remote: true}
+	if err = s.adoptService(owned); err != nil {
+		_ = out.close()
+		_ = stderr.close()
+		return "", errors.Join(err, s.remoteCleanup())
+	}
+	go func() {
+		err := remoteProcessResult(context.WithoutCancel(ctx), s, id, out, stderr, &ended)
+		ended.Duration = time.Since(started)
+		ended.Error = errString(err)
+		s.run.event(s.key, "", "", ended)
+		owned.mu.Lock()
+		owned.terminalErr = err
+		stopping := owned.stopping
+		owned.mu.Unlock()
+		if !stopping {
+			s.failService(fmt.Errorf("required service %s exited: %v", id, err))
+		}
+		close(owned.done)
+	}()
+	return address.URL, nil
 }

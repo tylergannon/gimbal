@@ -125,7 +125,12 @@ func (a *adapter) add(s *session) (string, error) {
 }
 
 // RunTurn runs one turn and blocks until it ends.
-func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema json.RawMessage, onEvent func(gimbal.AgentEvent) error) (gimbal.TurnResult, error) {
+func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema json.RawMessage, onEvent func(gimbal.AgentEvent) error) (resultOut gimbal.TurnResult, resultErr error) {
+	defer func() {
+		if resultErr == nil {
+			resultErr = gimbal.ValidateTurnResult(schema, resultOut)
+		}
+	}()
 	s, err := a.session(sessionID)
 	if err != nil {
 		return gimbal.TurnResult{}, err

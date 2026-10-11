@@ -9,7 +9,11 @@ import (
 func TestRegisteredGraphReturnsCompiledWorkflow(t *testing.T) {
 	const name = "registered-graph-accessor-test"
 	want := workflow.Graph{Name: name, Source: workflow.Source{File: "workflow.go", Line: 12}}
-	RegisterGraph(want)
+	d := testDefinition(name)
+	d.Graph = want
+	if err := DefaultRegistry.RegisterWorkflow(d); err != nil {
+		t.Fatal(err)
+	}
 
 	got, ok := RegisteredGraph(name)
 	if !ok || got.Name != want.Name || got.Source != want.Source {

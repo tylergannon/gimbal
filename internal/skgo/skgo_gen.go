@@ -16,11 +16,12 @@ import (
 	devalue "github.com/tylergannon/devalue/v5"
 	pkg_conversation "github.com/tylergannon/gimbal/internal/conversation"
 	pkg_onzggl3sn52xizlt "github.com/tylergannon/gimbal/internal/skgo/links/onzggl3sn52xizlt"
-	skgo1 "github.com/tylergannon/gimbal/internal/skgo/links/onzggl3sn52xizltf53w64tlmzwg653tf5nxo33snntgy33xlu"
-	skgo2 "github.com/tylergannon/gimbal/internal/skgo/links/onzggl3sn52xizltf5yhe33kmvrxi4zplnyhe33kmvrxixi"
-	skgo3 "github.com/tylergannon/gimbal/internal/skgo/links/onzggl3sn52xizltf5yhe33kmvrxi4zplnyhe33kmvrxixjpmnxw45tfojzwc5djn5xhg"
-	skgo4 "github.com/tylergannon/gimbal/internal/skgo/links/onzggl3sn52xizltf5yhe33kmvrxi4zplnyhe33kmvrxixjpmnxw45tfojzwc5djn5xhgl23mnxw45tfojzwc5djn5xesrc5"
-	skgo6 "github.com/tylergannon/gimbal/internal/skgo/links/onzggl3sn52xizltf5yhe33kmvrxi4zplnyhe33kmvrxixjpoj2w44zplnzhk3sjiroq"
+	skgo1 "github.com/tylergannon/gimbal/internal/skgo/links/onzggl3sn52xizltf53w64tlmzwg653t"
+	skgo2 "github.com/tylergannon/gimbal/internal/skgo/links/onzggl3sn52xizltf53w64tlmzwg653tf5nxo33snntgy33xlu"
+	skgo3 "github.com/tylergannon/gimbal/internal/skgo/links/onzggl3sn52xizltf5yhe33kmvrxi4zplnyhe33kmvrxixi"
+	skgo4 "github.com/tylergannon/gimbal/internal/skgo/links/onzggl3sn52xizltf5yhe33kmvrxi4zplnyhe33kmvrxixjpmnxw45tfojzwc5djn5xhg"
+	skgo5 "github.com/tylergannon/gimbal/internal/skgo/links/onzggl3sn52xizltf5yhe33kmvrxi4zplnyhe33kmvrxixjpmnxw45tfojzwc5djn5xhgl23mnxw45tfojzwc5djn5xesrc5"
+	skgo7 "github.com/tylergannon/gimbal/internal/skgo/links/onzggl3sn52xizltf5yhe33kmvrxi4zplnyhe33kmvrxixjpoj2w44zplnzhk3sjiroq"
 	params "github.com/tylergannon/gimbal/internal/skgo/params"
 	pkg_src "github.com/tylergannon/gimbal/web/src"
 	skgo "github.com/tylergannon/skgo"
@@ -1045,6 +1046,76 @@ func ParseInterviewAnswered(s string) (pkg_onzggl3sn52xizlt.InterviewAnswered, e
 	return decInterviewAnswered(parsed, "")
 }
 
+func encLaunchAccepted(v pkg_onzggl3sn52xizlt.LaunchAccepted, at string) (any, error) {
+	enc1 := devalue.NewObject()
+	var enc2 any = string(v.RunID)
+	enc1.Set("run_id", enc2)
+	var enc3 any = string(v.ProjectID)
+	enc1.Set("project_id", enc3)
+	return enc1, nil
+}
+
+func decLaunchAccepted(raw any, at string) (pkg_onzggl3sn52xizlt.LaunchAccepted, error) {
+	var dvZero pkg_onzggl3sn52xizlt.LaunchAccepted
+	var dec1 pkg_onzggl3sn52xizlt.LaunchAccepted
+	obj2, err := dvObject(raw, at)
+	if err != nil {
+		return dvZero, err
+	}
+	if err := dvKnown(obj2, at, "run_id", "project_id"); err != nil {
+		return dvZero, err
+	}
+	raw3, err := dvRequired(obj2, "run_id", at+"/run_id")
+	if err != nil {
+		return dvZero, err
+	}
+	dec4, err := dvString(raw3, at+"/run_id")
+	if err != nil {
+		return dvZero, err
+	}
+	dec1.RunID = dec4
+	raw5, err := dvRequired(obj2, "project_id", at+"/project_id")
+	if err != nil {
+		return dvZero, err
+	}
+	dec6, err := dvString(raw5, at+"/project_id")
+	if err != nil {
+		return dvZero, err
+	}
+	dec1.ProjectID = dec6
+	return dec1, nil
+}
+
+// EncodeLaunchAccepted converts v into the devalue value model.
+func EncodeLaunchAccepted(v pkg_onzggl3sn52xizlt.LaunchAccepted) (any, error) {
+	return encLaunchAccepted(v, "")
+}
+
+// DecodeLaunchAccepted converts a devalue value model tree into a pkg_onzggl3sn52xizlt.LaunchAccepted, rejecting any
+// shape the type grammar does not admit.
+func DecodeLaunchAccepted(raw any) (pkg_onzggl3sn52xizlt.LaunchAccepted, error) {
+	return decLaunchAccepted(raw, "")
+}
+
+// StringifyLaunchAccepted encodes v and serializes it with devalue.
+func StringifyLaunchAccepted(v pkg_onzggl3sn52xizlt.LaunchAccepted) (string, error) {
+	encoded, err := encLaunchAccepted(v, "")
+	if err != nil {
+		return "", err
+	}
+	return devalue.Stringify(encoded)
+}
+
+// ParseLaunchAccepted parses a devalue document and decodes it into a pkg_onzggl3sn52xizlt.LaunchAccepted.
+func ParseLaunchAccepted(s string) (pkg_onzggl3sn52xizlt.LaunchAccepted, error) {
+	var zero pkg_onzggl3sn52xizlt.LaunchAccepted
+	parsed, err := devalue.Parse(s, nil)
+	if err != nil {
+		return zero, err
+	}
+	return decLaunchAccepted(parsed, "")
+}
+
 func encSent(v pkg_onzggl3sn52xizlt.Sent, at string) (any, error) {
 	enc1 := devalue.NewObject()
 	var enc2 any = bool(v.Landed)
@@ -1513,7 +1584,50 @@ func ParseRoot6(s string) (pkg_onzggl3sn52xizlt.InterviewAnswered, error) {
 	return decRoot6(parsed, "")
 }
 
-func encRoot7(v pkg_onzggl3sn52xizlt.Sent, at string) (any, error) {
+func encRoot7(v pkg_onzggl3sn52xizlt.LaunchAccepted, at string) (any, error) {
+	enc1, err := encLaunchAccepted(v, at)
+	if err != nil {
+		return nil, err
+	}
+	return enc1, nil
+}
+
+func decRoot7(raw any, at string) (pkg_onzggl3sn52xizlt.LaunchAccepted, error) {
+	var dvZero pkg_onzggl3sn52xizlt.LaunchAccepted
+	dec1, err := decLaunchAccepted(raw, at)
+	if err != nil {
+		return dvZero, err
+	}
+	return dec1, nil
+}
+
+// EncodeRoot7 converts v into the devalue value model.
+func EncodeRoot7(v pkg_onzggl3sn52xizlt.LaunchAccepted) (any, error) { return encRoot7(v, "") }
+
+// DecodeRoot7 converts a devalue value model tree into a pkg_onzggl3sn52xizlt.LaunchAccepted, rejecting any
+// shape the type grammar does not admit.
+func DecodeRoot7(raw any) (pkg_onzggl3sn52xizlt.LaunchAccepted, error) { return decRoot7(raw, "") }
+
+// StringifyRoot7 encodes v and serializes it with devalue.
+func StringifyRoot7(v pkg_onzggl3sn52xizlt.LaunchAccepted) (string, error) {
+	encoded, err := encRoot7(v, "")
+	if err != nil {
+		return "", err
+	}
+	return devalue.Stringify(encoded)
+}
+
+// ParseRoot7 parses a devalue document and decodes it into a pkg_onzggl3sn52xizlt.LaunchAccepted.
+func ParseRoot7(s string) (pkg_onzggl3sn52xizlt.LaunchAccepted, error) {
+	var zero pkg_onzggl3sn52xizlt.LaunchAccepted
+	parsed, err := devalue.Parse(s, nil)
+	if err != nil {
+		return zero, err
+	}
+	return decRoot7(parsed, "")
+}
+
+func encRoot8(v pkg_onzggl3sn52xizlt.Sent, at string) (any, error) {
 	enc1, err := encSent(v, at)
 	if err != nil {
 		return nil, err
@@ -1521,7 +1635,7 @@ func encRoot7(v pkg_onzggl3sn52xizlt.Sent, at string) (any, error) {
 	return enc1, nil
 }
 
-func decRoot7(raw any, at string) (pkg_onzggl3sn52xizlt.Sent, error) {
+func decRoot8(raw any, at string) (pkg_onzggl3sn52xizlt.Sent, error) {
 	var dvZero pkg_onzggl3sn52xizlt.Sent
 	dec1, err := decSent(raw, at)
 	if err != nil {
@@ -1530,33 +1644,33 @@ func decRoot7(raw any, at string) (pkg_onzggl3sn52xizlt.Sent, error) {
 	return dec1, nil
 }
 
-// EncodeRoot7 converts v into the devalue value model.
-func EncodeRoot7(v pkg_onzggl3sn52xizlt.Sent) (any, error) { return encRoot7(v, "") }
+// EncodeRoot8 converts v into the devalue value model.
+func EncodeRoot8(v pkg_onzggl3sn52xizlt.Sent) (any, error) { return encRoot8(v, "") }
 
-// DecodeRoot7 converts a devalue value model tree into a pkg_onzggl3sn52xizlt.Sent, rejecting any
+// DecodeRoot8 converts a devalue value model tree into a pkg_onzggl3sn52xizlt.Sent, rejecting any
 // shape the type grammar does not admit.
-func DecodeRoot7(raw any) (pkg_onzggl3sn52xizlt.Sent, error) { return decRoot7(raw, "") }
+func DecodeRoot8(raw any) (pkg_onzggl3sn52xizlt.Sent, error) { return decRoot8(raw, "") }
 
-// StringifyRoot7 encodes v and serializes it with devalue.
-func StringifyRoot7(v pkg_onzggl3sn52xizlt.Sent) (string, error) {
-	encoded, err := encRoot7(v, "")
+// StringifyRoot8 encodes v and serializes it with devalue.
+func StringifyRoot8(v pkg_onzggl3sn52xizlt.Sent) (string, error) {
+	encoded, err := encRoot8(v, "")
 	if err != nil {
 		return "", err
 	}
 	return devalue.Stringify(encoded)
 }
 
-// ParseRoot7 parses a devalue document and decodes it into a pkg_onzggl3sn52xizlt.Sent.
-func ParseRoot7(s string) (pkg_onzggl3sn52xizlt.Sent, error) {
+// ParseRoot8 parses a devalue document and decodes it into a pkg_onzggl3sn52xizlt.Sent.
+func ParseRoot8(s string) (pkg_onzggl3sn52xizlt.Sent, error) {
 	var zero pkg_onzggl3sn52xizlt.Sent
 	parsed, err := devalue.Parse(s, nil)
 	if err != nil {
 		return zero, err
 	}
-	return decRoot7(parsed, "")
+	return decRoot8(parsed, "")
 }
 
-func encRoot8(v pkg_onzggl3sn52xizlt.Waiting, at string) (any, error) {
+func encRoot9(v pkg_onzggl3sn52xizlt.Waiting, at string) (any, error) {
 	enc1, err := encWaiting(v, at)
 	if err != nil {
 		return nil, err
@@ -1564,7 +1678,7 @@ func encRoot8(v pkg_onzggl3sn52xizlt.Waiting, at string) (any, error) {
 	return enc1, nil
 }
 
-func decRoot8(raw any, at string) (pkg_onzggl3sn52xizlt.Waiting, error) {
+func decRoot9(raw any, at string) (pkg_onzggl3sn52xizlt.Waiting, error) {
 	var dvZero pkg_onzggl3sn52xizlt.Waiting
 	dec1, err := decWaiting(raw, at)
 	if err != nil {
@@ -1573,33 +1687,33 @@ func decRoot8(raw any, at string) (pkg_onzggl3sn52xizlt.Waiting, error) {
 	return dec1, nil
 }
 
-// EncodeRoot8 converts v into the devalue value model.
-func EncodeRoot8(v pkg_onzggl3sn52xizlt.Waiting) (any, error) { return encRoot8(v, "") }
+// EncodeRoot9 converts v into the devalue value model.
+func EncodeRoot9(v pkg_onzggl3sn52xizlt.Waiting) (any, error) { return encRoot9(v, "") }
 
-// DecodeRoot8 converts a devalue value model tree into a pkg_onzggl3sn52xizlt.Waiting, rejecting any
+// DecodeRoot9 converts a devalue value model tree into a pkg_onzggl3sn52xizlt.Waiting, rejecting any
 // shape the type grammar does not admit.
-func DecodeRoot8(raw any) (pkg_onzggl3sn52xizlt.Waiting, error) { return decRoot8(raw, "") }
+func DecodeRoot9(raw any) (pkg_onzggl3sn52xizlt.Waiting, error) { return decRoot9(raw, "") }
 
-// StringifyRoot8 encodes v and serializes it with devalue.
-func StringifyRoot8(v pkg_onzggl3sn52xizlt.Waiting) (string, error) {
-	encoded, err := encRoot8(v, "")
+// StringifyRoot9 encodes v and serializes it with devalue.
+func StringifyRoot9(v pkg_onzggl3sn52xizlt.Waiting) (string, error) {
+	encoded, err := encRoot9(v, "")
 	if err != nil {
 		return "", err
 	}
 	return devalue.Stringify(encoded)
 }
 
-// ParseRoot8 parses a devalue document and decodes it into a pkg_onzggl3sn52xizlt.Waiting.
-func ParseRoot8(s string) (pkg_onzggl3sn52xizlt.Waiting, error) {
+// ParseRoot9 parses a devalue document and decodes it into a pkg_onzggl3sn52xizlt.Waiting.
+func ParseRoot9(s string) (pkg_onzggl3sn52xizlt.Waiting, error) {
 	var zero pkg_onzggl3sn52xizlt.Waiting
 	parsed, err := devalue.Parse(s, nil)
 	if err != nil {
 		return zero, err
 	}
-	return decRoot8(parsed, "")
+	return decRoot9(parsed, "")
 }
 
-func encRoot9(v pkg_src.RunSnapshot, at string) (any, error) {
+func encRoot10(v pkg_src.RunSnapshot, at string) (any, error) {
 	enc1, err := encRunSnapshot(v, at)
 	if err != nil {
 		return nil, err
@@ -1607,7 +1721,7 @@ func encRoot9(v pkg_src.RunSnapshot, at string) (any, error) {
 	return enc1, nil
 }
 
-func decRoot9(raw any, at string) (pkg_src.RunSnapshot, error) {
+func decRoot10(raw any, at string) (pkg_src.RunSnapshot, error) {
 	var dvZero pkg_src.RunSnapshot
 	dec1, err := decRunSnapshot(raw, at)
 	if err != nil {
@@ -1616,30 +1730,30 @@ func decRoot9(raw any, at string) (pkg_src.RunSnapshot, error) {
 	return dec1, nil
 }
 
-// EncodeRoot9 converts v into the devalue value model.
-func EncodeRoot9(v pkg_src.RunSnapshot) (any, error) { return encRoot9(v, "") }
+// EncodeRoot10 converts v into the devalue value model.
+func EncodeRoot10(v pkg_src.RunSnapshot) (any, error) { return encRoot10(v, "") }
 
-// DecodeRoot9 converts a devalue value model tree into a pkg_src.RunSnapshot, rejecting any
+// DecodeRoot10 converts a devalue value model tree into a pkg_src.RunSnapshot, rejecting any
 // shape the type grammar does not admit.
-func DecodeRoot9(raw any) (pkg_src.RunSnapshot, error) { return decRoot9(raw, "") }
+func DecodeRoot10(raw any) (pkg_src.RunSnapshot, error) { return decRoot10(raw, "") }
 
-// StringifyRoot9 encodes v and serializes it with devalue.
-func StringifyRoot9(v pkg_src.RunSnapshot) (string, error) {
-	encoded, err := encRoot9(v, "")
+// StringifyRoot10 encodes v and serializes it with devalue.
+func StringifyRoot10(v pkg_src.RunSnapshot) (string, error) {
+	encoded, err := encRoot10(v, "")
 	if err != nil {
 		return "", err
 	}
 	return devalue.Stringify(encoded)
 }
 
-// ParseRoot9 parses a devalue document and decodes it into a pkg_src.RunSnapshot.
-func ParseRoot9(s string) (pkg_src.RunSnapshot, error) {
+// ParseRoot10 parses a devalue document and decodes it into a pkg_src.RunSnapshot.
+func ParseRoot10(s string) (pkg_src.RunSnapshot, error) {
 	var zero pkg_src.RunSnapshot
 	parsed, err := devalue.Parse(s, nil)
 	if err != nil {
 		return zero, err
 	}
-	return decRoot9(parsed, "")
+	return decRoot10(parsed, "")
 }
 
 func skgoCallerMatchers() skgo.CallerMatchers {
@@ -1813,12 +1927,34 @@ func remote_answerInterview(ctx context.Context, call skgo.Call) (any, error) {
 	return EncodeRoot6(out)
 }
 
-// remote_steer answers src/routes/steer.remote.ts#steer, a form.
+// remote_launchWorkflow answers src/routes/launch.remote.ts#launchWorkflow, a form.
 //
 // A form's submission is assigned onto the handler's own argument type:
 // kit posts a form as binary form data, which can carry an uploaded File,
 // and a File is not a value polytype describes.
 // The result is encoded by EncodeRoot7, generated for its result type.
+func remote_launchWorkflow(ctx context.Context, call skgo.Call) (any, error) {
+	var in pkg_onzggl3sn52xizlt.SkgoArg_launchWorkflow
+	if err := skgo.DecodeForm(call.Arg, &in); err != nil {
+		return nil, err
+	}
+	event, err := params.SkgoRequestEvent(skgo.EventFrom(ctx))
+	if err != nil {
+		return nil, err
+	}
+	out, err := pkg_onzggl3sn52xizlt.Skgo_launchWorkflow(event.Context(), event, in)
+	if err != nil {
+		return nil, err
+	}
+	return EncodeRoot7(out)
+}
+
+// remote_steer answers src/routes/steer.remote.ts#steer, a form.
+//
+// A form's submission is assigned onto the handler's own argument type:
+// kit posts a form as binary form data, which can carry an uploaded File,
+// and a File is not a value polytype describes.
+// The result is encoded by EncodeRoot8, generated for its result type.
 func remote_steer(ctx context.Context, call skgo.Call) (any, error) {
 	var in pkg_onzggl3sn52xizlt.SkgoArg_steer
 	if err := skgo.DecodeForm(call.Arg, &in); err != nil {
@@ -1832,7 +1968,7 @@ func remote_steer(ctx context.Context, call skgo.Call) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	return EncodeRoot7(out)
+	return EncodeRoot8(out)
 }
 
 // remote_steerLoop answers src/routes/steer.remote.ts#steerLoop, a form.
@@ -1840,7 +1976,7 @@ func remote_steer(ctx context.Context, call skgo.Call) (any, error) {
 // A form's submission is assigned onto the handler's own argument type:
 // kit posts a form as binary form data, which can carry an uploaded File,
 // and a File is not a value polytype describes.
-// The result is encoded by EncodeRoot8, generated for its result type.
+// The result is encoded by EncodeRoot9, generated for its result type.
 func remote_steerLoop(ctx context.Context, call skgo.Call) (any, error) {
 	var in pkg_onzggl3sn52xizlt.SkgoArg_steerLoop
 	if err := skgo.DecodeForm(call.Arg, &in); err != nil {
@@ -1854,7 +1990,7 @@ func remote_steerLoop(ctx context.Context, call skgo.Call) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	return EncodeRoot8(out)
+	return EncodeRoot9(out)
 }
 
 // Remotes returns every remote function declared in the app, ready to hand
@@ -1912,6 +2048,15 @@ func Remotes() []*skgo.Remote {
 		}),
 		skgo.NewRemote(skgo.RemoteSpec{
 			Kind:           skgo.KindForm,
+			Module:         "src/routes/launch.remote.ts",
+			Name:           "launchWorkflow",
+			Fn:             pkg_onzggl3sn52xizlt.Skgo_launchWorkflow,
+			CallerMatchers: skgoCallerMatchers(),
+			CallerRoutes:   params.SkgoCallerRoutes(),
+			Call:           remote_launchWorkflow,
+		}),
+		skgo.NewRemote(skgo.RemoteSpec{
+			Kind:           skgo.KindForm,
 			Module:         "src/routes/steer.remote.ts",
 			Name:           "steer",
 			Fn:             pkg_onzggl3sn52xizlt.Skgo_steer,
@@ -1946,7 +2091,7 @@ func load_page(ctx context.Context) (any, error) {
 // hold a skgo.Deferred, and `Promise<T>` is not a projection of any Go
 // type, so the value is encoded where a promise can still be recognised.
 func load_projects_project_page(ctx context.Context) (any, error) {
-	return skgo2.Skgo_load(skgo2.SkgoPageRequestEvent(skgo.EventFrom(ctx)))
+	return skgo3.Skgo_load(skgo3.SkgoPageRequestEvent(skgo.EventFrom(ctx)))
 }
 
 // load_projects_project_conversations_page answers src/routes/projects/[project]/conversations/+page.server.ts.
@@ -1955,7 +2100,7 @@ func load_projects_project_page(ctx context.Context) (any, error) {
 // hold a skgo.Deferred, and `Promise<T>` is not a projection of any Go
 // type, so the value is encoded where a promise can still be recognised.
 func load_projects_project_conversations_page(ctx context.Context) (any, error) {
-	return skgo3.Skgo_Load(skgo3.SkgoPageRequestEvent(skgo.EventFrom(ctx)))
+	return skgo4.Skgo_Load(skgo4.SkgoPageRequestEvent(skgo.EventFrom(ctx)))
 }
 
 // load_projects_project_conversations_conversationID_page answers src/routes/projects/[project]/conversations/[conversationID]/+page.server.ts.
@@ -1964,7 +2109,7 @@ func load_projects_project_conversations_page(ctx context.Context) (any, error) 
 // hold a skgo.Deferred, and `Promise<T>` is not a projection of any Go
 // type, so the value is encoded where a promise can still be recognised.
 func load_projects_project_conversations_conversationID_page(ctx context.Context) (any, error) {
-	return skgo4.Skgo_Load(skgo4.SkgoPageRequestEvent(skgo.EventFrom(ctx)))
+	return skgo5.Skgo_Load(skgo5.SkgoPageRequestEvent(skgo.EventFrom(ctx)))
 }
 
 // load_projects_project_runs_runID_page answers src/routes/projects/[project]/runs/[runID]/+page.server.ts.
@@ -1973,7 +2118,16 @@ func load_projects_project_conversations_conversationID_page(ctx context.Context
 // hold a skgo.Deferred, and `Promise<T>` is not a projection of any Go
 // type, so the value is encoded where a promise can still be recognised.
 func load_projects_project_runs_runID_page(ctx context.Context) (any, error) {
-	return skgo6.Skgo_load(skgo6.SkgoPageRequestEvent(skgo.EventFrom(ctx)))
+	return skgo7.Skgo_load(skgo7.SkgoPageRequestEvent(skgo.EventFrom(ctx)))
+}
+
+// load_workflows_page answers src/routes/workflows/+page.server.ts.
+//
+// A load's result is the one value no generated encoder produces: it may
+// hold a skgo.Deferred, and `Promise<T>` is not a projection of any Go
+// type, so the value is encoded where a promise can still be recognised.
+func load_workflows_page(ctx context.Context) (any, error) {
+	return skgo1.Skgo_load(skgo1.SkgoPageRequestEvent(skgo.EventFrom(ctx)))
 }
 
 // load_workflows_workflow_page answers src/routes/workflows/[workflow]/+page.server.ts.
@@ -1982,7 +2136,7 @@ func load_projects_project_runs_runID_page(ctx context.Context) (any, error) {
 // hold a skgo.Deferred, and `Promise<T>` is not a projection of any Go
 // type, so the value is encoded where a promise can still be recognised.
 func load_workflows_workflow_page(ctx context.Context) (any, error) {
-	return skgo1.Skgo_load(skgo1.SkgoPageRequestEvent(skgo.EventFrom(ctx)))
+	return skgo2.Skgo_load(skgo2.SkgoPageRequestEvent(skgo.EventFrom(ctx)))
 }
 
 // Loads returns every server load declared in the app, ready to hand to
@@ -1990,11 +2144,12 @@ func load_workflows_workflow_page(ctx context.Context) (any, error) {
 func Loads() []*skgo.ServerLoad {
 	return []*skgo.ServerLoad{
 		skgo.NewServerLoad(skgo.LoadSpec{Module: "src/routes/+page.server.ts", Run: load_page, Matchers: pkg_onzggl3sn52xizlt.SkgoParamMatchers()}),
-		skgo.NewServerLoad(skgo.LoadSpec{Module: "src/routes/projects/[project]/+page.server.ts", Run: load_projects_project_page, Matchers: skgo2.SkgoParamMatchers()}),
-		skgo.NewServerLoad(skgo.LoadSpec{Module: "src/routes/projects/[project]/conversations/+page.server.ts", Run: load_projects_project_conversations_page, Matchers: skgo3.SkgoParamMatchers()}),
-		skgo.NewServerLoad(skgo.LoadSpec{Module: "src/routes/projects/[project]/conversations/[conversationID]/+page.server.ts", Run: load_projects_project_conversations_conversationID_page, Matchers: skgo4.SkgoParamMatchers()}),
-		skgo.NewServerLoad(skgo.LoadSpec{Module: "src/routes/projects/[project]/runs/[runID]/+page.server.ts", Run: load_projects_project_runs_runID_page, Matchers: skgo6.SkgoParamMatchers()}),
-		skgo.NewServerLoad(skgo.LoadSpec{Module: "src/routes/workflows/[workflow]/+page.server.ts", Run: load_workflows_workflow_page, Matchers: skgo1.SkgoParamMatchers()}),
+		skgo.NewServerLoad(skgo.LoadSpec{Module: "src/routes/projects/[project]/+page.server.ts", Run: load_projects_project_page, Matchers: skgo3.SkgoParamMatchers()}),
+		skgo.NewServerLoad(skgo.LoadSpec{Module: "src/routes/projects/[project]/conversations/+page.server.ts", Run: load_projects_project_conversations_page, Matchers: skgo4.SkgoParamMatchers()}),
+		skgo.NewServerLoad(skgo.LoadSpec{Module: "src/routes/projects/[project]/conversations/[conversationID]/+page.server.ts", Run: load_projects_project_conversations_conversationID_page, Matchers: skgo5.SkgoParamMatchers()}),
+		skgo.NewServerLoad(skgo.LoadSpec{Module: "src/routes/projects/[project]/runs/[runID]/+page.server.ts", Run: load_projects_project_runs_runID_page, Matchers: skgo7.SkgoParamMatchers()}),
+		skgo.NewServerLoad(skgo.LoadSpec{Module: "src/routes/workflows/+page.server.ts", Run: load_workflows_page, Matchers: skgo1.SkgoParamMatchers()}),
+		skgo.NewServerLoad(skgo.LoadSpec{Module: "src/routes/workflows/[workflow]/+page.server.ts", Run: load_workflows_workflow_page, Matchers: skgo2.SkgoParamMatchers()}),
 	}
 }
 

@@ -71,6 +71,9 @@ func (f *fake) RunTurn(ctx context.Context, session, prompt string, schema json.
 	if len(schema) == 0 {
 		result.Output, err = json.Marshal(out)
 	}
+	if err == nil {
+		err = ValidateTurnResult(schema, result)
+	}
 	return result, err
 }
 
@@ -1058,7 +1061,7 @@ func TestLoopReasksAfterInvalidPlan(t *testing.T) {
 		{name: "blank description", bad: string(blank), needle: "description is blank"},
 		{name: "next out of range", bad: string(outOfRange), needle: "out of range"},
 		{name: "duplicate names", bad: string(duplicate), needle: "duplicate task name"},
-		{name: "wrong shape", bad: `{"tasks":"none","next":"first"}`, needle: "does not validate"},
+		{name: "wrong shape", bad: `{"tasks":"none","next":"first"}`, needle: "invalid agent output"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			var prompts []string

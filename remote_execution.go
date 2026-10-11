@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
+	"io"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/tylergannon/gimbal/backend"
 
 	"github.com/tylergannon/gimbal/internal/effects"
 )
@@ -24,7 +26,7 @@ func (s *scope) remoteCleanup() error {
 	if endpoint == "" {
 		return nil
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), closeTimeout+time.Second)
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(s.ctx), closeTimeout+time.Second)
 	defer cancel()
 	err := effects.Cleanup(ctx, endpoint, filepath.Base(s.run.dir), s.key)
 	s.run.closeMu.Lock()
@@ -45,7 +47,7 @@ func (s *scope) remoteCleanup() error {
 }
 func startRemoteProcess(ctx context.Context, s *scope, id, workdir, command string, args []string, out, stderr *commandCapture, service bool) error {
 	var reply effects.Reply
-	err := effects.Call(ctx, effects.Endpoint(ctx), "process", effects.Process{Owner: effectOwner(s, id), Workdir: workdir, Command: command, Args: args, Stdout: out.file.Name(), Stderr: stderr.file.Name(), Service: service}, &reply)
+	err := effects.Call(ctx, effects.Endpoint(ctx), "process", effects.Process{Owner: effectOwner(s, id), Workdir: workdir, Command: command, Args: args, Service: service}, &reply)
 	if err != nil {
 		return effects.ConfirmStarted(ctx, effects.Endpoint(ctx), effects.Target{Run: filepath.Base(s.run.dir), ID: id})
 	}
@@ -68,15 +70,17 @@ func remoteProcessResult(ctx context.Context, s *scope, id string, out, stderr *
 	if ctx.Err() != nil {
 		ended.Interrupted = true
 	}
-	captureErr := errors.Join(out.close(), stderr.close())
-	// The daemon writes directly to these explicitly shared capture files.
-	for _, c := range []*commandCapture{out, stderr} {
-		if info, e := os.Stat(c.file.Name()); e == nil {
-			c.size = info.Size()
-		} else {
-			captureErr = errors.Join(captureErr, e)
+	var captureErr error
+	for stream, c := range map[string]*commandCapture{"stdout": out, "stderr": stderr} {
+		reader, e := executionFor(ctx).ReadBytes(ctx, backend.Artifact{Owner: effectOwner(s, id), Name: stream})
+		if e == nil {
+			_, e = io.Copy(c, reader)
+			e = errors.Join(e, reader.Close())
 		}
+		captureErr = errors.Join(captureErr, e, c.close())
 	}
+	var ack effects.Reply
+	captureErr = errors.Join(captureErr, effects.Call(ctx, effects.Endpoint(ctx), "ack", effects.Target{Run: filepath.Base(s.run.dir), ID: id}, &ack))
 	var e error
 	ended.Stdout, e = out.result(s.run.dir, ended.StdoutFile)
 	captureErr = errors.Join(captureErr, e)
@@ -114,4 +118,11 @@ func remoteService(ctx context.Context, s *scope, name, id, workdir, command str
 		close(service.done)
 	}()
 	return nil
+}
+
+func executionFor(ctx context.Context) backend.Execution {
+	if c := effects.Connection(ctx); c.Execution != nil {
+		return c.Execution
+	}
+	return backend.HTTP{Endpoint: effects.Endpoint(ctx)}
 }

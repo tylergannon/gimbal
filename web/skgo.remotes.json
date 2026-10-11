@@ -5,6 +5,7 @@
     "1emnx1f/sendConversationMessage",
     "rm4r49/cancelRun",
     "rm4r49/stopTurn",
+    "ulwzdf/launchWorkflow",
     "x7ussb/steer",
     "x7ussb/steerLoop"
   ],
@@ -14,6 +15,7 @@
     "src/routes/projects/[project]/conversations/+page.server.ts",
     "src/routes/projects/[project]/conversations/[conversationID]/+page.server.ts",
     "src/routes/projects/[project]/runs/[runID]/+page.server.ts",
+    "src/routes/workflows/+page.server.ts",
     "src/routes/workflows/[workflow]/+page.server.ts"
   ],
   "actions": [],
@@ -40,6 +42,9 @@
     },
     "src/routes/projects/[project]/runs/[runID]/+page.server.ts": {
       "source": "src/routes/projects/[project]/runs/[runID]/page.server.go"
+    },
+    "src/routes/workflows/+page.server.ts": {
+      "source": "src/routes/workflows/page.server.go"
     },
     "src/routes/workflows/[workflow]/+page.server.ts": {
       "source": "src/routes/workflows/[workflow]/page.server.go"

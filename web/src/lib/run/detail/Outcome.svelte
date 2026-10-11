@@ -20,6 +20,7 @@
 </script>
 
 <div class="outcome">
+	{#if turn.events_unavailable}<p role="status">Agent event updates unavailable{turn.observation_error ? `: ${turn.observation_error}` : "."}</p>{/if}
 	{#if outcome === 'running'}
 		<div class="running">
 			<span class="still-running">Still running</span>

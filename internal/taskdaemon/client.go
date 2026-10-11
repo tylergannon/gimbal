@@ -3,19 +3,27 @@ package taskdaemon
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/backend"
 	"github.com/tylergannon/gimbal/internal/effects"
 )
 
 // Harness preserves the native harness contract across the concrete task
 // transport. The returned identity carries the run needed by Close after the
 // execution context has already been cancelled.
-type Harness struct{ Endpoint, Name string }
+type Harness struct {
+	Endpoint, Name string
+	Connection     backend.Connection
+}
 
 func (h *Harness) call(ctx context.Context, op string, in any) (effects.Reply, error) {
+	if h.Connection.Execution != nil {
+		ctx = effects.WithConnection(ctx, h.Connection)
+	}
 	var out effects.Reply
 	err := effects.Call(ctx, h.Endpoint, op, in, &out)
 	if err == nil && out.Error != "" {
@@ -33,9 +41,13 @@ func target(id string) effects.Target {
 	return effects.Target{Run: run, ID: session}
 }
 func (h *Harness) RunTurn(ctx context.Context, id, prompt string, schema json.RawMessage, onEvent func(gimbal.AgentEvent) error) (gimbal.TurnResult, error) {
+	if h.Connection.Execution != nil {
+		ctx = effects.WithConnection(ctx, h.Connection)
+	}
 	t := target(id)
 	o := effects.Identity(ctx)
-	reply, err := h.call(ctx, "turn", effects.Turn{Owner: o, Session: t.ID, Prompt: prompt, Schema: schema})
+	files := effects.TaskFiles(ctx)
+	reply, err := h.call(ctx, "turn", effects.Turn{Owner: o, Session: t.ID, Prompt: prompt, Schema: schema, Files: files})
 	if err != nil {
 		if reply.Error != "" {
 			return gimbal.TurnResult{}, err
@@ -51,12 +63,34 @@ func (h *Harness) RunTurn(ctx context.Context, id, prompt string, schema json.Ra
 		}
 		if json.Unmarshal(raw, &e) == nil {
 			e.NativeRef = e.Native
-			_ = onEvent(e.AgentEvent)
+			if e.Type == "observation-gap" || e.Type == "observation-restored" {
+				unavailable := e.Type == "observation-gap"
+				eventType := "session.observation.available"
+				message := "task event delivery resumed"
+				if unavailable {
+					message = "task events unavailable; execution continues"
+					eventType = "session.observation.unavailable"
+				}
+				e.Type = eventType
+				e.Data, _ = json.Marshal(map[string]any{"sessionID": id, "message": message})
+				e.NativeRef, _ = json.Marshal(map[string]any{"provider": "gimbal", "sessionID": id, "turnID": o.Task})
+			}
+			if onEvent != nil {
+				_ = onEvent(e.AgentEvent)
+			}
 		}
 	})
 	var result gimbal.TurnResult
-	if err == nil {
-		err = json.Unmarshal(raw, &result)
+	if invalid, ok := errors.AsType[*effects.InvalidOutput](err); ok {
+		err = fmt.Errorf("%w: %s", gimbal.ErrInvalidOutput, invalid.Message)
+	}
+	if len(raw) > 0 {
+		var wire backend.TurnResult
+		err = errors.Join(err, json.Unmarshal(raw, &wire))
+		result.Output = wire.Output
+		if len(wire.Usage) > 0 {
+			err = errors.Join(err, json.Unmarshal(wire.Usage, &result.Usage))
+		}
 	}
 	return result, err
 }

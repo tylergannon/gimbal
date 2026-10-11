@@ -39,21 +39,8 @@ type Plan struct {
 	Next  polytype.Nullable[int] `json:"next"`
 }
 
-// answer is the planner's plan with its content checks attached to the
-// schema check, so one Generate re-ask covers an inconsistent plan as well
-// as a wrong-shaped one.
+// answer is the planner's typed plan.
 type answer struct{ Plan }
-
-func (a answer) ValidateJSON(raw []byte) error {
-	if err := a.Plan.ValidateJSON(raw); err != nil {
-		return err
-	}
-	var p Plan
-	if err := json.Unmarshal(raw, &p); err != nil {
-		return err
-	}
-	return validatePlan(p)
-}
 
 type promiseLoop struct {
 	ctx     context.Context
@@ -294,7 +281,8 @@ func planNext(ctx context.Context, planner *Session, goal string, tasks []Task, 
 	if err != nil {
 		return Plan{}, err
 	}
-	result, err := dispatch[answer](ctx, planner, prompt, opts)
+	var result answer
+	_, err = dispatchResponse(ctx, planner, prompt, opts, nil, &decodedOutput[answer]{value: &result, accept: func(a answer) error { return validatePlan(a.Plan) }})
 	return result.Plan, err
 }
 

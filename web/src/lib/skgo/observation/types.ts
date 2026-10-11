@@ -20,6 +20,8 @@ export type InterviewRow = {
  * TurnRow is one agent turn. Scope is where the turn ran, which is what a turn's tokens are charged to. Context identifies the scope values sent with Prompt, without copying their bodies. Result is the recorded JSON text.
  */
 export type TurnRow = {
+  events_unavailable: boolean;
+  observation_error: string;
   run: string;
   id: string;
   session: string;

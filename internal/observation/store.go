@@ -9,6 +9,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/tylergannon/gimbal/backend"
+
 	"github.com/tylergannon/gimbal/internal/sessionstate"
 	"github.com/tylergannon/polytype"
 )
@@ -57,9 +59,11 @@ type openCall struct {
 // every detachment goes through mu, so a snapshot and the suffix behind it
 // come from one cut.
 type Store struct {
-	id       string
-	dir      string
-	registry *Registry
+	source       backend.RunObservations
+	sourceCursor string
+	id           string
+	dir          string
+	registry     *Registry
 
 	mu          sync.Mutex
 	run         RunRow
@@ -563,6 +567,15 @@ func (s *Store) Event(at Placement, envelope, nativeRef json.RawMessage) error {
 		return fmt.Errorf("observation: run %s is closed", s.id)
 	}
 	changed := s.turnSeenLocked(at)
+	if envelopeType, _ := event.Get("type").(string); envelopeType == "session.observation.unavailable" || envelopeType == "session.observation.available" {
+		row := s.turnLocked(at)
+		row.EventsUnavailable = envelopeType == "session.observation.unavailable"
+		row.ObservationError = ""
+		if row.EventsUnavailable {
+			row.ObservationError = "Task events unavailable; execution continues."
+		}
+		changed = append(changed, change{tableTurns, at.Turn})
+	}
 	script := s.transcriptLocked(at.Turn)
 	script.projection.Apply(event)
 	s.foldProvenanceLocked(script, ref, nativeRef)

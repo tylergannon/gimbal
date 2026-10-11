@@ -66,3 +66,15 @@ friction: Browser selected first project while form state lacked explicit fallba
 friction: Default local shared-form service launch failed because FulfillService required a backend endpoint. Use existing native scope-owned Service for the default local path, no extra listener or task process. Real HTTP test consumes bytes and confirms release.
 friction: Full pre-commit Go suite found test teardown racing the independently spawned runner's final durable writes. The CLI test now waits the actual runner lifetime lock and instance shutdown; repeated focused test passes.
 decision: CLI follow retains a stale central socket across restart, while fresh identity/control lookup works. Keep this client reconnect quirk outside the backend delivery and track it in GitHub issue445; do not claim continuous follow reconnect proof.
+decision: Independent implementation review reproduced fatal restoration of a missing saved project and missing startup error response for task-route rejection. Restore skips only missing paths with a log diagnostic, and known pre-admission rejection is explicitly failed rather than unknown. Real scratch-binary checks exercise both failures.
+decision: Keep public API limited to author-facing behavior. TaskFiles/RemoteTaskFiles and assigned RunID helpers are internal plumbing; retain explicit author file input and service fulfillment returning a connection address.
+friction: Maintained task-environment reference still described shared artifacts and configuration-based Docker stop. Update it to transferred bytes and receipt-owned stop. Explicitly document Docker starter publishes only daemon port; URL-returning fulfillment across container boundary requires separately provisioned reachable networking.
+
+Independent review reproduced two startup defects. Missing catalog project paths
+now log a skip diagnostic instead of stopping unrelated accessible projects.
+Task-route connection errors now reach the startup pipe as authoritative errors;
+known rejections are marked failed, while interrupted/undecodable admission
+answers remain unknown. A scratch binary startup restored an accessible project
+beside a deleted ledger entry, and an actual independent child rejection reached
+the CLI as `unknown backend` with a failed route record, rather than EOF.
+Runtime-only RunID context plumbing moved into existing internal effects code.

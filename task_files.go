@@ -23,15 +23,15 @@ func WithTaskFiles(ctx context.Context, files ...backend.TaskFile) context.Conte
 	return context.WithValue(ctx, taskFilesKey{}, detached)
 }
 
-// TaskFiles returns detached explicit file inputs for a remote harness bridge.
-func TaskFiles(ctx context.Context) []backend.TaskFile {
+// taskFiles returns explicit author-supplied inputs.
+func taskFiles(ctx context.Context) []backend.TaskFile {
 	files, _ := ctx.Value(taskFilesKey{}).([]backend.TaskFile)
 	return files
 }
 
-// RemoteTaskFiles collects only runtime-owned complete-value markers and explicit bytes.
-func RemoteTaskFiles(ctx context.Context, prompt string) ([]backend.TaskFile, error) {
-	files := append([]backend.TaskFile(nil), TaskFiles(ctx)...)
+// remoteTaskFiles collects only runtime-owned complete-value markers and explicit bytes.
+func remoteTaskFiles(ctx context.Context, prompt string) ([]backend.TaskFile, error) {
+	files := append([]backend.TaskFile(nil), taskFiles(ctx)...)
 	s, err := current(ctx)
 	if err != nil {
 		return files, nil

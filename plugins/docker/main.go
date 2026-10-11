@@ -34,7 +34,9 @@ func parse(raw json.RawMessage) (config, error) {
 }
 
 // Start provisions only the environment. Task ownership and observation are
-// implemented by the gimbal daemon inside it, never by this plugin.
+// implemented by the gimbal daemon inside it, never by this plugin. Only the
+// daemon port is published: URL-returning service fulfillment across the
+// container boundary requires separately provisioned reachable networking.
 func Start(ctx context.Context, raw json.RawMessage) (json.RawMessage, error) {
 	c, err := parse(raw)
 	if err != nil {

@@ -270,6 +270,14 @@ path is not the remote execution directory. Transfer explicitly named context
 and task files; arbitrary absolute paths in prose are not transparently rewritten.
 Plain local invocation remains an independent child with directly local tasks.
 
+For a remote turn, `gimbal.WithTaskFiles(ctx, backend.TaskFile{Name: "input.txt",
+Bytes: data})` supplies explicit named bytes alongside runtime-owned context. The
+task environment writes them and supplies their native paths to the agent.
+`gimbal.FulfillService(ctx, "http", workdir, command, port, consumer)` returns a
+scope-owned HTTP URL. Readiness checks use that URL; a remote daemon must declare
+reachable service networking. The default local path uses an ordinary native
+service and returns loopback. Scope exit releases the service.
+
 Standalone `gimbal.Run(gimbal.Project(ctx, dir), ...)` runs in its caller's
 process, writes under `dir/runs`, and does not attach to a running instance.
 `gimbal run-prompt` creates its own headless runtime, using a temporary log

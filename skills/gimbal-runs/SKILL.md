@@ -143,7 +143,7 @@ selects an available browser port; `--uds` serves through a Unix socket.
 
 Use `--task-endpoint` to execute agents, commands, and scope-owned services in a
 selected local or Docker daemon. See [task environments](references/task-environments.md)
-for provisioning, shared paths, lifecycle limits, and the `service-check` exercise.
+for provisioning, transferred artifacts, service-networking limits, and the `service-check` exercise.
 
 ## Find the run and observe its work
 

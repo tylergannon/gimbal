@@ -45,7 +45,7 @@ func TestEventGapSurvivesRuntimeStampAndRecoversWithoutStoppingTurn(t *testing.T
 	defer server.Close()
 	project := t.TempDir()
 	registry := observation.NewRegistry(project)
-	ctx := observation.WithRegistry(gimbal.WithRunID(gimbal.Project(context.Background(), project), "run-gap"), registry)
+	ctx := observation.WithRegistry(effects.WithRunID(gimbal.Project(context.Background(), project), "run-gap"), registry)
 	ctx = effects.WithEndpoint(ctx, server.URL)
 	sessions := make(chan *gimbal.Session, 1)
 	done := make(chan error, 1)

@@ -39,6 +39,7 @@ func Run(request invocation.Request, startup io.Writer) error {
 		var err error
 		connection, err = gimbal.DefaultRegistry.Connect(ctx, request.TaskRoute)
 		if err != nil {
+			_ = json.NewEncoder(startup).Encode(Response{Error: err.Error()})
 			return err
 		}
 		ctx = effects.WithConnection(ctx, connection)
@@ -66,7 +67,7 @@ func run(request invocation.Request, startup io.Writer, models map[gimbal.Workfl
 	registry := observation.NewRegistry(state)
 	runs := live.NewRuns()
 	runs.Resolve = func(id string) (live.Controller, error) { return Connect(state, id) }
-	ctx := observation.WithRegistry(gimbal.WithRunID(context.Background(), request.RunID), registry)
+	ctx := observation.WithRegistry(effects.WithRunID(context.Background(), request.RunID), registry)
 	ctx = live.WithRuns(ctx, runs)
 	ctx = effects.WithEndpoint(ctx, request.TaskEndpoint)
 	if len(connections) > 0 && connections[0].Execution != nil {

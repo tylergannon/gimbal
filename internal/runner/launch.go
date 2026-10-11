@@ -16,15 +16,15 @@ import (
 func Spawn(request invocation.Request) (Response, error) {
 	executable, err := os.Executable()
 	if err != nil {
-		return Response{}, err
+		return Response{Error: err.Error()}, err
 	}
 	input, err := json.Marshal(request)
 	if err != nil {
-		return Response{}, err
+		return Response{Error: err.Error()}, err
 	}
 	read, write, err := os.Pipe()
 	if err != nil {
-		return Response{}, err
+		return Response{Error: err.Error()}, err
 	}
 	defer func() { _ = read.Close() }()
 	defer func() { _ = write.Close() }()
@@ -33,7 +33,7 @@ func Spawn(request invocation.Request) (Response, error) {
 	child.ExtraFiles = []*os.File{write}
 	child.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 	if err := child.Start(); err != nil {
-		return Response{}, err
+		return Response{Error: err.Error()}, err
 	}
 	_ = write.Close()
 	go func() { _ = child.Wait() }()

@@ -2,8 +2,12 @@ package gimbal
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
+
+	"github.com/tylergannon/gimbal/backend"
+	"github.com/tylergannon/gimbal/internal/effects"
 )
 
 func TestRemoteTaskFilesTransfersNestedOwnedMarkersOnly(t *testing.T) {
@@ -17,7 +21,7 @@ func TestRemoteTaskFilesTransfersNestedOwnedMarkersOnly(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		files, err := RemoteTaskFiles(ctx, "Complete value: "+artifactAbsolute(s.run, index)+"\nComplete value: /not/a/runtime/artifact")
+		files, err := remoteTaskFiles(ctx, "Complete value: "+artifactAbsolute(s.run, index)+"\nComplete value: /not/a/runtime/artifact")
 		if err != nil {
 			return err
 		}
@@ -31,5 +35,38 @@ func TestRemoteTaskFilesTransfersNestedOwnedMarkersOnly(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestSessionCollectsExplicitAndOwnedTaskFilesBeforeAdapter(t *testing.T) {
+	calls := 0
+	adapter := &fake{answer: func(ctx context.Context, _, prompt string, _ json.RawMessage, _ func(AgentEvent) error) (string, error) {
+		calls++
+		files := effects.TaskFiles(ctx)
+		if len(files) != 2 || files[0].Name != "explicit" || string(files[0].Bytes) != "author bytes" || string(files[1].Bytes) != "owned bytes" {
+			t.Fatalf("adapter files=%+v", files)
+		}
+		if !strings.Contains(prompt, "Complete value: "+files[1].Reference) {
+			t.Fatal("owned reference missing")
+		}
+		return `"accepted"`, nil
+	}}
+	err := runTest(t, bind(adapter, "m", "coder"), func(ctx context.Context) error {
+		scope, _ := current(ctx)
+		artifact, err := scope.run.writeContentArtifact("value", "owned bytes")
+		if err != nil {
+			return err
+		}
+		raw := []byte("author bytes")
+		ctx = WithTaskFiles(ctx, backend.TaskFile{Name: "explicit", Bytes: raw})
+		raw[0] = 'X'
+		_, err = NewSession(ctx, "coder", "/w").turn(ctx, "Complete value: "+artifactAbsolute(scope.run, artifact), nil, nil, "Text", nil, nil)
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if calls != 1 {
+		t.Fatalf("adapter calls=%d", calls)
 	}
 }

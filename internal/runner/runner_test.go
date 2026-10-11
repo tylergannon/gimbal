@@ -1,6 +1,7 @@
 package runner
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -14,6 +15,7 @@ import (
 	"time"
 
 	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/backend"
 	"github.com/tylergannon/gimbal/internal/invocation"
 	"github.com/tylergannon/gimbal/internal/live"
 )
@@ -142,5 +144,24 @@ func TestControlTransport(t *testing.T) {
 	}
 	if !client.CleanupPending() {
 		t.Fatal("lost cleanup status")
+	}
+}
+
+func TestTaskRouteFailureReportsAuthoritativeStartupError(t *testing.T) {
+	for _, route := range []backend.Route{{Name: "missing-backend", Configuration: json.RawMessage(`{}`)}, {Name: "http", Configuration: json.RawMessage(`{"endpoint":"not-http"}`)}} {
+		t.Run(route.Name, func(t *testing.T) {
+			var startup bytes.Buffer
+			err := Run(invocation.Request{Workflow: "review", Input: json.RawMessage(`{"goal":"inspect"}`), Project: t.TempDir(), TaskRoute: route}, &startup)
+			if err == nil {
+				t.Fatal("invalid task backend admitted")
+			}
+			var response Response
+			if decodeErr := json.Unmarshal(startup.Bytes(), &response); decodeErr != nil {
+				t.Fatalf("missing startup reply: %s %v", startup.String(), decodeErr)
+			}
+			if response.Error != err.Error() || response.RunID != "" {
+				t.Fatalf("non-authoritative reply %+v, error %v", response, err)
+			}
+		})
 	}
 }

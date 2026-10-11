@@ -42,7 +42,7 @@ func (d *WorkflowDaemon) project(id string) (string, error) {
 	return project, nil
 }
 func (d *WorkflowDaemon) admit(v backend.Workflow) backend.WorkflowStatus {
-	status := backend.WorkflowStatus{ID: v.ID}
+	status := backend.WorkflowStatus{ID: v.ID, State: "failed"}
 	if v.ID == "" || filepath.Base(v.ID) != v.ID || strings.Contains(v.ID, "..") {
 		status.Error = "invalid run ID"
 		return status
@@ -101,6 +101,9 @@ func (d *WorkflowDaemon) admit(v backend.Workflow) backend.WorkflowStatus {
 	response, err := Spawn(request)
 	if err != nil {
 		status.State = "unknown"
+		if response.Error != "" {
+			status.State = "failed"
+		}
 		status.Error = err.Error()
 		return status
 	}

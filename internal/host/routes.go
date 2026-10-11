@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"time"
@@ -116,6 +117,9 @@ func (p *Project) startRouted(request invocation.Request) (string, error) {
 		response, err := runner.Spawn(request)
 		if err != nil {
 			record.Admission = "unknown"
+			if response.Error != "" {
+				record.Admission = "failed"
+			}
 			_ = p.writeRoute(record)
 			return "", err
 		}
@@ -127,9 +131,13 @@ func (p *Project) startRouted(request invocation.Request) (string, error) {
 	}
 	connection, err := gimbal.DefaultRegistry.Connect(p.ctx, record.WorkflowRoute)
 	if err != nil {
+		record.Admission = "failed"
+		_ = p.writeRoute(record)
 		return "", err
 	}
 	if connection.Execution == nil {
+		record.Admission = "failed"
+		_ = p.writeRoute(record)
 		return "", fmt.Errorf("backend %s has no execution", record.WorkflowRoute.Name)
 	}
 	roles := map[string]string{}
@@ -159,6 +167,9 @@ func (p *Project) startRouted(request invocation.Request) (string, error) {
 	}
 	if err != nil {
 		record.Admission = "unknown"
+		if status.State == "failed" {
+			record.Admission = "failed"
+		}
 		_ = p.writeRoute(record)
 		return "", err
 	}
@@ -224,6 +235,10 @@ func (o *Owner) RestoreProjects() error {
 	}
 	for _, path := range paths {
 		if _, err := o.AdmitProject(path); err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				log.Printf("gimbal: skipped missing saved project %q: %v", path, err)
+				continue
+			}
 			return err
 		}
 	}

@@ -14,6 +14,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/tylergannon/gimbal/internal/effects"
+
 	"github.com/oklog/ulid/v2"
 	"github.com/tylergannon/gimbal/internal/live"
 	"github.com/tylergannon/gimbal/internal/observation"
@@ -164,7 +166,7 @@ func beginRun(ctx context.Context, name string, models map[WorkflowRole]ModelBin
 	if err != nil {
 		return nil, nil, fmt.Errorf("gimbal: %w", err)
 	}
-	id, _ := ctx.Value(runIdentityKey{}).(string)
+	id := effects.RunID(ctx)
 	if id == "" {
 		id = ulid.Make().String() + "." + name
 	}
@@ -585,10 +587,3 @@ func (r *run) observeAgent(scope, session, turn string, event AgentEvent) error 
 	}
 	return nil
 }
-
-// WithRunID assigns an admission identity before Run creates its owned directory.
-func WithRunID(ctx context.Context, id string) context.Context {
-	return context.WithValue(ctx, runIdentityKey{}, id)
-}
-
-type runIdentityKey struct{}

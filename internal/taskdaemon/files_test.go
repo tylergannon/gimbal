@@ -38,7 +38,7 @@ func TestConnectionExecutesWithIndependentEventsAndExplicitNativeFiles(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx = effects.WithOwner(gimbal.WithTaskFiles(ctx, backend.TaskFile{Name: "source", Bytes: []byte("independent-filesystem")}), effects.Owner{Run: "run", Task: "turn"})
+	ctx = effects.WithOwner(effects.WithTaskFiles(ctx, []backend.TaskFile{{Name: "source", Bytes: []byte("independent-filesystem")}}), effects.Owner{Run: "run", Task: "turn"})
 	result, err := h.RunTurn(ctx, id, "read supplied file", nil, func(gimbal.AgentEvent) error { return nil })
 	if err != nil || string(result.Output) != `"ok"` {
 		t.Fatalf("result %s %v", result.Output, err)

@@ -122,3 +122,28 @@ func TestLostWorkflowAdmissionReplyReconcilesIdentityWithoutReplay(t *testing.T)
 		t.Fatalf("unsafe admission retry: %q %q %d %v", got, id, starts.Load(), err)
 	}
 }
+
+func TestRejectedWorkflowAdmissionIsKnownFailed(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(backend.WorkflowStatus{State: "failed", Error: "unknown task backend"})
+	}))
+	defer server.Close()
+	owner := New(t.Context(), t.TempDir())
+	defer owner.Close()
+	project, err := owner.AdmitProject(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	config, _ := json.Marshal(map[string]string{"endpoint": server.URL})
+	_, err = project.startRouted(invocation.Request{RunID: "rejected.review", Workflow: "review", WorkflowRoute: backend.Route{Name: "http", Configuration: config}})
+	if err == nil || err.Error() != "unknown task backend" {
+		t.Fatalf("admission error %v", err)
+	}
+	record, err := project.readRoute("rejected.review")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if record.Admission != "failed" {
+		t.Fatalf("known rejection marked %s", record.Admission)
+	}
+}

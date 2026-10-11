@@ -46,10 +46,7 @@ func (h *Harness) RunTurn(ctx context.Context, id, prompt string, schema json.Ra
 	}
 	t := target(id)
 	o := effects.Identity(ctx)
-	files, fileErr := gimbal.RemoteTaskFiles(ctx, prompt)
-	if fileErr != nil {
-		return gimbal.TurnResult{}, fileErr
-	}
+	files := effects.TaskFiles(ctx)
 	reply, err := h.call(ctx, "turn", effects.Turn{Owner: o, Session: t.ID, Prompt: prompt, Schema: schema, Files: files})
 	if err != nil {
 		if reply.Error != "" {

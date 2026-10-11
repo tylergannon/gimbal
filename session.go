@@ -10,6 +10,8 @@ import (
 	"sync"
 	"text/template"
 	"time"
+
+	"github.com/tylergannon/gimbal/internal/effects"
 )
 
 // Session is one agent conversation on one harness, in one workdir. It
@@ -352,7 +354,12 @@ func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessag
 	if scope != nil {
 		scope.run.addTurn(turnID, cancelTurn)
 	}
-	result, err := s.adapter.RunTurn(effectContext(turnCtx, scope, turnID), native, prompt, schema, wrapped)
+	files, err := remoteTaskFiles(ctx, prompt)
+	var result TurnResult
+	if err == nil {
+		turnContext := effects.WithTaskFiles(effectContext(turnCtx, scope, turnID), files)
+		result, err = s.adapter.RunTurn(turnContext, native, prompt, schema, wrapped)
+	}
 	if scope != nil {
 		scope.run.removeTurn(turnID)
 	}

@@ -78,3 +78,5 @@ answers remain unknown. A scratch binary startup restored an accessible project
 beside a deleted ledger entry, and an actual independent child rejection reached
 the CLI as `unknown backend` with a failed route record, rather than EOF.
 Runtime-only RunID context plumbing moved into existing internal effects code.
+friction: Moving transfer collection into Session made local turns eagerly read unused artifact bytes. Gate collection on actual backend routing; default local turns retain native references without runtime reads. A missing-file regression proves the local turn still reaches its native adapter.
+correction: Saved-project restoration is best-effort per entry, including another active owner; skipping only removed directories still allowed one stale admission to block every accessible project. Keep explicit initial admissions strict and saved-entry failures observable.

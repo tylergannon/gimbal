@@ -22,6 +22,7 @@ import (
 	"github.com/tylergannon/gimbal/internal/live"
 	"github.com/tylergannon/gimbal/internal/observation"
 	"github.com/tylergannon/gimbal/internal/runner"
+	"github.com/tylergannon/gimbal/internal/transcript"
 )
 
 type Owner struct {
@@ -44,6 +45,7 @@ type Project struct {
 	runs          *live.Runs
 	registry      *observation.Registry
 	conversations *conversation.Manager
+	recordings    *transcript.DurableStore
 	ownerLock     *os.File
 }
 
@@ -127,6 +129,11 @@ func (o *Owner) AdmitProject(dir string) (*Project, error) {
 		return nil, err
 	}
 	p.conversations = conversations
+	p.recordings, err = transcript.NewDurable(state)
+	if err != nil {
+		conversations.Close()
+		return nil, err
+	}
 	p.ctx = p.RequestContext(conversation.WithManager(projectCtx, conversations))
 	if err := o.writeProjectDiscovery(path); err != nil {
 		conversations.Close()
@@ -352,3 +359,5 @@ func (o *Owner) SetPluginDirs(dirs []string) {
 	defer o.mu.Unlock()
 	o.pluginDirs = append([]string(nil), dirs...)
 }
+
+func (p *Project) Recordings() *transcript.DurableStore { return p.recordings }

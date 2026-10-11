@@ -4,15 +4,18 @@ package params
 
 import (
 	fmt "fmt"
-	appstate "github.com/tylergannon/gimbal/internal/app"
-	skgo "github.com/tylergannon/skgo"
 	http "net/http"
 	reflect "reflect"
+
+	appstate "github.com/tylergannon/gimbal/internal/app"
+	skgo "github.com/tylergannon/skgo"
 )
 
 type Params struct {
 	value_636f6e766572736174696f6e4944 Key_ConversationID_K636f6e766572736174696f6e4944
+	value_66696c654944                 Key_FileID_K66696c654944
 	value_70726f6a656374               Key_Project
+	value_7265636f7264696e674944       Key_RecordingID_K7265636f7264696e674944
 	value_72756e4944                   Key_RunID_K72756e4944
 	value_776f726b666c6f77             Key_Workflow
 }
@@ -57,6 +60,14 @@ type ConversationID_K636f6e766572736174696f6e4944Param_String struct{ Value stri
 func (ConversationID_K636f6e766572736174696f6e4944Param_String) skgoParam_636f6e766572736174696f6e4944() {
 }
 
+type Key_FileID_K66696c654944 interface{ skgoParam_66696c654944() }
+
+func (p Params) FileID_K66696c654944() Key_FileID_K66696c654944 { return p.value_66696c654944 }
+
+type FileID_K66696c654944Param_String struct{ Value string }
+
+func (FileID_K66696c654944Param_String) skgoParam_66696c654944() {}
+
 type Key_Project interface{ skgoParam_70726f6a656374() }
 
 func (p Params) Project() Key_Project { return p.value_70726f6a656374 }
@@ -64,6 +75,16 @@ func (p Params) Project() Key_Project { return p.value_70726f6a656374 }
 type ProjectParam_String struct{ Value string }
 
 func (ProjectParam_String) skgoParam_70726f6a656374() {}
+
+type Key_RecordingID_K7265636f7264696e674944 interface{ skgoParam_7265636f7264696e674944() }
+
+func (p Params) RecordingID_K7265636f7264696e674944() Key_RecordingID_K7265636f7264696e674944 {
+	return p.value_7265636f7264696e674944
+}
+
+type RecordingID_K7265636f7264696e674944Param_String struct{ Value string }
+
+func (RecordingID_K7265636f7264696e674944Param_String) skgoParam_7265636f7264696e674944() {}
 
 type Key_RunID_K72756e4944 interface{ skgoParam_72756e4944() }
 
@@ -93,6 +114,17 @@ func SkgoCallerRoutes() skgo.CallerRoutes {
 		}},
 		"/projects/[project]/conversations/[conversationID]": {Params: []skgo.ManifestParam{{Name: "project", Matcher: "", Optional: false, Rest: false, Chained: false}, {Name: "conversationID", Matcher: "", Optional: false, Rest: false, Chained: false}}, NewParams: func(values map[string]any) (any, error) {
 			return SkgoParams("/projects/[project]/conversations/[conversationID]", values)
+		}},
+		"/projects/[project]/files": {Params: []skgo.ManifestParam{{Name: "project", Matcher: "", Optional: false, Rest: false, Chained: false}}, NewParams: func(values map[string]any) (any, error) { return SkgoParams("/projects/[project]/files", values) }},
+		"/projects/[project]/files/[fileID]": {Params: []skgo.ManifestParam{{Name: "project", Matcher: "", Optional: false, Rest: false, Chained: false}, {Name: "fileID", Matcher: "", Optional: false, Rest: false, Chained: false}}, NewParams: func(values map[string]any) (any, error) {
+			return SkgoParams("/projects/[project]/files/[fileID]", values)
+		}},
+		"/projects/[project]/files/[fileID]/body": {Params: []skgo.ManifestParam{{Name: "project", Matcher: "", Optional: false, Rest: false, Chained: false}, {Name: "fileID", Matcher: "", Optional: false, Rest: false, Chained: false}}, NewParams: func(values map[string]any) (any, error) {
+			return SkgoParams("/projects/[project]/files/[fileID]/body", values)
+		}},
+		"/projects/[project]/recordings": {Params: []skgo.ManifestParam{{Name: "project", Matcher: "", Optional: false, Rest: false, Chained: false}}, NewParams: func(values map[string]any) (any, error) { return SkgoParams("/projects/[project]/recordings", values) }},
+		"/projects/[project]/recordings/[recordingID]": {Params: []skgo.ManifestParam{{Name: "project", Matcher: "", Optional: false, Rest: false, Chained: false}, {Name: "recordingID", Matcher: "", Optional: false, Rest: false, Chained: false}}, NewParams: func(values map[string]any) (any, error) {
+			return SkgoParams("/projects/[project]/recordings/[recordingID]", values)
 		}},
 		"/projects/[project]/runs": {Params: []skgo.ManifestParam{{Name: "project", Matcher: "", Optional: false, Rest: false, Chained: false}}, NewParams: func(values map[string]any) (any, error) { return SkgoParams("/projects/[project]/runs", values) }},
 		"/projects/[project]/runs/[runID]": {Params: []skgo.ManifestParam{{Name: "project", Matcher: "", Optional: false, Rest: false, Chained: false}, {Name: "runID", Matcher: "", Optional: false, Rest: false, Chained: false}}, NewParams: func(values map[string]any) (any, error) {
@@ -154,6 +186,67 @@ func SkgoParams(routeID string, values map[string]any) (Params, error) {
 				return Params{}, fmt.Errorf("skgo: caller /projects/[project]/conversations/[conversationID] param conversationID: %w", err)
 			}
 			p.value_636f6e766572736174696f6e4944 = ConversationID_K636f6e766572736174696f6e4944Param_String{Value: value}
+		}
+	case "/projects/[project]/files":
+		if raw, present := values["project"]; present {
+			value, err := skgoSharedValue[string](raw)
+			if err != nil {
+				return Params{}, fmt.Errorf("skgo: caller /projects/[project]/files param project: %w", err)
+			}
+			p.value_70726f6a656374 = ProjectParam_String{Value: value}
+		}
+	case "/projects/[project]/files/[fileID]":
+		if raw, present := values["project"]; present {
+			value, err := skgoSharedValue[string](raw)
+			if err != nil {
+				return Params{}, fmt.Errorf("skgo: caller /projects/[project]/files/[fileID] param project: %w", err)
+			}
+			p.value_70726f6a656374 = ProjectParam_String{Value: value}
+		}
+		if raw, present := values["fileID"]; present {
+			value, err := skgoSharedValue[string](raw)
+			if err != nil {
+				return Params{}, fmt.Errorf("skgo: caller /projects/[project]/files/[fileID] param fileID: %w", err)
+			}
+			p.value_66696c654944 = FileID_K66696c654944Param_String{Value: value}
+		}
+	case "/projects/[project]/files/[fileID]/body":
+		if raw, present := values["project"]; present {
+			value, err := skgoSharedValue[string](raw)
+			if err != nil {
+				return Params{}, fmt.Errorf("skgo: caller /projects/[project]/files/[fileID]/body param project: %w", err)
+			}
+			p.value_70726f6a656374 = ProjectParam_String{Value: value}
+		}
+		if raw, present := values["fileID"]; present {
+			value, err := skgoSharedValue[string](raw)
+			if err != nil {
+				return Params{}, fmt.Errorf("skgo: caller /projects/[project]/files/[fileID]/body param fileID: %w", err)
+			}
+			p.value_66696c654944 = FileID_K66696c654944Param_String{Value: value}
+		}
+	case "/projects/[project]/recordings":
+		if raw, present := values["project"]; present {
+			value, err := skgoSharedValue[string](raw)
+			if err != nil {
+				return Params{}, fmt.Errorf("skgo: caller /projects/[project]/recordings param project: %w", err)
+			}
+			p.value_70726f6a656374 = ProjectParam_String{Value: value}
+		}
+	case "/projects/[project]/recordings/[recordingID]":
+		if raw, present := values["project"]; present {
+			value, err := skgoSharedValue[string](raw)
+			if err != nil {
+				return Params{}, fmt.Errorf("skgo: caller /projects/[project]/recordings/[recordingID] param project: %w", err)
+			}
+			p.value_70726f6a656374 = ProjectParam_String{Value: value}
+		}
+		if raw, present := values["recordingID"]; present {
+			value, err := skgoSharedValue[string](raw)
+			if err != nil {
+				return Params{}, fmt.Errorf("skgo: caller /projects/[project]/recordings/[recordingID] param recordingID: %w", err)
+			}
+			p.value_7265636f7264696e674944 = RecordingID_K7265636f7264696e674944Param_String{Value: value}
 		}
 	case "/projects/[project]/runs":
 		if raw, present := values["project"]; present {

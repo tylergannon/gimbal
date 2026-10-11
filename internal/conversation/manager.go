@@ -182,8 +182,8 @@ func New(ctx context.Context, projectDir string, factory AdapterFactory, cli, in
 	return manager, nil
 }
 
-// Create makes a distinct branch and Git worktree before saving the
-// conversation that names them.
+// Create gives Git projects a distinct branch and worktree. Other projects
+// share their existing directory between conversations.
 func (m *Manager) Create(ctx context.Context, in NewConversation) (Conversation, error) {
 	provider := strings.TrimSpace(in.Provider)
 	model, _, err := providerModel(provider, strings.TrimSpace(in.Model))
@@ -194,22 +194,28 @@ func (m *Manager) Create(ctx context.Context, in NewConversation) (Conversation,
 		return Conversation{}, fmt.Errorf("conversation: provider %s: %w", provider, err)
 	}
 	repo, err := gitOutput(ctx, filepath.Dir(m.projectDir), "rev-parse", "--show-toplevel")
-	if err != nil {
+	if err != nil && !strings.Contains(err.Error(), "fatal: not a git repository") {
 		return Conversation{}, fmt.Errorf("conversation: find repository: %w", err)
 	}
+	hasRepository := err == nil
 	id, err := randomID()
 	if err != nil {
 		return Conversation{}, fmt.Errorf("conversation: create id: %w", err)
 	}
-	branch := "gimbal/conversation-" + id[:12]
-	worktree := filepath.Join(m.projectDir, "conversation-worktrees", id)
-	if err := os.MkdirAll(filepath.Dir(worktree), 0o755); err != nil {
-		return Conversation{}, fmt.Errorf("conversation: create worktree directory: %w", err)
+	branch := ""
+	worktree := filepath.Dir(m.projectDir)
+	if hasRepository {
+		branch = "gimbal/conversation-" + id[:12]
+		worktree = filepath.Join(m.projectDir, "conversation-worktrees", id)
+		if err := os.MkdirAll(filepath.Dir(worktree), 0o755); err != nil {
+			return Conversation{}, fmt.Errorf("conversation: create worktree directory: %w", err)
+		}
+		command := exec.CommandContext(ctx, "git", "-C", repo, "worktree", "add", "-b", branch, worktree, "HEAD")
+		if output, err := command.CombinedOutput(); err != nil {
+			return Conversation{}, fmt.Errorf("conversation: create worktree: %w: %s", err, strings.TrimSpace(string(output)))
+		}
 	}
-	command := exec.CommandContext(ctx, "git", "-C", repo, "worktree", "add", "-b", branch, worktree, "HEAD")
-	if output, err := command.CombinedOutput(); err != nil {
-		return Conversation{}, fmt.Errorf("conversation: create worktree: %w: %s", err, strings.TrimSpace(string(output)))
-	}
+
 	now := time.Now().UnixMilli()
 	title := strings.TrimSpace(in.Title)
 	if title == "" {
@@ -276,7 +282,7 @@ func (m *Manager) Associate(id, runID, workflow, workdir string) error {
 	defer m.mu.Unlock()
 	item := m.items[id]
 	if item == nil || item.Worktree != workdir {
-		return errors.New("conversation: run must use the conversation's worktree")
+		return errors.New("conversation: run must use the conversation's working directory")
 	}
 	item.Runs = append(item.Runs, Run{ID: runID, Workflow: workflow, Status: RunStatusRunning})
 	item.Updated = time.Now().UnixMilli()
@@ -584,9 +590,9 @@ type conversationReply struct {
 	Message string `json:"message"`
 }
 
-const conversationPrompt = `You are the agent in a Gimbal conversation. Work in the conversation worktree and reply to the person's message.
+const conversationPrompt = `You are the agent in a Gimbal conversation. Work in the conversation working directory and reply to the person's message.
 
-For an ordinary chat request, answer without launching a workflow. When the person asks you to run a built-in workflow, invoke the ordinary Gimbal CLI yourself. The executable is %q. Use its "run" help to choose the workflow and flags. Always pass --instance-dir %q, --project %q, --work-dir %q, and --conversation %q. The project owns observation and saved history; the worktree is only the execution directory. For a review use "run review --goal ...". For an implementation use "run implement --outcomes-file ..." with a local outcomes file. The CLI prints the accepted run ID. Do not infer acceptance from your own prose; report what the CLI actually said. You may omit --follow; the server records the run's terminal status independently.
+For an ordinary chat request, answer without launching a workflow. When the person asks you to run a built-in workflow, invoke the ordinary Gimbal CLI yourself. The executable is %q. Use its "run" help to choose the workflow and flags. Always pass --instance-dir %q, --project %q, --work-dir %q, and --conversation %q. The project owns observation and saved history; the working directory is where you execute. For a review use "run review --goal ...". For an implementation use "run implement --outcomes-file ..." with a local outcomes file. The CLI prints the accepted run ID. Do not infer acceptance from your own prose; report what the CLI actually said. You may omit --follow; the server records the run's terminal status independently.
 
 Return only the message requested by the schema.
 

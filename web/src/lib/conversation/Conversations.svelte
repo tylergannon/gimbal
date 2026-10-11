@@ -87,7 +87,7 @@
   <title>Conversations — Gimbal</title>
   <meta
     name="description"
-    content="Provider-selected agent conversations in real Git worktrees."
+    content="Provider-selected agent conversations in project directories or Git worktrees."
   />
 </svelte:head>
 
@@ -121,7 +121,7 @@
       </label>
       <button class="primary" type="submit" disabled={!provider || creating}>
         {#if creating}<LoaderCircleIcon class="spin" size={16} />{/if}
-        {creating ? "Creating worktree…" : "New conversation"}
+        {creating ? "Creating conversation…" : "New conversation"}
       </button>
     </form>
 
@@ -158,7 +158,7 @@
           <p class="model">{current.model}</p>
         </div>
         <div class="git-facts">
-          <div><GitBranchIcon size={15} /><code>{current.branch}</code></div>
+          {#if current.branch}<div><GitBranchIcon size={15} /><code>{current.branch}</code></div>{/if}
           <div><TerminalSquareIcon size={15} /><code>{current.worktree}</code></div>
         </div>
       </header>
@@ -188,14 +188,14 @@
         {:else}
           <div class="empty-transcript">
             <BotIcon size={30} aria-hidden="true" />
-            <h3>Ready in its own worktree</h3>
+            <h3>Ready in its working directory</h3>
             <p>Send a message to start a continuing {providerName(current.provider)} session.</p>
           </div>
         {/each}
         {#if sending || current.status === "working"}
           <div class="working-state">
             <LoaderCircleIcon class="spin" size={16} />
-            {providerName(current.provider)} is working in {current.branch}
+            {providerName(current.provider)} is working in {current.branch || current.worktree}
           </div>
         {/if}
         {#if current.error}
@@ -230,7 +230,7 @@
       <div class="no-selection">
         <MessageSquarePlusIcon size={34} aria-hidden="true" />
         <h2>Open a provider conversation</h2>
-        <p>Each conversation gets a distinct Git branch and worktree before the first message.</p>
+        <p>Git projects get a distinct branch and worktree. Other projects share their directory between conversations.</p>
       </div>
     {/if}
 

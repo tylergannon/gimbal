@@ -1,4 +1,4 @@
-# Local and Docker task environments
+# Local and Docker workflow and task environments
 
 A workflow remains an independent Gimbal process. `--task-endpoint` sends its
 agent sessions, commands, and foreground services to a selected task daemon.
@@ -30,11 +30,20 @@ gimbal environment start --plugin ./bin/docker.so --config /abs/environment.json
 
 Use the Docker engine's architecture for `GOARCH`. The starter image includes
 Python, zsh, and the native Pi adapter. Extend it for other agent executables.
+The cross-compiled `CGO_ENABLED=0` binary above supports built-in workflows and
+tasks, but cannot load native workflow plugins. To load plugins, build the Linux
+Gimbal binary and project plugins with matching Go toolchain, dependencies and
+build flags, with CGO enabled and a Linux C compiler. A Linux build environment
+can run `CGO_ENABLED=1 go build -o bin/gimbal-linux ./cmd/gimbal` after the console
+build, then `CGO_ENABLED=1 go build -buildmode=plugin` in the external project.
+Install the resulting Linux `.so` files in the image or mount them; host-native
+macOS plugins cannot be loaded inside Linux containers.
+
 Configuration names a container, image, available host port, mounts, and only
 the environment variables explicitly permitted to enter it:
 
 ```json
-{"Name":"gimbal-task","Image":"gimbal-task","Port":8081,"Mounts":["type=bind,src=/abs/shared,dst=/abs/shared"],"Env":["DIFFUSION_API_KEY"]}
+{"Name":"gimbal-task","Image":"gimbal-task","Port":8081,"Mounts":["type=bind,src=/abs/repo,dst=/workspace"],"Workdir":"/workspace","Env":["DIFFUSION_API_KEY"]}
 ```
 
 `environment start` prints the endpoint and retains the created container ID
@@ -55,10 +64,55 @@ owned commands and services, preserving enclosing scopes and other runs.
 Failed cleanup remains visible and retryable with `gimbal cancel RUN_ID` or the
 console's **Retry cleanup** control. Original workflow failures remain in history.
 
-The Docker starter publishes only the daemon port. Ordinary `Service` commands
-can run inside its task environment, as in `service-check`; URL-returning
-`FulfillService` across the container boundary is unsupported by this starter.
-For that path, provision a daemon with `--public-host` and service ports reachable
-from the workflow environment. The backend refuses fulfillment when it cannot
-return a usable address. The default local backend returns loopback in the
-workflow environment and uses ordinary native scope-owned services.
+`PluginDirs`, `Workdir` and `WorkspaceRoot` pass the corresponding daemon
+settings using absolute paths **inside the container**. `PluginDirs` may name
+multiple directories. `WorkspaceRoot` restricts admitted workflow projects;
+`Workdir` selects the repository for task execution. Repositories and plugins
+must already exist at those paths through the image or configured mounts.
+Use a Docker volume for workflow state on Docker Desktop, for example
+`type=volume,src=gimbal-workspace,dst=/workspace`. Keep central and workflow
+run directories separate. In a live macOS Docker Desktop check, a host bind
+mount for the workflow workspace caused an active runner to be classified as
+exited; the same run completed with a Docker volume. Plugin files can still
+be mounted read-only from the host.
+
+For a workflow on the host consuming a Docker service, add these settings:
+
+```json
+{"PublicHost":"127.0.0.1","ServicePorts":[19091]}
+```
+
+Merge these fields into the environment configuration before starting it.
+Each service port is published on host loopback with the same container port.
+The service command must listen on `0.0.0.0` or another reachable interface,
+not just container loopback. Port 8081 is reserved for the daemon. Service ports
+must be distinct from the configured host daemon port and one another.
+
+For a workflow in a different container, use an existing private Docker network
+shared by the two containers. Configure the service environment with
+`"Network":"gimbal-work"` and `"PublicHost":"gimbal-task"`, where gimbal-task
+is its container name. Services are reachable through that name within the
+network without publishing service ports. Network creation and removal remain
+the caller's responsibility. PublicHost is the address reachable by the chosen
+consumer; a container's `127.0.0.1` is not another container or the host.
+
+Load the Docker plugin in central and in any workflow daemon using the docker
+backend. Use Start's receipt as a route's Configuration, for example:
+
+```json
+{"Name":"docker","Configuration":{"ID":"returned-container-id","Label":"returned-owner-label","Endpoint":"http://127.0.0.1:8081","PublicHost":"127.0.0.1","ServicePorts":[19091]},"Environment":"tasks"}
+```
+
+Construct this from the actual receipt; do not invent its ID or label. Pass the
+route with `--task-route @/abs/task-route.json`; use `--workflow-route` and
+`--workflow-project` for a workflow on a daemon. If the route is used from
+another container, its Endpoint must also be reachable from that container,
+such as `http://gimbal-task:8081` on the configured network. A route Endpoint
+and the returned service address serve different consumers.
+
+The Docker backend refuses unpublished service ports before starting the
+service. Ordinary commands and `Service` still work without service routing.
+`FulfillService` returns an address after launch; the workflow checks readiness.
+Scope cleanup stops the service while preserving the environment and other
+runs. The default local backend returns loopback in the workflow environment
+and uses ordinary native scope-owned services.

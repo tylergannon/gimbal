@@ -17,5 +17,6 @@
   "document-authoring": "gemini-3.1-pro-high",
   "editorial-review": "gemini-3.1-pro-high",
   "document-supervision": "gemini-3.8-flash-medium",
-  "pyramid-planning": "gpt-6-luna"
+  "pyramid-planning": "gpt-6-luna",
+  "devops-tasks": "gpt-5.6-luna"
 }

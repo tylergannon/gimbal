@@ -26,6 +26,8 @@ export type RunStatus = "running" | "completed" | "failed" | "cancelled";
 export type ConnectionState = "connecting" | "live" | "disconnected" | "recorded";
 /** The rows of the run store, as Go writes them. Times are Unix ms. */
 export type RunRow = {
+  workflow_environment?: string;
+  task_environment?: string;
   id: string;
   name: string;
   status: RunStatus;
@@ -93,6 +95,8 @@ export type InterviewRow = {
 /** One agent turn. `scope` is where the turn ran, which is what its tokens
  * are charged to. */
 export type TurnRow = {
+  events_unavailable?: boolean;
+  observation_error?: string;
   run: string;
   id: string;
   session: string;

@@ -97,7 +97,7 @@ func routeAnalysis(args []string) ([]string, bool) {
 func isOrdinaryCLI(args []string) bool {
 	if len(args) > 0 {
 		switch args[0] {
-		case "run-prompt", "run", "runs", "watch", "steer", "count-tokens", "audit-index", "opencode", "upload-artifact":
+		case "generate", "run-prompt", "run", "runs", "watch", "steer", "count-tokens", "audit-index", "opencode", "upload-artifact":
 			return true
 		}
 	}
@@ -167,7 +167,7 @@ vet tool.`,
 		DisableFlagParsing: true,
 		RunE:               func(_ *cobra.Command, args []string) error { return runPrompt(args, stdout, stderr, getenv) },
 	})
-	root.AddCommand(newDaemonCommand(), newEnvironmentCommand(), newRunsCommand(), newWatchCommand(), newSteerCommand(), newCancelCommand(), newCountTokensCommand(), newAuditIndexCommand(stdout), newOpenCodeCommand(stdout, getenv))
+	root.AddCommand(newGenerateCommand(), newDaemonCommand(), newEnvironmentCommand(), newRunsCommand(), newWatchCommand(), newSteerCommand(), newCancelCommand(), newCountTokensCommand(), newAuditIndexCommand(stdout), newOpenCodeCommand(stdout, getenv))
 	return root
 }
 
@@ -239,9 +239,11 @@ type serverFlags struct {
 	projects    []string
 	instanceDir string
 	taskListen  string
+	pluginDirs  []string
 }
 
 func (f *serverFlags) bind(fs *pflag.FlagSet) {
+	fs.StringArrayVar(&f.pluginDirs, "plugin-dir", nil, "native plugin directory (repeat)")
 	fs.StringVar(&f.taskListen, "task-listen", "", "also serve task execution on this TCP address")
 	fs.IntVar(&f.port, "port", 8080, "loopback TCP port for the web application")
 	fs.StringVar(&f.uds, "uds", "", "Unix-domain socket for the web application instead of TCP")
@@ -263,10 +265,13 @@ func (f *serverFlags) options() []web.Option {
 
 // serve runs one instance over the selected repositories until interrupted.
 func serve(ctx context.Context, server serverFlags) error {
+	if err := invocation.LoadPlugins(server.pluginDirs); err != nil {
+		return err
+	}
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt)
 	defer stop()
 	if server.taskListen != "" {
-		closeTasks, err := serveTasks(ctx, server.taskListen)
+		closeTasks, err := serveEnvironment(ctx, server.taskListen, "", server.pluginDirs)
 		if err != nil {
 			return err
 		}
@@ -281,6 +286,7 @@ func serve(ctx context.Context, server serverFlags) error {
 	if err != nil {
 		return err
 	}
+	instance.Owner.SetPluginDirs(server.pluginDirs)
 	<-ctx.Done()
 	instance.Wait()
 	return nil

@@ -219,21 +219,56 @@ Style preferences and unrelated improvements do not become acceptance gates.
 
 ## Make the workflow callable and understandable
 
-The supported built-in authoring path is inside the Gimbal checkout. Add a Go
-package under `internal/workflows/`, following `internal/workflows/review/`:
-an entry taking `context.Context`, `gimbal.Env`, and optionally one package-local
-parameter struct; a `//go:generate` directive for `gimbalgen`; and Polytype
-generation when the workflow has structured result types. Add its metadata to
-`internal/builtin/workflows.go`. `go generate ./...` uses that one stock
-selection to emit the graph, JSON invocation adapter, CLI command, and workflow
-page descriptors. The CLI accepts parameter flags or a JSON object through
-`--input`. The selected daemon validates the request and admits the project,
-then launches an independent process from its own binary. That child establishes
-its run and controller before the CLI returns the run ID. Use `--follow` to
-wait for completion. Daemon shutdown or restart does not stop the child; the
-restarted daemon discovers its observations and controls from the project state.
-Run `just build` and restart the serving binary before invoking a newly built
-workflow. Generation remains checkout-internal.
+Author an ordinary Go entry taking `context.Context`, `gimbal.Env`, and optionally
+one package-local Params struct. Supported invocation fields are strings, ints,
+bools and `polytype.Optional` of those types. Field comments supply visible
+help; JSON tags supply submitted names. Required strings must be nonblank and
+required integers positive. Optional fields preserve omission versus explicit
+empty, false and zero; `Optional` does not accept null.
+
+Generate an external module with the installed host:
+
+```sh
+gimbal generate --dir . --entry Review --name review \
+  --role-default code-review=gpt-5.6-luna
+```
+
+Declare `github.com/tylergannon/polytype/polytype` as a Go tool in the project's
+`go.mod`, pinned to the host's Polytype version. Pin Gimbal and all shared
+packages to the deployed host revisions, and use the same Go toolchain,
+platform and build flags. Generation calls `go tool polytype --validate` for
+concrete local `Generate[T]` outputs and writes the input adapter, schema,
+ordered fields, graph and source guide in the workflow package. Keep the Go
+source and field comments authoritative; regenerate after changing inputs,
+outputs or workflow shape. No project frontend generation is needed.
+
+A plugin's main package exports `Register(*gimbal.Registry) error`. Register the
+generated `ReviewDefinition()` with `RegisterWorkflow`, plus any backend
+configuration/factory with `RegisterBackend`. Build with `go build -buildmode=plugin`
+and install the `.so` in a configured `--plugin-dir`. Central and workflow daemons
+load their own sorted configured directories before accepting work. Deploy the
+matching plugin to central and to the workflow environment; restart to expose a
+new catalog. An incompatible or duplicate definition fails startup. Generated
+graphs have no init registration authority.
+
+Built-ins follow the same definitions and registry path. Their inventory remains
+in `internal/builtin/workflows.go`; `go generate ./...` regenerates that selection.
+The CLI fetches descriptions from the selected central, builds useful parameter
+and role flags, then submits pure invocation data. The shared Run form consumes
+the same runtime metadata, including optional Include controls. Central validates
+before admission and the workflow daemon prepares again before spawning the
+independent runner. Use `--input` with JSON or `@file`, or parameter flags, and
+`--follow` to wait for terminal completion.
+
+Workflow and task routes are independent. `--workflow-endpoint` selects the
+HTTP workflow daemon; `--workflow-project` identifies its local project and
+`--work-dir` its execution directory. `--task-endpoint` selects the task daemon.
+For a registered backend use `--workflow-route` or `--task-route` with a JSON
+route containing `name`, `configuration` and `environment`. Each environment
+provides its own workspace root and provisioned repository. A central project
+path is not the remote execution directory. Transfer explicitly named context
+and task files; arbitrary absolute paths in prose are not transparently rewritten.
+Plain local invocation remains an independent child with directly local tasks.
 
 Standalone `gimbal.Run(gimbal.Project(ctx, dir), ...)` runs in its caller's
 process, writes under `dir/runs`, and does not attach to a running instance.

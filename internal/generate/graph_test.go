@@ -310,7 +310,6 @@ func TestSourceWritesTheWorkflowsPackage(t *testing.T) {
 	for _, want := range []string{
 		"//go:build !jsonschema",
 		"\npackage fixture\n",
-		"func init() { gimbal.RegisterGraph(Graph) }",
 		"var Graph = workflow.Graph{",
 	} {
 		if !strings.Contains(string(written), want) {

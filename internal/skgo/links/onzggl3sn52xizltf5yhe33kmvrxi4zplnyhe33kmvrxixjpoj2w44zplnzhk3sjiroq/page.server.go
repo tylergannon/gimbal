@@ -4,12 +4,14 @@ package runid
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
 
 	"github.com/tylergannon/skgo"
 
+	"github.com/tylergannon/gimbal/backend"
 	"github.com/tylergannon/gimbal/internal/host"
 	"github.com/tylergannon/gimbal/internal/observation"
 	hooks "github.com/tylergannon/gimbal/web/src"
@@ -53,7 +55,25 @@ func load(event PageRequestEvent) (Data, error) {
 		return Data{}, err
 	}
 	graphJSON := ""
-	raw, err := os.ReadFile(filepath.Join(host.ProjectDir(ctx), "runs", runID, "graph.json"))
+	var raw []byte
+	if registry.Remote != nil {
+		connection, remoteErr := registry.Remote(runID)
+		if remoteErr != nil {
+			return Data{}, remoteErr
+		}
+		if connection.Execution != nil {
+			file, readErr := connection.Execution.ReadBytes(ctx, backend.Artifact{Run: runID, Name: "graph.json"})
+			if readErr != nil {
+				return Data{}, readErr
+			}
+			raw, err = io.ReadAll(file)
+			_ = file.Close()
+		} else {
+			raw, err = os.ReadFile(filepath.Join(host.ProjectDir(ctx), "runs", runID, "graph.json"))
+		}
+	} else {
+		raw, err = os.ReadFile(filepath.Join(host.ProjectDir(ctx), "runs", runID, "graph.json"))
+	}
 	if err == nil {
 		graphJSON = string(raw)
 	} else if !os.IsNotExist(err) {

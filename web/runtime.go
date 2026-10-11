@@ -17,6 +17,7 @@ import (
 	"sync"
 
 	"github.com/tylergannon/gimbal/internal/host"
+	generated "github.com/tylergannon/gimbal/internal/skgo"
 )
 
 // Instance owns one web listener, one control socket, and any number of
@@ -126,6 +127,12 @@ func NewInstance(ctx context.Context, instanceDir string, initialProjects []stri
 		cancel(err)
 		return nil, err
 	}
+	if err := instance.Owner.RestoreProjects(); err != nil {
+		cancel(err)
+		instance.waitForShutdown()
+		<-instance.done
+		return nil, err
+	}
 	for _, project := range initialProjects {
 		if _, err := instance.Owner.AdmitProject(project); err != nil {
 			cancel(err)
@@ -216,6 +223,12 @@ func (i *Instance) Wait() {
 }
 
 func (i *Instance) projectRequest(next http.Handler) http.Handler {
+	sharedRemotes := map[string]bool{}
+	for _, remote := range generated.Remotes() {
+		if remote.Module() == "src/routes/launch.remote.ts" {
+			sharedRemotes["/_app/remote/"+remote.ID()] = true
+		}
+	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		r = r.WithContext(host.WithOwner(r.Context(), i.Owner))
 		path := r.URL.Path
@@ -239,7 +252,7 @@ func (i *Instance) projectRequest(next http.Handler) http.Handler {
 		}
 		slices.SortFunc(choices, func(a, b host.ProjectChoice) int { return strings.Compare(a.Path, b.Path) })
 		if p == nil {
-			if strings.HasPrefix(r.URL.Path, "/projects/") || strings.Contains(r.URL.Path, "/remote/") || strings.HasPrefix(r.URL.Path, "/api/") {
+			if strings.HasPrefix(r.URL.Path, "/projects/") || (strings.Contains(r.URL.Path, "/remote/") && !sharedRemotes[r.URL.Path]) || strings.HasPrefix(r.URL.Path, "/api/") {
 				http.NotFound(w, r)
 				return
 			}

@@ -15,6 +15,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/internal/host"
 	"github.com/tylergannon/gimbal/internal/invocation"
 	"github.com/tylergannon/gimbal/internal/observation"
@@ -43,6 +44,9 @@ func (h controlHandler) project(r *http.Request) (*host.Project, error) {
 
 func (h controlHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch {
+	case r.Method == http.MethodGet && r.URL.Path == "/control/workflows":
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(gimbal.DefaultRegistry.Catalog())
 	case r.Method == http.MethodGet && r.URL.Path == "/control/runs":
 		h.runs(w, r)
 	case r.Method == http.MethodPost && r.URL.Path == "/control/steer":
@@ -217,6 +221,10 @@ func (i *Instance) startControl() error {
 func controlMux(i *Instance) http.Handler {
 	h := controlHandler{instance: i}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet && r.URL.Path == "/control/workflows" {
+			h.ServeHTTP(w, r)
+			return
+		}
 		if r.Method == http.MethodGet && r.URL.Path == "/control/live" {
 			w.WriteHeader(http.StatusOK)
 			return
@@ -258,22 +266,16 @@ func controlMux(i *Instance) http.Handler {
 }
 
 func controlRuns(r *host.Project) ([]observation.RunRow, error) {
-	entries, err := os.ReadDir(filepath.Join(r.Dir(), "runs"))
+	ids, err := r.Registry().IDs()
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return []observation.RunRow{}, nil
-		}
 		return nil, err
 	}
-	rows := make([]observation.RunRow, 0, len(entries))
-	for _, entry := range entries {
-		if !entry.IsDir() {
+	rows := make([]observation.RunRow, 0, len(ids))
+	for _, id := range ids {
+		if _, err := r.Runs().InProgress(id); err != nil {
 			continue
 		}
-		if _, err := r.Runs().InProgress(entry.Name()); err != nil {
-			continue
-		}
-		snapshot, err := r.Registry().Snapshot(entry.Name())
+		snapshot, err := r.Registry().Snapshot(id)
 		if err != nil {
 			continue
 		}

@@ -9,9 +9,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/spf13/cobra"
 	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/internal/invocation"
 	"github.com/tylergannon/gimbal/web"
+	"golang.org/x/sys/unix"
 )
 
 func TestGeneratedCLIClientReachesUnknownProjectAndFollowReportsFailure(t *testing.T) {
@@ -27,6 +28,7 @@ func TestGeneratedCLIClientReachesUnknownProjectAndFollowReportsFailure(t *testi
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer func() { cancel(); instance.Wait() }()
 	var output bytes.Buffer
 	args := []string{"run", "validate-product", "--instance-dir", instanceDir, "--project", project, "--suite-file", filepath.Join(base, "missing-suite.json"), "--follow"}
 	err = run(args, &output, &bytes.Buffer{}, os.Getenv)
@@ -40,6 +42,19 @@ func TestGeneratedCLIClientReachesUnknownProjectAndFollowReportsFailure(t *testi
 	row, err := web.Follow(context.Background(), instanceDir, project, match)
 	if err != nil || row.Status != "failed" {
 		t.Fatalf("server-owned terminal row = %+v, %v", row, err)
+	}
+	// A terminal observation precedes runner teardown. Its lifetime lock is
+	// released only after all durable writes and controller shutdown finish.
+	lock, err := os.OpenFile(filepath.Join(project, ".gimbal", "runs", match, "runner.lock"), os.O_RDWR, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = unix.Flock(int(lock.Fd()), unix.LOCK_EX); err != nil {
+		_ = lock.Close()
+		t.Fatal(err)
+	}
+	if err = lock.Close(); err != nil {
+		t.Fatal(err)
 	}
 	if len(instance.Owner.Projects()) != 1 {
 		t.Fatalf("first start admitted %d projects", len(instance.Owner.Projects()))
@@ -136,15 +151,20 @@ func TestRunHelpShowsTheInputsAndTheRoles(t *testing.T) {
 }
 
 func TestRunRefusesAMissingInput(t *testing.T) {
-	var out, errOut bytes.Buffer
-	err := run([]string{"run", "review", "--code-review", "model"}, &out, &errOut, os.Getenv)
-	if err == nil || !strings.Contains(err.Error(), `goal`) {
-		t.Errorf("run review without --goal = %v, want the required flag named", err)
+	_, _, err := invocation.Prepare(invocation.Request{Workflow: "review", Input: []byte(`{}`)})
+	if err == nil || !strings.Contains(err.Error(), "goal") {
+		t.Fatalf("missing goal: %v", err)
 	}
 }
 
 func TestReviewCommandRoleDefaultAndOverride(t *testing.T) {
-	withDefault := reviewCommand(map[gimbal.WorkflowRole]string{gimbal.RoleCodeReview: "model"})
+	d, ok := gimbal.DefaultRegistry.Workflow("review")
+	if !ok {
+		t.Fatal("no review")
+	}
+	description := d.WorkflowDescription
+	description.Roles = map[gimbal.WorkflowRole]string{gimbal.RoleCodeReview: "model"}
+	withDefault := catalogCommand(description)
 	defaultFlag := withDefault.Flags().Lookup("code-review")
 	if got := defaultFlag.DefValue; got != "model" {
 		t.Fatalf("code-review default = %q", got)
@@ -152,20 +172,21 @@ func TestReviewCommandRoleDefaultAndOverride(t *testing.T) {
 	if !strings.Contains(defaultFlag.Usage, "omit this flag") {
 		t.Fatalf("code-review usage does not explain how to preserve its default: %q", defaultFlag.Usage)
 	}
-	withoutDefault := reviewCommand(map[gimbal.WorkflowRole]string{})
-	flag := withoutDefault.Flags().Lookup("code-review")
-	if len(flag.Annotations[cobra.BashCompOneRequiredFlag]) == 0 {
-		t.Fatal("code-review without a default is not marked required")
-	}
-	if strings.Contains(flag.Usage, "omit this flag") {
-		t.Fatalf("required code-review flag claims it can be omitted: %q", flag.Usage)
-	}
+
 }
 
 func helpOf(t *testing.T, args ...string) string {
 	t.Helper()
+	ctx, cancel := context.WithCancel(t.Context())
+	t.Cleanup(cancel)
+	instanceDir := filepath.Join(t.TempDir(), "instance")
+	instance, err := web.NewInstance(ctx, instanceDir, nil, web.WithNoWeb())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { cancel(); instance.Wait() })
 	var out, errOut bytes.Buffer
-	if err := run(append(append([]string{"run"}, args...), "--help"), &out, &errOut, os.Getenv); err != nil {
+	if err := run(append(append([]string{"run"}, args...), "--help", "--instance-dir", instanceDir), &out, &errOut, os.Getenv); err != nil {
 		t.Fatal(err)
 	}
 	return out.String()

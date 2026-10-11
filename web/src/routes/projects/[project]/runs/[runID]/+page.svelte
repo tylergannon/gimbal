@@ -387,6 +387,7 @@
     sessionName={openSessionName}
     onclosesession={closeSession}
   />
+  {#if data.snapshot.run.workflow_environment || data.snapshot.run.task_environment}<p class="placement">Workflow: {data.snapshot.run.workflow_environment || "local"} · Tasks: {data.snapshot.run.task_environment || "local"}</p>{/if}
   <nav class="view-tabs" aria-label="Run views">
     {#each [{ id: "map", label: "Map" }, { id: "watchboard", label: "Watchboard" }, { id: "focus", label: "Focus" }] as item}
       <button
@@ -534,6 +535,7 @@
 </form>
 
 <style>
+ .placement{margin:0;padding:6px 20px;font-size:13px;color:#374151;background:#f7f8fa}
   :global(body:has(.run-workspace) .site-nav) {
     display: none;
   }

@@ -67,7 +67,7 @@ func (e *extractor) inspectDiagramComments() {
 					switch kind {
 					case "RunCommand", "Check":
 						kind = "Command"
-					case "NewSession", "Fork", "Generate", "Interview", "Service", "Set", "SetJSON", "Scope", "Group", "Go", "PromiseLoop", "Iterate":
+					case "NewSession", "Fork", "Generate", "Interview", "Service", "FulfillService", "Set", "SetJSON", "Scope", "Group", "Go", "PromiseLoop", "Iterate":
 					default:
 						return true
 					}

@@ -20,13 +20,13 @@ func TestJSONValidation(t *testing.T) {
 		Flag  polytype.Optional[bool] `json:"flag,omitzero"`
 		Count polytype.Optional[int]  `json:"count,omitzero"`
 	}
-	if err := decode([]byte(`{}`), &input); err != nil {
+	if err := json.Unmarshal([]byte(`{}`), &input); err != nil {
 		t.Fatal(err)
 	}
 	if input.Flag.Present || input.Count.Present {
 		t.Fatal("omitted fields became present")
 	}
-	if err := decode([]byte(`{"flag":false,"count":0}`), &input); err != nil {
+	if err := json.Unmarshal([]byte(`{"flag":false,"count":0}`), &input); err != nil {
 		t.Fatal(err)
 	}
 	if !input.Flag.Present || !input.Count.Present || input.Flag.Value || input.Count.Value != 0 {

@@ -1,5 +1,6 @@
 <script lang="ts">
- import {workflows} from '#lib/workflow-design/generated';
+ let {data}=$props();
+ let workflows=$derived(data.workflows);
 </script>
 <svelte:head><title>Workflows — Gimbal</title></svelte:head>
 <section>

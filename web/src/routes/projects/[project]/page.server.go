@@ -4,8 +4,6 @@ package routes
 import (
 	"fmt"
 	"net/http"
-	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -49,29 +47,25 @@ func load(event PageRequestEvent) (RunsData, error) {
 			"This server has no project observation in its context, so its runs cannot be listed.")
 	}
 
+	// Each page load reads a fresh durable checkpoint, including terminal updates.
+	// Preserve central routing and placement for runs owned by remote hosts.
+	fresh := observation.NewRegistry(projectDir)
+	fresh.Remote, fresh.Placement = registry.Remote, registry.Placement
+
 	now := time.Now().UnixMilli()
-	entries, err := os.ReadDir(filepath.Join(projectDir, "runs"))
-	if os.IsNotExist(err) {
-		return RunsData{Items: []RunItem{}, Attention: []observation.InterviewRow{}, Now: now}, nil
-	}
+	ids, err := registry.IDs()
 	if err != nil {
 		return RunsData{}, err
 	}
-
 	data := RunsData{Items: []RunItem{}, Attention: []observation.InterviewRow{}, Now: now}
-	disk := observation.NewRegistry(projectDir)
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
+	for _, id := range ids {
+		reader := fresh
+		if _, live := registry.Live(id); live {
+			reader = registry
 		}
-		var snapshot observation.RunSnapshot
-		if store, live := registry.Live(entry.Name()); live {
-			snapshot = store.Snapshot()
-		} else {
-			snapshot, err = disk.Snapshot(entry.Name())
-		}
+		snapshot, err := reader.Snapshot(id)
 		if err != nil {
-			return RunsData{}, fmt.Errorf("read run %s: %w", entry.Name(), err)
+			return RunsData{}, fmt.Errorf("read run %s: %w", id, err)
 		}
 		pending := pendingInterviews(snapshot)
 		data.Attention = append(data.Attention, pending...)

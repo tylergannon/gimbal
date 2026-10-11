@@ -64,6 +64,8 @@
 				{#if row.value.artifact}
 					{#if row.value.artifact.file.startsWith('context/objects/') && page.params.project && page.params.runID}
             <a class="badge" target="_blank" rel="noreferrer" href={`/projects/${page.params.project}/api/runs/${page.params.runID}/artifacts/${row.value.artifact.file.slice('context/objects/'.length)}`}>Open complete value</a>
+          {:else if row.value.artifact.file.startsWith('artifacts/') && page.params.project && page.params.runID}
+            <a class="badge" target="_blank" rel="noreferrer" href={`/projects/${encodeURIComponent(page.params.project)}/api/runs/${encodeURIComponent(page.params.runID)}/files/${row.value.artifact.file.split('/').map(encodeURIComponent).join('/')}`}>Open complete value</a>
           {:else}<span class="badge">artifact</span>{/if}
 				{/if}
 			</div>

@@ -136,7 +136,9 @@ to the risk. Do not assume the workflow retries provider, harness, or execution
 errors; only an explicit retry path does that.
 
 The command returns the run ID after the independent run process starts. Use
-`--follow` to wait for its outcome. The run continues when the command exits or
+`--follow` to wait for its outcome. If central disconnects, follow rediscovers
+the selected instance for up to 30 seconds and resumes the same run without
+resubmitting it; an unrecovered disconnect returns an explicit error. The run continues when the command exits or
 the daemon stops. Restart the daemon with the same instance directory to resume
 observation and control of its admitted projects. The daemon's `--port 0`
 selects an available browser port; `--uds` serves through a Unix socket.

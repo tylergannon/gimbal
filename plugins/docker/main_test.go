@@ -11,6 +11,9 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/backend"
 )
 
 func fakeDocker(t *testing.T, body string) string {
@@ -97,5 +100,85 @@ func TestStartRetainsReceiptAfterReadinessCancellation(t *testing.T) {
 	}
 	if value.ID != "owned-id" || value.Label == "" || value.Endpoint == "" {
 		t.Fatalf("lost ownership: %+v", value)
+	}
+}
+
+func TestEnvironmentConfigurationReachesDaemon(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(200) }))
+	defer server.Close()
+	u, _ := url.Parse(server.URL)
+	port, _ := strconv.Atoi(u.Port())
+	log := fakeDocker(t, `echo owned-id`)
+	raw, _ := json.Marshal(config{Name: "tasks", Image: "gimbal", Port: port, Network: "private", PublicHost: "tasks", ServicePorts: []int{19091}, Workdir: "/workspace/repo", WorkspaceRoot: "/workspace", PluginDirs: []string{"/plugins", "/project-plugins"}})
+	receipt, err := Start(context.Background(), raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	calls, _ := os.ReadFile(log)
+	for _, want := range []string{"--network private", "-p 127.0.0.1:19091:19091", "--plugin-dir /plugins --plugin-dir /project-plugins", "--public-host tasks", "--workdir /workspace/repo", "--workspace-root /workspace"} {
+		if !strings.Contains(string(calls), want) {
+			t.Fatalf("missing %q: %s", want, calls)
+		}
+	}
+	var owner ownership
+	if err := json.Unmarshal(receipt, &owner); err != nil {
+		t.Fatal(err)
+	}
+	if owner.Network != "private" || owner.PublicHost != "tasks" || len(owner.ServicePorts) != 1 || owner.ServicePorts[0] != 19091 {
+		t.Fatalf("lost service route: %+v", owner)
+	}
+	registry := &gimbal.Registry{}
+	if err := Register(registry); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := registry.Connect(context.Background(), backend.Route{Name: "docker", Configuration: receipt}); err != nil {
+		t.Fatalf("Start receipt cannot be used as a backend route: %v", err)
+	}
+}
+
+func TestInvalidConfigurationDoesNotStartContainer(t *testing.T) {
+	for _, fields := range []string{
+		`"Port":65536`, `"ServicePorts":[8081],"PublicHost":"localhost"`,
+		`"ServicePorts":[18081],"PublicHost":"localhost"`, `"ServicePorts":[19091,19091],"PublicHost":"localhost"`,
+		`"ServicePorts":[-1],"PublicHost":"localhost"`, `"ServicePorts":[19091]`,
+		`"PublicHost":"localhost"`, `"PluginDirs":["relative"]`, `"Workdir":"relative"`,
+	} {
+		t.Run(fields, func(t *testing.T) {
+			log := fakeDocker(t, `echo should-not-start`)
+			raw := json.RawMessage(`{"Name":"tasks","Image":"gimbal","Port":18081,` + fields + `}`)
+			if receipt, err := Start(context.Background(), raw); err == nil || len(receipt) != 0 {
+				t.Fatalf("invalid config accepted: %s %v", receipt, err)
+			}
+			if calls, err := os.ReadFile(log); err == nil {
+				t.Fatalf("docker called: %s", calls)
+			}
+		})
+	}
+}
+
+func TestServiceUsesOnlyConfiguredRoutes(t *testing.T) {
+	calls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		_ = json.NewEncoder(w).Encode(backend.ServiceAddress{ID: "service", URL: "http://tasks:19091"})
+	}))
+	defer server.Close()
+	for _, owner := range []ownership{{}, {PublicHost: "localhost", ServicePorts: []int{19092}}} {
+		e := execution{Endpoint: server.URL, owner: owner}
+		if _, err := e.Service(context.Background(), backend.Service{Port: 19091}); err == nil {
+			t.Fatal("accepted unpublished service")
+		}
+	}
+	if calls != 0 {
+		t.Fatal("unpublished service reached daemon")
+	}
+	for _, owner := range []ownership{{PublicHost: "localhost", ServicePorts: []int{19091}}, {PublicHost: "tasks", Network: "private"}} {
+		e := execution{Endpoint: server.URL, owner: owner}
+		if address, err := e.Service(context.Background(), backend.Service{Port: 19091}); err != nil || address.URL != "http://tasks:19091" {
+			t.Fatalf("service: %+v %v", address, err)
+		}
+	}
+	if calls != 2 {
+		t.Fatalf("service calls: %d", calls)
 	}
 }

@@ -67,7 +67,19 @@ func newDaemonCommand() *cobra.Command {
 }
 func newEnvironmentCommand() *cobra.Command {
 	var filename, configPath, receiptPath string
-	c := &cobra.Command{Use: "environment", Short: "Start or stop an execution environment using a native Go plugin", Long: "Load a native environment plugin built with the same Go toolchain and sources as this binary. The Docker plugin lives in plugins/docker. Its JSON config names Name, Image, Port, explicit Mounts, and Env variable names. The starter publishes only the daemon port; URL-returning service fulfillment across the container boundary is unsupported. Provision a daemon with explicit reachable service networking for that path. Start prints the daemon endpoint for --task-endpoint. Start writes an ownership receipt with --receipt, including after readiness failure. Stop releases only the receipt-owned environment and interrupts its tasks; scope cleanup releases services without stopping the environment."}
+	c := &cobra.Command{Use: "environment", Short: "Start or stop an execution environment using a native Go plugin", Long: `Load a native environment plugin built with the same Go toolchain and sources as this binary. The Docker plugin lives in plugins/docker.
+
+Its JSON configuration requires Name, Image and Port (the host daemon port). Mounts and Env explicitly select mounts and environment variable names. PluginDirs, Workdir and WorkspaceRoot are absolute paths inside the container; install or mount compatible Linux plugins there before startup.
+
+For URL-returning services, set PublicHost to a host reachable by the workflow consumer. ServicePorts publishes the listed TCP ports on host loopback, using the same port inside and outside the container. For a consumer in another container, Network joins an existing Docker network and PublicHost can name this container. Service commands must listen on a reachable interface. Start means launched, not ready; workflows check readiness.
+
+Start prints the daemon endpoint and writes its ownership receipt with --receipt, including after readiness failure. Use the receipt as the docker backend route Configuration for service-aware execution. Stop releases only that receipt-owned environment and interrupts its tasks; scope cleanup releases services without stopping the environment.
+
+Example configuration for a host workflow consuming a Docker service:
+  {"Name":"tasks","Image":"gimbal-task","Port":8081,"PublicHost":"127.0.0.1","ServicePorts":[19091],"Workdir":"/workspace","Mounts":["type=bind,src=/abs/repo,dst=/workspace"]}
+
+  gimbal environment start --plugin ./bin/docker.so --config /abs/environment.json --receipt /abs/docker-receipt.json
+  gimbal environment stop --plugin ./bin/docker.so --receipt /abs/docker-receipt.json`}
 	c.PersistentFlags().StringVar(&filename, "plugin", "", "native Go plugin (.so)")
 	c.PersistentFlags().StringVar(&configPath, "config", "", "environment JSON configuration file")
 	c.PersistentFlags().StringVar(&receiptPath, "receipt", "", "ownership receipt file outside Git (required)")

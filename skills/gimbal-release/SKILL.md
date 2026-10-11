@@ -54,6 +54,22 @@ patching generated output by hand. Preserve Gimbal-owned application code when
 updating a scaffold. Follow the existing application composition so tests and
 the built binary exercise the same server.
 
+## Build the macOS workspace
+
+After `just build`, build the native microphone application with
+`go tool skgo native build --platform macos --preset real`. Open
+`native/build/macos-real/DerivedData/Build/Products/Debug/Gimbal.app` as a macOS
+application so macOS attributes microphone and speech permissions to Gimbal.
+The `synthetic` preset provides deterministic speech revisions for development.
+
+The shell connects to an independent `gimbal` server on `127.0.0.1:8080` by
+default. Start that server separately with the desired `--project` directories;
+closing the shell leaves its projects, recordings, and files on the server.
+`GIMBAL_SERVER_URL` overrides the shell's server target when supplied at launch.
+Project-file storage reuses `uploadArtifact.r2` in `~/.gimbal/config.json`, with
+the existing `GIMBAL_R2_*` environment overrides. Metadata retains the bucket
+and object key; viewing generates a new temporary URL.
+
 ## Check and demonstrate the change
 
 Run required repository checks appropriate to the change:

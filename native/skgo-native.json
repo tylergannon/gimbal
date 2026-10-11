@@ -1,0 +1,58 @@
+{
+  "bundleId": "com.tylergannon.gimbal",
+  "deploymentTargets": {
+    "iphone": "26.0",
+    "macos": "27.0",
+    "simulator": "27.0"
+  },
+  "info": {
+    "NSMicrophoneUsageDescription": "Use the microphone to transcribe speech into live notes.",
+    "NSSpeechRecognitionUsageDescription": "Use Apple's on-device speech recognition to transcribe your notes.",
+    "VNDefaultSource": "real"
+  },
+  "iosInfo": {
+    "UIBackgroundModes": [
+      "audio"
+    ]
+  },
+  "packages": [
+    {
+      "name": "RecorderTranscription",
+      "path": "native/Transcription",
+      "products": [
+        "TranscriptSource",
+        "AppleTranscription",
+        "ScriptedTranscription"
+      ]
+    }
+  ],
+  "presets": {
+    "real": {
+      "bundleSuffix": "real",
+      "info": {
+        "VNDefaultSource": "real"
+      }
+    },
+    "synthetic": {
+      "bundleSuffix": "synthetic",
+      "goTags": [
+        "synthetic"
+      ],
+      "info": {
+        "VNDefaultSource": "synthetic"
+      }
+    }
+  },
+  "resources": [
+    "native/Resources"
+  ],
+  "swiftRemotes": [
+    "src/lib/transcript.remote.ts#abortSession",
+    "src/lib/transcript.remote.ts#acceptTranscript",
+    "src/lib/transcript.remote.ts#activateSession",
+    "src/lib/transcript.remote.ts#closeSession",
+    "src/lib/transcript.remote.ts#openSession",
+    "src/lib/transcript.remote.ts#touchSession"
+  ],
+  "version": 1
+}

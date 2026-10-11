@@ -21,6 +21,59 @@ func skgoRouteParams(event *skgo.Event) RouteParams {
 
 	return p
 }
+
+// LayoutParams stores this layout's local and participating-page values.
+type LayoutParams struct {
+	event                                             *skgo.Event
+	valueConversationID_K636f6e766572736174696f6e4944 *string
+	valueFileID_K66696c654944                         *string
+	valueProject                                      *string
+	valueRecordingID_K7265636f7264696e674944          *string
+	valueRunID_K72756e4944                            *string
+	valueWorkflow                                     *string
+}
+
+func (p LayoutParams) ConversationID_K636f6e766572736174696f6e4944() *string {
+	skgo.TrackLoadParam(p.event, "conversationID")
+	return p.valueConversationID_K636f6e766572736174696f6e4944
+}
+func (p LayoutParams) FileID_K66696c654944() *string {
+	skgo.TrackLoadParam(p.event, "fileID")
+	return p.valueFileID_K66696c654944
+}
+func (p LayoutParams) Project() *string {
+	skgo.TrackLoadParam(p.event, "project")
+	return p.valueProject
+}
+func (p LayoutParams) RecordingID_K7265636f7264696e674944() *string {
+	skgo.TrackLoadParam(p.event, "recordingID")
+	return p.valueRecordingID_K7265636f7264696e674944
+}
+func (p LayoutParams) RunID_K72756e4944() *string {
+	skgo.TrackLoadParam(p.event, "runID")
+	return p.valueRunID_K72756e4944
+}
+func (p LayoutParams) Workflow() *string {
+	skgo.TrackLoadParam(p.event, "workflow")
+	return p.valueWorkflow
+}
+
+type LayoutRequestEvent = skgo.RequestEvent[LayoutParams, appstate.Locals]
+
+func SkgoLayoutRequestEvent(event *skgo.Event) LayoutRequestEvent {
+	return LayoutRequestEvent{Event: event, Locals: appstate.LocalsFrom(event.Request().Context()), Params: skgoLayoutParams(event)}
+}
+func skgoLayoutParams(event *skgo.Event) LayoutParams {
+	p := LayoutParams{event: event}
+	p.valueConversationID_K636f6e766572736174696f6e4944 = skgo.OptionalLoadParamValue[string](event, "conversationID")
+	p.valueFileID_K66696c654944 = skgo.OptionalLoadParamValue[string](event, "fileID")
+	p.valueProject = skgo.OptionalLoadParamValue[string](event, "project")
+	p.valueRecordingID_K7265636f7264696e674944 = skgo.OptionalLoadParamValue[string](event, "recordingID")
+	p.valueRunID_K72756e4944 = skgo.OptionalLoadParamValue[string](event, "runID")
+	p.valueWorkflow = skgo.OptionalLoadParamValue[string](event, "workflow")
+
+	return p
+}
 func SkgoParamMatchers() map[string]skgo.ParamMatcher {
 	return map[string]skgo.ParamMatcher{}
 }
@@ -45,6 +98,8 @@ var (
 	Skgo_steer = steer
 	// Skgo_steerLoop is steerLoop, published as src/routes/steer.remote.ts#steerLoop.
 	Skgo_steerLoop = steerLoop
+	// Skgo_layout is layout, published as the server load of src/routes/+layout.server.ts.
+	Skgo_layout = layout
 	// Skgo_load is load, published as the server load of src/routes/+page.server.ts.
 	Skgo_load = load
 )

@@ -1,5 +1,17 @@
 {
   "remotes": [
+    "126fj8m/createProject",
+    "126fj8m/projectFiles",
+    "126fj8m/uploadFile",
+    "126fj8m/viewFile",
+    "13p9jtx/abortSession",
+    "13p9jtx/acceptTranscript",
+    "13p9jtx/activateSession",
+    "13p9jtx/closeSession",
+    "13p9jtx/openSession",
+    "13p9jtx/recordingHistory",
+    "13p9jtx/touchSession",
+    "13p9jtx/watchRecording",
     "1698czr/answerInterview",
     "1emnx1f/createConversation",
     "1emnx1f/sendConversationMessage",
@@ -10,6 +22,7 @@
     "x7ussb/steerLoop"
   ],
   "loads": [
+    "src/routes/+layout.server.ts",
     "src/routes/+page.server.ts",
     "src/routes/projects/[project]/+page.server.ts",
     "src/routes/projects/[project]/conversations/+page.server.ts",
@@ -19,7 +32,9 @@
     "src/routes/workflows/[workflow]/+page.server.ts"
   ],
   "actions": [],
-  "endpoints": {},
+  "endpoints": {
+    "/projects/[project]/files/[fileID]/body": ["GET"]
+  },
   "prerender": {
     "root": "..",
     "package": "./internal/skgo/prerender"
@@ -27,6 +42,9 @@
   "build": {
     "src/hooks.server.ts": {
       "hook": true
+    },
+    "src/routes/+layout.server.ts": {
+      "source": "src/routes/layout.server.go"
     },
     "src/routes/+page.server.ts": {
       "source": "src/routes/page.server.go"
@@ -39,6 +57,9 @@
     },
     "src/routes/projects/[project]/conversations/[conversationID]/+page.server.ts": {
       "source": "src/routes/projects/[project]/conversations/[conversationID]/page.server.go"
+    },
+    "src/routes/projects/[project]/files/[fileID]/body/+server.ts": {
+      "endpoint": true
     },
     "src/routes/projects/[project]/runs/[runID]/+page.server.ts": {
       "source": "src/routes/projects/[project]/runs/[runID]/page.server.go"

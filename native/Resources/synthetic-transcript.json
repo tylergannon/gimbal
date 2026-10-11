@@ -1,0 +1,11 @@
+[
+ {"atMs":700,"startMs":0,"endMs":700,"text":"This is a can ","isFinal":false},
+ {"atMs":1600,"startMs":0,"endMs":1600,"text":"This is a canned transcript. ","isFinal":false},
+ {"atMs":2500,"startMs":0,"endMs":2400,"text":"This is a synthetic transcript. ","isFinal":true},
+ {"atMs":4200,"startMs":3500,"endMs":4200,"text":"The words change ","isFinal":false},
+ {"atMs":5600,"startMs":3500,"endMs":5500,"text":"The words change as results arrive. ","isFinal":true},
+ {"atMs":8200,"startMs":7300,"endMs":8200,"text":"Pause freezes this ","isFinal":false},
+ {"atMs":10000,"startMs":7300,"endMs":9900,"text":"Pause freezes this recording clock. ","isFinal":true},
+ {"atMs":13500,"startMs":12000,"endMs":13400,"text":"Resume continues the same session. ","isFinal":true},
+ {"atMs":17000,"startMs":15000,"endMs":16900,"text":"Stop leaves the final words visible.","isFinal":true}
+]

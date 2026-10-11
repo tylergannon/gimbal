@@ -212,11 +212,13 @@ type chatAdapter struct {
 	next     int
 	replies  []conversationReply
 	prompts  []string
+	workdirs []string
 }
 
-func (a *chatAdapter) CreateSession(context.Context, string, string, string) (string, error) {
+func (a *chatAdapter) CreateSession(_ context.Context, _, _, workdir string) (string, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	a.workdirs = append(a.workdirs, workdir)
 	a.next++
 	id := "session-" + string(rune('0'+a.next))
 	a.sessions[id] = nil
@@ -323,5 +325,55 @@ func TestConversationRefreshFollowsExternalRun(t *testing.T) {
 	var saved Conversation
 	if err := json.Unmarshal(raw, &saved); err != nil || saved.Runs[0].Status != RunStatusCompleted {
 		t.Fatalf("saved conversation: %s, %v", raw, err)
+	}
+}
+
+func TestManagerNonGitConversationsShareProjectDirectory(t *testing.T) {
+	directory := t.TempDir()
+	adapter := &chatAdapter{sessions: make(map[string][]string)}
+	manager, err := New(t.Context(), filepath.Join(directory, ".gimbal"), func(string) (gimbal.HarnessAdapter, error) { return adapter, nil }, "/bin/gimbal", "/instance", directory, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer manager.Close()
+	for range 2 {
+		item, err := manager.Create(t.Context(), NewConversation{Provider: "codex"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if item.Branch != "" || item.Worktree != directory {
+			t.Fatalf("unexpected Git association: %+v", item)
+		}
+		if _, err := manager.Send(item.ID, "Remember cobalt."); err != nil {
+			t.Fatal(err)
+		}
+		if err := manager.Associate(item.ID, "run-"+item.ID, "review", directory); err != nil {
+			t.Fatal(err)
+		}
+		if err := manager.Associate(item.ID, "wrong-directory", "review", filepath.Dir(directory)); err == nil {
+			t.Fatal("accepted a different directory")
+		}
+	}
+	if len(adapter.workdirs) != 2 || adapter.workdirs[0] != directory || adapter.workdirs[1] != directory {
+		t.Fatalf("session directories = %v", adapter.workdirs)
+	}
+	if len(manager.List()) != 2 {
+		t.Fatal("conversations did not remain distinct")
+	}
+	for _, name := range []string{".git", ".gimbal/conversation-worktrees"} {
+		if _, err := os.Stat(filepath.Join(directory, name)); !os.IsNotExist(err) {
+			t.Fatalf("unexpected %s: %v", name, err)
+		}
+	}
+	manager.Close()
+	restarted, err := New(t.Context(), filepath.Join(directory, ".gimbal"), func(string) (gimbal.HarnessAdapter, error) { return adapter, nil }, "/bin/gimbal", "/instance", directory, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer restarted.Close()
+	for _, item := range restarted.List() {
+		if item.Branch != "" || item.Worktree != directory || len(item.Messages) != 2 || len(item.Runs) != 1 {
+			t.Fatalf("lost saved conversation: %+v", item)
+		}
 	}
 }

@@ -1,0 +1,1 @@
+decision: Tyler authorized non-Git conversations in the original project directory, accepting that concurrent agents can overwrite one another. Git projects retain isolated worktrees. UI redesign remains separate.

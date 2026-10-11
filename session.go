@@ -11,6 +11,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/tylergannon/gimbal/backend"
 	"github.com/tylergannon/gimbal/internal/effects"
 )
 
@@ -354,7 +355,11 @@ func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessag
 	if scope != nil {
 		scope.run.addTurn(turnID, cancelTurn)
 	}
-	files, err := remoteTaskFiles(ctx, prompt)
+	var files []backend.TaskFile
+	var err error
+	if effects.Endpoint(ctx) != "" {
+		files, err = remoteTaskFiles(ctx, prompt)
+	}
 	var result TurnResult
 	if err == nil {
 		turnContext := effects.WithTaskFiles(effectContext(turnCtx, scope, turnID), files)

@@ -235,11 +235,8 @@ func (o *Owner) RestoreProjects() error {
 	}
 	for _, path := range paths {
 		if _, err := o.AdmitProject(path); err != nil {
-			if errors.Is(err, os.ErrNotExist) {
-				log.Printf("gimbal: skipped missing saved project %q: %v", path, err)
-				continue
-			}
-			return err
+			log.Printf("gimbal: skipped saved project %q: %v", path, err)
+			continue
 		}
 	}
 	return nil

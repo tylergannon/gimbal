@@ -282,7 +282,7 @@ func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessag
 	}()
 
 	if native == "" {
-		id, err := s.adapter.CreateSession(ctx, s.model, s.effort, s.workdir)
+		id, err := s.adapter.CreateSession(effectContext(ctx, s.owner, s.id), s.model, s.effort, s.workdir)
 		if err != nil {
 			return nil, fmt.Errorf("gimbal: %s: %w", s.id, err)
 		}
@@ -354,7 +354,7 @@ func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessag
 	if scope != nil {
 		scope.run.addTurn(turnID, cancelTurn)
 	}
-	result, err := s.adapter.RunTurn(turnCtx, native, prompt, schema, wrapped)
+	result, err := s.adapter.RunTurn(effectContext(turnCtx, scope, turnID), native, prompt, schema, wrapped)
 	if scope != nil {
 		scope.run.removeTurn(turnID)
 	}
@@ -661,12 +661,12 @@ func (s *Session) Fork(ctx context.Context, name string) (*Session, error) {
 		return nil, err
 	}
 	fork := &Session{adapter: s.adapter, name: name, model: s.model, effort: s.effort, workdir: s.workdir}
+	scope.adopt(fork)
 	if native != "" {
-		if fork.native, err = s.adapter.Fork(ctx, native); err != nil {
+		if fork.native, err = s.adapter.Fork(effectContext(ctx, scope, fork.id), native); err != nil {
 			return nil, fmt.Errorf("gimbal: fork %s: %w", s.id, err)
 		}
 	}
-	scope.adopt(fork)
 	scope.run.event(scope.key, fork.id, "", SessionCreated{Name: name, Adapter: fmt.Sprintf("%T", fork.adapter), Model: fork.model, Workdir: fork.workdir, Parent: s.id})
 	logf("%s: forked from %s", fork.id, s.id)
 	return fork, nil

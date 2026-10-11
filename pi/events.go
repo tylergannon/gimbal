@@ -1,6 +1,7 @@
 package pi
 
 import (
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"maps"
@@ -18,6 +19,7 @@ type turn struct {
 	mu      sync.Mutex
 	session string
 	model   string
+	message string
 	emit    func(gimbal.AgentEvent) error
 
 	settled     chan struct{}
@@ -59,6 +61,11 @@ func (t *turn) record(event session.Event) error {
 		return nil
 	}
 	switch event.Agent.Type {
+	case model.EvMessageStart:
+		if _, ok := assistantOf(event.Agent.Message); ok {
+			t.message = "assistant-" + rand.Text()
+			t.emitEvent("session.step.started", map[string]any{"sessionID": t.session, "agent": "pi", "model": map[string]string{"id": t.model, "providerID": "diffusion"}})
+		}
 	case model.EvMessageUpdate:
 		t.recordMessageUpdate(event.Agent)
 	case model.EvToolExecutionStart:
@@ -79,6 +86,10 @@ func (t *turn) recordMessageUpdate(event model.AgentEvent) {
 		return
 	}
 	switch update.Type {
+	case model.EventTextStart:
+		t.emitEvent("session.text.started", map[string]any{"sessionID": t.session, "ordinal": update.ContentIndex})
+	case model.EventTextEnd:
+		t.emitEvent("session.text.ended", map[string]any{"sessionID": t.session, "ordinal": update.ContentIndex, "text": update.Content})
 	case model.EventTextDelta:
 		t.emitEvent("session.text.delta", map[string]any{
 			"sessionID": t.session, "ordinal": update.ContentIndex, "delta": update.Delta,
@@ -119,8 +130,9 @@ func (t *turn) recordToolEnd(event model.AgentEvent) {
 		})
 		return
 	}
+	raw, _ := json.Marshal(event.Result)
 	t.emitEvent("session.tool.success", map[string]any{
-		"sessionID": t.session, "id": event.ToolCallID, "name": event.ToolName, "result": event.Result,
+		"sessionID": t.session, "id": event.ToolCallID, "name": event.ToolName, "result": event.Result, "content": []map[string]string{{"type": "text", "text": string(raw)}},
 	})
 }
 
@@ -129,6 +141,8 @@ func (t *turn) recordMessageEnd(event model.AgentEvent) {
 	if !ok {
 		return
 	}
+	usage := normalizedUsage(message.Usage)
+	t.emitEvent("session.step.ended", map[string]any{"sessionID": t.session, "finish": message.StopReason, "rawFinish": message.RawStopReason, "cost": usage.Cost, "tokens": usage.Tokens})
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	clone := *message
@@ -165,6 +179,9 @@ func assistantOf(message model.AgentMessage) (*model.AssistantMessage, bool) {
 }
 
 func (t *turn) emitEvent(kind string, data any) {
+	if fields, ok := data.(map[string]any); ok && t.message != "" {
+		fields["assistantMessageID"] = t.message
+	}
 	if t.emit == nil {
 		return
 	}

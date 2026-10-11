@@ -112,15 +112,16 @@ func {{.Function}}Command(defaults map[gimbal.WorkflowRole]string) *cobra.Comman
 {{ range .Fields}}{{if .Optional}}	var opt{{.Name}} {{.Kind}}
 {{ else}}	var value{{.Name}} {{.Kind}}
 {{ end}}{{end}}{{range .Roles}}	var {{.Ident}} string
-{{ end}}	var workDir, project, instanceDir, conversation, input string
+{{ end}}	var workDir, project, instanceDir, conversation, input, taskEndpoint string
 	var follow bool
-	cmd := &cobra.Command{Use: {{printf "%q" .Name}}, Short: {{printf "%q" .Summary}}, Long: {{printf "%q" .Long}} + "\n\nThe selected instance launches this run in an independent process that survives daemon shutdown and restart. --project selects its admitted repository; --work-dir selects the execution directory independently. --instance-dir selects the instance state directory (or GIMBAL_INSTANCE_DIR, default .gimbal). --follow waits for terminal success or failure; otherwise the run continues after this client exits. Each role flag chooses a model and optional effort. Executable lookup, PATH, and provider configuration come from the instance startup environment.", Args: cobra.NoArgs}
+	cmd := &cobra.Command{Use: {{printf "%q" .Name}}, Short: {{printf "%q" .Summary}}, Long: {{printf "%q" .Long}} + "\n\nThe selected instance launches this run in an independent process that survives daemon shutdown and restart. --project selects its admitted repository; --work-dir selects the execution directory independently. --instance-dir selects the instance state directory (or GIMBAL_INSTANCE_DIR, default .gimbal). --follow waits for terminal success or failure; otherwise the run continues after this client exits. Each role flag chooses a model and optional effort. Executable lookup, PATH, and provider configuration come from the instance startup environment, or from the selected --task-endpoint daemon when provided. That daemon must share the absolute workspace and artifact paths with the workflow process.", Args: cobra.NoArgs}
 {{ range .Fields}}	cmd.Flags().{{.Var}}({{.Target}}, {{printf "%q" .Flag}}, {{.Default}}, {{printf "%q" .Usage}})
 {{ end}}	cmd.Flags().StringVar(&input, "input", "", "workflow parameters as a JSON object; cannot be combined with parameter flags")
 	cmd.Flags().StringVar(&workDir, "work-dir", "", "execution directory (default: owning project)")
 	cmd.Flags().StringVar(&project, "project", ".", "repository owning this run and its observation; admitted on first start")
 	instanceDefault := os.Getenv("GIMBAL_INSTANCE_DIR"); if instanceDefault == "" { instanceDefault = ".gimbal" }
 	cmd.Flags().StringVar(&instanceDir, "instance-dir", instanceDefault, "selected running instance state directory (default: GIMBAL_INSTANCE_DIR or .gimbal)")
+	cmd.Flags().StringVar(&taskEndpoint,"task-endpoint","","HTTP task daemon for agents, commands and services; requires shared absolute workspace and artifact paths")
 	cmd.Flags().StringVar(&conversation, "conversation", "", "associate this run with a conversation in the owning project")
 	cmd.Flags().BoolVar(&follow, "follow", false, "wait for the run's terminal result; without this flag the run survives client exit")
 {{ range .Roles}}	{{.Ident}}Default := defaults[gimbal.WorkflowRole({{printf "%q" .Name}})]
@@ -144,7 +145,7 @@ func {{.Function}}Command(defaults map[gimbal.WorkflowRole]string) *cobra.Comman
 {{range .Roles}}
         if cmd.Flags().Changed({{printf "%q" .Name}}) { roles[gimbal.WorkflowRole({{printf "%q" .Name}})] = {{.Ident}} }
 {{end}}
-        request := invocation.Request{Workflow: {{printf "%q" .Name}}, Input: raw, Project: project, WorkDir: workDir, Conversation: conversation, Roles: roles}
+        request := invocation.Request{Workflow: {{printf "%q" .Name}}, Input: raw, Project: project, WorkDir: workDir, Conversation: conversation, Roles: roles, TaskEndpoint:taskEndpoint}
         if _,_,err := invocation.Prepare(request); err != nil {return err}
         accepted, err := web.Start(cmd.Context(), instanceDir, request); if err != nil { return err }
 		fmt.Fprintln(cmd.OutOrStdout(), accepted.RunID)

@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/internal/effects"
 	"github.com/tylergannon/gimbal/internal/invocation"
 	"github.com/tylergannon/gimbal/internal/live"
 	"github.com/tylergannon/gimbal/internal/observation"
@@ -52,6 +53,7 @@ func run(request invocation.Request, startup io.Writer, models map[gimbal.Workfl
 	runs.Resolve = func(id string) (live.Controller, error) { return Connect(state, id) }
 	ctx := observation.WithRegistry(context.Background(), registry)
 	ctx = live.WithRuns(ctx, runs)
+	ctx = effects.WithEndpoint(ctx, request.TaskEndpoint)
 	var controller live.Controller
 	var server *http.Server
 	var lock *os.File
@@ -84,6 +86,11 @@ func run(request invocation.Request, startup io.Writer, models map[gimbal.Workfl
 		if e = os.WriteFile(filepath.Join(dir, "controller"), []byte(socket), 0600); e != nil {
 			_ = listener.Close()
 			panic(e)
+		}
+		if request.TaskEndpoint != "" {
+			if e = os.WriteFile(filepath.Join(dir, "task-owner"), []byte(request.TaskEndpoint), 0600); e != nil {
+				panic(e)
+			}
 		}
 		controller = c
 		server = &http.Server{Handler: handler(c)}
@@ -169,14 +176,37 @@ func Connect(state, id string) (live.Controller, error) {
 	}
 	c := remote{socket: string(socket)}
 	_, err = c.call(context.Background(), operation{Action: "live"})
+	if err != nil {
+		endpoint, e := os.ReadFile(filepath.Join(state, "runs", id, "task-owner"))
+		if e == nil {
+			lock, e := os.OpenFile(filepath.Join(state, "runs", id, "runner.lock"), os.O_RDWR, 0)
+			if e == nil {
+				defer func() { _ = lock.Close() }()
+				if unix.Flock(int(lock.Fd()), unix.LOCK_EX|unix.LOCK_NB) == nil {
+					orphan := remote{endpoint: string(endpoint), runID: id, state: state}
+					if orphan.CleanupPending() {
+						return orphan, nil
+					}
+				}
+			}
+		}
+	}
 	return c, err
 }
 
-type remote struct{ socket string }
+type remote struct{ socket, endpoint, runID, state string }
 
 func (c remote) call(ctx context.Context, op operation) (bool, error) {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
+	if c.endpoint != "" {
+		value, err := orphanCall(ctx, c.endpoint, c.runID, op)
+		if op.Action == "scope" && op.Target == "" {
+			_, recordErr := CleanupExited(c.state, c.runID)
+			err = errors.Join(err, recordErr)
+		}
+		return value, err
+	}
 	transport := &http.Transport{DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
 		return (&net.Dialer{}).DialContext(ctx, "unix", c.socket)
 	}}
@@ -225,6 +255,6 @@ func (c remote) cancel(action, id string, cause error) error {
 func (c remote) CancelScope(id string, cause error) error { return c.cancel("scope", id, cause) }
 func (c remote) CancelTurn(id string, cause error) error  { return c.cancel("turn", id, cause) }
 func (c remote) CleanupPending() bool {
-	v, _ := c.call(context.Background(), operation{Action: "cleanup"})
-	return v
+	v, err := c.call(context.Background(), operation{Action: "cleanup"})
+	return v || err != nil
 }

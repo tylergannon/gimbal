@@ -66,23 +66,25 @@ func RegisteredGraph(name string) (workflow.Graph, bool) {
 }
 
 type run struct {
-	dir          string                        // <project>/runs/<id>
-	models       map[WorkflowRole]ModelBinding // what each role the workflow names runs on
-	writer       *eventWriter
-	project      *eventWriter
-	store        *observation.Store
-	mu           sync.Mutex
-	sessions     map[string]*eventWriter
-	scopes       map[string]*scope                  // live scopes by key, for cancelScope
-	turns        map[string]context.CancelCauseFunc // running turns by id, for cancelTurn
-	interviews   map[string]*interviewWaiter        // questions waiting for a person's answer
-	rootCancel   error                              // explicit cancellation of the root scope
-	errMu        sync.Mutex
-	recordErr    error
-	closeMu      sync.Mutex
-	closeErrs    []error
-	pendingClose map[string]*Session
-	cleanupMu    sync.Mutex
+	dir           string                        // <project>/runs/<id>
+	models        map[WorkflowRole]ModelBinding // what each role the workflow names runs on
+	writer        *eventWriter
+	project       *eventWriter
+	store         *observation.Store
+	mu            sync.Mutex
+	sessions      map[string]*eventWriter
+	scopes        map[string]*scope                  // live scopes by key, for cancelScope
+	turns         map[string]context.CancelCauseFunc // running turns by id, for cancelTurn
+	interviews    map[string]*interviewWaiter        // questions waiting for a person's answer
+	rootCancel    error                              // explicit cancellation of the root scope
+	errMu         sync.Mutex
+	recordErr     error
+	closeMu       sync.Mutex
+	closeErrs     []error
+	pendingClose  map[string]*Session
+	pendingScopes map[string]*scope
+	cleanupMu     sync.Mutex
+	finished      chan struct{}
 }
 
 // CloseError aggregates every HarnessAdapter.Close failure a run's sessions
@@ -203,7 +205,7 @@ func beginRun(ctx context.Context, name string, models map[WorkflowRole]ModelBin
 		_ = store.Close()
 		return nil, nil, fmt.Errorf("gimbal: %w", err)
 	}
-	r := &run{dir: dir, models: models, writer: w, sessions: make(map[string]*eventWriter), scopes: make(map[string]*scope), turns: make(map[string]context.CancelCauseFunc), interviews: make(map[string]*interviewWaiter)}
+	r := &run{finished: make(chan struct{}), dir: dir, models: models, writer: w, sessions: make(map[string]*eventWriter), scopes: make(map[string]*scope), turns: make(map[string]context.CancelCauseFunc), interviews: make(map[string]*interviewWaiter)}
 	r.store = store
 	if graph, ok := RegisteredGraph(name); ok {
 		raw, err := json.Marshal(graph)
@@ -268,6 +270,7 @@ func (r *run) root(ctx context.Context, name string, body func(ctx context.Conte
 // RunEnded with the verdict, then Complete with any recording failure.
 // It returns the verdict joined with the recording failure.
 func (r *run) finish(name string, err error) error {
+	defer close(r.finished)
 	// The root scope's deferred end already ran inside do, closing every
 	// session before body returned control here, so the aggregate close
 	// error is complete by now: RunEnded, the observation status, and
@@ -447,20 +450,30 @@ func (r *run) CancelScope(key string, cause error) error {
 func (r *run) CleanupPending() bool {
 	r.closeMu.Lock()
 	defer r.closeMu.Unlock()
-	return len(r.pendingClose) != 0
+	return len(r.pendingClose) != 0 || len(r.pendingScopes) != 0
 }
 
 func (r *run) retryCleanup() error {
+	if r.finished != nil {
+		<-r.finished
+	}
 	r.cleanupMu.Lock()
 	defer r.cleanupMu.Unlock()
 	r.closeMu.Lock()
 	pending := make(map[string]*Session, len(r.pendingClose))
 	maps.Copy(pending, r.pendingClose)
+	scopes := make(map[string]*scope, len(r.pendingScopes))
+	maps.Copy(scopes, r.pendingScopes)
 	r.closeMu.Unlock()
-	if len(pending) == 0 {
+	if len(pending) == 0 && len(scopes) == 0 {
 		return errors.New("gimbal: run has ended and has no pending cleanup")
 	}
 	var failures []error
+	for _, s := range scopes {
+		if err := s.remoteCleanup(); err != nil {
+			failures = append(failures, err)
+		}
+	}
 	for id, session := range pending {
 		ctx, cancel := context.WithTimeout(context.Background(), closeTimeout)
 		err := session.adapter.Close(ctx, session.native)
@@ -475,7 +488,8 @@ func (r *run) retryCleanup() error {
 	}
 	// The original terminal error remains in history. This stop request reports
 	// its own current delivery result and never invokes the workflow again.
-	return errors.Join(failures...)
+	result := errors.Join(failures...)
+	return errors.Join(result, observation.RecordCleanup(r.dir, result))
 }
 
 func (r *run) cancelScopeLocked(key string, cause error) error {

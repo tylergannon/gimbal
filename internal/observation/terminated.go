@@ -14,12 +14,29 @@ import (
 // The caller MUST first establish that the old process can no longer write.
 // This records the orchestrator's failure, never synthetic session/scope closes.
 func RecordTerminated(dir, reason string) error {
+	return recordStopped(dir, reason, false)
+}
+
+// RecordCleanup retains an actual cleanup outcome after the workflow's writer
+// has exited. Like RecordTerminated, the caller must hold its lifetime lock.
+func RecordCleanup(dir string, err error) error {
+	message := ""
+	if err != nil {
+		message = err.Error()
+	}
+	return recordStopped(dir, message, true)
+}
+
+func recordStopped(dir, reason string, cleanup bool) error {
 	id := filepath.Base(dir)
 	s, err := open(nil, id, dir)
 	if err != nil {
 		return err
 	}
-	if s.run.Status != StatusRunning {
+	if cleanup && s.run.Cancellation.Present && s.run.Cancellation.Value.CleanupError == reason && ((reason == "" && s.run.Cancellation.Value.Cleanup == "completed") || (reason != "" && s.run.Cancellation.Value.Cleanup == "unconfirmed")) {
+		return nil
+	}
+	if !cleanup && s.run.Status != StatusRunning {
 		return nil
 	}
 	// The writer is stopped. Remove an incomplete durable tail before appending
@@ -68,6 +85,9 @@ func RecordTerminated(dir, reason string) error {
 		Scope string            `json:"scope"`
 		Event map[string]string `json:"event"`
 	}{seq + 1, time.Now().UTC(), "", map[string]string{"kind": "run_ended", "name": s.run.Name, "error": reason}}
+	if cleanup {
+		rec.Event = map[string]string{"kind": "cancellation_cleanup", "error": reason}
+	}
 	raw, err := json.Marshal(rec)
 	if err != nil {
 		return err

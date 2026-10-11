@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Local and Docker task daemons for agent sessions, commands, and scope-owned
+  services, with automatic scope cleanup, retained cleanup retries, and the
+  `service-check` workflow. The console opens complete captured command output.
+
 - Workflow design pages with source-authored labels, expandable diagrams, prompt
   and context inspection, usage guides, and run forms. URL state preserves
   inspection across reloads; the development server reflects Go source edits live.

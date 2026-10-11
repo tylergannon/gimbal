@@ -167,7 +167,7 @@ vet tool.`,
 		DisableFlagParsing: true,
 		RunE:               func(_ *cobra.Command, args []string) error { return runPrompt(args, stdout, stderr, getenv) },
 	})
-	root.AddCommand(newRunsCommand(), newWatchCommand(), newSteerCommand(), newCancelCommand(), newCountTokensCommand(), newAuditIndexCommand(stdout), newOpenCodeCommand(stdout, getenv))
+	root.AddCommand(newDaemonCommand(), newEnvironmentCommand(), newRunsCommand(), newWatchCommand(), newSteerCommand(), newCancelCommand(), newCountTokensCommand(), newAuditIndexCommand(stdout), newOpenCodeCommand(stdout, getenv))
 	return root
 }
 
@@ -238,9 +238,11 @@ type serverFlags struct {
 	noWeb       bool
 	projects    []string
 	instanceDir string
+	taskListen  string
 }
 
 func (f *serverFlags) bind(fs *pflag.FlagSet) {
+	fs.StringVar(&f.taskListen, "task-listen", "", "also serve task execution on this TCP address")
 	fs.IntVar(&f.port, "port", 8080, "loopback TCP port for the web application")
 	fs.StringVar(&f.uds, "uds", "", "Unix-domain socket for the web application instead of TCP")
 	fs.BoolVar(&f.noWeb, "no-web", false, "run without the web application")
@@ -263,6 +265,13 @@ func (f *serverFlags) options() []web.Option {
 func serve(ctx context.Context, server serverFlags) error {
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt)
 	defer stop()
+	if server.taskListen != "" {
+		closeTasks, err := serveTasks(ctx, server.taskListen)
+		if err != nil {
+			return err
+		}
+		defer closeTasks()
+	}
 	options := server.options()
 	projects := server.projects
 	if len(projects) == 0 {

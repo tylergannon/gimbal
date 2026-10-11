@@ -23,6 +23,7 @@ func Routes(next http.Handler) http.Handler {
 	mux.Handle("/", next)
 	mux.HandleFunc("GET /api/runs/{runID}", serveSnapshot)
 	mux.HandleFunc("GET /api/runs/{runID}/artifacts/{object}", serveContextArtifact)
+	mux.HandleFunc("GET /api/runs/{runID}/commands/{stream}/{commandID...}", serveCommandOutput)
 	mux.HandleFunc("GET /api/runs/{runID}/events", serveEvents)
 	return mux
 }

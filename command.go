@@ -13,6 +13,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/tylergannon/gimbal/internal/effects"
 )
 
 const commandOutputLimit = 64 << 10
@@ -218,7 +220,17 @@ func runCommand(ctx context.Context, s *scope, name, workdir, command string, ar
 		errOut, ended.StderrFile, captureErr = openCommandCapture(s.run, id, "stderr")
 		if captureErr == nil {
 			ended.StdoutFile = stdoutFile
-			_, _, commandErr = runCapturedCommand(ctx, id, workdir, command, args, s.run, out, errOut, &ended)
+			if effects.Endpoint(ctx) != "" {
+				commandErr = startRemoteProcess(ctx, s, id, workdir, command, args, out, errOut, false)
+				if commandErr == nil {
+					commandErr = remoteProcessResult(ctx, s, id, out, errOut, &ended)
+				} else {
+					_ = out.close()
+					_ = errOut.close()
+				}
+			} else {
+				_, _, commandErr = runCapturedCommand(ctx, id, workdir, command, args, s.run, out, errOut, &ended)
+			}
 		} else {
 			_ = out.close()
 			ended.StdoutFile = stdoutFile

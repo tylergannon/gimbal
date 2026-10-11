@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"sync"
 	"syscall"
+	"time"
 
 	"golang.org/x/sys/unix"
 
@@ -132,6 +133,7 @@ func (o *Owner) AdmitProject(dir string) (*Project, error) {
 	}
 	o.projects[path] = p
 	claimed = true
+	go p.cleanupExitedTasks()
 	return p, nil
 }
 
@@ -336,4 +338,29 @@ func (p *Project) KillTurn(runID, turnID, by, reason string) error {
 		return err
 	}
 	return run.CancelTurn(turnID, gimbal.Killed{Target: turnID, By: by, Reason: reason})
+}
+
+// Each project already knows its runs. Reconcile only their retained task owner
+// routes; no OS process-list discovery and no additional ownership journal.
+func (p *Project) cleanupExitedTasks() {
+	settled := map[string]bool{}
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-p.ctx.Done():
+			return
+		case <-ticker.C:
+		}
+		entries, _ := os.ReadDir(filepath.Join(p.dir, "runs"))
+		for _, entry := range entries {
+			if !entry.IsDir() || settled[entry.Name()] {
+				continue
+			}
+			done, _ := runner.CleanupExited(p.dir, entry.Name())
+			if done {
+				settled[entry.Name()] = true
+			}
+		}
+	}
 }

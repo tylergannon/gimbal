@@ -44,10 +44,10 @@ just build
 
 The current recipe prepares Go and frontend dependencies, runs generation,
 formats generated frontend output, builds Svelte, checks that
-`web/build/skgo.manifest.json` exists, packages `web/build.zip`, and builds
-`bin/gimbal` with the web application embedded. Run `go install ./cmd/gimbal`
-only after `just build` in the same checkout. Since v0.12.1, versioned
-`go install` uses the committed archive without rebuilding the frontend.
+`web/build/skgo.manifest.json` exists, and builds `bin/gimbal` with `web/build/`
+embedded directly using `embed.FS`. Generated frontend files stay local and are
+not committed. Run `go install ./cmd/gimbal` only after `just build` in the same
+checkout. A bare versioned `go install` does not build or include the console.
 
 Generators own generated files. Regenerate and inspect their diff rather than
 patching generated output by hand. Preserve Gimbal-owned application code when
@@ -119,11 +119,11 @@ where it applies, keeping each role's intended model tier. Check the rendered
 `gimbal run` role flags, not only the JSON. Tests for aliases should cover
 resolution and overrides without fixing a moving shorthand to today's version.
 
-Before tagging a release, check that `go.mod` has no replacement that blocks
-versioned installation. Install from the pushed commit with
-`go install github.com/tylergannon/gimbal/cmd/gimbal@<commit>` and start its web
-listener; confirm it serves the page. After tagging, repeat with the exact tag.
-A successful install without a served page does not prove the published CLI works.
+Before tagging a release, build and install from a checkout of the pushed
+commit with `just build` and `go install ./cmd/gimbal`, then start its web
+listener and confirm it serves the page. After tagging, repeat from a checkout
+of the exact tag. A successful install without a served page does not prove
+the installed CLI works.
 
 ## Merge and refresh the local installation
 

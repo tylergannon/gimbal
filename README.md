@@ -46,11 +46,10 @@ just build
 ```
 
 `just build` runs Go generation and the skgo/SvelteKit production build before
-compiling the CLI. It checks for `web/build/skgo.manifest.json` and packages the
-web app into `web/build.zip`, which the binary embeds. To install from a checkout,
-run `go install ./cmd/gimbal` after `just build`. Starting with v0.12.1, a
-versioned `go install github.com/tylergannon/gimbal/cmd/gimbal@<version>` uses
-the packaged web app and needs no frontend build at install time.
+compiling the CLI. It checks for `web/build/skgo.manifest.json` and embeds
+`web/build/` directly with Go's `embed.FS`. Generated frontend files stay local;
+install from this built checkout with `go install ./cmd/gimbal`. A bare
+versioned `go install` does not build or include the console.
 
 Then open http://127.0.0.1:8080. The page's heading, the Go version below it, and the
 greeting counter all come from `web/src/routes/hello.remote.go` — the
@@ -246,7 +245,7 @@ and camera are URL state, so reloads and shareable links preserve supported
 choices. Removed or changed source identifiers default without migration.
 
 `just dev` generates bindings and builds the backend; on a fresh checkout it
-also builds the initial frontend archive. Stop it with Ctrl-C. Set
+also builds the initial frontend build. Stop it with Ctrl-C. Set
 `GIMBAL_DEV_PORT` and `GIMBAL_DEV_VITE_PORT` to change the default ports 8080
 and 5173. Restart after extractor changes; regenerate and restart after changes
 to callable Go signatures. Source watching reflects code, not execution values.

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
-	"encoding/json/jsontext"
 	"errors"
 	"fmt"
 	"strings"
@@ -80,7 +79,7 @@ func (Text) ValidateJSON(raw []byte) error {
 // every harness adapter, a supervisor's intro, and a re-ask on an invalid
 // result sees that full prompt. TurnStarted instead records prompt exactly as
 // passed here and identifies the visible scope values separately. T's schema
-// is sent with the prompt, and the result is validated here and decoded into
+// is sent with the prompt; the adapter validates the result, which is decoded into
 // T. A result that does not validate is shown back to the model with the
 // reason, a bounded number of times, before it is an error. For Text no schema
 // is sent and the result is the final message. The options attach supervisors,
@@ -102,14 +101,20 @@ func (s *Session) generateResponse(ctx context.Context, prompt string, output Ou
 	return dispatchResponse(ctx, s, ask, opts, started, output)
 }
 
-type decodedOutput[T Output] struct{ value *T }
+type decodedOutput[T Output] struct {
+	value  *T
+	accept func(T) error
+}
 
 func (o *decodedOutput[T]) Schema() json.RawMessage { return (*o.value).Schema() }
-func (o *decodedOutput[T]) ValidateJSON(raw []byte) error {
-	if err := (*o.value).ValidateJSON(raw); err != nil {
+func (o *decodedOutput[T]) acceptJSON(raw []byte) error {
+	if err := json.Unmarshal(raw, o.value); err != nil {
 		return err
 	}
-	return json.Unmarshal(raw, o.value)
+	if o.accept != nil {
+		return o.accept(*o.value)
+	}
+	return nil
 }
 func (o *decodedOutput[T]) outputName() string { return fmt.Sprintf("%T", *o.value) }
 
@@ -200,10 +205,6 @@ func dispatchResponse(ctx context.Context, s *Session, prompt string, opts []Age
 	return generateResponse(ctx, s, prompt, nil, started, output)
 }
 
-// errInvalidResult marks a turn whose harness succeeded but whose result did
-// not validate or decode. generate re-asks the model on it.
-var errInvalidResult = errors.New("invalid result")
-
 // generateAttempts bounds invalid answers. A result that fails validation or
 // decoding is shown back to the model with the reason.
 const generateAttempts = 3
@@ -225,18 +226,15 @@ func generateResponse(ctx context.Context, s *Session, prompt string, onEvent fu
 			ask += "\n\nThe previous turn stopped with a provider/session error. Inspect the work already done and continue this task."
 		}
 		raw, err := s.turn(ctx, ask, output.Schema(), onEvent, outputType, func(raw []byte) error {
-			// Schema validators decode objects to maps; repeated names can hide
-			// an earlier value that a typed decoder would reject. Check syntax
-			// without constructing T before applying the output contract.
-			if !jsontext.Value(raw).IsValid() {
-				return fmt.Errorf("response must be one JSON value with unique object names and valid UTF-8")
+			if accepted, ok := output.(interface{ acceptJSON([]byte) error }); ok {
+				return accepted.acceptJSON(raw)
 			}
-			return output.ValidateJSON(raw)
+			return nil
 		}, started)
 		if err == nil {
 			return raw, nil
 		}
-		if !errors.Is(err, errInvalidResult) {
+		if !errors.Is(err, ErrInvalidOutput) {
 			// Projector gaps stay inside Claude's observer. This is a failure
 			// returned by Claude or its SDK after the native turn stopped.
 			if strings.Contains(err.Error(), "claude:") && strings.Contains(err.Error(), "unknown tool_use_id") {
@@ -399,6 +397,14 @@ func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessag
 		}
 		return nil, err
 	}
+	if errors.Is(err, ErrInvalidOutput) {
+		terminalErr := wrapped(nativeEvent("session.execution.succeeded", map[string]any{"sessionID": native}, map[string]any{"provider": "gimbal", "sessionID": native, "turnID": turnID}))
+		err = errors.Join(err, terminalErr)
+		if scope != nil {
+			scope.run.event(scope.key, s.id, turnID, TurnEnded{Result: JSONText(result.Output), Error: err.Error(), Usage: report, Duration: time.Since(start)})
+		}
+		return nil, fmt.Errorf("gimbal: %s: %w", s.id, err)
+	}
 	if err != nil {
 		terminalErr := wrapped(nativeEvent("session.execution.failed", map[string]any{"sessionID": native, "error": map[string]any{"type": "provider", "message": err.Error()}}, map[string]any{"provider": "gimbal", "sessionID": native, "turnID": turnID}))
 		err = errors.Join(err, terminalErr)
@@ -417,7 +423,7 @@ func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessag
 			if scope != nil {
 				scope.run.event(scope.key, s.id, turnID, TurnEnded{Result: JSONText(result.Output), Error: err.Error(), Usage: report, Duration: time.Since(start)})
 			}
-			return nil, fmt.Errorf("gimbal: %s: the result does not validate: %w: %w", s.id, errInvalidResult, err)
+			return nil, fmt.Errorf("gimbal: %s: the result does not validate: %w: %w", s.id, ErrInvalidOutput, err)
 		}
 	}
 	if scope != nil {

@@ -2,7 +2,6 @@
 package host
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -10,10 +9,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sync"
-	"syscall"
 	"time"
 
 	"golang.org/x/sys/unix"
@@ -35,6 +32,7 @@ type Owner struct {
 	activeRuns sync.WaitGroup
 	controlID  string
 	socket     string
+	pluginDirs []string
 }
 
 type Project struct {
@@ -114,9 +112,12 @@ func (o *Owner) AdmitProject(dir string) (*Project, error) {
 	registry := observation.NewRegistry(state)
 	projectCtx = observation.WithRegistry(projectCtx, registry)
 	runs := live.NewRuns()
-	runs.Resolve = func(id string) (live.Controller, error) { return runner.Connect(state, id) }
+
 	projectCtx = live.WithRuns(projectCtx, runs)
 	p := &Project{owner: o, ctx: projectCtx, project: path, id: projectID(path), dir: state, runs: runs, registry: registry, ownerLock: ownerLock}
+	runs.Resolve = p.resolve
+	registry.Remote = p.remote
+	registry.Placement = p.placement
 	cli, err := os.Executable()
 	if err != nil {
 		return nil, err
@@ -132,6 +133,11 @@ func (o *Owner) AdmitProject(dir string) (*Project, error) {
 		return nil, err
 	}
 	o.projects[path] = p
+	if err := o.saveProjectsLocked(); err != nil {
+		delete(o.projects, path)
+		conversations.Close()
+		return nil, err
+	}
 	claimed = true
 	go p.cleanupExitedTasks()
 	return p, nil
@@ -249,14 +255,19 @@ func (p *Project) Start(request invocation.Request) (string, error) {
 		return "", context.Cause(p.owner.ctx)
 	}
 	request.Project = p.project
+	if request.WorkflowRoute.Name == "" || request.WorkflowRoute.Name == "local" {
+		request.PluginDirs = append([]string(nil), p.owner.pluginDirs...)
+	}
 	if request.WorkDir == "" {
 		request.WorkDir = p.project
 	}
 	if !filepath.IsAbs(request.WorkDir) {
 		return "", errors.New("work_dir must be absolute")
 	}
-	if info, err := os.Stat(request.WorkDir); err != nil || !info.IsDir() {
-		return "", errors.New("work_dir must be an existing directory")
+	if request.WorkflowRoute.Name == "" || request.WorkflowRoute.Name == "local" {
+		if info, err := os.Stat(request.WorkDir); err != nil || !info.IsDir() {
+			return "", errors.New("work_dir must be an existing directory")
+		}
 	}
 	if request.Conversation != "" {
 		worktree, ok := p.conversations.Worktree(request.Conversation)
@@ -267,45 +278,16 @@ func (p *Project) Start(request invocation.Request) (string, error) {
 	if _, _, err := invocation.Prepare(request); err != nil {
 		return "", err
 	}
-	executable, err := os.Executable()
+	id, err := p.startRouted(request)
 	if err != nil {
 		return "", err
-	}
-	input, err := json.Marshal(request)
-	if err != nil {
-		return "", err
-	}
-	read, write, err := os.Pipe()
-	if err != nil {
-		return "", err
-	}
-	defer func() { _ = read.Close() }()
-	defer func() { _ = write.Close() }()
-	child := exec.Command(executable, "run-process")
-	child.Stdin = bytes.NewReader(input)
-	child.ExtraFiles = []*os.File{write}
-	child.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
-	if err := child.Start(); err != nil {
-		return "", err
-	}
-	_ = write.Close()
-	go func() { _ = child.Wait() }()
-	var response runner.Response
-	if err := json.NewDecoder(read).Decode(&response); err != nil {
-		return "", fmt.Errorf("start runner: %w", err)
-	}
-	if response.Error != "" {
-		return "", errors.New(response.Error)
-	}
-	if response.RunID == "" {
-		return "", errors.New("runner returned no run ID")
 	}
 	if request.Conversation != "" {
-		if err := p.conversations.Associate(request.Conversation, response.RunID, request.Workflow, request.WorkDir); err != nil {
+		if err := p.conversations.Associate(request.Conversation, id, request.Workflow, request.WorkDir); err != nil {
 			return "", err
 		}
 	}
-	return response.RunID, nil
+	return id, nil
 }
 
 func (p *Project) Steer(ctx context.Context, runID, sessionID, message string) (bool, error) {
@@ -363,4 +345,10 @@ func (p *Project) cleanupExitedTasks() {
 			}
 		}
 	}
+}
+
+func (o *Owner) SetPluginDirs(dirs []string) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.pluginDirs = append([]string(nil), dirs...)
 }

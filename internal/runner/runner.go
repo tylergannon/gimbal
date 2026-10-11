@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/backend"
 	"github.com/tylergannon/gimbal/internal/effects"
 	"github.com/tylergannon/gimbal/internal/invocation"
 	"github.com/tylergannon/gimbal/internal/live"
@@ -28,15 +29,29 @@ type Response struct {
 }
 
 func Run(request invocation.Request, startup io.Writer) error {
-	models, body, err := invocation.Prepare(request)
+	if err := invocation.LoadPlugins(request.PluginDirs); err != nil {
+		_ = json.NewEncoder(startup).Encode(Response{Error: err.Error()})
+		return err
+	}
+	ctx := effects.WithEndpoint(context.Background(), request.TaskEndpoint)
+	var connection backend.Connection
+	if request.TaskRoute.Name != "" && request.TaskRoute.Name != "local" {
+		var err error
+		connection, err = gimbal.DefaultRegistry.Connect(ctx, request.TaskRoute)
+		if err != nil {
+			return err
+		}
+		ctx = effects.WithConnection(ctx, connection)
+	}
+	models, body, err := invocation.PrepareContext(ctx, request)
 	if err != nil {
 		_ = json.NewEncoder(startup).Encode(Response{Error: err.Error()})
 		return err
 	}
-	return run(request, startup, models, body)
+	return run(request, startup, models, body, connection)
 }
 
-func run(request invocation.Request, startup io.Writer, models map[gimbal.WorkflowRole]gimbal.ModelBinding, body func(context.Context) error) (err error) {
+func run(request invocation.Request, startup io.Writer, models map[gimbal.WorkflowRole]gimbal.ModelBinding, body func(context.Context) error, connections ...backend.Connection) (err error) {
 	encoder := json.NewEncoder(startup)
 	started := false
 	defer func() {
@@ -51,9 +66,19 @@ func run(request invocation.Request, startup io.Writer, models map[gimbal.Workfl
 	registry := observation.NewRegistry(state)
 	runs := live.NewRuns()
 	runs.Resolve = func(id string) (live.Controller, error) { return Connect(state, id) }
-	ctx := observation.WithRegistry(context.Background(), registry)
+	ctx := observation.WithRegistry(gimbal.WithRunID(context.Background(), request.RunID), registry)
 	ctx = live.WithRuns(ctx, runs)
 	ctx = effects.WithEndpoint(ctx, request.TaskEndpoint)
+	if len(connections) > 0 && connections[0].Execution != nil {
+		ctx = effects.WithConnection(ctx, connections[0])
+	} else if request.TaskRoute.Name != "" && request.TaskRoute.Name != "local" {
+		connection, err := gimbal.DefaultRegistry.Connect(ctx, request.TaskRoute)
+		if err != nil {
+			return err
+		}
+		ctx = effects.WithConnection(ctx, connection)
+	}
+
 	var controller live.Controller
 	var server *http.Server
 	var lock *os.File
@@ -89,6 +114,15 @@ func run(request invocation.Request, startup io.Writer, models map[gimbal.Workfl
 		}
 		if request.TaskEndpoint != "" {
 			if e = os.WriteFile(filepath.Join(dir, "task-owner"), []byte(request.TaskEndpoint), 0600); e != nil {
+				panic(e)
+			}
+		}
+		if request.TaskRoute.Name != "" {
+			raw, e := json.Marshal(request.TaskRoute)
+			if e != nil {
+				panic(e)
+			}
+			if e = os.WriteFile(filepath.Join(dir, "task-route"), raw, 0600); e != nil {
 				panic(e)
 			}
 		}
@@ -177,29 +211,34 @@ func Connect(state, id string) (live.Controller, error) {
 	c := remote{socket: string(socket)}
 	_, err = c.call(context.Background(), operation{Action: "live"})
 	if err != nil {
-		endpoint, e := os.ReadFile(filepath.Join(state, "runs", id, "task-owner"))
-		if e == nil {
+		connection, endpoint, e := taskConnection(state, id)
+		if e == nil && (endpoint != "" || connection.Execution != nil) {
 			lock, e := os.OpenFile(filepath.Join(state, "runs", id, "runner.lock"), os.O_RDWR, 0)
 			if e == nil {
 				defer func() { _ = lock.Close() }()
 				if unix.Flock(int(lock.Fd()), unix.LOCK_EX|unix.LOCK_NB) == nil {
-					orphan := remote{endpoint: string(endpoint), runID: id, state: state}
+					orphan := remote{endpoint: endpoint, runID: id, state: state, connection: connection}
 					if orphan.CleanupPending() {
 						return orphan, nil
 					}
 				}
 			}
 		}
+
 	}
 	return c, err
 }
 
-type remote struct{ socket, endpoint, runID, state string }
+type remote struct {
+	socket, endpoint, runID, state string
+	connection                     backend.Connection
+}
 
 func (c remote) call(ctx context.Context, op operation) (bool, error) {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	if c.endpoint != "" {
+	if c.endpoint != "" || c.connection.Execution != nil {
+		ctx = effects.WithConnection(ctx, c.connection)
 		value, err := orphanCall(ctx, c.endpoint, c.runID, op)
 		if op.Action == "scope" && op.Target == "" {
 			_, recordErr := CleanupExited(c.state, c.runID)

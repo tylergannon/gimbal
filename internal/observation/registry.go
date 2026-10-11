@@ -3,9 +3,13 @@ package observation
 import (
 	"context"
 	"errors"
+	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
+
+	"github.com/tylergannon/gimbal/backend"
 )
 
 // Registry is a project's runs: the one the web runtime puts in the context
@@ -17,7 +21,9 @@ import (
 // its directory on first sight and kept. Nothing is evicted: a project has
 // tens of runs.
 type Registry struct {
-	dir string
+	dir       string
+	Remote    func(string) (backend.Connection, error)
+	Placement func(string) (string, string)
 
 	mu   sync.RWMutex
 	runs map[string]*Store
@@ -98,7 +104,21 @@ func (r *Registry) Snapshot(id string) (RunSnapshot, error) {
 				return RunSnapshot{}, err
 			}
 		}
-		return store.Snapshot(), nil
+		return r.decorate(id, store.Snapshot()), nil
+	}
+	if r.Remote != nil {
+		connection, err := r.Remote(id)
+		if err != nil {
+			return RunSnapshot{}, err
+		}
+		if connection.Observations != nil {
+			store := OpenSource(r, id, id, connection.Observations)
+			if err := store.refresh(); err != nil {
+				return RunSnapshot{}, err
+			}
+			r.runs[id] = store
+			return r.decorate(id, store.Snapshot()), nil
+		}
 	}
 	dir, err := r.runDir(id)
 	if err != nil {
@@ -116,7 +136,7 @@ func (r *Registry) Snapshot(id string) (RunSnapshot, error) {
 			return RunSnapshot{}, err
 		}
 	}
-	return store.Snapshot(), nil
+	return r.decorate(id, store.Snapshot()), nil
 }
 
 // runDir is the run's directory below the project. A run id that could name
@@ -127,4 +147,40 @@ func (r *Registry) runDir(id string) (string, error) {
 		return "", ErrNoRun
 	}
 	return filepath.Join(r.dir, "runs", id), nil
+}
+
+// IDs includes local run directories and central-owned remote route identities.
+func (r *Registry) IDs() ([]string, error) {
+	seen := map[string]bool{}
+	entries, err := os.ReadDir(filepath.Join(r.dir, "runs"))
+	if err != nil && !os.IsNotExist(err) {
+		return nil, err
+	}
+	for _, entry := range entries {
+		if entry.IsDir() {
+			seen[entry.Name()] = true
+		}
+	}
+	entries, err = os.ReadDir(filepath.Join(r.dir, "routes"))
+	if err != nil && !os.IsNotExist(err) {
+		return nil, err
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".json") {
+			seen[strings.TrimSuffix(entry.Name(), ".json")] = true
+		}
+	}
+	ids := make([]string, 0, len(seen))
+	for id := range seen {
+		ids = append(ids, id)
+	}
+	slices.Sort(ids)
+	return ids, nil
+}
+
+func (r *Registry) decorate(id string, snapshot RunSnapshot) RunSnapshot {
+	if r.Placement != nil {
+		snapshot.Run.WorkflowEnvironment, snapshot.Run.TaskEnvironment = r.Placement(id)
+	}
+	return snapshot
 }

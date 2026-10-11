@@ -272,7 +272,12 @@ func (a *adapter) thread(ctx context.Context, method string, params map[string]a
 // RunTurn runs one turn on the thread and blocks until it ends. The result
 // carries no usage: Codex states no cost and no per-model turn report beyond
 // the steps, so the session accounts for the turn from its step events.
-func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema json.RawMessage, onEvent func(gimbal.AgentEvent) error) (gimbal.TurnResult, error) {
+func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema json.RawMessage, onEvent func(gimbal.AgentEvent) error) (resultOut gimbal.TurnResult, resultErr error) {
+	defer func() {
+		if resultErr == nil {
+			resultErr = gimbal.ValidateTurnResult(schema, resultOut)
+		}
+	}()
 	s, err := a.session(sessionID)
 	if err != nil {
 		return gimbal.TurnResult{}, err
@@ -344,7 +349,7 @@ func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema 
 		out, err := json.Marshal(text)
 		return gimbal.TurnResult{Output: out}, err
 	}
-	return gimbal.TurnResult{Output: json.RawMessage(strings.TrimSpace(text))}, nil
+	return gimbal.TurnResult{Output: json.RawMessage(text)}, nil
 }
 
 // ResumeSession restores a durable human-facing conversation to this adapter.

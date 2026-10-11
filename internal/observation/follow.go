@@ -17,6 +17,9 @@ import (
 func (s *Store) refresh() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.source != nil {
+		return s.refreshSource()
+	}
 	if s.run.Status == StatusRunning {
 		// A failed socket cannot establish death. Only acquiring the writer's
 		// lifetime lock permits settlement, while holding it against other readers.

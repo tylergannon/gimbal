@@ -244,7 +244,12 @@ func (a *Adapter) session(id string) (*sessionState, error) {
 }
 
 // RunTurn runs one turn on the native session and blocks until it settles.
-func (a *Adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema json.RawMessage, onEvent func(gimbal.AgentEvent) error) (gimbal.TurnResult, error) {
+func (a *Adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema json.RawMessage, onEvent func(gimbal.AgentEvent) error) (resultOut gimbal.TurnResult, resultErr error) {
+	defer func() {
+		if resultErr == nil {
+			resultErr = gimbal.ValidateTurnResult(schema, resultOut)
+		}
+	}()
 	s, err := a.session(sessionID)
 	if err != nil {
 		return gimbal.TurnResult{}, err
@@ -313,9 +318,6 @@ func (a *Adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema 
 		output, _ = json.Marshal(text)
 	} else {
 		output = json.RawMessage(extractJSON(text))
-		if !json.Valid(output) {
-			return gimbal.TurnResult{}, errors.New("pi: final assistant output does not contain valid JSON")
-		}
 	}
 	return gimbal.TurnResult{Output: output, Usage: run.usageReport()}, nil
 }

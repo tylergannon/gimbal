@@ -23,7 +23,6 @@ const closeTimeout = 10 * time.Second
 // Output is what polytype generates, and what Generate and SetJSON require.
 type Output interface {
 	Schema() json.RawMessage
-	ValidateJSON([]byte) error
 }
 
 type scopeKey struct{}

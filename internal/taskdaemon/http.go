@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/tylergannon/gimbal/backend"
+
 	"github.com/tylergannon/gimbal/internal/effects"
 )
 
@@ -19,6 +21,8 @@ func decode[T any](w http.ResponseWriter, r *http.Request) (T, bool) {
 }
 func (d *Daemon) Handler() http.Handler {
 	m := http.NewServeMux()
+	d.bytesHandlers(m)
+	d.serviceHandler(m)
 	m.HandleFunc("POST /tasks/session", func(w http.ResponseWriter, r *http.Request) {
 		v, ok := decode[effects.Session](w, r)
 		if !ok {
@@ -47,6 +51,21 @@ func (d *Daemon) Handler() http.Handler {
 			return
 		}
 		_ = json.NewEncoder(w).Encode(d.poll(v))
+	})
+	m.HandleFunc("POST /tasks/result", func(w http.ResponseWriter, r *http.Request) {
+		v, ok := decode[effects.Target](w, r)
+		if !ok {
+			return
+		}
+		_ = json.NewEncoder(w).Encode(d.result(v))
+	})
+	m.HandleFunc("POST /tasks/events", func(w http.ResponseWriter, r *http.Request) {
+		v, ok := decode[effects.Poll](w, r)
+		if !ok {
+			return
+		}
+		p := d.poll(v)
+		_ = json.NewEncoder(w).Encode(backend.Events{Events: p.Events, Cursor: v.After + len(p.Events), Gap: p.Error != "", Error: p.Error})
 	})
 	m.HandleFunc("POST /tasks/interrupt", func(w http.ResponseWriter, r *http.Request) {
 		v, ok := decode[effects.Target](w, r)

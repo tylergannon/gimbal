@@ -3,29 +3,36 @@
 package taskdaemon
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/backend"
 	"github.com/tylergannon/gimbal/internal/binding"
 	"github.com/tylergannon/gimbal/internal/effects"
 )
 
 type task struct {
-	owner    effects.Owner
-	cancel   context.CancelFunc
-	done     chan struct{}
-	mu       sync.Mutex
-	events   []json.RawMessage
-	result   json.RawMessage
-	err      error
-	stop     func(context.Context) error
-	released bool
+	owner        effects.Owner
+	cancel       context.CancelFunc
+	done         chan struct{}
+	mu           sync.Mutex
+	events       []json.RawMessage
+	result       json.RawMessage
+	err          error
+	stop         func(context.Context) error
+	released     bool
+	captures     map[string]string
+	completed    time.Time
+	acknowledged bool
+	expired      bool
 }
 type session struct {
 	owner   effects.Owner
@@ -36,21 +43,25 @@ type session struct {
 	closeMu sync.Mutex
 }
 type Daemon struct {
-	mu       sync.Mutex
-	closed   map[effects.Scope]bool
-	sessions map[string]*session
-	tasks    map[string]*task
-	adapter  func(string) (gimbal.HarnessAdapter, error)
+	PublicHost string
+	files      map[backend.Artifact]string
+	Workdir    string
+	mu         sync.Mutex
+	closed     map[effects.Scope]time.Time
+	sessions   map[string]*session
+	tasks      map[string]*task
+	adapter    func(string) (gimbal.HarnessAdapter, error)
 }
 
 func New() *Daemon {
-	return &Daemon{closed: map[effects.Scope]bool{}, sessions: map[string]*session{}, tasks: map[string]*task{}, adapter: binding.Adapter}
+	return &Daemon{files: map[backend.Artifact]string{}, closed: map[effects.Scope]time.Time{}, sessions: map[string]*session{}, tasks: map[string]*task{}, adapter: binding.Adapter}
 }
 func key(run, id string) string { return run + "\x00" + id }
 func within(child, parent string) bool {
 	return parent == "" || child == parent || strings.HasPrefix(child, parent+"/")
 }
 func (d *Daemon) admit(o effects.Owner) error {
+	d.expireLocked(time.Now())
 	if o.Run == "" || o.Task == "" {
 		return errors.New("run and task identities are required")
 	}
@@ -103,7 +114,7 @@ func (d *Daemon) create(_ context.Context, req effects.Session) (string, error) 
 	} else {
 		a, err = d.adapter(req.Harness)
 		if err == nil {
-			native, err = a.CreateSession(ctx, req.Model, req.Effort, req.Workdir)
+			native, err = a.CreateSession(ctx, req.Model, req.Effort, d.workdir(req.Workdir))
 		}
 	}
 	d.mu.Lock()
@@ -123,6 +134,11 @@ func (d *Daemon) create(_ context.Context, req effects.Session) (string, error) 
 	return req.Task, nil
 }
 func (d *Daemon) turn(req effects.Turn) error {
+	for _, file := range req.Files {
+		if err := d.writeBytes(backend.Artifact{Owner: req.Owner, Name: file.Name}, bytes.NewReader(file.Bytes)); err != nil {
+			return err
+		}
+	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if err := d.admit(req.Owner); err != nil {
@@ -139,6 +155,27 @@ func (d *Daemon) turn(req effects.Turn) error {
 		}
 	default:
 		return errors.New("session is being created")
+	}
+	for _, file := range req.Files {
+		path := d.files[backend.Artifact{Owner: req.Owner, Name: file.Name}]
+		raw := append([]byte(nil), file.Bytes...)
+		for _, reference := range req.Files {
+			if reference.Reference != "" {
+				native := d.files[backend.Artifact{Owner: req.Owner, Name: reference.Name}]
+				raw = bytes.ReplaceAll(raw, []byte("Complete value: "+reference.Reference), []byte("Complete value: "+native))
+			}
+		}
+		if err := os.WriteFile(path, raw, 0600); err != nil {
+			return err
+		}
+	}
+	for _, file := range req.Files {
+		path := d.files[backend.Artifact{Owner: req.Owner, Name: file.Name}]
+		if file.Reference != "" {
+			req.Prompt = strings.ReplaceAll(req.Prompt, "Complete value: "+file.Reference, "Complete value: "+path)
+		} else {
+			req.Prompt += "\nRead task file " + file.Name + " at " + path + "."
+		}
 	}
 	id := key(req.Run, req.Task)
 	if d.tasks[id] != nil {
@@ -161,8 +198,12 @@ func (d *Daemon) turn(req effects.Turn) error {
 			return nil
 		})
 		t.mu.Lock()
-		t.result, _ = json.Marshal(result)
+		usage, _ := json.Marshal(result.Usage)
+		t.result, _ = json.Marshal(backend.TurnResult{Output: result.Output, Usage: usage})
 		t.err = err
+		t.mu.Unlock()
+		t.mu.Lock()
+		t.completed = time.Now()
 		t.mu.Unlock()
 		close(t.done)
 	}()
@@ -170,6 +211,7 @@ func (d *Daemon) turn(req effects.Turn) error {
 }
 func (d *Daemon) poll(req effects.Poll) effects.Progress {
 	d.mu.Lock()
+	d.expireLocked(time.Now())
 	t := d.tasks[key(req.Run, req.ID)]
 	d.mu.Unlock()
 	if t == nil {
@@ -177,6 +219,9 @@ func (d *Daemon) poll(req effects.Poll) effects.Progress {
 	}
 	t.mu.Lock()
 	defer t.mu.Unlock()
+	if t.expired {
+		return effects.Progress{Done: true, Error: "task payload expired"}
+	}
 	if req.After < 0 || req.After > len(t.events) {
 		return effects.Progress{Done: true, Error: "invalid event cursor"}
 	}
@@ -247,7 +292,7 @@ func (d *Daemon) closeSession(ctx context.Context, req effects.Target) error {
 }
 func (d *Daemon) cleanup(ctx context.Context, req effects.Scope) error {
 	d.mu.Lock()
-	d.closed[req] = true
+	d.closed[req] = time.Now()
 	var tasks []*task
 	var sessions []effects.Target
 	for _, t := range d.tasks {
@@ -258,6 +303,12 @@ func (d *Daemon) cleanup(ctx context.Context, req effects.Scope) error {
 	for _, s := range d.sessions {
 		if s.owner.Run == req.Run && within(s.owner.Scope, req.Scope) {
 			sessions = append(sessions, effects.Target{Run: req.Run, ID: s.owner.Task})
+		}
+	}
+	for artifact, path := range d.files {
+		if artifact.Run == req.Run && within(artifact.Scope, req.Scope) {
+			_ = os.Remove(path)
+			delete(d.files, artifact)
 		}
 	}
 	d.mu.Unlock()
@@ -281,6 +332,7 @@ func (d *Daemon) cleanup(ctx context.Context, req effects.Scope) error {
 		case <-t.done:
 			d.mu.Lock()
 			t.released = true
+			d.retireLocked(t)
 			d.mu.Unlock()
 		case <-ctx.Done():
 			errs = append(errs, ctx.Err())

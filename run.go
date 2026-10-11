@@ -36,33 +36,12 @@ func Project(ctx context.Context, dir string) context.Context {
 	return context.WithValue(ctx, projectKey{}, dir)
 }
 
-// graphs holds the shape of every workflow compiled into this binary, by
-// name. Only generated code writes here, and only from an init, so the map
-// is complete and never written again by the time a run reads it.
-var graphs = map[string]workflow.Graph{}
-
-// RegisterGraph records the shape of one workflow, which the workflow generator
-// read from its source, under the workflow's name, which is also its runs'
-// name. It is how the binary that runs a workflow knows the workflow's
-// shape: the run page draws a run against it. It is not written into the
-// run's record; a run read without its binary has the logs.
-//
-// Only generated code calls this, from the init of the file the generator
-// writes; a workflow is wired up by being built. Registering one name twice
-// is a programming error and panics.
-func RegisterGraph(graph workflow.Graph) {
-	if _, ok := graphs[graph.Name]; ok {
-		panic(fmt.Sprintf("gimbal: a graph named %q is already registered", graph.Name))
-	}
-	graphs[graph.Name] = graph
-}
-
 // RegisteredGraph returns the workflow graph compiled into this binary under
 // name. A run's workflow name is the lookup key used by the web application.
 // The returned graph is immutable registration data and must not be modified.
 func RegisteredGraph(name string) (workflow.Graph, bool) {
-	graph, ok := graphs[name]
-	return graph, ok
+	d, ok := DefaultRegistry.Workflow(name)
+	return d.Graph, ok
 }
 
 type run struct {
@@ -185,7 +164,13 @@ func beginRun(ctx context.Context, name string, models map[WorkflowRole]ModelBin
 	if err != nil {
 		return nil, nil, fmt.Errorf("gimbal: %w", err)
 	}
-	id := ulid.Make().String() + "." + name
+	id, _ := ctx.Value(runIdentityKey{}).(string)
+	if id == "" {
+		id = ulid.Make().String() + "." + name
+	}
+	if filepath.Base(id) != id || id == "." || id == ".." {
+		return nil, nil, errors.New("gimbal: invalid assigned run identity")
+	}
 	dir := filepath.Join(project, "runs", id)
 	if err := os.MkdirAll(filepath.Dir(dir), 0o755); err != nil {
 		return nil, nil, fmt.Errorf("gimbal: %w", err)
@@ -600,3 +585,10 @@ func (r *run) observeAgent(scope, session, turn string, event AgentEvent) error 
 	}
 	return nil
 }
+
+// WithRunID assigns an admission identity before Run creates its owned directory.
+func WithRunID(ctx context.Context, id string) context.Context {
+	return context.WithValue(ctx, runIdentityKey{}, id)
+}
+
+type runIdentityKey struct{}

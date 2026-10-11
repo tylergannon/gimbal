@@ -7,7 +7,7 @@ import (
 
 // HarnessAdapter is the agent-specific code for one coding-agent harness
 // (for example, Codex or Claude Code). It is untyped: a raw JSON Schema goes
-// in, raw JSON comes out; Generate validates and decodes. Whatever an
+// in, validated raw JSON comes out; Generate decodes. Whatever an
 // adapter allocates for a session (a process, a subscription, a map entry)
 // is released by Close, which the runtime calls for real when the scope
 // that owns the session ends.
@@ -35,6 +35,9 @@ type HarnessAdapter interface {
 	// the native turn and returns ctx.Err(). Recovery never converts cancellation
 	// into another assignment. Unverified remote cessation remains owned and
 	// retryable through Close; a local error does not prove the worker stopped.
+	// Native adapters must call ValidateTurnResult once before successful return
+	// and return the unchanged result with ErrInvalidOutput on invalid answers.
+	// Forwarding adapters preserve that classification without validating again.
 	RunTurn(ctx context.Context, sessionID, prompt string, schema json.RawMessage, onEvent func(AgentEvent) error) (TurnResult, error)
 
 	// Steer sends a message into the session's running turn and reports
@@ -69,8 +72,8 @@ type ModelBinding struct {
 // TurnResult is what one turn produced.
 type TurnResult struct {
 	// Output is the structured result when a schema was sent, and the final
-	// message encoded as a JSON string when none was. Generate validates and
-	// decodes it.
+	// message encoded as a JSON string when none was. The native adapter
+	// validates it; Generate decodes it.
 	Output json.RawMessage
 
 	// Usage is the harness's own report for the turn, keyed by model name.

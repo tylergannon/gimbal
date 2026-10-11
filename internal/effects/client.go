@@ -9,51 +9,21 @@ import (
 	"fmt"
 	"net/http"
 	"time"
+
+	"github.com/tylergannon/gimbal/backend"
 )
 
-type Owner struct{ Run, Scope, Task string }
-type Process struct {
-	Owner
-	Workdir, Command string
-	Args             []string
-	Stdout, Stderr   string
-	Service          bool
-}
-type ProcessResult struct {
-	ExitCode    int
-	Interrupted bool
-	Error       string
-}
-type Scope struct{ Run, Scope string }
-type Session struct {
-	Owner
-	Harness, Model, Effort, Workdir, Parent string
-}
-type Turn struct {
-	Owner
-	Session, Prompt string
-	Schema          json.RawMessage `json:",omitempty"`
-}
-type Target struct{ Run, ID, Message string }
-type Reply struct {
-	ID    string
-	Value bool
-	Error string
-}
-type Poll struct {
-	Run, ID string
-	After   int
-}
-type Progress struct {
-	Events []json.RawMessage
-	Done   bool
-	Result json.RawMessage
-	Error  string
-}
-type State struct {
-	Pending int
-	Error   string
-}
+type Owner = backend.Owner
+type Process = backend.Process
+type ProcessResult = backend.ProcessResult
+type Scope = backend.Scope
+type Session = backend.Session
+type Turn = backend.Turn
+type Target = backend.Target
+type Reply = backend.Reply
+type Poll = backend.Poll
+type Progress = backend.Progress
+type State = backend.State
 
 type endpointKey struct{}
 type ownerKey struct{}
@@ -61,13 +31,22 @@ type ownerKey struct{}
 func WithEndpoint(ctx context.Context, url string) context.Context {
 	return context.WithValue(ctx, endpointKey{}, url)
 }
-func Endpoint(ctx context.Context) string { s, _ := ctx.Value(endpointKey{}).(string); return s }
+func Endpoint(ctx context.Context) string {
+	s, _ := ctx.Value(endpointKey{}).(string)
+	if s == "" && Connection(ctx).Execution != nil {
+		return "backend"
+	}
+	return s
+}
 func WithOwner(ctx context.Context, owner Owner) context.Context {
 	return context.WithValue(ctx, ownerKey{}, owner)
 }
 func Identity(ctx context.Context) Owner { o, _ := ctx.Value(ownerKey{}).(Owner); return o }
 
 func Call(ctx context.Context, endpoint, operation string, input, output any) error {
+	if c := Connection(ctx); c.Execution != nil {
+		return dispatch(ctx, c, operation, input, output)
+	}
 	raw, err := json.Marshal(input)
 	if err != nil {
 		return err
@@ -99,14 +78,77 @@ func Cleanup(ctx context.Context, endpoint, run, scope string) error {
 	return nil
 }
 
+// InvalidOutput preserves native answer classification across task transport.
+type InvalidOutput struct{ Message string }
+
+func (e *InvalidOutput) Error() string { return e.Message }
+
 // Wait reconnects reads only; it never repeats execution. Interruption is an
 // explicit effect, so losing an observation connection cannot stop native work.
 func Wait(ctx context.Context, endpoint string, target Target, onEvent func(json.RawMessage)) (json.RawMessage, error) {
-	after := 0
+	eventCtx, stop := context.WithCancel(context.WithoutCancel(ctx))
+	var eventsDone chan struct{}
+	defer func() {
+		stop()
+		if eventsDone != nil {
+			select {
+			case <-eventsDone:
+			case <-time.After(1100 * time.Millisecond):
+			}
+		}
+	}()
+	if onEvent != nil {
+		eventsDone = make(chan struct{})
+		go func() {
+			defer close(eventsDone)
+			after := 0
+			failures := 0
+			for eventCtx.Err() == nil {
+				readCtx, cancel := context.WithTimeout(eventCtx, time.Second)
+				var events backend.Events
+				err := Call(readCtx, endpoint, "events", Poll{Run: target.Run, ID: target.ID, After: after}, &events)
+				cancel()
+				if err == nil && !events.Unavailable && !events.Gap {
+					if failures > 0 && len(events.Events) > 0 {
+						onEvent(json.RawMessage(`{"type":"observation-restored","data":{"message":"task event delivery resumed"}}`))
+					}
+					if len(events.Events) > 0 {
+						failures = 0
+					}
+					for _, event := range events.Events {
+						onEvent(event)
+					}
+					after = events.Cursor
+				} else {
+					if err == nil && events.Gap && events.Cursor >= 0 {
+						after = events.Cursor
+					}
+					failures++
+					if failures == 1 {
+						onEvent(json.RawMessage(`{"Type":"observation-gap","Data":{"message":"task events unavailable; execution continues"}}`))
+					}
+					if failures >= 3 {
+						select {
+						case <-eventCtx.Done():
+							return
+						case <-time.After(time.Second):
+						}
+						failures = 1
+					}
+				}
+
+				select {
+				case <-eventCtx.Done():
+					return
+				case <-time.After(100 * time.Millisecond):
+				}
+			}
+		}()
+	}
 	var disconnected time.Time
 	for {
 		if ctx.Err() != nil {
-			stopCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 			var reply Reply
 			err := Call(stopCtx, endpoint, "interrupt", target, &reply)
 			cancel()
@@ -115,9 +157,9 @@ func Wait(ctx context.Context, endpoint string, target Target, onEvent func(json
 			}
 			return nil, ctx.Err()
 		}
-		var progress Progress
+		var result backend.Result
 		readCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-		err := Call(readCtx, endpoint, "poll", Poll{Run: target.Run, ID: target.ID, After: after}, &progress)
+		err := Call(readCtx, endpoint, "result", target, &result)
 		cancel()
 		if err != nil {
 			if disconnected.IsZero() {
@@ -128,17 +170,17 @@ func Wait(ctx context.Context, endpoint string, target Target, onEvent func(json
 			}
 		} else {
 			disconnected = time.Time{}
-			for _, event := range progress.Events {
-				if onEvent != nil {
-					onEvent(event)
+			if result.Done {
+				if eventsDone != nil {
+					time.Sleep(110 * time.Millisecond)
 				}
-				after++
-			}
-			if progress.Done {
-				if progress.Error != "" {
-					return nil, fmt.Errorf("task %s: %s", target.ID, progress.Error)
+				if result.InvalidOutput {
+					return result.Result, &InvalidOutput{Message: result.Error}
 				}
-				return progress.Result, nil
+				if result.Error != "" {
+					return result.Result, fmt.Errorf("task %s: %s", target.ID, result.Error)
+				}
+				return result.Result, nil
 			}
 		}
 		select {
@@ -155,8 +197,8 @@ func ConfirmStarted(ctx context.Context, endpoint string, target Target) error {
 	defer cancel()
 	var last error
 	for {
-		var progress Progress
-		err := Call(ctx, endpoint, "poll", Poll{Run: target.Run, ID: target.ID}, &progress)
+		var progress backend.Result
+		err := Call(ctx, endpoint, "result", target, &progress)
 		if err == nil && progress.Error != "task not found" {
 			return nil
 		}

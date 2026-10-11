@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -16,6 +17,7 @@ import (
 	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/internal/pi/model"
 	"github.com/tylergannon/gimbal/internal/pi/session"
+	"github.com/tylergannon/gimbal/internal/sessionstate"
 )
 
 func TestProjectedEventsUseGimbalCompatibleNativeRefs(t *testing.T) {
@@ -225,8 +227,27 @@ func TestNativeSessionRunTurnWithFakeCompletions(t *testing.T) {
 	if first.Usage["deepseek-4.1-flash"].Tokens.Input != 3 || first.Usage["deepseek-4.1-flash"].Tokens.Output != 2 {
 		t.Fatalf("first usage = %#v", first.Usage)
 	}
-	if len(events) == 0 || events[0].Type != "session.text.delta" {
-		t.Fatalf("projected events = %#v", events)
+	var kinds []string
+	projection := sessionstate.New(sessionstate.NewProjectionState())
+	for _, event := range events {
+		kinds = append(kinds, event.Type)
+		raw, _ := json.Marshal(event)
+		var row *sessionstate.Obj
+		if err := json.Unmarshal(raw, &row); err != nil {
+			t.Fatal(err)
+		}
+		projection.Apply(row)
+	}
+	if !slices.Equal(kinds, []string{"session.step.started", "session.text.started", "session.text.delta", "session.text.ended", "session.step.ended"}) {
+		t.Fatalf("projected event types = %v", kinds)
+	}
+	rows := projection.Snapshot().State.Message[sessionID]
+	if len(rows) != 1 {
+		t.Fatalf("assistant rows = %d", len(rows))
+	}
+	projected, _ := json.Marshal(rows[0])
+	if !strings.Contains(string(projected), `"text":"Pi first answer"`) || !strings.Contains(string(projected), `"finish":"stop"`) {
+		t.Fatalf("projected assistant message = %s", projected)
 	}
 
 	second, err := a.RunTurn(context.Background(), sessionID, "second turn on this conversation", nil, nil)

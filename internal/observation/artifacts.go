@@ -4,9 +4,66 @@ import (
 	"bytes"
 	"context"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 )
+
+// serveCommandOutput serves the actual captured bytes, including output beyond
+// the snapshot excerpt. Only a stream recorded for this run is addressable.
+func serveCommandOutput(w http.ResponseWriter, r *http.Request) {
+	registry := FromContext(r.Context())
+	if registry == nil {
+		http.NotFound(w, r)
+		return
+	}
+	snapshot, err := registry.Snapshot(r.PathValue("runID"))
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	command, ok := snapshot.Commands[r.PathValue("commandID")]
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	var name string
+	switch r.PathValue("stream") {
+	case "stdout":
+		name = command.StdoutFile
+	case "stderr":
+		name = command.StderrFile
+	}
+	if !strings.HasPrefix(name, "artifacts/commands/") {
+		http.NotFound(w, r)
+		return
+	}
+	dir, err := registry.runDir(r.PathValue("runID"))
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	defer func() { _ = root.Close() }()
+	file, err := root.Open(name)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	defer func() { _ = file.Close() }()
+	info, err := file.Stat()
+	if err != nil || !info.Mode().IsRegular() {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	http.ServeContent(w, r, r.PathValue("stream")+".log", info.ModTime(), file)
+}
 
 type contextArtifactsKey struct{}
 

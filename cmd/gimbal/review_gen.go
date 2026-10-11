@@ -20,9 +20,9 @@ import (
 func reviewCommand(defaults map[gimbal.WorkflowRole]string) *cobra.Command {
 	var valueGoal string
 	var codeReviewModel string
-	var workDir, project, instanceDir, conversation, input string
+	var workDir, project, instanceDir, conversation, input, taskEndpoint string
 	var follow bool
-	cmd := &cobra.Command{Use: "review", Short: "Review asks one reviewer to inspect the repository read-only and record its findings.", Long: "Package review is a small read-only code review workflow.\n\nUse it to assess a bounded correctness question about an existing repository\nbefore making changes or accepting an implementation. The goal tells the\nreviewer which behavior or files to assess; the working directory supplies\nthe repository to inspect. It does not edit code or create issues or pull requests.\n\nStart a Gimbal instance and authenticate the configured agent harness before\ninvoking the workflow. The --code-review flag selects the review model explicitly.\n\nThe reviewer returns a list of concrete findings, saved as result in the\nworkflow context. An empty list means the reviewer found no correctness issues\nwithin the stated goal. A completed run means the review was recorded, not that\nits findings were resolved. A failed agent turn fails the workflow.\n\nExample:\n\n\tgimbal run review --project /abs/project --goal \"Review the current changes\"" + "\n\nThe selected instance launches this run in an independent process that survives daemon shutdown and restart. --project selects its admitted repository; --work-dir selects the execution directory independently. --instance-dir selects the instance state directory (or GIMBAL_INSTANCE_DIR, default .gimbal). --follow waits for terminal success or failure; otherwise the run continues after this client exits. Each role flag chooses a model and optional effort. Executable lookup, PATH, and provider configuration come from the instance startup environment.", Args: cobra.NoArgs}
+	cmd := &cobra.Command{Use: "review", Short: "Review asks one reviewer to inspect the repository read-only and record its findings.", Long: "Package review is a small read-only code review workflow.\n\nUse it to assess a bounded correctness question about an existing repository\nbefore making changes or accepting an implementation. The goal tells the\nreviewer which behavior or files to assess; the working directory supplies\nthe repository to inspect. It does not edit code or create issues or pull requests.\n\nStart a Gimbal instance and authenticate the configured agent harness before\ninvoking the workflow. The --code-review flag selects the review model explicitly.\n\nThe reviewer returns a list of concrete findings, saved as result in the\nworkflow context. An empty list means the reviewer found no correctness issues\nwithin the stated goal. A completed run means the review was recorded, not that\nits findings were resolved. A failed agent turn fails the workflow.\n\nExample:\n\n\tgimbal run review --project /abs/project --goal \"Review the current changes\"" + "\n\nThe selected instance launches this run in an independent process that survives daemon shutdown and restart. --project selects its admitted repository; --work-dir selects the execution directory independently. --instance-dir selects the instance state directory (or GIMBAL_INSTANCE_DIR, default .gimbal). --follow waits for terminal success or failure; otherwise the run continues after this client exits. Each role flag chooses a model and optional effort. Executable lookup, PATH, and provider configuration come from the instance startup environment, or from the selected --task-endpoint daemon when provided. That daemon must share the absolute workspace and artifact paths with the workflow process.", Args: cobra.NoArgs}
 	cmd.Flags().StringVar(&valueGoal, "goal", "", "Goal says what the review should assess. (required)")
 	cmd.Flags().StringVar(&input, "input", "", "workflow parameters as a JSON object; cannot be combined with parameter flags")
 	cmd.Flags().StringVar(&workDir, "work-dir", "", "execution directory (default: owning project)")
@@ -32,6 +32,7 @@ func reviewCommand(defaults map[gimbal.WorkflowRole]string) *cobra.Command {
 		instanceDefault = ".gimbal"
 	}
 	cmd.Flags().StringVar(&instanceDir, "instance-dir", instanceDefault, "selected running instance state directory (default: GIMBAL_INSTANCE_DIR or .gimbal)")
+	cmd.Flags().StringVar(&taskEndpoint, "task-endpoint", "", "HTTP task daemon for agents, commands and services; requires shared absolute workspace and artifact paths")
 	cmd.Flags().StringVar(&conversation, "conversation", "", "associate this run with a conversation in the owning project")
 	cmd.Flags().BoolVar(&follow, "follow", false, "wait for the run's terminal result; without this flag the run survives client exit")
 	codeReviewModelDefault := defaults[gimbal.WorkflowRole("code-review")]
@@ -72,7 +73,7 @@ func reviewCommand(defaults map[gimbal.WorkflowRole]string) *cobra.Command {
 			roles[gimbal.WorkflowRole("code-review")] = codeReviewModel
 		}
 
-		request := invocation.Request{Workflow: "review", Input: raw, Project: project, WorkDir: workDir, Conversation: conversation, Roles: roles}
+		request := invocation.Request{Workflow: "review", Input: raw, Project: project, WorkDir: workDir, Conversation: conversation, Roles: roles, TaskEndpoint: taskEndpoint}
 		if _, _, err := invocation.Prepare(request); err != nil {
 			return err
 		}

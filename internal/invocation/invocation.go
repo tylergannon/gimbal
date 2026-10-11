@@ -7,6 +7,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strings"
+
+	"github.com/tylergannon/gimbal/internal/modelalias"
+	"github.com/tylergannon/gimbal/internal/taskdaemon"
 
 	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/internal/binding"
@@ -14,6 +18,7 @@ import (
 )
 
 type Request struct {
+	TaskEndpoint string                         `json:"task_endpoint,omitempty"`
 	Workflow     string                         `json:"workflow"`
 	Input        json.RawMessage                `json:"input"`
 	Project      string                         `json:"project"`
@@ -50,6 +55,18 @@ func Prepare(r Request) (map[gimbal.WorkflowRole]gimbal.ModelBinding, func(conte
 		specs[role] = spec
 	}
 	models, err := binding.Roles(specs)
+	if err == nil && r.TaskEndpoint != "" {
+		for role, spec := range specs {
+			name, effort, hasEffort := strings.Cut(spec, ":")
+			resolved, e := modelalias.Resolve(modelalias.Selection{Name: name, Effort: effort, EffortPresent: hasEffort})
+			if e != nil {
+				return nil, nil, e
+			}
+			m := models[role]
+			m.Adapter = &taskdaemon.Harness{Endpoint: r.TaskEndpoint, Name: resolved.Harness}
+			models[role] = m
+		}
+	}
 	return models, body, err
 }
 func decode(raw json.RawMessage, value any) error {

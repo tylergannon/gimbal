@@ -30,6 +30,7 @@
   import { answerInterview, type InterviewAnswer } from "../../../../interview.remote.js";
   import { steer, steerLoop, type LoopMessage, type Steer } from "../../../../steer.remote.js";
 	import { page } from "$app/state";
+ import { invalidateAll } from "$app/navigation";
   import { tick, untrack } from "svelte";
 
   let { data }: { data: { snapshot: RunSnapshot; graph: string } } = $props();
@@ -303,7 +304,7 @@
       controlFeedback = result.accepted
         ? "Cancellation accepted. Waiting for the run record to update."
         : "The run did not accept cancellation.";
-      if (result.accepted) cancelOpen = false;
+      if (result.accepted) {cancelOpen = false;if(snapshot.run.status!=="running"){controlFeedback="Scope cleanup completed.";await invalidateAll();}}
     } catch {
       controlFeedback = "The cancellation request could not be confirmed. Check the run's current status.";
       cancelOpen = false;
@@ -382,7 +383,7 @@
     onnavigate={(item) => navigateTo(item.selection)}
     oncurrent={() => currentSelection && navigateTo(currentSelection)}
     onstop={stopActiveTurn}
-    oncancel={() => (cancelOpen = true)}
+    oncancel={() => snapshot.run.status === "running" ? (cancelOpen = true) : void cancelActiveRun()}
     sessionName={openSessionName}
     onclosesession={closeSession}
   />

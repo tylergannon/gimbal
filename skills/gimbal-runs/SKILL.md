@@ -118,6 +118,10 @@ the daemon stops. Restart the daemon with the same instance directory to resume
 observation and control of its admitted projects. The daemon's `--port 0`
 selects an available browser port; `--uds` serves through a Unix socket.
 
+Use `--task-endpoint` to execute agents, commands, and scope-owned services in a
+selected local or Docker daemon. See [task environments](references/task-environments.md)
+for provisioning, shared paths, lifecycle limits, and the `service-check` exercise.
+
 ## Find the run and observe its work
 
 ```sh
@@ -185,7 +189,10 @@ again before reattaching or starting a same-thread continuation. It never replay
 accepted outcomes. Cancel instead with `gimbal cancel RUN_ID --work-dir /abs/project`.
 That command also retries pending remote cleanup of a terminal run. Failed cleanup
 retains stop control in the owning instance; it does not prove the worker stopped.
-An instance restart does not restore a Go workflow's stack or its live controls.
+An instance restart reconnects controls to surviving independent workflow
+processes. It cannot restore a workflow process that died. For `--task-endpoint`
+runs, central uses the retained owner route to clean up that process's remote
+scope; failed cleanup remains retryable.
 
 Gimbal has no generic resume command. Repository promise helpers may define
 their own resumable state, schedules, and badges; those are separate

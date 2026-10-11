@@ -6,12 +6,12 @@
 <details class="cancellation">
   <summary>
     {#if cancellation.cleanup}
-      <span>Local cleanup {cancellation.cleanup}</span>
+      <span>Scope cleanup {cancellation.cleanup}</span>
     {/if}
   </summary>
   <div class="history">
     {#if cancellation.by}<p>Requested by {cancellation.by}: {cancellation.reason}</p>{/if}
-    {#if cancellation.cleanup_error}<p class="unconfirmed">Local cleanup: {cancellation.cleanup_error}</p>{/if}
+    {#if cancellation.cleanup_error}<p class="unconfirmed">Scope cleanup: {cancellation.cleanup_error}</p>{/if}
   </div>
 </details>
 

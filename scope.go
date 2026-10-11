@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/tylergannon/gimbal/internal/effects"
 )
 
 // closeTimeout bounds one adapter's Close call, on a context independent of
@@ -202,8 +204,12 @@ func (s *scope) finish(bodyErr error) error {
 	}
 	err := errors.Join(bodyErr, serviceCleanupErr)
 	s.run.event(s.key, "", "", ScopeEnded{Error: errString(err)})
-	if s.key == "" && s.run.rootCancellation() != nil {
-		s.run.event("", "", "", CancellationCleanup{Error: errString(errors.Join(serviceCleanupErr, s.run.closeError()))})
+	if s.key == "" && (s.run.rootCancellation() != nil || effects.Endpoint(s.ctx) != "") {
+		cleanupErr := errors.Join(serviceCleanupErr, s.run.closeError())
+		if !s.run.CleanupPending() {
+			cleanupErr = nil
+		}
+		s.run.event("", "", "", CancellationCleanup{Error: errString(cleanupErr)})
 	}
 	return err
 }
@@ -233,6 +239,9 @@ func (s *scope) end() error {
 	sessions := s.sessions
 	s.mu.Unlock()
 	var serviceErrs []error
+	if err := s.remoteCleanup(); err != nil {
+		serviceErrs = append(serviceErrs, err)
+	}
 	for _, service := range services {
 		if err := service.stop(); err != nil {
 			serviceErrs = append(serviceErrs, err)

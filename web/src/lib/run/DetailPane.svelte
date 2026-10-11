@@ -9,6 +9,7 @@
 </script>
 
 <script lang="ts">
+	import { page } from "$app/state";
   import BotIcon from "@lucide/svelte/icons/bot";
   import BracesIcon from "@lucide/svelte/icons/braces";
   import EyeIcon from "@lucide/svelte/icons/eye";
@@ -454,7 +455,7 @@
         <section class="command-output">
           <Payload label="stdout" text={command.stdout || "No stdout was recorded."} anchor="bottom" />
           {#if command.stdout_file}
-            <p class="output-reference">Complete output <code>{command.stdout_file}</code></p>
+            <p class="output-reference"><a target="_blank" rel="noreferrer" href={`/projects/${page.params.project}/api/runs/${encodeURIComponent(snapshot.run.id)}/commands/stdout/${encodeURIComponent(command.id)}`}>Open complete stdout</a> <code>{command.stdout_file}</code></p>
           {:else}
             <p class="help">No complete-output reference was recorded.</p>
           {/if}
@@ -469,7 +470,7 @@
             tone={command.exit_code !== 0 ? "error" : undefined}
           />
           {#if command.stderr_file}
-            <p class="output-reference">Complete output <code>{command.stderr_file}</code></p>
+            <p class="output-reference"><a target="_blank" rel="noreferrer" href={`/projects/${page.params.project}/api/runs/${encodeURIComponent(snapshot.run.id)}/commands/stderr/${encodeURIComponent(command.id)}`}>Open complete stderr</a> <code>{command.stderr_file}</code></p>
           {:else}
             <p class="help">No complete-output reference was recorded.</p>
           {/if}
@@ -529,7 +530,7 @@
       <div class="footer-row"><Button variant="outline" size="sm" disabled={pending} onclick={() => act(() => onloop?.({ run: snapshot.run.id, scope: scope.key, message: "", wrap_up: true }) ?? Promise.resolve({ ok: false, message: "Loop control is unavailable." }))}>Wrap up</Button><span>Read at the planner’s next decision.</span><Button size="sm" disabled={pending || !loopMessage.trim()} onclick={() => act(() => onloop?.({ run: snapshot.run.id, scope: scope.key, message: loopMessage, wrap_up: false }) ?? Promise.resolve({ ok: false, message: "Loop control is unavailable." }), () => (loopMessage = ""))}>Send</Button></div>
     </footer>
   {:else if snapshot.run.status !== "running" && !turn}
-    <footer class="recorded">This run has ended. Steering, answers, and stop controls are not offered on a record.</footer>
+    <footer class="recorded">{snapshot.run.cancellation?.cleanup === "unconfirmed" ? "The workflow ended. Its resource cleanup can still be retried above." : "This run has ended. Steering, answers, and stop controls are not offered on a record."}</footer>
   {/if}
   {/if}
 </aside>

@@ -1,0 +1,306 @@
+// Package taskdaemon owns native work in this process. HTTP is only one caller
+// of these handlers; provisioning and workflow observation remain elsewhere.
+package taskdaemon
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/internal/binding"
+	"github.com/tylergannon/gimbal/internal/effects"
+)
+
+type task struct {
+	owner    effects.Owner
+	cancel   context.CancelFunc
+	done     chan struct{}
+	mu       sync.Mutex
+	events   []json.RawMessage
+	result   json.RawMessage
+	err      error
+	stop     func(context.Context) error
+	released bool
+}
+type session struct {
+	owner   effects.Owner
+	adapter gimbal.HarnessAdapter
+	native  string
+	ready   chan struct{}
+	cancel  context.CancelFunc
+	closeMu sync.Mutex
+}
+type Daemon struct {
+	mu       sync.Mutex
+	closed   map[effects.Scope]bool
+	sessions map[string]*session
+	tasks    map[string]*task
+	adapter  func(string) (gimbal.HarnessAdapter, error)
+}
+
+func New() *Daemon {
+	return &Daemon{closed: map[effects.Scope]bool{}, sessions: map[string]*session{}, tasks: map[string]*task{}, adapter: binding.Adapter}
+}
+func key(run, id string) string { return run + "\x00" + id }
+func within(child, parent string) bool {
+	return parent == "" || child == parent || strings.HasPrefix(child, parent+"/")
+}
+func (d *Daemon) admit(o effects.Owner) error {
+	if o.Run == "" || o.Task == "" {
+		return errors.New("run and task identities are required")
+	}
+	for s := range d.closed {
+		if s.Run == o.Run && within(o.Scope, s.Scope) {
+			return fmt.Errorf("scope %q is closed", o.Scope)
+		}
+	}
+	return nil
+}
+func (d *Daemon) create(_ context.Context, req effects.Session) (string, error) {
+	d.mu.Lock()
+	if err := d.admit(req.Owner); err != nil {
+		d.mu.Unlock()
+		return "", err
+	}
+	id := key(req.Run, req.Task)
+	if d.sessions[id] != nil {
+		d.mu.Unlock()
+		return "", errors.New("session already exists")
+	}
+	var parent *session
+	if req.Parent != "" {
+		parent = d.sessions[key(req.Run, req.Parent)]
+		if parent == nil {
+			d.mu.Unlock()
+			return "", errors.New("parent session not found")
+		}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	s := &session{owner: req.Owner, ready: make(chan struct{}), cancel: cancel}
+	d.sessions[id] = s
+	d.mu.Unlock()
+	defer cancel()
+	var a gimbal.HarnessAdapter
+	var native string
+	var err error
+	if parent != nil {
+		select {
+		case <-parent.ready:
+			a = parent.adapter
+			if a == nil {
+				err = errors.New("parent creation failed")
+			} else {
+				native, err = a.Fork(ctx, parent.native)
+			}
+		case <-ctx.Done():
+			err = ctx.Err()
+		}
+	} else {
+		a, err = d.adapter(req.Harness)
+		if err == nil {
+			native, err = a.CreateSession(ctx, req.Model, req.Effort, req.Workdir)
+		}
+	}
+	d.mu.Lock()
+	s.adapter, s.native = a, native
+	if err != nil && native == "" {
+		delete(d.sessions, id)
+	}
+	admissionErr := d.admit(req.Owner)
+	close(s.ready)
+	d.mu.Unlock()
+	if err != nil {
+		return "", err
+	}
+	if admissionErr != nil {
+		return "", admissionErr
+	}
+	return req.Task, nil
+}
+func (d *Daemon) turn(req effects.Turn) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if err := d.admit(req.Owner); err != nil {
+		return err
+	}
+	s := d.sessions[key(req.Run, req.Session)]
+	if s == nil {
+		return errors.New("session not found")
+	}
+	select {
+	case <-s.ready:
+		if s.native == "" {
+			return errors.New("session creation failed")
+		}
+	default:
+		return errors.New("session is being created")
+	}
+	id := key(req.Run, req.Task)
+	if d.tasks[id] != nil {
+		return errors.New("turn already started; read its result")
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	t := &task{owner: req.Owner, cancel: cancel, done: make(chan struct{})}
+	d.tasks[id] = t
+	go func() {
+		result, err := s.adapter.RunTurn(ctx, s.native, req.Prompt, req.Schema, func(event gimbal.AgentEvent) error {
+			raw, e := json.Marshal(struct {
+				gimbal.AgentEvent
+				Native json.RawMessage
+			}{event, event.NativeRef})
+			if e == nil {
+				t.mu.Lock()
+				t.events = append(t.events, raw)
+				t.mu.Unlock()
+			}
+			return nil
+		})
+		t.mu.Lock()
+		t.result, _ = json.Marshal(result)
+		t.err = err
+		t.mu.Unlock()
+		close(t.done)
+	}()
+	return nil
+}
+func (d *Daemon) poll(req effects.Poll) effects.Progress {
+	d.mu.Lock()
+	t := d.tasks[key(req.Run, req.ID)]
+	d.mu.Unlock()
+	if t == nil {
+		return effects.Progress{Done: true, Error: "task not found"}
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if req.After < 0 || req.After > len(t.events) {
+		return effects.Progress{Done: true, Error: "invalid event cursor"}
+	}
+	p := effects.Progress{Events: append([]json.RawMessage(nil), t.events[req.After:]...)}
+	select {
+	case <-t.done:
+		p.Done = true
+		p.Result = t.result
+		if t.err != nil {
+			p.Error = t.err.Error()
+		}
+	default:
+	}
+	return p
+}
+func (d *Daemon) interrupt(req effects.Target) error {
+	d.mu.Lock()
+	t := d.tasks[key(req.Run, req.ID)]
+	d.mu.Unlock()
+	if t == nil {
+		return errors.New("task not found")
+	}
+	t.cancel()
+	return nil
+}
+func (d *Daemon) steer(ctx context.Context, req effects.Target) (bool, error) {
+	d.mu.Lock()
+	s := d.sessions[key(req.Run, req.ID)]
+	d.mu.Unlock()
+	if s == nil {
+		return false, errors.New("session not found")
+	}
+	select {
+	case <-s.ready:
+		if s.native == "" {
+			return false, errors.New("session creation failed")
+		}
+		return s.adapter.Steer(ctx, s.native, req.Message)
+	case <-ctx.Done():
+		return false, ctx.Err()
+	}
+}
+func (d *Daemon) closeSession(ctx context.Context, req effects.Target) error {
+	d.mu.Lock()
+	s := d.sessions[key(req.Run, req.ID)]
+	d.mu.Unlock()
+	if s == nil {
+		return nil
+	}
+	s.cancel()
+	select {
+	case <-s.ready:
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+	s.closeMu.Lock()
+	defer s.closeMu.Unlock()
+	if s.native == "" {
+		return nil
+	}
+	if err := s.adapter.Close(ctx, s.native); err != nil {
+		return err
+	}
+	d.mu.Lock()
+	delete(d.sessions, key(req.Run, req.ID))
+	d.mu.Unlock()
+	return nil
+}
+func (d *Daemon) cleanup(ctx context.Context, req effects.Scope) error {
+	d.mu.Lock()
+	d.closed[req] = true
+	var tasks []*task
+	var sessions []effects.Target
+	for _, t := range d.tasks {
+		if t.owner.Run == req.Run && within(t.owner.Scope, req.Scope) {
+			tasks = append(tasks, t)
+		}
+	}
+	for _, s := range d.sessions {
+		if s.owner.Run == req.Run && within(s.owner.Scope, req.Scope) {
+			sessions = append(sessions, effects.Target{Run: req.Run, ID: s.owner.Task})
+		}
+	}
+	d.mu.Unlock()
+	for _, t := range tasks {
+		t.cancel()
+	}
+	var errs []error
+	for _, s := range sessions {
+		if err := d.closeSession(ctx, s); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	for _, t := range tasks {
+		if t.stop != nil {
+			if err := t.stop(ctx); err != nil {
+				errs = append(errs, err)
+				continue
+			}
+		}
+		select {
+		case <-t.done:
+			d.mu.Lock()
+			t.released = true
+			d.mu.Unlock()
+		case <-ctx.Done():
+			errs = append(errs, ctx.Err())
+		}
+	}
+	return errors.Join(errs...)
+}
+func (d *Daemon) state(req effects.Scope) effects.State {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	n := 0
+	for _, s := range d.sessions {
+		if s.owner.Run == req.Run && within(s.owner.Scope, req.Scope) {
+			n++
+		}
+	}
+	for _, t := range d.tasks {
+		if !t.released && t.owner.Run == req.Run && within(t.owner.Scope, req.Scope) {
+			n++
+		}
+	}
+	return effects.State{Pending: n}
+}

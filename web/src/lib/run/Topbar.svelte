@@ -227,7 +227,14 @@
       </Button>
     </div>
   {:else}
-    <span class="recorded">Recorded run · nothing here is live</span>
+    {#if run.cancellation?.cleanup === "unconfirmed"}
+      <Button variant="outline" size="sm" disabled={cancelling} onclick={oncancel}>
+        {cancelling ? "Retrying cleanup" : "Retry cleanup"}
+      </Button>
+      <span class="recorded">Workflow ended · resource cleanup is unconfirmed</span>
+    {:else}
+      <span class="recorded">Recorded run · nothing here is live</span>
+    {/if}
   {/if}
   {#if feedback}<span class="feedback" role="status">{feedback}</span>{/if}
   {#if sessionName}

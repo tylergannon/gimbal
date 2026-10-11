@@ -8,6 +8,7 @@ import (
 )
 
 func addStockCommands(run *cobra.Command, defaults map[gimbal.WorkflowRole]string) {
+	run.AddCommand(servicecheckCommand(defaults))
 	run.AddCommand(sprintplanCommand(defaults))
 	run.AddCommand(reviewCommand(defaults))
 	run.AddCommand(implementationCommand(defaults))

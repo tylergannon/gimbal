@@ -9,6 +9,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/tylergannon/gimbal/internal/effects"
 )
 
 var (
@@ -69,6 +71,10 @@ func Service(ctx context.Context, name, workdir, command string) error {
 	}
 	ended.StderrFile = stderrFile
 
+	if effects.Endpoint(ctx) != "" {
+		return remoteService(ctx, scope, name, id, workdir, command, out, errOut, ended, start)
+	}
+
 	cmd := exec.Command("zsh", "-c", command)
 	cmd.Dir = workdir
 	cmd.Stdout, cmd.Stderr = out, errOut
@@ -120,6 +126,7 @@ type ownedService struct {
 	startedAt time.Time
 	done      chan struct{}
 	stopOnce  sync.Once
+	remote    bool
 
 	mu          sync.Mutex
 	stopping    bool
@@ -200,6 +207,16 @@ func (s *ownedService) wait() {
 }
 
 func (s *ownedService) stop() error {
+	if s.remote {
+		select {
+		case <-s.done:
+			s.mu.Lock()
+			defer s.mu.Unlock()
+			return s.terminalErr
+		case <-time.After(closeTimeout):
+			return fmt.Errorf("service %s cleanup remains unconfirmed", s.id)
+		}
+	}
 	s.stopOnce.Do(func() {
 		s.beginStop()
 		termErr := terminateServiceGroup(s.cmd.Process.Pid)

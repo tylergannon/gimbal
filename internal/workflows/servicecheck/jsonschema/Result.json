@@ -1,0 +1,4 @@
+{"type":"object",
+"properties":{
+"summary":{"type":"string","description":"Summary describes what the agent did."}
+},"required":["summary"],"additionalProperties":false}

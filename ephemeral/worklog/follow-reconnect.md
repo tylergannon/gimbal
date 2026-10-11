@@ -1,0 +1,1 @@
+decision: Issue445 is observation recovery only: rediscover the selected instance after a transport disconnect, retain project and accepted run identity, never replay Start. Bound each request and the continuous reconnect window; cancellation remains immediate.

@@ -21,30 +21,65 @@ import (
 )
 
 // Follow waits for the selected instance's project-scoped terminal run row.
+// A disconnected central is rediscovered for up to 30 seconds without
+// resubmitting the accepted run.
 func Follow(ctx context.Context, instanceDir, project, id string) (observation.RunRow, error) {
-	client, err := selectedInstance(ctx, instanceDir, project)
-	if err != nil {
-		return observation.RunRow{}, err
-	}
+	return follow(ctx, instanceDir, project, id, 30*time.Second)
+}
+
+func follow(ctx context.Context, instanceDir, project, id string, reconnectWindow time.Duration) (observation.RunRow, error) {
+	var client selectedClient
+	var disconnectedAt time.Time
 	ticker := time.NewTicker(200 * time.Millisecond)
 	defer ticker.Stop()
 	for {
-		response, err := client.request(ctx, http.MethodGet, "/api/runs/"+url.PathEscape(id), nil)
-		if err != nil {
-			return observation.RunRow{}, fmt.Errorf("follow run: %w", err)
-		}
-		if response.StatusCode != http.StatusOK {
-			_ = response.Body.Close()
-			return observation.RunRow{}, fmt.Errorf("follow run %s: %s", id, response.Status)
-		}
-		var snapshot observation.RunSnapshot
-		err = json.NewDecoder(response.Body).Decode(&snapshot)
-		_ = response.Body.Close()
-		if err != nil {
+		if err := ctx.Err(); err != nil {
 			return observation.RunRow{}, err
 		}
-		if snapshot.Run.Status != observation.StatusRunning {
-			return snapshot.Run, nil
+		attemptCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		var err error
+		if client.socket == "" {
+			client, err = selectedInstance(attemptCtx, instanceDir, project)
+		}
+		var snapshot observation.RunSnapshot
+		if err == nil {
+			var response *http.Response
+			response, err = client.request(attemptCtx, http.MethodGet, "/api/runs/"+url.PathEscape(id), nil)
+			if err == nil {
+				if response.StatusCode == http.StatusNotFound && !disconnectedAt.IsZero() {
+					err = fmt.Errorf("run %s is not restored yet", id)
+				} else if response.StatusCode != http.StatusOK {
+					_ = response.Body.Close()
+					cancel()
+					return observation.RunRow{}, fmt.Errorf("follow run %s: %s", id, response.Status)
+				}
+				if err == nil {
+					err = json.NewDecoder(response.Body).Decode(&snapshot)
+				}
+				_ = response.Body.Close()
+				if err != nil && response.StatusCode == http.StatusOK && !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF) && attemptCtx.Err() == nil {
+					cancel()
+					return observation.RunRow{}, fmt.Errorf("follow run %s: %w", id, err)
+				}
+			}
+		}
+		cancel()
+		if err == nil {
+			disconnectedAt = time.Time{}
+			if snapshot.Run.Status != observation.StatusRunning {
+				return snapshot.Run, nil
+			}
+		} else {
+			if ctx.Err() != nil {
+				return observation.RunRow{}, ctx.Err()
+			}
+			client = selectedClient{}
+			if disconnectedAt.IsZero() {
+				disconnectedAt = time.Now()
+			}
+			if time.Since(disconnectedAt) >= reconnectWindow {
+				return observation.RunRow{}, fmt.Errorf("follow run %s: reconnect to central at %s failed after %s: %w", id, instanceDir, reconnectWindow, err)
+			}
 		}
 		select {
 		case <-ctx.Done():

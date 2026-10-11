@@ -98,7 +98,7 @@ func catalogCommand(d gimbal.WorkflowDescription) *cobra.Command {
 	cmd.Flags().StringVar(&taskRoute, "task-route", "", "task backend route as JSON or @file (name, configuration, environment)")
 	cmd.Flags().StringVar(&workflowRoute, "workflow-route", "", "workflow backend route as JSON or @file (name, configuration, environment)")
 	cmd.Flags().StringVar(&workflowProject, "workflow-project", "", "project directory at workflow backend")
-	cmd.Flags().BoolVar(&follow, "follow", false, "wait for completion")
+	cmd.Flags().BoolVar(&follow, "follow", false, "wait for completion; reconnect for up to 30s if central restarts, without resubmitting the run")
 	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
 		var err error
 		project, err = filepath.Abs(project)

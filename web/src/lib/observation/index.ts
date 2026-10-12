@@ -95,6 +95,7 @@ export type InterviewRow = {
 /** One agent turn. `scope` is where the turn ran, which is what its tokens
  * are charged to. */
 export type TurnRow = {
+  unresolved?: boolean;
   events_unavailable?: boolean;
   observation_error?: string;
   run: string;

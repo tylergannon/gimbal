@@ -22,8 +22,8 @@ func (d *Daemon) Messages(bus backend.Messaging) backend.MessageHandler {
 	var mu sync.Mutex
 	seen := map[string]bool{}
 	return func(ctx context.Context, r backend.MessageRequest) error {
-		if r.ID == "" || r.Created.IsZero() {
-			return fmt.Errorf("request ID and creation time required")
+		if err := r.Validate(); err != nil {
+			return err
 		}
 		mu.Lock()
 		if seen[r.ID] {
@@ -41,6 +41,8 @@ func (d *Daemon) Messages(bus backend.Messaging) backend.MessageHandler {
 		complete := func(result backend.MessageResult, err error) error {
 			if err != nil {
 				result.Error = err.Error()
+				result.Interrupted = r.Kind == "turn" && errors.Is(err, context.Canceled)
+				result.Unresolved = r.Kind == "cleanup" || r.Kind == "interrupt" || r.Kind == "close"
 				result.InvalidOutput = errors.Is(err, gimbal.ErrInvalidOutput)
 			}
 			return publish("completed", &result, nil)

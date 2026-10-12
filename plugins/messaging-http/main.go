@@ -7,7 +7,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -58,6 +57,8 @@ func parse(raw json.RawMessage) (config, error) {
 	}
 	return c, nil
 }
+
+type controlResultKey struct{}
 
 type connection struct {
 	config
@@ -113,6 +114,12 @@ func (b *connection) PublishRequest(ctx context.Context, r backend.MessageReques
 	return b.post(ctx, endpoint, path, r)
 }
 func (b *connection) PublishEvent(ctx context.Context, e backend.MessageEvent) error {
+	if result, ok := ctx.Value(controlResultKey{}).(chan backend.MessageEvent); ok {
+		if e.Kind == "completed" {
+			result <- e
+		}
+		return nil
+	}
 	if b.store != nil {
 		return b.store.PublishEvent(ctx, e)
 	}
@@ -248,10 +255,37 @@ func (p *producer) admit(id string, fn func() error) error {
 
 func (p *producer) handler() http.Handler {
 	mux := http.NewServeMux()
+	mux.HandleFunc("POST /internal/control", func(w http.ResponseWriter, r *http.Request) {
+		var request backend.MessageRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil || (request.Kind != "cleanup" && request.Kind != "interrupt") {
+			http.Error(w, "invalid control", 400)
+			return
+		}
+		if err := request.Validate(); err != nil {
+			http.Error(w, err.Error(), 400)
+			return
+		}
+		result := make(chan backend.MessageEvent, 1)
+		ctx := context.WithValue(p.ctx, controlResultKey{}, result)
+		if err := p.handle(ctx, request); err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		select {
+		case event := <-result:
+			_ = json.NewEncoder(w).Encode(event.Result)
+		case <-p.ctx.Done():
+			http.Error(w, "control cessation unconfirmed", http.StatusServiceUnavailable)
+		}
+	})
 	mux.HandleFunc("POST /requests", func(w http.ResponseWriter, r *http.Request) {
 		var request backend.MessageRequest
 		if err := json.NewDecoder(r.Body).Decode(&request); err != nil || request.ID == "" {
 			http.Error(w, "invalid request", 400)
+			return
+		}
+		if err := request.Validate(); err != nil {
+			http.Error(w, err.Error(), 400)
 			return
 		}
 		// Admission and native ownership use the worker context, never an HTTP
@@ -278,6 +312,10 @@ func (p *producer) handler() http.Handler {
 		var request backend.MessageRequest
 		if err := json.NewDecoder(r.Body).Decode(&request); err != nil || request.ID == "" || (request.Kind != "cleanup" && request.Kind != "interrupt") {
 			http.Error(w, "invalid broadcast control", 400)
+			return
+		}
+		if err := request.Validate(); err != nil {
+			http.Error(w, err.Error(), 400)
 			return
 		}
 		err := p.admit(request.ID, func() error {
@@ -342,57 +380,48 @@ func (p *producer) handler() http.Handler {
 	return mux
 }
 func (p *producer) fact(r backend.MessageRequest, kind string, result *backend.MessageResult) error {
-	return p.bus.store.PublishEvent(p.ctx, backend.MessageEvent{ID: ulid.Make().String(), RequestID: r.ID, Created: time.Now().UTC(), Owner: r.Owner, SessionID: r.SessionID, Kind: kind, Result: result})
+	return p.bus.PublishEvent(p.ctx, backend.MessageEvent{ID: ulid.Make().String(), RequestID: r.ID, Created: time.Now().UTC(), Owner: r.Owner, SessionID: r.SessionID, Kind: kind, Result: result})
 }
 
-// Cleanup/interrupt is a two-producer control, implemented privately here.
-// Fresh child identities keep either producer's completion from satisfying the
-// original control. The original completes only when BOTH producers confirm.
+// The two native owners receive the same logical control privately. Only the
+// aggregate is published; task completions remain on their normal public paths.
 func (p *producer) broadcast(r backend.MessageRequest) error {
 	results := make(chan error, 2)
 	for _, endpoint := range []string{p.bus.AgentURL, p.bus.ProcessURL} {
-		child := r
-		child.ID = ulid.Make().String()
-		child.Created = time.Now().UTC()
 		go func() {
-			if err := p.bus.post(p.ctx, endpoint, "/requests", child); err != nil {
+			data, err := json.Marshal(r)
+			if err != nil {
 				results <- err
 				return
 			}
-			ctx, cancel := context.WithCancel(p.ctx)
-			defer cancel()
-			events := make(chan backend.MessageEvent)
-			failure := make(chan error, 1)
-			go func() {
-				failure <- p.bus.stream(ctx, endpoint, backend.MessageSelection{RequestID: child.ID}, child.Created, events)
-			}()
-			for {
-				select {
-				case err := <-failure:
-					results <- err
-					return
-				case <-p.ctx.Done():
-					results <- p.ctx.Err()
-					return
-				case e := <-events:
-					if e.Kind == "completed" {
-						if e.Result == nil {
-							results <- fmt.Errorf("producer %s omitted control result", endpoint)
-						} else if e.Result.Error != "" {
-							results <- fmt.Errorf("producer %s: %s", endpoint, e.Result.Error)
-						} else {
-							results <- nil
-						}
-						return
-					}
-				}
+			req, err := http.NewRequestWithContext(p.ctx, http.MethodPost, endpoint+"/internal/control", bytes.NewReader(data))
+			if err != nil {
+				results <- err
+				return
 			}
+			response, err := p.bus.client.Do(req)
+			if err != nil {
+				results <- err
+				return
+			}
+			defer func() { _ = response.Body.Close() }()
+			if response.StatusCode != http.StatusOK {
+				results <- fmt.Errorf("control response HTTP %d", response.StatusCode)
+				return
+			}
+			var result backend.MessageResult
+			if err = json.NewDecoder(response.Body).Decode(&result); err == nil && (result.Error != "" || result.Unresolved) {
+				err = fmt.Errorf("control cessation unconfirmed: %s", result.Error)
+			}
+			results <- err
 		}()
 	}
-	err := errors.Join(<-results, <-results)
 	result := &backend.MessageResult{}
-	if err != nil {
-		result.Error = "control cessation unconfirmed: " + err.Error()
+	for range 2 {
+		if err := <-results; err != nil {
+			result.Unresolved = true
+			result.Error += err.Error() + "; "
+		}
 	}
 	return p.fact(r, "completed", result)
 }

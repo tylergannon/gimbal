@@ -3,6 +3,7 @@ package backend
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"time"
 )
 
@@ -22,9 +23,15 @@ type MessageRequest struct {
 	ScopeTarget *Scope   `json:",omitempty"`
 }
 
-// MessageResult carries authoritative native output; bytes survive even when
-// they are not valid JSON. ID is the session created by a session request.
+// MessageResult carries the request's returned outcome and native data, not
+// just successful output. Interrupted reports authoritative native turn
+// cancellation; it is never inferred from Error text. Process.Interrupted
+// retains the native process outcome. Unresolved marks controls whose cessation
+// could not be confirmed. Output bytes survive even when invalid JSON; ID is
+// the session created by a session request.
 type MessageResult struct {
+	Interrupted    bool            `json:",omitempty"`
+	Unresolved     bool            `json:",omitempty"`
 	ID             string          `json:",omitempty"`
 	Output         []byte          `json:",omitempty"`
 	Usage          json.RawMessage `json:",omitempty"`
@@ -35,7 +42,10 @@ type MessageResult struct {
 }
 
 // MessageEvent kinds are accepted, activity, established and completed.
-// Activity contains the native AgentEvent envelope, including NativeRef.
+// Completed settles the request with its returned outcome; it does not assert
+// native success or cessation. Inspect Result for failure, authoritative
+// interruption, or unresolved control delivery. Activity contains the native
+// AgentEvent envelope, including NativeRef.
 type MessageEvent struct {
 	ID, RequestID string
 	Created       time.Time
@@ -68,3 +78,90 @@ type Messaging interface {
 // waiting for a turn/process to finish. A transport must keep controls available
 // during concurrent admissions. Native ownership remains in the task daemon.
 type MessageHandler func(context.Context, MessageRequest) error
+
+// Validate rejects ambiguous requests before admission or native effects. The
+// envelope owns the action; repeated payload identities must agree exactly.
+func (r MessageRequest) Validate() error {
+	if r.ID == "" || r.Created.IsZero() {
+		return fmt.Errorf("request ID and creation time required")
+	}
+	count := 0
+	for _, present := range []bool{r.Session != nil, r.Turn != nil, r.Process != nil, r.Target != nil, r.ScopeTarget != nil} {
+		if present {
+			count++
+		}
+	}
+	if count != 1 {
+		return fmt.Errorf("exactly one operation payload required")
+	}
+	var owner Owner
+	var session string
+	switch r.Kind {
+	case "session":
+		if r.Session == nil {
+			return fmt.Errorf("session payload required")
+		}
+		owner = r.Session.Owner
+		session = owner.Task
+		if r.Session.Parent != "" {
+			return fmt.Errorf("fork is unsupported on messaging routes")
+		}
+	case "turn":
+		if r.Turn == nil {
+			return fmt.Errorf("turn payload required")
+		}
+		owner = r.Turn.Owner
+		session = r.Turn.Session
+		if session == "" {
+			return fmt.Errorf("turn session required")
+		}
+	case "process":
+		if r.Process == nil {
+			return fmt.Errorf("process payload required")
+		}
+		owner = r.Process.Owner
+	case "close", "interrupt":
+		if r.Target == nil {
+			return fmt.Errorf("target required")
+		}
+		if r.Target.Run != r.Run || r.Target.ID == "" {
+			return fmt.Errorf("conflicting or absent target identity")
+		}
+		if r.Kind == "close" {
+			session = r.Target.ID
+		}
+		owner = r.Owner
+	case "cleanup":
+		if r.ScopeTarget == nil {
+			return fmt.Errorf("scope payload required")
+		}
+		if r.ScopeTarget.Run != r.Run || r.ScopeTarget.Scope != r.Scope {
+			return fmt.Errorf("conflicting scope identity")
+		}
+		owner = r.Owner
+	default:
+		return fmt.Errorf("unsupported messaging action %q", r.Kind)
+	}
+	if owner != r.Owner || session != r.SessionID {
+		return fmt.Errorf("conflicting request owner or session identity")
+	}
+	if (r.Kind == "session" || r.Kind == "turn" || r.Kind == "process") && r.Task == "" {
+		return fmt.Errorf("task identity required")
+	}
+	if r.Run == "" {
+		return fmt.Errorf("run identity required")
+	}
+	return nil
+}
+
+// DeliveryUncertain means a caller could not obtain an authoritative outcome.
+// It never establishes native failure or cessation; the request remains owned.
+type DeliveryUncertain struct {
+	RequestID string
+	Err       error
+}
+
+func (e *DeliveryUncertain) Error() string {
+	return fmt.Sprintf("request %s outcome unresolved: %v", e.RequestID, e.Err)
+}
+func (e *DeliveryUncertain) Unwrap() error { return e.Err }

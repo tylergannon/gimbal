@@ -357,7 +357,7 @@ func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessag
 	}
 	var files []backend.TaskFile
 	var err error
-	if effects.Endpoint(ctx) != "" && effects.Messages(ctx) == nil {
+	if effects.Endpoint(ctx) != "" || effects.Messages(ctx) != nil {
 		files, err = remoteTaskFiles(ctx, prompt)
 	}
 	var result TurnResult
@@ -375,7 +375,11 @@ func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessag
 		stopped = fmt.Errorf("%w: %w", turnCtx.Err(), stopped)
 	}
 	cancelTurn(nil)
-	if stopped != nil {
+	_, deliveryUncertain := errors.AsType[*backend.DeliveryUncertain](err)
+	if stopped == nil && !deliveryUncertain && errors.Is(err, context.Canceled) {
+		stopped = err
+	}
+	if stopped != nil && !deliveryUncertain {
 		err = stopped
 	} else if len(result.Usage) > 0 {
 		// The steps already accounted for the turn's tokens. The harness's
@@ -396,6 +400,14 @@ func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessag
 		report = modelUsage(result.Usage)
 	}
 	logf("%s: turn ended after %s: %v", s.id, time.Since(start).Round(time.Second), orNone(err))
+	if uncertain, ok := errors.AsType[*backend.DeliveryUncertain](err); ok {
+		observationErr := wrapped(nativeEvent("session.observation.unavailable", map[string]any{"sessionID": native, "message": uncertain.Error()}, map[string]any{"provider": "gimbal", "sessionID": native, "turnID": turnID}))
+		err = errors.Join(err, observationErr)
+		if scope != nil {
+			scope.run.event(scope.key, s.id, turnID, TurnEnded{Error: err.Error(), Usage: report, Duration: time.Since(start), Unresolved: true})
+		}
+		return nil, fmt.Errorf("gimbal: %s: %w", s.id, err)
+	}
 	if stopped != nil {
 		reason := "shutdown"
 		var killed Killed

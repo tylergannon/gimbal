@@ -189,7 +189,9 @@
           ? "waiting"
           : "ended"
         : turn
-          ? turn.interrupted
+          ? turn.unresolved
+            ? "unresolved"
+            : turn.interrupted
             ? "ended"
             : turn.error
             ? "failed"

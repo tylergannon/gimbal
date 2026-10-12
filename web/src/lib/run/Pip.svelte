@@ -1,5 +1,5 @@
 <script module lang="ts">
-  export type PipState = "ended" | "running" | "failed" | "waiting" | "not-yet";
+  export type PipState = "ended" | "running" | "failed" | "waiting" | "not-yet" | "unresolved";
 </script>
 
 <script lang="ts">
@@ -65,7 +65,8 @@
     content: "";
   }
 
-  .pip[data-state="not-yet"] {
+  .pip[data-state="unresolved"],
+ .pip[data-state="not-yet"] {
     border: 1.5px dashed var(--status-muted);
   }
 

@@ -5,8 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/oklog/ulid/v2"
+	"github.com/tylergannon/gimbal/internal/observation"
 
 	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/backend"
@@ -133,6 +138,196 @@ func TestMessagingPreservesInvalidOutputAndRawBytes(t *testing.T) {
 		}
 		if i == 3 && (err != nil || string(result.Output) != " \n {\"n\":2} \t") {
 			t.Fatalf("raw answer changed %q: %v", result.Output, err)
+		}
+	}
+}
+
+func TestMessagingRejectsContradictionsBeforeEffects(t *testing.T) {
+	d, bus, ctx := messagingOwner(t)
+	native := &testHarness{}
+	d.adapter = func(string) (gimbal.HarnessAdapter, error) {
+		t.Error("invalid request opened a native session")
+		return native, nil
+	}
+	marker := filepath.Join(t.TempDir(), "must-not-exist")
+	owner := backend.Owner{Run: "run", Scope: "scope", Task: "command"}
+	valid := effects.Request("process", owner)
+	valid.Process = &backend.Process{Owner: owner, Command: "sh", Args: []string{"-c", "touch \"" + marker + "\""}}
+	tests := []backend.MessageRequest{}
+	wrongOwner := valid
+	payload := *valid.Process
+	payload.Run = "other"
+	wrongOwner.Process = &payload
+	tests = append(tests, wrongOwner)
+	wrongSession := valid
+	wrongSession.SessionID = "unexpected"
+	tests = append(tests, wrongSession)
+	wrongKind := valid
+	wrongKind.Kind = "turn"
+	tests = append(tests, wrongKind)
+	absent := valid
+	absent.Process = nil
+	tests = append(tests, absent)
+	multiple := valid
+	multiple.Session = &backend.Session{Owner: owner}
+	tests = append(tests, multiple)
+	session := effects.Request("session", owner)
+	session.Session = &backend.Session{Run: "other", Task: owner.Task}
+	session.SessionID = owner.Task
+	tests = append(tests, session)
+	turn := effects.Request("turn", owner)
+	turn.SessionID = "one"
+	turn.Turn = &backend.Turn{Owner: owner, Session: "two"}
+	tests = append(tests, turn)
+	for _, request := range tests {
+		if err := bus.PublishRequest(ctx, request); err == nil {
+			t.Errorf("admitted %+v", request)
+		}
+	}
+	if _, err := os.Stat(marker); !os.IsNotExist(err) {
+		t.Fatalf("command side effect exists: %v", err)
+	}
+	if len(d.tasks) != 0 || len(d.sessions) != 0 {
+		t.Fatal("invalid request admitted work")
+	}
+	observe, cancel := context.WithTimeout(ctx, 80*time.Millisecond)
+	defer cancel()
+	_ = bus.ListenEvents(observe, backend.MessageSelection{Run: owner.Run}, valid.Created, func(e backend.MessageEvent) error { t.Errorf("invalid admission published %+v", e); return nil })
+	// Correcting the same unadmitted request identity remains possible.
+	if err := bus.PublishRequest(ctx, valid); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := effects.Await(ctx, valid, "completed", nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(marker); err != nil {
+		t.Fatal("valid command did not execute", err)
+	}
+}
+
+func TestMessagingExplicitBytesReachNativeExecutor(t *testing.T) {
+	d, bus, ctx := messagingOwner(t)
+	native := &filesHarness{read: make(chan string, 1)}
+	d.adapter = func(string) (gimbal.HarnessAdapter, error) { return native, nil }
+	h := &Harness{Name: "test", Connection: backend.Connection{Messages: bus}}
+	ctx = effects.WithOwner(ctx, backend.Owner{Run: "run", Task: "agent"})
+	id, err := h.CreateSession(ctx, "model", "", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	bytes := []byte("only-in-memory-" + ulid.Make().String())
+	ctx = effects.WithOwner(effects.WithTaskFiles(ctx, []backend.TaskFile{{Name: "unique", Bytes: bytes}}), backend.Owner{Run: "run", Task: "turn"})
+	out, err := h.RunTurn(ctx, id, "read supplied file", nil, nil)
+	if err != nil || string(out.Output) != `"ok"` {
+		t.Fatalf("%s %v", out.Output, err)
+	}
+	if got := <-native.read; got != string(bytes) {
+		t.Fatalf("native read %q", got)
+	}
+}
+
+type lostCompletion struct {
+	*directMessages
+	turnID string
+}
+
+func (b *lostCompletion) PublishRequest(ctx context.Context, r backend.MessageRequest) error {
+	if r.Kind == "turn" {
+		b.turnID = r.ID
+	}
+	return b.directMessages.PublishRequest(ctx, r)
+}
+func (b *lostCompletion) ListenEvents(ctx context.Context, s backend.MessageSelection, since time.Time, fn func(backend.MessageEvent) error) error {
+	return b.Store.ListenEvents(ctx, s, since, func(e backend.MessageEvent) error {
+		if e.RequestID == b.turnID && e.Kind == "completed" {
+			return errors.New("injected listener loss after retained native completion")
+		}
+		return fn(e)
+	})
+}
+func TestRetainedNativeSuccessSurvivesNormalWorkflowDeliveryLoss(t *testing.T) {
+	d, direct, ctx := messagingOwner(t)
+	d.adapter = func(string) (gimbal.HarnessAdapter, error) { return &testHarness{}, nil }
+	bus := &lostCompletion{directMessages: direct}
+	project := t.TempDir()
+	registry := observation.NewRegistry(project)
+	ctx = observation.WithRegistry(effects.WithRunID(gimbal.Project(ctx, project), "lost-success"), registry)
+	ctx = effects.WithConnection(ctx, backend.Connection{Messages: bus})
+	err := gimbal.Run(ctx, "lost-success", map[gimbal.WorkflowRole]gimbal.ModelBinding{"agent": {Adapter: &Harness{Name: "test", Connection: backend.Connection{Messages: bus}}, Model: "test"}}, func(ctx context.Context) error {
+		_, err := gimbal.NewSession(ctx, "agent", t.TempDir()).Generate[gimbal.Text](ctx, "work")
+		return err
+	})
+	if _, ok := errors.AsType[*backend.DeliveryUncertain](err); !ok {
+		t.Fatalf("not unresolved: %v", err)
+	}
+	snapshot, err := registry.Snapshot("lost-success")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(snapshot.Turns) != 1 {
+		t.Fatalf("turns %d", len(snapshot.Turns))
+	}
+	for _, turn := range snapshot.Turns {
+		if !turn.Unresolved || turn.Interrupted || !turn.EventsUnavailable {
+			t.Fatalf("wrong turn outcome %+v", turn)
+		}
+		native := d.result(backend.Target{Run: "lost-success", ID: turn.ID})
+		var result backend.TurnResult
+		if !native.Done || native.Error != "" || json.Unmarshal(native.Result, &result) != nil || string(result.Output) != `"done"` {
+			t.Fatalf("native success lost: %+v", native)
+		}
+	}
+}
+
+func TestIndependentMessagingInterruptPreservesNativeCancellation(t *testing.T) {
+	d, bus, ctx := messagingOwner(t)
+	native := &testHarness{started: make(chan struct{})}
+	d.adapter = func(string) (gimbal.HarnessAdapter, error) { return native, nil }
+	project := t.TempDir()
+	registry := observation.NewRegistry(project)
+	ctx = observation.WithRegistry(effects.WithRunID(gimbal.Project(ctx, project), "independent-interrupt"), registry)
+	ctx = effects.WithConnection(ctx, backend.Connection{Messages: bus})
+	done := make(chan error, 1)
+	go func() {
+		done <- gimbal.Run(ctx, "interrupt", map[gimbal.WorkflowRole]gimbal.ModelBinding{"agent": {Adapter: &Harness{Name: "test", Connection: backend.Connection{Messages: bus}}, Model: "test"}}, func(ctx context.Context) error {
+			_, err := gimbal.NewSession(ctx, "agent", project).Generate[gimbal.Text](ctx, "wait for independent interrupt")
+			return err
+		})
+	}()
+	<-native.started
+	snapshot, err := registry.Snapshot("independent-interrupt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(snapshot.Turns) != 1 {
+		t.Fatalf("turns %d", len(snapshot.Turns))
+	}
+	for _, turn := range snapshot.Turns {
+		control := effects.Request("interrupt", backend.Owner{Run: turn.Run, Scope: turn.Scope, Task: "independent-control"})
+		control.Target = &backend.Target{Run: turn.Run, ID: turn.ID}
+		result, err := effects.MessageCall(ctx, control)
+		if err != nil || result.Result == nil || result.Result.Unresolved {
+			t.Fatalf("interrupt not confirmed: %+v %v", result, err)
+		}
+	}
+	select {
+	case err := <-done:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("cancellation lost: %v", err)
+		}
+	case <-ctx.Done():
+		t.Fatal(ctx.Err())
+	}
+	if ctx.Err() != nil {
+		t.Fatal("independent control cancelled workflow caller context")
+	}
+	snapshot, err = registry.Snapshot("independent-interrupt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, turn := range snapshot.Turns {
+		if !turn.Interrupted || turn.Unresolved {
+			t.Fatalf("wrong native outcome: %+v", turn)
 		}
 	}
 }

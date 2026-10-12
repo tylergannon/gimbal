@@ -375,3 +375,14 @@ test("folded owners retain a service count without rendering process rows", () =
     false,
   );
 });
+
+test("a delivery-unresolved turn is distinct from failed execution on the graph", () => {
+  const snapshot = structuredClone(implementInterviewFixture.snapshot);
+  const turn = snapshot.turns["coding.1/turn.3"];
+  turn.ended = turn.started + 1;
+  turn.error = "retained native completion could not be delivered";
+  turn.unresolved = true;
+  const layout = buildMapLayout(implementInterviewFixture.graph, snapshot);
+  const node = layout.nodes.find((node) => operationName(node.operation) === "coding");
+  assert.equal(node?.state, "unresolved");
+});

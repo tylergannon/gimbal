@@ -135,7 +135,8 @@
 		return turns.findIndex((row) => row.id === turn.id) + 1;
 	}
 	function turnPip(turn: TurnRow): PipState {
-		if (!turn.ended) return 'running';
+		if (turn.unresolved) return 'unresolved';
+ if (!turn.ended) return 'running';
 		if (turn.interrupted) return 'ended';
 		return turn.error ? 'failed' : 'ended';
 	}

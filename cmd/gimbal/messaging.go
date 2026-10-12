@@ -20,7 +20,7 @@ import (
 func newMessagingWorkerCommand() *cobra.Command {
 	var routeFile string
 	var dirs []string
-	c := &cobra.Command{Use: "message-worker", Short: "Serve native actions through a runtime-loaded messaging plugin", Long: `Serve the configured localhost request store/queue or HTTP endpoint using the native task owner. --task-route is a JSON file with Name and Configuration; --plugin-dir contains compatible native .so plugins. Keep this worker alive for its actions and sessions; restarting does not resume them. A request with no observed executor acceptance returns uncertainty after 15 seconds, not proof of failed execution. No automatic replay or host provisioning is provided. Release workflow scopes before stopping the worker.
+	c := &cobra.Command{Use: "message-worker", Short: "Serve native actions through a runtime-loaded messaging plugin", Long: `Serve the configured localhost request store/queue or HTTP endpoint using the native task owner. --task-route is a JSON file with Name and Configuration; --plugin-dir contains compatible native .so plugins. Keep this worker alive for its actions and sessions; restarting does not resume them. Delivery budgets belong to the selected implementation and caller context. Missing acceptance or completion is an unresolved outcome, never proof of native failure. No automatic replay or host provisioning is provided. Release workflow scopes before stopping the worker.
 
 Example: gimbal message-worker --plugin-dir /abs/plugins --task-route @/abs/filesystem.json
 Filesystem Configuration: {"Directory":"/abs/private-messages"}. Events remain until their configured store is removed.`, RunE: func(c *cobra.Command, _ []string) error {

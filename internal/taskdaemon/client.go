@@ -139,7 +139,7 @@ func (h *Harness) Close(ctx context.Context, id string) error {
 func (h *Harness) messageTurn(ctx context.Context, t effects.Target, o effects.Owner, prompt string, schema json.RawMessage, onEvent func(gimbal.AgentEvent) error) (gimbal.TurnResult, error) {
 	r := effects.Request("turn", o)
 	r.SessionID = t.ID
-	r.Turn = &effects.Turn{Owner: o, Session: t.ID, Prompt: prompt, Schema: schema}
+	r.Turn = &effects.Turn{Owner: o, Session: t.ID, Prompt: prompt, Schema: schema, Files: effects.TaskFiles(ctx)}
 	if err := effects.Submit(ctx, r); err != nil {
 		return gimbal.TurnResult{}, err
 	}
@@ -154,7 +154,11 @@ func (h *Harness) messageTurn(ctx context.Context, t effects.Target, o effects.O
 		}
 	})
 	if ctx.Err() != nil {
-		err = errors.Join(err, effects.InterruptMessage(ctx, r))
+		if stopErr := effects.InterruptMessage(ctx, r); stopErr != nil {
+			err = errors.Join(err, stopErr)
+		} else {
+			err = ctx.Err()
+		}
 	}
 	if invalid, ok := errors.AsType[*effects.InvalidOutput](err); ok {
 		err = fmt.Errorf("%w: %s", gimbal.ErrInvalidOutput, invalid.Message)

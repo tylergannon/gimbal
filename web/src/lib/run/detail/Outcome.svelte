@@ -7,7 +7,7 @@
 	let { turn, lastText }: { turn: TurnRow; lastText?: string } = $props();
 
 	const outcome = $derived(
-		!turn.ended ? 'running' : turn.interrupted ? 'interrupted' : turn.error ? 'failed' : 'ended'
+		turn.unresolved ? 'unresolved' : !turn.ended ? 'running' : turn.interrupted ? 'interrupted' : turn.error ? 'failed' : 'ended'
 	);
 
 	const formatDuration = (ms: number) => {
@@ -36,13 +36,13 @@
 			<span class="dot">·</span>
 			<span>{formatDuration(turn.duration || turn.ended - turn.started)}</span>
 			<span class="dot">·</span>
-			<span>finished {formatTime(turn.ended)}</span>
+			<span>{outcome === 'unresolved' ? 'caller stopped' : 'finished'} {formatTime(turn.ended)}</span>
 		</div>
 		{#if turn.result}
 			<Payload label="result" text={turn.result} maxHeight={420} prose />
 		{/if}
 		{#if turn.error}
-			<Payload label="error" text={turn.error} tone="error" maxHeight={420} />
+			<Payload label={turn.unresolved ? "delivery problem" : "error"} text={turn.error} maxHeight={420} />
 		{/if}
 		{#if !turn.result && !turn.error}
 			<p class="help">No result was recorded for this turn.</p>

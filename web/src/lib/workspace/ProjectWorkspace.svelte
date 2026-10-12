@@ -73,7 +73,11 @@
   }
   function command(event: Event) {
     const value = (event as CustomEvent<{ command: string }>).detail.command;
-    if (value === 'toggleSidebar') sidebar = !sidebar;
+    if (value === 'openRecording') {
+      const current = window.voiceNotesLatestStatus ?? status;
+      if (current?.project && current.sessionID) select(`/projects/${current.project}/recordings/${current.sessionID}`);
+    }
+    else if (value === 'toggleSidebar') sidebar = !sidebar;
     else if (value === 'closeTab' && active) close(active);
     else if (value === 'nextTab' || value === 'previousTab') {
       const index = tabs.findIndex(tab => tab.id === active);

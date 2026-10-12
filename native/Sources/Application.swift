@@ -33,7 +33,11 @@ import SwiftUI
       .defaultSize(width: 1000, height: 600)
       .commands {
         WorkspaceMenu(workspace: application.workspace)
-        if let controller = application.controller { RecordingMenu(controller: controller) }
+        if let controller = application.controller {
+          RecordingMenu(
+            controller: controller, input: application.input,
+            showControls: application.showRecordingControls)
+        }
       }
     #endif
     .onChange(of: scenePhase) { _, phase in
@@ -62,8 +66,12 @@ import SwiftUI
 #if os(macOS)
   struct RecordingMenu: Commands {
     @ObservedObject var controller: RecorderController
+    @ObservedObject var input: RecordingInput
+    let showControls: () -> Void
     var body: some Commands {
       CommandMenu("Recording") {
+        Button("Recording Controls…", action: showControls)
+        Divider()
         Button("Record", action: controller.record).keyboardShortcut(
           "r", modifiers: [.command, .shift]
         ).disabled(!controller.canRecord)
@@ -73,6 +81,20 @@ import SwiftUI
         Button("Resume", action: controller.resume).disabled(!controller.canResume)
         Button("Stop", action: controller.stop).keyboardShortcut(".", modifiers: [.command])
           .disabled(!controller.canStop)
+        Divider()
+        if input.fixtureURL != nil {
+          Menu("Microphone") {
+            Label("Off (Synthetic Transcript)", systemImage: "checkmark")
+          }
+        } else {
+          Picker("Microphone", selection: $input.selectedUID) {
+            Text("System Default").tag("")
+            ForEach(input.devices, id: \.uid) { device in Text(device.name).tag(device.uid) }
+          }
+          .disabled(!controller.canRecord)
+          Button("Refresh Microphones", action: input.refresh).disabled(!controller.canRecord)
+        }
+        SettingsLink { Text("Recording Settings…") }
       }
     }
   }

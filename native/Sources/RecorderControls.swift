@@ -148,3 +148,145 @@ struct RecordingLevelMeter: View {
     .accessibilityValue("\(activeBars) of 5")
   }
 }
+
+#if os(macOS)
+  import AppKit
+  import Combine
+
+  @MainActor final class RecordingStatusItem: NSObject, ObservableObject {
+    let controller: RecorderController
+    let input: RecordingInput
+    let openTranscript: () -> Void
+    @Published private(set) var freshness = "Waiting for the first saved words"
+    private let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+    private let popover = NSPopover()
+    private var subscription: AnyCancellable?
+    private var timer: Timer?
+    private var savedSequence = 0
+    private var savedSession = ""
+    private var savedAt: Date?
+
+    init(
+      controller: RecorderController, input: RecordingInput, openTranscript: @escaping () -> Void
+    ) {
+      self.controller = controller
+      self.input = input
+      self.openTranscript = openTranscript
+      super.init()
+      item.button?.target = self
+      item.button?.action = #selector(togglePopover)
+      item.button?.setAccessibilityLabel("Gimbal recording controls")
+      item.button?.toolTip = "Gimbal recording controls"
+      popover.behavior = .transient
+      popover.contentViewController = NSHostingController(
+        rootView: RecordingStatusPopover(status: self))
+      subscription = controller.objectWillChange.sink { [weak self] _ in
+        DispatchQueue.main.async { self?.refresh() }
+      }
+      timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+        MainActor.assumeIsolated { self?.refresh() }
+      }
+      refresh()
+    }
+
+    private func refresh() {
+      let status = controller.status
+      if status.sessionID != savedSession {
+        savedSession = status.sessionID
+        savedSequence = 0
+        savedAt = nil
+      }
+      if !status.pending && status.sequence > savedSequence {
+        savedSequence = status.sequence
+        savedAt = Date()
+      }
+      let nextFreshness =
+        status.pending
+        ? "Saving transcript…"
+        : savedAt.map { "Last words saved \(Int(Date().timeIntervalSince($0))) seconds ago" }
+          ?? "Waiting for the first saved words"
+      if freshness != nextFreshness { freshness = nextFreshness }
+      guard let button = item.button else { return }
+      if controller.canStop {
+        let seconds = Int(controller.recordingDuration.elapsed())
+        let time =
+          seconds >= 3600
+          ? String(format: "%d:%02d:%02d", seconds / 3600, (seconds / 60) % 60, seconds % 60)
+          : String(format: "%02d:%02d", seconds / 60, seconds % 60)
+        let title = NSMutableAttributedString(string: "● \(time)")
+        title.addAttribute(
+          .foregroundColor,
+          value: status.state == "recording" ? NSColor.systemRed : NSColor.secondaryLabelColor,
+          range: NSRange(location: 0, length: 1))
+        button.image = nil
+        button.attributedTitle = title
+        button.setAccessibilityValue("\(status.state), elapsed \(time)")
+      } else {
+        button.title = "Gimbal"
+        button.image = NSImage(systemSymbolName: "mic", accessibilityDescription: "Recording")
+        button.imagePosition = .imageLeading
+        button.setAccessibilityValue(status.state)
+      }
+    }
+
+    @objc private func togglePopover() {
+      if popover.isShown {
+        popover.close()
+      } else if let button = item.button {
+        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+      }
+    }
+
+    func showTranscript() {
+      popover.close()
+      openTranscript()
+    }
+
+    func shutdown() {
+      timer?.invalidate()
+      subscription?.cancel()
+      popover.close()
+      NSStatusBar.system.removeStatusItem(item)
+    }
+  }
+
+  private struct RecordingStatusPopover: View {
+    @ObservedObject var status: RecordingStatusItem
+    @ObservedObject var controller: RecorderController
+    @ObservedObject var input: RecordingInput
+
+    init(status: RecordingStatusItem) {
+      self.status = status
+      controller = status.controller
+      input = status.input
+    }
+
+    var body: some View {
+      VStack(alignment: .leading, spacing: 14) {
+        HStack {
+          Text("Gimbal Recording").font(.headline)
+          Spacer()
+          if controller.canStop {
+            RecordingLevelMeter(controller: controller)
+            RecordingTimer(controller: controller)
+          }
+        }
+        RecordingInputNotice(input: input)
+        if controller.canStop {
+          Text(status.freshness).font(.caption).foregroundStyle(.secondary)
+        }
+        if let error = controller.status.error {
+          Text(error).font(.caption).foregroundStyle(.red)
+        }
+        RecorderControls(controller: controller)
+          .frame(maxWidth: .infinity)
+        Divider()
+        Button("Open Transcript", action: status.showTranscript)
+          .disabled(controller.status.sessionID.isEmpty)
+        SettingsLink { Text("Recording Settings…") }
+      }
+      .padding(16)
+      .frame(width: 340)
+    }
+  }
+#endif

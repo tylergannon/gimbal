@@ -165,6 +165,25 @@ final class WebCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDelega
     #endif
     return nil
   }
+  #if os(macOS)
+    func webView(
+      _ webView: WKWebView, runOpenPanelWith parameters: WKOpenPanelParameters,
+      initiatedByFrame frame: WKFrameInfo,
+      completionHandler: @escaping @MainActor @Sendable ([URL]?) -> Void
+    ) {
+      guard let window = webView.window else {
+        completionHandler(nil)
+        return
+      }
+      let panel = NSOpenPanel()
+      panel.allowsMultipleSelection = parameters.allowsMultipleSelection
+      panel.canChooseDirectories = parameters.allowsDirectories
+      panel.canChooseFiles = true
+      panel.beginSheetModal(for: window) { response in
+        completionHandler(response == .OK ? panel.urls : nil)
+      }
+    }
+  #endif
   func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
     controller.displayAvailability(false, error: "Transcript display is reconnecting.")
     if foreground { reloadTranscript() }

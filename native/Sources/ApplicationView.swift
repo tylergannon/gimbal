@@ -8,6 +8,7 @@ import SwiftUI
 @MainActor final class ApplicationState: ObservableObject {
   #if os(macOS)
     let workspace = WorkspaceState()
+    private var recordingStatus: RecordingStatusItem?
   #endif
   let input: RecordingInput
   let controller: RecorderController?
@@ -31,6 +32,19 @@ import SwiftUI
           return MicrophoneSource(selection: input.selection)
         }, sourceName: input.fixtureURL == nil ? "microphone" : "synthetic")
     }
+    #if os(macOS)
+      if let controller {
+        recordingStatus = RecordingStatusItem(controller: controller, input: input) { [weak self] in
+          guard let workspace = self?.workspace, let window = workspace.webView?.window else {
+            return
+          }
+          window.deminiaturize(nil)
+          window.makeKeyAndOrderFront(nil)
+          NSApp.activate(ignoringOtherApps: true)
+          workspace.send("openRecording")
+        }
+      }
+    #endif
     heartbeat = Task { [weak self] in
       while !Task.isCancelled {
         try? await Task.sleep(for: .seconds(5))
@@ -41,6 +55,9 @@ import SwiftUI
     }
     host.onShutdown = { [weak self] in
       self?.heartbeat?.cancel()
+      #if os(macOS)
+        self?.recordingStatus?.shutdown()
+      #endif
       self?.controller?.shutdown()
     }
     host.onBackgroundChange = { [weak self] backgrounded in
@@ -52,6 +69,8 @@ import SwiftUI
     }
   }
   #if os(macOS)
+    func showRecordingControls() { recordingStatus?.showControls() }
+
     func openViewer(path: String, origin: URL) {
       guard path.hasPrefix("/projects/"),
         let url = URL(string: path, relativeTo: origin)?.absoluteURL

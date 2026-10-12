@@ -120,9 +120,13 @@ func (d *Daemon) Messages(bus backend.Messaging) backend.MessageHandler {
 			if t == nil {
 				t = d.admitting[key(r.Target.Run, r.Target.ID)]
 			}
-			d.mu.Unlock()
+			// Selection and cancellation share native admission's owner lock. A
+			// preflight cannot become separately owned native work between them.
 			if t != nil {
 				t.cancel()
+			}
+			d.mu.Unlock()
+			if t != nil {
 				stop, cancel := context.WithTimeout(ctx, 10*time.Second)
 				defer cancel()
 				if t.stop != nil {

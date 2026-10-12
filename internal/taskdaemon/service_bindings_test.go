@@ -287,3 +287,63 @@ func TestResourceDiagnosticFailurePreservesNativeWorkAndNormalRunFacts(t *testin
 		t.Fatalf("normal journal lost resource facts: %v", kinds)
 	}
 }
+
+func TestInterruptCancellationIsAtomicWithPreflightNativeHandoff(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { _, _ = fmt.Fprint(w, "GIMBAL_SERVICE_OK") }))
+	defer server.Close()
+	d, _, ctx := messagingOwner(t)
+	d.Orchestration = &serviceFixture{url: server.URL}
+	owner := backend.Owner{Run: "handoff", Scope: "scope", Task: "scope/process"}
+	bindings, finish, err := d.serviceBindings(ctx, owner, "process", owner.Task, []string{"http"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	selected, allowCancel := make(chan struct{}), make(chan struct{})
+	d.mu.Lock()
+	pending := d.admitting[key(owner.Run, owner.Task)]
+	cancel := pending.cancel
+	pending.cancel = func() { close(selected); <-allowCancel; cancel() }
+	d.mu.Unlock()
+	interrupted := make(chan error, 1)
+	request := effects.Request("process", owner)
+	go func() { interrupted <- effects.InterruptMessage(ctx, request) }()
+	<-selected
+	marker := filepath.Join(t.TempDir(), "native-started")
+	process := backend.Process{Owner: owner, Command: "sh", Args: []string{"-c", `printf started > "$1"; exec sleep 60`, "sh", marker}, Bindings: bindings}
+	admitted := make(chan error, 1)
+	// The barrier is inside the selected cancellation. If the owner mutex is
+	// free here, actual native admission can deterministically win before cancel.
+	if d.mu.TryLock() {
+		d.mu.Unlock()
+		admitted <- d.process(process)
+	} else {
+		go func() { admitted <- d.process(process) }()
+	}
+	close(allowCancel)
+	admissionErr := <-admitted
+	finish() // Production finishes preflight only after native admission returns.
+	if err := <-interrupted; err != nil {
+		t.Fatal("interrupt did not settle", err)
+	}
+	t.Cleanup(func() {
+		cleanup, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		_ = d.cleanup(cleanup, backend.Scope{Run: owner.Run, Scope: owner.Scope})
+	})
+	d.mu.Lock()
+	native := d.tasks[key(owner.Run, owner.Task)]
+	d.mu.Unlock()
+	if native != nil {
+		select {
+		case <-native.done:
+		default:
+			t.Fatal("confirmed interrupt left an actual native process running after preflight handoff")
+		}
+	}
+	if !errors.Is(admissionErr, context.Canceled) {
+		t.Fatalf("native admission bypassed selected preflight cancellation: %v", admissionErr)
+	}
+	if _, err := os.Stat(marker); !os.IsNotExist(err) {
+		t.Fatal("native side effect survived confirmed interrupt", err)
+	}
+}

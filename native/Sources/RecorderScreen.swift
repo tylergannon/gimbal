@@ -12,45 +12,47 @@ struct RecorderScreen: View {
   let url: URL
   let recoveryRevision: Int
   var body: some View {
-    VStack(spacing: 0) {
-      HStack {
-        Text(
-          Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String ?? Bundle.main
-            .object(forInfoDictionaryKey: "CFBundleName") as? String ?? "Recorder"
-        ).font(.title2.weight(.bold))
-        Spacer()
-        if !controller.status.sessionID.isEmpty && controller.canStop
-          && controller.status.state != "preparing"
-        {
-          HStack(spacing: 10) {
-            RecordingLevelMeter(controller: controller)
-            RecordingTimer(controller: controller)
-          }
-        }
-        #if os(iOS)
-          InputDeviceMenu(input: input, enabled: controller.canRecord)
-        #endif
-      }
-      .padding(.horizontal, 24).padding(.vertical, 12)
-      if input.fixtureURL == nil {
-        RecordingInputNotice(input: input)
-          .padding(.horizontal, 24)
-      }
+    #if os(macOS)
       TranscriptWebView(
         controller: controller, state: state, url: url, recoveryRevision: recoveryRevision
       )
-      #if os(macOS)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-      #endif
-    }
-    .safeAreaInset(edge: .bottom, spacing: 0) {
-      RecorderControls(controller: controller)
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 12)
-        .background(.bar)
-    }
-    #if os(macOS)
-      .frame(minWidth: 360, minHeight: 400)
+      .frame(maxWidth: .infinity, maxHeight: .infinity)
+    #else
+      VStack(spacing: 0) {
+        HStack {
+          Text(
+            Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String ?? Bundle
+              .main
+              .object(forInfoDictionaryKey: "CFBundleName") as? String ?? "Recorder"
+          ).font(.title2.weight(.bold))
+          Spacer()
+          if !controller.status.sessionID.isEmpty && controller.canStop
+            && controller.status.state != "preparing"
+          {
+            HStack(spacing: 10) {
+              RecordingLevelMeter(controller: controller)
+              RecordingTimer(controller: controller)
+            }
+          }
+          #if os(iOS)
+            InputDeviceMenu(input: input, enabled: controller.canRecord)
+          #endif
+        }
+        .padding(.horizontal, 24).padding(.vertical, 12)
+        if input.fixtureURL == nil {
+          RecordingInputNotice(input: input)
+            .padding(.horizontal, 24)
+        }
+        TranscriptWebView(
+          controller: controller, state: state, url: url, recoveryRevision: recoveryRevision
+        )
+      }
+      .safeAreaInset(edge: .bottom, spacing: 0) {
+        RecorderControls(controller: controller)
+          .frame(maxWidth: .infinity)
+          .padding(.vertical, 12)
+          .background(.bar)
+      }
     #endif
   }
 }
@@ -77,6 +79,21 @@ final class WebCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDelega
       message.frameInfo.securityOrigin.port == origin.port,
       let body = message.body as? [String: Any]
     else { return }
+    #if os(macOS)
+      if message.name == "workspaceState", let ready = body["ready"] as? Bool,
+        let visible = body["sidebarVisible"] as? Bool,
+        let count = body["tabCount"] as? Int
+      {
+        state.workspace.update(ready: ready, sidebarVisible: visible, tabCount: count)
+        return
+      }
+      if message.name == "workspaceDrag", let event = NSApp.currentEvent,
+        event.type == .leftMouseDown
+      {
+        webView?.window?.performDrag(with: event)
+        return
+      }
+    #endif
     if message.name == "selectProject", let project = body["project"] as? String {
       state.commands?.selectedProject = project
       return
@@ -118,6 +135,11 @@ final class WebCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDelega
       }
     #endif
     decisionHandler(.allow)
+  }
+  func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
+    #if os(macOS)
+      state.workspace.ready = false
+    #endif
   }
   func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
     send(controller.status)
@@ -173,7 +195,19 @@ final class WebCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDelega
     config.userContentController.add(self, name: "reconnect")
     config.userContentController.add(self, name: "selectProject")
     config.userContentController.add(self, name: "openFile")
-    let view = WKWebView(frame: .zero, configuration: config)
+    #if os(macOS)
+      config.userContentController.add(self, name: "workspaceState")
+      config.userContentController.add(self, name: "workspaceDrag")
+      config.userContentController.addUserScript(
+        WKUserScript(
+          source: "window.gimbalNativeWorkspace = true;", injectionTime: .atDocumentStart,
+          forMainFrameOnly: true))
+      let view = WorkspaceWebView(frame: .zero, configuration: config)
+      view.workspace = state.workspace
+      state.workspace.webView = view
+    #else
+      let view = WKWebView(frame: .zero, configuration: config)
+    #endif
     view.uiDelegate = self
     view.navigationDelegate = self
     webView = view

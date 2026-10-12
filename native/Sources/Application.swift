@@ -21,12 +21,20 @@ import SwiftUI
       if let url = host.url {
         ApplicationView(state: application, url: url, recoveryRevision: host.recoveryRevision)
           #if os(macOS)
-            .frame(minWidth: 1000, maxWidth: .infinity, minHeight: 400, maxHeight: .infinity)
+            .frame(minWidth: 800, maxWidth: .infinity, minHeight: 500, maxHeight: .infinity)
+            .ignoresSafeArea(.container, edges: .top)
           #endif
       } else {
         Text(host.failure ?? "Starting application…").padding(24)
       }
     }
+    #if os(macOS)
+      .defaultSize(width: 1000, height: 600)
+      .commands {
+        WorkspaceMenu(workspace: application.workspace)
+        if let controller = application.controller { RecordingMenu(controller: controller) }
+      }
+    #endif
     .onChange(of: scenePhase) { _, phase in
       if phase == .background {
         host.didEnterBackground()
@@ -36,9 +44,6 @@ import SwiftUI
     }
     #if os(macOS)
       Settings { ApplicationSettingsView(state: application) }
-        .commands {
-          if let controller = application.controller { RecordingMenu(controller: controller) }
-        }
     #endif
   }
 }

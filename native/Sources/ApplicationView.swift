@@ -6,6 +6,9 @@ import SwiftUI
 
 // Retained once by the generic application shell, including foreground recovery.
 @MainActor final class ApplicationState: ObservableObject {
+  #if os(macOS)
+    let workspace = WorkspaceState()
+  #endif
   let input: RecordingInput
   let controller: RecorderController?
   let commands: GeneratedCommands?

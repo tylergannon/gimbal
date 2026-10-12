@@ -1,0 +1,122 @@
+#if os(macOS)
+  import AppKit
+  import SwiftUI
+  import WebKit
+
+  @MainActor final class WorkspaceState: ObservableObject {
+    @Published var ready = false
+    @Published var sidebarVisible = false
+    @Published var tabCount = 0
+    @Published var windowIsKey = false
+    weak var webView: WKWebView?
+
+    var enabled: Bool { ready && windowIsKey }
+
+    func update(ready: Bool, sidebarVisible: Bool, tabCount: Int) {
+      self.sidebarVisible = sidebarVisible
+      self.tabCount = tabCount
+      self.ready = ready
+    }
+
+    func send(_ command: String) {
+      guard enabled else { return }
+      webView?.evaluateJavaScript(
+        "window.dispatchEvent(new CustomEvent('gimbal-workspace-command', {detail: {command: '\(command)'}}));",
+        completionHandler: nil)
+    }
+  }
+
+  struct WorkspaceMenu: Commands {
+    @ObservedObject var workspace: WorkspaceState
+
+    var body: some Commands {
+      CommandMenu("Project") {
+        Toggle(
+          "Show Sidebar",
+          isOn: Binding(
+            get: { workspace.sidebarVisible },
+            set: { _ in workspace.send("toggleSidebar") })
+        )
+        .keyboardShortcut("s", modifiers: [.command, .control])
+        .disabled(!workspace.enabled)
+      }
+      CommandMenu("Chat") {
+        Button("Close Tab") { workspace.send("closeTab") }
+          .keyboardShortcut("w", modifiers: [.command])
+          .disabled(!workspace.enabled || workspace.tabCount == 0)
+        Divider()
+        Button("Previous Tab") { workspace.send("previousTab") }
+          .keyboardShortcut(.tab, modifiers: [.control, .shift])
+          .disabled(!workspace.enabled || workspace.tabCount < 2)
+        Button("Next Tab") { workspace.send("nextTab") }
+          .keyboardShortcut(.tab, modifiers: [.control])
+          .disabled(!workspace.enabled || workspace.tabCount < 2)
+      }
+    }
+  }
+
+  // Only the two reserved blank ends of the title strip move the native window.
+  // Web controls keep their ordinary mouse handling, including tab buttons.
+  final class WorkspaceWebView: WKWebView {
+    weak var workspace: WorkspaceState?
+    private var keyObserver: NSObjectProtocol?
+    private var resignObserver: NSObjectProtocol?
+
+    override func viewDidMoveToWindow() {
+      super.viewDidMoveToWindow()
+      if let keyObserver { NotificationCenter.default.removeObserver(keyObserver) }
+      if let resignObserver { NotificationCenter.default.removeObserver(resignObserver) }
+      guard let window else { return }
+      window.titleVisibility = .hidden
+      window.titlebarAppearsTransparent = true
+      window.styleMask.insert(.fullSizeContentView)
+      window.isMovableByWindowBackground = false
+      window.contentMinSize = NSSize(width: 800, height: 500)
+      if window.frameAutosaveName.isEmpty { window.setFrameAutosaveName("GimbalWorkspace") }
+      workspace?.windowIsKey = window.isKeyWindow
+      keyObserver = NotificationCenter.default.addObserver(
+        forName: NSWindow.didBecomeKeyNotification, object: window, queue: .main
+      ) { [weak self] _ in
+        MainActor.assumeIsolated { self?.workspace?.windowIsKey = true }
+      }
+      resignObserver = NotificationCenter.default.addObserver(
+        forName: NSWindow.didResignKeyNotification, object: window, queue: .main
+      ) { [weak self] _ in
+        MainActor.assumeIsolated { self?.workspace?.windowIsKey = false }
+      }
+    }
+
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+      // Cmd-W belongs to the active workspace tab, including its empty state.
+      // Do not let the standard File / Close Window command stop this window.
+      if workspace?.enabled == true,
+        event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command,
+        event.charactersIgnoringModifiers == "w"
+      {
+        if (workspace?.tabCount ?? 0) > 0 { workspace?.send("closeTab") }
+        return true
+      }
+      return super.performKeyEquivalent(with: event)
+    }
+
+    private func isDragRegion(_ point: NSPoint) -> Bool {
+      let distanceFromTop = isFlipped ? point.y : bounds.height - point.y
+      return workspace?.ready == true && bounds.contains(point) && distanceFromTop < 40
+        && (point.x < 78 || point.x > bounds.width - 72)
+    }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+      let local = convert(point, from: superview)
+      if isDragRegion(local) { return self }
+      return super.hitTest(point)
+    }
+
+    override func mouseDown(with event: NSEvent) {
+      if isDragRegion(convert(event.locationInWindow, from: nil)) {
+        window?.performDrag(with: event)
+      } else {
+        super.mouseDown(with: event)
+      }
+    }
+  }
+#endif

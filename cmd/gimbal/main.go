@@ -25,6 +25,14 @@ import (
 	"golang.org/x/tools/go/analysis/singlechecker"
 )
 
+// These values are set by release builds with -ldflags. Development builds keep
+// explicit values so `gimbal --version` is useful from any checkout.
+var (
+	version = "dev"
+	commit  = "unknown"
+	date    = "unknown"
+)
+
 func main() {
 	if len(os.Args) == 2 && os.Args[1] == "run-process" {
 		startup := os.NewFile(3, "startup")
@@ -103,7 +111,7 @@ func isOrdinaryCLI(args []string) bool {
 	}
 	for _, arg := range args {
 		switch arg {
-		case "-h", "--help", "-port", "--port", "-uds", "--uds", "-no-web", "--no-web":
+		case "-h", "--help", "-v", "--version", "-port", "--port", "-uds", "--uds", "-no-web", "--no-web":
 			return true
 		}
 	}
@@ -138,8 +146,9 @@ func runWithUploaders(args []string, stdout, stderr io.Writer, getenv func(strin
 func newRootCommand(stdout, stderr io.Writer, getenv func(string) string) *cobra.Command {
 	var server serverFlags
 	root := &cobra.Command{
-		Use:   "gimbal",
-		Short: "Gimbal's project runtime and web application",
+		Use:     "gimbal",
+		Version: fmt.Sprintf("%s (commit %s, built %s)", version, commit, date),
+		Short:   "Gimbal's project runtime and web application",
 		Long: `Without a subcommand, gimbal serves the current repository on the web
 application and waits. Repeat --project to admit multiple repositories to one
 instance. Each repository keeps its runs and conversations under .gimbal.

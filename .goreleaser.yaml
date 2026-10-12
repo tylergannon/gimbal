@@ -1,0 +1,32 @@
+version: 2
+
+project_name: gimbal
+
+builds:
+  - id: gimbal
+    main: ./cmd/gimbal
+    binary: gimbal
+    env:
+      - CGO_ENABLED=1
+    targets:
+      # release-cli.sh renders this native target into a temporary config.
+      - darwin_arm64
+    ldflags:
+      - -s -w -X main.version=v{{ .Version }} -X main.commit={{ .Commit }} -X main.date={{ .Date }}
+
+archives:
+  - id: gimbal
+    ids: [gimbal]
+    name_template: "gimbal_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    formats: [tar.gz]
+    files:
+      - LICENSE
+      - README.md
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+release:
+  draft: false
+  prerelease: auto

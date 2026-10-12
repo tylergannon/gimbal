@@ -12,6 +12,7 @@ web/editor/.svelte-kit
 # skgo app
 /bin/
 /tmp/
+/dist/
 web/node_modules/
 web/.svelte-kit/
 web/build/*

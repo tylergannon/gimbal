@@ -1,0 +1,177 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*.*.*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to build and publish
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  linux-cli:
+    name: CLI (${{ matrix.target }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: linux_amd64
+            runner: ubuntu-24.04
+          - target: linux_arm64
+            runner: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref_name }}
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          check-latest: true
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.10.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - uses: extractions/setup-just@v4
+      - uses: goreleaser/goreleaser-action@v7
+        with:
+          distribution: goreleaser
+          version: 2.18.3
+          install-only: true
+      - name: Build and package CLI
+        env:
+          RELEASE_TARGET: ${{ matrix.target }}
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+        run: scripts/release-cli.sh "$RELEASE_TARGET"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cli-${{ matrix.target }}
+          path: dist/*.tar.gz
+          if-no-files-found: error
+          retention-days: 2
+
+  macos-release:
+    name: Signed and notarized macOS release assets
+    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v') && (!inputs.tag || inputs.tag == github.ref_name)
+    runs-on: [self-hosted, macOS, ARM64, gimbal-release]
+    environment: release
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref_name }}
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          check-latest: true
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.10.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - uses: extractions/setup-just@v4
+      - uses: jdx/mise-action@v5.1.2
+      - uses: goreleaser/goreleaser-action@v7
+        with:
+          distribution: goreleaser
+          version: 2.18.3
+          install-only: true
+      - name: Prepare macOS signing and notarization credentials
+        env:
+          DEVELOPER_ID_CERTIFICATE_P12_BASE64: ${{ secrets.DEVELOPER_ID_CERTIFICATE_P12_BASE64 }}
+          DEVELOPER_ID_CERTIFICATE_PASSWORD: ${{ secrets.DEVELOPER_ID_CERTIFICATE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_API_KEY_P8_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_P8_BASE64 }}
+          MACOS_NOTARY_PROFILE: gimbal-release-notary
+        run: scripts/ci-signing.sh setup
+      - name: Build, sign, and notarize the macOS CLI
+        env:
+          RELEASE_TARGET: darwin_arm64
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+        run: scripts/release-cli.sh "$RELEASE_TARGET"
+      - name: Build, sign, notarize, and staple app
+        env:
+          RELEASE_VERSION: ${{ inputs.tag || github.ref_name }}
+          RELEASE_BUILD_NUMBER: ${{ github.run_number }}
+          MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}/native/build/macos/.sdk
+        run: scripts/release-macos.sh --release --version "${RELEASE_VERSION#v}" --build-number "$RELEASE_BUILD_NUMBER"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-release
+          path: |
+            dist/gimbal_*.tar.gz
+            dist/macos/Gimbal-*-macos-arm64.zip
+            dist/macos/Gimbal-*-macos-arm64.dmg
+          if-no-files-found: error
+          retention-days: 2
+      - if: always()
+        name: Remove macOS signing material
+        run: scripts/ci-signing.sh cleanup
+
+  publish:
+    name: Publish GitHub Release and Homebrew Casks
+    needs: [linux-cli, macos-release]
+    runs-on: ubuntu-24.04
+    environment: release
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref_name }}
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: cli-*
+          path: dist
+          merge-multiple: true
+      - uses: actions/download-artifact@v4
+        with:
+          name: macos-release
+          path: dist
+          merge-multiple: true
+      - name: Calculate final artifact checksums
+        run: |
+          cd dist
+          sha256sum -- ./*.tar.gz macos/*.zip macos/*.dmg > checksums.txt
+      - name: Publish tagged release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          gh release create "$TAG" --verify-tag --title "Gimbal $TAG" \
+            --generate-notes dist/*.tar.gz dist/checksums.txt dist/macos/*.zip dist/macos/*.dmg
+      - uses: actions/checkout@v4
+        with:
+          repository: tylergannon/homebrew-gimbal
+          ref: main
+          path: homebrew-tap
+          ssh-key: ${{ secrets.TAP_DEPLOY_KEY }}
+      - name: Update Homebrew CLI and app Casks
+        env:
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          version="${TAG#v}"
+          cli_sha="$(awk '/gimbal_.*_darwin_arm64\.tar\.gz$/ {print $1}' dist/checksums.txt)"
+          app_sha="$(awk '/Gimbal-.*-macos-arm64\.dmg$/ {print $1}' dist/checksums.txt)"
+          test -n "$cli_sha" && test -n "$app_sha"
+          scripts/update-homebrew-casks.sh homebrew-tap "$version" "$cli_sha" "$app_sha" "$TAG"

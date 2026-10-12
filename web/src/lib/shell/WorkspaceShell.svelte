@@ -7,7 +7,7 @@
   import type { WorkspaceTab, RecordingDisplay } from './types.js';
 
   let { project, items, tabs, active, sidebar = $bindable(false), recording, content,
-    sidebarExtra, onselect, onclose, onopen, onnew }: {
+    sidebarExtra, fallback, native = false, onselect, onclose, onopen, onnew }: {
     project: string;
     /** Project inventory, including views that are currently closed. */
     items: WorkspaceTab[];
@@ -17,6 +17,8 @@
     recording?: RecordingDisplay;
     content: Snippet<[WorkspaceTab]>;
     sidebarExtra?: Snippet;
+    fallback?: Snippet;
+    native?: boolean;
     onselect: (id: string) => void;
     onclose: (id: string) => void;
     onopen: (id: string) => void;
@@ -34,7 +36,7 @@
   {/if}
 {/snippet}
 
-<div class="shell" class:with-sidebar={sidebar} aria-label={`${project} workspace`}>
+<div class="shell" class:with-sidebar={sidebar} class:native aria-label={`${project} workspace`}>
   {#if sidebar}
     <aside aria-label="Project sidebar">
       <!-- Native titlebar integration supplies the traffic lights later. -->
@@ -68,13 +70,15 @@
           {@render content(tab)}
         </div>
       {/each}
-      {#if !tabs.length}<div class="empty">Open a chat or file from the sidebar.</div>{/if}
+      {#if !active}{#if fallback}<div class="panel">{@render fallback()}</div>{:else}<div class="empty">Open a chat or file from the sidebar.</div>{/if}{/if}
     </div>
   </section>
 </div>
 
 <style>
   .shell { display: flex; height: 100%; min-height: 0; overflow: hidden; background: var(--background); color: var(--foreground); font: 14px var(--font-sans); }
+  .native:not(.with-sidebar) header { padding-left: 86px; }
+  .native header { padding-right: 78px; }
   .workspace { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; }
   header { display: flex; align-items: center; flex: none; gap: 8px; height: 52px; padding: 0 14px; border-bottom: 1px solid var(--border); }
   .compact-project { flex: none; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 8px; font-size: 13px; font-weight: 600; }

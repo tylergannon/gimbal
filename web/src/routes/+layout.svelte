@@ -1,6 +1,7 @@
 <script lang="ts">
   import "../app.css";
   import { navigating, page } from "$app/state";
+  import ProjectWorkspace from "#lib/workspace/ProjectWorkspace.svelte";
   import RecorderBridge from "#lib/workspace/RecorderBridge.svelte";
   import favicon from "#lib/assets/favicon.svg";
   import RunsLoading from "#lib/run/RunsLoading.svelte";
@@ -16,7 +17,7 @@
 
 <svelte:head><link rel="icon" href={favicon} /></svelte:head>
 <div class={{ desktop: data.desktop }}>
-  {#if data.desktop}<aside class="project-sidebar">
+  {#if data.desktop && !project}<aside class="project-sidebar">
       <h2>Gimbal</h2>
       {#each data.workspaceProjects as item (item.id)}<a
           href={`/projects/${item.id}/recordings`}
@@ -24,21 +25,25 @@
         >{/each}<a href="/">Add project</a>
     </aside>{/if}
   <div class="content">
-    <nav class="site-nav">
+    {#if !project}<nav class="site-nav">
       <a href="/">Projects</a><a href="/workflows">Workflows</a>{#if project}<a
           href={`${root}/recordings`}>Workspace</a
         ><a href={`${root}/conversations`}>Conversations</a><a href={root}
           >Runs</a
         ><a href={`${root}/about`}>About</a>{/if}
-    </nav>
+    </nav>{/if}
     <main>
-      {#if loadingRuns}
+      {#if project}
+        {#key project}<ProjectWorkspace {project} name={data.workspaceProjects.find((item: { id: string }) => item.id === project)?.path.split("/").at(-1) ?? "Project"} projects={data.workspaceProjects}>
+          {@render children()}
+        </ProjectWorkspace>{/key}
+      {:else if loadingRuns}
         <div class="runs-page"><RunsLoading /></div>
       {:else}
         {@render children()}
       {/if}
     </main>
-    <RecorderBridge />
+    <RecorderBridge dock={!project} />
   </div>
 </div>
 

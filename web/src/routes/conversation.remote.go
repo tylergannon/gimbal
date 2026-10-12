@@ -10,6 +10,7 @@ import (
 	"github.com/tylergannon/skgo"
 
 	"github.com/tylergannon/gimbal/internal/conversation"
+	"github.com/tylergannon/gimbal/internal/host"
 )
 
 // CreateConversation is the explicit provider and model selection for a new
@@ -60,6 +61,20 @@ func sendConversationMessage(ctx context.Context, event app.RequestEvent[params.
 	return item, nil
 }
 
-var _ = skgo.Command(createConversation)
+var _ = skgo.Form(createConversation)
 
-var _ = skgo.Command(sendConversationMessage)
+var _ = skgo.Form(sendConversationMessage)
+
+// projectConversations reads the existing project-owned chat inventory.
+func projectConversations(ctx context.Context, project string) ([]conversation.Conversation, error) {
+	if owner := host.OwnerFrom(ctx); owner != nil {
+		for _, p := range owner.Projects() {
+			if p.ID() == project {
+				return p.Conversations().List(), nil
+			}
+		}
+	}
+	return nil, skgo.Errorf(http.StatusNotFound, "Project not found")
+}
+
+var _ = skgo.Query(projectConversations)

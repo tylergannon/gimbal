@@ -3,6 +3,7 @@
   import { page } from "$app/state";
   import { watchRecording } from "../transcript.remote";
   import { nativeMessage, type NativeStatus } from "./native";
+  let { dock = true }: { dock?: boolean } = $props();
   let status = $state<NativeStatus>({
     sessionID: "",
     sequence: 0,
@@ -56,7 +57,7 @@
   });
 </script>
 
-{#if native && status.sessionID}
+{#if dock && native && status.sessionID}
   <aside aria-label="Active recording" class="recording-dock">
     <a href={`/projects/${status.project}/recordings/${status.sessionID}`}
       >Recording · {status.state}</a

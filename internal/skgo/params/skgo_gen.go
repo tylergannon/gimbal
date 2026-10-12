@@ -115,6 +115,9 @@ func SkgoCallerRoutes() skgo.CallerRoutes {
 		"/projects/[project]/conversations/[conversationID]": {Params: []skgo.ManifestParam{{Name: "project", Matcher: "", Optional: false, Rest: false, Chained: false}, {Name: "conversationID", Matcher: "", Optional: false, Rest: false, Chained: false}}, NewParams: func(values map[string]any) (any, error) {
 			return SkgoParams("/projects/[project]/conversations/[conversationID]", values)
 		}},
+		"/projects/[project]/conversations/new": {Params: []skgo.ManifestParam{{Name: "project", Matcher: "", Optional: false, Rest: false, Chained: false}}, NewParams: func(values map[string]any) (any, error) {
+			return SkgoParams("/projects/[project]/conversations/new", values)
+		}},
 		"/projects/[project]/files": {Params: []skgo.ManifestParam{{Name: "project", Matcher: "", Optional: false, Rest: false, Chained: false}}, NewParams: func(values map[string]any) (any, error) { return SkgoParams("/projects/[project]/files", values) }},
 		"/projects/[project]/files/[fileID]": {Params: []skgo.ManifestParam{{Name: "project", Matcher: "", Optional: false, Rest: false, Chained: false}, {Name: "fileID", Matcher: "", Optional: false, Rest: false, Chained: false}}, NewParams: func(values map[string]any) (any, error) {
 			return SkgoParams("/projects/[project]/files/[fileID]", values)
@@ -186,6 +189,14 @@ func SkgoParams(routeID string, values map[string]any) (Params, error) {
 				return Params{}, fmt.Errorf("skgo: caller /projects/[project]/conversations/[conversationID] param conversationID: %w", err)
 			}
 			p.value_636f6e766572736174696f6e4944 = ConversationID_K636f6e766572736174696f6e4944Param_String{Value: value}
+		}
+	case "/projects/[project]/conversations/new":
+		if raw, present := values["project"]; present {
+			value, err := skgoSharedValue[string](raw)
+			if err != nil {
+				return Params{}, fmt.Errorf("skgo: caller /projects/[project]/conversations/new param project: %w", err)
+			}
+			p.value_70726f6a656374 = ProjectParam_String{Value: value}
 		}
 	case "/projects/[project]/files":
 		if raw, present := values["project"]; present {

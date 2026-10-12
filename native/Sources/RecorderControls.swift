@@ -232,7 +232,13 @@ struct RecordingLevelMeter: View {
     @objc private func togglePopover() {
       if popover.isShown {
         popover.close()
-      } else if let button = item.button {
+      } else {
+        showControls()
+      }
+    }
+
+    func showControls() {
+      if let button = item.button {
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
       }
     }

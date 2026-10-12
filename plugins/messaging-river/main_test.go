@@ -5,11 +5,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
+	"path/filepath"
 	"reflect"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/rivertype"
@@ -46,6 +51,10 @@ func integration(t *testing.T) (*transport, context.Context) {
 	c := configuration{DSNFile: path, Queue: queue, ControlQueue: queue + "_control", Workers: 1}
 	tr, err := open(ctx, c)
 	if err != nil {
+		t.Fatal(err)
+	}
+	if err := tr.initialize(ctx); err != nil {
+		tr.pool.Close()
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
@@ -299,5 +308,87 @@ func TestConnectBudgetDoesNotCloseConnection(t *testing.T) {
 	}
 	if err := bus.PublishEvent(ctx, event); err == nil {
 		t.Fatal("explicit close must release the pool")
+	}
+}
+
+func TestRepeatedConnectDoesNotTakeWorkerInitializationLock(t *testing.T) {
+	tr, ctx := integration(t)
+	lock, err := pgx.ConnectConfig(ctx, tr.pool.Config().ConnConfig)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = lock.Close(context.Background()) }()
+	if _, err = lock.Exec(ctx, "SELECT pg_advisory_lock(745289004)"); err != nil {
+		t.Fatal(err)
+	}
+	for i := range 3 {
+		connectCtx, cancel := context.WithTimeout(ctx, time.Second)
+		caller, err := open(connectCtx, tr.config)
+		cancel()
+		if err != nil {
+			t.Fatalf("caller %d must not wait for worker initialization lock: %v", i, err)
+		}
+		err = caller.PublishEvent(ctx, backend.MessageEvent{ID: fmt.Sprintf("cheap-%d", i), Created: time.Now()})
+		_ = caller.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestConnectDoesNotInitializeMissingSchema(t *testing.T) {
+	tr, ctx := integration(t)
+	schema := fmt.Sprintf("river_caller_%d", time.Now().UnixNano())
+	identifier := pgx.Identifier{schema}.Sanitize()
+	if _, err := tr.pool.Exec(ctx, "CREATE SCHEMA "+identifier); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _, _ = tr.pool.Exec(context.Background(), "DROP SCHEMA "+identifier+" CASCADE") }()
+	raw, err := os.ReadFile(tr.config.DSNFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Both PostgreSQL URI and keyword DSNs support search_path. Keep the new
+	// private file in the test temp directory; never log connection strings.
+	dsn := strings.TrimSpace(string(raw))
+	if strings.HasPrefix(dsn, "postgres://") || strings.HasPrefix(dsn, "postgresql://") {
+		u, err := url.Parse(dsn)
+		if err != nil {
+			t.Fatal("invalid integration DSN")
+		}
+		q := u.Query()
+		q.Set("search_path", schema)
+		u.RawQuery = q.Encode()
+		dsn = u.String()
+	} else {
+		dsn += " search_path=" + schema
+	}
+	c := tr.config
+	c.DSNFile = filepath.Join(t.TempDir(), "dsn")
+	if err := os.WriteFile(c.DSNFile, []byte(dsn), 0600); err != nil {
+		t.Fatal(err)
+	}
+	caller, err := open(ctx, c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = caller.Close() }()
+	var count int
+	if err := tr.pool.QueryRow(ctx, "SELECT count(*) FROM information_schema.tables WHERE table_schema=$1", schema).Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != 0 {
+		t.Fatalf("caller initialized %d tables", count)
+	}
+	err = caller.PublishRequest(ctx, backend.MessageRequest{ID: "before-worker", Kind: "turn", Created: time.Now()})
+	if err == nil || !strings.Contains(err.Error(), "start the configured message-worker") {
+		t.Fatalf("missing actionable worker initialization error: %v", err)
+	}
+	// The same initialization performed by serve must make the store usable.
+	if err := caller.initialize(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := caller.PublishRequest(ctx, backend.MessageRequest{ID: "after-worker-init", Kind: "turn", Created: time.Now()}); err != nil {
+		t.Fatal(err)
 	}
 }

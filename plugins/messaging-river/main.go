@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
@@ -89,28 +90,6 @@ func open(ctx context.Context, c configuration) (*transport, error) {
 	if err := pool.Ping(ctx); err != nil {
 		return nil, fmt.Errorf("river PostgreSQL connection unavailable: %w", err)
 	}
-	migrator, err := rivermigrate.New(riverpgxv5.New(pool), &rivermigrate.Config{Logger: slog.Default()})
-	if err != nil {
-		return nil, err
-	}
-	lock, err := pgx.Connect(ctx, strings.TrimSpace(string(dsn)))
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = lock.Close(context.Background()) }()
-	// Serializes concurrent caller/worker startup against this database only.
-	if _, err = lock.Exec(ctx, "SELECT pg_advisory_lock(745289004)"); err != nil {
-		return nil, err
-	}
-	if _, err = migrator.Migrate(ctx, rivermigrate.DirectionUp, nil); err != nil {
-		return nil, err
-	}
-	if _, err = pool.Exec(ctx, `CREATE TABLE IF NOT EXISTS gimbal_message_events (
- queue text NOT NULL, id text NOT NULL, created timestamptz NOT NULL,
- request_id text NOT NULL, run_id text NOT NULL, session_id text NOT NULL,
- event bytea NOT NULL, PRIMARY KEY (queue, id))`); err != nil {
-		return nil, err
-	}
 	client, err := river.NewClient(riverpgxv5.New(pool), &river.Config{})
 	if err != nil {
 		return nil, err
@@ -119,9 +98,43 @@ func open(ctx context.Context, c configuration) (*transport, error) {
 	return &transport{config: c, pool: pool, client: client}, nil
 }
 
+func (t *transport) initialize(ctx context.Context) error {
+	migrator, err := rivermigrate.New(riverpgxv5.New(t.pool), &rivermigrate.Config{Logger: slog.Default()})
+	if err != nil {
+		return err
+	}
+	lock, err := pgx.ConnectConfig(ctx, t.pool.Config().ConnConfig)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = lock.Close(context.Background()) }()
+	// Only explicitly started workers initialize schema; callers never take this lock.
+	if _, err = lock.Exec(ctx, "SELECT pg_advisory_lock(745289004)"); err != nil {
+		return err
+	}
+	if _, err = migrator.Migrate(ctx, rivermigrate.DirectionUp, nil); err != nil {
+		return err
+	}
+	if _, err = t.pool.Exec(ctx, `CREATE TABLE IF NOT EXISTS gimbal_message_events (
+ queue text NOT NULL, id text NOT NULL, created timestamptz NOT NULL,
+ request_id text NOT NULL, run_id text NOT NULL, session_id text NOT NULL,
+ event bytea NOT NULL, PRIMARY KEY (queue, id))`); err != nil {
+		return err
+	}
+	return nil
+}
+
 // Close releases this connection's pool. Request and listener contexts control
 // operations; cancelling the Connect establishment budget does not close it.
 func (t *transport) Close() error { t.pool.Close(); return nil }
+
+func storeError(err error) error {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == "42P01" {
+		return fmt.Errorf("river messaging schema unavailable; start the configured message-worker to initialize PostgreSQL: %w", err)
+	}
+	return err
+}
 
 func (t *transport) PublishRequest(ctx context.Context, r backend.MessageRequest) error {
 	queue := t.config.Queue
@@ -132,7 +145,7 @@ func (t *transport) PublishRequest(ctx context.Context, r backend.MessageRequest
 	// Native work is admission-only. Neither normal errors nor crash rescue may
 	// replay it: a crash leaves the native outcome unknown.
 	_, err := t.client.Insert(ctx, actionArgs{Request: r}, &river.InsertOpts{Queue: queue, MaxAttempts: 1})
-	return err
+	return storeError(err)
 }
 
 func (t *transport) PublishEvent(ctx context.Context, e backend.MessageEvent) error {
@@ -143,7 +156,7 @@ func (t *transport) PublishEvent(ctx context.Context, e backend.MessageEvent) er
 	_, err = t.pool.Exec(ctx, `INSERT INTO gimbal_message_events
  (queue,id,created,request_id,run_id,session_id,event) VALUES ($1,$2,$3,$4,$5,$6,$7)
  ON CONFLICT (queue,id) DO NOTHING`, t.config.Queue, e.ID, e.Created, e.RequestID, e.Run, e.SessionID, b)
-	return err
+	return storeError(err)
 }
 
 func (t *transport) ListenEvents(ctx context.Context, s backend.MessageSelection, since time.Time, receive func(backend.MessageEvent) error) error {
@@ -156,7 +169,7 @@ func (t *transport) ListenEvents(ctx context.Context, s backend.MessageSelection
             AND ($4='' OR run_id=$4) AND ($5='' OR session_id=$5)`,
 			t.config.Queue, since, s.RequestID, s.Run, s.SessionID)
 		if err != nil {
-			return err
+			return storeError(err)
 		}
 		var ids []string
 		for rows.Next() {
@@ -173,14 +186,14 @@ func (t *transport) ListenEvents(ctx context.Context, s backend.MessageSelection
 		}
 		rows.Close()
 		if err != nil {
-			return err
+			return storeError(err)
 		}
 		var events []backend.MessageEvent
 		if len(ids) > 0 {
 			rows, err = t.pool.Query(ctx, `SELECT event FROM gimbal_message_events
                 WHERE queue=$1 AND id=ANY($2) ORDER BY created,id`, t.config.Queue, ids)
 			if err != nil {
-				return err
+				return storeError(err)
 			}
 			for rows.Next() {
 				var b []byte
@@ -198,7 +211,7 @@ func (t *transport) ListenEvents(ctx context.Context, s backend.MessageSelection
 			}
 			rows.Close()
 			if err != nil {
-				return err
+				return storeError(err)
 			}
 		}
 		// Release connections before callbacks so slow listeners cannot hold
@@ -254,6 +267,9 @@ func serve(ctx context.Context, raw json.RawMessage, handler backend.MessageHand
 		return err
 	}
 	defer t.pool.Close()
+	if err := t.initialize(ctx); err != nil {
+		return err
+	}
 	workers := river.NewWorkers()
 	river.AddWorker(workers, &actionWorker{ctx: ctx, handler: handler, seen: map[string]bool{}})
 	client, err := river.NewClient(riverpgxv5.New(t.pool), &river.Config{

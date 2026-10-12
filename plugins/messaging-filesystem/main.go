@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"sync"
@@ -96,7 +97,6 @@ func worker(ctx context.Context, raw json.RawMessage, handle backend.MessageHand
 	defer ticker.Stop()
 	var tasks sync.WaitGroup
 	defer tasks.Wait()
-	failures := make(chan error, 1)
 	for {
 		entries, err := os.ReadDir(t.requests)
 		if err != nil {
@@ -109,26 +109,25 @@ func worker(ctx context.Context, raw json.RawMessage, handle backend.MessageHand
 			seen[entry.Name()] = true
 			raw, err := os.ReadFile(filepath.Join(t.requests, entry.Name()))
 			if err != nil {
-				return err
+				log.Printf("request file %s unreadable; retained without retry: %v", entry.Name(), err)
+				continue
 			}
 			var r backend.MessageRequest
 			if err = json.Unmarshal(raw, &r); err != nil {
-				return err
+				log.Printf("request file %s invalid; retained without retry: %v", entry.Name(), err)
+				continue
 			}
 			tasks.Go(func() {
 				if err := handle(ctx, r); err != nil {
-					select {
-					case failures <- err:
-					default:
-					}
+					// Do not invent a terminal execution failure: native work
+					// may already exist when its event publication fails.
+					log.Printf("request %s in %s handling or event delivery failed; inspect retained request, execution may be unresolved: %v", r.ID, entry.Name(), err)
 				}
 			})
 		}
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case err := <-failures:
-			return err
 		case <-ticker.C:
 		}
 	}

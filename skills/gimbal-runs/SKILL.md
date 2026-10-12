@@ -147,6 +147,50 @@ Use `--task-endpoint` to execute agents, commands, and scope-owned services in a
 selected local or Docker daemon. See [task environments](references/task-environments.md)
 for provisioning, transferred artifacts, service-networking limits, and the `service-check` exercise.
 
+### Messaging task routes
+
+The `filesystem`, `river`, and `http-sse` native plugins carry requests and retained
+events while the workflow remains ordinary Go. Build the CLI and each plugin
+from the same checkout and Go toolchain; `go build -buildmode=plugin -o /abs/plugins/filesystem.so ./plugins/messaging-filesystem` builds the filesystem
+plugin. The River and HTTP packages are `./plugins/messaging-river` and
+`./plugins/messaging-http`. Start central with `--plugin-dir /abs/plugins`.
+
+A route file contains `Name` and `Configuration`. Choose one configuration:
+
+| Name | Configuration |
+| --- | --- |
+| `filesystem` | `{"Directory":"/abs/private-messages"}` |
+| `river` | `{"DSNFile":"/abs/private-postgres-dsn","Queue":"gimbal"}` |
+| `http-sse` | `{"AgentURL":"http://127.0.0.1:18091","ProcessURL":"http://127.0.0.1:18092"}` |
+
+For filesystem or River, start one worker with the same route as the caller:
+
+```sh
+gimbal message-worker --plugin-dir /abs/plugins --task-route @/abs/route.json
+gimbal run service-check --instance-dir /abs/instance --project /abs/project --work-dir /abs/project/work --task-route @/abs/route.json --task 'Write the required file.' --follow
+gimbal message-watch --plugin-dir /abs/plugins --task-route @/abs/route.json --run RUN_ID
+```
+
+Run those commands in separate shells. River requires reachable PostgreSQL and
+a private file containing its connection string; the worker initializes its
+schema. Its action queue defaults to `gimbal`, its separate control queue to
+`gimbal_control`, and action workers to four. Use distinct queues to isolate
+independent deployments.
+
+HTTP needs two workers. Give each its own route containing both caller URLs,
+plus `Listen` (`127.0.0.1:18091` or `127.0.0.1:18092`) and a distinct absolute
+`EventsDir`. Start each with `message-worker`. Agent sessions use AgentURL;
+commands and services use ProcessURL. The caller listens to both producers.
+
+Workers and callers share local paths. Keep workers alive until workflow scope
+cleanup finishes; restarting them does not restore native actions or sessions.
+No automatic request replay, host provisioning, or placement is supplied.
+Steering, fork, and FulfillService are unsupported on these routes; Service
+uses a declared local address. A 15-second acceptance timeout means execution
+is unconfirmed, not that it failed. `message-watch` reads retained history
+independently; stopping it never cancels work. Its JSONL can contain private
+agent content. Event files or PostgreSQL rows remain until explicitly removed.
+
 ## Find the run and observe its work
 
 ```sh

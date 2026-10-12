@@ -51,9 +51,14 @@ test("the more disclosure selects a hidden view and dismisses with Escape", asyn
   const screen = await render(WorkspaceDemo, { many: true });
   const more = screen.getByText(/^\d+ more$/);
   await more.click();
-  await screen
-    .getByRole("button", { name: "Workspace research and implementation notes 7.md" })
-    .click();
+  const choice = screen.getByRole("button", {
+    name: "Workspace research and implementation notes 7.md",
+  });
+  const label = choice.element().querySelector(".choice-title") as HTMLElement;
+  // A clipped or ellipsized filename conceals its distinguishing ending.
+  expect(label.scrollWidth).toBeLessThanOrEqual(label.clientWidth);
+  expect(label.scrollHeight).toBeLessThanOrEqual(label.clientHeight);
+  await choice.click();
   await expect
     .element(screen.getByRole("tab", { name: "Workspace research and implementation notes 7.md" }))
     .toHaveAttribute("aria-selected", "true");

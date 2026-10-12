@@ -89,6 +89,13 @@
     }
 
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
+      if workspace?.enabled == true, (workspace?.tabCount ?? 0) >= 2,
+        event.keyCode == 0x30, event.modifierFlags.contains(.control),
+        !event.modifierFlags.contains(.command), !event.modifierFlags.contains(.option)
+      {
+        workspace?.send(event.modifierFlags.contains(.shift) ? "previousTab" : "nextTab")
+        return true
+      }
       // Cmd-W belongs to the active workspace tab, including its empty state.
       // Do not let the standard File / Close Window command stop this window.
       if workspace?.enabled == true,

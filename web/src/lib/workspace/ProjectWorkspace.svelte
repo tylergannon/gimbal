@@ -13,6 +13,7 @@
   import RecordingTranscript from './RecordingTranscript.svelte';
   import FileViewer from './FileViewer.svelte';
   import { nativeMessage, type NativeStatus } from './native';
+  import { conversationsForWorkspace } from './conversations';
 
   let { project, name, projects, children }: {
     project: string; name: string; projects: { id: string; path: string }[]; children: Snippet;
@@ -22,7 +23,8 @@
   const documents = $derived(projectFiles(project));
   const recordings = $derived(recordingHistory({ project, after: '' }));
   const routeConversations = $derived((page.data as { items?: Conversation[]; selected?: Conversation }).items?.filter(item => typeof item.provider === 'string') ?? []);
-  const conversations = $derived(chats.current ?? routeConversations);
+  const routeSelected = $derived((page.data as { selected?: Conversation }).selected);
+  const conversations = $derived(conversationsForWorkspace(chats.current ?? [], routeConversations, routeSelected));
   const files = $derived(documents.current ?? []);
   const history = $derived(recordings.current ?? { items: [], next: '' });
   const initialConversation = (page.data as { selected?: Conversation }).selected;
@@ -55,6 +57,7 @@
     const recordingID = page.params.recordingID;
     const tab = item ?? (path === `${root}/conversations/new`
       ? { id: path, title: 'New conversation', kind: 'chat' as const }
+      : page.params.fileID ? { id: path, title: files.find(file => file.id === page.params.fileID)?.name ?? 'Project file', kind: 'file' as const }
       : recordingID ? { id: path, title: 'Recorded conversation', kind: 'chat' as const } : undefined);
     if (tab && !open.some(item => item.id === tab.id)) open = [...open, tab];
   }
@@ -103,7 +106,7 @@
   onselect={select} onclose={close} onopen={select} onnew={() => select(`${root}/conversations/new`)}>
   {#snippet content(tab)}
     <svelte:boundary>
-      {#if tab.id === `${root}/conversations/new`}<ConversationCreate {project} />
+      {#if tab.id === `${root}/conversations/new`}<ConversationCreate {project} oncreated={created => chats.set([created, ...conversations.filter(item => item.id !== created.id)])} />
       {:else if tab.id.startsWith(`${root}/conversations/`)}
         {@const current = conversations.find(item => `${root}/conversations/${item.id}` === tab.id)}
         {#if current}<ConversationView {project} {current} />{:else}<p class="notice">Conversation unavailable.</p>{/if}
@@ -114,7 +117,7 @@
   {/snippet}
   {#snippet fallback()}
     {#if page.url.pathname === `${root}/conversations`}
-      <ConversationCreate {project} />
+      <ConversationCreate {project} oncreated={created => chats.set([created, ...conversations.filter(item => item.id !== created.id)])} />
     {:else if page.url.pathname === `${root}/recordings`}
       <section class="welcome"><h1>{name}</h1><p>Open a conversation or file from the sidebar, or start a new conversation.</p><button onclick={() => select(`${root}/conversations/new`)}>New conversation</button><p>Record audio from the macOS Recording menu.</p></section>
     {:else}<div class="route-content">{@render children()}</div>{/if}
@@ -123,7 +126,7 @@
     {#if native && status?.sessionID && status.project === project}<div class="recording-detail"><span>{status.pending ? 'Saving to server…' : status.state}</span>{#if status.error}<p role="alert">{status.error}</p><button onclick={() => nativeMessage('reconnect', {})}>Reconnect</button>{/if}</div>{/if}
     <h2 class="group">Recordings</h2>
     {#each history.items as item (item.id)}<a class="row" class:selected={page.params.recordingID === item.id} href={`${root}/recordings/${item.id}`}><span>◉</span><span>{new Date(item.created).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} · {new Date(item.created).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}</span><small>{item.status}</small></a>{:else}<p class="quiet">No recordings yet</p>{/each}
-    <details class="upload"><summary>Add project file</summary><form {...upload.enhance(async (submitted) => { if (await submitted.submit().updates(projectFiles(project)) && submitted.result) select(`${root}/files/${submitted.result.id}`); })}><input {...upload.fields.project.as('hidden', project)} /><input aria-label="Choose project file" {...upload.fields.file.as('file')} required /><button disabled={!!upload.pending}>{upload.pending ? 'Uploading…' : 'Upload'}</button>{#each upload.fields.allIssues() ?? [] as issue}<p role="alert">{issue.message}</p>{/each}</form></details>
+    <details class="upload"><summary>Add project file</summary><form {...upload.enhance(async (submitted) => { if (await submitted.submit().updates(projectFiles(project)) && submitted.result) { documents.set([submitted.result, ...files.filter(file => file.id !== submitted.result!.id)]); select(`${root}/files/${submitted.result.id}`); } })}><input {...upload.fields.project.as('hidden', project)} /><input aria-label="Choose project file" {...upload.fields.file.as('file')} required /><button disabled={!!upload.pending}>{upload.pending ? 'Uploading…' : 'Upload'}</button>{#each upload.fields.allIssues() ?? [] as issue}<p role="alert">{issue.message}</p>{/each}</form></details>
     <nav class="tools" aria-label="Project tools"><a href={root}>Runs</a><a href="/workflows">Workflows</a><a href={`${root}/about`}>About project</a></nav>
     <details class="projects"><summary>Switch project</summary>{#each projects as item (item.id)}<a class="row" href={`/projects/${item.id}/recordings`}>{item.path.split('/').at(-1)}</a>{/each}<a class="row" href="/">Add project</a></details>
   {/snippet}

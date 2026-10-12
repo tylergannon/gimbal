@@ -1,7 +1,8 @@
 <script lang="ts">
+  import type { Conversation } from '#lib/skgo/conversation/types';
   import { goto } from '$app/navigation';
   import { createConversation, projectConversations } from '../../routes/conversation.remote';
-  let { project }: { project: string } = $props();
+  let { project, oncreated }: { project: string; oncreated: (conversation: Conversation) => void } = $props();
   const form = $derived(createConversation.for(project));
   let provider = $state('codex');
   const defaults: Record<string, string> = { codex: 'gpt-5.6-luna', claude: 'claude-haiku-4-5-20251001', agy: 'gemini-3.8-flash-low' };
@@ -11,8 +12,10 @@
 <section class="create">
   <div class="heading"><h1>New conversation</h1><p>Choose the agent for this project.</p></div>
   <form {...form.enhance(async (submitted) => {
-    if (await submitted.submit().updates(projectConversations(project)) && submitted.result)
+    if (await submitted.submit().updates(projectConversations(project)) && submitted.result) {
+      oncreated(submitted.result);
       await goto(`/projects/${project}/conversations/${submitted.result.id}`);
+    }
   })}>
     <label>Title <input {...form.fields.title.as('text')} placeholder="What are we working on?" /></label>
     <label>Provider <select {...form.fields.provider.as('select')} bind:value={provider}><option value="codex">Codex</option><option value="claude">Claude</option><option value="agy">Gemini</option></select></label>

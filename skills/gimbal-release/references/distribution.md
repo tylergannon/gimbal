@@ -24,6 +24,7 @@ Keychain and a `notarytool` Keychain profile:
 ```sh
 export MACOS_SIGNING_IDENTITY='Developer ID Application: NAME (TEAM_ID)'
 export MACOS_NOTARY_PROFILE=gimbal-release-notary
+export MACOS_KEYCHAIN_PATH="$HOME/.config/gimbal-release/release.keychain-db"
 scripts/release-macos.sh --release --version 0.13.0 --build-number 1
 ```
 
@@ -47,10 +48,12 @@ build plugins from the corresponding released source.
 ## Automation
 
 `.github/workflows/release.yml` builds stable semantic-version tags. Linux runs
-on native Ubuntu AMD64/ARM64; Mac assets use the hosted `xcode-27` ARM64 image,
-which supports the app's SDK requirement and is currently public preview.
-Use the offered self-hosted Mac only if an actual hosted-runner limitation is
-established, after checking its OS, Xcode, architecture and access controls.
+on native Ubuntu AMD64/ARM64; Mac assets use the repo-scoped self-hosted
+`amritanandamayi` runner with the `gimbal-release` label, Apple Silicon,
+macOS 27 and Xcode 27. The signing job runs only for version-tag refs,
+including manual dispatches selected on that same tag. Keep this runner out of
+pull-request workflows; run it under its user LaunchAgent with the pinned
+toolchain available on PATH.
 
 `scripts/release-cli.sh` runs the full frontend build and GoReleaser OSS for its
 native target. Mac packaging requires signing credentials and never substitutes
@@ -66,13 +69,19 @@ Secrets belong in the GitHub `release` environment:
 - `APPLE_TEAM_ID`: identity team identifier.
 - `APP_STORE_CONNECT_KEY_ID` and `APP_STORE_CONNECT_ISSUER_ID`: API key identifiers.
 - `APP_STORE_CONNECT_API_KEY_P8_BASE64`: downloaded team API private key.
-- `TAP_GITHUB_TOKEN`: narrowly scoped Contents write access to the tap repository.
+- `TAP_DEPLOY_KEY`: SSH deploy private key with write access only to the tap.
 
 User credential creation/entry stays in the requesting chat. Never put secret
 bytes in prompts, source, worklogs or ordinary command output. CI imports the
 identity into a temporary Keychain, registers its notary profile, and removes
-private files and the Keychain afterward. Restrict the release environment to
-trusted version tags. Linux builds do not require Apple credentials.
+private files and the Keychain afterward. `MACOS_KEYCHAIN_PATH` selects the exact
+Keychain for identity lookup, every `codesign` operation, and all `notarytool`
+profile lookups/submissions. It is optional for local commands that intentionally
+use the default Keychain. CI sets it to the temporary release Keychain and does
+not change global Keychain search settings. Export password-protected PKCS#12
+identities with Apple's compatible MAC SHA-1 and PBE-SHA1-3DES encryption; newer
+OpenSSL defaults may not import into macOS Keychain. Restrict the release
+environment to trusted version tags. Linux builds do not require Apple credentials.
 
 After assets and tap entries are published, install the CLI with
 `brew install --cask tylergannon/gimbal/gimbal`, and the desktop client with

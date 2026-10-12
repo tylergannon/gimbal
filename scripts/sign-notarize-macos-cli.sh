@@ -19,7 +19,11 @@ binary="$work/unpacked/gimbal"
 # Go plugins are separately linked, ad-hoc-signed binaries. This entitlement is
 # required on the macOS CLI host for supported Gimbal plugin loading; it is not
 # used by Gimbal.app or applied to plugin binaries.
-codesign --force --timestamp --options runtime \
+codesign_args=()
+if [[ -n "${MACOS_KEYCHAIN_PATH:-}" ]]; then
+  codesign_args+=(--keychain "$MACOS_KEYCHAIN_PATH")
+fi
+codesign --force --timestamp --options runtime "${codesign_args[@]}" \
   --entitlements scripts/macos-cli.entitlements.plist \
   --sign "$MACOS_SIGNING_IDENTITY" "$binary"
 codesign --verify --strict --verbose=2 "$binary"
@@ -29,8 +33,8 @@ codesign --verify --strict --verbose=2 "$binary"
 # assessment; the code signature carries the notarization ticket lookup.
 ditto -c -k --sequesterRsrc --keepParent "$work/unpacked" "$work/gimbal-cli.zip"
 notary_keychain_args=()
-if [[ -n "${GIMBAL_CI_KEYCHAIN_PATH:-}" ]]; then
-  notary_keychain_args+=(--keychain "$GIMBAL_CI_KEYCHAIN_PATH")
+if [[ -n "${MACOS_KEYCHAIN_PATH:-}" ]]; then
+  notary_keychain_args+=(--keychain "$MACOS_KEYCHAIN_PATH")
 fi
 response="$(xcrun notarytool submit "$work/gimbal-cli.zip" \
   --keychain-profile "$MACOS_NOTARY_PROFILE" "${notary_keychain_args[@]}" --wait --output-format json)"

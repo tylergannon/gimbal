@@ -66,8 +66,8 @@ jobs:
 
   macos-release:
     name: Signed and notarized macOS release assets
-    # GitHub-hosted macOS 27 ARM64 public-preview runner.
-    runs-on: xcode-27
+    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v') && (!inputs.tag || inputs.tag == github.ref_name)
+    runs-on: [self-hosted, macOS, ARM64, gimbal-release]
     environment: release
     steps:
       - uses: actions/checkout@v4
@@ -112,6 +112,7 @@ jobs:
         env:
           RELEASE_VERSION: ${{ inputs.tag || github.ref_name }}
           RELEASE_BUILD_NUMBER: ${{ github.run_number }}
+          MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}/native/build/macos/.sdk
         run: scripts/release-macos.sh --release --version "${RELEASE_VERSION#v}" --build-number "$RELEASE_BUILD_NUMBER"
       - uses: actions/upload-artifact@v4
         with:
@@ -164,7 +165,7 @@ jobs:
           repository: tylergannon/homebrew-gimbal
           ref: main
           path: homebrew-tap
-          token: ${{ secrets.TAP_GITHUB_TOKEN }}
+          ssh-key: ${{ secrets.TAP_DEPLOY_KEY }}
       - name: Update Homebrew CLI and app Casks
         env:
           TAG: ${{ inputs.tag || github.ref_name }}

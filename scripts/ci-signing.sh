@@ -8,15 +8,8 @@ case "$mode" in
 esac
 
 if [[ "$mode" == cleanup ]]; then
-  keychain="${GIMBAL_CI_KEYCHAIN_PATH:-}"
+  keychain="${MACOS_KEYCHAIN_PATH:-}"
   if [[ -n "$keychain" ]]; then
-    previous_keychains=()
-    while IFS= read -r item; do
-      [[ -n "$item" ]] && previous_keychains+=("$item")
-    done <<< "${GIMBAL_CI_PREVIOUS_KEYCHAINS:-}"
-    if ((${#previous_keychains[@]})); then
-      security list-keychains -d user -s "${previous_keychains[@]}" || true
-    fi
     if [[ -f "$keychain" ]]; then
       security delete-keychain "$keychain" || true
     fi
@@ -28,7 +21,7 @@ if [[ "$mode" == cleanup ]]; then
   exit 0
 fi
 
-[[ "${GITHUB_ACTIONS:-}" == true ]] || { echo "signing setup is restricted to ephemeral GitHub-hosted runners" >&2; exit 2; }
+[[ "${GITHUB_ACTIONS:-}" == true ]] || { echo "signing setup is restricted to GitHub Actions jobs" >&2; exit 2; }
 
 : "${RUNNER_TEMP:?RUNNER_TEMP is required}"
 : "${GITHUB_ENV:?GITHUB_ENV is required}"
@@ -43,24 +36,16 @@ fi
 signing_dir="$(mktemp -d "$RUNNER_TEMP/gimbal-signing.XXXXXX")"
 keychain="$signing_dir/release.keychain-db"
 keychain_password="$(openssl rand -hex 32)"
-previous_keychains_raw="$(security list-keychains -d user | sed -E 's/^[[:space:]]*//; s/^\"//; s/\"$//')"
-previous_keychains=()
-while IFS= read -r item; do
-  [[ -n "$item" ]] && previous_keychains+=("$item")
-done <<< "$previous_keychains_raw"
 p12_path="$signing_dir/developer-id.p12"
 p8_path="$signing_dir/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8"
 
 cleanup_on_error() {
-  security list-keychains -d user -s "${previous_keychains[@]}" >/dev/null 2>&1 || true
   security delete-keychain "$keychain" >/dev/null 2>&1 || true
   rm -rf "$signing_dir"
 }
 {
-  printf 'GIMBAL_CI_KEYCHAIN_PATH=%s\n' "$keychain"
+  printf 'MACOS_KEYCHAIN_PATH=%s\n' "$keychain"
   printf 'GIMBAL_CI_SIGNING_DIR=%s\n' "$signing_dir"
-  delimiter="GIMBAL_CI_KEYCHAINS_$$"
-  printf 'GIMBAL_CI_PREVIOUS_KEYCHAINS<<%s\n%s\n%s\n' "$delimiter" "$previous_keychains_raw" "$delimiter"
 } >> "$GITHUB_ENV"
 trap cleanup_on_error EXIT
 
@@ -75,7 +60,6 @@ security import "$p12_path" -k "$keychain" -P "$DEVELOPER_ID_CERTIFICATE_PASSWOR
   -T /usr/bin/codesign -T /usr/bin/security >/dev/null
 security set-key-partition-list -S apple-tool:,apple: -s \
   -k "$keychain_password" "$keychain" >/dev/null
-security list-keychains -d user -s "$keychain" "${previous_keychains[@]}"
 
 identity_list="$(security find-identity -v -p codesigning "$keychain")"
 identity_count="$(printf '%s\n' "$identity_list" | awk -F '"' '/Developer ID Application:/ {n++} END {print n+0}')"

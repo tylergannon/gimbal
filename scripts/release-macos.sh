@@ -41,19 +41,19 @@ SKIP_BUILD=0
 SKIP_GENERATE=0
 SIGNING_IDENTITY="${MACOS_SIGNING_IDENTITY:-}"
 NOTARY_PROFILE="${MACOS_NOTARY_PROFILE:-}"
-NOTARY_KEYCHAIN_PATH="${GIMBAL_CI_KEYCHAIN_PATH:-}"
+KEYCHAIN_PATH="${MACOS_KEYCHAIN_PATH:-}"
 
 notarytool() {
-	if [[ -n "$NOTARY_KEYCHAIN_PATH" ]]; then
-		xcrun notarytool "$@" --keychain "$NOTARY_KEYCHAIN_PATH"
+	if [[ -n "$KEYCHAIN_PATH" ]]; then
+		xcrun notarytool "$@" --keychain "$KEYCHAIN_PATH"
 	else
 		xcrun notarytool "$@"
 	fi
 }
 
 print_notary_keychain_arg() {
-	if [[ -n "$NOTARY_KEYCHAIN_PATH" ]]; then
-		printf ' --keychain %q' "$NOTARY_KEYCHAIN_PATH" >&2
+	if [[ -n "$KEYCHAIN_PATH" ]]; then
+		printf ' --keychain %q' "$KEYCHAIN_PATH" >&2
 	fi
 }
 
@@ -150,7 +150,11 @@ if [[ "$MODE" == "release" ]]; then
 	[[ -n "$NOTARY_PROFILE" ]] || die 'set MACOS_NOTARY_PROFILE to an existing notarytool keychain profile'
 	[[ -f "$ENTITLEMENTS" ]] || die "entitlements file missing: $ENTITLEMENTS"
 
-	IDENTITIES="$(security find-identity -v -p codesigning 2>&1 || true)"
+	if [[ -n "$KEYCHAIN_PATH" ]]; then
+		IDENTITIES="$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" 2>&1 || true)"
+	else
+		IDENTITIES="$(security find-identity -v -p codesigning 2>&1 || true)"
+	fi
 	if [[ -z "$SIGNING_IDENTITY" ]]; then
 		SIGNING_IDENTITY="$(printf '%s\n' "$IDENTITIES" | awk -F '"' '/Developer ID Application:/{print $2; exit}')"
 	fi
@@ -215,7 +219,11 @@ MAIN_EXECUTABLE="$APP_OUT/Contents/MacOS/$MAIN_NAME"
 
 sign_code() {
 	local target="$1"
-	codesign --force --options runtime --timestamp --sign "$SIGNING_IDENTITY" "$target"
+	local keychain_args=()
+	if [[ -n "$KEYCHAIN_PATH" ]]; then
+		keychain_args+=(--keychain "$KEYCHAIN_PATH")
+	fi
+	codesign --force --options runtime --timestamp "${keychain_args[@]}" --sign "$SIGNING_IDENTITY" "$target"
 }
 
 printf 'Signing nested Mach-O files and code bundles...\n'
@@ -231,8 +239,12 @@ while IFS= read -r -d '' bundle; do
 	sign_code "$bundle"
 done < <(find "$APP_OUT/Contents" -depth -type d \( -name '*.framework' -o -name '*.bundle' -o -name '*.xpc' -o -name '*.appex' -o -name '*.app' \) -print0)
 
-codesign --force --options runtime --timestamp --entitlements "$ENTITLEMENTS" --sign "$SIGNING_IDENTITY" "$MAIN_EXECUTABLE"
-codesign --force --options runtime --timestamp --entitlements "$ENTITLEMENTS" --sign "$SIGNING_IDENTITY" "$APP_OUT"
+codesign_keychain_args=()
+if [[ -n "$KEYCHAIN_PATH" ]]; then
+	codesign_keychain_args+=(--keychain "$KEYCHAIN_PATH")
+fi
+codesign --force --options runtime --timestamp "${codesign_keychain_args[@]}" --entitlements "$ENTITLEMENTS" --sign "$SIGNING_IDENTITY" "$MAIN_EXECUTABLE"
+codesign --force --options runtime --timestamp "${codesign_keychain_args[@]}" --entitlements "$ENTITLEMENTS" --sign "$SIGNING_IDENTITY" "$APP_OUT"
 codesign --verify --deep --strict --verbose=2 "$APP_OUT"
 
 TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/gimbal-macos-release.XXXXXX")"
@@ -284,7 +296,7 @@ mkdir -p "$DMG_STAGE"
 ditto "$APP_OUT" "$DMG_STAGE/Gimbal.app"
 ln -s /Applications "$DMG_STAGE/Applications"
 hdiutil create -volname Gimbal -srcfolder "$DMG_STAGE" -ov -format UDZO "$DMG_OUT"
-codesign --force --timestamp --sign "$SIGNING_IDENTITY" "$DMG_OUT"
+codesign --force --timestamp "${codesign_keychain_args[@]}" --sign "$SIGNING_IDENTITY" "$DMG_OUT"
 printf 'Submitting installable disk image for notarization...\n'
 notarize "$DMG_OUT" 'disk image'
 xcrun stapler staple "$DMG_OUT"

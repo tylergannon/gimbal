@@ -33,7 +33,7 @@ func WithEndpoint(ctx context.Context, url string) context.Context {
 }
 func Endpoint(ctx context.Context) string {
 	s, _ := ctx.Value(endpointKey{}).(string)
-	if s == "" && Connection(ctx).Execution != nil {
+	if s == "" && (Connection(ctx).Execution != nil || Messages(ctx) != nil) {
 		return "backend"
 	}
 	return s
@@ -68,6 +68,12 @@ func Call(ctx context.Context, endpoint, operation string, input, output any) er
 }
 
 func Cleanup(ctx context.Context, endpoint, run, scope string) error {
+	if Messages(ctx) != nil {
+		r := Request("cleanup", Owner{Run: run, Scope: scope})
+		r.ScopeTarget = &Scope{Run: run, Scope: scope}
+		_, err := MessageCall(ctx, r)
+		return err
+	}
 	var reply Reply
 	if err := Call(ctx, endpoint, "cleanup", Scope{Run: run, Scope: scope}, &reply); err != nil {
 		return err

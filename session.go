@@ -357,7 +357,7 @@ func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessag
 	}
 	var files []backend.TaskFile
 	var err error
-	if effects.Endpoint(ctx) != "" {
+	if effects.Endpoint(ctx) != "" && effects.Messages(ctx) == nil {
 		files, err = remoteTaskFiles(ctx, prompt)
 	}
 	var result TurnResult

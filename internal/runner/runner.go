@@ -70,7 +70,7 @@ func run(request invocation.Request, startup io.Writer, models map[gimbal.Workfl
 	ctx := observation.WithRegistry(effects.WithRunID(context.Background(), request.RunID), registry)
 	ctx = live.WithRuns(ctx, runs)
 	ctx = effects.WithEndpoint(ctx, request.TaskEndpoint)
-	if len(connections) > 0 && connections[0].Execution != nil {
+	if len(connections) > 0 && (connections[0].Execution != nil || connections[0].Messages != nil) {
 		ctx = effects.WithConnection(ctx, connections[0])
 	} else if request.TaskRoute.Name != "" && request.TaskRoute.Name != "local" {
 		connection, err := gimbal.DefaultRegistry.Connect(ctx, request.TaskRoute)
@@ -238,7 +238,7 @@ type remote struct {
 func (c remote) call(ctx context.Context, op operation) (bool, error) {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	if c.endpoint != "" || c.connection.Execution != nil {
+	if c.endpoint != "" || (c.connection.Execution != nil || c.connection.Messages != nil) {
 		ctx = effects.WithConnection(ctx, c.connection)
 		value, err := orphanCall(ctx, c.endpoint, c.runID, op)
 		if op.Action == "scope" && op.Target == "" {

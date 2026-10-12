@@ -22,7 +22,7 @@ import (
 func CleanupExited(state, id string) (bool, error) {
 	dir := filepath.Join(state, "runs", id)
 	connection, endpoint, err := taskConnection(state, id)
-	if errors.Is(err, os.ErrNotExist) || (err == nil && endpoint == "" && connection.Execution == nil) {
+	if errors.Is(err, os.ErrNotExist) || (err == nil && endpoint == "" && connection.Execution == nil && connection.Messages == nil) {
 		return false, nil
 	}
 	if err != nil {
@@ -40,11 +40,13 @@ func CleanupExited(state, id string) (bool, error) {
 	defer cancel()
 	ctx = effects.WithConnection(ctx, connection)
 	var owned effects.State
-	if e := effects.Call(ctx, endpoint, "state", effects.Scope{Run: id}, &owned); e == nil && owned.Pending == 0 {
-		if err := observation.RecordTerminated(dir, "workflow process exited; remote resources are released"); err != nil {
-			return false, err
+	if connection.Messages == nil {
+		if e := effects.Call(ctx, endpoint, "state", effects.Scope{Run: id}, &owned); e == nil && owned.Pending == 0 {
+			if err := observation.RecordTerminated(dir, "workflow process exited; remote resources are released"); err != nil {
+				return false, err
+			}
+			return true, observation.RecordCleanup(dir, nil)
 		}
-		return true, observation.RecordCleanup(dir, nil)
 	}
 	cleanupErr := effects.Cleanup(ctx, endpoint, id, "")
 	if err := observation.RecordTerminated(dir, "workflow process exited; remote scope cleanup was requested"); err != nil {
@@ -59,6 +61,10 @@ func CleanupExited(state, id string) (bool, error) {
 func orphanCall(ctx context.Context, endpoint, run string, op operation) (bool, error) {
 	switch op.Action {
 	case "cleanup":
+		if effects.Messages(ctx) != nil {
+			err := effects.Cleanup(ctx, endpoint, run, "")
+			return err != nil, err
+		}
 		var state effects.State
 		err := effects.Call(ctx, endpoint, "state", effects.Scope{Run: run}, &state)
 		return err != nil || state.Pending > 0, err

@@ -129,6 +129,7 @@ type RunObservations interface {
 	ReadObservation(context.Context, Target, string) (Observation, error)
 }
 type Connection struct {
+	Messages     Messaging
 	Execution    Execution
 	Events       TaskEvents
 	Observations RunObservations

@@ -1,7 +1,7 @@
 {
   "guide": {
     "summary": "ServiceCheck runs a database and web service with scoped values and consumers.",
-    "prose": "Package servicecheck runs a database, web service, parallel command consumers,\nand an agent through scoped orchestration and secrets backends. The database\nand web server publish their connection values through ENV_FILE. The agent\nobtains its values by calling back into Gimbal from its consuming scope.\n\nThe execution environment needs Docker, psql, Python 3, and access to the\npostgres:17 image. Services are stopped when their declaring scope ends.\nThe default devops-tasks model is gpt-5.6-luna; --devops-tasks overrides it.\nSuccess means the database query, web response, and agent's fetched response\nall contain GIMBAL_SERVICE_OK, followed by successful scoped cleanup.\n\nExample:\n\n\tgimbal run service-check --work-dir /abs/work --task-route @/abs/route.json --devops-tasks codex/gpt-5.6-luna",
+    "prose": "Package servicecheck runs a database, web service, parallel command consumers,\nand an agent through scoped orchestration and secrets backends. The database\nand web server publish their connection values through ENV_FILE. The agent\nobtains its values by calling back into Gimbal from its consuming scope.\n\nThe execution environment needs Docker, psql, Python 3, and access to the\npostgres:17-alpine image. Services are stopped when their declaring scope ends.\nThe default devops-tasks model is gpt-5.6-luna; --devops-tasks overrides it.\nSuccess means the database query, web response, and agent's fetched response\nall contain GIMBAL_SERVICE_OK, followed by successful scoped cleanup.\n\nExample:\n\n\tgimbal run service-check --work-dir /abs/work --task-route @/abs/route.json --devops-tasks gpt-5.6-luna",
     "parameters": [
       {
         "name": "Task",
@@ -17,8 +17,8 @@
         "default": "gpt-5.6-luna"
       }
     ],
-    "invocation": "gimbal run service-check --work-dir /abs/work --task-route @/abs/route.json --devops-tasks codex/gpt-5.6-luna",
-    "snapshot": "1aa8af0dfe7ae7603e4956ac2a97691e0c35b302740f3f7f0325aa5e371016ce"
+    "invocation": "gimbal run service-check --work-dir /abs/work --task-route @/abs/route.json --devops-tasks gpt-5.6-luna",
+    "snapshot": "7ee855f61d5bdea8e6196c3d1633b91175660d26b6e52eab5dded42612f66290"
   },
   "name": "service-check",
   "entry": "ServiceCheck",

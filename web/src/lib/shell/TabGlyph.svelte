@@ -4,4 +4,4 @@
   let { tab }: { tab: WorkspaceTab } = $props();
 </script>
 
-{#if tab.kind === 'chat'}<MessageSquare size={14} aria-hidden="true" />{:else}<FileText size={14} aria-hidden="true" />{/if}
+{#if tab.kind === 'chat'}<MessageSquare size={14} style="flex-shrink: 0;" aria-hidden="true" />{:else}<FileText size={14} style="flex-shrink: 0;" aria-hidden="true" />{/if}

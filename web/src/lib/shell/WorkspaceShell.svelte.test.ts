@@ -28,6 +28,10 @@ test("keyboard selection reveals overflowed tabs and Delete closes only the view
   });
   await expect.element(last).toHaveAttribute("aria-selected", "true");
   await expect.element(last).toHaveFocus();
+  // A long selected filename must not consume the file/chat distinction.
+  const glyph = last.element().querySelector("svg")!.getBoundingClientRect();
+  expect(glyph.width).toBe(14);
+  expect(glyph.height).toBe(14);
   await userEvent.keyboard("{Home}");
   await userEvent.keyboard("{ArrowRight}");
   await expect

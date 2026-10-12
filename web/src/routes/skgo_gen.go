@@ -4,6 +4,7 @@ package routes
 
 import (
 	appstate "github.com/tylergannon/gimbal/internal/app"
+	conversation "github.com/tylergannon/gimbal/internal/conversation"
 	skgo "github.com/tylergannon/skgo"
 )
 
@@ -88,6 +89,8 @@ var (
 	Skgo_stopTurn = stopTurn
 	// Skgo_createConversation is createConversation, published as src/routes/conversation.remote.ts#createConversation.
 	Skgo_createConversation = createConversation
+	// Skgo_projectConversations is projectConversations, published as src/routes/conversation.remote.ts#projectConversations.
+	Skgo_projectConversations = projectConversations
 	// Skgo_sendConversationMessage is sendConversationMessage, published as src/routes/conversation.remote.ts#sendConversationMessage.
 	Skgo_sendConversationMessage = sendConversationMessage
 	// Skgo_answerInterview is answerInterview, published as src/routes/interview.remote.ts#answerInterview.
@@ -105,6 +108,14 @@ var (
 )
 
 type (
+	// SkgoArg_createConversation is the type createConversation takes.
+	SkgoArg_createConversation = CreateConversation
+	// SkgoOut_createConversation is the type createConversation returns.
+	SkgoOut_createConversation = conversation.Conversation
+	// SkgoArg_sendConversationMessage is the type sendConversationMessage takes.
+	SkgoArg_sendConversationMessage = SendConversationMessage
+	// SkgoOut_sendConversationMessage is the type sendConversationMessage returns.
+	SkgoOut_sendConversationMessage = conversation.Conversation
 	// SkgoArg_answerInterview is the type answerInterview takes.
 	SkgoArg_answerInterview = InterviewAnswer
 	// SkgoOut_answerInterview is the type answerInterview returns.

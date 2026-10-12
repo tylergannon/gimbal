@@ -59,15 +59,20 @@ func TestConversationPageRendersProviderAndRealWorktreeFacts(t *testing.T) {
 		t.Fatalf("GET /conversations: status %d, body %s", response.StatusCode, body)
 	}
 	for _, want := range []string{
-		"Conversations", "Choose a provider", "Codex", "Claude", "agy / Gemini",
+		"Chats", "New tab", "Codex", "Claude", "agy / Gemini",
 		selected.Title, selected.Model, selected.Branch, selected.Worktree,
 	} {
 		if !strings.Contains(string(body), want) {
 			t.Errorf("conversation page does not contain %q", want)
 		}
 	}
-	if got := strings.Count(string(body), "/projects/"+runtime.ID()+"/conversations/"); got != len(items) {
-		t.Errorf("saved conversation links with document navigation = %d, want %d", got, len(items))
+	for _, item := range items {
+		if !strings.Contains(string(body), item.Title) {
+			t.Errorf("workspace inventory does not contain saved chat %q", item.Title)
+		}
+	}
+	if !strings.Contains(string(body), "workspace-panel-/projects/"+runtime.ID()+"/conversations/"+selected.ID) {
+		t.Error("workspace selected tab does not carry its canonical route identity")
 	}
 }
 

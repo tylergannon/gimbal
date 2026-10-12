@@ -1,11 +1,2 @@
-<script lang="ts">
-  import { page } from "$app/state";
-  import ProjectWorkspace from "#lib/workspace/ProjectWorkspace.svelte";
-  let { children } = $props();
-</script>
-
-{#key page.params.project}<ProjectWorkspace
-    project={page.params.project!}
-    id={page.params.recordingID ?? ""}
-  />{/key}
+<script lang="ts">let { children } = $props();</script>
 {@render children()}

@@ -290,6 +290,9 @@ func (s *ownedService) awaitBoundary(timeout time.Duration) error {
 // consumer-reachable URL. Local execution returns loopback in the workflow
 // environment; remote execution requires an explicitly supplied topology.
 func FulfillService(ctx context.Context, name, workdir, command string, port int, consumer string) (string, error) {
+	if effects.Messages(ctx) != nil {
+		return "", fmt.Errorf("FulfillService is unsupported on messaging routes; use Service with a declared local address")
+	}
 	s, err := current(ctx)
 	if err != nil {
 		return "", err

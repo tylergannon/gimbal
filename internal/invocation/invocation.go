@@ -87,7 +87,7 @@ func PrepareContext(ctx context.Context, r Request) (map[gimbal.WorkflowRole]gim
 	models, err := binding.Roles(specs)
 	connection := effects.Connection(ctx)
 
-	if err == nil && (r.TaskEndpoint != "" || connection.Execution != nil) {
+	if err == nil && (r.TaskEndpoint != "" || (connection.Execution != nil || connection.Messages != nil)) {
 		for role, spec := range specs {
 			name, effort, hasEffort := strings.Cut(spec, ":")
 			resolved, e := modelalias.Resolve(modelalias.Selection{Name: name, Effort: effort, EffortPresent: hasEffort})

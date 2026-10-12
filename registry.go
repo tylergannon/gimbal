@@ -56,6 +56,7 @@ type Registry struct {
 	mu        sync.RWMutex
 	workflows map[string]WorkflowDefinition
 	backends  map[string]BackendDefinition
+	messaging map[string]MessagingDefinition
 	source    string
 }
 
@@ -316,6 +317,9 @@ func (r *Registry) RegisterBackend(d BackendDefinition) error {
 	if strings.TrimSpace(d.Name) == "" || d.Connect == nil || d.ValidateConfiguration == nil {
 		return prefix(fmt.Errorf("malformed backend definition %q", d.Name))
 	}
+	if _, ok := r.messaging[d.Name]; ok {
+		return prefix(fmt.Errorf("duplicate backend %q", d.Name))
+	}
 	if _, ok := r.backends[d.Name]; ok {
 		return prefix(fmt.Errorf("duplicate backend %q", d.Name))
 	}
@@ -335,6 +339,13 @@ func (r *Registry) Backend(name string) (BackendDefinition, bool) {
 	return d, ok
 }
 func (r *Registry) Connect(ctx context.Context, route backend.Route) (backend.Connection, error) {
+	if d, ok := r.Messaging(route.Name); ok {
+		if err := d.ValidateConfiguration(route.Configuration); err != nil {
+			return backend.Connection{}, err
+		}
+		b, err := d.Connect(ctx, route.Configuration)
+		return backend.Connection{Messages: b}, err
+	}
 	d, ok := r.Backend(route.Name)
 	if !ok {
 		return backend.Connection{}, fmt.Errorf("unknown backend %q", route.Name)

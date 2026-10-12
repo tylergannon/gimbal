@@ -21,10 +21,32 @@ type Harness struct {
 }
 
 func (h *Harness) call(ctx context.Context, op string, in any) (effects.Reply, error) {
-	if h.Connection.Execution != nil {
+	if h.Connection.Execution != nil || h.Connection.Messages != nil {
 		ctx = effects.WithConnection(ctx, h.Connection)
 	}
 	var out effects.Reply
+	if effects.Messages(ctx) != nil {
+		r := effects.Request(op, effects.Identity(ctx))
+		switch v := in.(type) {
+		case effects.Session:
+			r.Session = &v
+			r.SessionID = v.Task
+		case effects.Target:
+			r.Target = &v
+			r.Run = v.Run
+			r.SessionID = v.ID
+		default:
+			return out, fmt.Errorf("unsupported messaging operation %s", op)
+		}
+		if op == "steer" || (r.Session != nil && r.Session.Parent != "") {
+			return out, fmt.Errorf("%s is unsupported on messaging routes", op)
+		}
+		e, err := effects.MessageCall(ctx, r)
+		if e.Result != nil {
+			out.ID = e.Result.ID
+		}
+		return out, err
+	}
 	err := effects.Call(ctx, h.Endpoint, op, in, &out)
 	if err == nil && out.Error != "" {
 		err = fmt.Errorf("task daemon: %s", out.Error)
@@ -41,11 +63,14 @@ func target(id string) effects.Target {
 	return effects.Target{Run: run, ID: session}
 }
 func (h *Harness) RunTurn(ctx context.Context, id, prompt string, schema json.RawMessage, onEvent func(gimbal.AgentEvent) error) (gimbal.TurnResult, error) {
-	if h.Connection.Execution != nil {
+	if h.Connection.Execution != nil || h.Connection.Messages != nil {
 		ctx = effects.WithConnection(ctx, h.Connection)
 	}
 	t := target(id)
 	o := effects.Identity(ctx)
+	if effects.Messages(ctx) != nil {
+		return h.messageTurn(ctx, t, o, prompt, schema, onEvent)
+	}
 	files := effects.TaskFiles(ctx)
 	reply, err := h.call(ctx, "turn", effects.Turn{Owner: o, Session: t.ID, Prompt: prompt, Schema: schema, Files: files})
 	if err != nil {
@@ -109,4 +134,37 @@ func (h *Harness) Fork(ctx context.Context, id string) (string, error) {
 func (h *Harness) Close(ctx context.Context, id string) error {
 	_, err := h.call(ctx, "close", target(id))
 	return err
+}
+
+func (h *Harness) messageTurn(ctx context.Context, t effects.Target, o effects.Owner, prompt string, schema json.RawMessage, onEvent func(gimbal.AgentEvent) error) (gimbal.TurnResult, error) {
+	r := effects.Request("turn", o)
+	r.SessionID = t.ID
+	r.Turn = &effects.Turn{Owner: o, Session: t.ID, Prompt: prompt, Schema: schema}
+	if err := effects.Submit(ctx, r); err != nil {
+		return gimbal.TurnResult{}, err
+	}
+	event, err := effects.Await(ctx, r, "completed", func(raw json.RawMessage) {
+		var e struct {
+			gimbal.AgentEvent
+			Native json.RawMessage
+		}
+		if json.Unmarshal(raw, &e) == nil && onEvent != nil {
+			e.NativeRef = e.Native
+			_ = onEvent(e.AgentEvent)
+		}
+	})
+	if ctx.Err() != nil {
+		err = errors.Join(err, effects.InterruptMessage(ctx, r))
+	}
+	if invalid, ok := errors.AsType[*effects.InvalidOutput](err); ok {
+		err = fmt.Errorf("%w: %s", gimbal.ErrInvalidOutput, invalid.Message)
+	}
+	var result gimbal.TurnResult
+	if event.Result != nil {
+		result.Output = event.Result.Output
+		if len(event.Result.Usage) > 0 {
+			err = errors.Join(err, json.Unmarshal(event.Result.Usage, &result.Usage))
+		}
+	}
+	return result, err
 }

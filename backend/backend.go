@@ -129,6 +129,7 @@ type RunObservations interface {
 	ReadObservation(context.Context, Target, string) (Observation, error)
 }
 type Connection struct {
+	Messages     Messaging
 	Execution    Execution
 	Events       TaskEvents
 	Observations RunObservations
@@ -139,4 +140,12 @@ type Connection struct {
 type TurnResult struct {
 	Output []byte
 	Usage  json.RawMessage
+}
+
+// Close releases optional messaging connection resources, never native work.
+func (c Connection) Close() error {
+	if closer, ok := c.Messages.(io.Closer); ok {
+		return closer.Close()
+	}
+	return nil
 }

@@ -220,7 +220,16 @@ func runCommand(ctx context.Context, s *scope, name, workdir, command string, ar
 		errOut, ended.StderrFile, captureErr = openCommandCapture(s.run, id, "stderr")
 		if captureErr == nil {
 			ended.StdoutFile = stdoutFile
-			if effects.Endpoint(ctx) != "" {
+			if effects.Messages(ctx) != nil {
+				request, e := startMessageProcess(ctx, s, id, workdir, command, args, false)
+				commandErr = e
+				if e == nil {
+					commandErr = messageProcessResult(ctx, s, request, out, errOut, &ended)
+				} else {
+					_ = out.close()
+					_ = errOut.close()
+				}
+			} else if effects.Endpoint(ctx) != "" {
 				commandErr = startRemoteProcess(ctx, s, id, workdir, command, args, out, errOut, false)
 				if commandErr == nil {
 					commandErr = remoteProcessResult(ctx, s, id, out, errOut, &ended)

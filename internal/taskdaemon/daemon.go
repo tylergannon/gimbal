@@ -133,7 +133,8 @@ func (d *Daemon) create(_ context.Context, req effects.Session) (string, error) 
 	}
 	return req.Task, nil
 }
-func (d *Daemon) turn(req effects.Turn) error {
+func (d *Daemon) turn(req effects.Turn) error { return d.turnEvents(req, nil) }
+func (d *Daemon) turnEvents(req effects.Turn, emit func(json.RawMessage)) error {
 	for _, file := range req.Files {
 		if err := d.writeBytes(backend.Artifact{Owner: req.Owner, Name: file.Name}, bytes.NewReader(file.Bytes)); err != nil {
 			return err
@@ -194,6 +195,9 @@ func (d *Daemon) turn(req effects.Turn) error {
 				t.mu.Lock()
 				t.events = append(t.events, raw)
 				t.mu.Unlock()
+				if emit != nil {
+					emit(raw)
+				}
 			}
 			return nil
 		})

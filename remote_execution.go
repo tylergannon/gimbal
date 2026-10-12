@@ -89,6 +89,9 @@ func remoteProcessResult(ctx context.Context, s *scope, id string, out, stderr *
 	return errors.Join(err, captureErr)
 }
 func remoteService(ctx context.Context, s *scope, name, id, workdir, command string, out, stderr *commandCapture, ended CommandEnded, start time.Time) error {
+	if effects.Messages(ctx) != nil {
+		return messageService(ctx, s, name, id, workdir, command, out, stderr, ended, start)
+	}
 	if err := startRemoteProcess(ctx, s, id, workdir, "zsh", []string{"-c", command}, out, stderr, true); err != nil {
 		_ = out.close()
 		_ = stderr.close()
@@ -125,4 +128,70 @@ func executionFor(ctx context.Context) backend.Execution {
 		return c.Execution
 	}
 	return backend.HTTP{Endpoint: effects.Endpoint(ctx)}
+}
+
+func startMessageProcess(ctx context.Context, s *scope, id, workdir, command string, args []string, service bool) (backend.MessageRequest, error) {
+	r := effects.Request("process", effectOwner(s, id))
+	r.Process = &backend.Process{Owner: r.Owner, Workdir: workdir, Command: command, Args: args, Service: service}
+	return r, effects.Submit(ctx, r)
+}
+func messageProcessResult(ctx context.Context, s *scope, r backend.MessageRequest, out, stderr *commandCapture, ended *CommandEnded) error {
+	event, err := effects.Await(ctx, r, "completed", nil)
+	if ctx.Err() != nil {
+		ended.Interrupted = true
+		err = errors.Join(err, effects.InterruptMessage(ctx, r))
+	}
+	if event.Result != nil {
+		result := event.Result
+		if result.Process != nil {
+			ended.ExitCode = result.Process.ExitCode
+			ended.Interrupted = result.Process.Interrupted
+			if result.Process.Error != "" {
+				err = errors.Join(err, errors.New(result.Process.Error))
+			}
+		}
+		_, e := out.Write(result.Stdout)
+		err = errors.Join(err, e)
+		_, e = stderr.Write(result.Stderr)
+		err = errors.Join(err, e)
+	}
+	err = errors.Join(err, out.close(), stderr.close())
+	var e error
+	ended.Stdout, e = out.result(s.run.dir, ended.StdoutFile)
+	err = errors.Join(err, e)
+	ended.Stderr, e = stderr.result(s.run.dir, ended.StderrFile)
+	return errors.Join(err, e)
+}
+func messageService(ctx context.Context, s *scope, name, id, workdir, command string, out, stderr *commandCapture, ended CommandEnded, start time.Time) error {
+	r, err := startMessageProcess(ctx, s, id, workdir, "zsh", []string{"-c", command}, true)
+	if err == nil {
+		_, err = effects.Await(ctx, r, "established", nil)
+	}
+	if err != nil {
+		_ = out.close()
+		_ = stderr.close()
+		return endServiceStartFailure(s, start, ended, err)
+	}
+	service := &ownedService{scope: s, ctx: s.ctx, id: id, name: name, done: make(chan struct{}), remote: true}
+	if err = s.adoptService(service); err != nil {
+		return errors.Join(err, s.remoteCleanup())
+	}
+	go func() {
+		err := messageProcessResult(context.WithoutCancel(ctx), s, r, out, stderr, &ended)
+		ended.Duration = time.Since(start)
+		ended.Error = errString(err)
+		service.mu.Lock()
+		stopping := service.stopping
+		service.terminalErr = err
+		service.mu.Unlock()
+		if !stopping {
+			if err == nil {
+				err = fmt.Errorf("required service %s exited unexpectedly", id)
+			}
+			s.failService(err)
+		}
+		s.run.event(s.key, "", "", ended)
+		close(service.done)
+	}()
+	return nil
 }

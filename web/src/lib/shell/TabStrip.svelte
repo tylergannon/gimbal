@@ -75,7 +75,7 @@
       <summary bind:this={summary} onkeydown={dismiss} aria-label={`${overflow.length} more tabs`}>{overflow.length} more<ChevronDown size={12} aria-hidden="true" /></summary>
       <div class="choices" aria-label="More tabs">
         {#each overflow as tab (tab.id)}
-          <button type="button" onkeydown={dismiss} onclick={() => select(tab.id)}><TabGlyph {tab} /><span>{tab.title}</span><TabStatus status={tab.status} /></button>
+          <button type="button" onkeydown={dismiss} onclick={() => select(tab.id)}><TabGlyph {tab} /><span class="choice-title">{tab.title}</span><TabStatus status={tab.status} /></button>
         {/each}
       </div>
     </details>
@@ -103,6 +103,6 @@
   .choices { position: absolute; right: 0; top: 34px; z-index: 10; padding: 4px; width: 280px; max-width: 65vw; max-height: 60vh; overflow: auto; background: var(--popover); color: var(--popover-foreground); box-shadow: var(--shadow-lg); border: 1px solid var(--border); border-radius: 10px; }
   .choices button { display: flex; align-items: center; gap: 8px; padding: 8px; width: 100%; text-align: left; border-radius: 6px; }
   .choices button:hover { background: var(--accent); }
-  .choices span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .choice-title { flex: 1; min-width: 0; white-space: normal; overflow-wrap: anywhere; }
   @media (hover: none) { .close { opacity: 1; } }
 </style>

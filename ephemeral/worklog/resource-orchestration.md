@@ -1,3 +1,5 @@
 decision: Plan #466 and #467 against their actual consumer together; wait for real #468 squash merge, then discard its historical ancestry in favor of origin/main.
 doc_bug: skills/gimbal-workflows still advertises FulfillService for remote service bindings, but messaging routes explicitly reject it; service-check still uses a shared-workdir address file. This is the exact consumer gap for #467.
 decision: HTTP messaging routes distinguish agent/process producers; one task-route name cannot establish the actual consumer's network identity.
+correction: User explicitly required no effort to build out the infrastructure backend; use the exercise's infrastructure need to inform its interface. The borrowed-versus-provisioned question and proposed leases/backend implementation were scope expansions, not user blockers.
+decision: Demonstrate actual runtime construction and consumer-binding plumbing using externally supplied fixture implementations/resources. Attribute fixture readiness/release behavior to the fixture and report later backend requirements separately; no production backend or lease framework.

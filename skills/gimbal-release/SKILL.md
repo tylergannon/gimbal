@@ -8,8 +8,8 @@ description: >
 
 # Build and release Gimbal
 
-Deliver the requested behavior and establish that it works. Gimbal currently
-serves agents on this machine; local installation is the distribution target.
+Deliver the requested behavior and establish that it works. Gimbal ships a
+CLI/server and a separate macOS desktop client.
 For writing a workflow, use [Author workflows](../gimbal-workflows/SKILL.md).
 For operating one, use [Use Gimbal](../gimbal-runs/SKILL.md).
 
@@ -69,6 +69,23 @@ closing the shell leaves its projects, recordings, and files on the server.
 Project-file storage reuses `uploadArtifact.r2` in `~/.gimbal/config.json`, with
 the existing `GIMBAL_R2_*` environment overrides. Metadata retains the bucket
 and object key; viewing generates a new temporary URL.
+
+## Publish builds
+
+Use the release scripts and GoReleaser configuration in the repository. Read
+[distribution.md](references/distribution.md) for local signing setup, runner
+requirements, credentials, artifact names and publication commands.
+
+Prove a Release app locally with Developer ID signing, accepted notarization,
+stapling, and launch from `/Applications` before activating automated releases.
+An unsigned build proves compilation and launch only. Keep the desktop client
+and independent server ownership unchanged when packaging.
+
+The standard CLI uses Go plugins, so published builds enable CGO on native
+macOS ARM64 and Linux AMD64/ARM64 runners. The macOS CLI needs the tested
+library-validation exception for user-built plugins; the desktop app does not.
+GoReleaser packages CLI archives; Apple tools sign and notarize Mac artifacts.
+The initial Linux channel is GitHub Release downloads, with SHA-256 checksums.
 
 ## Check and demonstrate the change
 
@@ -178,9 +195,8 @@ plugin, inspect its actual installation and use its update mechanism; preserve
 unrelated local configuration. Report when a new session is needed to load
 updated instructions.
 
-Local release needs no binary signing or scalable distribution system. The
-documentation site is maintained in Gimbal View. The scheduled model-catalog
-PR has its own scope; it does not imply a general CLI publishing pipeline.
+The documentation site is maintained in Gimbal View. Model-catalog refreshes
+open source PRs; release publication is a separate tagged workflow.
 
 ## Report delivery
 

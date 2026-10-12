@@ -32,7 +32,7 @@ only.
 ## Build and run
 
 This project uses Justfile for its build commands. It requires Go 1.27, Node 24,
-pnpm 11, and just. Set `TYPESAFE_API_KEY` only when using `WithSupervisor`
+pnpm 12.10.1, and just. Set `TYPESAFE_API_KEY` only when using `WithSupervisor`
 for Jev supervision. Instance startup, `run-prompt`, and workflows without Jev
 work without it. Jev screens completed exposed thinking for attached supervisors; timed supervision
 and `WithInterval` have been removed. Providers without completed thinking
@@ -50,6 +50,11 @@ compiling the CLI. It checks for `web/build/skgo.manifest.json` and embeds
 `web/build/` directly with Go's `embed.FS`. Generated frontend files stay local;
 install from this built checkout with `go install ./cmd/gimbal`. A bare
 versioned `go install` does not build or include the console.
+
+`gimbal --version` reports the release version, commit and build date. Release
+maintainers use GoReleaser for CLI archives and Apple's signing/notarization
+tools for the desktop app; see the
+[distribution instructions](skills/gimbal-release/references/distribution.md).
 
 Then open http://127.0.0.1:8080. The page's heading, the Go version below it, and the
 greeting counter all come from `web/src/routes/hello.remote.go` — the

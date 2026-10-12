@@ -17,7 +17,7 @@ const dopplerSecretsURL = "https://api.doppler.com/v3/configs/config/secrets/dow
 
 func needsSecrets(args []string) bool {
 	for _, arg := range args {
-		if arg == "-h" || arg == "--help" {
+		if arg == "-h" || arg == "--help" || arg == "-v" || arg == "--version" {
 			return false
 		}
 	}

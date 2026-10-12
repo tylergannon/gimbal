@@ -100,6 +100,8 @@ func TestNeedsSecrets(t *testing.T) {
 		{[]string{"opencode", "stop"}, false},
 		{[]string{"--help"}, false},
 		{[]string{"run", "--help"}, false},
+		{[]string{"--version"}, false},
+		{[]string{"-v"}, false},
 	} {
 		if got := needsSecrets(tc.args); got != tc.want {
 			t.Errorf("needsSecrets(%v) = %t, want %t", tc.args, got, tc.want)

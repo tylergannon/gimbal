@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Release packaging for CGO-enabled macOS and Linux CLI archives, Homebrew
+  Casks, and the Developer ID signed, notarized macOS desktop app. The CLI
+  reports its version, commit and build date with `--version`.
+
 - Local and Docker task daemons for agent sessions, commands, and scope-owned
   services, with automatic scope cleanup, retained cleanup retries, and the
   `service-check` workflow. The console opens complete captured command output.

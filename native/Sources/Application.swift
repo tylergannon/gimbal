@@ -29,6 +29,7 @@ import SwiftUI
       }
     }
     #if os(macOS)
+      .windowStyle(.hiddenTitleBar)
       .defaultSize(width: 1000, height: 600)
       .commands {
         WorkspaceMenu(workspace: application.workspace)

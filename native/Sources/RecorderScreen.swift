@@ -84,7 +84,9 @@ final class WebCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDelega
         let visible = body["sidebarVisible"] as? Bool,
         let count = body["tabCount"] as? Int
       {
-        state.workspace.update(ready: ready, sidebarVisible: visible, tabCount: count)
+        state.workspace.update(
+          ready: ready, sidebarVisible: visible, tabCount: count,
+          activeTabTitle: body["activeTabTitle"] as? String)
         return
       }
       if message.name == "workspaceDrag", let event = NSApp.currentEvent,
@@ -142,7 +144,14 @@ final class WebCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDelega
     #endif
   }
   func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+    NSLog("Workspace loaded frame=%@", NSStringFromRect(webView.frame))
     send(controller.status)
+  }
+  func webView(
+    _ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!,
+    withError error: Error
+  ) {
+    NSLog("Workspace navigation failed: %@", error.localizedDescription)
   }
   func webView(
     _ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration,
@@ -227,6 +236,7 @@ final class WebCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDelega
     func makeNSView(context: Context) -> WKWebView {
       context.coordinator.expectedOrigin = url
       let view = context.coordinator.make()
+      NSLog("Workspace loading %@", url.absoluteString)
       view.load(URLRequest(url: url))
       return view
     }

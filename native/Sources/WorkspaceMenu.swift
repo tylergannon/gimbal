@@ -7,14 +7,16 @@
     @Published var ready = false
     @Published var sidebarVisible = false
     @Published var tabCount = 0
+    @Published var hasActiveTab = false
     @Published var windowIsKey = false
     weak var webView: WKWebView?
 
     var enabled: Bool { ready && windowIsKey }
 
-    func update(ready: Bool, sidebarVisible: Bool, tabCount: Int) {
+    func update(ready: Bool, sidebarVisible: Bool, tabCount: Int, activeTabTitle: String?) {
       self.sidebarVisible = sidebarVisible
       self.tabCount = tabCount
+      hasActiveTab = activeTabTitle != nil
       self.ready = ready
     }
 
@@ -43,7 +45,7 @@
       CommandMenu("Chat") {
         Button("Close Tab") { workspace.send("closeTab") }
           .keyboardShortcut("w", modifiers: [.command])
-          .disabled(!workspace.enabled || workspace.tabCount == 0)
+          .disabled(!workspace.enabled || !workspace.hasActiveTab)
         Divider()
         Button("Previous Tab") { workspace.send("previousTab") }
           .keyboardShortcut(.tab, modifiers: [.control, .shift])
@@ -93,7 +95,7 @@
         event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command,
         event.charactersIgnoringModifiers == "w"
       {
-        if (workspace?.tabCount ?? 0) > 0 { workspace?.send("closeTab") }
+        if workspace?.hasActiveTab == true { workspace?.send("closeTab") }
         return true
       }
       return super.performKeyEquivalent(with: event)

@@ -18,7 +18,7 @@
       }
     ],
     "invocation": "gimbal run service-check --work-dir /abs/work --task-route @/abs/route.json --devops-tasks gpt-5.6-luna",
-    "snapshot": "7ee855f61d5bdea8e6196c3d1633b91175660d26b6e52eab5dded42612f66290"
+    "snapshot": "6bdfaa378579ea05e93b98687e6eb7dc6e6d1bd2f87e49ad03290d8c3750aecb"
   },
   "name": "service-check",
   "entry": "ServiceCheck",
@@ -55,7 +55,15 @@
       "children": [
         [
           {
-            "key": "p234a25e0dc008899",
+            "yields": [
+              {
+                "store": "",
+                "names": [
+                  "DATABASE_URL"
+                ]
+              }
+            ],
+            "key": "p3839ebe02a398ee8",
             "id": "n3",
             "kind": "Service",
             "label": "database",
@@ -66,17 +74,33 @@
             "scope": "root/services",
             "detail": {
               "kind": "Service",
-              "expression": "gimbal.Service(gimbal.WithYields(ctx, \"\", \"DATABASE_URL\"), \"database\", env.WorkDir, database)",
+              "expression": "gimbal.Service(gimbal.WithYields(ctx, gimbal.DefaultStore, \"DATABASE_URL\"), \"database\", env.WorkDir, database)",
               "promptKnown": false,
               "keyKnown": false,
-              "contextExpression": "gimbal.WithYields(ctx, \"\", \"DATABASE_URL\")",
+              "contextExpression": "gimbal.WithYields(ctx, gimbal.DefaultStore, \"DATABASE_URL\")",
               "contextKnown": false
             },
             "context": null,
             "note": "Uses a different context value, so the context visible here is not known."
           },
           {
-            "key": "pe819e5f2a92bf75c",
+            "requirements": [
+              {
+                "store": "",
+                "names": [
+                  "DATABASE_URL"
+                ]
+              }
+            ],
+            "yields": [
+              {
+                "store": "",
+                "names": [
+                  "WEB_URL"
+                ]
+              }
+            ],
+            "key": "p40a9cceb8cf45354",
             "id": "n4",
             "kind": "Service",
             "label": "web",
@@ -87,10 +111,10 @@
             "scope": "root/services",
             "detail": {
               "kind": "Service",
-              "expression": "gimbal.Service(gimbal.WithYields(ctx, \"\", \"WEB_URL\"), \"web\", env.WorkDir, web)",
+              "expression": "gimbal.Service(gimbal.WithYields(ctx, gimbal.DefaultStore, \"WEB_URL\"), \"web\", env.WorkDir, web)",
               "promptKnown": false,
               "keyKnown": false,
-              "contextExpression": "gimbal.WithYields(ctx, \"\", \"WEB_URL\")",
+              "contextExpression": "gimbal.WithYields(ctx, gimbal.DefaultStore, \"WEB_URL\")",
               "contextKnown": false
             },
             "context": null,
@@ -123,6 +147,20 @@
                   "children": [
                     [
                       {
+                        "requirements": [
+                          {
+                            "store": "",
+                            "names": [
+                              "DATABASE_URL"
+                            ]
+                          },
+                          {
+                            "store": "",
+                            "names": [
+                              "WEB_URL"
+                            ]
+                          }
+                        ],
                         "key": "pa6f190a6fd3f955a",
                         "id": "n6",
                         "kind": "Command",
@@ -192,6 +230,20 @@
                   "children": [
                     [
                       {
+                        "requirements": [
+                          {
+                            "store": "",
+                            "names": [
+                              "DATABASE_URL"
+                            ]
+                          },
+                          {
+                            "store": "",
+                            "names": [
+                              "WEB_URL"
+                            ]
+                          }
+                        ],
                         "key": "p2faf24da9eb622a5",
                         "id": "n9",
                         "kind": "Command",
@@ -271,16 +323,39 @@
               "keyKnown": true,
               "valueExpression": "params.Task",
               "contextExpression": "ctx",
-              "contextKnown": false,
+              "contextKnown": true,
               "shape": {
                 "type": "string",
                 "kind": "scalar"
               }
             },
-            "context": null,
-            "note": "Uses a different context value, so the context visible here is not known."
+            "context": [
+              {
+                "key": "task",
+                "shape": {
+                  "type": "string",
+                  "kind": "scalar"
+                },
+                "write": "n12",
+                "scope": "root/services"
+              }
+            ]
           },
           {
+            "requirements": [
+              {
+                "store": "",
+                "names": [
+                  "DATABASE_URL"
+                ]
+              },
+              {
+                "store": "",
+                "names": [
+                  "WEB_URL"
+                ]
+              }
+            ],
             "key": "p2ed8146541d8dc49",
             "id": "n13",
             "kind": "Generate",
@@ -299,29 +374,23 @@
               "promptKnown": true,
               "keyKnown": false,
               "contextExpression": "ctx",
-              "contextKnown": false
+              "contextKnown": true
             },
-            "context": null,
-            "note": "Uses a different context value, so the context visible here is not known."
+            "context": [
+              {
+                "key": "task",
+                "shape": {
+                  "type": "string",
+                  "kind": "scalar"
+                },
+                "write": "n12",
+                "scope": "root/services"
+              }
+            ]
           }
         ]
       ]
     }
   ],
-  "diagnostics": [
-    {
-      "source": {
-        "file": "internal/workflows/servicecheck/servicecheck.go",
-        "line": 72
-      },
-      "message": "context expression ctx is not the current scope parameter; its context shape is unresolved"
-    },
-    {
-      "source": {
-        "file": "internal/workflows/servicecheck/servicecheck.go",
-        "line": 73
-      },
-      "message": "context expression ctx is not the current scope parameter; its context shape is unresolved"
-    }
-  ]
+  "diagnostics": []
 }

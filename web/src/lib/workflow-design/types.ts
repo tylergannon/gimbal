@@ -1,3 +1,4 @@
+import type { StoreDeclaration } from "../workflow/types";
 import type { Edge, Node } from "@xyflow/svelte";
 
 export interface Source {
@@ -24,6 +25,8 @@ export interface ContextField {
   shadowed?: string[];
 }
 export interface ViewNode {
+  requirements?: StoreDeclaration[];
+  yields?: StoreDeclaration[];
   id: string;
   key?: string;
   kind: string;

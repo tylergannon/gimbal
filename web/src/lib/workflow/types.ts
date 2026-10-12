@@ -82,7 +82,17 @@ export type Service = {
    */
   file: string;
   line: number;
+  requirements: Array<StoreDeclaration>;
+  yields: Array<StoreDeclaration>;
   name: string;
+};
+
+/**
+ * StoreDeclaration names a store and the values an operation declares. The empty store name is the workflow's default store. Values are never recorded.
+ */
+export type StoreDeclaration = {
+  store: string;
+  names: Array<string>;
 };
 
 /**
@@ -94,6 +104,7 @@ export type AgentCall = {
    */
   file: string;
   line: number;
+  requirements: Array<StoreDeclaration>;
   session: string;
   role: string;
   /**
@@ -130,6 +141,8 @@ export type Command = {
    */
   file: string;
   line: number;
+  requirements: Array<StoreDeclaration>;
+  yields: Array<StoreDeclaration>;
   name: string;
 };
 
@@ -263,6 +276,7 @@ export type Interview = {
    */
   file: string;
   line: number;
+  requirements: Array<StoreDeclaration>;
   name: string;
   session: string;
 };
@@ -324,6 +338,7 @@ export type PromiseLoop = {
    */
   file: string;
   line: number;
+  requirements: Array<StoreDeclaration>;
   name: string;
   planner: string;
   supervisors: Array<Supervisor>;

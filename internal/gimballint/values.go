@@ -7,66 +7,47 @@ import (
 	"golang.org/x/tools/go/analysis"
 )
 
-// Declarations are deliberately source-visible. This checks authorship rather
-// than adding a second permissions or dependency engine to native execution.
+// Declarations are source-visible. Producer declarations apply to one operation,
+// while requirements accumulate on the consuming context.
 func reportValueDeclarations(pass *analysis.Pass) {
-	check := func(expr ast.Expr) {
-		v := pass.TypesInfo.Types[expr].Value
-		if v == nil || v.Kind() != constant.String {
-			pass.Reportf(expr.Pos(), "[GIMBAL111-CONSTANT-VALUES]: Store and value names must be compile-time strings.")
-		}
-	}
 	for _, file := range pass.Files {
+		inline := map[ast.Expr]bool{}
+		ast.Inspect(file, func(n ast.Node) bool {
+			call, ok := n.(*ast.CallExpr)
+			if !ok || len(call.Args) == 0 {
+				return true
+			}
+			name, ok := gimbalCall(pass, call)
+			if ok && (name == "Service" || name == "RunCommand" || name == "Check") {
+				inline[ast.Unparen(call.Args[0])] = true
+			}
+			return true
+		})
 		ast.Inspect(file, func(n ast.Node) bool {
 			call, ok := n.(*ast.CallExpr)
 			if !ok {
 				return true
 			}
 			name, ok := gimbalCall(pass, call)
-			if !ok {
+			if !ok || (name != "WithYields" && name != "WithRequirements") {
 				return true
 			}
-			switch name {
-			case "WithYields":
-				seen := map[string]bool{}
-				for i, arg := range call.Args[1:] {
-					check(arg)
-					value := constantString(pass, arg)
-					if i > 0 && value != "" {
-						if seen[value] {
-							pass.Reportf(arg.Pos(), "[GIMBAL112-DUPLICATE-YIELD]: A producer declares each output name once.")
-						}
-						seen[value] = true
-					}
+			if name == "WithYields" && !inline[call] {
+				pass.Reportf(call.Pos(), "[GIMBAL113-INLINE-YIELDS]: WithYields must be the inline context argument of Service, RunCommand, or Check, so outputs belong to one producer.")
+			}
+			seen := map[string]bool{}
+			for i, arg := range call.Args[1:] {
+				v := pass.TypesInfo.Types[arg].Value
+				if v == nil || v.Kind() != constant.String {
+					pass.Reportf(arg.Pos(), "[GIMBAL111-CONSTANT-VALUES]: Store and value names must be compile-time strings.")
+					continue
 				}
-			case "WithRequirements":
-				for _, arg := range call.Args[1:] {
-					lit, ok := arg.(*ast.CompositeLit)
-					if !ok {
-						pass.Reportf(arg.Pos(), "[GIMBAL111-CONSTANT-VALUES]: Declare store requirements with source-visible literals containing constant names.")
-						continue
+				if name == "WithYields" && i > 0 {
+					value := constant.StringVal(v)
+					if seen[value] {
+						pass.Reportf(arg.Pos(), "[GIMBAL112-DUPLICATE-YIELD]: A producer declares each output name once.")
 					}
-					for i, item := range lit.Elts {
-						field, value := "Store", item
-						if i == 1 {
-							field = "Names"
-						}
-						if kv, ok := item.(*ast.KeyValueExpr); ok {
-							field = kv.Key.(*ast.Ident).Name
-							value = kv.Value
-						}
-						if field == "Store" {
-							check(value)
-							continue
-						}
-						if names, ok := value.(*ast.CompositeLit); ok {
-							for _, name := range names.Elts {
-								check(name)
-							}
-						} else {
-							pass.Reportf(value.Pos(), "[GIMBAL111-CONSTANT-VALUES]: Declare required names in a literal list of compile-time strings.")
-						}
-					}
+					seen[value] = true
 				}
 			}
 			return true

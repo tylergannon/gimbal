@@ -37,14 +37,14 @@ type Params struct {
 func ServiceCheck(ctx context.Context, env gimbal.Env, params Params) error {
 	agent := gimbal.NewSession(ctx, gimbal.RoleDevOpsTasks, env.WorkDir)
 	return gimbal.Scope(ctx, "services", func(ctx context.Context) error {
-		if err := gimbal.Service(gimbal.WithYields(ctx, "", "DATABASE_URL"), "database", env.WorkDir, database); err != nil {
+		if err := gimbal.Service(gimbal.WithYields(ctx, gimbal.DefaultStore, "DATABASE_URL"), "database", env.WorkDir, database); err != nil {
 			return err
 		}
-		ctx = gimbal.WithRequirements(ctx, gimbal.StoreRequirement{Names: []string{"DATABASE_URL"}})
-		if err := gimbal.Service(gimbal.WithYields(ctx, "", "WEB_URL"), "web", env.WorkDir, web); err != nil {
+		ctx = gimbal.WithRequirements(ctx, gimbal.DefaultStore, "DATABASE_URL")
+		if err := gimbal.Service(gimbal.WithYields(ctx, gimbal.DefaultStore, "WEB_URL"), "web", env.WorkDir, web); err != nil {
 			return err
 		}
-		ctx = gimbal.WithRequirements(ctx, gimbal.StoreRequirement{Names: []string{"WEB_URL"}})
+		ctx = gimbal.WithRequirements(ctx, gimbal.DefaultStore, "WEB_URL")
 		group := gimbal.Group(ctx, "consumers")
 		group.Go("database", func(ctx context.Context) error {
 			code, _, _, err := gimbal.RunCommand(ctx, "query", env.WorkDir, "sh", "-c", `test "$(psql -X "$DATABASE_URL" -Atc "SELECT 'GIMBAL_SERVICE_OK'")" = GIMBAL_SERVICE_OK`)

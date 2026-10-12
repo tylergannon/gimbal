@@ -144,8 +144,8 @@ observation and control of its admitted projects. The daemon's `--port 0`
 selects an available browser port; `--uds` serves through a Unix socket.
 
 Use `--task-endpoint` to execute agents, commands, and scope-owned services in a
-selected local or Docker daemon. See [task environments](references/task-environments.md)
-for provisioning, transferred artifacts, service-networking limits, and the `service-check` exercise.
+selected standalone daemon. See [task daemons](references/task-environments.md)
+for workspace configuration, transferred artifacts, and scoped secrets.
 
 ### Messaging task routes
 
@@ -170,6 +170,10 @@ gimbal message-worker --plugin-dir /abs/plugins --task-route @/abs/route.json
 gimbal run service-check --instance-dir /abs/instance --project /abs/project --work-dir /abs/project/work --task-route @/abs/route.json --task 'Write the required file.' --follow
 gimbal message-watch --plugin-dir /abs/plugins --task-route @/abs/route.json --run RUN_ID
 ```
+
+Workers without configured backend dependencies keep scoped secrets in private
+process memory. Named environments use the shared secrets directory supplied by
+orchestration.
 
 Run those commands in separate shells. River requires reachable PostgreSQL and
 a private file containing its connection string; the worker initializes its

@@ -3,7 +3,6 @@ package backend
 import (
 	"context"
 	"fmt"
-	"maps"
 	"strings"
 	"sync"
 )
@@ -15,21 +14,28 @@ func WithinScope(parent, child string) bool {
 	return parent == "" || child == parent || strings.HasPrefix(child, parent+"/")
 }
 
-func (v ScopedValues) Publish(scope Scope, store string, values map[string]string) error {
-	if v[scope] == nil {
-		v[scope] = map[string]map[string]string{}
-	}
-	for name := range values {
+func (v ScopedValues) Publish(scope Scope, write StoreWrite) error {
+	seen := map[string]bool{}
+	for _, value := range write.Values {
+		if seen[value.Name] {
+			return fmt.Errorf("duplicate name %q in write", value.Name)
+		}
+		seen[value.Name] = true
 		for _, existing := range v[scope] {
-			if _, ok := existing[name]; ok {
-				return fmt.Errorf("name %q already defined in this scope", name)
+			if _, ok := existing[value.Name]; ok {
+				return fmt.Errorf("name %q already defined in this scope", value.Name)
 			}
 		}
 	}
-	if v[scope][store] == nil {
-		v[scope][store] = map[string]string{}
+	if v[scope] == nil {
+		v[scope] = map[string]map[string]string{}
 	}
-	maps.Copy(v[scope][store], values)
+	if v[scope][write.Store] == nil {
+		v[scope][write.Store] = map[string]string{}
+	}
+	for _, value := range write.Values {
+		v[scope][write.Store][value.Name] = value.Value
+	}
 	return nil
 }
 func (v ScopedValues) Acquire(scope Scope, requirements Requirements) (map[string]string, error) {
@@ -83,13 +89,13 @@ type memorySecrets struct {
 }
 
 func NewMemorySecrets() SecretsBackend { return &memorySecrets{values: ScopedValues{}} }
-func (m *memorySecrets) Publish(ctx context.Context, s Scope, store string, values map[string]string) error {
+func (m *memorySecrets) Publish(ctx context.Context, s Scope, write StoreWrite) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return m.values.Publish(s, store, values)
+	return m.values.Publish(s, write)
 }
 func (m *memorySecrets) Acquire(ctx context.Context, s Scope, r Requirements) (map[string]string, error) {
 	if err := ctx.Err(); err != nil {

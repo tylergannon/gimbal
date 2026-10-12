@@ -9,21 +9,30 @@ type StoreRequirement struct {
 }
 type Requirements []StoreRequirement
 
+// NamedValue is a string value published under a name.
+type NamedValue struct{ Name, Value string }
+
+// StoreWrite publishes a complete batch to one store. Duplicate names fail.
+type StoreWrite struct {
+	Store  string
+	Values []NamedValue
+}
+
 type Environment struct{ ID string }
 
 // OrchestratorBackend establishes a ready messaging daemon and its assignment.
 // Release follows native cleanup, includes descendants, and preserves unrelated use.
 type OrchestratorBackend interface {
-	AcquireEnvironment(context.Context, Owner, string) (Environment, error)
-	Release(context.Context, Scope) error
+	AcquireEnvironment(ctx context.Context, owner Owner, name string) (Environment, error)
+	Release(ctx context.Context, scope Scope) error
 }
 
 // SecretsBackend resolves nearest definitions before store access. Values never
 // travel in workflow requests or observations. Failed publication is not success.
 type SecretsBackend interface {
-	Publish(context.Context, Scope, string, map[string]string) error
-	Acquire(context.Context, Scope, Requirements) (map[string]string, error)
-	Release(context.Context, Scope) error
+	Publish(ctx context.Context, scope Scope, write StoreWrite) error
+	Acquire(ctx context.Context, scope Scope, requirements Requirements) (map[string]string, error)
+	Release(ctx context.Context, scope Scope) error
 }
 
 // Dependencies are explicitly supplied to native messaging implementations.

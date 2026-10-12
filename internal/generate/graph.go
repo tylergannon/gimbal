@@ -68,15 +68,16 @@ func extractInspected(dir, entry, name string, overlay map[string][]byte, comman
 		module, modulePath = pkg.Module.Dir, pkg.Module.Path
 	}
 	e := &extractor{
-		inspection: inspection,
-		pkg:        pkg,
-		module:     module,
-		modulePath: modulePath,
-		session:    make(map[types.Object]binding),
-		group:      make(map[types.Object]*nodeRef),
-		loop:       make(map[types.Object]*nodeRef),
-		hasOp:      make(map[*types.Func]bool),
-		dead:       make(map[types.Object]bool),
+		inspection:   inspection,
+		declarations: make(map[types.Object]valueDeclarations),
+		pkg:          pkg,
+		module:       module,
+		modulePath:   modulePath,
+		session:      make(map[types.Object]binding),
+		group:        make(map[types.Object]*nodeRef),
+		loop:         make(map[types.Object]*nodeRef),
+		hasOp:        make(map[*types.Func]bool),
+		dead:         make(map[types.Object]bool),
 	}
 	if inspection != nil {
 		inspection.Module = module
@@ -103,8 +104,9 @@ type binding struct{ name, role string }
 // nodeRef points at a node already placed in a body, so a later call can add
 // to it: a Group's children, a PromiseLoop's per-task body.
 type nodeRef struct {
-	ops   *[]workflow.Operation
-	index int
+	ops          *[]workflow.Operation
+	index        int
+	declarations valueDeclarations
 }
 
 // scopeEnv is what the walk knows about where it is. blockTail says a return
@@ -119,6 +121,7 @@ type scopeEnv struct {
 type helperState struct{ emitted bool }
 
 type extractor struct {
+	declarations      map[types.Object]valueDeclarations
 	inspection        *inspectionData
 	inspectionContext types.Object
 	pkg               *packages.Package
@@ -240,8 +243,10 @@ func (e *extractor) callbackBody(stmts []ast.Stmt, out *[]workflow.Operation) {
 // after it, since the block ran.
 func (e *extractor) scoped(walk func()) {
 	session, group, loop := maps.Clone(e.session), maps.Clone(e.group), maps.Clone(e.loop)
+	declarations := maps.Clone(e.declarations)
 	walk()
 	e.session, e.group, e.loop = session, group, loop
+	e.declarations = declarations
 	for obj := range e.dead {
 		delete(e.session, obj)
 		delete(e.group, obj)

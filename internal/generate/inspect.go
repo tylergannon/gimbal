@@ -269,25 +269,27 @@ type branchInspection struct {
 }
 
 type viewNode struct {
-	Key          string             `json:"key,omitempty"`
-	Title        string             `json:"title,omitempty"`
-	Description  string             `json:"description,omitempty"`
-	ID           string             `json:"id"`
-	Kind         string             `json:"kind"`
-	Label        string             `json:"label"`
-	Source       workflow.Source    `json:"source"`
-	Scope        string             `json:"scope"`
-	Session      string             `json:"session,omitempty"`
-	From         string             `json:"from,omitempty"`
-	Prompt       string             `json:"prompt,omitempty"`
-	Detail       *callInspection    `json:"detail,omitempty"`
-	Control      *controlInspection `json:"control,omitempty"`
-	Context      []contextField     `json:"context"`
-	Children     [][]*viewNode      `json:"children,omitempty"`
-	Branches     []branchInspection `json:"branches,omitempty"`
-	BranchLabels []string           `json:"branchLabels,omitempty"`
-	BranchExits  []bool             `json:"branchExits,omitempty"`
-	Note         string             `json:"note,omitempty"`
+	Requirements []workflow.StoreDeclaration `json:"requirements,omitempty"`
+	Yields       []workflow.StoreDeclaration `json:"yields,omitempty"`
+	Key          string                      `json:"key,omitempty"`
+	Title        string                      `json:"title,omitempty"`
+	Description  string                      `json:"description,omitempty"`
+	ID           string                      `json:"id"`
+	Kind         string                      `json:"kind"`
+	Label        string                      `json:"label"`
+	Source       workflow.Source             `json:"source"`
+	Scope        string                      `json:"scope"`
+	Session      string                      `json:"session,omitempty"`
+	From         string                      `json:"from,omitempty"`
+	Prompt       string                      `json:"prompt,omitempty"`
+	Detail       *callInspection             `json:"detail,omitempty"`
+	Control      *controlInspection          `json:"control,omitempty"`
+	Context      []contextField              `json:"context"`
+	Children     [][]*viewNode               `json:"children,omitempty"`
+	Branches     []branchInspection          `json:"branches,omitempty"`
+	BranchLabels []string                    `json:"branchLabels,omitempty"`
+	BranchExits  []bool                      `json:"branchExits,omitempty"`
+	Note         string                      `json:"note,omitempty"`
 }
 type sourcePage struct {
 	Guide       *workflowGuide        `json:"guide,omitempty"`
@@ -419,6 +421,7 @@ func (b *pageBuilder) body(ops []workflow.Operation, initial []contextField, sco
 				label = d.PromptExpression
 			}
 			n = b.node("Generate", label, scope, op.Source, ctx)
+			n.Requirements = op.Requirements
 			n.Detail = d
 			n.Prompt = op.Prompt
 			n.Session = op.Session
@@ -435,12 +438,17 @@ func (b *pageBuilder) body(ops []workflow.Operation, initial []contextField, sco
 			// service's source position without changing the runtime graph model.
 			d := b.details.Services[op]
 			n = b.node("Service", op.Name, scope, op.Source, ctx)
+			n.Requirements = op.Requirements
+			n.Yields = op.Yields
 			n.Detail = &d
 		case workflow.Command:
 			n = b.node("Command", op.Name, scope, op.Source, ctx)
+			n.Requirements = op.Requirements
+			n.Yields = op.Yields
 			n.Note = "Runs a command. Any context it writes is not shown here."
 		case workflow.Interview:
 			n = b.node("Interview", op.Name, scope, op.Source, ctx)
+			n.Requirements = op.Requirements
 			n.Session = op.Session
 		case workflow.Scope:
 			n = b.node("Scope", op.Name, scope, op.Source, ctx)
@@ -591,6 +599,9 @@ func (e *extractor) preservesInspectionContext(expr ast.Expr) bool {
 	call, ok := unparen(expr).(*ast.CallExpr)
 	if !ok || len(call.Args) == 0 || e.object(call.Args[0]) != e.inspectionContext {
 		return false
+	}
+	if name, ok := e.gimbalCall(call); ok && (name == "WithRequirements" || name == "WithYields") {
+		return true
 	}
 	fn := typeutil.StaticCallee(e.pkg.TypesInfo, call)
 	if fn == nil || fn.Pkg() == nil || fn.Pkg().Path() != "context" {

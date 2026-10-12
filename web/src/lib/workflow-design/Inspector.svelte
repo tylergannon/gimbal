@@ -13,6 +13,12 @@
   <header><span>{kinds[node.kind] ?? node.kind}</span><button onclick={onclose} aria-label="Close details">×</button></header>
   <h2>{node.title || node.label || kinds[node.kind]}</h2>
   {#if node.description}<p class="description">{node.description}</p>{/if}
+  {#if node.requirements?.length || node.yields?.length}
+    <section><h3>Declared values</h3>
+      {#each node.requirements ?? [] as declaration}<p>Requires · {declaration.store || 'Default store'}: {declaration.names.join(', ') || 'Whole store'}</p>{/each}
+      {#each node.yields ?? [] as declaration}<p>Yields · {declaration.store || 'Default store'}: {declaration.names.join(', ') || 'Empty readiness file'}</p>{/each}
+    </section>
+  {/if}
   {#if node.kind==='Generate'}
     <section><h3>{node.detail?.promptKnown ? 'Prompt' : 'Prompt expression'}</h3><pre>{node.detail?.promptKnown ? node.prompt : node.detail?.promptExpression || node.prompt}</pre></section>
   {/if}

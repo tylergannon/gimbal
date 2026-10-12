@@ -16,6 +16,9 @@ import (
 )
 
 func (d *Daemon) process(req effects.Process) error {
+	if len(req.Yields) > 0 && d.Secrets == nil {
+		return fmt.Errorf("producer requires a secrets backend")
+	}
 	values, finish, err := d.acquire(context.Background(), req.Owner, req.Requires)
 	var finishOnce sync.Once
 	finishAdmission := func() { finishOnce.Do(finish) }

@@ -48,14 +48,13 @@ type session struct {
 	closeMu sync.Mutex
 }
 type Daemon struct {
-	PublicHost string
-	Secrets    backend.SecretsBackend
-	files      map[backend.Artifact]string
-	Workdir    string
-	mu         sync.Mutex
-	closed     map[effects.Scope]time.Time
-	sessions   map[string]*session
-	tasks      map[string]*task
+	Secrets  backend.SecretsBackend
+	files    map[backend.Artifact]string
+	Workdir  string
+	mu       sync.Mutex
+	closed   map[effects.Scope]time.Time
+	sessions map[string]*session
+	tasks    map[string]*task
 	// admitting owns service preflight until native admission finishes. Cleanup
 	// cancels and joins it using the same task boundary, without holding mu in
 	// an externally supplied dependency. It stores no infrastructure leases.

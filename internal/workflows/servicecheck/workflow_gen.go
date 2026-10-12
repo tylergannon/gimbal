@@ -16,25 +16,25 @@ var Graph = workflow.Graph{
 	Body: []workflow.Operation{
 		workflow.Session{Source: workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 38}, Name: "devops-tasks", From: ""},
 		workflow.Scope{Source: workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 39}, Name: "services", Services: []workflow.Service{
-			{Source: workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 40}, Name: "database"},
-			{Source: workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 44}, Name: "web"},
+			{Source: workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 40}, Name: "database", Yields: []workflow.StoreDeclaration{{Store: "", Names: []string{"DATABASE_URL"}}}},
+			{Source: workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 44}, Name: "web", Requirements: []workflow.StoreDeclaration{{Store: "", Names: []string{"DATABASE_URL"}}}, Yields: []workflow.StoreDeclaration{{Store: "", Names: []string{"WEB_URL"}}}},
 		}, Body: []workflow.Operation{
 			workflow.Group{Source: workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 48}, Name: "consumers", Children: []workflow.GroupChild{
 				{Source: workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 49}, Name: "database", Services: []workflow.Service{}, Body: []workflow.Operation{
-					workflow.Command{Source: workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 50}, Name: "query"},
+					workflow.Command{Source: workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 50}, Name: "query", Requirements: []workflow.StoreDeclaration{{Store: "", Names: []string{"DATABASE_URL"}}, {Store: "", Names: []string{"WEB_URL"}}}},
 					workflow.Condition{Source: workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 54}, Branches: []workflow.Branch{
 						{Source: workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 54}, Case: "code != 0", Exits: true, Body: []workflow.Operation{}},
 					}},
 				}},
 				{Source: workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 59}, Name: "web", Services: []workflow.Service{}, Body: []workflow.Operation{
-					workflow.Command{Source: workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 60}, Name: "fetch"},
+					workflow.Command{Source: workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 60}, Name: "fetch", Requirements: []workflow.StoreDeclaration{{Store: "", Names: []string{"DATABASE_URL"}}, {Store: "", Names: []string{"WEB_URL"}}}},
 					workflow.Condition{Source: workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 64}, Branches: []workflow.Branch{
 						{Source: workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 64}, Case: "code != 0", Exits: true, Body: []workflow.Operation{}},
 					}},
 				}},
 			}},
 			workflow.Set{Source: workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 72}, Key: "task"},
-			workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 73}, Session: "devops-tasks", Role: "devops-tasks", Prompt: "Call the Gimbal secrets callback to obtain WEB_URL, then fetch that URL using an HTTP client. Require HTTP 200 and response body GIMBAL_SERVICE_OK. Do not merely display the URL. Return a short description of the actual response. Do not start or stop infrastructure. Complete any additional task below."},
+			workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 73}, Session: "devops-tasks", Role: "devops-tasks", Prompt: "Call the Gimbal secrets callback to obtain WEB_URL, then fetch that URL using an HTTP client. Require HTTP 200 and response body GIMBAL_SERVICE_OK. Do not merely display the URL. Return a short description of the actual response. Do not start or stop infrastructure. Complete any additional task below.", Requirements: []workflow.StoreDeclaration{{Store: "", Names: []string{"DATABASE_URL"}}, {Store: "", Names: []string{"WEB_URL"}}}},
 		}},
 	},
 }

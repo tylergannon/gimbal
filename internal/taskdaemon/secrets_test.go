@@ -58,7 +58,7 @@ func TestProducerAdmissionAndScopedCleanup(t *testing.T) {
 	if d.tasks[key("run", "missing")] != nil {
 		t.Fatal("native task admitted")
 	}
-	if err := d.Secrets.Publish(ctx, backend.Scope{Run: "other"}, "private", map[string]string{"TOKEN": "unrelated"}); err != nil {
+	if err := d.Secrets.Publish(ctx, backend.Scope{Run: "other"}, backend.StoreWrite{Store: "private", Values: []backend.NamedValue{{Name: "TOKEN", Value: "unrelated"}}}); err != nil {
 		t.Fatal(err)
 	}
 	if err := d.cleanup(ctx, backend.Scope{Run: "run", Scope: "outer"}); err != nil {
@@ -93,7 +93,7 @@ func TestEmptyServiceWaitsForReadinessAndCleansUp(t *testing.T) {
 
 type failedPublish struct{ backend.SecretsBackend }
 
-func (f failedPublish) Publish(context.Context, backend.Scope, string, map[string]string) error {
+func (f failedPublish) Publish(context.Context, backend.Scope, backend.StoreWrite) error {
 	return errors.New("publication uncertain")
 }
 func TestPublicationFailurePreventsReadiness(t *testing.T) {
@@ -131,8 +131,8 @@ func TestAgentCallbackUsesConsumingScopeAndWholeStore(t *testing.T) {
 	d := New()
 	d.Secrets = backend.NewMemorySecrets()
 	ctx := context.Background()
-	for scope, values := range map[string]map[string]string{"": {"TOKEN": "parent"}, "child": {"TOKEN": "child-secret", "EXTRA": "whole-store"}} {
-		if err := d.Secrets.Publish(ctx, backend.Scope{Run: "run", Scope: scope}, "private", values); err != nil {
+	for scope, values := range map[string][]backend.NamedValue{"": {{Name: "TOKEN", Value: "parent"}}, "child": {{Name: "TOKEN", Value: "child-secret"}, {Name: "EXTRA", Value: "whole-store"}}} {
+		if err := d.Secrets.Publish(ctx, backend.Scope{Run: "run", Scope: scope}, backend.StoreWrite{Store: "private", Values: values}); err != nil {
 			t.Fatal(err)
 		}
 	}

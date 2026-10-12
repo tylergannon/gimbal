@@ -8,6 +8,7 @@ test("watcher summaries preserve uncertainty, failure, interruption, and success
   const row = snapshot.turns["coding.1/turn.2"];
   snapshot.turns = { [row.id]: row };
   const definition: AgentCall = {
+    requirements: [],
     file: "workflow.go",
     line: 1,
     session: "worker",

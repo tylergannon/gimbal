@@ -54,5 +54,9 @@ func (d *Daemon) publishProducer(ctx context.Context, req backend.Process, path 
 	if d.Secrets == nil {
 		return fmt.Errorf("producer requires a secrets backend")
 	}
-	return d.Secrets.Publish(ctx, backend.Scope{Run: req.Run, Scope: req.Scope}, req.Store, values)
+	write := backend.StoreWrite{Store: req.Store}
+	for name, value := range values {
+		write.Values = append(write.Values, backend.NamedValue{Name: name, Value: value})
+	}
+	return d.Secrets.Publish(ctx, backend.Scope{Run: req.Run, Scope: req.Scope}, write)
 }

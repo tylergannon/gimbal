@@ -89,7 +89,10 @@ func (p *Project) placement(id string) (string, string) {
 	if err != nil {
 		return "", ""
 	}
-	workflow, tasks := record.WorkflowRoute.Environment, record.TaskRoute.Environment
+	workflow, tasks := record.WorkflowRoute.Label, record.TaskRoute.Label
+	if record.TaskRoute.Environment != "" {
+		tasks = record.TaskRoute.Environment
+	}
 	if workflow == "" {
 		workflow = "local"
 	}
@@ -108,7 +111,7 @@ func (p *Project) startRouted(request invocation.Request) (string, error) {
 	}
 	if request.TaskEndpoint != "" && record.TaskRoute.Name == "" {
 		raw, _ := json.Marshal(map[string]string{"endpoint": request.TaskEndpoint})
-		record.TaskRoute = backend.Route{Name: "http", Configuration: raw, Environment: request.TaskEndpoint}
+		record.TaskRoute = backend.Route{Name: "http", Configuration: raw, Label: request.TaskEndpoint}
 	}
 	if err := p.writeRoute(record); err != nil {
 		return "", err

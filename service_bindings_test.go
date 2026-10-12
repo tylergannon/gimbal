@@ -15,7 +15,7 @@ func TestMissingRequirementsPreventNativeAdmission(t *testing.T) {
 	project := t.TempDir()
 	marker := filepath.Join(project, "must-not-exist")
 	err := Run(Project(t.Context(), project), "missing-secret", nil, func(ctx context.Context) error {
-		return Check(WithRequirements(ctx, StoreRequirement{Names: []string{"MISSING"}}), "probe", project, "touch", marker)
+		return Check(WithRequirements(ctx, DefaultStore, "MISSING"), "probe", project, "touch", marker)
 	})
 	if err == nil {
 		t.Fatal("missing requirement admitted work")
@@ -26,11 +26,19 @@ func TestMissingRequirementsPreventNativeAdmission(t *testing.T) {
 }
 func TestFiniteProducerAndWholeStoreConsumer(t *testing.T) {
 	err := runTest(t, nil, func(ctx context.Context) error {
-		_, _, _, err := RunCommand(WithYields(ctx, "", "REQUIRED", "EXTRA"), "produce", "", "sh", "-c", `printf 'REQUIRED=one\nEXTRA=two\n' > "$ENV_FILE"`)
+		_, _, _, err := RunCommand(WithYields(ctx, DefaultStore, "REQUIRED", "EXTRA"), "produce", "", "sh", "-c", `printf 'REQUIRED=one\nEXTRA=two\n' > "$ENV_FILE"`)
 		if err != nil {
 			return err
 		}
-		code, out, _, err := RunCommand(WithRequirements(ctx, StoreRequirement{Names: []string{"REQUIRED"}}), "consume", "", "sh", "-c", `test "$REQUIRED" = one && test "$EXTRA" = two && printf ok`)
+		if err := Check(ctx, "unrelated", "", "true"); err != nil {
+			return fmt.Errorf("producer declaration leaked into unrelated command: %w", err)
+		}
+		if err := Check(WithYields(ctx, "second", "SECOND"), "second-producer", "", "sh", "-c", `printf 'SECOND=three\n' > "$ENV_FILE"`); err != nil {
+			return err
+		}
+		ctx = WithRequirements(ctx, DefaultStore, "REQUIRED")
+		ctx = WithRequirements(ctx, "second", "SECOND")
+		code, out, _, err := RunCommand(ctx, "consume", "", "sh", "-c", `test "$REQUIRED" = one && test "$EXTRA" = two && test "$SECOND" = three && printf ok`)
 		if err != nil {
 			return err
 		}
@@ -75,7 +83,7 @@ func TestLocalAgentCallbackFollowsConsumingScope(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			_, err = session.Generate[Text](WithRequirements(ctx, StoreRequirement{Store: "private", Names: []string{"TOKEN"}}), "Read callback")
+			_, err = session.Generate[Text](WithRequirements(ctx, "private", "TOKEN"), "Read callback")
 			return err
 		})
 	})

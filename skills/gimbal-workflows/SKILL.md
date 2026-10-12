@@ -273,14 +273,17 @@ Plain local invocation remains an independent child with directly local tasks.
 For a remote turn, `gimbal.WithTaskFiles(ctx, backend.TaskFile{Name: "input.txt",
 Bytes: data})` supplies explicit named bytes alongside runtime-owned context. The
 task environment writes them and supplies their native paths to the agent.
-Use `gimbal.WithYields(ctx, "store", "DATABASE_URL")` on a finite command
-or foreground `Service` to declare outputs. The program writes `NAME=value`
+Use `gimbal.WithYields(ctx, "store", "DATABASE_URL")` inline as the context
+argument of `RunCommand`, `Check`, or foreground `Service` to declare outputs.
+Do not assign the returned context: outputs belong to that one producer, and
+the workflow linter rejects declarations elsewhere. The program writes `NAME=value`
 strings to `ENV_FILE`; services atomically rename a completed file into place
 only after resource readiness. Even a service with no outputs must publish an
 empty file. Finite producers publish only after exit zero.
 
-`gimbal.WithRequirements(ctx, gimbal.StoreRequirement{Store: "store",
-Names: []string{"DATABASE_URL"}})` declares consuming-operation requirements.
+`gimbal.WithRequirements(ctx, "store", "DATABASE_URL")` declares
+consuming-operation requirements. Repeated calls accumulate access to multiple
+stores. Use `gimbal.DefaultStore` for the unnamed store in either declaration.
 Gimbal checks the named values and grants the whole visible store. Programs
 receive string environment variables; agents call the operation-scoped Gimbal
 callback supplied by their native executor. Values are not automatically

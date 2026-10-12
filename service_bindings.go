@@ -10,24 +10,22 @@ import (
 	"github.com/tylergannon/gimbal/internal/envfile"
 )
 
-// StoreRequirement names a store and the values required before work starts.
-// The complete visible store is granted, including non-required names.
-type StoreRequirement = backend.StoreRequirement
+// DefaultStore selects the unnamed store shared by declarations in a scope.
+const DefaultStore = ""
 
-// Requirements groups the stores and names needed by consuming work.
-type Requirements = backend.Requirements
-
-// WithRequirements declares store access and required names for commands and
-// agent turns issued with ctx. Names and store declarations are constants at
-// their call sites. Agent values are obtained through the Gimbal callback.
-func WithRequirements(ctx context.Context, requirements ...StoreRequirement) context.Context {
-	return effects.WithRequirements(ctx, requirements)
+// WithRequirements declares whole-store access and names required before commands
+// and agent turns issued with ctx start. Repeated calls accumulate requirements.
+// Store and names must be constants. Agents obtain values through the Gimbal callback.
+func WithRequirements(ctx context.Context, store string, names ...string) context.Context {
+	return effects.WithRequirements(ctx, backend.Requirements{{Store: store, Names: names}})
 }
 
 // WithYields declares a command or service's output names and destination store.
 // The producer writes NAME=value lines to ENV_FILE. Services atomically rename
 // a closed file into place when ready, including when names is empty. Finite
-// commands publish after successful exit. An empty store selects the default.
+// commands publish after successful exit. Use DefaultStore for the unnamed store.
+// WithYields must appear inline as the context argument to Service, RunCommand,
+// or Check; assigning or passing it elsewhere is rejected by the workflow linter.
 func WithYields(ctx context.Context, store string, names ...string) context.Context {
 	return effects.WithYields(ctx, store, names)
 }
@@ -62,5 +60,9 @@ func publishLocalOutputs(ctx context.Context, s *scope, file string) error {
 	if err != nil {
 		return err
 	}
-	return effects.Connection(ctx).Secrets.Publish(ctx, backend.Scope{Run: effectOwner(s, "").Run, Scope: s.key}, store, values)
+	write := backend.StoreWrite{Store: store}
+	for name, value := range values {
+		write.Values = append(write.Values, backend.NamedValue{Name: name, Value: value})
+	}
+	return effects.Connection(ctx).Secrets.Publish(ctx, backend.Scope{Run: effectOwner(s, "").Run, Scope: s.key}, write)
 }

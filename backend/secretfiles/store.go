@@ -102,8 +102,8 @@ func (s *Store) access(ctx context.Context, write bool, fn func(backend.ScopedVa
 	}
 	return os.Rename(tmp.Name(), file)
 }
-func (s *Store) Publish(ctx context.Context, scope backend.Scope, store string, values map[string]string) error {
-	return s.access(ctx, true, func(v backend.ScopedValues) error { return v.Publish(scope, store, values) })
+func (s *Store) Publish(ctx context.Context, scope backend.Scope, write backend.StoreWrite) error {
+	return s.access(ctx, true, func(v backend.ScopedValues) error { return v.Publish(scope, write) })
 }
 func (s *Store) Acquire(ctx context.Context, scope backend.Scope, r backend.Requirements) (values map[string]string, err error) {
 	err = s.access(ctx, false, func(v backend.ScopedValues) error { values, err = v.Acquire(scope, r); return err })

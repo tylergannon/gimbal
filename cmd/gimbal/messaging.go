@@ -52,6 +52,9 @@ Filesystem Configuration: {"Directory":"/abs/private-messages"}. Events remain u
 		}
 		daemon := taskdaemon.New()
 		daemon.Secrets = connection.Secrets
+		if daemon.Secrets == nil {
+			daemon.Secrets = backend.NewMemorySecrets()
+		}
 		if secretsDirectory != "" {
 			daemon.Secrets, err = secretfiles.Open(secretsDirectory)
 			if err != nil {

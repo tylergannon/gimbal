@@ -66,12 +66,11 @@ func WithScopeTemplate(string) AgentOption {
 	return func() {}
 }
 
-type StoreRequirement struct {
-	Store string
-	Names []string
-}
+const DefaultStore = ""
 
-func WithRequirements(ctx context.Context, requirements ...StoreRequirement) context.Context {
-	return ctx
+func WithRequirements(ctx context.Context, store string, names ...string) context.Context { return ctx }
+func WithYields(ctx context.Context, store string, names ...string) context.Context       { return ctx }
+func Service(context.Context, string, string, string, ...string) error                    { return nil }
+func RunCommand(context.Context, string, string, string, ...string) (int, string, string, error) {
+	return 0, "", "", nil
 }
-func WithYields(ctx context.Context, store string, names ...string) context.Context { return ctx }

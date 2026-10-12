@@ -38,10 +38,10 @@ with open(os.environ["ENV_FILE"]+".tmp","w") as f:f.write("SERVICE_URL=http://12
 os.replace(os.environ["ENV_FILE"]+".tmp",os.environ["ENV_FILE"])
 signal.signal(signal.SIGINT,lambda *_:exit(0))
 signal.pause()'`, port)
-			if err := Service(WithYields(ctx, "", "SERVICE_URL"), "server", workdir, command); err != nil {
+			if err := Service(WithYields(ctx, DefaultStore, "SERVICE_URL"), "server", workdir, command); err != nil {
 				return err
 			}
-			values, err := effects.Connection(ctx).Secrets.Acquire(ctx, backend.Scope{Run: effectOwner(mustScope(ctx), "").Run, Scope: mustScope(ctx).key}, Requirements{{Names: []string{"SERVICE_URL"}}})
+			values, err := effects.Connection(ctx).Secrets.Acquire(ctx, backend.Scope{Run: effectOwner(mustScope(ctx), "").Run, Scope: mustScope(ctx).key}, backend.Requirements{{Names: []string{"SERVICE_URL"}}})
 			if err != nil {
 				return err
 			}

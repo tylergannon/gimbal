@@ -48,7 +48,9 @@ func init() {
 		}
 		return nil
 	}, Connect: func(context.Context, json.RawMessage) (backend.Connection, error) {
-		return taskdaemon.New().Connection(), nil
+		daemon := taskdaemon.New()
+		daemon.Secrets = backend.NewMemorySecrets()
+		return daemon.Connection(), nil
 	}}); err != nil {
 		panic(err)
 	}

@@ -67,8 +67,11 @@ type State struct {
 type Route struct {
 	Name          string
 	Configuration json.RawMessage
-	Environment   string
-	Backends      json.RawMessage `json:",omitempty"`
+	// Environment names an orchestrated task placement; it is never a display label.
+	Environment string
+	// Label describes a direct execution route in the console without selecting placement.
+	Label    string          `json:",omitempty"`
+	Backends json.RawMessage `json:",omitempty"`
 }
 type Events struct {
 	Events           []json.RawMessage

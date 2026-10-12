@@ -4,6 +4,7 @@ package backend
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 )
 
@@ -13,6 +14,8 @@ type Process struct {
 	Workdir, Command string
 	Args             []string
 	Service          bool
+	Services         []string         `json:",omitempty"`
+	Bindings         []ServiceBinding `json:"-"`
 }
 type ProcessResult struct {
 	ExitCode    int
@@ -30,7 +33,8 @@ type TaskFile struct {
 	Bytes     []byte
 }
 type Turn struct {
-	Files []TaskFile
+	Files    []TaskFile
+	Services []string `json:",omitempty"`
 	Owner
 	Session, Prompt string
 	Schema          json.RawMessage `json:",omitempty"`
@@ -61,6 +65,7 @@ type Route struct {
 	Name          string
 	Configuration json.RawMessage
 	Environment   string
+	Orchestration json.RawMessage `json:",omitempty"`
 }
 type Events struct {
 	Events           []json.RawMessage
@@ -129,10 +134,11 @@ type RunObservations interface {
 	ReadObservation(context.Context, Target, string) (Observation, error)
 }
 type Connection struct {
-	Messages     Messaging
-	Execution    Execution
-	Events       TaskEvents
-	Observations RunObservations
+	Messages      Messaging
+	Orchestration Orchestration
+	Execution     Execution
+	Events        TaskEvents
+	Observations  RunObservations
 }
 
 // TurnResult transports native output as opaque bytes, preserving whitespace,
@@ -142,10 +148,15 @@ type TurnResult struct {
 	Usage  json.RawMessage
 }
 
-// Close releases optional messaging connection resources, never native work.
+// Close releases connection-owned messaging and orchestration handles after
+// cleanup, never native work or scope service use.
 func (c Connection) Close() error {
+	var errs []error
 	if closer, ok := c.Messages.(io.Closer); ok {
-		return closer.Close()
+		errs = append(errs, closer.Close())
 	}
-	return nil
+	if closer, ok := c.Orchestration.(io.Closer); ok {
+		errs = append(errs, closer.Close())
+	}
+	return errors.Join(errs...)
 }

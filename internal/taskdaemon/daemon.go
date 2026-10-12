@@ -21,6 +21,7 @@ import (
 
 type task struct {
 	owner        effects.Owner
+	admissionCtx context.Context
 	cancel       context.CancelFunc
 	done         chan struct{}
 	mu           sync.Mutex
@@ -43,14 +44,19 @@ type session struct {
 	closeMu sync.Mutex
 }
 type Daemon struct {
-	PublicHost string
-	files      map[backend.Artifact]string
-	Workdir    string
-	mu         sync.Mutex
-	closed     map[effects.Scope]time.Time
-	sessions   map[string]*session
-	tasks      map[string]*task
-	adapter    func(string) (gimbal.HarnessAdapter, error)
+	PublicHost    string
+	Orchestration backend.Orchestration
+	files         map[backend.Artifact]string
+	Workdir       string
+	mu            sync.Mutex
+	closed        map[effects.Scope]time.Time
+	sessions      map[string]*session
+	tasks         map[string]*task
+	// admitting owns service preflight until native admission finishes. Cleanup
+	// cancels and joins it using the same task boundary, without holding mu in
+	// an externally supplied dependency. It stores no infrastructure leases.
+	admitting map[string]*task
+	adapter   func(string) (gimbal.HarnessAdapter, error)
 }
 
 func New() *Daemon {
@@ -179,6 +185,9 @@ func (d *Daemon) turnEvents(req effects.Turn, emit func(json.RawMessage)) error 
 		}
 	}
 	id := key(req.Run, req.Task)
+	if pending := d.admitting[id]; pending != nil && pending.admissionCtx.Err() != nil {
+		return pending.admissionCtx.Err()
+	}
 	if d.tasks[id] != nil {
 		return errors.New("turn already started; read its result")
 	}
@@ -298,6 +307,11 @@ func (d *Daemon) cleanup(ctx context.Context, req effects.Scope) error {
 	d.mu.Lock()
 	d.closed[req] = time.Now()
 	var tasks []*task
+	for _, pending := range d.admitting {
+		if pending.owner.Run == req.Run && within(pending.owner.Scope, req.Scope) {
+			tasks = append(tasks, pending)
+		}
+	}
 	var sessions []effects.Target
 	for _, t := range d.tasks {
 		if t.owner.Run == req.Run && within(t.owner.Scope, req.Scope) {
@@ -341,6 +355,9 @@ func (d *Daemon) cleanup(ctx context.Context, req effects.Scope) error {
 		case <-ctx.Done():
 			errs = append(errs, ctx.Err())
 		}
+	}
+	if len(errs) == 0 && d.Orchestration != nil {
+		errs = append(errs, d.Orchestration.Release(ctx, req))
 	}
 	return errors.Join(errs...)
 }

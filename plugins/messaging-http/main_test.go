@@ -336,11 +336,11 @@ func TestObserverDisconnectDoesNotEndAdmittedWork(t *testing.T) {
 	}
 }
 
-func TestConfigRequiresSeparateLocalProducers(t *testing.T) {
+func TestConfigRequiresSeparateExplicitProducers(t *testing.T) {
 	for _, c := range []config{
-		{AgentURL: "http://example.com", ProcessURL: "http://localhost:2"},
+		{AgentURL: "http://user:secret@example.com", ProcessURL: "http://localhost:2"},
 		{AgentURL: "http://localhost:1", ProcessURL: "http://localhost:1"},
-		{AgentURL: "http://localhost:1", ProcessURL: "http://localhost:2", Listen: "0.0.0.0:3", EventsDir: "/tmp/events"},
+		{AgentURL: "http://localhost:1", ProcessURL: "http://localhost:2", Listen: "invalid-address", EventsDir: "/tmp/events"},
 	} {
 		raw, _ := json.Marshal(c)
 		if _, err := parse(raw); err == nil {
@@ -422,6 +422,13 @@ func TestBroadcastDoesNotConfirmUnresolvedCessation(t *testing.T) {
 		return nil
 	})
 	if !errors.Is(err, stop) {
+		t.Fatal(err)
+	}
+}
+
+func TestConfigAllowsExplicitProducerNetwork(t *testing.T) {
+	raw := json.RawMessage(`{"AgentURL":"http://agent.example:8081","ProcessURL":"http://process.example:8082","Listen":"0.0.0.0:8082","EventsDir":"/tmp/events"}`)
+	if _, err := parse(raw); err != nil {
 		t.Fatal(err)
 	}
 }

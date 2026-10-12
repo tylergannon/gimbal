@@ -19,7 +19,20 @@ func effectOwner(s *scope, task string) effects.Owner {
 	return effects.Owner{Run: filepath.Base(s.run.dir), Scope: s.key, Task: task}
 }
 func effectContext(ctx context.Context, s *scope, task string) context.Context {
-	return effects.WithOwner(ctx, effectOwner(s, task))
+	ctx = effects.WithOwner(ctx, effectOwner(s, task))
+	return effects.WithResourceObserver(ctx, func(use backend.ServiceUse) {
+		if s == nil || s.run == nil || s.run.writer == nil {
+			return
+		}
+		event := ResourceReady{Name: use.Name, ConsumerKind: use.Kind, Consumer: use.Consumer}
+		raw, err := s.run.writer.writeLifecycle(use.Scope.Scope, "", "", event, true)
+		if err == nil && s.run.store != nil {
+			err = s.run.store.Lifecycle(raw)
+		}
+		if err != nil {
+			logf("%s: resource observation unavailable: %v", task, err)
+		}
+	})
 }
 func (s *scope) remoteCleanup() error {
 	endpoint := effects.Endpoint(s.ctx)
@@ -47,7 +60,7 @@ func (s *scope) remoteCleanup() error {
 }
 func startRemoteProcess(ctx context.Context, s *scope, id, workdir, command string, args []string, out, stderr *commandCapture, service bool) error {
 	var reply effects.Reply
-	err := effects.Call(ctx, effects.Endpoint(ctx), "process", effects.Process{Owner: effectOwner(s, id), Workdir: workdir, Command: command, Args: args, Service: service}, &reply)
+	err := effects.Call(ctx, effects.Endpoint(ctx), "process", effects.Process{Owner: effectOwner(s, id), Workdir: workdir, Command: command, Args: args, Service: service, Services: effects.Services(ctx)}, &reply)
 	if err != nil {
 		return effects.ConfirmStarted(ctx, effects.Endpoint(ctx), effects.Target{Run: filepath.Base(s.run.dir), ID: id})
 	}
@@ -132,11 +145,11 @@ func executionFor(ctx context.Context) backend.Execution {
 
 func startMessageProcess(ctx context.Context, s *scope, id, workdir, command string, args []string, service bool) (backend.MessageRequest, error) {
 	r := effects.Request("process", effectOwner(s, id))
-	r.Process = &backend.Process{Owner: r.Owner, Workdir: workdir, Command: command, Args: args, Service: service}
+	r.Process = &backend.Process{Owner: r.Owner, Workdir: workdir, Command: command, Args: args, Service: service, Services: effects.Services(ctx)}
 	return r, effects.Submit(ctx, r)
 }
 func messageProcessResult(ctx context.Context, s *scope, r backend.MessageRequest, out, stderr *commandCapture, ended *CommandEnded) error {
-	event, err := effects.Await(ctx, r, "completed", nil)
+	event, err := effects.Await(effectContext(ctx, s, r.Task), r, "completed", nil)
 	if ctx.Err() != nil {
 		ended.Interrupted = true
 		err = errors.Join(err, effects.InterruptMessage(ctx, r))
@@ -165,7 +178,7 @@ func messageProcessResult(ctx context.Context, s *scope, r backend.MessageReques
 func messageService(ctx context.Context, s *scope, name, id, workdir, command string, out, stderr *commandCapture, ended CommandEnded, start time.Time) error {
 	r, err := startMessageProcess(ctx, s, id, workdir, "zsh", []string{"-c", command}, true)
 	if err == nil {
-		_, err = effects.Await(ctx, r, "established", nil)
+		_, err = effects.Await(effectContext(ctx, s, r.Task), r, "established", nil)
 	}
 	if err != nil {
 		_ = out.close()

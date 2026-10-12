@@ -89,6 +89,7 @@ func TestLifecycleEventUnionRoundTripsEveryVariant(t *testing.T) {
 		event LifecycleEvent
 	}{
 		{"run_started", RunStarted{Name: "sprint"}},
+		{"resource_ready", ResourceReady{Name: "http", ConsumerKind: "process", Consumer: "consume.1"}},
 		{"run_ended", RunEnded{Name: "sprint", Error: ""}},
 		{"run_cancelled", RunCancelled{Name: "sprint", Source: "operator", Error: "context canceled"}},
 		{"scope_began", ScopeBegan{Name: "task", Task: optionalTask(Task{Name: "Implement", Description: "Make it work.", DefinitionOfDone: "It works."})}},

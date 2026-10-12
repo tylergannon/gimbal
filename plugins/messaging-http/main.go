@@ -23,7 +23,7 @@ import (
 )
 
 // Each explicitly started producer has its own Listen and EventsDir. Caller
-// configuration contains only the two fixed URLs. Native sessions belong to
+// configuration declares two fixed URLs on an operator-trusted network. Native sessions belong to
 // AgentURL; processes/services belong to ProcessURL. No discovery is performed.
 type config struct{ AgentURL, ProcessURL, Listen, EventsDir string }
 
@@ -35,10 +35,7 @@ func parse(raw json.RawMessage) (config, error) {
 	for _, endpoint := range []string{c.AgentURL, c.ProcessURL} {
 		u, err := url.Parse(endpoint)
 		if err != nil || u.Scheme != "http" || u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || (u.Path != "" && u.Path != "/") {
-			return c, fmt.Errorf("http-sse requires plain localhost AgentURL and ProcessURL")
-		}
-		if u.Hostname() != "localhost" && !net.ParseIP(u.Hostname()).IsLoopback() {
-			return c, fmt.Errorf("http-sse supports localhost producers only: %s", endpoint)
+			return c, fmt.Errorf("http-sse requires plain HTTP AgentURL and ProcessURL")
 		}
 	}
 	c.AgentURL = strings.TrimRight(c.AgentURL, "/")
@@ -50,9 +47,8 @@ func parse(raw json.RawMessage) (config, error) {
 		return c, fmt.Errorf("producer configuration needs both Listen and EventsDir")
 	}
 	if c.Listen != "" {
-		host, _, err := net.SplitHostPort(c.Listen)
-		if err != nil || (host != "localhost" && !net.ParseIP(host).IsLoopback()) {
-			return c, fmt.Errorf("producer Listen must be a localhost host:port")
+		if _, err := net.ResolveTCPAddr("tcp", c.Listen); err != nil {
+			return c, fmt.Errorf("producer Listen must be a TCP host:port")
 		}
 	}
 	return c, nil
@@ -66,7 +62,7 @@ type connection struct {
 	store  *messagefiles.Store
 }
 
-func connect(_ context.Context, raw json.RawMessage) (backend.Messaging, error) {
+func connect(_ context.Context, raw json.RawMessage, _ backend.Orchestration) (backend.Messaging, error) {
 	c, err := parse(raw)
 	if err != nil {
 		return nil, err
@@ -426,8 +422,8 @@ func (p *producer) broadcast(r backend.MessageRequest) error {
 	return p.fact(r, "completed", result)
 }
 
-func worker(ctx context.Context, raw json.RawMessage, handle backend.MessageHandler) error {
-	messaging, err := connect(ctx, raw)
+func worker(ctx context.Context, raw json.RawMessage, resources backend.Orchestration, handle backend.MessageHandler) error {
+	messaging, err := connect(ctx, raw, resources)
 	if err != nil {
 		return err
 	}

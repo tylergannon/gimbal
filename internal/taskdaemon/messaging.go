@@ -38,7 +38,9 @@ func (d *Daemon) Messages(bus backend.Messaging) backend.MessageHandler {
 		if err := publish("accepted", nil, nil); err != nil {
 			return err
 		}
+		var readyServices []backend.ServiceUse
 		complete := func(result backend.MessageResult, err error) error {
+			result.ReadyServices = append([]backend.ServiceUse(nil), readyServices...)
 			if err != nil {
 				result.Error = err.Error()
 				result.Interrupted = r.Kind == "turn" && errors.Is(err, context.Canceled)
@@ -46,6 +48,15 @@ func (d *Daemon) Messages(bus backend.Messaging) backend.MessageHandler {
 				result.InvalidOutput = errors.Is(err, gimbal.ErrInvalidOutput)
 			}
 			return publish("completed", &result, nil)
+		}
+		ready := func(bindings []backend.ServiceBinding, kind, consumer string) {
+			for _, binding := range bindings {
+				use := &backend.ServiceUse{Scope: backend.Scope{Run: r.Run, Scope: r.Scope}, Name: binding.Name, Kind: kind, Consumer: consumer}
+				readyServices = append(readyServices, *use)
+				if err := bus.PublishEvent(ctx, backend.MessageEvent{ID: ulid.Make().String(), RequestID: r.ID, Created: time.Now().UTC(), Owner: r.Owner, SessionID: r.SessionID, Kind: "activity", ReadyService: use}); err != nil {
+					log.Printf("request %s resource observation publication failed; native admission continues: %v", r.ID, err)
+				}
+			}
 		}
 		var err error
 		switch r.Kind {
@@ -59,6 +70,15 @@ func (d *Daemon) Messages(bus backend.Messaging) backend.MessageHandler {
 			if r.Turn == nil {
 				return complete(backend.MessageResult{}, fmt.Errorf("turn payload required"))
 			}
+			bindings, finish, bindErr := d.serviceBindings(ctx, r.Owner, "agent", r.Turn.Session, r.Turn.Services)
+			defer finish()
+			if bindErr != nil {
+				return complete(backend.MessageResult{}, bindErr)
+			}
+			ready(bindings, "agent", r.Turn.Session)
+			for _, binding := range bindings {
+				r.Turn.Prompt += "\nRuntime service " + binding.Name + " is ready for this agent at " + binding.URL + "."
+			}
 			err = d.turnEvents(*r.Turn, func(raw json.RawMessage) {
 				if e := publish("activity", nil, raw); e != nil {
 					log.Printf("request %s activity delivery: %v", r.ID, e)
@@ -68,6 +88,13 @@ func (d *Daemon) Messages(bus backend.Messaging) backend.MessageHandler {
 			if r.Process == nil {
 				return complete(backend.MessageResult{}, fmt.Errorf("process payload required"))
 			}
+			bindings, finish, bindErr := d.serviceBindings(ctx, r.Owner, "process", r.Task, r.Process.Services)
+			defer finish()
+			if bindErr != nil {
+				return complete(backend.MessageResult{}, bindErr)
+			}
+			ready(bindings, "process", r.Task)
+			r.Process.Bindings = bindings
 			err = d.process(*r.Process)
 			if err == nil && r.Process.Service {
 				err = publish("established", nil, nil)
@@ -90,9 +117,16 @@ func (d *Daemon) Messages(bus backend.Messaging) backend.MessageHandler {
 			}
 			d.mu.Lock()
 			t := d.tasks[key(r.Target.Run, r.Target.ID)]
-			d.mu.Unlock()
+			if t == nil {
+				t = d.admitting[key(r.Target.Run, r.Target.ID)]
+			}
+			// Selection and cancellation share native admission's owner lock. A
+			// preflight cannot become separately owned native work between them.
 			if t != nil {
 				t.cancel()
+			}
+			d.mu.Unlock()
+			if t != nil {
 				stop, cancel := context.WithTimeout(ctx, 10*time.Second)
 				defer cancel()
 				if t.stop != nil {

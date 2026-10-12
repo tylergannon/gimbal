@@ -257,7 +257,7 @@ func (w *actionWorker) Work(_ context.Context, job *river.Job[actionArgs]) error
 	return nil
 }
 
-func serve(ctx context.Context, raw json.RawMessage, handler backend.MessageHandler) error {
+func serve(ctx context.Context, raw json.RawMessage, _ backend.Orchestration, handler backend.MessageHandler) error {
 	c, err := parse(raw)
 	if err != nil {
 		return err
@@ -295,7 +295,7 @@ func Register(registry *gimbal.Registry) error {
 	return registry.RegisterMessaging(gimbal.MessagingDefinition{
 		Name:                  "river",
 		ValidateConfiguration: func(raw json.RawMessage) error { _, err := parse(raw); return err },
-		Connect: func(ctx context.Context, raw json.RawMessage) (backend.Messaging, error) {
+		Connect: func(ctx context.Context, raw json.RawMessage, _ backend.Orchestration) (backend.Messaging, error) {
 			c, err := parse(raw)
 			if err != nil {
 				return nil, err

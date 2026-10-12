@@ -104,16 +104,24 @@ func TestMessagingOrphanCleanupOwnsConnectionUntilOperationEnds(t *testing.T) {
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		t.Fatal(err)
 	}
-	var opened, closed atomic.Int32
+	var opened, closed, constructed atomic.Int32
 	name := fmt.Sprintf("cleanup-%d", time.Now().UnixNano())
-	err := gimbal.DefaultRegistry.RegisterMessaging(gimbal.MessagingDefinition{Name: name, ValidateConfiguration: func(json.RawMessage) error { return nil }, Connect: func(ctx context.Context, _ json.RawMessage) (backend.Messaging, error) {
+	err := gimbal.DefaultRegistry.RegisterMessaging(gimbal.MessagingDefinition{Name: name, ConstructOrchestration: func(context.Context, json.RawMessage) (backend.Orchestration, error) {
+		constructed.Add(1)
+		return &orphanResources{}, nil
+	}, ValidateConfiguration: func(json.RawMessage) error { return nil }, Connect: func(ctx context.Context, _ json.RawMessage, resources backend.Orchestration) (backend.Messaging, error) {
+		if resources == nil {
+			return nil, fmt.Errorf("cleanup connection lost its dependency")
+		}
 		opened.Add(1)
 		return &cleanupMessages{context: ctx, closed: &closed}, nil
-	}, Worker: func(context.Context, json.RawMessage, backend.MessageHandler) error { return nil }})
+	}, Worker: func(context.Context, json.RawMessage, backend.Orchestration, backend.MessageHandler) error {
+		return nil
+	}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	route, _ := json.Marshal(backend.Route{Name: name})
+	route, _ := json.Marshal(backend.Route{Name: name, Orchestration: json.RawMessage(`{"fixture":true}`)})
 	if err = os.WriteFile(filepath.Join(dir, "task-route"), route, 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -124,7 +132,14 @@ func TestMessagingOrphanCleanupOwnsConnectionUntilOperationEnds(t *testing.T) {
 			t.Fatalf("cleanup pending=%v err=%v", pending, err)
 		}
 	}
-	if opened.Load() != 2 || closed.Load() != 2 {
+	if opened.Load() != 2 || closed.Load() != 2 || constructed.Load() != 2 {
 		t.Fatalf("opened=%d closed=%d", opened.Load(), closed.Load())
 	}
 }
+
+type orphanResources struct{}
+
+func (*orphanResources) Acquire(context.Context, backend.ServiceUse) (backend.ServiceBinding, error) {
+	return backend.ServiceBinding{}, nil
+}
+func (*orphanResources) Release(context.Context, backend.Scope) error { return nil }

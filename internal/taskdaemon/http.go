@@ -22,7 +22,6 @@ func decode[T any](w http.ResponseWriter, r *http.Request) (T, bool) {
 func (d *Daemon) Handler() http.Handler {
 	m := http.NewServeMux()
 	d.bytesHandlers(m)
-	d.serviceHandler(m)
 	m.HandleFunc("POST /tasks/session", func(w http.ResponseWriter, r *http.Request) {
 		v, ok := decode[effects.Session](w, r)
 		if !ok {
@@ -87,7 +86,7 @@ func (d *Daemon) Handler() http.Handler {
 		if !ok {
 			return
 		}
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		reply(w, "", false, d.closeSession(ctx, v))
 	})
@@ -96,7 +95,7 @@ func (d *Daemon) Handler() http.Handler {
 		if !ok {
 			return
 		}
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		reply(w, "", false, d.cleanup(ctx, v))
 	})

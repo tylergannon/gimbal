@@ -31,7 +31,7 @@ func parse(raw json.RawMessage) (config, error) {
 	}
 	return c, err
 }
-func connect(ctx context.Context, raw json.RawMessage, _ backend.Orchestration) (backend.Messaging, error) {
+func connect(ctx context.Context, raw json.RawMessage, _ backend.Dependencies) (backend.Messaging, error) {
 	c, err := parse(raw)
 	if err != nil {
 		return nil, err
@@ -78,7 +78,7 @@ func (t *transport) PublishRequest(ctx context.Context, r backend.MessageRequest
 	}
 	return err
 }
-func worker(ctx context.Context, raw json.RawMessage, resources backend.Orchestration, handle backend.MessageHandler) error {
+func worker(ctx context.Context, raw json.RawMessage, resources backend.Dependencies, handle backend.MessageHandler) error {
 	bus, err := connect(ctx, raw, resources)
 	if err != nil {
 		return err
@@ -92,6 +92,11 @@ func worker(ctx context.Context, raw json.RawMessage, resources backend.Orchestr
 	}
 	_ = f.Close()
 	defer func() { _ = os.Remove(lock) }()
+	if resources.Ready != nil {
+		if err := resources.Ready(); err != nil {
+			return err
+		}
+	}
 	seen := map[string]bool{}
 	ticker := time.NewTicker(40 * time.Millisecond)
 	defer ticker.Stop()

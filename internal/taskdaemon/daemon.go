@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -17,10 +18,13 @@ import (
 	"github.com/tylergannon/gimbal/backend"
 	"github.com/tylergannon/gimbal/internal/binding"
 	"github.com/tylergannon/gimbal/internal/effects"
+	"github.com/tylergannon/gimbal/internal/secretcallback"
 )
 
 type task struct {
 	owner        effects.Owner
+	service      bool
+	started      time.Time
 	admissionCtx context.Context
 	cancel       context.CancelFunc
 	done         chan struct{}
@@ -44,14 +48,14 @@ type session struct {
 	closeMu sync.Mutex
 }
 type Daemon struct {
-	PublicHost    string
-	Orchestration backend.Orchestration
-	files         map[backend.Artifact]string
-	Workdir       string
-	mu            sync.Mutex
-	closed        map[effects.Scope]time.Time
-	sessions      map[string]*session
-	tasks         map[string]*task
+	PublicHost string
+	Secrets    backend.SecretsBackend
+	files      map[backend.Artifact]string
+	Workdir    string
+	mu         sync.Mutex
+	closed     map[effects.Scope]time.Time
+	sessions   map[string]*session
+	tasks      map[string]*task
 	// admitting owns service preflight until native admission finishes. Cleanup
 	// cancels and joins it using the same task boundary, without holding mu in
 	// an externally supplied dependency. It stores no infrastructure leases.
@@ -141,6 +145,11 @@ func (d *Daemon) create(_ context.Context, req effects.Session) (string, error) 
 }
 func (d *Daemon) turn(req effects.Turn) error { return d.turnEvents(req, nil) }
 func (d *Daemon) turnEvents(req effects.Turn, emit func(json.RawMessage)) error {
+	_, finish, err := d.acquire(context.Background(), req.Owner, req.Requires)
+	defer finish()
+	if err != nil {
+		return err
+	}
 	for _, file := range req.Files {
 		if err := d.writeBytes(backend.Artifact{Owner: req.Owner, Name: file.Name}, bytes.NewReader(file.Bytes)); err != nil {
 			return err
@@ -194,7 +203,19 @@ func (d *Daemon) turnEvents(req effects.Turn, emit func(json.RawMessage)) error 
 	ctx, cancel := context.WithCancel(context.Background())
 	t := &task{owner: req.Owner, cancel: cancel, done: make(chan struct{})}
 	d.tasks[id] = t
+	closeCallback := func() {}
+	if len(req.Requires) > 0 {
+		address, close, err := secretcallback.Open(ctx, d.Secrets, req.Owner, req.Requires)
+		if err != nil {
+			delete(d.tasks, id)
+			cancel()
+			return err
+		}
+		closeCallback = close
+		req.Prompt += "\nRequired stores are available for this operation as JSON via GET " + address + ". Call this endpoint when you need the values."
+	}
 	go func() {
+		defer closeCallback()
 		result, err := s.adapter.RunTurn(ctx, s.native, req.Prompt, req.Schema, func(event gimbal.AgentEvent) error {
 			raw, e := json.Marshal(struct {
 				gimbal.AgentEvent
@@ -304,6 +325,17 @@ func (d *Daemon) closeSession(ctx context.Context, req effects.Target) error {
 	return nil
 }
 func (d *Daemon) cleanup(ctx context.Context, req effects.Scope) error {
+	if err := d.cleanupNative(ctx, req); err != nil {
+		return err
+	}
+	if d.Secrets != nil {
+		return d.Secrets.Release(ctx, req)
+	}
+	return nil
+}
+
+// Messaging callers release the shared store after all assigned daemons reply.
+func (d *Daemon) cleanupNative(ctx context.Context, req effects.Scope) error {
 	d.mu.Lock()
 	d.closed[req] = time.Now()
 	var tasks []*task
@@ -330,8 +362,16 @@ func (d *Daemon) cleanup(ctx context.Context, req effects.Scope) error {
 		}
 	}
 	d.mu.Unlock()
+	sort.SliceStable(tasks, func(i, j int) bool {
+		if tasks[i].service != tasks[j].service {
+			return !tasks[i].service
+		}
+		return tasks[i].started.After(tasks[j].started)
+	})
 	for _, t := range tasks {
-		t.cancel()
+		if !t.service {
+			t.cancel()
+		}
 	}
 	var errs []error
 	for _, s := range sessions {
@@ -340,6 +380,10 @@ func (d *Daemon) cleanup(ctx context.Context, req effects.Scope) error {
 		}
 	}
 	for _, t := range tasks {
+		if t.service && len(errs) > 0 {
+			break
+		}
+		t.cancel()
 		if t.stop != nil {
 			if err := t.stop(ctx); err != nil {
 				errs = append(errs, err)
@@ -355,9 +399,6 @@ func (d *Daemon) cleanup(ctx context.Context, req effects.Scope) error {
 		case <-ctx.Done():
 			errs = append(errs, ctx.Err())
 		}
-	}
-	if len(errs) == 0 && d.Orchestration != nil {
-		errs = append(errs, d.Orchestration.Release(ctx, req))
 	}
 	return errors.Join(errs...)
 }

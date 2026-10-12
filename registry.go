@@ -343,25 +343,31 @@ func (r *Registry) Connect(ctx context.Context, route backend.Route) (backend.Co
 		if err := d.ValidateConfiguration(route.Configuration); err != nil {
 			return backend.Connection{}, err
 		}
-		var resources backend.Orchestration
-		if len(route.Orchestration) > 0 {
-			if d.ConstructOrchestration == nil {
-				return backend.Connection{}, fmt.Errorf("messaging %s has no orchestration constructor", route.Name)
-			}
+		var dependencies backend.Dependencies
+		if len(route.Backends) > 0 {
 			var err error
-			resources, err = d.ConstructOrchestration(ctx, route.Orchestration)
+			if d.ConstructBackends != nil {
+				dependencies, err = d.ConstructBackends(ctx, route.Backends)
+			} else {
+				dependencies, err = r.constructLocalBackends(route.Backends)
+			}
 			if err != nil {
 				return backend.Connection{}, err
 			}
-			if resources == nil {
-				return backend.Connection{}, fmt.Errorf("messaging %s constructed nil orchestration", route.Name)
-			}
 		}
-		b, err := d.Connect(ctx, route.Configuration, resources)
-		connection := backend.Connection{Messages: b, Orchestration: resources}
+		b, err := d.Connect(ctx, route.Configuration, dependencies)
+		connection := backend.Connection{Messages: b, Orchestrator: dependencies.Orchestrator, Secrets: dependencies.Secrets}
 		if err != nil {
 			return backend.Connection{}, errors.Join(err, connection.Close())
 		}
+		if dependencies.WrapMessaging != nil {
+			routed, err := dependencies.WrapMessaging(ctx, b)
+			if err != nil {
+				return backend.Connection{}, errors.Join(err, connection.Close())
+			}
+			connection.Messages = routed
+		}
+
 		return connection, nil
 	}
 	d, ok := r.Backend(route.Name)

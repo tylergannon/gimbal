@@ -132,19 +132,6 @@ type ownership struct {
 	ServicePorts        []int
 }
 
-// execution rejects an unpublished service before the daemon starts it.
-type execution struct {
-	backend.HTTP
-	owner ownership
-}
-
-func (e execution) Service(ctx context.Context, request backend.Service) (backend.ServiceAddress, error) {
-	if e.owner.PublicHost == "" || (e.owner.Network == "" && !slices.Contains(e.owner.ServicePorts, request.Port)) {
-		return backend.ServiceAddress{}, fmt.Errorf("docker service port %d has no configured consumer route; configure PublicHost and ServicePorts or Network", request.Port)
-	}
-	return e.HTTP.Service(ctx, request)
-}
-
 // Stop releases exactly the container described by Start's ownership receipt.
 func Stop(ctx context.Context, raw json.RawMessage) error {
 	var receipt ownership
@@ -195,6 +182,6 @@ func Register(registry *gimbal.Registry) error {
 		var receipt ownership
 		_ = json.Unmarshal(raw, &receipt)
 		http := backend.HTTP{Endpoint: receipt.Endpoint}
-		return backend.Connection{Execution: execution{HTTP: http, owner: receipt}, Events: http, Observations: http}, nil
+		return backend.Connection{Execution: http, Events: http, Observations: http}, nil
 	}})
 }

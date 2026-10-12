@@ -11,10 +11,12 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
+
+	"github.com/tylergannon/gimbal/backend"
+	"github.com/tylergannon/gimbal/internal/effects"
 )
 
-func TestDefaultLocalServiceFulfillmentAndScopeRelease(t *testing.T) {
+func TestDefaultLocalServicePublishesAndReleases(t *testing.T) {
 	probe, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
@@ -28,33 +30,35 @@ func TestDefaultLocalServiceFulfillmentAndScopeRelease(t *testing.T) {
 	var address string
 	err = Run(Project(t.Context(), t.TempDir()), "local-service", nil, func(ctx context.Context) error {
 		return Scope(ctx, "http", func(ctx context.Context) error {
-			var err error
-			address, err = FulfillService(ctx, "server", workdir, fmt.Sprintf("exec python3 -m http.server %d --bind 127.0.0.1", port), port, "workflow")
+
+			command := fmt.Sprintf(`exec python3 -c 'import http.server,os,threading,signal
+server=http.server.ThreadingHTTPServer(("127.0.0.1",%d),http.server.SimpleHTTPRequestHandler)
+threading.Thread(target=server.serve_forever,daemon=True).start()
+with open(os.environ["ENV_FILE"]+".tmp","w") as f:f.write("SERVICE_URL=http://127.0.0.1:%%d\n"%%server.server_port)
+os.replace(os.environ["ENV_FILE"]+".tmp",os.environ["ENV_FILE"])
+signal.signal(signal.SIGINT,lambda *_:exit(0))
+signal.pause()'`, port)
+			if err := Service(WithYields(ctx, "", "SERVICE_URL"), "server", workdir, command); err != nil {
+				return err
+			}
+			values, err := effects.Connection(ctx).Secrets.Acquire(ctx, backend.Scope{Run: effectOwner(mustScope(ctx), "").Run, Scope: mustScope(ctx).key}, Requirements{{Names: []string{"SERVICE_URL"}}})
 			if err != nil {
 				return err
 			}
-			deadline := time.Now().Add(3 * time.Second)
-			for {
-				response, err := http.Get(address + "/value.txt")
-				if err == nil {
-					raw, readErr := io.ReadAll(response.Body)
-					closeErr := response.Body.Close()
-					if readErr != nil {
-						return readErr
-					}
-					if closeErr != nil {
-						return closeErr
-					}
-					if string(raw) != "local-service-bytes" {
-						return fmt.Errorf("service returned %q", raw)
-					}
-					return nil
-				}
-				if time.Now().After(deadline) {
-					return err
-				}
-				time.Sleep(20 * time.Millisecond)
+			address = values["SERVICE_URL"]
+			response, err := http.Get(address + "/value.txt")
+			if err != nil {
+				return err
 			}
+			defer func() { _ = response.Body.Close() }()
+			raw, err := io.ReadAll(response.Body)
+			if err != nil {
+				return err
+			}
+			if string(raw) != "local-service-bytes" {
+				return fmt.Errorf("service returned %q", raw)
+			}
+			return nil
 		})
 	})
 	if err != nil {
@@ -64,4 +68,12 @@ func TestDefaultLocalServiceFulfillmentAndScopeRelease(t *testing.T) {
 		_ = response.Body.Close()
 		t.Fatal("scope-owned service remained reachable")
 	}
+}
+
+func mustScope(ctx context.Context) *scope {
+	s, err := current(ctx)
+	if err != nil {
+		panic(err)
+	}
+	return s
 }

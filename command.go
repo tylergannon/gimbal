@@ -203,9 +203,6 @@ func recordCheckResult(s *scope, key string, raw []byte) error {
 }
 
 func runCommand(ctx context.Context, s *scope, name, workdir, command string, args []string) (CommandStarted, CommandEnded, error, error) {
-	if err := requireServiceMessaging(ctx); err != nil {
-		return CommandStarted{}, CommandEnded{ExitCode: -1, Error: err.Error()}, err, nil
-	}
 	s.mu.Lock()
 	id := s.next(name)
 	s.mu.Unlock()
@@ -259,7 +256,21 @@ func runCommand(ctx context.Context, s *scope, name, workdir, command string, ar
 }
 
 func runCapturedCommand(ctx context.Context, id, workdir, command string, args []string, r *run, out, errOut *commandCapture, ended *CommandEnded) (stdout, stderr string, err error) {
+	s, scopeErr := current(ctx)
+	if scopeErr != nil {
+		_ = out.close()
+		_ = errOut.close()
+		return "", "", scopeErr
+	}
+	environment, envFile, cleanup, envErr := localProcessEnvironment(ctx, s, false)
+	if envErr != nil {
+		_ = out.close()
+		_ = errOut.close()
+		return "", "", envErr
+	}
+	defer cleanup()
 	cmd := exec.CommandContext(ctx, command, args...)
+	cmd.Env = environment
 	cmd.Dir = workdir
 	cmd.WaitDelay = commandWaitDelay
 	var killed atomic.Bool
@@ -302,6 +313,16 @@ func runCapturedCommand(ctx context.Context, id, workdir, command string, args [
 		var exitErr *exec.ExitError
 		if runErr != nil && !errors.As(runErr, &exitErr) && !errors.Is(runErr, exec.ErrWaitDelay) {
 			err = fmt.Errorf("gimbal: %s: %w", id, runErr)
+		}
+	}
+	if err == nil && envFile != "" {
+		if ended.ExitCode != 0 {
+			err = fmt.Errorf("producer %s exited %d", id, ended.ExitCode)
+		} else {
+			err = publishLocalOutputs(ctx, s, envFile)
+		}
+		if err != nil {
+			s.failService(err)
 		}
 	}
 	ended.Stdout, ended.Stderr = stdout, stderr

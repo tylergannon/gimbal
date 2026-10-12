@@ -18,7 +18,7 @@ var Graph = workflow.Graph{
 	Body: []workflow.Operation{
 		workflow.Repeat{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 146}, Cond: "i, w := range suite.Workloads", Body: []workflow.Operation{
 			workflow.Condition{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 162}, Branches: []workflow.Branch{
-				{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 162}, Case: "w.Ready != \"\"", Exits: false, Body: []workflow.Operation{
+				{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 162}, Case: "w.Ready != \"\" && w.Start == \"\"", Exits: false, Body: []workflow.Operation{
 					workflow.Command{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 165}, Name: "readiness"},
 					workflow.Condition{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 169}, Branches: []workflow.Branch{
 						{Source: workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 169}, Case: "err != nil || code != 0", Exits: true, Body: []workflow.Operation{}},

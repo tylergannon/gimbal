@@ -257,7 +257,7 @@ func (w *actionWorker) Work(_ context.Context, job *river.Job[actionArgs]) error
 	return nil
 }
 
-func serve(ctx context.Context, raw json.RawMessage, _ backend.Orchestration, handler backend.MessageHandler) error {
+func serve(ctx context.Context, raw json.RawMessage, resources backend.Dependencies, handler backend.MessageHandler) error {
 	c, err := parse(raw)
 	if err != nil {
 		return err
@@ -282,6 +282,12 @@ func serve(ctx context.Context, raw json.RawMessage, _ backend.Orchestration, ha
 	if err := client.Start(ctx); err != nil {
 		return err
 	}
+	if resources.Ready != nil {
+		if err := resources.Ready(); err != nil {
+			_ = client.Stop(context.Background())
+			return err
+		}
+	}
 	<-ctx.Done()
 	stopCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -295,7 +301,7 @@ func Register(registry *gimbal.Registry) error {
 	return registry.RegisterMessaging(gimbal.MessagingDefinition{
 		Name:                  "river",
 		ValidateConfiguration: func(raw json.RawMessage) error { _, err := parse(raw); return err },
-		Connect: func(ctx context.Context, raw json.RawMessage, _ backend.Orchestration) (backend.Messaging, error) {
+		Connect: func(ctx context.Context, raw json.RawMessage, _ backend.Dependencies) (backend.Messaging, error) {
 			c, err := parse(raw)
 			if err != nil {
 				return nil, err

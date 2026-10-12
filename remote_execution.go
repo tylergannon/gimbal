@@ -20,7 +20,7 @@ func effectOwner(s *scope, task string) effects.Owner {
 }
 func effectContext(ctx context.Context, s *scope, task string) context.Context {
 	ctx = effects.WithOwner(ctx, effectOwner(s, task))
-	return effects.WithResourceObserver(ctx, func(use backend.ServiceUse) {
+	return effects.WithResourceObserver(ctx, func(use backend.ResourceFact) {
 		if s == nil || s.run == nil || s.run.writer == nil {
 			return
 		}
@@ -39,7 +39,7 @@ func (s *scope) remoteCleanup() error {
 	if endpoint == "" {
 		return nil
 	}
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(s.ctx), closeTimeout+time.Second)
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(s.ctx), 30*time.Second)
 	defer cancel()
 	err := effects.Cleanup(ctx, endpoint, filepath.Base(s.run.dir), s.key)
 	s.run.closeMu.Lock()
@@ -59,8 +59,9 @@ func (s *scope) remoteCleanup() error {
 	return err
 }
 func startRemoteProcess(ctx context.Context, s *scope, id, workdir, command string, args []string, out, stderr *commandCapture, service bool) error {
+	store, yields, produces := effects.Yields(ctx)
 	var reply effects.Reply
-	err := effects.Call(ctx, effects.Endpoint(ctx), "process", effects.Process{Owner: effectOwner(s, id), Workdir: workdir, Command: command, Args: args, Service: service, Services: effects.Services(ctx)}, &reply)
+	err := effects.Call(ctx, effects.Endpoint(ctx), "process", effects.Process{Owner: effectOwner(s, id), Workdir: workdir, Command: command, Args: args, Service: service, Requires: effects.Requirements(ctx), Store: store, Yields: yields, Produces: produces}, &reply)
 	if err != nil {
 		return effects.ConfirmStarted(ctx, effects.Endpoint(ctx), effects.Target{Run: filepath.Base(s.run.dir), ID: id})
 	}
@@ -145,7 +146,8 @@ func executionFor(ctx context.Context) backend.Execution {
 
 func startMessageProcess(ctx context.Context, s *scope, id, workdir, command string, args []string, service bool) (backend.MessageRequest, error) {
 	r := effects.Request("process", effectOwner(s, id))
-	r.Process = &backend.Process{Owner: r.Owner, Workdir: workdir, Command: command, Args: args, Service: service, Services: effects.Services(ctx)}
+	store, yields, produces := effects.Yields(ctx)
+	r.Process = &backend.Process{Owner: r.Owner, Workdir: workdir, Command: command, Args: args, Service: service, Requires: effects.Requirements(ctx), Store: store, Yields: yields, Produces: produces}
 	return r, effects.Submit(ctx, r)
 }
 func messageProcessResult(ctx context.Context, s *scope, r backend.MessageRequest, out, stderr *commandCapture, ended *CommandEnded) error {

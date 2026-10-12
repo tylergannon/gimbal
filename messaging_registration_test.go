@@ -12,8 +12,8 @@ import (
 
 type constructionFixture struct{ closes, releases int }
 
-func (*constructionFixture) Acquire(context.Context, backend.ServiceUse) (backend.ServiceBinding, error) {
-	return backend.ServiceBinding{}, nil
+func (*constructionFixture) AcquireEnvironment(context.Context, backend.Owner, string) (backend.Environment, error) {
+	return backend.Environment{}, nil
 }
 func (f *constructionFixture) Release(context.Context, backend.Scope) error { f.releases++; return nil }
 func (f *constructionFixture) Close() error                                 { f.closes++; return nil }
@@ -29,20 +29,20 @@ func (constructionMessages) ListenEvents(context.Context, backend.MessageSelecti
 func TestMessagingConstructsDependencyBeforeFactory(t *testing.T) {
 	registry := &Registry{}
 	calls := 0
-	var supplied backend.Orchestration
+	var supplied backend.Dependencies
 	definition := MessagingDefinition{Name: "fixture", ValidateConfiguration: func(json.RawMessage) error { return nil },
-		ConstructOrchestration: func(_ context.Context, raw json.RawMessage) (backend.Orchestration, error) {
+		ConstructBackends: func(_ context.Context, raw json.RawMessage) (backend.Dependencies, error) {
 			calls++
 			if string(raw) != `{"placement":"fixture"}` {
-				return nil, errors.New("construction data lost")
+				return backend.Dependencies{}, errors.New("construction data lost")
 			}
-			return &constructionFixture{}, nil
+			return backend.Dependencies{Orchestrator: &constructionFixture{}}, nil
 		},
-		Connect: func(_ context.Context, _ json.RawMessage, dependency backend.Orchestration) (backend.Messaging, error) {
+		Connect: func(_ context.Context, _ json.RawMessage, dependency backend.Dependencies) (backend.Messaging, error) {
 			supplied = dependency
 			return constructionMessages{}, nil
 		},
-		Worker: func(context.Context, json.RawMessage, backend.Orchestration, backend.MessageHandler) error {
+		Worker: func(context.Context, json.RawMessage, backend.Dependencies, backend.MessageHandler) error {
 			return nil
 		},
 	}
@@ -50,15 +50,15 @@ func TestMessagingConstructsDependencyBeforeFactory(t *testing.T) {
 		t.Fatal(err)
 	}
 	for range 2 {
-		connection, err := registry.Connect(context.Background(), backend.Route{Name: "fixture", Orchestration: json.RawMessage(`{"placement":"fixture"}`)})
-		if err != nil || supplied == nil || connection.Orchestration != supplied {
+		connection, err := registry.Connect(context.Background(), backend.Route{Name: "fixture", Backends: json.RawMessage(`{"placement":"fixture"}`)})
+		if err != nil || supplied.Orchestrator == nil || connection.Orchestrator != supplied.Orchestrator {
 			t.Fatalf("constructed dependency not supplied: %v", err)
 		}
 	}
 	if calls != 2 {
 		t.Fatal("each connection must construct its local dependency")
 	}
-	if _, err := registry.Connect(context.Background(), backend.Route{Name: "fixture"}); err != nil || supplied != nil {
+	if _, err := registry.Connect(context.Background(), backend.Route{Name: "fixture"}); err != nil || supplied.Orchestrator != nil {
 		t.Fatal("absent dependency must preserve ordinary deployments", err)
 	}
 }
@@ -66,15 +66,17 @@ func TestMessagingConstructsDependencyBeforeFactory(t *testing.T) {
 func TestFailedMessagingConnectClosesDependencyWithoutReleasingUse(t *testing.T) {
 	fixture := &constructionFixture{}
 	registry := &Registry{}
-	err := registry.RegisterMessaging(MessagingDefinition{Name: "failure", ValidateConfiguration: func(json.RawMessage) error { return nil }, ConstructOrchestration: func(context.Context, json.RawMessage) (backend.Orchestration, error) { return fixture, nil }, Connect: func(context.Context, json.RawMessage, backend.Orchestration) (backend.Messaging, error) {
+	err := registry.RegisterMessaging(MessagingDefinition{Name: "failure", ValidateConfiguration: func(json.RawMessage) error { return nil }, ConstructBackends: func(context.Context, json.RawMessage) (backend.Dependencies, error) {
+		return backend.Dependencies{Orchestrator: fixture}, nil
+	}, Connect: func(context.Context, json.RawMessage, backend.Dependencies) (backend.Messaging, error) {
 		return nil, errors.New("unavailable")
-	}, Worker: func(context.Context, json.RawMessage, backend.Orchestration, backend.MessageHandler) error {
+	}, Worker: func(context.Context, json.RawMessage, backend.Dependencies, backend.MessageHandler) error {
 		return nil
 	}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = registry.Connect(context.Background(), backend.Route{Name: "failure", Orchestration: json.RawMessage(`{}`)}); err == nil {
+	if _, err = registry.Connect(context.Background(), backend.Route{Name: "failure", Backends: json.RawMessage(`{}`)}); err == nil {
 		t.Fatal("missing connection failure")
 	}
 	if fixture.closes != 1 || fixture.releases != 0 {

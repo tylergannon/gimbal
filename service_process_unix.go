@@ -14,7 +14,7 @@ func prepareServiceProcess(cmd *exec.Cmd) error {
 }
 
 func terminateServiceGroup(pid int) error {
-	return serviceGroupSignal(pid, syscall.SIGTERM)
+	return serviceGroupSignal(pid, syscall.SIGINT)
 }
 
 func killServiceGroup(pid int) error {

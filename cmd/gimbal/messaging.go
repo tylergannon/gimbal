@@ -10,6 +10,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/tylergannon/gimbal/backend/secretfiles"
+
 	"github.com/spf13/cobra"
 	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/backend"
@@ -18,7 +20,7 @@ import (
 )
 
 func newMessagingWorkerCommand() *cobra.Command {
-	var routeFile string
+	var routeFile, readyFile, secretsDirectory string
 	var dirs []string
 	c := &cobra.Command{Use: "message-worker", Short: "Serve native actions through a runtime-loaded messaging plugin", Long: `Serve the configured request store/queue or HTTP endpoint on an operator-trusted network using the native task owner. --task-route is a JSON file with Name and Configuration; --plugin-dir contains compatible native .so plugins. Keep this worker alive for its actions and sessions; restarting does not resume them. Delivery budgets belong to the selected implementation and caller context. Missing acceptance or completion is an unresolved outcome, never proof of native failure. No automatic replay or host provisioning is provided. Release workflow scopes before stopping the worker.
 
@@ -49,13 +51,26 @@ Filesystem Configuration: {"Directory":"/abs/private-messages"}. Events remain u
 			return err
 		}
 		daemon := taskdaemon.New()
-		daemon.Orchestration = connection.Orchestration
-		err = d.Worker(ctx, route.Configuration, connection.Orchestration, daemon.Messages(connection.Messages))
+		daemon.Secrets = connection.Secrets
+		if secretsDirectory != "" {
+			daemon.Secrets, err = secretfiles.Open(secretsDirectory)
+			if err != nil {
+				return err
+			}
+		}
+		dependencies := backend.Dependencies{Orchestrator: connection.Orchestrator, Secrets: daemon.Secrets}
+		if readyFile != "" {
+			dependencies.Ready = func() error { return os.WriteFile(readyFile, []byte("ready\n"), 0600) }
+			defer func() { _ = os.Remove(readyFile) }()
+		}
+		err = d.Worker(ctx, route.Configuration, dependencies, daemon.Messages(connection.Messages))
 		if errors.Is(err, context.Canceled) {
 			return nil
 		}
 		return err
 	}}
+	c.Flags().StringVar(&readyFile, "ready-file", "", "private readiness file written after worker starts listening")
+	c.Flags().StringVar(&secretsDirectory, "secrets-directory", "", "private shared scoped secrets directory")
 	c.Flags().StringVar(&routeFile, "task-route", "", "messaging route JSON or @file")
 	c.Flags().StringSliceVar(&dirs, "plugin-dir", nil, "native messaging plugin directories")
 	return c

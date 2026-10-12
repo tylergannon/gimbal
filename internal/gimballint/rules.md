@@ -224,3 +224,5 @@ follows direct package-local helper calls from a recognized workflow domain,
 and its worker signature test is the presence of a `context.Context`
 parameter. Runtime misuse checks remain the backstop for states static analysis
 cannot establish.
+
+GIMBAL111 requires source-visible store requirements and compile-time string store/value names in WithRequirements and WithYields. GIMBAL112 rejects repeated names in a producer declaration. Scope ordering and avoiding repeated publication remain workflow-author responsibilities.

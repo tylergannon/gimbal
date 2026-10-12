@@ -52,9 +52,6 @@ func (l Local) ReadBytes(c context.Context, v backend.Artifact) (io.ReadCloser, 
 func (l Local) WriteBytes(c context.Context, v backend.Artifact, r io.Reader) error {
 	return l.writeBytes(v, r)
 }
-func (l Local) Service(c context.Context, v backend.Service) (backend.ServiceAddress, error) {
-	return l.service(v)
-}
 func (l Local) StartWorkflow(c context.Context, v backend.Workflow) (backend.WorkflowStatus, error) {
 	return backend.WorkflowStatus{}, fmt.Errorf("workflow admission is provided by the host")
 }

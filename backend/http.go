@@ -102,11 +102,7 @@ func (h HTTP) ReadObservation(c context.Context, v Target, cursor string) (Obser
 	}{v, cursor}, &r)
 	return r, e
 }
-func (h HTTP) Service(c context.Context, v Service) (ServiceAddress, error) {
-	var r ServiceAddress
-	e := h.call(c, "/tasks/service", v, &r)
-	return r, e
-}
+
 func (h HTTP) ReadBytes(c context.Context, v Artifact) (io.ReadCloser, error) {
 	raw, e := json.Marshal(v)
 	if e != nil {

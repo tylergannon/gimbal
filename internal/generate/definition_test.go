@@ -35,7 +35,7 @@ import("context";"github.com/tylergannon/gimbal";"github.com/tylergannon/polytyp
 type Params struct {Goal string ` + "`json:\"goal_text\"`" + `; Flag polytype.Optional[bool];Count polytype.Optional[int]}
 type Result struct {Summary string ` + "`json:\"summary\"`" + `}
 var received Params
-func Flow(ctx context.Context,env gimbal.Env,p Params)error {received=p;if false {_ = gimbal.Scope(ctx,"remote",func(ctx context.Context)error{_,err:=gimbal.FulfillService(ctx,"http",env.WorkDir,"serve",8080,"consumer");return err});s:=gimbal.NewSession(ctx,gimbal.RoleCodeReview,env.WorkDir);_,err:=s.Generate[Result](ctx,"review");return err};return nil}
+func Flow(ctx context.Context,env gimbal.Env,p Params)error {received=p;if false {_ = gimbal.Scope(ctx,"remote",func(ctx context.Context)error{return gimbal.Service(ctx,"http",env.WorkDir,"serve")});s:=gimbal.NewSession(ctx,gimbal.RoleCodeReview,env.WorkDir);_,err:=s.Generate[Result](ctx,"review");return err};return nil}
 `
 	if err = os.WriteFile(filepath.Join(dir, "flow.go"), []byte(source), 0644); err != nil {
 		t.Fatal(err)

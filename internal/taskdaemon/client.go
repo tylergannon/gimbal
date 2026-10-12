@@ -72,7 +72,7 @@ func (h *Harness) RunTurn(ctx context.Context, id, prompt string, schema json.Ra
 		return h.messageTurn(ctx, t, o, prompt, schema, onEvent)
 	}
 	files := effects.TaskFiles(ctx)
-	reply, err := h.call(ctx, "turn", effects.Turn{Owner: o, Session: t.ID, Prompt: prompt, Schema: schema, Files: files})
+	reply, err := h.call(ctx, "turn", effects.Turn{Owner: o, Session: t.ID, Prompt: prompt, Schema: schema, Files: files, Requires: effects.Requirements(ctx)})
 	if err != nil {
 		if reply.Error != "" {
 			return gimbal.TurnResult{}, err
@@ -139,7 +139,7 @@ func (h *Harness) Close(ctx context.Context, id string) error {
 func (h *Harness) messageTurn(ctx context.Context, t effects.Target, o effects.Owner, prompt string, schema json.RawMessage, onEvent func(gimbal.AgentEvent) error) (gimbal.TurnResult, error) {
 	r := effects.Request("turn", o)
 	r.SessionID = t.ID
-	r.Turn = &effects.Turn{Owner: o, Session: t.ID, Prompt: prompt, Schema: schema, Files: effects.TaskFiles(ctx), Services: effects.Services(ctx)}
+	r.Turn = &effects.Turn{Owner: o, Session: t.ID, Prompt: prompt, Schema: schema, Files: effects.TaskFiles(ctx), Requires: effects.Requirements(ctx)}
 	if err := effects.Submit(ctx, r); err != nil {
 		return gimbal.TurnResult{}, err
 	}

@@ -65,3 +65,13 @@ func WithSupervisor(*Session, string, ...AgentOption) AgentOption {
 func WithScopeTemplate(string) AgentOption {
 	return func() {}
 }
+
+type StoreRequirement struct {
+	Store string
+	Names []string
+}
+
+func WithRequirements(ctx context.Context, requirements ...StoreRequirement) context.Context {
+	return ctx
+}
+func WithYields(ctx context.Context, store string, names ...string) context.Context { return ctx }

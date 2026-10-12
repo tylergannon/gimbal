@@ -26,7 +26,7 @@
       }
     ],
     "invocation": "gimbal run validate-product --suite-file /abs/user-testing.yaml --instance-dir /abs/instance --project /abs/project",
-    "snapshot": "4e6979a58a247cde34d367953ba80b93bb39e40399981d741f92a67984c5d596"
+    "snapshot": "ab0646eb2bd7e820a5fde9582c506aac82b3bd51d431a8c86091bb8b2b781dab"
   },
   "name": "validate-product",
   "entry": "ValidateProduct",
@@ -37,7 +37,7 @@
   },
   "body": [
     {
-      "key": "pb0261fe7e9cb0839",
+      "key": "p21df13ec9428518d",
       "title": "Prepare the browsers",
       "description": "Start each product and open a recorded browser for its assigned workload.",
       "id": "n1",
@@ -49,13 +49,13 @@
       },
       "scope": "root",
       "control": {
-        "code": "for i, w := range suite.Workloads {\n\tif err := os.MkdirAll(dirs[i], 0755); err != nil {\n\t\treturn err\n\t}\n\n\tif w.Start != \"\" {\n\n\t\tif err := gimbal.Service(ctx, \"product\", w.Workdir, w.Start); err != nil {\n\t\t\treturn err\n\t\t}\n\t}\n\n\tif w.Ready != \"\" {\n\t\tready, stop := context.WithTimeout(ctx, 30*time.Second)\n\n\t\tcode, _, stderr, err := gimbal.RunCommand(ready, \"readiness\", w.Workdir, \"zsh\", \"-c\", \"until ( \"+w.Ready+\"\\n); do sleep 0.25; done\")\n\t\tstop()\n\n\t\tif err != nil || code != 0 {\n\t\t\treturn fmt.Errorf(\"%s readiness: %w\", w.Name, errors.Join(err, fmt.Errorf(\"exit %d: %s\", code, stderr)))\n\t\t}\n\t}\n\topened[i], recording[i] = true, true\n\tbrowser := shellQuote(driver) + \" -s=\" + shellQuote(names[i])\n\n\tcode, _, stderr, err := gimbal.RunCommand(ctx, \"record-browser\", dirs[i], \"zsh\", \"-c\", browser+\" open about:blank \u0026\u0026 \"+browser+\" video-start \"+shellQuote(filepath.Join(dirs[i], \"video.webm\"))+\" --cursor \u0026\u0026 \"+browser+\" goto \"+shellQuote(w.URL))\n\n\tif err != nil || code != 0 {\n\t\treturn fmt.Errorf(\"%s browser: %w\", w.Name, errors.Join(err, fmt.Errorf(\"exit %d: %s\", code, stderr)))\n\t}\n}"
+        "code": "for i, w := range suite.Workloads {\n\tif err := os.MkdirAll(dirs[i], 0755); err != nil {\n\t\treturn err\n\t}\n\n\tif w.Start != \"\" {\n\n\t\tif err := gimbal.Service(ctx, \"product\", w.Workdir, readyServiceCommand(w.Start, w.Ready)); err != nil {\n\t\t\treturn err\n\t\t}\n\t}\n\n\tif w.Ready != \"\" \u0026\u0026 w.Start == \"\" {\n\t\tready, stop := context.WithTimeout(ctx, 30*time.Second)\n\n\t\tcode, _, stderr, err := gimbal.RunCommand(ready, \"readiness\", w.Workdir, \"zsh\", \"-c\", \"until ( \"+w.Ready+\"\\n); do sleep 0.25; done\")\n\t\tstop()\n\n\t\tif err != nil || code != 0 {\n\t\t\treturn fmt.Errorf(\"%s readiness: %w\", w.Name, errors.Join(err, fmt.Errorf(\"exit %d: %s\", code, stderr)))\n\t\t}\n\t}\n\topened[i], recording[i] = true, true\n\tbrowser := shellQuote(driver) + \" -s=\" + shellQuote(names[i])\n\n\tcode, _, stderr, err := gimbal.RunCommand(ctx, \"record-browser\", dirs[i], \"zsh\", \"-c\", browser+\" open about:blank \u0026\u0026 \"+browser+\" video-start \"+shellQuote(filepath.Join(dirs[i], \"video.webm\"))+\" --cursor \u0026\u0026 \"+browser+\" goto \"+shellQuote(w.URL))\n\n\tif err != nil || code != 0 {\n\t\treturn fmt.Errorf(\"%s browser: %w\", w.Name, errors.Join(err, fmt.Errorf(\"exit %d: %s\", code, stderr)))\n\t}\n}"
       },
       "context": [],
       "children": [
         [
           {
-            "key": "p1fac8ed77b6cf9d0",
+            "key": "p7794cefbe24ea585",
             "title": "Start command?",
             "description": "Start the product only when this workload provides a command.",
             "id": "n2",
@@ -68,7 +68,7 @@
             "scope": "root",
             "control": {
               "kind": "if",
-              "code": "if w.Start != \"\" {\n\n\tif err := gimbal.Service(ctx, \"product\", w.Workdir, w.Start); err != nil {\n\t\treturn err\n\t}\n}",
+              "code": "if w.Start != \"\" {\n\n\tif err := gimbal.Service(ctx, \"product\", w.Workdir, readyServiceCommand(w.Start, w.Ready)); err != nil {\n\t\treturn err\n\t}\n}",
               "actions": [
                 ""
               ]
@@ -77,7 +77,7 @@
             "children": [
               [
                 {
-                  "key": "p24681c4efe3a49dd",
+                  "key": "p06f6ae317b912841",
                   "title": "Start the product",
                   "id": "n3",
                   "kind": "Service",
@@ -89,7 +89,7 @@
                   "scope": "root",
                   "detail": {
                     "kind": "Service",
-                    "expression": "gimbal.Service(ctx, \"product\", w.Workdir, w.Start)",
+                    "expression": "gimbal.Service(ctx, \"product\", w.Workdir, readyServiceCommand(w.Start, w.Ready))",
                     "promptKnown": false,
                     "keyKnown": false,
                     "contextExpression": "ctx",
@@ -120,7 +120,7 @@
             ]
           },
           {
-            "key": "pbf11d57b7d0b2667",
+            "key": "p68799ea6744ed565",
             "title": "Readiness check?",
             "description": "Wait for the product when this workload provides a readiness check.",
             "id": "n4",
@@ -133,7 +133,7 @@
             "scope": "root",
             "control": {
               "kind": "if",
-              "code": "if w.Ready != \"\" {\n\tready, stop := context.WithTimeout(ctx, 30*time.Second)\n\n\tcode, _, stderr, err := gimbal.RunCommand(ready, \"readiness\", w.Workdir, \"zsh\", \"-c\", \"until ( \"+w.Ready+\"\\n); do sleep 0.25; done\")\n\tstop()\n\n\tif err != nil || code != 0 {\n\t\treturn fmt.Errorf(\"%s readiness: %w\", w.Name, errors.Join(err, fmt.Errorf(\"exit %d: %s\", code, stderr)))\n\t}\n}",
+              "code": "if w.Ready != \"\" \u0026\u0026 w.Start == \"\" {\n\tready, stop := context.WithTimeout(ctx, 30*time.Second)\n\n\tcode, _, stderr, err := gimbal.RunCommand(ready, \"readiness\", w.Workdir, \"zsh\", \"-c\", \"until ( \"+w.Ready+\"\\n); do sleep 0.25; done\")\n\tstop()\n\n\tif err != nil || code != 0 {\n\t\treturn fmt.Errorf(\"%s readiness: %w\", w.Name, errors.Join(err, fmt.Errorf(\"exit %d: %s\", code, stderr)))\n\t}\n}",
               "actions": [
                 ""
               ]
@@ -200,9 +200,9 @@
             ],
             "branches": [
               {
-                "key": "p3fc815685cefb529",
+                "key": "pafd1f0641142d769",
                 "label": "Check provided",
-                "code": "w.Ready != \"\"",
+                "code": "w.Ready != \"\" \u0026\u0026 w.Start == \"\"",
                 "source": {
                   "file": "internal/workflows/validateproduct/validateproduct.go",
                   "line": 162
@@ -212,7 +212,7 @@
               }
             ],
             "branchLabels": [
-              "w.Ready != \"\""
+              "w.Ready != \"\" \u0026\u0026 w.Start == \"\""
             ],
             "branchExits": [
               false

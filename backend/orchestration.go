@@ -1,40 +1,43 @@
 package backend
 
-import (
-	"context"
-	"strings"
-)
+import "context"
 
-// ServiceUse names a service and its actual logical executor. The concrete
-// dependency is constructed in that producer's process, so it knows its network
-// environment without exposing deployment handles to workflow code.
-type ServiceUse struct {
+// Requirements grant whole stores while identifying names needed for admission.
+type StoreRequirement struct {
+	Store string
+	Names []string
+}
+type Requirements []StoreRequirement
+
+type Environment struct{ ID string }
+
+// OrchestratorBackend establishes a ready messaging daemon and its assignment.
+// Release follows native cleanup, includes descendants, and preserves unrelated use.
+type OrchestratorBackend interface {
+	AcquireEnvironment(context.Context, Owner, string) (Environment, error)
+	Release(context.Context, Scope) error
+}
+
+// SecretsBackend resolves nearest definitions before store access. Values never
+// travel in workflow requests or observations. Failed publication is not success.
+type SecretsBackend interface {
+	Publish(context.Context, Scope, string, map[string]string) error
+	Acquire(context.Context, Scope, Requirements) (map[string]string, error)
+	Release(context.Context, Scope) error
+}
+
+// Dependencies are explicitly supplied to native messaging implementations.
+// Ready is called only once the worker is listening for requests.
+type Dependencies struct {
+	Orchestrator OrchestratorBackend
+	Secrets      SecretsBackend
+	Ready        func() error
+	// WrapMessaging injects concrete discovery without widening backend contracts.
+	WrapMessaging func(context.Context, Messaging) (Messaging, error)
+}
+
+// ResourceFact describes readiness without a connection address or secret.
+type ResourceFact struct {
 	Scope
 	Name, Kind, Consumer string
-}
-
-// ServiceBinding is a non-secret HTTP address usable from this consumer.
-// It must have no credentials, query, or fragment. Acquire's successful return
-// establishes the implementation's declared readiness and consumer access,
-// not process launch or continued availability.
-type ServiceBinding struct{ Name, URL string }
-
-func (b ServiceBinding) EnvironmentName() string {
-	return "GIMBAL_SERVICE_" + strings.ToUpper(strings.ReplaceAll(b.Name, "-", "_"))
-}
-
-// Orchestration is the service dependency exercised by messaging, not a workflow
-// scheduler. Gimbal supplies no infrastructure implementation. Acquire must fail
-// if declared readiness/access cannot be established. It owns any partial use
-// until Release. Repeated acquisition of the same named service, scope, kind
-// and consumer is the same use, not an accumulating reference count.
-// Release relinquishes only this scope and descendants in this
-// run, preserves unrelated/shared use, and is idempotent. A failed release stays
-// retryable through existing scope cleanup. It never releases native tasks.
-// Implementations declare their availability/loss guarantees; this interface
-// does not promise continuous health, failover, replay or infrastructure recovery.
-// Objects are local to a process. Connection close never releases service use.
-type Orchestration interface {
-	Acquire(context.Context, ServiceUse) (ServiceBinding, error)
-	Release(context.Context, Scope) error
 }

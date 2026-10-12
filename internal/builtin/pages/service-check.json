@@ -1,13 +1,13 @@
 {
   "guide": {
-    "summary": "ServiceCheck checks consumer-relative bindings and scoped service-use cleanup.",
-    "prose": "Package servicecheck exercises an agent and a named HTTP service through runtime-loaded messaging.\nBoth the agent and command fetch the response using producer-supplied bindings.\nScope cleanup relinquishes use through the supplied orchestration dependency.\n\nUse a fresh, otherwise empty work directory for each concurrent run. Python 3\nmust be available in the command environment. Task adds instructions to the\nagent. The operator supplies infrastructure; this workflow does not provision\nit. Each messaging producer must explicitly construct its service dependency.\nThe default devops-tasks model is gpt-5.6-luna; --devops-tasks overrides it.\nSuccess means both consumers fetched HTTP 200 with GIMBAL_SERVICE_OK.\nContinuous availability and infrastructure provisioning are not validated.\n\nExample:\n\n\tgimbal run service-check --work-dir /abs/empty --task-route @/abs/route.json --devops-tasks pi/diffusion/deepseek-4.1-flash --task \"Report the fetched response\"",
+    "summary": "ServiceCheck runs a database and web service with scoped values and consumers.",
+    "prose": "Package servicecheck runs a database, web service, parallel command consumers,\nand an agent through scoped orchestration and secrets backends. The database\nand web server publish their connection values through ENV_FILE. The agent\nobtains its values by calling back into Gimbal from its consuming scope.\n\nThe execution environment needs Docker, psql, Python 3, and access to the\npostgres:17 image. Services are stopped when their declaring scope ends.\nThe default devops-tasks model is gpt-5.6-luna; --devops-tasks overrides it.\nSuccess means the database query, web response, and agent's fetched response\nall contain GIMBAL_SERVICE_OK, followed by successful scoped cleanup.\n\nExample:\n\n\tgimbal run service-check --work-dir /abs/work --task-route @/abs/route.json --devops-tasks codex/gpt-5.6-luna",
     "parameters": [
       {
         "name": "Task",
         "flag": "task",
         "kind": "string",
-        "description": "Task adds instructions after the agent fetches the supplied HTTP service.",
+        "description": "Task adds instructions after the agent fetches the web service.",
         "required": true
       }
     ],
@@ -17,40 +17,252 @@
         "default": "gpt-5.6-luna"
       }
     ],
-    "invocation": "gimbal run service-check --work-dir /abs/empty --task-route @/abs/route.json --devops-tasks pi/diffusion/deepseek-4.1-flash --task \"Report the fetched response\"",
-    "snapshot": "aa780b40ecc5f5d607114d72e4b609a87aae0646c43bf254e2740011ad2882c9"
+    "invocation": "gimbal run service-check --work-dir /abs/work --task-route @/abs/route.json --devops-tasks codex/gpt-5.6-luna",
+    "snapshot": "1aa8af0dfe7ae7603e4956ac2a97691e0c35b302740f3f7f0325aa5e371016ce"
   },
   "name": "service-check",
   "entry": "ServiceCheck",
   "module": "",
   "source": {
     "file": "internal/workflows/servicecheck/servicecheck.go",
-    "line": 39
+    "line": 37
   },
   "body": [
     {
-      "key": "p1100a0bef19701d7",
+      "key": "p1c79c42d60d5f72e",
       "id": "n1",
-      "kind": "Scope",
-      "label": "service",
+      "kind": "NewSession",
+      "label": "devops-tasks",
       "source": {
         "file": "internal/workflows/servicecheck/servicecheck.go",
-        "line": 40
+        "line": 38
+      },
+      "scope": "root",
+      "session": "devops-tasks",
+      "context": []
+    },
+    {
+      "key": "p76b6578ccc3a1cd3",
+      "id": "n2",
+      "kind": "Scope",
+      "label": "services",
+      "source": {
+        "file": "internal/workflows/servicecheck/servicecheck.go",
+        "line": 39
       },
       "scope": "root",
       "context": [],
       "children": [
         [
           {
-            "key": "p43ca829e3d40cb29",
-            "id": "n2",
+            "key": "p234a25e0dc008899",
+            "id": "n3",
+            "kind": "Service",
+            "label": "database",
+            "source": {
+              "file": "internal/workflows/servicecheck/servicecheck.go",
+              "line": 40
+            },
+            "scope": "root/services",
+            "detail": {
+              "kind": "Service",
+              "expression": "gimbal.Service(gimbal.WithYields(ctx, \"\", \"DATABASE_URL\"), \"database\", env.WorkDir, database)",
+              "promptKnown": false,
+              "keyKnown": false,
+              "contextExpression": "gimbal.WithYields(ctx, \"\", \"DATABASE_URL\")",
+              "contextKnown": false
+            },
+            "context": null,
+            "note": "Uses a different context value, so the context visible here is not known."
+          },
+          {
+            "key": "pe819e5f2a92bf75c",
+            "id": "n4",
+            "kind": "Service",
+            "label": "web",
+            "source": {
+              "file": "internal/workflows/servicecheck/servicecheck.go",
+              "line": 44
+            },
+            "scope": "root/services",
+            "detail": {
+              "kind": "Service",
+              "expression": "gimbal.Service(gimbal.WithYields(ctx, \"\", \"WEB_URL\"), \"web\", env.WorkDir, web)",
+              "promptKnown": false,
+              "keyKnown": false,
+              "contextExpression": "gimbal.WithYields(ctx, \"\", \"WEB_URL\")",
+              "contextKnown": false
+            },
+            "context": null,
+            "note": "Uses a different context value, so the context visible here is not known."
+          },
+          {
+            "key": "pc30d7e67bc1143bd",
+            "id": "n5",
+            "kind": "Group",
+            "label": "consumers",
+            "source": {
+              "file": "internal/workflows/servicecheck/servicecheck.go",
+              "line": 48
+            },
+            "scope": "root/services",
+            "context": [],
+            "children": [
+              [
+                {
+                  "key": "p09b25d4c3c5dc26e",
+                  "id": "n8",
+                  "kind": "Go",
+                  "label": "database",
+                  "source": {
+                    "file": "internal/workflows/servicecheck/servicecheck.go",
+                    "line": 49
+                  },
+                  "scope": "root/services/consumers/database",
+                  "context": [],
+                  "children": [
+                    [
+                      {
+                        "key": "pa6f190a6fd3f955a",
+                        "id": "n6",
+                        "kind": "Command",
+                        "label": "query",
+                        "source": {
+                          "file": "internal/workflows/servicecheck/servicecheck.go",
+                          "line": 50
+                        },
+                        "scope": "root/services/consumers/database",
+                        "context": [],
+                        "note": "Runs a command. Any context it writes is not shown here."
+                      },
+                      {
+                        "key": "peb38b6de5a227b0d",
+                        "id": "n7",
+                        "kind": "Condition",
+                        "label": "if / switch",
+                        "source": {
+                          "file": "internal/workflows/servicecheck/servicecheck.go",
+                          "line": 54
+                        },
+                        "scope": "root/services/consumers/database",
+                        "control": {
+                          "kind": "if",
+                          "code": "if code != 0 {\n\treturn fmt.Errorf(\"database query exited %d\", code)\n}",
+                          "actions": [
+                            "return fmt.Errorf(\"database query exited %d\", code)"
+                          ]
+                        },
+                        "context": [],
+                        "children": [
+                          []
+                        ],
+                        "branches": [
+                          {
+                            "key": "pec4fc5de70e4c5c1",
+                            "code": "code != 0",
+                            "source": {
+                              "file": "internal/workflows/servicecheck/servicecheck.go",
+                              "line": 54
+                            }
+                          }
+                        ],
+                        "branchLabels": [
+                          "code != 0"
+                        ],
+                        "branchExits": [
+                          true
+                        ]
+                      }
+                    ]
+                  ]
+                }
+              ],
+              [
+                {
+                  "key": "p5660ca9f2fef840a",
+                  "id": "n11",
+                  "kind": "Go",
+                  "label": "web",
+                  "source": {
+                    "file": "internal/workflows/servicecheck/servicecheck.go",
+                    "line": 59
+                  },
+                  "scope": "root/services/consumers/web",
+                  "context": [],
+                  "children": [
+                    [
+                      {
+                        "key": "p2faf24da9eb622a5",
+                        "id": "n9",
+                        "kind": "Command",
+                        "label": "fetch",
+                        "source": {
+                          "file": "internal/workflows/servicecheck/servicecheck.go",
+                          "line": 60
+                        },
+                        "scope": "root/services/consumers/web",
+                        "context": [],
+                        "note": "Runs a command. Any context it writes is not shown here."
+                      },
+                      {
+                        "key": "p218a43ee6993a64a",
+                        "id": "n10",
+                        "kind": "Condition",
+                        "label": "if / switch",
+                        "source": {
+                          "file": "internal/workflows/servicecheck/servicecheck.go",
+                          "line": 64
+                        },
+                        "scope": "root/services/consumers/web",
+                        "control": {
+                          "kind": "if",
+                          "code": "if code != 0 {\n\treturn fmt.Errorf(\"web fetch exited %d\", code)\n}",
+                          "actions": [
+                            "return fmt.Errorf(\"web fetch exited %d\", code)"
+                          ]
+                        },
+                        "context": [],
+                        "children": [
+                          []
+                        ],
+                        "branches": [
+                          {
+                            "key": "pdea83541b4de166c",
+                            "code": "code != 0",
+                            "source": {
+                              "file": "internal/workflows/servicecheck/servicecheck.go",
+                              "line": 64
+                            }
+                          }
+                        ],
+                        "branchLabels": [
+                          "code != 0"
+                        ],
+                        "branchExits": [
+                          true
+                        ]
+                      }
+                    ]
+                  ]
+                }
+              ]
+            ],
+            "branchLabels": [
+              "database",
+              "web"
+            ],
+            "note": "Children run concurrently in separate scopes. Child context does not merge at the join."
+          },
+          {
+            "key": "p7bc5a8c40331cba0",
+            "id": "n12",
             "kind": "Set",
             "label": "task",
             "source": {
               "file": "internal/workflows/servicecheck/servicecheck.go",
-              "line": 41
+              "line": 72
             },
-            "scope": "root/service",
+            "scope": "root/services",
             "detail": {
               "kind": "Set",
               "expression": "gimbal.Set(ctx, \"task\", params.Task)",
@@ -59,59 +271,27 @@
               "keyKnown": true,
               "valueExpression": "params.Task",
               "contextExpression": "ctx",
-              "contextKnown": true,
+              "contextKnown": false,
               "shape": {
                 "type": "string",
                 "kind": "scalar"
               }
             },
-            "context": [
-              {
-                "key": "task",
-                "shape": {
-                  "type": "string",
-                  "kind": "scalar"
-                },
-                "write": "n2",
-                "scope": "root/service"
-              }
-            ]
+            "context": null,
+            "note": "Uses a different context value, so the context visible here is not known."
           },
           {
-            "key": "p6a21eb5a989f6aab",
-            "id": "n3",
-            "kind": "NewSession",
-            "label": "devops-tasks",
-            "source": {
-              "file": "internal/workflows/servicecheck/servicecheck.go",
-              "line": 42
-            },
-            "scope": "root/service",
-            "session": "devops-tasks",
-            "context": [
-              {
-                "key": "task",
-                "shape": {
-                  "type": "string",
-                  "kind": "scalar"
-                },
-                "write": "n2",
-                "scope": "root/service"
-              }
-            ]
-          },
-          {
-            "key": "pdf220c35afd3d2ab",
-            "id": "n4",
+            "key": "p2ed8146541d8dc49",
+            "id": "n13",
             "kind": "Generate",
             "label": "agentPrompt",
             "source": {
               "file": "internal/workflows/servicecheck/servicecheck.go",
-              "line": 43
+              "line": 73
             },
-            "scope": "root/service",
+            "scope": "root/services",
             "session": "devops-tasks",
-            "prompt": "Fetch the runtime-supplied named http service URL from this agent's environment using an HTTP client. Require HTTP 200 and the response body GIMBAL_SERVICE_OK. Do not merely display the URL. Complete the additional task below, if any. Do not start or stop infrastructure. Return a short description of the actual response you fetched.",
+            "prompt": "Call the Gimbal secrets callback to obtain WEB_URL, then fetch that URL using an HTTP client. Require HTTP 200 and response body GIMBAL_SERVICE_OK. Do not merely display the URL. Return a short description of the actual response. Do not start or stop infrastructure. Complete any additional task below.",
             "detail": {
               "kind": "Generate",
               "expression": "agent.Generate[Result](ctx, agentPrompt)",
@@ -119,94 +299,29 @@
               "promptKnown": true,
               "keyKnown": false,
               "contextExpression": "ctx",
-              "contextKnown": true
+              "contextKnown": false
             },
-            "context": [
-              {
-                "key": "task",
-                "shape": {
-                  "type": "string",
-                  "kind": "scalar"
-                },
-                "write": "n2",
-                "scope": "root/service"
-              }
-            ]
-          },
-          {
-            "key": "p457a678f81379441",
-            "id": "n5",
-            "kind": "Command",
-            "label": "consume",
-            "source": {
-              "file": "internal/workflows/servicecheck/servicecheck.go",
-              "line": 46
-            },
-            "scope": "root/service",
-            "context": [
-              {
-                "key": "task",
-                "shape": {
-                  "type": "string",
-                  "kind": "scalar"
-                },
-                "write": "n2",
-                "scope": "root/service"
-              }
-            ],
-            "note": "Runs a command. Any context it writes is not shown here."
-          },
-          {
-            "key": "p516d91a24906199b",
-            "id": "n6",
-            "kind": "Condition",
-            "label": "if / switch",
-            "source": {
-              "file": "internal/workflows/servicecheck/servicecheck.go",
-              "line": 50
-            },
-            "scope": "root/service",
-            "control": {
-              "kind": "if",
-              "code": "if code != 0 {\n\treturn fmt.Errorf(\"service response check exited %d\", code)\n}",
-              "actions": [
-                "return fmt.Errorf(\"service response check exited %d\", code)"
-              ]
-            },
-            "context": [
-              {
-                "key": "task",
-                "shape": {
-                  "type": "string",
-                  "kind": "scalar"
-                },
-                "write": "n2",
-                "scope": "root/service"
-              }
-            ],
-            "children": [
-              []
-            ],
-            "branches": [
-              {
-                "key": "p39c27c273d31cfd9",
-                "code": "code != 0",
-                "source": {
-                  "file": "internal/workflows/servicecheck/servicecheck.go",
-                  "line": 50
-                }
-              }
-            ],
-            "branchLabels": [
-              "code != 0"
-            ],
-            "branchExits": [
-              true
-            ]
+            "context": null,
+            "note": "Uses a different context value, so the context visible here is not known."
           }
         ]
       ]
     }
   ],
-  "diagnostics": []
+  "diagnostics": [
+    {
+      "source": {
+        "file": "internal/workflows/servicecheck/servicecheck.go",
+        "line": 72
+      },
+      "message": "context expression ctx is not the current scope parameter; its context shape is unresolved"
+    },
+    {
+      "source": {
+        "file": "internal/workflows/servicecheck/servicecheck.go",
+        "line": 73
+      },
+      "message": "context expression ctx is not the current scope parameter; its context shape is unresolved"
+    }
+  ]
 }

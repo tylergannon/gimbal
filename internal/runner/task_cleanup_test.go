@@ -106,22 +106,22 @@ func TestMessagingOrphanCleanupOwnsConnectionUntilOperationEnds(t *testing.T) {
 	}
 	var opened, closed, constructed atomic.Int32
 	name := fmt.Sprintf("cleanup-%d", time.Now().UnixNano())
-	err := gimbal.DefaultRegistry.RegisterMessaging(gimbal.MessagingDefinition{Name: name, ConstructOrchestration: func(context.Context, json.RawMessage) (backend.Orchestration, error) {
+	err := gimbal.DefaultRegistry.RegisterMessaging(gimbal.MessagingDefinition{Name: name, ConstructBackends: func(context.Context, json.RawMessage) (backend.Dependencies, error) {
 		constructed.Add(1)
-		return &orphanResources{}, nil
-	}, ValidateConfiguration: func(json.RawMessage) error { return nil }, Connect: func(ctx context.Context, _ json.RawMessage, resources backend.Orchestration) (backend.Messaging, error) {
-		if resources == nil {
+		return backend.Dependencies{Orchestrator: &orphanResources{}}, nil
+	}, ValidateConfiguration: func(json.RawMessage) error { return nil }, Connect: func(ctx context.Context, _ json.RawMessage, resources backend.Dependencies) (backend.Messaging, error) {
+		if resources.Orchestrator == nil {
 			return nil, fmt.Errorf("cleanup connection lost its dependency")
 		}
 		opened.Add(1)
 		return &cleanupMessages{context: ctx, closed: &closed}, nil
-	}, Worker: func(context.Context, json.RawMessage, backend.Orchestration, backend.MessageHandler) error {
+	}, Worker: func(context.Context, json.RawMessage, backend.Dependencies, backend.MessageHandler) error {
 		return nil
 	}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	route, _ := json.Marshal(backend.Route{Name: name, Orchestration: json.RawMessage(`{"fixture":true}`)})
+	route, _ := json.Marshal(backend.Route{Name: name, Backends: json.RawMessage(`{"fixture":true}`)})
 	if err = os.WriteFile(filepath.Join(dir, "task-route"), route, 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -139,7 +139,7 @@ func TestMessagingOrphanCleanupOwnsConnectionUntilOperationEnds(t *testing.T) {
 
 type orphanResources struct{}
 
-func (*orphanResources) Acquire(context.Context, backend.ServiceUse) (backend.ServiceBinding, error) {
-	return backend.ServiceBinding{}, nil
+func (*orphanResources) AcquireEnvironment(context.Context, backend.Owner, string) (backend.Environment, error) {
+	return backend.Environment{}, nil
 }
 func (*orphanResources) Release(context.Context, backend.Scope) error { return nil }

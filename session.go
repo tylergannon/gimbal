@@ -13,6 +13,7 @@ import (
 
 	"github.com/tylergannon/gimbal/backend"
 	"github.com/tylergannon/gimbal/internal/effects"
+	"github.com/tylergannon/gimbal/internal/secretcallback"
 )
 
 // Session is one agent conversation on one harness, in one workdir. It
@@ -89,10 +90,6 @@ func (Text) ValidateJSON(raw []byte) error {
 // and WithScopeTemplate renders the scope's context for this call in place of
 // the runtime's own rendering.
 func (s *Session) Generate[T Output](ctx context.Context, prompt string, opts ...AgentOption) (T, error) {
-	if err := requireServiceMessaging(ctx); err != nil {
-		var zero T
-		return zero, err
-	}
 	var out T
 	accepted := decodedOutput[T]{value: &out}
 	_, err := s.generateResponse(ctx, prompt, &accepted, opts)
@@ -367,7 +364,22 @@ func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessag
 	var result TurnResult
 	if err == nil {
 		turnContext := effects.WithTaskFiles(effectContext(turnCtx, scope, turnID), files)
-		result, err = s.adapter.RunTurn(turnContext, native, prompt, schema, wrapped)
+		nativePrompt := prompt
+		finishCallback := func() {}
+		if effects.Endpoint(ctx) == "" && len(effects.Requirements(ctx)) > 0 {
+			secrets := effects.Connection(ctx).Secrets
+			owner := effectOwner(scope, turnID)
+			_, err = secrets.Acquire(turnCtx, backend.Scope{Run: owner.Run, Scope: owner.Scope}, effects.Requirements(ctx))
+			if err == nil {
+				var url string
+				url, finishCallback, err = secretcallback.Open(turnCtx, secrets, owner, effects.Requirements(ctx))
+				nativePrompt += "\n\nRequired stores are available for this operation as JSON via GET " + url + ". Call this endpoint when you need the values."
+			}
+		}
+		if err == nil {
+			result, err = s.adapter.RunTurn(turnContext, native, nativePrompt, schema, wrapped)
+		}
+		finishCallback()
 	}
 	if scope != nil {
 		scope.run.removeTurn(turnID)

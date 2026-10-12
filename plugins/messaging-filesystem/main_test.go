@@ -18,7 +18,7 @@ func TestConcurrentControlAndSameRequestIdentity(t *testing.T) {
 	raw, _ := json.Marshal(config{Directory: t.TempDir()})
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	bus, err := connect(ctx, raw, nil)
+	bus, err := connect(ctx, raw, backend.Dependencies{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -28,7 +28,7 @@ func TestConcurrentControlAndSameRequestIdentity(t *testing.T) {
 	done := make(chan error, 1)
 	var starts atomic.Int32
 	go func() {
-		done <- worker(ctx, raw, nil, func(_ context.Context, r backend.MessageRequest) error {
+		done <- worker(ctx, raw, backend.Dependencies{}, func(_ context.Context, r backend.MessageRequest) error {
 			if r.Kind == "turn" {
 				starts.Add(1)
 				close(started)
@@ -75,7 +75,7 @@ func TestBadRequestDoesNotStopOtherRequests(t *testing.T) {
 			raw, _ := json.Marshal(config{Directory: directory})
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 			defer cancel()
-			bus, err := connect(ctx, raw, nil)
+			bus, err := connect(ctx, raw, backend.Dependencies{})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -84,7 +84,7 @@ func TestBadRequestDoesNotStopOtherRequests(t *testing.T) {
 			handled := make(chan struct{})
 			done := make(chan error, 1)
 			go func() {
-				done <- worker(ctx, raw, nil, func(ctx context.Context, r backend.MessageRequest) error {
+				done <- worker(ctx, raw, backend.Dependencies{}, func(ctx context.Context, r backend.MessageRequest) error {
 					switch r.Kind {
 					case "held":
 						close(started)

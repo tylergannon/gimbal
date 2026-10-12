@@ -155,30 +155,3 @@ func TestInvalidConfigurationDoesNotStartContainer(t *testing.T) {
 		})
 	}
 }
-
-func TestServiceUsesOnlyConfiguredRoutes(t *testing.T) {
-	calls := 0
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		calls++
-		_ = json.NewEncoder(w).Encode(backend.ServiceAddress{ID: "service", URL: "http://tasks:19091"})
-	}))
-	defer server.Close()
-	for _, owner := range []ownership{{}, {PublicHost: "localhost", ServicePorts: []int{19092}}} {
-		e := execution{Endpoint: server.URL, owner: owner}
-		if _, err := e.Service(context.Background(), backend.Service{Port: 19091}); err == nil {
-			t.Fatal("accepted unpublished service")
-		}
-	}
-	if calls != 0 {
-		t.Fatal("unpublished service reached daemon")
-	}
-	for _, owner := range []ownership{{PublicHost: "localhost", ServicePorts: []int{19091}}, {PublicHost: "tasks", Network: "private"}} {
-		e := execution{Endpoint: server.URL, owner: owner}
-		if address, err := e.Service(context.Background(), backend.Service{Port: 19091}); err != nil || address.URL != "http://tasks:19091" {
-			t.Fatalf("service: %+v %v", address, err)
-		}
-	}
-	if calls != 2 {
-		t.Fatalf("service calls: %d", calls)
-	}
-}

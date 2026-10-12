@@ -100,7 +100,7 @@ Load the Docker plugin in central and in any workflow daemon using the docker
 backend. Use Start's receipt as a route's Configuration, for example:
 
 ```json
-{"Name":"docker","Configuration":{"ID":"returned-container-id","Label":"returned-owner-label","Endpoint":"http://127.0.0.1:8081","PublicHost":"127.0.0.1","ServicePorts":[19091]},"Environment":"tasks"}
+{"Name":"docker","Configuration":{"ID":"returned-container-id","Label":"returned-owner-label","Endpoint":"http://127.0.0.1:8081","PublicHost":"127.0.0.1","ServicePorts":[19091]}}
 ```
 
 Construct this from the actual receipt; do not invent its ID or label. Pass the
@@ -110,9 +110,10 @@ another container, its Endpoint must also be reachable from that container,
 such as `http://gimbal-task:8081` on the configured network. A route Endpoint
 and the returned service address serve different consumers.
 
-The Docker backend refuses unpublished service ports before starting the
-service. Ordinary commands and `Service` still work without service routing.
-`FulfillService` returns an address after launch; the workflow checks readiness.
-Scope cleanup stops the service while preserving the environment and other
-runs. The default local backend returns loopback in the workflow environment
-and uses ordinary native scope-owned services.
+The Docker receipt remains usable for host workflow operations and explicit
+unnamed task execution. Named task environments instead use an orchestration
+backend plus messaging; see the named-environment configuration in the parent
+skill. Connection values are producer-declared string outputs in scoped stores.
+Foreground services signal readiness by atomically publishing ENV_FILE, even
+when empty, and consumers declare store/name requirements. No URL-returning
+service operation or synthesized service environment variable remains.

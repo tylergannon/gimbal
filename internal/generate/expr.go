@@ -220,7 +220,7 @@ func (e *extractor) gimbalOperation(name string, call *ast.CallExpr, targets []a
 		e.emit(out, workflow.Command{Source: e.at(call.Pos()), Name: command})
 		return false
 
-	case "Service", "FulfillService":
+	case "Service":
 		service, ok := e.constant(call, 1)
 		if !ok {
 			e.diag(call.Pos(), "Service's name is not a constant, so the service is not read")

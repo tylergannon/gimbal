@@ -146,6 +146,7 @@ func (TurnStarted) lifecycleEvent() {}
 // stated one, and otherwise the turn's step events summed under the
 // session's model.
 type TurnEnded struct {
+	Unresolved  bool          `json:"unresolved"`
 	Result      JSONText      `json:"result"`
 	Error       string        `json:"error"`
 	Usage       []ModelUsage  `json:"usage"`

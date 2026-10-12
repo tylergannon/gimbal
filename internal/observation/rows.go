@@ -131,6 +131,7 @@ type ContextEntry struct {
 // turn's tokens are charged to. Context identifies the scope values sent with
 // Prompt, without copying their bodies. Result is the recorded JSON text.
 type TurnRow struct {
+	Unresolved        bool                              `json:"unresolved"`
 	EventsUnavailable bool                              `json:"events_unavailable"`
 	ObservationError  string                            `json:"observation_error"`
 	Run               string                            `json:"run"`

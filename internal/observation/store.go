@@ -220,6 +220,7 @@ type record struct {
 		Question    string          `json:"question"`
 		Answer      string          `json:"answer"`
 		Interrupted bool            `json:"interrupted"`
+		Unresolved  bool            `json:"unresolved"`
 		Duration    int64           `json:"duration"`
 		ID          string          `json:"id"`
 		Command     string          `json:"command"`
@@ -372,6 +373,7 @@ func (s *Store) Lifecycle(raw json.RawMessage) error {
 	case "turn_ended":
 		turn := s.turnLocked(Placement{Scope: rec.Scope, Session: rec.Session, Turn: rec.Turn})
 		turn.Result, turn.Error, turn.Interrupted = rec.Event.Result, rec.Event.Error, rec.Event.Interrupted
+		turn.Unresolved = rec.Event.Unresolved
 		turn.Ended, turn.Duration = at, rec.Event.Duration/int64(time.Millisecond)
 		// The harness's own report replaces whatever the steps accumulated,
 		// including when the report is empty.

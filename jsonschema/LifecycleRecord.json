@@ -145,6 +145,7 @@
 {"type":"object",
 "description":"TurnEnded records the result and accounting for one agent turn. Usage is what the turn spent, per model: the harness's own turn report when it stated one, and otherwise the turn's step events summed under the session's model.","properties":{
 "kind":{"type":"string","const":"turn_ended"},
+"unresolved":{"type":"boolean"},
 "result":{"type":"string","description":"JSONText is JSON source text carried opaquely by an event. Complete events contain one encoded value; delta events may contain only the next fragment. Text preserves provider-specific payloads while the event remains a closed Polytype shape."},
 "error":{"type":"string"},
 "usage":{"type":"array","items":{"type":"object",
@@ -165,7 +166,7 @@
 },"required":["model","cost","tokens"],"additionalProperties":false}},
 "duration":{"type":"integer","description":"A Duration represents the elapsed time between two instants as an int64 nanosecond count. The representation limits the largest representable duration to approximately 290 years."},
 "interrupted":{"type":"boolean"}
-},"required":["kind","result","error","usage","duration","interrupted"],"additionalProperties":false},
+},"required":["kind","unresolved","result","error","usage","duration","interrupted"],"additionalProperties":false},
 {"type":"object",
 "description":"TurnStarted records the beginning of one agent turn. Generate records the prompt the workflow passed separately from the scope context sent with it.","properties":{
 "kind":{"type":"string","const":"turn_started"},

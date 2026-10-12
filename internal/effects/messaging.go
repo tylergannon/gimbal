@@ -18,8 +18,11 @@ func Request(kind string, owner Owner) backend.MessageRequest {
 }
 
 func Submit(ctx context.Context, r backend.MessageRequest) error {
+	if err := r.Validate(); err != nil {
+		return err
+	}
 	if err := Messages(ctx).PublishRequest(ctx, r); err != nil {
-		return fmt.Errorf("request %s publication unconfirmed; do not retry as new work: %w", r.ID, err)
+		return &backend.DeliveryUncertain{RequestID: r.ID, Err: fmt.Errorf("publication unconfirmed; do not retry as new work: %w", err)}
 	}
 	return nil
 }
@@ -29,20 +32,9 @@ var errEventReached = errors.New("requested messaging fact received")
 // Await keeps acceptance uncertainty separate from execution outcome. The
 // original creation bound is retained for every new subscription.
 func Await(ctx context.Context, r backend.MessageRequest, until string, onActivity func(json.RawMessage)) (backend.MessageEvent, error) {
-	return await(ctx, r, until, onActivity, 15*time.Second)
-}
-func await(ctx context.Context, r backend.MessageRequest, until string, onActivity func(json.RawMessage), acceptance time.Duration) (backend.MessageEvent, error) {
-	listenCtx, cancel := context.WithCancelCause(ctx)
-	defer cancel(nil)
-	timer := time.AfterFunc(acceptance, func() {
-		cancel(fmt.Errorf("request %s acceptance unconfirmed; inspect the configured worker and request store; do not retry as new work", r.ID))
-	})
-	defer timer.Stop()
+
 	var got backend.MessageEvent
-	err := Messages(ctx).ListenEvents(listenCtx, backend.MessageSelection{RequestID: r.ID}, r.Created, func(e backend.MessageEvent) error {
-		if e.Kind == "accepted" || e.Kind == "established" || e.Kind == "completed" {
-			timer.Stop()
-		}
+	err := Messages(ctx).ListenEvents(ctx, backend.MessageSelection{RequestID: r.ID}, r.Created, func(e backend.MessageEvent) error {
 		if e.Kind == "activity" && onActivity != nil {
 			onActivity(e.Activity)
 		}
@@ -56,6 +48,9 @@ func await(ctx context.Context, r backend.MessageRequest, until string, onActivi
 		return nil
 	})
 	if errors.Is(err, errEventReached) {
+		if got.Result != nil && got.Result.Unresolved {
+			return got, &backend.DeliveryUncertain{RequestID: r.ID, Err: fmt.Errorf("%s", got.Result.Error)}
+		}
 		if got.Result != nil && got.Result.Error != "" {
 			if got.Result.InvalidOutput {
 				return got, &InvalidOutput{Message: got.Result.Error}
@@ -64,10 +59,10 @@ func await(ctx context.Context, r backend.MessageRequest, until string, onActivi
 		}
 		return got, nil
 	}
-	if cause := context.Cause(listenCtx); cause != nil {
-		return got, cause
+	if cause := context.Cause(ctx); cause != nil {
+		return got, &backend.DeliveryUncertain{RequestID: r.ID, Err: cause}
 	}
-	return got, fmt.Errorf("request %s event delivery unavailable: %w", r.ID, err)
+	return got, &backend.DeliveryUncertain{RequestID: r.ID, Err: fmt.Errorf("event delivery unavailable: %w", err)}
 }
 func MessageCall(ctx context.Context, r backend.MessageRequest) (backend.MessageEvent, error) {
 	if err := Submit(ctx, r); err != nil {

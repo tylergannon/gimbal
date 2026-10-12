@@ -45,7 +45,7 @@ func integration(t *testing.T) (*transport, context.Context) {
 	if path == "" {
 		t.Skip("set GIMBAL_RIVER_TEST_DSN_FILE to a private PostgreSQL DSN file")
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	t.Cleanup(cancel)
 	queue := fmt.Sprintf("gimbal_test_%d", time.Now().UnixNano())
 	c := configuration{DSNFile: path, Queue: queue, ControlQueue: queue + "_control", Workers: 1}

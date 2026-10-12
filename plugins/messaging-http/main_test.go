@@ -26,7 +26,10 @@ func newProducer(t *testing.T, handle func(*producer, backend.MessageRequest) er
 		t.Fatal(err)
 	}
 	p := &producer{ctx: ctx, bus: &connection{client: http.DefaultClient, store: store}, admitted: map[string]*admission{}, errors: make(chan error, 1)}
-	p.handle = func(_ context.Context, r backend.MessageRequest) error { return handle(p, r) }
+	p.handle = func(ctx context.Context, r backend.MessageRequest) error {
+		local := &producer{bus: p.bus, ctx: ctx}
+		return handle(local, r)
+	}
 	server := httptest.NewServer(p.handler())
 	t.Cleanup(func() { cancel(); server.Close() })
 	return p, server
@@ -41,7 +44,17 @@ func pair(t *testing.T, a, b func(*producer, backend.MessageRequest) error) (*co
 	return &connection{config: c, client: http.DefaultClient}, pa, pb
 }
 func request(kind string) backend.MessageRequest {
-	return backend.MessageRequest{ID: ulid.Make().String(), Created: time.Now().UTC(), Run: "test-run", Scope: "scope", Task: "task", Kind: kind}
+	r := backend.MessageRequest{ID: ulid.Make().String(), Created: time.Now().UTC(), Run: "test-run", Scope: "scope", Task: "task", Kind: kind}
+	switch kind {
+	case "turn":
+		r.SessionID = "agent"
+		r.Turn = &backend.Turn{Owner: r.Owner, Session: r.SessionID}
+	case "process":
+		r.Process = &backend.Process{Owner: r.Owner}
+	case "cleanup":
+		r.ScopeTarget = &backend.Scope{Run: r.Run, Scope: r.Scope}
+	}
+	return r
 }
 func receive(t *testing.T, ch <-chan backend.MessageEvent) backend.MessageEvent {
 	t.Helper()
@@ -226,9 +239,9 @@ func TestBroadcastWaitsForBothProducers(t *testing.T) {
 	events := make(chan backend.MessageEvent, 10)
 	done := make(chan error, 1)
 	go func() {
-		done <- b.ListenEvents(ctx, backend.MessageSelection{RequestID: original.ID}, original.Created, func(e backend.MessageEvent) error { events <- e; return nil })
+		done <- b.ListenEvents(ctx, backend.MessageSelection{Run: original.Run}, original.Created, func(e backend.MessageEvent) error { events <- e; return nil })
 	}()
-	if got := receive(t, events); got.Kind != "accepted" {
+	if got := receive(t, events); got.Kind != "accepted" || got.RequestID != original.ID {
 		t.Fatalf("first event: %+v", got)
 	}
 	select {
@@ -243,16 +256,35 @@ func TestBroadcastWaitsForBothProducers(t *testing.T) {
 	}
 	close(release)
 	got := receive(t, events)
-	if got.Kind != "completed" || got.Result == nil || got.Result.Error != "" {
+	if got.Kind != "completed" || got.RequestID != original.ID || got.Result == nil || got.Result.Error != "" {
 		t.Fatalf("aggregate completion: %+v", got)
 	}
 	childrenMu.Lock()
 	defer childrenMu.Unlock()
-	if len(children) != 2 || children[0] == original.ID || children[1] == original.ID || children[0] == children[1] {
+	if len(children) != 2 || children[0] != original.ID || children[1] != original.ID {
 		t.Fatalf("control identities: parent %s children %v", original.ID, children)
 	}
 	cancel()
 	<-done
+	for _, selection := range []backend.MessageSelection{{Run: original.Run}, {RequestID: original.ID}} {
+		replayCtx, replayCancel := context.WithTimeout(context.Background(), time.Second)
+		stop := errors.New("replayed")
+		var kinds []string
+		err := b.ListenEvents(replayCtx, selection, original.Created, func(e backend.MessageEvent) error {
+			if e.RequestID != original.ID {
+				t.Errorf("private control leaked: %+v", e)
+			}
+			kinds = append(kinds, e.Kind)
+			if e.Kind == "completed" {
+				return stop
+			}
+			return nil
+		})
+		replayCancel()
+		if !errors.Is(err, stop) || !reflect.DeepEqual(kinds, []string{"accepted", "completed"}) {
+			t.Fatalf("independent retained control history: %v %v", kinds, err)
+		}
+	}
 }
 
 func TestObserverDisconnectDoesNotEndAdmittedWork(t *testing.T) {
@@ -362,5 +394,34 @@ func TestPublicationAndControlsDoNotWaitForSlowAdmission(t *testing.T) {
 	})
 	if !errors.Is(err, stop) {
 		t.Fatalf("control blocked behind native action admission: %v", err)
+	}
+}
+
+func TestBroadcastDoesNotConfirmUnresolvedCessation(t *testing.T) {
+	handle := func(p *producer, r backend.MessageRequest) error {
+		return p.fact(r, "completed", &backend.MessageResult{Error: "native stop unconfirmed", Unresolved: true})
+	}
+	b, _, _ := pair(t, handle, handle)
+	r := request("cleanup")
+	if err := b.PublishRequest(context.Background(), r); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	stop := errors.New("observed")
+	err := b.ListenEvents(ctx, backend.MessageSelection{Run: r.Run}, r.Created, func(e backend.MessageEvent) error {
+		if e.RequestID != r.ID {
+			t.Errorf("private control leaked: %+v", e)
+		}
+		if e.Kind == "completed" {
+			if e.Result == nil || !e.Result.Unresolved || e.Result.Error == "" {
+				t.Errorf("fabricated cessation: %+v", e.Result)
+			}
+			return stop
+		}
+		return nil
+	})
+	if !errors.Is(err, stop) {
+		t.Fatal(err)
 	}
 }

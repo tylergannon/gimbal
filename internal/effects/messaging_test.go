@@ -2,7 +2,7 @@ package effects
 
 import (
 	"context"
-	"strings"
+	"errors"
 	"testing"
 	"time"
 
@@ -17,14 +17,14 @@ func (silentMessages) ListenEvents(ctx context.Context, _ backend.MessageSelecti
 	<-ctx.Done()
 	return ctx.Err()
 }
-func TestNoExecutorIsBoundedAcceptanceUncertainty(t *testing.T) {
-	ctx := WithConnection(context.Background(), backend.Connection{Messages: silentMessages{}})
+func TestCallerBudgetPreservesAcceptanceUncertainty(t *testing.T) {
+	budget, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	ctx := WithConnection(budget, backend.Connection{Messages: silentMessages{}})
 	r := Request("turn", Owner{Run: "run", Task: "turn"})
-	if err := Submit(ctx, r); err != nil {
-		t.Fatal(err)
-	}
-	_, err := await(ctx, r, "completed", nil, 20*time.Millisecond)
-	if err == nil || !strings.Contains(err.Error(), r.ID) || !strings.Contains(err.Error(), "acceptance unconfirmed") || strings.Contains(err.Error(), "execution failed") {
+	_, err := Await(ctx, r, "completed", nil)
+	uncertain, _ := errors.AsType[*backend.DeliveryUncertain](err)
+	if uncertain == nil || uncertain.RequestID != r.ID || !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("wrong uncertainty: %v", err)
 	}
 }

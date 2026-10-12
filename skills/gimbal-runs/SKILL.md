@@ -186,8 +186,9 @@ Workers and callers share local paths. Keep workers alive until workflow scope
 cleanup finishes; restarting them does not restore native actions or sessions.
 No automatic request replay, host provisioning, or placement is supplied.
 Steering, fork, and FulfillService are unsupported on these routes; Service
-uses a declared local address. A 15-second acceptance timeout means execution
-is unconfirmed, not that it failed. `message-watch` reads retained history
+uses a declared local address. Delivery budgets belong to the selected
+implementation and caller context. Missing acceptance or completion remains
+unresolved; it does not establish native failure or cessation. `message-watch` reads retained history
 independently; stopping it never cancels work. Its JSONL can contain private
 agent content. Event files or PostgreSQL rows remain until explicitly removed.
 

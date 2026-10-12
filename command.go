@@ -203,6 +203,9 @@ func recordCheckResult(s *scope, key string, raw []byte) error {
 }
 
 func runCommand(ctx context.Context, s *scope, name, workdir, command string, args []string) (CommandStarted, CommandEnded, error, error) {
+	if err := requireServiceMessaging(ctx); err != nil {
+		return CommandStarted{}, CommandEnded{ExitCode: -1, Error: err.Error()}, err, nil
+	}
 	s.mu.Lock()
 	id := s.next(name)
 	s.mu.Unlock()

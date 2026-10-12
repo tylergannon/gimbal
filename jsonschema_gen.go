@@ -180,7 +180,7 @@ func (l LifecycleRecord) MarshalJSON() ([]byte, error) {
 	wrapper := Wrapper{Alias: Alias(l)}
 	var err error
 
-	if wrapper.Event, err = __jsonMarshal__gimbal__LifecycleEvent__81dc46a23dda309995922e3626c333fc84f14907b28f0c12cfdd5957b6fd2beb(l.Event); err != nil {
+	if wrapper.Event, err = __jsonMarshal__gimbal__LifecycleEvent__d695c7f219a437512565421073cb8bccb94d6716c8b2d0ad47811944bbc4b3f0(l.Event); err != nil {
 		return nil, fmt.Errorf("field event: %w", err)
 	}
 
@@ -202,7 +202,7 @@ func (l *LifecycleRecord) UnmarshalJSON(data []byte) (err error) {
 	__next := LifecycleRecord(wrapper.Alias)
 
 	var __decoded0 LifecycleEvent
-	if __decoded0, err = __jsonUnmarshal__gimbal__LifecycleEvent__81dc46a23dda309995922e3626c333fc84f14907b28f0c12cfdd5957b6fd2beb(wrapper.Event); err != nil {
+	if __decoded0, err = __jsonUnmarshal__gimbal__LifecycleEvent__d695c7f219a437512565421073cb8bccb94d6716c8b2d0ad47811944bbc4b3f0(wrapper.Event); err != nil {
 		return err
 	}
 	__next.Event = __decoded0
@@ -211,7 +211,7 @@ func (l *LifecycleRecord) UnmarshalJSON(data []byte) (err error) {
 	return nil
 }
 
-func __jsonMarshal__gimbal__LifecycleEvent__81dc46a23dda309995922e3626c333fc84f14907b28f0c12cfdd5957b6fd2beb(value LifecycleEvent) (json.RawMessage, error) {
+func __jsonMarshal__gimbal__LifecycleEvent__d695c7f219a437512565421073cb8bccb94d6716c8b2d0ad47811944bbc4b3f0(value LifecycleEvent) (json.RawMessage, error) {
 	if value == nil {
 		return nil, fmt.Errorf("cannot marshal nil registered interface LifecycleEvent")
 	}
@@ -244,6 +244,9 @@ func __jsonMarshal__gimbal__LifecycleEvent__81dc46a23dda309995922e3626c333fc84f1
 		data, err = __polytype_marshal(&object)
 	case PlannerDecision:
 		discriminator = "planner_decision"
+		data, err = __polytype_marshal(&object)
+	case ResourceReady:
+		discriminator = "resource_ready"
 		data, err = __polytype_marshal(&object)
 	case RunCancelled:
 		discriminator = "run_cancelled"
@@ -293,7 +296,7 @@ func __jsonMarshal__gimbal__LifecycleEvent__81dc46a23dda309995922e3626c333fc84f1
 	)
 }
 
-func __jsonUnmarshal__gimbal__LifecycleEvent__81dc46a23dda309995922e3626c333fc84f14907b28f0c12cfdd5957b6fd2beb(data []byte) (LifecycleEvent, error) {
+func __jsonUnmarshal__gimbal__LifecycleEvent__d695c7f219a437512565421073cb8bccb94d6716c8b2d0ad47811944bbc4b3f0(data []byte) (LifecycleEvent, error) {
 	var (
 		temp          map[string]json.RawMessage
 		discriminator string
@@ -353,6 +356,12 @@ func __jsonUnmarshal__gimbal__LifecycleEvent__81dc46a23dda309995922e3626c333fc84
 		return obj, nil
 	case "planner_decision":
 		var obj PlannerDecision
+		if err = json.Unmarshal(data, &obj); err != nil {
+			return nil, err
+		}
+		return obj, nil
+	case "resource_ready":
+		var obj ResourceReady
 		if err = json.Unmarshal(data, &obj); err != nil {
 			return nil, err
 		}

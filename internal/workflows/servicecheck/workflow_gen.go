@@ -14,20 +14,14 @@ var Graph = workflow.Graph{
 	Source:   workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 39},
 	Services: []workflow.Service{},
 	Body: []workflow.Operation{
-		workflow.Scope{Source: workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 40}, Name: "service", Services: []workflow.Service{
-			{Source: workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 41}, Name: "http"},
-		}, Body: []workflow.Operation{
-			workflow.Set{Source: workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 44}, Key: "task"},
-			workflow.Session{Source: workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 45}, Name: "devops-tasks", From: ""},
-			workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 46}, Session: "devops-tasks", Role: "devops-tasks", Prompt: "The scope owns a foreground HTTP service. Wait until service-address exists. Complete the additional task below, if any. Then write the single line GIMBAL_SERVICE_OK to agent-result.txt in your working directory. Do not start or stop the service. Return a short description of what you did."},
-			workflow.Command{Source: workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 49}, Name: "consume"},
-			workflow.Condition{Source: workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 53}, Branches: []workflow.Branch{
-				{Source: workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 53}, Case: "code != 0", Exits: true, Body: []workflow.Operation{}},
+		workflow.Scope{Source: workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 40}, Name: "service", Services: []workflow.Service{}, Body: []workflow.Operation{
+			workflow.Set{Source: workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 41}, Key: "task"},
+			workflow.Session{Source: workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 42}, Name: "devops-tasks", From: ""},
+			workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 43}, Session: "devops-tasks", Role: "devops-tasks", Prompt: "Fetch the runtime-supplied named http service URL from this agent's environment using an HTTP client. Require HTTP 200 and the response body GIMBAL_SERVICE_OK. Do not merely display the URL. Complete the additional task below, if any. Do not start or stop infrastructure. Return a short description of the actual response you fetched."},
+			workflow.Command{Source: workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 46}, Name: "consume"},
+			workflow.Condition{Source: workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 50}, Branches: []workflow.Branch{
+				{Source: workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 50}, Case: "code != 0", Exits: true, Body: []workflow.Operation{}},
 			}},
-		}},
-		workflow.Command{Source: workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 61}, Name: "released"},
-		workflow.Condition{Source: workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 65}, Branches: []workflow.Branch{
-			{Source: workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 65}, Case: "code != 0", Exits: true, Body: []workflow.Operation{}},
 		}},
 	},
 }

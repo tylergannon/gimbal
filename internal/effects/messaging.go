@@ -34,8 +34,25 @@ var errEventReached = errors.New("requested messaging fact received")
 func Await(ctx context.Context, r backend.MessageRequest, until string, onActivity func(json.RawMessage)) (backend.MessageEvent, error) {
 
 	var got backend.MessageEvent
+	seenResources := map[backend.ServiceUse]bool{}
+	observeResource := func(use backend.ServiceUse) {
+		if !seenResources[use] {
+			seenResources[use] = true
+			if observe := resourceObserver(ctx); observe != nil {
+				observe(use)
+			}
+		}
+	}
 	err := Messages(ctx).ListenEvents(ctx, backend.MessageSelection{RequestID: r.ID}, r.Created, func(e backend.MessageEvent) error {
-		if e.Kind == "activity" && onActivity != nil {
+		if e.ReadyService != nil {
+			observeResource(*e.ReadyService)
+		}
+		if e.Result != nil {
+			for _, use := range e.Result.ReadyServices {
+				observeResource(use)
+			}
+		}
+		if e.Kind == "activity" && len(e.Activity) > 0 && onActivity != nil {
 			onActivity(e.Activity)
 		}
 		if e.Kind == until || e.Kind == "completed" {

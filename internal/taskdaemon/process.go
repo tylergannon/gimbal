@@ -21,6 +21,9 @@ func (d *Daemon) process(req effects.Process) error {
 		return err
 	}
 	id := key(req.Run, req.Task)
+	if pending := d.admitting[id]; pending != nil && pending.admissionCtx.Err() != nil {
+		return pending.admissionCtx.Err()
+	}
 	if d.tasks[id] != nil {
 		return errors.New("command already started; read its result")
 	}
@@ -36,6 +39,10 @@ func (d *Daemon) process(req effects.Process) error {
 	}
 	cmd := exec.Command(req.Command, req.Args...)
 	cmd.Dir = d.workdir(req.Workdir)
+	cmd.Env = os.Environ()
+	for _, binding := range req.Bindings {
+		cmd.Env = append(cmd.Env, binding.EnvironmentName()+"="+binding.URL)
+	}
 	cmd.Stdout = out
 	cmd.Stderr = stderr
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}

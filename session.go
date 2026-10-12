@@ -89,6 +89,10 @@ func (Text) ValidateJSON(raw []byte) error {
 // and WithScopeTemplate renders the scope's context for this call in place of
 // the runtime's own rendering.
 func (s *Session) Generate[T Output](ctx context.Context, prompt string, opts ...AgentOption) (T, error) {
+	if err := requireServiceMessaging(ctx); err != nil {
+		var zero T
+		return zero, err
+	}
 	var out T
 	accepted := decodedOutput[T]{value: &out}
 	_, err := s.generateResponse(ctx, prompt, &accepted, opts)

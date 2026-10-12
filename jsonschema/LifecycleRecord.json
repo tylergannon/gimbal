@@ -73,6 +73,13 @@
 },"required":["name","description","definition_of_done","validation"],"additionalProperties":false}
 },"required":["kind"],"additionalProperties":false},
 {"type":"object",
+"description":"ResourceReady records a supplied dependency's observed declared readiness and consumer access. It is a runtime diagnostic, not a provider-native event or a guarantee of continued availability. Addresses and handles are omitted.","properties":{
+"kind":{"type":"string","const":"resource_ready"},
+"name":{"type":"string"},
+"consumer_kind":{"type":"string"},
+"consumer":{"type":"string"}
+},"required":["kind","name","consumer_kind","consumer"],"additionalProperties":false},
+{"type":"object",
 "description":"RunCancelled records a workflow run stopped by context cancellation.","properties":{
 "kind":{"type":"string","const":"run_cancelled"},
 "name":{"type":"string"},

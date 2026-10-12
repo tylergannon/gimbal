@@ -343,8 +343,26 @@ func (r *Registry) Connect(ctx context.Context, route backend.Route) (backend.Co
 		if err := d.ValidateConfiguration(route.Configuration); err != nil {
 			return backend.Connection{}, err
 		}
-		b, err := d.Connect(ctx, route.Configuration)
-		return backend.Connection{Messages: b}, err
+		var resources backend.Orchestration
+		if len(route.Orchestration) > 0 {
+			if d.ConstructOrchestration == nil {
+				return backend.Connection{}, fmt.Errorf("messaging %s has no orchestration constructor", route.Name)
+			}
+			var err error
+			resources, err = d.ConstructOrchestration(ctx, route.Orchestration)
+			if err != nil {
+				return backend.Connection{}, err
+			}
+			if resources == nil {
+				return backend.Connection{}, fmt.Errorf("messaging %s constructed nil orchestration", route.Name)
+			}
+		}
+		b, err := d.Connect(ctx, route.Configuration, resources)
+		connection := backend.Connection{Messages: b, Orchestration: resources}
+		if err != nil {
+			return backend.Connection{}, errors.Join(err, connection.Close())
+		}
+		return connection, nil
 	}
 	d, ok := r.Backend(route.Name)
 	if !ok {

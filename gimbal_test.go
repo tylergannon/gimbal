@@ -125,6 +125,8 @@ func lifecycleKind(event LifecycleEvent) string {
 	switch event.(type) {
 	case RunStarted:
 		return "run_started"
+	case ResourceReady:
+		return "resource_ready"
 	case RunEnded:
 		return "run_ended"
 	case RunCancelled:

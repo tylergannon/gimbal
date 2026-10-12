@@ -1,6 +1,6 @@
-# Resource orchestration: #466 and #467 together
+# Messaging dependency and consumer-binding exercise: #466 and #467
 
-Planning base: PR #468 head 2f94af240339eef5c6a9f2fb277b2eb2b1042e1d. Implementation waits for its actual squash merge, then rebases only this batch's planning commits onto origin/main.
+Implementation base: squash-merged main 3deaf2944f896379cbd166a3a22d6361646935d2. Only this batch's planning commits were rebased from PR #468's head.
 
 ## Authoritative boundary
 
@@ -32,6 +32,6 @@ The narrow service interface needs to establish consumer-relative access for a n
 
 Run the actual service-check workflow through runtime-loaded messaging and a separate runner with gpt-5.6-luna. Fixture service and actual remote consumer occupy distinct network environments. Require both agent fetch and command fetch; receiving/displaying a URL is insufficient. Change external placement/configuration and repeat the same workflow source with no shared-workdir address file. Exercise overlapping scopes and show one release preserves the other's response. Exercise readiness/access failure and the existing exited-run cleanup connection path.
 
-Focused tests belong beside construction, carriers/executor handling, scope release, and runner cleanup. Run required checks appropriate to affected code (just vet, just test, build/generation). Independent validation reviews exact code and what the observed runs establish. Commit/push a focused PR and leave it unmerged; do not alter installed Gimbal.
+Focused tests belong beside construction, carriers/executor handling, scope release, and runner cleanup. Run required checks appropriate to affected code (just vet, just test, build/generation). Independent validation reviews exact code and what the observed runs establish. Commit/push a focused PR for independent validation and coordinating-agent squash merge; do not alter installed Gimbal.
 
 No fundamental contract question blocks planning now. Any issue phrase read as requiring excluded infrastructure implementation is interpreted under the user's explicit boundary: demonstrate runtime plumbing with the supplied fixture, and report backend behavior as fixture-supplied rather than implemented infrastructure.

@@ -294,3 +294,14 @@ type CancellationCleanup struct {
 }
 
 func (CancellationCleanup) lifecycleEvent() {}
+
+// ResourceReady records a supplied dependency's observed declared readiness
+// and consumer access. It is a runtime diagnostic, not a provider-native event
+// or a guarantee of continued availability. Addresses and handles are omitted.
+type ResourceReady struct {
+	Name         string `json:"name"`
+	ConsumerKind string `json:"consumer_kind"`
+	Consumer     string `json:"consumer"`
+}
+
+func (ResourceReady) lifecycleEvent() {}

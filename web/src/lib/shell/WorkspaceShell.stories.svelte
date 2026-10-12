@@ -11,3 +11,5 @@
 <Story name="Paused" args={{ recordingState: 'paused' }} />
 <Story name="Saving" args={{ recordingState: 'saving' }} />
 <Story name="Recording error" args={{ recordingState: 'error' }} />
+
+<Story name="Dark sidebar" args={{ sidebar: true }} parameters={{ themes: { themeOverride: 'dark' } }} />

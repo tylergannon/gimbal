@@ -23,9 +23,14 @@ type MessageRequest struct {
 	ScopeTarget *Scope   `json:",omitempty"`
 }
 
-// MessageResult carries authoritative native output; bytes survive even when
-// they are not valid JSON. ID is the session created by a session request.
+// MessageResult carries the request's returned outcome and native data, not
+// just successful output. Interrupted reports authoritative native turn
+// cancellation; it is never inferred from Error text. Process.Interrupted
+// retains the native process outcome. Unresolved marks controls whose cessation
+// could not be confirmed. Output bytes survive even when invalid JSON; ID is
+// the session created by a session request.
 type MessageResult struct {
+	Interrupted    bool            `json:",omitempty"`
 	Unresolved     bool            `json:",omitempty"`
 	ID             string          `json:",omitempty"`
 	Output         []byte          `json:",omitempty"`
@@ -37,7 +42,10 @@ type MessageResult struct {
 }
 
 // MessageEvent kinds are accepted, activity, established and completed.
-// Activity contains the native AgentEvent envelope, including NativeRef.
+// Completed settles the request with its returned outcome; it does not assert
+// native success or cessation. Inspect Result for failure, authoritative
+// interruption, or unresolved control delivery. Activity contains the native
+// AgentEvent envelope, including NativeRef.
 type MessageEvent struct {
 	ID, RequestID string
 	Created       time.Time

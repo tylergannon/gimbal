@@ -306,3 +306,25 @@ test("a transcript without assistant prose says so explicitly", async () => {
     .element(screen.getByText("No assistant prose recorded for this turn yet.", { exact: true }))
     .toBeVisible();
 });
+
+test("recorded turn chips identify delivery uncertainty without calling it native failure", async () => {
+  const snapshot = snapshotWithTranscript();
+  const turn = snapshot.turns[liveTurn];
+  turn.ended = turn.started + 1000;
+  turn.duration = 1000;
+  turn.unresolved = true;
+  turn.interrupted = false;
+  turn.error = "listener loss after retained native success";
+  const screen = await render(Page, {
+    snapshot,
+    observation: new RunObservation(snapshot),
+    revision: 1,
+    sessionID,
+    onsteer: async () => ({ ok: true, message: "sent" }),
+    onstop: async () => ({ ok: true, message: "stopped" }),
+  });
+  await expect.element(screen.getByRole("button", { name: "Turn 3 · unresolved" })).toBeVisible();
+  await expect
+    .element(screen.getByRole("button", { name: "Turn 3 · failed" }))
+    .not.toBeInTheDocument();
+});

@@ -440,6 +440,7 @@ function runtimeFor(snapshot: RunSnapshot, scopeKey: string, operation: NodeOper
 
 function turnState(turn?: TurnRow): PipState {
   if (!turn) return "not-yet";
+  if (turn.unresolved) return "unresolved";
   if (turn.interrupted) return "ended";
   if (turn.error) return "failed";
   return turn.ended === 0 ? "running" : "ended";

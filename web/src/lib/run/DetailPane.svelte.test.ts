@@ -408,3 +408,29 @@ test("the assignment lives only on the scope's Overview, not the agent-turn pane
     .toBeVisible();
   void turnScreen;
 });
+
+test("delivery uncertainty renders unresolved rather than a failed native outcome", async () => {
+  const snapshot = structuredClone(issue325Finished);
+  const turn = snapshot.turns["coding.1/turn.2"];
+  turn.unresolved = true;
+  turn.interrupted = false;
+  turn.result = "";
+  turn.error = "request outcome unresolved: listener loss after retained native completion";
+  turn.events_unavailable = true;
+  turn.observation_error = turn.error;
+  const screen = await render(DetailPane, {
+    snapshot,
+    observation: new RunObservation(snapshot),
+    selection: {
+      kind: "node",
+      scope: snapshot.scopes["implementation.1/task.1"],
+      operation: issue325Coding(),
+      runtime: turn,
+    },
+  });
+  await expect.element(screen.getByText("unresolved", { exact: true }).first()).toBeVisible();
+  await expect.element(screen.getByText("failed", { exact: true })).not.toBeInTheDocument();
+  await expect.element(screen.getByText("delivery problem", { exact: true })).toBeVisible();
+  expect(document.querySelectorAll('.pip[data-state="unresolved"]').length).toBeGreaterThan(0);
+  expect(document.querySelectorAll('.pip[data-state="failed"]').length).toBe(0);
+});

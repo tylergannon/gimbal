@@ -62,9 +62,10 @@
 	const ended = $derived(!!turn.ended);
 
 	const outcomeState = $derived.by(() => {
-		if (!turn.ended) return 'running' as const;
-		if (turn.error) return 'failed' as const;
+		if (turn.unresolved) return 'unresolved' as const;
+ if (!turn.ended) return 'running' as const;
 		if (turn.interrupted) return 'interrupted' as const;
+ if (turn.error) return 'failed' as const;
 		return 'ended' as const;
 	});
 

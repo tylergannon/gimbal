@@ -278,3 +278,56 @@ func TestRetainedNativeSuccessSurvivesNormalWorkflowDeliveryLoss(t *testing.T) {
 		}
 	}
 }
+
+func TestIndependentMessagingInterruptPreservesNativeCancellation(t *testing.T) {
+	d, bus, ctx := messagingOwner(t)
+	native := &testHarness{started: make(chan struct{})}
+	d.adapter = func(string) (gimbal.HarnessAdapter, error) { return native, nil }
+	project := t.TempDir()
+	registry := observation.NewRegistry(project)
+	ctx = observation.WithRegistry(effects.WithRunID(gimbal.Project(ctx, project), "independent-interrupt"), registry)
+	ctx = effects.WithConnection(ctx, backend.Connection{Messages: bus})
+	done := make(chan error, 1)
+	go func() {
+		done <- gimbal.Run(ctx, "interrupt", map[gimbal.WorkflowRole]gimbal.ModelBinding{"agent": {Adapter: &Harness{Name: "test", Connection: backend.Connection{Messages: bus}}, Model: "test"}}, func(ctx context.Context) error {
+			_, err := gimbal.NewSession(ctx, "agent", project).Generate[gimbal.Text](ctx, "wait for independent interrupt")
+			return err
+		})
+	}()
+	<-native.started
+	snapshot, err := registry.Snapshot("independent-interrupt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(snapshot.Turns) != 1 {
+		t.Fatalf("turns %d", len(snapshot.Turns))
+	}
+	for _, turn := range snapshot.Turns {
+		control := effects.Request("interrupt", backend.Owner{Run: turn.Run, Scope: turn.Scope, Task: "independent-control"})
+		control.Target = &backend.Target{Run: turn.Run, ID: turn.ID}
+		result, err := effects.MessageCall(ctx, control)
+		if err != nil || result.Result == nil || result.Result.Unresolved {
+			t.Fatalf("interrupt not confirmed: %+v %v", result, err)
+		}
+	}
+	select {
+	case err := <-done:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("cancellation lost: %v", err)
+		}
+	case <-ctx.Done():
+		t.Fatal(ctx.Err())
+	}
+	if ctx.Err() != nil {
+		t.Fatal("independent control cancelled workflow caller context")
+	}
+	snapshot, err = registry.Snapshot("independent-interrupt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, turn := range snapshot.Turns {
+		if !turn.Interrupted || turn.Unresolved {
+			t.Fatalf("wrong native outcome: %+v", turn)
+		}
+	}
+}

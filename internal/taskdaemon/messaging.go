@@ -41,6 +41,7 @@ func (d *Daemon) Messages(bus backend.Messaging) backend.MessageHandler {
 		complete := func(result backend.MessageResult, err error) error {
 			if err != nil {
 				result.Error = err.Error()
+				result.Interrupted = r.Kind == "turn" && errors.Is(err, context.Canceled)
 				result.Unresolved = r.Kind == "cleanup" || r.Kind == "interrupt" || r.Kind == "close"
 				result.InvalidOutput = errors.Is(err, gimbal.ErrInvalidOutput)
 			}

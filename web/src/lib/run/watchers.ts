@@ -4,6 +4,7 @@ import type { WatcherRow } from "./detail/SessionDetail.svelte";
 
 /** How a turn ended, in the words the inspector shows. */
 export function turnOutcome(row: TurnRow): string {
+  if (row.unresolved) return "unresolved";
   if (!row.ended) return "running";
   if (row.interrupted) return "interrupted";
   return row.error ? "failed" : "ended";
@@ -48,7 +49,15 @@ export function watcherRows(
       return {
         session: watcher.session,
         role: watcher.role,
-        pip: !watcherTurn.ended ? "running" : watcherTurn.error ? "failed" : "ended",
+        pip: watcherTurn.unresolved
+          ? "unresolved"
+          : !watcherTurn.ended
+            ? "running"
+            : watcherTurn.interrupted
+              ? "ended"
+              : watcherTurn.error
+                ? "failed"
+                : "ended",
         verdict: turnOutcome(watcherTurn),
         result:
           watcherTurn.result ||

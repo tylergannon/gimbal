@@ -1,5 +1,5 @@
 <script module lang="ts">
-	export type StatusWord = 'running' | 'ended' | 'failed' | 'interrupted';
+	export type StatusWord = 'running' | 'ended' | 'failed' | 'interrupted' | 'unresolved';
 </script>
 
 <script lang="ts">

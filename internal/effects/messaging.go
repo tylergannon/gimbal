@@ -51,6 +51,9 @@ func Await(ctx context.Context, r backend.MessageRequest, until string, onActivi
 		if got.Result != nil && got.Result.Unresolved {
 			return got, &backend.DeliveryUncertain{RequestID: r.ID, Err: fmt.Errorf("%s", got.Result.Error)}
 		}
+		if got.Result != nil && got.Result.Interrupted {
+			return got, context.Canceled
+		}
 		if got.Result != nil && got.Result.Error != "" {
 			if got.Result.InvalidOutput {
 				return got, &InvalidOutput{Message: got.Result.Error}

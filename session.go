@@ -376,6 +376,9 @@ func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessag
 	}
 	cancelTurn(nil)
 	_, deliveryUncertain := errors.AsType[*backend.DeliveryUncertain](err)
+	if stopped == nil && !deliveryUncertain && errors.Is(err, context.Canceled) {
+		stopped = err
+	}
 	if stopped != nil && !deliveryUncertain {
 		err = stopped
 	} else if len(result.Usage) > 0 {

@@ -3,12 +3,17 @@ package runner
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"sync/atomic"
 	"testing"
+	"time"
+
+	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/backend"
 
 	"github.com/tylergannon/gimbal/internal/effects"
 	"github.com/tylergannon/gimbal/internal/observation"
@@ -72,4 +77,54 @@ func TestExitedCleanupRecordsFailureThenSuccessfulManualRetry(t *testing.T) {
 		t.Fatalf("completed cleanup: done=%v err=%v", done, err)
 	}
 	check("completed")
+}
+
+type cleanupMessages struct {
+	context context.Context
+	closed  *atomic.Int32
+	request backend.MessageRequest
+}
+
+func (b *cleanupMessages) Close() error { b.closed.Add(1); return nil }
+func (b *cleanupMessages) PublishRequest(_ context.Context, r backend.MessageRequest) error {
+	if err := b.context.Err(); err != nil {
+		return err
+	}
+	b.request = r
+	return nil
+}
+func (b *cleanupMessages) PublishEvent(context.Context, backend.MessageEvent) error { return nil }
+func (b *cleanupMessages) ListenEvents(_ context.Context, _ backend.MessageSelection, _ time.Time, f func(backend.MessageEvent) error) error {
+	return f(backend.MessageEvent{RequestID: b.request.ID, Kind: "completed", Result: &backend.MessageResult{}})
+}
+func TestMessagingOrphanCleanupOwnsConnectionUntilOperationEnds(t *testing.T) {
+	state := t.TempDir()
+	id := "orphan"
+	dir := filepath.Join(state, "runs", id)
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	var opened, closed atomic.Int32
+	name := fmt.Sprintf("cleanup-%d", time.Now().UnixNano())
+	err := gimbal.DefaultRegistry.RegisterMessaging(gimbal.MessagingDefinition{Name: name, ValidateConfiguration: func(json.RawMessage) error { return nil }, Connect: func(ctx context.Context, _ json.RawMessage) (backend.Messaging, error) {
+		opened.Add(1)
+		return &cleanupMessages{context: ctx, closed: &closed}, nil
+	}, Worker: func(context.Context, json.RawMessage, backend.MessageHandler) error { return nil }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	route, _ := json.Marshal(backend.Route{Name: name})
+	if err = os.WriteFile(filepath.Join(dir, "task-route"), route, 0600); err != nil {
+		t.Fatal(err)
+	}
+	c := remote{state: state, runID: id}
+	for range 2 {
+		pending, err := c.call(context.Background(), operation{Action: "cleanup"})
+		if err != nil || pending {
+			t.Fatalf("cleanup pending=%v err=%v", pending, err)
+		}
+	}
+	if opened.Load() != 2 || closed.Load() != 2 {
+		t.Fatalf("opened=%d closed=%d", opened.Load(), closed.Load())
+	}
 }

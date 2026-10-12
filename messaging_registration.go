@@ -12,6 +12,8 @@ import (
 // MessagingDefinition is installed by a native plugin's existing Register
 // entrypoint. Worker serves the explicitly configured local deployment; it does
 // not provision hosts or orchestrate workflows. Connect must not bind a server.
+// Its context bounds establishment only; resource-owning transports implement
+// io.Closer and are closed by their caller after all cleanup operations.
 type MessagingDefinition struct {
 	Name                  string
 	ValidateConfiguration func(json.RawMessage) error

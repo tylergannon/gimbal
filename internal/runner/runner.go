@@ -43,6 +43,7 @@ func Run(request invocation.Request, startup io.Writer) error {
 			return err
 		}
 		ctx = effects.WithConnection(ctx, connection)
+		defer func() { _ = connection.Close() }()
 	}
 	models, body, err := invocation.PrepareContext(ctx, request)
 	if err != nil {
@@ -78,6 +79,7 @@ func run(request invocation.Request, startup io.Writer, models map[gimbal.Workfl
 			return err
 		}
 		ctx = effects.WithConnection(ctx, connection)
+		defer func() { _ = connection.Close() }()
 	}
 
 	var controller live.Controller
@@ -212,13 +214,16 @@ func Connect(state, id string) (live.Controller, error) {
 	c := remote{socket: string(socket)}
 	_, err = c.call(context.Background(), operation{Action: "live"})
 	if err != nil {
-		connection, endpoint, e := taskConnection(state, id)
-		if e == nil && (endpoint != "" || connection.Execution != nil) {
+		connectCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		connection, endpoint, e := taskConnection(connectCtx, state, id)
+		defer func() { _ = connection.Close() }()
+		if e == nil && (endpoint != "" || connection.Execution != nil || connection.Messages != nil) {
 			lock, e := os.OpenFile(filepath.Join(state, "runs", id, "runner.lock"), os.O_RDWR, 0)
 			if e == nil {
 				defer func() { _ = lock.Close() }()
 				if unix.Flock(int(lock.Fd()), unix.LOCK_EX|unix.LOCK_NB) == nil {
-					orphan := remote{endpoint: endpoint, runID: id, state: state, connection: connection}
+					orphan := remote{endpoint: endpoint, runID: id, state: state}
 					if orphan.CleanupPending() {
 						return orphan, nil
 					}
@@ -232,14 +237,19 @@ func Connect(state, id string) (live.Controller, error) {
 
 type remote struct {
 	socket, endpoint, runID, state string
-	connection                     backend.Connection
 }
 
 func (c remote) call(ctx context.Context, op operation) (bool, error) {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	if c.endpoint != "" || (c.connection.Execution != nil || c.connection.Messages != nil) {
-		ctx = effects.WithConnection(ctx, c.connection)
+	if c.runID != "" {
+		connection, endpoint, err := taskConnection(ctx, c.state, c.runID)
+		if err != nil {
+			return false, err
+		}
+		defer func() { _ = connection.Close() }()
+		c.endpoint = endpoint
+		ctx = effects.WithConnection(ctx, connection)
 		value, err := orphanCall(ctx, c.endpoint, c.runID, op)
 		if op.Action == "scope" && op.Target == "" {
 			_, recordErr := CleanupExited(c.state, c.runID)

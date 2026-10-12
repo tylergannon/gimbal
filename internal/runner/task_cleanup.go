@@ -21,7 +21,10 @@ import (
 // evidence that the workflow can no longer release its remote resources.
 func CleanupExited(state, id string) (bool, error) {
 	dir := filepath.Join(state, "runs", id)
-	connection, endpoint, err := taskConnection(state, id)
+	ctx, cancel := context.WithTimeout(context.Background(), 11*time.Second)
+	defer cancel()
+	connection, endpoint, err := taskConnection(ctx, state, id)
+	defer func() { _ = connection.Close() }()
 	if errors.Is(err, os.ErrNotExist) || (err == nil && endpoint == "" && connection.Execution == nil && connection.Messages == nil) {
 		return false, nil
 	}
@@ -36,8 +39,6 @@ func CleanupExited(state, id string) (bool, error) {
 	if err := unix.Flock(int(lock.Fd()), unix.LOCK_EX|unix.LOCK_NB); err != nil {
 		return false, nil
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 11*time.Second)
-	defer cancel()
 	ctx = effects.WithConnection(ctx, connection)
 	var owned effects.State
 	if connection.Messages == nil {
@@ -75,7 +76,7 @@ func orphanCall(ctx context.Context, endpoint, run string, op operation) (bool, 
 	}
 }
 
-func taskConnection(state, id string) (backend.Connection, string, error) {
+func taskConnection(ctx context.Context, state, id string) (backend.Connection, string, error) {
 	dir := filepath.Join(state, "runs", id)
 	raw, err := os.ReadFile(filepath.Join(dir, "task-route"))
 	if err == nil {
@@ -83,8 +84,6 @@ func taskConnection(state, id string) (backend.Connection, string, error) {
 		if err := json.Unmarshal(raw, &route); err != nil {
 			return backend.Connection{}, "", err
 		}
-		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-		defer cancel()
 		connection, err := gimbal.DefaultRegistry.Connect(ctx, route)
 		return connection, "", err
 	}

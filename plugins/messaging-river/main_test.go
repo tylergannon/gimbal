@@ -13,6 +13,7 @@ import (
 
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/rivertype"
+	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/backend"
 )
 
@@ -270,4 +271,33 @@ func TestRiverShutdownDoesNotRequeueAdmission(t *testing.T) {
 		t.Fatalf("shutdown replay risk: state=%s attempt=%d", state, attempt)
 	}
 	t.Log("real River shutdown left the interrupted admission cancelled at attempt 1, not available or retryable")
+}
+
+func TestConnectBudgetDoesNotCloseConnection(t *testing.T) {
+	tr, ctx := integration(t)
+	var registry gimbal.Registry
+	if err := Register(&registry); err != nil {
+		t.Fatal(err)
+	}
+	definition, _ := registry.Messaging("river")
+	raw, _ := json.Marshal(tr.config)
+	connectCtx, cancel := context.WithCancel(ctx)
+	bus, err := definition.Connect(connectCtx, raw)
+	if err != nil {
+		cancel()
+		t.Fatal(err)
+	}
+	cancel()
+	connection := bus.(*transport)
+	defer func() { _ = connection.Close() }()
+	event := backend.MessageEvent{ID: "after-connect", Created: time.Now(), Kind: "completed", Result: &backend.MessageResult{}}
+	if err := bus.PublishEvent(ctx, event); err != nil {
+		t.Fatalf("Connect budget ended, operation must still work: %v", err)
+	}
+	if err := connection.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := bus.PublishEvent(ctx, event); err == nil {
+		t.Fatal("explicit close must release the pool")
+	}
 }

@@ -7,8 +7,10 @@
   import { APP_NAME } from "#lib/app.js";
   import { Button } from "#lib/components/ui/button/index.js";
   import { Input } from "#lib/components/ui/input/index.js";
+  import ProjectList from "#lib/workspace/ProjectList.svelte";
   import ProjectsEmpty from "#lib/workspace/ProjectsEmpty.svelte";
-  let { data }: { data: { projects: { id: string; path: string }[] } } =
+  import type { ProjectChoice } from "#lib/skgo/host/types";
+  let { data }: { data: { projects: ProjectChoice[] } } =
     $props();
   let actionError = $state("");
 </script>
@@ -24,18 +26,10 @@
     A project is a local directory with its recordings, files, conversations
     and runs.
   </p>
-  <div class="mt-6 grid gap-px">
-    {#each data.projects as project (project.id)}
-      <a
-        class="flex min-w-0 flex-col rounded-lg px-3 py-2 hover:bg-accent"
-        href={`/projects/${project.id}${page.data.desktop ? "/recordings" : ""}`}
-        ><span class="font-medium">{project.path.split("/").at(-1)}</span><span
-          class="truncate font-mono text-xs text-muted-foreground"
-          >{project.path}</span
-        ></a
-      >
-    {/each}
-  </div>
+  <ProjectList
+    projects={data.projects}
+    href={(project) => `/projects/${project.id}${page.data.desktop ? "/recordings" : ""}`}
+  />
   <form
     class="mt-8 grid gap-2 border-t pt-6"
     {...createProject.enhance(async (form) => {

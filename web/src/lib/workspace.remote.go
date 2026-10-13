@@ -51,6 +51,22 @@ func createProject(ctx context.Context, event app.RequestEvent[params.Params], r
 	return host.ProjectChoice{ID: p.ID(), Path: p.Path()}, nil
 }
 
+type ProjectOrder struct {
+	IDs []string `json:"ids"`
+}
+
+// reorderProjects saves the order people dragged the projects into.
+func reorderProjects(ctx context.Context, event app.RequestEvent[params.Params], r ProjectOrder) (bool, error) {
+	o := host.OwnerFrom(ctx)
+	if o == nil {
+		return false, skgo.Errorf(503, "Server unavailable")
+	}
+	if e := o.ReorderProjects(r.IDs); e != nil {
+		return false, skgo.Errorf(409, "The project list changed. Reload and try again.")
+	}
+	return true, nil
+}
+
 type Upload struct {
 	Project string    `json:"project"`
 	File    skgo.File `json:"file"`
@@ -76,6 +92,7 @@ func projectFiles(ctx context.Context, id string) ([]projectfiles.Document, erro
 }
 
 var _ = skgo.Form(createProject)
+var _ = skgo.Command(reorderProjects)
 var _ = skgo.Form(uploadFile)
 var _ = skgo.Query(projectFiles)
 

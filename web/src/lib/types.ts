@@ -30,6 +30,10 @@ export type NewProject = {
   path: string;
 };
 
+export type ProjectOrder = {
+  ids: Array<string>;
+};
+
 export type RecordingRequest = {
   project: string;
   id: string;

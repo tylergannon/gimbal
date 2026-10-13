@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -16,6 +17,7 @@ import (
 	"strings"
 
 	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/auth"
 	"github.com/tylergannon/gimbal/internal/host"
 	"github.com/tylergannon/gimbal/internal/invocation"
 	"github.com/tylergannon/gimbal/internal/observation"
@@ -178,6 +180,11 @@ func (i *Instance) startControl() error {
 	if err != nil {
 		return fmt.Errorf("gimbal: listen on control socket: %w", err)
 	}
+	if err := os.Chmod(socket, 0600); err != nil {
+		_ = listener.Close()
+		_ = os.Remove(socket)
+		return err
+	}
 	info := controlDiscovery{PID: os.Getpid(), Socket: socket, Project: i.dir}
 	i.Owner.SetControl(identity, socket)
 	encoded, err := json.Marshal(info)
@@ -207,7 +214,7 @@ func (i *Instance) startControl() error {
 		}
 	}()
 	context.AfterFunc(i.ctx, func() {
-		_ = server.Close()
+		_ = server.Shutdown(context.Background())
 		<-serveDone
 		i.Owner.Close()
 		_ = os.Remove(socket)
@@ -225,6 +232,41 @@ func controlMux(i *Instance) http.Handler {
 			h.ServeHTTP(w, r)
 			return
 		}
+		if (r.Method == http.MethodPost && r.URL.Path == "/control/users") || (r.Method == http.MethodDelete && strings.HasPrefix(r.URL.Path, "/control/users/")) {
+			if i.auth == nil {
+				http.Error(w, "authentication is disabled for this instance", http.StatusConflict)
+				return
+			}
+			if r.Method == http.MethodPost {
+				var id auth.Identity
+				if err := json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&id); err != nil || id.Issuer == "" || id.Subject == "" {
+					http.Error(w, "issuer and subject are required", http.StatusBadRequest)
+					return
+				}
+				u, err := i.auth.Users.CreateUser(r.Context(), id)
+				if err != nil {
+					http.Error(w, "user storage failed", http.StatusServiceUnavailable)
+					return
+				}
+				w.Header().Set("Content-Type", "application/json")
+				_ = json.NewEncoder(w).Encode(struct {
+					ID   string `json:"id"`
+					Name string `json:"name"`
+				}{u.ID(), u.Name()})
+			} else {
+				id := strings.TrimPrefix(r.URL.Path, "/control/users/")
+				if id == "" {
+					http.Error(w, "user ID is required", http.StatusBadRequest)
+					return
+				}
+				if err := i.auth.Users.DeleteUser(r.Context(), id); err != nil {
+					http.Error(w, "user storage failed", http.StatusServiceUnavailable)
+					return
+				}
+				w.WriteHeader(http.StatusNoContent)
+			}
+			return
+		}
 		if r.Method == http.MethodGet && r.URL.Path == "/control/live" {
 			w.WriteHeader(http.StatusOK)
 			return
@@ -232,25 +274,25 @@ func controlMux(i *Instance) http.Handler {
 		if r.Method == http.MethodPost && r.URL.Path == "/control/start" {
 			var request invocation.Request
 			if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-				http.Error(w, err.Error(), 400)
+				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
 			if _, _, err := invocation.Prepare(request); err != nil {
-				http.Error(w, err.Error(), 400)
+				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
 			if !filepath.IsAbs(request.Project) {
-				http.Error(w, "project must be absolute", 400)
+				http.Error(w, "project must be absolute", http.StatusBadRequest)
 				return
 			}
 			p, err := i.Owner.AdmitProject(request.Project)
 			if err != nil {
-				http.Error(w, err.Error(), 400)
+				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
 			id, err := p.Start(request)
 			if err != nil {
-				http.Error(w, err.Error(), 400)
+				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
 			_ = json.NewEncoder(w).Encode(invocation.Accepted{RunID: id})

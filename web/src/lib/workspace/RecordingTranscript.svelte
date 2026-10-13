@@ -1,8 +1,12 @@
 <script lang="ts">
+  import { navigateOnUnauthorized } from "#lib/auth/unauthorized";
   import { watchRecording } from "../transcript.remote";
   let { project, id }: { project: string; id: string } = $props();
   const stream = $derived(watchRecording({ project, id }));
   const record = $derived(stream.current);
+  $effect(() => {
+    if (stream.error) void stream.catch(navigateOnUnauthorized);
+  });
 </script>
 
 <section aria-label="Saved transcript" class="transcript">

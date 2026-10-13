@@ -29,6 +29,56 @@ It listens on loopback port 8080 by default; `web.WithPort`, `web.WithUDS`, and
 `web.WithNoWeb` select another listener shape. Node is a build-time dependency
 only.
 
+## Optional GitHub login
+
+Authentication is off until the serving instance selects `--auth-file` (or
+`web.WithAuthFile`). Build the provider and durable user-store plugins with the
+same Go toolchain and source as the host:
+
+```sh
+mkdir -p /absolute/plugins
+go build -buildmode=plugin -o /absolute/plugins/auth-github.so ./plugins/auth-github
+go build -buildmode=plugin -o /absolute/plugins/auth-files.so ./plugins/auth-files
+```
+
+Register a GitHub App with no repository or organization permissions, disable
+webhooks, and set its callback to the configured origin plus `/auth/callback`.
+Keep its client secret in the environment named by `clientSecretEnv`. An auth
+file selects the two plugins independently:
+
+```json
+{
+  "origin": "http://localhost:8096",
+  "provider": {
+    "name": "github",
+    "configuration": { "clientID": "YOUR_APP_CLIENT_ID", "clientSecretEnv": "GIMBAL_GITHUB_CLIENT_SECRET" }
+  },
+  "users": {
+    "name": "files",
+    "configuration": { "directory": "/absolute/instance/auth" }
+  }
+}
+```
+
+The file store initializes a new directory beneath an existing parent. Existing
+missing or malformed state fails startup. HTTP is allowed for an explicit
+localhost or loopback origin; other origins require HTTPS. Start the instance,
+then provision the exact numeric GitHub identity through its local control
+socket:
+
+```sh
+gimbal --port 8096 --instance-dir /absolute/instance --plugin-dir /absolute/plugins --auth-file /absolute/auth.json
+# In another terminal; obtain the numeric subject with gh api users/LOGIN --jq .id:
+gimbal user add --instance-dir /absolute/instance --issuer https://github.com --subject 123456 --name Tyler
+```
+
+Login never creates users. An empty store admits nobody. `gimbal user remove
+--instance-dir /absolute/instance USER_ID` revokes access. Sessions survive
+restart, expire after eight hours, and are revoked on sign-out. Active streams
+recheck within 30 seconds. The separate task listener and local Unix control
+socket remain trusted operator transports; publish only the authenticated web
+listener. Authentication applies to the explicitly selected instance.
+
 ## Build and run
 
 This project uses Justfile for its build commands. It requires Go 1.27, Node 24,

@@ -22,6 +22,12 @@ import (
 
 const controlTimeout = 5 * time.Second
 
+// startTimeout bounds Claude Code's start, up to its reply to the SDK's
+// initialize request. The SDK waits for that reply until its context ends,
+// even after the CLI has exited, so a CLI that dies on start (not signed in,
+// a crash, a bad flag) would otherwise leave the turn waiting forever.
+var startTimeout = time.Minute
+
 // autoCompactWindow sets Claude Code's auto-compact window so long turns
 // don't get cut off mid-task. It is a token count with no suffix: the CLI
 // does not parse "256k" and falls back to a 100k window, which with its 33k
@@ -187,14 +193,31 @@ func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema 
 
 	// The process is not tied to ctx: on cancellation the turn is
 	// interrupted first so Claude Code can wind down, then closed.
-	processCtx, stop := context.WithCancel(context.Background())
-	defer stop()
+	processCtx, stop := context.WithCancelCause(context.Background())
+	defer stop(nil)
 	client, err := claudeagent.NewClient(options...)
 	if err != nil {
 		return gimbal.TurnResult{}, fmt.Errorf("claude: %w", err)
 	}
 	defer func() { _ = client.Close() }()
+	started := make(chan struct{})
+	go func() {
+		select {
+		case <-started:
+		case <-ctx.Done():
+			stop(ctx.Err())
+		case <-time.After(startTimeout):
+			stop(fmt.Errorf("claude: Claude Code did not start within %s; check that the claude CLI runs and is signed in", startTimeout))
+		}
+	}()
 	stream, err := client.Stream(processCtx)
+	close(started)
+	if cause := context.Cause(processCtx); cause != nil {
+		if stream != nil {
+			_ = stream.Close()
+		}
+		return gimbal.TurnResult{}, cause
+	}
 	if err != nil {
 		return gimbal.TurnResult{}, fmt.Errorf("claude: %w", err)
 	}

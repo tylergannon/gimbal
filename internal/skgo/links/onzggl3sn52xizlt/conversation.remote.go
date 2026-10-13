@@ -42,7 +42,7 @@ func createConversation(ctx context.Context, event app.RequestEvent[params.Param
 	if err != nil {
 		return conversation.Conversation{}, skgo.Errorf(http.StatusBadRequest, "%s", err)
 	}
-	return item, nil
+	return item, skgo.RefreshRequested(ctx, projectConversations, 1)
 }
 
 func sendConversationMessage(ctx context.Context, event app.RequestEvent[params.Params], arg SendConversationMessage) (conversation.Conversation, error) {
@@ -58,7 +58,7 @@ func sendConversationMessage(ctx context.Context, event app.RequestEvent[params.
 	if err != nil {
 		return item, skgo.Errorf(http.StatusBadGateway, "%s", err)
 	}
-	return item, nil
+	return item, skgo.RefreshRequested(ctx, projectConversations, 1)
 }
 
 var _ = skgo.Form(createConversation)

@@ -160,7 +160,12 @@ func setPromiseWithdrawn(ctx context.Context, event app.RequestEvent[params.Para
 	if e != nil {
 		return promises.Entry{}, e
 	}
-	return p.Promises().SetWithdrawn(r.ID, r.Withdrawn)
+	entry, e := p.Promises().SetWithdrawn(r.ID, r.Withdrawn)
+	if e != nil {
+		// The person sees why the ledger refused, not a generic 500.
+		return promises.Entry{}, skgo.Errorf(500, "%v", e)
+	}
+	return entry, nil
 }
 
 var _ = skgo.LiveQuery(watchPromises)

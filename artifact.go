@@ -207,6 +207,15 @@ func fitExcerpt(text, absolutePath string, maxTokens int) string {
 
 func fitExcerptBytes(text, absolutePath string, maxTokens, maxBytes int) string {
 	low, high := 0, min(len(text), maxBytes)
+	// Most previews already fit at the requested byte limit. Validate that
+	// exact candidate before searching for a smaller one.
+	if high >= 0 {
+		candidate := excerptBytes(text, high, absolutePath)
+		if tokenCount(candidate) <= maxTokens {
+			return candidate
+		}
+		high--
+	}
 	best := excerptBytes(text, 0, absolutePath)
 	for low <= high {
 		middle := low + (high-low)/2
@@ -240,7 +249,8 @@ func budgetRenderedText(ctx context.Context, kind, text string, limit int) (stri
 	if err != nil {
 		return "", fmt.Errorf("gimbal: write %s artifact: %w", kind, err)
 	}
-	return fitExcerpt(text, artifactAbsolute(s.run, desc), limit), nil
+	// The complete text was already counted above and exceeds the budget.
+	return fitExcerptBytes(text, artifactAbsolute(s.run, desc), limit, artifactPreviewBytes), nil
 }
 
 func valueArtifact(desc artifactDescriptor) *ValueArtifact {

@@ -15,9 +15,7 @@ import (
 // Its context bounds establishment only; resource-owning transports implement
 // io.Closer and are closed by their caller after all cleanup operations.
 type MessagingDefinition struct {
-	Name string
-	// ConstructBackends optionally supplies process-local environment and secrets dependencies.
-	ConstructBackends     func(context.Context, json.RawMessage) (backend.Dependencies, error)
+	Name                  string
 	ValidateConfiguration func(json.RawMessage) error
 	Connect               func(context.Context, json.RawMessage, backend.Dependencies) (backend.Messaging, error)
 	Worker                func(context.Context, json.RawMessage, backend.Dependencies, backend.MessageHandler) error

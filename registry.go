@@ -53,11 +53,13 @@ type WorkflowDefinition struct {
 // Registry admits workflow definitions before a host accepts work.
 // Its zero value is usable; a failed insertion leaves the catalog unchanged.
 type Registry struct {
-	mu        sync.RWMutex
-	workflows map[string]WorkflowDefinition
-	backends  map[string]BackendDefinition
-	messaging map[string]MessagingDefinition
-	source    string
+	mu            sync.RWMutex
+	workflows     map[string]WorkflowDefinition
+	backends      map[string]BackendDefinition
+	messaging     map[string]MessagingDefinition
+	orchestrators map[string]OrchestratorDefinition
+	secrets       map[string]SecretsDefinition
+	source        string
 }
 
 var DefaultRegistry = &Registry{}
@@ -344,24 +346,25 @@ func (r *Registry) Connect(ctx context.Context, route backend.Route) (backend.Co
 			return backend.Connection{}, err
 		}
 		var dependencies backend.Dependencies
-		if len(route.Backends) > 0 {
+		if route.Backends != nil {
 			var err error
-			if d.ConstructBackends != nil {
-				dependencies, err = d.ConstructBackends(ctx, route.Backends)
-			} else {
-				dependencies, err = r.constructLocalBackends(route.Backends)
-			}
+			dependencies, err = r.constructDependencies(ctx, *route.Backends)
 			if err != nil {
 				return backend.Connection{}, err
 			}
+		}
+
+		if route.Environment != "" && dependencies.Routing == nil {
+			connection := backend.Connection{Orchestrator: dependencies.Orchestrator, Secrets: dependencies.Secrets}
+			return backend.Connection{}, errors.Join(fmt.Errorf("named environment %q requires an orchestrator with environment routing", route.Environment), connection.Close())
 		}
 		b, err := d.Connect(ctx, route.Configuration, dependencies)
 		connection := backend.Connection{Messages: b, Orchestrator: dependencies.Orchestrator, Secrets: dependencies.Secrets}
 		if err != nil {
 			return backend.Connection{}, errors.Join(err, connection.Close())
 		}
-		if dependencies.WrapMessaging != nil {
-			routed, err := dependencies.WrapMessaging(ctx, b)
+		if dependencies.Routing != nil {
+			routed, err := r.connectEnvironments(ctx, b, dependencies.Routing, dependencies)
 			if err != nil {
 				return backend.Connection{}, errors.Join(err, connection.Close())
 			}
@@ -369,6 +372,9 @@ func (r *Registry) Connect(ctx context.Context, route backend.Route) (backend.Co
 		}
 
 		return connection, nil
+	}
+	if route.Backends != nil {
+		return backend.Connection{}, fmt.Errorf("backend selections require a messaging route")
 	}
 	d, ok := r.Backend(route.Name)
 	if !ok {

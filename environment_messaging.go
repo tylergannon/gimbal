@@ -15,48 +15,45 @@ import (
 type environmentMessaging struct {
 	registry     *Registry
 	base         backend.Messaging
-	controller   *localOrchestrator
+	routing      backend.EnvironmentRouting
 	dependencies backend.Dependencies
 	mu           sync.Mutex
 	buses        map[string]backend.Messaging
 }
 
-func (r *Registry) connectEnvironments(ctx context.Context, base backend.Messaging, controller *localOrchestrator, deps backend.Dependencies) (backend.Messaging, error) {
-	for name, environment := range controller.config.Environments {
-		d, ok := r.Messaging(environment.Route.Name)
-		if !ok {
-			return nil, fmt.Errorf("environment %q needs a messaging route", name)
-		}
-		if err := d.ValidateConfiguration(environment.Route.Configuration); err != nil {
-			return nil, err
-		}
-	}
-	return &environmentMessaging{registry: r, base: base, controller: controller, dependencies: deps, buses: map[string]backend.Messaging{}}, nil
+func (r *Registry) connectEnvironments(_ context.Context, base backend.Messaging, routing backend.EnvironmentRouting, deps backend.Dependencies) (backend.Messaging, error) {
+	return &environmentMessaging{registry: r, base: base, routing: routing, dependencies: deps, buses: map[string]backend.Messaging{}}, nil
 }
-func (m *environmentMessaging) bus(ctx context.Context, name string) (backend.Messaging, error) {
-	if name == "" {
+func (m *environmentMessaging) bus(ctx context.Context, destination backend.EnvironmentDestination) (backend.Messaging, error) {
+	if destination.ID == "" {
 		return m.base, nil
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if bus := m.buses[name]; bus != nil {
+	if bus := m.buses[destination.ID]; bus != nil {
 		return bus, nil
 	}
-	route := m.controller.config.Environments[name].Route
-	definition, _ := m.registry.Messaging(route.Name)
+	route := destination.Route
+	definition, ok := m.registry.Messaging(route.Name)
+	if !ok {
+		return nil, fmt.Errorf("environment %q needs a messaging route", destination.ID)
+	}
+	if err := definition.ValidateConfiguration(route.Configuration); err != nil {
+		return nil, err
+	}
 	bus, err := definition.Connect(ctx, route.Configuration, m.dependencies)
 	if err != nil {
 		return nil, err
 	}
-	m.buses[name] = bus
+	m.buses[destination.ID] = bus
 	return bus, nil
 }
 func (m *environmentMessaging) PublishRequest(ctx context.Context, r backend.MessageRequest) error {
-	names, err := m.controller.assigned(r)
+	destinations, err := m.routing.Destinations(ctx, r)
 	if err != nil {
 		return err
 	}
-	if len(names) == 0 {
+	if len(destinations) == 0 {
 		if r.Kind != "cleanup" {
 			return fmt.Errorf("no environment owns %s %s", r.Kind, r.Task)
 		}
@@ -65,7 +62,10 @@ func (m *environmentMessaging) PublishRequest(ctx context.Context, r backend.Mes
 		return m.base.PublishEvent(ctx, backend.MessageEvent{ID: ulid.Make().String(), RequestID: r.ID, Created: time.Now().UTC(), Owner: r.Owner, Kind: "completed", Result: &backend.MessageResult{}})
 	}
 	if r.Kind != "cleanup" {
-		bus, err := m.bus(ctx, names[0])
+		if len(destinations) != 1 {
+			return fmt.Errorf("multiple environments own %s %s", r.Kind, r.Task)
+		}
+		bus, err := m.bus(ctx, destinations[0])
 		if err != nil {
 			return err
 		}
@@ -80,9 +80,9 @@ func (m *environmentMessaging) PublishRequest(ctx context.Context, r backend.Mes
 		result := &backend.MessageResult{}
 		var mu sync.Mutex
 		var group sync.WaitGroup
-		for _, name := range names {
+		for _, destination := range destinations {
 			group.Go(func() {
-				bus, err := m.bus(ctx, name)
+				bus, err := m.bus(ctx, destination)
 				if err == nil {
 					child := r
 					child.ID = ulid.Make().String()
@@ -95,7 +95,7 @@ func (m *environmentMessaging) PublishRequest(ctx context.Context, r backend.Mes
 								return nil
 							}
 							if e.Result.Error != "" || e.Result.Unresolved {
-								return fmt.Errorf("environment %s cleanup: %s", name, e.Result.Error)
+								return fmt.Errorf("environment %s cleanup: %s", destination.ID, e.Result.Error)
 							}
 							return done
 						})
@@ -124,13 +124,13 @@ func (m *environmentMessaging) ListenEvents(ctx context.Context, selection backe
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	events := make(chan backend.MessageEvent)
-	failures := make(chan error, len(m.controller.config.Environments)+1)
+	failures := make(chan error)
 	started := map[string]bool{}
 	seen := map[string]bool{}
-	start := func(name string) {
-		started[name] = true
+	start := func(destination backend.EnvironmentDestination) {
+		started[destination.ID] = true
 		go func() {
-			bus, err := m.bus(ctx, name)
+			bus, err := m.bus(ctx, destination)
 			if err == nil {
 				err = bus.ListenEvents(ctx, selection, since, func(e backend.MessageEvent) error {
 					select {
@@ -147,7 +147,7 @@ func (m *environmentMessaging) ListenEvents(ctx context.Context, selection backe
 			}
 		}()
 	}
-	start("")
+	start(backend.EnvironmentDestination{})
 	ticker := time.NewTicker(20 * time.Millisecond)
 	defer ticker.Stop()
 	for {
@@ -164,18 +164,13 @@ func (m *environmentMessaging) ListenEvents(ctx context.Context, selection backe
 				}
 			}
 		case <-ticker.C:
-			m.controller.mu.Lock()
-			var active []string
-			for name := range m.controller.config.Environments {
-				use, err := m.controller.load(name)
-				if err == nil && use.PID != 0 {
-					active = append(active, name)
-				}
+			active, err := m.routing.ActiveEnvironments(ctx)
+			if err != nil {
+				return err
 			}
-			m.controller.mu.Unlock()
-			for _, name := range active {
-				if !started[name] {
-					start(name)
+			for _, destination := range active {
+				if !started[destination.ID] {
+					start(destination)
 				}
 			}
 		}

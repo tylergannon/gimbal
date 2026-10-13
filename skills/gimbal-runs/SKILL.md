@@ -194,19 +194,30 @@ and `Backends`. For example, with the filesystem plugin:
   "Configuration": {"Directory": "/abs/control"},
   "Environment": "development",
   "Backends": {
-    "Directory": "/abs/private-backends",
-    "Environments": {
-      "development": {
-        "Command": ["/abs/gimbal", "message-worker", "--plugin-dir", "/abs/plugins", "--task-route", "@/abs/worker.json"],
-        "Route": {"Name": "filesystem", "Configuration": {"Directory": "/abs/development-messages"}}
+    "Orchestrator": {
+      "Name": "local",
+      "Configuration": {
+        "Directory": "/abs/private-backends",
+        "Environments": {
+          "development": {
+            "Command": ["/abs/gimbal", "message-worker", "--plugin-dir", "/abs/plugins", "--task-route", "@/abs/worker.json"],
+            "Route": {"Name": "filesystem", "Configuration": {"Directory": "/abs/development-messages"}}
+          }
+        }
       }
-    }
+    },
+    "Secrets": {"Name": "file", "Configuration": {"Directory": "/abs/private-backends/secrets"}}
   }
 }
 ```
 
 `worker.json` contains the same Name and Configuration as that environment's
-Route. Orchestration supplies worker readiness and shared secrets flags. It
+Route. Orchestration supplies worker readiness and passes the selected secrets
+configuration through private standard input. Named orchestrator and secrets
+registrations are independent of the messaging plugin. The local subprocess
+orchestrator requires shared secrets; the `file` backend shares its private
+directory across callers and workers. The `memory` backend is for callers and
+workers in the same process and is rejected for local subprocess orchestration. It
 starts the daemon before dispatch, preserves unrelated scoped use, and stops
 it after its last native scope is cleaned up. Do not start this worker manually.
 Named environments require messaging; direct task endpoints cannot bypass placement.

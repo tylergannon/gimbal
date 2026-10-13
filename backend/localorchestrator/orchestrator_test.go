@@ -1,6 +1,7 @@
-package gimbal
+package localorchestrator
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"os"
@@ -18,6 +19,7 @@ func TestEnvironmentOwnershipReadinessAndScopedRelease(t *testing.T) {
 while [ "$#" -gt 0 ]; do
  case "$1" in --ready-file) ready="$2"; shift 2;; *) shift;; esac
 done
+cat > "$(dirname "$ready")/bootstrap.json"
 trap 'exit 0' INT
 printf ready > "$ready"
 while :; do sleep 1; done
@@ -25,13 +27,11 @@ while :; do sleep 1; done
 	if err != nil {
 		t.Fatal(err)
 	}
-	config := LocalBackends{Directory: dir, Environments: map[string]EnvironmentCommand{"dev": {Command: []string{script}}}}
-	raw, _ := json.Marshal(config)
-	deps, err := (&Registry{}).constructLocalBackends(raw)
+	config := Config{Directory: dir, Environments: map[string]EnvironmentCommand{"dev": {Command: []string{script}}}}
+	controller, err := Open(config, backend.Selection{Name: "custom-shared", Configuration: json.RawMessage(`{"Endpoint":"private-bootstrap-value"}`)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	controller := deps.Orchestrator.(*localOrchestrator)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	a := backend.Owner{Run: "a", Scope: "root/child", Task: "session"}
@@ -45,8 +45,26 @@ while :; do sleep 1; done
 	if _, err := controller.AcquireEnvironment(ctx, a, "dev"); err != nil {
 		t.Fatal(err)
 	}
+	rawBootstrap, err := os.ReadFile(filepath.Join(dir, "bootstrap.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var received backend.Selection
+	if err := json.Unmarshal(rawBootstrap, &received); err != nil {
+		t.Fatal(err)
+	}
+	if received.Name != "custom-shared" || !bytes.Equal(received.Configuration, json.RawMessage(`{"Endpoint":"private-bootstrap-value"}`)) {
+		t.Fatalf("selected bootstrap lost: %s", rawBootstrap)
+	}
+	log, err := os.ReadFile(controller.file("dev") + ".log")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(log, []byte("private-bootstrap-value")) {
+		t.Fatal("bootstrap leaked to daemon log")
+	}
 	first, _ := controller.load("dev")
-	independent := &localOrchestrator{config: config}
+	independent := &Orchestrator{config: config}
 	if _, err := independent.AcquireEnvironment(ctx, b, "dev"); err != nil {
 		t.Fatal(err)
 	}
@@ -78,26 +96,5 @@ while :; do sleep 1; done
 	}
 	if _, err := os.Stat(controller.file("dev")); !os.IsNotExist(err) {
 		t.Fatal("stopped environment receipt retained", err)
-	}
-}
-
-type cleanupEventSink struct {
-	backend.Messaging
-	event backend.MessageEvent
-}
-
-func (s *cleanupEventSink) PublishEvent(_ context.Context, e backend.MessageEvent) error {
-	s.event = e
-	return nil
-}
-func TestParentCleanupAfterLastEnvironmentRelease(t *testing.T) {
-	sink := &cleanupEventSink{}
-	bus := &environmentMessaging{base: sink, controller: &localOrchestrator{config: LocalBackends{Directory: t.TempDir()}}}
-	request := backend.MessageRequest{ID: "cleanup", Kind: "cleanup", Run: "run", ScopeTarget: &backend.Scope{Run: "run"}}
-	if err := bus.PublishRequest(t.Context(), request); err != nil {
-		t.Fatal(err)
-	}
-	if sink.event.RequestID != request.ID || sink.event.Kind != "completed" || sink.event.Result == nil || sink.event.Result.Unresolved {
-		t.Fatalf("parent cleanup did not confirm no remaining native ownership: %+v", sink.event)
 	}
 }

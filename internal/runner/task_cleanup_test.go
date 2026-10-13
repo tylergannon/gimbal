@@ -106,11 +106,15 @@ func TestMessagingOrphanCleanupOwnsConnectionUntilOperationEnds(t *testing.T) {
 	}
 	var opened, closed, constructed atomic.Int32
 	name := fmt.Sprintf("cleanup-%d", time.Now().UnixNano())
-	err := gimbal.DefaultRegistry.RegisterMessaging(gimbal.MessagingDefinition{Name: name, ConstructBackends: func(context.Context, json.RawMessage) (backend.Dependencies, error) {
+	err := gimbal.DefaultRegistry.RegisterSecrets(gimbal.SecretsDefinition{Name: name, ValidateConfiguration: func(json.RawMessage) error { return nil }, Construct: func(context.Context, json.RawMessage) (backend.SecretsBackend, error) {
 		constructed.Add(1)
-		return backend.Dependencies{Orchestrator: &orphanResources{}}, nil
-	}, ValidateConfiguration: func(json.RawMessage) error { return nil }, Connect: func(ctx context.Context, _ json.RawMessage, resources backend.Dependencies) (backend.Messaging, error) {
-		if resources.Orchestrator == nil {
+		return backend.NewMemorySecrets(), nil
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = gimbal.DefaultRegistry.RegisterMessaging(gimbal.MessagingDefinition{Name: name, ValidateConfiguration: func(json.RawMessage) error { return nil }, Connect: func(ctx context.Context, _ json.RawMessage, resources backend.Dependencies) (backend.Messaging, error) {
+		if resources.Secrets == nil {
 			return nil, fmt.Errorf("cleanup connection lost its dependency")
 		}
 		opened.Add(1)
@@ -121,7 +125,7 @@ func TestMessagingOrphanCleanupOwnsConnectionUntilOperationEnds(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	route, _ := json.Marshal(backend.Route{Name: name, Backends: json.RawMessage(`{"fixture":true}`)})
+	route, _ := json.Marshal(backend.Route{Name: name, Backends: &backend.BackendSelection{Secrets: backend.Selection{Name: name}}})
 	if err = os.WriteFile(filepath.Join(dir, "task-route"), route, 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -136,10 +140,3 @@ func TestMessagingOrphanCleanupOwnsConnectionUntilOperationEnds(t *testing.T) {
 		t.Fatalf("opened=%d closed=%d", opened.Load(), closed.Load())
 	}
 }
-
-type orphanResources struct{}
-
-func (*orphanResources) AcquireEnvironment(context.Context, backend.Owner, string) (backend.Environment, error) {
-	return backend.Environment{}, nil
-}
-func (*orphanResources) Release(context.Context, backend.Scope) error { return nil }

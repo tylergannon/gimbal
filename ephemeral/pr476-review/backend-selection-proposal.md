@@ -8,4 +8,4 @@ Move the subprocess orchestrator into a backend package. Give it the narrow rout
 
 No new cloud or secrets provider is part of this change. Proof is that a second small secrets implementation can be selected without changing the messaging plugin or orchestrator, and the existing three messaging transports still complete `service-check` with cleanup.
 
-This is a proposal for approval, not authorization to implement. #478 and #479 remain follow-up work after #476, per the owner's review.
+The user approved choosing this direction on October 12, 2026, with another review to follow. #478 and #479 are implemented together in a separate follow-up PR stacked on #476; neither PR is merged or deployed by this work.

@@ -10,8 +10,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/tylergannon/gimbal/backend/secretfiles"
-
 	"github.com/spf13/cobra"
 	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/backend"
@@ -20,7 +18,8 @@ import (
 )
 
 func newMessagingWorkerCommand() *cobra.Command {
-	var routeFile, readyFile, secretsDirectory string
+	var routeFile, readyFile string
+	var secretsStdin bool
 	var dirs []string
 	c := &cobra.Command{Use: "message-worker", Short: "Serve native actions through a runtime-loaded messaging plugin", Long: `Serve the configured request store/queue or HTTP endpoint on an operator-trusted network using the native task owner. --task-route is a JSON file with Name and Configuration; --plugin-dir contains compatible native .so plugins. Keep this worker alive for its actions and sessions; restarting does not resume them. Delivery budgets belong to the selected implementation and caller context. Missing acceptance or completion is an unresolved outcome, never proof of native failure. No automatic replay or host provisioning is provided. Release workflow scopes before stopping the worker.
 
@@ -42,6 +41,16 @@ Filesystem Configuration: {"Directory":"/abs/private-messages"}. Events remain u
 		if err = d.ValidateConfiguration(route.Configuration); err != nil {
 			return err
 		}
+		if secretsStdin {
+			if route.Backends != nil {
+				return fmt.Errorf("worker route must not also select backends when using secrets bootstrap")
+			}
+			var selection backend.Selection
+			if err := json.NewDecoder(c.InOrStdin()).Decode(&selection); err != nil {
+				return fmt.Errorf("invalid secrets bootstrap configuration")
+			}
+			route.Backends = &backend.BackendSelection{Secrets: selection}
+		}
 		connection, err := gimbal.DefaultRegistry.Connect(ctx, route)
 		if err != nil {
 			return err
@@ -55,12 +64,7 @@ Filesystem Configuration: {"Directory":"/abs/private-messages"}. Events remain u
 		if daemon.Secrets == nil {
 			daemon.Secrets = backend.NewMemorySecrets()
 		}
-		if secretsDirectory != "" {
-			daemon.Secrets, err = secretfiles.Open(secretsDirectory)
-			if err != nil {
-				return err
-			}
-		}
+
 		dependencies := backend.Dependencies{Orchestrator: connection.Orchestrator, Secrets: daemon.Secrets}
 		if readyFile != "" {
 			dependencies.Ready = func() error { return os.WriteFile(readyFile, []byte("ready\n"), 0600) }
@@ -73,7 +77,7 @@ Filesystem Configuration: {"Directory":"/abs/private-messages"}. Events remain u
 		return err
 	}}
 	c.Flags().StringVar(&readyFile, "ready-file", "", "private readiness file written after worker starts listening")
-	c.Flags().StringVar(&secretsDirectory, "secrets-directory", "", "private shared scoped secrets directory")
+	c.Flags().BoolVar(&secretsStdin, "secrets-config-stdin", false, "read selected secrets backend configuration privately from standard input")
 	c.Flags().StringVar(&routeFile, "task-route", "", "messaging route JSON or @file")
 	c.Flags().StringSliceVar(&dirs, "plugin-dir", nil, "native messaging plugin directories")
 	return c

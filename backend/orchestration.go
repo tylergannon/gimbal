@@ -20,6 +20,22 @@ type StoreWrite struct {
 
 type Environment struct{ ID string }
 
+// EnvironmentDestination identifies a daemon's messaging route. Its ID and route
+// remain stable while acquired environments are in use.
+type EnvironmentDestination struct {
+	ID    string
+	Route Route
+}
+
+// EnvironmentRouting discovers placement without exposing backend ownership
+// records. Destinations returns one owner for ordinary requests, all relevant
+// owners for cleanup, or none when there is no assignment. ActiveEnvironments
+// returns the ready destinations whose events must be observed. IDs are unique.
+type EnvironmentRouting interface {
+	Destinations(context.Context, MessageRequest) ([]EnvironmentDestination, error)
+	ActiveEnvironments(context.Context) ([]EnvironmentDestination, error)
+}
+
 // OrchestratorBackend establishes a ready messaging daemon and its assignment.
 // Release follows native cleanup, includes descendants, and preserves unrelated use.
 type OrchestratorBackend interface {
@@ -41,8 +57,7 @@ type Dependencies struct {
 	Orchestrator OrchestratorBackend
 	Secrets      SecretsBackend
 	Ready        func() error
-	// WrapMessaging injects concrete discovery without widening backend contracts.
-	WrapMessaging func(context.Context, Messaging) (Messaging, error)
+	Routing      EnvironmentRouting
 }
 
 // ResourceFact describes readiness without a connection address or secret.

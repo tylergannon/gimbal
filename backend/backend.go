@@ -63,6 +63,18 @@ type State struct {
 	Error   string
 }
 
+// Selection chooses one registered implementation and its validated configuration.
+type Selection struct {
+	Name          string
+	Configuration json.RawMessage
+}
+
+// BackendSelection selects orchestration and secrets independently of messaging.
+type BackendSelection struct {
+	Orchestrator Selection
+	Secrets      Selection
+}
+
 // Route is retained independently of an execution environment's filesystem.
 type Route struct {
 	Name          string
@@ -70,8 +82,8 @@ type Route struct {
 	// Environment names an orchestrated task placement; it is never a display label.
 	Environment string
 	// Label describes a direct execution route in the console without selecting placement.
-	Label    string          `json:",omitempty"`
-	Backends json.RawMessage `json:",omitempty"`
+	Label    string            `json:",omitempty"`
+	Backends *BackendSelection `json:",omitempty"`
 }
 type Events struct {
 	Events           []json.RawMessage

@@ -59,7 +59,16 @@
       ? { id: path, title: 'New conversation', kind: 'chat' as const }
       : page.params.fileID ? { id: path, title: files.find(file => file.id === page.params.fileID)?.name ?? 'Project file', kind: 'file' as const }
       : recordingID ? { id: path, title: 'Recorded conversation', kind: 'chat' as const } : undefined);
-    if (tab && !open.some(item => item.id === tab.id)) open = [...open, tab];
+    // A conversation started from the New conversation tab takes over that tab.
+    const form = path === started ? open.findIndex(item => item.id === `${root}/conversations/new`) : -1;
+    started = undefined;
+    if (!tab || open.some(item => item.id === tab.id)) return;
+    open = form >= 0 ? open.with(form, tab) : [...open, tab];
+  }
+  let started: string | undefined;
+  function created(conversation: Conversation) {
+    chats.set([conversation, ...conversations.filter(item => item.id !== conversation.id)]);
+    started = `${root}/conversations/${conversation.id}`;
   }
   afterNavigate(() => {
     if (page.url.pathname === `${root}/conversations` && initialConversation?.id) select(`${root}/conversations/${initialConversation.id}`);
@@ -110,7 +119,7 @@
   onselect={select} onclose={close} onopen={select} onnew={() => select(`${root}/conversations/new`)}>
   {#snippet content(tab)}
     <svelte:boundary>
-      {#if tab.id === `${root}/conversations/new`}<ConversationCreate {project} oncreated={created => chats.set([created, ...conversations.filter(item => item.id !== created.id)])} />
+      {#if tab.id === `${root}/conversations/new`}<ConversationCreate {project} oncreated={created} />
       {:else if tab.id.startsWith(`${root}/conversations/`)}
         {@const current = conversations.find(item => `${root}/conversations/${item.id}` === tab.id)}
         {#if current}<ConversationView {project} {current} />{:else}<p class="notice">Conversation unavailable.</p>{/if}
@@ -121,7 +130,7 @@
   {/snippet}
   {#snippet fallback()}
     {#if page.url.pathname === `${root}/conversations`}
-      <ConversationCreate {project} oncreated={created => chats.set([created, ...conversations.filter(item => item.id !== created.id)])} />
+      <ConversationCreate {project} oncreated={created} />
     {:else if page.url.pathname === `${root}/recordings`}
       <section class="welcome"><h1>{name}</h1><p>Open a conversation or file from the sidebar, or start a new conversation.</p><button onclick={() => select(`${root}/conversations/new`)}>New conversation</button><p>Record audio from the macOS Recording menu.</p></section>
     {:else}<div class="route-content">{@render children()}</div>{/if}

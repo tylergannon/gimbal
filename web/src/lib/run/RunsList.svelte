@@ -403,6 +403,7 @@
   }
 
   .tools {
+    flex-wrap: wrap;
     gap: 12px;
   }
 
@@ -427,6 +428,7 @@
   }
 
   .search {
+    flex: none;
     width: 300px;
     margin-left: auto;
   }
@@ -445,7 +447,7 @@
 
   .cards {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr));
     gap: 14px;
   }
 
@@ -499,6 +501,10 @@
     gap: 12px;
   }
 
+  .card-foot {
+    flex-wrap: wrap;
+  }
+
   .identity,
   .latest,
   .instruction {
@@ -508,15 +514,20 @@
   }
 
   .identity {
+    flex: 1;
     gap: 2px;
   }
 
-  .identity strong {
+  .identity strong,
+  .identity code {
     overflow: hidden;
-    font-size: 16px;
-    line-height: 22px;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .identity strong {
+    font-size: 16px;
+    line-height: 22px;
   }
 
   .identity code,
@@ -599,13 +610,15 @@
 
   .stats {
     min-width: 0;
-    gap: 16px;
+    flex-wrap: wrap;
+    gap: 8px 16px;
   }
 
   .stats > span {
     display: flex;
     flex-direction: column;
     gap: 1px;
+    white-space: nowrap;
   }
 
   .stats strong {
@@ -660,20 +673,4 @@
     }
   }
 
-  @media (max-width: 760px) {
-    .cards {
-      grid-template-columns: 1fr;
-    }
-
-    .card-foot {
-      align-items: flex-end;
-    }
-
-    .stats {
-      display: grid;
-      flex: 1;
-      grid-template-columns: repeat(2, minmax(64px, 1fr));
-      gap: 8px 16px;
-    }
-  }
 </style>

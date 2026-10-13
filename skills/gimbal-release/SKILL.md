@@ -100,6 +100,17 @@ URL.
 
 ## Publish builds
 
+Every push to `main` now builds and checks the application, then automatically
+records the next patch version in `CHANGELOG.md`, tags it, and dispatches the
+existing signed release workflow on that tag. Pending pushes coalesce; a stale
+checked revision cannot overwrite newer main. The release commit records its
+checked source SHA. A retry reuses its tag and active/successful build instead of
+incrementing the version again. For a failed publication, rerun **Automatic
+release** (on `main`) or the failed **Release** run for its existing tag. Follow
+the resulting Release run through publication; a merged PR or queued build does
+not establish delivery through the updater. Minor/major releases may still be
+tagged deliberately using the existing release pipeline.
+
 Use the release scripts and GoReleaser configuration in the repository. Read
 [distribution.md](references/distribution.md) for local signing setup, runner
 requirements, credentials, artifact names and publication commands.
@@ -191,8 +202,8 @@ with `go install`.
 
 Commit and push meaningful work; follow repository review and squash-merge
 practice within the user's authorized scope. Retain the task worktree when the
-user has asked to keep it. Every release must update `CHANGELOG.md`: move the
-relevant entries from `Unreleased` under a version heading with the release date,
+user has asked to keep it. The automatic release job updates `CHANGELOG.md` for
+patch releases. For a manual minor/major release, move the relevant entries from `Unreleased` under a version heading with the release date,
 update comparison links when tags exist, and leave a new empty `Unreleased`
 section for subsequent work. Update affected skill and plugin instructions in
 their maintained source before merging. After every merge, build the updated
@@ -235,7 +246,8 @@ unrelated local configuration. Report when a new session is needed to load
 updated instructions.
 
 The documentation site is maintained in Gimbal View. Model-catalog refreshes
-open source PRs; release publication is a separate tagged workflow.
+open source PRs; release publication follows the automatic checked-main tagging
+job through the existing tagged workflow.
 
 ## Report delivery
 

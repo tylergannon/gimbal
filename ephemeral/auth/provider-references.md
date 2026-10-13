@@ -16,6 +16,13 @@ Source: https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizi
 - The application calls GET https://api.github.com/user with the access token
   and must revalidate identity after every sign-in.
 
+Source: https://www.rfc-editor.org/rfc/rfc6749#section-4.1.2
+
+- Authorization codes must not be used more than once. The authorization
+  server must deny an attempt to reuse one, and should revoke tokens previously
+  issued from that code when possible. This is a provider obligation; a
+  stateless client flow cookie does not itself enforce one-use flow state.
+
 Source: https://docs.github.com/en/rest/users/users#get-the-authenticated-user
 
 - The authenticated-user response includes a numeric id and a login name.

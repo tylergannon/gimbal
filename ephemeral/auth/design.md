@@ -136,18 +136,26 @@ Gimbal defines these routes. Plugins receive no ResponseWriter, request handler,
 route registration, or access to the rest of the HTTP application.
 
 1. GET `/auth/login` shows a sign-in page in the existing SvelteKit application.
-   POST `/auth/login` verifies
-   the configured browser origin and starts provider authorization. Gimbal
-   records a five-minute, one-use pending flow bound to a random HttpOnly cookie
-   in the initiating browser. It retains state, verifier, nonce, and a validated
-   same-origin return path. Pending flows may be in memory; a restart invalidates
-   them and the user restarts login. Expired flows
-   are removed and a new attempt replaces the browser's prior attempt. Bound the
-   pending-flow map to 1024 entries and reject new attempts when full rather
-   than growing without limit. There is one selected provider for the instance.
-2. GET `/auth/callback` validates the pending flow cookie, state and
-   expiry and consumes the flow exactly once before any token exchange. OAuth
-   denial or invalid fields end the attempt without creating a user/session.
+   Its button calls an application-owned skgo `beginLogin` command. The command
+   runs skgo's normal origin check, generates state/verifier/nonce, and sets a
+   five-minute HttpOnly flow cookie containing those values and expiry. Encrypt
+   and authenticate the cookie with an AEAD and a random per-process key. Keep
+   the small payload bounded and use a fresh AEAD nonce for each issuance. A
+   restart invalidates unfinished logins because the key changes. There is no
+   server-side pending-flow map to exhaust. The command returns the provider
+   authorization URL for external navigation via the framework navigation API,
+   without hand-written fetch or History API calls. There is one selected
+   provider and one configured callback URL for the instance.
+2. GET `/auth/callback` is an application server route because the provider
+   navigates to it. Validate/decrypt the flow cookie, check its expiry and the
+   returned state, and clear that cookie on completion. A missing cookie,
+   mismatched state, invalid code or provider denial creates no user/session.
+   Exact-code replay is refused by the provider's one-use authorization-code
+   exchange; do not cache a successful identity result for reuse. Concurrent
+   exchanges of the same code must yield at most one successful login. The
+   stateless cookie alone does not claim a server-enforced one-use flow: a new
+   provider-issued code can start another login within its five-minute lifetime.
+   Existing sessions are independently revocable through durable storage.
 3. Exchange the code for a verified Identity. Call UserForIdentity with its
    exact issuer/subject. An identity without a local user receives 403 and no
    session is created. There is no automatic user creation or public signup.
@@ -155,15 +163,15 @@ route registration, or access to the rest of the HTTP application.
    and an absolute eight-hour expiry. Never adopt a token supplied
    by the browser. Replacing an existing session also revokes the previous
    session before the replacement cookie is issued. Set the session cookie
-   only after the required durable operations succeed, then redirect to the
-   validated return path (default `/`).
+   only after the required durable operations succeed, then redirect to `/`.
 5. On each protected request, hash the cookie token, read the session, check its
    expiry, and retrieve User by local ID. Reject absent,
    expired, malformed or invalid users/sessions. Never serialize the customer's
    concrete User or put an OAuth token into a cookie. Attach User to request
    context; expose only an explicit ID/name DTO if the page needs it.
-6. POST `/auth/logout` uses the same authentication and origin checks, durably
-   deletes that session, then expires the browser cookie. A deletion failure
+6. The application-owned skgo `logout` command uses the same authentication
+   and skgo origin checks, durably deletes that session, then expires the browser
+   cookie. A deletion failure
    returns 503 without reporting successful logout or clearing the cookie, so
    the caller can retry. Logout does not cancel workflows already running.
 
@@ -174,29 +182,39 @@ is the sole origin passed to both auth and every skgo configuration; there is no
 second origin for remotes. Cookie names use the `__Host-` prefix. A proxy
 terminates HTTPS while Gimbal retains its loopback or
 UDS listener. Do not infer origin/callback URLs from arbitrary forwarded headers.
-Return paths must be local paths, with no scheme, host, or protocol-relative URL.
+After login the browser goes to `/`; no return-path parameter or redirect policy
+is needed. The callback's code/state query parameters are OAuth protocol inputs,
+not Gimbal page state or resource identity.
 
 Protect the entire web stack: pages, SSR loads, remote queries/commands/forms,
 file routes, run snapshots, streams, and artifacts. The only unauthenticated
-exceptions are the login page, login initiation, callback, and manifest-listed
-static build assets used by that page. The login layout reads no project data.
+exceptions are GET `/auth/login` and its generated route-data request, the
+exact generated POST remote for beginLogin, GET `/auth/callback`, and
+manifest-listed static build assets used by the login page. Logout is protected.
+Never expose other functions from a shared remote module by prefix. The login
+page and route-data request dispatch before projectRequest, so their layout
+load has no Owner or project-choice context and reads no project data. The
+anonymous layout does not start RecorderBridge or other project subscriptions.
 Classify exact built static resources, never a blanket `/_app/` prefix that also
 contains remote endpoints, and never project files or artifacts. Unauthenticated
 page navigation redirects to login; API and remote requests return 401; a valid
 session whose local user was deleted receives 401. Storage errors
 return 503 without exposing data. Errors do not switch authentication off.
 
-Check the expected Origin on all cookie-authenticated unsafe requests, including
-login and logout; keep skgo's existing checks. Authenticated SSR internal fetches
+Keep skgo's existing Origin checks for remotes, including beginLogin and logout.
+Apply the same expected-origin check to any cookie-authenticated unsafe server
+routes that do not go through skgo's remote check. Authenticated SSR internal fetches
 must retain the originating request's identity/session, with no global bypass
-header or process-wide authenticated flag. Active observation streams recheck
-session expiry, revocation and user existence at least every 30 seconds and close on
+header or process-wide authenticated flag. Every long-lived response, including
+observation SSE and skgo LiveQuery such as watchRecording, rechecks session
+expiry, revocation and user existence at least every 30 seconds and closes on
 failure. This bounds access after logout; already accepted workflow execution
 continues. Unauthenticated requests never start application work.
 
 ## Selection and durability
 
-The concrete selection surface is `gimbal serve --auth-file /absolute/auth.json`.
+The concrete selection surface is `gimbal --auth-file /absolute/auth.json` on the
+root command, which is the existing command that serves the web application.
 This new flag is an explicit opt-in, not a search for optional configuration.
 An explicitly supplied blank, missing, unreadable, malformed, or incomplete
 file fails startup; it never means auth off. Relative paths are rejected. No
@@ -206,9 +224,11 @@ per-HOME auth configuration or implicit discovery is introduced.
 NewInstance resolves and validates it once, before starting control or web
 listeners, and receives an error for unavailable plugins, credentials or
 storage. Native plugins are loaded/registered by the caller before NewInstance,
-as `serve` already does. The flag is added to the common serverFlags path so
-each command using those flags honors it; `run-prompt` and example programs can
-select the same Option when starting their own instances. Every NewInstance
+as the root command's serve function already does. The flag is added to the
+root command's serverFlags, which is not shared by other commands. The current
+run-prompt path uses WithNoWeb and exposes no web listener. Custom hosts and
+example programs that serve a web listener can select the same WithAuthFile
+Option. Every NewInstance
 caller without this Option explicitly retains the open local behavior. This
 does not secure another independently started instance merely because its
 project or HOME happens to match; the operator must select auth for the instance
@@ -294,7 +314,7 @@ project boundary and auth inputs. Tests that use bare NewHandler remain useful
 unit tests, but do not prove the instance-wide ordering. Preserve normal SSR
 fetch dispatch and carry the original request session through it, never an
 auth bypass. Resolve plugins before NewInstance starts either listener.
-The serve command must start its optional --task-listen listener only after
+The root command's serve function must start its optional --task-listen listener only after
 NewInstance has resolved auth successfully; today it starts that listener first.
 
 The local CLI uses a separate Unix control socket. Authentication of remote
@@ -305,6 +325,8 @@ never be published by the web proxy. The optional task listener exposes
 It stays on a private transport/network and is never published through the
 web proxy; this design does not claim OAuth protects that listener. Any live
 deployment proof must identify all listeners and confirm that boundary.
+When auth and --task-listen are both selected, command help and the startup
+message explicitly identify the task listener as outside web authentication.
 
 The UI needs sign-in, sign-out, and the current user's name. No user management
 page or password screen is introduced. Existing operator/supervisor attribution

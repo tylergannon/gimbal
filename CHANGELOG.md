@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.4] - 2026-10-13
+
 ### Added
 
 - Publish a checked patch release automatically after main changes, including
@@ -199,7 +201,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `opencode/provider/model` routing, one shared server managed by
   `gimbal opencode start|stop`, and raw event/request captures for diagnostics.
 
-[Unreleased]: https://github.com/tylergannon/gimbal/compare/v0.13.3...main
+[Unreleased]: https://github.com/tylergannon/gimbal/compare/v0.13.4...main
+[0.13.4]: https://github.com/tylergannon/gimbal/compare/v0.13.3...v0.13.4
 [0.13.3]: https://github.com/tylergannon/gimbal/compare/v0.13.2...v0.13.3
 [0.13.2]: https://github.com/tylergannon/gimbal/compare/v0.13.1...v0.13.2
 [0.13.1]: https://github.com/tylergannon/gimbal/compare/v0.13.0...v0.13.1

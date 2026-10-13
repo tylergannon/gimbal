@@ -218,8 +218,19 @@ global fetch, build a custom remote client, or automatically replay a mutation
 after login. Only a refused operation triggers this handling; auth checking
 does not revoke permission retroactively from work already accepted.
 
-The application-owned currentUser skgo query supplies the account UI with the
-explicit ID/name DTO. When auth is on, the existing observation EventSource
+The root layout load returns `authEnabled` and `user` (an explicit ID/name DTO
+or null) from the server-owned auth configuration and request context, without
+calling a remote. The gate supplies this configuration context even on public
+auth routes. On the anonymous login page the user is null; with auth off,
+authEnabled is false and user is null. The shared account UI renders only when
+a user is present, so the sign-in page never calls a protected currentUser
+query during SSR or hydration. It never renders logout while signed out.
+
+The application-owned currentUser skgo query is a protected fresh-session
+probe, returning the ID/name DTO from the gate's authenticated request context.
+With auth enabled, an anonymous probe receives 401 at the gate. With auth off,
+the query returns null without opening a store; the UI never uses it then.
+When layout data says authEnabled, the existing observation EventSource
 owner closes a failed connection and awaits a fresh currentUser query before
 deciding to reconnect. Refresh and await the query rather than reading a cached
 user. A 401 stops the retry timer and navigates to `/auth/login`; success permits
@@ -365,7 +376,8 @@ page or password screen is introduced. Existing operator/supervisor attribution
 retains its current contract, including Source "person"; user attribution is a
 separate future request.
 
-Implementation is accepted only after observing: auth-off behavior; startup
+Implementation is accepted only after observing: auth-off behavior; the sign-in
+page rendering while signed out through both SSR and client navigation; startup
 failure for an explicit missing auth file, conflicting origin, or unavailable
 selected plugins/store; anonymous refusal of pages (including unknown project
 paths), remotes, streams and file downloads; an admitted real GitHub login; refusal of

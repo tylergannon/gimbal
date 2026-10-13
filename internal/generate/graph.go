@@ -34,21 +34,19 @@ func extractSource(dir, entry, name string, overlay map[string][]byte, commandMe
 }
 
 func extractInspected(dir, entry, name string, overlay map[string][]byte, commandMetadata bool, inspection *inspectionData) (workflow.Graph, entryInfo, error) {
-	config := &packages.Config{
-		Mode: packages.NeedName | packages.NeedFiles | packages.NeedCompiledGoFiles |
-			packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo |
-			packages.NeedImports | packages.NeedDeps | packages.NeedModule,
-		Dir:     dir,
-		Overlay: overlay,
-	}
-	loaded, err := packages.Load(config, ".")
+	loaded, err := loadSource(dir, overlay, ".")
 	if err != nil {
-		return workflow.Graph{}, entryInfo{}, fmt.Errorf("generate: %w", err)
+		return workflow.Graph{}, entryInfo{}, err
 	}
-	if len(loaded) != 1 {
-		return workflow.Graph{}, entryInfo{}, fmt.Errorf("generate: %s holds %d packages", dir, len(loaded))
+	if len(loaded.roots) != 1 {
+		return workflow.Graph{}, entryInfo{}, fmt.Errorf("generate: %s holds %d packages", dir, len(loaded.roots))
 	}
-	pkg := loaded[0]
+	return extractLoaded(loaded.roots[0], loaded.imports, entry, name, commandMetadata, inspection)
+}
+
+// Walk state belongs to one extraction; package syntax and types belong to the
+// source snapshot and may serve several entries or projections in this run.
+func extractLoaded(pkg *packages.Package, imports map[string]bool, entry, name string, commandMetadata bool, inspection *inspectionData) (workflow.Graph, entryInfo, error) {
 	if len(pkg.Errors) > 0 {
 		return workflow.Graph{}, entryInfo{}, fmt.Errorf("generate: %s: %v", pkg.PkgPath, pkg.Errors[0])
 	}
@@ -57,6 +55,7 @@ func extractInspected(dir, entry, name string, overlay map[string][]byte, comman
 		return workflow.Graph{}, entryInfo{}, fmt.Errorf("generate: %s has no function %s with a body", pkg.PkgPath, entry)
 	}
 	var info entryInfo
+	var err error
 	if commandMetadata {
 		info, err = describe(pkg, decl)
 		if err != nil {
@@ -68,16 +67,17 @@ func extractInspected(dir, entry, name string, overlay map[string][]byte, comman
 		module, modulePath = pkg.Module.Dir, pkg.Module.Path
 	}
 	e := &extractor{
-		inspection:   inspection,
-		declarations: make(map[types.Object]valueDeclarations),
-		pkg:          pkg,
-		module:       module,
-		modulePath:   modulePath,
-		session:      make(map[types.Object]binding),
-		group:        make(map[types.Object]*nodeRef),
-		loop:         make(map[types.Object]*nodeRef),
-		hasOp:        make(map[*types.Func]bool),
-		dead:         make(map[types.Object]bool),
+		sourceImports: imports,
+		inspection:    inspection,
+		declarations:  make(map[types.Object]valueDeclarations),
+		pkg:           pkg,
+		module:        module,
+		modulePath:    modulePath,
+		session:       make(map[types.Object]binding),
+		group:         make(map[types.Object]*nodeRef),
+		loop:          make(map[types.Object]*nodeRef),
+		hasOp:         make(map[*types.Func]bool),
+		dead:          make(map[types.Object]bool),
 	}
 	if inspection != nil {
 		inspection.Module = module
@@ -121,6 +121,7 @@ type scopeEnv struct {
 type helperState struct{ emitted bool }
 
 type extractor struct {
+	sourceImports     map[string]bool
 	declarations      map[types.Object]valueDeclarations
 	inspection        *inspectionData
 	inspectionContext types.Object

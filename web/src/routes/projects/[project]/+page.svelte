@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { APP_NAME } from "#lib/app.js";
   import { goto, invalidateAll } from "$app/navigation";
 	import { page } from "$app/state";
   import { onMount } from "svelte";
@@ -20,10 +21,10 @@
 </script>
 
 <svelte:head>
-  <title>Runs — Gimbal</title>
+  <title>Runs — {APP_NAME}</title>
   <meta
     name="description"
-    content="Every live and recorded agent workflow run in this Gimbal project."
+    content={`Every live and recorded agent workflow run in this ${APP_NAME} project.`}
   />
 </svelte:head>
 

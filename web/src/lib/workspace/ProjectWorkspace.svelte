@@ -123,7 +123,7 @@
     {#if page.url.pathname === `${root}/conversations`}
       <ConversationCreate {project} oncreated={created => chats.set([created, ...conversations.filter(item => item.id !== created.id)])} />
     {:else if page.url.pathname === `${root}/recordings`}
-      <section class="welcome"><h1>{name}</h1><p>Open a conversation or file from the sidebar, or start a new conversation.</p><button onclick={() => select(`${root}/conversations/new`)}>New conversation</button><p>Record audio from the macOS Recording menu.</p></section>
+      <section class="welcome"><p class="eyebrow">Project</p><h1>{name}</h1><p>Open a conversation or file from the sidebar, or start a new conversation.</p><button onclick={() => select(`${root}/conversations/new`)}>New conversation</button><p>Record audio from the macOS Recording menu.</p></section>
     {:else}<div class="route-content">{@render children()}</div>{/if}
   {/snippet}
   {#snippet sidebarExtra()}
@@ -153,7 +153,8 @@
   .upload input { width: 100%; font-size: 11px; }
   .notice { padding: 24px; color: var(--muted-foreground); }
   .welcome { max-width: 620px; margin: 72px auto; padding: 24px; }
-  .welcome h1 { font-size: 24px; font-weight: 600; }
+  .welcome .eyebrow { margin: 0; font-size: 12px; }
+  .welcome h1 { margin-top: 2px; font-size: 24px; font-weight: 600; }
   .welcome p { color: var(--muted-foreground); }
   .welcome button { padding: 10px 16px; border: 0; border-radius: 8px; color: var(--primary-foreground); background: var(--primary); cursor: pointer; }
   .route-content { height: 100%; overflow: auto; }

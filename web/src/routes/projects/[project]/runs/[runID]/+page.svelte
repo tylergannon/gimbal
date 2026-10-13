@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { APP_NAME } from "#lib/app.js";
   import type { Graph } from "#lib/workflow/types.js";
   import {
     RunObservation,
@@ -365,7 +366,7 @@
   });
 </script>
 
-<svelte:head><title>{snapshot.run.name} · Gimbal</title></svelte:head>
+<svelte:head><title>{snapshot.run.name} · {APP_NAME}</title></svelte:head>
 
 <svelte:window onkeydown={handleKeydown} />
 
@@ -536,10 +537,6 @@
 
 <style>
  .placement{margin:0;padding:6px 20px;font-size:13px;color:#374151;background:#f7f8fa}
-  :global(body:has(.run-workspace) .site-nav) {
-    display: none;
-  }
-
   :global(body:has(.run-workspace) main) {
     max-width: none;
     margin: 0;

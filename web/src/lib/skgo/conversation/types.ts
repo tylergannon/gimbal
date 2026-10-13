@@ -74,7 +74,7 @@ export type Request = {
 export type JSONText = string;
 
 /**
- * Setup is what a new conversation in this project can choose and where it will work. Every conversation runs on this machine; in a Git repository it gets its own worktree branched from HEAD, and elsewhere it shares Directory.
+ * Setup is what a new conversation in this project can choose and where it will work. Every conversation runs on this machine; with a Git HEAD it gets its own worktree branched from HEAD, and otherwise it shares Directory.
  */
 export type Setup = {
   harnesses: Array<Harness>;

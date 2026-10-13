@@ -205,8 +205,8 @@ func New(ctx context.Context, projectDir string, factory AdapterFactory, cli, in
 	return manager, nil
 }
 
-// Create gives Git projects a distinct branch and worktree. Other projects
-// share their existing directory between conversations.
+// Create gives Git projects with commits a distinct branch and worktree. Other
+// projects share their existing directory between conversations.
 func (m *Manager) Create(ctx context.Context, in NewConversation) (Conversation, error) {
 	provider := strings.TrimSpace(in.Provider)
 	model, _, err := providerModel(provider, strings.TrimSpace(in.Model))
@@ -216,21 +216,17 @@ func (m *Manager) Create(ctx context.Context, in NewConversation) (Conversation,
 	if _, err := m.factory(provider); err != nil {
 		return Conversation{}, fmt.Errorf("conversation: provider %s: %w", provider, err)
 	}
-	repo, err := gitOutput(ctx, filepath.Dir(m.projectDir), "rev-parse", "--show-toplevel")
-	if err != nil && !strings.Contains(err.Error(), "fatal: not a git repository") {
+	repo, err := conversationRepository(ctx, filepath.Dir(m.projectDir))
+	if err != nil {
 		return Conversation{}, fmt.Errorf("conversation: find repository: %w", err)
 	}
-	hasRepository := err == nil
 	id, err := randomID()
 	if err != nil {
 		return Conversation{}, fmt.Errorf("conversation: create id: %w", err)
 	}
 	branch := ""
 	worktree := filepath.Dir(m.projectDir)
-	if hasRepository {
-		if _, err := gitOutput(ctx, repo, "rev-parse", "--verify", "--quiet", "HEAD"); err != nil {
-			return Conversation{}, fmt.Errorf("conversation: the Git repository at %s has no commits yet; commit once so the conversation has a branch to start from", repo)
-		}
+	if repo != "" {
 		branch = "gimbal/conversation-" + id[:12]
 		worktree = filepath.Join(m.projectDir, "conversation-worktrees", id)
 		if err := os.MkdirAll(filepath.Dir(worktree), 0o755); err != nil {
@@ -276,8 +272,8 @@ type Harness struct {
 }
 
 // Setup is what a new conversation in this project can choose and where it
-// will work. Every conversation runs on this machine; in a Git repository it
-// gets its own worktree branched from HEAD, and elsewhere it shares Directory.
+// will work. Every conversation runs on this machine; with a Git HEAD it gets
+// its own worktree branched from HEAD, and otherwise it shares Directory.
 type Setup struct {
 	Harnesses []Harness `json:"harnesses"`
 	Directory string    `json:"directory"`
@@ -307,11 +303,11 @@ func (m *Manager) Setup(ctx context.Context) (Setup, error) {
 			setup.Directory = "~" + rest
 		}
 	}
-	_, err := gitOutput(ctx, directory, "rev-parse", "--show-toplevel")
-	if err != nil && !strings.Contains(err.Error(), "fatal: not a git repository") {
+	repo, err := conversationRepository(ctx, directory)
+	if err != nil {
 		return Setup{}, fmt.Errorf("conversation: find repository: %w", err)
 	}
-	if setup.Git = err == nil; setup.Git {
+	if setup.Git = repo != ""; setup.Git {
 		setup.Branch, _ = gitOutput(ctx, directory, "branch", "--show-current")
 		if setup.Branch == "" {
 			setup.Branch = "HEAD"
@@ -576,6 +572,31 @@ func randomID() (string, error) {
 		return "", err
 	}
 	return hex.EncodeToString(value[:]), nil
+}
+
+// conversationRepository returns a repository only when it can supply a worktree.
+// Chat in an ordinary folder or an unborn repository uses the folder itself.
+func conversationRepository(ctx context.Context, directory string) (string, error) {
+	// Git can discover a parent repository, but that does not make this folder
+	// a Git project. Ordinary folders do not need Git to start a chat.
+	if _, err := os.Stat(filepath.Join(directory, ".git")); err != nil {
+		if os.IsNotExist(err) {
+			return "", nil
+		}
+		return "", err
+	}
+	repo, err := gitOutput(ctx, directory, "rev-parse", "--show-toplevel")
+	if err != nil {
+		return "", err
+	}
+	if _, err := gitOutput(ctx, repo, "rev-parse", "--verify", "--quiet", "HEAD"); err != nil {
+		var exit *exec.ExitError
+		if errors.As(err, &exit) && exit.ExitCode() == 1 {
+			return "", nil
+		}
+		return "", err
+	}
+	return repo, nil
 }
 
 func gitOutput(ctx context.Context, dir string, args ...string) (string, error) {

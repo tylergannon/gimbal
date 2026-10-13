@@ -25,6 +25,20 @@ type stockData struct {
 // Stock writes the command and invocation sources for the one compiled built-in
 // selection. It reads each workflow's actual parameter type and graph roles.
 func Stock(root string) error {
+	root, err := filepath.Abs(root)
+	if err != nil {
+		return err
+	}
+	var patterns []string
+	overlay := map[string][]byte{}
+	for _, selected := range builtin.Workflows {
+		patterns = append(patterns, "./internal/workflows/"+selected.Package)
+		overlay[filepath.Join(root, "internal", "workflows", selected.Package, "workflow_gen.go")] = []byte("package " + selected.Package + "\n")
+	}
+	loaded, err := loadSource(root, overlay, patterns...)
+	if err != nil {
+		return err
+	}
 	var pages []sourcePage
 	var inputs []stockData
 	defaults := maps.Clone(builtin.Defaults())
@@ -34,9 +48,12 @@ func Stock(root string) error {
 	}
 	for _, selected := range builtin.Workflows {
 		dir := filepath.Join(root, "internal", "workflows", selected.Package)
-		graphFile := filepath.Join(dir, "workflow_gen.go")
+		pkg, err := loaded.packageAt(dir)
+		if err != nil {
+			return err
+		}
 		inspection := &inspectionData{}
-		graph, info, err := extractInspected(dir, selected.Entry, selected.Name, map[string][]byte{graphFile: []byte("package " + selected.Package + "\n")}, true, inspection)
+		graph, info, err := extractLoaded(pkg, loaded.imports, selected.Entry, selected.Name, true, inspection)
 		if err != nil {
 			return err
 		}

@@ -106,7 +106,14 @@ func Definition(dir, entry, name string, defaults map[string]string) error {
 	}
 	inspection := &inspectionData{}
 	overlay := map[string][]byte{file: []byte("package " + pkg + "\n"), filepath.Join(dir, "workflow_gen.go"): []byte("package " + pkg + "\n")}
-	graph, info, err := extractInspected(dir, entry, name, overlay, true, inspection)
+	loaded, err := loadSource(dir, overlay, ".")
+	if err != nil {
+		return err
+	}
+	if len(loaded.roots) != 1 {
+		return fmt.Errorf("generate: %s holds %d packages", dir, len(loaded.roots))
+	}
+	graph, info, err := extractLoaded(loaded.roots[0], loaded.imports, entry, name, true, inspection)
 	if err != nil {
 		return err
 	}
@@ -131,7 +138,7 @@ func Definition(dir, entry, name string, defaults map[string]string) error {
 		return err
 	}
 	// Inspector graphs include private ordered service markers; persist the ordinary runtime graph.
-	graph, _, err = extractSource(dir, entry, name, overlay, true)
+	graph, _, err = extractLoaded(loaded.roots[0], loaded.imports, entry, name, true, nil)
 	if err != nil {
 		return err
 	}

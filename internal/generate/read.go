@@ -152,12 +152,7 @@ func (e *extractor) importsGimbal(pkg *types.Package) bool {
 	if pkg == nil || e.modulePath == "" || !strings.HasPrefix(pkg.Path(), e.modulePath) {
 		return false
 	}
-	for _, imported := range pkg.Imports() {
-		if imported.Path() == gimbalPath {
-			return true
-		}
-	}
-	return false
+	return e.sourceImports[pkg.Path()]
 }
 
 // holdsOperation reports whether a statement, or a same-package function it

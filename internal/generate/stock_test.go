@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/tylergannon/gimbal/internal/builtin"
 	"github.com/tylergannon/gimbal/internal/generate"
 )
 
@@ -61,6 +62,12 @@ func TestStockRecoversMissingAndStaleOutput(t *testing.T) {
 	}
 	if err := os.WriteFile(command, []byte("stale command\n"), 0o644); err != nil {
 		t.Fatal(err)
+	}
+	// Batched extraction must not depend on any old generated graph existing.
+	for _, selected := range builtin.Workflows {
+		if err := os.Remove(filepath.Join(root, "internal", "workflows", selected.Package, "workflow_gen.go")); err != nil {
+			t.Fatal(err)
+		}
 	}
 	if err := generate.Stock(root); err != nil {
 		t.Fatal(err)

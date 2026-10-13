@@ -199,8 +199,10 @@ load has no Owner or project-choice context and reads no project data. The
 anonymous layout does not start RecorderBridge or other project subscriptions.
 Classify built static resources from the build manifest, without deriving a
 per-page chunk graph. Never exempt a blanket `/_app/` prefix that also contains
-remote endpoints, and never project files or artifacts. Unauthenticated direct
-document navigation to a page receives an HTTP redirect to `/auth/login`.
+remote endpoints, and never project files or artifacts. Unauthenticated top-level
+browser navigation (Sec-Fetch-Mode: navigate / Sec-Fetch-Dest: document) receives
+an HTTP 303 redirect to `/auth/login`, regardless of path. This also covers
+artifact and command-output links opened in another tab; it grants no access.
 Unauthenticated SvelteKit route-data requests receive HTTP 200 with Kit's data
 redirect envelope (`type: redirect`, `status: 303`, `location: /auth/login`),
 not a bare 401 or an HTTP redirect to HTML. API and remote requests receive
@@ -215,6 +217,19 @@ event-handler failures. Keep other errors in their normal UI. Do not replace
 global fetch, build a custom remote client, or automatically replay a mutation
 after login. Only a refused operation triggers this handling; auth checking
 does not revoke permission retroactively from work already accepted.
+
+The application-owned currentUser skgo query supplies the account UI with the
+explicit ID/name DTO. When auth is on, the existing observation EventSource
+owner closes a failed connection and awaits a fresh currentUser query before
+deciding to reconnect. Refresh and await the query rather than reading a cached
+user. A 401 stops the retry timer and navigates to `/auth/login`; success permits
+the existing reconnect behavior, and other failures retain normal connection
+error handling. Preserve the current connection-generation and component
+teardown checks so a completed auth check cannot restart a stale stream. This
+also handles a reconnect first attempted after expiry: EventSource hides HTTP
+status, but the protected query exposes the framework's typed 401. No custom
+fetch client or new SSE control-event protocol is needed. With auth off, the
+account UI and this auth check are disabled and existing behavior is retained.
 
 Keep skgo's existing Origin checks for remotes, including beginLogin and logout.
 Apply the same expected-origin check to any cookie-authenticated unsafe server
@@ -358,8 +373,10 @@ an unprovisioned account; local user provisioning/removal; consistent user ID
 under concurrent creation and restart; session survival across restart;
 expiry and replay refusal; durable logout with
 bounded stream closure; rejection of cross-origin mutations; isolation of two
-browser cookies; document navigation, client-side route navigation and remote
-actions returning to sign-in after expiry, cross-tab logout or user deletion;
+browser cookies; document navigation (including new-tab file links), client-side
+route navigation, remote actions and a running run page's EventSource returning
+to sign-in after expiry, cross-tab logout or user deletion without indefinite
+unauthenticated reconnects;
 and customer User rehydration through a replacement Users
 implementation. Repeatable cases belong in package tests. Run records and
 screenshots are not committed. Design consensus does not substitute for these

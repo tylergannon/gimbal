@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.8] - 2026-10-13
+
+### Changed
+
+- perf(test): avoid duplicate context rendering and overlap recovery cases (#526)
+- perf(generate): batch workflow loading and reuse compiler exports (#524)
+- perf(test): remove polling waits and redundant executable builds (#522)
+- Fetch release credentials from guarded Doppler access (#523)
+- Add one-time GitHub environment secret copy to Doppler staging (#521)
+
 ## [0.13.7] - 2026-10-13
 
 ### Changed
@@ -220,7 +230,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `opencode/provider/model` routing, one shared server managed by
   `gimbal opencode start|stop`, and raw event/request captures for diagnostics.
 
-[Unreleased]: https://github.com/tylergannon/gimbal/compare/v0.13.7...main
+[Unreleased]: https://github.com/tylergannon/gimbal/compare/v0.13.8...main
+[0.13.8]: https://github.com/tylergannon/gimbal/compare/v0.13.7...v0.13.8
 [0.13.7]: https://github.com/tylergannon/gimbal/compare/v0.13.6...v0.13.7
 [0.13.6]: https://github.com/tylergannon/gimbal/compare/v0.13.5...v0.13.6
 [0.13.5]: https://github.com/tylergannon/gimbal/compare/v0.13.4...v0.13.5

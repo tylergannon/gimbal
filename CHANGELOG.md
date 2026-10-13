@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.5] - 2026-10-13
+
+### Changed
+
+- Shrink the app icon from 902 KB to 78 KB (#518)
+- docs: record release preparation key and rotation procedure (#517)
+
 ## [0.13.4] - 2026-10-13
 
 ### Added
@@ -201,7 +208,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `opencode/provider/model` routing, one shared server managed by
   `gimbal opencode start|stop`, and raw event/request captures for diagnostics.
 
-[Unreleased]: https://github.com/tylergannon/gimbal/compare/v0.13.4...main
+[Unreleased]: https://github.com/tylergannon/gimbal/compare/v0.13.5...main
+[0.13.5]: https://github.com/tylergannon/gimbal/compare/v0.13.4...v0.13.5
 [0.13.4]: https://github.com/tylergannon/gimbal/compare/v0.13.3...v0.13.4
 [0.13.3]: https://github.com/tylergannon/gimbal/compare/v0.13.2...v0.13.3
 [0.13.2]: https://github.com/tylergannon/gimbal/compare/v0.13.1...v0.13.2

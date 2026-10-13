@@ -134,8 +134,9 @@ Host wiring (`internal/host/host.go`): field `promises *promises.Store` on
 ```go
 model, err := promises.Model(os.Getenv("GIMBAL_PROMISES_MODEL")) // "" -> "sonnet:low"
 // err -> admission error (explicit misconfiguration only)
-p.promisesDone = make(chan struct{})
-go func() { defer close(p.promisesDone); p.promises.Run(p.ctx, p.recordings, model) }()
+ctx, stop := context.WithCancel(p.ctx)
+p.stopPromises, p.promisesDone = stop, make(chan struct{})
+go func() { defer close(p.promisesDone); p.promises.Run(ctx, p.recordings, model) }()
 ```
 
 `promises.Model(spec)` resolves the spec through `modelalias` (as
@@ -189,12 +190,14 @@ Codegen: `go generate ./...` (`internal/skgo/config.go:18`) regenerates
 
 One goroutine per project from `AdmitProject` (like `cleanupExitedTasks`,
 `host.go:149`, `:334-355`); exits with `p.ctx`. It is joined, not abandoned:
-`Project` gains `promisesDone chan struct{}`, closed when `Run` returns, and
-`Owner.Close` (`host.go:177-183`) waits `<-p.promisesDone` before
-`p.ownerLock.Close()`. The owner context is already cancelled when `Close`
-runs (`web/control.go:216-223`), so the wait is bounded by one in-flight turn's
-cancellation grace (`claude/claude.go:320-328`) plus one save; a second Gimbal
-cannot take `owner.lock` while the old worker can still write `ledger.json`. Writers: this goroutine and
+`Project` gains `stopPromises context.CancelFunc` and `promisesDone chan struct{}`
+(closed when `Run` returns); `Owner.Close` (`host.go:177-183`) calls
+`p.stopPromises()` then waits `<-p.promisesDone` before `p.ownerLock.Close()`.
+Close cancels the worker itself, so callers that close with a live context
+(`web/src/lib/workspace.remote_test.go:13-37`, `internal/host/routes_test.go:115-138`)
+do not hang; the wait is bounded by one in-flight turn's cancellation grace
+(`claude/claude.go:320-328`) plus one save, and a second Gimbal cannot take
+`owner.lock` while the old worker can still write `ledger.json`. Writers: this goroutine and
 `SetWithdrawn`, both under `Store.mu`.
 
 Cadence: `Run` = 2 s ticker calling `step(ctx, recordings, model, now)`. One step:
@@ -482,4 +485,4 @@ discussion; its promises appear here."
 - Remotes in existing shared modules; `web/runtime.go` untouched.
 - Native entry point is a menu item; popover deferred; the web button covers it.
 - Bad `GIMBAL_PROMISES_MODEL` fails admission loudly.
-- Shutdown: worker exits on `p.ctx`; `Owner.Close` joins it before releasing `owner.lock`; an in-flight call is cancelled without advancing the cursor; writes are atomic.
+- Shutdown: worker exits on `p.ctx`; `Owner.Close` cancels and joins it before releasing `owner.lock`; an in-flight call is cancelled without advancing the cursor; writes are atomic.

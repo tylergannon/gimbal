@@ -35,6 +35,9 @@ type Accepted struct {
 }
 
 func init() {
+	if err := registerResourceBackends(gimbal.DefaultRegistry); err != nil {
+		panic(err)
+	}
 	if err := gimbal.DefaultRegistry.RegisterBackend(gimbal.BackendDefinition{Name: "local", ConfigurationSchema: json.RawMessage(`{"type":"object","additionalProperties":false}`), ValidateConfiguration: func(raw json.RawMessage) error {
 		if len(raw) == 0 {
 			return nil
@@ -48,7 +51,9 @@ func init() {
 		}
 		return nil
 	}, Connect: func(context.Context, json.RawMessage) (backend.Connection, error) {
-		return taskdaemon.New().Connection(), nil
+		daemon := taskdaemon.New()
+		daemon.Secrets = backend.NewMemorySecrets()
+		return daemon.Connection(), nil
 	}}); err != nil {
 		panic(err)
 	}

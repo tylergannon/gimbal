@@ -22,27 +22,22 @@ import (
 	"github.com/tylergannon/gimbal/backend/messagefiles"
 )
 
-// Each explicitly started producer has its own Listen and EventsDir. Caller
-// configuration declares two fixed URLs on an operator-trusted network. Native sessions belong to
-// AgentURL; processes/services belong to ProcessURL. No discovery is performed.
-type config struct{ AgentURL, ProcessURL, Listen, EventsDir string }
+// One URL identifies the daemon assigned by orchestration. Transport configuration
+// never chooses an executor based on whether the work is an agent or process.
+type config struct{ URL, Listen, EventsDir string }
 
 func parse(raw json.RawMessage) (config, error) {
 	var c config
 	if err := json.Unmarshal(raw, &c); err != nil {
 		return c, err
 	}
-	for _, endpoint := range []string{c.AgentURL, c.ProcessURL} {
+	for _, endpoint := range []string{c.URL} {
 		u, err := url.Parse(endpoint)
 		if err != nil || u.Scheme != "http" || u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || (u.Path != "" && u.Path != "/") {
-			return c, fmt.Errorf("http-sse requires plain HTTP AgentURL and ProcessURL")
+			return c, fmt.Errorf("http-sse requires a plain HTTP URL")
 		}
 	}
-	c.AgentURL = strings.TrimRight(c.AgentURL, "/")
-	c.ProcessURL = strings.TrimRight(c.ProcessURL, "/")
-	if c.AgentURL == c.ProcessURL {
-		return c, fmt.Errorf("http-sse requires two distinct producer URLs")
-	}
+	c.URL = strings.TrimRight(c.URL, "/")
 	if (c.Listen == "") != (c.EventsDir == "") {
 		return c, fmt.Errorf("producer configuration needs both Listen and EventsDir")
 	}
@@ -54,15 +49,13 @@ func parse(raw json.RawMessage) (config, error) {
 	return c, nil
 }
 
-type controlResultKey struct{}
-
 type connection struct {
 	config
 	client *http.Client
 	store  *messagefiles.Store
 }
 
-func connect(_ context.Context, raw json.RawMessage, _ backend.Orchestration) (backend.Messaging, error) {
+func connect(_ context.Context, raw json.RawMessage, _ backend.Dependencies) (backend.Messaging, error) {
 	c, err := parse(raw)
 	if err != nil {
 		return nil, err
@@ -97,40 +90,27 @@ func (b *connection) post(ctx context.Context, endpoint, path string, value any)
 }
 
 func (b *connection) PublishRequest(ctx context.Context, r backend.MessageRequest) error {
-	endpoint, path := b.AgentURL, "/requests"
 	switch r.Kind {
-	case "process":
-		endpoint = b.ProcessURL
-	case "cleanup", "interrupt":
-		path = "/broadcast"
-	case "session", "turn", "close":
+	case "process", "cleanup", "interrupt", "session", "turn", "close":
 	default:
 		return fmt.Errorf("http-sse unsupported request kind %q", r.Kind)
 	}
-	return b.post(ctx, endpoint, path, r)
+	return b.post(ctx, b.URL, "/requests", r)
 }
 func (b *connection) PublishEvent(ctx context.Context, e backend.MessageEvent) error {
-	if result, ok := ctx.Value(controlResultKey{}).(chan backend.MessageEvent); ok {
-		if e.Kind == "completed" {
-			result <- e
-		}
-		return nil
-	}
 	if b.store != nil {
 		return b.store.PublishEvent(ctx, e)
 	}
-	return b.post(ctx, b.AgentURL, "/events", e)
+	return b.post(ctx, b.URL, "/events", e)
 }
 
-// Every stream reconnects using the original inclusive lower bound. Its own
-// seen set suppresses duplicates without advancing a timestamp/ULID cursor.
-// A temporary disconnect of one producer does not block the other producer.
+// Reconnect using the original inclusive lower bound and suppress duplicates.
 func (b *connection) ListenEvents(ctx context.Context, s backend.MessageSelection, since time.Time, fn func(backend.MessageEvent) error) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	events := make(chan backend.MessageEvent)
 	failures := make(chan error, 2)
-	for _, endpoint := range []string{b.AgentURL, b.ProcessURL} {
+	for _, endpoint := range []string{b.URL} {
 		go func() { failures <- b.stream(ctx, endpoint, s, since, events) }()
 	}
 	for {
@@ -251,29 +231,6 @@ func (p *producer) admit(id string, fn func() error) error {
 
 func (p *producer) handler() http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("POST /internal/control", func(w http.ResponseWriter, r *http.Request) {
-		var request backend.MessageRequest
-		if err := json.NewDecoder(r.Body).Decode(&request); err != nil || (request.Kind != "cleanup" && request.Kind != "interrupt") {
-			http.Error(w, "invalid control", 400)
-			return
-		}
-		if err := request.Validate(); err != nil {
-			http.Error(w, err.Error(), 400)
-			return
-		}
-		result := make(chan backend.MessageEvent, 1)
-		ctx := context.WithValue(p.ctx, controlResultKey{}, result)
-		if err := p.handle(ctx, request); err != nil {
-			http.Error(w, err.Error(), 500)
-			return
-		}
-		select {
-		case event := <-result:
-			_ = json.NewEncoder(w).Encode(event.Result)
-		case <-p.ctx.Done():
-			http.Error(w, "control cessation unconfirmed", http.StatusServiceUnavailable)
-		}
-	})
 	mux.HandleFunc("POST /requests", func(w http.ResponseWriter, r *http.Request) {
 		var request backend.MessageRequest
 		if err := json.NewDecoder(r.Body).Decode(&request); err != nil || request.ID == "" {
@@ -292,36 +249,6 @@ func (p *producer) handler() http.Handler {
 				if err := p.handle(p.ctx, request); err != nil {
 					select {
 					case p.errors <- fmt.Errorf("request %s admission/result delivery: %w", request.ID, err):
-					case <-p.ctx.Done():
-					}
-				}
-			}()
-			return nil
-		})
-		if err != nil {
-			http.Error(w, err.Error(), 500)
-			return
-		}
-		w.WriteHeader(http.StatusAccepted)
-	})
-	mux.HandleFunc("POST /broadcast", func(w http.ResponseWriter, r *http.Request) {
-		var request backend.MessageRequest
-		if err := json.NewDecoder(r.Body).Decode(&request); err != nil || request.ID == "" || (request.Kind != "cleanup" && request.Kind != "interrupt") {
-			http.Error(w, "invalid broadcast control", 400)
-			return
-		}
-		if err := request.Validate(); err != nil {
-			http.Error(w, err.Error(), 400)
-			return
-		}
-		err := p.admit(request.ID, func() error {
-			if err := p.fact(request, "accepted", nil); err != nil {
-				return err
-			}
-			go func() {
-				if err := p.broadcast(request); err != nil {
-					select {
-					case p.errors <- err:
 					case <-p.ctx.Done():
 					}
 				}
@@ -379,50 +306,7 @@ func (p *producer) fact(r backend.MessageRequest, kind string, result *backend.M
 	return p.bus.PublishEvent(p.ctx, backend.MessageEvent{ID: ulid.Make().String(), RequestID: r.ID, Created: time.Now().UTC(), Owner: r.Owner, SessionID: r.SessionID, Kind: kind, Result: result})
 }
 
-// The two native owners receive the same logical control privately. Only the
-// aggregate is published; task completions remain on their normal public paths.
-func (p *producer) broadcast(r backend.MessageRequest) error {
-	results := make(chan error, 2)
-	for _, endpoint := range []string{p.bus.AgentURL, p.bus.ProcessURL} {
-		go func() {
-			data, err := json.Marshal(r)
-			if err != nil {
-				results <- err
-				return
-			}
-			req, err := http.NewRequestWithContext(p.ctx, http.MethodPost, endpoint+"/internal/control", bytes.NewReader(data))
-			if err != nil {
-				results <- err
-				return
-			}
-			response, err := p.bus.client.Do(req)
-			if err != nil {
-				results <- err
-				return
-			}
-			defer func() { _ = response.Body.Close() }()
-			if response.StatusCode != http.StatusOK {
-				results <- fmt.Errorf("control response HTTP %d", response.StatusCode)
-				return
-			}
-			var result backend.MessageResult
-			if err = json.NewDecoder(response.Body).Decode(&result); err == nil && (result.Error != "" || result.Unresolved) {
-				err = fmt.Errorf("control cessation unconfirmed: %s", result.Error)
-			}
-			results <- err
-		}()
-	}
-	result := &backend.MessageResult{}
-	for range 2 {
-		if err := <-results; err != nil {
-			result.Unresolved = true
-			result.Error += err.Error() + "; "
-		}
-	}
-	return p.fact(r, "completed", result)
-}
-
-func worker(ctx context.Context, raw json.RawMessage, resources backend.Orchestration, handle backend.MessageHandler) error {
+func worker(ctx context.Context, raw json.RawMessage, resources backend.Dependencies, handle backend.MessageHandler) error {
 	messaging, err := connect(ctx, raw, resources)
 	if err != nil {
 		return err
@@ -434,6 +318,12 @@ func worker(ctx context.Context, raw json.RawMessage, resources backend.Orchestr
 	listener, err := net.Listen("tcp", b.Listen)
 	if err != nil {
 		return err
+	}
+	if resources.Ready != nil {
+		if err := resources.Ready(); err != nil {
+			_ = listener.Close()
+			return err
+		}
 	}
 	p := &producer{bus: b, ctx: ctx, handle: handle, admitted: map[string]*admission{}, errors: make(chan error, 1)}
 	server := &http.Server{Handler: p.handler(), ReadHeaderTimeout: 5 * time.Second}

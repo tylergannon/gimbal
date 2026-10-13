@@ -32,6 +32,7 @@ export const planTripGraph: Graph = {
             { kind: "session", file: workflowFile, line: 24, name: "interviewer", from: "" },
             {
               kind: "interview",
+              requirements: [],
               file: workflowFile,
               line: 31,
               name: "preferences",
@@ -48,6 +49,7 @@ export const planTripGraph: Graph = {
             { kind: "session", file: workflowFile, line: 37, name: "interviewer", from: "" },
             {
               kind: "interview",
+              requirements: [],
               file: workflowFile,
               line: 44,
               name: "preferences",
@@ -60,6 +62,7 @@ export const planTripGraph: Graph = {
     { kind: "session", file: workflowFile, line: 49, name: "planner", from: "" },
     {
       kind: "agent_call",
+      requirements: [],
       file: workflowFile,
       line: 50,
       session: "planner",

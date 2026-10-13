@@ -144,8 +144,8 @@ observation and control of its admitted projects. The daemon's `--port 0`
 selects an available browser port; `--uds` serves through a Unix socket.
 
 Use `--task-endpoint` to execute agents, commands, and scope-owned services in a
-selected local or Docker daemon. See [task environments](references/task-environments.md)
-for provisioning, transferred artifacts, service-networking limits, and the `service-check` exercise.
+selected standalone daemon. See [task daemons](references/task-environments.md)
+for workspace configuration, transferred artifacts, and scoped secrets.
 
 ### Messaging task routes
 
@@ -161,7 +161,7 @@ A route file contains `Name` and `Configuration`. Choose one configuration:
 | --- | --- |
 | `filesystem` | `{"Directory":"/abs/private-messages"}` |
 | `river` | `{"DSNFile":"/abs/private-postgres-dsn","Queue":"gimbal"}` |
-| `http-sse` | `{"AgentURL":"http://127.0.0.1:18091","ProcessURL":"http://127.0.0.1:18092"}` |
+| `http-sse` | `{"URL":"http://127.0.0.1:18091"}` |
 
 For filesystem or River, start one worker with the same route as the caller:
 
@@ -171,26 +171,69 @@ gimbal run service-check --instance-dir /abs/instance --project /abs/project --w
 gimbal message-watch --plugin-dir /abs/plugins --task-route @/abs/route.json --run RUN_ID
 ```
 
+Workers without configured backend dependencies keep scoped secrets in private
+process memory. Named environments use the shared secrets directory supplied by
+orchestration.
+
 Run those commands in separate shells. River requires reachable PostgreSQL and
 a private file containing its connection string; the worker initializes its
 schema. Its action queue defaults to `gimbal`, its separate control queue to
 `gimbal_control`, and action workers to four. Use distinct queues to isolate
 independent deployments.
 
-HTTP needs two workers. Give each its own route containing both caller URLs,
-plus `Listen` (`127.0.0.1:18091` or `127.0.0.1:18092`) and a distinct absolute
-`EventsDir`. Start each with `message-worker`. Agent sessions use AgentURL;
-commands and services use ProcessURL. The caller listens to both producers.
+HTTP uses one URL per environment. The worker route additionally specifies
+`Listen` (`127.0.0.1:18091`) and an absolute `EventsDir`. Agent sessions,
+commands, and services use the daemon selected by orchestration.
 
-Workers and callers share local paths. Keep workers alive until workflow scope
-cleanup finishes; restarting them does not restore native actions or sessions.
-No automatic request replay, host provisioning, or placement is supplied.
-Steering, fork, and FulfillService are unsupported on these routes; Service
-uses a declared local address. Delivery budgets belong to the selected
-implementation and caller context. Missing acceptance or completion remains
-unresolved; it does not establish native failure or cessation. `message-watch` reads retained history
-independently; stopping it never cancels work. Its JSONL can contain private
-agent content. Event files or PostgreSQL rows remain until explicitly removed.
+For automatic named-environment startup, the caller route adds `Environment`
+and `Backends`. For example, with the filesystem plugin:
+
+```json
+{
+  "Name": "filesystem",
+  "Configuration": {"Directory": "/abs/control"},
+  "Environment": "development",
+  "Backends": {
+    "Orchestrator": {
+      "Name": "local",
+      "Configuration": {
+        "Directory": "/abs/private-backends",
+        "Environments": {
+          "development": {
+            "Command": ["/abs/gimbal", "message-worker", "--plugin-dir", "/abs/plugins", "--task-route", "@/abs/worker.json"],
+            "Route": {"Name": "filesystem", "Configuration": {"Directory": "/abs/development-messages"}}
+          }
+        }
+      }
+    },
+    "Secrets": {"Name": "file", "Configuration": {"Directory": "/abs/private-backends/secrets"}}
+  }
+}
+```
+
+`worker.json` contains the same Name and Configuration as that environment's
+Route. Orchestration supplies worker readiness and passes the selected secrets
+configuration through private standard input. Named orchestrator and secrets
+registrations are independent of the messaging plugin. The local subprocess
+orchestrator requires shared secrets; the `file` backend shares its private
+directory across callers and workers. The `memory` backend is for callers and
+workers in the same process and is rejected for local subprocess orchestration. It
+starts the daemon before dispatch, preserves unrelated scoped use, and stops
+it after its last native scope is cleaned up. Do not start this worker manually.
+Named environments require messaging; direct task endpoints cannot bypass placement.
+
+The `service-check` workflow needs Docker, psql, Python 3, and an agent harness
+in the daemon environment. It owns Postgres and a web service, publishes scoped
+connection values, queries the database through parallel consumers, and has an
+agent fetch the web response using a Gimbal secrets callback. Use a fresh work
+directory and an explicit inexpensive model such as `gpt-5.6-luna`.
+
+Workers and callers share local paths in this implementation. Restarting a
+worker does not restore native actions or sessions. Steering and fork remain
+unsupported on messaging routes. Delivery uncertainty never establishes native
+failure or cessation. `message-watch` reads retained history independently;
+stopping it never cancels work. Its JSONL can contain private agent content.
+Event files or PostgreSQL rows remain until explicitly removed.
 
 ## Find the run and observe its work
 

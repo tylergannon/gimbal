@@ -273,22 +273,30 @@ Plain local invocation remains an independent child with directly local tasks.
 For a remote turn, `gimbal.WithTaskFiles(ctx, backend.TaskFile{Name: "input.txt",
 Bytes: data})` supplies explicit named bytes alongside runtime-owned context. The
 task environment writes them and supplies their native paths to the agent.
-`gimbal.FulfillService(ctx, "http", workdir, command, port, consumer)` returns a
-scope-owned HTTP URL on legacy execution routes; messaging routes do not support
-that operation. For messaging, `gimbal.WithServices(ctx, "http")` declares a named
-HTTP service for agent turns and commands using the returned context. The actual
-producer acquires the binding through its explicitly supplied orchestration
-dependency before native admission; agent runtime context receives the URL and
-commands receive `GIMBAL_SERVICE_HTTP`. Scope cleanup relinquishes use after
-native cleanup. This declaration does not launch infrastructure or establish
-readiness. Gimbal supplies no infrastructure implementation: the selected
-messaging definition may construct its dependency from separate route
-`Orchestration` data. Connection close releases connection handles, not service
-use or shared infrastructure. Failed acquisition stops native admission; later
-service loss is a consumer failure, with no continuous health/failover promise.
-For the legacy URL, readiness checks use that URL; a remote daemon must declare
-reachable service networking. The default local path uses an ordinary native
-service and returns loopback. Scope exit releases the service.
+Use `gimbal.WithYields(ctx, "store", "DATABASE_URL")` inline as the context
+argument of `RunCommand`, `Check`, or foreground `Service` to declare outputs.
+Do not assign the returned context: outputs belong to that one producer, and
+the workflow linter rejects declarations elsewhere. The program writes `NAME=value`
+strings to `ENV_FILE`; services atomically rename a completed file into place
+only after resource readiness. Even a service with no outputs must publish an
+empty file. Finite producers publish only after exit zero.
+
+`gimbal.WithRequirements(ctx, "store", "DATABASE_URL")` declares
+consuming-operation requirements. Repeated calls accumulate access to multiple
+stores. Use `gimbal.DefaultStore` for the unnamed store in either declaration.
+Gimbal checks the named values and grants the whole visible store. Programs
+receive string environment variables; agents call the operation-scoped Gimbal
+callback supplied by their native executor. Values are not automatically
+inserted into prompts. Child definitions shadow ancestors across stores.
+
+Named environments use `OrchestratorBackend` to establish a listening daemon;
+messaging delivers the work and `SecretsBackend` supplies scoped values. The
+route's `Backends` construction data configures these dependencies explicitly.
+The supplied local implementation starts configured daemon commands and uses a
+private shared file store. Scope cleanup stops dependent native work, releases
+values, then releases environment use. Services receive SIGINT and have ten
+seconds to clean up; uncertain cleanup stays owned. No automatic replay,
+restart, secret rotation, or per-key permission system is provided.
 
 Standalone `gimbal.Run(gimbal.Project(ctx, dir), ...)` runs in its caller's
 process, writes under `dir/runs`, and does not attach to a running instance.

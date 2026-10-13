@@ -14,8 +14,11 @@ type Process struct {
 	Workdir, Command string
 	Args             []string
 	Service          bool
-	Services         []string         `json:",omitempty"`
-	Bindings         []ServiceBinding `json:"-"`
+	Requires         Requirements      `json:",omitempty"`
+	Produces         bool              `json:",omitempty"`
+	Yields           []string          `json:",omitempty"`
+	Store            string            `json:",omitempty"`
+	Environment      map[string]string `json:"-"`
 }
 type ProcessResult struct {
 	ExitCode    int
@@ -34,7 +37,7 @@ type TaskFile struct {
 }
 type Turn struct {
 	Files    []TaskFile
-	Services []string `json:",omitempty"`
+	Requires Requirements `json:",omitempty"`
 	Owner
 	Session, Prompt string
 	Schema          json.RawMessage `json:",omitempty"`
@@ -60,12 +63,27 @@ type State struct {
 	Error   string
 }
 
+// Selection chooses one registered implementation and its validated configuration.
+type Selection struct {
+	Name          string
+	Configuration json.RawMessage
+}
+
+// BackendSelection selects orchestration and secrets independently of messaging.
+type BackendSelection struct {
+	Orchestrator Selection
+	Secrets      Selection
+}
+
 // Route is retained independently of an execution environment's filesystem.
 type Route struct {
 	Name          string
 	Configuration json.RawMessage
-	Environment   string
-	Orchestration json.RawMessage `json:",omitempty"`
+	// Environment names an orchestrated task placement; it is never a display label.
+	Environment string
+	// Label describes a direct execution route in the console without selecting placement.
+	Label    string            `json:",omitempty"`
+	Backends *BackendSelection `json:",omitempty"`
 }
 type Events struct {
 	Events           []json.RawMessage
@@ -101,12 +119,6 @@ type Observation struct {
 	Cursor           string
 	Gap, Unavailable bool
 }
-type Service struct {
-	Process
-	Port     int
-	Consumer string
-}
-type ServiceAddress struct{ ID, URL string }
 
 // Execution owns mutations and authoritative completion; event availability does not affect it.
 type Execution interface {
@@ -122,7 +134,6 @@ type Execution interface {
 	Acknowledge(context.Context, Target) error
 	ReadBytes(context.Context, Artifact) (io.ReadCloser, error)
 	WriteBytes(context.Context, Artifact, io.Reader) error
-	Service(context.Context, Service) (ServiceAddress, error)
 	StartWorkflow(context.Context, Workflow) (WorkflowStatus, error)
 	WorkflowStatus(context.Context, Target) (WorkflowStatus, error)
 	ControlWorkflow(context.Context, Control) (bool, error)
@@ -134,11 +145,12 @@ type RunObservations interface {
 	ReadObservation(context.Context, Target, string) (Observation, error)
 }
 type Connection struct {
-	Messages      Messaging
-	Orchestration Orchestration
-	Execution     Execution
-	Events        TaskEvents
-	Observations  RunObservations
+	Messages     Messaging
+	Orchestrator OrchestratorBackend
+	Secrets      SecretsBackend
+	Execution    Execution
+	Events       TaskEvents
+	Observations RunObservations
 }
 
 // TurnResult transports native output as opaque bytes, preserving whitespace,
@@ -155,7 +167,10 @@ func (c Connection) Close() error {
 	if closer, ok := c.Messages.(io.Closer); ok {
 		errs = append(errs, closer.Close())
 	}
-	if closer, ok := c.Orchestration.(io.Closer); ok {
+	if closer, ok := c.Orchestrator.(io.Closer); ok {
+		errs = append(errs, closer.Close())
+	}
+	if closer, ok := c.Secrets.(io.Closer); ok {
 		errs = append(errs, closer.Close())
 	}
 	return errors.Join(errs...)

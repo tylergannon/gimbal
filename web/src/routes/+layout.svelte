@@ -35,7 +35,11 @@
     <main>
       {#if project}
         {#key project}<ProjectWorkspace {project} name={data.workspaceProjects.find((item: { id: string }) => item.id === project)?.path.split("/").at(-1) ?? "Project"} projects={data.workspaceProjects}>
-          {@render children()}
+          {#if loadingRuns}
+            <div class="runs-page"><RunsLoading /></div>
+          {:else}
+            {@render children()}
+          {/if}
         </ProjectWorkspace>{/key}
       {:else if loadingRuns}
         <div class="runs-page"><RunsLoading /></div>

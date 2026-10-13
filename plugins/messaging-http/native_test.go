@@ -22,12 +22,9 @@ func TestNativeMessagingWorkflowInputsContinuityAndCleanup(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 	agent, sa := newProducer(t, func(*producer, backend.MessageRequest) error { return nil })
-	process, sp := newProducer(t, func(*producer, backend.MessageRequest) error { return nil })
-	c := config{AgentURL: sa.URL, ProcessURL: sp.URL}
+	c := config{URL: sa.URL}
 	agent.bus.config = c
-	process.bus.config = c
 	agent.handle = taskdaemon.New().Messages(agent.bus)
-	process.handle = taskdaemon.New().Messages(process.bus)
 	bus := backend.Messaging(&connection{config: c, client: sa.Client()})
 	token := "input-" + ulid.Make().String()
 	project := t.TempDir()
@@ -51,7 +48,7 @@ func TestNativeMessagingWorkflowInputsContinuityAndCleanup(t *testing.T) {
 		if string(second) != token {
 			t.Errorf("session continuity: %q want %q", second, token)
 		}
-		return gimbal.Service(ctx, "scoped-service", project, "printf ready; sleep 120")
+		return gimbal.Service(ctx, "scoped-service", project, `trap 'exit 0' INT; : > "$ENV_FILE.tmp"; mv "$ENV_FILE.tmp" "$ENV_FILE"; while :; do sleep 1; done`)
 	})
 	if err != nil {
 		t.Fatal(err)

@@ -18,6 +18,14 @@ func Request(kind string, owner Owner) backend.MessageRequest {
 }
 
 func Submit(ctx context.Context, r backend.MessageRequest) error {
+	if (r.Kind == "session" || r.Kind == "process") && Connection(ctx).Orchestrator != nil {
+		if _, err := Connection(ctx).Orchestrator.AcquireEnvironment(ctx, r.Owner, Environment(ctx)); err != nil {
+			return err
+		}
+	}
+	if Environment(ctx) != "" && Connection(ctx).Orchestrator == nil {
+		return fmt.Errorf("named environment %q requires an orchestrator backend", Environment(ctx))
+	}
 	if err := r.Validate(); err != nil {
 		return err
 	}
@@ -34,8 +42,8 @@ var errEventReached = errors.New("requested messaging fact received")
 func Await(ctx context.Context, r backend.MessageRequest, until string, onActivity func(json.RawMessage)) (backend.MessageEvent, error) {
 
 	var got backend.MessageEvent
-	seenResources := map[backend.ServiceUse]bool{}
-	observeResource := func(use backend.ServiceUse) {
+	seenResources := map[backend.ResourceFact]bool{}
+	observeResource := func(use backend.ResourceFact) {
 		if !seenResources[use] {
 			seenResources[use] = true
 			if observe := resourceObserver(ctx); observe != nil {
@@ -44,11 +52,11 @@ func Await(ctx context.Context, r backend.MessageRequest, until string, onActivi
 		}
 	}
 	err := Messages(ctx).ListenEvents(ctx, backend.MessageSelection{RequestID: r.ID}, r.Created, func(e backend.MessageEvent) error {
-		if e.ReadyService != nil {
-			observeResource(*e.ReadyService)
+		if e.Resource != nil {
+			observeResource(*e.Resource)
 		}
 		if e.Result != nil {
-			for _, use := range e.Result.ReadyServices {
+			for _, use := range e.Result.ReadyResources {
 				observeResource(use)
 			}
 		}

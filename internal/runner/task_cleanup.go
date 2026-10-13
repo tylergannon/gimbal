@@ -21,7 +21,7 @@ import (
 // evidence that the workflow can no longer release its remote resources.
 func CleanupExited(state, id string) (bool, error) {
 	dir := filepath.Join(state, "runs", id)
-	ctx, cancel := context.WithTimeout(context.Background(), 11*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	connection, endpoint, err := taskConnection(ctx, state, id)
 	defer func() { _ = connection.Close() }()

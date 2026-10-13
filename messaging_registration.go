@@ -15,18 +15,10 @@ import (
 // Its context bounds establishment only; resource-owning transports implement
 // io.Closer and are closed by their caller after all cleanup operations.
 type MessagingDefinition struct {
-	Name string
-	// ConstructOrchestration builds a process-local dependency before Connect.
-	// It is optional; nonempty construction data requires it. No implementation
-	// is supplied by Gimbal. Construction must not depend on this connection.
-	// The returned object is connection-owned. Optional io.Closer releases its
-	// connection handles after cleanup, never scope use or shared infrastructure.
-	// A constructor sharing external infrastructure retains that ownership below
-	// the interface; it returns independently closeable connection handles.
-	ConstructOrchestration func(context.Context, json.RawMessage) (backend.Orchestration, error)
-	ValidateConfiguration  func(json.RawMessage) error
-	Connect                func(context.Context, json.RawMessage, backend.Orchestration) (backend.Messaging, error)
-	Worker                 func(context.Context, json.RawMessage, backend.Orchestration, backend.MessageHandler) error
+	Name                  string
+	ValidateConfiguration func(json.RawMessage) error
+	Connect               func(context.Context, json.RawMessage, backend.Dependencies) (backend.Messaging, error)
+	Worker                func(context.Context, json.RawMessage, backend.Dependencies, backend.MessageHandler) error
 }
 
 func (r *Registry) RegisterMessaging(d MessagingDefinition) error {

@@ -65,3 +65,12 @@ func WithSupervisor(*Session, string, ...AgentOption) AgentOption {
 func WithScopeTemplate(string) AgentOption {
 	return func() {}
 }
+
+const DefaultStore = ""
+
+func WithRequirements(ctx context.Context, store string, names ...string) context.Context { return ctx }
+func WithYields(ctx context.Context, store string, names ...string) context.Context       { return ctx }
+func Service(context.Context, string, string, string, ...string) error                    { return nil }
+func RunCommand(context.Context, string, string, string, ...string) (int, string, string, error) {
+	return 0, "", "", nil
+}

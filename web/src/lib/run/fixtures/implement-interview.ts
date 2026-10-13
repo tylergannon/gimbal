@@ -72,6 +72,7 @@ export const implementInterviewGraph: Graph = {
             { kind: "session", file: workflowFile, line: 65, name: "api-research", from: "" },
             {
               kind: "agent_call",
+              requirements: [],
               file: workflowFile,
               line: 66,
               session: "api-research",
@@ -97,6 +98,7 @@ export const implementInterviewGraph: Graph = {
             },
             {
               kind: "agent_call",
+              requirements: [],
               file: workflowFile,
               line: 71,
               session: "frontend-research",
@@ -127,6 +129,7 @@ export const implementInterviewGraph: Graph = {
     },
     {
       kind: "promise_loop",
+      requirements: [],
       file: workflowFile,
       line: 84,
       name: "implementation",
@@ -136,6 +139,7 @@ export const implementInterviewGraph: Graph = {
       body: [
         {
           kind: "agent_call",
+          requirements: [],
           file: workflowFile,
           line: 92,
           session: "coding",
@@ -174,17 +178,45 @@ export const implementInterviewGraph: Graph = {
               case: 'command := strings.TrimSpace(task.Validation.Command); command != ""',
               exits: false,
               body: [
-                { kind: "command", file: workflowFile, line: 103, name: "task-check" },
+                {
+                  kind: "command",
+                  requirements: [],
+                  yields: [],
+                  file: workflowFile,
+                  line: 103,
+                  name: "task-check",
+                },
                 { kind: "set", file: workflowFile, line: 104, key: "task check" },
               ],
             },
           ],
         },
-        { kind: "command", file: workflowFile, line: 112, name: "build" },
+        {
+          kind: "command",
+          requirements: [],
+          yields: [],
+          file: workflowFile,
+          line: 112,
+          name: "build",
+        },
         { kind: "set", file: workflowFile, line: 113, key: "just build" },
-        { kind: "command", file: workflowFile, line: 118, name: "vet" },
+        {
+          kind: "command",
+          requirements: [],
+          yields: [],
+          file: workflowFile,
+          line: 118,
+          name: "vet",
+        },
         { kind: "set", file: workflowFile, line: 119, key: "just vet" },
-        { kind: "command", file: workflowFile, line: 124, name: "test" },
+        {
+          kind: "command",
+          requirements: [],
+          yields: [],
+          file: workflowFile,
+          line: 124,
+          name: "test",
+        },
         { kind: "set", file: workflowFile, line: 125, key: "just test" },
         {
           kind: "session",
@@ -195,6 +227,7 @@ export const implementInterviewGraph: Graph = {
         },
         {
           kind: "agent_call",
+          requirements: [],
           file: workflowFile,
           line: 132,
           session: "qa-orchestration",

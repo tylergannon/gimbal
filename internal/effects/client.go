@@ -44,6 +44,9 @@ func WithOwner(ctx context.Context, owner Owner) context.Context {
 func Identity(ctx context.Context) Owner { o, _ := ctx.Value(ownerKey{}).(Owner); return o }
 
 func Call(ctx context.Context, endpoint, operation string, input, output any) error {
+	if Environment(ctx) != "" {
+		return fmt.Errorf("named environments require messaging delivery")
+	}
 	if c := Connection(ctx); c.Execution != nil {
 		return dispatch(ctx, c, operation, input, output)
 	}
@@ -71,8 +74,21 @@ func Cleanup(ctx context.Context, endpoint, run, scope string) error {
 	if Messages(ctx) != nil {
 		r := Request("cleanup", Owner{Run: run, Scope: scope})
 		r.ScopeTarget = &Scope{Run: run, Scope: scope}
-		_, err := MessageCall(ctx, r)
-		return err
+		if _, err := MessageCall(ctx, r); err != nil {
+			return err
+		}
+		// All assigned daemons have stopped native dependents before a shared
+		// store or supporting environment can be released.
+		connection := Connection(ctx)
+		if connection.Secrets != nil {
+			if err := connection.Secrets.Release(ctx, *r.ScopeTarget); err != nil {
+				return err
+			}
+		}
+		if connection.Orchestrator != nil {
+			return connection.Orchestrator.Release(ctx, *r.ScopeTarget)
+		}
+		return nil
 	}
 	var reply Reply
 	if err := Call(ctx, endpoint, "cleanup", Scope{Run: run, Scope: scope}, &reply); err != nil {

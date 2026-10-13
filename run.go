@@ -14,6 +14,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/tylergannon/gimbal/backend"
 	"github.com/tylergannon/gimbal/internal/effects"
 
 	"github.com/oklog/ulid/v2"
@@ -250,6 +251,11 @@ func (r *run) root(ctx context.Context, name string, body func(ctx context.Conte
 			panic(v)
 		}
 	}()
+	connection := effects.Connection(ctx)
+	if connection.Secrets == nil && effects.Endpoint(ctx) == "" {
+		connection.Secrets = backend.NewMemorySecrets()
+		ctx = effects.WithConnection(ctx, connection)
+	}
 	return (&scope{run: r}).do(ctx, body)
 }
 

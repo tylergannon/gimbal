@@ -224,3 +224,13 @@ follows direct package-local helper calls from a recognized workflow domain,
 and its worker signature test is the presence of a `context.Context`
 parameter. Runtime misuse checks remain the backstop for states static analysis
 cannot establish.
+
+GIMBAL111 requires compile-time string store/value names in
+`WithRequirements(ctx, store, names...)` and `WithYields(ctx, store, names...)`.
+Use `gimbal.DefaultStore` for the unnamed store. Requirements accumulate with
+repeated calls; each declaration grants the whole visible store.
+GIMBAL112 rejects repeated names in a producer declaration.
+GIMBAL113 requires `WithYields` to be the inline context argument of `Service`,
+`RunCommand`, or `Check`. Assigning it to a context or passing it through another
+context modifier is rejected, so outputs belong to exactly one producer.
+Scope ordering and avoiding repeated publication remain workflow-author responsibilities.

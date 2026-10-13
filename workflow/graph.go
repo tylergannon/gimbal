@@ -64,8 +64,9 @@ type Session struct {
 // coder's role is "researcher".
 type AgentCall struct {
 	Source
-	Session string `json:"session"`
-	Role    string `json:"role"`
+	Requirements []StoreDeclaration `json:"requirements"`
+	Session      string             `json:"session"`
+	Role         string             `json:"role"`
 	// Prompt is the constant the source passes (#230). The scope's context
 	// the run appends to it is the run's record.
 	Prompt string `json:"prompt"`
@@ -78,8 +79,9 @@ type AgentCall struct {
 // it; its questions, answers, and internal turns are runtime facts.
 type Interview struct {
 	Source
-	Name    string `json:"name"`
-	Session string `json:"session"`
+	Requirements []StoreDeclaration `json:"requirements"`
+	Name         string             `json:"name"`
+	Session      string             `json:"session"`
 }
 
 // Supervisor is one gimbal.WithSupervisor on a call: a session watching the
@@ -93,12 +95,21 @@ type Supervisor struct {
 	Supervisors []Supervisor `json:"supervisors"`
 }
 
+// StoreDeclaration names a store and the values an operation declares. The
+// empty store name is the workflow's default store. Values are never recorded.
+type StoreDeclaration struct {
+	Store string   `json:"store"`
+	Names []string `json:"names"`
+}
+
 // Command is one gimbal.RunCommand or gimbal.Check. Name is the constant name
 // RunCommand gives it, or the constant context key Check gives it; the command
 // line and its outcome are the run's record.
 type Command struct {
 	Source
-	Name string `json:"name"`
+	Requirements []StoreDeclaration `json:"requirements"`
+	Yields       []StoreDeclaration `json:"yields"`
+	Name         string             `json:"name"`
 }
 
 // Service is one gimbal.Service declaration. The containing Graph, Scope,
@@ -106,7 +117,9 @@ type Command struct {
 // ordered operation; the command line and runtime process are the run's record.
 type Service struct {
 	Source
-	Name string `json:"name"`
+	Requirements []StoreDeclaration `json:"requirements"`
+	Yields       []StoreDeclaration `json:"yields"`
+	Name         string             `json:"name"`
 }
 
 // Set is one gimbal.Set or SetJSON: a key written into the containing scope.
@@ -132,9 +145,10 @@ type Scope struct {
 // the planner's decision.
 type PromiseLoop struct {
 	Source
-	Name        string       `json:"name"`
-	Planner     string       `json:"planner"`
-	Supervisors []Supervisor `json:"supervisors"`
+	Requirements []StoreDeclaration `json:"requirements"`
+	Name         string             `json:"name"`
+	Planner      string             `json:"planner"`
+	Supervisors  []Supervisor       `json:"supervisors"`
 	// Services belong to each task scope described by Body.
 	Services []Service   `json:"services"`
 	Body     []Operation `json:"body"`

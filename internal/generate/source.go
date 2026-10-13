@@ -325,7 +325,7 @@ func services(declarations []workflow.Service) string {
 	var b strings.Builder
 	b.WriteString("[]workflow.Service{\n")
 	for _, service := range declarations {
-		fmt.Fprintf(&b, "{Source: %s, Name: %s},\n", position(service.Source), strconv.Quote(service.Name))
+		fmt.Fprintf(&b, "{Source: %s, Name: %s%s},\n", position(service.Source), strconv.Quote(service.Name), valueFields(service.Requirements, service.Yields))
 	}
 	b.WriteString("}")
 	return b.String()
@@ -338,20 +338,22 @@ func operation(op workflow.Operation) string {
 		fmt.Fprintf(&b, "workflow.Session{Source: %s, Name: %s, From: %s}", position(op.Source), strconv.Quote(op.Name), strconv.Quote(op.From))
 	case workflow.AgentCall:
 		fmt.Fprintf(&b, "workflow.AgentCall{Source: %s, Session: %s, Role: %s, Prompt: %s", position(op.Source), strconv.Quote(op.Session), strconv.Quote(op.Role), strconv.Quote(op.Prompt))
+		b.WriteString(valueFields(op.Requirements, nil))
 		if len(op.Supervisors) > 0 {
 			fmt.Fprintf(&b, ", Supervisors: %s", supervisors(op.Supervisors))
 		}
 		b.WriteString("}")
 	case workflow.Interview:
-		fmt.Fprintf(&b, "workflow.Interview{Source: %s, Name: %s, Session: %s}", position(op.Source), strconv.Quote(op.Name), strconv.Quote(op.Session))
+		fmt.Fprintf(&b, "workflow.Interview{Source: %s, Name: %s, Session: %s%s}", position(op.Source), strconv.Quote(op.Name), strconv.Quote(op.Session), valueFields(op.Requirements, nil))
 	case workflow.Command:
-		fmt.Fprintf(&b, "workflow.Command{Source: %s, Name: %s}", position(op.Source), strconv.Quote(op.Name))
+		fmt.Fprintf(&b, "workflow.Command{Source: %s, Name: %s%s}", position(op.Source), strconv.Quote(op.Name), valueFields(op.Requirements, op.Yields))
 	case workflow.Set:
 		fmt.Fprintf(&b, "workflow.Set{Source: %s, Key: %s}", position(op.Source), strconv.Quote(op.Key))
 	case workflow.Scope:
 		fmt.Fprintf(&b, "workflow.Scope{Source: %s, Name: %s, Services: %s, Body: %s}", position(op.Source), strconv.Quote(op.Name), services(op.Services), operations(op.Body))
 	case workflow.PromiseLoop:
 		fmt.Fprintf(&b, "workflow.PromiseLoop{Source: %s, Name: %s, Planner: %s", position(op.Source), strconv.Quote(op.Name), strconv.Quote(op.Planner))
+		b.WriteString(valueFields(op.Requirements, nil))
 		if len(op.Supervisors) > 0 {
 			fmt.Fprintf(&b, ", Supervisors: %s", supervisors(op.Supervisors))
 		}
@@ -387,5 +389,27 @@ func supervisors(watching []workflow.Supervisor) string {
 		b.WriteString("},\n")
 	}
 	b.WriteString("}")
+	return b.String()
+}
+
+func valueFields(requirements, yields []workflow.StoreDeclaration) string {
+	var b strings.Builder
+	for _, field := range []struct {
+		name         string
+		declarations []workflow.StoreDeclaration
+	}{{"Requirements", requirements}, {"Yields", yields}} {
+		if len(field.declarations) == 0 {
+			continue
+		}
+		fmt.Fprintf(&b, ", %s: []workflow.StoreDeclaration{", field.name)
+		for _, declaration := range field.declarations {
+			fmt.Fprintf(&b, "{Store: %q, Names: []string{", declaration.Store)
+			for _, name := range declaration.Names {
+				fmt.Fprintf(&b, "%q,", name)
+			}
+			b.WriteString("}},")
+		}
+		b.WriteString("}")
+	}
 	return b.String()
 }

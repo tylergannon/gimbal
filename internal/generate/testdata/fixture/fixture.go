@@ -194,7 +194,7 @@ func ServiceOwnershipShape(ctx context.Context, _ gimbal.Env) error {
 		return err
 	}
 	if err := gimbal.Scope(ctx, "backend", func(ctx context.Context) error {
-		if _, err := gimbal.FulfillService(ctx, "api", ".", "exec sleep 30", 8080, "consumer"); err != nil {
+		if err := gimbal.Service(ctx, "api", ".", "exec sleep 30"); err != nil {
 			return err
 		}
 		_, _, _, err := gimbal.RunCommand(ctx, "build", ".", "go", "build", "./...")

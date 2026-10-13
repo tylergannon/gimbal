@@ -163,9 +163,9 @@ func TestProcessMeaningAndScopedAntiClaim(t *testing.T) {
 		t.Fatal("startup failure was accepted")
 	}
 	for _, req := range []effects.Process{
-		processRequest(t, "run", "child.1", "child.1/service.1", "exec sleep 60", true),
-		processRequest(t, "run", "", "parent.1", "exec sleep 60", true),
-		processRequest(t, "other", "child.1", "child.1/service.1", "exec sleep 60", true),
+		processRequest(t, "run", "child.1", "child.1/service.1", `touch "$ENV_FILE.tmp"; mv "$ENV_FILE.tmp" "$ENV_FILE"; exec sleep 60`, true),
+		processRequest(t, "run", "", "parent.1", `touch "$ENV_FILE.tmp"; mv "$ENV_FILE.tmp" "$ENV_FILE"; exec sleep 60`, true),
+		processRequest(t, "other", "child.1", "child.1/service.1", `touch "$ENV_FILE.tmp"; mv "$ENV_FILE.tmp" "$ENV_FILE"; exec sleep 60`, true),
 	} {
 		if err := d.process(req); err != nil {
 			t.Fatal(err)

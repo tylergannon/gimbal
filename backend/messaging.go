@@ -30,7 +30,7 @@ type MessageRequest struct {
 // could not be confirmed. Output bytes survive even when invalid JSON; ID is
 // the session created by a session request.
 type MessageResult struct {
-	ReadyServices  []ServiceUse    `json:",omitempty"`
+	ReadyResources []ResourceFact  `json:",omitempty"`
 	Interrupted    bool            `json:",omitempty"`
 	Unresolved     bool            `json:",omitempty"`
 	ID             string          `json:",omitempty"`
@@ -46,18 +46,18 @@ type MessageResult struct {
 // Completed settles the request with its returned outcome; it does not assert
 // native success or cessation. Inspect Result for failure, authoritative
 // interruption, or unresolved control delivery. Activity contains the native
-// AgentEvent envelope, including NativeRef. An activity with ReadyService
+// AgentEvent envelope, including NativeRef. An activity with Resource
 // instead records the supplied dependency's declared readiness/access, without
 // an address, implementation handle or fabricated provider-native event.
 type MessageEvent struct {
 	ID, RequestID string
 	Created       time.Time
 	Owner
-	SessionID    string `json:",omitempty"`
-	Kind         string
-	ReadyService *ServiceUse     `json:",omitempty"`
-	Activity     json.RawMessage `json:",omitempty"`
-	Result       *MessageResult  `json:",omitempty"`
+	SessionID string `json:",omitempty"`
+	Kind      string
+	Resource  *ResourceFact   `json:",omitempty"`
+	Activity  json.RawMessage `json:",omitempty"`
+	Result    *MessageResult  `json:",omitempty"`
 }
 
 type MessageSelection struct{ RequestID, Run, SessionID string }

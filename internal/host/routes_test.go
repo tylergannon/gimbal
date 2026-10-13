@@ -43,9 +43,12 @@ func TestRemoteRoutesRestoreControlWithoutSharedRunFiles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	id, err := p.Start(invocation.Request{Workflow: "review", Input: json.RawMessage(`{"goal":"inspect"}`), WorkDir: "/execution-A/repository", WorkflowProject: "/execution-A/project", WorkflowRoute: backend.Route{Name: "http", Configuration: config, Environment: "A"}, TaskRoute: backend.Route{Name: "http", Configuration: config, Environment: "B"}})
+	id, err := p.Start(invocation.Request{Workflow: "review", Input: json.RawMessage(`{"goal":"inspect"}`), WorkDir: "/execution-A/repository", WorkflowProject: "/execution-A/project", WorkflowRoute: backend.Route{Name: "http", Configuration: config, Label: "A"}, TaskEndpoint: server.URL})
 	if err != nil {
 		t.Fatal(err)
+	}
+	if admitted.TaskRoute.Environment != "" || admitted.TaskRoute.Label != server.URL || admitted.TaskRoute.Name != "http" {
+		t.Fatalf("task endpoint became orchestrated placement: %+v", admitted.TaskRoute)
 	}
 	if admitted.Project != "/execution-A/project" || admitted.Workdir != "/execution-A/repository" || admitted.ID != id {
 		t.Fatalf("wrong admission %+v", admitted)
@@ -78,7 +81,7 @@ func TestRemoteRoutesRestoreControlWithoutSharedRunFiles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if snapshot.Run.WorkflowEnvironment != "A" || snapshot.Run.TaskEnvironment != "B" {
+	if snapshot.Run.WorkflowEnvironment != "A" || snapshot.Run.TaskEnvironment != server.URL {
 		t.Fatalf("lost placement %+v", snapshot.Run)
 	}
 	ids, err := p.Registry().IDs()

@@ -106,13 +106,13 @@ func routeAnalysis(args []string) ([]string, bool) {
 func isOrdinaryCLI(args []string) bool {
 	if len(args) > 0 {
 		switch args[0] {
-		case "generate", "run-prompt", "run", "runs", "watch", "steer", "count-tokens", "audit-index", "opencode", "upload-artifact":
+		case "generate", "run-prompt", "run", "runs", "watch", "steer", "count-tokens", "audit-index", "opencode", "upload-artifact", "user":
 			return true
 		}
 	}
 	for _, arg := range args {
 		switch arg {
-		case "-h", "--help", "-v", "--version", "-port", "--port", "-uds", "--uds", "-no-web", "--no-web", "--no-project", "--ready":
+		case "-h", "--help", "-v", "--version", "-port", "--port", "-uds", "--uds", "-no-web", "--no-web", "--no-project", "--ready", "--auth-file":
 			return true
 		}
 	}
@@ -159,11 +159,15 @@ TYPESAFE_API_KEY is required when a workflow uses WithSupervisor for Jev supervi
 Separate instances can host different projects with distinct instance
 directories and web endpoints.
 gimbal lint [packages] checks workflow authoring rules, standalone or as a go
-vet tool.`,
+vet tool.
+Authentication is off unless --auth-file selects an absolute auth configuration.
+Only provisioned users may sign in when authentication is selected. The optional
+--task-listen server is outside web authentication and must stay private.`,
 		Args:          cobra.NoArgs,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			server.authSelected = cmd.Flags().Changed("auth-file")
 			return serve(cmd.Context(), server, stdout)
 		},
 	}
@@ -177,7 +181,7 @@ vet tool.`,
 		DisableFlagParsing: true,
 		RunE:               func(_ *cobra.Command, args []string) error { return runPrompt(args, stdout, stderr, getenv) },
 	})
-	root.AddCommand(newMessagingWorkerCommand(), newMessagingWatchCommand(), newGenerateCommand(), newDaemonCommand(), newRunsCommand(), newWatchCommand(), newSteerCommand(), newCancelCommand(), newCountTokensCommand(), newAuditIndexCommand(stdout), newOpenCodeCommand(stdout, getenv))
+	root.AddCommand(newMessagingWorkerCommand(), newMessagingWatchCommand(), newGenerateCommand(), newDaemonCommand(), newRunsCommand(), newWatchCommand(), newSteerCommand(), newCancelCommand(), newCountTokensCommand(), newAuditIndexCommand(stdout), newOpenCodeCommand(stdout, getenv), newUserCommand())
 	return root
 }
 
@@ -243,20 +247,23 @@ under the selected state directory's captures/ subdirectory.`,
 
 // serverFlags shape the web application of every command that runs one.
 type serverFlags struct {
-	port        int
-	uds         string
-	noWeb       bool
-	noProject   bool
-	ready       bool
-	projects    []string
-	instanceDir string
-	taskListen  string
-	pluginDirs  []string
+	port         int
+	uds          string
+	noWeb        bool
+	noProject    bool
+	ready        bool
+	projects     []string
+	instanceDir  string
+	taskListen   string
+	pluginDirs   []string
+	authFile     string
+	authSelected bool
 }
 
 func (f *serverFlags) bind(fs *pflag.FlagSet) {
 	fs.StringArrayVar(&f.pluginDirs, "plugin-dir", nil, "native plugin directory (repeat)")
-	fs.StringVar(&f.taskListen, "task-listen", "", "also serve task execution on this TCP address")
+	fs.StringVar(&f.authFile, "auth-file", "", "enable web login using this absolute auth configuration file (off when omitted)")
+	fs.StringVar(&f.taskListen, "task-listen", "", "also serve trusted task execution on this private TCP address; outside web authentication")
 	fs.IntVar(&f.port, "port", 8080, "loopback TCP port for the web application")
 	fs.StringVar(&f.uds, "uds", "", "Unix-domain socket for the web application instead of TCP")
 	fs.BoolVar(&f.noWeb, "no-web", false, "run without the web application")
@@ -267,13 +274,17 @@ func (f *serverFlags) bind(fs *pflag.FlagSet) {
 }
 
 func (f *serverFlags) options() []web.Option {
+	var options []web.Option
+	if f.authSelected {
+		options = append(options, web.WithAuthFile(f.authFile))
+	}
 	switch {
 	case f.noWeb:
-		return []web.Option{web.WithNoWeb()}
+		return append(options, web.WithNoWeb())
 	case f.uds != "":
-		return []web.Option{web.WithUDS(f.uds)}
+		return append(options, web.WithUDS(f.uds))
 	default:
-		return []web.Option{web.WithPort(f.port)}
+		return append(options, web.WithPort(f.port))
 	}
 }
 
@@ -290,13 +301,8 @@ func serve(ctx context.Context, server serverFlags, stdout io.Writer) error {
 	}
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	if server.taskListen != "" {
-		closeTasks, err := serveEnvironment(ctx, server.taskListen, "", server.pluginDirs)
-		if err != nil {
-			return err
-		}
-		defer closeTasks()
-	}
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	options := server.options()
 	projects := server.projects
 	if len(projects) == 0 && !server.noProject {
@@ -306,13 +312,28 @@ func serve(ctx context.Context, server serverFlags, stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
+	defer func() {
+		cancel()
+		instance.Wait()
+	}()
 	instance.Owner.SetPluginDirs(server.pluginDirs)
+	if server.taskListen != "" {
+		closeTasks, err := serveEnvironment(ctx, server.taskListen, "", server.pluginDirs)
+		if err != nil {
+			return err
+		}
+		defer closeTasks()
+		if server.authSelected {
+			if _, err := fmt.Fprintf(stdout, "Task listener %s is outside web authentication; keep it private.\n", server.taskListen); err != nil {
+				return err
+			}
+		}
+	}
 	if server.ready {
 		if _, err := fmt.Fprintf(stdout, "READY http://%s\n", instance.Address()); err != nil {
 			return fmt.Errorf("gimbal: write readiness: %w", err)
 		}
 	}
 	<-ctx.Done()
-	instance.Wait()
 	return nil
 }

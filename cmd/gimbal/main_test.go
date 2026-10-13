@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -171,5 +172,53 @@ func TestServerFlagConflictsFailBeforeStarting(t *testing.T) {
 				t.Fatalf("serve error = %v, want it to contain %q", err, test.want)
 			}
 		})
+	}
+}
+
+func TestServerExplicitInvalidAuthSelectionFailsBeforeTaskListener(t *testing.T) {
+	for _, authPath := range []string{"", "relative.json", filepath.Join(t.TempDir(), "missing.json")} {
+		t.Run(authPath, func(t *testing.T) {
+			root := newRootCommand(io.Discard, io.Discard, os.Getenv)
+			root.SetArgs([]string{"--no-project", "--port", "0", "--instance-dir", t.TempDir(), "--auth-file=" + authPath, "--task-listen", "invalid-address"})
+			err := root.ExecuteContext(t.Context())
+			if err == nil || !strings.Contains(strings.ToLower(err.Error()), "auth") {
+				t.Fatalf("invalid explicit auth must fail before binding tasks: %v", err)
+			}
+		})
+	}
+}
+
+func TestFailedTaskListenerStopsStartedInstance(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = listener.Close() }()
+	dir := t.TempDir()
+	err = serve(t.Context(), serverFlags{
+		instanceDir: dir, noProject: true, noWeb: true,
+		taskListen: listener.Addr().String(),
+	}, io.Discard)
+	if err == nil {
+		t.Fatal("task listener unexpectedly bound an occupied address")
+	}
+	entries, err := os.ReadDir(filepath.Join(dir, "control"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("failed task listener left instance control discoveries: %v", entries)
+	}
+}
+
+func TestServerHelpExplainsAuthSelectionAndTaskBoundary(t *testing.T) {
+	var out bytes.Buffer
+	if err := run([]string{"--help"}, &out, &bytes.Buffer{}, os.Getenv); err != nil {
+		t.Fatal(err)
+	}
+	for _, phrase := range []string{"--auth-file", "off when omitted", "outside web authentication"} {
+		if !strings.Contains(out.String(), phrase) {
+			t.Fatalf("server help omits %q", phrase)
+		}
 	}
 }

@@ -1,5 +1,7 @@
 <script lang="ts">
   import "../app.css";
+  import Account from "#lib/auth/Account.svelte";
+  import { navigateOnUnauthorized } from "#lib/auth/unauthorized";
   import { navigating, page } from "$app/state";
   import { APP_NAME } from "#lib/app.js";
   import ProjectWorkspace from "#lib/workspace/ProjectWorkspace.svelte";
@@ -19,6 +21,10 @@
 </script>
 
 <svelte:head><link rel="icon" href={favicon} /></svelte:head>
+{#if data.authEnabled && !data.user}
+  {@render children()}
+{:else}
+<svelte:boundary onerror={(error) => { navigateOnUnauthorized(error); }}>
 <div class="flex h-screen">
   {#if !project}
     <aside
@@ -61,6 +67,7 @@
     </aside>
   {/if}
   <div class="flex min-w-0 flex-1 flex-col">
+    {#if data.user}<Account name={data.user.name} />{/if}
     <main class="min-h-0 flex-1 overflow-auto">
       {#if project}
         {#key project}<ProjectWorkspace
@@ -84,6 +91,12 @@
     <RecorderBridge dock={!project} />
   </div>
 </div>
+
+  {#snippet failed(error, reset)}
+    <p role="alert" class="p-6">Could not load this view. <button onclick={reset}>Retry</button></p>
+  {/snippet}
+</svelte:boundary>
+{/if}
 
 <style>
   :global(body) {

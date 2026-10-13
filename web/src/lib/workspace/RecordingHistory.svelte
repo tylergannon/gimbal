@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { navigateOnUnauthorized } from "#lib/auth/unauthorized";
   import { onMount } from "svelte";
   import { recordingHistory } from "../transcript.remote";
   let { project }: { project: string } = $props();
@@ -6,7 +7,7 @@
   const history = $derived(await recordingHistory({ project, after }));
   onMount(() => {
     const timer = setInterval(
-      () => void recordingHistory({ project, after }).refresh(),
+      () => void recordingHistory({ project, after }).refresh().catch(navigateOnUnauthorized),
       5000,
     );
     return () => clearInterval(timer);

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { navigateOnUnauthorized } from "#lib/auth/unauthorized";
   import type { Conversation } from '#lib/skgo/conversation/types';
   import { goto } from '$app/navigation';
   import { createConversation, projectConversations } from '../../routes/conversation.remote';
@@ -7,14 +8,20 @@
   let provider = $state('codex');
   const defaults: Record<string, string> = { codex: 'gpt-5.6-luna', claude: 'claude-haiku-4-5-20251001', agy: 'gemini-3.8-flash-low' };
   let model = $derived(defaults[provider]);
+  let actionError = $state("");
 </script>
 
 <section class="create">
+  {#if actionError}<p role="alert">{actionError}</p>{/if}
   <div class="heading"><h1>New conversation</h1><p>Choose the agent for this project.</p></div>
   <form {...form.enhance(async (submitted) => {
-    if (await submitted.submit().updates(projectConversations(project)) && submitted.result) {
-      oncreated(submitted.result);
-      await goto(`/projects/${project}/conversations/${submitted.result.id}`);
+    try {
+      if (await submitted.submit().updates(projectConversations(project)) && submitted.result) {
+        oncreated(submitted.result);
+        await goto(`/projects/${project}/conversations/${submitted.result.id}`);
+      }
+    } catch (error) {
+      if (!navigateOnUnauthorized(error)) actionError = error instanceof Error ? error.message : String(error);
     }
   })}>
     <label>Title <input {...form.fields.title.as('text')} placeholder="What are we working on?" /></label>

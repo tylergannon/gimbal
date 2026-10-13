@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { navigateOnUnauthorized } from "#lib/auth/unauthorized";
   import { onMount, tick } from "svelte";
   import { page } from "$app/state";
   import { watchRecording } from "../transcript.remote";
@@ -42,6 +43,9 @@
         nativeMessage("snapshotApplied", { sessionID: id, sequence, closed }),
       );
     }
+  });
+  $effect(() => {
+    if (stream?.error) void stream.catch(navigateOnUnauthorized);
   });
   onMount(() => {
     native = !!window.webkit?.messageHandlers?.bridgeReady;

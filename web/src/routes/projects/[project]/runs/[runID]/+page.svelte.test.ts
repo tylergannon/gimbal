@@ -1,11 +1,36 @@
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
+import { error as httpError } from "@sveltejs/kit";
 import { render } from "vitest-browser-svelte";
 import { implementInterviewFixture, planTripFixture } from "#lib/run/fixtures/index.js";
 import type { ObservationDelta, RunSnapshot } from "#lib/observation/index.js";
 import type { Graph } from "#lib/workflow/types.js";
 import Page from "./+page.svelte";
 
-vi.mock("$app/state", () => ({ page: { params: { project: "test-project" } } }));
+const auth = vi.hoisted(() => ({
+  page: { params: { project: "test-project" }, data: { authEnabled: false } },
+  currentUser: vi.fn(),
+  goto: vi.fn(() => Promise.resolve()),
+}));
+vi.mock("$app/state", () => ({ page: auth.page }));
+vi.mock("$app/navigation", () => ({
+  goto: auth.goto,
+  invalidateAll: vi.fn(),
+  afterNavigate: vi.fn(),
+  beforeNavigate: vi.fn(),
+  onNavigate: vi.fn(),
+  invalidate: vi.fn(),
+  refreshAll: vi.fn(),
+  preloadData: vi.fn(),
+  preloadCode: vi.fn(),
+  disableScrollHandling: vi.fn(),
+  pushState: vi.fn(),
+  replaceState: vi.fn(),
+}));
+vi.mock("../../../../auth.remote", () => ({
+  currentUser: auth.currentUser,
+  logout: vi.fn(),
+  beginLogin: vi.fn(),
+}));
 
 class TestEventSource {
   static instances: TestEventSource[] = [];
@@ -46,6 +71,9 @@ const originalEventSource = globalThis.EventSource;
 
 beforeEach(() => {
   TestEventSource.instances = [];
+  auth.page.data.authEnabled = false;
+  auth.currentUser.mockReset();
+  auth.goto.mockClear();
   globalThis.EventSource = TestEventSource as unknown as typeof EventSource;
 });
 
@@ -380,4 +408,64 @@ test("an outage keeps aging across retry, recovers, and one replacement becomes 
 
   await expect.element(screen.getByText("Completed", { exact: true })).toBeVisible();
   await expect.element(screen.getByText("Recorded run · nothing here is live")).toBeVisible();
+});
+
+test("an authenticated reconnect waits for a fresh session probe", async () => {
+  auth.page.data.authEnabled = true;
+  let accept!: () => void;
+  const refresh = vi.fn(
+    () =>
+      new Promise<void>((resolve) => {
+        accept = resolve;
+      }),
+  );
+  auth.currentUser.mockReturnValue(
+    Object.assign(Promise.resolve({ id: "tyler", name: "Tyler" }), { refresh }),
+  );
+  const { stream } = await renderRunningPage();
+  stream.fail();
+  await expect.poll(() => refresh.mock.calls.length).toBe(1);
+  expect(TestEventSource.instances).toHaveLength(1);
+  accept();
+  await expect.poll(() => TestEventSource.instances.length).toBe(2);
+  expect(auth.goto).not.toHaveBeenCalled();
+});
+
+test("a refused session probe returns to login and stops stream retries", async () => {
+  auth.page.data.authEnabled = true;
+  let expired: unknown;
+  try {
+    httpError(401, "Sign in to continue.");
+  } catch (error) {
+    expired = error;
+  }
+  const refresh = vi.fn().mockRejectedValue(expired);
+  auth.currentUser.mockReturnValue({ refresh });
+  const { stream } = await renderRunningPage();
+  stream.fail();
+  await expect.poll(() => auth.goto.mock.calls.length).toBe(1);
+  expect(auth.goto).toHaveBeenCalledWith("/auth/login");
+  await new Promise((resolve) => setTimeout(resolve, 400));
+  expect(TestEventSource.instances).toHaveLength(1);
+});
+
+test("a finished session probe cannot restart a stream after page teardown", async () => {
+  auth.page.data.authEnabled = true;
+  let accept!: () => void;
+  const refresh = vi.fn(
+    () =>
+      new Promise<void>((resolve) => {
+        accept = resolve;
+      }),
+  );
+  auth.currentUser.mockReturnValue(
+    Object.assign(Promise.resolve({ id: "tyler", name: "Tyler" }), { refresh }),
+  );
+  const { screen, stream } = await renderRunningPage();
+  stream.fail();
+  await expect.poll(() => refresh.mock.calls.length).toBe(1);
+  await screen.unmount();
+  accept();
+  await new Promise((resolve) => setTimeout(resolve, 400));
+  expect(TestEventSource.instances).toHaveLength(1);
 });

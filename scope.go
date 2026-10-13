@@ -468,12 +468,18 @@ func scopeTextAndContext(ctx context.Context) (string, []ContextEntry) {
 	if tokenCount(text) <= contextTokenLimit {
 		return text, defaultContextEntries(visible, sections)
 	}
+	high := 0
 	for _, item := range visible {
 		if err := item.owner.ensureArtifact(item.key, item.value); err != nil {
 			panic(fmt.Sprintf("gimbal: render scope value %q: write artifact: %v", item.key, err))
 		}
+		item.owner.mu.Lock()
+		high = max(high, min(artifactPreviewBytes, len(item.value.artifact.preview)))
+		item.owner.mu.Unlock()
 	}
-	low, high := 0, artifactPreviewBytes
+	// Larger byte limits render identical candidates once every preview is
+	// complete, so search only the actual preview range.
+	low := 0
 	best := renderVisible(visible, 0)
 	for low <= high {
 		middle := low + (high-low)/2

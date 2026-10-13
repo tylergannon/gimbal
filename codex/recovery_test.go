@@ -253,12 +253,13 @@ func (d *recoveryDaemon) finish(ws *websocket.Conn, id string) {
 }
 
 func TestImplementRecoversActiveCodexTurnWithoutReplayingOutcomes(t *testing.T) {
+	t.Setenv("TYPESAFE_API_KEY", "test-key")
 	for _, mode := range []string{"survive", "status-lag", "completed", "ack", "restart", "restart-stale", "outage"} {
 		t.Run(mode, func(t *testing.T) {
+			t.Parallel()
 			ad, d := newRecoveryDaemon(t, mode)
 			ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 			defer cancel()
-			t.Setenv("TYPESAFE_API_KEY", "test-key")
 			dir := t.TempDir()
 			path := filepath.Join(dir, "outcomes.json")
 			if err := os.WriteFile(path, []byte(`["first","second","third"]`), 0600); err != nil {

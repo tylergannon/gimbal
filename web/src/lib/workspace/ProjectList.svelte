@@ -38,7 +38,7 @@
 <ol class="mt-6 grid gap-px" aria-label="Projects">
   {#each order as project, index (project.id)}
     <li
-      class={["row flex items-center rounded-lg hover:bg-accent", over === index && dragging !== project.id && "over"]}
+      class={["row flex min-w-0 items-center rounded-lg hover:bg-accent", over === index && dragging !== project.id && "over"]}
       draggable="true"
       ondragstart={(event) => {
         dragging = project.id;

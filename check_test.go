@@ -85,7 +85,7 @@ func TestCheckReturnsExecutionErrorsAndRecordsThemAsErrors(t *testing.T) {
 func TestCheckKeepsCompleteLargeOutputReachable(t *testing.T) {
 	var stdout string
 	err := runTest(t, nil, func(ctx context.Context) error {
-		if err := Check(ctx, "large", "", "sh", "-c", "head -c 70000 /dev/zero | tr '\\0' x; printf end"); err != nil {
+		if err := Check(ctx, "large", "", "sh", "-c", `awk 'BEGIN { for (i=0; i<14000; i++) printf "word "; }'; printf end`); err != nil {
 			return err
 		}
 		result := scopeData(ctx).By["large"].Value.(map[string]any)
@@ -97,12 +97,12 @@ func TestCheckKeepsCompleteLargeOutputReachable(t *testing.T) {
 	}
 	const marker = "Complete output: "
 	start := strings.Index(stdout, marker)
-	if start < 0 || !strings.HasSuffix(stdout, "xend") {
+	if start < 0 || !strings.HasSuffix(stdout, "word end") {
 		t.Fatalf("recorded stdout lacks its bounded preview and complete-output reference: %q", stdout[max(0, len(stdout)-300):])
 	}
 	path := strings.TrimSpace(strings.SplitN(stdout[start+len(marker):], "\n", 2)[0])
 	whole, err := os.ReadFile(path)
-	if err != nil || len(whole) != 70003 || !strings.HasSuffix(string(whole), "xend") {
+	if err != nil || string(whole) != strings.Repeat("word ", 14_000)+"end" {
 		t.Fatalf("complete output %s has %d bytes (%v), want the exact 70003-byte stream", path, len(whole), err)
 	}
 }
@@ -117,7 +117,7 @@ func TestCheckReturnsAResultRecordingFailure(t *testing.T) {
 		if err := os.WriteFile(blocked, []byte("not a directory"), 0o644); err != nil {
 			return err
 		}
-		checkErr = Check(ctx, "large", "", "sh", "-c", "head -c 70000 /dev/zero | tr '\\0' x")
+		checkErr = Check(ctx, "large", "", "sh", "-c", `awk 'BEGIN { for (i=0; i<14000; i++) printf "word "; }'`)
 		return nil
 	})
 	if err != nil {

@@ -266,7 +266,7 @@ func (s *scope) stopOwnedWork() error {
 		session.mu.Unlock()
 		var closeErr error
 		if native != "" {
-			closeCtx, cancel := context.WithTimeout(context.Background(), closeTimeout)
+			closeCtx, cancel := context.WithTimeout(context.Background(), s.run.cleanupTimeoutOr(closeTimeout))
 			closeErr = session.adapter.Close(closeCtx, native)
 			cancel()
 			if closeErr != nil {
@@ -291,7 +291,7 @@ func (s *scope) stopOwnedWork() error {
 		}
 	}
 	if effects.Endpoint(s.ctx) == "" && effects.Connection(s.ctx).Secrets != nil {
-		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(s.ctx), closeTimeout)
+		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(s.ctx), s.run.cleanupTimeoutOr(closeTimeout))
 		if err := effects.Connection(s.ctx).Secrets.Release(cleanupCtx, backend.Scope{Run: effectOwner(s, "").Run, Scope: s.key}); err != nil {
 			serviceErrs = append(serviceErrs, err)
 		}

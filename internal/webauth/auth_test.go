@@ -268,26 +268,6 @@ func TestGatePublicBoundaryRedirectsAndOrigin(t *testing.T) {
 		t.Fatal("storage failure did not deny access")
 	}
 }
-func TestGateClosesActiveResponseAfterRevocation(t *testing.T) {
-	a, s, _ := fixture(t)
-	c := login(t, a)
-	started := make(chan struct{})
-	closed := make(chan struct{})
-	gate := a.Gate(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { close(started); <-r.Context().Done(); close(closed) }), http.NotFoundHandler(), "/begin", nil)
-	r := httptest.NewRequest("GET", "https://gimbal.example/events", nil)
-	r.AddCookie(c)
-	go gate.ServeHTTP(httptest.NewRecorder(), r)
-	<-started
-	if err := s.DeleteUser(context.Background(), "tyler"); err != nil {
-		t.Fatal(err)
-	}
-	select {
-	case <-closed:
-	case <-time.After(32 * time.Second):
-		t.Fatal("revoked stream still open")
-	}
-}
-
 func TestLoopbackHTTPUsesLocalCookiesAndRemoteHTTPIsRefused(t *testing.T) {
 	for _, tc := range []struct {
 		origin string

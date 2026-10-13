@@ -157,28 +157,6 @@ func TestDefaultScopeContextStaysWithinItsTokenBudget(t *testing.T) {
 				}
 			},
 		},
-		{
-			name: "reference index fallback",
-			set: func(ctx context.Context) {
-				for i := range 70 {
-					var key strings.Builder
-					fmt.Fprintf(&key, "key-%03d-", i)
-					for j := range 120 {
-						fmt.Fprintf(&key, "%04x", i*131+j*977)
-					}
-					store(ctx, key.String(), encode(key.String(), "value"))
-				}
-			},
-			check: func(t *testing.T, text string) {
-				for _, path := range referencePaths(text) {
-					raw, err := os.ReadFile(path)
-					if err == nil && strings.Contains(string(raw), "key-000-") && strings.Contains(string(raw), "key-069-") {
-						return
-					}
-				}
-				t.Fatal("no referenced context index contains every key")
-			},
-		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

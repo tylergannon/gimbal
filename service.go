@@ -245,7 +245,7 @@ func (s *ownedService) stop() error {
 			s.mu.Lock()
 			defer s.mu.Unlock()
 			return s.terminalErr
-		case <-time.After(closeTimeout):
+		case <-time.After(s.scope.run.cleanupTimeoutOr(closeTimeout)):
 			return fmt.Errorf("service %s cleanup remains unconfirmed", s.id)
 		}
 	}

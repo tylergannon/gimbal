@@ -48,6 +48,8 @@ jobs:
         run: just check-hooks
       - name: Build application
         run: just build
+      - name: Check built CLI protocols and argument routing
+        run: just check-cli-release
       - name: Install browser test runtime
         run: cd web && pnpm exec playwright install --with-deps chromium
       - name: Install Go analysis tool

@@ -388,7 +388,9 @@ func TestGenerateRecordsPromptAndScopeContextSeparately(t *testing.T) {
 }
 
 func TestScopeTemplateRecordsCompletenessFromSentText(t *testing.T) {
-	artifact := strings.Repeat("a", 74_999)
+	// Spill an ordinary document to an artifact while keeping the complete
+	// template output below the overall context budget.
+	artifact := strings.TrimSpace(strings.Repeat("artifact content ", 3_000))
 	partial := artifact[:64]
 	overBudget := strings.Repeat("template budget ", 20_000)
 	var sent []string
@@ -563,12 +565,8 @@ func TestGenerateRecordsEmptyDefaultIndexAsIncomplete(t *testing.T) {
 		dir = runDir(ctx)
 		Set(ctx, "empty", "")
 		for i := range 70 {
-			var key strings.Builder
-			fmt.Fprintf(&key, "key-%03d-", i)
-			for j := range 120 {
-				fmt.Fprintf(&key, "%04x", i*131+j*977)
-			}
-			store(ctx, key.String(), encode(key.String(), "value"))
+			key := fmt.Sprintf("key-%03d- %s", i, strings.Repeat("a b c ", 80))
+			store(ctx, key, encode(key, "value"))
 		}
 		_, err := NewSession(ctx, "worker", "/w").Generate[Text](ctx, "inspect")
 		return err
@@ -578,6 +576,23 @@ func TestGenerateRecordsEmptyDefaultIndexAsIncomplete(t *testing.T) {
 	}
 	if !strings.Contains(sent, "## empty\n\nComplete value: ") {
 		t.Fatal("default rendering did not use the pointer-only scope index")
+	}
+	contextText := strings.TrimPrefix(sent, "inspect\n\n")
+	if got := tokenCount(contextText); got > contextTokenLimit {
+		t.Fatalf("scope index uses %d tokens, limit %d", got, contextTokenLimit)
+	}
+	var index string
+	for _, path := range referencePaths(contextText) {
+		raw, err := os.ReadFile(path)
+		if err == nil && strings.Contains(string(raw), "key-000-") && strings.Contains(string(raw), "key-069-") {
+			index = string(raw)
+			break
+		}
+	}
+	for i := range 70 {
+		if !strings.Contains(index, fmt.Sprintf("key-%03d-", i)) {
+			t.Fatalf("referenced scope index lacks key %d", i)
+		}
 	}
 
 	records := readRecords[LifecycleRecord](t, filepath.Join(dir, "run.jsonl"))

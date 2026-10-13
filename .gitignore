@@ -13,6 +13,7 @@ web/editor/.svelte-kit
 /bin/
 /tmp/
 /dist/
+/native/Resources/gimbal
 web/node_modules/
 web/.svelte-kit/
 web/build/*

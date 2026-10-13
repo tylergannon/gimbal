@@ -13,6 +13,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -111,7 +112,7 @@ func isOrdinaryCLI(args []string) bool {
 	}
 	for _, arg := range args {
 		switch arg {
-		case "-h", "--help", "-v", "--version", "-port", "--port", "-uds", "--uds", "-no-web", "--no-web":
+		case "-h", "--help", "-v", "--version", "-port", "--port", "-uds", "--uds", "-no-web", "--no-web", "--no-project", "--ready":
 			return true
 		}
 	}
@@ -163,7 +164,7 @@ vet tool.`,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return serve(cmd.Context(), server)
+			return serve(cmd.Context(), server, stdout)
 		},
 	}
 	root.SetOut(stdout)
@@ -245,6 +246,8 @@ type serverFlags struct {
 	port        int
 	uds         string
 	noWeb       bool
+	noProject   bool
+	ready       bool
 	projects    []string
 	instanceDir string
 	taskListen  string
@@ -257,6 +260,8 @@ func (f *serverFlags) bind(fs *pflag.FlagSet) {
 	fs.IntVar(&f.port, "port", 8080, "loopback TCP port for the web application")
 	fs.StringVar(&f.uds, "uds", "", "Unix-domain socket for the web application instead of TCP")
 	fs.BoolVar(&f.noWeb, "no-web", false, "run without the web application")
+	fs.BoolVar(&f.noProject, "no-project", false, "start without implicitly admitting the current directory")
+	fs.BoolVar(&f.ready, "ready", false, "print READY <http-url> to stdout after the web listener binds")
 	fs.StringArrayVar(&f.projects, "project", nil, "repository directory to admit (repeat for multiple projects; default: current directory)")
 	fs.StringVar(&f.instanceDir, "instance-dir", ".gimbal", "state directory for this persistent instance (default .gimbal)")
 }
@@ -273,11 +278,17 @@ func (f *serverFlags) options() []web.Option {
 }
 
 // serve runs one instance over the selected repositories until interrupted.
-func serve(ctx context.Context, server serverFlags) error {
+func serve(ctx context.Context, server serverFlags, stdout io.Writer) error {
+	if server.noProject && len(server.projects) > 0 {
+		return errors.New("gimbal: --no-project cannot be combined with --project")
+	}
+	if server.ready && (server.noWeb || server.uds != "") {
+		return errors.New("gimbal: --ready requires the TCP web listener")
+	}
 	if err := invocation.LoadPlugins(server.pluginDirs); err != nil {
 		return err
 	}
-	ctx, stop := signal.NotifyContext(ctx, os.Interrupt)
+	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	if server.taskListen != "" {
 		closeTasks, err := serveEnvironment(ctx, server.taskListen, "", server.pluginDirs)
@@ -288,7 +299,7 @@ func serve(ctx context.Context, server serverFlags) error {
 	}
 	options := server.options()
 	projects := server.projects
-	if len(projects) == 0 {
+	if len(projects) == 0 && !server.noProject {
 		projects = []string{"."}
 	}
 	instance, err := web.NewInstance(ctx, server.instanceDir, projects, options...)
@@ -296,6 +307,11 @@ func serve(ctx context.Context, server serverFlags) error {
 		return err
 	}
 	instance.Owner.SetPluginDirs(server.pluginDirs)
+	if server.ready {
+		if _, err := fmt.Fprintf(stdout, "READY http://%s\n", instance.Address()); err != nil {
+			return fmt.Errorf("gimbal: write readiness: %w", err)
+		}
+	}
 	<-ctx.Done()
 	instance.Wait()
 	return nil

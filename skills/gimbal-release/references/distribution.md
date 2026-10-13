@@ -1,8 +1,13 @@
 # Build distribution
 
-Gimbal publishes the CLI/server separately from its desktop client. The
-macOS builds currently require Apple Silicon and macOS 27. The desktop client connects
-to a separately started server. Linux releases support AMD64 and ARM64.
+Gimbal publishes the CLI/server separately and also bundles it in the desktop
+app. The macOS builds currently require Apple Silicon and macOS 27. By default,
+the desktop app starts and manages its bundled CLI server. Its central project
+catalog and instance control state live in `~/.gimbal/desktop`; project runs
+and conversations remain under each project's `.gimbal` directory. Setting
+`GIMBAL_SERVER_URL` before app launch selects an external server, which the app
+does not start or manage. Closing the app window leaves the app-owned server
+running; Command-Q stops it. Linux releases support AMD64 and ARM64.
 
 ## Local qualification
 
@@ -35,9 +40,10 @@ Replace the example version with the actual release version. The script verifies
 signatures, requires accepted notarization, staples and assesses the app, then
 produces a signed and stapled DMG with an Applications link and a ZIP containing
 the stapled app. Install the candidate in `/Applications` and observe its window
-against the independently running matching CLI. Signature checks alone do not
-prove app launch or server reachability. Never report unsigned/ad-hoc probes as
-Developer ID or notarization proof.
+with the bundled-server default. Also launch with `GIMBAL_SERVER_URL` pointing
+at a test server; verify that the app proxies to it and does not stop it on
+quit. Signature checks alone do not prove app launch or server reachability.
+Never report unsigned/ad-hoc probes as Developer ID or notarization proof.
 
 The standard CLI loads native Go plugins. It must retain CGO. macOS CLI signing
 uses `scripts/macos-cli.entitlements.plist` to allow independently built plugins;

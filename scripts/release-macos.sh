@@ -131,6 +131,8 @@ APP_OUT="$OUT_DIR/Gimbal.app"
 PROJECT="$ROOT/native/build/macos/Gimbal.xcodeproj"
 DERIVED="$ROOT/native/build/macos-release-derived"
 ENTITLEMENTS="$ROOT/native/release.entitlements.plist"
+CLI_ENTITLEMENTS="$ROOT/scripts/macos-cli.entitlements.plist"
+BUNDLED_CLI="$ROOT/native/Resources/gimbal"
 mkdir -p "$OUT_DIR"
 
 require_command() {
@@ -141,7 +143,9 @@ require_command() {
 for tool in ditto xcodebuild codesign plutil; do
 	require_command "$tool"
 done
-require_command python3
+for tool in go python3; do
+	require_command "$tool"
+done
 require_command file
 
 if [[ "$MODE" == "release" ]]; then
@@ -167,6 +171,22 @@ if [[ "$MODE" == "release" ]]; then
 	fi
 	if ! notarytool history --keychain-profile "$NOTARY_PROFILE" >/dev/null 2>&1; then
 		die "notarytool could not load keychain profile: $NOTARY_PROFILE"
+	fi
+fi
+
+if ((!SKIP_BUILD)); then
+	printf 'Building the exact-version bundled Gimbal CLI for macOS arm64...\n'
+	GIT_COMMIT="$(git -C "$ROOT" rev-parse --short HEAD)"
+	BUILD_DATE="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+	(
+		cd "$ROOT"
+		CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 go build -trimpath \
+			-ldflags "-s -w -X main.version=v$VERSION -X main.commit=$GIT_COMMIT -X main.date=$BUILD_DATE" \
+			-o "$BUNDLED_CLI" ./cmd/gimbal
+	)
+	chmod 755 "$BUNDLED_CLI"
+	if ! "$BUNDLED_CLI" --version | grep -Fq "v$VERSION"; then
+		die "bundled CLI version does not match $VERSION"
 	fi
 fi
 
@@ -214,8 +234,17 @@ INFO="$APP_OUT/Contents/Info.plist"
 	/usr/libexec/PlistBuddy -c "Add :CFBundleVersion string $BUILD_NUMBER" "$INFO"
 
 if [[ "$MODE" == "build-only" ]]; then
+	[[ -x "$APP_OUT/Contents/Resources/gimbal" ]] || die 'built app is missing its bundled Gimbal CLI'
+	if ! "$APP_OUT/Contents/Resources/gimbal" --version | grep -Fq "v$VERSION"; then
+		die "app's bundled CLI version does not match $VERSION"
+	fi
 	printf 'Unsigned app: %s\n' "$APP_OUT"
 	exit 0
+fi
+
+[[ -x "$APP_OUT/Contents/Resources/gimbal" ]] || die 'app is missing its bundled Gimbal CLI'
+if ! "$APP_OUT/Contents/Resources/gimbal" --version | grep -Fq "v$VERSION"; then
+	die "app's bundled CLI version does not match $VERSION"
 fi
 
 MAIN_NAME="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$INFO")"
@@ -224,11 +253,15 @@ MAIN_EXECUTABLE="$APP_OUT/Contents/MacOS/$MAIN_NAME"
 
 sign_code() {
 	local target="$1"
-	local keychain_args=()
+	local args=(--force --options runtime --timestamp)
 	if [[ -n "$KEYCHAIN_PATH" ]]; then
-		keychain_args+=(--keychain "$KEYCHAIN_PATH")
+		args+=(--keychain "$KEYCHAIN_PATH")
 	fi
-	codesign --force --options runtime --timestamp "${keychain_args[@]}" --sign "$SIGNING_IDENTITY" "$target"
+	if [[ "$target" == "$APP_OUT/Contents/Resources/gimbal" ]]; then
+		args+=(--entitlements "$CLI_ENTITLEMENTS")
+	fi
+	args+=(--sign "$SIGNING_IDENTITY")
+	codesign "${args[@]}" "$target"
 }
 
 printf 'Signing nested Mach-O files and code bundles...\n'
@@ -244,12 +277,13 @@ while IFS= read -r -d '' bundle; do
 	sign_code "$bundle"
 done < <(find "$APP_OUT/Contents" -depth -type d \( -name '*.framework' -o -name '*.bundle' -o -name '*.xpc' -o -name '*.appex' -o -name '*.app' \) -print0)
 
-codesign_keychain_args=()
+codesign_args=(--force --options runtime --timestamp)
 if [[ -n "$KEYCHAIN_PATH" ]]; then
-	codesign_keychain_args+=(--keychain "$KEYCHAIN_PATH")
+	codesign_args+=(--keychain "$KEYCHAIN_PATH")
 fi
-codesign --force --options runtime --timestamp "${codesign_keychain_args[@]}" --entitlements "$ENTITLEMENTS" --sign "$SIGNING_IDENTITY" "$MAIN_EXECUTABLE"
-codesign --force --options runtime --timestamp "${codesign_keychain_args[@]}" --entitlements "$ENTITLEMENTS" --sign "$SIGNING_IDENTITY" "$APP_OUT"
+codesign_args+=(--entitlements "$ENTITLEMENTS" --sign "$SIGNING_IDENTITY")
+codesign "${codesign_args[@]}" "$MAIN_EXECUTABLE"
+codesign "${codesign_args[@]}" "$APP_OUT"
 codesign --verify --deep --strict --verbose=2 "$APP_OUT"
 
 TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/gimbal-macos-release.XXXXXX")"
@@ -301,7 +335,12 @@ mkdir -p "$DMG_STAGE"
 ditto "$APP_OUT" "$DMG_STAGE/Gimbal.app"
 ln -s /Applications "$DMG_STAGE/Applications"
 hdiutil create -volname Gimbal -srcfolder "$DMG_STAGE" -ov -format UDZO "$DMG_OUT"
-codesign --force --timestamp "${codesign_keychain_args[@]}" --sign "$SIGNING_IDENTITY" "$DMG_OUT"
+codesign_dmg_args=(--force --timestamp)
+if [[ -n "$KEYCHAIN_PATH" ]]; then
+	codesign_dmg_args+=(--keychain "$KEYCHAIN_PATH")
+fi
+codesign_dmg_args+=(--sign "$SIGNING_IDENTITY")
+codesign "${codesign_dmg_args[@]}" "$DMG_OUT"
 printf 'Submitting installable disk image for notarization...\n'
 notarize "$DMG_OUT" 'disk image'
 xcrun stapler staple "$DMG_OUT"

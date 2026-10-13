@@ -60,7 +60,9 @@ import SwiftUI
       NSApp.setActivationPolicy(.regular)
       DispatchQueue.main.async { NSApp.activate(ignoringOtherApps: true) }
     }
-    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
+    // Closing the window hides the desktop shell without interrupting work in
+    // its owned CLI server. Command-Q still terminates the app and child.
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
     func applicationWillTerminate(_ notification: Notification) { NativeHost.active?.shutdown() }
   }
 #endif

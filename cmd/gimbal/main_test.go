@@ -2,10 +2,16 @@ package main
 
 import (
 	"bytes"
+	"context"
+	"io"
+	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
+	"time"
 )
 
 func TestRouteAnalysis(t *testing.T) {
@@ -66,6 +72,103 @@ func TestCLIReportsBuildMetadata(t *testing.T) {
 			const want = "gimbal version v1.2.3 (commit abc1234, built 2026-10-12T17:00:00Z)\n"
 			if got := stdout.String(); got != want {
 				t.Fatalf("version output = %q, want %q", got, want)
+			}
+		})
+	}
+}
+
+type readyLineWriter chan string
+
+func (w readyLineWriter) Write(data []byte) (int, error) {
+	w <- string(data)
+	return len(data), nil
+}
+
+func TestBundledServerReadyBindsEphemeralPortWithoutAdmittingCWD(t *testing.T) {
+	instanceDir := filepath.Join(t.TempDir(), "desktop")
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	ready := make(readyLineWriter, 1)
+	done := make(chan error, 1)
+	go func() {
+		done <- serve(ctx, serverFlags{
+			instanceDir: instanceDir,
+			noProject:   true,
+			port:        0,
+			ready:       true,
+		}, ready)
+	}()
+
+	var line string
+	select {
+	case line = <-ready:
+	case err := <-done:
+		t.Fatalf("server exited before readiness: %v", err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("server did not report readiness")
+	}
+	if !strings.HasPrefix(line, "READY http://127.0.0.1:") || !strings.HasSuffix(line, "\n") {
+		t.Fatalf("readiness line = %q", line)
+	}
+	endpoint, err := url.Parse(strings.TrimSpace(strings.TrimPrefix(line, "READY ")))
+	if err != nil {
+		t.Fatalf("parse readiness URL: %v", err)
+	}
+	client := &http.Client{Timeout: 2 * time.Second}
+	response, err := client.Get(endpoint.String())
+	if err != nil {
+		t.Fatalf("request bundled server at %s: %v", endpoint, err)
+	}
+	body, readErr := io.ReadAll(response.Body)
+	_ = response.Body.Close()
+	if readErr != nil {
+		t.Fatalf("read projects page: %v", readErr)
+	}
+	if response.StatusCode != http.StatusOK || !strings.Contains(string(body), "No projects admitted") {
+		t.Fatalf("empty server response = %d, body contains empty state: %v", response.StatusCode, strings.Contains(string(body), "No projects admitted"))
+	}
+	if _, err := os.Stat(filepath.Join(instanceDir, "projects.json")); !os.IsNotExist(err) {
+		t.Fatalf("empty desktop server unexpectedly persisted an implicit project catalog: %v", err)
+	}
+
+	cancel()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("server shutdown: %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("server did not stop after its owner context was cancelled")
+	}
+}
+
+func TestServerFlagConflictsFailBeforeStarting(t *testing.T) {
+	tests := []struct {
+		name  string
+		flags serverFlags
+		want  string
+	}{
+		{
+			name:  "no project with explicit project",
+			flags: serverFlags{noProject: true, projects: []string{"/tmp/project"}},
+			want:  "--no-project cannot be combined with --project",
+		},
+		{
+			name:  "ready with no web listener",
+			flags: serverFlags{ready: true, noWeb: true},
+			want:  "--ready requires the TCP web listener",
+		},
+		{
+			name:  "ready with unix listener",
+			flags: serverFlags{ready: true, uds: "/tmp/gimbal.sock"},
+			want:  "--ready requires the TCP web listener",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := serve(context.Background(), test.flags, io.Discard)
+			if err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("serve error = %v, want it to contain %q", err, test.want)
 			}
 		})
 	}

@@ -222,6 +222,12 @@ func (i *Instance) Wait() {
 	<-i.done
 }
 
+// Address returns the bound web listener address. It is empty when the
+// instance runs without a TCP or Unix-domain web listener.
+func (i *Instance) Address() string {
+	return i.address
+}
+
 func (i *Instance) projectRequest(next http.Handler) http.Handler {
 	sharedRemotes := map[string]bool{}
 	for _, remote := range generated.Remotes() {

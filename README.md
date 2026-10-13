@@ -48,13 +48,36 @@ just build
 `just build` runs Go generation and the skgo/SvelteKit production build before
 compiling the CLI. It checks for `web/build/skgo.manifest.json` and embeds
 `web/build/` directly with Go's `embed.FS`. Generated frontend files stay local;
-install from this built checkout with `go install ./cmd/gimbal`. A bare
-versioned `go install` does not build or include the console.
+run this checkout's binary as `./bin/gimbal`. A bare versioned `go install`
+does not build or include the console. Install published releases from the
+Homebrew tap in the
+[distribution instructions](skills/gimbal-release/references/distribution.md).
 
 `gimbal --version` reports the release version, commit and build date. Release
 maintainers use GoReleaser for CLI archives and Apple's signing/notarization
 tools for the desktop app; see the
 [distribution instructions](skills/gimbal-release/references/distribution.md).
+
+The macOS app starts its bundled Gimbal CLI as a managed local server by
+default. Its central project catalog and instance control state live in
+`~/.gimbal/desktop`; each project's runs and conversations remain under that
+project's `.gimbal` directory. Set `GIMBAL_SERVER_URL` before launching the app
+to proxy an external server instead. In that mode, the app does not start or
+manage the external server.
+
+To build a local Debug app, stage the CLI produced by `just build` as a native
+resource before generating the Xcode project:
+
+```sh
+just build
+mkdir -p native/Resources
+install -m 755 bin/gimbal native/Resources/gimbal
+go tool skgo native build --platform macos --preset real
+```
+
+The red close button hides the app and leaves its managed server running.
+Command-Q stops the app and its bundled server. The release script builds and
+stages the exact-version CLI itself.
 
 Then open http://127.0.0.1:8080. The page's heading, the Go version below it, and the
 greeting counter all come from `web/src/routes/hello.remote.go` — the

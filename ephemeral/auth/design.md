@@ -143,8 +143,10 @@ route registration, or access to the rest of the HTTP application.
    the small payload bounded and use a fresh AEAD nonce for each issuance. A
    restart invalidates unfinished logins because the key changes. There is no
    server-side pending-flow map to exhaust. The command returns the provider
-   authorization URL for external navigation via the framework navigation API,
-   without hand-written fetch or History API calls. There is one selected
+   authorization URL for normal full-document navigation to the external
+   provider, without hand-written fetch or History API calls. SvelteKit goto
+   accepts application navigation, so it is not used for the external URL.
+   There is one selected
    provider and one configured callback URL for the instance.
 2. GET `/auth/callback` is an application server route because the provider
    navigates to it. Validate/decrypt the flow cookie, check its expiry and the

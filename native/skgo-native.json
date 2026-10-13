@@ -15,7 +15,19 @@
       "audio"
     ]
   },
+  "macosInfo": {
+    "SUFeedURL": "https://github.com/tylergannon/gimbal/releases/latest/download/appcast.xml",
+    "SUPublicEDKey": "S8KpScV4OUP65eNySDKxNDcKntI4u+kJuwBrd5GQEEk=",
+    "SUEnableAutomaticChecks": true,
+    "SUScheduledCheckInterval": 86400,
+    "SUAutomaticallyUpdate": false
+  },
   "packages": [
+    {
+      "name": "GimbalUpdates",
+      "path": "native/Updates",
+      "products": ["GimbalUpdates"]
+    },
     {
       "name": "RecorderTranscription",
       "path": "native/Transcription",

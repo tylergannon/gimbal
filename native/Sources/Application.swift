@@ -2,6 +2,7 @@ import SwiftUI
 
 #if os(macOS)
   import AppKit
+  import GimbalUpdates
 #endif
 
 @main struct SKGoApplication: App {
@@ -32,6 +33,7 @@ import SwiftUI
       .windowStyle(.hiddenTitleBar)
       .defaultSize(width: 1000, height: 600)
       .commands {
+        GimbalUpdateCommands()
         WorkspaceMenu(workspace: application.workspace)
         if let controller = application.controller {
           RecordingMenu(

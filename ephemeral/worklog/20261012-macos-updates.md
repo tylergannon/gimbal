@@ -1,0 +1,5 @@
+decision: Gimbal desktop updates use Sparkle 2.10.0 with daily background checks and user-confirmed installation, plus the standard Check for Updates menu. User confirmed Gimbal as the target.
+decision: The SKGo native configuration accepts local Swift packages; native/Updates supplies the macOS-only Sparkle dependency through a local package, leaving generated Xcode projects disposable.
+decision: The stable feed is the latest GitHub Release appcast.xml asset. Update archives use an independent EdDSA signing key; its private material stays in private release storage and the GitHub release environment.
+friction: Xcode's default package credential provider requested saved github.com Keychain credentials for the public Sparkle binary. Release builds select netrc authorization and system Git, including the Xcode invocation inside SKGo, without changing global Xcode or Keychain settings.
+decision: Require an edSignature before publishing the generated feed. Sparkle's generator warns and omits the signature on an embedded-public-key mismatch instead of returning failure; a mismatched-key exercise confirmed this behavior.

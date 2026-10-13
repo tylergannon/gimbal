@@ -35,7 +35,10 @@ import (
 	"time"
 
 	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/backend"
 )
+
+var errTurnInterrupted = errors.New("codex: the turn was interrupted")
 
 const (
 	requestTimeout = 30 * time.Second
@@ -328,17 +331,33 @@ func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema 
 		text, err = a.recoverTurn(ctx, s, sessionID, prompt, params, before, active, err)
 	}
 	if ctx.Err() != nil {
-		// Close will retry remote archive even if interrupt could not be delivered.
 		active.mu.Lock()
 		current, turn := active.conn, active.turnID
 		active.mu.Unlock()
-		if turn != "" {
+		// Cancellation is local intent. Only a terminal native outcome confirms
+		// cessation; Close retains ownership when delivery/reconciliation fails.
+		confirmed := err == nil || errors.Is(err, errTurnInterrupted)
+		if !confirmed && turn != "" {
 			interrupt(current, sessionID, turn)
+			if !current.dead() {
+				drainCtx, drainCancel := context.WithTimeout(context.Background(), controlTimeout)
+				_, drainErr := readTurn(drainCtx, current, current.registerThread(sessionID), sessionID, turn, active.emit)
+				confirmed = drainErr == nil || errors.Is(drainErr, errTurnInterrupted)
+				if !confirmed && drainCtx.Err() == nil {
+					snapshot, readErr := readThread(drainCtx, current, sessionID, "notLoaded")
+					if readErr == nil {
+						for _, native := range snapshot.Turns {
+							if native.ID == turn && (native.Status == "completed" || native.Status == "interrupted" || native.Status == "failed") {
+								confirmed = true
+							}
+						}
+					}
+				}
+				drainCancel()
+			}
 		}
-		if !current.dead() && turn != "" {
-			drainCtx, drainCancel := context.WithTimeout(context.Background(), controlTimeout)
-			_, _ = readTurn(drainCtx, current, current.registerThread(sessionID), sessionID, turn, active.emit)
-			drainCancel()
+		if !confirmed {
+			return gimbal.TurnResult{}, &backend.DeliveryUncertain{RequestID: turn, Err: errors.Join(ctx.Err(), errors.New("codex has not confirmed the stop; the native turn may still be running"))}
 		}
 		return gimbal.TurnResult{}, ctx.Err()
 	}
@@ -638,7 +657,7 @@ func readTurnFrom(ctx context.Context, conn *connection, ch chan rpcMessage, thr
 				}
 				return final, nil
 			case "interrupted":
-				return "", errors.New("codex: the turn was interrupted")
+				return "", errTurnInterrupted
 			case "failed":
 				if failure == "" {
 					failure = "the turn failed"

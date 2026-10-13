@@ -83,7 +83,7 @@ import SwiftUI
           "p", modifiers: [.command, .shift]
         ).disabled(!controller.canPause)
         Button("Resume", action: controller.resume).disabled(!controller.canResume)
-        Button("Stop", action: controller.stop).keyboardShortcut(".", modifiers: [.command])
+        Button("Stop", action: controller.stop).keyboardShortcut("r", modifiers: [.command, .option])
           .disabled(!controller.canStop)
         Divider()
         if input.fixtureURL != nil {

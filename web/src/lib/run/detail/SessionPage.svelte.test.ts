@@ -66,16 +66,14 @@ function snapshotWithTranscript(reasoning = "") {
 async function renderFocus() {
   const snapshot = snapshotWithTranscript();
   const onsteer = vi.fn(async () => ({ ok: true, message: "sent" }));
-  const onstop = vi.fn(async () => ({ ok: true, message: "stopped" }));
   const screen = await render(Page, {
     snapshot,
     observation: new RunObservation(snapshot),
     revision: 1,
     sessionID,
     onsteer,
-    onstop,
   });
-  return { screen, onsteer, onstop };
+  return { screen, onsteer };
 }
 
 test("Focus browses recorded assistant moments, returns live, and flips the same card to exact input", async () => {
@@ -119,14 +117,12 @@ test("reasoning tokens do not become prose, and history steering and stop still 
     },
   };
   const onsteer = vi.fn(async () => ({ ok: true, message: "sent" }));
-  const onstop = vi.fn(async (turn) => ({ ok: true, message: `stopped ${turn.id}` }));
   const screen = await render(Page, {
     snapshot,
     observation: new RunObservation(snapshot),
     revision: 1,
     sessionID,
     onsteer,
-    onstop,
   });
 
   const card = screen.getByRole("region", { name: "Focus card" });
@@ -144,8 +140,7 @@ test("reasoning tokens do not become prose, and history steering and stop still 
     session: sessionID,
     message: "Please check the current change.",
   });
-  await screen.getByRole("button", { name: "Stop turn" }).click();
-  expect(onstop).toHaveBeenCalledWith(snapshot.turns[liveTurn]);
+  expect(screen.getByRole("button", { name: "Stop turn" }).query()).toBeNull();
 
   await screen.getByText("Full activity and turn details", { exact: true }).click();
   await expect.element(screen.getByRole("tab", { name: "Activity" })).toBeVisible();
@@ -321,7 +316,6 @@ test("recorded turn chips identify delivery uncertainty without calling it nativ
     revision: 1,
     sessionID,
     onsteer: async () => ({ ok: true, message: "sent" }),
-    onstop: async () => ({ ok: true, message: "stopped" }),
   });
   await expect.element(screen.getByRole("button", { name: "Turn 3 · unresolved" })).toBeVisible();
   await expect

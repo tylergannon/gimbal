@@ -285,18 +285,6 @@
     if (target) selectWithoutReveal({ kind: "sheet", scope: target });
   }
 
-  async function stopSelectedTurn(turn: TurnRow): Promise<ActionFeedback> {
-    try {
-      const result = await stopTurn({ run: snapshot.run.id, turn: turn.id });
-      return result.accepted
-        ? { ok: true, message: "Stop accepted. Waiting for the run record to update." }
-        : { ok: false, message: "The turn did not accept the stop request." };
-    } catch (error) {
-      navigateOnUnauthorized(error);
-      return { ok: false, message: error instanceof Error ? error.message : String(error) };
-    }
-  }
-
   async function stopActiveTurn() {
     if (!activeTurn || stopping) return;
     stopping = true;
@@ -477,7 +465,6 @@
           onsteer={deliverSteer}
           onloop={deliverLoop}
           onanswer={deliverAnswer}
-          onstop={stopSelectedTurn}
           onselectscope={selectScope}
           onopen={() => openSession(selection)}
         />
@@ -506,7 +493,6 @@
         definition={openSessionCall?.definition}
         watchers={openSessionCall?.watchers}
         onsteer={deliverSteer}
-        onstop={stopSelectedTurn}
         onscope={(scopeKey) => {
           closeSession();
           selectScope(scopeKey);

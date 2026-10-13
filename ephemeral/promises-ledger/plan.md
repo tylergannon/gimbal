@@ -258,9 +258,14 @@ clarity/docs/ARCHITECTURE.md:L355-360, without pass ids). Marking an old
 recording = absent cursor = 0; backlog drains 12 chunks per call.
 
 Failures (adapter error, invalid JSON, 3 min timeout): lock, `working=false`,
-`errs[R]` set; cursor not advanced; `retryAt[id] = now+backoff[id]` (15 s
-doubling, cap 5 min, reset on that recording's success). Other recordings keep
-progressing. The recording itself is never touched.
+`errs[R]` set; cursor not advanced; `retryAt[id] = now+backoff[id]` (15 s,
+then 30 s). Attempts are bounded like Clarity's two-attempts-per-drain
+(ClaimDeliberationCoordinator.swift:L8-19): after 3 consecutive failures R is
+parked for the life of the process (`retryAt[id]` = never) and `errs[R]` reads
+"…stopped after 3 attempts; restart Gimbal to retry". Restarting is the retry
+button, so a persistent fault costs at most 3 turns per recording per run.
+A success resets R's count. Other recordings keep progressing. The recording
+itself is never touched.
 
 Session per batch: `CreateSession(ctx, model.Model, model.Effort, <dir>/promises/work)`
 → `RunTurn` → `Close`. The worker only ever holds the Claude adapter, whose
@@ -441,7 +446,8 @@ discussion; its promises appear here."
   non-requirements ignored; 15 chunks ⇒ 12 then 3 with 2 overlap);
   validation (empty-details add or unknown-id update ⇒ batch fails, cursor
   stays); per-recording backoff (recording A failing persistently while
-  recording B is processed); status transitions (`working` true during the
+  recording B is processed; A gets exactly 3 calls then is parked with the
+  "restart Gimbal to retry" error); status transitions (`working` true during the
   call, false after success and after failure);
   idempotency (no call after success; error ⇒ cursor unchanged + backoff;
   a later success for that recording clears its error, and a success for another recording does not; reopen restores; unwritable promises dir ⇒
@@ -472,7 +478,7 @@ discussion; its promises appear here."
 
 - One JSON file for entries+cursors: atomic batch commit, no pass ids (`durable.go:95-136`; clarity/server/internal/api/voice.go:L176-199).
 - Integer ID = display number = ordinal (clarity/server/internal/worker/review.go:L52).
-- Direct `adapter.RunTurn`, fresh session per batch: keeps the Runs list clean (`manager.go:405-424`). No schema re-ask: invalid reply ⇒ that recording's error + backoff + retry.
+- Direct `adapter.RunTurn`, fresh session per batch: keeps the Runs list clean (`manager.go:405-424`). No schema re-ask: invalid reply ⇒ that recording's error + backoff + retry (at most 3 per run).
 - Claude-only, text-only adapter for the ledger call: speech is untrusted; no tools, settings, hooks, or MCP rather than asking the model not to act.
 - Commits: copy → apply → save → publish only on a nil save; any save error keeps the old in-memory ledger and the batch is redone.
 - Sidebar "Show older" over the existing paged `recordingHistory`, so every existing recording can be opened and marked.

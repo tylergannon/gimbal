@@ -74,10 +74,20 @@ jobs:
       contents: read
       actions: write
     steps:
+      - name: Fetch release publisher from Doppler
+        id: doppler
+        uses: dopplerhq/secrets-fetch-action@451892f16195f9ac360e1a5bcbf0b5fd0e957534 # v2.0.0
+        with:
+          doppler-token: ${{ secrets.DOPPLER_TOKEN }}
+      - name: Validate Doppler destination
+        env:
+          PROJECT: ${{ steps.doppler.outputs.DOPPLER_PROJECT }}
+          CONFIG: ${{ steps.doppler.outputs.DOPPLER_CONFIG }}
+        run: test "$PROJECT" = gimbal && test "$CONFIG" = stg
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ssh-key: ${{ secrets.RELEASE_TAG_SSH_KEY }}
+          ssh-key: ${{ steps.doppler.outputs.RELEASE_TAG_SSH_KEY }}
       - name: Set release commit identity
         run: |
           git config user.name 'github-actions[bot]'

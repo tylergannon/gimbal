@@ -111,10 +111,12 @@ the resulting Release run through publication; a merged PR or queued build does
 not establish delivery through the updater. Minor/major releases may still be
 tagged deliberately, then explicitly dispatched with
 `gh workflow run release.yml --ref vX.Y.Z -f tag=vX.Y.Z`.
-The preparation job uses a repository-scoped deploy key restricted to the
-main-only `release-preparation` environment and version-tag creation; bot release
-metadata skips the next automatic main check. The normal check job remains
-read-only. Read the distribution reference for the key and ruleset setup.
+Release credentials are fetched from Doppler `gimbal/stg` at job runtime. The
+GitHub environments retain ref restrictions and hold only a read-only
+`DOPPLER_TOKEN`: `release-preparation` for main and `release` for version tags.
+The preparation deploy key may bypass version-tag creation only; bot release
+metadata skips the next automatic main check. PR checks receive no Doppler
+credential. Read the distribution reference for credential and ruleset setup.
 
 Use the release scripts and GoReleaser configuration in the repository. Read
 [distribution.md](references/distribution.md) for local signing setup, runner
@@ -185,7 +187,7 @@ fetched there). The hand-kept exception is Gemini `flash`, in
 
 The scheduled `Refresh model catalog` Actions job runs the same command daily
 and can be started manually (`workflow_dispatch`). It reads `DIFFUSION_API_KEY`
-from the Doppler config that the repository secret `DOPPLER_TOKEN` grants, then
+from Doppler `gimbal/stg` through the main-only preparation environment, then
 opens a PR for the generated files; it does not publish a release. The
 repository's Actions setting permits bot-created PRs; the job grants only
 contents and pull-request write access.

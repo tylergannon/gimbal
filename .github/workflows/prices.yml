@@ -15,6 +15,8 @@ concurrency:
 
 jobs:
   refresh:
+    if: github.ref == 'refs/heads/main'
+    environment: release-preparation
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -26,22 +28,19 @@ jobs:
         with:
           go-version: "1.27.1"
       - uses: taiki-e/install-action@just
-      - name: Read the Diffusion API key from Doppler
+      - name: Fetch model catalog credential from Doppler
+        id: doppler
+        uses: dopplerhq/secrets-fetch-action@451892f16195f9ac360e1a5bcbf0b5fd0e957534 # v2.0.0
+        with:
+          doppler-token: ${{ secrets.DOPPLER_TOKEN }}
+      - name: Validate Doppler destination
         env:
-          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
-        run: |
-          set -euo pipefail
-          if [[ -z "$DOPPLER_TOKEN" ]]; then
-            echo "repository secret DOPPLER_TOKEN is not set; add a Doppler service token for the config holding DIFFUSION_API_KEY" >&2
-            exit 1
-          fi
-          key="$(curl --fail --silent --show-error \
-            -H "Authorization: Bearer $DOPPLER_TOKEN" \
-            "https://api.doppler.com/v3/configs/config/secrets/download?format=json" |
-            jq -er '.DIFFUSION_API_KEY')"
-          echo "::add-mask::$key"
-          echo "DIFFUSION_API_KEY=$key" >> "$GITHUB_ENV"
+          PROJECT: ${{ steps.doppler.outputs.DOPPLER_PROJECT }}
+          CONFIG: ${{ steps.doppler.outputs.DOPPLER_CONFIG }}
+        run: test "$PROJECT" = gimbal && test "$CONFIG" = stg
       - name: Refresh generated models, aliases, and prices
+        env:
+          DIFFUSION_API_KEY: ${{ steps.doppler.outputs.DIFFUSION_API_KEY }}
         run: just models
       - name: Open catalog refresh for model review
         shell: bash

@@ -95,6 +95,20 @@ test("below 1100 px the sidebar opens over the views instead of narrowing them",
       .element(screen.getByRole("complementary", { name: "Project sidebar" }))
       .toBeVisible();
     expect(views.getBoundingClientRect().width).toBe(1000);
+    // Choosing a view or clicking past the overlay puts it away.
+    await screen.getByRole("button", { name: "web-app.md", exact: true }).click();
+    await expect.element(screen.getByRole("tabpanel", { name: "web-app.md" })).toBeVisible();
+    await expect
+      .element(screen.getByRole("complementary", { name: "Project sidebar" }))
+      .not.toBeInTheDocument();
+    await screen.getByRole("button", { name: "Show sidebar" }).click();
+    await expect
+      .element(screen.getByRole("complementary", { name: "Project sidebar" }))
+      .toBeVisible();
+    await userEvent.click(screen.getByRole("tabpanel", { name: "web-app.md" }));
+    await expect
+      .element(screen.getByRole("complementary", { name: "Project sidebar" }))
+      .not.toBeInTheDocument();
   } finally {
     await page.viewport(1440, 900);
   }

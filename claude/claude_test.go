@@ -115,7 +115,7 @@ func TestAssistantErrorCarriesTheCLIsExplanation(t *testing.T) {
 func TestSessionsStartWithoutTheUsersMCPServers(t *testing.T) {
 	extra := map[string]*string{}
 	var applied claudeagent.Options
-	for _, option := range isolate(extra) {
+	for _, option := range isolate(extra, false) {
 		option(&applied)
 	}
 	if !applied.StrictMCPConfig {
@@ -124,10 +124,35 @@ func TestSessionsStartWithoutTheUsersMCPServers(t *testing.T) {
 	if sources := extra["setting-sources"]; sources == nil || *sources != "project,local" {
 		t.Fatalf("setting sources = %v, want project,local", sources)
 	}
+	if _, ok := extra["tools"]; ok {
+		t.Fatal("an ordinary session lost the CLI's own tools")
+	}
 	if New().(*adapter).userConfiguration {
 		t.Fatal("New() asked for the user's configuration")
 	}
 	if !New(WithUserConfiguration()).(*adapter).userConfiguration {
 		t.Fatal("WithUserConfiguration did not ask for the user's configuration")
+	}
+}
+
+// TestTextOnlyLoadsNoToolsOrSettings: a text-only session passes --tools ""
+// and --setting-sources "", so no tool, settings file, hook or MCP server
+// can act on what the prompt says, and keeps the MCP configuration strict.
+func TestTextOnlyLoadsNoToolsOrSettings(t *testing.T) {
+	extra := map[string]*string{}
+	var applied claudeagent.Options
+	for _, option := range isolate(extra, true) {
+		option(&applied)
+	}
+	if !applied.StrictMCPConfig {
+		t.Fatal("MCP configuration is not strict")
+	}
+	for _, flag := range []string{"tools", "setting-sources"} {
+		if value := extra[flag]; value == nil || *value != "" {
+			t.Fatalf("--%s = %v, want an explicit empty value", flag, value)
+		}
+	}
+	if !New(TextOnly()).(*adapter).textOnly {
+		t.Fatal("TextOnly did not ask for a text-only session")
 	}
 }

@@ -32,6 +32,7 @@ const autoCompactWindow = "256000"
 // adapter runs Claude Code sessions.
 type adapter struct {
 	userConfiguration bool
+	textOnly          bool
 
 	mu       sync.Mutex
 	sessions map[string]*session
@@ -49,6 +50,15 @@ type Option func(*adapter)
 // repository.
 func WithUserConfiguration() Option {
 	return func(a *adapter) { a.userConfiguration = true }
+}
+
+// TextOnly gives sessions no tools and no settings: Claude Code loads no
+// tools, no settings files, so no hooks, and no MCP servers. A turn can only
+// answer in text. It is for prompts that carry untrusted input, such as a
+// transcript of speech, where a sentence in the input must not be able to
+// act. The CLI's own login is unaffected.
+func TextOnly() Option {
+	return func(a *adapter) { a.textOnly = true }
 }
 
 type session struct {
@@ -89,9 +99,14 @@ const settingSources = "project,local"
 // configuration. Without it a session inherits every MCP server and plugin
 // the user has installed and pays for their tool definitions on every
 // request, none of which a coder in a repository uses.
-func isolate(extra map[string]*string) []claudeagent.Option {
+// With textOnly it also loads no settings source and no tools.
+func isolate(extra map[string]*string, textOnly bool) []claudeagent.Option {
 	sources := settingSources
 	extra["setting-sources"] = &sources
+	if textOnly {
+		none := ""
+		extra["setting-sources"], extra["tools"] = &none, &none
+	}
 	return []claudeagent.Option{claudeagent.WithStrictMCPConfig(true)}
 }
 
@@ -162,8 +177,8 @@ func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema 
 		}),
 	}
 	extra := map[string]*string{}
-	if !a.userConfiguration {
-		options = append(options, isolate(extra)...)
+	if !a.userConfiguration || a.textOnly {
+		options = append(options, isolate(extra, a.textOnly)...)
 	}
 	nativeSchema, err := completionSchema(schema)
 	if err != nil {

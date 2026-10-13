@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Build releases with Go 1.27.2, which fixes native plugin loading on macOS 27.
   Skip redundant GitHub cache uploads on the persistent Mac release runner.
+- Declare the macOS CLI's SDK 27 deployment requirement in its Homebrew Cask.
 
 ## [0.13.0] - 2026-10-12
 

@@ -1,7 +1,7 @@
 # Build distribution
 
 Gimbal publishes the CLI/server separately from its desktop client. The
-macOS desktop client currently requires Apple Silicon and macOS 27 and connects
+macOS builds currently require Apple Silicon and macOS 27. The desktop client connects
 to a separately started server. Linux releases support AMD64 and ARM64.
 
 ## Local qualification

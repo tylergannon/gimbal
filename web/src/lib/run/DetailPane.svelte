@@ -49,7 +49,6 @@
     onsteer,
     onloop,
     onanswer,
-    onstop,
     onmaximize,
     onselectscope,
     onopen,
@@ -63,7 +62,6 @@
     onsteer?: (request: Steer) => Promise<ActionFeedback>;
     onloop?: (request: LoopMessage) => Promise<ActionFeedback>;
     onanswer?: (request: InterviewAnswer) => Promise<ActionFeedback>;
-    onstop?: (turn: TurnRow) => Promise<ActionFeedback>;
     onmaximize?: () => void;
     onselectscope?: (scopeKey: string) => void;
     /** Shows the session view for this selection's session. The button
@@ -378,7 +376,6 @@
       onsteer={(message) =>
         onsteer?.({ run: snapshot.run.id, session: turn.session, message }) ??
         Promise.resolve({ ok: false, message: "Steering is unavailable." })}
-      onstop={onstop ? () => onstop(turn) : undefined}
       onscope={onselectscope}
     />
   {:else}

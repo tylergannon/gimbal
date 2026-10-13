@@ -17,6 +17,8 @@
     "1emnx1f/createConversation",
     "1emnx1f/projectConversations",
     "1emnx1f/sendConversationMessage",
+    "1emnx1f/stopConversationRequest",
+    "1emnx1f/watchConversation",
     "1iqjt67/openProject",
     "1iqjt67/rememberWindow",
     "rm4r49/cancelRun",

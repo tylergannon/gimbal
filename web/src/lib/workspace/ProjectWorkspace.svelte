@@ -53,7 +53,7 @@
   const items = $derived<WorkspaceTab[]>([
     ...conversations.map(item => ({ id: `${root}/conversations/${item.id}`, title: item.title,
       kind: 'chat' as const, detail: item.provider === 'codex' ? 'Codex' : item.provider === 'agy' ? 'agy / Gemini' : 'Claude',
-      status: item.status === 'working' || item.runs.some(run => run.status === 'running') ? 'working' as const : item.error ? 'attention' as const : undefined })),
+      status: ['working', 'stopping', 'unresolved'].includes(item.status) || item.runs.some(run => run.status === 'running') ? 'working' as const : item.error ? 'attention' as const : undefined })),
     ...files.map(file => ({ id: `${root}/files/${file.id}`, title: file.name, kind: 'file' as const })),
   ]);
   const tabs = $derived(open.map(tab => items.find(item => item.id === tab.id) ?? tab));
@@ -77,6 +77,7 @@
   }
   let actionError = $state("");
   let started: string | undefined;
+  function updated(conversation: Conversation) { chats.set([conversation, ...conversations.filter(item => item.id !== conversation.id)]); }
   function created(conversation: Conversation) {
     chats.set([conversation, ...conversations.filter(item => item.id !== conversation.id)]);
     started = `${root}/conversations/${conversation.id}`;
@@ -107,7 +108,7 @@
   }
   $effect(() => {
     if (!native) return;
-    nativeMessage('workspaceState', { ready: true, sidebarVisible: sidebar, tabCount: tabs.length, activeTabTitle: tabs.find(tab => tab.id === active)?.title });
+    nativeMessage('workspaceState', { ready: true, sidebarVisible: sidebar, tabCount: tabs.length, activeTabTitle: tabs.find(tab => tab.id === active)?.title, canStopResponse: conversations.some(item => `${root}/conversations/${item.id}` === active && !!item.active_request && item.status !== 'stopping') });
   });
   const place = $derived(JSON.stringify({ project, path: page.url.pathname, tabs: tabs.map(({ id, title, kind }) => ({ id, title, kind })) }));
   $effect(() => {
@@ -115,7 +116,7 @@
     if (native) untrack(() => void rememberWindow(value).catch(() => {}));
   });
   $effect(() => {
-    if (!conversations.some(item => item.status === 'working' || item.runs.some(run => run.status === 'running'))) return;
+    if (!conversations.some(item => ['working', 'stopping', 'unresolved'].includes(item.status) || item.runs.some(run => run.status === 'running'))) return;
     const timer = setInterval(() => { void projectConversations(project).refresh().catch(navigateOnUnauthorized); }, 1000);
     return () => clearInterval(timer);
   });
@@ -143,7 +144,7 @@
       {#if tab.id === `${root}/conversations/new`}<NewSession {project} {name} oncreated={created} />
       {:else if tab.id.startsWith(`${root}/conversations/`)}
         {@const current = conversations.find(item => `${root}/conversations/${item.id}` === tab.id)}
-        {#if current}<ConversationView {project} {current} />{:else}<p class="notice">Conversation unavailable.</p>{/if}
+        {#if current}<ConversationView {project} {current} active={active === tab.id} onstate={updated} />{:else}<p class="notice">Conversation unavailable.</p>{/if}
       {:else if tab.id.startsWith(`${root}/files/`)}<FileViewer {project} id={tab.id.split('/').at(-1)!} />
       {:else}<RecordingTranscript {project} id={tab.id.split('/').at(-1)!} />{/if}
       {#snippet failed(error, reset)}<p class="notice" role="alert">Could not load this view. <button onclick={reset}>Retry</button></p>{/snippet}

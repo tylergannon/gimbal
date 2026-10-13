@@ -15,10 +15,6 @@
 		await new Promise((resolve) => setTimeout(resolve, 400));
 		return { ok: true, message: "Sent into the running turn." };
 	};
-	const fakeStop = async () => {
-		await new Promise((resolve) => setTimeout(resolve, 400));
-		return { ok: true, message: "Stop requested." };
-	};
 
 	const { Story } = defineMeta({
 		title: "Gimbal/Run/Concepts/Session detail",
@@ -34,7 +30,6 @@
 			revision={runningObservation.revision}
 			turnID={runningTurnID}
 			onsteer={fakeSteer}
-			onstop={fakeStop}
 			onmaximize={() => {}}
 			onopen={() => {}}
 		/>
@@ -49,7 +44,6 @@
 			revision={finishedObservation.revision}
 			turnID={finishedTurnID}
 			onsteer={fakeSteer}
-			onstop={fakeStop}
 			onmaximize={() => {}}
 			onopen={() => {}}
 		/>
@@ -64,7 +58,6 @@
 			revision={runningObservation.revision}
 			turnID={runningTurnID}
 			onsteer={fakeSteer}
-			onstop={fakeStop}
 			onmaximize={() => {}}
 			onopen={() => {}}
 		/>
@@ -79,7 +72,6 @@
 			revision={finishedObservation.revision}
 			turnID={finishedTurnID}
 			onsteer={fakeSteer}
-			onstop={fakeStop}
 			onmaximize={() => {}}
 			onopen={() => {}}
 		/>
@@ -94,7 +86,6 @@
 			revision={runningObservation.revision}
 			turnID={runningTurnID}
 			onsteer={fakeSteer}
-			onstop={fakeStop}
 			onmaximize={() => {}}
 			onopen={() => {}}
 		/>
@@ -109,7 +100,6 @@
 			revision={runningObservation.revision}
 			turnID={runningTurnID}
 			onsteer={fakeSteer}
-			onstop={fakeStop}
 			onmaximize={() => {}}
 			onopen={() => {}}
 		/>

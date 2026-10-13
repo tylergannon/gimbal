@@ -91,6 +91,8 @@ export type LoopMessage = {
 export type SendConversationMessage = {
   conversation: string;
   message: string;
+  id: string;
+  created: number;
 };
 
 /**
@@ -109,6 +111,13 @@ export type Steer = {
   message: string;
 };
 
+export type StopConversationRequest = {
+  conversation: string;
+  id: string;
+  created: number;
+  target: string;
+};
+
 /**
  * StopTurn identifies the running turn an operator intends to interrupt.
  */
@@ -122,4 +131,9 @@ export type StopTurn = {
  */
 export type Waiting = {
   message: string;
+};
+
+export type WatchConversation = {
+  project: string;
+  conversation: string;
 };

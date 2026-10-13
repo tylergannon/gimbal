@@ -10,7 +10,6 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"net/http/httputil"
 	"net/url"
 	"os"
 	"os/exec"
@@ -28,6 +27,8 @@ var bundledServer struct {
 	stopped chan struct{}
 }
 
+var serverOrigin string
+
 // The desktop owns only the CLI child it starts. An explicit server URL stays
 // external and is never discovered, stopped, or otherwise managed here.
 var host = nativehost.New(func(origin string) (http.Handler, error) {
@@ -39,25 +40,11 @@ var host = nativehost.New(func(origin string) (http.Handler, error) {
 	if err != nil || server.Host == "" {
 		return nil, fmt.Errorf("invalid GIMBAL_SERVER_URL")
 	}
-	proxy := &httputil.ReverseProxy{Rewrite: func(r *httputil.ProxyRequest) {
-		r.SetURL(server)
-		r.Out.Header.Set("X-Gimbal-Desktop", "macos")
-		if r.In.Header.Get("Origin") != "" {
-			r.Out.Header.Set("Origin", server.String())
-		}
-		if ref, err := url.Parse(r.In.Header.Get("Referer")); err == nil && ref.Host != "" {
-			ref.Scheme = server.Scheme
-			ref.Host = server.Host
-			r.Out.Header.Set("Referer", ref.String())
-		}
-	}, ErrorHandler: func(w http.ResponseWriter, r *http.Request, e error) {
-		message := "Gimbal server unavailable. Check the configured external server; pending recording text is not saved."
-		if strings.TrimSpace(os.Getenv("GIMBAL_SERVER_URL")) == "" {
-			message = "Gimbal's bundled server is unavailable. Quit and reopen the app to restart it; pending recording text is not saved."
-		}
-		http.Error(w, message, http.StatusServiceUnavailable)
-	}}
-	return proxy, nil
+	if server.Scheme != "http" && server.Scheme != "https" || server.User != nil || server.Path != "" || server.RawQuery != "" || server.Fragment != "" {
+		return nil, fmt.Errorf("GIMBAL_SERVER_URL must be an HTTP(S) origin")
+	}
+	serverOrigin = server.String()
+	return newServerProxy(server, origin, keychainStore{account: serverOrigin})
 })
 
 func bundledServerPath() (string, error) {
@@ -236,6 +223,9 @@ func SKGoHostRecover() C.int {
 	}
 	return 1
 }
+
+//export SKGoHostServerURL
+func SKGoHostServerURL() *C.char { return C.CString(serverOrigin) }
 
 //export SKGoHostStop
 func SKGoHostStop() {

@@ -20,6 +20,7 @@ import (
 	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/internal/modelalias"
 	"github.com/tylergannon/gimbal/internal/observation"
+	"github.com/tylergannon/gimbal/internal/sessionstate"
 )
 
 const (
@@ -49,20 +50,24 @@ type Run struct {
 
 // Conversation is the durable metadata and visible transcript for one chat.
 type Conversation struct {
-	ID            string    `json:"id"`
-	Title         string    `json:"title"`
-	Provider      string    `json:"provider"`
-	Model         string    `json:"model"`
-	Branch        string    `json:"branch"`
-	Worktree      string    `json:"worktree"`
-	NativeSession string    `json:"native_session"`
-	Live          bool      `json:"live"`
-	Status        string    `json:"status"`
-	Error         string    `json:"error"`
-	Created       int64     `json:"created"`
-	Updated       int64     `json:"updated"`
-	Messages      []Message `json:"messages"`
-	Runs          []Run     `json:"runs"`
+	ID            string          `json:"id"`
+	Title         string          `json:"title"`
+	Provider      string          `json:"provider"`
+	Model         string          `json:"model"`
+	Branch        string          `json:"branch"`
+	Worktree      string          `json:"worktree"`
+	NativeSession string          `json:"native_session"`
+	Live          bool            `json:"live"`
+	Status        string          `json:"status"`
+	Error         string          `json:"error"`
+	Created       int64           `json:"created"`
+	Updated       int64           `json:"updated"`
+	Messages      []Message       `json:"messages"`
+	Runs          []Run           `json:"runs"`
+	Requests      []RequestState  `json:"requests"`
+	ActiveRequest string          `json:"active_request"`
+	State         gimbal.JSONText `json:"state"`
+	Revision      uint64          `json:"revision"`
 }
 
 // NewConversation is the provider and optional presentation selected by the
@@ -78,9 +83,12 @@ type AdapterFactory func(string) (gimbal.HarnessAdapter, error)
 
 type activeConversation struct {
 	turnMu  sync.Mutex
+	steerMu sync.Mutex
 	adapter gimbal.HarnessAdapter
 	session string
 	resume  bool
+	request string
+	cancel  context.CancelFunc
 }
 
 // persistentSessionAdapter is the extra lifecycle used only by durable,
@@ -102,11 +110,12 @@ type Manager struct {
 	project     string
 	registry    *observation.Registry
 
-	mu      sync.RWMutex
-	items   map[string]*Conversation
-	active  map[string]*activeConversation
-	closing bool
-	closed  chan struct{}
+	mu          sync.RWMutex
+	items       map[string]*Conversation
+	active      map[string]*activeConversation
+	projections map[string]*sessionstate.Projection
+	closing     bool
+	closed      chan struct{}
 }
 
 type managerKey struct{}
@@ -140,7 +149,7 @@ func New(ctx context.Context, projectDir string, factory AdapterFactory, cli, in
 	}
 	manager := &Manager{
 		ctx: ctx, projectDir: projectDir, factory: factory, cli: cli, instanceDir: instanceDir, project: project, registry: registry,
-		items: make(map[string]*Conversation), active: make(map[string]*activeConversation), closed: make(chan struct{}),
+		items: make(map[string]*Conversation), active: make(map[string]*activeConversation), projections: make(map[string]*sessionstate.Projection), closed: make(chan struct{}),
 	}
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -169,8 +178,14 @@ func New(ctx context.Context, projectDir string, factory AdapterFactory, cli, in
 		}
 		// The conversation turn is no longer active after a restart. Run state
 		// is read separately from the project's authoritative run record.
-		if item.Status == StatusWorking {
-			item.Status = StatusIdle
+		if item.ActiveRequest != "" {
+			item.Status, item.Error = "unresolved", "The server restarted before this request's outcome was confirmed."
+			item.ActiveRequest = ""
+			for i := range item.Requests {
+				if item.Requests[i].Status == "running" || item.Requests[i].Status == "accepted" {
+					item.Requests[i].Status = "unresolved"
+				}
+			}
 		}
 		manager.refresh(&item)
 		// A persisted native identity can be resumed lazily on the next send.
@@ -178,6 +193,13 @@ func New(ctx context.Context, projectDir string, factory AdapterFactory, cli, in
 		item.Live = item.NativeSession != ""
 		copy := item
 		manager.items[item.ID] = &copy
+		var state sessionstate.ProjectionState
+		if len(item.State) > 0 {
+			if err := json.Unmarshal([]byte(item.State), &state); err != nil {
+				return nil, err
+			}
+		}
+		manager.projections[item.ID] = sessionstate.New(state)
 	}
 	context.AfterFunc(ctx, func() { manager.Close() })
 	return manager, nil
@@ -228,7 +250,7 @@ func (m *Manager) Create(ctx context.Context, in NewConversation) (Conversation,
 	item := &Conversation{
 		ID: id, Title: title, Provider: provider, Model: model,
 		Branch: branch, Worktree: worktree, Live: true, Status: StatusIdle,
-		Created: now, Updated: now, Messages: []Message{}, Runs: []Run{},
+		Created: now, Updated: now, Messages: []Message{}, Runs: []Run{}, Requests: []RequestState{},
 	}
 	if err := m.save(item); err != nil {
 		return Conversation{}, err
@@ -240,6 +262,7 @@ func (m *Manager) Create(ctx context.Context, in NewConversation) (Conversation,
 	}
 	m.items[id] = item
 	m.active[id] = &activeConversation{}
+	m.projections[id] = sessionstate.New(sessionstate.NewProjectionState())
 	m.mu.Unlock()
 	return clone(item), nil
 }
@@ -341,6 +364,7 @@ func (m *Manager) Associate(id, runID, workflow, workdir string) error {
 	if item == nil || item.Worktree != workdir {
 		return errors.New("conversation: run must use the conversation's working directory")
 	}
+	item.Revision++
 	item.Runs = append(item.Runs, Run{ID: runID, Workflow: workflow, Status: RunStatusRunning})
 	item.Updated = time.Now().UnixMilli()
 	return m.save(item)
@@ -392,14 +416,14 @@ func (m *Manager) refresh(item *Conversation) {
 		changed = true
 	}
 	if changed {
+		item.Revision++
 		item.Updated = time.Now().UnixMilli()
 		_ = m.save(item)
 	}
 }
 
-// Start creates a conversation titled by its first message, records that
-// message, and runs the first turn in the background. The returned snapshot is
-// already working; the reply lands in the saved conversation.
+// Start creates a conversation titled by its first message and admits that
+// message through the same request lifecycle as subsequent turns.
 func (m *Manager) Start(ctx context.Context, in NewConversation, text string) (Conversation, error) {
 	text = strings.TrimSpace(text)
 	if text == "" {
@@ -412,151 +436,15 @@ func (m *Manager) Start(ctx context.Context, in NewConversation, text string) (C
 	if err != nil {
 		return Conversation{}, err
 	}
-	active, snapshot, err := m.begin(item.ID, text)
-	if err != nil {
-		return snapshot, err
-	}
-	go func() {
-		defer active.turnMu.Unlock()
-		_, _ = m.turn(item.ID, text, active)
-	}()
-	return snapshot, nil
-}
-
-// Send records the user's message, runs one turn on the conversation's live
-// provider session in its worktree, and records the final assistant response.
-func (m *Manager) Send(id, text string) (Conversation, error) {
-	text = strings.TrimSpace(text)
-	if text == "" {
-		return Conversation{}, errors.New("conversation: message is blank")
-	}
-	active, snapshot, err := m.begin(id, text)
-	if err != nil {
-		return snapshot, err
-	}
-	defer active.turnMu.Unlock()
-	return m.turn(id, text, active)
-}
-
-// begin takes the conversation's turn lock and records the user's message.
-// On success the caller owns the lock and must release it after the turn.
-func (m *Manager) begin(id, text string) (*activeConversation, Conversation, error) {
-	m.mu.Lock()
-	item := m.items[id]
-	active := m.active[id]
-	if item == nil {
-		m.mu.Unlock()
-		return nil, Conversation{}, fmt.Errorf("conversation: unknown conversation %q", id)
-	}
-	if active == nil && item.NativeSession != "" {
-		active = &activeConversation{session: item.NativeSession, resume: true}
-		m.active[id] = active
-	}
-	m.mu.Unlock()
-	if active == nil {
-		return nil, clone(item), errors.New("conversation: this saved conversation belongs to an earlier server session; its history is readable, but its native provider session is no longer live")
-	}
-
-	active.turnMu.Lock()
-	if err := m.ctx.Err(); err != nil {
-		active.turnMu.Unlock()
-		return nil, Conversation{}, context.Cause(m.ctx)
-	}
-	now := time.Now().UnixMilli()
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	item = m.items[id]
-	item.Messages = append(item.Messages, Message{Role: "user", Text: text, Created: now})
-	item.Status, item.Error, item.Updated = StatusWorking, "", now
-	if err := m.save(item); err != nil {
-		active.turnMu.Unlock()
-		return nil, Conversation{}, err
-	}
-	return active, clone(item), nil
-}
-
-// turn runs one provider turn for the message begin recorded.
-func (m *Manager) turn(id, text string, active *activeConversation) (Conversation, error) {
-	m.mu.Lock()
-	item := m.items[id]
-	provider, model, worktree := item.Provider, item.Model, item.Worktree
-	m.mu.Unlock()
-
-	if active.adapter == nil {
-		adapter, err := m.factory(provider)
-		if err != nil {
-			return m.fail(item, err)
-		}
-		active.adapter = adapter
-	}
-	if active.resume {
-		resumer, ok := active.adapter.(persistentSessionAdapter)
-		if !ok {
-			return m.fail(item, errors.New("conversation: this provider cannot resume a saved native session"))
-		}
-		_, effort, _ := providerModel(provider, model)
-		if err := resumer.ResumeSession(m.ctx, active.session, model, effort, worktree); err != nil {
-			return m.fail(item, fmt.Errorf("conversation: resume native session: %w", err))
-		}
-		active.resume = false
-	}
-	if active.session == "" {
-		_, effort, _ := providerModel(provider, model)
-		session, err := active.adapter.CreateSession(m.ctx, model, effort, worktree)
-		if err != nil {
-			return m.fail(item, err)
-		}
-		active.session = session
-		if _, ok := active.adapter.(persistentSessionAdapter); ok {
-			m.mu.Lock()
-			item = m.items[id]
-			item.NativeSession = session
-			if err := m.save(item); err != nil {
-				m.mu.Unlock()
-				return m.fail(item, err)
-			}
-			m.mu.Unlock()
-		}
-	}
-	prompt := fmt.Sprintf(conversationPrompt, m.cli, m.instanceDir, m.project, worktree, id) + text
-	result, err := active.adapter.RunTurn(m.ctx, active.session, prompt, conversationReplySchema, func(gimbal.AgentEvent) error { return nil })
-	if err != nil {
-		return m.fail(item, err)
-	}
-	var response conversationReply
-	if err := json.Unmarshal(result.Output, &response); err != nil {
-		return m.fail(item, fmt.Errorf("provider returned an invalid conversation response: %w", err))
-	}
-	response.Message = strings.TrimSpace(response.Message)
-	if response.Message == "" {
-		return m.fail(item, errors.New("provider returned an empty conversation response"))
-	}
-	m.mu.Lock()
-	item = m.items[id]
-	now := time.Now().UnixMilli()
-	item.Messages = append(item.Messages, Message{Role: "assistant", Text: response.Message, Created: now})
-	m.refresh(item)
-	item.Status, item.Error, item.Updated = StatusIdle, "", now
-	err = m.save(item)
-	snapshot := clone(item)
-	m.mu.Unlock()
+	requestID, err := randomID()
 	if err != nil {
 		return Conversation{}, err
 	}
-	return snapshot, nil
-}
-
-func (m *Manager) fail(item *Conversation, cause error) (Conversation, error) {
-	m.mu.Lock()
-	item = m.items[item.ID]
-	item.Status, item.Error, item.Updated = StatusError, cause.Error(), time.Now().UnixMilli()
-	saveErr := m.save(item)
-	snapshot := clone(item)
-	m.mu.Unlock()
-	if saveErr != nil {
-		return snapshot, errors.Join(cause, saveErr)
+	if _, err := m.Submit(item.ID, Request{ID: requestID, Created: time.Now().UnixMilli(), Kind: "prompt", Message: text}); err != nil {
+		return Conversation{}, err
 	}
-	return snapshot, cause
+	item, _ = m.Get(item.ID)
+	return item, nil
 }
 
 // Close releases each live native session. Worktrees and saved conversations
@@ -572,6 +460,9 @@ func (m *Manager) Close() {
 	defer close(m.closed)
 	active := make([]*activeConversation, 0, len(m.active))
 	for _, conversation := range m.active {
+		if conversation.cancel != nil {
+			conversation.cancel()
+		}
 		active = append(active, conversation)
 	}
 	m.mu.Unlock()
@@ -700,26 +591,15 @@ func clone(item *Conversation) Conversation {
 	copy := *item
 	copy.Messages = slices.Clone(item.Messages)
 	copy.Runs = slices.Clone(item.Runs)
-	return copy
-}
+	copy.Requests = slices.Clone(item.Requests)
 
-type conversationReply struct {
-	Message string `json:"message"`
+	return copy
 }
 
 const conversationPrompt = `You are the agent in a Gimbal conversation. Work in the conversation working directory and reply to the person's message.
 
 For an ordinary chat request, answer without launching a workflow. When the person asks you to run a built-in workflow, invoke the ordinary Gimbal CLI yourself. The executable is %q. Use its "run" help to choose the workflow and flags. Always pass --instance-dir %q, --project %q, --work-dir %q, and --conversation %q. The project owns observation and saved history; the working directory is where you execute. For a review use "run review --goal ...". For an implementation use "run implement --outcomes-file ..." with a local outcomes file. The CLI prints the accepted run ID. Do not infer acceptance from your own prose; report what the CLI actually said. You may omit --follow; the server records the run's terminal status independently.
 
-Return only the message requested by the schema.
+Reply in ordinary prose.
 
 Person: `
-
-var conversationReplySchema = json.RawMessage(`{
-  "type": "object",
-  "properties": {
-    "message": {"type": "string"}
-  },
-  "required": ["message"],
-  "additionalProperties": false
-}`)

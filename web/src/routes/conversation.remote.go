@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/tylergannon/gimbal/internal/app"
 	"github.com/tylergannon/gimbal/internal/skgo/params"
@@ -25,6 +26,8 @@ type CreateConversation struct {
 type SendConversationMessage struct {
 	Conversation string `json:"conversation"`
 	Message      string `json:"message"`
+	ID           string `json:"id"`
+	Created      int64  `json:"created"`
 }
 
 func createConversation(ctx context.Context, event app.RequestEvent[params.Params], arg CreateConversation) (conversation.Conversation, error) {
@@ -46,21 +49,84 @@ func createConversation(ctx context.Context, event app.RequestEvent[params.Param
 	return item, skgo.RefreshRequested(ctx, projectConversations, 1)
 }
 
-func sendConversationMessage(ctx context.Context, event app.RequestEvent[params.Params], arg SendConversationMessage) (conversation.Conversation, error) {
+func sendConversationMessage(ctx context.Context, event app.RequestEvent[params.Params], arg SendConversationMessage) (conversation.RequestState, error) {
 	manager := conversation.FromContext(ctx)
 	if manager == nil {
-		return conversation.Conversation{}, skgo.Errorf(http.StatusInternalServerError,
-			"This server has no conversation manager in its runtime context.")
+		return conversation.RequestState{}, skgo.Errorf(500, "Conversation manager unavailable")
 	}
 	if strings.TrimSpace(arg.Message) == "" {
-		return conversation.Conversation{}, skgo.Invalidf("message", "Type a message before sending it.")
+		return conversation.RequestState{}, skgo.Invalidf("message", "Type a message before sending it.")
 	}
-	item, err := manager.Send(arg.Conversation, arg.Message)
+	result, err := manager.Submit(arg.Conversation, conversation.Request{ID: arg.ID, Created: arg.Created, Kind: "prompt", Message: arg.Message})
 	if err != nil {
-		return item, skgo.Errorf(http.StatusBadGateway, "%s", err)
+		return result, skgo.Errorf(400, "%s", err)
 	}
-	return item, skgo.RefreshRequested(ctx, projectConversations, 1)
+	return result, nil
 }
+
+type StopConversationRequest struct {
+	Conversation string `json:"conversation"`
+	ID           string `json:"id"`
+	Created      int64  `json:"created"`
+	Target       string `json:"target"`
+}
+
+func stopConversationRequest(ctx context.Context, event app.RequestEvent[params.Params], arg StopConversationRequest) (conversation.RequestState, error) {
+	manager := conversation.FromContext(ctx)
+	if manager == nil {
+		return conversation.RequestState{}, skgo.Errorf(500, "Conversation manager unavailable")
+	}
+	result, err := manager.Submit(arg.Conversation, conversation.Request{ID: arg.ID, Created: arg.Created, Kind: "interrupt", Target: arg.Target})
+	if err != nil {
+		return result, skgo.Errorf(400, "%s", err)
+	}
+	return result, nil
+}
+
+type WatchConversation struct {
+	Project      string `json:"project"`
+	Conversation string `json:"conversation"`
+}
+
+func watchConversation(ctx context.Context, arg WatchConversation, yield func(conversation.Conversation) error) error {
+	manager := conversation.FromContext(ctx)
+	if owner := host.OwnerFrom(ctx); owner != nil {
+		for _, p := range owner.Projects() {
+			if p.ID() == arg.Project {
+				manager = p.Conversations()
+				break
+			}
+		}
+	}
+	if manager == nil {
+		return skgo.Errorf(404, "Project not found")
+	}
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+	var previous uint64
+	first := true
+	for {
+		item, ok := manager.Get(arg.Conversation)
+		if !ok {
+			return skgo.Errorf(404, "Conversation not found")
+		}
+		if first || item.Revision != previous {
+			if err := yield(item); err != nil {
+				return err
+			}
+			previous = item.Revision
+			first = false
+		}
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-ticker.C:
+		}
+	}
+}
+
+var _ = skgo.Command(stopConversationRequest)
+var _ = skgo.LiveQuery(watchConversation)
 
 var _ = skgo.Form(createConversation)
 

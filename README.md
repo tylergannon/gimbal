@@ -74,7 +74,7 @@ gimbal user add --instance-dir /absolute/instance --issuer https://github.com --
 
 Login never creates users. An empty store admits nobody. `gimbal user remove
 --instance-dir /absolute/instance USER_ID` revokes access. Sessions survive
-restart, expire after eight hours, and are revoked on sign-out. Active streams
+restart, expire after one week, and are revoked on sign-out. Active streams
 recheck within 30 seconds. The separate task listener and local Unix control
 socket remain trusted operator transports; publish only the authenticated web
 listener. Authentication applies to the explicitly selected instance.

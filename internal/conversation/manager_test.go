@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/internal/observation"
@@ -69,11 +70,11 @@ func TestManagerRoutesAllProvidersAndKeepsConversationHistory(t *testing.T) {
 	}
 
 	for _, item := range created {
-		if _, err := manager.Send(item.ID, "Remember cobalt for the next turn."); err != nil {
+		if _, err := sendAndWait(t, manager, item.ID, "Remember cobalt for the next turn."); err != nil {
 			t.Fatalf("send through %s: %v", item.Provider, err)
 		}
 	}
-	continued, err := manager.Send(created[0].ID, "What word did I ask you to remember?")
+	continued, err := sendAndWait(t, manager, created[0].ID, "What word did I ask you to remember?")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -127,7 +128,7 @@ func TestManagerResumesPersistentNativeSessionAfterRestart(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	item, err = first.Send(item.ID, "Remember cobalt for the next turn.")
+	item, err = sendAndWait(t, first, item.ID, "Remember cobalt for the next turn.")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -152,7 +153,7 @@ func TestManagerResumesPersistentNativeSessionAfterRestart(t *testing.T) {
 	if !ok || !saved.Live {
 		t.Fatalf("saved persistent conversation is not sendable after restart: %+v", saved)
 	}
-	continued, err := restarted.Send(item.ID, "What word did I ask you to remember?")
+	continued, err := sendAndWait(t, restarted, item.ID, "What word did I ask you to remember?")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -185,7 +186,7 @@ func TestManagerRecordsCLIAssociationBesideOrdinaryChat(t *testing.T) {
 	if err := manager.Associate(item.ID, "run-1", "review", item.Worktree); err != nil {
 		t.Fatal(err)
 	}
-	replied, err := manager.Send(item.ID, "Remember cobalt")
+	replied, err := sendAndWait(t, manager, item.ID, "Remember cobalt")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -220,14 +221,17 @@ func TestManagerStartTitlesByFirstMessageAndRepliesInBackground(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if started.Title != "Remember cobalt" || started.Model != "claude-haiku-4-5" || started.Status != StatusWorking {
+	if started.Title != "Remember cobalt" || started.Model != "claude-haiku-4-5" {
 		t.Fatalf("started = %+v", started)
 	}
-	if len(started.Messages) != 1 || started.Messages[0].Role != "user" || started.Messages[0].Text != "Remember cobalt\nand nothing else." {
-		t.Fatalf("first message not recorded before the reply: %+v", started.Messages)
+	if len(started.Requests) != 1 || started.Requests[0].Kind != "prompt" || started.Requests[0].Message != "Remember cobalt\nand nothing else." {
+		t.Fatalf("first message not admitted: %+v", started.Requests)
 	}
-	// Send waits for the background first turn, so its reply follows the first.
-	continued, err := manager.Send(started.ID, "What word did I ask you to remember?")
+	first := waitRequest(t, manager, started.ID, started.Requests[0].ID, "completed")
+	if len(first.Messages) != 2 || first.Messages[0].Role != "user" || first.Messages[0].Text != "Remember cobalt\nand nothing else." {
+		t.Fatalf("first turn not recorded: %+v", first.Messages)
+	}
+	continued, err := sendAndWait(t, manager, started.ID, "What word did I ask you to remember?")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -289,7 +293,7 @@ func (a *chatAdapter) RunTurn(_ context.Context, session, prompt string, _ json.
 		reply = a.replies[0]
 		a.replies = a.replies[1:]
 	}
-	output, _ := json.Marshal(reply)
+	output, _ := json.Marshal(reply.Message)
 	return gimbal.TurnResult{Output: output}, nil
 }
 
@@ -363,6 +367,9 @@ func TestConversationRefreshFollowsExternalRun(t *testing.T) {
 		t.Fatal(err)
 	}
 	manager.refresh(item)
+	if item.Revision == 0 {
+		t.Fatal("run settlement did not advance the conversation stream")
+	}
 	if item.Runs[0].Status != RunStatusCompleted {
 		t.Fatal("conversation did not catch up")
 	}
@@ -392,7 +399,7 @@ func TestManagerNonGitConversationsShareProjectDirectory(t *testing.T) {
 		if item.Branch != "" || item.Worktree != directory {
 			t.Fatalf("unexpected Git association: %+v", item)
 		}
-		if _, err := manager.Send(item.ID, "Remember cobalt."); err != nil {
+		if _, err := sendAndWait(t, manager, item.ID, "Remember cobalt."); err != nil {
 			t.Fatal(err)
 		}
 		if err := manager.Associate(item.ID, "run-"+item.ID, "review", directory); err != nil {
@@ -442,4 +449,34 @@ func TestManagerExplainsRepositoryWithoutCommits(t *testing.T) {
 	if len(manager.List()) != 0 {
 		t.Fatal("kept a conversation that could not start")
 	}
+}
+
+func sendAndWait(t *testing.T, m *Manager, id, text string) (Conversation, error) {
+	t.Helper()
+	requestID, _ := randomID()
+	_, err := m.Submit(id, Request{ID: requestID, Created: time.Now().UnixMilli(), Kind: "prompt", Message: text})
+	if err != nil {
+		return Conversation{}, err
+	}
+	deadline := time.After(5 * time.Second)
+	for {
+		item, _ := m.Get(id)
+		for _, r := range item.Requests {
+			if r.ID == requestID && (r.Status == "completed" || r.Status == "failed") {
+				if r.Error != "" {
+					return item, errors.New(r.Error)
+				}
+				return item, nil
+			}
+		}
+		select {
+		case <-deadline:
+			t.Fatal("request did not settle")
+		case <-time.After(time.Millisecond):
+		}
+	}
+}
+
+type conversationReply struct {
+	Message string `json:"message"`
 }

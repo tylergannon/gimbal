@@ -18,6 +18,10 @@ export type Conversation = {
   updated: number;
   messages: Array<Message>;
   runs: Array<Run>;
+  requests: Array<RequestState>;
+  active_request: string;
+  state: JSONText;
+  revision: number;
 };
 
 /**
@@ -38,6 +42,36 @@ export type Run = {
   status: string;
   error: string;
 };
+
+/**
+ * RequestState is reduced from admission, delivery and completion events.
+ */
+export type RequestState = {
+  id: string;
+  created: number;
+  kind: string;
+  message: string;
+  target: string;
+  status: string;
+  delivery: string;
+  error: string;
+};
+
+/**
+ * Request identifies one prompt or interrupt independently of the conversation. Target is the current prompt request for an interrupt, never a session ID.
+ */
+export type Request = {
+  id: string;
+  created: number;
+  kind: string;
+  message: string;
+  target: string;
+};
+
+/**
+ * JSONText is JSON source text carried opaquely by an event. Complete events contain one encoded value; delta events may contain only the next fragment. Text preserves provider-specific payloads while the event remains a closed Polytype shape.
+ */
+export type JSONText = string;
 
 /**
  * Setup is what a new conversation in this project can choose and where it will work. Every conversation runs on this machine; in a Git repository it gets its own worktree branched from HEAD, and elsewhere it shares Directory.

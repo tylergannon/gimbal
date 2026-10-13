@@ -4,6 +4,7 @@ import SwiftUI
 @MainActor final class NativeHost: ObservableObject {
   static weak var active: NativeHost?
   @Published private(set) var url: URL?
+  private(set) var serverURL: URL?
   @Published private(set) var failure: String?
   @Published private(set) var recoveryRevision = 0
   // Set by ApplicationState once. The shell retains the same state on resume.
@@ -27,6 +28,10 @@ import SwiftUI
       return
     }
     self.url = url
+    if let pointer = SKGoHostServerURL() {
+      serverURL = URL(string: String(cString: pointer))
+      free(pointer)
+    }
   }
   func shutdown() {
     guard !stopped else { return }

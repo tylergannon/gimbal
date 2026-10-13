@@ -22,7 +22,6 @@
 		revision,
 		turnID,
 		onsteer,
-		onstop,
 		onmaximize,
 		onopen
 	}: {
@@ -31,7 +30,6 @@
 		revision: number;
 		turnID: string;
 		onsteer: (message: string) => Promise<ActionFeedback>;
-		onstop: () => Promise<ActionFeedback>;
 		onmaximize?: () => void;
 		onopen?: () => void;
 	} = $props();
@@ -71,7 +69,7 @@
 	</header>
 
 	{#if turn}
-		<SessionDetail {snapshot} {observation} {revision} {turn} {live} {onsteer} {onstop} />
+		<SessionDetail {snapshot} {observation} {revision} {turn} {live} {onsteer} />
 	{/if}
 </div>
 

@@ -2,8 +2,10 @@
   "remotes": [
     "126fj8m/createProject",
     "126fj8m/projectFiles",
+    "126fj8m/setPromiseWithdrawn",
     "126fj8m/uploadFile",
     "126fj8m/viewFile",
+    "126fj8m/watchPromises",
     "13p9jtx/abortSession",
     "13p9jtx/acceptTranscript",
     "13p9jtx/activateSession",

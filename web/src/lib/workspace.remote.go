@@ -7,10 +7,12 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/tylergannon/gimbal/internal/app"
 	"github.com/tylergannon/gimbal/internal/host"
 	"github.com/tylergannon/gimbal/internal/projectfiles"
+	"github.com/tylergannon/gimbal/internal/promises"
 	"github.com/tylergannon/gimbal/internal/skgo/params"
 	"github.com/tylergannon/skgo"
 	"github.com/yuin/goldmark"
@@ -123,3 +125,43 @@ func viewFile(ctx context.Context, r FileRequest) (FileView, error) {
 }
 
 var _ = skgo.Query(viewFile)
+
+func watchPromises(ctx context.Context, id string, yield func(promises.View) error) error {
+	p, e := project(ctx, id)
+	if e != nil {
+		return e
+	}
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+	var version int64 = -1
+	for {
+		if v := p.Promises().Snapshot(); v.Version != version {
+			if e := yield(v); e != nil {
+				return e
+			}
+			version = v.Version
+		}
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-ticker.C:
+		}
+	}
+}
+
+type PromiseRequest struct {
+	Project   string `json:"project"`
+	ID        int    `json:"id"`
+	Withdrawn bool   `json:"withdrawn"`
+}
+
+func setPromiseWithdrawn(ctx context.Context, event app.RequestEvent[params.Params], r PromiseRequest) (promises.Entry, error) {
+	p, e := project(ctx, r.Project)
+	if e != nil {
+		return promises.Entry{}, e
+	}
+	return p.Promises().SetWithdrawn(r.ID, r.Withdrawn)
+}
+
+var _ = skgo.LiveQuery(watchPromises)
+var _ = skgo.Command(setPromiseWithdrawn)

@@ -30,6 +30,12 @@ export type NewProject = {
   path: string;
 };
 
+export type PromiseRequest = {
+  project: string;
+  id: number;
+  withdrawn: boolean;
+};
+
 export type RecordingRequest = {
   project: string;
   id: string;

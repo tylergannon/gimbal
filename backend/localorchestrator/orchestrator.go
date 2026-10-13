@@ -1,6 +1,8 @@
-package gimbal
+// Package localorchestrator provisions named environments as local worker subprocesses.
+package localorchestrator
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -16,13 +18,10 @@ import (
 	"time"
 
 	"github.com/tylergannon/gimbal/backend"
-	"github.com/tylergannon/gimbal/backend/secretfiles"
 )
 
-// LocalBackends configures private shared stores and named daemon commands.
-// Commands run gimbal message-worker; readiness and secrets flags are appended.
-// Each environment's Route is its messaging configuration, not an execution URL.
-type LocalBackends struct {
+// Config names worker commands and their messaging destinations.
+type Config struct {
 	Directory    string
 	Environments map[string]EnvironmentCommand
 }
@@ -35,38 +34,46 @@ type environmentUse struct {
 	ReadyFile string
 	Owners    []backend.Owner
 }
-type localOrchestrator struct {
-	config LocalBackends
-	mu     sync.Mutex
+type Orchestrator struct {
+	config  Config
+	secrets backend.Selection
+	mu      sync.Mutex
 }
 
-var localOrchestrators sync.Map
-
-func (r *Registry) constructLocalBackends(raw json.RawMessage) (backend.Dependencies, error) {
-	var c LocalBackends
-	if err := json.Unmarshal(raw, &c); err != nil {
-		return backend.Dependencies{}, err
+func ValidateConfiguration(raw json.RawMessage) error {
+	var c Config
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&c); err != nil {
+		return err
 	}
 	if !filepath.IsAbs(c.Directory) {
-		return backend.Dependencies{}, fmt.Errorf("backend Directory must be absolute")
+		return fmt.Errorf("orchestrator Directory must be absolute")
 	}
-	secrets, err := secretfiles.Open(filepath.Join(c.Directory, "secrets"))
-	if err != nil {
-		return backend.Dependencies{}, err
+	for name, environment := range c.Environments {
+		if name == "" || len(environment.Command) == 0 || environment.Command[0] == "" || environment.Route.Name == "" {
+			return fmt.Errorf("environment %q requires a command and messaging route", name)
+		}
 	}
-	value, _ := localOrchestrators.LoadOrStore(c.Directory, &localOrchestrator{config: c})
-	controller := value.(*localOrchestrator)
-	dependencies := backend.Dependencies{Orchestrator: controller, Secrets: secrets}
-	dependencies.WrapMessaging = func(ctx context.Context, base backend.Messaging) (backend.Messaging, error) {
-		return r.connectEnvironments(ctx, base, controller, dependencies)
-	}
-	return dependencies, nil
+	return nil
 }
-func (o *localOrchestrator) file(name string) string {
+func Open(c Config, secrets backend.Selection) (*Orchestrator, error) {
+	if !filepath.IsAbs(c.Directory) {
+		return nil, fmt.Errorf("orchestrator Directory must be absolute")
+	}
+	if err := os.MkdirAll(c.Directory, 0700); err != nil {
+		return nil, err
+	}
+	if err := os.Chmod(c.Directory, 0700); err != nil {
+		return nil, err
+	}
+	return &Orchestrator{config: c, secrets: secrets}, nil
+}
+func (o *Orchestrator) file(name string) string {
 	sum := sha256.Sum256([]byte(name))
 	return filepath.Join(o.config.Directory, "environment-"+hex.EncodeToString(sum[:8])+".json")
 }
-func (o *localOrchestrator) load(name string) (environmentUse, error) {
+func (o *Orchestrator) load(name string) (environmentUse, error) {
 	var use environmentUse
 	raw, err := os.ReadFile(o.file(name))
 	if os.IsNotExist(err) {
@@ -78,7 +85,7 @@ func (o *localOrchestrator) load(name string) (environmentUse, error) {
 	err = json.Unmarshal(raw, &use)
 	return use, err
 }
-func (o *localOrchestrator) save(name string, use environmentUse) error {
+func (o *Orchestrator) save(name string, use environmentUse) error {
 	raw, err := json.Marshal(use)
 	if err != nil {
 		return err
@@ -102,7 +109,7 @@ func (o *localOrchestrator) save(name string, use environmentUse) error {
 }
 
 // Lock only receipt mutation: independent runner processes share ownership.
-func (o *localOrchestrator) lock(ctx context.Context) (func(), error) {
+func (o *Orchestrator) lock(ctx context.Context) (func(), error) {
 	file, err := os.OpenFile(filepath.Join(o.config.Directory, "environments.lock"), os.O_CREATE|os.O_RDWR, 0600)
 	if err != nil {
 		return nil, err
@@ -124,7 +131,7 @@ func (o *localOrchestrator) lock(ctx context.Context) (func(), error) {
 		}
 	}
 }
-func (o *localOrchestrator) AcquireEnvironment(ctx context.Context, owner backend.Owner, name string) (backend.Environment, error) {
+func (o *Orchestrator) AcquireEnvironment(ctx context.Context, owner backend.Owner, name string) (backend.Environment, error) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	unlock, lockErr := o.lock(ctx)
@@ -156,8 +163,13 @@ func (o *localOrchestrator) AcquireEnvironment(ctx context.Context, owner backen
 		_ = ready.Close()
 		_ = os.Remove(use.ReadyFile)
 		args := append([]string{}, definition.Command[1:]...)
-		args = append(args, "--ready-file", use.ReadyFile, "--secrets-directory", filepath.Join(o.config.Directory, "secrets"))
+		args = append(args, "--ready-file", use.ReadyFile, "--secrets-config-stdin")
+		bootstrap, err := json.Marshal(o.secrets)
+		if err != nil {
+			return backend.Environment{}, err
+		}
 		cmd := exec.Command(definition.Command[0], args...)
+		cmd.Stdin = bytes.NewReader(bootstrap)
 		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 		log, err := os.OpenFile(o.file(name)+".log", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
 		if err != nil {
@@ -203,7 +215,7 @@ func (o *localOrchestrator) AcquireEnvironment(ctx context.Context, owner backen
 		}
 	}
 }
-func (o *localOrchestrator) Release(ctx context.Context, scope backend.Scope) error {
+func (o *Orchestrator) Release(ctx context.Context, scope backend.Scope) error {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	unlock, lockErr := o.lock(ctx)
@@ -261,7 +273,7 @@ func (o *localOrchestrator) Release(ctx context.Context, scope backend.Scope) er
 }
 
 // assigned resolves native session/process ownership before scope fallback.
-func (o *localOrchestrator) assigned(r backend.MessageRequest) ([]string, error) {
+func (o *Orchestrator) assigned(r backend.MessageRequest) ([]string, error) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	var scopes []string
@@ -299,4 +311,32 @@ func (o *localOrchestrator) assigned(r backend.MessageRequest) ([]string, error)
 		}
 	}
 	return scopes, nil
+}
+
+// Destinations reports daemon assignments without exposing ownership receipts.
+func (o *Orchestrator) Destinations(_ context.Context, request backend.MessageRequest) ([]backend.EnvironmentDestination, error) {
+	names, err := o.assigned(request)
+	if err != nil {
+		return nil, err
+	}
+	destinations := make([]backend.EnvironmentDestination, 0, len(names))
+	for _, name := range names {
+		destinations = append(destinations, backend.EnvironmentDestination{ID: name, Route: o.config.Environments[name].Route})
+	}
+	return destinations, nil
+}
+func (o *Orchestrator) ActiveEnvironments(context.Context) ([]backend.EnvironmentDestination, error) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	var destinations []backend.EnvironmentDestination
+	for name, definition := range o.config.Environments {
+		use, err := o.load(name)
+		if err != nil {
+			return nil, err
+		}
+		if use.PID != 0 {
+			destinations = append(destinations, backend.EnvironmentDestination{ID: name, Route: definition.Route})
+		}
+	}
+	return destinations, nil
 }

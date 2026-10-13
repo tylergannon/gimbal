@@ -16,8 +16,10 @@ import ScriptedTranscription
     private var sequence = 0
     private var closed = false
     var text: String { (finals + tail).map(\.text).joined() }
-    func open(sessionID: String, source: String) async throws {
+    private(set) var requirements: [Bool] = []
+    func open(sessionID: String, source: String, requirements: Bool) async throws {
         precondition(source == "synthetic")
+        self.requirements.append(requirements)
         self.sessionID = sessionID
     }
     func activate(sessionID: String) async throws {
@@ -113,8 +115,9 @@ import ScriptedTranscription
         ])
         invalidSource.now = { invalidNow }
         let invalidCommands = ScriptedCommands(), invalidRecorder = controller(source: invalidSource, commands: invalidCommands)
-        invalidRecorder.record()
+        invalidRecorder.record(requirements: true)
         try await wait("invalid fixture Record") { invalidRecorder.canPause }
+        precondition(commands.requirements == [false] && invalidCommands.requirements == [true])
         invalidNow = invalidNow.advanced(by: .milliseconds(100))
         try await wait("ordinary final delivered") { invalidCommands.updates.count == 1 }
         invalidNow = invalidNow.advanced(by: .milliseconds(100))

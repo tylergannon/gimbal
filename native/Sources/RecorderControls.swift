@@ -24,7 +24,8 @@ struct RecorderControls: View {
         if !controller.canStop {
           if controller.canRecord {
             RecordingButton(
-              title: "Record", symbol: "circle.fill", isRecord: true, action: controller.record)
+              title: "Record", symbol: "circle.fill", isRecord: true,
+              action: { controller.record() })
           } else {
             waitingControl("Please wait…")
           }

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, type Snippet } from 'svelte';
+  import { MediaQuery } from 'svelte/reactivity';
   import type { Conversation } from '#lib/skgo/conversation/types';
   import { afterNavigate, goto } from '$app/navigation';
   import { page } from '$app/state';
@@ -36,7 +37,9 @@
     : initialPath.endsWith('/conversations/new') ? { id: initialPath, title: 'New conversation', kind: 'chat' } : undefined;
   const upload = $derived(uploadFile.for(project));
   let open = $state<WorkspaceTab[]>(initialTab ? [initialTab] : []);
-  let sidebar = $state(true);
+  // The desktop window opens at 1000 px, so its server render starts without the sidebar.
+  const wide = new MediaQuery('min-width: 1100px', !(page.data as { desktop?: boolean }).desktop);
+  let sidebar = $derived(wide.current);
   let native = $state(false);
   let status = $state<NativeStatus>();
   const active = $derived(open.find(tab => tab.id === page.url.pathname)?.id ?? (page.url.pathname === `${root}/conversations` ? open[0]?.id : undefined));

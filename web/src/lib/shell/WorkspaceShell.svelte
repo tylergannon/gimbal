@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
+  import { MediaQuery } from 'svelte/reactivity';
   import { PanelLeft } from '@lucide/svelte';
   import { APP_NAME } from '#lib/app.js';
   import TabStrip from './TabStrip.svelte';
@@ -25,7 +26,20 @@
     onopen: (id: string) => void;
     onnew?: () => void;
   } = $props();
+
+  // Below 1100 px the sidebar overlays the views, so it gets out of the way like a popover.
+  const overlay = new MediaQuery('width < 1100px', false);
+  let aside = $state<HTMLElement>();
+  let toggle = $state<HTMLElement>();
+  function dismiss(event: MouseEvent) {
+    if (!sidebar || !overlay.current || !(event.target instanceof Element)) return;
+    const inside = aside?.contains(event.target);
+    if (toggle?.contains(event.target) || (inside && !event.target.closest('a, .item'))) return;
+    sidebar = false;
+  }
 </script>
+
+<svelte:window onclick={dismiss} onkeydown={event => { if (event.key === 'Escape' && sidebar && overlay.current) sidebar = false; }} />
 
 {#snippet recordingStatus()}
   {#if recording}
@@ -39,7 +53,7 @@
 
 <div class="shell" class:with-sidebar={sidebar} class:native aria-label={`${project} workspace`}>
   {#if sidebar}
-    <aside aria-label="Project sidebar">
+    <aside aria-label="Project sidebar" bind:this={aside}>
       <!-- Native titlebar integration supplies the traffic lights later. -->
       <div class="native-space"></div>
       <div class="brand"><span class="tile" aria-hidden="true">{APP_NAME.slice(0, 1)}</span><span>{APP_NAME}</span></div>
@@ -63,7 +77,7 @@
       {#if !sidebar}<span class="compact-project" title={project}>{project}</span>{/if}
       <TabStrip {tabs} {active} {onselect} {onclose} {onnew} />
       {#if !sidebar}{@render recordingStatus()}{/if}
-      <button class="sidebar-toggle" class:on={sidebar} type="button" aria-label={sidebar ? 'Hide sidebar' : 'Show sidebar'} aria-expanded={sidebar} onclick={() => sidebar = !sidebar}><PanelLeft size={16} aria-hidden="true" /></button>
+      <button bind:this={toggle} class="sidebar-toggle" class:on={sidebar} type="button" aria-label={sidebar ? 'Hide sidebar' : 'Show sidebar'} aria-expanded={sidebar} onclick={() => sidebar = !sidebar}><PanelLeft size={16} aria-hidden="true" /></button>
     </header>
     <div class="panels">
       {#each tabs as tab (tab.id)}
@@ -78,7 +92,7 @@
 </div>
 
 <style>
-  .shell { display: flex; height: 100%; min-height: 0; overflow: hidden; background: var(--background); color: var(--foreground); font: 14px var(--font-sans); }
+  .shell { position: relative; display: flex; height: 100%; min-height: 0; overflow: hidden; background: var(--background); color: var(--foreground); font: 14px var(--font-sans); }
   .native:not(.with-sidebar) header { padding-left: 86px; }
   .native header { padding-right: 78px; }
   .workspace { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; }
@@ -112,5 +126,8 @@
   .detail { font-size: 11px; color: var(--muted-foreground); }
   @keyframes saving { 50% { opacity: .4; } }
   @media (prefers-reduced-motion: reduce) { .record-dot.saving { animation: none; } }
-  @media (max-width: 900px) { aside { width: 220px; } }
+  @media (width < 1100px) {
+    aside { position: absolute; inset: 0 auto 0 0; z-index: 20; box-shadow: var(--shadow-lg); }
+    .native header { padding-left: 86px; }
+  }
 </style>

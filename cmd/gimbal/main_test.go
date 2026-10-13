@@ -124,8 +124,8 @@ func TestBundledServerReadyBindsEphemeralPortWithoutAdmittingCWD(t *testing.T) {
 	if readErr != nil {
 		t.Fatalf("read projects page: %v", readErr)
 	}
-	if response.StatusCode != http.StatusOK || !strings.Contains(string(body), "No projects admitted") {
-		t.Fatalf("empty server response = %d, body contains empty state: %v", response.StatusCode, strings.Contains(string(body), "No projects admitted"))
+	if response.StatusCode != http.StatusOK || !strings.Contains(string(body), "Open a project folder") {
+		t.Fatalf("empty server response = %d, body contains empty state: %v", response.StatusCode, strings.Contains(string(body), "Open a project folder"))
 	}
 	if _, err := os.Stat(filepath.Join(instanceDir, "projects.json")); !os.IsNotExist(err) {
 		t.Fatalf("empty desktop server unexpectedly persisted an implicit project catalog: %v", err)

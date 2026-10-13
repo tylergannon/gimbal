@@ -231,7 +231,7 @@ func (i *Instance) Address() string {
 func (i *Instance) projectRequest(next http.Handler) http.Handler {
 	sharedRemotes := map[string]bool{}
 	for _, remote := range generated.Remotes() {
-		if remote.Module() == "src/routes/launch.remote.ts" || remote.Module() == "src/lib/transcript.remote.ts" || remote.Module() == "src/lib/workspace.remote.ts" {
+		if remote.Module() == "src/routes/launch.remote.ts" || remote.Module() == "src/lib/transcript.remote.ts" || remote.Module() == "src/lib/workspace.remote.ts" || remote.Module() == "src/lib/window.remote.ts" {
 			sharedRemotes["/_app/remote/"+remote.ID()] = true
 		}
 	}

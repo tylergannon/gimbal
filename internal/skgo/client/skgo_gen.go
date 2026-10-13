@@ -14,7 +14,7 @@ import (
 	devalue "github.com/tylergannon/devalue/v5"
 	pkg_host "github.com/tylergannon/gimbal/internal/host"
 	skgo0 "github.com/tylergannon/gimbal/internal/skgo/links/onzggl3sn52xizlt"
-	skgo9 "github.com/tylergannon/gimbal/web/src/lib"
+	skgo10 "github.com/tylergannon/gimbal/web/src/lib"
 	skgo "github.com/tylergannon/skgo"
 )
 
@@ -22,7 +22,7 @@ import (
 type Client struct{ skgo.FormClient }
 
 // CreateProject submits src/lib/workspace.remote.ts#createProject once.
-func (c Client) CreateProject(ctx context.Context, in skgo9.SkgoArg_createProject) (skgo9.SkgoOut_createProject, error) {
+func (c Client) CreateProject(ctx context.Context, in skgo10.SkgoArg_createProject) (skgo10.SkgoOut_createProject, error) {
 	return skgo.SubmitForm(ctx, c.FormClient, "126fj8m/createProject", in, DecodeRoot0)
 }
 

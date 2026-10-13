@@ -1,0 +1,92 @@
+package host
+
+import (
+	"encoding/json"
+	"errors"
+	"os"
+	"path/filepath"
+	"slices"
+	"strings"
+)
+
+// WindowState is where the desktop window last was: its project, the view it
+// showed, and the tabs it had open. The instance keeps it so the window
+// reopens there, checked against the projects this instance actually owns.
+type WindowState struct {
+	Project string      `json:"project"`
+	Path    string      `json:"path"`
+	Tabs    []WindowTab `json:"tabs"`
+}
+
+type WindowTab struct {
+	ID    string `json:"id"`
+	Title string `json:"title"`
+	Kind  string `json:"kind"`
+}
+
+// Window returns the remembered window when its project is still admitted,
+// otherwise the first admitted project by path, otherwise no project.
+func (o *Owner) Window() WindowState {
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	var saved WindowState
+	if o.dir != "" {
+		if raw, err := os.ReadFile(filepath.Join(o.dir, "window.json")); err == nil {
+			_ = json.Unmarshal(raw, &saved)
+		}
+	}
+	first := ""
+	for path, p := range o.projects {
+		if p.id == saved.Project {
+			return saved.within()
+		}
+		if first == "" || path < first {
+			first = path
+		}
+	}
+	if first == "" {
+		return WindowState{Tabs: []WindowTab{}}
+	}
+	return WindowState{Project: o.projects[first].id}.within()
+}
+
+// RememberWindow records the window's place for an admitted project.
+func (o *Owner) RememberWindow(w WindowState) error {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	admitted := false
+	for _, p := range o.projects {
+		admitted = admitted || p.id == w.Project
+	}
+	if !admitted {
+		return errors.New("gimbal: project is not admitted")
+	}
+	if o.dir == "" {
+		return nil
+	}
+	raw, err := json.Marshal(w.within())
+	if err != nil {
+		return err
+	}
+	temporary := filepath.Join(o.dir, "window.json.tmp")
+	if err := os.WriteFile(temporary, raw, 0o600); err != nil {
+		return err
+	}
+	return os.Rename(temporary, filepath.Join(o.dir, "window.json"))
+}
+
+// within drops any path or tab outside the window's own project.
+func (w WindowState) within() WindowState {
+	root := "/projects/" + w.Project
+	inside := func(path string) bool { return strings.HasPrefix(path, root+"/") || path == root }
+	out := WindowState{Project: w.Project, Path: root + "/recordings", Tabs: []WindowTab{}}
+	if inside(w.Path) {
+		out.Path = w.Path
+	}
+	for _, tab := range w.Tabs {
+		if inside(tab.ID) && !slices.ContainsFunc(out.Tabs, func(t WindowTab) bool { return t.ID == tab.ID }) {
+			out.Tabs = append(out.Tabs, tab)
+		}
+	}
+	return out
+}

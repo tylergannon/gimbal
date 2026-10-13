@@ -89,6 +89,10 @@ final class WebCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDelega
           activeTabTitle: body["activeTabTitle"] as? String)
         return
       }
+      if message.name == "chooseProjectFolder" {
+        chooseProjectFolder()
+        return
+      }
       if message.name == "workspaceDrag", let event = NSApp.currentEvent,
         event.type == .leftMouseDown
       {
@@ -183,6 +187,33 @@ final class WebCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDelega
         completionHandler(response == .OK ? panel.urls : nil)
       }
     }
+
+    // The page admits the chosen folder itself; this only answers with its path.
+    private func chooseProjectFolder() {
+      guard let window = webView?.window else {
+        answerProjectFolder(nil)
+        return
+      }
+      let panel = NSOpenPanel()
+      panel.canChooseDirectories = true
+      panel.canChooseFiles = false
+      panel.canCreateDirectories = true
+      panel.allowsMultipleSelection = false
+      panel.prompt = "Open"
+      panel.message = "Choose a project folder for Gimbal."
+      panel.beginSheetModal(for: window) { [weak self] response in
+        self?.answerProjectFolder(response == .OK ? panel.url?.path : nil)
+      }
+    }
+    private func answerProjectFolder(_ path: String?) {
+      let value: Any = path.map { $0 as Any } ?? NSNull()
+      guard let data = try? JSONSerialization.data(withJSONObject: ["path": value]),
+        let json = String(data: data, encoding: .utf8)
+      else { return }
+      webView?.evaluateJavaScript(
+        "window.dispatchEvent(new CustomEvent('gimbal-project-folder', {detail: \(json)}));",
+        completionHandler: nil)
+    }
   #endif
   func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
     controller.displayAvailability(false, error: "Transcript display is reconnecting.")
@@ -226,6 +257,7 @@ final class WebCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDelega
     #if os(macOS)
       config.userContentController.add(self, name: "workspaceState")
       config.userContentController.add(self, name: "workspaceDrag")
+      config.userContentController.add(self, name: "chooseProjectFolder")
       config.userContentController.addUserScript(
         WKUserScript(
           source: "window.gimbalNativeWorkspace = true;", injectionTime: .atDocumentStart,
@@ -255,8 +287,10 @@ final class WebCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDelega
     func makeNSView(context: Context) -> WKWebView {
       context.coordinator.expectedOrigin = url
       let view = context.coordinator.make()
-      NSLog("Workspace loading %@", url.absoluteString)
-      view.load(URLRequest(url: url))
+      // The window opens at its front door, which sends it back to its last project.
+      let start = url.appendingPathComponent("window")
+      NSLog("Workspace loading %@", start.absoluteString)
+      view.load(URLRequest(url: start))
       return view
     }
     func updateNSView(_ nsView: WKWebView, context: Context) {

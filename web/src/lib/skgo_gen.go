@@ -28,6 +28,10 @@ var (
 	Skgo_touchSession = touchSession
 	// Skgo_watchRecording is watchRecording, published as src/lib/transcript.remote.ts#watchRecording.
 	Skgo_watchRecording = watchRecording
+	// Skgo_openProject is openProject, published as src/lib/window.remote.ts#openProject.
+	Skgo_openProject = openProject
+	// Skgo_rememberWindow is rememberWindow, published as src/lib/window.remote.ts#rememberWindow.
+	Skgo_rememberWindow = rememberWindow
 	// Skgo_createProject is createProject, published as src/lib/workspace.remote.ts#createProject.
 	Skgo_createProject = createProject
 	// Skgo_projectFiles is projectFiles, published as src/lib/workspace.remote.ts#projectFiles.

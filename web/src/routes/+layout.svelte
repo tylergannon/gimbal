@@ -70,6 +70,7 @@
               ?.path.split("/")
               .at(-1) ?? "Project"}
             projects={data.workspaceProjects}
+            restored={data.window.project === project ? data.window.tabs : []}
           >
             {#if loadingRuns}
               <div class="runs-page"><RunsLoading /></div>

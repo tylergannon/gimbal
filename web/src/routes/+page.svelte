@@ -5,11 +5,15 @@
   import { APP_NAME } from "#lib/app.js";
   import { Button } from "#lib/components/ui/button/index.js";
   import { Input } from "#lib/components/ui/input/index.js";
+  import ProjectsEmpty from "#lib/workspace/ProjectsEmpty.svelte";
   let { data }: { data: { projects: { id: string; path: string }[] } } =
     $props();
 </script>
 
 <svelte:head><title>Projects — {APP_NAME}</title></svelte:head>
+{#if data.projects.length === 0}
+  <ProjectsEmpty desktop={page.data.desktop} />
+{:else}
 <section class="projects mx-auto max-w-3xl px-6 py-10 text-sm">
   <h1 class="text-2xl font-semibold tracking-tight">Projects</h1>
   <p class="mt-1 text-muted-foreground">
@@ -26,8 +30,6 @@
           >{project.path}</span
         ></a
       >
-    {:else}
-      <p class="px-3 py-2 text-muted-foreground">No projects admitted.</p>
     {/each}
   </div>
   <form
@@ -57,3 +59,4 @@
       </p>{/each}
   </form>
 </section>
+{/if}

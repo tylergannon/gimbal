@@ -133,6 +133,7 @@ func SkgoCallerRoutes() skgo.CallerRoutes {
 		"/projects/[project]/runs/[runID]": {Params: []skgo.ManifestParam{{Name: "project", Matcher: "", Optional: false, Rest: false, Chained: false}, {Name: "runID", Matcher: "", Optional: false, Rest: false, Chained: false}}, NewParams: func(values map[string]any) (any, error) {
 			return SkgoParams("/projects/[project]/runs/[runID]", values)
 		}},
+		"/window":               {Params: []skgo.ManifestParam{}, NewParams: func(values map[string]any) (any, error) { return SkgoParams("/window", values) }},
 		"/workflows":            {Params: []skgo.ManifestParam{}, NewParams: func(values map[string]any) (any, error) { return SkgoParams("/workflows", values) }},
 		"/workflows/[workflow]": {Params: []skgo.ManifestParam{{Name: "workflow", Matcher: "", Optional: false, Rest: false, Chained: false}}, NewParams: func(values map[string]any) (any, error) { return SkgoParams("/workflows/[workflow]", values) }},
 	}
@@ -282,6 +283,7 @@ func SkgoParams(routeID string, values map[string]any) (Params, error) {
 			}
 			p.value_72756e4944 = RunID_K72756e4944Param_String{Value: value}
 		}
+	case "/window":
 	case "/workflows":
 	case "/workflows/[workflow]":
 		if raw, present := values["workflow"]; present {

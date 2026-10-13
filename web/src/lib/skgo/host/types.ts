@@ -4,3 +4,18 @@ export type ProjectChoice = {
   id: string;
   path: string;
 };
+
+/**
+ * WindowState is where the desktop window last was: its project, the view it showed, and the tabs it had open. The instance keeps it so the window reopens there, checked against the projects this instance actually owns.
+ */
+export type WindowState = {
+  project: string;
+  path: string;
+  tabs: Array<WindowTab>;
+};
+
+export type WindowTab = {
+  id: string;
+  title: string;
+  kind: string;
+};

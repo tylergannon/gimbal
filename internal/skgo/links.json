@@ -19,6 +19,10 @@
 			"target": "web/src/routes/workflows/[workflow]"
 		},
 		{
+			"link": "internal/skgo/links/onzggl3sn52xizltf53ws3ten53q",
+			"target": "web/src/routes/window"
+		},
+		{
 			"link": "internal/skgo/links/onzggl3sn52xizltf5yhe33kmvrxi4zplnyhe33kmvrxixi",
 			"target": "web/src/routes/projects/[project]"
 		},

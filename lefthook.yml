@@ -9,56 +9,10 @@ pre-commit:
     - name: staged-content-policy
       run: bash scripts/check-staged-content.sh
 
-    - name: formatters
-      group:
-        parallel: true
-        jobs:
-          - name: goimports
-            glob: "*.go"
-            run: go tool goimports -w {staged_files}
-            stage_fixed: true
+    - name: staged-whitespace
+      run: git diff --cached --check
 
-          - name: go-modernize
-            glob: "*.go"
-            run: go tool modernize -fix ./...
-            stage_fixed: true
-
-    - name: linters
-      group:
-        parallel: true
-        jobs:
-          - name: golangci-lint
-            glob: "*.go"
-            run: golangci-lint run ./...
-
-          - name: gimbal-lint
-            glob: "*.go"
-            run: go run ./cmd/gimbal lint ./...
-
-    - name: go-test
-      glob: "*.go"
-      run: env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE -u GIT_PREFIX go test ./...
-
-    - name: web
-      group:
-        parallel: true
-        jobs:
-          - name: web-check
-            glob: "web/**"
-            root: "web/"
-            run: pnpm check
-
-          - name: web-fmt
-            glob: "web/**"
-            root: "web/"
-            run: pnpm exec vp fmt --check
-
-          - name: web-test
-            glob: "web/**"
-            root: "web/"
-            run: pnpm test
-
-pre-push:
-  jobs:
-    - name: gimbal-lint
-      run: go run ./cmd/gimbal lint ./...
+    # Read the index, never rewrite or stage working-tree files. No builds,
+    # repository-wide analysis, dependencies, or tests run during commit/push.
+    - name: staged-go-format
+      run: bash scripts/check-staged-format.sh

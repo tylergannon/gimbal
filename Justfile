@@ -41,6 +41,20 @@ vet:
     go build -o bin/gimbal ./cmd/gimbal
     ./bin/gimbal lint ./...
 
+# Expensive checks belong in explicit validation and CI, never commit/push hooks.
+lint-go:
+    golangci-lint run ./...
+
+# Opt-in source rewrite; inspect the resulting diff before staging.
+modernize:
+    go tool modernize -fix ./...
+
+check-web:
+    cd web && pnpm check
+
+check-hooks:
+    python3 -B -m unittest discover -s scripts -p 'staged_hook_test.py' -v
+
 test:
     go test -count=1 ./...
     cd web && pnpm test

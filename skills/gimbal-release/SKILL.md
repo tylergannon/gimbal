@@ -65,7 +65,10 @@ environment references. HTTPS is required off loopback; explicit localhost HTTP
 works for local login. Provision identities through `gimbal user add` on the
 running instance's Unix control socket; login never creates a user. The README
 contains the file shape and invocation. Missing configuration/plugins/storage
-fail startup. The separate task listener remains outside web authentication.
+fail startup. Sessions last one week. The macOS shell keeps its Gimbal session in Keychain,
+scoped to the configured server; its proxy supplies that login to web pages and
+native recording commands. Sign-out revokes the session and clears the saved
+credential. The separate task listener remains outside web authentication.
 
 ## Build the macOS workspace
 

@@ -172,6 +172,13 @@ func TestCallbackAdmitsOnlyExistingIdentityAndChecksState(t *testing.T) {
 func TestSessionRotationLogoutRevocationAndFailures(t *testing.T) {
 	a, s, p := fixture(t)
 	first := login(t, a)
+	if remaining := time.Until(first.Expires); remaining < 7*24*time.Hour-time.Minute || remaining > 7*24*time.Hour {
+		t.Fatalf("session expires in %s, want one week", remaining)
+	}
+	hash, _ := tokenHash(first.Value)
+	if remaining := time.Until(s.sessions[hash].ExpiresAt); remaining < 7*24*time.Hour-time.Minute || remaining > 7*24*time.Hour {
+		t.Fatalf("stored session expires in %s, want one week", remaining)
+	}
 	if !first.Secure || !first.HttpOnly || first.Path != "/" || first.SameSite != http.SameSiteLaxMode {
 		t.Fatal("unsafe cookie")
 	}

@@ -65,6 +65,7 @@ final class WebCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDelega
   var expectedOrigin: URL?
   private var foreground = true
   private var recoveryRevision = 0
+  private var signingIn = false
   init(controller: RecorderController, state: ApplicationState) {
     self.controller = controller
     self.state = state
@@ -125,7 +126,7 @@ final class WebCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDelega
   }
   func webView(
     _ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction,
-    decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
+    decisionHandler: @escaping @MainActor @Sendable (WKNavigationActionPolicy) -> Void
   ) {
     #if os(macOS)
       if navigationAction.targetFrame == nil, let target = navigationAction.request.url,
@@ -136,6 +137,39 @@ final class WebCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDelega
         return
       }
     #endif
+    if navigationAction.targetFrame?.isMainFrame == false {
+      decisionHandler(.allow)
+      return
+    }
+    if let target = navigationAction.request.url, let origin = expectedOrigin,
+      let server = NativeHost.active?.serverURL
+    {
+      if signingIn, target.scheme == server.scheme, target.host == server.host,
+        target.port == server.port, target.path == "/auth/callback",
+        var callback = URLComponents(url: target, resolvingAgainstBaseURL: false)
+      {
+        callback.scheme = origin.scheme
+        callback.host = origin.host
+        callback.port = origin.port
+        signingIn = false
+        decisionHandler(.cancel)
+        if let callbackURL = callback.url { webView.load(URLRequest(url: callbackURL)) }
+        return
+      }
+      if target.scheme == "https", target.host == "github.com",
+        signingIn || target.path == "/login/oauth/authorize"
+      {
+        signingIn = true
+        decisionHandler(.allow)
+        return
+      }
+    }
+    guard let target = navigationAction.request.url, let origin = expectedOrigin,
+      target.scheme == origin.scheme, target.host == origin.host, target.port == origin.port
+    else {
+      decisionHandler(.cancel)
+      return
+    }
     decisionHandler(.allow)
   }
   func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
@@ -203,6 +237,10 @@ final class WebCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDelega
   }
   func send(_ status: NativeStatus) {
     guard foreground else { return }
+    // Provider pages never receive recording text or native workspace state.
+    guard let target = webView?.url, let origin = expectedOrigin,
+      target.scheme == origin.scheme, target.host == origin.host, target.port == origin.port
+    else { return }
     guard let data = try? JSONEncoder().encode(status),
       var object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
     else { return }

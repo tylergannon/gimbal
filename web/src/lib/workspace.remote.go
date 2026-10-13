@@ -41,8 +41,8 @@ func createProject(ctx context.Context, event app.RequestEvent[params.Params], r
 	if !filepath.IsAbs(path) {
 		return host.ProjectChoice{}, skgo.Invalidf("path", "Use an absolute project directory")
 	}
-	if e := os.MkdirAll(path, 0755); e != nil {
-		return host.ProjectChoice{}, e
+	if info, e := os.Stat(path); e != nil || !info.IsDir() {
+		return host.ProjectChoice{}, skgo.Invalidf("path", "No directory exists at %s", path)
 	}
 	p, e := o.AdmitProject(path)
 	if e != nil {

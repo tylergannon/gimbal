@@ -251,11 +251,7 @@ func (o *Owner) saveProjectsLocked() error {
 	if err := os.MkdirAll(o.dir, 0700); err != nil {
 		return err
 	}
-	paths := make([]string, 0, len(o.projects))
-	for path := range o.projects {
-		paths = append(paths, path)
-	}
-	raw, err := json.Marshal(paths)
+	raw, err := json.Marshal(o.order)
 	if err != nil {
 		return err
 	}

@@ -112,7 +112,7 @@ func isOrdinaryCLI(args []string) bool {
 	}
 	for _, arg := range args {
 		switch arg {
-		case "-h", "--help", "-v", "--version", "-port", "--port", "-uds", "--uds", "-no-web", "--no-web", "--no-project", "--ready", "--auth-file":
+		case "-h", "--help", "-v", "--version", "-port", "--port", "-uds", "--uds", "-no-web", "--no-web", "--no-project", "--ready", "--owned-by-stdin", "--auth-file":
 			return true
 		}
 	}
@@ -252,6 +252,8 @@ type serverFlags struct {
 	noWeb        bool
 	noProject    bool
 	ready        bool
+	ownedByStdin bool
+	stdin        io.Reader // os.Stdin when nil
 	projects     []string
 	instanceDir  string
 	taskListen   string
@@ -269,6 +271,7 @@ func (f *serverFlags) bind(fs *pflag.FlagSet) {
 	fs.BoolVar(&f.noWeb, "no-web", false, "run without the web application")
 	fs.BoolVar(&f.noProject, "no-project", false, "start without implicitly admitting the current directory")
 	fs.BoolVar(&f.ready, "ready", false, "print READY <http-url> to stdout after the web listener binds")
+	fs.BoolVar(&f.ownedByStdin, "owned-by-stdin", false, "stop when standard input closes, so the server ends with the process that started it")
 	fs.StringArrayVar(&f.projects, "project", nil, "repository directory to admit (repeat for multiple projects; default: current directory)")
 	fs.StringVar(&f.instanceDir, "instance-dir", ".gimbal", "state directory for this persistent instance (default .gimbal)")
 }
@@ -303,6 +306,17 @@ func serve(ctx context.Context, server serverFlags, stdout io.Writer) error {
 	defer stop()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+	if server.ownedByStdin {
+		stdin := server.stdin
+		if stdin == nil {
+			stdin = os.Stdin
+		}
+		// The owner holds the other end, and the kernel closes it when the owner exits, even by crash or SIGKILL.
+		go func() {
+			_, _ = io.Copy(io.Discard, stdin)
+			cancel()
+		}()
+	}
 	options := server.options()
 	projects := server.projects
 	if len(projects) == 0 && !server.noProject {

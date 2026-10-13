@@ -11,7 +11,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -292,7 +291,6 @@ func (i *Instance) projectRequest(next http.Handler) http.Handler {
 				p = candidate
 			}
 		}
-		slices.SortFunc(choices, func(a, b host.ProjectChoice) int { return strings.Compare(a.Path, b.Path) })
 		if p == nil {
 			if strings.HasPrefix(r.URL.Path, "/projects/") || (strings.Contains(r.URL.Path, "/remote/") && !sharedRemotes[r.URL.Path]) || strings.HasPrefix(r.URL.Path, "/api/") {
 				http.NotFound(w, r)

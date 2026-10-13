@@ -25,6 +25,9 @@ var bundledServer struct {
 	sync.Mutex
 	cmd     *exec.Cmd
 	stopped chan struct{}
+	// owner is the write end of the server's stdin. It is never written; the server stops when it
+	// closes, which the kernel does when this process exits, so a crash or force quit can't orphan it.
+	owner io.WriteCloser
 }
 
 var serverOrigin string
@@ -78,6 +81,7 @@ func startBundledServer() (string, error) {
 		case <-bundledServer.stopped:
 			bundledServer.cmd = nil
 			bundledServer.stopped = nil
+			bundledServer.owner = nil
 		default:
 			return "", fmt.Errorf("bundled Gimbal server is already running")
 		}
@@ -92,9 +96,13 @@ func startBundledServer() (string, error) {
 	}
 	cmd := exec.Command(path,
 		"--instance-dir", instanceDir(home),
-		"--no-project", "--port", "0", "--ready")
+		"--no-project", "--port", "0", "--ready", "--owned-by-stdin")
 	cmd.Env = serverEnvironment(home)
 	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return "", fmt.Errorf("prepare bundled Gimbal server startup: %w", err)
+	}
+	owner, err := cmd.StdinPipe()
 	if err != nil {
 		return "", fmt.Errorf("prepare bundled Gimbal server startup: %w", err)
 	}
@@ -105,6 +113,7 @@ func startBundledServer() (string, error) {
 	stopped := make(chan struct{})
 	bundledServer.cmd = cmd
 	bundledServer.stopped = stopped
+	bundledServer.owner = owner
 	go func() {
 		_ = cmd.Wait()
 		close(stopped)
@@ -204,6 +213,7 @@ func stopBundledServerLocked() {
 	}
 	bundledServer.cmd = nil
 	bundledServer.stopped = nil
+	bundledServer.owner = nil
 }
 
 //export SKGoHostStart

@@ -25,7 +25,7 @@ type WindowTab struct {
 }
 
 // Window returns the remembered window when its project is still admitted,
-// otherwise the first admitted project by path, otherwise no project.
+// otherwise the first project in the catalog's order, otherwise no project.
 func (o *Owner) Window() WindowState {
 	o.mu.RLock()
 	defer o.mu.RUnlock()
@@ -35,19 +35,15 @@ func (o *Owner) Window() WindowState {
 			_ = json.Unmarshal(raw, &saved)
 		}
 	}
-	first := ""
-	for path, p := range o.projects {
+	for _, p := range o.projects {
 		if p.id == saved.Project {
 			return saved.within()
 		}
-		if first == "" || path < first {
-			first = path
-		}
 	}
-	if first == "" {
+	if len(o.order) == 0 {
 		return WindowState{Tabs: []WindowTab{}}
 	}
-	return WindowState{Project: o.projects[first].id}.within()
+	return WindowState{Project: o.projects[o.order[0]].id}.within()
 }
 
 // RememberWindow records the window's place for an admitted project.

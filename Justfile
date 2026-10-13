@@ -12,11 +12,14 @@ build:
 dev:
     node web/dev/run.mjs
 
-# Build the Debug macOS app around a fresh CLI.
+# Build the Debug macOS app around a fresh CLI. The native build reruns skgo generate without
+# goimports or polytype, so the last two steps put the committed generated files back.
 app: build
     mkdir -p native/Resources
     install -m 755 bin/gimbal native/Resources/gimbal
     go tool skgo native build --platform macos
+    go generate ./internal/skgo ./workflow
+    cd web && pnpm exec vp fmt
 
 # Open the Debug app; a directory argument keeps its catalog in that directory instead of ~/.gimbal/desktop.
 app-run instance="":

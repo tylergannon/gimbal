@@ -30,6 +30,7 @@ type Owner struct {
 	dir        string
 	mu         sync.RWMutex
 	projects   map[string]*Project
+	order      []string // project paths in the order people arranged them
 	activeRuns sync.WaitGroup
 	controlID  string
 	socket     string
@@ -140,8 +141,10 @@ func (o *Owner) AdmitProject(dir string) (*Project, error) {
 		return nil, err
 	}
 	o.projects[path] = p
+	o.order = append(o.order, path)
 	if err := o.saveProjectsLocked(); err != nil {
 		delete(o.projects, path)
+		o.order = o.order[:len(o.order)-1]
 		conversations.Close()
 		return nil, err
 	}
@@ -167,11 +170,41 @@ func (o *Owner) Project(path string) (*Project, error) {
 func (o *Owner) Projects() []*Project {
 	o.mu.RLock()
 	defer o.mu.RUnlock()
-	projects := make([]*Project, 0, len(o.projects))
-	for _, p := range o.projects {
-		projects = append(projects, p)
+	projects := make([]*Project, 0, len(o.order))
+	for _, path := range o.order {
+		projects = append(projects, o.projects[path])
 	}
 	return projects
+}
+
+// ReorderProjects arranges the catalog in the order of ids, which must name
+// every admitted project once, and saves it.
+func (o *Owner) ReorderProjects(ids []string) error {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	paths := make(map[string]string, len(o.order))
+	for _, path := range o.order {
+		paths[o.projects[path].id] = path
+	}
+	if len(ids) != len(paths) {
+		return errors.New("gimbal: a project order must list every project once")
+	}
+	order := make([]string, 0, len(ids))
+	for _, id := range ids {
+		path, ok := paths[id]
+		if !ok {
+			return errors.New("gimbal: a project order must list every project once")
+		}
+		delete(paths, id)
+		order = append(order, path)
+	}
+	previous := o.order
+	o.order = order
+	if err := o.saveProjectsLocked(); err != nil {
+		o.order = previous
+		return err
+	}
+	return nil
 }
 
 func (o *Owner) Close() {

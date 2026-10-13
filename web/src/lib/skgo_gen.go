@@ -36,6 +36,8 @@ var (
 	Skgo_createProject = createProject
 	// Skgo_projectFiles is projectFiles, published as src/lib/workspace.remote.ts#projectFiles.
 	Skgo_projectFiles = projectFiles
+	// Skgo_reorderProjects is reorderProjects, published as src/lib/workspace.remote.ts#reorderProjects.
+	Skgo_reorderProjects = reorderProjects
 	// Skgo_uploadFile is uploadFile, published as src/lib/workspace.remote.ts#uploadFile.
 	Skgo_uploadFile = uploadFile
 	// Skgo_viewFile is viewFile, published as src/lib/workspace.remote.ts#viewFile.

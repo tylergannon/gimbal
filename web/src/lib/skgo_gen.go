@@ -5,6 +5,7 @@ package workspace
 import (
 	host "github.com/tylergannon/gimbal/internal/host"
 	projectfiles "github.com/tylergannon/gimbal/internal/projectfiles"
+	promises "github.com/tylergannon/gimbal/internal/promises"
 	transcript "github.com/tylergannon/gimbal/internal/transcript"
 )
 
@@ -34,10 +35,14 @@ var (
 	Skgo_createProject = createProject
 	// Skgo_projectFiles is projectFiles, published as src/lib/workspace.remote.ts#projectFiles.
 	Skgo_projectFiles = projectFiles
+	// Skgo_setPromiseWithdrawn is setPromiseWithdrawn, published as src/lib/workspace.remote.ts#setPromiseWithdrawn.
+	Skgo_setPromiseWithdrawn = setPromiseWithdrawn
 	// Skgo_uploadFile is uploadFile, published as src/lib/workspace.remote.ts#uploadFile.
 	Skgo_uploadFile = uploadFile
 	// Skgo_viewFile is viewFile, published as src/lib/workspace.remote.ts#viewFile.
 	Skgo_viewFile = viewFile
+	// Skgo_watchPromises is watchPromises, published as src/lib/workspace.remote.ts#watchPromises.
+	Skgo_watchPromises = watchPromises
 )
 
 type (
@@ -51,4 +56,6 @@ type (
 	SkgoArg_uploadFile = Upload
 	// SkgoOut_uploadFile is the type uploadFile returns.
 	SkgoOut_uploadFile = projectfiles.Document
+	// SkgoOut_watchPromises is the type watchPromises yields.
+	SkgoOut_watchPromises = promises.View
 )

@@ -412,6 +412,9 @@ func apply(l *Ledger, ops []operation, chunks []chunk, recording string, now int
 			if details == "" {
 				details = e.Details
 			}
+			if len(tags) == 0 {
+				tags = e.Tags
+			}
 			if title != e.Title || details != e.Details || !slices.Equal(tags, e.Tags) {
 				e.Title, e.Details, e.Tags, e.Updated = title, details, tags, now
 			}

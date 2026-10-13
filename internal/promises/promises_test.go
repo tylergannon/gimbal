@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -168,8 +169,8 @@ func TestApply(t *testing.T) {
 		t.Fatalf("a changed update replaces, keeping an empty field's current value: %+v", e)
 	}
 	apply(&l, []operation{{Op: "update", ID: 2, Details: "Filter by tag too."}}, chunks, "rec", 350)
-	if e := l.Entries[1]; e.Title != "Users can tag and filter notes." || e.Details != "Filter by tag too." {
-		t.Fatalf("an empty title keeps the current one: %+v", e)
+	if e := l.Entries[1]; e.Title != "Users can tag and filter notes." || e.Details != "Filter by tag too." || !slices.Equal(e.Tags, []string{"tags"}) {
+		t.Fatalf("an empty title or tags keeps the current one: %+v", e)
 	}
 
 	apply(&l, []operation{{Op: "withdraw", ID: 3, Chunk: 5, Quote: "users can tag notes"}}, chunks, "rec", 400)

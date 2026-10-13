@@ -68,7 +68,7 @@ New package `internal/promises` (`promises.go` + `promises_test.go`):
 type Store struct {
     mu      sync.Mutex
     dir     string
-    ledger  Ledger  // equals ledger.json after every save or reload
+    ledger  Ledger  // the last acknowledged (nil-error) save, or the file at Open
     working bool    // a batch's LLM call is in flight
     errs    map[string]string // recording ID -> its last batch failure; deleted on that recording's success
     version int64   // bumped on every change to ledger, working or errs
@@ -471,7 +471,7 @@ discussion; its promises appear here."
 - Integer ID = display number = ordinal (clarity/server/internal/worker/review.go:L52).
 - Direct `adapter.RunTurn`, fresh session per batch: keeps the Runs list clean (`manager.go:405-424`). No schema re-ask: invalid reply ⇒ that recording's error + backoff + retry.
 - Claude-only, text-only adapter for the ledger call: speech is untrusted; no tools, settings, hooks, or MCP rather than asking the model not to act.
-- Disk is the source of truth for commits: copy → apply → save → publish; on any save error, reload from disk.
+- Commits: copy → apply → save → publish only on a nil save; any save error keeps the old in-memory ledger and the batch is redone.
 - Sidebar "Show older" over the existing paged `recordingHistory`, so every existing recording can be opened and marked.
 - `sonnet:low` default (same tier as Clarity's gpt-6.1-sol low, clarity/Sources/ClarityCore/Claims/ResponsesClaimReviewProvider.swift:L16, L52-53). Each batch spawns a Claude Code process (~5–15 s); settle + serial batches bound it.
 - Settle signal is an in-memory unchanged chunk count (heartbeats bump `Updated`).

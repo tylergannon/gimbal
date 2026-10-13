@@ -21,8 +21,8 @@ func TestServerEnvironmentPreservesPATHAndAddsUserTools(t *testing.T) {
 	t.Setenv("PATH", "/custom/bin")
 	path := ""
 	for _, entry := range serverEnvironment("/Users/test") {
-		if strings.HasPrefix(entry, "PATH=") {
-			path = strings.TrimPrefix(entry, "PATH=")
+		if after, ok := strings.CutPrefix(entry, "PATH="); ok {
+			path = after
 			break
 		}
 	}

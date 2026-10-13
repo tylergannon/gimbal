@@ -28,7 +28,7 @@ cask "gimbal" do
   homepage "https://github.com/tylergannon/gimbal"
 
   depends_on arch: :arm64
-  depends_on :macos
+  depends_on macos: :golden_gate
 
   binary "gimbal"
 end

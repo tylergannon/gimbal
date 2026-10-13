@@ -78,6 +78,8 @@ jobs:
         with:
           go-version-file: go.mod
           check-latest: true
+          # The persistent Mac already retains its local Go caches.
+          cache: false
       - uses: pnpm/action-setup@v4
         with:
           version: 12.10.1

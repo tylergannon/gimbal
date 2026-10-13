@@ -1,6 +1,6 @@
 module github.com/tylergannon/gimbal
 
-go 1.27.1
+go 1.27.2
 
 // web/ is a Go package (it embeds the build), so without this every ./... walk
 // descends into web/node_modules looking for Go packages.

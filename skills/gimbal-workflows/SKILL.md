@@ -245,7 +245,10 @@ outputs or workflow shape. No project frontend generation is needed.
 A plugin's main package exports `Register(*gimbal.Registry) error`. Register the
 generated `ReviewDefinition()` with `RegisterWorkflow`, plus any backend
 configuration/factory with `RegisterBackend`. Build with `go build -buildmode=plugin`
-and install the `.so` in a configured `--plugin-dir`. Central and workflow daemons
+using the local host's matching build flags. For a published CLI, use `-trimpath`
+and the exact released Gimbal source in a Go workspace as described in
+[distribution](../gimbal-release/references/distribution.md#plugin-builds).
+Install the `.so` in a configured `--plugin-dir`. Central and workflow daemons
 load their own sorted configured directories before accepting work. Deploy the
 matching plugin to central and to the workflow environment; restart to expose a
 new catalog. An incompatible or duplicate definition fails startup. Generated

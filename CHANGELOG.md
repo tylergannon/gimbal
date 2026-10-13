@@ -7,10 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.2] - 2026-10-12
+
 ### Added
 
 - Sparkle updates for the macOS desktop app, with daily background checks,
   a Check for Updates menu, and signed installation with relaunch.
+
+### Fixed
+
+- Strip machine-specific build paths from release CLIs so plugins built in
+  another checkout can load. Document the matching plugin build flags and
+  source workspace, and check a separate plugin build before publishing assets.
 
 ## [0.13.1] - 2026-10-12
 
@@ -169,7 +177,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `opencode/provider/model` routing, one shared server managed by
   `gimbal opencode start|stop`, and raw event/request captures for diagnostics.
 
-[Unreleased]: https://github.com/tylergannon/gimbal/compare/v0.13.1...main
+[Unreleased]: https://github.com/tylergannon/gimbal/compare/v0.13.2...main
+[0.13.2]: https://github.com/tylergannon/gimbal/compare/v0.13.1...v0.13.2
 [0.13.1]: https://github.com/tylergannon/gimbal/compare/v0.13.0...v0.13.1
 [0.13.0]: https://github.com/tylergannon/gimbal/compare/v0.12.1...v0.13.0
 [0.12.1]: https://github.com/tylergannon/gimbal/compare/v0.12.0...v0.12.1

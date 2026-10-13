@@ -38,3 +38,8 @@ of direct task endpoints. See the automatic named-environment example in the
 [parent skill](../SKILL.md). Orchestration starts a scope-assigned daemon, waits
 for readiness, and releases it after native cleanup. Infrastructure setup belongs
 to that backend's configuration.
+
+Published CLIs use `-trimpath`. Build their plugins with that flag and the
+released source workspace described in
+[distribution](../../gimbal-release/references/distribution.md#plugin-builds).
+

@@ -39,9 +39,12 @@ jobs:
           sudo apt-get install --yes zsh
       - name: Check release automation
         run: python3 -m unittest discover -s scripts -p '*release_test.py' -v
-      - name: Build and check application
+      - name: Build application
+        run: just build
+      - name: Install browser test runtime
+        run: cd web && pnpm exec playwright install --with-deps chromium
+      - name: Check application
         run: |
-          just build
           just vet
           just test
           just fmt-check

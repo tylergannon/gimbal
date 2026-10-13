@@ -11,3 +11,5 @@ friction: A failed Homebrew update after release creation made reruns fail at `g
 decision: Independent review identified that a historical source retry could republish an older updater feed after a newer release. Skip superseded tags and cover the case with a real bare-remote test. Automatic publication remains serialized through completion while pending main pushes coalesce.
 
 friction: The actual Ubuntu PR gate exposed that its runner lacks zsh, Gimbal's explicit runtime command/service shell. Provision zsh in CI before exercising those paths; retain the real tests and production shell behavior.
+
+friction: After provisioning zsh, the Ubuntu gate passed all Go tests but exposed an absent Playwright Chromium binary at frontend browser startup. Install Chromium with its system dependencies after the frontend dependencies/build are prepared, retaining all browser tests. Separate build/runtime/check steps make the next failure boundary visible.

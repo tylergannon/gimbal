@@ -78,7 +78,7 @@
 </div>
 
 <style>
-  .shell { display: flex; height: 100%; min-height: 0; overflow: hidden; background: var(--background); color: var(--foreground); font: 14px var(--font-sans); }
+  .shell { position: relative; display: flex; height: 100%; min-height: 0; overflow: hidden; background: var(--background); color: var(--foreground); font: 14px var(--font-sans); }
   .native:not(.with-sidebar) header { padding-left: 86px; }
   .native header { padding-right: 78px; }
   .workspace { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; }
@@ -112,5 +112,8 @@
   .detail { font-size: 11px; color: var(--muted-foreground); }
   @keyframes saving { 50% { opacity: .4; } }
   @media (prefers-reduced-motion: reduce) { .record-dot.saving { animation: none; } }
-  @media (max-width: 900px) { aside { width: 220px; } }
+  @media (width < 1100px) {
+    aside { position: absolute; inset: 0 auto 0 0; z-index: 20; box-shadow: var(--shadow-lg); }
+    .native header { padding-left: 86px; }
+  }
 </style>

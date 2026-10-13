@@ -80,7 +80,7 @@
 <style>
   .workspace { height: 100%; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
   p, h2, h3 { margin: 0; }
-  .transcript { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 22px; overflow: auto; padding: 32px max(24px, calc((100% - 720px) / 2)); }
+  .transcript { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 22px; overflow: auto; overflow-wrap: anywhere; padding: 32px max(24px, calc((100% - 720px) / 2)); }
   .message { align-self: flex-end; max-width: min(560px, 86%); }
   .message.assistant { align-self: flex-start; width: min(680px, 92%); }
   .role { display: block; margin-bottom: 6px; color: var(--muted-foreground); font-size: 11px; font-weight: 500; }

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { navigateOnUnauthorized } from "#lib/auth/unauthorized";
+  import { errorMessage } from "#lib/errors";
   import { projectFiles, uploadFile } from "../workspace.remote";
   import FileViewer from "./FileViewer.svelte";
   let { project }: { project: string } = $props();
@@ -19,7 +20,7 @@
           if (submitted.result) selected = submitted.result.id;
         }
       } catch (error) {
-        if (!navigateOnUnauthorized(error)) actionError = error instanceof Error ? error.message : String(error);
+        if (!navigateOnUnauthorized(error)) actionError = errorMessage(error);
       }
     })}
   >

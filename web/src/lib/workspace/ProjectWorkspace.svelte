@@ -1,5 +1,6 @@
 <script lang="ts">
   import { navigateOnUnauthorized } from "#lib/auth/unauthorized";
+  import { errorMessage } from "#lib/errors";
   import { onMount, type Snippet } from 'svelte';
   import type { Conversation } from '#lib/skgo/conversation/types';
   import { afterNavigate, goto } from '$app/navigation';
@@ -147,7 +148,7 @@
     {#if native && status?.sessionID && status.project === project}<div class="recording-detail"><span>{status.pending ? 'Saving to server…' : status.state}</span>{#if status.error}<p role="alert">{status.error}</p><button onclick={() => nativeMessage('reconnect', {})}>Reconnect</button>{/if}</div>{/if}
     <h2 class="group">Recordings</h2>
     {#each history.items as item (item.id)}<a class="row" class:selected={page.params.recordingID === item.id} href={`${root}/recordings/${item.id}`}><span>◉</span><span>{new Date(item.created).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} · {new Date(item.created).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}</span><small>{item.status}</small></a>{:else}<p class="quiet">No recordings yet</p>{/each}
-    <details class="upload"><summary>Add project file</summary><form {...upload.enhance(async (submitted) => { try { if (await submitted.submit().updates(projectFiles(project)) && submitted.result) { documents.set([submitted.result, ...files.filter(file => file.id !== submitted.result!.id)]); select(`${root}/files/${submitted.result.id}`); } } catch (error) { if (!navigateOnUnauthorized(error)) actionError = error instanceof Error ? error.message : String(error); } })}><input {...upload.fields.project.as('hidden', project)} /><input aria-label="Choose project file" {...upload.fields.file.as('file')} required /><button disabled={!!upload.pending}>{upload.pending ? 'Uploading…' : 'Upload'}</button>{#each upload.fields.allIssues() ?? [] as issue}<p role="alert">{issue.message}</p>{/each}</form></details>
+    <details class="upload"><summary>Add project file</summary><form {...upload.enhance(async (submitted) => { try { if (await submitted.submit().updates(projectFiles(project)) && submitted.result) { documents.set([submitted.result, ...files.filter(file => file.id !== submitted.result!.id)]); select(`${root}/files/${submitted.result.id}`); } } catch (error) { if (!navigateOnUnauthorized(error)) actionError = errorMessage(error); } })}><input {...upload.fields.project.as('hidden', project)} /><input aria-label="Choose project file" {...upload.fields.file.as('file')} required /><button disabled={!!upload.pending}>{upload.pending ? 'Uploading…' : 'Upload'}</button>{#each upload.fields.allIssues() ?? [] as issue}<p role="alert">{issue.message}</p>{/each}</form></details>
     <nav class="tools" aria-label="Project tools"><a href={root}>Runs</a><a href="/workflows">Workflows</a><a href={`${root}/about`}>About project</a></nav>
     <details class="projects"><summary>Switch project</summary>{#each projects as item (item.id)}<a class="row" href={`/projects/${item.id}/recordings`}>{item.path.split('/').at(-1)}</a>{/each}<a class="row" href="/">Add project</a></details>
   {/snippet}

@@ -377,3 +377,21 @@ func TestManagerNonGitConversationsShareProjectDirectory(t *testing.T) {
 		}
 	}
 }
+
+func TestManagerExplainsRepositoryWithoutCommits(t *testing.T) {
+	directory := t.TempDir()
+	git(t, directory, "init", "-q")
+	adapter := &chatAdapter{sessions: make(map[string][]string)}
+	manager, err := New(t.Context(), filepath.Join(directory, ".gimbal"), func(string) (gimbal.HarnessAdapter, error) { return adapter, nil }, "/bin/gimbal", "/instance", directory, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer manager.Close()
+	_, err = manager.Create(t.Context(), NewConversation{Provider: "codex"})
+	if err == nil || !strings.Contains(err.Error(), "has no commits yet") {
+		t.Fatalf("err = %v", err)
+	}
+	if len(manager.List()) != 0 {
+		t.Fatal("kept a conversation that could not start")
+	}
+}

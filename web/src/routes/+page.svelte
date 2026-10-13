@@ -1,5 +1,6 @@
 <script lang="ts">
   import { navigateOnUnauthorized } from "#lib/auth/unauthorized";
+  import { errorMessage } from "#lib/errors";
   import { createProject } from "#lib/workspace.remote";
   import { page } from "$app/state";
   import { goto } from "$app/navigation";
@@ -41,7 +42,7 @@
           if (form.result) await goto(`/projects/${form.result.id}/recordings`);
         }
       } catch (error) {
-        if (!navigateOnUnauthorized(error)) actionError = error instanceof Error ? error.message : String(error);
+        if (!navigateOnUnauthorized(error)) actionError = errorMessage(error);
       }
     })}
   >

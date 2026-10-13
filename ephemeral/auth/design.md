@@ -192,16 +192,29 @@ Protect the entire web stack: pages, SSR loads, remote queries/commands/forms,
 file routes, run snapshots, streams, and artifacts. The only unauthenticated
 exceptions are GET `/auth/login` and its generated route-data request, the
 exact generated POST remote for beginLogin, GET `/auth/callback`, and
-manifest-listed static build assets used by the login page. Logout is protected.
+manifest-listed static build assets. Logout is protected.
 Never expose other functions from a shared remote module by prefix. The login
 page and route-data request dispatch before projectRequest, so their layout
 load has no Owner or project-choice context and reads no project data. The
 anonymous layout does not start RecorderBridge or other project subscriptions.
-Classify exact built static resources, never a blanket `/_app/` prefix that also
-contains remote endpoints, and never project files or artifacts. Unauthenticated
-page navigation redirects to login; API and remote requests return 401; a valid
-session whose local user was deleted receives 401. Storage errors
+Classify built static resources from the build manifest, without deriving a
+per-page chunk graph. Never exempt a blanket `/_app/` prefix that also contains
+remote endpoints, and never project files or artifacts. Unauthenticated direct
+document navigation to a page receives an HTTP redirect to `/auth/login`.
+Unauthenticated SvelteKit route-data requests receive HTTP 200 with Kit's data
+redirect envelope (`type: redirect`, `status: 303`, `location: /auth/login`),
+not a bare 401 or an HTTP redirect to HTML. API and remote requests receive
+401, including a session whose local user was deleted. Storage errors
 return 503 without exposing data. Errors do not switch authentication off.
+
+The UI owners of remote operations handle rejected authentication with
+`isHttpError(error, 401)` from SvelteKit and navigate to `/auth/login` using
+`goto`. Apply that same handling in the query error boundary; a command's
+rejected promise needs its own catch because render boundaries do not catch
+event-handler failures. Keep other errors in their normal UI. Do not replace
+global fetch, build a custom remote client, or automatically replay a mutation
+after login. Only a refused operation triggers this handling; auth checking
+does not revoke permission retroactively from work already accepted.
 
 Keep skgo's existing Origin checks for remotes, including beginLogin and logout.
 Apply the same expected-origin check to any cookie-authenticated unsafe server
@@ -254,6 +267,8 @@ control clients neither load native plugins nor open a second writer. They
 resolve and verify the live instance through its existing discovery protocol
 and refuse an auth-off instance. The CLI returns the stable local ID.
 Customer hosts may call the same Users methods from their trusted operator code.
+GitHub provisioning help shows `gh api users/LOGIN --jq .id` to obtain the
+numeric subject; the user-facing login is not used as the stored identity key.
 
 Required auth-file shape:
 
@@ -343,7 +358,9 @@ an unprovisioned account; local user provisioning/removal; consistent user ID
 under concurrent creation and restart; session survival across restart;
 expiry and replay refusal; durable logout with
 bounded stream closure; rejection of cross-origin mutations; isolation of two
-browser cookies; and customer User rehydration through a replacement Users
+browser cookies; document navigation, client-side route navigation and remote
+actions returning to sign-in after expiry, cross-tab logout or user deletion;
+and customer User rehydration through a replacement Users
 implementation. Repeatable cases belong in package tests. Run records and
 screenshots are not committed. Design consensus does not substitute for these
 implementation observations.

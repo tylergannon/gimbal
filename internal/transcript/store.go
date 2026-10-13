@@ -19,6 +19,8 @@ type OpenRequest struct {
 	Project   string `json:"project"`
 	SessionID string `json:"sessionID"`
 	Source    string `json:"source"`
+	// Requirements marks a recording whose finalized speech feeds the project's promises ledger.
+	Requirements bool `json:"requirements"`
 }
 type Update struct {
 	Project     string  `json:"project"`

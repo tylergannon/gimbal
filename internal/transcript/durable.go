@@ -22,12 +22,13 @@ type Recording struct {
 	Last        string  `json:"last"`
 }
 type Header struct {
-	ID       string `json:"id"`
-	Source   string `json:"source"`
-	Created  int64  `json:"created"`
-	Updated  int64  `json:"updated"`
-	Sequence int64  `json:"sequence"`
-	Status   string `json:"status"`
+	ID           string `json:"id"`
+	Source       string `json:"source"`
+	Created      int64  `json:"created"`
+	Updated      int64  `json:"updated"`
+	Sequence     int64  `json:"sequence"`
+	Status       string `json:"status"`
+	Requirements bool   `json:"requirements"`
 }
 type History struct {
 	Items []Header `json:"items"`
@@ -154,7 +155,8 @@ func (s *DurableStore) Open(r OpenRequest) (Ack, error) {
 		return ackRecording(v), nil
 	}
 	now := time.Now().UnixMilli()
-	v := Recording{ID: r.SessionID, Source: r.Source, Created: now, Updated: now, Status: "preparing", Finalized: []Chunk{}, Provisional: []Chunk{}}
+	v := Recording{ID: r.SessionID, Source: r.Source, Created: now, Updated: now, Status: "preparing", Finalized: []Chunk{}, Provisional: []Chunk{},
+		Requirements: r.Requirements}
 	return ackRecording(v), s.save(v)
 }
 func (s *DurableStore) Accept(u Update) (Ack, error) {

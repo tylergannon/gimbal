@@ -433,21 +433,53 @@ func TestManagerNonGitConversationsShareProjectDirectory(t *testing.T) {
 	}
 }
 
-func TestManagerExplainsRepositoryWithoutCommits(t *testing.T) {
-	directory := t.TempDir()
-	git(t, directory, "init", "-q")
-	adapter := &chatAdapter{sessions: make(map[string][]string)}
-	manager, err := New(t.Context(), filepath.Join(directory, ".gimbal"), func(string) (gimbal.HarnessAdapter, error) { return adapter, nil }, "/bin/gimbal", "/instance", directory, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer manager.Close()
-	_, err = manager.Create(t.Context(), NewConversation{Provider: "codex"})
-	if err == nil || !strings.Contains(err.Error(), "has no commits yet") {
-		t.Fatalf("err = %v", err)
-	}
-	if len(manager.List()) != 0 {
-		t.Fatal("kept a conversation that could not start")
+func TestManagerChatsWithoutCommittedGitHistory(t *testing.T) {
+	for _, location := range []string{"ordinary-folder", "unborn-repository", "folder-under-unborn-repository", "folder-under-committed-repository"} {
+		t.Run(location, func(t *testing.T) {
+			directory := t.TempDir()
+			if location == "folder-under-committed-repository" {
+				directory = newRepository(t)
+			} else if location != "ordinary-folder" {
+				git(t, directory, "init", "-q")
+			}
+			if strings.HasPrefix(location, "folder-under-") {
+				directory = filepath.Join(directory, "project")
+				if err := os.MkdirAll(directory, 0o755); err != nil {
+					t.Fatal(err)
+				}
+			}
+			adapter := &chatAdapter{sessions: make(map[string][]string)}
+			manager, err := New(t.Context(), filepath.Join(directory, ".gimbal"), func(string) (gimbal.HarnessAdapter, error) { return adapter, nil }, "/bin/gimbal", "/instance", directory, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer manager.Close()
+			setup, err := manager.Setup(t.Context())
+			if err != nil || setup.Git || setup.Branch != "" {
+				t.Fatalf("setup = %+v, err = %v", setup, err)
+			}
+			item, err := manager.Start(t.Context(), NewConversation{Provider: "claude"}, "Remember cobalt.")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if item.Branch != "" || item.Worktree != directory {
+				t.Fatalf("unexpected workspace: %+v", item)
+			}
+			waitRequest(t, manager, item.ID, item.Requests[0].ID, "completed")
+			item, err = sendAndWait(t, manager, item.ID, "What word did I ask you to remember?")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(item.Messages) != 4 || item.Messages[3].Text != "You asked me to remember cobalt." {
+				t.Fatalf("chat did not complete both turns: %+v", item.Messages)
+			}
+			if len(adapter.workdirs) != 1 || adapter.workdirs[0] != directory {
+				t.Fatalf("session directories = %v", adapter.workdirs)
+			}
+			if _, err := os.Stat(filepath.Join(directory, ".gimbal", "conversation-worktrees")); !os.IsNotExist(err) {
+				t.Fatalf("unexpected worktree directory: %v", err)
+			}
+		})
 	}
 }
 

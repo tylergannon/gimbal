@@ -3,6 +3,7 @@
   import { errorMessage } from "#lib/errors";
   import { onMount, untrack, type Snippet } from 'svelte';
   import { MediaQuery } from 'svelte/reactivity';
+  import * as Dialog from '#lib/components/ui/dialog';
   import type { Conversation } from '#lib/skgo/conversation/types';
   import { afterNavigate, goto } from '$app/navigation';
   import { page } from '$app/state';
@@ -76,6 +77,9 @@
     open = form >= 0 ? open.with(form, tab) : [...open, tab];
   }
   let actionError = $state("");
+  let fileChooser = $state(false);
+  let projectChooser = $state(false);
+  const todayRecording = $derived(history.items.find(item => new Date(item.created).toDateString() === new Date().toDateString()));
   let started: string | undefined;
   function updated(conversation: Conversation) { chats.set([conversation, ...conversations.filter(item => item.id !== conversation.id)]); }
   function created(conversation: Conversation) {
@@ -93,11 +97,19 @@
     if (page.url.pathname === path) select(open[Math.min(index, open.length - 1)]?.id ?? `${root}/recordings`);
   }
   function command(event: Event) {
-    const value = (event as CustomEvent<{ command: string }>).detail.command;
+    const { command: value, project: targetProject } = (event as CustomEvent<{ command: string; project?: string }>).detail;
     if (value === 'openRecording') {
       const current = window.voiceNotesLatestStatus ?? status;
       if (current?.project && current.sessionID) select(`/projects/${current.project}/recordings/${current.sessionID}`);
     }
+    else if (value === 'newSession') select(`${root}/conversations/new`);
+    else if (value === 'openFileChooser') fileChooser = true;
+    else if (value === 'switchProject') {
+      if (targetProject && projects.some(item => item.id === targetProject)) select(`/projects/${targetProject}/recordings`);
+      else projectChooser = true;
+    }
+    else if (value === 'showRuns') select(root);
+    else if (value === 'openTodayTranscript' && todayRecording) select(`${root}/recordings/${todayRecording.id}`);
     else if (value === 'toggleSidebar') sidebar = !sidebar;
     else if (value === 'closeTab' && active) close(active);
     else if (value === 'nextTab' || value === 'previousTab') {
@@ -108,7 +120,7 @@
   }
   $effect(() => {
     if (!native) return;
-    nativeMessage('workspaceState', { ready: true, sidebarVisible: sidebar, tabCount: tabs.length, activeTabTitle: tabs.find(tab => tab.id === active)?.title, canStopResponse: conversations.some(item => `${root}/conversations/${item.id}` === active && !!item.active_request && item.status !== 'stopping') });
+    nativeMessage('workspaceState', { ready: true, sidebarVisible: sidebar, tabCount: tabs.length, activeTabTitle: tabs.find(tab => tab.id === active)?.title, canStopResponse: conversations.some(item => `${root}/conversations/${item.id}` === active && !!item.active_request && item.status !== 'stopping'), projectName: name, projects: projects.map(item => ({ id: item.id, name: item.path.split('/').at(-1) ?? item.path })), canOpenTodayTranscript: !!todayRecording });
   });
   const place = $derived(JSON.stringify({ project, path: page.url.pathname, tabs: tabs.map(({ id, title, kind }) => ({ id, title, kind })) }));
   $effect(() => {
@@ -168,7 +180,27 @@
   {/snippet}
 </WorkspaceShell>
 
+<Dialog.Root bind:open={fileChooser}>
+  <Dialog.Content>
+    <Dialog.Header><Dialog.Title>Open project file</Dialog.Title><Dialog.Description>Choose a file already added to this project.</Dialog.Description></Dialog.Header>
+    <div class="choices">
+      {#each files as file (file.id)}<button onclick={() => { fileChooser = false; select(`${root}/files/${file.id}`); }}>{file.name}</button>{:else}<p>No project files yet. Add a project file from the sidebar.</p>{/each}
+    </div>
+  </Dialog.Content>
+</Dialog.Root>
+<Dialog.Root bind:open={projectChooser}>
+  <Dialog.Content>
+    <Dialog.Header><Dialog.Title>Switch project</Dialog.Title><Dialog.Description>Open a workspace from your project catalog.</Dialog.Description></Dialog.Header>
+    <div class="choices">
+      {#each projects as item (item.id)}<button onclick={() => { projectChooser = false; select(`/projects/${item.id}/recordings`); }}>{item.path.split('/').at(-1)}</button>{/each}
+    </div>
+  </Dialog.Content>
+</Dialog.Root>
+
 <style>
+  .choices { display: grid; gap: 8px; }
+  .choices button { padding: 10px; text-align: left; color: inherit; background: var(--muted); border: 0; border-radius: 8px; cursor: pointer; }
+  .choices p { color: var(--muted-foreground); font-size: 13px; }
   .recording-detail { padding: 8px 10px; color: var(--muted-foreground); font-size: 12px; }
   .recording-detail p { color: var(--destructive); }
   .group { margin: 20px 10px 6px; color: var(--muted-foreground); font-size: 12px; font-weight: 500; }

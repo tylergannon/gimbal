@@ -34,15 +34,27 @@ import SwiftUI
     }
     #if os(macOS)
       if let controller {
-        recordingStatus = RecordingStatusItem(controller: controller, input: input) { [weak self] in
-          guard let workspace = self?.workspace, let window = workspace.webView?.window else {
-            return
-          }
-          window.deminiaturize(nil)
-          window.makeKeyAndOrderFront(nil)
-          NSApp.activate(ignoringOtherApps: true)
-          workspace.send("openRecording")
-        }
+        recordingStatus = RecordingStatusItem(
+          controller: controller, input: input, workspace: workspace,
+          recordingProject: { [weak self] in self?.commands?.recordingProject ?? "" },
+          openTranscript: { [weak self] in
+            guard let workspace = self?.workspace, let window = workspace.webView?.window else {
+              return
+            }
+            window.deminiaturize(nil)
+            window.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            workspace.send("openRecording")
+          },
+          switchProject: { [weak self] in
+            guard let workspace = self?.workspace, let window = workspace.webView?.window else {
+              return
+            }
+            window.deminiaturize(nil)
+            window.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            workspace.send("switchProject")
+          })
       }
     #endif
     heartbeat = Task { [weak self] in

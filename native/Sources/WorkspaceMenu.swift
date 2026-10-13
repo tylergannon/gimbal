@@ -10,11 +10,17 @@
     @Published var hasActiveTab = false
     @Published var windowIsKey = false
     @Published var canStopResponse = false
+    @Published var projects: [WorkspaceProject] = []
+    @Published var projectName = ""
+    @Published var canOpenTodayTranscript = false
     weak var webView: WKWebView?
 
     var enabled: Bool { ready && windowIsKey }
 
-    func update(ready: Bool, sidebarVisible: Bool, tabCount: Int, activeTabTitle: String?, canStopResponse: Bool = false) {
+    func update(
+      ready: Bool, sidebarVisible: Bool, tabCount: Int, activeTabTitle: String?,
+      canStopResponse: Bool = false
+    ) {
       self.sidebarVisible = sidebarVisible
       self.tabCount = tabCount
       hasActiveTab = activeTabTitle != nil
@@ -22,19 +28,44 @@
       self.ready = ready
     }
 
-    func send(_ command: String) {
-      guard enabled else { return }
+    func send(_ command: String, project: String = "") {
+      guard enabled,
+        let data = try? JSONSerialization.data(withJSONObject: [
+          "command": command, "project": project,
+        ]),
+        let detail = String(data: data, encoding: .utf8)
+      else { return }
       webView?.evaluateJavaScript(
-        "window.dispatchEvent(new CustomEvent('gimbal-workspace-command', {detail: {command: '\(command)'}}));",
+        "window.dispatchEvent(new CustomEvent('gimbal-workspace-command', {detail: \(detail)}));",
         completionHandler: nil)
     }
+  }
+
+  struct WorkspaceProject: Identifiable {
+    let id: String
+    let name: String
   }
 
   struct WorkspaceMenu: Commands {
     @ObservedObject var workspace: WorkspaceState
 
     var body: some Commands {
+      CommandGroup(replacing: .newItem) {}
       CommandMenu("Project") {
+        Button("New Session…") { workspace.send("newSession") }
+          .keyboardShortcut("n", modifiers: [.command])
+          .disabled(!workspace.enabled)
+        Button("Open File…") { workspace.send("openFileChooser") }
+          .keyboardShortcut("o", modifiers: [.command])
+          .disabled(!workspace.enabled)
+        Divider()
+        Menu("Switch Project") {
+          ForEach(workspace.projects) { project in
+            Button(project.name) { workspace.send("switchProject", project: project.id) }
+          }
+        }
+        .disabled(!workspace.enabled || workspace.projects.isEmpty)
+        Divider()
         Toggle(
           "Show Sidebar",
           isOn: Binding(
@@ -43,6 +74,9 @@
         )
         .keyboardShortcut("s", modifiers: [.command, .control])
         .disabled(!workspace.enabled)
+        Button("Show Runs") { workspace.send("showRuns") }
+          .keyboardShortcut("u", modifiers: [.command, .shift])
+          .disabled(!workspace.enabled)
       }
       CommandMenu("Chat") {
         Button("Stop Response") { workspace.send("stopResponse") }

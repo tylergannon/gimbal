@@ -89,6 +89,13 @@ final class WebCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDelega
           ready: ready, sidebarVisible: visible, tabCount: count,
           activeTabTitle: body["activeTabTitle"] as? String,
           canStopResponse: body["canStopResponse"] as? Bool ?? false)
+        state.workspace.projectName = body["projectName"] as? String ?? ""
+        state.workspace.canOpenTodayTranscript = body["canOpenTodayTranscript"] as? Bool ?? false
+        state.workspace.projects = (body["projects"] as? [[String: String]] ?? []).compactMap {
+          item in
+          guard let id = item["id"], let name = item["name"] else { return nil }
+          return WorkspaceProject(id: id, name: name)
+        }
         return
       }
       if message.name == "chooseProjectFolder" {

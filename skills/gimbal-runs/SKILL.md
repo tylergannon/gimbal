@@ -25,6 +25,13 @@ Workflow help comes from the selected running central catalog. Use
 `--instance-dir /abs/instance` when it is outside the current directory.
 It tells you which registered workflows, inputs and model defaults are available. The presence of a `df-*` skill does not make it a Gimbal command.
 
+By default, the macOS app starts its bundled central with
+`~/.gimbal/desktop` as its instance directory. To submit CLI runs to that
+catalog, pass `--instance-dir ~/.gimbal/desktop` or set `GIMBAL_INSTANCE_DIR`
+for the CLI.
+The app uses `GIMBAL_SERVER_URL` only when explicitly configured to proxy an
+external server.
+
 Establish the goal, target project, permitted changes, and what would
 demonstrate a useful result. A supplied chapter or sprint can provide context;
 use it when relevant rather than manufacturing planning artifacts for every

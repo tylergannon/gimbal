@@ -46,8 +46,9 @@ The current recipe prepares Go and frontend dependencies, runs generation,
 formats generated frontend output, builds Svelte, checks that
 `web/build/skgo.manifest.json` exists, and builds `bin/gimbal` with `web/build/`
 embedded directly using `embed.FS`. Generated frontend files stay local and are
-not committed. Run `go install ./cmd/gimbal` only after `just build` in the same
-checkout. A bare versioned `go install` does not build or include the console.
+not committed. Run the built CLI as `./bin/gimbal`. Published versions are
+installed from the Homebrew tap; a bare versioned `go install` does not build
+or include the console.
 
 Generators own generated files. Regenerate and inspect their diff rather than
 patching generated output by hand. Preserve Gimbal-owned application code when
@@ -56,19 +57,31 @@ the built binary exercise the same server.
 
 ## Build the macOS workspace
 
-After `just build`, build the native microphone application with
-`go tool skgo native build --platform macos --preset real`. Open
+After `just build`, stage the development CLI in the app resources and build
+the native microphone application:
+
+```sh
+mkdir -p native/Resources
+install -m 755 bin/gimbal native/Resources/gimbal
+go tool skgo native build --platform macos --preset real
+```
+
+The app needs that bundled CLI to start its default local server. Open
 `native/build/macos-real/DerivedData/Build/Products/Debug/Gimbal.app` as a macOS
 application so macOS attributes microphone and speech permissions to Gimbal.
 The `synthetic` preset provides deterministic speech revisions for development.
 
-The shell connects to an independent `gimbal` server on `127.0.0.1:8080` by
-default. Start that server separately with the desired `--project` directories;
-closing the shell leaves its projects, recordings, and files on the server.
-`GIMBAL_SERVER_URL` overrides the shell's server target when supplied at launch.
-Project-file storage reuses `uploadArtifact.r2` in `~/.gimbal/config.json`, with
-the existing `GIMBAL_R2_*` environment overrides. Metadata retains the bucket
-and object key; viewing generates a new temporary URL.
+The macOS app starts its bundled Gimbal CLI as a managed local server by
+default. Its central project catalog and instance control state live in
+`~/.gimbal/desktop`; each project's runs and conversations remain under that
+project's `.gimbal` directory. Set `GIMBAL_SERVER_URL` before app launch to
+proxy an external server. In that mode the app does not start, stop, or clean up
+the external server. Closing the app window leaves the app and its bundled
+server running; Command-Q stops the app-owned server. Project-file storage
+reuses `uploadArtifact.r2` in `~/.gimbal/config.json`, with the existing
+`GIMBAL_R2_*` environment overrides.
+Metadata retains the bucket and object key; viewing generates a new temporary
+URL.
 
 ## Publish builds
 
@@ -78,8 +91,9 @@ requirements, credentials, artifact names and publication commands.
 
 Prove a Release app locally with Developer ID signing, accepted notarization,
 stapling, and launch from `/Applications` before activating automated releases.
-An unsigned build proves compilation and launch only. Keep the desktop client
-and independent server ownership unchanged when packaging.
+An unsigned build proves compilation and launch only. Verify the app starts its
+bundled server in default mode and that `GIMBAL_SERVER_URL` selects an externally
+managed server without transferring ownership to the app.
 
 The standard CLI uses Go plugins, so published builds enable CGO on native
 macOS ARM64 and Linux AMD64/ARM64 runners. The macOS CLI needs the tested
@@ -152,11 +166,11 @@ where it applies, keeping each role's intended model tier. Check the rendered
 `gimbal run` role flags, not only the JSON. Tests for aliases should cover
 resolution and overrides without fixing a moving shorthand to today's version.
 
-Before tagging a release, build and install from a checkout of the pushed
-commit with `just build` and `go install ./cmd/gimbal`, then start its web
-listener and confirm it serves the page. After tagging, repeat from a checkout
-of the exact tag. A successful install without a served page does not prove
-the installed CLI works.
+Before tagging a release, build from a checkout of the pushed commit with
+`just build`, run `./bin/gimbal`, and confirm its web page serves. After
+tagging, repeat from a checkout of the exact tag. For this source proof, run
+the checkout's binary directly; do not replace a Homebrew-managed executable
+with `go install`.
 
 ## Merge and refresh the local installation
 
@@ -166,11 +180,21 @@ user has asked to keep it. Every release must update `CHANGELOG.md`: move the
 relevant entries from `Unreleased` under a version heading with the release date,
 update comparison links when tags exist, and leave a new empty `Unreleased`
 section for subsequent work. Update affected skill and plugin instructions in
-their maintained source before merging. After every feature or fix merges,
-reinstall both the CLI and the Gimbal skills on this machine:
+their maintained source before merging. After every merge, build the updated
+source for verification and refresh the Gimbal skills. When a version is
+published, update installed Gimbal executables through the public Homebrew tap;
+do not overwrite a Homebrew-managed CLI with `go install`:
 
 1. Fast-forward the main checkout and build the merged source with `just build`.
-2. Install it with `go install ./cmd/gimbal` from that built checkout.
+2. For a published version, upgrade the CLI and desktop app from the tap:
+
+   ```sh
+   brew upgrade --cask tylergannon/gimbal/gimbal
+   brew upgrade --cask tylergannon/gimbal/gimbal-app
+   ```
+
+   Use `brew install --cask` for a cask that is not installed yet. Keep
+   `./bin/gimbal` for source-checkout proof before publication.
 3. Reinstall the published skills, including their supporting references:
 
    ```sh

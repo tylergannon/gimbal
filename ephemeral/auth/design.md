@@ -175,7 +175,8 @@ route registration, or access to the rest of the HTTP application.
    and skgo origin checks, durably deletes that session, then expires the browser
    cookie. A deletion failure
    returns 503 without reporting successful logout or clearing the cookie, so
-   the caller can retry. Logout does not cancel workflows already running.
+   the caller can retry. After successful logout, its UI owner calls
+   `goto('/auth/login')`. Logout does not cancel workflows already running.
 
 Cookies are host-only, Path=/, HttpOnly, Secure, SameSite=Lax; auth responses are
 Cache-Control: no-store. HTTPS and an explicit trusted public origin are required
@@ -225,6 +226,12 @@ auth routes. On the anonymous login page the user is null; with auth off,
 authEnabled is false and user is null. The shared account UI renders only when
 a user is present, so the sign-in page never calls a protected currentUser
 query during SSR or hydration. It never renders logout while signed out.
+The root layout load calls `event.RouteID()` to record the framework's route
+dependency in both auth modes. Navigation from an application route to the
+login route therefore reruns that load and replaces the old user summary with
+null, including when Kit follows a route-data redirect. Reading Request alone
+does not record that dependency. The same refresh applies after the logout
+command's navigation; no browser-auth state mirror or global polling is added.
 
 The application-owned currentUser skgo query is a protected fresh-session
 probe, returning the ID/name DTO from the gate's authenticated request context.

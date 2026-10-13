@@ -6,6 +6,8 @@ builds:
   - id: gimbal
     main: ./cmd/gimbal
     binary: gimbal
+    flags:
+      - -trimpath
     env:
       - CGO_ENABLED=1
     targets:

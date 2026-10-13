@@ -38,6 +38,9 @@ can run `CGO_ENABLED=1 go build -o bin/gimbal-linux ./cmd/gimbal` after the cons
 build, then `CGO_ENABLED=1 go build -buildmode=plugin` in the external project.
 Install the resulting Linux `.so` files in the image or mount them; host-native
 macOS plugins cannot be loaded inside Linux containers.
+Published CLIs use `-trimpath`. Build their plugins with that flag and the
+released source workspace described in
+[distribution](../../gimbal-release/references/distribution.md#plugin-builds).
 
 Configuration names a container, image, available host port, mounts, and only
 the environment variables explicitly permitted to enter it:

@@ -43,9 +43,44 @@ binaries cannot have their notarization ticket stapled, so first Gatekeeper
 assessment needs Apple's online ticket lookup. Downloaded plugins need their
 own notarization or normal user approval. Plugins must match the host's exact
 Go toolchain, dependencies, tags and build flags; inspect `go version -m` and
-build plugins from the corresponding released source.
+follow the source workspace recipe below.
 Releases pin Go 1.27.2 or newer: Go 1.27.1 has an upstream Mach-O plugin linker
 bug on macOS 27. Match the exact patch version reported by the host binary.
+
+## Plugin builds
+
+Published CLIs use `-trimpath` to remove machine-specific source paths from Go's
+package identity. Their plugins need the same flag, exact Go patch version,
+shared dependency versions, build tags and CGO environment. Build the bundled
+filesystem plugin from a checkout of the host's release tag:
+
+```sh
+git clone --branch v0.13.2 --depth 1 https://github.com/tylergannon/gimbal.git /abs/gimbal-source
+CGO_ENABLED=1 GOTOOLCHAIN=go1.27.2 go -C /abs/gimbal-source build -trimpath -buildmode=plugin \
+  -o /abs/plugins/filesystem.so ./plugins/messaging-filesystem
+```
+
+Use the actual installed host version in place of the example tag. An external
+plugin project must also use that source checkout as a workspace main module.
+A plain module-cache dependency has a different package identity from the
+release host even when its version matches. Keep the workspace in a separate
+directory and select it explicitly. Use canonical absolute paths for the
+workspace entries, as returned by `realpath`:
+
+```sh
+mkdir -p /abs/plugin-workspace
+GOTOOLCHAIN=go1.27.2 go -C /abs/plugin-workspace work init /abs/gimbal-source /abs/my-plugin
+GOWORK=/abs/plugin-workspace/go.work CGO_ENABLED=1 GOTOOLCHAIN=go1.27.2 \
+  go -C /abs/my-plugin build -trimpath -buildmode=plugin -o /abs/plugins/my-plugin.so .
+```
+
+The plugin project's dependencies must preserve the host's shared versions;
+Go workspace version selection can otherwise upgrade them. Build for the
+host's native OS/architecture with its matching C compiler environment. A
+local development host built without `-trimpath` needs plugins built with that
+same flag choice and source checkout. The release packaging gate compiles an
+external plugin in a separate source workspace and loads it with the actual
+archive's CLI before permitting publication.
 
 ## Automation
 

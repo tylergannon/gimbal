@@ -49,6 +49,8 @@ if [[ "$target" == darwin_arm64 ]]; then
   scripts/sign-notarize-macos-cli.sh "$archive"
 fi
 
+GIMBAL_RELEASE_ARCHIVE="$PWD/$archive" go test ./cmd/gimbal -run '^TestReleaseCLIPlugin$' -count=1
+
 if command -v shasum >/dev/null 2>&1; then
   (cd dist && shasum -a 256 "$(basename "$archive")" > checksums.txt)
 else

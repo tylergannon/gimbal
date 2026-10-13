@@ -154,6 +154,8 @@ events while the workflow remains ordinary Go. Build the CLI and each plugin
 from the same checkout and Go toolchain; `go build -buildmode=plugin -o /abs/plugins/filesystem.so ./plugins/messaging-filesystem` builds the filesystem
 plugin. The River and HTTP packages are `./plugins/messaging-river` and
 `./plugins/messaging-http`. Start central with `--plugin-dir /abs/plugins`.
+For a published CLI, add `-trimpath` and follow the exact source/toolchain and
+workspace requirements in [distribution](../gimbal-release/references/distribution.md#plugin-builds).
 
 A route file contains `Name` and `Configuration`. Choose one configuration:
 

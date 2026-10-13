@@ -153,10 +153,17 @@ Go (`internal/transcript`):
   conflict check (`:151`) stays source-only so a retried open after a web mark
   does not fail.
 - New `func (s *DurableStore) MarkRequirements(id string) (Header, error)`:
-  read+save under `s.mu`; does not touch `Updated` (liveness signal in
-  `visible()`, `:226-231`). One-way.
+  under `s.mu`, read the recording, set the flag, then write `<id>.meta.json`
+  **first** (and update `s.headers`), then `<id>.json` — the reverse of
+  `save`'s order (`:127-135`). The meta file is what `List` and the worker
+  read; the full file is what the recording view reads. So a failure between
+  the two writes leaves the worker ingesting while the view still offers the
+  button; clicking again rewrites both (idempotent). Does not touch `Updated`
+  (liveness signal in `visible()`, `:226-231`). One-way.
 - `durable_test.go`: flag via Open survives `NewDurable` reload;
-  `MarkRequirements` persists; unknown id errors.
+  `MarkRequirements` persists; unknown id errors; with `<id>.json` replaced by
+  a directory so the second write fails, the call errors, `List` reports the
+  flag, and a retry after removing the obstruction sets both.
 
 Remote (`web/src/lib/transcript.remote.go`, beside its siblings):
 `func markRequirements(ctx, event, r RecordingRequest) (transcript.Header, error)`
@@ -227,11 +234,13 @@ three fields into a `View`.
 Save failure: `WriteJSON` can fail before the rename (nothing durable changed)
 or after it (`durable.go:95-125`: dir open/fsync — the new file may be in
 place). Either way the store reloads `ledger.json` from disk and adopts it as
-the in-memory ledger, then sets `errs[R]` and backs off. If the rename landed,
-the reload carries the advanced cursor and the batch is not re-sent; if not,
-the old cursor stands and the batch is retried. Disk is the single source of
-truth; memory never runs ahead of it. Tested by making the promises dir
-unwritable for one step. `SetWithdrawn` uses the same copy-save-publish rule.
+the in-memory ledger, then decides by the reloaded cursor: if
+`Cursors[R] == end` the rename landed and the batch counts as saved (the
+"batch for R saved" row: `errs[R]` deleted); otherwise the old cursor stands,
+`errs[R]` is set, R backs off, and the batch is retried. Disk is the single
+source of truth; memory never runs ahead of it. Tested by making the promises
+dir unwritable for one step (pre-rename branch); the post-rename branch is the
+same cursor comparison on the reloaded ledger. `SetWithdrawn` uses the same copy-save-publish rule.
 
 Idempotency: crash/cancel before (3) leaves cursor and entries untouched ⇒
 batch is redone, no duplicates; an applied batch can't replay because cursor
@@ -343,11 +352,12 @@ Adapters validate against the schema (`harness.go:38-40`); decode
 `result.Output` as at `manager.go:428-431`.
 
 `apply` — one switch, after clarity/server/internal/worker/apply_review.go:L186-247:
-- Evidence is always real transcript text: chunk outside the new range ⇒
-  batch's first new chunk; the model's quote is kept only if it occurs in that
-  chunk's text (case- and whitespace-insensitive), otherwise the quote is the
-  chunk's own text; either way truncated to 280 chars. Evidence never
-  invalidates an op.
+- Evidence is only ever a quote found in the transcript: the model's quote is
+  looked up (case- and whitespace-insensitive) first in its named chunk, then
+  in every other new chunk; the chunk where it is found is recorded, truncated
+  to 280 chars. A quote found nowhere ⇒ no evidence is appended for that op
+  (the op itself still applies). Evidence never invalidates an op and never
+  attaches unrelated speech.
 - `add`: `ID=maxID+1`; normalize tags; append evidence.
 - `update`: an empty title or details keeps the current value; identical title/details/tags ⇒ evidence only (fixes Clarity's
   "equivalent records nothing" wonk); else replace, bump `Updated`, append
@@ -415,7 +425,7 @@ discussion; its promises appear here."
   `gimbal.HarnessAdapter`, a real `DurableStore` in `t.TempDir()`, `step` with
   explicit `now`: apply cases (ids, equivalent update ⇒ evidence only, changed
   update, withdraw, unknown id, empty title or details on add, empty fields on
-  update keep current values, tag normalization, chunk clamp, fabricated quote
+  update keep current values, tag normalization, chunk clamp, quote found in a different new chunk is attributed to that chunk, fabricated quote ⇒ no evidence, op still applied
   replaced by chunk text);
   settle (live not processed at t+0 but at t+8 s; stopped immediately;
   non-requirements ignored; 15 chunks ⇒ 12 then 3 with 2 overlap);
@@ -444,7 +454,7 @@ discussion; its promises appear here."
 6. Remotes + `go generate ./...` — `just build`, `just vet`, `go test ./internal/skgo`.
 7. UI — real server on a scratch project with a copied recording: mark it, watch promises appear live; withdraw/restore, filter, sorts; restart without reprocessing.
 8. Native flag + menu item + doubles — `scripts/check-recorder.sh`; synthetic-source native build: the menu item yields `"requirements":true` in `.meta.json` and promises appear.
-9. Real demo (§1) with the microphone on the default model; report what appeared and the model used.
+9. Real demo (§1) with the microphone and `GIMBAL_PROMISES_MODEL=haiku` (`AGENTS.md:70-75`); report what appeared and the model used.
 
 ## 10. Decisions and risks
 

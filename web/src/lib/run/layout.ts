@@ -318,6 +318,7 @@ function measureOperation(operation: Operation, context: MeasureContext): Measur
   if (operation.kind === "promise_loop") {
     const planner: AgentCall & { kind: "agent_call" } = {
       kind: "agent_call",
+      requirements: operation.requirements,
       file: operation.file,
       line: operation.line,
       session: operation.planner,

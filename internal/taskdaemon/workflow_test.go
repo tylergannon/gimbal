@@ -69,11 +69,11 @@ func TestWorkflowScopeUnwindsRemoteResources(t *testing.T) {
 			ctx := effects.WithEndpoint(gimbal.Project(context.Background(), t.TempDir()), server.URL)
 			var runID string
 			body := func(ctx context.Context) error {
-				if err := gimbal.Service(ctx, "parent", t.TempDir(), "exec sleep 60"); err != nil {
+				if err := gimbal.Service(ctx, "parent", t.TempDir(), `touch "$ENV_FILE.tmp"; mv "$ENV_FILE.tmp" "$ENV_FILE"; exec sleep 60`); err != nil {
 					return err
 				}
 				err := gimbal.Scope(ctx, "child", func(ctx context.Context) error {
-					if err := gimbal.Service(ctx, "dependency", t.TempDir(), "exec sleep 60"); err != nil {
+					if err := gimbal.Service(ctx, "dependency", t.TempDir(), `touch "$ENV_FILE.tmp"; mv "$ENV_FILE.tmp" "$ENV_FILE"; exec sleep 60`); err != nil {
 						return err
 					}
 					d.mu.Lock()
@@ -130,7 +130,7 @@ func TestUnexpectedRemoteServiceExitFailsScope(t *testing.T) {
 	defer server.Close()
 	ctx := effects.WithEndpoint(gimbal.Project(context.Background(), t.TempDir()), server.URL)
 	err := gimbal.Run(ctx, "remote-failure", nil, func(ctx context.Context) error {
-		if err := gimbal.Service(ctx, "dependency", t.TempDir(), "sleep 0.1; exit 0"); err != nil {
+		if err := gimbal.Service(ctx, "dependency", t.TempDir(), `touch "$ENV_FILE.tmp"; mv "$ENV_FILE.tmp" "$ENV_FILE"; sleep 0.1; exit 0`); err != nil {
 			return err
 		}
 		select {
@@ -171,7 +171,7 @@ func TestSuccessfulAncestorCleanupClearsFailedChildOwnership(t *testing.T) {
 	ctx = live.WithHook(ctx, func(_ string, c live.Controller) func() { controller = c; return func() {} })
 	err := gimbal.Run(ctx, "cleanup-retry", nil, func(ctx context.Context) error {
 		return gimbal.Scope(ctx, "child", func(ctx context.Context) error {
-			return gimbal.Service(ctx, "dependency", t.TempDir(), "exec sleep 60")
+			return gimbal.Service(ctx, "dependency", t.TempDir(), `touch "$ENV_FILE.tmp"; mv "$ENV_FILE.tmp" "$ENV_FILE"; exec sleep 60`)
 		})
 	})
 	if err == nil {

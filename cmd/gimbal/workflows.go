@@ -139,7 +139,7 @@ func catalogCommand(d gimbal.WorkflowDescription) *cobra.Command {
 		request := invocation.Request{Workflow: d.Name, Input: raw, Project: project, WorkDir: workDir, Conversation: conversation, Roles: overrides, TaskEndpoint: taskEndpoint}
 		if workflowEndpoint != "" {
 			config, _ := json.Marshal(map[string]string{"endpoint": workflowEndpoint})
-			request.WorkflowRoute = backend.Route{Name: "http", Configuration: config, Environment: workflowEndpoint}
+			request.WorkflowRoute = backend.Route{Name: "http", Configuration: config, Label: workflowEndpoint}
 			request.WorkflowProject = workflowProject
 		}
 		if taskRoute != "" {

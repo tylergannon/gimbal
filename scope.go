@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/tylergannon/gimbal/backend"
 	"github.com/tylergannon/gimbal/internal/effects"
 )
 
@@ -40,6 +41,9 @@ type scope struct {
 
 	loop bool // a PromiseLoop's own scope, which takes messages for its planner
 
+	endOnce     sync.Once
+	endErr      error
+	children    []*scope
 	mu          sync.Mutex
 	ordinals    map[string]int // the last ordinal given to each child scope and session name
 	keys        []string       // in the order they were set
@@ -120,7 +124,9 @@ func (s *scope) next(name string) string {
 func (s *scope) child(name string) *scope {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return &scope{run: s.run, parent: s, name: name, key: s.next(name)}
+	child := &scope{run: s.run, parent: s, name: name, key: s.next(name)}
+	s.children = append(s.children, child)
+	return child
 }
 
 // adopt makes session belong to s, which closes it when s ends.
@@ -179,6 +185,7 @@ func (s *scope) do(ctx context.Context, body func(context.Context) error) (err e
 func (s *scope) begin(ctx context.Context) context.Context {
 	ctx, s.cancel = context.WithCancelCause(context.WithValue(ctx, scopeKey{}, s))
 	s.ctx = ctx
+	context.AfterFunc(ctx, func() { _ = s.end() })
 	s.run.addScope(s)
 	e := ScopeBegan{Name: path.Base(s.key), Loop: s.loop}
 	if task, ok := ctx.Value(taskKey{}).(Task); ok {
@@ -228,6 +235,11 @@ func (s *scope) finish(bodyErr error) error {
 // its returned error once the root scope has ended. The scope leaves the
 // run's table first, so a kill by key cannot reach a scope that is ending.
 func (s *scope) end() error {
+	s.endOnce.Do(func() { s.endErr = s.stopOwnedWork() })
+	return s.endErr
+}
+
+func (s *scope) stopOwnedWork() error {
 	s.run.removeScope(s)
 	s.mu.Lock()
 	s.ended = true
@@ -236,13 +248,14 @@ func (s *scope) end() error {
 		service.beginStop()
 	}
 	sessions := s.sessions
+	children := append([]*scope(nil), s.children...)
 	s.mu.Unlock()
-	var serviceErrs []error
-	if err := s.remoteCleanup(); err != nil {
-		serviceErrs = append(serviceErrs, err)
+	if s.cancel != nil {
+		s.cancel(nil)
 	}
-	for _, service := range services {
-		if err := service.stop(); err != nil {
+	var serviceErrs []error
+	for _, child := range children {
+		if err := child.end(); err != nil {
 			serviceErrs = append(serviceErrs, err)
 		}
 	}
@@ -268,7 +281,22 @@ func (s *scope) end() error {
 		}
 		s.run.event(s.key, session.id, "", SessionClosed{Error: errString(closeErr)})
 	}
-	s.cancel(nil)
+	if err := s.remoteCleanup(); err != nil {
+		serviceErrs = append(serviceErrs, err)
+	}
+	for _, service := range slices.Backward(services) {
+
+		if err := service.stop(); err != nil {
+			serviceErrs = append(serviceErrs, err)
+		}
+	}
+	if effects.Endpoint(s.ctx) == "" && effects.Connection(s.ctx).Secrets != nil {
+		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(s.ctx), closeTimeout)
+		if err := effects.Connection(s.ctx).Secrets.Release(cleanupCtx, backend.Scope{Run: effectOwner(s, "").Run, Scope: s.key}); err != nil {
+			serviceErrs = append(serviceErrs, err)
+		}
+		cancel()
+	}
 	return errors.Join(serviceErrs...)
 }
 

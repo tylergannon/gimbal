@@ -1,4 +1,4 @@
 {"type":"object",
 "properties":{
-"summary":{"type":"string","description":"Summary describes what the agent did."}
+"summary":{"type":"string","description":"Summary describes the actual response the agent fetched."}
 },"required":["summary"],"additionalProperties":false}

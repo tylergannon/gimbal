@@ -14,7 +14,9 @@ scripts/release-macos.sh --build-only --version 0.13.0 --build-number 1
 ```
 
 The script generates the pinned SKGo native project, then rebuilds it in Xcode
-Release configuration. `--skip-generate` reuses a freshly prepared native
+Release configuration. Its Xcode package fetches use netrc authorization and
+system Git so the public Sparkle dependency does not request login Keychain
+credentials. `--skip-generate` reuses a freshly prepared native
 project; use it only when its SDK, Go archive and generated Swift bindings match
 the candidate source. Generated artifacts stay out of commits.
 
@@ -25,6 +27,7 @@ Keychain and a `notarytool` Keychain profile:
 export MACOS_SIGNING_IDENTITY='Developer ID Application: NAME (TEAM_ID)'
 export MACOS_NOTARY_PROFILE=gimbal-release-notary
 export MACOS_KEYCHAIN_PATH="$HOME/.config/gimbal-release/release.keychain-db"
+export SPARKLE_ED_KEY_FILE="$HOME/.config/gimbal-release/sparkle-ed25519.key"
 scripts/release-macos.sh --release --version 0.13.0 --build-number 1
 ```
 
@@ -107,6 +110,22 @@ Secrets belong in the GitHub `release` environment:
 - `APP_STORE_CONNECT_KEY_ID` and `APP_STORE_CONNECT_ISSUER_ID`: API key identifiers.
 - `APP_STORE_CONNECT_API_KEY_P8_BASE64`: downloaded team API private key.
 - `TAP_DEPLOY_KEY`: SSH deploy private key with write access only to the tap.
+- `SPARKLE_ED_PRIVATE_KEY`: Sparkle EdDSA private key matching `SUPublicEDKey`
+  in `native/skgo-native.json`. Back it up privately; future updates require it.
+
+The desktop client uses Sparkle 2.10.0. It checks daily by default and presents
+the standard install-and-relaunch prompt. **Gimbal > Check for Updates…** starts
+a manual check. `SUAutomaticallyUpdate` is false, so background checks do not
+silently replace the app. Sparkle is linked only on macOS through the local
+`native/Updates` Swift package.
+
+The release script runs Sparkle's `generate_appcast` against the final notarized,
+stapled ZIP and publishes `appcast.xml` with the other release assets. The app
+reads `https://github.com/tylergannon/gimbal/releases/latest/download/appcast.xml`;
+each feed points at the immutable ZIP URL for its version tag. The feed becomes
+live when the stable GitHub Release is published. Keep `CFBundleVersion` build
+numbers increasing; Sparkle compares those numbers, rather than the displayed
+marketing version. Local test releases must use a separate feed.
 
 User credential creation/entry stays in the requesting chat. Never put secret
 bytes in prompts, source, worklogs or ordinary command output. CI imports the

@@ -4,20 +4,18 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net"
+	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/tylergannon/gimbal/backend"
 	"github.com/tylergannon/gimbal/internal/effects"
 )
 
 var (
-	serviceShutdownGrace = 5 * time.Second
+	serviceShutdownGrace = 10 * time.Second
 	serviceKillWait      = 5 * time.Second
 )
 
@@ -26,13 +24,14 @@ const servicePollInterval = 10 * time.Millisecond
 var errServiceShutdownTimeout = errors.New("service process group did not stop before the deadline")
 
 // Service starts command through zsh and makes the current scope own it. It
-// returns after the process starts; successful return does not mean the
-// service is ready. Use Check or ordinary workflow code for readiness.
+// returns after the service atomically publishes ENV_FILE, declared outputs
+// validate, and the secrets backend confirms publication. An empty Yields
+// declaration still requires an empty readiness file.
 //
 // A service is required for its scope's remaining lifetime. Any exit before
 // that scope starts shutting down, including exit zero, fails and cancels the
-// scope. When the scope ends or its ctx is cancelled, Gimbal sends SIGTERM to
-// the service's process group, waits five seconds, then sends SIGKILL and waits
+// scope. When the scope ends or its ctx is cancelled, Gimbal sends SIGINT to
+// the service's process group, waits ten seconds, then sends SIGKILL and waits
 // at most five more seconds. This owns descendants which remain in that group;
 // a command must stay in the foreground and must not daemonize or escape it.
 // Stdout, stderr, status, and failures are recorded with the scope's commands.
@@ -78,7 +77,20 @@ func Service(ctx context.Context, name, workdir, command string) error {
 		return remoteService(ctx, scope, name, id, workdir, command, out, errOut, ended, start)
 	}
 
+	environment, envFile, cleanup, envErr := localProcessEnvironment(ctx, scope, true)
+	if envErr != nil {
+		_ = out.close()
+		_ = errOut.close()
+		return endServiceStartFailure(scope, start, ended, envErr)
+	}
+	startedNative := false
+	defer func() {
+		if !startedNative {
+			cleanup()
+		}
+	}()
 	cmd := exec.Command("zsh", "-c", command)
+	cmd.Env = environment
 	cmd.Dir = workdir
 	cmd.Stdout, cmd.Stderr = out, errOut
 	cmd.WaitDelay = commandWaitDelay
@@ -95,17 +107,41 @@ func Service(ctx context.Context, name, workdir, command string) error {
 
 	service := &ownedService{
 		scope: scope, ctx: scope.ctx, id: id, name: name, cmd: cmd,
-		out: out, errOut: errOut, ended: ended, startedAt: start,
+		out: out, errOut: errOut, ended: ended, startedAt: start, cleanup: cleanup,
 		done: make(chan struct{}),
 	}
+	startedNative = true
 	if err := scope.adoptService(service); err != nil {
 		go service.wait()
 		service.beginStop()
 		return errors.Join(err, service.stop())
 	}
 	go service.wait()
-	go service.stopWhenCancelled()
-	return nil
+	ticker := time.NewTicker(servicePollInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-service.done:
+			return fmt.Errorf("service %s exited before readiness", id)
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+			if _, err := os.Stat(envFile); errors.Is(err, os.ErrNotExist) {
+				continue
+			}
+			if err := publishLocalOutputs(ctx, scope, envFile); err != nil {
+				scope.failService(err)
+				return err
+			}
+			select {
+			case <-service.done:
+				return fmt.Errorf("service %s exited during readiness", id)
+			default:
+			}
+			scope.run.event(scope.key, "", "", ResourceReady{Name: name, ConsumerKind: "service", Consumer: id})
+			return nil
+		}
+	}
 }
 
 func endServiceStartFailure(scope *scope, start time.Time, ended CommandEnded, serviceErr error) error {
@@ -128,6 +164,7 @@ type ownedService struct {
 
 	startedAt time.Time
 	done      chan struct{}
+	cleanup   func()
 	stopOnce  sync.Once
 	remote    bool
 
@@ -143,16 +180,8 @@ func (s *ownedService) beginStop() {
 	s.mu.Unlock()
 }
 
-func (s *ownedService) stopWhenCancelled() {
-	select {
-	case <-s.ctx.Done():
-		s.beginStop()
-		_ = s.stop()
-	case <-s.done:
-	}
-}
-
 func (s *ownedService) wait() {
+	defer s.cleanup()
 	waitErr := s.cmd.Wait()
 	captureErr := errors.Join(s.out.close(), s.errOut.close())
 	stdout, stdoutErr := s.out.result(s.scope.run.dir, s.ended.StdoutFile)
@@ -227,9 +256,6 @@ func (s *ownedService) stop() error {
 		if waitErr != nil {
 			killErr := killServiceGroup(s.cmd.Process.Pid)
 			finalErr := s.awaitBoundary(serviceKillWait)
-			if errors.Is(waitErr, errServiceShutdownTimeout) && finalErr == nil {
-				waitErr = nil
-			}
 			s.stopErr = errors.Join(termErr, waitErr, killErr, finalErr)
 		} else {
 			s.stopErr = termErr
@@ -284,77 +310,4 @@ func (s *ownedService) awaitBoundary(timeout time.Duration) error {
 			return errors.Join(fmt.Errorf("%w: %s", errServiceShutdownTimeout, strings.Join(parts, "; ")), observationErr)
 		}
 	}
-}
-
-// FulfillService starts a scope-owned foreground TCP service and returns its
-// consumer-reachable URL. Local execution returns loopback in the workflow
-// environment; remote execution requires an explicitly supplied topology.
-func FulfillService(ctx context.Context, name, workdir, command string, port int, consumer string) (string, error) {
-	if effects.Messages(ctx) != nil {
-		return "", fmt.Errorf("FulfillService is unsupported on messaging routes; use Service with a declared local address")
-	}
-	s, err := current(ctx)
-	if err != nil {
-		return "", err
-	}
-	endpoint := effects.Endpoint(ctx)
-	if endpoint == "" {
-		if port < 1 || port > 65535 {
-			return "", fmt.Errorf("invalid service TCP port")
-		}
-		address := net.JoinHostPort("127.0.0.1", strconv.Itoa(port))
-		probe, err := net.Listen("tcp", address)
-		if err != nil {
-			return "", fmt.Errorf("service port unavailable: %w", err)
-		}
-		_ = probe.Close()
-		if err := Service(ctx, name, workdir, command); err != nil {
-			return "", err
-		}
-		return "http://" + address, nil
-	}
-	s.mu.Lock()
-	id := s.next(name)
-	s.mu.Unlock()
-	started := time.Now()
-	if err = s.run.eventResult(s.key, "", "", CommandStarted{ID: id, Name: name, Command: "zsh", Args: []string{"-c", command}, Workdir: workdir}); err != nil {
-		return "", err
-	}
-	out, stdoutName, err := openCommandCapture(s.run, id, "stdout")
-	if err != nil {
-		return "", err
-	}
-	stderr, stderrName, err := openCommandCapture(s.run, id, "stderr")
-	if err != nil {
-		_ = out.close()
-		return "", err
-	}
-	ended := CommandEnded{ID: id, ExitCode: -1, StdoutFile: stdoutName, StderrFile: stderrName}
-	address, err := executionFor(ctx).Service(ctx, backend.Service{Owner: effectOwner(s, id), Workdir: workdir, Command: "zsh", Args: []string{"-c", command}, Service: true, Port: port, Consumer: consumer})
-	if err != nil {
-		_ = out.close()
-		_ = stderr.close()
-		return "", endServiceStartFailure(s, started, ended, err)
-	}
-	owned := &ownedService{scope: s, ctx: s.ctx, id: id, name: name, done: make(chan struct{}), remote: true}
-	if err = s.adoptService(owned); err != nil {
-		_ = out.close()
-		_ = stderr.close()
-		return "", errors.Join(err, s.remoteCleanup())
-	}
-	go func() {
-		err := remoteProcessResult(context.WithoutCancel(ctx), s, id, out, stderr, &ended)
-		ended.Duration = time.Since(started)
-		ended.Error = errString(err)
-		s.run.event(s.key, "", "", ended)
-		owned.mu.Lock()
-		owned.terminalErr = err
-		stopping := owned.stopping
-		owned.mu.Unlock()
-		if !stopping {
-			s.failService(fmt.Errorf("required service %s exited: %v", id, err))
-		}
-		close(owned.done)
-	}()
-	return address.URL, nil
 }

@@ -23,14 +23,14 @@ func TestNativeMessagingWorkflowInputsContinuityAndCleanup(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 	raw, _ := json.Marshal(config{Directory: t.TempDir()})
-	bus, err := connect(ctx, raw, nil)
+	bus, err := connect(ctx, raw, backend.Dependencies{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	workerCtx, stop := context.WithCancel(ctx)
 	defer stop()
 	done := make(chan error, 1)
-	go func() { done <- worker(workerCtx, raw, nil, taskdaemon.New().Messages(bus)) }()
+	go func() { done <- worker(workerCtx, raw, backend.Dependencies{}, taskdaemon.New().Messages(bus)) }()
 	defer func() { stop(); <-done }()
 	token := "input-" + ulid.Make().String()
 	project := t.TempDir()

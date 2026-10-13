@@ -11,17 +11,30 @@ import (
 // Graph is the shape of this workflow, read from the source of ServiceCheck.
 var Graph = workflow.Graph{
 	Name:     "service-check",
-	Source:   workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 39},
+	Source:   workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 37},
 	Services: []workflow.Service{},
 	Body: []workflow.Operation{
-		workflow.Scope{Source: workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 40}, Name: "service", Services: []workflow.Service{}, Body: []workflow.Operation{
-			workflow.Set{Source: workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 41}, Key: "task"},
-			workflow.Session{Source: workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 42}, Name: "devops-tasks", From: ""},
-			workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 43}, Session: "devops-tasks", Role: "devops-tasks", Prompt: "Fetch the runtime-supplied named http service URL from this agent's environment using an HTTP client. Require HTTP 200 and the response body GIMBAL_SERVICE_OK. Do not merely display the URL. Complete the additional task below, if any. Do not start or stop infrastructure. Return a short description of the actual response you fetched."},
-			workflow.Command{Source: workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 46}, Name: "consume"},
-			workflow.Condition{Source: workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 50}, Branches: []workflow.Branch{
-				{Source: workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 50}, Case: "code != 0", Exits: true, Body: []workflow.Operation{}},
+		workflow.Session{Source: workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 38}, Name: "devops-tasks", From: ""},
+		workflow.Scope{Source: workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 39}, Name: "services", Services: []workflow.Service{
+			{Source: workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 40}, Name: "database", Yields: []workflow.StoreDeclaration{{Store: "", Names: []string{"DATABASE_URL"}}}},
+			{Source: workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 44}, Name: "web", Requirements: []workflow.StoreDeclaration{{Store: "", Names: []string{"DATABASE_URL"}}}, Yields: []workflow.StoreDeclaration{{Store: "", Names: []string{"WEB_URL"}}}},
+		}, Body: []workflow.Operation{
+			workflow.Group{Source: workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 48}, Name: "consumers", Children: []workflow.GroupChild{
+				{Source: workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 49}, Name: "database", Services: []workflow.Service{}, Body: []workflow.Operation{
+					workflow.Command{Source: workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 50}, Name: "query", Requirements: []workflow.StoreDeclaration{{Store: "", Names: []string{"DATABASE_URL"}}, {Store: "", Names: []string{"WEB_URL"}}}},
+					workflow.Condition{Source: workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 54}, Branches: []workflow.Branch{
+						{Source: workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 54}, Case: "code != 0", Exits: true, Body: []workflow.Operation{}},
+					}},
+				}},
+				{Source: workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 59}, Name: "web", Services: []workflow.Service{}, Body: []workflow.Operation{
+					workflow.Command{Source: workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 60}, Name: "fetch", Requirements: []workflow.StoreDeclaration{{Store: "", Names: []string{"DATABASE_URL"}}, {Store: "", Names: []string{"WEB_URL"}}}},
+					workflow.Condition{Source: workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 64}, Branches: []workflow.Branch{
+						{Source: workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 64}, Case: "code != 0", Exits: true, Body: []workflow.Operation{}},
+					}},
+				}},
 			}},
+			workflow.Set{Source: workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 72}, Key: "task"},
+			workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 73}, Session: "devops-tasks", Role: "devops-tasks", Prompt: "Call the Gimbal secrets callback to obtain WEB_URL, then fetch that URL using an HTTP client. Require HTTP 200 and response body GIMBAL_SERVICE_OK. Do not merely display the URL. Return a short description of the actual response. Do not start or stop infrastructure. Complete any additional task below.", Requirements: []workflow.StoreDeclaration{{Store: "", Names: []string{"DATABASE_URL"}}, {Store: "", Names: []string{"WEB_URL"}}}},
 		}},
 	},
 }

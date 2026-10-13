@@ -24,7 +24,7 @@ func TestServiceLivesForItsDeclaringScopeAcrossIterations(t *testing.T) {
 	err := Run(Project(t.Context(), t.TempDir()), "service-scope", nil, func(ctx context.Context) error {
 		dir = runDir(ctx)
 		return Scope(ctx, "preview", func(ctx context.Context) error {
-			command := "print $$ > " + shellQuote(pidFile) + "; trap 'print TERM >> " + shellQuote(termFile) + "; exit 0' TERM; while true; do sleep 0.05; done"
+			command := "print $$ > " + shellQuote(pidFile) + "; trap 'print INT >> " + shellQuote(termFile) + "; exit 0' INT; : > \"$ENV_FILE.tmp\"; mv \"$ENV_FILE.tmp\" \"$ENV_FILE\"; while true; do sleep 0.05; done"
 			if err := Service(ctx, "server", workdir, command); err != nil {
 				return err
 			}
@@ -40,8 +40,8 @@ func TestServiceLivesForItsDeclaringScopeAcrossIterations(t *testing.T) {
 	if len(pids) != 2 || pids[0] == "" || pids[0] != pids[1] {
 		t.Fatalf("service pids across iterations = %v, want the same nonempty pid", pids)
 	}
-	if got := waitFile(t, termFile); !strings.Contains(got, "TERM") {
-		t.Fatalf("termination marker = %q, want TERM", got)
+	if got := waitFile(t, termFile); !strings.Contains(got, "INT") {
+		t.Fatalf("termination marker = %q, want INT", got)
 	}
 	row := find(commandRows(t, dir), "preview.1/server.1")
 	if !row.Interrupted || row.ExitCode != 0 || row.Error != "" {
@@ -57,7 +57,7 @@ func TestIterationLocalServiceEndsBeforeTheNextIteration(t *testing.T) {
 			if item == 2 {
 				markers = append(markers, waitFile(t, filepath.Join(workdir, "term-1")))
 			}
-			command := "trap 'print TERM > " + shellQuote(filepath.Join(workdir, "term-"+strconv.Itoa(item))) + "; exit 0' TERM; print ready > " + shellQuote(filepath.Join(workdir, "ready-"+strconv.Itoa(item))) + "; while true; do sleep 0.05; done"
+			command := "trap 'print INT > " + shellQuote(filepath.Join(workdir, "term-"+strconv.Itoa(item))) + "; exit 0' INT; print ready > " + shellQuote(filepath.Join(workdir, "ready-"+strconv.Itoa(item))) + "; : > \"$ENV_FILE.tmp\"; mv \"$ENV_FILE.tmp\" \"$ENV_FILE\"; while true; do sleep 0.05; done"
 			if err := Service(itemCtx, "server", workdir, command); err != nil {
 				return err
 			}
@@ -69,18 +69,18 @@ func TestIterationLocalServiceEndsBeforeTheNextIteration(t *testing.T) {
 		t.Fatal(err)
 	}
 	markers = append(markers, waitFile(t, filepath.Join(workdir, "term-2")))
-	if len(markers) != 2 || strings.TrimSpace(markers[0]) != "TERM" || strings.TrimSpace(markers[1]) != "TERM" {
-		t.Fatalf("iteration termination markers = %q, want TERM for each iteration", markers)
+	if len(markers) != 2 || strings.TrimSpace(markers[0]) != "INT" || strings.TrimSpace(markers[1]) != "INT" {
+		t.Fatalf("iteration termination markers = %q, want INT for each iteration", markers)
 	}
 }
 
-func TestServiceCancellationStopsTheProcessGroupWithSIGTERM(t *testing.T) {
+func TestServiceCancellationStopsTheProcessGroupWithSIGINT(t *testing.T) {
 	workdir := t.TempDir()
 	readyFile := filepath.Join(workdir, "ready")
 	termFile := filepath.Join(workdir, "term")
 	runCtx, cancel := context.WithCancel(t.Context())
 	err := Run(Project(runCtx, t.TempDir()), "service-cancel", nil, func(ctx context.Context) error {
-		command := "trap 'print TERM > " + shellQuote(termFile) + "; exit 0' TERM; print ready > " + shellQuote(readyFile) + "; while true; do sleep 0.05; done"
+		command := "trap 'print INT > " + shellQuote(termFile) + "; exit 0' INT; print ready > " + shellQuote(readyFile) + "; : > \"$ENV_FILE.tmp\"; mv \"$ENV_FILE.tmp\" \"$ENV_FILE\"; while true; do sleep 0.05; done"
 		if err := Service(ctx, "server", workdir, command); err != nil {
 			return err
 		}
@@ -92,8 +92,8 @@ func TestServiceCancellationStopsTheProcessGroupWithSIGTERM(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := waitFile(t, termFile); strings.TrimSpace(got) != "TERM" {
-		t.Fatalf("termination marker = %q, want TERM", got)
+	if got := waitFile(t, termFile); strings.TrimSpace(got) != "INT" {
+		t.Fatalf("termination marker = %q, want INT", got)
 	}
 }
 
@@ -104,7 +104,7 @@ func TestDerivedCallContextDoesNotOwnTheServiceLifetime(t *testing.T) {
 	err := runTest(t, nil, func(ctx context.Context) error {
 		callCtx, cancel := context.WithCancel(ctx)
 		defer cancel()
-		command := "print $$ > " + shellQuote(pidFile) + "; trap 'print TERM > " + shellQuote(termFile) + "; exit 0' TERM; while true; do sleep 0.05; done"
+		command := "print $$ > " + shellQuote(pidFile) + "; trap 'print INT > " + shellQuote(termFile) + "; exit 0' INT; : > \"$ENV_FILE.tmp\"; mv \"$ENV_FILE.tmp\" \"$ENV_FILE\"; while true; do sleep 0.05; done"
 		if err := Service(callCtx, "server", workdir, command); err != nil {
 			return err
 		}
@@ -128,8 +128,8 @@ func TestDerivedCallContextDoesNotOwnTheServiceLifetime(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := waitFile(t, termFile); strings.TrimSpace(got) != "TERM" {
-		t.Fatalf("scope-close marker = %q, want TERM", got)
+	if got := waitFile(t, termFile); strings.TrimSpace(got) != "INT" {
+		t.Fatalf("scope-close marker = %q, want INT", got)
 	}
 }
 
@@ -138,7 +138,7 @@ func TestUnexpectedServiceExitFailsAndCancelsItsScope(t *testing.T) {
 	var dir string
 	err := Run(Project(t.Context(), t.TempDir()), "service-exit", nil, func(ctx context.Context) error {
 		dir = runDir(ctx)
-		if err := Service(ctx, "server", "", "print gone; exit 0"); err != nil {
+		if err := Service(ctx, "server", "", "print gone; : > \"$ENV_FILE.tmp\"; mv \"$ENV_FILE.tmp\" \"$ENV_FILE\"; sleep 0.05; exit 0"); err != nil {
 			return err
 		}
 		<-ctx.Done()
@@ -198,15 +198,15 @@ func TestServiceEscalatesToTheWholeProcessGroup(t *testing.T) {
 	workdir := t.TempDir()
 	childFile := filepath.Join(workdir, "child")
 	err := runTest(t, nil, func(ctx context.Context) error {
-		command := "(trap '' TERM; while true; do sleep 1; done) & print $! > " + shellQuote(childFile) + "; trap 'wait' TERM; wait"
+		command := "(trap '' INT; while true; do sleep 1; done) & print $! > " + shellQuote(childFile) + "; trap 'wait' INT; : > \"$ENV_FILE.tmp\"; mv \"$ENV_FILE.tmp\" \"$ENV_FILE\"; wait"
 		if err := Service(ctx, "server", workdir, command); err != nil {
 			return err
 		}
 		waitFile(t, childFile)
 		return nil
 	})
-	if err != nil {
-		t.Fatal(err)
+	if err == nil {
+		t.Fatal("forced termination must report unconfirmed service cleanup")
 	}
 	childPID, err := strconv.Atoi(strings.TrimSpace(waitFile(t, childFile)))
 	if err != nil {

@@ -110,7 +110,7 @@ When('I select recorded work in the workspace', async ({ page }) => {
 });
 
 Then('the detail pane describes that selected work', async ({ page, browserState }) => {
-	const detail = page.locator('aside');
+	const detail = page.locator('aside.detail');
 	await expect(detail.getByRole('heading')).toBeVisible();
 	await expect(detail.locator('.empty-selection')).toHaveCount(0);
 	await expect(detail.locator('.placement')).toBeVisible();

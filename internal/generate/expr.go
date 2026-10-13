@@ -32,6 +32,9 @@ func (e *extractor) exprs(node ast.Node, out *[]workflow.Operation, en scopeEnv)
 // value walks one right-hand side, telling the call that produced it which
 // identifiers it is assigned to.
 func (e *extractor) value(expr ast.Expr, targets []ast.Expr, out *[]workflow.Operation, en scopeEnv) {
+	if obj := e.firstObject(targets); isContextObject(obj) {
+		e.declarations[obj] = e.contextDeclarations(expr)
+	}
 	call, ok := unparen(expr).(*ast.CallExpr)
 	if !ok {
 		e.exprs(expr, out, en)
@@ -116,6 +119,9 @@ func (e *extractor) bindParameters(decl *ast.FuncDecl, callee *types.Func, call 
 			obj := e.pkg.TypesInfo.Defs[name]
 			position := index
 			index++
+			if isContextObject(obj) && position < len(call.Args) {
+				e.declarations[obj] = e.contextDeclarations(call.Args[position])
+			}
 			if obj == nil || !isSessionType(obj.Type()) {
 				continue
 			}
@@ -140,6 +146,7 @@ func (e *extractor) bindParameters(decl *ast.FuncDecl, callee *types.Func, call 
 // the walk should keep descending into the call's own parts.
 func (e *extractor) gimbalOperation(name string, call *ast.CallExpr, targets []ast.Expr, out *[]workflow.Operation, en scopeEnv) bool {
 	e.nested(call.Pos(), "a Gimbal call's arguments", plainArguments(name, call)...)
+	declarations := e.callDeclarations(call)
 	switch name {
 	case "NewSession":
 		role, ok := e.constant(call, 1)
@@ -186,11 +193,12 @@ func (e *extractor) gimbalOperation(name string, call *ast.CallExpr, targets []a
 		}
 		e.inspectCall(name, call)
 		e.emit(out, workflow.AgentCall{
-			Source:      e.at(call.Pos()),
-			Session:     speaker.name,
-			Role:        speaker.role,
-			Prompt:      prompt,
-			Supervisors: e.supervisors(call, 2),
+			Source:       e.at(call.Pos()),
+			Session:      speaker.name,
+			Role:         speaker.role,
+			Prompt:       prompt,
+			Requirements: declarations.requirements,
+			Supervisors:  e.supervisors(call, 2),
 		})
 		return false
 
@@ -208,7 +216,7 @@ func (e *extractor) gimbalOperation(name string, call *ast.CallExpr, targets []a
 			e.diag(call.Args[2].Pos(), "Interview's session is not a session declared in an enclosing body")
 			return false
 		}
-		e.emit(out, workflow.Interview{Source: e.at(call.Pos()), Name: name, Session: speaker.name})
+		e.emit(out, workflow.Interview{Source: e.at(call.Pos()), Name: name, Session: speaker.name, Requirements: declarations.requirements})
 		return false
 
 	case "RunCommand":
@@ -217,20 +225,20 @@ func (e *extractor) gimbalOperation(name string, call *ast.CallExpr, targets []a
 			e.diag(call.Pos(), "RunCommand's name is not a constant, so the command is not read")
 			return false
 		}
-		e.emit(out, workflow.Command{Source: e.at(call.Pos()), Name: command})
+		e.emit(out, workflow.Command{Source: e.at(call.Pos()), Name: command, Requirements: declarations.requirements, Yields: declarations.yields})
 		return false
 
-	case "Service", "FulfillService":
+	case "Service":
 		service, ok := e.constant(call, 1)
 		if !ok {
 			e.diag(call.Pos(), "Service's name is not a constant, so the service is not read")
 			return false
 		}
-		e.emitService(workflow.Service{Source: e.at(call.Pos()), Name: service})
+		e.emitService(workflow.Service{Source: e.at(call.Pos()), Name: service, Requirements: declarations.requirements, Yields: declarations.yields})
 		if e.inspection != nil {
 			// Keep ordered service sites in the private inspector projection.
 			// The normal graph still owns services as scope declarations.
-			marker := &workflow.Command{Source: e.at(call.Pos()), Name: service}
+			marker := &workflow.Command{Source: e.at(call.Pos()), Name: service, Requirements: declarations.requirements, Yields: declarations.yields}
 			if e.inspection.Services == nil {
 				e.inspection.Services = map[*workflow.Command]callInspection{}
 			}
@@ -253,7 +261,7 @@ func (e *extractor) gimbalOperation(name string, call *ast.CallExpr, targets []a
 		if e.inspection != nil {
 			e.diag(call.Pos(), "Check writes command evidence under key %q; that runtime-provided context shape is not projected", key)
 		}
-		e.emit(out, workflow.Command{Source: e.at(call.Pos()), Name: key})
+		e.emit(out, workflow.Command{Source: e.at(call.Pos()), Name: key, Requirements: declarations.requirements, Yields: declarations.yields})
 		return false
 
 	case "Set", "SetJSON":
@@ -284,7 +292,7 @@ func (e *extractor) gimbalOperation(name string, call *ast.CallExpr, targets []a
 		}
 		e.emit(out, workflow.Group{Source: e.at(call.Pos()), Name: group, Children: []workflow.GroupChild{}})
 		if obj := e.firstObject(targets); obj != nil {
-			e.group[obj] = &nodeRef{ops: out, index: len(*out) - 1}
+			e.group[obj] = &nodeRef{ops: out, index: len(*out) - 1, declarations: declarations}
 		}
 		return false
 
@@ -327,15 +335,16 @@ func (e *extractor) gimbalOperation(name string, call *ast.CallExpr, targets []a
 			return false
 		}
 		e.emit(out, workflow.PromiseLoop{
-			Source:      e.at(call.Pos()),
-			Name:        loop,
-			Planner:     planner.name,
-			Supervisors: e.supervisors(call, 4),
-			Services:    []workflow.Service{},
-			Body:        []workflow.Operation{},
+			Source:       e.at(call.Pos()),
+			Name:         loop,
+			Planner:      planner.name,
+			Requirements: declarations.requirements,
+			Supervisors:  e.supervisors(call, 4),
+			Services:     []workflow.Service{},
+			Body:         []workflow.Operation{},
 		})
 		if obj := e.firstObject(targets); obj != nil {
-			e.loop[obj] = &nodeRef{ops: out, index: len(*out) - 1}
+			e.loop[obj] = &nodeRef{ops: out, index: len(*out) - 1, declarations: declarations}
 		}
 		return false
 
@@ -354,6 +363,12 @@ func (e *extractor) callback(call *ast.CallExpr, index int) ([]workflow.Operatio
 	body := []workflow.Operation{}
 	services := []workflow.Service{}
 	previous := e.services
+	inherited := e.callDeclarations(call)
+	if name, _ := e.gimbalCall(call); name == "Go" {
+		if ref := e.group[e.object(e.receiver(call))]; ref != nil {
+			inherited = ref.declarations
+		}
+	}
 	previousContext := e.inspectionContext
 	e.services = &services
 	defer func() { e.services = previous; e.inspectionContext = previousContext }()
@@ -362,6 +377,7 @@ func (e *extractor) callback(call *ast.CallExpr, index int) ([]workflow.Operatio
 	}
 	switch fn := unparen(call.Args[index]).(type) {
 	case *ast.FuncLit:
+		e.declarations[e.contextParameter(fn.Type)] = inherited
 		if e.inspection != nil {
 			e.inspectionContext = e.contextParameter(fn.Type)
 		}
@@ -377,6 +393,7 @@ func (e *extractor) callback(call *ast.CallExpr, index int) ([]workflow.Operatio
 			e.diag(call.Args[index].Pos(), "the body is not a function of this package with a body, so it is not read")
 			return body, services
 		}
+		e.declarations[e.contextParameter(decl.Type)] = inherited
 		if e.inspection != nil {
 			e.inspectionContext = e.contextParameter(decl.Type)
 		}

@@ -85,6 +85,15 @@
   const nodeOperation = $derived<NodeOperation | undefined>(
     selection?.kind === "node" ? selection.operation : undefined,
   );
+  const declarations = $derived(
+    selection?.kind === "service" ? selection.service : nodeOperation,
+  );
+  const requirements = $derived(
+    declarations && "requirements" in declarations ? declarations.requirements ?? [] : [],
+  );
+  const yields = $derived(
+    declarations && "yields" in declarations ? declarations.yields?.[0] : undefined,
+  );
   const agentDefinition = $derived(
     nodeOperation?.kind === "agent_call" ? nodeOperation : undefined,
   );
@@ -337,6 +346,22 @@
     {/if}
   </header>
 
+  {#if requirements.length || yields}
+    <details class="declarations" open>
+      <summary>Declared values</summary>
+      <dl>
+        {#each requirements as requirement}
+          <dt>Requires · {requirement.store || "Default store"}</dt>
+          <dd>{requirement.names.join(", ") || "Whole store"}</dd>
+        {/each}
+        {#if yields}
+          <dt>Yields · {yields.store || "Default store"}</dt>
+          <dd>{yields.names.join(", ") || "Empty readiness file"}</dd>
+        {/if}
+      </dl>
+    </details>
+  {/if}
+
   {#if scopeSelected}
     <TabBar tabs={scopeTabs} active={scopeActive} onselect={(id) => (scopeActive = id as ScopeTabID)} />
   {/if}
@@ -538,6 +563,8 @@
 </aside>
 
 <style>
+  .declarations { padding: 12px 16px; border-bottom: 1px solid var(--border); font-size: 12px; }
+  .declarations summary { cursor: pointer; font-weight: 600; }
   .detail { display: flex; min-width: 340px; flex-shrink: 0; flex-direction: column; overflow: hidden; color: var(--card-foreground); background: var(--card); border-left: 1px solid var(--map-line); }
   .detail.maximized { width: 100%; min-width: 0; border-left: none; }
   .detail-head { display: flex; flex-direction: column; gap: 8px; padding: 14px 16px 12px; background: color-mix(in oklch, var(--muted) 60%, var(--card)); border-bottom: 1px solid var(--border); }

@@ -2,7 +2,7 @@
 export const workflows = [
   {
     name: "service-check",
-    summary: "ServiceCheck checks consumer-relative bindings and scoped service-use cleanup.",
+    summary: "ServiceCheck runs a database and web service with scoped values and consumers.",
   },
   {
     name: "sprint-plan",

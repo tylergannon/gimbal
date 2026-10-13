@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.13.2] - 2026-10-12
 
+### Added
+
+- Sparkle updates for the macOS desktop app, with daily background checks,
+  a Check for Updates menu, and signed installation with relaunch.
+
 ### Fixed
 
 - Strip machine-specific build paths from release CLIs so plugins built in

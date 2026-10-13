@@ -152,14 +152,14 @@ func ValidateProduct(ctx context.Context, env gimbal.Env, params Params) (result
 		// When true: Command provided
 		if w.Start != "" {
 			// Start the product
-			if err := gimbal.Service(ctx, "product", w.Workdir, w.Start); err != nil {
+			if err := gimbal.Service(ctx, "product", w.Workdir, readyServiceCommand(w.Start, w.Ready)); err != nil {
 				return err
 			}
 		}
 		// Readiness check?
 		// Wait for the product when this workload provides a readiness check.
 		// When true: Check provided
-		if w.Ready != "" {
+		if w.Ready != "" && w.Start == "" {
 			ready, stop := context.WithTimeout(ctx, 30*time.Second)
 			// Wait until ready
 			code, _, stderr, err := gimbal.RunCommand(ready, "readiness", w.Workdir, "zsh", "-c", "until ( "+w.Ready+"\n); do sleep 0.25; done")
@@ -321,4 +321,27 @@ func errorText(err error) string {
 		return err.Error()
 	}
 	return ""
+}
+
+// Adapt an operator-supplied program and readiness check to the service contract.
+// The foreground wrapper owns its child and publishes readiness only after the
+// actual check succeeds; Gimbal still owns the whole process group.
+func readyServiceCommand(start, ready string) string {
+	return "zsh -c " + shellQuote(start) + ` &
+child=$!
+trap 'kill -INT "$child" 2>/dev/null; wait "$child"; exit' INT TERM
+for attempt in {1..120}; do
+ kill -0 "$child" 2>/dev/null || { wait "$child"; exit 1; }
+ if ( ` + ready + `
+); then
+  : > "$ENV_FILE.tmp" && mv "$ENV_FILE.tmp" "$ENV_FILE" || exit 1
+  wait "$child"
+  exit $?
+ fi
+ sleep 0.25
+done
+kill -INT "$child" 2>/dev/null
+wait "$child"
+exit 1
+`
 }

@@ -125,7 +125,7 @@ func TestRiverQueueDeliveryControlsAndAdmissionCompletion(t *testing.T) {
 	control := make(chan struct{})
 	var executions atomic.Int32
 	go func() {
-		workerDone <- serve(workerCtx, raw, nil, func(_ context.Context, r backend.MessageRequest) error {
+		workerDone <- serve(workerCtx, raw, backend.Dependencies{}, func(_ context.Context, r backend.MessageRequest) error {
 			switch r.ID {
 			case "blocked":
 				close(blocked)
@@ -247,7 +247,7 @@ func TestRiverShutdownDoesNotRequeueAdmission(t *testing.T) {
 	entered := make(chan struct{})
 	done := make(chan error, 1)
 	go func() {
-		done <- serve(workerCtx, raw, nil, func(ctx context.Context, _ backend.MessageRequest) error {
+		done <- serve(workerCtx, raw, backend.Dependencies{}, func(ctx context.Context, _ backend.MessageRequest) error {
 			close(entered)
 			<-ctx.Done()
 			return ctx.Err()
@@ -291,7 +291,7 @@ func TestConnectBudgetDoesNotCloseConnection(t *testing.T) {
 	definition, _ := registry.Messaging("river")
 	raw, _ := json.Marshal(tr.config)
 	connectCtx, cancel := context.WithCancel(ctx)
-	bus, err := definition.Connect(connectCtx, raw, nil)
+	bus, err := definition.Connect(connectCtx, raw, backend.Dependencies{})
 	if err != nil {
 		cancel()
 		t.Fatal(err)

@@ -176,7 +176,7 @@ vet tool.`,
 		DisableFlagParsing: true,
 		RunE:               func(_ *cobra.Command, args []string) error { return runPrompt(args, stdout, stderr, getenv) },
 	})
-	root.AddCommand(newMessagingWorkerCommand(), newMessagingWatchCommand(), newGenerateCommand(), newDaemonCommand(), newEnvironmentCommand(), newRunsCommand(), newWatchCommand(), newSteerCommand(), newCancelCommand(), newCountTokensCommand(), newAuditIndexCommand(stdout), newOpenCodeCommand(stdout, getenv))
+	root.AddCommand(newMessagingWorkerCommand(), newMessagingWatchCommand(), newGenerateCommand(), newDaemonCommand(), newRunsCommand(), newWatchCommand(), newSteerCommand(), newCancelCommand(), newCountTokensCommand(), newAuditIndexCommand(stdout), newOpenCodeCommand(stdout, getenv))
 	return root
 }
 

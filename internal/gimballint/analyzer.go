@@ -78,6 +78,7 @@ func run(pass *analysis.Pass) (any, error) {
 	inspectResult := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
 	info := indexSyntax(pass, inspectResult)
 	reportSetSyntax(pass, info)
+	reportValueDeclarations(pass)
 	reportPromptSyntax(pass)
 	reportDynamicWorkers(pass, info)
 	reportRepeatedGroupChildren(pass, info)

@@ -100,7 +100,7 @@ func TestMessagingInterruptStopsInflightTurn(t *testing.T) {
 func TestMessagingServiceEstablishesThenScopeCleanupCompletes(t *testing.T) {
 	_, _, ctx := messagingOwner(t)
 	r := effects.Request("process", effects.Owner{Run: "run", Scope: "scope", Task: "service"})
-	r.Process = &backend.Process{Owner: r.Owner, Command: "sh", Args: []string{"-c", "printf ready; sleep 30"}, Service: true}
+	r.Process = &backend.Process{Owner: r.Owner, Command: "sh", Args: []string{"-c", `touch "$ENV_FILE.tmp"; mv "$ENV_FILE.tmp" "$ENV_FILE"; printf ready; sleep 30`}, Service: true}
 	if err := effects.Submit(ctx, r); err != nil {
 		t.Fatal(err)
 	}

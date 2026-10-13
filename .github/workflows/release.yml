@@ -93,14 +93,24 @@ jobs:
           distribution: goreleaser
           version: 2.18.3
           install-only: true
+      - name: Fetch signing credentials from Doppler
+        id: doppler
+        uses: dopplerhq/secrets-fetch-action@451892f16195f9ac360e1a5bcbf0b5fd0e957534 # v2.0.0
+        with:
+          doppler-token: ${{ secrets.DOPPLER_TOKEN }}
+      - name: Validate Doppler destination
+        env:
+          PROJECT: ${{ steps.doppler.outputs.DOPPLER_PROJECT }}
+          CONFIG: ${{ steps.doppler.outputs.DOPPLER_CONFIG }}
+        run: test "$PROJECT" = gimbal && test "$CONFIG" = stg
       - name: Prepare macOS signing and notarization credentials
         env:
-          DEVELOPER_ID_CERTIFICATE_P12_BASE64: ${{ secrets.DEVELOPER_ID_CERTIFICATE_P12_BASE64 }}
-          DEVELOPER_ID_CERTIFICATE_PASSWORD: ${{ secrets.DEVELOPER_ID_CERTIFICATE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
-          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
-          APP_STORE_CONNECT_API_KEY_P8_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_P8_BASE64 }}
+          DEVELOPER_ID_CERTIFICATE_P12_BASE64: ${{ steps.doppler.outputs.DEVELOPER_ID_CERTIFICATE_P12_BASE64 }}
+          DEVELOPER_ID_CERTIFICATE_PASSWORD: ${{ steps.doppler.outputs.DEVELOPER_ID_CERTIFICATE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ steps.doppler.outputs.APPLE_TEAM_ID }}
+          APP_STORE_CONNECT_KEY_ID: ${{ steps.doppler.outputs.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ steps.doppler.outputs.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_API_KEY_P8_BASE64: ${{ steps.doppler.outputs.APP_STORE_CONNECT_API_KEY_P8_BASE64 }}
           MACOS_NOTARY_PROFILE: gimbal-release-notary
         run: scripts/ci-signing.sh setup
       - name: Build, sign, and notarize the macOS CLI
@@ -112,7 +122,7 @@ jobs:
         env:
           RELEASE_VERSION: ${{ inputs.tag || github.ref_name }}
           RELEASE_BUILD_NUMBER: ${{ github.run_number }}
-          SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
+          SPARKLE_ED_PRIVATE_KEY: ${{ steps.doppler.outputs.SPARKLE_ED_PRIVATE_KEY }}
           MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}/native/build/macos/.sdk
         run: scripts/release-macos.sh --release --version "${RELEASE_VERSION#v}" --build-number "$RELEASE_BUILD_NUMBER"
       - uses: actions/upload-artifact@v4
@@ -155,6 +165,16 @@ jobs:
         run: |
           cd dist
           sha256sum -- ./*.tar.gz macos/*.zip macos/*.dmg > checksums.txt
+      - name: Fetch Homebrew publisher from Doppler
+        id: doppler
+        uses: dopplerhq/secrets-fetch-action@451892f16195f9ac360e1a5bcbf0b5fd0e957534 # v2.0.0
+        with:
+          doppler-token: ${{ secrets.DOPPLER_TOKEN }}
+      - name: Validate Doppler destination
+        env:
+          PROJECT: ${{ steps.doppler.outputs.DOPPLER_PROJECT }}
+          CONFIG: ${{ steps.doppler.outputs.DOPPLER_CONFIG }}
+        run: test "$PROJECT" = gimbal && test "$CONFIG" = stg
       - name: Publish tagged release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -173,7 +193,7 @@ jobs:
           repository: tylergannon/homebrew-gimbal
           ref: main
           path: homebrew-tap
-          ssh-key: ${{ secrets.TAP_DEPLOY_KEY }}
+          ssh-key: ${{ steps.doppler.outputs.TAP_DEPLOY_KEY }}
       - name: Update Homebrew CLI and app Casks
         env:
           TAG: ${{ inputs.tag || github.ref_name }}

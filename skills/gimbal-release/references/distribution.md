@@ -98,41 +98,55 @@ normal build, vet, test, formatting and Svelte gates. It moves Unreleased entrie
 into the next patch changelog, records the checked source SHA, and atomically
 pushes the release metadata commit and tag. If main advanced during checks or
 push, that stale candidate is skipped; the newer push is checked instead.
-Release metadata uses a repository-scoped writable SSH deploy key from the
-main-only `release-preparation` environment. Configure its `RELEASE_TAG_SSH_KEY`
-secret and permit the DeployKey actor class to bypass only the version-tag
-creation rule; this bypass covers **all repository deploy keys**, rather than
-one key. Keep version-tag update/deletion owner-only. The read-only check job has no
-preparation environment or SSH key. The preparation job's `GITHUB_TOKEN` has
-contents read and actions write solely to dispatch/wait for the existing build.
-Apple credentials remain in the separate tag-restricted `release` environment.
+Release metadata uses a repository-scoped writable SSH deploy key fetched at
+job runtime from Doppler `gimbal/stg`, secret `RELEASE_TAG_SSH_KEY`. Permit the
+DeployKey actor class to bypass only version-tag creation; this bypass covers
+**all repository deploy keys**. Keep version-tag update/deletion owner-only.
+The read-only check job has no preparation environment or Doppler token.
+The preparation job's `GITHUB_TOKEN` has contents read and actions write solely
+to dispatch/wait for the existing build.
+
+### Doppler access and GitHub environment guards
+
+Doppler `gimbal/stg` is the source of truth for release credentials. The pinned
+Doppler Secrets Fetch action masks fetched secret values; consumers use its
+individual step outputs rather than injecting every secret into all processes.
+Each fetch verifies the returned project/config before using its outputs.
+
+Retain the GitHub environments as ref restrictions and deployment records:
+
+- `release-preparation`: main only; release tagging and model-catalog refresh.
+- `release`: version tags only; Apple signing/notarization and Homebrew updates.
+
+Each environment stores only `DOPPLER_TOKEN`, the existing read-only service
+token for `gimbal/stg`. Keep it out of repository-wide secrets so PR jobs cannot
+access the release config. The shared token/config grants the trusted jobs read
+access to all of `stg`; these environment guards restrict which refs may use it,
+not individual Doppler secret permissions. Per-job consumers receive only the
+values they need. Signing credentials and SSH private keys belong in Doppler,
+not in GitHub environment secret copies. The temporary import workflow and
+write token are no longer needed after migration.
 
 ### Release preparation key and rotation
 
-The current repository deploy key is **Checked-main automatic release publisher**,
-GitHub key ID `166320859`, with Ed25519 fingerprint
-`SHA256:5UJwteHJ15JbFkoya08OHyMdCa4w9+WFkf34iahmY40`. It has repository write
-access; the key itself is not restricted to main. Actions access to its private
-value is restricted through `RELEASE_TAG_SSH_KEY` in the main-only
-`release-preparation` environment. The temporary local private-key copy was
-deleted after provisioning. Record public key identity here; never record its
-private value. Apple signing, notarization, and Sparkle secrets stay in the
-separate `release` environment.
+The current repository deploy key is **Deploy**, GitHub key ID `166363428`,
+with Ed25519 fingerprint
+`SHA256:JpeaWBxFTi4w4ekBE7Jmz/dtPwP/kK9t3QWfbNrAUrY`. Its private value is
+`RELEASE_TAG_SSH_KEY` in Doppler `gimbal/stg`. It has repository write access;
+the key itself is not restricted to main. Record only its public identity here.
+The previous key `166320859` was removed by the user during the Doppler cutover.
+[Issue #516](https://github.com/tylergannon/gimbal/issues/516) tracks verification.
 
-Track the later rotation in [issue #516](https://github.com/tylergannon/gimbal/issues/516).
 To rotate without interrupting preparation:
 
-1. Let active release preparation finish before replacing its key.
-2. Generate a replacement outside Git and add its public key as a writable deploy
-   key on this repository. The existing creation-only DeployKey bypass covers
-   it; do not expand version-tag update/deletion bypasses.
-3. Replace the main-only environment's `RELEASE_TAG_SSH_KEY` secret with the new
-   private key, retaining the environment's trusted-main restriction.
-4. Observe trusted-main tag preparation using the replacement, then remove old
-   repository key `166320859`. Update this public identity record and close the
-   rotation issue once the resulting signed release is published.
-5. Delete temporary local private-key files. Do not change the separate Apple
-   credentials as part of this deploy-key rotation.
+1. Let active release preparation finish.
+2. Generate a replacement outside Git and add its public key as a writable
+   deploy key on this repository. Keep the existing creation-only bypass.
+3. Replace Doppler `gimbal/stg`'s `RELEASE_TAG_SSH_KEY` with the new private key.
+4. Observe trusted-main tag preparation using the replacement, then remove the
+   previous repository deploy key and update this public identity record.
+5. Delete temporary local private-key files. Apple signing, notarization and
+   Sparkle credentials remain unchanged during this SSH-key rotation.
 
 SSH pushes trigger main workflows, so the check job skips bot-authored commits
 carrying `Release-Source:` metadata. PR and manual events still run checks.
@@ -163,7 +177,7 @@ artifact before creating the GitHub Release and updating the dedicated
 `tylergannon/homebrew-gimbal` tap. Automation activation follows local signed
 qualification, not merely config validation.
 
-Secrets belong in the GitHub `release` environment:
+Release credentials belong in Doppler `gimbal/stg`:
 
 - `DEVELOPER_ID_CERTIFICATE_P12_BASE64`: exported certificate and private key.
 - `DEVELOPER_ID_CERTIFICATE_PASSWORD`: PKCS#12 encryption/import password.

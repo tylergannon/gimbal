@@ -109,7 +109,12 @@ incrementing the version again. For a failed publication, rerun **Automatic
 release** (on `main`) or the failed **Release** run for its existing tag. Follow
 the resulting Release run through publication; a merged PR or queued build does
 not establish delivery through the updater. Minor/major releases may still be
-tagged deliberately using the existing release pipeline.
+tagged deliberately, then explicitly dispatched with
+`gh workflow run release.yml --ref vX.Y.Z -f tag=vX.Y.Z`.
+The preparation job uses a repository-scoped deploy key restricted to the
+main-only `release-preparation` environment and version-tag creation; bot release
+metadata skips the next automatic main check. The normal check job remains
+read-only. Read the distribution reference for the key and ruleset setup.
 
 Use the release scripts and GoReleaser configuration in the repository. Read
 [distribution.md](references/distribution.md) for local signing setup, runner

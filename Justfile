@@ -12,6 +12,16 @@ build:
 dev:
     node web/dev/run.mjs
 
+# Build the Debug macOS app around a fresh CLI.
+app: build
+    mkdir -p native/Resources
+    install -m 755 bin/gimbal native/Resources/gimbal
+    go tool skgo native build --platform macos
+
+# Open the Debug app; a directory argument keeps its catalog in that directory instead of ~/.gimbal/desktop.
+app-run instance="":
+    {{ if instance == "" { "open -n" } else { "mkdir -p '" + instance + "' && open -n --env GIMBAL_INSTANCE_DIR=\"$(cd '" + instance + "' && pwd)\"" } }} native/build/macos/DerivedData/Build/Products/Debug/Gimbal.app
+
 dev-web:
     cd web && ORIGIN='{{origin}}' pnpm exec vp dev --host 127.0.0.1 --port 5173 --strictPort
 

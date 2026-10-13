@@ -17,6 +17,17 @@ func TestExplicitServerURLDoesNotLaunchOrManageBundledServer(t *testing.T) {
 	}
 }
 
+func TestInstanceDirDefaultsToDesktopAndHonorsOverride(t *testing.T) {
+	t.Setenv("GIMBAL_INSTANCE_DIR", "")
+	if dir := instanceDir("/Users/test"); dir != "/Users/test/.gimbal/desktop" {
+		t.Fatalf("default instanceDir = %q", dir)
+	}
+	t.Setenv("GIMBAL_INSTANCE_DIR", "/tmp/elsewhere")
+	if dir := instanceDir("/Users/test"); dir != "/tmp/elsewhere" {
+		t.Fatalf("overridden instanceDir = %q", dir)
+	}
+}
+
 func TestServerEnvironmentPreservesPATHAndAddsUserTools(t *testing.T) {
 	t.Setenv("PATH", "/custom/bin")
 	path := ""

@@ -205,6 +205,54 @@ func TestManagerRecordsCLIAssociationBesideOrdinaryChat(t *testing.T) {
 	}
 }
 
+func TestManagerStartTitlesByFirstMessageAndRepliesInBackground(t *testing.T) {
+	repository := newRepository(t)
+	adapter := &chatAdapter{sessions: make(map[string][]string)}
+	manager, err := New(t.Context(), filepath.Join(repository, ".gimbal"), func(string) (gimbal.HarnessAdapter, error) { return adapter, nil }, "/bin/gimbal", "/instance", repository, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer manager.Close()
+	if _, err := manager.Start(t.Context(), NewConversation{Provider: "claude"}, "  "); err == nil {
+		t.Fatal("started a conversation without a message")
+	}
+	started, err := manager.Start(t.Context(), NewConversation{Provider: "claude"}, "Remember cobalt\nand nothing else.")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if started.Title != "Remember cobalt" || started.Model != "claude-haiku-4-5" || started.Status != StatusWorking {
+		t.Fatalf("started = %+v", started)
+	}
+	if len(started.Messages) != 1 || started.Messages[0].Role != "user" || started.Messages[0].Text != "Remember cobalt\nand nothing else." {
+		t.Fatalf("first message not recorded before the reply: %+v", started.Messages)
+	}
+	// Send waits for the background first turn, so its reply follows the first.
+	continued, err := manager.Send(started.ID, "What word did I ask you to remember?")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var texts []string
+	for _, message := range continued.Messages {
+		texts = append(texts, message.Role+": "+message.Text)
+	}
+	want := "user: Remember cobalt\nand nothing else.|assistant: I will remember cobalt.|user: What word did I ask you to remember?|assistant: You asked me to remember cobalt."
+	if got := strings.Join(texts, "|"); got != want {
+		t.Fatalf("transcript = %q", got)
+	}
+}
+
+func TestTitleFromFirstMessage(t *testing.T) {
+	for text, want := range map[string]string{
+		"Fix the tab strip":      "Fix the tab strip",
+		"  First line\nsecond  ": "First line",
+		"Fold extra tabs into a more menu when the window is one thousand pixels wide": "Fold extra tabs into a more menu when the window is one…",
+	} {
+		if got := titleFrom(text); got != want {
+			t.Errorf("titleFrom(%q) = %q, want %q", text, got, want)
+		}
+	}
+}
+
 type chatAdapter struct {
 	mu       sync.Mutex
 	sessions map[string][]string

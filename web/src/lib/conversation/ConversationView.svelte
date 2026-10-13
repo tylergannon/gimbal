@@ -6,10 +6,9 @@
   import SendIcon from '@lucide/svelte/icons/send';
   import { sendConversationMessage, projectConversations } from '../../routes/conversation.remote';
   import type { Conversation } from '#lib/skgo/conversation/types';
+  import { harnessName as providerName, modelName } from './names';
   let { project, current }: { project: string; current: Conversation } = $props();
   const form = $derived(sendConversationMessage.for(`${project}/${current.id}`));
-  const providerName = (name: string) =>
-    name === "agy" ? "agy / Gemini" : name === "codex" ? "Codex" : "Claude";
 </script>
 <section class="workspace" aria-label={current.title}>
     {#if current?.id}
@@ -64,7 +63,7 @@
       })}>
         <input {...form.fields.conversation.as('hidden', current.id)} />
         <textarea {...form.fields.message.as('text')} rows={3} placeholder={`Message ${providerName(current.provider)}…`} aria-label={`Message ${current.title}`} disabled={!current.live || !!form.pending || current.status === 'working'}></textarea>
-        <div class="composer-meta"><span>{providerName(current.provider)} · {current.model}</span><code title={current.worktree}>{current.branch || current.worktree}</code></div>
+        <div class="composer-meta"><span title={current.model}>{providerName(current.provider)} · {modelName(current.model)}</span><code title={current.worktree}>{current.branch || current.worktree}</code></div>
         <button class="send" aria-label="Send message" disabled={!current.live || !!form.pending || current.status === 'working'}><SendIcon size={18} /></button>
         {#each form.fields.allIssues() ?? [] as issue}<p role="alert">{issue.message}</p>{/each}
       </form>

@@ -711,6 +711,200 @@ func ParseStopTurn(s string) (pkg_onzggl3sn52xizlt.StopTurn, error) {
 	return decStopTurn(parsed, "")
 }
 
+func encSetup(v pkg_conversation.Setup, at string) (any, error) {
+	enc1 := devalue.NewObject()
+	enc2 := make([]any, 0, len(v.Harnesses))
+	for i3, item4 := range v.Harnesses {
+		enc5, err := encHarness(item4, at+"/harnesses"+"/"+strconv.Itoa(i3))
+		if err != nil {
+			return nil, err
+		}
+		enc2 = append(enc2, enc5)
+	}
+	var enc6 any = enc2
+	enc1.Set("harnesses", enc6)
+	var enc7 any = string(v.Directory)
+	enc1.Set("directory", enc7)
+	var enc8 any = bool(v.Git)
+	enc1.Set("git", enc8)
+	var enc9 any = string(v.Branch)
+	enc1.Set("branch", enc9)
+	return enc1, nil
+}
+
+func decSetup(raw any, at string) (pkg_conversation.Setup, error) {
+	var dvZero pkg_conversation.Setup
+	var dec1 pkg_conversation.Setup
+	obj2, err := dvObject(raw, at)
+	if err != nil {
+		return dvZero, err
+	}
+	if err := dvKnown(obj2, at, "harnesses", "directory", "git", "branch"); err != nil {
+		return dvZero, err
+	}
+	raw3, err := dvRequired(obj2, "harnesses", at+"/harnesses")
+	if err != nil {
+		return dvZero, err
+	}
+	items5, err := dvArray(raw3, at+"/harnesses")
+	if err != nil {
+		return dvZero, err
+	}
+	dec4 := make([]pkg_conversation.Harness, 0, len(items5))
+	for i6, item7 := range items5 {
+		dec8, err := decHarness(item7, at+"/harnesses"+"/"+strconv.Itoa(i6))
+		if err != nil {
+			return dvZero, err
+		}
+		dec4 = append(dec4, dec8)
+	}
+	dec1.Harnesses = dec4
+	raw9, err := dvRequired(obj2, "directory", at+"/directory")
+	if err != nil {
+		return dvZero, err
+	}
+	dec10, err := dvString(raw9, at+"/directory")
+	if err != nil {
+		return dvZero, err
+	}
+	dec1.Directory = dec10
+	raw11, err := dvRequired(obj2, "git", at+"/git")
+	if err != nil {
+		return dvZero, err
+	}
+	dec12, err := dvBool(raw11, at+"/git")
+	if err != nil {
+		return dvZero, err
+	}
+	dec1.Git = dec12
+	raw13, err := dvRequired(obj2, "branch", at+"/branch")
+	if err != nil {
+		return dvZero, err
+	}
+	dec14, err := dvString(raw13, at+"/branch")
+	if err != nil {
+		return dvZero, err
+	}
+	dec1.Branch = dec14
+	return dec1, nil
+}
+
+// EncodeSetup converts v into the devalue value model.
+func EncodeSetup(v pkg_conversation.Setup) (any, error) { return encSetup(v, "") }
+
+// DecodeSetup converts a devalue value model tree into a pkg_conversation.Setup, rejecting any
+// shape the type grammar does not admit.
+func DecodeSetup(raw any) (pkg_conversation.Setup, error) { return decSetup(raw, "") }
+
+// StringifySetup encodes v and serializes it with devalue.
+func StringifySetup(v pkg_conversation.Setup) (string, error) {
+	encoded, err := encSetup(v, "")
+	if err != nil {
+		return "", err
+	}
+	return devalue.Stringify(encoded)
+}
+
+// ParseSetup parses a devalue document and decodes it into a pkg_conversation.Setup.
+func ParseSetup(s string) (pkg_conversation.Setup, error) {
+	var zero pkg_conversation.Setup
+	parsed, err := devalue.Parse(s, nil)
+	if err != nil {
+		return zero, err
+	}
+	return decSetup(parsed, "")
+}
+
+func encHarness(v pkg_conversation.Harness, at string) (any, error) {
+	enc1 := devalue.NewObject()
+	var enc2 any = string(v.ID)
+	enc1.Set("id", enc2)
+	var enc3 any = string(v.Default)
+	enc1.Set("default", enc3)
+	enc4 := make([]any, 0, len(v.Models))
+	for _, item6 := range v.Models {
+		var enc7 any = string(item6)
+		enc4 = append(enc4, enc7)
+	}
+	var enc8 any = enc4
+	enc1.Set("models", enc8)
+	return enc1, nil
+}
+
+func decHarness(raw any, at string) (pkg_conversation.Harness, error) {
+	var dvZero pkg_conversation.Harness
+	var dec1 pkg_conversation.Harness
+	obj2, err := dvObject(raw, at)
+	if err != nil {
+		return dvZero, err
+	}
+	if err := dvKnown(obj2, at, "id", "default", "models"); err != nil {
+		return dvZero, err
+	}
+	raw3, err := dvRequired(obj2, "id", at+"/id")
+	if err != nil {
+		return dvZero, err
+	}
+	dec4, err := dvString(raw3, at+"/id")
+	if err != nil {
+		return dvZero, err
+	}
+	dec1.ID = dec4
+	raw5, err := dvRequired(obj2, "default", at+"/default")
+	if err != nil {
+		return dvZero, err
+	}
+	dec6, err := dvString(raw5, at+"/default")
+	if err != nil {
+		return dvZero, err
+	}
+	dec1.Default = dec6
+	raw7, err := dvRequired(obj2, "models", at+"/models")
+	if err != nil {
+		return dvZero, err
+	}
+	items9, err := dvArray(raw7, at+"/models")
+	if err != nil {
+		return dvZero, err
+	}
+	dec8 := make([]string, 0, len(items9))
+	for i10, item11 := range items9 {
+		dec12, err := dvString(item11, at+"/models"+"/"+strconv.Itoa(i10))
+		if err != nil {
+			return dvZero, err
+		}
+		dec8 = append(dec8, dec12)
+	}
+	dec1.Models = dec8
+	return dec1, nil
+}
+
+// EncodeHarness converts v into the devalue value model.
+func EncodeHarness(v pkg_conversation.Harness) (any, error) { return encHarness(v, "") }
+
+// DecodeHarness converts a devalue value model tree into a pkg_conversation.Harness, rejecting any
+// shape the type grammar does not admit.
+func DecodeHarness(raw any) (pkg_conversation.Harness, error) { return decHarness(raw, "") }
+
+// StringifyHarness encodes v and serializes it with devalue.
+func StringifyHarness(v pkg_conversation.Harness) (string, error) {
+	encoded, err := encHarness(v, "")
+	if err != nil {
+		return "", err
+	}
+	return devalue.Stringify(encoded)
+}
+
+// ParseHarness parses a devalue document and decodes it into a pkg_conversation.Harness.
+func ParseHarness(s string) (pkg_conversation.Harness, error) {
+	var zero pkg_conversation.Harness
+	parsed, err := devalue.Parse(s, nil)
+	if err != nil {
+		return zero, err
+	}
+	return decHarness(parsed, "")
+}
+
 func encConversation(v pkg_conversation.Conversation, at string) (any, error) {
 	enc1 := devalue.NewObject()
 	var enc2 any = string(v.ID)
@@ -3670,7 +3864,50 @@ func ParseRoot18(s string) (pkg_onzggl3sn52xizlt.StopTurn, error) {
 	return decRoot18(parsed, "")
 }
 
-func encRoot19(v pkg_conversation.Conversation, at string) (any, error) {
+func encRoot19(v pkg_conversation.Setup, at string) (any, error) {
+	enc1, err := encSetup(v, at)
+	if err != nil {
+		return nil, err
+	}
+	return enc1, nil
+}
+
+func decRoot19(raw any, at string) (pkg_conversation.Setup, error) {
+	var dvZero pkg_conversation.Setup
+	dec1, err := decSetup(raw, at)
+	if err != nil {
+		return dvZero, err
+	}
+	return dec1, nil
+}
+
+// EncodeRoot19 converts v into the devalue value model.
+func EncodeRoot19(v pkg_conversation.Setup) (any, error) { return encRoot19(v, "") }
+
+// DecodeRoot19 converts a devalue value model tree into a pkg_conversation.Setup, rejecting any
+// shape the type grammar does not admit.
+func DecodeRoot19(raw any) (pkg_conversation.Setup, error) { return decRoot19(raw, "") }
+
+// StringifyRoot19 encodes v and serializes it with devalue.
+func StringifyRoot19(v pkg_conversation.Setup) (string, error) {
+	encoded, err := encRoot19(v, "")
+	if err != nil {
+		return "", err
+	}
+	return devalue.Stringify(encoded)
+}
+
+// ParseRoot19 parses a devalue document and decodes it into a pkg_conversation.Setup.
+func ParseRoot19(s string) (pkg_conversation.Setup, error) {
+	var zero pkg_conversation.Setup
+	parsed, err := devalue.Parse(s, nil)
+	if err != nil {
+		return zero, err
+	}
+	return decRoot19(parsed, "")
+}
+
+func encRoot20(v pkg_conversation.Conversation, at string) (any, error) {
 	enc1, err := encConversation(v, at)
 	if err != nil {
 		return nil, err
@@ -3678,7 +3915,7 @@ func encRoot19(v pkg_conversation.Conversation, at string) (any, error) {
 	return enc1, nil
 }
 
-func decRoot19(raw any, at string) (pkg_conversation.Conversation, error) {
+func decRoot20(raw any, at string) (pkg_conversation.Conversation, error) {
 	var dvZero pkg_conversation.Conversation
 	dec1, err := decConversation(raw, at)
 	if err != nil {
@@ -3687,33 +3924,33 @@ func decRoot19(raw any, at string) (pkg_conversation.Conversation, error) {
 	return dec1, nil
 }
 
-// EncodeRoot19 converts v into the devalue value model.
-func EncodeRoot19(v pkg_conversation.Conversation) (any, error) { return encRoot19(v, "") }
+// EncodeRoot20 converts v into the devalue value model.
+func EncodeRoot20(v pkg_conversation.Conversation) (any, error) { return encRoot20(v, "") }
 
-// DecodeRoot19 converts a devalue value model tree into a pkg_conversation.Conversation, rejecting any
+// DecodeRoot20 converts a devalue value model tree into a pkg_conversation.Conversation, rejecting any
 // shape the type grammar does not admit.
-func DecodeRoot19(raw any) (pkg_conversation.Conversation, error) { return decRoot19(raw, "") }
+func DecodeRoot20(raw any) (pkg_conversation.Conversation, error) { return decRoot20(raw, "") }
 
-// StringifyRoot19 encodes v and serializes it with devalue.
-func StringifyRoot19(v pkg_conversation.Conversation) (string, error) {
-	encoded, err := encRoot19(v, "")
+// StringifyRoot20 encodes v and serializes it with devalue.
+func StringifyRoot20(v pkg_conversation.Conversation) (string, error) {
+	encoded, err := encRoot20(v, "")
 	if err != nil {
 		return "", err
 	}
 	return devalue.Stringify(encoded)
 }
 
-// ParseRoot19 parses a devalue document and decodes it into a pkg_conversation.Conversation.
-func ParseRoot19(s string) (pkg_conversation.Conversation, error) {
+// ParseRoot20 parses a devalue document and decodes it into a pkg_conversation.Conversation.
+func ParseRoot20(s string) (pkg_conversation.Conversation, error) {
 	var zero pkg_conversation.Conversation
 	parsed, err := devalue.Parse(s, nil)
 	if err != nil {
 		return zero, err
 	}
-	return decRoot19(parsed, "")
+	return decRoot20(parsed, "")
 }
 
-func encRoot20(v []pkg_conversation.Conversation, at string) (any, error) {
+func encRoot21(v []pkg_conversation.Conversation, at string) (any, error) {
 	enc1 := make([]any, 0, len(v))
 	for i2, item3 := range v {
 		enc4, err := encConversation(item3, at+"/"+strconv.Itoa(i2))
@@ -3726,7 +3963,7 @@ func encRoot20(v []pkg_conversation.Conversation, at string) (any, error) {
 	return enc5, nil
 }
 
-func decRoot20(raw any, at string) ([]pkg_conversation.Conversation, error) {
+func decRoot21(raw any, at string) ([]pkg_conversation.Conversation, error) {
 	var dvZero []pkg_conversation.Conversation
 	items2, err := dvArray(raw, at)
 	if err != nil {
@@ -3743,33 +3980,33 @@ func decRoot20(raw any, at string) ([]pkg_conversation.Conversation, error) {
 	return dec1, nil
 }
 
-// EncodeRoot20 converts v into the devalue value model.
-func EncodeRoot20(v []pkg_conversation.Conversation) (any, error) { return encRoot20(v, "") }
+// EncodeRoot21 converts v into the devalue value model.
+func EncodeRoot21(v []pkg_conversation.Conversation) (any, error) { return encRoot21(v, "") }
 
-// DecodeRoot20 converts a devalue value model tree into a []pkg_conversation.Conversation, rejecting any
+// DecodeRoot21 converts a devalue value model tree into a []pkg_conversation.Conversation, rejecting any
 // shape the type grammar does not admit.
-func DecodeRoot20(raw any) ([]pkg_conversation.Conversation, error) { return decRoot20(raw, "") }
+func DecodeRoot21(raw any) ([]pkg_conversation.Conversation, error) { return decRoot21(raw, "") }
 
-// StringifyRoot20 encodes v and serializes it with devalue.
-func StringifyRoot20(v []pkg_conversation.Conversation) (string, error) {
-	encoded, err := encRoot20(v, "")
+// StringifyRoot21 encodes v and serializes it with devalue.
+func StringifyRoot21(v []pkg_conversation.Conversation) (string, error) {
+	encoded, err := encRoot21(v, "")
 	if err != nil {
 		return "", err
 	}
 	return devalue.Stringify(encoded)
 }
 
-// ParseRoot20 parses a devalue document and decodes it into a []pkg_conversation.Conversation.
-func ParseRoot20(s string) ([]pkg_conversation.Conversation, error) {
+// ParseRoot21 parses a devalue document and decodes it into a []pkg_conversation.Conversation.
+func ParseRoot21(s string) ([]pkg_conversation.Conversation, error) {
 	var zero []pkg_conversation.Conversation
 	parsed, err := devalue.Parse(s, nil)
 	if err != nil {
 		return zero, err
 	}
-	return decRoot20(parsed, "")
+	return decRoot21(parsed, "")
 }
 
-func encRoot21(v pkg_onzggl3sn52xizlt.InterviewAnswered, at string) (any, error) {
+func encRoot22(v pkg_onzggl3sn52xizlt.InterviewAnswered, at string) (any, error) {
 	enc1, err := encInterviewAnswered(v, at)
 	if err != nil {
 		return nil, err
@@ -3777,7 +4014,7 @@ func encRoot21(v pkg_onzggl3sn52xizlt.InterviewAnswered, at string) (any, error)
 	return enc1, nil
 }
 
-func decRoot21(raw any, at string) (pkg_onzggl3sn52xizlt.InterviewAnswered, error) {
+func decRoot22(raw any, at string) (pkg_onzggl3sn52xizlt.InterviewAnswered, error) {
 	var dvZero pkg_onzggl3sn52xizlt.InterviewAnswered
 	dec1, err := decInterviewAnswered(raw, at)
 	if err != nil {
@@ -3786,33 +4023,33 @@ func decRoot21(raw any, at string) (pkg_onzggl3sn52xizlt.InterviewAnswered, erro
 	return dec1, nil
 }
 
-// EncodeRoot21 converts v into the devalue value model.
-func EncodeRoot21(v pkg_onzggl3sn52xizlt.InterviewAnswered) (any, error) { return encRoot21(v, "") }
+// EncodeRoot22 converts v into the devalue value model.
+func EncodeRoot22(v pkg_onzggl3sn52xizlt.InterviewAnswered) (any, error) { return encRoot22(v, "") }
 
-// DecodeRoot21 converts a devalue value model tree into a pkg_onzggl3sn52xizlt.InterviewAnswered, rejecting any
+// DecodeRoot22 converts a devalue value model tree into a pkg_onzggl3sn52xizlt.InterviewAnswered, rejecting any
 // shape the type grammar does not admit.
-func DecodeRoot21(raw any) (pkg_onzggl3sn52xizlt.InterviewAnswered, error) { return decRoot21(raw, "") }
+func DecodeRoot22(raw any) (pkg_onzggl3sn52xizlt.InterviewAnswered, error) { return decRoot22(raw, "") }
 
-// StringifyRoot21 encodes v and serializes it with devalue.
-func StringifyRoot21(v pkg_onzggl3sn52xizlt.InterviewAnswered) (string, error) {
-	encoded, err := encRoot21(v, "")
+// StringifyRoot22 encodes v and serializes it with devalue.
+func StringifyRoot22(v pkg_onzggl3sn52xizlt.InterviewAnswered) (string, error) {
+	encoded, err := encRoot22(v, "")
 	if err != nil {
 		return "", err
 	}
 	return devalue.Stringify(encoded)
 }
 
-// ParseRoot21 parses a devalue document and decodes it into a pkg_onzggl3sn52xizlt.InterviewAnswered.
-func ParseRoot21(s string) (pkg_onzggl3sn52xizlt.InterviewAnswered, error) {
+// ParseRoot22 parses a devalue document and decodes it into a pkg_onzggl3sn52xizlt.InterviewAnswered.
+func ParseRoot22(s string) (pkg_onzggl3sn52xizlt.InterviewAnswered, error) {
 	var zero pkg_onzggl3sn52xizlt.InterviewAnswered
 	parsed, err := devalue.Parse(s, nil)
 	if err != nil {
 		return zero, err
 	}
-	return decRoot21(parsed, "")
+	return decRoot22(parsed, "")
 }
 
-func encRoot22(v pkg_onzggl3sn52xizlt.LaunchAccepted, at string) (any, error) {
+func encRoot23(v pkg_onzggl3sn52xizlt.LaunchAccepted, at string) (any, error) {
 	enc1, err := encLaunchAccepted(v, at)
 	if err != nil {
 		return nil, err
@@ -3820,7 +4057,7 @@ func encRoot22(v pkg_onzggl3sn52xizlt.LaunchAccepted, at string) (any, error) {
 	return enc1, nil
 }
 
-func decRoot22(raw any, at string) (pkg_onzggl3sn52xizlt.LaunchAccepted, error) {
+func decRoot23(raw any, at string) (pkg_onzggl3sn52xizlt.LaunchAccepted, error) {
 	var dvZero pkg_onzggl3sn52xizlt.LaunchAccepted
 	dec1, err := decLaunchAccepted(raw, at)
 	if err != nil {
@@ -3829,33 +4066,33 @@ func decRoot22(raw any, at string) (pkg_onzggl3sn52xizlt.LaunchAccepted, error) 
 	return dec1, nil
 }
 
-// EncodeRoot22 converts v into the devalue value model.
-func EncodeRoot22(v pkg_onzggl3sn52xizlt.LaunchAccepted) (any, error) { return encRoot22(v, "") }
+// EncodeRoot23 converts v into the devalue value model.
+func EncodeRoot23(v pkg_onzggl3sn52xizlt.LaunchAccepted) (any, error) { return encRoot23(v, "") }
 
-// DecodeRoot22 converts a devalue value model tree into a pkg_onzggl3sn52xizlt.LaunchAccepted, rejecting any
+// DecodeRoot23 converts a devalue value model tree into a pkg_onzggl3sn52xizlt.LaunchAccepted, rejecting any
 // shape the type grammar does not admit.
-func DecodeRoot22(raw any) (pkg_onzggl3sn52xizlt.LaunchAccepted, error) { return decRoot22(raw, "") }
+func DecodeRoot23(raw any) (pkg_onzggl3sn52xizlt.LaunchAccepted, error) { return decRoot23(raw, "") }
 
-// StringifyRoot22 encodes v and serializes it with devalue.
-func StringifyRoot22(v pkg_onzggl3sn52xizlt.LaunchAccepted) (string, error) {
-	encoded, err := encRoot22(v, "")
+// StringifyRoot23 encodes v and serializes it with devalue.
+func StringifyRoot23(v pkg_onzggl3sn52xizlt.LaunchAccepted) (string, error) {
+	encoded, err := encRoot23(v, "")
 	if err != nil {
 		return "", err
 	}
 	return devalue.Stringify(encoded)
 }
 
-// ParseRoot22 parses a devalue document and decodes it into a pkg_onzggl3sn52xizlt.LaunchAccepted.
-func ParseRoot22(s string) (pkg_onzggl3sn52xizlt.LaunchAccepted, error) {
+// ParseRoot23 parses a devalue document and decodes it into a pkg_onzggl3sn52xizlt.LaunchAccepted.
+func ParseRoot23(s string) (pkg_onzggl3sn52xizlt.LaunchAccepted, error) {
 	var zero pkg_onzggl3sn52xizlt.LaunchAccepted
 	parsed, err := devalue.Parse(s, nil)
 	if err != nil {
 		return zero, err
 	}
-	return decRoot22(parsed, "")
+	return decRoot23(parsed, "")
 }
 
-func encRoot23(v pkg_onzggl3sn52xizlt.Sent, at string) (any, error) {
+func encRoot24(v pkg_onzggl3sn52xizlt.Sent, at string) (any, error) {
 	enc1, err := encSent(v, at)
 	if err != nil {
 		return nil, err
@@ -3863,7 +4100,7 @@ func encRoot23(v pkg_onzggl3sn52xizlt.Sent, at string) (any, error) {
 	return enc1, nil
 }
 
-func decRoot23(raw any, at string) (pkg_onzggl3sn52xizlt.Sent, error) {
+func decRoot24(raw any, at string) (pkg_onzggl3sn52xizlt.Sent, error) {
 	var dvZero pkg_onzggl3sn52xizlt.Sent
 	dec1, err := decSent(raw, at)
 	if err != nil {
@@ -3872,33 +4109,33 @@ func decRoot23(raw any, at string) (pkg_onzggl3sn52xizlt.Sent, error) {
 	return dec1, nil
 }
 
-// EncodeRoot23 converts v into the devalue value model.
-func EncodeRoot23(v pkg_onzggl3sn52xizlt.Sent) (any, error) { return encRoot23(v, "") }
+// EncodeRoot24 converts v into the devalue value model.
+func EncodeRoot24(v pkg_onzggl3sn52xizlt.Sent) (any, error) { return encRoot24(v, "") }
 
-// DecodeRoot23 converts a devalue value model tree into a pkg_onzggl3sn52xizlt.Sent, rejecting any
+// DecodeRoot24 converts a devalue value model tree into a pkg_onzggl3sn52xizlt.Sent, rejecting any
 // shape the type grammar does not admit.
-func DecodeRoot23(raw any) (pkg_onzggl3sn52xizlt.Sent, error) { return decRoot23(raw, "") }
+func DecodeRoot24(raw any) (pkg_onzggl3sn52xizlt.Sent, error) { return decRoot24(raw, "") }
 
-// StringifyRoot23 encodes v and serializes it with devalue.
-func StringifyRoot23(v pkg_onzggl3sn52xizlt.Sent) (string, error) {
-	encoded, err := encRoot23(v, "")
+// StringifyRoot24 encodes v and serializes it with devalue.
+func StringifyRoot24(v pkg_onzggl3sn52xizlt.Sent) (string, error) {
+	encoded, err := encRoot24(v, "")
 	if err != nil {
 		return "", err
 	}
 	return devalue.Stringify(encoded)
 }
 
-// ParseRoot23 parses a devalue document and decodes it into a pkg_onzggl3sn52xizlt.Sent.
-func ParseRoot23(s string) (pkg_onzggl3sn52xizlt.Sent, error) {
+// ParseRoot24 parses a devalue document and decodes it into a pkg_onzggl3sn52xizlt.Sent.
+func ParseRoot24(s string) (pkg_onzggl3sn52xizlt.Sent, error) {
 	var zero pkg_onzggl3sn52xizlt.Sent
 	parsed, err := devalue.Parse(s, nil)
 	if err != nil {
 		return zero, err
 	}
-	return decRoot23(parsed, "")
+	return decRoot24(parsed, "")
 }
 
-func encRoot24(v pkg_onzggl3sn52xizlt.Waiting, at string) (any, error) {
+func encRoot25(v pkg_onzggl3sn52xizlt.Waiting, at string) (any, error) {
 	enc1, err := encWaiting(v, at)
 	if err != nil {
 		return nil, err
@@ -3906,7 +4143,7 @@ func encRoot24(v pkg_onzggl3sn52xizlt.Waiting, at string) (any, error) {
 	return enc1, nil
 }
 
-func decRoot24(raw any, at string) (pkg_onzggl3sn52xizlt.Waiting, error) {
+func decRoot25(raw any, at string) (pkg_onzggl3sn52xizlt.Waiting, error) {
 	var dvZero pkg_onzggl3sn52xizlt.Waiting
 	dec1, err := decWaiting(raw, at)
 	if err != nil {
@@ -3915,33 +4152,33 @@ func decRoot24(raw any, at string) (pkg_onzggl3sn52xizlt.Waiting, error) {
 	return dec1, nil
 }
 
-// EncodeRoot24 converts v into the devalue value model.
-func EncodeRoot24(v pkg_onzggl3sn52xizlt.Waiting) (any, error) { return encRoot24(v, "") }
+// EncodeRoot25 converts v into the devalue value model.
+func EncodeRoot25(v pkg_onzggl3sn52xizlt.Waiting) (any, error) { return encRoot25(v, "") }
 
-// DecodeRoot24 converts a devalue value model tree into a pkg_onzggl3sn52xizlt.Waiting, rejecting any
+// DecodeRoot25 converts a devalue value model tree into a pkg_onzggl3sn52xizlt.Waiting, rejecting any
 // shape the type grammar does not admit.
-func DecodeRoot24(raw any) (pkg_onzggl3sn52xizlt.Waiting, error) { return decRoot24(raw, "") }
+func DecodeRoot25(raw any) (pkg_onzggl3sn52xizlt.Waiting, error) { return decRoot25(raw, "") }
 
-// StringifyRoot24 encodes v and serializes it with devalue.
-func StringifyRoot24(v pkg_onzggl3sn52xizlt.Waiting) (string, error) {
-	encoded, err := encRoot24(v, "")
+// StringifyRoot25 encodes v and serializes it with devalue.
+func StringifyRoot25(v pkg_onzggl3sn52xizlt.Waiting) (string, error) {
+	encoded, err := encRoot25(v, "")
 	if err != nil {
 		return "", err
 	}
 	return devalue.Stringify(encoded)
 }
 
-// ParseRoot24 parses a devalue document and decodes it into a pkg_onzggl3sn52xizlt.Waiting.
-func ParseRoot24(s string) (pkg_onzggl3sn52xizlt.Waiting, error) {
+// ParseRoot25 parses a devalue document and decodes it into a pkg_onzggl3sn52xizlt.Waiting.
+func ParseRoot25(s string) (pkg_onzggl3sn52xizlt.Waiting, error) {
 	var zero pkg_onzggl3sn52xizlt.Waiting
 	parsed, err := devalue.Parse(s, nil)
 	if err != nil {
 		return zero, err
 	}
-	return decRoot24(parsed, "")
+	return decRoot25(parsed, "")
 }
 
-func encRoot25(v pkg_src.RunSnapshot, at string) (any, error) {
+func encRoot26(v pkg_src.RunSnapshot, at string) (any, error) {
 	enc1, err := encRunSnapshot(v, at)
 	if err != nil {
 		return nil, err
@@ -3949,7 +4186,7 @@ func encRoot25(v pkg_src.RunSnapshot, at string) (any, error) {
 	return enc1, nil
 }
 
-func decRoot25(raw any, at string) (pkg_src.RunSnapshot, error) {
+func decRoot26(raw any, at string) (pkg_src.RunSnapshot, error) {
 	var dvZero pkg_src.RunSnapshot
 	dec1, err := decRunSnapshot(raw, at)
 	if err != nil {
@@ -3958,30 +4195,30 @@ func decRoot25(raw any, at string) (pkg_src.RunSnapshot, error) {
 	return dec1, nil
 }
 
-// EncodeRoot25 converts v into the devalue value model.
-func EncodeRoot25(v pkg_src.RunSnapshot) (any, error) { return encRoot25(v, "") }
+// EncodeRoot26 converts v into the devalue value model.
+func EncodeRoot26(v pkg_src.RunSnapshot) (any, error) { return encRoot26(v, "") }
 
-// DecodeRoot25 converts a devalue value model tree into a pkg_src.RunSnapshot, rejecting any
+// DecodeRoot26 converts a devalue value model tree into a pkg_src.RunSnapshot, rejecting any
 // shape the type grammar does not admit.
-func DecodeRoot25(raw any) (pkg_src.RunSnapshot, error) { return decRoot25(raw, "") }
+func DecodeRoot26(raw any) (pkg_src.RunSnapshot, error) { return decRoot26(raw, "") }
 
-// StringifyRoot25 encodes v and serializes it with devalue.
-func StringifyRoot25(v pkg_src.RunSnapshot) (string, error) {
-	encoded, err := encRoot25(v, "")
+// StringifyRoot26 encodes v and serializes it with devalue.
+func StringifyRoot26(v pkg_src.RunSnapshot) (string, error) {
+	encoded, err := encRoot26(v, "")
 	if err != nil {
 		return "", err
 	}
 	return devalue.Stringify(encoded)
 }
 
-// ParseRoot25 parses a devalue document and decodes it into a pkg_src.RunSnapshot.
-func ParseRoot25(s string) (pkg_src.RunSnapshot, error) {
+// ParseRoot26 parses a devalue document and decodes it into a pkg_src.RunSnapshot.
+func ParseRoot26(s string) (pkg_src.RunSnapshot, error) {
 	var zero pkg_src.RunSnapshot
 	parsed, err := devalue.Parse(s, nil)
 	if err != nil {
 		return zero, err
 	}
-	return decRoot25(parsed, "")
+	return decRoot26(parsed, "")
 }
 
 func skgoCallerMatchers() skgo.CallerMatchers {
@@ -4479,12 +4716,43 @@ func requestedArg_stopTurn(arg any) (any, error) {
 	return in, nil
 }
 
+// remote_conversationSetup answers src/routes/conversation.remote.ts#conversationSetup, a query.
+//
+// The argument is decoded by DecodeRoot11, generated by polytype for conversationSetup's
+// own parameter type: a shape it does not admit is a 400 naming the path,
+// never a zero value.
+// The result is encoded by EncodeRoot19, generated for its result type.
+func remote_conversationSetup(ctx context.Context, call skgo.Call) (any, error) {
+	if err := skgo.RequireArgument(call); err != nil {
+		return nil, err
+	}
+	in, err := DecodeRoot11(call.Arg)
+	if err != nil {
+		return nil, skgo.BadRequest(err)
+	}
+	out, err := pkg_onzggl3sn52xizlt.Skgo_conversationSetup(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return EncodeRoot19(out)
+}
+
+// requestedArg_conversationSetup decodes one instance's argument for skgo.Requested, with the same
+// decoder remote_conversationSetup uses.
+func requestedArg_conversationSetup(arg any) (any, error) {
+	in, err := DecodeRoot11(arg)
+	if err != nil {
+		return nil, skgo.BadRequest(err)
+	}
+	return in, nil
+}
+
 // remote_createConversation answers src/routes/conversation.remote.ts#createConversation, a form.
 //
 // A form's submission is assigned onto the handler's own argument type:
 // kit posts a form as binary form data, which can carry an uploaded File,
 // and a File is not a value polytype describes.
-// The result is encoded by EncodeRoot19, generated for its result type.
+// The result is encoded by EncodeRoot20, generated for its result type.
 func remote_createConversation(ctx context.Context, call skgo.Call) (any, error) {
 	var in pkg_onzggl3sn52xizlt.SkgoArg_createConversation
 	if err := skgo.DecodeForm(call.Arg, &in); err != nil {
@@ -4498,7 +4766,7 @@ func remote_createConversation(ctx context.Context, call skgo.Call) (any, error)
 	if err != nil {
 		return nil, err
 	}
-	return EncodeRoot19(out)
+	return EncodeRoot20(out)
 }
 
 // remote_projectConversations answers src/routes/conversation.remote.ts#projectConversations, a query.
@@ -4506,7 +4774,7 @@ func remote_createConversation(ctx context.Context, call skgo.Call) (any, error)
 // The argument is decoded by DecodeRoot11, generated by polytype for projectConversations's
 // own parameter type: a shape it does not admit is a 400 naming the path,
 // never a zero value.
-// The result is encoded by EncodeRoot20, generated for its result type.
+// The result is encoded by EncodeRoot21, generated for its result type.
 func remote_projectConversations(ctx context.Context, call skgo.Call) (any, error) {
 	if err := skgo.RequireArgument(call); err != nil {
 		return nil, err
@@ -4519,7 +4787,7 @@ func remote_projectConversations(ctx context.Context, call skgo.Call) (any, erro
 	if err != nil {
 		return nil, err
 	}
-	return EncodeRoot20(out)
+	return EncodeRoot21(out)
 }
 
 // requestedArg_projectConversations decodes one instance's argument for skgo.Requested, with the same
@@ -4537,7 +4805,7 @@ func requestedArg_projectConversations(arg any) (any, error) {
 // A form's submission is assigned onto the handler's own argument type:
 // kit posts a form as binary form data, which can carry an uploaded File,
 // and a File is not a value polytype describes.
-// The result is encoded by EncodeRoot19, generated for its result type.
+// The result is encoded by EncodeRoot20, generated for its result type.
 func remote_sendConversationMessage(ctx context.Context, call skgo.Call) (any, error) {
 	var in pkg_onzggl3sn52xizlt.SkgoArg_sendConversationMessage
 	if err := skgo.DecodeForm(call.Arg, &in); err != nil {
@@ -4551,7 +4819,7 @@ func remote_sendConversationMessage(ctx context.Context, call skgo.Call) (any, e
 	if err != nil {
 		return nil, err
 	}
-	return EncodeRoot19(out)
+	return EncodeRoot20(out)
 }
 
 // remote_answerInterview answers src/routes/interview.remote.ts#answerInterview, a form.
@@ -4559,7 +4827,7 @@ func remote_sendConversationMessage(ctx context.Context, call skgo.Call) (any, e
 // A form's submission is assigned onto the handler's own argument type:
 // kit posts a form as binary form data, which can carry an uploaded File,
 // and a File is not a value polytype describes.
-// The result is encoded by EncodeRoot21, generated for its result type.
+// The result is encoded by EncodeRoot22, generated for its result type.
 func remote_answerInterview(ctx context.Context, call skgo.Call) (any, error) {
 	var in pkg_onzggl3sn52xizlt.SkgoArg_answerInterview
 	if err := skgo.DecodeForm(call.Arg, &in); err != nil {
@@ -4573,7 +4841,7 @@ func remote_answerInterview(ctx context.Context, call skgo.Call) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	return EncodeRoot21(out)
+	return EncodeRoot22(out)
 }
 
 // remote_launchWorkflow answers src/routes/launch.remote.ts#launchWorkflow, a form.
@@ -4581,7 +4849,7 @@ func remote_answerInterview(ctx context.Context, call skgo.Call) (any, error) {
 // A form's submission is assigned onto the handler's own argument type:
 // kit posts a form as binary form data, which can carry an uploaded File,
 // and a File is not a value polytype describes.
-// The result is encoded by EncodeRoot22, generated for its result type.
+// The result is encoded by EncodeRoot23, generated for its result type.
 func remote_launchWorkflow(ctx context.Context, call skgo.Call) (any, error) {
 	var in pkg_onzggl3sn52xizlt.SkgoArg_launchWorkflow
 	if err := skgo.DecodeForm(call.Arg, &in); err != nil {
@@ -4595,7 +4863,7 @@ func remote_launchWorkflow(ctx context.Context, call skgo.Call) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	return EncodeRoot22(out)
+	return EncodeRoot23(out)
 }
 
 // remote_steer answers src/routes/steer.remote.ts#steer, a form.
@@ -4603,7 +4871,7 @@ func remote_launchWorkflow(ctx context.Context, call skgo.Call) (any, error) {
 // A form's submission is assigned onto the handler's own argument type:
 // kit posts a form as binary form data, which can carry an uploaded File,
 // and a File is not a value polytype describes.
-// The result is encoded by EncodeRoot23, generated for its result type.
+// The result is encoded by EncodeRoot24, generated for its result type.
 func remote_steer(ctx context.Context, call skgo.Call) (any, error) {
 	var in pkg_onzggl3sn52xizlt.SkgoArg_steer
 	if err := skgo.DecodeForm(call.Arg, &in); err != nil {
@@ -4617,7 +4885,7 @@ func remote_steer(ctx context.Context, call skgo.Call) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	return EncodeRoot23(out)
+	return EncodeRoot24(out)
 }
 
 // remote_steerLoop answers src/routes/steer.remote.ts#steerLoop, a form.
@@ -4625,7 +4893,7 @@ func remote_steer(ctx context.Context, call skgo.Call) (any, error) {
 // A form's submission is assigned onto the handler's own argument type:
 // kit posts a form as binary form data, which can carry an uploaded File,
 // and a File is not a value polytype describes.
-// The result is encoded by EncodeRoot24, generated for its result type.
+// The result is encoded by EncodeRoot25, generated for its result type.
 func remote_steerLoop(ctx context.Context, call skgo.Call) (any, error) {
 	var in pkg_onzggl3sn52xizlt.SkgoArg_steerLoop
 	if err := skgo.DecodeForm(call.Arg, &in); err != nil {
@@ -4639,7 +4907,7 @@ func remote_steerLoop(ctx context.Context, call skgo.Call) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	return EncodeRoot24(out)
+	return EncodeRoot25(out)
 }
 
 // Remotes returns every remote function declared in the app, ready to hand
@@ -4775,6 +5043,14 @@ func Remotes() []*skgo.Remote {
 			CallerRoutes:   params.SkgoCallerRoutes(),
 			Call:           remote_stopTurn,
 			DecodeArg:      requestedArg_stopTurn,
+		}),
+		skgo.NewRemote(skgo.RemoteSpec{
+			Kind:      skgo.KindQuery,
+			Module:    "src/routes/conversation.remote.ts",
+			Name:      "conversationSetup",
+			Fn:        pkg_onzggl3sn52xizlt.Skgo_conversationSetup,
+			Call:      remote_conversationSetup,
+			DecodeArg: requestedArg_conversationSetup,
 		}),
 		skgo.NewRemote(skgo.RemoteSpec{
 			Kind:           skgo.KindForm,

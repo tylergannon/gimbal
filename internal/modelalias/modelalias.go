@@ -4,6 +4,7 @@ package modelalias
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -99,6 +100,29 @@ func newerVersion(a, b string) bool {
 		}
 	}
 	return false
+}
+
+// Newest lists, for each harness, the newest native model of every alias
+// family it serves. Families that share a native model (gpt and sol) list it
+// once.
+func Newest() map[string][]string {
+	names := make([]string, 0, len(families))
+	for name := range families {
+		names = append(names, name)
+	}
+	slices.Sort(names)
+	listed := map[string]bool{}
+	newest := map[string][]string{}
+	for _, name := range names {
+		entry := aliases[name]
+		if listed[entry.native] {
+			continue
+		}
+		listed[entry.native] = true
+		harness := harnesses[entry.provider]
+		newest[harness] = append(newest[harness], entry.native)
+	}
+	return newest
 }
 
 var harnesses = map[string]string{"openai": "codex", "anthropic": "claude", "gemini": "agy", "opencode": "opencode", "diffusion": "pi"}

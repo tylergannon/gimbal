@@ -8,10 +8,16 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
+	"github.com/tylergannon/gimbal/internal/app"
 	"github.com/tylergannon/gimbal/internal/conversation"
+	"github.com/tylergannon/gimbal/internal/host"
+	"github.com/tylergannon/gimbal/internal/skgo/params"
+
+	routes "github.com/tylergannon/gimbal/internal/skgo/links/onzggl3sn52xizlt"
 )
 
 func TestConversationPageRendersProviderAndRealWorktreeFacts(t *testing.T) {
@@ -59,7 +65,7 @@ func TestConversationPageRendersProviderAndRealWorktreeFacts(t *testing.T) {
 		t.Fatalf("GET /conversations: status %d, body %s", response.StatusCode, body)
 	}
 	for _, want := range []string{
-		"Chats", "New tab", "Codex", "Claude", "agy / Gemini",
+		"Chats", "New tab", "Codex", "Claude", "agy / Gemini", "Antigravity · Flash 3.8 Low",
 		selected.Title, selected.Model, selected.Branch, selected.Worktree,
 	} {
 		if !strings.Contains(string(body), want) {
@@ -136,5 +142,43 @@ func gitForConversationPage(t *testing.T, dir string, args ...string) {
 	command := exec.Command("git", append([]string{"-C", dir}, args...)...)
 	if output, err := command.CombinedOutput(); err != nil {
 		t.Fatalf("git %s: %v: %s", strings.Join(args, " "), err, output)
+	}
+}
+
+func TestNewSessionFormNeedsAFirstMessageAndOffersResolvedDefaults(t *testing.T) {
+	repository := t.TempDir()
+	gitForConversationPage(t, repository, "init", "-q", "-b", "main")
+	gitForConversationPage(t, repository, "config", "user.email", "gimbal-test@example.invalid")
+	gitForConversationPage(t, repository, "config", "user.name", "Gimbal Test")
+	gitForConversationPage(t, repository, "commit", "-q", "--allow-empty", "-m", "initial")
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	_, runtime, err := newProject(ctx, repository, WithNoWeb())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = routes.Skgo_createConversation(runtime.Context(), app.RequestEvent[params.Params]{}, routes.CreateConversation{Provider: "claude", Message: "  "})
+	if err == nil || !strings.Contains(err.Error(), "Describe the work") {
+		t.Fatalf("blank first message: %v", err)
+	}
+	if items := runtime.Conversations().List(); len(items) != 0 {
+		t.Fatalf("a blank first message created %d conversations", len(items))
+	}
+
+	setup, err := routes.Skgo_conversationSetup(host.WithOwner(runtime.Context(), runtime.Owner()), runtime.ID())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !setup.Git || setup.Branch != "main" || setup.Directory == "" {
+		t.Fatalf("setup environment = %+v", setup)
+	}
+	for _, harness := range setup.Harnesses {
+		if harness.Default == "" || !slices.Contains(harness.Models, harness.Default) {
+			t.Errorf("%s offers no resolved default model: %+v", harness.ID, harness)
+		}
+	}
+	if len(setup.Harnesses) == 0 || setup.Harnesses[0].ID != "claude" || setup.Harnesses[0].Default != "claude-haiku-4-5" {
+		t.Fatalf("first harness = %+v", setup.Harnesses)
 	}
 }

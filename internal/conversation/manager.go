@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/internal/modelalias"
 	"github.com/tylergannon/gimbal/internal/observation"
 )
 
@@ -240,6 +241,59 @@ func (m *Manager) Create(ctx context.Context, in NewConversation) (Conversation,
 	return clone(item), nil
 }
 
+// Harness is a provider a person can start a conversation with: its cheap
+// default model and the newest model of each family it serves.
+type Harness struct {
+	ID      string   `json:"id"`
+	Default string   `json:"default"`
+	Models  []string `json:"models"`
+}
+
+// Setup is what a new conversation in this project can choose and where it
+// will work. Every conversation runs on this machine; in a Git repository it
+// gets its own worktree branched from HEAD, and elsewhere it shares Directory.
+type Setup struct {
+	Harnesses []Harness `json:"harnesses"`
+	Directory string    `json:"directory"`
+	Git       bool      `json:"git"`
+	Branch    string    `json:"branch"`
+}
+
+// Setup reports the choices and the fixed environment for a new conversation.
+func (m *Manager) Setup(ctx context.Context) (Setup, error) {
+	newest := modelalias.Newest()
+	setup := Setup{Harnesses: []Harness{}}
+	for _, provider := range []string{"claude", "codex", "agy"} {
+		model, _, err := providerModel(provider, "")
+		if err != nil {
+			return Setup{}, err
+		}
+		models := slices.Clone(newest[provider])
+		if !slices.Contains(models, model) {
+			models = append([]string{model}, models...)
+		}
+		setup.Harnesses = append(setup.Harnesses, Harness{ID: provider, Default: model, Models: models})
+	}
+	directory := filepath.Dir(m.projectDir)
+	setup.Directory = directory
+	if home, err := os.UserHomeDir(); err == nil {
+		if rest, ok := strings.CutPrefix(directory, home); ok && (rest == "" || rest[0] == filepath.Separator) {
+			setup.Directory = "~" + rest
+		}
+	}
+	_, err := gitOutput(ctx, directory, "rev-parse", "--show-toplevel")
+	if err != nil && !strings.Contains(err.Error(), "fatal: not a git repository") {
+		return Setup{}, fmt.Errorf("conversation: find repository: %w", err)
+	}
+	if setup.Git = err == nil; setup.Git {
+		setup.Branch, _ = gitOutput(ctx, directory, "branch", "--show-current")
+		if setup.Branch == "" {
+			setup.Branch = "HEAD"
+		}
+	}
+	return setup, nil
+}
+
 // List returns newest-first durable snapshots.
 func (m *Manager) List() []Conversation {
 	m.mu.Lock()
@@ -340,6 +394,32 @@ func (m *Manager) refresh(item *Conversation) {
 	}
 }
 
+// Start creates a conversation titled by its first message, records that
+// message, and runs the first turn in the background. The returned snapshot is
+// already working; the reply lands in the saved conversation.
+func (m *Manager) Start(ctx context.Context, in NewConversation, text string) (Conversation, error) {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return Conversation{}, errors.New("conversation: message is blank")
+	}
+	if strings.TrimSpace(in.Title) == "" {
+		in.Title = titleFrom(text)
+	}
+	item, err := m.Create(ctx, in)
+	if err != nil {
+		return Conversation{}, err
+	}
+	active, snapshot, err := m.begin(item.ID, text)
+	if err != nil {
+		return snapshot, err
+	}
+	go func() {
+		defer active.turnMu.Unlock()
+		_, _ = m.turn(item.ID, text, active)
+	}()
+	return snapshot, nil
+}
+
 // Send records the user's message, runs one turn on the conversation's live
 // provider session in its worktree, and records the final assistant response.
 func (m *Manager) Send(id, text string) (Conversation, error) {
@@ -347,12 +427,23 @@ func (m *Manager) Send(id, text string) (Conversation, error) {
 	if text == "" {
 		return Conversation{}, errors.New("conversation: message is blank")
 	}
+	active, snapshot, err := m.begin(id, text)
+	if err != nil {
+		return snapshot, err
+	}
+	defer active.turnMu.Unlock()
+	return m.turn(id, text, active)
+}
+
+// begin takes the conversation's turn lock and records the user's message.
+// On success the caller owns the lock and must release it after the turn.
+func (m *Manager) begin(id, text string) (*activeConversation, Conversation, error) {
 	m.mu.Lock()
 	item := m.items[id]
 	active := m.active[id]
 	if item == nil {
 		m.mu.Unlock()
-		return Conversation{}, fmt.Errorf("conversation: unknown conversation %q", id)
+		return nil, Conversation{}, fmt.Errorf("conversation: unknown conversation %q", id)
 	}
 	if active == nil && item.NativeSession != "" {
 		active = &activeConversation{session: item.NativeSession, resume: true}
@@ -360,24 +451,31 @@ func (m *Manager) Send(id, text string) (Conversation, error) {
 	}
 	m.mu.Unlock()
 	if active == nil {
-		return clone(item), errors.New("conversation: this saved conversation belongs to an earlier server session; its history is readable, but its native provider session is no longer live")
+		return nil, clone(item), errors.New("conversation: this saved conversation belongs to an earlier server session; its history is readable, but its native provider session is no longer live")
 	}
 
 	active.turnMu.Lock()
-	defer active.turnMu.Unlock()
 	if err := m.ctx.Err(); err != nil {
-		return Conversation{}, context.Cause(m.ctx)
+		active.turnMu.Unlock()
+		return nil, Conversation{}, context.Cause(m.ctx)
 	}
-
 	now := time.Now().UnixMilli()
 	m.mu.Lock()
+	defer m.mu.Unlock()
 	item = m.items[id]
 	item.Messages = append(item.Messages, Message{Role: "user", Text: text, Created: now})
 	item.Status, item.Error, item.Updated = StatusWorking, "", now
 	if err := m.save(item); err != nil {
-		m.mu.Unlock()
-		return Conversation{}, err
+		active.turnMu.Unlock()
+		return nil, Conversation{}, err
 	}
+	return active, clone(item), nil
+}
+
+// turn runs one provider turn for the message begin recorded.
+func (m *Manager) turn(id, text string, active *activeConversation) (Conversation, error) {
+	m.mu.Lock()
+	item := m.items[id]
 	provider, model, worktree := item.Provider, item.Model, item.Worktree
 	m.mu.Unlock()
 
@@ -432,7 +530,7 @@ func (m *Manager) Send(id, text string) (Conversation, error) {
 	}
 	m.mu.Lock()
 	item = m.items[id]
-	now = time.Now().UnixMilli()
+	now := time.Now().UnixMilli()
 	item.Messages = append(item.Messages, Message{Role: "assistant", Text: response.Message, Created: now})
 	m.refresh(item)
 	item.Status, item.Error, item.Updated = StatusIdle, "", now
@@ -524,7 +622,7 @@ func providerModel(provider, model string) (string, string, error) {
 		return model, "low", nil
 	case "claude":
 		if model == "" {
-			model = "claude-haiku-4-5-20251001"
+			model = "claude-haiku-4-5"
 		}
 		if !strings.HasPrefix(model, "claude-") {
 			return "", "", fmt.Errorf("conversation: model %q is not a Claude model", model)
@@ -554,12 +652,28 @@ func providerLabel(provider string) string {
 	case "codex":
 		return "Codex"
 	case "claude":
-		return "Claude"
+		return "Claude Code"
 	case "agy":
-		return "agy / Gemini"
+		return "Antigravity"
 	default:
 		return provider
 	}
+}
+
+// titleFrom names a conversation by the first line of its first message,
+// cut at a word near sixty characters.
+func titleFrom(text string) string {
+	line, _, _ := strings.Cut(strings.TrimSpace(text), "\n")
+	line = strings.TrimSpace(line)
+	runes := []rune(line)
+	if len(runes) <= 60 {
+		return line
+	}
+	cut := string(runes[:60])
+	if space := strings.LastIndex(cut, " "); space > 30 {
+		cut = cut[:space]
+	}
+	return strings.TrimRight(cut, " ,.;:") + "…"
 }
 
 func randomID() (string, error) {

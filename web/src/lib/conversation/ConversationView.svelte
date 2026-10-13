@@ -1,5 +1,6 @@
 <script lang="ts">
   import { navigateOnUnauthorized } from "#lib/auth/unauthorized";
+  import { errorMessage } from "#lib/errors";
   import BotIcon from '@lucide/svelte/icons/bot';
   import ExternalLinkIcon from '@lucide/svelte/icons/external-link';
   import LoaderCircleIcon from '@lucide/svelte/icons/loader-circle';
@@ -66,7 +67,7 @@
         try {
           if (await submitted.submit().updates(projectConversations(project))) submitted.element.reset();
         } catch (error) {
-          if (!navigateOnUnauthorized(error)) actionError = error instanceof Error ? error.message : String(error);
+          if (!navigateOnUnauthorized(error)) actionError = errorMessage(error);
         }
       })}>
         <input {...form.fields.conversation.as('hidden', current.id)} />

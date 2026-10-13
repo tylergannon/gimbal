@@ -1,32 +1,34 @@
 <script lang="ts">
   import { navigateOnUnauthorized } from "#lib/auth/unauthorized";
+  import { errorMessage } from "#lib/errors";
   import type { Conversation } from '#lib/skgo/conversation/types';
   import { goto } from '$app/navigation';
   import { createConversation, projectConversations } from '../../routes/conversation.remote';
   let { project, oncreated }: { project: string; oncreated: (conversation: Conversation) => void } = $props();
   const form = $derived(createConversation.for(project));
-  let provider = $state('codex');
   const defaults: Record<string, string> = { codex: 'gpt-5.6-luna', claude: 'claude-haiku-4-5-20251001', agy: 'gemini-3.8-flash-low' };
-  let model = $derived(defaults[provider]);
-  let actionError = $state("");
+  // Model follows the chosen provider until the person types their own.
+  const provider = $derived(form.fields.provider.value() || 'codex');
+  let actionError = $state('');
 </script>
 
 <section class="create">
   {#if actionError}<p role="alert">{actionError}</p>{/if}
   <div class="heading"><h1>New conversation</h1><p>Choose the agent for this project.</p></div>
   <form {...form.enhance(async (submitted) => {
+    actionError = '';
     try {
       if (await submitted.submit().updates(projectConversations(project)) && submitted.result) {
         oncreated(submitted.result);
         await goto(`/projects/${project}/conversations/${submitted.result.id}`);
       }
     } catch (error) {
-      if (!navigateOnUnauthorized(error)) actionError = error instanceof Error ? error.message : String(error);
+      if (!navigateOnUnauthorized(error)) actionError = errorMessage(error);
     }
   })}>
     <label>Title <input {...form.fields.title.as('text')} placeholder="What are we working on?" /></label>
-    <label>Provider <select {...form.fields.provider.as('select')} bind:value={provider}><option value="codex">Codex</option><option value="claude">Claude</option><option value="agy">Gemini</option></select></label>
-    <label>Model <input {...form.fields.model.as('text')} bind:value={model} /></label>
+    <label>Provider <select {...form.fields.provider.as('select', 'codex')}><option value="codex">Codex</option><option value="claude">Claude</option><option value="agy">Gemini</option></select></label>
+    <label>Model <input {...form.fields.model.as('text', defaults[provider])} /></label>
     {#each form.fields.allIssues() ?? [] as issue}<p role="alert">{issue.message}</p>{/each}
     <button disabled={!!form.pending}>{form.pending ? 'Opening…' : 'Start conversation'}</button>
   </form>

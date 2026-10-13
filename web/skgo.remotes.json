@@ -18,6 +18,9 @@
     "1emnx1f/sendConversationMessage",
     "rm4r49/cancelRun",
     "rm4r49/stopTurn",
+    "rq18yu/beginLogin",
+    "rq18yu/currentUser",
+    "rq18yu/logout",
     "ulwzdf/launchWorkflow",
     "x7ussb/steer",
     "x7ussb/steerLoop"

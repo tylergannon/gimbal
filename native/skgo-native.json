@@ -16,6 +16,7 @@
     ]
   },
   "macosInfo": {
+    "CFBundleIconFile": "Gimbal",
     "SUFeedURL": "https://github.com/tylergannon/gimbal/releases/latest/download/appcast.xml",
     "SUPublicEDKey": "S8KpScV4OUP65eNySDKxNDcKntI4u+kJuwBrd5GQEEk=",
     "SUEnableAutomaticChecks": true,

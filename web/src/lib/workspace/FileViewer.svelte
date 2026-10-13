@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { navigateOnUnauthorized } from "#lib/auth/unauthorized";
   import { viewFile } from "../workspace.remote";
   import { nativeMessage } from "./native";
   let { project, id }: { project: string; id: string } = $props();
@@ -16,7 +17,7 @@
     <strong>{view.file.name}</strong><button onclick={separate}
       >Separate window</button
     ><a href={view.url} target="_blank" rel="noreferrer">Open / download</a
-    ><button onclick={() => viewFile({ project, id }).refresh()}
+    ><button onclick={() => viewFile({ project, id }).refresh().catch(navigateOnUnauthorized)}
       >Refresh link</button
     >
   </header>

@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { navigateOnUnauthorized } from "#lib/auth/unauthorized";
+  import { currentUser } from "../../../../auth.remote";
   import { APP_NAME } from "#lib/app.js";
   import type { Graph } from "#lib/workflow/types.js";
   import {
@@ -215,52 +217,67 @@
   }
 
   async function deliverSteer(request: Steer): Promise<ActionFeedback> {
-    steerForm.fields.set(request);
-    await tick();
-    const submitted = await steerForm.submit();
-    if (!submitted || !steerForm.result) {
-      return {
-        ok: false,
-        message: issueText(steerForm.fields.allIssues(), "The message was not accepted."),
-      };
+    try {
+      steerForm.fields.set(request);
+      await tick();
+      const submitted = await steerForm.submit();
+      if (!submitted || !steerForm.result) {
+        return {
+          ok: false,
+          message: issueText(steerForm.fields.allIssues(), "The message was not accepted."),
+        };
+      }
+      return steerForm.result.landed
+        ? { ok: true, message: "Sent into the running turn." }
+        : { ok: false, message: "Not sent: the turn ended before it could receive the message." };
+    } catch (error) {
+      navigateOnUnauthorized(error);
+      return { ok: false, message: error instanceof Error ? error.message : String(error) };
     }
-    return steerForm.result.landed
-      ? { ok: true, message: "Sent into the running turn." }
-      : { ok: false, message: "Not sent: the turn ended before it could receive the message." };
   }
 
   async function deliverLoop(request: LoopMessage): Promise<ActionFeedback> {
-    loopForm.fields.set(request);
-    await tick();
-    const submitted = await loopForm.submit();
-    if (!submitted || !loopForm.result) {
+    try {
+      loopForm.fields.set(request);
+      await tick();
+      const submitted = await loopForm.submit();
+      if (!submitted || !loopForm.result) {
+        return {
+          ok: false,
+          message: issueText(loopForm.fields.allIssues(), "The planner message was not accepted."),
+        };
+      }
       return {
-        ok: false,
-        message: issueText(loopForm.fields.allIssues(), "The planner message was not accepted."),
+        ok: true,
+        message: request.wrap_up
+          ? "Wrap-up is waiting for the planner’s next decision."
+          : "Message is waiting for the planner’s next decision.",
       };
+    } catch (error) {
+      navigateOnUnauthorized(error);
+      return { ok: false, message: error instanceof Error ? error.message : String(error) };
     }
-    return {
-      ok: true,
-      message: request.wrap_up
-        ? "Wrap-up is waiting for the planner’s next decision."
-        : "Message is waiting for the planner’s next decision.",
-    };
   }
 
   async function deliverAnswer(request: InterviewAnswer): Promise<ActionFeedback> {
-    answerForm.fields.set(request);
-    await tick();
-    const submitted = await answerForm.submit();
-    if (!submitted || !answerForm.result?.accepted) {
+    try {
+      answerForm.fields.set(request);
+      await tick();
+      const submitted = await answerForm.submit();
+      if (!submitted || !answerForm.result?.accepted) {
+        return {
+          ok: false,
+          message: issueText(answerForm.fields.allIssues(), "The interview is no longer waiting."),
+        };
+      }
       return {
-        ok: false,
-        message: issueText(answerForm.fields.allIssues(), "The interview is no longer waiting."),
+        ok: true,
+        message: request.answer ? "Answer accepted by the waiting interview." : "Interview ended.",
       };
+    } catch (error) {
+      navigateOnUnauthorized(error);
+      return { ok: false, message: error instanceof Error ? error.message : String(error) };
     }
-    return {
-      ok: true,
-      message: request.answer ? "Answer accepted by the waiting interview." : "Interview ended.",
-    };
   }
 
   function selectScope(scopeKey: string) {
@@ -275,6 +292,7 @@
         ? { ok: true, message: "Stop accepted. Waiting for the run record to update." }
         : { ok: false, message: "The turn did not accept the stop request." };
     } catch (error) {
+      navigateOnUnauthorized(error);
       return { ok: false, message: error instanceof Error ? error.message : String(error) };
     }
   }
@@ -290,6 +308,7 @@
         : "The turn did not accept the stop request.";
       if (result.accepted) cancelOpen = false;
     } catch (error) {
+      navigateOnUnauthorized(error);
       controlFeedback = error instanceof Error ? error.message : String(error);
     } finally {
       stopping = false;
@@ -306,7 +325,8 @@
         ? "Cancellation accepted. Waiting for the run record to update."
         : "The run did not accept cancellation.";
       if (result.accepted) {cancelOpen = false;if(snapshot.run.status!=="running"){controlFeedback="Scope cleanup completed.";await invalidateAll();}}
-    } catch {
+    } catch (error) {
+      navigateOnUnauthorized(error);
       controlFeedback = "The cancellation request could not be confirmed. Check the run's current status.";
       cancelOpen = false;
     } finally {
@@ -315,6 +335,7 @@
   }
 
   $effect(() => {
+    const authEnabled = page.data.authEnabled;
     const generation = observation.beginConnection();
     let stream: EventSource | undefined;
     let retry: ReturnType<typeof setTimeout> | undefined;
@@ -347,14 +368,26 @@
         if (attempt !== currentAttempt) return;
         if (observation.connectionOpened(generation)) revision++;
       };
-      currentStream.onerror = () => {
+      currentStream.onerror = async () => {
         if (attempt !== currentAttempt) return;
-        attempt++;
+        const failedAttempt = ++attempt;
         const shouldRetry = observation.connectionLost(generation);
         if (observation.isCurrentConnection(generation)) revision++;
         currentStream.close();
         if (stream === currentStream) stream = undefined;
-        if (shouldRetry) retry = setTimeout(connect, 250);
+        if (!shouldRetry) return;
+        if (authEnabled) {
+          try {
+            const user = currentUser();
+            await user.refresh();
+            await user;
+          } catch (error) {
+            if (!observation.isCurrentConnection(generation) || attempt !== failedAttempt) return;
+            if (navigateOnUnauthorized(error)) return;
+          }
+        }
+        if (observation.retryConnection(generation) && attempt === failedAttempt)
+          retry = setTimeout(connect, 250);
       };
     };
     if (observation.run.status === "running") connect();

@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { navigateOnUnauthorized } from "#lib/auth/unauthorized";
+  import { errorMessage } from "#lib/errors";
   import BotIcon from '@lucide/svelte/icons/bot';
   import ExternalLinkIcon from '@lucide/svelte/icons/external-link';
   import LoaderCircleIcon from '@lucide/svelte/icons/loader-circle';
@@ -9,8 +11,10 @@
   import { harnessName as providerName, modelName } from './names';
   let { project, current }: { project: string; current: Conversation } = $props();
   const form = $derived(sendConversationMessage.for(`${project}/${current.id}`));
+  let actionError = $state("");
 </script>
 <section class="workspace" aria-label={current.title}>
+  {#if actionError}<p role="alert">{actionError}</p>{/if}
     {#if current?.id}
       <div class="transcript" aria-live="polite">
         {#if current.runs.length > 0}
@@ -59,7 +63,11 @@
       </div>
 
       <form class="composer" {...form.enhance(async (submitted) => {
-        if (await submitted.submit().updates(projectConversations(project))) submitted.element.reset();
+        try {
+          if (await submitted.submit().updates(projectConversations(project))) submitted.element.reset();
+        } catch (error) {
+          if (!navigateOnUnauthorized(error)) actionError = errorMessage(error);
+        }
       })}>
         <input {...form.fields.conversation.as('hidden', current.id)} />
         <textarea {...form.fields.message.as('text')} rows={3} placeholder={`Message ${providerName(current.provider)}…`} aria-label={`Message ${current.title}`} disabled={!current.live || !!form.pending || current.status === 'working'}></textarea>

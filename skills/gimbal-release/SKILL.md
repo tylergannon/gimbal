@@ -55,6 +55,18 @@ patching generated output by hand. Preserve Gimbal-owned application code when
 updating a scaffold. Follow the existing application composition so tests and
 the built binary exercise the same server.
 
+## Optional web authentication
+
+The root serving command accepts `--auth-file /absolute/auth.json`; custom hosts
+use `web.WithAuthFile`. The file selects a provider and users plugin by Registry
+name and one explicit public origin. Build native `plugins/auth-github` and
+`plugins/auth-files` with the same toolchain/source as the host. Credentials are
+environment references. HTTPS is required off loopback; explicit localhost HTTP
+works for local login. Provision identities through `gimbal user add` on the
+running instance's Unix control socket; login never creates a user. The README
+contains the file shape and invocation. Missing configuration/plugins/storage
+fail startup. The separate task listener remains outside web authentication.
+
 ## Build the macOS workspace
 
 After `just build`, stage the development CLI in the app resources and build

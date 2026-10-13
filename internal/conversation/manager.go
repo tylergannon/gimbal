@@ -206,6 +206,9 @@ func (m *Manager) Create(ctx context.Context, in NewConversation) (Conversation,
 	branch := ""
 	worktree := filepath.Dir(m.projectDir)
 	if hasRepository {
+		if _, err := gitOutput(ctx, repo, "rev-parse", "--verify", "--quiet", "HEAD"); err != nil {
+			return Conversation{}, fmt.Errorf("conversation: the Git repository at %s has no commits yet; commit once so the conversation has a branch to start from", repo)
+		}
 		branch = "gimbal/conversation-" + id[:12]
 		worktree = filepath.Join(m.projectDir, "conversation-worktrees", id)
 		if err := os.MkdirAll(filepath.Dir(worktree), 0o755); err != nil {

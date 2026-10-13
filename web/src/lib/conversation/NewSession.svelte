@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { navigateOnUnauthorized } from '#lib/auth/unauthorized';
+  import { errorMessage } from '#lib/errors';
   import ArrowUpIcon from '@lucide/svelte/icons/arrow-up';
   import CheckIcon from '@lucide/svelte/icons/check';
   import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
@@ -19,6 +21,7 @@
   const conversationsQuery = $derived(projectConversations(project));
   const setup = $derived(setupQuery.current);
   const recent = $derived(conversationsQuery.current ?? []);
+  let actionError = $state('');
   let picked = $state<{ provider: string; model: string }>();
   // Defaults follow this project's last session, then the first harness's cheap model.
   const choice = $derived(picked
@@ -31,9 +34,14 @@
 <section class="new-session">
   <h1>New session in {name}</h1>
   <form class="composer" {...form.enhance(async (submitted) => {
-    if (await submitted.submit().updates(projectConversations(project)) && submitted.result) {
-      oncreated(submitted.result);
-      await goto(`/projects/${project}/conversations/${submitted.result.id}`);
+    actionError = '';
+    try {
+      if (await submitted.submit().updates(projectConversations(project)) && submitted.result) {
+        oncreated(submitted.result);
+        await goto(`/projects/${project}/conversations/${submitted.result.id}`);
+      }
+    } catch (error) {
+      if (!navigateOnUnauthorized(error)) actionError = errorMessage(error);
     }
   })}>
     {#if choice}
@@ -79,6 +87,7 @@
       <button class="send" aria-label="Start session" disabled={!!form.pending || !choice}><ArrowUpIcon size={16} /></button>
     </div>
   </form>
+  {#if actionError}<p class="issue" role="alert">{actionError}</p>{/if}
   {#each form.fields.allIssues() ?? [] as issue (issue.message)}<p class="issue" role="alert">{issue.message}</p>{/each}
   {#if starts.length > 0}
     <div class="start-like">

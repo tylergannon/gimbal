@@ -18,6 +18,7 @@ import (
 
 	"github.com/tylergannon/gimbal/internal/host"
 	generated "github.com/tylergannon/gimbal/internal/skgo"
+	"github.com/tylergannon/gimbal/internal/webauth"
 )
 
 // Instance owns one web listener, one control socket, and any number of
@@ -31,16 +32,32 @@ type Instance struct {
 	shutdown sync.WaitGroup
 	address  string
 	Owner    *host.Owner
+	auth     *webauth.Auth
 }
 
 // Option configures the instance and its web listener.
 type Option func(*config) error
 
 type config struct {
-	network  string
-	port     int
-	uds      string
-	explicit string
+	network      string
+	port         int
+	uds          string
+	explicit     string
+	authFile     string
+	authSelected bool
+}
+
+// WithAuthFile enables authentication from an explicitly selected absolute JSON
+// file. Invalid files, missing plugins or unavailable storage fail startup.
+func WithAuthFile(path string) Option {
+	return func(c *config) error {
+		if c.authSelected {
+			return errors.New("auth file already selected")
+		}
+		c.authSelected = true
+		c.authFile = path
+		return nil
+	}
 }
 
 // WithPort serves the web application on the given loopback TCP port. Port 0
@@ -119,12 +136,22 @@ func NewInstance(ctx context.Context, instanceDir string, initialProjects []stri
 			return nil, err
 		}
 	}
+	var authentication *webauth.Auth
+	if cfg.authSelected {
+		authentication, err = webauth.Open(ctx, cfg.authFile)
+		if err != nil {
+			return nil, fmt.Errorf("gimbal: authentication: %w", err)
+		}
+	}
 	runtimeCtx, cancel := context.WithCancelCause(ctx)
 	instance := &Instance{
-		ctx: runtimeCtx, cancel: cancel, dir: dir, done: make(chan struct{}), Owner: host.New(runtimeCtx, dir),
+		ctx: runtimeCtx, cancel: cancel, dir: dir, done: make(chan struct{}), Owner: host.New(runtimeCtx, dir), auth: authentication,
 	}
 	if err := instance.startControl(); err != nil {
 		cancel(err)
+		if authentication != nil {
+			_ = authentication.Close()
+		}
 		return nil, err
 	}
 	if err := instance.Owner.RestoreProjects(); err != nil {
@@ -147,7 +174,8 @@ func NewInstance(ctx context.Context, instanceDir string, initialProjects []stri
 	}
 	if err := instance.startWeb(cfg); err != nil {
 		cancel(err)
-		instance.shutdown.Wait()
+		instance.waitForShutdown()
+		<-instance.done
 		return nil, err
 	}
 	instance.waitForShutdown()
@@ -171,20 +199,23 @@ func (i *Instance) startWeb(cfg config) error {
 	if configured := os.Getenv("GIMBAL_WEB_ORIGIN"); configured != "" {
 		origin = configured
 	}
+	if i.auth != nil {
+		origin = i.auth.Origin
+	}
 	dist, err := fs.Sub(Build, "build")
 	if err != nil {
 		_ = listener.Close()
 		i.shutdown.Done()
 		return fmt.Errorf("gimbal: web application: %w", err)
 	}
-	handler, mode, err := NewHandler(dist, os.Getenv("GIMBAL_WEB_PROXY"), origin)
+	handler, mode, err := NewHandler(dist, os.Getenv("GIMBAL_WEB_PROXY"), origin, handlerSettings{project: i.projectRequest, auth: i.auth})
 	if err != nil {
 		_ = listener.Close()
 		i.shutdown.Done()
 		return fmt.Errorf("gimbal: assemble web application: %w", err)
 	}
 	server := &http.Server{
-		Handler: i.projectRequest(handler),
+		Handler: handler,
 		BaseContext: func(net.Listener) context.Context {
 			return i.ctx
 		},
@@ -198,7 +229,7 @@ func (i *Instance) startWeb(cfg config) error {
 		}
 	}()
 	context.AfterFunc(i.ctx, func() {
-		_ = server.Close()
+		_ = server.Shutdown(context.Background())
 		<-serveDone
 		if cfg.network == "unix" {
 			_ = os.Remove(address)
@@ -212,6 +243,11 @@ func (i *Instance) startWeb(cfg config) error {
 func (i *Instance) waitForShutdown() {
 	go func() {
 		i.shutdown.Wait()
+		if i.auth != nil {
+			if err := i.auth.Close(); err != nil {
+				log.Printf("gimbal: close authentication: %v", err)
+			}
+		}
 		close(i.done)
 	}()
 }
@@ -231,7 +267,7 @@ func (i *Instance) Address() string {
 func (i *Instance) projectRequest(next http.Handler) http.Handler {
 	sharedRemotes := map[string]bool{}
 	for _, remote := range generated.Remotes() {
-		if remote.Module() == "src/routes/launch.remote.ts" || remote.Module() == "src/lib/transcript.remote.ts" || remote.Module() == "src/lib/workspace.remote.ts" || remote.Module() == "src/lib/window.remote.ts" {
+		if remote.Module() == "src/routes/auth.remote.ts" || remote.Module() == "src/routes/launch.remote.ts" || remote.Module() == "src/lib/transcript.remote.ts" || remote.Module() == "src/lib/workspace.remote.ts" || remote.Module() == "src/lib/window.remote.ts" {
 			sharedRemotes["/_app/remote/"+remote.ID()] = true
 		}
 	}

@@ -86,8 +86,7 @@ func launchInput(d gimbal.WorkflowDescription, fields []LaunchField) (json.RawMe
 	return raw, nil
 }
 func launchInputError(err error, indexes map[string]int) error {
-	var input *gimbal.InputError
-	if errors.As(err, &input) {
+	if input, ok := errors.AsType[*gimbal.InputError](err); ok {
 		if i, ok := indexes[input.Field]; ok {
 			return skgo.Invalidf(fmt.Sprintf("inputs[%d].value", i), "%s", input.Message)
 		}

@@ -59,6 +59,8 @@ type Registry struct {
 	messaging     map[string]MessagingDefinition
 	orchestrators map[string]OrchestratorDefinition
 	secrets       map[string]SecretsDefinition
+	providers     map[string]ProviderDefinition
+	users         map[string]UsersDefinition
 	source        string
 }
 

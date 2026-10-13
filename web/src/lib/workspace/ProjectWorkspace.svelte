@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { navigateOnUnauthorized } from "#lib/auth/unauthorized";
+  import { errorMessage } from "#lib/errors";
   import { onMount, untrack, type Snippet } from 'svelte';
   import { MediaQuery } from 'svelte/reactivity';
   import type { Conversation } from '#lib/skgo/conversation/types';
@@ -73,6 +75,7 @@
     if (!tab || open.some(item => item.id === tab.id)) return;
     open = form >= 0 ? open.with(form, tab) : [...open, tab];
   }
+  let actionError = $state("");
   let started: string | undefined;
   function created(conversation: Conversation) {
     chats.set([conversation, ...conversations.filter(item => item.id !== conversation.id)]);
@@ -113,8 +116,13 @@
   });
   $effect(() => {
     if (!conversations.some(item => item.status === 'working' || item.runs.some(run => run.status === 'running'))) return;
-    const timer = setInterval(() => void projectConversations(project).refresh(), 1000);
+    const timer = setInterval(() => { void projectConversations(project).refresh().catch(navigateOnUnauthorized); }, 1000);
     return () => clearInterval(timer);
+  });
+  $effect(() => {
+    for (const query of [chats, documents, recordings]) {
+      if (query.error) void query.catch(navigateOnUnauthorized);
+    }
   });
   onMount(() => {
     native = !!window.webkit?.messageHandlers?.workspaceState;
@@ -122,7 +130,7 @@
     status = window.voiceNotesLatestStatus;
     const timer = setInterval(() => {
       status = window.voiceNotesLatestStatus;
-      void recordingHistory({ project, after: '' }).refresh();
+      void recordingHistory({ project, after: '' }).refresh().catch(navigateOnUnauthorized);
     }, 5000);
     return () => { window.removeEventListener("gimbal-workspace-command", command); clearInterval(timer); if (native) nativeMessage('workspaceState', { ready: false, sidebarVisible: false, tabCount: 0 }); };
   });
@@ -131,7 +139,7 @@
 <WorkspaceShell project={name} {items} {tabs} {active} bind:sidebar {recording} {native}
   onselect={select} onclose={close} onopen={select} onnew={() => select(`${root}/conversations/new`)}>
   {#snippet content(tab)}
-    <svelte:boundary>
+    <svelte:boundary onerror={(error) => { navigateOnUnauthorized(error); }}>
       {#if tab.id === `${root}/conversations/new`}<NewSession {project} {name} oncreated={created} />
       {:else if tab.id.startsWith(`${root}/conversations/`)}
         {@const current = conversations.find(item => `${root}/conversations/${item.id}` === tab.id)}
@@ -149,10 +157,11 @@
     {:else}<div class="route-content">{@render children()}</div>{/if}
   {/snippet}
   {#snippet sidebarExtra()}
+    {#if actionError}<p role="alert">{actionError}</p>{/if}
     {#if native && status?.sessionID && status.project === project}<div class="recording-detail"><span>{status.pending ? 'Saving to server…' : status.state}</span>{#if status.error}<p role="alert">{status.error}</p><button onclick={() => nativeMessage('reconnect', {})}>Reconnect</button>{/if}</div>{/if}
     <h2 class="group">Recordings</h2>
     {#each history.items as item (item.id)}<a class="row" class:selected={page.params.recordingID === item.id} href={`${root}/recordings/${item.id}`}><span>◉</span><span>{new Date(item.created).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} · {new Date(item.created).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}</span><small>{item.status}</small></a>{:else}<p class="quiet">No recordings yet</p>{/each}
-    <details class="upload"><summary>Add project file</summary><form {...upload.enhance(async (submitted) => { if (await submitted.submit().updates(projectFiles(project)) && submitted.result) { documents.set([submitted.result, ...files.filter(file => file.id !== submitted.result!.id)]); select(`${root}/files/${submitted.result.id}`); } })}><input {...upload.fields.project.as('hidden', project)} /><input aria-label="Choose project file" {...upload.fields.file.as('file')} required /><button disabled={!!upload.pending}>{upload.pending ? 'Uploading…' : 'Upload'}</button>{#each upload.fields.allIssues() ?? [] as issue}<p role="alert">{issue.message}</p>{/each}</form></details>
+    <details class="upload"><summary>Add project file</summary><form {...upload.enhance(async (submitted) => { try { if (await submitted.submit().updates(projectFiles(project)) && submitted.result) { documents.set([submitted.result, ...files.filter(file => file.id !== submitted.result!.id)]); select(`${root}/files/${submitted.result.id}`); } } catch (error) { if (!navigateOnUnauthorized(error)) actionError = errorMessage(error); } })}><input {...upload.fields.project.as('hidden', project)} /><input aria-label="Choose project file" {...upload.fields.file.as('file')} required /><button disabled={!!upload.pending}>{upload.pending ? 'Uploading…' : 'Upload'}</button>{#each upload.fields.allIssues() ?? [] as issue}<p role="alert">{issue.message}</p>{/each}</form></details>
     <nav class="tools" aria-label="Project tools"><a href={root}>Runs</a><a href="/workflows">Workflows</a><a href={`${root}/about`}>About project</a></nav>
     <details class="projects"><summary>Switch project</summary>{#each projects as item (item.id)}<a class="row" href={`/projects/${item.id}/recordings`}>{item.path.split('/').at(-1)}</a>{/each}{#if native}<OpenFolder class="hover:bg-sidebar-accent flex min-h-8 w-full items-center rounded-lg px-2.5 text-xs">Add project</OpenFolder>{:else}<a class="row" href="/">Add project</a>{/if}</details>
   {/snippet}

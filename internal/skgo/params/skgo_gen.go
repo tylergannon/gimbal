@@ -106,6 +106,8 @@ func (WorkflowParam_String) skgoParam_776f726b666c6f77() {}
 func SkgoCallerRoutes() skgo.CallerRoutes {
 	return skgo.CallerRoutes{
 		"/":                         {Params: []skgo.ManifestParam{}, NewParams: func(values map[string]any) (any, error) { return SkgoParams("/", values) }},
+		"/auth":                     {Params: []skgo.ManifestParam{}, NewParams: func(values map[string]any) (any, error) { return SkgoParams("/auth", values) }},
+		"/auth/login":               {Params: []skgo.ManifestParam{}, NewParams: func(values map[string]any) (any, error) { return SkgoParams("/auth/login", values) }},
 		"/projects":                 {Params: []skgo.ManifestParam{}, NewParams: func(values map[string]any) (any, error) { return SkgoParams("/projects", values) }},
 		"/projects/[project]":       {Params: []skgo.ManifestParam{{Name: "project", Matcher: "", Optional: false, Rest: false, Chained: false}}, NewParams: func(values map[string]any) (any, error) { return SkgoParams("/projects/[project]", values) }},
 		"/projects/[project]/about": {Params: []skgo.ManifestParam{{Name: "project", Matcher: "", Optional: false, Rest: false, Chained: false}}, NewParams: func(values map[string]any) (any, error) { return SkgoParams("/projects/[project]/about", values) }},
@@ -151,6 +153,8 @@ func SkgoParams(routeID string, values map[string]any) (Params, error) {
 	var p Params
 	switch routeID {
 	case "/":
+	case "/auth":
+	case "/auth/login":
 	case "/projects":
 	case "/projects/[project]":
 		if raw, present := values["project"]; present {

@@ -83,6 +83,12 @@ func SkgoParamMatchers() map[string]skgo.ParamMatcher {
 // bindings package can spell. Each is the function itself and not a wrapper:
 // skgo.Refresh finds a query by the code pointer of the function it names.
 var (
+	// Skgo_beginLogin is beginLogin, published as src/routes/auth.remote.ts#beginLogin.
+	Skgo_beginLogin = beginLogin
+	// Skgo_currentUser is currentUser, published as src/routes/auth.remote.ts#currentUser.
+	Skgo_currentUser = currentUser
+	// Skgo_logout is logout, published as src/routes/auth.remote.ts#logout.
+	Skgo_logout = logout
 	// Skgo_cancelRun is cancelRun, published as src/routes/control.remote.ts#cancelRun.
 	Skgo_cancelRun = cancelRun
 	// Skgo_stopTurn is stopTurn, published as src/routes/control.remote.ts#stopTurn.

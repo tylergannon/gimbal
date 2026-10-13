@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { navigateOnUnauthorized } from "#lib/auth/unauthorized";
+  import { errorMessage } from "#lib/errors";
   import { createProject } from "#lib/workspace.remote";
   import { page } from "$app/state";
   import { goto } from "$app/navigation";
@@ -8,6 +10,7 @@
   import ProjectsEmpty from "#lib/workspace/ProjectsEmpty.svelte";
   let { data }: { data: { projects: { id: string; path: string }[] } } =
     $props();
+  let actionError = $state("");
 </script>
 
 <svelte:head><title>Projects — {APP_NAME}</title></svelte:head>
@@ -15,6 +18,7 @@
   <ProjectsEmpty desktop={page.data.desktop} />
 {:else}
 <section class="projects mx-auto max-w-3xl px-6 py-10 text-sm">
+  {#if actionError}<p role="alert">{actionError}</p>{/if}
   <h1 class="text-2xl font-semibold tracking-tight">Projects</h1>
   <p class="mt-1 text-muted-foreground">
     A project is a local directory with its recordings, files, conversations
@@ -35,8 +39,12 @@
   <form
     class="mt-8 grid gap-2 border-t pt-6"
     {...createProject.enhance(async (form) => {
-      if (await form.submit()) {
-        if (form.result) await goto(`/projects/${form.result.id}/recordings`);
+      try {
+        if (await form.submit()) {
+          if (form.result) await goto(`/projects/${form.result.id}/recordings`);
+        }
+      } catch (error) {
+        if (!navigateOnUnauthorized(error)) actionError = errorMessage(error);
       }
     })}
   >

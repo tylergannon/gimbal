@@ -1,18 +1,26 @@
 <script lang="ts">
+  import { navigateOnUnauthorized } from "#lib/auth/unauthorized";
+  import { errorMessage } from "#lib/errors";
   import { projectFiles, uploadFile } from "../workspace.remote";
   import FileViewer from "./FileViewer.svelte";
   let { project }: { project: string } = $props();
   const files = $derived(await projectFiles(project));
   const form = $derived(uploadFile.for(project));
   let selected = $state("");
+  let actionError = $state("");
 </script>
 
 <aside class="library" aria-label="Project files">
+  {#if actionError}<p role="alert">{actionError}</p>{/if}
   <h2>Files</h2>
   <form
     {...form.enhance(async (submitted) => {
-      if (await submitted.submit().updates(projectFiles(project))) {
-        if (submitted.result) selected = submitted.result.id;
+      try {
+        if (await submitted.submit().updates(projectFiles(project))) {
+          if (submitted.result) selected = submitted.result.id;
+        }
+      } catch (error) {
+        if (!navigateOnUnauthorized(error)) actionError = errorMessage(error);
       }
     })}
   >
@@ -32,7 +40,7 @@
         >{file.name}</button
       >{:else}<p>No files yet.</p>{/each}
   </nav>
-  {#if selected}<svelte:boundary>
+  {#if selected}<svelte:boundary onerror={(error) => { navigateOnUnauthorized(error); }}>
       <FileViewer {project} id={selected} />{#snippet failed(error, reset)}<p
           role="alert"
         >

@@ -62,7 +62,7 @@ func load(event PageRequestEvent) (Data, error) {
 			return Data{}, remoteErr
 		}
 		if connection.Execution != nil {
-			file, readErr := connection.Execution.ReadBytes(ctx, backend.Artifact{Owner: backend.Owner{Run: runID}, Name: "graph.json"})
+			file, readErr := connection.Execution.ReadBytes(ctx, backend.Artifact{Run: runID, Name: "graph.json"})
 			if readErr != nil {
 				return Data{}, readErr
 			}

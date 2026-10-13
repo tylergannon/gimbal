@@ -25,7 +25,7 @@ func needsSecrets(args []string) bool {
 		return true
 	}
 	switch args[0] {
-	case "generate", "run", "runs", "watch", "steer", "cancel", "count-tokens":
+	case "generate", "run", "runs", "watch", "steer", "cancel", "count-tokens", "user":
 		return false
 	case "audit-index":
 		return false

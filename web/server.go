@@ -7,11 +7,14 @@
 package web
 
 import (
+	"fmt"
 	"io/fs"
 	"log"
 	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/tylergannon/gimbal/internal/webauth"
 
 	"github.com/tylergannon/skgo"
 
@@ -19,12 +22,17 @@ import (
 	generated "github.com/tylergannon/gimbal/internal/skgo"
 )
 
+type handlerSettings struct {
+	project func(http.Handler) http.Handler
+	auth    *webauth.Auth
+}
+
 // NewHandler builds the server over the frontend build in dist. With a
 // non-empty proxy it renders pages from a running `vp dev` server; otherwise it
 // serves the embedded build. Loads, remote functions and server routes sit in
 // front of pages in both modes, so Kit's generated throwing stubs never answer
 // an application request.
-func NewHandler(dist fs.FS, proxy, origin string) (http.Handler, string, error) {
+func NewHandler(dist fs.FS, proxy, origin string, settings ...handlerSettings) (http.Handler, string, error) {
 	// The manifest is read in both modes: it is where appDir and base come
 	// from, and those decide the URL prefix remote calls arrive on.
 	manifest, err := skgo.ReadManifest(dist)
@@ -38,6 +46,13 @@ func NewHandler(dist fs.FS, proxy, origin string) (http.Handler, string, error) 
 		}
 	}
 
+	cfg := handlerSettings{}
+	if len(settings) > 0 {
+		cfg = settings[0]
+	}
+	if cfg.auth != nil && proxy != "" {
+		return nil, "", fmt.Errorf("auth requires a production web build")
+	}
 	remoteCfg := manifest.RemoteConfig(origin)
 	loadCfg := manifest.LoadConfig(origin)
 	endpointCfg := manifest.EndpointConfig(origin)
@@ -139,6 +154,35 @@ func NewHandler(dist fs.FS, proxy, origin string) (http.Handler, string, error) 
 	handleCfg.Static = skgo.ServedAsFile(pages)
 	bound = observation.Routes(explainOriginRefusals(remoteCfg,
 		generated.RequestBoundary(handleCfg, loads.Intercept(remotes.Intercept(endpoints.Intercept(pages))))))
+	anonymous := bound
+	if cfg.project != nil {
+		bound = cfg.project(bound)
+	}
+	if cfg.auth != nil {
+		begin := ""
+		for _, r := range generated.Remotes() {
+			if r.Module() == "src/routes/auth.remote.ts" && r.Name() == "beginLogin" {
+				begin = manifest.Base + "/" + manifest.AppDir + "/remote/" + r.ID()
+			}
+		}
+		if begin == "" {
+			return nil, "", fmt.Errorf("auth beginLogin remote is not generated")
+		}
+		static := map[string]bool{}
+		err := fs.WalkDir(dist, "client", func(path string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if !d.IsDir() {
+				static[manifest.Base+"/"+strings.TrimPrefix(path, "client/")] = true
+			}
+			return nil
+		})
+		if err != nil {
+			return nil, "", err
+		}
+		bound = cfg.auth.Gate(bound, anonymous, begin, static)
+	}
 	return skgo.FetchConfig{Origin: origin, Base: manifest.Base, Handler: internal, Prerendered: manifest.Prerendered}.Intercept(bound), mode, nil
 }
 

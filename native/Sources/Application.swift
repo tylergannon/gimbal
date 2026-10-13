@@ -38,7 +38,7 @@ import SwiftUI
         if let controller = application.controller {
           RecordingMenu(
             controller: controller, input: application.input,
-            showControls: application.showRecordingControls)
+            showControls: application.showRecordingControls, workspace: application.workspace)
         }
       }
     #endif
@@ -72,19 +72,22 @@ import SwiftUI
     @ObservedObject var controller: RecorderController
     @ObservedObject var input: RecordingInput
     let showControls: () -> Void
+    @ObservedObject var workspace: WorkspaceState
     var body: some Commands {
       CommandMenu("Recording") {
         Button("Recording Controls…", action: showControls)
         Divider()
-        Button("Record", action: controller.record).keyboardShortcut(
-          "r", modifiers: [.command, .shift]
+        Button("Start Recording", action: controller.record).keyboardShortcut(
+          "r", modifiers: [.command]
         ).disabled(!controller.canRecord)
-        Button("Pause", action: controller.pause).keyboardShortcut(
-          "p", modifiers: [.command, .shift]
+        Button("Pause Recording", action: controller.pause).keyboardShortcut(
+          "r", modifiers: [.command, .shift]
         ).disabled(!controller.canPause)
-        Button("Resume", action: controller.resume).disabled(!controller.canResume)
-        Button("Stop", action: controller.stop).keyboardShortcut("r", modifiers: [.command, .option])
-          .disabled(!controller.canStop)
+        Button("Resume Recording", action: controller.resume).disabled(!controller.canResume)
+        Button("Stop Recording", action: controller.stop).keyboardShortcut(
+          "r", modifiers: [.command, .option]
+        )
+        .disabled(!controller.canStop)
         Divider()
         if input.fixtureURL != nil {
           Menu("Microphone") {
@@ -98,6 +101,10 @@ import SwiftUI
           .disabled(!controller.canRecord)
           Button("Refresh Microphones", action: input.refresh).disabled(!controller.canRecord)
         }
+        Divider()
+        Button("Show Today's Transcript") { workspace.send("openTodayTranscript") }
+          .keyboardShortcut("t", modifiers: [.command])
+          .disabled(!workspace.enabled || !workspace.canOpenTodayTranscript)
         SettingsLink { Text("Recording Settings…") }
       }
     }

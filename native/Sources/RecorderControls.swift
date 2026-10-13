@@ -157,6 +157,9 @@ struct RecordingLevelMeter: View {
     let controller: RecorderController
     let input: RecordingInput
     let openTranscript: () -> Void
+    let switchProject: () -> Void
+    let workspace: WorkspaceState
+    let recordingProject: () -> String
     @Published private(set) var freshness = "Waiting for the first saved words"
     private let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private let popover = NSPopover()
@@ -167,11 +170,16 @@ struct RecordingLevelMeter: View {
     private var savedAt: Date?
 
     init(
-      controller: RecorderController, input: RecordingInput, openTranscript: @escaping () -> Void
+      controller: RecorderController, input: RecordingInput, workspace: WorkspaceState,
+      recordingProject: @escaping () -> String, openTranscript: @escaping () -> Void,
+      switchProject: @escaping () -> Void
     ) {
       self.controller = controller
       self.input = input
       self.openTranscript = openTranscript
+      self.switchProject = switchProject
+      self.workspace = workspace
+      self.recordingProject = recordingProject
       super.init()
       item.button?.target = self
       item.button?.action = #selector(togglePopover)
@@ -248,6 +256,11 @@ struct RecordingLevelMeter: View {
       openTranscript()
     }
 
+    func showProjectChooser() {
+      popover.close()
+      switchProject()
+    }
+
     func shutdown() {
       timer?.invalidate()
       subscription?.cancel()
@@ -260,17 +273,26 @@ struct RecordingLevelMeter: View {
     @ObservedObject var status: RecordingStatusItem
     @ObservedObject var controller: RecorderController
     @ObservedObject var input: RecordingInput
+    @ObservedObject var workspace: WorkspaceState
 
     init(status: RecordingStatusItem) {
       self.status = status
       controller = status.controller
       input = status.input
+      workspace = status.workspace
     }
 
     var body: some View {
       VStack(alignment: .leading, spacing: 14) {
         HStack {
-          Text("Gimbal Recording").font(.headline)
+          let projectID = controller.canStop ? status.recordingProject() : ""
+          let project =
+            workspace.projects.first { $0.id == projectID }?.name ?? workspace.projectName
+          Text(
+            controller.canStop
+              ? "\(controller.status.state == "paused" ? "Paused" : "Recording") in \(project)"
+              : "Gimbal Recording"
+          ).font(.headline)
           Spacer()
           if controller.canStop {
             RecordingLevelMeter(controller: controller)
@@ -278,6 +300,12 @@ struct RecordingLevelMeter: View {
           }
         }
         RecordingInputNotice(input: input)
+        if input.fixtureURL == nil {
+          Text(
+            input.devices.first { $0.uid == input.selectedUID }?.name ?? "System Default Microphone"
+          )
+          .font(.caption).foregroundStyle(.secondary)
+        }
         if controller.canStop {
           Text(status.freshness).font(.caption).foregroundStyle(.secondary)
         }
@@ -289,6 +317,8 @@ struct RecordingLevelMeter: View {
         Divider()
         Button("Open Transcript", action: status.showTranscript)
           .disabled(controller.status.sessionID.isEmpty)
+        Button("Switch Project…", action: status.showProjectChooser)
+          .disabled(!workspace.ready)
         SettingsLink { Text("Recording Settings…") }
       }
       .padding(16)

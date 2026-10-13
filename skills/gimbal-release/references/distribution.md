@@ -93,6 +93,24 @@ archive's CLI before permitting publication.
 
 ## Automation
 
+`.github/workflows/auto-release.yml` checks each pushed main revision with the
+normal build, vet, test, formatting and Svelte gates. It moves Unreleased entries
+into the next patch changelog, records the checked source SHA, and atomically
+pushes the release metadata commit and tag. If main advanced during checks or
+push, that stale candidate is skipped; the newer push is checked instead.
+Release metadata is pushed with `GITHUB_TOKEN`, so it does not recursively start
+another main workflow. Because token-created tags do not start push workflows,
+the job explicitly dispatches `release.yml` with **both** the ref and tag input
+set to the new tag. Only this preparation job has contents/actions write access;
+Apple credentials remain in the existing tag-restricted release environment.
+
+Automatic releases wait for the tagged workflow under a shared concurrency
+group, keeping publication ordered while pending main pushes coalesce. A rerun
+reuses the source's tag and an active or successful build. A failed tagged build
+is dispatched again at the same tag; existing release assets are replaced before
+retrying the Homebrew update. Use the **Automatic release** Actions workflow's
+manual dispatch on main to retry a failed delivery without a new source commit.
+
 `.github/workflows/release.yml` builds stable semantic-version tags. Linux runs
 on native Ubuntu AMD64/ARM64; Mac assets use the repo-scoped self-hosted
 `amritanandamayi` runner with the `gimbal-release` label, Apple Silicon,

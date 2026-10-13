@@ -162,8 +162,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ inputs.tag || github.ref_name }}
         run: |
-          gh release create "$TAG" --verify-tag --title "Gimbal $TAG" \
-            --generate-notes dist/*.tar.gz dist/checksums.txt dist/macos/*.zip dist/macos/*.dmg dist/macos/appcast.xml
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" --clobber \
+              dist/*.tar.gz dist/checksums.txt dist/macos/*.zip dist/macos/*.dmg dist/macos/appcast.xml
+            gh release edit "$TAG" --draft=false --latest --title "Gimbal $TAG"
+          else
+            gh release create "$TAG" --verify-tag --title "Gimbal $TAG" --latest \
+              --generate-notes dist/*.tar.gz dist/checksums.txt dist/macos/*.zip dist/macos/*.dmg dist/macos/appcast.xml
+          fi
       - uses: actions/checkout@v4
         with:
           repository: tylergannon/homebrew-gimbal

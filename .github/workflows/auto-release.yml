@@ -1,0 +1,82 @@
+name: Automatic release
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Keep publication ordered. Pending pushes coalesce into the latest main revision.
+concurrency:
+  group: automatic-release-${{ github.event_name == 'pull_request' && github.event.pull_request.number || 'main' }}
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Check release source
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          check-latest: true
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.10.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - uses: extractions/setup-just@v4
+      - name: Install workflow runtime shell
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes zsh
+      - name: Check release automation
+        run: python3 -m unittest discover -s scripts -p '*release_test.py' -v
+      - name: Build application
+        run: just build
+      - name: Install browser test runtime
+        run: cd web && pnpm exec playwright install --with-deps chromium
+      - name: Check application
+        run: |
+          just vet
+          just test
+          just fmt-check
+          cd web && pnpm check
+
+  release:
+    name: Tag and publish checked source
+    needs: check
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 130
+    permissions:
+      contents: write
+      actions: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set release commit identity
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+      - name: Prepare next patch release
+        id: version
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+        run: python3 scripts/prepare-release.py "$SOURCE_SHA"
+      - name: Dispatch tagged build and wait for publication
+        if: steps.version.outputs.tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+          RELEASE_SHA: ${{ steps.version.outputs.sha }}
+          REPOSITORY: ${{ github.repository }}
+        run: python3 scripts/dispatch-release.py "$TAG" "$RELEASE_SHA" "$REPOSITORY"

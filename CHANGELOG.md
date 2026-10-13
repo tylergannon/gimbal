@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Publish a checked patch release automatically after main changes, including
+  signed macOS updates and Linux CLI archives. Retry the same version after a
+  publication failure.
+
+### Changed
+
+- Put Projects and Workflows in the native workspace shell, restore the last
+  project on launch, and open sessions ready to compose with live replies.
+- Add native Project and Recording menu commands, working recording controls,
+  and the Gimbal mascot application icon.
+
 ## [0.13.3] - 2026-10-12
 
 ### Fixed

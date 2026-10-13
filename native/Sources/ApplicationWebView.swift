@@ -8,6 +8,7 @@ import WebKit
 @MainActor final class ApplicationWebCoordinator: NSObject, WKNavigationDelegate, WKUIDelegate {
   var url: URL?
   var revision = 0
+  private var signingIn = false
   func update(_ view: WKWebView, url: URL, revision: Int) {
     if self.url != url || self.revision != revision {
       self.url = url
@@ -32,7 +33,7 @@ import WebKit
   }
   func webView(
     _ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction,
-    decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
+    decisionHandler: @escaping @MainActor @Sendable (WKNavigationActionPolicy) -> Void
   ) {
     #if os(macOS)
       if navigationAction.targetFrame == nil, let target = navigationAction.request.url,
@@ -46,6 +47,31 @@ import WebKit
     if navigationAction.targetFrame?.isMainFrame == false {
       decisionHandler(.allow)
       return
+    }
+    if let target = navigationAction.request.url, let url,
+      let server = NativeHost.active?.serverURL
+    {
+      if signingIn, target.scheme == server.scheme, target.host == server.host,
+        target.port == server.port, target.path == "/auth/callback",
+        var callback = URLComponents(url: target, resolvingAgainstBaseURL: false)
+      {
+        // Keep the flow cookie and the new session inside the native proxy.
+        // GitHub still uses the server's registered callback, unchanged.
+        callback.scheme = url.scheme
+        callback.host = url.host
+        callback.port = url.port
+        signingIn = false
+        decisionHandler(.cancel)
+        if let callbackURL = callback.url { webView.load(URLRequest(url: callbackURL)) }
+        return
+      }
+      if target.scheme == "https", target.host == "github.com",
+        signingIn || target.path == "/login/oauth/authorize"
+      {
+        signingIn = true
+        decisionHandler(.allow)
+        return
+      }
     }
     guard let target = navigationAction.request.url, let url,
       target.scheme == url.scheme, target.host == url.host, target.port == url.port

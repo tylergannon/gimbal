@@ -274,7 +274,7 @@ func (a *Auth) callback(w http.ResponseWriter, r *http.Request) {
 	}
 	token := randomToken()
 	hash, _ := tokenHash(token)
-	session := auth.Session{Hash: hash, UserID: u.ID(), ExpiresAt: time.Now().Add(8 * time.Hour)}
+	session := auth.Session{Hash: hash, UserID: u.ID(), ExpiresAt: time.Now().Add(7 * 24 * time.Hour)}
 	if err := a.Users.CreateSession(r.Context(), session); err != nil {
 		refuse(503, "Session storage is unavailable.")
 		return

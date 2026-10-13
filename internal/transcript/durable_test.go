@@ -71,3 +71,44 @@ func TestCloseRequiresAcknowledgedSequence(t *testing.T) {
 		t.Fatal("closed unacknowledged text")
 	}
 }
+
+func TestRequirementsFlag(t *testing.T) {
+	dir := t.TempDir()
+	s, e := NewDurable(dir)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if _, e = s.Open(OpenRequest{SessionID: "live", Source: "synthetic", Requirements: true}); e != nil {
+		t.Fatal(e)
+	}
+	if _, e = s.Open(OpenRequest{SessionID: "old", Source: "synthetic"}); e != nil {
+		t.Fatal(e)
+	}
+	if _, e = s.MarkRequirements("missing"); e == nil {
+		t.Fatal("marked unknown recording")
+	}
+	for range 2 {
+		if h, e := s.MarkRequirements("old"); e != nil || !h.Requirements {
+			t.Fatalf("mark: %+v %v", h, e)
+		}
+	}
+	// A native reopen without the flag must not fail or unmark.
+	if _, e = s.Open(OpenRequest{SessionID: "old", Source: "synthetic"}); e != nil {
+		t.Fatal(e)
+	}
+	fresh, e := NewDurable(dir)
+	if e != nil {
+		t.Fatal(e)
+	}
+	for _, id := range []string{"live", "old"} {
+		r, e := fresh.Get(id)
+		if e != nil || !r.Requirements {
+			t.Fatalf("%s full file: %+v %v", id, r.Header, e)
+		}
+	}
+	for _, h := range fresh.List("").Items {
+		if !h.Requirements {
+			t.Fatalf("%s meta lost the flag", h.ID)
+		}
+	}
+}

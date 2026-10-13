@@ -3,6 +3,7 @@ import { command, query } from "$app/server";
 import type {
   Ack,
   CloseRequest,
+  Header,
   History,
   OpenRequest,
   Recording,
@@ -14,6 +15,7 @@ import type { HistoryRequest, RecordingRequest, StateRequest } from "./types";
 export type {
   Ack,
   CloseRequest,
+  Header,
   History,
   HistoryRequest,
   OpenRequest,
@@ -38,6 +40,10 @@ export const acceptTranscript = command("unchecked", (_arg: Update): Ack => unim
 export const activateSession = command("unchecked", (_arg: SessionRequest): Ack => unimplemented());
 
 export const closeSession = command("unchecked", (_arg: CloseRequest): Ack => unimplemented());
+
+export const markRequirements = command("unchecked", (_arg: RecordingRequest): Header =>
+  unimplemented(),
+);
 
 export const openSession = command("unchecked", (_arg: OpenRequest): Ack => unimplemented());
 

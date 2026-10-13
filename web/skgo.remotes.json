@@ -8,6 +8,7 @@
     "13p9jtx/acceptTranscript",
     "13p9jtx/activateSession",
     "13p9jtx/closeSession",
+    "13p9jtx/markRequirements",
     "13p9jtx/openSession",
     "13p9jtx/recordingHistory",
     "13p9jtx/touchSession",

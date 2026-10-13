@@ -20,6 +20,8 @@ var (
 	Skgo_activateSession = activateSession
 	// Skgo_closeSession is closeSession, published as src/lib/transcript.remote.ts#closeSession.
 	Skgo_closeSession = closeSession
+	// Skgo_markRequirements is markRequirements, published as src/lib/transcript.remote.ts#markRequirements.
+	Skgo_markRequirements = markRequirements
 	// Skgo_openSession is openSession, published as src/lib/transcript.remote.ts#openSession.
 	Skgo_openSession = openSession
 	// Skgo_recordingHistory is recordingHistory, published as src/lib/transcript.remote.ts#recordingHistory.

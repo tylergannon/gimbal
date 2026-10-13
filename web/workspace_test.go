@@ -90,10 +90,10 @@ func TestRecordingNativeCommandsSurviveInstanceReplacement(t *testing.T) {
 		}
 	}
 	for n := range 31 {
-		call("openSession", map[string]any{"project": id, "sessionID": fmt.Sprintf("history-%02d", n), "source": "synthetic"})
+		call("openSession", map[string]any{"project": id, "sessionID": fmt.Sprintf("history-%02d", n), "source": "synthetic", "requirements": false})
 		call("closeSession", map[string]any{"project": id, "sessionID": fmt.Sprintf("history-%02d", n), "sequence": 0})
 	}
-	call("openSession", map[string]any{"project": id, "sessionID": "active", "source": "synthetic"})
+	call("openSession", map[string]any{"project": id, "sessionID": "active", "source": "synthetic", "requirements": false})
 	call("activateSession", map[string]any{"project": id, "sessionID": "active"})
 	update := map[string]any{"project": id, "sessionID": "active", "sequence": 1, "finalized": []any{}, "provisional": []any{map[string]any{"startMs": 0, "endMs": 500, "text": "incorrect"}}}
 	call("acceptTranscript", update)

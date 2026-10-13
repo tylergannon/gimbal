@@ -271,3 +271,23 @@ func (s *DurableStore) List(after string) History {
 	}
 	return out
 }
+
+// MarkRequirements flags a recording as a requirements discussion. The meta file is
+// written first because it is what List and the promises worker read.
+func (s *DurableStore) MarkRequirements(id string) (Header, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	r, err := s.read(id)
+	if err != nil {
+		return Header{}, err
+	}
+	r.Requirements = true
+	if err := WriteJSON(filepath.Join(s.dir, r.ID+".meta.json"), r.Header); err != nil {
+		return Header{}, err
+	}
+	s.headers[r.ID] = r.Header
+	if err := WriteJSON(filepath.Join(s.dir, r.ID+".json"), r); err != nil {
+		return Header{}, err
+	}
+	return visible(r.Header), nil
+}

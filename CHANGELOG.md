@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.3] - 2026-10-12
+
+### Fixed
+
+- Launch the macOS app's bundled Gimbal server when no `GIMBAL_SERVER_URL`
+  is supplied. Keep the desktop project registry in `~/.gimbal/desktop`,
+  restore it on relaunch, and wait for server readiness before opening the
+  workspace. An explicit server URL continues to connect to that server.
+
 ## [0.13.2] - 2026-10-12
 
 ### Added
@@ -177,7 +186,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `opencode/provider/model` routing, one shared server managed by
   `gimbal opencode start|stop`, and raw event/request captures for diagnostics.
 
-[Unreleased]: https://github.com/tylergannon/gimbal/compare/v0.13.2...main
+[Unreleased]: https://github.com/tylergannon/gimbal/compare/v0.13.3...main
+[0.13.3]: https://github.com/tylergannon/gimbal/compare/v0.13.2...v0.13.3
 [0.13.2]: https://github.com/tylergannon/gimbal/compare/v0.13.1...v0.13.2
 [0.13.1]: https://github.com/tylergannon/gimbal/compare/v0.13.0...v0.13.1
 [0.13.0]: https://github.com/tylergannon/gimbal/compare/v0.12.1...v0.13.0

@@ -235,11 +235,17 @@ INFO="$APP_OUT/Contents/Info.plist"
 
 if [[ "$MODE" == "build-only" ]]; then
 	[[ -x "$APP_OUT/Contents/Resources/gimbal" ]] || die 'built app is missing its bundled Gimbal CLI'
+	if ! "$APP_OUT/Contents/Resources/gimbal" --version | grep -Fq "v$VERSION"; then
+		die "app's bundled CLI version does not match $VERSION"
+	fi
 	printf 'Unsigned app: %s\n' "$APP_OUT"
 	exit 0
 fi
 
 [[ -x "$APP_OUT/Contents/Resources/gimbal" ]] || die 'app is missing its bundled Gimbal CLI'
+if ! "$APP_OUT/Contents/Resources/gimbal" --version | grep -Fq "v$VERSION"; then
+	die "app's bundled CLI version does not match $VERSION"
+fi
 
 MAIN_NAME="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$INFO")"
 MAIN_EXECUTABLE="$APP_OUT/Contents/MacOS/$MAIN_NAME"

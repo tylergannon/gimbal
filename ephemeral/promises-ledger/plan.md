@@ -425,8 +425,9 @@ discussion; its promises appear here."
   `gimbal.HarnessAdapter`, a real `DurableStore` in `t.TempDir()`, `step` with
   explicit `now`: apply cases (ids, equivalent update ⇒ evidence only, changed
   update, withdraw, unknown id, empty title or details on add, empty fields on
-  update keep current values, tag normalization, chunk clamp, quote found in a different new chunk is attributed to that chunk, fabricated quote ⇒ no evidence, op still applied
-  replaced by chunk text);
+  update keep current values, tag normalization, a quote found in a different
+  new chunk is attributed to that chunk, a fabricated quote ⇒ no evidence but
+  the op applies);
   settle (live not processed at t+0 but at t+8 s; stopped immediately;
   non-requirements ignored; 15 chunks ⇒ 12 then 3 with 2 overlap);
   validation (empty-details add or unknown-id update ⇒ batch fails, cursor

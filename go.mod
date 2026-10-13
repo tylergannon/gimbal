@@ -28,7 +28,7 @@ require (
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10
 	github.com/tiktoken-go/tokenizer v0.8.1
-	github.com/tylergannon/claude-agent-sdk-go v1.1.1
+	github.com/tylergannon/claude-agent-sdk-go v1.2.1
 	github.com/tylergannon/devalue/v5 v5.0.0
 	github.com/tylergannon/polytype v1.5.0
 	github.com/tylergannon/skgo v0.29.0

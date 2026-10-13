@@ -144,9 +144,6 @@ func TestATurnFailsWhenClaudeCodeDiesOnStart(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
-	previous := startTimeout
-	startTimeout = 2 * time.Second
-	t.Cleanup(func() { startTimeout = previous })
 
 	adapter := New()
 	id, err := adapter.CreateSession(context.Background(), "claude-haiku-4-5", "", t.TempDir())

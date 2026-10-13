@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import { PanelLeft } from '@lucide/svelte';
+  import { APP_NAME } from '#lib/app.js';
   import TabStrip from './TabStrip.svelte';
   import TabGlyph from './TabGlyph.svelte';
   import TabStatus from './TabStatus.svelte';
@@ -41,7 +42,8 @@
     <aside aria-label="Project sidebar">
       <!-- Native titlebar integration supplies the traffic lights later. -->
       <div class="native-space"></div>
-      <div class="project"><span class="tile" aria-hidden="true">{project.slice(0, 1).toUpperCase()}</span><span>{project}</span></div>
+      <div class="brand"><span class="tile" aria-hidden="true">{APP_NAME.slice(0, 1)}</span><span>{APP_NAME}</span></div>
+      <div class="project"><small>Project</small><span title={project}>{project}</span></div>
       {@render recordingStatus()}
       {#each ['chat', 'file'] as kind}
         <h2>{kind === 'chat' ? 'Chats' : 'Files'}</h2>
@@ -93,7 +95,10 @@
   .empty { display: grid; place-items: center; height: 100%; color: var(--muted-foreground); }
   aside { width: 260px; flex: none; display: flex; flex-direction: column; min-height: 0; overflow: auto; padding: 0 8px 12px; background: var(--sidebar); color: var(--sidebar-foreground); border-right: 1px solid var(--sidebar-border); }
   .native-space { height: 52px; flex: none; }
-  .project { display: flex; align-items: center; gap: 10px; padding: 0 8px; height: 36px; flex: none; font-weight: 600; }
+  .brand { display: flex; align-items: center; gap: 10px; padding: 0 8px; height: 36px; flex: none; font-weight: 600; }
+  .project { display: grid; flex: none; margin-top: 12px; padding: 0 10px; font-size: 13px; font-weight: 500; }
+  .project small { color: var(--muted-foreground); font-size: 11px; font-weight: 400; }
+  .project span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .tile { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; background: var(--sidebar-primary); color: var(--sidebar-primary-foreground); font-size: 12px; }
   .recording-status { display: flex; align-items: center; gap: 8px; padding: 0 8px; height: 32px; flex: none; font-size: 13px; color: var(--muted-foreground); }
   .timer { font: 12px var(--font-mono); font-variant-numeric: tabular-nums; }

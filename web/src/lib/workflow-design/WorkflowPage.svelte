@@ -9,6 +9,7 @@
  import {decodeView,encodeView,normalizeView,type ViewState} from './view-state';
  import type {SourcePage} from './types';
  import './viewer.css';
+ import {APP_NAME} from '#lib/app.js';
  type Snapshot={page?:SourcePage;revision:number;status:'ready'|'updating'|'error';error?:string};
  let {initial}:{initial:SourcePage}=$props();
  const first=untrack(()=>initial);
@@ -63,7 +64,7 @@
  });
 </script>
 <svelte:window onpopstate={restoreHistory}/>
-<svelte:head><title>{current.name} — Gimbal</title></svelte:head>
+<svelte:head><title>{current.name} — {APP_NAME}</title></svelte:head>
 <section class="workflow-page">
  <header class="page-heading"><h1>{current.name}</h1><p>{current.guide?.summary}</p></header>
  <nav class="views" aria-label="Workflow views">
@@ -80,11 +81,11 @@
  {/if}
 </section>
 <style>
- .workflow-page{display:flex;flex-direction:column;height:calc(100dvh - 54px);min-height:420px;color:#0b0c0c;background:#fff}
- .page-heading{padding:14px 24px 10px;flex:none}.page-heading h1{font-size:22px;line-height:1.3;font-weight:650;margin:0}.page-heading p{font-size:14px;line-height:1.45;margin:4px 0 0;max-width:65ch}
- .views{display:flex;gap:20px;padding:0 24px;border-bottom:1px solid #a6acb0;flex:none}.views a{display:block;font-size:14px;padding:9px 0;color:#333b41;text-decoration:none;border-bottom:3px solid transparent}.views a[aria-current]{border-color:#1a65a6;color:#124d80;font-weight:650}
+ .workflow-page{display:flex;flex-direction:column;flex:1;min-height:0;color:var(--foreground);background:var(--background)}
+ .page-heading{padding:14px 24px 10px;flex:none}.page-heading h1{font-size:var(--text-2xl);line-height:1.3;font-weight:var(--font-weight-semibold);letter-spacing:var(--tracking-tight);margin:0}.page-heading p{font-size:var(--text-sm);line-height:1.45;margin:4px 0 0;max-width:65ch;color:var(--muted-foreground)}
+ .views{display:flex;gap:20px;padding:0 24px;border-bottom:1px solid var(--border);flex:none}.views a{display:block;font-size:var(--text-sm);padding:9px 0;color:var(--muted-foreground);text-decoration:none;border-bottom:2px solid transparent}.views a[aria-current]{border-color:var(--foreground);color:var(--foreground);font-weight:var(--font-weight-medium)}
  .diagram{flex:1;min-height:0}.diagram[hidden]{display:none}.reading{overflow:auto;padding:24px;flex:1;min-height:0}
- .source-status{flex:none;margin:0;padding:8px 24px;font-size:13px;background:#fff4cc;color:#403100;border-bottom:1px solid #8a6a00}.source-status pre{white-space:pre-wrap;max-height:150px;overflow:auto}.error{background:#fff0ec;color:#792510}
- .views a:focus-visible{outline:3px solid #0b0c0c;outline-offset:2px;box-shadow:0 0 0 5px #ffdd00}
+ .source-status{flex:none;margin:0;padding:8px 24px;font-size:13px;background:var(--muted);color:var(--foreground);border-bottom:1px solid var(--border)}.source-status pre{white-space:pre-wrap;max-height:150px;overflow:auto}.error{color:var(--destructive)}
+ .views a:focus-visible{outline:2px solid var(--ring);outline-offset:2px}
  @media(max-width:760px){.page-heading{padding:10px 16px}.page-heading p{font-size:13px}.views{padding:0 16px}.reading{padding:20px 16px}}
 </style>

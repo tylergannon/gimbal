@@ -1,9 +1,13 @@
+<script lang="ts">
+	import { APP_NAME } from "#lib/app.js";
+</script>
+
 <svelte:head>
-	<title>About Gimbal</title>
+	<title>About {APP_NAME}</title>
 </svelte:head>
 
 <article>
-	<h1 data-testid="title">About Gimbal</h1>
+	<h1 data-testid="title">About {APP_NAME}</h1>
 	<p class="lead">
 		Gimbal is a small Go runtime for programs that ask agents to do work. It makes the
 		workflow visible in the code and keeps a record of each run.

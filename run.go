@@ -13,6 +13,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/tylergannon/gimbal/backend"
 	"github.com/tylergannon/gimbal/internal/effects"
@@ -24,6 +25,7 @@ import (
 )
 
 type projectKey struct{}
+type cleanupTimeoutKey struct{}
 
 func runDir(ctx context.Context) string {
 	s, _ := ctx.Value(scopeKey{}).(*scope)
@@ -37,6 +39,21 @@ func runDir(ctx context.Context) string {
 // under its runs directory. This alone does not attach a run to a web instance.
 func Project(ctx context.Context, dir string) context.Context {
 	return context.WithValue(ctx, projectKey{}, dir)
+}
+
+// WithCleanupTimeout sets a positive timeout for cleanup operations in runs
+// started with ctx: adapter Close, secret release, remote cleanup requests, and
+// waiting for remote services to confirm completion. The value is captured when
+// Run starts; changing a child context cannot change an active run's policy.
+// Without an override, these operations retain their production defaults
+// (ten seconds for completion/Close, thirty seconds for a remote cleanup request).
+// It does not change the local process SIGINT grace period.
+// A nonpositive timeout is a programming error and panics.
+func WithCleanupTimeout(ctx context.Context, timeout time.Duration) context.Context {
+	if timeout <= 0 {
+		panic("gimbal: cleanup timeout must be positive")
+	}
+	return context.WithValue(ctx, cleanupTimeoutKey{}, timeout)
 }
 
 // RegisteredGraph returns the workflow graph compiled into this binary under
@@ -67,6 +84,15 @@ type run struct {
 	pendingScopes map[string]*scope
 	cleanupMu     sync.Mutex
 	finished      chan struct{}
+
+	cleanupTimeout time.Duration // immutable per-run override; zero retains operation defaults
+}
+
+func (r *run) cleanupTimeoutOr(defaultTimeout time.Duration) time.Duration {
+	if r.cleanupTimeout > 0 {
+		return r.cleanupTimeout
+	}
+	return defaultTimeout
 }
 
 // CloseError aggregates every HarnessAdapter.Close failure a run's sessions
@@ -194,6 +220,7 @@ func beginRun(ctx context.Context, name string, models map[WorkflowRole]ModelBin
 		return nil, nil, fmt.Errorf("gimbal: %w", err)
 	}
 	r := &run{finished: make(chan struct{}), dir: dir, models: models, writer: w, sessions: make(map[string]*eventWriter), scopes: make(map[string]*scope), turns: make(map[string]context.CancelCauseFunc), interviews: make(map[string]*interviewWaiter)}
+	r.cleanupTimeout, _ = ctx.Value(cleanupTimeoutKey{}).(time.Duration)
 	r.store = store
 	if graph, ok := RegisteredGraph(name); ok {
 		raw, err := json.Marshal(graph)
@@ -468,7 +495,7 @@ func (r *run) retryCleanup() error {
 		}
 	}
 	for id, session := range pending {
-		ctx, cancel := context.WithTimeout(context.Background(), closeTimeout)
+		ctx, cancel := context.WithTimeout(context.Background(), r.cleanupTimeoutOr(closeTimeout))
 		err := session.adapter.Close(ctx, session.native)
 		cancel()
 		if err != nil {

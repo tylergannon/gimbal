@@ -338,27 +338,6 @@ func (a *Auth) Gate(protected, anonymous http.Handler, beginLogin string, static
 			http.Error(w, "Request origin is not allowed.", http.StatusForbidden)
 			return
 		}
-		ctx, cancel := context.WithCancel(auth.WithUser(r.Context(), u))
-		defer cancel()
-		done := make(chan struct{})
-		defer close(done)
-		go func() {
-			tick := time.NewTicker(30 * time.Second)
-			defer tick.Stop()
-			for {
-				select {
-				case <-done:
-					return
-				case <-ctx.Done():
-					return
-				case <-tick.C:
-					if _, _, err := a.session(ctx, r); err != nil {
-						cancel()
-						return
-					}
-				}
-			}
-		}()
-		protected.ServeHTTP(w, r.WithContext(ctx))
+		protected.ServeHTTP(w, r.WithContext(auth.WithUser(r.Context(), u)))
 	})
 }

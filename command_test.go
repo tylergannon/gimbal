@@ -162,7 +162,7 @@ func TestRunCommandKeepsLongOutputInAFile(t *testing.T) {
 		done := make(chan struct{})
 		go func() {
 			defer close(done)
-			_, stdout, _, commandErr = RunCommand(ctx, "long", "", "sh", "-c", "head -c 70000 /dev/zero | tr '\\0' x; sleep 1; printf end")
+			_, stdout, _, commandErr = RunCommand(ctx, "long", "", "sh", "-c", `awk 'BEGIN { for (i=0; i<14000; i++) printf "word "; }'; sleep 1; printf end`)
 		}()
 		close(started)
 		var file string
@@ -188,7 +188,7 @@ func TestRunCommandKeepsLongOutputInAFile(t *testing.T) {
 	}
 	<-started
 	<-release
-	if len(stdout) >= 70003 || !strings.Contains(stdout, "bytes omitted") || !strings.Contains(stdout, "Complete output: ") || !strings.HasSuffix(stdout, "xend") {
+	if len(stdout) >= 70003 || !strings.Contains(stdout, "bytes omitted") || !strings.Contains(stdout, "Complete output: ") || !strings.HasSuffix(stdout, "word end") {
 		t.Fatalf("RunCommand returned an unbounded or unusable preview (%d bytes): %q", len(stdout), stdout[max(0, len(stdout)-200):])
 	}
 	row := find(commandRows(t, dir), "long.1")
@@ -196,7 +196,7 @@ func TestRunCommandKeepsLongOutputInAFile(t *testing.T) {
 		t.Fatalf("long.1 row = %+v, want the returned preview and both stream files", row)
 	}
 	whole, err := os.ReadFile(filepath.Join(dir, row.StdoutFile))
-	if err != nil || len(whole) != 70003 || !strings.HasSuffix(string(whole), "xend") {
+	if err != nil || string(whole) != strings.Repeat("word ", 14_000)+"end" {
 		t.Fatalf("%s holds %d bytes (%v), want the exact 70003-byte stream", row.StdoutFile, len(whole), err)
 	}
 }

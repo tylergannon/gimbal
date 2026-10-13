@@ -39,7 +39,7 @@ func (s *scope) remoteCleanup() error {
 	if endpoint == "" {
 		return nil
 	}
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(s.ctx), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(s.ctx), s.run.cleanupTimeoutOr(30*time.Second))
 	defer cancel()
 	err := effects.Cleanup(ctx, endpoint, filepath.Base(s.run.dir), s.key)
 	s.run.closeMu.Lock()

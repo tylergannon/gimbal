@@ -1,3 +1,5 @@
+//go:build releasecheck
+
 package main
 
 import (
@@ -15,12 +17,14 @@ func TestBinaryAnalysisAndOrdinaryCLIRoutes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	binDir := t.TempDir()
-	binary := filepath.Join(binDir, "gimbal")
-	build := exec.Command("go", "build", "-o", binDir+string(os.PathSeparator), "./cmd/gimbal")
-	build.Dir = repo
-	if output, err := build.CombinedOutput(); err != nil {
-		t.Fatalf("build gimbal: %v\n%s", err, output)
+	// This pre-release gate exercises the CLI from the application's build.
+	// It must never compile a second executable inside the ordinary test suite.
+	binary := os.Getenv("GIMBAL_TEST_BINARY")
+	if !filepath.IsAbs(binary) {
+		t.Fatal("GIMBAL_TEST_BINARY must name the absolute path to the freshly built CLI; run just build then just check-cli-release")
+	}
+	if info, err := os.Stat(binary); err != nil || info.IsDir() {
+		t.Fatalf("built CLI is unavailable: %s (%v)", binary, err)
 	}
 
 	stdout, stderr, code := runCommand(t, repo, binary, "lint", "./internal/workflows/review")

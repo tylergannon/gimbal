@@ -55,6 +55,11 @@ check-web:
 check-hooks:
     python3 -B -m unittest discover -s scripts -p 'staged_hook_test.py' -v
 
+# Pre-release executable protocol/routing gate. Run just build first; reuse its CLI.
+check-cli-release:
+    test -x bin/gimbal
+    GIMBAL_TEST_BINARY="$(pwd)/bin/gimbal" go test -count=1 -tags=releasecheck ./cmd/gimbal -run '^TestBinaryAnalysisAndOrdinaryCLIRoutes$'
+
 test:
     go test -count=1 ./...
     cd web && pnpm test

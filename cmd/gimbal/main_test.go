@@ -143,6 +143,37 @@ func TestBundledServerReadyBindsEphemeralPortWithoutAdmittingCWD(t *testing.T) {
 	}
 }
 
+func TestOwnedServerStopsWhenItsStdinCloses(t *testing.T) {
+	owner, ownerEnd := io.Pipe()
+	ready := make(readyLineWriter, 1)
+	done := make(chan error, 1)
+	go func() {
+		done <- serve(context.Background(), serverFlags{
+			instanceDir:  filepath.Join(t.TempDir(), "desktop"),
+			noProject:    true,
+			ready:        true,
+			ownedByStdin: true,
+			stdin:        owner,
+		}, ready)
+	}()
+	select {
+	case <-ready:
+	case err := <-done:
+		t.Fatalf("server exited before readiness: %v", err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("server did not report readiness")
+	}
+	_ = ownerEnd.Close()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("server shutdown: %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("server kept running after its owner's pipe closed")
+	}
+}
+
 func TestServerFlagConflictsFailBeforeStarting(t *testing.T) {
 	tests := []struct {
 		name  string

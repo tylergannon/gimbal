@@ -134,7 +134,8 @@ Host wiring (`internal/host/host.go`): field `promises *promises.Store` on
 ```go
 model, err := promises.Model(os.Getenv("GIMBAL_PROMISES_MODEL")) // "" -> "sonnet:low"
 // err -> admission error (explicit misconfiguration only)
-go p.promises.Run(p.ctx, p.recordings, model)
+p.promisesDone = make(chan struct{})
+go func() { defer close(p.promisesDone); p.promises.Run(p.ctx, p.recordings, model) }()
 ```
 
 `promises.Model(spec)` resolves the spec through `modelalias` (as
@@ -187,7 +188,13 @@ Codegen: `go generate ./...` (`internal/skgo/config.go:18`) regenerates
 ## 5. Ledger worker
 
 One goroutine per project from `AdmitProject` (like `cleanupExitedTasks`,
-`host.go:149`, `:334-355`); exits with `p.ctx`. Writers: this goroutine and
+`host.go:149`, `:334-355`); exits with `p.ctx`. It is joined, not abandoned:
+`Project` gains `promisesDone chan struct{}`, closed when `Run` returns, and
+`Owner.Close` (`host.go:177-183`) waits `<-p.promisesDone` before
+`p.ownerLock.Close()`. The owner context is already cancelled when `Close`
+runs (`web/control.go:216-223`), so the wait is bounded by one in-flight turn's
+cancellation grace (`claude/claude.go:320-328`) plus one save; a second Gimbal
+cannot take `owner.lock` while the old worker can still write `ledger.json`. Writers: this goroutine and
 `SetWithdrawn`, both under `Store.mu`.
 
 Cadence: `Run` = 2 s ticker calling `step(ctx, recordings, model, now)`. One step:
@@ -223,24 +230,23 @@ Live status transitions (all under `mu`; each bumps `version`):
 | batch for R starts (before the LLM call) | true | unchanged | — |
 | batch for R saved | false | delete `errs[R]` | `next` |
 | LLM/validation failure for R | false | `errs[R]` = message | — |
-| save failure for R | false | `errs[R]` = message | reloaded from disk |
-| `SetWithdrawn` saved / failed | unchanged | unchanged | `next` / reloaded |
+| save failure for R | false | `errs[R]` = message | unchanged (old) |
+| `SetWithdrawn` saved / failed | unchanged | unchanged | `next` / unchanged |
 
 A success for one recording never clears another recording's failure.
 `SetWithdrawn` returns its save error to the caller instead of setting `errs`.
 `working`/`errs` never touch the file. `Snapshot` copies entries plus these
 three fields into a `View`.
 
-Save failure: `WriteJSON` can fail before the rename (nothing durable changed)
-or after it (`durable.go:95-125`: dir open/fsync — the new file may be in
-place). Either way the store reloads `ledger.json` from disk and adopts it as
-the in-memory ledger, then decides by the reloaded cursor: if
-`Cursors[R] == end` the rename landed and the batch counts as saved (the
-"batch for R saved" row: `errs[R]` deleted); otherwise the old cursor stands,
-`errs[R]` is set, R backs off, and the batch is retried. Disk is the single
-source of truth; memory never runs ahead of it. Tested by making the promises
-dir unwritable for one step (pre-rename branch); the post-rename branch is the
-same cursor comparison on the reloaded ledger. `SetWithdrawn` uses the same copy-save-publish rule.
+Save failure: only a nil return from `WriteJSON` (which syncs the file and the
+parent dir, `durable.go:95-125`) acknowledges a batch. Any error — before or
+after the rename — discards `next`: memory keeps the old ledger and old cursor,
+`errs[R]` is set, R backs off, and the retry reruns the batch against the old
+ledger and rewrites the whole file. The file always holds either the old or the
+new complete ledger, each self-consistent (cursor and entries in one rename),
+so a crash in this window at worst redoes one batch; it never duplicates or
+loses an acknowledged one. No reload, no post-hoc cursor inspection. Tested by
+making the promises dir unwritable for one step. `SetWithdrawn` uses the same copy-save-publish rule.
 
 Idempotency: crash/cancel before (3) leaves cursor and entries untouched ⇒
 batch is redone, no duplicates; an applied batch can't replay because cursor
@@ -436,9 +442,11 @@ discussion; its promises appear here."
   call, false after success and after failure);
   idempotency (no call after success; error ⇒ cursor unchanged + backoff;
   a later success for that recording clears its error, and a success for another recording does not; reopen restores; unwritable promises dir ⇒
-  in-memory ledger equals disk, cursor not advanced, retried after backoff;
+  in-memory ledger unchanged, cursor not advanced, retried after backoff;
   more than 25 recordings ⇒ a marked recording on page 2 is processed); concurrency
-  (`SetWithdrawn` during a blocked RunTurn survives apply).
+  (`SetWithdrawn` during a blocked RunTurn survives apply); shutdown (cancel
+  ctx during a blocked RunTurn ⇒ `Run` returns only after the turn unwinds,
+  cursor unchanged, no save after return).
 - `internal/promises/live_test.go`, only with `GIMBAL_LIVE=1`, haiku: Clarity
   fixtures 03-restatement-equivalent, 04-restatement-refinement,
   07-withdrawal-second inlined (one batch per turn); plus one combined batch
@@ -474,4 +482,4 @@ discussion; its promises appear here."
 - Remotes in existing shared modules; `web/runtime.go` untouched.
 - Native entry point is a menu item; popover deferred; the web button covers it.
 - Bad `GIMBAL_PROMISES_MODEL` fails admission loudly.
-- Shutdown: worker exits on `p.ctx`; an in-flight call is cancelled without advancing the cursor; writes are atomic.
+- Shutdown: worker exits on `p.ctx`; `Owner.Close` joins it before releasing `owner.lock`; an in-flight call is cancelled without advancing the cursor; writes are atomic.

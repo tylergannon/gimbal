@@ -13,7 +13,6 @@
     markError = "";
     try {
       await markRequirements({ project, id });
-      stream.reconnect();
     } catch (error) {
       if (!navigateOnUnauthorized(error)) markError = errorMessage(error);
     } finally {

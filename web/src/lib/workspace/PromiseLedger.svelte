@@ -45,7 +45,6 @@
     failures.delete(entry.id);
     try {
       await setPromiseWithdrawn({ project, id: entry.id, withdrawn: value });
-      stream.reconnect();
     } catch (error) {
       if (!navigateOnUnauthorized(error)) failures.set(entry.id, errorMessage(error));
     } finally {

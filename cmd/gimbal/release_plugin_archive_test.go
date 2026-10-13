@@ -19,7 +19,9 @@ func TestReleaseCLIPlugin(t *testing.T) {
 	if archive == "" {
 		t.Skip("set GIMBAL_RELEASE_ARCHIVE to the native release CLI archive")
 	}
-	if !((runtime.GOOS == "darwin" && runtime.GOARCH == "arm64") || (runtime.GOOS == "linux" && (runtime.GOARCH == "amd64" || runtime.GOARCH == "arm64"))) {
+	switch runtime.GOOS + "/" + runtime.GOARCH {
+	case "darwin/arm64", "linux/amd64", "linux/arm64":
+	default:
 		t.Fatalf("unsupported release platform %s/%s", runtime.GOOS, runtime.GOARCH)
 	}
 	work, err := filepath.EvalSymlinks(t.TempDir())

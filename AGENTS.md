@@ -70,6 +70,9 @@ source, and prompts are plain English: "Read and implement the issue in
 ## Working here
 
 - Commit, and push, whenever something interesting has happened.
+- Keep commit/push hooks within 5–10 seconds: staged-content, whitespace, and
+  staged-file formatting only. Run repository-wide analysis, tests, and browser
+  checks explicitly or in CI, never as a commit/push side effect.
 - Live runs you start to see something work use the cheapest models:
   Codex `gpt-5.6-luna`, Claude Haiku, Gemini flash. Say which model a run
   used.

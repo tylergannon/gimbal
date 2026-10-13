@@ -44,6 +44,8 @@ assessment needs Apple's online ticket lookup. Downloaded plugins need their
 own notarization or normal user approval. Plugins must match the host's exact
 Go toolchain, dependencies, tags and build flags; inspect `go version -m` and
 build plugins from the corresponding released source.
+Releases pin Go 1.27.2 or newer: Go 1.27.1 has an upstream Mach-O plugin linker
+bug on macOS 27. Match the exact patch version reported by the host binary.
 
 ## Automation
 

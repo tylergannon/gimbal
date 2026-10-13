@@ -100,11 +100,39 @@ pushes the release metadata commit and tag. If main advanced during checks or
 push, that stale candidate is skipped; the newer push is checked instead.
 Release metadata uses a repository-scoped writable SSH deploy key from the
 main-only `release-preparation` environment. Configure its `RELEASE_TAG_SSH_KEY`
-secret and permit that deploy key to bypass only the version-tag creation rule;
-keep version-tag update/deletion owner-only. The read-only check job has no
+secret and permit the DeployKey actor class to bypass only the version-tag
+creation rule; this bypass covers **all repository deploy keys**, rather than
+one key. Keep version-tag update/deletion owner-only. The read-only check job has no
 preparation environment or SSH key. The preparation job's `GITHUB_TOKEN` has
 contents read and actions write solely to dispatch/wait for the existing build.
 Apple credentials remain in the separate tag-restricted `release` environment.
+
+### Release preparation key and rotation
+
+The current repository deploy key is **Checked-main automatic release publisher**,
+GitHub key ID `166320859`, with Ed25519 fingerprint
+`SHA256:5UJwteHJ15JbFkoya08OHyMdCa4w9+WFkf34iahmY40`. It has repository write
+access; the key itself is not restricted to main. Actions access to its private
+value is restricted through `RELEASE_TAG_SSH_KEY` in the main-only
+`release-preparation` environment. The temporary local private-key copy was
+deleted after provisioning. Record public key identity here; never record its
+private value. Apple signing, notarization, and Sparkle secrets stay in the
+separate `release` environment.
+
+Track the later rotation in [issue #516](https://github.com/tylergannon/gimbal/issues/516).
+To rotate without interrupting preparation:
+
+1. Let active release preparation finish before replacing its key.
+2. Generate a replacement outside Git and add its public key as a writable deploy
+   key on this repository. The existing creation-only DeployKey bypass covers
+   it; do not expand version-tag update/deletion bypasses.
+3. Replace the main-only environment's `RELEASE_TAG_SSH_KEY` secret with the new
+   private key, retaining the environment's trusted-main restriction.
+4. Observe trusted-main tag preparation using the replacement, then remove old
+   repository key `166320859`. Update this public identity record and close the
+   rotation issue once the resulting signed release is published.
+5. Delete temporary local private-key files. Do not change the separate Apple
+   credentials as part of this deploy-key rotation.
 
 SSH pushes trigger main workflows, so the check job skips bot-authored commits
 carrying `Release-Source:` metadata. PR and manual events still run checks.

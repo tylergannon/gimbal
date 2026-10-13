@@ -1,0 +1,38 @@
+<script lang="ts">
+  import type { Snippet } from "svelte";
+  import { goto } from "$app/navigation";
+  import { openProject } from "../window.remote";
+  import { chooseProjectFolder } from "./native";
+
+  let { class: className, children }: { class?: string; children?: Snippet } = $props();
+  let pending = $state(false);
+  let error = $state("");
+
+  async function open() {
+    error = "";
+    const path = await chooseProjectFolder();
+    if (!path) return;
+    pending = true;
+    try {
+      const project = await openProject({ path });
+      await goto(`/projects/${project.id}/recordings`, { invalidateAll: true });
+    } catch (cause) {
+      error = (cause as { body?: { message?: string } }).body?.message ?? `Could not open ${path}`;
+    } finally {
+      pending = false;
+    }
+  }
+</script>
+
+<button type="button" class={className} disabled={pending} onclick={open}>
+  {#if children}{@render children()}{:else}Open folder…{/if}
+</button>
+{#if error}<p class="error" role="alert">{error}</p>{/if}
+
+<style>
+  .error {
+    margin: 6px 0 0;
+    color: var(--destructive);
+    font-size: 12px;
+  }
+</style>

@@ -17,6 +17,8 @@
     "1emnx1f/createConversation",
     "1emnx1f/projectConversations",
     "1emnx1f/sendConversationMessage",
+    "1iqjt67/openProject",
+    "1iqjt67/rememberWindow",
     "rm4r49/cancelRun",
     "rm4r49/stopTurn",
     "ulwzdf/launchWorkflow",
@@ -30,6 +32,7 @@
     "src/routes/projects/[project]/conversations/+page.server.ts",
     "src/routes/projects/[project]/conversations/[conversationID]/+page.server.ts",
     "src/routes/projects/[project]/runs/[runID]/+page.server.ts",
+    "src/routes/window/+page.server.ts",
     "src/routes/workflows/+page.server.ts",
     "src/routes/workflows/[workflow]/+page.server.ts"
   ],
@@ -65,6 +68,9 @@
     },
     "src/routes/projects/[project]/runs/[runID]/+page.server.ts": {
       "source": "src/routes/projects/[project]/runs/[runID]/page.server.go"
+    },
+    "src/routes/window/+page.server.ts": {
+      "source": "src/routes/window/page.server.go"
     },
     "src/routes/workflows/+page.server.ts": {
       "source": "src/routes/workflows/page.server.go"

@@ -9,3 +9,5 @@ decision: Push only changelog metadata and its version tag atomically after chec
 friction: A failed Homebrew update after release creation made reruns fail at `gh release create` -> retry replaces same-tag assets and edits the existing release before updating the tap.
 
 decision: Independent review identified that a historical source retry could republish an older updater feed after a newer release. Skip superseded tags and cover the case with a real bare-remote test. Automatic publication remains serialized through completion while pending main pushes coalesce.
+
+friction: The actual Ubuntu PR gate exposed that its runner lacks zsh, Gimbal's explicit runtime command/service shell. Provision zsh in CI before exercising those paths; retain the real tests and production shell behavior.

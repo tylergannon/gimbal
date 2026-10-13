@@ -33,6 +33,10 @@ jobs:
           cache: pnpm
           cache-dependency-path: web/pnpm-lock.yaml
       - uses: extractions/setup-just@v4
+      - name: Install workflow runtime shell
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes zsh
       - name: Check release automation
         run: python3 -m unittest discover -s scripts -p '*release_test.py' -v
       - name: Build and check application

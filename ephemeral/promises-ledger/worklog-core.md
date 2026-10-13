@@ -37,4 +37,4 @@
   `--setting-sources project,local` fires it; `--tools "" --setting-sources ""
   --strict-mcp-config` does not, and auth works.
 - Soft misses seen: equivalent restatements inside a larger batch (voice-02 #5)
-  often get no op, so no evidence is recorded. Updates sometimes drop seeded tags.
+  often get no op, so no evidence is recorded.

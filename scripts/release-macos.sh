@@ -253,15 +253,15 @@ MAIN_EXECUTABLE="$APP_OUT/Contents/MacOS/$MAIN_NAME"
 
 sign_code() {
 	local target="$1"
-	local keychain_args=()
-	local entitlement_args=()
+	local args=(--force --options runtime --timestamp)
 	if [[ -n "$KEYCHAIN_PATH" ]]; then
-		keychain_args+=(--keychain "$KEYCHAIN_PATH")
+		args+=(--keychain "$KEYCHAIN_PATH")
 	fi
 	if [[ "$target" == "$APP_OUT/Contents/Resources/gimbal" ]]; then
-		entitlement_args+=(--entitlements "$CLI_ENTITLEMENTS")
+		args+=(--entitlements "$CLI_ENTITLEMENTS")
 	fi
-	codesign --force --options runtime --timestamp "${keychain_args[@]}" "${entitlement_args[@]}" --sign "$SIGNING_IDENTITY" "$target"
+	args+=(--sign "$SIGNING_IDENTITY")
+	codesign "${args[@]}" "$target"
 }
 
 printf 'Signing nested Mach-O files and code bundles...\n'
@@ -277,12 +277,13 @@ while IFS= read -r -d '' bundle; do
 	sign_code "$bundle"
 done < <(find "$APP_OUT/Contents" -depth -type d \( -name '*.framework' -o -name '*.bundle' -o -name '*.xpc' -o -name '*.appex' -o -name '*.app' \) -print0)
 
-codesign_keychain_args=()
+codesign_args=(--force --options runtime --timestamp)
 if [[ -n "$KEYCHAIN_PATH" ]]; then
-	codesign_keychain_args+=(--keychain "$KEYCHAIN_PATH")
+	codesign_args+=(--keychain "$KEYCHAIN_PATH")
 fi
-codesign --force --options runtime --timestamp "${codesign_keychain_args[@]}" --entitlements "$ENTITLEMENTS" --sign "$SIGNING_IDENTITY" "$MAIN_EXECUTABLE"
-codesign --force --options runtime --timestamp "${codesign_keychain_args[@]}" --entitlements "$ENTITLEMENTS" --sign "$SIGNING_IDENTITY" "$APP_OUT"
+codesign_args+=(--entitlements "$ENTITLEMENTS" --sign "$SIGNING_IDENTITY")
+codesign "${codesign_args[@]}" "$MAIN_EXECUTABLE"
+codesign "${codesign_args[@]}" "$APP_OUT"
 codesign --verify --deep --strict --verbose=2 "$APP_OUT"
 
 TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/gimbal-macos-release.XXXXXX")"
@@ -334,7 +335,12 @@ mkdir -p "$DMG_STAGE"
 ditto "$APP_OUT" "$DMG_STAGE/Gimbal.app"
 ln -s /Applications "$DMG_STAGE/Applications"
 hdiutil create -volname Gimbal -srcfolder "$DMG_STAGE" -ov -format UDZO "$DMG_OUT"
-codesign --force --timestamp "${codesign_keychain_args[@]}" --sign "$SIGNING_IDENTITY" "$DMG_OUT"
+codesign_dmg_args=(--force --timestamp)
+if [[ -n "$KEYCHAIN_PATH" ]]; then
+	codesign_dmg_args+=(--keychain "$KEYCHAIN_PATH")
+fi
+codesign_dmg_args+=(--sign "$SIGNING_IDENTITY")
+codesign "${codesign_dmg_args[@]}" "$DMG_OUT"
 printf 'Submitting installable disk image for notarization...\n'
 notarize "$DMG_OUT" 'disk image'
 xcrun stapler staple "$DMG_OUT"

@@ -70,8 +70,8 @@ type Store struct {
     dir     string
     ledger  Ledger  // equals ledger.json after every save or reload
     working bool    // a batch's LLM call is in flight
-    err     string  // last batch failure, "" after a success
-    version int64   // bumped on every change to ledger, working or err
+    errs    map[string]string // recording ID -> its last batch failure; deleted on that recording's success
+    version int64   // bumped on every change to ledger, working or errs
 }
 
 // Ledger is ledger.json.
@@ -81,11 +81,16 @@ type Ledger struct {
     Updated int64          `json:"updated"`  // ms; bumped on every save
 }
 
+type Failure struct {
+    Recording string `json:"recording"`
+    Message   string `json:"message"`
+}
+
 // View is what the Promises tab watches: the entries plus in-memory status.
 type View struct {
     Entries []Entry `json:"entries"`
     Working bool    `json:"working"` // LLM call in flight
-    Error   string  `json:"error"`   // last batch failure; "" after success
+    Errors  []Failure `json:"errors"` // recordings whose last batch failed, oldest first
     Version int64   `json:"version"` // bumped on any change (live-query change signal)
 }
 type Entry struct {
@@ -134,8 +139,8 @@ go p.promises.Run(p.ctx, p.recordings, model)
 
 `promises.Model(spec)` resolves the spec through `modelalias` (as
 `binding.Parse` does, `internal/binding/binding.go:25-46`), requires the
-`claude` harness, and binds it to `claude.New(claude.WithoutTools())` — see §6
-"No tools".
+`claude` harness, and binds it to `claude.New(claude.TextOnly())` — see §6
+"Text only".
 
 Accessor beside `Recordings()` (`:363`): `func (p *Project) Promises() *promises.Store`.
 
@@ -200,28 +205,29 @@ Cadence: `Run` = 2 s ticker calling `step(ctx, recordings, model, now)`. One ste
 Batch transaction: (1) lock, snapshot active entries + tags in use, set
 `Working=true` (in memory), unlock; (2) LLM call, no lock; (3) lock, build
 `next` = deep copy of the current ledger, `apply(ops)` to `next` (absorbs UI
-withdraws made during the call), set `Cursors[id]=end`, `Error=""`, save
+withdraws made during the call), set `Cursors[id]=end`, save
 `next`; only if the save returns nil does `next` become the in-memory ledger.
 
 Live status transitions (all under `mu`; each bumps `version`):
 
-| event | working | err | ledger |
+| event (recording R) | working | errs | ledger |
 |---|---|---|---|
-| `Open` | false | "" | loaded from disk |
-| batch starts (before the LLM call) | true | unchanged | — |
-| batch saved | false | "" | `next` |
-| LLM/validation failure | false | message | — |
-| save failure | false | message | reloaded from disk |
-| `SetWithdrawn` saved / failed | unchanged | unchanged / unchanged | `next` / reloaded |
+| `Open` | false | empty | loaded from disk |
+| batch for R starts (before the LLM call) | true | unchanged | — |
+| batch for R saved | false | delete `errs[R]` | `next` |
+| LLM/validation failure for R | false | `errs[R]` = message | — |
+| save failure for R | false | `errs[R]` = message | reloaded from disk |
+| `SetWithdrawn` saved / failed | unchanged | unchanged | `next` / reloaded |
 
-`SetWithdrawn` returns its save error to the caller instead of setting `err`.
-`working`/`err` never touch the file. `Snapshot` copies entries plus these
+A success for one recording never clears another recording's failure.
+`SetWithdrawn` returns its save error to the caller instead of setting `errs`.
+`working`/`errs` never touch the file. `Snapshot` copies entries plus these
 three fields into a `View`.
 
 Save failure: `WriteJSON` can fail before the rename (nothing durable changed)
 or after it (`durable.go:95-125`: dir open/fsync — the new file may be in
 place). Either way the store reloads `ledger.json` from disk and adopts it as
-the in-memory ledger, then sets `Error` and backs off. If the rename landed,
+the in-memory ledger, then sets `errs[R]` and backs off. If the rename landed,
 the reload carries the advanced cursor and the batch is not re-sent; if not,
 the old cursor stands and the batch is retried. Disk is the single source of
 truth; memory never runs ahead of it. Tested by making the promises dir
@@ -233,8 +239,8 @@ and ops commit in one rename (Clarity "replaying an applied pass is a no-op",
 clarity/docs/ARCHITECTURE.md:L355-360, without pass ids). Marking an old
 recording = absent cursor = 0; backlog drains 12 chunks per call.
 
-Failures (adapter error, invalid JSON, 3 min timeout): lock, `Working=false`,
-`err` set; cursor not advanced; `retryAt[id] = now+backoff[id]` (15 s
+Failures (adapter error, invalid JSON, 3 min timeout): lock, `working=false`,
+`errs[R]` set; cursor not advanced; `retryAt[id] = now+backoff[id]` (15 s
 doubling, cap 5 min, reset on that recording's success). Other recordings keep
 progressing. The recording itself is never touched.
 
@@ -251,16 +257,20 @@ Model: default `sonnet:low` (`internal/modelalias/aliases_gen.go:31`,
 spec (`haiku`, `sonnet:low`, `opus:medium`; `haiku` for proof runs per
 `AGENTS.md:73-75`). A non-Claude spec fails admission.
 
-No tools: transcript speech is untrusted input, and the Claude adapter runs
-Claude Code with bypass permissions and its built-in tools
-(`claude/claude.go:70-95, 144-150`). A prompt sentence is not a control, so the
-worker's adapter is built with a new option `claude.WithoutTools()` that passes
-`--tools ""` (SDK `claudeagent.WithTools`, or the adapter's existing
-`WithExtraArgs` map at `claude/claude.go:164-185`), leaving the model no tool
-at all. Checked by hand: `claude -p --tools "" --json-schema …` still returns
-`structured_output` and cannot list files. A unit test asserts the flag is
-passed. The option sits beside the existing `claude.WithUserConfiguration`
-(`claude/claude.go:41-55`).
+Text only: transcript speech is untrusted input, and the Claude adapter runs
+Claude Code with bypass permissions, its built-in tools, and the repository's
+`project,local` settings — which can define command hooks that receive the
+prompt (`claude/claude.go:70-95, 144-150, 164-167`). A prompt sentence is not a
+control, so the worker's adapter is built with a new option
+`claude.TextOnly()` that passes `--tools ""` and `--setting-sources ""`
+(replacing `project,local` in the adapter's `extra` map), keeping
+`--strict-mcp-config`: no tools, no settings, no hooks, no MCP servers. The
+CLI's own login is unaffected. Checked by hand in a directory whose
+`.claude/settings.json` has a `UserPromptSubmit` command hook: with
+`project,local` the hook fires; with `--tools "" --setting-sources ""
+--strict-mcp-config --json-schema …` it does not, auth works, and
+`structured_output` is returned. The option sits beside
+`claude.WithUserConfiguration` (`claude/claude.go:41-55`).
 `~/.gimbal/config.json` secrets reach the env (`cmd/gimbal/secrets.go:49-56`).
 Not `Session.Generate`: every batch would become a Runs-list entry.
 
@@ -347,8 +357,8 @@ Adapters validate against the schema (`harness.go:38-40`); decode
 - Validation before apply (the whole reply is accepted or rejected, as Clarity
   rejects a whole pass, `ResponsesClaimReviewProvider.swift:100-182`): an add
   with an empty title or details, an update/withdraw naming an id not in the
-  request's `promises`, or an unknown `op` fails the batch — `err` names the
-  op, cursor stays, that recording backs off and the batch is retried. A
+  request's `promises`, or an unknown `op` fails the batch — the error names the
+  op (in `errs[R]`), cursor stays, that recording backs off and the batch is retried. A
   withdraw of an entry the user withdrew during the call is a valid no-op.
   With 12 chunks per batch and 64 operations allowed, capacity is not the
   limit.
@@ -369,6 +379,13 @@ func setPromiseWithdrawn(ctx context.Context, event app.RequestEvent[params.Para
 Route stub `web/src/routes/projects/[project]/promises/+page.svelte` (title
 only, like `recordings/+page.svelte`).
 
+Older recordings: the sidebar's history (`ProjectWorkspace.svelte:24-31,
+149-150`) shows the newest 25 and ignores `History.Next`. Add a "Show older"
+button under the list while `next` is non-empty; it calls the existing
+`recordingHistory` query with `after: next` and appends the page to a local
+`$state` list. No new remote. Proof: a scratch project with 30 recordings, the
+oldest reachable and markable.
+
 `web/src/lib/workspace/ProjectWorkspace.svelte`: `initialTab` (`:34-38`),
 `visit` (`:60-63`), content branch before the `RecordingTranscript`
 fallthrough (`:135`), tools-nav link (`:152`). Tab `kind: 'file'` (existing
@@ -376,7 +393,7 @@ glyph), no new kind.
 
 New `web/src/lib/workspace/PromiseLedger.svelte`: `watchPromises(project)`;
 local `$state` tag filter (chip toggle) and order (`number | updated | tag`);
-status line while `working`, `error` in `role="alert"`; active list as
+status line while `working`; each of `errors` in `role="alert"` naming its recording (link); active list as
 `<details>` rows (`#id title` + tag chips; body: details paragraph, evidence
 quotes linking to `${root}/recordings/{recording}`, Withdraw); a "Withdrawn
 (n)" `<details>` with Restore; empty state "Mark a recording as a requirements
@@ -390,7 +407,10 @@ discussion; its promises appear here."
 ## 8. Tests (beside the code)
 
 - `internal/transcript/durable_test.go`: flag via Open, `MarkRequirements`, reload.
-- `claude/claude_test.go`: `WithoutTools` passes `--tools ""`.
+- `claude/claude_test.go`: `TextOnly` passes `--tools ""` and `--setting-sources ""`.
+- `internal/promises/live_test.go` (below) runs its turns in a work dir whose
+  `.claude/settings.json` holds a `UserPromptSubmit` hook that touches a file,
+  and asserts the file never appears.
 - `internal/promises/promises_test.go` with a test-local fake
   `gimbal.HarnessAdapter`, a real `DurableStore` in `t.TempDir()`, `step` with
   explicit `now`: apply cases (ids, equivalent update ⇒ evidence only, changed
@@ -404,7 +424,7 @@ discussion; its promises appear here."
   recording B is processed); status transitions (`working` true during the
   call, false after success and after failure);
   idempotency (no call after success; error ⇒ cursor unchanged + backoff;
-  later success clears Error; reopen restores; unwritable promises dir ⇒
+  a later success for that recording clears its error, and a success for another recording does not; reopen restores; unwritable promises dir ⇒
   in-memory ledger equals disk, cursor not advanced, retried after backoff;
   more than 25 recordings ⇒ a marked recording on page 2 is processed); concurrency
   (`SetWithdrawn` during a blocked RunTurn survives apply).
@@ -430,10 +450,10 @@ discussion; its promises appear here."
 
 - One JSON file for entries+cursors: atomic batch commit, no pass ids (`durable.go:95-136`; clarity/server/internal/api/voice.go:L176-199).
 - Integer ID = display number = ordinal (clarity/server/internal/worker/review.go:L52).
-- Direct `adapter.RunTurn`, fresh session per batch: keeps the Runs list clean (`manager.go:405-424`). No schema re-ask: invalid reply ⇒ Error + backoff + retry.
-- Claude-only, tool-less adapter for the ledger call: speech is untrusted; `--tools ""` removes every tool rather than asking the model not to use them.
+- Direct `adapter.RunTurn`, fresh session per batch: keeps the Runs list clean (`manager.go:405-424`). No schema re-ask: invalid reply ⇒ that recording's error + backoff + retry.
+- Claude-only, text-only adapter for the ledger call: speech is untrusted; no tools, settings, hooks, or MCP rather than asking the model not to act.
 - Disk is the source of truth for commits: copy → apply → save → publish; on any save error, reload from disk.
-- Older-recording reachability in the sidebar is unchanged: the history list shows the newest 25 today (`ProjectWorkspace.svelte:26-31`) for viewing any recording, not just for this feature. The mark button lives where a recording is viewed, so every recording a user can open can be marked. Adding history paging is a separate change to recording browsing, outside this feature; the worker itself pages all recordings.
+- Sidebar "Show older" over the existing paged `recordingHistory`, so every existing recording can be opened and marked.
 - `sonnet:low` default (same tier as Clarity's gpt-6.1-sol low, clarity/Sources/ClarityCore/Claims/ResponsesClaimReviewProvider.swift:L16, L52-53). Each batch spawns a Claude Code process (~5–15 s); settle + serial batches bound it.
 - Settle signal is an in-memory unchanged chunk count (heartbeats bump `Updated`).
 - Finalized chunks only; overlap + dangling-clause rule handle split sentences.

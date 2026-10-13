@@ -38,8 +38,8 @@ tags, evidence); an LLM keeps it current; a Promises tab shows it.
 Done = this demo works end to end:
 1. In the macOS app, with project X selected, Recording ▸ "Record Requirements
    Discussion". Speak a few promises ("Exports finish in under two seconds",
-   "It never loses an unsaved note", "Users can tag notes"), then "withdraw the
-   second one". Stop.
+   "It never loses an unsaved note", "Users can tag notes"), pause until they
+   appear (the 8 s settle), then say "withdraw the second one". Stop.
 2. Open X ▸ Promises: within ~10–30 s of each quiet pause, numbered promises
    appear with tags and details; #2 moves to Withdrawn.
 3. Open an older ordinary recording ▸ "Treat as requirements discussion": its
@@ -65,7 +65,14 @@ New package `internal/promises` (`promises.go` + `promises_test.go`):
 
 ```go
 // Store owns <project>/.gimbal/promises/ledger.json; the only writer.
-type Store struct { mu sync.Mutex; dir string; ledger Ledger }
+type Store struct {
+    mu      sync.Mutex
+    dir     string
+    ledger  Ledger  // equals ledger.json after every save or reload
+    working bool    // a batch's LLM call is in flight
+    err     string  // last batch failure, "" after a success
+    version int64   // bumped on every change to ledger, working or err
+}
 
 // Ledger is ledger.json.
 type Ledger struct {
@@ -172,7 +179,8 @@ One goroutine per project from `AdmitProject` (like `cleanupExitedTasks`,
 `SetWithdrawn`, both under `Store.mu`.
 
 Cadence: `Run` = 2 s ticker calling `step(ctx, recordings, model, now)`. One step:
-1. Return if `now < retryAt`.
+1. Backoff is per recording: `retryAt[id]` (in memory). A recording in
+   backoff is skipped and the step considers the next one.
 2. Page `recordings.List(after)` until `Next == ""` (`durable.go:239-271`,
    25 per page); keep `Requirements` headers. Tested with more than 25
    recordings.
@@ -180,11 +188,12 @@ Cadence: `Run` = 2 s ticker calling `step(ctx, recordings, model, now)`. One ste
    `n := len(r.Finalized)`; skip if `n <= done`. Finalized is append-only
    (`:194`); provisional is never sent (replaced every update, `:195`).
 4. Settle: in-memory `seen[id] = {count, at}`; process when status is
-   `stopped`/`interrupted`, or `n-done >= 40`, or the count is unchanged for
+   `stopped`/`interrupted`, or `n-done >= 12`, or the count is unchanged for
    8 s. (`Header.Updated` can't be the quiet signal: heartbeats bump it every
    5 s, `durable.go:223`, `web/src/lib/transcript.remote.go:67-73`.) 8 s mirrors
    Clarity's settle grace (clarity/Sources/ClarityCore/Deliberation/ClaimDeliberationCoordinator.swift:L4-21).
-5. Process one batch per step: new `[done, min(n, done+40))`, overlap
+5. Process one batch per step — the first eligible recording not in backoff:
+   new `[done, min(n, done+12))`, overlap
    `[max(0,done-2), done)` (Clarity overlap 2, same file L11). Serial ⇒ one LLM
    call in flight per project.
 
@@ -194,8 +203,20 @@ Batch transaction: (1) lock, snapshot active entries + tags in use, set
 withdraws made during the call), set `Cursors[id]=end`, `Error=""`, save
 `next`; only if the save returns nil does `next` become the in-memory ledger.
 
-`Working` and `Error` live only in memory and reach the tab through `View`, so
-flipping them never writes the file.
+Live status transitions (all under `mu`; each bumps `version`):
+
+| event | working | err | ledger |
+|---|---|---|---|
+| `Open` | false | "" | loaded from disk |
+| batch starts (before the LLM call) | true | unchanged | — |
+| batch saved | false | "" | `next` |
+| LLM/validation failure | false | message | — |
+| save failure | false | message | reloaded from disk |
+| `SetWithdrawn` saved / failed | unchanged | unchanged / unchanged | `next` / reloaded |
+
+`SetWithdrawn` returns its save error to the caller instead of setting `err`.
+`working`/`err` never touch the file. `Snapshot` copies entries plus these
+three fields into a `View`.
 
 Save failure: `WriteJSON` can fail before the rename (nothing durable changed)
 or after it (`durable.go:95-125`: dir open/fsync — the new file may be in
@@ -210,11 +231,12 @@ Idempotency: crash/cancel before (3) leaves cursor and entries untouched ⇒
 batch is redone, no duplicates; an applied batch can't replay because cursor
 and ops commit in one rename (Clarity "replaying an applied pass is a no-op",
 clarity/docs/ARCHITECTURE.md:L355-360, without pass ids). Marking an old
-recording = absent cursor = 0; backlog drains 40 chunks per call.
+recording = absent cursor = 0; backlog drains 12 chunks per call.
 
 Failures (adapter error, invalid JSON, 3 min timeout): lock, `Working=false`,
-`Error=err.Error()` (memory only); cursor not advanced; `retryAt = now+backoff` (15 s
-doubling, cap 5 min, reset on success). Recording itself is never touched.
+`err` set; cursor not advanced; `retryAt[id] = now+backoff[id]` (15 s
+doubling, cap 5 min, reset on that recording's success). Other recordings keep
+progressing. The recording itself is never touched.
 
 Session per batch: `CreateSession(ctx, model.Model, model.Effort, <dir>/promises/work)`
 → `RunTurn` → `Close`. The worker only ever holds the Claude adapter, whose
@@ -268,7 +290,8 @@ the exact ids supplied. Never invent an id.
 - withdraw: speech clearly retracts one exact active promise. Resolve "the second one", "promise 4",
   or a description from the supplied ids and texts.
 If a correction or retraction could target more than one promise, return no operation for it. Do not
-mutate a best guess.
+mutate a best guess. A promise that new_chunks both propose and retract is not added; one they propose
+and then refine is added once, in its refined form.
 
 Transcription turn boundaries can cut a sentence. A dangling clause without its object or
 qualification is unresolved speech, not a complete promise; a later request will show it again as
@@ -298,7 +321,7 @@ all fields required for OpenAI strict mode):
 
 ```json
 {"type":"object","additionalProperties":false,"required":["operations"],"properties":{
- "operations":{"type":"array","maxItems":24,"items":{"type":"object","additionalProperties":false,
+ "operations":{"type":"array","maxItems":64,"items":{"type":"object","additionalProperties":false,
   "required":["op","id","title","details","tags","chunk","quote","reason"],
   "properties":{"op":{"enum":["add","update","withdraw"]},"id":{"type":"integer"},
    "title":{"type":"string"},"details":{"type":"string"},
@@ -315,15 +338,20 @@ Adapters validate against the schema (`harness.go:38-40`); decode
   chunk's text (case- and whitespace-insensitive), otherwise the quote is the
   chunk's own text; either way truncated to 280 chars. Evidence never
   invalidates an op.
-- `add`: skip unless title and details are both non-empty after trimming
-  (every promise has a details paragraph); `ID=maxID+1`; normalize tags;
-  append evidence.
-- `update`: skip unknown id; an empty title or details keeps the current
-  value; identical title/details/tags ⇒ evidence only (fixes Clarity's
+- `add`: `ID=maxID+1`; normalize tags; append evidence.
+- `update`: an empty title or details keeps the current value; identical title/details/tags ⇒ evidence only (fixes Clarity's
   "equivalent records nothing" wonk); else replace, bump `Updated`, append
   evidence. A user-withdrawn entry stays withdrawn.
-- `withdraw`: skip unknown/already withdrawn; set `Withdrawn`, bump, evidence.
-- Empty ops ⇒ only the cursor advances. Skipped ops are not errors.
+- `withdraw`: already withdrawn ⇒ no-op; else set `Withdrawn`, bump, evidence.
+- Empty ops ⇒ only the cursor advances.
+- Validation before apply (the whole reply is accepted or rejected, as Clarity
+  rejects a whole pass, `ResponsesClaimReviewProvider.swift:100-182`): an add
+  with an empty title or details, an update/withdraw naming an id not in the
+  request's `promises`, or an unknown `op` fails the batch — `err` names the
+  op, cursor stays, that recording backs off and the batch is retried. A
+  withdraw of an entry the user withdrew during the call is a valid no-op.
+  With 12 chunks per batch and 64 operations allowed, capacity is not the
+  limit.
 
 ## 7. Web
 
@@ -370,7 +398,11 @@ discussion; its promises appear here."
   update keep current values, tag normalization, chunk clamp, fabricated quote
   replaced by chunk text);
   settle (live not processed at t+0 but at t+8 s; stopped immediately;
-  non-requirements ignored; 50 chunks ⇒ 40 then 10 with 2 overlap);
+  non-requirements ignored; 15 chunks ⇒ 12 then 3 with 2 overlap);
+  validation (empty-details add or unknown-id update ⇒ batch fails, cursor
+  stays); per-recording backoff (recording A failing persistently while
+  recording B is processed); status transitions (`working` true during the
+  call, false after success and after failure);
   idempotency (no call after success; error ⇒ cursor unchanged + backoff;
   later success clears Error; reopen restores; unwritable promises dir ⇒
   in-memory ledger equals disk, cursor not advanced, retried after backoff;
@@ -378,7 +410,9 @@ discussion; its promises appear here."
   (`SetWithdrawn` during a blocked RunTurn survives apply).
 - `internal/promises/live_test.go`, only with `GIMBAL_LIVE=1`, haiku: Clarity
   fixtures 03-restatement-equivalent, 04-restatement-refinement,
-  07-withdrawal-second inlined; assert entry/withdrawn counts and keywords.
+  07-withdrawal-second inlined (one batch per turn); plus one combined batch
+  (three promises then "withdraw the second one" in the same chunks) asserting
+  the retracted promise is absent; assert entry/withdrawn counts and keywords.
 
 ## 9. Build order (each step's proof)
 

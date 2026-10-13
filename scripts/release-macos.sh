@@ -19,6 +19,8 @@ Release environment:
   MACOS_SIGNING_IDENTITY  Exact Developer ID Application identity name.
                           If omitted, the first valid identity is selected.
   MACOS_NOTARY_PROFILE    Existing notarytool keychain profile name.
+  SPARKLE_ED_KEY_FILE     Private EdDSA key file for signing app updates.
+                          CI uses SPARKLE_ED_PRIVATE_KEY instead.
 
 Use --skip-build --built-app PATH only when the generated Xcode project and
 the exact candidate app have already been built. This packages that app without
@@ -143,6 +145,7 @@ require_command python3
 require_command file
 
 if [[ "$MODE" == "release" ]]; then
+	[[ -n "${SPARKLE_ED_KEY_FILE:-}" || -n "${SPARKLE_ED_PRIVATE_KEY:-}" ]] || die 'set SPARKLE_ED_KEY_FILE or SPARKLE_ED_PRIVATE_KEY to sign app updates'
 	require_command security
 	require_command xcrun
 	require_command spctl
@@ -179,11 +182,13 @@ else
 		[[ -d "$PROJECT" ]] || die "--skip-generate requires an existing Xcode project: $PROJECT"
 	else
 		printf 'Generating native app project and unsigned Debug candidate...\n'
-		(cd "$ROOT" && go tool skgo native build --platform macos)
+		(cd "$ROOT" && PATH="$ROOT/scripts/public-xcodebuild:$PATH" go tool skgo native build --platform macos)
 	fi
 	[[ -d "$PROJECT" ]] || die "generated Xcode project not found: $PROJECT"
 	printf 'Building unsigned Release app with Xcode...\n'
 	xcodebuild \
+		-packageAuthorizationProvider netrc \
+		-scmProvider system \
 		-project "$PROJECT" \
 		-scheme Gimbal \
 		-configuration Release \
@@ -301,6 +306,8 @@ printf 'Submitting installable disk image for notarization...\n'
 notarize "$DMG_OUT" 'disk image'
 xcrun stapler staple "$DMG_OUT"
 xcrun stapler validate "$DMG_OUT"
+
+"$ROOT/scripts/generate-appcast.sh" "$VERSION" "$ZIP_OUT"
 
 printf 'Notarized app: %s\n' "$APP_OUT"
 printf 'Release ZIP: %s\n' "$ZIP_OUT"

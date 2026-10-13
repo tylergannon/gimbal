@@ -114,6 +114,7 @@ jobs:
         env:
           RELEASE_VERSION: ${{ inputs.tag || github.ref_name }}
           RELEASE_BUILD_NUMBER: ${{ github.run_number }}
+          SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
           MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}/native/build/macos/.sdk
         run: scripts/release-macos.sh --release --version "${RELEASE_VERSION#v}" --build-number "$RELEASE_BUILD_NUMBER"
       - uses: actions/upload-artifact@v4
@@ -123,6 +124,7 @@ jobs:
             dist/gimbal_*.tar.gz
             dist/macos/Gimbal-*-macos-arm64.zip
             dist/macos/Gimbal-*-macos-arm64.dmg
+            dist/macos/appcast.xml
           if-no-files-found: error
           retention-days: 2
       - if: always()
@@ -161,7 +163,7 @@ jobs:
           TAG: ${{ inputs.tag || github.ref_name }}
         run: |
           gh release create "$TAG" --verify-tag --title "Gimbal $TAG" \
-            --generate-notes dist/*.tar.gz dist/checksums.txt dist/macos/*.zip dist/macos/*.dmg
+            --generate-notes dist/*.tar.gz dist/checksums.txt dist/macos/*.zip dist/macos/*.dmg dist/macos/appcast.xml
       - uses: actions/checkout@v4
         with:
           repository: tylergannon/homebrew-gimbal

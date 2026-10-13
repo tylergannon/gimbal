@@ -17,6 +17,10 @@ const chat = (id: string, updated: number): Conversation => ({
   created: 1,
   messages: [],
   runs: [],
+  requests: [],
+  active_request: "",
+  state: "",
+  revision: 0,
 });
 
 test("a newly routed chat remains available while inventory refresh lags", () => {

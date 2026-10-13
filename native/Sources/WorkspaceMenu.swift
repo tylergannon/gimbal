@@ -9,14 +9,16 @@
     @Published var tabCount = 0
     @Published var hasActiveTab = false
     @Published var windowIsKey = false
+    @Published var canStopResponse = false
     weak var webView: WKWebView?
 
     var enabled: Bool { ready && windowIsKey }
 
-    func update(ready: Bool, sidebarVisible: Bool, tabCount: Int, activeTabTitle: String?) {
+    func update(ready: Bool, sidebarVisible: Bool, tabCount: Int, activeTabTitle: String?, canStopResponse: Bool = false) {
       self.sidebarVisible = sidebarVisible
       self.tabCount = tabCount
       hasActiveTab = activeTabTitle != nil
+      self.canStopResponse = canStopResponse
       self.ready = ready
     }
 
@@ -43,6 +45,10 @@
         .disabled(!workspace.enabled)
       }
       CommandMenu("Chat") {
+        Button("Stop Response") { workspace.send("stopResponse") }
+          .keyboardShortcut(".", modifiers: [.command])
+          .disabled(!workspace.enabled || !workspace.canStopResponse)
+        Divider()
         Button("Close Tab") { workspace.send("closeTab") }
           .keyboardShortcut("w", modifiers: [.command])
           .disabled(!workspace.enabled || !workspace.hasActiveTab)

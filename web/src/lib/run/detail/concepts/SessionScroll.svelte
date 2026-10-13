@@ -27,7 +27,6 @@
 		revision,
 		turnID,
 		onsteer,
-		onstop,
 		onmaximize,
 		onopen
 	}: {
@@ -36,7 +35,6 @@
 		revision: number;
 		turnID: string;
 		onsteer: (message: string) => Promise<ActionFeedback>;
-		onstop: () => Promise<ActionFeedback>;
 		onmaximize?: () => void;
 		onopen?: () => void;
 	} = $props();
@@ -225,7 +223,7 @@
 		</details>
 	</div>
 
-	{#if turn}<SteerBox {onsteer} {onstop} {ended} />{/if}
+	{#if turn}<SteerBox {onsteer} {ended} />{/if}
 </div>
 
 <style>

@@ -87,7 +87,8 @@ final class WebCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDelega
       {
         state.workspace.update(
           ready: ready, sidebarVisible: visible, tabCount: count,
-          activeTabTitle: body["activeTabTitle"] as? String)
+          activeTabTitle: body["activeTabTitle"] as? String,
+          canStopResponse: body["canStopResponse"] as? Bool ?? false)
         return
       }
       if message.name == "workspaceDrag", let event = NSApp.currentEvent,

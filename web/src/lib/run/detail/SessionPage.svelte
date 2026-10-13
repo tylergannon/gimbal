@@ -25,7 +25,6 @@
 		definition,
 		watchers = [],
 		onsteer,
-		onstop,
 		onscope
 	}: {
 		snapshot: RunSnapshot;
@@ -35,7 +34,6 @@
 		definition?: AgentCall;
 		watchers?: WatcherRow[];
 		onsteer?: (request: Steer) => Promise<ActionFeedback>;
-		onstop?: (turn: TurnRow) => Promise<ActionFeedback>;
 		onscope?: (scopeKey: string) => void;
 	} = $props();
 
@@ -240,7 +238,6 @@
 
 			<SteerBox
 				onsteer={(message) => onsteer?.({ run: snapshot.run.id, session: sessionID, message }) ?? Promise.resolve({ ok: false, message: 'Steering is unavailable.' })}
-				onstop={() => runningTurn && onstop ? onstop(runningTurn) : Promise.resolve({ ok: false, message: 'There is no running turn to stop.' })}
 				ended={!runningTurn || !live}
 			/>
 

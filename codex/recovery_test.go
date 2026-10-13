@@ -17,6 +17,7 @@ import (
 
 	"github.com/coder/websocket"
 	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/backend"
 	"github.com/tylergannon/gimbal/internal/workflows/implementation"
 )
 
@@ -368,6 +369,10 @@ func TestPersistentOutageStopsRetryingAndCancellationRetainsOwnership(t *testing
 	stop()
 	if err := <-result; !errors.Is(err, context.Canceled) {
 		t.Fatalf("cancel=%v", err)
+	} else {
+		if _, ok := errors.AsType[*backend.DeliveryUncertain](err); !ok {
+			t.Fatalf("unconfirmed stop lost uncertainty: %v", err)
+		}
 	}
 	if err := ad.Close(ctx, id); err == nil {
 		t.Fatal("unavailable cleanup reported success")

@@ -114,8 +114,8 @@ func TestRunPageKeepsInterviewHistoryAcrossQuestionsAndReload(t *testing.T) {
 
 	thinking := render()
 	assertGraph(thinking)
-	if !strings.Contains(thinking, "Stop turn") {
-		t.Fatal("the workspace did not expose a stop control for the running interview turn")
+	if strings.Contains(thinking, "Stop turn") {
+		t.Fatal("a workflow interviewer must not expose a conversation stop control")
 	}
 
 	for _, record := range []json.RawMessage{

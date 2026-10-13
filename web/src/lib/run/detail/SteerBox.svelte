@@ -1,5 +1,5 @@
 <script lang="ts">
-	// Fixed footer: steer or stop the turn this pane is showing. Closes itself
+	// Fixed footer: steer the turn this pane is showing. Closes itself
 	// once the turn has ended — steering a finished turn is not a thing.
 	import { Button } from '#lib/components/ui/button/index.js';
 	import { Textarea } from '#lib/components/ui/textarea/index.js';
@@ -7,12 +7,10 @@
 
 	let {
 		onsteer,
-		onstop,
 		disabled = false,
 		ended = false
 	}: {
 		onsteer: (message: string) => Promise<ActionFeedback>;
-		onstop: () => Promise<ActionFeedback>;
 		disabled?: boolean;
 		ended?: boolean;
 	} = $props();
@@ -44,14 +42,6 @@
 		<Textarea rows={2} bind:value={message} placeholder="Steer this turn…" disabled={disabled || pending} />
 		<div class="row">
 			<span class="help">Lands before the next model call. Dropped if the turn ends first.</span>
-			<Button
-				variant="outline"
-				size="sm"
-				disabled={disabled || pending}
-				onclick={() => run(() => onstop())}
-			>
-				Stop turn
-			</Button>
 			<Button
 				size="sm"
 				disabled={disabled || pending || !message.trim()}

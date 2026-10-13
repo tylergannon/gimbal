@@ -99,6 +99,10 @@ var (
 	Skgo_projectConversations = projectConversations
 	// Skgo_sendConversationMessage is sendConversationMessage, published as src/routes/conversation.remote.ts#sendConversationMessage.
 	Skgo_sendConversationMessage = sendConversationMessage
+	// Skgo_stopConversationRequest is stopConversationRequest, published as src/routes/conversation.remote.ts#stopConversationRequest.
+	Skgo_stopConversationRequest = stopConversationRequest
+	// Skgo_watchConversation is watchConversation, published as src/routes/conversation.remote.ts#watchConversation.
+	Skgo_watchConversation = watchConversation
 	// Skgo_answerInterview is answerInterview, published as src/routes/interview.remote.ts#answerInterview.
 	Skgo_answerInterview = answerInterview
 	// Skgo_launchWorkflow is launchWorkflow, published as src/routes/launch.remote.ts#launchWorkflow.
@@ -121,7 +125,9 @@ type (
 	// SkgoArg_sendConversationMessage is the type sendConversationMessage takes.
 	SkgoArg_sendConversationMessage = SendConversationMessage
 	// SkgoOut_sendConversationMessage is the type sendConversationMessage returns.
-	SkgoOut_sendConversationMessage = conversation.Conversation
+	SkgoOut_sendConversationMessage = conversation.RequestState
+	// SkgoOut_watchConversation is the type watchConversation yields.
+	SkgoOut_watchConversation = conversation.Conversation
 	// SkgoArg_answerInterview is the type answerInterview takes.
 	SkgoArg_answerInterview = InterviewAnswer
 	// SkgoOut_answerInterview is the type answerInterview returns.

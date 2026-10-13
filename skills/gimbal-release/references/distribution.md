@@ -98,11 +98,20 @@ normal build, vet, test, formatting and Svelte gates. It moves Unreleased entrie
 into the next patch changelog, records the checked source SHA, and atomically
 pushes the release metadata commit and tag. If main advanced during checks or
 push, that stale candidate is skipped; the newer push is checked instead.
-Release metadata is pushed with `GITHUB_TOKEN`, so it does not recursively start
-another main workflow. Because token-created tags do not start push workflows,
-the job explicitly dispatches `release.yml` with **both** the ref and tag input
-set to the new tag. Only this preparation job has contents/actions write access;
-Apple credentials remain in the existing tag-restricted release environment.
+Release metadata uses a repository-scoped writable SSH deploy key from the
+main-only `release-preparation` environment. Configure its `RELEASE_TAG_SSH_KEY`
+secret and permit that deploy key to bypass only the version-tag creation rule;
+keep version-tag update/deletion owner-only. The read-only check job has no
+preparation environment or SSH key. The preparation job's `GITHUB_TOKEN` has
+contents read and actions write solely to dispatch/wait for the existing build.
+Apple credentials remain in the separate tag-restricted `release` environment.
+
+SSH pushes trigger main workflows, so the check job skips bot-authored commits
+carrying `Release-Source:` metadata. PR and manual events still run checks.
+`release.yml` is dispatch-only: the preparation job selects **both** its ref and
+tag input as the newly created tag, preventing competing tag-push and explicit
+builds. For a deliberately created minor/major version tag, explicitly run
+`gh workflow run release.yml --ref vX.Y.Z -f tag=vX.Y.Z` after pushing that tag.
 
 Automatic releases wait for the tagged workflow under a shared concurrency
 group, keeping publication ordered while pending main pushes coalesce. A rerun

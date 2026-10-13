@@ -15,12 +15,12 @@ export type ControlAccepted = {
 };
 
 /**
- * CreateConversation is the explicit provider and model selection for a new conversation. Model may be blank to use the provider's cheap default.
+ * CreateConversation starts a conversation with its first message, which also titles it. Model may be blank to use the provider's cheap default.
  */
 export type CreateConversation = {
-  title: string;
   provider: string;
   model: string;
+  message: string;
 };
 
 /**

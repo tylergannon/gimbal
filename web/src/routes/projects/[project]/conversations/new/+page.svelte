@@ -2,4 +2,4 @@
   import { APP_NAME } from "#lib/app.js";
 </script>
 
-<svelte:head><title>New conversation — {APP_NAME}</title></svelte:head>
+<svelte:head><title>New session — {APP_NAME}</title></svelte:head>

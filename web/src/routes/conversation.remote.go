@@ -13,12 +13,12 @@ import (
 	"github.com/tylergannon/gimbal/internal/host"
 )
 
-// CreateConversation is the explicit provider and model selection for a new
-// conversation. Model may be blank to use the provider's cheap default.
+// CreateConversation starts a conversation with its first message, which
+// also titles it. Model may be blank to use the provider's cheap default.
 type CreateConversation struct {
-	Title    string `json:"title"`
 	Provider string `json:"provider"`
 	Model    string `json:"model"`
+	Message  string `json:"message"`
 }
 
 // SendConversationMessage is one visible user turn.
@@ -36,9 +36,10 @@ func createConversation(ctx context.Context, event app.RequestEvent[params.Param
 	if strings.TrimSpace(arg.Provider) == "" {
 		return conversation.Conversation{}, skgo.Invalidf("provider", "Choose Codex, Claude, or agy / Gemini.")
 	}
-	item, err := manager.Create(ctx, conversation.NewConversation{
-		Title: arg.Title, Provider: arg.Provider, Model: arg.Model,
-	})
+	if strings.TrimSpace(arg.Message) == "" {
+		return conversation.Conversation{}, skgo.Invalidf("message", "Describe the work to start the session.")
+	}
+	item, err := manager.Start(ctx, conversation.NewConversation{Provider: arg.Provider, Model: arg.Model}, arg.Message)
 	if err != nil {
 		return conversation.Conversation{}, skgo.Errorf(http.StatusBadRequest, "%s", err)
 	}
@@ -67,10 +68,27 @@ var _ = skgo.Form(sendConversationMessage)
 
 // projectConversations reads the existing project-owned chat inventory.
 func projectConversations(ctx context.Context, project string) ([]conversation.Conversation, error) {
+	manager, err := projectManager(ctx, project)
+	if err != nil {
+		return nil, err
+	}
+	return manager.List(), nil
+}
+
+// conversationSetup is what the new session composer offers in a project.
+func conversationSetup(ctx context.Context, project string) (conversation.Setup, error) {
+	manager, err := projectManager(ctx, project)
+	if err != nil {
+		return conversation.Setup{}, err
+	}
+	return manager.Setup(ctx)
+}
+
+func projectManager(ctx context.Context, project string) (*conversation.Manager, error) {
 	if owner := host.OwnerFrom(ctx); owner != nil {
 		for _, p := range owner.Projects() {
 			if p.ID() == project {
-				return p.Conversations().List(), nil
+				return p.Conversations(), nil
 			}
 		}
 	}
@@ -78,3 +96,5 @@ func projectConversations(ctx context.Context, project string) ([]conversation.C
 }
 
 var _ = skgo.Query(projectConversations)
+
+var _ = skgo.Query(conversationSetup)

@@ -87,6 +87,8 @@ var (
 	Skgo_cancelRun = cancelRun
 	// Skgo_stopTurn is stopTurn, published as src/routes/control.remote.ts#stopTurn.
 	Skgo_stopTurn = stopTurn
+	// Skgo_conversationSetup is conversationSetup, published as src/routes/conversation.remote.ts#conversationSetup.
+	Skgo_conversationSetup = conversationSetup
 	// Skgo_createConversation is createConversation, published as src/routes/conversation.remote.ts#createConversation.
 	Skgo_createConversation = createConversation
 	// Skgo_projectConversations is projectConversations, published as src/routes/conversation.remote.ts#projectConversations.

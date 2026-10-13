@@ -9,7 +9,7 @@
   import { projectFiles, uploadFile } from '../workspace.remote';
   import { recordingHistory } from '../transcript.remote';
   import ConversationView from '../conversation/ConversationView.svelte';
-  import ConversationCreate from '../conversation/ConversationCreate.svelte';
+  import NewSession from '../conversation/NewSession.svelte';
   import RecordingTranscript from './RecordingTranscript.svelte';
   import FileViewer from './FileViewer.svelte';
   import { nativeMessage, type NativeStatus } from './native';
@@ -33,7 +33,7 @@
     ? { id: `${initialPath.split("/").slice(0, 3).join("/")}/conversations/${initialConversation.id}`, title: initialConversation.title, kind: 'chat' }
     : page.params.fileID ? { id: initialPath, title: 'Project file', kind: 'file' }
     : page.params.recordingID ? { id: initialPath, title: 'Recorded conversation', kind: 'chat' }
-    : initialPath.endsWith('/conversations/new') ? { id: initialPath, title: 'New conversation', kind: 'chat' } : undefined;
+    : initialPath.endsWith('/conversations/new') ? { id: initialPath, title: 'New session', kind: 'chat' } : undefined;
   const upload = $derived(uploadFile.for(project));
   let open = $state<WorkspaceTab[]>(initialTab ? [initialTab] : []);
   let sidebar = $state(true);
@@ -56,7 +56,7 @@
     const item = items.find(item => item.id === path);
     const recordingID = page.params.recordingID;
     const tab = item ?? (path === `${root}/conversations/new`
-      ? { id: path, title: 'New conversation', kind: 'chat' as const }
+      ? { id: path, title: 'New session', kind: 'chat' as const }
       : page.params.fileID ? { id: path, title: files.find(file => file.id === page.params.fileID)?.name ?? 'Project file', kind: 'file' as const }
       : recordingID ? { id: path, title: 'Recorded conversation', kind: 'chat' as const } : undefined);
     // A conversation started from the New conversation tab takes over that tab.
@@ -119,7 +119,7 @@
   onselect={select} onclose={close} onopen={select} onnew={() => select(`${root}/conversations/new`)}>
   {#snippet content(tab)}
     <svelte:boundary>
-      {#if tab.id === `${root}/conversations/new`}<ConversationCreate {project} oncreated={created} />
+      {#if tab.id === `${root}/conversations/new`}<NewSession {project} {name} oncreated={created} />
       {:else if tab.id.startsWith(`${root}/conversations/`)}
         {@const current = conversations.find(item => `${root}/conversations/${item.id}` === tab.id)}
         {#if current}<ConversationView {project} {current} />{:else}<p class="notice">Conversation unavailable.</p>{/if}
@@ -130,7 +130,7 @@
   {/snippet}
   {#snippet fallback()}
     {#if page.url.pathname === `${root}/conversations`}
-      <ConversationCreate {project} oncreated={created} />
+      <NewSession {project} {name} oncreated={created} />
     {:else if page.url.pathname === `${root}/recordings`}
       <section class="welcome"><p class="eyebrow">Project</p><h1>{name}</h1><p>Open a conversation or file from the sidebar, or start a new conversation.</p><button onclick={() => select(`${root}/conversations/new`)}>New conversation</button><p>Record audio from the macOS Recording menu.</p></section>
     {:else}<div class="route-content">{@render children()}</div>{/if}

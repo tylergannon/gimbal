@@ -20,3 +20,5 @@ decision: Simplify the expanded delivery contract and unapproved design cards: r
 correction: Historical HTTP/native-fixture demonstrations support the pipeline given supplied text; they do not establish real microphone/menu behavior. The remaining finish is one real application session through both recording entry paths, with ordinary recording excluded until marked, usable fields/filter/sort and persistence. No more proof drivers or recursive review rounds.
 
 friction: Current Designer source/history was retrieved, but current browser rendering was unavailable through login/remote-host boundaries. Historical images were treated as historical. The requested sessionize export is absent from the research machine; cached samples do not replace it.
+
+correction: Tyler clarified that basic audit/source traceability and withdrawals belong to the Clarity functionality being copied. The assessment overstated their inclusion as scope expansion. Revised the journal to keep and demonstrate ordinary traceability/withdrawal, while rejecting exhaustive guarantees and ambiguous-reference perfection.

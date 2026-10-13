@@ -108,3 +108,16 @@ func TestNewerVersionComparesNumerically(t *testing.T) {
 		t.Fatal("versions do not compare as dotted numbers")
 	}
 }
+
+func TestNewestListsEachFamilyOnceByHarness(t *testing.T) {
+	newest := Newest()
+	if got := strings.Join(newest["claude"], ","); got != "claude-fable-5-1,claude-haiku-4-5,claude-opus-5-5,claude-sonnet-5-5" {
+		t.Fatalf("claude = %s", got)
+	}
+	if got := strings.Join(newest["codex"], ","); got != "gpt-6-astra,gpt-6.1-sol,gpt-6-luna,gpt-5.6-terra" {
+		t.Fatalf("codex = %s", got)
+	}
+	if got := strings.Join(newest["agy"], ","); got != "gemini-3.8-flash-medium" {
+		t.Fatalf("agy = %s", got)
+	}
+}

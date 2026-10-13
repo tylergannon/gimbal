@@ -111,7 +111,9 @@ tools for the desktop app; see the
 The macOS app starts its bundled Gimbal CLI as a managed local server by
 default. Its central project catalog and instance control state live in
 `~/.gimbal/desktop`; each project's runs and conversations remain under that
-project's `.gimbal` directory. Set `GIMBAL_SERVER_URL` before launching the app
+project's `.gimbal` directory. Set `GIMBAL_INSTANCE_DIR` before launching the app
+to keep that state somewhere else, for example to run a test catalog beside your
+own. Set `GIMBAL_SERVER_URL` before launching the app
 to proxy an external server instead. In that mode, the app does not start or
 manage the external server.
 

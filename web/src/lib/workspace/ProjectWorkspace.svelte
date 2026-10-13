@@ -1,7 +1,8 @@
 <script lang="ts">
   import { navigateOnUnauthorized } from "#lib/auth/unauthorized";
   import { errorMessage } from "#lib/errors";
-  import { onMount, type Snippet } from 'svelte';
+  import { onMount, untrack, type Snippet } from 'svelte';
+  import { MediaQuery } from 'svelte/reactivity';
   import type { Conversation } from '#lib/skgo/conversation/types';
   import { afterNavigate, goto } from '$app/navigation';
   import { page } from '$app/state';
@@ -9,16 +10,19 @@
   import type { WorkspaceTab, RecordingDisplay } from '#lib/shell/types';
   import { projectConversations } from '../../routes/conversation.remote';
   import { projectFiles, uploadFile } from '../workspace.remote';
+  import { rememberWindow } from '../window.remote';
+  import type { WindowTab } from '#lib/skgo/host/types';
   import { recordingHistory } from '../transcript.remote';
   import ConversationView from '../conversation/ConversationView.svelte';
-  import ConversationCreate from '../conversation/ConversationCreate.svelte';
+  import NewSession from '../conversation/NewSession.svelte';
   import RecordingTranscript from './RecordingTranscript.svelte';
   import FileViewer from './FileViewer.svelte';
   import { nativeMessage, type NativeStatus } from './native';
   import { conversationsForWorkspace } from './conversations';
+  import OpenFolder from './OpenFolder.svelte';
 
-  let { project, name, projects, children }: {
-    project: string; name: string; projects: { id: string; path: string }[]; children: Snippet;
+  let { project, name, projects, restored = [], children }: {
+    project: string; name: string; projects: { id: string; path: string }[]; restored?: WindowTab[]; children: Snippet;
   } = $props();
   const root = $derived(`/projects/${project}`);
   const chats = $derived(projectConversations(project));
@@ -35,10 +39,14 @@
     ? { id: `${initialPath.split("/").slice(0, 3).join("/")}/conversations/${initialConversation.id}`, title: initialConversation.title, kind: 'chat' }
     : page.params.fileID ? { id: initialPath, title: 'Project file', kind: 'file' }
     : page.params.recordingID ? { id: initialPath, title: 'Recorded conversation', kind: 'chat' }
-    : initialPath.endsWith('/conversations/new') ? { id: initialPath, title: 'New conversation', kind: 'chat' } : undefined;
+    : initialPath.endsWith('/conversations/new') ? { id: initialPath, title: 'New session', kind: 'chat' } : undefined;
   const upload = $derived(uploadFile.for(project));
-  let open = $state<WorkspaceTab[]>(initialTab ? [initialTab] : []);
-  let sidebar = $state(true);
+  // Keyed by project, so the desktop window's last tabs seed this mount only.
+  const reopened = untrack(() => restored).map(tab => ({ ...tab, kind: tab.kind === 'file' ? 'file' as const : 'chat' as const }));
+  let open = $state<WorkspaceTab[]>([...reopened, ...(initialTab && !reopened.some(tab => tab.id === initialTab.id) ? [initialTab] : [])]);
+  // The desktop window opens at 1000 px, so its server render starts without the sidebar.
+  const wide = new MediaQuery('min-width: 1100px', !(page.data as { desktop?: boolean }).desktop);
+  let sidebar = $derived(wide.current);
   let native = $state(false);
   let status = $state<NativeStatus>();
   const active = $derived(open.find(tab => tab.id === page.url.pathname)?.id ?? (page.url.pathname === `${root}/conversations` ? open[0]?.id : undefined));
@@ -58,7 +66,7 @@
     const item = items.find(item => item.id === path);
     const recordingID = page.params.recordingID;
     const tab = item ?? (path === `${root}/conversations/new`
-      ? { id: path, title: 'New conversation', kind: 'chat' as const }
+      ? { id: path, title: 'New session', kind: 'chat' as const }
       : page.params.fileID ? { id: path, title: files.find(file => file.id === page.params.fileID)?.name ?? 'Project file', kind: 'file' as const }
       : recordingID ? { id: path, title: 'Recorded conversation', kind: 'chat' as const } : undefined);
     // A conversation started from the New conversation tab takes over that tab.
@@ -102,6 +110,11 @@
     if (!native) return;
     nativeMessage('workspaceState', { ready: true, sidebarVisible: sidebar, tabCount: tabs.length, activeTabTitle: tabs.find(tab => tab.id === active)?.title, canStopResponse: conversations.some(item => `${root}/conversations/${item.id}` === active && !!item.active_request && item.status !== 'stopping') });
   });
+  const place = $derived(JSON.stringify({ project, path: page.url.pathname, tabs: tabs.map(({ id, title, kind }) => ({ id, title, kind })) }));
+  $effect(() => {
+    const value = JSON.parse(place);
+    if (native) untrack(() => void rememberWindow(value).catch(() => {}));
+  });
   $effect(() => {
     if (!conversations.some(item => ['working', 'stopping', 'unresolved'].includes(item.status) || item.runs.some(run => run.status === 'running'))) return;
     const timer = setInterval(() => { void projectConversations(project).refresh().catch(navigateOnUnauthorized); }, 1000);
@@ -128,7 +141,7 @@
   onselect={select} onclose={close} onopen={select} onnew={() => select(`${root}/conversations/new`)}>
   {#snippet content(tab)}
     <svelte:boundary onerror={(error) => { navigateOnUnauthorized(error); }}>
-      {#if tab.id === `${root}/conversations/new`}<ConversationCreate {project} oncreated={created} />
+      {#if tab.id === `${root}/conversations/new`}<NewSession {project} {name} oncreated={created} />
       {:else if tab.id.startsWith(`${root}/conversations/`)}
         {@const current = conversations.find(item => `${root}/conversations/${item.id}` === tab.id)}
         {#if current}<ConversationView {project} {current} active={active === tab.id} onstate={updated} />{:else}<p class="notice">Conversation unavailable.</p>{/if}
@@ -139,7 +152,7 @@
   {/snippet}
   {#snippet fallback()}
     {#if page.url.pathname === `${root}/conversations`}
-      <ConversationCreate {project} oncreated={created} />
+      <NewSession {project} {name} oncreated={created} />
     {:else if page.url.pathname === `${root}/recordings`}
       <section class="welcome"><p class="eyebrow">Project</p><h1>{name}</h1><p>Open a conversation or file from the sidebar, or start a new conversation.</p><button onclick={() => select(`${root}/conversations/new`)}>New conversation</button><p>Record audio from the macOS Recording menu.</p></section>
     {:else}<div class="route-content">{@render children()}</div>{/if}
@@ -151,7 +164,7 @@
     {#each history.items as item (item.id)}<a class="row" class:selected={page.params.recordingID === item.id} href={`${root}/recordings/${item.id}`}><span>◉</span><span>{new Date(item.created).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} · {new Date(item.created).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}</span><small>{item.status}</small></a>{:else}<p class="quiet">No recordings yet</p>{/each}
     <details class="upload"><summary>Add project file</summary><form {...upload.enhance(async (submitted) => { try { if (await submitted.submit().updates(projectFiles(project)) && submitted.result) { documents.set([submitted.result, ...files.filter(file => file.id !== submitted.result!.id)]); select(`${root}/files/${submitted.result.id}`); } } catch (error) { if (!navigateOnUnauthorized(error)) actionError = errorMessage(error); } })}><input {...upload.fields.project.as('hidden', project)} /><input aria-label="Choose project file" {...upload.fields.file.as('file')} required /><button disabled={!!upload.pending}>{upload.pending ? 'Uploading…' : 'Upload'}</button>{#each upload.fields.allIssues() ?? [] as issue}<p role="alert">{issue.message}</p>{/each}</form></details>
     <nav class="tools" aria-label="Project tools"><a href={root}>Runs</a><a href="/workflows">Workflows</a><a href={`${root}/about`}>About project</a></nav>
-    <details class="projects"><summary>Switch project</summary>{#each projects as item (item.id)}<a class="row" href={`/projects/${item.id}/recordings`}>{item.path.split('/').at(-1)}</a>{/each}<a class="row" href="/">Add project</a></details>
+    <details class="projects"><summary>Switch project</summary>{#each projects as item (item.id)}<a class="row" href={`/projects/${item.id}/recordings`}>{item.path.split('/').at(-1)}</a>{/each}{#if native}<OpenFolder class="hover:bg-sidebar-accent flex min-h-8 w-full items-center rounded-lg px-2.5 text-xs">Add project</OpenFolder>{:else}<a class="row" href="/">Add project</a>{/if}</details>
   {/snippet}
 </WorkspaceShell>
 

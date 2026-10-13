@@ -9,6 +9,7 @@
   import type { Conversation } from '#lib/skgo/conversation/types';
   import type { ProjectionState } from '#lib/sessionstate';
   import ConversationTranscript from './ConversationTranscript.svelte';
+  import { harnessName, modelName } from './names';
 
   let { project, current, active = true, onstate }: { project: string; current: Conversation; active?: boolean; onstate?: (item: Conversation) => void } = $props();
   const stream = $derived(watchConversation({ project, conversation: current.id }));
@@ -21,7 +22,7 @@
   const draft = $derived(form.fields.message.value() ?? '');
   const hasMessage = $derived(!!draft.trim());
   const canStop = $derived(working && !stopping && record.status !== 'unresolved');
-  const provider = $derived(record.provider === 'agy' ? 'Gemini' : record.provider === 'codex' ? 'Codex' : 'Claude Code');
+  const provider = $derived(harnessName(record.provider));
   let actionError = $state('');
   let stopPending = $state(false);
   let requestID = $state('');
@@ -72,7 +73,7 @@
       </section>
     {/if}
     {#if messages.length}
-      <ConversationTranscript {messages} requests={record.requests} {provider} model={record.model} location={record.branch || 'This Mac'} />
+      <ConversationTranscript {messages} requests={record.requests} {provider} model={modelName(record.model)} location={record.branch || 'This Mac'} />
     {:else if record.messages.length}
       {#each record.messages as message, i (i)}<article class:user={message.role === 'user'}><p>{message.text}</p></article>{/each}
     {:else}
@@ -100,7 +101,7 @@
     <input {...form.fields.id.as('hidden', requestID)} />
     <input {...form.fields.created.as('hidden', created)} />
     <textarea {...form.fields.message.as('text')} rows={2} onkeydown={keydown} placeholder={`Message ${provider}…`} aria-label={`Message ${record.title}`} disabled={!record.live || !!form.pending || stopping || record.status === 'unresolved'}></textarea>
-    <div class="composer-meta"><code title={record.worktree}>{record.branch || record.worktree} · This Mac</code>{#if working && hasMessage}<span>↩ sends now · esc stops</span>{/if}</div>
+    <div class="composer-meta"><span title={record.model}>{provider} · {modelName(record.model)}</span><code title={record.worktree}>{record.branch || record.worktree} · This Mac</code>{#if working && hasMessage}<span>↩ sends now · esc stops</span>{/if}</div>
     {#if working && !hasMessage}
       <button type="button" class="send" aria-label="Stop response" onclick={stop} disabled={!canStop || stopPending}>{#if stopping || stopPending}<LoaderCircle size={16} class="spin" />{:else}<Square size={12} fill="currentColor" />{/if}</button>
     {:else}
@@ -113,7 +114,7 @@
 
 <style>
   .chat { height: 100%; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
-  .transcript { flex: 1; min-height: 0; overflow: auto; padding: 28px max(24px, calc((100% - 720px) / 2)); display: flex; flex-direction: column; gap: 22px; }
+  .transcript { flex: 1; min-height: 0; overflow: auto; overflow-wrap: anywhere; padding: 28px max(24px, calc((100% - 720px) / 2)); display: flex; flex-direction: column; gap: 22px; }
   p, h2 { margin: 0; }
   article p { white-space: pre-wrap; line-height: 1.65; }
   article.user { align-self: flex-end; max-width: 86%; border-radius: 18px; padding: 12px 16px; background: var(--muted); }

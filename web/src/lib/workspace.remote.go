@@ -61,7 +61,11 @@ func uploadFile(ctx context.Context, event app.RequestEvent[params.Params], r Up
 	if e != nil {
 		return projectfiles.Document{}, e
 	}
-	return projectfiles.Upload(ctx, p.Dir(), p.ID(), r.File.Name, r.File.Data)
+	doc, err := projectfiles.Upload(ctx, p.Dir(), p.ID(), r.File.Name, r.File.Data)
+	if err != nil {
+		return doc, err
+	}
+	return doc, skgo.RefreshRequested(ctx, projectFiles, 1)
 }
 func projectFiles(ctx context.Context, id string) ([]projectfiles.Document, error) {
 	p, e := project(ctx, id)

@@ -2,10 +2,15 @@ package claude
 
 import (
 	"context"
+	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	claudeagent "github.com/tylergannon/claude-agent-sdk-go"
+	"github.com/tylergannon/gimbal"
 )
 
 // TestCloseIsIdempotent covers acceptance item 4: closing a Claude session
@@ -129,5 +134,33 @@ func TestSessionsStartWithoutTheUsersMCPServers(t *testing.T) {
 	}
 	if !New(WithUserConfiguration()).(*adapter).userConfiguration {
 		t.Fatal("WithUserConfiguration did not ask for the user's configuration")
+	}
+}
+
+func TestATurnFailsWhenClaudeCodeDiesOnStart(t *testing.T) {
+	bin := t.TempDir()
+	cli := "#!/bin/sh\necho 'not signed in' >&2\nexit 1\n"
+	if err := os.WriteFile(filepath.Join(bin, "claude"), []byte(cli), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	adapter := New()
+	id, err := adapter.CreateSession(context.Background(), "claude-haiku-4-5", "", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan error, 1)
+	go func() {
+		_, err := adapter.RunTurn(context.Background(), id, "hello", json.RawMessage(`{"type":"object"}`), func(gimbal.AgentEvent) error { return nil })
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Fatal("the turn succeeded with a CLI that exits on start")
+		}
+	case <-time.After(30 * time.Second):
+		t.Fatal("the turn is still waiting on a CLI that exited on start")
 	}
 }

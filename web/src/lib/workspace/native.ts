@@ -17,3 +17,15 @@ declare global {
 export function nativeMessage(name: string, value: unknown) {
   window.webkit?.messageHandlers?.[name]?.postMessage(value);
 }
+// The desktop answers with a `gimbal-project-folder` event: the chosen path, or null when cancelled.
+export function chooseProjectFolder(): Promise<string | undefined> {
+  if (!window.webkit?.messageHandlers?.chooseProjectFolder) return Promise.resolve(undefined);
+  return new Promise((resolve) => {
+    window.addEventListener(
+      "gimbal-project-folder",
+      (event) => resolve((event as CustomEvent<{ path: string | null }>).detail.path ?? undefined),
+      { once: true },
+    );
+    nativeMessage("chooseProjectFolder", {});
+  });
+}

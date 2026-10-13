@@ -91,7 +91,7 @@ func startBundledServer() (string, error) {
 		return "", fmt.Errorf("locate the user's home directory for Gimbal state")
 	}
 	cmd := exec.Command(path,
-		"--instance-dir", filepath.Join(home, ".gimbal", "desktop"),
+		"--instance-dir", instanceDir(home),
 		"--no-project", "--port", "0", "--ready")
 	cmd.Env = serverEnvironment(home)
 	stdout, err := cmd.StdoutPipe()
@@ -143,6 +143,15 @@ func startBundledServer() (string, error) {
 		stopBundledServerLocked()
 		return "", fmt.Errorf("bundled Gimbal server did not become ready within 20 seconds")
 	}
+}
+
+// instanceDir is the bundled server's state directory: GIMBAL_INSTANCE_DIR when set, so one app
+// can run against several catalogs, else ~/.gimbal/desktop.
+func instanceDir(home string) string {
+	if dir := strings.TrimSpace(os.Getenv("GIMBAL_INSTANCE_DIR")); dir != "" {
+		return dir
+	}
+	return filepath.Join(home, ".gimbal", "desktop")
 }
 
 func serverEnvironment(home string) []string {

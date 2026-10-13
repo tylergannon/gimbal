@@ -13,6 +13,8 @@ type WorkspaceLayout struct {
 	User              polytype.Nullable[AuthUserSummary] `json:"user"`
 	Desktop           bool                               `json:"desktop"`
 	WorkspaceProjects []host.ProjectChoice               `json:"workspaceProjects"`
+	// Window is where the desktop window last was; empty outside the desktop.
+	Window host.WindowState `json:"window"`
 }
 
 func layout(event LayoutRequestEvent) (WorkspaceLayout, error) {
@@ -23,7 +25,7 @@ func layout(event LayoutRequestEvent) (WorkspaceLayout, error) {
 		ctx = r.Context()
 		desktop = r.Header.Get("X-Gimbal-Desktop") == "macos"
 	}
-	out := WorkspaceLayout{Desktop: desktop, WorkspaceProjects: []host.ProjectChoice{}}
+	out := WorkspaceLayout{Desktop: desktop, WorkspaceProjects: []host.ProjectChoice{}, Window: host.WindowState{Tabs: []host.WindowTab{}}}
 	out.AuthEnabled = webauth.From(ctx) != nil
 	if user := auth.UserFrom(ctx); out.AuthEnabled && user != nil {
 		out.User = polytype.Nullable[AuthUserSummary]{Present: true, Value: AuthUserSummary{ID: user.ID(), Name: user.Name()}}
@@ -32,6 +34,9 @@ func layout(event LayoutRequestEvent) (WorkspaceLayout, error) {
 		return out, nil
 	}
 	if owner := host.OwnerFrom(ctx); owner != nil {
+		if desktop {
+			out.Window = owner.Window()
+		}
 		for _, p := range owner.Projects() {
 			out.WorkspaceProjects = append(out.WorkspaceProjects, host.ProjectChoice{ID: p.ID(), Path: p.Path()})
 		}

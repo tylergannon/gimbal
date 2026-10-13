@@ -72,3 +72,22 @@ export type Request = {
  * JSONText is JSON source text carried opaquely by an event. Complete events contain one encoded value; delta events may contain only the next fragment. Text preserves provider-specific payloads while the event remains a closed Polytype shape.
  */
 export type JSONText = string;
+
+/**
+ * Setup is what a new conversation in this project can choose and where it will work. Every conversation runs on this machine; in a Git repository it gets its own worktree branched from HEAD, and elsewhere it shares Directory.
+ */
+export type Setup = {
+  harnesses: Array<Harness>;
+  directory: string;
+  git: boolean;
+  branch: string;
+};
+
+/**
+ * Harness is a provider a person can start a conversation with: its cheap default model and the newest model of each family it serves.
+ */
+export type Harness = {
+  id: string;
+  default: string;
+  models: Array<string>;
+};

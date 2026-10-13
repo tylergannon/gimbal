@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/internal/modelalias"
 	"github.com/tylergannon/gimbal/internal/observation"
 	"github.com/tylergannon/gimbal/internal/sessionstate"
 )
@@ -266,6 +267,59 @@ func (m *Manager) Create(ctx context.Context, in NewConversation) (Conversation,
 	return clone(item), nil
 }
 
+// Harness is a provider a person can start a conversation with: its cheap
+// default model and the newest model of each family it serves.
+type Harness struct {
+	ID      string   `json:"id"`
+	Default string   `json:"default"`
+	Models  []string `json:"models"`
+}
+
+// Setup is what a new conversation in this project can choose and where it
+// will work. Every conversation runs on this machine; in a Git repository it
+// gets its own worktree branched from HEAD, and elsewhere it shares Directory.
+type Setup struct {
+	Harnesses []Harness `json:"harnesses"`
+	Directory string    `json:"directory"`
+	Git       bool      `json:"git"`
+	Branch    string    `json:"branch"`
+}
+
+// Setup reports the choices and the fixed environment for a new conversation.
+func (m *Manager) Setup(ctx context.Context) (Setup, error) {
+	newest := modelalias.Newest()
+	setup := Setup{Harnesses: []Harness{}}
+	for _, provider := range []string{"claude", "codex", "agy"} {
+		model, _, err := providerModel(provider, "")
+		if err != nil {
+			return Setup{}, err
+		}
+		models := slices.Clone(newest[provider])
+		if !slices.Contains(models, model) {
+			models = append([]string{model}, models...)
+		}
+		setup.Harnesses = append(setup.Harnesses, Harness{ID: provider, Default: model, Models: models})
+	}
+	directory := filepath.Dir(m.projectDir)
+	setup.Directory = directory
+	if home, err := os.UserHomeDir(); err == nil {
+		if rest, ok := strings.CutPrefix(directory, home); ok && (rest == "" || rest[0] == filepath.Separator) {
+			setup.Directory = "~" + rest
+		}
+	}
+	_, err := gitOutput(ctx, directory, "rev-parse", "--show-toplevel")
+	if err != nil && !strings.Contains(err.Error(), "fatal: not a git repository") {
+		return Setup{}, fmt.Errorf("conversation: find repository: %w", err)
+	}
+	if setup.Git = err == nil; setup.Git {
+		setup.Branch, _ = gitOutput(ctx, directory, "branch", "--show-current")
+		if setup.Branch == "" {
+			setup.Branch = "HEAD"
+		}
+	}
+	return setup, nil
+}
+
 // List returns newest-first durable snapshots.
 func (m *Manager) List() []Conversation {
 	m.mu.Lock()
@@ -368,6 +422,31 @@ func (m *Manager) refresh(item *Conversation) {
 	}
 }
 
+// Start creates a conversation titled by its first message and admits that
+// message through the same request lifecycle as subsequent turns.
+func (m *Manager) Start(ctx context.Context, in NewConversation, text string) (Conversation, error) {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return Conversation{}, errors.New("conversation: message is blank")
+	}
+	if strings.TrimSpace(in.Title) == "" {
+		in.Title = titleFrom(text)
+	}
+	item, err := m.Create(ctx, in)
+	if err != nil {
+		return Conversation{}, err
+	}
+	requestID, err := randomID()
+	if err != nil {
+		return Conversation{}, err
+	}
+	if _, err := m.Submit(item.ID, Request{ID: requestID, Created: time.Now().UnixMilli(), Kind: "prompt", Message: text}); err != nil {
+		return Conversation{}, err
+	}
+	item, _ = m.Get(item.ID)
+	return item, nil
+}
+
 // Close releases each live native session. Worktrees and saved conversations
 // deliberately remain: they are the durable association the UI promises.
 func (m *Manager) Close() {
@@ -437,7 +516,7 @@ func providerModel(provider, model string) (string, string, error) {
 		return model, "low", nil
 	case "claude":
 		if model == "" {
-			model = "claude-haiku-4-5-20251001"
+			model = "claude-haiku-4-5"
 		}
 		if !strings.HasPrefix(model, "claude-") {
 			return "", "", fmt.Errorf("conversation: model %q is not a Claude model", model)
@@ -467,12 +546,28 @@ func providerLabel(provider string) string {
 	case "codex":
 		return "Codex"
 	case "claude":
-		return "Claude"
+		return "Claude Code"
 	case "agy":
-		return "agy / Gemini"
+		return "Antigravity"
 	default:
 		return provider
 	}
+}
+
+// titleFrom names a conversation by the first line of its first message,
+// cut at a word near sixty characters.
+func titleFrom(text string) string {
+	line, _, _ := strings.Cut(strings.TrimSpace(text), "\n")
+	line = strings.TrimSpace(line)
+	runes := []rune(line)
+	if len(runes) <= 60 {
+		return line
+	}
+	cut := string(runes[:60])
+	if space := strings.LastIndex(cut, " "); space > 30 {
+		cut = cut[:space]
+	}
+	return strings.TrimRight(cut, " ,.;:") + "…"
 }
 
 func randomID() (string, error) {

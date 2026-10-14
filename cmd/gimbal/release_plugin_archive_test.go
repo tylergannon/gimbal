@@ -218,7 +218,7 @@ func checkReleaseWeb(t *testing.T, cli, work string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	body, err := io.ReadAll(io.LimitReader(response.Body, 8<<20))
 	if err != nil || response.StatusCode != http.StatusOK || !bytes.Contains(body, []byte("<html")) || !bytes.Contains(body, []byte("Gimbal")) {
 		t.Fatalf("archived web response status=%d err=%v body=%.1000s", response.StatusCode, err, body)

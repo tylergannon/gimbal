@@ -1,5 +1,6 @@
 <script lang="ts">
   import "../app.css";
+  import { MediaQuery } from "svelte/reactivity";
   import Account from "#lib/auth/Account.svelte";
   import { navigateOnUnauthorized } from "#lib/auth/unauthorized";
   import { navigating, page } from "$app/state";
@@ -10,6 +11,10 @@
   import RunsLoading from "#lib/run/RunsLoading.svelte";
 
   let { children, data } = $props();
+  const darkAppearance = new MediaQuery("prefers-color-scheme: dark", false);
+  $effect(() => {
+    document.documentElement.classList.toggle("dark", darkAppearance.current);
+  });
   const project = $derived(page.params.project);
   const root = $derived(`/projects/${project}`);
   const loadingRuns = $derived(

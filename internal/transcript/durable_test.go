@@ -2,6 +2,8 @@ package transcript
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 
@@ -179,5 +181,45 @@ func TestInterruptedRecordingIsNotSuccessfulClose(t *testing.T) {
 	r, _ := fresh.Get("session")
 	if r.Status != "interrupted" {
 		t.Fatalf("rewrote interrupted status: %+v", r.Header)
+	}
+}
+
+func TestCloseRetryRepairsFailedMetadataWrite(t *testing.T) {
+	dir := t.TempDir()
+	s, err := NewDurable(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = s.Open(OpenRequest{SessionID: "session", Source: "synthetic"}); err != nil {
+		t.Fatal(err)
+	}
+	meta := filepath.Join(dir, "recordings", "session.meta.json")
+	if err = os.Remove(meta); err != nil {
+		t.Fatal(err)
+	}
+	if err = os.Mkdir(meta, 0755); err != nil {
+		t.Fatal(err)
+	}
+	seq := int64(0)
+	duration := polytype.Nullable[int64]{Present: true, Value: 4800}
+	if _, err = s.State("session", "stopped", &seq, duration); err == nil {
+		t.Fatal("close acknowledged despite failed metadata write")
+	}
+	if _, err = s.State("session", "stopped", &seq, duration); err == nil {
+		t.Fatal("retry acknowledged while metadata remains unwritable")
+	}
+	if err = os.Remove(meta); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = s.State("session", "stopped", &seq, duration); err != nil {
+		t.Fatal(err)
+	}
+	fresh, err := NewDurable(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err := fresh.Get("session")
+	if err != nil || r.Status != "stopped" || !r.DurationMs.Present || r.DurationMs.Value != 4800 {
+		t.Fatalf("successful retry lost saved duration: %+v %v", r, err)
 	}
 }

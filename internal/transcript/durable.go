@@ -219,6 +219,11 @@ func (s *DurableStore) State(id, status string, sequence *int64, durationMs poly
 		if status == "stopped" && r.Status != "stopped" {
 			return Ack{}, errors.New("recording was interrupted; it cannot be confirmed as successfully saved")
 		}
+		if status == "stopped" || status == "interrupted" {
+			// A prior close may have written the recording but failed its metadata.
+			// A terminal retry acknowledges both durable files and repairs history.
+			return ackRecording(r), s.save(r)
+		}
 		return ackRecording(r), nil
 	}
 	switch status {

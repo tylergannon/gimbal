@@ -8,3 +8,6 @@ decision: A close/display-confirmation failure retains a retryable save outcome 
 decision: Destination navigation receipt establishes the selected project independently of old transcript observation. New capture waits separately for display; a failure belongs to the selected destination.
 friction: Native generation and the appgen directive both select Swift remotes; update both lists and use TestNativeSelection to prevent post-build generation from removing a required query binding.
 decision: Durable close must reject interrupted metadata after server restart; a generic closed acknowledgement is insufficient to prove successful saving.
+
+decision: Terminal close/abort retry reconciles both durable files before acknowledgement. A full-record write alone cannot prove saved history/duration; metadata may have failed independently.
+correction: Native dark acceptance found existing .dark tokens were never selected. Root layout follows the system color scheme, activating those tokens without a separate theme setting.

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.24] - 2026-10-14
+
+### Changed
+
+- fix(ci): restore release observation despite invalid historical timing
+
 ## [0.13.23] - 2026-10-14
 
 ### Changed
@@ -320,7 +326,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `opencode/provider/model` routing, one shared server managed by
   `gimbal opencode start|stop`, and raw event/request captures for diagnostics.
 
-[Unreleased]: https://github.com/tylergannon/gimbal/compare/v0.13.23...main
+[Unreleased]: https://github.com/tylergannon/gimbal/compare/v0.13.24...main
+[0.13.24]: https://github.com/tylergannon/gimbal/compare/v0.13.23...v0.13.24
 [0.13.23]: https://github.com/tylergannon/gimbal/compare/v0.13.22...v0.13.23
 [0.13.22]: https://github.com/tylergannon/gimbal/compare/v0.13.21...v0.13.22
 [0.13.21]: https://github.com/tylergannon/gimbal/compare/v0.13.20...v0.13.21

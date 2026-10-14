@@ -40,12 +40,16 @@ def restore(archive):
         metadata = json.load(source.extractfile('release-inputs.json'))
         if metadata['sha'] != git('rev-parse', 'HEAD'):
             raise ValueError('Prepared inputs belong to a different release revision')
+        # The persistent Mac's Python 3.9.6 predates extraction filters.
+        for member in source.getmembers():
+            if not (member.isfile() or member.isdir()) or not Path(member.name).resolve().is_relative_to(Path.cwd().resolve()):
+                raise ValueError('Prepared input escapes the checkout or is a special file')
         for name in metadata['deleted']:
             path = Path(name)
             if not path.resolve().is_relative_to(Path.cwd().resolve()):
                 raise ValueError('Deleted output escapes the checkout')
             path.unlink(missing_ok=True)
-        source.extractall(filter='data')
+        source.extractall()
     Path('release-inputs.json').unlink()
 
 

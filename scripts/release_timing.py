@@ -199,7 +199,7 @@ def ensure_issue(api, repo, result):
         f"Elapsed: **{result['elapsed_seconds']:.0f}s**. Delivery: {result['delivery']}.",
         *result['release_urls'], '',
         'Wall time includes queueing and retries. Parent tagging waits overlap the child pipeline; '
-        'do not sum the stage table. Active critical-path time counts parallel platform maximums.',
+        'do not sum the stage table. Active critical-path time counts overlapping execution intervals once.',
         f"Active critical path: {result['active_critical_path_seconds']:.0f}s.",
         *rows])
     issue = api.create_issue(repo, f"Release timing exceeded: source {result['source_sha'][:12]}", body)

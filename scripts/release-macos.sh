@@ -190,6 +190,11 @@ if ((!SKIP_BUILD)) && [[ "${RELEASE_PREPARED_INPUTS:-}" != 1 ]]; then
 	fi
 fi
 
+if ((!SKIP_BUILD)); then
+	[[ -x "$BUNDLED_CLI" ]] || die 'prepared release is missing its bundled Gimbal CLI'
+	"$BUNDLED_CLI" --version | grep -Fq "v$VERSION" || die "bundled CLI version does not match $VERSION"
+fi
+
 if ((SKIP_BUILD)); then
 	[[ -d "$BUILT_APP" ]] || die "built app not found: $BUILT_APP"
 	APP_SOURCE="$(cd "$(dirname "$BUILT_APP")" && pwd)/$(basename "$BUILT_APP")"

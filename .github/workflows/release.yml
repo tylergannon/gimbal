@@ -101,7 +101,7 @@ jobs:
         if: matrix.target == 'linux_amd64'
         run: |
           mkdir -p bin
-          tar -xzf dist/gimbal_*_linux_amd64.tar.gz -C bin gimbal
+          tar -xzf dist/gimbal_*_linux_amd64.tar.gz -C bin
           sudo apt-get update
           sudo apt-get install --yes zsh
           cd web

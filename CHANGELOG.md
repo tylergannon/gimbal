@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.17] - 2026-10-14
+
+### Changed
+
+- Use Bob for persistent Linux release builds and qualification (#544)
+
 ## [0.13.16] - 2026-10-14
 
 ### Changed
@@ -278,7 +284,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `opencode/provider/model` routing, one shared server managed by
   `gimbal opencode start|stop`, and raw event/request captures for diagnostics.
 
-[Unreleased]: https://github.com/tylergannon/gimbal/compare/v0.13.16...main
+[Unreleased]: https://github.com/tylergannon/gimbal/compare/v0.13.17...main
+[0.13.17]: https://github.com/tylergannon/gimbal/compare/v0.13.16...v0.13.17
 [0.13.16]: https://github.com/tylergannon/gimbal/compare/v0.13.15...v0.13.16
 [0.13.15]: https://github.com/tylergannon/gimbal/compare/v0.13.14...v0.13.15
 [0.13.14]: https://github.com/tylergannon/gimbal/compare/v0.13.13...v0.13.14

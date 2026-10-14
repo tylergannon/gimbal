@@ -1,11 +1,13 @@
 package gimbal
 
+import "github.com/tylergannon/gimbal/workflow"
+
 // WorkflowRole names the cognitive work a session performs and selects its
 // model binding for a run. Workflows must reuse the established constants below.
 // Do not invent roles for a workflow, participant, or provider: shared roles let
 // model assignments evolve across workflows. Changes to the catalog are deliberate
 // product decisions, not a side effect of authoring a workflow.
-type WorkflowRole string
+type WorkflowRole = workflow.Role
 
 const (
 	// RoleCSMathHardProblems solves difficult computer science and mathematics problems requiring rigorous multi-step reasoning and verification.

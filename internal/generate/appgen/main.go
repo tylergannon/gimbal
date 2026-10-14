@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 
 	"github.com/tylergannon/gimbal/internal/generate"
-	"github.com/tylergannon/gimbal/internal/observation"
 	"github.com/tylergannon/polytype"
 	"github.com/tylergannon/polytype/codegen"
 	"github.com/tylergannon/polytype/goload"
@@ -22,6 +21,12 @@ func (r *remotes) String() string         { return fmt.Sprint([]string(*r)) }
 func (r *remotes) Set(value string) error { *r = append(*r, value); return nil }
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "dev" {
+		if err := development(os.Args[2:]); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
 	if len(os.Args) < 2 || os.Args[1] != "generate" {
 		log.Fatal("usage: appgen generate [options]")
 	}
@@ -63,19 +68,20 @@ func runWithSession(root string, cfg skgo.Config, session *goload.Session) error
 	if err := skgo.Run(cfg); err != nil {
 		return err
 	}
-	// SKGO prunes frontend artifacts it did not produce. Publish Gimbal's
-	// separately owned observation declarations afterward. Each generator checks
-	// its persistent result before asking the shared session for package work.
+	// Each producer owns its outputs and checks its persistent result before
+	// asking the invocation-scoped session for package work.
 	return observationOutput(filepath.Join(root, "internal/observation"), filepath.Join(root, "web/src/lib/observation"), session)
 }
 
 func observationOutput(sourceDir, outputDir string, session *goload.Session) error {
-	return codegen.Generate(polytype.Compose(
-		polytype.Declare[observation.InterviewRow](),
-		polytype.Declare[observation.TurnRow](),
-	), codegen.Options{
-		Session:    session,
-		TargetDir:  sourceDir,
-		TypeScript: &codegen.TypeScriptOptions{Dir: outputDir},
+	return codegen.Generate(observationConfiguration(), codegen.Options{
+		Session: session, TargetDir: sourceDir, TypeScript: &codegen.TypeScriptOptions{Dir: outputDir},
 	})
+}
+
+func observationConfiguration() polytype.Configuration {
+	return polytype.Compose(
+		polytype.DeclareType(polytype.TypeSpec{PackagePath: "github.com/tylergannon/gimbal/internal/observation", Name: "InterviewRow"}),
+		polytype.DeclareType(polytype.TypeSpec{PackagePath: "github.com/tylergannon/gimbal/internal/observation", Name: "TurnRow"}),
+	)
 }

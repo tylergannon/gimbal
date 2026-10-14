@@ -6,7 +6,7 @@ import (
 	_ "embed"
 	"encoding/json"
 
-	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/workflow"
 )
 
 type Workflow struct {
@@ -35,8 +35,8 @@ var Workflows = []Workflow{
 //go:embed defaults.json
 var defaultsJSON []byte
 
-func Defaults() map[gimbal.WorkflowRole]string {
-	var defaults map[gimbal.WorkflowRole]string
+func Defaults() map[workflow.Role]string {
+	var defaults map[workflow.Role]string
 	if err := json.Unmarshal(defaultsJSON, &defaults); err != nil {
 		panic(err)
 	}

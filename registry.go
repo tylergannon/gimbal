@@ -23,25 +23,10 @@ import (
 type Invocation func(context.Context, Env) error
 
 // WorkflowField describes one supported input and its visible presentation.
-type WorkflowField struct {
-	Name        string `json:"name"`
-	Flag        string `json:"flag"`
-	Kind        string `json:"kind"`
-	Description string `json:"description"`
-	Optional    bool   `json:"optional"`
-	Nullable    bool   `json:"nullable"`
-}
+type WorkflowField = workflow.Field
 
 // WorkflowDescription is the serializable catalog used by clients.
-type WorkflowDescription struct {
-	Name        string                  `json:"name"`
-	Summary     string                  `json:"summary"`
-	Help        string                  `json:"help"`
-	InputSchema json.RawMessage         `json:"input_schema"`
-	Fields      []WorkflowField         `json:"fields"`
-	Roles       map[WorkflowRole]string `json:"roles"`
-	SourcePage  json.RawMessage         `json:"source_page"`
-}
+type WorkflowDescription = workflow.Description
 
 // WorkflowDefinition combines a catalog entry with its plugin-owned code.
 type WorkflowDefinition struct {

@@ -8,12 +8,14 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/tylergannon/gimbal/internal/builtin"
 	"github.com/tylergannon/gimbal/internal/generate"
 )
 
 func TestStockRecoversMissingAndStaleOutput(t *testing.T) {
+	t.Setenv("GOWORK", "off")
 	t.Setenv("GIMBAL_GENERATE_CACHE_DIR", t.TempDir())
 	root, err := filepath.Abs(filepath.Join("..", ".."))
 	if err != nil {
@@ -53,16 +55,23 @@ func TestStockRecoversMissingAndStaleOutput(t *testing.T) {
 	command := filepath.Join(root, "cmd", "gimbal", "review_gen.go")
 	expectedOutputs := map[string][]byte{}
 	for _, selected := range builtin.Workflows {
-		for _, path := range []string{
-			filepath.Join(root, "internal", "invocation", selected.Package+"_gen.go"),
-			filepath.Join(root, "internal", "builtin", "pages", selected.Name+".json"),
-		} {
-			expected, err := os.ReadFile(path)
-			if err != nil {
-				t.Fatal(err)
-			}
-			expectedOutputs[path] = expected
+		path := filepath.Join(root, "internal", "invocation", selected.Package+"_gen.go")
+		expected, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
 		}
+		expectedOutputs[path] = expected
+	}
+	for _, path := range []string{
+		filepath.Join(root, "internal", "invocation", "registry_gen.go"),
+		filepath.Join(root, "internal", "invocation", "registry_projection_gen.go"),
+		filepath.Join(root, "web", "src", "lib", "workflow-design", "generated", "catalog.json"),
+	} {
+		expected, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		expectedOutputs[path] = expected
 	}
 	firstForm, err := os.ReadFile(form)
 	if err != nil {
@@ -89,6 +98,9 @@ func TestStockRecoversMissingAndStaleOutput(t *testing.T) {
 	}
 	if err := generate.Stock(root, nil); err != nil {
 		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "internal", "builtin", "pages")); !os.IsNotExist(err) {
+		t.Fatal("generation produced unused embedded-page copies")
 	}
 	formAgain, err := os.ReadFile(form)
 	if err != nil {
@@ -120,6 +132,26 @@ func TestStockRecoversMissingAndStaleOutput(t *testing.T) {
 		actual, err := os.ReadFile(path)
 		if err != nil || !slices.Equal(actual, expected) {
 			t.Fatalf("warm generated product differs: %s (%v)", path, err)
+		}
+	}
+	// Replaying identical authored input must not wake file watchers. Use a
+	// fixed timestamp supplied by this fixture, not an observed baseline.
+	untouched := time.Unix(1_500_000_000, 0)
+	for path := range expectedOutputs {
+		if err := os.Chtimes(path, untouched, untouched); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := generate.Stock(root, nil); err != nil {
+		t.Fatal(err)
+	}
+	for path := range expectedOutputs {
+		info, err := os.Stat(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !info.ModTime().Equal(untouched) {
+			t.Fatalf("identical output rewrote %s", path)
 		}
 	}
 	formSecond, _ := os.ReadFile(form)

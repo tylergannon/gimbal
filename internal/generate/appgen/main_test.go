@@ -35,6 +35,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestObservationProjectionUsesFreshSource(t *testing.T) {
+	t.Setenv("GOWORK", "off")
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module github.com/tylergannon/gimbal/internal/observation\n\ngo 1.27\n"), 0644); err != nil {
 		t.Fatal(err)
@@ -85,10 +86,11 @@ func TestObservationProjectionMatchesApplicationTypes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// The committed application runs Prettier, which removes optional quotes
-	// from identifier-shaped property names. Compare everything else exactly.
+	// Frontend formatting removes optional property quotes; the dev worker
+	// also writes valid unformatted declarations. Compare either form exactly
+	// after normalizing those optional quotes on both sides.
 	property := regexp.MustCompile(`(?m)^(  )"([a-z_]+)"(\??:)`)
-	if property.ReplaceAllString(string(actual), "$1$2$3") != string(expected) {
+	if property.ReplaceAllString(string(actual), "$1$2$3") != property.ReplaceAllString(string(expected), "$1$2$3") {
 		t.Fatal("public generation changed application observation declarations")
 	}
 	if !strings.Contains(string(actual), `"question_id": string`) || !strings.Contains(string(actual), `"unresolved": boolean`) {
@@ -97,6 +99,7 @@ func TestObservationProjectionMatchesApplicationTypes(t *testing.T) {
 }
 
 func TestObservationProjectionPersistentHitSkipsSharedSession(t *testing.T) {
+	t.Setenv("GOWORK", "off")
 	t.Setenv("POLYTYPE_CACHE_DIR", t.TempDir())
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module github.com/tylergannon/gimbal/internal/observation\n\ngo 1.27\n"), 0600); err != nil {

@@ -77,7 +77,7 @@ func Stock(root string, session *goload.Session) error {
 		if err != nil {
 			return err
 		}
-		if err = os.WriteFile(filepath.Join(root, "internal", "invocation", selected.Package+"_gen.go"), formatted, 0644); err != nil {
+		if err = writeGeneratedFile(filepath.Join(root, "internal", "invocation", selected.Package+"_gen.go"), formatted, 0644); err != nil {
 			return err
 		}
 
@@ -92,7 +92,7 @@ func Stock(root string, session *goload.Session) error {
 	if err != nil {
 		return err
 	}
-	if err = os.WriteFile(filepath.Join(root, "internal", "invocation", "registry_gen.go"), registration, 0644); err != nil {
+	if err = writeGeneratedFile(filepath.Join(root, "internal", "invocation", "registry_gen.go"), registration, 0644); err != nil {
 		return err
 	}
 	if err := writeWorkflowPages(root, pages, inputs); err != nil {

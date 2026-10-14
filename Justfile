@@ -10,7 +10,7 @@ build:
     go build -o bin/gimbal ./cmd/gimbal
 
 dev:
-    node web/dev/run.mjs
+    go run ./internal/generate/appgen dev
 
 # Build the Debug macOS app around a fresh CLI. Native generation republishes SKGO outputs;
 # restore Gimbal's separate observation and workflow projections afterward.

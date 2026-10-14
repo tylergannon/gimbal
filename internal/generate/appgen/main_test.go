@@ -35,6 +35,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestObservationProjectionUsesFreshSource(t *testing.T) {
+	t.Setenv("GOWORK", "off")
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module github.com/tylergannon/gimbal/internal/observation\n\ngo 1.27\n"), 0644); err != nil {
 		t.Fatal(err)
@@ -97,6 +98,7 @@ func TestObservationProjectionMatchesApplicationTypes(t *testing.T) {
 }
 
 func TestObservationProjectionPersistentHitSkipsSharedSession(t *testing.T) {
+	t.Setenv("GOWORK", "off")
 	t.Setenv("POLYTYPE_CACHE_DIR", t.TempDir())
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module github.com/tylergannon/gimbal/internal/observation\n\ngo 1.27\n"), 0600); err != nil {

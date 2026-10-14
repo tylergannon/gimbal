@@ -8,12 +8,14 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/tylergannon/gimbal/internal/builtin"
 	"github.com/tylergannon/gimbal/internal/generate"
 )
 
 func TestStockRecoversMissingAndStaleOutput(t *testing.T) {
+	t.Setenv("GOWORK", "off")
 	t.Setenv("GIMBAL_GENERATE_CACHE_DIR", t.TempDir())
 	root, err := filepath.Abs(filepath.Join("..", ".."))
 	if err != nil {
@@ -120,6 +122,26 @@ func TestStockRecoversMissingAndStaleOutput(t *testing.T) {
 		actual, err := os.ReadFile(path)
 		if err != nil || !slices.Equal(actual, expected) {
 			t.Fatalf("warm generated product differs: %s (%v)", path, err)
+		}
+	}
+	// Replaying identical authored input must not wake file watchers. Use a
+	// fixed timestamp supplied by this fixture, not an observed baseline.
+	untouched := time.Unix(1_500_000_000, 0)
+	for path := range expectedOutputs {
+		if err := os.Chtimes(path, untouched, untouched); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := generate.Stock(root, nil); err != nil {
+		t.Fatal(err)
+	}
+	for path := range expectedOutputs {
+		info, err := os.Stat(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !info.ModTime().Equal(untouched) {
+			t.Fatalf("identical output rewrote %s", path)
 		}
 	}
 	formSecond, _ := os.ReadFile(form)

@@ -86,7 +86,7 @@ func writePageJSON(file string, p sourcePage) error {
 	if err = os.MkdirAll(filepath.Dir(file), 0755); err != nil {
 		return err
 	}
-	return os.WriteFile(file, append(data, '\n'), 0644)
+	return writeGeneratedFile(file, append(data, '\n'), 0644)
 }
 
 func writeWorkflowPages(root string, pages []sourcePage, inputs []stockData) error {
@@ -106,12 +106,12 @@ func writeWorkflowPages(root string, pages []sourcePage, inputs []stockData) err
 
 	}
 	index.WriteString("];\n")
-	if err := os.WriteFile(filepath.Join(base, "index.ts"), []byte(index.String()), 0644); err != nil {
+	if err := writeGeneratedFile(filepath.Join(base, "index.ts"), []byte(index.String()), 0644); err != nil {
 		return err
 	}
 	data, err := json.MarshalIndent(catalog, "", "  ")
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(base, "catalog.json"), append(data, '\n'), 0644)
+	return writeGeneratedFile(filepath.Join(base, "catalog.json"), append(data, '\n'), 0644)
 }

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.10] - 2026-10-14
+
+### Changed
+
+- perf: scope release checks and observe feedback budgets (#530)
+
 ## [0.13.9] - 2026-10-14
 
 ### Changed
@@ -236,7 +242,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `opencode/provider/model` routing, one shared server managed by
   `gimbal opencode start|stop`, and raw event/request captures for diagnostics.
 
-[Unreleased]: https://github.com/tylergannon/gimbal/compare/v0.13.9...main
+[Unreleased]: https://github.com/tylergannon/gimbal/compare/v0.13.10...main
+[0.13.10]: https://github.com/tylergannon/gimbal/compare/v0.13.9...v0.13.10
 [0.13.9]: https://github.com/tylergannon/gimbal/compare/v0.13.8...v0.13.9
 [0.13.8]: https://github.com/tylergannon/gimbal/compare/v0.13.7...v0.13.8
 [0.13.7]: https://github.com/tylergannon/gimbal/compare/v0.13.6...v0.13.7

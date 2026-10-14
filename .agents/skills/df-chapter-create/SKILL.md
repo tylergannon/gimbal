@@ -23,7 +23,7 @@ letting an agent expand into the full chapter when needed.
 ## Model selection
 
 Before model preflight or substantive work, read [references/models.md](references/models.md)
-and run the adjacent `scripts/resolve_models.py` for the target project. Apply
+and run the adjacent `scripts/resolve_models` for the target project. Apply
 skill defaults, then `~/.config/diffusion/skills/models.yaml`, then the project's
 `.diffusion/skills/models.yaml`. Use the resolved model and effort for every
 role; the reference describes main-worker handoff and prevents recursive handoff.
@@ -96,7 +96,7 @@ referencing that chapter instead of creating a duplicate.
 Create `docs/chapters/` if needed. Use the bundled helper when available:
 
 ```bash
-python3 .agents/skills/df-chapter-create/scripts/chapter.py next-id
+go run -C "<loaded-skill-dir>/scripts/chapter" . --project "$PWD" next-id
 ```
 
 Chapter ids use `CHAPTER-XXXX`, starting at `CHAPTER-0001`.
@@ -179,7 +179,7 @@ chapters:
 Use the helper when available:
 
 ```bash
-python3 .agents/skills/df-chapter-create/scripts/chapter.py add "Title" \
+go run -C "<loaded-skill-dir>/scripts/chapter" . --project "$PWD" add "Title" \
   --doc docs/chapters/CHAPTER-XXXX-slug.md \
   --summary "One concise summary."
 ```

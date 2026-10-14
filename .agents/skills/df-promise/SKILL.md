@@ -28,9 +28,10 @@ installs both work:
 
 ```bash
 PROMISE_SKILL_DIR="$(find .agents ~/.agents ~/.codex -maxdepth 5 -type d -name df-promise 2>/dev/null | head -1)"
-PROMISE_SCRIPT="$PROMISE_SKILL_DIR/scripts/promise.py"
-test -f "$PROMISE_SCRIPT" || { echo "df-promise helper not found" >&2; exit 1; }
-python3 "$PROMISE_SCRIPT" --help
+PROMISE_PROJECT_ROOT="$(git rev-parse --show-toplevel)"
+PROMISE_HELPER="$(cd "$PROMISE_SKILL_DIR/scripts/promise" && pwd)"
+test -f "$PROMISE_HELPER/go.mod" || { echo "df-promise helper not found" >&2; exit 1; }
+go run -C "$PROMISE_HELPER" . --project "$PROMISE_PROJECT_ROOT" --help
 ```
 
 Run these commands from the target repository root. Do not vendor the generic
@@ -38,32 +39,38 @@ helper under `.promises/`; only promise-specific tools belong there. A
 project-scoped skill installation is the supported way to pin the helper with
 the repository for CI or another runner.
 
+The helper is a self-contained Go module beside this skill. `go run -C` selects
+that module, while `--project` selects the target repository; capture the target
+root before changing directories. The target's Go module and dependencies are
+not used to build the helper. Go and Git are the runtime prerequisites.
+In prose, `promise <command>` names the corresponding helper command below.
+
 Core command forms are:
 
 ```bash
-python3 "$PROMISE_SCRIPT" init <promise-id> \
+go run -C "$PROMISE_HELPER" . --project "$PROMISE_PROJECT_ROOT" init <promise-id> \
   --name "Promise name" --statement "Exact attestable condition" \
   --include "src/**" \
   --gate inventory="Scoped inventory is covered" \
   --plan-step "Inventory the scoped subjects and stale coverage." \
   --runner "human-invoked local agent" \
-  --evidence-mode internal --verifier "tools/check.py" \
+  --evidence-mode internal --verifier "tools/check.sh" \
   --cost-band lt-10 --cost-basis "Local deterministic checks." \
   --max-run-cost-usd 9.99
-python3 "$PROMISE_SCRIPT" validate <promise-id>
-python3 "$PROMISE_SCRIPT" start <promise-id>
-python3 "$PROMISE_SCRIPT" record <promise-id> <run-id> \
+go run -C "$PROMISE_HELPER" . --project "$PROMISE_PROJECT_ROOT" validate <promise-id>
+go run -C "$PROMISE_HELPER" . --project "$PROMISE_PROJECT_ROOT" start <promise-id>
+go run -C "$PROMISE_HELPER" . --project "$PROMISE_PROJECT_ROOT" record <promise-id> <run-id> \
   --kind inspection --result pass --subject path/to/file --gate inventory \
   --evidence ".promises/<promise-id>/evidence/report.json" \
   --summary "What was inspected and what the evidence showed."
-python3 "$PROMISE_SCRIPT" finish <promise-id> <run-id> \
-  --verdict fulfilled --gate inventory=pass --verifier "tools/check.py" \
+go run -C "$PROMISE_HELPER" . --project "$PROMISE_PROJECT_ROOT" finish <promise-id> <run-id> \
+  --verdict fulfilled --gate inventory=pass --verifier "tools/check.sh" \
   --cost-usd-total 0 \
   --summary "Why the contract is fulfilled."
-python3 "$PROMISE_SCRIPT" status [<promise-id>]
-python3 "$PROMISE_SCRIPT" retire <promise-id>
-python3 "$PROMISE_SCRIPT" restore <promise-id>
-python3 "$PROMISE_SCRIPT" badge
+go run -C "$PROMISE_HELPER" . --project "$PROMISE_PROJECT_ROOT" status [<promise-id>]
+go run -C "$PROMISE_HELPER" . --project "$PROMISE_PROJECT_ROOT" retire <promise-id>
+go run -C "$PROMISE_HELPER" . --project "$PROMISE_PROJECT_ROOT" restore <promise-id>
+go run -C "$PROMISE_HELPER" . --project "$PROMISE_PROJECT_ROOT" badge
 ```
 
 Repeat `--gate` and `--plan-step` as needed. `--human-signoff` also requires a
@@ -76,7 +83,7 @@ operator must verify it before starting.
 ## Model selection
 
 Before model preflight or substantive work, read [references/models.md](references/models.md)
-and run the adjacent `scripts/resolve_models.py` for the target project. Apply
+and run the adjacent `scripts/resolve_models` for the target project. Apply
 skill defaults, then `~/.config/diffusion/skills/models.yaml`, then the project's
 `.diffusion/skills/models.yaml`. Use the resolved model and effort for every
 role; the reference describes main-worker handoff and prevents recursive handoff.
@@ -99,15 +106,15 @@ model_defaults:
 - **reconfigure**: The promise, scope, gates, tools, budget, or cadence changes.
   Re-interview only the affected decisions, update the contract and plan, and
   invalidate the old badge until a fresh run fulfills the new mechanism.
-- **retire**: Use `promise.py retire <promise-id>` to remove the badge and
+- **retire**: Use `promise retire <promise-id>` to remove the badge and
   registry entry without deleting its contract, runs, or evidence. Finish an
-  active run first. Use `promise.py restore <promise-id>` before running it
+  active run first. Use `promise restore <promise-id>` before running it
   again; a retired promise cannot validate as runnable, start, record, or finish
   runs. Restore reissues a retained attestation only when its scope, mechanism,
   and freshness are still valid; otherwise run the loop again.
 
 Contract schema 2 adds required runner, economics, evidence mode, and verifier
-fields. Migrate schema 1 contracts explicitly with `promise.py migrate
+fields. Migrate schema 1 contracts explicitly with `promise migrate
 <promise-id>` plus the required runner, evidence, verifier, and cost flags shown
 by `migrate --help`; do not invent cost or approval answers. Migration is
 blocked while a run is active and regenerates `PROMISE.md` for review.
@@ -119,7 +126,7 @@ Use a tracked hidden directory at the repository root:
 ```text
 .promises/
 ├── registry.json
-├── .gitignore                  # ignores transient work and Python caches
+├── .gitignore                  # ignores transient work and atomic scratch files
 ├── .work/                      # ignored registry lock and atomic scratch files
 └── <promise-id>/
     ├── PROMISE.md              # human-readable contract and operating plan
@@ -207,7 +214,7 @@ After the interview:
    representative fixtures or a safe repository sample.
 5. Refine the generated `PROMISE.md` and `contract.json` when the interview
    requires detail the CLI flags cannot express. Keep both consistent.
-6. Run `promise.py validate <promise-id>`. Commit the configuration and tools
+6. Run `promise validate <promise-id>`. Commit the configuration and tools
    before a badge-bearing run unless the user explicitly accepts a dirty-scope
    review.
 7. Add a scheduler only when the user asked for one and the execution target is
@@ -240,10 +247,10 @@ of racing registry, run, or badge writes.
 
 ## Run or resume the loop
 
-1. Run `promise.py validate <promise-id>` and read `PROMISE.md`, `contract.json`,
+1. Run `promise validate <promise-id>` and read `PROMISE.md`, `contract.json`,
    `state.json`, recent run summaries, and relevant coverage. Do not ingest old
    raw artifacts unless the current gap requires them.
-2. Start with `promise.py start <promise-id>`. If an active run exists, the
+2. Start with `promise start <promise-id>`. If an active run exists, the
    helper returns its run id for resumption. By default, a dirty scoped worktree
    is rejected so the reviewed commit remains meaningful. If the contract and
    user explicitly allow `--allow-dirty`, the dirty paths are recorded and any
@@ -255,7 +262,7 @@ of racing registry, run, or badge writes.
    commit history, `coverage.json`, and invalidation rules. Review that slice
    deeply using the promise-local tools and the contract's permitted authority.
 5. Record each material inspection, test, visual review, finding, blocker,
-   decision, and verification with `promise.py record`. Use `--gate` for every
+   decision, and verification with `promise record`. Use `--gate` for every
    gate the event proves and attach a durable artifact path, hash, URL, or
    provider request id with `--evidence`. A fulfilled run requires passing
    evidence linked to every contract gate.
@@ -292,7 +299,7 @@ Scoped content, the promise contract, or promise-local tools changing makes the
 attestation stale. A freshness deadline can also expire it. A later
 `not-fulfilled` run or any failed gate withdraws the prior attestation; a merely
 blocked or budget-exhausted run preserves it when the scope, mechanism, and
-freshness remain valid. Re-run the loop and use `promise.py badge` to reconcile
+freshness remain valid. Re-run the loop and use `promise badge` to reconcile
 the managed block. Evidence-only commits under `.promises/` and edits confined
 to the managed badge block do not alter the subject fingerprint, so the
 attestation can be committed without invalidating itself.

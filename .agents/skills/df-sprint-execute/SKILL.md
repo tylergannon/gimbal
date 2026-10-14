@@ -9,14 +9,15 @@ argument-hint: <agent> [sprint-number]
 Execute a sprint plan using a specified agent CLI. Chapters are optional context. If the sprint is linked to a chapter, load that chapter first and keep the implementation aligned with the chapter vector while preserving the sprint as the executable unit. Do not run chapter-level fan-out or critique during execution. When sprint or chapter docs include a `Pyramid Index`, read it first as the summary index, then expand into detailed sections as needed.
 
 > **Dependency:** This skill drives the sprint ledger CLI bundled with the
-> `df-sprint-plan` skill at `.agents/skills/df-sprint-plan/scripts/ledger.py`.
-> Install both skills together. Paths below assume the skills are installed
-> at project scope and commands are run from the repo root.
+> `df-sprint-plan` skill in its `scripts/ledger` Go module.
+> Install both skills together. Substitute the loaded planning skill directory
+> below, and run commands from the target repo root so `--project "$PWD"`
+> names the project rather than the installed skill.
 
 ## Model selection
 
 Before model preflight or substantive work, read [references/models.md](references/models.md)
-and run the adjacent `scripts/resolve_models.py` for the target project. Apply
+and run the adjacent `scripts/resolve_models` for the target project. Apply
 skill defaults, then `~/.config/diffusion/skills/models.yaml`, then the project's
 `.diffusion/skills/models.yaml`. Use the resolved model and effort for every
 role; the reference describes main-worker handoff and prevents recursive handoff.
@@ -97,11 +98,11 @@ If authentication fails, **HALT immediately**:
 
 1. If a sprint number was provided, use it. Otherwise, find the current sprint:
    ```bash
-   python3 .agents/skills/df-sprint-plan/scripts/ledger.py current
+   go run -C "<loaded-df-sprint-plan-dir>/scripts/ledger" . --project "$PWD" current
    ```
    If no sprint is in progress, check for the next planned one:
    ```bash
-   python3 .agents/skills/df-sprint-plan/scripts/ledger.py next
+   go run -C "<loaded-df-sprint-plan-dir>/scripts/ledger" . --project "$PWD" next
    ```
 
 2. Read the sprint document:
@@ -140,7 +141,7 @@ If authentication fails, **HALT immediately**:
 
 5. Mark the sprint as in progress (if not already):
    ```bash
-   python3 .agents/skills/df-sprint-plan/scripts/ledger.py start NNN
+   go run -C "<loaded-df-sprint-plan-dir>/scripts/ledger" . --project "$PWD" start NNN
    ```
    If the repo uses YAML status values instead of the bundled TSV helper, use the repo's ledger helper or update `docs/sprints/ledger.yaml` according to the repo convention. Preserve any existing `chapter:` field.
 
@@ -215,6 +216,6 @@ When the semantic index block applies, substitute the actual entrypoint and acce
 
 5. Mark the sprint completed when validation passed and the user's request clearly asked for full execution. If the user only asked for a partial run or review, ask before completing it:
    ```bash
-   python3 .agents/skills/df-sprint-plan/scripts/ledger.py complete NNN
+   go run -C "<loaded-df-sprint-plan-dir>/scripts/ledger" . --project "$PWD" complete NNN
    ```
    If the repo uses YAML status values, use the repo's status command or update the YAML status according to repo convention, preserving chapter fields.

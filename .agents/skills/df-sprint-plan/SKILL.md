@@ -17,13 +17,14 @@ summary bullets, and L2 points to the detailed sections that expand those
 bullets.
 
 > **Bundled tool:** The sprint ledger CLI ships with this skill at
-> `scripts/ledger.py`. Ledger commands below invoke it via its installed path,
-> `.agents/skills/df-sprint-plan/scripts/ledger.py`, run from the repo root.
+> `scripts/ledger`. Ledger commands below invoke it via its installed path,
+> `go run -C "<loaded-df-sprint-plan-dir>/scripts/ledger" . --project "$PWD"`,
+> run from the target repo root. Substitute the directory beside the loaded planning skill.
 
 ## Model selection
 
 Before model preflight or substantive work, read [references/models.md](references/models.md)
-and run the adjacent `scripts/resolve_models.py` for the target project. Apply
+and run the adjacent `scripts/resolve_models` for the target project. Apply
 skill defaults, then `~/.config/diffusion/skills/models.yaml`, then the project's
 `.diffusion/skills/models.yaml`. Use the resolved model and effort for every
 role; the reference describes main-worker handoff and prevents recursive handoff.
@@ -128,7 +129,7 @@ Track progress through each phase using the adapter's task tracker when one is a
 1. Read repo instructions if present: `AGENTS.md`, `CLAUDE.md`, or equivalent.
 2. Check sprint ledger status:
    ```bash
-   python3 .agents/skills/df-sprint-plan/scripts/ledger.py stats
+   go run -C "<loaded-df-sprint-plan-dir>/scripts/ledger" . --project "$PWD" stats
    ```
 3. Find existing sprint documents:
    ```bash
@@ -529,11 +530,11 @@ Note the answers — incorporate refinements in the merge phase.
 
 5. **Update the ledger and chapter index**:
    ```bash
-   python3 .agents/skills/df-sprint-plan/scripts/ledger.py sync
+   go run -C "<loaded-df-sprint-plan-dir>/scripts/ledger" . --project "$PWD" sync
    ```
    If the repo uses `docs/sprints/ledger.yaml`, ensure the sprint entry includes `chapter: CHAPTER-XXXX` when a chapter was selected. If the bundled ledger helper supports it, prefer:
    ```bash
-   python3 .agents/skills/df-sprint-plan/scripts/ledger.py set-chapter SPRINT-NNN CHAPTER-XXXX
+   go run -C "<loaded-df-sprint-plan-dir>/scripts/ledger" . --project "$PWD" set-chapter SPRINT-NNN CHAPTER-XXXX
    ```
    If `docs/chapters/ledger.yaml` exists, also ensure that chapter's `sprint_ids` list includes the new sprint id. Preserve the rule that `docs/sprints/ledger.yaml` remains authoritative for individual sprint status.
 
@@ -574,5 +575,5 @@ At the end of this workflow, you should have:
 - [ ] Interview conducted (2-4 questions answered)
 - [ ] Merge notes written (`drafts/SPRINT-NNN-MERGE-NOTES.md`)
 - [ ] Final sprint document written (`SPRINT-NNN.md`) with a concise `Pyramid Index`
-- [ ] Ledger updated via `python3 .agents/skills/df-sprint-plan/scripts/ledger.py sync`; chapter field and `docs/chapters/ledger.yaml` `sprint_ids` updated if applicable
+- [ ] Ledger updated via `go run -C "<loaded-df-sprint-plan-dir>/scripts/ledger" . --project "$PWD" sync`; chapter field and `docs/chapters/ledger.yaml` `sprint_ids` updated if applicable
 - [ ] User approved the final document

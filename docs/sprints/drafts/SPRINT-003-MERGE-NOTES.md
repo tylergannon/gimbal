@@ -20,4 +20,4 @@ Source audit and withdrawals are in scope; tags include filtering and sorting; u
 
 ## Final decisions
 
-Final sprint consolidates authority/precedence, source revisions, reuse/adapt/regenerate mapping, retain/cut decisions, ordinary live states and stop condition. Current main is3ea6ecb6, superseding the journal's9256fd95. Real microphone/menu proof and main compatibility remain implementation work. Final human approval remains pending.
+Final sprint consolidates authority/precedence, source revisions, reuse/adapt/regenerate mapping, retain/cut decisions, ordinary live states and stop condition. Current main is 3ea6ecb6, superseding the journal's 9256fd95. Real microphone/menu proof and main compatibility remain implementation work. Tyler subsequently directed completion: uploaded actual-candidate proof on the draft implementation PR and independent Opus5.5 comparison against current live Designer artifacts are required before ready/merge. No further plan approval is pending.

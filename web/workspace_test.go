@@ -91,7 +91,7 @@ func TestRecordingNativeCommandsSurviveInstanceReplacement(t *testing.T) {
 	}
 	for n := range 31 {
 		call("openSession", map[string]any{"project": id, "sessionID": fmt.Sprintf("history-%02d", n), "source": "synthetic", "requirements": false})
-		call("closeSession", map[string]any{"project": id, "sessionID": fmt.Sprintf("history-%02d", n), "sequence": 0})
+		call("closeSession", map[string]any{"project": id, "sessionID": fmt.Sprintf("history-%02d", n), "sequence": 0, "durationMs": 17000})
 	}
 	call("markRequirements", map[string]any{"project": id, "id": "history-00"})
 	marked, err := owner.Recordings().Get("history-00")

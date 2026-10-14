@@ -30,7 +30,7 @@ struct RecorderControls: View {
           }
         }
       }
-      if controller.canStop && controller.status.state != "stopping" {
+      if controller.canStop && controller.status.state != "stopping" && !controller.projectSwitchPending {
         Button(action: controller.stop) {
           HStack(spacing: 6) {
             Image(systemName: "stop.fill")
@@ -67,7 +67,7 @@ struct RecorderControls: View {
     case "preparing": "Preparing…"
     case "pausing": "Pausing…"
     case "resuming": "Resuming…"
-    default: "Finishing…"
+    default: "Saving…"
     }
   }
 }
@@ -192,7 +192,7 @@ struct RecordingLevelMeter: View {
         DispatchQueue.main.async { self?.refresh() }
       }
       timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
-        MainActor.assumeIsolated { self?.refresh() }
+        MainActor.assumeIsolated { self?.controller.refreshStatus(); self?.refresh() }
       }
       refresh()
     }
@@ -221,7 +221,7 @@ struct RecordingLevelMeter: View {
           seconds >= 3600
           ? String(format: "%d:%02d:%02d", seconds / 3600, (seconds / 60) % 60, seconds % 60)
           : String(format: "%02d:%02d", seconds / 60, seconds % 60)
-        let title = NSMutableAttributedString(string: "● \(time)")
+        let title = NSMutableAttributedString(string: "\(status.state == "paused" ? "◌" : "●") \(time)")
         title.addAttribute(
           .foregroundColor,
           value: status.state == "recording" ? NSColor.systemRed : NSColor.secondaryLabelColor,

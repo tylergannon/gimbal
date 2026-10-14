@@ -44,6 +44,7 @@ import Foundation
     func cancel() { stopAdmission(); cancels += 1; onEvent = nil; onFailure = nil }
 }
 @MainActor final class FakeCommands: RecordingCommands {
+    var hasSelectedProject = true
     struct Session { var sequence = 0; var activated = false; var closed = false }
     var sessions: [String: Session] = [:]
     var activeID = ""
@@ -53,6 +54,9 @@ import Foundation
     var loseAbortResponse = false
     var openDelay: Duration = .zero
     private(set) var openCalls = 0
+    var closeFails = false
+    var closeDuration = -1
+    var closeDelay: Duration = .zero
     var openUnreachable = false
     var loseOpenResponse = false
     var canceledIDs: [String: Int] = [:]
@@ -85,7 +89,10 @@ import Foundation
         displayText += finalized.map(\.text).joined() + provisional.map(\.text).joined()
         if shouldNotify { onSnapshot?(sessionID, sequence) }
     }
-    func close(sessionID: String, sequence: Int) async throws {
+    func close(sessionID: String, sequence: Int, durationMs: Int) async throws {
+        try await Task.sleep(for: closeDelay)
+        if closeFails { throw RecorderError.message("Save unavailable") }
+        closeDuration = durationMs
         guard sessions[sessionID]?.sequence == sequence else { throw RecorderError.message("Close across gap") }
         sessions[sessionID]?.closed = true; closes += 1
         if shouldNotify { onSnapshot?(sessionID, sequence) }
@@ -128,6 +135,35 @@ import Foundation
         precondition(stopwatch.elapsed(now: 300) == 8)
         stopwatch = RecordingDuration()
         precondition(stopwatch.elapsed(now: 300) == 0)
+
+        let admissionSource = FakeSource(), admissionCommands = FakeCommands()
+        let admissionController = make(admissionSource, commands: admissionCommands)
+        admissionCommands.hasSelectedProject = false
+        admissionController.record()
+        admissionController.record(requirements: true)
+        precondition(admissionSource.starts == 0 && admissionCommands.openCalls == 0 && admissionCommands.aborts == 0)
+        precondition(admissionController.status.error == "Select a project before recording.")
+        admissionCommands.hasSelectedProject = true
+        admissionController.record()
+        try await wait("record after admission without restart") { admissionController.canPause }
+        admissionCommands.closeDelay = .milliseconds(30)
+        let closingID = admissionController.status.sessionID
+        admissionController.projectSwitchPending = true
+        precondition(!admissionController.canPause && !admissionController.canRecord)
+        try await admissionController.stopAndSave()
+        precondition(admissionController.status.state == "stopped" && admissionCommands.sessions[closingID]?.closed == true)
+        precondition(admissionCommands.closes == 1 && admissionCommands.closeDuration >= 0)
+        admissionController.projectSwitchPending = false
+        admissionController.record(requirements: true)
+        try await wait("new recording identity") { admissionController.canPause }
+        precondition(admissionController.status.sessionID != closingID && admissionController.status.requirements)
+        admissionCommands.closeFails = true
+        do { try await admissionController.stopAndSave(); fatalError("failed save reported success") }
+        catch { precondition(admissionController.status.state == "error") }
+        precondition(admissionController.canStop && !admissionController.canRecord && admissionCommands.aborts == 0)
+        admissionCommands.closeFails = false
+        try await admissionController.stopAndSave()
+        precondition(admissionController.status.state == "stopped" && admissionCommands.closes == 2)
 
         let levelSource = FakeSource(), levelCommands = FakeCommands()
         let levelController = make(levelSource, commands: levelCommands)

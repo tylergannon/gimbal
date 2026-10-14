@@ -19,7 +19,7 @@
   import RecordingTranscript from './RecordingTranscript.svelte';
   import FileViewer from './FileViewer.svelte';
   import PromiseLedger from './PromiseLedger.svelte';
-  import { nativeMessage, type NativeStatus } from './native';
+  import { nativeMessage, projectMenu, recordingControl, recordingTime, type NativeStatus } from './native';
   import { conversationsForWorkspace } from './conversations';
   import OpenFolder from './OpenFolder.svelte';
 
@@ -63,10 +63,24 @@
   ]);
   const tabs = $derived(open.map(tab => items.find(item => item.id === tab.id) ?? tab));
   const recording = $derived.by((): RecordingDisplay | undefined => {
-    if (!status || status.project !== project || !status.sessionID || ['idle', 'stopped'].includes(status.state)) return;
-    return { state: status.error ? 'error' : status.pending ? 'saving' : status.state === 'paused' ? 'paused' : 'recording', label: status.error ? 'Recording error' : status.pending ? 'Saving…' : status.state };
+    if (!status?.sessionID || ['idle', 'stopped'].includes(status.state)) return;
+    const state = status.state === 'paused' ? 'paused' : status.state === 'recording' ? 'recording' : status.state === 'error' ? 'error' : 'saving';
+    const owner = projects.find(item => item.id === status?.project)?.path.split('/').at(-1) ?? 'Recording project';
+    return { state, label: state === 'saving' ? status.state === 'preparing' ? 'Preparing…' : 'Saving…' : recordingTime(status.elapsedMs), owner, detail: `${owner} · ${status.source}${status.error ? ` · ${status.error}` : ''}`, canPause: status.canPause, canResume: status.canResume, canStop: status.canStop };
   });
 
+  function dateGroup(created: number) {
+    const date = new Date(created);
+    const today = new Date();
+    const yesterday = new Date(); yesterday.setDate(today.getDate() - 1);
+    return date.toDateString() === today.toDateString() ? 'Today' : date.toDateString() === yesterday.toDateString() ? 'Yesterday' : date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: date.getFullYear() === today.getFullYear() ? undefined : 'numeric' });
+  }
+  function changedStatus(event: Event) { status = (event as CustomEvent<NativeStatus>).detail; }
+  function openRecording() {
+    if (status?.project && status.sessionID) select(`/projects/${status.project}/recordings/${status.sessionID}`);
+  }
+  function control(action: 'pause' | 'resume' | 'stop') { if (status) recordingControl(status, action); }
+  function chooseProject(event: MouseEvent) { if (native) projectMenu(event); else projectChooser = true; }
   function visit(path: string) {
     const item = items.find(item => item.id === path);
     const recordingID = page.params.recordingID;
@@ -111,7 +125,7 @@
     else if (value === 'openFileChooser') fileChooser = true;
     else if (value === 'switchProject') {
       if (targetProject && projects.some(item => item.id === targetProject)) select(`/projects/${targetProject}/recordings`);
-      else projectChooser = true;
+      else if (native) nativeMessage('projectMenu', {}); else projectChooser = true;
     }
     else if (value === 'showRuns') select(root);
     else if (value === 'openTodayTranscript' && todayRecording) select(`${root}/recordings/${todayRecording.id}`);
@@ -125,7 +139,7 @@
   }
   $effect(() => {
     if (!native) return;
-    nativeMessage('workspaceState', { ready: true, sidebarVisible: sidebar, tabCount: tabs.length, activeTabTitle: tabs.find(tab => tab.id === active)?.title, canStopResponse: conversations.some(item => `${root}/conversations/${item.id}` === active && !!item.active_request && item.status !== 'stopping'), projectName: name, projects: projects.map(item => ({ id: item.id, name: item.path.split('/').at(-1) ?? item.path })), canOpenTodayTranscript: !!todayRecording });
+    nativeMessage('workspaceState', { project, ready: true, sidebarVisible: sidebar, tabCount: tabs.length, activeTabTitle: tabs.find(tab => tab.id === active)?.title, canStopResponse: conversations.some(item => `${root}/conversations/${item.id}` === active && !!item.active_request && item.status !== 'stopping'), projectName: name, projects: projects.map(item => ({ id: item.id, name: item.path.split('/').at(-1) ?? item.path, path: item.path })), canOpenTodayTranscript: !!todayRecording });
   });
   const place = $derived(JSON.stringify({ project, path: page.url.pathname, tabs: tabs.map(({ id, title, kind }) => ({ id, title, kind })) }));
   $effect(() => {
@@ -145,17 +159,18 @@
   onMount(() => {
     native = !!window.webkit?.messageHandlers?.workspaceState;
     window.addEventListener("gimbal-workspace-command", command);
+    window.addEventListener("gimbal-recording-status", changedStatus);
     status = window.voiceNotesLatestStatus;
     const timer = setInterval(() => {
-      status = window.voiceNotesLatestStatus;
       void recordingHistory({ project, after: '' }).refresh().catch(navigateOnUnauthorized);
       if (after) void recordingHistory({ project, after }).refresh().catch(navigateOnUnauthorized);
     }, 5000);
-    return () => { window.removeEventListener("gimbal-workspace-command", command); clearInterval(timer); if (native) nativeMessage('workspaceState', { ready: false, sidebarVisible: false, tabCount: 0 }); };
+    return () => { window.removeEventListener("gimbal-workspace-command", command); window.removeEventListener("gimbal-recording-status", changedStatus); clearInterval(timer); if (native) nativeMessage('workspaceState', { ready: false, sidebarVisible: false, tabCount: 0 }); };
   });
 </script>
 
 <WorkspaceShell project={name} {items} {tabs} {active} bind:sidebar {recording} {native}
+  onproject={chooseProject} onrecording={openRecording} oncontrol={control}
   onselect={select} onclose={close} onopen={select} onnew={() => select(`${root}/conversations/new`)}>
   {#snippet content(tab)}
     <svelte:boundary onerror={(error) => { navigateOnUnauthorized(error); }}>
@@ -178,9 +193,11 @@
   {/snippet}
   {#snippet sidebarExtra()}
     {#if actionError}<p role="alert">{actionError}</p>{/if}
-    {#if native && status?.sessionID && status.project === project}<div class="recording-detail"><span>{status.pending ? 'Saving to server…' : status.state}</span>{#if status.error}<p role="alert">{status.error}</p><button onclick={() => nativeMessage('reconnect', {})}>Reconnect</button>{/if}</div>{/if}
     <h2 class="group">Recordings</h2>
-    {#each history.items as item (item.id)}<a class="row" class:selected={page.params.recordingID === item.id} href={`${root}/recordings/${item.id}`}><span>◉</span><span>{new Date(item.created).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} · {new Date(item.created).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}</span><small>{item.status}</small></a>{:else}<p class="quiet">No recordings yet</p>{/each}
+    {#each history.items as item, index (item.id)}
+      {#if index === 0 || dateGroup(history.items[index - 1].created) !== dateGroup(item.created)}<h3 class="date-group">{dateGroup(item.created)}</h3>{/if}
+      <a class="row" class:selected={page.params.recordingID === item.id} href={`${root}/recordings/${item.id}`} title={`${item.status} · ${item.source}`}><span class:live={status?.project === project && status.sessionID === item.id && status.state === 'recording'}>{status?.project === project && status.sessionID === item.id && status.state === 'paused' ? '◌' : '●'}</span><span>{new Date(item.created).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}</span><small>{recordingTime(status?.project === project && status.sessionID === item.id && !['idle', 'stopped'].includes(status.state) ? status.elapsedMs : item.durationMs)}</small></a>
+    {:else}<p class="quiet">No recordings yet</p>{/each}
     <details class="upload"><summary>Add project file</summary><form {...upload.enhance(async (submitted) => { try { if (await submitted.submit().updates(projectFiles(project)) && submitted.result) { documents.set([submitted.result, ...files.filter(file => file.id !== submitted.result!.id)]); select(`${root}/files/${submitted.result.id}`); } } catch (error) { if (!navigateOnUnauthorized(error)) actionError = errorMessage(error); } })}><input {...upload.fields.project.as('hidden', project)} /><input aria-label="Choose project file" {...upload.fields.file.as('file')} required /><button disabled={!!upload.pending}>{upload.pending ? 'Uploading…' : 'Upload'}</button>{#each upload.fields.allIssues() ?? [] as issue}<p role="alert">{issue.message}</p>{/each}</form></details>
     <div class="pager">{#if after}<button onclick={() => after = ''}>Newest</button>{/if}{#if history.next}<button onclick={() => after = history.next}>Older recordings</button>{/if}</div>
     <nav class="tools" aria-label="Project tools"><a href={root}>Runs</a><a href={`${root}/promises`}>Promises</a><a href="/workflows">Workflows</a><a href={`${root}/about`}>About project</a></nav>
@@ -209,11 +226,11 @@
   .choices { display: grid; gap: 8px; }
   .choices button { padding: 10px; text-align: left; color: inherit; background: var(--muted); border: 0; border-radius: 8px; cursor: pointer; }
   .choices p { color: var(--muted-foreground); font-size: 13px; }
-  .recording-detail { padding: 8px 10px; color: var(--muted-foreground); font-size: 12px; }
-  .recording-detail p { color: var(--destructive); }
   .group { margin: 20px 10px 6px; color: var(--muted-foreground); font-size: 12px; font-weight: 500; }
   .row { display: flex; align-items: center; gap: 8px; min-height: 32px; padding: 0 10px; border-radius: 8px; color: inherit; font-size: 12px; text-decoration: none; }
   .row.selected, .row:hover { background: var(--sidebar-accent); }
+  .date-group { margin: 10px 10px 4px; font-size: 11px; color: var(--muted-foreground); font-weight: 400; }
+  .live { color: var(--destructive); }
   .row small { margin-left: auto; color: var(--muted-foreground); font-size: 10px; }
   .quiet { padding: 0 10px; color: var(--muted-foreground); font-size: 12px; }
   .pager { display: flex; gap: 12px; padding: 0 10px; }

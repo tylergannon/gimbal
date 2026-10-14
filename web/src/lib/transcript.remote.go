@@ -9,6 +9,8 @@ import (
 	"github.com/tylergannon/gimbal/internal/skgo/params"
 	"github.com/tylergannon/gimbal/internal/transcript"
 	"github.com/tylergannon/skgo"
+
+	"github.com/tylergannon/polytype"
 )
 
 func store(ctx context.Context, id string) (*transcript.DurableStore, error) {
@@ -41,27 +43,28 @@ func activateSession(ctx context.Context, event app.RequestEvent[params.Params],
 	if e != nil {
 		return transcript.Ack{}, e
 	}
-	return s.State(r.SessionID, "recording", nil)
+	return s.State(r.SessionID, "recording", nil, polytype.Nullable[int64]{})
 }
 func closeSession(ctx context.Context, event app.RequestEvent[params.Params], r transcript.CloseRequest) (transcript.Ack, error) {
 	s, e := store(ctx, r.Project)
 	if e != nil {
 		return transcript.Ack{}, e
 	}
-	return s.State(r.SessionID, "stopped", &r.Sequence)
+	return s.State(r.SessionID, "stopped", &r.Sequence, r.DurationMs)
 }
 func abortSession(ctx context.Context, event app.RequestEvent[params.Params], r transcript.SessionRequest) (transcript.Ack, error) {
 	s, e := store(ctx, r.Project)
 	if e != nil {
 		return transcript.Ack{}, e
 	}
-	return s.State(r.SessionID, "interrupted", nil)
+	return s.State(r.SessionID, "interrupted", nil, polytype.Nullable[int64]{})
 }
 
 type StateRequest struct {
-	Project   string `json:"project"`
-	SessionID string `json:"sessionID"`
-	Status    string `json:"status"`
+	DurationMs polytype.Nullable[int64] `json:"durationMs"`
+	Project    string                   `json:"project"`
+	SessionID  string                   `json:"sessionID"`
+	Status     string                   `json:"status"`
 }
 
 func touchSession(ctx context.Context, event app.RequestEvent[params.Params], r StateRequest) (transcript.Ack, error) {
@@ -69,7 +72,7 @@ func touchSession(ctx context.Context, event app.RequestEvent[params.Params], r 
 	if e != nil {
 		return transcript.Ack{}, e
 	}
-	return s.State(r.SessionID, r.Status, nil)
+	return s.State(r.SessionID, r.Status, nil, r.DurationMs)
 }
 
 type RecordingRequest struct {
@@ -128,3 +131,15 @@ var _ = skgo.Command(touchSession)
 var _ = skgo.Command(markRequirements)
 var _ = skgo.Query(recordingHistory)
 var _ = skgo.LiveQuery(watchRecording)
+
+// Read persisted mode for a handoff, including marking during live capture.
+func recordingHeader(ctx context.Context, r RecordingRequest) (transcript.Header, error) {
+	s, err := store(ctx, r.Project)
+	if err != nil {
+		return transcript.Header{}, err
+	}
+	recording, err := s.Get(r.ID)
+	return recording.Header, err
+}
+
+var _ = skgo.Query(recordingHeader)

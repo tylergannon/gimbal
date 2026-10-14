@@ -89,12 +89,13 @@ final class WebCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDelega
           ready: ready, sidebarVisible: visible, tabCount: count,
           activeTabTitle: body["activeTabTitle"] as? String,
           canStopResponse: body["canStopResponse"] as? Bool ?? false)
+        state.workspace.currentProject = body["project"] as? String ?? ""
         state.workspace.projectName = body["projectName"] as? String ?? ""
         state.workspace.canOpenTodayTranscript = body["canOpenTodayTranscript"] as? Bool ?? false
         state.workspace.projects = (body["projects"] as? [[String: String]] ?? []).compactMap {
           item in
           guard let id = item["id"], let name = item["name"] else { return nil }
-          return WorkspaceProject(id: id, name: name)
+          return WorkspaceProject(id: id, name: name, path: item["path"] ?? name)
         }
         return
       }
@@ -109,8 +110,43 @@ final class WebCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDelega
         return
       }
     #endif
+    #if os(macOS)
+      if message.name == "projectAdmissionError", let error = body["error"] as? String {
+        controller.showProjectError(error)
+        return
+      }
+      if message.name == "projectMenu" {
+        state.projectSwitching?.showMenu(x: body["x"] as? Double, y: body["y"] as? Double)
+        return
+      }
+      if message.name == "requestProject", let path = body["path"] as? String {
+        if let id = ProjectSwitching.project(in: path), let directory = body["projectPath"] as? String,
+          !state.workspace.projects.contains(where: { $0.id == id }) {
+          state.workspace.projects.append(WorkspaceProject(id: id, name: URL(fileURLWithPath: directory).lastPathComponent, path: directory))
+        }
+        state.projectSwitching?.request(path: path)
+        return
+      }
+      if message.name == "projectNavigationComplete", let project = body["project"] as? String {
+        state.projectSwitching?.completeNavigation(project: project, error: body["error"] as? String)
+        return
+      }
+      if message.name == "recordingControl", let id = body["sessionID"] as? String,
+        let project = body["project"] as? String, id == controller.status.sessionID,
+        project == state.commands?.recordingProject, !controller.projectSwitchPending {
+        switch body["action"] as? String {
+        case "pause": controller.pause()
+        case "resume": controller.resume()
+        case "stop": controller.stop()
+        default: break
+        }
+        return
+      }
+    #endif
     if message.name == "selectProject", let project = body["project"] as? String {
-      state.commands?.selectedProject = project
+      if !controller.projectSwitchPending && (!controller.canStop || state.commands?.selectedProject == project) {
+        state.commands?.selectedProject = project
+      }
       return
     }
     #if os(macOS)
@@ -182,6 +218,14 @@ final class WebCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDelega
       decisionHandler(.cancel)
       return
     }
+    #if os(macOS)
+      if let project = ProjectSwitching.project(in: target.path),
+        project != state.commands?.selectedProject, controller.canStop {
+        decisionHandler(.cancel)
+        state.projectSwitching?.request(path: target.path)
+        return
+      }
+    #endif
     decisionHandler(.allow)
   }
   func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
@@ -283,7 +327,7 @@ final class WebCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDelega
     guard let data = try? JSONEncoder().encode(status),
       var object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
     else { return }
-    object["project"] = state.commands?.recordingProject ?? ""
+    object["project"] = state.commands?.project(for: status.sessionID) ?? ""
     guard let data = try? JSONSerialization.data(withJSONObject: object),
       let json = String(data: data, encoding: .utf8)
     else { return }
@@ -301,6 +345,9 @@ final class WebCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDelega
     config.userContentController.add(self, name: "selectProject")
     config.userContentController.add(self, name: "openFile")
     #if os(macOS)
+      for name in ["projectAdmissionError", "projectMenu", "requestProject", "projectNavigationComplete", "recordingControl"] {
+        config.userContentController.add(self, name: name)
+      }
       config.userContentController.add(self, name: "workspaceState")
       config.userContentController.add(self, name: "workspaceDrag")
       config.userContentController.add(self, name: "chooseProjectFolder")

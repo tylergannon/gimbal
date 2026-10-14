@@ -10,4 +10,9 @@ export interface WorkspaceTab {
 export interface RecordingDisplay {
   state: "recording" | "paused" | "saving" | "error";
   label: string;
+  owner?: string;
+  detail?: string;
+  canPause?: boolean;
+  canResume?: boolean;
+  canStop?: boolean;
 }

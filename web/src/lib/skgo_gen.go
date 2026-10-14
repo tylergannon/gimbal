@@ -25,6 +25,8 @@ var (
 	Skgo_markRequirements = markRequirements
 	// Skgo_openSession is openSession, published as src/lib/transcript.remote.ts#openSession.
 	Skgo_openSession = openSession
+	// Skgo_recordingHeader is recordingHeader, published as src/lib/transcript.remote.ts#recordingHeader.
+	Skgo_recordingHeader = recordingHeader
 	// Skgo_recordingHistory is recordingHistory, published as src/lib/transcript.remote.ts#recordingHistory.
 	Skgo_recordingHistory = recordingHistory
 	// Skgo_touchSession is touchSession, published as src/lib/transcript.remote.ts#touchSession.

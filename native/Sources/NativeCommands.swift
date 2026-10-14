@@ -5,7 +5,13 @@ import SKGoNative
   private let api: NativeAPI
   var selectedProject = ""
   private(set) var recordingProject = ""
+  var hasSelectedProject: Bool { !selectedProject.isEmpty }
   private var activeSession = ""
+  private var previousSession = ""
+  private var previousProject = ""
+  func project(for sessionID: String) -> String {
+    sessionID == activeSession ? recordingProject : sessionID == previousSession ? previousProject : ""
+  }
   init(baseURL: URL) {
     let configuration = URLSessionConfiguration.ephemeral
     configuration.timeoutIntervalForRequest = 2
@@ -22,6 +28,8 @@ import SKGoNative
   }
   func open(sessionID: String, source: String, requirements: Bool) async throws {
     if recordingProject.isEmpty || sessionID != activeSession {
+      previousSession = activeSession
+      previousProject = recordingProject
       recordingProject = selectedProject
       activeSession = sessionID
     }
@@ -52,17 +60,20 @@ import SKGoNative
           finalized: convert(finalized), provisional: convert(provisional))), sessionID: sessionID,
       sequence: sequence, closed: false)
   }
-  func close(sessionID: String, sequence: Int) async throws {
+  func close(sessionID: String, sequence: Int, durationMs: Int) async throws {
     try validate(
       try await api.closeSession(
-        CloseRequest(project: recordingProject, sessionID: sessionID, sequence: Int64(sequence))),
+        CloseRequest(durationMs: Int64(durationMs), project: recordingProject, sessionID: sessionID, sequence: Int64(sequence))),
       sessionID: sessionID, sequence: sequence, closed: true)
   }
-  func heartbeat(sessionID: String, state: String) async throws {
-    guard !sessionID.isEmpty, !recordingProject.isEmpty, ["recording", "paused"].contains(state)
+  func heartbeat(sessionID: String, state: String, durationMs: Int) async throws {
+    guard sessionID == activeSession, !sessionID.isEmpty, !recordingProject.isEmpty, ["recording", "paused"].contains(state)
     else { return }
     _ = try await api.touchSession(
-      StateRequest(project: recordingProject, sessionID: sessionID, status: state))
+      StateRequest(durationMs: Int64(durationMs), project: recordingProject, sessionID: sessionID, status: state))
+  }
+  func requirementsMode(sessionID: String) async throws -> Bool {
+    try await api.recordingHeader(RecordingRequest(project: recordingProject, id: sessionID)).requirements
   }
   func abort(sessionID: String) async throws -> Int {
     let ack = try await api.abortSession(

@@ -206,9 +206,12 @@ func skgoNativeCheck7(value transcript.Update, path string, depth int) error {
 	}
 	return nil
 }
-func skgoNativeCheck18(value string, path string, depth int) error {
+func skgoNativeCheck18(value int64, path string, depth int) error {
 	if depth >= 256 {
 		return fmt.Errorf("native model %s exceeds depth 255", path)
+	}
+	if int64(value) < -9007199254740991 || int64(value) > 9007199254740991 {
+		return fmt.Errorf("native integer %s is outside the JavaScript number domain", path)
 	}
 	return nil
 }
@@ -218,7 +221,13 @@ func skgoNativeCheck19(value string, path string, depth int) error {
 	}
 	return nil
 }
-func skgoNativeCheck20(value int64, path string, depth int) error {
+func skgoNativeCheck20(value string, path string, depth int) error {
+	if depth >= 256 {
+		return fmt.Errorf("native model %s exceeds depth 255", path)
+	}
+	return nil
+}
+func skgoNativeCheck21(value int64, path string, depth int) error {
 	if depth >= 256 {
 		return fmt.Errorf("native model %s exceeds depth 255", path)
 	}
@@ -231,20 +240,19 @@ func skgoNativeCheck17(value transcript.CloseRequest, path string, depth int) er
 	if depth >= 256 {
 		return fmt.Errorf("native model %s exceeds depth 255", path)
 	}
-	if err := skgoNativeCheck18(value.Project, path+"/project", depth+1); err != nil {
+	if value.DurationMs.Present {
+		if err := skgoNativeCheck18(value.DurationMs.Value, path+"/durationMs", depth+1); err != nil {
+			return err
+		}
+	}
+	if err := skgoNativeCheck19(value.Project, path+"/project", depth+1); err != nil {
 		return err
 	}
-	if err := skgoNativeCheck19(value.SessionID, path+"/sessionID", depth+1); err != nil {
+	if err := skgoNativeCheck20(value.SessionID, path+"/sessionID", depth+1); err != nil {
 		return err
 	}
-	if err := skgoNativeCheck20(value.Sequence, path+"/sequence", depth+1); err != nil {
+	if err := skgoNativeCheck21(value.Sequence, path+"/sequence", depth+1); err != nil {
 		return err
-	}
-	return nil
-}
-func skgoNativeCheck22(value string, path string, depth int) error {
-	if depth >= 256 {
-		return fmt.Errorf("native model %s exceeds depth 255", path)
 	}
 	return nil
 }
@@ -260,33 +268,33 @@ func skgoNativeCheck24(value string, path string, depth int) error {
 	}
 	return nil
 }
-func skgoNativeCheck25(value bool, path string, depth int) error {
+func skgoNativeCheck25(value string, path string, depth int) error {
 	if depth >= 256 {
 		return fmt.Errorf("native model %s exceeds depth 255", path)
 	}
 	return nil
 }
-func skgoNativeCheck21(value transcript.OpenRequest, path string, depth int) error {
+func skgoNativeCheck26(value bool, path string, depth int) error {
 	if depth >= 256 {
 		return fmt.Errorf("native model %s exceeds depth 255", path)
-	}
-	if err := skgoNativeCheck22(value.Project, path+"/project", depth+1); err != nil {
-		return err
-	}
-	if err := skgoNativeCheck23(value.SessionID, path+"/sessionID", depth+1); err != nil {
-		return err
-	}
-	if err := skgoNativeCheck24(value.Source, path+"/source", depth+1); err != nil {
-		return err
-	}
-	if err := skgoNativeCheck25(value.Requirements, path+"/requirements", depth+1); err != nil {
-		return err
 	}
 	return nil
 }
-func skgoNativeCheck27(value string, path string, depth int) error {
+func skgoNativeCheck22(value transcript.OpenRequest, path string, depth int) error {
 	if depth >= 256 {
 		return fmt.Errorf("native model %s exceeds depth 255", path)
+	}
+	if err := skgoNativeCheck23(value.Project, path+"/project", depth+1); err != nil {
+		return err
+	}
+	if err := skgoNativeCheck24(value.SessionID, path+"/sessionID", depth+1); err != nil {
+		return err
+	}
+	if err := skgoNativeCheck25(value.Source, path+"/source", depth+1); err != nil {
+		return err
+	}
+	if err := skgoNativeCheck26(value.Requirements, path+"/requirements", depth+1); err != nil {
+		return err
 	}
 	return nil
 }
@@ -302,17 +310,153 @@ func skgoNativeCheck29(value string, path string, depth int) error {
 	}
 	return nil
 }
-func skgoNativeCheck26(value workspace.StateRequest, path string, depth int) error {
+func skgoNativeCheck27(value workspace.RecordingRequest, path string, depth int) error {
 	if depth >= 256 {
 		return fmt.Errorf("native model %s exceeds depth 255", path)
 	}
-	if err := skgoNativeCheck27(value.Project, path+"/project", depth+1); err != nil {
+	if err := skgoNativeCheck28(value.Project, path+"/project", depth+1); err != nil {
 		return err
 	}
-	if err := skgoNativeCheck28(value.SessionID, path+"/sessionID", depth+1); err != nil {
+	if err := skgoNativeCheck29(value.ID, path+"/id", depth+1); err != nil {
 		return err
 	}
-	if err := skgoNativeCheck29(value.Status, path+"/status", depth+1); err != nil {
+	return nil
+}
+func skgoNativeCheck31(value int64, path string, depth int) error {
+	if depth >= 256 {
+		return fmt.Errorf("native model %s exceeds depth 255", path)
+	}
+	if int64(value) < -9007199254740991 || int64(value) > 9007199254740991 {
+		return fmt.Errorf("native integer %s is outside the JavaScript number domain", path)
+	}
+	return nil
+}
+func skgoNativeCheck32(value string, path string, depth int) error {
+	if depth >= 256 {
+		return fmt.Errorf("native model %s exceeds depth 255", path)
+	}
+	return nil
+}
+func skgoNativeCheck33(value string, path string, depth int) error {
+	if depth >= 256 {
+		return fmt.Errorf("native model %s exceeds depth 255", path)
+	}
+	return nil
+}
+func skgoNativeCheck34(value int64, path string, depth int) error {
+	if depth >= 256 {
+		return fmt.Errorf("native model %s exceeds depth 255", path)
+	}
+	if int64(value) < -9007199254740991 || int64(value) > 9007199254740991 {
+		return fmt.Errorf("native integer %s is outside the JavaScript number domain", path)
+	}
+	return nil
+}
+func skgoNativeCheck35(value int64, path string, depth int) error {
+	if depth >= 256 {
+		return fmt.Errorf("native model %s exceeds depth 255", path)
+	}
+	if int64(value) < -9007199254740991 || int64(value) > 9007199254740991 {
+		return fmt.Errorf("native integer %s is outside the JavaScript number domain", path)
+	}
+	return nil
+}
+func skgoNativeCheck36(value int64, path string, depth int) error {
+	if depth >= 256 {
+		return fmt.Errorf("native model %s exceeds depth 255", path)
+	}
+	if int64(value) < -9007199254740991 || int64(value) > 9007199254740991 {
+		return fmt.Errorf("native integer %s is outside the JavaScript number domain", path)
+	}
+	return nil
+}
+func skgoNativeCheck37(value string, path string, depth int) error {
+	if depth >= 256 {
+		return fmt.Errorf("native model %s exceeds depth 255", path)
+	}
+	return nil
+}
+func skgoNativeCheck38(value bool, path string, depth int) error {
+	if depth >= 256 {
+		return fmt.Errorf("native model %s exceeds depth 255", path)
+	}
+	return nil
+}
+func skgoNativeCheck30(value transcript.Header, path string, depth int) error {
+	if depth >= 256 {
+		return fmt.Errorf("native model %s exceeds depth 255", path)
+	}
+	if value.DurationMs.Present {
+		if err := skgoNativeCheck31(value.DurationMs.Value, path+"/durationMs", depth+1); err != nil {
+			return err
+		}
+	}
+	if err := skgoNativeCheck32(value.ID, path+"/id", depth+1); err != nil {
+		return err
+	}
+	if err := skgoNativeCheck33(value.Source, path+"/source", depth+1); err != nil {
+		return err
+	}
+	if err := skgoNativeCheck34(value.Created, path+"/created", depth+1); err != nil {
+		return err
+	}
+	if err := skgoNativeCheck35(value.Updated, path+"/updated", depth+1); err != nil {
+		return err
+	}
+	if err := skgoNativeCheck36(value.Sequence, path+"/sequence", depth+1); err != nil {
+		return err
+	}
+	if err := skgoNativeCheck37(value.Status, path+"/status", depth+1); err != nil {
+		return err
+	}
+	if err := skgoNativeCheck38(value.Requirements, path+"/requirements", depth+1); err != nil {
+		return err
+	}
+	return nil
+}
+func skgoNativeCheck40(value int64, path string, depth int) error {
+	if depth >= 256 {
+		return fmt.Errorf("native model %s exceeds depth 255", path)
+	}
+	if int64(value) < -9007199254740991 || int64(value) > 9007199254740991 {
+		return fmt.Errorf("native integer %s is outside the JavaScript number domain", path)
+	}
+	return nil
+}
+func skgoNativeCheck41(value string, path string, depth int) error {
+	if depth >= 256 {
+		return fmt.Errorf("native model %s exceeds depth 255", path)
+	}
+	return nil
+}
+func skgoNativeCheck42(value string, path string, depth int) error {
+	if depth >= 256 {
+		return fmt.Errorf("native model %s exceeds depth 255", path)
+	}
+	return nil
+}
+func skgoNativeCheck43(value string, path string, depth int) error {
+	if depth >= 256 {
+		return fmt.Errorf("native model %s exceeds depth 255", path)
+	}
+	return nil
+}
+func skgoNativeCheck39(value workspace.StateRequest, path string, depth int) error {
+	if depth >= 256 {
+		return fmt.Errorf("native model %s exceeds depth 255", path)
+	}
+	if value.DurationMs.Present {
+		if err := skgoNativeCheck40(value.DurationMs.Value, path+"/durationMs", depth+1); err != nil {
+			return err
+		}
+	}
+	if err := skgoNativeCheck41(value.Project, path+"/project", depth+1); err != nil {
+		return err
+	}
+	if err := skgoNativeCheck42(value.SessionID, path+"/sessionID", depth+1); err != nil {
+		return err
+	}
+	if err := skgoNativeCheck43(value.Status, path+"/status", depth+1); err != nil {
 		return err
 	}
 	return nil
@@ -2613,12 +2757,18 @@ func ParseChunk(s string) (transcript.Chunk, error) {
 
 func encCloseRequest(v transcript.CloseRequest, at string) (any, error) {
 	enc1 := devalue.NewObject()
-	var enc2 any = string(v.Project)
-	enc1.Set("project", enc2)
-	var enc3 any = string(v.SessionID)
-	enc1.Set("sessionID", enc3)
-	var enc4 any = float64(v.Sequence)
-	enc1.Set("sequence", enc4)
+	if v.DurationMs.Present {
+		var enc2 any = float64(v.DurationMs.Value)
+		enc1.Set("durationMs", enc2)
+	} else {
+		enc1.Set("durationMs", nil)
+	}
+	var enc3 any = string(v.Project)
+	enc1.Set("project", enc3)
+	var enc4 any = string(v.SessionID)
+	enc1.Set("sessionID", enc4)
+	var enc5 any = float64(v.Sequence)
+	enc1.Set("sequence", enc5)
 	return enc1, nil
 }
 
@@ -2629,37 +2779,50 @@ func decCloseRequest(raw any, at string) (transcript.CloseRequest, error) {
 	if err != nil {
 		return dvZero, err
 	}
-	if err := dvKnown(obj2, at, "project", "sessionID", "sequence"); err != nil {
+	if err := dvKnown(obj2, at, "durationMs", "project", "sessionID", "sequence"); err != nil {
 		return dvZero, err
 	}
-	raw3, err := dvRequired(obj2, "project", at+"/project")
+	raw3, err := dvRequired(obj2, "durationMs", at+"/durationMs")
 	if err != nil {
 		return dvZero, err
 	}
-	dec4, err := dvString(raw3, at+"/project")
+	if raw3 != nil {
+		dec1.DurationMs.Present = true
+		num5, err := dvInteger(raw3, at+"/durationMs", math.MinInt64, math.MaxInt64)
+		if err != nil {
+			return dvZero, err
+		}
+		dec4 := int64(num5)
+		dec1.DurationMs.Value = dec4
+	}
+	raw6, err := dvRequired(obj2, "project", at+"/project")
 	if err != nil {
 		return dvZero, err
 	}
-	dec1.Project = dec4
-	raw5, err := dvRequired(obj2, "sessionID", at+"/sessionID")
+	dec7, err := dvString(raw6, at+"/project")
 	if err != nil {
 		return dvZero, err
 	}
-	dec6, err := dvString(raw5, at+"/sessionID")
+	dec1.Project = dec7
+	raw8, err := dvRequired(obj2, "sessionID", at+"/sessionID")
 	if err != nil {
 		return dvZero, err
 	}
-	dec1.SessionID = dec6
-	raw7, err := dvRequired(obj2, "sequence", at+"/sequence")
+	dec9, err := dvString(raw8, at+"/sessionID")
 	if err != nil {
 		return dvZero, err
 	}
-	num9, err := dvInteger(raw7, at+"/sequence", math.MinInt64, math.MaxInt64)
+	dec1.SessionID = dec9
+	raw10, err := dvRequired(obj2, "sequence", at+"/sequence")
 	if err != nil {
 		return dvZero, err
 	}
-	dec8 := int64(num9)
-	dec1.Sequence = dec8
+	num12, err := dvInteger(raw10, at+"/sequence", math.MinInt64, math.MaxInt64)
+	if err != nil {
+		return dvZero, err
+	}
+	dec11 := int64(num12)
+	dec1.Sequence = dec11
 	return dec1, nil
 }
 
@@ -2763,20 +2926,26 @@ func ParseRecordingRequest(s string) (workspace.RecordingRequest, error) {
 
 func encHeader(v transcript.Header, at string) (any, error) {
 	enc1 := devalue.NewObject()
-	var enc2 any = string(v.ID)
-	enc1.Set("id", enc2)
-	var enc3 any = string(v.Source)
-	enc1.Set("source", enc3)
-	var enc4 any = float64(v.Created)
-	enc1.Set("created", enc4)
-	var enc5 any = float64(v.Updated)
-	enc1.Set("updated", enc5)
-	var enc6 any = float64(v.Sequence)
-	enc1.Set("sequence", enc6)
-	var enc7 any = string(v.Status)
-	enc1.Set("status", enc7)
-	var enc8 any = bool(v.Requirements)
-	enc1.Set("requirements", enc8)
+	if v.DurationMs.Present {
+		var enc2 any = float64(v.DurationMs.Value)
+		enc1.Set("durationMs", enc2)
+	} else {
+		enc1.Set("durationMs", nil)
+	}
+	var enc3 any = string(v.ID)
+	enc1.Set("id", enc3)
+	var enc4 any = string(v.Source)
+	enc1.Set("source", enc4)
+	var enc5 any = float64(v.Created)
+	enc1.Set("created", enc5)
+	var enc6 any = float64(v.Updated)
+	enc1.Set("updated", enc6)
+	var enc7 any = float64(v.Sequence)
+	enc1.Set("sequence", enc7)
+	var enc8 any = string(v.Status)
+	enc1.Set("status", enc8)
+	var enc9 any = bool(v.Requirements)
+	enc1.Set("requirements", enc9)
 	return enc1, nil
 }
 
@@ -2787,75 +2956,88 @@ func decHeader(raw any, at string) (transcript.Header, error) {
 	if err != nil {
 		return dvZero, err
 	}
-	if err := dvKnown(obj2, at, "id", "source", "created", "updated", "sequence", "status", "requirements"); err != nil {
+	if err := dvKnown(obj2, at, "durationMs", "id", "source", "created", "updated", "sequence", "status", "requirements"); err != nil {
 		return dvZero, err
 	}
-	raw3, err := dvRequired(obj2, "id", at+"/id")
+	raw3, err := dvRequired(obj2, "durationMs", at+"/durationMs")
 	if err != nil {
 		return dvZero, err
 	}
-	dec4, err := dvString(raw3, at+"/id")
+	if raw3 != nil {
+		dec1.DurationMs.Present = true
+		num5, err := dvInteger(raw3, at+"/durationMs", math.MinInt64, math.MaxInt64)
+		if err != nil {
+			return dvZero, err
+		}
+		dec4 := int64(num5)
+		dec1.DurationMs.Value = dec4
+	}
+	raw6, err := dvRequired(obj2, "id", at+"/id")
 	if err != nil {
 		return dvZero, err
 	}
-	dec1.ID = dec4
-	raw5, err := dvRequired(obj2, "source", at+"/source")
+	dec7, err := dvString(raw6, at+"/id")
 	if err != nil {
 		return dvZero, err
 	}
-	dec6, err := dvString(raw5, at+"/source")
+	dec1.ID = dec7
+	raw8, err := dvRequired(obj2, "source", at+"/source")
 	if err != nil {
 		return dvZero, err
 	}
-	dec1.Source = dec6
-	raw7, err := dvRequired(obj2, "created", at+"/created")
+	dec9, err := dvString(raw8, at+"/source")
 	if err != nil {
 		return dvZero, err
 	}
-	num9, err := dvInteger(raw7, at+"/created", math.MinInt64, math.MaxInt64)
+	dec1.Source = dec9
+	raw10, err := dvRequired(obj2, "created", at+"/created")
 	if err != nil {
 		return dvZero, err
 	}
-	dec8 := int64(num9)
-	dec1.Created = dec8
-	raw10, err := dvRequired(obj2, "updated", at+"/updated")
-	if err != nil {
-		return dvZero, err
-	}
-	num12, err := dvInteger(raw10, at+"/updated", math.MinInt64, math.MaxInt64)
+	num12, err := dvInteger(raw10, at+"/created", math.MinInt64, math.MaxInt64)
 	if err != nil {
 		return dvZero, err
 	}
 	dec11 := int64(num12)
-	dec1.Updated = dec11
-	raw13, err := dvRequired(obj2, "sequence", at+"/sequence")
+	dec1.Created = dec11
+	raw13, err := dvRequired(obj2, "updated", at+"/updated")
 	if err != nil {
 		return dvZero, err
 	}
-	num15, err := dvInteger(raw13, at+"/sequence", math.MinInt64, math.MaxInt64)
+	num15, err := dvInteger(raw13, at+"/updated", math.MinInt64, math.MaxInt64)
 	if err != nil {
 		return dvZero, err
 	}
 	dec14 := int64(num15)
-	dec1.Sequence = dec14
-	raw16, err := dvRequired(obj2, "status", at+"/status")
+	dec1.Updated = dec14
+	raw16, err := dvRequired(obj2, "sequence", at+"/sequence")
 	if err != nil {
 		return dvZero, err
 	}
-	dec17, err := dvString(raw16, at+"/status")
+	num18, err := dvInteger(raw16, at+"/sequence", math.MinInt64, math.MaxInt64)
 	if err != nil {
 		return dvZero, err
 	}
-	dec1.Status = dec17
-	raw18, err := dvRequired(obj2, "requirements", at+"/requirements")
+	dec17 := int64(num18)
+	dec1.Sequence = dec17
+	raw19, err := dvRequired(obj2, "status", at+"/status")
 	if err != nil {
 		return dvZero, err
 	}
-	dec19, err := dvBool(raw18, at+"/requirements")
+	dec20, err := dvString(raw19, at+"/status")
 	if err != nil {
 		return dvZero, err
 	}
-	dec1.Requirements = dec19
+	dec1.Status = dec20
+	raw21, err := dvRequired(obj2, "requirements", at+"/requirements")
+	if err != nil {
+		return dvZero, err
+	}
+	dec22, err := dvBool(raw21, at+"/requirements")
+	if err != nil {
+		return dvZero, err
+	}
+	dec1.Requirements = dec22
 	return dec1, nil
 }
 
@@ -3125,12 +3307,18 @@ func ParseHistory(s string) (transcript.History, error) {
 
 func encStateRequest(v workspace.StateRequest, at string) (any, error) {
 	enc1 := devalue.NewObject()
-	var enc2 any = string(v.Project)
-	enc1.Set("project", enc2)
-	var enc3 any = string(v.SessionID)
-	enc1.Set("sessionID", enc3)
-	var enc4 any = string(v.Status)
-	enc1.Set("status", enc4)
+	if v.DurationMs.Present {
+		var enc2 any = float64(v.DurationMs.Value)
+		enc1.Set("durationMs", enc2)
+	} else {
+		enc1.Set("durationMs", nil)
+	}
+	var enc3 any = string(v.Project)
+	enc1.Set("project", enc3)
+	var enc4 any = string(v.SessionID)
+	enc1.Set("sessionID", enc4)
+	var enc5 any = string(v.Status)
+	enc1.Set("status", enc5)
 	return enc1, nil
 }
 
@@ -3141,36 +3329,49 @@ func decStateRequest(raw any, at string) (workspace.StateRequest, error) {
 	if err != nil {
 		return dvZero, err
 	}
-	if err := dvKnown(obj2, at, "project", "sessionID", "status"); err != nil {
+	if err := dvKnown(obj2, at, "durationMs", "project", "sessionID", "status"); err != nil {
 		return dvZero, err
 	}
-	raw3, err := dvRequired(obj2, "project", at+"/project")
+	raw3, err := dvRequired(obj2, "durationMs", at+"/durationMs")
 	if err != nil {
 		return dvZero, err
 	}
-	dec4, err := dvString(raw3, at+"/project")
+	if raw3 != nil {
+		dec1.DurationMs.Present = true
+		num5, err := dvInteger(raw3, at+"/durationMs", math.MinInt64, math.MaxInt64)
+		if err != nil {
+			return dvZero, err
+		}
+		dec4 := int64(num5)
+		dec1.DurationMs.Value = dec4
+	}
+	raw6, err := dvRequired(obj2, "project", at+"/project")
 	if err != nil {
 		return dvZero, err
 	}
-	dec1.Project = dec4
-	raw5, err := dvRequired(obj2, "sessionID", at+"/sessionID")
+	dec7, err := dvString(raw6, at+"/project")
 	if err != nil {
 		return dvZero, err
 	}
-	dec6, err := dvString(raw5, at+"/sessionID")
+	dec1.Project = dec7
+	raw8, err := dvRequired(obj2, "sessionID", at+"/sessionID")
 	if err != nil {
 		return dvZero, err
 	}
-	dec1.SessionID = dec6
-	raw7, err := dvRequired(obj2, "status", at+"/status")
+	dec9, err := dvString(raw8, at+"/sessionID")
 	if err != nil {
 		return dvZero, err
 	}
-	dec8, err := dvString(raw7, at+"/status")
+	dec1.SessionID = dec9
+	raw10, err := dvRequired(obj2, "status", at+"/status")
 	if err != nil {
 		return dvZero, err
 	}
-	dec1.Status = dec8
+	dec11, err := dvString(raw10, at+"/status")
+	if err != nil {
+		return dvZero, err
+	}
+	dec1.Status = dec11
 	return dec1, nil
 }
 
@@ -3202,42 +3403,48 @@ func ParseStateRequest(s string) (workspace.StateRequest, error) {
 
 func encRecording(v transcript.Recording, at string) (any, error) {
 	enc1 := devalue.NewObject()
-	var enc2 any = string(v.ID)
-	enc1.Set("id", enc2)
-	var enc3 any = string(v.Source)
-	enc1.Set("source", enc3)
-	var enc4 any = float64(v.Created)
-	enc1.Set("created", enc4)
-	var enc5 any = float64(v.Updated)
-	enc1.Set("updated", enc5)
-	var enc6 any = float64(v.Sequence)
-	enc1.Set("sequence", enc6)
-	var enc7 any = string(v.Status)
-	enc1.Set("status", enc7)
-	var enc8 any = bool(v.Requirements)
-	enc1.Set("requirements", enc8)
-	enc9 := make([]any, 0, len(v.Finalized))
-	for i10, item11 := range v.Finalized {
-		enc12, err := encChunk(item11, at+"/finalized"+"/"+strconv.Itoa(i10))
+	if v.DurationMs.Present {
+		var enc2 any = float64(v.DurationMs.Value)
+		enc1.Set("durationMs", enc2)
+	} else {
+		enc1.Set("durationMs", nil)
+	}
+	var enc3 any = string(v.ID)
+	enc1.Set("id", enc3)
+	var enc4 any = string(v.Source)
+	enc1.Set("source", enc4)
+	var enc5 any = float64(v.Created)
+	enc1.Set("created", enc5)
+	var enc6 any = float64(v.Updated)
+	enc1.Set("updated", enc6)
+	var enc7 any = float64(v.Sequence)
+	enc1.Set("sequence", enc7)
+	var enc8 any = string(v.Status)
+	enc1.Set("status", enc8)
+	var enc9 any = bool(v.Requirements)
+	enc1.Set("requirements", enc9)
+	enc10 := make([]any, 0, len(v.Finalized))
+	for i11, item12 := range v.Finalized {
+		enc13, err := encChunk(item12, at+"/finalized"+"/"+strconv.Itoa(i11))
 		if err != nil {
 			return nil, err
 		}
-		enc9 = append(enc9, enc12)
+		enc10 = append(enc10, enc13)
 	}
-	var enc13 any = enc9
-	enc1.Set("finalized", enc13)
-	enc14 := make([]any, 0, len(v.Provisional))
-	for i15, item16 := range v.Provisional {
-		enc17, err := encChunk(item16, at+"/provisional"+"/"+strconv.Itoa(i15))
+	var enc14 any = enc10
+	enc1.Set("finalized", enc14)
+	enc15 := make([]any, 0, len(v.Provisional))
+	for i16, item17 := range v.Provisional {
+		enc18, err := encChunk(item17, at+"/provisional"+"/"+strconv.Itoa(i16))
 		if err != nil {
 			return nil, err
 		}
-		enc14 = append(enc14, enc17)
+		enc15 = append(enc15, enc18)
 	}
-	var enc18 any = enc14
-	enc1.Set("provisional", enc18)
-	var enc19 any = string(v.Last)
-	enc1.Set("last", enc19)
+	var enc19 any = enc15
+	enc1.Set("provisional", enc19)
+	var enc20 any = string(v.Last)
+	enc1.Set("last", enc20)
 	return enc1, nil
 }
 
@@ -3248,118 +3455,131 @@ func decRecording(raw any, at string) (transcript.Recording, error) {
 	if err != nil {
 		return dvZero, err
 	}
-	if err := dvKnown(obj2, at, "id", "source", "created", "updated", "sequence", "status", "requirements", "finalized", "provisional", "last"); err != nil {
+	if err := dvKnown(obj2, at, "durationMs", "id", "source", "created", "updated", "sequence", "status", "requirements", "finalized", "provisional", "last"); err != nil {
 		return dvZero, err
 	}
-	raw3, err := dvRequired(obj2, "id", at+"/id")
+	raw3, err := dvRequired(obj2, "durationMs", at+"/durationMs")
 	if err != nil {
 		return dvZero, err
 	}
-	dec4, err := dvString(raw3, at+"/id")
+	if raw3 != nil {
+		dec1.DurationMs.Present = true
+		num5, err := dvInteger(raw3, at+"/durationMs", math.MinInt64, math.MaxInt64)
+		if err != nil {
+			return dvZero, err
+		}
+		dec4 := int64(num5)
+		dec1.DurationMs.Value = dec4
+	}
+	raw6, err := dvRequired(obj2, "id", at+"/id")
 	if err != nil {
 		return dvZero, err
 	}
-	dec1.ID = dec4
-	raw5, err := dvRequired(obj2, "source", at+"/source")
+	dec7, err := dvString(raw6, at+"/id")
 	if err != nil {
 		return dvZero, err
 	}
-	dec6, err := dvString(raw5, at+"/source")
+	dec1.ID = dec7
+	raw8, err := dvRequired(obj2, "source", at+"/source")
 	if err != nil {
 		return dvZero, err
 	}
-	dec1.Source = dec6
-	raw7, err := dvRequired(obj2, "created", at+"/created")
+	dec9, err := dvString(raw8, at+"/source")
 	if err != nil {
 		return dvZero, err
 	}
-	num9, err := dvInteger(raw7, at+"/created", math.MinInt64, math.MaxInt64)
+	dec1.Source = dec9
+	raw10, err := dvRequired(obj2, "created", at+"/created")
 	if err != nil {
 		return dvZero, err
 	}
-	dec8 := int64(num9)
-	dec1.Created = dec8
-	raw10, err := dvRequired(obj2, "updated", at+"/updated")
-	if err != nil {
-		return dvZero, err
-	}
-	num12, err := dvInteger(raw10, at+"/updated", math.MinInt64, math.MaxInt64)
+	num12, err := dvInteger(raw10, at+"/created", math.MinInt64, math.MaxInt64)
 	if err != nil {
 		return dvZero, err
 	}
 	dec11 := int64(num12)
-	dec1.Updated = dec11
-	raw13, err := dvRequired(obj2, "sequence", at+"/sequence")
+	dec1.Created = dec11
+	raw13, err := dvRequired(obj2, "updated", at+"/updated")
 	if err != nil {
 		return dvZero, err
 	}
-	num15, err := dvInteger(raw13, at+"/sequence", math.MinInt64, math.MaxInt64)
+	num15, err := dvInteger(raw13, at+"/updated", math.MinInt64, math.MaxInt64)
 	if err != nil {
 		return dvZero, err
 	}
 	dec14 := int64(num15)
-	dec1.Sequence = dec14
-	raw16, err := dvRequired(obj2, "status", at+"/status")
+	dec1.Updated = dec14
+	raw16, err := dvRequired(obj2, "sequence", at+"/sequence")
 	if err != nil {
 		return dvZero, err
 	}
-	dec17, err := dvString(raw16, at+"/status")
+	num18, err := dvInteger(raw16, at+"/sequence", math.MinInt64, math.MaxInt64)
 	if err != nil {
 		return dvZero, err
 	}
-	dec1.Status = dec17
-	raw18, err := dvRequired(obj2, "requirements", at+"/requirements")
+	dec17 := int64(num18)
+	dec1.Sequence = dec17
+	raw19, err := dvRequired(obj2, "status", at+"/status")
 	if err != nil {
 		return dvZero, err
 	}
-	dec19, err := dvBool(raw18, at+"/requirements")
+	dec20, err := dvString(raw19, at+"/status")
 	if err != nil {
 		return dvZero, err
 	}
-	dec1.Requirements = dec19
-	raw20, err := dvRequired(obj2, "finalized", at+"/finalized")
+	dec1.Status = dec20
+	raw21, err := dvRequired(obj2, "requirements", at+"/requirements")
 	if err != nil {
 		return dvZero, err
 	}
-	items22, err := dvArray(raw20, at+"/finalized")
+	dec22, err := dvBool(raw21, at+"/requirements")
 	if err != nil {
 		return dvZero, err
 	}
-	dec21 := make([]transcript.Chunk, 0, len(items22))
-	for i23, item24 := range items22 {
-		dec25, err := decChunk(item24, at+"/finalized"+"/"+strconv.Itoa(i23))
+	dec1.Requirements = dec22
+	raw23, err := dvRequired(obj2, "finalized", at+"/finalized")
+	if err != nil {
+		return dvZero, err
+	}
+	items25, err := dvArray(raw23, at+"/finalized")
+	if err != nil {
+		return dvZero, err
+	}
+	dec24 := make([]transcript.Chunk, 0, len(items25))
+	for i26, item27 := range items25 {
+		dec28, err := decChunk(item27, at+"/finalized"+"/"+strconv.Itoa(i26))
 		if err != nil {
 			return dvZero, err
 		}
-		dec21 = append(dec21, dec25)
+		dec24 = append(dec24, dec28)
 	}
-	dec1.Finalized = dec21
-	raw26, err := dvRequired(obj2, "provisional", at+"/provisional")
+	dec1.Finalized = dec24
+	raw29, err := dvRequired(obj2, "provisional", at+"/provisional")
 	if err != nil {
 		return dvZero, err
 	}
-	items28, err := dvArray(raw26, at+"/provisional")
+	items31, err := dvArray(raw29, at+"/provisional")
 	if err != nil {
 		return dvZero, err
 	}
-	dec27 := make([]transcript.Chunk, 0, len(items28))
-	for i29, item30 := range items28 {
-		dec31, err := decChunk(item30, at+"/provisional"+"/"+strconv.Itoa(i29))
+	dec30 := make([]transcript.Chunk, 0, len(items31))
+	for i32, item33 := range items31 {
+		dec34, err := decChunk(item33, at+"/provisional"+"/"+strconv.Itoa(i32))
 		if err != nil {
 			return dvZero, err
 		}
-		dec27 = append(dec27, dec31)
+		dec30 = append(dec30, dec34)
 	}
-	dec1.Provisional = dec27
-	raw32, err := dvRequired(obj2, "last", at+"/last")
+	dec1.Provisional = dec30
+	raw35, err := dvRequired(obj2, "last", at+"/last")
 	if err != nil {
 		return dvZero, err
 	}
-	dec33, err := dvString(raw32, at+"/last")
+	dec36, err := dvString(raw35, at+"/last")
 	if err != nil {
 		return dvZero, err
 	}
-	dec1.Last = dec33
+	dec1.Last = dec36
 	return dec1, nil
 }
 
@@ -6448,7 +6668,7 @@ func remote_openSession(ctx context.Context, call skgo.Call) (any, error) {
 	if err != nil {
 		return nil, skgo.BadRequest(err)
 	}
-	if err := skgoNativeCheck21(in, "", 0); err != nil {
+	if err := skgoNativeCheck22(in, "", 0); err != nil {
 		return nil, skgo.BadRequest(err)
 	}
 	event, err := params.SkgoRequestEvent(skgo.EventFrom(ctx))
@@ -6469,6 +6689,43 @@ func remote_openSession(ctx context.Context, call skgo.Call) (any, error) {
 // decoder remote_openSession uses.
 func requestedArg_openSession(arg any) (any, error) {
 	in, err := DecodeRoot6(arg)
+	if err != nil {
+		return nil, skgo.BadRequest(err)
+	}
+	return in, nil
+}
+
+// remote_recordingHeader answers src/lib/transcript.remote.ts#recordingHeader, a query.
+//
+// The argument is decoded by DecodeRoot4, generated by polytype for recordingHeader's
+// own parameter type: a shape it does not admit is a 400 naming the path,
+// never a zero value.
+// The result is encoded by EncodeRoot5, generated for its result type.
+func remote_recordingHeader(ctx context.Context, call skgo.Call) (any, error) {
+	if err := skgo.RequireArgument(call); err != nil {
+		return nil, err
+	}
+	in, err := DecodeRoot4(call.Arg)
+	if err != nil {
+		return nil, skgo.BadRequest(err)
+	}
+	if err := skgoNativeCheck27(in, "", 0); err != nil {
+		return nil, skgo.BadRequest(err)
+	}
+	out, err := workspace.Skgo_recordingHeader(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	if err := skgoNativeCheck30(out, "", 0); err != nil {
+		return nil, err
+	}
+	return EncodeRoot5(out)
+}
+
+// requestedArg_recordingHeader decodes one instance's argument for skgo.Requested, with the same
+// decoder remote_recordingHeader uses.
+func requestedArg_recordingHeader(arg any) (any, error) {
+	in, err := DecodeRoot4(arg)
 	if err != nil {
 		return nil, skgo.BadRequest(err)
 	}
@@ -6520,7 +6777,7 @@ func remote_touchSession(ctx context.Context, call skgo.Call) (any, error) {
 	if err != nil {
 		return nil, skgo.BadRequest(err)
 	}
-	if err := skgoNativeCheck26(in, "", 0); err != nil {
+	if err := skgoNativeCheck39(in, "", 0); err != nil {
 		return nil, skgo.BadRequest(err)
 	}
 	event, err := params.SkgoRequestEvent(skgo.EventFrom(ctx))
@@ -7310,6 +7567,14 @@ func Remotes() []*skgo.Remote {
 			CallerRoutes:   params.SkgoCallerRoutes(),
 			Call:           remote_openSession,
 			DecodeArg:      requestedArg_openSession,
+		}),
+		skgo.NewRemote(skgo.RemoteSpec{
+			Kind:      skgo.KindQuery,
+			Module:    "src/lib/transcript.remote.ts",
+			Name:      "recordingHeader",
+			Fn:        workspace.Skgo_recordingHeader,
+			Call:      remote_recordingHeader,
+			DecodeArg: requestedArg_recordingHeader,
 		}),
 		skgo.NewRemote(skgo.RemoteSpec{
 			Kind:      skgo.KindQuery,

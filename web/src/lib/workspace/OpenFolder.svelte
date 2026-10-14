@@ -1,6 +1,6 @@
 <script lang="ts">
-  import type { Snippet } from "svelte";
-  import { goto } from "$app/navigation";
+  import { type Snippet } from "svelte";
+  import { goto, refreshAll } from "$app/navigation";
   import { openProject } from "../window.remote";
   import { chooseProjectFolder } from "./native";
 
@@ -15,7 +15,10 @@
     pending = true;
     try {
       const project = await openProject({ path });
-      await goto(`/projects/${project.id}/recordings`, { invalidateAll: true });
+      if (window.webkit?.messageHandlers?.requestProject) {
+        await refreshAll();
+        window.webkit.messageHandlers.requestProject.postMessage({ path: `/projects/${project.id}/recordings`, projectPath: path });
+      } else await goto(`/projects/${project.id}/recordings`, { invalidateAll: true });
     } catch (cause) {
       error = (cause as { body?: { message?: string } }).body?.message ?? `Could not open ${path}`;
     } finally {

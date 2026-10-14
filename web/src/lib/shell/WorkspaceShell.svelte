@@ -9,7 +9,7 @@
   import type { WorkspaceTab, RecordingDisplay } from './types.js';
 
   let { project, items, tabs, active, sidebar = $bindable(false), recording, content,
-    sidebarExtra, fallback, native = false, onselect, onclose, onopen, onnew }: {
+    sidebarExtra, fallback, native = false, onproject, onrecording, oncontrol, onselect, onclose, onopen, onnew }: {
     project: string;
     /** Project inventory, including views that are currently closed. */
     items: WorkspaceTab[];
@@ -21,6 +21,9 @@
     sidebarExtra?: Snippet;
     fallback?: Snippet;
     native?: boolean;
+    onproject?: (event: MouseEvent) => void;
+    onrecording?: () => void;
+    oncontrol?: (action: 'pause' | 'resume' | 'stop') => void;
     onselect: (id: string) => void;
     onclose: (id: string) => void;
     onopen: (id: string) => void;
@@ -44,9 +47,13 @@
 {#snippet recordingStatus()}
   {#if recording}
     <div class="recording-status" role="status" aria-label={`${recording.state}: ${recording.label}`}>
-      <span class="record-dot {recording.state}" aria-hidden="true"></span>
-      {#if sidebar}<span>{recording.state === 'recording' ? 'Recording' : recording.state === 'paused' ? 'Paused' : recording.state === 'saving' ? 'Saving…' : 'Error'}</span>{/if}
-      <span class="timer">{recording.label}</span>
+      <button class="recording-open" type="button" onclick={onrecording} title={recording.detail} aria-label={`Open recording in ${recording.owner ?? project}, ${recording.label}`}>
+        <span class="record-dot {recording.state}" aria-hidden="true"></span>
+        {#if sidebar}<span>{recording.state === 'recording' ? 'Recording' : recording.state === 'paused' ? 'Paused' : recording.state === 'saving' ? 'Saving…' : 'Error'}</span>{/if}
+        <span class="timer">{recording.label}</span>
+      </button>
+      {#if recording.canPause}<button class="recording-action" onclick={() => oncontrol?.('pause')}>Pause</button>{:else if recording.canResume}<button class="recording-action" onclick={() => oncontrol?.('resume')}>Resume</button>{/if}
+      {#if sidebar && recording.canStop}<button class="recording-action" onclick={() => oncontrol?.('stop')}>Stop</button>{/if}
     </div>
   {/if}
 {/snippet}
@@ -57,7 +64,7 @@
       <!-- Native titlebar integration supplies the traffic lights later. -->
       <div class="native-space"></div>
       <div class="brand"><span class="tile" aria-hidden="true">{APP_NAME.slice(0, 1)}</span><span>{APP_NAME}</span></div>
-      <div class="project"><small>Project</small><span title={project}>{project}</span></div>
+      <button class="project" type="button" onclick={onproject} aria-label={`Switch project, ${project}`}><span title={project}>{project}</span><span aria-hidden="true">⌃⌄</span></button>
       {@render recordingStatus()}
       {#each ['chat', 'file'] as kind}
         <h2>{kind === 'chat' ? 'Chats' : 'Files'}</h2>
@@ -74,7 +81,7 @@
   <section class="workspace" aria-label="Open views">
     <!-- This is a tab strip. The menubar is the macOS system menubar. -->
     <header>
-      {#if !sidebar}<span class="compact-project" title={project}>{project}</span>{/if}
+      {#if !sidebar}<button class="compact-project" type="button" onclick={onproject} aria-label={`Switch project, ${project}`} title={project}>{project} <span aria-hidden="true">⌃⌄</span></button>{/if}
       <TabStrip {tabs} {active} {onselect} {onclose} {onnew} />
       {#if !sidebar}{@render recordingStatus()}{/if}
       <button bind:this={toggle} class="sidebar-toggle" class:on={sidebar} type="button" aria-label={sidebar ? 'Hide sidebar' : 'Show sidebar'} aria-expanded={sidebar} onclick={() => sidebar = !sidebar}><PanelLeft size={16} aria-hidden="true" /></button>
@@ -110,11 +117,13 @@
   aside { width: 260px; flex: none; display: flex; flex-direction: column; min-height: 0; overflow: auto; padding: 0 8px 12px; background: var(--sidebar); color: var(--sidebar-foreground); border-right: 1px solid var(--sidebar-border); }
   .native-space { height: 52px; flex: none; }
   .brand { display: flex; align-items: center; gap: 10px; padding: 0 8px; height: 36px; flex: none; font-weight: 600; }
-  .project { display: grid; flex: none; margin-top: 12px; padding: 0 10px; font-size: 13px; font-weight: 500; }
-  .project small { color: var(--muted-foreground); font-size: 11px; font-weight: 400; }
+  .project { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 32px; text-align: left; flex: none; margin-top: 12px; padding: 0 10px; font-size: 13px; font-weight: 500; }
   .project span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .tile { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; background: var(--sidebar-primary); color: var(--sidebar-primary-foreground); font-size: 12px; }
   .recording-status { display: flex; align-items: center; gap: 8px; padding: 0 8px; height: 32px; flex: none; font-size: 13px; color: var(--muted-foreground); }
+  .recording-open { display: flex; align-items: center; gap: 8px; padding: 0; min-width: 0; }
+  .recording-action { font-size: 12px; padding: 4px 6px; border-radius: 5px; }
+  .recording-action:hover { background: var(--muted); }
   .timer { font: 12px var(--font-mono); font-variant-numeric: tabular-nums; }
   .record-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--destructive); flex: none; }
   .record-dot.paused, .record-dot.error { background: transparent; border: 2px solid var(--destructive); }
@@ -129,5 +138,6 @@
   @media (width < 1100px) {
     aside { position: absolute; inset: 0 auto 0 0; z-index: 20; box-shadow: var(--shadow-lg); }
     .native header { padding-left: 86px; }
+    .with-sidebar header { padding-left: 274px; }
   }
 </style>

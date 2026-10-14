@@ -14,7 +14,7 @@ struct NativeStatus: Codable {
   var error: String?
 }
 @MainActor protocol RecordingCommands {
-  func open(sessionID: String, source: String) async throws
+  func open(sessionID: String, source: String, requirements: Bool) async throws
   func activate(sessionID: String) async throws
   func accept(
     sessionID: String, sequence: Int, finalized: [TranscriptChunk], provisional: [TranscriptChunk])
@@ -98,7 +98,7 @@ struct RecorderTiming {
     status.error = incompleteReason ?? displayError
     onStatus?(status)
   }
-  func record() {
+  func record(requirements: Bool = false) {
     guard canRecord else { return }
     let previous = status
     let previousApplied = appliedSequence
@@ -143,7 +143,9 @@ struct RecorderTiming {
         // Open is staged: it owns the server session without replacing
         // the prior displayed transcript until capture has started.
         opened = true
-        try await retry { try await self.commands.open(sessionID: id, source: status.source) }
+        try await retry {
+          try await self.commands.open(sessionID: id, source: status.source, requirements: requirements)
+        }
         NSLog("Transcription readiness: session opened; starting source")
         sessionOpen = true
         try ensureCurrent(token)

@@ -2,9 +2,20 @@
 import { command, form, query } from "$app/server";
 import type { ProjectChoice } from "./skgo/host/types";
 import type { Document } from "./skgo/projectfiles/types";
-import type { FileRequest, FileView, NewProject, ProjectOrder } from "./types";
+import type { Entry, View } from "./skgo/promises/types";
+import type { FileRequest, FileView, NewProject, ProjectOrder, PromiseRequest } from "./types";
 
-export type { Document, FileRequest, FileView, NewProject, ProjectChoice, ProjectOrder };
+export type {
+  Document,
+  Entry,
+  FileRequest,
+  FileView,
+  NewProject,
+  ProjectChoice,
+  ProjectOrder,
+  PromiseRequest,
+  View,
+};
 
 // Every body throws. These functions are implemented in Go, and skgo
 // answers their endpoints itself, so anything that renders in the browser
@@ -23,8 +34,16 @@ export const reorderProjects = command("unchecked", (_arg: ProjectOrder): boolea
   unimplemented(),
 );
 
+export const setPromiseWithdrawn = command("unchecked", (_arg: PromiseRequest): Entry =>
+  unimplemented(),
+);
+
 export const uploadFile = form("unchecked", (_arg: { project: string; file?: File }): Document =>
   unimplemented(),
 );
 
 export const viewFile = query("unchecked", (_arg: FileRequest): FileView => unimplemented());
+
+export const watchPromises = query.live("unchecked", (_arg: string): AsyncIterable<View> =>
+  unimplemented(),
+);

@@ -21,6 +21,7 @@ import (
 	"github.com/tylergannon/gimbal/internal/invocation"
 	"github.com/tylergannon/gimbal/internal/live"
 	"github.com/tylergannon/gimbal/internal/observation"
+	"github.com/tylergannon/gimbal/internal/promises"
 	"github.com/tylergannon/gimbal/internal/runner"
 	"github.com/tylergannon/gimbal/internal/transcript"
 )
@@ -47,6 +48,9 @@ type Project struct {
 	registry      *observation.Registry
 	conversations *conversation.Manager
 	recordings    *transcript.DurableStore
+	promises      *promises.Store
+	stopPromises  context.CancelFunc
+	promisesDone  chan struct{}
 	ownerLock     *os.File
 }
 
@@ -136,6 +140,16 @@ func (o *Owner) AdmitProject(dir string) (*Project, error) {
 		return nil, err
 	}
 	p.ctx = p.RequestContext(conversation.WithManager(projectCtx, conversations))
+	p.promises, err = promises.Open(state)
+	if err != nil {
+		conversations.Close()
+		return nil, err
+	}
+	model, err := promises.Model(os.Getenv("GIMBAL_PROMISES_MODEL"))
+	if err != nil {
+		conversations.Close()
+		return nil, fmt.Errorf("gimbal: GIMBAL_PROMISES_MODEL: %w", err)
+	}
 	if err := o.writeProjectDiscovery(path); err != nil {
 		conversations.Close()
 		return nil, err
@@ -149,6 +163,9 @@ func (o *Owner) AdmitProject(dir string) (*Project, error) {
 		return nil, err
 	}
 	claimed = true
+	ctx, stop := context.WithCancel(p.ctx)
+	p.stopPromises, p.promisesDone = stop, make(chan struct{})
+	go func() { defer close(p.promisesDone); p.promises.Run(ctx, p.recordings, model) }()
 	go p.cleanupExitedTasks()
 	return p, nil
 }
@@ -210,6 +227,8 @@ func (o *Owner) ReorderProjects(ids []string) error {
 func (o *Owner) Close() {
 	o.activeRuns.Wait()
 	for _, p := range o.Projects() {
+		p.stopPromises()
+		<-p.promisesDone
 		p.conversations.Close()
 		_ = os.Remove(filepath.Join(p.dir, "control", o.controlID+".json"))
 		_ = p.ownerLock.Close()
@@ -394,3 +413,4 @@ func (o *Owner) SetPluginDirs(dirs []string) {
 }
 
 func (p *Project) Recordings() *transcript.DurableStore { return p.recordings }
+func (p *Project) Promises() *promises.Store            { return p.promises }

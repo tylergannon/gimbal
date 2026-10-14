@@ -120,7 +120,7 @@ func TestAssistantErrorCarriesTheCLIsExplanation(t *testing.T) {
 func TestSessionsStartWithoutTheUsersMCPServers(t *testing.T) {
 	extra := map[string]*string{}
 	var applied claudeagent.Options
-	for _, option := range isolate(extra) {
+	for _, option := range isolate(extra, false) {
 		option(&applied)
 	}
 	if !applied.StrictMCPConfig {
@@ -162,5 +162,24 @@ func TestATurnFailsWhenClaudeCodeDiesOnStart(t *testing.T) {
 		}
 	case <-time.After(30 * time.Second):
 		t.Fatal("the turn is still waiting on a CLI that exited on start")
+	}
+}
+
+func TestTextOnlyLoadsNoToolsOrSettings(t *testing.T) {
+	extra := map[string]*string{}
+	var applied claudeagent.Options
+	for _, option := range isolate(extra, true) {
+		option(&applied)
+	}
+	if !applied.StrictMCPConfig {
+		t.Fatal("MCP configuration is not strict")
+	}
+	for _, flag := range []string{"tools", "setting-sources"} {
+		if value := extra[flag]; value == nil || *value != "" {
+			t.Fatalf("--%s = %v, want an explicit empty value", flag, value)
+		}
+	}
+	if !New(TextOnly()).(*adapter).textOnly {
+		t.Fatal("TextOnly did not select a text-only session")
 	}
 }

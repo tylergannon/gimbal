@@ -62,8 +62,9 @@ import Foundation
     var onSnapshot: ((String, Int) -> Void)?
     private(set) var closes = 0
     private(set) var aborts = 0
-    func open(sessionID: String, source: String) async throws {
-        openCalls += 1; try await Task.sleep(for: openDelay)
+    private(set) var requirements: [Bool] = []
+    func open(sessionID: String, source: String, requirements: Bool) async throws {
+        openCalls += 1; self.requirements.append(requirements); try await Task.sleep(for: openDelay)
         if openUnreachable { throw RecorderError.message("Open unreachable") }
         guard canceledIDs[sessionID] == nil else { throw RecorderError.message("Canceled session") }
         if sessions[sessionID] != nil { if loseOpenResponse { throw RecorderError.message("Lost open response") }; return }
@@ -467,7 +468,7 @@ import Foundation
             precondition(openCommands.displayText == "previous words" && !openController.canStop)
             let canceled = openCommands.canceledIDs.keys.first!
             openCommands.openUnreachable = false; openCommands.loseOpenResponse = false
-            do { try await openCommands.open(sessionID: canceled, source: "synthetic"); fatalError("Delayed canceled Open accepted") } catch {}
+            do { try await openCommands.open(sessionID: canceled, source: "synthetic", requirements: false); fatalError("Delayed canceled Open accepted") } catch {}
             openController.record(); try await wait("Record after open recovery") { openController.canPause }
             openController.stop(); try await wait("Recovered session stopped") { openController.canRecord }
         }
@@ -485,6 +486,9 @@ import Foundation
         early.record(); try await wait("recording") { early.canPause }
         early.pause(); try await wait("empty pause") { early.status.state == "paused" }
         early.stop(); try await wait("empty stop") { early.status.state == "stopped" && early.canRecord }
+        early.record(requirements: true); try await wait("requirements recording") { early.canPause }
+        precondition(earlyCommands.requirements == [false, true])
+        early.stop(); try await wait("requirements stop") { early.status.state == "stopped" && early.canRecord }
         // A drained final cannot settle Pause or Stop ahead of displayed text.
         let source = FakeSource(), commands = FakeCommands()
         commands.shouldNotify = false

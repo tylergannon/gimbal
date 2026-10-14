@@ -71,3 +71,36 @@ func TestCloseRequiresAcknowledgedSequence(t *testing.T) {
 		t.Fatal("closed unacknowledged text")
 	}
 }
+
+func TestRequirementsFlagAndMarkPersist(t *testing.T) {
+	dir := t.TempDir()
+	s, err := NewDurable(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, req := range []OpenRequest{{SessionID: "ordinary", Source: "synthetic"}, {SessionID: "requirements", Source: "synthetic", Requirements: true}} {
+		if _, err := s.Open(req); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ordinary, _ := s.Get("ordinary")
+	if ordinary.Requirements {
+		t.Fatal("ordinary recording is marked")
+	}
+	if _, err := s.MarkRequirements("ordinary"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.MarkRequirements("missing"); err == nil {
+		t.Fatal("marked missing recording")
+	}
+	fresh, err := NewDurable(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, h := range fresh.List("").Items {
+		r, err := fresh.Get(h.ID)
+		if err != nil || !h.Requirements || !r.Requirements {
+			t.Fatalf("flag lost: header=%+v recording=%+v err=%v", h, r, err)
+		}
+	}
+}

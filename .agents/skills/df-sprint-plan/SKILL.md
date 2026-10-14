@@ -18,7 +18,7 @@ bullets.
 
 > **Bundled tool:** The sprint ledger CLI ships with this skill at
 > `scripts/ledger`. Ledger commands below invoke it via its installed path,
-> `go run -C "<loaded-df-sprint-plan-dir>/scripts/ledger" . --project "$PWD"`,
+> `GOWORK=off go run -C "<loaded-df-sprint-plan-dir>/scripts/ledger" . --project "$PWD"`,
 > run from the target repo root. Substitute the directory beside the loaded planning skill.
 
 ## Model selection
@@ -129,7 +129,7 @@ Track progress through each phase using the adapter's task tracker when one is a
 1. Read repo instructions if present: `AGENTS.md`, `CLAUDE.md`, or equivalent.
 2. Check sprint ledger status:
    ```bash
-   go run -C "<loaded-df-sprint-plan-dir>/scripts/ledger" . --project "$PWD" stats
+   GOWORK=off go run -C "<loaded-df-sprint-plan-dir>/scripts/ledger" . --project "$PWD" stats
    ```
 3. Find existing sprint documents:
    ```bash
@@ -530,11 +530,11 @@ Note the answers — incorporate refinements in the merge phase.
 
 5. **Update the ledger and chapter index**:
    ```bash
-   go run -C "<loaded-df-sprint-plan-dir>/scripts/ledger" . --project "$PWD" sync
+   GOWORK=off go run -C "<loaded-df-sprint-plan-dir>/scripts/ledger" . --project "$PWD" sync
    ```
    If the repo uses `docs/sprints/ledger.yaml`, ensure the sprint entry includes `chapter: CHAPTER-XXXX` when a chapter was selected. If the bundled ledger helper supports it, prefer:
    ```bash
-   go run -C "<loaded-df-sprint-plan-dir>/scripts/ledger" . --project "$PWD" set-chapter SPRINT-NNN CHAPTER-XXXX
+   GOWORK=off go run -C "<loaded-df-sprint-plan-dir>/scripts/ledger" . --project "$PWD" set-chapter SPRINT-NNN CHAPTER-XXXX
    ```
    If `docs/chapters/ledger.yaml` exists, also ensure that chapter's `sprint_ids` list includes the new sprint id. Preserve the rule that `docs/sprints/ledger.yaml` remains authoritative for individual sprint status.
 
@@ -575,5 +575,5 @@ At the end of this workflow, you should have:
 - [ ] Interview conducted (2-4 questions answered)
 - [ ] Merge notes written (`drafts/SPRINT-NNN-MERGE-NOTES.md`)
 - [ ] Final sprint document written (`SPRINT-NNN.md`) with a concise `Pyramid Index`
-- [ ] Ledger updated via `go run -C "<loaded-df-sprint-plan-dir>/scripts/ledger" . --project "$PWD" sync`; chapter field and `docs/chapters/ledger.yaml` `sprint_ids` updated if applicable
+- [ ] Ledger updated via `GOWORK=off go run -C "<loaded-df-sprint-plan-dir>/scripts/ledger" . --project "$PWD" sync`; chapter field and `docs/chapters/ledger.yaml` `sprint_ids` updated if applicable
 - [ ] User approved the final document

@@ -31,7 +31,7 @@ PROMISE_SKILL_DIR="$(find .agents ~/.agents ~/.codex -maxdepth 5 -type d -name d
 PROMISE_PROJECT_ROOT="$(git rev-parse --show-toplevel)"
 PROMISE_HELPER="$(cd "$PROMISE_SKILL_DIR/scripts/promise" && pwd)"
 test -f "$PROMISE_HELPER/go.mod" || { echo "df-promise helper not found" >&2; exit 1; }
-go run -C "$PROMISE_HELPER" . --project "$PROMISE_PROJECT_ROOT" --help
+GOWORK=off go run -C "$PROMISE_HELPER" . --project "$PROMISE_PROJECT_ROOT" --help
 ```
 
 Run these commands from the target repository root. Do not vendor the generic
@@ -39,7 +39,7 @@ helper under `.promises/`; only promise-specific tools belong there. A
 project-scoped skill installation is the supported way to pin the helper with
 the repository for CI or another runner.
 
-The helper is a self-contained Go module beside this skill. `go run -C` selects
+The helper is a self-contained Go module beside this skill. `GOWORK=off go run -C` selects
 that module, while `--project` selects the target repository; capture the target
 root before changing directories. The target's Go module and dependencies are
 not used to build the helper. Go and Git are the runtime prerequisites.
@@ -48,7 +48,7 @@ In prose, `promise <command>` names the corresponding helper command below.
 Core command forms are:
 
 ```bash
-go run -C "$PROMISE_HELPER" . --project "$PROMISE_PROJECT_ROOT" init <promise-id> \
+GOWORK=off go run -C "$PROMISE_HELPER" . --project "$PROMISE_PROJECT_ROOT" init <promise-id> \
   --name "Promise name" --statement "Exact attestable condition" \
   --include "src/**" \
   --gate inventory="Scoped inventory is covered" \
@@ -57,20 +57,20 @@ go run -C "$PROMISE_HELPER" . --project "$PROMISE_PROJECT_ROOT" init <promise-id
   --evidence-mode internal --verifier "tools/check.sh" \
   --cost-band lt-10 --cost-basis "Local deterministic checks." \
   --max-run-cost-usd 9.99
-go run -C "$PROMISE_HELPER" . --project "$PROMISE_PROJECT_ROOT" validate <promise-id>
-go run -C "$PROMISE_HELPER" . --project "$PROMISE_PROJECT_ROOT" start <promise-id>
-go run -C "$PROMISE_HELPER" . --project "$PROMISE_PROJECT_ROOT" record <promise-id> <run-id> \
+GOWORK=off go run -C "$PROMISE_HELPER" . --project "$PROMISE_PROJECT_ROOT" validate <promise-id>
+GOWORK=off go run -C "$PROMISE_HELPER" . --project "$PROMISE_PROJECT_ROOT" start <promise-id>
+GOWORK=off go run -C "$PROMISE_HELPER" . --project "$PROMISE_PROJECT_ROOT" record <promise-id> <run-id> \
   --kind inspection --result pass --subject path/to/file --gate inventory \
   --evidence ".promises/<promise-id>/evidence/report.json" \
   --summary "What was inspected and what the evidence showed."
-go run -C "$PROMISE_HELPER" . --project "$PROMISE_PROJECT_ROOT" finish <promise-id> <run-id> \
+GOWORK=off go run -C "$PROMISE_HELPER" . --project "$PROMISE_PROJECT_ROOT" finish <promise-id> <run-id> \
   --verdict fulfilled --gate inventory=pass --verifier "tools/check.sh" \
   --cost-usd-total 0 \
   --summary "Why the contract is fulfilled."
-go run -C "$PROMISE_HELPER" . --project "$PROMISE_PROJECT_ROOT" status [<promise-id>]
-go run -C "$PROMISE_HELPER" . --project "$PROMISE_PROJECT_ROOT" retire <promise-id>
-go run -C "$PROMISE_HELPER" . --project "$PROMISE_PROJECT_ROOT" restore <promise-id>
-go run -C "$PROMISE_HELPER" . --project "$PROMISE_PROJECT_ROOT" badge
+GOWORK=off go run -C "$PROMISE_HELPER" . --project "$PROMISE_PROJECT_ROOT" status [<promise-id>]
+GOWORK=off go run -C "$PROMISE_HELPER" . --project "$PROMISE_PROJECT_ROOT" retire <promise-id>
+GOWORK=off go run -C "$PROMISE_HELPER" . --project "$PROMISE_PROJECT_ROOT" restore <promise-id>
+GOWORK=off go run -C "$PROMISE_HELPER" . --project "$PROMISE_PROJECT_ROOT" badge
 ```
 
 Repeat `--gate` and `--plan-step` as needed. `--human-signoff` also requires a

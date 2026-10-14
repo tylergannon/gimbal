@@ -106,7 +106,7 @@ func (c *analysisCache) write(in *analysisInputs, requests []analysisRequest, re
 	if err != nil {
 		return
 	}
-	defer os.Remove(file.Name())
+	defer func() { _ = os.Remove(file.Name()) }()
 	_, writeErr := file.Write(raw)
 	closeErr := file.Close()
 	if writeErr != nil || closeErr != nil {

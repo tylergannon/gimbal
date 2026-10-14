@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/tylergannon/gimbal/workflow"
+	"github.com/tylergannon/polytype/goload"
 )
 
 type analysisRequest struct {
@@ -46,7 +47,7 @@ func (info cachedEntry) entryInfo() entryInfo {
 	return result
 }
 
-func analyze(dir string, overlay map[string][]byte, patterns []string, requests []analysisRequest) ([]analysisResult, error) {
+func analyze(dir string, overlay map[string][]byte, patterns []string, requests []analysisRequest, session *goload.Session) ([]analysisResult, error) {
 	for i := range requests {
 		absolute, err := filepath.Abs(requests[i].Dir)
 		if err != nil {
@@ -72,9 +73,9 @@ func analyze(dir string, overlay map[string][]byte, patterns []string, requests 
 	var loaded *sourcePackages
 	var err error
 	if input != nil {
-		loaded, err = input.load()
+		loaded, err = input.load(session)
 	} else {
-		loaded, err = loadSource(dir, overlay, patterns...)
+		loaded, err = loadSourceWithSession(dir, overlay, session, patterns...)
 	}
 	if err != nil {
 		return nil, err
@@ -107,7 +108,7 @@ func analyze(dir string, overlay map[string][]byte, patterns []string, requests 
 }
 
 func analyzeOne(dir, entry, name string, overlay map[string][]byte, command, inspect bool) (analysisResult, error) {
-	results, err := analyze(dir, overlay, []string{"."}, []analysisRequest{{dir, entry, name, command, inspect}})
+	results, err := analyze(dir, overlay, []string{"."}, []analysisRequest{{dir, entry, name, command, inspect}}, nil)
 	if err != nil {
 		return analysisResult{}, err
 	}

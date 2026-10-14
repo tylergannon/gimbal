@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"slices"
 
+	"github.com/tylergannon/polytype/goload"
 	"golang.org/x/tools/go/packages"
 )
 
@@ -24,7 +25,12 @@ type sourcePackages struct {
 var loadSourceTypes = packages.Load
 
 func loadSource(dir string, overlay map[string][]byte, patterns ...string) (*sourcePackages, error) {
-	config := &packages.Config{Dir: dir, Overlay: overlay}
+	return loadSourceWithSession(dir, overlay, nil, patterns...)
+}
+
+func loadSourceWithSession(dir string, overlay map[string][]byte, session *goload.Session, patterns ...string) (*sourcePackages, error) {
+	config := &packages.Config{Dir: dir, Overlay: overlay, Env: os.Environ()}
+	shared := *config
 	cleanup, err := preserveExports(config)
 	if err != nil {
 		return nil, fmt.Errorf("generate: preparing source: %w", err)
@@ -51,7 +57,13 @@ func loadSource(dir string, overlay map[string][]byte, patterns ...string) (*sou
 	config.Mode = packages.NeedName | packages.NeedFiles | packages.NeedCompiledGoFiles |
 		packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo |
 		packages.NeedImports | packages.NeedModule
-	roots, err := loadSourceTypes(config, patterns...)
+	var roots []*packages.Package
+	if session != nil {
+		shared.Mode = config.Mode
+		roots, err = loadSessionPackages(session, &shared, patterns...)
+	} else {
+		roots, err = loadSourceTypes(config, patterns...)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("generate: %w", err)
 	}
@@ -173,4 +185,18 @@ func preserveExports(config *packages.Config) (func(), error) {
 		return parser.ParseFile(fset, filename, source, parser.AllErrors|parser.ParseComments)
 	}
 	return cleanup, nil
+}
+
+// Keep the ordinary loader's overlay/export behavior when the session cannot
+// share a request. Raw packages.Load overlays force dependency source parsing.
+func loadSessionPackages(session *goload.Session, config *packages.Config, patterns ...string) ([]*packages.Package, error) {
+	return session.LoadWithFallback(config, func(original *packages.Config, patterns ...string) ([]*packages.Package, error) {
+		ordinary := *original
+		cleanup, err := preserveExports(&ordinary)
+		if err != nil {
+			return nil, err
+		}
+		defer cleanup()
+		return loadSourceTypes(&ordinary, patterns...)
+	}, patterns...)
 }

@@ -219,7 +219,9 @@ a role the catalog does not provide.
 CLI commands selected in `internal/builtin/workflows.go`, and the SKGO browser
 and Go bindings. `internal/generate/gimbalgen` emits workflow graph metadata;
 `internal/generate/appgen` composes the built-in start entrypoints, SKGO bindings,
-and observation types.
+and observation types. Each producer checks its persistent cache first. On misses,
+appgen passes one invocation-scoped package session to share compatible parsed
+source and types lazily; different build tags or source overlays remain separate.
 
 Workflow generation reuses Gimbal's extracted graph, command metadata, and
 inspection page across processes. Direct `generate.Extract` calls return a fresh

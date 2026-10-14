@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/tylergannon/gimbal/internal/builtin"
+	"github.com/tylergannon/polytype/goload"
 )
 
 type stockField struct {
@@ -24,7 +25,7 @@ type stockData struct {
 
 // Stock writes the command and invocation sources for the one compiled built-in
 // selection. It reads each workflow's actual parameter type and graph roles.
-func Stock(root string) error {
+func Stock(root string, session *goload.Session) error {
 	root, err := filepath.Abs(root)
 	if err != nil {
 		return err
@@ -37,7 +38,7 @@ func Stock(root string) error {
 		requests = append(requests, analysisRequest{filepath.Join(root, "internal", "workflows", selected.Package), selected.Entry, selected.Name, true, true})
 		overlay[filepath.Join(root, "internal", "workflows", selected.Package, "workflow_gen.go")] = []byte("package " + selected.Package + "\n")
 	}
-	results, err := analyze(root, overlay, patterns, requests)
+	results, err := analyze(root, overlay, patterns, requests, session)
 	if err != nil {
 		return err
 	}

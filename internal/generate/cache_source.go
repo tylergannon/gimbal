@@ -18,6 +18,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/tylergannon/polytype/goload"
 	"golang.org/x/tools/go/packages"
 )
 
@@ -31,6 +32,7 @@ type packageInputError struct{ error }
 type analysisInputs struct {
 	dir            string
 	patterns       []string
+	env            []string
 	overlay, roots map[string][]byte
 	imports        map[string]bool
 	manifest       inputManifest
@@ -63,7 +65,7 @@ func hashFile(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	h := sha256.New()
 	if _, err := io.Copy(h, f); err != nil {
 		return "", err
@@ -84,9 +86,9 @@ func cacheSourceSupported() bool {
 	return !strings.Contains(flags, "-overlay") && !strings.Contains(flags, "-toolexec")
 }
 
-func cacheEnvironment() []string {
+func cacheEnvironment(environment []string) []string {
 	var result []string
-	for _, item := range os.Environ() {
+	for _, item := range environment {
 		name, _, _ := strings.Cut(item, "=")
 		// Go's effective settings are captured below. go generate injects
 		// GOFILE/GOLINE/GOPACKAGE and explicit GOOS/GOARCH/GOROOT values; their
@@ -108,8 +110,8 @@ func captureAnalysisInputs(dir string, overlay map[string][]byte, patterns []str
 	if err != nil {
 		return nil, err
 	}
-	in := &analysisInputs{dir: dir, patterns: slices.Clone(patterns), overlay: maps.Clone(overlay), roots: map[string][]byte{}, imports: map[string]bool{}, rootIDs: map[string]bool{}}
-	in.manifest = inputManifest{Dir: dir, Patterns: patterns, Environment: cacheEnvironment(), Sources: map[string]string{}, Overlays: map[string]string{}}
+	in := &analysisInputs{dir: dir, patterns: slices.Clone(patterns), env: os.Environ(), overlay: maps.Clone(overlay), roots: map[string][]byte{}, imports: map[string]bool{}, rootIDs: map[string]bool{}}
+	in.manifest = inputManifest{Dir: dir, Patterns: patterns, Environment: cacheEnvironment(in.env), Sources: map[string]string{}, Overlays: map[string]string{}}
 	goCommand, err := exec.LookPath("go")
 	if err != nil {
 		return nil, err
@@ -127,6 +129,7 @@ func captureAnalysisInputs(dir string, overlay map[string][]byte, patterns []str
 	// and automatic toolchain selection, rather than only process overrides.
 	env := exec.Command(goCommand, "env", "-json", "GOOS", "GOARCH", "GOAMD64", "GOARM", "GOARM64", "GO386", "GOEXPERIMENT", "GOVERSION", "GOROOT", "GOTOOLDIR", "GOTOOLCHAIN", "GOWORK", "GOFLAGS", "GOCACHE", "CGO_ENABLED", "CC", "CXX", "GO111MODULE", "GOPATH", "GOMODCACHE")
 	env.Dir = dir
+	env.Env = in.env
 	toolchain, err := env.Output()
 	if err != nil {
 		return nil, err
@@ -144,7 +147,7 @@ func captureAnalysisInputs(dir string, overlay map[string][]byte, patterns []str
 	for path, data := range overlay {
 		in.manifest.Overlays[path] = hashBytes(data)
 	}
-	config := &packages.Config{Dir: dir, Overlay: maps.Clone(overlay), Mode: packages.NeedName | packages.NeedFiles | packages.NeedCompiledGoFiles | packages.NeedImports | packages.NeedDeps | packages.NeedModule | packages.NeedExportFile}
+	config := &packages.Config{Dir: dir, Env: in.env, Overlay: maps.Clone(overlay), Mode: packages.NeedName | packages.NeedFiles | packages.NeedCompiledGoFiles | packages.NeedImports | packages.NeedDeps | packages.NeedModule | packages.NeedExportFile}
 	cleanup, err := preserveExports(config)
 	if err != nil {
 		return nil, err
@@ -266,7 +269,7 @@ func compilerExportID(cacheDir, path string) (string, error) {
 	return "", fmt.Errorf("generate: unsupported compiler export location %s", path)
 }
 
-func (in *analysisInputs) load() (*sourcePackages, error) {
+func (in *analysisInputs) load(session *goload.Session) (*sourcePackages, error) {
 	overlay := maps.Clone(in.overlay)
 	if overlay == nil {
 		overlay = map[string][]byte{}
@@ -274,33 +277,56 @@ func (in *analysisInputs) load() (*sourcePackages, error) {
 	for path, data := range in.roots {
 		overlay[path] = data
 	}
-	config := &packages.Config{Dir: in.dir, Overlay: overlay, Mode: packages.NeedName | packages.NeedFiles | packages.NeedCompiledGoFiles | packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo | packages.NeedImports | packages.NeedModule | packages.NeedExportFile}
-	cleanup, err := preserveExports(config)
-	if err != nil {
-		return nil, err
-	}
-	defer cleanup()
-	parse := config.ParseFile
-	if parse == nil {
-		parse = func(f *token.FileSet, p string, b []byte) (*ast.File, error) {
-			return parser.ParseFile(f, p, b, parser.AllErrors|parser.ParseComments)
-		}
-	}
-	var mu sync.Mutex
+	config := &packages.Config{Dir: in.dir, Env: in.env, Overlay: overlay, Mode: packages.NeedName | packages.NeedFiles | packages.NeedCompiledGoFiles | packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo | packages.NeedImports | packages.NeedModule | packages.NeedExportFile}
 	seen := map[string]bool{}
 	bound := true
-	config.ParseFile = func(fset *token.FileSet, filename string, data []byte) (*ast.File, error) {
-		mu.Lock()
-		if captured, ok := in.roots[filename]; ok {
-			data = captured
-			seen[filename] = true
-		} else if !packageOnlyOverlay(filename, in.overlay) {
-			bound = false
+	var roots []*packages.Package
+	var err error
+	if session != nil {
+		// Session.Load parses the supplied overlay bytes or returns a graph
+		// compatible with those exact bytes. A reused graph does not fire a
+		// parser callback, so validate its physical source coverage instead.
+		roots, err = loadSessionPackages(session, config, in.patterns...)
+		for _, pkg := range roots {
+			if pkg.Fset == nil || pkg.Types == nil || pkg.TypesInfo == nil || len(pkg.Syntax) != len(pkg.CompiledGoFiles) {
+				bound = false
+				continue
+			}
+			for _, file := range pkg.Syntax {
+				filename := pkg.Fset.PositionFor(file.Pos(), false).Filename
+				if _, ok := in.roots[filename]; ok {
+					seen[filename] = true
+				} else if !packageOnlyOverlay(filename, in.overlay) {
+					bound = false
+				}
+			}
 		}
-		mu.Unlock()
-		return parse(fset, filename, data)
+	} else {
+		cleanup, prepareErr := preserveExports(config)
+		if prepareErr != nil {
+			return nil, prepareErr
+		}
+		defer cleanup()
+		parse := config.ParseFile
+		if parse == nil {
+			parse = func(f *token.FileSet, p string, b []byte) (*ast.File, error) {
+				return parser.ParseFile(f, p, b, parser.AllErrors|parser.ParseComments)
+			}
+		}
+		var mu sync.Mutex
+		config.ParseFile = func(fset *token.FileSet, filename string, data []byte) (*ast.File, error) {
+			mu.Lock()
+			if captured, ok := in.roots[filename]; ok {
+				data = captured
+				seen[filename] = true
+			} else if !packageOnlyOverlay(filename, in.overlay) {
+				bound = false
+			}
+			mu.Unlock()
+			return parse(fset, filename, data)
+		}
+		roots, err = loadSourceTypes(config, in.patterns...)
 	}
-	roots, err := loadSourceTypes(config, in.patterns...)
 	if err != nil {
 		return nil, err
 	}

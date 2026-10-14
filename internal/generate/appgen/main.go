@@ -12,6 +12,7 @@ import (
 	"github.com/tylergannon/gimbal/internal/observation"
 	"github.com/tylergannon/polytype"
 	"github.com/tylergannon/polytype/codegen"
+	"github.com/tylergannon/polytype/goload"
 	skgo "github.com/tylergannon/skgo/generate"
 )
 
@@ -49,24 +50,31 @@ func main() {
 }
 
 func run(root string, cfg skgo.Config) error {
+	var session goload.Session
+	return runWithSession(root, cfg, &session)
+}
+
+func runWithSession(root string, cfg skgo.Config, session *goload.Session) error {
 	// Stock publishes authored route inputs before SKGO selects its source.
-	if err := generate.Stock(root); err != nil {
+	if err := generate.Stock(root, session); err != nil {
 		return err
 	}
+	cfg.Session = session
 	if err := skgo.Run(cfg); err != nil {
 		return err
 	}
 	// SKGO prunes frontend artifacts it did not produce. Publish Gimbal's
-	// separately owned observation declarations afterward. Each generator owns
-	// its analysis cache; appgen does not preload or pass an AST graph.
-	return observationOutput(filepath.Join(root, "internal/observation"), filepath.Join(root, "web/src/lib/observation"))
+	// separately owned observation declarations afterward. Each generator checks
+	// its persistent result before asking the shared session for package work.
+	return observationOutput(filepath.Join(root, "internal/observation"), filepath.Join(root, "web/src/lib/observation"), session)
 }
 
-func observationOutput(sourceDir, outputDir string) error {
+func observationOutput(sourceDir, outputDir string, session *goload.Session) error {
 	return codegen.Generate(polytype.Compose(
 		polytype.Declare[observation.InterviewRow](),
 		polytype.Declare[observation.TurnRow](),
 	), codegen.Options{
+		Session:    session,
 		TargetDir:  sourceDir,
 		TypeScript: &codegen.TypeScriptOptions{Dir: outputDir},
 	})

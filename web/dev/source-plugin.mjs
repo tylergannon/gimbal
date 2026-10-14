@@ -36,6 +36,7 @@ export function workflowSource({ workflows = defaultWorkflows } = {}) {
   let workerPromise;
   let cleanupPromise;
   let requested = 0;
+  const pending = new Set(workflows.map(({ name }) => name));
   let lastChangeAt = 0;
   let wakeWorker;
   let refreshInputWatch = async () => {};
@@ -76,14 +77,16 @@ export function workflowSource({ workflows = defaultWorkflows } = {}) {
     publish(name);
   }
 
-  function markUpdating() {
-    for (const { name } of workflows) setState(name, "updating", undefined, undefined);
+  function markUpdating(names) {
+    for (const name of names) setState(name, "updating", undefined, undefined);
   }
 
-  function requestRefresh() {
+  function requestRefresh(names) {
+    if (!names.size) return;
+    for (const name of names) pending.add(name);
     requested++;
     lastChangeAt = Date.now();
-    markUpdating();
+    markUpdating(names);
     wakeWorker?.();
   }
 
@@ -133,11 +136,21 @@ export function workflowSource({ workflows = defaultWorkflows } = {}) {
     await run(["go", "build", "-o", generator, "./internal/generate/gimbalgen"]);
   }
 
-  async function extract({ name, dir, entry, descriptor }) {
-    const output = path.join(tempDir, `${name}${descriptor ? ".page" : ""}.json`);
-    await run([generator, "-dir", dir, "-entry", entry, "-name", name, "-o", output]);
-    const page = JSON.parse(await fs.readFile(output, "utf8"));
-    return page;
+  async function extract(selected) {
+    const request = path.join(tempDir, "inspection-batch.json");
+    await fs.writeFile(
+      request,
+      JSON.stringify(
+        selected.map(({ name, dir, entry, descriptor }) => ({
+          name,
+          dir,
+          entry,
+          guide: Boolean(descriptor),
+        })),
+      ),
+    );
+    const { stdout } = await run([generator, "-batch", request]);
+    return JSON.parse(stdout);
   }
 
   async function extractLatest() {
@@ -149,27 +162,28 @@ export function workflowSource({ workflows = defaultWorkflows } = {}) {
       if (closed) return;
 
       const batch = requested;
-      const results = [];
-      for (const workflow of workflows) {
+      const selected = workflows.filter(({ name }) => pending.has(name));
+      pending.clear();
+      let results;
+      try {
+        results = await extract(selected);
+      } catch (error) {
         if (closed) return;
-        try {
-          results.push({ name: workflow.name, page: await extract(workflow) });
-        } catch (error) {
-          if (closed) return;
-          results.push({ name: workflow.name, error: diagnostic(error) });
-        }
+        results = selected.map(({ name }) => ({ name, error: diagnostic(error) }));
       }
       if (closed) return;
 
       // An edit arrived during extraction. Drop every result in this batch so
       // no older projection can overwrite the newest requested source.
       if (batch !== requested) {
+        for (const { name } of selected) pending.add(name);
         await waitForQuietPeriod();
         continue;
       }
       await refreshInputWatch();
       if (closed) return;
       if (batch !== requested) {
+        for (const { name } of selected) pending.add(name);
         await waitForQuietPeriod();
         continue;
       }
@@ -187,6 +201,9 @@ export function workflowSource({ workflows = defaultWorkflows } = {}) {
     const packageDirs = new Set();
     const embedDirs = new Set();
     const moduleRoots = new Set([moduleRoot]);
+    const packages = new Map();
+    const owners = new Map();
+    const embedOwners = new Map();
 
     try {
       const { stdout } = await run(["go", "list", "-m", "-json", "all"]);
@@ -217,6 +234,7 @@ export function workflowSource({ workflows = defaultWorkflows } = {}) {
         } catch {
           continue;
         }
+        if (pkg.ImportPath) packages.set(pkg.ImportPath, pkg);
         if (!pkg.Dir || ![...moduleRoots].some((root) => within(root, pkg.Dir))) continue;
         packageDirs.add(pkg.Dir);
         for (const name of [
@@ -244,6 +262,30 @@ export function workflowSource({ workflows = defaultWorkflows } = {}) {
       for (const workflow of workflows) packageDirs.add(path.resolve(moduleRoot, workflow.dir));
     }
 
+    for (const workflow of workflows) {
+      const directory = path.resolve(moduleRoot, workflow.dir);
+      const rootPackage = [...packages.values()].find(
+        (pkg) => pkg.Dir && path.resolve(pkg.Dir) === directory,
+      );
+      const visited = new Set();
+      function addOwner(map, key) {
+        if (!map.has(key)) map.set(key, new Set());
+        map.get(key).add(workflow.name);
+      }
+      function visit(pkg) {
+        if (!pkg || visited.has(pkg.ImportPath)) return;
+        visited.add(pkg.ImportPath);
+        if (pkg.Dir && packageDirs.has(pkg.Dir)) {
+          addOwner(owners, pkg.Dir);
+          for (const name of pkg.EmbedFiles || [])
+            addOwner(embedOwners, path.dirname(path.resolve(pkg.Dir, name)));
+        }
+        for (const dependency of pkg.Imports || []) visit(packages.get(dependency));
+      }
+      visit(rootPackage);
+      addOwner(owners, directory);
+    }
+
     files.add(path.join(moduleRoot, "go.mod"));
     files.add(path.join(moduleRoot, "go.sum"));
     for (const root of moduleRoots) {
@@ -264,7 +306,7 @@ export function workflowSource({ workflows = defaultWorkflows } = {}) {
         ["go.mod", "go.sum", "go.work", "go.work.sum"].includes(path.basename(file)),
       ),
     );
-    return { files, packageDirs, embedDirs, configFiles };
+    return { files, packageDirs, embedDirs, configFiles, owners, embedOwners };
   }
 
   function within(root, candidate) {
@@ -298,16 +340,29 @@ export function workflowSource({ workflows = defaultWorkflows } = {}) {
     }
   }
 
-  function isRelevantFile(file, inputs) {
+  function affectedWorkflows(file, inputs) {
     const absolute = path.resolve(file);
-    if (inputs.configFiles.has(absolute)) return true;
-    if (path.extname(absolute) === ".go" && inputs.packageDirs.has(path.dirname(absolute)))
-      return true;
-    return [...inputs.embedDirs].some((dir) => within(dir, absolute));
+    if (inputs.configFiles.has(absolute)) return new Set(workflows.map(({ name }) => name));
+    const affected = new Set();
+    if (path.extname(absolute) === ".go") {
+      for (const name of inputs.owners.get(path.dirname(absolute)) || []) affected.add(name);
+    }
+    for (const [dir, names] of inputs.embedOwners) {
+      if (within(dir, absolute)) for (const name of names) affected.add(name);
+    }
+    return affected;
   }
 
   function mergeInputs(previous, discovered) {
+    const mergeOwners = (before, after) => {
+      const result = new Map();
+      for (const [dir, names] of [...(before || []), ...after])
+        result.set(dir, new Set([...(result.get(dir) || []), ...names]));
+      return result;
+    };
     return {
+      owners: mergeOwners(previous?.owners, discovered.owners),
+      embedOwners: mergeOwners(previous?.embedOwners, discovered.embedOwners),
       files: new Set([...(previous?.files || []), ...discovered.files]),
       packageDirs: new Set([...(previous?.packageDirs || []), ...discovered.packageDirs]),
       embedDirs: new Set([...(previous?.embedDirs || []), ...discovered.embedDirs]),
@@ -372,7 +427,7 @@ export function workflowSource({ workflows = defaultWorkflows } = {}) {
       let inputs;
       const watchedPaths = new Set();
       const watcher = (event, file) => {
-        if (!closed && inputs && isRelevantFile(file, inputs)) requestRefresh();
+        if (!closed && inputs) requestRefresh(affectedWorkflows(file, inputs));
       };
       const addInputsToWatcher = (next) => {
         const fresh = [...next.files, ...next.packageDirs, ...next.embedDirs].filter(

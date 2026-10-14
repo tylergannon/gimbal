@@ -87,7 +87,7 @@ func TestStockRecoversMissingAndStaleOutput(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if err := generate.Stock(root); err != nil {
+	if err := generate.Stock(root, nil); err != nil {
 		t.Fatal(err)
 	}
 	formAgain, err := os.ReadFile(form)

@@ -30,8 +30,8 @@ require (
 	github.com/tiktoken-go/tokenizer v0.8.1
 	github.com/tylergannon/claude-agent-sdk-go v1.2.1
 	github.com/tylergannon/devalue/v5 v5.0.0
-	github.com/tylergannon/polytype v1.7.0
-	github.com/tylergannon/skgo v0.30.0
+	github.com/tylergannon/polytype v1.8.0
+	github.com/tylergannon/skgo v0.30.1-0.20261014052721-089db483c239
 	github.com/yuin/goldmark v1.7.13
 	golang.org/x/net v0.61.0
 	golang.org/x/sync v0.24.0

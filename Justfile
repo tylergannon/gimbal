@@ -12,8 +12,8 @@ build:
 dev:
     node web/dev/run.mjs
 
-# Build the Debug macOS app around a fresh CLI. The native build reruns skgo generate without
-# goimports or polytype, so the last two steps put the committed generated files back.
+# Build the Debug macOS app around a fresh CLI. Native generation republishes SKGO outputs;
+# restore Gimbal's separate observation and workflow projections afterward.
 app: build
     mkdir -p native/Resources
     install -m 755 bin/gimbal native/Resources/gimbal

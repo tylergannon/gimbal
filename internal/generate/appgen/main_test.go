@@ -7,6 +7,8 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/tylergannon/polytype/goload"
 )
 
 func TestMain(m *testing.M) {
@@ -19,13 +21,16 @@ func TestMain(m *testing.M) {
 		if os.Getenv(name) == "" {
 			if err := os.Setenv(name, filepath.Join(dir, name)); err != nil {
 				fmt.Fprintln(os.Stderr, err)
-				os.RemoveAll(dir)
+				_ = os.RemoveAll(dir)
 				os.Exit(1)
 			}
 		}
 	}
 	status := m.Run()
-	os.RemoveAll(dir)
+	if err := os.RemoveAll(dir); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		status = 1
+	}
 	os.Exit(status)
 }
 
@@ -40,7 +45,7 @@ func TestObservationProjectionUsesFreshSource(t *testing.T) {
 		if err := os.WriteFile(filepath.Join(dir, "rows.go"), []byte("package observation\ntype InterviewRow struct { Question string `json:\"question\"` }\n"+source), 0644); err != nil {
 			t.Fatal(err)
 		}
-		if err := observationOutput(dir, outputDir); err != nil {
+		if err := observationOutput(dir, outputDir, nil); err != nil {
 			return "", err
 		}
 		output, err := os.ReadFile(filepath.Join(outputDir, "types.ts"))
@@ -69,7 +74,7 @@ func TestObservationProjectionMatchesApplicationTypes(t *testing.T) {
 		t.Fatal(err)
 	}
 	dir := t.TempDir()
-	if err := observationOutput(filepath.Join(root, "internal/observation"), dir); err != nil {
+	if err := observationOutput(filepath.Join(root, "internal/observation"), dir, nil); err != nil {
 		t.Fatal(err)
 	}
 	actual, err := os.ReadFile(filepath.Join(dir, "types.ts"))
@@ -88,5 +93,50 @@ func TestObservationProjectionMatchesApplicationTypes(t *testing.T) {
 	}
 	if !strings.Contains(string(actual), `"question_id": string`) || !strings.Contains(string(actual), `"unresolved": boolean`) {
 		t.Fatal("missing literal observation fields")
+	}
+}
+
+func TestObservationProjectionPersistentHitSkipsSharedSession(t *testing.T) {
+	t.Setenv("POLYTYPE_CACHE_DIR", t.TempDir())
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module github.com/tylergannon/gimbal/internal/observation\n\ngo 1.27\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	source := "package observation\ntype InterviewRow struct { Question string }\ntype TurnRow struct { Original string }\n"
+	path := filepath.Join(dir, "rows.go")
+	if err := os.WriteFile(path, []byte(source), 0600); err != nil {
+		t.Fatal(err)
+	}
+	output := t.TempDir()
+	var first goload.Session
+	if err := observationOutput(dir, output, &first); err != nil {
+		t.Fatal(err)
+	}
+	if stats := first.Stats(); stats.PackageChecks == 0 {
+		t.Fatalf("cold projection did not use shared session: %+v", stats)
+	}
+	if err := os.Remove(filepath.Join(output, "types.ts")); err != nil {
+		t.Fatal(err)
+	}
+	var warm goload.Session
+	if err := observationOutput(dir, output, &warm); err != nil {
+		t.Fatal(err)
+	}
+	if stats := warm.Stats(); stats != (goload.Stats{}) {
+		t.Fatalf("persistent replay touched shared session: %+v", stats)
+	}
+	data, err := os.ReadFile(filepath.Join(output, "types.ts"))
+	if err != nil || !strings.Contains(string(data), `"Original": string`) {
+		t.Fatalf("missing literal restored field: %v\n%s", err, data)
+	}
+	if err := os.WriteFile(path, []byte(strings.Replace(source, "Original string", "Edited bool", 1)), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := observationOutput(dir, output, &first); err != nil {
+		t.Fatal(err)
+	}
+	data, err = os.ReadFile(filepath.Join(output, "types.ts"))
+	if err != nil || !strings.Contains(string(data), `"Edited": boolean`) || strings.Contains(string(data), `"Original"`) {
+		t.Fatalf("shared session retained stale projection: %v\n%s", err, data)
 	}
 }

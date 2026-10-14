@@ -204,12 +204,10 @@ github.com/tylergannon/claude-agent-sdk-go v1.2.1 h1:pEWfG3Pd5EIB01M/0A2wy30rm1y
 github.com/tylergannon/claude-agent-sdk-go v1.2.1/go.mod h1:k8RYkcYnEX7j4sNivRsRnkNwUzrnBV6F8Ovc2dzbbBU=
 github.com/tylergannon/devalue/v5 v5.0.0 h1:UZuNeNpVXHnn79lOS/l7gEWcC4jKoILHUb0s3F2+3J8=
 github.com/tylergannon/devalue/v5 v5.0.0/go.mod h1:F3VxJn5uu/ROJxoVB3zhxFwuWl+jUrv6n6EJC5yB3z8=
-github.com/tylergannon/polytype v1.6.0 h1:c+WwyX6aHRTczj3Sscvh6uE5ucPRPk5C8bgIqHh/Dso=
-github.com/tylergannon/polytype v1.6.0/go.mod h1:M0qJ9qMslFa1P+BXfjE8rbUkYNsoqXXEBoHboSDKTss=
-github.com/tylergannon/polytype v1.7.0 h1:9ekjstDko7kuDcCfyHs/mZfgtjhFQfHtefu/J4HlZhs=
-github.com/tylergannon/polytype v1.7.0/go.mod h1:M0qJ9qMslFa1P+BXfjE8rbUkYNsoqXXEBoHboSDKTss=
-github.com/tylergannon/skgo v0.30.0 h1:sbFOb8NqA2d+GZxsGvqsFAhA2MLVbf9dPEavBK0s+Wc=
-github.com/tylergannon/skgo v0.30.0/go.mod h1:SinRfeo9llLdjyGORxsERm6sC8S+swnK5ayDnjsABLk=
+github.com/tylergannon/polytype v1.8.0 h1:4BGXyeJnlQSXAStD9c6UB9eCQxKM6pN1cT36exPcwmc=
+github.com/tylergannon/polytype v1.8.0/go.mod h1:M0qJ9qMslFa1P+BXfjE8rbUkYNsoqXXEBoHboSDKTss=
+github.com/tylergannon/skgo v0.30.1-0.20261014052721-089db483c239 h1:hfcO9TfZwmc5FZKAn4+SKHsNZlCD9XMgLYvjGUJ9ecc=
+github.com/tylergannon/skgo v0.30.1-0.20261014052721-089db483c239/go.mod h1:xFxWIsOYk0JhRF3GV/aWhaajCYQT2lP9w1Wuj7QCZTE=
 github.com/tylergannon/structtag v0.1.0 h1:Vn4ZEemGUtAfw9ddEtHQILKnIWqSWCSpciFTNPh1gcY=
 github.com/tylergannon/structtag v0.1.0/go.mod h1:Rjgg4hJfebaKNeyqoLh4n+zKhfVBdMyc7nBHIlQsVw0=
 github.com/vmware-labs/yaml-jsonpath v0.3.2 h1:/5QKeCBGdsInyDCyVNLbXyilb61MXGi9NP674f9Hobk=

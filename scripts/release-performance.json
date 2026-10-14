@@ -1,0 +1,7 @@
+{
+  "goal_seconds": 300,
+  "maximum_seconds": 600,
+  "commit_hook_maximum_seconds": 3,
+  "enforce_after": "2026-10-14T05:13:48+00:00",
+  "commit_hook_goal_seconds": 1
+}

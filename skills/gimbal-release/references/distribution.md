@@ -95,11 +95,13 @@ archive's CLI before permitting publication.
 
 `.github/workflows/auto-release.yml` selects PR checks by changed paths. Docs run
 instruction/link checks; automation runs focused script/hook tests; application
-changes run affected unit tests. Non-documentation main changes run one complete
-build, analysis, test, formatting and Svelte gate before release. Main scope is
+changes run affected unit tests. Non-documentation main changes run quick
+preflight before reserving a candidate tag. The tagged workflow runs one complete
+analysis, test, formatting and Svelte gate against its built Linux amd64 candidate
+before publication, alongside native packaging. Main scope is
 compared with the latest published tag, so coalescing cannot hide undelivered
 application changes. Documentation-only changes do not publish an app. It moves Unreleased entries
-into the next patch changelog, records the checked source SHA, and atomically
+into the next patch changelog, records the candidate source SHA, and atomically
 pushes the release metadata commit and tag. If main advanced during checks or
 push, that stale candidate is skipped; the newer push is checked instead.
 Release metadata uses a repository-scoped writable SSH deploy key fetched at
@@ -175,8 +177,15 @@ including manual dispatches selected on that same tag. Keep this runner out of
 pull-request workflows; run it under its user LaunchAgent with the pinned
 toolchain available on PATH.
 
-`scripts/release-cli.sh` runs the full frontend build and GoReleaser OSS for its
-native target. Mac packaging requires signing credentials and never substitutes
+`just build-assets` prepares generated source and frontend once. The release
+workflow shares these as a revision-bound `release-inputs` artifact; consumers
+restore it before using `RELEASE_PREPARED_INPUTS=1` with `scripts/release-cli.sh`.
+A manual CLI build prepares those inputs itself. GoReleaser compiles the versioned
+native target; the app bundles that CLI and prepares its Xcode project without
+another frontend or Debug build. The Mac keeps compiler/tool caches locally;
+`GIMBAL_DERIVED_DATA` selects its persistent Xcode cache. `GIMBAL_BUILD_JOBS=4`,
+`GOFLAGS=-p=4`, and `GOMAXPROCS=4` bound native/Go work, with build steps at reduced
+CPU priority. Mac packaging requires signing credentials and never substitutes
 unsigned release assets. The workflow collects every required platform and Mac
 artifact before creating the GitHub Release and updating the dedicated
 `tylergannon/homebrew-gimbal` tap. Signing qualification is needed when the distribution path changes; successful

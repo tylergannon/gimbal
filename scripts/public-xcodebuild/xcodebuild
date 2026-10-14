@@ -1,4 +1,0 @@
-#!/usr/bin/env bash
-set -euo pipefail
-# SKGo invokes xcodebuild itself. Public packages need no login Keychain access.
-exec /usr/bin/xcrun xcodebuild -packageAuthorizationProvider netrc -scmProvider system "$@"

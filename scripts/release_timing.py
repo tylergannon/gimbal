@@ -145,11 +145,10 @@ def measure(api, repo, run, releases, policy, now, preparation_runs=None):
     for stage in platform_stages:
         key = (stage['release_run_id'], stage['attempt'])
         platform_attempts[key] = max(platform_attempts.get(key, 0), stage['seconds'])
-    # Parent tagging jobs wait for the child pipeline: count only their preparation
-    # prefix, not that overlapping wait. Parallel native builds contribute their max.
-    source_active = sum(stage['seconds'] for stage in all_stages
-                        if stage['name'] == 'Check release source')
-    preparation_active = 0
+    # Count active wall intervals once: qualification now overlaps packaging.
+    # The parent dispatch waiter itself is not additional execution time.
+    intervals = [(timestamp(stage['start']), timestamp(stage['end']))
+                 for stage in all_stages if stage['name'] != 'Tag and publish checked source']
     for job in source_jobs:
         if job['name'] != 'Tag and publish checked source' or job.get('conclusion') == 'skipped':
             continue
@@ -157,10 +156,15 @@ def measure(api, repo, run, releases, policy, now, preparation_runs=None):
                          if step['name'] == 'Dispatch tagged build and wait for publication'), None)
         prefix_end = (dispatch or {}).get('started_at') or job.get('completed_at') or now
         if job.get('started_at'):
-            preparation_active += seconds(job['started_at'], prefix_end)
-    publish_active = sum(stage['seconds'] for stage in all_stages
-                         if stage['name'] == 'Publish GitHub Release and Homebrew Casks')
-    active_critical_path = source_active + preparation_active + sum(platform_attempts.values()) + publish_active
+            intervals.append((timestamp(job['started_at']), timestamp(prefix_end)))
+    active_critical_path = 0
+    last_end = None
+    for begin, finish in sorted(intervals):
+        if last_end is None or begin > last_end:
+            active_critical_path += (finish - begin).total_seconds()
+        elif finish > last_end:
+            active_critical_path += (finish - last_end).total_seconds()
+        last_end = max(last_end, finish) if last_end else finish
     started = [job['started_at'] for job in source_jobs if job.get('started_at')
                and job['status'] not in ('queued', 'waiting', 'pending', 'requested')]
     return {'run_id': run['id'], 'source_sha': run['head_sha'], 'source_url': run['html_url'],
@@ -195,7 +199,8 @@ def ensure_issue(api, repo, result):
         f"Elapsed: **{result['elapsed_seconds']:.0f}s**. Delivery: {result['delivery']}.",
         *result['release_urls'], '',
         'Wall time includes queueing and retries. Parent tagging waits overlap the child pipeline; '
-        'do not sum the stage table. Active critical-path time counts parallel platform maximums.',
+        'do not sum the stage table. Active critical-path time counts overlapping execution intervals once.',
+        'Linux amd64 job time includes full candidate qualification.',
         f"Active critical path: {result['active_critical_path_seconds']:.0f}s.",
         *rows])
     issue = api.create_issue(repo, f"Release timing exceeded: source {result['source_sha'][:12]}", body)

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Atomically record a checked main revision and its next patch release tag."""
+"""Atomically reserve a main candidate and its next patch release tag."""
 
 import argparse
 import datetime

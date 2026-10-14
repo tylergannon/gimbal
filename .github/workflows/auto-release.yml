@@ -45,23 +45,23 @@ jobs:
         with:
           go-version-file: go.mod
           check-latest: true
-      - name: Check release automation and hooks
-        if: steps.scope.outputs.release == 'true'
-        run: python3 -B -m unittest discover -s scripts -p '*_test.py' -v
       - name: Select Go test prerequisites
         id: prerequisites
         if: github.event_name == 'pull_request' && steps.scope.outputs.go_packages != '[]'
         run: python3 scripts/ci_scope.py --go-prerequisites >> "$GITHUB_OUTPUT"
       - uses: pnpm/action-setup@v4
-        if: steps.scope.outputs.release == 'true' && (github.event_name != 'pull_request' || steps.scope.outputs.web == 'true' || steps.prerequisites.outputs.web_assets == 'true')
+        if: github.event_name == 'pull_request' && steps.scope.outputs.release == 'true' && (steps.scope.outputs.web == 'true' || steps.prerequisites.outputs.web_assets == 'true')
         with:
           version: 12.10.1
       - uses: actions/setup-node@v4
-        if: steps.scope.outputs.release == 'true' && (github.event_name != 'pull_request' || steps.scope.outputs.web == 'true' || steps.prerequisites.outputs.web_assets == 'true')
+        if: steps.scope.outputs.release == 'true'
         with:
           node-version: 24
-          cache: pnpm
+          cache: ${{ github.event_name == 'pull_request' && (steps.scope.outputs.web == 'true' || steps.prerequisites.outputs.web_assets == 'true') && 'pnpm' || '' }}
           cache-dependency-path: web/pnpm-lock.yaml
+      - name: Check release automation and hooks
+        if: steps.scope.outputs.release == 'true'
+        run: python3 -B -m unittest discover -s scripts -p '*_test.py' -v
       - name: Build assets consumed by affected Go tests
         if: github.event_name == 'pull_request' && steps.prerequisites.outputs.web_assets == 'true'
         run: |
@@ -86,36 +86,6 @@ jobs:
       - name: Check frontend units on PRs
         if: github.event_name == 'pull_request' && steps.scope.outputs.web == 'true'
         run: cd web && pnpm test
-      - uses: extractions/setup-just@v4
-        if: github.event_name != 'pull_request' && steps.scope.outputs.release == 'true'
-      - name: Install workflow runtime shell
-        if: github.event_name != 'pull_request' && steps.scope.outputs.release == 'true'
-        run: |
-          sudo apt-get update
-          sudo apt-get install --yes zsh
-      - name: Build application
-        if: github.event_name != 'pull_request' && steps.scope.outputs.release == 'true'
-        run: just build
-      - name: Check built CLI protocols and argument routing
-        if: github.event_name != 'pull_request' && steps.scope.outputs.release == 'true'
-        run: just check-cli-release
-      - name: Install browser test runtime
-        if: github.event_name != 'pull_request' && steps.scope.outputs.release == 'true'
-        run: cd web && pnpm exec playwright install --with-deps chromium
-      - name: Install Go analysis tool
-        if: github.event_name != 'pull_request' && steps.scope.outputs.release == 'true'
-        uses: golangci/golangci-lint-action@v9.3.0
-        with:
-          version: v2.14.0
-          install-only: true
-      - name: Check application once before release
-        if: github.event_name != 'pull_request' && steps.scope.outputs.release == 'true'
-        run: |
-          just lint-go
-          just vet
-          just test
-          just fmt-check
-          just check-web
 
   release:
     name: Tag and publish checked source

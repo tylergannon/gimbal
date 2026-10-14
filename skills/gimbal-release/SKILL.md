@@ -39,9 +39,11 @@ refreshes.
 ## Automated delivery
 
 Merge within the user's authorization, then follow **Automatic release** from
-main to its **Release** run. Non-documentation changes are checked once on main,
-tagged, built for supported platforms, signed/notarized, and published to the
-updater feed and Homebrew tap. Documentation-only changes do not release an app.
+main to its **Release** run. After quick preflight, main reserves a candidate
+tag. Release prepares generated source/frontend once, then builds platforms in
+parallel. The Linux amd64 packaging job fully qualifies its versioned candidate;
+publication waits for that gate and all platform checks, signing and notarization.
+Documentation-only changes do not release an app.
 Verify the published version and channel; a merged PR or queued run is not
 published delivery. Reuse the pipeline's exact-source checks rather than adding
 another local build after merge or tag creation.

@@ -163,6 +163,16 @@ jobs:
         with:
           # This persistent Mac retains its tools locally; do not archive/upload them.
           cache: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.10.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          # pnpm's store stays on this persistent Mac; no remote cache transport.
+      - name: Install metadata dependencies for native Swift bindings
+        working-directory: web
+        run: pnpm install --frozen-lockfile
       - uses: goreleaser/goreleaser-action@v7
         with:
           distribution: goreleaser

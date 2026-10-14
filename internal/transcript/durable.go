@@ -22,12 +22,13 @@ type Recording struct {
 	Last        string  `json:"last"`
 }
 type Header struct {
-	ID       string `json:"id"`
-	Source   string `json:"source"`
-	Created  int64  `json:"created"`
-	Updated  int64  `json:"updated"`
-	Sequence int64  `json:"sequence"`
-	Status   string `json:"status"`
+	ID           string `json:"id"`
+	Source       string `json:"source"`
+	Created      int64  `json:"created"`
+	Updated      int64  `json:"updated"`
+	Sequence     int64  `json:"sequence"`
+	Status       string `json:"status"`
+	Requirements bool   `json:"requirements"`
 }
 type History struct {
 	Items []Header `json:"items"`
@@ -154,7 +155,7 @@ func (s *DurableStore) Open(r OpenRequest) (Ack, error) {
 		return ackRecording(v), nil
 	}
 	now := time.Now().UnixMilli()
-	v := Recording{ID: r.SessionID, Source: r.Source, Created: now, Updated: now, Status: "preparing", Finalized: []Chunk{}, Provisional: []Chunk{}}
+	v := Recording{Header: Header{ID: r.SessionID, Source: r.Source, Created: now, Updated: now, Status: "preparing", Requirements: r.Requirements}, Finalized: []Chunk{}, Provisional: []Chunk{}}
 	return ackRecording(v), s.save(v)
 }
 func (s *DurableStore) Accept(u Update) (Ack, error) {
@@ -268,4 +269,24 @@ func (s *DurableStore) List(after string) History {
 		out.Next = items[end-1].ID
 	}
 	return out
+}
+
+// MarkRequirements flags a recording as a requirements discussion. Write the
+// metadata first because List and the promises worker read it.
+func (s *DurableStore) MarkRequirements(id string) (Header, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	r, err := s.read(id)
+	if err != nil {
+		return Header{}, err
+	}
+	r.Requirements = true
+	if err := WriteJSON(filepath.Join(s.dir, r.ID+".meta.json"), r.Header); err != nil {
+		return Header{}, err
+	}
+	s.headers[r.ID] = r.Header
+	if err := WriteJSON(filepath.Join(s.dir, r.ID+".json"), r); err != nil {
+		return Header{}, err
+	}
+	return visible(r.Header), nil
 }

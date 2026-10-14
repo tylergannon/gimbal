@@ -24,7 +24,7 @@ Interpret the first path-like argument as **from** (the local token cache root) 
 ## Model selection
 
 Before model preflight or substantive work, read [references/models.md](references/models.md)
-and run the adjacent `scripts/resolve_models.py` for the target project. Apply
+and run the adjacent `scripts/resolve_models` for the target project. Apply
 skill defaults, then `~/.config/diffusion/skills/models.yaml`, then the project's
 `.diffusion/skills/models.yaml`. Use the resolved model and effort for every
 role; the reference describes main-worker handoff and prevents recursive handoff.
@@ -65,28 +65,20 @@ For format patterns drawn from existing indexes, read `references/index-patterns
 
 ## Script Paths
 
-The bundled helper scripts live alongside this skill. Resolve `to` first and
-set `INDEX_DIR` to that output path so the fallback branch is ready, then locate
-the helpers dynamically:
+The bundled Go commands live beside the **loaded** SKILL.md. Use that exact
+installation, and resolve all index, corpus, and eval paths to absolute paths
+before invoking Go, because `go run -C` changes the command's directory.
+The modules are self-contained and require the normal Go toolchain.
 
 ```bash
-SKILL_DIR="$(find .agents ~/.agents ~/.codex -maxdepth 5 -type d -name df-semantic-index 2>/dev/null | head -1)"
-METRICS_SCRIPT="$SKILL_DIR/scripts/semantic_index_metrics.py"
-EVALS_SCRIPT="$SKILL_DIR/scripts/run_evals.py"
-if [[ ! -f "$METRICS_SCRIPT" || ! -f "$EVALS_SCRIPT" ]]; then
-  : "${INDEX_DIR:?set INDEX_DIR to the resolved semantic-index output path}"
-  FALLBACK_DIR="$INDEX_DIR/.semantic-index/tools"
-  mkdir -p "$FALLBACK_DIR"
-  echo "df-semantic-index helpers not found; created fallback directory, now write the documented inline helpers" >&2
-  METRICS_SCRIPT="$FALLBACK_DIR/semantic_index_metrics.py"
-  EVALS_SCRIPT="$FALLBACK_DIR/run_evals.py"
-fi
+SKILL_DIR="<directory of the loaded SKILL.md>"
+METRICS_HELPER="$SKILL_DIR/scripts/semantic_index_metrics"
+EVALS_HELPER="$SKILL_DIR/scripts/run_evals"
+test -f "$METRICS_HELPER/go.mod" && test -f "$EVALS_HELPER/go.mod"
 ```
 
-If the skills directory is not found (e.g., running from a project that doesn't
-have `.agents/skills/`), set `INDEX_DIR` to the resolved `to` path and write
-minimal inline versions of the needed scripts there before their first use. Preserve
-the documented command-line interfaces so every later command remains valid.
+If either helper module is missing, report the incomplete skill installation and
+restore its bundled source before running it.
 
 ## First Pass
 
@@ -100,7 +92,7 @@ the documented command-line interfaces so every later command remains valid.
 3. Inspect existing index state if `to` exists:
    ```bash
    find <to> -maxdepth 3 -type f | sort | sed -n '1,160p'
-   python3 "$METRICS_SCRIPT" --index <to> --source <from>
+   go run -C "$METRICS_HELPER" . --index <to> --source <from>
    ```
 4. State the chosen mode and why in one or two sentences.
 5. Count distinct token-cache files or directories. If > 10, plan to use parallel readers (see Parallel Read Harness below) and identify the segment boundaries before writing anything.
@@ -194,7 +186,7 @@ Once every worker has finished:
 4. **Write evals.jsonl** with one query per major retrieval intent, pointing at the routing nodes and leaf files the workers wrote.
 5. **Write state**:
    ```bash
-   python3 "$METRICS_SCRIPT" --index <to> --source <from> --mode scratch-build --write-state
+   go run -C "$METRICS_HELPER" . --index <to> --source <from> --mode scratch-build --write-state
    ```
 
 ## Scratch Build
@@ -216,7 +208,7 @@ For token caches with 10 or more token-cache files, use the **Parallel Read Harn
 After writing all files, run metrics and write state:
 
 ```bash
-python3 "$METRICS_SCRIPT" --index <to> --source <from> --mode scratch-build --write-state
+go run -C "$METRICS_HELPER" . --index <to> --source <from> --mode scratch-build --write-state
 ```
 
 ## Incremental Update
@@ -230,7 +222,7 @@ Preserve useful routes and update only stale coverage.
 5. Keep citations resolvable. If a cited source moved or disappeared, mark it as stale debt or replace it.
 6. Refresh housekeeping state:
    ```bash
-   python3 "$METRICS_SCRIPT" --index <to> --source <from> --mode incremental-update --write-state
+   go run -C "$METRICS_HELPER" . --index <to> --source <from> --mode incremental-update --write-state
    ```
 
 Do not blindly regenerate everything if the existing routes are useful. Regeneration is appropriate only when the route model is wrong or the token cache changed so much that local patches would be more expensive than a rebuild.
@@ -260,7 +252,7 @@ Aim for 10–30 queries covering the main retrieval intents.
 ### Running Benchmarks
 
 ```bash
-python3 "$EVALS_SCRIPT" --index <to> --write-results
+go run -C "$EVALS_HELPER" . --index <to> --write-results
 ```
 
 This runs BFS traversal from the entrypoint for each query, scores citation reachability, and writes a timestamped result to `.semantic-index/benchmarks/`.
@@ -284,7 +276,7 @@ Rebalance to improve retrieval metrics, not for aesthetic symmetry. Use a hill-c
 
 1. **Baseline**: run benchmarks and record current aggregate metrics.
    ```bash
-   python3 "$EVALS_SCRIPT" --index <to> --write-results
+   go run -C "$EVALS_HELPER" . --index <to> --write-results
    ```
 2. **Identify the worst miss**: pick the eval query with the lowest citation_precision or longest path_length.
 3. **Diagnose**: inspect the routing path for that query. Is the relevant leaf orphaned? Is the routing file too dense? Are related concepts split across siblings that should be merged?
@@ -308,8 +300,8 @@ Rebalancing actions: split nodes, merge thin siblings, add adjacent-node links, 
 After rebalancing, re-run metrics and at least the benchmark queries that motivated the change:
 
 ```bash
-python3 "$METRICS_SCRIPT" --index <to> --source <from> --mode rebalance --write-state
-python3 "$EVALS_SCRIPT" --index <to> --write-results
+go run -C "$METRICS_HELPER" . --index <to> --source <from> --mode rebalance --write-state
+go run -C "$EVALS_HELPER" . --index <to> --write-results
 ```
 
 ## Metrics And Housekeeping
@@ -317,13 +309,13 @@ python3 "$EVALS_SCRIPT" --index <to> --write-results
 Use the bundled helper for a cheap structural report:
 
 ```bash
-python3 "$METRICS_SCRIPT" --index <to> --source <from>
+go run -C "$METRICS_HELPER" . --index <to> --source <from>
 ```
 
 When maintenance changes are made, write or refresh state:
 
 ```bash
-python3 "$METRICS_SCRIPT" --index <to> --source <from> --mode <mode> --write-state
+go run -C "$METRICS_HELPER" . --index <to> --source <from> --mode <mode> --write-state
 ```
 
 Key metrics tracked:

@@ -5,7 +5,9 @@ agent listing, MCP instruction blocks, `CLAUDE.md`, and memory. On this
 machine that base was **~53.5k tokens before a single word of work**. This
 doc records what it is made of, how to measure it, and which levers actually
 move it. All numbers come from measurement, not estimation; tokens are
-`chars / 4`.
+`chars / 4`. The example below measures compact JSON serialization; the original
+measurements used JSON with spaces after separators, so their character counts
+are slightly larger.
 
 ## Measuring it
 
@@ -15,17 +17,19 @@ sent. That is the ground truth:
 
 ```bash
 f=$(ls -t ~/.claude/projects/<project-slug>/*.jsonl | head -1)
-python3 - "$f" <<'EOF'
-import json, sys
-for line in open(sys.argv[1]):
-    d = json.loads(line); a = d.get('attachment') or {}
-    if a.get('type') == 'prompt_snapshot' and a.get('tools'):
-        tools = a['tools']
-        total = sum(len(json.dumps(t)) for t in tools)
-        print(f"{len(tools)} tools, {total} chars ~{total//4} tok")
-        for t in sorted(tools, key=lambda x: -len(json.dumps(x))):
-            print(f"  {len(json.dumps(t)):7d}  {t['name']}")
-        break
+node --input-type=module - "$f" <<'EOF'
+import { readFileSync } from 'node:fs';
+for (const line of readFileSync(process.argv[2], 'utf8').split('\n').filter(Boolean)) {
+  const a = JSON.parse(line).attachment ?? {};
+  if (a.type === 'prompt_snapshot' && a.tools) {
+    const sizes = a.tools.map(t => ({ name: t.name, chars: JSON.stringify(t).length }));
+    const total = sizes.reduce((sum, t) => sum + t.chars, 0);
+    console.log(`${sizes.length} tools, ${total} serialized chars ~${Math.floor(total / 4)} tok`);
+    for (const t of sizes.sort((a, b) => b.chars - a.chars))
+      console.log(`  ${String(t.chars).padStart(7)}  ${t.name}`);
+    break;
+  }
+}
 EOF
 ```
 

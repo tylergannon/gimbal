@@ -29,15 +29,7 @@ if [[ -n "${SPARKLE_ED_KEY_FILE:-}" ]]; then
 else
   printf '%s' "$SPARKLE_ED_PRIVATE_KEY" | "$TOOLS/bin/generate_appcast" "${args[@]}" --ed-key-file - "$STAGE"
 fi
-python3 - "$STAGE/appcast.xml" <<'PY'
-import sys
-import xml.etree.ElementTree as ET
-
-enclosure = ET.parse(sys.argv[1]).find("channel/item/enclosure")
-signature = "{http://www.andymatuschak.org/xml-namespaces/sparkle}edSignature"
-if enclosure is None or not enclosure.get(signature):
-    sys.exit("Sparkle did not sign the update; check the private key matches SUPublicEDKey.")
-PY
+go -C "$ROOT" run ./internal/automation/appcast-check "$STAGE/appcast.xml"
 mkdir -p "$ROOT/dist/macos"
 mv "$STAGE/appcast.xml" "$ROOT/dist/macos/appcast.xml"
 printf 'Signed update feed: %s\n' "$ROOT/dist/macos/appcast.xml"

@@ -36,10 +36,19 @@ jobs:
           run-install: false
           cache: false
       - uses: extractions/setup-just@v4
+      - name: Ensure release automation runs without Python
+        run: |
+          blocked="$RUNNER_TEMP/gimbal-no-python"
+          mkdir -p "$blocked"
+          for tool in python python3; do
+            printf '#!/bin/sh\nprintf "Unexpected Python dependency in release automation.\\n" >&2\nexit 99\n' > "$blocked/$tool"
+            chmod +x "$blocked/$tool"
+          done
+          echo "$blocked" >> "$GITHUB_PATH"
       - name: Generate source and build frontend once
         run: |
           just build-assets
-          python3 scripts/release-assets.py pack dist/release-inputs.tar.gz
+          go run ./internal/automation/release-assets pack dist/release-inputs.tar.gz
       - uses: actions/upload-artifact@v4
         with:
           name: release-inputs
@@ -68,13 +77,22 @@ jobs:
         with:
           name: release-inputs
           path: dist
-      - name: Restore exact-revision generated source and frontend
-        run: python3 scripts/release-assets.py restore dist/release-inputs.tar.gz
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
           check-latest: true
           cache: ${{ matrix.target != 'linux_amd64' }}
+      - name: Ensure release automation runs without Python
+        run: |
+          blocked="$RUNNER_TEMP/gimbal-no-python"
+          mkdir -p "$blocked"
+          for tool in python python3; do
+            printf '#!/bin/sh\nprintf "Unexpected Python dependency in release automation.\\n" >&2\nexit 99\n' > "$blocked/$tool"
+            chmod +x "$blocked/$tool"
+          done
+          echo "$blocked" >> "$GITHUB_PATH"
+      - name: Restore exact-revision generated source and frontend
+        run: go run ./internal/automation/release-assets restore dist/release-inputs.tar.gz
       - uses: extractions/setup-just@v4
       - uses: goreleaser/goreleaser-action@v7
         with:
@@ -114,13 +132,22 @@ jobs:
         with:
           name: release-inputs
           path: dist
-      - name: Restore exact-revision generated source and frontend
-        run: python3 scripts/release-assets.py restore dist/release-inputs.tar.gz
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
           check-latest: true
           cache: false
+      - name: Ensure release automation runs without Python
+        run: |
+          blocked="$RUNNER_TEMP/gimbal-no-python"
+          mkdir -p "$blocked"
+          for tool in python python3; do
+            printf '#!/bin/sh\nprintf "Unexpected Python dependency in release automation.\\n" >&2\nexit 99\n' > "$blocked/$tool"
+            chmod +x "$blocked/$tool"
+          done
+          echo "$blocked" >> "$GITHUB_PATH"
+      - name: Restore exact-revision generated source and frontend
+        run: go run ./internal/automation/release-assets restore dist/release-inputs.tar.gz
       - uses: voidzero-dev/setup-vp@v1.21.2
         with:
           working-directory: web
@@ -166,14 +193,23 @@ jobs:
         with:
           name: release-inputs
           path: dist
-      - name: Restore exact-revision generated source and frontend
-        run: python3 scripts/release-assets.py restore dist/release-inputs.tar.gz
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
           check-latest: true
           # The persistent Mac already retains its local Go caches.
           cache: false
+      - name: Ensure release automation runs without Python
+        run: |
+          blocked="$RUNNER_TEMP/gimbal-no-python"
+          mkdir -p "$blocked"
+          for tool in python python3; do
+            printf '#!/bin/sh\nprintf "Unexpected Python dependency in release automation.\\n" >&2\nexit 99\n' > "$blocked/$tool"
+            chmod +x "$blocked/$tool"
+          done
+          echo "$blocked" >> "$GITHUB_PATH"
+      - name: Restore exact-revision generated source and frontend
+        run: go run ./internal/automation/release-assets restore dist/release-inputs.tar.gz
       - uses: extractions/setup-just@v4
       - uses: jdx/mise-action@v5.1.2
         with:

@@ -56,17 +56,20 @@ modernize:
 check-web:
     cd web && vp run check
 
+# Release/CI commands and self-contained installed skill helpers.
+check-automation:
+    bash scripts/check-automation.sh
+
 check-hooks:
-    python3 -B -m unittest discover -s scripts -p 'staged_hook_test.py' -v
-    python3 -B -m unittest discover -s scripts -p 'fast_hook_test.py' -v
+    node --test scripts/staged-hook.test.mts scripts/fast-hook.test.mts
 
 # Identical uncached smoke tests, without the commit deadline. Warms build caches.
 warm-hook:
-    python3 -B scripts/pre-commit.py --warm
+    bash scripts/pre-commit.sh --warm
 
 # Advisory timing report; force the pack without staging changes.
 benchmark-hook:
-    python3 -B scripts/pre-commit.py --benchmark
+    bash scripts/pre-commit.sh --benchmark
 
 # Pre-release executable protocol/routing gate. Run just build first; reuse its CLI.
 check-cli-release:

@@ -143,7 +143,7 @@ require_command() {
 for tool in ditto xcodebuild codesign plutil; do
 	require_command "$tool"
 done
-for tool in go python3; do
+for tool in go; do
 	require_command "$tool"
 done
 require_command file
@@ -302,7 +302,7 @@ notarize() {
 	local result status submission_id
 	if ! result="$(notarytool submit "$artifact" --keychain-profile "$NOTARY_PROFILE" --wait --output-format json 2>&1)"; then
 		printf '%s\n' "$result" >&2
-		submission_id="$(printf '%s' "$result" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("id", ""))' 2>/dev/null || true)"
+		submission_id="$(printf '%s' "$result" | go -C "$ROOT" run ./internal/automation/notary-field id 2>/dev/null || true)"
 		if [[ -n "$submission_id" ]]; then
 			printf 'Inspect submission with: xcrun notarytool log %s --keychain-profile %s' "$submission_id" "$NOTARY_PROFILE" >&2
 			print_notary_keychain_arg
@@ -311,9 +311,9 @@ notarize() {
 		die "$label notarization command failed"
 	fi
 	printf '%s\n' "$result"
-	status="$(printf '%s' "$result" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("status", ""))')"
+	status="$(printf '%s' "$result" | go -C "$ROOT" run ./internal/automation/notary-field status)"
 	if [[ "$status" != Accepted ]]; then
-		submission_id="$(printf '%s' "$result" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("id", ""))')"
+		submission_id="$(printf '%s' "$result" | go -C "$ROOT" run ./internal/automation/notary-field id)"
 		if [[ -n "$submission_id" ]]; then
 			printf 'Inspect submission with: xcrun notarytool log %s --keychain-profile %s' "$submission_id" "$NOTARY_PROFILE" >&2
 			print_notary_keychain_arg

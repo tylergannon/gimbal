@@ -42,30 +42,24 @@ skills:
       model: gpt-6-astra
 ```
 
-Use the bundled `scripts/resolve_models.py` next to the **loaded** `SKILL.md`;
-do not search for a different installation. It requires Python 3.
-Default-only operation works with the standard library. Reading YAML overrides
-requires PyYAML; if unavailable, install it in a dedicated environment:
+Use the bundled `scripts/resolve_models` Go module beside the **loaded**
+SKILL.md; do not search for a different installation. It includes its pinned
+YAML dependency and requires the normal Go toolchain, independent of the target
+project's module dependencies.
 
-```bash
-python3 -m venv ~/.local/share/diffusion/skills/venv
-~/.local/share/diffusion/skills/venv/bin/python -m pip install PyYAML
-```
-
-Run with that environment's Python (or another Python with PyYAML). Substitute
-the actual installed skill directory and target project root:
+Substitute the actual installed skill directory and absolute target project root:
 
 ```text
-<python> <loaded-skill-dir>/scripts/resolve_models.py \
-  --project-dir <project-dir>
+go run -C "<loaded-skill-dir>/scripts/resolve_models" . \
+  --project-dir <absolute-project-dir>
 ```
 
 The target is the project being worked on, never the skill installation or an
-Easy Loop visit directory. When `--project-dir` is omitted, the resolver uses
-the enclosing Git worktree root, or the current directory outside Git. For a
-non-Git project invoked from a subdirectory, supply its root explicitly.
-`--user-config <file>` exists for isolated tests; normal runs use the fixed
-user path above regardless of `CLAUDE_CONFIG_DIR` or `CODEX_HOME`.
+Easy Loop visit directory. `--project-dir` is required because `go run -C`
+changes directory. Capture the target root before invocation; from its root,
+`--project-dir "$PWD"` supplies it explicitly.
+`--user-config <absolute-file>` exists for isolated tests; normal runs use the fixed
+user path above regardless of CLAUDE_CONFIG_DIR or CODEX_HOME.
 
 The JSON output includes each role's resolved `model`, `cli`, `model_args` argv
 list, and per-field `sources`. Report the effective assignments briefly.
@@ -106,3 +100,6 @@ no effort override; choose a concrete model to configure effort.
 For `df-promise`, a contract requiring a named model or independent reviewer
 still applies. A conflicting override is a configuration conflict to report,
 not permission to substitute a different model or discard independence.
+
+This bundled Go port is maintained locally. A borrowed-skill refresh must preserve
+its Go entry points and test them; it must not restore executable Python helpers.

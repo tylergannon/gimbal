@@ -231,7 +231,7 @@ starts the daemon before dispatch, preserves unrelated scoped use, and stops
 it after its last native scope is cleaned up. Do not start this worker manually.
 Named environments require messaging; direct task endpoints cannot bypass placement.
 
-The `service-check` workflow needs Docker, psql, Python 3, and an agent harness
+The `service-check` workflow needs Docker, psql, Node, and an agent harness
 in the daemon environment. It owns Postgres and a web service, publishes scoped
 connection values, queries the database through parallel consumers, and has an
 agent fetch the web response using a Gimbal secrets callback. Use a fresh work

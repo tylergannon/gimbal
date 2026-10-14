@@ -28,12 +28,12 @@ jobs:
         with:
           go-version-file: go.mod
           cache: false
-      - uses: actions/setup-node@v4
+      - uses: voidzero-dev/setup-vp@v1.21.2
         with:
-          node-version: 24
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 12.10.1
+          working-directory: web
+          node-version: '24'
+          run-install: false
+          cache: false
       - uses: extractions/setup-just@v4
       - name: Generate source and build frontend once
         run: |
@@ -120,18 +120,18 @@ jobs:
           go-version-file: go.mod
           check-latest: true
           cache: false
-      - uses: actions/setup-node@v4
+      - uses: voidzero-dev/setup-vp@v1.21.2
         with:
-          node-version: 24
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 12.10.1
+          working-directory: web
+          node-version: '24'
+          run-install: false
+          cache: false
       - uses: extractions/setup-just@v4
       - name: Prepare full qualification prerequisites
         run: |
           cd web
-          pnpm install --frozen-lockfile
-          pnpm exec playwright install --with-deps chromium
+          vp install --frozen-lockfile
+          vp exec playwright install --with-deps chromium
       - uses: golangci/golangci-lint-action@v9.3.0
         with:
           version: v2.14.0
@@ -178,16 +178,15 @@ jobs:
         with:
           # This persistent Mac retains its tools locally; do not archive/upload them.
           cache: false
-      - uses: pnpm/action-setup@v4
+      - uses: voidzero-dev/setup-vp@v1.21.2
         with:
-          version: 12.10.1
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          # pnpm's store stays on this persistent Mac; no remote cache transport.
+          working-directory: web
+          node-version: '24'
+          run-install: false
+          cache: false
       - name: Install metadata dependencies for native Swift bindings
         working-directory: web
-        run: pnpm install --frozen-lockfile
+        run: vp install --frozen-lockfile
       - uses: goreleaser/goreleaser-action@v7
         with:
           distribution: goreleaser

@@ -69,6 +69,10 @@ source, and prompts are plain English: "Read and implement the issue in
 
 ## Working here
 
+- Use `vp` for dependency installation, scripts, builds, and frontend tests.
+  Never invoke `pnpm` directly or install/pin its version in CI. Let Vite+
+  manage the package manager from the project manifests and lockfiles.
+
 - Commit, and push, whenever something interesting has happened.
 - Commit hooks have a three-second feedback budget: staged-content, whitespace,
   staged Go formatting, and uncached smoke tests for model aliases, environment

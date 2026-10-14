@@ -15,7 +15,7 @@
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
     "test:unit": "vp test",
-    "test": "pnpm run test:unit -- --run",
+    "test": "vp test --run",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
     "test:workflow": "node --test tests/workflow/*.test.mjs dev/source-plugin.test.mjs"

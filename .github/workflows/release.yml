@@ -18,7 +18,7 @@ concurrency:
 jobs:
   prepare-inputs:
     name: Prepare shared release inputs
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, Linux, X64, bob-gimbal]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -27,14 +27,13 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+          cache: false
       - uses: pnpm/action-setup@v4
         with:
           version: 12.10.1
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-          cache: pnpm
-          cache-dependency-path: web/pnpm-lock.yaml
       - uses: extractions/setup-just@v4
       - name: Generate source and build frontend once
         run: |
@@ -56,7 +55,7 @@ jobs:
       matrix:
         include:
           - target: linux_amd64
-            runner: ubuntu-24.04
+            runner: [self-hosted, Linux, X64, bob-gimbal]
           - target: linux_arm64
             runner: ubuntu-24.04-arm
     steps:
@@ -74,6 +73,7 @@ jobs:
         with:
           go-version-file: go.mod
           check-latest: true
+          cache: ${{ matrix.target != 'linux_amd64' }}
       - uses: extractions/setup-just@v4
       - uses: goreleaser/goreleaser-action@v7
         with:
@@ -103,7 +103,7 @@ jobs:
   qualify:
     name: Qualify release source
     needs: prepare-inputs
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, Linux, X64, bob-gimbal]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -119,19 +119,16 @@ jobs:
         with:
           go-version-file: go.mod
           check-latest: true
+          cache: false
       - uses: pnpm/action-setup@v4
         with:
           version: 12.10.1
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-          cache: pnpm
-          cache-dependency-path: web/pnpm-lock.yaml
       - uses: extractions/setup-just@v4
       - name: Prepare full qualification prerequisites
         run: |
-          sudo apt-get update
-          sudo apt-get install --yes zsh
           cd web
           pnpm install --frozen-lockfile
           pnpm exec playwright install --with-deps chromium

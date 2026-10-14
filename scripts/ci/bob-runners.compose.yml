@@ -1,0 +1,32 @@
+x-runner: &runner
+  image: gimbal-actions-runner:2.337.0
+  build:
+    context: .
+    dockerfile: bob-runner.Dockerfile
+  restart: unless-stopped
+  cpus: 8
+  mem_limit: 16g
+  entrypoint:
+    - bash
+    - -lc
+    - while [ ! -f /home/runner/.gimbal-start ]; do sleep 1; done; exec /home/runner/run.sh
+
+services:
+  runner-1:
+    <<: *runner
+    container_name: gimbal-actions-runner-1
+    volumes:
+      - /home/tyler/go/pkg/mod:/home/runner/go/pkg/mod
+      - /home/tyler/.cache/gimbal-actions/cache:/home/runner/.cache
+      - /home/tyler/.cache/gimbal-actions/pnpm:/home/runner/.local/share/pnpm
+      - /home/tyler/.cache/gimbal-actions/toolcache:/home/runner/_work/_tool
+      - /home/tyler/.cache/gimbal-actions/work-1:/home/runner/_work
+  runner-2:
+    <<: *runner
+    container_name: gimbal-actions-runner-2
+    volumes:
+      - /home/tyler/go/pkg/mod:/home/runner/go/pkg/mod
+      - /home/tyler/.cache/gimbal-actions/cache:/home/runner/.cache
+      - /home/tyler/.cache/gimbal-actions/pnpm:/home/runner/.local/share/pnpm
+      - /home/tyler/.cache/gimbal-actions/toolcache:/home/runner/_work/_tool
+      - /home/tyler/.cache/gimbal-actions/work-2:/home/runner/_work

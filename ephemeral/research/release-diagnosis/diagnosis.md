@@ -20,6 +20,11 @@ project, and how this morning's proof missed immediate failures. He then asked
 what is broken right now, and instructed: double-check everything, write the
 diagnosis, and obtain Claude adversarial review before presenting conclusions.
 The requested outcome is a correct, independently challenged diagnosis.
+During the investigation Tyler added that the remediation plan must replace
+Python, using existing Go/TypeScript/shell rather than another language. He
+delegated the language choice. This document selects Go for structured release
+automation and skill helpers, TypeScript for the timed hook, and existing shell
+for command orchestration.
 
 ## Snapshot and workflow status
 
@@ -39,6 +44,13 @@ times below use UTC unless marked Costa Rica (UTC-6).
 
 GitHub reports the Mac runner and both Bob runners online and idle. This is
 runner availability evidence, not an extra guarantee about future jobs.
+
+Latest delivery timing can be established from the successful runs even though
+the observer is broken: the application-source Automatic release was created at
+20:00:33 UTC; the successful Homebrew update step completed at 20:06:29 UTC.
+The feed was published earlier, at 20:06:26 UTC. Main-workflow-to-feed/tap
+delivery therefore took 356 seconds (5m56s): within the ten-minute maximum,
+above the five-minute goal. This is a missed goal, not a publication failure.
 
 ## Publication and package checks
 
@@ -195,4 +207,176 @@ or observed at a five-minute cadence. Did not adopt its assertion that existing
 timing issues cannot be updated or closed due to this bug: ensure_issue only
 looks up and creates issues, and never implemented updating or closing them.
 The broken function is completion of scans and subsequent report/alert work.
-A follow-up review of the revised diagnosis and artifact claims is pending.
+
+The same Claude session performed a
+[round-02 review](../../reviews/202610141420-release-diagnosis-round-02.md),
+again finding no material issues. It independently matched all downloaded
+assets to live digests and checksums, fetched the live feed and Homebrew casks,
+repeated app/DMG signature, stapler, Gatekeeper and integrity checks, and
+verified the updater signature using OpenSSL Ed25519 rather than my CryptoKit
+check. It did not repeat the CLI startup probes or Linux runtime checks.
+Its accepted nitpick was to replace the pending-review text with this account.
+Asset digests and Homebrew are distinct published records that agree with the
+bytes; this is consistency evidence, not independent provenance of source.
+
+## Remediation plan, including removal of Python
+
+This is planned work, not an implemented repair. Use Go's standard library for
+structured automation and package-local Go tests, reusing the existing yaml.v3
+dependency for skill helpers that need YAML. Use directly executable TypeScript
+and Node standard-library APIs for the hook; keep the existing shell
+build/signing/orchestration scripts. Do not introduce a new language, runtime,
+general workflow framework, compatibility shim, or Python fallback.
+
+Release/CI Go replacement programs live in package-main directories under
+`internal/automation/`, with tests beside the code. They do not extend the public
+gimbal API. Each command retains a concrete existing purpose; this is not a
+new workflow abstraction. Restore the observer first by replacing its Python
+entry point with Go and fixing the diagnosed scan isolation and API failure
+paths, plus separating hourly hook measurement from scan success. Verify that
+live recovery before continuing the remaining migration. Keep behavior-preserving
+ports and additional fixes in separate reviewable commits where practical;
+do not wait for every skill helper to be ported before restoring monitoring.
+
+The desired state is:
+
+- Release and hook observation complete despite one unusable historical job
+  record. Preserve the original timestamps and identify unavailable timing
+  explicitly; do not manufacture a duration or mark an unmeasured check passed.
+  Separate source-record failures so later sources are still examined. Handle
+  transient read-API errors with bounded retry, and let the scheduled hook check
+  run independently of unrelated release-scan failure.
+- All six maintained Python entry points are replaced: CI scope/link selection,
+  release preparation, tagged dispatch/wait, revision-bound asset pack/restore,
+  release/hook timing observation, and bounded pre-commit checks. Their six
+  Python tests become package-local Go tests or Node tests beside the TypeScript
+  hook, as applicable. Preserve actual behavior
+  that is still required, including exact-revision checks, safe archive restore,
+  atomic tags, rerun reuse, and publication ordering.
+- The twelve tracked Python helpers under `.agents/skills/` are also in scope:
+  seven model-resolution copies, chapter, promise, sprint ledger, and two
+  semantic-index/evaluation helpers. Replace their supported behavior in Go and
+  update their maintained skill instructions/references. These are checked-in
+  executable helpers, not frozen legacy or a reason to retain Python. Preserve
+  any applicable provenance records when maintaining borrowed content. This is
+  not a change to unrelated globally installed skills or upstream projects.
+- Inline Python is removed from both appcast verification and macOS notary JSON
+  parsing. Update workflows, Justfile, lefthook, and maintained release references
+  to use the replacements; delete the old Python files and runtime requirements.
+  This explicitly includes the Mac python3 preflight, Python unittest gates,
+  hook test-input globs/startup accounting, and runnable documentation examples
+  such as docs/context-budget.md and skill Python/venv setup instructions. Replace
+  the Python test gate with the affected Go package tests; do not remove coverage.
+  Delete generated Python caches; no Python cache-ignore entry currently exists
+  in .gitignore, so there is no ignore rule to remove there.
+  Frozen legacy code and historical research notes are not rewritten.
+- The three-second hook budget and mandatory staged-content/index/format checks
+  retain their existing semantics. Compilation or module downloads must not
+  consume the hook coordinator's startup. Existing Go smoke tests still use
+  their compiler cache; cold checks retain the existing advisory budget behavior.
+  Documentation-only commits must retain their lightweight path. No broad build
+  is moved into a push hook, and cold/unfinished smoke checks remain reported as
+  unfinished rather than green or a performance-only blocker.
+
+Hook startup decision: use a TypeScript .mts coordinator under `scripts/`, executed
+directly by the existing Node toolchain with erasable TypeScript and only Node
+standard-library APIs. There is no transpiler, package install, or separate
+compiled helper to bootstrap. A small Bash lefthook launcher keeps the
+documentation-only mandatory-check path independent of Go/Node; source changes
+invoke the TypeScript coordinator, which performs the mandatory checks, input
+agreement, parallel smoke execution, shared deadline, descendant cleanup, and
+timing report. Fresh worktrees can immediately run it using the existing Node
+prerequisite. Explicit warm-hook warms the existing Go smoke compilation, not a
+new hook executable. Cold tests can time out as today, but smoke is never skipped
+because a new coordinator binary was not prepared.
+
+Declare Node >=24.13.0 in the maintained runtime requirements and the Bash
+launcher; current CI's Node 24 satisfies it. Before invoking TypeScript for a
+commit that changes source files, reject an unsupported Node runtime with a
+clear prerequisite error, preserving
+the existing rule that actual execution/prerequisite failures block. It is not
+a passed or merely slow smoke check. The documentation-only shell path still
+works without Node. Use explicit .mts modules and imports, with no TypeScript
+syntax that needs transpilation. A local probe on the exact installed Node
+24.13.0 at `/Users/tyler/.local/share/mise/installs/node/24.13.0/bin/node`
+executed type annotations and a Node standard-library import successfully
+with empty stderr; this is syntax/runtime compatibility evidence, not a benchmark
+of the future full coordinator.
+
+Test-gate decision: replace Python unittest discovery with explicit automation
+Go tests, `node --test scripts/*.test.mts` for the hook tests, and `go -C <skill>
+test ./...` for each affected skill module. Nested modules are not covered by
+root `go test ./...`. Include their normal affected vet/lint checks explicitly
+as well. Justfile's existing check-hooks target runs the hook tests; its automation check
+and CI gate cover the Go commands and skill modules. Warm-hook continues to run
+the fixed fast smoke pack and does not acquire the full helper test suite.
+Keep model-resolver copies self-contained with the existing per-skill ownership;
+do not add a shared installed dependency or a new synchronization framework.
+
+Proof required before calling the replacement complete:
+
+1. Package tests reproduce the real cancelled-job timestamps, a failing API
+   read, subsequent-source continuation, and independent hourly hook execution;
+   existing required release and hook behavior remains covered.
+2. The maintained automation has no executable Python references or .py files.
+   Run on the actual supported runners with Python unavailable to this path;
+   exercise a clean checkout and the container cache layout, not just a warm
+   developer tree.
+3. The real observer completes its historical scan with the known gap exposed,
+   and the hourly hook measurement completes. This must be seen in actual runs.
+4. A real tagged release passes qualification, archived CLI/plugin/web tests,
+   signing/notarization, and publication. Download and verify the resulting
+   packages, feed signature/version, and Homebrew entries. Preserve the
+   ten-minute delivery maximum and three-second hook budget; measure the
+   five-minute delivery goal without presenting a goal miss as build failure.
+5. Exercise each replacement skill-helper command on controlled fixtures:
+   model resolution keeps configured tier/binding behavior; chapter and sprint
+   ledgers keep IDs, links, and update semantics; promise operations preserve
+   file locking and atomic state changes under concurrent processes; semantic
+   evaluation/metrics retain their input/output and evidence-link behavior.
+   Invoke the Go commands via go run from their documented source context,
+   relying on the normal Go build cache outside the hook budget. Update the
+   skill-local invocation paths so installed copies remain self-contained:
+   helper source and its small Go module context stay beside the loaded
+   SKILL.md, with the existing yaml.v3 version pinned where needed, and commands
+   run with explicit -C pointing there. They must not depend on an absolute
+   path to this Gimbal checkout or the target project's module dependencies.
+   Borrowed-skill refreshes must preserve these Go entry points and pass the
+   same no-Python acceptance checks; record the local ports in existing
+   provenance where available, rather than blindly restoring upstream Python.
+
+The [round-03 review](../../reviews/202610141425-release-diagnosis-round-03.md)
+found no material defects in the diagnosis, but identified plan gaps in skill
+helper scope, Python dependency inventory, and Go hook startup. All three were
+accepted and resolved above from the tracked inventory and existing hook rules.
+Its request for separate port/fix commits was accepted. Its request to inventory
+.gitignore was checked: no Python cache entry is present.
+
+The [round-04 review](../../reviews/202610141423-release-diagnosis-round-04.md)
+again found the diagnosis accurate, but identified delayed observer repair,
+helper-binary startup that could skip fresh-worktree smoke checks, and missing
+behavior/sync proof for the skill ports. Accepted: observer recovery now comes
+first; the hook uses directly executable existing TypeScript/Node instead of
+a compiled helper; skill behavior and future sync constraints are explicit.
+No further permission question is needed: Tyler requested Python replacement
+and delegated language choice, and the plan now includes the review's alternative
+of explicit skill-port proof. Skill ports are sequenced last and can be delivered
+separately from observer recovery; the complete no-Python outcome still includes
+them.
+
+The [round-05 review](../../reviews/202610141427-release-diagnosis-round-05.md)
+found the diagnosis accurate and earlier plan issues resolved, but identified
+missing explicit test gates for nested skill modules/Node hook tests and an
+undeclared TypeScript runtime prerequisite. Both are now explicit above. Its
+proposal to treat an unsupported runtime as an advisory skip was not adopted:
+the current Python hook blocks on prerequisite/execution errors, and AGENTS.md
+requires actual failures to block; only elapsed-budget failures are advisory.
+The [round-06 review](../../reviews/202610141431-release-diagnosis-round-06.md)
+concluded only nitpicks remain: no material diagnosis error or unresolved plan
+gap. Corrected the Justfile target name and the wording about Node prerequisites.
+Its claim that no Node 24.13.0 exists on this machine is incorrect: I repeated
+the probe using the explicit mise path above, which reports v24.13.0, returns
+the expected output, and produces empty stderr. That version is the tested
+compatibility floor, not a claim about the earliest Node release to support the
+syntax. Claude separately verified the same behavior on Node 24.21.0. The full
+coordinator and migration still require the behavioral proof described here.

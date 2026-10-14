@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.9] - 2026-10-14
+
+### Changed
+
+- perf(generate): share caller symbols through SKGO and Polytype APIs (#527)
+
 ## [0.13.8] - 2026-10-13
 
 ### Changed
@@ -230,7 +236,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `opencode/provider/model` routing, one shared server managed by
   `gimbal opencode start|stop`, and raw event/request captures for diagnostics.
 
-[Unreleased]: https://github.com/tylergannon/gimbal/compare/v0.13.8...main
+[Unreleased]: https://github.com/tylergannon/gimbal/compare/v0.13.9...main
+[0.13.9]: https://github.com/tylergannon/gimbal/compare/v0.13.8...v0.13.9
 [0.13.8]: https://github.com/tylergannon/gimbal/compare/v0.13.7...v0.13.8
 [0.13.7]: https://github.com/tylergannon/gimbal/compare/v0.13.6...v0.13.7
 [0.13.6]: https://github.com/tylergannon/gimbal/compare/v0.13.5...v0.13.6

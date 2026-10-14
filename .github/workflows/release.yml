@@ -28,12 +28,12 @@ jobs:
         with:
           go-version-file: go.mod
           cache: false
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 12.10.1
       - uses: actions/setup-node@v4
         with:
           node-version: 24
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.10.1
       - uses: extractions/setup-just@v4
       - name: Generate source and build frontend once
         run: |
@@ -120,12 +120,12 @@ jobs:
           go-version-file: go.mod
           check-latest: true
           cache: false
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 12.10.1
       - uses: actions/setup-node@v4
         with:
           node-version: 24
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.10.1
       - uses: extractions/setup-just@v4
       - name: Prepare full qualification prerequisites
         run: |

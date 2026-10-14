@@ -344,6 +344,7 @@ the Go application. Application Go edits regenerate affected bindings and
 rebuild the backend; Svelte edits stay in Vite. On a fresh checkout it also
 builds the initial frontend assets. Stop it with Ctrl-C. Set `GIMBAL_DEV_PORT`
 and `GIMBAL_DEV_VITE_PORT` to change the default ports 8080 and 5173.
+Set `GIMBAL_DEV_TRACE=1` to log generation phase timings and retained-worker counts.
 Development builds omit DWARF data for faster linking. Use
 `go run ./internal/generate/appgen dev --debug` when attaching a debugger.
 Changes to the generator itself, its embedded defaults or its compiled workflow

@@ -222,7 +222,8 @@ and Go bindings. `internal/generate/gimbalgen` emits workflow graph metadata;
 and observation types.
 
 Workflow generation reuses Gimbal's extracted graph, command metadata, and
-inspection page across processes. It still asks Go to select current files and
+inspection page across processes. Direct `generate.Extract` calls return a fresh
+Go graph, including its nil distinctions. Generation still asks Go to select current files and
 compiler exports; authored source, comments, dependency imports, build settings,
 and the generator executable determine reuse. Cache files live under the OS user
 cache directory in `gimbal/generate`. Set `GIMBAL_GENERATE_CACHE=off` to bypass

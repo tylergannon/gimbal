@@ -421,3 +421,23 @@ func TestGenerationCachePackageErrorsKeepOrdinaryDiagnostics(t *testing.T) {
 		}
 	}
 }
+
+func TestExtractPreservesGoGraphAfterEmissionCacheHit(t *testing.T) {
+	cache := t.TempDir()
+	t.Setenv("GIMBAL_GENERATE_CACHE_DIR", cache)
+	if _, err := analyzeOne("testdata/fixture", "DeclarationShape", "declarations", nil, true, false); err != nil {
+		t.Fatal(err)
+	}
+	entries, err := filepath.Glob(filepath.Join(cache, "*.json"))
+	if err != nil || len(entries) != 1 {
+		t.Fatalf("emission analysis was not cached: %v %v", entries, err)
+	}
+	graph, err := Extract("testdata/fixture", "DeclarationShape", "declarations")
+	if err != nil {
+		t.Fatal(err)
+	}
+	unrelated := graph.Body[1].(workflow.Command)
+	if unrelated.Name != "unrelated" || unrelated.Yields != nil || len(unrelated.Requirements) != 0 {
+		t.Fatalf("live Go graph changed by JSON normalization: %+v", unrelated)
+	}
+}

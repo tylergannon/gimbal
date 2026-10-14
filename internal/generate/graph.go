@@ -19,9 +19,10 @@ import (
 const gimbalPath = "github.com/tylergannon/gimbal"
 
 // Extract loads the package in dir and returns the graph of the workflow its
-// function entry writes, under the name name.
+// function entry writes, under the name name. It returns the live Go graph,
+// preserving nil distinctions that the generated JSON wire format normalizes.
 func Extract(dir, entry, name string) (workflow.Graph, error) {
-	graph, _, err := extract(dir, entry, name, nil)
+	graph, _, err := extractInspected(dir, entry, name, nil, true, nil)
 	return graph, err
 }
 

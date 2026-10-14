@@ -5,7 +5,7 @@ RUN apt-get update && apt-get install --yes zsh build-essential pkg-config \
     && userdel ubuntu \
     && usermod --uid 1000 runner && groupmod --gid 1000 runner \
     && chown -R runner:runner /home/runner \
-    && mkdir -p /home/runner/go /home/runner/.cache/vite-plus /home/runner/.local/share/pnpm \
+    && mkdir -p /home/runner/go/pkg /home/runner/.cache/vite-plus /home/runner/.local/share/pnpm \
     && ln -s /home/runner/.cache/vite-plus /home/runner/.vite-plus \
     && chown -R runner:runner /home/runner/go /home/runner/.cache /home/runner/.local
 USER runner

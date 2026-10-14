@@ -98,11 +98,11 @@ If authentication fails, **HALT immediately**:
 
 1. If a sprint number was provided, use it. Otherwise, find the current sprint:
    ```bash
-   go run -C "<loaded-df-sprint-plan-dir>/scripts/ledger" . --project "$PWD" current
+   GOWORK=off go run -C "<loaded-df-sprint-plan-dir>/scripts/ledger" . --project "$PWD" current
    ```
    If no sprint is in progress, check for the next planned one:
    ```bash
-   go run -C "<loaded-df-sprint-plan-dir>/scripts/ledger" . --project "$PWD" next
+   GOWORK=off go run -C "<loaded-df-sprint-plan-dir>/scripts/ledger" . --project "$PWD" next
    ```
 
 2. Read the sprint document:
@@ -141,7 +141,7 @@ If authentication fails, **HALT immediately**:
 
 5. Mark the sprint as in progress (if not already):
    ```bash
-   go run -C "<loaded-df-sprint-plan-dir>/scripts/ledger" . --project "$PWD" start NNN
+   GOWORK=off go run -C "<loaded-df-sprint-plan-dir>/scripts/ledger" . --project "$PWD" start NNN
    ```
    If the repo uses YAML status values instead of the bundled TSV helper, use the repo's ledger helper or update `docs/sprints/ledger.yaml` according to the repo convention. Preserve any existing `chapter:` field.
 
@@ -216,6 +216,6 @@ When the semantic index block applies, substitute the actual entrypoint and acce
 
 5. Mark the sprint completed when validation passed and the user's request clearly asked for full execution. If the user only asked for a partial run or review, ask before completing it:
    ```bash
-   go run -C "<loaded-df-sprint-plan-dir>/scripts/ledger" . --project "$PWD" complete NNN
+   GOWORK=off go run -C "<loaded-df-sprint-plan-dir>/scripts/ledger" . --project "$PWD" complete NNN
    ```
    If the repo uses YAML status values, use the repo's status command or update the YAML status according to repo convention, preserving chapter fields.

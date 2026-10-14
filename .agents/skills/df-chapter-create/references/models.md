@@ -50,12 +50,12 @@ project's module dependencies.
 Substitute the actual installed skill directory and absolute target project root:
 
 ```text
-go run -C "<loaded-skill-dir>/scripts/resolve_models" . \
+GOWORK=off go run -C "<loaded-skill-dir>/scripts/resolve_models" . \
   --project-dir <absolute-project-dir>
 ```
 
 The target is the project being worked on, never the skill installation or an
-Easy Loop visit directory. `--project-dir` is required because `go run -C`
+Easy Loop visit directory. `--project-dir` is required because `GOWORK=off go run -C`
 changes directory. Capture the target root before invocation; from its root,
 `--project-dir "$PWD"` supplies it explicitly.
 `--user-config <absolute-file>` exists for isolated tests; normal runs use the fixed

@@ -67,7 +67,7 @@ For format patterns drawn from existing indexes, read `references/index-patterns
 
 The bundled Go commands live beside the **loaded** SKILL.md. Use that exact
 installation, and resolve all index, corpus, and eval paths to absolute paths
-before invoking Go, because `go run -C` changes the command's directory.
+before invoking Go, because `GOWORK=off go run -C` changes the command's directory.
 The modules are self-contained and require the normal Go toolchain.
 
 ```bash
@@ -92,7 +92,7 @@ restore its bundled source before running it.
 3. Inspect existing index state if `to` exists:
    ```bash
    find <to> -maxdepth 3 -type f | sort | sed -n '1,160p'
-   go run -C "$METRICS_HELPER" . --index <to> --source <from>
+   GOWORK=off go run -C "$METRICS_HELPER" . --index <to> --source <from>
    ```
 4. State the chosen mode and why in one or two sentences.
 5. Count distinct token-cache files or directories. If > 10, plan to use parallel readers (see Parallel Read Harness below) and identify the segment boundaries before writing anything.
@@ -186,7 +186,7 @@ Once every worker has finished:
 4. **Write evals.jsonl** with one query per major retrieval intent, pointing at the routing nodes and leaf files the workers wrote.
 5. **Write state**:
    ```bash
-   go run -C "$METRICS_HELPER" . --index <to> --source <from> --mode scratch-build --write-state
+   GOWORK=off go run -C "$METRICS_HELPER" . --index <to> --source <from> --mode scratch-build --write-state
    ```
 
 ## Scratch Build
@@ -208,7 +208,7 @@ For token caches with 10 or more token-cache files, use the **Parallel Read Harn
 After writing all files, run metrics and write state:
 
 ```bash
-go run -C "$METRICS_HELPER" . --index <to> --source <from> --mode scratch-build --write-state
+GOWORK=off go run -C "$METRICS_HELPER" . --index <to> --source <from> --mode scratch-build --write-state
 ```
 
 ## Incremental Update
@@ -222,7 +222,7 @@ Preserve useful routes and update only stale coverage.
 5. Keep citations resolvable. If a cited source moved or disappeared, mark it as stale debt or replace it.
 6. Refresh housekeeping state:
    ```bash
-   go run -C "$METRICS_HELPER" . --index <to> --source <from> --mode incremental-update --write-state
+   GOWORK=off go run -C "$METRICS_HELPER" . --index <to> --source <from> --mode incremental-update --write-state
    ```
 
 Do not blindly regenerate everything if the existing routes are useful. Regeneration is appropriate only when the route model is wrong or the token cache changed so much that local patches would be more expensive than a rebuild.
@@ -252,7 +252,7 @@ Aim for 10–30 queries covering the main retrieval intents.
 ### Running Benchmarks
 
 ```bash
-go run -C "$EVALS_HELPER" . --index <to> --write-results
+GOWORK=off go run -C "$EVALS_HELPER" . --index <to> --write-results
 ```
 
 This runs BFS traversal from the entrypoint for each query, scores citation reachability, and writes a timestamped result to `.semantic-index/benchmarks/`.
@@ -276,7 +276,7 @@ Rebalance to improve retrieval metrics, not for aesthetic symmetry. Use a hill-c
 
 1. **Baseline**: run benchmarks and record current aggregate metrics.
    ```bash
-   go run -C "$EVALS_HELPER" . --index <to> --write-results
+   GOWORK=off go run -C "$EVALS_HELPER" . --index <to> --write-results
    ```
 2. **Identify the worst miss**: pick the eval query with the lowest citation_precision or longest path_length.
 3. **Diagnose**: inspect the routing path for that query. Is the relevant leaf orphaned? Is the routing file too dense? Are related concepts split across siblings that should be merged?
@@ -300,8 +300,8 @@ Rebalancing actions: split nodes, merge thin siblings, add adjacent-node links, 
 After rebalancing, re-run metrics and at least the benchmark queries that motivated the change:
 
 ```bash
-go run -C "$METRICS_HELPER" . --index <to> --source <from> --mode rebalance --write-state
-go run -C "$EVALS_HELPER" . --index <to> --write-results
+GOWORK=off go run -C "$METRICS_HELPER" . --index <to> --source <from> --mode rebalance --write-state
+GOWORK=off go run -C "$EVALS_HELPER" . --index <to> --write-results
 ```
 
 ## Metrics And Housekeeping
@@ -309,13 +309,13 @@ go run -C "$EVALS_HELPER" . --index <to> --write-results
 Use the bundled helper for a cheap structural report:
 
 ```bash
-go run -C "$METRICS_HELPER" . --index <to> --source <from>
+GOWORK=off go run -C "$METRICS_HELPER" . --index <to> --source <from>
 ```
 
 When maintenance changes are made, write or refresh state:
 
 ```bash
-go run -C "$METRICS_HELPER" . --index <to> --source <from> --mode <mode> --write-state
+GOWORK=off go run -C "$METRICS_HELPER" . --index <to> --source <from> --mode <mode> --write-state
 ```
 
 Key metrics tracked:

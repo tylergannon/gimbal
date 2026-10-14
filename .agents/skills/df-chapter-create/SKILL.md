@@ -96,7 +96,7 @@ referencing that chapter instead of creating a duplicate.
 Create `docs/chapters/` if needed. Use the bundled helper when available:
 
 ```bash
-go run -C "<loaded-skill-dir>/scripts/chapter" . --project "$PWD" next-id
+GOWORK=off go run -C "<loaded-skill-dir>/scripts/chapter" . --project "$PWD" next-id
 ```
 
 Chapter ids use `CHAPTER-XXXX`, starting at `CHAPTER-0001`.
@@ -179,7 +179,7 @@ chapters:
 Use the helper when available:
 
 ```bash
-go run -C "<loaded-skill-dir>/scripts/chapter" . --project "$PWD" add "Title" \
+GOWORK=off go run -C "<loaded-skill-dir>/scripts/chapter" . --project "$PWD" add "Title" \
   --doc docs/chapters/CHAPTER-XXXX-slug.md \
   --summary "One concise summary."
 ```

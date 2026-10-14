@@ -30,12 +30,14 @@ func Stock(root string) error {
 		return err
 	}
 	var patterns []string
+	var requests []analysisRequest
 	overlay := map[string][]byte{}
 	for _, selected := range builtin.Workflows {
 		patterns = append(patterns, "./internal/workflows/"+selected.Package)
+		requests = append(requests, analysisRequest{filepath.Join(root, "internal", "workflows", selected.Package), selected.Entry, selected.Name, true, true})
 		overlay[filepath.Join(root, "internal", "workflows", selected.Package, "workflow_gen.go")] = []byte("package " + selected.Package + "\n")
 	}
-	loaded, err := loadSource(root, overlay, patterns...)
+	results, err := analyze(root, overlay, patterns, requests)
 	if err != nil {
 		return err
 	}
@@ -46,17 +48,8 @@ func Stock(root string) error {
 	for k, v := range defaults {
 		roleDefaults[string(k)] = v
 	}
-	for _, selected := range builtin.Workflows {
-		dir := filepath.Join(root, "internal", "workflows", selected.Package)
-		pkg, err := loaded.packageAt(dir)
-		if err != nil {
-			return err
-		}
-		inspection := &inspectionData{}
-		graph, info, err := extractLoaded(pkg, loaded.imports, selected.Entry, selected.Name, true, inspection)
-		if err != nil {
-			return err
-		}
+	for i, selected := range builtin.Workflows {
+		graph, info := results[i].Graph, results[i].Entry.entryInfo()
 		if err := check(info, graph); err != nil {
 			return err
 		}
@@ -70,7 +63,7 @@ func Stock(root string) error {
 			}
 			data.Fields = append(data.Fields, stockField{Name: field.name, Type: field.kind, JSON: strings.ReplaceAll(field.flag, "-", "_"), Optional: field.optional, RequiredString: !field.optional && field.kind == "string", RequiredInt: !field.optional && field.kind == "int"})
 		}
-		p, err := pageGuide(inspectGraph(graph, selected.Entry, inspection), info, graph.Roles(), roleDefaults)
+		p, err := pageGuide(results[i].Page, info, graph.Roles(), roleDefaults)
 		if err != nil {
 			return err
 		}

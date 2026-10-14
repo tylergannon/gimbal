@@ -6,9 +6,12 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"golang.org/x/tools/go/packages"
 )
 
 func TestSourceImportsPreserveBodyOnlyHelperDiagnosticAndReload(t *testing.T) {
+	t.Setenv("GIMBAL_GENERATE_CACHE_DIR", t.TempDir())
 	root, err := filepath.Abs("../..")
 	if err != nil {
 		t.Fatal(err)
@@ -56,6 +59,15 @@ func Touch(ctx context.Context) { gimbal.Set(ctx,"helper","value") }
 	if len(graph.Diagnostics) != 1 || !strings.Contains(graph.Diagnostics[0].Message, "example.com/diagnostic/helper, which imports Gimbal, is not followed") {
 		t.Fatalf("body-only helper diagnostic: %+v", graph.Diagnostics)
 	}
+	load := loadSourceTypes
+	t.Cleanup(func() { loadSourceTypes = load })
+	loadSourceTypes = func(*packages.Config, ...string) ([]*packages.Package, error) {
+		return nil, fmt.Errorf("body-only diagnostic cache did not hit")
+	}
+	if _, err := Extract(dir, "Flow", "diagnostic"); err != nil {
+		t.Fatal(err)
+	}
+	loadSourceTypes = load
 	write("helper/helper.go", `package helper
 import "context"
 //go:noinline

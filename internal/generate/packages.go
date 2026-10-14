@@ -21,6 +21,8 @@ type sourcePackages struct {
 	imports map[string]bool
 }
 
+var loadSourceTypes = packages.Load
+
 func loadSource(dir string, overlay map[string][]byte, patterns ...string) (*sourcePackages, error) {
 	config := &packages.Config{Dir: dir, Overlay: overlay}
 	cleanup, err := preserveExports(config)
@@ -49,7 +51,7 @@ func loadSource(dir string, overlay map[string][]byte, patterns ...string) (*sou
 	config.Mode = packages.NeedName | packages.NeedFiles | packages.NeedCompiledGoFiles |
 		packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo |
 		packages.NeedImports | packages.NeedModule
-	roots, err := packages.Load(config, patterns...)
+	roots, err := loadSourceTypes(config, patterns...)
 	if err != nil {
 		return nil, fmt.Errorf("generate: %w", err)
 	}

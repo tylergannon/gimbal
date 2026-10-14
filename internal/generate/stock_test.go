@@ -3,6 +3,7 @@ package generate_test
 import (
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -13,6 +14,7 @@ import (
 )
 
 func TestStockRecoversMissingAndStaleOutput(t *testing.T) {
+	t.Setenv("GIMBAL_GENERATE_CACHE_DIR", t.TempDir())
 	root, err := filepath.Abs(filepath.Join("..", ".."))
 	if err != nil {
 		t.Fatal(err)
@@ -57,6 +59,9 @@ func TestStockRecoversMissingAndStaleOutput(t *testing.T) {
 	t.Cleanup(func() {
 		_ = os.WriteFile(form, firstForm, 0o644)
 	})
+	if !strings.Contains(string(firstForm), `Graph: review.Graph`) || !strings.Contains(string(firstForm), `ReviewDefinition`) {
+		t.Fatalf("fixture lacks review adapter: %s", firstForm)
+	}
 	if err := os.Remove(form); err != nil {
 		t.Fatal(err)
 	}
@@ -82,8 +87,15 @@ func TestStockRecoversMissingAndStaleOutput(t *testing.T) {
 	if !slices.Equal(firstForm, formAgain) {
 		t.Fatal("stock generation did not restore original form and command bytes")
 	}
-	if err := generate.Stock(root); err != nil {
+	// A new process must recover its IR without another root typecheck.
+	executable, err := os.Executable()
+	if err != nil {
 		t.Fatal(err)
+	}
+	commandProcess := exec.Command(executable, "-test.run=^TestGenerationCacheProcess$")
+	commandProcess.Env = append(os.Environ(), "GIMBAL_CACHE_TEST_DIR="+root, "GIMBAL_CACHE_TEST_MODE=warm", "GIMBAL_CACHE_TEST_STOCK=1")
+	if out, err := commandProcess.CombinedOutput(); err != nil {
+		t.Fatalf("warm Stock: %v\n%s", err, out)
 	}
 	formSecond, _ := os.ReadFile(form)
 	if !slices.Equal(formAgain, formSecond) {

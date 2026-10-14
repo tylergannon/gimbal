@@ -30,7 +30,8 @@ func extract(dir, entry, name string, overlay map[string][]byte) (workflow.Graph
 }
 
 func extractSource(dir, entry, name string, overlay map[string][]byte, commandMetadata bool) (workflow.Graph, entryInfo, error) {
-	return extractInspected(dir, entry, name, overlay, commandMetadata, nil)
+	result, err := analyzeOne(dir, entry, name, overlay, commandMetadata, false)
+	return result.Graph, result.Entry.entryInfo(), err
 }
 
 func extractInspected(dir, entry, name string, overlay map[string][]byte, commandMetadata bool, inspection *inspectionData) (workflow.Graph, entryInfo, error) {

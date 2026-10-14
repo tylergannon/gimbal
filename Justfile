@@ -24,6 +24,7 @@ app: build
     go tool skgo native build --platform macos
     go generate ./internal/skgo ./workflow
     cd web && vp fmt
+    scripts/sign-native-dev.sh native/build/macos/DerivedData/Build/Products/Debug/Gimbal.app
 
 # Open the Debug app; a directory argument keeps its catalog in that directory instead of ~/.gimbal/desktop.
 app-run instance="":

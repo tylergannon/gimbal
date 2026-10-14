@@ -1,8 +1,8 @@
 // Package skgo holds Gimbal's generated web implementation. Regenerate it with
 // `go generate ./...`.
 //
-// appgen calls SKGO and Polytype through their pinned Go APIs; both share an
-// invocation-local, type-checked observation package snapshot.
+// appgen calls SKGO and Polytype through their pinned Go APIs. Each generator
+// owns its analysis cache; no invocation-wide AST preload is needed.
 //
 // `go tool skgo native build` runs `skgo generate` again with the hook package
 // and the Swift selection in native/skgo-native.json. The directive below

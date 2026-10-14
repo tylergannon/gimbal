@@ -3,33 +3,27 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
-
-	"github.com/tylergannon/polytype/grammar"
-	"golang.org/x/tools/go/packages"
 )
 
-func TestObservationProjectionUsesFreshCallerSymbols(t *testing.T) {
+func TestObservationProjectionUsesFreshSource(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/observation\n\ngo 1.27\n"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module github.com/tylergannon/gimbal/internal/observation\n\ngo 1.27\n"), 0644); err != nil {
 		t.Fatal(err)
 	}
-	load := &packages.Config{Dir: dir, Mode: grammar.LoadMode | packages.NeedDeps, BuildFlags: []string{"-tags=jsonschema"}}
+	outputDir := t.TempDir()
 	project := func(source string) (string, error) {
 		t.Helper()
 		if err := os.WriteFile(filepath.Join(dir, "rows.go"), []byte("package observation\ntype InterviewRow struct { Question string `json:\"question\"` }\n"+source), 0644); err != nil {
 			t.Fatal(err)
 		}
-		roots, err := packages.Load(load, ".")
-		if err != nil {
-			t.Fatal(err)
-		}
-		output, err := observationOutput(load, roots[0])
-		if err != nil {
+		if err := observationOutput(dir, outputDir); err != nil {
 			return "", err
 		}
-		return string(output.Files[0].Content), nil
+		output, err := os.ReadFile(filepath.Join(outputDir, "types.ts"))
+		return string(output), err
 	}
 	before, err := project("type TurnRow struct { Original string `json:\"original\"` }\n")
 	if err != nil {
@@ -43,7 +37,35 @@ func TestObservationProjectionUsesFreshCallerSymbols(t *testing.T) {
 		t.Fatalf("projection did not reflect fresh symbols/comments:\nbefore: %s\nafter: %s", before, after)
 	}
 	_, err = project("type TurnRow struct { Unsupported chan string }\n")
-	if err == nil || !strings.Contains(err.Error(), "channels are outside the static type grammar") {
+	if err == nil || (!strings.Contains(err.Error(), "TurnRow") || !strings.Contains(err.Error(), "ChanType")) {
 		t.Fatalf("lost source diagnostic: %v", err)
+	}
+}
+
+func TestObservationProjectionMatchesApplicationTypes(t *testing.T) {
+	root, err := filepath.Abs("../../..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	if err := observationOutput(filepath.Join(root, "internal/observation"), dir); err != nil {
+		t.Fatal(err)
+	}
+	actual, err := os.ReadFile(filepath.Join(dir, "types.ts"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected, err := os.ReadFile(filepath.Join(root, "web/src/lib/observation/types.ts"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The committed application runs Prettier, which removes optional quotes
+	// from identifier-shaped property names. Compare everything else exactly.
+	property := regexp.MustCompile(`(?m)^(  )"([a-z_]+)"(\??:)`)
+	if property.ReplaceAllString(string(actual), "$1$2$3") != string(expected) {
+		t.Fatal("public generation changed application observation declarations")
+	}
+	if !strings.Contains(string(actual), `"question_id": string`) || !strings.Contains(string(actual), `"unresolved": boolean`) {
+		t.Fatal("missing literal observation fields")
 	}
 }

@@ -339,11 +339,16 @@ Vite HMR. Selection, independent expansions, inspector disclosures, active view
 and camera are URL state, so reloads and shareable links preserve supported
 choices. Removed or changed source identifiers default without migration.
 
-`just dev` generates bindings and builds the backend; on a fresh checkout it
-also builds the initial frontend build. Stop it with Ctrl-C. Set
-`GIMBAL_DEV_PORT` and `GIMBAL_DEV_VITE_PORT` to change the default ports 8080
-and 5173. Restart after extractor changes; regenerate and restart after changes
-to callable Go signatures. Source watching reflects code, not execution values.
+`just dev` uses SKGO's shared supervisor to own Vite, retained generators and
+the Go application. Application Go edits regenerate affected bindings and
+rebuild the backend; Svelte edits stay in Vite. On a fresh checkout it also
+builds the initial frontend assets. Stop it with Ctrl-C. Set `GIMBAL_DEV_PORT`
+and `GIMBAL_DEV_VITE_PORT` to change the default ports 8080 and 5173.
+Development builds omit DWARF data for faster linking. Use
+`go run ./internal/generate/appgen dev --debug` when attaching a debugger.
+Changes to the generator itself, its embedded defaults or its compiled workflow
+graph model require restarting the command; the browser reports that requirement.
+Source watching reflects code, not execution values.
 Installed builds use embedded workflow snapshots and need no source checkout or
 Go compiler to show these pages. `just dev-web` and `just dev-go` remain available
 for running the two processes separately.

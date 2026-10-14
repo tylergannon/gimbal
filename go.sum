@@ -206,6 +206,8 @@ github.com/tylergannon/devalue/v5 v5.0.0 h1:UZuNeNpVXHnn79lOS/l7gEWcC4jKoILHUb0s
 github.com/tylergannon/devalue/v5 v5.0.0/go.mod h1:F3VxJn5uu/ROJxoVB3zhxFwuWl+jUrv6n6EJC5yB3z8=
 github.com/tylergannon/polytype v1.8.0 h1:4BGXyeJnlQSXAStD9c6UB9eCQxKM6pN1cT36exPcwmc=
 github.com/tylergannon/polytype v1.8.0/go.mod h1:M0qJ9qMslFa1P+BXfjE8rbUkYNsoqXXEBoHboSDKTss=
+github.com/tylergannon/polytype v1.9.0 h1:t+qhlALy3XBhm8QS2Eq8UohKKgumxP3h7YUjwVtEIVk=
+github.com/tylergannon/polytype v1.9.0/go.mod h1:go8LF2qxZ3cpymGOfA4/BfDodZL6446Aq4TmhLeoN6c=
 github.com/tylergannon/skgo v0.31.0 h1:excktTrKHMSKb8X+1/44P7/jxVxfUm588kbOIUUgqcM=
 github.com/tylergannon/skgo v0.31.0/go.mod h1:xFxWIsOYk0JhRF3GV/aWhaajCYQT2lP9w1Wuj7QCZTE=
 github.com/tylergannon/structtag v0.1.0 h1:Vn4ZEemGUtAfw9ddEtHQILKnIWqSWCSpciFTNPh1gcY=

@@ -28,6 +28,7 @@ func development(args []string) error {
 	vitePort := flags.String("vite-port", envDefault("GIMBAL_DEV_VITE_PORT", "5173"), "Vite port")
 	instance := flags.String("instance-dir", envDefault("GIMBAL_INSTANCE_DIR", ".gimbal"), "application catalog directory")
 	noProject := flags.Bool("no-project", false, "start with no implicitly admitted project")
+	debug := flags.Bool("debug", false, "retain Go debugger information in development builds")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -134,6 +135,7 @@ func development(args []string) error {
 			return args
 		},
 		Generate: project, RestartFiles: restartFiles, StopBeforeStart: true,
+		Debug:      *debug,
 		ExtraWatch: []string{filepath.Join(root, "native/skgo-native.json")},
 		WatchInputs: func() dev.WatchInputs {
 			inputs := worker.Inputs()

@@ -86,10 +86,11 @@ func TestObservationProjectionMatchesApplicationTypes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// The committed application runs Prettier, which removes optional quotes
-	// from identifier-shaped property names. Compare everything else exactly.
+	// Frontend formatting removes optional property quotes; the dev worker
+	// also writes valid unformatted declarations. Compare either form exactly
+	// after normalizing those optional quotes on both sides.
 	property := regexp.MustCompile(`(?m)^(  )"([a-z_]+)"(\??:)`)
-	if property.ReplaceAllString(string(actual), "$1$2$3") != string(expected) {
+	if property.ReplaceAllString(string(actual), "$1$2$3") != property.ReplaceAllString(string(expected), "$1$2$3") {
 		t.Fatal("public generation changed application observation declarations")
 	}
 	if !strings.Contains(string(actual), `"question_id": string`) || !strings.Contains(string(actual), `"unresolved": boolean`) {

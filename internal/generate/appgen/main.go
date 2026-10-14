@@ -68,9 +68,8 @@ func runWithSession(root string, cfg skgo.Config, session *goload.Session) error
 	if err := skgo.Run(cfg); err != nil {
 		return err
 	}
-	// SKGO prunes frontend artifacts it did not produce. Publish Gimbal's
-	// separately owned observation declarations afterward. Each generator checks
-	// its persistent result before asking the shared session for package work.
+	// Each producer owns its outputs and checks its persistent result before
+	// asking the invocation-scoped session for package work.
 	return observationOutput(filepath.Join(root, "internal/observation"), filepath.Join(root, "web/src/lib/observation"), session)
 }
 

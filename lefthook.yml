@@ -6,13 +6,7 @@
 
 pre-commit:
   jobs:
-    - name: staged-content-policy
-      run: bash scripts/check-staged-content.sh
-
-    - name: staged-whitespace
-      run: git diff --cached --check
-
-    # Read the index, never rewrite or stage working-tree files. No builds,
-    # repository-wide analysis, dependencies, or tests run during commit/push.
-    - name: staged-go-format
-      run: bash scripts/check-staged-format.sh
+    # Mandatory index checks precede uncached Go/frontend/release smoke tests.
+    # Slow smoke tests warn and stop; actual failures block. Never auto-stage.
+    - name: bounded-commit-checks
+      run: python3 -B scripts/pre-commit.py

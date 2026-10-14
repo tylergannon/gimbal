@@ -41,7 +41,7 @@ vet:
     go build -o bin/gimbal ./cmd/gimbal
     ./bin/gimbal lint ./...
 
-# Expensive checks belong in explicit validation and CI, never commit/push hooks.
+# Repository-wide checks belong in explicit validation and CI, not commit/push hooks.
 lint-go:
     golangci-lint run ./...
 
@@ -54,6 +54,15 @@ check-web:
 
 check-hooks:
     python3 -B -m unittest discover -s scripts -p 'staged_hook_test.py' -v
+    python3 -B -m unittest discover -s scripts -p 'fast_hook_test.py' -v
+
+# Identical uncached smoke tests, without the commit deadline. Warms build caches.
+warm-hook:
+    python3 -B scripts/pre-commit.py --warm
+
+# Advisory timing report; force the pack without staging changes.
+benchmark-hook:
+    python3 -B scripts/pre-commit.py --benchmark
 
 # Pre-release executable protocol/routing gate. Run just build first; reuse its CLI.
 check-cli-release:

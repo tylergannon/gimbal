@@ -93,8 +93,12 @@ archive's CLI before permitting publication.
 
 ## Automation
 
-`.github/workflows/auto-release.yml` checks each pushed main revision with the
-normal build, vet, test, formatting and Svelte gates. It moves Unreleased entries
+`.github/workflows/auto-release.yml` selects PR checks by changed paths. Docs run
+instruction/link checks; automation runs focused script/hook tests; application
+changes run affected unit tests. Non-documentation main changes run one complete
+build, analysis, test, formatting and Svelte gate before release. Main scope is
+compared with the latest published tag, so coalescing cannot hide undelivered
+application changes. Documentation-only changes do not publish an app. It moves Unreleased entries
 into the next patch changelog, records the checked source SHA, and atomically
 pushes the release metadata commit and tag. If main advanced during checks or
 push, that stale candidate is skipped; the newer push is checked instead.
@@ -148,8 +152,9 @@ To rotate without interrupting preparation:
 5. Delete temporary local private-key files. Apple signing, notarization and
    Sparkle credentials remain unchanged during this SSH-key rotation.
 
-SSH pushes trigger main workflows, so the check job skips bot-authored commits
-carrying `Release-Source:` metadata. PR and manual events still run checks.
+SSH pushes trigger main workflows. The scope selector compares delivered source
+with main, so the release metadata commit becomes a documentation-only change
+after publication and cannot trigger another app release. PR events run scoped checks; manual main retries use the same release gate.
 `release.yml` is dispatch-only: the preparation job selects **both** its ref and
 tag input as the newly created tag, preventing competing tag-push and explicit
 builds. For a deliberately created minor/major version tag, explicitly run
@@ -174,8 +179,8 @@ toolchain available on PATH.
 native target. Mac packaging requires signing credentials and never substitutes
 unsigned release assets. The workflow collects every required platform and Mac
 artifact before creating the GitHub Release and updating the dedicated
-`tylergannon/homebrew-gimbal` tap. Automation activation follows local signed
-qualification, not merely config validation.
+`tylergannon/homebrew-gimbal` tap. Signing qualification is needed when the distribution path changes; successful
+unchanged qualification is not repeated for every source merge.
 
 Release credentials belong in Doppler `gimbal/stg`:
 

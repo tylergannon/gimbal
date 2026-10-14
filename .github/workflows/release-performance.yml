@@ -1,0 +1,67 @@
+name: Release performance
+
+on:
+  workflow_run:
+    workflows: [Automatic release]
+    branches: [main]
+    types: [requested, completed]
+  schedule:
+    - cron: '*/5 * * * *'
+    - cron: '17 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+  issues: write
+
+# Serialize issue lookup/create, including the hook and release incident checks.
+concurrency:
+  group: release-performance
+  cancel-in-progress: false
+
+jobs:
+  observe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      # Always execute trusted main, never code/artifacts supplied by a PR run.
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Observe release timing and file advisory issues
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: python3 scripts/release_timing.py --scan --report /tmp/release-timing.json
+      - name: Set up Go for hourly hook timing
+        if: github.event_name == 'workflow_dispatch' || github.event.schedule == '17 * * * *'
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Set up Node for hourly hook timing
+        if: github.event_name == 'workflow_dispatch' || github.event.schedule == '17 * * * *'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Warm smoke-test compiler outside commit timing
+        if: github.event_name == 'workflow_dispatch' || github.event.schedule == '17 * * * *'
+        run: python3 scripts/pre-commit.py --warm
+      - name: Measure representative hook and file advisory issues
+        if: github.event_name == 'workflow_dispatch' || github.event.schedule == '17 * * * *'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          python3 scripts/pre-commit.py --benchmark --report /tmp/hook-timing.json
+          python3 scripts/release_timing.py --hook-report /tmp/hook-timing.json
+      - name: Retain timing measurements
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-timing
+          path: |
+            /tmp/release-timing.json
+            /tmp/hook-timing.json
+          if-no-files-found: warn
+          retention-days: 14

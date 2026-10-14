@@ -200,7 +200,7 @@ def ensure_issue(api, repo, result):
         *result['release_urls'], '',
         'Wall time includes queueing and retries. Parent tagging waits overlap the child pipeline; '
         'do not sum the stage table. Active critical-path time counts overlapping execution intervals once.',
-        'Linux amd64 job time includes full candidate qualification.',
+        'Source qualification overlaps platform packaging; Linux amd64 also checks its packaged candidate.',
         f"Active critical path: {result['active_critical_path_seconds']:.0f}s.",
         *rows])
     issue = api.create_issue(repo, f"Release timing exceeded: source {result['source_sha'][:12]}", body)

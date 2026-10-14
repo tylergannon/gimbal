@@ -9,4 +9,4 @@ pre-commit:
     # Mandatory index checks precede uncached Go/frontend/release smoke tests.
     # Slow smoke tests warn and stop; actual failures block. Never auto-stage.
     - name: bounded-commit-checks
-      run: python3 -B scripts/pre-commit.py
+      run: bash scripts/pre-commit.sh

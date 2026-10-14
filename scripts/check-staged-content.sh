@@ -33,7 +33,7 @@ for path in "${staged_paths[@]}"; do
 		[[ $path =~ (^|/)checkpoint\.json$ ]]; then
 		run_log_paths+=("$path")
 	elif [[ $path =~ ^ephemeral/ ]] && ! [[ $path =~ ^ephemeral/legacy/ ]] &&
-		[[ $path =~ \.(go|sh|py|ts|js|mjs|svelte)$ ]]; then
+		[[ $path =~ \.(go|sh|py|ts|mts|js|mjs|svelte)$ ]]; then
 		ephemeral_code_paths+=("$path")
 	fi
 

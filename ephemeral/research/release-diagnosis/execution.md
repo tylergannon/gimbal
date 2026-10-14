@@ -11,3 +11,10 @@ invocation/runtime instructions required by the migration.
 Implementation and validation observations are reported in chat and PRs. Raw API
 responses, downloads, command outputs and probe files stay outside Git. Reviews
 and actionable worklog notes remain here. No new public Gimbal API is requested.
+
+The observer-first checkpoint merged in PR #552. Its trusted-main observer and
+independent hourly job were subsequently observed to pass, with uploaded reports;
+recovery was verified before the remaining ports began. The second delivery
+replaces all remaining maintained Python helpers and updates invocation/runtime
+instructions. The release jobs explicitly poison Python lookup before maintained
+commands, so native runner execution verifies the new prerequisite boundary.

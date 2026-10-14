@@ -3,7 +3,7 @@
 // and web server publish their connection values through ENV_FILE. The agent
 // obtains its values by calling back into Gimbal from its consuming scope.
 //
-// The execution environment needs Docker, psql, Python 3, and access to the
+// The execution environment needs Docker, psql, Node, and access to the
 // postgres:17-alpine image. Services are stopped when their declaring scope ends.
 // The default devops-tasks model is gpt-5.6-luna; --devops-tasks overrides it.
 // Success means the database query, web response, and agent's fetched response
@@ -57,7 +57,7 @@ func ServiceCheck(ctx context.Context, env gimbal.Env, params Params) error {
 			return nil
 		})
 		group.Go("web", func(ctx context.Context) error {
-			code, _, _, err := gimbal.RunCommand(ctx, "fetch", env.WorkDir, "python3", "-c", consume)
+			code, _, _, err := gimbal.RunCommand(ctx, "fetch", env.WorkDir, "node", "--input-type=module", "-e", consume)
 			if err != nil {
 				return err
 			}
@@ -87,20 +87,24 @@ port=$(docker port "$name" 5432/tcp | sed 's/.*://')
 printf 'DATABASE_URL=postgresql://postgres:gimbal-check@127.0.0.1:%s/postgres\n' "$port" > "$ENV_FILE.tmp"
 mv "$ENV_FILE.tmp" "$ENV_FILE"
 wait "$pid"`
-const web = `exec python3 -c 'import http.server,os,subprocess,threading,signal
-class Handler(http.server.BaseHTTPRequestHandler):
- def do_GET(self):
-  body=subprocess.check_output(["psql","-X",os.environ["DATABASE_URL"],"-Atc","SELECT '\''GIMBAL_SERVICE_OK'\''"])
-  self.send_response(200);self.end_headers();self.wfile.write(body)
-server=http.server.ThreadingHTTPServer(("127.0.0.1",0),Handler)
-threading.Thread(target=server.serve_forever,daemon=True).start()
-with open(os.environ["ENV_FILE"]+".tmp","w") as f:f.write("WEB_URL=http://127.0.0.1:%d\n"%server.server_port)
-os.replace(os.environ["ENV_FILE"]+".tmp",os.environ["ENV_FILE"])
-signal.signal(signal.SIGINT,lambda *_:exit(0))
-signal.pause()'`
-const consume = `import os, urllib.request
-with urllib.request.urlopen(os.environ["WEB_URL"], timeout=5) as response:
- assert response.status == 200, response.status
- body = response.read().decode().strip()
-assert body == "GIMBAL_SERVICE_OK", body
-print("Command fetched database-backed service:", body)`
+const web = `exec node --input-type=module -e '
+import { createServer } from "node:http";
+import { execFile } from "node:child_process";
+import { writeFileSync, renameSync } from "node:fs";
+const server = createServer((request, response) => {
+ execFile("psql", ["-X", process.env.DATABASE_URL, "-Atc", "SELECT '\''GIMBAL_SERVICE_OK'\''"], (error, body) => {
+  response.writeHead(error ? 500 : 200);
+  response.end(error ? error.message : body);
+ });
+});
+process.once("SIGINT", () => server.close(() => process.exit(0)));
+server.listen(0, "127.0.0.1", () => {
+ const path = process.env.ENV_FILE;
+ writeFileSync(path + ".tmp", "WEB_URL=http://127.0.0.1:" + server.address().port + "\n");
+ renameSync(path + ".tmp", path);
+});'`
+const consume = `const response = await fetch(process.env.WEB_URL, { signal: AbortSignal.timeout(5000) });
+if (response.status !== 200) throw new Error("HTTP " + response.status);
+const body = (await response.text()).trim();
+if (body !== "GIMBAL_SERVICE_OK") throw new Error("Unexpected response: " + body);
+console.log("Command fetched database-backed service:", body);`

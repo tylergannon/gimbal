@@ -22,6 +22,11 @@ shipping. Actual correctness failures still need attention. `just warm-hook`
 prepares compiler caches outside the commit path. Generators, installation,
 repository-wide analysis and browser builds stay outside hooks.
 
+Source commit checks require Node >=24.13.0 to run the TypeScript coordinator
+directly. The Bash launcher keeps documentation-only mandatory index checks
+independent of Go and Node. `just check-hooks` exercises both paths; the launcher
+rejects unsupported Node versions for source changes rather than skipping checks.
+
 PR CI selects checks from changed files: instruction/link checks for docs,
 script/hook checks for automation, and affected unit tests for application
 changes. Main has one complete application gate before distribution. Do not

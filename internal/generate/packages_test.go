@@ -52,7 +52,7 @@ import("context";"github.com/tylergannon/gimbal")
 //go:noinline
 func Touch(ctx context.Context) { gimbal.Set(ctx,"helper","value") }
 `)
-	graph, err := Extract(dir, "Flow", "diagnostic")
+	graph, _, err := extractSource(dir, "Flow", "diagnostic", nil, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,7 +64,7 @@ func Touch(ctx context.Context) { gimbal.Set(ctx,"helper","value") }
 	loadSourceTypes = func(*packages.Config, ...string) ([]*packages.Package, error) {
 		return nil, fmt.Errorf("body-only diagnostic cache did not hit")
 	}
-	if _, err := Extract(dir, "Flow", "diagnostic"); err != nil {
+	if _, _, err := extractSource(dir, "Flow", "diagnostic", nil, true); err != nil {
 		t.Fatal(err)
 	}
 	loadSourceTypes = load
@@ -73,7 +73,7 @@ import "context"
 //go:noinline
 func Touch(ctx context.Context) {}
 `)
-	graph, err = Extract(dir, "Flow", "diagnostic")
+	graph, _, err = extractSource(dir, "Flow", "diagnostic", nil, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,7 +86,7 @@ import("context";"github.com/tylergannon/gimbal")
 //go:noinline
 func Other(ctx context.Context) { gimbal.Set(ctx,"other","value") }
 `)
-	graph, err = Extract(dir, "Flow", "diagnostic")
+	graph, _, err = extractSource(dir, "Flow", "diagnostic", nil, true)
 	if err != nil {
 		t.Fatal(err)
 	}

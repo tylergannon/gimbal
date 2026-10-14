@@ -30,14 +30,14 @@ require (
 	github.com/tiktoken-go/tokenizer v0.8.1
 	github.com/tylergannon/claude-agent-sdk-go v1.2.1
 	github.com/tylergannon/devalue/v5 v5.0.0
-	github.com/tylergannon/polytype v1.5.0
-	github.com/tylergannon/skgo v0.29.0
+	github.com/tylergannon/polytype v1.6.0
+	github.com/tylergannon/skgo v0.30.0
 	github.com/yuin/goldmark v1.7.13
-	golang.org/x/net v0.59.0
-	golang.org/x/sync v0.23.0
-	golang.org/x/sys v0.48.0
-	golang.org/x/text v0.42.0
-	golang.org/x/tools v0.51.0
+	golang.org/x/net v0.61.0
+	golang.org/x/sync v0.24.0
+	golang.org/x/sys v0.49.0
+	golang.org/x/text v0.43.0
+	golang.org/x/tools v0.52.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -85,9 +85,9 @@ require (
 	github.com/tylergannon/structtag v0.1.0 // indirect
 	github.com/vmware-labs/yaml-jsonpath v0.3.2 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
-	golang.org/x/mod v0.41.0 // indirect
-	golang.org/x/telemetry v0.0.0-20260924152758-ed294f943157 // indirect
-	golang.org/x/term v0.46.0 // indirect
+	golang.org/x/mod v0.42.0 // indirect
+	golang.org/x/telemetry v0.0.0-20261009151841-97e8ea77aa2a // indirect
+	golang.org/x/term v0.47.0 // indirect
 )
 
 tool (

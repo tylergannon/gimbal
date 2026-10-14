@@ -6,6 +6,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/tylergannon/skgo/generate"
 )
 
 // `go generate` and `skgo native build` both run `skgo generate`. The native
@@ -29,12 +31,12 @@ func TestNativeSelection(t *testing.T) {
 	}
 	var directive []string
 	for line := range strings.Lines(string(source)) {
-		if strings.HasPrefix(line, "//go:generate go tool skgo generate ") {
+		if strings.HasPrefix(line, "//go:generate go run ../generate/appgen generate ") {
 			directive = strings.Fields(line)
 		}
 	}
 	if directive == nil {
-		t.Fatal("config.go has no skgo generate directive")
+		t.Fatal("config.go has no appgen generate directive")
 	}
 	var remotes []string
 	for i, field := range directive {
@@ -47,5 +49,17 @@ func TestNativeSelection(t *testing.T) {
 	}
 	if !slices.Contains(directive, "--hook-package") {
 		t.Fatal("config.go does not pass --hook-package, which skgo native build always passes")
+	}
+}
+
+// The embedded generator keeps its selection readable by SKGO's native/dev
+// entry points, which discover hook and locals configuration from this file.
+func TestEmbeddedGeneratorDeclaration(t *testing.T) {
+	cfg, err := generate.DeclaredConfig(generate.Config{Out: "."})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.HookPackage != "github.com/tylergannon/gimbal/internal/serverhooks" || cfg.LocalsPackage != "github.com/tylergannon/gimbal/internal/app" {
+		t.Fatalf("embedded generation lost native/dev selections: %#v", cfg)
 	}
 }

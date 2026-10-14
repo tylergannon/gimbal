@@ -86,48 +86,66 @@ jobs:
           RELEASE_TARGET: ${{ matrix.target }}
           RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
         run: scripts/release-cli.sh "$RELEASE_TARGET"
-      # Test the versioned amd64 candidate in the same job that compiled it.
-      - uses: pnpm/action-setup@v4
-        if: matrix.target == 'linux_amd64'
-        with:
-          version: 12.10.1
-      - uses: actions/setup-node@v4
-        if: matrix.target == 'linux_amd64'
-        with:
-          node-version: 24
-          cache: pnpm
-          cache-dependency-path: web/pnpm-lock.yaml
-      - name: Prepare full qualification prerequisites
+      - name: Qualify the packaged amd64 binary
         if: matrix.target == 'linux_amd64'
         run: |
           mkdir -p bin
           tar -xzf dist/gimbal_*_linux_amd64.tar.gz -C bin
-          sudo apt-get update
-          sudo apt-get install --yes zsh
-          cd web
-          pnpm install --frozen-lockfile
-          pnpm exec playwright install --with-deps chromium
-      - uses: golangci/golangci-lint-action@v9.3.0
-        if: matrix.target == 'linux_amd64'
-        with:
-          version: v2.14.0
-          install-only: true
-      - name: Fully qualify the built release candidate
-        if: matrix.target == 'linux_amd64'
-        run: |
           just check-cli-release
-          just lint-go
-          go vet ./...
           ./bin/gimbal lint ./...
-          just test
-          just fmt-check
-          just check-web
       - uses: actions/upload-artifact@v4
         with:
           name: cli-${{ matrix.target }}
           path: dist/*.tar.gz
           if-no-files-found: error
           retention-days: 2
+
+  qualify:
+    name: Qualify release source
+    needs: prepare-inputs
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref_name }}
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-inputs
+          path: dist
+      - name: Restore exact-revision generated source and frontend
+        run: python3 scripts/release-assets.py restore dist/release-inputs.tar.gz
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          check-latest: true
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.10.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - uses: extractions/setup-just@v4
+      - name: Prepare full qualification prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes zsh
+          cd web
+          pnpm install --frozen-lockfile
+          pnpm exec playwright install --with-deps chromium
+      - uses: golangci/golangci-lint-action@v9.3.0
+        with:
+          version: v2.14.0
+          install-only: true
+      - name: Fully qualify release source alongside platform packaging
+        run: |
+          just lint-go
+          go vet ./...
+          just test
+          just fmt-check
+          just check-web
 
   macos-release:
     name: Signed and notarized macOS release assets
@@ -228,7 +246,7 @@ jobs:
 
   publish:
     name: Publish GitHub Release and Homebrew Casks
-    needs: [linux-cli, macos-release]
+    needs: [qualify, linux-cli, macos-release]
     runs-on: ubuntu-24.04
     environment: release
     permissions:

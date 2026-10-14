@@ -133,7 +133,8 @@ class ReleaseTimingTest(unittest.TestCase):
             job('Check release source', START, '2026-10-14T04:00:30Z', 'success')]
         self.fake.data['repos/example/project/actions/runs/2/jobs?filter=all&per_page=100']['jobs'] = [
             job('Prepare shared release inputs', '2026-10-14T04:01:00Z', '2026-10-14T04:02:00Z', 'success'),
-            job('CLI (linux_amd64)', '2026-10-14T04:02:00Z', '2026-10-14T04:06:00Z', 'success'),
+            job('Qualify release source', '2026-10-14T04:02:00Z', '2026-10-14T04:06:00Z', 'success'),
+            job('CLI (linux_amd64)', '2026-10-14T04:02:00Z', '2026-10-14T04:04:00Z', 'success'),
             job('Signed and notarized macOS release assets', '2026-10-14T04:02:00Z',
                 '2026-10-14T04:05:00Z', 'success')]
         result = self.measure(runs=[RELEASE_RUN])

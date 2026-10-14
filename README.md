@@ -348,10 +348,14 @@ Development builds omit DWARF data for faster linking. Use
 `go run ./internal/generate/appgen dev --debug` when attaching a debugger.
 Changes to the generator itself, its embedded defaults or its compiled workflow
 graph model require restarting the command; the browser reports that requirement.
+If startup repairs a compiled workflow codec, rerun `just dev` to compile that
+repair before the supervisor starts. A failed Go build retires the development
+application and shows its diagnostic until source is repaired.
 Source watching reflects code, not execution values.
 Installed builds use embedded workflow snapshots and need no source checkout or
 Go compiler to show these pages. `just dev-web` and `just dev-go` remain available
-for running the two processes separately.
+for running the two processes separately; `dev-go` does not regenerate or
+automatically rebuild after edits.
 
 `#lib` is a Node subpath import (`package.json` → `imports`), and TypeScript
 resolves those without probing for extensions: write `#lib/model.ts`, not

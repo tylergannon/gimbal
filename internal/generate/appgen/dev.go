@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"flag"
@@ -49,8 +50,13 @@ func development(args []string) error {
 	// ordinary startup regeneration; subsequent TS work belongs to its Worker.
 	initial := exec.CommandContext(ctx, "go", "tool", "polytype", "--typescript", "../web/src/lib/workflow")
 	initial.Dir = filepath.Join(root, "workflow")
-	if output, err := initial.CombinedOutput(); err != nil {
-		return fmt.Errorf("workflow generation: %w\n%s", err, output)
+	if err := regenerateCompiledWorkflow(filepath.Join(root, "workflow/polytype_gen.go"), func() error {
+		if output, err := initial.CombinedOutput(); err != nil {
+			return fmt.Errorf("workflow generation: %w\n%s", err, output)
+		}
+		return nil
+	}); err != nil {
+		return err
 	}
 	var workflow codegen.Worker
 	defer func() { _ = workflow.Close() }()
@@ -140,6 +146,26 @@ func development(args []string) error {
 			return dev.WatchInputs{Roots: inputs.Roots, Files: inputs.Files, EmbedPatterns: inputs.EmbedPatterns}
 		},
 	})
+}
+
+// Startup generation can repair a codec compiled into this process. Never
+// fingerprint the repaired source and then keep executing its old compiled form.
+func regenerateCompiledWorkflow(path string, regenerate func() error) error {
+	before, err := os.ReadFile(path)
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	if err := regenerate(); err != nil {
+		return err
+	}
+	after, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	if !bytes.Equal(before, after) {
+		return fmt.Errorf("workflow codecs changed during startup; restart just dev to compile the regenerated %s", path)
+	}
+	return nil
 }
 
 func developmentGeneration(root string) (skgo.Config, error) {

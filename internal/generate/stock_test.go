@@ -66,6 +66,14 @@ func TestStockRecoversMissingAndStaleOutput(t *testing.T) {
 			expectedOutputs[path] = expected
 		}
 	}
+	for _, name := range []string{"registry_gen.go", "registry_projection_gen.go"} {
+		path := filepath.Join(root, "internal", "invocation", name)
+		expected, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		expectedOutputs[path] = expected
+	}
 	firstForm, err := os.ReadFile(form)
 	if err != nil {
 		t.Fatal(err)

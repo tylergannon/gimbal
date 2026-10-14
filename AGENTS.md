@@ -70,9 +70,16 @@ source, and prompts are plain English: "Read and implement the issue in
 ## Working here
 
 - Commit, and push, whenever something interesting has happened.
-- Keep commit/push hooks within 5–10 seconds: staged-content, whitespace, and
-  staged-file formatting only. Run repository-wide analysis, tests, and browser
-  checks explicitly or in CI, never as a commit/push side effect.
+- Commit hooks have a three-second feedback budget: staged-content, whitespace,
+  staged Go formatting, and uncached smoke tests for model aliases, environment
+  files, session state, Pi model codecs, frontend URL state, and release dispatch.
+  Documentation-only commits run index checks. Hooks never rewrite or auto-stage.
+- A cold/slow smoke check stops and prints `** *** took way too long please fix me *** **`;
+  it does not reject a commit merely for elapsed time. Unfinished checks are not
+  passes; run `just warm-hook` outside the hook and let CI validate them.
+  Actual failures and mandatory index/content checks still block commits.
+  Smoke-test inputs must match the index. Run broader affected tests, analysis,
+  generators, builds, and browser proof explicitly or in CI; never in push hooks.
 - Live runs you start to see something work use the cheapest models:
   Codex `gpt-5.6-luna`, Claude Haiku, Gemini flash. Say which model a run
   used.

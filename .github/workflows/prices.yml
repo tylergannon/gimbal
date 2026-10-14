@@ -83,6 +83,6 @@ jobs:
 
           Before merging, inspect added and removed model IDs. Review the built-in role defaults in `internal/builtin/defaults.json` and other configured defaults, help, and skills: they name explicit models and do not follow an alias. Preserve each role's intended model tier. Do not add assertions that pin a moving shorthand to one version.
 
-          Follow the model-catalog review in `skills/gimbal-release/SKILL.md`. Publish a release only after the complete model change is merged and checked; build and install from checkouts of the published commit before tagging and exact tag afterward, each with its web listener running.
+          Follow `skills/gimbal-release/references/model-catalog.md` for model review, then the normal Automatic release pipeline after merge. Verify the published version and updater feed; do not repeat unchanged builds at commit, merge, or tag milestones.
           EOF
           gh pr create --base main --head "$branch" --title "Refresh models.dev catalog and review model defaults" --body-file /tmp/model-catalog-pr.md

@@ -9,7 +9,6 @@ on:
 permissions:
   contents: read
 
-# Keep publication ordered. Pending pushes coalesce into the latest main revision.
 concurrency:
   group: automatic-release-${{ github.event_name == 'pull_request' && github.event.pull_request.number || 'main' }}
   cancel-in-progress: false
@@ -17,47 +16,84 @@ concurrency:
 jobs:
   check:
     name: Check release source
-    # The preparation key triggers pushes; its changelog-only commit is already checked.
-    if: >-
-      github.event_name != 'push' ||
-      github.event.head_commit.author.name != 'github-actions[bot]' ||
-      !contains(github.event.head_commit.message, 'Release-Source: ')
     runs-on: ubuntu-24.04
+    outputs:
+      release: ${{ steps.scope.outputs.release }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Select validation scope
+        id: scope
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          if [ "$EVENT" = pull_request ]; then
+            base="$PR_BASE"
+          else
+            # Compare with delivered code, so coalesced pushes cannot hide changes.
+            base="$(gh api "repos/$REPOSITORY/releases/latest" --jq .tag_name)"
+          fi
+          python3 scripts/ci_scope.py --base "$base" >> "$GITHUB_OUTPUT"
+      - name: Check instruction links
+        run: python3 scripts/ci_scope.py --check-links
       - uses: actions/setup-go@v5
+        if: steps.scope.outputs.release == 'true'
         with:
           go-version-file: go.mod
           check-latest: true
+      - name: Check release automation and hooks
+        if: steps.scope.outputs.release == 'true'
+        run: python3 -B -m unittest discover -s scripts -p '*_test.py' -v
+      - name: Check affected Go packages on PRs
+        if: github.event_name == 'pull_request' && steps.scope.outputs.go_packages != '[]'
+        run: python3 scripts/ci_scope.py --run-go
       - uses: pnpm/action-setup@v4
+        if: steps.scope.outputs.release == 'true' && (github.event_name != 'pull_request' || steps.scope.outputs.web == 'true')
         with:
           version: 12.10.1
       - uses: actions/setup-node@v4
+        if: steps.scope.outputs.release == 'true' && (github.event_name != 'pull_request' || steps.scope.outputs.web == 'true')
         with:
           node-version: 24
           cache: pnpm
           cache-dependency-path: web/pnpm-lock.yaml
+      - name: Prepare affected frontend tests
+        if: github.event_name == 'pull_request' && steps.scope.outputs.web == 'true'
+        run: |
+          cd web
+          pnpm install --frozen-lockfile
+          pnpm exec playwright install --with-deps chromium
+      - name: Check frontend units on PRs
+        if: github.event_name == 'pull_request' && steps.scope.outputs.web == 'true'
+        run: cd web && pnpm test
       - uses: extractions/setup-just@v4
+        if: github.event_name != 'pull_request' && steps.scope.outputs.release == 'true'
       - name: Install workflow runtime shell
+        if: github.event_name != 'pull_request' && steps.scope.outputs.release == 'true'
         run: |
           sudo apt-get update
           sudo apt-get install --yes zsh
-      - name: Check release automation
-        run: python3 -m unittest discover -s scripts -p '*release_test.py' -v
-      - name: Check staged-file hooks
-        run: just check-hooks
       - name: Build application
+        if: github.event_name != 'pull_request' && steps.scope.outputs.release == 'true'
         run: just build
       - name: Check built CLI protocols and argument routing
+        if: github.event_name != 'pull_request' && steps.scope.outputs.release == 'true'
         run: just check-cli-release
       - name: Install browser test runtime
+        if: github.event_name != 'pull_request' && steps.scope.outputs.release == 'true'
         run: cd web && pnpm exec playwright install --with-deps chromium
       - name: Install Go analysis tool
+        if: github.event_name != 'pull_request' && steps.scope.outputs.release == 'true'
         uses: golangci/golangci-lint-action@v9.3.0
         with:
           version: v2.14.0
           install-only: true
-      - name: Check application
+      - name: Check application once before release
+        if: github.event_name != 'pull_request' && steps.scope.outputs.release == 'true'
         run: |
           just lint-go
           just vet
@@ -68,7 +104,7 @@ jobs:
   release:
     name: Tag and publish checked source
     needs: check
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    if: needs.check.outputs.release == 'true' && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 130
     environment: release-preparation

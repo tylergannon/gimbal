@@ -13,7 +13,7 @@ observable and steerable. Choose the part that matches your task.
 | Sub-skill | Contents |
 | --- | --- |
 | [Author workflows](../gimbal-workflows/SKILL.md) | Outcomes and proof; workflow structure; roles; context and handoffs; adaptive planning; supervision; validation and completion; CLI documentation. |
-| [Build and release Gimbal](../gimbal-release/SKILL.md) | Development priorities; scope and review; build and generation; checks and live proof; merge; local installation; refresh skills and plugins. |
+| [Build and release Gimbal](../gimbal-release/SKILL.md) | Fast development feedback; scoped checks and live proof; automated delivery and timing; release recovery; requested local installation. |
 | [Use Gimbal](../gimbal-runs/SKILL.md) | Choose a workflow; supply goals and inputs; promises and planning terminology; launch; observe; steer; assess results. |
 
 Read the relevant sub-skill rather than loading all three. Consult Godoc for

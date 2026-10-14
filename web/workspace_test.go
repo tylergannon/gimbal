@@ -90,10 +90,24 @@ func TestRecordingNativeCommandsSurviveInstanceReplacement(t *testing.T) {
 		}
 	}
 	for n := range 31 {
-		call("openSession", map[string]any{"project": id, "sessionID": fmt.Sprintf("history-%02d", n), "source": "synthetic"})
+		call("openSession", map[string]any{"project": id, "sessionID": fmt.Sprintf("history-%02d", n), "source": "synthetic", "requirements": false})
 		call("closeSession", map[string]any{"project": id, "sessionID": fmt.Sprintf("history-%02d", n), "sequence": 0})
 	}
-	call("openSession", map[string]any{"project": id, "sessionID": "active", "source": "synthetic"})
+	call("markRequirements", map[string]any{"project": id, "id": "history-00"})
+	marked, err := owner.Recordings().Get("history-00")
+	if err != nil || !marked.Requirements {
+		t.Fatalf("mark remote did not persist requirements: %+v %v", marked, err)
+	}
+	call("openSession", map[string]any{"project": id, "sessionID": "requirements", "source": "synthetic", "requirements": true})
+	requirements, err := owner.Recordings().Get("requirements")
+	if err != nil || !requirements.Requirements {
+		t.Fatalf("requirements Open lost flag: %+v %v", requirements, err)
+	}
+	call("openSession", map[string]any{"project": id, "sessionID": "active", "source": "synthetic", "requirements": false})
+	ordinary, err := owner.Recordings().Get("active")
+	if err != nil || ordinary.Requirements {
+		t.Fatalf("ordinary Open unexpectedly marked: %+v %v", ordinary, err)
+	}
 	call("activateSession", map[string]any{"project": id, "sessionID": "active"})
 	update := map[string]any{"project": id, "sessionID": "active", "sequence": 1, "finalized": []any{}, "provisional": []any{map[string]any{"startMs": 0, "endMs": 500, "text": "incorrect"}}}
 	call("acceptTranscript", update)
@@ -122,7 +136,7 @@ func TestRecordingNativeCommandsSurviveInstanceReplacement(t *testing.T) {
 	}
 	first := owner.Recordings().List("")
 	second := owner.Recordings().List(first.Next)
-	if len(first.Items) != 25 || len(second.Items) != 7 {
+	if len(first.Items) != 25 || len(second.Items) != 8 {
 		t.Fatalf("history pages: %d %d", len(first.Items), len(second.Items))
 	}
 }

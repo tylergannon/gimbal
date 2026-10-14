@@ -5,6 +5,7 @@ package workspace
 import (
 	host "github.com/tylergannon/gimbal/internal/host"
 	projectfiles "github.com/tylergannon/gimbal/internal/projectfiles"
+	promises "github.com/tylergannon/gimbal/internal/promises"
 	transcript "github.com/tylergannon/gimbal/internal/transcript"
 )
 
@@ -20,6 +21,8 @@ var (
 	Skgo_activateSession = activateSession
 	// Skgo_closeSession is closeSession, published as src/lib/transcript.remote.ts#closeSession.
 	Skgo_closeSession = closeSession
+	// Skgo_markRequirements is markRequirements, published as src/lib/transcript.remote.ts#markRequirements.
+	Skgo_markRequirements = markRequirements
 	// Skgo_openSession is openSession, published as src/lib/transcript.remote.ts#openSession.
 	Skgo_openSession = openSession
 	// Skgo_recordingHistory is recordingHistory, published as src/lib/transcript.remote.ts#recordingHistory.
@@ -38,10 +41,14 @@ var (
 	Skgo_projectFiles = projectFiles
 	// Skgo_reorderProjects is reorderProjects, published as src/lib/workspace.remote.ts#reorderProjects.
 	Skgo_reorderProjects = reorderProjects
+	// Skgo_setPromiseWithdrawn is setPromiseWithdrawn, published as src/lib/workspace.remote.ts#setPromiseWithdrawn.
+	Skgo_setPromiseWithdrawn = setPromiseWithdrawn
 	// Skgo_uploadFile is uploadFile, published as src/lib/workspace.remote.ts#uploadFile.
 	Skgo_uploadFile = uploadFile
 	// Skgo_viewFile is viewFile, published as src/lib/workspace.remote.ts#viewFile.
 	Skgo_viewFile = viewFile
+	// Skgo_watchPromises is watchPromises, published as src/lib/workspace.remote.ts#watchPromises.
+	Skgo_watchPromises = watchPromises
 )
 
 type (
@@ -55,4 +62,6 @@ type (
 	SkgoArg_uploadFile = Upload
 	// SkgoOut_uploadFile is the type uploadFile returns.
 	SkgoOut_uploadFile = projectfiles.Document
+	// SkgoOut_watchPromises is the type watchPromises yields.
+	SkgoOut_watchPromises = promises.View
 )

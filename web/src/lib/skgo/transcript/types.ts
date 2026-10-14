@@ -12,11 +12,6 @@ export type CloseRequest = {
   sequence: number;
 };
 
-export type History = {
-  items: Array<Header>;
-  next: string;
-};
-
 export type Header = {
   id: string;
   source: string;
@@ -24,12 +19,22 @@ export type Header = {
   updated: number;
   sequence: number;
   status: string;
+  requirements: boolean;
+};
+
+export type History = {
+  items: Array<Header>;
+  next: string;
 };
 
 export type OpenRequest = {
   project: string;
   sessionID: string;
   source: string;
+  /**
+   * Requirements marks finalized speech that feeds the project's promises ledger.
+   */
+  requirements: boolean;
 };
 
 /**
@@ -42,6 +47,7 @@ export type Recording = {
   updated: number;
   sequence: number;
   status: string;
+  requirements: boolean;
   finalized: Array<Chunk>;
   provisional: Array<Chunk>;
   last: string;

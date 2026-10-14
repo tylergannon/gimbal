@@ -34,6 +34,12 @@ export type ProjectOrder = {
   ids: Array<string>;
 };
 
+export type PromiseRequest = {
+  project: string;
+  id: number;
+  withdrawn: boolean;
+};
+
 export type RecordingRequest = {
   project: string;
   id: string;

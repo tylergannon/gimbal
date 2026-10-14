@@ -18,6 +18,7 @@
   import NewSession from '../conversation/NewSession.svelte';
   import RecordingTranscript from './RecordingTranscript.svelte';
   import FileViewer from './FileViewer.svelte';
+  import PromiseLedger from './PromiseLedger.svelte';
   import { nativeMessage, type NativeStatus } from './native';
   import { conversationsForWorkspace } from './conversations';
   import OpenFolder from './OpenFolder.svelte';
@@ -28,7 +29,9 @@
   const root = $derived(`/projects/${project}`);
   const chats = $derived(projectConversations(project));
   const documents = $derived(projectFiles(project));
-  const recordings = $derived(recordingHistory({ project, after: '' }));
+  let after = $state('');
+  const recordings = $derived(recordingHistory({ project, after }));
+  const newest = $derived(recordingHistory({ project, after: '' }));
   const routeConversations = $derived((page.data as { items?: Conversation[]; selected?: Conversation }).items?.filter(item => typeof item.provider === 'string') ?? []);
   const routeSelected = $derived((page.data as { selected?: Conversation }).selected);
   const conversations = $derived(conversationsForWorkspace(chats.current ?? [], routeConversations, routeSelected));
@@ -40,6 +43,7 @@
     ? { id: `${initialPath.split("/").slice(0, 3).join("/")}/conversations/${initialConversation.id}`, title: initialConversation.title, kind: 'chat' }
     : page.params.fileID ? { id: initialPath, title: 'Project file', kind: 'file' }
     : page.params.recordingID ? { id: initialPath, title: 'Recorded conversation', kind: 'chat' }
+    : initialPath.endsWith('/promises') ? { id: initialPath, title: 'Promises', kind: 'file' }
     : initialPath.endsWith('/conversations/new') ? { id: initialPath, title: 'New session', kind: 'chat' } : undefined;
   const upload = $derived(uploadFile.for(project));
   // Keyed by project, so the desktop window's last tabs seed this mount only.
@@ -68,6 +72,7 @@
     const recordingID = page.params.recordingID;
     const tab = item ?? (path === `${root}/conversations/new`
       ? { id: path, title: 'New session', kind: 'chat' as const }
+      : path === `${root}/promises` ? { id: path, title: 'Promises', kind: 'file' as const }
       : page.params.fileID ? { id: path, title: files.find(file => file.id === page.params.fileID)?.name ?? 'Project file', kind: 'file' as const }
       : recordingID ? { id: path, title: 'Recorded conversation', kind: 'chat' as const } : undefined);
     // A conversation started from the New conversation tab takes over that tab.
@@ -79,7 +84,7 @@
   let actionError = $state("");
   let fileChooser = $state(false);
   let projectChooser = $state(false);
-  const todayRecording = $derived(history.items.find(item => new Date(item.created).toDateString() === new Date().toDateString()));
+  const todayRecording = $derived(newest.current?.items.find(item => new Date(item.created).toDateString() === new Date().toDateString()));
   let started: string | undefined;
   function updated(conversation: Conversation) { chats.set([conversation, ...conversations.filter(item => item.id !== conversation.id)]); }
   function created(conversation: Conversation) {
@@ -133,7 +138,7 @@
     return () => clearInterval(timer);
   });
   $effect(() => {
-    for (const query of [chats, documents, recordings]) {
+    for (const query of [chats, documents, recordings, newest]) {
       if (query.error) void query.catch(navigateOnUnauthorized);
     }
   });
@@ -144,6 +149,7 @@
     const timer = setInterval(() => {
       status = window.voiceNotesLatestStatus;
       void recordingHistory({ project, after: '' }).refresh().catch(navigateOnUnauthorized);
+      if (after) void recordingHistory({ project, after }).refresh().catch(navigateOnUnauthorized);
     }, 5000);
     return () => { window.removeEventListener("gimbal-workspace-command", command); clearInterval(timer); if (native) nativeMessage('workspaceState', { ready: false, sidebarVisible: false, tabCount: 0 }); };
   });
@@ -158,6 +164,7 @@
         {@const current = conversations.find(item => `${root}/conversations/${item.id}` === tab.id)}
         {#if current}<ConversationView {project} {current} active={active === tab.id} onstate={updated} />{:else}<p class="notice">Conversation unavailable.</p>{/if}
       {:else if tab.id.startsWith(`${root}/files/`)}<FileViewer {project} id={tab.id.split('/').at(-1)!} />
+      {:else if tab.id === `${root}/promises`}<PromiseLedger {project} recordings={history.items} />
       {:else}<RecordingTranscript {project} id={tab.id.split('/').at(-1)!} />{/if}
       {#snippet failed(error, reset)}<p class="notice" role="alert">Could not load this view. <button onclick={reset}>Retry</button></p>{/snippet}
     </svelte:boundary>
@@ -175,7 +182,8 @@
     <h2 class="group">Recordings</h2>
     {#each history.items as item (item.id)}<a class="row" class:selected={page.params.recordingID === item.id} href={`${root}/recordings/${item.id}`}><span>◉</span><span>{new Date(item.created).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} · {new Date(item.created).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}</span><small>{item.status}</small></a>{:else}<p class="quiet">No recordings yet</p>{/each}
     <details class="upload"><summary>Add project file</summary><form {...upload.enhance(async (submitted) => { try { if (await submitted.submit().updates(projectFiles(project)) && submitted.result) { documents.set([submitted.result, ...files.filter(file => file.id !== submitted.result!.id)]); select(`${root}/files/${submitted.result.id}`); } } catch (error) { if (!navigateOnUnauthorized(error)) actionError = errorMessage(error); } })}><input {...upload.fields.project.as('hidden', project)} /><input aria-label="Choose project file" {...upload.fields.file.as('file')} required /><button disabled={!!upload.pending}>{upload.pending ? 'Uploading…' : 'Upload'}</button>{#each upload.fields.allIssues() ?? [] as issue}<p role="alert">{issue.message}</p>{/each}</form></details>
-    <nav class="tools" aria-label="Project tools"><a href={root}>Runs</a><a href="/workflows">Workflows</a><a href={`${root}/about`}>About project</a></nav>
+    <div class="pager">{#if after}<button onclick={() => after = ''}>Newest</button>{/if}{#if history.next}<button onclick={() => after = history.next}>Older recordings</button>{/if}</div>
+    <nav class="tools" aria-label="Project tools"><a href={root}>Runs</a><a href={`${root}/promises`}>Promises</a><a href="/workflows">Workflows</a><a href={`${root}/about`}>About project</a></nav>
     <details class="projects"><summary>Switch project</summary>{#each projects as item (item.id)}<a class="row" href={`/projects/${item.id}/recordings`}>{item.path.split('/').at(-1)}</a>{/each}{#if native}<OpenFolder class="hover:bg-sidebar-accent flex min-h-8 w-full items-center rounded-lg px-2.5 text-xs">Add project</OpenFolder>{:else}<a class="row" href="/">Add project</a>{/if}</details>
   {/snippet}
 </WorkspaceShell>
@@ -208,6 +216,9 @@
   .row.selected, .row:hover { background: var(--sidebar-accent); }
   .row small { margin-left: auto; color: var(--muted-foreground); font-size: 10px; }
   .quiet { padding: 0 10px; color: var(--muted-foreground); font-size: 12px; }
+  .pager { display: flex; gap: 12px; padding: 0 10px; }
+  .pager button { padding: 4px 0; border: 0; background: transparent; color: var(--muted-foreground); font: inherit; font-size: 12px; cursor: pointer; }
+  .pager button:hover { color: var(--foreground); }
   .tools { display: grid; gap: 8px; border-top: 1px solid var(--border); padding: 14px 10px; margin-top: 18px; }
   .tools a { color: var(--muted-foreground); text-decoration: none; font-size: 13px; }
   .tools a:hover { color: var(--foreground); }

@@ -16,7 +16,7 @@ import ScriptedTranscription
     private var sequence = 0
     private var closed = false
     var text: String { (finals + tail).map(\.text).joined() }
-    func open(sessionID: String, source: String) async throws {
+    func open(sessionID: String, source: String, requirements: Bool) async throws {
         precondition(source == "synthetic")
         self.sessionID = sessionID
     }

@@ -20,7 +20,7 @@ import SKGoNative
       ack.closed == closed
     else { throw RecorderError.message("Recording session acknowledgement did not match.") }
   }
-  func open(sessionID: String, source: String) async throws {
+  func open(sessionID: String, source: String, requirements: Bool) async throws {
     if recordingProject.isEmpty || sessionID != activeSession {
       recordingProject = selectedProject
       activeSession = sessionID
@@ -30,7 +30,7 @@ import SKGoNative
     }
     try validate(
       try await api.openSession(
-        OpenRequest(project: recordingProject, sessionID: sessionID, source: source)),
+        OpenRequest(project: recordingProject, sessionID: sessionID, source: source, requirements: requirements)),
       sessionID: sessionID, sequence: 0, closed: false)
   }
   func activate(sessionID: String) async throws {

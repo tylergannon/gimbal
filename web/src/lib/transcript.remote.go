@@ -111,11 +111,20 @@ func watchRecording(ctx context.Context, r RecordingRequest, yield func(transcri
 	}
 }
 
+func markRequirements(ctx context.Context, event app.RequestEvent[params.Params], r RecordingRequest) (transcript.Header, error) {
+	s, e := store(ctx, r.Project)
+	if e != nil {
+		return transcript.Header{}, e
+	}
+	return s.MarkRequirements(r.ID)
+}
+
 var _ = skgo.Command(openSession)
 var _ = skgo.Command(acceptTranscript)
 var _ = skgo.Command(activateSession)
 var _ = skgo.Command(closeSession)
 var _ = skgo.Command(abortSession)
 var _ = skgo.Command(touchSession)
+var _ = skgo.Command(markRequirements)
 var _ = skgo.Query(recordingHistory)
 var _ = skgo.LiveQuery(watchRecording)

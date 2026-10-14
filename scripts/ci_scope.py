@@ -28,6 +28,19 @@ def plan(paths):
             "web": any(path.startswith("web/") for path in relevant)}
 
 
+def needs_web_assets(packages, root):
+    if not packages:
+        return False
+    # Include test-only imports: a package can exercise the real web server
+    # without importing it in production. -e allows the absent embed output.
+    imports = subprocess.check_output(
+        ["go", "list", "-deps", "-test", "-e", "-f", "{{.ImportPath}}", *packages],
+        cwd=root, text=True,
+    )
+    return any(line.split()[0] == "github.com/tylergannon/gimbal/web"
+               for line in imports.splitlines() if line.strip())
+
+
 def check_skill_links(root):
     for source in (root / "skills").rglob("*.md"):
         for target in re.findall(r"\]\(([^)]+)\)", source.read_text()):
@@ -45,11 +58,16 @@ def main():
     parser.add_argument("--head", default="HEAD")
     parser.add_argument("--plan", default="/tmp/gimbal-ci-scope.json")
     parser.add_argument("--run-go", action="store_true")
+    parser.add_argument("--go-prerequisites", action="store_true")
     parser.add_argument("--check-links", action="store_true")
     args = parser.parse_args()
     root = pathlib.Path.cwd()
     if args.check_links:
         check_skill_links(root)
+    elif args.go_prerequisites:
+        packages = json.loads(pathlib.Path(args.plan).read_text())["go_packages"]
+        packages = [p for p in packages if p == "./..." or pathlib.Path(p).is_dir()]
+        print(f"web_assets={str(needs_web_assets(packages, root)).lower()}")
     elif args.run_go:
         packages = json.loads(pathlib.Path(args.plan).read_text())["go_packages"]
         # Deleted packages have no tests left to run. Main still checks the whole app.

@@ -48,19 +48,35 @@ jobs:
       - name: Check release automation and hooks
         if: steps.scope.outputs.release == 'true'
         run: python3 -B -m unittest discover -s scripts -p '*_test.py' -v
-      - name: Check affected Go packages on PRs
+      - name: Select Go test prerequisites
+        id: prerequisites
         if: github.event_name == 'pull_request' && steps.scope.outputs.go_packages != '[]'
-        run: python3 scripts/ci_scope.py --run-go
+        run: python3 scripts/ci_scope.py --go-prerequisites >> "$GITHUB_OUTPUT"
       - uses: pnpm/action-setup@v4
-        if: steps.scope.outputs.release == 'true' && (github.event_name != 'pull_request' || steps.scope.outputs.web == 'true')
+        if: steps.scope.outputs.release == 'true' && (github.event_name != 'pull_request' || steps.scope.outputs.web == 'true' || steps.prerequisites.outputs.web_assets == 'true')
         with:
           version: 12.10.1
       - uses: actions/setup-node@v4
-        if: steps.scope.outputs.release == 'true' && (github.event_name != 'pull_request' || steps.scope.outputs.web == 'true')
+        if: steps.scope.outputs.release == 'true' && (github.event_name != 'pull_request' || steps.scope.outputs.web == 'true' || steps.prerequisites.outputs.web_assets == 'true')
         with:
           node-version: 24
           cache: pnpm
           cache-dependency-path: web/pnpm-lock.yaml
+      - name: Build assets consumed by affected Go tests
+        if: github.event_name == 'pull_request' && steps.prerequisites.outputs.web_assets == 'true'
+        run: |
+          cd web
+          pnpm install --frozen-lockfile
+          pnpm exec vp build
+          test -s build/skgo.manifest.json
+      - name: Install workflow runtime shell for affected Go tests
+        if: github.event_name == 'pull_request' && steps.scope.outputs.go_packages != '[]'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes zsh
+      - name: Check affected Go packages on PRs
+        if: github.event_name == 'pull_request' && steps.scope.outputs.go_packages != '[]'
+        run: python3 scripts/ci_scope.py --run-go
       - name: Prepare affected frontend tests
         if: github.event_name == 'pull_request' && steps.scope.outputs.web == 'true'
         run: |

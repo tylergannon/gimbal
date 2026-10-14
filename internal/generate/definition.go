@@ -104,23 +104,16 @@ func Definition(dir, entry, name string, defaults map[string]string) error {
 	if err := tool.Run(); err != nil {
 		return fmt.Errorf("generate: go tool polytype --validate in %s: %w (declare the Polytype tool at the host's pinned version in go.mod)", dir, err)
 	}
-	inspection := &inspectionData{}
 	overlay := map[string][]byte{file: []byte("package " + pkg + "\n"), filepath.Join(dir, "workflow_gen.go"): []byte("package " + pkg + "\n")}
-	loaded, err := loadSource(dir, overlay, ".")
+	result, err := analyzeOne(dir, entry, name, overlay, true, true)
 	if err != nil {
 		return err
 	}
-	if len(loaded.roots) != 1 {
-		return fmt.Errorf("generate: %s holds %d packages", dir, len(loaded.roots))
-	}
-	graph, info, err := extractLoaded(loaded.roots[0], loaded.imports, entry, name, true, inspection)
-	if err != nil {
-		return err
-	}
+	graph, info := result.Graph, result.Entry.entryInfo()
 	if err = check(info, graph); err != nil {
 		return err
 	}
-	page, err := pageGuide(inspectGraph(graph, entry, inspection), info, graph.Roles(), defaults)
+	page, err := pageGuide(result.Page, info, graph.Roles(), defaults)
 	if err != nil {
 		return err
 	}
@@ -135,11 +128,6 @@ func Definition(dir, entry, name string, defaults map[string]string) error {
 		return fmt.Errorf("generate definition: %w", err)
 	}
 	if err = os.WriteFile(file, formatted, 0644); err != nil {
-		return err
-	}
-	// Inspector graphs include private ordered service markers; persist the ordinary runtime graph.
-	graph, _, err = extractLoaded(loaded.roots[0], loaded.imports, entry, name, true, nil)
-	if err != nil {
 		return err
 	}
 	return sourceGraph(dir, entry, graph, pkg)

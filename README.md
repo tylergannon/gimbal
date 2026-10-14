@@ -218,8 +218,23 @@ a role the catalog does not provide.
 `go generate ./...` regenerates workflow graphs, the stock JSON input adapters and
 CLI commands selected in `internal/builtin/workflows.go`, and the SKGO browser
 and Go bindings. `internal/generate/gimbalgen` emits workflow graph metadata;
-`internal/generate/stockgen` emits the built-in start entrypoints from one
-selection.
+`internal/generate/appgen` composes the built-in start entrypoints, SKGO bindings,
+and observation types. Each producer checks its persistent cache first. On misses,
+appgen passes one invocation-scoped package session to share compatible parsed
+source and types lazily; different build tags or source overlays remain separate.
+
+Workflow generation reuses Gimbal's extracted graph, command metadata, and
+inspection page across processes. Direct `generate.Extract` calls return a fresh
+Go graph, including its nil distinctions. Generation still asks Go to select current files and
+compiler exports; authored source, comments, dependency imports, build settings,
+and the generator executable determine reuse. Cache files live under the OS user
+cache directory in `gimbal/generate`. Set `GIMBAL_GENERATE_CACHE=off` to bypass
+them, or `GIMBAL_GENERATE_CACHE_DIR` to select a private cache directory. Unsupported
+source loaders and compiler-generated root syntax use ordinary generation.
+Missing, stale, or broken generator-owned output is disposable and regenerated;
+the cache does not make an old generated declaration authoritative. Authored
+output safeguards still apply. Polytype schemas and SKGO bindings remain their
+respective generators' work.
 
 The generated file registers the workflow graph under the run's workflow name.
 Each run saves that graph with its own state. A later daemon build reads the saved

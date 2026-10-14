@@ -9,10 +9,11 @@ import (
 	"path/filepath"
 
 	"github.com/tylergannon/gimbal/internal/generate"
-	"github.com/tylergannon/polytype/grammar"
-	"github.com/tylergannon/polytype/typescript"
+	"github.com/tylergannon/gimbal/internal/observation"
+	"github.com/tylergannon/polytype"
+	"github.com/tylergannon/polytype/codegen"
+	"github.com/tylergannon/polytype/goload"
 	skgo "github.com/tylergannon/skgo/generate"
-	"golang.org/x/tools/go/packages"
 )
 
 type remotes []string
@@ -49,71 +50,32 @@ func main() {
 }
 
 func run(root string, cfg skgo.Config) error {
-	// Stock changes authored route inputs, so publish it before taking a snapshot.
-	if err := generate.Stock(root); err != nil {
+	var session goload.Session
+	return runWithSession(root, cfg, &session)
+}
+
+func runWithSession(root string, cfg skgo.Config, session *goload.Session) error {
+	// Stock publishes authored route inputs before SKGO selects its source.
+	if err := generate.Stock(root, session); err != nil {
 		return err
 	}
-	load := &packages.Config{Dir: root, Mode: grammar.LoadMode | packages.NeedDeps, BuildFlags: []string{"-tags=jsonschema"}}
-	roots, err := packages.Load(load,
-		"github.com/tylergannon/gimbal/internal/observation",
-		"github.com/tylergannon/gimbal/internal/projectfiles",
-		"github.com/tylergannon/gimbal/internal/transcript",
-	)
-	if err != nil {
-		return err
-	}
-	var observation *packages.Package
-	for _, pkg := range roots {
-		if pkg.PkgPath == "github.com/tylergannon/gimbal/internal/observation" {
-			observation = pkg
-		}
-	}
-	if observation == nil {
-		return fmt.Errorf("appgen: observation package was not loaded")
-	}
-	snapshot, err := skgo.NewPackageSnapshot(load, roots...)
-	if err != nil {
-		return err
-	}
-	output, err := observationOutput(load, observation, roots...)
-	if err != nil {
-		return err
-	}
-	cfg.Packages = []*skgo.PackageSnapshot{snapshot}
+	cfg.Session = session
 	if err := skgo.Run(cfg); err != nil {
 		return err
 	}
 	// SKGO prunes frontend artifacts it did not produce. Publish Gimbal's
-	// separately owned observation projection afterward, using that same snapshot.
-	dir := filepath.Join(root, "web/src/lib/observation")
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return err
-	}
-	for _, file := range output.Files {
-		if err := os.WriteFile(filepath.Join(dir, file.Name), file.Content, 0644); err != nil {
-			return err
-		}
-	}
-	return nil
+	// separately owned observation declarations afterward. Each generator checks
+	// its persistent result before asking the shared session for package work.
+	return observationOutput(filepath.Join(root, "internal/observation"), filepath.Join(root, "web/src/lib/observation"), session)
 }
 
-// observationOutput projects caller-owned symbols without loading the package again.
-func observationOutput(load *packages.Config, observation *packages.Package, roots ...*packages.Package) (typescript.Result, error) {
-	projection, err := grammar.FromPackages(load, observation, roots...)
-	if err != nil {
-		return typescript.Result{}, err
-	}
-	var types []grammar.Root
-	for _, name := range []string{"InterviewRow", "TurnRow"} {
-		object := observation.Types.Scope().Lookup(name)
-		if object == nil {
-			return typescript.Result{}, fmt.Errorf("appgen: observation type %s is missing", name)
-		}
-		types = append(types, grammar.Root{Type: object.Type()})
-	}
-	defs, _, err := projection.Lower(types)
-	if err != nil {
-		return typescript.Result{}, err
-	}
-	return typescript.Generate(defs, typescript.Options{})
+func observationOutput(sourceDir, outputDir string, session *goload.Session) error {
+	return codegen.Generate(polytype.Compose(
+		polytype.Declare[observation.InterviewRow](),
+		polytype.Declare[observation.TurnRow](),
+	), codegen.Options{
+		Session:    session,
+		TargetDir:  sourceDir,
+		TypeScript: &codegen.TypeScriptOptions{Dir: outputDir},
+	})
 }

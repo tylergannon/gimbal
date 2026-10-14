@@ -526,15 +526,14 @@ func (b *pageBuilder) body(ops []workflow.Operation, initial []contextField, sco
 }
 
 func sourceInspection(dir, entry, name, output string) error {
-	d := &inspectionData{}
 	withGuide := strings.HasSuffix(output, ".page.json")
-	g, info, err := extractInspected(dir, entry, name, nil, withGuide, d)
+	result, err := analyzeOne(dir, entry, name, nil, withGuide, true)
 	if err != nil {
 		return err
 	}
-	p := inspectGraph(g, entry, d)
+	p := result.Page
 	if withGuide {
-		p, err = pageGuide(p, info, g.Roles(), nil)
+		p, err = pageGuide(p, result.Entry.entryInfo(), result.Graph.Roles(), nil)
 		if err != nil {
 			return err
 		}

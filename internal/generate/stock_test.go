@@ -3,6 +3,7 @@ package generate_test
 import (
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -13,6 +14,7 @@ import (
 )
 
 func TestStockRecoversMissingAndStaleOutput(t *testing.T) {
+	t.Setenv("GIMBAL_GENERATE_CACHE_DIR", t.TempDir())
 	root, err := filepath.Abs(filepath.Join("..", ".."))
 	if err != nil {
 		t.Fatal(err)
@@ -49,6 +51,19 @@ func TestStockRecoversMissingAndStaleOutput(t *testing.T) {
 	}
 	form := filepath.Join(root, "internal", "invocation", "review_gen.go")
 	command := filepath.Join(root, "cmd", "gimbal", "review_gen.go")
+	expectedOutputs := map[string][]byte{}
+	for _, selected := range builtin.Workflows {
+		for _, path := range []string{
+			filepath.Join(root, "internal", "invocation", selected.Package+"_gen.go"),
+			filepath.Join(root, "internal", "builtin", "pages", selected.Name+".json"),
+		} {
+			expected, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			expectedOutputs[path] = expected
+		}
+	}
 	firstForm, err := os.ReadFile(form)
 	if err != nil {
 		t.Fatal(err)
@@ -57,6 +72,9 @@ func TestStockRecoversMissingAndStaleOutput(t *testing.T) {
 	t.Cleanup(func() {
 		_ = os.WriteFile(form, firstForm, 0o644)
 	})
+	if !strings.Contains(string(firstForm), `Graph: review.Graph`) || !strings.Contains(string(firstForm), `ReviewDefinition`) {
+		t.Fatalf("fixture lacks review adapter: %s", firstForm)
+	}
 	if err := os.Remove(form); err != nil {
 		t.Fatal(err)
 	}
@@ -69,7 +87,7 @@ func TestStockRecoversMissingAndStaleOutput(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if err := generate.Stock(root); err != nil {
+	if err := generate.Stock(root, nil); err != nil {
 		t.Fatal(err)
 	}
 	formAgain, err := os.ReadFile(form)
@@ -82,8 +100,27 @@ func TestStockRecoversMissingAndStaleOutput(t *testing.T) {
 	if !slices.Equal(firstForm, formAgain) {
 		t.Fatal("stock generation did not restore original form and command bytes")
 	}
-	if err := generate.Stock(root); err != nil {
+	// Damage both Go adapters and inspection pages before the cached process.
+	for path := range expectedOutputs {
+		if err := os.WriteFile(path, []byte("damaged generated output\n"), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// A new process must recover its IR without another root typecheck.
+	executable, err := os.Executable()
+	if err != nil {
 		t.Fatal(err)
+	}
+	commandProcess := exec.Command(executable, "-test.run=^TestGenerationCacheProcess$")
+	commandProcess.Env = append(os.Environ(), "GIMBAL_CACHE_TEST_DIR="+root, "GIMBAL_CACHE_TEST_MODE=warm", "GIMBAL_CACHE_TEST_STOCK=1")
+	if out, err := commandProcess.CombinedOutput(); err != nil {
+		t.Fatalf("warm Stock: %v\n%s", err, out)
+	}
+	for path, expected := range expectedOutputs {
+		actual, err := os.ReadFile(path)
+		if err != nil || !slices.Equal(actual, expected) {
+			t.Fatalf("warm generated product differs: %s (%v)", path, err)
+		}
 	}
 	formSecond, _ := os.ReadFile(form)
 	if !slices.Equal(formAgain, formSecond) {

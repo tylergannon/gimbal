@@ -88,6 +88,9 @@ jobs:
           cache-dependency-path: web/pnpm-lock.yaml
       - uses: extractions/setup-just@v4
       - uses: jdx/mise-action@v5.1.2
+        with:
+          # This persistent Mac retains its tools locally; do not archive/upload them.
+          cache: false
       - uses: goreleaser/goreleaser-action@v7
         with:
           distribution: goreleaser

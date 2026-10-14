@@ -2,7 +2,7 @@ import pathlib
 import tempfile
 import unittest
 
-from ci_scope import check_skill_links, plan
+from ci_scope import check_skill_links, needs_web_assets, plan
 
 
 class ScopeTests(unittest.TestCase):
@@ -26,6 +26,22 @@ class ScopeTests(unittest.TestCase):
 
     def test_dependency_changes_widen_unit_test_scope(self):
         self.assertEqual(plan(["go.mod"])["go_packages"], ["./..."])
+
+    def test_test_only_web_dependency_requires_real_assets(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            (root / "go.mod").write_text("module github.com/tylergannon/gimbal\n\ngo 1.27\n")
+            for name in ("web", "consumer", "plain"):
+                (root / name).mkdir()
+                (root / name / "main.go").write_text(f"package {name}\n")
+            (root / "web/main.go").write_text(
+                'package web\nimport "embed"\n//go:embed build\nvar Assets embed.FS\n')
+            (root / "consumer/main_test.go").write_text(
+                'package consumer\nimport _ "github.com/tylergannon/gimbal/web"\n')
+            self.assertTrue(needs_web_assets(["./consumer"], root))
+            self.assertTrue(needs_web_assets(["./..."], root))
+            self.assertFalse(needs_web_assets(["./plain"], root))
+            self.assertFalse(needs_web_assets([], root))
 
     def test_empty_release_metadata_diff_does_not_release(self):
         self.assertFalse(plan([])["release"])

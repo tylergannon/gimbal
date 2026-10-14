@@ -23,3 +23,9 @@ decision: Known Go package errors from live metadata already match ordinary gene
 decision: Retain live Go metadata on warm lookup. A cheaper mutable-dependency fingerprint alone cannot bind existing compiler exports to subsequently read source bytes across a compile-B/read-A race. Skipping that metadata would require capturing and compiling the mutable dependency closure itself; do not weaken source correctness to save that subprocess.
 
 friction: The workflow JSON wire codec intentionally encodes nil slices as arrays. Reusing that representation for public Extract changed a nil Yields into an empty slice on a later hit. Cache internal generation products, whose emitters use the wire-equivalent shape; keep direct Extract on its original fresh Go-graph path. The warm regression first creates the emission cache and then checks the direct API's literal nil contract. Do not weaken the existing declaration test or build a second graph codec to hide this distinction.
+
+friction: Local producer replacements are mutable inputs. Editing either producer worktree during Gimbal's cache population correctly rejects publication and repeats ordinary generation. Freeze source edits, not just benchmark commands, when measuring a cold-to-warm pair.
+
+friction: Whole-appgen fresh-process recovery reached 0.64s, but the ordinary warmed go-generate directive took 1.22s including its wrapper and 0.27s external goimports. The updated SKGO producer emitted actual Gimbal Go files with an empty goimports -l result; remove that redundant directive only together with the supporting dependency pin.
+
+decision: A large-consumer external GOFLAGS=-trimpath experiment reduced private-view cold generation from 20.40s to 10.27s, then 8.51s in a second distinct cache slot; all 392 observed files were identical. This is evidence for the SKGO owner, not a production flag change in Gimbal. It does not remove the need to bind analysis to captured source.

@@ -19,6 +19,9 @@ services:
       - /home/tyler/go/pkg/mod:/home/runner/go/pkg/mod
       - /home/tyler/.cache/gimbal-actions/cache:/home/runner/.cache
       - /home/tyler/.cache/gimbal-actions/pnpm:/home/runner/.local/share/pnpm
+      - /home/tyler/.cache/gimbal-actions/vite-plus/data:/home/runner/.local/share/vite-plus
+      - /home/tyler/.cache/gimbal-actions/vite-plus/config:/home/runner/.config/vite-plus
+      - /home/tyler/.cache/gimbal-actions/vite-plus/state:/home/runner/.local/state/vite-plus
       - /home/tyler/.cache/gimbal-actions/toolcache:/home/runner/_work/_tool
       - /home/tyler/.cache/gimbal-actions/work-1:/home/runner/_work
   runner-2:
@@ -28,5 +31,8 @@ services:
       - /home/tyler/go/pkg/mod:/home/runner/go/pkg/mod
       - /home/tyler/.cache/gimbal-actions/cache:/home/runner/.cache
       - /home/tyler/.cache/gimbal-actions/pnpm:/home/runner/.local/share/pnpm
+      - /home/tyler/.cache/gimbal-actions/vite-plus/data:/home/runner/.local/share/vite-plus
+      - /home/tyler/.cache/gimbal-actions/vite-plus/config:/home/runner/.config/vite-plus
+      - /home/tyler/.cache/gimbal-actions/vite-plus/state:/home/runner/.local/state/vite-plus
       - /home/tyler/.cache/gimbal-actions/toolcache:/home/runner/_work/_tool
       - /home/tyler/.cache/gimbal-actions/work-2:/home/runner/_work

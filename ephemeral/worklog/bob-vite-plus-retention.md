@@ -1,0 +1,2 @@
+decision: Vite+ 1.1 uses separate data, configuration, and state directories. Retain all three through the Bob runner Compose mounts; setup-vp requires the configuration's environment file before accepting a retained installation.
+decision: Remove the legacy .vite-plus symlink from the runner image. Its presence changes Vite+'s directory discovery to the old single-root layout, even when installation has used the new split layout.

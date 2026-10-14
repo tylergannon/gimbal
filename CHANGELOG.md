@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.13] - 2026-10-14
+
+### Changed
+
+- perf(release): keep mise cache local on persistent Mac (#538)
+
 ## [0.13.12] - 2026-10-14
 
 ### Changed
@@ -254,7 +260,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `opencode/provider/model` routing, one shared server managed by
   `gimbal opencode start|stop`, and raw event/request captures for diagnostics.
 
-[Unreleased]: https://github.com/tylergannon/gimbal/compare/v0.13.12...main
+[Unreleased]: https://github.com/tylergannon/gimbal/compare/v0.13.13...main
+[0.13.13]: https://github.com/tylergannon/gimbal/compare/v0.13.12...v0.13.13
 [0.13.12]: https://github.com/tylergannon/gimbal/compare/v0.13.11...v0.13.12
 [0.13.11]: https://github.com/tylergannon/gimbal/compare/v0.13.10...v0.13.11
 [0.13.10]: https://github.com/tylergannon/gimbal/compare/v0.13.9...v0.13.10

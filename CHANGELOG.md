@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.26] - 2026-10-14
+
+### Changed
+
+- docs(skills): isolate helper module context from Go workspaces (#559)
+
 ## [0.13.25] - 2026-10-14
 
 ### Changed
@@ -332,7 +338,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `opencode/provider/model` routing, one shared server managed by
   `gimbal opencode start|stop`, and raw event/request captures for diagnostics.
 
-[Unreleased]: https://github.com/tylergannon/gimbal/compare/v0.13.25...main
+[Unreleased]: https://github.com/tylergannon/gimbal/compare/v0.13.26...main
+[0.13.26]: https://github.com/tylergannon/gimbal/compare/v0.13.25...v0.13.26
 [0.13.25]: https://github.com/tylergannon/gimbal/compare/v0.13.24...v0.13.25
 [0.13.24]: https://github.com/tylergannon/gimbal/compare/v0.13.23...v0.13.24
 [0.13.23]: https://github.com/tylergannon/gimbal/compare/v0.13.22...v0.13.23

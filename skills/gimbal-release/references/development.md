@@ -6,7 +6,16 @@ frontend dependencies, generates Go/TypeScript/Swift bindings, builds the web
 bundle and embeds `web/build/` in `bin/gimbal`. Generators own their output;
 regenerate rather than hand-editing it. Generated build assets stay local.
 
-`just app` builds a Debug macOS app with its matching CLI in Resources. Launch
+`just app` builds a Debug macOS app with its matching CLI in Resources. For native
+microphone validation, use `just app-validate`: it signs the built app with an
+existing Developer ID Application certificate, using the release identity and
+entitlements. `MACOS_SIGNING_IDENTITY` chooses the exact identity; when omitted,
+the single valid Developer ID identity is used. Keep that identity and bundle ID
+stable across validation builds. An ad-hoc build identifies a code hash, so its
+microphone/speech permission grants cannot be assumed to survive rebuilds. Do
+not rename the app or reset macOS privacy permissions to get around this.
+
+Launch
 through `just app-run /absolute/disposable/catalog` to isolate its instance state.
 The current app is under `native/build/macos/DerivedData/Build/Products/Debug/`.
 For optimized/signed distribution probes, read [distribution.md](distribution.md).

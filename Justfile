@@ -24,6 +24,10 @@ app: build
     go tool skgo native build --platform macos
     go generate ./internal/skgo ./workflow
     cd web && vp fmt
+
+# Real microphone validation needs a stable identity so macOS permissions survive
+# rebuilds. Ordinary source builds remain usable without a signing certificate.
+app-validate: app
     scripts/sign-native-dev.sh native/build/macos/DerivedData/Build/Products/Debug/Gimbal.app
 
 # Open the Debug app; a directory argument keeps its catalog in that directory instead of ~/.gimbal/desktop.

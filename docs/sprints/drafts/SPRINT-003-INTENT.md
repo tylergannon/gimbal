@@ -2,7 +2,7 @@
 
 ## Seed
 
-Consolidate settled Promises requirements, existing implementation, debrief and migration into one light, cross-checked plan ready to execute. Use Sol6.1 and Opus5.5; Gemini only if a material divergence requires it. Planning only; implementation and final approval remain pending.
+Consolidate settled Promises requirements, existing implementation, debrief and migration into one light, cross-checked plan ready to execute. Use Sol6.1 and Opus5.5; Gemini only if a material divergence requires it. Planning only; implementation remains pending. Tyler subsequently directed plan completion with draft-PR artifact upload and independent Opus5.5 visual verification required; no further plan approval is pending.
 
 ## Context
 

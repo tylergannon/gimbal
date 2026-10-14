@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.22] - 2026-10-14
+
+### Changed
+
+- fix(ci): retain Vite+ split directories on Bob runners (#550)
+
 ## [0.13.21] - 2026-10-14
 
 ### Changed
@@ -308,7 +314,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `opencode/provider/model` routing, one shared server managed by
   `gimbal opencode start|stop`, and raw event/request captures for diagnostics.
 
-[Unreleased]: https://github.com/tylergannon/gimbal/compare/v0.13.21...main
+[Unreleased]: https://github.com/tylergannon/gimbal/compare/v0.13.22...main
+[0.13.22]: https://github.com/tylergannon/gimbal/compare/v0.13.21...v0.13.22
 [0.13.21]: https://github.com/tylergannon/gimbal/compare/v0.13.20...v0.13.21
 [0.13.20]: https://github.com/tylergannon/gimbal/compare/v0.13.19...v0.13.20
 [0.13.19]: https://github.com/tylergannon/gimbal/compare/v0.13.18...v0.13.19

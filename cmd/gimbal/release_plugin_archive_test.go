@@ -5,6 +5,8 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -145,6 +147,81 @@ func TestReleaseCLIPlugin(t *testing.T) {
 			<-wait
 			t.Fatalf("timed out waiting for plugin startup: %s", stderr.String())
 		}
+	}
+}
+
+// Sharing the frontend between platforms must still produce a working server
+// in every native archive, rather than merely a CLI that can load a plugin.
+func TestReleaseCLIWeb(t *testing.T) {
+	archive := os.Getenv("GIMBAL_RELEASE_ARCHIVE")
+	if archive == "" {
+		t.Skip("set GIMBAL_RELEASE_ARCHIVE to the native release CLI archive")
+	}
+	work := t.TempDir()
+	cli := filepath.Join(work, "gimbal")
+	runReleaseCommand(t, work, "tar", "-xzf", archive, "-C", work, "gimbal")
+	checkReleaseWeb(t, cli, work)
+}
+
+func checkReleaseWeb(t *testing.T, cli, work string) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, cli, "--no-project", "--port", "0", "--ready", "--instance-dir", filepath.Join(work, "instance"))
+	cmd.Dir = work
+	cmd.Env = []string{"HOME=" + filepath.Join(work, "home"), "TMPDIR=" + work, "PATH=" + os.Getenv("PATH")}
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		_ = cmd.Process.Signal(os.Interrupt)
+		wait := make(chan error, 1)
+		go func() { wait <- cmd.Wait() }()
+		select {
+		case <-wait:
+		case <-time.After(5 * time.Second):
+			cancel()
+			<-wait
+		}
+	}()
+	ready := make(chan string, 1)
+	go func() {
+		scanner := bufio.NewScanner(stdout)
+		for scanner.Scan() {
+			if strings.HasPrefix(scanner.Text(), "READY ") {
+				ready <- strings.TrimPrefix(scanner.Text(), "READY ")
+				return
+			}
+		}
+		ready <- ""
+	}()
+	var address string
+	select {
+	case address = <-ready:
+		if address == "" {
+			t.Fatalf("archived web server did not become ready: %s", stderr.String())
+		}
+	case <-ctx.Done():
+		t.Fatal("archived web server readiness timed out")
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, address, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(response.Body, 8<<20))
+	if err != nil || response.StatusCode != http.StatusOK || !bytes.Contains(body, []byte("<html")) || !bytes.Contains(body, []byte("Gimbal")) {
+		t.Fatalf("archived web response status=%d err=%v body=%.1000s", response.StatusCode, err, body)
 	}
 }
 

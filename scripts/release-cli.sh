@@ -57,7 +57,7 @@ if [[ "$target" == darwin_arm64 ]]; then
   chmod 755 native/Resources/gimbal
 fi
 
-GIMBAL_RELEASE_ARCHIVE="$PWD/$archive" go test ./cmd/gimbal -run '^TestReleaseCLIPlugin$' -count=1
+GIMBAL_RELEASE_ARCHIVE="$PWD/$archive" go test ./cmd/gimbal -run '^TestReleaseCLI(Plugin|Web)$' -count=1
 
 if command -v shasum >/dev/null 2>&1; then
   (cd dist && shasum -a 256 "$(basename "$archive")" > checksums.txt)

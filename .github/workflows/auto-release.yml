@@ -49,6 +49,7 @@ jobs:
         id: prerequisites
         if: github.event_name == 'pull_request' && steps.scope.outputs.go_packages != '[]'
         run: python3 scripts/ci_scope.py --go-prerequisites >> "$GITHUB_OUTPUT"
+      # Vite+ owns Node and package-manager setup; subsequent commands use vp.
       - uses: voidzero-dev/setup-vp@v1.21.2
         if: steps.scope.outputs.release == 'true'
         with:

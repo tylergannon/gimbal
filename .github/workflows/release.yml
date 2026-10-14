@@ -16,8 +16,40 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  prepare-inputs:
+    name: Prepare shared release inputs
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref_name }}
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.10.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - uses: extractions/setup-just@v4
+      - name: Generate source and build frontend once
+        run: |
+          just build-assets
+          python3 scripts/release-assets.py pack dist/release-inputs.tar.gz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-inputs
+          path: dist/release-inputs.tar.gz
+          retention-days: 2
+          if-no-files-found: error
+
   linux-cli:
     name: CLI (${{ matrix.target }})
+    needs: prepare-inputs
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -32,18 +64,16 @@ jobs:
         with:
           ref: ${{ inputs.tag || github.ref_name }}
           fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-inputs
+          path: dist
+      - name: Restore exact-revision generated source and frontend
+        run: python3 scripts/release-assets.py restore dist/release-inputs.tar.gz
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
           check-latest: true
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 12.10.1
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: pnpm
-          cache-dependency-path: web/pnpm-lock.yaml
       - uses: extractions/setup-just@v4
       - uses: goreleaser/goreleaser-action@v7
         with:
@@ -52,9 +82,46 @@ jobs:
           install-only: true
       - name: Build and package CLI
         env:
+          RELEASE_PREPARED_INPUTS: 1
           RELEASE_TARGET: ${{ matrix.target }}
           RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
         run: scripts/release-cli.sh "$RELEASE_TARGET"
+      # Test the versioned amd64 candidate in the same job that compiled it.
+      - uses: pnpm/action-setup@v4
+        if: matrix.target == 'linux_amd64'
+        with:
+          version: 12.10.1
+      - uses: actions/setup-node@v4
+        if: matrix.target == 'linux_amd64'
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - name: Prepare full qualification prerequisites
+        if: matrix.target == 'linux_amd64'
+        run: |
+          mkdir -p bin
+          tar -xzf dist/gimbal_*_linux_amd64.tar.gz -C bin gimbal
+          sudo apt-get update
+          sudo apt-get install --yes zsh
+          cd web
+          pnpm install --frozen-lockfile
+          pnpm exec playwright install --with-deps chromium
+      - uses: golangci/golangci-lint-action@v9.3.0
+        if: matrix.target == 'linux_amd64'
+        with:
+          version: v2.14.0
+          install-only: true
+      - name: Fully qualify the built release candidate
+        if: matrix.target == 'linux_amd64'
+        run: |
+          just check-cli-release
+          just lint-go
+          go vet ./...
+          ./bin/gimbal lint ./...
+          just test
+          just fmt-check
+          just check-web
       - uses: actions/upload-artifact@v4
         with:
           name: cli-${{ matrix.target }}
@@ -64,28 +131,33 @@ jobs:
 
   macos-release:
     name: Signed and notarized macOS release assets
+    needs: prepare-inputs
+    env:
+      GOMAXPROCS: 4
+      GOFLAGS: -p=4
+      GIMBAL_BUILD_JOBS: 4
     if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v') && (!inputs.tag || inputs.tag == github.ref_name)
     runs-on: [self-hosted, macOS, ARM64, gimbal-release]
     environment: release
     steps:
+      - name: Keep native compiler outputs on this Mac
+        run: echo "GIMBAL_DERIVED_DATA=$HOME/Library/Caches/gimbal-release/DerivedData" >> "$GITHUB_ENV"
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.tag || github.ref_name }}
           fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-inputs
+          path: dist
+      - name: Restore exact-revision generated source and frontend
+        run: python3 scripts/release-assets.py restore dist/release-inputs.tar.gz
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
           check-latest: true
           # The persistent Mac already retains its local Go caches.
           cache: false
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 12.10.1
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: pnpm
-          cache-dependency-path: web/pnpm-lock.yaml
       - uses: extractions/setup-just@v4
       - uses: jdx/mise-action@v5.1.2
         with:
@@ -118,16 +190,18 @@ jobs:
         run: scripts/ci-signing.sh setup
       - name: Build, sign, and notarize the macOS CLI
         env:
+          RELEASE_PREPARED_INPUTS: 1
           RELEASE_TARGET: darwin_arm64
           RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
-        run: scripts/release-cli.sh "$RELEASE_TARGET"
+        run: nice -n 10 scripts/release-cli.sh "$RELEASE_TARGET"
       - name: Build, sign, notarize, and staple app
         env:
+          RELEASE_PREPARED_INPUTS: 1
           RELEASE_VERSION: ${{ inputs.tag || github.ref_name }}
           RELEASE_BUILD_NUMBER: ${{ github.run_number }}
           SPARKLE_ED_PRIVATE_KEY: ${{ steps.doppler.outputs.SPARKLE_ED_PRIVATE_KEY }}
           MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}/native/build/macos/.sdk
-        run: scripts/release-macos.sh --release --version "${RELEASE_VERSION#v}" --build-number "$RELEASE_BUILD_NUMBER"
+        run: nice -n 10 scripts/release-macos.sh --release --version "${RELEASE_VERSION#v}" --build-number "$RELEASE_BUILD_NUMBER"
       - uses: actions/upload-artifact@v4
         with:
           name: macos-release

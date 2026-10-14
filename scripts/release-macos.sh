@@ -129,7 +129,7 @@ fi
 OUT_DIR="$ROOT/dist/macos"
 APP_OUT="$OUT_DIR/Gimbal.app"
 PROJECT="$ROOT/native/build/macos/Gimbal.xcodeproj"
-DERIVED="$ROOT/native/build/macos-release-derived"
+DERIVED="${GIMBAL_DERIVED_DATA:-$ROOT/native/build/macos-release-derived}"
 ENTITLEMENTS="$ROOT/native/release.entitlements.plist"
 CLI_ENTITLEMENTS="$ROOT/scripts/macos-cli.entitlements.plist"
 BUNDLED_CLI="$ROOT/native/Resources/gimbal"
@@ -174,7 +174,7 @@ if [[ "$MODE" == "release" ]]; then
 	fi
 fi
 
-if ((!SKIP_BUILD)); then
+if ((!SKIP_BUILD)) && [[ "${RELEASE_PREPARED_INPUTS:-}" != 1 ]]; then
 	printf 'Building the exact-version bundled Gimbal CLI for macOS arm64...\n'
 	GIT_COMMIT="$(git -C "$ROOT" rev-parse --short HEAD)"
 	BUILD_DATE="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
@@ -201,12 +201,13 @@ else
 	if ((SKIP_GENERATE)); then
 		[[ -d "$PROJECT" ]] || die "--skip-generate requires an existing Xcode project: $PROJECT"
 	else
-		printf 'Generating native app project and unsigned Debug candidate...\n'
-		(cd "$ROOT" && PATH="$ROOT/scripts/public-xcodebuild:$PATH" go tool skgo native build --platform macos)
+		printf 'Preparing native libraries and app project without a Debug build...\n'
+		(cd "$ROOT" && go tool skgo native build --platform macos --prepare-only --reuse-web-build --jobs "${GIMBAL_BUILD_JOBS:-4}")
 	fi
 	[[ -d "$PROJECT" ]] || die "generated Xcode project not found: $PROJECT"
 	printf 'Building unsigned Release app with Xcode...\n'
 	xcodebuild \
+		-jobs "${GIMBAL_BUILD_JOBS:-4}" \
 		-packageAuthorizationProvider netrc \
 		-scmProvider system \
 		-project "$PROJECT" \

@@ -128,6 +128,18 @@ class ReleaseTimingTest(unittest.TestCase):
         self.assertEqual(result['parallel_platform_critical_path_seconds'], 300)
         self.assertEqual(result['elapsed_seconds'], 720)
 
+    def test_qualification_overlaps_platform_work_without_double_counting(self):
+        self.fake.data['repos/example/project/actions/runs/1/jobs?filter=all&per_page=100']['jobs'] = [
+            job('Check release source', START, '2026-10-14T04:00:30Z', 'success')]
+        self.fake.data['repos/example/project/actions/runs/2/jobs?filter=all&per_page=100']['jobs'] = [
+            job('Prepare shared release inputs', '2026-10-14T04:01:00Z', '2026-10-14T04:02:00Z', 'success'),
+            job('Qualify release candidate', '2026-10-14T04:02:00Z', '2026-10-14T04:06:00Z', 'success'),
+            job('Signed and notarized macOS release assets', '2026-10-14T04:02:00Z',
+                '2026-10-14T04:05:00Z', 'success')]
+        result = self.measure(runs=[RELEASE_RUN])
+        self.assertEqual(result['active_critical_path_seconds'], 330)
+        self.assertEqual(result['elapsed_seconds'], 720)
+
     def test_retry_stages_preserved_and_original_start_unchanged(self):
         first = job('Check release source', START, '2026-10-14T04:02:00Z', 'failure')
         second = job('Check release source', '2026-10-14T04:05:00Z',

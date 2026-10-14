@@ -35,8 +35,12 @@ fi
 config="${RUNNER_TEMP:-/tmp}/gimbal-goreleaser-${target}.yaml"
 sed "s/      - darwin_arm64/      - ${target}/" .goreleaser.yaml > "$config"
 
-# Build the embedded frontend and generated Go packages before packaging.
-just build
+# CI restores the generated source/frontend from this exact revision. A manual
+# tagged build prepares them locally, without compiling an unused generic CLI.
+if [[ "${RELEASE_PREPARED_INPUTS:-}" != 1 ]]; then
+  just build-assets
+fi
+test -s web/build/skgo.manifest.json
 
 RELEASE_TARGET="$target" goreleaser release --clean --skip=publish,validate --config "$config"
 
@@ -47,6 +51,10 @@ fi
 
 if [[ "$target" == darwin_arm64 ]]; then
   scripts/sign-notarize-macos-cli.sh "$archive"
+  # The app bundles the same versioned CLI instead of linking it again.
+  mkdir -p native/Resources
+  tar -xzf "$archive" -O ./gimbal > native/Resources/gimbal
+  chmod 755 native/Resources/gimbal
 fi
 
 GIMBAL_RELEASE_ARCHIVE="$PWD/$archive" go test ./cmd/gimbal -run '^TestReleaseCLIPlugin$' -count=1

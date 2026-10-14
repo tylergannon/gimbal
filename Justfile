@@ -1,13 +1,16 @@
 origin := env("ORIGIN", "http://127.0.0.1:8080")
 
-build:
+build: build-assets
+    go build -o bin/gimbal ./cmd/gimbal
+
+# Portable generated source and frontend: prepared once for a release.
+build-assets:
     go mod tidy
     cd web && pnpm install
     go generate ./...
     cd web && pnpm exec vp fmt
     cd web && pnpm exec vp build
     test -s web/build/skgo.manifest.json
-    go build -o bin/gimbal ./cmd/gimbal
 
 dev:
     go run ./internal/generate/appgen dev

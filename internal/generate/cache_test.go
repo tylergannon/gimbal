@@ -178,6 +178,92 @@ func TestGenerationCacheEditsOptionsAndCorruption(t *testing.T) {
 	expectCachedSet(t, analyzeFlow("renamed"), "second")
 }
 
+func TestGenerationCacheBuildConfigurationSelectsCurrentSource(t *testing.T) {
+	for _, configuration := range []string{"GOFLAGS", "GOENV"} {
+		t.Run(configuration, func(t *testing.T) {
+			t.Setenv("GIMBAL_GENERATE_CACHE_DIR", t.TempDir())
+			t.Setenv("GOFLAGS", "")
+			dir := cacheFixture(t)
+			write := func(path, contents string) {
+				t.Helper()
+				if err := os.WriteFile(path, []byte(contents), 0600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			write(filepath.Join(dir, "flow.go"), strings.Replace(cacheFixtureSource, `"first"`, "selectedKey", 1))
+			write(filepath.Join(dir, "default.go"), "//go:build !cachevariant\n\npackage fixture\nconst selectedKey = \"ordinary\"\n")
+			write(filepath.Join(dir, "variant.go"), "//go:build cachevariant\n\npackage fixture\nconst selectedKey = \"configured\"\n")
+			envFile := filepath.Join(t.TempDir(), "goenv")
+			write(envFile, "")
+			t.Setenv("GOENV", envFile)
+			load := loadSourceTypes
+			t.Cleanup(func() { loadSourceTypes = load })
+			check := func(want string) {
+				t.Helper()
+				loadSourceTypes = load
+				result, err := analyzeOne(dir, "Flow", "fixture", nil, true, false)
+				if err != nil {
+					t.Fatal(err)
+				}
+				expectCachedSet(t, result, want)
+				loadSourceTypes = func(*packages.Config, ...string) ([]*packages.Package, error) {
+					return nil, fmt.Errorf("unchanged build configuration repeated typechecking")
+				}
+				result, err = analyzeOne(dir, "Flow", "fixture", nil, true, false)
+				if err != nil {
+					t.Fatal(err)
+				}
+				expectCachedSet(t, result, want)
+			}
+			check("ordinary")
+			if configuration == "GOFLAGS" {
+				t.Setenv("GOFLAGS", "-tags=cachevariant")
+			} else {
+				// The process environment and GOENV path stay fixed; only the
+				// effective configuration read by the Go command changes.
+				write(envFile, "GOFLAGS=-tags=cachevariant\n")
+			}
+			check("configured")
+		})
+	}
+}
+
+func TestGenerationCacheUsesCurrentOverlayValues(t *testing.T) {
+	t.Setenv("GIMBAL_GENERATE_CACHE_DIR", t.TempDir())
+	dir := cacheFixture(t)
+	path := filepath.Join(dir, "flow.go")
+	load := loadSourceTypes
+	t.Cleanup(func() { loadSourceTypes = load })
+	for _, want := range []string{"overlay_first", "overlay_second"} {
+		source := strings.Replace(cacheFixtureSource, `"first"`, "overlayKey", 1) + fmt.Sprintf("\nconst overlayKey = %q\n", want)
+		overlay := map[string][]byte{path: []byte(source)}
+		loadSourceTypes = load
+		result, err := analyzeOne(dir, "Flow", "fixture", overlay, true, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		expectCachedSet(t, result, want)
+		loadSourceTypes = func(*packages.Config, ...string) ([]*packages.Package, error) {
+			return nil, fmt.Errorf("unchanged overlay repeated typechecking")
+		}
+		result, err = analyzeOne(dir, "Flow", "fixture", overlay, true, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		expectCachedSet(t, result, want)
+	}
+	loadSourceTypes = load
+	result, err := analyzeOne(dir, "Flow", "fixture", nil, true, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectCachedSet(t, result, "first")
+	data, err := os.ReadFile(path)
+	if err != nil || string(data) != cacheFixtureSource {
+		t.Fatalf("overlay changed authored source: %v", err)
+	}
+}
+
 func TestGenerationCacheBindsRootBytesAcrossABA(t *testing.T) {
 	t.Setenv("GIMBAL_GENERATE_CACHE_DIR", t.TempDir())
 	dir := cacheFixture(t)

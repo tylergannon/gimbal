@@ -23,8 +23,16 @@ import SwiftUI
   private struct RecordingSettingsForm: View {
     @ObservedObject var input: RecordingInput
     let canChange: Bool
+    @AppStorage(RecordingSwitchAction.preferenceKey) private var switchAction = RecordingSwitchAction.ask.rawValue
     var body: some View {
       Form {
+        Section("Project switching") {
+          Picker("While recording", selection: $switchAction) {
+            ForEach(RecordingSwitchAction.allCases, id: \.rawValue) { action in
+              Text(action.title).tag(action.rawValue)
+            }
+          }.disabled(!canChange)
+        }
         Section("Audio input") {
           if input.fixtureURL != nil || input.configurationError != nil {
             RecordingInputNotice(input: input)
@@ -58,7 +66,7 @@ import SwiftUI
         }
       }
       .formStyle(.grouped)
-      .frame(width: 440, height: 280)
+      .frame(width: 440, height: 360)
     }
   }
 #endif

@@ -89,7 +89,7 @@ import SwiftUI
         Button("Stop Recording", action: controller.stop).keyboardShortcut(
           "r", modifiers: [.command, .option]
         )
-        .disabled(!controller.canStop)
+        .disabled(!controller.canStop || controller.projectSwitchPending)
         Divider()
         if input.fixtureURL != nil {
           Menu("Microphone") {

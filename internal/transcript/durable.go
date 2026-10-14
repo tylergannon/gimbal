@@ -11,6 +11,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/tylergannon/polytype"
 )
 
 // Recording retains audio ranges and both accepted final and provisional text.
@@ -22,13 +24,14 @@ type Recording struct {
 	Last        string  `json:"last"`
 }
 type Header struct {
-	ID           string `json:"id"`
-	Source       string `json:"source"`
-	Created      int64  `json:"created"`
-	Updated      int64  `json:"updated"`
-	Sequence     int64  `json:"sequence"`
-	Status       string `json:"status"`
-	Requirements bool   `json:"requirements"`
+	DurationMs   polytype.Nullable[int64] `json:"durationMs"`
+	ID           string                   `json:"id"`
+	Source       string                   `json:"source"`
+	Created      int64                    `json:"created"`
+	Updated      int64                    `json:"updated"`
+	Sequence     int64                    `json:"sequence"`
+	Status       string                   `json:"status"`
+	Requirements bool                     `json:"requirements"`
 }
 type History struct {
 	Items []Header `json:"items"`
@@ -202,7 +205,7 @@ func (s *DurableStore) Accept(u Update) (Ack, error) {
 	r.Updated = time.Now().UnixMilli()
 	return ackRecording(r), s.save(r)
 }
-func (s *DurableStore) State(id, status string, sequence *int64) (Ack, error) {
+func (s *DurableStore) State(id, status string, sequence *int64, durationMs polytype.Nullable[int64]) (Ack, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	r, err := s.read(id)
@@ -213,12 +216,23 @@ func (s *DurableStore) State(id, status string, sequence *int64) (Ack, error) {
 		return Ack{}, errors.New("close sequence does not match durable transcript")
 	}
 	if ackRecording(r).Closed {
+		if status == "stopped" && r.Status != "stopped" {
+			return Ack{}, errors.New("recording was interrupted; it cannot be confirmed as successfully saved")
+		}
 		return ackRecording(r), nil
 	}
 	switch status {
 	case "recording", "paused", "stopped", "interrupted":
 	default:
 		return Ack{}, fmt.Errorf("invalid recording state %s", status)
+	}
+	if durationMs.Present {
+		if durationMs.Value < 0 || durationMs.Value > MaxInteger {
+			return Ack{}, errors.New("invalid recording duration")
+		}
+		if !r.DurationMs.Present || durationMs.Value > r.DurationMs.Value {
+			r.DurationMs = durationMs
+		}
 	}
 	r.Status = status
 	r.Updated = time.Now().UnixMilli()

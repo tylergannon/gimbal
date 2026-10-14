@@ -46,6 +46,7 @@ export type RecordingRequest = {
 };
 
 export type StateRequest = {
+  durationMs: number | null;
   project: string;
   sessionID: string;
   status: string;

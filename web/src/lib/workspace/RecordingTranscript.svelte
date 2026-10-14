@@ -1,6 +1,7 @@
 <script lang="ts">
   import { navigateOnUnauthorized } from "#lib/auth/unauthorized";
   import { errorMessage } from "#lib/errors";
+  import RecordingControls from "./RecordingControls.svelte";
   import { List } from "@lucide/svelte";
   import { markRequirements, watchRecording } from "../transcript.remote";
   let { project, id }: { project: string; id: string } = $props();
@@ -51,6 +52,7 @@
   {#if !stream.connected}<button onclick={() => stream.reconnect()}
       >Reconnect</button
     >{/if}
+  <RecordingControls {project} {id} />
 </section>
 
 <style>

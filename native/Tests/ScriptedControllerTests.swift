@@ -2,6 +2,7 @@ import Foundation
 import ScriptedTranscription
 
 @MainActor private final class ScriptedCommands: RecordingCommands {
+    var hasSelectedProject = true
     struct Update {
         let sequence: Int
         let finalized: [TranscriptChunk]
@@ -32,7 +33,7 @@ import ScriptedTranscription
         tail = provisional
         onSnapshot?(sessionID, sequence, false)
     }
-    func close(sessionID: String, sequence: Int) async throws {
+    func close(sessionID: String, sequence: Int, durationMs: Int) async throws {
         precondition(sessionID == self.sessionID && sequence == self.sequence)
         closed = true
         onSnapshot?(sessionID, sequence, true)

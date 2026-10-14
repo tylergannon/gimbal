@@ -65,7 +65,8 @@
     "src/lib/transcript.remote.ts#activateSession",
     "src/lib/transcript.remote.ts#closeSession",
     "src/lib/transcript.remote.ts#openSession",
-    "src/lib/transcript.remote.ts#touchSession"
+    "src/lib/transcript.remote.ts#touchSession",
+    "src/lib/transcript.remote.ts#recordingHeader"
   ],
   "version": 1
 }

@@ -12,6 +12,8 @@ import (
 
 	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/internal/transcript"
+
+	"github.com/tylergannon/polytype"
 )
 
 type fake struct {
@@ -48,13 +50,13 @@ func record(t *testing.T, recordings *transcript.DurableStore, id string, marked
 	if _, err := recordings.Open(transcript.OpenRequest{SessionID: id, Source: "synthetic", Requirements: marked}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := recordings.State(id, "recording", nil); err != nil {
+	if _, err := recordings.State(id, "recording", nil, polytype.Nullable[int64]{}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := recordings.Accept(transcript.Update{SessionID: id, Sequence: 1, Finalized: []transcript.Chunk{{Text: text, StartMs: 0, EndMs: 1000}}}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := recordings.State(id, "stopped", nil); err != nil {
+	if _, err := recordings.State(id, "stopped", nil, polytype.Nullable[int64]{}); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -111,7 +113,7 @@ func TestProvisionalSpeechWaitsForFinalization(t *testing.T) {
 	r, _ := transcript.NewDurable(dir)
 	s, _ := Open(dir)
 	_, _ = r.Open(transcript.OpenRequest{SessionID: "live", Source: "synthetic", Requirements: true})
-	_, _ = r.State("live", "recording", nil)
+	_, _ = r.State("live", "recording", nil, polytype.Nullable[int64]{})
 	_, _ = r.Accept(transcript.Update{SessionID: "live", Sequence: 1, Provisional: []transcript.Chunk{{Text: "unfinished", EndMs: 1000}}})
 	f := &fake{reply: func(context.Context, request) ([]operation, error) { return nil, nil }}
 	model := gimbal.ModelBinding{Adapter: f, Model: "fake"}
@@ -236,7 +238,7 @@ func TestWorkerTraversesHistoryAndBatchesWithOverlap(t *testing.T) {
 		t.Fatal("worker ignored older marked recording")
 	}
 	_, _ = r.Open(transcript.OpenRequest{SessionID: "batch", Source: "synthetic", Requirements: true})
-	_, _ = r.State("batch", "recording", nil)
+	_, _ = r.State("batch", "recording", nil, polytype.Nullable[int64]{})
 	chunks := make([]transcript.Chunk, 14)
 	for i := range chunks {
 		chunks[i] = transcript.Chunk{StartMs: int64(i * 1000), EndMs: int64(i*1000 + 500), Text: "Commitment"}
@@ -244,7 +246,7 @@ func TestWorkerTraversesHistoryAndBatchesWithOverlap(t *testing.T) {
 	if _, err := r.Accept(transcript.Update{SessionID: "batch", Sequence: 1, Finalized: chunks}); err != nil {
 		t.Fatal(err)
 	}
-	_, _ = r.State("batch", "stopped", nil)
+	_, _ = r.State("batch", "stopped", nil, polytype.Nullable[int64]{})
 	s.step(context.Background(), r, model, time.Now())
 	s.step(context.Background(), r, model, time.Now())
 	if s.ledger.Cursors["batch"] != 14 || len(f.requests[1].NewChunks) != 12 || len(f.requests[2].NewChunks) != 2 || len(f.requests[2].OverlapChunks) != 2 {

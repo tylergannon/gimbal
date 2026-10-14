@@ -8,6 +8,7 @@ import SwiftUI
 @MainActor final class ApplicationState: ObservableObject {
   #if os(macOS)
     let workspace = WorkspaceState()
+    private(set) var projectSwitching: ProjectSwitching?
     private var recordingStatus: RecordingStatusItem?
   #endif
   let input: RecordingInput
@@ -33,7 +34,10 @@ import SwiftUI
         }, sourceName: input.fixtureURL == nil ? "microphone" : "synthetic")
     }
     #if os(macOS)
-      if let controller {
+      if let controller, let commands {
+        let switching = ProjectSwitching(controller: controller, commands: commands, workspace: workspace)
+        projectSwitching = switching
+        workspace.requestProject = { [weak switching] in switching?.request(path: $0) }
         recordingStatus = RecordingStatusItem(
           controller: controller, input: input, workspace: workspace,
           recordingProject: { [weak self] in self?.commands?.recordingProject ?? "" },
@@ -53,7 +57,7 @@ import SwiftUI
             window.deminiaturize(nil)
             window.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
-            workspace.send("switchProject")
+            self?.projectSwitching?.showMenu()
           })
       }
     #endif
@@ -62,7 +66,8 @@ import SwiftUI
         try? await Task.sleep(for: .seconds(5))
         guard let self, let controller = self.controller else { return }
         try? await self.commands?.heartbeat(
-          sessionID: controller.status.sessionID, state: controller.status.state)
+          sessionID: controller.status.sessionID, state: controller.status.state,
+          durationMs: Int(controller.recordingDuration.elapsed() * 1000))
       }
     }
     host.onShutdown = { [weak self] in

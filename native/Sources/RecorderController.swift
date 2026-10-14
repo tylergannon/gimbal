@@ -5,21 +5,28 @@ import Foundation
   import UIKit
 #endif
 
-struct NativeStatus: Codable {
+struct NativeStatus: Codable, Equatable {
   var sessionID = ""
   var sequence = 0
   var pending = false
   var state = "idle"
   var source = "microphone"
+  var elapsedMs = 0
+  var requirements = false
+  var canPause = false
+  var canResume = false
+  var canStop = false
+  var switching = false
   var error: String?
 }
 @MainActor protocol RecordingCommands {
+  var hasSelectedProject: Bool { get }
   func open(sessionID: String, source: String, requirements: Bool) async throws
   func activate(sessionID: String) async throws
   func accept(
     sessionID: String, sequence: Int, finalized: [TranscriptChunk], provisional: [TranscriptChunk])
     async throws
-  func close(sessionID: String, sequence: Int) async throws
+  func close(sessionID: String, sequence: Int, durationMs: Int) async throws
   func abort(sessionID: String) async throws -> Int
 }
 struct RecorderTiming {
@@ -50,6 +57,7 @@ struct RecorderTiming {
   private var closedExternalID: String?
   private var pendingSessionID: String?
   private var pendingAppliedSequence = -1
+  var projectSwitchPending = false { didSet { refreshStatus() } }
   private var operation: Task<Void, Never>?
   private var operationID: UUID?
   private var cleanup: Task<Void, Never>?
@@ -58,6 +66,7 @@ struct RecorderTiming {
   private var sessionOpen = false
   private var deliveryResolved = true
   private var incompleteReason: String?
+  private var saveFailure: String?
   private var displayError: String?
   private var staging = false
   private var stagedFinals: [TranscriptChunk] = []
@@ -79,30 +88,37 @@ struct RecorderTiming {
     status.source = sourceName
   }
   var canRecord: Bool {
-    !appBackgrounded && externalSessionID == nil && !externalSessionActive && displayAvailable
+    !projectSwitchPending && !appBackgrounded && externalSessionID == nil && !externalSessionActive && displayAvailable
       && !sessionOpen && deliveryResolved && operation == nil && cleanup == nil
       && ["idle", "stopped", "error"].contains(status.state)
   }
-  var canPause: Bool { status.state == "recording" && operation == nil }
+  var canRetrySave: Bool { saveFailure != nil }
+  var canPause: Bool { !projectSwitchPending && status.state == "recording" && operation == nil }
   var canResume: Bool {
-    !appBackgrounded && displayAvailable && deliveryResolved && status.state == "paused"
+    !projectSwitchPending && !appBackgrounded && displayAvailable && deliveryResolved && status.state == "paused"
       && operation == nil
   }
   var canStop: Bool {
-    externalSessionID != nil || (sessionOpen && status.state != "idle" && status.state != "stopped")
+    externalSessionID != nil || saveFailure != nil || (sessionOpen && status.state != "idle" && status.state != "stopped")
   }
   private func publish(_ state: String) {
     recordingDuration.setRecording(state == "recording")
     if state != "recording" { audioLevel = 0 }
     status.state = state
-    status.error = incompleteReason ?? displayError
-    onStatus?(status)
+    status.error = saveFailure ?? incompleteReason ?? displayError
+    refreshStatus()
   }
   func record(requirements: Bool = false) {
     guard canRecord else { return }
+    guard commands.hasSelectedProject else {
+      incompleteReason = "Select a project before recording."
+      publish("error")
+      return
+    }
     let previous = status
     let previousApplied = appliedSequence
     incompleteReason = nil
+    saveFailure = nil
     startupFailure = nil
     pendingRollback = nil
     let operationID = UUID()
@@ -160,6 +176,7 @@ struct RecorderTiming {
         try ensureCurrent(token)
         recordingDuration = RecordingDuration()
         status.sessionID = id
+        status.requirements = requirements
         status.sequence = 0
         status.pending = false
         appliedSequence = pendingAppliedSequence
@@ -245,6 +262,7 @@ struct RecorderTiming {
     guard operationID == id else { return }
     operation = nil
     operationID = nil
+    refreshStatus()
   }
   private func ensureCurrent(_ token: UUID) throws {
     if token != generation && stopRequested && startupFailure == nil { throw CancellationError() }
@@ -362,7 +380,7 @@ struct RecorderTiming {
       if let preceding { await preceding.value }
       // Startup may already have aborted and settled. Do not overwrite
       // that result or drain a canceled source with the old generation.
-      guard sessionOpen, token == generation else {
+      guard sessionOpen || saveFailure != nil, token == generation else {
         finishOperation(operationID)
         return
       }
@@ -372,24 +390,75 @@ struct RecorderTiming {
         return
       }
       publish("stopping")
+      var delivered = !sessionOpen
       do {
-        try await bounded { try await self.source?.drain() }
-        try await sender?.flush()
-        try ensureCurrent(token)
-        status.sequence = sender?.sequence ?? 0
-        let id = status.sessionID
-        let sequence = status.sequence
-        try await retry { try await self.commands.close(sessionID: id, sequence: sequence) }
-        sessionOpen = false
-        onStatus?(status)
+        if sessionOpen {
+          try await bounded { try await self.source?.drain() }
+          try await sender?.flush()
+          try ensureCurrent(token)
+          status.sequence = sender?.sequence ?? 0
+          delivered = true
+          let id = status.sessionID
+          let sequence = status.sequence
+          try await retry { try await self.commands.close(sessionID: id, sequence: sequence, durationMs: Int(recordingDuration.elapsed() * 1000)) }
+          sessionOpen = false
+          onStatus?(status)
+        }
         try await confirmDisplay()
+        saveFailure = nil
         source?.cancel()
         source = nil
         publish("stopped")
-      } catch { fail(error, token: token) }
+      } catch {
+        if delivered && token == generation {
+          saveFailure = "Could not save or confirm the recording. Use Stop to retry before switching projects."
+          publish("error")
+        } else { fail(error, token: token) }
+      }
       finishOperation(operationID)
     }
     publish("stopping")
+  }
+  func refreshStatus() {
+    var next = status
+    next.elapsedMs = Int(recordingDuration.elapsed() * 1000)
+    next.canPause = canPause
+    next.canResume = canResume
+    next.canStop = canStop && status.state != "stopping" && !projectSwitchPending
+    next.switching = projectSwitchPending
+    if next != status { status = next }
+    onStatus?(status)
+  }
+  func showProjectError(_ message: String) {
+    status.error = message
+    onStatus?(status)
+  }
+  // A completed close and reconciled display are required, not a Stop request.
+  func stopAndSave() async throws {
+    if status.state != "stopped" { stop() }
+    if let operation { await operation.value }
+    if let cleanup { await cleanup.value }
+    guard status.state == "stopped", !sessionOpen, deliveryResolved, displayAvailable,
+      incompleteReason == nil, saveFailure == nil else {
+      throw RecorderError.message(status.error ?? "Recording could not be saved. Retry Stop before switching.")
+    }
+  }
+  func awaitDisplay() async throws {
+    let deadline = ContinuousClock.now.advanced(by: timing.display)
+    while !displayAvailable {
+      guard ContinuousClock.now < deadline else {
+        throw RecorderError.message("The selected project's transcript display is unavailable. Reconnect, then retry Record.")
+      }
+      try await Task.sleep(for: timing.poll)
+    }
+  }
+  func recordAndWait(requirements: Bool) async throws {
+    let previous = status.sessionID
+    record(requirements: requirements)
+    if let operation { await operation.value }
+    guard status.state == "recording", status.sessionID != previous else {
+      throw RecorderError.message(status.error ?? "The new recording did not start. Retry Record in the selected project.")
+    }
   }
   private func stopExternal(_ id: String) {
     guard operation == nil else { return }
@@ -456,7 +525,7 @@ struct RecorderTiming {
     guard displayAvailable != available || displayError != nextError else { return }
     displayAvailable = available
     displayError = available ? nil : error ?? "Transcript display is reconnecting."
-    status.error = incompleteReason ?? displayError
+    status.error = saveFailure ?? incompleteReason ?? displayError
     onStatus?(status)
   }
   private func confirmDisplay() async throws {

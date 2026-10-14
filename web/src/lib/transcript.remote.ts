@@ -47,6 +47,10 @@ export const markRequirements = command("unchecked", (_arg: RecordingRequest): H
 
 export const openSession = command("unchecked", (_arg: OpenRequest): Ack => unimplemented());
 
+export const recordingHeader = query("unchecked", (_arg: RecordingRequest): Header =>
+  unimplemented(),
+);
+
 export const recordingHistory = query("unchecked", (_arg: HistoryRequest): History =>
   unimplemented(),
 );

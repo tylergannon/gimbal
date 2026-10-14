@@ -7,12 +7,14 @@ export type Ack = {
 };
 
 export type CloseRequest = {
+  durationMs: number | null;
   project: string;
   sessionID: string;
   sequence: number;
 };
 
 export type Header = {
+  durationMs: number | null;
   id: string;
   source: string;
   created: number;
@@ -41,6 +43,7 @@ export type OpenRequest = {
  * Recording retains audio ranges and both accepted final and provisional text. Only the server creates and writes this store.
  */
 export type Recording = {
+  durationMs: number | null;
   id: string;
   source: string;
   created: number;

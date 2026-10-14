@@ -3,6 +3,8 @@ package transcript
 import (
 	"errors"
 	"strings"
+
+	"github.com/tylergannon/polytype"
 )
 
 const MaxPayloadBytes = 65536
@@ -30,9 +32,10 @@ type Update struct {
 	Provisional []Chunk `json:"provisional"`
 }
 type CloseRequest struct {
-	Project   string `json:"project"`
-	SessionID string `json:"sessionID"`
-	Sequence  int64  `json:"sequence"`
+	DurationMs polytype.Nullable[int64] `json:"durationMs"`
+	Project    string                   `json:"project"`
+	SessionID  string                   `json:"sessionID"`
+	Sequence   int64                    `json:"sequence"`
 }
 type Ack struct {
 	SessionID string `json:"sessionID"`

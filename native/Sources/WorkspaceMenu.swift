@@ -12,7 +12,9 @@
     @Published var canStopResponse = false
     @Published var projects: [WorkspaceProject] = []
     @Published var projectName = ""
+    var currentProject = ""
     @Published var canOpenTodayTranscript = false
+    var requestProject: ((String) -> Void)?
     weak var webView: WKWebView?
 
     var enabled: Bool { ready && windowIsKey }
@@ -28,8 +30,13 @@
       self.ready = ready
     }
 
+    func navigate(_ path: String) {
+      guard let data = try? JSONSerialization.data(withJSONObject: ["path": path]),
+        let json = String(data: data, encoding: .utf8) else { return }
+      webView?.evaluateJavaScript("window.dispatchEvent(new CustomEvent('gimbal-project-navigation', {detail: \(json)}));", completionHandler: nil)
+    }
     func send(_ command: String, project: String = "") {
-      guard enabled,
+      guard ready,
         let data = try? JSONSerialization.data(withJSONObject: [
           "command": command, "project": project,
         ]),
@@ -44,6 +51,7 @@
   struct WorkspaceProject: Identifiable {
     let id: String
     let name: String
+    let path: String
   }
 
   struct WorkspaceMenu: Commands {
@@ -59,9 +67,12 @@
           .keyboardShortcut("o", modifiers: [.command])
           .disabled(!workspace.enabled)
         Divider()
+        Button("Open Folder…") { workspace.send("openProjectFolder") }
+          .keyboardShortcut("o", modifiers: [.command, .shift])
+          .disabled(!workspace.enabled)
         Menu("Switch Project") {
           ForEach(workspace.projects) { project in
-            Button(project.name) { workspace.send("switchProject", project: project.id) }
+            Button(project.name) { workspace.requestProject?("/projects/\(project.id)/recordings") }
           }
         }
         .disabled(!workspace.enabled || workspace.projects.isEmpty)

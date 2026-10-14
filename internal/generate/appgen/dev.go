@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"flag"
@@ -74,22 +73,21 @@ func development(args []string) error {
 			}
 		}()
 
-		var output bytes.Buffer
 		current, err := developmentGeneration(root)
 		if err != nil {
 			return nil, err
 		}
 		cfg = current
 		if err := generate.Stock(root, nil); err != nil {
-			return output.Bytes(), err
+			return nil, err
 		}
 		mark("stock")
 		if err := worker.Run(cfg); err != nil {
-			return output.Bytes(), err
+			return nil, err
 		}
 		mark("skgo")
 		if err := observation.Generate(observationConfiguration(), codegen.Options{TargetDir: filepath.Join(root, "internal/observation"), TypeScript: &codegen.TypeScriptOptions{Dir: filepath.Join(root, "web/src/lib/observation")}}); err != nil {
-			return output.Bytes(), err
+			return nil, err
 		}
 		mark("observation")
 		err = workflow.Generate(workflowConfiguration(), codegen.Options{
@@ -97,7 +95,7 @@ func development(args []string) error {
 			TypeScript: &codegen.TypeScriptOptions{Dir: filepath.Join(root, "web/src/lib/workflow")},
 		})
 		mark("workflow")
-		return output.Bytes(), err
+		return nil, err
 	}
 	origin := "http://127.0.0.1:" + *port
 	vite, err := url.Parse("http://127.0.0.1:" + *vitePort)

@@ -21,7 +21,6 @@ func TestGeneratorBuildInputsExcludeObservedApplication(t *testing.T) {
 	for {
 		var pkg struct {
 			ImportPath string
-			EmbedFiles []string
 		}
 		if err := decoder.Decode(&pkg); err == io.EOF {
 			break
@@ -36,12 +35,6 @@ func TestGeneratorBuildInputsExcludeObservedApplication(t *testing.T) {
 			t.Errorf("generator compiles observed application package %s", pkg.ImportPath)
 		case "github.com/tylergannon/gimbal/internal/generate":
 			foundGenerator = true
-		case "github.com/tylergannon/gimbal/internal/builtin":
-			for _, file := range pkg.EmbedFiles {
-				if strings.HasPrefix(file, "pages/") {
-					t.Errorf("generator recompiles from its own output %s", file)
-				}
-			}
 		}
 	}
 	if !foundGenerator {

@@ -55,19 +55,18 @@ func TestStockRecoversMissingAndStaleOutput(t *testing.T) {
 	command := filepath.Join(root, "cmd", "gimbal", "review_gen.go")
 	expectedOutputs := map[string][]byte{}
 	for _, selected := range builtin.Workflows {
-		for _, path := range []string{
-			filepath.Join(root, "internal", "invocation", selected.Package+"_gen.go"),
-			filepath.Join(root, "internal", "builtin", "pages", selected.Name+".json"),
-		} {
-			expected, err := os.ReadFile(path)
-			if err != nil {
-				t.Fatal(err)
-			}
-			expectedOutputs[path] = expected
+		path := filepath.Join(root, "internal", "invocation", selected.Package+"_gen.go")
+		expected, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
 		}
+		expectedOutputs[path] = expected
 	}
-	for _, name := range []string{"registry_gen.go", "registry_projection_gen.go"} {
-		path := filepath.Join(root, "internal", "invocation", name)
+	for _, path := range []string{
+		filepath.Join(root, "internal", "invocation", "registry_gen.go"),
+		filepath.Join(root, "internal", "invocation", "registry_projection_gen.go"),
+		filepath.Join(root, "web", "src", "lib", "workflow-design", "generated", "catalog.json"),
+	} {
 		expected, err := os.ReadFile(path)
 		if err != nil {
 			t.Fatal(err)
@@ -99,6 +98,9 @@ func TestStockRecoversMissingAndStaleOutput(t *testing.T) {
 	}
 	if err := generate.Stock(root, nil); err != nil {
 		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "internal", "builtin", "pages")); !os.IsNotExist(err) {
+		t.Fatal("generation produced unused embedded-page copies")
 	}
 	formAgain, err := os.ReadFile(form)
 	if err != nil {

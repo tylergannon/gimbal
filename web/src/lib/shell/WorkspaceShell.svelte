@@ -138,5 +138,6 @@
   @media (width < 1100px) {
     aside { position: absolute; inset: 0 auto 0 0; z-index: 20; box-shadow: var(--shadow-lg); }
     .native header { padding-left: 86px; }
+    .with-sidebar header { padding-left: 274px; }
   }
 </style>

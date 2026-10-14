@@ -15,3 +15,7 @@ decision: Claude Sonnet 5.5 independently reproduced the monitor defect and sepa
 decision: Claude review converged with only nitpicks after restoring observer-first ordering, specifying TypeScript/Node hook startup, expanding the maintained Python inventory, and preserving explicit test gates for Node and nested skill modules. Future migration remains unimplemented.
 
 friction: Reviewer searches missed the existing mise Node 24.13.0 executable and incorrectly denied the observed probe. Explicit path execution reproduced v24.13.0 and warning-free TypeScript; negative discovery is not stronger than direct executable evidence.
+
+decision: Tyler authorized execution of the reviewed recovery and no-Python plan. Restore and observe the independent release monitor before the remaining ports; overall completion includes all maintained skill helpers and inline/test Python dependencies.
+correction: Live inventory also finds an inline Python HTTP server in local_service_fulfillment_test.go. Replace that fixture with the existing Go test executable so the full native release gate can run without Python.
+friction: Historical GitHub data contains two cancelled jobs with completion one second before start, not only the initially diagnosed record. Recover by exposing each unavailable interval and continuing the scan, rather than excluding one known run ID.

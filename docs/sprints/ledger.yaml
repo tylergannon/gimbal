@@ -9,3 +9,8 @@ sprints:
     status: done
     created: "2026-09-20T17:27:35+00:00"
     updated: "2026-09-20T18:31:45+00:00"
+  - id: SPRINT-0003
+    title: Promises from speech on current main
+    status: planned
+    created: "2026-10-14T17:05:30+00:00"
+    updated: "2026-10-14T17:05:30+00:00"

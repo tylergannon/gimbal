@@ -2,34 +2,20 @@
 
 ## Token Cache
 
-The token cache is the full local materialization of the project context.
-Tools like `rg`, `find`, `grep`, and `wc` operate on it directly.
-
-**Remote source**: local only (this repository)
+**Remote source**: local research materialization; current repository is authoritative.
 **Remote type**: `local`
-**Local path**: `docs/` and `ephemeral/` under the repository root
-**Sync command**:
-```
-(already materialized; it is the checked-in tree, refreshed by git pull)
-```
-**Token cache scope**: `docs/` is the definition of done and the static
-site. `ephemeral/` is the design record (`research/api/API.md`,
-`SPRINTS.md`, the three vendor research reports), the legacy codebase the
-restart drew on (`legacy/`, inspiration only, not the API), worklogs and
-reviews. It holds notes, never run output or code outside `legacy/`. Most
-of it is `legacy/` and `research/`.
+**Local path**: `/Users/tyler/src/promises-research/token-cache`
+**Sync command**: Already materialized; no automatic sync configured. Inspect freshness before using citations.
+**Token cache scope**: Gimbal, Gimbal View, Clarity, skgo documentation and workspace design references. Repository `docs/` and `ephemeral/` remain local current context.
 
 ## Semantic Index
 
-The semantic index is a routing tree built over the token cache.
-Use it to retrieve relevant citations without scanning the full token cache.
+**Status**: Available
+**Local path**: `/Users/tyler/src/promises-research/indexes`
+**Entrypoints**: [Gimbal](/Users/tyler/src/promises-research/indexes/gimbal/README.md), [Clarity](/Users/tyler/src/promises-research/indexes/clarity/README.md)
+**Access**: Read the relevant entrypoint; follow task routes, open relevant leaf citations, then targeted `rg` in the token cache. Do not scan the full cache.
+**Verified**: 2026-10-14. Indexes built 2026-10-12; cached Gimbal snapshot `a8fbba22`, Clarity `9dfa977c`. These indexes route historical source. Current repository and feature source revisions override stale line anchors or inferred recommendations.
 
-**Status**: Not yet built
-**Local path**: (none)
-**Entrypoint**: (none)
-**Access**: Search the token cache directly with `rg`. At its current
-size one search answers a question in seconds, so an index was judged not
-worth its upkeep when Sprint 001 was planned on 2026-09-12. Revisit when
-`ephemeral/` grows past what a few `rg` calls can cover.
+Promises planning starts with Gimbal `mark-on-start`, `mark-existing`, `ledger-llm-process` and `promises-tab`, and Clarity `claim-data-model` / `ledger-mutations`. Clarity's broader pipeline is inspiration; it is not a parity requirement. Clarity has no first-class tags; Gimbal tags are explicitly requested.
 
-To build: run `/df-semantic-index <token-cache-local-path> <index-output-path>`
+The local takeover/debrief journal is [takeover-2026-10-13](/Users/tyler/src/promises-research/takeover-2026-10-13/README.md); corrections supersede preliminary gathers. These absolute paths are specific to this machine. If absent elsewhere, obtain the preserved materialization before relying on it; do not imply it ships with Gimbal.

@@ -4,6 +4,7 @@ build: build-assets
     go build -o bin/gimbal ./cmd/gimbal
 
 # Portable generated source and frontend: prepared once for a release.
+# Invoke vp directly; Vite+ manages the package-manager version.
 build-assets:
     go mod tidy
     cd web && vp install

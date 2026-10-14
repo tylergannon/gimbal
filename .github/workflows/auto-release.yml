@@ -49,16 +49,13 @@ jobs:
         id: prerequisites
         if: github.event_name == 'pull_request' && steps.scope.outputs.go_packages != '[]'
         run: python3 scripts/ci_scope.py --go-prerequisites >> "$GITHUB_OUTPUT"
-      - uses: pnpm/action-setup@v4
-        if: github.event_name == 'pull_request' && steps.scope.outputs.release == 'true' && (steps.scope.outputs.web == 'true' || steps.prerequisites.outputs.web_assets == 'true')
-        with:
-          version: 12.10.1
-      - uses: actions/setup-node@v4
+      - uses: voidzero-dev/setup-vp@v1.21.2
         if: steps.scope.outputs.release == 'true'
         with:
-          node-version: 24
-          cache: ${{ github.event_name == 'pull_request' && (steps.scope.outputs.web == 'true' || steps.prerequisites.outputs.web_assets == 'true') && 'pnpm' || '' }}
-          cache-dependency-path: web/pnpm-lock.yaml
+          working-directory: web
+          node-version: '24'
+          run-install: false
+          cache: ${{ github.event_name == 'pull_request' && (steps.scope.outputs.web == 'true' || steps.prerequisites.outputs.web_assets == 'true') }}
       - name: Check release automation and hooks
         if: steps.scope.outputs.release == 'true'
         run: python3 -B -m unittest discover -s scripts -p '*_test.py' -v
@@ -66,8 +63,8 @@ jobs:
         if: github.event_name == 'pull_request' && steps.prerequisites.outputs.web_assets == 'true'
         run: |
           cd web
-          pnpm install --frozen-lockfile
-          pnpm exec vp build
+          vp install --frozen-lockfile
+          vp build
           test -s build/skgo.manifest.json
       - name: Install workflow runtime shell for affected Go tests
         if: github.event_name == 'pull_request' && steps.scope.outputs.go_packages != '[]'
@@ -81,11 +78,11 @@ jobs:
         if: github.event_name == 'pull_request' && steps.scope.outputs.web == 'true'
         run: |
           cd web
-          pnpm install --frozen-lockfile
-          pnpm exec playwright install --with-deps chromium
+          vp install --frozen-lockfile
+          vp exec playwright install --with-deps chromium
       - name: Check frontend units on PRs
         if: github.event_name == 'pull_request' && steps.scope.outputs.web == 'true'
-        run: cd web && pnpm test
+        run: cd web && vp run test
 
   release:
     name: Tag and publish checked source

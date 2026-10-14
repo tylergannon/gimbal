@@ -6,10 +6,10 @@ build: build-assets
 # Portable generated source and frontend: prepared once for a release.
 build-assets:
     go mod tidy
-    cd web && pnpm install
+    cd web && vp install
     go generate ./...
-    cd web && pnpm exec vp fmt
-    cd web && pnpm exec vp build
+    cd web && vp fmt
+    cd web && vp build
     test -s web/build/skgo.manifest.json
 
 dev:
@@ -22,22 +22,22 @@ app: build
     install -m 755 bin/gimbal native/Resources/gimbal
     go tool skgo native build --platform macos
     go generate ./internal/skgo ./workflow
-    cd web && pnpm exec vp fmt
+    cd web && vp fmt
 
 # Open the Debug app; a directory argument keeps its catalog in that directory instead of ~/.gimbal/desktop.
 app-run instance="":
     {{ if instance == "" { "open -n" } else { "mkdir -p '" + instance + "' && open -n --env GIMBAL_INSTANCE_DIR=\"$(cd '" + instance + "' && pwd)\"" } }} native/build/macos/DerivedData/Build/Products/Debug/Gimbal.app
 
 dev-web:
-    cd web && ORIGIN='{{origin}}' pnpm exec vp dev --host 127.0.0.1 --port 5173 --strictPort
+    cd web && ORIGIN='{{origin}}' vp dev --host 127.0.0.1 --port 5173 --strictPort
 
 dev-go:
     GIMBAL_WEB_PROXY=http://127.0.0.1:5173 GIMBAL_WEB_ORIGIN='{{origin}}' go run ./cmd/gimbal --port 8080
 
 e2e run="run":
-    cd e2e && pnpm install
-    cd e2e && pnpm exec playwright install chromium
-    cd e2e && SKGO_E2E_RUN={{run}} pnpm test
+    cd e2e && vp install
+    cd e2e && vp exec playwright install chromium
+    cd e2e && SKGO_E2E_RUN={{run}} vp run test
 
 vet:
     go vet ./...
@@ -53,7 +53,7 @@ modernize:
     go tool modernize -fix ./...
 
 check-web:
-    cd web && pnpm check
+    cd web && vp run check
 
 check-hooks:
     python3 -B -m unittest discover -s scripts -p 'staged_hook_test.py' -v
@@ -74,16 +74,16 @@ check-cli-release:
 
 test:
     go test -count=1 ./...
-    cd web && pnpm test
+    cd web && vp run test
 
 storybook:
-    cd web && pnpm storybook --host 127.0.0.1
+    cd web && vp run storybook --host 127.0.0.1
 
 fmt:
-    cd web && pnpm exec vp fmt
+    cd web && vp fmt
 
 fmt-check:
-    cd web && pnpm exec vp fmt --check
+    cd web && vp fmt --check
 
 # Refresh generated prices, aliases and Diffusion limits; needs DIFFUSION_API_KEY.
 models:

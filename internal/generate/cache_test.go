@@ -1,6 +1,7 @@
 package generate
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -343,6 +344,80 @@ func TestCompilerExportIdentityUsesOnlyGoContentAddressedStore(t *testing.T) {
 	for _, path := range []string{filepath.Join(cache, "exports.a"), filepath.Join(cache, "other", id+"-d"), filepath.Join(t.TempDir(), id[:2], id+"-d")} {
 		if _, err := compilerExportID(cache, path); err == nil {
 			t.Fatalf("accepted unsupported store %s", path)
+		}
+	}
+}
+
+func TestGenerationCacheReplacesSourceAndProducerVersions(t *testing.T) {
+	cache := &analysisCache{dir: t.TempDir(), producer: "first-producer"}
+	input := &analysisInputs{manifest: inputManifest{Dir: "/fixture", Sources: map[string]string{"flow.go": "first-source"}}}
+	requests := []analysisRequest{{Name: "fixture"}}
+	result := []analysisResult{{Graph: workflow.Graph{Name: "fixture", Body: []workflow.Operation{workflow.Set{Key: "literal"}}}}}
+	cache.write(input, requests, result)
+	input.manifest.Sources["flow.go"] = "second-source"
+	if _, ok := cache.read(input, requests); ok {
+		t.Fatal("source change reused old result")
+	}
+	cache.write(input, requests, result)
+	cache.producer = "second-producer"
+	if _, ok := cache.read(input, requests); ok {
+		t.Fatal("producer change reused old result")
+	}
+	cache.write(input, requests, result)
+	files, err := os.ReadDir(cache.dir)
+	if err != nil || len(files) != 1 {
+		t.Fatalf("old versions accumulated: %v %v", files, err)
+	}
+	actual, ok := cache.read(input, requests)
+	if !ok {
+		t.Fatal("latest version missing")
+	}
+	expectCachedSet(t, actual[0], "literal")
+	// A valid JSON edit can decode successfully while corrupting semantic values.
+	path := cache.path(input, requests)
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	changed := strings.Replace(string(raw), "literal", "corrupt", 1)
+	if changed == string(raw) || !json.Valid([]byte(changed)) {
+		t.Fatal("fixture did not alter a valid JSON literal")
+	}
+	if err := os.WriteFile(path, []byte(changed), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := cache.read(input, requests); ok {
+		t.Fatal("accepted valid JSON with corrupted result")
+	}
+}
+
+func TestGenerationCachePackageErrorsKeepOrdinaryDiagnostics(t *testing.T) {
+	load := loadSourceTypes
+	t.Cleanup(func() { loadSourceTypes = load })
+	t.Setenv("GIMBAL_GENERATE_CACHE_DIR", t.TempDir())
+	dir := cacheFixture(t)
+	for _, source := range []string{
+		"package fixture\nvar invalid = nonexistent\n",
+		"package fixture\nfunc broken( {\n",
+		"package fixture\nimport _ \"example.com/nonexistent\"\n",
+	} {
+		if err := os.WriteFile(filepath.Join(dir, "broken.go"), []byte(source), 0600); err != nil {
+			t.Fatal(err)
+		}
+		_, captureErr := captureAnalysisInputs(dir, nil, []string{"."})
+		t.Setenv("GIMBAL_GENERATE_CACHE", "off")
+		loadSourceTypes = load
+		_, ordinaryErr := analyzeOne(dir, "Flow", "fixture", nil, true, false)
+		if captureErr == nil || ordinaryErr == nil || captureErr.Error() != ordinaryErr.Error() {
+			t.Fatalf("capture=%v\nordinary=%v", captureErr, ordinaryErr)
+		}
+		t.Setenv("GIMBAL_GENERATE_CACHE", "")
+		loadSourceTypes = func(*packages.Config, ...string) ([]*packages.Package, error) {
+			return nil, fmt.Errorf("repeated checker after known package error")
+		}
+		_, cachedErr := analyzeOne(dir, "Flow", "fixture", nil, true, false)
+		if cachedErr == nil || cachedErr.Error() != ordinaryErr.Error() {
+			t.Fatalf("cached=%v\nordinary=%v", cachedErr, ordinaryErr)
 		}
 	}
 }

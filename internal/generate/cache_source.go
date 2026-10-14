@@ -25,6 +25,9 @@ import (
 // immutable export artifacts; the cache skips the root checker and extraction.
 // Roots are parsed from captured bytes on misses. Dependency source imports are
 // computed from captured source, not inferred from compiler export data.
+// packageInputError is an ordinary Go package diagnostic, not a cache failure.
+type packageInputError struct{ error }
+
 type analysisInputs struct {
 	dir            string
 	patterns       []string
@@ -154,7 +157,7 @@ func captureAnalysisInputs(dir string, overlay map[string][]byte, patterns []str
 			return
 		}
 		if len(p.Errors) != 0 {
-			problem = fmt.Errorf("generate: %s: %s", p.PkgPath, p.Errors[0])
+			problem = &packageInputError{fmt.Errorf("generate: %s: %s", p.PkgPath, p.Errors[0])}
 			return
 		}
 		identity, err := in.identity(p)

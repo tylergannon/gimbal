@@ -1,6 +1,7 @@
 package generate
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 
@@ -56,7 +57,12 @@ func analyze(dir string, overlay map[string][]byte, patterns []string, requests 
 	cache := openAnalysisCache()
 	var input *analysisInputs
 	if cache != nil {
-		input, _ = captureAnalysisInputs(dir, overlay, patterns)
+		var captureErr error
+		input, captureErr = captureAnalysisInputs(dir, overlay, patterns)
+		var packageErr *packageInputError
+		if errors.As(captureErr, &packageErr) {
+			return nil, packageErr
+		}
 		if input != nil {
 			if result, ok := cache.read(input, requests); ok {
 				return result, nil

@@ -56,9 +56,20 @@ func (c *analysisCache) key(in *analysisInputs, requests []analysisRequest) stri
 	return hashBytes(raw)
 }
 
+// Keep only the latest successful source/producer version of each project query.
+// Input changes replace this slot instead of accumulating one entry per edit.
+func (c *analysisCache) path(in *analysisInputs, requests []analysisRequest) string {
+	raw, _ := json.Marshal(struct {
+		Dir      string
+		Patterns []string
+		Requests []analysisRequest
+	}{in.manifest.Dir, in.manifest.Patterns, requests})
+	return filepath.Join(c.dir, hashBytes(raw)+".json")
+}
+
 func (c *analysisCache) read(in *analysisInputs, requests []analysisRequest) ([]analysisResult, bool) {
 	key := c.key(in, requests)
-	path := filepath.Join(c.dir, key+".json")
+	path := c.path(in, requests)
 	info, err := os.Stat(path)
 	if err != nil || !info.Mode().IsRegular() || info.Size() > maximumAnalysisEntry {
 		return nil, false
@@ -101,5 +112,5 @@ func (c *analysisCache) write(in *analysisInputs, requests []analysisRequest, re
 	if writeErr != nil || closeErr != nil {
 		return
 	}
-	_ = os.Rename(file.Name(), filepath.Join(c.dir, key+".json"))
+	_ = os.Rename(file.Name(), c.path(in, requests))
 }

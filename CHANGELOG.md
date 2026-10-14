@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.20] - 2026-10-14
+
+### Changed
+
+- Keep the Vite+ guidance beside the commands (#547)
+
 ## [0.13.19] - 2026-10-14
 
 ### Changed
@@ -296,7 +302,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `opencode/provider/model` routing, one shared server managed by
   `gimbal opencode start|stop`, and raw event/request captures for diagnostics.
 
-[Unreleased]: https://github.com/tylergannon/gimbal/compare/v0.13.19...main
+[Unreleased]: https://github.com/tylergannon/gimbal/compare/v0.13.20...main
+[0.13.20]: https://github.com/tylergannon/gimbal/compare/v0.13.19...v0.13.20
 [0.13.19]: https://github.com/tylergannon/gimbal/compare/v0.13.18...v0.13.19
 [0.13.18]: https://github.com/tylergannon/gimbal/compare/v0.13.17...v0.13.18
 [0.13.17]: https://github.com/tylergannon/gimbal/compare/v0.13.16...v0.13.17

@@ -15,6 +15,27 @@ import (
 	"golang.org/x/tools/go/packages"
 )
 
+func TestMain(m *testing.M) {
+	dir, err := os.MkdirTemp("", "gimbal-generate-tests-*")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	for _, name := range []string{"GIMBAL_GENERATE_CACHE_DIR", "POLYTYPE_CACHE_DIR", "SKGO_CACHE_DIR"} {
+		// Explicit fixture directories must survive in fresh child processes.
+		if os.Getenv(name) == "" {
+			if err := os.Setenv(name, filepath.Join(dir, name)); err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				os.RemoveAll(dir)
+				os.Exit(1)
+			}
+		}
+	}
+	status := m.Run()
+	os.RemoveAll(dir)
+	os.Exit(status)
+}
+
 const cacheFixtureSource = `package fixture
 import("context";"github.com/tylergannon/gimbal")
 // Flow documents the original workflow.
@@ -89,6 +110,37 @@ func TestGenerationCacheAcrossProcessesAndMissingOutput(t *testing.T) {
 	after, err := os.ReadFile(output)
 	if err != nil || string(after) != string(before) {
 		t.Fatalf("restored output differs: %v", err)
+	}
+}
+
+func TestGenerationCacheAcrossDirectAndGoGenerateInvocations(t *testing.T) {
+	dir := cacheFixture(t)
+	cache := t.TempDir()
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	source := cacheFixtureSource + fmt.Sprintf("\n//go:generate %q -test.run=^TestGenerationCacheProcess\n", executable)
+	if err := os.WriteFile(filepath.Join(dir, "flow.go"), []byte(source), 0600); err != nil {
+		t.Fatal(err)
+	}
+	for _, mode := range []string{"direct-cold", "generate-warm", "direct-warm"} {
+		cmd := exec.Command(executable, "-test.run=^TestGenerationCacheProcess")
+		childMode := "warm"
+		if mode == "direct-cold" {
+			childMode = "cold"
+		} else if mode == "generate-warm" {
+			cmd = exec.Command("go", "generate", "flow.go")
+		}
+		cmd.Dir = dir
+		cmd.Env = append(os.Environ(), "GIMBAL_GENERATE_CACHE_DIR="+cache, "GIMBAL_CACHE_TEST_DIR="+dir, "GIMBAL_CACHE_TEST_MODE="+childMode)
+		if output, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("%s: %v\n%s", mode, err, output)
+		}
+		data, err := os.ReadFile(filepath.Join(dir, "workflow_gen.go"))
+		if err != nil || !strings.Contains(string(data), `Key: "first"`) {
+			t.Fatalf("%s lost literal generated value: %v\n%s", mode, err, data)
+		}
 	}
 }
 

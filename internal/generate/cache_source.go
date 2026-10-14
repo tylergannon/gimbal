@@ -88,7 +88,11 @@ func cacheEnvironment() []string {
 	var result []string
 	for _, item := range os.Environ() {
 		name, _, _ := strings.Cut(item, "=")
-		if strings.HasPrefix(name, "GO") || strings.HasPrefix(name, "CGO_") || name == "PATH" || name == "HOME" || name == "CC" || name == "CXX" || name == "PKG_CONFIG" {
+		// Go's effective settings are captured below. go generate injects
+		// GOFILE/GOLINE/GOPACKAGE and explicit GOOS/GOARCH/GOROOT values; their
+		// presence does not change this generator's inputs. PATH ordering is
+		// represented by the resolved Go command, not the raw search list.
+		if name == "GODEBUG" || strings.HasPrefix(name, "CGO_") || name == "HOME" || name == "CC" || name == "CXX" || name == "PKG_CONFIG" {
 			result = append(result, item)
 		}
 	}
@@ -106,9 +110,22 @@ func captureAnalysisInputs(dir string, overlay map[string][]byte, patterns []str
 	}
 	in := &analysisInputs{dir: dir, patterns: slices.Clone(patterns), overlay: maps.Clone(overlay), roots: map[string][]byte{}, imports: map[string]bool{}, rootIDs: map[string]bool{}}
 	in.manifest = inputManifest{Dir: dir, Patterns: patterns, Environment: cacheEnvironment(), Sources: map[string]string{}, Overlays: map[string]string{}}
+	goCommand, err := exec.LookPath("go")
+	if err != nil {
+		return nil, err
+	}
+	goCommand, err = filepath.EvalSymlinks(goCommand)
+	if err != nil {
+		return nil, err
+	}
+	goDigest, err := hashFile(goCommand)
+	if err != nil {
+		return nil, err
+	}
+	in.manifest.Environment = append(in.manifest.Environment, "go-command="+goCommand+":"+goDigest)
 	// Include effective settings, including defaults written through go env -w
 	// and automatic toolchain selection, rather than only process overrides.
-	env := exec.Command("go", "env", "-json", "GOOS", "GOARCH", "GOAMD64", "GOARM", "GOARM64", "GO386", "GOEXPERIMENT", "GOVERSION", "GOROOT", "GOTOOLDIR", "GOTOOLCHAIN", "GOWORK", "GOFLAGS", "GOCACHE", "CGO_ENABLED", "CC", "CXX")
+	env := exec.Command(goCommand, "env", "-json", "GOOS", "GOARCH", "GOAMD64", "GOARM", "GOARM64", "GO386", "GOEXPERIMENT", "GOVERSION", "GOROOT", "GOTOOLDIR", "GOTOOLCHAIN", "GOWORK", "GOFLAGS", "GOCACHE", "CGO_ENABLED", "CC", "CXX", "GO111MODULE", "GOPATH", "GOMODCACHE")
 	env.Dir = dir
 	toolchain, err := env.Output()
 	if err != nil {

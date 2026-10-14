@@ -1,12 +1,33 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
 )
+
+func TestMain(m *testing.M) {
+	dir, err := os.MkdirTemp("", "gimbal-appgen-tests-*")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	for _, name := range []string{"GIMBAL_GENERATE_CACHE_DIR", "POLYTYPE_CACHE_DIR", "SKGO_CACHE_DIR"} {
+		if os.Getenv(name) == "" {
+			if err := os.Setenv(name, filepath.Join(dir, name)); err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				os.RemoveAll(dir)
+				os.Exit(1)
+			}
+		}
+	}
+	status := m.Run()
+	os.RemoveAll(dir)
+	os.Exit(status)
+}
 
 func TestObservationProjectionUsesFreshSource(t *testing.T) {
 	dir := t.TempDir()

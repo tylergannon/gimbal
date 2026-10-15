@@ -1,6 +1,7 @@
 package modelalias
 
 import (
+	"slices"
 	"strings"
 	"testing"
 )
@@ -110,14 +111,45 @@ func TestNewerVersionComparesNumerically(t *testing.T) {
 }
 
 func TestNewestListsEachFamilyOnceByHarness(t *testing.T) {
+	// Family membership and ordering are stable; the selected versions follow
+	// the catalog. TestFamilyAliasIsNewestGeneratedVersion checks that selection.
+	familiesByHarness := map[string][]string{
+		"claude": {"fable", "haiku", "opus", "sonnet"},
+		"codex":  {"astra", "gpt", "luna", "terra"},
+		"agy":    {"flash"},
+		"pi":     {"deepseek-flash", "glm", "glm-flash", "glm-vision"},
+	}
 	newest := Newest()
-	if got := strings.Join(newest["claude"], ","); got != "claude-fable-5-1,claude-haiku-4-5,claude-opus-5-5,claude-sonnet-5-5" {
-		t.Fatalf("claude = %s", got)
+	if len(newest) != len(familiesByHarness) {
+		t.Fatalf("Newest() lists %d harnesses, want %d: %v", len(newest), len(familiesByHarness), newest)
 	}
-	if got := strings.Join(newest["codex"], ","); got != "gpt-6-astra,gpt-6.1-sol,gpt-6-luna,gpt-5.6-terra" {
-		t.Fatalf("codex = %s", got)
+	for harness, names := range familiesByHarness {
+		want := make([]string, 0, len(names))
+		for _, name := range names {
+			resolved, err := Resolve(Selection{Name: name})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if resolved.Harness != harness {
+				t.Fatalf("Resolve(%q) serves %q, want %q", name, resolved.Harness, harness)
+			}
+			want = append(want, resolved.Model)
+		}
+		if got := newest[harness]; !slices.Equal(got, want) {
+			t.Errorf("Newest()[%q] = %v, want %v", harness, got, want)
+		}
 	}
-	if got := strings.Join(newest["agy"], ","); got != "gemini-3.8-flash-medium" {
-		t.Fatalf("agy = %s", got)
+
+	// gpt and sol name the same family, whose native model must appear once.
+	gpt, err := Resolve(Selection{Name: "gpt"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sol, err := Resolve(Selection{Name: "sol"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gpt.Model != sol.Model {
+		t.Fatalf("gpt = %q, sol = %q; want the same native model", gpt.Model, sol.Model)
 	}
 }

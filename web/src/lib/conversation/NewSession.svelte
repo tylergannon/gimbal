@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { untrack } from 'svelte';
+  import { onMount } from 'svelte';
   import { SvelteMap } from 'svelte/reactivity';
   import FileTextIcon from '@lucide/svelte/icons/file-text';
   import XIcon from '@lucide/svelte/icons/x';
@@ -19,34 +19,48 @@
   import { environmentSnapshot } from '#lib/environments.remote';
   import EnvironmentPicker from '#lib/environments/EnvironmentPicker.svelte';
 
-  let { project, name, active = true, oncreated, fileContext, oncontextremoved, startLike }: {
+  let { project, name, active = true, oncreated, fileContext, oncontextremoved }: {
     project: string; name: string; active?: boolean; oncreated: (conversation: Conversation) => void;
-    fileContext?: { id: string; name: string }; oncontextremoved?: () => void; startLike?: { conversation: string; nonce: number };
+    fileContext?: { id: string; name: string }; oncontextremoved?: () => void;
   } = $props();
   const form = $derived(createConversation.for(project));
   const conversationsQuery = $derived(projectConversations(project));
   const recent = $derived(conversationsQuery.current ?? []);
   let environment = $state('local');
-  let initialized = $state(false);
-  let appliedSetup = $state(0);
-  function pickEnvironment(id: string) { environment = id; initialized = true; }
+  let touched = false;
+  let defaults: Conversation[] = [];
+  function pickEnvironment(id: string) {
+    choose({});
+    environment = id;
+    const previous = defaults.find(item => (item.environment || 'local') === id);
+    if (!choices.has(id) && previous) choices.set(id, setupOf(previous));
+  }
   const setupQuery = $derived(conversationSetup({ project, environment }));
   const inventory = $derived(environmentSnapshot(project));
-  $effect(() => {
-    if (!active) return;
-    const query = inventory;
-    if (untrack(() => query.ready)) void query.refresh().catch(navigateOnUnauthorized);
-    const timer = setInterval(() => { void query.refresh().catch(navigateOnUnauthorized); }, 2000);
-    return () => clearInterval(timer);
+  onMount(() => {
+    let mounted = true;
+    void (async () => {
+      try {
+        await conversationsQuery;
+        if (!mounted) return;
+        defaults = conversationsQuery.current ?? [];
+        if (!touched && defaults[0]) applySetup(defaults[0]);
+      } catch (error) { if (!navigateOnUnauthorized(error)) actionError = errorMessage(error); }
+    })();
+    const timer = setInterval(() => {
+      if (active) void inventory.refresh().catch(navigateOnUnauthorized);
+    }, 2000);
+    return () => { mounted = false; clearInterval(timer); };
   });
   const setup = $derived(setupQuery.current);
   let actionError = $state('');
-  let picker = $state('');
-  $effect(() => { if (!active) picker = ''; });
   type Choices = { shared?: boolean; branch?: string; base?: string; harness?: { provider: string; model: string; effort?: string } };
   const choices = new SvelteMap<string, Choices>();
   const selected = $derived(choices.get(environment) ?? {});
-  function choose(patch: Partial<Choices>) { choices.set(environment, { ...selected, ...patch }); }
+  function choose(patch: Partial<Choices>) {
+    touched = true;
+    choices.set(environment, { shared: sharedCheckout, base, harness: choice, ...selected, ...patch });
+  }
   const sharedCheckout = $derived(selected.shared ?? false);
   const isolated = $derived(!!setup?.git && setup.capabilities.worktree && !sharedCheckout);
   const suggestedBranch = $derived((form.fields.message.value() ?? '').split('\n')[0]
@@ -56,26 +70,6 @@
   const harnesses = $derived(setup?.harnesses ?? []);
   const usable = $derived(harnesses.filter(item => !setup?.harness_states.some(state => state.id === item.id && (state.state === 'missing' || state.state === 'sign-in-required'))));
   const choice = $derived(selected.harness ?? ((usable[0] ?? harnesses[0]) && { provider: (usable[0] ?? harnesses[0]).id, model: (usable[0] ?? harnesses[0]).default, effort: '' }));
-  // Capture defaults once into the draft. Later background activity may reorder
-  // recent sessions, but cannot change a draft's setup.
-  $effect(() => {
-    if (!conversationsQuery.ready) return;
-    if (startLike && appliedSetup !== startLike.nonce) {
-      const item = recent.find(item => item.id === startLike.conversation);
-      if (item) untrack(() => like(item));
-      appliedSetup = startLike.nonce;
-    } else if (!initialized) {
-      const item = recent[0];
-      if (item) untrack(() => like(item));
-      initialized = true;
-    }
-    if (setup && !choices.has(environment)) {
-      const item = untrack(() => recent.find(item => (item.environment || 'local') === environment));
-      const first = usable[0] ?? harnesses[0];
-      choices.set(environment, item ? setupOf(item) : { shared: false, base: setup.base,
-        harness: first && { provider: first.id, model: first.default, effort: '' } });
-    }
-  });
   const canStart = $derived(!!choice && usable.some(item => item.id === choice.provider) && (!choice.effort || !!harnesses.find(item => item.id === choice.provider)?.efforts.find(item => item.model === choice.model)?.levels.includes(choice.effort)));
   const setupKey = (item: Conversation) => JSON.stringify([item.provider, item.model, item.effort || '', item.environment || 'local', !!item.shared_checkout, item.base || '']);
   const starts = $derived(recent.filter((item, index) => recent.findIndex(other => setupKey(other) === setupKey(item)) === index).slice(0, 3));
@@ -83,8 +77,9 @@
     return { shared: !!item.shared_checkout, base: item.base || undefined,
       harness: { provider: item.provider, model: item.model, effort: item.effort || '' } };
   }
-  function like(item: Conversation) {
-    pickEnvironment(item.environment || 'local');
+  export function applySetup(item: Conversation) {
+    touched = true;
+    environment = item.environment || 'local';
     choices.set(item.environment || 'local', setupOf(item));
   }
 
@@ -119,12 +114,12 @@
       onkeydown={(event) => { if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); if (canStart && !form.pending) event.currentTarget.form?.requestSubmit(); } }}></textarea>
     {#if active}
     <fieldset class="choices" aria-label="Session setup" disabled={!!form.pending}>
-      {#if setup && choice}<HarnessPicker bind:open={() => picker === 'harness', (open) => picker = open ? 'harness' : ''} {harnesses} {choice} states={setup.harness_states} machine={setup.machine} onpick={(next) => choose({ harness: next })} />{/if}
+      {#if setup && choice}<HarnessPicker {harnesses} {choice} states={setup.harness_states} machine={setup.machine} onpick={(next) => choose({ harness: next })} />{/if}
       {#if inventory.current || setup}
-        <EnvironmentPicker bind:open={() => picker === 'environment', (open) => picker = open ? 'environment' : ''} snapshot={(inventory.current ?? setup!.environments)} selected={environment} directory={setup?.directory ?? inventory.current?.environments.find(row => row.environment.id === environment)?.environment.directory ?? ''} machine={setup?.machine ?? inventory.current?.machines.find(item => item.id === inventory.current?.environments.find(row => row.environment.id === environment)?.environment.machine)?.name ?? 'Environment'} onpick={pickEnvironment} />
+        <EnvironmentPicker snapshot={(inventory.current ?? setup!.environments)} selected={environment} directory={setup?.directory ?? inventory.current?.environments.find(row => row.environment.id === environment)?.environment.directory ?? ''} machine={setup?.machine ?? inventory.current?.machines.find(item => item.id === inventory.current?.environments.find(row => row.environment.id === environment)?.environment.machine)?.name ?? 'Environment'} onpick={pickEnvironment} />
       {/if}
       {#if setup}
-        <Popover.Root bind:open={() => picker === 'checkout', (open) => picker = open ? 'checkout' : ''}>
+        <Popover.Root>
           <Popover.Trigger class="chip" aria-label="Worktree">
             {#if isolated}<GitBranchIcon size={14} aria-hidden="true" />New worktree{:else}<FolderIcon size={14} aria-hidden="true" />{setup.git ? 'Shared checkout' : 'No worktree'}{/if}
             <ChevronDownIcon size={14} aria-hidden="true" />
@@ -162,7 +157,7 @@
     <div class="start-like">
       <span>Start like</span>
       {#each starts as item (item.id)}
-        <button type="button" disabled={!!form.pending} onclick={() => like(item)}>{item.title} · {harnessName(item.provider)} on {item.placement?.machine.name ?? 'This Mac'}{item.effort ? ` · ${item.effort}` : ''}</button>
+        <button type="button" disabled={!!form.pending} onclick={() => applySetup(item)}>{item.title} · {harnessName(item.provider)} on {item.placement?.machine.name ?? 'This Mac'}{item.effort ? ` · ${item.effort}` : ''}</button>
       {/each}
     </div>
   {/if}

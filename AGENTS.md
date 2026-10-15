@@ -67,6 +67,13 @@ absolute path, in the prompt. No prompt points an agent at a remote
 source, and prompts are plain English: "Read and implement the issue in
 /path/to/168.md."
 
+## Frontend state
+
+`$effect()` must never manage application state. Apply state transitions in
+explicit user actions, navigation callbacks, or data-arrival handlers. Use
+`$derived` for computed values. Effects are reserved for external side effects
+such as DOM integration, never for copying or synchronizing application state.
+
 ## Working here
 
 - Commit, and push, whenever something interesting has happened.

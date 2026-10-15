@@ -6,6 +6,7 @@ import type { NativeStatus } from "./native";
 
 const mocks = vi.hoisted(() => ({
   before: undefined as undefined | ((navigation: any) => void),
+  after: undefined as undefined | (() => void),
   goto: vi.fn(async () => {}),
   watch: vi.fn(() => ({
     connected: true,
@@ -17,6 +18,9 @@ const mocks = vi.hoisted(() => ({
 vi.mock("$app/navigation", () => ({
   beforeNavigate: (callback: any) => {
     mocks.before = callback;
+  },
+  afterNavigate: (callback: () => void) => {
+    mocks.after = callback;
   },
   goto: mocks.goto,
   refreshAll: vi.fn(async () => {}),
@@ -65,12 +69,13 @@ test("cross-project links wait for native approval; same-project views remain us
 test("destination selection receipt is independent of the old transcript connection", async () => {
   const messages: unknown[] = [];
   const postMessage = (value: unknown) => messages.push(value);
+  const complete = vi.fn(postMessage);
   window.webkit = {
     messageHandlers: {
       bridgeReady: { postMessage },
       selectProject: { postMessage },
       displayAvailability: { postMessage },
-      projectNavigationComplete: { postMessage },
+      projectNavigationComplete: { postMessage: complete },
     },
   };
   window.voiceNotesLatestStatus = {
@@ -83,10 +88,12 @@ test("destination selection receipt is independent of the old transcript connect
     switching: true,
   };
   const screen = await render(RecorderBridge, { dock: false });
+  expect(messages).toContainEqual({ project: "a" });
+  expect(complete).not.toHaveBeenCalled();
   window.dispatchEvent(
     new CustomEvent("gimbal-project-navigation", { detail: { path: "/projects/a/recordings" } }),
   );
-  await vi.waitFor(() => expect(messages).toContainEqual({ project: "a" }));
+  await vi.waitFor(() => expect(complete).toHaveBeenCalledWith({ project: "a" }));
   expect(messages).toContainEqual({
     available: false,
     error: "Transcript disconnected or waiting for saved text",

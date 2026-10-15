@@ -14,8 +14,8 @@
   const unavailable = (id: string) => states.find(item => item.id === id && (item.state === 'missing' || item.state === 'sign-in-required'));
   const reason = (id: string) => { const state = unavailable(id); return `${state?.detail || (state?.state === 'missing' ? 'Not installed' : 'Sign-in required')} · ${machine}`; };
   const shown = $derived(harnesses.find(item => item.id === choice.provider) ?? harnesses[0]);
-  const models = $derived(shown.models.includes(choice.model) || shown.id !== choice.provider ? shown.models : [choice.model, ...shown.models]);
-  const efforts = $derived(shown.efforts?.find(item => item.model === choice.model)?.levels ?? []);
+  const models = $derived(!shown ? [] : shown.models.includes(choice.model) || shown.id !== choice.provider ? shown.models : [choice.model, ...shown.models]);
+  const efforts = $derived(shown?.efforts?.find(item => item.model === choice.model)?.levels ?? []);
 </script>
 
 <Popover.Root bind:open>
@@ -38,7 +38,7 @@
           </button>
         {/each}
       </div>
-      <div class="column models" role="group" aria-label={`${harnessName(shown.id)} models`}>
+      {#if shown}<div class="column models" role="group" aria-label={`${harnessName(shown.id)} models`}>
         <h3>{harnessName(shown.id)} models</h3>
         {#each models as model (model)}
           <button type="button" class={["option", { selected: model === choice.model }]} disabled={!!unavailable(shown.id)}
@@ -47,13 +47,14 @@
             {#if model === choice.model}<CheckIcon size={14} aria-hidden="true" />{/if}
           </button>
         {/each}
-      </div>
+      </div>{:else}<p class="empty" role="status">No harness availability was reported by {machine}. Choose another environment or inspect Machines.</p>{/if}
     </div>
-    <footer><label>Effort <select aria-label="Effort" value={choice.effort || ''} onchange={(event) => onpick({ ...choice, effort: event.currentTarget.value })} disabled={!efforts.length}><option value="">Default</option>{#if choice.effort && !efforts.includes(choice.effort)}<option value={choice.effort} disabled>{choice.effort} — unavailable for this model</option>{/if}{#each efforts as level (level)}<option value={level}>{level.charAt(0).toUpperCase() + level.slice(1)}</option>{/each}</select></label><p>{efforts.length ? 'Applies to every turn in this session.' : 'Effort follows this model.'}</p></footer>
+    <footer><label>Effort <select aria-label="Effort" bind:value={() => choice.effort || '', (effort) => onpick({ ...choice, effort })} disabled={!efforts.length}><option value="">Default</option>{#if choice.effort && !efforts.includes(choice.effort)}<option value={choice.effort} disabled>{choice.effort} — unavailable for this model</option>{/if}{#each efforts as level (level)}<option value={level}>{level.charAt(0).toUpperCase() + level.slice(1)}</option>{/each}</select></label><p>{efforts.length ? 'Applies to every turn in this session.' : 'Effort follows this model.'}</p></footer>
   </Popover.Content>
 </Popover.Root>
 
 <style>
+  .empty { margin: 0; padding: 14px; font-size: 12px; color: var(--muted-foreground); }
   .columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); }
   .column { display: grid; align-content: start; gap: 2px; padding: 6px; }
   .models { border-left: 1px solid var(--border); }

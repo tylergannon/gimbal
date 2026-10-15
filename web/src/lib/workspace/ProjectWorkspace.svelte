@@ -2,7 +2,7 @@
   import { navigateOnUnauthorized } from "#lib/auth/unauthorized";
   import { APP_NAME } from "#lib/app";
   import { errorMessage } from "#lib/errors";
-  import { onMount, untrack, type Snippet } from 'svelte';
+  import { onMount, untrack, tick, type Snippet } from 'svelte';
   import { MediaQuery, SvelteMap } from 'svelte/reactivity';
   import * as Dialog from '#lib/components/ui/dialog';
   import type { Conversation } from '#lib/skgo/conversation/types';
@@ -10,6 +10,7 @@
   import { page } from '$app/state';
   import WorkspaceShell from '#lib/shell/WorkspaceShell.svelte';
   import type { WorkspaceTab, RecordingDisplay } from '#lib/shell/types';
+  import { watchRuns } from '../runs.remote';
   import { projectConversations } from '../../routes/conversation.remote';
   import { projectFiles, uploadFile } from '../workspace.remote';
   import type { WindowTab, WindowState } from '#lib/skgo/host/types';
@@ -22,9 +23,9 @@
   import ProjectRuns from './ProjectRuns.svelte';
   import type { RunCardItem } from '#lib/run/RunsList.svelte';
   import RunPanel from './RunPanel.svelte';
-  import type { RunRow, RunSnapshot, InterviewRow } from '#lib/observation';
+  import type { RunSnapshot, InterviewRow } from '#lib/observation';
   import { nativeMessage, projectMenu, recordingControl, recordingTime, type NativeStatus } from './native';
-  import { conversationsForWorkspace, conversationNeedsUpdates, completedReply } from './conversations';
+  import { conversationsForWorkspace, conversationNeedsUpdates, completedReply, conversationStatus } from './conversations';
   import { harnessName } from '#lib/conversation/names';
 
   let { project, name, projects, restored = [], sidebarPreference = null, seenReplies = [], onplace, children }: {
@@ -64,22 +65,17 @@
   let status = $state<NativeStatus>();
   const active = $derived(page.status >= 400 ? undefined : open.find(tab => tab.id === page.url.pathname)?.id ?? (page.url.pathname === `${root}/conversations` ? open[0]?.id : undefined));
   const seen = new SvelteMap<string, string>(untrack(() => seenReplies.map(item => [item.path, item.request] as const)));
-  $effect(() => {
-    const item = conversations.find(item => `${root}/conversations/${item.id}` === active);
-    if (item) seen.set(`${root}/conversations/${item.id}`, completedReply(item));
-  });
   const items = $derived<WorkspaceTab[]>([
     ...conversations.map(item => ({ id: `${root}/conversations/${item.id}`, title: item.title,
       kind: 'chat' as const, detail: harnessName(item.provider),
-      status: ['working', 'stopping', 'unresolved'].includes(item.status) || item.runs.some(run => run.status === 'running') ? 'working' as const : item.error ? 'attention' as const : completedReply(item) && completedReply(item) !== seen.get(`${root}/conversations/${item.id}`) ? 'unread' as const : undefined })),
+      status: conversationStatus(item, seen.get(`${root}/conversations/${item.id}`)) })),
     ...files.map(file => ({ id: `${root}/files/${file.id}`, title: file.name, kind: 'file' as const })),
   ]);
-  let runTabs = $state<WorkspaceTab[]>([]);
+  // Both the Runs view and tab labels read the same live inventory.
+  const runQuery = $derived(open.some(tab => tab.kind === 'run') ? watchRuns(project) : undefined);
+  const runData = $derived((runQuery?.current ?? (page.url.pathname === root ? page.data : undefined)) as { items: RunCardItem[]; attention: InterviewRow[]; now: number } | undefined);
+  const runTabs = $derived<WorkspaceTab[]>(runData?.items.map(({ run }) => ({ id: `${root}/runs/${encodeURIComponent(run.id)}`, title: run.name, kind: 'run', status: runData.attention.some(question => question.run === run.id && question.status === 'pending') ? 'attention' : run.status === 'running' ? 'working' : undefined })) ?? []);
   const tabs = $derived(open.map(tab => items.find(item => item.id === tab.id) ?? runTabs.find(item => item.id === tab.id) ?? tab));
-  function runState(run: RunRow, waiting: number) {
-    const id = `${root}/runs/${encodeURIComponent(run.id)}`;
-    runTabs = [...runTabs.filter(tab => tab.id !== id), { id, title: run.name, kind: 'run', status: waiting ? 'attention' : run.status === 'running' ? 'working' : undefined }];
-  }
   const recording = $derived.by((): RecordingDisplay | undefined => {
     if (!status?.sessionID || ['idle', 'stopped'].includes(status.state)) return;
     const state = status.state === 'paused' ? 'paused' : status.state === 'recording' ? 'recording' : status.state === 'error' ? 'error' : 'saving';
@@ -104,8 +100,13 @@
     fileContext = file;
     select(`${root}/conversations/new`);
   }
-  let startLike = $state<{ conversation: string; nonce: number }>();
-  let setupNonce = 0;
+  let composer = $state<NewSession>();
+  async function startLike(item: Conversation) {
+    fileChooser = false; projectChooser = false;
+    await goto(`${root}/conversations/new`, { reset: false });
+    await tick();
+    composer?.applySetup(item);
+  }
   function moveFile(path: string) {
     if (native) { nativeMessage('openFile', { path: `${path}/window` }); close(path); }
     else window.open(`${path}/window`, '_blank', 'noopener');
@@ -136,7 +137,6 @@
     chats.set([conversation, ...conversations.filter(item => item.id !== conversation.id)]);
     started = `${root}/conversations/${conversation.id}`;
     fileContext = undefined;
-    startLike = undefined;
   }
   afterNavigate(() => {
     if (page.url.pathname.endsWith('/discuss') && page.params.fileID) {
@@ -145,12 +145,14 @@
     }
     if (page.url.pathname === `${root}/conversations` && initialConversation?.id) select(`${root}/conversations/${initialConversation.id}`);
     else visit(page.url.pathname);
+    workspaceChanged();
   });
-  function select(path: string) { void goto(path, { reset: false }); }
+  function select(path: string) { fileChooser = false; projectChooser = false; void goto(path, { reset: false }); }
   function close(path: string) {
     const index = open.findIndex(tab => tab.id === path);
     open = open.filter(tab => tab.id !== path);
     if (page.url.pathname === path) select(open[Math.min(index, open.length - 1)]?.id ?? `${root}/recordings`);
+    else rememberPlace();
   }
   function command(event: Event) {
     const { command: value, project: targetProject, conversation, path } = (event as CustomEvent<{ command: string; project?: string; conversation?: string; path?: string }>).detail;
@@ -159,7 +161,10 @@
       if (current?.project && current.sessionID) select(`/projects/${current.project}/recordings/${current.sessionID}`);
     }
     else if (value === 'newSession') select(`${root}/conversations/new`);
-    else if (value === 'newSessionLike' && conversation && conversations.some(item => item.id === conversation)) { startLike = { conversation, nonce: ++setupNonce }; select(`${root}/conversations/new`); }
+    else if (value === 'newSessionLike') {
+      const item = conversations.find(item => item.id === conversation);
+      if (item) void startLike(item).catch(error => { if (!navigateOnUnauthorized(error)) actionError = errorMessage(error); });
+    }
     else if (value === 'selectTab' && path && tabs.some(tab => tab.id === path)) select(path);
     else if (value === 'moveTab' && active && files.some(file => active === `${root}/files/${file.id}`)) moveFile(active);
     else if (value === 'openFileChooser') fileChooser = true;
@@ -169,7 +174,7 @@
     }
     else if (value === 'showRuns') select(root);
     else if (value === 'openTodayTranscript' && todayRecording) select(`${root}/recordings/${todayRecording.id}`);
-    else if (value === 'toggleSidebar') preferredSidebar = !sidebar;
+    else if (value === 'toggleSidebar') setSidebar(!sidebar);
     else if (value === 'closeTab' && active) close(active);
     else if (value === 'nextTab' || value === 'previousTab') {
       const index = tabs.findIndex(tab => tab.id === active);
@@ -177,52 +182,64 @@
       if (next) select(next.id);
     }
   }
-  $effect(() => {
+  function publishMenu() {
     if (!native) return;
     nativeMessage('workspaceState', { project, ready: true, canMove: files.some(file => active === `${root}/files/${file.id}`), canRename: conversations.some(item => active === `${root}/conversations/${item.id}`), tabs: tabs.map(({ id, title }) => ({ id, title })), recentSessions: conversations.slice(0, 6).map(({ id, title }) => ({ id, title })), sidebarVisible: sidebar, tabCount: tabs.length, activeTabTitle: tabs.find(tab => tab.id === active)?.title, canStopResponse: conversations.some(item => `${root}/conversations/${item.id}` === active && !!item.active_request && item.status !== 'stopping'), projectName: name, projects: projects.map(item => ({ id: item.id, name: item.path.split('/').at(-1) ?? item.path, path: item.path })), canOpenTodayTranscript: !!todayRecording });
-  });
-  const place = $derived(JSON.stringify({ project, path: page.url.pathname, tabs: tabs.map(({ id, title, kind }) => ({ id, title, kind })), sidebar: preferredSidebar, seen: [...seen].filter(([path]) => path.startsWith(`${root}/conversations/`)).map(([path, request]) => ({ path, request })) }));
-  $effect(() => {
-    const value = JSON.parse(place);
-    if (native) untrack(() => onplace?.(value));
-  });
-  $effect(() => {
-    if (!conversations.some(conversationNeedsUpdates)) return;
-    const timer = setInterval(() => { void projectConversations(project).refresh().catch(navigateOnUnauthorized); }, 1000);
-    return () => clearInterval(timer);
-  });
-  $effect(() => {
-    for (const query of [chats, documents, recordings, newest]) {
-      if (query.error) void query.catch(navigateOnUnauthorized);
-    }
-  });
+  }
+  // External rendering only: this projects state into AppKit menus and never
+  // writes back into the application's state.
+  $effect(() => { publishMenu(); });
+  function rememberPlace() {
+    if (native) onplace?.({ project, path: page.url.pathname,
+      tabs: tabs.map(({ id, title, kind }) => ({ id, title, kind })),
+      sidebar: preferredSidebar,
+      seen: [...seen].filter(([path]) => path.startsWith(`${root}/conversations/`)).map(([path, request]) => ({ path, request })) });
+  }
+  function workspaceChanged() {
+    const item = conversations.find(item => `${root}/conversations/${item.id}` === active);
+    if (item) seen.set(`${root}/conversations/${item.id}`, completedReply(item));
+    rememberPlace();
+  }
+  function setSidebar(value: boolean) { preferredSidebar = value; rememberPlace(); }
+  let mounted = false;
+  async function refreshChats() {
+    try { await chats.refresh(); if (mounted) workspaceChanged(); }
+    catch (error) { navigateOnUnauthorized(error); }
+  }
   onMount(() => {
+    mounted = true;
     native = !!window.webkit?.messageHandlers?.workspaceState;
     window.addEventListener("gimbal-workspace-command", command);
     window.addEventListener("gimbal-recording-status", changedStatus);
     status = window.voiceNotesLatestStatus;
+    workspaceChanged();
+    void refreshChats();
+    for (const query of [documents, recordings, newest]) void query.catch(navigateOnUnauthorized);
+    const chatTimer = setInterval(() => {
+      if (conversations.some(conversationNeedsUpdates)) void refreshChats();
+    }, 1000);
     const timer = setInterval(() => {
       void recordingHistory({ project, after: '' }).refresh().catch(navigateOnUnauthorized);
       if (after) void recordingHistory({ project, after }).refresh().catch(navigateOnUnauthorized);
     }, 5000);
-    return () => { window.removeEventListener("gimbal-workspace-command", command); window.removeEventListener("gimbal-recording-status", changedStatus); clearInterval(timer); if (native) nativeMessage('workspaceState', { ready: false, sidebarVisible: false, tabCount: 0 }); };
+    return () => { mounted = false; window.removeEventListener("gimbal-workspace-command", command); window.removeEventListener("gimbal-recording-status", changedStatus); clearInterval(timer); clearInterval(chatTimer); if (native) nativeMessage('workspaceState', { ready: false, sidebarVisible: false, tabCount: 0 }); };
   });
 </script>
 
 <svelte:head><title>{tabs.find(tab => tab.id === active)?.title ?? name} · {APP_NAME}</title></svelte:head>
 
-<WorkspaceShell project={name} {items} {tabs} {active} bind:sidebar={() => sidebar, (value) => preferredSidebar = value} {recording} {native}
+<WorkspaceShell project={name} {items} {tabs} {active} bind:sidebar={() => sidebar, setSidebar} {recording} {native}
   onproject={chooseProject} onrecording={openRecording} oncontrol={control}
   onselect={select} onclose={close} onopen={select} onnew={() => select(`${root}/conversations/new`)}>
   {#snippet content(tab)}
     <svelte:boundary onerror={(error) => { navigateOnUnauthorized(error); }}>
-      {#if tab.id === `${root}/conversations/new`}<NewSession {project} {name} {startLike} {fileContext} oncontextremoved={() => fileContext = undefined} active={active === tab.id} oncreated={created} />
+      {#if tab.id === `${root}/conversations/new`}<NewSession bind:this={composer} {project} {name} {fileContext} oncontextremoved={() => fileContext = undefined} active={active === tab.id} oncreated={created} />
       {:else if tab.id.startsWith(`${root}/conversations/`)}
         {@const current = conversations.find(item => `${root}/conversations/${item.id}` === tab.id)}
-        {#if current}<ConversationView {project} {current} active={active === tab.id} />{:else}<p class="notice">Conversation unavailable.</p>{/if}
+        {#if current}<ConversationView {project} {current} onchanged={workspaceChanged} active={active === tab.id} />{:else}<p class="notice">Conversation unavailable.</p>{/if}
       {:else if tab.id.startsWith(`${root}/files/`)}<FileViewer {project} id={tab.id.split('/').at(-1)!} active={active === tab.id} ondiscuss={discuss} onmove={() => moveFile(tab.id)} />
-      {:else if tab.id === root}<ProjectRuns {project} initial={page.url.pathname === root ? page.data as { items: RunCardItem[]; attention: InterviewRow[]; now: number } : undefined} onopen={select} onstate={value => runTabs = value} />
-      {:else if tab.kind === 'run'}<RunPanel {project} initial={page.url.pathname === tab.id ? page.data as { snapshot: RunSnapshot; graph: string } : undefined} id={decodeURIComponent(tab.id.split('/').at(-1)!)} active={active === tab.id} onstate={runState} />
+      {:else if tab.id === root}<ProjectRuns {project} data={runData} error={runQuery?.error} onretry={() => runQuery?.reconnect()} onopen={select} />
+      {:else if tab.kind === 'run'}<RunPanel {project} initial={page.url.pathname === tab.id ? page.data as { snapshot: RunSnapshot; graph: string } : undefined} id={decodeURIComponent(tab.id.split('/').at(-1)!)} active={active === tab.id} />
       {:else if tab.id === `${root}/promises`}<PromiseLedger {project} recordings={history.items} />
       {:else}<RecordingTranscript {project} id={tab.id.split('/').at(-1)!} active={active === tab.id} />{/if}
       {#snippet failed(error, reset)}<p class="notice" role="alert">Could not load this view. <button onclick={reset}>Retry</button></p>{/snippet}
@@ -230,7 +247,7 @@
   {/snippet}
   {#snippet fallback()}
     {#if page.url.pathname === `${root}/conversations`}
-      <NewSession {project} {name} {startLike} {fileContext} oncontextremoved={() => fileContext = undefined} oncreated={created} />
+      <NewSession bind:this={composer} {project} {name} {fileContext} oncontextremoved={() => fileContext = undefined} oncreated={created} />
     {:else if page.url.pathname === `${root}/recordings`}
       <section class="welcome"><p class="eyebrow">Project</p><h1>{name}</h1><p>Open a conversation or file from the sidebar, or start a new conversation.</p><button onclick={() => select(`${root}/conversations/new`)}>New conversation</button><p>Record audio from the macOS Recording menu.</p></section>
     {:else}<div class="route-content">{@render children()}</div>{/if}

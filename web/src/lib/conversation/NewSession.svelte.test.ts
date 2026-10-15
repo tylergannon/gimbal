@@ -102,6 +102,7 @@ const remote = vi.hoisted(() => ({
   submitted: [] as FormData[],
   recent: [] as Conversation[],
   notifyRecent: () => {},
+  defaultsLoaded: undefined as Promise<void> | undefined,
   fail: false,
 }));
 vi.mock("#lib/environments.remote", () => ({
@@ -155,6 +156,8 @@ vi.mock("../../routes/conversation.remote", async () => {
         return remote.recent;
       },
       ready: true,
+      then: (resolve: (value: Conversation[]) => unknown, reject: (error: unknown) => unknown) =>
+        (remote.defaultsLoaded ?? Promise.resolve()).then(() => resolve(remote.recent), reject),
     }),
     createConversation: {
       for: () => ({
@@ -185,6 +188,7 @@ beforeEach(() => {
   remote.submitted = [];
   remote.fail = false;
   remote.recent = [];
+  remote.defaultsLoaded = undefined;
   remote.setup.harness_states = [];
   remote.setup.harnesses = [
     { id: "claude", default: "claude-haiku-4-5", models: ["claude-haiku-4-5"], efforts: [] },
@@ -368,12 +372,7 @@ test("last session and Start like restore environment and checkout setup", async
     shared_checkout: false,
     base: "main",
   } as Conversation);
-  await screen.rerender({
-    project: "project",
-    name: "Project",
-    oncreated: vi.fn(),
-    startLike: { conversation: "earlier", nonce: 1 },
-  });
+  screen.component.applySetup(remote.recent[1]);
   await expect
     .element(screen.getByRole("button", { name: "Environment" }))
     .toHaveTextContent("This Mac · ~/project");
@@ -524,7 +523,7 @@ test("a background reply cannot replace the setup owned by an existing draft", a
     .toHaveTextContent("This Mac · ~/project");
   await expect
     .element(screen.getByRole("button", { name: "Harness and model" }))
-    .toHaveTextContent(/Claude Code/);
+    .toHaveTextContent("C Claude Code · Haiku 4.5");
   await expect
     .element(screen.getByRole("button", { name: "Worktree", exact: true }))
     .toHaveTextContent("Shared checkout");
@@ -560,4 +559,41 @@ test("a saved setup stays recoverable when the selected machine reports no harne
   await expect
     .element(screen.getByRole("button", { name: "Environment", exact: true }))
     .toBeEnabled();
+});
+
+test("late defaults cannot overwrite checkout choices made while history loads", async () => {
+  let release!: () => void;
+  remote.defaultsLoaded = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  remote.recent = [
+    {
+      id: "prior",
+      title: "Prior remote",
+      provider: "claude",
+      model: "claude-haiku-4-5",
+      environment: "build",
+      shared_checkout: true,
+      base: "main",
+    } as Conversation,
+  ];
+  const screen = await render(NewSession, {
+    project: "project",
+    name: "Project",
+    oncreated: vi.fn(),
+  });
+  await screen.getByRole("textbox", { name: "First message" }).fill("My chosen setup");
+  await screen.getByRole("button", { name: "Worktree", exact: true }).click();
+  await screen.getByRole("textbox", { name: "New branch" }).fill("feature/my-choice");
+  await screen.getByRole("combobox", { name: "Base branch" }).selectOptions("release");
+  release();
+  await remote.defaultsLoaded;
+  await screen.getByRole("button", { name: "Worktree", exact: true }).click();
+  await expect
+    .element(screen.getByRole("button", { name: "Environment", exact: true }))
+    .toHaveTextContent("This Mac · ~/project");
+  await screen.getByRole("button", { name: "Start session" }).click();
+  expect(remote.submitted[0].get("branch")).toBe("feature/my-choice");
+  expect(remote.submitted[0].get("base")).toBe("release");
+  expect(remote.submitted[0].get("message")).toBe("My chosen setup");
 });

@@ -5,15 +5,14 @@
   import ArrowUp from '@lucide/svelte/icons/arrow-up';
   import Square from '@lucide/svelte/icons/square';
   import LoaderCircle from '@lucide/svelte/icons/loader-circle';
-  import * as Dialog from '#lib/components/ui/dialog';
-  import { sendConversationMessage, stopConversationRequest, projectConversations, cleanupConversation } from '../../routes/conversation.remote';
+  import { sendConversationMessage, stopConversationRequest, projectConversations } from '../../routes/conversation.remote';
   import type { Conversation } from '#lib/skgo/conversation/types';
   import type { ProjectionState } from '#lib/sessionstate';
   import ConversationTranscript from './ConversationTranscript.svelte';
-  import RenameChat from './RenameChat.svelte';
+  import ChatActions from './ChatActions.svelte';
   import { harnessName, modelName } from './names';
 
-  let { project, current, active = true }: { project: string; current: Conversation; active?: boolean } = $props();
+  let { project, current, active = true, onchanged }: { project: string; current: Conversation; active?: boolean; onchanged?: () => void } = $props();
   const inventory = $derived(projectConversations(project));
   const record = $derived(current);
   const form = $derived(sendConversationMessage.for(`${project}/${current.id}`));
@@ -33,19 +32,6 @@
   let requestID = $state('');
   let created = $state(0);
   let scroller = $state<HTMLDivElement>();
-  let ending = $state(false);
-  let confirmEnd = $state(false);
-  let renaming = $state(false);
-  $effect(() => { if (!active) { renaming = false; confirmEnd = false; } });
-
-  async function endSession() {
-    ending = true; actionError = '';
-    try { await cleanupConversation({ project, conversation: record.id }); await inventory.refresh(); confirmEnd = false; }
-    catch (error) { if (!navigateOnUnauthorized(error)) actionError = errorMessage(error); }
-    finally { ending = false; }
-  }
-
-  $effect(() => { if (inventory.error) void inventory.catch(navigateOnUnauthorized); });
   $effect(() => { record.revision; scroller?.scrollTo({ top: scroller.scrollHeight }); });
 
   async function stop() {
@@ -55,6 +41,7 @@
     try {
       await stopConversationRequest({ conversation: record.id, id: crypto.randomUUID(), created: Date.now(), target: record.active_request });
       await inventory.refresh();
+      onchanged?.();
     } catch (error) {
       if (!navigateOnUnauthorized(error)) actionError = errorMessage(error);
     } finally { stopPending = false; }
@@ -68,10 +55,11 @@
   }
   onMount(() => {
     requestID = crypto.randomUUID(); created = Date.now();
-    const command = (event: Event) => { if (!active) return; const value = (event as CustomEvent).detail.command; if (value === 'stopResponse') void stop(); else if (value === 'renameTab') renaming = true; };
+    const command = (event: Event) => { if (!active) return; const value = (event as CustomEvent).detail.command; if (value === 'stopResponse') void stop(); };
     const shortcut = (event: KeyboardEvent) => {
       if (active && (event.metaKey || event.ctrlKey) && event.key === '.' && canStop) { event.preventDefault(); void stop(); }
     };
+    void inventory.catch(navigateOnUnauthorized);
     window.addEventListener('gimbal-workspace-command', command);
     window.addEventListener('keydown', shortcut);
     return () => { window.removeEventListener('gimbal-workspace-command', command); window.removeEventListener('keydown', shortcut); };
@@ -80,7 +68,7 @@
 
 <section class="chat" aria-label={record.title}>
   <div class="transcript" bind:this={scroller}>
-    <div class="placement"><span title={record.worktree}>{machine} · {record.worktree}{record.branch ? ` · ${record.branch}` : ''}</span>{#if record.placement && record.placement.machine.id !== 'local' && (record.live || record.cleanup_pending)}<button type="button" onclick={() => (confirmEnd = true)}>{record.cleanup_pending ? 'Retry cleanup…' : 'End session…'}</button>{/if}</div>
+    <div class="placement"><span title={record.worktree}>{machine} · {record.worktree}{record.branch ? ` · ${record.branch}` : ''}</span>{#if active}<ChatActions {project} current={record} {onchanged} />{/if}</div>
     {#if record.runs.length}
       <section class="runs" aria-label="Workflow runs"><span class="muted">Workflow runs</span>
         {#each record.runs as run (run.id)}<a href={`/projects/${project}/runs/${encodeURIComponent(run.id)}`}>{run.workflow} · {run.status}</a>{/each}
@@ -109,7 +97,7 @@
     actionError = '';
     submitted.fields.created.set(Date.now());
     try {
-      if (await submitted.submit().updates(projectConversations(project))) { submitted.element.reset(); requestID = crypto.randomUUID(); created = Date.now(); }
+      if (await submitted.submit().updates(projectConversations(project))) { submitted.element.reset(); requestID = crypto.randomUUID(); created = Date.now(); onchanged?.(); }
     } catch (error) { if (!navigateOnUnauthorized(error)) actionError = errorMessage(error); }
   })}>
     <input {...form.fields.conversation.as('hidden', record.id)} />
@@ -126,16 +114,6 @@
     {#if actionError}<p class="notice" role="alert">{actionError}</p>{/if}
   </form>
 </section>
-
-{#if renaming && active}<RenameChat {project} conversation={record} onclose={() => (renaming = false)} />{/if}
-
-{#if confirmEnd && active}
-  <Dialog.Root open onOpenChange={(open) => { if (!open) confirmEnd = false; }}><Dialog.Content>
-    <Dialog.Header><Dialog.Title>End {record.title}?</Dialog.Title><Dialog.Description>This ends only this session on {machine}, including any active request, and releases its owned resources after cleanup is confirmed. Saved history and its checkout remain.</Dialog.Description></Dialog.Header>
-    {#if actionError}<p role="alert">{actionError}</p>{/if}
-    <Dialog.Footer><button type="button" disabled={ending} onclick={() => (confirmEnd = false)}>Keep session</button><button type="button" disabled={ending} onclick={endSession}>{ending ? 'Confirming cleanup…' : 'End session'}</button></Dialog.Footer>
-  </Dialog.Content></Dialog.Root>
-{/if}
 
 <style>
   .chat { height: 100%; display: flex; flex-direction: column; min-width: 0; min-height: 0; }

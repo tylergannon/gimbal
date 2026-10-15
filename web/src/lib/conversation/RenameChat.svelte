@@ -4,8 +4,8 @@
   import { errorMessage } from '#lib/errors';
   import { renameConversation, projectConversations } from '../../routes/conversation.remote';
 
-  let { project, conversation, onclose }: {
-    project: string; conversation: { id: string; title: string }; onclose: () => void;
+  let { project, conversation, onclose, onsaved }: {
+    project: string; conversation: { id: string; title: string }; onclose: () => void; onsaved?: () => void;
   } = $props();
   const form = $derived(renameConversation.for(`${project}/${conversation.id}`));
   let failure = $state('');
@@ -15,7 +15,7 @@
   <Dialog.Header><Dialog.Title>Rename chat</Dialog.Title><Dialog.Description>Choose a name for this chat.</Dialog.Description></Dialog.Header>
   <form {...form.enhance(async (submitted) => {
     failure = '';
-    try { if (await submitted.submit().updates(projectConversations(project))) onclose(); }
+    try { if (await submitted.submit().updates(projectConversations(project))) { onsaved?.(); onclose(); } }
     catch (error) { if (!navigateOnUnauthorized(error)) failure = errorMessage(error); }
   })}>
     <input {...form.fields.project.as('hidden', project)} /><input {...form.fields.conversation.as('hidden', conversation.id)} />

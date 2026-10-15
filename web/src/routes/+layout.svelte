@@ -16,10 +16,14 @@
   let { children, data } = $props();
   let windowState = $state<WindowState>(untrack(() => data.window));
   let saving = Promise.resolve();
+  let saveError = $state('');
   function moved(place: WindowState) {
     const root = `/projects/${place.project}/conversations/`;
     windowState = { ...place, seen: [...(windowState.seen ?? []).filter(item => !item.path.startsWith(root)), ...place.seen] };
-    saving = saving.then(async () => { await rememberWindow(place); }).catch(() => {});
+    saving = saving.then(async () => {
+      try { await rememberWindow(place); saveError = ''; }
+      catch (error) { if (!navigateOnUnauthorized(error)) saveError = 'Workspace preferences could not be saved.'; }
+    });
   }
   const darkAppearance = new MediaQuery("prefers-color-scheme: dark", false);
   $effect(() => {
@@ -90,6 +94,7 @@
   <div class="flex min-w-0 flex-1 flex-col">
     {#if data.user}<Account name={data.user.name} />{/if}
     <main class="min-h-0 flex-1 overflow-auto">
+      {#if saveError}<p role="alert">{saveError} <button onclick={() => moved(windowState)}>Retry</button></p>{/if}
       {#if project && !readerWindow}
         {#key project}<ProjectWorkspace
             {project}

@@ -536,16 +536,13 @@ test("a retained run panel renders a raw route preload without proxying its obse
     snapshot: structuredClone(planTripFixture.snapshot),
     graph: JSON.stringify(planTripFixture.graph),
   };
-  const onstate = vi.fn();
   const screen = await render(RunPanel, {
     project: "retained-project",
     id: data.snapshot.run.id,
     initial: data,
     active: true,
-    onstate,
   });
   await expect.element(screen.getByRole("navigation", { name: "Run views" })).toBeVisible();
-  await expect.poll(() => onstate.mock.calls.length).toBeGreaterThan(0);
   await screen.getByRole("button", { name: "Watchboard", exact: true }).click();
   await screen.rerender({
     project: "retained-project",
@@ -555,14 +552,12 @@ test("a retained run panel renders a raw route preload without proxying its obse
       graph: JSON.stringify(implementInterviewFixture.graph),
     },
     active: false,
-    onstate,
   });
   await screen.rerender({
     project: "retained-project",
     id: data.snapshot.run.id,
     initial: data,
     active: true,
-    onstate,
   });
   await expect
     .element(
@@ -579,13 +574,10 @@ test("an unseeded retained run panel renders the query result", async () => {
     graph: JSON.stringify(planTripFixture.graph),
   };
   auth.viewRun.mockReturnValue({ current: data, error: undefined });
-  const onstate = vi.fn();
   const screen = await render(RunPanel, {
     project: "retained-project",
     id: data.snapshot.run.id,
     active: true,
-    onstate,
   });
   await expect.element(screen.getByRole("navigation", { name: "Run views" })).toBeVisible();
-  await expect.poll(() => onstate.mock.calls.length).toBeGreaterThan(0);
 });

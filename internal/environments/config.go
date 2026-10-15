@@ -237,7 +237,7 @@ func (s *Service) writeLocked(expected, text string) error {
 	if e != nil {
 		return e
 	}
-	defer os.Remove(f.Name())
+	defer func() { _ = os.Remove(f.Name()) }()
 	if e = f.Chmod(0600); e == nil {
 		_, e = f.WriteString(text)
 	}

@@ -58,7 +58,7 @@ func TestMachinesSettingsRemotesWorkWithoutProjectReferer(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer response.Body.Close()
+			defer func() { _ = response.Body.Close() }()
 			if response.StatusCode != 200 || !strings.HasPrefix(response.Header.Get("Content-Type"), "text/event-stream") {
 				raw, _ := io.ReadAll(response.Body)
 				t.Fatalf("Machines stream: status=%d body=%s", response.StatusCode, raw)
@@ -94,7 +94,7 @@ func TestMachinesSettingsRemotesWorkWithoutProjectReferer(t *testing.T) {
 			if !strings.Contains(frame.Result, project.Path()) {
 				t.Fatalf("snapshot omitted admitted project %s", project.ID())
 			}
-			response.Body.Close()
+			_ = response.Body.Close()
 
 			request, err = http.NewRequest(http.MethodGet, origin+"/_app/remote/"+remoteIDs["environmentConfig"], nil)
 			if err != nil {
@@ -107,7 +107,7 @@ func TestMachinesSettingsRemotesWorkWithoutProjectReferer(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer response.Body.Close()
+			defer func() { _ = response.Body.Close() }()
 			raw, err := io.ReadAll(response.Body)
 			if err != nil {
 				t.Fatal(err)
@@ -145,7 +145,7 @@ func TestMachinesSettingsRemotesWorkWithoutProjectReferer(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer response.Body.Close()
+			defer func() { _ = response.Body.Close() }()
 			raw, err = io.ReadAll(response.Body)
 			if err != nil {
 				t.Fatal(err)

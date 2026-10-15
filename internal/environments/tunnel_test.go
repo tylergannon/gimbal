@@ -48,12 +48,12 @@ func runTunnelFixture(args []string) {
 			return
 		}
 		go func() {
-			defer source.Close()
+			defer func() { _ = source.Close() }()
 			target, e := net.Dial("tcp", destination)
 			if e != nil {
 				return
 			}
-			defer target.Close()
+			defer func() { _ = target.Close() }()
 			go func() {
 				_, _ = io.Copy(target, source)
 				if conn, ok := target.(*net.TCPConn); ok {
@@ -150,7 +150,7 @@ func verifyTunnelReplacement(t *testing.T, host string) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	defer reserved.Close()
+	defer func() { _ = reserved.Close() }()
 	// A persisted target may contain the previous derived route, but SSH machine
 	// identity must still determine the connection used for the original request.
 	saved.Route = first.Target.Route

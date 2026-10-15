@@ -15,7 +15,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -24,7 +23,6 @@ type tunnel struct {
 	endpoint string
 	done     chan struct{}
 	stderr   bytes.Buffer
-	mu       sync.Mutex
 }
 
 func (t *tunnel) close() error {
@@ -147,7 +145,7 @@ func (s *Service) bootstrapSSH(ctx context.Context, m Machine, endpoint string) 
 		}
 		select {
 		case <-runCtx.Done():
-			return "", fmt.Errorf("Gimbal did not become ready; run ssh %s and check gimbal is installed: %w", m.SSH.Host, runCtx.Err())
+			return "", fmt.Errorf("remote Gimbal did not become ready; run ssh %s and check gimbal is installed: %w", m.SSH.Host, runCtx.Err())
 		case <-tick.C:
 		}
 	}
@@ -163,7 +161,7 @@ func health(ctx context.Context, endpoint string) error {
 	if e != nil {
 		return e
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, 1024))
 	if response.StatusCode != 200 {
 		return fmt.Errorf("health HTTP %d", response.StatusCode)

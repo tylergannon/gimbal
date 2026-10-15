@@ -71,7 +71,7 @@ func TestProvisionedProbeBecomesIdleWithoutHidingAnotherOwner(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	defer s.Close()
+	defer func() { _ = s.Close() }()
 	route := backend.Route{Name: "provisioned-test", Environment: "configured-placement"}
 	machine := Machine{ID: "worker", Name: "Worker", Kind: KindRoute, Route: &route, Executable: os.Args[0]}
 	target := Target{Machine: machine, Route: route, Directory: repository(t)}

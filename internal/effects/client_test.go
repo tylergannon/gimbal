@@ -64,7 +64,9 @@ func TestWaitPreservesCompletionThatWinsStopRace(t *testing.T) {
 }
 
 func TestWaitUnconfirmedStopKeepsDeliveryUncertain(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { http.Error(w, "unreachable", 503) }))
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "unreachable", http.StatusServiceUnavailable)
+	}))
 	defer server.Close()
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()

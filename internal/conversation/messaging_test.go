@@ -45,7 +45,7 @@ func (b *conversationBus) PublishRequest(ctx context.Context, r backend.MessageR
 	}
 	b.requests[r.ID] = r
 	emit := func(request backend.MessageRequest, result *backend.MessageResult) error {
-		return b.Store.PublishEvent(ctx, backend.MessageEvent{ID: ulid.Make().String(), RequestID: request.ID, Created: time.Now().UTC(), Owner: request.Owner, SessionID: request.SessionID, Kind: "completed", Result: result})
+		return b.PublishEvent(ctx, backend.MessageEvent{ID: ulid.Make().String(), RequestID: request.ID, Created: time.Now().UTC(), Owner: request.Owner, SessionID: request.SessionID, Kind: "completed", Result: result})
 	}
 	switch r.Kind {
 	case "process":
@@ -101,7 +101,7 @@ func TestMessagingConversationQueuesAndStopsByRetainedEnvelopeIdentity(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer service.Close()
+	defer func() { _ = service.Close() }()
 	if err = service.RegisterProject("project", project); err != nil {
 		t.Fatal(err)
 	}
@@ -151,7 +151,7 @@ func TestMessagingConversationQueuesAndStopsByRetainedEnvelopeIdentity(t *testin
 	manager.mu.RLock()
 	envelope := manager.remoteStates[item.ID].Requests[original]
 	manager.mu.RUnlock()
-	if envelope.ID == original || envelope.Turn.Owner.Task != original || envelope.Created.UnixMilli() != item.Requests[0].Created {
+	if envelope.ID == original || envelope.Turn.Task != original || envelope.Created.UnixMilli() != item.Requests[0].Created {
 		t.Fatalf("identity=%+v", envelope)
 	}
 	if err = manager.Cleanup(t.Context(), item.ID); err != nil {

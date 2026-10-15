@@ -150,7 +150,7 @@ func (s *Service) SaveMachine(ctx context.Context, in MachineEdit) (MachineState
 }
 func (s *Service) RemoveMachine(ctx context.Context, in MachineRemoval) error {
 	if in.ID == Local {
-		return fmt.Errorf("This Mac is built in")
+		return fmt.Errorf("the built-in This Mac machine cannot be removed")
 	}
 	if s.options.Sessions != nil {
 		for _, u := range s.options.Sessions() {

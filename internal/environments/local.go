@@ -282,7 +282,9 @@ func validOperationID(id string) bool {
 		return false
 	}
 	for _, c := range id {
-		if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '-' || c == '_') {
+		switch {
+		case c >= 'a' && c <= 'z', c >= 'A' && c <= 'Z', c >= '0' && c <= '9', c == '-', c == '_':
+		default:
 			return false
 		}
 	}
@@ -300,7 +302,7 @@ func writeReceipt(path string, v any) error {
 	if e != nil {
 		return e
 	}
-	defer os.Remove(f.Name())
+	defer func() { _ = os.Remove(f.Name()) }()
 	if _, e = f.Write(b); e == nil {
 		e = f.Sync()
 	}

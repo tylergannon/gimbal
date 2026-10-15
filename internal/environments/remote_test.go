@@ -144,7 +144,7 @@ func TestMessagingHelpersReadRetainedStdoutAndKeepCleanupResponsibility(t *testi
 	if e != nil {
 		t.Fatal(e)
 	}
-	defer s.Close()
+	defer func() { _ = s.Close() }()
 	route := backend.Route{Name: "test-messages"}
 	dir := repository(t)
 	target := Target{Machine: Machine{ID: "queue", Name: "Queue", Kind: KindRoute, Route: &route, Executable: os.Args[0]}, Directory: dir}
@@ -204,7 +204,7 @@ func TestFailedReadinessReleasesOnlyItsRetainedProbeOwnership(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	defer s.Close()
+	defer func() { _ = s.Close() }()
 	route := backend.Route{Name: "failed-ready"}
 	_, e = s.Inspect(ctx, Target{Machine: Machine{ID: "q", Name: "Q", Kind: KindRoute, Route: &route}}, "/")
 	if e == nil || provisioner.released.Load() != 1 {

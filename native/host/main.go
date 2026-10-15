@@ -163,7 +163,7 @@ func bundledServerArguments(directory string) ([]string, error) {
 	plugins := filepath.Join(directory, "plugins")
 	if info, err := os.Stat(plugins); err == nil {
 		if !info.IsDir() {
-			return nil, fmt.Errorf("Gimbal plugin location is not a directory: %s", plugins)
+			return nil, fmt.Errorf("gimbal plugin location is not a directory: %s", plugins)
 		}
 		args = append(args, "--plugin-dir", plugins)
 	} else if !os.IsNotExist(err) {

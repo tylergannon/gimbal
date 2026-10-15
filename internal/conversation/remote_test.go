@@ -64,7 +64,7 @@ func (f *remoteFixture) handler(w http.ResponseWriter, r *http.Request) {
 	case "/tasks/bytes":
 		if f.artifactFailures > 0 {
 			f.artifactFailures--
-			http.Error(w, "temporary stdout outage", 503)
+			http.Error(w, "temporary stdout outage", http.StatusServiceUnavailable)
 			return
 		}
 		var a backend.Artifact
@@ -80,7 +80,7 @@ func (f *remoteFixture) handler(w http.ResponseWriter, r *http.Request) {
 		}
 		f.workdir = s.Workdir
 		if f.sessionReplyLost {
-			http.Error(w, "lost session admission reply", 503)
+			http.Error(w, "lost session admission reply", http.StatusServiceUnavailable)
 			return
 		}
 		encode(backend.Reply{ID: s.Task})
@@ -281,7 +281,7 @@ func TestAlternateLocalEnvironmentUsesLocalHarnessAndSelectedDirectory(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer service.Close()
+	defer func() { _ = service.Close() }()
 	if err = service.RegisterProject("project", project); err != nil {
 		t.Fatal(err)
 	}
@@ -423,7 +423,9 @@ func TestRetainedConversationRebindsExpiredConnectionForStopAndCleanup(t *testin
 	}
 	// A dead SSH tunnel leaves a cached HTTP binding at its former local port.
 	// Keep the durable target intact; only the derived connection has expired.
-	stale := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { http.Error(w, "expired tunnel", 503) }))
+	stale := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "expired tunnel", http.StatusServiceUnavailable)
+	}))
 	stale.Close()
 	m.mu.RLock()
 	target := m.remoteStates[item.ID].Target

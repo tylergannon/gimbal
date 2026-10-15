@@ -27,7 +27,7 @@ func TestSuccessfulHTTPMutationReconcilesLostStdoutWithoutReplay(t *testing.T) {
 					admissions.Add(1)
 				}
 				if r.URL.Path == "/tasks/bytes" && stdoutReads.Add(1) == 1 {
-					http.Error(w, "temporary artifact outage", 503)
+					http.Error(w, "temporary artifact outage", http.StatusServiceUnavailable)
 					return
 				}
 				handler.ServeHTTP(w, r)
@@ -71,7 +71,7 @@ func TestSuccessfulHTTPMutationReconcilesLostStdoutWithoutReplay(t *testing.T) {
 			if e != nil {
 				t.Fatal(e)
 			}
-			defer s.Close()
+			defer func() { _ = s.Close() }()
 			path, e := run()
 			if e != nil {
 				t.Fatalf("same operation could not re-read retained stdout: %v", e)

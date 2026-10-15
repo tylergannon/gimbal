@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.28] - 2026-10-15
+
+### Changed
+
+- feat: retain Runs and run details in workspace tabs (#563)
+
 ## [0.13.27] - 2026-10-14
 
 ### Changed
@@ -344,7 +350,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `opencode/provider/model` routing, one shared server managed by
   `gimbal opencode start|stop`, and raw event/request captures for diagnostics.
 
-[Unreleased]: https://github.com/tylergannon/gimbal/compare/v0.13.27...main
+[Unreleased]: https://github.com/tylergannon/gimbal/compare/v0.13.28...main
+[0.13.28]: https://github.com/tylergannon/gimbal/compare/v0.13.27...v0.13.28
 [0.13.27]: https://github.com/tylergannon/gimbal/compare/v0.13.26...v0.13.27
 [0.13.26]: https://github.com/tylergannon/gimbal/compare/v0.13.25...v0.13.26
 [0.13.25]: https://github.com/tylergannon/gimbal/compare/v0.13.24...v0.13.25
